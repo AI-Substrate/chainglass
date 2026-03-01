@@ -1,0 +1,12 @@
+M	apps/web/app/(dashboard)/workspaces/[slug]/work-units/[unitSlug]/page.tsx
+M	apps/web/src/features/058-workunit-editor/components/agent-editor.tsx
+M	apps/web/src/features/058-workunit-editor/components/code-unit-editor.tsx
+A	apps/web/src/features/058-workunit-editor/components/input-output-card-list.tsx
+A	apps/web/src/features/058-workunit-editor/components/input-output-card.tsx
+M	apps/web/src/features/058-workunit-editor/components/workunit-editor-layout.tsx
+M	apps/web/src/features/058-workunit-editor/components/workunit-editor.tsx
+A	docs/plans/058-workunit-editor/tasks/phase-3-inputs-outputs-configuration/execution.log.md
+M	docs/plans/058-workunit-editor/tasks/phase-3-inputs-outputs-configuration/tasks.fltplan.md
+M	docs/plans/058-workunit-editor/tasks/phase-3-inputs-outputs-configuration/tasks.md
+M	docs/plans/058-workunit-editor/workunit-editor-plan.md
+A	test/unit/web/features/058-workunit-editor/input-output-card-list.test.ts

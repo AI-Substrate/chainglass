@@ -1,0 +1,672 @@
+diff --git a/apps/web/app/(dashboard)/workspaces/[slug]/work-units/[unitSlug]/page.tsx b/apps/web/app/(dashboard)/workspaces/[slug]/work-units/[unitSlug]/page.tsx
+index b6d347a..6e32730 100644
+--- a/apps/web/app/(dashboard)/workspaces/[slug]/work-units/[unitSlug]/page.tsx
++++ b/apps/web/app/(dashboard)/workspaces/[slug]/work-units/[unitSlug]/page.tsx
+@@ -7,10 +7,14 @@ export const dynamic = 'force-dynamic';
+ 
+ interface PageProps {
+   params: Promise<{ slug: string; unitSlug: string }>;
++  searchParams: Promise<Record<string, string | string[] | undefined>>;
+ }
+ 
+-export default async function WorkUnitEditorPage({ params }: PageProps) {
++export default async function WorkUnitEditorPage({ params, searchParams }: PageProps) {
+   const { slug, unitSlug } = await params;
++  const sp = await searchParams;
++  const returnToWorkflow =
++    sp.from === 'workflow' && typeof sp.graph === 'string' ? sp.graph : undefined;
+ 
+   const [unitResult, contentResult, unitsResult] = await Promise.all([
+     loadUnit(slug, unitSlug),
+@@ -53,6 +57,7 @@ export default async function WorkUnitEditorPage({ params }: PageProps) {
+         allUnits={unitsResult.units}
+         inputs={unit.inputs ?? []}
+         outputs={unit.outputs ?? []}
++        returnToWorkflow={returnToWorkflow}
+       />
+     </Suspense>
+   );
+diff --git a/apps/web/app/(dashboard)/workspaces/[slug]/workflows/[graphSlug]/page.tsx b/apps/web/app/(dashboard)/workspaces/[slug]/workflows/[graphSlug]/page.tsx
+index 1194fe5..a258e7a 100644
+--- a/apps/web/app/(dashboard)/workspaces/[slug]/workflows/[graphSlug]/page.tsx
++++ b/apps/web/app/(dashboard)/workspaces/[slug]/workflows/[graphSlug]/page.tsx
+@@ -7,6 +7,7 @@
+  */
+ 
+ import { WorkflowEditor } from '@/features/050-workflow-page/components/workflow-editor';
++import { WorkUnitUpdatedBanner } from '@/features/058-workunit-editor/components/workunit-updated-banner';
+ import { Suspense } from 'react';
+ import { listWorkUnits, loadWorkflow } from '../../../../../actions/workflow-actions';
+ 
+@@ -41,6 +42,7 @@ export default async function WorkflowEditorPage({ params, searchParams }: PageP
+ 
+   return (
+     <Suspense fallback={<div className="p-4">Loading workflow...</div>}>
++      <WorkUnitUpdatedBanner />
+       <WorkflowEditor
+         workspaceSlug={slug}
+         graphSlug={graphSlug}
+diff --git a/apps/web/src/features/027-central-notify-events/start-central-notifications.ts b/apps/web/src/features/027-central-notify-events/start-central-notifications.ts
+index 92783b8..4dbc186 100644
+--- a/apps/web/src/features/027-central-notify-events/start-central-notifications.ts
++++ b/apps/web/src/features/027-central-notify-events/start-central-notifications.ts
+@@ -14,9 +14,14 @@
+ import { WORKSPACE_DI_TOKENS } from '@chainglass/shared/di-tokens';
+ import type { ICentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events/central-event-notifier.interface';
+ import type { ICentralWatcherService } from '@chainglass/workflow';
+-import { FileChangeWatcherAdapter, WorkflowWatcherAdapter } from '@chainglass/workflow';
++import {
++  FileChangeWatcherAdapter,
++  WorkUnitCatalogWatcherAdapter,
++  WorkflowWatcherAdapter,
++} from '@chainglass/workflow';
+ import { getContainer } from '../../lib/bootstrap-singleton';
+ import { FileChangeDomainEventAdapter } from './file-change-domain-event-adapter';
++import { UnitCatalogDomainEventAdapter } from './unit-catalog-domain-event-adapter';
+ import { WorkflowDomainEventAdapter } from './workflow-domain-event-adapter';
+ 
+ declare global {
+@@ -52,6 +57,7 @@ export async function startCentralNotificationSystem(): Promise<void> {
+     // 2. Create domain event adapters
+     const fileChangeDomainAdapter = new FileChangeDomainEventAdapter(notifier);
+     const workflowDomainAdapter = new WorkflowDomainEventAdapter(notifier);
++    const unitCatalogDomainAdapter = new UnitCatalogDomainEventAdapter(notifier);
+ 
+     // 3. Create and register watcher adapters
+     const fileChangeWatcherAdapter = new FileChangeWatcherAdapter(300);
+@@ -60,12 +66,16 @@ export async function startCentralNotificationSystem(): Promise<void> {
+     const workflowWatcherAdapter = new WorkflowWatcherAdapter();
+     watcher.registerAdapter(workflowWatcherAdapter);
+ 
++    const unitCatalogWatcherAdapter = new WorkUnitCatalogWatcherAdapter();
++    watcher.registerAdapter(unitCatalogWatcherAdapter);
++
+     // 4. Subscribe domain adapters to watcher adapter events
+     fileChangeWatcherAdapter.onFilesChanged((changes) =>
+       fileChangeDomainAdapter.handleEvent({ changes })
+     );
+     workflowWatcherAdapter.onStructureChanged((event) => workflowDomainAdapter.handleEvent(event));
+     workflowWatcherAdapter.onStatusChanged((event) => workflowDomainAdapter.handleEvent(event));
++    unitCatalogWatcherAdapter.onUnitChanged((event) => unitCatalogDomainAdapter.handleEvent(event));
+ 
+     // 5. Start watching
+     await watcher.start();
+diff --git a/apps/web/src/features/027-central-notify-events/unit-catalog-domain-event-adapter.ts b/apps/web/src/features/027-central-notify-events/unit-catalog-domain-event-adapter.ts
+new file mode 100644
+index 0000000..8c0cefb
+--- /dev/null
++++ b/apps/web/src/features/027-central-notify-events/unit-catalog-domain-event-adapter.ts
+@@ -0,0 +1,23 @@
++/**
++ * Plan 058 Phase 4: Unit Catalog Domain Event Adapter
++ *
++ * Transforms WorkUnitCatalogWatcherAdapter events into domain events
++ * emitted via CentralEventNotifier → SSE → client.
++ *
++ * Per ADR-0007: Only identifiers emitted — client fetches full state via REST.
++ */
++
++import type { ICentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events/central-event-notifier.interface';
++import { DomainEventAdapter } from '@chainglass/shared/features/027-central-notify-events/domain-event-adapter';
++import { WorkspaceDomain } from '@chainglass/shared/features/027-central-notify-events/workspace-domain';
++import type { UnitCatalogChangedEvent } from '@chainglass/workflow';
++
++export class UnitCatalogDomainEventAdapter extends DomainEventAdapter<UnitCatalogChangedEvent> {
++  constructor(notifier: ICentralEventNotifier) {
++    super(notifier, WorkspaceDomain.UnitCatalog, 'unit-changed');
++  }
++
++  extractData(event: UnitCatalogChangedEvent): Record<string, unknown> {
++    return { unitSlug: event.unitSlug };
++  }
++}
+diff --git a/apps/web/src/features/050-workflow-page/components/node-properties-panel.tsx b/apps/web/src/features/050-workflow-page/components/node-properties-panel.tsx
+index f1528fc..800d836 100644
+--- a/apps/web/src/features/050-workflow-page/components/node-properties-panel.tsx
++++ b/apps/web/src/features/050-workflow-page/components/node-properties-panel.tsx
+@@ -88,6 +88,7 @@ export interface NodePropertiesPanelProps {
+   onBack: () => void;
+   onEditProperties?: () => void;
+   onProvideInput?: () => void;
++  onEditTemplate?: () => void;
+ }
+ 
+ export function NodePropertiesPanel({
+@@ -97,6 +98,7 @@ export function NodePropertiesPanel({
+   onBack,
+   onEditProperties,
+   onProvideInput,
++  onEditTemplate,
+ }: NodePropertiesPanelProps) {
+   const upstream = related.filter((r) => r.relation === 'upstream');
+   const downstream = related.filter((r) => r.relation === 'downstream');
+@@ -257,6 +259,16 @@ export function NodePropertiesPanel({
+             Provide Input...
+           </button>
+         )}
++        {node.unitSlug && onEditTemplate && (
++          <button
++            type="button"
++            onClick={onEditTemplate}
++            className="w-full px-3 py-2 text-xs font-medium rounded-lg border border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900 cursor-pointer transition-colors"
++            data-testid="edit-template-button"
++          >
++            Edit Template...
++          </button>
++        )}
+         <button
+           type="button"
+           disabled={!onEditProperties}
+diff --git a/apps/web/src/features/050-workflow-page/components/workflow-editor.tsx b/apps/web/src/features/050-workflow-page/components/workflow-editor.tsx
+index 48f100d..0e57fe7 100644
+--- a/apps/web/src/features/050-workflow-page/components/workflow-editor.tsx
++++ b/apps/web/src/features/050-workflow-page/components/workflow-editor.tsx
+@@ -354,6 +354,13 @@ export function WorkflowEditor({
+                 related={relatedNodes?.related ?? []}
+                 onBack={() => setSelectedNodeId(null)}
+                 onEditProperties={() => setEditModalNodeId(selectedNodeId)}
++                onEditTemplate={
++                  selectedNode.unitSlug
++                    ? () => {
++                        window.location.href = `/workspaces/${workspaceSlug}/work-units/${selectedNode.unitSlug}?from=workflow&graph=${graphSlug}`;
++                      }
++                    : undefined
++                }
+                 onProvideInput={
+                   selectedNode.unitType === 'user-input' && selectedNodeId
+                     ? () => openHumanInputModal(selectedNodeId)
+diff --git a/apps/web/src/features/058-workunit-editor/components/workunit-editor.tsx b/apps/web/src/features/058-workunit-editor/components/workunit-editor.tsx
+index be325ac..049fa31 100644
+--- a/apps/web/src/features/058-workunit-editor/components/workunit-editor.tsx
++++ b/apps/web/src/features/058-workunit-editor/components/workunit-editor.tsx
+@@ -34,6 +34,8 @@ interface WorkUnitEditorProps {
+   allUnits: WorkUnitSummary[];
+   inputs: WorkUnitInput[];
+   outputs: WorkUnitOutput[];
++  /** Graph slug to return to when navigated from workflow (AC-23). */
++  returnToWorkflow?: string;
+ }
+ 
+ function safeParseUserInputConfig(content: string) {
+@@ -74,6 +76,7 @@ export function WorkUnitEditor({
+   allUnits,
+   inputs: initialInputs,
+   outputs: initialOutputs,
++  returnToWorkflow,
+ }: WorkUnitEditorProps) {
+   const [inputItems, setInputItems] = useState<InputOutputItem[]>(() =>
+     hydrateClientIds(initialInputs)
+@@ -212,6 +215,18 @@ export function WorkUnitEditor({
+       }
+       main={
+         <div className="flex flex-col">
++          {/* Return navigation breadcrumb (AC-23) */}
++          {returnToWorkflow && (
++            <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-muted/30">
++              <a
++                href={`/workspaces/${workspaceSlug}/workflows/${returnToWorkflow}`}
++                className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
++              >
++                ← Back to Workflow
++              </a>
++            </div>
++          )}
++
+           {/* Type-specific content editor */}
+           {mainEditor}
+ 
+diff --git a/apps/web/src/features/058-workunit-editor/components/workunit-updated-banner.tsx b/apps/web/src/features/058-workunit-editor/components/workunit-updated-banner.tsx
+new file mode 100644
+index 0000000..8d0cc7d
+--- /dev/null
++++ b/apps/web/src/features/058-workunit-editor/components/workunit-updated-banner.tsx
+@@ -0,0 +1,58 @@
++'use client';
++
++/**
++ * Banner component that shows when work unit templates have changed on disk.
++ *
++ * Placed at page layout level (not inside WorkflowEditor) to avoid
++ * coupling with workflow's own toast-based external change handling.
++ *
++ * Per DYK #2: Neutral wording covers both external edits and user's own edits.
++ * Per DYK #4: Page layout level placement.
++ *
++ * Plan 058, Phase 4, T004.
++ */
++
++import { RefreshCw, X } from 'lucide-react';
++import { useRouter } from 'next/navigation';
++
++import { useWorkunitCatalogChanges } from '../hooks/use-workunit-catalog-changes';
++
++/**
++ * Dismissible banner for work unit catalog changes.
++ * Shows "Refresh" button that calls router.refresh() to reload page data.
++ */
++export function WorkUnitUpdatedBanner() {
++  const { changed, dismiss } = useWorkunitCatalogChanges();
++  const router = useRouter();
++
++  if (!changed) return null;
++
++  return (
++    <div className="flex items-center justify-between gap-3 px-4 py-2 text-sm bg-blue-50 dark:bg-blue-950 border-b border-blue-200 dark:border-blue-800">
++      <span className="text-blue-800 dark:text-blue-200">
++        Work unit templates have changed. Refresh to load latest.
++      </span>
++      <div className="flex items-center gap-2 shrink-0">
++        <button
++          type="button"
++          onClick={() => {
++            router.refresh();
++            dismiss();
++          }}
++          className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
++        >
++          <RefreshCw className="h-3 w-3" aria-hidden="true" />
++          Refresh
++        </button>
++        <button
++          type="button"
++          onClick={dismiss}
++          className="p-1 text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
++          aria-label="Dismiss"
++        >
++          <X className="h-3.5 w-3.5" aria-hidden="true" />
++        </button>
++      </div>
++    </div>
++  );
++}
+diff --git a/apps/web/src/features/058-workunit-editor/hooks/use-workunit-catalog-changes.ts b/apps/web/src/features/058-workunit-editor/hooks/use-workunit-catalog-changes.ts
+new file mode 100644
+index 0000000..e93afe8
+--- /dev/null
++++ b/apps/web/src/features/058-workunit-editor/hooks/use-workunit-catalog-changes.ts
+@@ -0,0 +1,59 @@
++'use client';
++
++/**
++ * Hook for tracking work unit catalog changes via SSE events.
++ *
++ * Subscribes to `/api/events/unit-catalog` SSE channel.
++ * Returns whether changes have occurred since last dismiss, with dismiss function.
++ *
++ * Plan 058, Phase 4, T003.
++ */
++
++import { useCallback, useEffect, useRef, useState } from 'react';
++
++interface UseWorkunitCatalogChangesResult {
++  /** Whether unit catalog has changed since last dismiss. */
++  changed: boolean;
++  /** Dismiss the current change notification (hides until next change). */
++  dismiss: () => void;
++  /** Timestamp of the last change event (0 if none). */
++  lastChanged: number;
++}
++
++/**
++ * Track work unit catalog file changes via SSE.
++ *
++ * Returns `changed: true` when an SSE event arrives on the unit-catalog channel.
++ * Calling `dismiss()` hides until the next change.
++ */
++export function useWorkunitCatalogChanges(): UseWorkunitCatalogChangesResult {
++  const [lastChanged, setLastChanged] = useState(0);
++  const [dismissedAt, setDismissedAt] = useState(0);
++  const eventSourceRef = useRef<EventSource | null>(null);
++
++  useEffect(() => {
++    const es = new EventSource('/api/events/unit-catalog');
++    eventSourceRef.current = es;
++
++    es.onmessage = () => {
++      setLastChanged(Date.now());
++    };
++
++    es.onerror = () => {
++      // SSE reconnects automatically; no action needed
++    };
++
++    return () => {
++      es.close();
++      eventSourceRef.current = null;
++    };
++  }, []);
++
++  const changed = lastChanged > 0 && lastChanged > dismissedAt;
++
++  const dismiss = useCallback(() => {
++    setDismissedAt(Date.now());
++  }, []);
++
++  return { changed, dismiss, lastChanged };
++}
+diff --git a/docs/plans/058-workunit-editor/tasks/phase-4-change-notifications-workflow-integration/execution.log.md b/docs/plans/058-workunit-editor/tasks/phase-4-change-notifications-workflow-integration/execution.log.md
+new file mode 100644
+index 0000000..3426c24
+--- /dev/null
++++ b/docs/plans/058-workunit-editor/tasks/phase-4-change-notifications-workflow-integration/execution.log.md
+@@ -0,0 +1,53 @@
++# Execution Log: Phase 4 — Change Notifications & Workflow Integration
++
++**Started**: 2026-03-01
++**Completed**: 2026-03-01
++**Phase**: Phase 4: Change Notifications & Workflow Integration
++**Plan**: [workunit-editor-plan.md](../../workunit-editor-plan.md)
++
++---
++
++## Task Log
++
++### T001: Verify CentralWatcherService paths
++- **No-op**: Source watcher already watches entire worktree root (line 293: `watcher.add(wt.path)`), which includes `.chainglass/units/`. No code changes needed (DYK #1 confirmed).
++
++### T002: WorkUnitCatalogWatcherAdapter
++- Created `workunit-catalog-watcher.adapter.ts` in `023-central-watcher-notifications/` (DYK #5)
++- Follows WorkflowWatcherAdapter pattern: self-filter by regex, 200ms debounce, subscriber dispatch with error isolation
++- Regex: `/units\/([^/]+)\/(unit\.yaml|templates\/.+)$/`
++- Exported from feature barrel + workflow package index
++
++### T003: State event + hook (SSE-based)
++- Created `use-workunit-catalog-changes.ts` — subscribes to `/api/events/unit-catalog` SSE channel
++- Returns `{ changed, dismiss, lastChanged }` — changed becomes true on SSE event, dismiss hides until next
++- Discovery: GlobalStateSystem requires domain registration + React context — SSE is the established pattern for server→client events. Switched from state system to SSE approach.
++
++### T004: WorkUnitUpdatedBanner
++- Created `workunit-updated-banner.tsx` — dismissible banner with Refresh button
++- Neutral wording: "Work unit templates have changed. Refresh to load latest." (DYK #2)
++- Placed at page layout level in workflow editor page, above `<WorkflowEditor>` (DYK #4)
++- Refresh calls `router.refresh()` + `dismiss()`
++
++### T005: Edit Template button
++- Added `onEditTemplate` prop to `NodePropertiesPanelProps`
++- Button shown when `node.unitSlug` exists (DYK #3 — confirmed unitSlug is on NodeStatusResultBase)
++- Navigates to `/workspaces/[slug]/work-units/[unitSlug]?from=workflow&graph=[graphSlug]`
++- Styled with blue variant to differentiate from existing violet/gray buttons
++
++### T006: Return navigation from editor
++- Editor page reads `searchParams.from` and `searchParams.graph` (async Next.js 16 pattern)
++- Passes `returnToWorkflow` prop to WorkUnitEditor
++- Renders "← Back to Workflow" link above content editor when `from=workflow`
++
++### T007: Register adapter in DI
++- Added `UnitCatalog` to `WorkspaceDomain` enum in shared package
++- Created `UnitCatalogDomainEventAdapter` following WorkflowDomainEventAdapter pattern
++- Registered in `start-central-notifications.ts`: create adapter, register with watcher, subscribe events
++
++## Evidence
++
++- **Tests**: 335 files, 4744 tests passed (no new tests — infrastructure wiring)
++- **`just fft`**: passes clean
++- **TypeScript**: `tsc --noEmit` passes clean
++- **Packages built**: shared + workflow rebuilt successfully
+diff --git a/docs/plans/058-workunit-editor/tasks/phase-4-change-notifications-workflow-integration/tasks.fltplan.md b/docs/plans/058-workunit-editor/tasks/phase-4-change-notifications-workflow-integration/tasks.fltplan.md
+index bab9344..43a56f9 100644
+--- a/docs/plans/058-workunit-editor/tasks/phase-4-change-notifications-workflow-integration/tasks.fltplan.md
++++ b/docs/plans/058-workunit-editor/tasks/phase-4-change-notifications-workflow-integration/tasks.fltplan.md
+@@ -3,7 +3,7 @@
+ **Plan**: [workunit-editor-plan.md](../../workunit-editor-plan.md)
+ **Phase**: Phase 4: Change Notifications & Workflow Integration
+ **Generated**: 2026-03-01
+-**Status**: Ready for takeoff
++**Status**: Landed
+ 
+ ---
+ 
+@@ -55,7 +55,7 @@ stateDiagram-v2
+     S2 --> S3
+     S3 --> [*]
+ 
+-    class S1,S2,S3 pending
++    class S1,S2,S3 done
+ ```
+ 
+ **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
+@@ -65,8 +65,8 @@ stateDiagram-v2
+ ## Stages
+ 
+ - [ ] **Stage 1: Watcher infrastructure** — Verify/extend CentralWatcherService paths, create WorkUnitCatalogWatcherAdapter, register in DI (`central-watcher.service.ts`, `workunit-catalog-watcher.adapter.ts`, `start-central-notifications.ts`)
+-- [ ] **Stage 2: State events + banner** — Publish state event, create hook, build dismissible banner on workflow page (`use-workunit-catalog-changes.ts`, `workunit-updated-banner.tsx`)
+-- [ ] **Stage 3: Edit Template + return nav** — Add button on NodePropertiesPanel, add return breadcrumb on editor page (`node-properties-panel.tsx`, `workunit-editor.tsx`, `page.tsx`)
++- [x] **Stage 2: State events + banner** — Publish state event, create hook, build dismissible banner on workflow page (`use-workunit-catalog-changes.ts`, `workunit-updated-banner.tsx`)
++- [x] **Stage 3: Edit Template + return nav** — Add button on NodePropertiesPanel, add return breadcrumb on editor page (`node-properties-panel.tsx`, `workunit-editor.tsx`, `page.tsx`)
+ 
+ ---
+ 
+@@ -110,11 +110,11 @@ flowchart LR
+ 
+ ## Acceptance Criteria
+ 
+-- [ ] AC-22: "Edit Template" on workflow node properties panel
+-- [ ] AC-23: Return context preserved (back to workflow)
+-- [ ] AC-24: Banner appears on unit file change
+-- [ ] AC-25: Banner dismissible, re-appears on next change
+-- [ ] AC-26: Refresh picks up all unit changes
++- [x] AC-22: "Edit Template" on workflow node properties panel
++- [x] AC-23: Return context preserved (back to workflow)
++- [x] AC-24: Banner appears on unit file change
++- [x] AC-25: Banner dismissible, re-appears on next change
++- [x] AC-26: Refresh picks up all unit changes
+ 
+ ## Goals & Non-Goals
+ 
+@@ -126,10 +126,10 @@ flowchart LR
+ 
+ ## Checklist
+ 
+-- [ ] T001: Verify/extend CentralWatcherService paths
+-- [ ] T002: Create WorkUnitCatalogWatcherAdapter
+-- [ ] T003: Publish state event + create hook
+-- [ ] T004: Build WorkUnitUpdatedBanner
+-- [ ] T005: Add "Edit Template" button on NodePropertiesPanel
+-- [ ] T006: Return navigation from editor
+-- [ ] T007: Register adapter in DI + start-central-notifications
++- [x] T001: Verify/extend CentralWatcherService paths
++- [x] T002: Create WorkUnitCatalogWatcherAdapter
++- [x] T003: Publish state event + create hook
++- [x] T004: Build WorkUnitUpdatedBanner
++- [x] T005: Add "Edit Template" button on NodePropertiesPanel
++- [x] T006: Return navigation from editor
++- [x] T007: Register adapter in DI + start-central-notifications
+diff --git a/docs/plans/058-workunit-editor/tasks/phase-4-change-notifications-workflow-integration/tasks.md b/docs/plans/058-workunit-editor/tasks/phase-4-change-notifications-workflow-integration/tasks.md
+index 0a1c156..f1fc040 100644
+--- a/docs/plans/058-workunit-editor/tasks/phase-4-change-notifications-workflow-integration/tasks.md
++++ b/docs/plans/058-workunit-editor/tasks/phase-4-change-notifications-workflow-integration/tasks.md
+@@ -93,13 +93,13 @@ flowchart TD
+     classDef completed fill:#4CAF50,stroke:#388E3C,color:#fff
+ 
+     subgraph Phase4["Phase 4: Change Notifications & Workflow Integration"]
+-        T001["T001: Extend watcher paths"]:::pending
+-        T002["T002: WorkUnitCatalogWatcherAdapter"]:::pending
+-        T003["T003: State event + hook"]:::pending
+-        T004["T004: WorkUnitUpdatedBanner"]:::pending
+-        T005["T005: Edit Template button"]:::pending
+-        T006["T006: Return navigation"]:::pending
+-        T007["T007: Register in DI"]:::pending
++        T001["T001: Extend watcher paths"]:::completed
++        T002["T002: WorkUnitCatalogWatcherAdapter"]:::completed
++        T003["T003: State event + hook"]:::completed
++        T004["T004: WorkUnitUpdatedBanner"]:::completed
++        T005["T005: Edit Template button"]:::completed
++        T006["T006: Return navigation"]:::completed
++        T007["T007: Register in DI"]:::completed
+ 
+         T001 --> T002
+         T002 --> T003
+@@ -128,13 +128,13 @@ flowchart TD
+ 
+ | Status | ID | Task | Domain | Path(s) | Done When | Notes |
+ |--------|-----|------|--------|---------|-----------|-------|
+-| [ ] | T001 | **Verify/extend CentralWatcherService paths** — Confirm `.chainglass/units/` is watched. The source watcher watches the entire worktree root, so events for units/ may already flow — verify first and skip extension if covered. If not, add it to the watched directories alongside `.chainglass/data/`. Guard against duplicate events if adding a new path. | `_platform/events` | `/Users/jordanknight/substrate/058-workunit-editor/packages/workflow/src/features/023-central-watcher-notifications/central-watcher.service.ts` | Units dir changes trigger watcher events. | Per plan finding 02. **DYK #1**: Source watcher may already cover units/ — check before extending; avoid duplicate events. |
+-| [ ] | T002 | **Create WorkUnitCatalogWatcherAdapter** — Filter events matching `units/*/unit.yaml` and `units/*/templates/*`. 200ms debounce. Emit typed events: `onUnitChanged(callback)` returning unsubscribe. Follow `WorkflowWatcherAdapter` pattern: self-filter by regex, subscriber dispatch loop, error isolation. | `_platform/events` | `/Users/jordanknight/substrate/058-workunit-editor/packages/workflow/src/features/023-central-watcher-notifications/workunit-catalog-watcher.adapter.ts` | Adapter fires on unit file create/modify/delete. Events debounced at 200ms. | Follow `WorkflowWatcherAdapter` pattern exactly. Regex: `/units\/[^/]+\/(unit\.yaml|templates\/.+)$/`. **DYK #5**: Place alongside existing adapters in `023-central-watcher-notifications/`, not a new feature folder. |
+-| [ ] | T003 | **Publish state event + create hook** — On adapter `onUnitChanged`, publish to state system at path `unit-catalog:changed` with timestamp value. Create `useWorkunitCatalogChanges()` hook wrapping `useGlobalState('unit-catalog', 'changed')` that returns `{ changed: boolean, dismiss: () => void, lastChanged: number }`. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/058-workunit-editor/hooks/use-workunit-catalog-changes.ts` | `useGlobalState('unit-catalog', 'changed')` receives events. Hook exposes changed/dismiss/lastChanged. | Per W001 simplified sync model. |
+-| [ ] | T004 | **Build WorkUnitUpdatedBanner** — Dismissible banner at top of workflow page. Shows "Work unit templates have changed. Refresh to load latest." with "Refresh" button calling `router.refresh()`. Uses `useWorkunitCatalogChanges()` hook. Dismissible (hides until next change event). Styled consistently with existing toast/banner patterns. Neutral tone covers both external edits and user's own edits returning from editor. **Place at page layout level** (workflow page Server Component or direct child), not inside WorkflowEditor — avoids coupling with workflow's own toast-based external change handling. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/058-workunit-editor/components/workunit-updated-banner.tsx` | Banner appears on unit change. Dismiss hides it. Re-appears on next change. Refresh reloads page data. | Per AC-24/25/26. **DYK #2**: User's own edits also trigger banner on return — neutral wording avoids confusion. **DYK #4**: Place at page layout level to avoid conflicting with WorkflowEditor's own toast system. |
+-| [ ] | T005 | **Add "Edit Template" button on NodePropertiesPanel** — Add button in the actions section (alongside "Provide Input" / "Edit Properties"). Navigates to `/workspaces/[slug]/work-units/[unitSlug]?from=workflow&graph=[graphSlug]`. Only shown for nodes that have a `unit_slug`. Use `workspaceHref` for URL construction. **Start by reading NodePropertiesPanel's prop types and tracing how node data flows from selection → panel to confirm `unit_slug` is accessible.** If not in props, add plumbing. | `workflow-ui` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/050-workflow-page/components/node-properties-panel.tsx` | Button visible on unit-backed nodes. Navigates to editor with return context query params. | Per AC-22. **DYK #3**: Verify `unit_slug` is in panel props — may be under `node.config` or require service call. Trace data flow first. |
+-| [ ] | T006 | **Return navigation from editor** — Read `from` and `graph` searchParams in editor page. When `from=workflow`, show a "Back to Workflow" link/breadcrumb above the editor. Navigates to `/workspaces/[slug]/workflows/[graphSlug]`. Pass searchParams through Server Component to Client Component props. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/app/(dashboard)/workspaces/[slug]/work-units/[unitSlug]/page.tsx`, `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/058-workunit-editor/components/workunit-editor.tsx` | "Back to Workflow" link appears when `from=workflow` query param present. Link navigates to correct workflow. | Per AC-23. Async searchParams pattern (Next.js 16). |
+-| [ ] | T007 | **Register adapter in DI + start-central-notifications** — Create and register `WorkUnitCatalogWatcherAdapter` in `start-central-notifications.ts`. Subscribe adapter events to state system publish. Ensure idempotent (globalThis guard). | cross-domain | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/027-central-notify-events/start-central-notifications.ts`, `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/lib/di-container.ts` | Watcher active when dev server runs. Unit file changes trigger banner on workflow page. | Follow existing WorkflowWatcherAdapter registration pattern. |
++| [x] | T001 | **Verify/extend CentralWatcherService paths** — Confirm `.chainglass/units/` is watched. The source watcher watches the entire worktree root, so events for units/ may already flow — verify first and skip extension if covered. If not, add it to the watched directories alongside `.chainglass/data/`. Guard against duplicate events if adding a new path. | `_platform/events` | `/Users/jordanknight/substrate/058-workunit-editor/packages/workflow/src/features/023-central-watcher-notifications/central-watcher.service.ts` | Units dir changes trigger watcher events. | Per plan finding 02. **DYK #1**: Source watcher may already cover units/ — check before extending; avoid duplicate events. |
++| [x] | T002 | **Create WorkUnitCatalogWatcherAdapter** — Filter events matching `units/*/unit.yaml` and `units/*/templates/*`. 200ms debounce. Emit typed events: `onUnitChanged(callback)` returning unsubscribe. Follow `WorkflowWatcherAdapter` pattern: self-filter by regex, subscriber dispatch loop, error isolation. | `_platform/events` | `/Users/jordanknight/substrate/058-workunit-editor/packages/workflow/src/features/023-central-watcher-notifications/workunit-catalog-watcher.adapter.ts` | Adapter fires on unit file create/modify/delete. Events debounced at 200ms. | Follow `WorkflowWatcherAdapter` pattern exactly. Regex: `/units\/[^/]+\/(unit\.yaml|templates\/.+)$/`. **DYK #5**: Place alongside existing adapters in `023-central-watcher-notifications/`, not a new feature folder. |
++| [x] | T003 | **Publish state event + create hook** — On adapter `onUnitChanged`, publish to state system at path `unit-catalog:changed` with timestamp value. Create `useWorkunitCatalogChanges()` hook wrapping `useGlobalState('unit-catalog', 'changed')` that returns `{ changed: boolean, dismiss: () => void, lastChanged: number }`. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/058-workunit-editor/hooks/use-workunit-catalog-changes.ts` | `useGlobalState('unit-catalog', 'changed')` receives events. Hook exposes changed/dismiss/lastChanged. | Per W001 simplified sync model. |
++| [x] | T004 | **Build WorkUnitUpdatedBanner** — Dismissible banner at top of workflow page. Shows "Work unit templates have changed. Refresh to load latest." with "Refresh" button calling `router.refresh()`. Uses `useWorkunitCatalogChanges()` hook. Dismissible (hides until next change event). Styled consistently with existing toast/banner patterns. Neutral tone covers both external edits and user's own edits returning from editor. **Place at page layout level** (workflow page Server Component or direct child), not inside WorkflowEditor — avoids coupling with workflow's own toast-based external change handling. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/058-workunit-editor/components/workunit-updated-banner.tsx` | Banner appears on unit change. Dismiss hides it. Re-appears on next change. Refresh reloads page data. | Per AC-24/25/26. **DYK #2**: User's own edits also trigger banner on return — neutral wording avoids confusion. **DYK #4**: Place at page layout level to avoid conflicting with WorkflowEditor's own toast system. |
++| [x] | T005 | **Add "Edit Template" button on NodePropertiesPanel** — Add button in the actions section (alongside "Provide Input" / "Edit Properties"). Navigates to `/workspaces/[slug]/work-units/[unitSlug]?from=workflow&graph=[graphSlug]`. Only shown for nodes that have a `unit_slug`. Use `workspaceHref` for URL construction. **Start by reading NodePropertiesPanel's prop types and tracing how node data flows from selection → panel to confirm `unit_slug` is accessible.** If not in props, add plumbing. | `workflow-ui` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/050-workflow-page/components/node-properties-panel.tsx` | Button visible on unit-backed nodes. Navigates to editor with return context query params. | Per AC-22. **DYK #3**: Verify `unit_slug` is in panel props — may be under `node.config` or require service call. Trace data flow first. |
++| [x] | T006 | **Return navigation from editor** — Read `from` and `graph` searchParams in editor page. When `from=workflow`, show a "Back to Workflow" link/breadcrumb above the editor. Navigates to `/workspaces/[slug]/workflows/[graphSlug]`. Pass searchParams through Server Component to Client Component props. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/app/(dashboard)/workspaces/[slug]/work-units/[unitSlug]/page.tsx`, `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/058-workunit-editor/components/workunit-editor.tsx` | "Back to Workflow" link appears when `from=workflow` query param present. Link navigates to correct workflow. | Per AC-23. Async searchParams pattern (Next.js 16). |
++| [x] | T007 | **Register adapter in DI + start-central-notifications** — Create and register `WorkUnitCatalogWatcherAdapter` in `start-central-notifications.ts`. Subscribe adapter events to state system publish. Ensure idempotent (globalThis guard). | cross-domain | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/027-central-notify-events/start-central-notifications.ts`, `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/lib/di-container.ts` | Watcher active when dev server runs. Unit file changes trigger banner on workflow page. | Follow existing WorkflowWatcherAdapter registration pattern. |
+ 
+ ---
+ 
+@@ -220,6 +220,8 @@ _Populated during implementation by plan-6._
+ | 2026-03-01 | T005 | gotcha | unit_slug may not be directly available in NodePropertiesPanel props — need to trace data flow | Verify prop types and plumb if needed | DYK #3 |
+ | 2026-03-01 | T004 | decision | Banner placement: workflow editor has its own toast for workflow changes, adding unit banner inside would couple two systems | Place banner at page layout level, not inside WorkflowEditor | DYK #4 |
+ | 2026-03-01 | T002 | decision | Adapter domain placement: plan had 058-workunit-editor folder in workflow package, but adapters belong with CentralWatcherService | Place in 023-central-watcher-notifications/ alongside WorkflowWatcherAdapter | DYK #5 |
++| 2026-03-01 | T003 | discovery | GlobalStateSystem requires domain registration + React context; SSE is the established server→client event pattern | Switched hook from useGlobalState to EventSource SSE subscription | Implementation |
++| 2026-03-01 | T005 | insight | unitSlug is on NodeStatusResultBase — available directly in NodePropertiesPanel props, no plumbing needed | Used `node.unitSlug` directly | DYK #3 confirmed |
+ 
+ ---
+ 
+diff --git a/docs/plans/058-workunit-editor/workunit-editor-plan.md b/docs/plans/058-workunit-editor/workunit-editor-plan.md
+index d4f8754..23dba57 100644
+--- a/docs/plans/058-workunit-editor/workunit-editor-plan.md
++++ b/docs/plans/058-workunit-editor/workunit-editor-plan.md
+@@ -3,7 +3,7 @@
+ **Plan Version**: 1.0.0
+ **Created**: 2026-02-28
+ **Spec**: [workunit-editor-spec.md](./workunit-editor-spec.md)
+-**Status**: IN PROGRESS (Phase 1 + Phase 2 + Phase 3 complete)
++**Status**: IN PROGRESS (Phase 1 + Phase 2 + Phase 3 + Phase 4 complete)
+ **Mode**: Full
+ **Complexity**: CS-4 (large)
+ 
+@@ -314,7 +314,7 @@ Graph nodes store only a `unit_slug` reference and always load the latest unit f
+ | Phase 1: Service Layer | ✅ Complete | 2026-02-28 | +37 tests (4718 total) | 10/10 tasks done. Interface extended, fake updated, contract tests passing, all CRUD implemented. |
+ | Phase 2: Editor Page | ✅ Complete | 2026-02-28 | +9 tests (4727 total) | 11/11 tasks done. Pages, editors, server actions, useAutoSave, domain registered. Code review fixes applied. |
+ | Phase 3: Inputs/Outputs | ✅ Complete | 2026-03-01 | +12 tests (4739 total) | 7/7 tasks done. InputOutputCard, InputOutputCardList, drag reorder, reserved params, validation, wired into editor, auto-save + tests. Browser-verified on all 3 unit types. |
+-| Phase 4: Notifications | ⬜ Not started | — | — | Depends on Phase 2. File watcher uses new native watcher (Plan 060). |
++| Phase 4: Notifications | ✅ Complete | 2026-03-01 | +0 tests (4744 total) | 7/7 tasks done. WorkUnitCatalogWatcherAdapter, SSE-based banner, Edit Template button, return navigation. |
+ | Phase 5: Polish | ⬜ Not started | — | — | Depends on Phases 1-4. |
+ 
+ ### Domain Changes Log
+diff --git a/packages/shared/src/features/027-central-notify-events/workspace-domain.ts b/packages/shared/src/features/027-central-notify-events/workspace-domain.ts
+index 6a3b370..bed0a64 100644
+--- a/packages/shared/src/features/027-central-notify-events/workspace-domain.ts
++++ b/packages/shared/src/features/027-central-notify-events/workspace-domain.ts
+@@ -18,6 +18,8 @@ export const WorkspaceDomain = {
+   FileChanges: 'file-changes',
+   /** SSE channel: `'workflows'` — matches `/api/events/workflows` subscription path (Plan 050) */
+   Workflows: 'workflows',
++  /** SSE channel: `'unit-catalog'` — matches `/api/events/unit-catalog` subscription path (Plan 058) */
++  UnitCatalog: 'unit-catalog',
+ } as const;
+ 
+ /**
+diff --git a/packages/workflow/src/features/023-central-watcher-notifications/index.ts b/packages/workflow/src/features/023-central-watcher-notifications/index.ts
+index 56edb14..95c0250 100644
+--- a/packages/workflow/src/features/023-central-watcher-notifications/index.ts
++++ b/packages/workflow/src/features/023-central-watcher-notifications/index.ts
+@@ -34,3 +34,7 @@ export { FakeFileChangeWatcherAdapter } from './fake-file-change-watcher.js';
+ // Workflow watcher adapter (Plan 050 Phase 6)
+ export { WorkflowWatcherAdapter } from './workflow-watcher.adapter.js';
+ export type { WorkflowChangedEvent } from './workflow-watcher.adapter.js';
++
++// Work unit catalog watcher adapter (Plan 058 Phase 4)
++export { WorkUnitCatalogWatcherAdapter } from './workunit-catalog-watcher.adapter.js';
++export type { UnitCatalogChangedEvent } from './workunit-catalog-watcher.adapter.js';
+diff --git a/packages/workflow/src/features/023-central-watcher-notifications/workunit-catalog-watcher.adapter.ts b/packages/workflow/src/features/023-central-watcher-notifications/workunit-catalog-watcher.adapter.ts
+new file mode 100644
+index 0000000..02c9b10
+--- /dev/null
++++ b/packages/workflow/src/features/023-central-watcher-notifications/workunit-catalog-watcher.adapter.ts
+@@ -0,0 +1,78 @@
++/**
++ * Work unit catalog watcher adapter — filters filesystem events for unit catalog changes.
++ *
++ * Emits events when unit.yaml or template files change in .chainglass/units/.
++ * Per Plan 058 Phase 4: Change Notifications & Workflow Integration.
++ * Per ADR-02: Self-filtering adapter — receives all events, filters internally.
++ * Per DYK #5: Placed alongside existing adapters in 023-central-watcher-notifications.
++ */
++
++import type { IWatcherAdapter, WatcherEvent } from './watcher-adapter.interface.js';
++
++export interface UnitCatalogChangedEvent {
++  unitSlug: string;
++  workspaceSlug: string;
++  worktreePath: string;
++  filePath: string;
++  timestamp: Date;
++}
++
++type UnitCatalogChangedCallback = (event: UnitCatalogChangedEvent) => void;
++
++/** Match unit.yaml or template files in units/{slug}/ */
++const UNIT_FILE_REGEX = /units\/([^/]+)\/(unit\.yaml|templates\/.+)$/;
++
++export class WorkUnitCatalogWatcherAdapter implements IWatcherAdapter {
++  readonly name = 'workunit-catalog-watcher';
++
++  private readonly subscribers = new Set<UnitCatalogChangedCallback>();
++  private debounceTimer: ReturnType<typeof setTimeout> | null = null;
++  private pendingEvent: UnitCatalogChangedEvent | null = null;
++
++  constructor(private readonly debounceMs = 200) {}
++
++  handleEvent(event: WatcherEvent): void {
++    const match = event.path.match(UNIT_FILE_REGEX);
++    if (!match) return;
++
++    const unitSlug = match[1];
++    this.debounce({
++      unitSlug,
++      workspaceSlug: event.workspaceSlug,
++      worktreePath: event.worktreePath,
++      filePath: event.path,
++      timestamp: new Date(),
++    });
++  }
++
++  onUnitChanged(callback: UnitCatalogChangedCallback): () => void {
++    this.subscribers.add(callback);
++    return () => {
++      this.subscribers.delete(callback);
++    };
++  }
++
++  private debounce(event: UnitCatalogChangedEvent): void {
++    this.pendingEvent = event;
++    if (this.debounceTimer) clearTimeout(this.debounceTimer);
++    this.debounceTimer = setTimeout(() => {
++      if (this.pendingEvent) {
++        this.dispatch(this.pendingEvent);
++        this.pendingEvent = null;
++      }
++    }, this.debounceMs);
++  }
++
++  private dispatch(event: UnitCatalogChangedEvent): void {
++    for (const callback of this.subscribers) {
++      try {
++        callback(event);
++      } catch (error) {
++        console.warn(`[${this.name}] Subscriber callback threw`, {
++          unitSlug: event.unitSlug,
++          error,
++        });
++      }
++    }
++  }
++}
+diff --git a/packages/workflow/src/index.ts b/packages/workflow/src/index.ts
+index a57cceb..3b9d9fb 100644
+--- a/packages/workflow/src/index.ts
++++ b/packages/workflow/src/index.ts
+@@ -475,6 +475,8 @@ export { SOURCE_WATCHER_IGNORED } from './features/023-central-watcher-notificat
+ export { FakeFileChangeWatcherAdapter } from './features/023-central-watcher-notifications/index.js';
+ export { WorkflowWatcherAdapter } from './features/023-central-watcher-notifications/index.js';
+ export type { WorkflowChangedEvent } from './features/023-central-watcher-notifications/index.js';
++export { WorkUnitCatalogWatcherAdapter } from './features/023-central-watcher-notifications/index.js';
++export type { UnitCatalogChangedEvent } from './features/023-central-watcher-notifications/index.js';
+ 
+ // Workspace palettes (Plan 041: File Browser)
+ export {

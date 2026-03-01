@@ -63,7 +63,8 @@ export function registerPositionalGraphServices(container: DependencyContainer):
       const fs = c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
       const yamlParser = c.resolve<IYamlParser>(SHARED_DI_TOKENS.YAML_PARSER);
       const adapter = c.resolve<WorkUnitAdapter>(POSITIONAL_GRAPH_DI_TOKENS.WORKUNIT_ADAPTER);
-      return new WorkUnitService(adapter, fs, yamlParser);
+      const pathResolver = c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
+      return new WorkUnitService(adapter, fs, yamlParser, pathResolver);
     },
   });
 

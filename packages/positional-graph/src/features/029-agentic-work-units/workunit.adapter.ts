@@ -170,4 +170,38 @@ export class WorkUnitAdapter extends WorkspaceDataAdapterBase {
       throw new Error(`${error.code}: ${error.message}`);
     }
   }
+
+  // ========== Write Helpers (Plan 058 Phase 1) ==========
+
+  /**
+   * Ensure the unit directory exists. Creates it recursively if needed.
+   */
+  async ensureUnitDir(ctx: WorkspaceContext, slug: string): Promise<string> {
+    const unitDir = this.getUnitDir(ctx, slug);
+    await this.fs.mkdir(unitDir, { recursive: true });
+    return unitDir;
+  }
+
+  /**
+   * Remove the entire unit directory. Idempotent — no error if missing.
+   */
+  async removeUnitDir(ctx: WorkspaceContext, slug: string): Promise<void> {
+    const unitDir = this.getUnitDir(ctx, slug);
+    const exists = await this.fs.exists(unitDir);
+    if (exists) {
+      await this.fs.rmdir(unitDir, { recursive: true });
+    }
+  }
+
+  /**
+   * Rename a unit directory from oldSlug to newSlug.
+   * Validates both slugs before renaming.
+   */
+  async renameUnitDir(ctx: WorkspaceContext, oldSlug: string, newSlug: string): Promise<void> {
+    this.validateSlug(oldSlug);
+    this.validateSlug(newSlug);
+    const oldDir = this.getUnitDir(ctx, oldSlug);
+    const newDir = this.pathResolver.join(this.getDomainPath(ctx), newSlug);
+    await this.fs.rename(oldDir, newDir);
+  }
 }

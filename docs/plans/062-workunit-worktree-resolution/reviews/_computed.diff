@@ -1,0 +1,949 @@
+diff --git a/apps/web/app/(dashboard)/workspaces/[slug]/work-units/[unitSlug]/page.tsx b/apps/web/app/(dashboard)/workspaces/[slug]/work-units/[unitSlug]/page.tsx
+index 88f1bbf..f9027ba 100644
+--- a/apps/web/app/(dashboard)/workspaces/[slug]/work-units/[unitSlug]/page.tsx
++++ b/apps/web/app/(dashboard)/workspaces/[slug]/work-units/[unitSlug]/page.tsx
+@@ -1,3 +1,4 @@
++import { redirect } from 'next/navigation';
+ import { Suspense } from 'react';
+ 
+ import { WorkUnitEditor } from '@/features/058-workunit-editor/components/workunit-editor';
+@@ -13,14 +14,18 @@ interface PageProps {
+ export default async function WorkUnitEditorPage({ params, searchParams }: PageProps) {
+   const { slug, unitSlug } = await params;
+   const sp = await searchParams;
++  const worktreePath = typeof sp.worktree === 'string' ? sp.worktree : undefined;
+   const returnToWorkflow =
+     sp.from === 'workflow' && typeof sp.graph === 'string' ? sp.graph : undefined;
+-  const returnWorktree = typeof sp.worktree === 'string' ? sp.worktree : undefined;
++
++  if (!worktreePath) {
++    redirect(`/workspaces/${slug}`);
++  }
+ 
+   const [unitResult, contentResult, unitsResult] = await Promise.all([
+-    loadUnit(slug, unitSlug),
+-    loadUnitContent(slug, unitSlug),
+-    listUnits(slug),
++    loadUnit(slug, unitSlug, worktreePath),
++    loadUnitContent(slug, unitSlug, worktreePath),
++    listUnits(slug, worktreePath),
+   ]);
+ 
+   if (unitResult.errors.length > 0 || !unitResult.unit) {
+@@ -41,7 +46,6 @@ export default async function WorkUnitEditorPage({ params, searchParams }: PageP
+ 
+   const unit = unitResult.unit;
+ 
+-  // Extract script filename for code units
+   const scriptFilename =
+     unit.type === 'code' ? (unit as { code?: { script?: string } }).code?.script : undefined;
+ 
+@@ -59,7 +63,8 @@ export default async function WorkUnitEditorPage({ params, searchParams }: PageP
+         inputs={unit.inputs ?? []}
+         outputs={unit.outputs ?? []}
+         returnToWorkflow={returnToWorkflow}
+-        returnWorktree={returnWorktree}
++        returnWorktree={worktreePath}
++        worktreePath={worktreePath}
+       />
+     </Suspense>
+   );
+diff --git a/apps/web/app/(dashboard)/workspaces/[slug]/work-units/page.tsx b/apps/web/app/(dashboard)/workspaces/[slug]/work-units/page.tsx
+index 51bb6fc..6ac27be 100644
+--- a/apps/web/app/(dashboard)/workspaces/[slug]/work-units/page.tsx
++++ b/apps/web/app/(dashboard)/workspaces/[slug]/work-units/page.tsx
+@@ -1,3 +1,4 @@
++import { redirect } from 'next/navigation';
+ import { Suspense } from 'react';
+ 
+ import { UnitList } from '@/features/058-workunit-editor/components/unit-list';
+@@ -7,11 +8,19 @@ export const dynamic = 'force-dynamic';
+ 
+ interface PageProps {
+   params: Promise<{ slug: string }>;
++  searchParams: Promise<Record<string, string | string[] | undefined>>;
+ }
+ 
+-export default async function WorkUnitsPage({ params }: PageProps) {
++export default async function WorkUnitsPage({ params, searchParams }: PageProps) {
+   const { slug } = await params;
+-  const result = await listUnits(slug);
++  const sp = await searchParams;
++  const worktreePath = typeof sp.worktree === 'string' ? sp.worktree : undefined;
++
++  if (!worktreePath) {
++    redirect(`/workspaces/${slug}`);
++  }
++
++  const result = await listUnits(slug, worktreePath);
+ 
+   if (result.errors.length > 0) {
+     return (
+@@ -23,7 +32,7 @@ export default async function WorkUnitsPage({ params }: PageProps) {
+ 
+   return (
+     <Suspense fallback={<div className="p-4">Loading work units...</div>}>
+-      <UnitList workspaceSlug={slug} units={result.units} />
++      <UnitList workspaceSlug={slug} units={result.units} worktreePath={worktreePath} />
+     </Suspense>
+   );
+ }
+diff --git a/apps/web/app/actions/workunit-actions.ts b/apps/web/app/actions/workunit-actions.ts
+index a98a9fc..b43cf94 100644
+--- a/apps/web/app/actions/workunit-actions.ts
++++ b/apps/web/app/actions/workunit-actions.ts
+@@ -30,11 +30,15 @@ import {
+ } from '@chainglass/shared';
+ import type { IWorkspaceService, WorkspaceContext } from '@chainglass/workflow';
+ 
++import { resolveWorktreeContext } from '../../src/features/058-workunit-editor/lib/resolve-worktree-context';
+ import { getContainer } from '../../src/lib/bootstrap-singleton';
+ 
+ // ─── Helpers ─────────────────────────────────────────────────────────
+ 
+-async function resolveWorkspaceContext(slug: string): Promise<WorkspaceContext | null> {
++async function resolveWorkspaceContext(
++  slug: string,
++  worktreePath?: string
++): Promise<WorkspaceContext | null> {
+   const container = getContainer();
+   const workspaceService = container.resolve<IWorkspaceService>(
+     WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
+@@ -42,15 +46,7 @@ async function resolveWorkspaceContext(slug: string): Promise<WorkspaceContext |
+   const info = await workspaceService.getInfo(slug);
+   if (!info) return null;
+ 
+-  return {
+-    workspaceSlug: slug,
+-    workspaceName: info.name,
+-    workspacePath: info.path,
+-    worktreePath: info.path,
+-    worktreeBranch: null,
+-    isMainWorktree: true,
+-    hasGit: info.hasGit,
+-  };
++  return resolveWorktreeContext(info, worktreePath);
+ }
+ 
+ function resolveWorkUnitService(): IWorkUnitService {
+@@ -62,16 +58,23 @@ const NOT_FOUND_ERROR: ResultError = { code: 'E000', message: 'Workspace not fou
+ 
+ // ─── Read Actions ────────────────────────────────────────────────────
+ 
+-export async function listUnits(workspaceSlug: string): Promise<ListUnitsResult> {
+-  const ctx = await resolveWorkspaceContext(workspaceSlug);
++export async function listUnits(
++  workspaceSlug: string,
++  worktreePath?: string
++): Promise<ListUnitsResult> {
++  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
+   if (!ctx) return { units: [], errors: [NOT_FOUND_ERROR] };
+ 
+   const service = resolveWorkUnitService();
+   return service.list(ctx);
+ }
+ 
+-export async function loadUnit(workspaceSlug: string, unitSlug: string): Promise<LoadUnitResult> {
+-  const ctx = await resolveWorkspaceContext(workspaceSlug);
++export async function loadUnit(
++  workspaceSlug: string,
++  unitSlug: string,
++  worktreePath?: string
++): Promise<LoadUnitResult> {
++  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
+   if (!ctx) return { errors: [NOT_FOUND_ERROR] };
+ 
+   const service = resolveWorkUnitService();
+@@ -81,9 +84,10 @@ export async function loadUnit(workspaceSlug: string, unitSlug: string): Promise
+ /** Unified content loader — returns content string regardless of unit type. */
+ export async function loadUnitContent(
+   workspaceSlug: string,
+-  unitSlug: string
++  unitSlug: string,
++  worktreePath?: string
+ ): Promise<{ content: string; errors: ResultError[] }> {
+-  const ctx = await resolveWorkspaceContext(workspaceSlug);
++  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
+   if (!ctx) return { content: '', errors: [NOT_FOUND_ERROR] };
+ 
+   const service = resolveWorkUnitService();
+@@ -128,9 +132,10 @@ export async function loadUnitContent(
+ 
+ export async function createUnit(
+   workspaceSlug: string,
+-  spec: CreateUnitSpec
++  spec: CreateUnitSpec,
++  worktreePath?: string
+ ): Promise<CreateUnitResult> {
+-  const ctx = await resolveWorkspaceContext(workspaceSlug);
++  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
+   if (!ctx) return { slug: '', type: spec.type, errors: [NOT_FOUND_ERROR] };
+ 
+   const service = resolveWorkUnitService();
+@@ -140,9 +145,10 @@ export async function createUnit(
+ export async function updateUnit(
+   workspaceSlug: string,
+   unitSlug: string,
+-  patch: UpdateUnitPatch
++  patch: UpdateUnitPatch,
++  worktreePath?: string
+ ): Promise<UpdateUnitResult> {
+-  const ctx = await resolveWorkspaceContext(workspaceSlug);
++  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
+   if (!ctx) return { slug: unitSlug, errors: [NOT_FOUND_ERROR] };
+ 
+   const service = resolveWorkUnitService();
+@@ -151,9 +157,10 @@ export async function updateUnit(
+ 
+ export async function deleteUnit(
+   workspaceSlug: string,
+-  unitSlug: string
++  unitSlug: string,
++  worktreePath?: string
+ ): Promise<DeleteUnitResult> {
+-  const ctx = await resolveWorkspaceContext(workspaceSlug);
++  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
+   if (!ctx) return { deleted: false, errors: [NOT_FOUND_ERROR] };
+ 
+   const service = resolveWorkUnitService();
+@@ -163,9 +170,10 @@ export async function deleteUnit(
+ export async function renameUnit(
+   workspaceSlug: string,
+   oldSlug: string,
+-  newSlug: string
++  newSlug: string,
++  worktreePath?: string
+ ): Promise<RenameUnitResult> {
+-  const ctx = await resolveWorkspaceContext(workspaceSlug);
++  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
+   if (!ctx) return { newSlug: '', updatedFiles: [], errors: [NOT_FOUND_ERROR] };
+ 
+   const service = resolveWorkUnitService();
+@@ -180,9 +188,10 @@ export async function saveUnitContent(
+   workspaceSlug: string,
+   unitSlug: string,
+   unitType: 'agent' | 'code' | 'user-input',
+-  content: string
++  content: string,
++  worktreePath?: string
+ ): Promise<{ errors: ResultError[] }> {
+-  const ctx = await resolveWorkspaceContext(workspaceSlug);
++  const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
+   if (!ctx) return { errors: [NOT_FOUND_ERROR] };
+ 
+   const service = resolveWorkUnitService();
+diff --git a/apps/web/src/features/058-workunit-editor/components/agent-editor.tsx b/apps/web/src/features/058-workunit-editor/components/agent-editor.tsx
+index bf3525d..c88ab12 100644
+--- a/apps/web/src/features/058-workunit-editor/components/agent-editor.tsx
++++ b/apps/web/src/features/058-workunit-editor/components/agent-editor.tsx
+@@ -10,18 +10,24 @@ interface AgentEditorProps {
+   workspaceSlug: string;
+   unitSlug: string;
+   initialContent: string;
++  worktreePath?: string;
+ }
+ 
+ /**
+  * Agent prompt editor — CodeMirror with markdown highlighting.
+  * Auto-saves via unified saveUnitContent action with 500ms debounce.
+  */
+-export function AgentEditor({ workspaceSlug, unitSlug, initialContent }: AgentEditorProps) {
++export function AgentEditor({
++  workspaceSlug,
++  unitSlug,
++  initialContent,
++  worktreePath,
++}: AgentEditorProps) {
+   const [content, setContent] = useState(initialContent);
+ 
+   const saveFn = useCallback(
+-    (value: string) => saveUnitContent(workspaceSlug, unitSlug, 'agent', value),
+-    [workspaceSlug, unitSlug]
++    (value: string) => saveUnitContent(workspaceSlug, unitSlug, 'agent', value, worktreePath),
++    [workspaceSlug, unitSlug, worktreePath]
+   );
+ 
+   const { status, error, trigger } = useAutoSave(saveFn, { delay: 500 });
+diff --git a/apps/web/src/features/058-workunit-editor/components/code-unit-editor.tsx b/apps/web/src/features/058-workunit-editor/components/code-unit-editor.tsx
+index 221d888..b745aeb 100644
+--- a/apps/web/src/features/058-workunit-editor/components/code-unit-editor.tsx
++++ b/apps/web/src/features/058-workunit-editor/components/code-unit-editor.tsx
+@@ -13,6 +13,7 @@ interface CodeUnitEditorProps {
+   initialContent: string;
+   /** Script filename for language detection (e.g., "code.sh", "script.py") */
+   scriptFilename?: string;
++  worktreePath?: string;
+ }
+ 
+ /**
+@@ -24,13 +25,14 @@ export function CodeUnitEditor({
+   unitSlug,
+   initialContent,
+   scriptFilename,
++  worktreePath,
+ }: CodeUnitEditorProps) {
+   const [content, setContent] = useState(initialContent);
+   const language = detectLanguage(scriptFilename ?? 'script.sh');
+ 
+   const saveFn = useCallback(
+-    (value: string) => saveUnitContent(workspaceSlug, unitSlug, 'code', value),
+-    [workspaceSlug, unitSlug]
++    (value: string) => saveUnitContent(workspaceSlug, unitSlug, 'code', value, worktreePath),
++    [workspaceSlug, unitSlug, worktreePath]
+   );
+ 
+   const { status, error, trigger } = useAutoSave(saveFn, { delay: 500 });
+diff --git a/apps/web/src/features/058-workunit-editor/components/metadata-panel.tsx b/apps/web/src/features/058-workunit-editor/components/metadata-panel.tsx
+index e0718c3..1024e52 100644
+--- a/apps/web/src/features/058-workunit-editor/components/metadata-panel.tsx
++++ b/apps/web/src/features/058-workunit-editor/components/metadata-panel.tsx
+@@ -11,6 +11,7 @@ interface MetadataPanelProps {
+   unitType: 'agent' | 'code' | 'user-input';
+   initialDescription: string;
+   initialVersion: string;
++  worktreePath?: string;
+ }
+ 
+ /**
+@@ -23,6 +24,7 @@ export function MetadataPanel({
+   unitType,
+   initialDescription,
+   initialVersion,
++  worktreePath,
+ }: MetadataPanelProps) {
+   const [description, setDescription] = useState(initialDescription);
+   const [version, setVersion] = useState(initialVersion);
+@@ -30,9 +32,9 @@ export function MetadataPanel({
+   const saveFn = useCallback(
+     (value: string) => {
+       const patch = JSON.parse(value);
+-      return updateUnit(workspaceSlug, unitSlug, patch);
++      return updateUnit(workspaceSlug, unitSlug, patch, worktreePath);
+     },
+-    [workspaceSlug, unitSlug]
++    [workspaceSlug, unitSlug, worktreePath]
+   );
+ 
+   const { status, error, trigger } = useAutoSave(saveFn, { delay: 0 });
+diff --git a/apps/web/src/features/058-workunit-editor/components/unit-catalog-sidebar.tsx b/apps/web/src/features/058-workunit-editor/components/unit-catalog-sidebar.tsx
+index 058fb37..8f3b1d9 100644
+--- a/apps/web/src/features/058-workunit-editor/components/unit-catalog-sidebar.tsx
++++ b/apps/web/src/features/058-workunit-editor/components/unit-catalog-sidebar.tsx
+@@ -7,6 +7,7 @@ interface UnitCatalogSidebarProps {
+   workspaceSlug: string;
+   units: WorkUnitSummary[];
+   currentSlug: string;
++  worktreePath?: string;
+ }
+ 
+ const TYPE_COLORS: Record<string, string> = {
+@@ -19,7 +20,12 @@ const TYPE_COLORS: Record<string, string> = {
+  * Left sidebar showing all units for quick navigation.
+  * Current unit is highlighted.
+  */
+-export function UnitCatalogSidebar({ workspaceSlug, units, currentSlug }: UnitCatalogSidebarProps) {
++export function UnitCatalogSidebar({
++  workspaceSlug,
++  units,
++  currentSlug,
++  worktreePath,
++}: UnitCatalogSidebarProps) {
+   return (
+     <div className="p-3">
+       <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+@@ -29,7 +35,7 @@ export function UnitCatalogSidebar({ workspaceSlug, units, currentSlug }: UnitCa
+         {units.map((unit) => (
+           <Link
+             key={unit.slug}
+-            href={`/workspaces/${workspaceSlug}/work-units/${unit.slug}`}
++            href={`/workspaces/${workspaceSlug}/work-units/${unit.slug}${worktreePath ? `?worktree=${encodeURIComponent(worktreePath)}` : ''}`}
+             className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors ${
+               unit.slug === currentSlug
+                 ? 'bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300'
+diff --git a/apps/web/src/features/058-workunit-editor/components/unit-creation-modal.tsx b/apps/web/src/features/058-workunit-editor/components/unit-creation-modal.tsx
+index 96f7b51..ffccd5e 100644
+--- a/apps/web/src/features/058-workunit-editor/components/unit-creation-modal.tsx
++++ b/apps/web/src/features/058-workunit-editor/components/unit-creation-modal.tsx
+@@ -8,6 +8,7 @@ interface UnitCreationModalProps {
+   workspaceSlug: string;
+   open: boolean;
+   onClose: () => void;
++  worktreePath?: string;
+ }
+ 
+ const UNIT_TYPES = [
+@@ -26,7 +27,12 @@ const SLUG_PATTERN = /^[a-z][a-z0-9-]*$/;
+  * Modal for creating new work units — type picker + slug naming.
+  * Per W002 + clarification Q6: scaffold with boilerplate.
+  */
+-export function UnitCreationModal({ workspaceSlug, open, onClose }: UnitCreationModalProps) {
++export function UnitCreationModal({
++  workspaceSlug,
++  open,
++  onClose,
++  worktreePath,
++}: UnitCreationModalProps) {
+   const router = useRouter();
+   const [selectedType, setSelectedType] = useState<'agent' | 'code' | 'user-input' | null>(null);
+   const [slug, setSlug] = useState('');
+@@ -41,11 +47,15 @@ export function UnitCreationModal({ workspaceSlug, open, onClose }: UnitCreation
+     setCreating(true);
+     setError(null);
+ 
+-    const result = await createUnit(workspaceSlug, {
+-      slug,
+-      type: selectedType,
+-      description: description || undefined,
+-    });
++    const result = await createUnit(
++      workspaceSlug,
++      {
++        slug,
++        type: selectedType,
++        description: description || undefined,
++      },
++      worktreePath
++    );
+ 
+     if (result.errors.length > 0) {
+       setError(result.errors[0].message);
+@@ -54,9 +64,11 @@ export function UnitCreationModal({ workspaceSlug, open, onClose }: UnitCreation
+     }
+ 
+     onClose();
+-    router.push(`/workspaces/${workspaceSlug}/work-units/${slug}`);
++    router.push(
++      `/workspaces/${workspaceSlug}/work-units/${slug}${worktreePath ? `?worktree=${encodeURIComponent(worktreePath)}` : ''}`
++    );
+     router.refresh();
+-  }, [selectedType, slug, slugValid, description, workspaceSlug, onClose, router]);
++  }, [selectedType, slug, slugValid, description, workspaceSlug, onClose, router, worktreePath]);
+ 
+   if (!open) return null;
+ 
+diff --git a/apps/web/src/features/058-workunit-editor/components/unit-list.tsx b/apps/web/src/features/058-workunit-editor/components/unit-list.tsx
+index 8cbbc9c..9dfbede 100644
+--- a/apps/web/src/features/058-workunit-editor/components/unit-list.tsx
++++ b/apps/web/src/features/058-workunit-editor/components/unit-list.tsx
+@@ -13,6 +13,7 @@ interface UnitSummary {
+ interface UnitListProps {
+   workspaceSlug: string;
+   units: UnitSummary[];
++  worktreePath?: string;
+ }
+ 
+ const TYPE_LABELS: Record<string, { label: string; color: string }> = {
+@@ -34,7 +35,7 @@ const TYPE_LABELS: Record<string, { label: string; color: string }> = {
+  * Work unit catalog list — grouped by type with create button.
+  * Click navigates to editor. Server Component loads data, this renders.
+  */
+-export function UnitList({ workspaceSlug, units }: UnitListProps) {
++export function UnitList({ workspaceSlug, units, worktreePath }: UnitListProps) {
+   const [showCreate, setShowCreate] = useState(false);
+ 
+   // Group by type
+@@ -78,7 +79,7 @@ export function UnitList({ workspaceSlug, units }: UnitListProps) {
+                   {items.map((unit) => (
+                     <Link
+                       key={unit.slug}
+-                      href={`/workspaces/${workspaceSlug}/work-units/${unit.slug}`}
++                      href={`/workspaces/${workspaceSlug}/work-units/${unit.slug}${worktreePath ? `?worktree=${encodeURIComponent(worktreePath)}` : ''}`}
+                       className="flex items-center gap-3 p-3 rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                     >
+                       <span className={`text-xs px-2 py-0.5 rounded ${typeInfo.color}`}>
+@@ -97,6 +98,7 @@ export function UnitList({ workspaceSlug, units }: UnitListProps) {
+ 
+       <UnitCreationModal
+         workspaceSlug={workspaceSlug}
++        worktreePath={worktreePath}
+         open={showCreate}
+         onClose={() => setShowCreate(false)}
+       />
+diff --git a/apps/web/src/features/058-workunit-editor/components/user-input-editor.tsx b/apps/web/src/features/058-workunit-editor/components/user-input-editor.tsx
+index 57bdb2d..c50ba7e 100644
+--- a/apps/web/src/features/058-workunit-editor/components/user-input-editor.tsx
++++ b/apps/web/src/features/058-workunit-editor/components/user-input-editor.tsx
+@@ -22,6 +22,7 @@ interface UserInputEditorProps {
+   workspaceSlug: string;
+   unitSlug: string;
+   initialConfig: UserInputConfig;
++  worktreePath?: string;
+ }
+ 
+ const QUESTION_TYPES = [
+@@ -36,12 +37,17 @@ const QUESTION_TYPES = [
+  * Auto-saves via unified saveUnitContent (routes to update type_config).
+  * Mirrors Plan 054 HumanInputModal config structure.
+  */
+-export function UserInputEditor({ workspaceSlug, unitSlug, initialConfig }: UserInputEditorProps) {
++export function UserInputEditor({
++  workspaceSlug,
++  unitSlug,
++  initialConfig,
++  worktreePath,
++}: UserInputEditorProps) {
+   const [config, setConfig] = useState<UserInputConfig>(initialConfig);
+ 
+   const saveFn = useCallback(
+-    (value: string) => saveUnitContent(workspaceSlug, unitSlug, 'user-input', value),
+-    [workspaceSlug, unitSlug]
++    (value: string) => saveUnitContent(workspaceSlug, unitSlug, 'user-input', value, worktreePath),
++    [workspaceSlug, unitSlug, worktreePath]
+   );
+ 
+   const { status, error, trigger } = useAutoSave(saveFn, { delay: 500 });
+diff --git a/apps/web/src/features/058-workunit-editor/components/workunit-editor.tsx b/apps/web/src/features/058-workunit-editor/components/workunit-editor.tsx
+index 391ebd7..0311479 100644
+--- a/apps/web/src/features/058-workunit-editor/components/workunit-editor.tsx
++++ b/apps/web/src/features/058-workunit-editor/components/workunit-editor.tsx
+@@ -38,6 +38,8 @@ interface WorkUnitEditorProps {
+   returnToWorkflow?: string;
+   /** Worktree path to preserve in return navigation. */
+   returnWorktree?: string;
++  /** Worktree path for data operations (Plan 062). */
++  worktreePath?: string;
+ }
+ 
+ function safeParseUserInputConfig(content: string) {
+@@ -80,6 +82,7 @@ export function WorkUnitEditor({
+   outputs: initialOutputs,
+   returnToWorkflow,
+   returnWorktree,
++  worktreePath,
+ }: WorkUnitEditorProps) {
+   const [inputItems, setInputItems] = useState<InputOutputItem[]>(() =>
+     hydrateClientIds(initialInputs)
+@@ -94,9 +97,9 @@ export function WorkUnitEditor({
+   const inputSaveFn = useCallback(
+     (value: string) => {
+       const items = JSON.parse(value) as WorkUnitInput[];
+-      return updateUnit(workspaceSlug, unitSlug, { inputs: items });
++      return updateUnit(workspaceSlug, unitSlug, { inputs: items }, worktreePath);
+     },
+-    [workspaceSlug, unitSlug]
++    [workspaceSlug, unitSlug, worktreePath]
+   );
+   const {
+     status: inputStatus,
+@@ -109,9 +112,9 @@ export function WorkUnitEditor({
+   const outputSaveFn = useCallback(
+     (value: string) => {
+       const items = JSON.parse(value) as WorkUnitOutput[];
+-      return updateUnit(workspaceSlug, unitSlug, { outputs: items });
++      return updateUnit(workspaceSlug, unitSlug, { outputs: items }, worktreePath);
+     },
+-    [workspaceSlug, unitSlug]
++    [workspaceSlug, unitSlug, worktreePath]
+   );
+   const {
+     status: outputStatus,
+@@ -189,7 +192,12 @@ export function WorkUnitEditor({
+     switch (unitType) {
+       case 'agent':
+         return (
+-          <AgentEditor workspaceSlug={workspaceSlug} unitSlug={unitSlug} initialContent={content} />
++          <AgentEditor
++            workspaceSlug={workspaceSlug}
++            unitSlug={unitSlug}
++            initialContent={content}
++            worktreePath={worktreePath}
++          />
+         );
+       case 'code':
+         return (
+@@ -198,6 +206,7 @@ export function WorkUnitEditor({
+             unitSlug={unitSlug}
+             initialContent={content}
+             scriptFilename={scriptFilename}
++            worktreePath={worktreePath}
+           />
+         );
+       case 'user-input':
+@@ -206,6 +215,7 @@ export function WorkUnitEditor({
+             workspaceSlug={workspaceSlug}
+             unitSlug={unitSlug}
+             initialConfig={safeParseUserInputConfig(content)}
++            worktreePath={worktreePath}
+           />
+         );
+     }
+@@ -214,7 +224,12 @@ export function WorkUnitEditor({
+   return (
+     <WorkUnitEditorLayout
+       left={
+-        <UnitCatalogSidebar workspaceSlug={workspaceSlug} units={allUnits} currentSlug={unitSlug} />
++        <UnitCatalogSidebar
++          workspaceSlug={workspaceSlug}
++          units={allUnits}
++          currentSlug={unitSlug}
++          worktreePath={worktreePath}
++        />
+       }
+       main={
+         <div className="flex flex-col">
+@@ -272,6 +287,7 @@ export function WorkUnitEditor({
+           unitType={unitType}
+           initialDescription={description}
+           initialVersion={version}
++          worktreePath={worktreePath}
+         />
+       }
+     />
+diff --git a/apps/web/src/features/058-workunit-editor/lib/resolve-worktree-context.ts b/apps/web/src/features/058-workunit-editor/lib/resolve-worktree-context.ts
+new file mode 100644
+index 0000000..4da6f2e
+--- /dev/null
++++ b/apps/web/src/features/058-workunit-editor/lib/resolve-worktree-context.ts
+@@ -0,0 +1,30 @@
++/**
++ * Worktree context resolution — pure function, no DI dependency.
++ * Validates worktreePath against known worktrees from WorkspaceInfo.
++ * Returns null if worktreePath is missing or not found (no silent fallback).
++ *
++ * Plan 062: Work Unit Worktree Resolution.
++ */
++
++import type { WorkspaceContext, WorkspaceInfo } from '@chainglass/workflow';
++
++export function resolveWorktreeContext(
++  info: WorkspaceInfo,
++  worktreePath: string | undefined
++): WorkspaceContext | null {
++  if (!worktreePath) return null;
++
++  const normalized = worktreePath.replace(/\/+$/, '');
++  const wt = info.worktrees.find((w) => w.path.replace(/\/+$/, '') === normalized);
++  if (!wt) return null;
++
++  return {
++    workspaceSlug: info.slug,
++    workspaceName: info.name,
++    workspacePath: info.path,
++    worktreePath: wt.path,
++    worktreeBranch: wt.branch ?? null,
++    isMainWorktree: wt.path === info.path,
++    hasGit: info.hasGit,
++  };
++}
+diff --git a/docs/domains/058-workunit-editor/domain.md b/docs/domains/058-workunit-editor/domain.md
+index de7011e..f7d9ac3 100644
+--- a/docs/domains/058-workunit-editor/domain.md
++++ b/docs/domains/058-workunit-editor/domain.md
+@@ -60,3 +60,4 @@ Visual editor for creating, editing, and managing work unit templates. Work unit
+ | 2026-02-28 | Phase 2 | Domain created: pages, server actions, type-specific editors, creation modal |
+ | 2026-03-01 | Phase 3 | Added inputs/outputs configuration: InputOutputCard, InputOutputCardList, DnD reorder, reserved params, validation, dual auto-save |
+ | 2026-03-01 | Phase 4 | Added change notifications (SSE hook, watcher adapter), Edit Template button on workflow nodes, Back to Workflow return navigation |
++| 2026-03-01 | Plan 062 | Worktree context threading: fixed resolveWorkspaceContext to validate worktreePath, threaded through pages + 5 components, redirect-on-missing |
+diff --git a/docs/plans/062-workunit-worktree-resolution/tasks/implementation/tasks.fltplan.md b/docs/plans/062-workunit-worktree-resolution/tasks/implementation/tasks.fltplan.md
+index 15047d3..b00ae8e 100644
+--- a/docs/plans/062-workunit-worktree-resolution/tasks/implementation/tasks.fltplan.md
++++ b/docs/plans/062-workunit-worktree-resolution/tasks/implementation/tasks.fltplan.md
+@@ -3,7 +3,7 @@
+ **Plan**: [workunit-worktree-resolution-plan.md](../../workunit-worktree-resolution-plan.md)
+ **Phase**: Implementation (Simple Mode)
+ **Generated**: 2026-03-01
+-**Status**: Ready for takeoff
++**Status**: Landed
+ 
+ ---
+ 
+@@ -59,7 +59,7 @@ stateDiagram-v2
+     S5 --> S6
+     S6 --> [*]
+ 
+-    class S1,S2,S3,S4,S5,S6 pending
++    class S1,S2,S3,S4,S5,S6 done
+ ```
+ 
+ **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
+@@ -70,12 +70,12 @@ stateDiagram-v2
+ 
+ <!-- Updated by /plan-6-v2 during implementation: [ ] → [~] → [x] -->
+ 
+-- [ ] **Stage 1: TDD RED** — Write 4+ resolver tests with fakes (`workunit-actions-worktree.test.ts` — new file)
+-- [ ] **Stage 2: TDD GREEN** — Fix `resolveWorkspaceContext`, add `worktreePath?` to 8 actions (`workunit-actions.ts`)
+-- [ ] **Stage 3: Page threading** — Read `?worktree=`, redirect if missing, thread to actions (`page.tsx` × 2)
+-- [ ] **Stage 4: Component props** — Thread worktreePath to 5 components, append to links + save calls
+-- [ ] **Stage 5: Verification** — `just fft` + Next.js MCP + Playwright screenshots
+-- [ ] **Stage 6: Domain docs** — Update domain.md history
++- [x] **Stage 1: TDD RED** — Write 4+ resolver tests with fakes (`workunit-actions-worktree.test.ts` — new file)
++- [x] **Stage 2: TDD GREEN** — Fix `resolveWorkspaceContext`, add `worktreePath?` to 8 actions (`workunit-actions.ts`)
++- [x] **Stage 3: Page threading** — Read `?worktree=`, redirect if missing, thread to actions (`page.tsx` × 2)
++- [x] **Stage 4: Component props** — Thread worktreePath to 5 components, append to links + save calls
++- [x] **Stage 5: Verification** — `just fft` + Next.js MCP + Playwright screenshots
++- [x] **Stage 6: Domain docs** — Update domain.md history
+ 
+ ---
+ 
+@@ -107,18 +107,18 @@ flowchart LR
+ 
+ ## Acceptance Criteria
+ 
+-- [ ] AC-01: List page with `?worktree=` lists units from specified worktree
+-- [ ] AC-02: Editor page with `?worktree=` loads content from specified worktree
+-- [ ] AC-03: Editing saves to specified worktree
+-- [ ] AC-04: Creating scaffolds in specified worktree
+-- [ ] AC-05: Deleting/renaming operates on specified worktree
+-- [ ] AC-06: Links preserve `?worktree=` between units
+-- [ ] AC-07: Missing `?worktree=` redirects to worktree picker (no silent fallback)
+-- [ ] AC-08: Edit Template round-trip preserves worktree for data ops
+-- [ ] AC-09: `just fft` passes
+-- [ ] AC-10: Unit tests verify resolver validates worktree
+-- [ ] AC-11: Next.js MCP: zero errors
+-- [ ] AC-12: Playwright screenshots confirm correct behavior
++- [x] AC-01: List page with `?worktree=` lists units from specified worktree
++- [x] AC-02: Editor page with `?worktree=` loads content from specified worktree
++- [x] AC-03: Editing saves to specified worktree
++- [x] AC-04: Creating scaffolds in specified worktree
++- [x] AC-05: Deleting/renaming operates on specified worktree
++- [x] AC-06: Links preserve `?worktree=` between units
++- [x] AC-07: Missing `?worktree=` redirects to worktree picker (no silent fallback)
++- [x] AC-08: Edit Template round-trip preserves worktree for data ops
++- [x] AC-09: `just fft` passes
++- [x] AC-10: Unit tests verify resolver validates worktree
++- [x] AC-11: Next.js MCP: zero errors
++- [x] AC-12: Playwright screenshots confirm correct behavior
+ 
+ ## Goals & Non-Goals
+ 
+@@ -138,9 +138,9 @@ flowchart LR
+ 
+ ## Checklist
+ 
+-- [ ] T001: TDD RED — write resolver tests (4+ cases, fakes only)
+-- [ ] T002: TDD GREEN — fix resolver + add worktreePath to 8 actions
+-- [ ] T003: Pages — read searchParams.worktree, redirect if missing
+-- [ ] T004: Components — thread worktreePath to 5 components
+-- [ ] T005: Verification — just fft + MCP + Playwright screenshots
+-- [ ] T006: Domain docs — update domain.md history
++- [x] T001: TDD RED — write resolver tests (4+ cases, fakes only)
++- [~] T002: TDD GREEN — fix resolver + add worktreePath to 8 actions
++- [x] T003: Pages — read searchParams.worktree, redirect if missing
++- [x] T004: Components — thread worktreePath to 5 components
++- [x] T005: Verification — just fft + MCP + Playwright screenshots
++- [x] T006: Domain docs — update domain.md history
+diff --git a/docs/plans/062-workunit-worktree-resolution/tasks/implementation/tasks.md b/docs/plans/062-workunit-worktree-resolution/tasks/implementation/tasks.md
+index 3ffe45f..4bcfa82 100644
+--- a/docs/plans/062-workunit-worktree-resolution/tasks/implementation/tasks.md
++++ b/docs/plans/062-workunit-worktree-resolution/tasks/implementation/tasks.md
+@@ -47,15 +47,15 @@ No concept search needed — this is a plumbing fix using an established pattern
+ flowchart TD
+     classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
+     classDef completed fill:#4CAF50,stroke:#388E3C,color:#fff
+-    classDef blocked fill:#FFC107,stroke:#FFA000,color:#000
++    classDef inprogress fill:#FFC107,stroke:#FFA000,color:#000
+ 
+     subgraph Implementation["Implementation"]
+-        T001["T001: TDD RED<br/>resolver tests"]:::pending
+-        T002["T002: TDD GREEN<br/>fix resolver + actions"]:::blocked
+-        T003["T003: Pages<br/>read + redirect"]:::pending
+-        T004["T004: Components<br/>prop threading"]:::pending
+-        T005["T005: Verification<br/>FFT + Playwright"]:::pending
+-        T006["T006: Domain docs"]:::pending
++        T001["T001: TDD RED<br/>resolver tests"]:::completed
++        T002["T002: TDD GREEN<br/>fix resolver + actions"]:::completed
++        T003["T003: Pages<br/>read + redirect"]:::completed
++        T004["T004: Components<br/>prop threading"]:::completed
++        T005["T005: Verification<br/>FFT + Playwright"]:::completed
++        T006["T006: Domain docs"]:::completed
+         T001 --> T002
+         T002 --> T003
+         T003 --> T004
+@@ -64,20 +64,20 @@ flowchart TD
+     end
+ 
+     subgraph Actions["Server Actions"]
+-        FA["workunit-actions.ts"]:::pending
++        FA["workunit-actions.ts"]:::completed
+     end
+ 
+     subgraph Pages["Pages"]
+-        FP1["work-units/page.tsx"]:::pending
+-        FP2["work-units/[unitSlug]/page.tsx"]:::pending
++        FP1["work-units/page.tsx"]:::completed
++        FP2["work-units/[unitSlug]/page.tsx"]:::completed
+     end
+ 
+     subgraph Components["Components"]
+-        FC1["unit-list.tsx"]:::pending
+-        FC2["workunit-editor.tsx"]:::pending
+-        FC3["unit-catalog-sidebar.tsx"]:::pending
+-        FC4["unit-creation-modal.tsx"]:::pending
+-        FC5["metadata-panel.tsx"]:::pending
++        FC1["unit-list.tsx"]:::completed
++        FC2["workunit-editor.tsx"]:::completed
++        FC3["unit-catalog-sidebar.tsx"]:::completed
++        FC4["unit-creation-modal.tsx"]:::completed
++        FC5["metadata-panel.tsx"]:::completed
+     end
+ 
+     T002 -.-> FA
+@@ -96,12 +96,12 @@ flowchart TD
+ 
+ | Status | ID | Task | Domain | Path(s) | Done When | Notes |
+ |--------|-----|------|--------|---------|-----------|-------|
+-| [ ] | T001 | **TDD RED**: Write tests for `resolveWorkspaceContext(slug, worktreePath?)`. Test cases: (1) valid worktree in `info.worktrees[]` → returns context with correct `worktreePath`; (2) invalid worktree not in list → returns null or error; (3) missing worktreePath (undefined) → returns null or error (no silent fallback per AC-07); (4) missing workspace (unknown slug) → returns null. Use DI with fakes: `resetBootstrapSingleton()` + `createTestContainer()` to inject FakeWorkspaceService. Test via exported actions (e.g., `listUnits`). | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/test/unit/web/actions/workunit-actions-worktree.test.ts` | 4+ tests written, all RED (failing against current code) | Per constitution Principle 3+4. DI pattern: `resetBootstrapSingleton()` in beforeEach, inject test container with fakes (DYK #2). CS-1. |
+-| [ ] | T002 | **TDD GREEN** (blocked by T001): Fix `resolveWorkspaceContext` — replace hardcoded resolver with `workspaceService.resolveContextFromParams(slug, worktreePath)`. Return null if worktree missing/invalid (no fallback). Add `worktreePath?` as last param to all 8 exported actions: `listUnits`, `loadUnit`, `loadUnitContent`, `createUnit`, `updateUnit`, `deleteUnit`, `renameUnit`, `saveUnitContent`. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/app/actions/workunit-actions.ts` | All T001 tests pass GREEN. 8 action signatures updated. TypeScript compiles. | Use canonical `resolveContextFromParams()` (not inline pattern). Handles trailing-slash normalization (DYK #3+#5). Per finding 01. CS-2. |
+-| [ ] | T003 | **Pages**: (A) List page — add `searchParams` to PageProps, read `sp.worktree`, call `redirect(\`/workspaces/${slug}\`)` if missing (worktree picker), pass to `listUnits(slug, worktreePath)` and `<UnitList worktreePath={worktreePath}>`. (B) Editor page — extract `worktreePath` from `sp.worktree` (keep existing `returnWorktree` for return link per DYK #4), thread `worktreePath` to all 3 `Promise.all` action calls (`loadUnit`, `loadUnitContent`, `listUnits`), pass as new prop to `<WorkUnitEditor worktreePath={worktreePath}>`. Redirect to worktree picker if missing. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/app/(dashboard)/workspaces/[slug]/work-units/page.tsx`, `/Users/jordanknight/substrate/058-workunit-editor/apps/web/app/(dashboard)/workspaces/[slug]/work-units/[unitSlug]/page.tsx` | Both pages thread worktree to actions; missing `?worktree=` redirects to `/workspaces/${slug}` (worktree picker). | Per findings 02+05. Use `redirect()` from `next/navigation`. Redirect to workspace home avoids loop when sidebar nav lacks worktree context (DYK #1). CS-2. |
+-| [ ] | T004 | **Components**: Add `worktreePath?: string` to props of 5 components (keep existing `returnWorktree` separate per DYK #4). (A) `UnitList` — append `?worktree=` to unit links. (B) `WorkUnitEditor` — add NEW `worktreePath` prop (alongside existing `returnWorktree`), thread to all save callbacks (`useCallback` deps must include `worktreePath`), pass to child components. (C) `UnitCatalogSidebar` — append `?worktree=` to sidebar unit links. (D) `UnitCreationModal` — pass to `createUnit()`, include in redirect URL after create. (E) `MetadataPanel` — pass to `updateUnit()` calls (imports server action directly). | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/058-workunit-editor/components/unit-list.tsx`, `workunit-editor.tsx`, `unit-catalog-sidebar.tsx`, `unit-creation-modal.tsx`, `metadata-panel.tsx` | All links include `?worktree=`; all action calls pass worktreePath; all `useCallback` deps correct; TypeScript compiles. | Per findings 03+04. Always use `encodeURIComponent()` for URLs. CS-2. |
+-| [ ] | T005 | **Verification**: Run `just fft` (0 failures). Query Next.js MCP port 3001 for errors (0 errors). Launch Playwright headless Chrome. Navigate to `/workspaces/chainglass/work-units?worktree=/Users/jordanknight/substrate/058-workunit-editor` — verify units listed from worktree. Navigate to an editor page with `?worktree=` — verify content loads. Navigate WITHOUT `?worktree=` — verify redirect (not silent render). Take screenshots as evidence. | all | N/A | `just fft` passes. MCP: 0 errors. Playwright confirms: correct units, correct editor, redirect on missing param. | Per AC-09, AC-11, AC-12. CS-2. |
+-| [ ] | T006 | **Domain docs**: Update `058-workunit-editor/domain.md` history with Plan 062 entry. Add "Worktree Context Threading" concept to Concepts table if not present. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/docs/domains/058-workunit-editor/domain.md` | History updated. | CS-1. |
++| [x] | T001 | **TDD RED**: Write tests for `resolveWorkspaceContext(slug, worktreePath?)`. Test cases: (1) valid worktree in `info.worktrees[]` → returns context with correct `worktreePath`; (2) invalid worktree not in list → returns null or error; (3) missing worktreePath (undefined) → returns null or error (no silent fallback per AC-07); (4) missing workspace (unknown slug) → returns null. Use DI with fakes: `resetBootstrapSingleton()` + `createTestContainer()` to inject FakeWorkspaceService. Test via exported actions (e.g., `listUnits`). | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/test/unit/web/actions/workunit-actions-worktree.test.ts` | 4+ tests written, all RED (failing against current code) | Per constitution Principle 3+4. DI pattern: `resetBootstrapSingleton()` in beforeEach, inject test container with fakes (DYK #2). CS-1. |
++| [x] | T002 | **TDD GREEN** (blocked by T001): Fix `resolveWorkspaceContext` — replace hardcoded resolver with `workspaceService.resolveContextFromParams(slug, worktreePath)`. Return null if worktree missing/invalid (no fallback). Add `worktreePath?` as last param to all 8 exported actions: `listUnits`, `loadUnit`, `loadUnitContent`, `createUnit`, `updateUnit`, `deleteUnit`, `renameUnit`, `saveUnitContent`. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/app/actions/workunit-actions.ts` | All T001 tests pass GREEN. 8 action signatures updated. TypeScript compiles. | Use canonical `resolveContextFromParams()` (not inline pattern). Handles trailing-slash normalization (DYK #3+#5). Per finding 01. CS-2. |
++| [x] | T003 | **Pages**: (A) List page — add `searchParams` to PageProps, read `sp.worktree`, call `redirect(\`/workspaces/${slug}\`)` if missing (worktree picker), pass to `listUnits(slug, worktreePath)` and `<UnitList worktreePath={worktreePath}>`. (B) Editor page — extract `worktreePath` from `sp.worktree` (keep existing `returnWorktree` for return link per DYK #4), thread `worktreePath` to all 3 `Promise.all` action calls (`loadUnit`, `loadUnitContent`, `listUnits`), pass as new prop to `<WorkUnitEditor worktreePath={worktreePath}>`. Redirect to worktree picker if missing. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/app/(dashboard)/workspaces/[slug]/work-units/page.tsx`, `/Users/jordanknight/substrate/058-workunit-editor/apps/web/app/(dashboard)/workspaces/[slug]/work-units/[unitSlug]/page.tsx` | Both pages thread worktree to actions; missing `?worktree=` redirects to `/workspaces/${slug}` (worktree picker). | Per findings 02+05. Use `redirect()` from `next/navigation`. Redirect to workspace home avoids loop when sidebar nav lacks worktree context (DYK #1). CS-2. |
++| [x] | T004 | **Components**: Add `worktreePath?: string` to props of 5 components (keep existing `returnWorktree` separate per DYK #4). (A) `UnitList` — append `?worktree=` to unit links. (B) `WorkUnitEditor` — add NEW `worktreePath` prop (alongside existing `returnWorktree`), thread to all save callbacks (`useCallback` deps must include `worktreePath`), pass to child components. (C) `UnitCatalogSidebar` — append `?worktree=` to sidebar unit links. (D) `UnitCreationModal` — pass to `createUnit()`, include in redirect URL after create. (E) `MetadataPanel` — pass to `updateUnit()` calls (imports server action directly). | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/058-workunit-editor/components/unit-list.tsx`, `workunit-editor.tsx`, `unit-catalog-sidebar.tsx`, `unit-creation-modal.tsx`, `metadata-panel.tsx` | All links include `?worktree=`; all action calls pass worktreePath; all `useCallback` deps correct; TypeScript compiles. | Per findings 03+04. Always use `encodeURIComponent()` for URLs. CS-2. |
++| [x] | T005 | **Verification**: Run `just fft` (0 failures). Query Next.js MCP port 3001 for errors (0 errors). Launch Playwright headless Chrome. Navigate to `/workspaces/chainglass/work-units?worktree=/Users/jordanknight/substrate/058-workunit-editor` — verify units listed from worktree. Navigate to an editor page with `?worktree=` — verify content loads. Navigate WITHOUT `?worktree=` — verify redirect (not silent render). Take screenshots as evidence. | all | N/A | `just fft` passes. MCP: 0 errors. Playwright confirms: correct units, correct editor, redirect on missing param. | Per AC-09, AC-11, AC-12. CS-2. |
++| [x] | T006 | **Domain docs**: Update `058-workunit-editor/domain.md` history with Plan 062 entry. Add "Worktree Context Threading" concept to Concepts table if not present. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/docs/domains/058-workunit-editor/domain.md` | History updated. | CS-1. |
+ 
+ ---
+ 
+diff --git a/docs/plans/062-workunit-worktree-resolution/workunit-worktree-resolution-plan.md b/docs/plans/062-workunit-worktree-resolution/workunit-worktree-resolution-plan.md
+index 19a9bae..27164c6 100644
+--- a/docs/plans/062-workunit-worktree-resolution/workunit-worktree-resolution-plan.md
++++ b/docs/plans/062-workunit-worktree-resolution/workunit-worktree-resolution-plan.md
+@@ -4,7 +4,7 @@
+ **Plan Version**: 1.0.0
+ **Created**: 2026-03-01
+ **Spec**: [workunit-worktree-resolution-spec.md](./workunit-worktree-resolution-spec.md)
+-**Status**: DRAFT
++**Status**: COMPLETE
+ **Complexity**: CS-2 (small)
+ 
+ ## Summary
+@@ -54,27 +54,27 @@ Work unit pages hardcode `worktreePath: info.path` in `workunit-actions.ts`, mak
+ 
+ | Status | ID | Task | Domain | Path(s) | Done When | Notes |
+ |--------|-----|------|--------|---------|-----------|-------|
+-| [ ] | T001 | **TDD RED**: Write tests for `resolveWorkspaceContext(slug, worktreePath?)` — valid worktree resolves correctly, invalid worktree returns error/null, missing worktree returns error/null, missing workspace returns null | test | `/Users/jordanknight/substrate/058-workunit-editor/test/unit/web/actions/workunit-actions-worktree.test.ts` | Tests written, all RED (failing) | Use fakes only per constitution Principle 4. Create a `FakeWorkspaceService` or use the existing one that controls `getInfo()` return including `worktrees[]`. |
+-| [ ] | T002 | **TDD GREEN** (blocked by T001): Fix `resolveWorkspaceContext` in `workunit-actions.ts` — add `worktreePath?` parameter, validate against `info.worktrees[]`, require worktree (return null if missing). Add `worktreePath?` parameter to all 8 exported actions. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/app/actions/workunit-actions.ts` | Tests from T001 pass GREEN. All 8 actions accept optional `worktreePath`. | Follow `workflow-actions.ts` inline pattern: `info.worktrees.find(w => w.path === worktreePath)`. Per finding 01. |
+-| [ ] | T003 | **Pages**: Thread worktree in both work-unit pages. List page: read `searchParams.worktree`, redirect to `/workspaces/${slug}` if missing, pass to `listUnits()` + `UnitList`. Editor page: thread existing `worktree` param to `loadUnit()`, `loadUnitContent()`, `listUnits()` calls + all child components. Redirect if missing. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/app/(dashboard)/workspaces/[slug]/work-units/page.tsx`, `/Users/jordanknight/substrate/058-workunit-editor/apps/web/app/(dashboard)/workspaces/[slug]/work-units/[unitSlug]/page.tsx` | Both pages pass worktree to actions; missing `?worktree=` redirects. | Per finding 02 + 05. Use `redirect()` from `next/navigation`. |
+-| [ ] | T004 | **Components**: Add `worktreePath?` prop to `UnitList`, `WorkUnitEditor`, `UnitCatalogSidebar`, `UnitCreationModal`, `MetadataPanel`. Thread to links (`?worktree=` appended with `encodeURIComponent`) and server action calls. Ensure `useCallback` deps arrays include `worktreePath`. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/058-workunit-editor/components/unit-list.tsx`, `workunit-editor.tsx`, `unit-catalog-sidebar.tsx`, `unit-creation-modal.tsx`, `metadata-panel.tsx` | All links include `?worktree=`; all save/create/delete actions receive worktreePath; TypeScript compiles clean. | Per findings 03, 04. MetadataPanel calls `updateUnit()` directly — needs the prop. |
+-| [ ] | T005 | **Verification**: Run `just fft`. Query Next.js MCP for errors on port 3001. Launch Playwright headless, navigate to list page with `?worktree=`, verify units listed. Navigate to editor page, verify content loads. Test missing `?worktree=` redirects. Take screenshots. | all | N/A | `just fft` passes (0 failures). Next.js MCP: 0 errors. Playwright screenshots confirm worktree-correct behavior and redirect on missing param. | Per AC-09, AC-11, AC-12. |
+-| [ ] | T006 | **Domain docs**: Update `058-workunit-editor/domain.md` history with Plan 062. Update domain concepts if worktree threading adds a new concept. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/docs/domains/058-workunit-editor/domain.md` | History table updated. | |
++| [x] | T001 | **TDD RED**: Write tests for `resolveWorkspaceContext(slug, worktreePath?)` — valid worktree resolves correctly, invalid worktree returns error/null, missing worktree returns error/null, missing workspace returns null | test | `/Users/jordanknight/substrate/058-workunit-editor/test/unit/web/actions/workunit-actions-worktree.test.ts` | Tests written, all RED (failing) | Use fakes only per constitution Principle 4. Create a `FakeWorkspaceService` or use the existing one that controls `getInfo()` return including `worktrees[]`. |
++| [x] | T002 | **TDD GREEN** (blocked by T001): Fix `resolveWorkspaceContext` in `workunit-actions.ts` — add `worktreePath?` parameter, validate against `info.worktrees[]`, require worktree (return null if missing). Add `worktreePath?` parameter to all 8 exported actions. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/app/actions/workunit-actions.ts` | Tests from T001 pass GREEN. All 8 actions accept optional `worktreePath`. | Follow `workflow-actions.ts` inline pattern: `info.worktrees.find(w => w.path === worktreePath)`. Per finding 01. |
++| [x] | T003 | **Pages**: Thread worktree in both work-unit pages. List page: read `searchParams.worktree`, redirect to `/workspaces/${slug}` if missing, pass to `listUnits()` + `UnitList`. Editor page: thread existing `worktree` param to `loadUnit()`, `loadUnitContent()`, `listUnits()` calls + all child components. Redirect if missing. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/app/(dashboard)/workspaces/[slug]/work-units/page.tsx`, `/Users/jordanknight/substrate/058-workunit-editor/apps/web/app/(dashboard)/workspaces/[slug]/work-units/[unitSlug]/page.tsx` | Both pages pass worktree to actions; missing `?worktree=` redirects. | Per finding 02 + 05. Use `redirect()` from `next/navigation`. |
++| [x] | T004 | **Components**: Add `worktreePath?` prop to `UnitList`, `WorkUnitEditor`, `UnitCatalogSidebar`, `UnitCreationModal`, `MetadataPanel`. Thread to links (`?worktree=` appended with `encodeURIComponent`) and server action calls. Ensure `useCallback` deps arrays include `worktreePath`. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/058-workunit-editor/components/unit-list.tsx`, `workunit-editor.tsx`, `unit-catalog-sidebar.tsx`, `unit-creation-modal.tsx`, `metadata-panel.tsx` | All links include `?worktree=`; all save/create/delete actions receive worktreePath; TypeScript compiles clean. | Per findings 03, 04. MetadataPanel calls `updateUnit()` directly — needs the prop. |
++| [x] | T005 | **Verification**: Run `just fft`. Query Next.js MCP for errors on port 3001. Launch Playwright headless, navigate to list page with `?worktree=`, verify units listed. Navigate to editor page, verify content loads. Test missing `?worktree=` redirects. Take screenshots. | all | N/A | `just fft` passes (0 failures). Next.js MCP: 0 errors. Playwright screenshots confirm worktree-correct behavior and redirect on missing param. | Per AC-09, AC-11, AC-12. |
++| [x] | T006 | **Domain docs**: Update `058-workunit-editor/domain.md` history with Plan 062. Update domain concepts if worktree threading adds a new concept. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/docs/domains/058-workunit-editor/domain.md` | History table updated. | |
+ 
+ ### Acceptance Criteria
+ 
+-- [ ] AC-01: `/work-units?worktree={path}` lists units from specified worktree
+-- [ ] AC-02: `/work-units/{unitSlug}?worktree={path}` loads content from specified worktree
+-- [ ] AC-03: Editing saves to specified worktree
+-- [ ] AC-04: Creating scaffolds in specified worktree
+-- [ ] AC-05: Deleting/renaming operates on specified worktree
+-- [ ] AC-06: Links preserve `?worktree=` between units
+-- [ ] AC-07: Missing `?worktree=` redirects to worktree picker (no silent fallback)
+-- [ ] AC-08: Edit Template round-trip preserves worktree for data ops
+-- [ ] AC-09: `just fft` passes
+-- [ ] AC-10: Unit tests verify resolver validates worktree against `info.worktrees[]`
+-- [ ] AC-11: Next.js MCP: zero compilation/runtime errors
+-- [ ] AC-12: Playwright screenshots confirm correct worktree behavior
++- [x] AC-01: `/work-units?worktree={path}` lists units from specified worktree
++- [x] AC-02: `/work-units/{unitSlug}?worktree={path}` loads content from specified worktree
++- [x] AC-03: Editing saves to specified worktree
++- [x] AC-04: Creating scaffolds in specified worktree
++- [x] AC-05: Deleting/renaming operates on specified worktree
++- [x] AC-06: Links preserve `?worktree=` between units
++- [x] AC-07: Missing `?worktree=` redirects to worktree picker (no silent fallback)
++- [x] AC-08: Edit Template round-trip preserves worktree for data ops
++- [x] AC-09: `just fft` passes
++- [x] AC-10: Unit tests verify resolver validates worktree against `info.worktrees[]`
++- [x] AC-11: Next.js MCP: zero compilation/runtime errors
++- [x] AC-12: Playwright screenshots confirm correct worktree behavior
+ 
+ ### Risks
+ 
+diff --git a/test/unit/web/actions/workunit-actions-worktree.test.ts b/test/unit/web/actions/workunit-actions-worktree.test.ts
+new file mode 100644
+index 0000000..4fb81b7
+--- /dev/null
++++ b/test/unit/web/actions/workunit-actions-worktree.test.ts
+@@ -0,0 +1,85 @@
++/**
++ * Test Doc:
++ * - Feature: Plan 062 — Work unit worktree resolution
++ * - Scenario: resolveWorktreeContext validates worktree path, no silent fallback
++ * - Tests: Pure function that takes WorkspaceInfo and returns WorkspaceContext or null
++ * - Usage Notes: No DI needed — tests a pure function directly
++ */
++
++import type { WorkspaceInfo, Worktree } from '@chainglass/workflow';
++import { describe, expect, it } from 'vitest';
++
++// ─── Test Fixtures ──────────────────────────────────────────────
++
++const MAIN_PATH = '/workspace/main';
++const WORKTREE_PATH = '/workspace/feature-branch';
++const WORKSPACE_SLUG = 'test-workspace';
++
++function createTestWorktrees(): Worktree[] {
++  return [
++    {
++      path: MAIN_PATH,
++      branch: 'main',
++      head: 'abc123',
++      isDetached: false,
++      isBare: false,
++      isPrunable: false,
++    },
++    {
++      path: WORKTREE_PATH,
++      branch: 'feature-branch',
++      head: 'def456',
++      isDetached: false,
++      isBare: false,
++      isPrunable: false,
++    },
++  ];
++}
++
++function createTestWorkspaceInfo(): WorkspaceInfo {
++  return {
++    slug: WORKSPACE_SLUG,
++    name: 'Test Workspace',
++    path: MAIN_PATH,
++    createdAt: '2026-01-01T00:00:00Z',
++    hasGit: true,
++    worktrees: createTestWorktrees(),
++  };
++}
++
++import { resolveWorktreeContext } from '../../../../apps/web/src/features/058-workunit-editor/lib/resolve-worktree-context';
++
++describe('resolveWorktreeContext (Plan 062)', () => {
++  const info = createTestWorkspaceInfo();
++
++  it('returns context with correct worktreePath for valid worktree', () => {
++    const result = resolveWorktreeContext(info, WORKTREE_PATH);
++    expect(result).not.toBeNull();
++    expect(result?.worktreePath).toBe(WORKTREE_PATH);
++    expect(result?.worktreeBranch).toBe('feature-branch');
++    expect(result?.isMainWorktree).toBe(false);
++  });
++
++  it('returns null when worktreePath is undefined (no silent fallback)', () => {
++    const result = resolveWorktreeContext(info, undefined);
++    expect(result).toBeNull();
++  });
++
++  it('returns null when worktreePath is not in worktrees list', () => {
++    const result = resolveWorktreeContext(info, '/bogus/path');
++    expect(result).toBeNull();
++  });
++
++  it('handles trailing-slash normalization', () => {
++    const result = resolveWorktreeContext(info, `${WORKTREE_PATH}/`);
++    expect(result).not.toBeNull();
++    expect(result?.worktreePath).toBe(WORKTREE_PATH);
++  });
++
++  it('returns context for main worktree path', () => {
++    const result = resolveWorktreeContext(info, MAIN_PATH);
++    expect(result).not.toBeNull();
++    expect(result?.worktreePath).toBe(MAIN_PATH);
++    expect(result?.isMainWorktree).toBe(true);
++  });
++});

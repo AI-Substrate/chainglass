@@ -223,21 +223,33 @@ export class CentralWatcherService implements ICentralWatcherService {
     worktreePath: string,
     workspaceSlug: string
   ): Promise<void> {
-    const dataPath = `${worktreePath}/.chainglass/data`;
+    const dataPaths = [`${worktreePath}/.chainglass/data`, `${worktreePath}/.chainglass/units`];
+
+    // Filter to paths that exist
+    const existingPaths: string[] = [];
+    for (const p of dataPaths) {
+      try {
+        if (await this.fs.exists(p)) existingPaths.push(p);
+      } catch (err) {
+        this.logError(
+          `Failed to check path ${p}`,
+          err instanceof Error ? err : new Error(String(err))
+        );
+      }
+    }
+
+    if (existingPaths.length === 0) return;
 
     try {
-      const exists = await this.fs.exists(dataPath);
-      if (!exists) {
-        return;
-      }
-
       const watcher = this.fileWatcherFactory.create({
         ignoreInitial: true,
         atomic: true,
         awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 100 },
       });
 
-      watcher.add(dataPath);
+      for (const p of existingPaths) {
+        watcher.add(p);
+      }
 
       // Wire event handlers for file events
       const eventTypes: FileWatcherEvent[] = ['change', 'add', 'unlink'];
@@ -356,9 +368,11 @@ export class CentralWatcherService implements ICentralWatcherService {
           for (const wt of worktrees) {
             allEntries.push({ path: wt.path, slug: workspace.slug });
             const dataPath = `${wt.path}/.chainglass/data`;
+            const unitsPath = `${wt.path}/.chainglass/units`;
             try {
-              const exists = await this.fs.exists(dataPath);
-              if (exists) {
+              const dataExists = await this.fs.exists(dataPath);
+              const unitsExist = await this.fs.exists(unitsPath);
+              if (dataExists || unitsExist) {
                 dataEntries.push({ path: wt.path, slug: workspace.slug });
               }
             } catch {

@@ -23,8 +23,9 @@ flowchart LR
     devTools["🛠️ _platform/dev-tools<br/>StateInspector<br/>useStateInspector<br/>useStateChangeLog"]:::infra
 
     %% Business domains
-    fileBrowser["📁 file-browser<br/>Browser page · FileTree<br/>CodeEditor · FileViewerPanel<br/>WorkspaceContext · Settings"]:::business
+    fileBrowser["📁 file-browser<br/>Browser page · FileTree<br/>CodeEditor re-export<br/>FileViewerPanel<br/>WorkspaceContext · Settings"]:::business
     workflowUI["🔀 workflow-ui<br/>Workflow editor · Canvas<br/>Toolbox · Properties<br/>Doping system"]:::business
+    workunitEditor["✏️ 058-workunit-editor<br/>Unit list page · Editor page<br/>Agent/Code/Input editors<br/>Creation modal · Auto-save"]:::business
 
     %% NEW business domains (Plan 059)
     agents["🤖 agents<br/>IAgentManagerService<br/>IAgentAdapter · IAgentInstance<br/>useAgentManager<br/>useAgentInstance<br/>AgentWorkUnitBridge"]:::new
@@ -87,6 +88,11 @@ flowchart LR
     wfEvents -->|"ICentralEventNotifier<br/>SSE broadcast<br/>(Phase 3)"| events
     agents -->|"IWorkflowEvents<br/>onQuestionAsked<br/>(Phase 3)"| wfEvents
     workflowUI -->|"IWorkflowEvents<br/>answerQuestion<br/>(Phase 3)"| wfEvents
+
+    %% Work Unit Editor dependencies
+    workunitEditor -->|"IWorkUnitService<br/>(CRUD)"| posGraph
+    workunitEditor -->|"CodeEditor"| viewer
+    workunitEditor -->|"workspaceHref"| wsUrl
 ```
 
 ## Legend
@@ -115,6 +121,7 @@ flowchart LR
 | _platform/state | IStateService, useGlobalState, useGlobalStateList, GlobalStateProvider, StateChangeLog, ServerEventRoute, FakeGlobalStateSystem | positional-graph (publish), workflow-ui, panel-layout, file-browser, agents, work-unit-state (subscribe), dev-tools | useSSE | events | ✅ |
 | workflow-ui | _(none — leaf consumer)_ | — | IPositionalGraphService, ITemplateService, IWorkUnitService, IFileSystem, IPathResolver, useSSE, workspaceHref, IUSDK, useGlobalState, useAgentOverlay (future) | positional-graph, file-ops, events, workspace-url, sdk, state, agents (future) | ✅ |
 | _platform/dev-tools | StateInspector, useStateChangeLog, useStateInspector | — | IStateService, StateChangeLog, useStateSystem | state | ✅ |
+| 058-workunit-editor | _(none — leaf consumer)_ | — | IWorkUnitService, CodeEditor, workspaceHref | positional-graph, viewer, workspace-url | ✅ |
 | agents | IAgentManagerService, IAgentAdapter, IAgentInstance, IAgentNotifierService, useAgentManager, useAgentInstance, AgentWorkUnitBridge | positional-graph (orchestration), workflow-ui (future overlay) | ISSEBroadcaster, useSSE, toast(), CopilotClient, IStateService, IWorkUnitStateService, DashboardShell | events, sdk, state, work-unit-state, panel-layout | 🟠 New |
 | work-unit-state | IWorkUnitStateService, WorkUnitEntry, WorkUnitQuestion, FakeWorkUnitStateService | agents (AgentWorkUnitBridge), workflow-ui (future) | IStateService | state | 🟠 New |
 | workflow-events | IWorkflowEvents, WorkflowEventType, FakeWorkflowEventsService | agents (observer hooks), workflow-ui (answerQuestion), CLI (ask/answer/get-answer) | IPositionalGraphService, ICentralEventNotifier | positional-graph, events | 🟠 New |

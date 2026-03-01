@@ -1,29 +1,17 @@
 /**
  * IWorkUnitService Contract Tests.
  *
- * Per Critical Discovery 08: Contract tests prevent fake drift by ensuring
- * both FakeWorkUnitService and real implementation pass the same behavioral tests.
+ * Per Plan 058 Phase 1: Contract tests for both read and write operations.
+ * Ensures FakeWorkUnitService and real WorkUnitService pass identical behavioral tests.
  *
- * Per Plan 021 (DYK#1): Contract tests stubbed with ctx parameter during Phase 1.
- * Full ctx behavioral testing will be added in Phase 5.
- *
- * Usage:
- * ```typescript
- * import { workUnitServiceContractTests } from '@test/contracts/workunit-service.contract';
- *
- * workUnitServiceContractTests('FakeWorkUnitService', () => new FakeWorkUnitService());
- * workUnitServiceContractTests('WorkUnitService', () => new WorkUnitService(...));
- * ```
+ * Updated from Plan 021 version: now imports from positional-graph (not workgraph),
+ * uses E180 error codes (not E120), and tests CRUD operations.
  */
 
+import type { CreateUnitSpec, IWorkUnitService } from '@chainglass/positional-graph';
 import type { WorkspaceContext } from '@chainglass/workflow';
-import type { IWorkUnitService, WorkUnit } from '@chainglass/workgraph/interfaces';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-/**
- * Creates a stub WorkspaceContext for contract tests.
- * Per DYK#1: Stub only - full ctx testing in Phase 5.
- */
 function createStubContext(): WorkspaceContext {
   return {
     workspaceSlug: 'test-workspace',
@@ -49,18 +37,11 @@ export function workUnitServiceContractTests(name: string, createService: () => 
       ctx = createStubContext();
     });
 
-    describe('list()', () => {
-      it('should return UnitListResult with units array', async () => {
-        /*
-        Test Doc:
-        - Why: Contract requires list() returns array of unit summaries
-        - Contract: list(ctx) returns { units: WorkUnitSummary[], errors: [] }
-        - Usage Notes: Run against both fake and real implementations
-        - Quality Contribution: Ensures fake matches real for unit listing
-        - Worked Example: list(ctx) → { units: [...], errors: [] }
-        */
-        const result = await service.list(ctx);
+    // ========== Read Operations ==========
 
+    describe('list()', () => {
+      it('should return ListUnitsResult with units array', async () => {
+        const result = await service.list(ctx);
         expect(result).toHaveProperty('units');
         expect(result).toHaveProperty('errors');
         expect(Array.isArray(result.units)).toBe(true);
@@ -69,7 +50,6 @@ export function workUnitServiceContractTests(name: string, createService: () => 
 
       it('should return units with required fields', async () => {
         const result = await service.list(ctx);
-
         for (const unit of result.units) {
           expect(unit).toHaveProperty('slug');
           expect(unit).toHaveProperty('type');
@@ -80,21 +60,10 @@ export function workUnitServiceContractTests(name: string, createService: () => 
     });
 
     describe('load()', () => {
-      it('should return UnitLoadResult with unit or error', async () => {
-        /*
-        Test Doc:
-        - Why: Contract requires load() returns unit details or E120 error
-        - Contract: load(ctx, slug) returns { unit?: WorkUnit, errors: [] }
-        - Usage Notes: Run against both implementations
-        - Quality Contribution: Ensures fake matches real for unit loading
-        - Worked Example: load(ctx, 'my-unit') → { unit: {...}, errors: [] }
-        */
+      it('should return LoadUnitResult with unit or error', async () => {
         const result = await service.load(ctx, 'nonexistent-unit');
-
         expect(result).toHaveProperty('errors');
         expect(Array.isArray(result.errors)).toBe(true);
-
-        // Either unit exists or errors exist
         if (result.errors.length === 0) {
           expect(result.unit).toBeDefined();
         } else {
@@ -103,74 +72,142 @@ export function workUnitServiceContractTests(name: string, createService: () => 
         }
       });
 
-      it('should return error E120 for non-existent unit', async () => {
+      it('should return error E180 for non-existent unit', async () => {
         const result = await service.load(ctx, 'definitely-not-a-real-unit');
-
-        // Per spec: E120 is unit not found
-        if (result.errors.length > 0) {
-          expect(result.errors[0].code).toBe('E120');
-        }
-      });
-    });
-
-    describe('create()', () => {
-      it('should return UnitCreateResult with slug and path', async () => {
-        /*
-        Test Doc:
-        - Why: Contract requires create() returns created unit info
-        - Contract: create(ctx, slug, type) returns { slug, path, errors: [] }
-        - Usage Notes: Run against both implementations
-        - Quality Contribution: Ensures fake matches real for unit creation
-        - Worked Example: create(ctx, 'new-unit', 'agent') → { slug: 'new-unit', path: '...', errors: [] }
-        */
-        const result = await service.create(ctx, 'test-unit', 'agent');
-
-        expect(result).toHaveProperty('slug');
-        expect(result).toHaveProperty('path');
-        expect(result).toHaveProperty('errors');
-        expect(result.slug).toBe('test-unit');
-      });
-
-      it('should accept all valid unit types', async () => {
-        const types: ('agent' | 'code' | 'user-input')[] = ['agent', 'code', 'user-input'];
-
-        for (const type of types) {
-          const result = await service.create(ctx, `test-${type}`, type);
-          expect(result.errors.length).toBe(0);
-        }
+        expect(result.errors.length).toBeGreaterThan(0);
+        expect(result.errors[0].code).toBe('E180');
       });
     });
 
     describe('validate()', () => {
-      it('should return UnitValidateResult with valid flag', async () => {
-        /*
-        Test Doc:
-        - Why: Contract requires validate() returns validation result
-        - Contract: validate(ctx, slug) returns { slug, valid, issues: [], errors: [] }
-        - Usage Notes: Run against both implementations
-        - Quality Contribution: Ensures fake matches real for unit validation
-        - Worked Example: validate(ctx, 'my-unit') → { slug: 'my-unit', valid: true, issues: [], errors: [] }
-        */
-        const result = await service.validate(ctx, 'test-unit');
-
-        expect(result).toHaveProperty('slug');
+      it('should return ValidateUnitResult with valid flag', async () => {
+        const result = await service.validate(ctx, 'nonexistent-unit');
         expect(result).toHaveProperty('valid');
-        expect(result).toHaveProperty('issues');
         expect(result).toHaveProperty('errors');
         expect(typeof result.valid).toBe('boolean');
-        expect(Array.isArray(result.issues)).toBe(true);
+      });
+    });
+
+    // ========== Write Operations (Plan 058) ==========
+
+    describe('create()', () => {
+      it('should create a unit and return CreateUnitResult', async () => {
+        const spec: CreateUnitSpec = { slug: 'test-agent', type: 'agent' };
+        const result = await service.create(ctx, spec);
+        expect(result).toHaveProperty('slug');
+        expect(result).toHaveProperty('type');
+        expect(result).toHaveProperty('errors');
+        expect(result.slug).toBe('test-agent');
+        expect(result.type).toBe('agent');
+        expect(result.errors).toHaveLength(0);
       });
 
-      it('should include issue details when invalid', async () => {
-        const result = await service.validate(ctx, 'test-unit');
-
-        for (const issue of result.issues) {
-          expect(issue).toHaveProperty('severity');
-          expect(issue).toHaveProperty('code');
-          expect(issue).toHaveProperty('path');
-          expect(issue).toHaveProperty('message');
-          expect(['error', 'warning']).toContain(issue.severity);
+      it('should accept all valid unit types', async () => {
+        const types: ('agent' | 'code' | 'user-input')[] = ['agent', 'code', 'user-input'];
+        for (const type of types) {
+          const result = await service.create(ctx, { slug: `test-${type}`, type });
+          expect(result.errors).toHaveLength(0);
+          expect(result.type).toBe(type);
         }
+      });
+
+      it('should reject duplicate slugs with E188', async () => {
+        await service.create(ctx, { slug: 'duplicate', type: 'agent' });
+        const result = await service.create(ctx, { slug: 'duplicate', type: 'agent' });
+        expect(result.errors.length).toBeGreaterThan(0);
+        expect(result.errors[0].code).toBe('E188');
+      });
+
+      it('should make unit loadable after creation', async () => {
+        await service.create(ctx, { slug: 'loadable-unit', type: 'agent' });
+        const loadResult = await service.load(ctx, 'loadable-unit');
+        expect(loadResult.unit).toBeDefined();
+        expect(loadResult.unit?.slug).toBe('loadable-unit');
+      });
+
+      it('should make unit appear in list after creation', async () => {
+        await service.create(ctx, { slug: 'listed-unit', type: 'code' });
+        const listResult = await service.list(ctx);
+        const found = listResult.units.find((u) => u.slug === 'listed-unit');
+        expect(found).toBeDefined();
+        expect(found?.type).toBe('code');
+      });
+    });
+
+    describe('update()', () => {
+      it('should update metadata fields', async () => {
+        await service.create(ctx, { slug: 'update-test', type: 'agent' });
+        const result = await service.update(ctx, 'update-test', {
+          description: 'Updated description',
+          version: '2.0.0',
+        });
+        expect(result.errors).toHaveLength(0);
+      });
+
+      it('should return E180 for non-existent unit', async () => {
+        const result = await service.update(ctx, 'ghost-unit', { description: 'nope' });
+        expect(result.errors.length).toBeGreaterThan(0);
+        expect(result.errors[0].code).toBe('E180');
+      });
+    });
+
+    describe('delete()', () => {
+      it('should delete an existing unit', async () => {
+        await service.create(ctx, { slug: 'delete-me', type: 'code' });
+        const result = await service.delete(ctx, 'delete-me');
+        expect(result.deleted).toBe(true);
+        expect(result.errors).toHaveLength(0);
+      });
+
+      it('should be idempotent for non-existent units', async () => {
+        const result = await service.delete(ctx, 'never-existed');
+        expect(result.deleted).toBe(true);
+        expect(result.errors).toHaveLength(0);
+      });
+
+      it('should make unit un-loadable after deletion', async () => {
+        await service.create(ctx, { slug: 'to-delete', type: 'agent' });
+        await service.delete(ctx, 'to-delete');
+        const loadResult = await service.load(ctx, 'to-delete');
+        expect(loadResult.unit).toBeUndefined();
+        expect(loadResult.errors[0].code).toBe('E180');
+      });
+    });
+
+    describe('rename()', () => {
+      it('should rename a unit and update slug', async () => {
+        await service.create(ctx, { slug: 'old-name', type: 'agent' });
+        const result = await service.rename(ctx, 'old-name', 'new-name');
+        expect(result.newSlug).toBe('new-name');
+        expect(result.errors).toHaveLength(0);
+      });
+
+      it('should make unit loadable by new slug', async () => {
+        await service.create(ctx, { slug: 'before-rename', type: 'code' });
+        await service.rename(ctx, 'before-rename', 'after-rename');
+        const loadResult = await service.load(ctx, 'after-rename');
+        expect(loadResult.unit).toBeDefined();
+      });
+
+      it('should make old slug un-loadable', async () => {
+        await service.create(ctx, { slug: 'rename-source', type: 'agent' });
+        await service.rename(ctx, 'rename-source', 'rename-dest');
+        const loadResult = await service.load(ctx, 'rename-source');
+        expect(loadResult.unit).toBeUndefined();
+      });
+
+      it('should return E180 when old slug does not exist', async () => {
+        const result = await service.rename(ctx, 'no-such-unit', 'new-slug');
+        expect(result.errors.length).toBeGreaterThan(0);
+        expect(result.errors[0].code).toBe('E180');
+      });
+
+      it('should return E188 when new slug already exists', async () => {
+        await service.create(ctx, { slug: 'source-unit', type: 'agent' });
+        await service.create(ctx, { slug: 'target-unit', type: 'code' });
+        const result = await service.rename(ctx, 'source-unit', 'target-unit');
+        expect(result.errors.length).toBeGreaterThan(0);
+        expect(result.errors[0].code).toBe('E188');
       });
     });
   });
