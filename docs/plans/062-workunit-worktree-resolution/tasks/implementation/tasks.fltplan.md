@@ -139,7 +139,7 @@ flowchart LR
 ## Checklist
 
 - [x] T001: TDD RED — write resolver tests (4+ cases, fakes only)
-- [~] T002: TDD GREEN — fix resolver + add worktreePath to 8 actions
+- [x] T002: TDD GREEN — fix resolver + add worktreePath to 8 actions
 - [x] T003: Pages — read searchParams.worktree, redirect if missing
 - [x] T004: Components — thread worktreePath to 5 components
 - [x] T005: Verification — just fft + MCP + Playwright screenshots

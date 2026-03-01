@@ -1,10 +1,11 @@
-/**
- * Test Doc:
- * - Feature: Plan 062 — Work unit worktree resolution
- * - Scenario: resolveWorktreeContext validates worktree path, no silent fallback
- * - Tests: Pure function that takes WorkspaceInfo and returns WorkspaceContext or null
- * - Usage Notes: No DI needed — tests a pure function directly
- */
+/*
+Test Doc:
+- Why: Prevent regressions where work-unit CRUD resolves to the wrong workspace path (Plan 062).
+- Contract: resolveWorktreeContext returns null for missing/invalid paths and returns a valid WorkspaceContext for known worktrees.
+- Usage Notes: Call helper with WorkspaceInfo fixture containing both main + feature worktrees.
+- Quality Contribution: Catches silent fallback and wrong-path resolution bugs.
+- Worked Example: resolveWorktreeContext(info, '/workspace/feature-branch/') => context.worktreePath === '/workspace/feature-branch'.
+*/
 
 import type { WorkspaceInfo, Worktree } from '@chainglass/workflow';
 import { describe, expect, it } from 'vitest';
@@ -81,5 +82,12 @@ describe('resolveWorktreeContext (Plan 062)', () => {
     expect(result).not.toBeNull();
     expect(result?.worktreePath).toBe(MAIN_PATH);
     expect(result?.isMainWorktree).toBe(true);
+  });
+
+  it('returns workspace path in context even when using non-main worktree', () => {
+    const result = resolveWorktreeContext(info, WORKTREE_PATH);
+    expect(result).not.toBeNull();
+    expect(result?.workspacePath).toBe(MAIN_PATH);
+    expect(result?.worktreePath).toBe(WORKTREE_PATH);
   });
 });

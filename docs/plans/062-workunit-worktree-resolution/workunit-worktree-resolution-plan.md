@@ -28,6 +28,10 @@ Work unit pages hardcode `worktreePath: info.path` in `workunit-actions.ts`, mak
 | `apps/web/app/(dashboard)/workspaces/[slug]/work-units/[unitSlug]/page.tsx` | `058-workunit-editor` | internal | Thread existing worktree param to all data-loading action calls |
 | `apps/web/src/features/058-workunit-editor/components/unit-list.tsx` | `058-workunit-editor` | internal | Add `worktreePath?` prop, append `?worktree=` to links |
 | `apps/web/src/features/058-workunit-editor/components/workunit-editor.tsx` | `058-workunit-editor` | internal | Add `worktreePath?` prop, thread to save callbacks |
+| `apps/web/src/features/058-workunit-editor/components/agent-editor.tsx` | `058-workunit-editor` | internal | Thread `worktreePath` into `saveUnitContent` |
+| `apps/web/src/features/058-workunit-editor/components/code-unit-editor.tsx` | `058-workunit-editor` | internal | Thread `worktreePath` into `saveUnitContent` |
+| `apps/web/src/features/058-workunit-editor/components/user-input-editor.tsx` | `058-workunit-editor` | internal | Thread `worktreePath` into `saveUnitContent` |
+| `apps/web/src/features/058-workunit-editor/lib/resolve-worktree-context.ts` | `058-workunit-editor` | internal | Pure worktree validation helper |
 | `apps/web/src/features/058-workunit-editor/components/unit-catalog-sidebar.tsx` | `058-workunit-editor` | internal | Add `worktreePath?` prop, append `?worktree=` to links |
 | `apps/web/src/features/058-workunit-editor/components/unit-creation-modal.tsx` | `058-workunit-editor` | internal | Pass `worktreePath?` to `createUnit`, include in redirect |
 | `apps/web/src/features/058-workunit-editor/components/metadata-panel.tsx` | `058-workunit-editor` | internal | Add `worktreePath?` prop, pass to direct `updateUnit()` calls |

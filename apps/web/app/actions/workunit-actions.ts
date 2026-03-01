@@ -35,10 +35,18 @@ import { getContainer } from '../../src/lib/bootstrap-singleton';
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
+/**
+ * Resolve workspace context with mandatory worktree validation.
+ * Unlike resolveContextFromParams (which falls back to main workspace),
+ * this returns null when worktreePath is missing or invalid —
+ * no silent fallback per Plan 062 AC-07.
+ */
 async function resolveWorkspaceContext(
   slug: string,
   worktreePath?: string
 ): Promise<WorkspaceContext | null> {
+  if (!worktreePath) return null;
+
   const container = getContainer();
   const workspaceService = container.resolve<IWorkspaceService>(
     WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
