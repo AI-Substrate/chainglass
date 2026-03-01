@@ -423,6 +423,14 @@ describe('Event CLI Integration — Multi-Event Sequence', () => {
 
 // ── Plan 061 Phase 3 (T007): QnA Integration Tests via WorkflowEventsService ──
 
+/*
+Test Doc:
+- Why: Integration tests verify the full QnA lifecycle through WorkflowEventsService — ask, answer (with 3-event handshake), get-answer — plus error paths. Catches regressions after Phase 3 consumer migration from PGService direct calls.
+- Contract: askQuestion returns questionId + transitions to waiting-question; answerQuestion encapsulates question:answer + node:restart; getAnswer returns AnswerResult or null; wrong-state/bad-id throw WorkflowEventError.
+- Usage Notes: Uses real PositionalGraphService with FakeFileSystem. simulateAgentAccepted sets up agent-accepted state required for question:ask event.
+- Quality Contribution: Fills the QnA CLI integration test gap identified in research dossier. Validates Finding 02 fix (CLI answer now includes node:restart).
+- Worked Example: Create graph → start node → accept → askQuestion('confirm') → verify waiting-question → answerQuestion(true) → verify not waiting-question → getAnswer → verify answered:true with answer value.
+*/
 describe('WorkflowEventsService — QnA Integration', () => {
   let service: IPositionalGraphService;
   let ctx: WorkspaceContext;

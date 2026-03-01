@@ -121,7 +121,13 @@ export class WorkflowEventsService implements IWorkflowEvents {
     );
 
     if (!askEvent) {
-      throw new Error(`Question ${questionId} not found in node ${nodeId} events`);
+      throw new WorkflowEventError(`Question ${questionId} not found in node ${nodeId} events`, [
+        {
+          code: 'E173',
+          message: `Question ${questionId} not found`,
+          action: 'Use a valid questionId from question:ask event',
+        },
+      ]);
     }
 
     // Step 1: Raise question:answer event
@@ -173,7 +179,7 @@ export class WorkflowEventsService implements IWorkflowEvents {
 
     // Step 2: Raise node:restart (3-event handshake) — DYK-P2-04
     try {
-      await this.pgService.raiseNodeEvent(
+      const restartResult = await this.pgService.raiseNodeEvent(
         ctx,
         graphSlug,
         nodeId,
@@ -181,11 +187,23 @@ export class WorkflowEventsService implements IWorkflowEvents {
         { reason: 'question-answered' },
         'human'
       );
+      if (restartResult.errors && restartResult.errors.length > 0) {
+        throw new WorkflowEventError(
+          `Answer recorded but node restart failed: ${restartResult.errors.map((e) => e.message).join(', ')}`,
+          restartResult.errors
+        );
+      }
     } catch (restartError) {
-      // Answer was recorded but restart failed — partial failure
-      // Observer already notified about the answer. Rethrow so caller knows.
-      throw new Error(
-        `Answer recorded but node restart failed: ${restartError instanceof Error ? restartError.message : String(restartError)}`
+      if (restartError instanceof WorkflowEventError) throw restartError;
+      // Answer was recorded but restart threw unexpectedly — partial failure
+      throw new WorkflowEventError(
+        `Answer recorded but node restart failed: ${restartError instanceof Error ? restartError.message : String(restartError)}`,
+        [
+          {
+            code: 'E_RESTART',
+            message: restartError instanceof Error ? restartError.message : String(restartError),
+          },
+        ]
       );
     }
   }

@@ -32,7 +32,7 @@ flowchart LR
     workUnitState["📋 work-unit-state<br/>IWorkUnitStateService<br/>WorkUnitEntry<br/>WorkUnitQuestion<br/>FakeWorkUnitStateService"]:::new
 
     %% NEW business domains (Plan 061)
-    wfEvents["📡 workflow-events<br/>IWorkflowEvents<br/>WorkflowEventType<br/>FakeWorkflowEventsService"]:::new
+    wfEvents["📡 workflow-events<br/>IWorkflowEvents<br/>WorkflowEventType<br/>WorkflowEventError<br/>FakeWorkflowEventsService"]:::new
 
     %% Contract dependencies (consumer → provider)
     fileBrowser -->|"IFileSystem<br/>IPathResolver"| fileOps
@@ -87,7 +87,8 @@ flowchart LR
     wfEvents -->|"IPositionalGraphService<br/>raiseNodeEvent"| posGraph
     wfEvents -->|"ICentralEventNotifier<br/>SSE broadcast<br/>(Phase 3)"| events
     agents -->|"IWorkflowEvents<br/>onQuestionAsked<br/>(Phase 3)"| wfEvents
-    workflowUI -->|"IWorkflowEvents<br/>answerQuestion<br/>(Phase 3)"| wfEvents
+    workflowUI -->|"IWorkflowEvents<br/>answerQuestion"| wfEvents
+    posGraph -->|"IWorkflowEvents<br/>CLI ask/answer/get-answer"| wfEvents
 
     %% Work Unit Editor dependencies
     workunitEditor -->|"IWorkUnitService<br/>(CRUD)"| posGraph
@@ -124,4 +125,4 @@ flowchart LR
 | 058-workunit-editor | _(none — leaf consumer)_ | — | IWorkUnitService, CodeEditor, workspaceHref | positional-graph, viewer, workspace-url | ✅ |
 | agents | IAgentManagerService, IAgentAdapter, IAgentInstance, IAgentNotifierService, useAgentManager, useAgentInstance, AgentWorkUnitBridge | positional-graph (orchestration), workflow-ui (future overlay) | ISSEBroadcaster, useSSE, toast(), CopilotClient, IStateService, IWorkUnitStateService, DashboardShell | events, sdk, state, work-unit-state, panel-layout | 🟠 New |
 | work-unit-state | IWorkUnitStateService, WorkUnitEntry, WorkUnitQuestion, FakeWorkUnitStateService | agents (AgentWorkUnitBridge), workflow-ui (future) | IStateService | state | 🟠 New |
-| workflow-events | IWorkflowEvents, WorkflowEventType, FakeWorkflowEventsService | agents (observer hooks), workflow-ui (answerQuestion), CLI (ask/answer/get-answer) | IPositionalGraphService, ICentralEventNotifier | positional-graph, events | 🟠 New |
+| workflow-events | IWorkflowEvents, WorkflowEventType, WorkflowEventError, FakeWorkflowEventsService | agents (observer hooks), workflow-ui (answerQuestion), CLI (ask/answer/get-answer) | IPositionalGraphService, ICentralEventNotifier | positional-graph, events | 🟠 New |
