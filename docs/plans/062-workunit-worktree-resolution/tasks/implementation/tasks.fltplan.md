@@ -59,9 +59,7 @@ stateDiagram-v2
     S5 --> S6
     S6 --> [*]
 
-    class S1 done
-    class S2 active
-    class S3,S4,S5,S6 pending
+    class S1,S2,S3,S4,S5,S6 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done

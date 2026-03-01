@@ -51,11 +51,11 @@ flowchart TD
 
     subgraph Implementation["Implementation"]
         T001["T001: TDD RED<br/>resolver tests"]:::completed
-        T002["T002: TDD GREEN<br/>fix resolver + actions"]:::blocked
-        T003["T003: Pages<br/>read + redirect"]:::pending
-        T004["T004: Components<br/>prop threading"]:::pending
-        T005["T005: Verification<br/>FFT + Playwright"]:::pending
-        T006["T006: Domain docs"]:::pending
+        T002["T002: TDD GREEN<br/>fix resolver + actions"]:::completed
+        T003["T003: Pages<br/>read + redirect"]:::completed
+        T004["T004: Components<br/>prop threading"]:::completed
+        T005["T005: Verification<br/>FFT + Playwright"]:::completed
+        T006["T006: Domain docs"]:::completed
         T001 --> T002
         T002 --> T003
         T003 --> T004
@@ -64,20 +64,20 @@ flowchart TD
     end
 
     subgraph Actions["Server Actions"]
-        FA["workunit-actions.ts"]:::pending
+        FA["workunit-actions.ts"]:::completed
     end
 
     subgraph Pages["Pages"]
-        FP1["work-units/page.tsx"]:::pending
-        FP2["work-units/[unitSlug]/page.tsx"]:::pending
+        FP1["work-units/page.tsx"]:::completed
+        FP2["work-units/[unitSlug]/page.tsx"]:::completed
     end
 
     subgraph Components["Components"]
-        FC1["unit-list.tsx"]:::pending
-        FC2["workunit-editor.tsx"]:::pending
-        FC3["unit-catalog-sidebar.tsx"]:::pending
-        FC4["unit-creation-modal.tsx"]:::pending
-        FC5["metadata-panel.tsx"]:::pending
+        FC1["unit-list.tsx"]:::completed
+        FC2["workunit-editor.tsx"]:::completed
+        FC3["unit-catalog-sidebar.tsx"]:::completed
+        FC4["unit-creation-modal.tsx"]:::completed
+        FC5["metadata-panel.tsx"]:::completed
     end
 
     T002 -.-> FA
@@ -97,11 +97,11 @@ flowchart TD
 | Status | ID | Task | Domain | Path(s) | Done When | Notes |
 |--------|-----|------|--------|---------|-----------|-------|
 | [x] | T001 | **TDD RED**: Write tests for `resolveWorkspaceContext(slug, worktreePath?)`. Test cases: (1) valid worktree in `info.worktrees[]` → returns context with correct `worktreePath`; (2) invalid worktree not in list → returns null or error; (3) missing worktreePath (undefined) → returns null or error (no silent fallback per AC-07); (4) missing workspace (unknown slug) → returns null. Use DI with fakes: `resetBootstrapSingleton()` + `createTestContainer()` to inject FakeWorkspaceService. Test via exported actions (e.g., `listUnits`). | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/test/unit/web/actions/workunit-actions-worktree.test.ts` | 4+ tests written, all RED (failing against current code) | Per constitution Principle 3+4. DI pattern: `resetBootstrapSingleton()` in beforeEach, inject test container with fakes (DYK #2). CS-1. |
-| [~] | T002 | **TDD GREEN** (blocked by T001): Fix `resolveWorkspaceContext` — replace hardcoded resolver with `workspaceService.resolveContextFromParams(slug, worktreePath)`. Return null if worktree missing/invalid (no fallback). Add `worktreePath?` as last param to all 8 exported actions: `listUnits`, `loadUnit`, `loadUnitContent`, `createUnit`, `updateUnit`, `deleteUnit`, `renameUnit`, `saveUnitContent`. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/app/actions/workunit-actions.ts` | All T001 tests pass GREEN. 8 action signatures updated. TypeScript compiles. | Use canonical `resolveContextFromParams()` (not inline pattern). Handles trailing-slash normalization (DYK #3+#5). Per finding 01. CS-2. |
-| [ ] | T003 | **Pages**: (A) List page — add `searchParams` to PageProps, read `sp.worktree`, call `redirect(\`/workspaces/${slug}\`)` if missing (worktree picker), pass to `listUnits(slug, worktreePath)` and `<UnitList worktreePath={worktreePath}>`. (B) Editor page — extract `worktreePath` from `sp.worktree` (keep existing `returnWorktree` for return link per DYK #4), thread `worktreePath` to all 3 `Promise.all` action calls (`loadUnit`, `loadUnitContent`, `listUnits`), pass as new prop to `<WorkUnitEditor worktreePath={worktreePath}>`. Redirect to worktree picker if missing. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/app/(dashboard)/workspaces/[slug]/work-units/page.tsx`, `/Users/jordanknight/substrate/058-workunit-editor/apps/web/app/(dashboard)/workspaces/[slug]/work-units/[unitSlug]/page.tsx` | Both pages thread worktree to actions; missing `?worktree=` redirects to `/workspaces/${slug}` (worktree picker). | Per findings 02+05. Use `redirect()` from `next/navigation`. Redirect to workspace home avoids loop when sidebar nav lacks worktree context (DYK #1). CS-2. |
-| [ ] | T004 | **Components**: Add `worktreePath?: string` to props of 5 components (keep existing `returnWorktree` separate per DYK #4). (A) `UnitList` — append `?worktree=` to unit links. (B) `WorkUnitEditor` — add NEW `worktreePath` prop (alongside existing `returnWorktree`), thread to all save callbacks (`useCallback` deps must include `worktreePath`), pass to child components. (C) `UnitCatalogSidebar` — append `?worktree=` to sidebar unit links. (D) `UnitCreationModal` — pass to `createUnit()`, include in redirect URL after create. (E) `MetadataPanel` — pass to `updateUnit()` calls (imports server action directly). | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/058-workunit-editor/components/unit-list.tsx`, `workunit-editor.tsx`, `unit-catalog-sidebar.tsx`, `unit-creation-modal.tsx`, `metadata-panel.tsx` | All links include `?worktree=`; all action calls pass worktreePath; all `useCallback` deps correct; TypeScript compiles. | Per findings 03+04. Always use `encodeURIComponent()` for URLs. CS-2. |
-| [ ] | T005 | **Verification**: Run `just fft` (0 failures). Query Next.js MCP port 3001 for errors (0 errors). Launch Playwright headless Chrome. Navigate to `/workspaces/chainglass/work-units?worktree=/Users/jordanknight/substrate/058-workunit-editor` — verify units listed from worktree. Navigate to an editor page with `?worktree=` — verify content loads. Navigate WITHOUT `?worktree=` — verify redirect (not silent render). Take screenshots as evidence. | all | N/A | `just fft` passes. MCP: 0 errors. Playwright confirms: correct units, correct editor, redirect on missing param. | Per AC-09, AC-11, AC-12. CS-2. |
-| [ ] | T006 | **Domain docs**: Update `058-workunit-editor/domain.md` history with Plan 062 entry. Add "Worktree Context Threading" concept to Concepts table if not present. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/docs/domains/058-workunit-editor/domain.md` | History updated. | CS-1. |
+| [x] | T002 | **TDD GREEN** (blocked by T001): Fix `resolveWorkspaceContext` — replace hardcoded resolver with `workspaceService.resolveContextFromParams(slug, worktreePath)`. Return null if worktree missing/invalid (no fallback). Add `worktreePath?` as last param to all 8 exported actions: `listUnits`, `loadUnit`, `loadUnitContent`, `createUnit`, `updateUnit`, `deleteUnit`, `renameUnit`, `saveUnitContent`. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/app/actions/workunit-actions.ts` | All T001 tests pass GREEN. 8 action signatures updated. TypeScript compiles. | Use canonical `resolveContextFromParams()` (not inline pattern). Handles trailing-slash normalization (DYK #3+#5). Per finding 01. CS-2. |
+| [x] | T003 | **Pages**: (A) List page — add `searchParams` to PageProps, read `sp.worktree`, call `redirect(\`/workspaces/${slug}\`)` if missing (worktree picker), pass to `listUnits(slug, worktreePath)` and `<UnitList worktreePath={worktreePath}>`. (B) Editor page — extract `worktreePath` from `sp.worktree` (keep existing `returnWorktree` for return link per DYK #4), thread `worktreePath` to all 3 `Promise.all` action calls (`loadUnit`, `loadUnitContent`, `listUnits`), pass as new prop to `<WorkUnitEditor worktreePath={worktreePath}>`. Redirect to worktree picker if missing. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/app/(dashboard)/workspaces/[slug]/work-units/page.tsx`, `/Users/jordanknight/substrate/058-workunit-editor/apps/web/app/(dashboard)/workspaces/[slug]/work-units/[unitSlug]/page.tsx` | Both pages thread worktree to actions; missing `?worktree=` redirects to `/workspaces/${slug}` (worktree picker). | Per findings 02+05. Use `redirect()` from `next/navigation`. Redirect to workspace home avoids loop when sidebar nav lacks worktree context (DYK #1). CS-2. |
+| [x] | T004 | **Components**: Add `worktreePath?: string` to props of 5 components (keep existing `returnWorktree` separate per DYK #4). (A) `UnitList` — append `?worktree=` to unit links. (B) `WorkUnitEditor` — add NEW `worktreePath` prop (alongside existing `returnWorktree`), thread to all save callbacks (`useCallback` deps must include `worktreePath`), pass to child components. (C) `UnitCatalogSidebar` — append `?worktree=` to sidebar unit links. (D) `UnitCreationModal` — pass to `createUnit()`, include in redirect URL after create. (E) `MetadataPanel` — pass to `updateUnit()` calls (imports server action directly). | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/apps/web/src/features/058-workunit-editor/components/unit-list.tsx`, `workunit-editor.tsx`, `unit-catalog-sidebar.tsx`, `unit-creation-modal.tsx`, `metadata-panel.tsx` | All links include `?worktree=`; all action calls pass worktreePath; all `useCallback` deps correct; TypeScript compiles. | Per findings 03+04. Always use `encodeURIComponent()` for URLs. CS-2. |
+| [x] | T005 | **Verification**: Run `just fft` (0 failures). Query Next.js MCP port 3001 for errors (0 errors). Launch Playwright headless Chrome. Navigate to `/workspaces/chainglass/work-units?worktree=/Users/jordanknight/substrate/058-workunit-editor` — verify units listed from worktree. Navigate to an editor page with `?worktree=` — verify content loads. Navigate WITHOUT `?worktree=` — verify redirect (not silent render). Take screenshots as evidence. | all | N/A | `just fft` passes. MCP: 0 errors. Playwright confirms: correct units, correct editor, redirect on missing param. | Per AC-09, AC-11, AC-12. CS-2. |
+| [x] | T006 | **Domain docs**: Update `058-workunit-editor/domain.md` history with Plan 062 entry. Add "Worktree Context Threading" concept to Concepts table if not present. | `058-workunit-editor` | `/Users/jordanknight/substrate/058-workunit-editor/docs/domains/058-workunit-editor/domain.md` | History updated. | CS-1. |
 
 ---
 
