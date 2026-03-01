@@ -26,3 +26,5 @@ export {
   FakeKeybindingService,
 } from './fake-usdk.js';
 export type { FakeUSDKInstance } from './fake-usdk.js';
+// Workflow Events fake (Plan 061: WorkflowEvents convenience domain)
+export { FakeWorkflowEventsService } from './fake-workflow-events.js';

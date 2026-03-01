@@ -30,6 +30,9 @@ flowchart LR
     agents["🤖 agents<br/>IAgentManagerService<br/>IAgentAdapter · IAgentInstance<br/>useAgentManager<br/>useAgentInstance<br/>AgentWorkUnitBridge"]:::new
     workUnitState["📋 work-unit-state<br/>IWorkUnitStateService<br/>WorkUnitEntry<br/>WorkUnitQuestion<br/>FakeWorkUnitStateService"]:::new
 
+    %% NEW business domains (Plan 061)
+    wfEvents["📡 workflow-events<br/>IWorkflowEvents<br/>WorkflowEventType<br/>FakeWorkflowEventsService"]:::new
+
     %% Contract dependencies (consumer → provider)
     fileBrowser -->|"IFileSystem<br/>IPathResolver"| fileOps
     fileBrowser -->|"workspaceHref<br/>fileBrowserParams"| wsUrl
@@ -78,6 +81,12 @@ flowchart LR
 
     %% NEW: Workflow UI → agents (future overlay)
     workflowUI -->|"useAgentOverlay<br/>(future)"| agents
+
+    %% NEW: Workflow Events dependencies (Plan 061)
+    wfEvents -->|"IPositionalGraphService<br/>raiseNodeEvent"| posGraph
+    wfEvents -->|"ICentralEventNotifier<br/>SSE broadcast"| events
+    agents -->|"IWorkflowEvents<br/>onQuestionAsked"| wfEvents
+    workflowUI -->|"IWorkflowEvents<br/>answerQuestion"| wfEvents
 ```
 
 ## Legend
@@ -108,3 +117,4 @@ flowchart LR
 | _platform/dev-tools | StateInspector, useStateChangeLog, useStateInspector | — | IStateService, StateChangeLog, useStateSystem | state | ✅ |
 | agents | IAgentManagerService, IAgentAdapter, IAgentInstance, IAgentNotifierService, useAgentManager, useAgentInstance, AgentWorkUnitBridge | positional-graph (orchestration), workflow-ui (future overlay) | ISSEBroadcaster, useSSE, toast(), CopilotClient, IStateService, IWorkUnitStateService, DashboardShell | events, sdk, state, work-unit-state, panel-layout | 🟠 New |
 | work-unit-state | IWorkUnitStateService, WorkUnitEntry, WorkUnitQuestion, FakeWorkUnitStateService | agents (AgentWorkUnitBridge), workflow-ui (future) | IStateService | state | 🟠 New |
+| workflow-events | IWorkflowEvents, WorkflowEventType, FakeWorkflowEventsService | agents (observer hooks), workflow-ui (answerQuestion), CLI (ask/answer/get-answer) | IPositionalGraphService, ICentralEventNotifier | positional-graph, events | 🟠 New |

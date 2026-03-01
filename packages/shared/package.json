@@ -40,6 +40,10 @@
     "./state": {
       "import": "./dist/state/index.js",
       "types": "./dist/state/index.d.ts"
+    },
+    "./workflow-events": {
+      "import": "./dist/workflow-events/index.js",
+      "types": "./dist/workflow-events/index.d.ts"
     }
   },
   "scripts": {

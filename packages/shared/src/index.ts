@@ -104,6 +104,9 @@ export type {
   TokenMetrics,
 } from './interfaces/index.js';
 
+// Workflow Events interface (Plan 061)
+export type { IWorkflowEvents } from './interfaces/index.js';
+
 // Note: IEventStorage, EventStorageService, FakeEventStorage removed in Plan 018 Phase 2.
 // Use AgentEventAdapter from @chainglass/workflow for workspace-scoped event storage.
 
@@ -136,6 +139,8 @@ export { FakeHashGenerator } from './fakes/index.js';
 export { FakeProcessManager } from './fakes/index.js';
 // YAML parser fake (Phase 2)
 export { FakeYamlParser } from './fakes/index.js';
+// Workflow Events fake (Plan 061)
+export { FakeWorkflowEventsService } from './fakes/index.js';
 
 // Adapters
 export { PinoLoggerAdapter } from './adapters/index.js';
@@ -169,6 +174,21 @@ export {
   ORCHESTRATION_DI_TOKENS,
   WORKGRAPH_DI_TOKENS,
 } from './di-tokens.js';
+
+// Plan 061: WorkflowEvents typed constants and types
+export { WorkflowEventType } from './workflow-events/index.js';
+export type { WorkflowEventTypeValue } from './workflow-events/index.js';
+export type {
+  AnswerInput,
+  AnswerResult,
+  ErrorInput,
+  ProgressInput,
+  QuestionInput,
+  ProgressEvent as WorkflowProgressEvent,
+  QuestionAskedEvent,
+  QuestionAnsweredEvent,
+  WorkflowEvent,
+} from './workflow-events/index.js';
 
 // Plan 027: Central Domain Event Notification System
 export { WorkspaceDomain } from './features/027-central-notify-events/index.js';

@@ -120,6 +120,8 @@ export const POSITIONAL_GRAPH_DI_TOKENS = {
   TEMPLATE_ADAPTER: 'TemplateAdapter',
   /** InstanceAdapter — filesystem path resolution for instances (Plan 048) */
   INSTANCE_ADAPTER: 'InstanceAdapter',
+  /** IWorkflowEvents — convenience API for workflow event interactions (Plan 061) */
+  WORKFLOW_EVENTS_SERVICE: 'IWorkflowEvents',
 } as const;
 
 /**
