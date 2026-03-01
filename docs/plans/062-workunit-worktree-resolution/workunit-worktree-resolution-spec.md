@@ -91,6 +91,8 @@ No new domains needed.
 8. **AC-08**: The "Edit Template" round-trip from workflow → editor → workflow preserves worktree context for data operations (not just the return link)
 9. **AC-09**: `just fft` passes after all changes
 10. **AC-10**: Unit tests verify the fixed `resolveWorkspaceContext` function validates worktree against `info.worktrees[]`
+11. **AC-11**: Verified via Next.js MCP (port 3001) — zero compilation/runtime errors
+12. **AC-12**: Playwright screenshots confirm: list page with `?worktree=` shows correct units, editor page loads content from worktree, missing `?worktree=` does not silently render main workspace data
 
 ---
 
