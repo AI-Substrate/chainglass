@@ -3,7 +3,7 @@
 **Plan Version**: 1.0.0
 **Created**: 2026-02-28
 **Spec**: [workunit-editor-spec.md](./workunit-editor-spec.md)
-**Status**: IN PROGRESS (Phase 1 + Phase 2 + Phase 3 + Phase 4 complete)
+**Status**: COMPLETE (All 5 phases done)
 **Mode**: Full
 **Complexity**: CS-4 (large)
 
@@ -201,12 +201,12 @@ Graph nodes store only a `unit_slug` reference and always load the latest unit f
 | 3.7 | Auto-save structural changes — immediate save on add/remove/reorder | `058-workunit-editor` | Changes persist via updateUnit() server action | Per W005: immediate, not debounced |
 
 #### Acceptance Criteria (Phase 3)
-- [ ] AC-10: Add, edit, reorder, remove inputs
-- [ ] AC-11: Add, edit, reorder, remove outputs
-- [ ] AC-12: Name validation with real-time feedback
-- [ ] AC-13: data_type conditional on type
-- [ ] AC-14: Reserved params read-only
-- [ ] AC-15: At least one output enforced
+- [x] AC-10: Add, edit, reorder, remove inputs
+- [x] AC-11: Add, edit, reorder, remove outputs
+- [x] AC-12: Name validation with real-time feedback
+- [x] AC-13: data_type conditional on type
+- [x] AC-14: Reserved params read-only
+- [x] AC-15: At least one output enforced
 
 ---
 
@@ -234,15 +234,15 @@ Graph nodes store only a `unit_slug` reference and always load the latest unit f
 | 4.7 | Register watcher adapter in DI container and start-central-notifications | cross-domain | Watcher active when dev server runs | |
 
 #### Acceptance Criteria (Phase 4)
-- [ ] AC-22: "Edit Template" on workflow node properties panel
-- [ ] AC-23: Return context preserved (back to workflow)
-- [ ] AC-24: Banner appears on unit file change
-- [ ] AC-25: Banner dismissible, re-appears on next change
-- [ ] AC-26: Refresh picks up all unit changes
+- [x] AC-22: "Edit Template" on workflow node properties panel
+- [x] AC-23: Return context preserved (back to workflow)
+- [x] AC-24: Banner appears on unit file change
+- [x] AC-25: Banner dismissible, re-appears on next change
+- [x] AC-26: Refresh picks up all unit changes
 
 ---
 
-### Phase 5: Polish & End-to-End Verification
+### Phase 5: Polish & End-to-End Verification ✅ COMPLETE
 
 **Objective**: End-to-end verification, doping extension, and final polish.
 **Domain**: All
@@ -262,9 +262,9 @@ Graph nodes store only a `unit_slug` reference and always load the latest unit f
 | 5.4 | Verify file-browser still works after CodeEditor extraction | `file-browser` | Browser page renders code with syntax highlighting | Regression check |
 
 #### Acceptance Criteria (Phase 5)
-- [ ] All 29 acceptance criteria from spec verified
-- [ ] `just fft` passes
-- [ ] File-browser regression check passes
+- [x] All 29 acceptance criteria from spec verified
+- [x] `just fft` passes
+- [x] File-browser regression check passes
 
 ---
 
@@ -291,11 +291,11 @@ Graph nodes store only a `unit_slug` reference and always load the latest unit f
 - [x] AC-19: Rename auto-updates node.yaml references _(Phase 1)_
 - [x] AC-20: Rename shows affected workflows summary _(Phase 1)_
 - [x] AC-21: Sidebar navigation (before Workflows) _(Phase 2)_
-- [ ] AC-22: "Edit Template" from workflow node
-- [ ] AC-23: Return context preserved
-- [ ] AC-24: Banner on unit file change
-- [ ] AC-25: Banner dismissible, re-appears
-- [ ] AC-26: Refresh picks up changes
+- [x] AC-22: "Edit Template" from workflow node
+- [x] AC-23: Return context preserved
+- [x] AC-24: Banner on unit file change
+- [x] AC-25: Banner dismissible, re-appears
+- [x] AC-26: Refresh picks up changes
 - [x] AC-27: All mutations through IWorkUnitService _(Phase 1)_
 - [x] AC-28: FakeWorkUnitService updated _(Phase 1)_
 - [x] AC-29: Contract tests pass _(Phase 1)_
@@ -319,7 +319,7 @@ Graph nodes store only a `unit_slug` reference and always load the latest unit f
 | Phase 2: Editor Page | ✅ Complete | 2026-02-28 | +9 tests (4727 total) | 11/11 tasks done. Pages, editors, server actions, useAutoSave, domain registered. Code review fixes applied. |
 | Phase 3: Inputs/Outputs | ✅ Complete | 2026-03-01 | +12 tests (4739 total) | 7/7 tasks done. InputOutputCard, InputOutputCardList, drag reorder, reserved params, validation, wired into editor, auto-save + tests. Browser-verified on all 3 unit types. |
 | Phase 4: Notifications | ✅ Complete | 2026-03-01 | +0 tests (4744 total) | 7/7 tasks done. WorkUnitCatalogWatcherAdapter, SSE-based banner, Edit Template button, return navigation. |
-| Phase 5: Polish | ⬜ Not started | — | — | Depends on Phases 1-4. |
+| Phase 5: Polish | ✅ Complete | 2026-03-01 | 0 new (4749 total) | Doping script extended, all 29 ACs verified, FFT clean, file-browser regression clear. |
 
 ### Domain Changes Log
 
