@@ -11,6 +11,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import type { DriveEvent } from '@chainglass/positional-graph/features/030-orchestration';
+import { WorkflowEventType } from '@chainglass/shared/workflow-events';
 import { describe, expect, it } from 'vitest';
 import {
   assertGraphComplete,
@@ -399,7 +400,7 @@ describe.skipIf(!CLI_EXISTS || !RUN_INTEGRATION)('Orchestration Drive Integratio
         // ── Step 7: Answer question + restart ────────────────
         // Get the questionId from the node's events
         const events = await tgc.service.getNodeEvents(tgc.ctx, SLUG, questioner.nodeId as string, {
-          types: ['question:ask'],
+          types: [WorkflowEventType.QuestionAsk],
         });
         const questionId =
           (events.events?.[0] as { payload?: { questionId?: string } })?.payload?.questionId ??

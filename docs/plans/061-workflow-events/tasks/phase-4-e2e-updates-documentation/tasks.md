@@ -102,14 +102,14 @@ flowchart TD
 
 | Status | ID | Task | Domain | Path(s) | Done When | Notes |
 |--------|-----|------|--------|---------|-----------|-------|
-| [ ] | T001 | Replace magic event strings in web actions with WorkflowEventType constants. `submitUserInput` uses `'node:accepted'`, `resetUserInput` uses `'node:restart'`. | workflow-ui | `apps/web/app/actions/workflow-actions.ts` | No magic event strings in file; imports WorkflowEventType | AC-06 |
-| [ ] | T002 | Replace magic event strings in CLI command with WorkflowEventType constants. Various handlers use `'node:accepted'` etc. in raiseNodeEvent calls. | _platform/positional-graph | `apps/cli/src/commands/positional-graph.command.ts` | No magic event strings in file; imports WorkflowEventType | AC-06 |
-| [ ] | T003 | Replace magic event strings in test helpers. `completeUserInputNode` uses `'node:accepted'`, `clearErrorAndRestart` uses `'node:restart'`. | workflow-events | `dev/test-graphs/shared/helpers.ts` | No magic event strings in file | AC-06 |
-| [ ] | T004 | Replace magic event strings in E2E tests. `positional-graph-orchestration-e2e.ts` and `node-event-system-visual-e2e.ts` use `'question:ask'`, `'question:answer'`, `'progress:update'` etc. in event filtering and assertions. Note: some may be CLI command args (strings passed to subprocess) — those stay as strings. Only replace programmatic usage. | workflow-events | `test/e2e/positional-graph-orchestration-e2e.ts`, `test/e2e/node-event-system-visual-e2e.ts`, `test/e2e/positional-graph-execution-e2e.test.ts` | Magic strings replaced where programmatic; CLI arg strings may stay | AC-13 |
-| [ ] | T005 | Replace magic event strings in integration tests. `orchestration-drive.test.ts` uses `'question:ask'` in event filtering. | workflow-events | `test/integration/orchestration-drive.test.ts` | No magic event strings in programmatic usage | AC-13 |
-| [ ] | T006 | Write `docs/how/workflow-events-integration.md`. Cover: asking questions, answering (3-event handshake), getting answers, reporting progress/errors, observing events, typed constants reference, migration guide from PGService. | workflow-events | `docs/how/workflow-events-integration.md` | Guide exists with all sections; code examples use WorkflowEventType constants | AC-17 docs |
-| [ ] | T007 | Grep verification pass: `grep -rn "'question:ask'\|'question:answer'\|'node:restart'\|'node:error'\|'progress:update'" --include="*.ts"` in source (not docs) returns 0 hits outside positional-graph internals and core event type definitions. | workflow-events | Codebase-wide | Grep returns 0 consumer hits | AC-06 verification |
-| [ ] | T008 | Final regression check: `pnpm test`. Verify baseline maintained. | workflow-events | — | 334+ files pass, 4722+ tests, 0 failures | AC-16 |
+| [x] | T001 | Replace magic event strings in web actions with WorkflowEventType constants. `submitUserInput` uses `'node:accepted'`, `resetUserInput` uses `'node:restart'`. | workflow-ui | `apps/web/app/actions/workflow-actions.ts` | No magic event strings in file; imports WorkflowEventType | AC-06 |
+| [x] | T002 | Replace magic event strings in CLI command with WorkflowEventType constants. Various handlers use `'node:accepted'` etc. in raiseNodeEvent calls. | _platform/positional-graph | `apps/cli/src/commands/positional-graph.command.ts` | No magic event strings in file; imports WorkflowEventType | AC-06 |
+| [x] | T003 | Replace magic event strings in test helpers. `completeUserInputNode` uses `'node:accepted'`, `clearErrorAndRestart` uses `'node:restart'`. | workflow-events | `dev/test-graphs/shared/helpers.ts` | No magic event strings in file | AC-06 |
+| [x] | T004 | E2E tests reviewed — all magic strings are CLI subprocess args. No programmatic usage to replace. Kept as strings per DYK-P4-01. | workflow-events | `test/e2e/positional-graph-orchestration-e2e.ts`, `test/e2e/node-event-system-visual-e2e.ts`, `test/e2e/positional-graph-execution-e2e.test.ts` | Correctly identified as CLI args; no changes needed | AC-13 |
+| [x] | T005 | Replace magic event strings in integration tests. `orchestration-drive.test.ts` filter + `inspect-cli.test.ts` raiseNodeEvent calls. | workflow-events | `test/integration/orchestration-drive.test.ts`, `test/integration/positional-graph/features/040-graph-inspect/inspect-cli.test.ts` | No magic event strings in programmatic usage | AC-13 |
+| [x] | T006 | Write `docs/how/workflow-events-integration.md`. Covers: asking questions, answering (3-event handshake), getting answers, reporting progress/errors, observing events, typed constants reference, migration guide from PGService, error handling with WorkflowEventError. | workflow-events | `docs/how/workflow-events-integration.md` | Guide exists with all sections; code examples use WorkflowEventType constants | AC-17 docs |
+| [x] | T007 | Grep verification: zero consumer hits outside positional-graph internals, event-handler-service integration tests (DYK-P4-03), and E2E CLI subprocess args (DYK-P4-01). | workflow-events | Codebase-wide | Grep returns 0 consumer hits | AC-06 verification |
+| [x] | T008 | Final regression: `pnpm test` — 338 files pass, 4783 tests, 0 failures. Baseline matches post-merge reality (DYK-P4-05). | workflow-events | — | 338 files, 4783 tests, 0 failures | AC-16 |
 
 ---
 
@@ -145,10 +145,14 @@ await service.raiseNodeEvent(ctx, graph, node, WorkflowEventType.NodeAccepted, {
 
 ## Discoveries & Learnings
 
-_Populated during implementation by plan-6._
-
 | Date | Task | Type | Discovery | Resolution | References |
 |------|------|------|-----------|------------|------------|
+| 2026-03-01 | T004 | DYK | Most E2E magic strings are CLI subprocess args — no type safety gained from replacing | Only replace programmatic TypeScript usage (filters, assertions). CLI args stay as strings. | DYK-P4-01 |
+| 2026-03-01 | T006 | DYK | Integration guide is the only task that unblocks other developers | Write guide first, string cleanup second | DYK-P4-02 |
+| 2026-03-01 | T007 | DYK | event-handler-service.integration.test.ts tests infra, not consumer — 10+ strings are in-scope for grep but out-of-scope for replacement | Exclude from grep verification scope | DYK-P4-03 |
+| 2026-03-01 | ALL | DYK | 8 tasks for 3 units of work — collapse to guide + string cleanup + regression | 3 real tasks: (A) guide, (B) programmatic string cleanup, (C) regression | DYK-P4-04 |
+| 2026-03-01 | T008 | DYK | Test baseline stale after merge (4722 → 4783) | Update to 338 files, 4783 tests | DYK-P4-05 |
+| 2026-03-01 | T004 | DYK | Save grep results as manifest, hand-pick changes, review diff before committing | No blind find-and-replace — user directive | DYK-P4-06 |
 
 ---
 

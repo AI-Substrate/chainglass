@@ -12,6 +12,7 @@ import type {
   IWorkUnitLoader,
 } from '@chainglass/positional-graph/interfaces';
 import { YamlParserAdapter } from '@chainglass/shared';
+import { WorkflowEventType } from '@chainglass/shared/workflow-events';
 import type { WorkspaceContext } from '@chainglass/workflow';
 
 /**
@@ -56,7 +57,7 @@ export async function completeUserInputNode(
   await service.startNode(ctx, graphSlug, nodeId);
 
   // 2. Accept the node (starting → agent-accepted)
-  await service.raiseNodeEvent(ctx, graphSlug, nodeId, 'node:accepted', {}, 'agent');
+  await service.raiseNodeEvent(ctx, graphSlug, nodeId, WorkflowEventType.NodeAccepted, {}, 'agent');
 
   // 3. Save each output
   for (const [name, value] of Object.entries(outputs)) {
@@ -81,7 +82,7 @@ export async function clearErrorAndRestart(
     ctx,
     graphSlug,
     nodeId,
-    'node:restart',
+    WorkflowEventType.NodeRestart,
     { reason: 'Error cleared' },
     'orchestrator'
   );

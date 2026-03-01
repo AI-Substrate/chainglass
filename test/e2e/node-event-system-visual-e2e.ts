@@ -27,6 +27,7 @@ import {
   registerCoreEventTypes,
 } from '@chainglass/positional-graph/features/032-node-event-system';
 import type { State } from '@chainglass/positional-graph/schemas';
+import { WorkflowEventType } from '@chainglass/shared/workflow-events';
 
 import {
   assert,

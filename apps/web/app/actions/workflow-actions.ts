@@ -17,7 +17,7 @@ import type { IWorkUnitService } from '@chainglass/positional-graph';
 import { WorkflowEventObserverRegistry, WorkflowEventsService } from '@chainglass/positional-graph';
 import type { IWorkflowEvents } from '@chainglass/shared';
 import { POSITIONAL_GRAPH_DI_TOKENS, WORKSPACE_DI_TOKENS } from '@chainglass/shared';
-import { WorkflowEventError } from '@chainglass/shared/workflow-events';
+import { WorkflowEventError, WorkflowEventType } from '@chainglass/shared/workflow-events';
 import type { ITemplateService, IWorkspaceService, WorkspaceContext } from '@chainglass/workflow';
 import type {
   AddNodeMutationResult,
@@ -569,7 +569,7 @@ export async function submitUserInput(
     ctx,
     graphSlug,
     nodeId,
-    'node:accepted',
+    WorkflowEventType.NodeAccepted,
     {},
     'executor'
   );
@@ -602,7 +602,7 @@ export async function resetUserInput(
     ctx,
     graphSlug,
     nodeId,
-    'node:restart',
+    WorkflowEventType.NodeRestart,
     { reason: 're-edit' },
     'human'
   );

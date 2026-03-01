@@ -42,7 +42,7 @@ import {
 } from '@chainglass/positional-graph';
 import type { IWorkflowEvents } from '@chainglass/shared';
 import { ORCHESTRATION_DI_TOKENS, POSITIONAL_GRAPH_DI_TOKENS } from '@chainglass/shared';
-import { WorkflowEventError } from '@chainglass/shared/workflow-events';
+import { WorkflowEventError, WorkflowEventType } from '@chainglass/shared/workflow-events';
 import type { WorkspaceContext } from '@chainglass/workflow';
 import type { Command } from 'commander';
 import { cliDriveGraph } from '../features/036-cli-orchestration-driver/cli-drive-handler.js';
@@ -1475,7 +1475,14 @@ async function handleNodeAccept(
   }
 
   const service = getPositionalGraphService();
-  const result = await service.raiseNodeEvent(ctx, graphSlug, nodeId, 'node:accepted', {}, 'agent');
+  const result = await service.raiseNodeEvent(
+    ctx,
+    graphSlug,
+    nodeId,
+    WorkflowEventType.NodeAccepted,
+    {},
+    'agent'
+  );
   console.log(adapter.format('wf.node.accept', result));
 
   if (result.errors.length > 0) process.exit(1);
@@ -1511,7 +1518,7 @@ async function handleNodeError(
     ctx,
     graphSlug,
     nodeId,
-    'node:error',
+    WorkflowEventType.NodeError,
     payload,
     'agent'
   );

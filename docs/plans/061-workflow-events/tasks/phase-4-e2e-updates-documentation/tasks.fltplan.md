@@ -3,7 +3,7 @@
 **Plan**: [../../workflow-events-plan.md](../../workflow-events-plan.md)
 **Phase**: Phase 4: E2E Test Updates and Documentation
 **Generated**: 2026-03-01
-**Status**: Ready for takeoff
+**Status**: Landed
 
 ---
 
@@ -47,7 +47,7 @@ stateDiagram-v2
     S7 --> S8
     S8 --> [*]
 
-    class S1,S2,S3,S4,S5,S6,S7,S8 pending
+    class S1,S2,S3,S4,S5,S6,S7,S8 done
 ```
 
 **Legend**: grey = pending | yellow = active | green = done
@@ -56,24 +56,24 @@ stateDiagram-v2
 
 ## Stages
 
-- [ ] **Stage 1: Web actions** — Replace `'node:accepted'`, `'node:restart'` in workflow-actions.ts
-- [ ] **Stage 2: CLI command** — Replace magic strings in positional-graph.command.ts raiseNodeEvent calls
-- [ ] **Stage 3: Test helpers** — Replace `'node:accepted'`, `'node:restart'` in helpers.ts
-- [ ] **Stage 4: E2E tests** — Replace programmatic magic strings in 3 E2E files (careful: CLI args stay as strings)
-- [ ] **Stage 5: Integration tests** — Replace `'question:ask'` in orchestration-drive.test.ts
-- [ ] **Stage 6: Integration guide** — Write docs/how/workflow-events-integration.md
-- [ ] **Stage 7: Grep verification** — Zero magic strings in consumer code
-- [ ] **Stage 8: Final regression** — pnpm test passes (334+ files, 4722+ tests)
+- [x] **Stage 1: Web actions** — Replaced `'node:accepted'`, `'node:restart'` with WorkflowEventType constants
+- [x] **Stage 2: CLI command** — Replaced `'node:accepted'`, `'node:error'` with WorkflowEventType constants
+- [x] **Stage 3: Test helpers** — Replaced `'node:accepted'`, `'node:restart'` with WorkflowEventType constants
+- [x] **Stage 4: E2E tests** — All E2E strings are CLI subprocess args — correctly kept as plain strings (DYK-P4-01)
+- [x] **Stage 5: Integration tests** — Replaced `'question:ask'` in orchestration-drive.test.ts + `'node:accepted'` in inspect-cli.test.ts
+- [x] **Stage 6: Integration guide** — Written at docs/how/workflow-events-integration.md
+- [x] **Stage 7: Grep verification** — Zero consumer hits outside infra/E2E CLI args
+- [x] **Stage 8: Final regression** — 338 files, 4783 tests, 0 failures
 
 ---
 
 ## Checklist
 
-- [ ] T001: Replace magic strings in web actions
-- [ ] T002: Replace magic strings in CLI command
-- [ ] T003: Replace magic strings in test helpers
-- [ ] T004: Replace magic strings in E2E tests
-- [ ] T005: Replace magic strings in integration tests
-- [ ] T006: Write integration guide
-- [ ] T007: Grep verification pass
-- [ ] T008: Final regression check
+- [x] T001: Replace magic strings in web actions
+- [x] T002: Replace magic strings in CLI command
+- [x] T003: Replace magic strings in test helpers
+- [x] T004: Replace magic strings in E2E tests (all CLI args — kept as strings per DYK-P4-01)
+- [x] T005: Replace magic strings in integration tests
+- [x] T006: Write integration guide
+- [x] T007: Grep verification pass
+- [x] T008: Final regression check

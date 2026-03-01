@@ -166,3 +166,4 @@ import { WorkflowEventType } from '@chainglass/shared/workflow-events';
 | Plan 061 Phase 1 | Created domain: IWorkflowEvents, WorkflowEventType, convenience types, FakeWorkflowEventsService, DI token | 2026-03-01 |
 | Plan 061 Phase 2 | WorkflowEventsService implementation, ObserverRegistry (globalThis), contract tests, DI registration | 2026-03-01 |
 | Plan 061 Phase 3 | Consumer migration: CLI/web/helpers delegate to WorkflowEvents. WorkflowEventError class. PGService Q&A methods deleted. 5 QnA integration tests. | 2026-03-01 |
+| Plan 061 Phase 4 | Magic strings replaced with WorkflowEventType constants in consumer code. Integration guide written at docs/how/workflow-events-integration.md. | 2026-03-01 |
