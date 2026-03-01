@@ -29,8 +29,8 @@ Work unit pages read from and write to the main workspace path regardless of whi
 ## Goals
 
 - **Worktree-correct data operations**: Work unit list, load, create, update, delete, rename, and save operations all target the active worktree's `.chainglass/units/` directory
-- **Backward compatible**: Existing URLs without `?worktree=` continue to work identically (fall back to main workspace)
-- **Pattern consistency**: Work units follow the same three-layer worktree resolution pattern (page → action → component) used by workflows and other features
+- **Worktree required**: URLs without `?worktree=` must not silently fall back to the main workspace. Work unit pages should redirect to the worktree selection or show an error — silent fallback is how this bug went unnoticed. This is a deliberate divergence from the workflow pattern which falls back silently.
+- **Pattern consistency**: Work units follow the same three-layer worktree resolution pattern (page → action → component) used by workflows and other features, except for the fallback behavior above
 - **Edit Template round-trip preserved**: Navigating from a workflow to the unit editor and back maintains the correct worktree context throughout
 - **Doping script visibility**: After the fix, `just dope` (run from a worktree) creates units visible in the web UI when `?worktree=` points to that worktree
 
@@ -70,8 +70,9 @@ No new domains needed.
   - **T=1** (Testing): Lightweight unit tests for resolver + manual Playwright verification
 - **Confidence**: 0.95
 - **Assumptions**:
-  - The workflow-actions.ts pattern (inline `info.worktrees.find()`) is the correct approach
-  - Navigation sidebar `workspaceHref()` already appends `?worktree=` to work-unit links
+  - The workflow-actions.ts pattern (inline `info.worktrees.find()`) is the correct approach for validation
+  - Navigation sidebar `workspaceHref()` already appends `?worktree=` to work-unit links, so missing param means a direct/stale URL
+  - Silent fallback to main workspace is a bug, not a feature — if `?worktree=` is missing, the page should not proceed with data operations
 - **Dependencies**: None (all infrastructure in place)
 - **Risks**: Low — mechanical prop-threading following a proven pattern
 - **Phases**: Single implementation phase
@@ -86,7 +87,7 @@ No new domains needed.
 4. **AC-04**: Creating a new unit via the creation modal scaffolds in the specified worktree
 5. **AC-05**: Deleting or renaming a unit operates on the specified worktree
 6. **AC-06**: Links within the work-unit list and editor sidebar preserve `?worktree=` when navigating between units
-7. **AC-07**: Missing or invalid `?worktree=` parameter falls back to the main workspace path (backward compatibility)
+7. **AC-07**: Missing `?worktree=` parameter redirects or shows an error — does NOT silently fall back to main workspace
 8. **AC-08**: The "Edit Template" round-trip from workflow → editor → workflow preserves worktree context for data operations (not just the return link)
 9. **AC-09**: `just fft` passes after all changes
 10. **AC-10**: Unit tests verify the fixed `resolveWorkspaceContext` function validates worktree against `info.worktrees[]`
@@ -150,3 +151,4 @@ None — Workshop 006 (`058/workshops/006-workunit-worktree-resolution.md`) alre
 | Q3 | Mock Usage | **Fakes only** — no mocks, use FakeWorkspaceService | Added to § Testing Strategy |
 | Q4 | Documentation Strategy | **No new docs** — Workshop 006 covers it | Added § Documentation Strategy |
 | Q5 | Domain Review | **Confirmed** — 1 modified domain, 2 consumed, no boundary issues | § Target Domains unchanged |
+| Q6 | Fallback Behavior | **No silent fallback** — missing `?worktree=` must redirect/error, not silently use main workspace. Diverges from workflow pattern intentionally. | § Goals + AC-07 updated |
