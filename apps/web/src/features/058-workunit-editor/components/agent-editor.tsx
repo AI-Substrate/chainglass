@@ -35,12 +35,12 @@ export function AgentEditor({ workspaceSlug, unitSlug, initialContent }: AgentEd
   );
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col">
       <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-gray-700">
         <h3 className="text-sm font-medium text-muted-foreground">Prompt Template</h3>
         <SaveIndicator status={status} error={error} />
       </div>
-      <div className="flex-1 min-h-0">
+      <div className="min-h-[400px]">
         <CodeEditor value={content} language="markdown" onChange={handleChange} />
       </div>
     </div>

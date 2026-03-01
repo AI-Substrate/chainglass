@@ -3,7 +3,7 @@
 **Plan**: [workunit-editor-plan.md](../../workunit-editor-plan.md)
 **Phase**: Phase 3: Inputs/Outputs Configuration
 **Generated**: 2026-02-28
-**Status**: Ready for takeoff
+**Status**: Landed
 
 ---
 
@@ -53,7 +53,7 @@ stateDiagram-v2
     S2 --> S3
     S3 --> [*]
 
-    class S1,S2,S3 pending
+    class S1,S2,S3 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -62,9 +62,9 @@ stateDiagram-v2
 
 ## Stages
 
-- [ ] **Stage 1: Card + list components** — Build InputOutputCard (expandable, ARIA) and InputOutputCardList (DndContext, add/delete) (`input-output-card.tsx`, `input-output-card-list.tsx` — new files)
-- [ ] **Stage 2: DnD + reserved + validation** — Wire useSortable drag reorder, reserved param locking, real-time name/type validation (`input-output-card.tsx`, `input-output-card-list.tsx`)
-- [ ] **Stage 3: Wire into editor + save + tests** — Integrate into WorkUnitEditor, wire dual auto-save (0ms structural, 500ms fields), pass data from server, add tests (`workunit-editor.tsx`, `page.tsx`, test file)
+- [x] **Stage 1: Card + list components** — Build InputOutputCard (expandable, ARIA) and InputOutputCardList (DndContext, add/delete) (`input-output-card.tsx`, `input-output-card-list.tsx` — new files)
+- [x] **Stage 2: DnD + reserved + validation** — Wire useSortable drag reorder, reserved param locking, real-time name/type validation (`input-output-card.tsx`, `input-output-card-list.tsx`)
+- [x] **Stage 3: Wire into editor + save + tests** — Integrate into WorkUnitEditor, wire dual auto-save (0ms structural, 500ms fields), pass data from server, add tests (`workunit-editor.tsx`, `page.tsx`, test file)
 
 ---
 
@@ -102,12 +102,12 @@ flowchart LR
 
 ## Acceptance Criteria
 
-- [ ] AC-10: Add, edit, reorder, remove inputs
-- [ ] AC-11: Add, edit, reorder, remove outputs
-- [ ] AC-12: Name validation with real-time feedback
-- [ ] AC-13: data_type conditional on type
-- [ ] AC-14: Reserved params read-only
-- [ ] AC-15: At least one output enforced
+- [x] AC-10: Add, edit, reorder, remove inputs
+- [x] AC-11: Add, edit, reorder, remove outputs
+- [x] AC-12: Name validation with real-time feedback
+- [x] AC-13: data_type conditional on type
+- [x] AC-14: Reserved params read-only
+- [x] AC-15: At least one output enforced
 
 ## Goals & Non-Goals
 
@@ -119,10 +119,10 @@ flowchart LR
 
 ## Checklist
 
-- [ ] T001: Build InputOutputCard (expandable, form fields, ARIA)
-- [ ] T002: Build InputOutputCardList (DndContext, add/delete)
-- [ ] T003: Drag reorder (useSortable, arrayMove, grip handle)
-- [ ] T004: Reserved params (locked, non-editable, non-draggable)
-- [ ] T005: Real-time validation (name regex, data_type conditional, uniqueness)
-- [ ] T006: Wire into WorkUnitEditor + editor page
-- [ ] T007: Auto-save (dual delay) + tests
+- [x] T001: Build InputOutputCard (expandable, form fields, ARIA)
+- [x] T002: Build InputOutputCardList (DndContext, add/delete)
+- [x] T003: Drag reorder (useSortable, arrayMove, grip handle)
+- [x] T004: Reserved params (locked, non-editable, non-draggable)
+- [x] T005: Real-time validation (name regex, data_type conditional, uniqueness)
+- [x] T006: Wire into WorkUnitEditor + editor page
+- [x] T007: Auto-save (dual delay) + tests

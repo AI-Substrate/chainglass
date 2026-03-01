@@ -30,7 +30,7 @@ export function WorkUnitEditorLayout({ left, main, right }: WorkUnitEditorLayout
       </div>
 
       {/* Main editor area */}
-      <div className="flex-1 flex flex-col overflow-hidden">{main}</div>
+      <div className="flex-1 flex flex-col overflow-y-auto">{main}</div>
 
       {/* Right metadata panel */}
       <div

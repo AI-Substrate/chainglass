@@ -51,6 +51,8 @@ export default async function WorkUnitEditorPage({ params }: PageProps) {
         version={unit.version}
         scriptFilename={scriptFilename}
         allUnits={unitsResult.units}
+        inputs={unit.inputs ?? []}
+        outputs={unit.outputs ?? []}
       />
     </Suspense>
   );

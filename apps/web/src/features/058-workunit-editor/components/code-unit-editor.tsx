@@ -44,7 +44,7 @@ export function CodeUnitEditor({
   );
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col">
       <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-medium text-muted-foreground">Script</h3>
@@ -54,7 +54,7 @@ export function CodeUnitEditor({
         </div>
         <SaveIndicator status={status} error={error} />
       </div>
-      <div className="flex-1 min-h-0">
+      <div className="min-h-[400px]">
         <CodeEditor value={content} language={language} onChange={handleChange} />
       </div>
     </div>
