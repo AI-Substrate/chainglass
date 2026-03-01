@@ -26,6 +26,9 @@ export const WORKUNIT_ERROR_CODES = {
   E185: 'E185', // Template not found
   E186: 'E186', // Type mismatch
   E187: 'E187', // Invalid slug
+  E188: 'E188', // Slug already exists (Plan 058)
+  E189: 'E189', // Reserved for future concurrency (Plan 058)
+  E190: 'E190', // Delete failed (Plan 058)
 } as const;
 
 export type WorkunitErrorCode = keyof typeof WORKUNIT_ERROR_CODES;
@@ -156,5 +159,29 @@ export function workunitSlugInvalidError(slug: string): ResultError {
     message: `Invalid unit slug '${slug}'`,
     action:
       'Slug must start with a letter and contain only lowercase letters, numbers, and hyphens',
+  };
+}
+
+/**
+ * E188: Unit slug already exists (for create duplicate rejection).
+ * Per Plan 058 Phase 1.
+ */
+export function workunitSlugExistsError(slug: string): ResultError {
+  return {
+    code: WORKUNIT_ERROR_CODES.E188,
+    message: `WorkUnit '${slug}' already exists`,
+    action: 'Choose a different slug or delete the existing unit first',
+  };
+}
+
+/**
+ * E190: Delete operation failed.
+ * Per Plan 058 Phase 1.
+ */
+export function workunitDeleteFailedError(slug: string, reason: string): ResultError {
+  return {
+    code: WORKUNIT_ERROR_CODES.E190,
+    message: `Failed to delete WorkUnit '${slug}': ${reason}`,
+    action: 'Check filesystem permissions and try again',
   };
 }

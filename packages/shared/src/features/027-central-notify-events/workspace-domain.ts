@@ -18,6 +18,8 @@ export const WorkspaceDomain = {
   FileChanges: 'file-changes',
   /** SSE channel: `'workflows'` — matches `/api/events/workflows` subscription path (Plan 050) */
   Workflows: 'workflows',
+  /** SSE channel: `'unit-catalog'` — matches `/api/events/unit-catalog` subscription path (Plan 058) */
+  UnitCatalog: 'unit-catalog',
 } as const;
 
 /**

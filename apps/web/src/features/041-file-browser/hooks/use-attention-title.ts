@@ -28,8 +28,23 @@ export function useAttentionTitle({
     const prefix = emoji || (workspaceName ? workspaceName.charAt(0).toUpperCase() : '');
     const attention = needsAttention ? '❗ ' : '';
     const title = `${attention}${prefix} ${pageName}`.trim();
-    if (title) {
-      document.title = title;
-    }
+    if (!title) return;
+
+    document.title = title;
+
+    // Next.js metadata re-applies <title> during soft navigations (e.g. nuqs
+    // param changes), overwriting our client-set title. MutationObserver
+    // re-asserts the dynamic title whenever the <title> element changes.
+    const titleEl = document.querySelector('title');
+    if (!titleEl) return;
+
+    const observer = new MutationObserver(() => {
+      if (document.title !== title) {
+        document.title = title;
+      }
+    });
+    observer.observe(titleEl, { childList: true, characterData: true, subtree: true });
+
+    return () => observer.disconnect();
   }, [emoji, pageName, workspaceName, needsAttention]);
 }

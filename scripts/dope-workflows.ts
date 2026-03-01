@@ -17,7 +17,8 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
 import { PositionalGraphAdapter, PositionalGraphService } from '@chainglass/positional-graph';
-import type { IPositionalGraphService, State } from '@chainglass/positional-graph';
+import type { IPositionalGraphService, IWorkUnitService, State } from '@chainglass/positional-graph';
+import { WorkUnitAdapter, WorkUnitService } from '@chainglass/positional-graph';
 import { NodeFileSystemAdapter, PathResolverAdapter, YamlParserAdapter } from '@chainglass/shared';
 import type { WorkspaceContext } from '@chainglass/workflow';
 import { InstanceAdapter, TemplateAdapter, TemplateService } from '@chainglass/workflow';
@@ -33,6 +34,7 @@ const ROOT = path.resolve(import.meta.dirname, '..');
 interface ScriptServices {
   graphService: IPositionalGraphService;
   templateService: InstanceType<typeof TemplateService>;
+  workUnitService: IWorkUnitService;
 }
 
 /**
@@ -61,7 +63,9 @@ function createScriptServices(workspacePath: string): ScriptServices {
     templateAdapter,
     instanceAdapter
   );
-  return { graphService, templateService };
+  const workUnitAdapter = new WorkUnitAdapter(nodeFs, pathResolver);
+  const workUnitService = new WorkUnitService(workUnitAdapter, nodeFs, yamlParser, pathResolver);
+  return { graphService, templateService, workUnitService };
 }
 
 /** Assert a service result field is present, throw with context if not. */
@@ -427,6 +431,100 @@ const SCENARIOS: Scenario[] = [
 ];
 
 // ============================================
+// Work Unit Scenarios (Plan 058 Phase 5)
+// ============================================
+
+interface UnitScenario {
+  slug: string;
+  description: string;
+  build: (service: IWorkUnitService, ctx: WorkspaceContext) => Promise<void>;
+}
+
+const UNIT_SCENARIOS: UnitScenario[] = [
+  {
+    slug: 'demo-agent-editor',
+    description: 'Agent unit — editable prompt with inputs/outputs',
+    async build(service, ctx) {
+      const result = await service.create(ctx, {
+        slug: 'demo-agent-editor',
+        type: 'agent',
+        description: 'Demo agent unit for editor testing',
+        version: '1.0.0',
+      });
+      if (result.errors.length > 0) throw new Error(`Create failed: ${JSON.stringify(result.errors)}`);
+
+      await service.update(ctx, 'demo-agent-editor', {
+        inputs: [
+          { name: 'spec', type: 'data', data_type: 'text', required: true, description: 'The spec to implement' },
+          { name: 'context', type: 'data', data_type: 'json', required: false, description: 'Additional context' },
+        ],
+        outputs: [
+          { name: 'result', type: 'data', data_type: 'text', required: true, description: 'Implementation result' },
+          { name: 'summary', type: 'data', data_type: 'text', required: false, description: 'Brief summary' },
+        ],
+      });
+    },
+  },
+
+  {
+    slug: 'demo-code-editor',
+    description: 'Code unit — editable script with file I/O',
+    async build(service, ctx) {
+      const result = await service.create(ctx, {
+        slug: 'demo-code-editor',
+        type: 'code',
+        description: 'Demo code unit for editor testing',
+        version: '1.0.0',
+      });
+      if (result.errors.length > 0) throw new Error(`Create failed: ${JSON.stringify(result.errors)}`);
+
+      const updateResult = await service.update(ctx, 'demo-code-editor', {
+        inputs: [
+          { name: 'input_file', type: 'file', required: true, description: 'File to process' },
+          { name: 'config', type: 'data', data_type: 'json', required: false, description: 'Script configuration' },
+        ],
+        outputs: [
+          { name: 'output_file', type: 'file', required: true, description: 'Processed output file' },
+        ],
+      });
+      if (updateResult.errors.length > 0) console.warn(`  ⚠ code update errors: ${JSON.stringify(updateResult.errors)}`);
+    },
+  },
+
+  {
+    slug: 'demo-userinput-editor',
+    description: 'User-input unit — editable question with options',
+    async build(service, ctx) {
+      const result = await service.create(ctx, {
+        slug: 'demo-userinput-editor',
+        type: 'user-input',
+        description: 'Demo user-input unit for editor testing',
+        version: '1.0.0',
+      });
+      if (result.errors.length > 0) throw new Error(`Create failed: ${JSON.stringify(result.errors)}`);
+
+      const updateResult = await service.update(ctx, 'demo-userinput-editor', {
+        inputs: [
+          { name: 'prompt_context', type: 'data', data_type: 'text', required: false, description: 'Context for the question' },
+        ],
+        outputs: [
+          { name: 'answer', type: 'data', data_type: 'text', required: true, description: 'User response' },
+        ],
+        user_input: {
+          question_type: 'single',
+          prompt: 'Which approach do you prefer?',
+          options: [
+            { key: 'option-a', label: 'Approach A', description: 'Conservative approach' },
+            { key: 'option-b', label: 'Approach B', description: 'Aggressive approach' },
+          ],
+        },
+      });
+      if (updateResult.errors.length > 0) console.warn(`  ⚠ user-input update errors: ${JSON.stringify(updateResult.errors)}`);
+    },
+  },
+];
+
+// ============================================
 // CLI
 // ============================================
 
@@ -467,6 +565,19 @@ async function cleanDemoWorkflows(workspacePath: string): Promise<void> {
   } catch {
     // OK
   }
+
+  // Clean demo work units (Plan 058)
+  const unitsDir = path.join(workspacePath, '.chainglass', 'units');
+  try {
+    const entries = await fs.readdir(unitsDir);
+    const demos = entries.filter((e) => e.startsWith('demo-'));
+    for (const demo of demos) {
+      await fs.rm(path.join(unitsDir, demo), { recursive: true, force: true });
+    }
+    if (demos.length > 0) console.log(`Cleaned ${demos.length} demo work unit(s)`);
+  } catch {
+    // OK
+  }
 }
 
 async function buildScenario(scenario: Scenario, workspacePath: string): Promise<void> {
@@ -499,22 +610,34 @@ async function main(): Promise<void> {
 
   const scenarios =
     command === 'all' ? SCENARIOS : SCENARIOS.filter((s) => s.slug === command);
+  const unitScenarios =
+    command === 'all' ? UNIT_SCENARIOS : UNIT_SCENARIOS.filter((s) => s.slug === command);
 
-  if (scenarios.length === 0) {
-    console.error(
-      `Unknown scenario: ${command}. Available: ${SCENARIOS.map((s) => s.slug).join(', ')}`
-    );
+  if (scenarios.length === 0 && unitScenarios.length === 0) {
+    const allSlugs = [...SCENARIOS, ...UNIT_SCENARIOS].map((s) => s.slug).join(', ');
+    console.error(`Unknown scenario: ${command}. Available: ${allSlugs}`);
     process.exit(1);
   }
 
-  console.log(`Dope Workflows — generating ${scenarios.length} scenario(s)\n`);
+  const total = scenarios.length + unitScenarios.length;
+  console.log(`Dope Workflows — generating ${total} scenario(s)\n`);
 
   for (const scenario of scenarios) {
     await buildScenario(scenario, workspacePath);
   }
 
+  // Build work unit scenarios (Plan 058)
+  if (unitScenarios.length > 0) {
+    const { workUnitService } = createScriptServices(workspacePath);
+    const ctx = createCtx(workspacePath);
+    for (const scenario of unitScenarios) {
+      console.log(`  ${scenario.slug}: ${scenario.description}`);
+      await scenario.build(workUnitService, ctx);
+    }
+  }
+
   const elapsed = ((performance.now() - startTime) / 1000).toFixed(1);
-  console.log(`\nDone in ${elapsed}s. Workflows at .chainglass/data/workflows/`);
+  console.log(`\nDone in ${elapsed}s.`);
 }
 
 main().catch((err) => {

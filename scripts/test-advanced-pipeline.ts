@@ -50,7 +50,7 @@ import type { IPositionalGraphService } from '@chainglass/positional-graph/inter
 import { NodeFileSystemAdapter, SdkCopilotAdapter } from '@chainglass/shared';
 import type { AgentRunOptions, AgentResult, IAgentAdapter, IAgentManagerService } from '@chainglass/shared';
 import type { WorkspaceContext } from '@chainglass/workflow';
-import { CopilotClient } from '@github/copilot-sdk';
+import { CopilotClient, approveAll } from '@github/copilot-sdk';
 import { AgentManagerService } from '@chainglass/shared/features/034-agentic-cli';
 
 // ─── CLI Flags ──────────────────────────────────────────────────────
@@ -107,8 +107,8 @@ class VerboseCopilotAdapter implements IAgentAdapter {
     if (options.cwd) console.log(`${this.tag()} ${DIM}cwd: ${options.cwd}${RESET}`);
 
     const session = options.sessionId
-      ? await this.client.resumeSession(options.sessionId)
-      : await this.client.createSession({ model: MODEL, streaming: true });
+      ? await this.client.resumeSession(options.sessionId, { onPermissionRequest: approveAll })
+      : await this.client.createSession({ model: MODEL, streaming: true, onPermissionRequest: approveAll });
 
     console.log(`${this.tag()} ${CYAN}Session: ${session.sessionId}${RESET}${options.sessionId ? ' (resumed)' : ' (new)'}`);
 

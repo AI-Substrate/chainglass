@@ -52,18 +52,26 @@ export {
   workunitTemplateNotFoundError,
   workunitTypeMismatchError,
   workunitSlugInvalidError,
+  workunitSlugExistsError,
+  workunitDeleteFailedError,
 } from './workunit-errors.js';
 
 // Adapter (Phase 2)
 export { WorkUnitAdapter } from './workunit.adapter.js';
 
-// Service Interface and Types (Phase 2)
+// Service Interface and Types (Phase 2 + Plan 058)
 export type {
   IWorkUnitService,
   WorkUnitSummary,
   ListUnitsResult,
   LoadUnitResult,
   ValidateUnitResult,
+  CreateUnitSpec,
+  CreateUnitResult,
+  UpdateUnitPatch,
+  UpdateUnitResult,
+  DeleteUnitResult,
+  RenameUnitResult,
 } from './workunit-service.interface.js';
 export {
   isAgenticWorkUnit,
