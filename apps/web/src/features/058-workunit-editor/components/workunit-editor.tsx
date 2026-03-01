@@ -34,6 +34,8 @@ interface WorkUnitEditorProps {
   allUnits: WorkUnitSummary[];
   inputs: WorkUnitInput[];
   outputs: WorkUnitOutput[];
+  /** Graph slug to return to when navigated from workflow (AC-23). */
+  returnToWorkflow?: string;
 }
 
 function safeParseUserInputConfig(content: string) {
@@ -74,6 +76,7 @@ export function WorkUnitEditor({
   allUnits,
   inputs: initialInputs,
   outputs: initialOutputs,
+  returnToWorkflow,
 }: WorkUnitEditorProps) {
   const [inputItems, setInputItems] = useState<InputOutputItem[]>(() =>
     hydrateClientIds(initialInputs)
@@ -212,6 +215,18 @@ export function WorkUnitEditor({
       }
       main={
         <div className="flex flex-col">
+          {/* Return navigation breadcrumb (AC-23) */}
+          {returnToWorkflow && (
+            <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-muted/30">
+              <a
+                href={`/workspaces/${workspaceSlug}/workflows/${returnToWorkflow}`}
+                className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                ← Back to Workflow
+              </a>
+            </div>
+          )}
+
           {/* Type-specific content editor */}
           {mainEditor}
 

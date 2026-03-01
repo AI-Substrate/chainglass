@@ -34,3 +34,7 @@ export { FakeFileChangeWatcherAdapter } from './fake-file-change-watcher.js';
 // Workflow watcher adapter (Plan 050 Phase 6)
 export { WorkflowWatcherAdapter } from './workflow-watcher.adapter.js';
 export type { WorkflowChangedEvent } from './workflow-watcher.adapter.js';
+
+// Work unit catalog watcher adapter (Plan 058 Phase 4)
+export { WorkUnitCatalogWatcherAdapter } from './workunit-catalog-watcher.adapter.js';
+export type { UnitCatalogChangedEvent } from './workunit-catalog-watcher.adapter.js';

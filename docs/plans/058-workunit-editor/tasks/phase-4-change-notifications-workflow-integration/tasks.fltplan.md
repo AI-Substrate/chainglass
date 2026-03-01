@@ -3,7 +3,7 @@
 **Plan**: [workunit-editor-plan.md](../../workunit-editor-plan.md)
 **Phase**: Phase 4: Change Notifications & Workflow Integration
 **Generated**: 2026-03-01
-**Status**: Ready for takeoff
+**Status**: Landed
 
 ---
 
@@ -55,7 +55,7 @@ stateDiagram-v2
     S2 --> S3
     S3 --> [*]
 
-    class S1,S2,S3 pending
+    class S1,S2,S3 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -65,8 +65,8 @@ stateDiagram-v2
 ## Stages
 
 - [ ] **Stage 1: Watcher infrastructure** — Verify/extend CentralWatcherService paths, create WorkUnitCatalogWatcherAdapter, register in DI (`central-watcher.service.ts`, `workunit-catalog-watcher.adapter.ts`, `start-central-notifications.ts`)
-- [ ] **Stage 2: State events + banner** — Publish state event, create hook, build dismissible banner on workflow page (`use-workunit-catalog-changes.ts`, `workunit-updated-banner.tsx`)
-- [ ] **Stage 3: Edit Template + return nav** — Add button on NodePropertiesPanel, add return breadcrumb on editor page (`node-properties-panel.tsx`, `workunit-editor.tsx`, `page.tsx`)
+- [x] **Stage 2: State events + banner** — Publish state event, create hook, build dismissible banner on workflow page (`use-workunit-catalog-changes.ts`, `workunit-updated-banner.tsx`)
+- [x] **Stage 3: Edit Template + return nav** — Add button on NodePropertiesPanel, add return breadcrumb on editor page (`node-properties-panel.tsx`, `workunit-editor.tsx`, `page.tsx`)
 
 ---
 
@@ -110,11 +110,11 @@ flowchart LR
 
 ## Acceptance Criteria
 
-- [ ] AC-22: "Edit Template" on workflow node properties panel
-- [ ] AC-23: Return context preserved (back to workflow)
-- [ ] AC-24: Banner appears on unit file change
-- [ ] AC-25: Banner dismissible, re-appears on next change
-- [ ] AC-26: Refresh picks up all unit changes
+- [x] AC-22: "Edit Template" on workflow node properties panel
+- [x] AC-23: Return context preserved (back to workflow)
+- [x] AC-24: Banner appears on unit file change
+- [x] AC-25: Banner dismissible, re-appears on next change
+- [x] AC-26: Refresh picks up all unit changes
 
 ## Goals & Non-Goals
 
@@ -126,10 +126,10 @@ flowchart LR
 
 ## Checklist
 
-- [ ] T001: Verify/extend CentralWatcherService paths
-- [ ] T002: Create WorkUnitCatalogWatcherAdapter
-- [ ] T003: Publish state event + create hook
-- [ ] T004: Build WorkUnitUpdatedBanner
-- [ ] T005: Add "Edit Template" button on NodePropertiesPanel
-- [ ] T006: Return navigation from editor
-- [ ] T007: Register adapter in DI + start-central-notifications
+- [x] T001: Verify/extend CentralWatcherService paths
+- [x] T002: Create WorkUnitCatalogWatcherAdapter
+- [x] T003: Publish state event + create hook
+- [x] T004: Build WorkUnitUpdatedBanner
+- [x] T005: Add "Edit Template" button on NodePropertiesPanel
+- [x] T006: Return navigation from editor
+- [x] T007: Register adapter in DI + start-central-notifications

@@ -7,10 +7,14 @@ export const dynamic = 'force-dynamic';
 
 interface PageProps {
   params: Promise<{ slug: string; unitSlug: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
-export default async function WorkUnitEditorPage({ params }: PageProps) {
+export default async function WorkUnitEditorPage({ params, searchParams }: PageProps) {
   const { slug, unitSlug } = await params;
+  const sp = await searchParams;
+  const returnToWorkflow =
+    sp.from === 'workflow' && typeof sp.graph === 'string' ? sp.graph : undefined;
 
   const [unitResult, contentResult, unitsResult] = await Promise.all([
     loadUnit(slug, unitSlug),
@@ -53,6 +57,7 @@ export default async function WorkUnitEditorPage({ params }: PageProps) {
         allUnits={unitsResult.units}
         inputs={unit.inputs ?? []}
         outputs={unit.outputs ?? []}
+        returnToWorkflow={returnToWorkflow}
       />
     </Suspense>
   );

@@ -7,6 +7,7 @@
  */
 
 import { WorkflowEditor } from '@/features/050-workflow-page/components/workflow-editor';
+import { WorkUnitUpdatedBanner } from '@/features/058-workunit-editor/components/workunit-updated-banner';
 import { Suspense } from 'react';
 import { listWorkUnits, loadWorkflow } from '../../../../../actions/workflow-actions';
 
@@ -41,6 +42,7 @@ export default async function WorkflowEditorPage({ params, searchParams }: PageP
 
   return (
     <Suspense fallback={<div className="p-4">Loading workflow...</div>}>
+      <WorkUnitUpdatedBanner />
       <WorkflowEditor
         workspaceSlug={slug}
         graphSlug={graphSlug}

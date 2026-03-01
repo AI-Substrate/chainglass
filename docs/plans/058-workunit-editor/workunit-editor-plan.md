@@ -3,7 +3,7 @@
 **Plan Version**: 1.0.0
 **Created**: 2026-02-28
 **Spec**: [workunit-editor-spec.md](./workunit-editor-spec.md)
-**Status**: IN PROGRESS (Phase 1 + Phase 2 + Phase 3 complete)
+**Status**: IN PROGRESS (Phase 1 + Phase 2 + Phase 3 + Phase 4 complete)
 **Mode**: Full
 **Complexity**: CS-4 (large)
 
@@ -314,7 +314,7 @@ Graph nodes store only a `unit_slug` reference and always load the latest unit f
 | Phase 1: Service Layer | ✅ Complete | 2026-02-28 | +37 tests (4718 total) | 10/10 tasks done. Interface extended, fake updated, contract tests passing, all CRUD implemented. |
 | Phase 2: Editor Page | ✅ Complete | 2026-02-28 | +9 tests (4727 total) | 11/11 tasks done. Pages, editors, server actions, useAutoSave, domain registered. Code review fixes applied. |
 | Phase 3: Inputs/Outputs | ✅ Complete | 2026-03-01 | +12 tests (4739 total) | 7/7 tasks done. InputOutputCard, InputOutputCardList, drag reorder, reserved params, validation, wired into editor, auto-save + tests. Browser-verified on all 3 unit types. |
-| Phase 4: Notifications | ⬜ Not started | — | — | Depends on Phase 2. File watcher uses new native watcher (Plan 060). |
+| Phase 4: Notifications | ✅ Complete | 2026-03-01 | +0 tests (4744 total) | 7/7 tasks done. WorkUnitCatalogWatcherAdapter, SSE-based banner, Edit Template button, return navigation. |
 | Phase 5: Polish | ⬜ Not started | — | — | Depends on Phases 1-4. |
 
 ### Domain Changes Log

@@ -354,6 +354,13 @@ export function WorkflowEditor({
                 related={relatedNodes?.related ?? []}
                 onBack={() => setSelectedNodeId(null)}
                 onEditProperties={() => setEditModalNodeId(selectedNodeId)}
+                onEditTemplate={
+                  selectedNode.unitSlug
+                    ? () => {
+                        window.location.href = `/workspaces/${workspaceSlug}/work-units/${selectedNode.unitSlug}?from=workflow&graph=${graphSlug}`;
+                      }
+                    : undefined
+                }
                 onProvideInput={
                   selectedNode.unitType === 'user-input' && selectedNodeId
                     ? () => openHumanInputModal(selectedNodeId)

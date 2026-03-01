@@ -88,6 +88,7 @@ export interface NodePropertiesPanelProps {
   onBack: () => void;
   onEditProperties?: () => void;
   onProvideInput?: () => void;
+  onEditTemplate?: () => void;
 }
 
 export function NodePropertiesPanel({
@@ -97,6 +98,7 @@ export function NodePropertiesPanel({
   onBack,
   onEditProperties,
   onProvideInput,
+  onEditTemplate,
 }: NodePropertiesPanelProps) {
   const upstream = related.filter((r) => r.relation === 'upstream');
   const downstream = related.filter((r) => r.relation === 'downstream');
@@ -255,6 +257,16 @@ export function NodePropertiesPanel({
             data-testid="provide-input-button"
           >
             Provide Input...
+          </button>
+        )}
+        {node.unitSlug && onEditTemplate && (
+          <button
+            type="button"
+            onClick={onEditTemplate}
+            className="w-full px-3 py-2 text-xs font-medium rounded-lg border border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900 cursor-pointer transition-colors"
+            data-testid="edit-template-button"
+          >
+            Edit Template...
           </button>
         )}
         <button
