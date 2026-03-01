@@ -38,6 +38,8 @@ export interface StateEntry {
   value: unknown;
   /** When the value was last updated (Unix ms) — used for version tracking */
   updatedAt: number;
+  /** Origin metadata — undefined for legacy client publishes (Workshop 005) */
+  source?: StateEntrySource;
 }
 
 /**
@@ -62,6 +64,8 @@ export interface StateChange {
   timestamp: number;
   /** True when the entry is being removed */
   removed?: boolean;
+  /** Origin metadata — undefined for legacy client publishes (Workshop 005) */
+  source?: StateEntrySource;
 }
 
 /** Callback type for state change subscribers. */
@@ -100,3 +104,21 @@ export interface StateDomainDescriptor {
 
 /** A function that tests whether a state path matches a pattern. */
 export type StateMatcher = (path: string) => boolean;
+
+// ==================== Source Metadata Types ====================
+
+/**
+ * Origin metadata for state entries. Tags whether the value was published
+ * by client-side code or arrived via server-side SSE events.
+ *
+ * Per Workshop 005: Serves debugging (Plan 056 State DevTools) and tracing.
+ * Server-originated entries carry the SSE channel and event type that produced them.
+ */
+export interface StateEntrySource {
+  /** Whether this entry was published by client or server code */
+  origin: 'client' | 'server';
+  /** SSE channel that produced this entry (server-origin only) */
+  channel?: string;
+  /** Server event type that triggered this entry (server-origin only) */
+  eventType?: string;
+}

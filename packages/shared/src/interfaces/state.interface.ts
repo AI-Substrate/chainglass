@@ -18,6 +18,7 @@ import type {
   StateChangeCallback,
   StateDomainDescriptor,
   StateEntry,
+  StateEntrySource,
 } from '../state/types.js';
 
 export interface IStateService {
@@ -46,8 +47,12 @@ export interface IStateService {
    * Throws if a multi-instance domain path lacks an instance ID (AC-14).
    *
    * Per PL-01: Store-first — value is stored BEFORE subscribers are notified.
+   *
+   * @param source Optional origin metadata for debugging (Workshop 005).
+   *               ServerEventRoute passes `{ origin: 'server', channel, eventType }`.
+   *               Omit for client-originated publishes (defaults to undefined).
    */
-  publish<T>(path: string, value: T): void;
+  publish<T>(path: string, value: T, source?: StateEntrySource): void;
 
   /**
    * Remove a specific state entry.

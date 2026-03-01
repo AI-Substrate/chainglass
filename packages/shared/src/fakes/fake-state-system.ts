@@ -17,6 +17,7 @@ import type {
   StateChangeCallback,
   StateDomainDescriptor,
   StateEntry,
+  StateEntrySource,
   StateMatcher,
 } from '../state/types.js';
 
@@ -52,7 +53,7 @@ export class FakeGlobalStateSystem implements IStateService {
 
   // ── Publishing ──
 
-  publish<T>(path: string, value: T): void {
+  publish<T>(path: string, value: T, source?: StateEntrySource): void {
     const parsed = parsePath(path);
     this.validateDomain(parsed.domain, parsed.instanceId);
 
@@ -61,7 +62,7 @@ export class FakeGlobalStateSystem implements IStateService {
     const previousValue = existing?.value;
 
     // Store-first (PL-01): update Map before notifying
-    const entry: StateEntry = { path, value, updatedAt: now };
+    const entry: StateEntry = { path, value, updatedAt: now, source };
     this.store.set(path, entry);
     this.invalidateMatchingCaches(path);
 
@@ -73,6 +74,7 @@ export class FakeGlobalStateSystem implements IStateService {
       value,
       previousValue,
       timestamp: now,
+      source,
     };
 
     this.dispatch(change);
@@ -191,6 +193,11 @@ export class FakeGlobalStateSystem implements IStateService {
   wasPublishedWith(path: string, value: unknown): boolean {
     const entry = this.store.get(path);
     return entry !== undefined && entry.value === value;
+  }
+
+  /** Get the source metadata for a published path, or undefined. */
+  getPublishedSource(path: string): StateEntrySource | undefined {
+    return this.store.get(path)?.source;
   }
 
   /** Reset all state — for test isolation between tests. */

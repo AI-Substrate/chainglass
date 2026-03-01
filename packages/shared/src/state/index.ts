@@ -11,6 +11,7 @@ export type {
   StateChangeCallback,
   StateDomainDescriptor,
   StateEntry,
+  StateEntrySource,
   StateMatcher,
   StatePropertyDescriptor,
 } from './types.js';

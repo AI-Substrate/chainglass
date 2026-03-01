@@ -17,6 +17,7 @@ import type {
   StateChangeCallback,
   StateDomainDescriptor,
   StateEntry,
+  StateEntrySource,
   StateMatcher,
 } from '@chainglass/shared/state';
 import { createStateMatcher, parsePath } from '@chainglass/shared/state';
@@ -53,7 +54,7 @@ export class GlobalStateSystem implements IStateService {
 
   // ── Publishing ──
 
-  publish<T>(path: string, value: T): void {
+  publish<T>(path: string, value: T, source?: StateEntrySource): void {
     const parsed = parsePath(path);
     this.validateDomain(parsed.domain, parsed.instanceId);
 
@@ -62,7 +63,7 @@ export class GlobalStateSystem implements IStateService {
     const previousValue = existing?.value;
 
     // PL-01: Store-first — update Map before notifying
-    const entry: StateEntry = { path, value, updatedAt: now };
+    const entry: StateEntry = { path, value, updatedAt: now, source };
     this.store.set(path, entry);
     this.invalidateMatchingCaches(path);
 
@@ -74,6 +75,7 @@ export class GlobalStateSystem implements IStateService {
       value,
       previousValue,
       timestamp: now,
+      source,
     };
 
     this.dispatch(change);
