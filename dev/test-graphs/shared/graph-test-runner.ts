@@ -212,7 +212,10 @@ export async function withTestGraph(
   // 2. Build the real disk-reading loader (wired to temp workspace path later)
   // We need to create the temp dir first, then build the loader pointing at it
   const os = await import('node:os');
-  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), `tg-${fixtureName}-`));
+  // realpath resolves macOS /var → /private/var symlink so the registered
+  // workspace path matches what the CLI sees when it resolves cwd.
+  const rawTmpDir = await fs.mkdtemp(path.join(os.tmpdir(), `tg-${fixtureName}-`));
+  const tmpDir = await fs.realpath(rawTmpDir);
   let stackWorkspacePath: string | undefined;
   const workspaceSlug = `tg-${fixtureName}-${Date.now()}`;
 
