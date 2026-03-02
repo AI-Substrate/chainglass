@@ -48,12 +48,12 @@ export function AgentOverlayPanel({ workspacePath, className }: AgentOverlayPane
   return (
     <div
       className={cn(
-        'fixed bottom-4 right-4 w-[480px] h-[70vh] max-h-[700px]',
-        'flex flex-col rounded-xl border bg-background shadow-2xl',
-        'animate-in slide-in-from-bottom-2 fade-in-0 duration-200',
+        'fixed top-0 right-0 h-full',
+        'flex flex-col border-l bg-background shadow-2xl',
+        'animate-in slide-in-from-right-2 fade-in-0 duration-200',
         className
       )}
-      style={{ zIndex: Z_INDEX.OVERLAY }}
+      style={{ zIndex: Z_INDEX.OVERLAY, width: 'min(480px, 90vw)' }}
     >
       {/* Header */}
       <div className="flex items-center justify-between border-b px-4 py-2 shrink-0">

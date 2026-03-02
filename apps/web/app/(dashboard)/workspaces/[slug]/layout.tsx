@@ -60,7 +60,7 @@ export default async function WorkspaceLayout({ children, params }: LayoutProps)
         persistMru={updateSDKMru}
       />
       <WorkspaceAttentionWrapper>
-        <WorkspaceAgentChrome slug={slug}>{children}</WorkspaceAgentChrome>
+        <WorkspaceAgentChrome slug={slug} workspacePath={ws?.path}>{children}</WorkspaceAgentChrome>
       </WorkspaceAttentionWrapper>
     </WorkspaceProvider>
   );
