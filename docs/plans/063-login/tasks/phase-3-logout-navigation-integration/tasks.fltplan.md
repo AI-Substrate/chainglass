@@ -3,7 +3,7 @@
 **Plan**: [login-plan.md](../../login-plan.md)
 **Phase**: Phase 3: Logout & Navigation Integration
 **Generated**: 2026-03-02
-**Status**: Ready for takeoff
+**Status**: Landed
 
 ---
 
@@ -57,7 +57,10 @@ stateDiagram-v2
     S3 --> S4
     S4 --> [*]
 
-    class S1,S2,S3,S4 pending
+    class S1 done
+    class S2 done
+    class S3 done
+    class S4 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -68,10 +71,10 @@ stateDiagram-v2
 
 <!-- Updated by /plan-6-v2 during implementation: [ ] → [~] → [x] -->
 
-- [ ] **Stage 1: useAuth Hook** — Create client-side auth hook wrapping `useSession()` (`use-auth.ts`)
-- [ ] **Stage 2: Sidebar Logout** — Add username display + logout button to dashboard sidebar footer (`dashboard-sidebar.tsx`)
-- [ ] **Stage 3: Server Actions** — Add `auth()` session guard to all 53 exported server actions across 5 files
-- [ ] **Stage 4: API Routes** — Add `auth()` session guard to all handlers in 10 API route files
+- [x] **Stage 1: useAuth Hook** — Create client-side auth hook wrapping `useSession()` (`use-auth.ts`)
+- [x] **Stage 2: Sidebar Logout** — Add username display + logout button to dashboard sidebar footer (`dashboard-sidebar.tsx`)
+- [x] **Stage 3: Server Actions** — Add `auth()` session guard to all 53 exported server actions across 5 files
+- [x] **Stage 4: API Routes** — Add `auth()` session guard to all handlers in 10 API route files
 
 ---
 
@@ -123,7 +126,7 @@ flowchart LR
 
 ## Checklist
 
-- [ ] T001: Create useAuth() hook wrapping useSession()
-- [ ] T002: Add username + logout button to sidebar footer
-- [ ] T003: Add auth() guard to 53 server actions in 5 files
-- [ ] T004: Add auth() guard to 10 API route handler files
+- [x] T001: Create useAuth() hook wrapping useSession()
+- [x] T002: Add username + logout button to sidebar footer
+- [x] T003: Add auth() guard to 53 server actions in 5 files
+- [x] T004: Add auth() guard to 10 API route handler files

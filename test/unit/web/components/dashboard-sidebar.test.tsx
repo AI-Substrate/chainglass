@@ -35,6 +35,14 @@ vi.mock('next/navigation', () => ({
   })),
 }));
 
+vi.mock('next-auth/react', () => ({
+  useSession: vi.fn(() => ({
+    data: { user: { name: 'jakkaj' } },
+    status: 'authenticated',
+  })),
+  signOut: vi.fn(),
+}));
+
 // Test wrapper with SidebarProvider
 function renderSidebar() {
   return render(

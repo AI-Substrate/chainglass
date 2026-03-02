@@ -1,3 +1,4 @@
+import { auth } from '@/auth';
 import { SHARED_DI_TOKENS } from '@chainglass/shared';
 import type { IAgentManagerService } from '@chainglass/shared/features/019-agent-manager-refactor/agent-manager.interface';
 /**
@@ -48,6 +49,8 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<Response> {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   try {
     // Ensure initialization (DYK-16)
     await ensureInitialized();
@@ -110,6 +113,8 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<Response> {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   try {
     // Ensure initialization (DYK-16)
     await ensureInitialized();

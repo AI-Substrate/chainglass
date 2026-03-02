@@ -23,10 +23,12 @@ import { useWorkspaceContext } from '@/features/041-file-browser/hooks/use-works
 import { DEV_NAV_ITEMS, WORKSPACE_NAV_ITEMS } from '@/lib/navigation-utils';
 import { cn } from '@/lib/utils';
 import { workspaceHref } from '@/lib/workspace-url';
-import { ChevronLeft, ExternalLink, PanelLeft, Settings } from 'lucide-react';
+import { ChevronLeft, ExternalLink, LogOut, PanelLeft, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { Suspense, useMemo, useState } from 'react';
+
+import { signOut, useAuth } from '@/features/063-login/hooks/use-auth';
 
 /**
  * DashboardSidebar
@@ -45,6 +47,7 @@ export function DashboardSidebar() {
   const searchParams = useSearchParams();
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === 'collapsed';
+  const { user, isAuthenticated } = useAuth();
   const [devOpen, setDevOpen] = useState(false);
   const [worktreesOpen, setWorktreesOpen] = useState(false);
 
@@ -246,6 +249,18 @@ export function DashboardSidebar() {
 
       <SidebarFooter className="border-t p-2">
         <SidebarMenu>
+          {isAuthenticated && user && (
+            <SidebarMenuItem>
+              <div
+                className={cn(
+                  'flex items-center gap-3 px-3 py-1.5 text-xs text-muted-foreground',
+                  isCollapsed && 'justify-center px-0'
+                )}
+              >
+                {!isCollapsed && <span className="truncate">{user.name ?? 'User'}</span>}
+              </div>
+            </SidebarMenuItem>
+          )}
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
@@ -268,6 +283,17 @@ export function DashboardSidebar() {
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
+          {isAuthenticated && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => signOut({ callbackUrl: '/login' })}
+                className="flex items-center gap-3 text-muted-foreground hover:text-foreground"
+              >
+                <LogOut className="h-5 w-5" />
+                {!isCollapsed && <span>Sign out</span>}
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
         </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
