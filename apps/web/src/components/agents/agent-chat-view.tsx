@@ -31,11 +31,18 @@ export interface AgentChatViewProps {
   agentId: string;
   /** Resolved filesystem path for the workspace (used as cwd for agent runs) */
   workspacePath?: string;
+  /** Whether to subscribe to SSE for real-time updates (default: true) */
+  subscribeToSSE?: boolean;
   /** Additional CSS classes */
   className?: string;
 }
 
-export function AgentChatView({ agentId, workspacePath, className }: AgentChatViewProps) {
+export function AgentChatView({
+  agentId,
+  workspacePath,
+  subscribeToSSE = true,
+  className,
+}: AgentChatViewProps) {
   const [streamingContent, setStreamingContent] = useState('');
   const [localError, setLocalError] = useState<{ message: string; code?: string } | null>(null);
   // Optimistic pending message — shown until server events include the user_prompt
@@ -84,7 +91,7 @@ export function AgentChatView({ agentId, workspacePath, className }: AgentChatVi
     run,
     refetch,
   } = useAgentInstance(agentId, {
-    subscribeToSSE: true,
+    subscribeToSSE,
     onAgentEvent,
   });
 

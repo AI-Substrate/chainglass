@@ -68,9 +68,14 @@ export function AgentOverlayPanel({ workspacePath, className }: AgentOverlayPane
         </button>
       </div>
 
-      {/* Chat content — reuses existing component */}
+      {/* Chat content — reuses existing component, SSE disabled to avoid connection saturation */}
       <div className="flex-1 overflow-hidden min-h-0">
-        <AgentChatView agentId={activeAgentId} workspacePath={workspacePath} className="h-full" />
+        <AgentChatView
+          agentId={activeAgentId}
+          workspacePath={workspacePath}
+          subscribeToSSE={false}
+          className="h-full"
+        />
       </div>
     </div>
   );
