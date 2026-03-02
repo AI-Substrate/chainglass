@@ -139,5 +139,8 @@ export type {
 // Workflow Events interface (Plan 061: WorkflowEvents convenience domain)
 export type { IWorkflowEvents } from './workflow-events.interface.js';
 
+// Work Unit State interface (Plan 059: WorkUnit State System)
+export type { IWorkUnitStateService } from './work-unit-state.interface.js';
+
 // Note: IEventStorage, EventStorageService, FakeEventStorage removed in Plan 018 Phase 2.
 // Use AgentEventAdapter from @chainglass/workflow for workspace-scoped event storage.

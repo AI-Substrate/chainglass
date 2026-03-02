@@ -41,6 +41,7 @@ import { WorktreeStatePublisher } from '@/features/041-file-browser/state/worktr
 import { ServerEventRoute } from './server-event-route';
 import type { ServerEventRouteDescriptor } from './server-event-router';
 import { useStateSystem } from './state-provider';
+import { workUnitStateRoute } from './work-unit-state-route';
 
 /**
  * Server event routes — domains that bridge SSE events to GlobalStateSystem.
@@ -48,9 +49,8 @@ import { useStateSystem } from './state-provider';
  * Add new route descriptors here as domains opt in (see Workshop 005).
  */
 const SERVER_EVENT_ROUTES: ServerEventRouteDescriptor[] = [
-  // Route descriptors added by consuming domains:
-  // - T004 will add workUnitStateRoute here
-  // - Phase 3 will add agentStateRoute here
+  workUnitStateRoute,
+  // Phase 3 will add agentStateRoute here
 ];
 
 interface GlobalStateConnectorProps {

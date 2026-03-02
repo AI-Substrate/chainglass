@@ -28,3 +28,5 @@ export {
 export type { FakeUSDKInstance } from './fake-usdk.js';
 // Workflow Events fake (Plan 061: WorkflowEvents convenience domain)
 export { FakeWorkflowEventsService } from './fake-workflow-events.js';
+// Work Unit State fake (Plan 059: WorkUnit State System)
+export { FakeWorkUnitStateService } from './fake-work-unit-state.js';

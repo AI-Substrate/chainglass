@@ -3,7 +3,7 @@
 **Plan**: [fix-agents-plan.md](../../fix-agents-plan.md) (Phase B)
 **Phase**: Phase 2: WorkUnit State System
 **Generated**: 2026-02-28
-**Status**: Ready for takeoff
+**Status**: Landed
 
 ---
 
@@ -57,7 +57,7 @@ stateDiagram-v2
     S4 --> S5
     S5 --> [*]
 
-    class S1,S2,S3,S4,S5 pending
+    class S1,S2,S3,S4,S5 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -66,11 +66,11 @@ stateDiagram-v2
 
 ## Stages
 
-- [ ] **Stage 1: Interface + types** — Define IWorkUnitStateService, WorkUnitEntry, getUnitBySourceRef(), SSE event shapes in packages/shared
-- [ ] **Stage 2: Fake + contract tests** — FakeWorkUnitStateService + contract test factory covering register/unregister/updateStatus/getUnit/getUnits/getUnitBySourceRef/tidyUp
-- [ ] **Stage 3: Real implementation** — WorkUnitStateService with in-memory registry, JSON persistence, CentralEventNotifier emit, ServerEventRouteDescriptor, tidyUp on startup+register
-- [ ] **Stage 4: DI + bridge** — Register singleton in DI, create AgentWorkUnitBridge with WorkflowEvents observer subscription per sourceRef.graphSlug
-- [ ] **Stage 5: Docs** — Integration guide (`docs/how/work-unit-state-integration.md`)
+- [x] **Stage 1: Interface + types** — Define IWorkUnitStateService, WorkUnitEntry, getUnitBySourceRef(), SSE event shapes in packages/shared
+- [x] **Stage 2: Fake + contract tests** — FakeWorkUnitStateService + contract test factory covering register/unregister/updateStatus/getUnit/getUnits/getUnitBySourceRef/tidyUp
+- [x] **Stage 3: Real implementation** — WorkUnitStateService with in-memory registry, JSON persistence, CentralEventNotifier emit, ServerEventRouteDescriptor, tidyUp on startup+register
+- [x] **Stage 4: DI + bridge** — Register singleton in DI, create AgentWorkUnitBridge with WorkflowEvents observer subscription per sourceRef.graphSlug
+- [x] **Stage 5: Docs** — Integration guide (`docs/how/work-unit-state-integration.md`)
 
 ---
 
@@ -126,11 +126,11 @@ flowchart LR
 
 ## Checklist
 
-- [ ] T001: Define IWorkUnitStateService interface + types + SSE event shapes
-- [ ] T002: Create FakeWorkUnitStateService
-- [ ] T003: Write contract test factory + runner
-- [ ] T004: Implement WorkUnitStateService (persistence + CEN emit + route descriptor)
-- [ ] T005: Implement tidyUp rules (startup + register invocation)
-- [ ] T006: Register in DI container
-- [ ] T007: Create AgentWorkUnitBridge + WorkflowEvents observer subscription
-- [ ] T008: Write integration guide
+- [x] T001: Define IWorkUnitStateService interface + types + SSE event shapes
+- [x] T002: Create FakeWorkUnitStateService
+- [x] T003: Write contract test factory + runner
+- [x] T004: Implement WorkUnitStateService (persistence + CEN emit + route descriptor)
+- [x] T005: Implement tidyUp rules (startup + register invocation)
+- [x] T006: Register in DI container
+- [x] T007: Create AgentWorkUnitBridge + WorkflowEvents observer subscription
+- [x] T008: Write integration guide

@@ -122,6 +122,8 @@ export const POSITIONAL_GRAPH_DI_TOKENS = {
   INSTANCE_ADAPTER: 'InstanceAdapter',
   /** IWorkflowEvents — convenience API for workflow event interactions (Plan 061) */
   WORKFLOW_EVENTS_SERVICE: 'IWorkflowEvents',
+  /** IWorkUnitStateService — centralized work unit status registry (Plan 059) */
+  WORK_UNIT_STATE_SERVICE: 'IWorkUnitStateService',
 } as const;
 
 /**

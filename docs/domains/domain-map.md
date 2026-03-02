@@ -29,7 +29,7 @@ flowchart LR
 
     %% NEW business domains (Plan 059)
     agents["🤖 agents<br/>IAgentManagerService<br/>IAgentAdapter · IAgentInstance<br/>useAgentManager<br/>useAgentInstance<br/>AgentWorkUnitBridge"]:::new
-    workUnitState["📋 work-unit-state<br/>IWorkUnitStateService<br/>WorkUnitEntry<br/>WorkUnitQuestion<br/>FakeWorkUnitStateService"]:::new
+    workUnitState["📋 work-unit-state<br/>IWorkUnitStateService<br/>WorkUnitEntry · WorkUnitEvent<br/>FakeWorkUnitStateService<br/>workUnitStateRoute"]:::new
 
     %% NEW business domains (Plan 061)
     wfEvents["📡 workflow-events<br/>IWorkflowEvents<br/>WorkflowEventType<br/>WorkflowEventError<br/>FakeWorkflowEventsService"]:::new
@@ -78,7 +78,8 @@ flowchart LR
     posGraph -->|"IAgentManagerService<br/>IAgentInstance<br/>(orchestration)"| agents
 
     %% NEW: Work Unit State dependencies
-    workUnitState -->|"IStateService<br/>(publish paths)"| state
+    workUnitState -->|"ICentralEventNotifier<br/>(emit SSE events)"| events
+    workUnitState -->|"ServerEventRouteDescriptor<br/>(state path bridge)"| state
 
     %% NEW: Workflow UI → agents (future overlay)
     workflowUI -->|"useAgentOverlay<br/>(future)"| agents
@@ -124,5 +125,5 @@ flowchart LR
 | _platform/dev-tools | StateInspector, useStateChangeLog, useStateInspector | — | IStateService, StateChangeLog, useStateSystem | state | ✅ |
 | 058-workunit-editor | _(none — leaf consumer)_ | — | IWorkUnitService, CodeEditor, workspaceHref | positional-graph, viewer, workspace-url | ✅ |
 | agents | IAgentManagerService, IAgentAdapter, IAgentInstance, IAgentNotifierService, useAgentManager, useAgentInstance, AgentWorkUnitBridge | positional-graph (orchestration), workflow-ui (future overlay) | ISSEBroadcaster, useSSE, toast(), CopilotClient, IStateService, IWorkUnitStateService, DashboardShell | events, sdk, state, work-unit-state, panel-layout | 🟠 New |
-| work-unit-state | IWorkUnitStateService, WorkUnitEntry, WorkUnitQuestion, FakeWorkUnitStateService | agents (AgentWorkUnitBridge), workflow-ui (future) | IStateService | state | 🟠 New |
+| work-unit-state | IWorkUnitStateService, WorkUnitEntry, WorkUnitEvent, FakeWorkUnitStateService, workUnitStateRoute | agents (AgentWorkUnitBridge), workflow-ui (future) | ICentralEventNotifier, ServerEventRouteDescriptor | events, state | 🟠 New |
 | workflow-events | IWorkflowEvents, WorkflowEventType, WorkflowEventError, FakeWorkflowEventsService | agents (observer hooks), workflow-ui (answerQuestion), CLI (ask/answer/get-answer) | IPositionalGraphService, ICentralEventNotifier | positional-graph, events | 🟠 New |

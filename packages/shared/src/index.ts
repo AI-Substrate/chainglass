@@ -107,6 +107,9 @@ export type {
 // Workflow Events interface (Plan 061)
 export type { IWorkflowEvents } from './interfaces/index.js';
 
+// Work Unit State interface (Plan 059)
+export type { IWorkUnitStateService } from './interfaces/index.js';
+
 // Note: IEventStorage, EventStorageService, FakeEventStorage removed in Plan 018 Phase 2.
 // Use AgentEventAdapter from @chainglass/workflow for workspace-scoped event storage.
 
@@ -141,6 +144,8 @@ export { FakeProcessManager } from './fakes/index.js';
 export { FakeYamlParser } from './fakes/index.js';
 // Workflow Events fake (Plan 061)
 export { FakeWorkflowEventsService } from './fakes/index.js';
+// Work Unit State fake (Plan 059)
+export { FakeWorkUnitStateService } from './fakes/index.js';
 
 // Adapters
 export { PinoLoggerAdapter } from './adapters/index.js';
@@ -189,6 +194,21 @@ export type {
   QuestionAnsweredEvent,
   WorkflowEvent,
 } from './workflow-events/index.js';
+
+// Plan 059: WorkUnit State types and SSE event shapes
+export type {
+  RegisterWorkUnitInput,
+  UpdateWorkUnitInput,
+  WorkUnitCreator,
+  WorkUnitEntry,
+  WorkUnitEvent,
+  WorkUnitFilter,
+  WorkUnitRegisteredEvent,
+  WorkUnitRemovedEvent,
+  WorkUnitSourceRef,
+  WorkUnitStatus,
+  WorkUnitStatusEvent,
+} from './work-unit-state/index.js';
 
 // Plan 027: Central Domain Event Notification System
 export { WorkspaceDomain } from './features/027-central-notify-events/index.js';

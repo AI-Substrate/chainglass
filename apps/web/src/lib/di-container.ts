@@ -44,6 +44,8 @@ import {
   WindowsProcessManager,
   YamlParserAdapter,
 } from '@chainglass/shared';
+// Plan 059: Import FakeWorkUnitStateService for test container
+import { FakeWorkUnitStateService } from '@chainglass/shared/fakes';
 // Plan 019: Import AgentManagerService for central agent registry
 import {
   type AdapterFactory as AgentAdapterFactory,
@@ -59,6 +61,8 @@ import {
 // Plan 027: Import CentralEventNotifier types from shared
 import type { ICentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events';
 import { FakeCentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events';
+// Plan 059: WorkUnitStateService for centralized work unit status registry
+import type { IWorkUnitStateService } from '@chainglass/shared/interfaces/work-unit-state.interface';
 // Plan 014 Phase 6: Import workspace services from @chainglass/workflow
 // Plan 018 Phase 2: Import AgentEventAdapter for workspace-scoped event storage
 // Plan 018 Phase 3: Import AgentSessionAdapter and AgentSessionService
@@ -110,6 +114,8 @@ import { SSEManagerBroadcaster } from '../features/019-agent-manager-refactor/ss
 import { CentralEventNotifierService } from '../features/027-central-notify-events/central-event-notifier.service';
 import { SampleService } from '../services/sample.service';
 import { sseManager } from './sse-manager';
+// Plan 059: WorkUnitStateService (real implementation)
+import { WorkUnitStateService } from './work-unit-state/work-unit-state.service';
 
 // Token constants for type-safe resolution
 export const DI_TOKENS = {
@@ -517,6 +523,30 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
     useValue: centralNotifier,
   });
 
+  // ==================== Plan 059: WorkUnit State Service ====================
+
+  // Singleton via closure-captured flag (survives HMR).
+  // Dependency order: CentralEventNotifier → WorkUnitStateService → AgentWorkUnitBridge
+  let workUnitStateInstance: IWorkUnitStateService | null = null;
+  childContainer.register<IWorkUnitStateService>(
+    POSITIONAL_GRAPH_DI_TOKENS.WORK_UNIT_STATE_SERVICE,
+    {
+      useFactory: (c) => {
+        if (workUnitStateInstance) return workUnitStateInstance;
+        const contextResolver = c.resolve<IWorkspaceContextResolver>(
+          WORKSPACE_DI_TOKENS.WORKSPACE_CONTEXT_RESOLVER
+        );
+        const notifier = c.resolve<ICentralEventNotifier>(
+          WORKSPACE_DI_TOKENS.CENTRAL_EVENT_NOTIFIER
+        );
+        // Resolve workspace path lazily — use CWD as fallback for server startup
+        const worktreePath = process.cwd();
+        workUnitStateInstance = new WorkUnitStateService(worktreePath, notifier);
+        return workUnitStateInstance;
+      },
+    }
+  );
+
   // FIX-010: Performance metrics for container creation
   const durationMs = performance.now() - startTime;
   console.debug(`[createProductionContainer] Container created in ${durationMs.toFixed(2)}ms`);
@@ -709,6 +739,15 @@ export function createTestContainer(): DependencyContainer {
   childContainer.register<ICentralEventNotifier>(WORKSPACE_DI_TOKENS.CENTRAL_EVENT_NOTIFIER, {
     useValue: new FakeCentralEventNotifier(),
   });
+
+  // ==================== Plan 059: WorkUnit State Service (Fake) ====================
+
+  childContainer.register<IWorkUnitStateService>(
+    POSITIONAL_GRAPH_DI_TOKENS.WORK_UNIT_STATE_SERVICE,
+    {
+      useValue: new FakeWorkUnitStateService(),
+    }
+  );
 
   return childContainer;
 }
