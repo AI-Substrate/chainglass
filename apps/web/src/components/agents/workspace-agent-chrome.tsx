@@ -34,8 +34,10 @@ export function WorkspaceAgentChrome({
 }: WorkspaceAgentChromeProps) {
   return (
     <AgentOverlayProvider>
-      <AgentChipBar workspace={slug} worktreeSlug={worktreeSlug ?? slug} />
-      {children}
+      <div className="flex flex-col h-full overflow-hidden">
+        <AgentChipBar workspace={slug} worktreeSlug={worktreeSlug ?? slug} />
+        <div className="flex-1 overflow-auto min-h-0">{children}</div>
+      </div>
       <AgentOverlayPanel workspacePath={workspacePath} />
       <AttentionFlash workspace={slug} worktreeSlug={worktreeSlug ?? slug} />
     </AgentOverlayProvider>

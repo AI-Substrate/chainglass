@@ -23,13 +23,12 @@ import type { ReactNode } from 'react';
  * </DashboardShell>
  * ```
  */
-export function DashboardShell({ children, topBar }: { children: ReactNode; topBar?: ReactNode }) {
+export function DashboardShell({ children }: { children: ReactNode }) {
   return (
     <SidebarProvider>
       <div className="flex h-screen w-full">
         <DashboardSidebar />
         <SidebarInset>
-          {topBar && <div className="shrink-0">{topBar}</div>}
           <main className="flex-1 overflow-hidden min-w-0">{children}</main>
         </SidebarInset>
       </div>
