@@ -5,6 +5,7 @@
 **Created**: 2026-02-26
 **Created By**: Plan 050 Workflow Page UX
 **Status**: active
+**C4 Diagram**: [C4 Component](../../c4/components/workflow-ui.md)
 
 ## Purpose
 

@@ -5,6 +5,7 @@
 **Created**: 2026-02-24
 **Created By**: extracted from existing codebase (pre-Plan 041)
 **Status**: active
+**C4 Diagram**: [C4 Component](../../../c4/components/_platform/file-ops.md)
 
 ## Purpose
 

@@ -4,6 +4,7 @@
 **Type**: business
 **Created**: Plan 058 — Work Unit Creator & Editor
 **Status**: active
+**C4 Diagram**: [C4 Component](../../c4/components/workunit-editor.md)
 
 ## Purpose
 

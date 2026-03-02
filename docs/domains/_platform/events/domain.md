@@ -5,6 +5,7 @@
 **Created**: 2026-02-24
 **Created By**: extracted from Plans 019, 023, 027, 041; renamed from _platform/notifications (Plan 045)
 **Status**: active
+**C4 Diagram**: [C4 Component](../../../c4/components/_platform/events.md)
 
 ## Purpose
 

@@ -15,18 +15,22 @@ All diagrams use Mermaid's native C4 syntax and render in the existing MarkdownV
 
 3. **Progressive Detail** — Each C4 level adds detail without repeating the parent. L2 shows containers; L3 shows what's INSIDE a container. Don't redraw external systems at L3.
 
-4. **Actionable Descriptions** — Component descriptions state what it DOES (verb phrase), not what it IS. Good: "Renders syntax-highlighted code with line numbers". Bad: "A file viewer component".
+4. **Internal Relationships Only at L3** — L3 Component diagrams show relationships BETWEEN components within the same domain boundary. Cross-domain dependencies (e.g., viewer → file-ops) belong at L2 in `web-app.md` where the full domain topology is visible. **Why**: If every L3 diagram includes external arrows, each becomes a mini domain-map duplicating what L2 already shows. The value of L3 is understanding a single domain's internal structure — how its pieces fit together. External dependencies are documented in prose ("Depends on _platform/file-ops for IFileSystem") and in the domain.md's Dependencies section, not as diagram arrows. This keeps L3 diagrams focused and readable.
 
-5. **One Primary Diagram Per File** — Each `.md` file has exactly one primary Mermaid C4 diagram at a single level. Supplementary diagrams (sequence, state) are allowed for interaction detail.
+5. **Show Implementation Detail at L3** — L3 diagrams are signposts for our future selves. They MUST show internal implementation components (adapters, engines, managers, stores), not just the public contract surface. Include: internal classes, state machines, orchestration layers, factory patterns, internal data flow. **Why**: The domain.md Contracts table already shows the public API. L3's unique value is revealing HOW the domain works internally — the moving parts that someone debugging or extending the domain needs to understand. A viewer L3 shows MarkdownServer → CodeBlock → MermaidRenderer chain. A positional-graph L3 shows OrchestrationService → GraphOrchestration → ODS → ONBAS → PodManager orchestration flow. Sparse diagrams that only show interfaces are useless — show the guts.
 
-6. **Cross-Reference Block Required** — Every L3 component file MUST include a reference block linking back to the domain definition:
+5. **Actionable Descriptions** — Component descriptions state what it DOES (verb phrase), not what it IS. Good: "Renders syntax-highlighted code with line numbers". Bad: "A file viewer component".
+
+6. **One Primary Diagram Per File** — Each `.md` file has exactly one primary Mermaid C4 diagram at a single level. Supplementary diagrams (sequence, state) are allowed for interaction detail.
+
+7. **Cross-Reference Block Required** — Every L3 component file MUST include a reference block linking back to the domain definition:
    ```
    > **Domain Definition**: [domain.md](relative/path)
    > **Source**: `path/to/source/`
    > **Registry**: [registry.md](relative/path) — Row: Domain Name
    ```
 
-7. **Navigation Footer Required** — Every C4 file ends with a Navigation section:
+8. **Navigation Footer Required** — Every C4 file ends with a Navigation section:
    ```
    ---
    ## Navigation
@@ -36,11 +40,11 @@ All diagrams use Mermaid's native C4 syntax and render in the existing MarkdownV
    - **Hub**: [C4 Overview](../README.md)
    ```
 
-8. **Keep In Sync** — When a domain's contracts change, the corresponding C4 component diagram MUST be updated in the same PR.
+9. **Keep In Sync** — When a domain's contracts change, the corresponding C4 component diagram MUST be updated in the same PR.
 
-9. **Infrastructure Before Business** — In diagrams showing both domain types, infrastructure domains appear in a labeled `Boundary(infra, "Infrastructure Domains")` before business domains in `Boundary(biz, "Business Domains")`.
+10. **Infrastructure Before Business** — In diagrams showing both domain types, infrastructure domains appear in a labeled `Boundary(infra, "Infrastructure Domains")` before business domains in `Boundary(biz, "Business Domains")`.
 
-10. **Use `<br/>` for Newlines** — Mermaid requires `<br/>` for multi-line labels. `\n` renders literally.
+11. **Use `<br/>` for Newlines** — Mermaid requires `<br/>` for multi-line labels. `\n` renders literally.
     ```
     Component(viewer, "Viewer", "Component", "Renders code,<br/>markdown, and diffs")
     ```
