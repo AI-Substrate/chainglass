@@ -25,6 +25,7 @@ flowchart LR
     fileBrowser["📁 file-browser<br/>Browser page · FileTree<br/>CodeEditor re-export<br/>FileViewerPanel<br/>WorkspaceContext · Settings"]:::business
     workflowUI["🔀 workflow-ui<br/>Workflow editor · Canvas<br/>Toolbox · Properties<br/>Doping system"]:::business
     workunitEditor["✏️ 058-workunit-editor<br/>Unit list page · Editor page<br/>Agent/Code/Input editors<br/>Creation modal · Auto-save"]:::business
+    terminal["🖥️ terminal<br/>TerminalView · TerminalOverlay<br/>TmuxSessionManager<br/>Sidecar WS Server"]:::business
 
     %% Contract dependencies (consumer → provider)
     fileBrowser -->|"IFileSystem<br/>IPathResolver"| fileOps
@@ -65,6 +66,13 @@ flowchart LR
     workunitEditor -->|"IWorkUnitService<br/>(CRUD)"| posGraph
     workunitEditor -->|"CodeEditor"| viewer
     workunitEditor -->|"workspaceHref"| wsUrl
+
+    %% Terminal dependencies
+    terminal -->|"PanelShell<br/>LeftPanel · MainPanel"| panels
+    terminal -->|"toast()"| events
+    terminal -->|"IUSDK<br/>ICommandRegistry"| sdk
+    terminal -->|"useGlobalState"| state
+    terminal -->|"workspaceHref"| wsUrl
 ```
 
 ## Legend
@@ -93,3 +101,4 @@ flowchart LR
 | workflow-ui | _(none — leaf consumer)_ | — | IPositionalGraphService, ITemplateService, IWorkUnitService, IFileSystem, IPathResolver, useSSE, workspaceHref, IUSDK, useGlobalState | positional-graph, file-ops, events, workspace-url, sdk, state | ✅ |
 | _platform/dev-tools | StateInspector, useStateChangeLog, useStateInspector | — | IStateService, StateChangeLog, useStateSystem | state | ✅ |
 | 058-workunit-editor | _(none — leaf consumer)_ | — | IWorkUnitService, CodeEditor, workspaceHref | positional-graph, viewer, workspace-url | ✅ |
+| terminal | _(none — leaf consumer)_ | — | PanelShell, LeftPanel, MainPanel, toast(), IUSDK, ICommandRegistry, useGlobalState, workspaceHref | panel-layout, events, sdk, state, workspace-url | ✅ |
