@@ -108,7 +108,12 @@ export const MarkdownPreview = memo(function MarkdownPreview({
       }
 
       // Relative file links — resolve and navigate via file browser
-      if (onNavigateToFile && currentFilePath && !href.startsWith('http') && !href.startsWith('//')) {
+      if (
+        onNavigateToFile &&
+        currentFilePath &&
+        !href.startsWith('http') &&
+        !href.startsWith('//')
+      ) {
         e.preventDefault();
         const currentDir = currentFilePath.substring(0, currentFilePath.lastIndexOf('/'));
         // Resolve relative path: join current dir + href, then normalize ../ segments
@@ -143,7 +148,12 @@ export const MarkdownPreview = memo(function MarkdownPreview({
         return;
       }
 
-      if (onNavigateToFile && currentFilePath && !href.startsWith('http') && !href.startsWith('//')) {
+      if (
+        onNavigateToFile &&
+        currentFilePath &&
+        !href.startsWith('http') &&
+        !href.startsWith('//')
+      ) {
         e.preventDefault();
         const currentDir = currentFilePath.substring(0, currentFilePath.lastIndexOf('/'));
         const parts = `${currentDir}/${href}`.split('/');
