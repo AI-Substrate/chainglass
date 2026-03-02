@@ -54,7 +54,7 @@ describe('Terminal WebSocket Server', () => {
       const server = createTerminalServer(deps);
       const ws = createFakeWs();
 
-      server.handleConnection(ws as unknown as import('ws').WebSocket, '064-tmux', '/path/to/worktree');
+      server.handleConnection(ws as unknown as import('ws').WebSocket, '064-tmux', process.cwd());
 
       expect(spawner.spawnCount).toBe(1);
       const statusMsg = JSON.parse(ws.sent[0]);
@@ -76,7 +76,7 @@ describe('Terminal WebSocket Server', () => {
       const server = createTerminalServer(deps);
       const ws = createFakeWs();
 
-      server.handleConnection(ws as unknown as import('ws').WebSocket, '064-tmux', '/tmp');
+      server.handleConnection(ws as unknown as import('ws').WebSocket, '064-tmux', process.cwd());
       ws.simulateMessage('ls -la\n');
 
       const pty = spawner.lastInstance!;
@@ -96,7 +96,7 @@ describe('Terminal WebSocket Server', () => {
       const server = createTerminalServer(deps);
       const ws = createFakeWs();
 
-      server.handleConnection(ws as unknown as import('ws').WebSocket, '064-tmux', '/tmp');
+      server.handleConnection(ws as unknown as import('ws').WebSocket, '064-tmux', process.cwd());
       const pty = spawner.lastInstance!;
       pty.simulateData('drwxr-xr-x  12 user  staff  384 Jan 10 10:00 .\n');
 
@@ -118,7 +118,7 @@ describe('Terminal WebSocket Server', () => {
       const server = createTerminalServer(deps);
       const ws = createFakeWs();
 
-      server.handleConnection(ws as unknown as import('ws').WebSocket, '064-tmux', '/tmp');
+      server.handleConnection(ws as unknown as import('ws').WebSocket, '064-tmux', process.cwd());
       ws.simulateMessage(JSON.stringify({ type: 'resize', cols: 120, rows: 40 }));
 
       const pty = spawner.lastInstance!;
@@ -138,7 +138,7 @@ describe('Terminal WebSocket Server', () => {
       const server = createTerminalServer(deps);
       const ws = createFakeWs();
 
-      server.handleConnection(ws as unknown as import('ws').WebSocket, '064-tmux', '/tmp');
+      server.handleConnection(ws as unknown as import('ws').WebSocket, '064-tmux', process.cwd());
       const pty = spawner.lastInstance!;
       expect(pty.killed).toBe(false);
 
@@ -160,8 +160,8 @@ describe('Terminal WebSocket Server', () => {
       const ws1 = createFakeWs();
       const ws2 = createFakeWs();
 
-      server.handleConnection(ws1 as unknown as import('ws').WebSocket, '064-tmux', '/tmp');
-      server.handleConnection(ws2 as unknown as import('ws').WebSocket, '064-tmux', '/tmp');
+      server.handleConnection(ws1 as unknown as import('ws').WebSocket, '064-tmux', process.cwd());
+      server.handleConnection(ws2 as unknown as import('ws').WebSocket, '064-tmux', process.cwd());
 
       expect(spawner.spawnCount).toBe(2);
     });
@@ -179,12 +179,62 @@ describe('Terminal WebSocket Server', () => {
       const server = createTerminalServer(deps);
       const ws = createFakeWs();
 
-      server.handleConnection(ws as unknown as import('ws').WebSocket, '064-tmux', '/tmp');
+      server.handleConnection(ws as unknown as import('ws').WebSocket, '064-tmux', process.cwd());
 
       expect(spawner.spawnCount).toBe(1);
       const statusMsg = JSON.parse(ws.sent[0]);
       expect(statusMsg.type).toBe('status');
       expect(statusMsg.tmux).toBe(false);
+      expect(statusMsg.message).toContain('tmux not available');
+      expect(statusMsg.message).toContain('raw shell');
+    });
+
+    it('should reject invalid CWD paths', () => {
+      /*
+      Test Doc:
+      - Why: Security — prevent directory traversal via CWD query param
+      - Contract: Invalid CWD → error message + close with 4400
+      - Usage Notes: FT-001 fix — validates CWD before PTY spawn
+      - Quality Contribution: Blocks traversal attacks
+      - Worked Example: cwd="/etc/passwd" → close(4400)
+      */
+      exec.whenCommand('tmux', ['-V']).returns('tmux 3.4');
+      const server = createTerminalServer(deps);
+      const ws = createFakeWs();
+
+      server.handleConnection(ws as unknown as import('ws').WebSocket, '064-tmux', '/etc/passwd');
+
+      expect(ws.closed).toBe(true);
+      expect(ws.closeCode).toBe(4400);
+      expect(spawner.spawnCount).toBe(0);
+    });
+
+    it('should handle PTY spawn failures gracefully', () => {
+      /*
+      Test Doc:
+      - Why: Resilience — PTY spawn can fail (permissions, binary missing)
+      - Contract: spawn failure → error message + close with 1011, no crash
+      - Usage Notes: FT-002 fix — try/catch around spawn path
+      - Quality Contribution: Server stays up when one connection fails
+      - Worked Example: pty.spawn throws → {type:"error"} + close(1011)
+      */
+      exec.whenCommand('tmux', ['-V']).returns('tmux 3.4');
+      const throwingSpawner = {
+        spawn: () => { throw new Error('spawn EACCES'); },
+        lastInstance: null,
+        instances: [],
+        spawnCount: 0,
+      };
+      const server = createTerminalServer({ execCommand: exec.exec, spawnPty: throwingSpawner.spawn });
+      const ws = createFakeWs();
+
+      server.handleConnection(ws as unknown as import('ws').WebSocket, '064-tmux', process.cwd());
+
+      expect(ws.closed).toBe(true);
+      expect(ws.closeCode).toBe(1011);
+      const errorMsg = JSON.parse(ws.sent[0]);
+      expect(errorMsg.type).toBe('error');
+      expect(errorMsg.message).toContain('Failed to start terminal process');
     });
   });
 

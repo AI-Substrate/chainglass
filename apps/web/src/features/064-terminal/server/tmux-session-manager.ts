@@ -10,7 +10,7 @@
  * Plan 064: Terminal Integration via tmux
  */
 
-import { resolve, normalize } from 'node:path';
+import { resolve, normalize, relative, isAbsolute } from 'node:path';
 import type { CommandExecutor, PtyProcess, PtySpawner } from '../types';
 
 const TMUX_SESSION_NAME_REGEX = /^[a-zA-Z0-9_-]+$/;
@@ -52,11 +52,12 @@ export class TmuxSessionManager {
     );
   }
 
-  /** Validate a CWD path is within an allowed base directory */
+  /** Validate a CWD path is within an allowed base directory (boundary-safe) */
   validateCwd(cwd: string, allowedBase: string): boolean {
     const resolved = resolve(normalize(cwd));
     const resolvedBase = resolve(normalize(allowedBase));
-    return resolved.startsWith(resolvedBase);
+    const rel = relative(resolvedBase, resolved);
+    return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
   }
 
   /** List all tmux sessions with metadata */

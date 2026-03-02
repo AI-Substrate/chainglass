@@ -34,20 +34,36 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
   let wss: WebSocketServer | null = null;
 
   function handleConnection(ws: WebSocket, sessionName: string, cwd: string): void {
+    // FT-001: Validate CWD before PTY spawn
+    const allowedBase = process.env.TERMINAL_ALLOWED_BASE ?? process.cwd();
+    if (!manager.validateCwd(cwd, allowedBase)) {
+      ws.send(JSON.stringify({ type: 'error', message: 'Invalid working directory' }));
+      ws.close(4400, 'Invalid cwd');
+      return;
+    }
+
     const tmuxAvailable = manager.isTmuxAvailable();
     let pty: PtyProcess;
 
-    if (tmuxAvailable) {
-      pty = manager.spawnAttachedPty(sessionName, cwd, 80, 24);
-      ws.send(JSON.stringify({ type: 'status', status: 'connected', tmux: true }));
-    } else {
-      pty = manager.spawnRawShell(cwd, 80, 24);
-      ws.send(JSON.stringify({
-        type: 'status',
-        status: 'connected',
-        tmux: false,
-        message: 'tmux not available — using raw shell. Sessions won\'t persist across page refreshes.',
-      }));
+    // FT-002: Guard PTY spawn failures
+    try {
+      if (tmuxAvailable) {
+        pty = manager.spawnAttachedPty(sessionName, cwd, 80, 24);
+        ws.send(JSON.stringify({ type: 'status', status: 'connected', tmux: true }));
+      } else {
+        pty = manager.spawnRawShell(cwd, 80, 24);
+        ws.send(JSON.stringify({
+          type: 'status',
+          status: 'connected',
+          tmux: false,
+          message: 'tmux not available — using raw shell. Sessions won\'t persist across page refreshes.',
+        }));
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      ws.send(JSON.stringify({ type: 'error', message: `Failed to start terminal process: ${msg}` }));
+      ws.close(1011, 'PTY spawn failed');
+      return;
     }
 
     activePtys.add(pty);
