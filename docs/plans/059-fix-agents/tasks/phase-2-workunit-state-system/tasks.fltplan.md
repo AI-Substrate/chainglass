@@ -11,7 +11,7 @@
 
 **Where we are**: Agents can be created, listed, and chatted with (Phase 1). Status and questions are reported through three disconnected channels (AgentNotifierService, MessageService, NodeStatusResult). No single place to ask "who needs attention?" The GlobalStateSystem exists but no work unit domain is registered.
 
-**Where we're going**: A developer can register any work unit (agent, code unit, workflow node) with `IWorkUnitStateService`, publish status changes, ask first-class typed questions, and have answers routed back via callbacks. The service persists to JSON, publishes to GlobalStateSystem at `work-unit:{id}:*` paths, and auto-expires stale entries after 24h. Agents are automatically bridged via `AgentWorkUnitBridge`.
+**Where we're going**: A developer can register any work unit (agent, code unit, workflow node) with `IWorkUnitStateService`, publish status changes, and have status reflected across the UI via SSE→ServerEventRoute→GlobalStateSystem. AgentWorkUnitBridge subscribes to WorkflowEvents observers (Plan 061) to auto-update status on questions. Service persists to JSON, emits via CentralEventNotifier, auto-expires stale entries after 24h.
 
 ---
 
@@ -31,6 +31,7 @@
 | Domain | What We Consume | Contract |
 |--------|----------------|----------|
 | agents | Agent lifecycle events | IAgentNotifierService (broadcastCreated, broadcastStatus) |
+| workflow-events | Question/answer observer hooks (Plan 061) | IWorkflowEvents (onQuestionAsked, onQuestionAnswered) |
 
 ---
 
@@ -65,11 +66,11 @@ stateDiagram-v2
 
 ## Stages
 
-- [ ] **Stage 1: Interface + types** — Define IWorkUnitStateService, WorkUnitEntry, WorkUnitQuestion, QuestionAnswer in packages/shared (`work-unit-state.interface.ts`, `types.ts`)
-- [ ] **Stage 2: Fake + contract tests** — Create FakeWorkUnitStateService with inspection methods, write contract test factory covering all 10 methods (`fake-work-unit-state.ts`, `work-unit-state.contract.ts`)
-- [ ] **Stage 3: Real implementation** — Implement WorkUnitStateService with in-memory registry, JSON persistence, GlobalStateSystem publishing, tidyUp rules (`work-unit-state.service.ts`)
-- [ ] **Stage 4: DI + bridge + routing** — Register singleton in DI container, create AgentWorkUnitBridge, implement answer routing via callbacks (`di-container.ts`, `agent-work-unit-bridge.ts`)
-- [ ] **Stage 5: Docs** — Write integration guide (`docs/how/work-unit-state-integration.md`)
+- [ ] **Stage 1: Interface + types** — Define IWorkUnitStateService, WorkUnitEntry, getUnitBySourceRef(), SSE event shapes in packages/shared
+- [ ] **Stage 2: Fake + contract tests** — FakeWorkUnitStateService + contract test factory covering register/unregister/updateStatus/getUnit/getUnits/getUnitBySourceRef/tidyUp
+- [ ] **Stage 3: Real implementation** — WorkUnitStateService with in-memory registry, JSON persistence, CentralEventNotifier emit, ServerEventRouteDescriptor, tidyUp on startup+register
+- [ ] **Stage 4: DI + bridge** — Register singleton in DI, create AgentWorkUnitBridge with WorkflowEvents observer subscription per sourceRef.graphSlug
+- [ ] **Stage 5: Docs** — Integration guide (`docs/how/work-unit-state-integration.md`)
 
 ---
 
@@ -106,32 +107,30 @@ flowchart LR
 
 ## Acceptance Criteria
 
-- [ ] AC-09: IWorkUnitStateService interface in packages/shared with all methods
-- [ ] AC-10: Implementation persists to JSON + publishes state paths
+- [ ] AC-09: IWorkUnitStateService interface in packages/shared with all methods (including getUnitBySourceRef)
+- [ ] AC-10: Implementation persists to JSON + emits via CentralEventNotifier + ServerEventRouteDescriptor
 - [ ] AC-11: tidyUp() removes entries > 24h that aren't working/waiting
-- [ ] AC-12: Working entries + questioned entries never expire
+- [ ] AC-12: Working entries + waiting_input entries never expire
 - [ ] AC-13: FakeWorkUnitStateService with inspection methods
 - [ ] AC-14: Contract tests pass for both real and fake
-- [ ] AC-15: AgentWorkUnitBridge auto-registers agents on creation
-- [ ] AC-16: First-class question events → askQuestion() → has-question state path
-- [ ] AC-17: answerQuestion() routes to callback + clears question state
+- [ ] AC-15: AgentWorkUnitBridge auto-registers agents + subscribes to WorkflowEvents observers
+- [ ] AC-16: Observer-driven status: onQuestionAsked → waiting_input, onQuestionAnswered → working
 
 ## Goals & Non-Goals
 
-**Goals**: Centralized work unit registry, JSON persistence, state path publishing, agent bridge, answer routing, contract-tested with fake parity, integration guide.
+**Goals**: Centralized work unit registry, JSON persistence, SSE→state path publishing via ServerEventRoute, agent bridge with WorkflowEvents observer subscription, contract-tested with fake parity, integration guide.
 
-**Non-Goals**: UI components (Phase 3), cross-worktree queries (Phase 4), SSE broadcasting of work unit events, replacing MessageService or NodeStatusResult.
+**Non-Goals**: UI components (Phase 3), cross-worktree queries (Phase 4), Q&A mechanics on WorkUnitStateService (handled by WorkflowEvents), replacing MessageService or NodeStatusResult.
 
 ---
 
 ## Checklist
 
-- [ ] T001: Define IWorkUnitStateService interface + types
+- [ ] T001: Define IWorkUnitStateService interface + types + SSE event shapes
 - [ ] T002: Create FakeWorkUnitStateService
 - [ ] T003: Write contract test factory + runner
-- [ ] T004: Implement WorkUnitStateService (persistence + state paths)
-- [ ] T005: Implement tidyUp rules
+- [ ] T004: Implement WorkUnitStateService (persistence + CEN emit + route descriptor)
+- [ ] T005: Implement tidyUp rules (startup + register invocation)
 - [ ] T006: Register in DI container
-- [ ] T007: Create AgentWorkUnitBridge
-- [ ] T008: Implement answer routing
-- [ ] T009: Write integration guide
+- [ ] T007: Create AgentWorkUnitBridge + WorkflowEvents observer subscription
+- [ ] T008: Write integration guide

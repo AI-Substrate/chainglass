@@ -99,15 +99,14 @@ flowchart TD
     classDef new fill:#E3F2FD,stroke:#2196F3,color:#000
 
     subgraph Phase2["Phase 2: WorkUnit State System"]
-        T001["T001: Interface +<br/>types in shared"]:::new
+        T001["T001: Interface + types<br/>+ SSE event shapes"]:::new
         T002["T002: Fake +<br/>inspection methods"]:::pending
         T003["T003: Contract test<br/>factory + runner"]:::pending
-        T004["T004: Real implementation<br/>+ persistence + state paths"]:::pending
+        T004["T004: Real implementation<br/>+ persistence + route descriptor"]:::pending
         T005["T005: tidyUp rules"]:::pending
         T006["T006: DI registration"]:::pending
-        T007["T007: AgentWorkUnit<br/>Bridge"]:::pending
-        T008["T008: Answer routing"]:::pending
-        T009["T009: Integration guide"]:::pending
+        T007["T007: AgentWorkUnit<br/>Bridge + WF observers"]:::pending
+        T008["T008: Integration guide"]:::pending
 
         T001 --> T002
         T001 --> T003
@@ -117,18 +116,18 @@ flowchart TD
         T004 --> T006
         T005 --> T006
         T006 --> T007
-        T004 --> T008
-        T007 --> T009
-        T008 --> T009
+        T007 --> T008
     end
 
     subgraph Consumed["Consumed Domains"]
         GSS["GlobalStateSystem<br/>_platform/state"]
         AGT["AgentManagerService<br/>agents"]
+        WFE["WorkflowEventsService<br/>workflow-events (Plan 061)"]
     end
 
-    T004 -.->|"publishes to"| GSS
-    T007 -.->|"listens to"| AGT
+    T004 -.->|"emits via CEN → SSE"| GSS
+    T007 -.->|"listens to agent lifecycle"| AGT
+    T007 -.->|"subscribes observers"| WFE
 ```
 
 ---
@@ -137,15 +136,14 @@ flowchart TD
 
 | Status | ID | Task | Domain | Path(s) | Done When | Notes |
 |--------|-----|------|--------|---------|-----------|-------|
-| [ ] | T001 | Define IWorkUnitStateService interface + all types (WorkUnitEntry, WorkUnitFilter, WorkUnitStatus, WorkUnitCreator). **No QnA methods** — askQuestion/answerQuestion/onAnswer removed per DYK. State paths use `work-unit-state:{id}:property` (not `work-unit:`). | work-unit-state | `packages/shared/src/interfaces/work-unit-state.interface.ts`, `packages/shared/src/work-unit-state/types.ts`, `packages/shared/src/work-unit-state/index.ts` | Interface exported from `@chainglass/shared`; tsc compiles; methods: register, unregister, updateStatus, getUnit, getUnits, tidyUp | AC-09; DYK domain name fix; DYK QnA removal |
+| [ ] | T001 | Define IWorkUnitStateService interface + all types (WorkUnitEntry, WorkUnitFilter, WorkUnitStatus, WorkUnitCreator). Add `getUnitBySourceRef(graphSlug, nodeId)` lookup method (DYK-R-02). Define SSE event shapes: WorkUnitStatusEvent, WorkUnitRegisteredEvent, WorkUnitRemovedEvent (DYK-R-04). **No QnA methods** — status observation only. State paths use `work-unit-state:{id}:property`. | work-unit-state | `packages/shared/src/interfaces/work-unit-state.interface.ts`, `packages/shared/src/work-unit-state/types.ts`, `packages/shared/src/work-unit-state/index.ts` | Interface exported from `@chainglass/shared`; tsc compiles; methods: register, unregister, updateStatus, getUnit, getUnits, getUnitBySourceRef, tidyUp; SSE event types exported | AC-09; DYK-R-02, DYK-R-04 |
 | [ ] | T002 | Create FakeWorkUnitStateService with inspection methods | work-unit-state | `packages/shared/src/fakes/fake-work-unit-state.ts` | Fake implements IWorkUnitStateService; has getPublished(), getRegistered(), reset() | AC-13; fakes-before-real per P4 |
-| [ ] | T003 | Write contract test factory + runner | work-unit-state | `test/contracts/work-unit-state.contract.ts`, `test/contracts/work-unit-state.contract.test.ts` | Tests cover: register, unregister, updateStatus, getUnit, getUnits, tidyUp. Both real and fake run through factory. | AC-14; TDD red phase |
-| [ ] | T004 | Implement WorkUnitStateService — in-memory registry + JSON persistence + CentralEventNotifier emit + workUnitStateRoute descriptor. **Emits via CentralEventNotifierService** (not direct GlobalStateSystem publish). Creates route descriptor and adds to SERVER_EVENT_ROUTES. | work-unit-state | `apps/web/src/lib/work-unit-state/work-unit-state.service.ts`, `apps/web/src/lib/work-unit-state/index.ts`, `apps/web/src/lib/state/state-connector.tsx` | Passes all contract tests; persists to `<worktree>/.chainglass/data/work-unit-state.json`; emits via notifier; route descriptor publishes `work-unit-state:{id}:status`, `work-unit-state:{id}:intent`, `work-unit-state:{id}:name` | AC-10; DYK #1 server/client bridge; DYK #2 domain name |
-| [ ] | T005 | Implement tidyUp rules — 24h expiry, working/waiting never expire | work-unit-state | `apps/web/src/lib/work-unit-state/work-unit-state.service.ts` | tidyUp() removes entries with lastActivityAt > 24h ago AND status NOT in ['working', 'waiting_input'] | AC-11, AC-12 |
-| [ ] | T006 | Register WorkUnitStateService in DI container as singleton. **Inject workspace path resolver + CentralEventNotifierService.** | work-unit-state | `apps/web/src/lib/di-container.ts` | Container resolves IWorkUnitStateService; lazy init guard; workspace resolver injected for per-worktree persistence | Finding 04; DYK #4 singleton + persistence |
-| [ ] | T007 | Create AgentWorkUnitBridge — auto-register agents + publish status changes via updateStatus(). **No QnA bridging** — deferred to Plan 061 observer hooks. | agents | `apps/web/src/features/059-fix-agents/agent-work-unit-bridge.ts` | Bridge registers agents on create, publishes status changes via updateStatus(); unregisters on terminate | AC-15; DYK QnA deferred |
-| [ ] | T008 | **DEFERRED** — Answer routing deferred to Plan 061 (WorkflowEvents). Original scope (onAnswer callback) replaced by event-driven observer hooks in Plan 061. | work-unit-state | — | N/A — Plan 061 delivers this | DYK #3; Plan 061 |
-| [ ] | T009 | Write docs/how/work-unit-state-integration.md | work-unit-state | `docs/how/work-unit-state-integration.md` | Guide covers: registering a source, publishing status, tidyUp lifecycle, state path schema (`work-unit-state:{id}:property`), relationship to Plan 061 for QnA | Documentation deliverable |
+| [ ] | T003 | Write contract test factory + runner | work-unit-state | `test/contracts/work-unit-state.contract.ts`, `test/contracts/work-unit-state.contract.test.ts` | Tests cover: register, unregister, updateStatus, getUnit, getUnits, getUnitBySourceRef, tidyUp. Both real and fake run through factory. | AC-14; TDD red phase |
+| [ ] | T004 | Implement WorkUnitStateService — in-memory registry + JSON persistence + CentralEventNotifier emit + workUnitStateRoute descriptor. **Emits via CentralEventNotifierService** using SSE event shapes from T001. Creates route descriptor (ServerEventRouteDescriptor per Subtask 001) and adds to SERVER_EVENT_ROUTES. Calls tidyUp on startup hydration (DYK-R-03). | work-unit-state | `apps/web/src/lib/work-unit-state/work-unit-state.service.ts`, `apps/web/src/lib/work-unit-state/index.ts`, `apps/web/src/lib/state/state-connector.tsx` | Passes all contract tests; persists to `<worktree>/.chainglass/data/work-unit-state.json`; emits via notifier using defined event shapes; route descriptor publishes `work-unit-state:{id}:status`, `work-unit-state:{id}:intent`, `work-unit-state:{id}:name` | AC-10; DYK #1, DYK-R-04 |
+| [ ] | T005 | Implement tidyUp rules — 24h expiry, working/waiting never expire. Called on startup hydration + register() (DYK-R-03). Public method for future housekeeping. | work-unit-state | `apps/web/src/lib/work-unit-state/work-unit-state.service.ts` | tidyUp() removes entries with lastActivityAt > 24h ago AND status NOT in ['working', 'waiting_input']; called at hydration + register | AC-11, AC-12; DYK-R-03 |
+| [ ] | T006 | Register WorkUnitStateService in DI container as singleton. **Inject workspace path resolver + CentralEventNotifierService** (confirmed in DI as WORKSPACE_DI_TOKENS.CENTRAL_EVENT_NOTIFIER). | work-unit-state | `apps/web/src/lib/di-container.ts` | Container resolves IWorkUnitStateService; lazy init guard; workspace resolver + CEN injected | Finding 04; DYK #4 |
+| [ ] | T007 | Create AgentWorkUnitBridge — auto-register agents + publish status changes via updateStatus(). **Subscribe to WorkflowEvents observers** (Plan 061 complete): `onQuestionAsked` → updateStatus('waiting_input'), `onQuestionAnswered` → updateStatus('working'). Subscribe per work unit's sourceRef.graphSlug at register() time; unsubscribe at unregister() (DYK-R-01). Use `getUnitBySourceRef(graphSlug, nodeId)` for observer→entry lookup (DYK-R-02). | agents | `apps/web/src/features/059-fix-agents/agent-work-unit-bridge.ts` | Bridge registers agents on create, publishes status, subscribes to WF observers per graph, unsubscribes on terminate; observer events update work unit status | AC-15; DYK-R-01, DYK-R-02; Workshop 006 |
+| [ ] | T008 | Write docs/how/work-unit-state-integration.md. Include relationship to WorkflowEvents (status aggregator, not Q&A mechanics). | work-unit-state | `docs/how/work-unit-state-integration.md` | Guide covers: registering a source, publishing status, tidyUp lifecycle, state path schema, SSE event shapes, relationship to Plan 061 | Documentation deliverable |
 
 ---
 
@@ -192,51 +190,62 @@ flowchart LR
     subgraph Core["WorkUnit State Service"]
         REG["register()"]
         UPD["updateStatus()"]
-        ASK["askQuestion()"]
-        ANS["answerQuestion()"]
         TIDY["tidyUp()"]
         STORE["JSON persistence"]
+        QUERY["getUnit()<br/>getUnitBySourceRef()"]
     end
 
-    subgraph State["GlobalStateSystem"]
-        PUB["work-unit:{id}:status<br/>work-unit:{id}:has-question<br/>work-unit:{id}:intent"]
+    subgraph Events["Event System"]
+        CEN["CentralEventNotifier<br/>→ SSE → client"]
+        WFE["WorkflowEvents<br/>observers (Plan 061)"]
+    end
+
+    subgraph State["GlobalStateSystem (client)"]
+        PUB["work-unit-state:{id}:status<br/>work-unit-state:{id}:intent<br/>work-unit-state:{id}:name"]
     end
 
     AGT -->|"register + status"| REG
-    AGT -->|"question events"| ASK
     WF -->|"register + status"| REG
     REG --> STORE
     UPD --> STORE
-    UPD --> PUB
-    ASK --> PUB
-    ANS -->|"callback to source"| AGT
-    ANS --> PUB
+    UPD --> CEN
+    REG --> CEN
+    CEN -->|"SSE → ServerEventRoute"| PUB
+    WFE -->|"onQuestionAsked<br/>onQuestionAnswered"| AGT
 ```
 
 ### Sequence diagram — question flow
 
 ```mermaid
 sequenceDiagram
-    participant A as Agent
+    participant A as Agent (node)
+    participant WFE as WorkflowEventsService
     participant B as AgentWorkUnitBridge
     participant W as WorkUnitStateService
-    participant G as GlobalStateSystem
+    participant CEN as CentralEventNotifier
     participant UI as Top Bar / Overlay
 
-    A->>B: question event emitted
-    B->>W: askQuestion(agentId, question)
-    W->>W: entry.question = question<br/>entry.status = waiting_input
+    Note over A,WFE: Agent asks question via CLI
+    A->>WFE: askQuestion(graph, node, question)
+    WFE->>WFE: raise question:ask + persist
+
+    Note over WFE,B: Observer fires
+    WFE->>B: onQuestionAsked({ graphSlug, nodeId })
+    B->>W: getUnitBySourceRef(graphSlug, nodeId)
+    W-->>B: workUnitEntry
+    B->>W: updateStatus(entry.id, 'waiting_input')
     W->>W: persist to JSON
-    W->>G: publish work-unit:{id}:has-question = true
-    G-->>UI: subscriber notified
+    W->>CEN: emit('work-unit-state', 'status-changed', { id, status })
+    CEN-->>UI: SSE → ServerEventRoute → GlobalStateSystem
     UI->>UI: chip pulses yellow
 
-    UI->>W: answerQuestion(agentId, answer)
-    W->>W: clear question, status = working
-    W->>W: persist to JSON
-    W->>G: publish work-unit:{id}:has-question = false
-    W->>B: onAnswer callback fires
-    B->>A: route answer to agent
+    Note over UI,WFE: User answers via overlay
+    UI->>WFE: answerQuestion(graph, node, qId, answer)
+    WFE->>WFE: 3-event handshake
+    WFE->>B: onQuestionAnswered({ graphSlug, nodeId })
+    B->>W: updateStatus(entry.id, 'working')
+    W->>CEN: emit('work-unit-state', 'status-changed', { id, status })
+    CEN-->>UI: chip returns to blue
 ```
 
 ---
@@ -247,11 +256,15 @@ _Populated during implementation by plan-6._
 
 | Date | Task | Type | Discovery | Resolution | References |
 |------|------|------|-----------|------------|------------|
-| 2026-03-01 | Pre-T001 | decision | **Drop `askQuestion`, `answerQuestion`, `onAnswer` from IWorkUnitStateService** — QnA is entirely handled by the WF event system (Plan 032) via `question:ask`/`question:answer`/`node:restart` events. Agents exit after asking, get reinvoked in new Pods, fetch answer via CLI `cg wf node get-answer`. WorkUnitStateService should NOT own question mechanics — it only observes `status === 'waiting_input'`. | Remove Q&A methods from T001 interface. T008 (answer routing) either becomes event-emit-only or deferred to Plan 061 (WorkflowEvents). | DYK #3, Workshop 006, Plan 061 |
+| 2026-03-01 | Pre-T001 | decision | **Drop `askQuestion`, `answerQuestion`, `onAnswer` from IWorkUnitStateService** — QnA is entirely handled by the WF event system (Plan 032) via `question:ask`/`question:answer`/`node:restart` events. Agents exit after asking, get reinvoked in new Pods, fetch answer via CLI `cg wf node get-answer`. WorkUnitStateService should NOT own question mechanics — it only observes `status === 'waiting_input'`. | Remove Q&A methods from T001 interface. T008 (answer routing) removed — delivered by Plan 061 + web action. | DYK #3, Workshop 006, Plan 061 |
 | 2026-03-01 | Pre-T001 | gotcha | **State domain name mismatch: `work-unit` vs `work-unit-state`** — Workshop 003 defines paths as `work-unit:{id}:status` but domain name is `work-unit-state`, WorkspaceDomain channel is `'work-unit-state'`, and ServerEventRoute uses `stateDomain: 'work-unit-state'`. If T001 follows workshop verbatim, subscribers on `work-unit:*:status` would never match `work-unit-state:agent-1:status`. | Standardize on `work-unit-state` everywhere. All state paths use `work-unit-state:{id}:property`. Workshop 003 examples using `work-unit:` are shorthand that needs correcting. | DYK #2 |
 | 2026-03-01 | Pre-T001 | insight | **T004 can't publish to GlobalStateSystem directly** — WorkUnitStateService is server-side DI singleton, GlobalStateSystem is client-side React Context. Must emit via `CentralEventNotifierService.emit('work-unit-state', eventType, data)` → SSE → client ServerEventRoute → GlobalStateSystem.publish(). T004 needs to: inject CentralEventNotifierService, emit on every state change, create `workUnitStateRoute` descriptor, and add route to `SERVER_EVENT_ROUTES` in state-connector.tsx. | Amend T004 done-when to include: emits via CentralEventNotifierService, creates workUnitStateRoute descriptor, adds route to SERVER_EVENT_ROUTES. | DYK #1, Subtask 001 |
 | 2026-03-01 | Pre-T001 | decision | **Singleton + per-worktree persistence** — WorkUnitStateService is a singleton (T006) managing work units across ALL worktrees, but persists to `<worktree>/.chainglass/data/work-unit-state.json`. Needs workspace path resolver injection at construction, or use a single global file and scope reads by workspace field. | T006 DI registration must inject workspace path resolver alongside CentralEventNotifierService. | DYK #4 |
-| 2026-03-01 | Pre-T001 | insight | **Plan 061 (WorkflowEvents) created as prerequisite for answer routing** — QnA convenience layer with observer hooks (`onQuestionAsked`, `onQuestionAnswered`) will provide the clean subscription point AgentWorkUnitBridge needs. T007/T008 should consume Plan 061 observers rather than coupling to raw event infrastructure. | T007 bridge subscribes to WorkflowEvents.onQuestionAsked() once Plan 061 is implemented. T008 may be deferred entirely until Plan 061 delivers observer hooks. | Plan 061, Workshop 006 |
+| 2026-03-01 | Pre-T001 | insight | **Plan 061 (WorkflowEvents) complete** — Observer hooks (`onQuestionAsked`, `onQuestionAnswered`, `onProgress`, `onEvent`) delivered. T007 bridge subscribes to these. T008 (answer routing) removed — handled by existing web `answerQuestion` action delegating to WorkflowEvents. | T007 expanded to include observer subscription. Old T008 removed, old T009 renumbered to T008. | Plan 061 complete, Workshop 006 |
+| 2026-03-02 | T007 | insight | **Observer graphSlug scoping** — `onQuestionAsked(graphSlug, handler)` requires specific graph. Bridge subscribes per work unit's `sourceRef.graphSlug` at register() time; unsubscribes at unregister(). Ties subscription lifecycle to work unit lifecycle. | Bridge manages Map<workUnitId, unsubscribeFn[]> for cleanup. | DYK-R-01, Workshop 006 |
+| 2026-03-02 | T001 | decision | **Add `getUnitBySourceRef(graphSlug, nodeId)` lookup** — observer events arrive with `{ graphSlug, nodeId }`, need to find WorkUnitEntry. Convention-based `node-${nodeId}` id is fragile. Proper query method is more robust. | Add to T001 interface. Bridge uses in T007. | DYK-R-02 |
+| 2026-03-02 | T005 | decision | **tidyUp invocation strategy** — call on startup hydration + register(). Public method available for future housekeeping orchestrators. No timer/interval needed. | T005 + T004 updated. | DYK-R-03 |
+| 2026-03-02 | T001/T004 | insight | **SSE event shapes must be co-designed with route descriptor** — CEN.emit() sends flat payload, ServerEventRouteDescriptor.mapEvent() must extract instanceId + property updates from it. Define event types (WorkUnitStatusEvent, WorkUnitRegisteredEvent, WorkUnitRemovedEvent) in T001 alongside interface. | T001 scope expanded to include SSE event types. T004 uses them. | DYK-R-04 |
 
 **Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
 
