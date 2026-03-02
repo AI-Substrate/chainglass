@@ -82,11 +82,11 @@ flowchart TD
     classDef completed fill:#4CAF50,stroke:#388E3C,color:#fff
 
     subgraph Phase["Phase 5: Rendering Verification"]
-        T001["T001: Start dev server"]:::pending
-        T002["T002: Verify L1 C4Context"]:::pending
-        T003["T003: Verify L2 C4Container"]:::pending
-        T004["T004: Spot-check L3 C4Component<br/>(6 files: 3 infra + 3 business)"]:::pending
-        T005["T005: Document rendering issues"]:::pending
+        T001["T001: Start dev server"]:::completed
+        T002["T002: Verify L1 C4Context"]:::completed
+        T003["T003: Verify L2 C4Container"]:::completed
+        T004["T004: Spot-check L3 C4Component<br/>(6 files: 3 infra + 3 business)"]:::completed
+        T005["T005: Document rendering issues"]:::completed
         T001 --> T002
         T001 --> T003
         T001 --> T004
@@ -112,11 +112,11 @@ flowchart TD
 
 | Status | ID | Task | Domain | Path(s) | Done When | Notes |
 |--------|-----|------|--------|---------|-----------|-------|
-| [ ] | T001 | Start dev server and navigate to `docs/c4/` in file browser | _platform/viewer | N/A | Dev server running, file browser shows `docs/c4/` tree with all 19 files | `just dev` or `pnpm dev` |
-| [ ] | T002 | Verify L1 C4Context renders in light + dark themes | _platform/viewer | `docs/c4/system-context.md` | SVG visible with readable labels, all persons/systems/relationships rendered in both themes | AC-09, AC-10. Check: persons (Developer, AI Agent), systems (Web App, CLI, MCP Server), externals (Git, FS) |
-| [ ] | T003 | Verify L2 C4Container renders in light + dark themes | _platform/viewer | `docs/c4/containers/overview.md`, `web-app.md` | SVG visible with container boundaries, technology labels, relationships in both themes | AC-09, AC-10. Check both overview (C4Container) and web-app (C4Component in Container_Boundary) |
-| [ ] | T004 | Spot-check L3 C4Component diagrams (6 files) | _platform/viewer | `docs/c4/components/_platform/viewer.md`, `positional-graph.md`, `events.md`, `file-browser.md`, `workflow-ui.md`, `workunit-editor.md` | Component boxes, relationships, and labels visible in both themes | AC-09, AC-10. Spot-check 3 infra (viewer=large, positional-graph=complex, events=medium) + all 3 business |
-| [ ] | T005 | Document rendering issues and workarounds | — | `execution.log.md` | Execution log updated with rendering findings. If issues: describe each with screenshot/description. If clean: mark AC-09+AC-10 PASS. | Known issue: Mermaid C4 theme styling is basic/ugly (deferred FX002) |
+| [x] | T001 | Start dev server and navigate to `docs/c4/` in file browser | _platform/viewer | N/A | Dev server running, file browser shows `docs/c4/` tree with all 19 files | `just dev` or `pnpm dev` |
+| [x] | T002 | Verify L1 C4Context renders in light + dark themes | _platform/viewer | `docs/c4/system-context.md` | SVG visible with readable labels, all persons/systems/relationships rendered in both themes | AC-09 PASS. User confirmed rendering works. |
+| [x] | T003 | Verify L2 C4Container renders in light + dark themes | _platform/viewer | `docs/c4/containers/overview.md`, `web-app.md` | SVG visible with container boundaries, technology labels, relationships in both themes | AC-09 PASS. User confirmed rendering works. |
+| [x] | T004 | Spot-check L3 C4Component diagrams (6 files) | _platform/viewer | `docs/c4/components/_platform/viewer.md`, `positional-graph.md`, `events.md`, `file-browser.md`, `workflow-ui.md`, `workunit-editor.md` | Component boxes, relationships, and labels visible in both themes | AC-09 PASS. User confirmed rendering works. |
+| [x] | T005 | Document rendering issues and workarounds | — | `execution.log.md` | Execution log updated with rendering findings. If issues: describe each with screenshot/description. If clean: mark AC-09+AC-10 PASS. | Known limitation: Mermaid C4 theme styling is basic/ugly (deferred FX002). AC-09+AC-10 PASS. |
 
 ---
 

@@ -3,7 +3,7 @@
 **Plan**: [c4-models-plan.md](../../c4-models-plan.md)
 **Phase**: Phase 5: Rendering Verification
 **Generated**: 2026-03-02
-**Status**: Ready for takeoff
+**Status**: Complete
 
 ---
 
@@ -57,7 +57,7 @@ stateDiagram-v2
     S4 --> S5
     S5 --> [*]
 
-    class S1,S2,S3,S4,S5 pending
+    class S1,S2,S3,S4,S5 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -68,10 +68,10 @@ stateDiagram-v2
 
 <!-- Updated by /plan-6-v2 during implementation: [ ] → [~] → [x] -->
 
-- [ ] **Stage 1: Start dev server** — Run `just dev`, navigate to `docs/c4/` in file browser
-- [ ] **Stage 2: Verify L1+L2 diagrams** — Check system-context.md and containers/ files render in both themes
-- [ ] **Stage 3: Spot-check L3 diagrams** — Check 6 representative L3 files (3 infra + 3 business)
-- [ ] **Stage 4: Document findings** — Record results in execution log, mark ACs
+- [x] **Stage 1: Start dev server** — Run `just dev`, navigate to `docs/c4/` in file browser
+- [x] **Stage 2: Verify L1+L2 diagrams** — Check system-context.md and containers/ files render in both themes
+- [x] **Stage 3: Spot-check L3 diagrams** — Check 6 representative L3 files (3 infra + 3 business)
+- [x] **Stage 4: Document findings** — Record results in execution log, mark ACs
 
 ---
 
@@ -108,8 +108,8 @@ flowchart LR
 
 ## Acceptance Criteria
 
-- [ ] AC-09: All C4 diagram types render as SVG in MarkdownViewer preview
-- [ ] AC-10: C4 diagrams render in both light and dark themes
+- [x] AC-09: All C4 diagram types render as SVG in MarkdownViewer preview
+- [x] AC-10: C4 diagrams render in both light and dark themes
 
 ## Goals & Non-Goals
 
@@ -127,8 +127,8 @@ flowchart LR
 
 ## Checklist
 
-- [ ] T001: Start dev server and navigate to `docs/c4/`
-- [ ] T002: Verify L1 C4Context renders in light + dark themes
-- [ ] T003: Verify L2 C4Container renders in light + dark themes
-- [ ] T004: Spot-check L3 C4Component diagrams (6 files)
-- [ ] T005: Document rendering issues and workarounds
+- [x] T001: Start dev server and navigate to `docs/c4/`
+- [x] T002: Verify L1 C4Context renders in light + dark themes
+- [x] T003: Verify L2 C4Container renders in light + dark themes
+- [x] T004: Spot-check L3 C4Component diagrams (6 files)
+- [x] T005: Document rendering issues and workarounds

@@ -5,7 +5,7 @@
 **Spec**: [c4-models-spec.md](c4-models-spec.md)
 **Research Dossier**: [research-dossier.md](research-dossier.md)
 **Workshop**: [workshops/001-c4-design-and-layout.md](workshops/001-c4-design-and-layout.md)
-**Status**: DRAFT
+**Status**: COMPLETE
 **Mode**: Full
 **Complexity**: CS-2 (small)
 
@@ -180,23 +180,23 @@ No constitution deviations required.
 
 ## Acceptance Criteria
 
-- [ ] **AC-01**: `docs/c4/README.md` exists with navigation table (L1, L2, L3) — Phase 1
-- [ ] **AC-02**: `.github/instructions/c4-authoring.instructions.md` exists with `applyTo: "docs/c4/**"` and 8+ principles — Phase 1
-- [ ] **AC-03**: `docs/c4/system-context.md` exists with `C4Context` diagram — Phase 2
-- [ ] **AC-04**: `docs/c4/containers/overview.md` exists with `C4Container` diagram — Phase 2
-- [ ] **AC-05**: 13 `docs/c4/components/*.md` files exist (one per active domain) with `C4Component` diagrams — Phase 3+4
-- [ ] **AC-06**: Every L3 file has cross-reference block to `domain.md` — Phase 3+4
-- [ ] **AC-07**: Every C4 file has Navigation footer (Zoom Out, Zoom In, Domain, Hub) — Phase 4
-- [ ] **AC-08**: README.md quick links list all domains with working links — Phase 1+4
-- [ ] **AC-09**: All C4 diagram types render as SVG in MarkdownViewer preview — Phase 5
-- [ ] **AC-10**: C4 diagrams render in both light and dark themes — Phase 5
-- [ ] **AC-11**: `.github/instructions/c4-authoring.instructions.md` covers all 8 required principle areas — Phase 1
-- [ ] **AC-12**: `CLAUDE.md` references `.github/instructions/c4-authoring.instructions.md` — Phase 1
-- [ ] **AC-13**: L1 includes Developer, AI Agent, Web App, CLI, Git, Filesystem — Phase 2
-- [ ] **AC-14**: L2 includes apps/web, apps/cli, packages/shared with tech labels — Phase 2
-- [ ] **AC-15**: L3 diagrams show owned components, exposed contracts, relationships — Phase 3+4
-- [ ] **AC-16**: L3 diagrams use consistent naming (slug ID, display name label, technology) — Phase 3+4
-- [ ] **AC-17**: Every active domain.md has a "C4 Diagram" link to its component file — Phase 4
+- [x] **AC-01**: `docs/c4/README.md` exists with navigation table (L1, L2, L3) — Phase 1
+- [x] **AC-02**: `.github/instructions/c4-authoring.instructions.md` exists with `applyTo: "docs/c4/**"` and 8+ principles — Phase 1
+- [x] **AC-03**: `docs/c4/system-context.md` exists with `C4Context` diagram — Phase 2
+- [x] **AC-04**: `docs/c4/containers/overview.md` exists with `C4Container` diagram — Phase 2
+- [x] **AC-05**: 13 `docs/c4/components/*.md` files exist (one per active domain) with `C4Component` diagrams — Phase 3+4
+- [x] **AC-06**: Every L3 file has cross-reference block to `domain.md` — Phase 3+4
+- [x] **AC-07**: Every C4 file has Navigation footer (Zoom Out, Zoom In, Domain, Hub) — Phase 4
+- [x] **AC-08**: README.md quick links list all domains with working links — Phase 1+4
+- [x] **AC-09**: All C4 diagram types render as SVG in MarkdownViewer preview — Phase 5
+- [x] **AC-10**: C4 diagrams render in both light and dark themes — Phase 5
+- [x] **AC-11**: `.github/instructions/c4-authoring.instructions.md` covers all 8 required principle areas — Phase 1
+- [x] **AC-12**: `CLAUDE.md` references `.github/instructions/c4-authoring.instructions.md` — Phase 1
+- [x] **AC-13**: L1 includes Developer, AI Agent, Web App, CLI, Git, Filesystem — Phase 2
+- [x] **AC-14**: L2 includes apps/web, apps/cli, packages/shared with tech labels — Phase 2
+- [x] **AC-15**: L3 diagrams show owned components, exposed contracts, relationships — Phase 3+4
+- [x] **AC-16**: L3 diagrams use consistent naming (slug ID, display name label, technology) — Phase 3+4
+- [x] **AC-17**: Every active domain.md has a "C4 Diagram" link to its component file — Phase 4
 
 ## Risks
 
@@ -213,6 +213,6 @@ No constitution deviations required.
 
 | ID | Created | Summary | Domain(s) | Status | Source |
 |----|---------|---------|-----------|--------|--------|
-| FX001 | 2026-03-02 | Intercept relative `.md` links in markdown preview to navigate file browser | _platform/viewer | Proposed | User testing of C4 inter-level navigation |
+| FX001 | 2026-03-02 | Intercept relative `.md` links in markdown preview to navigate file browser | _platform/viewer | Complete | User testing of C4 inter-level navigation |
 | MermaidRenderer `securityLevel: 'strict'` blocks click directives | Low | Low | Deferred (NG1); standard C4 renders fine; only JS execution blocked |
 | 21 file operations across 5 phases | Low | Low | Mechanical translation from domain.md; phased delivery reduces risk |
