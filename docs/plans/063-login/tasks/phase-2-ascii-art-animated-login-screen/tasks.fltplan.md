@@ -3,7 +3,7 @@
 **Plan**: [login-plan.md](../../login-plan.md)
 **Phase**: Phase 2: ASCII Art Animated Login Screen
 **Generated**: 2026-03-02
-**Status**: Ready for takeoff
+**Status**: Landed
 
 ---
 
@@ -59,7 +59,12 @@ stateDiagram-v2
     S6 --> S7
     S7 --> [*]
 
-    class S1,S2,S3,S4,S5,S6,S7 pending
+    class S1 done
+    class S2 done
+    class S3 done
+    class S4 done
+    class S5 done
+    class S6,S7 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -70,13 +75,13 @@ stateDiagram-v2
 
 <!-- Updated by /plan-6-v2 during implementation: [ ] → [~] → [x] -->
 
-- [ ] **Stage 1: Matrix Rain** — Create CSS-driven falling character columns with matrix green glow (`matrix-rain.tsx`, `globals.css`)
-- [ ] **Stage 2: ASCII Logo** — Hardcoded ANSI Shadow logo with CSS glitch effect and glow pulse (`ascii-logo.tsx`, `globals.css`)
-- [ ] **Stage 3: CRT Overlay** — Pure CSS scanline + vignette overlay (`crt-overlay.tsx`)
-- [ ] **Stage 4: Composition** — Client composition root assembling all layers with content and error states (`login-screen.tsx`)
-- [ ] **Stage 5: Button Restyle** — Terminal aesthetic with blinking cursor and green glow hover (`sign-in-button.tsx`, `globals.css`)
-- [ ] **Stage 6: Responsive + A11y** — Breakpoints for mobile/tablet/desktop + `prefers-reduced-motion` static fallback (`globals.css`, components)
-- [ ] **Stage 7: Integration** — Replace login page placeholder with LoginScreen composition (`page.tsx`)
+- [x] **Stage 1: Matrix Rain** — Create CSS-driven falling character columns with matrix green glow (`matrix-rain.tsx`, `globals.css`)
+- [x] **Stage 2: ASCII Logo** — Hardcoded ANSI Shadow logo with CSS glitch effect and glow pulse (`ascii-logo.tsx`, `globals.css`)
+- [x] **Stage 3: CRT Overlay** — Pure CSS scanline + vignette overlay (`crt-overlay.tsx`)
+- [x] **Stage 4: Composition** — Client composition root assembling all layers with content and error states (`login-screen.tsx`)
+- [~] **Stage 5: Button Restyle** — Terminal aesthetic with blinking cursor and green glow hover (`sign-in-button.tsx`, `globals.css`)
+- [x] **Stage 6: Responsive + A11y** — Breakpoints for mobile/tablet/desktop + `prefers-reduced-motion` static fallback (`globals.css`, components)
+- [x] **Stage 7: Integration** — Replace login page placeholder with LoginScreen composition (`page.tsx`)
 
 ---
 
@@ -142,10 +147,10 @@ flowchart LR
 
 ## Checklist
 
-- [ ] T001: Create matrix-rain.tsx — CSS-driven falling character columns
-- [ ] T002: Create ascii-logo.tsx — Hardcoded ANSI Shadow logo with CSS glitch
-- [ ] T003: Create crt-overlay.tsx — Pure CSS scanline + vignette overlay
-- [ ] T004: Create login-screen.tsx — Client composition root
-- [ ] T005: Restyle sign-in-button.tsx with terminal aesthetic
-- [ ] T006: Add responsive breakpoints + prefers-reduced-motion
-- [ ] T007: Integrate LoginScreen into login/page.tsx
+- [x] T001: Create matrix-rain.tsx — CSS-driven falling character columns
+- [x] T002: Create ascii-logo.tsx — Hardcoded ANSI Shadow logo with CSS glitch
+- [x] T003: Create crt-overlay.tsx — Pure CSS scanline + vignette overlay
+- [x] T004: Create login-screen.tsx — Client composition root
+- [x] T005: Restyle sign-in-button.tsx with terminal aesthetic
+- [x] T006: Add responsive breakpoints + prefers-reduced-motion
+- [x] T007: Integrate LoginScreen into login/page.tsx
