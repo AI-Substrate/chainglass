@@ -90,7 +90,7 @@ export function CreateSessionForm({
   );
 
   return (
-    <form onSubmit={handleSubmit} className={cn('space-y-3', className)}>
+    <form onSubmit={handleSubmit} className={cn('space-y-3', className)} suppressHydrationWarning>
       <div className="space-y-1">
         <label htmlFor="session-name" className="text-sm font-medium text-foreground">
           Agent Name
