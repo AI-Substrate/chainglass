@@ -207,6 +207,12 @@ No constitution deviations required.
 | `.instructions.md` not auto-discovered by all AI tools | Low | Low | Uses official GitHub `.github/instructions/` format — natively discovered by Copilot CLI, coding agent, code review. CLAUDE.md reference as fallback. |
 | 13 L3 files drift in consistency | Medium | Medium | Template with TODO placeholders created in Phase 3 task 3.0 before any L3 files |
 | 35 file operations across 5 phases | Low | Low | Mechanical translation from domain.md; template ensures consistency; phased delivery |
-| Relative links in MarkdownViewer preview don't navigate | Medium | Low | Links serve AI agents reading files directly; file browser tree handles navigation |
+| Relative links in MarkdownViewer preview don't navigate | Medium | Low | Fix FX001 addresses this — adds link interception to MarkdownServer |
+
+## Fixes
+
+| ID | Created | Summary | Domain(s) | Status | Source |
+|----|---------|---------|-----------|--------|--------|
+| FX001 | 2026-03-02 | Intercept relative `.md` links in markdown preview to navigate file browser | _platform/viewer | Proposed | User testing of C4 inter-level navigation |
 | MermaidRenderer `securityLevel: 'strict'` blocks click directives | Low | Low | Deferred (NG1); standard C4 renders fine; only JS execution blocked |
 | 21 file operations across 5 phases | Low | Low | Mechanical translation from domain.md; phased delivery reduces risk |

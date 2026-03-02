@@ -14,9 +14,17 @@ import { memo, useCallback, useEffect, useRef } from 'react';
 
 interface MarkdownPreviewProps {
   html: string;
+  /** Current file path relative to workspace root, for resolving relative links */
+  currentFilePath?: string;
+  /** Called when user clicks a relative file link (e.g., ./other.md) */
+  onNavigateToFile?: (resolvedPath: string) => void;
 }
 
-export const MarkdownPreview = memo(function MarkdownPreview({ html }: MarkdownPreviewProps) {
+export const MarkdownPreview = memo(function MarkdownPreview({
+  html,
+  currentFilePath,
+  onNavigateToFile,
+}: MarkdownPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { resolvedTheme } = useTheme();
   const renderedHtmlRef = useRef<string>('');
@@ -79,35 +87,76 @@ export const MarkdownPreview = memo(function MarkdownPreview({ html }: MarkdownP
     };
   }, [html, resolvedTheme]);
 
-  // Handle anchor link clicks — scroll within the preview container
-  const handleClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const target = e.target as HTMLElement;
-    const anchor = target.closest('a');
-    if (!anchor) return;
-    const href = anchor.getAttribute('href');
-    if (!href?.startsWith('#')) return;
-    e.preventDefault();
-    const id = href.slice(1);
-    const el = containerRef.current?.querySelector(`#${CSS.escape(id)}`);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }, []);
+  // Handle anchor link clicks and relative file link navigation
+  const handleClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      const target = e.target as HTMLElement;
+      const anchor = target.closest('a');
+      if (!anchor) return;
+      const href = anchor.getAttribute('href');
+      if (!href) return;
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key !== 'Enter' && e.key !== ' ') return;
-    const target = e.target as HTMLElement;
-    const anchor = target.closest('a');
-    if (!anchor) return;
-    const href = anchor.getAttribute('href');
-    if (!href?.startsWith('#')) return;
-    e.preventDefault();
-    const id = href.slice(1);
-    const el = containerRef.current?.querySelector(`#${CSS.escape(id)}`);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }, []);
+      // Anchor links — scroll within the preview container
+      if (href.startsWith('#')) {
+        e.preventDefault();
+        const id = href.slice(1);
+        const el = containerRef.current?.querySelector(`#${CSS.escape(id)}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        return;
+      }
+
+      // Relative file links — resolve and navigate via file browser
+      if (onNavigateToFile && currentFilePath && !href.startsWith('http') && !href.startsWith('//')) {
+        e.preventDefault();
+        const currentDir = currentFilePath.substring(0, currentFilePath.lastIndexOf('/'));
+        // Resolve relative path: join current dir + href, then normalize ../ segments
+        const parts = `${currentDir}/${href}`.split('/');
+        const resolved: string[] = [];
+        for (const part of parts) {
+          if (part === '..') resolved.pop();
+          else if (part !== '.' && part !== '') resolved.push(part);
+        }
+        onNavigateToFile(resolved.join('/'));
+      }
+    },
+    [currentFilePath, onNavigateToFile]
+  );
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const target = e.target as HTMLElement;
+      const anchor = target.closest('a');
+      if (!anchor) return;
+      const href = anchor.getAttribute('href');
+      if (!href) return;
+
+      if (href.startsWith('#')) {
+        e.preventDefault();
+        const id = href.slice(1);
+        const el = containerRef.current?.querySelector(`#${CSS.escape(id)}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        return;
+      }
+
+      if (onNavigateToFile && currentFilePath && !href.startsWith('http') && !href.startsWith('//')) {
+        e.preventDefault();
+        const currentDir = currentFilePath.substring(0, currentFilePath.lastIndexOf('/'));
+        const parts = `${currentDir}/${href}`.split('/');
+        const resolved: string[] = [];
+        for (const part of parts) {
+          if (part === '..') resolved.pop();
+          else if (part !== '.' && part !== '') resolved.push(part);
+        }
+        onNavigateToFile(resolved.join('/'));
+      }
+    },
+    [currentFilePath, onNavigateToFile]
+  );
 
   return (
     <div

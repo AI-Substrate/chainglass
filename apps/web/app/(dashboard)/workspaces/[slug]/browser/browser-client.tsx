@@ -563,6 +563,7 @@ function BrowserClientInner({
                   fileNav.fileData && !fileNav.fileData.ok ? fileNav.fileData.error : undefined
                 }
                 scrollToLine={scrollToLine}
+                onNavigateToFile={fileNav.handleSelect}
               />
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground">

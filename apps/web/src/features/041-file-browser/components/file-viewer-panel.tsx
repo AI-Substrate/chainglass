@@ -74,6 +74,8 @@ export interface FileViewerPanelProps {
   popOutUrl?: string;
   /** Line number to scroll to in code editor (Plan 047 Phase 6) */
   scrollToLine?: number | null;
+  /** Called when user clicks a relative file link in markdown preview */
+  onNavigateToFile?: (resolvedPath: string) => void;
 }
 
 export function FileViewerPanel({
@@ -100,6 +102,7 @@ export function FileViewerPanel({
   rawFileUrl,
   popOutUrl,
   scrollToLine,
+  onNavigateToFile,
 }: FileViewerPanelProps) {
   // All hooks must be called before any early returns (Rules of Hooks)
   const isMarkdown = language === 'markdown';
@@ -299,7 +302,11 @@ export function FileViewerPanel({
           {mode === 'preview' && (
             <div className="p-4">
               {isMarkdown && markdownHtml ? (
-                <MarkdownPreview html={markdownHtml} />
+                <MarkdownPreview
+                  html={markdownHtml}
+                  currentFilePath={filePath}
+                  onNavigateToFile={onNavigateToFile}
+                />
               ) : highlightedHtml ? (
                 <div
                   className="shiki-wrapper overflow-x-auto"
