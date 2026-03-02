@@ -15,7 +15,7 @@
  * - completed: green dot
  */
 
-import { useAgentOverlay } from '@/hooks/useAgentOverlay';
+import { useAgentOverlay } from '@/hooks/use-agent-overlay';
 import { cn } from '@/lib/utils';
 import { Bot, CircleAlert, HelpCircle, Loader2, Sparkles, Terminal } from 'lucide-react';
 

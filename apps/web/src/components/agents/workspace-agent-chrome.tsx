@@ -8,15 +8,21 @@
  * - AgentOverlayProvider (context for openAgent/closeAgent)
  * - AgentChipBar (persistent top bar with agent status chips)
  * - AgentOverlayPanel (fixed-position chat overlay)
+ * - AttentionFlash (3-layer attention: toast + flash + badge)
  *
  * This component sits between WorkspaceAttentionWrapper and page children,
  * so the chip bar appears at the top of the workspace content area.
+ *
+ * Architecture note (F007): This is workspace-scoped agent composition,
+ * NOT a replacement for DashboardShell. DashboardShell owns the
+ * sidebar + main layout. This wrapper adds agent-specific UI inside
+ * the workspace content area — a domain-level concern, not a layout concern.
  */
 
 import { AgentChipBar } from '@/components/agents/agent-chip-bar';
 import { AgentOverlayPanel } from '@/components/agents/agent-overlay-panel';
 import { AttentionFlash } from '@/components/agents/attention-flash';
-import { AgentOverlayProvider } from '@/hooks/useAgentOverlay';
+import { AgentOverlayProvider } from '@/hooks/use-agent-overlay';
 import type { ReactNode } from 'react';
 
 interface WorkspaceAgentChromeProps {

@@ -13,11 +13,12 @@
  * Layer 1 is built into AgentChip's status animation.
  */
 
-import { useAgentOverlay } from '@/hooks/useAgentOverlay';
-import { useRecentAgents } from '@/hooks/useRecentAgents';
+import { useAgentOverlay } from '@/hooks/use-agent-overlay';
+import { useRecentAgents } from '@/hooks/use-recent-agents';
 import { cn } from '@/lib/utils';
 import { HelpCircle } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 interface AttentionFlashProps {
   workspace?: string;
@@ -34,14 +35,9 @@ export function AttentionFlash({ workspace, worktreeSlug }: AttentionFlashProps)
   const lastFlashRef = useRef(0);
   const flashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Agents currently waiting for input
-  // AgentInstanceStatus is 'working'|'stopped'|'error' — 'waiting_input' comes from
-  // WorkUnitState. For now, check string equality since bridge will update agent status.
-  const waitingAgents = agents.filter(
-    (a) => (a.status as string) === 'waiting_input' || (a.status as string) === 'stopped'
-  );
-  // Only count those truly waiting (not just stopped)
-  const questionCount = agents.filter((a) => (a.status as string) === 'waiting_input').length;
+  // Agents currently waiting for input — only true waiting_input status
+  const waitingAgents = agents.filter((a) => (a.status as string) === 'waiting_input');
+  const questionCount = waitingAgents.length;
 
   // Track previously seen waiting agents to detect NEW questions
   const prevWaitingRef = useRef(new Set<string>());
@@ -54,6 +50,18 @@ export function AttentionFlash({ workspace, worktreeSlug }: AttentionFlashProps)
     const newWaiting = waitingAgents.filter((a) => !prevWaiting.has(a.id));
 
     if (newWaiting.length > 0 && !activeAgentId) {
+      // Layer 2: Toast notification per new waiting agent
+      for (const agent of newWaiting) {
+        toast(`${agent.name} needs input`, {
+          description: agent.intent?.slice(0, 80) || 'Waiting for your response',
+          action: {
+            label: 'View',
+            onClick: () => openAgent(agent.id),
+          },
+          duration: 10_000,
+        });
+      }
+
       const now = Date.now();
       // Layer 3: Screen flash with cooldown
       if (now - lastFlashRef.current > FLASH_COOLDOWN_MS) {
@@ -65,7 +73,7 @@ export function AttentionFlash({ workspace, worktreeSlug }: AttentionFlashProps)
     }
 
     prevWaitingRef.current = currentWaiting;
-  }, [waitingAgents, activeAgentId]);
+  }, [waitingAgents, activeAgentId, openAgent]);
 
   // Cleanup flash timeout
   useEffect(() => {

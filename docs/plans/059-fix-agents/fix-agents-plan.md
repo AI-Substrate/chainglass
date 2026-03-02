@@ -48,9 +48,12 @@ The web agent system is structurally sound (3 adapters, DI container, SSE transp
 | `apps/web/src/features/059-fix-agents/agent-work-unit-bridge.ts` | agents | internal | Publishes agent status/questions to WorkUnitStateService |
 | `apps/web/src/components/agents/agent-chip-bar.tsx` | agents | internal | Persistent top bar with draggable chips |
 | `apps/web/src/components/agents/agent-chip.tsx` | agents | internal | Individual agent chip with status indicator |
-| `apps/web/src/components/agents/agent-overlay-panel.tsx` | agents | internal | Fixed-position overlay with full chat UI |
-| `apps/web/src/hooks/useAgentOverlay.ts` | agents | contract | { openAgent, closeAgent, activeAgentId } — callable from anywhere |
-| `apps/web/src/hooks/useRecentAgents.ts` | agents | internal | Recency-based agent list with 24h expiry |
+| `apps/web/src/components/agents/agent-overlay-panel.tsx` | agents | internal | Full-height overlay with chat UI |
+| `apps/web/src/components/agents/workspace-agent-chrome.tsx` | agents | internal | Workspace wrapper: chip bar + overlay + attention |
+| `apps/web/src/components/agents/attention-flash.tsx` | agents | internal | 3-layer attention: toast + screen flash + ❓ badge |
+| `apps/web/src/hooks/use-agent-overlay.tsx` | agents | contract | { openAgent, closeAgent, activeAgentId } — callable from anywhere |
+| `apps/web/src/hooks/use-recent-agents.ts` | agents | internal | Recency-based agent list with priority sort |
+| `apps/web/src/lib/agents/constants.ts` | agents | internal | Z-index hierarchy + localStorage helpers |
 | `apps/web/src/components/dashboard-shell.tsx` | _platform/panel-layout | cross-domain | Add top bar slot above main content |
 | `apps/web/src/lib/state/state-connector.tsx` | _platform/state | cross-domain | Register work-unit-state + agent domains |
 | `apps/web/src/components/agents/attention-flash.tsx` | agents | internal | Screen border flash + ❓ badge for questions |

@@ -255,3 +255,4 @@ Primary: scattered across `packages/shared/src/`, `packages/workflow/src/`, `app
 | Plan 057 | CopilotCLI adapter — tmux + events.jsonl tailing | 2026-02 |
 | *(extracted)* | Domain formalized from existing codebase | 2026-02-28 |
 | Plan 059 Phase 2 | AgentWorkUnitBridge implemented — registers agents in WorkUnitStateService, subscribes to WorkflowEvents observers, DI wired | 2026-03-02 |
+| Plan 059 Phase 3 | Top bar + agent overlay — AgentChipBar (@dnd-kit sortable), AgentChip (5 status states), AgentOverlayPanel (full-height chat), useAgentOverlay hook, useRecentAgents hook, 3-layer attention system (pulse/toast/flash), WorkspaceAgentChrome wrapper, workflow node onAgentClick prop | 2026-03-02 |

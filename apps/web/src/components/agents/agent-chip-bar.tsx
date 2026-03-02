@@ -12,7 +12,7 @@
  * DYK-P3-04: Slim/expanded to manage vertical space consumption.
  */
 
-import { useRecentAgents } from '@/hooks/useRecentAgents';
+import { useRecentAgents } from '@/hooks/use-recent-agents';
 import { STORAGE_KEYS, Z_INDEX, readStorage, writeStorage } from '@/lib/agents/constants';
 import { cn } from '@/lib/utils';
 import {

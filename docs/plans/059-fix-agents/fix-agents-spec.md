@@ -125,7 +125,7 @@ The vibe: "The whole reason this system exists is to manage teams of agents. We 
 18. **AC-18**: A persistent agent chip bar renders above all page content in the DashboardShell, showing work units from the current worktree's recent list
 19. **AC-19**: Each chip shows: type icon, name, status indicator (🔵 working, ⚪ idle, 🟡 waiting_input, 🔴 error), and intent snippet
 20. **AC-20**: Chips are ordered by creation time (stable); user can drag-to-reorder using @dnd-kit; order persists in localStorage per worktree
-21. **AC-21**: Clicking a chip opens a fixed-position overlay panel (480px wide, 70vh tall) with full chat UI — the user can read history, see streaming content, and send prompts
+21. **AC-21**: Clicking a chip opens a full-height right-side overlay panel (480px wide, capped at 90vw on narrow screens) with full chat UI — the user can read history, see streaming content, and send prompts
 22. **AC-22**: The overlay does NOT navigate away from the current page; closing it (✕, Escape, or clicking the active chip again) keeps the agent running
 23. **AC-23**: `useAgentOverlay()` hook provides `{ openAgent, closeAgent, activeAgentId }` callable from anywhere in the component tree
 24. **AC-24**: Clicking a workflow node that has an `agentSessionId` in its properties calls `openAgent(sessionId)` to open the overlay

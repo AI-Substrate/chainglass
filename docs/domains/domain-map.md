@@ -28,7 +28,7 @@ flowchart LR
     workunitEditor["✏️ 058-workunit-editor<br/>Unit list page · Editor page<br/>Agent/Code/Input editors<br/>Creation modal · Auto-save"]:::business
 
     %% NEW business domains (Plan 059)
-    agents["🤖 agents<br/>IAgentManagerService<br/>IAgentAdapter · IAgentInstance<br/>useAgentManager<br/>useAgentInstance<br/>AgentWorkUnitBridge"]:::new
+    agents["🤖 agents<br/>IAgentManagerService<br/>IAgentAdapter · IAgentInstance<br/>useAgentManager · useAgentInstance<br/>useAgentOverlay · useRecentAgents<br/>AgentChipBar · AgentOverlayPanel<br/>AgentWorkUnitBridge"]:::new
     workUnitState["📋 work-unit-state<br/>IWorkUnitStateService<br/>WorkUnitEntry · WorkUnitEvent<br/>FakeWorkUnitStateService<br/>workUnitStateRoute"]:::new
 
     %% NEW business domains (Plan 061)
@@ -81,8 +81,8 @@ flowchart LR
     workUnitState -->|"ICentralEventNotifier<br/>(emit SSE events)"| events
     workUnitState -->|"ServerEventRouteDescriptor<br/>(state path bridge)"| state
 
-    %% NEW: Workflow UI → agents (future overlay)
-    workflowUI -->|"useAgentOverlay<br/>(future)"| agents
+    %% NEW: Workflow UI → agents (overlay integration)
+    workflowUI -->|"useAgentOverlay<br/>(onAgentClick)"| agents
 
     %% NEW: Workflow Events dependencies (Plan 061)
     wfEvents -->|"IPositionalGraphService<br/>raiseNodeEvent"| posGraph
@@ -124,6 +124,6 @@ flowchart LR
 | workflow-ui | _(none — leaf consumer)_ | — | IPositionalGraphService, ITemplateService, IWorkUnitService, IFileSystem, IPathResolver, useSSE, workspaceHref, IUSDK, useGlobalState, useAgentOverlay (future) | positional-graph, file-ops, events, workspace-url, sdk, state, agents (future) | ✅ |
 | _platform/dev-tools | StateInspector, useStateChangeLog, useStateInspector | — | IStateService, StateChangeLog, useStateSystem | state | ✅ |
 | 058-workunit-editor | _(none — leaf consumer)_ | — | IWorkUnitService, CodeEditor, workspaceHref | positional-graph, viewer, workspace-url | ✅ |
-| agents | IAgentManagerService, IAgentAdapter, IAgentInstance, IAgentNotifierService, useAgentManager, useAgentInstance, AgentWorkUnitBridge | positional-graph (orchestration), workflow-ui (future overlay) | ISSEBroadcaster, useSSE, toast(), CopilotClient, IStateService, IWorkUnitStateService, DashboardShell | events, sdk, state, work-unit-state, panel-layout | 🟠 New |
+| agents | IAgentManagerService, IAgentAdapter, IAgentInstance, IAgentNotifierService, useAgentManager, useAgentInstance, useAgentOverlay, useRecentAgents, AgentChipBar, AgentOverlayPanel, AgentWorkUnitBridge | positional-graph (orchestration), workflow-ui (overlay) | ISSEBroadcaster, useSSE, toast(), CopilotClient, IStateService, IWorkUnitStateService, IWorkflowEvents, DashboardShell | events, sdk, state, work-unit-state, workflow-events, panel-layout | 🟠 New |
 | work-unit-state | IWorkUnitStateService, WorkUnitEntry, WorkUnitEvent, FakeWorkUnitStateService, workUnitStateRoute | agents (AgentWorkUnitBridge), workflow-ui (future) | ICentralEventNotifier, ServerEventRouteDescriptor | events, state | 🟠 New |
 | workflow-events | IWorkflowEvents, WorkflowEventType, WorkflowEventError, FakeWorkflowEventsService | agents (observer hooks), workflow-ui (answerQuestion), CLI (ask/answer/get-answer) | IPositionalGraphService, ICentralEventNotifier | positional-graph, events | 🟠 New |

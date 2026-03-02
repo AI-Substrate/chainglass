@@ -13,7 +13,7 @@
  */
 
 import { AgentChatView } from '@/components/agents/agent-chat-view';
-import { useAgentOverlay } from '@/hooks/useAgentOverlay';
+import { useAgentOverlay } from '@/hooks/use-agent-overlay';
 import { Z_INDEX } from '@/lib/agents/constants';
 import { cn } from '@/lib/utils';
 import { X } from 'lucide-react';
