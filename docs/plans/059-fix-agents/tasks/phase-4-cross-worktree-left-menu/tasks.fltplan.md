@@ -21,17 +21,17 @@
 
 | Domain | What Changes | Key Files |
 |--------|-------------|-----------|
-| work-unit-state | Add cross-worktree query API endpoint | `apps/web/app/api/worktree-activity/route.ts` |
+| work-unit-state | New API endpoint (reads JSON directly, no interface change) | `apps/web/app/api/worktree-activity/route.ts` |
 | agents | New useWorktreeActivity hook for badge data | `apps/web/src/hooks/use-worktree-activity.ts` |
-| _platform/panel-layout | Activity badges in sidebar worktree list | `apps/web/src/components/workspaces/workspace-nav.tsx` |
+| _platform/panel-layout | ActivityDot component + badges in both WorkspaceNav modes | `apps/web/src/components/workspaces/activity-dot.tsx`, `workspace-nav.tsx` |
 
 ### Domains We Depend On (no changes)
 
 | Domain | What We Consume | Contract |
 |--------|----------------|----------|
-| work-unit-state | WorkUnitStateService JSON persistence format | `<worktree>/.chainglass/data/work-unit-state.json` |
+| work-unit-state | JSON file format (`work-unit-state.json`) | Read-only, no interface change per DYK-P4-01 |
 | agents | useRecentAgents for current worktree contrast | `useRecentAgents()` |
-| _platform/panel-layout | WorkspaceNav worktree rendering | `workspace-nav.tsx` |
+| _platform/panel-layout | WorkspaceNav two rendering modes | `workspace-nav.tsx` (inside + outside workspace) |
 
 ---
 
@@ -64,10 +64,10 @@ stateDiagram-v2
 
 ## Stages
 
-- [ ] **Stage 1: API + query** — Cross-worktree activity API endpoint reading JSON from all worktrees (T001)
-- [ ] **Stage 2: Client hook** — useWorktreeActivity polling hook with current-worktree exclusion (T002)
-- [ ] **Stage 3: Sidebar badges** — Activity dots in WorkspaceNav + badge click navigation (T003, T004)
-- [ ] **Stage 4: E2E verification** — All 4 phases working together end-to-end (T005)
+- [ ] **Stage 1: API + validation** — Cross-worktree activity API endpoint with path validation against WorkspaceService (T001)
+- [ ] **Stage 2: Client hook** — useWorktreeActivity polling hook with optional excludeWorktree param (T002)
+- [ ] **Stage 3: Sidebar badges** — ActivityDot component in both WorkspaceNav modes + badge click navigation (T003, T004)
+- [ ] **Stage 4: E2E verification** — All 4 phases working together, both nav modes tested (T005)
 
 ---
 
@@ -80,18 +80,18 @@ flowchart LR
 
     subgraph Before["Before Phase 4"]
         B_NAV["WorkspaceNav<br/>(worktree list only)"]:::existing
-        B_WUS["WorkUnitStateService<br/>(single worktree)"]:::existing
+        B_JSON["work-unit-state.json<br/>(per worktree)"]:::existing
     end
 
     subgraph After["After Phase 4"]
-        A_API["GET /api/worktree-activity<br/>(cross-worktree read)"]:::new
-        A_HOOK["useWorktreeActivity<br/>(30s poll)"]:::new
-        A_NAV["WorkspaceNav<br/>+ activity badges"]:::existing
-        A_BADGE["🟡🔴🔵 dots"]:::new
+        A_API["GET /api/worktree-activity<br/>(reads JSON + validates paths)"]:::new
+        A_HOOK["useWorktreeActivity<br/>(30s poll, optional exclude)"]:::new
+        A_NAV["WorkspaceNav<br/>+ ActivityDot (both modes)"]:::existing
+        A_DOT["ActivityDot<br/>🟡🔴🔵"]:::new
 
-        A_HOOK -->|"fetch"| A_API
+        A_HOOK -->|"fetch with paths"| A_API
         A_HOOK --> A_NAV
-        A_NAV --> A_BADGE
+        A_NAV --> A_DOT
     end
 ```
 
@@ -101,8 +101,8 @@ flowchart LR
 
 ## Acceptance Criteria
 
-- [ ] AC-29: Left menu shows activity badges (🟡 questions, 🔴 errors, 🔵 working) from cross-worktree state
-- [ ] AC-30: Badges only for OTHER worktrees
+- [ ] AC-29: Left menu shows activity badges (🟡 questions, 🔴 errors, 🔵 working) in both nav modes
+- [ ] AC-30: Badges for OTHER worktrees when one is selected; all worktrees when none selected
 - [ ] AC-31: Click badge → navigate to that worktree's agent page
 
 ## Goals & Non-Goals
@@ -115,8 +115,8 @@ flowchart LR
 
 ## Checklist
 
-- [ ] T001: Cross-worktree activity API endpoint
-- [ ] T002: useWorktreeActivity polling hook
-- [ ] T003: Activity badges in WorkspaceNav
+- [ ] T001: Cross-worktree activity API (reads JSON directly, validates paths)
+- [ ] T002: useWorktreeActivity polling hook (optional excludeWorktree)
+- [ ] T003: ActivityDot component in both WorkspaceNav modes
 - [ ] T004: Badge click → navigate to agent page
-- [ ] T005: End-to-end verification
+- [ ] T005: End-to-end verification (both nav modes)
