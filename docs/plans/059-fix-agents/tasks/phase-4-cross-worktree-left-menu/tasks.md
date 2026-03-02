@@ -2,7 +2,7 @@
 
 **Plan**: [fix-agents-plan.md](../../fix-agents-plan.md) (Phase D)
 **Created**: 2026-03-02
-**Status**: Pending
+**Status**: Complete
 **Complexity**: CS-2
 
 ---
@@ -70,15 +70,17 @@
 
 ```mermaid
 flowchart TD
+    classDef completed fill:#4CAF50,stroke:#388E3C,color:#fff
+    classDef inprogress fill:#FFC107,stroke:#FFA000,color:#000
     classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
     classDef existing fill:#E8F5E9,stroke:#4CAF50,color:#000
 
     subgraph Phase4["Phase 4: Cross-Worktree & Left Menu"]
-        T001["T001: API reads JSON<br/>directly from paths"]:::pending
-        T002["T002: useWorktreeActivity<br/>hook (optional exclude)"]:::pending
-        T003["T003: ActivityDot +<br/>both nav modes"]:::pending
-        T004["T004: Badge click<br/>→ navigate"]:::pending
-        T005["T005: E2E verification"]:::pending
+        T001["T001: API reads JSON<br/>directly from paths"]:::completed
+        T002["T002: useWorktreeActivity<br/>hook (optional exclude)"]:::completed
+        T003["T003: ActivityDot +<br/>both nav modes"]:::completed
+        T004["T004: Badge click<br/>→ navigate"]:::completed
+        T005["T005: E2E verification"]:::completed
 
         T001 --> T002
         T002 --> T003
@@ -103,11 +105,11 @@ flowchart TD
 
 | Status | ID | Task | Domain | Path(s) | Done When | Notes |
 |--------|-----|------|--------|---------|-----------|-------|
-| [ ] | T001 | API endpoint that reads `work-unit-state.json` directly from worktree paths. Client passes known paths as query params (`?paths=p1,p2`). Server validates each path against WorkspaceService registry before reading (DYK-P4-05). Returns summary per worktree `{ worktreePath, hasQuestions, hasErrors, hasWorking, agentCount }`. Gracefully handle missing/corrupt files (return zeroes). Do NOT modify IWorkUnitStateService interface. | work-unit-state | `apps/web/app/api/worktree-activity/route.ts` | GET with `?paths=` returns validated activity array. Unknown/invalid paths silently dropped. Missing JSON files return zeroes. | DYK-P4-01: no interface change. DYK-P4-03: client passes paths. DYK-P4-05: validate against registry |
-| [ ] | T002 | Create `useWorktreeActivity` hook — polls API every 30s, accepts optional `excludeWorktree` param (null = show all). Passes worktree paths from already-loaded workspace data to API (avoids server re-enumeration). | agents | `apps/web/src/hooks/use-worktree-activity.ts` | Hook returns `{ activities: WorktreeActivity[], isLoading }`. Handles null excludeWorktree gracefully (returns all). Uses React Query with `refetchInterval: 30000`. | AC-29, AC-30; DYK-P4-03: reuse client-known paths; DYK-P4-04: null exclude = show all |
-| [ ] | T003 | Create `ActivityDot` component and add to WorkspaceNav in BOTH rendering modes: inside-workspace flat list (line 162 map) AND outside-workspace expandable tree (line 257 map). Small colored dots: 🟡 questions, 🔴 errors, 🔵 working. Hidden when no activity. | _platform/panel-layout | `apps/web/src/components/workspaces/activity-dot.tsx`, `apps/web/src/components/workspaces/workspace-nav.tsx` | ActivityDot renders in both nav modes. Inside-workspace: excludes current worktree. Outside-workspace: shows all worktrees with activity. | AC-29, AC-30; DYK-P4-02: both rendering modes; DYK-P4-04: outside-workspace shows all |
-| [ ] | T004 | Wire badge click → navigate to that worktree's agent page. Clicking a badge navigates to `/workspaces/[slug]/agents?worktree=[path]`. Works in both nav modes (slug available from URL or iteration context). | agents | `apps/web/src/components/workspaces/workspace-nav.tsx` | Clicking badge navigates to agent page for that worktree in both views. | AC-31 |
-| [ ] | T005 | End-to-end verification: create agent in one worktree, verify top bar shows it, verify other worktrees show badge in sidebar. Test both nav modes. | agents | — | All 4 phases verified working together via manual test. Both inside-workspace and outside-workspace badge views tested. | Integration gate |
+| [x] | T001 | API endpoint that reads `work-unit-state.json` directly from worktree paths. Client passes known paths as query params (`?paths=p1,p2`). Server validates each path against WorkspaceService registry before reading (DYK-P4-05). Returns summary per worktree `{ worktreePath, hasQuestions, hasErrors, hasWorking, agentCount }`. Gracefully handle missing/corrupt files (return zeroes). Do NOT modify IWorkUnitStateService interface. | work-unit-state | `apps/web/app/api/worktree-activity/route.ts` | GET with `?paths=` returns validated activity array. Unknown/invalid paths silently dropped. Missing JSON files return zeroes. | DYK-P4-01: no interface change. DYK-P4-03: client passes paths. DYK-P4-05: validate against registry |
+| [x] | T002 | Create `useWorktreeActivity` hook — polls API every 30s, accepts optional `excludeWorktree` param (null = show all). Passes worktree paths from already-loaded workspace data to API (avoids server re-enumeration). | agents | `apps/web/src/hooks/use-worktree-activity.ts` | Hook returns `{ activities: WorktreeActivity[], isLoading }`. Handles null excludeWorktree gracefully (returns all). Uses React Query with `refetchInterval: 30000`. | AC-29, AC-30; DYK-P4-03: reuse client-known paths; DYK-P4-04: null exclude = show all |
+| [x] | T003 | Create `ActivityDot` component and add to WorkspaceNav in BOTH rendering modes: inside-workspace flat list (line 162 map) AND outside-workspace expandable tree (line 257 map). Small colored dots: 🟡 questions, 🔴 errors, 🔵 working. Hidden when no activity. | _platform/panel-layout | `apps/web/src/components/workspaces/activity-dot.tsx`, `apps/web/src/components/workspaces/workspace-nav.tsx` | ActivityDot renders in both nav modes. Inside-workspace: excludes current worktree. Outside-workspace: shows all worktrees with activity. | AC-29, AC-30; DYK-P4-02: both rendering modes; DYK-P4-04: outside-workspace shows all |
+| [x] | T004 | Wire badge click → navigate to that worktree's agent page. Clicking a badge navigates to `/workspaces/[slug]/agents?worktree=[path]`. Works in both nav modes (slug available from URL or iteration context). | agents | `apps/web/src/components/workspaces/workspace-nav.tsx` | Clicking badge navigates to agent page for that worktree in both views. | AC-31 |
+| [x] | T005 | End-to-end verification: create agent in one worktree, verify top bar shows it, verify other worktrees show badge in sidebar. Test both nav modes. | agents | — | All 4 phases verified working together via manual test. Both inside-workspace and outside-workspace badge views tested. | Integration gate |
 
 ---
 
@@ -208,6 +210,7 @@ _Populated during implementation by plan-6._
 
 | Date | Task | Type | Discovery | Resolution | References |
 |------|------|------|-----------|------------|------------|
+| 2026-03-02 | T003 | gotcha | Adding `useWorktreeActivity` (React Query) to WorkspaceNav broke 7 existing tests that render DashboardSidebar/DashboardShell without QueryClientProvider | Added QueryClientProvider wrapper to test renders | `dashboard-sidebar.test.tsx`, `dashboard-navigation.test.tsx` |
 
 **Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
 

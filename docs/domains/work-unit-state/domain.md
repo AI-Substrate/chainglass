@@ -75,6 +75,7 @@ bridge.unregisterAgent('agent-abc'); // Cleanup + unsubscribe
 | `WorkUnitStateService` | service | `apps/web/src/lib/work-unit-state/work-unit-state.service.ts` | Real implementation with persistence + CEN emit |
 | `workUnitStateRoute` | descriptor | `apps/web/src/lib/state/work-unit-state-route.ts` | SSE → GlobalStateSystem bridge |
 | `AgentWorkUnitBridge` | bridge | `apps/web/src/features/059-fix-agents/agent-work-unit-bridge.ts` | Agent lifecycle → work-unit-state (in agents domain) |
+| `/api/worktree-activity` | API route | `apps/web/app/api/worktree-activity/route.ts` | Cross-worktree activity reader (reads JSON directly, no interface change — Phase 4, DYK-P4-01) |
 
 ## Dependencies
 
@@ -124,3 +125,4 @@ test/contracts/
 |------|-------------|------|
 | 059-fix-agents Workshop 003 | System designed — data model, interfaces, state paths | 2026-02-28 |
 | 059-fix-agents Phase 2 | Domain implemented: interface, types, fake, real impl (no Q&A — handled by WorkflowEvents), contract tests (57), bridge with WF observers, DI registration, route descriptor, integration guide | 2026-03-02 |
+| 059-fix-agents Phase 4 | Cross-worktree activity API endpoint — reads work-unit-state.json directly from other worktrees (no interface change per DYK-P4-01), path validation against WorkspaceService | 2026-03-02 |

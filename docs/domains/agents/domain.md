@@ -174,6 +174,8 @@ Agent session and event persistence infrastructure that lives in the workflow pa
 | useAgentInstance | React Query detail + SSE event streaming | /api/agents/[id], /api/agents/events |
 | AgentChatView | Renders event stream as chat conversation | useAgentInstance, transformers |
 | CreateSessionForm | Agent creation form with type selector | /api/agents POST |
+| useWorktreeActivity | Cross-worktree activity polling (30s) | /api/worktree-activity GET |
+| WorkspaceNav (composition) | Renders ActivityDot badges in sidebar | useWorktreeActivity data → plain props |
 
 ## Source Location
 
@@ -256,3 +258,4 @@ Primary: scattered across `packages/shared/src/`, `packages/workflow/src/`, `app
 | *(extracted)* | Domain formalized from existing codebase | 2026-02-28 |
 | Plan 059 Phase 2 | AgentWorkUnitBridge implemented — registers agents in WorkUnitStateService, subscribes to WorkflowEvents observers, DI wired | 2026-03-02 |
 | Plan 059 Phase 3 | Top bar + agent overlay — AgentChipBar (@dnd-kit sortable), AgentChip (5 status states), AgentOverlayPanel (full-height chat), useAgentOverlay hook, useRecentAgents hook, 3-layer attention system (pulse/toast/flash), WorkspaceAgentChrome wrapper, workflow node onAgentClick prop | 2026-03-02 |
+| Plan 059 Phase 4 | Cross-worktree activity — useWorktreeActivity hook (30s polling), ActivityDot component in WorkspaceNav (both rendering modes), badge click navigation to agent page | 2026-03-02 |

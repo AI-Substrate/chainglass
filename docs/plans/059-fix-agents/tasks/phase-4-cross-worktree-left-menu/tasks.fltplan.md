@@ -3,7 +3,7 @@
 **Plan**: [fix-agents-plan.md](../../fix-agents-plan.md) (Phase D)
 **Phase**: Phase 4: Cross-Worktree & Left Menu
 **Generated**: 2026-03-02
-**Status**: Ready for takeoff
+**Status**: In Review
 
 ---
 
@@ -55,7 +55,7 @@ stateDiagram-v2
     S3 --> S4
     S4 --> [*]
 
-    class S1,S2,S3,S4 pending
+    class S1,S2,S3,S4 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -64,10 +64,10 @@ stateDiagram-v2
 
 ## Stages
 
-- [ ] **Stage 1: API + validation** — Cross-worktree activity API endpoint with path validation against WorkspaceService (T001)
-- [ ] **Stage 2: Client hook** — useWorktreeActivity polling hook with optional excludeWorktree param (T002)
-- [ ] **Stage 3: Sidebar badges** — ActivityDot component in both WorkspaceNav modes + badge click navigation (T003, T004)
-- [ ] **Stage 4: E2E verification** — All 4 phases working together, both nav modes tested (T005)
+- [x] **Stage 1: API + validation** — Cross-worktree activity API endpoint with path validation against WorkspaceService (T001)
+- [x] **Stage 2: Client hook** — useWorktreeActivity polling hook with optional excludeWorktree param (T002)
+- [x] **Stage 3: Sidebar badges** — ActivityDot component in both WorkspaceNav modes + badge click navigation (T003, T004)
+- [x] **Stage 4: E2E verification** — All 4 phases working together, both nav modes tested (T005)
 
 ---
 
@@ -115,8 +115,8 @@ flowchart LR
 
 ## Checklist
 
-- [ ] T001: Cross-worktree activity API (reads JSON directly, validates paths)
-- [ ] T002: useWorktreeActivity polling hook (optional excludeWorktree)
-- [ ] T003: ActivityDot component in both WorkspaceNav modes
-- [ ] T004: Badge click → navigate to agent page
-- [ ] T005: End-to-end verification (both nav modes)
+- [x] T001: Cross-worktree activity API (reads JSON directly, validates paths)
+- [x] T002: useWorktreeActivity polling hook (optional excludeWorktree)
+- [x] T003: ActivityDot component in both WorkspaceNav modes
+- [x] T004: Badge click → navigate to agent page
+- [x] T005: End-to-end verification (both nav modes)

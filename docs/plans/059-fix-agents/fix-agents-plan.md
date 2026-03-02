@@ -57,8 +57,11 @@ The web agent system is structurally sound (3 adapters, DI container, SSE transp
 | `apps/web/src/components/dashboard-shell.tsx` | _platform/panel-layout | cross-domain | Add top bar slot above main content |
 | `apps/web/src/lib/state/state-connector.tsx` | _platform/state | cross-domain | Register work-unit-state + agent domains |
 | `apps/web/src/components/agents/attention-flash.tsx` | agents | internal | Screen border flash + ❓ badge for questions |
-| `apps/web/src/components/dashboard-sidebar.tsx` | _platform/panel-layout | cross-domain | Add cross-worktree activity badges |
-| `apps/web/src/hooks/useWorktreeActivity.ts` | agents | internal | Cross-worktree work unit query |
+| `apps/web/src/components/workspaces/workspace-nav.tsx` | _platform/panel-layout | cross-domain | Cross-worktree activity badges (composition point) |
+| `apps/web/app/api/worktree-activity/route.ts` | work-unit-state | internal | Cross-worktree activity API endpoint |
+| `apps/web/src/hooks/use-worktree-activity.ts` | agents | internal | Cross-worktree activity polling hook |
+| `apps/web/src/components/workspaces/activity-dot.tsx` | _platform/panel-layout | internal | Activity badge dot component |
+| `test/unit/web/components/workspace-nav-activity.test.tsx` | test | internal | AC-29/30/31 badge tests |
 | `docs/domains/work-unit-state/domain.md` | work-unit-state | contract | Domain definition document |
 | `docs/domains/agents/domain.md` | agents | contract | Domain definition document |
 | `docs/domains/registry.md` | — | cross-domain | Register 2 new domains |

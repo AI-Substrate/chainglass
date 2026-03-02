@@ -10,6 +10,7 @@
  * - Sidebar state persistence during navigation
  */
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DashboardShell } from '../../../apps/web/src/components/dashboard-shell';
@@ -44,9 +45,25 @@ vi.mock('next/navigation', () => ({
 describe('Dashboard Navigation Integration', () => {
   let originalMatchMedia: typeof window.matchMedia;
 
+  function renderWithProviders(children: React.ReactNode) {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    return render(<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>);
+  }
+
+  let originalFetch: typeof global.fetch;
+
   beforeEach(() => {
     mockPathname = '/';
     vi.clearAllMocks();
+
+    // Mock fetch to prevent URL parse warnings from useWorktreeActivity/WorkspaceNav
+    originalFetch = global.fetch;
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ workspaces: [] }),
+    }) as unknown as typeof fetch;
 
     // Mock matchMedia for mobile detection
     originalMatchMedia = window.matchMedia;
@@ -63,6 +80,7 @@ describe('Dashboard Navigation Integration', () => {
   });
 
   afterEach(() => {
+    global.fetch = originalFetch;
     window.matchMedia = originalMatchMedia;
   });
 
@@ -75,7 +93,7 @@ describe('Dashboard Navigation Integration', () => {
     - Quality Contribution: Catches navigation regression after restructure
     - Worked Example: Dev label visible in sidebar on landing page
     */
-    render(
+    renderWithProviders(
       <DashboardShell>
         <div>Home Content</div>
       </DashboardShell>
@@ -94,7 +112,7 @@ describe('Dashboard Navigation Integration', () => {
     - Quality Contribution: Catches layout regressions when adding new pages
     - Worked Example: Navigate '/' → sidebar present with toggle and theme
     */
-    render(
+    renderWithProviders(
       <DashboardShell>
         <div>Page Content for /</div>
       </DashboardShell>
@@ -123,10 +141,15 @@ describe('Dashboard Navigation Integration', () => {
     - Quality Contribution: Ensures UX consistency during navigation
     - Worked Example: Collapse sidebar, navigate to /workflow, sidebar remains collapsed
     */
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
     const { rerender } = render(
-      <DashboardShell>
-        <div>Home Content</div>
-      </DashboardShell>
+      <QueryClientProvider client={queryClient}>
+        <DashboardShell>
+          <div>Home Content</div>
+        </DashboardShell>
+      </QueryClientProvider>
     );
 
     // Collapse the sidebar
@@ -140,9 +163,11 @@ describe('Dashboard Navigation Integration', () => {
     // Navigate to workflow page
     mockPathname = '/workflow';
     rerender(
-      <DashboardShell>
-        <div>Workflow Content</div>
-      </DashboardShell>
+      <QueryClientProvider client={queryClient}>
+        <DashboardShell>
+          <div>Workflow Content</div>
+        </DashboardShell>
+      </QueryClientProvider>
     );
 
     // Sidebar should still be collapsed

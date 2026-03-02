@@ -6,6 +6,7 @@
  * Tests navigation state, active item highlighting, and collapse behavior
  */
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DashboardSidebar } from '../../../../apps/web/src/components/dashboard-sidebar';
@@ -35,20 +36,33 @@ vi.mock('next/navigation', () => ({
   })),
 }));
 
-// Test wrapper with SidebarProvider
+// Test wrapper with SidebarProvider + QueryClientProvider
 function renderSidebar() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   return render(
-    <SidebarProvider>
-      <DashboardSidebar />
-    </SidebarProvider>
+    <QueryClientProvider client={queryClient}>
+      <SidebarProvider>
+        <DashboardSidebar />
+      </SidebarProvider>
+    </QueryClientProvider>
   );
 }
 
 describe('DashboardSidebar', () => {
   let originalMatchMedia: typeof window.matchMedia;
+  let originalFetch: typeof global.fetch;
 
   beforeEach(() => {
     vi.clearAllMocks();
+
+    // Mock fetch to prevent URL parse warnings from useWorktreeActivity/WorkspaceNav
+    originalFetch = global.fetch;
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ workspaces: [] }),
+    }) as unknown as typeof fetch;
 
     // Mock matchMedia for mobile detection (from use-mobile hook)
     originalMatchMedia = window.matchMedia;
@@ -65,6 +79,7 @@ describe('DashboardSidebar', () => {
   });
 
   afterEach(() => {
+    global.fetch = originalFetch;
     window.matchMedia = originalMatchMedia;
   });
 
