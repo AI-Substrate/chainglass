@@ -12,6 +12,7 @@
  */
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { SessionProvider } from 'next-auth/react';
 import { NuqsAdapter } from 'nuqs/adapters/next/app';
 import { type ReactNode, useState } from 'react';
 
@@ -51,14 +52,16 @@ export function Providers({ children }: ProvidersProps) {
   );
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <NuqsAdapter>
-        <SDKProvider>
-          <GlobalStateProvider>{children}</GlobalStateProvider>
-        </SDKProvider>
-      </NuqsAdapter>
-      {/* Toaster must be inside ThemeProvider (in layout.tsx above us) for dark mode — DYK-042-04 */}
-      <Toaster />
-    </QueryClientProvider>
+    <SessionProvider>
+      <QueryClientProvider client={queryClient}>
+        <NuqsAdapter>
+          <SDKProvider>
+            <GlobalStateProvider>{children}</GlobalStateProvider>
+          </SDKProvider>
+        </NuqsAdapter>
+        {/* Toaster must be inside ThemeProvider (in layout.tsx above us) for dark mode — DYK-042-04 */}
+        <Toaster />
+      </QueryClientProvider>
+    </SessionProvider>
   );
 }

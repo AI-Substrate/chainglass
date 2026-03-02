@@ -1,0 +1,2707 @@
+diff --git a/apps/web/next.config.mjs b/apps/web/next.config.mjs
+index dc50e4e..9f2de71 100644
+--- a/apps/web/next.config.mjs
++++ b/apps/web/next.config.mjs
+@@ -38,6 +38,8 @@ const nextConfig = {
+     'vscode-oniguruma',
+     '@shikijs/core',
+     '@shikijs/engine-oniguruma',
++    'next-auth',
++    '@auth/core',
+   ],
+   // Webpack config to handle Shiki's node: protocol imports on client side
+   webpack: (config, { isServer }) => {
+diff --git a/apps/web/package.json b/apps/web/package.json
+index 255604a..5d14dec 100644
+--- a/apps/web/package.json
++++ b/apps/web/package.json
+@@ -53,6 +53,7 @@
+     "micromatch": "^4.0.8",
+     "minisearch": "^7.2.0",
+     "next": "^16.0.0",
++    "next-auth": "5.0.0-beta.30",
+     "next-themes": "^0.4.6",
+     "nuqs": "^2.8.8",
+     "radix-ui": "^1.4.3",
+@@ -71,7 +72,8 @@
+     "tailwind-merge": "^3.4.0",
+     "tinykeys": "^3.0.0",
+     "tsyringe": "^4.8.0",
+-    "unist-util-visit": "^5.1.0"
++    "unist-util-visit": "^5.1.0",
++    "yaml": "^2.8.2"
+   },
+   "devDependencies": {
+     "@next/bundle-analyzer": "^16.1.4",
+diff --git a/apps/web/src/components/providers.tsx b/apps/web/src/components/providers.tsx
+index 2ee97f6..2f33614 100644
+--- a/apps/web/src/components/providers.tsx
++++ b/apps/web/src/components/providers.tsx
+@@ -12,6 +12,7 @@
+  */
+ 
+ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
++import { SessionProvider } from 'next-auth/react';
+ import { NuqsAdapter } from 'nuqs/adapters/next/app';
+ import { type ReactNode, useState } from 'react';
+ 
+@@ -51,14 +52,16 @@ export function Providers({ children }: ProvidersProps) {
+   );
+ 
+   return (
+-    <QueryClientProvider client={queryClient}>
+-      <NuqsAdapter>
+-        <SDKProvider>
+-          <GlobalStateProvider>{children}</GlobalStateProvider>
+-        </SDKProvider>
+-      </NuqsAdapter>
+-      {/* Toaster must be inside ThemeProvider (in layout.tsx above us) for dark mode — DYK-042-04 */}
+-      <Toaster />
+-    </QueryClientProvider>
++    <SessionProvider>
++      <QueryClientProvider client={queryClient}>
++        <NuqsAdapter>
++          <SDKProvider>
++            <GlobalStateProvider>{children}</GlobalStateProvider>
++          </SDKProvider>
++        </NuqsAdapter>
++        {/* Toaster must be inside ThemeProvider (in layout.tsx above us) for dark mode — DYK-042-04 */}
++        <Toaster />
++      </QueryClientProvider>
++    </SessionProvider>
+   );
+ }
+diff --git a/docs/domains/domain-map.md b/docs/domains/domain-map.md
+index b683e3c..4f8ec73 100644
+--- a/docs/domains/domain-map.md
++++ b/docs/domains/domain-map.md
+@@ -20,6 +20,7 @@ flowchart LR
+     posGraph["📊 _platform/positional-graph<br/>IPositionalGraphService<br/>IOrchestrationService<br/>IEventHandlerService<br/>IWorkUnitService<br/>ITemplateService<br/>IInstanceService"]:::infra
+     state["💾 _platform/state<br/>IStateService<br/>useGlobalState<br/>useGlobalStateList<br/>GlobalStateProvider<br/>StateChangeLog"]:::infra
+     devTools["🛠️ _platform/dev-tools<br/>StateInspector<br/>useStateInspector<br/>useStateChangeLog"]:::infra
++    auth["🔐 _platform/auth<br/>auth() · signIn() · signOut()<br/>middleware protection<br/>isUserAllowed()<br/>SessionProvider"]:::infra
+ 
+     %% Business domains
+     fileBrowser["📁 file-browser<br/>Browser page · FileTree<br/>CodeEditor re-export<br/>FileViewerPanel<br/>WorkspaceContext · Settings"]:::business
+@@ -65,6 +66,11 @@ flowchart LR
+     workunitEditor -->|"IWorkUnitService<br/>(CRUD)"| posGraph
+     workunitEditor -->|"CodeEditor"| viewer
+     workunitEditor -->|"workspaceHref"| wsUrl
++
++    %% Auth dependencies (Phase 1: middleware only; Phase 3: adds state/sdk)
++    auth -->|"middleware<br/>(protects all routes)"| fileBrowser
++    auth -->|"middleware<br/>(protects all routes)"| workflowUI
++    auth -->|"middleware<br/>(protects all routes)"| workunitEditor
+ ```
+ 
+ ## Legend
+@@ -93,3 +99,4 @@ flowchart LR
+ | workflow-ui | _(none — leaf consumer)_ | — | IPositionalGraphService, ITemplateService, IWorkUnitService, IFileSystem, IPathResolver, useSSE, workspaceHref, IUSDK, useGlobalState | positional-graph, file-ops, events, workspace-url, sdk, state | ✅ |
+ | _platform/dev-tools | StateInspector, useStateChangeLog, useStateInspector | — | IStateService, StateChangeLog, useStateSystem | state | ✅ |
+ | 058-workunit-editor | _(none — leaf consumer)_ | — | IWorkUnitService, CodeEditor, workspaceHref | positional-graph, viewer, workspace-url | ✅ |
++| _platform/auth | auth(), signIn(), signOut(), middleware protection, isUserAllowed(), SessionProvider | file-browser, workflow-ui, workunit-editor (via middleware) | — | — | ✅ |
+diff --git a/docs/domains/registry.md b/docs/domains/registry.md
+index 8fb25a0..a9626cc 100644
+--- a/docs/domains/registry.md
++++ b/docs/domains/registry.md
+@@ -16,6 +16,7 @@
+ | State | _platform/state | infrastructure | _platform | Plan 053 — GlobalStateSystem | active |
+ | Dev Tools | _platform/dev-tools | infrastructure | _platform | Plan 056 — State DevTools Panel | active |
+ | Work Unit Editor | 058-workunit-editor | business | — | Plan 058 | active |
++| Auth | _platform/auth | infrastructure | _platform | Plan 063-login | active |
+ 
+ ## Domain Types
+ 
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index 21874ba..900b154 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -213,6 +213,9 @@ importers:
+       next:
+         specifier: ^16.0.0
+         version: 16.1.4(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
++      next-auth:
++        specifier: 5.0.0-beta.30
++        version: 5.0.0-beta.30(next@16.1.4(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)
+       next-themes:
+         specifier: ^0.4.6
+         version: 0.4.6(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+@@ -270,6 +273,9 @@ importers:
+       unist-util-visit:
+         specifier: ^5.1.0
+         version: 5.1.0
++      yaml:
++        specifier: ^2.8.2
++        version: 2.8.2
+     devDependencies:
+       '@next/bundle-analyzer':
+         specifier: ^16.1.4
+@@ -449,6 +455,20 @@ packages:
+   '@asamuzakjp/nwsapi@2.3.9':
+     resolution: {integrity: sha512-n8GuYSrI9bF7FFZ/SjhwevlHc8xaVlb/7HmHelnc/PZXBD2ZR49NnN9sMMuDdEGPeeRQ5d0hqlSlEpgCX3Wl0Q==}
+ 
++  '@auth/core@0.41.0':
++    resolution: {integrity: sha512-Wd7mHPQ/8zy6Qj7f4T46vg3aoor8fskJm6g2Zyj064oQ3+p0xNZXAV60ww0hY+MbTesfu29kK14Zk5d5JTazXQ==}
++    peerDependencies:
++      '@simplewebauthn/browser': ^9.0.1
++      '@simplewebauthn/server': ^9.0.2
++      nodemailer: ^6.8.0
++    peerDependenciesMeta:
++      '@simplewebauthn/browser':
++        optional: true
++      '@simplewebauthn/server':
++        optional: true
++      nodemailer:
++        optional: true
++
+   '@babel/code-frame@7.28.6':
+     resolution: {integrity: sha512-JYgintcMjRiCvS8mMECzaEn+m3PfoQiyqukOMCCVQtoJGYJw8j/8LBJEiqkHLkfwCcs74E3pbAUFNg7d9VNJ+Q==}
+     engines: {node: '>=6.9.0'}
+@@ -1351,6 +1371,9 @@ packages:
+     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
+     engines: {node: '>= 8'}
+ 
++  '@panva/hkdf@1.2.1':
++    resolution: {integrity: sha512-6oclG6Y3PiDFcoyk8srjLfVKyMfVCKJ27JwNPViuXziFpmdz+MZnZN/aKY0JGXgYuO/VghU0jcOAZgWXZ1Dmrw==}
++
+   '@pinojs/redact@0.4.0':
+     resolution: {integrity: sha512-k2ENnmBugE/rzQfEcdWHcCY+/FM3VLzH9cYEsbdsoqrvzAKRhUZeRNhAZvB8OitQJ1TBed3yqWtdjzS6wJKBwg==}
+ 
+@@ -3873,6 +3896,22 @@ packages:
+     resolution: {integrity: sha512-8Ofs/AUQh8MaEcrlq5xOX0CQ9ypTF5dl78mjlMNfOK08fzpgTHQRQPBxcPlEtIw0yRpws+Zo/3r+5WRby7u3Gg==}
+     engines: {node: '>= 0.6'}
+ 
++  next-auth@5.0.0-beta.30:
++    resolution: {integrity: sha512-+c51gquM3F6nMVmoAusRJ7RIoY0K4Ts9HCCwyy/BRoe4mp3msZpOzYMyb5LAYc1wSo74PMQkGDcaghIO7W6Xjg==}
++    peerDependencies:
++      '@simplewebauthn/browser': ^9.0.1
++      '@simplewebauthn/server': ^9.0.2
++      next: ^14.0.0-0 || ^15.0.0 || ^16.0.0
++      nodemailer: ^7.0.7
++      react: ^18.2.0 || ^19.0.0
++    peerDependenciesMeta:
++      '@simplewebauthn/browser':
++        optional: true
++      '@simplewebauthn/server':
++        optional: true
++      nodemailer:
++        optional: true
++
+   next-themes@0.4.6:
+     resolution: {integrity: sha512-pZvgD5L0IEvX5/9GWyHMf3m8BKiVQwsCMHfoFosXtXBMnaS0ZnIJ9ST4b4NqLVKDEm8QBxoNNGNaBv2JNF6XNA==}
+     peerDependencies:
+@@ -3924,6 +3963,9 @@ packages:
+       react-router-dom:
+         optional: true
+ 
++  oauth4webapi@3.8.5:
++    resolution: {integrity: sha512-A8jmyUckVhRJj5lspguklcl90Ydqk61H3dcU0oLhH3Yv13KpAliKTt5hknpGGPZSSfOwGyraNEFmofDYH+1kSg==}
++
+   object-assign@4.1.1:
+     resolution: {integrity: sha512-rJgTQnkUnH1sFw8yT6VSU3zD3sWmu6sZhIseY8VX+GRu3P6F7Fu+JNDoXfklElbLJSnc3FUQHVe4cU5hj+BcUg==}
+     engines: {node: '>=0.10.0'}
+@@ -4043,6 +4085,14 @@ packages:
+     resolution: {integrity: sha512-3Ybi1tAuwAP9s0r1UQ2J4n5Y0G05bJkpUIO0/bI9MhwmD70S5aTWbXGBwxHrelT+XM1k6dM0pk+SwNkpTRN7Pg==}
+     engines: {node: ^10 || ^12 || >=14}
+ 
++  preact-render-to-string@6.5.11:
++    resolution: {integrity: sha512-ubnauqoGczeGISiOh6RjX0/cdaF8v/oDXIjO85XALCQjwQP+SB4RDXXtvZ6yTYSjG+PC1QRP2AhPgCEsM2EvUw==}
++    peerDependencies:
++      preact: '>=10'
++
++  preact@10.24.3:
++    resolution: {integrity: sha512-Z2dPnBnMUfyQfSQ+GBdsGa16hz35YmLmtTLhM169uW944hYL6xzTYkJjC07j+Wosz733pMWx0fgON3JNw1jJQA==}
++
+   pretty-format@27.5.1:
+     resolution: {integrity: sha512-Qb1gy5OrP5+zDf2Bvnzdl3jsTf1qXVMazbvCoKhtKqVs4/YK4ozX4gKQJJVyNe+cajNPn0KoC0MC3FUmaHWEmQ==}
+     engines: {node: ^10.13.0 || ^12.13.0 || ^14.15.0 || >=15.0.0}
+@@ -4874,6 +4924,14 @@ snapshots:
+ 
+   '@asamuzakjp/nwsapi@2.3.9': {}
+ 
++  '@auth/core@0.41.0':
++    dependencies:
++      '@panva/hkdf': 1.2.1
++      jose: 6.1.3
++      oauth4webapi: 3.8.5
++      preact: 10.24.3
++      preact-render-to-string: 6.5.11(preact@10.24.3)
++
+   '@babel/code-frame@7.28.6':
+     dependencies:
+       '@babel/helper-validator-identifier': 7.28.5
+@@ -5670,6 +5728,8 @@ snapshots:
+       '@nodelib/fs.scandir': 2.1.5
+       fastq: 1.20.1
+ 
++  '@panva/hkdf@1.2.1': {}
++
+   '@pinojs/redact@0.4.0': {}
+ 
+   '@pkgjs/parseargs@0.11.0':
+@@ -8518,6 +8578,12 @@ snapshots:
+ 
+   negotiator@1.0.0: {}
+ 
++  next-auth@5.0.0-beta.30(next@16.1.4(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3):
++    dependencies:
++      '@auth/core': 0.41.0
++      next: 16.1.4(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
++      react: 19.2.3
++
+   next-themes@0.4.6(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
+     dependencies:
+       react: 19.2.3
+@@ -8556,6 +8622,8 @@ snapshots:
+     optionalDependencies:
+       next: 16.1.4(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+ 
++  oauth4webapi@3.8.5: {}
++
+   object-assign@4.1.1: {}
+ 
+   object-inspect@1.13.4: {}
+@@ -8677,6 +8745,12 @@ snapshots:
+       picocolors: 1.1.1
+       source-map-js: 1.2.1
+ 
++  preact-render-to-string@6.5.11(preact@10.24.3):
++    dependencies:
++      preact: 10.24.3
++
++  preact@10.24.3: {}
++
+   pretty-format@27.5.1:
+     dependencies:
+       ansi-regex: 5.0.1
+diff --git a/.chainglass/auth.yaml b/.chainglass/auth.yaml
+new file mode 100644
+index 0000000..1f8cf0d
+--- /dev/null
++++ b/.chainglass/auth.yaml
+@@ -0,0 +1,2 @@
++allowed_users:
++  - jakkaj
+diff --git a/apps/web/.env.example b/apps/web/.env.example
+new file mode 100644
+index 0000000..89f823d
+--- /dev/null
++++ b/apps/web/.env.example
+@@ -0,0 +1,9 @@
++# GitHub OAuth App credentials
++# Create at: https://github.com/settings/developers
++# Callback URL: http://localhost:3000/api/auth/callback/github
++AUTH_GITHUB_ID=your_github_client_id
++AUTH_GITHUB_SECRET=your_github_client_secret
++
++# Session encryption key
++# Generate with: openssl rand -base64 32
++AUTH_SECRET=your_random_secret_here
+diff --git a/apps/web/app/api/auth/[...nextauth]/route.ts b/apps/web/app/api/auth/[...nextauth]/route.ts
+new file mode 100644
+index 0000000..0a98352
+--- /dev/null
++++ b/apps/web/app/api/auth/[...nextauth]/route.ts
+@@ -0,0 +1,3 @@
++import { handlers } from '@/auth';
++
++export const { GET, POST } = handlers;
+diff --git a/apps/web/app/login/layout.tsx b/apps/web/app/login/layout.tsx
+new file mode 100644
+index 0000000..4dc982f
+--- /dev/null
++++ b/apps/web/app/login/layout.tsx
+@@ -0,0 +1,12 @@
++import { SessionProvider } from 'next-auth/react';
++import { ThemeProvider } from 'next-themes';
++
++export default function LoginLayout({ children }: { children: React.ReactNode }) {
++  return (
++    <SessionProvider>
++      <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
++        {children}
++      </ThemeProvider>
++    </SessionProvider>
++  );
++}
+diff --git a/apps/web/app/login/page.tsx b/apps/web/app/login/page.tsx
+new file mode 100644
+index 0000000..a78ca5a
+--- /dev/null
++++ b/apps/web/app/login/page.tsx
+@@ -0,0 +1,32 @@
++import { SignInButton } from '@/features/063-login/components/sign-in-button';
++
++export default async function LoginPage({
++  searchParams,
++}: {
++  searchParams: Promise<{ error?: string }>;
++}) {
++  const params = await searchParams;
++  const error = params.error;
++
++  return (
++    <div className="flex min-h-screen flex-col items-center justify-center bg-neutral-950 p-4">
++      <h1 className="mb-8 font-mono text-4xl font-bold text-green-400">CHAINGLASS</h1>
++
++      {error === 'AccessDenied' && (
++        <div role="alert" className="mb-6 rounded-md bg-red-950 px-4 py-3 font-mono text-sm text-red-400">
++          Access denied: your GitHub account is not authorized
++        </div>
++      )}
++
++      {error && error !== 'AccessDenied' && (
++        <div role="alert" className="mb-6 rounded-md bg-red-950 px-4 py-3 font-mono text-sm text-red-400">
++          Authentication failed. Please try again.
++        </div>
++      )}
++
++      <p className="mb-6 font-mono text-sm text-neutral-400">System access required</p>
++
++      <SignInButton />
++    </div>
++  );
++}
+diff --git a/apps/web/proxy.ts b/apps/web/proxy.ts
+new file mode 100644
+index 0000000..c39d060
+--- /dev/null
++++ b/apps/web/proxy.ts
+@@ -0,0 +1,22 @@
++import { auth } from '@/auth';
++import { NextResponse } from 'next/server';
++
++export const runtime = 'nodejs';
++
++export default auth((req) => {
++  if (!req.auth) {
++    const isApiRoute = req.nextUrl.pathname.startsWith('/api/');
++    if (isApiRoute) {
++      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
++    }
++    const loginUrl = new URL('/login', req.nextUrl.origin);
++    return NextResponse.redirect(loginUrl);
++  }
++  return NextResponse.next();
++});
++
++export const config = {
++  matcher: [
++    '/((?!login|api/health|api/auth|_next/static|_next/image|favicon\\.ico).*)',
++  ],
++};
+diff --git a/apps/web/src/auth.ts b/apps/web/src/auth.ts
+new file mode 100644
+index 0000000..64a1e44
+--- /dev/null
++++ b/apps/web/src/auth.ts
+@@ -0,0 +1,21 @@
++import NextAuth from 'next-auth';
++import GitHub from 'next-auth/providers/github';
++import { isUserAllowed } from '@/features/063-login/lib/allowed-users';
++
++export const { handlers, auth, signIn, signOut } = NextAuth({
++  providers: [GitHub],
++  trustHost: true,
++  session: {
++    strategy: 'jwt',
++    maxAge: 30 * 24 * 60 * 60, // 30 days
++  },
++  pages: {
++    signIn: '/login',
++    error: '/login',
++  },
++  callbacks: {
++    signIn: async ({ profile }) => {
++      return isUserAllowed(profile?.login as string ?? '');
++    },
++  },
++});
+diff --git a/apps/web/src/features/063-login/components/sign-in-button.tsx b/apps/web/src/features/063-login/components/sign-in-button.tsx
+new file mode 100644
+index 0000000..5b6a3ec
+--- /dev/null
++++ b/apps/web/src/features/063-login/components/sign-in-button.tsx
+@@ -0,0 +1,15 @@
++'use client';
++
++import { signIn } from 'next-auth/react';
++
++export function SignInButton() {
++  return (
++    <button
++      type="button"
++      onClick={() => signIn('github', { callbackUrl: '/' })}
++      className="rounded-md bg-neutral-800 px-6 py-3 font-mono text-sm text-white hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-green-500"
++    >
++      Sign in with GitHub
++    </button>
++  );
++}
+diff --git a/apps/web/src/features/063-login/lib/allowed-users.ts b/apps/web/src/features/063-login/lib/allowed-users.ts
+new file mode 100644
+index 0000000..bf5432c
+--- /dev/null
++++ b/apps/web/src/features/063-login/lib/allowed-users.ts
+@@ -0,0 +1,33 @@
++import { readFileSync } from 'node:fs';
++import { parse } from 'yaml';
++import { z } from 'zod';
++
++const AuthConfigSchema = z.object({
++  allowed_users: z.array(z.string()),
++});
++
++/**
++ * Load allowed users from a YAML file.
++ * Returns a Set of lowercase usernames.
++ * Returns empty Set if file is missing or invalid.
++ */
++export function loadAllowedUsers(filePath: string): Set<string> {
++  try {
++    const content = readFileSync(filePath, 'utf-8');
++    const parsed = parse(content);
++    const validated = AuthConfigSchema.parse(parsed);
++    return new Set(validated.allowed_users.map((u) => u.toLowerCase()));
++  } catch {
++    return new Set();
++  }
++}
++
++/**
++ * Check if a GitHub username is allowed.
++ * Case-insensitive comparison.
++ */
++export function isUserAllowed(username: string, filePath?: string): boolean {
++  const configPath = filePath ?? `${process.cwd()}/.chainglass/auth.yaml`;
++  const allowed = loadAllowedUsers(configPath);
++  return allowed.has(username.toLowerCase());
++}
+diff --git a/docs/domains/_platform/auth/domain.md b/docs/domains/_platform/auth/domain.md
+new file mode 100644
+index 0000000..838991c
+--- /dev/null
++++ b/docs/domains/_platform/auth/domain.md
+@@ -0,0 +1,150 @@
++# Domain: Auth (`_platform/auth`)
++
++**Slug**: _platform/auth
++**Type**: infrastructure
++**Created**: 2026-03-02
++**Created By**: Plan 063-login
++**Parent**: `_platform`
++**Status**: active
++
++---
++
++## Purpose
++
++Cross-cutting authentication and session management for the Chainglass web app. Provides GitHub OAuth via Auth.js v5 (next-auth), JWT session management, route protection via Next.js middleware, an allowlist of permitted GitHub usernames, and client-side auth state for UI consumption.
++
++**This is NOT a user management system** — it gates access using GitHub identity and a local allowlist file. No user database, profiles, roles, or permissions.
++
++---
++
++## Boundary
++
++### Owns
++
++- **Auth.js v5 configuration** (`src/auth.ts`) — GitHub provider, JWT session strategy, signIn callback for allowlist enforcement
++- **Route handler** (`app/api/auth/[...nextauth]/route.ts`) — Auth.js catch-all handling signin, callback, signout
++- **Middleware** (`middleware.ts`) — route protection via Auth.js `auth()` wrapper
++- **Login page** (`app/login/`) — sign-in UI with error states, ASCII art login screen (Phase 2)
++- **Allowlist loader** (`features/063-login/lib/allowed-users.ts`) — reads `.chainglass/auth.yaml`
++- **Client-side auth hook** (`features/063-login/hooks/use-auth.ts`) — wraps Auth.js `useSession()`
++- **SessionProvider integration** — added to `providers.tsx` for client-side session access
++
++### Does NOT Own
++
++- **User profiles or management** — no user database, no profile pages, no CRUD
++- **Roles or permissions** — all allowed users have equal access
++- **Configuration UI for allowed users** — `.chainglass/auth.yaml` is edited manually
++- **SSE transport** — owned by `_platform/events`
++- **SDK command registration** — owned by `_platform/sdk` (auth publishes commands to it)
++
++---
++
++## Contracts (Public Interface)
++
++| Contract | Type | Consumers | Description |
++|----------|------|-----------|-------------|
++| `auth()` | function | Server components, server actions, API routes | Returns current session or null. Re-exported from Auth.js. |
++| `signIn()` | function | Login page, client components | Initiates OAuth flow. Re-exported from Auth.js. |
++| `signOut()` | function | Logout button, client components | Destroys session. Re-exported from Auth.js. |
++| Middleware protection | middleware | All routes | Redirects unauthenticated requests to `/login`. Excludes `/api/health`, `/api/auth/*`, `/login`. |
++| `isUserAllowed()` | function | Auth.js signIn callback | Checks GitHub username against `.chainglass/auth.yaml` allowlist. |
++| `SessionProvider` | React provider | Root providers.tsx | Provides client-side session context via `useSession()`. |
++
++---
++
++## Composition (Internal)
++
++| Component | Type | Description |
++|-----------|------|-------------|
++| `src/auth.ts` | Auth.js config | GitHub provider, JWT strategy, signIn callback, trustHost |
++| `allowed-users.ts` | service | YAML parser + Zod validation for allowlist |
++| `middleware.ts` | Next.js middleware | Auth.js `auth` wrapper with negative lookahead matcher |
++| Login page | route | `/login` with sign-in button and error states |
++| Login screen | client component | ASCII art animated login UI (Phase 2) |
++
++---
++
++## Dependencies
++
++### This Domain Depends On
++
++| Domain | Contract | Why |
++|--------|----------|-----|
++| Auth.js (npm) | `next-auth` v5 | OAuth flow, JWT sessions, middleware auth |
++| `.chainglass/auth.yaml` | file | Allowed users configuration |
++
++### Domains That Depend On This
++
++| Domain | Contract | Why |
++|--------|----------|-----|
++| All dashboard pages | Middleware protection | Route access gating |
++| All API routes | `auth()` session check | Request authentication (Phase 3) |
++| All server actions | `auth()` session check | Mutation authorization (Phase 3) |
++| `_platform/sdk` | `signOut()` | Logout command registration (Phase 3) |
++
++---
++
++## Source Location
++
++```
++apps/web/src/auth.ts                                    # Auth.js config
++apps/web/src/features/063-login/lib/allowed-users.ts    # Allowlist loader
++apps/web/src/features/063-login/hooks/use-auth.ts       # Client auth hook
++apps/web/src/features/063-login/components/             # Login screen components
++apps/web/app/api/auth/[...nextauth]/route.ts            # Auth.js route handler
++apps/web/app/login/page.tsx                             # Login page
++apps/web/app/login/layout.tsx                           # Login layout
++apps/web/middleware.ts                                   # Route protection
++.chainglass/auth.yaml                                    # Allowed users config
++```
++
++---
++
++## Concepts
++
++| Concept | Entry Point | Description |
++|---------|-------------|-------------|
++| Authenticate with GitHub | `signIn("github")` | Initiates GitHub OAuth flow via Auth.js. User is redirected to GitHub, authorizes, and returns with a JWT session cookie. |
++| Check session | `await auth()` | Returns the current user session from server components, server actions, or API routes. Returns null if unauthenticated. |
++| Protect routes | `middleware.ts` | Automatically redirects unauthenticated requests to `/login`. Uses negative lookahead matcher to exclude public routes. |
++| Enforce allowlist | `isUserAllowed(login)` | Checks if a GitHub username is in `.chainglass/auth.yaml`. Called by Auth.js signIn callback — denied users never get a session. |
++| End session | `signOut()` | Destroys the JWT session cookie and redirects to `/login`. |
++
++### Authenticate with GitHub
++
++Users click "Sign in with GitHub" on the login page. Auth.js handles the full OAuth flow — redirect to GitHub, authorization, callback, token exchange, and JWT session creation. The `signIn` callback checks the user against the allowlist before creating the session.
++
++```typescript
++// Client-side (login page)
++import { signIn } from "next-auth/react"
++<button onClick={() => signIn("github")}>Sign in with GitHub</button>
++
++// Server-side (auth.ts signIn callback)
++callbacks: {
++  signIn: async ({ profile }) => {
++    return isUserAllowed(profile?.login ?? "")
++  },
++}
++```
++
++### Check session
++
++Any server component, server action, or API route can check the current session:
++
++```typescript
++import { auth } from "@/auth"
++
++const session = await auth()
++if (!session) {
++  // Not authenticated — redirect or return 401
++}
++// session.user.name, session.user.email, session.user.image available
++```
++
++---
++
++## History
++
++| Plan | Change | Date |
++|------|--------|------|
++| 063-login Phase 1 | Domain created with Auth.js v5, middleware, login page, allowlist | 2026-03-02 |
+diff --git a/docs/how/auth/github-oauth-setup.md b/docs/how/auth/github-oauth-setup.md
+new file mode 100644
+index 0000000..8c062fe
+--- /dev/null
++++ b/docs/how/auth/github-oauth-setup.md
+@@ -0,0 +1,80 @@
++# GitHub OAuth App Setup
++
++This guide walks you through creating a GitHub OAuth App for Chainglass authentication.
++
++## Prerequisites
++
++- A GitHub account
++- Access to create OAuth Apps (any GitHub account can do this)
++
++## Step 1: Create the OAuth App
++
++1. Go to **GitHub Settings** > **Developer settings** > **OAuth Apps**
++   - Direct link: https://github.com/settings/developers
++2. Click **New OAuth App**
++3. Fill in the form:
++
++| Field | Value |
++|-------|-------|
++| **Application name** | `Chainglass (local)` |
++| **Homepage URL** | `http://localhost:3000` |
++| **Authorization callback URL** | `http://localhost:3000/api/auth/callback/github` |
++
++4. Click **Register application**
++
++## Step 2: Get Your Credentials
++
++After creating the app, you'll see the app settings page:
++
++1. **Client ID** — displayed on the page, copy it
++2. **Client Secret** — click **Generate a new client secret**, copy it immediately (it won't be shown again)
++
++## Step 3: Configure Chainglass
++
++Create a `.env.local` file in `apps/web/`:
++
++```bash
++# GitHub OAuth credentials (from Step 2)
++AUTH_GITHUB_ID=your_client_id_here
++AUTH_GITHUB_SECRET=your_client_secret_here
++
++# Session encryption key (generate a random 32+ character string)
++# You can generate one with: openssl rand -base64 32
++AUTH_SECRET=your_random_secret_here
++```
++
++## Step 4: Configure Allowed Users
++
++Create or edit `.chainglass/auth.yaml` in the project root:
++
++```yaml
++allowed_users:
++  - jakkaj
++```
++
++Add any GitHub usernames that should have access.
++
++## Step 5: Verify
++
++1. Start the dev server: `pnpm dev`
++2. Visit `http://localhost:3000` — you should be redirected to `/login`
++3. Click **Sign in with GitHub**
++4. Authorize the app on GitHub
++5. You should be redirected back to the dashboard
++
++## Troubleshooting
++
++### "Application not found" error on GitHub
++- Double-check the **Client ID** in your `.env.local` matches the one on the OAuth App page.
++
++### Redirect loop after login
++- Verify the **Authorization callback URL** is exactly `http://localhost:3000/api/auth/callback/github` (no trailing slash). Auth.js v5 uses this convention.
++
++### "User not authorized" after login
++- Check `.chainglass/auth.yaml` contains your GitHub username (case-insensitive).
++
++### Cookie not being set
++- Chainglass runs on HTTP (not HTTPS). The session cookie is set with `secure: false` and `httpOnly: true`. This is by design for local tooling.
++
++### Different port
++- If running on a port other than 3000, update both the **Homepage URL** and **Authorization callback URL** in the GitHub OAuth App settings, and restart the dev server.
+diff --git a/docs/plans/063-login/login-plan.md b/docs/plans/063-login/login-plan.md
+new file mode 100644
+index 0000000..72f931a
+--- /dev/null
++++ b/docs/plans/063-login/login-plan.md
+@@ -0,0 +1,188 @@
++# GitHub Authentication & Login Screen — Implementation Plan
++
++**Plan Version**: 1.0.0
++**Created**: 2026-03-01
++**Spec**: [login-spec.md](./login-spec.md)
++**Status**: DRAFT
++
++## Summary
++
++Chainglass currently has zero authentication — all 25+ dashboard pages, 11 API routes, and 5 server action files are unprotected. This plan adds GitHub OAuth as the sole authentication method, gated by an allowlist of GitHub usernames in `.chainglass/auth.yaml`. Unauthenticated users see an animated ASCII art "hacker console" login screen. The implementation creates a new `_platform/auth` infrastructure domain using Auth.js v5 (next-auth) — the idiomatic Next.js auth library. Four phases move from core OAuth plumbing through to the polished login experience.
++
++## Target Domains
++
++| Domain | Status | Relationship | Role |
++|--------|--------|-------------|------|
++| _platform/auth | **NEW** | **create** | Session management, OAuth flow, middleware, useAuth() hook, login page |
++| _platform/settings | existing | consume | Config loading patterns for `.chainglass/auth.yaml` |
++| _platform/state | existing | consume | Publish auth session state for reactive UI |
++| _platform/sdk | existing | consume | Register logout command in command palette |
++| _platform/events | existing | consume | SSE patterns (future cross-tab sync) |
++
++## Domain Manifest
++
++| File | Domain | Classification | Rationale |
++|------|--------|---------------|-----------|
++| `docs/domains/_platform/auth/domain.md` | _platform/auth | contract | Domain definition |
++| `docs/domains/registry.md` | cross-domain | cross-domain | Register new domain |
++| `docs/domains/domain-map.md` | cross-domain | cross-domain | Add auth to architecture diagram |
++| `apps/web/middleware.ts` | _platform/auth | contract | Route protection — lightweight cookie check |
++| `apps/web/app/login/page.tsx` | _platform/auth | internal | Login page (server component shell) |
++| `apps/web/app/login/layout.tsx` | _platform/auth | internal | Login layout (no dashboard nav) |
++| `apps/web/src/features/063-login/components/login-screen.tsx` | _platform/auth | internal | ASCII art animated login client component |
++| `apps/web/src/features/063-login/components/matrix-rain.tsx` | _platform/auth | internal | Matrix rain background animation |
++| `apps/web/src/features/063-login/components/ascii-logo.tsx` | _platform/auth | internal | Chainglass ASCII art logo with glitch effect |
++| `apps/web/src/auth.ts` | _platform/auth | contract | Auth.js v5 config — GitHub provider, signIn callback, session strategy |
++| `apps/web/app/api/auth/[...nextauth]/route.ts` | _platform/auth | contract | Auth.js catch-all route handler (handles signin, callback, signout) |
++| `apps/web/src/features/063-login/lib/allowed-users.ts` | _platform/auth | internal | Load and check `.chainglass/auth.yaml` allowlist |
++| `apps/web/src/features/063-login/hooks/use-auth.ts` | _platform/auth | contract | Client-side auth hook |
++| `apps/web/src/features/063-login/types.ts` | _platform/auth | contract | AuthUser, AuthSession, AuthState types |
++| `apps/web/src/components/providers.tsx` | _platform/auth | cross-domain | Add auth context to provider hierarchy |
++| `apps/web/src/components/dashboard-sidebar.tsx` | _platform/auth | cross-domain | Add logout button to sidebar footer |
++| `apps/web/app/actions/workspace-actions.ts` | cross-domain | cross-domain | Add session validation |
++| `apps/web/app/actions/file-actions.ts` | cross-domain | cross-domain | Add session validation |
++| `apps/web/app/actions/workunit-actions.ts` | cross-domain | cross-domain | Add session validation |
++| `apps/web/app/actions/workflow-actions.ts` | cross-domain | cross-domain | Add session validation |
++| `apps/web/app/actions/sdk-settings-actions.ts` | cross-domain | cross-domain | Add session validation |
++| `.chainglass/auth.yaml` | _platform/auth | internal | Allowed users config (default with `jakkaj`) |
++| `apps/web/.env.example` | _platform/auth | internal | Document required env vars |
++| `docs/how/auth/github-oauth-setup.md` | _platform/auth | internal | Detailed setup guide |
++
++## Key Findings
++
++| # | Impact | Finding | Action |
++|---|--------|---------|--------|
++| 01 | Critical | Middleware runs at edge runtime. Auth.js `auth()` is edge-compatible, enabling full JWT session validation in middleware (not just cookie existence check). | Export `auth as middleware` from `@/auth`. Auth.js handles JWT verification at the edge automatically. |
++| 02 | Critical | `output: 'standalone'` may not bundle Auth.js. `serverExternalPackages` only lists Shiki. | Add `next-auth` and `@auth/core` to `serverExternalPackages` in next.config.mjs. Test standalone build in Phase 1. |
++| 03 | High | Server actions call `getContainer()` without session check. Auth must be added before container init for fail-fast. | Call `await auth()` from `@/auth` as first line in each action. Returns session or null. |
++| 04 | High | No .env.example exists. Developers won't know which env vars to set for OAuth. | Create `apps/web/.env.example` with required vars. Add startup validation via Zod. |
++| 05 | High | SidebarFooter exists but is empty. Ideal location for logout button + user display. | Add user avatar + logout button in DashboardSidebar's SidebarFooter. |
++| 06 | High | AsciiSpinner already exists in codebase (panel-layout domain). Can reuse animation patterns for login screen. | Reference AsciiSpinner's frame-based interval pattern for matrix rain effect. |
++
++## Phases
++
++### Phase 1: Core Auth Infrastructure
++
++**Objective**: Establish GitHub OAuth using Auth.js v5 (next-auth), session management, and route protection middleware.
++**Domain**: _platform/auth (create)
++**Delivers**:
++- Domain registration (docs, registry, domain-map) — **BLOCKER**: domain artifacts must exist before any code
++- Auth.js v5 configuration with GitHub provider
++- Allowlist enforcement via signIn callback (reads `.chainglass/auth.yaml`)
++- Next.js middleware for route protection using `auth()` wrapper
++- Minimal `/login` page (plain "Sign in with GitHub" button, no styling yet)
++- `.env.example` with required environment variables
++- Default `.chainglass/auth.yaml` with `jakkaj`
++
++**Depends on**: None
++**Key risks**: Standalone build bundling (Finding 02). Mitigate by testing `next build` at end of phase.
++**Pre-requisite**: Create GitHub OAuth App per `docs/how/auth/github-oauth-setup.md` BEFORE starting.
++
++| # | Task | Domain | Success Criteria | Notes |
++|---|------|--------|-----------------|-------|
++| 1.1 | Create `_platform/auth` domain docs: `domain.md` (with boundary, contracts, § Concepts), update `registry.md`, update `domain-map.md` with auth node and consume arrows | _platform/auth | Domain appears in registry, domain-map shows auth node with arrows to settings/state/sdk/events, domain.md has boundary + contracts sections | **BLOCKER** for all subsequent tasks |
++| 1.2 | Install `next-auth@5` (Auth.js v5) and configure GitHub provider in `src/auth.ts`. Export `auth`, `handlers`, `signIn`, `signOut`. Use JWT strategy (no database), `trustHost: true` (for HTTP localhost), `session.maxAge: 30 * 24 * 60 * 60` (30 days per spec). Set `AUTH_SECRET`, `AUTH_GITHUB_ID`, `AUTH_GITHUB_SECRET` env vars. Add `SessionProvider` to `providers.tsx`. Update `next.config.mjs` serverExternalPackages. | _platform/auth | Auth.js config compiles. GitHub provider registered. JWT session with 30-day maxAge configured. `import { auth } from "@/auth"` resolves. | `@/*` maps to `./src/*` so auth.ts must be at `src/auth.ts`. `trustHost: true` for HTTP localhost. |
++| 1.3 | Create catch-all route handler `app/api/auth/[...nextauth]/route.ts` exporting `GET` and `POST` from `handlers`. | _platform/auth | OAuth flow routes auto-handled by Auth.js at `/api/auth/signin`, `/api/auth/callback/github`, `/api/auth/signout`. | Single file replaces 4 manual API routes. |
++| 1.4 | Create `allowed-users.ts` — load `.chainglass/auth.yaml`, parse with Zod, return username set. Add `signIn` callback in `auth.ts` that checks GitHub username against allowlist. Deny users not on list. | _platform/auth | TDD: parses valid YAML, rejects invalid, returns Set of lowercase usernames. Denied user gets redirected to `/login?error=AccessDenied`. | Combines Phase 2 allowlist into Phase 1 since Auth.js callbacks make this trivial. |
++| 1.5 | Create default `.chainglass/auth.yaml` with `allowed_users: [jakkaj]` | _platform/auth | File exists with correct format | |
++| 1.6 | Create `middleware.ts` using Auth.js `auth` wrapper with negative lookahead matcher: `/((?!login|api/auth|_next/static|_next/image|favicon\\.ico).*)`. Redirect unauthenticated to `/login`. | _platform/auth | Unauthenticated page requests redirect to `/login`. `/api/auth/*`, `/login`, and static assets pass through. | Route group `(dashboard)` is NOT part of URLs — use negative matcher. |
++| 1.7 | Create minimal `/login` page with "Sign in with GitHub" button that calls `signIn("github")`. Show error message if `?error=AccessDenied` (denied user) or `?error=OAuthSignin` (auth failed). Show denied username from session if available. Layout at `app/login/layout.tsx` — minimal shell with ThemeProvider and SessionProvider (required for signIn), but NO dashboard nav or SDKProvider/GlobalStateProvider. | _platform/auth | Page renders without errors. Button initiates OAuth flow. Error states displayed. | Placeholder — styled in Phase 3. Login layout needs SessionProvider for signIn() to work client-side. |
++| 1.8 | Create `apps/web/.env.example` with required env vars: `AUTH_GITHUB_ID`, `AUTH_GITHUB_SECRET`, `AUTH_SECRET` | _platform/auth | File exists with all 3 vars documented with descriptions. | Auth.js auto-infers `AUTH_` prefixed vars. |
++| 1.9 | Test standalone build (`next build`) to verify Auth.js bundles correctly. Add `next-auth` to `serverExternalPackages` if needed. Run `just fft`. | _platform/auth | `pnpm build` succeeds. `just fft` passes. No missing module errors. | Per Finding 02. |
++
++### Phase 2: ASCII Art Animated Login Screen
++
++**Objective**: Replace the plain login page with a visually striking hacker-console-styled experience.
++**Domain**: _platform/auth
++**Delivers**:
++- Matrix rain background animation (CSS/JS, no canvas)
++- Chainglass ASCII art logo with glitch/typing effects
++- Dark terminal aesthetic with green/cyan color scheme
++- "Sign in with GitHub" button styled to match aesthetic
++- Responsive layout (mobile/tablet/desktop)
++- `prefers-reduced-motion` support
++
++**Depends on**: Phase 1 (login page exists)
++**Key risks**: Animation performance on low-end devices. Mitigate with `prefers-reduced-motion` and reduced particle count.
++
++| # | Task | Domain | Success Criteria | Notes |
++|---|------|--------|-----------------|-------|
++| 2.1 | Create matrix rain background component — falling characters with varying speeds and opacity | _platform/auth | Smooth 60fps animation, respects `prefers-reduced-motion`, no layout jank | Reference AsciiSpinner pattern (Finding 06) |
++| 2.2 | Create Chainglass ASCII art logo component — large text art with glitch/typing animation | _platform/auth | Logo renders centered, animates on mount, static fallback for reduced-motion | |
++| 2.3 | Create login-screen.tsx — compose matrix rain + logo + sign-in button + denied message into full-screen terminal UI | _platform/auth | Full viewport, dark background, scanline effect, terminal cursor blinking | |
++| 2.4 | Style "Sign in with GitHub" button with terminal/hacker aesthetic | _platform/auth | Button visible, accessible, matches terminal theme, has hover/focus states | |
++| 2.5 | Add responsive breakpoints — adjust ASCII art size and rain density for mobile/tablet | _platform/auth | Login screen looks good at 320px, 768px, and 1440px widths | Per PL-05: mounted guard |
++| 2.6 | Integrate styled login screen into `/login` page, replacing placeholder | _platform/auth | `/login` renders the full animated experience | |
++
++### Phase 3: Logout & Navigation Integration
++
++**Objective**: Add logout button to dashboard navigation and protect all server actions.
++**Domain**: _platform/auth + cross-domain
++**Delivers**:
++- Logout button in sidebar footer with user display
++- Session validation in all 5 server action files
++- Auth validation in API route handlers (except health and auth routes)
++
++**Depends on**: Phase 1 (auth working)
++**Key risks**: Must modify 5 existing server action files — keep changes minimal (single import + validation call at top of each action function).
++
++| # | Task | Domain | Success Criteria | Notes |
++|---|------|--------|-----------------|-------|
++| 3.1 | Create `useAuth()` hook — client-side hook using Auth.js `useSession()` or fetching `/api/auth/session` to expose user state | _platform/auth | Returns `{ user, isLoading, isAuthenticated }`. Re-fetches on mount. | |
++| 3.2 | Add user display + logout button to DashboardSidebar's SidebarFooter | cross-domain | GitHub username visible in sidebar footer, logout button calls `signOut()` | Per Finding 05 |
++| 3.3 | Add session validation to all 5 server action files (`workspace-actions.ts`, `file-actions.ts`, `workunit-actions.ts`, `workflow-actions.ts`, `sdk-settings-actions.ts`) | cross-domain | Each exported action calls `auth()` as first line, returns error ActionState if no session | Per Finding 03 |
++| 3.4 | Add session validation to API route handlers (agents, workspaces, events — NOT health) | cross-domain | Unauthenticated API requests return 401 JSON response. Auth checked via `auth()` before `ensureInitialized()`. | |
++
++### Phase 4: Documentation & Polish
++
++**Objective**: Create setup documentation and polish the end-to-end experience.
++**Domain**: _platform/auth
++**Delivers**:
++- GitHub OAuth App setup guide (`docs/how/auth/github-oauth-setup.md`)
++- README.md quick-start auth section
++- End-to-end manual test of full flow
++- Any polish from login screen iteration
++
++**Depends on**: Phases 1-3
++**Key risks**: None.
++
++| # | Task | Domain | Success Criteria | Notes |
++|---|------|--------|-----------------|-------|
++| 4.1 | Verify and finalize `docs/how/auth/github-oauth-setup.md` — update env var names to `AUTH_*` prefix, verify callback URL matches Auth.js convention | _platform/auth | Guide covers: create OAuth app, set callback URL, copy credentials, create .env.local, configure auth.yaml | Already drafted — update for Auth.js v5 conventions |
++| 4.2 | Add auth quick-start section to README.md | _platform/auth | README has "Authentication Setup" section with essential steps and link to detailed guide | |
++| 4.3 | Manual end-to-end verification: unauthenticated → login screen → GitHub OAuth → dashboard → logout → login screen | _platform/auth | Full flow works without errors | |
++| 4.4 | Polish login screen based on iteration feedback | _platform/auth | Animations smooth, colors consistent, responsive, accessible | |
++
++## Acceptance Criteria
++
++- [ ] Unauthenticated users are redirected to `/login`
++- [ ] Login page displays animated ASCII art with hacker-console aesthetic at 60fps (static fallback for `prefers-reduced-motion`)
++- [ ] "Sign in with GitHub" button initiates OAuth flow
++- [ ] Successful OAuth sets a session cookie (30-day expiry)
++- [ ] Denied users see "User 'xyz' is not authorized" message
++- [ ] `.chainglass/auth.yaml` with `allowed_users` list controls access
++- [ ] Logout button visible in dashboard sidebar footer
++- [ ] Logout destroys session and redirects to `/login`
++- [ ] API routes return 401 for unauthenticated requests (except `/api/health` and `/api/auth/*`)
++- [ ] Server actions validate session before executing (via `auth()` from Auth.js)
++- [ ] Login screen renders correctly at 320px, 768px, and 1440px without horizontal scroll
++- [ ] GitHub OAuth setup documented (README + docs/how/)
++- [ ] Session lasts 30 days
++- [ ] Access denied shows GitHub username
++
++## Risks
++
++| Risk | Likelihood | Impact | Mitigation |
++|------|------------|--------|------------|
++| Standalone build fails to bundle Auth.js deps | Medium | High | Add to `serverExternalPackages`, test build in Phase 1 (task 1.9) |
++| Server action authors forget session validation | Low | High | Document pattern, add to CLAUDE.md conventions |
++| ASCII art animations cause motion sickness | Low | Medium | Respect `prefers-reduced-motion`, provide static fallback |
++| GitHub OAuth rate limits during development | Low | Low | Use personal access token for testing if needed |
++
++## Deviation Ledger
++
++**Deviation**: Using Auth.js v5 (next-auth) instead of hand-rolled OAuth + JWT.
++- **Rationale**: Auth.js is the idiomatic, community-standard approach for Next.js authentication. Hand-rolling JWT signing, OAuth token exchange, and session management introduces unnecessary security risk and maintenance burden. Auth.js handles edge-runtime compatibility, session management, CSRF protection, and provider integration out of the box.
++- **Impact**: Removes need for `IAuthService` interface, `FakeAuthService`, custom session.ts, custom github-oauth.ts. Reduces Phase 1 from 14 tasks to 9. Collapses Phase 2 (allowlist) into Phase 1 via signIn callback. Reduces total phases from 5 to 4.
++- **Constitution Principle 2 (Interface-First)**: Partially deferred — Auth.js provides its own session interface via `auth()`. Custom wrapper interface deferred until needed.
++- **Constitution Principle 4 (Fakes Over Mocks)**: Auth.js sessions can be tested via fixtures; no custom fake needed for the auth library itself.
+diff --git a/docs/plans/063-login/login-spec.md b/docs/plans/063-login/login-spec.md
+new file mode 100644
+index 0000000..d9d959e
+--- /dev/null
++++ b/docs/plans/063-login/login-spec.md
+@@ -0,0 +1,140 @@
++# GitHub Authentication & Login Screen
++
++**Mode**: Full
++
++## Research Context
++
++📚 This specification incorporates findings from research-dossier.md
++
++The codebase has **zero existing authentication** — no middleware, no auth libraries, no session management for users. All 25+ dashboard pages, 11 API routes, and 5 server action files are completely unprotected. The established provider hierarchy (providers.tsx), DI container pattern (TSyringe without decorators), server action conventions (Zod + ActionState), and config system (.chainglass/) provide strong foundations to build on. Twelve prior learnings (PL-01 through PL-12) inform implementation patterns.
++
++## Summary
++
++Gate access to Chainglass behind GitHub OAuth. Only GitHub users whose username appears in a local allowed-users settings file may use the app. Unauthenticated visitors see a visually striking, animated ASCII art login screen styled like a hacker console. Authenticated users see a logout button in the existing navigation. No other authentication methods are supported.
++
++## Goals
++
++- **Single sign-on via GitHub** — users click "Sign in with GitHub" and complete the OAuth flow; no passwords, no email/password forms
++- **Allowlist-based access control** — a plain settings file in `.chainglass/` contains a list of permitted GitHub usernames; users not on the list are denied after OAuth
++- **Animated ASCII art login screen** — a sleek, modern, hacker-console-styled login page with the Chainglass logo rendered in ASCII art and animated background effects (matrix rain, glitch effects, terminal aesthetics)
++- **Logout** — a visible logout button in the dashboard navigation that ends the session and returns to the login screen
++- **Minimal footprint** — keep the auth layer simple; no roles, no permissions hierarchy, no user database, no user profiles beyond what GitHub provides
++
++## Non-Goals
++
++- **No other auth providers** — no Google, email/password, magic links, SAML, or SSO beyond GitHub
++- **No user management UI** — the allowed-users file is edited manually; no admin panel
++- **No roles or permissions** — all allowed users have equal access to everything
++- **No user profiles or avatars** — no profile pages; GitHub identity is used only for access gating
++- **No remember-me / persistent sessions** — session duration follows standard cookie expiry
++- **No API key or token-based auth for external consumers**
++- **No rate limiting or brute-force protection** (beyond what GitHub OAuth provides natively)
++
++## Target Domains
++
++| Domain | Status | Relationship | Role in This Feature |
++|--------|--------|-------------|---------------------|
++| _platform/auth | **NEW** | **create** | New infrastructure domain owning session validation, route protection, OAuth flow, and client-side auth state |
++| _platform/settings | existing | **consume** | Leverage config system patterns for allowed-users file loading |
++| _platform/state | existing | **consume** | Publish auth state (current user) for reactive UI updates |
++| _platform/sdk | existing | **consume** | Register logout command in command palette |
++| _platform/events | existing | **consume** | Use SSE patterns if cross-tab logout sync needed in future |
++
++### New Domain Sketches
++
++#### _platform/auth [NEW]
++- **Purpose**: Cross-cutting authentication and session management for the Chainglass web app. Provides GitHub OAuth flow, session cookie management, route protection via Next.js middleware, and a client-side `useAuth()` hook for UI consumption.
++- **Boundary Owns**: OAuth callback handling, session creation/destruction, allowed-user validation, middleware route protection, login page, logout action, AuthProvider context, auth-related API routes
++- **Boundary Excludes**: User profiles (no user management exists), permissions/roles (all users are equal), configuration UI for allowed users (manual file editing), SSE transport (owned by _platform/events)
++
++## Complexity
++
++- **Score**: CS-3 (medium)
++- **Breakdown**: S=2, I=1, D=1, N=0, F=1, T=1 (Total: 6)
++- **Confidence**: 0.85
++- **Assumptions**:
++  - GitHub OAuth app can be created by the user (guided setup)
++  - `.chainglass/auth.yaml` is a simple YAML file with a list of usernames
++  - Session stored in secure HTTP-only cookies (no database needed)
++  - ASCII art animations use CSS/JS only (no canvas or WebGL)
++- **Dependencies**:
++  - GitHub OAuth App registration (user must create this on github.com)
++  - OAuth client ID and secret stored in environment variables
++- **Risks**:
++  - Standalone Next.js output must correctly trace OAuth library dependencies
++  - ASCII art animation performance on low-end devices
++  - Cookie-based sessions must survive standalone deployment model
++- **Phases** (suggested):
++  1. GitHub OAuth flow + session management + middleware
++  2. Allowed-users file loading and enforcement
++  3. ASCII art animated login screen
++  4. Logout button + navigation integration
++  5. Polish and iteration on login screen design
++
++## Acceptance Criteria
++
++1. **Unauthenticated users are redirected to `/login`** — visiting any dashboard page or API route without a valid session cookie redirects to the login page
++2. **Login page displays animated ASCII art** — the `/login` page renders the Chainglass logo in ASCII art with animated background effects (matrix-style rain, glitch effects, or similar hacker-console aesthetic); animations run smoothly at 60fps
++3. **"Sign in with GitHub" button initiates OAuth** — clicking the button redirects to GitHub's OAuth authorization page with correct scopes
++4. **Successful OAuth sets a session cookie** — after GitHub callback, a secure HTTP-only session cookie is set and the user is redirected to the dashboard
++5. **Denied users see an access-denied message** — if the GitHub username is not in `.chainglass/auth.yaml`, the user sees a clear "not authorized" message on the login page instead of being admitted
++6. **Allowed-users file controls access** — a file at `.chainglass/auth.yaml` containing a list of GitHub usernames (e.g., `allowed_users: [jakkaj]`) determines who may access the app
++7. **Logout button visible in dashboard navigation** — an accessible logout button appears in the sidebar/navigation area
++8. **Logout destroys session** — clicking logout clears the session cookie and redirects to `/login`
++9. **API routes reject unauthenticated requests** — API routes under `/api/` (except `/api/health` and auth-related routes) return 401 for requests without a valid session
++10. **Server actions validate session** — server actions check for a valid session before executing mutations
++11. **Login screen is responsive** — the ASCII art login screen looks good on mobile, tablet, and desktop viewports
++12. **GitHub OAuth setup is documented** — clear instructions guide the user through creating a GitHub OAuth App and configuring the client ID/secret (README quick-start + docs/how/ detailed guide)
++13. **Session lasts 30 days** — authenticated sessions persist for 30 days before requiring re-authentication
++14. **Access denied shows username** — when a user authenticates but is not on the allowlist, the denial message displays their GitHub username (e.g., "User 'xyz' is not authorized")
++
++## Risks & Assumptions
++
++- **Risk**: The `output: 'standalone'` Next.js config may not correctly bundle OAuth library dependencies. Mitigation: test standalone build early.
++- **Risk**: ASCII art animations may cause accessibility issues (motion sensitivity). Mitigation: respect `prefers-reduced-motion` media query.
++- **Assumption**: The app runs in a trusted environment where the `.chainglass/auth.yaml` file is not publicly accessible.
++- **Assumption**: A single GitHub OAuth App is sufficient (no need for per-environment apps for dev vs prod).
++- **Risk**: Cookie-based sessions have a 30-day expiry; no refresh token flow. Users must re-authenticate when cookies expire.
++
++## Open Questions
++
++_All resolved — see Clarifications below._
++
++## Documentation Strategy
++
++- **Location**: Hybrid — README.md quick-start section for OAuth app setup essentials, plus `docs/how/auth/github-oauth-setup.md` for detailed step-by-step guide with screenshots description
++- **Rationale**: Users need fast onboarding (README) but also a reference for troubleshooting and environment-specific configuration (docs/how/)
++
++## Testing Strategy
++
++- **Approach**: Hybrid — TDD for security-critical paths (OAuth flow, session validation, allowlist enforcement), lightweight for UI components and config loading
++- **Mock Policy**: Avoid mocks entirely — use real data/fixtures only, matching codebase convention. Auth.js sessions tested via fixtures and real OAuth flow. No vi.mock() or jest.mock().
++- **Focus Areas**: Session cookie creation/validation, allowlist parsing and matching, middleware redirect logic, logout session destruction
++- **Excluded**: Visual appearance of ASCII art animations, exact CSS styling, GitHub OAuth external API (tested via manual flow)
++
++## Workshop Opportunities
++
++| Topic | Type | Why Workshop | Key Questions |
++|-------|------|--------------|---------------|
++| ASCII Art Login Screen Design | UI/Animation | Complex visual design requiring iteration on animation types (matrix rain, glitch, typing effects), ASCII logo design, color palette, and performance tuning | What animation effects? How to render the Chainglass logo in ASCII? Color scheme? Performance budget? prefers-reduced-motion fallback? |
++| ~~GitHub OAuth Flow~~ | ~~Integration Pattern~~ | ~~RESOLVED: Using Auth.js v5 (next-auth) — idiomatic Next.js auth library~~ | ~~Decided during DYK session 2026-03-01~~ |
++
++## Clarifications
++
++### Session 2026-03-01
++
++**Q1: Workflow Mode** → **Full** — Multi-phase plan with required dossiers and all gates. Appropriate for CS-3 feature with ~5 phases.
++
++**Q2: Testing Strategy** → **Hybrid** — TDD for OAuth/session logic (security-critical), lightweight for UI components and config loading.
++
++**Q3: Mock Usage** → **Avoid mocks entirely** — Use real data/fixtures only, matching codebase convention (CLAUDE.md). Auth.js sessions tested via fixtures. No vi.mock() or jest.mock().
++
++**Q4: Documentation Strategy** → **Hybrid** — README.md quick-start for OAuth app setup essentials, plus `docs/how/auth/github-oauth-setup.md` for detailed step-by-step guide.
++
++**Q5: Domain Review** → **Approved as-is** — `_platform/auth` domain boundary confirmed. Owns OAuth flow, session management, middleware, login page, AuthProvider. Does not own user profiles, roles, or config UI. Consumes _platform/settings, _platform/state, _platform/sdk, _platform/events.
++
++**Q6: Public Health Endpoint** → **Yes** — `/api/health` remains publicly accessible without authentication for monitoring and uptime checks.
++
++**Q7: Session Duration** → **30 days** — Authenticated sessions persist for 30 days before requiring re-authentication with GitHub.
++
++**Q8: Access Denied Message** → **Show username** — When a user authenticates but is not on the allowlist, display their GitHub username in the denial message (e.g., "User 'xyz' is not authorized").
+diff --git a/docs/plans/063-login/research-dossier.md b/docs/plans/063-login/research-dossier.md
+new file mode 100644
+index 0000000..2441583
+--- /dev/null
++++ b/docs/plans/063-login/research-dossier.md
+@@ -0,0 +1,187 @@
++# Research Report: Authentication System (GitHub OAuth)
++
++**Generated**: 2026-03-01T20:40:00Z
++**Research Query**: "Auth - GitHub Auth only, allowed users file in .chainglass, ASCII art animated login screen"
++**Mode**: Pre-Plan (branch 063-login detected)
++**Location**: docs/plans/063-login/research-dossier.md
++**FlowSpace**: Not Available (fs2 scan needed)
++**Findings**: 58 across 8 subagents
++
++## Executive Summary
++
++### What It Does
++Chainglass is a Next.js 16 web app with no existing authentication. All routes, API handlers, and server actions are completely unprotected. The app uses a `(dashboard)` route group containing 25+ pages.
++
++### Business Purpose
++Add GitHub OAuth authentication to gate access to the application. Only users listed in a `.chainglass` settings file should be allowed access. A visually striking ASCII art animated login screen provides the entry experience.
++
++### Key Insights
++1. **Greenfield auth** — no middleware, no auth libraries, no session management for users exists. Clean slate.
++2. **Strong patterns to follow** — DI container, server actions, provider hierarchy, config system all have established conventions (PL-01 through PL-12).
++3. **Domain system ready** — `_platform/auth` fits naturally as a new infrastructure domain alongside existing `_platform/settings`, `_platform/sdk`, etc.
++
++### Quick Stats
++- **Components to protect**: 25+ pages, 11 API routes, 5 server action files
++- **Auth libraries installed**: 0 (greenfield)
++- **Existing middleware**: None
++- **Prior Learnings**: 12 relevant discoveries from previous implementations
++- **Domains**: 13 active; auth would be new `_platform/auth` infrastructure domain
++
++## How It Currently Works
++
++### Entry Points
++| Entry Point | Type | Location | Purpose |
++|------------|------|----------|---------|
++| Root Layout | Layout | `app/layout.tsx` | ThemeProvider + Providers wrapper |
++| Dashboard Layout | Layout | `app/(dashboard)/layout.tsx` | NavigationWrapper (sidebar + mobile nav) |
++| API Routes | REST | `app/api/*` (11 routes) | Agents, workspaces, events, health |
++| Server Actions | Mutation | `app/actions/*` (5 files) | Workspace, file, workunit, workflow, SDK settings |
++
++### Core Execution Flow
++1. **Request enters** → Root layout renders ThemeProvider + Providers
++2. **Providers wrap** → QueryClientProvider, NuqsAdapter, SDKProvider, GlobalStateProvider, Toaster
++3. **Dashboard layout** → NavigationWrapper (responsive: BottomTabBar mobile, DashboardShell desktop)
++4. **No auth check anywhere** → all content renders immediately
++
++### Provider Hierarchy
++```
++RootLayout
++  └─ ThemeProvider (next-themes)
++     └─ Providers (providers.tsx)
++        ├─ QueryClientProvider (React Query)
++        ├─ NuqsAdapter (URL state)
++        ├─ SDKProvider (command palette, settings)
++        ├─ GlobalStateProvider (runtime state)
++        └─ Toaster (notifications)
++```
++
++## Architecture & Design
++
++### Component Map
++- **Root Layout** (`app/layout.tsx`): CSS imports, ThemeProvider, Providers
++- **Dashboard Layout** (`app/(dashboard)/layout.tsx`): NavigationWrapper, force-dynamic
++- **Providers** (`src/components/providers.tsx`): Client providers hierarchy
++- **DI Container** (`src/lib/di-container.ts`): TSyringe factory pattern (no decorators)
++- **Bootstrap Singleton** (`src/lib/bootstrap-singleton.ts`): getContainer() for server-side
++
++### Design Patterns (PS-01 through PS-10)
++1. **Layered Provider Pattern** — nested providers in providers.tsx
++2. **Try-Catch Error Boundaries** — graceful degradation on init failure
++3. **Server Actions + Zod** — validation with ActionState return type
++4. **useActionState Hook** — React form state management
++5. **TSyringe DI** — factory pattern, no decorators (RSC compatible)
++6. **Context + Hook** — useSDKContext(), useGlobalState() patterns
++7. **SSE Notification-Fetch** — React Query + EventSource for real-time
++8. **Cache Invalidation** — revalidatePath() after mutations
++9. **CVA Variants** — class-variance-authority for UI components
++10. **Accessible Forms** — aria-describedby for error linking
++
++### Key Interfaces
++- **ActionState** — `{ success, message?, errors?, fields? }` for server actions
++- **IConfigService** — `get<T>()`, `require<T>()`, `set<T>()` for configuration
++- **ILogger** — structured logging with `child()` context
++- **IStateService** — `publish()`, `subscribe()`, `get()` for runtime state
++- **ISessionMetadataStorage** — `create()`, `get()`, `update()`, `delete()`, `list()`
++
++## Dependencies & Integration
++
++### What Auth Will Depend On
++| Dependency | Type | Purpose |
++|------------|------|---------|
++| Next.js cookies() | Framework | Secure session cookie storage |
++| GitHub OAuth API | External | Authentication provider |
++| .chainglass config | Internal | Allowed users list |
++| IConfigService | Internal | Load auth configuration |
++| ILogger | Internal | Audit logging |
++| IStateService | Internal | Publish auth state reactively |
++
++### What Will Depend On Auth
++| Consumer | Purpose |
++|----------|---------|
++| All (dashboard) pages | Route protection |
++| All API routes | Request authentication |
++| All server actions | Mutation authorization |
++| NavigationWrapper | Show user/logout button |
++| Future domains | User identity context |
++
++## Quality & Testing
++
++### Testing Strategy
++- **Coverage threshold**: 50% enforced (aim 80%+ for auth)
++- **Fast feedback**: `just test-feature 063` for isolated auth tests
++- **Pre-commit gate**: `just fft` (lint + format + typecheck + test)
++- **Patterns**: Unit → Contract → Integration → E2E
++- **Fixtures**: Create `auth-fixtures.ts` with sample users/sessions
++- **No mocks**: Use real fixtures and fakes via DI
++
++## Prior Learnings (Critical)
++
++| ID | Type | Source | Key Insight | Action |
++|----|------|--------|-------------|--------|
++| PL-01 | DI | Plan 001 | Dual registration (prod/test) | Create FakeAuthService |
++| PL-02 | Startup | Plan 004 | Config before container | Load secrets first |
++| PL-03 | Next.js | Plan 009 | `await cookies()` async | All cookie ops async |
++| PL-05 | Hydration | Plan 006 | Mounted check for viewport | Login screen responsive guard |
++| PL-06 | Config | Plan 004 | .chainglass auto-create | Store allowed-users here |
++| PL-08 | Types | Plan 054 | Discriminated unions | AuthState type variants |
++| PL-09 | Forms | Plan 054 | Server actions for forms | Login via server action |
++| PL-10 | Providers | Plan 053 | Mount auth first | AuthProvider at top |
++| PL-12 | Security | Plan 004 | Secret detection | OAuth secrets in env only |
++
++## Domain Context
++
++### Proposed: `_platform/auth` (Infrastructure Domain)
++
++**Owns**:
++- Session validation (middleware)
++- Route protection
++- Client-side auth state (useAuth hook, AuthProvider)
++- GitHub OAuth flow handlers
++
++**Contracts**:
++- `IAuthService` — `getCurrentUser()`, `validateSession()`
++- `useAuth()` hook — client-side auth context
++- `FakeAuthService` — test double
++
++**Consumed by**: file-browser, workflow-ui, workunit-editor, SDK, events
++
++## Modification Considerations
++
++### Safe to Modify
++- `src/components/providers.tsx` — add AuthProvider (established pattern)
++- `app/actions/` — add auth-actions.ts (follows existing pattern)
++- `app/api/` — add auth routes (follows existing pattern)
++
++### New Files Needed
++- `middleware.ts` — Next.js edge middleware for route protection
++- `app/login/page.tsx` — Login page (outside dashboard route group)
++- `app/api/auth/` — GitHub OAuth callback routes
++- `src/components/login/` — ASCII art animated login screen
++- `.chainglass/auth.yaml` or similar — allowed users config
++
++### Danger Zones
++- Root layout — keep changes minimal (add redirect logic, not providers)
++- next.config.mjs — standalone output must trace auth dependencies
++
++## External Research Opportunities
++
++### Research Opportunity 1: Next.js 16 + GitHub OAuth Best Practices
++
++**Why Needed**: No auth library installed; need to decide between next-auth v5, arctic/lucia, or manual OAuth implementation for Next.js 16 with standalone output.
++**Impact on Plan**: Determines library choice and implementation architecture.
++
++### Research Opportunity 2: ASCII Art Animation in React/CSS
++
++**Why Needed**: User wants a "hacker console" style animated ASCII login screen with Chainglass logo. Need current best practices for performant text animations in React 19.
++**Impact on Plan**: Determines animation approach (CSS vs canvas vs requestAnimationFrame).
++
++## Next Steps
++
++1. Run `/plan-1b-specify` to create the feature specification
++2. Consider `/deepresearch` for GitHub OAuth library choice if needed
++3. Consider `/plan-2c-workshop` for the ASCII art login screen design
++
++---
++
++**Research Complete**: 2026-03-01T20:42:00Z
++**Report Location**: docs/plans/063-login/research-dossier.md
+diff --git a/docs/plans/063-login/tasks/phase-1-core-auth-infrastructure/execution.log.md b/docs/plans/063-login/tasks/phase-1-core-auth-infrastructure/execution.log.md
+new file mode 100644
+index 0000000..32c8230
+--- /dev/null
++++ b/docs/plans/063-login/tasks/phase-1-core-auth-infrastructure/execution.log.md
+@@ -0,0 +1,30 @@
++# Phase 1: Core Auth Infrastructure — Execution Log
++
++**Phase**: Phase 1: Core Auth Infrastructure
++**Started**: 2026-03-02
++**Status**: In Progress
++
++---
++
++## Task Log
++
++### T001: Create `_platform/auth` domain docs
++**Status**: ✅ Complete
++**Files created**:
++- `docs/domains/_platform/auth/domain.md` — full domain definition with boundary, contracts, concepts, composition, dependencies, source locations, history
++- Updated `docs/domains/registry.md` — added Auth row
++- Updated `docs/domains/domain-map.md` — added auth node with contracts label, middleware dependency arrows to file-browser/workflow-ui/workunit-editor, health summary row
++
++**Evidence**: Domain registered in registry. Domain-map has auth node with 🔐 icon and 6 contracts listed. 3 consume arrows drawn. Health summary row added.
++
++### T002: Install next-auth, configure auth.ts, SessionProvider, next.config.mjs
++**Status**: ✅ Complete
++**Files created/modified**:
++- `apps/web/src/auth.ts` — Auth.js v5 config with GitHub provider, JWT strategy (30-day maxAge), trustHost: true, custom pages pointing to /login
++- `apps/web/src/components/providers.tsx` — Added `SessionProvider` from next-auth/react as outermost wrapper
++- `apps/web/next.config.mjs` — Added `next-auth` and `@auth/core` to serverExternalPackages
++- `apps/web/package.json` — Added `next-auth@5.0.0-beta.30`
++
++**Evidence**: `pnpm exec tsc` reports 0 auth-related type errors. Pre-existing Zod type errors are unrelated.
++**Discovery**: next-auth v5 is still on beta (`5.0.0-beta.30`). This is the expected state for Auth.js v5 as of 2026-03.
++
+diff --git a/docs/plans/063-login/tasks/phase-1-core-auth-infrastructure/tasks.fltplan.md b/docs/plans/063-login/tasks/phase-1-core-auth-infrastructure/tasks.fltplan.md
+new file mode 100644
+index 0000000..47d7f37
+--- /dev/null
++++ b/docs/plans/063-login/tasks/phase-1-core-auth-infrastructure/tasks.fltplan.md
+@@ -0,0 +1,127 @@
++# Flight Plan: Phase 1 — Core Auth Infrastructure
++
++**Plan**: [login-plan.md](../../login-plan.md)
++**Phase**: Phase 1: Core Auth Infrastructure
++**Generated**: 2026-03-01 (v2 — Auth.js rewrite)
++**Status**: Ready for takeoff
++
++---
++
++## Departure → Destination
++
++**Where we are**: Chainglass web app has zero authentication. All 25+ dashboard pages, 11 API routes, and 5 server action files are completely unprotected. No middleware, no session management, no auth library installed. The `_platform/auth` domain does not yet exist.
++
++**Where we're going**: A developer can sign in via GitHub OAuth (powered by Auth.js v5), receive a JWT session, and access the dashboard. Users not on the `.chainglass/auth.yaml` allowlist are denied. Unauthenticated visitors are redirected to a minimal `/login` page. The `_platform/auth` domain is registered. The standalone build works correctly.
++
++---
++
++## Domain Context
++
++### Domains We're Changing
++
++| Domain | What Changes | Key Files |
++|--------|-------------|-----------|
++| _platform/auth (NEW) | Create entire domain: Auth.js config, allowlist, middleware, login page | `src/auth.ts`, `src/features/063-login/**`, `app/api/auth/**`, `app/login/**`, `middleware.ts` |
++| cross-domain (docs) | Register new domain in system | `docs/domains/registry.md`, `docs/domains/domain-map.md` |
++| cross-domain (providers) | Add SessionProvider | `src/components/providers.tsx` |
++| cross-domain (config) | Add serverExternalPackages | `next.config.mjs` |
++
++### Domains We Depend On (no changes)
++
++| Domain | What We Consume | Contract |
++|--------|----------------|----------|
++| (none in Phase 1) | — | Self-contained foundation phase |
++
++---
++
++## Flight Status
++
++```mermaid
++stateDiagram-v2
++    classDef done fill:#4CAF50,stroke:#388E3C,color:#fff
++    classDef active fill:#FFC107,stroke:#FFA000,color:#000
++    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
++
++    state "1: Domain registration" as S1
++    state "2: Auth.js setup + SessionProvider" as S2
++    state "3: Allowlist + signIn callback" as S3
++    state "4: Middleware + login page" as S4
++    state "5: Env + build verification" as S5
++
++    [*] --> S1
++    S1 --> S2
++    S2 --> S3
++    S3 --> S4
++    S4 --> S5
++    S5 --> [*]
++
++    class S1,S2,S3,S4 done
++    class S5 active
++```
++
++**Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
++
++---
++
++## Architecture: Before & After
++
++```mermaid
++flowchart LR
++    classDef existing fill:#E8F5E9,stroke:#4CAF50,color:#000
++    classDef new fill:#E3F2FD,stroke:#2196F3,color:#000
++
++    subgraph Before["Before Phase 1"]
++        B_REQ["Request"] --> B_LAYOUT["Root Layout"]
++        B_LAYOUT --> B_DASH["(dashboard) Layout"]
++        B_DASH --> B_PAGE["Pages (unprotected)"]
++        B_API["API Routes (unprotected)"]
++    end
++
++    subgraph After["After Phase 1"]
++        A_REQ["Request"] --> A_MW["middleware.ts<br/>(Auth.js auth())"]:::new
++        A_MW -->|"has session"| A_LAYOUT["Root Layout"]:::existing
++        A_MW -->|"no session"| A_LOGIN["/login page"]:::new
++        A_LAYOUT --> A_DASH["(dashboard) Layout"]:::existing
++        A_DASH --> A_PAGE["Pages (protected)"]:::existing
++        A_LOGIN -->|"signIn('github')"| A_AUTHJS["Auth.js<br/>[...nextauth]"]:::new
++        A_AUTHJS --> A_GH["GitHub OAuth"]:::new
++        A_GH --> A_AUTHJS
++        A_AUTHJS -->|"JWT session"| A_LAYOUT
++    end
++```
++
++---
++
++## Stages
++
++- [x] **Stage 1: Register domain** — Create `domain.md`, update `registry.md` and `domain-map.md`
++- [~] **Stage 2: Auth.js setup** — Install next-auth, create `src/auth.ts`, route handler, SessionProvider, update next.config.mjs
++- [ ] **Stage 3: Allowlist** — Create `allowed-users.ts` with TDD, wire signIn callback, create default `auth.yaml`
++- [ ] **Stage 4: Protection + login** — Create middleware with negative lookahead matcher, create minimal login page
++- [ ] **Stage 5: Finalize** — `.env.example`, standalone build test, `just fft`
++
++---
++
++## Acceptance Criteria
++
++- [ ] Unauthenticated users are redirected to `/login`
++- [ ] "Sign in with GitHub" button initiates OAuth flow via Auth.js
++- [ ] Successful OAuth creates JWT session (via Auth.js)
++- [ ] Users not on `.chainglass/auth.yaml` allowlist are denied with `?error=AccessDenied`
++- [ ] `/api/health` remains publicly accessible
++- [ ] `pnpm build` succeeds (standalone output)
++- [ ] `just fft` passes
++
++---
++
++## Checklist
++
++- [x] T001: Create `_platform/auth` domain docs + registry + domain-map
++- [x] T002: Install next-auth, create auth.ts, add SessionProvider, update next.config.mjs
++- [x] T003: Create catch-all `[...nextauth]` route handler
++- [x] T004: Create allowed-users.ts + signIn callback (TDD)
++- [x] T005: Create default `.chainglass/auth.yaml`
++- [x] T006: Create middleware.ts with Auth.js auth wrapper
++- [x] T007: Create minimal /login page with error states
++- [x] T008: Create .env.example
++- [~] T009: Test standalone build + just fft
+diff --git a/docs/plans/063-login/tasks/phase-1-core-auth-infrastructure/tasks.md b/docs/plans/063-login/tasks/phase-1-core-auth-infrastructure/tasks.md
+new file mode 100644
+index 0000000..5b24150
+--- /dev/null
++++ b/docs/plans/063-login/tasks/phase-1-core-auth-infrastructure/tasks.md
+@@ -0,0 +1,252 @@
++# Phase 1: Core Auth Infrastructure — Tasks
++
++**Plan**: [login-plan.md](../../login-plan.md)
++**Phase**: Phase 1: Core Auth Infrastructure
++**Generated**: 2026-03-01 (v2 — Auth.js rewrite)
++**Status**: Ready
++
++---
++
++## Executive Briefing
++
++**Purpose**: Add GitHub OAuth authentication to Chainglass using Auth.js v5 (next-auth) — the idiomatic, community-standard approach for Next.js. Creates the new `_platform/auth` infrastructure domain. All subsequent phases (login UI, logout integration, docs) depend on this.
++
++**What We're Building**: A working GitHub OAuth sign-in flow powered by Auth.js v5. Clicking "Sign in with GitHub" on a minimal login page redirects to GitHub, returns via Auth.js catch-all route handler, creates a JWT session, and redirects to the dashboard. An allowlist in `.chainglass/auth.yaml` gates access — users not on the list are denied. Unauthenticated requests are intercepted by Auth.js-powered middleware and redirected to `/login`.
++
++**Why Auth.js v5**: The original plan hand-rolled JWT signing, OAuth token exchange, and 4 separate API routes. Auth.js handles all of this out of the box — edge-compatible sessions, CSRF protection, provider integration, and middleware auth. This reduces Phase 1 from 14 tasks to 9 and eliminates an entire category of security risk.
++
++**Goals**:
++- ✅ `_platform/auth` domain registered with full domain docs, registry entry, and domain-map node
++- ✅ Auth.js v5 configured with GitHub provider and JWT session strategy
++- ✅ Allowlist enforcement via `signIn` callback (reads `.chainglass/auth.yaml`)
++- ✅ Middleware redirects unauthenticated users to `/login`
++- ✅ Minimal `/login` page with sign-in button and error states
++- ✅ `.env.example` documents required `AUTH_*` environment variables
++- ✅ Standalone build passes with Auth.js dependencies bundled
++
++**Non-Goals**:
++- ❌ Styled login screen / ASCII art (Phase 2)
++- ❌ Logout button in sidebar (Phase 3)
++- ❌ Server action protection (Phase 3)
++- ❌ User profiles, roles, or permissions (Non-goal of entire feature)
++
++---
++
++## Pre-Requisite: Create GitHub OAuth App
++
++**Before writing any code**, follow [docs/how/auth/github-oauth-setup.md](../../../../docs/how/auth/github-oauth-setup.md) to:
++1. Create a GitHub OAuth App with callback URL `http://localhost:3000/api/auth/callback/github`
++2. Create `apps/web/.env.local` with `AUTH_GITHUB_ID`, `AUTH_GITHUB_SECRET`, `AUTH_SECRET`
++3. Create `.chainglass/auth.yaml` with your username
++
++Tasks T002-T007 cannot be tested without this.
++
++---
++
++## Pre-Implementation Check
++
++| File | Exists? | Action | Notes |
++|------|---------|--------|-------|
++| `docs/domains/_platform/auth/domain.md` | N | create | T001 creates this |
++| `docs/domains/registry.md` | Y | modify | Add auth row |
++| `docs/domains/domain-map.md` | Y | modify | Add auth node + edges |
++| `apps/web/src/auth.ts` | N | create | Auth.js config — must be at `src/` for `@/auth` import |
++| `apps/web/app/api/auth/[...nextauth]/route.ts` | N | create | Auth.js catch-all handler |
++| `apps/web/src/features/063-login/lib/allowed-users.ts` | N | create | Allowlist loader |
++| `.chainglass/auth.yaml` | N | create | Default allowlist |
++| `apps/web/middleware.ts` | N | create | Route protection |
++| `apps/web/app/login/page.tsx` | N | create | Login page |
++| `apps/web/app/login/layout.tsx` | N | create | Login layout (no dashboard nav) |
++| `apps/web/.env.example` | N | create | Env var template |
++| `apps/web/next.config.mjs` | Y | modify | Add `next-auth`, `@auth/core` to serverExternalPackages |
++| `apps/web/src/components/providers.tsx` | Y | modify | Add SessionProvider from next-auth/react |
++| `apps/web/package.json` | Y | modify | Add next-auth dependency |
++
++**Concept duplication check**: No existing auth, session, JWT, OAuth, or middleware found. All greenfield.
++
++**Path alias check**: `@/*` maps to `./src/*` in tsconfig.json. Auth.js config must be at `apps/web/src/auth.ts` (not project root) to be importable as `@/auth`.
++
++---
++
++## Architecture Map
++
++```mermaid
++flowchart TD
++    classDef completed fill:#4CAF50,stroke:#388E3C,color:#fff
++    classDef inprogress fill:#FFC107,stroke:#FFA000,color:#000
++    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
++
++    subgraph Domain["T001: Domain Registration"]
++        T001["T001: domain.md +<br/>registry + domain-map"]:::completed
++    end
++
++    subgraph AuthJS["T002-T003: Auth.js Setup"]
++        T002["T002: Install next-auth<br/>+ configure auth.ts"]:::completed
++        T003["T003: Catch-all route<br/>[...nextauth]"]:::completed
++        T002 --> T003
++    end
++
++    subgraph Allowlist["T004-T005: Allowlist"]
++        T004["T004: allowed-users.ts<br/>+ signIn callback (TDD)"]:::pending
++        T005["T005: Default auth.yaml"]:::pending
++    end
++
++    subgraph Protection["T006-T007: Route Protection + Login"]
++        T006["T006: middleware.ts<br/>(Auth.js wrapper)"]:::pending
++        T007["T007: /login page"]:::pending
++    end
++
++    subgraph Finalize["T008-T009: Env + Build"]
++        T008["T008: .env.example"]:::pending
++        T009["T009: Build test<br/>+ just fft"]:::pending
++    end
++
++    Domain --> AuthJS
++    AuthJS --> Allowlist
++    Allowlist --> Protection
++    Protection --> Finalize
++```
++
++---
++
++## Tasks
++
++| Status | ID | Task | Domain | Path(s) | Done When | Notes |
++|--------|-----|------|--------|---------|-----------|-------|
++| [x] | T001 | Create `_platform/auth` domain: write `domain.md` with boundary (owns: Auth.js config, middleware, login page, allowlist; excludes: user profiles, roles, SSE transport), contracts (auth(), signIn(), signOut(), middleware protection), and concepts table. Update `registry.md` with new row. Update `domain-map.md` Mermaid diagram with auth node + consume arrows to state/sdk/settings/events. | _platform/auth | `docs/domains/_platform/auth/domain.md`, `docs/domains/registry.md`, `docs/domains/domain-map.md` | Domain appears in registry, domain-map shows auth node with arrows, domain.md has boundary + contracts + concepts | **BLOCKER** — all subsequent tasks depend on domain being registered |
++| [x] | T002 | Install `next-auth@5` via pnpm. Create `apps/web/src/auth.ts` configuring Auth.js with: GitHub provider, JWT session strategy (no database), `trustHost: true` (for HTTP localhost), `session.maxAge: 30 * 24 * 60 * 60` (30 days per spec). Export `{ auth, handlers, signIn, signOut }`. Add `SessionProvider` from `next-auth/react` to `providers.tsx` (wrap outermost). Update `next.config.mjs`: add `next-auth` and `@auth/core` to `serverExternalPackages`. | _platform/auth | `apps/web/src/auth.ts`, `apps/web/src/components/providers.tsx`, `apps/web/next.config.mjs`, `apps/web/package.json` | `pnpm dev` starts without errors. Auth.js config compiles. `import { auth } from "@/auth"` resolves. SessionProvider wraps app. | `trustHost: true` required for HTTP localhost. `@/*` maps to `./src/*` so auth.ts goes in `src/`. Default JWT maxAge is not 30 days — must set explicitly. |
++| [x] | T003 | Create `apps/web/app/api/auth/[...nextauth]/route.ts` exporting `GET` and `POST` from `handlers` (imported from `@/auth`). | _platform/auth | `apps/web/app/api/auth/[...nextauth]/route.ts` | Visiting `/api/auth/signin` shows Auth.js sign-in page. `/api/auth/callback/github` is registered. `/api/auth/signout` works. | Single catch-all file handles all auth routes. |
++| [x] | T004 | Create `apps/web/src/features/063-login/lib/allowed-users.ts`: load `.chainglass/auth.yaml`, parse with Zod schema (`{ allowed_users: z.array(z.string()) }`), return `Set<string>` of lowercase usernames. Handle missing file gracefully (log warning, deny all). Add `signIn` callback in `auth.ts` that calls `isUserAllowed(profile.login)` — return `true` to allow, `false` to deny. Auth.js auto-redirects denied users to `/login?error=AccessDenied`. | _platform/auth | `apps/web/src/features/063-login/lib/allowed-users.ts`, `apps/web/src/auth.ts` | TDD: parses valid YAML, rejects invalid, returns Set of lowercase usernames. Missing file denies all users. signIn callback correctly allows/denies. Case-insensitive matching. | Install `yaml` package for YAML parsing (or use existing dependency). |
++| [x] | T005 | Create `.chainglass/auth.yaml` with default content: `allowed_users:\n  - jakkaj`. Verify `.gitignore` does NOT exclude this file (it's project config, should be committed). | _platform/auth | `.chainglass/auth.yaml` | File exists with correct YAML format. `jakkaj` is listed. File is tracked by git. | |
++| [x] | T006 | Create `apps/web/middleware.ts`. Import `auth` from `@/auth` and use as middleware wrapper. Check `auth` result — if no session, redirect to `/login` for page requests, return 401 for API requests. Export `config.matcher` with negative lookahead: `'/((?!login|api/auth|_next/static|_next/image|favicon\\.ico).*)'`. | _platform/auth | `apps/web/middleware.ts` | Unauthenticated page requests redirect to `/login`. Unauthenticated API requests get 401. `/api/auth/*`, `/login`, `/_next/*`, and favicon pass through. `/api/health` protected by default (per clarification Q6 — wait, health should be public). | IMPORTANT: Add `api/health` to negative lookahead exclusions! Matcher: `'/((?!login|api/health|api/auth|_next/static|_next/image|favicon\\.ico).*)'` |
++| [x] | T007 | Create `/login` page. Layout at `app/login/layout.tsx` — minimal shell with ThemeProvider and SessionProvider (required for client-side `signIn()`), but NO dashboard nav, SDKProvider, or GlobalStateProvider. Page at `app/login/page.tsx` — server component that reads `searchParams.error`. Renders centered "Sign in with GitHub" button. If `?error=AccessDenied`, shows "User not authorized" message. Button calls `signIn("github")` via a client component wrapper. | _platform/auth | `apps/web/app/login/page.tsx`, `apps/web/app/login/layout.tsx` | Page renders without errors. Button initiates OAuth flow. `?error=AccessDenied` shows denial message. No dashboard sidebar visible. | Placeholder — fully styled in Phase 2. `searchParams` is async in Next.js 16 — must `await`. SessionProvider required for signIn() to work. |
++| [x] | T008 | Create `apps/web/.env.example` documenting: `AUTH_GITHUB_ID` (GitHub OAuth App Client ID), `AUTH_GITHUB_SECRET` (GitHub OAuth App Client Secret), `AUTH_SECRET` (session encryption, generate with `openssl rand -base64 32`). | _platform/auth | `apps/web/.env.example` | File exists with all 3 vars, each with descriptive comment. | Auth.js auto-infers `AUTH_`-prefixed env vars. |
++| [~] | T009 | Verify: run `pnpm build` from repo root (tests standalone output). Run `just fft` (lint + format + typecheck + test). If Auth.js fails to bundle in standalone, add packages to `serverExternalPackages`. Fix any lint/type errors introduced. | _platform/auth | `apps/web/next.config.mjs` (if modified) | `pnpm build` succeeds with zero errors. `just fft` passes. No missing module errors in standalone output. | Finding 02: standalone build risk. |
++
++---
++
++## Context Brief
++
++### Key findings from plan
++
++- **Finding 01** (Critical): Middleware runs at edge runtime. Auth.js `auth()` wrapper is edge-compatible, so we can do real session validation in middleware (not just cookie existence check). This is a significant improvement over the hand-rolled approach.
++- **Finding 02** (Critical): `output: 'standalone'` may not bundle Auth.js. Add `next-auth` and `@auth/core` to `serverExternalPackages` in next.config.mjs.
++- **Finding 05** (High): SidebarFooter exists but is empty. Ideal location for logout button (Phase 3).
++- **DYK 01** (Critical): Route group `(dashboard)` is stripped from URLs. Middleware matcher must use negative lookahead, not `/(dashboard)/`.
++- **DYK 02** (Critical): Chainglass is a local HTTP tool. Auth.js config needs `trustHost: true` to work on `http://localhost`.
++- **DYK 05** (High): Auth.js callback URL is `/api/auth/callback/github` (not `/api/auth/github/callback`).
++
++### Auth.js v5 key patterns
++
++**Config file** (`src/auth.ts`):
++```typescript
++import NextAuth from "next-auth"
++import GitHub from "next-auth/providers/github"
++import { isUserAllowed } from "@/features/063-login/lib/allowed-users"
++
++export const { auth, handlers, signIn, signOut } = NextAuth({
++  providers: [GitHub],
++  trustHost: true,  // Required for HTTP localhost
++  session: {
++    strategy: "jwt",
++    maxAge: 30 * 24 * 60 * 60, // 30 days
++  },
++  callbacks: {
++    signIn: async ({ profile }) => {
++      return isUserAllowed(profile?.login ?? "")
++    },
++  },
++})
++```
++
++**Route handler** (`app/api/auth/[...nextauth]/route.ts`):
++```typescript
++import { handlers } from "@/auth"
++export const { GET, POST } = handlers
++```
++
++**Middleware** (`middleware.ts`):
++```typescript
++export { auth as middleware } from "@/auth"
++export const config = {
++  matcher: ['/((?!login|api/health|api/auth|_next/static|_next/image|favicon\\.ico).*)'],
++}
++```
++
++**Server-side session check** (in server components or server actions):
++```typescript
++import { auth } from "@/auth"
++const session = await auth()
++if (!session) { /* redirect or return 401 */ }
++```
++
++**Client-side session** (via SessionProvider + useSession):
++```typescript
++"use client"
++import { useSession, signOut } from "next-auth/react"
++const { data: session, status } = useSession()
++```
++
++### OAuth flow with Auth.js
++
++```mermaid
++sequenceDiagram
++    participant U as User Browser
++    participant MW as middleware.ts
++    participant L as /login page
++    participant AJ as Auth.js [...nextauth]
++    participant GH as GitHub OAuth
++    participant D as Dashboard
++
++    U->>MW: Visit /workspaces/my-project
++    MW->>MW: auth() returns null
++    MW->>L: Redirect to /login
++    U->>L: Click "Sign in with GitHub"
++    L->>AJ: signIn("github") → /api/auth/signin/github
++    AJ->>GH: Redirect to github.com/login/oauth/authorize
++    GH->>GH: User authorizes
++    GH->>AJ: Redirect to /api/auth/callback/github?code=...
++    AJ->>AJ: Exchange code for token (automatic)
++    AJ->>AJ: signIn callback → isUserAllowed(login)
++    alt User allowed
++        AJ->>AJ: Create JWT session cookie
++        AJ->>D: Redirect to /
++        MW->>MW: auth() returns session
++        MW->>D: Pass through
++    else User denied
++        AJ->>L: Redirect to /login?error=AccessDenied
++        L->>L: Show "User not authorized"
++    end
++```
++
++### Domain dependencies
++
++- **No consumed domain contracts in Phase 1** — self-contained foundation phase
++- **`_platform/state`**: Future auth state publishing (Phase 3+)
++- **`_platform/sdk`**: Future logout command registration (Phase 3+)
++
++### Domain constraints
++
++- Auth code lives in `apps/web/src/features/063-login/` (app-specific)
++- Auth.js config at `apps/web/src/auth.ts` (required for `@/auth` import alias)
++- Middleware must use Auth.js `auth` export (edge-compatible)
++- Session secrets via `AUTH_*` env vars (Auth.js auto-infers)
++- Cookie `secure: false` — Chainglass is a local HTTP tool
++- `trustHost: true` — required for HTTP localhost
++
++### Reusable from codebase
++
++- **Provider pattern**: Follow `providers.tsx` — add `SessionProvider` as outermost wrapper
++- **Feature directory**: Follow `041-file-browser/` — `components/`, `hooks/`, `lib/`
++- **API route pattern**: Follow `agents/route.ts` — `export const dynamic = 'force-dynamic'`
++- **Server action pattern**: Follow `workspace-actions.ts` — `'use server'` + Zod + ActionState
++
++---
++
++## Discoveries & Learnings
++
++_Populated during implementation by plan-6._
++
++| Date | Task | Type | Discovery | Resolution | References |
++|------|------|------|-----------|------------|------------|
++
+diff --git a/docs/plans/063-login/tasks/phase-2-ascii-art-animated-login-screen/tasks.fltplan.md b/docs/plans/063-login/tasks/phase-2-ascii-art-animated-login-screen/tasks.fltplan.md
+new file mode 100644
+index 0000000..dc0b008
+--- /dev/null
++++ b/docs/plans/063-login/tasks/phase-2-ascii-art-animated-login-screen/tasks.fltplan.md
+@@ -0,0 +1,151 @@
++# Flight Plan: Phase 2 — ASCII Art Animated Login Screen
++
++**Plan**: [login-plan.md](../../login-plan.md)
++**Phase**: Phase 2: ASCII Art Animated Login Screen
++**Generated**: 2026-03-02
++**Status**: Ready for takeoff
++
++---
++
++## Departure → Destination
++
++**Where we are**: Phase 1 delivered a working GitHub OAuth flow with a minimal, unstyled login page — plain text "CHAINGLASS" heading, basic button, and error messages on a dark background. The auth infrastructure (Auth.js v5, middleware, allowlist) is complete and functional.
++
++**Where we're going**: The login page becomes a visually striking hacker-console experience. Matrix-style characters rain down the screen, a large ASCII art "CHAINGLASS" logo glitches and glows in the center, CRT scanlines overlay everything, and a terminal-styled button with blinking cursor invites the user to sign in. It looks like logging into a classified system. All animations are CSS-driven for 60fps, with accessibility fallback for `prefers-reduced-motion`.
++
++---
++
++## Domain Context
++
++### Domains We're Changing
++
++| Domain | What Changes | Key Files |
++|--------|-------------|-----------|
++| _platform/auth | Add 4 new UI components (matrix rain, ASCII logo, CRT overlay, login screen composition), restyle sign-in button, replace login page placeholder, add CSS keyframes + a11y | `components/matrix-rain.tsx`, `ascii-logo.tsx`, `crt-overlay.tsx`, `login-screen.tsx`, `sign-in-button.tsx`, `app/login/page.tsx`, `globals.css` |
++
++### Domains We Depend On (no changes)
++
++| Domain | What We Consume | Contract |
++|--------|----------------|----------|
++| _platform/auth (Phase 1) | Login page, sign-in button, SessionProvider layout | `page.tsx`, `sign-in-button.tsx`, `layout.tsx` |
++
++---
++
++## Flight Status
++
++<!-- Updated by /plan-6-v2: pending → active → done. Use blocked for problems/input needed. -->
++
++```mermaid
++stateDiagram-v2
++    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
++    classDef active fill:#FFC107,stroke:#FFA000,color:#000
++    classDef done fill:#4CAF50,stroke:#388E3C,color:#fff
++    classDef blocked fill:#F44336,stroke:#D32F2F,color:#fff
++
++    state "1: Matrix Rain" as S1
++    state "2: ASCII Logo" as S2
++    state "3: CRT Overlay" as S3
++    state "4: Composition" as S4
++    state "5: Button Restyle" as S5
++    state "6: Responsive + A11y" as S6
++    state "7: Integration" as S7
++
++    [*] --> S1
++    S1 --> S2
++    S2 --> S3
++    S3 --> S4
++    S4 --> S5
++    S5 --> S6
++    S6 --> S7
++    S7 --> [*]
++
++    class S1,S2,S3,S4,S5,S6,S7 pending
++```
++
++**Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
++
++---
++
++## Stages
++
++<!-- Updated by /plan-6-v2 during implementation: [ ] → [~] → [x] -->
++
++- [ ] **Stage 1: Matrix Rain** — Create CSS-driven falling character columns with matrix green glow (`matrix-rain.tsx`, `globals.css`)
++- [ ] **Stage 2: ASCII Logo** — Hardcoded ANSI Shadow logo with CSS glitch effect and glow pulse (`ascii-logo.tsx`, `globals.css`)
++- [ ] **Stage 3: CRT Overlay** — Pure CSS scanline + vignette overlay (`crt-overlay.tsx`)
++- [ ] **Stage 4: Composition** — Client composition root assembling all layers with content and error states (`login-screen.tsx`)
++- [ ] **Stage 5: Button Restyle** — Terminal aesthetic with blinking cursor and green glow hover (`sign-in-button.tsx`, `globals.css`)
++- [ ] **Stage 6: Responsive + A11y** — Breakpoints for mobile/tablet/desktop + `prefers-reduced-motion` static fallback (`globals.css`, components)
++- [ ] **Stage 7: Integration** — Replace login page placeholder with LoginScreen composition (`page.tsx`)
++
++---
++
++## Architecture: Before & After
++
++```mermaid
++flowchart LR
++    classDef existing fill:#E8F5E9,stroke:#4CAF50,color:#000
++    classDef changed fill:#FFF3E0,stroke:#FF9800,color:#000
++    classDef new fill:#E3F2FD,stroke:#2196F3,color:#000
++
++    subgraph Before["Before Phase 2"]
++        B_PAGE["login/page.tsx<br/>Plain text + basic button"]:::existing
++        B_BTN["sign-in-button.tsx<br/>Unstyled"]:::existing
++        B_LAYOUT["login/layout.tsx<br/>SessionProvider"]:::existing
++    end
++
++    subgraph After["After Phase 2"]
++        A_PAGE["login/page.tsx<br/>Renders LoginScreen"]:::changed
++        A_LS["login-screen.tsx<br/>Composition root"]:::new
++        A_MR["matrix-rain.tsx<br/>Falling characters"]:::new
++        A_AL["ascii-logo.tsx<br/>Glitch + glow"]:::new
++        A_CRT["crt-overlay.tsx<br/>Scanlines"]:::new
++        A_BTN["sign-in-button.tsx<br/>Terminal style"]:::changed
++        A_CSS["globals.css<br/>+keyframes +a11y"]:::changed
++        A_LAYOUT["login/layout.tsx<br/>Unchanged"]:::existing
++
++        A_PAGE --> A_LS
++        A_LS --> A_MR
++        A_LS --> A_AL
++        A_LS --> A_CRT
++        A_LS --> A_BTN
++        A_MR -.-> A_CSS
++        A_AL -.-> A_CSS
++        A_BTN -.-> A_CSS
++    end
++```
++
++**Legend**: existing (green, unchanged) | changed (orange, modified) | new (blue, created)
++
++---
++
++## Acceptance Criteria
++
++- [ ] Login page displays animated ASCII art with hacker-console aesthetic
++- [ ] Matrix rain characters fall smoothly at 60fps
++- [ ] "CHAINGLASS" ASCII art logo renders with glitch effect
++- [ ] CRT scanlines visible as subtle overlay
++- [ ] "Sign in with GitHub" button styled with terminal aesthetic and blinking cursor
++- [ ] Error states (AccessDenied, generic) render in terminal style
++- [ ] `prefers-reduced-motion`: all animations disabled, static atmospheric fallback
++- [ ] Login screen renders correctly at 320px, 768px, and 1440px without horizontal scroll
++- [ ] OAuth flow still works after integration (signIn button, error handling)
++- [ ] No new npm dependencies added
++- [ ] ASCII logo has `aria-hidden="true"` + hidden `<h1>` for screen readers
++
++## Goals & Non-Goals
++
++**Goals**: Hacker-console aesthetic, 60fps CSS animations, responsive, accessible, <5KB JS addition
++**Non-Goals**: Interactive terminal, canvas/WebGL, figlet runtime dependency, logout button (Phase 3)
++
++---
++
++## Checklist
++
++- [ ] T001: Create matrix-rain.tsx — CSS-driven falling character columns
++- [ ] T002: Create ascii-logo.tsx — Hardcoded ANSI Shadow logo with CSS glitch
++- [ ] T003: Create crt-overlay.tsx — Pure CSS scanline + vignette overlay
++- [ ] T004: Create login-screen.tsx — Client composition root
++- [ ] T005: Restyle sign-in-button.tsx with terminal aesthetic
++- [ ] T006: Add responsive breakpoints + prefers-reduced-motion
++- [ ] T007: Integrate LoginScreen into login/page.tsx
+diff --git a/docs/plans/063-login/tasks/phase-2-ascii-art-animated-login-screen/tasks.md b/docs/plans/063-login/tasks/phase-2-ascii-art-animated-login-screen/tasks.md
+new file mode 100644
+index 0000000..b649967
+--- /dev/null
++++ b/docs/plans/063-login/tasks/phase-2-ascii-art-animated-login-screen/tasks.md
+@@ -0,0 +1,271 @@
++# Phase 2: ASCII Art Animated Login Screen — Tasks
++
++**Plan**: [login-plan.md](../../login-plan.md)
++**Phase**: Phase 2: ASCII Art Animated Login Screen
++**Generated**: 2026-03-02
++**Status**: Ready
++
++---
++
++## Executive Briefing
++
++**Purpose**: Replace the plain Phase 1 login page with a visually striking hacker-console-styled experience. This is the first thing users see when accessing Chainglass — it sets the tone for the entire product.
++
++**What We're Building**: A full-screen animated terminal login screen with matrix-style falling characters in the background, a large ASCII art "CHAINGLASS" logo with glitch effects, CRT scanline overlay, and a terminal-styled sign-in button with blinking cursor. All animations are CSS-driven (GPU-composited) for 60fps performance, with `prefers-reduced-motion` fallback.
++
++**Goals**:
++- ✅ Matrix rain background with falling katakana/latin/digit characters
++- ✅ Large ASCII art "CHAINGLASS" logo with CSS glitch animation
++- ✅ CRT scanline + vignette overlay for retro monitor feel
++- ✅ Terminal-styled "Sign in with GitHub" button with blinking cursor
++- ✅ Error states (AccessDenied, generic auth failure) styled to match aesthetic
++- ✅ Responsive design: mobile fallback text, tablet scaled, desktop full
++- ✅ `prefers-reduced-motion` support (static fallback)
++- ✅ 60fps sustained, <5KB JS bundle addition
++
++**Non-Goals**:
++- ❌ Interactive terminal / command input (this is a login screen, not a terminal emulator)
++- ❌ Dynamic ASCII text generation via figlet (hardcoded logo is sufficient)
++- ❌ Canvas or WebGL rendering (CSS-only for performance and accessibility)
++- ❌ Logout button or sidebar integration (Phase 3)
++- ❌ Server action protection (Phase 3)
++
++---
++
++## Prior Phase Context
++
++### Phase 1: Core Auth Infrastructure (Complete)
++
++**A. Deliverables**:
++- `apps/web/src/auth.ts` — Auth.js v5 config (GitHub provider, JWT 30-day, trustHost)
++- `apps/web/app/api/auth/[...nextauth]/route.ts` — Catch-all auth route handler
++- `apps/web/src/features/063-login/lib/allowed-users.ts` — YAML allowlist loader
++- `apps/web/src/features/063-login/components/sign-in-button.tsx` — Basic sign-in button
++- `apps/web/app/login/page.tsx` — Placeholder login page (to be replaced)
++- `apps/web/app/login/layout.tsx` — Login layout (SessionProvider + ThemeProvider)
++- `apps/web/proxy.ts` — Middleware for route protection
++- `.chainglass/auth.yaml` — Default allowlist
++- `apps/web/.env.example` — Environment variables
++
++**B. Dependencies Exported**:
++- `signIn("github")` from `next-auth/react` — initiates OAuth flow
++- `SignInButton` component — client component wrapping `signIn()`
++- Login layout with SessionProvider — required for `signIn()` to work
++- `searchParams.error` handling — `AccessDenied` and generic error states
++- Auth.js session cookie — set after successful OAuth
++
++**C. Gotchas & Debt**:
++- `proxy.ts` uses Node.js runtime (not edge) because `allowed-users.ts` imports `node:fs`
++- next-auth v5 is still beta (`5.0.0-beta.30`)
++- Pre-existing Zod type errors in `browser-client.tsx` block `pnpm build` (unrelated to auth)
++- Middleware file renamed from `middleware.ts` to `proxy.ts` for Next.js 16
++
++**D. Incomplete Items**:
++- T009 build verification marked `[~]` — tests pass (4764/4764) but `pnpm build` has pre-existing Zod error
++
++**E. Patterns to Follow**:
++- Feature directory structure: `src/features/063-login/components/`, `lib/`, `hooks/`
++- Client components: `'use client'` directive at top
++- Login page is a server component that reads `searchParams` (async in Next.js 16)
++- Login layout provides SessionProvider + ThemeProvider, no dashboard nav
++
++---
++
++## Pre-Implementation Check
++
++| File | Exists? | Action | Domain Check | Notes |
++|------|---------|--------|-------------|-------|
++| `apps/web/src/features/063-login/components/matrix-rain.tsx` | N | create | ✅ _platform/auth | New client component |
++| `apps/web/src/features/063-login/components/ascii-logo.tsx` | N | create | ✅ _platform/auth | New client component |
++| `apps/web/src/features/063-login/components/crt-overlay.tsx` | N | create | ✅ _platform/auth | Pure CSS, could be server component |
++| `apps/web/src/features/063-login/components/login-screen.tsx` | N | create | ✅ _platform/auth | Composition root, client component |
++| `apps/web/src/features/063-login/components/sign-in-button.tsx` | Y | modify | ✅ _platform/auth | Restyle with terminal aesthetic |
++| `apps/web/app/login/page.tsx` | Y | modify | ✅ _platform/auth | Replace placeholder with LoginScreen |
++| `apps/web/app/globals.css` | Y | modify | cross-domain | Add @keyframes for matrix, glitch, blink + prefers-reduced-motion |
++
++**Concept duplication check**: No existing matrix rain, ASCII art, CRT overlay, or terminal button components found. AsciiSpinner in `_platform/panel-layout` uses `setInterval` frame cycling — different pattern from our CSS-driven approach. No overlap.
++
++---
++
++## Architecture Map
++
++```mermaid
++flowchart TD
++    classDef completed fill:#4CAF50,stroke:#388E3C,color:#fff
++    classDef inprogress fill:#FFC107,stroke:#FFA000,color:#000
++    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
++
++    subgraph Phase1["Phase 1: Complete"]
++        P1_LOGIN["login/page.tsx<br/>(placeholder)"]:::completed
++        P1_LAYOUT["login/layout.tsx"]:::completed
++        P1_BTN["sign-in-button.tsx"]:::completed
++    end
++
++    subgraph Components["T001-T004: New Components"]
++        T001["T001: matrix-rain.tsx"]:::pending
++        T002["T002: ascii-logo.tsx"]:::pending
++        T003["T003: crt-overlay.tsx"]:::pending
++        T004["T004: login-screen.tsx<br/>(composition)"]:::pending
++    end
++
++    subgraph Styling["T005: Restyle Button"]
++        T005["T005: sign-in-button.tsx<br/>terminal aesthetic"]:::pending
++    end
++
++    subgraph Integration["T006-T007: Polish & Integrate"]
++        T006["T006: Responsive +<br/>reduced-motion"]:::pending
++        T007["T007: Integrate into<br/>login/page.tsx"]:::pending
++    end
++
++    subgraph CSS["T005+T006: globals.css"]
++        GCSS["globals.css<br/>@keyframes + a11y"]:::pending
++    end
++
++    T001 --> T004
++    T002 --> T004
++    T003 --> T004
++    T004 --> T007
++    T005 --> T004
++    T006 --> T007
++    T005 -.-> GCSS
++    T006 -.-> GCSS
++
++    P1_LOGIN -.->|"replaced by"| T007
++    P1_BTN -.->|"restyled by"| T005
++```
++
++---
++
++## Tasks
++
++| Status | ID | Task | Domain | Path(s) | Done When | Notes |
++|--------|-----|------|--------|---------|-----------|-------|
++| [ ] | T001 | Create `matrix-rain.tsx` — CSS-driven falling character columns. 30-50 `<span>` columns with random katakana/latin/digit characters, varying speeds (8-20s) and delays (0-10s). Characters in matrix green (#00ff41) with glow text-shadow. CSS `@keyframes matrix-fall` animates `translateY` from -100% to 100vh. Columns rendered in a full-screen absolutely-positioned container. Use `useMemo` for stable random character generation. Mount guard with `useEffect` + `useState` to avoid SSR mismatch. | _platform/auth | `apps/web/src/features/063-login/components/matrix-rain.tsx`, `apps/web/app/globals.css` | Component renders 30+ animated columns of falling characters. Animation loops smoothly. No layout jank. `@keyframes matrix-fall` added to globals.css. | Workshop Layer 1. CSS `transform` + `opacity` only — GPU composited. Mobile: reduce to 15-20 columns via responsive prop. |
++| [ ] | T002 | Create `ascii-logo.tsx` — Hardcoded "CHAINGLASS" in ANSI Shadow figlet font. Render in `<pre>` with `aria-hidden="true"` + hidden `<h1>Chainglass</h1>` for screen readers. Apply CSS glitch effect using `::before`/`::after` pseudo-elements with `clip-path` + color channel offset (red #ff0040, cyan #00ffff). Glitch fires during ~5-8% of animation cycle (subtle, not constant). Logo has gentle glow pulse animation. On mobile (<640px), hide ASCII art and show plain text "CHAINGLASS" in large monospace. | _platform/auth | `apps/web/src/features/063-login/components/ascii-logo.tsx`, `apps/web/app/globals.css` | ASCII logo renders centered with glitch animation. Glitch is subtle (5-8% of cycle). Mobile shows text fallback. Screen readers get proper heading. `@keyframes glitch-1`, `glitch-2`, `logo-glow` added to globals.css. | Workshop Layer 2. Hardcoded art — zero runtime figlet dependency. `data-text` attribute for pseudo-element content. |
++| [ ] | T003 | Create `crt-overlay.tsx` — Fixed overlay with CRT scanline effect via `repeating-linear-gradient` (2px transparent + 2px semi-black). Vignette effect via `box-shadow: inset`. `pointer-events: none`, `z-index: 50`. Can be a server component (pure CSS, no JS). | _platform/auth | `apps/web/src/features/063-login/components/crt-overlay.tsx` | Overlay visible with subtle horizontal lines. Does not block interaction. No JS required. | Workshop Layer 3. Lightest component — pure CSS div. |
++| [ ] | T004 | Create `login-screen.tsx` — Client composition root. Composes: MatrixRain (background) + AsciiLogo (center) + CRTOverlay (top) + SignInButton + error messages. Full-screen `min-h-screen` with terminal black (#0a0a0a) background. "SYSTEM ACCESS REQUIRED" header in amber (#ffb000), monospace, tracking-wide, uppercase. Error messages styled with terminal red (#ff3333). Props: `error?: string`, `deniedUser?: string`. | _platform/auth | `apps/web/src/features/063-login/components/login-screen.tsx` | All layers compose correctly. Content centered vertically and horizontally. Error states render in terminal style. Background animation visible behind content. | Workshop Layer 4. z-index ordering: rain(0) → content(10) → CRT(50). |
++| [ ] | T005 | Restyle `sign-in-button.tsx` with terminal aesthetic: transparent background, 1px solid #00ff41 border, monospace font, uppercase, letter-spacing 2px. Blinking cursor `_` appended via `::after` pseudo-element. Hover: green glow + faint green background. Focus: visible outline for accessibility. Add `@keyframes blink` to globals.css. | _platform/auth | `apps/web/src/features/063-login/components/sign-in-button.tsx`, `apps/web/app/globals.css` | Button has terminal/hacker aesthetic. Cursor blinks. Hover shows glow effect. Focus ring visible for keyboard nav. Text reads "> Sign in with GitHub". | Workshop Layer 4 button styling. Keep `signIn('github')` onClick unchanged. |
++| [ ] | T006 | Add responsive breakpoints and `prefers-reduced-motion` support. Matrix rain: 15 columns on mobile, 25 tablet, 40 desktop. ASCII logo: hidden on mobile (plain text fallback), scale(0.7) on tablet, full on desktop. Add `@media (prefers-reduced-motion: reduce)` block to globals.css: disable all matrix/glitch/blink animations, show static rain at low opacity, cursor visible but not blinking, no scanlines. | _platform/auth | `apps/web/app/globals.css`, component files as needed | Login screen renders correctly at 320px, 768px, 1440px without horizontal scroll. With `prefers-reduced-motion`: no animation, static atmospheric fallback. | Workshop responsive + a11y sections. Test with browser dev tools device emulator. |
++| [ ] | T007 | Integrate `LoginScreen` into `app/login/page.tsx` — replace the placeholder content. Import `LoginScreen`, pass `error` from `searchParams`. Keep page as server component (reads `searchParams`). `LoginScreen` is the client component boundary. Remove old placeholder markup. Verify OAuth flow still works end-to-end if env vars configured. | _platform/auth | `apps/web/app/login/page.tsx` | Login page renders the full animated experience. Error states still work. OAuth flow unaffected. Old placeholder markup removed. | Final integration. Page stays server component, LoginScreen is client boundary. |
++
++---
++
++## Context Brief
++
++### Key findings from plan
++
++- **Finding 02** (Critical): `output: 'standalone'` may not bundle everything — Auth.js already added to `serverExternalPackages` in Phase 1. No new packages in Phase 2.
++- **Finding 06** (High): AsciiSpinner exists in `_platform/panel-layout` using `setInterval` frame cycling. Phase 2 uses CSS-driven animation instead — different pattern, no reuse needed. Reference for the general approach of monospace character animation.
++- **Workshop 001** (Reference): Full design at `docs/plans/063-login/workshops/001-ascii-art-login-screen.md` — defines 4-layer stack, color palette, component architecture, responsive strategy, accessibility, performance budget.
++
++### Domain dependencies
++
++- `_platform/auth`: Login page ownership (Phase 1 deliverable) — we modify `page.tsx` and `sign-in-button.tsx`
++- No other domain contracts consumed — Phase 2 is entirely within `_platform/auth`
++
++### Domain constraints
++
++- All new components go in `apps/web/src/features/063-login/components/`
++- Client components need `'use client'` directive
++- Login page (`app/login/page.tsx`) stays as server component — `LoginScreen` is the client boundary
++- CSS keyframes go in `apps/web/app/globals.css` (existing pattern — 3 keyframes already there)
++- No new npm dependencies — hardcoded ASCII art, CSS-only animations
++
++### Reusable from Phase 1
++
++- `sign-in-button.tsx` — keep `signIn('github', { callbackUrl: '/' })` onClick, restyle only
++- `app/login/layout.tsx` — SessionProvider + ThemeProvider already set up, no changes needed
++- Error handling pattern from `page.tsx` — `searchParams.error` reading, `AccessDenied` vs generic
++
++### Color palette (from workshop)
++
++| Name | Hex | Usage |
++|------|-----|-------|
++| Terminal Black | `#0a0a0a` | Background |
++| Matrix Green | `#00ff41` | Primary text, logo, button border |
++| Matrix Green (dim) | `rgba(0, 255, 65, 0.3)` | Rain characters, glow effects |
++| Glitch Red | `#ff0040` | Glitch ::before layer |
++| Glitch Cyan | `#00ffff` | Glitch ::after layer |
++| Error Red | `#ff3333` | "Not authorized" message |
++| Amber | `#ffb000` | "SYSTEM ACCESS REQUIRED" header |
++
++### Component interaction flow
++
++```mermaid
++flowchart LR
++    classDef server fill:#E8F5E9,stroke:#4CAF50,color:#000
++    classDef client fill:#E3F2FD,stroke:#2196F3,color:#000
++    classDef css fill:#FFF3E0,stroke:#FF9800,color:#000
++
++    PAGE["page.tsx<br/>(server)"]:::server
++    LS["LoginScreen<br/>(client)"]:::client
++    MR["MatrixRain<br/>(client)"]:::client
++    AL["AsciiLogo<br/>(client)"]:::client
++    CRT["CRTOverlay<br/>(server)"]:::css
++    SIB["SignInButton<br/>(client)"]:::client
++    CSS["globals.css<br/>@keyframes"]:::css
++
++    PAGE -->|"error prop"| LS
++    LS --> MR
++    LS --> AL
++    LS --> CRT
++    LS --> SIB
++    MR -.->|"uses"| CSS
++    AL -.->|"uses"| CSS
++    SIB -.->|"uses"| CSS
++```
++
++### OAuth flow sequence (unchanged from Phase 1)
++
++```mermaid
++sequenceDiagram
++    participant U as User Browser
++    participant L as /login (LoginScreen)
++    participant AJ as Auth.js
++    participant GH as GitHub
++
++    U->>L: See animated login screen
++    U->>L: Click "Sign in with GitHub"
++    L->>AJ: signIn("github")
++    AJ->>GH: Redirect to GitHub OAuth
++    GH-->>AJ: Callback with code
++    AJ-->>U: Set session cookie, redirect to /
++```
++
++### Performance budget (from workshop)
++
++| Metric | Target | Approach |
++|--------|--------|----------|
++| FPS | 60fps sustained | CSS `transform` + `opacity` only (GPU-composited) |
++| JS bundle | <5KB added | No libraries, hardcoded art, CSS animations |
++| LCP | <1s | Static HTML + CSS, no data fetching |
++| CLS | 0 | Fixed dimensions, no layout shift |
++
++---
++
++## Discoveries & Learnings
++
++_Populated during implementation by plan-6._
++
++| Date | Task | Type | Discovery | Resolution | References |
++|------|------|------|-----------|------------|------------|
++
++---
++
++## Directory Layout
++
++```
++docs/plans/063-login/
++  ├── login-plan.md
++  ├── login-spec.md
++  ├── workshops/001-ascii-art-login-screen.md
++  └── tasks/
++      ├── phase-1-core-auth-infrastructure/
++      │   ├── tasks.md
++      │   ├── tasks.fltplan.md
++      │   └── execution.log.md
++      └── phase-2-ascii-art-animated-login-screen/
++          ├── tasks.md              ← this file
++          ├── tasks.fltplan.md      ← generated next
++          └── execution.log.md     # created by plan-6
++```
+diff --git a/docs/plans/063-login/workshops/001-ascii-art-login-screen.md b/docs/plans/063-login/workshops/001-ascii-art-login-screen.md
+new file mode 100644
+index 0000000..5d24893
+--- /dev/null
++++ b/docs/plans/063-login/workshops/001-ascii-art-login-screen.md
+@@ -0,0 +1,492 @@
++# Workshop: ASCII Art Animated Login Screen
++
++**Type**: UI/Animation
++**Plan**: 063-login
++**Spec**: [login-spec.md](../login-spec.md)
++**Created**: 2026-03-02
++**Status**: Draft
++
++**Related Documents**:
++- [login-plan.md](../login-plan.md) — Phase 2 tasks reference this workshop
++- [research-dossier.md](../research-dossier.md) — Finding 06: AsciiSpinner pattern
++
++**Domain Context**:
++- **Primary Domain**: `_platform/auth` (login page owned by auth domain)
++- **Related Domains**: `_platform/panel-layout` (AsciiSpinner pattern reuse)
++
++---
++
++## Purpose
++
++Design the animated ASCII art login screen — the first thing users see when accessing Chainglass. The screen should feel like a hacker console / cyberpunk terminal, with the Chainglass logo rendered in large ASCII art, animated background effects, and a "Sign in with GitHub" button that matches the aesthetic. This workshop defines the visual design, animation techniques, component architecture, and performance strategy.
++
++## Key Questions Addressed
++
++- What animation effects create the hacker-console feel?
++- How to render the Chainglass logo in ASCII art?
++- What color scheme and visual effects to use?
++- How to make it performant (60fps) and accessible (prefers-reduced-motion)?
++- What libraries (if any) to use vs building from scratch?
++- How does it work responsively on mobile?
++
++---
++
++## Design Vision
++
++### The Feel
++
++A dark terminal screen boots up. Matrix-style characters rain down the screen. The Chainglass logo materializes in the center — large ASCII block text that glitches and flickers as if being transmitted through a noisy channel. Below it, a blinking terminal cursor, then a "Sign in with GitHub" button styled like a command prompt. Scanlines overlay everything. It feels like you're logging into a classified system.
++
++### Reference Aesthetic
++
++```
++┌─────────────────────────────────────────────────────────────────────┐
++│                                                                     │
++│  ░▒▓ cascading matrix characters ▓▒░                               │
++│  ░▒▓ different speeds, different opacity ▓▒░                       │
++│                                                                     │
++│         ██████╗██╗  ██╗ █████╗ ██╗███╗   ██╗                       │
++│        ██╔════╝██║  ██║██╔══██╗██║████╗  ██║                       │
++│        ██║     ███████║███████║██║██╔██╗ ██║                       │
++│        ██║     ██╔══██║██╔══██║██║██║╚██╗██║                       │
++│        ╚██████╗██║  ██║██║  ██║██║██║ ╚████║                       │
++│         ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝                    │
++│         ██████╗ ██╗      █████╗ ███████╗███████╗                    │
++│        ██╔════╝ ██║     ██╔══██╗██╔════╝██╔════╝                   │
++│        ██║  ███╗██║     ███████║███████╗███████╗                    │
++│        ██║   ██║██║     ██╔══██║╚════██║╚════██║                   │
++│        ╚██████╔╝███████╗██║  ██║███████║███████║                   │
++│         ╚═════╝ ╚══════╝╚═╝  ╚═╝╚══════╝╚══════╝                  │
++│                                                                     │
++│                    ▌ SYSTEM ACCESS REQUIRED ▐                       │
++│                                                                     │
++│                  ┌──────────────────────────┐                       │
++│                  │  > Sign in with GitHub _  │                      │
++│                  └──────────────────────────┘                       │
++│                                                                     │
++│  ░▒▓ scanline overlay ▓▒░                                          │
++│                                                                     │
++└─────────────────────────────────────────────────────────────────────┘
++```
++
++---
++
++## Animation Effects Stack
++
++### Layer 1: Matrix Rain Background (lowest)
++
++Falling columns of random characters at varying speeds and opacity. Pure CSS + minimal JS.
++
++**Technique**: CSS `@keyframes` on absolutely-positioned `<span>` columns.
++
++```
++Approach: CSS-driven matrix rain
++─────────────────────────────────────────────
++• 30-50 columns of characters
++• Each column: random speed (8-20s), random delay (0-10s)
++• Characters: katakana + latin + digits (ﾊﾐﾋｰｳｼﾅﾓﾆｻﾜﾂｵﾘ 0-9 A-Z)
++• Color: #00ff41 (matrix green) with opacity gradient (1.0 → 0.0 top to bottom)
++• Each column: 15-25 characters tall
++• Animation: translateY from -100% to 100vh, infinite loop
++• On mobile: reduce to 15-20 columns
++```
++
++**Implementation**:
++```tsx
++'use client';
++
++const CHARS = 'ﾊﾐﾋｰｳｼﾅﾓﾆｻﾜﾂｵﾘ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
++
++function MatrixColumn({ delay, speed, left }: { delay: number; speed: number; left: string }) {
++  // Generate random character string on mount
++  const chars = useMemo(() =>
++    Array.from({ length: 20 }, () => CHARS[Math.floor(Math.random() * CHARS.length)]).join('\n'),
++    []
++  );
++
++  return (
++    <span
++      className="absolute top-0 font-mono text-xs text-green-400 opacity-70 whitespace-pre pointer-events-none select-none"
++      style={{
++        left,
++        animation: `matrix-fall ${speed}s linear ${delay}s infinite`,
++        textShadow: '0 0 8px rgba(0, 255, 65, 0.6)',
++      }}
++    >
++      {chars}
++    </span>
++  );
++}
++```
++
++**CSS keyframe**:
++```css
++@keyframes matrix-fall {
++  0% { transform: translateY(-100%); opacity: 0; }
++  10% { opacity: 0.7; }
++  90% { opacity: 0.7; }
++  100% { transform: translateY(100vh); opacity: 0; }
++}
++```
++
++**Why CSS over canvas/JS**: 
++- GPU-accelerated (transform + opacity are compositor-only properties)
++- No JavaScript per-frame overhead
++- Naturally handles `prefers-reduced-motion` via CSS media query
++- Consistent with codebase pattern (CSS keyframes in globals.css)
++
++### Layer 2: ASCII Logo (middle)
++
++Large block-letter "CHAINGLASS" logo using figlet-generated text, with a glitch animation.
++
++**Technique**: Static ASCII text with CSS glitch effect (clip-path + color channel offset).
++
++**Logo generation**: Use `figlet` npm package with `ANSI Shadow` font at build time or client-side.
++
++```
++ ██████╗██╗  ██╗ █████╗ ██╗███╗   ██╗ ██████╗ ██╗      █████╗ ███████╗███████╗
++██╔════╝██║  ██║██╔══██╗██║████╗  ██║██╔════╝ ██║     ██╔══██╗██╔════╝██╔════╝
++██║     ███████║███████║██║██╔██╗ ██║██║  ███╗██║     ███████║███████╗███████╗
++██║     ██╔══██║██╔══██║██║██║╚██╗██║██║   ██║██║     ██╔══██║╚════██║╚════██║
++╚██████╗██║  ██║██║  ██║██║██║ ╚████║╚██████╔╝███████╗██║  ██║███████║███████║
++ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝╚═╝  ╚═╝╚══════╝╚══════╝
++```
++
++**Glitch effect** (CSS-only, no JS):
++```css
++.ascii-logo {
++  position: relative;
++  color: #00ff41;
++  text-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
++  animation: logo-glow 4s ease-in-out infinite alternate;
++}
++
++/* Glitch layers using ::before and ::after */
++.ascii-logo::before,
++.ascii-logo::after {
++  content: attr(data-text);
++  position: absolute;
++  top: 0;
++  left: 0;
++  width: 100%;
++  height: 100%;
++}
++
++.ascii-logo::before {
++  color: #ff0040;
++  animation: glitch-1 3s infinite linear;
++  clip-path: polygon(0 0, 100% 0, 100% 33%, 0 33%);
++}
++
++.ascii-logo::after {
++  color: #0ff;
++  animation: glitch-2 3s infinite linear;
++  clip-path: polygon(0 67%, 100% 67%, 100% 100%, 0 100%);
++}
++
++@keyframes glitch-1 {
++  0%, 94% { transform: translate(0); }
++  95% { transform: translate(-3px, 1px); }
++  96% { transform: translate(2px, -1px); }
++  97% { transform: translate(-1px, 2px); }
++  98% { transform: translate(3px, 0); }
++  99% { transform: translate(-2px, -1px); }
++  100% { transform: translate(0); }
++}
++
++@keyframes glitch-2 {
++  0%, 92% { transform: translate(0); }
++  93% { transform: translate(2px, -1px); }
++  95% { transform: translate(-3px, 1px); }
++  97% { transform: translate(1px, -2px); }
++  99% { transform: translate(-1px, 2px); }
++  100% { transform: translate(0); }
++}
++
++@keyframes logo-glow {
++  from { text-shadow: 0 0 10px rgba(0, 255, 65, 0.3), 0 0 20px rgba(0, 255, 65, 0.1); }
++  to { text-shadow: 0 0 15px rgba(0, 255, 65, 0.5), 0 0 30px rgba(0, 255, 65, 0.2); }
++}
++```
++
++**Why figlet**: Browser-compatible, generates consistent ASCII art from any text, supports multiple fonts. Can pre-generate at build time and hardcode the string (zero runtime cost) or generate client-side for dynamic text.
++
++**Why CSS glitch over JS**: No per-frame JS. Glitch fires infrequently (5-8% of animation cycle) — appears as occasional distortion, not constant noise. GPU-composited via transform + clip-path.
++
++### Layer 3: CRT Scanline Overlay (highest)
++
++Subtle horizontal lines + slight vignette for CRT monitor feel.
++
++```css
++.crt-overlay {
++  position: fixed;
++  inset: 0;
++  pointer-events: none;
++  z-index: 50;
++  background: repeating-linear-gradient(
++    0deg,
++    transparent,
++    transparent 2px,
++    rgba(0, 0, 0, 0.05) 2px,
++    rgba(0, 0, 0, 0.05) 4px
++  );
++  /* Vignette effect */
++  box-shadow: inset 0 0 150px rgba(0, 0, 0, 0.5);
++}
++```
++
++### Layer 4: UI Elements (sign-in button, status text)
++
++```
++┌─ Sign-in area ──────────────────────────────────────────┐
++│                                                         │
++│  "SYSTEM ACCESS REQUIRED" — static text, terminal font  │
++│                                                         │
++│  ┌───────────────────────────────┐                      │
++│  │  > Sign in with GitHub _     │ ← blinking cursor     │
++│  └───────────────────────────────┘                      │
++│                                                         │
++│  Error: "User 'xyz' is not authorized" (if denied)      │
++│                                                         │
++└─────────────────────────────────────────────────────────┘
++```
++
++**Button styling**: 
++```css
++.terminal-button {
++  background: transparent;
++  border: 1px solid #00ff41;
++  color: #00ff41;
++  font-family: ui-monospace, monospace;
++  padding: 12px 24px;
++  cursor: pointer;
++  text-transform: uppercase;
++  letter-spacing: 2px;
++  position: relative;
++}
++
++.terminal-button::after {
++  content: '_';
++  animation: blink 1s step-end infinite;
++}
++
++.terminal-button:hover {
++  background: rgba(0, 255, 65, 0.1);
++  box-shadow: 0 0 15px rgba(0, 255, 65, 0.3);
++}
++
++@keyframes blink {
++  0%, 50% { opacity: 1; }
++  51%, 100% { opacity: 0; }
++}
++```
++
++---
++
++## Color Palette
++
++| Name | Hex | Usage |
++|------|-----|-------|
++| Terminal Black | `#0a0a0a` | Background |
++| Matrix Green | `#00ff41` | Primary text, logo, button border |
++| Matrix Green (dim) | `rgba(0, 255, 65, 0.3)` | Rain characters, glow effects |
++| Glitch Red | `#ff0040` | Glitch ::before layer |
++| Glitch Cyan | `#00ffff` | Glitch ::after layer |
++| Error Red | `#ff3333` | "Not authorized" message |
++| Muted Gray | `#333333` | Scanlines, secondary text |
++| Amber | `#ffb000` | "SYSTEM ACCESS REQUIRED" header |
++
++---
++
++## Component Architecture
++
++```
++app/login/page.tsx (server component)
++  ├── reads searchParams.error (await)
++  └── renders <LoginScreen error={...} />
++
++app/login/layout.tsx (server component)
++  └── <SessionProvider> + <ThemeProvider> wrapper (no dashboard nav)
++
++src/features/063-login/components/
++  ├── login-screen.tsx        'use client' — full composition
++  │   ├── <MatrixRain />      background layer
++  │   ├── <AsciiLogo />       center logo with glitch
++  │   ├── <CRTOverlay />      scanline overlay
++  │   ├── <SignInButton />     terminal-styled button
++  │   └── <AccessDenied />    error message (conditional)
++  │
++  ├── matrix-rain.tsx         'use client' — CSS-driven columns
++  ├── ascii-logo.tsx          'use client' — figlet text + glitch CSS
++  ├── crt-overlay.tsx         server component (pure CSS, no JS)
++  └── sign-in-button.tsx      'use client' — calls signIn("github")
++```
++
++### login-screen.tsx (composition root)
++
++```tsx
++'use client';
++
++import { MatrixRain } from './matrix-rain';
++import { AsciiLogo } from './ascii-logo';
++import { CRTOverlay } from './crt-overlay';
++import { SignInButton } from './sign-in-button';
++
++interface LoginScreenProps {
++  error?: string;
++  deniedUser?: string;
++}
++
++export function LoginScreen({ error, deniedUser }: LoginScreenProps) {
++  return (
++    <div className="relative min-h-screen bg-[#0a0a0a] overflow-hidden flex items-center justify-center">
++      {/* Layer 1: Matrix rain background */}
++      <MatrixRain />
++
++      {/* Layer 3: CRT scanlines */}
++      <CRTOverlay />
++
++      {/* Layer 2+4: Center content */}
++      <div className="relative z-10 flex flex-col items-center gap-8 px-4">
++        <AsciiLogo />
++
++        <p className="font-mono text-sm text-[#ffb000] tracking-[0.3em] uppercase">
++          System Access Required
++        </p>
++
++        <SignInButton />
++
++        {error === 'AccessDenied' && deniedUser && (
++          <p className="font-mono text-sm text-[#ff3333]">
++            Access denied: User &apos;{deniedUser}&apos; is not authorized
++          </p>
++        )}
++      </div>
++    </div>
++  );
++}
++```
++
++---
++
++## Library Decision
++
++### Recommended: `figlet` for ASCII text + Pure CSS for everything else
++
++| Concern | Approach | Library? |
++|---------|----------|----------|
++| ASCII logo text | `figlet` npm package (browser-compatible) | **Yes — `figlet`** |
++| Matrix rain | CSS `@keyframes` + `<span>` columns | No library |
++| Glitch effect | CSS `::before`/`::after` + `clip-path` | No library |
++| CRT scanlines | CSS `repeating-linear-gradient` | No library |
++| Blinking cursor | CSS `@keyframes blink` | No library |
++| Button styling | Tailwind + custom CSS | No library |
++
++**Why not canvas**: Canvas requires `requestAnimationFrame` loop, more JS overhead, harder to make accessible, doesn't integrate with React rendering model. CSS animations are GPU-accelerated by default.
++
++**Why not `react-terminal-ui`**: It's a terminal emulator component — overkill for a login screen. We're building a visual aesthetic, not an interactive terminal.
++
++**Why `figlet`**: It's 1 dependency, browser-compatible, generates perfect ASCII art from any string. Alternative: hardcode the ASCII art as a string constant (zero runtime cost, but harder to change).
++
++### Alternative: Hardcoded ASCII Art (Zero Dependencies)
++
++If you prefer no extra dependency, hardcode the logo:
++
++```typescript
++const CHAINGLASS_LOGO = `
++ ██████╗██╗  ██╗ █████╗ ██╗███╗   ██╗ ██████╗ ██╗      █████╗ ███████╗███████╗
++██╔════╝██║  ██║██╔══██╗██║████╗  ██║██╔════╝ ██║     ██╔══██╗██╔════╝██╔════╝
++██║     ███████║███████║██║██╔██╗ ██║██║  ███╗██║     ███████║███████╗███████╗
++██║     ██╔══██║██╔══██║██║██║╚██╗██║██║   ██║██║     ██╔══██║╚════██║╚════██║
++╚██████╗██║  ██║██║  ██║██║██║ ╚████║╚██████╔╝███████╗██║  ██║███████║███████║
++ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝╚═╝  ╚═╝╚══════╝╚══════╝`;
++```
++
++**Tradeoff**: Zero dependency, zero runtime cost. But changing the text or font requires manual regeneration.
++
++---
++
++## Responsive Strategy
++
++| Breakpoint | Logo | Rain Columns | Font Size |
++|------------|------|-------------|-----------|
++| Mobile (<640px) | Hide ASCII logo, show plain text "CHAINGLASS" in large monospace | 15 columns | text-xs |
++| Tablet (640-1024px) | Show ASCII logo, scale down with `transform: scale(0.7)` | 25 columns | text-xs |
++| Desktop (>1024px) | Full ASCII logo | 40 columns | text-sm |
++
++**Mobile fallback for logo**:
++```tsx
++<div className="hidden sm:block">
++  <AsciiLogo /> {/* Full ASCII art */}
++</div>
++<h1 className="block sm:hidden font-mono text-3xl text-[#00ff41] tracking-wider">
++  CHAINGLASS
++</h1>
++```
++
++---
++
++## Accessibility
++
++### prefers-reduced-motion
++
++```css
++@media (prefers-reduced-motion: reduce) {
++  .matrix-column { animation: none !important; opacity: 0.15; }
++  .ascii-logo::before, .ascii-logo::after { animation: none !important; }
++  .terminal-button::after { animation: none !important; opacity: 1; }
++  .crt-overlay { background: none; }
++}
++```
++
++**Reduced-motion experience**: Static matrix characters at low opacity (atmospheric without movement), logo without glitch effect, cursor visible but not blinking, no scanlines.
++
++### Other Accessibility
++
++- Button has proper focus ring (`:focus-visible` outline)
++- Error message uses `role="alert"` for screen readers
++- Color contrast: green (#00ff41) on black (#0a0a0a) = 12.6:1 ratio ✅ (WCAG AAA)
++- ASCII art logo has `aria-hidden="true"` + visually hidden `<h1>Chainglass</h1>` for screen readers
++
++---
++
++## Performance Budget
++
++| Metric | Target | Approach |
++|--------|--------|----------|
++| FPS | 60fps sustained | CSS animations only (GPU-composited) |
++| JS bundle | <5KB for login screen | No heavy libraries |
++| LCP | <1s | Static HTML + CSS, no data fetching |
++| CLS | 0 | Fixed dimensions, no layout shift |
++| Memory | <20MB | No canvas, no WebGL |
++
++**Key insight**: All animations use CSS `transform` and `opacity` only — these are composited on the GPU and never trigger layout/paint. The browser's animation engine handles timing, not JavaScript.
++
++---
++
++## Implementation Sequence (Phase 2 Tasks)
++
++1. **Create matrix-rain.tsx** — CSS columns with falling characters
++2. **Create ascii-logo.tsx** — Hardcoded ANSI Shadow logo + CSS glitch
++3. **Create crt-overlay.tsx** — Pure CSS scanline + vignette
++4. **Create sign-in-button.tsx** — Terminal-styled button with cursor blink
++5. **Create login-screen.tsx** — Compose all layers
++6. **Add responsive breakpoints** — Mobile plain text, tablet scaled, desktop full
++7. **Add prefers-reduced-motion** — Static fallback
++8. **Integrate into /login page** — Replace Phase 1 placeholder
++
++---
++
++## Open Questions
++
++### Q1: figlet dependency or hardcoded ASCII art?
++
++**RECOMMENDATION: Hardcoded** — Zero runtime cost, zero dependency. The logo text "CHAINGLASS" won't change. Pre-generate with `npx figlet -f "ANSI Shadow" CHAINGLASS` and paste as a constant. If we want to experiment with fonts during development, temporarily install figlet, generate a few options, pick the best, hardcode it, and remove figlet.
++
++### Q2: How much glitch is too much?
++
++**RECOMMENDATION: Subtle** — Glitch fires during only 5-8% of the animation cycle (3s loop, ~200ms of glitch). Rest of the time the logo is stable with a gentle glow pulse. Users shouldn't feel nauseous or distracted — the glitch is a flavor, not the main event.
++
++### Q3: Should the matrix rain characters change periodically?
++
++**RECOMMENDATION: No** — Each column renders with random characters on mount and loops forever. Changing characters mid-animation requires JS intervention and breaks the pure-CSS approach. The visual effect is identical since users don't track individual characters.
+diff --git a/test/unit/web/features/063-login/lib/allowed-users.test.ts b/test/unit/web/features/063-login/lib/allowed-users.test.ts
+new file mode 100644
+index 0000000..fe07c27
+--- /dev/null
++++ b/test/unit/web/features/063-login/lib/allowed-users.test.ts
+@@ -0,0 +1,56 @@
++import { describe, expect, it } from 'vitest';
++import { loadAllowedUsers, isUserAllowed } from '@/features/063-login/lib/allowed-users';
++import { resolve } from 'node:path';
++
++const FIXTURES_DIR = resolve(__dirname, 'fixtures');
++
++describe('loadAllowedUsers', () => {
++  it('parses valid YAML with a list of usernames', () => {
++    const users = loadAllowedUsers(resolve(FIXTURES_DIR, 'valid-auth.yaml'));
++    expect(users).toBeInstanceOf(Set);
++    expect(users.has('jakkaj')).toBe(true);
++    expect(users.has('otheruser')).toBe(true);
++  });
++
++  it('returns lowercase usernames for case-insensitive matching', () => {
++    const users = loadAllowedUsers(resolve(FIXTURES_DIR, 'mixed-case-auth.yaml'));
++    expect(users.has('jakkaj')).toBe(true);
++    expect(users.has('upperuser')).toBe(true);
++  });
++
++  it('returns empty set when file is missing', () => {
++    const users = loadAllowedUsers('/nonexistent/path/auth.yaml');
++    expect(users).toBeInstanceOf(Set);
++    expect(users.size).toBe(0);
++  });
++
++  it('returns empty set when YAML is invalid', () => {
++    const users = loadAllowedUsers(resolve(FIXTURES_DIR, 'invalid-auth.yaml'));
++    expect(users).toBeInstanceOf(Set);
++    expect(users.size).toBe(0);
++  });
++
++  it('returns empty set when allowed_users is empty', () => {
++    const users = loadAllowedUsers(resolve(FIXTURES_DIR, 'empty-auth.yaml'));
++    expect(users).toBeInstanceOf(Set);
++    expect(users.size).toBe(0);
++  });
++});
++
++describe('isUserAllowed', () => {
++  it('returns true for allowed users', () => {
++    expect(isUserAllowed('jakkaj', resolve(FIXTURES_DIR, 'valid-auth.yaml'))).toBe(true);
++  });
++
++  it('returns true for case-insensitive match', () => {
++    expect(isUserAllowed('JakkaJ', resolve(FIXTURES_DIR, 'valid-auth.yaml'))).toBe(true);
++  });
++
++  it('returns false for unlisted users', () => {
++    expect(isUserAllowed('intruder', resolve(FIXTURES_DIR, 'valid-auth.yaml'))).toBe(false);
++  });
++
++  it('returns false when file is missing', () => {
++    expect(isUserAllowed('jakkaj', '/nonexistent/path/auth.yaml')).toBe(false);
++  });
++});
+diff --git a/test/unit/web/features/063-login/lib/fixtures/empty-auth.yaml b/test/unit/web/features/063-login/lib/fixtures/empty-auth.yaml
+new file mode 100644
+index 0000000..64512ed
+--- /dev/null
++++ b/test/unit/web/features/063-login/lib/fixtures/empty-auth.yaml
+@@ -0,0 +1 @@
++allowed_users: []
+diff --git a/test/unit/web/features/063-login/lib/fixtures/invalid-auth.yaml b/test/unit/web/features/063-login/lib/fixtures/invalid-auth.yaml
+new file mode 100644
+index 0000000..125256c
+--- /dev/null
++++ b/test/unit/web/features/063-login/lib/fixtures/invalid-auth.yaml
+@@ -0,0 +1 @@
++this is not valid yaml: [[[
+diff --git a/test/unit/web/features/063-login/lib/fixtures/mixed-case-auth.yaml b/test/unit/web/features/063-login/lib/fixtures/mixed-case-auth.yaml
+new file mode 100644
+index 0000000..138a204
+--- /dev/null
++++ b/test/unit/web/features/063-login/lib/fixtures/mixed-case-auth.yaml
+@@ -0,0 +1,3 @@
++allowed_users:
++  - JakkaJ
++  - UpperUser
+diff --git a/test/unit/web/features/063-login/lib/fixtures/valid-auth.yaml b/test/unit/web/features/063-login/lib/fixtures/valid-auth.yaml
+new file mode 100644
+index 0000000..76bb75b
+--- /dev/null
++++ b/test/unit/web/features/063-login/lib/fixtures/valid-auth.yaml
+@@ -0,0 +1,3 @@
++allowed_users:
++  - jakkaj
++  - otheruser

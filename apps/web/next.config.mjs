@@ -38,6 +38,8 @@ const nextConfig = {
     'vscode-oniguruma',
     '@shikijs/core',
     '@shikijs/engine-oniguruma',
+    'next-auth',
+    '@auth/core',
   ],
   // Webpack config to handle Shiki's node: protocol imports on client side
   webpack: (config, { isServer }) => {
