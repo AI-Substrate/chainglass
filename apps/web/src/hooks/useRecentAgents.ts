@@ -63,7 +63,10 @@ const PROTECTED_STATUSES = new Set(['working', 'waiting_input']);
  * @param worktreeSlug - Worktree slug for localStorage scoping
  */
 export function useRecentAgents(workspace?: string, worktreeSlug?: string): UseRecentAgentsReturn {
-  const { agents: rawAgents, isLoading } = useAgentManager({ workspace });
+  const { agents: rawAgents, isLoading } = useAgentManager({
+    workspace,
+    subscribeToSSE: false,
+  });
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => {
     if (!worktreeSlug) return new Set();
     const stored = readStorage<string[]>(STORAGE_KEYS.dismissed(worktreeSlug), []);
