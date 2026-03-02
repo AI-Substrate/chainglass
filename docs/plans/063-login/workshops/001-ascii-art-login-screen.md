@@ -125,7 +125,7 @@ function MatrixColumn({ delay, speed, left }: { delay: number; speed: number; le
   0% { transform: translateY(-100%); opacity: 0; }
   10% { opacity: 0.7; }
   90% { opacity: 0.7; }
-  100% { transform: translateY(100vh); opacity: 0; }
+  100% { transform: translateY(100dvh); opacity: 0; }
 }
 ```
 
