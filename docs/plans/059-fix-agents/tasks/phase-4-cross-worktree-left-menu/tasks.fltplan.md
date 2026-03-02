@@ -3,7 +3,7 @@
 **Plan**: [fix-agents-plan.md](../../fix-agents-plan.md) (Phase D)
 **Phase**: Phase 4: Cross-Worktree & Left Menu
 **Generated**: 2026-03-02
-**Status**: In Review
+**Status**: Landed
 
 ---
 
@@ -101,9 +101,9 @@ flowchart LR
 
 ## Acceptance Criteria
 
-- [ ] AC-29: Left menu shows activity badges (🟡 questions, 🔴 errors, 🔵 working) in both nav modes
-- [ ] AC-30: Badges for OTHER worktrees when one is selected; all worktrees when none selected
-- [ ] AC-31: Click badge → navigate to that worktree's agent page
+- [x] AC-29: Left menu shows activity badges (🟡 questions, 🔴 errors, 🔵 working) in both nav modes
+- [x] AC-30: Badges for OTHER worktrees when one is selected; all worktrees when none selected
+- [x] AC-31: Click badge → navigate to that worktree's agent page
 
 ## Goals & Non-Goals
 
