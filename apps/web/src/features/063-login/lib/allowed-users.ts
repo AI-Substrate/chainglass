@@ -28,7 +28,22 @@ export function loadAllowedUsers(filePath: string): Set<string> {
  * Case-insensitive comparison.
  */
 export function isUserAllowed(username: string, filePath?: string): boolean {
-  const configPath = filePath ?? `${process.cwd()}/.chainglass/auth.yaml`;
+  // Walk up from cwd to find .chainglass/auth.yaml (handles monorepo where cwd is apps/web)
+  const configPath = filePath ?? findAuthConfig();
   const allowed = loadAllowedUsers(configPath);
   return allowed.has(username.toLowerCase());
+}
+
+function findAuthConfig(): string {
+  const { existsSync } = require('node:fs') as typeof import('node:fs');
+  const { resolve, dirname } = require('node:path') as typeof import('node:path');
+  let dir = process.cwd();
+  for (let i = 0; i < 5; i++) {
+    const candidate = resolve(dir, '.chainglass/auth.yaml');
+    if (existsSync(candidate)) return candidate;
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return resolve(process.cwd(), '.chainglass/auth.yaml');
 }
