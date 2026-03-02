@@ -12,3 +12,5 @@ export {
   FakeResizeObserver,
   createMockElement,
 } from './fake-resize-observer';
+export { FakeTmuxExecutor } from './fake-tmux-executor';
+export { FakePty, createFakePtySpawner } from './fake-pty';

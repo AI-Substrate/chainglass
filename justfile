@@ -13,9 +13,15 @@ install:
     pnpm install
     @cd apps/cli && pnpm link --global 2>/dev/null || echo "Note: Run 'pnpm setup' and restart your shell to enable global 'cg' command"
 
-# Start development server
+# Start development server (Next.js + terminal WebSocket sidecar)
 dev:
-    pnpm turbo dev
+    pnpm concurrently --names "next,terminal" --prefix-colors "blue,green" \
+      "pnpm turbo dev" \
+      "pnpm tsx watch apps/web/src/features/064-terminal/server/terminal-ws.ts"
+
+# Start terminal WebSocket server only
+dev-terminal:
+    pnpm tsx watch apps/web/src/features/064-terminal/server/terminal-ws.ts
 
 # Build all packages
 build:

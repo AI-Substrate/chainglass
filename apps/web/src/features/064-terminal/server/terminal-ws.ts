@@ -1,0 +1,186 @@
+/**
+ * Terminal WebSocket Server — Sidecar process for terminal I/O
+ *
+ * Runs alongside Next.js as a separate Node.js process.
+ * Accepts WebSocket connections, spawns PTY processes attached to
+ * tmux sessions, and pipes I/O bidirectionally.
+ *
+ * Architecture: Sidecar (DR-02) — preserves Turbopack HMR.
+ * tmux integration: atomic create-or-attach via `new-session -A` (DR-03).
+ * DYK-04: Binds 0.0.0.0 for remote access.
+ *
+ * Plan 064: Terminal Integration via tmux
+ */
+
+import { WebSocketServer, type WebSocket } from 'ws';
+import { TmuxSessionManager } from './tmux-session-manager';
+import type { CommandExecutor, PtyProcess, PtySpawner } from '../types';
+
+export interface TerminalServerDeps {
+  execCommand: CommandExecutor;
+  spawnPty: PtySpawner;
+}
+
+export interface TerminalServer {
+  handleConnection: (ws: WebSocket, sessionName: string, cwd: string) => void;
+  derivePort: (nextPort: number) => number;
+  start: (port: number) => void;
+  close: () => void;
+}
+
+export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
+  const manager = new TmuxSessionManager(deps.execCommand, deps.spawnPty);
+  const activePtys = new Set<PtyProcess>();
+  let wss: WebSocketServer | null = null;
+
+  function handleConnection(ws: WebSocket, sessionName: string, cwd: string): void {
+    const tmuxAvailable = manager.isTmuxAvailable();
+    let pty: PtyProcess;
+
+    if (tmuxAvailable) {
+      pty = manager.spawnAttachedPty(sessionName, cwd, 80, 24);
+      ws.send(JSON.stringify({ type: 'status', status: 'connected', tmux: true }));
+    } else {
+      pty = manager.spawnRawShell(cwd, 80, 24);
+      ws.send(JSON.stringify({
+        type: 'status',
+        status: 'connected',
+        tmux: false,
+        message: 'tmux not available — using raw shell. Sessions won\'t persist across page refreshes.',
+      }));
+    }
+
+    activePtys.add(pty);
+
+    pty.onData((data: string) => {
+      if ((ws as unknown as { readyState: number }).readyState === 1) {
+        ws.send(data);
+      }
+    });
+
+    pty.onExit(() => {
+      activePtys.delete(pty);
+      if ((ws as unknown as { readyState: number }).readyState === 1) {
+        ws.send(JSON.stringify({ type: 'status', status: 'exited' }));
+        ws.close(1000, 'PTY exited');
+      }
+    });
+
+    ws.on('message', (raw: Buffer | string) => {
+      const data = raw.toString();
+
+      // Try to parse as JSON for control messages
+      try {
+        const msg = JSON.parse(data);
+        if (msg.type === 'resize' && typeof msg.cols === 'number' && typeof msg.rows === 'number') {
+          pty.resize(msg.cols, msg.rows);
+          return;
+        }
+        if (msg.type === 'resync') {
+          // Client requests re-fit — no server action needed, just acknowledge
+          return;
+        }
+      } catch {
+        // Not JSON — treat as raw terminal input
+      }
+
+      pty.write(data);
+    });
+
+    ws.on('close', () => {
+      activePtys.delete(pty);
+      pty.kill();
+    });
+  }
+
+  function derivePort(nextPort: number): number {
+    return nextPort + 1500;
+  }
+
+  function cleanup(): void {
+    for (const pty of activePtys) {
+      pty.kill();
+    }
+    activePtys.clear();
+  }
+
+  function start(port: number): void {
+    wss = new WebSocketServer({ port, host: '0.0.0.0' });
+
+    wss.on('connection', (ws: WebSocket, req) => {
+      const url = new URL(req.url ?? '/', `http://${req.headers.host}`);
+      const sessionName = url.searchParams.get('session');
+      const cwd = url.searchParams.get('cwd') ?? process.cwd();
+
+      if (!sessionName || !manager.validateSessionName(sessionName)) {
+        ws.send(JSON.stringify({ type: 'error', message: 'Invalid or missing session name' }));
+        ws.close(4400, 'Invalid session name');
+        return;
+      }
+
+      handleConnection(ws, sessionName, cwd);
+    });
+
+    wss.on('error', (error: NodeJS.ErrnoException) => {
+      if (error.code === 'EADDRINUSE') {
+        console.error(`Terminal WS server: port ${port} already in use. Set TERMINAL_WS_PORT to use a different port.`);
+        process.exit(1);
+      }
+      console.error('Terminal WS server error:', error);
+    });
+
+    console.log(`Terminal WS server listening on ws://0.0.0.0:${port}/terminal`);
+
+    process.on('SIGTERM', () => {
+      console.log('Terminal WS server: SIGTERM received, cleaning up...');
+      cleanup();
+      wss?.close();
+      process.exit(0);
+    });
+
+    process.on('SIGINT', () => {
+      console.log('Terminal WS server: SIGINT received, cleaning up...');
+      cleanup();
+      wss?.close();
+      process.exit(0);
+    });
+  }
+
+  function close(): void {
+    cleanup();
+    wss?.close();
+  }
+
+  return { handleConnection, derivePort, start, close };
+}
+
+// ============ CLI Entry Point ============
+// When run directly (not imported for tests), start the server.
+
+const isDirectRun = process.argv[1]?.includes('terminal-ws');
+if (isDirectRun) {
+  const { execFileSync } = await import('node:child_process');
+  const pty = await import('node-pty');
+
+  const execCommand: CommandExecutor = (command, args) => {
+    return execFileSync(command, args, { encoding: 'utf8' });
+  };
+
+  const spawnPty: PtySpawner = (command, args, options) => {
+    return pty.spawn(command, args, {
+      name: options.name,
+      cols: options.cols,
+      rows: options.rows,
+      cwd: options.cwd,
+      env: options.env,
+    });
+  };
+
+  const server = createTerminalServer({ execCommand, spawnPty });
+  const nextPort = Number.parseInt(process.env.PORT ?? '3000', 10);
+  const wsPort = process.env.TERMINAL_WS_PORT
+    ? Number.parseInt(process.env.TERMINAL_WS_PORT, 10)
+    : server.derivePort(nextPort);
+
+  server.start(wsPort);
+}

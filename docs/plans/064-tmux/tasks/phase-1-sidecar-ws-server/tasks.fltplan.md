@@ -3,7 +3,7 @@
 **Plan**: [tmux-plan.md](../../tmux-plan.md)
 **Phase**: Phase 1: Sidecar WebSocket Server + tmux Integration
 **Generated**: 2026-03-02
-**Status**: Ready for takeoff
+**Status**: Landed
 
 ---
 
@@ -57,7 +57,7 @@ stateDiagram-v2
     S5 --> S6
     S6 --> [*]
 
-    class S1,S2,S3,S4,S5,S6 pending
+    class S1,S2,S3,S4,S5,S6 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -68,12 +68,12 @@ stateDiagram-v2
 
 <!-- Updated by /plan-6-v2 during implementation: [ ] → [~] → [x] -->
 
-- [ ] **Stage 1: Install dependencies** — Add xterm, node-pty, ws, concurrently to package.json files (`apps/web/package.json`, `package.json`)
-- [ ] **Stage 2: Configure + scaffold** — Add node-pty to serverExternalPackages; create feature directory structure + types + barrel (`next.config.mjs`, `features/064-terminal/`)
-- [ ] **Stage 3: Create test doubles** — FakeTmuxExecutor + FakePty with injectable interfaces (`test/fakes/` — new files)
-- [ ] **Stage 4: TDD TmuxSessionManager** — RED: write tests for 6 scenarios, GREEN: implement manager (`tmux-session-manager.ts`, `tmux-session-manager.test.ts` — new files)
-- [ ] **Stage 5: TDD WebSocket server** — RED: write tests for 7 scenarios, GREEN: implement server with session tracking + multi-client (`terminal-ws.ts`, `terminal-ws.test.ts` — new files)
-- [ ] **Stage 6: Port derivation + justfile** — Wire port = NEXT_PORT + 1500, update justfile dev recipe (`terminal-ws.ts`, `justfile`)
+- [x] **Stage 1: Install dependencies** — Add xterm, node-pty, ws, concurrently to package.json files (`apps/web/package.json`, `package.json`)
+- [x] **Stage 2: Configure + scaffold** — Add node-pty to serverExternalPackages; create feature directory structure + types + barrel (`next.config.mjs`, `features/064-terminal/`)
+- [x] **Stage 3: Create test doubles** — FakeTmuxExecutor + FakePty with injectable interfaces (`test/fakes/` — new files)
+- [x] **Stage 4: TDD TmuxSessionManager** — RED: write tests for 6 scenarios, GREEN: implement manager (`tmux-session-manager.ts`, `tmux-session-manager.test.ts` — new files)
+- [x] **Stage 5: TDD WebSocket server** — RED: write tests for 7 scenarios, GREEN: implement server with session tracking + multi-client (`terminal-ws.ts`, `terminal-ws.test.ts` — new files)
+- [x] **Stage 6: Port derivation + justfile** — Wire port = NEXT_PORT + 1500, update justfile dev recipe (`terminal-ws.ts`, `justfile`)
 
 ---
 
@@ -139,11 +139,11 @@ flowchart LR
 
 ## Checklist
 
-- [ ] T001: Install npm dependencies (xterm, node-pty, ws, concurrently)
-- [ ] T002: Add node-pty to serverExternalPackages
-- [ ] T003: Create feature directory structure + types + barrel
-- [ ] T004: Create FakeTmuxExecutor + FakePty test doubles
-- [ ] T005: TDD TmuxSessionManager (6 test scenarios)
-- [ ] T006: TDD WebSocket server (7 test scenarios)
-- [ ] T007: Wire port derivation (NEXT_PORT + 1500)
-- [ ] T008: Update justfile dev recipe with concurrently
+- [x] T001: Install npm dependencies (xterm, node-pty, ws, concurrently)
+- [x] T002: Add node-pty to serverExternalPackages
+- [x] T003: Create feature directory structure + types + barrel
+- [x] T004: Create FakeTmuxExecutor + FakePty test doubles
+- [x] T005: TDD TmuxSessionManager (6 test scenarios)
+- [x] T006: TDD WebSocket server (7 test scenarios)
+- [x] T007: Wire port derivation (NEXT_PORT + 1500)
+- [x] T008: Update justfile dev recipe with concurrently
