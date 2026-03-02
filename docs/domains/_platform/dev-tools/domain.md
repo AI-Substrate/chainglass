@@ -6,6 +6,7 @@
 **Created By**: Plan 056 — State DevTools Panel
 **Parent**: `_platform`
 **Status**: active
+**C4 Diagram**: [C4 Component](../../../c4/components/_platform/dev-tools.md)
 
 ---
 

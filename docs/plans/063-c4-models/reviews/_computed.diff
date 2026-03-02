@@ -1,0 +1,724 @@
+diff --git a/docs/c4/components/file-browser.md b/docs/c4/components/file-browser.md
+new file mode 100644
+index 0000000..90f7c54
+--- /dev/null
++++ b/docs/c4/components/file-browser.md
+@@ -0,0 +1,76 @@
++# Component: File Browser (`file-browser`)
++
++> **Domain Definition**: [file-browser/domain.md](../../../domains/file-browser/domain.md)
++> **Source**: `apps/web/src/features/041-file-browser/` + `apps/web/app/(dashboard)/workspaces/[slug]/browser/`
++> **Registry**: [registry.md](../../../domains/registry.md) — Row: File Browser
++
++Workspace-scoped file browsing, editing, and diffing. The core feature that makes workspaces useful — users navigate files in a tree, view code with syntax highlighting, edit with CodeMirror, preview markdown, and see uncommitted git changes. Every state is deep-linkable via URL params.
++
++```mermaid
++C4Component
++    title Component diagram — File Browser (file-browser)
++
++    Container_Boundary(fileBrowser, "File Browser") {
++        Component(browserPage, "Browser Page", "Server + Client Component", "Two-panel layout:<br/>FileTree + FileViewerPanel<br/>route: /workspaces/[slug]/browser")
++        Component(fileTree, "FileTree", "Client Component", "Lazy per-directory loading,<br/>expand/collapse, changed-only filter,<br/>keyboard navigation")
++        Component(viewerPanel, "FileViewerPanel", "Client Component", "Mode toggle: edit/preview/diff<br/>save button, conflict detection,<br/>dispatches to viewer components")
++        Component(codeEditor, "CodeEditor Wrapper", "Client Component", "CodeMirror 6 lazy-loaded,<br/>theme-synced, language-aware,<br/>change tracking")
++        Component(dirService, "Directory Listing Service", "Server Service", "git ls-files per directory<br/>with readDir fallback,<br/>returns FileEntry[]")
++        Component(fileListService, "File List Service", "Server Service", "git ls-files --cached --others<br/>full-tree flat listing with mtimes<br/>for file search cache")
++        Component(changedFiles, "Changed Files Service", "Server Service", "git diff --name-only<br/>for changed-only tree filter")
++        Component(readFile, "readFile Action", "Server Action", "Size limit, binary detection,<br/>symlink check, returns content +<br/>highlightedHtml + previewHtml")
++        Component(saveFile, "saveFile Action", "Server Action", "Mtime conflict detection,<br/>atomic write via temp+rename")
++        Component(filesRoute, "Files API Route", "Route Handler", "/api/workspaces/[slug]/files<br/>client-side directory fetching")
++        Component(rawRoute, "Raw File Route", "Route Handler", "/api/workspaces/[slug]/files/raw<br/>Range request support for binary")
++        Component(binaryViewers, "Binary Viewers", "Client Components", "ImageViewer, PdfViewer,<br/>VideoViewer, AudioViewer,<br/>BinaryPlaceholder")
++        Component(undoRedo, "UndoRedoManager", "Client Module", "Snapshot-based undo/redo<br/>via structuredClone,<br/>50-item stack")
++        Component(wsContext, "WorkspaceContext", "React Provider", "Workspace-scoped context:<br/>slug, worktreePath,<br/>file operations")
++        Component(pickers, "Emoji/Color Pickers", "Client Components", "EmojiPicker, ColorPicker<br/>for workspace customization")
++    }
++
++    Rel(browserPage, fileTree, "Left panel renders")
++    Rel(browserPage, viewerPanel, "Main panel renders")
++    Rel(fileTree, dirService, "Fetches directories from")
++    Rel(fileTree, filesRoute, "Client-side fetch via")
++    Rel(fileTree, changedFiles, "Filters with")
++    Rel(viewerPanel, readFile, "Loads file content via")
++    Rel(viewerPanel, saveFile, "Saves edits via")
++    Rel(viewerPanel, codeEditor, "Edit mode renders")
++    Rel(viewerPanel, binaryViewers, "Binary files render via")
++    Rel(viewerPanel, undoRedo, "Tracks changes with")
++    Rel(readFile, fileListService, "Resolves paths with")
++    Rel(browserPage, wsContext, "Wrapped in")
++```
++
++## Components
++
++| Component | Type | Description |
++|-----------|------|-------------|
++| Browser Page | Server + Client Component | Two-panel layout with FileTree + FileViewerPanel |
++| FileTree | Client Component | Lazy per-directory tree with expand/collapse and changed-only filter |
++| FileViewerPanel | Client Component | Mode toggle (edit/preview/diff), save, conflict detection |
++| CodeEditor Wrapper | Client Component | CodeMirror 6, lazy-loaded, theme-synced |
++| Directory Listing Service | Server Service | `git ls-files` per directory with readDir fallback |
++| File List Service | Server Service | Full-tree flat listing with mtimes for search cache |
++| Changed Files Service | Server Service | `git diff --name-only` for filter |
++| readFile Action | Server Action | Size limit, binary detection, returns content + highlighted + preview HTML |
++| saveFile Action | Server Action | Mtime conflict detection, atomic write |
++| Files API Route | Route Handler | `/api/workspaces/[slug]/files` for client-side fetch |
++| Raw File Route | Route Handler | `/api/workspaces/[slug]/files/raw` with Range request support |
++| Binary Viewers | Client Components | Image, PDF, Video, Audio, BinaryPlaceholder |
++| UndoRedoManager | Client Module | Snapshot undo/redo via structuredClone (50-item stack) |
++| WorkspaceContext | React Provider | Workspace-scoped context (slug, worktreePath) |
++| Emoji/Color Pickers | Client Components | Workspace customization pickers |
++
++## External Dependencies
++
++Depends on: _platform/file-ops (IFileSystem, IPathResolver), _platform/viewer (FileViewer, MarkdownViewer, DiffViewer), _platform/workspace-url (workspaceHref, params), _platform/panel-layout (PanelShell, ExplorerPanel), _platform/events (toast, useFileChanges), _platform/sdk (IUSDK), _platform/state (useGlobalState).
++Consumed by: (leaf consumer — no downstream dependents).
++
++---
++
++## Navigation
++
++- **Zoom Out**: [Web App Container](../containers/web-app.md) | [Container Overview](../containers/overview.md)
++- **Domain**: [file-browser/domain.md](../../../domains/file-browser/domain.md)
++- **Hub**: [C4 Overview](../README.md)
+diff --git a/docs/c4/components/workflow-ui.md b/docs/c4/components/workflow-ui.md
+new file mode 100644
+index 0000000..a132fe2
+--- /dev/null
++++ b/docs/c4/components/workflow-ui.md
+@@ -0,0 +1,70 @@
++# Component: Workflow UI (`workflow-ui`)
++
++> **Domain Definition**: [workflow-ui/domain.md](../../../domains/workflow-ui/domain.md)
++> **Source**: `apps/web/src/features/050-workflow-page/`
++> **Registry**: [registry.md](../../../domains/registry.md) — Row: Workflow UI
++
++Visual workflow editor for the positional graph system. Provides a drag-drop canvas for building workflows, a toolbox for adding work units, a properties panel for node configuration, Q&A modals for agent interaction, and SSE-based live updates during execution. Includes an undo/redo system and context flow visualization.
++
++```mermaid
++C4Component
++    title Component diagram — Workflow UI (workflow-ui)
++
++    Container_Boundary(workflowUI, "Workflow UI") {
++        Component(editorPage, "Workflow Editor Page", "Server + Client Component", "Route: /workflows/[graph]<br/>Orchestrates canvas + toolbox +<br/>properties + SSE subscription")
++        Component(listPage, "Workflow List Page", "Server Component", "Lists available workflows<br/>with status indicators")
++        Component(canvas, "WorkflowCanvas", "Client Component", "Line/node rendering with<br/>drop zones, grid background,<br/>transition gates between lines")
++        Component(line, "WorkflowLine", "Client Component", "Renders a single workflow line<br/>with positioned node cards<br/>and connection indicators")
++        Component(nodeCard, "WorkflowNodeCard", "Client Component", "Individual node display:<br/>status, type icon, name,<br/>click to select")
++        Component(toolbox, "WorkUnitToolbox", "Client Component", "Right sidebar: work unit<br/>catalog with drag-to-add,<br/>grouped by category")
++        Component(properties, "NodePropertiesPanel", "Client Component", "Right panel: node detail,<br/>I/O wiring, available sources,<br/>related nodes computation")
++        Component(qaModal, "QAModal", "Client Component", "4 question types + freeform:<br/>text, select, confirm, file<br/>with answer submission")
++        Component(undoRedo, "UndoRedoManager", "Client Module", "Snapshot-based undo/redo<br/>50-item stack via<br/>structuredClone")
++        Component(sse, "useWorkflowSSE", "Hook", "Real-time graph updates<br/>via WorkflowWatcherAdapter →<br/>SSE subscription")
++        Component(mutationLock, "Mutation Lock", "Client Module", "Prevents concurrent edits<br/>during SSE-driven updates")
++        Component(contextFlow, "Context Flow Indicators", "Client Components", "PCB trace visualization +<br/>badges showing data flow<br/>between nodes")
++        Component(doping, "Doping System", "Utility", "Demo workflow generation<br/>for testing and showcasing<br/>workflow capabilities")
++    }
++
++    Rel(editorPage, canvas, "Renders main area with")
++    Rel(editorPage, toolbox, "Renders right sidebar with")
++    Rel(editorPage, properties, "Renders detail panel with")
++    Rel(editorPage, sse, "Subscribes to updates via")
++    Rel(editorPage, undoRedo, "Tracks changes with")
++    Rel(canvas, line, "Renders lines with")
++    Rel(line, nodeCard, "Renders nodes with")
++    Rel(nodeCard, contextFlow, "Shows data flow via")
++    Rel(editorPage, qaModal, "Opens for agent questions")
++    Rel(sse, mutationLock, "Acquires lock during updates")
++```
++
++## Components
++
++| Component | Type | Description |
++|-----------|------|-------------|
++| Workflow Editor Page | Server + Client Component | Main editor orchestrating canvas + toolbox + properties + SSE |
++| Workflow List Page | Server Component | Lists workflows with status indicators |
++| WorkflowCanvas | Client Component | Line/node rendering with drop zones and grid |
++| WorkflowLine | Client Component | Single line with positioned node cards |
++| WorkflowNodeCard | Client Component | Individual node: status, type, name |
++| WorkUnitToolbox | Client Component | Right sidebar work unit catalog with drag-to-add |
++| NodePropertiesPanel | Client Component | Node detail, I/O wiring, available sources |
++| QAModal | Client Component | 4 question types + freeform with answer submission |
++| UndoRedoManager | Client Module | Snapshot undo/redo (50-item structuredClone stack) |
++| useWorkflowSSE | Hook | Real-time updates via SSE subscription |
++| Mutation Lock | Client Module | Prevents concurrent edits during SSE updates |
++| Context Flow Indicators | Client Components | PCB trace + badges showing data flow |
++| Doping System | Utility | Demo workflow generation for testing |
++
++## External Dependencies
++
++Depends on: _platform/positional-graph (IPositionalGraphService, IWorkUnitService, ITemplateService), _platform/events (useSSE), _platform/workspace-url (workspaceHref), _platform/sdk (IUSDK), _platform/state (useGlobalState).
++Consumed by: (leaf consumer — no downstream dependents).
++
++---
++
++## Navigation
++
++- **Zoom Out**: [Web App Container](../containers/web-app.md) | [Container Overview](../containers/overview.md)
++- **Domain**: [workflow-ui/domain.md](../../../domains/workflow-ui/domain.md)
++- **Hub**: [C4 Overview](../README.md)
+diff --git a/docs/c4/components/workunit-editor.md b/docs/c4/components/workunit-editor.md
+new file mode 100644
+index 0000000..15a0619
+--- /dev/null
++++ b/docs/c4/components/workunit-editor.md
+@@ -0,0 +1,61 @@
++# Component: Work Unit Editor (`058-workunit-editor`)
++
++> **Domain Definition**: [058-workunit-editor/domain.md](../../../domains/058-workunit-editor/domain.md)
++> **Source**: `apps/web/src/features/058-workunit-editor/`
++> **Registry**: [registry.md](../../../domains/registry.md) — Row: Work Unit Editor
++
++Visual editor for creating and editing work unit templates — the building blocks of workflows. Supports three unit types (agent prompts, code scripts, human input questions) with type-specific editors, I/O configuration, and auto-save. Provides a list view for browsing units and a creation modal for new units.
++
++```mermaid
++C4Component
++    title Component diagram — Work Unit Editor (058-workunit-editor)
++
++    Container_Boundary(wuEditor, "Work Unit Editor") {
++        Component(listPage, "Unit List Page", "Server + Client Component", "Lists all work units<br/>with type badges, search,<br/>and create button")
++        Component(editorPage, "Unit Editor Page", "Client Component", "Type-aware editor layout:<br/>header + type editor +<br/>I/O configuration panels")
++        Component(agentEditor, "Agent Editor", "Client Component", "Agent prompt editing:<br/>system prompt, model selection,<br/>tool configuration")
++        Component(codeEditor, "Code Editor", "Client Component", "Code script editing:<br/>CodeMirror with language<br/>detection and syntax highlighting")
++        Component(inputEditor, "User Input Editor", "Client Component", "Human input questions:<br/>question text, input type,<br/>validation rules")
++        Component(ioCard, "InputOutputCard", "Client Component", "I/O port configuration:<br/>name, type, description,<br/>add/remove ports")
++        Component(createModal, "Creation Modal", "Client Component", "New unit creation:<br/>name, type selection,<br/>template starting point")
++        Component(autoSave, "Auto-Save", "Hook", "Debounced auto-save on<br/>content change, status<br/>indicator in header")
++        Component(actions, "workunit-actions", "Server Actions", "CRUD server actions:<br/>list, get, create, update,<br/>delete work units")
++    }
++
++    Rel(listPage, actions, "Fetches units via")
++    Rel(listPage, createModal, "Opens for new unit")
++    Rel(editorPage, agentEditor, "Renders for agent type")
++    Rel(editorPage, codeEditor, "Renders for code type")
++    Rel(editorPage, inputEditor, "Renders for input type")
++    Rel(editorPage, ioCard, "Renders I/O config with")
++    Rel(editorPage, autoSave, "Saves changes via")
++    Rel(autoSave, actions, "Persists via server action")
++    Rel(createModal, actions, "Creates unit via")
++```
++
++## Components
++
++| Component | Type | Description |
++|-----------|------|-------------|
++| Unit List Page | Server + Client Component | Lists units with type badges, search, create button |
++| Unit Editor Page | Client Component | Type-aware editor: header + type editor + I/O panels |
++| Agent Editor | Client Component | Agent prompt, model selection, tool configuration |
++| Code Editor | Client Component | CodeMirror with language detection |
++| User Input Editor | Client Component | Question text, input type, validation rules |
++| InputOutputCard | Client Component | I/O port configuration: name, type, description |
++| Creation Modal | Client Component | New unit: name, type selection, template |
++| Auto-Save | Hook | Debounced auto-save with status indicator |
++| workunit-actions | Server Actions | CRUD: list, get, create, update, delete |
++
++## External Dependencies
++
++Depends on: _platform/positional-graph (IWorkUnitService), _platform/viewer (CodeEditor), _platform/workspace-url (workspaceHref).
++Consumed by: (leaf consumer — no downstream dependents).
++
++---
++
++## Navigation
++
++- **Zoom Out**: [Web App Container](../containers/web-app.md) | [Container Overview](../containers/overview.md)
++- **Domain**: [058-workunit-editor/domain.md](../../../domains/058-workunit-editor/domain.md)
++- **Hub**: [C4 Overview](../README.md)
+diff --git a/docs/domains/058-workunit-editor/domain.md b/docs/domains/058-workunit-editor/domain.md
+index f7d9ac3..40d26d5 100644
+--- a/docs/domains/058-workunit-editor/domain.md
++++ b/docs/domains/058-workunit-editor/domain.md
+@@ -4,6 +4,7 @@
+ **Type**: business
+ **Created**: Plan 058 — Work Unit Creator & Editor
+ **Status**: active
++**C4 Diagram**: [C4 Component](../../c4/components/workunit-editor.md)
+ 
+ ## Purpose
+ 
+diff --git a/docs/domains/_platform/dev-tools/domain.md b/docs/domains/_platform/dev-tools/domain.md
+index c5b39e6..1e88821 100644
+--- a/docs/domains/_platform/dev-tools/domain.md
++++ b/docs/domains/_platform/dev-tools/domain.md
+@@ -6,6 +6,7 @@
+ **Created By**: Plan 056 — State DevTools Panel
+ **Parent**: `_platform`
+ **Status**: active
++**C4 Diagram**: [C4 Component](../../../c4/components/_platform/dev-tools.md)
+ 
+ ---
+ 
+diff --git a/docs/domains/_platform/events/domain.md b/docs/domains/_platform/events/domain.md
+index 1c020ad..965a7b7 100644
+--- a/docs/domains/_platform/events/domain.md
++++ b/docs/domains/_platform/events/domain.md
+@@ -5,6 +5,7 @@
+ **Created**: 2026-02-24
+ **Created By**: extracted from Plans 019, 023, 027, 041; renamed from _platform/notifications (Plan 045)
+ **Status**: active
++**C4 Diagram**: [C4 Component](../../../c4/components/_platform/events.md)
+ 
+ ## Purpose
+ 
+diff --git a/docs/domains/_platform/file-ops/domain.md b/docs/domains/_platform/file-ops/domain.md
+index 8537d30..244a76a 100644
+--- a/docs/domains/_platform/file-ops/domain.md
++++ b/docs/domains/_platform/file-ops/domain.md
+@@ -5,6 +5,7 @@
+ **Created**: 2026-02-24
+ **Created By**: extracted from existing codebase (pre-Plan 041)
+ **Status**: active
++**C4 Diagram**: [C4 Component](../../../c4/components/_platform/file-ops.md)
+ 
+ ## Purpose
+ 
+diff --git a/docs/domains/_platform/panel-layout/domain.md b/docs/domains/_platform/panel-layout/domain.md
+index f13266b..40b1438 100644
+--- a/docs/domains/_platform/panel-layout/domain.md
++++ b/docs/domains/_platform/panel-layout/domain.md
+@@ -5,6 +5,7 @@
+ **Created**: 2026-02-24
+ **Created By**: extracted from Plan 041 file browser layout patterns
+ **Status**: active
++**C4 Diagram**: [C4 Component](../../../c4/components/_platform/panel-layout.md)
+ 
+ ## Purpose
+ 
+diff --git a/docs/domains/_platform/positional-graph/domain.md b/docs/domains/_platform/positional-graph/domain.md
+index e0c20d1..39b8a34 100644
+--- a/docs/domains/_platform/positional-graph/domain.md
++++ b/docs/domains/_platform/positional-graph/domain.md
+@@ -5,6 +5,7 @@
+ **Created**: 2026-02-25
+ **Created By**: extracted from existing codebase (Plan 048)
+ **Status**: active
++**C4 Diagram**: [C4 Component](../../../c4/components/_platform/positional-graph.md)
+ 
+ ## Purpose
+ 
+diff --git a/docs/domains/_platform/sdk/domain.md b/docs/domains/_platform/sdk/domain.md
+index 7559621..30ad516 100644
+--- a/docs/domains/_platform/sdk/domain.md
++++ b/docs/domains/_platform/sdk/domain.md
+@@ -2,6 +2,7 @@
+ 
+ **Type**: infrastructure
+ **Status**: active
++**C4 Diagram**: [C4 Component](../../../c4/components/_platform/sdk.md)
+ **Created By**: Plan 047 — USDK
+ **Parent**: `_platform`
+ 
+diff --git a/docs/domains/_platform/settings/domain.md b/docs/domains/_platform/settings/domain.md
+index 2aa5ce5..1103436 100644
+--- a/docs/domains/_platform/settings/domain.md
++++ b/docs/domains/_platform/settings/domain.md
+@@ -2,6 +2,7 @@
+ 
+ **Type**: infrastructure
+ **Status**: active
++**C4 Diagram**: [C4 Component](../../../c4/components/_platform/settings.md)
+ **Created By**: Plan 047 — USDK Phase 5
+ **Parent**: `_platform`
+ 
+diff --git a/docs/domains/_platform/state/domain.md b/docs/domains/_platform/state/domain.md
+index 68685b3..3f601c4 100644
+--- a/docs/domains/_platform/state/domain.md
++++ b/docs/domains/_platform/state/domain.md
+@@ -6,6 +6,7 @@
+ **Created By**: Plan 053 — GlobalStateSystem
+ **Parent**: `_platform`
+ **Status**: active
++**C4 Diagram**: [C4 Component](../../../c4/components/_platform/state.md)
+ 
+ ---
+ 
+diff --git a/docs/domains/_platform/viewer/domain.md b/docs/domains/_platform/viewer/domain.md
+index 9661b47..827ee27 100644
+--- a/docs/domains/_platform/viewer/domain.md
++++ b/docs/domains/_platform/viewer/domain.md
+@@ -5,6 +5,7 @@
+ **Created**: 2026-02-24
+ **Created By**: extracted from existing codebase (Plan 006-web-extras)
+ **Status**: active
++**C4 Diagram**: [C4 Component](../../../c4/components/_platform/viewer.md)
+ 
+ ## Purpose
+ 
+diff --git a/docs/domains/_platform/workspace-url/domain.md b/docs/domains/_platform/workspace-url/domain.md
+index 15be282..64c9053 100644
+--- a/docs/domains/_platform/workspace-url/domain.md
++++ b/docs/domains/_platform/workspace-url/domain.md
+@@ -5,6 +5,7 @@
+ **Created**: 2026-02-22
+ **Created By**: extracted from existing codebase (Plan 041 Phase 2)
+ **Status**: active
++**C4 Diagram**: [C4 Component](../../../c4/components/_platform/workspace-url.md)
+ 
+ ## Purpose
+ 
+diff --git a/docs/domains/file-browser/domain.md b/docs/domains/file-browser/domain.md
+index cb09a07..49ccb78 100644
+--- a/docs/domains/file-browser/domain.md
++++ b/docs/domains/file-browser/domain.md
+@@ -5,6 +5,7 @@
+ **Created**: 2026-02-24
+ **Created By**: Plan 041 File Browser & Workspace-Centric UI
+ **Status**: active
++**C4 Diagram**: [C4 Component](../../c4/components/file-browser.md)
+ 
+ ## Purpose
+ 
+diff --git a/docs/domains/workflow-ui/domain.md b/docs/domains/workflow-ui/domain.md
+index 0e644f9..da04eaa 100644
+--- a/docs/domains/workflow-ui/domain.md
++++ b/docs/domains/workflow-ui/domain.md
+@@ -5,6 +5,7 @@
+ **Created**: 2026-02-26
+ **Created By**: Plan 050 Workflow Page UX
+ **Status**: active
++**C4 Diagram**: [C4 Component](../../c4/components/workflow-ui.md)
+ 
+ ## Purpose
+ 
+diff --git a/docs/plans/063-c4-models/tasks/phase-4-l3-business-domains-and-navigation/execution.log.md b/docs/plans/063-c4-models/tasks/phase-4-l3-business-domains-and-navigation/execution.log.md
+new file mode 100644
+index 0000000..5491018
+--- /dev/null
++++ b/docs/plans/063-c4-models/tasks/phase-4-l3-business-domains-and-navigation/execution.log.md
+@@ -0,0 +1,70 @@
++# Phase 4: L3 Business Domains & Navigation Polish — Execution Log
++
++**Started**: 2026-03-02T10:27
++**Completed**: 2026-03-02T10:27
++**Status**: Complete
++
++---
++
++## T001: Create `docs/c4/components/file-browser.md`
++
++**Action**: Created L3 C4Component diagram with 15 internal components showing full file browser internals.
++**Result**: File created (5772 bytes).
++**Evidence**: Components include: Browser Page, FileTree, FileViewerPanel, CodeEditor Wrapper, Directory Listing Service, File List Service, Changed Files Service, readFile/saveFile actions, Files/Raw API routes, Binary Viewers, UndoRedoManager, WorkspaceContext, Emoji/Color Pickers. Internal relationships showing page→tree→services flow.
++
++## T002: Create `docs/c4/components/workflow-ui.md`
++
++**Action**: Created L3 C4Component diagram with 13 internal components showing workflow editor internals.
++**Result**: File created (4933 bytes).
++**Evidence**: Components include: Workflow Editor/List pages, WorkflowCanvas, WorkflowLine, WorkflowNodeCard, WorkUnitToolbox, NodePropertiesPanel, QAModal, UndoRedoManager, useWorkflowSSE, Mutation Lock, Context Flow Indicators, Doping System.
++
++## T003: Create `docs/c4/components/workunit-editor.md`
++
++**Action**: Created L3 C4Component diagram with 9 internal components showing work unit editor internals.
++**Result**: File created (3908 bytes).
++**Evidence**: Components include: Unit List/Editor pages, Agent/Code/User Input type editors, InputOutputCard, Creation Modal, Auto-Save hook, workunit-actions server actions.
++
++## T004: Add bidirectional C4 Diagram links to 13 domain.md files
++
++**Action**: Used sed to insert `**C4 Diagram**: [C4 Component](path)` after `**Status**: active` in each domain.md.
++**Result**: 13 domain.md files updated. All links verified.
++**Evidence**:
++- 10 infrastructure domains: `../../../c4/components/_platform/{slug}.md` (3 levels up)
++- 2 business domains (file-browser, workflow-ui): `../../c4/components/{slug}.md` (2 levels up)
++- 1 business domain (058-workunit-editor): `../../c4/components/workunit-editor.md` (maps slug → clean filename)
++- All 13 verified via grep -rn "C4 Diagram" docs/domains/
++**Discovery**: Initial bash script attempt with associative arrays corrupted dev-tools/domain.md with `0.md` filename. Fixed manually. DYK #1 path fix (3 levels, not 2) was critical.
++
++## T005: Verify navigation footers
++
++**Action**: Automated grep across all docs/c4/ files for `## Navigation`.
++**Result**: 18 of 19 files have Navigation footers. README.md correctly has no footer (it's the hub, not a diagram).
++**Evidence**: `grep -rl "## Navigation" docs/c4/ | wc -l` = 18. Only missing: README.md (expected).
++
++## T006: Verify README.md quick links
++
++**Action**: Extracted all relative .md links from README.md and verified each target file exists.
++**Result**: All 21 links resolve (18 diagram files + instructions file + registry + domain-map).
++**Evidence**: grep + test -f verification. Zero broken links.
++
++---
++
++## Acceptance Criteria Verification
++
++| AC | Status | Evidence |
++|----|--------|----------|
++| AC-05 | PASS | 13 L3 component files exist (10 infrastructure + 3 business) |
++| AC-06 | PASS | All 13 L3 files have cross-reference block to domain.md |
++| AC-07 | PASS | 18/18 diagram files have Navigation footer (README excluded — it's the hub) |
++| AC-08 | PASS | All 21 README.md links resolve to existing files |
++| AC-17 | PASS | All 13 domain.md files have C4 Diagram link to component file |
++
++---
++
++## Discoveries & Learnings
++
++| Date | Task | Type | Discovery | Resolution | References |
++|------|------|------|-----------|------------|------------|
++| 2026-03-02 | T004 | gotcha | Bash associative arrays not available in default macOS bash (v3). Script failed and corrupted dev-tools/domain.md with filename `0.md`. | Rewrote using simple for loop with colon-delimited pairs. Fixed corrupted file manually. | macOS ships bash 3.2 (no -A flag) |
++| 2026-03-02 | T004 | gotcha | Business domain relative paths are 2 levels up (`../../c4/...`), infrastructure paths are 3 levels up (`../../../c4/...`). DYK caught that the dossier originally had wrong depth for infrastructure (2 instead of 3). | Fixed dossier before implementation. All 13 paths verified correct. | DYK Phase 4 #1 |
++| 2026-03-02 | T003 | decision | workunit-editor C4 file named `workunit-editor.md` (clean) not `058-workunit-editor.md` (slug). Cross-ref block clarifies the mapping. | Consistent with README.md links. Domain slug `058-workunit-editor` is a legacy naming pattern. | DYK Phase 4 #2 |
+diff --git a/docs/plans/063-c4-models/tasks/phase-4-l3-business-domains-and-navigation/tasks.fltplan.md b/docs/plans/063-c4-models/tasks/phase-4-l3-business-domains-and-navigation/tasks.fltplan.md
+new file mode 100644
+index 0000000..8498d6a
+--- /dev/null
++++ b/docs/plans/063-c4-models/tasks/phase-4-l3-business-domains-and-navigation/tasks.fltplan.md
+@@ -0,0 +1,127 @@
++# Flight Plan: Phase 4 — L3 Business Domains & Navigation Polish
++
++**Plan**: [c4-models-plan.md](../../c4-models-plan.md)
++**Phase**: Phase 4: L3 Business Domains & Navigation Polish
++**Generated**: 2026-03-02
++**Status**: Landed
++
++---
++
++## Departure → Destination
++
++**Where we are**: 10 of 13 L3 component files exist (all infrastructure domains). The 3 business domain links in `web-app.md` and `README.md` point to files that don't exist yet. Domain.md files have no links back to their C4 diagrams (one-directional).
++
++**Where we're going**: All 13 L3 component files exist. Every domain.md has a "C4 Diagram" link creating bidirectional navigation. All README.md quick links resolve. All navigation footers verified across 20 C4 files.
++
++---
++
++## Domain Context
++
++### Domains We're Changing
++
++| Domain | What Changes | Key Files |
++|--------|-------------|-----------|
++| — (docs) | 3 new L3 business domain files | `docs/c4/components/file-browser.md`, `workflow-ui.md`, `workunit-editor.md` |
++| 13 domains | Add 1-line C4 Diagram link to each domain.md | `docs/domains/*/domain.md` (13 files) |
++
++### Domains We Depend On (no changes)
++
++| Domain | What We Consume | Contract |
++|--------|----------------|----------|
++| — (docs) | Domain content for diagrams | `docs/domains/*/domain.md` (read for content, write 1 line) |
++
++---
++
++## Flight Status
++
++```mermaid
++stateDiagram-v2
++    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
++    classDef active fill:#FFC107,stroke:#FFA000,color:#000
++    classDef done fill:#4CAF50,stroke:#388E3C,color:#fff
++    classDef blocked fill:#F44336,stroke:#D32F2F,color:#fff
++
++    state "1: file-browser L3" as S1
++    state "2: workflow-ui L3" as S2
++    state "3: workunit-editor L3" as S3
++    state "4: Bidirectional links (13)" as S4
++    state "5: Verify nav footers" as S5
++    state "6: Verify README links" as S6
++
++    [*] --> S1
++    S1 --> S4
++    [*] --> S2
++    S2 --> S4
++    [*] --> S3
++    S3 --> S4
++    S4 --> S5
++    S4 --> S6
++    S5 --> [*]
++    S6 --> [*]
++
++    class S1,S2,S3 done
++```
++
++**Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
++
++---
++
++## Stages
++
++- [x] **Stage 1: Business L3 files** — create 3 C4Component diagrams (file-browser, workflow-ui, workunit-editor)
++- [x] **Stage 2: Bidirectional links** — add C4 Diagram line to all 13 domain.md files
++- [x] **Stage 3: Verification** — verify nav footers (20 files) + README links (16 links)
++
++---
++
++## Architecture: Before & After
++
++```mermaid
++flowchart LR
++    classDef existing fill:#E8F5E9,stroke:#4CAF50,color:#000
++    classDef new fill:#E3F2FD,stroke:#2196F3,color:#000
++    classDef changed fill:#FFF3E0,stroke:#FF9800,color:#000
++
++    subgraph Before["Before Phase 4"]
++        B1["docs/c4/components/_platform/<br/>(10 files)"]:::existing
++        B2["docs/c4/components/<br/>(empty — no business)"]:::existing
++        B3["docs/domains/*/domain.md<br/>(no C4 links)"]:::existing
++    end
++
++    subgraph After["After Phase 4"]
++        A1["docs/c4/components/_platform/<br/>(10 files)"]:::existing
++        A2["docs/c4/components/<br/>file-browser.md<br/>workflow-ui.md<br/>workunit-editor.md"]:::new
++        A3["docs/domains/*/domain.md<br/>(+ C4 Diagram link)"]:::changed
++        A2 -.->|"cross-ref"| A3
++        A3 -.->|"C4 link"| A2
++        A3 -.->|"C4 link"| A1
++    end
++```
++
++**Legend**: existing (green) | new (blue) | changed (orange, modified)
++
++---
++
++## Acceptance Criteria
++
++- [x] AC-05: All 13 L3 component files exist with C4Component diagrams
++- [x] AC-06: Every L3 file has cross-reference block to domain.md
++- [x] AC-07: Every C4 file has navigation footer
++- [x] AC-08: README.md quick links all resolve
++- [x] AC-17: Every domain.md has C4 Diagram link to component file
++
++## Goals & Non-Goals
++
++**Goals**: Complete L3, bidirectional links, verified navigation
++**Non-Goals**: No rendering verification (Phase 5), no code changes
++
++---
++
++## Checklist
++
++- [x] T001: file-browser.md
++- [x] T002: workflow-ui.md
++- [x] T003: workunit-editor.md
++- [x] T004: Bidirectional links (13 domain.md edits)
++- [x] T005: Verify navigation footers
++- [x] T006: Verify README links
+diff --git a/docs/plans/063-c4-models/tasks/phase-4-l3-business-domains-and-navigation/tasks.md b/docs/plans/063-c4-models/tasks/phase-4-l3-business-domains-and-navigation/tasks.md
+new file mode 100644
+index 0000000..9927e55
+--- /dev/null
++++ b/docs/plans/063-c4-models/tasks/phase-4-l3-business-domains-and-navigation/tasks.md
+@@ -0,0 +1,128 @@
++# Phase 4: L3 Business Domains & Navigation Polish — Tasks
++
++**Plan**: [c4-models-plan.md](../../c4-models-plan.md)
++**Spec**: [c4-models-spec.md](../../c4-models-spec.md)
++**Phase**: 4 of 5
++**Complexity**: CS-1
++**Status**: Pending
++**Delivers**: AC-05 (complete — 13 of 13), AC-06 (complete), AC-07 (complete), AC-08 (verify), AC-17
++
++---
++
++## Executive Briefing
++
++**Purpose**: Complete the L3 layer with 3 business domain diagrams, add bidirectional cross-reference links from all 13 domain.md files back to their C4 diagrams, and verify all navigation links work across the entire C4 file set.
++
++**What We're Building**: 3 business domain C4 Component files + 13 domain.md edits (one-line C4 link each) + verification of all navigation and cross-reference links across 20+ files.
++
++**Goals**:
++- ✅ L3 component diagrams for file-browser, workflow-ui, workunit-editor
++- ✅ Bidirectional links: every domain.md links to its C4 diagram
++- ✅ All navigation footers verified across all 20 C4 files
++- ✅ README.md quick links all resolve
++
++**Non-Goals**:
++- ❌ L4 Code-level diagrams
++- ❌ Any application code changes
++- ❌ Rendering verification (Phase 5)
++
++---
++
++## Prior Phase Context
++
++### Phase 3: L3 Infrastructure Domains (Complete)
++
++**A. Deliverables**: 10 L3 component files in `docs/c4/components/_platform/` — file-ops, workspace-url, viewer (14 components), events (12), panel-layout (9), sdk (9), settings (4), positional-graph (16 — full orchestration internals), state (9), dev-tools (6). Total: ~39KB, 103 components.
++
++**B. Dependencies Exported**: All 10 infrastructure domain L3 files now exist. `web-app.md` Domain Index links to these files now resolve. Template pattern established (cross-ref block, C4Component diagram, Components table, External Dependencies prose, Navigation footer).
++
++**C. Gotchas & Debt**: Principle 5 (Show Implementation Detail) added mid-phase — all diagrams include internal implementation guts, not just API surface. Principle 4 (Internal Relationships Only) means external deps are prose-only, not diagram arrows.
++
++**D. Incomplete Items**: None — all 10 files created, all ACs passed.
++
++**E. Patterns to Follow**: Same template as Phase 3. Relative path prefix for business domains differs: `../../../domains/file-browser/domain.md` (3 levels up, not 4) because business domain files are at `docs/c4/components/X.md` not `docs/c4/components/_platform/X.md`.
++
++---
++
++## Pre-Implementation Check
++
++| File | Exists? | Domain Check | Notes |
++|------|---------|-------------|-------|
++| `docs/c4/components/file-browser.md` | No — create | N/A (docs) | Business domain. 3-level relative path to domain.md. |
++| `docs/c4/components/workflow-ui.md` | No — create | N/A (docs) | Business domain. Leaf consumer (no downstream). |
++| `docs/c4/components/workunit-editor.md` | No — create | N/A (docs) | Business domain. Leaf consumer. |
++| `docs/domains/_platform/file-ops/domain.md` | Yes — modify | _platform/file-ops | Add 1-line C4 Diagram link |
++| `docs/domains/_platform/workspace-url/domain.md` | Yes — modify | _platform/workspace-url | Add 1-line C4 Diagram link |
++| `docs/domains/_platform/viewer/domain.md` | Yes — modify | _platform/viewer | Add 1-line C4 Diagram link |
++| `docs/domains/_platform/events/domain.md` | Yes — modify | _platform/events | Add 1-line C4 Diagram link |
++| `docs/domains/_platform/panel-layout/domain.md` | Yes — modify | _platform/panel-layout | Add 1-line C4 Diagram link |
++| `docs/domains/_platform/sdk/domain.md` | Yes — modify | _platform/sdk | Add 1-line C4 Diagram link |
++| `docs/domains/_platform/settings/domain.md` | Yes — modify | _platform/settings | Add 1-line C4 Diagram link |
++| `docs/domains/_platform/positional-graph/domain.md` | Yes — modify | _platform/positional-graph | Add 1-line C4 Diagram link |
++| `docs/domains/_platform/state/domain.md` | Yes — modify | _platform/state | Add 1-line C4 Diagram link |
++| `docs/domains/_platform/dev-tools/domain.md` | Yes — modify | _platform/dev-tools | Add 1-line C4 Diagram link |
++| `docs/domains/file-browser/domain.md` | Yes — modify | file-browser | Add 1-line C4 Diagram link |
++| `docs/domains/workflow-ui/domain.md` | Yes — modify | workflow-ui | Add 1-line C4 Diagram link |
++| `docs/domains/058-workunit-editor/domain.md` | Yes — modify | 058-workunit-editor | Add 1-line C4 Diagram link |
++
++---
++
++## Tasks
++
++| Status | ID | Task | Domain | Path(s) | Done When | Notes |
++|--------|-----|------|--------|---------|-----------|-------|
++| [ ] | T001 | Create `docs/c4/components/file-browser.md` | — (docs) | `docs/c4/components/file-browser.md` | C4Component with Browser page, FileTree, FileViewerPanel, CodeEditor wrapper, readFile/saveFile actions, directory listing service, file list service, UndoRedoManager, binary viewers. Cross-ref to `docs/domains/file-browser/domain.md`. Nav footer. Show internal implementation detail per Principle 5. | Largest business domain. Rel path: `../../../domains/file-browser/domain.md` |
++| [ ] | T002 | Create `docs/c4/components/workflow-ui.md` | — (docs) | `docs/c4/components/workflow-ui.md` | C4Component with WorkflowCanvas, WorkflowLine, WorkflowNodeCard, WorkUnitToolbox, NodePropertiesPanel, QAModal, UndoRedoManager, useWorkflowSSE, context flow indicators, doping system. Cross-ref + nav footer. | Leaf consumer. Complex internals: canvas + toolbox + properties + Q&A + undo. |
++| [ ] | T003 | Create `docs/c4/components/workunit-editor.md` | — (docs) | `docs/c4/components/workunit-editor.md` | C4Component with unit list page, editor page, agent/code/user-input type editors, creation modal, InputOutputCard, auto-save, workunit-actions. Cross-ref + nav footer. | Leaf consumer. Smallest business domain. |
++| [ ] | T004 | Add "C4 Diagram" link to all 13 domain.md files | various | 13 domain.md files (see Pre-Implementation Check) | Each domain.md has `**C4 Diagram**: [path](link)` in header block after Status line. All 13 links point to correct C4 component file with working relative path. | Insert after `**Status**: active` line. Infrastructure: `../../c4/components/_platform/{slug}.md`. Business: `../../c4/components/{slug}.md`. |
++| [ ] | T005 | Verify all navigation footers across all C4 files | — | All 20 C4 files | Every C4 file has Navigation section with Zoom Out, Zoom In (if applicable), Domain (if L3), Hub. All links resolve to existing files. | Walk all files in docs/c4/. |
++| [ ] | T006 | Verify README.md quick links | — | `docs/c4/README.md` | All 13 domain links resolve. All 4 container links resolve. System context link resolves. No broken relative paths. | After T001-T003 create the last 3 L3 files, README should be fully linked. |
++
++---
++
++## Context Brief
++
++**Key findings from plan**:
++- Finding 07: Cross-references are bidirectional — domain.md links to C4, C4 links to domain.md (AC-17)
++- Finding 08: Template from Phase 3 ensures consistency — same pattern for business domains
++
++**Domain dependencies**: None — pure documentation. Content from domain.md files.
++
++**Domain constraints**: None — all files in `docs/c4/` and `docs/domains/`.
++
++**Reusable from Phase 3**:
++- Template pattern (cross-ref block, C4Component, Components table, External Dependencies, Nav footer)
++- Principle 4 (internal relationships only) + Principle 5 (show implementation detail)
++- All 10 infrastructure L3 files provide examples to follow
++
++**Bidirectional link format**:
++
++For infrastructure domains (path from `docs/domains/_platform/{slug}/domain.md`):
++```markdown
++**C4 Diagram**: [C4 Component](../../../c4/components/_platform/{slug}.md)
++```
++
++For business domains (path from `docs/domains/{slug}/domain.md`):
++```markdown
++**C4 Diagram**: [C4 Component](../../c4/components/{slug}.md)
++```
++
++**Implementation flow**:
++
++```mermaid
++flowchart LR
++    T001["T001: file-browser.md"] --> T004["T004: Bidirectional links<br/>(13 domain.md edits)"]
++    T002["T002: workflow-ui.md"] --> T004
++    T003["T003: workunit-editor.md"] --> T004
++    T004 --> T005["T005: Verify nav footers"]
++    T004 --> T006["T006: Verify README links"]
++```
++
++---
++
++## Discoveries & Learnings
++
++_Populated during implementation by plan-6._
++
++| Date | Task | Type | Discovery | Resolution | References |
++|------|------|------|-----------|------------|------------|

@@ -2,6 +2,7 @@
 
 **Type**: infrastructure
 **Status**: active
+**C4 Diagram**: [C4 Component](../../../c4/components/_platform/sdk.md)
 **Created By**: Plan 047 — USDK
 **Parent**: `_platform`
 
