@@ -117,6 +117,7 @@ Primary: `apps/web/src/features/050-workflow-page/`
 | `_platform/panel-layout` | ~~`PanelShell`~~ Not used — standalone layout | DYK Phase 2: dropped PanelShell |
 | `_platform/workspace-url` | `workspaceHref`, param caches | URL state management |
 | `_platform/sdk` | `IUSDK` | Commands and keybindings |
+| `_platform/state` | `useGlobalState` | Subscribe to execution/state updates |
 | `@chainglass/shared` | `IYamlParser`, Result types | Foundation utilities |
 
 ### Domains That Depend On This

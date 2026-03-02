@@ -1,8 +1,8 @@
 # Component: Work Unit Editor (`058-workunit-editor`)
 
-> **Domain Definition**: [058-workunit-editor/domain.md](../../../domains/058-workunit-editor/domain.md)
+> **Domain Definition**: [058-workunit-editor/domain.md](../../domains/058-workunit-editor/domain.md)
 > **Source**: `apps/web/src/features/058-workunit-editor/`
-> **Registry**: [registry.md](../../../domains/registry.md) — Row: Work Unit Editor
+> **Registry**: [registry.md](../../domains/registry.md) — Row: Work Unit Editor
 
 Visual editor for creating and editing work unit templates — the building blocks of workflows. Supports three unit types (agent prompts, code scripts, human input questions) with type-specific editors, I/O configuration, and auto-save. Provides a list view for browsing units and a creation modal for new units.
 
@@ -49,7 +49,7 @@ C4Component
 
 ## External Dependencies
 
-Depends on: _platform/positional-graph (IWorkUnitService), _platform/viewer (CodeEditor), _platform/workspace-url (workspaceHref).
+Depends on: _platform/positional-graph (IWorkUnitService), _platform/viewer (code display via viewer contracts), _platform/workspace-url (workspaceHref).
 Consumed by: (leaf consumer — no downstream dependents).
 
 ---
@@ -57,5 +57,5 @@ Consumed by: (leaf consumer — no downstream dependents).
 ## Navigation
 
 - **Zoom Out**: [Web App Container](../containers/web-app.md) | [Container Overview](../containers/overview.md)
-- **Domain**: [058-workunit-editor/domain.md](../../../domains/058-workunit-editor/domain.md)
+- **Domain**: [058-workunit-editor/domain.md](../../domains/058-workunit-editor/domain.md)
 - **Hub**: [C4 Overview](../README.md)

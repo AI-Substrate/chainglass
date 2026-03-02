@@ -1,8 +1,8 @@
 # Component: Workflow UI (`workflow-ui`)
 
-> **Domain Definition**: [workflow-ui/domain.md](../../../domains/workflow-ui/domain.md)
+> **Domain Definition**: [workflow-ui/domain.md](../../domains/workflow-ui/domain.md)
 > **Source**: `apps/web/src/features/050-workflow-page/`
-> **Registry**: [registry.md](../../../domains/registry.md) — Row: Workflow UI
+> **Registry**: [registry.md](../../domains/registry.md) — Row: Workflow UI
 
 Visual workflow editor for the positional graph system. Provides a drag-drop canvas for building workflows, a toolbox for adding work units, a properties panel for node configuration, Q&A modals for agent interaction, and SSE-based live updates during execution. Includes an undo/redo system and context flow visualization.
 
@@ -66,5 +66,5 @@ Consumed by: (leaf consumer — no downstream dependents).
 ## Navigation
 
 - **Zoom Out**: [Web App Container](../containers/web-app.md) | [Container Overview](../containers/overview.md)
-- **Domain**: [workflow-ui/domain.md](../../../domains/workflow-ui/domain.md)
+- **Domain**: [workflow-ui/domain.md](../../domains/workflow-ui/domain.md)
 - **Hub**: [C4 Overview](../README.md)

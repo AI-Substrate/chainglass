@@ -1,8 +1,8 @@
 # Component: File Browser (`file-browser`)
 
-> **Domain Definition**: [file-browser/domain.md](../../../domains/file-browser/domain.md)
+> **Domain Definition**: [file-browser/domain.md](../../domains/file-browser/domain.md)
 > **Source**: `apps/web/src/features/041-file-browser/` + `apps/web/app/(dashboard)/workspaces/[slug]/browser/`
-> **Registry**: [registry.md](../../../domains/registry.md) — Row: File Browser
+> **Registry**: [registry.md](../../domains/registry.md) — Row: File Browser
 
 Workspace-scoped file browsing, editing, and diffing. The core feature that makes workspaces useful — users navigate files in a tree, view code with syntax highlighting, edit with CodeMirror, preview markdown, and see uncommitted git changes. Every state is deep-linkable via URL params.
 
@@ -72,5 +72,5 @@ Consumed by: (leaf consumer — no downstream dependents).
 ## Navigation
 
 - **Zoom Out**: [Web App Container](../containers/web-app.md) | [Container Overview](../containers/overview.md)
-- **Domain**: [file-browser/domain.md](../../../domains/file-browser/domain.md)
+- **Domain**: [file-browser/domain.md](../../domains/file-browser/domain.md)
 - **Hub**: [C4 Overview](../README.md)
