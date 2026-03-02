@@ -36,6 +36,9 @@ Workspace-scoped terminal access via tmux. Users open terminal sessions for work
 | Contract | Type | Consumers | Description |
 |----------|------|-----------|-------------|
 | `TerminalView` | Component | Terminal page, overlay panel | xterm.js wrapper with WebSocket; accepts `sessionName`, `cwd`, `onConnectionChange` |
+| `TerminalViewProps` | Type | Terminal consumers | Props contract for TerminalView component |
+| `ConnectionStatusBadge` | Component | Terminal header, overlay header | Connection state indicator (connecting/connected/disconnected) with optional reconnect button |
+| `TerminalSkeleton` | Component | TerminalView (Suspense fallback) | Loading placeholder during dynamic import |
 | `TerminalOverlayPanel` | Component | Workspace layout | Fixed-position overlay; renders when overlay is open |
 | `TerminalOverlayProvider` | Component | Workspace layout | React context providing overlay open/close/toggle |
 | `useTerminalOverlay()` | Hook | Sidebar toggle button, SDK command | Returns `{ isOpen, openTerminal, closeTerminal, toggleTerminal }` |
@@ -101,6 +104,16 @@ Primary: `apps/web/src/features/064-terminal/`
 
 ### Domains That Depend On This
 - (none currently — leaf business domain)
+
+## Concepts
+
+| Concept | Entry Point | What It Does |
+|---------|------------|-------------|
+| Render terminal in browser | `TerminalView` | Dynamic-imports xterm.js (ssr: false), connects to sidecar WS server, auto-fits to container, syncs theme. Usage: `<TerminalView sessionName="064-tmux" cwd="/path" />` |
+| Manage WS connection | `use-terminal-socket` | Connects to sidecar WS server with reconnect backoff, parses control messages vs raw terminal data, exposes `send()`/`close()`/`reconnect()` |
+| tmux session lifecycle | `TmuxSessionManager` | Validates session names, spawns PTY attached to tmux via `new-session -A`, lists sessions, falls back to raw shell when tmux unavailable |
+| Sidecar terminal server | `createTerminalServer` | Standalone WS server that accepts browser connections, spawns PTY processes, pipes I/O bidirectionally, handles resize, cleans up on disconnect |
+| Display connection state | `ConnectionStatusBadge` | Shows connecting (yellow pulse), connected (green), disconnected (gray) with optional reconnect button |
 
 ## History
 

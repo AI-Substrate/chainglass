@@ -54,6 +54,12 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
   const connect = useCallback(() => {
     if (disposedRef.current || !sessionName || !enabled) return;
 
+    // FT-004: Clear pending reconnect timer before new connection
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+
     // Close existing connection if any
     if (wsRef.current) {
       wsRef.current.close(1000);
@@ -70,7 +76,7 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
     wsRef.current = ws;
 
     ws.onopen = () => {
-      if (disposedRef.current) {
+      if (disposedRef.current || wsRef.current !== ws) {
         ws.close();
         return;
       }
@@ -79,7 +85,7 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
     };
 
     ws.onmessage = (event: MessageEvent) => {
-      if (disposedRef.current) return;
+      if (disposedRef.current || wsRef.current !== ws) return;
       const raw = typeof event.data === 'string' ? event.data : '';
 
       // DYK-02: Whitelist known control types, treat everything else as terminal data
@@ -106,6 +112,8 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
 
     ws.onclose = (event: CloseEvent) => {
       if (disposedRef.current) return;
+      // FT-004: Only update state if this is still the current socket
+      if (wsRef.current !== ws) return;
       wsRef.current = null;
       updateStatus('disconnected');
 
@@ -145,6 +153,11 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
   }, [updateStatus]);
 
   const reconnect = useCallback(() => {
+    // FT-004: Clear pending auto-reconnect before manual reconnect
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
     reconnectAttemptsRef.current = 0;
     connect();
   }, [connect]);

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 /**
  * DYK-04: jsdom can't render xterm.js (needs Canvas API).
@@ -8,15 +8,28 @@ import { describe, expect, it, vi } from 'vitest';
  */
 describe('TerminalView module', () => {
   it('exports TerminalView as a named export', async () => {
-    // Verify the module structure — the actual component needs browser APIs
+    /*
+    Test Doc:
+    - Why: Ensure public contract export remains stable for domain consumers
+    - Contract: Module exposes TerminalView named export as callable component
+    - Usage Notes: Import module directly; avoid rendering xterm in jsdom (DYK-04)
+    - Quality Contribution: Catches accidental export removals or renames
+    - Worked Example: import module => mod.TerminalView is defined and typeof === 'function'
+    */
     const mod = await import('@/features/064-terminal/components/terminal-view');
     expect(mod.TerminalView).toBeDefined();
     expect(typeof mod.TerminalView).toBe('function');
   });
 
   it('exports TerminalViewProps type (compile-time check)', () => {
-    // This test exists to verify TypeScript compiles correctly with the exported types.
-    // If types are wrong, this file won't compile → test suite fails.
+    /*
+    Test Doc:
+    - Why: Props contract must remain valid TypeScript for all consumers
+    - Contract: TerminalViewProps requires sessionName (string) and cwd (string)
+    - Usage Notes: Compile-time check only — if types break, this file fails to compile
+    - Quality Contribution: Guards type contract stability across refactors
+    - Worked Example: Construct props object with required fields => compiles and sessionName accessible
+    */
     const props: import('@/features/064-terminal/components/terminal-view').TerminalViewProps = {
       sessionName: '064-tmux',
       cwd: '/tmp',
@@ -27,8 +40,15 @@ describe('TerminalView module', () => {
 
 describe('TerminalSkeleton', () => {
   it('renders skeleton loading state', async () => {
-    // Import dynamically to avoid xterm.js side effects
-    const { render, screen } = await import('@testing-library/react');
+    /*
+    Test Doc:
+    - Why: Skeleton must render during dynamic import loading to prevent layout shift
+    - Contract: TerminalSkeleton renders multiple Skeleton elements with data-slot="skeleton"
+    - Usage Notes: Dynamic import to avoid xterm.js side effects in test environment
+    - Quality Contribution: Guards Suspense fallback rendering path
+    - Worked Example: render TerminalSkeleton => DOM contains multiple data-slot="skeleton" elements
+    */
+    const { render } = await import('@testing-library/react');
     const { TerminalSkeleton } = await import(
       '@/features/064-terminal/components/terminal-skeleton'
     );

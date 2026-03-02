@@ -33,3 +33,34 @@
 - **Files modified**: 2 (index.ts barrel, terminal-ws.ts localhost binding)
 - **Lint**: Phase 2 files clean (biome check 0 errors)
 - **No vi.mock()**: No mocks used. Tests verify exports and rendering.
+
+## Manual verification evidence
+
+Phase 2 delivers reusable components — no route exists yet to render them. Full manual verification of AC-02/AC-03/AC-07 requires Phase 3 (terminal page route). Evidence below documents the verification plan and component-level confidence.
+
+### AC-02: Real-time terminal I/O with ANSI output
+- **Component coverage**: `terminal-inner.tsx` wires `terminal.onData → send()` (user input) and `onData callback → terminal.write()` (server output). ANSI rendering is native xterm.js capability.
+- **Verification plan** (Phase 3): Run `just dev`, navigate to `/workspaces/064-tmux/terminal`, type `ls --color` → confirm colored output appears in real-time.
+- **Confidence**: 70% (wiring verified by code inspection; runtime verification deferred to Phase 3)
+
+### AC-03: Refresh reconnect preserves running command
+- **Component coverage**: `use-terminal-socket.ts` reconnects on unexpected close (code !== 1000) with exponential backoff (1s→2s→4s→8s, 5 attempts). tmux session survives PTY kill (server-side, verified in Phase 1 tests).
+- **Verification plan** (Phase 3): Start `tail -f /dev/null` in terminal → refresh page → verify terminal reconnects and command output continues.
+- **Confidence**: 65% (reconnect logic implemented + stale-socket race fixed FT-004; runtime verification deferred)
+
+### AC-07: Resize refit + tmux resize notification
+- **Component coverage**: `terminal-inner.tsx` has ResizeObserver → `requestAnimationFrame` → `fitAddon.fit()` → send `{type:'resize', cols, rows}` JSON to server. Server `terminal-ws.ts` handles resize message → `pty.resize(cols, rows)`.
+- **Verification plan** (Phase 3): Resize browser window → verify terminal re-fits → verify tmux shows updated dimensions (`tmux display -t 064-tmux -p '#{window_width}x#{window_height}'`).
+- **Confidence**: 65% (full flow implemented; runtime verification deferred)
+
+## AC coverage map
+
+| AC | Evidence | Confidence |
+|----|----------|------------|
+| AC-02 | terminal-inner.tsx onData wiring + xterm native ANSI | 70% (runtime deferred to Phase 3) |
+| AC-03 | use-terminal-socket reconnect logic + Phase 1 tmux survival tests | 65% (runtime deferred to Phase 3) |
+| AC-07 | ResizeObserver → fitAddon.fit() → resize JSON → server pty.resize() | 65% (runtime deferred to Phase 3) |
+| AC-01 | Component + hook ready; route not yet wired | 30% (Phase 3 deliverable) |
+| AC-04 | Architectural support (tmux handles multi-client natively) | 20% (Phase 3 deliverable) |
+| AC-05 | Overlay not yet built | 0% (Phase 4 deliverable) |
+| AC-13 | Cleanup logic in terminal-inner.tsx + use-terminal-socket.ts | 35% (Phase 4 deliverable) |
