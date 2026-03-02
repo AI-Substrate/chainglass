@@ -293,3 +293,11 @@ The web agent system is structurally sound (3 adapters, DI container, SSE transp
 |------|------------|--------|------------|
 | Cross-worktree file access — reading other worktrees' data files | Medium | Medium | Enumerate worktrees from workspace config; handle missing/corrupt files gracefully |
 | Polling frequency for cross-worktree state | Low | Low | Poll every 30s or use SSE cross-worktree channel |
+
+---
+
+## Fixes
+
+| ID | Created | Summary | Domain(s) | Status | Source |
+|----|---------|---------|-----------|--------|--------|
+| FX001 | 2026-03-02 | Wire agent lifecycle into WorkUnitStateService — bridge.register/update/unregister calls | agents, work-unit-state | Proposed | User: sidebar badges empty, no data in work-unit-state.json |
