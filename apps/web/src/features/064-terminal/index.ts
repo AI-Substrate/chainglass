@@ -16,3 +16,9 @@ export type {
   PtyProcess,
   CommandExecutor,
 } from './types';
+
+// Components (Phase 2)
+export { TerminalView } from './components/terminal-view';
+export type { TerminalViewProps } from './components/terminal-view';
+export { ConnectionStatusBadge } from './components/connection-status-badge';
+export { TerminalSkeleton } from './components/terminal-skeleton';

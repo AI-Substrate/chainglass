@@ -121,7 +121,8 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
   }
 
   function start(port: number): void {
-    wss = new WebSocketServer({ port, host: '0.0.0.0' });
+    // Bind localhost only until auth lands (Plan 063)
+    wss = new WebSocketServer({ port, host: '127.0.0.1' });
 
     wss.on('connection', (ws: WebSocket, req) => {
       const url = new URL(req.url ?? '/', `http://${req.headers.host}`);
@@ -145,7 +146,7 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
       console.error('Terminal WS server error:', error);
     });
 
-    console.log(`Terminal WS server listening on ws://0.0.0.0:${port}/terminal`);
+    console.log(`Terminal WS server listening on ws://127.0.0.1:${port}/terminal`);
 
     process.on('SIGTERM', () => {
       console.log('Terminal WS server: SIGTERM received, cleaning up...');
