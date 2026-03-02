@@ -3,7 +3,7 @@
 **Plan**: [fix-agents-plan.md](../../fix-agents-plan.md) (Phase C)
 **Phase**: Phase 3: Top Bar + Agent Overlay
 **Generated**: 2026-03-02
-**Status**: Ready for takeoff
+**Status**: Landed
 
 ---
 
@@ -58,7 +58,7 @@ stateDiagram-v2
     S4 --> S5
     S5 --> [*]
 
-    class S1,S2,S3,S4,S5 pending
+    class S1,S2,S3,S4,S5 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -67,11 +67,11 @@ stateDiagram-v2
 
 ## Stages
 
-- [ ] **Stage 1: Constants + layout slot** — z-index hierarchy, storage keys, DashboardShell top bar slot (T001, T002)
-- [ ] **Stage 2: Chips + chip bar** — useRecentAgents hook, AgentChip component, AgentChipBar with @dnd-kit (T003, T004, T005)
-- [ ] **Stage 3: Overlay hook + panel** — useAgentOverlay context/hook, AgentOverlayPanel with chat UI (T006, T007)
-- [ ] **Stage 4: Wiring + rehydration** — chip click → overlay, session rehydration, workflow node → overlay (T008, T009)
-- [ ] **Stage 5: Attention layers** — chip pulse, toast, screen border flash, ❓ badge (T010)
+- [x] **Stage 1: Constants + layout slot** — z-index hierarchy, storage keys, DashboardShell top bar slot (T001, T002)
+- [x] **Stage 2: Chips + chip bar** — useRecentAgents hook, AgentChip component, AgentChipBar with @dnd-kit (T003, T004, T005)
+- [x] **Stage 3: Overlay hook + panel** — useAgentOverlay context/hook, AgentOverlayPanel with chat UI (T006, T007)
+- [x] **Stage 4: Wiring + rehydration** — chip click → overlay, session rehydration, workflow node → overlay (T008, T009)
+- [x] **Stage 5: Attention layers** — chip pulse, toast, screen border flash, ❓ badge (T010)
 
 ---
 
@@ -132,13 +132,13 @@ flowchart LR
 
 ## Checklist
 
-- [ ] T001: Define z-index hierarchy + storage keys
-- [ ] T002: Add top bar slot in DashboardShell
-- [ ] T003: Create useRecentAgents hook
-- [ ] T004: Create AgentChip component
-- [ ] T005: Create AgentChipBar with @dnd-kit
-- [ ] T006: Create useAgentOverlay hook + provider
-- [ ] T007: Create AgentOverlayPanel with chat UI
-- [ ] T008: Wire chip → overlay + session rehydration
-- [ ] T009: Wire workflow node → overlay
-- [ ] T010: Implement attention layers (pulse, toast, flash)
+- [x] T001: Define z-index hierarchy + storage keys
+- [x] T002: Add top bar slot in DashboardShell
+- [x] T003: Create useRecentAgents hook
+- [x] T004: Create AgentChip component
+- [x] T005: Create AgentChipBar with @dnd-kit
+- [x] T006: Create useAgentOverlay hook + provider
+- [x] T007: Create AgentOverlayPanel with chat UI
+- [x] T008: Wire chip → overlay + session rehydration
+- [x] T009: Wire workflow node → overlay
+- [x] T010: Implement attention layers (pulse, toast, flash)
