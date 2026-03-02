@@ -111,15 +111,14 @@ The vibe: "The whole reason this system exists is to manage teams of agents. We 
 
 ### Phase B — WorkUnit State System
 
-9. **AC-09**: `IWorkUnitStateService` interface exists in `packages/shared` with methods: `register`, `unregister`, `updateStatus`, `askQuestion`, `answerQuestion`, `onAnswer`, `getUnit`, `getUnits`, `getQuestioned`, `tidyUp`
-10. **AC-10**: `WorkUnitStateService` implementation persists entries to `<worktree>/.chainglass/data/work-unit-state.json` and publishes to GlobalStateSystem at `work-unit:{id}:*` paths
-11. **AC-11**: On page load, `tidyUp()` removes entries older than 24h that are not `working` or `waiting_input`
-12. **AC-12**: Working entries never expire regardless of age; entries with pending questions never expire
-13. **AC-13**: `FakeWorkUnitStateService` test double exists with inspection methods (`getPublished`, `getQuestions`, `getAnswers`)
-14. **AC-14**: Contract tests verify real and fake implementations behave identically (following Plan 053 pattern)
-15. **AC-15**: `AgentWorkUnitBridge` automatically registers agents with WorkUnitStateService when created and publishes status changes
-16. **AC-16**: When an agent emits a first-class question event, the bridge calls `askQuestion()` which sets `work-unit:{id}:has-question = true`
-17. **AC-17**: Answering a question via `answerQuestion()` routes the answer to the registered callback and clears the question state
+9. **AC-09**: `IWorkUnitStateService` interface exists in `packages/shared` with methods: `register`, `unregister`, `updateStatus`, `getUnit`, `getUnits`, `getUnitBySourceRef`, `tidyUp` — status-only registry (Q&A handled by WorkflowEvents, Plan 061)
+10. **AC-10**: `WorkUnitStateService` implementation persists entries to `<worktree>/.chainglass/data/work-unit-state.json` and emits via CentralEventNotifier → SSE → GlobalStateSystem at `work-unit-state:{id}:*` paths
+11. **AC-11**: On startup hydration and register(), `tidyUp()` removes entries older than 24h that are not `working` or `waiting_input`
+12. **AC-12**: Working entries and `waiting_input` entries never expire regardless of age
+13. **AC-13**: `FakeWorkUnitStateService` test double exists with inspection methods (`getRegistered`, `getRegisteredCount`, `reset`)
+14. **AC-14**: Contract tests verify real and fake implementations behave identically (57 tests)
+15. **AC-15**: `AgentWorkUnitBridge` automatically registers agents with WorkUnitStateService when created, publishes status changes, and subscribes to WorkflowEvents observers per sourceRef.graphSlug
+16. **AC-16**: Observer-driven status: `onQuestionAsked` → `waiting_input`, `onQuestionAnswered` → `working` (via WorkflowEvents, not WorkUnitStateService Q&A)
 
 ### Phase C — Top Bar + Agent Overlay
 

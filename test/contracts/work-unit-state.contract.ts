@@ -5,6 +5,13 @@
  * Behavioral tests run against fake only (real needs filesystem for persistence).
  *
  * Plan 059 Phase 2 — TDD red phase.
+ *
+ * Test Doc:
+ * - Why: Ensure both WorkUnitStateService and FakeWorkUnitStateService implement the same contract
+ * - Contract: IWorkUnitStateService — 7 methods (register, unregister, updateStatus, getUnit, getUnits, getUnitBySourceRef, tidyUp)
+ * - Usage Notes: Factory creates fresh instance per test; behavioral tests mutate entry timestamps for aging
+ * - Quality Contribution: 57 tests (25 conformance × 2 impls + 7 behavioral) ensuring real/fake parity
+ * - Worked Example: register agent → updateStatus → getUnitBySourceRef → tidyUp removes stale
  */
 
 import type { IWorkUnitStateService } from '@chainglass/shared/interfaces/work-unit-state.interface';
@@ -110,11 +117,17 @@ export function workUnitStateConformanceTests(name: string, factory: Factory): v
       it('should update lastActivityAt', () => {
         service.register(makeAgent('a1'));
         const before = service.getUnit('a1')?.lastActivityAt;
-        // Small delay to ensure timestamp differs
+        expect(before).toBeTruthy();
+        // Verify it's a valid ISO timestamp
+        expect(Number.isNaN(new Date(before as string).getTime())).toBe(false);
         service.updateStatus('a1', { status: 'working' });
         const after = service.getUnit('a1')?.lastActivityAt;
         expect(after).toBeTruthy();
-        // Can't guarantee strict inequality in same-ms execution, just verify it's set
+        expect(Number.isNaN(new Date(after as string).getTime())).toBe(false);
+        // Timestamp should be >= before (same ms is acceptable)
+        expect(new Date(after as string).getTime()).toBeGreaterThanOrEqual(
+          new Date(before as string).getTime()
+        );
       });
 
       it('should be a no-op for unknown IDs', () => {

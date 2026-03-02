@@ -41,8 +41,10 @@ The web agent system is structurally sound (3 adapters, DI container, SSE transp
 | `packages/shared/src/fakes/fake-work-unit-state.ts` | work-unit-state | contract | FakeWorkUnitStateService test double |
 | `apps/web/src/lib/work-unit-state/work-unit-state.service.ts` | work-unit-state | internal | Real implementation with persistence + state publishing |
 | `apps/web/src/lib/work-unit-state/index.ts` | work-unit-state | internal | Barrel exports |
+| `apps/web/src/lib/state/work-unit-state-route.ts` | work-unit-state | internal | SSE → GlobalStateSystem route descriptor |
 | `test/contracts/work-unit-state.contract.ts` | work-unit-state | contract | Contract test factory |
 | `test/contracts/work-unit-state.contract.test.ts` | work-unit-state | contract | Contract test runner |
+| `test/unit/web/work-unit-state/agent-work-unit-bridge.test.ts` | agents | internal | Bridge unit tests |
 | `apps/web/src/features/059-fix-agents/agent-work-unit-bridge.ts` | agents | internal | Publishes agent status/questions to WorkUnitStateService |
 | `apps/web/src/components/agents/agent-chip-bar.tsx` | agents | internal | Persistent top bar with draggable chips |
 | `apps/web/src/components/agents/agent-chip.tsx` | agents | internal | Individual agent chip with status indicator |
@@ -176,15 +178,14 @@ The web agent system is structurally sound (3 adapters, DI container, SSE transp
 
 #### Acceptance Criteria
 
-- [ ] AC-09: IWorkUnitStateService interface in packages/shared with all methods
-- [ ] AC-10: Implementation persists to JSON + publishes state paths
-- [ ] AC-11: tidyUp() removes entries > 24h that aren't working/waiting
-- [ ] AC-12: Working entries + questioned entries never expire
-- [ ] AC-13: FakeWorkUnitStateService with inspection methods
-- [ ] AC-14: Contract tests pass for both real and fake
-- [ ] AC-15: AgentWorkUnitBridge auto-registers agents on creation
-- [ ] AC-16: First-class question events → askQuestion() → has-question state path
-- [ ] AC-17: answerQuestion() routes to callback + clears question state
+- [x] AC-09: IWorkUnitStateService interface in packages/shared — status-only (register, unregister, updateStatus, getUnit, getUnits, getUnitBySourceRef, tidyUp)
+- [x] AC-10: Implementation persists to JSON + emits via CentralEventNotifier → SSE → GlobalStateSystem
+- [x] AC-11: tidyUp() removes entries > 24h that aren't working/waiting_input (called on startup + register)
+- [x] AC-12: Working + waiting_input entries never expire
+- [x] AC-13: FakeWorkUnitStateService with inspection methods (getRegistered, getRegisteredCount, reset)
+- [x] AC-14: Contract tests pass for both real and fake (57 tests)
+- [x] AC-15: AgentWorkUnitBridge auto-registers agents + subscribes to WorkflowEvents observers
+- [x] AC-16: Observer-driven status: onQuestionAsked → waiting_input, onQuestionAnswered → working
 
 #### Risks
 

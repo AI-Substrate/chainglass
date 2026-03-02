@@ -3,6 +3,13 @@
  *
  * Tests the bridge between agent lifecycle and WorkUnitStateService,
  * including WorkflowEvents observer subscriptions.
+ *
+ * Test Doc:
+ * - Why: Verify bridge correctly maps agent lifecycle to work unit status, including WF observer subscriptions
+ * - Contract: AgentWorkUnitBridge — registerAgent, updateAgentStatus, unregisterAgent
+ * - Usage Notes: Uses FakeWorkUnitStateService + FakeWorkflowEventsService; observer tests trigger via askQuestion/answerQuestion
+ * - Quality Contribution: 12 tests covering register, update, unregister, observer subscription/unsubscription, cross-agent isolation
+ * - Worked Example: registerAgent with sourceRef → WF askQuestion fires → status becomes waiting_input → answerQuestion → working
  */
 
 import { FakeWorkflowEventsService } from '@chainglass/shared/fakes';

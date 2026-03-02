@@ -124,6 +124,8 @@ export const POSITIONAL_GRAPH_DI_TOKENS = {
   WORKFLOW_EVENTS_SERVICE: 'IWorkflowEvents',
   /** IWorkUnitStateService — centralized work unit status registry (Plan 059) */
   WORK_UNIT_STATE_SERVICE: 'IWorkUnitStateService',
+  /** AgentWorkUnitBridge — bridges agent lifecycle to work-unit-state (Plan 059) */
+  AGENT_WORK_UNIT_BRIDGE: 'AgentWorkUnitBridge',
 } as const;
 
 /**

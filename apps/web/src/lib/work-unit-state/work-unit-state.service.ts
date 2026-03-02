@@ -12,6 +12,14 @@
  *
  * State paths: `work-unit-state:{id}:status`, `work-unit-state:{id}:intent`,
  * `work-unit-state:{id}:name`
+ *
+ * Architecture note (F003): This service uses direct node:fs/node:path imports
+ * instead of IFileSystem/IPathResolver adapters. This is a documented exception:
+ * - Service lives in apps/web (server-side only, never bundled for client)
+ * - Persistence is a simple JSON read/write, not a domain-critical abstraction
+ * - Adding adapter indirection for 2 calls (readFileSync, writeFileSync) adds
+ *   complexity without proportional value
+ * - If persistence becomes more complex (e.g., cross-worktree), extract adapter
  */
 
 import * as fs from 'node:fs';

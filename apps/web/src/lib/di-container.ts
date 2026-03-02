@@ -112,6 +112,8 @@ import { AgentNotifierService } from '../features/019-agent-manager-refactor/age
 import { SSEManagerBroadcaster } from '../features/019-agent-manager-refactor/sse-manager-broadcaster';
 // Plan 027: CentralEventNotifierService (real implementation)
 import { CentralEventNotifierService } from '../features/027-central-notify-events/central-event-notifier.service';
+// Plan 059: AgentWorkUnitBridge (agent lifecycle → work-unit-state)
+import { AgentWorkUnitBridge } from '../features/059-fix-agents/agent-work-unit-bridge';
 import { SampleService } from '../services/sample.service';
 import { sseManager } from './sse-manager';
 // Plan 059: WorkUnitStateService (real implementation)
@@ -527,25 +529,36 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
 
   // Singleton via closure-captured flag (survives HMR).
   // Dependency order: CentralEventNotifier → WorkUnitStateService → AgentWorkUnitBridge
+  // NOTE: worktreePath defaults to process.cwd() because resolveFromPath() is async
+  // and DI factories are synchronous. In practice, the web server CWD IS the worktree.
   let workUnitStateInstance: IWorkUnitStateService | null = null;
   childContainer.register<IWorkUnitStateService>(
     POSITIONAL_GRAPH_DI_TOKENS.WORK_UNIT_STATE_SERVICE,
     {
       useFactory: (c) => {
         if (workUnitStateInstance) return workUnitStateInstance;
-        const contextResolver = c.resolve<IWorkspaceContextResolver>(
-          WORKSPACE_DI_TOKENS.WORKSPACE_CONTEXT_RESOLVER
-        );
         const notifier = c.resolve<ICentralEventNotifier>(
           WORKSPACE_DI_TOKENS.CENTRAL_EVENT_NOTIFIER
         );
-        // Resolve workspace path lazily — use CWD as fallback for server startup
-        const worktreePath = process.cwd();
-        workUnitStateInstance = new WorkUnitStateService(worktreePath, notifier);
+        workUnitStateInstance = new WorkUnitStateService(process.cwd(), notifier);
         return workUnitStateInstance;
       },
     }
   );
+
+  // Register AgentWorkUnitBridge — bridges agent lifecycle to WorkUnitStateService.
+  // Singleton: one bridge per process. WorkflowEvents optional (may not be in web DI).
+  let bridgeInstance: AgentWorkUnitBridge | null = null;
+  childContainer.register<AgentWorkUnitBridge>(POSITIONAL_GRAPH_DI_TOKENS.AGENT_WORK_UNIT_BRIDGE, {
+    useFactory: (c) => {
+      if (bridgeInstance) return bridgeInstance;
+      const workUnitState = c.resolve<IWorkUnitStateService>(
+        POSITIONAL_GRAPH_DI_TOKENS.WORK_UNIT_STATE_SERVICE
+      );
+      bridgeInstance = new AgentWorkUnitBridge(workUnitState);
+      return bridgeInstance;
+    },
+  });
 
   // FIX-010: Performance metrics for container creation
   const durationMs = performance.now() - startTime;
@@ -748,6 +761,16 @@ export function createTestContainer(): DependencyContainer {
       useValue: new FakeWorkUnitStateService(),
     }
   );
+
+  // Register AgentWorkUnitBridge with fake dependencies
+  childContainer.register<AgentWorkUnitBridge>(POSITIONAL_GRAPH_DI_TOKENS.AGENT_WORK_UNIT_BRIDGE, {
+    useFactory: (c) => {
+      const workUnitState = c.resolve<IWorkUnitStateService>(
+        POSITIONAL_GRAPH_DI_TOKENS.WORK_UNIT_STATE_SERVICE
+      );
+      return new AgentWorkUnitBridge(workUnitState);
+    },
+  });
 
   return childContainer;
 }

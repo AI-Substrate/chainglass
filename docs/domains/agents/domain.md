@@ -231,7 +231,8 @@ Primary: scattered across `packages/shared/src/`, `packages/workflow/src/`, `app
 | `_platform/events` | toast() | Toast notifications for agent status changes |
 | `_platform/sdk` | CopilotClient | SdkCopilotAdapter uses Copilot SDK client singleton |
 | `_platform/state` | IStateService, useGlobalState | Future: publish agent state paths |
-| `work-unit-state` | IWorkUnitStateService | Future: AgentWorkUnitBridge publishes status/questions |
+| `work-unit-state` | IWorkUnitStateService | AgentWorkUnitBridge publishes agent status to centralized registry |
+| `workflow-events` | IWorkflowEvents (onQuestionAsked, onQuestionAnswered) | Bridge subscribes to WF observers for status-driven updates |
 | `_platform/panel-layout` | DashboardShell | Future: top bar slot for agent chip bar |
 
 ### Domains That Depend On This
@@ -253,3 +254,4 @@ Primary: scattered across `packages/shared/src/`, `packages/workflow/src/`, `app
 | Plan 034 | Agentic CLI — CLI agent commands, compact handler | 2026-02 |
 | Plan 057 | CopilotCLI adapter — tmux + events.jsonl tailing | 2026-02 |
 | *(extracted)* | Domain formalized from existing codebase | 2026-02-28 |
+| Plan 059 Phase 2 | AgentWorkUnitBridge implemented — registers agents in WorkUnitStateService, subscribes to WorkflowEvents observers, DI wired | 2026-03-02 |
