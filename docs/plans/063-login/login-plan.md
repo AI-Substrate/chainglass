@@ -61,8 +61,9 @@ Chainglass currently has zero authentication — all 25+ dashboard pages, 11 API
 
 ## Phases
 
-### Phase 1: Core Auth Infrastructure
+### Phase 1: Core Auth Infrastructure ✅
 
+**Status**: Complete (committed `095b235`, `eba04c1`)
 **Objective**: Establish GitHub OAuth using Auth.js v5 (next-auth), session management, and route protection middleware.
 **Domain**: _platform/auth (create)
 **Delivers**:
@@ -90,8 +91,9 @@ Chainglass currently has zero authentication — all 25+ dashboard pages, 11 API
 | 1.8 | Create `apps/web/.env.example` with required env vars: `AUTH_GITHUB_ID`, `AUTH_GITHUB_SECRET`, `AUTH_SECRET` | _platform/auth | File exists with all 3 vars documented with descriptions. | Auth.js auto-infers `AUTH_` prefixed vars. |
 | 1.9 | Test standalone build (`next build`) to verify Auth.js bundles correctly. Add `next-auth` to `serverExternalPackages` if needed. Run `just fft`. | _platform/auth | `pnpm build` succeeds. `just fft` passes. No missing module errors. | Per Finding 02. |
 
-### Phase 2: ASCII Art Animated Login Screen
+### Phase 2: ASCII Art Animated Login Screen ✅
 
+**Status**: Complete (committed `a797834`)
 **Objective**: Replace the plain login page with a visually striking hacker-console-styled experience.
 **Domain**: _platform/auth
 **Delivers**:

@@ -149,3 +149,4 @@ if (!session) {
 | Plan | Change | Date |
 |------|--------|------|
 | 063-login Phase 1 | Domain created with Auth.js v5, middleware, login page, allowlist | 2026-03-02 |
+| 063-login Phase 2 | Added animated ASCII art login screen (matrix rain, glitch logo, CRT overlay, terminal button), moved SessionProvider to layout-level, build fixes | 2026-03-02 |
