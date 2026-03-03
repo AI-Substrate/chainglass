@@ -27,6 +27,14 @@ dev:
 dev-terminal:
     PORT=${PORT:-3000} pnpm tsx watch apps/web/src/features/064-terminal/server/terminal-ws.ts
 
+# Start development server with HTTPS (enables clipboard API on remote devices)
+dev-https:
+    @cd apps/web && node -e "require('node-pty').spawn('/bin/echo',['ok'],{name:'x',cols:1,rows:1,cwd:'/tmp',env:{}})" 2>/dev/null || (echo "Error: node-pty can't spawn. Run: chmod +x apps/web/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper" && exit 1)
+    PORT=${PORT:-3000} TERMINAL_WS_HOST=${TERMINAL_WS_HOST:-0.0.0.0} TERMINAL_WS_CERT=apps/web/certificates/localhost.pem TERMINAL_WS_KEY=apps/web/certificates/localhost-key.pem \
+      pnpm concurrently --names "next,terminal" --prefix-colors "blue,green" \
+        "pnpm turbo dev -- --port ${PORT:-3000} --experimental-https" \
+        "pnpm tsx watch apps/web/src/features/064-terminal/server/terminal-ws.ts"
+
 # Build all packages
 build:
     pnpm turbo build

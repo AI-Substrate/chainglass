@@ -22,7 +22,13 @@ export class FakeTmuxExecutor {
   }
 
   /** Configure a successful response for a specific command+args */
-  whenCommand(command: string, args: string[]): { returns: (output: string) => FakeTmuxExecutor; throws: (exitCode?: number) => FakeTmuxExecutor } {
+  whenCommand(
+    command: string,
+    args: string[]
+  ): {
+    returns: (output: string) => FakeTmuxExecutor;
+    throws: (exitCode?: number) => FakeTmuxExecutor;
+  } {
     const key = this.makeKey(command, args);
     return {
       returns: (output: string) => {
@@ -60,9 +66,7 @@ export class FakeTmuxExecutor {
   /** Assert a command was executed */
   assertExecuted(command: string, args: string[]): void {
     const key = this.makeKey(command, args);
-    const found = this.executedCommands.some(
-      (c) => this.makeKey(c.command, c.args) === key
-    );
+    const found = this.executedCommands.some((c) => this.makeKey(c.command, c.args) === key);
     if (!found) {
       throw new Error(
         `Expected command "${key}" to be executed. Executed: ${this.executedCommands.map((c) => this.makeKey(c.command, c.args)).join(', ')}`

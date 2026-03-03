@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ConnectionStatus } from '../types';
 
 /** Known control message types from the sidecar server (DYK-02 whitelist) */
-const CONTROL_TYPES = new Set(['status', 'error', 'sessions']);
+const CONTROL_TYPES = new Set(['status', 'error', 'sessions', 'clipboard']);
 
 export interface UseTerminalSocketOptions {
   sessionName: string | null;
@@ -13,6 +13,7 @@ export interface UseTerminalSocketOptions {
   onData?: (data: string) => void;
   onStatus?: (status: string, tmux: boolean, message?: string) => void;
   onError?: (message: string) => void;
+  onClipboard?: (data: string, error?: string) => void;
   onConnectionChange?: (status: ConnectionStatus) => void;
 }
 
@@ -21,6 +22,7 @@ export interface UseTerminalSocketReturn {
   send: (data: string) => void;
   close: () => void;
   reconnect: () => void;
+  copyBuffer: () => void;
 }
 
 const MAX_RECONNECT_ATTEMPTS = 5;
@@ -48,10 +50,12 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
   const onDataRef = useRef(options.onData);
   const onStatusRef = useRef(options.onStatus);
   const onErrorRef = useRef(options.onError);
+  const onClipboardRef = useRef(options.onClipboard);
   const onConnectionChangeRef = useRef(options.onConnectionChange);
   onDataRef.current = options.onData;
   onStatusRef.current = options.onStatus;
   onErrorRef.current = options.onError;
+  onClipboardRef.current = options.onClipboard;
   onConnectionChangeRef.current = options.onConnectionChange;
 
   const updateStatus = useCallback((newStatus: ConnectionStatus) => {
@@ -80,7 +84,8 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
 
     const port = Number(window.location.port || '3000') + 1500;
     const host = window.location.hostname;
-    const url = `ws://${host}:${port}/terminal?session=${encodeURIComponent(currentSession)}&cwd=${encodeURIComponent(currentCwd)}`;
+    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const url = `${protocol}://${host}:${port}/terminal?session=${encodeURIComponent(currentSession)}&cwd=${encodeURIComponent(currentCwd)}`;
 
     updateStatus('connecting');
 
@@ -111,6 +116,8 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
             }
           } else if (msg.type === 'error') {
             onErrorRef.current?.(msg.message);
+          } else if (msg.type === 'clipboard') {
+            onClipboardRef.current?.(msg.data, msg.error);
           }
           return;
         }
@@ -178,6 +185,10 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
     connect();
   }, [connect]);
 
+  const copyBuffer = useCallback(() => {
+    send(JSON.stringify({ type: 'copy-buffer' }));
+  }, [send]);
+
   // Auto-connect when enabled and sessionName provided
   useEffect(() => {
     disposedRef.current = false;
@@ -199,5 +210,5 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
     };
   }, [enabled, sessionName, connect]);
 
-  return { status, send, close, reconnect };
+  return { status, send, close, reconnect, copyBuffer };
 }

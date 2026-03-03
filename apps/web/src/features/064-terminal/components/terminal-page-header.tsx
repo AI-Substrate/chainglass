@@ -1,6 +1,7 @@
 'use client';
 
-import { TerminalSquare } from 'lucide-react';
+import { ClipboardCopy, TerminalSquare } from 'lucide-react';
+import { copyTmuxBuffer } from '../lib/copy-tmux-buffer';
 import type { ConnectionStatus } from '../types';
 import { ConnectionStatusBadge } from './connection-status-badge';
 
@@ -22,6 +23,15 @@ export function TerminalPageHeader({
         <span className="text-sm font-medium">{sessionName ?? 'No session'}</span>
       </div>
       <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => copyTmuxBuffer()}
+          className="rounded-sm p-1 text-muted-foreground hover:text-foreground hover:bg-accent"
+          aria-label="Copy tmux buffer"
+          title="Copy tmux buffer to clipboard"
+        >
+          <ClipboardCopy className="h-3.5 w-3.5" />
+        </button>
         <ConnectionStatusBadge status={connectionStatus} onReconnect={onReconnect} />
       </div>
     </div>

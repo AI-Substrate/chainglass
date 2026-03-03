@@ -1,10 +1,13 @@
-import { describe, it, expect } from 'vitest';
-import { FakeTmuxExecutor } from '../../../../fakes/fake-tmux-executor';
-import { createFakePtySpawner } from '../../../../fakes/fake-pty';
 import { TmuxSessionManager } from '@/features/064-terminal/server/tmux-session-manager';
+import { describe, expect, it } from 'vitest';
+import { createFakePtySpawner } from '../../../../fakes/fake-pty';
+import { FakeTmuxExecutor } from '../../../../fakes/fake-tmux-executor';
 
 describe('TmuxSessionManager', () => {
-  function createManager(executor?: FakeTmuxExecutor, ptySpawner?: ReturnType<typeof createFakePtySpawner>) {
+  function createManager(
+    executor?: FakeTmuxExecutor,
+    ptySpawner?: ReturnType<typeof createFakePtySpawner>
+  ) {
     const exec = executor ?? new FakeTmuxExecutor();
     const spawner = ptySpawner ?? createFakePtySpawner();
     return { manager: new TmuxSessionManager(exec.exec, spawner.spawn), exec, spawner };
@@ -116,14 +119,28 @@ describe('TmuxSessionManager', () => {
       - Worked Example: "064-tmux\t1709000000\t1\t2" → { name: "064-tmux", created: 1709000000, attached: 1, windows: 2 }
       */
       const { manager, exec } = createManager();
-      exec.whenCommand('tmux', ['list-sessions', '-F', '#{session_name}\t#{session_created}\t#{session_attached}\t#{session_windows}']).returns(
-        '064-tmux\t1709000000\t1\t2\n041-file-browser\t1708000000\t0\t1'
-      );
+      exec
+        .whenCommand('tmux', [
+          'list-sessions',
+          '-F',
+          '#{session_name}\t#{session_created}\t#{session_attached}\t#{session_windows}',
+        ])
+        .returns('064-tmux\t1709000000\t1\t2\n041-file-browser\t1708000000\t0\t1');
 
       const sessions = manager.listSessions();
       expect(sessions).toHaveLength(2);
-      expect(sessions[0]).toEqual({ name: '064-tmux', created: 1709000000, attached: 1, windows: 2 });
-      expect(sessions[1]).toEqual({ name: '041-file-browser', created: 1708000000, attached: 0, windows: 1 });
+      expect(sessions[0]).toEqual({
+        name: '064-tmux',
+        created: 1709000000,
+        attached: 1,
+        windows: 2,
+      });
+      expect(sessions[1]).toEqual({
+        name: '041-file-browser',
+        created: 1708000000,
+        attached: 0,
+        windows: 1,
+      });
     });
 
     it('should return empty array when no sessions exist', () => {

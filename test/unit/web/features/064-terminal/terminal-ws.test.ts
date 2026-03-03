@@ -1,7 +1,10 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import {
+  type TerminalServerDeps,
+  createTerminalServer,
+} from '@/features/064-terminal/server/terminal-ws';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { type FakePty, createFakePtySpawner } from '../../../../fakes/fake-pty';
 import { FakeTmuxExecutor } from '../../../../fakes/fake-tmux-executor';
-import { createFakePtySpawner, FakePty } from '../../../../fakes/fake-pty';
-import { createTerminalServer, type TerminalServerDeps } from '@/features/064-terminal/server/terminal-ws';
 
 function createFakeWs() {
   const sent: string[] = [];
@@ -12,16 +15,31 @@ function createFakeWs() {
   let closed = false;
 
   return {
-    send: (data: string) => { if (!closed) sent.push(data); },
-    close: (code?: number, reason?: string) => { closed = true; closeCode = code; closeReason = reason; closeHandler?.(); },
+    send: (data: string) => {
+      if (!closed) sent.push(data);
+    },
+    close: (code?: number, reason?: string) => {
+      closed = true;
+      closeCode = code;
+      closeReason = reason;
+      closeHandler?.();
+    },
     on: (event: string, handler: (...args: unknown[]) => void) => {
       if (event === 'message') messageHandler = handler as (data: Buffer | string) => void;
       if (event === 'close') closeHandler = handler as () => void;
     },
-    get sent() { return sent; },
-    get closeCode() { return closeCode; },
-    get closeReason() { return closeReason; },
-    get closed() { return closed; },
+    get sent() {
+      return sent;
+    },
+    get closeCode() {
+      return closeCode;
+    },
+    get closeReason() {
+      return closeReason;
+    },
+    get closed() {
+      return closed;
+    },
     simulateMessage: (data: string) => messageHandler?.(data),
     simulateClose: () => closeHandler?.(),
     readyState: 1,
@@ -79,7 +97,7 @@ describe('Terminal WebSocket Server', () => {
       server.handleConnection(ws as unknown as import('ws').WebSocket, '064-tmux', process.cwd());
       ws.simulateMessage('ls -la\n');
 
-      const pty = spawner.lastInstance!;
+      const pty = spawner.lastInstance as FakePty;
       expect(pty.writeCalls).toContain('ls -la\n');
     });
 
@@ -97,7 +115,7 @@ describe('Terminal WebSocket Server', () => {
       const ws = createFakeWs();
 
       server.handleConnection(ws as unknown as import('ws').WebSocket, '064-tmux', process.cwd());
-      const pty = spawner.lastInstance!;
+      const pty = spawner.lastInstance as FakePty;
       pty.simulateData('drwxr-xr-x  12 user  staff  384 Jan 10 10:00 .\n');
 
       // First message is status, second is terminal output
@@ -121,7 +139,7 @@ describe('Terminal WebSocket Server', () => {
       server.handleConnection(ws as unknown as import('ws').WebSocket, '064-tmux', process.cwd());
       ws.simulateMessage(JSON.stringify({ type: 'resize', cols: 120, rows: 40 }));
 
-      const pty = spawner.lastInstance!;
+      const pty = spawner.lastInstance as FakePty;
       pty.assertResized(120, 40);
     });
 
@@ -139,7 +157,7 @@ describe('Terminal WebSocket Server', () => {
       const ws = createFakeWs();
 
       server.handleConnection(ws as unknown as import('ws').WebSocket, '064-tmux', process.cwd());
-      const pty = spawner.lastInstance!;
+      const pty = spawner.lastInstance as FakePty;
       expect(pty.killed).toBe(false);
 
       ws.simulateClose();
@@ -220,12 +238,17 @@ describe('Terminal WebSocket Server', () => {
       */
       exec.whenCommand('tmux', ['-V']).returns('tmux 3.4');
       const throwingSpawner = {
-        spawn: () => { throw new Error('spawn EACCES'); },
+        spawn: () => {
+          throw new Error('spawn EACCES');
+        },
         lastInstance: null,
         instances: [],
         spawnCount: 0,
       };
-      const server = createTerminalServer({ execCommand: exec.exec, spawnPty: throwingSpawner.spawn });
+      const server = createTerminalServer({
+        execCommand: exec.exec,
+        spawnPty: throwingSpawner.spawn,
+      });
       const ws = createFakeWs();
 
       server.handleConnection(ws as unknown as import('ws').WebSocket, '064-tmux', process.cwd());

@@ -1,8 +1,9 @@
 'use client';
 
-import { TerminalSquare, X } from 'lucide-react';
+import { ClipboardCopy, TerminalSquare, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useTerminalOverlay } from '../hooks/use-terminal-overlay';
+import { copyTmuxBuffer } from '../lib/copy-tmux-buffer';
 import type { ConnectionStatus } from '../types';
 import { ConnectionStatusBadge } from './connection-status-badge';
 import TerminalInner from './terminal-inner';
@@ -29,7 +30,7 @@ export function TerminalOverlayPanel() {
       window.removeEventListener('resize', measure);
       clearTimeout(timer);
     };
-  }, [isOpen]);
+  }, []);
 
   // Close on Escape
   useEffect(() => {
@@ -68,6 +69,15 @@ export function TerminalOverlayPanel() {
           <span className="text-sm font-medium truncate">{sessionName}</span>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => copyTmuxBuffer()}
+            className="rounded-sm p-1 text-muted-foreground hover:text-foreground hover:bg-accent"
+            aria-label="Copy tmux buffer"
+            title="Copy tmux buffer"
+          >
+            <ClipboardCopy className="h-3.5 w-3.5" />
+          </button>
           <ConnectionStatusBadge status={connectionStatus} showLabel={false} />
           <button
             type="button"

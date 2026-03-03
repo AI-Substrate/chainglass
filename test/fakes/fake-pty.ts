@@ -54,9 +54,7 @@ export class FakePty implements PtyProcess {
   /** Assert write was called with specific data */
   assertWritten(data: string): void {
     if (!this.writeCalls.includes(data)) {
-      throw new Error(
-        `Expected write("${data}"). Writes: ${JSON.stringify(this.writeCalls)}`
-      );
+      throw new Error(`Expected write("${data}"). Writes: ${JSON.stringify(this.writeCalls)}`);
     }
   }
 
@@ -80,11 +78,7 @@ export function createFakePtySpawner() {
   const instances: FakePty[] = [];
 
   return {
-    spawn: (
-      _command: string,
-      _args: string[],
-      _options: Record<string, unknown>
-    ): FakePty => {
+    spawn: (_command: string, _args: string[], _options: Record<string, unknown>): FakePty => {
       lastInstance = new FakePty();
       instances.push(lastInstance);
       return lastInstance;

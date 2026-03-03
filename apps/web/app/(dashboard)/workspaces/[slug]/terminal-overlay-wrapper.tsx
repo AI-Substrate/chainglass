@@ -8,9 +8,9 @@ import { TerminalOverlayProvider } from '../../../../src/features/064-terminal/h
 const TerminalOverlayPanel = dynamic(
   () =>
     import('../../../../src/features/064-terminal/components/terminal-overlay-panel').then(
-      (m) => m.TerminalOverlayPanel,
+      (m) => m.TerminalOverlayPanel
     ),
-  { ssr: false },
+  { ssr: false }
 );
 
 // DYK-04: Error boundary wraps the panel (not provider) so overlay failures

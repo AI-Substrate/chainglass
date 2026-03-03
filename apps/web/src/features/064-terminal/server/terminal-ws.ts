@@ -12,6 +12,8 @@
  * Plan 064: Terminal Integration via tmux
  */
 
+import fs from 'node:fs';
+import https from 'node:https';
 import { type WebSocket, WebSocketServer } from 'ws';
 import type { CommandExecutor, PtyProcess, PtySpawner } from '../types';
 import { TmuxSessionManager } from './tmux-session-manager';
@@ -101,6 +103,16 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
           // Client requests re-fit — no server action needed, just acknowledge
           return;
         }
+        if (msg.type === 'copy-buffer') {
+          try {
+            const buffer = deps.execCommand('tmux', ['show-buffer']);
+            ws.send(JSON.stringify({ type: 'clipboard', data: buffer.trim() }));
+          } catch (err) {
+            const errMsg = err instanceof Error ? err.message : 'Unknown error';
+            ws.send(JSON.stringify({ type: 'clipboard', data: '', error: errMsg }));
+          }
+          return;
+        }
       } catch {
         // Not JSON — treat as raw terminal input
       }
@@ -128,7 +140,22 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
   function start(port: number): void {
     // Bind to env-configurable host (default localhost; set TERMINAL_WS_HOST=0.0.0.0 for remote)
     const host = process.env.TERMINAL_WS_HOST ?? '127.0.0.1';
-    wss = new WebSocketServer({ port, host });
+
+    // Support WSS when HTTPS certs are available
+    const certPath = process.env.TERMINAL_WS_CERT;
+    const keyPath = process.env.TERMINAL_WS_KEY;
+    let server: https.Server | undefined;
+
+    if (certPath && keyPath) {
+      server = https.createServer({
+        cert: fs.readFileSync(certPath),
+        key: fs.readFileSync(keyPath),
+      });
+      wss = new WebSocketServer({ server });
+      server.listen(port, host);
+    } else {
+      wss = new WebSocketServer({ port, host });
+    }
 
     wss.on('connection', (ws: WebSocket, req) => {
       const url = new URL(req.url ?? '/', `http://${req.headers.host}`);
