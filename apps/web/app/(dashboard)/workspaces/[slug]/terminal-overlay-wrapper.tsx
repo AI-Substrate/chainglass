@@ -42,7 +42,11 @@ interface TerminalOverlayWrapperProps {
   defaultCwd?: string;
 }
 
-export function TerminalOverlayWrapper({ children, defaultSessionName, defaultCwd }: TerminalOverlayWrapperProps) {
+export function TerminalOverlayWrapper({
+  children,
+  defaultSessionName,
+  defaultCwd,
+}: TerminalOverlayWrapperProps) {
   return (
     <TerminalOverlayProvider defaultSessionName={defaultSessionName} defaultCwd={defaultCwd}>
       {children}

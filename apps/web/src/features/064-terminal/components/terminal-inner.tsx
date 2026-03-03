@@ -86,11 +86,15 @@ export default function TerminalInner({
   const tmuxWarningShownRef = useRef(false);
   const { resolvedTheme } = useTheme();
 
-  // Dynamic bottom offset via visualViewport — replaces hardcoded 140px
-  // Accounts for iOS keyboard, browser chrome, PWA standalone (no chrome)
+  // Dynamic bottom offset via visualViewport — for iOS keyboard/browser chrome
+  // Only activates on touch devices; desktop gets full height (bottom: 0)
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
+    // Only apply on touch devices (iPad, phone)
+    const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    if (!isTouch) return;
+
     const handleResize = () => {
       const offset = Math.max(0, Math.round(window.innerHeight - vv.height));
       setBottomOffset(offset);

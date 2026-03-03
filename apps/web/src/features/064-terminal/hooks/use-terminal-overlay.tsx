@@ -23,7 +23,11 @@ interface TerminalOverlayProviderProps {
   defaultCwd?: string;
 }
 
-export function TerminalOverlayProvider({ children, defaultSessionName, defaultCwd }: TerminalOverlayProviderProps) {
+export function TerminalOverlayProvider({
+  children,
+  defaultSessionName,
+  defaultCwd,
+}: TerminalOverlayProviderProps) {
   const [state, setState] = useState<TerminalOverlayState>({
     isOpen: false,
     sessionName: defaultSessionName ?? null,
@@ -44,18 +48,21 @@ export function TerminalOverlayProvider({ children, defaultSessionName, defaultC
         return { ...prev, isOpen: false };
       }
 
-      // Use provided values, then prev state, then URL params as fallback
-      let resolvedSession = sessionName ?? prev.sessionName;
-      let resolvedCwd = cwd ?? prev.cwd;
+      // Always check URL params first — they reflect the current worktree context
+      const params = new URLSearchParams(window.location.search);
+      const worktree = params.get('worktree');
 
-      if (!resolvedSession || !resolvedCwd) {
-        const params = new URLSearchParams(window.location.search);
-        const worktree = params.get('worktree');
-        if (worktree) {
-          resolvedCwd = resolvedCwd ?? worktree;
-          resolvedSession = resolvedSession ?? worktree.split('/').pop() ?? null;
-        }
+      let resolvedSession = sessionName ?? null;
+      let resolvedCwd = cwd ?? null;
+
+      if (worktree) {
+        resolvedCwd = resolvedCwd ?? worktree;
+        resolvedSession = resolvedSession ?? worktree.split('/').pop() ?? null;
       }
+
+      // Fall back to prev state (which holds server-side defaults)
+      resolvedSession = resolvedSession ?? prev.sessionName;
+      resolvedCwd = resolvedCwd ?? prev.cwd;
 
       if (!resolvedSession || !resolvedCwd) {
         console.warn('[terminal-overlay] Cannot open: no session/cwd resolved');
