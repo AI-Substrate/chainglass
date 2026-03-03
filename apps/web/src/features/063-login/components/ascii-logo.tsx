@@ -15,8 +15,7 @@ export function AsciiLogo() {
 
       {/* Mobile fallback: plain text */}
       <h2
-        className="block font-mono text-3xl font-bold tracking-wider sm:hidden"
-        style={{ color: '#00ff41' }}
+        className="block font-mono text-3xl font-bold tracking-wider text-white sm:hidden"
       >
         CHAINGLASS
       </h2>
@@ -25,10 +24,9 @@ export function AsciiLogo() {
       <div className="hidden overflow-hidden sm:block">
         <div className="sm:origin-center sm:scale-60 lg:scale-100">
           <pre
-            className="ascii-logo select-none font-mono leading-none tracking-[0]"
+            className="ascii-logo select-none font-mono leading-none tracking-[0] text-white"
             aria-hidden="true"
             data-text={CHAINGLASS_LOGO}
-            style={{ color: '#00ff41' }}
           >
             {CHAINGLASS_LOGO}
           </pre>

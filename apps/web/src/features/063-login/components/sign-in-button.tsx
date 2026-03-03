@@ -7,7 +7,7 @@ export function SignInButton() {
     <button
       type="button"
       onClick={() => signIn('github', { callbackUrl: '/' })}
-      className="terminal-button font-mono text-sm uppercase tracking-[2px] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00ff41] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0a]"
+      className="terminal-button font-mono text-sm uppercase tracking-[2px] focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
     >
       {'> Sign in with GitHub'}
     </button>
