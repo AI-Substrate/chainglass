@@ -197,12 +197,28 @@ export default function TerminalInner({
       }
 
       // 3. Dispose addons before terminal (WebLinksAddon crashes if terminal disposes first)
-      try { webLinksAddon.dispose(); } catch { /* already disposed */ }
-      try { canvasAddon?.dispose(); } catch { /* already disposed */ }
-      try { fitAddon.dispose(); } catch { /* already disposed */ }
+      try {
+        webLinksAddon.dispose();
+      } catch {
+        /* already disposed */
+      }
+      try {
+        canvasAddon?.dispose();
+      } catch {
+        /* already disposed */
+      }
+      try {
+        fitAddon.dispose();
+      } catch {
+        /* already disposed */
+      }
 
       // 4. Dispose terminal (last — removes DOM)
-      try { terminal.dispose(); } catch { /* strict mode double-dispose */ }
+      try {
+        terminal.dispose();
+      } catch {
+        /* strict mode double-dispose */
+      }
       terminalRef.current = null;
       fitAddonRef.current = null;
     };

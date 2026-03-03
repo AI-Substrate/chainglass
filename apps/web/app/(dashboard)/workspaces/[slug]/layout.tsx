@@ -15,6 +15,7 @@ import { WorkspaceProvider } from '../../../../src/features/041-file-browser/hoo
 import { getContainer } from '../../../../src/lib/bootstrap-singleton';
 import { SDKWorkspaceConnector } from '../../../../src/lib/sdk/sdk-workspace-connector';
 import { updateSDKMru, updateSDKSettings } from '../../../actions/sdk-settings-actions';
+import { TerminalOverlayWrapper } from './terminal-overlay-wrapper';
 import { WorkspaceAttentionWrapper } from './workspace-attention-wrapper';
 
 export const dynamic = 'force-dynamic';
@@ -58,7 +59,9 @@ export default async function WorkspaceLayout({ children, params }: LayoutProps)
         persistSettings={updateSDKSettings}
         persistMru={updateSDKMru}
       />
-      <WorkspaceAttentionWrapper>{children}</WorkspaceAttentionWrapper>
+      <WorkspaceAttentionWrapper>
+        <TerminalOverlayWrapper>{children}</TerminalOverlayWrapper>
+      </WorkspaceAttentionWrapper>
     </WorkspaceProvider>
   );
 }

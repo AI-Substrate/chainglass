@@ -22,3 +22,7 @@ export { TerminalView } from './components/terminal-view';
 export type { TerminalViewProps } from './components/terminal-view';
 export { ConnectionStatusBadge } from './components/connection-status-badge';
 export { TerminalSkeleton } from './components/terminal-skeleton';
+
+// Overlay (Phase 4)
+export { TerminalOverlayPanel } from './components/terminal-overlay-panel';
+export { TerminalOverlayProvider, useTerminalOverlay } from './hooks/use-terminal-overlay';

@@ -130,7 +130,11 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
       updateStatus('disconnected');
 
       // Reconnect on unexpected close (not clean close code 1000)
-      if (event.code !== 1000 && enabledRef.current && reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
+      if (
+        event.code !== 1000 &&
+        enabledRef.current &&
+        reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS
+      ) {
         const delay = Math.min(
           INITIAL_BACKOFF_MS * 2 ** reconnectAttemptsRef.current,
           MAX_BACKOFF_MS

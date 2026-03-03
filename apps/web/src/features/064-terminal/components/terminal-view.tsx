@@ -24,13 +24,14 @@ export function TerminalView({
   onConnectionChange,
 }: TerminalViewProps) {
   return (
-    <Suspense fallback={<TerminalSkeleton />}>
-      <TerminalInner
-        sessionName={sessionName}
-        cwd={cwd}
-        className={className}
-        onConnectionChange={onConnectionChange}
-      />
-    </Suspense>
+    <div className={`h-full w-full ${className ?? ''}`}>
+      <Suspense fallback={<TerminalSkeleton />}>
+        <TerminalInner
+          sessionName={sessionName}
+          cwd={cwd}
+          onConnectionChange={onConnectionChange}
+        />
+      </Suspense>
+    </div>
   );
 }
