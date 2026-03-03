@@ -1,6 +1,6 @@
 # Phase 4: Documentation & Polish — Flight Plan
 
-**Status**: Ready for takeoff
+**Status**: Landed
 **Phase**: Phase 4: Documentation & Polish
 **Plan**: [login-plan.md](../../login-plan.md)
 **Tasks**: [tasks.md](./tasks.md)
@@ -15,10 +15,10 @@ Finalize the 063-login feature by completing documentation, performing end-to-en
 
 ## Stages
 
-- [ ] **S1**: Finalize setup guide (T001)
-- [ ] **S2**: Add README auth section (T002)
-- [ ] **S3**: End-to-end verification (T003)
-- [ ] **S4**: Domain artifact updates (T004)
+- [x] **S1**: Finalize setup guide (T001)
+- [x] **S2**: Add README auth section (T002)
+- [x] **S3**: End-to-end verification (T003)
+- [x] **S4**: Domain artifact updates (T004)
 
 ---
 
@@ -26,10 +26,10 @@ Finalize the 063-login feature by completing documentation, performing end-to-en
 
 ```mermaid
 graph LR
-    S1["S1: Setup Guide"]:::pending
-    S2["S2: README"]:::pending
-    S3["S3: E2E Verify"]:::pending
-    S4["S4: Domain Updates"]:::pending
+    S1["S1: Setup Guide"]:::done
+    S2["S2: README"]:::done
+    S3["S3: E2E Verify"]:::done
+    S4["S4: Domain Updates"]:::done
 
     S1 --> S3
     S2 --> S3
@@ -62,10 +62,10 @@ graph LR
 
 ## Checklist
 
-- [ ] T001: Verify and finalize setup guide
-- [ ] T002: Add README auth section
-- [ ] T003: Manual end-to-end verification
-- [ ] T004: Update domain artifacts (Phase 3 history, source locations, plan status)
+- [x] T001: Verify and finalize setup guide
+- [x] T002: Add README auth section
+- [x] T003: Manual end-to-end verification
+- [x] T004: Update domain artifacts (Phase 3 history, source locations, plan status)
 
 ---
 

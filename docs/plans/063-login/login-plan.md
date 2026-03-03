@@ -3,7 +3,7 @@
 **Plan Version**: 1.0.0
 **Created**: 2026-03-01
 **Spec**: [login-spec.md](./login-spec.md)
-**Status**: DRAFT
+**Status**: COMPLETE
 
 ## Summary
 
@@ -116,9 +116,9 @@ Chainglass currently has zero authentication — all 25+ dashboard pages, 11 API
 | 2.5 | Add responsive breakpoints — adjust ASCII art size and rain density for mobile/tablet | _platform/auth | Login screen looks good at 320px, 768px, and 1440px widths | Per PL-05: mounted guard |
 | 2.6 | Integrate styled login screen into `/login` page, replacing placeholder | _platform/auth | `/login` renders the full animated experience | |
 
-### Phase 3: Logout & Navigation Integration
+### Phase 3: Logout & Navigation Integration ✅
 
-**Objective**: Add logout button to dashboard navigation and protect all server actions.
+**Status**: Complete (committed `6864293`)
 **Domain**: _platform/auth + cross-domain
 **Delivers**:
 - Logout button in sidebar footer with user display
@@ -135,8 +135,9 @@ Chainglass currently has zero authentication — all 25+ dashboard pages, 11 API
 | 3.3 | Add session validation to all 5 server action files (`workspace-actions.ts`, `file-actions.ts`, `workunit-actions.ts`, `workflow-actions.ts`, `sdk-settings-actions.ts`) | cross-domain | Each exported action calls `auth()` as first line, returns error ActionState if no session | Per Finding 03 |
 | 3.4 | Add session validation to API route handlers (agents, workspaces, events — NOT health) | cross-domain | Unauthenticated API requests return 401 JSON response. Auth checked via `auth()` before `ensureInitialized()`. | |
 
-### Phase 4: Documentation & Polish
+### Phase 4: Documentation & Polish ✅
 
+**Status**: Complete
 **Objective**: Create setup documentation and polish the end-to-end experience.
 **Domain**: _platform/auth
 **Delivers**:

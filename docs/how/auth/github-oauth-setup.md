@@ -20,7 +20,8 @@ This guide walks you through creating a GitHub OAuth App for Chainglass authenti
 | **Homepage URL** | `http://localhost:3000` |
 | **Authorization callback URL** | `http://localhost:3000/api/auth/callback/github` |
 
-4. Click **Register application**
+4. Under **"Enable Device Flow"**, leave it unchecked (not needed)
+5. Click **Register application**
 
 ## Step 2: Get Your Credentials
 
@@ -78,3 +79,9 @@ Add any GitHub usernames that should have access.
 
 ### Different port
 - If running on a port other than 3000, update both the **Homepage URL** and **Authorization callback URL** in the GitHub OAuth App settings, and restart the dev server.
+
+### Build errors with `next-auth` on Next.js 16
+- `next-auth@5.0.0-beta.30` imports `next/server` without the `.js` extension, which breaks Next.js 16 ESM resolution in production builds. If you see `ERR_MODULE_NOT_FOUND` for `next/server`, patch `node_modules/next-auth/lib/env.js` to change `from "next/server"` to `from "next/server.js"`. This needs to be re-applied after `pnpm install`. A future stable release of next-auth should fix this.
+
+### API returns 500 without `.env.local`
+- The `/api/auth/session` endpoint returns 500 if `AUTH_SECRET` is not set. This is expected — configure `.env.local` first, then restart the dev server.
