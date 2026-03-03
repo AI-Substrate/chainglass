@@ -1,7 +1,7 @@
 # Fix FX001: Wire Agent Lifecycle into WorkUnitStateService
 
 **Created**: 2026-03-02
-**Status**: Proposed
+**Status**: Complete
 **Plan**: [fix-agents-plan.md](../fix-agents-plan.md)
 **Source**: User reported sidebar badges empty — agents not registered in WorkUnitStateService
 **Domain(s)**: agents (modify), work-unit-state (consume)
@@ -17,7 +17,7 @@ AgentWorkUnitBridge exists and is wired in DI, but nothing calls it. When agents
 Add bridge calls at three integration points following Workshop 007 Option A1:
 1. **POST /api/agents** → `bridge.registerAgent()` after creation
 2. **DELETE /api/agents/[id]** → `bridge.unregisterAgent()` before response
-3. **AgentNotifierService** → accept optional bridge, call `updateAgentStatus()` on `broadcastStatus()` and `broadcastIntent()` to capture mid-run status changes
+3. **AgentNotifierService** → accept lazy bridge resolver, call `updateAgentStatus()` on `broadcastStatus()` only (intent remains SSE-only by design per DYK-FX001-02)
 
 Status mapping: `working→working`, `stopped→idle`, `error→error`.
 
@@ -32,10 +32,10 @@ Status mapping: `working→working`, `stopped→idle`, `error→error`.
 
 | Status | ID | Task | Domain | Path(s) | Done When | Notes |
 |--------|-----|------|--------|---------|-----------|-------|
-| [ ] | FX001-1 | Add `bridge.registerAgent()` in POST /api/agents after createAgent + broadcastCreated | agents | `apps/web/app/api/agents/route.ts` | Agent creation writes entry to work-unit-state.json | Workshop 007 Option A1 |
-| [ ] | FX001-2 | Add `bridge.unregisterAgent()` in DELETE /api/agents/[id] after terminateAgent | agents | `apps/web/app/api/agents/[id]/route.ts` | Agent deletion removes entry from work-unit-state.json | Workshop 007 Option A1 |
-| [ ] | FX001-3 | Add lazy bridge resolver to AgentNotifierService constructor; call `bridge.updateAgentStatus()` in `broadcastStatus()` only (NOT broadcastIntent — too high-frequency per DYK-FX001-02). Use `() => AgentWorkUnitBridge | undefined` factory to avoid DI order issues (DYK-FX001-01). Document that register/unregister stay in routes, not notifier (DYK-FX001-03). | agents | `apps/web/src/features/019-agent-manager-refactor/agent-notifier.service.ts` | Running agent status changes reflected in work-unit-state.json | Status map: working→working, stopped→idle, error→error |
-| [ ] | FX001-4 | Update DI production container to pass lazy bridge resolver into AgentNotifierService factory. Do NOT modify test container (uses useValue fake per DYK-FX001-05). | agents | `apps/web/src/lib/di-container.ts` | Notifier resolves with lazy bridge in production container | DYK-FX001-01: lazy resolver avoids registration order issues |
+| [x] | FX001-1 | Add `bridge.registerAgent()` in POST /api/agents after createAgent + broadcastCreated | agents | `apps/web/app/api/agents/route.ts` | Agent creation writes entry to work-unit-state.json | Workshop 007 Option A1 |
+| [x] | FX001-2 | Add `bridge.unregisterAgent()` in DELETE /api/agents/[id] after terminateAgent | agents | `apps/web/app/api/agents/[id]/route.ts` | Agent deletion removes entry from work-unit-state.json | Workshop 007 Option A1 |
+| [x] | FX001-3 | Add lazy bridge resolver to AgentNotifierService constructor; call `bridge.updateAgentStatus()` in `broadcastStatus()` only (NOT broadcastIntent — too high-frequency per DYK-FX001-02). Use `() => AgentWorkUnitBridge | undefined` factory to avoid DI order issues (DYK-FX001-01). Document that register/unregister stay in routes, not notifier (DYK-FX001-03). | agents | `apps/web/src/features/019-agent-manager-refactor/agent-notifier.service.ts` | Running agent status changes reflected in work-unit-state.json | Status map: working→working, stopped→idle, error→error |
+| [x] | FX001-4 | Update DI production container to pass lazy bridge resolver into AgentNotifierService factory. Do NOT modify test container (uses useValue fake per DYK-FX001-05). | agents | `apps/web/src/lib/di-container.ts` | Notifier resolves with lazy bridge in production container | DYK-FX001-01: lazy resolver avoids registration order issues |
 
 ## Workshops Consumed
 

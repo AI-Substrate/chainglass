@@ -1,7 +1,7 @@
 # Flight Plan: Fix FX001 — Wire Agent Lifecycle into WorkUnitStateService
 
 **Fix**: [FX001-wire-agent-workunit-registration.md](FX001-wire-agent-workunit-registration.md)
-**Status**: Ready
+**Status**: Landed
 
 ---
 
@@ -38,7 +38,7 @@ stateDiagram-v2
     S1 --> S2
     S2 --> [*]
 
-    class S1,S2 pending
+    class S1,S2 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -47,8 +47,8 @@ stateDiagram-v2
 
 ## Stages
 
-- [ ] **Stage 1: Route hooks** — POST bridge.registerAgent() + DELETE bridge.unregisterAgent() (FX001-1, FX001-2)
-- [ ] **Stage 2: Notifier + DI** — Lazy bridge in notifier broadcastStatus() + DI factory wiring (FX001-3, FX001-4)
+- [x] **Stage 1: Route hooks** — POST bridge.registerAgent() + DELETE bridge.unregisterAgent() (FX001-1, FX001-2)
+- [x] **Stage 2: Notifier + DI** — Lazy bridge in notifier broadcastStatus() + DI factory wiring (FX001-3, FX001-4)
 
 ---
 
@@ -110,7 +110,7 @@ flowchart LR
 
 ## Checklist
 
-- [ ] FX001-1: POST route bridge.registerAgent()
-- [ ] FX001-2: DELETE route bridge.unregisterAgent()
-- [ ] FX001-3: Notifier broadcastStatus() → lazy bridge.updateAgentStatus()
-- [ ] FX001-4: DI factory passes lazy bridge resolver to notifier
+- [x] FX001-1: POST route bridge.registerAgent()
+- [x] FX001-2: DELETE route bridge.unregisterAgent()
+- [x] FX001-3: Notifier broadcastStatus() → lazy bridge.updateAgentStatus()
+- [x] FX001-4: DI factory passes lazy bridge resolver to notifier

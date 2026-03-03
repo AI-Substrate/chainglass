@@ -1,666 +1,200 @@
-diff --git a/apps/web/src/lib/state/global-state-system.ts b/apps/web/src/lib/state/global-state-system.ts
-index 8d367d4..829c9ad 100644
---- a/apps/web/src/lib/state/global-state-system.ts
-+++ b/apps/web/src/lib/state/global-state-system.ts
-@@ -17,6 +17,7 @@ import type {
-   StateChangeCallback,
-   StateDomainDescriptor,
-   StateEntry,
-+  StateEntrySource,
-   StateMatcher,
- } from '@chainglass/shared/state';
- import { createStateMatcher, parsePath } from '@chainglass/shared/state';
-@@ -53,7 +54,7 @@ export class GlobalStateSystem implements IStateService {
+diff --git a/apps/web/app/api/agents/[id]/route.ts b/apps/web/app/api/agents/[id]/route.ts
+index 6bfaf08..c54a03c 100644
+--- a/apps/web/app/api/agents/[id]/route.ts
++++ b/apps/web/app/api/agents/[id]/route.ts
+@@ -1,6 +1,7 @@
+-import { SHARED_DI_TOKENS } from '@chainglass/shared';
++import { POSITIONAL_GRAPH_DI_TOKENS, SHARED_DI_TOKENS } from '@chainglass/shared';
+ import type { IAgentNotifierService } from '@chainglass/shared/features/019-agent-manager-refactor';
+ import type { IAgentManagerService } from '@chainglass/shared/features/019-agent-manager-refactor/agent-manager.interface';
++import type { AgentWorkUnitBridge } from '../../../../src/features/059-fix-agents/agent-work-unit-bridge';
+ /**
+  * Agent API Route - /api/agents/[id]
+  *
+@@ -136,6 +137,16 @@ export async function DELETE(
+     );
+     notifier.broadcastTerminated(id);
  
-   // ── Publishing ──
- 
--  publish<T>(path: string, value: T): void {
-+  publish<T>(path: string, value: T, source?: StateEntrySource): void {
-     const parsed = parsePath(path);
-     this.validateDomain(parsed.domain, parsed.instanceId);
- 
-@@ -62,7 +63,7 @@ export class GlobalStateSystem implements IStateService {
-     const previousValue = existing?.value;
- 
-     // PL-01: Store-first — update Map before notifying
--    const entry: StateEntry = { path, value, updatedAt: now };
-+    const entry: StateEntry = { path, value, updatedAt: now, source };
-     this.store.set(path, entry);
-     this.invalidateMatchingCaches(path);
- 
-@@ -74,6 +75,7 @@ export class GlobalStateSystem implements IStateService {
-       value,
-       previousValue,
-       timestamp: now,
-+      source,
-     };
- 
-     this.dispatch(change);
-diff --git a/apps/web/src/lib/state/index.ts b/apps/web/src/lib/state/index.ts
-index cc4df9e..ab62f73 100644
---- a/apps/web/src/lib/state/index.ts
-+++ b/apps/web/src/lib/state/index.ts
-@@ -20,6 +20,14 @@ export { useGlobalStateList } from './use-global-state-list';
- // Connectors
- export { GlobalStateConnector } from './state-connector';
- 
-+// Server Event Router (Plan 059 Subtask 001)
-+export { ServerEventRoute } from './server-event-route';
-+export type {
-+  ServerEvent,
-+  ServerEventRouteDescriptor,
-+  StateUpdate,
-+} from './server-event-router';
-+
- // State change log
- export { StateChangeLog } from './state-change-log';
- 
-diff --git a/apps/web/src/lib/state/server-event-route.tsx b/apps/web/src/lib/state/server-event-route.tsx
-new file mode 100644
-index 0000000..ab741b0
---- /dev/null
-+++ b/apps/web/src/lib/state/server-event-route.tsx
-@@ -0,0 +1,68 @@
-+'use client';
-+
-+/**
-+ * Plan 059 / Subtask 001: ServerEventRoute — SSE→State Bridge Component
-+ *
-+ * Invisible React component that subscribes to an SSE channel and publishes
-+ * received events as GlobalStateSystem state paths. Each instance is driven
-+ * by a ServerEventRouteDescriptor that maps event types to state updates.
-+ *
-+ * Per DYK #1: Tracks lastProcessedIndex to avoid dropping messages when
-+ * React batches renders from rapid SSE events. Processes ALL messages
-+ * since last render, not just the last one.
-+ *
-+ * Per Workshop 005: Returns null (invisible wiring component).
-+ */
-+
-+import { useEffect, useRef } from 'react';
-+
-+import type { StateEntrySource } from '@chainglass/shared/state';
-+
-+import { useSSE } from '@/hooks/useSSE';
-+
-+import type { ServerEvent, ServerEventRouteDescriptor } from './server-event-router';
-+import { useStateSystem } from './state-provider';
-+
-+interface ServerEventRouteProps {
-+  route: ServerEventRouteDescriptor;
-+}
-+
-+export function ServerEventRoute({ route }: ServerEventRouteProps) {
-+  const state = useStateSystem();
-+  const { messages } = useSSE<ServerEvent>(`/api/events/${route.channel}`);
-+  const lastProcessedIndexRef = useRef(-1);
-+
-+  useEffect(() => {
-+    const startIndex = lastProcessedIndexRef.current + 1;
-+    if (startIndex >= messages.length) return;
-+
-+    for (let i = startIndex; i < messages.length; i++) {
-+      const event = messages[i];
-+      const updates = route.mapEvent(event);
-+      if (!updates) continue;
-+
-+      const source: StateEntrySource = {
-+        origin: 'server',
-+        channel: route.channel,
-+        eventType: event.type,
-+      };
-+
-+      for (const update of updates) {
-+        if (update.remove && update.instanceId) {
-+          state.removeInstance(route.stateDomain, update.instanceId);
-+          continue;
-+        }
-+
-+        const path = update.instanceId
-+          ? `${route.stateDomain}:${update.instanceId}:${update.property}`
-+          : `${route.stateDomain}:${update.property}`;
-+
-+        state.publish(path, update.value, source);
-+      }
++    // Unregister agent from WorkUnitStateService (FX001-2)
++    try {
++      const bridge = container.resolve<AgentWorkUnitBridge>(
++        POSITIONAL_GRAPH_DI_TOKENS.AGENT_WORK_UNIT_BRIDGE
++      );
++      bridge.unregisterAgent(id);
++    } catch {
++      // Best-effort — don't fail deletion if bridge is unavailable
 +    }
 +
-+    lastProcessedIndexRef.current = messages.length - 1;
-+  }, [messages, route, state]);
-+
-+  return null;
-+}
-diff --git a/apps/web/src/lib/state/server-event-router.ts b/apps/web/src/lib/state/server-event-router.ts
-new file mode 100644
-index 0000000..6f79399
---- /dev/null
-+++ b/apps/web/src/lib/state/server-event-router.ts
-@@ -0,0 +1,67 @@
-+/**
-+ * Plan 059 / Subtask 001: Server Event Router — Types
-+ *
-+ * Generic bridge from server-side central events (Plan 027 SSE) to
-+ * client-side GlobalStateSystem paths (Plan 053). Each domain provides
-+ * a route descriptor mapping SSE event types to state path updates.
-+ *
-+ * Per Workshop 005: ~60 lines replaces ~200 lines of bespoke per-domain wiring.
-+ * Extends ADR-0007: status-level values go inline in SSE; full entity data
-+ * still uses notification-fetch via REST.
-+ */
-+
-+import type { StatePropertyDescriptor } from '@chainglass/shared/state';
-+
-+/**
-+ * What arrives from SSE (Plan 027 shape).
-+ * The `type` field is the event type string from CentralEventNotifierService.emit().
-+ */
-+export interface ServerEvent {
-+  type: string;
-+  [key: string]: unknown;
-+}
-+
-+/**
-+ * What gets published to GlobalStateSystem per event.
-+ * Each mapEvent call can produce multiple updates (e.g., status + intent from one event).
-+ */
-+export interface StateUpdate {
-+  /** Instance ID for multi-instance domains (e.g., agent ID, workflow run ID) */
-+  instanceId?: string;
-+  /** Property name — becomes the final segment of the state path */
-+  property: string;
-+  /** Value to publish at this state path */
-+  value: unknown;
-+  /** If true, removes this instance from the state system instead of publishing */
-+  remove?: boolean;
-+}
-+
-+/**
-+ * Route descriptor: maps an SSE channel to GlobalStateSystem state paths.
-+ *
-+ * A domain opts into server→state routing by creating one of these
-+ * (~15 lines) and adding it to the SERVER_EVENT_ROUTES array in
-+ * GlobalStateConnector. The ServerEventRoute component handles the rest.
-+ *
-+ * Per DYK insight #3: `properties` uses `StatePropertyDescriptor[]` (which
-+ * includes description) to match `StateDomainDescriptor.properties` directly.
-+ */
-+export interface ServerEventRouteDescriptor {
-+  /** SSE channel to subscribe to (matches a WorkspaceDomain value) */
-+  channel: string;
-+  /** Domain name in GlobalStateSystem for state path prefixes */
-+  stateDomain: string;
-+  /** Whether this domain supports multiple concurrent instances (most do) */
-+  multiInstance: boolean;
-+  /**
-+   * Properties this domain publishes — used for domain registration.
-+   * Must include `description` field (matches StatePropertyDescriptor shape).
-+   */
-+  properties: StatePropertyDescriptor[];
-+  /**
-+   * Map an SSE event to state path updates.
-+   * Return null to ignore unknown event types (forward compatibility).
-+   * Return an empty array to acknowledge but skip the event.
-+   */
-+  mapEvent: (event: ServerEvent) => StateUpdate[] | null;
-+}
-diff --git a/apps/web/src/lib/state/state-connector.tsx b/apps/web/src/lib/state/state-connector.tsx
-index 48b0a49..306faca 100644
---- a/apps/web/src/lib/state/state-connector.tsx
-+++ b/apps/web/src/lib/state/state-connector.tsx
-@@ -2,14 +2,34 @@
- 
+     return NextResponse.json({ success: true, agentId: id });
+   } catch (error) {
+     console.error('[DELETE /api/agents/[id]] Error deleting agent:', error);
+diff --git a/apps/web/app/api/agents/route.ts b/apps/web/app/api/agents/route.ts
+index ace381c..e9ec09c 100644
+--- a/apps/web/app/api/agents/route.ts
++++ b/apps/web/app/api/agents/route.ts
+@@ -1,9 +1,10 @@
+-import { SHARED_DI_TOKENS } from '@chainglass/shared';
++import { POSITIONAL_GRAPH_DI_TOKENS, SHARED_DI_TOKENS } from '@chainglass/shared';
+ import type { IAgentNotifierService } from '@chainglass/shared/features/019-agent-manager-refactor';
+ import type {
+   CreateAgentParams,
+   IAgentManagerService,
+ } from '@chainglass/shared/features/019-agent-manager-refactor/agent-manager.interface';
++import type { AgentWorkUnitBridge } from '../../../src/features/059-fix-agents/agent-work-unit-bridge';
  /**
-  * Plan 053 Phase 5: GlobalStateConnector
-+ * Plan 059 Subtask 001: Extended with ServerEventRoute mounting.
+  * Agent API Routes - /api/agents
   *
-- * Invisible wiring component that registers a state domain and mounts
-- * its publisher. Sits inside the provider scope for the data source
-- * (e.g., FileChangeProvider) and bridges it to the GlobalStateSystem.
-+ * Invisible wiring component that registers state domains and mounts
-+ * publishers. Sits inside the provider scope for data sources and
-+ * bridges them to the GlobalStateSystem.
+@@ -147,6 +148,16 @@ export async function POST(request: NextRequest): Promise<Response> {
+       workspace: agent.workspace,
+     });
+ 
++    // Register agent in WorkUnitStateService so sidebar badges + chip bar have data (FX001-1)
++    try {
++      const bridge = container.resolve<AgentWorkUnitBridge>(
++        POSITIONAL_GRAPH_DI_TOKENS.AGENT_WORK_UNIT_BRIDGE
++      );
++      bridge.registerAgent(agent.id, agent.name, agent.type);
++    } catch {
++      // Best-effort — don't fail agent creation if bridge is unavailable
++    }
++
+     // Serialize agent instance to JSON
+     const response = {
+       id: agent.id,
+diff --git a/apps/web/src/features/019-agent-manager-refactor/agent-notifier.service.ts b/apps/web/src/features/019-agent-manager-refactor/agent-notifier.service.ts
+index 4cdc509..efcb1f2 100644
+--- a/apps/web/src/features/019-agent-manager-refactor/agent-notifier.service.ts
++++ b/apps/web/src/features/019-agent-manager-refactor/agent-notifier.service.ts
+@@ -6,16 +6,11 @@
+  * Per DYK-07: Lives in apps/web (correct dependency direction from shared→web).
+  * Per DYK-08: Receives ISSEBroadcaster for testability.
   *
-  * Registration happens in useState initializer (synchronous, before children
-- * render) so the domain is available when publisher effects fire.
-+ * render) so domains are available when publisher effects fire.
-  * Fail-fast: if registration throws, the error propagates (DYK-18).
-+ *
-+ * SERVER_EVENT_ROUTES: Array of descriptors for server→state bridges.
-+ * Each route opens its own SSE EventSource connection.
-+ *
-+ * CONNECTION LIMIT NOTE (DYK #4):
-+ * HTTP/1.1 browsers cap concurrent connections per domain at ~6 (Chrome,
-+ * Firefox) or ~8 (Safari). Each ServerEventRoute opens one EventSource
-+ * connection. With N routes, that leaves (6-N) connections for REST fetches,
-+ * asset loading, and other SSE consumers (e.g., agent chat streams).
-+ *
-+ * Symptoms if exceeded: REST requests hang or queue, SSE connections fail
-+ * to establish, intermittent timeouts on API calls.
-+ *
-+ * Current routes: 0 (work-unit-state descriptor added in T004).
-+ * Safe ceiling: ~4 routes before investigating multiplexed SSE or HTTP/2.
-+ *
-+ * Future fix: A single multiplexed SSE endpoint that carries all channels
-+ * in one connection, with server-side channel filtering. This requires
-+ * changes to both the SSE API route and the useSSE hook.
+- * Usage:
+- * ```typescript
+- * import { sseManager } from '@/lib/sse-manager';
+- * import { SSEManagerBroadcaster } from './sse-manager-broadcaster';
+- *
+- * const broadcaster = new SSEManagerBroadcaster(sseManager);
+- * const notifier = new AgentNotifierService(broadcaster);
+- *
+- * notifier.broadcastStatus('agent-1', 'working');
+- * ```
++ * FX001-3: Optional lazy bridge resolver for WorkUnitStateService integration.
++ * - broadcastStatus() → bridge.updateAgentStatus() (status mapping: working→working, stopped→idle, error→error)
++ * - Register/unregister are NOT handled here — they stay in API route handlers (DYK-FX001-03)
++ * - broadcastIntent() does NOT call bridge (too high-frequency per DYK-FX001-02)
++ * - Bridge is lazy-resolved to avoid DI registration order issues (DYK-FX001-01)
   */
  
- import { useState } from 'react';
-@@ -17,8 +37,21 @@ import { useState } from 'react';
- import { registerWorktreeState } from '@/features/041-file-browser/state/register';
- import { WorktreeStatePublisher } from '@/features/041-file-browser/state/worktree-publisher';
- 
-+import { ServerEventRoute } from './server-event-route';
-+import type { ServerEventRouteDescriptor } from './server-event-router';
- import { useStateSystem } from './state-provider';
- 
-+/**
-+ * Server event routes — domains that bridge SSE events to GlobalStateSystem.
-+ * Each entry here creates one SSE connection and one invisible React component.
-+ * Add new route descriptors here as domains opt in (see Workshop 005).
-+ */
-+const SERVER_EVENT_ROUTES: ServerEventRouteDescriptor[] = [
-+  // Route descriptors added by consuming domains:
-+  // - T004 will add workUnitStateRoute here
-+  // - Phase 3 will add agentStateRoute here
-+];
+ import type {
+@@ -29,6 +24,19 @@ import type {
+   IAgentNotifierService,
+ } from '@chainglass/shared/features/019-agent-manager-refactor/agent-notifier.interface';
+ import type { ISSEBroadcaster } from '@chainglass/shared/features/019-agent-manager-refactor/sse-broadcaster.interface';
++import type { AgentWorkUnitBridge } from '../059-fix-agents/agent-work-unit-bridge';
 +
- interface GlobalStateConnectorProps {
-   slug: string;
-   worktreeBranch?: string;
-@@ -27,11 +60,26 @@ interface GlobalStateConnectorProps {
- export function GlobalStateConnector({ slug, worktreeBranch }: GlobalStateConnectorProps) {
-   const state = useStateSystem();
++/** Maps AgentInstanceStatus (3 values) → WorkUnitStatus (5 values). */
++function mapAgentStatus(status: AgentInstanceStatus): 'working' | 'idle' | 'error' {
++  switch (status) {
++    case 'working':
++      return 'working';
++    case 'error':
++      return 'error';
++    case 'stopped':
++      return 'idle';
++  }
++}
  
--  // Register domain synchronously on first render via useState initializer.
-+  // Register domains synchronously on first render via useState initializer.
-   // Must complete before children's useEffect calls publish().
-   useState(() => {
-     registerWorktreeState(state);
-+    for (const route of SERVER_EVENT_ROUTES) {
-+      state.registerDomain({
-+        domain: route.stateDomain,
-+        description: `Server-routed domain: ${route.stateDomain} (SSE channel: ${route.channel})`,
-+        multiInstance: route.multiInstance,
-+        properties: route.properties,
-+      });
+ /**
+  * Channel name used for agent broadcasts.
+@@ -50,11 +58,15 @@ const AGENTS_CHANNEL = 'agents';
+  * See `docs/how/dev/central-events/3-adapters.md` for the adapter pattern.
+  */
+ export class AgentNotifierService implements IAgentNotifierService {
+-  constructor(private readonly broadcaster: ISSEBroadcaster) {}
++  constructor(
++    private readonly broadcaster: ISSEBroadcaster,
++    private readonly resolveBridge?: () => AgentWorkUnitBridge | undefined
++  ) {}
+ 
+   /**
+    * Broadcast a status change for an agent.
+    * Per AC-15: Status changes are broadcast.
++   * FX001-3: Also updates WorkUnitStateService via lazy bridge.
+    */
+   broadcastStatus(agentId: string, status: AgentInstanceStatus): void {
+     console.log(`[AgentNotifier] Broadcasting status: ${agentId} → ${status}`);
+@@ -65,6 +77,16 @@ export class AgentNotifierService implements IAgentNotifierService {
+       timestamp: new Date().toISOString(),
+     };
+     this.broadcaster.broadcast(AGENTS_CHANNEL, 'agent_status', event);
++
++    // Update WorkUnitStateService via bridge (FX001-3)
++    try {
++      const bridge = this.resolveBridge?.();
++      if (bridge) {
++        bridge.updateAgentStatus(agentId, mapAgentStatus(status));
++      }
++    } catch {
++      // Best-effort — don't fail SSE broadcast if bridge errors
 +    }
+   }
+ 
+   /**
+diff --git a/apps/web/src/lib/di-container.ts b/apps/web/src/lib/di-container.ts
+index f931396..28bd965 100644
+--- a/apps/web/src/lib/di-container.ts
++++ b/apps/web/src/lib/di-container.ts
+@@ -382,9 +382,20 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
+   // Per DYK-07: Real implementation lives in apps/web
+   // Per DYK-08: Uses SSEManagerBroadcaster adapter
+   childContainer.register<IAgentNotifierService>(SHARED_DI_TOKENS.AGENT_NOTIFIER_SERVICE, {
+-    useFactory: () => {
++    useFactory: (c) => {
+       const broadcaster = new SSEManagerBroadcaster(sseManager);
+-      return new AgentNotifierService(broadcaster);
++      // FX001-4: Lazy bridge resolver avoids DI registration order issues (DYK-FX001-01).
++      // Bridge is registered later (L552) — lazy resolution defers until first broadcastStatus() call.
++      const resolveBridge = () => {
++        try {
++          return c.resolve<AgentWorkUnitBridge>(
++            POSITIONAL_GRAPH_DI_TOKENS.AGENT_WORK_UNIT_BRIDGE
++          );
++        } catch {
++          return undefined;
++        }
++      };
++      return new AgentNotifierService(broadcaster, resolveBridge);
+     },
    });
  
--  return <WorktreeStatePublisher slug={slug} worktreeBranch={worktreeBranch} />;
-+  return (
-+    <>
-+      <WorktreeStatePublisher slug={slug} worktreeBranch={worktreeBranch} />
-+      {SERVER_EVENT_ROUTES.map((route) => (
-+        <ServerEventRoute key={route.channel} route={route} />
-+      ))}
-+    </>
-+  );
- }
-diff --git a/docs/domains/_platform/events/domain.md b/docs/domains/_platform/events/domain.md
-index 1c020ad..d1a3114 100644
---- a/docs/domains/_platform/events/domain.md
-+++ b/docs/domains/_platform/events/domain.md
-@@ -168,5 +168,6 @@ Primary: scattered across `packages/shared`, `packages/workflow`, `apps/web` (Pl
- | Plan 045 | Renamed _platform/notifications → _platform/events. Added FileChangeWatcherAdapter, FileChangeDomainEventAdapter, FileChangeHub, FileChangeProvider, useFileChanges. Expanded from notification transport to full event platform | 2026-02-24 |
- | Plan 045 (E2E fix) | Fixed SOURCE_WATCHER_IGNORED to use function-based path-segment matching (glob patterns unreliable with chokidar). Added handleRefreshDir for cache-bypass tree refresh. All 3 phases verified working end-to-end | 2026-02-24 |
- | 047-usdk Phase 6 | SDK contribution (toast.show, toast.dismiss commands) | 2026-02-25 |
-+| 059-ST001 | Added WorkUnitState: 'work-unit-state' to WorkspaceDomain const (new SSE channel for work-unit-state events) | 2026-03-01 |
- | 050 Phase 6-7 | Added WorkflowWatcherAdapter + WorkflowDomainEventAdapter; removed WorkGraphWatcherAdapter + WorkGraphDomainEventAdapter; added Workflows channel; deprecated Workgraphs channel | 2026-02-27 |
- | Plan 060 | Replaced ChokidarFileWatcherAdapter with NativeFileWatcherAdapter (Node.js fs.watch recursive). Eliminated FD exhaustion (12,700 → ~20 FDs). Removed chokidar dependency. | 2026-02-28 |
-diff --git a/docs/domains/_platform/state/domain.md b/docs/domains/_platform/state/domain.md
-index 68685b3..5408d21 100644
---- a/docs/domains/_platform/state/domain.md
-+++ b/docs/domains/_platform/state/domain.md
-@@ -47,15 +47,18 @@ Centralized ephemeral runtime state system. Domains publish runtime values (work
- | Contract | Type | Consumers | Description |
- |----------|------|-----------|-------------|
- | `IStateService` | Interface | All domains needing cross-domain runtime state | Core facade: publish, subscribe, get, list, registerDomain, removeInstance |
--| `StateChange` | Type | All state subscribers | Change notification payload: path, value, previousValue, timestamp, removed? |
--| `StateEntry` | Type | All state readers | Stored state entry: path, value, updatedAt |
-+| `StateChange` | Type | All state subscribers | Change notification payload: path, value, previousValue, timestamp, removed?, source? |
-+| `StateEntry` | Type | All state readers | Stored state entry: path, value, updatedAt, source? |
-+| `StateEntrySource` | Type | ServerEventRoute, dev-tools | Origin metadata: origin ('client'/'server'), channel?, eventType? |
- | `StateDomainDescriptor` | Type | Domain publishers (at registration) | Domain declaration: name, description, multiInstance, properties |
- | `StateChangeCallback` | Type | All state subscribers | `(change: StateChange) => void` |
- | `useGlobalState<T>` | Hook | React components reading single values | `useGlobalState(path, default?) → T` — re-renders on change |
- | `useGlobalStateList` | Hook | React components reading multiple values | `useGlobalStateList(pattern) → StateEntry[]` — re-renders on any match change |
- | `useStateSystem` | Hook | React components needing direct IStateService access | Returns IStateService from context |
- | `GlobalStateProvider` | Component | App root (mounted once) | React context provider for state system |
--| `GlobalStateConnector` | Component | Workspace layout | Invisible component that wires domain registrations and SSE→state publishers |
-+| `GlobalStateConnector` | Component | Workspace layout | Invisible component that wires domain registrations, SSE→state publishers, and ServerEventRoute instances |
-+| `ServerEventRoute` | Component | GlobalStateConnector | Invisible bridge: subscribes to SSE channel, maps events to state paths via route descriptor |
-+| `ServerEventRouteDescriptor` | Type | Domains opting into server→state routing | Route config: channel, stateDomain, multiInstance, properties, mapEvent |
- | `FakeGlobalStateSystem` | Fake | All tests | Test double implementing IStateService with inspection methods |
- | `StateChangeLog` | Class | `_platform/dev-tools`, any observer | Ring buffer accumulating StateChange entries from boot (500 cap, own subscribe/version) |
- | `StateChangeLogContext` | Context | `_platform/dev-tools` hooks | React context providing StateChangeLog instance |
-@@ -72,7 +75,8 @@ Centralized ephemeral runtime state system. Domains publish runtime values (work
- | PathParser | parsePath(path) → ParsedPath (domain, instanceId, property) | — |
- | GlobalStateSystem | IStateService implementation composing store + matcher + dispatch | StateStore, PathMatcher |
- | GlobalStateProvider | React context provider, bootstraps GlobalStateSystem | GlobalStateSystem |
--| GlobalStateConnector | Workspace-scoped wiring: registers domains, connects SSE publishers | IStateService, SSE hooks |
-+| GlobalStateConnector | Workspace-scoped wiring: registers domains, connects SSE publishers, mounts ServerEventRoutes | IStateService, SSE hooks, ServerEventRoute |
-+| ServerEventRoute | Invisible bridge: subscribes SSE channel → maps events → publishes to state with source metadata | useSSE, IStateService, ServerEventRouteDescriptor |
- | useGlobalState | Single-value subscription hook via useSyncExternalStore | IStateService (from context) |
- | useGlobalStateList | Multi-value pattern subscription hook via useSyncExternalStore | IStateService (from context) |
- | FakeGlobalStateSystem | Test double with getPublished(), getSubscribers(), wasPublishedWith() | IStateService interface |
-@@ -96,7 +100,9 @@ Primary: `packages/shared/src/state/` (types + interface) + `apps/web/src/lib/st
- | `packages/shared/src/fakes/fake-state-system.ts` | FakeGlobalStateSystem | ✅ Created Phase 3 |
- | `apps/web/src/lib/state/global-state-system.ts` | GlobalStateSystem class | ✅ Created Phase 3 |
- | `apps/web/src/lib/state/state-provider.tsx` | GlobalStateProvider + useStateSystem + StateContext | ✅ Created Phase 4 |
--| `apps/web/src/lib/state/state-connector.tsx` | GlobalStateConnector | ✅ Created Phase 5 |
-+| `apps/web/src/lib/state/state-connector.tsx` | GlobalStateConnector | ✅ Created Phase 5, extended Plan 059 (ServerEventRoute mounting) |
-+| `apps/web/src/lib/state/server-event-router.ts` | ServerEventRouteDescriptor, ServerEvent, StateUpdate types | ✅ Created Plan 059 Subtask 001 |
-+| `apps/web/src/lib/state/server-event-route.tsx` | ServerEventRoute component (SSE→state bridge) | ✅ Created Plan 059 Subtask 001 |
- | `apps/web/src/lib/state/state-change-log.ts` | StateChangeLog ring buffer | ✅ Created Plan 056 |
- | `apps/web/src/lib/state/use-global-state.ts` | useGlobalState<T> hook | ✅ Created Phase 4 |
- | `apps/web/src/lib/state/use-global-state-list.ts` | useGlobalStateList hook | ✅ Created Phase 4 |
-@@ -153,3 +159,4 @@ Primary: `packages/shared/src/state/` (types + interface) + `apps/web/src/lib/st
- | 053-P4 | Phase 4 implemented: React hooks (useGlobalState, useGlobalStateList via useSyncExternalStore), GlobalStateProvider + useStateSystem + exported StateContext, barrel exports, mounted in providers.tsx. AC-31 dropped (fail-fast, no no-op fallback). 9 hook tests. Total: 137 state tests. | 2026-02-27 |
- | 053-P5 | Phase 5 implemented: Worktree exemplar. registerWorktreeState() multi-instance domain, WorktreeStatePublisher (useFileChanges), WorktreeStateSubtitle consumer, GlobalStateConnector wiring. Wired into browser-client.tsx + dashboard-sidebar.tsx. Idempotent registration for StrictMode. 7 publisher tests. Total: 145 state tests. | 2026-02-27 |
- | 053-P6 | Phase 6: Developer guide at docs/how/global-state-system.md. Domain docs finalized. Quality gate passed. Plan 053 complete. | 2026-02-27 |
-+| 059-ST001 | Plan 059 Subtask 001: Added StateEntrySource type (origin metadata for server/client tagging), extended publish() with optional source param across IStateService + GlobalStateSystem + FakeGlobalStateSystem, added getPublishedSource() to fake. Created ServerEventRoute component + ServerEventRouteDescriptor types. Extended GlobalStateConnector to mount server event routes. Added WorkUnitState to WorkspaceDomain. | 2026-03-01 |
-diff --git a/docs/plans/059-fix-agents/tasks/phase-2-workunit-state-system/001-subtask-server-event-router.md b/docs/plans/059-fix-agents/tasks/phase-2-workunit-state-system/001-subtask-server-event-router.md
+diff --git a/docs/plans/059-fix-agents/fixes/FX001-wire-agent-workunit-registration.fltplan.md b/docs/plans/059-fix-agents/fixes/FX001-wire-agent-workunit-registration.fltplan.md
 new file mode 100644
-index 0000000..776ebe0
+index 0000000..a0bd09e
 --- /dev/null
-+++ b/docs/plans/059-fix-agents/tasks/phase-2-workunit-state-system/001-subtask-server-event-router.md
-@@ -0,0 +1,188 @@
-+# Subtask 001: Server Event Router — Central Events → GlobalStateSystem Bridge
-+
-+**Parent Phase**: Phase 2: WorkUnit State System
-+**Parent Task**: T004 (WorkUnitStateService needs to publish to GlobalStateSystem, but can't — server/client boundary)
-+**Plan**: [fix-agents-plan.md](../../fix-agents-plan.md)
-+**Workshop**: [005-server-event-router.md](../../workshops/005-server-event-router.md)
-+**Created**: 2026-03-01
-+**Status**: Complete
-+**Complexity**: CS-2
-+
-+---
-+
-+## Parent Context
-+
-+Phase 2 T004 says "WorkUnitStateService publishes `work-unit:{id}:*` paths to GlobalStateSystem." But WorkUnitStateService is a server-side DI singleton and GlobalStateSystem is client-side React Context — they can't communicate directly. This subtask builds the missing bridge: a generic `ServerEventRouter` that takes central events (Plan 027 SSE) and publishes them into GlobalStateSystem (Plan 053).
-+
-+This is extracted as a subtask because it's reusable infrastructure (`_platform/events` + `_platform/state`), not specific to work-unit-state. Once built, any future domain gets server→client state publishing for free.
-+
-+---
-+
-+## Executive Briefing
-+
-+**Purpose**: Build a generic, reusable bridge from server-side central events (Plan 027) to client-side GlobalStateSystem (Plan 053). Each domain provides a route descriptor mapping SSE event types to state path updates. The router handles SSE subscription, event mapping, and state publishing with server-origin tagging for debugging.
-+
-+**What We're Building**:
-+- `ServerEventRouteDescriptor` type — config mapping SSE events to state paths
-+- `ServerEventRoute` component — invisible React component that subscribes SSE → publishes state
-+- `StateEntrySource` type — origin metadata (`server`/`client`) for debugging
-+- Extended `GlobalStateSystem.publish()` with optional source parameter
-+- Extended `StateChange` with source metadata for StateChangeLog (Plan 056 devtools)
-+- Extended `GlobalStateConnector` to mount route instances
-+
-+**Goals**:
-+- ✅ Generic ServerEventRoute component that any domain can use
-+- ✅ Server-origin tagging on state entries for Plan 056 devtools
-+- ✅ WorkspaceDomain extended with `WorkUnitState` channel
-+- ✅ Plugged into GlobalStateConnector alongside existing WorktreeStatePublisher
-+
-+**Non-Goals**:
-+- ❌ The work-unit-state route descriptor itself (that's T004's job, using this infrastructure)
-+- ❌ Migrating existing FileChange publisher to this pattern (future work)
-+- ❌ Event replay or history (fire-and-forget per ADR-0007)
-+
-+---
-+
-+## Pre-Implementation Check
-+
-+| File | Exists? | Domain Check | Notes |
-+|------|---------|-------------|-------|
-+| `apps/web/src/lib/state/server-event-router.ts` | ❌ | _platform/state ✅ | NEW — types: ServerEventRouteDescriptor, StateUpdate, ServerEvent |
-+| `apps/web/src/lib/state/server-event-route.tsx` | ❌ | _platform/state ✅ | NEW — React component: SSE→state bridge |
-+| `packages/shared/src/state/types.ts` | ✅ | _platform/state ✅ | MODIFY — add StateEntrySource to StateEntry + StateChange |
-+| `packages/shared/src/interfaces/state.interface.ts` | ✅ | _platform/state ✅ | MODIFY — add optional source param to publish() |
-+| `apps/web/src/lib/state/global-state-system.ts` | ✅ | _platform/state ✅ | MODIFY — pass source through to StateEntry + StateChange |
-+| `apps/web/src/lib/state/state-connector.tsx` | ✅ | _platform/state ✅ | MODIFY — mount ServerEventRoute instances |
-+| `packages/shared/src/features/027-central-notify-events/workspace-domain.ts` | ✅ | _platform/events ✅ | MODIFY — add WorkUnitState channel |
-+| `apps/web/src/hooks/useSSE.ts` | ✅ | _platform/events ✅ | READ ONLY — consumed by ServerEventRoute |
-+
-+**Concept search**: No existing "event router" or "SSE→state bridge" pattern found. `WorktreeStatePublisher` is the closest but is domain-specific, not generic.
-+
-+---
-+
-+## Architecture Map
-+
-+```mermaid
-+flowchart TD
-+    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
-+    classDef existing fill:#E8F5E9,stroke:#4CAF50,color:#000
-+    classDef completed fill:#4CAF50,stroke:#388E3C,color:#fff
-+
-+    subgraph Subtask["Subtask: Server Event Router"]
-+        ST001["ST001: StateEntrySource<br/>type + publish() extension"]:::completed
-+        ST002["ST002: ServerEventRoute<br/>types + component"]:::completed
-+        ST003["ST003: WorkspaceDomain<br/>+ WorkUnitState"]:::completed
-+        ST004["ST004: GlobalStateConnector<br/>mount routes"]:::completed
-+
-+        ST001 --> ST002
-+        ST002 --> ST004
-+        ST003 --> ST004
-+    end
-+
-+    subgraph Existing["Existing Infrastructure"]
-+        GSS["GlobalStateSystem<br/>(Plan 053)"]:::existing
-+        CEN["CentralEventNotifier<br/>(Plan 027)"]:::existing
-+        SSE["useSSE hook"]:::existing
-+    end
-+
-+    ST002 -.->|"subscribes"| SSE
-+    ST002 -.->|"publishes to"| GSS
-+    ST004 -.->|"mounts in"| GSS
-+
-+    subgraph Unblocks["Unblocks"]
-+        T004["T004: WorkUnitState<br/>Service (BLOCKED)"]:::pending
-+    end
-+
-+    ST004 -->|"unblocks"| T004
-+```
-+
-+---
-+
-+## Tasks
-+
-+| Status | ID | Task | Domain | Path(s) | Done When | Notes |
-+|--------|-----|------|--------|---------|-----------|-------|
-+| [x] | ST001 | Add `StateEntrySource` type to state types and extend `publish()` signature with optional `source` parameter | _platform/state | `packages/shared/src/state/types.ts`, `packages/shared/src/interfaces/state.interface.ts`, `apps/web/src/lib/state/global-state-system.ts` | `StateEntrySource` type exists with `origin: 'client' \| 'server'`, optional `channel` and `eventType` fields. `publish()` accepts optional 3rd arg. StateEntry and StateChange carry source metadata. Existing callers unchanged (source defaults to undefined). `pnpm test` passes. | Parent T004; Workshop 005 Q3 |
-+| [x] | ST002 | Create `ServerEventRouteDescriptor` type | _platform/state | `apps/web/src/lib/state/server-event-router.ts`, `apps/web/src/lib/state/server-event-route.tsx` | `ServerEventRouteDescriptor` defines channel, stateDomain, multiInstance, properties, mapEvent. `ServerEventRoute` component subscribes to SSE via `useSSE`, maps events via descriptor, publishes to GlobalStateSystem with `source: { origin: 'server' }`. Returns null (invisible). | Parent T004; Workshop 005 Q1+Q4 |
-+| [x] | ST003 | Add `WorkUnitState` to `WorkspaceDomain` const | _platform/events | `packages/shared/src/features/027-central-notify-events/workspace-domain.ts` | `WorkspaceDomain.WorkUnitState === 'work-unit-state'`; type union updated. No new SSE route needed (dynamic `[channel]` route handles it). | Prereq for T004 server-side emit |
-+| [x] | ST004 | Extend `GlobalStateConnector` to accept and mount `ServerEventRoute` instances | _platform/state | `apps/web/src/lib/state/state-connector.tsx` | Connector accepts `routes` prop (array of descriptors), registers their domains, renders a `ServerEventRoute` per route. Existing worktree publisher still works. | Workshop 005 Q4 |
-+
-+---
-+
-+## Context Brief
-+
-+### Key findings from plan
-+
-+- **Finding 05** (High): State system list cache invalidation iterates ALL patterns per publish — only publish status-level changes (small values), not streaming events → ServerEventRoute mapEvent should filter to essential fields only
-+- **Workshop 005**: Full design of ServerEventRouteDescriptor, ServerEventRoute, StateEntrySource, and integration architecture
-+
-+### Domain dependencies
-+
-+- `_platform/state`: GlobalStateSystem (IStateService.publish, registerDomain) — target for state publishing
-+- `_platform/state`: StateChangeLog (Plan 056) — captures source metadata in ring buffer
-+- `_platform/events`: CentralEventNotifierService (Plan 027) — emits events that arrive via SSE
-+- `_platform/events`: useSSE hook — client-side SSE subscription
-+
-+### Domain constraints
-+
-+- StateEntry/StateChange types live in `packages/shared/src/state/types.ts` (cross-package)
-+- IStateService lives in `packages/shared/src/interfaces/state.interface.ts` (cross-package)
-+- GlobalStateSystem implementation lives in `apps/web/src/lib/state/` (client-only)
-+- `publish()` signature change must be backward-compatible (source is optional)
-+- WorkspaceDomain values ARE SSE channel names (DYK-03)
-+
-+### Reusable from prior phases
-+
-+- `useSSE` hook — existing, tested, handles reconnection
-+- `WorktreeStatePublisher` pattern — invisible component that publishes to state
-+- `GlobalStateConnector` pattern — registers domain + mounts publisher in useState initializer
-+- `CentralEventNotifierService` — server-side emit already works for all existing domains
-+
-+### Data flow diagram
-+
-+```mermaid
-+flowchart LR
-+    subgraph Server["Server (Plan 027)"]
-+        SVC["WorkUnitStateService"]
-+        CEN["CentralEventNotifier"]
-+        SSE_MGR["SSEManager"]
-+    end
-+
-+    subgraph Client["Client (Plan 053)"]
-+        HOOK["useSSE()"]
-+        ROUTE["ServerEventRoute"]
-+        GSS["GlobalStateSystem"]
-+        CONSUMER["useGlobalState()"]
-+    end
-+
-+    SVC -->|"emit()"| CEN
-+    CEN -->|"broadcast()"| SSE_MGR
-+    SSE_MGR -->|"SSE stream"| HOOK
-+    HOOK -->|"messages"| ROUTE
-+    ROUTE -->|"publish(path, value, source)"| GSS
-+    GSS -->|"subscribe"| CONSUMER
-+```
-+
-+---
-+
-+## Discoveries & Learnings
-+
-+_Populated during implementation by plan-6._
-+
-+| Date | Task | Type | Discovery | Resolution | References |
-+|------|------|------|-----------|------------|------------|
-+| 2026-03-01 | ST001 | insight | StateChangeLog needs no modification — it appends StateChange which now carries `source` automatically via the wildcard subscriber in GlobalStateProvider | No action needed | state-provider.tsx L49 |
-+| 2026-03-01 | ST001 | gotcha | Shared package must be rebuilt (`pnpm --filter @chainglass/shared build`) after adding new type exports, or web tsc sees stale declarations | Build before typecheck | packages/shared/tsconfig.json |
-+| 2026-03-01 | ST002 | decision | Used `lastProcessedIndex` ref to process ALL messages since last render, not just `messages[length-1]` — prevents message drops under React render batching | DYK #1 from pre-impl analysis | server-event-route.tsx |
-+| 2026-03-01 | ST004 | decision | SERVER_EVENT_ROUTES array starts empty — route descriptors added by consuming domains in future tasks (T004, Phase 3) | Clean separation of infrastructure vs domain config | state-connector.tsx |
-+
-+**Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
-+
-+---
-+
-+## After Subtask Completion
-+
-+When this subtask is done:
-+1. **Resume T004** in Phase 2 — WorkUnitStateService can now emit via CentralEventNotifierService on the server side, and the client-side ServerEventRoute will pick up events and publish to GlobalStateSystem
-+2. T004 needs to: create a `workUnitStateRoute` descriptor (mapEvent function), emit events via notifier, and register the route in GlobalStateConnector
-+3. All subsequent Phase 2 tasks (T005-T009) proceed unchanged — they operate on the server-side service
-diff --git a/docs/plans/059-fix-agents/tasks/phase-2-workunit-state-system/subtask-001-execution.log.md b/docs/plans/059-fix-agents/tasks/phase-2-workunit-state-system/subtask-001-execution.log.md
-new file mode 100644
-index 0000000..ecef40d
---- /dev/null
-+++ b/docs/plans/059-fix-agents/tasks/phase-2-workunit-state-system/subtask-001-execution.log.md
-@@ -0,0 +1,64 @@
-+# Execution Log: Subtask 001 — Server Event Router
-+
-+**Subtask**: 001-subtask-server-event-router
-+**Phase**: Phase 2: WorkUnit State System
-+**Plan**: fix-agents-plan.md
-+**Started**: 2026-03-01
-+
-+---
-+
-+## Task Log
-+
-+_Entries appended per task completion._
-+
-+### ST001: StateEntrySource type + publish() extension
-+
-+**Status**: Complete
-+**Files modified**:
-+- `packages/shared/src/state/types.ts` — Added `StateEntrySource` interface, added `source?` to `StateEntry` and `StateChange`
-+- `packages/shared/src/state/index.ts` — Exported `StateEntrySource`
-+- `packages/shared/src/interfaces/state.interface.ts` — Added `source?: StateEntrySource` 3rd param to `publish()`
-+- `packages/shared/src/fakes/fake-state-system.ts` — Updated `publish()` signature, propagates source to entry+change, added `getPublishedSource()` inspection method
-+- `apps/web/src/lib/state/global-state-system.ts` — Updated `publish()` signature, propagates source to entry+change
-+
-+**Evidence**: `tsc --noEmit` passes for both `@chainglass/shared` and `@chainglass/web`
-+**Notes**: Required `pnpm --filter @chainglass/shared build` for web to see new export. StateChangeLog needs no change — it appends StateChange which now carries source automatically.
-+
-+### ST002: ServerEventRouteDescriptor type + ServerEventRoute component
-+
-+**Status**: Complete
-+**Files created**:
-+- `apps/web/src/lib/state/server-event-router.ts` — `ServerEventRouteDescriptor`, `ServerEvent`, `StateUpdate` types
-+- `apps/web/src/lib/state/server-event-route.tsx` — `ServerEventRoute` component with lastProcessedIndex tracking
-+
-+**Files modified**:
-+- `apps/web/src/lib/state/index.ts` — Exported ServerEventRoute, types
-+
-+**Key decisions**:
-+- Used `StatePropertyDescriptor[]` for `properties` field (DYK #3 — includes `description` to match `StateDomainDescriptor`)
-+- Implemented `lastProcessedIndex` ref to process all messages since last render (DYK #1 — prevents message drops under burst)
-+- `StateUpdate.remove` flag calls `state.removeInstance()` for entity termination events (Workshop 005 Q8)
-+
-+**Evidence**: `tsc --noEmit` passes for `@chainglass/web`
-+
-+### ST003: WorkspaceDomain + WorkUnitState
-+
-+**Status**: Complete
-+**Files modified**:
-+- `packages/shared/src/features/027-central-notify-events/workspace-domain.ts` — Added `WorkUnitState: 'work-unit-state'`
-+
-+**Evidence**: `tsc --noEmit` passes for `@chainglass/shared`
-+**Notes**: Single-line addition. The dynamic `/api/events/[channel]` route handles any channel — no new API route needed.
-+
-+### ST004: GlobalStateConnector mount routes
-+
-+**Status**: Complete
-+**Files modified**:
-+- `apps/web/src/lib/state/state-connector.tsx` — Added SERVER_EVENT_ROUTES array, domain registration loop in useState initializer, renders ServerEventRoute per route alongside existing WorktreeStatePublisher
-+
-+**Key decisions**:
-+- Added detailed CONNECTION LIMIT NOTE comment (DYK #4) explaining HTTP/1.1 ~6 connection limit, symptoms when exceeded, safe ceiling (~4 routes), and future fix path (multiplexed SSE)
-+- Routes array starts empty — T004 will add first route descriptor
-+- Domain registration uses `StateDomainDescriptor` with auto-generated description
-+
-+**Evidence**: `pnpm test` — 333 files passed, 4694 tests, 0 failures (identical to baseline)
-diff --git a/docs/plans/059-fix-agents/tasks/phase-2-workunit-state-system/tasks.fltplan.md b/docs/plans/059-fix-agents/tasks/phase-2-workunit-state-system/tasks.fltplan.md
-new file mode 100644
-index 0000000..2b9bf71
---- /dev/null
-+++ b/docs/plans/059-fix-agents/tasks/phase-2-workunit-state-system/tasks.fltplan.md
-@@ -0,0 +1,136 @@
-+# Flight Plan: Phase 2 — WorkUnit State System
-+
-+**Plan**: [fix-agents-plan.md](../../fix-agents-plan.md) (Phase B)
-+**Phase**: Phase 2: WorkUnit State System
-+**Generated**: 2026-02-28
-+**Status**: Ready for takeoff
++++ b/docs/plans/059-fix-agents/fixes/FX001-wire-agent-workunit-registration.fltplan.md
+@@ -0,0 +1,116 @@
++# Flight Plan: Fix FX001 — Wire Agent Lifecycle into WorkUnitStateService
++
++**Fix**: [FX001-wire-agent-workunit-registration.md](FX001-wire-agent-workunit-registration.md)
++**Status**: Landed
 +
 +---
 +
 +## Departure → Destination
 +
-+**Where we are**: Agents can be created, listed, and chatted with (Phase 1). Status and questions are reported through three disconnected channels (AgentNotifierService, MessageService, NodeStatusResult). No single place to ask "who needs attention?" The GlobalStateSystem exists but no work unit domain is registered.
++**Where we are**: AgentWorkUnitBridge exists in DI but nothing calls it. Agents created via the UI never appear in `work-unit-state.json`. Sidebar badges, top bar chips, and cross-worktree activity indicators are all empty.
 +
-+**Where we're going**: A developer can register any work unit (agent, code unit, workflow node) with `IWorkUnitStateService`, publish status changes, ask first-class typed questions, and have answers routed back via callbacks. The service persists to JSON, publishes to GlobalStateSystem at `work-unit:{id}:*` paths, and auto-expires stale entries after 24h. Agents are automatically bridged via `AgentWorkUnitBridge`.
++**Where we're going**: Creating an agent writes an entry to `work-unit-state.json`. Running it updates status to `working`. Deleting it removes the entry. Sidebar badges light up for other worktrees with active agents.
 +
 +---
 +
 +## Domain Context
 +
-+### Domains We're Changing
-+
-+| Domain | What Changes | Key Files |
-+|--------|-------------|-----------|
-+| work-unit-state | NEW — interface, types, implementation, fake, contract tests, DI registration | `packages/shared/src/interfaces/work-unit-state.interface.ts`, `apps/web/src/lib/work-unit-state/work-unit-state.service.ts` |
-+| agents | Add AgentWorkUnitBridge to publish agent lifecycle to work-unit-state | `apps/web/src/features/059-fix-agents/agent-work-unit-bridge.ts` |
-+
-+### Domains We Depend On (no changes)
-+
-+| Domain | What We Consume | Contract |
-+|--------|----------------|----------|
-+| _platform/state | Publish state paths, register domain | GlobalStateSystem.publish(), registerDomain() |
-+| agents | Agent lifecycle events | IAgentNotifierService (broadcastCreated, broadcastStatus) |
++| Domain | Relationship | What Changes |
++|--------|-------------|-------------|
++| agents | modify | POST/DELETE routes + notifier gain bridge calls |
++| work-unit-state | consume | Bridge writes to WorkUnitStateService (no interface changes) |
 +
 +---
 +
@@ -673,20 +207,14 @@ index 0000000..2b9bf71
 +    classDef done fill:#4CAF50,stroke:#388E3C,color:#fff
 +    classDef blocked fill:#F44336,stroke:#D32F2F,color:#fff
 +
-+    state "1: Interface + types" as S1
-+    state "2: Fake + contract tests" as S2
-+    state "3: Real implementation" as S3
-+    state "4: DI + bridge + routing" as S4
-+    state "5: Docs" as S5
++    state "1: Route hooks" as S1
++    state "2: Notifier + DI" as S2
 +
 +    [*] --> S1
 +    S1 --> S2
-+    S2 --> S3
-+    S3 --> S4
-+    S4 --> S5
-+    S5 --> [*]
++    S2 --> [*]
 +
-+    class S1,S2,S3,S4,S5 pending
++    class S1,S2 done
 +```
 +
 +**Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -695,11 +223,8 @@ index 0000000..2b9bf71
 +
 +## Stages
 +
-+- [ ] **Stage 1: Interface + types** — Define IWorkUnitStateService, WorkUnitEntry, WorkUnitQuestion, QuestionAnswer in packages/shared (`work-unit-state.interface.ts`, `types.ts`)
-+- [ ] **Stage 2: Fake + contract tests** — Create FakeWorkUnitStateService with inspection methods, write contract test factory covering all 10 methods (`fake-work-unit-state.ts`, `work-unit-state.contract.ts`)
-+- [ ] **Stage 3: Real implementation** — Implement WorkUnitStateService with in-memory registry, JSON persistence, GlobalStateSystem publishing, tidyUp rules (`work-unit-state.service.ts`)
-+- [ ] **Stage 4: DI + bridge + routing** — Register singleton in DI container, create AgentWorkUnitBridge, implement answer routing via callbacks (`di-container.ts`, `agent-work-unit-bridge.ts`)
-+- [ ] **Stage 5: Docs** — Write integration guide (`docs/how/work-unit-state-integration.md`)
++- [x] **Stage 1: Route hooks** — POST bridge.registerAgent() + DELETE bridge.unregisterAgent() (FX001-1, FX001-2)
++- [x] **Stage 2: Notifier + DI** — Lazy bridge in notifier broadcastStatus() + DI factory wiring (FX001-3, FX001-4)
 +
 +---
 +
@@ -708,889 +233,164 @@ index 0000000..2b9bf71
 +```mermaid
 +flowchart LR
 +    classDef existing fill:#E8F5E9,stroke:#4CAF50,color:#000
++    classDef broken fill:#FFCDD2,stroke:#F44336,color:#000
 +    classDef new fill:#E3F2FD,stroke:#2196F3,color:#000
 +
-+    subgraph Before["Before Phase 2"]
-+        B_AGT["Agent events<br/>(SSE only)"]:::existing
-+        B_MSG["MessageService<br/>(file-based)"]:::existing
-+        B_NODE["NodeStatusResult<br/>(disk read)"]:::existing
-+        B_GSS["GlobalStateSystem<br/>(no work-unit domain)"]:::existing
++    subgraph Before["Before FX001"]
++        B_API["POST /api/agents"]:::existing
++        B_NTF["AgentNotifierService"]:::existing
++        B_BRG["AgentWorkUnitBridge"]:::broken
++        B_WUS["WorkUnitStateService"]:::existing
++
++        B_API --> B_NTF
++        B_BRG -.->|"exists but<br/>never called"| B_WUS
 +    end
 +
-+    subgraph After["After Phase 2"]
-+        A_WUS["IWorkUnitStateService<br/>(centralized registry)"]:::new
-+        A_FAKE["FakeWorkUnitStateService"]:::new
-+        A_BRIDGE["AgentWorkUnitBridge"]:::new
-+        A_GSS["GlobalStateSystem<br/>+ work-unit domain"]:::existing
-+        A_JSON["work-unit-state.json<br/>(persistence)"]:::new
++    subgraph After["After FX001"]
++        A_API["POST/DELETE routes"]:::existing
++        A_NTF["AgentNotifierService<br/>(+lazy bridge)"]:::new
++        A_BRG["AgentWorkUnitBridge"]:::existing
++        A_WUS["WorkUnitStateService"]:::existing
 +
-+        A_BRIDGE -->|"register + status"| A_WUS
-+        A_WUS -->|"publish paths"| A_GSS
-+        A_WUS -->|"persist"| A_JSON
++        A_API -->|"register/<br/>unregister"| A_BRG
++        A_NTF -->|"updateStatus<br/>(on broadcastStatus)"| A_BRG
++        A_BRG --> A_WUS
 +    end
 +```
 +
-+**Legend**: existing (green, unchanged) | new (blue, created)
++**Legend**: existing (green) | broken/unused (red) | new/modified (blue)
 +
 +---
 +
-+## Acceptance Criteria
++## DYK Findings
 +
-+- [ ] AC-09: IWorkUnitStateService interface in packages/shared with all methods
-+- [ ] AC-10: Implementation persists to JSON + publishes state paths
-+- [ ] AC-11: tidyUp() removes entries > 24h that aren't working/waiting
-+- [ ] AC-12: Working entries + questioned entries never expire
-+- [ ] AC-13: FakeWorkUnitStateService with inspection methods
-+- [ ] AC-14: Contract tests pass for both real and fake
-+- [ ] AC-15: AgentWorkUnitBridge auto-registers agents on creation
-+- [ ] AC-16: First-class question events → askQuestion() → has-question state path
-+- [ ] AC-17: answerQuestion() routes to callback + clears question state
++| # | Finding | Action |
++|---|---------|--------|
++| DYK-FX001-01 | DI registration order risk — bridge registered after notifier | Use lazy resolver `() => bridge` instead of direct injection |
++| DYK-FX001-02 | `broadcastIntent` lacks status param, high-frequency | Skip intent wiring — only wire broadcastStatus |
++| DYK-FX001-03 | Register/unregister stay in routes, not notifier | Document the split in comments |
++| DYK-FX001-04 | Pre-existing agents won't show until recreated | Acceptable trade-off |
++| DYK-FX001-05 | Test container uses `useValue` fake, not factory | Don't modify test notifier; add integration test |
 +
-+## Goals & Non-Goals
++---
 +
-+**Goals**: Centralized work unit registry, JSON persistence, state path publishing, agent bridge, answer routing, contract-tested with fake parity, integration guide.
++## Acceptance
 +
-+**Non-Goals**: UI components (Phase 3), cross-worktree queries (Phase 4), SSE broadcasting of work unit events, replacing MessageService or NodeStatusResult.
++- [ ] Agent creation → entry in work-unit-state.json
++- [ ] Agent run → status `working` in work-unit-state.json
++- [ ] Agent stop → status `idle` in work-unit-state.json
++- [ ] Agent deletion → entry removed from work-unit-state.json
++- [ ] Existing tests pass (no regressions)
 +
 +---
 +
 +## Checklist
 +
-+- [ ] T001: Define IWorkUnitStateService interface + types
-+- [ ] T002: Create FakeWorkUnitStateService
-+- [ ] T003: Write contract test factory + runner
-+- [ ] T004: Implement WorkUnitStateService (persistence + state paths)
-+- [ ] T005: Implement tidyUp rules
-+- [ ] T006: Register in DI container
-+- [ ] T007: Create AgentWorkUnitBridge
-+- [ ] T008: Implement answer routing
-+- [ ] T009: Write integration guide
-diff --git a/docs/plans/059-fix-agents/tasks/phase-2-workunit-state-system/tasks.md b/docs/plans/059-fix-agents/tasks/phase-2-workunit-state-system/tasks.md
++- [x] FX001-1: POST route bridge.registerAgent()
++- [x] FX001-2: DELETE route bridge.unregisterAgent()
++- [x] FX001-3: Notifier broadcastStatus() → lazy bridge.updateAgentStatus()
++- [x] FX001-4: DI factory passes lazy bridge resolver to notifier
+diff --git a/docs/plans/059-fix-agents/fixes/FX001-wire-agent-workunit-registration.log.md b/docs/plans/059-fix-agents/fixes/FX001-wire-agent-workunit-registration.log.md
 new file mode 100644
-index 0000000..3a4771a
+index 0000000..531b58a
 --- /dev/null
-+++ b/docs/plans/059-fix-agents/tasks/phase-2-workunit-state-system/tasks.md
-@@ -0,0 +1,274 @@
-+# Phase 2: WorkUnit State System — Tasks
++++ b/docs/plans/059-fix-agents/fixes/FX001-wire-agent-workunit-registration.log.md
+@@ -0,0 +1,24 @@
++# Fix FX001 — Execution Log
 +
-+**Plan**: [fix-agents-plan.md](../../fix-agents-plan.md) (Phase B)
-+**Created**: 2026-02-28
-+**Status**: Pending
-+**Complexity**: CS-3
++**Started**: 2026-03-03
++**Status**: Complete
 +
-+---
++## FX001-1: POST route bridge.registerAgent()
 +
-+## Executive Briefing
++**File modified**: `apps/web/app/api/agents/route.ts`
++**What**: Added `POSITIONAL_GRAPH_DI_TOKENS` import, `AgentWorkUnitBridge` type import, and bridge.registerAgent() call after broadcastCreated(). Wrapped in try/catch for best-effort.
 +
-+**Purpose**: Create a centralized "who's doing what and who needs help" registry that any work unit (agent, code unit, workflow node, pod) can report status and first-class questions into. This is the foundation for the top bar, attention system, and cross-worktree visibility.
++## FX001-2: DELETE route bridge.unregisterAgent()
 +
-+**What We're Building**: `IWorkUnitStateService` interface + real implementation + fake test double + contract tests. Then an `AgentWorkUnitBridge` that auto-publishes agent lifecycle events into this registry. The service persists to JSON, publishes to GlobalStateSystem at `work-unit:{id}:*` paths, and routes question answers back to sources via callbacks.
++**File modified**: `apps/web/app/api/agents/[id]/route.ts`
++**What**: Same imports + bridge.unregisterAgent() after broadcastTerminated(). Wrapped in try/catch.
 +
-+**Goals**:
-+- ✅ IWorkUnitStateService interface in packages/shared with all methods
-+- ✅ WorkUnitStateService implementation with JSON persistence + state path publishing
-+- ✅ FakeWorkUnitStateService with inspection methods
-+- ✅ Contract tests pass for both real and fake
-+- ✅ AgentWorkUnitBridge auto-registers agents and publishes status/questions
-+- ✅ Answer routing via callbacks
-+- ✅ tidyUp rules: 24h expiry, working/waiting never expire
-+- ✅ DI registration with singleton guard
-+- ✅ docs/how/work-unit-state-integration.md guide
++## FX001-3: Notifier broadcastStatus() → lazy bridge
 +
-+**Non-Goals**:
-+- ❌ UI components (Phase 3 — top bar, overlay, chips)
-+- ❌ Cross-worktree queries (Phase 4)
-+- ❌ SSE broadcasting of work unit events (consumers read via GlobalStateSystem)
-+- ❌ Replacing existing MessageService or NodeStatusResult — this is an aggregator
++**File modified**: `apps/web/src/features/019-agent-manager-refactor/agent-notifier.service.ts`
++**What**: Added `mapAgentStatus()` function (working→working, stopped→idle, error→error). Constructor accepts optional `resolveBridge: () => AgentWorkUnitBridge | undefined`. broadcastStatus() calls bridge.updateAgentStatus() after SSE broadcast. Documented DYK-FX001-02 (no intent wiring) and DYK-FX001-03 (no register/unregister in notifier).
 +
-+---
++## FX001-4: DI factory passes lazy bridge resolver
 +
-+## Prior Phase Context
++**File modified**: `apps/web/src/lib/di-container.ts`
++**What**: Updated notifier factory to pass a lazy bridge resolver using try/catch around `c.resolve()`. This avoids DI registration order issues (DYK-FX001-01). Test container NOT modified (DYK-FX001-05).
+diff --git a/docs/plans/059-fix-agents/fixes/FX001-wire-agent-workunit-registration.md b/docs/plans/059-fix-agents/fixes/FX001-wire-agent-workunit-registration.md
+new file mode 100644
+index 0000000..447f612
+--- /dev/null
++++ b/docs/plans/059-fix-agents/fixes/FX001-wire-agent-workunit-registration.md
+@@ -0,0 +1,68 @@
++# Fix FX001: Wire Agent Lifecycle into WorkUnitStateService
 +
-+### Phase 1: Fix Agent Foundation
-+
-+**A. Deliverables**:
-+- `apps/web/next.config.mjs` — Added copilot SDK to serverExternalPackages
-+- `packages/shared/.../agent-instance.interface.ts` — AgentType now includes `copilot-cli`; AdapterFactory accepts optional AdapterFactoryConfig
-+- `apps/web/app/api/agents/route.ts` — POST accepts all 3 types, broadcasts `agent_created` via SSE
-+- `apps/web/app/api/agents/[id]/route.ts` — DELETE broadcasts `agent_terminated`
-+- `apps/web/src/lib/di-container.ts` — CopilotCLIAdapter registered with sendEnter + tmux config
-+- `apps/web/src/components/agents/create-session-form.tsx` — Default copilot, copilot-cli fields
-+- `packages/shared/.../agent-notifier.interface.ts` — Added broadcastCreated/broadcastTerminated
-+- `packages/shared/.../agent-notifier.service.ts` — Implemented lifecycle broadcasts
-+- `packages/shared/.../fake-agent-notifier.service.ts` — Updated with lifecycle methods
-+
-+**B. Dependencies Exported**:
-+- `AgentType = 'claude-code' | 'copilot' | 'copilot-cli'`
-+- `AdapterFactory(type, config?)` with `AdapterFactoryConfig { tmuxTarget?, defaultSessionId? }`
-+- `IAgentNotifierService.broadcastCreated(agentId, { name, type, workspace })`
-+- `IAgentNotifierService.broadcastTerminated(agentId)`
-+- `CreateAgentParams` now includes `sessionId?`, `tmuxWindow?`, `tmuxPane?`
-+
-+**C. Gotchas & Debt**:
-+- AgentInstance eagerly creates adapter at construction — adapter failure crashes creation
-+- No try/catch in AgentManagerService.initialize() hydration loop — one bad agent blocks all
-+- Two AdapterFactory types exist (services/ vs 019/) — services/ is 1-arg, 019/ is 2-arg
-+
-+**D. Incomplete Items**:
-+- T008 regression tests not written yet (planned but deprioritized)
-+- No manual verification of detail page streaming or persistence across restart
-+
-+**E. Patterns to Follow**:
-+- Externalize SDK packages with `import.meta.resolve` in serverExternalPackages
-+- Broadcast SSE lifecycle events after mutations
-+- DI container as type-dispatch hub — don't hardcode adapters in routes
-+- Singleton via closure-captured flag in useFactory (survive HMR)
++**Created**: 2026-03-02
++**Status**: Complete
++**Plan**: [fix-agents-plan.md](../fix-agents-plan.md)
++**Source**: User reported sidebar badges empty — agents not registered in WorkUnitStateService
++**Domain(s)**: agents (modify), work-unit-state (consume)
 +
 +---
 +
-+## Pre-Implementation Check
++## Problem
 +
-+| File | Exists? | Domain Check | Notes |
-+|------|---------|-------------|-------|
-+| `packages/shared/src/interfaces/work-unit-state.interface.ts` | ❌ | work-unit-state ✅ | New — interface + types |
-+| `packages/shared/src/work-unit-state/types.ts` | ❌ | work-unit-state ✅ | New — WorkUnitEntry, WorkUnitQuestion, QuestionAnswer |
-+| `packages/shared/src/work-unit-state/index.ts` | ❌ | work-unit-state ✅ | New — barrel exports |
-+| `packages/shared/src/fakes/fake-work-unit-state.ts` | ❌ | work-unit-state ✅ | New — FakeWorkUnitStateService |
-+| `test/contracts/work-unit-state.contract.ts` | ❌ | work-unit-state ✅ | New — contract test factory |
-+| `test/contracts/work-unit-state.contract.test.ts` | ❌ | work-unit-state ✅ | New — contract test runner |
-+| `apps/web/src/lib/work-unit-state/work-unit-state.service.ts` | ❌ | work-unit-state ✅ | New — real implementation |
-+| `apps/web/src/lib/work-unit-state/index.ts` | ❌ | work-unit-state ✅ | New — barrel exports |
-+| `apps/web/src/lib/di-container.ts` | ✅ | cross-domain ✅ | Modify — add WorkUnitStateService singleton |
-+| `apps/web/src/features/059-fix-agents/agent-work-unit-bridge.ts` | ❌ | agents ✅ | New — bridges agent events to work-unit-state |
-+| `docs/how/work-unit-state-integration.md` | ❌ | work-unit-state ✅ | New — integration guide |
++AgentWorkUnitBridge exists and is wired in DI, but nothing calls it. When agents are created via the UI, they never get registered in WorkUnitStateService, so `work-unit-state.json` stays empty. This means sidebar badges, top bar chips, and cross-worktree activity indicators have no data to display.
 +
-+**Concept search**: IWorkUnitService exists in positional-graph for workflow orchestration (different purpose — executes work units, not tracks their state). IWorkUnitStateService is distinct — tracks status and questions. JSDoc will clarify.
++## Proposed Fix
 +
-+---
++Add bridge calls at three integration points following Workshop 007 Option A1:
++1. **POST /api/agents** → `bridge.registerAgent()` after creation
++2. **DELETE /api/agents/[id]** → `bridge.unregisterAgent()` before response
++3. **AgentNotifierService** → accept optional bridge, call `updateAgentStatus()` on `broadcastStatus()` and `broadcastIntent()` to capture mid-run status changes
 +
-+## Architecture Map
++Status mapping: `working→working`, `stopped→idle`, `error→error`.
 +
-+```mermaid
-+flowchart TD
-+    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
-+    classDef new fill:#E3F2FD,stroke:#2196F3,color:#000
++## Domain Impact
 +
-+    subgraph Phase2["Phase 2: WorkUnit State System"]
-+        T001["T001: Interface +<br/>types in shared"]:::new
-+        T002["T002: Fake +<br/>inspection methods"]:::pending
-+        T003["T003: Contract test<br/>factory + runner"]:::pending
-+        T004["T004: Real implementation<br/>+ persistence + state paths"]:::pending
-+        T005["T005: tidyUp rules"]:::pending
-+        T006["T006: DI registration"]:::pending
-+        T007["T007: AgentWorkUnit<br/>Bridge"]:::pending
-+        T008["T008: Answer routing"]:::pending
-+        T009["T009: Integration guide"]:::pending
-+
-+        T001 --> T002
-+        T001 --> T003
-+        T002 --> T003
-+        T003 --> T004
-+        T004 --> T005
-+        T004 --> T006
-+        T005 --> T006
-+        T006 --> T007
-+        T004 --> T008
-+        T007 --> T009
-+        T008 --> T009
-+    end
-+
-+    subgraph Consumed["Consumed Domains"]
-+        GSS["GlobalStateSystem<br/>_platform/state"]
-+        AGT["AgentManagerService<br/>agents"]
-+    end
-+
-+    T004 -.->|"publishes to"| GSS
-+    T007 -.->|"listens to"| AGT
-+```
-+
-+---
++| Domain | Relationship | What Changes |
++|--------|-------------|-------------|
++| agents | modify | API routes gain bridge calls; notifier accepts optional bridge |
++| work-unit-state | consume | Bridge calls register/update/unregister — no interface changes |
 +
 +## Tasks
 +
 +| Status | ID | Task | Domain | Path(s) | Done When | Notes |
 +|--------|-----|------|--------|---------|-----------|-------|
-+| [ ] | T001 | Define IWorkUnitStateService interface + all types (WorkUnitEntry, WorkUnitQuestion, QuestionAnswer, WorkUnitFilter, WorkUnitStatus, QuestionType, WorkUnitCreator) | work-unit-state | `packages/shared/src/interfaces/work-unit-state.interface.ts`, `packages/shared/src/work-unit-state/types.ts`, `packages/shared/src/work-unit-state/index.ts` | Interface exported from `@chainglass/shared`; tsc compiles; types match Workshop 003 data model | AC-09; interface-first per P2 |
-+| [ ] | T002 | Create FakeWorkUnitStateService with inspection methods | work-unit-state | `packages/shared/src/fakes/fake-work-unit-state.ts` | Fake implements IWorkUnitStateService; has getPublished(), getQuestions(), getAnswers(), getRegistered() | AC-13; fakes-before-real per P4 |
-+| [ ] | T003 | Write contract test factory + runner | work-unit-state | `test/contracts/work-unit-state.contract.ts`, `test/contracts/work-unit-state.contract.test.ts` | Tests cover: register, unregister, updateStatus, askQuestion, answerQuestion, onAnswer, getUnit, getUnits, getQuestioned, tidyUp. Both real and fake run through factory. | AC-14; TDD red phase |
-+| [ ] | T004 | Implement WorkUnitStateService — in-memory registry + JSON persistence + GlobalStateSystem publishing | work-unit-state | `apps/web/src/lib/work-unit-state/work-unit-state.service.ts`, `apps/web/src/lib/work-unit-state/index.ts` | Passes all contract tests; persists to `<worktree>/.chainglass/data/work-unit-state.json`; publishes `work-unit:{id}:status`, `work-unit:{id}:has-question`, `work-unit:{id}:intent` | AC-10; TDD green phase; Finding 05 — only status-level changes |
-+| [ ] | T005 | Implement tidyUp rules — 24h expiry, working/waiting never expire | work-unit-state | `apps/web/src/lib/work-unit-state/work-unit-state.service.ts` | tidyUp() removes entries with lastActivityAt > 24h ago AND status NOT in ['working', 'waiting_input']; entries with pending questions never expire | AC-11, AC-12 |
-+| [ ] | T006 | Register WorkUnitStateService in DI container as singleton | work-unit-state | `apps/web/src/lib/di-container.ts` | Container resolves IWorkUnitStateService; lazy init guard; dependency order: GlobalStateSystem → WorkUnitStateService → AgentWorkUnitBridge | Finding 04; ADR-0004 |
-+| [ ] | T007 | Create AgentWorkUnitBridge — auto-register agents + publish status/questions | agents | `apps/web/src/features/059-fix-agents/agent-work-unit-bridge.ts` | Bridge registers agents on create, publishes status changes via updateStatus(), calls askQuestion() on first-class question events | AC-15, AC-16 |
-+| [ ] | T008 | Implement answer routing — answerQuestion() routes to registered onAnswer callback | work-unit-state | `apps/web/src/lib/work-unit-state/work-unit-state.service.ts` | Callback receives QuestionAnswer; entry.question cleared; status updated; state path `has-question` set to false | AC-17 |
-+| [ ] | T009 | Write docs/how/work-unit-state-integration.md | work-unit-state | `docs/how/work-unit-state-integration.md` | Guide covers: registering a source, publishing status, asking questions, answering, tidyUp lifecycle, state path schema | Documentation deliverable |
++| [x] | FX001-1 | Add `bridge.registerAgent()` in POST /api/agents after createAgent + broadcastCreated | agents | `apps/web/app/api/agents/route.ts` | Agent creation writes entry to work-unit-state.json | Workshop 007 Option A1 |
++| [x] | FX001-2 | Add `bridge.unregisterAgent()` in DELETE /api/agents/[id] after terminateAgent | agents | `apps/web/app/api/agents/[id]/route.ts` | Agent deletion removes entry from work-unit-state.json | Workshop 007 Option A1 |
++| [x] | FX001-3 | Add lazy bridge resolver to AgentNotifierService constructor; call `bridge.updateAgentStatus()` in `broadcastStatus()` only (NOT broadcastIntent — too high-frequency per DYK-FX001-02). Use `() => AgentWorkUnitBridge | undefined` factory to avoid DI order issues (DYK-FX001-01). Document that register/unregister stay in routes, not notifier (DYK-FX001-03). | agents | `apps/web/src/features/019-agent-manager-refactor/agent-notifier.service.ts` | Running agent status changes reflected in work-unit-state.json | Status map: working→working, stopped→idle, error→error |
++| [x] | FX001-4 | Update DI production container to pass lazy bridge resolver into AgentNotifierService factory. Do NOT modify test container (uses useValue fake per DYK-FX001-05). | agents | `apps/web/src/lib/di-container.ts` | Notifier resolves with lazy bridge in production container | DYK-FX001-01: lazy resolver avoids registration order issues |
 +
-+---
++## Workshops Consumed
 +
-+## Context Brief
++- [Workshop 007: Agent → WorkUnitState Registration](../workshops/007-agent-workunit-registration.md)
 +
-+### Key findings from plan
++## DYK Findings
 +
-+- **Finding 04** (High): DI singleton bootstrap ordering — adding WorkUnitStateService as second singleton risks init order issues. Use shared init guard; document dependency order in di-container.ts → T006
-+- **Finding 05** (High): State system list cache invalidation iterates ALL patterns per publish — keep agent streaming events OUT of state system; only publish status-level changes → T004
-+- **Finding 08** (Low): IWorkUnitService already exists in positional-graph — distinct naming; add JSDoc clarification → T001
++| # | Finding | Impact | Action |
++|---|---------|--------|--------|
++| DYK-FX001-01 | DI registration order — bridge at L552, notifier at L384 | HIGH | Use lazy resolver `() => bridge` in notifier constructor |
++| DYK-FX001-02 | `broadcastIntent` lacks status param, high-frequency streaming | MEDIUM | Skip intent wiring — only wire `broadcastStatus` |
++| DYK-FX001-03 | Register/unregister must stay in routes, not notifier | MEDIUM | Document the split clearly in notifier comments |
++| DYK-FX001-04 | Pre-existing agents won't show until recreated | LOW | Acceptable — user confirmed |
++| DYK-FX001-05 | Test container uses `useValue` fake, no factory | LOW | Don't modify test notifier registration |
 +
-+### Domain dependencies
++## Acceptance
 +
-+- `_platform/state`: Publish state paths (GlobalStateSystem.publish()) — work-unit entries publish `work-unit:{id}:*` paths
-+- `_platform/state`: Register domain descriptor (GlobalStateSystem.registerDomain()) — registers `work-unit-state` domain at bootstrap
-+- `agents`: Agent lifecycle events (IAgentNotifierService) — bridge listens for status/question events to forward
-+
-+### Domain constraints
-+
-+- work-unit-state interface + types live in `packages/shared` (cross-package contract)
-+- Real implementation lives in `apps/web` (server-side, has filesystem access)
-+- State paths follow colon-delimited format: `work-unit:{id}:property`
-+- Only publish status-level changes (not streaming text_delta etc.) per Finding 05
-+- IWorkUnitStateService is NOT IWorkUnitService (positional-graph) — distinct names, distinct purposes
-+
-+### Reusable from prior phases
-+
-+- Phase 1: DI container singleton pattern with closure-captured flag guard
-+- Phase 1: IAgentNotifierService.broadcastCreated/broadcastTerminated — bridge can hook into these
-+- Existing: FakeStateSystem in packages/shared for testing state path publishing
-+- Existing: WorktreeStatePublisher pattern — register domain descriptor + publish in useEffect
-+- Existing: Contract test factory pattern from test/contracts/agent-*.contract.ts
-+
-+### Data flow diagram
-+
-+```mermaid
-+flowchart LR
-+    subgraph Sources["Work Unit Sources"]
-+        AGT["Agent<br/>(via bridge)"]
-+        WF["Workflow Node<br/>(future)"]
-+        POD["Pod<br/>(future)"]
-+    end
-+
-+    subgraph Core["WorkUnit State Service"]
-+        REG["register()"]
-+        UPD["updateStatus()"]
-+        ASK["askQuestion()"]
-+        ANS["answerQuestion()"]
-+        TIDY["tidyUp()"]
-+        STORE["JSON persistence"]
-+    end
-+
-+    subgraph State["GlobalStateSystem"]
-+        PUB["work-unit:{id}:status<br/>work-unit:{id}:has-question<br/>work-unit:{id}:intent"]
-+    end
-+
-+    AGT -->|"register + status"| REG
-+    AGT -->|"question events"| ASK
-+    WF -->|"register + status"| REG
-+    REG --> STORE
-+    UPD --> STORE
-+    UPD --> PUB
-+    ASK --> PUB
-+    ANS -->|"callback to source"| AGT
-+    ANS --> PUB
-+```
-+
-+### Sequence diagram — question flow
-+
-+```mermaid
-+sequenceDiagram
-+    participant A as Agent
-+    participant B as AgentWorkUnitBridge
-+    participant W as WorkUnitStateService
-+    participant G as GlobalStateSystem
-+    participant UI as Top Bar / Overlay
-+
-+    A->>B: question event emitted
-+    B->>W: askQuestion(agentId, question)
-+    W->>W: entry.question = question<br/>entry.status = waiting_input
-+    W->>W: persist to JSON
-+    W->>G: publish work-unit:{id}:has-question = true
-+    G-->>UI: subscriber notified
-+    UI->>UI: chip pulses yellow
-+
-+    UI->>W: answerQuestion(agentId, answer)
-+    W->>W: clear question, status = working
-+    W->>W: persist to JSON
-+    W->>G: publish work-unit:{id}:has-question = false
-+    W->>B: onAnswer callback fires
-+    B->>A: route answer to agent
-+```
-+
-+---
++- [ ] Creating an agent via UI writes an entry to `work-unit-state.json`
++- [ ] Running an agent updates status to `working` in `work-unit-state.json`
++- [ ] Agent completing run updates status to `idle`
++- [ ] Deleting an agent removes entry from `work-unit-state.json`
++- [ ] Sidebar badges show activity for agents in other worktrees
++- [ ] Existing tests still pass (no regressions)
 +
 +## Discoveries & Learnings
 +
-+_Populated during implementation by plan-6._
++_Populated during implementation._
 +
-+| Date | Task | Type | Discovery | Resolution | References |
-+|------|------|------|-----------|------------|------------|
-+
-+**Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
-+
-+---
-+
-+## Directory Layout
-+
-+```
-+docs/plans/059-fix-agents/
-+  ├── fix-agents-plan.md
-+  ├── fix-agents-spec.md
-+  ├── research-dossier.md
-+  ├── workshops/
-+  │   ├── 001-top-bar-agent-ux.md
-+  │   ├── 002-agent-connect-disconnect-ux.md
-+  │   ├── 003-work-unit-state-system.md
-+  │   └── 004-agent-creation-failure-root-cause.md
-+  ├── tasks/phase-1-fix-agent-foundation/
-+  │   ├── tasks.md
-+  │   └── tasks.fltplan.md
-+  └── tasks/phase-2-workunit-state-system/
-+      ├── tasks.md               ← this file
-+      ├── tasks.fltplan.md       ← flight plan (next)
-+      └── execution.log.md       ← created by plan-6
-+```
-diff --git a/docs/plans/059-fix-agents/workshops/005-server-event-router.md b/docs/plans/059-fix-agents/workshops/005-server-event-router.md
-new file mode 100644
-index 0000000..5bc4f8d
---- /dev/null
-+++ b/docs/plans/059-fix-agents/workshops/005-server-event-router.md
-@@ -0,0 +1,398 @@
-+# Workshop: Server Event Router — Central Events → GlobalStateSystem Bridge
-+
-+**Type**: Integration Pattern
-+**Plan**: 059-fix-agents
-+**Spec**: [fix-agents-spec.md](../fix-agents-spec.md)
-+**Created**: 2026-03-01
-+**Status**: Draft
-+
-+**Related Documents**:
-+- [Plan 027 — Central Domain Event Notification System](../../027-central-domain-event-notify/): Three-layer pipeline architecture
-+- [Plan 053 — GlobalStateSystem](../../053-global-state-system/): Client-side state pub/sub
-+- [Plan 056 — State DevTools Panel](../../056-state-devtools/): StateChangeLog ring buffer
-+- [Workshop 003 — WorkUnit State System](./003-work-unit-state-system.md): Data model this router serves
-+- [ADR-0007](../../../adr/): Notification-fetch pattern (SSE carries IDs only)
-+- [ADR-0010](../../../adr/): Three-layer notification pattern
-+- [docs/how/dev/central-events/](../../../how/dev/central-events/): Adapter authoring guide
-+
-+**Domain Context**:
-+- **Primary Domain**: `_platform/events` — extending the existing central event infrastructure
-+- **Related Domains**: `_platform/state` (target: GlobalStateSystem), `work-unit-state` (first consumer), `agents` (second consumer)
-+
-+---
-+
-+## Purpose
-+
-+Design a generic, first-class bridge that routes server-side central events (Plan 027) into client-side GlobalStateSystem paths (Plan 053). Today, each domain hand-rolls its own SSE→state publisher (only FileChanges does this fully; Workflows and Agents don't publish to state at all). This workshop designs the missing infrastructure piece: a reusable `ServerEventRouter` that any domain can plug into.
-+
-+## The Problem
-+
-+```
-+┌─────────────────────────────────────────────────────────────────┐
-+│ Today: Each domain hand-rolls its own SSE→state bridge          │
-+│                                                                 │
-+│  FileChanges:  SSE → FileChangeProvider → Hub → Publisher → GSS │
-+│                     (4 components, ~200 lines)                  │
-+│                                                                 │
-+│  Workflows:    SSE → useWorkflowSSE → callbacks (NO state)      │
-+│  Agents:       SSE → useAgentManager → React Query (NO state)   │
-+│  WorkUnitState: ??? (doesn't exist yet)                         │
-+│                                                                 │
-+│  Result: Every new domain that wants GlobalStateSystem           │
-+│  visibility must reimplement the same plumbing.                  │
-+└─────────────────────────────────────────────────────────────────┘
-+```
-+
-+## Key Questions Addressed
-+
-+- Q1: What does a generic server→client event router look like?
-+- Q2: How does it integrate with Plan 027 central events and Plan 053 GlobalStateSystem?
-+- Q3: How do we tag server-originated state entries for debugging (vs client-originated)?
-+- Q4: What does domain registration look like — how does a domain opt in?
-+- Q5: How does this interact with the notification-fetch pattern (ADR-0007)?
-+
-+---
-+
-+## Q1: The ServerEventRouter Component
-+
-+A single React component that subscribes to an SSE channel and publishes received events as GlobalStateSystem paths. Domains register a **route descriptor** that maps event types to state paths.
-+
-+```typescript
-+/** Route descriptor: maps server events to state paths */
-+interface ServerEventRouteDescriptor {
-+  /** SSE channel to subscribe to (matches WorkspaceDomain value) */
-+  channel: string;
-+  /** Domain name in GlobalStateSystem */
-+  stateDomain: string;
-+  /** Multi-instance domain? (most are — keyed by entity ID) */
-+  multiInstance: boolean;
-+  /** Properties this domain publishes */
-+  properties: StatePropertyDescriptor[];
-+  /** Map an SSE event to state path updates */
-+  mapEvent: (event: ServerEvent) => StateUpdate[] | null;
-+}
-+
-+/** What arrives from SSE (Plan 027 shape) */
-+interface ServerEvent {
-+  type: string;
-+  [key: string]: unknown;
-+}
-+
-+/** What gets published to GlobalStateSystem */
-+interface StateUpdate {
-+  /** Instance ID (for multi-instance domains) */
-+  instanceId?: string;
-+  /** Property name */
-+  property: string;
-+  /** Value to publish */
-+  value: unknown;
-+}
-+```
-+
-+### Example: WorkUnitState Route Descriptor
-+
-+```typescript
-+const workUnitStateRoute: ServerEventRouteDescriptor = {
-+  channel: 'work-unit-state',
-+  stateDomain: 'work-unit-state',
-+  multiInstance: true,
-+  properties: [
-+    { key: 'status', typeHint: 'string' },
-+    { key: 'has-question', typeHint: 'boolean' },
-+    { key: 'intent', typeHint: 'string' },
-+    { key: 'name', typeHint: 'string' },
-+  ],
-+  mapEvent: (event) => {
-+    if (event.type === 'unit-status-changed') {
-+      return [
-+        { instanceId: event.unitId as string, property: 'status', value: event.status },
-+        { instanceId: event.unitId as string, property: 'intent', value: event.intent ?? '' },
-+      ];
-+    }
-+    if (event.type === 'unit-question-asked') {
-+      return [
-+        { instanceId: event.unitId as string, property: 'has-question', value: true },
-+      ];
-+    }
-+    if (event.type === 'unit-question-answered') {
-+      return [
-+        { instanceId: event.unitId as string, property: 'has-question', value: false },
-+        { instanceId: event.unitId as string, property: 'status', value: 'working' },
-+      ];
-+    }
-+    return null; // Unknown event type — ignore
-+  },
-+};
-+```
-+
-+---
-+
-+## Q2: Integration Architecture
-+
-+```
-+┌──────────────────────────────────────────────────────────────────────────┐
-+│ Server (Plan 027)                                                        │
-+│                                                                          │
-+│  WorkUnitStateService                                                    │
-+│    │  persist to JSON                                                    │
-+│    │  emit via CentralEventNotifierService                              │
-+│    ▼                                                                     │
-+│  CentralEventNotifierService.emit('work-unit-state', 'unit-status-changed', │
-+│    { unitId, status, intent })                                           │
-+│    │                                                                     │
-+│    ▼                                                                     │
-+│  SSEManager.broadcast('work-unit-state', 'unit-status-changed', data)   │
-+│                                                                          │
-+├──────────────────────────── SSE boundary ────────────────────────────────┤
-+│                                                                          │
-+│ Client (Plan 053)                                                        │
-+│                                                                          │
-+│  ServerEventRouter                                                       │
-+│    │  useSSE('/api/events/work-unit-state')                             │
-+│    │  for each message:                                                  │
-+│    │    updates = route.mapEvent(message)                               │
-+│    │    for each update:                                                 │
-+│    │      state.publish('work-unit-state:{unitId}:{property}', value)   │
-+│    ▼        ↑ tagged with _source: 'server'                             │
-+│                                                                          │
-+│  GlobalStateSystem                                                       │
-+│    │  subscribers notified                                               │
-+│    ▼                                                                     │
-+│  useGlobalState('work-unit-state:agent-1:status')                       │
-+│    → 'working'                                                           │
-+│                                                                          │
-+│  useGlobalStateList('work-unit-state:*:has-question')                   │
-+│    → [{ path: 'work-unit-state:agent-1:has-question', value: true }]    │
-+└──────────────────────────────────────────────────────────────────────────┘
-+```
-+
-+### Why Not Notification-Fetch?
-+
-+ADR-0007 says "SSE carries identifiers, clients fetch via REST." But for state system entries, the value IS the identifier/status — a single string or boolean. Fetching via REST would mean a round-trip for `status = 'working'`. The router publishes the value directly from the SSE payload because:
-+
-+1. State entries are tiny (string/boolean/number), not rich objects
-+2. The server already validated and persisted the data
-+3. Round-trip latency defeats the purpose of real-time state visibility
-+4. WorkUnitEntry details (full question text, sourceRef) are still fetched via REST when needed — only status-level fields go through state paths
-+
-+This is a **documented extension** of ADR-0007: state path values are small enough to carry inline. Full entity data still uses notification-fetch.
-+
-+---
-+
-+## Q3: Server-Origin Tagging for Debug
-+
-+Every state entry published by the ServerEventRouter should be distinguishable from client-originated entries. This serves debugging (Plan 056 State DevTools) and tracing.
-+
-+### Approach: Metadata on StateEntry
-+
-+```typescript
-+/** Extended state entry shape (internal to GlobalStateSystem) */
-+interface StateEntry<T = unknown> {
-+  path: string;
-+  value: T;
-+  updatedAt: number;
-+  // NEW: source metadata
-+  source?: StateEntrySource;
-+}
-+
-+interface StateEntrySource {
-+  origin: 'client' | 'server';
-+  /** SSE channel that produced this entry */
-+  channel?: string;
-+  /** Server event type that triggered this entry */
-+  eventType?: string;
-+}
-+```
-+
-+### How It Works
-+
-+1. `GlobalStateSystem.publish()` already accepts `(path, value)` — extend with optional 3rd arg:
-+   ```typescript
-+   publish<T>(path: string, value: T, source?: StateEntrySource): void
-+   ```
-+2. ServerEventRouter passes source metadata on every publish:
-+   ```typescript
-+   state.publish(path, value, {
-+     origin: 'server',
-+     channel: route.channel,
-+     eventType: event.type,
-+   });
-+   ```
-+3. Client-originated publishes (e.g., WorktreeStatePublisher) don't pass source — defaults to `{ origin: 'client' }`
-+4. StateChangeLog (Plan 056) captures source in its ring buffer entries
-+5. State DevTools panel can filter/color-code by origin
-+
-+### Why Not a Separate Store?
-+
-+We considered keeping server state in a parallel store, but that fragments the query surface. Consumers should use `useGlobalState('work-unit-state:agent-1:status')` regardless of origin. The metadata is for debugging, not routing.
-+
-+---
-+
-+## Q4: Domain Registration — How to Opt In
-+
-+A domain opts into server→state routing by providing a `ServerEventRouteDescriptor` and mounting it in the `ServerEventRouter`.
-+
-+### Step 1: Define route descriptor (in domain code)
-+
-+```typescript
-+// apps/web/src/lib/work-unit-state/state-route.ts
-+import type { ServerEventRouteDescriptor } from '@/lib/state/server-event-router';
-+
-+export const workUnitStateRoute: ServerEventRouteDescriptor = {
-+  channel: 'work-unit-state',
-+  stateDomain: 'work-unit-state',
-+  multiInstance: true,
-+  properties: [
-+    { key: 'status', typeHint: 'string' },
-+    { key: 'has-question', typeHint: 'boolean' },
-+    { key: 'intent', typeHint: 'string' },
-+    { key: 'name', typeHint: 'string' },
-+  ],
-+  mapEvent: (event) => { /* ... */ },
-+};
-+```
-+
-+### Step 2: Register in ServerEventRouter
-+
-+```typescript
-+// apps/web/src/lib/state/state-connector.tsx (extended)
-+import { workUnitStateRoute } from '@/lib/work-unit-state/state-route';
-+import { agentStateRoute } from '@/features/059-fix-agents/state-route';
-+
-+const SERVER_EVENT_ROUTES: ServerEventRouteDescriptor[] = [
-+  workUnitStateRoute,
-+  agentStateRoute,
-+  // Future domains add here
-+];
-+
-+export function GlobalStateConnector({ slug, worktreeBranch }: Props) {
-+  const state = useStateSystem();
-+
-+  useState(() => {
-+    registerWorktreeState(state);
-+    // Register all server event domains
-+    for (const route of SERVER_EVENT_ROUTES) {
-+      state.registerDomain({
-+        domain: route.stateDomain,
-+        multiInstance: route.multiInstance,
-+        properties: route.properties,
-+      });
-+    }
-+  });
-+
-+  return (
-+    <>
-+      <WorktreeStatePublisher slug={slug} worktreeBranch={worktreeBranch} />
-+      {SERVER_EVENT_ROUTES.map((route) => (
-+        <ServerEventRoute key={route.channel} route={route} />
-+      ))}
-+    </>
-+  );
-+}
-+```
-+
-+### Step 3: ServerEventRoute component (the actual bridge)
-+
-+```typescript
-+// apps/web/src/lib/state/server-event-route.tsx
-+'use client';
-+
-+import { useEffect } from 'react';
-+import { useSSE } from '@/hooks/useSSE';
-+import { useStateSystem } from './state-provider';
-+import type { ServerEventRouteDescriptor, ServerEvent } from './server-event-router';
-+
-+interface Props {
-+  route: ServerEventRouteDescriptor;
-+}
-+
-+export function ServerEventRoute({ route }: Props) {
-+  const state = useStateSystem();
-+  const { messages } = useSSE<ServerEvent>(`/api/events/${route.channel}`);
-+
-+  useEffect(() => {
-+    const latest = messages[messages.length - 1];
-+    if (!latest) return;
-+
-+    const updates = route.mapEvent(latest);
-+    if (!updates) return;
-+
-+    for (const update of updates) {
-+      const path = update.instanceId
-+        ? `${route.stateDomain}:${update.instanceId}:${update.property}`
-+        : `${route.stateDomain}:${update.property}`;
-+
-+      state.publish(path, update.value, {
-+        origin: 'server',
-+        channel: route.channel,
-+        eventType: latest.type,
-+      });
-+    }
-+  }, [messages, route, state]);
-+
-+  return null; // Invisible wiring component
-+}
-+```
-+
-+---
-+
-+## Q5: ADR-0007 Compatibility
-+
-+The ServerEventRouter **extends** the notification-fetch pattern, not replaces it:
-+
-+| Data Type | Pattern | Example |
-+|-----------|---------|---------|
-+| Status-level fields (small, ephemeral) | **Direct publish** via ServerEventRouter | `status = 'working'`, `has-question = true` |
-+| Entity data (rich, structured) | **Notification-fetch** per ADR-0007 | Full WorkUnitEntry with question text, choices, sourceRef |
-+
-+The router handles the first case. UI components that need full entity data (e.g., the overlay showing question text) still fetch via REST when notified.
-+
-+---
-+
-+## Full Component List
-+
-+| Component | Location | New? | Purpose |
-+|-----------|----------|------|---------|
-+| `ServerEventRouteDescriptor` | `apps/web/src/lib/state/server-event-router.ts` | NEW | Type: route config mapping SSE events to state paths |
-+| `ServerEventRoute` | `apps/web/src/lib/state/server-event-route.tsx` | NEW | Component: subscribes SSE, publishes to state |
-+| `StateEntrySource` | `packages/shared/src/interfaces/state.interface.ts` | NEW | Type: origin metadata on state entries |
-+| `GlobalStateSystem.publish()` | `apps/web/src/lib/state/global-state-system.ts` | MODIFY | Add optional `source` parameter |
-+| `StateChangeLog` | `apps/web/src/lib/state/state-change-log.ts` | MODIFY | Capture source in ring buffer entries |
-+| `GlobalStateConnector` | `apps/web/src/lib/state/state-connector.tsx` | MODIFY | Mount ServerEventRoute instances |
-+| `WorkspaceDomain` | `packages/shared/src/.../workspace-domain.ts` | MODIFY | Add `WorkUnitState: 'work-unit-state'` |
-+| `workUnitStateRoute` | `apps/web/src/lib/work-unit-state/state-route.ts` | NEW | Route descriptor for work-unit-state domain |
-+
-+---
-+
-+## Open Questions
-+
-+### Q6: Should the router debounce rapid SSE events?
-+
-+**RESOLVED**: No debouncing at the router level. GlobalStateSystem already handles stable references and cached lists. If a domain needs debouncing (e.g., rapid file change events), it should debounce in its `mapEvent` function or at the server-side emitter. The router is a dumb pipe.
-+
-+### Q7: What happens if SSE disconnects?
-+
-+**RESOLVED**: `useSSE` already handles reconnection with exponential backoff. On reconnect, the client gets current state via REST (notification-fetch). The router doesn't need special disconnect handling — state paths remain with their last known values until updated.
-+
-+### Q8: Should the router support `removeInstance` when entities disappear?
-+
-+**RESOLVED**: Yes. Add an optional `isRemoval` flag to `StateUpdate`:
-+```typescript
-+interface StateUpdate {
-+  instanceId?: string;
-+  property: string;
-+  value: unknown;
-+  remove?: boolean; // If true, calls state.removeInstance()
-+}
-+```
-+The `mapEvent` function returns `{ remove: true }` for termination events.
-+
-+### Q9: How does this relate to the existing FileChange pipeline?
-+
-+**RESOLVED**: The FileChange pipeline (Provider → Hub → Publisher) is a domain-specific implementation that predates this generic router. It can coexist — no need to migrate it immediately. Future work could replace `WorktreeStatePublisher` with a `fileChangeRoute` descriptor, but that's optional.
-+
-+---
-+
-+## Summary
-+
-+The ServerEventRouter is ~60 lines of actual code (type + component), but it eliminates the need for each domain to build its own SSE→state bridge. The key insight: state path values are small enough to carry inline in SSE events (extending ADR-0007 for status-level fields), and server-origin tagging via `StateEntrySource` metadata enables debugging without fragmenting the query surface.
-diff --git a/packages/shared/src/fakes/fake-state-system.ts b/packages/shared/src/fakes/fake-state-system.ts
-index 80d1c39..67ec25b 100644
---- a/packages/shared/src/fakes/fake-state-system.ts
-+++ b/packages/shared/src/fakes/fake-state-system.ts
-@@ -17,6 +17,7 @@ import type {
-   StateChangeCallback,
-   StateDomainDescriptor,
-   StateEntry,
-+  StateEntrySource,
-   StateMatcher,
- } from '../state/types.js';
- 
-@@ -52,7 +53,7 @@ export class FakeGlobalStateSystem implements IStateService {
- 
-   // ── Publishing ──
- 
--  publish<T>(path: string, value: T): void {
-+  publish<T>(path: string, value: T, source?: StateEntrySource): void {
-     const parsed = parsePath(path);
-     this.validateDomain(parsed.domain, parsed.instanceId);
- 
-@@ -61,7 +62,7 @@ export class FakeGlobalStateSystem implements IStateService {
-     const previousValue = existing?.value;
- 
-     // Store-first (PL-01): update Map before notifying
--    const entry: StateEntry = { path, value, updatedAt: now };
-+    const entry: StateEntry = { path, value, updatedAt: now, source };
-     this.store.set(path, entry);
-     this.invalidateMatchingCaches(path);
- 
-@@ -73,6 +74,7 @@ export class FakeGlobalStateSystem implements IStateService {
-       value,
-       previousValue,
-       timestamp: now,
-+      source,
-     };
- 
-     this.dispatch(change);
-@@ -193,6 +195,11 @@ export class FakeGlobalStateSystem implements IStateService {
-     return entry !== undefined && entry.value === value;
-   }
- 
-+  /** Get the source metadata for a published path, or undefined. */
-+  getPublishedSource(path: string): StateEntrySource | undefined {
-+    return this.store.get(path)?.source;
-+  }
-+
-   /** Reset all state — for test isolation between tests. */
-   reset(): void {
-     this.store.clear();
-diff --git a/packages/shared/src/features/027-central-notify-events/workspace-domain.ts b/packages/shared/src/features/027-central-notify-events/workspace-domain.ts
-index 6a3b370..a38bea6 100644
---- a/packages/shared/src/features/027-central-notify-events/workspace-domain.ts
-+++ b/packages/shared/src/features/027-central-notify-events/workspace-domain.ts
-@@ -18,6 +18,8 @@ export const WorkspaceDomain = {
-   FileChanges: 'file-changes',
-   /** SSE channel: `'workflows'` — matches `/api/events/workflows` subscription path (Plan 050) */
-   Workflows: 'workflows',
-+  /** SSE channel: `'work-unit-state'` — matches `/api/events/work-unit-state` subscription path (Plan 059) */
-+  WorkUnitState: 'work-unit-state',
- } as const;
- 
- /**
-diff --git a/packages/shared/src/interfaces/state.interface.ts b/packages/shared/src/interfaces/state.interface.ts
-index e5f1ff9..50c0a0e 100644
---- a/packages/shared/src/interfaces/state.interface.ts
-+++ b/packages/shared/src/interfaces/state.interface.ts
-@@ -18,6 +18,7 @@ import type {
-   StateChangeCallback,
-   StateDomainDescriptor,
-   StateEntry,
-+  StateEntrySource,
- } from '../state/types.js';
- 
- export interface IStateService {
-@@ -46,8 +47,12 @@ export interface IStateService {
-    * Throws if a multi-instance domain path lacks an instance ID (AC-14).
-    *
-    * Per PL-01: Store-first — value is stored BEFORE subscribers are notified.
-+   *
-+   * @param source Optional origin metadata for debugging (Workshop 005).
-+   *               ServerEventRoute passes `{ origin: 'server', channel, eventType }`.
-+   *               Omit for client-originated publishes (defaults to undefined).
-    */
--  publish<T>(path: string, value: T): void;
-+  publish<T>(path: string, value: T, source?: StateEntrySource): void;
- 
-   /**
-    * Remove a specific state entry.
-diff --git a/packages/shared/src/state/index.ts b/packages/shared/src/state/index.ts
-index 9b5ec65..f7fbd81 100644
---- a/packages/shared/src/state/index.ts
-+++ b/packages/shared/src/state/index.ts
-@@ -11,6 +11,7 @@ export type {
-   StateChangeCallback,
-   StateDomainDescriptor,
-   StateEntry,
-+  StateEntrySource,
-   StateMatcher,
-   StatePropertyDescriptor,
- } from './types.js';
-diff --git a/packages/shared/src/state/types.ts b/packages/shared/src/state/types.ts
-index 11ff7c5..0537b6e 100644
---- a/packages/shared/src/state/types.ts
-+++ b/packages/shared/src/state/types.ts
-@@ -38,6 +38,8 @@ export interface StateEntry {
-   value: unknown;
-   /** When the value was last updated (Unix ms) — used for version tracking */
-   updatedAt: number;
-+  /** Origin metadata — undefined for legacy client publishes (Workshop 005) */
-+  source?: StateEntrySource;
- }
- 
- /**
-@@ -62,6 +64,8 @@ export interface StateChange {
-   timestamp: number;
-   /** True when the entry is being removed */
-   removed?: boolean;
-+  /** Origin metadata — undefined for legacy client publishes (Workshop 005) */
-+  source?: StateEntrySource;
- }
- 
- /** Callback type for state change subscribers. */
-@@ -100,3 +104,21 @@ export interface StateDomainDescriptor {
- 
- /** A function that tests whether a state path matches a pattern. */
- export type StateMatcher = (path: string) => boolean;
-+
-+// ==================== Source Metadata Types ====================
-+
-+/**
-+ * Origin metadata for state entries. Tags whether the value was published
-+ * by client-side code or arrived via server-side SSE events.
-+ *
-+ * Per Workshop 005: Serves debugging (Plan 056 State DevTools) and tracing.
-+ * Server-originated entries carry the SSE channel and event type that produced them.
-+ */
-+export interface StateEntrySource {
-+  /** Whether this entry was published by client or server code */
-+  origin: 'client' | 'server';
-+  /** SSE channel that produced this entry (server-origin only) */
-+  channel?: string;
-+  /** Server event type that triggered this entry (server-origin only) */
-+  eventType?: string;
-+}
++| Date | Task | Type | Discovery | Resolution |
++|------|------|------|-----------|------------|

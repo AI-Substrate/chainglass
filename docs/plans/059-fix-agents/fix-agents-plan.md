@@ -300,4 +300,4 @@ The web agent system is structurally sound (3 adapters, DI container, SSE transp
 
 | ID | Created | Summary | Domain(s) | Status | Source |
 |----|---------|---------|-----------|--------|--------|
-| FX001 | 2026-03-02 | Wire agent lifecycle into WorkUnitStateService — bridge.register/update/unregister calls | agents, work-unit-state | Proposed | User: sidebar badges empty, no data in work-unit-state.json |
+| FX001 | 2026-03-02 | Wire agent lifecycle into WorkUnitStateService — bridge.register/update/unregister calls | agents, work-unit-state | Complete | User: sidebar badges empty, no data in work-unit-state.json |

@@ -1,4 +1,4 @@
-import { SHARED_DI_TOKENS } from '@chainglass/shared';
+import { POSITIONAL_GRAPH_DI_TOKENS, SHARED_DI_TOKENS } from '@chainglass/shared';
 import type { IAgentNotifierService } from '@chainglass/shared/features/019-agent-manager-refactor';
 import type { IAgentManagerService } from '@chainglass/shared/features/019-agent-manager-refactor/agent-manager.interface';
 /**
@@ -15,6 +15,7 @@ import type { IAgentManagerService } from '@chainglass/shared/features/019-agent
  */
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import type { AgentWorkUnitBridge } from '../../../../src/features/059-fix-agents/agent-work-unit-bridge';
 import { getContainer } from '../../../../src/lib/bootstrap-singleton';
 
 /** Force dynamic rendering - required for DI container access */
@@ -135,6 +136,16 @@ export async function DELETE(
       SHARED_DI_TOKENS.AGENT_NOTIFIER_SERVICE
     );
     notifier.broadcastTerminated(id);
+
+    // Unregister agent from WorkUnitStateService (FX001-2)
+    try {
+      const bridge = container.resolve<AgentWorkUnitBridge>(
+        POSITIONAL_GRAPH_DI_TOKENS.AGENT_WORK_UNIT_BRIDGE
+      );
+      bridge.unregisterAgent(id);
+    } catch (error) {
+      console.warn('[DELETE /api/agents] Failed to unregister from work-unit-state:', id, error);
+    }
 
     return NextResponse.json({ success: true, agentId: id });
   } catch (error) {

@@ -382,9 +382,19 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
   // Per DYK-07: Real implementation lives in apps/web
   // Per DYK-08: Uses SSEManagerBroadcaster adapter
   childContainer.register<IAgentNotifierService>(SHARED_DI_TOKENS.AGENT_NOTIFIER_SERVICE, {
-    useFactory: () => {
+    useFactory: (c) => {
       const broadcaster = new SSEManagerBroadcaster(sseManager);
-      return new AgentNotifierService(broadcaster);
+      // FX001-4: Lazy bridge resolver avoids DI registration order issues (DYK-FX001-01).
+      // Bridge is registered later (L552) — lazy resolution defers until first broadcastStatus() call.
+      const resolveBridge = () => {
+        try {
+          return c.resolve<AgentWorkUnitBridge>(POSITIONAL_GRAPH_DI_TOKENS.AGENT_WORK_UNIT_BRIDGE);
+        } catch (error) {
+          console.warn('[DI] Failed to resolve AgentWorkUnitBridge for notifier:', error);
+          return undefined;
+        }
+      };
+      return new AgentNotifierService(broadcaster, resolveBridge);
     },
   });
 

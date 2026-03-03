@@ -176,6 +176,7 @@ Agent session and event persistence infrastructure that lives in the workflow pa
 | CreateSessionForm | Agent creation form with type selector | /api/agents POST |
 | useWorktreeActivity | Cross-worktree activity polling (30s) | /api/worktree-activity GET |
 | WorkspaceNav (composition) | Renders ActivityDot badges in sidebar | useWorktreeActivity data → plain props |
+| AgentNotifierService (FX001) | Bridges broadcastStatus → WorkUnitStateService via lazy bridge | ISSEBroadcaster + optional AgentWorkUnitBridge resolver |
 
 ## Source Location
 
@@ -259,3 +260,4 @@ Primary: scattered across `packages/shared/src/`, `packages/workflow/src/`, `app
 | Plan 059 Phase 2 | AgentWorkUnitBridge implemented — registers agents in WorkUnitStateService, subscribes to WorkflowEvents observers, DI wired | 2026-03-02 |
 | Plan 059 Phase 3 | Top bar + agent overlay — AgentChipBar (@dnd-kit sortable), AgentChip (5 status states), AgentOverlayPanel (full-height chat), useAgentOverlay hook, useRecentAgents hook, 3-layer attention system (pulse/toast/flash), WorkspaceAgentChrome wrapper, workflow node onAgentClick prop | 2026-03-02 |
 | Plan 059 Phase 4 | Cross-worktree activity — useWorktreeActivity hook (30s polling), ActivityDot component in WorkspaceNav (both rendering modes), badge click navigation to agent page | 2026-03-02 |
+| Plan 059 FX001 | Wire agent lifecycle into WorkUnitStateService — POST registers, DELETE unregisters, notifier broadcastStatus updates via lazy bridge resolver | 2026-03-03 |
