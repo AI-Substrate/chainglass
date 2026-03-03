@@ -39,8 +39,9 @@ Chainglass uses GitHub OAuth to control access. Only GitHub users listed in `.ch
    ```bash
    AUTH_GITHUB_ID=your_client_id
    AUTH_GITHUB_SECRET=your_client_secret
-   AUTH_SECRET=$(openssl rand -base64 32)
+   AUTH_SECRET=your_generated_secret_here
    ```
+   Generate `AUTH_SECRET` by running `openssl rand -base64 32` in your terminal and pasting the output.
 3. **Add allowed users** — edit `.chainglass/auth.yaml`:
    ```yaml
    allowed_users:

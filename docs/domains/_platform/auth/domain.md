@@ -27,7 +27,7 @@ Cross-cutting authentication and session management for the Chainglass web app. 
 - **Login page** (`app/login/`) — sign-in UI with error states, ASCII art login screen (Phase 2)
 - **Allowlist loader** (`features/063-login/lib/allowed-users.ts`) — reads `.chainglass/auth.yaml`
 - **Client-side auth hook** (`features/063-login/hooks/use-auth.ts`) — wraps Auth.js `useSession()`
-- **SessionProvider integration** — added to `providers.tsx` for client-side session access
+- **SessionProvider/AuthProvider integration** — provided via `features/063-login/components/auth-provider.tsx` and wired at dashboard/login layouts
 
 ### Does NOT Own
 

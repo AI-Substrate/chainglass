@@ -47,6 +47,8 @@ Chainglass currently has zero authentication — all 25+ dashboard pages, 11 API
 | `.chainglass/auth.yaml` | _platform/auth | internal | Allowed users config (default with `jakkaj`) |
 | `apps/web/.env.example` | _platform/auth | internal | Document required env vars |
 | `docs/how/auth/github-oauth-setup.md` | _platform/auth | internal | Detailed setup guide |
+| `README.md` | cross-domain | cross-domain | Quick-start auth setup documentation |
+| `docs/plans/063-login/login-plan.md` | cross-domain | cross-domain | Phase planning/progress artifact |
 
 ## Key Findings
 

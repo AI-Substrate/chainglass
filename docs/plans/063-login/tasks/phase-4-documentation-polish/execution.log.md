@@ -31,11 +31,11 @@
 ### T003: Manual E2E verification ✅
 
 **Verification checklist**:
-- [x] All 4764 tests pass (338 files, 76 skipped)
+- [x] All 4764 tests pass (verified: `pnpm test` — 338 files, 76 skipped, exit 0)
 - [x] All auth files exist: auth.ts, proxy.ts, login page/layout, allowed-users.ts, require-auth.ts, use-auth.ts, catch-all route, auth.yaml
 - [x] `.env.local` exists with credentials configured
 - [x] `.chainglass/auth.yaml` contains `jakkaj`
-- [x] 57 `requireAuth()` calls across 5 server action files
+- [x] 52 `await requireAuth()` guard calls across 5 server action files (verified: `rg 'await requireAuth\(\)' apps/web/app/actions/ -c`)
 - [x] Auth guards in all API route handlers (except `/api/health` and `/api/auth/*` — correctly excluded)
 - [x] Proxy matcher correctly excludes: login, api/health, api/auth, _next/static, _next/image, favicon.ico
 - [x] Full OAuth flow previously verified by user during Phase 1 (login → GitHub → dashboard → working)
