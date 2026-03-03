@@ -2,7 +2,7 @@
 
 import { LeftPanel, MainPanel, PanelShell } from '@/features/_platform/panel-layout';
 import type { PanelMode } from '@/features/_platform/panel-layout';
-import type { LeftPanelMode } from '@/features/_platform/panel-layout/components/left-panel';
+import type { LeftPanelMode } from '@/features/_platform/panel-layout';
 import { List } from 'lucide-react';
 import { useState } from 'react';
 import { useTerminalSessions } from '../hooks/use-terminal-sessions';

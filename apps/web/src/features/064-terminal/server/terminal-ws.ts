@@ -126,8 +126,9 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
   }
 
   function start(port: number): void {
-    // Bind all interfaces for remote access (protected environment)
-    wss = new WebSocketServer({ port, host: '0.0.0.0' });
+    // Bind to env-configurable host (default localhost; set TERMINAL_WS_HOST=0.0.0.0 for remote)
+    const host = process.env.TERMINAL_WS_HOST ?? '127.0.0.1';
+    wss = new WebSocketServer({ port, host });
 
     wss.on('connection', (ws: WebSocket, req) => {
       const url = new URL(req.url ?? '/', `http://${req.headers.host}`);
@@ -153,7 +154,7 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
       console.error('Terminal WS server error:', error);
     });
 
-    console.log(`Terminal WS server listening on ws://0.0.0.0:${port}/terminal`);
+    console.log(`Terminal WS server listening on ws://${host}:${port}/terminal`);
 
     process.on('SIGTERM', () => {
       console.log('Terminal WS server: SIGTERM received, cleaning up...');

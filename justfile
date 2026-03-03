@@ -21,7 +21,7 @@ dev:
     @cd apps/web && node -e "require('node-pty').spawn('/bin/echo',['ok'],{name:'x',cols:1,rows:1,cwd:'/tmp',env:{}})" 2>/dev/null || (echo "Error: node-pty can't spawn. Run: chmod +x apps/web/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper" && exit 1)
     pnpm concurrently --names "next,terminal" --prefix-colors "blue,green" \
       "pnpm turbo dev -- --port ${PORT:-3000}" \
-      "PORT=${PORT:-3000} pnpm tsx watch apps/web/src/features/064-terminal/server/terminal-ws.ts"
+      "PORT=${PORT:-3000} TERMINAL_WS_HOST=${TERMINAL_WS_HOST:-0.0.0.0} pnpm tsx watch apps/web/src/features/064-terminal/server/terminal-ws.ts"
 
 # Start terminal WebSocket server only
 dev-terminal:
