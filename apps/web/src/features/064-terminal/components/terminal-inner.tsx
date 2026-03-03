@@ -82,6 +82,7 @@ export default function TerminalInner({
   const rafRef = useRef<number | null>(null);
   const disposedRef = useRef(false);
   const [copyModalText, setCopyModalText] = useState<string | null>(null);
+  const tmuxWarningShownRef = useRef(false);
   const { resolvedTheme } = useTheme();
 
   const showCopyModal = useCallback((text: string) => setCopyModalText(text), []);
@@ -106,7 +107,16 @@ export default function TerminalInner({
       lastClipboardDataRef.current = data ?? null;
       window.dispatchEvent(new CustomEvent('terminal:clipboard-data', { detail: { data, error } }));
     },
-    onStatus: (_status, _tmux) => {
+    onStatus: async (_status, _tmux, _message) => {
+      // DYK-01: Show toast once per mount when tmux is unavailable
+      if (_status === 'connected' && _tmux === false && !tmuxWarningShownRef.current) {
+        tmuxWarningShownRef.current = true;
+        const { toast } = await import('sonner');
+        toast.warning(
+          _message ??
+            "tmux not available — using raw shell. Sessions won't persist across page refreshes."
+        );
+      }
       // Re-fit terminal when WS confirms connection — PTY is now ready for resize
       if (_status === 'connected' && fitAddonRef.current && !disposedRef.current) {
         requestAnimationFrame(() => {

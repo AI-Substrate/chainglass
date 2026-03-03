@@ -6,119 +6,41 @@
 **Created By**: Plan 064 — tmux terminal integration
 **Status**: active
 
+> **Authoritative domain specification**: [`apps/web/src/features/064-terminal/domain.md`](../../../apps/web/src/features/064-terminal/domain.md)
+>
+> This file is a summary pointer. Do not duplicate contracts, composition, or source listings here — see the feature-level domain doc for full details.
+
 ## Purpose
 
-Workspace-scoped terminal access via tmux. Users open terminal sessions for worktrees, run commands, monitor builds, and interact with agents — all within the browser. Sessions persist across page refreshes and browser restarts via tmux. The terminal automatically creates or re-attaches to tmux sessions named by the worktree branch convention (e.g., `064-tmux`).
+Workspace-scoped terminal access via tmux. Users open terminal sessions for worktrees, run commands, monitor builds, and interact with the system — all within the browser. Sessions persist across page refreshes and browser restarts via tmux.
 
-## Boundary
+## Quick Reference
 
-### Owns
-- Terminal page (`/workspaces/[slug]/terminal`) — PanelShell composition with session list + terminal emulator
-- `TerminalView` component — xterm.js wrapper with WebSocket connection (dynamic import, ssr: false)
-- `TerminalOverlayPanel` — fixed-position right-edge overlay that persists across workspace page navigation (Plan 059 AgentOverlayPanel pattern)
-- `TerminalOverlayProvider` + `useTerminalOverlay()` — context/hook for overlay open/close/toggle
-- `TerminalSessionList` — left panel session list with status dots and current worktree highlighting
-- Sidecar WebSocket server (`features/064-terminal/server/`) — node-pty + tmux session management
-- `TmuxSessionManager` — tmux create/attach/list/validate with fallback to raw shell
-- Terminal URL params (`session`) via nuqs
-- Connection status display (`ConnectionStatusBadge`)
-
-### Does NOT Own
-- tmux configuration (user's own `.tmux.conf`)
-- Shell configuration (user's `$SHELL`)
-- Panel layout primitives (`PanelShell`, `LeftPanel`, `MainPanel` — owned by `_platform/panel-layout`)
-- Toast infrastructure (owned by `_platform/events`)
-- Command palette / keybinding service (owned by `_platform/sdk`)
-- Global state system (owned by `_platform/state`)
-
-## Contracts (Public Interface)
-
-| Contract | Type | Consumers | Description |
-|----------|------|-----------|-------------|
-| `TerminalView` | Component | Terminal page, overlay panel | xterm.js wrapper with WebSocket; accepts `sessionName`, `cwd`, `onConnectionChange` |
-| `TerminalViewProps` | Type | Terminal consumers | Props contract for TerminalView component |
-| `ConnectionStatusBadge` | Component | Terminal header, overlay header | Connection state indicator (connecting/connected/disconnected) with optional reconnect button |
-| `TerminalSkeleton` | Component | TerminalView (Suspense fallback) | Loading placeholder during dynamic import |
-| `TerminalOverlayPanel` | Component | Workspace layout | Fixed-position overlay; renders when overlay is open |
-| `TerminalOverlayProvider` | Component | Workspace layout | React context providing overlay open/close/toggle |
-| `useTerminalOverlay()` | Hook | Sidebar toggle button, SDK command | Returns `{ isOpen, openTerminal, closeTerminal, toggleTerminal }` |
-| `terminalParams` | nuqs defs | Terminal page | URL param: `session` (active tmux session name) |
-| `TerminalSession` | Type | Session list, overlay | `{ name, attached, windows, created, isCurrentWorktree }` |
-| `TerminalMessage` | Type | WS server, client hook | `{ type: 'data' \| 'resize' \| 'status', ... }` |
-| `ConnectionStatus` | Type | Status badge, header | `'connecting' \| 'connected' \| 'disconnected'` |
-
-## Composition (Internal)
-
-| Component | Role | Depends On |
-|-----------|------|------------|
-| TerminalPageClient | Composes PanelShell with header, session list, terminal | PanelShell, LeftPanel, MainPanel, TerminalView |
-| TerminalView | Dynamic import wrapper (ssr: false) | terminal-inner.tsx |
-| terminal-inner.tsx | xterm.js + WebSocket + FitAddon + Canvas renderer | use-terminal-socket, @xterm/xterm |
-| TerminalOverlayPanel | Fixed-position overlay with header + TerminalView | useTerminalOverlay, TerminalView |
-| TerminalSessionList | Session list with status dots | use-terminal-sessions |
-| TmuxSessionManager | tmux CLI wrapper: create/attach/list/validate | node child_process (injectable executor) |
-| terminal-ws.ts | Sidecar WebSocket server | ws, node-pty, TmuxSessionManager |
-
-## Source Location
-
-Primary: `apps/web/src/features/064-terminal/`
-
-| File | Role | Notes |
-|------|------|-------|
-| `components/terminal-view.tsx` | Dynamic import wrapper (contract) | ssr: false for xterm.js |
-| `components/terminal-inner.tsx` | xterm.js + WebSocket + FitAddon | Internal; not exported |
-| `components/terminal-overlay-panel.tsx` | Fixed overlay (contract) | Plan 059 AgentOverlayPanel pattern |
-| `components/terminal-session-list.tsx` | Session list for left panel | Internal |
-| `components/terminal-page-client.tsx` | Page composition | Internal |
-| `components/terminal-page-header.tsx` | Custom header bar | Internal |
-| `components/connection-status-badge.tsx` | Status indicator | Internal |
-| `components/terminal-skeleton.tsx` | Loading placeholder | Internal |
-| `hooks/use-terminal-overlay.tsx` | Overlay context + hook (contract) | Provider + useTerminalOverlay |
-| `hooks/use-terminal-socket.ts` | WebSocket lifecycle | Internal |
-| `hooks/use-terminal-sessions.ts` | Session list fetching | Internal |
-| `server/terminal-ws.ts` | Sidecar WebSocket server | Runs as separate process |
-| `server/tmux-session-manager.ts` | tmux CLI wrapper | Injectable executor functions |
-| `params/terminal.params.ts` | nuqs URL params (contract) | `session` param |
-| `types.ts` | Public types (contract) | TerminalSession, TerminalMessage, ConnectionStatus |
-| `index.ts` | Barrel export | Created Phase 1 |
-| `domain.md` | Domain documentation | This file |
+- **Surface 1**: Terminal page at `/workspaces/[slug]/terminal`
+- **Surface 2**: Right-edge overlay panel (toggle via `Ctrl+\`` or sidebar button)
+- **Backend**: Sidecar WebSocket server (node-pty + tmux), port = NEXT_PORT + 1500
+- **Key contracts**: `TerminalView`, `TerminalOverlayPanel`, `useTerminalOverlay()`, `copyTmuxBuffer()`, `createTerminalServer()`
+- **Source**: `apps/web/src/features/064-terminal/`
+- **Tests**: `test/unit/web/features/064-terminal/` + `test/fakes/fake-pty.ts`, `fake-tmux-executor.ts`
 
 ## Dependencies
 
-### This Domain Depends On
-- `_platform/panel-layout` — PanelShell, LeftPanel, MainPanel, PanelMode (extended with `'sessions'`)
-- `_platform/events` — toast() for tmux unavailable warning, connection status
-- `_platform/sdk` — IUSDK, ICommandRegistry for terminal toggle command + Ctrl+\` keybinding
-- `_platform/state` — useGlobalState for connection state
-- `_platform/workspace-url` — workspaceHref() for deep-linking terminal sessions
-- `@xterm/xterm` — terminal emulator (npm)
-- `@xterm/addon-fit` — auto-resize (npm)
-- `@xterm/addon-canvas` — Canvas renderer (npm)
-- `@xterm/addon-web-links` — clickable URLs (npm)
-- `node-pty` — PTY spawning for tmux/bash (npm, native)
-- `ws` — WebSocket server (npm)
-- `next-themes` — theme sync (npm, already installed)
-- `sonner` — toast notifications (npm, already installed)
-- `nuqs` — URL params (npm, already installed)
-- `lucide-react` — icons (npm, already installed)
+| Depends On | Contract Used |
+|-----------|-------------|
+| _platform/panel-layout | PanelShell, PanelMode |
+| _platform/events | sonner toast |
+| _platform/sdk | registerCommand, registerKeybinding |
+| _platform/workspace-url | workspaceHref() |
 
-### Domains That Depend On This
-- (none currently — leaf business domain)
-
-## Concepts
-
-| Concept | Entry Point | What It Does |
-|---------|------------|-------------|
-| Render terminal in browser | `TerminalView` | Dynamic-imports xterm.js (ssr: false), connects to sidecar WS server, auto-fits to container, syncs theme. Usage: `<TerminalView sessionName="064-tmux" cwd="/path" />` |
-| Manage WS connection | `use-terminal-socket` | Connects to sidecar WS server with reconnect backoff, parses control messages vs raw terminal data, exposes `send()`/`close()`/`reconnect()` |
-| tmux session lifecycle | `TmuxSessionManager` | Validates session names, spawns PTY attached to tmux via `new-session -A`, lists sessions, falls back to raw shell when tmux unavailable |
-| Sidecar terminal server | `createTerminalServer` | Standalone WS server that accepts browser connections, spawns PTY processes, pipes I/O bidirectionally, handles resize, cleans up on disconnect |
-| Display connection state | `ConnectionStatusBadge` | Shows connecting (yellow pulse), connected (green), disconnected (gray) with optional reconnect button |
+No domains depend on terminal (leaf consumer).
 
 ## History
 
 | Plan | What Changed | Date |
 |------|-------------|------|
-| Plan 064 | Domain created: terminal page, overlay, WS server, tmux session manager, 8 components, 3 hooks, 3 types | 2026-03-02 |
-| Plan 064 Phase 2 | Added TerminalView component (xterm.js + WS + resize + theme + strict cleanup), use-terminal-socket hook, ConnectionStatusBadge, TerminalSkeleton | 2026-03-02 |
-| Plan 064 Phase 3 | Added terminal page route, session list, page header, PanelShell composition, API route for session listing, Terminal nav item, nuqs params | 2026-03-03 |
+| 064 Phase 1 | Sidecar WS server, tmux session manager, types, fakes | 2026-03-02 |
+| 064 Phase 2 | TerminalView, WS hook, status badge, skeleton | 2026-03-02 |
+| 064 Phase 3 | Terminal page, session list, API route, nav item | 2026-03-02 |
+| 064 Phase 4 | Overlay panel, provider, SDK command, sidebar button | 2026-03-03 |
+| 064 Post-P4 | Copy buffer (deferred clipboard), HTTPS/WSS, ESM fix | 2026-03-03 |
+| 064 Phase 5 | tmux fallback toast, domain docs, dev setup guide | 2026-03-03 |
