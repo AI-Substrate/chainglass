@@ -18,6 +18,7 @@ export interface WorktreeBadgeState {
   hasQuestions: boolean;
   hasErrors: boolean;
   hasWorking: boolean;
+  agentCount: number;
 }
 
 interface ActivityDotProps {
@@ -54,6 +55,13 @@ function getBadgeInfo(badge: WorktreeBadgeState): BadgeInfo | null {
       color: 'bg-blue-500',
       pulse: '',
       tooltip: 'Agent working',
+    };
+  }
+  if (badge.agentCount > 0) {
+    return {
+      color: 'bg-gray-400',
+      pulse: '',
+      tooltip: `${badge.agentCount} agent${badge.agentCount > 1 ? 's' : ''} idle`,
     };
   }
   return null;

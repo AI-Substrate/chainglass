@@ -29,6 +29,7 @@ describe('ActivityDot', () => {
       hasQuestions: true,
       hasErrors: false,
       hasWorking: false,
+      agentCount: 1,
     };
     render(<ActivityDot badge={badge} {...defaultProps} />);
 
@@ -43,6 +44,7 @@ describe('ActivityDot', () => {
       hasQuestions: false,
       hasErrors: true,
       hasWorking: false,
+      agentCount: 1,
     };
     render(<ActivityDot badge={badge} {...defaultProps} />);
 
@@ -56,6 +58,7 @@ describe('ActivityDot', () => {
       hasQuestions: false,
       hasErrors: false,
       hasWorking: true,
+      agentCount: 1,
     };
     render(<ActivityDot badge={badge} {...defaultProps} />);
 
@@ -69,6 +72,7 @@ describe('ActivityDot', () => {
       hasQuestions: true,
       hasErrors: true,
       hasWorking: true,
+      agentCount: 1,
     };
     render(<ActivityDot badge={badge} {...defaultProps} />);
 
@@ -77,14 +81,29 @@ describe('ActivityDot', () => {
     expect(dot.className).toContain('bg-amber-400');
   });
 
-  it('AC-30: renders nothing when no activity', () => {
+  it('AC-30: renders nothing when no agents', () => {
     const badge: WorktreeBadgeState = {
       hasQuestions: false,
       hasErrors: false,
       hasWorking: false,
+      agentCount: 0,
     };
     const { container } = render(<ActivityDot badge={badge} {...defaultProps} />);
     expect(container.innerHTML).toBe('');
+  });
+
+  it('renders grey dot for idle agents', () => {
+    const badge: WorktreeBadgeState = {
+      hasQuestions: false,
+      hasErrors: false,
+      hasWorking: false,
+      agentCount: 2,
+    };
+    render(<ActivityDot badge={badge} {...defaultProps} />);
+
+    const dot = screen.getByLabelText('2 agents idle');
+    expect(dot).toBeInTheDocument();
+    expect(dot.className).toContain('bg-gray-400');
   });
 
   it('AC-30: renders nothing when badge is undefined', () => {
@@ -97,6 +116,7 @@ describe('ActivityDot', () => {
       hasQuestions: true,
       hasErrors: false,
       hasWorking: false,
+      agentCount: 1,
     };
     render(<ActivityDot badge={badge} {...defaultProps} />);
 
