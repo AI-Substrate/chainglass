@@ -220,7 +220,7 @@ export default function TerminalInner({
     <div className={`relative h-full w-full ${className ?? ''}`}>
       <div
         ref={containerRef}
-        className="absolute inset-0"
+        className="absolute inset-0 pb-[100px]"
         data-testid="terminal-container"
       />
       {status === 'disconnected' && (
