@@ -89,6 +89,19 @@ export default function TerminalInner({
         terminalRef.current.write(data);
       }
     },
+    onStatus: (_status, _tmux) => {
+      // Re-fit terminal when WS confirms connection — PTY is now ready for resize
+      if (_status === 'connected' && fitAddonRef.current && !disposedRef.current) {
+        requestAnimationFrame(() => {
+          if (disposedRef.current || !fitAddonRef.current) return;
+          fitAddonRef.current.fit();
+          const dims = fitAddonRef.current.proposeDimensions();
+          if (dims) {
+            sendRef.current(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
+          }
+        });
+      }
+    },
     onConnectionChange,
   });
 
@@ -123,13 +136,16 @@ export default function TerminalInner({
     terminal.loadAddon(fitAddon);
 
     // Canvas renderer for multi-instance safety (DR-01 finding 4)
+    let canvasAddon: CanvasAddon | null = null;
     try {
-      terminal.loadAddon(new CanvasAddon());
+      canvasAddon = new CanvasAddon();
+      terminal.loadAddon(canvasAddon);
     } catch {
-      // Fall back to default renderer if canvas fails
+      canvasAddon = null;
     }
 
-    terminal.loadAddon(new WebLinksAddon());
+    const webLinksAddon = new WebLinksAddon();
+    terminal.loadAddon(webLinksAddon);
     terminal.open(container);
 
     terminalRef.current = terminal;
@@ -180,8 +196,13 @@ export default function TerminalInner({
         rafRef.current = null;
       }
 
-      // 3. Dispose terminal (last — removes DOM)
-      terminal.dispose();
+      // 3. Dispose addons before terminal (WebLinksAddon crashes if terminal disposes first)
+      try { webLinksAddon.dispose(); } catch { /* already disposed */ }
+      try { canvasAddon?.dispose(); } catch { /* already disposed */ }
+      try { fitAddon.dispose(); } catch { /* already disposed */ }
+
+      // 4. Dispose terminal (last — removes DOM)
+      try { terminal.dispose(); } catch { /* strict mode double-dispose */ }
       terminalRef.current = null;
       fitAddonRef.current = null;
     };
@@ -196,8 +217,12 @@ export default function TerminalInner({
   }, [resolvedTheme]);
 
   return (
-    <div className={`relative flex h-full w-full flex-col ${className ?? ''}`}>
-      <div ref={containerRef} className="h-full w-full flex-1" data-testid="terminal-container" />
+    <div className={`relative h-full w-full ${className ?? ''}`}>
+      <div
+        ref={containerRef}
+        className="absolute inset-0"
+        data-testid="terminal-container"
+      />
       {status === 'disconnected' && (
         <div className="absolute inset-0 flex items-center justify-center bg-background/80">
           <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground">

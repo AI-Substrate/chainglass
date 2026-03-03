@@ -36,6 +36,14 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
   const reconnectAttemptsRef = useRef(0);
   const disposedRef = useRef(false);
 
+  // Stable refs for values used in connect — prevents useCallback identity changes
+  const sessionNameRef = useRef(sessionName);
+  const cwdRef = useRef(cwd);
+  const enabledRef = useRef(enabled);
+  sessionNameRef.current = sessionName;
+  cwdRef.current = cwd;
+  enabledRef.current = enabled;
+
   // Callback refs — always fresh, never stale closure (useWorkspaceSSE pattern)
   const onDataRef = useRef(options.onData);
   const onStatusRef = useRef(options.onStatus);
@@ -52,7 +60,11 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
   }, []);
 
   const connect = useCallback(() => {
-    if (disposedRef.current || !sessionName || !enabled) return;
+    const currentSession = sessionNameRef.current;
+    const currentCwd = cwdRef.current;
+    const currentEnabled = enabledRef.current;
+
+    if (disposedRef.current || !currentSession || !currentEnabled) return;
 
     // FT-004: Clear pending reconnect timer before new connection
     if (reconnectTimeoutRef.current) {
@@ -68,7 +80,7 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
 
     const port = Number(window.location.port || '3000') + 1500;
     const host = window.location.hostname;
-    const url = `ws://${host}:${port}/terminal?session=${encodeURIComponent(sessionName)}&cwd=${encodeURIComponent(cwd)}`;
+    const url = `ws://${host}:${port}/terminal?session=${encodeURIComponent(currentSession)}&cwd=${encodeURIComponent(currentCwd)}`;
 
     updateStatus('connecting');
 
@@ -118,7 +130,7 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
       updateStatus('disconnected');
 
       // Reconnect on unexpected close (not clean close code 1000)
-      if (event.code !== 1000 && enabled && reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
+      if (event.code !== 1000 && enabledRef.current && reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
         const delay = Math.min(
           INITIAL_BACKOFF_MS * 2 ** reconnectAttemptsRef.current,
           MAX_BACKOFF_MS
@@ -131,7 +143,7 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
     ws.onerror = () => {
       // onclose will fire after onerror — reconnection handled there
     };
-  }, [sessionName, cwd, enabled, updateStatus]);
+  }, [updateStatus]);
 
   const send = useCallback((data: string) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
