@@ -121,3 +121,4 @@ Primary: `apps/web/src/features/064-terminal/`
 |------|-------------|------|
 | Plan 064 | Domain created: terminal page, overlay, WS server, tmux session manager, 8 components, 3 hooks, 3 types | 2026-03-02 |
 | Plan 064 Phase 2 | Added TerminalView component (xterm.js + WS + resize + theme + strict cleanup), use-terminal-socket hook, ConnectionStatusBadge, TerminalSkeleton | 2026-03-02 |
+| Plan 064 Phase 3 | Added terminal page route, session list, page header, PanelShell composition, API route for session listing, Terminal nav item, nuqs params | 2026-03-03 |

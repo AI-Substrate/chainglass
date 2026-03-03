@@ -10,7 +10,7 @@
  * Plan 064: Terminal Integration via tmux
  */
 
-import { resolve, normalize, relative, isAbsolute } from 'node:path';
+import { isAbsolute, normalize, relative, resolve } from 'node:path';
 import type { CommandExecutor, PtyProcess, PtySpawner } from '../types';
 
 const TMUX_SESSION_NAME_REGEX = /^[a-zA-Z0-9_-]+$/;
@@ -101,17 +101,13 @@ export class TmuxSessionManager {
    * Uses `tmux new-session -A` which attaches if session exists, creates if not.
    */
   spawnAttachedPty(name: string, cwd: string, cols: number, rows: number): PtyProcess {
-    return this.spawnPty(
-      'tmux',
-      ['new-session', '-A', '-s', name, '-c', cwd],
-      {
-        name: 'xterm-256color',
-        cols,
-        rows,
-        cwd,
-        env: { ...process.env, TERM: 'xterm-256color' } as Record<string, string>,
-      }
-    );
+    return this.spawnPty('tmux', ['new-session', '-A', '-s', name, '-c', cwd], {
+      name: 'xterm-256color',
+      cols,
+      rows,
+      cwd,
+      env: { ...process.env, TERM: 'xterm-256color' } as Record<string, string>,
+    });
   }
 
   /** Spawn a raw shell PTY (fallback when tmux unavailable) */

@@ -12,9 +12,9 @@
  * Plan 064: Terminal Integration via tmux
  */
 
-import { WebSocketServer, type WebSocket } from 'ws';
-import { TmuxSessionManager } from './tmux-session-manager';
+import { type WebSocket, WebSocketServer } from 'ws';
 import type { CommandExecutor, PtyProcess, PtySpawner } from '../types';
+import { TmuxSessionManager } from './tmux-session-manager';
 
 export interface TerminalServerDeps {
   execCommand: CommandExecutor;
@@ -52,16 +52,21 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
         ws.send(JSON.stringify({ type: 'status', status: 'connected', tmux: true }));
       } else {
         pty = manager.spawnRawShell(cwd, 80, 24);
-        ws.send(JSON.stringify({
-          type: 'status',
-          status: 'connected',
-          tmux: false,
-          message: 'tmux not available — using raw shell. Sessions won\'t persist across page refreshes.',
-        }));
+        ws.send(
+          JSON.stringify({
+            type: 'status',
+            status: 'connected',
+            tmux: false,
+            message:
+              "tmux not available — using raw shell. Sessions won't persist across page refreshes.",
+          })
+        );
       }
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Unknown error';
-      ws.send(JSON.stringify({ type: 'error', message: `Failed to start terminal process: ${msg}` }));
+      ws.send(
+        JSON.stringify({ type: 'error', message: `Failed to start terminal process: ${msg}` })
+      );
       ws.close(1011, 'PTY spawn failed');
       return;
     }
@@ -121,8 +126,8 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
   }
 
   function start(port: number): void {
-    // Bind localhost only until auth lands (Plan 063)
-    wss = new WebSocketServer({ port, host: '127.0.0.1' });
+    // Bind all interfaces for remote access (protected environment)
+    wss = new WebSocketServer({ port, host: '0.0.0.0' });
 
     wss.on('connection', (ws: WebSocket, req) => {
       const url = new URL(req.url ?? '/', `http://${req.headers.host}`);
@@ -140,13 +145,15 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
 
     wss.on('error', (error: NodeJS.ErrnoException) => {
       if (error.code === 'EADDRINUSE') {
-        console.error(`Terminal WS server: port ${port} already in use. Set TERMINAL_WS_PORT to use a different port.`);
+        console.error(
+          `Terminal WS server: port ${port} already in use. Set TERMINAL_WS_PORT to use a different port.`
+        );
         process.exit(1);
       }
       console.error('Terminal WS server error:', error);
     });
 
-    console.log(`Terminal WS server listening on ws://127.0.0.1:${port}/terminal`);
+    console.log(`Terminal WS server listening on ws://0.0.0.0:${port}/terminal`);
 
     process.on('SIGTERM', () => {
       console.log('Terminal WS server: SIGTERM received, cleaning up...');

@@ -6,7 +6,7 @@
  */
 
 /** Left panel view mode — extensible union for future modes (search, bookmarks, recent) */
-export type PanelMode = 'tree' | 'changes';
+export type PanelMode = 'tree' | 'changes' | 'sessions';
 
 /** Context passed to ExplorerPanel input handlers */
 export interface BarContext {

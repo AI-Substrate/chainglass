@@ -3,7 +3,7 @@
 **Plan**: [tmux-plan.md](../../tmux-plan.md)
 **Phase**: Phase 3: Terminal Page (Surface 1)
 **Generated**: 2026-03-02
-**Status**: Ready for takeoff
+**Status**: Landed
 
 ---
 
@@ -60,7 +60,7 @@ stateDiagram-v2
     S5 --> S6
     S6 --> [*]
 
-    class S1,S2,S3,S4,S5,S6 pending
+    class S1,S2,S3,S4,S5,S6 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -71,11 +71,11 @@ stateDiagram-v2
 
 <!-- Updated by /plan-6 during implementation: [ ] → [~] → [x] -->
 
-- [ ] **Stage 1: Extend panel mode contract** — Add `sessions` mode support to panel layout types so terminal page can register a sessions left-panel mode (`apps/web/src/features/_platform/panel-layout/types.ts`)
-- [ ] **Stage 2: Build terminal sessions data hook** — Implement session list/select/create state for the page surface (`apps/web/src/features/064-terminal/hooks/use-terminal-sessions.ts` — new file)
-- [ ] **Stage 3: Build sessions and header UI blocks** — Implement session list and page header components that expose selection + status UX (`apps/web/src/features/064-terminal/components/terminal-session-list.tsx`, `apps/web/src/features/064-terminal/components/terminal-page-header.tsx` — new files)
-- [ ] **Stage 4: Compose Terminal page client** — Assemble `PanelShell` with left sessions panel and main `TerminalView` region (`apps/web/src/features/064-terminal/components/terminal-page-client.tsx` — new file)
-- [ ] **Stage 5: Wire routes and URL params** — Add route files and nuqs session param contract for `/workspaces/[slug]/terminal` (`apps/web/app/(dashboard)/workspaces/[slug]/terminal/page.tsx`, `apps/web/app/(dashboard)/workspaces/[slug]/terminal/layout.tsx`, `apps/web/src/features/064-terminal/params/terminal.params.ts` — new files)
+- [x] **Stage 1: Extend panel mode contract** — Add `sessions` mode support to panel layout types so terminal page can register a sessions left-panel mode (`apps/web/src/features/_platform/panel-layout/types.ts`)
+- [x] **Stage 2: Build terminal sessions data hook**
+- [x] **Stage 3: Build sessions and header UI blocks**
+- [x] **Stage 4: Compose Terminal page client**
+- [~] **Stage 5: Wire routes and URL params** — Add route files and nuqs session param contract for `/workspaces/[slug]/terminal` (`apps/web/app/(dashboard)/workspaces/[slug]/terminal/page.tsx`, `apps/web/app/(dashboard)/workspaces/[slug]/terminal/layout.tsx`, `apps/web/src/features/064-terminal/params/terminal.params.ts` — new files)
 - [ ] **Stage 6: Add navigation entry and lightweight validation** — Add Terminal to workspace nav and verify session list rendering in tests (`apps/web/src/lib/navigation-utils.ts`, `test/unit/web/features/064-terminal/terminal-session-list.test.tsx` — new test file)
 
 ---
@@ -145,15 +145,15 @@ flowchart LR
 
 ## Checklist
 
-- [ ] T001: Extend panel layout mode contract to include `sessions` (CS-1)
-- [ ] T002: Create `use-terminal-sessions.ts` hook for list/select/create state (CS-3)
-- [ ] T003: Create `terminal-session-list.tsx` with status/highlight/select UX (CS-2)
-- [ ] T004: Create `terminal-page-header.tsx` using connection status indicators (CS-1)
-- [ ] T005: Create `terminal-page-client.tsx` with PanelShell composition (CS-3)
-- [ ] T006: Add terminal route layout/page files and connect props (CS-1)
-- [ ] T007: Create `terminal.params.ts` for `session` nuqs query state (CS-1)
-- [ ] T008: Add Terminal to `WORKSPACE_NAV_ITEMS` (CS-1)
-- [ ] T009: Add `terminal-session-list` lightweight unit tests (CS-2)
+- [x] T001: Extend panel layout mode contract to include `sessions` (CS-1)
+- [x] T002: Create `use-terminal-sessions.ts` hook for list/select/create state (CS-3)
+- [x] T003: Create `terminal-session-list.tsx` with status/highlight/select UX (CS-2)
+- [x] T004: Create `terminal-page-header.tsx` using connection status indicators (CS-1)
+- [x] T005: Create `terminal-page-client.tsx` with PanelShell composition (CS-3)
+- [x] T006: Add terminal route layout/page files and connect props (CS-1)
+- [x] T007: Create `terminal.params.ts` for `session` nuqs query state (CS-1)
+- [x] T008: Add Terminal to `WORKSPACE_NAV_ITEMS` (CS-1)
+- [x] T009: Add `terminal-session-list` lightweight unit tests (CS-2)
 
 ---
 
