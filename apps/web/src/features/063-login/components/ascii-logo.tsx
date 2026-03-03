@@ -14,9 +14,7 @@ export function AsciiLogo() {
       <h1 className="sr-only">Chainglass</h1>
 
       {/* Mobile fallback: plain text */}
-      <h2
-        className="block font-mono text-3xl font-bold tracking-wider text-white sm:hidden"
-      >
+      <h2 className="block font-mono text-3xl font-bold tracking-wider text-white sm:hidden">
         CHAINGLASS
       </h2>
 
