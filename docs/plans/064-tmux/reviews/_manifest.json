@@ -1,0 +1,37 @@
+{
+  "commit": "d3a0135",
+  "files": [
+    {
+      "path": "/Users/jordanknight/substrate/064-tmux/apps/web/src/features/064-terminal/components/terminal-inner.tsx",
+      "action": "modified"
+    },
+    {
+      "path": "/Users/jordanknight/substrate/064-tmux/apps/web/src/features/064-terminal/domain.md",
+      "action": "created"
+    },
+    {
+      "path": "/Users/jordanknight/substrate/064-tmux/docs/domains/domain-map.md",
+      "action": "modified"
+    },
+    {
+      "path": "/Users/jordanknight/substrate/064-tmux/docs/domains/terminal/domain.md",
+      "action": "modified"
+    },
+    {
+      "path": "/Users/jordanknight/substrate/064-tmux/docs/how/dev/terminal-setup.md",
+      "action": "created"
+    },
+    {
+      "path": "/Users/jordanknight/substrate/064-tmux/docs/plans/064-tmux/tasks/phase-5-polish-documentation/execution.log.md",
+      "action": "created"
+    },
+    {
+      "path": "/Users/jordanknight/substrate/064-tmux/docs/plans/064-tmux/tasks/phase-5-polish-documentation/tasks.fltplan.md",
+      "action": "created"
+    },
+    {
+      "path": "/Users/jordanknight/substrate/064-tmux/docs/plans/064-tmux/tasks/phase-5-polish-documentation/tasks.md",
+      "action": "created"
+    }
+  ]
+}

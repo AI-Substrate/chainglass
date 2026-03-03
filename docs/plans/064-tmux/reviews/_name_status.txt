@@ -1,0 +1,8 @@
+M	apps/web/src/features/064-terminal/components/terminal-inner.tsx
+A	apps/web/src/features/064-terminal/domain.md
+M	docs/domains/domain-map.md
+M	docs/domains/terminal/domain.md
+A	docs/how/dev/terminal-setup.md
+A	docs/plans/064-tmux/tasks/phase-5-polish-documentation/execution.log.md
+A	docs/plans/064-tmux/tasks/phase-5-polish-documentation/tasks.fltplan.md
+A	docs/plans/064-tmux/tasks/phase-5-polish-documentation/tasks.md
