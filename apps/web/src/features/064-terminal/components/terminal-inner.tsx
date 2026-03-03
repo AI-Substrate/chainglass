@@ -82,8 +82,23 @@ export default function TerminalInner({
   const rafRef = useRef<number | null>(null);
   const disposedRef = useRef(false);
   const [copyModalText, setCopyModalText] = useState<string | null>(null);
+  const [bottomOffset, setBottomOffset] = useState(0);
   const tmuxWarningShownRef = useRef(false);
   const { resolvedTheme } = useTheme();
+
+  // Dynamic bottom offset via visualViewport — replaces hardcoded 140px
+  // Accounts for iOS keyboard, browser chrome, PWA standalone (no chrome)
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const handleResize = () => {
+      const offset = Math.max(0, Math.round(window.innerHeight - vv.height));
+      setBottomOffset(offset);
+    };
+    handleResize();
+    vv.addEventListener('resize', handleResize);
+    return () => vv.removeEventListener('resize', handleResize);
+  }, []);
 
   const showCopyModal = useCallback((text: string) => setCopyModalText(text), []);
 
@@ -296,7 +311,7 @@ export default function TerminalInner({
       <div
         ref={containerRef}
         className="absolute top-0 left-0 right-0"
-        style={{ bottom: '140px' }}
+        style={{ bottom: `${bottomOffset}px` }}
         data-testid="terminal-container"
       />
       {status === 'disconnected' && (

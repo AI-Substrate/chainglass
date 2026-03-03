@@ -8,9 +8,27 @@ import './globals.css';
 import { Providers } from '@/components/providers';
 import { ThemeProvider } from 'next-themes';
 
-export const metadata = {
+import type { Metadata, Viewport } from 'next';
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: '#1e1e1e',
+};
+
+export const metadata: Metadata = {
   title: 'Chainglass',
   description: 'Spec-driven development enrichment workflow tool',
+  manifest: '/manifest.webmanifest',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Chainglass',
+  },
+  icons: {
+    apple: '/apple-touch-icon.png',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
