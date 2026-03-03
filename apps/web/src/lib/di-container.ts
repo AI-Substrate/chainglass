@@ -539,18 +539,30 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
 
   // Singleton via closure-captured flag (survives HMR).
   // Dependency order: CentralEventNotifier → WorkUnitStateService → AgentWorkUnitBridge
-  // NOTE: worktreePath defaults to process.cwd() because resolveFromPath() is async
-  // and DI factories are synchronous. In practice, the web server CWD IS the worktree.
+  // FX001: Use git worktree root (not process.cwd() which is apps/web/ in monorepo)
   let workUnitStateInstance: IWorkUnitStateService | null = null;
+  let resolvedWorktreePath: string | null = null;
   childContainer.register<IWorkUnitStateService>(
     POSITIONAL_GRAPH_DI_TOKENS.WORK_UNIT_STATE_SERVICE,
     {
       useFactory: (c) => {
         if (workUnitStateInstance) return workUnitStateInstance;
+        if (!resolvedWorktreePath) {
+          try {
+            const { execSync } = require('node:child_process');
+            resolvedWorktreePath = execSync('git rev-parse --show-toplevel', {
+              encoding: 'utf-8',
+              cwd: process.cwd(),
+            }).trim();
+          } catch {
+            resolvedWorktreePath = process.cwd();
+            console.warn('[DI] Failed to resolve git worktree root, falling back to cwd');
+          }
+        }
         const notifier = c.resolve<ICentralEventNotifier>(
           WORKSPACE_DI_TOKENS.CENTRAL_EVENT_NOTIFIER
         );
-        workUnitStateInstance = new WorkUnitStateService(process.cwd(), notifier);
+        workUnitStateInstance = new WorkUnitStateService(resolvedWorktreePath, notifier);
         return workUnitStateInstance;
       },
     }
