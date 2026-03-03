@@ -1,8 +1,17 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { Component, type ReactNode } from 'react';
-import { TerminalOverlayPanel } from '../../../../src/features/064-terminal/components/terminal-overlay-panel';
 import { TerminalOverlayProvider } from '../../../../src/features/064-terminal/hooks/use-terminal-overlay';
+
+// Dynamic import — TerminalOverlayPanel imports TerminalInner which uses xterm.js (needs browser)
+const TerminalOverlayPanel = dynamic(
+  () =>
+    import('../../../../src/features/064-terminal/components/terminal-overlay-panel').then(
+      (m) => m.TerminalOverlayPanel,
+    ),
+  { ssr: false },
+);
 
 // DYK-04: Error boundary wraps the panel (not provider) so overlay failures
 // don't crash all workspace pages. Provider is pure context — safe.

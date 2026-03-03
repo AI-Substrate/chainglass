@@ -11,6 +11,25 @@ export function TerminalOverlayPanel() {
   const { isOpen, sessionName, cwd, closeTerminal } = useTerminalOverlay();
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
   const panelRef = useRef<HTMLDivElement>(null);
+  const [topOffset, setTopOffset] = useState(0);
+
+  // Measure the main content area position to align overlay
+  useEffect(() => {
+    const measure = () => {
+      const anchor = document.querySelector('[data-terminal-overlay-anchor]');
+      if (anchor) {
+        const rect = anchor.getBoundingClientRect();
+        setTopOffset(rect.top);
+      }
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    const timer = setTimeout(measure, 200);
+    return () => {
+      window.removeEventListener('resize', measure);
+      clearTimeout(timer);
+    };
+  }, [isOpen]);
 
   // Close on Escape
   useEffect(() => {
@@ -32,8 +51,14 @@ export function TerminalOverlayPanel() {
   return (
     <div
       ref={panelRef}
-      className="fixed top-0 right-0 flex flex-col h-full border-l bg-background shadow-2xl"
-      style={{ zIndex: 44, width: 'min(60vw, 900px)' }}
+      className="fixed flex flex-col border-l bg-background shadow-2xl"
+      style={{
+        zIndex: 44,
+        top: `${topOffset}px`,
+        right: 0,
+        bottom: 0,
+        width: 'min(60vw, 900px)',
+      }}
       data-testid="terminal-overlay-panel"
     >
       {/* Header */}

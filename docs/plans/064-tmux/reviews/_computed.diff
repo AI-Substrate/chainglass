@@ -1,896 +1,779 @@
-diff --git a/apps/web/app/(dashboard)/workspaces/[slug]/terminal/layout.tsx b/apps/web/app/(dashboard)/workspaces/[slug]/terminal/layout.tsx
+diff --git a/apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx b/apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx
+index 194d575..c64ff25 100644
+--- a/apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx
++++ b/apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx
+@@ -15,6 +15,7 @@ import { WorkspaceProvider } from '../../../../src/features/041-file-browser/hoo
+ import { getContainer } from '../../../../src/lib/bootstrap-singleton';
+ import { SDKWorkspaceConnector } from '../../../../src/lib/sdk/sdk-workspace-connector';
+ import { updateSDKMru, updateSDKSettings } from '../../../actions/sdk-settings-actions';
++import { TerminalOverlayWrapper } from './terminal-overlay-wrapper';
+ import { WorkspaceAttentionWrapper } from './workspace-attention-wrapper';
+ 
+ export const dynamic = 'force-dynamic';
+@@ -58,7 +59,9 @@ export default async function WorkspaceLayout({ children, params }: LayoutProps)
+         persistSettings={updateSDKSettings}
+         persistMru={updateSDKMru}
+       />
+-      <WorkspaceAttentionWrapper>{children}</WorkspaceAttentionWrapper>
++      <WorkspaceAttentionWrapper>
++        <TerminalOverlayWrapper>{children}</TerminalOverlayWrapper>
++      </WorkspaceAttentionWrapper>
+     </WorkspaceProvider>
+   );
+ }
+diff --git a/apps/web/app/(dashboard)/workspaces/[slug]/terminal-overlay-wrapper.tsx b/apps/web/app/(dashboard)/workspaces/[slug]/terminal-overlay-wrapper.tsx
 new file mode 100644
-index 0000000..aee0168
+index 0000000..4872900
 --- /dev/null
-+++ b/apps/web/app/(dashboard)/workspaces/[slug]/terminal/layout.tsx
-@@ -0,0 +1,16 @@
-+/**
-+ * Terminal Layout — /workspaces/[slug]/terminal
-+ *
-+ * Pass-through layout for the terminal page subtree.
-+ * Workspace context is already provided by the parent layout.
-+ *
-+ * Plan 064: Terminal Integration via tmux
-+ */
-+
-+interface LayoutProps {
-+  children: React.ReactNode;
-+}
-+
-+export default function TerminalLayout({ children }: LayoutProps) {
-+  return <>{children}</>;
-+}
-diff --git a/apps/web/app/(dashboard)/workspaces/[slug]/terminal/page.tsx b/apps/web/app/(dashboard)/workspaces/[slug]/terminal/page.tsx
-new file mode 100644
-index 0000000..b6020cd
---- /dev/null
-+++ b/apps/web/app/(dashboard)/workspaces/[slug]/terminal/page.tsx
-@@ -0,0 +1,53 @@
-+/**
-+ * Terminal Page — /workspaces/[slug]/terminal
-+ *
-+ * Server Component that resolves workspace info and passes
-+ * to TerminalPageClient for PanelShell composition.
-+ *
-+ * Plan 064: Terminal Integration via tmux
-+ * DYK-02: Derives branch name from worktree path for tmux session matching.
-+ */
-+
-+import { WORKSPACE_DI_TOKENS } from '@chainglass/shared';
-+import type { IWorkspaceService } from '@chainglass/workflow';
-+import { Suspense } from 'react';
-+import { TerminalPageClient } from '../../../../../src/features/064-terminal/components/terminal-page-client';
-+import { getContainer } from '../../../../../src/lib/bootstrap-singleton';
-+
-+export const dynamic = 'force-dynamic';
-+
-+interface PageProps {
-+  params: Promise<{ slug: string }>;
-+  searchParams: Promise<Record<string, string | string[] | undefined>>;
-+}
-+
-+export default async function TerminalPage({ params, searchParams }: PageProps) {
-+  const { slug } = await params;
-+  const searchParamsResolved = await searchParams;
-+
-+  const container = getContainer();
-+  const workspaceService = container.resolve<IWorkspaceService>(
-+    WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
-+  );
-+
-+  const info = await workspaceService.getInfo(slug);
-+  if (!info) {
-+    return (
-+      <div className="flex items-center justify-center p-8 text-muted-foreground">
-+        Workspace not found
-+      </div>
-+    );
-+  }
-+
-+  const worktreePath =
-+    typeof searchParamsResolved.worktree === 'string' ? searchParamsResolved.worktree : info.path;
-+
-+  const wt = info.worktrees.find((w) => w.path === worktreePath);
-+  const worktreeBranch = wt?.branch ?? worktreePath.split('/').pop() ?? '';
-+
-+  return (
-+    <Suspense fallback={<div className="p-4">Loading terminal...</div>}>
-+      <TerminalPageClient slug={slug} worktreePath={worktreePath} worktreeBranch={worktreeBranch} />
-+    </Suspense>
-+  );
-+}
-diff --git a/apps/web/app/api/terminal/route.ts b/apps/web/app/api/terminal/route.ts
-new file mode 100644
-index 0000000..0f24516
---- /dev/null
-+++ b/apps/web/app/api/terminal/route.ts
-@@ -0,0 +1,48 @@
-+import { execSync } from 'node:child_process';
-+import { NextResponse } from 'next/server';
-+
-+export const dynamic = 'force-dynamic';
-+
-+interface SessionInfo {
-+  name: string;
-+  attached: number;
-+  windows: number;
-+  created: number;
-+}
-+
-+export async function GET(): Promise<NextResponse> {
-+  try {
-+    const output = execSync(
-+      'tmux list-sessions -F "#{session_name}|#{session_attached}|#{session_windows}|#{session_created}"',
-+      {
-+        encoding: 'utf8',
-+        timeout: 5000,
-+      }
-+    ).trim();
-+
-+    if (!output) {
-+      return NextResponse.json({ sessions: [], tmux: true });
-+    }
-+
-+    const sessions: SessionInfo[] = output
-+      .split('\n')
-+      .filter(Boolean)
-+      .map((line) => {
-+        const [name, attached, windows, created] = line.split('|');
-+        return {
-+          name: name ?? '',
-+          attached: Number.parseInt(attached ?? '0', 10),
-+          windows: Number.parseInt(windows ?? '0', 10),
-+          created: Number.parseInt(created ?? '0', 10),
-+        };
-+      });
-+
-+    return NextResponse.json({ sessions, tmux: true });
-+  } catch (error) {
-+    const msg = error instanceof Error ? error.message : '';
-+    if (msg.includes('no server running') || msg.includes('not found')) {
-+      return NextResponse.json({ sessions: [], tmux: false });
-+    }
-+    return NextResponse.json({ sessions: [], tmux: false, error: msg }, { status: 500 });
-+  }
-+}
-diff --git a/apps/web/src/features/064-terminal/components/terminal-page-client.tsx b/apps/web/src/features/064-terminal/components/terminal-page-client.tsx
-new file mode 100644
-index 0000000..99e1093
---- /dev/null
-+++ b/apps/web/src/features/064-terminal/components/terminal-page-client.tsx
-@@ -0,0 +1,82 @@
++++ b/apps/web/app/(dashboard)/workspaces/[slug]/terminal-overlay-wrapper.tsx
+@@ -0,0 +1,43 @@
 +'use client';
 +
-+import { LeftPanel, MainPanel, PanelShell } from '@/features/_platform/panel-layout';
-+import type { PanelMode } from '@/features/_platform/panel-layout';
-+import type { LeftPanelMode } from '@/features/_platform/panel-layout/components/left-panel';
-+import { List } from 'lucide-react';
-+import { useState } from 'react';
-+import { useTerminalSessions } from '../hooks/use-terminal-sessions';
-+import type { ConnectionStatus } from '../types';
-+import { TerminalPageHeader } from './terminal-page-header';
-+import { TerminalSessionList } from './terminal-session-list';
-+import { TerminalView } from './terminal-view';
++import { Component, type ReactNode } from 'react';
++import { TerminalOverlayPanel } from '../../../../src/features/064-terminal/components/terminal-overlay-panel';
++import { TerminalOverlayProvider } from '../../../../src/features/064-terminal/hooks/use-terminal-overlay';
 +
-+const TERMINAL_MODES: LeftPanelMode[] = [
-+  { key: 'sessions' as PanelMode, icon: <List className="h-3.5 w-3.5" />, label: 'Sessions' },
-+];
++// DYK-04: Error boundary wraps the panel (not provider) so overlay failures
++// don't crash all workspace pages. Provider is pure context — safe.
++class TerminalOverlayErrorBoundary extends Component<
++  { children: ReactNode },
++  { hasError: boolean }
++> {
++  constructor(props: { children: ReactNode }) {
++    super(props);
++    this.state = { hasError: false };
++  }
 +
-+interface TerminalPageClientProps {
-+  slug: string;
-+  worktreePath: string;
-+  worktreeBranch: string;
++  static getDerivedStateFromError(): { hasError: boolean } {
++    return { hasError: true };
++  }
++
++  render() {
++    if (this.state.hasError) {
++      return null; // Silently hide overlay on error — workspace pages keep working
++    }
++    return this.props.children;
++  }
 +}
 +
-+export function TerminalPageClient({
-+  slug,
-+  worktreePath,
-+  worktreeBranch,
-+}: TerminalPageClientProps) {
-+  const { sessions, loading, selectedSession, setSelectedSession, refresh } = useTerminalSessions({
-+    currentBranch: worktreeBranch,
-+  });
++interface TerminalOverlayWrapperProps {
++  children: ReactNode;
++}
 +
-+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
-+
++export function TerminalOverlayWrapper({ children }: TerminalOverlayWrapperProps) {
 +  return (
-+    <PanelShell
-+      explorer={
-+        <TerminalPageHeader sessionName={selectedSession} connectionStatus={connectionStatus} />
-+      }
-+      left={
-+        <LeftPanel
-+          mode={'sessions' as PanelMode}
-+          onModeChange={() => {}}
-+          modes={TERMINAL_MODES}
-+          onRefresh={refresh}
-+          subtitle={
-+            <span className="text-xs text-muted-foreground">
-+              {sessions.length} session{sessions.length !== 1 ? 's' : ''}
-+            </span>
-+          }
-+        >
-+          {{
-+            sessions: (
-+              <TerminalSessionList
-+                sessions={sessions}
-+                activeSession={selectedSession}
-+                loading={loading}
-+                onSelect={setSelectedSession}
-+                onRefresh={refresh}
-+              />
-+            ),
-+          }}
-+        </LeftPanel>
-+      }
-+      main={
-+        <MainPanel>
-+          {selectedSession ? (
-+            <TerminalView
-+              sessionName={selectedSession}
-+              cwd={worktreePath}
-+              onConnectionChange={setConnectionStatus}
-+            />
-+          ) : (
-+            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-+              {loading ? 'Loading sessions…' : 'Select a session to connect'}
-+            </div>
-+          )}
-+        </MainPanel>
-+      }
-+    />
++    <TerminalOverlayProvider>
++      {children}
++      <TerminalOverlayErrorBoundary>
++        <TerminalOverlayPanel />
++      </TerminalOverlayErrorBoundary>
++    </TerminalOverlayProvider>
 +  );
 +}
-diff --git a/apps/web/src/features/064-terminal/components/terminal-page-header.tsx b/apps/web/src/features/064-terminal/components/terminal-page-header.tsx
+diff --git a/apps/web/src/components/dashboard-sidebar.tsx b/apps/web/src/components/dashboard-sidebar.tsx
+index 5d15427..aefeb4a 100644
+--- a/apps/web/src/components/dashboard-sidebar.tsx
++++ b/apps/web/src/components/dashboard-sidebar.tsx
+@@ -23,7 +23,7 @@ import { useWorkspaceContext } from '@/features/041-file-browser/hooks/use-works
+ import { DEV_NAV_ITEMS, WORKSPACE_NAV_ITEMS } from '@/lib/navigation-utils';
+ import { cn } from '@/lib/utils';
+ import { workspaceHref } from '@/lib/workspace-url';
+-import { ChevronLeft, ExternalLink, PanelLeft, Settings } from 'lucide-react';
++import { ChevronLeft, ExternalLink, PanelLeft, Settings, TerminalSquare } from 'lucide-react';
+ import Link from 'next/link';
+ import { usePathname, useSearchParams } from 'next/navigation';
+ import { Suspense, useMemo, useState } from 'react';
+@@ -246,6 +246,15 @@ export function DashboardSidebar() {
+ 
+       <SidebarFooter className="border-t p-2">
+         <SidebarMenu>
++          <SidebarMenuItem>
++            <SidebarMenuButton
++              onClick={() => window.dispatchEvent(new CustomEvent('terminal:toggle'))}
++              tooltip="Toggle Terminal (Ctrl+`)"
++            >
++              <TerminalSquare className="h-5 w-5" />
++              {!isCollapsed && <span>Terminal</span>}
++            </SidebarMenuButton>
++          </SidebarMenuItem>
+           <SidebarMenuItem>
+             <SidebarMenuButton
+               asChild
+diff --git a/apps/web/src/features/064-terminal/components/terminal-inner.tsx b/apps/web/src/features/064-terminal/components/terminal-inner.tsx
+index f995d02..994b777 100644
+--- a/apps/web/src/features/064-terminal/components/terminal-inner.tsx
++++ b/apps/web/src/features/064-terminal/components/terminal-inner.tsx
+@@ -197,12 +197,28 @@ export default function TerminalInner({
+       }
+ 
+       // 3. Dispose addons before terminal (WebLinksAddon crashes if terminal disposes first)
+-      try { webLinksAddon.dispose(); } catch { /* already disposed */ }
+-      try { canvasAddon?.dispose(); } catch { /* already disposed */ }
+-      try { fitAddon.dispose(); } catch { /* already disposed */ }
++      try {
++        webLinksAddon.dispose();
++      } catch {
++        /* already disposed */
++      }
++      try {
++        canvasAddon?.dispose();
++      } catch {
++        /* already disposed */
++      }
++      try {
++        fitAddon.dispose();
++      } catch {
++        /* already disposed */
++      }
+ 
+       // 4. Dispose terminal (last — removes DOM)
+-      try { terminal.dispose(); } catch { /* strict mode double-dispose */ }
++      try {
++        terminal.dispose();
++      } catch {
++        /* strict mode double-dispose */
++      }
+       terminalRef.current = null;
+       fitAddonRef.current = null;
+     };
+diff --git a/apps/web/src/features/064-terminal/components/terminal-overlay-panel.tsx b/apps/web/src/features/064-terminal/components/terminal-overlay-panel.tsx
 new file mode 100644
-index 0000000..0e030fd
+index 0000000..ae83a9f
 --- /dev/null
-+++ b/apps/web/src/features/064-terminal/components/terminal-page-header.tsx
-@@ -0,0 +1,29 @@
++++ b/apps/web/src/features/064-terminal/components/terminal-overlay-panel.tsx
+@@ -0,0 +1,68 @@
 +'use client';
 +
-+import { TerminalSquare } from 'lucide-react';
++import { TerminalSquare, X } from 'lucide-react';
++import { useEffect, useRef, useState } from 'react';
++import { useTerminalOverlay } from '../hooks/use-terminal-overlay';
 +import type { ConnectionStatus } from '../types';
 +import { ConnectionStatusBadge } from './connection-status-badge';
++import TerminalInner from './terminal-inner';
 +
-+interface TerminalPageHeaderProps {
++export function TerminalOverlayPanel() {
++  const { isOpen, sessionName, cwd, closeTerminal } = useTerminalOverlay();
++  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
++  const panelRef = useRef<HTMLDivElement>(null);
++
++  // Close on Escape
++  useEffect(() => {
++    if (!isOpen) return;
++
++    const handleKeyDown = (e: KeyboardEvent) => {
++      if (e.key === 'Escape') {
++        e.preventDefault();
++        closeTerminal();
++      }
++    };
++
++    document.addEventListener('keydown', handleKeyDown);
++    return () => document.removeEventListener('keydown', handleKeyDown);
++  }, [isOpen, closeTerminal]);
++
++  if (!isOpen || !sessionName || !cwd) return null;
++
++  return (
++    <div
++      ref={panelRef}
++      className="fixed top-0 right-0 flex flex-col h-full border-l bg-background shadow-2xl"
++      style={{ zIndex: 44, width: 'min(60vw, 900px)' }}
++      data-testid="terminal-overlay-panel"
++    >
++      {/* Header */}
++      <div className="flex items-center justify-between border-b px-3 py-2 shrink-0">
++        <div className="flex items-center gap-2">
++          <TerminalSquare className="h-4 w-4 text-muted-foreground" />
++          <span className="text-sm font-medium truncate">{sessionName}</span>
++        </div>
++        <div className="flex items-center gap-2">
++          <ConnectionStatusBadge status={connectionStatus} showLabel={false} />
++          <button
++            type="button"
++            onClick={closeTerminal}
++            className="rounded-sm p-1 hover:bg-accent"
++            aria-label="Close terminal overlay"
++          >
++            <X className="h-4 w-4" />
++          </button>
++        </div>
++      </div>
++
++      {/* Terminal — direct import, no next/dynamic wrapper */}
++      <div className="flex-1 overflow-hidden min-h-0">
++        <TerminalInner
++          sessionName={sessionName}
++          cwd={cwd}
++          onConnectionChange={setConnectionStatus}
++        />
++      </div>
++    </div>
++  );
++}
+diff --git a/apps/web/src/features/064-terminal/components/terminal-view.tsx b/apps/web/src/features/064-terminal/components/terminal-view.tsx
+index b87d0a1..358cb94 100644
+--- a/apps/web/src/features/064-terminal/components/terminal-view.tsx
++++ b/apps/web/src/features/064-terminal/components/terminal-view.tsx
+@@ -24,13 +24,14 @@ export function TerminalView({
+   onConnectionChange,
+ }: TerminalViewProps) {
+   return (
+-    <Suspense fallback={<TerminalSkeleton />}>
+-      <TerminalInner
+-        sessionName={sessionName}
+-        cwd={cwd}
+-        className={className}
+-        onConnectionChange={onConnectionChange}
+-      />
+-    </Suspense>
++    <div className={`h-full w-full ${className ?? ''}`}>
++      <Suspense fallback={<TerminalSkeleton />}>
++        <TerminalInner
++          sessionName={sessionName}
++          cwd={cwd}
++          onConnectionChange={onConnectionChange}
++        />
++      </Suspense>
++    </div>
+   );
+ }
+diff --git a/apps/web/src/features/064-terminal/hooks/use-terminal-overlay.tsx b/apps/web/src/features/064-terminal/hooks/use-terminal-overlay.tsx
+new file mode 100644
+index 0000000..06bf67a
+--- /dev/null
++++ b/apps/web/src/features/064-terminal/hooks/use-terminal-overlay.tsx
+@@ -0,0 +1,115 @@
++'use client';
++
++import { createContext, useCallback, useContext, useEffect, useState } from 'react';
++import type { ReactNode } from 'react';
++
++interface TerminalOverlayState {
++  isOpen: boolean;
 +  sessionName: string | null;
-+  connectionStatus: ConnectionStatus;
-+  onReconnect?: () => void;
++  cwd: string | null;
 +}
 +
-+export function TerminalPageHeader({
-+  sessionName,
-+  connectionStatus,
-+  onReconnect,
-+}: TerminalPageHeaderProps) {
-+  return (
-+    <div className="flex items-center justify-between border-b px-3 py-2 shrink-0 bg-background">
-+      <div className="flex items-center gap-2">
-+        <TerminalSquare className="h-4 w-4 text-muted-foreground" />
-+        <span className="text-sm font-medium">{sessionName ?? 'No session'}</span>
-+      </div>
-+      <div className="flex items-center gap-2">
-+        <ConnectionStatusBadge status={connectionStatus} onReconnect={onReconnect} />
-+      </div>
-+    </div>
-+  );
-+}
-diff --git a/apps/web/src/features/064-terminal/components/terminal-session-list.tsx b/apps/web/src/features/064-terminal/components/terminal-session-list.tsx
-new file mode 100644
-index 0000000..08ba83f
---- /dev/null
-+++ b/apps/web/src/features/064-terminal/components/terminal-session-list.tsx
-@@ -0,0 +1,71 @@
-+'use client';
-+
-+import type { TerminalSession } from '../types';
-+
-+interface TerminalSessionListProps {
-+  sessions: TerminalSession[];
-+  activeSession: string | null;
-+  loading: boolean;
-+  onSelect: (name: string) => void;
-+  onRefresh: () => void;
++interface TerminalOverlayContextValue extends TerminalOverlayState {
++  openTerminal: (sessionName: string, cwd: string) => void;
++  closeTerminal: () => void;
++  toggleTerminal: (sessionName?: string, cwd?: string) => void;
 +}
 +
-+export function TerminalSessionList({
-+  sessions,
-+  activeSession,
-+  loading,
-+  onSelect,
-+  onRefresh,
-+}: TerminalSessionListProps) {
-+  if (loading && sessions.length === 0) {
-+    return (
-+      <div className="flex items-center justify-center p-4 text-xs text-muted-foreground">
-+        Loading sessions…
-+      </div>
-+    );
-+  }
++const TerminalOverlayContext = createContext<TerminalOverlayContextValue | null>(null);
 +
-+  if (sessions.length === 0) {
-+    return (
-+      <div className="flex flex-col items-center gap-2 p-4 text-xs text-muted-foreground">
-+        <span>No tmux sessions found</span>
-+        <button
-+          type="button"
-+          onClick={onRefresh}
-+          className="rounded-md border px-2 py-1 text-xs hover:bg-accent"
-+        >
-+          Refresh
-+        </button>
-+      </div>
-+    );
-+  }
-+
-+  return (
-+    <div className="flex flex-col" data-testid="terminal-session-list">
-+      {sessions.map((session) => (
-+        <button
-+          key={session.name}
-+          type="button"
-+          onClick={() => onSelect(session.name)}
-+          className={`flex items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-accent ${
-+            activeSession === session.name ? 'bg-accent font-medium' : ''
-+          }`}
-+          data-testid={`session-${session.name}`}
-+        >
-+          <span
-+            className={`inline-block h-2 w-2 shrink-0 rounded-full ${
-+              session.attached > 0 ? 'bg-green-500' : 'bg-gray-400'
-+            }`}
-+            aria-label={session.attached > 0 ? 'attached' : 'detached'}
-+          />
-+          <span className="min-w-0 truncate">{session.name}</span>
-+          {session.isCurrentWorktree && (
-+            <span className="ml-auto shrink-0 rounded bg-blue-500/10 px-1 text-[10px] text-blue-600 dark:text-blue-400">
-+              current
-+            </span>
-+          )}
-+        </button>
-+      ))}
-+    </div>
-+  );
-+}
-diff --git a/apps/web/src/features/064-terminal/hooks/use-terminal-sessions.ts b/apps/web/src/features/064-terminal/hooks/use-terminal-sessions.ts
-new file mode 100644
-index 0000000..be3d385
---- /dev/null
-+++ b/apps/web/src/features/064-terminal/hooks/use-terminal-sessions.ts
-@@ -0,0 +1,86 @@
-+'use client';
-+
-+import { useCallback, useEffect, useRef, useState } from 'react';
-+import type { TerminalSession } from '../types';
-+
-+interface UseTerminalSessionsOptions {
-+  currentBranch: string;
++interface TerminalOverlayProviderProps {
++  children: ReactNode;
 +}
 +
-+interface UseTerminalSessionsReturn {
-+  sessions: TerminalSession[];
-+  loading: boolean;
-+  tmuxAvailable: boolean;
-+  selectedSession: string | null;
-+  setSelectedSession: (name: string) => void;
-+  refresh: () => void;
-+}
++export function TerminalOverlayProvider({ children }: TerminalOverlayProviderProps) {
++  const [state, setState] = useState<TerminalOverlayState>({
++    isOpen: false,
++    sessionName: null,
++    cwd: null,
++  });
 +
-+export function useTerminalSessions({
-+  currentBranch,
-+}: UseTerminalSessionsOptions): UseTerminalSessionsReturn {
-+  const [sessions, setSessions] = useState<TerminalSession[]>([]);
-+  const [loading, setLoading] = useState(true);
-+  const [tmuxAvailable, setTmuxAvailable] = useState(true);
-+  const [selectedSession, setSelectedSession] = useState<string | null>(null);
-+  const mountedRef = useRef(true);
++  const openTerminal = useCallback((sessionName: string, cwd: string) => {
++    setState({ isOpen: true, sessionName, cwd });
++  }, []);
 +
-+  const fetchSessions = useCallback(async () => {
-+    try {
-+      setLoading(true);
-+      const res = await fetch('/api/terminal');
-+      if (!res.ok) return;
++  const closeTerminal = useCallback(() => {
++    setState((prev) => ({ ...prev, isOpen: false }));
++  }, []);
 +
-+      const data = await res.json();
-+      if (!mountedRef.current) return;
++  const toggleTerminal = useCallback((sessionName?: string, cwd?: string) => {
++    setState((prev) => {
++      if (prev.isOpen) {
++        return { ...prev, isOpen: false };
++      }
 +
-+      setTmuxAvailable(data.tmux !== false);
++      // DYK-03: Derive session/cwd from URL if not provided
++      let resolvedSession = sessionName ?? prev.sessionName;
++      let resolvedCwd = cwd ?? prev.cwd;
 +
-+      const enriched: TerminalSession[] = (data.sessions ?? []).map(
-+        (s: { name: string; attached: number; windows: number; created: number }) => ({
-+          ...s,
-+          isCurrentWorktree: s.name === currentBranch,
-+        })
-+      );
-+
-+      setSessions(enriched);
-+
-+      // Auto-select current worktree session if no selection yet
-+      if (!selectedSession) {
-+        const current = enriched.find((s: TerminalSession) => s.isCurrentWorktree);
-+        if (current) {
-+          setSelectedSession(current.name);
-+        } else if (enriched.length > 0) {
-+          setSelectedSession(enriched[0].name);
++      if (!resolvedSession || !resolvedCwd) {
++        const params = new URLSearchParams(window.location.search);
++        const worktree = params.get('worktree');
++        if (worktree) {
++          resolvedCwd = resolvedCwd ?? worktree;
++          resolvedSession = resolvedSession ?? worktree.split('/').pop() ?? null;
 +        }
 +      }
-+    } catch {
-+      // Network error — leave sessions as-is
-+    } finally {
-+      if (mountedRef.current) setLoading(false);
-+    }
-+  }, [currentBranch, selectedSession]);
 +
-+  // DYK-03: Fetch on mount + refetch on window focus
++      if (!resolvedSession || !resolvedCwd) {
++        return prev; // Can't open without session info
++      }
++
++      return {
++        isOpen: true,
++        sessionName: resolvedSession,
++        cwd: resolvedCwd,
++      };
++    });
++  }, []);
++
++  // DYK-05: Listen for SDK terminal:toggle events (sidebar is outside provider)
 +  useEffect(() => {
-+    mountedRef.current = true;
-+    fetchSessions();
++    const handler = (e: Event) => {
++      const detail = (e as CustomEvent).detail;
++      toggleTerminal(detail?.sessionName, detail?.cwd);
++    };
++    window.addEventListener('terminal:toggle', handler);
++    return () => window.removeEventListener('terminal:toggle', handler);
++  }, [toggleTerminal]);
 +
-+    const onFocus = () => fetchSessions();
-+    window.addEventListener('focus', onFocus);
++  // DYK-01: Auto-close overlay when navigating to terminal page
++  useEffect(() => {
++    const checkRoute = () => {
++      if (window.location.pathname.includes('/terminal')) {
++        setState((prev) => (prev.isOpen ? { ...prev, isOpen: false } : prev));
++      }
++    };
++
++    // Check on popstate (back/forward) and on any navigation
++    window.addEventListener('popstate', checkRoute);
++
++    // Also check periodically for SPA navigation (Next.js doesn't fire popstate)
++    const interval = setInterval(checkRoute, 500);
 +
 +    return () => {
-+      mountedRef.current = false;
-+      window.removeEventListener('focus', onFocus);
++      window.removeEventListener('popstate', checkRoute);
++      clearInterval(interval);
 +    };
-+  }, [fetchSessions]);
++  }, []);
 +
-+  return {
-+    sessions,
-+    loading,
-+    tmuxAvailable,
-+    selectedSession,
-+    setSelectedSession,
-+    refresh: fetchSessions,
-+  };
++  return (
++    <TerminalOverlayContext.Provider
++      value={{ ...state, openTerminal, closeTerminal, toggleTerminal }}
++    >
++      {children}
++    </TerminalOverlayContext.Provider>
++  );
 +}
-diff --git a/apps/web/src/features/064-terminal/params/terminal.params.ts b/apps/web/src/features/064-terminal/params/terminal.params.ts
++
++export function useTerminalOverlay(): TerminalOverlayContextValue {
++  const context = useContext(TerminalOverlayContext);
++  if (!context) {
++    throw new Error('useTerminalOverlay must be used within a TerminalOverlayProvider');
++  }
++  return context;
++}
+diff --git a/apps/web/src/features/064-terminal/hooks/use-terminal-socket.ts b/apps/web/src/features/064-terminal/hooks/use-terminal-socket.ts
+index a10b78c..96d3284 100644
+--- a/apps/web/src/features/064-terminal/hooks/use-terminal-socket.ts
++++ b/apps/web/src/features/064-terminal/hooks/use-terminal-socket.ts
+@@ -130,7 +130,11 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
+       updateStatus('disconnected');
+ 
+       // Reconnect on unexpected close (not clean close code 1000)
+-      if (event.code !== 1000 && enabledRef.current && reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
++      if (
++        event.code !== 1000 &&
++        enabledRef.current &&
++        reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS
++      ) {
+         const delay = Math.min(
+           INITIAL_BACKOFF_MS * 2 ** reconnectAttemptsRef.current,
+           MAX_BACKOFF_MS
+diff --git a/apps/web/src/features/064-terminal/index.ts b/apps/web/src/features/064-terminal/index.ts
+index 248d348..be0af35 100644
+--- a/apps/web/src/features/064-terminal/index.ts
++++ b/apps/web/src/features/064-terminal/index.ts
+@@ -22,3 +22,7 @@ export { TerminalView } from './components/terminal-view';
+ export type { TerminalViewProps } from './components/terminal-view';
+ export { ConnectionStatusBadge } from './components/connection-status-badge';
+ export { TerminalSkeleton } from './components/terminal-skeleton';
++
++// Overlay (Phase 4)
++export { TerminalOverlayPanel } from './components/terminal-overlay-panel';
++export { TerminalOverlayProvider, useTerminalOverlay } from './hooks/use-terminal-overlay';
+diff --git a/apps/web/src/lib/sdk/sdk-bootstrap.ts b/apps/web/src/lib/sdk/sdk-bootstrap.ts
+index 3d2cc9f..a831e82 100644
+--- a/apps/web/src/lib/sdk/sdk-bootstrap.ts
++++ b/apps/web/src/lib/sdk/sdk-bootstrap.ts
+@@ -86,6 +86,20 @@ export function bootstrapSDK(): IUSDK {
+   // Ctrl+, opens settings
+   keybindings.register({ key: '$mod+Comma', command: 'sdk.openSettings' });
+ 
++  // Terminal overlay toggle (Plan 064 Phase 4)
++  commands.register({
++    id: 'terminal.toggleOverlay',
++    title: 'Toggle Terminal',
++    domain: 'terminal',
++    params: z.object({}),
++    handler: async () => {
++      // DYK-05: Dispatch custom event — provider listens inside workspace layout
++      window.dispatchEvent(new CustomEvent('terminal:toggle'));
++    },
++    icon: 'terminal',
++  });
++  keybindings.register({ key: '$mod+Backquote', command: 'terminal.toggleOverlay' });
++
+   const sdk: IUSDK = {
+     commands,
+     settings,
+diff --git a/docs/plans/064-tmux/tasks/phase-4-terminal-overlay-panel/execution.log.md b/docs/plans/064-tmux/tasks/phase-4-terminal-overlay-panel/execution.log.md
 new file mode 100644
-index 0000000..1148fa0
+index 0000000..6218ee4
 --- /dev/null
-+++ b/apps/web/src/features/064-terminal/params/terminal.params.ts
-@@ -0,0 +1,22 @@
-+/**
-+ * Terminal URL params for the terminal page.
-+ *
-+ * Plan-scoped: 064-tmux
-+ * Domain: terminal (composes workspaceParams)
-+ *
-+ * @example URL:
-+ * /workspaces/my-proj/terminal?worktree=/path&session=064-tmux
-+ */
++++ b/docs/plans/064-tmux/tasks/phase-4-terminal-overlay-panel/execution.log.md
+@@ -0,0 +1,8 @@
++# Phase 4: Execution Log
 +
-+import { workspaceParams } from '@/lib/params/workspace.params';
-+import { parseAsString } from 'nuqs';
-+import { createSearchParamsCache } from 'nuqs/server';
-+
-+export const terminalParams = {
-+  session: parseAsString.withDefault(''),
-+};
-+
-+export const terminalPageParamsCache = createSearchParamsCache({
-+  ...workspaceParams,
-+  ...terminalParams,
-+});
-diff --git a/apps/web/src/features/064-terminal/server/terminal-ws.ts b/apps/web/src/features/064-terminal/server/terminal-ws.ts
-index 2ad7edc..ff53b17 100644
---- a/apps/web/src/features/064-terminal/server/terminal-ws.ts
-+++ b/apps/web/src/features/064-terminal/server/terminal-ws.ts
-@@ -12,9 +12,9 @@
-  * Plan 064: Terminal Integration via tmux
-  */
- 
--import { WebSocketServer, type WebSocket } from 'ws';
--import { TmuxSessionManager } from './tmux-session-manager';
-+import { type WebSocket, WebSocketServer } from 'ws';
- import type { CommandExecutor, PtyProcess, PtySpawner } from '../types';
-+import { TmuxSessionManager } from './tmux-session-manager';
- 
- export interface TerminalServerDeps {
-   execCommand: CommandExecutor;
-@@ -52,16 +52,21 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
-         ws.send(JSON.stringify({ type: 'status', status: 'connected', tmux: true }));
-       } else {
-         pty = manager.spawnRawShell(cwd, 80, 24);
--        ws.send(JSON.stringify({
--          type: 'status',
--          status: 'connected',
--          tmux: false,
--          message: 'tmux not available — using raw shell. Sessions won\'t persist across page refreshes.',
--        }));
-+        ws.send(
-+          JSON.stringify({
-+            type: 'status',
-+            status: 'connected',
-+            tmux: false,
-+            message:
-+              "tmux not available — using raw shell. Sessions won't persist across page refreshes.",
-+          })
-+        );
-       }
-     } catch (error) {
-       const msg = error instanceof Error ? error.message : 'Unknown error';
--      ws.send(JSON.stringify({ type: 'error', message: `Failed to start terminal process: ${msg}` }));
-+      ws.send(
-+        JSON.stringify({ type: 'error', message: `Failed to start terminal process: ${msg}` })
-+      );
-       ws.close(1011, 'PTY spawn failed');
-       return;
-     }
-@@ -121,8 +126,8 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
-   }
- 
-   function start(port: number): void {
--    // Bind localhost only until auth lands (Plan 063)
--    wss = new WebSocketServer({ port, host: '127.0.0.1' });
-+    // Bind all interfaces for remote access (protected environment)
-+    wss = new WebSocketServer({ port, host: '0.0.0.0' });
- 
-     wss.on('connection', (ws: WebSocket, req) => {
-       const url = new URL(req.url ?? '/', `http://${req.headers.host}`);
-@@ -140,13 +145,15 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
- 
-     wss.on('error', (error: NodeJS.ErrnoException) => {
-       if (error.code === 'EADDRINUSE') {
--        console.error(`Terminal WS server: port ${port} already in use. Set TERMINAL_WS_PORT to use a different port.`);
-+        console.error(
-+          `Terminal WS server: port ${port} already in use. Set TERMINAL_WS_PORT to use a different port.`
-+        );
-         process.exit(1);
-       }
-       console.error('Terminal WS server error:', error);
-     });
- 
--    console.log(`Terminal WS server listening on ws://127.0.0.1:${port}/terminal`);
-+    console.log(`Terminal WS server listening on ws://0.0.0.0:${port}/terminal`);
- 
-     process.on('SIGTERM', () => {
-       console.log('Terminal WS server: SIGTERM received, cleaning up...');
-diff --git a/apps/web/src/features/064-terminal/server/tmux-session-manager.ts b/apps/web/src/features/064-terminal/server/tmux-session-manager.ts
-index d01702e..70b32b1 100644
---- a/apps/web/src/features/064-terminal/server/tmux-session-manager.ts
-+++ b/apps/web/src/features/064-terminal/server/tmux-session-manager.ts
-@@ -10,7 +10,7 @@
-  * Plan 064: Terminal Integration via tmux
-  */
- 
--import { resolve, normalize, relative, isAbsolute } from 'node:path';
-+import { isAbsolute, normalize, relative, resolve } from 'node:path';
- import type { CommandExecutor, PtyProcess, PtySpawner } from '../types';
- 
- const TMUX_SESSION_NAME_REGEX = /^[a-zA-Z0-9_-]+$/;
-@@ -101,17 +101,13 @@ export class TmuxSessionManager {
-    * Uses `tmux new-session -A` which attaches if session exists, creates if not.
-    */
-   spawnAttachedPty(name: string, cwd: string, cols: number, rows: number): PtyProcess {
--    return this.spawnPty(
--      'tmux',
--      ['new-session', '-A', '-s', name, '-c', cwd],
--      {
--        name: 'xterm-256color',
--        cols,
--        rows,
--        cwd,
--        env: { ...process.env, TERM: 'xterm-256color' } as Record<string, string>,
--      }
--    );
-+    return this.spawnPty('tmux', ['new-session', '-A', '-s', name, '-c', cwd], {
-+      name: 'xterm-256color',
-+      cols,
-+      rows,
-+      cwd,
-+      env: { ...process.env, TERM: 'xterm-256color' } as Record<string, string>,
-+    });
-   }
- 
-   /** Spawn a raw shell PTY (fallback when tmux unavailable) */
-diff --git a/apps/web/src/features/_platform/panel-layout/types.ts b/apps/web/src/features/_platform/panel-layout/types.ts
-index fd2815b..420ca7d 100644
---- a/apps/web/src/features/_platform/panel-layout/types.ts
-+++ b/apps/web/src/features/_platform/panel-layout/types.ts
-@@ -6,7 +6,7 @@
-  */
- 
- /** Left panel view mode — extensible union for future modes (search, bookmarks, recent) */
--export type PanelMode = 'tree' | 'changes';
-+export type PanelMode = 'tree' | 'changes' | 'sessions';
- 
- /** Context passed to ExplorerPanel input handlers */
- export interface BarContext {
-diff --git a/apps/web/src/lib/navigation-utils.ts b/apps/web/src/lib/navigation-utils.ts
-index 2bd469f..3611711 100644
---- a/apps/web/src/lib/navigation-utils.ts
-+++ b/apps/web/src/lib/navigation-utils.ts
-@@ -21,6 +21,7 @@ import {
-   type LucideIcon,
-   Puzzle,
-   Smartphone,
-+  TerminalSquare,
- } from 'lucide-react';
- 
- /**
-@@ -53,6 +54,7 @@ export const WORKSPACE_NAV_ITEMS: readonly NavItem[] = [
-   { id: 'agents', label: 'Agents', href: '/agents', icon: Bot },
-   { id: 'work-units', label: 'Work Units', href: '/work-units', icon: Puzzle },
-   { id: 'workflows', label: 'Workflows', href: '/workflows', icon: ListChecks },
-+  { id: 'terminal', label: 'Terminal', href: '/terminal', icon: TerminalSquare },
- ] as const;
- 
- /**
-diff --git a/docs/domains/terminal/domain.md b/docs/domains/terminal/domain.md
-index e37318d..a209d6e 100644
---- a/docs/domains/terminal/domain.md
-+++ b/docs/domains/terminal/domain.md
-@@ -121,3 +121,4 @@ Primary: `apps/web/src/features/064-terminal/`
- |------|-------------|------|
- | Plan 064 | Domain created: terminal page, overlay, WS server, tmux session manager, 8 components, 3 hooks, 3 types | 2026-03-02 |
- | Plan 064 Phase 2 | Added TerminalView component (xterm.js + WS + resize + theme + strict cleanup), use-terminal-socket hook, ConnectionStatusBadge, TerminalSkeleton | 2026-03-02 |
-+| Plan 064 Phase 3 | Added terminal page route, session list, page header, PanelShell composition, API route for session listing, Terminal nav item, nuqs params | 2026-03-03 |
-diff --git a/docs/plans/064-tmux/tasks/phase-3-terminal-page-surface-1/execution.log.md b/docs/plans/064-tmux/tasks/phase-3-terminal-page-surface-1/execution.log.md
-new file mode 100644
-index 0000000..0d361b0
---- /dev/null
-+++ b/docs/plans/064-tmux/tasks/phase-3-terminal-page-surface-1/execution.log.md
-@@ -0,0 +1,42 @@
-+# Phase 3: Execution Log
-+
-+**Phase**: Terminal Page (Surface 1)
++**Phase**: Terminal Overlay Panel (Surface 2)
 +**Started**: 2026-03-03
-+**Completed**: 2026-03-03
-+**Status**: Complete
++**Status**: In Progress
 +
 +---
 +
-+## T001: Extend PanelMode
-+**Result**: Pass. Added `'sessions'` to `PanelMode` union in `_platform/panel-layout/types.ts`. Existing consumers use `Partial<Record<PanelMode, ReactNode>>` so unknown modes are handled gracefully.
-+
-+## T007: terminal.params.ts
-+**Result**: Pass. Created `params/terminal.params.ts` with `session` param via `parseAsString.withDefault('')`. Composes with `workspaceParams` for server-side cache.
-+
-+## T002: use-terminal-sessions hook + API route
-+**Result**: Pass. Created `app/api/terminal/route.ts` API route (DYK-01) that shells out `tmux list-sessions` and returns JSON. Created `hooks/use-terminal-sessions.ts` with fetch-on-mount, window-focus refetch (DYK-03), auto-select current worktree session, and manual refresh.
-+
-+## T003: terminal-session-list.tsx
-+**Result**: Pass. Created session list with status dots (green=attached, gray=detached), current worktree badge, active session highlight, loading state, empty state with refresh button.
-+
-+## T004: terminal-page-header.tsx
-+**Result**: Pass. Created header with TerminalSquare icon, session name display, and ConnectionStatusBadge.
-+
-+## T005: terminal-page-client.tsx
-+**Result**: Pass. Created PanelShell composition with LeftPanel (sessions mode, single-mode hides switcher per DYK-04), MainPanel (TerminalView), and TerminalPageHeader as explorer slot.
-+
-+## T006: Route files
-+**Result**: Pass. Created `terminal/layout.tsx` (pass-through) and `terminal/page.tsx` (server component). Page resolves workspace info via DI, derives worktree path + branch name (DYK-02), passes to TerminalPageClient.
-+
-+## T008: Add Terminal to WORKSPACE_NAV_ITEMS
-+**Result**: Pass. Added `{ id: 'terminal', label: 'Terminal', href: '/terminal', icon: TerminalSquare }` to workspace nav. Import added for `TerminalSquare` from lucide-react.
-+
-+## T009: Session list tests
-+**Result**: Pass. 5 tests with Test Doc blocks: renders all sessions, highlights current worktree, shows status dots, loading state, empty state with refresh.
-+
-+## Summary
-+- **Tests**: 33 passed, 0 failed (20 Phase 1 + 8 Phase 2 + 5 Phase 3)
-+- **Files created**: 8 (API route, hook, 4 components, 2 route files, params, 1 test file)
-+- **Files modified**: 3 (PanelMode types, navigation-utils, terminal-ws.ts 0.0.0.0)
-+- **Lint**: All Phase 3 files clean
-+- **No vi.mock()**: Tests use plain data fixtures
-diff --git a/docs/plans/064-tmux/tasks/phase-3-terminal-page-surface-1/tasks.fltplan.md b/docs/plans/064-tmux/tasks/phase-3-terminal-page-surface-1/tasks.fltplan.md
-index 223842b..ab42914 100644
---- a/docs/plans/064-tmux/tasks/phase-3-terminal-page-surface-1/tasks.fltplan.md
-+++ b/docs/plans/064-tmux/tasks/phase-3-terminal-page-surface-1/tasks.fltplan.md
-@@ -3,7 +3,7 @@
- **Plan**: [tmux-plan.md](../../tmux-plan.md)
- **Phase**: Phase 3: Terminal Page (Surface 1)
- **Generated**: 2026-03-02
--**Status**: Ready for takeoff
-+**Status**: Landed
- 
- ---
- 
-@@ -60,7 +60,7 @@ stateDiagram-v2
-     S5 --> S6
-     S6 --> [*]
- 
--    class S1,S2,S3,S4,S5,S6 pending
-+    class S1,S2,S3,S4,S5,S6 done
- ```
- 
- **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
-@@ -71,11 +71,11 @@ stateDiagram-v2
- 
- <!-- Updated by /plan-6 during implementation: [ ] → [~] → [x] -->
- 
--- [ ] **Stage 1: Extend panel mode contract** — Add `sessions` mode support to panel layout types so terminal page can register a sessions left-panel mode (`apps/web/src/features/_platform/panel-layout/types.ts`)
--- [ ] **Stage 2: Build terminal sessions data hook** — Implement session list/select/create state for the page surface (`apps/web/src/features/064-terminal/hooks/use-terminal-sessions.ts` — new file)
--- [ ] **Stage 3: Build sessions and header UI blocks** — Implement session list and page header components that expose selection + status UX (`apps/web/src/features/064-terminal/components/terminal-session-list.tsx`, `apps/web/src/features/064-terminal/components/terminal-page-header.tsx` — new files)
--- [ ] **Stage 4: Compose Terminal page client** — Assemble `PanelShell` with left sessions panel and main `TerminalView` region (`apps/web/src/features/064-terminal/components/terminal-page-client.tsx` — new file)
--- [ ] **Stage 5: Wire routes and URL params** — Add route files and nuqs session param contract for `/workspaces/[slug]/terminal` (`apps/web/app/(dashboard)/workspaces/[slug]/terminal/page.tsx`, `apps/web/app/(dashboard)/workspaces/[slug]/terminal/layout.tsx`, `apps/web/src/features/064-terminal/params/terminal.params.ts` — new files)
-+- [x] **Stage 1: Extend panel mode contract** — Add `sessions` mode support to panel layout types so terminal page can register a sessions left-panel mode (`apps/web/src/features/_platform/panel-layout/types.ts`)
-+- [x] **Stage 2: Build terminal sessions data hook**
-+- [x] **Stage 3: Build sessions and header UI blocks**
-+- [x] **Stage 4: Compose Terminal page client**
-+- [~] **Stage 5: Wire routes and URL params** — Add route files and nuqs session param contract for `/workspaces/[slug]/terminal` (`apps/web/app/(dashboard)/workspaces/[slug]/terminal/page.tsx`, `apps/web/app/(dashboard)/workspaces/[slug]/terminal/layout.tsx`, `apps/web/src/features/064-terminal/params/terminal.params.ts` — new files)
- - [ ] **Stage 6: Add navigation entry and lightweight validation** — Add Terminal to workspace nav and verify session list rendering in tests (`apps/web/src/lib/navigation-utils.ts`, `test/unit/web/features/064-terminal/terminal-session-list.test.tsx` — new test file)
- 
- ---
-@@ -145,15 +145,15 @@ flowchart LR
- 
- ## Checklist
- 
--- [ ] T001: Extend panel layout mode contract to include `sessions` (CS-1)
--- [ ] T002: Create `use-terminal-sessions.ts` hook for list/select/create state (CS-3)
--- [ ] T003: Create `terminal-session-list.tsx` with status/highlight/select UX (CS-2)
--- [ ] T004: Create `terminal-page-header.tsx` using connection status indicators (CS-1)
--- [ ] T005: Create `terminal-page-client.tsx` with PanelShell composition (CS-3)
--- [ ] T006: Add terminal route layout/page files and connect props (CS-1)
--- [ ] T007: Create `terminal.params.ts` for `session` nuqs query state (CS-1)
--- [ ] T008: Add Terminal to `WORKSPACE_NAV_ITEMS` (CS-1)
--- [ ] T009: Add `terminal-session-list` lightweight unit tests (CS-2)
-+- [x] T001: Extend panel layout mode contract to include `sessions` (CS-1)
-+- [x] T002: Create `use-terminal-sessions.ts` hook for list/select/create state (CS-3)
-+- [x] T003: Create `terminal-session-list.tsx` with status/highlight/select UX (CS-2)
-+- [x] T004: Create `terminal-page-header.tsx` using connection status indicators (CS-1)
-+- [x] T005: Create `terminal-page-client.tsx` with PanelShell composition (CS-3)
-+- [x] T006: Add terminal route layout/page files and connect props (CS-1)
-+- [x] T007: Create `terminal.params.ts` for `session` nuqs query state (CS-1)
-+- [x] T008: Add Terminal to `WORKSPACE_NAV_ITEMS` (CS-1)
-+- [x] T009: Add `terminal-session-list` lightweight unit tests (CS-2)
- 
- ---
- 
-diff --git a/docs/plans/064-tmux/tasks/phase-3-terminal-page-surface-1/tasks.md b/docs/plans/064-tmux/tasks/phase-3-terminal-page-surface-1/tasks.md
-index 71da75a..6af3a9a 100644
---- a/docs/plans/064-tmux/tasks/phase-3-terminal-page-surface-1/tasks.md
-+++ b/docs/plans/064-tmux/tasks/phase-3-terminal-page-surface-1/tasks.md
-@@ -131,15 +131,15 @@ flowchart TD
- 
- | Status | ID | Task | Domain | Path(s) | Done When | Notes |
- |--------|-----|------|--------|---------|-----------|-------|
--| [ ] | T001 | Extend panel layout mode contract to include `sessions` and verify existing mode consumers remain safe. | _platform/panel-layout | /Users/jordanknight/substrate/064-tmux/apps/web/src/features/_platform/panel-layout/types.ts | `PanelMode` includes `'sessions'`; existing browser/workflow pages compile and render with no mode-regression behavior. | Plan Finding 03: validate `Partial<Record<PanelMode,...>>` behavior. |
--| [ ] | T002 | Create `use-terminal-sessions.ts` hook to fetch terminal session list, expose selected session state, and provide create/select actions for page usage. | terminal | /Users/jordanknight/substrate/064-tmux/apps/web/src/features/064-terminal/hooks/use-terminal-sessions.ts | Hook returns sessions (`name`, `attached`, `isCurrentWorktree`) and stable handlers for selection/create. | Reuse list-fetch patterns from existing workspace hooks; no duplicate concept found. |
--| [ ] | T003 | Create `terminal-session-list.tsx` with status dots, current worktree highlight, and session selection/new-session triggers. | terminal | /Users/jordanknight/substrate/064-tmux/apps/web/src/features/064-terminal/components/terminal-session-list.tsx | Session list renders all sessions, highlights current worktree session, and emits selection/create actions. | Targets AC-09 and AC-10. |
--| [ ] | T004 | Create `terminal-page-header.tsx` showing session identity and live connection status, with room for future overlay affordance. | terminal | /Users/jordanknight/substrate/064-tmux/apps/web/src/features/064-terminal/components/terminal-page-header.tsx | Header renders session label and `ConnectionStatusBadge` state coherently. | Align with Workshop 001 page-surface framing. |
--| [ ] | T005 | Create `terminal-page-client.tsx` that composes `PanelShell` with `LeftPanel` sessions content and `MainPanel` TerminalView content. | terminal | /Users/jordanknight/substrate/064-tmux/apps/web/src/features/064-terminal/components/terminal-page-client.tsx | Terminal page client renders three panel sections with resizable left panel and active terminal session in main panel. | Targets AC-01, AC-07, AC-08 at surface composition level. |
--| [ ] | T006 | Add route files for `/workspaces/[slug]/terminal` and wire server props/search params into `TerminalPageClient`. | terminal | /Users/jordanknight/substrate/064-tmux/apps/web/app/(dashboard)/workspaces/[slug]/terminal/layout.tsx<br/>/Users/jordanknight/substrate/064-tmux/apps/web/app/(dashboard)/workspaces/[slug]/terminal/page.tsx | Navigating to terminal route loads terminal surface and respects session query param pathing. | Route layer should remain thin; core logic stays in feature client/hook files. |
--| [ ] | T007 | Create `terminal.params.ts` nuqs param contract for `session` and integrate with page client flow. | terminal | /Users/jordanknight/substrate/064-tmux/apps/web/src/features/064-terminal/params/terminal.params.ts | `session` query value parses and persists via nuqs pattern; invalid/missing values handled safely. | Reuse `file-browser.params.ts` structure. |
--| [ ] | T008 | Add Terminal entry to workspace navigation tools list with correct workspace-only visibility. | shared | /Users/jordanknight/substrate/064-tmux/apps/web/src/lib/navigation-utils.ts | Terminal nav item appears in workspace tools and routes to terminal page in worktree context. | Targets AC-12. |
--| [ ] | T009 | Add lightweight jsdom tests for session-list rendering and selection-state behavior. | terminal | /Users/jordanknight/substrate/064-tmux/test/unit/web/features/064-terminal/terminal-session-list.test.tsx | Tests validate session row rendering, status indicators, and active-session highlighting behavior. | Keep lightweight per Hybrid strategy; no `vi.mock()`. |
-+| [x] | T001 | Extend panel layout mode contract to include `sessions` and verify existing mode consumers remain safe. | _platform/panel-layout | /Users/jordanknight/substrate/064-tmux/apps/web/src/features/_platform/panel-layout/types.ts | `PanelMode` includes `'sessions'`; existing browser/workflow pages compile and render with no mode-regression behavior. | Plan Finding 03: validate `Partial<Record<PanelMode,...>>` behavior. |
-+| [x] | T002 | Create `use-terminal-sessions.ts` hook to fetch terminal session list, expose selected session state, and provide create/select actions for page usage. | terminal | /Users/jordanknight/substrate/064-tmux/apps/web/src/features/064-terminal/hooks/use-terminal-sessions.ts | Hook returns sessions (`name`, `attached`, `isCurrentWorktree`) and stable handlers for selection/create. | Reuse list-fetch patterns from existing workspace hooks; no duplicate concept found. |
-+| [x] | T003 | Create `terminal-session-list.tsx` with status dots, current worktree highlight, and session selection/new-session triggers. | terminal | /Users/jordanknight/substrate/064-tmux/apps/web/src/features/064-terminal/components/terminal-session-list.tsx | Session list renders all sessions, highlights current worktree session, and emits selection/create actions. | Targets AC-09 and AC-10. |
-+| [x] | T004 | Create `terminal-page-header.tsx` showing session identity and live connection status, with room for future overlay affordance. | terminal | /Users/jordanknight/substrate/064-tmux/apps/web/src/features/064-terminal/components/terminal-page-header.tsx | Header renders session label and `ConnectionStatusBadge` state coherently. | Align with Workshop 001 page-surface framing. |
-+| [x] | T005 | Create `terminal-page-client.tsx` that composes `PanelShell` with `LeftPanel` sessions content and `MainPanel` TerminalView content. | terminal | /Users/jordanknight/substrate/064-tmux/apps/web/src/features/064-terminal/components/terminal-page-client.tsx | Terminal page client renders three panel sections with resizable left panel and active terminal session in main panel. | Targets AC-01, AC-07, AC-08 at surface composition level. |
-+| [x] | T006 | Add route files for `/workspaces/[slug]/terminal` and wire server props/search params into `TerminalPageClient`. | terminal | /Users/jordanknight/substrate/064-tmux/apps/web/app/(dashboard)/workspaces/[slug]/terminal/layout.tsx<br/>/Users/jordanknight/substrate/064-tmux/apps/web/app/(dashboard)/workspaces/[slug]/terminal/page.tsx | Navigating to terminal route loads terminal surface and respects session query param pathing. | Route layer should remain thin; core logic stays in feature client/hook files. |
-+| [x] | T007 | Create `terminal.params.ts` nuqs param contract for `session` and integrate with page client flow. | terminal | /Users/jordanknight/substrate/064-tmux/apps/web/src/features/064-terminal/params/terminal.params.ts | `session` query value parses and persists via nuqs pattern; invalid/missing values handled safely. | Reuse `file-browser.params.ts` structure. |
-+| [x] | T008 | Add Terminal entry to workspace navigation tools list with correct workspace-only visibility. | shared | /Users/jordanknight/substrate/064-tmux/apps/web/src/lib/navigation-utils.ts | Terminal nav item appears in workspace tools and routes to terminal page in worktree context. | Targets AC-12. |
-+| [x] | T009 | Add lightweight jsdom tests for session-list rendering and selection-state behavior. | terminal | /Users/jordanknight/substrate/064-tmux/test/unit/web/features/064-terminal/terminal-session-list.test.tsx | Tests validate session row rendering, status indicators, and active-session highlighting behavior. | Keep lightweight per Hybrid strategy; no `vi.mock()`. |
- 
- ## Objectives & Scope
- 
-@@ -212,10 +212,15 @@ sequenceDiagram
- 
- ## Discoveries & Learnings
- 
--_Populated during implementation by plan-6._
-+_From DYK session 2026-03-03, pre-implementation._
- 
- | Date | Task | Type | Discovery | Resolution | References |
- |------|------|------|-----------|------------|------------|
-+| 2026-03-03 | T002 | DYK-01 | **No server endpoint for session list**: `use-terminal-sessions` hook needs to fetch tmux session list, but sidecar WS server has no listing endpoint and `TmuxSessionManager.listSessions()` is server-side only. | Add Next.js API route at `/api/terminal/sessions` that shells out `tmux list-sessions` directly. Simple, decoupled from WS I/O channel. | `TerminalMessage` already has `{type:'sessions'}` variant but server never sends it. |
-+| 2026-03-03 | T006 | DYK-02 | **Slug ≠ branch name**: URL uses workspace slug but tmux sessions are named by branch (e.g., `064-tmux`). Page needs branch name for auto-selection and worktree path for CWD. | Read branch name and worktree path from workspace provider context (existing pattern from layout.tsx). Derive session name from worktree directory name per `new-Worktree.sh` convention. | Workspace provider already fetches worktree metadata. |
-+| 2026-03-03 | T002 | DYK-03 | **Session list goes stale immediately**: Single fetch gives a point-in-time snapshot. Sessions created from desktop terminal won't appear until next fetch. | Fetch on mount + manual refresh button + refetch on window focus event. Covers 95% of cases with zero polling overhead. | Session list is tiny (a few rows), fetch is near-instant. |
-+| 2026-03-03 | T001 | DYK-04 | **Terminal page only needs one left panel mode**: Adding `'sessions'` to PanelMode creates a single-tab mode bar with no switching needed. LeftPanel mode switcher adds visual noise for one mode. | Still extend PanelMode for type safety. Pass single-mode array to LeftPanel — it likely hides or minimizes the switcher for single modes. | Browser page has 2 modes (tree/changes), terminal only needs 1 (sessions). |
-+| 2026-03-03 | T002 | DYK-05 | **API route for session listing needs future auth readiness**: Route calls `tmux list-sessions` without CWD validation or auth. Safe now (localhost-only), but needs auth when Plan 063 merges. | Create minimal unauthenticated API route now (consistent with sidecar's current state). Both get auth simultaneously when 063 lands. | Workshop 002 auth design covers both WS and HTTP endpoints. |
- 
- ---
- 
-diff --git a/test/unit/web/features/064-terminal/terminal-session-list.test.tsx b/test/unit/web/features/064-terminal/terminal-session-list.test.tsx
+diff --git a/docs/plans/064-tmux/tasks/phase-4-terminal-overlay-panel/tasks.fltplan.md b/docs/plans/064-tmux/tasks/phase-4-terminal-overlay-panel/tasks.fltplan.md
 new file mode 100644
-index 0000000..1d85fe3
+index 0000000..78aa855
 --- /dev/null
-+++ b/test/unit/web/features/064-terminal/terminal-session-list.test.tsx
-@@ -0,0 +1,123 @@
-+import { TerminalSessionList } from '@/features/064-terminal/components/terminal-session-list';
-+import type { TerminalSession } from '@/features/064-terminal/types';
-+import { render, screen } from '@testing-library/react';
-+import { describe, expect, it } from 'vitest';
++++ b/docs/plans/064-tmux/tasks/phase-4-terminal-overlay-panel/tasks.fltplan.md
+@@ -0,0 +1,142 @@
++# Flight Plan: Phase 4 — Terminal Overlay Panel (Surface 2)
 +
-+const MOCK_SESSIONS: TerminalSession[] = [
-+  { name: '064-tmux', attached: 1, windows: 2, created: 1700000000, isCurrentWorktree: true },
-+  { name: '063-login', attached: 0, windows: 1, created: 1699999000, isCurrentWorktree: false },
-+  { name: '065-new', attached: 2, windows: 3, created: 1700001000, isCurrentWorktree: false },
-+];
++**Plan**: [tmux-plan.md](../../tmux-plan.md)
++**Phase**: Phase 4: Terminal Overlay Panel (Surface 2)
++**Generated**: 2026-03-03
++**Status**: Ready for takeoff
 +
-+describe('TerminalSessionList', () => {
-+  it('renders all sessions with correct names', () => {
-+    /*
-+    Test Doc:
-+    - Why: Session list must display all available tmux sessions for selection
-+    - Contract: Each session renders as a button with session name text
-+    - Usage Notes: Pass sessions array + handlers; activeSession highlights selection
-+    - Quality Contribution: Catches rendering regressions in session enumeration
-+    - Worked Example: 3 sessions => 3 buttons with names '064-tmux', '063-login', '065-new'
-+    */
-+    render(
-+      <TerminalSessionList
-+        sessions={MOCK_SESSIONS}
-+        activeSession="064-tmux"
-+        loading={false}
-+        onSelect={() => {}}
-+        onRefresh={() => {}}
-+      />
-+    );
-+    expect(screen.getByText('064-tmux')).toBeTruthy();
-+    expect(screen.getByText('063-login')).toBeTruthy();
-+    expect(screen.getByText('065-new')).toBeTruthy();
-+  });
++---
 +
-+  it('highlights current worktree session with badge', () => {
-+    /*
-+    Test Doc:
-+    - Why: Current worktree must be visually distinct for quick identification
-+    - Contract: Session with isCurrentWorktree=true shows "current" badge
-+    - Usage Notes: Badge only appears for the session matching the active worktree branch
-+    - Quality Contribution: Guards worktree-identification UX (AC-09)
-+    - Worked Example: '064-tmux' with isCurrentWorktree=true => 'current' badge visible
-+    */
-+    render(
-+      <TerminalSessionList
-+        sessions={MOCK_SESSIONS}
-+        activeSession={null}
-+        loading={false}
-+        onSelect={() => {}}
-+        onRefresh={() => {}}
-+      />
-+    );
-+    expect(screen.getByText('current')).toBeTruthy();
-+  });
++## Departure → Destination
 +
-+  it('shows status dots for attached/detached sessions', () => {
-+    /*
-+    Test Doc:
-+    - Why: Attached count determines session status dot color (green vs gray)
-+    - Contract: attached > 0 shows green dot (aria-label "attached"); 0 shows gray (aria-label "detached")
-+    - Usage Notes: Status dots use aria-labels for accessibility testing
-+    - Quality Contribution: Ensures visual status indicator correctness (AC-09)
-+    - Worked Example: '064-tmux' attached=1 => 'attached' dot; '063-login' attached=0 => 'detached' dot
-+    */
-+    render(
-+      <TerminalSessionList
-+        sessions={MOCK_SESSIONS}
-+        activeSession={null}
-+        loading={false}
-+        onSelect={() => {}}
-+        onRefresh={() => {}}
-+      />
-+    );
-+    const attachedDots = screen.getAllByLabelText('attached');
-+    const detachedDots = screen.getAllByLabelText('detached');
-+    expect(attachedDots.length).toBe(2); // 064-tmux (1) + 065-new (2)
-+    expect(detachedDots.length).toBe(1); // 063-login (0)
-+  });
++**Where we are**: Phases 1-3 delivered a working terminal page at `/workspaces/[slug]/terminal` with sidecar WS server, xterm.js rendering, session list, and sidebar navigation. The terminal works but only as a dedicated page — you have to navigate away from your current workspace page to use it.
 +
-+  it('shows loading state when loading with no sessions', () => {
-+    /*
-+    Test Doc:
-+    - Why: Initial load must show loading indicator before sessions are fetched
-+    - Contract: loading=true + empty sessions => 'Loading sessions…' text
-+    - Usage Notes: Loading indicator only appears when sessions array is empty
-+    - Quality Contribution: Guards initial load UX path
-+    - Worked Example: loading=true, sessions=[] => 'Loading sessions…' visible
-+    */
-+    render(
-+      <TerminalSessionList
-+        sessions={[]}
-+        activeSession={null}
-+        loading={true}
-+        onSelect={() => {}}
-+        onRefresh={() => {}}
-+      />
-+    );
-+    expect(screen.getByText('Loading sessions…')).toBeTruthy();
-+  });
++**Where we're going**: A developer can press `Ctrl+\`` (or click a sidebar button) from ANY workspace page and a terminal overlay slides in from the right edge. The overlay persists across page navigation — browse files, check agents, come back — terminal stays open and connected. Close it with Escape or X, and the tmux session survives for later reattachment.
 +
-+  it('shows empty state with refresh button when no sessions', () => {
-+    /*
-+    Test Doc:
-+    - Why: Empty state must offer recovery action when no sessions exist
-+    - Contract: loading=false + empty sessions => 'No tmux sessions found' + Refresh button
-+    - Usage Notes: Refresh button triggers onRefresh callback for manual retry (DYK-03)
-+    - Quality Contribution: Guards empty-state recovery UX
-+    - Worked Example: loading=false, sessions=[] => 'No tmux sessions found' + 'Refresh' button
-+    */
-+    render(
-+      <TerminalSessionList
-+        sessions={[]}
-+        activeSession={null}
-+        loading={false}
-+        onSelect={() => {}}
-+        onRefresh={() => {}}
-+      />
-+    );
-+    expect(screen.getByText('No tmux sessions found')).toBeTruthy();
-+    expect(screen.getByText('Refresh')).toBeTruthy();
-+  });
-+});
++---
++
++## Domain Context
++
++### Domains We're Changing
++
++| Domain | What Changes | Key Files |
++|--------|-------------|-----------|
++| terminal | Add overlay provider, hook, panel component, barrel exports | `hooks/use-terminal-overlay.tsx`, `components/terminal-overlay-panel.tsx`, `index.ts` |
++| shared (workspace layout) | Wire provider + panel into layout | `app/(dashboard)/workspaces/[slug]/layout.tsx` |
++| shared (sidebar) | Add toggle button to footer | `components/dashboard-sidebar.tsx` |
++| shared (SDK) | Register command + keybinding | `lib/sdk/sdk-bootstrap.ts` |
++
++### Domains We Depend On (no changes)
++
++| Domain | What We Consume | Contract |
++|--------|----------------|----------|
++| terminal (Phase 2) | Terminal renderer | `TerminalView`, `ConnectionStatusBadge` |
++| _platform/sdk | Command + keybinding registration | `ICommandRegistry`, keybinding service |
++
++---
++
++## Flight Status
++
++```mermaid
++stateDiagram-v2
++    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
++    classDef active fill:#FFC107,stroke:#FFA000,color:#000
++    classDef done fill:#4CAF50,stroke:#388E3C,color:#fff
++    classDef blocked fill:#F44336,stroke:#D32F2F,color:#fff
++
++    state "1: Overlay provider + hook" as S1
++    state "2: Overlay panel component" as S2
++    state "3: Wire into layout" as S3
++    state "4: SDK command + keybinding" as S4
++    state "5: Sidebar toggle button" as S5
++    state "6: Verify + barrel" as S6
++
++    [*] --> S1
++    S1 --> S2
++    S2 --> S3
++    S1 --> S4
++    S1 --> S5
++    S3 --> S6
++    S6 --> [*]
++
++    class S1,S2,S3 done
++    class S4 active
++    class S5,S6 pending
++```
++
++**Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
++
++---
++
++## Stages
++
++- [ ] **Stage 1: Overlay provider + hook** — Create context, provider, and useTerminalOverlay hook (`use-terminal-overlay.tsx` — new file)
++- [ ] **Stage 2: Overlay panel component** — Fixed-position panel with slide-in, header, close on Escape (`terminal-overlay-panel.tsx` — new file)
++- [ ] **Stage 3: Wire into workspace layout** — Add provider + panel to layout.tsx with error boundary (`layout.tsx`)
++- [ ] **Stage 4: SDK command + keybinding** — Register terminal.toggleOverlay + Ctrl+backtick (`sdk-bootstrap.ts`)
++- [ ] **Stage 5: Sidebar toggle button** — Add Terminal button to sidebar footer (`dashboard-sidebar.tsx`)
++- [ ] **Stage 6: Verify persistence + barrel update** — Test navigation persistence, close/reconnect, update barrel exports
++
++---
++
++## Architecture: Before & After
++
++```mermaid
++flowchart LR
++    classDef existing fill:#E8F5E9,stroke:#4CAF50,color:#000
++    classDef changed fill:#FFF3E0,stroke:#FF9800,color:#000
++    classDef new fill:#E3F2FD,stroke:#2196F3,color:#000
++
++    subgraph Before["Before Phase 4"]
++        B1["Workspace Layout<br/>(no overlay)"]:::existing
++        B2["Terminal Page only"]:::existing
++        B3["Sidebar<br/>(no terminal button)"]:::existing
++    end
++
++    subgraph After["After Phase 4"]
++        A1["Workspace Layout<br/>+ TerminalOverlayProvider<br/>+ TerminalOverlayPanel"]:::changed
++        A2["Terminal Page"]:::existing
++        A3["Sidebar<br/>+ Terminal toggle"]:::changed
++        A4["TerminalOverlayProvider"]:::new
++        A5["TerminalOverlayPanel"]:::new
++        A6["SDK: Ctrl+backtick"]:::new
++
++        A1 --> A4
++        A4 --> A5
++        A5 --> TV["TerminalView"]:::existing
++        A3 -->|"toggle"| A4
++        A6 -->|"toggle"| A4
++    end
++```
++
++---
++
++## Acceptance Criteria
++
++- [ ] AC-05: Ctrl+\` toggles overlay; sidebar button toggles overlay
++- [ ] AC-06: Overlay persists across workspace page navigation
++- [ ] AC-13: Close overlay → WS closed, PTY killed, tmux session survives; reopen → reconnects
++
++## Goals & Non-Goals
++
++**Goals**:
++- Persistent terminal overlay accessible from any workspace page
++- Keyboard shortcut and sidebar button for quick toggle
++- Clean close/reconnect lifecycle
++
++**Non-Goals**:
++- Agent overlay coexistence (059 not merged)
++- Multiple simultaneous overlay terminals
++- tmux fallback toast (Phase 5)
++
++---
++
++## Checklist
++
++- [ ] T001: TerminalOverlayProvider + useTerminalOverlay hook
++- [ ] T002: TerminalOverlayPanel (fixed right, slide-in, Escape close)
++- [ ] T003: Wire into workspace layout.tsx with error boundary
++- [ ] T004: SDK command + Ctrl+backtick keybinding
++- [ ] T005: Sidebar footer toggle button
++- [ ] T006: Verify persistence + close behavior
++- [ ] T007: Update barrel exports
+diff --git a/docs/plans/064-tmux/tasks/phase-4-terminal-overlay-panel/tasks.md b/docs/plans/064-tmux/tasks/phase-4-terminal-overlay-panel/tasks.md
+new file mode 100644
+index 0000000..4e16875
+--- /dev/null
++++ b/docs/plans/064-tmux/tasks/phase-4-terminal-overlay-panel/tasks.md
+@@ -0,0 +1,197 @@
++# Phase 4: Terminal Overlay Panel (Surface 2)
++
++## Executive Briefing
++
++- **Purpose**: Build the persistent right-edge terminal overlay that stays open across workspace page navigations, allowing developers to keep a terminal visible alongside any workspace page (browser, agents, workflows). Follows the Plan 059 AgentOverlayPanel concept but implemented independently since 059 isn't merged.
++- **What We're Building**: A `TerminalOverlayProvider` context at the workspace layout level, a `TerminalOverlayPanel` component with fixed-position slide-in animation, a `Ctrl+\`` keyboard shortcut toggle via SDK command registry, and a sidebar footer button to toggle the overlay.
++- **Goals**:
++  - ✅ `TerminalOverlayProvider` + `useTerminalOverlay()` hook (context for overlay state)
++  - ✅ `TerminalOverlayPanel` component (fixed right, slide-in, close on Escape/X)
++  - ✅ Wire provider + panel into workspace layout.tsx
++  - ✅ Register `terminal.toggleOverlay` SDK command + `Ctrl+\`` keybinding
++  - ✅ Terminal toggle button in sidebar footer
++  - ✅ Overlay persists across workspace page navigation
++  - ✅ Close overlay → WS closed, PTY killed, tmux session survives
++- **Non-Goals**:
++  - ❌ Coexistence with Agent Overlay (059 not merged — will coordinate later)
++  - ❌ tmux fallback toast (Phase 5)
++  - ❌ Authentication (future)
++  - ❌ Multiple simultaneous overlay terminals
++
++## Prior Phase Context
++
++### Phase 1: Sidecar WebSocket Server + tmux Integration
++**A. Deliverables**: Sidecar WS server (`terminal-ws.ts`), `TmuxSessionManager`, types, fakes.
++**B. Dependencies Exported**: `TerminalMessage`, `ConnectionStatus`, WS protocol (session+cwd query params, raw data + JSON control).
++**C. Gotchas**: tmux size war (smallest client wins), tsx watch restarts drop connections, node-pty spawn-helper needs +x permission.
++**D. Incomplete Items**: None.
++**E. Patterns**: Injectable deps, fake-first testing, `createTerminalServer(deps)` factory.
++
++### Phase 2: TerminalView Component (xterm.js Frontend)
++**A. Deliverables**: `use-terminal-socket.ts`, `terminal-inner.tsx`, `terminal-view.tsx`, `ConnectionStatusBadge`, `TerminalSkeleton`.
++**B. Dependencies Exported**: `TerminalView` (dynamic import, ssr:false), `ConnectionStatusBadge`, `TerminalViewProps`.
++**C. Gotchas**: DYK-02 control message whitelist, DYK-03 cleanup ordering (addons before terminal), absolute inset-0 container for FitAddon, re-fit on WS status=connected, 100px iPad bottom padding.
++**D. Incomplete Items**: None.
++**E. Patterns**: Ref-based callbacks (useWorkspaceSSE pattern), stale-socket guard (`wsRef.current !== ws`).
++
++### Phase 3: Terminal Page (Surface 1)
++**A. Deliverables**: Terminal page route (`/workspaces/[slug]/terminal`), `TerminalPageClient` (PanelShell composition), `TerminalSessionList`, `TerminalPageHeader`, `use-terminal-sessions`, `/api/terminal` API route, `terminal.params.ts`, Terminal in `WORKSPACE_NAV_ITEMS`.
++**B. Dependencies Exported**: Session list API, page composition patterns, nuqs params.
++**C. Gotchas**: DYK-01 API route needed for session listing, DYK-02 slug ≠ branch name (derive from worktree path), PanelMode `'sessions'` extension safe via `Partial<Record>`, `TERMINAL_WS_HOST` env for remote binding.
++**D. Incomplete Items**: None.
++**E. Patterns**: Server component resolves workspace → passes to client component, `useTerminalSessions` with fetch-on-mount + window-focus refetch.
++
++## Pre-Implementation Check
++
++| File | Exists? | Domain Check | Notes |
++|------|---------|-------------|-------|
++| `apps/web/src/features/064-terminal/hooks/use-terminal-overlay.tsx` | ❌ | Create | terminal domain — context + provider + hook |
++| `apps/web/src/features/064-terminal/components/terminal-overlay-panel.tsx` | ❌ | Create | terminal domain — fixed-position overlay component |
++| `apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx` | ✅ | Modify | shared — add TerminalOverlayProvider + TerminalOverlayPanel |
++| `apps/web/src/lib/sdk/sdk-bootstrap.ts` | ✅ | Modify | shared — register terminal.toggleOverlay command + keybinding |
++| `apps/web/src/components/dashboard-sidebar.tsx` | ✅ | Modify | shared — add terminal toggle button to sidebar footer |
++| `apps/web/src/features/064-terminal/index.ts` | ✅ | Modify | terminal — export overlay provider + hook |
++
++**Concept search**: No overlay provider/panel exists in this worktree. Plan 059's AgentOverlayPanel is not merged. Independent implementation required — simple context+hook pattern, no duplication risk.
++
++## Architecture Map
++
++```mermaid
++flowchart TD
++    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
++    classDef completed fill:#4CAF50,stroke:#388E3C,color:#fff
++
++    subgraph PriorPhases["Prior Phase Assets"]
++        P2["TerminalView<br/>+ use-terminal-socket"]:::completed
++        P3["Terminal Page<br/>+ session list"]:::completed
++    end
++
++    subgraph Phase4["Phase 4: Terminal Overlay Panel"]
++        T001["T001: TerminalOverlayProvider<br/>+ useTerminalOverlay hook"]:::pending
++        T002["T002: TerminalOverlayPanel<br/>fixed right, slide-in"]:::pending
++        T003["T003: Wire into<br/>workspace layout"]:::pending
++        T004["T004: SDK command<br/>+ Ctrl+backtick"]:::pending
++        T005["T005: Sidebar<br/>toggle button"]:::pending
++        T006["T006: Verify persistence<br/>+ close behavior"]:::pending
++        T007["T007: Barrel export<br/>update"]:::pending
++
++        T001 --> T002
++        T002 --> T003
++        T001 --> T004
++        T001 --> T005
++        T003 --> T006
++        T006 --> T007
++    end
++
++    P2 --> T002
++```
++
++## Tasks
++
++| Status | ID | Task | Domain | Path(s) | Done When | Notes |
++|--------|-----|------|--------|---------|-----------|-------|
++| [x] | T001 | **Create `use-terminal-overlay.tsx`**: React context + provider + hook. Provider stores `isOpen`, `sessionName`, `cwd`. Hook exposes `openTerminal(session, cwd)`, `closeTerminal()`, `toggleTerminal()`, `isOpen`. Throw if used outside provider. | terminal | `apps/web/src/features/064-terminal/hooks/use-terminal-overlay.tsx` | Provider renders children; hook returns open/close/toggle; throws outside provider context. | Plan 059 useAgentOverlay concept — independent implementation since 059 not merged. |
++| [x] | T002 | **Create `terminal-overlay-panel.tsx`**: Fixed-position panel (`position: fixed; top: 0; right: 0; height: 100%`), 480px wide, slide-in animation from right, header with session name + ConnectionStatusBadge + X close button. Renders `TerminalView` inside. Close on Escape keydown. z-index 44. Only renders when `isOpen`. | terminal | `apps/web/src/features/064-terminal/components/terminal-overlay-panel.tsx` | Panel slides in from right on open; closes on Escape and X button; terminal connects and renders; z-index 44. | Workshop 001 Surface 2 design. AC-05. |
++| [x] | T003 | **Wire `TerminalOverlayProvider` + `TerminalOverlayPanel` into workspace layout**: Add provider wrapping children, render panel after children. Wrap in error boundary so overlay failures don't crash all workspace pages. | shared | `apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx` | Overlay available on all workspace pages. No errors when provider present but overlay closed. Browser/agents pages still render correctly. | Finding 05 (high risk). Wrap in error boundary. |
++| [x] | T004 | **Register `terminal.toggleOverlay` SDK command + `Ctrl+\`` keybinding**: Use existing command registry pattern in `sdk-bootstrap.ts`. Command calls `toggleTerminal()` from overlay hook. Keybinding uses `$mod+grave`. | terminal | `apps/web/src/lib/sdk/sdk-bootstrap.ts` | Pressing Ctrl+\` toggles overlay. Command appears in command palette. | Existing pattern: `$mod+Shift+KeyP` for palette, `$mod+KeyP` for go-to-file. AC-05. |
++| [x] | T005 | **Add terminal toggle button to sidebar footer**: Add `SidebarMenuItem` with TerminalSquare icon in `SidebarFooter` section of `dashboard-sidebar.tsx`. Button calls `toggleTerminal()` from overlay hook. | shared | `apps/web/src/components/dashboard-sidebar.tsx` | Button visible in sidebar footer. Clicking toggles overlay. | AC-05. Existing footer has Settings button — add Terminal above it. |
++| [ ] | T006 | **Verify overlay persistence + close behavior**: Open overlay on browser page → navigate to agents → overlay stays open and connected. Close overlay → WS disconnects → reopen → reconnects to same tmux session. | terminal | _(verification only)_ | AC-06: overlay persists across navigation. AC-13: close disconnects WS but tmux session survives. | Manual verification — document evidence in execution log. |
++| [~] | T007 | **Update barrel exports**: Add `TerminalOverlayProvider`, `TerminalOverlayPanel`, `useTerminalOverlay` to `index.ts`. | terminal | `apps/web/src/features/064-terminal/index.ts` | Imports from `@/features/064-terminal` resolve overlay contracts. | Domain contract update. |
++
++## Context Brief
++
++**Key findings from plan**:
++- **Finding 01** (Critical): Plan 059 agent overlay not merged — implement terminal overlay independently. Same pattern (context+hook+fixed panel), separate provider.
++- **Finding 05** (High): Workspace layout.tsx modification affects ALL workspace pages. Wrap TerminalOverlayProvider in error boundary. Provider is pure context (no side effects until panel mounts).
++
++**Domain dependencies**:
++- `terminal` (own domain): `TerminalView`, `ConnectionStatusBadge`, `ConnectionStatus` — reuse Phase 2 rendering
++- `_platform/sdk`: `ICommandRegistry`, keybinding registration — command + shortcut wiring
++- `_platform/workspace-url`: workspace context — derive session name + cwd from workspace
++
++**Domain constraints**:
++- All terminal overlay files under `apps/web/src/features/064-terminal/`
++- Workspace layout modification is cross-domain — minimal footprint (just provider + panel render)
++- SDK command registration follows existing patterns in `sdk-bootstrap.ts`
++
++**Reusable from prior phases**:
++- `TerminalView` component — renders terminal in any container (Phase 2)
++- `ConnectionStatusBadge` — status display (Phase 2)
++- `useTerminalSessions` — session list for default session selection (Phase 3)
++- Workspace layout context — `slug`, `worktreePath`, `branch` (Phase 3 pattern)
++
++```mermaid
++flowchart LR
++    subgraph Layout["Workspace Layout"]
++        Provider["TerminalOverlayProvider"]
++        Children["Page Content<br/>(browser/agents/terminal)"]
++        Panel["TerminalOverlayPanel<br/>fixed right, z-44"]
++    end
++
++    subgraph Sidebar["Sidebar"]
++        Btn["Terminal Toggle Button"]
++    end
++
++    subgraph SDK["SDK"]
++        Cmd["terminal.toggleOverlay"]
++        Key["Ctrl+backtick"]
++    end
++
++    Btn -->|"toggleTerminal()"| Provider
++    Key -->|"command"| Cmd
++    Cmd -->|"toggleTerminal()"| Provider
++    Provider -->|"isOpen"| Panel
++    Panel --> TV["TerminalView"]
++    TV -->|"WebSocket"| WS["Sidecar WS Server"]
++```
++
++```mermaid
++sequenceDiagram
++    participant User
++    participant Sidebar as Sidebar Button
++    participant Provider as TerminalOverlayProvider
++    participant Panel as TerminalOverlayPanel
++    participant TV as TerminalView
++    participant WS as Sidecar WS
++
++    User->>Sidebar: Click Terminal button
++    Sidebar->>Provider: toggleTerminal()
++    Provider->>Panel: isOpen=true
++    Panel->>TV: render TerminalView
++    TV->>WS: WebSocket connect
++    WS-->>TV: status: connected
++
++    Note over User,WS: Navigate to different page
++    Note over Panel: Panel stays mounted (in layout)
++    Note over TV: WS stays connected
++
++    User->>Panel: Press Escape
++    Panel->>Provider: closeTerminal()
++    Provider->>Panel: isOpen=false
++    Panel->>TV: unmount
++    TV->>WS: ws.close(1000)
++    Note over WS: PTY killed, tmux survives
++```
++
++## Discoveries & Learnings
++
++_From DYK session 2026-03-03, pre-implementation._
++
++| Date | Task | Type | Discovery | Resolution | References |
++|------|------|------|-----------|------------|------------|
++| 2026-03-03 | T003 | DYK-01 | **Overlay + terminal page size war**: Both surfaces connecting to same tmux session → tmux shrinks to smallest client (overlay ~60 cols crushes full-page terminal). | Suppress overlay on terminal page. If current route is `/workspaces/[slug]/terminal`, auto-close overlay or disable toggle. User confirmed: "should not be able to open the terminal pop out on the terminal page". | Phase 1 DYK-01 (tmux smallest-wins). |
++| 2026-03-03 | T004 | DYK-02 | **`Ctrl+\`` may not work on iPad**: iOS remaps backtick in some keyboard layouts. `$mod+grave` works on desktop browsers. | Accept — sidebar button is the fallback on iPad. No mitigation needed. | VS Code uses same shortcut for terminal toggle (good muscle memory). |
++| 2026-03-03 | T001 | DYK-03 | **Overlay needs session/CWD from worktree context**: Unlike terminal page (server-resolved), overlay lives at layout level. Needs worktree path + branch from URL params. | Read `worktree` search param from URL (always present on worktree pages like browser). Derive branch from directory name. If no worktree param, don't connect. | User confirmed: "overlay should always be called from a page in a worktree". |
++| 2026-03-03 | T003 | DYK-04 | **Error boundary placement**: Provider is pure context (safe). Panel renders TerminalView which dynamically imports xterm.js — if that fails, error bubbles through layout breaking all workspace pages. | Wrap `TerminalOverlayPanel` (not provider) in error boundary. Provider stays unwrapped. Fallback: "Terminal failed to load". | Plan Finding 05 (HIGH risk). |
++| 2026-03-03 | T005 | DYK-05 | **Sidebar is outside overlay provider**: `dashboard-sidebar.tsx` renders outside workspace layout, so `useTerminalOverlay()` would throw. | Use SDK command pattern: sidebar button calls `terminal.toggleOverlay` via `useSDK()`. Provider listens via SDK command handler. Same mechanism as keybinding — both routes go through SDK. | Existing pattern: `sdk:navigate` custom event in sdk-bootstrap.ts. |
++
++---
++
++```
++docs/plans/064-tmux/
++├── tmux-plan.md
++└── tasks/phase-4-terminal-overlay-panel/
++    ├── tasks.md
++    ├── tasks.fltplan.md
++    └── execution.log.md   # created by plan-6
++```
