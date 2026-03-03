@@ -1,0 +1,11 @@
+diff --git a/lib/env.js b/lib/env.js
+index 86672911290a116ab5ee6d79029b066b7ac0d5c2..baad1cced544843e0be8080487d9de5356b63e33 100644
+--- a/lib/env.js
++++ b/lib/env.js
+@@ -1,5 +1,5 @@
+ // @ts-expect-error Next.js does not yet correctly use the `package.json#exports` field
+-import { NextRequest } from "next/server";
++import { NextRequest } from "next/server.js";
+ import { setEnvDefaults as coreSetEnvDefaults } from "@auth/core";
+ /** If `NEXTAUTH_URL` or `AUTH_URL` is defined, override the request's URL. */
+ export function reqWithEnvURL(req) {
