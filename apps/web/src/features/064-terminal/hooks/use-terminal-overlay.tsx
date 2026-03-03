@@ -19,13 +19,15 @@ const TerminalOverlayContext = createContext<TerminalOverlayContextValue | null>
 
 interface TerminalOverlayProviderProps {
   children: ReactNode;
+  defaultSessionName?: string;
+  defaultCwd?: string;
 }
 
-export function TerminalOverlayProvider({ children }: TerminalOverlayProviderProps) {
+export function TerminalOverlayProvider({ children, defaultSessionName, defaultCwd }: TerminalOverlayProviderProps) {
   const [state, setState] = useState<TerminalOverlayState>({
     isOpen: false,
-    sessionName: null,
-    cwd: null,
+    sessionName: defaultSessionName ?? null,
+    cwd: defaultCwd ?? null,
   });
 
   const openTerminal = useCallback((sessionName: string, cwd: string) => {
@@ -42,7 +44,7 @@ export function TerminalOverlayProvider({ children }: TerminalOverlayProviderPro
         return { ...prev, isOpen: false };
       }
 
-      // DYK-03: Derive session/cwd from URL if not provided
+      // Use provided values, then prev state, then URL params as fallback
       let resolvedSession = sessionName ?? prev.sessionName;
       let resolvedCwd = cwd ?? prev.cwd;
 
@@ -56,7 +58,8 @@ export function TerminalOverlayProvider({ children }: TerminalOverlayProviderPro
       }
 
       if (!resolvedSession || !resolvedCwd) {
-        return prev; // Can't open without session info
+        console.warn('[terminal-overlay] Cannot open: no session/cwd resolved');
+        return prev;
       }
 
       return {

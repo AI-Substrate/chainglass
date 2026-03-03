@@ -38,11 +38,13 @@ class TerminalOverlayErrorBoundary extends Component<
 
 interface TerminalOverlayWrapperProps {
   children: ReactNode;
+  defaultSessionName?: string;
+  defaultCwd?: string;
 }
 
-export function TerminalOverlayWrapper({ children }: TerminalOverlayWrapperProps) {
+export function TerminalOverlayWrapper({ children, defaultSessionName, defaultCwd }: TerminalOverlayWrapperProps) {
   return (
-    <TerminalOverlayProvider>
+    <TerminalOverlayProvider defaultSessionName={defaultSessionName} defaultCwd={defaultCwd}>
       {children}
       <TerminalOverlayErrorBoundary>
         <TerminalOverlayPanel />

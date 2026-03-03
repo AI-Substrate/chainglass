@@ -44,6 +44,9 @@ export default async function WorkspaceLayout({ children, params }: LayoutProps)
   const sdkSettings = prefs?.sdkSettings ?? {};
   const sdkMru = prefs?.sdkMru ?? [];
 
+  const defaultWorktreePath = ws?.toJSON().path ?? '';
+  const defaultBranch = defaultWorktreePath.split('/').pop() ?? slug;
+
   return (
     <WorkspaceProvider
       slug={slug}
@@ -60,7 +63,9 @@ export default async function WorkspaceLayout({ children, params }: LayoutProps)
         persistMru={updateSDKMru}
       />
       <WorkspaceAttentionWrapper>
-        <TerminalOverlayWrapper>{children}</TerminalOverlayWrapper>
+        <TerminalOverlayWrapper defaultSessionName={defaultBranch} defaultCwd={defaultWorktreePath}>
+          {children}
+        </TerminalOverlayWrapper>
       </WorkspaceAttentionWrapper>
     </WorkspaceProvider>
   );
