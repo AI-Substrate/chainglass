@@ -562,7 +562,10 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
         const notifier = c.resolve<ICentralEventNotifier>(
           WORKSPACE_DI_TOKENS.CENTRAL_EVENT_NOTIFIER
         );
-        workUnitStateInstance = new WorkUnitStateService(resolvedWorktreePath, notifier);
+        workUnitStateInstance = new WorkUnitStateService(
+          resolvedWorktreePath ?? process.cwd(),
+          notifier
+        );
         return workUnitStateInstance;
       },
     }
