@@ -82,6 +82,7 @@ export default function TerminalInner({
   const rafRef = useRef<number | null>(null);
   const disposedRef = useRef(false);
   const [copyModalText, setCopyModalText] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [bottomOffset, setBottomOffset] = useState(0);
   const tmuxWarningShownRef = useRef(false);
   const { resolvedTheme } = useTheme();
@@ -126,7 +127,17 @@ export default function TerminalInner({
       lastClipboardDataRef.current = data ?? null;
       window.dispatchEvent(new CustomEvent('terminal:clipboard-data', { detail: { data, error } }));
     },
+    onError: (message) => {
+      // Detect auth errors from sidecar
+      if (message?.includes('auth token') || message?.includes('expired token')) {
+        setAuthError(message);
+      }
+    },
     onStatus: async (_status, _tmux, _message) => {
+      // Clear auth error on successful connection
+      if (_status === 'connected') {
+        setAuthError(null);
+      }
       // DYK-01: Show toast once per mount when tmux is unavailable
       if (_status === 'connected' && _tmux === false && !tmuxWarningShownRef.current) {
         tmuxWarningShownRef.current = true;
@@ -318,7 +329,22 @@ export default function TerminalInner({
         style={{ bottom: `${bottomOffset}px` }}
         data-testid="terminal-container"
       />
-      {status === 'disconnected' && (
+      {authError && status === 'disconnected' && (
+        <div className="absolute inset-0 flex items-center justify-center bg-background/90 z-20">
+          <div className="flex flex-col items-center gap-3 text-sm text-muted-foreground">
+            <span className="text-base font-medium text-foreground">Authentication Required</span>
+            <span className="text-center max-w-xs">{authError}</span>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="rounded-md border px-4 py-2 text-xs hover:bg-accent"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      )}
+      {!authError && status === 'disconnected' && (
         <div className="absolute inset-0 flex items-center justify-center bg-background/80">
           <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
             <span>Disconnected</span>

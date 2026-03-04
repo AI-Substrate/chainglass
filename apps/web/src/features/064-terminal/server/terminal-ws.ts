@@ -14,6 +14,7 @@
 
 import fs from 'node:fs';
 import https from 'node:https';
+import { jwtVerify } from 'jose';
 import { type WebSocket, WebSocketServer } from 'ws';
 import type { CommandExecutor, PtyProcess, PtySpawner } from '../types';
 import { TmuxSessionManager } from './tmux-session-manager';
@@ -89,12 +90,19 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
       }
     });
 
-    ws.on('message', (raw: Buffer | string) => {
+    ws.on('message', async (raw: Buffer | string) => {
       const data = raw.toString();
 
       // Try to parse as JSON for control messages
       try {
         const msg = JSON.parse(data);
+        if (msg.type === 'auth' && authEnabled) {
+          const username = await validateToken(msg.token);
+          if (!username) {
+            ws.close(4403, 'Token refresh failed');
+          }
+          return;
+        }
         if (msg.type === 'resize' && typeof msg.cols === 'number' && typeof msg.rows === 'number') {
           pty.resize(msg.cols, msg.rows);
           return;
@@ -157,10 +165,54 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
       wss = new WebSocketServer({ port, host });
     }
 
-    wss.on('connection', (ws: WebSocket, req) => {
+    // DYK-03: Auth configuration — warn if AUTH_SECRET missing
+    const authSecret = process.env.AUTH_SECRET;
+    const authEnabled = !!authSecret;
+    const authKey = authSecret ? new TextEncoder().encode(authSecret) : null;
+
+    if (!authEnabled) {
+      console.warn(
+        '[terminal] WARNING: AUTH_SECRET not set — WebSocket connections are UNAUTHENTICATED. ' +
+          'Set AUTH_SECRET in .env.local to enable terminal auth.'
+      );
+    }
+
+    async function validateToken(token: string): Promise<string | null> {
+      if (!authKey) return null;
+      try {
+        const { payload } = await jwtVerify(token, authKey);
+        return typeof payload.sub === 'string' ? payload.sub : null;
+      } catch {
+        return null;
+      }
+    }
+
+    wss.on('connection', async (ws: WebSocket, req) => {
       const url = new URL(req.url ?? '/', `http://${req.headers.host}`);
       const sessionName = url.searchParams.get('session');
       const cwd = url.searchParams.get('cwd') ?? process.cwd();
+
+      // DYK-04: Log session info without token
+      const logId = `session=${sessionName ?? 'none'}`;
+
+      // Auth check — skip if AUTH_SECRET not configured (graceful fallback)
+      if (authEnabled) {
+        const token = url.searchParams.get('token');
+        if (!token) {
+          ws.send(JSON.stringify({ type: 'error', message: 'Missing auth token' }));
+          ws.close(4401, 'Missing auth token');
+          console.log(`[terminal] Rejected connection (${logId}): missing token`);
+          return;
+        }
+        const username = await validateToken(token);
+        if (!username) {
+          ws.send(JSON.stringify({ type: 'error', message: 'Invalid or expired token' }));
+          ws.close(4403, 'Invalid or expired token');
+          console.log(`[terminal] Rejected connection (${logId}): invalid token`);
+          return;
+        }
+        console.log(`[terminal] Authenticated connection (${logId}): user=${username}`);
+      }
 
       if (!sessionName || !manager.validateSessionName(sessionName)) {
         ws.send(JSON.stringify({ type: 'error', message: 'Invalid or missing session name' }));

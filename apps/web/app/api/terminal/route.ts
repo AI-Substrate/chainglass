@@ -1,4 +1,5 @@
 import { execSync } from 'node:child_process';
+import { auth } from '@/auth';
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
@@ -11,6 +12,11 @@ interface SessionInfo {
 }
 
 export async function GET(): Promise<NextResponse> {
+  const session = await auth();
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const output = execSync(
       'tmux list-sessions -F "#{session_name}|#{session_attached}|#{session_windows}|#{session_created}"',

@@ -94,8 +94,8 @@ flowchart TD
 |--------|-----|------|--------|---------|-----------|-------|
 | [ ] | T001 | Create `/api/terminal/token` route: calls `auth()`, issues 5-min JWT via jose `SignJWT` with `sub` claim, returns `{ token, expiresIn: 300 }` | terminal | `apps/web/app/api/terminal/token/route.ts` | Authenticated requests get valid JWT; unauthenticated get 401 | Workshop 002 §Token Generation. Use `AUTH_SECRET` as signing key |
 | [ ] | T002 | Add auth guard to `/api/terminal` route: call `auth()`, return 401 if no session | terminal | `apps/web/app/api/terminal/route.ts` | Unauthenticated requests get 401; session list only for logged-in users | Simple `auth()` check — same pattern as other API routes |
-| [ ] | T003 | Add JWT validation to sidecar WS connection handler: verify `?token=` param via jose `jwtVerify`, reject with 4401/4403 close codes. Handle `{type:'auth'}` refresh messages. Skip when `AUTH_SECRET` not set (graceful fallback) | terminal | `apps/web/src/features/064-terminal/server/terminal-ws.ts` | With AUTH_SECRET: reject without valid JWT. Without: accept all (backward compat). Token refresh over existing WS works | Workshop 002 §Token Validation. Custom close codes: 4401 missing, 4403 invalid |
-| [ ] | T004 | Add token fetch + auto-refresh to client: fetch from `/api/terminal/token` before WS connect, pass as `&token=` query param. Refresh every 4 min via `{type:'auth'}` message. Graceful fallback if token endpoint returns error | terminal | `apps/web/src/features/064-terminal/hooks/use-terminal-socket.ts` | Token fetched before connect, refreshed before expiry, WS URL includes `&token=JWT` | Workshop 002 §Token Refresh. 60s margin before expiry |
+| [ ] | T003 | Add JWT validation to sidecar WS connection handler: verify `?token=` param via jose `jwtVerify`, reject with 4401/4403 close codes. Handle `{type:'auth'}` refresh messages. Skip when `AUTH_SECRET` not set (graceful fallback). **DYK-03**: Log warning on startup if AUTH_SECRET missing. **DYK-04**: Strip token from logged URLs | terminal | `apps/web/src/features/064-terminal/server/terminal-ws.ts` | With AUTH_SECRET: reject without valid JWT. Without: accept all + log warning. Token refresh over existing WS works. No token in logs | Workshop 002 §Token Validation. Custom close codes: 4401 missing, 4403 invalid |
+| [ ] | T004 | Add token fetch + auto-refresh to client: fetch from `/api/terminal/token` before WS connect, pass as `&token=` query param. Refresh every 4 min via `{type:'auth'}` message. **DYK-01**: Keep connect() sync — fetch token into ref via AbortController in useEffect, connect reads tokenRef.current. **DYK-05**: On 4401/4403 close, fetch new token before reconnecting (don't retry with stale token) | terminal | `apps/web/src/features/064-terminal/hooks/use-terminal-socket.ts` | Token fetched before connect, refreshed before expiry, WS URL includes `&token=JWT`. Auth close codes trigger re-auth, not blind retry | Workshop 002 §Token Refresh. 60s margin before expiry |
 | [ ] | T005 | Handle auth errors in terminal UI: show "Authentication required" message on WS close 4401/4403, with link/button to sign in | terminal | `apps/web/src/features/064-terminal/components/terminal-inner.tsx` | Auth failure shows clear message (not just "Disconnected"). User can re-authenticate | Check `event.code` in WS onclose handler |
 | [ ] | T006 | Pass `AUTH_SECRET` to sidecar in justfile: ensure `dev` and `dev-https` recipes pass the env var to the terminal process | (shared) | `justfile` | Sidecar reads `AUTH_SECRET` for JWT verification | May already be inherited — verify |
 
@@ -105,8 +105,15 @@ flowchart TD
 
 **Key findings from plan**:
 - Workshop 002 (Approved): Full design for JWT token flow — token endpoint, sidecar validation, client refresh, graceful degradation
-- `jose` v6.1.3 already in node_modules as transitive dep of next-auth — no new install needed
-- `AUTH_SECRET` is the env var NextAuth uses — same secret signs both NextAuth sessions and terminal tokens
+- `jose` v6.1.3 already in node_modules as transitive dep of next-auth — **DYK-02: add as explicit dep**
+- `AUTH_SECRET` is the env var NextAuth uses — **DYK-03: may not exist in .env.local, verify**
+
+**DYK findings**:
+- **DYK-01 (HIGH)**: Token fetch makes connect async — keep connect sync, fetch into ref with AbortController in effect
+- **DYK-02 (MEDIUM)**: jose is transitive only — add as explicit dep in package.json
+- **DYK-03 (HIGH)**: AUTH_SECRET may not be in .env.local — log warning on sidecar startup
+- **DYK-04 (LOW)**: Token appears in sidecar error logs — strip before logging
+- **DYK-05 (HIGH)**: Reconnect retries with stale token after 4403 — on auth close codes, fetch new token before reconnecting
 
 **Domain dependencies**:
 - `_platform/auth`: `auth()` function from `@/auth` — validates NextAuth session, returns `{ user: { name } }` or null
