@@ -19,13 +19,14 @@ install:
 # If PORT not set, Next.js auto-selects and sidecar defaults to 3000+1500
 dev:
     @cd apps/web && node -e "require('node-pty').spawn('/bin/echo',['ok'],{name:'x',cols:1,rows:1,cwd:'/tmp',env:{}})" 2>/dev/null || (echo "Error: node-pty can't spawn. Run: chmod +x apps/web/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper" && exit 1)
-    pnpm concurrently --names "next,terminal" --prefix-colors "blue,green" \
-      "pnpm turbo dev -- --port ${PORT:-3000}" \
-      "PORT=${PORT:-3000} TERMINAL_WS_HOST=${TERMINAL_WS_HOST:-0.0.0.0} pnpm tsx --env-file=apps/web/.env.local watch apps/web/src/features/064-terminal/server/terminal-ws.ts"
+    PORT=${PORT:-3000} TERMINAL_WS_HOST=${TERMINAL_WS_HOST:-0.0.0.0} \
+      pnpm concurrently --names "next,terminal" --prefix-colors "blue,green" \
+        "pnpm turbo dev -- --port ${PORT:-3000}" \
+        "pnpm tsx watch --env-file=apps/web/.env.local apps/web/src/features/064-terminal/server/terminal-ws.ts"
 
 # Start terminal WebSocket server only
 dev-terminal:
-    PORT=${PORT:-3000} pnpm tsx --env-file=apps/web/.env.local watch apps/web/src/features/064-terminal/server/terminal-ws.ts
+    PORT=${PORT:-3000} pnpm tsx watch --env-file=apps/web/.env.local apps/web/src/features/064-terminal/server/terminal-ws.ts
 
 # Start development server with HTTPS (enables clipboard API on remote devices)
 dev-https:
@@ -33,7 +34,7 @@ dev-https:
     PORT=${PORT:-3000} TERMINAL_WS_HOST=${TERMINAL_WS_HOST:-0.0.0.0} TERMINAL_WS_CERT=apps/web/certificates/localhost.pem TERMINAL_WS_KEY=apps/web/certificates/localhost-key.pem \
       pnpm concurrently --names "next,terminal" --prefix-colors "blue,green" \
         "pnpm turbo dev -- --port ${PORT:-3000} --experimental-https" \
-        "pnpm tsx --env-file=apps/web/.env.local watch apps/web/src/features/064-terminal/server/terminal-ws.ts"
+        "pnpm tsx watch --env-file=apps/web/.env.local apps/web/src/features/064-terminal/server/terminal-ws.ts"
 
 # Build all packages
 build:
