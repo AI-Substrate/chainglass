@@ -532,7 +532,7 @@ export async function toggleWorktreeStar(formData: FormData): Promise<void> {
 export async function updateWorktreePreferences(
   slug: string,
   worktreePath: string,
-  prefs: { emoji?: string; color?: string }
+  prefs: { emoji?: string; color?: string; terminalTheme?: 'dark' | 'light' | 'system' }
 ): Promise<ActionState> {
   await requireAuth();
   if (!slug || !worktreePath) {
@@ -557,6 +557,7 @@ export async function updateWorktreePreferences(
       ...existing,
       ...(prefs.emoji !== undefined ? { emoji: prefs.emoji } : {}),
       ...(prefs.color !== undefined ? { color: prefs.color } : {}),
+      ...(prefs.terminalTheme !== undefined ? { terminalTheme: prefs.terminalTheme } : {}),
     };
 
     const result = await workspaceService.updatePreferences(slug, {
