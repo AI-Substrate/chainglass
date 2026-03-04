@@ -30,6 +30,7 @@ import {
 } from '@chainglass/shared';
 import type { IWorkspaceService, WorkspaceContext } from '@chainglass/workflow';
 
+import { requireAuth } from '@/features/063-login/lib/require-auth';
 import { resolveWorktreeContext } from '../../src/features/058-workunit-editor/lib/resolve-worktree-context';
 import { getContainer } from '../../src/lib/bootstrap-singleton';
 
@@ -70,6 +71,7 @@ export async function listUnits(
   workspaceSlug: string,
   worktreePath?: string
 ): Promise<ListUnitsResult> {
+  await requireAuth();
   const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { units: [], errors: [NOT_FOUND_ERROR] };
 
@@ -82,6 +84,7 @@ export async function loadUnit(
   unitSlug: string,
   worktreePath?: string
 ): Promise<LoadUnitResult> {
+  await requireAuth();
   const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { errors: [NOT_FOUND_ERROR] };
 
@@ -95,6 +98,7 @@ export async function loadUnitContent(
   unitSlug: string,
   worktreePath?: string
 ): Promise<{ content: string; errors: ResultError[] }> {
+  await requireAuth();
   const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { content: '', errors: [NOT_FOUND_ERROR] };
 
@@ -143,6 +147,7 @@ export async function createUnit(
   spec: CreateUnitSpec,
   worktreePath?: string
 ): Promise<CreateUnitResult> {
+  await requireAuth();
   const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { slug: '', type: spec.type, errors: [NOT_FOUND_ERROR] };
 
@@ -156,6 +161,7 @@ export async function updateUnit(
   patch: UpdateUnitPatch,
   worktreePath?: string
 ): Promise<UpdateUnitResult> {
+  await requireAuth();
   const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { slug: unitSlug, errors: [NOT_FOUND_ERROR] };
 
@@ -168,6 +174,7 @@ export async function deleteUnit(
   unitSlug: string,
   worktreePath?: string
 ): Promise<DeleteUnitResult> {
+  await requireAuth();
   const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { deleted: false, errors: [NOT_FOUND_ERROR] };
 
@@ -181,6 +188,7 @@ export async function renameUnit(
   newSlug: string,
   worktreePath?: string
 ): Promise<RenameUnitResult> {
+  await requireAuth();
   const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { newSlug: '', updatedFiles: [], errors: [NOT_FOUND_ERROR] };
 
@@ -199,6 +207,7 @@ export async function saveUnitContent(
   content: string,
   worktreePath?: string
 ): Promise<{ errors: ResultError[] }> {
+  await requireAuth();
   const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { errors: [NOT_FOUND_ERROR] };
 

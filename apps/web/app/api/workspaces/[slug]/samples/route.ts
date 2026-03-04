@@ -9,9 +9,11 @@
  * Per DYK-P6-05: POST mutation moved to Server Actions.
  */
 
+import { auth } from '@/auth';
 import { WORKSPACE_DI_TOKENS } from '@chainglass/shared';
 import type { ISampleService, IWorkspaceService } from '@chainglass/workflow';
 import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getContainer } from '../../../../../src/lib/bootstrap-singleton';
 
 /** Force dynamic rendering - required for DI container access */
@@ -32,6 +34,8 @@ interface RouteParams {
  * @returns JSON response with samples array
  */
 export async function GET(request: NextRequest, { params }: RouteParams): Promise<Response> {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const { slug } = await params;
   const { searchParams } = new URL(request.url);
   const worktreePath = searchParams.get('worktree') ?? undefined;

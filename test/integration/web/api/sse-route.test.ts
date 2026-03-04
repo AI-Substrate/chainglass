@@ -9,6 +9,11 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+// Mock auth before importing route
+vi.mock('@/auth', () => ({
+  auth: vi.fn().mockResolvedValue({ user: { id: 'test-user' } }),
+}));
+
 // This import will fail in RED phase - route doesn't exist yet
 import { GET } from '../../../../apps/web/app/api/events/[channel]/route';
 import { sseManager } from '../../../../apps/web/src/lib/sse-manager';

@@ -10,6 +10,7 @@
  * Phase 4: File Browser — Plan 041
  */
 
+import { requireAuth } from '@/features/063-login/lib/require-auth';
 import { SHARED_DI_TOKENS, WORKSPACE_DI_TOKENS } from '@chainglass/shared';
 import type { IFileSystem, IPathResolver } from '@chainglass/shared';
 import type { IWorkspaceService } from '@chainglass/workflow';
@@ -28,6 +29,7 @@ export async function readFile(
   worktreePath: string,
   filePath: string
 ): Promise<ReadFileResult> {
+  await requireAuth();
   const container = getContainer();
   const fileSystem = container.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
   const pathResolver = container.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
@@ -50,6 +52,7 @@ export async function saveFile(
   expectedMtime?: string,
   force?: boolean
 ): Promise<SaveFileResult> {
+  await requireAuth();
   const container = getContainer();
   const fileSystem = container.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
   const pathResolver = container.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
@@ -67,12 +70,14 @@ export async function saveFile(
 
 // Wrapper for lazy diff loading (D3) — 'use server' requires async fn exports
 export async function fetchGitDiff(filePath: string, cwd?: string) {
+  await requireAuth();
   const { getGitDiff } = await import('../../src/lib/server/git-diff-action');
   return getGitDiff(filePath, cwd);
 }
 
 // Wrapper for changed-files filter
 export async function fetchChangedFiles(worktreePath: string) {
+  await requireAuth();
   const { getChangedFiles } = await import(
     '../../src/features/041-file-browser/services/changed-files'
   );
@@ -83,6 +88,7 @@ export async function fetchChangedFiles(worktreePath: string) {
 export type { UploadFileResult } from '../../src/features/041-file-browser/services/upload-file';
 
 export async function uploadFile(formData: FormData) {
+  await requireAuth();
   const { uploadFileService } = await import(
     '../../src/features/041-file-browser/services/upload-file'
   );
@@ -113,6 +119,7 @@ export async function uploadFile(formData: FormData) {
 
 // Working changes — git status --porcelain parser (Plan 043 Phase 2)
 export async function fetchWorkingChanges(worktreePath: string) {
+  await requireAuth();
   const { getWorkingChanges } = await import(
     '../../src/features/041-file-browser/services/working-changes'
   );
@@ -121,6 +128,7 @@ export async function fetchWorkingChanges(worktreePath: string) {
 
 // Recent files — git log --name-only parser (Plan 043 Phase 2)
 export async function fetchRecentFiles(worktreePath: string, limit = 20) {
+  await requireAuth();
   const { getRecentFiles } = await import(
     '../../src/features/041-file-browser/services/recent-files'
   );
@@ -132,6 +140,7 @@ export async function fetchFileList(
   worktreePath: string,
   includeHidden = false
 ): Promise<import('../../src/features/041-file-browser/services/file-list').FileListResult> {
+  await requireAuth();
   const { getFileList } = await import('../../src/features/041-file-browser/services/file-list');
   return getFileList(worktreePath, includeHidden);
 }
@@ -140,6 +149,7 @@ export async function fetchFileList(
 export async function fetchDiffStats(
   worktreePath: string
 ): Promise<import('../../src/features/041-file-browser/services/diff-stats').DiffStatsResult> {
+  await requireAuth();
   const { getDiffStats } = await import('../../src/features/041-file-browser/services/diff-stats');
   return getDiffStats(worktreePath);
 }
@@ -151,6 +161,7 @@ export async function fileExists(
   worktreePath: string,
   filePath: string
 ): Promise<boolean> {
+  await requireAuth();
   const nodePath = await import('node:path');
   const container = getContainer();
   const workspaceService = container.resolve<IWorkspaceService>(
@@ -184,6 +195,7 @@ export async function pathExists(
   worktreePath: string,
   filePath: string
 ): Promise<'file' | 'directory' | false> {
+  await requireAuth();
   const nodePath = await import('node:path');
   const container = getContainer();
   const workspaceService = container.resolve<IWorkspaceService>(

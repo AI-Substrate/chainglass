@@ -20,12 +20,14 @@ import { revalidatePath } from 'next/cache';
 import { WORKSPACE_DI_TOKENS } from '@chainglass/shared';
 import type { IWorkspaceService } from '@chainglass/workflow';
 
+import { requireAuth } from '@/features/063-login/lib/require-auth';
 import { getContainer } from '../../src/lib/bootstrap-singleton';
 
 export async function updateSDKSettings(
   slug: string,
   sdkSettings: Record<string, unknown>
 ): Promise<{ success: boolean; error?: string }> {
+  await requireAuth();
   try {
     const container = getContainer();
     const workspaceService = container.resolve<IWorkspaceService>(
@@ -50,6 +52,7 @@ export async function updateSDKMru(
   slug: string,
   sdkMru: string[]
 ): Promise<{ success: boolean; error?: string }> {
+  await requireAuth();
   try {
     const container = getContainer();
     const workspaceService = container.resolve<IWorkspaceService>(

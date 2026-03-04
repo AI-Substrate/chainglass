@@ -28,6 +28,28 @@ just dev
 
 This starts the Next.js development server at `http://localhost:3000`.
 
+## Authentication
+
+Chainglass uses GitHub OAuth to control access. Only GitHub users listed in `.chainglass/auth.yaml` can sign in.
+
+**Setup:**
+
+1. **Create a GitHub OAuth App** at [github.com/settings/developers](https://github.com/settings/developers) with callback URL `http://localhost:3000/api/auth/callback/github`
+2. **Configure credentials** — create `apps/web/.env.local`:
+   ```bash
+   AUTH_GITHUB_ID=your_client_id
+   AUTH_GITHUB_SECRET=your_client_secret
+   AUTH_SECRET=your_generated_secret_here
+   ```
+   Generate `AUTH_SECRET` by running `openssl rand -base64 32` in your terminal and pasting the output.
+3. **Add allowed users** — edit `.chainglass/auth.yaml`:
+   ```yaml
+   allowed_users:
+     - your-github-username
+   ```
+
+See [GitHub OAuth App Setup](docs/how/auth/github-oauth-setup.md) for the full walkthrough and troubleshooting.
+
 ## Common Commands
 
 | Command | Description |
@@ -237,6 +259,7 @@ cg agent run -t claude-code -p "Say hello" --stream
 - [Workspaces Guide](docs/how/workspaces/1-overview.md) - Multi-workspace management (local dev tool)
 - [Configuration Guide](docs/how/configuration/1-overview.md) - Configuration system
 - [Architecture Rules](docs/rules/architecture.md) - Clean architecture patterns and guidelines
+- [Authentication Setup](docs/how/auth/github-oauth-setup.md) - GitHub OAuth configuration
 - [ADR Index](docs/adr/README.md) - Architecture Decision Records
 - [Theming Guide](docs/how/theming.md) - CSS variables and theme customization
 - [Headless Components](docs/how/headless-components.md) - Hook-first TDD pattern

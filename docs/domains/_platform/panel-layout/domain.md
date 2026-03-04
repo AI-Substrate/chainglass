@@ -5,6 +5,7 @@
 **Created**: 2026-02-24
 **Created By**: extracted from Plan 041 file browser layout patterns
 **Status**: active
+**C4 Diagram**: [C4 Component](../../../c4/components/_platform/panel-layout.md)
 
 ## Purpose
 
