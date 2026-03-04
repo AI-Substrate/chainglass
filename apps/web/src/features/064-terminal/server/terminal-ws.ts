@@ -36,6 +36,21 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
   const activePtys = new Set<PtyProcess>();
   let wss: WebSocketServer | null = null;
 
+  // Auth config — hoisted to factory scope so handleConnection can access
+  const authSecret = process.env.AUTH_SECRET;
+  const authEnabled = !!authSecret;
+  const authKey = authSecret ? new TextEncoder().encode(authSecret) : null;
+
+  async function validateToken(token: string): Promise<string | null> {
+    if (!authKey) return null;
+    try {
+      const { payload } = await jwtVerify(token, authKey);
+      return typeof payload.sub === 'string' ? payload.sub : null;
+    } catch {
+      return null;
+    }
+  }
+
   function handleConnection(ws: WebSocket, sessionName: string, cwd: string): void {
     // FT-001: Validate CWD before PTY spawn
     const allowedBase = process.env.TERMINAL_ALLOWED_BASE ?? process.cwd();
@@ -165,26 +180,12 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
       wss = new WebSocketServer({ port, host });
     }
 
-    // DYK-03: Auth configuration — warn if AUTH_SECRET missing
-    const authSecret = process.env.AUTH_SECRET;
-    const authEnabled = !!authSecret;
-    const authKey = authSecret ? new TextEncoder().encode(authSecret) : null;
-
+    // DYK-03: Warn if AUTH_SECRET missing
     if (!authEnabled) {
       console.warn(
         '[terminal] WARNING: AUTH_SECRET not set — WebSocket connections are UNAUTHENTICATED. ' +
           'Set AUTH_SECRET in .env.local to enable terminal auth.'
       );
-    }
-
-    async function validateToken(token: string): Promise<string | null> {
-      if (!authKey) return null;
-      try {
-        const { payload } = await jwtVerify(token, authKey);
-        return typeof payload.sub === 'string' ? payload.sub : null;
-      } catch {
-        return null;
-      }
     }
 
     wss.on('connection', async (ws: WebSocket, req) => {
