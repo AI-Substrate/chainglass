@@ -13,11 +13,12 @@
  */
 
 import { AgentChatView } from '@/components/agents/agent-chat-view';
+import { useAgentManager } from '@/features/019-agent-manager-refactor';
 import { useAgentOverlay } from '@/hooks/use-agent-overlay';
 import { Z_INDEX } from '@/lib/agents/constants';
 import { cn } from '@/lib/utils';
 import { X } from 'lucide-react';
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 
 interface AgentOverlayPanelProps {
   /** Workspace path for agent context */
@@ -27,6 +28,13 @@ interface AgentOverlayPanelProps {
 
 export function AgentOverlayPanel({ workspacePath, className }: AgentOverlayPanelProps) {
   const { activeAgentId, isOpen, closeAgent } = useAgentOverlay();
+  const { agents } = useAgentManager({ subscribeToSSE: false });
+
+  // Find the active agent for header display
+  const activeAgent = useMemo(
+    () => agents?.find((a) => a.id === activeAgentId),
+    [agents, activeAgentId]
+  );
 
   // Close on Escape key
   const handleKeyDown = useCallback(
@@ -55,9 +63,14 @@ export function AgentOverlayPanel({ workspacePath, className }: AgentOverlayPane
       )}
       style={{ zIndex: Z_INDEX.OVERLAY, width: 'min(480px, 90vw)' }}
     >
-      {/* Header */}
+      {/* Header — agent name + live intent (FX004-3) */}
       <div className="flex items-center justify-between border-b px-4 py-2 shrink-0">
-        <h3 className="text-sm font-medium truncate">Agent Chat</h3>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-medium truncate">{activeAgent?.name ?? 'Agent Chat'}</h3>
+          {activeAgent?.intent && (
+            <p className="text-xs text-muted-foreground truncate">{activeAgent.intent}</p>
+          )}
+        </div>
         <button
           type="button"
           onClick={closeAgent}

@@ -28,6 +28,7 @@ import type {
 } from './agent-instance.interface.js';
 import type { IAgentNotifierService } from './agent-notifier.interface.js';
 import type { IAgentStorageAdapter } from './agent-storage.interface.js';
+import { extractIntent } from './intent-extractor.js';
 
 /**
  * Configuration options for creating an AgentInstance.
@@ -279,6 +280,12 @@ export class AgentInstance implements IAgentInstance {
 
     // Then broadcast
     this._notifier.broadcastEvent(this.id, storedEvent);
+
+    // FX004-2: Extract intent from event and update if changed
+    const newIntent = extractIntent(event);
+    if (newIntent && newIntent !== this._intent) {
+      this.setIntent(newIntent);
+    }
   }
 
   /**

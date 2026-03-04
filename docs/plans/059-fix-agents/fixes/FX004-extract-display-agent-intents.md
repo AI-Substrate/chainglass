@@ -26,8 +26,8 @@ Add an `extractIntent()` pure function that maps `AgentEvent` types to human-rea
 
 | Status | ID | Task | Domain | Path(s) | Done When | Notes |
 |--------|-----|------|--------|---------|-----------|-------|
-| [ ] | FX004-1 | Create `extractIntent()` pure function — maps tool_call → "Reading file.ts", thinking → "Thinking: ...", message → first 60 chars. Priority: tool_call > thinking > message. | agents | `packages/shared/src/features/019-agent-manager-refactor/intent-extractor.ts` | Unit tests pass for all event types with correct truncation | Workshop 008 |
-| [ ] | FX004-2 | Wire `extractIntent()` into AgentInstance event processing — call `setIntent()` when intent changes during `run()` event loop | agents | `packages/shared/src/features/019-agent-manager-refactor/agent-instance.ts` | Running an agent updates intent on each tool_call/thinking event | Workshop 008; only call setIntent when value actually changes |
+| [ ] | FX004-1 | Create `extractIntent()` pure function — maps tool_call → "Reading file.ts", thinking → "Thinking: ...". Only these 2 event types (DYK-FX004-03/05). Handle varied input shapes: `input.command`, `input.path`, `input.file_path`, raw string (DYK-FX004-02). Fast-path guard for other event types. | agents | `packages/shared/src/features/019-agent-manager-refactor/intent-extractor.ts` | Unit tests pass for all event types with correct truncation | Workshop 008 |
+| [ ] | FX004-2 | Wire `extractIntent()` into AgentInstance._captureEvent() — call `setIntent()` when intent changes | agents | `packages/shared/src/features/019-agent-manager-refactor/agent-instance.ts` | Running an agent updates intent on each tool_call/thinking event | Only call setIntent when value actually changes |
 | [ ] | FX004-3 | Add intent subtitle to overlay panel header — show current intent under agent name | agents | `apps/web/src/components/agents/agent-overlay-panel.tsx` | Overlay header shows live intent text | Existing useAgentInstance already has agent.intent |
 
 ## Workshops Consumed
