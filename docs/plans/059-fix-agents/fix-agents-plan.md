@@ -303,3 +303,4 @@ The web agent system is structurally sound (3 adapters, DI container, SSE transp
 | FX001 | 2026-03-02 | Wire agent lifecycle into WorkUnitStateService — bridge.register/update/unregister calls | agents, work-unit-state | Complete | User: sidebar badges empty, no data in work-unit-state.json |
 | FX002 | 2026-03-03 | Fix WorkUnitStateService path (process.cwd() → git worktree root) | work-unit-state | Complete | User: JSON file written to apps/web/ not worktree root |
 | FX003 | 2026-03-03 | Show grey dot for idle agents in sidebar badges | agents | Complete | User: no badge visible when agents are idle |
+| FX004 | 2026-03-04 | Extract and display agent intents from event stream | agents | Proposed | User: chips and list show stale/empty intent |
