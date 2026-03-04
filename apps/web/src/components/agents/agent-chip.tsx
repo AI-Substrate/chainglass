@@ -72,11 +72,11 @@ export function AgentChip({
       onClick={() => toggleAgent(id)}
       title={`${name} — ${status}${intent ? `: ${intent}` : ''}`}
       className={cn(
-        'inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm',
+        'inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm',
         'transition-all duration-150 cursor-pointer select-none',
-        'hover:bg-accent/60 hover:shadow-sm',
-        isActive && 'bg-accent shadow-sm ring-1 ring-primary/20',
-        !isActive && 'bg-card',
+        'hover:bg-accent/60 hover:border-foreground/20',
+        isActive && 'bg-accent border-primary/40 shadow-sm',
+        !isActive && 'bg-card border-border',
         className
       )}
     >

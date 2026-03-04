@@ -129,7 +129,7 @@ export function AgentChipBar({ workspace, worktreeSlug, className }: AgentChipBa
           >
             <div
               className={cn(
-                'flex gap-2',
+                'flex gap-2 py-0.5',
                 !isExpanded && 'flex-nowrap overflow-x-auto scrollbar-none',
                 isExpanded && 'flex-wrap max-h-[50vh] overflow-y-auto'
               )}
