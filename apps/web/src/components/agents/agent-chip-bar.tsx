@@ -49,7 +49,7 @@ function SortableChip({ id, ...props }: { id: string } & React.ComponentProps<ty
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="shrink-0">
       <AgentChip id={id} {...props} />
     </div>
   );
@@ -118,7 +118,7 @@ export function AgentChipBar({ workspace, worktreeSlug, className }: AgentChipBa
 
   return (
     <div
-      className={cn('border-b bg-card/80 backdrop-blur-sm px-4 py-2', className)}
+      className={cn('border-b bg-card/80 backdrop-blur-sm px-4 py-3', className)}
       style={{ zIndex: Z_INDEX.TOP_BAR, position: 'relative' }}
     >
       <div className="flex items-center gap-2">
@@ -129,9 +129,9 @@ export function AgentChipBar({ workspace, worktreeSlug, className }: AgentChipBa
           >
             <div
               className={cn(
-                'flex gap-2 flex-wrap',
-                !isExpanded && 'flex-nowrap overflow-hidden',
-                isExpanded && 'max-h-[50vh] overflow-y-auto'
+                'flex gap-2',
+                !isExpanded && 'flex-nowrap overflow-x-auto scrollbar-none',
+                isExpanded && 'flex-wrap max-h-[50vh] overflow-y-auto'
               )}
             >
               {visibleAgents.map((agent) => (
