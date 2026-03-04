@@ -200,20 +200,9 @@ export class CentralWatcherService implements ICentralWatcherService {
       return [];
     });
 
-    // Filter to workspaces whose paths still exist on disk
-    const liveWorkspaces = [];
-    for (const ws of workspaces) {
-      const exists = await this.fs.exists(ws.path).catch(() => false);
-      if (!exists) {
-        this.logger?.debug(`Skipping stale workspace ${ws.slug}: ${ws.path}`);
-        continue;
-      }
-      liveWorkspaces.push(ws);
-    }
-
     // Discover worktrees for all workspaces in parallel
     const worktreeResults = await Promise.all(
-      liveWorkspaces.map(async (workspace) => {
+      workspaces.map(async (workspace) => {
         const worktrees = await this.worktreeResolver
           .detectWorktrees(workspace.path)
           .catch((err) => {
@@ -297,12 +286,6 @@ export class CentralWatcherService implements ICentralWatcherService {
     });
 
     for (const workspace of workspaces) {
-      const pathExists = await this.fs.exists(workspace.path).catch(() => false);
-      if (!pathExists) {
-        this.logger?.debug(`Skipping stale workspace ${workspace.slug}: ${workspace.path}`);
-        continue;
-      }
-
       const worktrees = await this.worktreeResolver.detectWorktrees(workspace.path).catch((err) => {
         this.logError(`Failed to detect worktrees for ${workspace.slug} (source watchers)`, err);
         return [];
