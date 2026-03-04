@@ -159,7 +159,7 @@ export default function TerminalInner({
           if (disposedRef.current || !fitAddonRef.current) return;
           fitAddonRef.current.fit();
           const dims = fitAddonRef.current.proposeDimensions();
-          if (dims) {
+          if (dims && dims.cols && dims.rows) {
             sendRef.current(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
           }
         });
@@ -246,7 +246,7 @@ export default function TerminalInner({
       if (disposedRef.current) return;
       fitAddon.fit();
       const dims = fitAddon.proposeDimensions();
-      if (dims) {
+      if (dims && dims.cols && dims.rows) {
         sendRef.current(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
       }
     });
@@ -264,7 +264,7 @@ export default function TerminalInner({
         if (disposedRef.current) return;
         fitAddon.fit();
         const dims = fitAddon.proposeDimensions();
-        if (dims) {
+        if (dims && dims.cols && dims.rows) {
           sendRef.current(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
         }
       });
