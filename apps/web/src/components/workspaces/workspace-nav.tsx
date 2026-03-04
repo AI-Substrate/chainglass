@@ -155,7 +155,9 @@ export function WorkspaceNav() {
       return (a.branch ?? '').localeCompare(b.branch ?? '');
     });
 
-    const subPath = pathname.replace(`/workspaces/${workspaceSlug}`, '') || '/';
+    const rawSubPath = pathname.replace(`/workspaces/${workspaceSlug}`, '') || '/';
+    // Default to browser when navigating from workspace root or worktree landing
+    const subPath = rawSubPath === '/' || rawSubPath === '/worktree' ? '/browser' : rawSubPath;
 
     return (
       <div className="space-y-0.5 py-1">

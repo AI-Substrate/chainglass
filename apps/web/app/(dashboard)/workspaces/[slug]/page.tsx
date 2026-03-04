@@ -114,7 +114,7 @@ export default async function WorkspaceDetailPage({ params }: PageProps) {
           <div className="divide-y">
             {sortedWorktrees.map((worktree) => {
               const label = worktree.branch || (worktree.isDetached ? 'detached HEAD' : 'unknown');
-              const landingUrl = `/workspaces/${slug}/worktree?worktree=${encodeURIComponent(worktree.path)}`;
+              const landingUrl = `/workspaces/${slug}/browser?worktree=${encodeURIComponent(worktree.path)}`;
               const samplesUrl = `/workspaces/${slug}/samples?worktree=${encodeURIComponent(worktree.path)}`;
               const agentsUrl = `/workspaces/${slug}/agents?worktree=${encodeURIComponent(worktree.path)}`;
               const isStarred = starredWorktrees.has(worktree.path);
