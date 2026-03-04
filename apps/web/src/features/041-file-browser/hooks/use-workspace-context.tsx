@@ -22,6 +22,7 @@ export interface WorktreeIdentity {
   emoji: string;
   color: string;
   pageTitle: string | null;
+  terminalTheme: 'dark' | 'light' | 'system';
 }
 
 /** Input to setWorktreeIdentity — provider resolves emoji/color from map */
@@ -84,6 +85,7 @@ export function WorkspaceProvider({
       emoji: wtPrefs?.emoji || emoji,
       color: wtPrefs?.color || color,
       pageTitle: worktreeInput.pageTitle ?? null,
+      terminalTheme: wtPrefs?.terminalTheme || 'dark',
     };
   }, [worktreeInput, worktreePreferences, emoji, color]);
 

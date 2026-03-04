@@ -26,6 +26,7 @@ import slugify from 'slugify';
 export interface WorktreeVisualPreferences {
   emoji: string;
   color: string;
+  terminalTheme?: 'dark' | 'light' | 'system';
 }
 
 export interface WorkspacePreferences {

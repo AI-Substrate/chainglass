@@ -67,6 +67,7 @@ interface TerminalInnerProps {
   className?: string;
   onConnectionChange?: (status: ConnectionStatus) => void;
   onCopyBuffer?: () => void;
+  themeOverride?: 'dark' | 'light' | 'system';
 }
 
 export default function TerminalInner({
@@ -74,6 +75,7 @@ export default function TerminalInner({
   cwd,
   className,
   onConnectionChange,
+  themeOverride,
 }: TerminalInnerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
@@ -86,6 +88,10 @@ export default function TerminalInner({
   const [bottomOffset, setBottomOffset] = useState(0);
   const tmuxWarningShownRef = useRef(false);
   const { resolvedTheme } = useTheme();
+
+  // Effective theme: override takes precedence, 'system' falls through to resolvedTheme
+  const effectiveTheme =
+    themeOverride && themeOverride !== 'system' ? themeOverride : resolvedTheme;
 
   // Dynamic bottom offset via visualViewport — for iOS keyboard/browser chrome
   // Only activates on touch devices; desktop gets full height (bottom: 0)
@@ -187,8 +193,8 @@ export default function TerminalInner({
   }, [showCopyModal]);
 
   // Store initial theme in ref so init effect doesn't depend on resolvedTheme
-  const initialThemeRef = useRef(resolvedTheme);
-  initialThemeRef.current = resolvedTheme;
+  const initialThemeRef = useRef(effectiveTheme);
+  initialThemeRef.current = effectiveTheme;
 
   // Initialize terminal + addons + ResizeObserver
   useEffect(() => {
@@ -318,8 +324,8 @@ export default function TerminalInner({
   useEffect(() => {
     if (disposedRef.current || !terminalRef.current) return;
     // DYK-05: Must assign a new object reference for xterm to detect the change
-    terminalRef.current.options.theme = resolvedTheme === 'dark' ? DARK_THEME : LIGHT_THEME;
-  }, [resolvedTheme]);
+    terminalRef.current.options.theme = effectiveTheme === 'dark' ? DARK_THEME : LIGHT_THEME;
+  }, [effectiveTheme]);
 
   return (
     <div className={`relative h-full w-full ${className ?? ''}`}>

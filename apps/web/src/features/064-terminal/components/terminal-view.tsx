@@ -15,6 +15,7 @@ export interface TerminalViewProps {
   cwd: string;
   className?: string;
   onConnectionChange?: (status: ConnectionStatus) => void;
+  themeOverride?: 'dark' | 'light' | 'system';
 }
 
 export function TerminalView({
@@ -22,6 +23,7 @@ export function TerminalView({
   cwd,
   className,
   onConnectionChange,
+  themeOverride,
 }: TerminalViewProps) {
   return (
     <div className={`h-full w-full ${className ?? ''}`}>
@@ -30,6 +32,7 @@ export function TerminalView({
           sessionName={sessionName}
           cwd={cwd}
           onConnectionChange={onConnectionChange}
+          themeOverride={themeOverride}
         />
       </Suspense>
     </div>

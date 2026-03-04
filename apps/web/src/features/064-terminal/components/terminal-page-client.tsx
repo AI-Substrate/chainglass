@@ -1,5 +1,6 @@
 'use client';
 
+import { useWorkspaceContext } from '@/features/041-file-browser/hooks/use-workspace-context';
 import { LeftPanel, MainPanel, PanelShell } from '@/features/_platform/panel-layout';
 import type { PanelMode } from '@/features/_platform/panel-layout';
 import type { LeftPanelMode } from '@/features/_platform/panel-layout';
@@ -30,6 +31,8 @@ export function TerminalPageClient({
     currentBranch: worktreeBranch,
   });
 
+  const wsCtx = useWorkspaceContext();
+  const terminalTheme = wsCtx?.worktreeIdentity?.terminalTheme || 'dark';
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
 
   return (
@@ -69,6 +72,7 @@ export function TerminalPageClient({
               sessionName={selectedSession}
               cwd={worktreePath}
               onConnectionChange={setConnectionStatus}
+              themeOverride={terminalTheme}
             />
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">

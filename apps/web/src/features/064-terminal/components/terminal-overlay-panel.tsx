@@ -1,5 +1,6 @@
 'use client';
 
+import { useWorkspaceContext } from '@/features/041-file-browser/hooks/use-workspace-context';
 import { ClipboardCopy, TerminalSquare, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useTerminalOverlay } from '../hooks/use-terminal-overlay';
@@ -10,6 +11,8 @@ import TerminalInner from './terminal-inner';
 
 export function TerminalOverlayPanel() {
   const { isOpen, sessionName, cwd, closeTerminal } = useTerminalOverlay();
+  const wsCtx = useWorkspaceContext();
+  const terminalTheme = wsCtx?.worktreeIdentity?.terminalTheme || 'dark';
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
   const panelRef = useRef<HTMLDivElement>(null);
   const [anchorRect, setAnchorRect] = useState({ top: 0, left: 0, width: 0, height: 0 });
@@ -107,6 +110,7 @@ export function TerminalOverlayPanel() {
           sessionName={sessionName}
           cwd={cwd}
           onConnectionChange={setConnectionStatus}
+          themeOverride={terminalTheme}
         />
       </div>
     </div>
