@@ -20,6 +20,11 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
  */
 const nextConfig = {
   output: 'standalone',
+  // TypeScript type-checking is handled by `just fft` / `pnpm exec tsc --noEmit`.
+  // Next.js build worker has limited heap and OOMs on large codebases.
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   experimental: {
     // Raise server action body size limit for file uploads (default 1MB)
     serverActions: {
@@ -38,6 +43,9 @@ const nextConfig = {
     'vscode-oniguruma',
     '@shikijs/core',
     '@shikijs/engine-oniguruma',
+    'next-auth',
+    '@auth/core',
+    'yaml',
   ],
   // Webpack config to handle Shiki's node: protocol imports on client side
   webpack: (config, { isServer }) => {

@@ -16,6 +16,7 @@
 | State | _platform/state | infrastructure | _platform | Plan 053 — GlobalStateSystem | active |
 | Dev Tools | _platform/dev-tools | infrastructure | _platform | Plan 056 — State DevTools Panel | active |
 | Work Unit Editor | 058-workunit-editor | business | — | Plan 058 | active |
+| Auth | _platform/auth | infrastructure | _platform | Plan 063-login | active |
 
 ## Domain Types
 

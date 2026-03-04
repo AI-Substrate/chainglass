@@ -8,9 +8,11 @@
  * Phase 4: File Browser — Plan 041
  */
 
+import { auth } from '@/auth';
 import { SHARED_DI_TOKENS } from '@chainglass/shared';
 import type { IFileSystem } from '@chainglass/shared';
 import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import {
   listDirectory,
   listDirectoryTree,
@@ -23,6 +25,8 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ): Promise<Response> {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   await params; // consume params (required by Next.js)
   const { searchParams } = new URL(request.url);
   const dir = searchParams.get('dir') ?? '';

@@ -20,6 +20,7 @@ flowchart LR
     posGraph["📊 _platform/positional-graph<br/>IPositionalGraphService<br/>IOrchestrationService<br/>IEventHandlerService<br/>IWorkUnitService<br/>ITemplateService<br/>IInstanceService"]:::infra
     state["💾 _platform/state<br/>IStateService<br/>useGlobalState<br/>useGlobalStateList<br/>GlobalStateProvider<br/>StateChangeLog"]:::infra
     devTools["🛠️ _platform/dev-tools<br/>StateInspector<br/>useStateInspector<br/>useStateChangeLog"]:::infra
+    auth["🔐 _platform/auth<br/>auth() · signIn() · signOut()<br/>requireAuth() · useAuth()<br/>middleware protection<br/>isUserAllowed()<br/>SessionProvider"]:::infra
 
     %% Business domains
     fileBrowser["📁 file-browser<br/>Browser page · FileTree<br/>CodeEditor re-export<br/>FileViewerPanel<br/>WorkspaceContext · Settings"]:::business
@@ -65,6 +66,11 @@ flowchart LR
     workunitEditor -->|"IWorkUnitService<br/>(CRUD)"| posGraph
     workunitEditor -->|"CodeEditor"| viewer
     workunitEditor -->|"workspaceHref"| wsUrl
+
+    %% Auth dependencies (consumer → provider: business domains consume auth protection)
+    fileBrowser -->|"middleware protection"| auth
+    workflowUI -->|"middleware protection"| auth
+    workunitEditor -->|"middleware protection"| auth
 ```
 
 ## Legend
@@ -93,3 +99,4 @@ flowchart LR
 | workflow-ui | _(none — leaf consumer)_ | — | IPositionalGraphService, ITemplateService, IWorkUnitService, IFileSystem, IPathResolver, useSSE, workspaceHref, IUSDK, useGlobalState | positional-graph, file-ops, events, workspace-url, sdk, state | ✅ |
 | _platform/dev-tools | StateInspector, useStateChangeLog, useStateInspector | — | IStateService, StateChangeLog, useStateSystem | state | ✅ |
 | 058-workunit-editor | _(none — leaf consumer)_ | — | IWorkUnitService, CodeEditor, workspaceHref | positional-graph, viewer, workspace-url | ✅ |
+| _platform/auth | auth(), signIn(), signOut(), requireAuth(), useAuth(), middleware protection, isUserAllowed(), SessionProvider | file-browser, workflow-ui, workunit-editor (via middleware), server actions (via requireAuth) | — | — | ✅ |

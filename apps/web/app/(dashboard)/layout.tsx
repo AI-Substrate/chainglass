@@ -1,4 +1,5 @@
 import { NavigationWrapper } from '@/components/navigation-wrapper';
+import { AuthProvider } from '@/features/063-login/components/auth-provider';
 import type { ReactNode } from 'react';
 
 // All dashboard pages use useSearchParams (via sidebar/nav) — must be dynamic
@@ -20,5 +21,9 @@ export const dynamic = 'force-dynamic';
  * @see Phase 7: Mobile Templates & Documentation
  */
 export default function DashboardLayout({ children }: { children: ReactNode }) {
-  return <NavigationWrapper>{children}</NavigationWrapper>;
+  return (
+    <AuthProvider>
+      <NavigationWrapper>{children}</NavigationWrapper>
+    </AuthProvider>
+  );
 }
