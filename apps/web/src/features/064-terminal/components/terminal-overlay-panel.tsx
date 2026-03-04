@@ -57,7 +57,7 @@ export function TerminalOverlayPanel() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, closeTerminal]);
 
-  if (!isOpen || !sessionName || !cwd) return null;
+  if (!sessionName || !cwd) return null;
 
   return (
     <div
@@ -69,6 +69,7 @@ export function TerminalOverlayPanel() {
         left: `${anchorRect.left}px`,
         width: `${anchorRect.width}px`,
         height: `${anchorRect.height}px`,
+        display: isOpen ? 'flex' : 'none',
       }}
       data-testid="terminal-overlay-panel"
     >
