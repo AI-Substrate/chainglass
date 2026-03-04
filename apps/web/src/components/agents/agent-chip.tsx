@@ -72,32 +72,36 @@ export function AgentChip({
       onClick={() => toggleAgent(id)}
       title={`${name} — ${status}${intent ? `: ${intent}` : ''}`}
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium',
-        'transition-colors cursor-pointer select-none',
-        'hover:bg-accent hover:text-accent-foreground',
-        isActive && 'bg-accent ring-2 ring-primary/30',
-        !isActive && 'bg-background',
+        'inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm',
+        'transition-all duration-150 cursor-pointer select-none',
+        'hover:bg-accent/60 hover:shadow-sm',
+        isActive && 'bg-accent shadow-sm ring-1 ring-primary/20',
+        !isActive && 'bg-card',
         className
       )}
     >
-      {/* Status dot */}
-      <span className={cn('h-2 w-2 rounded-full shrink-0', style.dot, style.ring)} />
+      {/* Status indicator */}
+      <span className={cn('h-2.5 w-2.5 rounded-full shrink-0', style.dot, style.ring)} />
 
       {/* Type icon */}
-      <TypeIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+      <TypeIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
 
       {!compact && (
-        <>
+        <div className="flex flex-col items-start min-w-0">
           {/* Name */}
-          <span className="truncate max-w-[100px]">{name}</span>
+          <span className="truncate max-w-[140px] font-medium leading-tight">{name}</span>
 
           {/* Intent snippet */}
-          {intent && <span className="truncate max-w-[120px] text-muted-foreground">{intent}</span>}
-        </>
+          {intent && (
+            <span className="truncate max-w-[140px] text-xs text-muted-foreground leading-tight">
+              {intent}
+            </span>
+          )}
+        </div>
       )}
 
       {/* Question indicator */}
-      {isWaiting && <HelpCircle className="h-3 w-3 shrink-0 text-amber-500" />}
+      {isWaiting && <HelpCircle className="h-4 w-4 shrink-0 text-amber-500" />}
     </button>
   );
 }

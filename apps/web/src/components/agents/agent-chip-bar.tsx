@@ -118,10 +118,10 @@ export function AgentChipBar({ workspace, worktreeSlug, className }: AgentChipBa
 
   return (
     <div
-      className={cn('border-b bg-background/95 backdrop-blur-sm px-3 py-1.5', className)}
+      className={cn('border-b bg-card/80 backdrop-blur-sm px-4 py-2', className)}
       style={{ zIndex: Z_INDEX.TOP_BAR, position: 'relative' }}
     >
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-2">
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext
             items={visibleAgents.map((a) => a.id)}
@@ -129,7 +129,7 @@ export function AgentChipBar({ workspace, worktreeSlug, className }: AgentChipBa
           >
             <div
               className={cn(
-                'flex gap-1.5 flex-wrap',
+                'flex gap-2 flex-wrap',
                 !isExpanded && 'flex-nowrap overflow-hidden',
                 isExpanded && 'max-h-[50vh] overflow-y-auto'
               )}
@@ -155,9 +155,9 @@ export function AgentChipBar({ workspace, worktreeSlug, className }: AgentChipBa
             type="button"
             onClick={toggleExpanded}
             className={cn(
-              'inline-flex items-center gap-0.5 rounded-full px-2 py-1',
-              'text-xs text-muted-foreground hover:text-foreground',
-              'hover:bg-accent transition-colors shrink-0'
+              'inline-flex items-center gap-1 rounded-md px-2.5 py-2',
+              'text-sm text-muted-foreground hover:text-foreground',
+              'hover:bg-accent/60 transition-all shrink-0'
             )}
           >
             {isExpanded ? (
