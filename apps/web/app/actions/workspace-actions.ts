@@ -10,6 +10,7 @@
  */
 
 import { existsSync, statSync } from 'node:fs';
+import { requireAuth } from '@/features/063-login/lib/require-auth';
 import { WORKSPACE_DI_TOKENS } from '@chainglass/shared';
 import type { ISampleService, IWorkspaceService } from '@chainglass/workflow';
 import { revalidatePath } from 'next/cache';
@@ -70,6 +71,7 @@ export async function addWorkspace(
   _prevState: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  await requireAuth();
   const rawName = (formData.get('name') as string) ?? '';
   const rawPath = (formData.get('path') as string) ?? '';
 
@@ -161,6 +163,7 @@ export async function removeWorkspace(
   _prevState: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  await requireAuth();
   const slug = formData.get('slug');
 
   if (!slug || typeof slug !== 'string') {
@@ -215,6 +218,7 @@ export async function removeWorkspace(
  * @returns ActionState with success/error info
  */
 export async function addSample(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAuth();
   // Validate input
   const validatedFields = AddSampleSchema.safeParse({
     name: formData.get('name'),
@@ -291,6 +295,7 @@ export async function deleteSample(
   _prevState: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  await requireAuth();
   const sampleSlug = formData.get('sampleSlug');
   const workspaceSlug = formData.get('workspaceSlug');
   const worktreePath = formData.get('worktreePath') || undefined;
@@ -388,6 +393,7 @@ export async function updateWorkspacePreferences(
   _prevState: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  await requireAuth();
   // 1. Validate form data
   const parsed = updatePreferencesSchema.safeParse({
     slug: formData.get('slug'),
@@ -455,6 +461,7 @@ export async function updateWorkspacePreferences(
  * Per Plan 041 Phase 3: WorkspaceCard uses <form action> (not useActionState).
  */
 export async function toggleWorkspaceStar(formData: FormData): Promise<void> {
+  await requireAuth();
   const slug = formData.get('slug');
   const starred = formData.get('starred');
 
@@ -481,6 +488,7 @@ export async function toggleWorkspaceStar(formData: FormData): Promise<void> {
  * Adds or removes the worktree path from workspace preferences.starredWorktrees.
  */
 export async function toggleWorktreeStar(formData: FormData): Promise<void> {
+  await requireAuth();
   const slug = formData.get('slug');
   const worktreePath = formData.get('worktreePath');
   const action = formData.get('action'); // 'star' or 'unstar'
@@ -526,6 +534,7 @@ export async function updateWorktreePreferences(
   worktreePath: string,
   prefs: { emoji?: string; color?: string }
 ): Promise<ActionState> {
+  await requireAuth();
   if (!slug || !worktreePath) {
     return { success: false, errors: { _form: ['Workspace slug and worktree path are required'] } };
   }

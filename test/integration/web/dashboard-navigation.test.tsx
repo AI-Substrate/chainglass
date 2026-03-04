@@ -42,6 +42,14 @@ vi.mock('next/navigation', () => ({
   })),
 }));
 
+vi.mock('next-auth/react', () => ({
+  useSession: vi.fn(() => ({
+    data: { user: { name: 'jakkaj' } },
+    status: 'authenticated',
+  })),
+  signOut: vi.fn(),
+}));
+
 describe('Dashboard Navigation Integration', () => {
   let originalMatchMedia: typeof window.matchMedia;
 

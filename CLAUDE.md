@@ -67,6 +67,12 @@ packages/
 - **Turbo** for monorepo builds
 - **Turbopack** for Next.js dev/build
 
+## C4 Architecture Diagrams
+
+C4 model diagrams live in `docs/c4/` (L1 System Context, L2 Containers, L3 Components per domain). When creating or editing C4 files, follow the authoring principles in [.github/instructions/c4-authoring.instructions.md](.github/instructions/c4-authoring.instructions.md). All diagrams use Mermaid native C4 syntax (`C4Context`, `C4Container`, `C4Component`).
+
+**Keep C4 diagrams in sync with domain changes.** When adding, removing, or renaming domain components, contracts, or relationships, update the corresponding `docs/c4/components/` file in the same PR. If a new domain is created, create its L3 component diagram and add it to `docs/c4/README.md`. If a domain is retired, remove its C4 file and links.
+
 ## Critical Patterns
 
 ### Mermaid Diagrams

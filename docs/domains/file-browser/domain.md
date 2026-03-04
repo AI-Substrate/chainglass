@@ -5,6 +5,7 @@
 **Created**: 2026-02-24
 **Created By**: Plan 041 File Browser & Workspace-Centric UI
 **Status**: active
+**C4 Diagram**: [C4 Component](../../c4/components/file-browser.md)
 
 ## Purpose
 

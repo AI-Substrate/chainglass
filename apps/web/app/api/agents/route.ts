@@ -1,3 +1,4 @@
+import { auth } from '@/auth';
 import { POSITIONAL_GRAPH_DI_TOKENS, SHARED_DI_TOKENS } from '@chainglass/shared';
 import type { IAgentNotifierService } from '@chainglass/shared/features/019-agent-manager-refactor';
 import type {
@@ -50,6 +51,8 @@ async function ensureInitialized(): Promise<void> {
  * Returns: Array of agent instances with status/intent/events
  */
 export async function GET(request: NextRequest): Promise<Response> {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   try {
     // Ensure initialization (DYK-16)
     await ensureInitialized();
@@ -100,6 +103,8 @@ export async function GET(request: NextRequest): Promise<Response> {
  * Returns: Created agent instance
  */
 export async function POST(request: NextRequest): Promise<Response> {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   try {
     // Ensure initialization (DYK-16)
     await ensureInitialized();

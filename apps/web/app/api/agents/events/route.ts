@@ -17,7 +17,9 @@
  *
  * DYK-04: force-dynamic is required to prevent Next.js static optimization of streaming routes.
  */
+import { auth } from '@/auth';
 import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import { sseManager } from '../../../../src/lib/sse-manager';
 
 /** Force dynamic rendering - required for SSE streaming (DYK-04) */
@@ -33,6 +35,8 @@ const AGENTS_CHANNEL = 'agents';
  * GET handler for agent SSE connections
  */
 export async function GET(request: NextRequest): Promise<Response> {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   // Optional agentId query param for server-side filtering (future optimization)
   // Current implementation: all events sent, client filters by agentId
 

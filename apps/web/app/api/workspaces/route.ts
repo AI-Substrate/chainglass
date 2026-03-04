@@ -10,9 +10,11 @@
  * Per DYK-P6-05: Mutations (POST) moved to Server Actions.
  */
 
+import { auth } from '@/auth';
 import { WORKSPACE_DI_TOKENS } from '@chainglass/shared';
 import type { IWorkspaceService } from '@chainglass/workflow';
 import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getContainer } from '../../../src/lib/bootstrap-singleton';
 
 /** Force dynamic rendering - required for DI container access */
@@ -57,6 +59,8 @@ interface WorkspaceListItem {
  * @returns JSON response with workspace list
  */
 export async function GET(request: NextRequest): Promise<Response> {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const container = getContainer();
   const workspaceService = container.resolve<IWorkspaceService>(
     WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE

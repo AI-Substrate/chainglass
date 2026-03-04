@@ -5,6 +5,7 @@
 **Created**: 2026-02-24
 **Created By**: extracted from existing codebase (Plan 006-web-extras)
 **Status**: active
+**C4 Diagram**: [C4 Component](../../../c4/components/_platform/viewer.md)
 
 ## Purpose
 

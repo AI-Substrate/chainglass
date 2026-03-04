@@ -15,10 +15,12 @@
 import * as fs from 'node:fs';
 import * as fsPromises from 'node:fs/promises';
 import * as path from 'node:path';
+import { auth } from '@/auth';
 import { getContainer } from '@/lib/bootstrap-singleton';
 import { detectContentType } from '@/lib/content-type-detection';
 import { type IPathResolver, PathSecurityError, SHARED_DI_TOKENS } from '@chainglass/shared';
 import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,6 +28,8 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ): Promise<Response> {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   await params; // consume async params (required by Next.js 16)
   const { searchParams } = new URL(request.url);
   const worktree = searchParams.get('worktree');

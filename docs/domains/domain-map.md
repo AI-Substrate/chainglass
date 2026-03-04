@@ -21,6 +21,7 @@ flowchart LR
     posGraph["📊 _platform/positional-graph<br/>IPositionalGraphService<br/>IOrchestrationService<br/>IEventHandlerService<br/>IWorkUnitService<br/>ITemplateService<br/>IInstanceService"]:::infra
     state["💾 _platform/state<br/>IStateService<br/>useGlobalState<br/>useGlobalStateList<br/>GlobalStateProvider<br/>StateChangeLog<br/>ServerEventRoute"]:::infra
     devTools["🛠️ _platform/dev-tools<br/>StateInspector<br/>useStateInspector<br/>useStateChangeLog"]:::infra
+    auth["🔐 _platform/auth<br/>auth() · signIn() · signOut()<br/>requireAuth() · useAuth()<br/>middleware protection<br/>isUserAllowed()<br/>SessionProvider"]:::infra
 
     %% Business domains
     fileBrowser["📁 file-browser<br/>Browser page · FileTree<br/>CodeEditor re-export<br/>FileViewerPanel<br/>WorkspaceContext · Settings"]:::business
@@ -95,6 +96,11 @@ flowchart LR
     workunitEditor -->|"IWorkUnitService<br/>(CRUD)"| posGraph
     workunitEditor -->|"CodeEditor"| viewer
     workunitEditor -->|"workspaceHref"| wsUrl
+
+    %% Auth dependencies (consumer → provider: business domains consume auth protection)
+    fileBrowser -->|"middleware protection"| auth
+    workflowUI -->|"middleware protection"| auth
+    workunitEditor -->|"middleware protection"| auth
 ```
 
 ## Legend
@@ -127,3 +133,4 @@ flowchart LR
 | agents | IAgentManagerService, IAgentAdapter, IAgentInstance, IAgentNotifierService, useAgentManager, useAgentInstance, useAgentOverlay, useRecentAgents, useWorktreeActivity, AgentChipBar, AgentOverlayPanel, AgentWorkUnitBridge | positional-graph (orchestration), workflow-ui (overlay), panel-layout (badge data via composition) | ISSEBroadcaster, useSSE, toast(), CopilotClient, IStateService, IWorkUnitStateService, IWorkflowEvents, DashboardShell | events, sdk, state, work-unit-state, workflow-events, panel-layout | 🟠 New |
 | work-unit-state | IWorkUnitStateService, WorkUnitEntry, WorkUnitEvent, FakeWorkUnitStateService, workUnitStateRoute | agents (AgentWorkUnitBridge), workflow-ui (future) | ICentralEventNotifier, ServerEventRouteDescriptor | events, state | 🟠 New |
 | workflow-events | IWorkflowEvents, WorkflowEventType, WorkflowEventError, FakeWorkflowEventsService | agents (observer hooks), workflow-ui (answerQuestion), CLI (ask/answer/get-answer) | IPositionalGraphService, ICentralEventNotifier | positional-graph, events | 🟠 New |
+| _platform/auth | auth(), signIn(), signOut(), requireAuth(), useAuth(), middleware protection, isUserAllowed(), SessionProvider | file-browser, workflow-ui, workunit-editor (via middleware), server actions (via requireAuth) | — | — | ✅ |

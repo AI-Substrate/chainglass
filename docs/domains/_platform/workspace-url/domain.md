@@ -5,6 +5,7 @@
 **Created**: 2026-02-22
 **Created By**: extracted from existing codebase (Plan 041 Phase 2)
 **Status**: active
+**C4 Diagram**: [C4 Component](../../../c4/components/_platform/workspace-url.md)
 
 ## Purpose
 

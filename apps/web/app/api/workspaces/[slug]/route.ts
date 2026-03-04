@@ -8,8 +8,10 @@
  * Per DYK-P6-05: DELETE mutation moved to Server Actions.
  */
 
+import { auth } from '@/auth';
 import { WORKSPACE_DI_TOKENS } from '@chainglass/shared';
 import type { IWorkspaceService } from '@chainglass/workflow';
+import { NextResponse } from 'next/server';
 import { getContainer } from '../../../../src/lib/bootstrap-singleton';
 
 /** Force dynamic rendering - required for DI container access */
@@ -27,6 +29,8 @@ interface RouteParams {
  * @returns JSON response with workspace info including worktrees
  */
 export async function GET(_request: Request, { params }: RouteParams): Promise<Response> {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const { slug } = await params;
 
   const container = getContainer();

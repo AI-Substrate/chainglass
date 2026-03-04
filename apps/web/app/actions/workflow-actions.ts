@@ -12,6 +12,7 @@
  * Plan 050
  */
 
+import { requireAuth } from '@/features/063-login/lib/require-auth';
 import type { IPositionalGraphService } from '@chainglass/positional-graph';
 import type { IWorkUnitService } from '@chainglass/positional-graph';
 import { WorkflowEventObserverRegistry, WorkflowEventsService } from '@chainglass/positional-graph';
@@ -98,6 +99,7 @@ export async function listWorkflows(
   workspaceSlug: string,
   worktreePath?: string
 ): Promise<ListWorkflowsResult> {
+  await requireAuth();
   const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx)
     return {
@@ -141,6 +143,7 @@ export async function loadWorkflow(
   graphSlug: string,
   worktreePath?: string
 ): Promise<LoadWorkflowResult> {
+  await requireAuth();
   const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { errors: [{ code: 'E000', message: 'Workspace not found', action: '' }] };
 
@@ -165,6 +168,7 @@ export async function createWorkflow(
   graphSlug: string,
   worktreePath?: string
 ): Promise<CreateWorkflowResult> {
+  await requireAuth();
   const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { errors: [{ code: 'E000', message: 'Workspace not found', action: '' }] };
 
@@ -182,6 +186,7 @@ export async function listWorkUnits(
   workspaceSlug: string,
   worktreePath?: string
 ): Promise<ListWorkUnitsResult> {
+  await requireAuth();
   const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx)
     return { units: [], errors: [{ code: 'E000', message: 'Workspace not found', action: '' }] };
@@ -211,6 +216,7 @@ export async function addNode(
   atPosition?: number,
   worktreePath?: string
 ): Promise<AddNodeMutationResult> {
+  await requireAuth();
   const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { errors: [NOT_FOUND_ERROR] };
 
@@ -229,6 +235,7 @@ export async function removeNode(
   nodeId: string,
   worktreePath?: string
 ): Promise<MutationResult> {
+  await requireAuth();
   const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { errors: [NOT_FOUND_ERROR] };
 
@@ -246,6 +253,7 @@ export async function moveNode(
   toLineId?: string,
   worktreePath?: string
 ): Promise<MutationResult> {
+  await requireAuth();
   const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { errors: [NOT_FOUND_ERROR] };
 
@@ -264,6 +272,7 @@ export async function addLine(
   label?: string,
   worktreePath?: string
 ): Promise<MutationResult> {
+  await requireAuth();
   const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { errors: [NOT_FOUND_ERROR] };
 
@@ -279,6 +288,7 @@ export async function removeLine(
   lineId: string,
   worktreePath?: string
 ): Promise<MutationResult> {
+  await requireAuth();
   const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { errors: [NOT_FOUND_ERROR] };
 
@@ -295,6 +305,7 @@ export async function setLineLabel(
   label: string,
   worktreePath?: string
 ): Promise<MutationResult> {
+  await requireAuth();
   const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { errors: [NOT_FOUND_ERROR] };
 
@@ -311,6 +322,7 @@ export async function setLineDescription(
   description: string,
   worktreePath?: string
 ): Promise<MutationResult> {
+  await requireAuth();
   const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { errors: [NOT_FOUND_ERROR] };
 
@@ -332,6 +344,7 @@ export async function updateLineSettings(
   settings: { transition?: 'auto' | 'manual'; autoStartLine?: boolean },
   worktreePath?: string
 ): Promise<MutationResult> {
+  await requireAuth();
   const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { errors: [NOT_FOUND_ERROR] };
 
@@ -352,6 +365,7 @@ export async function saveAsTemplate(
   templateSlug: string,
   worktreePath?: string
 ): Promise<MutationResult> {
+  await requireAuth();
   const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { errors: [NOT_FOUND_ERROR] };
 
@@ -367,6 +381,7 @@ export async function instantiateTemplate(
   instanceId: string,
   worktreePath?: string
 ): Promise<InstantiateTemplateResult> {
+  await requireAuth();
   const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { errors: [NOT_FOUND_ERROR] };
 
@@ -384,6 +399,7 @@ export async function listTemplates(
   workspaceSlug: string,
   worktreePath?: string
 ): Promise<ListTemplatesResult> {
+  await requireAuth();
   const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { templates: [], errors: [NOT_FOUND_ERROR] };
 
@@ -403,6 +419,7 @@ export async function loadSnapshotData(
   graphSlug: string,
   worktreePath?: string
 ): Promise<{ snapshot?: WorkflowSnapshot; errors: import('@chainglass/shared').ResultError[] }> {
+  await requireAuth();
   const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { errors: [NOT_FOUND_ERROR] };
 
@@ -434,6 +451,7 @@ export async function answerQuestion(
   answer: unknown,
   worktreePath?: string
 ): Promise<MutationResult> {
+  await requireAuth();
   const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { errors: [NOT_FOUND_ERROR] };
 
@@ -461,6 +479,7 @@ export async function restoreSnapshot(
   nodeConfigs: Record<string, import('@chainglass/positional-graph').NodeConfig>,
   worktreePath?: string
 ): Promise<MutationResult> {
+  await requireAuth();
   const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { errors: [NOT_FOUND_ERROR] };
 
@@ -504,6 +523,7 @@ export async function updateNodeConfig(
   },
   worktreePath?: string
 ): Promise<MutationResult> {
+  await requireAuth();
   const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { errors: [NOT_FOUND_ERROR] };
 
@@ -535,6 +555,7 @@ export async function setNodeInput(
   source: import('@chainglass/positional-graph').InputResolution,
   worktreePath?: string
 ): Promise<MutationResult> {
+  await requireAuth();
   const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { errors: [NOT_FOUND_ERROR] };
 
@@ -555,6 +576,7 @@ export async function submitUserInput(
   freeformNotes?: string,
   worktreePath?: string
 ): Promise<MutationResult> {
+  await requireAuth();
   const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { errors: [NOT_FOUND_ERROR] };
 
@@ -593,6 +615,7 @@ export async function resetUserInput(
   nodeId: string,
   worktreePath?: string
 ): Promise<MutationResult> {
+  await requireAuth();
   const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { errors: [NOT_FOUND_ERROR] };
 
@@ -622,6 +645,7 @@ export async function loadUserInputData(
   freeformNotes?: string;
   errors: Array<{ code: string; message: string; action?: string }>;
 }> {
+  await requireAuth();
   const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
   if (!ctx) return { errors: [NOT_FOUND_ERROR] };
 
