@@ -4,10 +4,10 @@
 **Plan**: 064-tmux
 **Research**: [research-dossier.md](../research-dossier.md)
 **Created**: 2026-03-02
-**Status**: Draft
+**Status**: Approved
 
 **Related Documents**:
-- [Plan 063 Login Spec](../../../plans/063-login/login-spec.md) — GitHub OAuth + Auth.js v5 (next-auth)
+- [Plan 063 Login](../../../plans/063-login/) — GitHub OAuth + Auth.js v5 (next-auth) — **MERGED TO MAIN**
 - [Workshop 001: Terminal UI](./001-terminal-ui-main-and-popout.md) — Layout and overlay design
 - [DYK-04: WS binds 0.0.0.0](../tasks/phase-1-sidecar-ws-server/tasks.md) — Remote access required
 
@@ -259,11 +259,12 @@ dev:
 
 ---
 
-## Graceful Degradation
+## Current State (Post Plan 063 Merge)
 
-### When Auth Is Not Configured (No Plan 063 Merged)
+Plan 063 (auth) is now merged to main and available in the 064-tmux branch. The implementation should:
 
-If `_platform/auth` hasn't been merged yet (Plan 063 not in main), the terminal should still work without auth:
+1. **Always require auth** when `AUTH_SECRET` is set (which it is in production and dev)
+2. **Fallback to open access** only when `AUTH_SECRET` is explicitly unset (testing/CI)
 
 ```typescript
 // terminal-ws.ts
@@ -282,8 +283,6 @@ wss.on('connection', async (ws, req) => {
 
 ```typescript
 // Client: use-terminal-socket.ts
-const AUTH_ENABLED = true; // Could check if /api/terminal/token returns 404
-
 async function connectTerminal(sessionName: string, cwd: string) {
   let tokenParam = '';
   try {
@@ -298,8 +297,6 @@ async function connectTerminal(sessionName: string, cwd: string) {
   return new WebSocket(wsUrl);
 }
 ```
-
-**This means**: Terminal works pre-auth (localhost-only risk accepted), and automatically picks up auth when Plan 063 merges.
 
 ---
 
@@ -317,33 +314,29 @@ async function connectTerminal(sessionName: string, cwd: string) {
 
 ---
 
-## Impact on Plan 064
+## Implementation Tasks
 
-### Phase 1 Changes
+Now that Plan 063 is merged, these are the concrete tasks to add auth:
 
-Add to T006 (WebSocket server) success criteria:
-- When `AUTH_SECRET` is set: reject connections without valid JWT
-- When `AUTH_SECRET` is not set: accept all connections (backward compatible)
-
-Add to T001 (Install dependencies):
-- Add `jose` to `apps/web/package.json` (for JWT sign/verify on sidecar)
-
-### New Task (Phase 1 or Phase 5)
-
-| Task | Description |
-|------|-------------|
-| T-AUTH | Create `/api/terminal/token` route. Calls `auth()` for session validation, issues short-lived JWT. Add token refresh logic to `use-terminal-socket.ts`. Add `AUTH_SECRET` to justfile dev recipe. |
+| # | Task | Files | Notes |
+|---|------|-------|-------|
+| 1 | Install `jose` in apps/web | `apps/web/package.json` | For JWT sign (Next.js) + verify (sidecar) |
+| 2 | Create `/api/terminal/token` route | `app/api/terminal/token/route.ts` | Calls `auth()`, issues 5-min JWT with `sub` claim |
+| 3 | Protect `/api/terminal` route | `app/api/terminal/route.ts` | Add `auth()` check (session list endpoint) |
+| 4 | Add token validation to sidecar | `server/terminal-ws.ts` | `jwtVerify()` on connect, reject without valid token |
+| 5 | Add token fetch + refresh to client | `hooks/use-terminal-socket.ts` | Fetch before connect, refresh every 4 min |
+| 6 | Pass `AUTH_SECRET` to sidecar | `justfile` | Ensure sidecar process has the env var |
+| 7 | Handle auth errors in UI | `components/terminal-inner.tsx` | Show "Authentication required" on 4401/4403 close |
 
 ### Dependency Order
 
 ```
-Plan 063 (login) → merges to main → available in 064 worktree
-                                      ↓
-Plan 064 Phase 1: WS server validates JWT (if AUTH_SECRET set)
-Plan 064 Phase 2: Client fetches token + sends on connect
+Plan 063 (login) ✅ MERGED
+  ↓
+Install jose → Create /api/terminal/token → Protect /api/terminal
+  ↓
+Sidecar validates JWT → Client fetches token → UI handles auth errors
 ```
-
-But terminal works **without** 063 merged — auth is opt-in based on `AUTH_SECRET` presence.
 
 ---
 
