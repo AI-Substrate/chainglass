@@ -104,15 +104,20 @@ export class AgentManagerService implements IAgentManagerService {
 
     for (const entry of registryEntries) {
       // Use AgentInstance.hydrate() to restore each agent
-      const instance = await AgentInstance.hydrate(
-        entry.id,
-        this._storage,
-        this._adapterFactory,
-        this._notifier
-      );
+      // FX006: Defensive — skip corrupt agents instead of crashing the whole list
+      try {
+        const instance = await AgentInstance.hydrate(
+          entry.id,
+          this._storage,
+          this._adapterFactory,
+          this._notifier
+        );
 
-      if (instance) {
-        this._agents.set(entry.id, instance);
+        if (instance) {
+          this._agents.set(entry.id, instance);
+        }
+      } catch (err) {
+        console.warn(`[AgentManager] Skipping corrupt agent ${entry.id}:`, err);
       }
     }
 
