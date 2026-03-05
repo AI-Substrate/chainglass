@@ -45,6 +45,7 @@ const nextConfig = {
     '@shikijs/engine-oniguruma',
     '@github/copilot-sdk',
     '@github/copilot',
+    'node-pty',
     'next-auth',
     '@auth/core',
     'yaml',

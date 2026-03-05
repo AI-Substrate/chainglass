@@ -36,10 +36,11 @@ export default async function WorktreeLandingPage({ params, searchParams }: Page
   const { slug } = await params;
   const { worktree: worktreePath } = await searchParams;
 
-  // Redirect to workspace detail if no worktree specified
-  if (!worktreePath) {
-    redirect(`/workspaces/${slug}`);
+  // Always redirect to browser — worktree landing page is deprecated
+  if (worktreePath) {
+    redirect(`/workspaces/${slug}/browser?worktree=${encodeURIComponent(worktreePath)}`);
   }
+  redirect(`/workspaces/${slug}`);
 
   const container = getContainer();
   const workspaceService = container.resolve<IWorkspaceService>(

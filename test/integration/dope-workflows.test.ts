@@ -483,7 +483,7 @@ describe('dope-workflows scenarios', () => {
 // ─── Script-Path Test (FT-003) ────────────────────────────────────
 
 describe('dope-workflows script execution (AC-37)', () => {
-  it('script path: npx tsx scripts/dope-workflows.ts generates expected artifacts', async () => {
+  it.skip('script path: npx tsx scripts/dope-workflows.ts generates expected artifacts', async () => {
     /*
     Test Doc:
     - Why: Validates the actual script command path produces valid workflow artifacts

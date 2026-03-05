@@ -11,11 +11,30 @@ install:
     pnpm install --ignore-scripts
     pnpm build
     pnpm install
+    chmod +x apps/web/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper 2>/dev/null || true
     @cd apps/cli && pnpm link --global 2>/dev/null || echo "Note: Run 'pnpm setup' and restart your shell to enable global 'cg' command"
 
-# Start development server
+# Start development server (Next.js + terminal WebSocket sidecar)
+# PORT env var controls both: Next.js listens on PORT, sidecar on PORT+1500
+# If PORT not set, Next.js auto-selects and sidecar defaults to 3000+1500
 dev:
-    pnpm turbo dev
+    @cd apps/web && node -e "require('node-pty').spawn('/bin/echo',['ok'],{name:'x',cols:1,rows:1,cwd:'/tmp',env:{}})" 2>/dev/null || (echo "Error: node-pty can't spawn. Run: chmod +x apps/web/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper" && exit 1)
+    PORT=${PORT:-3000} TERMINAL_WS_HOST=${TERMINAL_WS_HOST:-0.0.0.0} \
+      pnpm concurrently --names "next,terminal" --prefix-colors "blue,green" \
+        "pnpm turbo dev -- --port ${PORT:-3000}" \
+        "pnpm tsx watch --env-file=apps/web/.env.local apps/web/src/features/064-terminal/server/terminal-ws.ts"
+
+# Start terminal WebSocket server only
+dev-terminal:
+    PORT=${PORT:-3000} pnpm tsx watch --env-file=apps/web/.env.local apps/web/src/features/064-terminal/server/terminal-ws.ts
+
+# Start development server with HTTPS (enables clipboard API on remote devices)
+dev-https:
+    @cd apps/web && node -e "require('node-pty').spawn('/bin/echo',['ok'],{name:'x',cols:1,rows:1,cwd:'/tmp',env:{}})" 2>/dev/null || (echo "Error: node-pty can't spawn. Run: chmod +x apps/web/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper" && exit 1)
+    PORT=${PORT:-3000} TERMINAL_WS_HOST=${TERMINAL_WS_HOST:-0.0.0.0} TERMINAL_WS_CERT=apps/web/certificates/localhost.pem TERMINAL_WS_KEY=apps/web/certificates/localhost-key.pem \
+      pnpm concurrently --names "next,terminal" --prefix-colors "blue,green" \
+        "pnpm turbo dev -- --port ${PORT:-3000} --experimental-https" \
+        "pnpm tsx watch --env-file=apps/web/.env.local apps/web/src/features/064-terminal/server/terminal-ws.ts"
 
 # Build all packages
 build:

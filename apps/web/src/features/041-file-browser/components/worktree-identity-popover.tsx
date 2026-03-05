@@ -12,7 +12,7 @@
 import { ColorPicker } from '@/features/041-file-browser/components/color-picker';
 import { EmojiPicker } from '@/features/041-file-browser/components/emoji-picker';
 import { useWorkspaceContext } from '@/features/041-file-browser/hooks/use-workspace-context';
-import { Settings2 } from 'lucide-react';
+import { Monitor, Moon, Settings2, Sun } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -43,6 +43,7 @@ export function WorktreeIdentityPopover({ slug, worktreePath }: Props) {
 
   const currentEmoji = wsCtx?.worktreeIdentity?.emoji || '';
   const currentColor = wsCtx?.worktreeIdentity?.color || '';
+  const currentTerminalTheme = wsCtx?.worktreeIdentity?.terminalTheme || 'dark';
 
   const handleEmojiSelect = async (emoji: string) => {
     setOpen(false);
@@ -63,6 +64,16 @@ export function WorktreeIdentityPopover({ slug, worktreePath }: Props) {
       router.refresh();
     } else {
       toast.error(result.errors?._form?.[0] ?? 'Failed to update color');
+    }
+  };
+
+  const handleTerminalThemeSelect = async (theme: 'dark' | 'light' | 'system') => {
+    const result = await updateWorktreePreferences(slug, worktreePath, { terminalTheme: theme });
+    if (result.success) {
+      toast.success('Terminal theme updated');
+      router.refresh();
+    } else {
+      toast.error(result.errors?._form?.[0] ?? 'Failed to update terminal theme');
     }
   };
 
@@ -87,6 +98,33 @@ export function WorktreeIdentityPopover({ slug, worktreePath }: Props) {
             <div>
               <div className="mb-1 text-xs text-muted-foreground">Color</div>
               <ColorPicker current={currentColor} onSelect={handleColorSelect} />
+            </div>
+            <div>
+              <div className="mb-1 text-xs text-muted-foreground">Terminal Theme</div>
+              <div className="flex gap-1">
+                {(
+                  [
+                    { value: 'dark', icon: Moon, label: 'Dark' },
+                    { value: 'light', icon: Sun, label: 'Light' },
+                    { value: 'system', icon: Monitor, label: 'System' },
+                  ] as const
+                ).map(({ value, icon: Icon, label }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => handleTerminalThemeSelect(value)}
+                    className={`flex items-center gap-1 rounded px-2 py-1 text-xs ${
+                      currentTerminalTheme === value
+                        ? 'bg-accent text-accent-foreground font-medium'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                    }`}
+                    title={label}
+                  >
+                    <Icon className="h-3 w-3" />
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>

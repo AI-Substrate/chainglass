@@ -19,6 +19,7 @@
 | Agents | agents | business | — | Plan 059 — Fix Agents (extracted) | active |
 | Work Unit State | work-unit-state | business | — | Plan 059 — Fix Agents (new) | active |
 | Workflow Events | workflow-events | business | — | Plan 061 — WorkflowEvents (new) | active |
+| Terminal | terminal | business | — | Plan 064 | active |
 | Auth | _platform/auth | infrastructure | _platform | Plan 063-login | active |
 
 ## Domain Types

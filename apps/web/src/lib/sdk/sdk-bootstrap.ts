@@ -86,6 +86,20 @@ export function bootstrapSDK(): IUSDK {
   // Ctrl+, opens settings
   keybindings.register({ key: '$mod+Comma', command: 'sdk.openSettings' });
 
+  // Terminal overlay toggle (Plan 064 Phase 4)
+  commands.register({
+    id: 'terminal.toggleOverlay',
+    title: 'Toggle Terminal',
+    domain: 'terminal',
+    params: z.object({}),
+    handler: async () => {
+      // DYK-05: Dispatch custom event — provider listens inside workspace layout
+      window.dispatchEvent(new CustomEvent('terminal:toggle'));
+    },
+    icon: 'terminal',
+  });
+  keybindings.register({ key: '$mod+Backquote', command: 'terminal.toggleOverlay' });
+
   const sdk: IUSDK = {
     commands,
     settings,

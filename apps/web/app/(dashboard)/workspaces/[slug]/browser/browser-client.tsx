@@ -127,7 +127,7 @@ function BrowserClientInner({
     isGit,
     worktreePath,
     panel: panelMode,
-    setUrlPanel: (p) => setParams({ panel: p }),
+    setUrlPanel: (p) => setParams({ panel: p as 'tree' | 'changes' }),
     fetchWorkingChanges,
     fetchRecentFiles,
     fetchChangedFiles,

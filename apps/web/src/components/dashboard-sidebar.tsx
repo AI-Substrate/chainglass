@@ -23,7 +23,14 @@ import { useWorkspaceContext } from '@/features/041-file-browser/hooks/use-works
 import { DEV_NAV_ITEMS, WORKSPACE_NAV_ITEMS } from '@/lib/navigation-utils';
 import { cn } from '@/lib/utils';
 import { workspaceHref } from '@/lib/workspace-url';
-import { ChevronLeft, ExternalLink, LogOut, PanelLeft, Settings } from 'lucide-react';
+import {
+  ChevronLeft,
+  ExternalLink,
+  LogOut,
+  PanelLeft,
+  Settings,
+  TerminalSquare,
+} from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { Suspense, useMemo, useState } from 'react';
@@ -261,6 +268,15 @@ export function DashboardSidebar() {
               </div>
             </SidebarMenuItem>
           )}
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              onClick={() => window.dispatchEvent(new CustomEvent('terminal:toggle'))}
+              tooltip="Toggle Terminal (Ctrl+`)"
+            >
+              <TerminalSquare className="h-5 w-5" />
+              {!isCollapsed && <span>Terminal</span>}
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
