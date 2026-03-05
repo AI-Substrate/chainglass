@@ -1,0 +1,38 @@
+slug: sample-coder
+type: agent
+version: 1.0.0
+description: Generates code based on specification, asks which language to use
+
+inputs:
+  - name: spec
+    type: data
+    data_type: text
+    required: false
+    description: The specification for what code to generate (legacy)
+  - name: challenge
+    type: data
+    data_type: text
+    required: false
+    description: The coding challenge to solve
+  - name: language
+    type: data
+    data_type: text
+    required: false
+    description: The programming language to use
+
+outputs:
+  - name: language
+    type: data
+    data_type: text
+    required: true
+    description: The programming language chosen
+  - name: code
+    type: file
+    required: true
+    description: The generated code file
+
+agent:
+  prompt_template: prompts/main.md
+  supported_agents:
+    - claude-code
+  estimated_tokens: 2000

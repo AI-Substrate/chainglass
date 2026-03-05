@@ -1,0 +1,21 @@
+slug: demo-code-editor
+type: code
+version: 1.0.0
+description: Demo code unit for editor testing
+inputs:
+  - name: input_file
+    type: file
+    required: true
+    description: File to process
+  - name: config
+    type: data
+    data_type: json
+    required: false
+    description: Script configuration
+outputs:
+  - name: output_file
+    type: file
+    required: true
+    description: Processed output file
+code:
+  script: scripts/main.sh

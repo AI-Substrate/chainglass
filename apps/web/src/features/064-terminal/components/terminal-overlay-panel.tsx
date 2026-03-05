@@ -16,6 +16,13 @@ export function TerminalOverlayPanel() {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
   const panelRef = useRef<HTMLDivElement>(null);
   const [anchorRect, setAnchorRect] = useState({ top: 0, left: 0, width: 0, height: 0 });
+  // Only mount TerminalInner once the overlay has been opened at least once
+  // This prevents WebSocket connections on every workspace page load
+  const [hasOpened, setHasOpened] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) setHasOpened(true);
+  }, [isOpen]);
 
   // Measure the main content area to align overlay exactly over it
   const measureRef = useRef<() => void>();
@@ -66,7 +73,7 @@ export function TerminalOverlayPanel() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, closeTerminal]);
 
-  if (!sessionName || !cwd) return null;
+  if (!sessionName || !cwd || !hasOpened) return null;
 
   return (
     <div
