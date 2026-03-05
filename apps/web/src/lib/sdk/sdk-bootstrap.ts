@@ -98,7 +98,7 @@ export function bootstrapSDK(): IUSDK {
     },
     icon: 'terminal',
   });
-  keybindings.register({ key: '$mod+Backquote', command: 'terminal.toggleOverlay' });
+  keybindings.register({ key: 'Backquote', command: 'terminal.toggleOverlay' });
 
   const sdk: IUSDK = {
     commands,
