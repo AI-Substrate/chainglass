@@ -14,9 +14,9 @@ import type { AgentEvent, AgentResult, IAgentAdapter } from '../../interfaces/in
 /**
  * Agent type determines which adapter to use.
  *
- * Per Invariant #4: Only these two types are supported.
+ * Per Invariant #4: These three types are supported.
  */
-export type AgentType = 'claude-code' | 'copilot';
+export type AgentType = 'claude-code' | 'copilot' | 'copilot-cli';
 
 /**
  * Agent instance status values.
@@ -36,7 +36,15 @@ export type AgentInstanceStatus = 'working' | 'stopped' | 'error';
  * - Injecting FakeAgentAdapter for tests
  * - Future agent types without changing AgentInstance
  */
-export type AdapterFactory = (type: AgentType) => IAgentAdapter;
+export type AdapterFactory = (type: AgentType, config?: AdapterFactoryConfig) => IAgentAdapter;
+
+/** Optional configuration passed to adapter factory during agent creation. */
+export interface AdapterFactoryConfig {
+  /** tmux target for copilot-cli (e.g. "studio:1.0") */
+  tmuxTarget?: string;
+  /** Default session ID for copilot-cli */
+  defaultSessionId?: string;
+}
 
 /**
  * Options for running a prompt on an agent.

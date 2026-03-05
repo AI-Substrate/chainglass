@@ -11,6 +11,9 @@ import type {
   ILogger,
 } from '../interfaces/index.js';
 
+/** Auto-approve all permission requests (tool execution, file access). */
+const approveAll = () => ({ kind: 'approved' as const });
+
 /**
  * Options for creating a SdkCopilotAdapter.
  *
@@ -98,9 +101,10 @@ export class SdkCopilotAdapter implements IAgentAdapter {
 
     // T006/T007: Create or resume session
     // DYK-06: Enable streaming when onEvent callback is provided
+    // FX006: onPermissionRequest required by SDK 0.1.30+ for tool execution
     const session = sessionId
-      ? await this._client.resumeSession(sessionId)
-      : await this._client.createSession({ streaming: !!onEvent });
+      ? await this._client.resumeSession(sessionId, { onPermissionRequest: approveAll })
+      : await this._client.createSession({ streaming: !!onEvent, onPermissionRequest: approveAll });
 
     try {
       // DYK-02: Register handler BEFORE sendAndWait to avoid race condition
@@ -358,7 +362,10 @@ export class SdkCopilotAdapter implements IAgentAdapter {
     // CRITICAL: Do NOT delegate to run() - run() destroys the session in finally block!
     // compact() must preserve the session so subsequent turns can access compacted context.
     // Per DYK-01: SDK has no native compact; we send /compact as a prompt.
-    const session = await this._client.resumeSession(sessionId);
+    // FX006: onPermissionRequest required for resumed sessions
+    const session = await this._client.resumeSession(sessionId, {
+      onPermissionRequest: approveAll,
+    });
 
     try {
       let output = '';
@@ -413,8 +420,11 @@ export class SdkCopilotAdapter implements IAgentAdapter {
     this._logger?.debug('SdkCopilotAdapter.terminate() called', { sessionId });
 
     // Resume the session to get a handle
+    // FX006: onPermissionRequest required for resumed sessions
     this._logger?.debug('SdkCopilotAdapter.terminate() resuming session', { sessionId });
-    const session = await this._client.resumeSession(sessionId);
+    const session = await this._client.resumeSession(sessionId, {
+      onPermissionRequest: approveAll,
+    });
 
     try {
       // Abort any running operation

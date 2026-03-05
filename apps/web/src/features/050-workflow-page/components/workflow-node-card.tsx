@@ -119,6 +119,8 @@ export interface WorkflowNodeCardProps {
   onSelect?: () => void;
   onDelete?: () => void;
   onQuestionClick?: () => void;
+  /** Plan 059: Open agent overlay for the node's agent session */
+  onAgentClick?: () => void;
 }
 
 // ─── Component ───────────────────────────────────────────────────────
@@ -152,6 +154,7 @@ export function WorkflowNodeCard({
   onSelect,
   onDelete,
   onQuestionClick,
+  onAgentClick,
 }: WorkflowNodeCardProps) {
   const statusConfig = STATUS_MAP[status] ?? STATUS_MAP.pending;
   const typeIcon = TYPE_ICONS[unitType] ?? '📦';

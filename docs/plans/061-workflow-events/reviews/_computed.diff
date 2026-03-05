@@ -1,0 +1,2175 @@
+diff --git a/apps/cli/src/commands/positional-graph.command.ts b/apps/cli/src/commands/positional-graph.command.ts
+index 38d486b..24d239d 100644
+--- a/apps/cli/src/commands/positional-graph.command.ts
++++ b/apps/cli/src/commands/positional-graph.command.ts
+@@ -26,12 +26,13 @@
+  */
+ 
+ import type {
+-  AskQuestionOptions,
+   EventSource,
+   IPositionalGraphService,
+ } from '@chainglass/positional-graph';
+ import {
+   type IWorkUnitService,
++  WorkflowEventsService,
++  WorkflowEventObserverRegistry,
+   isReservedInputParam,
+   workunitTypeMismatchError,
+ } from '@chainglass/positional-graph';
+@@ -42,7 +43,10 @@ import {
+   formatInspectNode,
+   formatInspectOutputs,
+ } from '@chainglass/positional-graph';
++import type { IWorkflowEvents } from '@chainglass/shared';
+ import { ORCHESTRATION_DI_TOKENS, POSITIONAL_GRAPH_DI_TOKENS } from '@chainglass/shared';
++import { WorkflowEventError } from '@chainglass/shared/workflow-events';
++import type { WorkspaceContext } from '@chainglass/workflow';
+ import type { Command } from 'commander';
+ import { cliDriveGraph } from '../features/036-cli-orchestration-driver/cli-drive-handler.js';
+ import { createCliProductionContainer } from '../lib/container.js';
+@@ -165,6 +169,19 @@ function getOrchestrationService(): IOrchestrationService {
+   return container.resolve<IOrchestrationService>(ORCHESTRATION_DI_TOKENS.ORCHESTRATION_SERVICE);
+ }
+ 
++/**
++ * Create a WorkflowEventsService for a per-request context.
++ *
++ * Per DYK-P3-01: constructed per-request (not from DI) because the CLI resolves
++ * WorkspaceContext per-handler with --workspace-path override. The contextResolver
++ * closure returns the already-resolved ctx for any graphSlug.
++ */
++function createWorkflowEventsService(ctx: WorkspaceContext): IWorkflowEvents {
++  const pgService = getPositionalGraphService();
++  const observers = new WorkflowEventObserverRegistry();
++  return new WorkflowEventsService(pgService, () => ctx, observers);
++}
++
+ // ============================================
+ // Graph Command Handlers
+ // ============================================
+@@ -881,7 +898,8 @@ async function handleNodeEnd(
+ }
+ 
+ // ============================================
+-// Question/Answer Handlers (Phase 4, Plan 028)
++// Question/Answer Handlers (Plan 061: WorkflowEvents)
++// Migrated from PGService direct calls to WorkflowEventsService.
+ // ============================================
+ 
+ async function handleNodeAsk(
+@@ -914,19 +932,26 @@ async function handleNodeAsk(
+     process.exit(1);
+   }
+ 
+-  const askOptions: AskQuestionOptions = {
++  const question: { type: 'text' | 'single' | 'multi' | 'confirm'; text: string; options?: string[] } = {
+     type: options.type as 'text' | 'single' | 'multi' | 'confirm',
+     text: options.text,
+   };
+   if (options.options && options.options.length > 0) {
+-    askOptions.options = options.options;
++    question.options = options.options;
+   }
+ 
+-  const service = getPositionalGraphService();
+-  const result = await service.askQuestion(ctx, graphSlug, nodeId, askOptions);
+-  console.log(adapter.format('wf.node.ask', result));
+-
+-  if (result.errors.length > 0) process.exit(1);
++  try {
++    const wfEvents = createWorkflowEventsService(ctx);
++    const result = await wfEvents.askQuestion(graphSlug, nodeId, question);
++    console.log(adapter.format('wf.node.ask', { questionId: result.questionId, errors: [] }));
++  } catch (error) {
++    if (error instanceof WorkflowEventError) {
++      console.log(adapter.format('wf.node.ask', { errors: error.errors }));
++    } else {
++      console.log(adapter.format('wf.node.ask', { errors: [{ code: 'E_WORKFLOW', message: error instanceof Error ? error.message : String(error) }] }));
++    }
++    process.exit(1);
++  }
+ }
+ 
+ async function handleNodeAnswer(
+@@ -953,11 +978,18 @@ async function handleNodeAnswer(
+     // Keep as string if not valid JSON
+   }
+ 
+-  const service = getPositionalGraphService();
+-  const result = await service.answerQuestion(ctx, graphSlug, nodeId, questionId, parsedAnswer);
+-  console.log(adapter.format('wf.node.answer', result));
+-
+-  if (result.errors.length > 0) process.exit(1);
++  try {
++    const wfEvents = createWorkflowEventsService(ctx);
++    await wfEvents.answerQuestion(graphSlug, nodeId, questionId, parsedAnswer);
++    console.log(adapter.format('wf.node.answer', { errors: [] }));
++  } catch (error) {
++    if (error instanceof WorkflowEventError) {
++      console.log(adapter.format('wf.node.answer', { errors: error.errors }));
++    } else {
++      console.log(adapter.format('wf.node.answer', { errors: [{ code: 'E_WORKFLOW', message: error instanceof Error ? error.message : String(error) }] }));
++    }
++    process.exit(1);
++  }
+ }
+ 
+ async function handleNodeGetAnswer(
+@@ -975,11 +1007,22 @@ async function handleNodeGetAnswer(
+     process.exit(1);
+   }
+ 
+-  const service = getPositionalGraphService();
+-  const result = await service.getAnswer(ctx, graphSlug, nodeId, questionId);
+-  console.log(adapter.format('wf.node.get-answer', result));
+-
+-  if (result.errors.length > 0) process.exit(1);
++  try {
++    const wfEvents = createWorkflowEventsService(ctx);
++    const result = await wfEvents.getAnswer(graphSlug, nodeId, questionId);
++    if (result) {
++      console.log(adapter.format('wf.node.get-answer', { ...result, errors: [] }));
++    } else {
++      console.log(adapter.format('wf.node.get-answer', { answered: false, errors: [] }));
++    }
++  } catch (error) {
++    if (error instanceof WorkflowEventError) {
++      console.log(adapter.format('wf.node.get-answer', { answered: false, errors: error.errors }));
++    } else {
++      console.log(adapter.format('wf.node.get-answer', { answered: false, errors: [{ code: 'E_WORKFLOW', message: error instanceof Error ? error.message : String(error) }] }));
++    }
++    process.exit(1);
++  }
+ }
+ 
+ // ============================================
+diff --git a/apps/web/app/actions/workflow-actions.ts b/apps/web/app/actions/workflow-actions.ts
+index cfd8848..eb39fd8 100644
+--- a/apps/web/app/actions/workflow-actions.ts
++++ b/apps/web/app/actions/workflow-actions.ts
+@@ -14,7 +14,10 @@
+ 
+ import type { IPositionalGraphService } from '@chainglass/positional-graph';
+ import type { IWorkUnitService } from '@chainglass/positional-graph';
++import { WorkflowEventsService, WorkflowEventObserverRegistry } from '@chainglass/positional-graph';
++import type { IWorkflowEvents } from '@chainglass/shared';
+ import { POSITIONAL_GRAPH_DI_TOKENS, WORKSPACE_DI_TOKENS } from '@chainglass/shared';
++import { WorkflowEventError } from '@chainglass/shared/workflow-events';
+ import type { ITemplateService, IWorkspaceService, WorkspaceContext } from '@chainglass/workflow';
+ import type {
+   AddNodeMutationResult,
+@@ -77,6 +80,16 @@ function resolveTemplateService(): ITemplateService {
+   return container.resolve<ITemplateService>(POSITIONAL_GRAPH_DI_TOKENS.TEMPLATE_SERVICE);
+ }
+ 
++/**
++ * Create a WorkflowEventsService for a per-request context.
++ * Per DYK-P3-01: constructed per-request because web resolves ctx async per action.
++ */
++function createWorkflowEventsService(ctx: WorkspaceContext): IWorkflowEvents {
++  const pgService = resolveGraphService();
++  const observers = new WorkflowEventObserverRegistry();
++  return new WorkflowEventsService(pgService, () => ctx, observers);
++}
++
+ const NOT_FOUND_ERROR = { code: 'E000', message: 'Workspace not found', action: '' } as const;
+ 
+ // ─── Actions ─────────────────────────────────────────────────────────
+@@ -424,22 +437,15 @@ export async function answerQuestion(
+   const ctx = await resolveWorkspaceContext(workspaceSlug, worktreePath);
+   if (!ctx) return { errors: [NOT_FOUND_ERROR] };
+ 
+-  const svc = resolveGraphService();
+-
+-  // Step 1: Record the answer (node stays waiting-question)
+-  const answerResult = await svc.answerQuestion(ctx, graphSlug, nodeId, questionId, answer);
+-  if (answerResult.errors.length > 0) return { errors: answerResult.errors };
+-
+-  // Step 2: Raise node:restart to resume execution
+-  const restartResult = await svc.raiseNodeEvent(
+-    ctx,
+-    graphSlug,
+-    nodeId,
+-    'node:restart',
+-    { reason: 'question-answered' },
+-    'human'
+-  );
+-  if (restartResult.errors.length > 0) return { errors: restartResult.errors };
++  try {
++    const wfEvents = createWorkflowEventsService(ctx);
++    await wfEvents.answerQuestion(graphSlug, nodeId, questionId, answer);
++  } catch (error) {
++    if (error instanceof WorkflowEventError) {
++      return { errors: [...error.errors] };
++    }
++    return { errors: [{ code: 'E_WORKFLOW', message: error instanceof Error ? error.message : String(error) }] };
++  }
+ 
+   return reloadStatus(ctx, graphSlug);
+ }
+diff --git a/dev/test-graphs/shared/helpers.ts b/dev/test-graphs/shared/helpers.ts
+index aa55b05..a3b4454 100644
+--- a/dev/test-graphs/shared/helpers.ts
++++ b/dev/test-graphs/shared/helpers.ts
+@@ -10,6 +10,10 @@ import type {
+   IPositionalGraphService,
+   IWorkUnitLoader,
+ } from '@chainglass/positional-graph/interfaces';
++import {
++  WorkflowEventsService,
++  WorkflowEventObserverRegistry,
++} from '@chainglass/positional-graph';
+ import { YamlParserAdapter } from '@chainglass/shared';
+ import type { WorkspaceContext } from '@chainglass/workflow';
+ 
+@@ -88,7 +92,10 @@ export async function clearErrorAndRestart(
+ 
+ /**
+  * Answer a question on a waiting-question node and restart it.
+- * Calls answerQuestion then raises node:restart to resume execution.
++ * Delegates to WorkflowEventsService.answerQuestion() which handles the
++ * 3-event handshake (question:answer + node:restart) in a single call.
++ *
++ * Per Plan 061 Phase 3: migrated from 2 PGService calls to WorkflowEvents.
+  */
+ export async function answerNodeQuestion(
+   service: IPositionalGraphService,
+@@ -98,15 +105,9 @@ export async function answerNodeQuestion(
+   questionId: string,
+   answer: unknown
+ ): Promise<void> {
+-  await service.answerQuestion(ctx, graphSlug, nodeId, questionId, answer);
+-  await service.raiseNodeEvent(
+-    ctx,
+-    graphSlug,
+-    nodeId,
+-    'node:restart',
+-    { reason: 'Question answered' },
+-    'orchestrator'
+-  );
++  const observers = new WorkflowEventObserverRegistry();
++  const wfEvents = new WorkflowEventsService(service, () => ctx, observers);
++  await wfEvents.answerQuestion(graphSlug, nodeId, questionId, answer);
+ }
+ 
+ /**
+diff --git a/packages/positional-graph/src/fakes/fake-positional-graph-service.ts b/packages/positional-graph/src/fakes/fake-positional-graph-service.ts
+index c44a156..7566f59 100644
+--- a/packages/positional-graph/src/fakes/fake-positional-graph-service.ts
++++ b/packages/positional-graph/src/fakes/fake-positional-graph-service.ts
+@@ -17,12 +17,8 @@ import type {
+   AddLineResult,
+   AddNodeOptions,
+   AddNodeResult,
+-  AnswerQuestionResult,
+-  AskQuestionOptions,
+-  AskQuestionResult,
+   CanEndResult,
+   EndNodeResult,
+-  GetAnswerResult,
+   GetInputDataResult,
+   GetInputFileResult,
+   GetNodeEventsFilter,
+@@ -492,42 +488,6 @@ export class FakePositionalGraphService implements IPositionalGraphService {
+     };
+   }
+ 
+-  async askQuestion(
+-    ctx: WorkspaceContext,
+-    graphSlug: string,
+-    nodeId: string,
+-    options: AskQuestionOptions
+-  ): Promise<AskQuestionResult> {
+-    this.track('askQuestion', [ctx, graphSlug, nodeId, options]);
+-    return {
+-      ...emptyBaseResult(),
+-      nodeId,
+-      questionId: 'q-fake-1',
+-      status: 'waiting-question' as const,
+-    };
+-  }
+-
+-  async answerQuestion(
+-    ctx: WorkspaceContext,
+-    graphSlug: string,
+-    nodeId: string,
+-    questionId: string,
+-    answer: unknown
+-  ): Promise<AnswerQuestionResult> {
+-    this.track('answerQuestion', [ctx, graphSlug, nodeId, questionId, answer]);
+-    return { ...emptyBaseResult(), nodeId, questionId, status: 'waiting-question' as const };
+-  }
+-
+-  async getAnswer(
+-    ctx: WorkspaceContext,
+-    graphSlug: string,
+-    nodeId: string,
+-    questionId: string
+-  ): Promise<GetAnswerResult> {
+-    this.track('getAnswer', [ctx, graphSlug, nodeId, questionId]);
+-    return { ...emptyBaseResult(), nodeId, questionId, answered: false };
+-  }
+-
+   async getInputData(
+     ctx: WorkspaceContext,
+     graphSlug: string,
+diff --git a/packages/positional-graph/src/interfaces/index.ts b/packages/positional-graph/src/interfaces/index.ts
+index a5ef34d..10e000b 100644
+--- a/packages/positional-graph/src/interfaces/index.ts
++++ b/packages/positional-graph/src/interfaces/index.ts
+@@ -4,9 +4,6 @@ export type {
+   AddNodeOptions,
+   AddNodeResult,
+   AgentNodeStatus,
+-  AnswerQuestionResult,
+-  AskQuestionOptions,
+-  AskQuestionResult,
+   AvailableInput,
+   AvailableSource,
+   CanEndResult,
+@@ -15,7 +12,6 @@ export type {
+   EndNodeResult,
+   ErrorInput,
+   ExecutionStatus,
+-  GetAnswerResult,
+   GetInputDataResult,
+   GetInputFileResult,
+   GetNodeEventsFilter,
+diff --git a/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts b/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts
+index 0543579..87274cf 100644
+--- a/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts
++++ b/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts
+@@ -466,35 +466,7 @@ export interface EndNodeResult extends BaseResult {
+ // Result Types — Question/Answer Protocol (Phase 4, Plan 028)
+ // ============================================
+ 
+-/** Input options for askQuestion @deprecated Q&A protocol is scaffolding — not integrated into real agent execution. Human input collection is a web-layer concern. */
+-export interface AskQuestionOptions {
+-  type: 'text' | 'single' | 'multi' | 'confirm';
+-  text: string;
+-  options?: string[];
+-  default?: string | boolean;
+-}
+ 
+-/** Result from askQuestion @deprecated Q&A protocol is scaffolding — not integrated into real agent execution. */
+-export interface AskQuestionResult extends BaseResult {
+-  nodeId?: string;
+-  questionId?: string;
+-  status?: 'waiting-question';
+-}
+-
+-/** Result from answerQuestion @deprecated Q&A protocol is scaffolding — not integrated into real agent execution. */
+-export interface AnswerQuestionResult extends BaseResult {
+-  nodeId?: string;
+-  questionId?: string;
+-  status?: 'waiting-question';
+-}
+-
+-/** Result from getAnswer @deprecated Q&A protocol is scaffolding — not integrated into real agent execution. */
+-export interface GetAnswerResult extends BaseResult {
+-  nodeId?: string;
+-  questionId?: string;
+-  answered: boolean;
+-  answer?: unknown;
+-}
+ 
+ // ============================================
+ // Result Types — Node Event System (Phase 6, Plan 032)
+@@ -743,33 +715,6 @@ export interface IPositionalGraphService {
+     message?: string
+   ): Promise<EndNodeResult>;
+ 
+-  // Question/Answer Protocol (Phase 4, Plan 028)
+-  // @deprecated Q&A protocol is scaffolding — not integrated into real agent execution.
+-  // Human input collection is a web-layer concern (Plan 054). These methods are only
+-  // called by CLI `cg wf node ask/answer` and the web's answerQuestion server action
+-  // (which answers pre-baked dope questions). No real agent calls askQuestion.
+-  /** @deprecated Use web-layer human input submission instead. */
+-  askQuestion(
+-    ctx: WorkspaceContext,
+-    graphSlug: string,
+-    nodeId: string,
+-    options: AskQuestionOptions
+-  ): Promise<AskQuestionResult>;
+-  /** @deprecated Use web-layer human input submission instead. */
+-  answerQuestion(
+-    ctx: WorkspaceContext,
+-    graphSlug: string,
+-    nodeId: string,
+-    questionId: string,
+-    answer: unknown
+-  ): Promise<AnswerQuestionResult>;
+-  /** @deprecated Use web-layer human input submission instead. */
+-  getAnswer(
+-    ctx: WorkspaceContext,
+-    graphSlug: string,
+-    nodeId: string,
+-    questionId: string
+-  ): Promise<GetAnswerResult>;
+ 
+   // Input Retrieval (Phase 5, Plan 028)
+   getInputData(
+diff --git a/packages/positional-graph/src/services/positional-graph.service.ts b/packages/positional-graph/src/services/positional-graph.service.ts
+index a997cfb..6748d8a 100644
+--- a/packages/positional-graph/src/services/positional-graph.service.ts
++++ b/packages/positional-graph/src/services/positional-graph.service.ts
+@@ -16,9 +16,7 @@ import {
+   lineNotFoundError,
+   nodeNotFoundError,
+   nodeNotRunningError,
+-  nodeNotWaitingError,
+   outputNotFoundError,
+-  questionNotFoundError,
+   unitNotFoundError,
+ } from '../errors/index.js';
+ import { canNodeDoWork, isNodeActive } from '../features/032-node-event-system/event-helpers.js';
+@@ -36,12 +34,8 @@ import type {
+   AddLineResult,
+   AddNodeOptions,
+   AddNodeResult,
+-  AnswerQuestionResult,
+-  AskQuestionOptions,
+-  AskQuestionResult,
+   CanEndResult,
+   EndNodeResult,
+-  GetAnswerResult,
+   GetInputDataResult,
+   GetInputFileResult,
+   GetNodeEventsFilter,
+@@ -2163,253 +2157,6 @@ export class PositionalGraphService implements IPositionalGraphService {
+   // Question/Answer Protocol (Phase 4, Plan 028)
+   // ============================================
+ 
+-  /**
+-   * Generate a unique question ID using timestamp + random suffix.
+-   * Format: YYYY-MM-DDTHH:mm:ss.sssZ_xxxxxx
+-   */
+-  private generateQuestionId(): string {
+-    const timestamp = new Date().toISOString();
+-    const suffix = Math.random().toString(16).slice(2, 8);
+-    return `${timestamp}_${suffix}`;
+-  }
+-
+-  /**
+-   * Ask a question from a running node, transitioning it to waiting-question.
+-   * Stores the question in state.json questions array (backward compat).
+-   * State transition delegated to eventService.raise() + handleEvents().
+-   *
+-   * Per AC-5: Transitions node to waiting-question and returns question ID.
+-   * @deprecated Q&A protocol is scaffolding — not integrated into real agent execution. Human input is a web-layer concern (Plan 054).
+-   */
+-  async askQuestion(
+-    ctx: WorkspaceContext,
+-    graphSlug: string,
+-    nodeId: string,
+-    options: AskQuestionOptions
+-  ): Promise<AskQuestionResult> {
+-    // Verify node exists
+-    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+-    if (!nodeResult.ok) {
+-      return { errors: nodeResult.errors };
+-    }
+-
+-    // Check state - must be agent-accepted (E176)
+-    const status = await this.getNodeExecutionStatus(ctx, graphSlug, nodeId);
+-    if (status === 'pending' || !canNodeDoWork(status)) {
+-      return {
+-        errors: [nodeNotRunningError(nodeId)],
+-      };
+-    }
+-
+-    // Generate question ID
+-    const questionId = this.generateQuestionId();
+-
+-    // Build question:ask payload (DYK #3: question_id from payload, not event_id)
+-    const payload: Record<string, unknown> = {
+-      question_id: questionId,
+-      type: options.type,
+-      text: options.text,
+-    };
+-    if (options.options) {
+-      payload.options = options.options;
+-    }
+-    if (options.default !== undefined) {
+-      payload.default = options.default;
+-    }
+-
+-    // Raise question:ask event (record-only)
+-    const eventService = this.createEventService(ctx);
+-    const raiseResult = await eventService.raise(
+-      graphSlug,
+-      nodeId,
+-      'question:ask',
+-      payload,
+-      'agent'
+-    );
+-    if (!raiseResult.ok) {
+-      return { errors: raiseResult.errors };
+-    }
+-
+-    // Process events: handler transitions to waiting-question + sets pending_question_id
+-    const state = await this.loadState(ctx, graphSlug);
+-    eventService.handleEvents(state, nodeId, 'cli', 'cli');
+-
+-    // Write to state.questions[] for backward compat (DD-6)
+-    const now = new Date().toISOString();
+-    const question: Question = {
+-      question_id: questionId,
+-      node_id: nodeId,
+-      type: options.type,
+-      text: options.text,
+-      asked_at: now,
+-    };
+-    if (options.options) {
+-      question.options = options.options;
+-    }
+-    if (options.default !== undefined) {
+-      question.default = options.default;
+-    }
+-    if (!state.questions) {
+-      state.questions = [];
+-    }
+-    state.questions.push(question);
+-
+-    await this.persistState(ctx, graphSlug, state);
+-
+-    return {
+-      nodeId,
+-      questionId,
+-      status: 'waiting-question',
+-      errors: [],
+-    };
+-  }
+-
+-  /**
+-   * Answer a question for a waiting node.
+-   * Stores the answer in state.questions[] (backward compat).
+-   * Handler stamps answer-recorded — no status transition.
+-   * Node stays waiting-question; restart via node:restart event.
+-   *
+-   * Per AC-18: Returns E173 for invalid question ID.
+-   * @deprecated Q&A protocol is scaffolding — not integrated into real agent execution. Human input is a web-layer concern (Plan 054).
+-   */
+-  async answerQuestion(
+-    ctx: WorkspaceContext,
+-    graphSlug: string,
+-    nodeId: string,
+-    questionId: string,
+-    answer: unknown
+-  ): Promise<AnswerQuestionResult> {
+-    // Verify node exists
+-    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+-    if (!nodeResult.ok) {
+-      return { errors: nodeResult.errors };
+-    }
+-
+-    // Check state - must be waiting-question (E177)
+-    const status = await this.getNodeExecutionStatus(ctx, graphSlug, nodeId);
+-    if (status !== 'waiting-question') {
+-      return {
+-        errors: [nodeNotWaitingError(nodeId)],
+-      };
+-    }
+-
+-    // Load state to find question and ask event
+-    const state = await this.loadState(ctx, graphSlug);
+-
+-    // Find question by ID (E173 if not found)
+-    const questionIndex = state.questions?.findIndex((q) => q.question_id === questionId) ?? -1;
+-    if (questionIndex === -1) {
+-      return {
+-        errors: [questionNotFoundError(questionId)],
+-      };
+-    }
+-
+-    // Find the original ask event to get its event_id for the answer payload
+-    const nodeEvents = state.nodes?.[nodeId]?.events ?? [];
+-    const askEvent = nodeEvents.find(
+-      (e: { event_type: string; payload?: Record<string, unknown> }) =>
+-        e.event_type === 'question:ask' &&
+-        (e.payload as { question_id?: string })?.question_id === questionId
+-    );
+-    if (!askEvent) {
+-      return {
+-        errors: [questionNotFoundError(questionId)],
+-      };
+-    }
+-
+-    // Raise question:answer event (record-only)
+-    const eventService = this.createEventService(ctx);
+-    const raiseResult = await eventService.raise(
+-      graphSlug,
+-      nodeId,
+-      'question:answer',
+-      { question_event_id: askEvent.event_id, answer },
+-      'human'
+-    );
+-    if (!raiseResult.ok) {
+-      return { errors: raiseResult.errors };
+-    }
+-
+-    // Process events: handler stamps answer-recorded + cross-stamps ask (no status transition)
+-    const updatedState = await this.loadState(ctx, graphSlug);
+-    eventService.handleEvents(updatedState, nodeId, 'cli', 'cli');
+-
+-    // Update question with answer in state.questions[] (backward compat)
+-    const now = new Date().toISOString();
+-    const questions = updatedState.questions ?? [];
+-    const qIdx = questions.findIndex((q) => q.question_id === questionId);
+-    if (qIdx !== -1) {
+-      questions[qIdx].answer = answer;
+-      questions[qIdx].answered_at = now;
+-    }
+-
+-    await this.persistState(ctx, graphSlug, updatedState);
+-
+-    return {
+-      nodeId,
+-      questionId,
+-      status: 'waiting-question',
+-      errors: [],
+-    };
+-  }
+-
+-  /**
+-   * Get the answer to a question.
+-   * Returns {answered: false} if question exists but not yet answered.
+-   * Returns E173 if question ID is invalid.
+-   *
+-   * Per AC-7: Returns stored answer.
+-   * Per Critical Insight #5: Returns {answered: false} for unanswered, not E173.
+-   * @deprecated Q&A protocol is scaffolding — not integrated into real agent execution. Human input is a web-layer concern (Plan 054).
+-   */
+-  async getAnswer(
+-    ctx: WorkspaceContext,
+-    graphSlug: string,
+-    nodeId: string,
+-    questionId: string
+-  ): Promise<GetAnswerResult> {
+-    // Verify node exists
+-    const nodeResult = await this.loadNodeConfig(ctx, graphSlug, nodeId);
+-    if (!nodeResult.ok) {
+-      return {
+-        answered: false,
+-        errors: nodeResult.errors,
+-      };
+-    }
+-
+-    // Load state
+-    const state = await this.loadState(ctx, graphSlug);
+-
+-    // Find question by ID (E173 if not found)
+-    const question = state.questions?.find((q) => q.question_id === questionId);
+-    if (!question) {
+-      return {
+-        answered: false,
+-        errors: [questionNotFoundError(questionId)],
+-      };
+-    }
+-
+-    // Check if answered
+-    if (question.answered_at !== undefined) {
+-      return {
+-        nodeId,
+-        questionId,
+-        answered: true,
+-        answer: question.answer,
+-        errors: [],
+-      };
+-    }
+-
+-    // Not yet answered
+-    return {
+-      nodeId,
+-      questionId,
+-      answered: false,
+-      errors: [],
+-    };
+-  }
+-
+   // ============================================
+   // Input Retrieval (Phase 5, Plan 028)
+   // ============================================
+diff --git a/packages/positional-graph/src/workflow-events/workflow-events.service.ts b/packages/positional-graph/src/workflow-events/workflow-events.service.ts
+index 358d8f6..c62c29c 100644
+--- a/packages/positional-graph/src/workflow-events/workflow-events.service.ts
++++ b/packages/positional-graph/src/workflow-events/workflow-events.service.ts
+@@ -20,7 +20,7 @@ import type {
+   QuestionInput,
+   WorkflowEvent,
+ } from '@chainglass/shared/workflow-events';
+-import { WorkflowEventType } from '@chainglass/shared/workflow-events';
++import { WorkflowEventType, WorkflowEventError } from '@chainglass/shared/workflow-events';
+ 
+ import type { WorkspaceContext } from '@chainglass/workflow';
+ import type { IPositionalGraphService } from '../interfaces/positional-graph-service.interface.js';
+@@ -64,7 +64,10 @@ export class WorkflowEventsService implements IWorkflowEvents {
+       'agent'
+     );
+     if (result.errors && result.errors.length > 0) {
+-      throw new Error(`Failed to ask question: ${result.errors.map((e) => e.message).join(', ')}`);
++      throw new WorkflowEventError(
++        `Failed to ask question: ${result.errors.map((e) => e.message).join(', ')}`,
++        result.errors
++      );
+     }
+ 
+     // Write to state.questions[] for backward compat
+@@ -134,8 +137,9 @@ export class WorkflowEventsService implements IWorkflowEvents {
+       'human'
+     );
+     if (answerResult.errors && answerResult.errors.length > 0) {
+-      throw new Error(
+-        `Failed to answer question: ${answerResult.errors.map((e) => e.message).join(', ')}`
++      throw new WorkflowEventError(
++        `Failed to answer question: ${answerResult.errors.map((e) => e.message).join(', ')}`,
++        answerResult.errors
+       );
+     }
+ 
+@@ -224,8 +228,9 @@ export class WorkflowEventsService implements IWorkflowEvents {
+       'agent'
+     );
+     if (result.errors && result.errors.length > 0) {
+-      throw new Error(
+-        `Failed to report progress: ${result.errors.map((e) => e.message).join(', ')}`
++      throw new WorkflowEventError(
++        `Failed to report progress: ${result.errors.map((e) => e.message).join(', ')}`,
++        result.errors
+       );
+     }
+ 
+@@ -264,7 +269,10 @@ export class WorkflowEventsService implements IWorkflowEvents {
+       'agent'
+     );
+     if (result.errors && result.errors.length > 0) {
+-      throw new Error(`Failed to report error: ${result.errors.map((e) => e.message).join(', ')}`);
++      throw new WorkflowEventError(
++        `Failed to report error: ${result.errors.map((e) => e.message).join(', ')}`,
++        result.errors
++      );
+     }
+ 
+     this.notifyGenericObservers(graphSlug, nodeId, WorkflowEventType.NodeError, payload, 'agent');
+diff --git a/packages/shared/src/workflow-events/index.ts b/packages/shared/src/workflow-events/index.ts
+index 67a8456..3e2caf9 100644
+--- a/packages/shared/src/workflow-events/index.ts
++++ b/packages/shared/src/workflow-events/index.ts
+@@ -21,3 +21,6 @@ export type {
+   QuestionAnsweredEvent,
+   WorkflowEvent,
+ } from './types.js';
++
++// Errors (Plan 061 Phase 3 — DYK-P3-02)
++export { WorkflowEventError } from './errors.js';
+diff --git a/test/integration/positional-graph/cli-event-commands.test.ts b/test/integration/positional-graph/cli-event-commands.test.ts
+index b9d5603..58b3f50 100644
+--- a/test/integration/positional-graph/cli-event-commands.test.ts
++++ b/test/integration/positional-graph/cli-event-commands.test.ts
+@@ -8,9 +8,11 @@ Test Doc:
+ */
+ 
+ import { PositionalGraphService } from '@chainglass/positional-graph';
++import { WorkflowEventsService, WorkflowEventObserverRegistry } from '@chainglass/positional-graph';
+ import { PositionalGraphAdapter } from '@chainglass/positional-graph/adapter';
+ import type { IPositionalGraphService } from '@chainglass/positional-graph/interfaces';
+ import { FakeFileSystem, FakePathResolver, YamlParserAdapter } from '@chainglass/shared';
++import { WorkflowEventError } from '@chainglass/shared/workflow-events';
+ import type { WorkspaceContext } from '@chainglass/workflow';
+ import { beforeEach, describe, expect, it } from 'vitest';
+ 
+@@ -58,6 +60,17 @@ async function simulateStart(
+   return { nodeId: addResult.nodeId, lineId };
+ }
+ 
++/** Sets up a graph with a started + agent-accepted node (required for Q&A events). */
++async function simulateAgentAccepted(
++  service: IPositionalGraphService,
++  ctx: WorkspaceContext,
++  graphSlug: string
++): Promise<{ nodeId: string; lineId: string }> {
++  const result = await simulateStart(service, ctx, graphSlug);
++  await service.raiseNodeEvent(ctx, graphSlug, result.nodeId, 'node:accepted', {}, 'agent');
++  return result;
++}
++
+ // ── Full Event Lifecycle ─────────────────────────────────
+ 
+ describe('Event CLI Integration — Full Lifecycle', () => {
+@@ -407,3 +420,97 @@ describe('Event CLI Integration — Multi-Event Sequence', () => {
+     expect(stampedEvents.events?.[0].stamps.orchestrator.action).toBe('acknowledged');
+   });
+ });
++
++// ── Plan 061 Phase 3 (T007): QnA Integration Tests via WorkflowEventsService ──
++
++describe('WorkflowEventsService — QnA Integration', () => {
++  let service: IPositionalGraphService;
++  let ctx: WorkspaceContext;
++  let wfEvents: WorkflowEventsService;
++
++  const GRAPH = 'qna-integration';
++
++  beforeEach(() => {
++    const fs = new FakeFileSystem();
++    const pathResolver = new FakePathResolver();
++    service = createTestService(fs, pathResolver);
++    ctx = createTestContext();
++    const observers = new WorkflowEventObserverRegistry();
++    wfEvents = new WorkflowEventsService(service, () => ctx, observers);
++  });
++
++  it('full ask → answer → get-answer cycle', async () => {
++    const { nodeId } = await simulateAgentAccepted(service, ctx, GRAPH);
++
++    // 1. Ask a question via WorkflowEvents
++    const { questionId } = await wfEvents.askQuestion(GRAPH, nodeId, {
++      type: 'confirm',
++      text: 'Proceed?',
++    });
++    expect(questionId).toBeDefined();
++    expect(typeof questionId).toBe('string');
++
++    // 2. Verify node is in waiting-question state
++    const statusAfterAsk = await service.getNodeStatus(ctx, GRAPH, nodeId);
++    expect(statusAfterAsk.status).toBe('waiting-question');
++
++    // 3. Answer the question via WorkflowEvents (includes node:restart)
++    await wfEvents.answerQuestion(GRAPH, nodeId, questionId, true);
++
++    // 4. Verify node is no longer waiting-question (DYK-P3-05)
++    const statusAfterAnswer = await service.getNodeStatus(ctx, GRAPH, nodeId);
++    expect(statusAfterAnswer.status).not.toBe('waiting-question');
++
++    // 5. Get the answer via WorkflowEvents
++    const result = await wfEvents.getAnswer(GRAPH, nodeId, questionId);
++    expect(result).not.toBeNull();
++    expect(result?.answered).toBe(true);
++    expect(result?.answer).toBe(true);
++    expect(result?.answeredAt).toBeDefined();
++  });
++
++  it('getAnswer returns null for unknown questionId', async () => {
++    const { nodeId } = await simulateAgentAccepted(service, ctx, GRAPH);
++    const result = await wfEvents.getAnswer(GRAPH, nodeId, 'nonexistent-q');
++    expect(result).toBeNull();
++  });
++
++  it('askQuestion throws WorkflowEventError on wrong state', async () => {
++    // Create graph but don't start node — node is in 'ready' state
++    const { lineId } = await service.create(ctx, GRAPH);
++    const addResult = await service.addNode(ctx, GRAPH, lineId, 'sample-agent');
++    if (!addResult.nodeId) throw new Error('Expected nodeId');
++
++    await expect(
++      wfEvents.askQuestion(GRAPH, addResult.nodeId, { type: 'confirm', text: 'Proceed?' })
++    ).rejects.toThrow(WorkflowEventError);
++  });
++
++  it('answerQuestion throws for invalid questionId', async () => {
++    const { nodeId } = await simulateAgentAccepted(service, ctx, GRAPH);
++
++    // Ask a real question first to get node into waiting-question
++    await wfEvents.askQuestion(GRAPH, nodeId, { type: 'text', text: 'Name?' });
++
++    // Try to answer with wrong questionId
++    await expect(
++      wfEvents.answerQuestion(GRAPH, nodeId, 'bad-question-id', 'answer')
++    ).rejects.toThrow('not found');
++  });
++
++  it('ask with choice options round-trips through getAnswer', async () => {
++    const { nodeId } = await simulateAgentAccepted(service, ctx, GRAPH);
++
++    const { questionId } = await wfEvents.askQuestion(GRAPH, nodeId, {
++      type: 'single',
++      text: 'Pick a language',
++      options: ['TypeScript', 'Python', 'Rust'],
++    });
++
++    await wfEvents.answerQuestion(GRAPH, nodeId, questionId, 'TypeScript');
++
++    const result = await wfEvents.getAnswer(GRAPH, nodeId, questionId);
++    expect(result?.answered).toBe(true);
++    expect(result?.answer).toBe('TypeScript');
++  });
++});
+diff --git a/test/unit/positional-graph/features/032-node-event-system/service-wrapper-contracts.test.ts b/test/unit/positional-graph/features/032-node-event-system/service-wrapper-contracts.test.ts
+index 3f1fde7..3295de8 100644
+--- a/test/unit/positional-graph/features/032-node-event-system/service-wrapper-contracts.test.ts
++++ b/test/unit/positional-graph/features/032-node-event-system/service-wrapper-contracts.test.ts
+@@ -146,153 +146,3 @@ describe('endNode — event service wrapper contract', () => {
+   });
+ });
+ 
+-// ── T009: askQuestion service wrapper contract ───────────
+-
+-describe('askQuestion — event service wrapper contract', () => {
+-  let fs: FakeFileSystem;
+-  let pathResolver: FakePathResolver;
+-  let service: IPositionalGraphService;
+-  let ctx: WorkspaceContext;
+-  let nodeId: string;
+-
+-  beforeEach(async () => {
+-    fs = new FakeFileSystem();
+-    pathResolver = new FakePathResolver();
+-    service = createTestService(fs, pathResolver);
+-    ctx = createTestContext();
+-
+-    const { lineId } = await service.create(ctx, 'test-graph');
+-    const addResult = await service.addNode(ctx, 'test-graph', lineId, 'sample-coder');
+-    if (!addResult.nodeId) throw new Error('nodeId expected');
+-    nodeId = addResult.nodeId;
+-
+-    await service.startNode(ctx, 'test-graph', nodeId);
+-    await simulateAgentAccept(fs, 'test-graph', nodeId);
+-  });
+-
+-  it('records a question:ask event with stamps', async () => {
+-    const result = await service.askQuestion(ctx, 'test-graph', nodeId, {
+-      type: 'single',
+-      text: 'Which framework?',
+-      options: ['React', 'Vue'],
+-    });
+-
+-    expect(result.errors).toEqual([]);
+-    expect(result.status).toBe('waiting-question');
+-    expect(result.questionId).toBeDefined();
+-
+-    const state = readState(fs, 'test-graph');
+-    const events = state.nodes[nodeId].events;
+-    const askEvent = events.find((e: { event_type: string }) => e.event_type === 'question:ask');
+-
+-    expect(askEvent).toBeDefined();
+-    expect(askEvent.source).toBe('agent');
+-    expect(askEvent.payload.question_id).toBe(result.questionId);
+-    expect(askEvent.stamps?.cli?.action).toBe('state-transition');
+-  });
+-
+-  it('transitions node to waiting-question with pending_question_id', async () => {
+-    const result = await service.askQuestion(ctx, 'test-graph', nodeId, {
+-      type: 'text',
+-      text: 'What name?',
+-    });
+-
+-    const state = readState(fs, 'test-graph');
+-    expect(state.nodes[nodeId].status).toBe('waiting-question');
+-    expect(state.nodes[nodeId].pending_question_id).toBe(result.questionId);
+-  });
+-
+-  it('writes to state.questions for backward compat', async () => {
+-    const result = await service.askQuestion(ctx, 'test-graph', nodeId, {
+-      type: 'single',
+-      text: 'Pick one',
+-      options: ['A', 'B'],
+-    });
+-
+-    const state = readState(fs, 'test-graph');
+-    expect(state.questions).toBeDefined();
+-    expect(state.questions.length).toBe(1);
+-    expect(state.questions[0].question_id).toBe(result.questionId);
+-    expect(state.questions[0].text).toBe('Pick one');
+-  });
+-});
+-
+-// ── T010: answerQuestion service wrapper contract ────────
+-
+-describe('answerQuestion — event service wrapper contract', () => {
+-  let fs: FakeFileSystem;
+-  let pathResolver: FakePathResolver;
+-  let service: IPositionalGraphService;
+-  let ctx: WorkspaceContext;
+-  let nodeId: string;
+-  let questionId: string;
+-
+-  beforeEach(async () => {
+-    fs = new FakeFileSystem();
+-    pathResolver = new FakePathResolver();
+-    service = createTestService(fs, pathResolver);
+-    ctx = createTestContext();
+-
+-    const { lineId } = await service.create(ctx, 'test-graph');
+-    const addResult = await service.addNode(ctx, 'test-graph', lineId, 'sample-coder');
+-    if (!addResult.nodeId) throw new Error('nodeId expected');
+-    nodeId = addResult.nodeId;
+-
+-    await service.startNode(ctx, 'test-graph', nodeId);
+-    await simulateAgentAccept(fs, 'test-graph', nodeId);
+-
+-    const askResult = await service.askQuestion(ctx, 'test-graph', nodeId, {
+-      type: 'single',
+-      text: 'Which framework?',
+-      options: ['React', 'Vue'],
+-    });
+-    if (!askResult.questionId) throw new Error('questionId expected');
+-    questionId = askResult.questionId;
+-  });
+-
+-  it('records a question:answer event with stamps', async () => {
+-    const result = await service.answerQuestion(ctx, 'test-graph', nodeId, questionId, 'React');
+-
+-    expect(result.errors).toEqual([]);
+-    expect(result.status).toBe('waiting-question');
+-
+-    const state = readState(fs, 'test-graph');
+-    const events = state.nodes[nodeId].events;
+-    const answerEvent = events.find(
+-      (e: { event_type: string }) => e.event_type === 'question:answer'
+-    );
+-
+-    expect(answerEvent).toBeDefined();
+-    expect(answerEvent.source).toBe('human');
+-    expect(answerEvent.stamps?.cli?.action).toBe('answer-recorded');
+-  });
+-
+-  it('keeps node in waiting-question and preserves pending_question_id', async () => {
+-    await service.answerQuestion(ctx, 'test-graph', nodeId, questionId, 'React');
+-
+-    const state = readState(fs, 'test-graph');
+-    expect(state.nodes[nodeId].status).toBe('waiting-question');
+-    expect(state.nodes[nodeId].pending_question_id).toBe(questionId);
+-  });
+-
+-  it('cross-stamps the original ask event with answer-linked', async () => {
+-    await service.answerQuestion(ctx, 'test-graph', nodeId, questionId, 'React');
+-
+-    const state = readState(fs, 'test-graph');
+-    const events = state.nodes[nodeId].events;
+-    const askEvent = events.find((e: { event_type: string }) => e.event_type === 'question:ask');
+-
+-    expect(askEvent.stamps?.cli?.action).toBe('answer-linked');
+-  });
+-
+-  it('stores answer in state.questions for backward compat', async () => {
+-    await service.answerQuestion(ctx, 'test-graph', nodeId, questionId, 'React');
+-
+-    const state = readState(fs, 'test-graph');
+-    const question = state.questions.find(
+-      (q: { question_id: string }) => q.question_id === questionId
+-    );
+-    expect(question.answer).toBe('React');
+-    expect(question.answered_at).toBeDefined();
+-  });
+-});
+diff --git a/test/unit/positional-graph/question-answer.test.ts b/test/unit/positional-graph/question-answer.test.ts
+deleted file mode 100644
+index c4f6b43..0000000
+--- a/test/unit/positional-graph/question-answer.test.ts
++++ /dev/null
+@@ -1,519 +0,0 @@
+-/**
+- * Question/Answer Protocol Tests (Phase 4: Question/Answer Protocol)
+- *
+- * Purpose: Tests for askQuestion, answerQuestion, and getAnswer service methods.
+- * These enable agents to pause execution for orchestrator input.
+- *
+- * Test Plan from tasks.md Alignment Brief:
+- * - askQuestion: generates timestamp ID, transitions to waiting-question, stores question
+- * - answerQuestion: stores answer, transitions to running, E173/E177 for errors
+- * - getAnswer: retrieves answer, answered: false if unanswered, E173 for invalid qId
+- *
+- * State Machine:
+- * - running → waiting-question (via askQuestion)
+- * - waiting-question → running (via answerQuestion)
+- *
+- * Critical Insights from /didyouknow:
+- * - #1: Use deterministic ID generator for tests (inject via options or mock)
+- * - #5: getAnswer on unanswered question returns {answered: false} not E173
+- */
+-
+-import { PositionalGraphService } from '@chainglass/positional-graph';
+-import { PositionalGraphAdapter } from '@chainglass/positional-graph/adapter';
+-import type { IPositionalGraphService } from '@chainglass/positional-graph/interfaces';
+-import { FakeFileSystem, FakePathResolver, YamlParserAdapter } from '@chainglass/shared';
+-import type { WorkspaceContext } from '@chainglass/workflow';
+-import { beforeEach, describe, expect, it } from 'vitest';
+-import { stubWorkUnitLoader, testFixtures } from './test-helpers.js';
+-
+-// ============================================
+-// Test Helpers
+-// ============================================
+-
+-/**
+- * Simulate agent accepting a node by transitioning its status from 'starting'
+- * to 'agent-accepted' in state.json. This completes the two-phase handshake
+- * introduced in Plan 032 Phase 2.
+- */
+-async function acceptNodeInState(
+-  fs: FakeFileSystem,
+-  graphSlug: string,
+-  nodeId: string
+-): Promise<void> {
+-  const statePath = `/workspace/my-project/.chainglass/data/workflows/${graphSlug}/state.json`;
+-  const stateContent = await fs.readFile(statePath, 'utf-8');
+-  const state = JSON.parse(stateContent);
+-  state.nodes[nodeId].status = 'agent-accepted';
+-  await fs.writeFile(statePath, JSON.stringify(state));
+-}
+-
+-function createTestContext(worktreePath = '/workspace/my-project'): WorkspaceContext {
+-  return {
+-    workspaceSlug: 'test-workspace',
+-    workspaceName: 'Test Workspace',
+-    workspacePath: worktreePath,
+-    worktreePath,
+-    worktreeBranch: 'main',
+-    isMainWorktree: true,
+-  };
+-}
+-
+-function createTestService(
+-  fs: FakeFileSystem,
+-  pathResolver: FakePathResolver,
+-  loader = stubWorkUnitLoader({ slugs: ['sample-coder', 'sample-input'] })
+-): IPositionalGraphService {
+-  const yamlParser = new YamlParserAdapter();
+-  const adapter = new PositionalGraphAdapter(fs, pathResolver);
+-  return new PositionalGraphService(fs, pathResolver, yamlParser, adapter, loader);
+-}
+-
+-// ============================================
+-// askQuestion Tests (T001)
+-// ============================================
+-
+-describe('PositionalGraphService — askQuestion', () => {
+-  let fs: FakeFileSystem;
+-  let pathResolver: FakePathResolver;
+-  let service: IPositionalGraphService;
+-  let ctx: WorkspaceContext;
+-  let nodeId: string;
+-
+-  beforeEach(async () => {
+-    fs = new FakeFileSystem();
+-    pathResolver = new FakePathResolver();
+-    service = createTestService(fs, pathResolver);
+-    ctx = createTestContext();
+-
+-    // Create graph and node for testing
+-    const { lineId } = await service.create(ctx, 'test-graph');
+-    const result = await service.addNode(ctx, 'test-graph', lineId, 'sample-coder');
+-    if (!result.nodeId) throw new Error('nodeId expected');
+-    nodeId = result.nodeId;
+-
+-    // Start node and simulate agent accepting (two-phase handshake)
+-    await service.startNode(ctx, 'test-graph', nodeId);
+-    await acceptNodeInState(fs, 'test-graph', nodeId);
+-  });
+-
+-  it('generates timestamp-based question ID', async () => {
+-    /**
+-     * Purpose: Proves question ID format matches PL-08 pattern
+-     * Quality Contribution: Enables sorting and debugging
+-     * Acceptance Criteria: ID matches ISO timestamp + random suffix pattern
+-     */
+-    const result = await service.askQuestion(ctx, 'test-graph', nodeId, {
+-      type: 'single',
+-      text: 'Which language?',
+-      options: ['bash', 'python'],
+-    });
+-
+-    expect(result.errors).toEqual([]);
+-    expect(result.questionId).toBeDefined();
+-    // ID should match ISO timestamp pattern with random suffix: YYYY-MM-DDTHH:mm:ss.sssZ_xxxxxx
+-    expect(result.questionId).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z_[a-f0-9]+$/);
+-  });
+-
+-  it('transitions to waiting-question', async () => {
+-    /**
+-     * Purpose: Proves askQuestion changes node state to waiting-question
+-     * Quality Contribution: Core Q&A state machine (AC-5)
+-     * Acceptance Criteria: Node status becomes waiting-question
+-     */
+-    await service.askQuestion(ctx, 'test-graph', nodeId, {
+-      type: 'text',
+-      text: 'What is the input?',
+-    });
+-
+-    const status = await service.getNodeStatus(ctx, 'test-graph', nodeId);
+-    expect(status.status).toBe('waiting-question');
+-  });
+-
+-  it('stores question in state.questions[]', async () => {
+-    /**
+-     * Purpose: Proves question is persisted to state.json
+-     * Quality Contribution: Data persistence for orchestrator retrieval
+-     * Acceptance Criteria: Question appears in state.questions array
+-     */
+-    const result = await service.askQuestion(ctx, 'test-graph', nodeId, {
+-      type: 'single',
+-      text: 'Which language?',
+-      options: ['bash', 'python'],
+-    });
+-
+-    // Read state.json directly to verify question stored
+-    const statePath = '/workspace/my-project/.chainglass/data/workflows/test-graph/state.json';
+-    const stateContent = await fs.readFile(statePath, 'utf-8');
+-    const state = JSON.parse(stateContent);
+-
+-    expect(state.questions).toBeDefined();
+-    expect(state.questions.length).toBe(1);
+-    expect(state.questions[0].question_id).toBe(result.questionId);
+-    expect(state.questions[0].node_id).toBe(nodeId);
+-    expect(state.questions[0].type).toBe('single');
+-    expect(state.questions[0].text).toBe('Which language?');
+-    expect(state.questions[0].options).toEqual(['bash', 'python']);
+-    expect(state.questions[0].asked_at).toBeDefined();
+-  });
+-
+-  it('sets pending_question_id on node', async () => {
+-    /**
+-     * Purpose: Proves node tracks its pending question
+-     * Quality Contribution: Links question to node for orchestrator UI
+-     * Acceptance Criteria: nodes[nodeId].pending_question_id === qId
+-     */
+-    const result = await service.askQuestion(ctx, 'test-graph', nodeId, {
+-      type: 'text',
+-      text: 'Question?',
+-    });
+-
+-    // Read state.json directly to verify pending_question_id
+-    const statePath = '/workspace/my-project/.chainglass/data/workflows/test-graph/state.json';
+-    const stateContent = await fs.readFile(statePath, 'utf-8');
+-    const state = JSON.parse(stateContent);
+-
+-    expect(state.nodes[nodeId].pending_question_id).toBe(result.questionId);
+-  });
+-
+-  it('requires running state (E176)', async () => {
+-    /**
+-     * Purpose: Prevents questions from non-running nodes
+-     * Quality Contribution: State machine integrity
+-     * Acceptance Criteria: E176 NodeNotRunning returned for pending node
+-     */
+-    // Create a new node that hasn't been started
+-    const showResult = await service.show(ctx, 'test-graph');
+-    const lineId = showResult.lines?.[0]?.id;
+-    const addResult = await service.addNode(ctx, 'test-graph', lineId as string, 'sample-input');
+-    const pendingNodeId = addResult.nodeId as string;
+-
+-    const result = await service.askQuestion(ctx, 'test-graph', pendingNodeId, {
+-      type: 'text',
+-      text: 'Question?',
+-    });
+-
+-    expect(result.questionId).toBeUndefined();
+-    expect(result.errors.length).toBe(1);
+-    expect(result.errors[0].code).toBe('E176');
+-  });
+-
+-  it('returns E153 for unknown node', async () => {
+-    /**
+-     * Purpose: Proves error handling for invalid node ID
+-     * Quality Contribution: Clear error messages for debugging
+-     * Acceptance Criteria: E153 error returned
+-     */
+-    const result = await service.askQuestion(ctx, 'test-graph', 'nonexistent-node', {
+-      type: 'text',
+-      text: 'Question?',
+-    });
+-
+-    expect(result.questionId).toBeUndefined();
+-    expect(result.errors.length).toBe(1);
+-    expect(result.errors[0].code).toBe('E153');
+-  });
+-});
+-
+-// ============================================
+-// answerQuestion Tests (T001)
+-// ============================================
+-
+-describe('PositionalGraphService — answerQuestion', () => {
+-  let fs: FakeFileSystem;
+-  let pathResolver: FakePathResolver;
+-  let service: IPositionalGraphService;
+-  let ctx: WorkspaceContext;
+-  let nodeId: string;
+-  let questionId: string;
+-
+-  beforeEach(async () => {
+-    fs = new FakeFileSystem();
+-    pathResolver = new FakePathResolver();
+-    service = createTestService(fs, pathResolver);
+-    ctx = createTestContext();
+-
+-    // Create graph and node for testing
+-    const { lineId } = await service.create(ctx, 'test-graph');
+-    const result = await service.addNode(ctx, 'test-graph', lineId, 'sample-coder');
+-    if (!result.nodeId) throw new Error('nodeId expected');
+-    nodeId = result.nodeId;
+-
+-    // Start node, simulate agent accepting, then ask a question to get to waiting-question state
+-    await service.startNode(ctx, 'test-graph', nodeId);
+-    await acceptNodeInState(fs, 'test-graph', nodeId);
+-    const askResult = await service.askQuestion(ctx, 'test-graph', nodeId, {
+-      type: 'single',
+-      text: 'Which language?',
+-      options: ['bash', 'python'],
+-    });
+-    if (!askResult.questionId) throw new Error('questionId expected');
+-    questionId = askResult.questionId;
+-  });
+-
+-  it('stores answer in question', async () => {
+-    /**
+-     * Purpose: Proves answer is persisted to the question
+-     * Quality Contribution: Data persistence (AC-6)
+-     * Acceptance Criteria: question.answer === provided value
+-     */
+-    const result = await service.answerQuestion(ctx, 'test-graph', nodeId, questionId, 'bash');
+-
+-    expect(result.errors).toEqual([]);
+-
+-    // Read state.json directly to verify answer stored
+-    const statePath = '/workspace/my-project/.chainglass/data/workflows/test-graph/state.json';
+-    const stateContent = await fs.readFile(statePath, 'utf-8');
+-    const state = JSON.parse(stateContent);
+-
+-    const question = state.questions.find(
+-      (q: { question_id: string }) => q.question_id === questionId
+-    );
+-    expect(question.answer).toBe('bash');
+-  });
+-
+-  it('sets answered_at timestamp', async () => {
+-    /**
+-     * Purpose: Proves audit trail for answer timing
+-     * Quality Contribution: Debugging and analytics
+-     * Acceptance Criteria: question.answered_at is ISO timestamp
+-     */
+-    await service.answerQuestion(ctx, 'test-graph', nodeId, questionId, 'python');
+-
+-    // Read state.json directly to verify answered_at
+-    const statePath = '/workspace/my-project/.chainglass/data/workflows/test-graph/state.json';
+-    const stateContent = await fs.readFile(statePath, 'utf-8');
+-    const state = JSON.parse(stateContent);
+-
+-    const question = state.questions.find(
+-      (q: { question_id: string }) => q.question_id === questionId
+-    );
+-    expect(question.answered_at).toBeDefined();
+-    // Verify ISO format
+-    expect(new Date(question.answered_at).toISOString()).toBe(question.answered_at);
+-  });
+-
+-  it('keeps node in waiting-question (record-only, no status transition)', async () => {
+-    /**
+-     * Purpose: Proves answerQuestion records answer without transitioning status
+-     * Quality Contribution: Two-domain boundary — handler records, ONBAS/ODS decide
+-     * Acceptance Criteria: Node status stays waiting-question, restart via node:restart event
+-     */
+-    const result = await service.answerQuestion(ctx, 'test-graph', nodeId, questionId, 'bash');
+-
+-    expect(result.errors).toEqual([]);
+-    expect(result.status).toBe('waiting-question');
+-
+-    const status = await service.getNodeStatus(ctx, 'test-graph', nodeId);
+-    expect(status.status).toBe('waiting-question');
+-  });
+-
+-  it('preserves pending_question_id', async () => {
+-    /**
+-     * Purpose: Proves pending_question_id stays set after answer (cleared by node:restart handler)
+-     * Quality Contribution: Two-domain boundary — answer handler is record-only
+-     * Acceptance Criteria: nodes[nodeId].pending_question_id is still set
+-     */
+-    await service.answerQuestion(ctx, 'test-graph', nodeId, questionId, 'bash');
+-
+-    // Read state.json directly to verify pending_question_id preserved
+-    const statePath = '/workspace/my-project/.chainglass/data/workflows/test-graph/state.json';
+-    const stateContent = await fs.readFile(statePath, 'utf-8');
+-    const state = JSON.parse(stateContent);
+-
+-    // pending_question_id should still be set (cleared by node:restart, not by answer)
+-    expect(state.nodes[nodeId].pending_question_id).toBe(questionId);
+-  });
+-
+-  it('returns E173 for invalid questionId', async () => {
+-    /**
+-     * Purpose: Proves error handling for non-existent question (AC-18)
+-     * Quality Contribution: Clear error messages
+-     * Acceptance Criteria: E173 QuestionNotFound returned
+-     */
+-    const result = await service.answerQuestion(
+-      ctx,
+-      'test-graph',
+-      nodeId,
+-      'invalid-question-id',
+-      'bash'
+-    );
+-
+-    expect(result.status).toBeUndefined();
+-    expect(result.errors.length).toBe(1);
+-    expect(result.errors[0].code).toBe('E173');
+-  });
+-
+-  it('returns E195 if question already answered', async () => {
+-    /**
+-     * Purpose: Proves duplicate answer is rejected (question already answered)
+-     * Quality Contribution: Idempotency protection — same question can't be answered twice
+-     * Acceptance Criteria: E195 AlreadyAnswered returned
+-     */
+-    // Answer the question first (node stays waiting-question)
+-    await service.answerQuestion(ctx, 'test-graph', nodeId, questionId, 'bash');
+-
+-    // Try to answer again — rejected because ask event already has an answer event
+-    const result = await service.answerQuestion(ctx, 'test-graph', nodeId, questionId, 'python');
+-
+-    expect(result.status).toBeUndefined();
+-    expect(result.errors.length).toBe(1);
+-    expect(result.errors[0].code).toBe('E195');
+-  });
+-});
+-
+-// ============================================
+-// getAnswer Tests (T001)
+-// ============================================
+-
+-describe('PositionalGraphService — getAnswer', () => {
+-  let fs: FakeFileSystem;
+-  let pathResolver: FakePathResolver;
+-  let service: IPositionalGraphService;
+-  let ctx: WorkspaceContext;
+-  let nodeId: string;
+-  let questionId: string;
+-
+-  beforeEach(async () => {
+-    fs = new FakeFileSystem();
+-    pathResolver = new FakePathResolver();
+-    service = createTestService(fs, pathResolver);
+-    ctx = createTestContext();
+-
+-    // Create graph and node for testing
+-    const { lineId } = await service.create(ctx, 'test-graph');
+-    const result = await service.addNode(ctx, 'test-graph', lineId, 'sample-coder');
+-    if (!result.nodeId) throw new Error('nodeId expected');
+-    nodeId = result.nodeId;
+-
+-    // Start node, simulate agent accepting, then ask a question
+-    await service.startNode(ctx, 'test-graph', nodeId);
+-    await acceptNodeInState(fs, 'test-graph', nodeId);
+-    const askResult = await service.askQuestion(ctx, 'test-graph', nodeId, {
+-      type: 'single',
+-      text: 'Which language?',
+-      options: ['bash', 'python'],
+-    });
+-    if (!askResult.questionId) throw new Error('questionId expected');
+-    questionId = askResult.questionId;
+-  });
+-
+-  it('returns answered: true with answer', async () => {
+-    /**
+-     * Purpose: Proves getAnswer returns answer after answering (AC-7)
+-     * Quality Contribution: Core retrieval functionality
+-     * Acceptance Criteria: {answered: true, answer: value}
+-     */
+-    await service.answerQuestion(ctx, 'test-graph', nodeId, questionId, 'bash');
+-
+-    const result = await service.getAnswer(ctx, 'test-graph', nodeId, questionId);
+-
+-    expect(result.errors).toEqual([]);
+-    expect(result.answered).toBe(true);
+-    expect(result.answer).toBe('bash');
+-  });
+-
+-  it('returns answered: false if unanswered', async () => {
+-    /**
+-     * Purpose: Proves getAnswer returns helpful status for pending questions
+-     * Quality Contribution: Actionable response per Critical Insight #5
+-     * Acceptance Criteria: {answered: false} (not E173 error)
+-     */
+-    // Don't answer the question
+-    const result = await service.getAnswer(ctx, 'test-graph', nodeId, questionId);
+-
+-    expect(result.errors).toEqual([]);
+-    expect(result.answered).toBe(false);
+-    expect(result.answer).toBeUndefined();
+-  });
+-
+-  it('returns E173 for invalid questionId', async () => {
+-    /**
+-     * Purpose: Proves error handling for non-existent question (AC-18)
+-     * Quality Contribution: Clear error messages
+-     * Acceptance Criteria: E173 QuestionNotFound returned
+-     */
+-    const result = await service.getAnswer(ctx, 'test-graph', nodeId, 'invalid-question-id');
+-
+-    expect(result.answered).toBe(false);
+-    expect(result.errors.length).toBe(1);
+-    expect(result.errors[0].code).toBe('E173');
+-  });
+-
+-  it('returns E153 for unknown node', async () => {
+-    /**
+-     * Purpose: Proves error handling for invalid node ID
+-     * Quality Contribution: Clear error messages
+-     * Acceptance Criteria: E153 error returned
+-     */
+-    const result = await service.getAnswer(ctx, 'test-graph', 'nonexistent-node', questionId);
+-
+-    expect(result.answered).toBe(false);
+-    expect(result.errors.length).toBe(1);
+-    expect(result.errors[0].code).toBe('E153');
+-  });
+-});
+-
+-// ============================================
+-// Multiple Questions Test (T001)
+-// ============================================
+-
+-describe('PositionalGraphService — multiple questions', () => {
+-  let fs: FakeFileSystem;
+-  let pathResolver: FakePathResolver;
+-  let service: IPositionalGraphService;
+-  let ctx: WorkspaceContext;
+-  let nodeId: string;
+-
+-  beforeEach(async () => {
+-    fs = new FakeFileSystem();
+-    pathResolver = new FakePathResolver();
+-    service = createTestService(fs, pathResolver);
+-    ctx = createTestContext();
+-
+-    // Create graph and node for testing
+-    const { lineId } = await service.create(ctx, 'test-graph');
+-    const result = await service.addNode(ctx, 'test-graph', lineId, 'sample-coder');
+-    if (!result.nodeId) throw new Error('nodeId expected');
+-    nodeId = result.nodeId;
+-
+-    await service.startNode(ctx, 'test-graph', nodeId);
+-    await acceptNodeInState(fs, 'test-graph', nodeId);
+-  });
+-
+-  it('stores multiple questions from same node', async () => {
+-    /**
+-     * Purpose: Proves sequential questions from same node are preserved
+-     * Quality Contribution: Supports multi-question workflows
+-     * Acceptance Criteria: All questions stored in state.questions array
+-     */
+-    // Ask first question
+-    const q1 = await service.askQuestion(ctx, 'test-graph', nodeId, {
+-      type: 'single',
+-      text: 'First question?',
+-      options: ['a', 'b'],
+-    });
+-
+-    // Answer first question (transitions back to starting via two-phase handshake)
+-    await service.answerQuestion(ctx, 'test-graph', nodeId, q1.questionId as string, 'a');
+-
+-    // Simulate agent re-accepting after answer (required for two-phase handshake)
+-    await acceptNodeInState(fs, 'test-graph', nodeId);
+-
+-    // Ask second question
+-    const q2 = await service.askQuestion(ctx, 'test-graph', nodeId, {
+-      type: 'text',
+-      text: 'Second question?',
+-    });
+-
+-    // Verify both questions stored
+-    const statePath = '/workspace/my-project/.chainglass/data/workflows/test-graph/state.json';
+-    const stateContent = await fs.readFile(statePath, 'utf-8');
+-    const state = JSON.parse(stateContent);
+-
+-    expect(state.questions.length).toBe(2);
+-    expect(state.questions[0].question_id).toBe(q1.questionId);
+-    expect(state.questions[0].answer).toBe('a');
+-    expect(state.questions[1].question_id).toBe(q2.questionId);
+-    expect(state.questions[1].answer).toBeUndefined();
+-  });
+-});
+diff --git a/docs/plans/061-workflow-events/tasks/phase-3-consumer-migration/execution.log.md b/docs/plans/061-workflow-events/tasks/phase-3-consumer-migration/execution.log.md
+new file mode 100644
+index 0000000..5ed6d4d
+--- /dev/null
++++ b/docs/plans/061-workflow-events/tasks/phase-3-consumer-migration/execution.log.md
+@@ -0,0 +1,20 @@
++# Execution Log: Phase 3 — Consumer Migration
++
++## T001: CLI DI + WorkflowEventError + Service throws
++
++**Status**: Complete
++**Duration**: ~5 min
++
++**What was done**:
++1. Created `packages/shared/src/workflow-events/errors.ts` — `WorkflowEventError` class extending Error with `errors: readonly ResultError[]` property (DYK-P3-02)
++2. Updated `packages/shared/src/workflow-events/index.ts` — exported WorkflowEventError
++3. Updated `packages/positional-graph/src/workflow-events/workflow-events.service.ts` — all 4 `throw new Error(...)` sites replaced with `throw new WorkflowEventError(message, result.errors)` preserving structured errors
++4. Added `createWorkflowEventsService(ctx: WorkspaceContext)` helper to `apps/cli/src/commands/positional-graph.command.ts` — per-request construction per DYK-P3-01
++5. Updated CLI imports: added IWorkflowEvents, WorkflowEventsService, WorkflowEventObserverRegistry, WorkflowEventError, WorkspaceContext; removed AskQuestionOptions (no longer needed)
++
++**Evidence**: `pnpm --filter @chainglass/shared build` ✅, `pnpm --filter @chainglass/positional-graph build` ✅
++
++**Discovery**: The `answerQuestion` partial failure path (line 183 — restart fails after answer recorded) still throws plain Error, not WorkflowEventError, because the restart failure comes from a caught exception not a result.errors array. This is acceptable — it's an edge case with a descriptive message.
++
++---
++
+diff --git a/docs/plans/061-workflow-events/tasks/phase-3-consumer-migration/tasks.fltplan.md b/docs/plans/061-workflow-events/tasks/phase-3-consumer-migration/tasks.fltplan.md
+new file mode 100644
+index 0000000..de36159
+--- /dev/null
++++ b/docs/plans/061-workflow-events/tasks/phase-3-consumer-migration/tasks.fltplan.md
+@@ -0,0 +1,166 @@
++# Flight Plan: Phase 3 — Consumer Migration
++
++**Plan**: [../../workflow-events-plan.md](../../workflow-events-plan.md)
++**Phase**: Phase 3: Consumer Migration
++**Generated**: 2026-03-01
++**Status**: Ready for takeoff
++
++---
++
++## Departure → Destination
++
++**Where we are**: WorkflowEventsService exists (Phase 2), IWorkflowEvents interface defined (Phase 1), DI registration in place, contract tests pass (36 tests). But no consumer code actually uses it yet — CLI, web, and test helpers still call PGService Q&A methods directly. PGService Q&A methods are @deprecated but still present.
++
++**Where we're going**: A developer can `cg wf node ask|answer|get-answer` and it routes through WorkflowEventsService. CLI answer now includes node:restart automatically (fixes correctness gap). Web answerQuestion is a single call. PGService Q&A methods are gone — WorkflowEventsService is the only way to do Q&A.
++
++---
++
++## Domain Context
++
++### Domains We're Changing
++
++| Domain | What Changes | Key Files |
++|--------|-------------|-----------|
++| _platform/positional-graph | CLI handlers migrate; PGService Q&A methods deleted; Q&A unit tests deleted | `apps/cli/src/commands/positional-graph.command.ts`, interface + service + tests |
++| workflow-ui | Web answerQuestion action delegates to WorkflowEvents | `apps/web/app/actions/workflow-actions.ts` |
++| workflow-events | Test helper answerNodeQuestion migrated; CLI integration test added | `dev/test-graphs/shared/helpers.ts`, `test/integration/.../cli-event-commands.test.ts` |
++
++### Domains We Depend On (no changes)
++
++| Domain | What We Consume | Contract |
++|--------|----------------|----------|
++| workflow-events | IWorkflowEvents (askQuestion, answerQuestion, getAnswer) | `@chainglass/shared` |
++| workflow-events | WorkflowEventsService, registerWorkflowEventsServices | `@chainglass/positional-graph` |
++| _platform/positional-graph | IPositionalGraphService.raiseNodeEvent (stays — only Q&A removed) | `@chainglass/positional-graph` |
++
++---
++
++## Flight Status
++
++<!-- Updated by /plan-6-v2: pending → active → done. Use blocked for problems/input needed. -->
++
++```mermaid
++stateDiagram-v2
++    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
++    classDef active fill:#FFC107,stroke:#FFA000,color:#000
++    classDef done fill:#4CAF50,stroke:#388E3C,color:#fff
++    classDef blocked fill:#F44336,stroke:#D32F2F,color:#fff
++
++    state "1: CLI DI setup" as S1
++    state "2: CLI ask" as S2
++    state "3: CLI answer" as S3
++    state "4: CLI get-answer" as S4
++    state "5: Web action" as S5
++    state "6: Test helper" as S6
++    state "7: QnA integ test" as S7
++    state "8: Delete PGS Q&A" as S8
++
++    [*] --> S1
++    S1 --> S2
++    S1 --> S3
++    S1 --> S4
++    S1 --> S5
++    S2 --> S7
++    S3 --> S7
++    S4 --> S7
++    S5 --> S8
++    S6 --> S8
++    S7 --> S8
++    S8 --> [*]
++
++    class S1,S2,S3,S4,S5,S6,S7 done
++    class S8 active
++```
++
++**Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
++
++---
++
++## Stages
++
++<!-- Updated by /plan-6-v2 during implementation: [ ] → [~] → [x] -->
++
++- [x] **Stage 1: CLI DI wiring** — Add `createWorkflowEventsService(ctx)` + WorkflowEventError class + update WorkflowEventsService throws (`errors.ts`, `positional-graph.command.ts`, `workflow-events.service.ts`)
++- [x] **Stage 2: Migrate CLI ask** — Replace handleNodeAsk PGService call with WorkflowEvents.askQuestion() (`positional-graph.command.ts`)
++- [x] **Stage 3: Migrate CLI answer** — Replace handleNodeAnswer PGService call with WorkflowEvents.answerQuestion() — fixes node:restart gap (`positional-graph.command.ts`)
++- [x] **Stage 4: Migrate CLI get-answer** — Replace handleNodeGetAnswer PGService call with WorkflowEvents.getAnswer() (`positional-graph.command.ts`)
++- [x] **Stage 5: Migrate web action** — Replace 2-call pattern with single WorkflowEvents.answerQuestion() (`workflow-actions.ts`)
++- [x] **Stage 6: Migrate test helper** — answerNodeQuestion internally delegates to WorkflowEventsService (`helpers.ts`)
++- [x] **Stage 7: QnA integration test** — 5 tests: full cycle, null answer, wrong state error, bad questionId error, choice round-trip (`cli-event-commands.test.ts`)
++- [~] **Stage 8: Delete PGService Q&A** — Remove methods, types, and associated tests. Wide blast radius — verify build + tests. (`interface.ts`, `service.ts`, `fake.ts`, `question-answer.test.ts`, `service-wrapper-contracts.test.ts`)
++
++---
++
++## Architecture: Before & After
++
++```mermaid
++flowchart LR
++    classDef existing fill:#E8F5E9,stroke:#4CAF50,color:#000
++    classDef changed fill:#FFF3E0,stroke:#FF9800,color:#000
++    classDef new fill:#E3F2FD,stroke:#2196F3,color:#000
++    classDef deleted fill:#FFCDD2,stroke:#F44336,color:#000
++
++    subgraph Before["Before Phase 3"]
++        B_CLI["CLI handlers<br/>(call PGService directly)"]:::existing
++        B_Web["Web action<br/>(2 PGService calls)"]:::existing
++        B_Helper["answerNodeQuestion<br/>(2 PGService calls)"]:::existing
++        B_WFE["WorkflowEventsService<br/>(unused)"]:::existing
++        B_PGS["PGService<br/>(Q&A + lifecycle)"]:::existing
++
++        B_CLI --> B_PGS
++        B_Web --> B_PGS
++        B_Helper --> B_PGS
++    end
++
++    subgraph After["After Phase 3"]
++        A_CLI["CLI handlers<br/>(delegate to WorkflowEvents)"]:::changed
++        A_Web["Web action<br/>(single WorkflowEvents call)"]:::changed
++        A_Helper["answerNodeQuestion<br/>(WorkflowEvents delegate)"]:::changed
++        A_WFE["WorkflowEventsService"]:::existing
++        A_PGS["PGService<br/>(lifecycle only — Q&A deleted)"]:::changed
++
++        A_CLI --> A_WFE
++        A_Web --> A_WFE
++        A_Helper --> A_WFE
++        A_WFE --> A_PGS
++    end
++```
++
++**Legend**: existing (green, unchanged) | changed (orange, modified) | new (blue, created) | deleted (red)
++
++---
++
++## Acceptance Criteria
++
++- [ ] AC-10: CLI handlers (handleNodeAsk, handleNodeAnswer, handleNodeGetAnswer) delegate to WorkflowEvents
++- [ ] AC-11: Web server action answerQuestion() delegates to WorkflowEvents
++- [ ] AC-12: Test helper answerNodeQuestion delegates to WorkflowEvents
++- [ ] AC-17: CLI QnA integration test (ask → answer → get-answer cycle)
++- [ ] AC-16: pnpm test passes (no regressions, baseline: 335 files, 4741 tests)
++- [ ] PGService Q&A methods deleted from interface + implementation + fake
++
++## Goals & Non-Goals
++
++**Goals**:
++- CLI/web/helpers use WorkflowEvents for Q&A
++- CLI answer includes node:restart (Finding 02 fix)
++- PGService Q&A cleanup — interface slimmed
++- QnA integration test gap filled
++
++**Non-Goals**:
++- E2E test/script migration (Phase 4)
++- CentralEventNotifier SSE integration
++- Migrating non-Q&A helpers (completeUserInputNode, clearErrorAndRestart)
++
++---
++
++## Checklist
++
++- [x] T001: Add createWorkflowEventsService(ctx) + WorkflowEventError + update service throws
++- [x] T002: Migrate CLI handleNodeAsk to WorkflowEvents.askQuestion()
++- [x] T003: Migrate CLI handleNodeAnswer to WorkflowEvents.answerQuestion()
++- [x] T004: Migrate CLI handleNodeGetAnswer to WorkflowEvents.getAnswer()
++- [x] T005: Migrate web answerQuestion action to WorkflowEvents
++- [x] T006: Migrate test helper answerNodeQuestion to WorkflowEvents
++- [x] T007: Add QnA CLI integration test (ask → answer → get-answer)
++- [~] T008: Delete PGService Q&A methods + types + tests
+diff --git a/docs/plans/061-workflow-events/tasks/phase-3-consumer-migration/tasks.md b/docs/plans/061-workflow-events/tasks/phase-3-consumer-migration/tasks.md
+new file mode 100644
+index 0000000..1d7f7b4
+--- /dev/null
++++ b/docs/plans/061-workflow-events/tasks/phase-3-consumer-migration/tasks.md
+@@ -0,0 +1,366 @@
++# Phase 3: Consumer Migration — Task Dossier
++
++**Plan**: [workflow-events-plan.md](../../workflow-events-plan.md)
++**Spec**: [workflow-events-spec.md](../../workflow-events-spec.md)
++**Phase**: Phase 3 — Consumer Migration
++**Domain**: workflow-events + consumers
++**Status**: Ready
++
++---
++
++## Executive Briefing
++
++**Purpose**: Migrate all consumers (CLI commands, web server actions, test helpers) from direct PGService Q&A calls to the WorkflowEventsService convenience API, then delete the deprecated PGService Q&A methods. This phase is the "payoff" — callers finally express intent instead of orchestrating raw event primitives.
++
++**What We're Building**: CLI handlers (ask/answer/get-answer) delegate to IWorkflowEvents instead of IPositionalGraphService. Web answerQuestion action becomes a single `wfEvents.answerQuestion()` call (replacing 2 separate PGService calls). Test helper `answerNodeQuestion` delegates to WorkflowEvents. A new QnA CLI integration test fills the gap identified in research. Finally, we delete askQuestion/answerQuestion/getAnswer from IPositionalGraphService and their associated unit tests.
++
++**Goals**:
++- ✅ CLI `cg wf node ask|answer|get-answer` delegates to IWorkflowEvents
++- ✅ CLI answer now includes node:restart (fixes correctness gap — Finding 02)
++- ✅ Web answerQuestion action becomes single WorkflowEvents call
++- ✅ Test helper `answerNodeQuestion` delegates to WorkflowEvents
++- ✅ QnA CLI integration test covering ask → answer → get-answer cycle
++- ✅ PGService Q&A methods deleted from interface + implementation + FakePGService
++- ✅ Associated Q&A unit tests removed or adapted
++
++**Non-Goals**:
++- ❌ E2E test/script updates — Phase 4
++- ❌ Migrating `completeUserInputNode` or `clearErrorAndRestart` — these use PGService node lifecycle methods (startNode, endNode, raiseNodeEvent), not Q&A. They remain on PGService.
++- ❌ Migrating `workgraph.command.ts` `getAnswer` call — uses `IWorkNodeService`, not PGService directly
++- ❌ CentralEventNotifier SSE integration — deferred (DYK-P2-03)
++
++---
++
++## Prior Phase Context
++
++### Phase 1: Interface, Types, and Constants
++
++**A. Deliverables**:
++- `packages/shared/src/workflow-events/constants.ts` — WorkflowEventType (7 typed constants)
++- `packages/shared/src/workflow-events/types.ts` — QuestionInput, AnswerInput, AnswerResult, ProgressInput, ErrorInput + observer event types
++- `packages/shared/src/interfaces/workflow-events.interface.ts` — IWorkflowEvents (9 methods)
++- `packages/shared/src/fakes/fake-workflow-events.ts` — FakeWorkflowEventsService
++- `packages/shared/src/di-tokens.ts` — WORKFLOW_EVENTS_SERVICE token
++- `docs/domains/workflow-events/domain.md` — domain boundary, contracts, concepts
++
++**B. Dependencies Exported**:
++- `IWorkflowEvents` interface: 5 actions + 4 observers
++- `WorkflowEventType` constants: 7 typed event type constants
++- `QuestionInput`, `AnswerInput`, `AnswerResult`, `ProgressInput`, `ErrorInput`
++- `FakeWorkflowEventsService` with inspection methods
++- `POSITIONAL_GRAPH_DI_TOKENS.WORKFLOW_EVENTS_SERVICE`
++
++**C. Gotchas & Debt**:
++- DYK-P1-01: `answerQuestion(answer: unknown)` not `AnswerInput` — callers pass raw values
++- DYK-P1-03: `WorkflowEvent.eventType` widened to `WorkflowEventTypeValue | string`
++- No dedicated `onError` observer (DYK-P1-04)
++
++**D. Incomplete Items**: None — fully complete and reviewed (APPROVE)
++
++**E. Patterns to Follow**:
++- Import types from `@chainglass/shared/workflow-events` and `@chainglass/shared`
++- DI token: `POSITIONAL_GRAPH_DI_TOKENS.WORKFLOW_EVENTS_SERVICE`
++- Field names align with Zod .strict() schemas
++
++### Phase 2: Implementation and Contract Tests
++
++**A. Deliverables**:
++- `packages/positional-graph/src/workflow-events/workflow-events.service.ts` — WorkflowEventsService (~320 lines)
++- `packages/positional-graph/src/workflow-events/observer-registry.ts` — globalThis-backed registry
++- `packages/positional-graph/src/workflow-events/index.ts` — barrel exports
++- `packages/positional-graph/src/container.ts` — `registerWorkflowEventsServices(container, contextResolver)`
++- `test/contracts/workflow-events.contract.ts` — contract test factory (36 tests)
++- `test/contracts/workflow-events.contract.test.ts` — contract test runner
++
++**B. Dependencies Exported**:
++- `WorkflowEventsService` class — wraps PGService.raiseNodeEvent() + loadGraphState/persistGraphState
++- `WorkflowEventObserverRegistry` — globalThis-backed, HMR-surviving
++- `registerWorkflowEventsServices(container, contextResolver)` — DI registration function
++- `WorkspaceContextResolver` type — `(graphSlug: string) => WorkspaceContext`
++- All exported from `@chainglass/positional-graph` barrel
++
++**C. Gotchas & Debt**:
++- DYK-P2-01: FakePGService.getAnswer() always returns `answered: false` — can't test full QnA cycle through real WorkflowEventsService
++- DYK-P2-02: WorkflowEventsService needs `contextResolver` — each environment (CLI, web, test) provides its own
++- DYK-P2-03: CentralEventNotifier SSE deferred to later — observer registry is server-side only
++- DYK-P2-04: answerQuestion partial failure: if restart fails after answer recorded, notifies observers then rethrows
++- T006 moved to Phase 3: Delete PGService Q&A methods after consumers migrated
++
++**D. Incomplete Items**: T006 (PGService deletion) — deferred to this phase
++
++**E. Patterns to Follow**:
++- Observer error isolation: try/catch per handler in notification loops
++- DI: `useFactory` pattern, resolve prerequisites from container
++- WorkflowEventsService takes `(pgService, contextResolver, observers)` constructor
++- Contract tests: factory function producing implementation, same suite for both real + fake
++- Package aliases: `@chainglass/shared`, `@chainglass/shared/workflow-events`
++
++---
++
++## Pre-Implementation Check
++
++| File | Exists? | Domain Check | Notes |
++|------|---------|-------------|-------|
++| `apps/cli/src/commands/positional-graph.command.ts` | ✅ modify | _platform/positional-graph | Modify handlers at lines 887-983 + add getWorkflowEventsService() helper |
++| `apps/web/app/actions/workflow-actions.ts` | ✅ modify | workflow-ui | Modify answerQuestion at lines 416-445 |
++| `dev/test-graphs/shared/helpers.ts` | ✅ modify | workflow-events | Modify answerNodeQuestion at lines 93-110 |
++| `test/integration/positional-graph/cli-event-commands.test.ts` | ✅ modify | workflow-events | Add QnA integration test section |
++| `packages/positional-graph/src/interfaces/positional-graph-service.interface.ts` | ✅ modify | _platform/positional-graph | Delete Q&A methods (lines 746-772) + types (lines 469-497) |
++| `packages/positional-graph/src/services/positional-graph.service.ts` | ✅ modify | _platform/positional-graph | Delete askQuestion/answerQuestion/getAnswer implementations |
++| `packages/shared/src/fakes/fake-positional-graph.service.ts` | ✅ modify | _platform/positional-graph | Delete Q&A stubs |
++| `test/unit/positional-graph/question-answer.test.ts` | ✅ delete | _platform/positional-graph | Entire file tests deleted PGService methods |
++| `test/unit/positional-graph/features/032-node-event-system/service-wrapper-contracts.test.ts` | ✅ modify | _platform/positional-graph | Remove askQuestion/answerQuestion sections (lines 149-260) |
++| `apps/cli/src/lib/container.ts` | ✅ modify | _platform/positional-graph | Ensure registerWorkflowEventsServices() called with CLI contextResolver |
++
++### Key Migration Discovery
++
++**CLI contextResolver pattern**: The CLI handlers use `resolveOrOverrideContext(options.workspacePath)` to support `--workspace-path` override. WorkflowEventsService resolves context internally via `contextResolver(graphSlug)`. The CLI's DI container registration must provide a contextResolver that uses the correct workspace path. Since `createCliProductionContainer()` is called per handler, the contextResolver at registration time needs to use the CLI's default workspace resolution.
++
++**Test helper partial migration**: Only `answerNodeQuestion` is Q&A-related and migratable. `completeUserInputNode` uses `startNode/raiseNodeEvent/saveOutputData/endNode` (node lifecycle — not Q&A). `clearErrorAndRestart` uses `raiseNodeEvent('node:restart')` (generic event — not Q&A). These stay on PGService.
++
++**workgraph.command.ts**: Has 1 `getAnswer` call but uses `IWorkNodeService`, not PGService. NOT affected by PGService deletion. Different interface, different domain.
++
++---
++
++## Architecture Map
++
++```mermaid
++flowchart TD
++    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
++    classDef completed fill:#4CAF50,stroke:#388E3C,color:#fff
++    classDef existing fill:#E8F5E9,stroke:#4CAF50,color:#000
++    classDef deleted fill:#F44336,stroke:#D32F2F,color:#fff
++
++    subgraph Phase12["Phases 1-2 (Complete)"]
++        IWFE["IWorkflowEvents"]:::completed
++        WFEService["WorkflowEventsService"]:::completed
++        ObsReg["ObserverRegistry"]:::completed
++        Fake["FakeWorkflowEventsService"]:::completed
++        DIReg["registerWorkflowEventsServices()"]:::completed
++    end
++
++    subgraph Phase3["Phase 3: Consumer Migration"]
++        T001["T001: CLI DI + contextResolver"]:::pending
++        T002["T002: Migrate CLI handleNodeAsk"]:::pending
++        T003["T003: Migrate CLI handleNodeAnswer"]:::pending
++        T004["T004: Migrate CLI handleNodeGetAnswer"]:::pending
++        T005["T005: Migrate web answerQuestion"]:::pending
++        T006["T006: Migrate helper answerNodeQuestion"]:::pending
++        T007["T007: QnA CLI integration test"]:::pending
++        T008["T008: Delete PGService Q&A methods"]:::pending
++
++        T001 --> T002
++        T001 --> T003
++        T001 --> T004
++        T001 --> T005
++        T002 --> T007
++        T003 --> T007
++        T004 --> T007
++        T005 --> T008
++        T006 --> T008
++        T007 --> T008
++    end
++
++    subgraph Files["Target Files"]
++        CLICmd["/apps/cli/src/commands/<br/>positional-graph.command.ts"]:::pending
++        WebAction["/apps/web/app/actions/<br/>workflow-actions.ts"]:::pending
++        Helpers["/dev/test-graphs/shared/<br/>helpers.ts"]:::pending
++        CLITest["/test/integration/positional-graph/<br/>cli-event-commands.test.ts"]:::pending
++        PGSIface["/packages/positional-graph/src/<br/>interfaces/positional-graph-service.interface.ts"]:::pending
++        PGSImpl["/packages/positional-graph/src/<br/>services/positional-graph.service.ts"]:::pending
++        QATest["/test/unit/positional-graph/<br/>question-answer.test.ts"]:::deleted
++    end
++
++    IWFE --> T001
++    WFEService --> T001
++    DIReg --> T001
++    T002 -.-> CLICmd
++    T003 -.-> CLICmd
++    T004 -.-> CLICmd
++    T005 -.-> WebAction
++    T006 -.-> Helpers
++    T007 -.-> CLITest
++    T008 -.-> PGSIface
++    T008 -.-> PGSImpl
++    T008 -.-> QATest
++```
++
++---
++
++## Tasks
++
++| Status | ID | Task | Domain | Path(s) | Done When | Notes |
++|--------|-----|------|--------|---------|-----------|-------|
++| [x] | T001 | Add per-request WorkflowEventsService construction helper in CLI. Create `WorkflowEventError` custom error class in `packages/shared/src/workflow-events/errors.ts` preserving original errors array. Update WorkflowEventsService to throw WorkflowEventError instead of plain Error. DYK-P3-01: construct per-request (not DI) — resolve PGService from DI, closure contextResolver over resolved ctx. DYK-P3-02: custom error class preserves structured errors for CLI --json output. | workflow-events + _platform/positional-graph | `apps/cli/src/commands/positional-graph.command.ts`, `packages/shared/src/workflow-events/errors.ts`, `packages/positional-graph/src/workflow-events/workflow-events.service.ts` | `createWorkflowEventsService(ctx)` helper in CLI constructs per-request; `WorkflowEventError.errors` preserves structured error array; WorkflowEventsService throws WorkflowEventError not plain Error | DYK-P3-01, DYK-P3-02. DI registration stays for future agents bridge. |
++| [x] | T002 | Migrate `handleNodeAsk` (lines 887-930) to use `wfEvents.askQuestion()`. Replace PGService call with WorkflowEvents. Adjust error handling (WorkflowEventsService throws on error, PGService returns result with errors array). | workflow-events | `apps/cli/src/commands/positional-graph.command.ts` | `cg wf node ask` works identically; uses IWorkflowEvents not IPositionalGraphService | AC-10; WorkflowEvents.askQuestion throws on error (try/catch needed). QuestionInput maps from CLI's AskOptions. |
++| [x] | T003 | Migrate `handleNodeAnswer` (lines 932-961) to use `wfEvents.answerQuestion()`. Single call replaces PGService.answerQuestion(). Fixes Finding 02: CLI answer now includes node:restart automatically. | workflow-events | `apps/cli/src/commands/positional-graph.command.ts` | `cg wf node answer` works identically + now raises node:restart. Uses IWorkflowEvents. | AC-10; Finding 02 — correctness fix. WorkflowEvents.answerQuestion throws on error. JSON parse logic stays. |
++| [x] | T004 | Migrate `handleNodeGetAnswer` (lines 963-983) to use `wfEvents.getAnswer()`. Replace PGService.getAnswer() with WorkflowEvents.getAnswer(). | workflow-events | `apps/cli/src/commands/positional-graph.command.ts` | `cg wf node get-answer` works identically; uses IWorkflowEvents | AC-10; Return type differs: WorkflowEvents returns `AnswerResult \| null` vs PGService returns `GetAnswerResult`. Adapt output format. |
++| [ ] | T005 | Migrate web `answerQuestion` action (lines 416-445) to use `wfEvents.answerQuestion()`. Replace 2 PGService calls (answer + raiseNodeEvent restart) with single WorkflowEvents call. Resolve WorkflowEvents from web DI container. | workflow-ui | `apps/web/app/actions/workflow-actions.ts` | Server action uses single WorkflowEvents.answerQuestion() call | AC-11; Currently does 2 calls (answer + restart). WorkflowEvents does both in 1. Check web container calls registerWorkflowEventsServices(). |
++| [ ] | T006 | Migrate `answerNodeQuestion` helper to accept `IWorkflowEvents` instead of `IPositionalGraphService + ctx`. Update ALL callers of answerNodeQuestion across the codebase (grep for callsites). DYK-P3-03: clean break — let TypeScript catch every callsite. `completeUserInputNode` and `clearErrorAndRestart` stay on PGService (non-Q&A lifecycle ops). | workflow-events | `dev/test-graphs/shared/helpers.ts` + all callers | `answerNodeQuestion` accepts IWorkflowEvents; all callers updated; build passes | AC-12; DYK-P3-03: user override — no backward-compat shim. Phase 3 scope includes caller updates. |
++| [ ] | T007 | Add QnA CLI integration test: ask → answer → get-answer cycle through WorkflowEventsService. Add error scenario tests: ask on wrong-state node, answer with bad questionId, answer already-answered question. Assert node state transitions (waiting-question → not waiting-question after answer). Add to existing `cli-event-commands.test.ts`. | workflow-events | `test/integration/positional-graph/cli-event-commands.test.ts` | Happy path ask→answer→get-answer cycle passes; 3-4 error scenarios verified; node no longer waiting-question after answer (DYK-P3-05) | AC-17; DYK-P3-04: error coverage; DYK-P3-05: behavioral change asserted |
++| [ ] | T008 | Delete PGService Q&A methods: remove `askQuestion`, `answerQuestion`, `getAnswer` from `IPositionalGraphService` interface + `PositionalGraphService` implementation + `FakePositionalGraphService`. Delete `AskQuestionOptions`, `AskQuestionResult`, `AnswerQuestionResult`, `GetAnswerResult` types. Delete `test/unit/positional-graph/question-answer.test.ts`. Remove Q&A sections from `service-wrapper-contracts.test.ts`. Remove `AskQuestionOptions` import from CLI. Verify build + tests pass. | _platform/positional-graph | `packages/positional-graph/src/interfaces/positional-graph-service.interface.ts`, `packages/positional-graph/src/services/positional-graph.service.ts`, `packages/shared/src/fakes/fake-positional-graph.service.ts`, `test/unit/positional-graph/question-answer.test.ts`, `test/unit/positional-graph/features/032-node-event-system/service-wrapper-contracts.test.ts`, `apps/cli/src/commands/positional-graph.command.ts` | Build passes; tests pass; grep for `askQuestion\|answerQuestion\|getAnswer` on PGService interface returns 0 hits | Phase 2 T006 (moved); DYK-P2-05. LAST task — all consumers must be migrated first. Wide blast radius — verify thoroughly. |
++
++---
++
++## Context Brief
++
++### Key Findings from Plan
++
++- **Finding 02 (Critical)**: CLI answer doesn't raise node:restart — WorkflowEvents.answerQuestion() fixes this. After migration, CLI answer includes the restart automatically.
++- **Finding 03 (High)**: Test helpers already import from @chainglass/positional-graph — same import pattern. Migration path is clean.
++- **Finding 07 (High)**: positional-graph.command.ts is 2,358 lines. Target handlers are lines 887-983 (~95 lines). Safe, isolated section.
++
++### Domain Dependencies
++
++- `workflow-events`: IWorkflowEvents (askQuestion, answerQuestion, getAnswer) — the convenience API we migrate TO
++- `_platform/positional-graph`: IPositionalGraphService (raiseNodeEvent, loadGraphState — used internally by WorkflowEventsService, no longer called directly by consumers for Q&A)
++- `workflow-ui`: Web server actions — consumer of IWorkflowEvents after migration
++
++### Domain Constraints
++
++- CLI command file stays in `apps/cli/` — it's a consumer, not a domain source file
++- Web action stays in `apps/web/` — consumer layer
++- Test helper in `dev/test-graphs/shared/` — cross-domain utility
++- PGService interface modification is in `_platform/positional-graph` domain
++- All imports use package aliases: `@chainglass/shared`, `@chainglass/positional-graph`
++
++### Reusable from Prior Phases
++
++- `IWorkflowEvents` interface — import from `@chainglass/shared`
++- `POSITIONAL_GRAPH_DI_TOKENS.WORKFLOW_EVENTS_SERVICE` — DI token
++- `WorkflowEventsService` — resolves from DI container
++- `registerWorkflowEventsServices(container, contextResolver)` — call in CLI/web container setup
++- `QuestionInput`, `AnswerResult` types — from `@chainglass/shared/workflow-events`
++- CLI DI pattern: `createCliProductionContainer()` → `container.resolve<T>(TOKEN)`
++- Contract tests (36 tests) — verify WorkflowEventsService still works after changes
++
++### Migration Pattern Summary
++
++**CLI handler migration** (T002-T004):
++```typescript
++// BEFORE (PGService direct)
++const service = getPositionalGraphService();
++const result = await service.askQuestion(ctx, graphSlug, nodeId, askOptions);
++console.log(adapter.format('wf.node.ask', result));
++
++// AFTER (WorkflowEvents)
++const wfEvents = getWorkflowEventsService();
++const result = await wfEvents.askQuestion(graphSlug, nodeId, question);
++console.log(adapter.format('wf.node.ask', { questionId: result.questionId, errors: [] }));
++```
++
++**Web action migration** (T005):
++```typescript
++// BEFORE (2 PGService calls)
++const answerResult = await svc.answerQuestion(ctx, graphSlug, nodeId, questionId, answer);
++const restartResult = await svc.raiseNodeEvent(ctx, graphSlug, nodeId, 'node:restart', ...);
++
++// AFTER (single WorkflowEvents call)
++await wfEvents.answerQuestion(graphSlug, nodeId, questionId, answer);
++```
++
++**Test helper migration** (T006):
++```typescript
++// BEFORE (PGService + manual restart)
++await service.answerQuestion(ctx, graphSlug, nodeId, questionId, answer);
++await service.raiseNodeEvent(ctx, graphSlug, nodeId, 'node:restart', ...);
++
++// AFTER (WorkflowEvents — single call)
++await wfEvents.answerQuestion(graphSlug, nodeId, questionId, answer);
++```
++
++### Error Handling Differences
++
++| | PGService | WorkflowEventsService |
++|---|---|---|
++| askQuestion | Returns `{ errors: [], questionId? }` | Throws on error; returns `{ questionId }` |
++| answerQuestion | Returns `{ errors: [] }` | Throws on error; returns `void` |
++| getAnswer | Returns `{ errors: [], answered, answer? }` | Returns `AnswerResult \| null` |
++
++CLI handlers currently check `result.errors.length > 0` then `process.exit(1)`. After migration, they need `try/catch` blocks instead.
++
++### Data Flow: After Migration
++
++```mermaid
++flowchart LR
++    classDef migrated fill:#E3F2FD,stroke:#2196F3,color:#000
++    classDef existing fill:#E8F5E9,stroke:#4CAF50,color:#000
++    classDef deleted fill:#FFCDD2,stroke:#F44336,color:#000
++
++    CLI["CLI ask/answer/get-answer"]:::migrated
++    Web["Web answerQuestion"]:::migrated
++    Helper["answerNodeQuestion"]:::migrated
++    WFE["WorkflowEventsService"]:::existing
++    PGS["PGService.raiseNodeEvent()"]:::existing
++    PGSqa["PGService.askQuestion()<br/>answerQuestion()<br/>getAnswer()"]:::deleted
++
++    CLI -->|"delegates to"| WFE
++    Web -->|"delegates to"| WFE
++    Helper -->|"delegates to"| WFE
++    WFE -->|"wraps"| PGS
++    CLI -.->|"no longer calls"| PGSqa
++```
++
++### Sequence: CLI Answer Migration (Finding 02 Fix)
++
++```mermaid
++sequenceDiagram
++    participant User as User (CLI)
++    participant CLI as handleNodeAnswer
++    participant WFE as WorkflowEventsService
++    participant PGS as PGService
++
++    User->>CLI: cg wf node answer graph node qId "yes"
++    CLI->>WFE: answerQuestion(graph, node, qId, "yes")
++    WFE->>PGS: raiseNodeEvent(ctx, graph, node, 'question:answer', payload, 'human')
++    PGS-->>WFE: result
++    WFE->>PGS: raiseNodeEvent(ctx, graph, node, 'node:restart', {reason: 'question-answered'}, 'human')
++    PGS-->>WFE: result
++    WFE-->>CLI: void (success)
++    CLI-->>User: formatted output
++
++    Note over CLI,WFE: BEFORE: CLI only called PGService.answerQuestion()<br/>(no node:restart — correctness gap)
++    Note over CLI,WFE: AFTER: WorkflowEvents handles both events
++```
++
++---
++
++## Discoveries & Learnings
++
++| Date | Task | Type | Discovery | Resolution | References |
++|------|------|------|-----------|------------|------------|
++| 2026-03-01 | T001 | DYK | contextResolver is fixed at construction time but CLI and web resolve context per-request with different parameters (--workspace-path flag, async workspaceSlug). DI-resolved instance can't honor per-request overrides. | Construct WorkflowEventsService per-request: resolve PGService from DI, create closure contextResolver over already-resolved ctx, fresh observers. DI registration stays for future server-side consumers (agents bridge). | DYK-P3-01 |
++| 2026-03-01 | T002-T004 | DYK | PGService returns `{ errors: [{code, message, action}] }` formatted by adapter.format(). WorkflowEventsService throws Error with message string. CLI --json output format breaks. | Add WorkflowEventError custom error class preserving original errors array. CLI catch blocks extract structured errors for adapter.format(). Small addition: one class in workflow-events types. | DYK-P3-02 |
++| 2026-03-01 | T006 | DYK | Changing answerNodeQuestion signature from `(service: IPositionalGraphService, ctx, ...)` to `(wfEvents: IWorkflowEvents, ...)` breaks all callers — 37 files import from helpers.ts. Build breaks between Phase 3 and Phase 4 if callers not updated. | **USER OVERRIDE**: Clean break — change signature, update all answerNodeQuestion callers in Phase 3. Let TypeScript catch every callsite. Keeping backward-compat shim hides bugs where wrong service/context is passed. Phase 3 scope expands to include caller updates. | DYK-P3-03 |
++| 2026-03-01 | T008 | DYK | question-answer.test.ts has 17 tests verifying error codes (E176, E173, E195, E153). After deletion, no test verifies error paths through WorkflowEventsService. Contract tests only cover happy paths. | Add 3-4 error scenario tests in T007: ask on wrong-state node, answer with bad questionId, answer already-answered question. Verify errors survive migration as thrown exceptions. | DYK-P3-04 |
++| 2026-03-01 | T003 | DYK | `cg wf node answer` currently only records answer (node stays waiting-question). After migration, also raises node:restart (node auto-transitions). Behavioral change for existing scripts/workflows. | Desired fix (Finding 02). Document in commit message. T007 must assert node is no longer waiting-question after answerQuestion — make behavioral change a tested contract. | DYK-P3-05 |
++
++---
++
++## Directory Layout
++
++```
++docs/plans/061-workflow-events/
++  ├── workflow-events-plan.md
++  ├── workflow-events-spec.md
++  ├── research-dossier.md
++  ├── workshops/
++  │   └── 001-workflow-events-domain.md
++  ├── reviews/
++  │   ├── review.phase-1-interface-types-constants.md
++  │   ├── review.phase-2-implementation-contract-tests.md
++  │   └── _computed.diff
++  └── tasks/
++      ├── phase-1-interface-types-constants/
++      │   ├── tasks.md ✅
++      │   ├── tasks.fltplan.md ✅
++      │   └── execution.log.md ✅
++      ├── phase-2-implementation-contract-tests/
++      │   ├── tasks.md ✅
++      │   ├── tasks.fltplan.md ✅
++      │   └── execution.log.md ✅
++      └── phase-3-consumer-migration/
++          ├── tasks.md              ← this file
++          ├── tasks.fltplan.md      ← flight plan
++          └── execution.log.md     # created by plan-6
++```
+diff --git a/packages/shared/src/workflow-events/errors.ts b/packages/shared/src/workflow-events/errors.ts
+new file mode 100644
+index 0000000..dbc325c
+--- /dev/null
++++ b/packages/shared/src/workflow-events/errors.ts
+@@ -0,0 +1,19 @@
++/**
++ * WorkflowEventError — Preserves structured error information from the event pipeline.
++ *
++ * Plan 061 Phase 3 (DYK-P3-02): WorkflowEventsService throws this instead of plain Error
++ * so CLI and other consumers can extract structured { code, message, action } errors
++ * for JSON output formatting.
++ */
++
++import type { ResultError } from '../interfaces/results/base.types.js';
++
++export class WorkflowEventError extends Error {
++  readonly errors: readonly ResultError[];
++
++  constructor(message: string, errors: ResultError[]) {
++    super(message);
++    this.name = 'WorkflowEventError';
++    this.errors = errors;
++  }
++}

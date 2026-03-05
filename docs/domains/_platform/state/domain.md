@@ -48,15 +48,18 @@ Centralized ephemeral runtime state system. Domains publish runtime values (work
 | Contract | Type | Consumers | Description |
 |----------|------|-----------|-------------|
 | `IStateService` | Interface | All domains needing cross-domain runtime state | Core facade: publish, subscribe, get, list, registerDomain, removeInstance |
-| `StateChange` | Type | All state subscribers | Change notification payload: path, value, previousValue, timestamp, removed? |
-| `StateEntry` | Type | All state readers | Stored state entry: path, value, updatedAt |
+| `StateChange` | Type | All state subscribers | Change notification payload: path, value, previousValue, timestamp, removed?, source? |
+| `StateEntry` | Type | All state readers | Stored state entry: path, value, updatedAt, source? |
+| `StateEntrySource` | Type | ServerEventRoute, dev-tools | Origin metadata: origin ('client'/'server'), channel?, eventType? |
 | `StateDomainDescriptor` | Type | Domain publishers (at registration) | Domain declaration: name, description, multiInstance, properties |
 | `StateChangeCallback` | Type | All state subscribers | `(change: StateChange) => void` |
 | `useGlobalState<T>` | Hook | React components reading single values | `useGlobalState(path, default?) → T` — re-renders on change |
 | `useGlobalStateList` | Hook | React components reading multiple values | `useGlobalStateList(pattern) → StateEntry[]` — re-renders on any match change |
 | `useStateSystem` | Hook | React components needing direct IStateService access | Returns IStateService from context |
 | `GlobalStateProvider` | Component | App root (mounted once) | React context provider for state system |
-| `GlobalStateConnector` | Component | Workspace layout | Invisible component that wires domain registrations and SSE→state publishers |
+| `GlobalStateConnector` | Component | Workspace layout | Invisible component that wires domain registrations, SSE→state publishers, and ServerEventRoute instances |
+| `ServerEventRoute` | Component | GlobalStateConnector | Invisible bridge: subscribes to SSE channel, maps events to state paths via route descriptor |
+| `ServerEventRouteDescriptor` | Type | Domains opting into server→state routing | Route config: channel, stateDomain, multiInstance, properties, mapEvent |
 | `FakeGlobalStateSystem` | Fake | All tests | Test double implementing IStateService with inspection methods |
 | `StateChangeLog` | Class | `_platform/dev-tools`, any observer | Ring buffer accumulating StateChange entries from boot (500 cap, own subscribe/version) |
 | `StateChangeLogContext` | Context | `_platform/dev-tools` hooks | React context providing StateChangeLog instance |
@@ -73,7 +76,8 @@ Centralized ephemeral runtime state system. Domains publish runtime values (work
 | PathParser | parsePath(path) → ParsedPath (domain, instanceId, property) | — |
 | GlobalStateSystem | IStateService implementation composing store + matcher + dispatch | StateStore, PathMatcher |
 | GlobalStateProvider | React context provider, bootstraps GlobalStateSystem | GlobalStateSystem |
-| GlobalStateConnector | Workspace-scoped wiring: registers domains, connects SSE publishers | IStateService, SSE hooks |
+| GlobalStateConnector | Workspace-scoped wiring: registers domains, connects SSE publishers, mounts ServerEventRoutes | IStateService, SSE hooks, ServerEventRoute |
+| ServerEventRoute | Invisible bridge: subscribes SSE channel → maps events → publishes to state with source metadata | useSSE, IStateService, ServerEventRouteDescriptor |
 | useGlobalState | Single-value subscription hook via useSyncExternalStore | IStateService (from context) |
 | useGlobalStateList | Multi-value pattern subscription hook via useSyncExternalStore | IStateService (from context) |
 | FakeGlobalStateSystem | Test double with getPublished(), getSubscribers(), wasPublishedWith() | IStateService interface |
@@ -97,7 +101,9 @@ Primary: `packages/shared/src/state/` (types + interface) + `apps/web/src/lib/st
 | `packages/shared/src/fakes/fake-state-system.ts` | FakeGlobalStateSystem | ✅ Created Phase 3 |
 | `apps/web/src/lib/state/global-state-system.ts` | GlobalStateSystem class | ✅ Created Phase 3 |
 | `apps/web/src/lib/state/state-provider.tsx` | GlobalStateProvider + useStateSystem + StateContext | ✅ Created Phase 4 |
-| `apps/web/src/lib/state/state-connector.tsx` | GlobalStateConnector | ✅ Created Phase 5 |
+| `apps/web/src/lib/state/state-connector.tsx` | GlobalStateConnector | ✅ Created Phase 5, extended Plan 059 (ServerEventRoute mounting) |
+| `apps/web/src/lib/state/server-event-router.ts` | ServerEventRouteDescriptor, ServerEvent, StateUpdate types | ✅ Created Plan 059 Subtask 001 |
+| `apps/web/src/lib/state/server-event-route.tsx` | ServerEventRoute component (SSE→state bridge) | ✅ Created Plan 059 Subtask 001 |
 | `apps/web/src/lib/state/state-change-log.ts` | StateChangeLog ring buffer | ✅ Created Plan 056 |
 | `apps/web/src/lib/state/use-global-state.ts` | useGlobalState<T> hook | ✅ Created Phase 4 |
 | `apps/web/src/lib/state/use-global-state-list.ts` | useGlobalStateList hook | ✅ Created Phase 4 |
@@ -154,3 +160,4 @@ Primary: `packages/shared/src/state/` (types + interface) + `apps/web/src/lib/st
 | 053-P4 | Phase 4 implemented: React hooks (useGlobalState, useGlobalStateList via useSyncExternalStore), GlobalStateProvider + useStateSystem + exported StateContext, barrel exports, mounted in providers.tsx. AC-31 dropped (fail-fast, no no-op fallback). 9 hook tests. Total: 137 state tests. | 2026-02-27 |
 | 053-P5 | Phase 5 implemented: Worktree exemplar. registerWorktreeState() multi-instance domain, WorktreeStatePublisher (useFileChanges), WorktreeStateSubtitle consumer, GlobalStateConnector wiring. Wired into browser-client.tsx + dashboard-sidebar.tsx. Idempotent registration for StrictMode. 7 publisher tests. Total: 145 state tests. | 2026-02-27 |
 | 053-P6 | Phase 6: Developer guide at docs/how/global-state-system.md. Domain docs finalized. Quality gate passed. Plan 053 complete. | 2026-02-27 |
+| 059-ST001 | Plan 059 Subtask 001: Added StateEntrySource type (origin metadata for server/client tagging), extended publish() with optional source param across IStateService + GlobalStateSystem + FakeGlobalStateSystem, added getPublishedSource() to fake. Created ServerEventRoute component + ServerEventRouteDescriptor types. Extended GlobalStateConnector to mount server event routes. Added WorkUnitState to WorkspaceDomain. | 2026-03-01 |

@@ -134,6 +134,8 @@ export function useAgentInstance(
       }
       return response.json();
     },
+    // Poll when SSE is disabled so overlay still gets updates
+    refetchInterval: subscribeToSSE ? undefined : 2000,
   });
 
   // Run prompt mutation

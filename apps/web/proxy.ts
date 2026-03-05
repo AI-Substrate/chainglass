@@ -2,6 +2,9 @@ import { auth } from '@/auth';
 import { NextResponse } from 'next/server';
 
 export default auth((req) => {
+  if (process.env.DISABLE_AUTH === 'true') {
+    return NextResponse.next();
+  }
   if (!req.auth) {
     const isApiRoute = req.nextUrl.pathname.startsWith('/api/');
     if (isApiRoute) {

@@ -4,6 +4,12 @@
  * WorkspaceNav - Sidebar navigation for workspaces and worktrees.
  *
  * Part of Plan 014: Workspaces - Phase 6: Web UI
+ * Plan 059 Phase 4: Cross-worktree activity badges.
+ *
+ * Cross-domain composition point: This component combines _platform/panel-layout
+ * rendering with agents-domain data (useWorktreeActivity). The hook returns plain
+ * data matching WorktreeBadgeState; ActivityDot accepts plain props with no
+ * cross-domain import. This is an intentional composition boundary.
  *
  * Per DYK-P6-04: Uses ?include=worktrees for single fetch.
  * Client component to support expansion state.
@@ -15,8 +21,10 @@ import { workspaceHref } from '@/lib/workspace-url';
 import { ChevronDown, ChevronRight, FolderOpen, GitBranch, Star } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toggleWorktreeStar } from '../../../app/actions/workspace-actions';
+import { useWorktreeActivity } from '../../hooks/use-worktree-activity';
+import { ActivityDot } from './activity-dot';
 
 /**
  * Workspace data from API response.
@@ -56,6 +64,27 @@ export function WorkspaceNav() {
   // Detect workspace context
   const workspaceSlug = pathname.match(/^\/workspaces\/([^/]+)/)?.[1] ?? null;
   const currentWorktree = searchParams.get('worktree');
+
+  // Collect all worktree paths for activity polling (DYK-P4-03)
+  const allWorktreePaths = useMemo(
+    () => workspaces.flatMap((ws) => (ws.worktrees ?? []).map((wt) => wt.path)),
+    [workspaces]
+  );
+
+  // Cross-worktree activity badges (DYK-P4-04: null exclude = show all)
+  const { activities } = useWorktreeActivity({
+    worktreePaths: allWorktreePaths,
+    excludeWorktree: currentWorktree,
+  });
+
+  // Index activities by worktree path for O(1) lookup
+  const activityMap = useMemo(() => {
+    const map = new Map<string, (typeof activities)[0]>();
+    for (const a of activities) {
+      map.set(a.worktreePath, a);
+    }
+    return map;
+  }, [activities]);
 
   // Load workspaces on mount
   useEffect(() => {
@@ -199,6 +228,11 @@ export function WorkspaceNav() {
                 <GitBranch className="h-3 w-3 shrink-0" />
                 <span className="truncate">{label}</span>
               </Link>
+              <ActivityDot
+                badge={activityMap.get(wt.path)}
+                workspaceSlug={workspaceSlug}
+                worktreePath={wt.path}
+              />
             </div>
           );
         })}
@@ -297,6 +331,11 @@ export function WorkspaceNav() {
                           <GitBranch className="h-3 w-3 flex-shrink-0" />
                           <span className="truncate">{label}</span>
                         </Link>
+                        <ActivityDot
+                          badge={activityMap.get(worktree.path)}
+                          workspaceSlug={workspace.slug}
+                          worktreePath={worktree.path}
+                        />
                       </div>
                     );
                   })}

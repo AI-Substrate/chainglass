@@ -64,14 +64,14 @@ describe('Phase 2 Integration: AgentNotifierService', () => {
       expect(lastStatus?.status).toBe('stopped');
     });
 
-    it('broadcasts intent at start of run()', async () => {
+    it('does not broadcast intent from prompt (FX006: intent only from agent)', async () => {
       /*
       Test Doc:
-      - Why: Intent gives users visibility into what agent is doing (AC-16)
-      - Contract: run() broadcasts initial intent from prompt
-      - Usage Notes: Intent truncated to 100 chars for display
-      - Quality Contribution: Verifies intent notification flow
-      - Worked Example: run({prompt}) → intent broadcast with prompt excerpt
+      - Why: FX006 changed intent to only come from agent report_intent, not prompt
+      - Contract: run() does NOT broadcast intent from user prompt
+      - Usage Notes: Intent is null until agent explicitly calls report_intent
+      - Quality Contribution: Verifies intent is agent-controlled only
+      - Worked Example: run({prompt}) → no intent broadcast
       */
       const instance = new AgentInstance(
         { id: 'intent-test', name: 'Intent Test', type: 'copilot', workspace: '/ws' },
@@ -82,11 +82,7 @@ describe('Phase 2 Integration: AgentNotifierService', () => {
       await instance.run({ prompt: 'Analyze this code and explain what it does' });
 
       const intentBroadcasts = notifier.getIntentBroadcasts();
-      expect(intentBroadcasts).toHaveLength(1);
-
-      const intent = notifier.getLastIntentBroadcast();
-      expect(intent?.agentId).toBe('intent-test');
-      expect(intent?.intent).toContain('Analyze');
+      expect(intentBroadcasts).toHaveLength(0);
     });
 
     it('broadcasts intent on setIntent() call', async () => {

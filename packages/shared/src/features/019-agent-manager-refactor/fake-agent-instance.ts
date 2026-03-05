@@ -30,6 +30,8 @@ const noopNotifier: IAgentNotifierService = {
   broadcastStatus: () => {},
   broadcastIntent: () => {},
   broadcastEvent: () => {},
+  broadcastCreated: () => {},
+  broadcastTerminated: () => {},
 };
 
 /**

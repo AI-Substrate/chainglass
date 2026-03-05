@@ -8,9 +8,11 @@ Test Doc:
 */
 
 import { PositionalGraphService } from '@chainglass/positional-graph';
+import { WorkflowEventObserverRegistry, WorkflowEventsService } from '@chainglass/positional-graph';
 import { PositionalGraphAdapter } from '@chainglass/positional-graph/adapter';
 import type { IPositionalGraphService } from '@chainglass/positional-graph/interfaces';
 import { FakeFileSystem, FakePathResolver, YamlParserAdapter } from '@chainglass/shared';
+import { WorkflowEventError } from '@chainglass/shared/workflow-events';
 import type { WorkspaceContext } from '@chainglass/workflow';
 import { beforeEach, describe, expect, it } from 'vitest';
 
@@ -56,6 +58,17 @@ async function simulateStart(
   if (!addResult.nodeId) throw new Error('Expected nodeId from addNode');
   await service.startNode(ctx, graphSlug, addResult.nodeId);
   return { nodeId: addResult.nodeId, lineId };
+}
+
+/** Sets up a graph with a started + agent-accepted node (required for Q&A events). */
+async function simulateAgentAccepted(
+  service: IPositionalGraphService,
+  ctx: WorkspaceContext,
+  graphSlug: string
+): Promise<{ nodeId: string; lineId: string }> {
+  const result = await simulateStart(service, ctx, graphSlug);
+  await service.raiseNodeEvent(ctx, graphSlug, result.nodeId, 'node:accepted', {}, 'agent');
+  return result;
 }
 
 // ── Full Event Lifecycle ─────────────────────────────────
@@ -405,5 +418,107 @@ describe('Event CLI Integration — Multi-Event Sequence', () => {
     });
     expect(stampedEvents.events?.[0].stamps.orchestrator).toBeDefined();
     expect(stampedEvents.events?.[0].stamps.orchestrator.action).toBe('acknowledged');
+  });
+});
+
+// ── Plan 061 Phase 3 (T007): QnA Integration Tests via WorkflowEventsService ──
+
+/*
+Test Doc:
+- Why: Integration tests verify the full QnA lifecycle through WorkflowEventsService — ask, answer (with 3-event handshake), get-answer — plus error paths. Catches regressions after Phase 3 consumer migration from PGService direct calls.
+- Contract: askQuestion returns questionId + transitions to waiting-question; answerQuestion encapsulates question:answer + node:restart; getAnswer returns AnswerResult or null; wrong-state/bad-id throw WorkflowEventError.
+- Usage Notes: Uses real PositionalGraphService with FakeFileSystem. simulateAgentAccepted sets up agent-accepted state required for question:ask event.
+- Quality Contribution: Fills the QnA CLI integration test gap identified in research dossier. Validates Finding 02 fix (CLI answer now includes node:restart).
+- Worked Example: Create graph → start node → accept → askQuestion('confirm') → verify waiting-question → answerQuestion(true) → verify not waiting-question → getAnswer → verify answered:true with answer value.
+*/
+describe('WorkflowEventsService — QnA Integration', () => {
+  let service: IPositionalGraphService;
+  let ctx: WorkspaceContext;
+  let wfEvents: WorkflowEventsService;
+
+  const GRAPH = 'qna-integration';
+
+  beforeEach(() => {
+    const fs = new FakeFileSystem();
+    const pathResolver = new FakePathResolver();
+    service = createTestService(fs, pathResolver);
+    ctx = createTestContext();
+    const observers = new WorkflowEventObserverRegistry();
+    wfEvents = new WorkflowEventsService(service, () => ctx, observers);
+  });
+
+  it('full ask → answer → get-answer cycle', async () => {
+    const { nodeId } = await simulateAgentAccepted(service, ctx, GRAPH);
+
+    // 1. Ask a question via WorkflowEvents
+    const { questionId } = await wfEvents.askQuestion(GRAPH, nodeId, {
+      type: 'confirm',
+      text: 'Proceed?',
+    });
+    expect(questionId).toBeDefined();
+    expect(typeof questionId).toBe('string');
+
+    // 2. Verify node is in waiting-question state
+    const statusAfterAsk = await service.getNodeStatus(ctx, GRAPH, nodeId);
+    expect(statusAfterAsk.status).toBe('waiting-question');
+
+    // 3. Answer the question via WorkflowEvents (includes node:restart)
+    await wfEvents.answerQuestion(GRAPH, nodeId, questionId, true);
+
+    // 4. Verify node is no longer waiting-question (DYK-P3-05)
+    const statusAfterAnswer = await service.getNodeStatus(ctx, GRAPH, nodeId);
+    expect(statusAfterAnswer.status).not.toBe('waiting-question');
+
+    // 5. Get the answer via WorkflowEvents
+    const result = await wfEvents.getAnswer(GRAPH, nodeId, questionId);
+    expect(result).not.toBeNull();
+    expect(result?.answered).toBe(true);
+    expect(result?.answer).toBe(true);
+    expect(result?.answeredAt).toBeDefined();
+  });
+
+  it('getAnswer returns null for unknown questionId', async () => {
+    const { nodeId } = await simulateAgentAccepted(service, ctx, GRAPH);
+    const result = await wfEvents.getAnswer(GRAPH, nodeId, 'nonexistent-q');
+    expect(result).toBeNull();
+  });
+
+  it('askQuestion throws WorkflowEventError on wrong state', async () => {
+    // Create graph but don't start node — node is in 'ready' state
+    const { lineId } = await service.create(ctx, GRAPH);
+    const addResult = await service.addNode(ctx, GRAPH, lineId, 'sample-agent');
+    if (!addResult.nodeId) throw new Error('Expected nodeId');
+
+    await expect(
+      wfEvents.askQuestion(GRAPH, addResult.nodeId, { type: 'confirm', text: 'Proceed?' })
+    ).rejects.toThrow(WorkflowEventError);
+  });
+
+  it('answerQuestion throws for invalid questionId', async () => {
+    const { nodeId } = await simulateAgentAccepted(service, ctx, GRAPH);
+
+    // Ask a real question first to get node into waiting-question
+    await wfEvents.askQuestion(GRAPH, nodeId, { type: 'text', text: 'Name?' });
+
+    // Try to answer with wrong questionId
+    await expect(
+      wfEvents.answerQuestion(GRAPH, nodeId, 'bad-question-id', 'answer')
+    ).rejects.toThrow('not found');
+  });
+
+  it('ask with choice options round-trips through getAnswer', async () => {
+    const { nodeId } = await simulateAgentAccepted(service, ctx, GRAPH);
+
+    const { questionId } = await wfEvents.askQuestion(GRAPH, nodeId, {
+      type: 'single',
+      text: 'Pick a language',
+      options: ['TypeScript', 'Python', 'Rust'],
+    });
+
+    await wfEvents.answerQuestion(GRAPH, nodeId, questionId, 'TypeScript');
+
+    const result = await wfEvents.getAnswer(GRAPH, nodeId, questionId);
+    expect(result?.answered).toBe(true);
+    expect(result?.answer).toBe('TypeScript');
   });
 });

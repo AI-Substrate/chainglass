@@ -25,11 +25,12 @@ export interface CreateSessionFormProps {
   className?: string;
 }
 
-type AgentType = 'claude-code' | 'copilot';
+type AgentType = 'claude-code' | 'copilot' | 'copilot-cli';
 
 const AGENT_TYPE_OPTIONS: Array<{ value: AgentType; label: string }> = [
-  { value: 'claude-code', label: 'Claude Code' },
   { value: 'copilot', label: 'GitHub Copilot' },
+  { value: 'claude-code', label: 'Claude Code' },
+  { value: 'copilot-cli', label: 'Copilot CLI (tmux)' },
 ];
 
 export function CreateSessionForm({
@@ -40,8 +41,11 @@ export function CreateSessionForm({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [name, setName] = useState('');
-  const [agentType, setAgentType] = useState<AgentType>('claude-code');
+  const [agentType, setAgentType] = useState<AgentType>('copilot');
   const [error, setError] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState('');
+  const [tmuxWindow, setTmuxWindow] = useState('');
+  const [tmuxPane, setTmuxPane] = useState('');
 
   const handleSubmit = useCallback(
     (e: FormEvent) => {
@@ -60,6 +64,11 @@ export function CreateSessionForm({
               name: finalName,
               type: agentType,
               workspace: workspaceSlug,
+              ...(agentType === 'copilot-cli' && {
+                sessionId: sessionId.trim() || undefined,
+                tmuxWindow: tmuxWindow.trim() || undefined,
+                tmuxPane: tmuxPane.trim() || undefined,
+              }),
             }),
           });
 
@@ -77,11 +86,11 @@ export function CreateSessionForm({
         }
       });
     },
-    [name, agentType, workspaceSlug, sessionCount, router]
+    [name, agentType, workspaceSlug, sessionCount, router, sessionId, tmuxWindow, tmuxPane]
   );
 
   return (
-    <form onSubmit={handleSubmit} className={cn('space-y-3', className)}>
+    <form onSubmit={handleSubmit} className={cn('space-y-3', className)} suppressHydrationWarning>
       <div className="space-y-1">
         <label htmlFor="session-name" className="text-sm font-medium text-foreground">
           Agent Name
@@ -125,6 +134,68 @@ export function CreateSessionForm({
           ))}
         </select>
       </div>
+
+      {agentType === 'copilot-cli' && (
+        <div className="space-y-2 rounded-md border p-3">
+          <div className="space-y-1">
+            <label htmlFor="session-id" className="text-sm font-medium text-foreground">
+              Session ID <span className="text-muted-foreground">(required)</span>
+            </label>
+            <input
+              id="session-id"
+              type="text"
+              value={sessionId}
+              onChange={(e) => setSessionId(e.target.value)}
+              placeholder="e.g. abc123-def456"
+              disabled={isPending}
+              className={cn(
+                'w-full px-3 py-2 text-sm rounded-md border',
+                'bg-background',
+                'focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500',
+                'disabled:opacity-50 disabled:cursor-not-allowed'
+              )}
+            />
+          </div>
+          <div className="space-y-1">
+            <label htmlFor="tmux-window" className="text-sm font-medium text-foreground">
+              tmux Window <span className="text-muted-foreground">(optional)</span>
+            </label>
+            <input
+              id="tmux-window"
+              type="text"
+              value={tmuxWindow}
+              onChange={(e) => setTmuxWindow(e.target.value)}
+              placeholder="e.g. studio"
+              disabled={isPending}
+              className={cn(
+                'w-full px-3 py-2 text-sm rounded-md border',
+                'bg-background',
+                'focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500',
+                'disabled:opacity-50 disabled:cursor-not-allowed'
+              )}
+            />
+          </div>
+          <div className="space-y-1">
+            <label htmlFor="tmux-pane" className="text-sm font-medium text-foreground">
+              tmux Pane <span className="text-muted-foreground">(optional)</span>
+            </label>
+            <input
+              id="tmux-pane"
+              type="text"
+              value={tmuxPane}
+              onChange={(e) => setTmuxPane(e.target.value)}
+              placeholder="e.g. 1.0"
+              disabled={isPending}
+              className={cn(
+                'w-full px-3 py-2 text-sm rounded-md border',
+                'bg-background',
+                'focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500',
+                'disabled:opacity-50 disabled:cursor-not-allowed'
+              )}
+            />
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-md px-3 py-2">

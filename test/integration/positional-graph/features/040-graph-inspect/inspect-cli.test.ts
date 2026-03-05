@@ -7,6 +7,7 @@
 
 import { createProgram } from '@chainglass/cli/bin/cg';
 import type { IPositionalGraphService } from '@chainglass/positional-graph';
+import { WorkflowEventType } from '@chainglass/shared/workflow-events';
 import type { WorkspaceContext } from '@chainglass/workflow';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { withTestGraph } from '../../../../../dev/test-graphs/shared/graph-test-runner.js';
@@ -34,13 +35,13 @@ async function buildFixtureGraph(
 
   // Complete nodeA
   await service.startNode(ctx, slug, nodeAId);
-  await service.raiseNodeEvent(ctx, slug, nodeAId, 'node:accepted', {}, 'agent');
+  await service.raiseNodeEvent(ctx, slug, nodeAId, WorkflowEventType.NodeAccepted, {}, 'agent');
   await service.saveOutputData(ctx, slug, nodeAId, 'instructions', 'do the thing');
   await service.endNode(ctx, slug, nodeAId, 'done');
 
   // Complete nodeB with a long output value for truncation testing
   await service.startNode(ctx, slug, nodeBId);
-  await service.raiseNodeEvent(ctx, slug, nodeBId, 'node:accepted', {}, 'agent');
+  await service.raiseNodeEvent(ctx, slug, nodeBId, WorkflowEventType.NodeAccepted, {}, 'agent');
   await service.saveOutputData(
     ctx,
     slug,

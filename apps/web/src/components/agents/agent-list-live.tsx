@@ -13,6 +13,7 @@
 import { useAgentManager } from '@/features/019-agent-manager-refactor';
 import { Bot, Clock, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { SessionDeleteButton } from './session-delete-button';
 
@@ -33,6 +34,9 @@ function timeAgo(date: Date): string {
 
 export function AgentListLive({ workspaceSlug }: AgentListLiveProps) {
   const { agents, isLoading } = useAgentManager({ workspace: workspaceSlug });
+  const searchParams = useSearchParams();
+  const worktreeParam = searchParams.get('worktree');
+  const worktreeSuffix = worktreeParam ? `?worktree=${encodeURIComponent(worktreeParam)}` : '';
   const [, setTick] = useState(0);
 
   // Re-render every 60s to update relative times
@@ -86,7 +90,7 @@ export function AgentListLive({ workspaceSlug }: AgentListLiveProps) {
               <tr key={agent.id} className="hover:bg-muted/50">
                 <td className="px-4 py-3">
                   <Link
-                    href={`/workspaces/${workspaceSlug}/agents/${agent.id}`}
+                    href={`/workspaces/${workspaceSlug}/agents/${agent.id}${worktreeSuffix}`}
                     className="font-medium text-primary hover:underline"
                   >
                     {agent.name}

@@ -11,6 +11,7 @@
 
 import { WORKSPACE_DI_TOKENS } from '@chainglass/shared';
 import type { IWorkspaceService } from '@chainglass/workflow';
+import { WorkspaceAgentChrome } from '../../../../src/components/agents/workspace-agent-chrome';
 import { WorkspaceProvider } from '../../../../src/features/041-file-browser/hooks/use-workspace-context';
 import { getContainer } from '../../../../src/lib/bootstrap-singleton';
 import { SDKWorkspaceConnector } from '../../../../src/lib/sdk/sdk-workspace-connector';
@@ -64,7 +65,9 @@ export default async function WorkspaceLayout({ children, params }: LayoutProps)
       />
       <WorkspaceAttentionWrapper>
         <TerminalOverlayWrapper defaultSessionName={defaultBranch} defaultCwd={defaultWorktreePath}>
-          {children}
+          <WorkspaceAgentChrome slug={slug} workspacePath={ws?.path}>
+            {children}
+          </WorkspaceAgentChrome>
         </TerminalOverlayWrapper>
       </WorkspaceAttentionWrapper>
     </WorkspaceProvider>

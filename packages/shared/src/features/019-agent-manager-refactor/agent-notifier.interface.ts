@@ -21,7 +21,12 @@ import type { AgentInstanceStatus } from './agent-instance.interface.js';
  * SSE event types broadcast by the agent notifier.
  * Per ADR-0007 IMP-001: All events include agentId for client-side filtering.
  */
-export type AgentSSEEventType = 'agent_status' | 'agent_intent' | 'agent_event';
+export type AgentSSEEventType =
+  | 'agent_status'
+  | 'agent_intent'
+  | 'agent_event'
+  | 'agent_created'
+  | 'agent_terminated';
 
 /**
  * Base shape for all agent SSE events.
@@ -64,9 +69,31 @@ export interface AgentEventSSEEvent extends BaseAgentSSEEvent {
 }
 
 /**
+ * Agent created lifecycle event.
+ */
+export interface AgentCreatedSSEEvent extends BaseAgentSSEEvent {
+  readonly type: 'agent_created';
+  readonly name: string;
+  readonly agentType: string;
+  readonly workspace: string;
+}
+
+/**
+ * Agent terminated lifecycle event.
+ */
+export interface AgentTerminatedSSEEvent extends BaseAgentSSEEvent {
+  readonly type: 'agent_terminated';
+}
+
+/**
  * Union type for all agent SSE events.
  */
-export type AgentSSEEvent = AgentStatusSSEEvent | AgentIntentSSEEvent | AgentEventSSEEvent;
+export type AgentSSEEvent =
+  | AgentStatusSSEEvent
+  | AgentIntentSSEEvent
+  | AgentEventSSEEvent
+  | AgentCreatedSSEEvent
+  | AgentTerminatedSSEEvent;
 
 /**
  * IAgentNotifierService - interface for broadcasting agent events.
@@ -82,26 +109,27 @@ export type AgentSSEEvent = AgentStatusSSEEvent | AgentIntentSSEEvent | AgentEve
 export interface IAgentNotifierService {
   /**
    * Broadcast a status change for an agent.
-   *
-   * @param agentId - The agent that changed status
-   * @param status - New status value
    */
   broadcastStatus(agentId: string, status: AgentInstanceStatus): void;
 
   /**
    * Broadcast an intent change for an agent.
-   *
-   * @param agentId - The agent that changed intent
-   * @param intent - New intent value
    */
   broadcastIntent(agentId: string, intent: string): void;
 
   /**
    * Broadcast an agent event.
    * Per PL-01: Event should already be stored before calling this.
-   *
-   * @param agentId - The agent that emitted the event
-   * @param event - The stored event to broadcast
    */
   broadcastEvent(agentId: string, event: AgentStoredEvent): void;
+
+  /**
+   * Broadcast agent creation lifecycle event.
+   */
+  broadcastCreated(agentId: string, info: { name: string; type: string; workspace: string }): void;
+
+  /**
+   * Broadcast agent termination lifecycle event.
+   */
+  broadcastTerminated(agentId: string): void;
 }

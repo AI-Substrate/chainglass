@@ -264,16 +264,6 @@ export function mergeAgentEvents(events: AgentStoredEvent[]): (LogEntryProps & {
     // Consolidate consecutive thinking events
     if (event.type === 'thinking') {
       thinkingDeltaCountThisTurn++;
-      // Flush any pending text first
-      if (currentText) {
-        result.push({
-          key: currentText.key,
-          messageRole: 'assistant',
-          contentType: 'text',
-          content: currentText.content,
-        });
-        currentText = null;
-      }
 
       if (currentThinking) {
         currentThinking.content += event.data.content;
@@ -290,17 +280,7 @@ export function mergeAgentEvents(events: AgentStoredEvent[]): (LogEntryProps & {
       continue;
     }
 
-    // Non-text/non-thinking event - flush pending blocks
-    if (currentText) {
-      result.push({
-        key: currentText.key,
-        messageRole: 'assistant',
-        contentType: 'text',
-        content: currentText.content,
-      });
-      currentText = null;
-    }
-
+    // Non-text/non-thinking event - flush pending blocks (thinking before text)
     if (currentThinking) {
       result.push({
         key: currentThinking.key,
@@ -313,6 +293,16 @@ export function mergeAgentEvents(events: AgentStoredEvent[]): (LogEntryProps & {
         },
       });
       currentThinking = null;
+    }
+
+    if (currentText) {
+      result.push({
+        key: currentText.key,
+        messageRole: 'assistant',
+        contentType: 'text',
+        content: currentText.content,
+      });
+      currentText = null;
     }
 
     const props = agentEventToLogEntryProps(event);
@@ -333,16 +323,7 @@ export function mergeAgentEvents(events: AgentStoredEvent[]): (LogEntryProps & {
     result.push(props);
   }
 
-  // Flush remaining blocks
-  if (currentText) {
-    result.push({
-      key: currentText.key,
-      messageRole: 'assistant',
-      contentType: 'text',
-      content: currentText.content,
-    });
-  }
-
+  // Flush remaining blocks (thinking before text)
   if (currentThinking) {
     result.push({
       key: currentThinking.key,
@@ -353,6 +334,15 @@ export function mergeAgentEvents(events: AgentStoredEvent[]): (LogEntryProps & {
         content: currentThinking.content,
         signature: currentThinking.signature,
       },
+    });
+  }
+
+  if (currentText) {
+    result.push({
+      key: currentText.key,
+      messageRole: 'assistant',
+      contentType: 'text',
+      content: currentText.content,
     });
   }
 

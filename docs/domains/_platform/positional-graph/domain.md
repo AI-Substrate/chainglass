@@ -45,7 +45,7 @@ Core graph engine that powers the line-based workflow execution system. Owns the
 
 | Contract | Type | Consumers | Description |
 |----------|------|-----------|-------------|
-| `IPositionalGraphService` | Interface | CLI (`cg wf` commands), dev/test-graphs, tests | Primary graph CRUD, status, state, node/line operations, input wiring, output storage, Q&A protocol |
+| `IPositionalGraphService` | Interface | CLI (`cg wf` commands), dev/test-graphs, tests | Primary graph CRUD, status, state, node/line operations, input wiring, output storage, node events/orchestration core |
 | `IOrchestrationService` | Interface | CLI (`cg wf` container), tests | DI-registered factory — returns per-graph `IGraphOrchestration` handles |
 | `IGraphOrchestration` | Interface | CLI (`cg wf drive` handler), tests | Per-graph orchestration handle with `run()` and `drive()` |
 | `IEventHandlerService` | Interface | CLI (`cg wf` container), tests | Node event handling, routing, and settle-phase processing |
@@ -153,3 +153,4 @@ Primary: `packages/positional-graph/src/`
 | 048-P3 | Integration testing + InstanceGraphAdapter — pre-resolved adapter for instance graph routing, 5 integration tests proving lifecycle/isolation/refresh/template-isolation (Phase 3) | 2026-02-26 |
 | 048-P4 | E2E test migration + docs — template generation script, smoke + simple-serial templates, withTemplateWorkflow() helper, 5 e2e lifecycle tests, workflow-templates.md guide, README quick-start (Phase 4) | 2026-02-26 |
 | 050-P1 | FakePositionalGraphService, fakes barrel export, web DI registration (Phase 1) | 2026-02-26 |
+| 061-P3 | Removed PGService Q&A methods/types (askQuestion, answerQuestion, getAnswer); consumers migrated to workflow-events convenience API | 2026-03-01 |

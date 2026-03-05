@@ -1,0 +1,396 @@
+diff --git a/apps/web/app/api/agents/[id]/route.ts b/apps/web/app/api/agents/[id]/route.ts
+index 6bfaf08..c54a03c 100644
+--- a/apps/web/app/api/agents/[id]/route.ts
++++ b/apps/web/app/api/agents/[id]/route.ts
+@@ -1,6 +1,7 @@
+-import { SHARED_DI_TOKENS } from '@chainglass/shared';
++import { POSITIONAL_GRAPH_DI_TOKENS, SHARED_DI_TOKENS } from '@chainglass/shared';
+ import type { IAgentNotifierService } from '@chainglass/shared/features/019-agent-manager-refactor';
+ import type { IAgentManagerService } from '@chainglass/shared/features/019-agent-manager-refactor/agent-manager.interface';
++import type { AgentWorkUnitBridge } from '../../../../src/features/059-fix-agents/agent-work-unit-bridge';
+ /**
+  * Agent API Route - /api/agents/[id]
+  *
+@@ -136,6 +137,16 @@ export async function DELETE(
+     );
+     notifier.broadcastTerminated(id);
+ 
++    // Unregister agent from WorkUnitStateService (FX001-2)
++    try {
++      const bridge = container.resolve<AgentWorkUnitBridge>(
++        POSITIONAL_GRAPH_DI_TOKENS.AGENT_WORK_UNIT_BRIDGE
++      );
++      bridge.unregisterAgent(id);
++    } catch {
++      // Best-effort — don't fail deletion if bridge is unavailable
++    }
++
+     return NextResponse.json({ success: true, agentId: id });
+   } catch (error) {
+     console.error('[DELETE /api/agents/[id]] Error deleting agent:', error);
+diff --git a/apps/web/app/api/agents/route.ts b/apps/web/app/api/agents/route.ts
+index ace381c..e9ec09c 100644
+--- a/apps/web/app/api/agents/route.ts
++++ b/apps/web/app/api/agents/route.ts
+@@ -1,9 +1,10 @@
+-import { SHARED_DI_TOKENS } from '@chainglass/shared';
++import { POSITIONAL_GRAPH_DI_TOKENS, SHARED_DI_TOKENS } from '@chainglass/shared';
+ import type { IAgentNotifierService } from '@chainglass/shared/features/019-agent-manager-refactor';
+ import type {
+   CreateAgentParams,
+   IAgentManagerService,
+ } from '@chainglass/shared/features/019-agent-manager-refactor/agent-manager.interface';
++import type { AgentWorkUnitBridge } from '../../../src/features/059-fix-agents/agent-work-unit-bridge';
+ /**
+  * Agent API Routes - /api/agents
+  *
+@@ -147,6 +148,16 @@ export async function POST(request: NextRequest): Promise<Response> {
+       workspace: agent.workspace,
+     });
+ 
++    // Register agent in WorkUnitStateService so sidebar badges + chip bar have data (FX001-1)
++    try {
++      const bridge = container.resolve<AgentWorkUnitBridge>(
++        POSITIONAL_GRAPH_DI_TOKENS.AGENT_WORK_UNIT_BRIDGE
++      );
++      bridge.registerAgent(agent.id, agent.name, agent.type);
++    } catch {
++      // Best-effort — don't fail agent creation if bridge is unavailable
++    }
++
+     // Serialize agent instance to JSON
+     const response = {
+       id: agent.id,
+diff --git a/apps/web/src/features/019-agent-manager-refactor/agent-notifier.service.ts b/apps/web/src/features/019-agent-manager-refactor/agent-notifier.service.ts
+index 4cdc509..efcb1f2 100644
+--- a/apps/web/src/features/019-agent-manager-refactor/agent-notifier.service.ts
++++ b/apps/web/src/features/019-agent-manager-refactor/agent-notifier.service.ts
+@@ -6,16 +6,11 @@
+  * Per DYK-07: Lives in apps/web (correct dependency direction from shared→web).
+  * Per DYK-08: Receives ISSEBroadcaster for testability.
+  *
+- * Usage:
+- * ```typescript
+- * import { sseManager } from '@/lib/sse-manager';
+- * import { SSEManagerBroadcaster } from './sse-manager-broadcaster';
+- *
+- * const broadcaster = new SSEManagerBroadcaster(sseManager);
+- * const notifier = new AgentNotifierService(broadcaster);
+- *
+- * notifier.broadcastStatus('agent-1', 'working');
+- * ```
++ * FX001-3: Optional lazy bridge resolver for WorkUnitStateService integration.
++ * - broadcastStatus() → bridge.updateAgentStatus() (status mapping: working→working, stopped→idle, error→error)
++ * - Register/unregister are NOT handled here — they stay in API route handlers (DYK-FX001-03)
++ * - broadcastIntent() does NOT call bridge (too high-frequency per DYK-FX001-02)
++ * - Bridge is lazy-resolved to avoid DI registration order issues (DYK-FX001-01)
+  */
+ 
+ import type {
+@@ -29,6 +24,19 @@ import type {
+   IAgentNotifierService,
+ } from '@chainglass/shared/features/019-agent-manager-refactor/agent-notifier.interface';
+ import type { ISSEBroadcaster } from '@chainglass/shared/features/019-agent-manager-refactor/sse-broadcaster.interface';
++import type { AgentWorkUnitBridge } from '../059-fix-agents/agent-work-unit-bridge';
++
++/** Maps AgentInstanceStatus (3 values) → WorkUnitStatus (5 values). */
++function mapAgentStatus(status: AgentInstanceStatus): 'working' | 'idle' | 'error' {
++  switch (status) {
++    case 'working':
++      return 'working';
++    case 'error':
++      return 'error';
++    case 'stopped':
++      return 'idle';
++  }
++}
+ 
+ /**
+  * Channel name used for agent broadcasts.
+@@ -50,11 +58,15 @@ const AGENTS_CHANNEL = 'agents';
+  * See `docs/how/dev/central-events/3-adapters.md` for the adapter pattern.
+  */
+ export class AgentNotifierService implements IAgentNotifierService {
+-  constructor(private readonly broadcaster: ISSEBroadcaster) {}
++  constructor(
++    private readonly broadcaster: ISSEBroadcaster,
++    private readonly resolveBridge?: () => AgentWorkUnitBridge | undefined
++  ) {}
+ 
+   /**
+    * Broadcast a status change for an agent.
+    * Per AC-15: Status changes are broadcast.
++   * FX001-3: Also updates WorkUnitStateService via lazy bridge.
+    */
+   broadcastStatus(agentId: string, status: AgentInstanceStatus): void {
+     console.log(`[AgentNotifier] Broadcasting status: ${agentId} → ${status}`);
+@@ -65,6 +77,16 @@ export class AgentNotifierService implements IAgentNotifierService {
+       timestamp: new Date().toISOString(),
+     };
+     this.broadcaster.broadcast(AGENTS_CHANNEL, 'agent_status', event);
++
++    // Update WorkUnitStateService via bridge (FX001-3)
++    try {
++      const bridge = this.resolveBridge?.();
++      if (bridge) {
++        bridge.updateAgentStatus(agentId, mapAgentStatus(status));
++      }
++    } catch {
++      // Best-effort — don't fail SSE broadcast if bridge errors
++    }
+   }
+ 
+   /**
+diff --git a/apps/web/src/lib/di-container.ts b/apps/web/src/lib/di-container.ts
+index f931396..28bd965 100644
+--- a/apps/web/src/lib/di-container.ts
++++ b/apps/web/src/lib/di-container.ts
+@@ -382,9 +382,20 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
+   // Per DYK-07: Real implementation lives in apps/web
+   // Per DYK-08: Uses SSEManagerBroadcaster adapter
+   childContainer.register<IAgentNotifierService>(SHARED_DI_TOKENS.AGENT_NOTIFIER_SERVICE, {
+-    useFactory: () => {
++    useFactory: (c) => {
+       const broadcaster = new SSEManagerBroadcaster(sseManager);
+-      return new AgentNotifierService(broadcaster);
++      // FX001-4: Lazy bridge resolver avoids DI registration order issues (DYK-FX001-01).
++      // Bridge is registered later (L552) — lazy resolution defers until first broadcastStatus() call.
++      const resolveBridge = () => {
++        try {
++          return c.resolve<AgentWorkUnitBridge>(
++            POSITIONAL_GRAPH_DI_TOKENS.AGENT_WORK_UNIT_BRIDGE
++          );
++        } catch {
++          return undefined;
++        }
++      };
++      return new AgentNotifierService(broadcaster, resolveBridge);
+     },
+   });
+ 
+diff --git a/docs/plans/059-fix-agents/fixes/FX001-wire-agent-workunit-registration.fltplan.md b/docs/plans/059-fix-agents/fixes/FX001-wire-agent-workunit-registration.fltplan.md
+new file mode 100644
+index 0000000..a0bd09e
+--- /dev/null
++++ b/docs/plans/059-fix-agents/fixes/FX001-wire-agent-workunit-registration.fltplan.md
+@@ -0,0 +1,116 @@
++# Flight Plan: Fix FX001 — Wire Agent Lifecycle into WorkUnitStateService
++
++**Fix**: [FX001-wire-agent-workunit-registration.md](FX001-wire-agent-workunit-registration.md)
++**Status**: Landed
++
++---
++
++## Departure → Destination
++
++**Where we are**: AgentWorkUnitBridge exists in DI but nothing calls it. Agents created via the UI never appear in `work-unit-state.json`. Sidebar badges, top bar chips, and cross-worktree activity indicators are all empty.
++
++**Where we're going**: Creating an agent writes an entry to `work-unit-state.json`. Running it updates status to `working`. Deleting it removes the entry. Sidebar badges light up for other worktrees with active agents.
++
++---
++
++## Domain Context
++
++| Domain | Relationship | What Changes |
++|--------|-------------|-------------|
++| agents | modify | POST/DELETE routes + notifier gain bridge calls |
++| work-unit-state | consume | Bridge writes to WorkUnitStateService (no interface changes) |
++
++---
++
++## Flight Status
++
++```mermaid
++stateDiagram-v2
++    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
++    classDef active fill:#FFC107,stroke:#FFA000,color:#000
++    classDef done fill:#4CAF50,stroke:#388E3C,color:#fff
++    classDef blocked fill:#F44336,stroke:#D32F2F,color:#fff
++
++    state "1: Route hooks" as S1
++    state "2: Notifier + DI" as S2
++
++    [*] --> S1
++    S1 --> S2
++    S2 --> [*]
++
++    class S1,S2 done
++```
++
++**Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
++
++---
++
++## Stages
++
++- [x] **Stage 1: Route hooks** — POST bridge.registerAgent() + DELETE bridge.unregisterAgent() (FX001-1, FX001-2)
++- [x] **Stage 2: Notifier + DI** — Lazy bridge in notifier broadcastStatus() + DI factory wiring (FX001-3, FX001-4)
++
++---
++
++## Architecture: Before & After
++
++```mermaid
++flowchart LR
++    classDef existing fill:#E8F5E9,stroke:#4CAF50,color:#000
++    classDef broken fill:#FFCDD2,stroke:#F44336,color:#000
++    classDef new fill:#E3F2FD,stroke:#2196F3,color:#000
++
++    subgraph Before["Before FX001"]
++        B_API["POST /api/agents"]:::existing
++        B_NTF["AgentNotifierService"]:::existing
++        B_BRG["AgentWorkUnitBridge"]:::broken
++        B_WUS["WorkUnitStateService"]:::existing
++
++        B_API --> B_NTF
++        B_BRG -.->|"exists but<br/>never called"| B_WUS
++    end
++
++    subgraph After["After FX001"]
++        A_API["POST/DELETE routes"]:::existing
++        A_NTF["AgentNotifierService<br/>(+lazy bridge)"]:::new
++        A_BRG["AgentWorkUnitBridge"]:::existing
++        A_WUS["WorkUnitStateService"]:::existing
++
++        A_API -->|"register/<br/>unregister"| A_BRG
++        A_NTF -->|"updateStatus<br/>(on broadcastStatus)"| A_BRG
++        A_BRG --> A_WUS
++    end
++```
++
++**Legend**: existing (green) | broken/unused (red) | new/modified (blue)
++
++---
++
++## DYK Findings
++
++| # | Finding | Action |
++|---|---------|--------|
++| DYK-FX001-01 | DI registration order risk — bridge registered after notifier | Use lazy resolver `() => bridge` instead of direct injection |
++| DYK-FX001-02 | `broadcastIntent` lacks status param, high-frequency | Skip intent wiring — only wire broadcastStatus |
++| DYK-FX001-03 | Register/unregister stay in routes, not notifier | Document the split in comments |
++| DYK-FX001-04 | Pre-existing agents won't show until recreated | Acceptable trade-off |
++| DYK-FX001-05 | Test container uses `useValue` fake, not factory | Don't modify test notifier; add integration test |
++
++---
++
++## Acceptance
++
++- [ ] Agent creation → entry in work-unit-state.json
++- [ ] Agent run → status `working` in work-unit-state.json
++- [ ] Agent stop → status `idle` in work-unit-state.json
++- [ ] Agent deletion → entry removed from work-unit-state.json
++- [ ] Existing tests pass (no regressions)
++
++---
++
++## Checklist
++
++- [x] FX001-1: POST route bridge.registerAgent()
++- [x] FX001-2: DELETE route bridge.unregisterAgent()
++- [x] FX001-3: Notifier broadcastStatus() → lazy bridge.updateAgentStatus()
++- [x] FX001-4: DI factory passes lazy bridge resolver to notifier
+diff --git a/docs/plans/059-fix-agents/fixes/FX001-wire-agent-workunit-registration.log.md b/docs/plans/059-fix-agents/fixes/FX001-wire-agent-workunit-registration.log.md
+new file mode 100644
+index 0000000..531b58a
+--- /dev/null
++++ b/docs/plans/059-fix-agents/fixes/FX001-wire-agent-workunit-registration.log.md
+@@ -0,0 +1,24 @@
++# Fix FX001 — Execution Log
++
++**Started**: 2026-03-03
++**Status**: Complete
++
++## FX001-1: POST route bridge.registerAgent()
++
++**File modified**: `apps/web/app/api/agents/route.ts`
++**What**: Added `POSITIONAL_GRAPH_DI_TOKENS` import, `AgentWorkUnitBridge` type import, and bridge.registerAgent() call after broadcastCreated(). Wrapped in try/catch for best-effort.
++
++## FX001-2: DELETE route bridge.unregisterAgent()
++
++**File modified**: `apps/web/app/api/agents/[id]/route.ts`
++**What**: Same imports + bridge.unregisterAgent() after broadcastTerminated(). Wrapped in try/catch.
++
++## FX001-3: Notifier broadcastStatus() → lazy bridge
++
++**File modified**: `apps/web/src/features/019-agent-manager-refactor/agent-notifier.service.ts`
++**What**: Added `mapAgentStatus()` function (working→working, stopped→idle, error→error). Constructor accepts optional `resolveBridge: () => AgentWorkUnitBridge | undefined`. broadcastStatus() calls bridge.updateAgentStatus() after SSE broadcast. Documented DYK-FX001-02 (no intent wiring) and DYK-FX001-03 (no register/unregister in notifier).
++
++## FX001-4: DI factory passes lazy bridge resolver
++
++**File modified**: `apps/web/src/lib/di-container.ts`
++**What**: Updated notifier factory to pass a lazy bridge resolver using try/catch around `c.resolve()`. This avoids DI registration order issues (DYK-FX001-01). Test container NOT modified (DYK-FX001-05).
+diff --git a/docs/plans/059-fix-agents/fixes/FX001-wire-agent-workunit-registration.md b/docs/plans/059-fix-agents/fixes/FX001-wire-agent-workunit-registration.md
+new file mode 100644
+index 0000000..447f612
+--- /dev/null
++++ b/docs/plans/059-fix-agents/fixes/FX001-wire-agent-workunit-registration.md
+@@ -0,0 +1,68 @@
++# Fix FX001: Wire Agent Lifecycle into WorkUnitStateService
++
++**Created**: 2026-03-02
++**Status**: Complete
++**Plan**: [fix-agents-plan.md](../fix-agents-plan.md)
++**Source**: User reported sidebar badges empty — agents not registered in WorkUnitStateService
++**Domain(s)**: agents (modify), work-unit-state (consume)
++
++---
++
++## Problem
++
++AgentWorkUnitBridge exists and is wired in DI, but nothing calls it. When agents are created via the UI, they never get registered in WorkUnitStateService, so `work-unit-state.json` stays empty. This means sidebar badges, top bar chips, and cross-worktree activity indicators have no data to display.
++
++## Proposed Fix
++
++Add bridge calls at three integration points following Workshop 007 Option A1:
++1. **POST /api/agents** → `bridge.registerAgent()` after creation
++2. **DELETE /api/agents/[id]** → `bridge.unregisterAgent()` before response
++3. **AgentNotifierService** → accept optional bridge, call `updateAgentStatus()` on `broadcastStatus()` and `broadcastIntent()` to capture mid-run status changes
++
++Status mapping: `working→working`, `stopped→idle`, `error→error`.
++
++## Domain Impact
++
++| Domain | Relationship | What Changes |
++|--------|-------------|-------------|
++| agents | modify | API routes gain bridge calls; notifier accepts optional bridge |
++| work-unit-state | consume | Bridge calls register/update/unregister — no interface changes |
++
++## Tasks
++
++| Status | ID | Task | Domain | Path(s) | Done When | Notes |
++|--------|-----|------|--------|---------|-----------|-------|
++| [x] | FX001-1 | Add `bridge.registerAgent()` in POST /api/agents after createAgent + broadcastCreated | agents | `apps/web/app/api/agents/route.ts` | Agent creation writes entry to work-unit-state.json | Workshop 007 Option A1 |
++| [x] | FX001-2 | Add `bridge.unregisterAgent()` in DELETE /api/agents/[id] after terminateAgent | agents | `apps/web/app/api/agents/[id]/route.ts` | Agent deletion removes entry from work-unit-state.json | Workshop 007 Option A1 |
++| [x] | FX001-3 | Add lazy bridge resolver to AgentNotifierService constructor; call `bridge.updateAgentStatus()` in `broadcastStatus()` only (NOT broadcastIntent — too high-frequency per DYK-FX001-02). Use `() => AgentWorkUnitBridge | undefined` factory to avoid DI order issues (DYK-FX001-01). Document that register/unregister stay in routes, not notifier (DYK-FX001-03). | agents | `apps/web/src/features/019-agent-manager-refactor/agent-notifier.service.ts` | Running agent status changes reflected in work-unit-state.json | Status map: working→working, stopped→idle, error→error |
++| [x] | FX001-4 | Update DI production container to pass lazy bridge resolver into AgentNotifierService factory. Do NOT modify test container (uses useValue fake per DYK-FX001-05). | agents | `apps/web/src/lib/di-container.ts` | Notifier resolves with lazy bridge in production container | DYK-FX001-01: lazy resolver avoids registration order issues |
++
++## Workshops Consumed
++
++- [Workshop 007: Agent → WorkUnitState Registration](../workshops/007-agent-workunit-registration.md)
++
++## DYK Findings
++
++| # | Finding | Impact | Action |
++|---|---------|--------|--------|
++| DYK-FX001-01 | DI registration order — bridge at L552, notifier at L384 | HIGH | Use lazy resolver `() => bridge` in notifier constructor |
++| DYK-FX001-02 | `broadcastIntent` lacks status param, high-frequency streaming | MEDIUM | Skip intent wiring — only wire `broadcastStatus` |
++| DYK-FX001-03 | Register/unregister must stay in routes, not notifier | MEDIUM | Document the split clearly in notifier comments |
++| DYK-FX001-04 | Pre-existing agents won't show until recreated | LOW | Acceptable — user confirmed |
++| DYK-FX001-05 | Test container uses `useValue` fake, no factory | LOW | Don't modify test notifier registration |
++
++## Acceptance
++
++- [ ] Creating an agent via UI writes an entry to `work-unit-state.json`
++- [ ] Running an agent updates status to `working` in `work-unit-state.json`
++- [ ] Agent completing run updates status to `idle`
++- [ ] Deleting an agent removes entry from `work-unit-state.json`
++- [ ] Sidebar badges show activity for agents in other worktrees
++- [ ] Existing tests still pass (no regressions)
++
++## Discoveries & Learnings
++
++_Populated during implementation._
++
++| Date | Task | Type | Discovery | Resolution |
++|------|------|------|-----------|------------|

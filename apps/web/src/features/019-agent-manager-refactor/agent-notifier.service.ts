@@ -6,16 +6,11 @@
  * Per DYK-07: Lives in apps/web (correct dependency direction from shared→web).
  * Per DYK-08: Receives ISSEBroadcaster for testability.
  *
- * Usage:
- * ```typescript
- * import { sseManager } from '@/lib/sse-manager';
- * import { SSEManagerBroadcaster } from './sse-manager-broadcaster';
- *
- * const broadcaster = new SSEManagerBroadcaster(sseManager);
- * const notifier = new AgentNotifierService(broadcaster);
- *
- * notifier.broadcastStatus('agent-1', 'working');
- * ```
+ * FX001-3: Optional lazy bridge resolver for WorkUnitStateService integration.
+ * - broadcastStatus() → bridge.updateAgentStatus() (status mapping: working→working, stopped→idle, error→error)
+ * - Register/unregister are NOT handled here — they stay in API route handlers (DYK-FX001-03)
+ * - broadcastIntent() does NOT call bridge (too high-frequency per DYK-FX001-02)
+ * - Bridge is lazy-resolved to avoid DI registration order issues (DYK-FX001-01)
  */
 
 import type {
@@ -29,6 +24,19 @@ import type {
   IAgentNotifierService,
 } from '@chainglass/shared/features/019-agent-manager-refactor/agent-notifier.interface';
 import type { ISSEBroadcaster } from '@chainglass/shared/features/019-agent-manager-refactor/sse-broadcaster.interface';
+import type { AgentWorkUnitBridge } from '../059-fix-agents/agent-work-unit-bridge';
+
+/** Maps AgentInstanceStatus (3 values) → WorkUnitStatus (5 values). */
+function mapAgentStatus(status: AgentInstanceStatus): 'working' | 'idle' | 'error' {
+  switch (status) {
+    case 'working':
+      return 'working';
+    case 'error':
+      return 'error';
+    case 'stopped':
+      return 'idle';
+  }
+}
 
 /**
  * Channel name used for agent broadcasts.
@@ -50,11 +58,15 @@ const AGENTS_CHANNEL = 'agents';
  * See `docs/how/dev/central-events/3-adapters.md` for the adapter pattern.
  */
 export class AgentNotifierService implements IAgentNotifierService {
-  constructor(private readonly broadcaster: ISSEBroadcaster) {}
+  constructor(
+    private readonly broadcaster: ISSEBroadcaster,
+    private readonly resolveBridge?: () => AgentWorkUnitBridge | undefined
+  ) {}
 
   /**
    * Broadcast a status change for an agent.
    * Per AC-15: Status changes are broadcast.
+   * FX001-3: Also updates WorkUnitStateService via lazy bridge.
    */
   broadcastStatus(agentId: string, status: AgentInstanceStatus): void {
     console.log(`[AgentNotifier] Broadcasting status: ${agentId} → ${status}`);
@@ -65,6 +77,16 @@ export class AgentNotifierService implements IAgentNotifierService {
       timestamp: new Date().toISOString(),
     };
     this.broadcaster.broadcast(AGENTS_CHANNEL, 'agent_status', event);
+
+    // Update WorkUnitStateService via bridge (FX001-3)
+    try {
+      const bridge = this.resolveBridge?.();
+      if (bridge) {
+        bridge.updateAgentStatus(agentId, mapAgentStatus(status));
+      }
+    } catch (error) {
+      console.warn('[AgentNotifier] Failed to update work-unit-state:', agentId, error);
+    }
   }
 
   /**
@@ -97,5 +119,34 @@ export class AgentNotifierService implements IAgentNotifierService {
       timestamp: new Date().toISOString(),
     };
     this.broadcaster.broadcast(AGENTS_CHANNEL, 'agent_event', sseEvent);
+  }
+
+  /**
+   * Broadcast agent creation lifecycle event.
+   * Hooks subscribe to 'agent_created' to invalidate query cache.
+   */
+  broadcastCreated(agentId: string, info: { name: string; type: string; workspace: string }): void {
+    const event = {
+      type: 'agent_created' as const,
+      agentId,
+      name: info.name,
+      agentType: info.type,
+      workspace: info.workspace,
+      timestamp: new Date().toISOString(),
+    };
+    this.broadcaster.broadcast(AGENTS_CHANNEL, 'agent_created', event);
+  }
+
+  /**
+   * Broadcast agent termination lifecycle event.
+   * Hooks subscribe to 'agent_terminated' to invalidate query cache.
+   */
+  broadcastTerminated(agentId: string): void {
+    const event = {
+      type: 'agent_terminated' as const,
+      agentId,
+      timestamp: new Date().toISOString(),
+    };
+    this.broadcaster.broadcast(AGENTS_CHANNEL, 'agent_terminated', event);
   }
 }

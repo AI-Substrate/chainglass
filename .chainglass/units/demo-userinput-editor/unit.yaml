@@ -1,0 +1,26 @@
+slug: demo-userinput-editor
+type: user-input
+version: 1.0.0
+description: Demo user-input unit for editor testing
+inputs:
+  - name: prompt_context
+    type: data
+    data_type: text
+    required: false
+    description: Context for the question
+outputs:
+  - name: answer
+    type: data
+    data_type: text
+    required: true
+    description: User response
+user_input:
+  question_type: single
+  prompt: Which approach do you prefer?
+  options:
+    - key: option-a
+      label: Approach A
+      description: Conservative approach
+    - key: option-b
+      label: Approach B
+      description: Aggressive approach

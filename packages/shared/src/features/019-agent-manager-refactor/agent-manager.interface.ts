@@ -23,6 +23,12 @@ export interface CreateAgentParams {
   type: AgentType;
   /** Workspace path this agent is associated with (absolute path or slug) */
   workspace: string;
+  /** Session ID for copilot-cli agents (used on run) */
+  sessionId?: string;
+  /** tmux window name for copilot-cli agents */
+  tmuxWindow?: string;
+  /** tmux pane index for copilot-cli agents */
+  tmuxPane?: string;
 }
 
 /**

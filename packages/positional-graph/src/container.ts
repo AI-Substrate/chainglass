@@ -21,6 +21,11 @@ import type { IEventHandlerService } from './features/032-node-event-system/even
 import type { IWorkUnitLoader } from './interfaces/index.js';
 import type { IPositionalGraphService } from './interfaces/positional-graph-service.interface.js';
 import { PositionalGraphService } from './services/positional-graph.service.js';
+import { WorkflowEventObserverRegistry } from './workflow-events/observer-registry.js';
+import {
+  WorkflowEventsService,
+  type WorkspaceContextResolver,
+} from './workflow-events/workflow-events.service.js';
 
 /**
  * Register positional-graph services into a DI container.
@@ -75,6 +80,38 @@ export function registerPositionalGraphServices(container: DependencyContainer):
         POSITIONAL_GRAPH_DI_TOKENS.WORK_UNIT_LOADER
       );
       return new PositionalGraphService(fs, pathResolver, yamlParser, adapter, workUnitLoader);
+    },
+  });
+}
+
+/**
+ * Register workflow-events services into a DI container.
+ *
+ * Per Plan 061: WorkflowEvents convenience domain.
+ * Per ADR-0009: Module registration function.
+ *
+ * This is composition-root wiring — importing implementation internals here
+ * is intentional, consistent with registerOrchestrationServices importing
+ * ODS/ONBAS/PodManager. Container files are the designated composition boundary.
+ *
+ * Prerequisite tokens (must be registered before calling):
+ * - POSITIONAL_GRAPH_DI_TOKENS.POSITIONAL_GRAPH_SERVICE (IPositionalGraphService)
+ *
+ * Note: contextResolver must be provided by the caller (workspace-scoped).
+ * In web apps, inject via server-side workspace context resolution.
+ * In CLI, inject via command-level workspace context.
+ */
+export function registerWorkflowEventsServices(
+  container: DependencyContainer,
+  contextResolver: WorkspaceContextResolver
+): void {
+  container.register(POSITIONAL_GRAPH_DI_TOKENS.WORKFLOW_EVENTS_SERVICE, {
+    useFactory: (c: DependencyContainer) => {
+      const pgService = c.resolve<IPositionalGraphService>(
+        POSITIONAL_GRAPH_DI_TOKENS.POSITIONAL_GRAPH_SERVICE
+      );
+      const observers = new WorkflowEventObserverRegistry();
+      return new WorkflowEventsService(pgService, contextResolver, observers);
     },
   });
 }

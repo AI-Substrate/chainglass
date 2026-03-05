@@ -125,6 +125,8 @@ export function useAgentManager(options: UseAgentManagerOptions = {}): UseAgentM
       }
       return response.json();
     },
+    // Poll when SSE is disabled so chip bar stays fresh
+    refetchInterval: subscribeToSSE ? undefined : 5000,
   });
 
   // Create agent mutation

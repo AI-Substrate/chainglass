@@ -1,0 +1,28 @@
+slug: demo-agent-editor
+type: agent
+version: 1.0.0
+description: Demo agent unit for editor testing
+inputs:
+  - name: spec
+    type: data
+    data_type: text
+    required: true
+    description: The spec to implement
+  - name: context
+    type: data
+    data_type: json
+    required: false
+    description: Additional context
+outputs:
+  - name: result
+    type: data
+    data_type: text
+    required: true
+    description: Implementation result
+  - name: summary
+    type: data
+    data_type: text
+    required: false
+    description: Brief summary
+agent:
+  prompt_template: prompts/main.md

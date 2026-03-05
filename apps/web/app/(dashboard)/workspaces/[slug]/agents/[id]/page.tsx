@@ -29,10 +29,13 @@ interface PageProps {
     slug: string;
     id: string;
   }>;
+  searchParams: Promise<{ worktree?: string }>;
 }
 
-export default async function AgentChatPage({ params }: PageProps) {
+export default async function AgentChatPage({ params, searchParams }: PageProps) {
   const { slug: workspaceSlug, id: agentId } = await params;
+  const { worktree } = await searchParams;
+  const worktreeSuffix = worktree ? `?worktree=${encodeURIComponent(worktree)}` : '';
 
   const container = getContainer();
   const agentManager = container.resolve<IAgentManagerService>(
@@ -60,7 +63,7 @@ export default async function AgentChatPage({ params }: PageProps) {
   const allAgents = agentManager.getAgents();
 
   // Build navigation URLs
-  const agentsListUrl = `/workspaces/${workspaceSlug}/agents`;
+  const agentsListUrl = `/workspaces/${workspaceSlug}/agents${worktreeSuffix}`;
 
   return (
     <div className="flex h-[calc(100vh-4rem)]">
@@ -142,7 +145,7 @@ export default async function AgentChatPage({ params }: PageProps) {
               {allAgents.map((a) => (
                 <li key={a.id}>
                   <Link
-                    href={`/workspaces/${workspaceSlug}/agents/${a.id}`}
+                    href={`/workspaces/${workspaceSlug}/agents/${a.id}${worktreeSuffix}`}
                     className={`block px-4 py-3 hover:bg-muted/50 transition-colors ${
                       a.id === agentId ? 'bg-muted' : ''
                     }`}

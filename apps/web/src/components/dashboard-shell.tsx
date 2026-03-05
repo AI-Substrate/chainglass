@@ -12,14 +12,13 @@ import type { ReactNode } from 'react';
  *
  * Features:
  * - Sidebar navigation on the left
+ * - Optional top bar slot above main content (Plan 059 Phase 3)
  * - Main content area on the right (SidebarInset)
  * - Responsive layout that adjusts when sidebar collapses
- * - Shared layout applied via route group
  *
  * Usage:
- * Wrap page content in DashboardShell to include sidebar:
  * ```tsx
- * <DashboardShell>
+ * <DashboardShell topBar={<AgentTopBar />}>
  *   <YourPageContent />
  * </DashboardShell>
  * ```

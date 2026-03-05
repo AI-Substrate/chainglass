@@ -1,0 +1,7 @@
+M	apps/web/app/api/agents/[id]/route.ts
+M	apps/web/app/api/agents/route.ts
+M	apps/web/src/features/019-agent-manager-refactor/agent-notifier.service.ts
+M	apps/web/src/lib/di-container.ts
+A	docs/plans/059-fix-agents/fixes/FX001-wire-agent-workunit-registration.fltplan.md
+A	docs/plans/059-fix-agents/fixes/FX001-wire-agent-workunit-registration.log.md
+A	docs/plans/059-fix-agents/fixes/FX001-wire-agent-workunit-registration.md

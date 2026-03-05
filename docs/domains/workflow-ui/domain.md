@@ -127,7 +127,7 @@ Primary: `apps/web/src/features/050-workflow-page/`
 ## Gotchas
 
 - **Undo is blocked during execution**: `restoreSnapshot` rejects with E998 if any line is running/active — prevents fighting the orchestrator
-- **Q&A is a two-step handshake**: `answerQuestion()` records the answer, but the node stays `waiting-question`. A separate `node:restart` event resumes execution. Both steps happen in the server action.
+- **Q&A delegates to WorkflowEvents**: `answerQuestion()` server action delegates to `IWorkflowEvents.answerQuestion()` which handles the 3-event handshake (answer + restart) internally. The server action is a single call.
 - **SSE structural vs runtime**: `graph.yaml`/`node.yaml` changes invalidate undo + show toast. `state.json` changes (orchestrator writes) only trigger silent refresh. Don't treat them the same.
 - **Mutation lock**: All mutation paths must wrap in `startMutation()`/`endMutation()` with `try/finally` — otherwise SSE self-event suppression breaks and you get infinite refresh loops
 - **dnd-kit drop zones must always be mounted**: Conditional rendering breaks collision detection registration. Toggle visibility via CSS, not React conditionals.
@@ -146,3 +146,4 @@ Primary: `apps/web/src/features/050-workflow-page/`
 | Plan 050 Phase 5 | Q&A modal (4 types + freeform), node edit modal, UndoRedoManager, undo/redo toolbar buttons, snapshot server actions | 2026-02-27 |
 | Plan 050 Phase 6 | WorkflowWatcherAdapter, WorkflowDomainEventAdapter, useWorkflowSSE hook, mutation lock, structural vs runtime change discrimination | 2026-02-27 |
 | Plan 050 Phase 7 | Removed all Plan 022 workgraph UI (pages, API routes, feature folder, DI registrations, event adapters, tests). Workflows card replaces WorkGraphs on worktree page. | 2026-02-27 |
+| Plan 061 Phase 3 | answerQuestion server action migrated to IWorkflowEvents delegation (single call replaces 2-step PGService handshake) | 2026-03-01 |

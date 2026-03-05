@@ -120,6 +120,12 @@ export const POSITIONAL_GRAPH_DI_TOKENS = {
   TEMPLATE_ADAPTER: 'TemplateAdapter',
   /** InstanceAdapter — filesystem path resolution for instances (Plan 048) */
   INSTANCE_ADAPTER: 'InstanceAdapter',
+  /** IWorkflowEvents — convenience API for workflow event interactions (Plan 061) */
+  WORKFLOW_EVENTS_SERVICE: 'IWorkflowEvents',
+  /** IWorkUnitStateService — centralized work unit status registry (Plan 059) */
+  WORK_UNIT_STATE_SERVICE: 'IWorkUnitStateService',
+  /** AgentWorkUnitBridge — bridges agent lifecycle to work-unit-state (Plan 059) */
+  AGENT_WORK_UNIT_BRIDGE: 'AgentWorkUnitBridge',
 } as const;
 
 /**

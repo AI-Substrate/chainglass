@@ -43,6 +43,8 @@ const nextConfig = {
     'vscode-oniguruma',
     '@shikijs/core',
     '@shikijs/engine-oniguruma',
+    '@github/copilot-sdk',
+    '@github/copilot',
     'node-pty',
     'next-auth',
     '@auth/core',

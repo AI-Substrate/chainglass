@@ -110,25 +110,25 @@ describe('AgentChatInput', () => {
 
       const textarea = screen.getByRole('textbox');
       await user.type(textarea, 'Message');
-      await user.keyboard('{Meta>}{Enter}{/Meta}');
+      await user.keyboard('{Enter}');
 
       expect(textarea).toHaveValue('');
     });
 
-    it('should insert newline on plain Enter', async () => {
+    it('should insert newline on Shift+Enter', async () => {
       /*
       Test Doc:
       - Why: Multi-line messages need newlines
-      - Contract: Enter key without modifier inserts newline
-      - Usage Notes: Cmd/Ctrl+Enter submits, plain Enter = newline
+      - Contract: Shift+Enter inserts newline, plain Enter submits
+      - Usage Notes: Enter submits, Shift+Enter = newline (FX006 change)
       - Quality Contribution: Multi-line message support
-      - Worked Example: "line1" + Enter + "line2" → "line1\nline2" in textarea
+      - Worked Example: "line1" + Shift+Enter + "line2" → "line1\nline2" in textarea
       */
       const user = userEvent.setup();
       render(<AgentChatInput onMessage={handler.onMessage} />);
 
       const textarea = screen.getByRole('textbox');
-      await user.type(textarea, 'Line 1{Enter}Line 2');
+      await user.type(textarea, 'Line 1{Shift>}{Enter}{/Shift}Line 2');
 
       expect(textarea).toHaveValue('Line 1\nLine 2');
       handler.assertNotCalled(); // Should NOT submit
@@ -317,14 +317,15 @@ describe('AgentChatInput', () => {
       Test Doc:
       - Why: Users need to know the submit shortcut
       - Contract: Keyboard hint visible in footer
-      - Usage Notes: Shows Cmd+Enter (Mac) or Ctrl+Enter indicator
+      - Usage Notes: Shows Enter to send, Shift+Enter for newline (FX006 change)
       - Quality Contribution: Discoverability
-      - Worked Example: "⌘ + Enter to send" visible
+      - Worked Example: "Enter to send" visible
       */
       render(<AgentChatInput onMessage={handler.onMessage} />);
 
-      // Should show keyboard hint
-      expect(screen.getByText(/enter/i)).toBeInTheDocument();
+      // Should show keyboard hint — use getAllByText since multiple elements may match
+      const hints = screen.getAllByText(/enter/i);
+      expect(hints.length).toBeGreaterThan(0);
     });
   });
 });

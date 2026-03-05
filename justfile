@@ -106,3 +106,7 @@ dope *args:
 redope:
     npx tsx scripts/dope-workflows.ts clean
     npx tsx scripts/dope-workflows.ts
+
+# Watch a Copilot CLI session and send prompts via tmux
+session-watch session_id tmux_session pane='0':
+    npx tsx scripts/session-watcher.ts {{session_id}} {{tmux_session}} {{pane}}

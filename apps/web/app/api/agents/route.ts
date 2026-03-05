@@ -1,5 +1,6 @@
 import { auth } from '@/auth';
-import { SHARED_DI_TOKENS } from '@chainglass/shared';
+import { POSITIONAL_GRAPH_DI_TOKENS, SHARED_DI_TOKENS } from '@chainglass/shared';
+import type { IAgentNotifierService } from '@chainglass/shared/features/019-agent-manager-refactor';
 import type {
   CreateAgentParams,
   IAgentManagerService,
@@ -15,6 +16,7 @@ import type {
  */
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import type { AgentWorkUnitBridge } from '../../../src/features/059-fix-agents/agent-work-unit-bridge';
 import { getContainer } from '../../../src/lib/bootstrap-singleton';
 
 /** Force dynamic rendering - required for DI container access */
@@ -124,9 +126,9 @@ export async function POST(request: NextRequest): Promise<Response> {
     }
 
     // Validate agent type
-    if (body.type !== 'claude-code' && body.type !== 'copilot') {
+    if (body.type !== 'claude-code' && body.type !== 'copilot' && body.type !== 'copilot-cli') {
       return NextResponse.json(
-        { error: 'Invalid agent type', validTypes: ['claude-code', 'copilot'] },
+        { error: 'Invalid agent type', validTypes: ['claude-code', 'copilot', 'copilot-cli'] },
         { status: 400 }
       );
     }
@@ -136,7 +138,30 @@ export async function POST(request: NextRequest): Promise<Response> {
       name: body.name,
       type: body.type,
       workspace: body.workspace,
+      sessionId: body.sessionId,
+      tmuxWindow: body.tmuxWindow,
+      tmuxPane: body.tmuxPane,
     });
+
+    // Broadcast agent_created via SSE so connected clients update their lists
+    const notifier = container.resolve<IAgentNotifierService>(
+      SHARED_DI_TOKENS.AGENT_NOTIFIER_SERVICE
+    );
+    notifier.broadcastCreated(agent.id, {
+      name: agent.name,
+      type: agent.type,
+      workspace: agent.workspace,
+    });
+
+    // Register agent in WorkUnitStateService so sidebar badges + chip bar have data (FX001-1)
+    try {
+      const bridge = container.resolve<AgentWorkUnitBridge>(
+        POSITIONAL_GRAPH_DI_TOKENS.AGENT_WORK_UNIT_BRIDGE
+      );
+      bridge.registerAgent(agent.id, agent.name, agent.type);
+    } catch (error) {
+      console.warn('[POST /api/agents] Failed to register in work-unit-state:', agent.id, error);
+    }
 
     // Serialize agent instance to JSON
     const response = {

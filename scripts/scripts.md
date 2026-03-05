@@ -13,6 +13,7 @@ Index of all scripts in this directory. Keep this file updated when adding, remo
 | `test-advanced-pipeline.ts` | E2E: drives 6-node 4-line graph with real Copilot agents | `npx tsx scripts/test-advanced-pipeline.ts [--interactive]` |
 | `test-copilot-cli-adapter.ts` | E2E: validates CopilotCLIAdapter against real running Copilot CLI | `npx tsx scripts/test-copilot-cli-adapter.ts <sessionId> <tmuxSession> <pane>` |
 | `test-copilot-serial.ts` | E2E: drives 3-node graph with real Copilot agent, streams SDK events | `npx tsx scripts/test-copilot-serial.ts` |
+| `session-watcher.ts` | Tail Copilot CLI events.jsonl live and send prompts via tmux send-keys | `npx tsx scripts/session-watcher.ts <sessionId> <tmuxSession> [window.pane]` |
 | `test-watcher-events.mjs` | File watcher stress test — writes to scratch/ every 5s (update, create, delete, mkdir, rmdir) | `node scripts/test-watcher-events.mjs` |
 
 ## file-watcher/

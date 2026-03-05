@@ -28,6 +28,7 @@ import type {
 } from './agent-instance.interface.js';
 import type { IAgentNotifierService } from './agent-notifier.interface.js';
 import type { IAgentStorageAdapter } from './agent-storage.interface.js';
+import { extractIntent } from './intent-extractor.js';
 
 /**
  * Configuration options for creating an AgentInstance.
@@ -41,6 +42,12 @@ export interface AgentInstanceConfig {
   type: AgentType;
   /** Workspace path this agent is associated with */
   workspace: string;
+  /** Session ID for copilot-cli agents */
+  sessionId?: string;
+  /** tmux window name for copilot-cli agents */
+  tmuxWindow?: string;
+  /** tmux pane index for copilot-cli agents */
+  tmuxPane?: string;
 }
 
 /**
@@ -86,6 +93,8 @@ export class AgentInstance implements IAgentInstance {
   // ===== Mutable State =====
   private _status: AgentInstanceStatus = 'stopped';
   private _intent = '';
+  /** True when intent was set by an explicit report_intent tool call */
+  private _intentIsExplicit = false;
   private _sessionId: string | null = null;
   private _events: AgentStoredEvent[] = [];
   private _createdAt: Date;
@@ -124,8 +133,20 @@ export class AgentInstance implements IAgentInstance {
     this._notifier = notifier;
     this._storage = storage ?? null;
 
-    // Create adapter via factory
-    this._adapter = adapterFactory(config.type);
+    // Set initial sessionId from config (for copilot-cli agents)
+    if (config.sessionId) {
+      this._sessionId = config.sessionId;
+    }
+
+    // Create adapter via factory, passing copilot-cli config if relevant
+    const tmuxTarget =
+      config.tmuxWindow && config.tmuxPane
+        ? `${config.tmuxWindow}:${config.tmuxPane}`
+        : config.tmuxWindow || undefined;
+    this._adapter = adapterFactory(config.type, {
+      tmuxTarget,
+      defaultSessionId: config.sessionId,
+    });
   }
 
   /**
@@ -261,6 +282,28 @@ export class AgentInstance implements IAgentInstance {
 
     // Then broadcast
     this._notifier.broadcastEvent(this.id, storedEvent);
+
+    // FX004-2 + FX006: Extract intent from event
+    // report_intent is first-class — use it directly, never overwrite with derived intents
+    if (event.type === 'tool_call') {
+      const toolName = (event.data as { toolName?: string }).toolName?.toLowerCase();
+      if (toolName === 'report_intent') {
+        this._intentIsExplicit = true;
+        const input = (event.data as { input?: Record<string, unknown> }).input;
+        const intentText = input?.intent as string | undefined;
+        if (intentText && intentText !== this._intent) {
+          this.setIntent(intentText);
+        }
+        return;
+      }
+    }
+    // For other events: only extract if no explicit report_intent is active
+    if (!this._intentIsExplicit) {
+      const newIntent = extractIntent(event);
+      if (newIntent && newIntent !== this._intent) {
+        this.setIntent(newIntent);
+      }
+    }
   }
 
   /**
@@ -308,8 +351,7 @@ export class AgentInstance implements IAgentInstance {
 
     // Transition to working state (storage-first via _setStatus)
     this._setStatus('working');
-    this._intent = options.prompt.substring(0, 100); // Use prompt as initial intent
-    this._notifier.broadcastIntent(this.id, this._intent);
+    this._intentIsExplicit = false; // Reset — new run allows report_intent to claim priority
 
     console.log(
       `[AgentInstance] run() starting: id=${this.id} adapter=${this.type} sessionId=${this._sessionId ?? '(new)'} cwd=${options.cwd ?? '(none)'}`

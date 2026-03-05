@@ -20,6 +20,7 @@ import {
   type AdapterFactory,
   AgentService,
   ClaudeCodeAdapter,
+  CopilotCLIAdapter,
   FakeAgentAdapter,
   FakeConfigService,
   FakeLogger,
@@ -43,6 +44,8 @@ import {
   WindowsProcessManager,
   YamlParserAdapter,
 } from '@chainglass/shared';
+// Plan 059: Import FakeWorkUnitStateService for test container
+import { FakeWorkUnitStateService } from '@chainglass/shared/fakes';
 // Plan 019: Import AgentManagerService for central agent registry
 import {
   type AdapterFactory as AgentAdapterFactory,
@@ -58,6 +61,8 @@ import {
 // Plan 027: Import CentralEventNotifier types from shared
 import type { ICentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events';
 import { FakeCentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events';
+// Plan 059: WorkUnitStateService for centralized work unit status registry
+import type { IWorkUnitStateService } from '@chainglass/shared/interfaces/work-unit-state.interface';
 // Plan 014 Phase 6: Import workspace services from @chainglass/workflow
 // Plan 018 Phase 2: Import AgentEventAdapter for workspace-scoped event storage
 // Plan 018 Phase 3: Import AgentSessionAdapter and AgentSessionService
@@ -107,8 +112,12 @@ import { AgentNotifierService } from '../features/019-agent-manager-refactor/age
 import { SSEManagerBroadcaster } from '../features/019-agent-manager-refactor/sse-manager-broadcaster';
 // Plan 027: CentralEventNotifierService (real implementation)
 import { CentralEventNotifierService } from '../features/027-central-notify-events/central-event-notifier.service';
+// Plan 059: AgentWorkUnitBridge (agent lifecycle → work-unit-state)
+import { AgentWorkUnitBridge } from '../features/059-fix-agents/agent-work-unit-bridge';
 import { SampleService } from '../services/sample.service';
 import { sseManager } from './sse-manager';
+// Plan 059: WorkUnitStateService (real implementation)
+import { WorkUnitStateService } from './work-unit-state/work-unit-state.service';
 
 // Token constants for type-safe resolution
 export const DI_TOKENS = {
@@ -220,9 +229,13 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
     },
   });
 
-  // Register CopilotClient as singleton to avoid repeated SDK client construction
-  // Per PR review feedback: reuse single instance for both COPILOT_ADAPTER and adapterFactory
-  childContainer.registerSingleton<CopilotClient>(DI_TOKENS.COPILOT_CLIENT, CopilotClient);
+  // Register CopilotClient as singleton with tool execution permissions enabled
+  // Per FX006: --allow-all-tools + --allow-all-paths required for bash/file tool execution
+  // registerInstance (not registerSingleton) because we need constructor args
+  childContainer.registerInstance<CopilotClient>(
+    DI_TOKENS.COPILOT_CLIENT,
+    new CopilotClient({ cliArgs: ['--allow-all-tools', '--allow-all-paths'] })
+  );
 
   childContainer.register<IAgentAdapter>(DI_TOKENS.COPILOT_ADAPTER, {
     useFactory: (c) => {
@@ -248,6 +261,18 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
         if (agentType === 'copilot') {
           // Reuse singleton CopilotClient to avoid repeated SDK client construction
           return new SdkCopilotAdapter(copilotClient, { logger });
+        }
+        if (agentType === 'copilot-cli') {
+          return new CopilotCLIAdapter({
+            sendKeys: (target: string, text: string) => {
+              const { execSync } = require('node:child_process');
+              execSync(`tmux send-keys -t ${target} ${JSON.stringify(text)}`, { stdio: 'ignore' });
+            },
+            sendEnter: (target: string) => {
+              const { execSync } = require('node:child_process');
+              execSync(`tmux send-keys -t ${target} Enter`, { stdio: 'ignore' });
+            },
+          });
         }
         throw new Error(`Unknown agent type: ${agentType}`);
       };
@@ -361,9 +386,19 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
   // Per DYK-07: Real implementation lives in apps/web
   // Per DYK-08: Uses SSEManagerBroadcaster adapter
   childContainer.register<IAgentNotifierService>(SHARED_DI_TOKENS.AGENT_NOTIFIER_SERVICE, {
-    useFactory: () => {
+    useFactory: (c) => {
       const broadcaster = new SSEManagerBroadcaster(sseManager);
-      return new AgentNotifierService(broadcaster);
+      // FX001-4: Lazy bridge resolver avoids DI registration order issues (DYK-FX001-01).
+      // Bridge is registered later (L552) — lazy resolution defers until first broadcastStatus() call.
+      const resolveBridge = () => {
+        try {
+          return c.resolve<AgentWorkUnitBridge>(POSITIONAL_GRAPH_DI_TOKENS.AGENT_WORK_UNIT_BRIDGE);
+        } catch (error) {
+          console.warn('[DI] Failed to resolve AgentWorkUnitBridge for notifier:', error);
+          return undefined;
+        }
+      };
+      return new AgentNotifierService(broadcaster, resolveBridge);
     },
   });
 
@@ -396,7 +431,7 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
 
       // Per DYK-01: Factory function for adapter selection
       // Resolve dependencies inside the factory (not outside) so they survive HMR reloads.
-      const agentAdapterFactory: AgentAdapterFactory = (agentType) => {
+      const agentAdapterFactory: AgentAdapterFactory = (agentType, config?) => {
         const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
         if (agentType === 'claude-code') {
           const processManager = c.resolve<IProcessManager>(DI_TOKENS.PROCESS_MANAGER);
@@ -405,6 +440,21 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
         if (agentType === 'copilot') {
           const copilotClient = c.resolve<CopilotClient>(DI_TOKENS.COPILOT_CLIENT);
           return new SdkCopilotAdapter(copilotClient, { logger });
+        }
+        if (agentType === 'copilot-cli') {
+          const sendKeys = (target: string, text: string) => {
+            const { execSync } = require('node:child_process');
+            execSync(`tmux send-keys -t ${target} ${JSON.stringify(text)}`, { stdio: 'ignore' });
+          };
+          return new CopilotCLIAdapter({
+            sendKeys,
+            sendEnter: (target: string) => {
+              const { execSync } = require('node:child_process');
+              execSync(`tmux send-keys -t ${target} Enter`, { stdio: 'ignore' });
+            },
+            tmuxTarget: config?.tmuxTarget,
+            defaultSessionId: config?.defaultSessionId,
+          });
         }
         throw new Error(`Unknown agent type: ${agentType}`);
       };
@@ -487,6 +537,56 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
   const centralNotifier = new CentralEventNotifierService(new SSEManagerBroadcaster(sseManager));
   childContainer.register<ICentralEventNotifier>(WORKSPACE_DI_TOKENS.CENTRAL_EVENT_NOTIFIER, {
     useValue: centralNotifier,
+  });
+
+  // ==================== Plan 059: WorkUnit State Service ====================
+
+  // Singleton via closure-captured flag (survives HMR).
+  // Dependency order: CentralEventNotifier → WorkUnitStateService → AgentWorkUnitBridge
+  // FX001: Use git worktree root (not process.cwd() which is apps/web/ in monorepo)
+  let workUnitStateInstance: IWorkUnitStateService | null = null;
+  let resolvedWorktreePath: string | null = null;
+  childContainer.register<IWorkUnitStateService>(
+    POSITIONAL_GRAPH_DI_TOKENS.WORK_UNIT_STATE_SERVICE,
+    {
+      useFactory: (c) => {
+        if (workUnitStateInstance) return workUnitStateInstance;
+        if (!resolvedWorktreePath) {
+          try {
+            const { execSync } = require('node:child_process');
+            resolvedWorktreePath = execSync('git rev-parse --show-toplevel', {
+              encoding: 'utf-8',
+              cwd: process.cwd(),
+            }).trim();
+          } catch {
+            resolvedWorktreePath = process.cwd();
+            console.warn('[DI] Failed to resolve git worktree root, falling back to cwd');
+          }
+        }
+        const notifier = c.resolve<ICentralEventNotifier>(
+          WORKSPACE_DI_TOKENS.CENTRAL_EVENT_NOTIFIER
+        );
+        workUnitStateInstance = new WorkUnitStateService(
+          resolvedWorktreePath ?? process.cwd(),
+          notifier
+        );
+        return workUnitStateInstance;
+      },
+    }
+  );
+
+  // Register AgentWorkUnitBridge — bridges agent lifecycle to WorkUnitStateService.
+  // Singleton: one bridge per process. WorkflowEvents optional (may not be in web DI).
+  let bridgeInstance: AgentWorkUnitBridge | null = null;
+  childContainer.register<AgentWorkUnitBridge>(POSITIONAL_GRAPH_DI_TOKENS.AGENT_WORK_UNIT_BRIDGE, {
+    useFactory: (c) => {
+      if (bridgeInstance) return bridgeInstance;
+      const workUnitState = c.resolve<IWorkUnitStateService>(
+        POSITIONAL_GRAPH_DI_TOKENS.WORK_UNIT_STATE_SERVICE
+      );
+      bridgeInstance = new AgentWorkUnitBridge(workUnitState);
+      return bridgeInstance;
+    },
   });
 
   // FIX-010: Performance metrics for container creation
@@ -680,6 +780,25 @@ export function createTestContainer(): DependencyContainer {
   // Register FakeCentralEventNotifier for test isolation
   childContainer.register<ICentralEventNotifier>(WORKSPACE_DI_TOKENS.CENTRAL_EVENT_NOTIFIER, {
     useValue: new FakeCentralEventNotifier(),
+  });
+
+  // ==================== Plan 059: WorkUnit State Service (Fake) ====================
+
+  childContainer.register<IWorkUnitStateService>(
+    POSITIONAL_GRAPH_DI_TOKENS.WORK_UNIT_STATE_SERVICE,
+    {
+      useValue: new FakeWorkUnitStateService(),
+    }
+  );
+
+  // Register AgentWorkUnitBridge with fake dependencies
+  childContainer.register<AgentWorkUnitBridge>(POSITIONAL_GRAPH_DI_TOKENS.AGENT_WORK_UNIT_BRIDGE, {
+    useFactory: (c) => {
+      const workUnitState = c.resolve<IWorkUnitStateService>(
+        POSITIONAL_GRAPH_DI_TOKENS.WORK_UNIT_STATE_SERVICE
+      );
+      return new AgentWorkUnitBridge(workUnitState);
+    },
   });
 
   return childContainer;
