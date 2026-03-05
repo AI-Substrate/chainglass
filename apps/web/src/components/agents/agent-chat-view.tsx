@@ -255,6 +255,15 @@ export function AgentChatView({
         </div>
       )}
 
+      {/* Intent display — always show last intent above input (FX006 user request) */}
+      {agent?.intent && (
+        <div className="shrink-0 border-t bg-muted/30 px-4 py-1.5">
+          <p className="text-xs text-muted-foreground truncate">
+            <span className="font-medium">Intent:</span> {agent.intent}
+          </p>
+        </div>
+      )}
+
       {/* Input */}
       <div className="shrink-0 border-t p-4">
         <AgentChatInput

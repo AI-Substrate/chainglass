@@ -93,6 +93,8 @@ export class AgentInstance implements IAgentInstance {
   // ===== Mutable State =====
   private _status: AgentInstanceStatus = 'stopped';
   private _intent = '';
+  /** True when intent was set by an explicit report_intent tool call */
+  private _intentIsExplicit = false;
   private _sessionId: string | null = null;
   private _events: AgentStoredEvent[] = [];
   private _createdAt: Date;
@@ -281,10 +283,26 @@ export class AgentInstance implements IAgentInstance {
     // Then broadcast
     this._notifier.broadcastEvent(this.id, storedEvent);
 
-    // FX004-2: Extract intent from event and update if changed
-    const newIntent = extractIntent(event);
-    if (newIntent && newIntent !== this._intent) {
-      this.setIntent(newIntent);
+    // FX004-2 + FX006: Extract intent from event
+    // report_intent is first-class — use it directly, never overwrite with derived intents
+    if (event.type === 'tool_call') {
+      const toolName = (event.data as { toolName?: string }).toolName;
+      if (toolName === 'report_intent') {
+        const input = (event.data as { input?: Record<string, unknown> }).input;
+        const intentText = input?.intent as string | undefined;
+        if (intentText && intentText !== this._intent) {
+          this._intentIsExplicit = true;
+          this.setIntent(intentText);
+        }
+        return;
+      }
+    }
+    // For other events: only extract if no explicit report_intent is active
+    if (!this._intentIsExplicit) {
+      const newIntent = extractIntent(event);
+      if (newIntent && newIntent !== this._intent) {
+        this.setIntent(newIntent);
+      }
     }
   }
 
@@ -334,6 +352,7 @@ export class AgentInstance implements IAgentInstance {
     // Transition to working state (storage-first via _setStatus)
     this._setStatus('working');
     this._intent = options.prompt.substring(0, 100); // Use prompt as initial intent
+    this._intentIsExplicit = false; // Reset — new run allows report_intent to claim priority
     this._notifier.broadcastIntent(this.id, this._intent);
 
     console.log(
