@@ -38,6 +38,7 @@ export const MarkdownPreview = memo(function MarkdownPreview({
   const [mermaidPortals, setMermaidPortals] = useState<MermaidPortal[]>([]);
 
   // Find mermaid divs after HTML is set and create portal targets
+  // biome-ignore lint/correctness/useExhaustiveDependencies: html and resolvedTheme trigger re-scan of data-mermaid divs after dangerouslySetInnerHTML updates
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;

@@ -28,9 +28,12 @@ export const { handlers, signIn, signOut } = nextAuth;
 
 // Wrap auth() to return a fake session when DISABLE_AUTH=true
 const _auth = nextAuth.auth;
-export const auth: typeof _auth = ((...args: any[]) => {
+export const auth: typeof _auth = ((...args: unknown[]) => {
   if (process.env.DISABLE_AUTH === 'true' && args.length === 0) {
-    return Promise.resolve({ user: { name: 'debug', email: 'debug@local' } }) as any;
+    return Promise.resolve({ user: { name: 'debug', email: 'debug@local' } }) as ReturnType<
+      typeof _auth
+    >;
   }
-  return (_auth as any)(...args);
-}) as any;
+  // biome-ignore lint/complexity/noBannedTypes: NextAuth auth() has complex overloaded signatures requiring dynamic dispatch
+  return (_auth as Function)(...args);
+}) as typeof _auth;
