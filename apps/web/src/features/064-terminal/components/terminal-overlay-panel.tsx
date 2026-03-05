@@ -96,7 +96,7 @@ export function TerminalOverlayPanel() {
           <TerminalSquare className="h-4 w-4 text-muted-foreground" />
           <span className="text-sm font-medium truncate">{sessionName}</span>
           {paneTitle && (
-            <span className="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground truncate max-w-[200px]">
+            <span className="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">
               {paneTitle}
             </span>
           )}
