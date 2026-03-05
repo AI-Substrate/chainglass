@@ -286,12 +286,12 @@ export class AgentInstance implements IAgentInstance {
     // FX004-2 + FX006: Extract intent from event
     // report_intent is first-class — use it directly, never overwrite with derived intents
     if (event.type === 'tool_call') {
-      const toolName = (event.data as { toolName?: string }).toolName;
+      const toolName = (event.data as { toolName?: string }).toolName?.toLowerCase();
       if (toolName === 'report_intent') {
+        this._intentIsExplicit = true;
         const input = (event.data as { input?: Record<string, unknown> }).input;
         const intentText = input?.intent as string | undefined;
         if (intentText && intentText !== this._intent) {
-          this._intentIsExplicit = true;
           this.setIntent(intentText);
         }
         return;

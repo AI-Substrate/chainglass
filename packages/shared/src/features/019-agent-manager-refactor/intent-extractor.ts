@@ -62,12 +62,8 @@ export function extractIntent(event: AgentEvent): string | null {
     const input = (event.data as { input?: unknown }).input;
     const value = extractInputValue(input);
 
-    // Copilot CLI report_intent — use the intent text directly
-    if (toolName === 'report_intent') {
-      const obj = input as Record<string, unknown> | undefined;
-      if (obj && typeof obj.intent === 'string') return truncate(obj.intent, 80);
-      return value ? truncate(value, 80) : null;
-    }
+    // report_intent handled by AgentInstance directly — skip here
+    if (toolName === 'report_intent') return null;
 
     if ((toolName === 'Bash' || toolName === 'bash') && value) {
       return truncate(`Running: ${value}`, 60);
