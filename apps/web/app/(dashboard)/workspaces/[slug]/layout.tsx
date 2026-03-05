@@ -64,14 +64,11 @@ export default async function WorkspaceLayout({ children, params }: LayoutProps)
         persistMru={updateSDKMru}
       />
       <WorkspaceAttentionWrapper>
-        <WorkspaceAgentChrome slug={slug} workspacePath={ws?.path}>
-          <TerminalOverlayWrapper
-            defaultSessionName={defaultBranch}
-            defaultCwd={defaultWorktreePath}
-          >
+        <TerminalOverlayWrapper defaultSessionName={defaultBranch} defaultCwd={defaultWorktreePath}>
+          <WorkspaceAgentChrome slug={slug} workspacePath={ws?.path}>
             {children}
-          </TerminalOverlayWrapper>
-        </WorkspaceAgentChrome>
+          </WorkspaceAgentChrome>
+        </TerminalOverlayWrapper>
       </WorkspaceAttentionWrapper>
     </WorkspaceProvider>
   );

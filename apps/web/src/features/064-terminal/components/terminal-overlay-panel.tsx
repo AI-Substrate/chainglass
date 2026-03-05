@@ -18,6 +18,7 @@ export function TerminalOverlayPanel() {
   const [anchorRect, setAnchorRect] = useState({ top: 0, left: 0, width: 0, height: 0 });
 
   // Measure the main content area to align overlay exactly over it
+  const measureRef = useRef<() => void>();
   useEffect(() => {
     const measure = () => {
       const anchor = document.querySelector('[data-terminal-overlay-anchor]');
@@ -31,9 +32,9 @@ export function TerminalOverlayPanel() {
         });
       }
     };
+    measureRef.current = measure;
     measure();
     window.addEventListener('resize', measure);
-    // Re-measure when panel resizes (CSS resize on left panel)
     const observer = new ResizeObserver(measure);
     const anchor = document.querySelector('[data-terminal-overlay-anchor]');
     if (anchor) observer.observe(anchor);
@@ -44,6 +45,11 @@ export function TerminalOverlayPanel() {
       clearTimeout(timer);
     };
   }, []);
+
+  // Re-measure when overlay opens (agent top bar may shift anchor)
+  useEffect(() => {
+    if (isOpen) measureRef.current?.();
+  }, [isOpen]);
 
   // Close on Escape
   useEffect(() => {
