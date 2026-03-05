@@ -19,6 +19,8 @@ import { type WebSocket, WebSocketServer } from 'ws';
 import type { CommandExecutor, PtyProcess, PtySpawner } from '../types';
 import { TmuxSessionManager } from './tmux-session-manager';
 
+const PANE_TITLE_POLL_MS = Number(process.env.TERMINAL_PANE_TITLE_POLL_MS ?? '10000');
+
 export interface TerminalServerDeps {
   execCommand: CommandExecutor;
   spawnPty: PtySpawner;
@@ -34,6 +36,7 @@ export interface TerminalServer {
 export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
   const manager = new TmuxSessionManager(deps.execCommand, deps.spawnPty);
   const activePtys = new Set<PtyProcess>();
+  const paneTitleIntervals = new Set<ReturnType<typeof setInterval>>();
   let wss: WebSocketServer | null = null;
 
   // Auth config — hoisted to factory scope so handleConnection can access
@@ -92,6 +95,33 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
     }
 
     activePtys.add(pty);
+
+    // Poll pane title and push to client (configurable via TERMINAL_PANE_TITLE_POLL_MS)
+    let lastPaneTitle = '';
+    if (tmuxAvailable && PANE_TITLE_POLL_MS > 0) {
+      const titleInterval = setInterval(() => {
+        if ((ws as unknown as { readyState: number }).readyState !== 1) return;
+        const title = manager.getPaneTitle(sessionName) ?? '';
+        if (title !== lastPaneTitle) {
+          lastPaneTitle = title;
+          ws.send(JSON.stringify({ type: 'pane_title', title }));
+        }
+      }, PANE_TITLE_POLL_MS);
+      paneTitleIntervals.add(titleInterval);
+
+      // Send initial pane title immediately
+      const initial = manager.getPaneTitle(sessionName) ?? '';
+      if (initial) {
+        lastPaneTitle = initial;
+        ws.send(JSON.stringify({ type: 'pane_title', title: initial }));
+      }
+
+      // Clean up interval when connection closes
+      ws.on('close', () => {
+        clearInterval(titleInterval);
+        paneTitleIntervals.delete(titleInterval);
+      });
+    }
 
     pty.onData((data: string) => {
       if ((ws as unknown as { readyState: number }).readyState === 1) {
@@ -156,6 +186,10 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
   }
 
   function cleanup(): void {
+    for (const interval of paneTitleIntervals) {
+      clearInterval(interval);
+    }
+    paneTitleIntervals.clear();
     for (const pty of activePtys) {
       pty.kill();
     }

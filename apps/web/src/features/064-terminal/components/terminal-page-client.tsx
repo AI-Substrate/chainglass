@@ -34,11 +34,16 @@ export function TerminalPageClient({
   const wsCtx = useWorkspaceContext();
   const terminalTheme = wsCtx?.worktreeIdentity?.terminalTheme || 'dark';
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
+  const [paneTitle, setPaneTitle] = useState('');
 
   return (
     <PanelShell
       explorer={
-        <TerminalPageHeader sessionName={selectedSession} connectionStatus={connectionStatus} />
+        <TerminalPageHeader
+          sessionName={selectedSession}
+          connectionStatus={connectionStatus}
+          paneTitle={paneTitle}
+        />
       }
       left={
         <LeftPanel
@@ -72,6 +77,7 @@ export function TerminalPageClient({
               sessionName={selectedSession}
               cwd={worktreePath}
               onConnectionChange={setConnectionStatus}
+              onPaneTitle={setPaneTitle}
               themeOverride={terminalTheme}
             />
           ) : (

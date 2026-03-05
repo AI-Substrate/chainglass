@@ -25,7 +25,8 @@ export type TerminalMessage =
   | { type: 'resize'; cols: number; rows: number }
   | { type: 'status'; status: string; tmux: boolean; message?: string }
   | { type: 'resync' }
-  | { type: 'sessions'; sessions: TerminalSession[] };
+  | { type: 'sessions'; sessions: TerminalSession[] }
+  | { type: 'pane_title'; title: string };
 
 /** WebSocket connection state for the terminal */
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected';

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ConnectionStatus } from '../types';
 
 /** Known control message types from the sidecar server (DYK-02 whitelist) */
-const CONTROL_TYPES = new Set(['status', 'error', 'sessions', 'clipboard']);
+const CONTROL_TYPES = new Set(['status', 'error', 'sessions', 'clipboard', 'pane_title']);
 
 /** Auth close codes from sidecar — don't retry with stale token (DYK-05) */
 const AUTH_CLOSE_CODES = new Set([4401, 4403]);
@@ -22,6 +22,7 @@ export interface UseTerminalSocketOptions {
   onStatus?: (status: string, tmux: boolean, message?: string) => void;
   onError?: (message: string) => void;
   onClipboard?: (data: string, error?: string) => void;
+  onPaneTitle?: (title: string) => void;
   onConnectionChange?: (status: ConnectionStatus) => void;
 }
 
@@ -62,11 +63,13 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
   const onStatusRef = useRef(options.onStatus);
   const onErrorRef = useRef(options.onError);
   const onClipboardRef = useRef(options.onClipboard);
+  const onPaneTitleRef = useRef(options.onPaneTitle);
   const onConnectionChangeRef = useRef(options.onConnectionChange);
   onDataRef.current = options.onData;
   onStatusRef.current = options.onStatus;
   onErrorRef.current = options.onError;
   onClipboardRef.current = options.onClipboard;
+  onPaneTitleRef.current = options.onPaneTitle;
   onConnectionChangeRef.current = options.onConnectionChange;
 
   const updateStatus = useCallback((newStatus: ConnectionStatus) => {
@@ -133,6 +136,8 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
             onErrorRef.current?.(msg.message);
           } else if (msg.type === 'clipboard') {
             onClipboardRef.current?.(msg.data, msg.error);
+          } else if (msg.type === 'pane_title') {
+            onPaneTitleRef.current?.(msg.title ?? '');
           }
           return;
         }

@@ -122,6 +122,23 @@ export class TmuxSessionManager {
     });
   }
 
+  /** Query the pane title for a tmux session (set by xterm OSC escape sequences) */
+  getPaneTitle(sessionName: string): string | null {
+    try {
+      const output = this.exec('tmux', [
+        'display-message',
+        '-t',
+        sessionName,
+        '-p',
+        '#{pane_title}',
+      ]);
+      const title = output.trim();
+      return title || null;
+    } catch {
+      return null;
+    }
+  }
+
   /** Get the user's default shell or /bin/bash as fallback */
   getShellFallback(): string {
     return process.env.SHELL || '/bin/bash';

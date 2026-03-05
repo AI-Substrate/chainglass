@@ -180,6 +180,32 @@ describe('TmuxSessionManager', () => {
     });
   });
 
+  describe('getPaneTitle', () => {
+    it('should return pane title when tmux responds', () => {
+      const { manager, exec } = createManager();
+      exec
+        .whenCommand('tmux', ['display-message', '-t', 'my-session', '-p', '#{pane_title}'])
+        .returns('Implementing Phase 1\n');
+
+      expect(manager.getPaneTitle('my-session')).toBe('Implementing Phase 1');
+    });
+
+    it('should return null when tmux command fails', () => {
+      const { manager } = createManager();
+      // No display-message configured → throws → should return null
+      expect(manager.getPaneTitle('nonexistent')).toBeNull();
+    });
+
+    it('should return null for empty pane title', () => {
+      const { manager, exec } = createManager();
+      exec
+        .whenCommand('tmux', ['display-message', '-t', 'my-session', '-p', '#{pane_title}'])
+        .returns('');
+
+      expect(manager.getPaneTitle('my-session')).toBeNull();
+    });
+  });
+
   describe('getShellFallback', () => {
     it('should return SHELL env var or /bin/bash', () => {
       /*
