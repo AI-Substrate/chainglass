@@ -45,9 +45,14 @@ export class KeybindingService implements IKeybindingService {
     const map: Record<string, (event: KeyboardEvent) => void> = {};
     for (const binding of this.bindings.values()) {
       map[binding.key] = (event: KeyboardEvent) => {
-        // Skip when user is typing in an editable element
-        const tag = (event.target as HTMLElement)?.tagName;
-        if (tag === 'INPUT' || tag === 'TEXTAREA' || (event.target as HTMLElement)?.isContentEditable) {
+        // Skip when user is typing in an editable element (input, textarea, CodeMirror, etc.)
+        const el = event.target as HTMLElement;
+        if (
+          el?.tagName === 'INPUT' ||
+          el?.tagName === 'TEXTAREA' ||
+          el?.isContentEditable ||
+          el?.closest?.('.cm-editor')
+        ) {
           return;
         }
         // When-clause check
