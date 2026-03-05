@@ -21,6 +21,7 @@ import {
   type LucideIcon,
   Puzzle,
   Smartphone,
+  TerminalSquare,
 } from 'lucide-react';
 
 /**
@@ -53,6 +54,7 @@ export const WORKSPACE_NAV_ITEMS: readonly NavItem[] = [
   { id: 'agents', label: 'Agents', href: '/agents', icon: Bot },
   { id: 'work-units', label: 'Work Units', href: '/work-units', icon: Puzzle },
   { id: 'workflows', label: 'Workflows', href: '/workflows', icon: ListChecks },
+  { id: 'terminal', label: 'Terminal', href: '/terminal', icon: TerminalSquare },
 ] as const;
 
 /**

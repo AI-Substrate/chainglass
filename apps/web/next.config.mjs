@@ -43,6 +43,7 @@ const nextConfig = {
     'vscode-oniguruma',
     '@shikijs/core',
     '@shikijs/engine-oniguruma',
+    'node-pty',
     'next-auth',
     '@auth/core',
     'yaml',

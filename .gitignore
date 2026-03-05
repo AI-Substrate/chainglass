@@ -170,3 +170,4 @@ packages/*/src/**/*.d.ts.map.current-run
 # Generated workflow runs (but not exemplar)
 dev/examples/wf/runs/
 !dev/examples/wf/runs/exemplar-run-example-001/
+apps/web/certificates/

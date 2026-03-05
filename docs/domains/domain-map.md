@@ -26,6 +26,7 @@ flowchart LR
     fileBrowser["📁 file-browser<br/>Browser page · FileTree<br/>CodeEditor re-export<br/>FileViewerPanel<br/>WorkspaceContext · Settings"]:::business
     workflowUI["🔀 workflow-ui<br/>Workflow editor · Canvas<br/>Toolbox · Properties<br/>Doping system"]:::business
     workunitEditor["✏️ 058-workunit-editor<br/>Unit list page · Editor page<br/>Agent/Code/Input editors<br/>Creation modal · Auto-save"]:::business
+    terminal["🖥️ terminal<br/>TerminalView · TerminalOverlay<br/>TmuxSessionManager · copyTmuxBuffer<br/>Sidecar WS/WSS Server"]:::business
 
     %% Contract dependencies (consumer → provider)
     fileBrowser -->|"IFileSystem<br/>IPathResolver"| fileOps
@@ -67,6 +68,12 @@ flowchart LR
     workunitEditor -->|"CodeEditor"| viewer
     workunitEditor -->|"workspaceHref"| wsUrl
 
+    %% Terminal dependencies
+    terminal -->|"PanelShell<br/>LeftPanel · MainPanel"| panels
+    terminal -->|"toast()"| events
+    terminal -->|"IUSDK<br/>ICommandRegistry"| sdk
+    terminal -->|"workspaceHref"| wsUrl
+
     %% Auth dependencies (consumer → provider: business domains consume auth protection)
     fileBrowser -->|"middleware protection"| auth
     workflowUI -->|"middleware protection"| auth
@@ -99,4 +106,5 @@ flowchart LR
 | workflow-ui | _(none — leaf consumer)_ | — | IPositionalGraphService, ITemplateService, IWorkUnitService, IFileSystem, IPathResolver, useSSE, workspaceHref, IUSDK, useGlobalState | positional-graph, file-ops, events, workspace-url, sdk, state | ✅ |
 | _platform/dev-tools | StateInspector, useStateChangeLog, useStateInspector | — | IStateService, StateChangeLog, useStateSystem | state | ✅ |
 | 058-workunit-editor | _(none — leaf consumer)_ | — | IWorkUnitService, CodeEditor, workspaceHref | positional-graph, viewer, workspace-url | ✅ |
+| terminal | _(none — leaf consumer)_ | — | PanelShell, LeftPanel, MainPanel, toast(), IUSDK, ICommandRegistry, workspaceHref | panel-layout, events, sdk, workspace-url | ✅ |
 | _platform/auth | auth(), signIn(), signOut(), requireAuth(), useAuth(), middleware protection, isUserAllowed(), SessionProvider | file-browser, workflow-ui, workunit-editor (via middleware), server actions (via requireAuth) | — | — | ✅ |
