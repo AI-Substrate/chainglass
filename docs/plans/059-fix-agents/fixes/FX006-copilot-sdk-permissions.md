@@ -1,7 +1,7 @@
 # Fix FX006: Copilot SDK Permissions + Upgrade
 
 **Created**: 2026-03-05
-**Status**: Proposed
+**Status**: Complete
 **Plan**: [fix-agents-plan.md](../fix-agents-plan.md)
 **Source**: User: Copilot agents can't run bash/file tools — no permission flags passed to SDK
 **Domain(s)**: agents (DI wiring)

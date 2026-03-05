@@ -305,4 +305,4 @@ The web agent system is structurally sound (3 adapters, DI container, SSE transp
 | FX003 | 2026-03-03 | Show grey dot for idle agents in sidebar badges | agents | Complete | User: no badge visible when agents are idle |
 | FX004 | 2026-03-04 | Extract and display agent intents from event stream | agents | Complete | User: chips and list show stale/empty intent |
 | FX005 | 2026-03-04 | Agent top bar redesign — summary strip + expandable grid | agents | Complete | User: chip bar UX poor, needs aggregate view (Workshop 009) |
-| FX006 | 2026-03-05 | Copilot SDK permissions + upgrade — pass --allow-all-tools --allow-all-paths, bump to 0.1.30 | agents | Proposed | User: Copilot agents can't run bash commands |
+| FX006 | 2026-03-05 | Copilot SDK permissions + upgrade — pass --allow-all-tools --allow-all-paths, bump to 0.1.30 | agents | Complete | User: Copilot agents can't run bash commands |
