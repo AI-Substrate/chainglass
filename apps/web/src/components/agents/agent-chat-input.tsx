@@ -1,11 +1,11 @@
 'use client';
 
 /**
- * AgentChatInput - Chat input component with Cmd/Ctrl+Enter submission
+ * AgentChatInput - Chat input component with Enter submission
  *
  * Features:
- * - Multi-line textarea with Cmd/Ctrl+Enter to submit
- * - Plain Enter inserts newline (for multi-line messages)
+ * - Multi-line textarea with Enter to submit
+ * - Shift+Enter inserts newline (for multi-line messages)
  * - Submit button never disabled (per MF-09 accessibility)
  * - Validation error shown on empty submission
  * - Keyboard shortcut hint in footer
@@ -76,12 +76,12 @@ export function AgentChatInput({
 
   /**
    * Handle keyboard shortcuts
-   * - Cmd/Ctrl+Enter: Submit
-   * - Plain Enter: Newline (default textarea behavior)
+   * - Enter: Submit
+   * - Shift+Enter: Newline
    */
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         handleSubmit();
       }
@@ -138,12 +138,11 @@ export function AgentChatInput({
       {/* Keyboard hint - navigator.platform is deprecated but userAgentData isn't widely supported */}
       <div className="flex items-center text-[10px] text-muted-foreground">
         <span className="flex items-center gap-1">
-          <kbd className="px-1 py-0.5 rounded bg-muted border font-mono">
-            {typeof navigator !== 'undefined' && /Mac/.test(navigator.platform) ? '⌘' : 'Ctrl'}
-          </kbd>
-          <span>+</span>
           <kbd className="px-1 py-0.5 rounded bg-muted border font-mono">Enter</kbd>
           <span className="ml-1">to send</span>
+          <span className="mx-1 text-muted-foreground/50">·</span>
+          <kbd className="px-1 py-0.5 rounded bg-muted border font-mono">Shift+Enter</kbd>
+          <span className="ml-1">for newline</span>
         </span>
       </div>
     </div>

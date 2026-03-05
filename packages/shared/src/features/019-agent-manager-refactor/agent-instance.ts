@@ -351,9 +351,7 @@ export class AgentInstance implements IAgentInstance {
 
     // Transition to working state (storage-first via _setStatus)
     this._setStatus('working');
-    this._intent = options.prompt.substring(0, 100); // Use prompt as initial intent
     this._intentIsExplicit = false; // Reset — new run allows report_intent to claim priority
-    this._notifier.broadcastIntent(this.id, this._intent);
 
     console.log(
       `[AgentInstance] run() starting: id=${this.id} adapter=${this.type} sessionId=${this._sessionId ?? '(new)'} cwd=${options.cwd ?? '(none)'}`
