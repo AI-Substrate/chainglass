@@ -263,3 +263,4 @@ Primary: scattered across `packages/shared/src/`, `packages/workflow/src/`, `app
 | Plan 059 FX001 | Wire agent lifecycle into WorkUnitStateService — POST registers, DELETE unregisters, notifier broadcastStatus updates via lazy bridge resolver | 2026-03-03 |
 | Plan 059 FX004 | Extract and display agent intents from event stream — intent-extractor.ts pure function, wired into AgentInstance._captureEvent | 2026-03-04 |
 | Plan 059 FX005 | Top bar redesign — replace AgentChipBar/AgentChip with AgentTopBar (summary strip + expandable grid) and AgentCard (rich tiles). Remove DnD sorting, add urgency sort, aggregate status indicators | 2026-03-05 |
+| Plan 059 FX006 | Copilot SDK permissions (cliArgs + approveAll), report_intent first-class intent source, thinking block ordering, Enter-to-submit chat input, defensive JSON parsing | 2026-03-05 |

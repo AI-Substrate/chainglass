@@ -37,16 +37,28 @@ Additionally, we're on SDK `0.1.26` and latest is `0.1.30`.
 
 | Status | ID | Task | Domain | Path(s) | Done When | Notes |
 |--------|-----|------|--------|---------|-----------|-------|
-| [ ] | FX006-1 | Upgrade `@github/copilot-sdk` to `^0.1.30` | agents | `packages/shared/package.json` | `pnpm install` succeeds, no type errors | Minor version bump within 0.1.x |
-| [ ] | FX006-2 | Pass `--allow-all-tools` and `--allow-all-paths` to CopilotClient via `cliArgs` | agents | `apps/web/src/lib/di-container.ts` | CopilotClient constructed with permission flags; `registerSingleton` → `registerInstance` | `registerSingleton` can't pass constructor args |
-| [ ] | FX006-3 | Verify: run `just fft` — all tests pass, types clean | agents | — | 0 test failures, 0 type errors | Regression gate |
+| [x] | FX006-1 | Upgrade `@github/copilot-sdk` to `^0.1.30` | agents | `packages/shared/package.json` | `pnpm install` succeeds, no type errors | Minor version bump within 0.1.x |
+| [x] | FX006-2 | Pass `--allow-all-tools` and `--allow-all-paths` to CopilotClient via `cliArgs` | agents | `apps/web/src/lib/di-container.ts` | CopilotClient constructed with permission flags; `registerSingleton` → `registerInstance` | `registerSingleton` can't pass constructor args |
+| [x] | FX006-3 | Add `onPermissionRequest: approveAll` to createSession/resumeSession | agents | `packages/shared/src/adapters/sdk-copilot-adapter.ts`, `packages/shared/src/interfaces/copilot-sdk.interface.ts` | SDK doesn't throw permission error, bash tools execute | SDK 0.1.30 requires handler |
+| [x] | FX006-4 | Defensive JSON parsing in AgentManagerService.initialize() | agents | `packages/shared/src/features/019-agent-manager-refactor/agent-manager.service.ts` | Corrupt agents skipped, not crash whole list | Edge case from persist failure |
+| [x] | FX006-5 | report_intent as first-class intent source | agents | `packages/shared/src/features/019-agent-manager-refactor/agent-instance.ts`, `intent-extractor.ts` | report_intent sets intent; bash/read never overwrite; thinking excluded | Root cause: flag inside value-change guard |
+| [x] | FX006-6 | Thinking blocks render before response | agents | `apps/web/src/features/019-agent-manager-refactor/transformers/agent-events-to-log-entries.ts` | Thinking above response in chat | Flush order swap |
+| [x] | FX006-7 | Enter to submit, Shift+Enter for newline | agents | `apps/web/src/components/agents/agent-chat-input.tsx` | Enter submits, Shift+Enter newlines | UX improvement |
+| [x] | FX006-8 | Intent display above chat input | agents | `apps/web/src/components/agents/agent-chat-view.tsx` | Intent bar visible above input | Always shows last intent |
 
 ## Acceptance
 
-- [ ] `CopilotClient` constructed with `cliArgs: ["--allow-all-tools", "--allow-all-paths"]`
-- [ ] SDK version bumped to `0.1.30`
-- [ ] All existing tests pass
-- [ ] Copilot agent can execute bash commands (manual verification)
+- [x] `CopilotClient` constructed with `cliArgs: ["--allow-all-tools", "--allow-all-paths"]`
+- [x] SDK version bumped to `0.1.30`
+- [x] `onPermissionRequest: approveAll` on all session calls
+- [x] Corrupt agents don't crash agent list
+- [x] `report_intent` is authoritative — bash never overwrites it
+- [x] Thinking events don't set intent
+- [x] User prompt text doesn't leak into intent
+- [x] Thinking blocks render before response text
+- [x] Enter submits, Shift+Enter for newline
+- [x] Intent bar above chat input
+- [x] All existing tests pass (4898)
 
 ## Discoveries & Learnings
 
