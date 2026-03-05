@@ -172,12 +172,27 @@ export interface CopilotSessionConfig {
    * Per DYK-06: Defaults to false in SDK; must be true for delta events.
    */
   streaming?: boolean;
+  /**
+   * Permission handler for tool execution (bash, file ops).
+   * Per FX006: Required by SDK 0.1.30+ — use approveAll for auto-accept.
+   */
+  onPermissionRequest?: (
+    request: unknown,
+    invocation: unknown
+  ) => { kind: string } | Promise<{ kind: string }>;
 }
 
 /**
  * Configuration for resuming a session.
+ * Per FX006: SDK 0.1.30 requires onPermissionRequest on resume too.
  */
-export type CopilotResumeSessionConfig = Record<string, never>;
+export interface CopilotResumeSessionConfig {
+  /** Permission handler — required by SDK for resumed sessions */
+  onPermissionRequest?: (
+    request: unknown,
+    invocation: unknown
+  ) => { kind: string } | Promise<{ kind: string }>;
+}
 
 /**
  * Status response from the client.
