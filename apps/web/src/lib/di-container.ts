@@ -229,9 +229,13 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
     },
   });
 
-  // Register CopilotClient as singleton to avoid repeated SDK client construction
-  // Per PR review feedback: reuse single instance for both COPILOT_ADAPTER and adapterFactory
-  childContainer.registerSingleton<CopilotClient>(DI_TOKENS.COPILOT_CLIENT, CopilotClient);
+  // Register CopilotClient as singleton with tool execution permissions enabled
+  // Per FX006: --allow-all-tools + --allow-all-paths required for bash/file tool execution
+  // registerInstance (not registerSingleton) because we need constructor args
+  childContainer.registerInstance<CopilotClient>(
+    DI_TOKENS.COPILOT_CLIENT,
+    new CopilotClient({ cliArgs: ['--allow-all-tools', '--allow-all-paths'] })
+  );
 
   childContainer.register<IAgentAdapter>(DI_TOKENS.COPILOT_ADAPTER, {
     useFactory: (c) => {
