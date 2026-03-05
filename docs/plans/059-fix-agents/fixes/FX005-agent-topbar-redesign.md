@@ -1,7 +1,7 @@
 # Fix FX005: Agent Top Bar Redesign — Summary Strip + Expandable Grid
 
 **Created**: 2026-03-04
-**Status**: Proposed
+**Status**: Complete
 **Plan**: [fix-agents-plan.md](../fix-agents-plan.md)
 **Source**: User: chip bar looks atrocious, needs summary strip + expandable grid (Workshop 009)
 **Domain(s)**: agents (UI)
@@ -81,11 +81,11 @@ flowchart TD
 
 | Status | ID | Task | Domain | Path(s) | Done When | Notes |
 |--------|-----|------|--------|---------|-----------|-------|
-| [ ] | FX005-1 | Create `AgentCard` component — rich tile with status dot, name, type, intent/last-action split, relative time | agents | `apps/web/src/components/agents/agent-card.tsx` | Card renders all status states; working shows live intent (blue); idle/stopped shows "Last: ..." (muted); waiting shows amber + question text; ~100-120px height; click triggers `toggleAgent()` | Workshop 009 card anatomy |
-| [ ] | FX005-2 | Create `AgentTopBar` component — summary strip + expandable grid | agents | `apps/web/src/components/agents/agent-top-bar.tsx` | Strip shows `🤖 N agents ● working ◐ waiting ○ idle` at ~28px height; background tints by status; click expands to CSS Grid of AgentCards; collapse/expand persists in localStorage; hidden when 0 agents | Workshop 009 two-mode design |
-| [ ] | FX005-3 | Update `WorkspaceAgentChrome` — swap `AgentChipBar` → `AgentTopBar` | agents | `apps/web/src/components/agents/workspace-agent-chrome.tsx` | Import updated; renders `AgentTopBar` instead of `AgentChipBar`; no other changes | Simple import swap |
-| [ ] | FX005-4 | Update `constants.ts` — replace `chipOrder` storage key with `topBarExpanded` | agents | `apps/web/src/lib/agents/constants.ts` | `chipOrder` key removed; `topBarExpanded` key added; `chipBarExpanded` key still works (backwards compat) | Remove unused DnD storage |
-| [ ] | FX005-5 | Delete old files `agent-chip-bar.tsx` + `agent-chip.tsx`; verify no other imports | agents | `apps/web/src/components/agents/agent-chip-bar.tsx`, `apps/web/src/components/agents/agent-chip.tsx` | Files deleted; `grep -r "agent-chip-bar\|agent-chip\|AgentChipBar\|AgentChip" apps/web/src/` returns 0 matches (excluding test files) | Check for stale imports |
+| [x] | FX005-1 | Create `AgentCard` component — rich tile with status dot, name, type, intent/last-action split, relative time | agents | `apps/web/src/components/agents/agent-card.tsx` | Card renders all status states; working shows live intent (blue); idle/stopped shows "Last: ..." (muted); waiting shows amber + question text; ~100-120px height; click triggers `toggleAgent()` | Workshop 009 card anatomy |
+| [x] | FX005-2 | Create `AgentTopBar` component — summary strip + expandable grid | agents | `apps/web/src/components/agents/agent-top-bar.tsx` | Strip shows `🤖 N agents ● working ◐ waiting ○ idle` at ~28px height; background tints by status; click expands to CSS Grid of AgentCards; collapse/expand persists in localStorage; hidden when 0 agents | Workshop 009 two-mode design |
+| [x] | FX005-3 | Update `WorkspaceAgentChrome` — swap `AgentChipBar` → `AgentTopBar` | agents | `apps/web/src/components/agents/workspace-agent-chrome.tsx` | Import updated; renders `AgentTopBar` instead of `AgentChipBar`; no other changes | Simple import swap |
+| [x] | FX005-4 | Update `constants.ts` — replace `chipOrder` storage key with `topBarExpanded` | agents | `apps/web/src/lib/agents/constants.ts` | `chipOrder` key removed; `topBarExpanded` key added; `chipBarExpanded` key still works (backwards compat) | Remove unused DnD storage |
+| [x] | FX005-5 | Delete old files `agent-chip-bar.tsx` + `agent-chip.tsx`; verify no other imports | agents | `apps/web/src/components/agents/agent-chip-bar.tsx`, `apps/web/src/components/agents/agent-chip.tsx` | Files deleted; `grep -r "agent-chip-bar\|agent-chip\|AgentChipBar\|AgentChip" apps/web/src/` returns 0 matches (excluding test files) | Check for stale imports |
 
 ## Acceptance
 

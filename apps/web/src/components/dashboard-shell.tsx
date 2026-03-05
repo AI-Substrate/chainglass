@@ -18,7 +18,7 @@ import type { ReactNode } from 'react';
  *
  * Usage:
  * ```tsx
- * <DashboardShell topBar={<AgentChipBar />}>
+ * <DashboardShell topBar={<AgentTopBar />}>
  *   <YourPageContent />
  * </DashboardShell>
  * ```

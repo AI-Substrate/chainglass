@@ -32,11 +32,9 @@ export const Z_INDEX = {
 // ── Storage Keys (version-namespaced) ──
 
 export const STORAGE_KEYS = {
-  /** Chip order per worktree: value is JSON array of agent IDs */
-  chipOrder: (worktreeSlug: string) => `chainglass:agents:chip-order:v1:${worktreeSlug}`,
   /** Dismissed agent IDs per worktree */
   dismissed: (worktreeSlug: string) => `chainglass:agents:dismissed:v1:${worktreeSlug}`,
-  /** Chip bar expanded/collapsed state */
+  /** Top bar expanded/collapsed state (reuses v1 key for backward compat — DYK-FX005-03) */
   chipBarExpanded: 'chainglass:agents:chip-bar-expanded:v1',
 } as const;
 

@@ -3,14 +3,14 @@
 /**
  * Plan 059 Phase 3: Attention System — 3-layer escalation for agent questions
  *
- * Layer 1: Chip amber pulse (handled in AgentChip via status styles)
+ * Layer 1: Card amber pulse (handled in AgentCard via status styles)
  * Layer 2: Toast notification when overlay is closed
  * Layer 3: Screen border flash (green glow) + floating ❓ badge
  *
  * Workshop 001: 30s cooldown on screen flash, badge click cycles through agents.
  *
  * This component provides Layer 2 (toast) and Layer 3 (flash + badge).
- * Layer 1 is built into AgentChip's status animation.
+ * Layer 1 is built into AgentCard's status animation.
  */
 
 import { useAgentOverlay } from '@/hooks/use-agent-overlay';

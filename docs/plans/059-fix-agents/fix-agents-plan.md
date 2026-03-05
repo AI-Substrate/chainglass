@@ -304,4 +304,4 @@ The web agent system is structurally sound (3 adapters, DI container, SSE transp
 | FX002 | 2026-03-03 | Fix WorkUnitStateService path (process.cwd() → git worktree root) | work-unit-state | Complete | User: JSON file written to apps/web/ not worktree root |
 | FX003 | 2026-03-03 | Show grey dot for idle agents in sidebar badges | agents | Complete | User: no badge visible when agents are idle |
 | FX004 | 2026-03-04 | Extract and display agent intents from event stream | agents | Complete | User: chips and list show stale/empty intent |
-| FX005 | 2026-03-04 | Agent top bar redesign — summary strip + expandable grid | agents | Proposed | User: chip bar UX poor, needs aggregate view (Workshop 009) |
+| FX005 | 2026-03-04 | Agent top bar redesign — summary strip + expandable grid | agents | Complete | User: chip bar UX poor, needs aggregate view (Workshop 009) |

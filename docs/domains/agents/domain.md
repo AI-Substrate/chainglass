@@ -261,3 +261,5 @@ Primary: scattered across `packages/shared/src/`, `packages/workflow/src/`, `app
 | Plan 059 Phase 3 | Top bar + agent overlay — AgentChipBar (@dnd-kit sortable), AgentChip (5 status states), AgentOverlayPanel (full-height chat), useAgentOverlay hook, useRecentAgents hook, 3-layer attention system (pulse/toast/flash), WorkspaceAgentChrome wrapper, workflow node onAgentClick prop | 2026-03-02 |
 | Plan 059 Phase 4 | Cross-worktree activity — useWorktreeActivity hook (30s polling), ActivityDot component in WorkspaceNav (both rendering modes), badge click navigation to agent page | 2026-03-02 |
 | Plan 059 FX001 | Wire agent lifecycle into WorkUnitStateService — POST registers, DELETE unregisters, notifier broadcastStatus updates via lazy bridge resolver | 2026-03-03 |
+| Plan 059 FX004 | Extract and display agent intents from event stream — intent-extractor.ts pure function, wired into AgentInstance._captureEvent | 2026-03-04 |
+| Plan 059 FX005 | Top bar redesign — replace AgentChipBar/AgentChip with AgentTopBar (summary strip + expandable grid) and AgentCard (rich tiles). Remove DnD sorting, add urgency sort, aggregate status indicators | 2026-03-05 |

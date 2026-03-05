@@ -1,7 +1,7 @@
 # Flight Plan: Fix FX005 — Agent Top Bar Redesign
 
 **Fix**: [FX005-agent-topbar-redesign.md](FX005-agent-topbar-redesign.md)
-**Status**: Ready
+**Status**: Landed
 
 ## What → Why
 
@@ -36,17 +36,17 @@ stateDiagram-v2
     S3 --> S4
     S4 --> [*]
 
-    class S1,S2,S3,S4 pending
+    class S1,S2,S3,S4 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
 
 ## Stages
 
-- [ ] **Stage 1: Create AgentCard** — Rich tile component with status, name, type, intent/last-action, time (`agent-card.tsx` — new file)
-- [ ] **Stage 2: Create AgentTopBar** — Summary strip + expandable grid using AgentCard (`agent-top-bar.tsx` — new file)
-- [ ] **Stage 3: Wire in + update constants** — Swap import in workspace-agent-chrome, update storage keys (`workspace-agent-chrome.tsx`, `constants.ts`)
-- [ ] **Stage 4: Delete old files** — Remove `agent-chip-bar.tsx` + `agent-chip.tsx`, verify no stale imports
+- [x] **Stage 1: Create AgentCard** — Rich tile component with status, name, type, intent/last-action, time (`agent-card.tsx` — new file)
+- [x] **Stage 2: Create AgentTopBar** — Summary strip + expandable grid using AgentCard (`agent-top-bar.tsx` — new file)
+- [x] **Stage 3: Wire in + update constants** — Swap import in workspace-agent-chrome, update storage keys (`workspace-agent-chrome.tsx`, `constants.ts`)
+- [x] **Stage 4: Delete old files** — Remove `agent-chip-bar.tsx` + `agent-chip.tsx`, verify no stale imports
 
 ## Architecture: Before & After
 
@@ -89,8 +89,8 @@ flowchart LR
 
 ## Checklist
 
-- [ ] FX005-1: Create AgentCard component
-- [ ] FX005-2: Create AgentTopBar component
-- [ ] FX005-3: Update WorkspaceAgentChrome imports
-- [ ] FX005-4: Update constants.ts storage keys
-- [ ] FX005-5: Delete old chip files, verify no stale imports
+- [x] FX005-1: Create AgentCard component
+- [x] FX005-2: Create AgentTopBar component
+- [x] FX005-3: Update WorkspaceAgentChrome imports
+- [x] FX005-4: Update constants.ts storage keys
+- [x] FX005-5: Delete old chip files, verify no stale imports
