@@ -134,8 +134,8 @@ export default function TerminalInner({
       window.dispatchEvent(new CustomEvent('terminal:clipboard-data', { detail: { data, error } }));
     },
     onError: (message) => {
-      // Detect auth errors from sidecar
-      if (message?.includes('auth token') || message?.includes('expired token')) {
+      // Surface all sidecar errors (auth failures, CWD rejection, etc.)
+      if (message) {
         setAuthError(message);
       }
     },
@@ -338,11 +338,14 @@ export default function TerminalInner({
       {authError && status === 'disconnected' && (
         <div className="absolute inset-0 flex items-center justify-center bg-background/90 z-20">
           <div className="flex flex-col items-center gap-3 text-sm text-muted-foreground">
-            <span className="text-base font-medium text-foreground">Authentication Required</span>
-            <span className="text-center max-w-xs">{authError}</span>
+            <span className="text-base font-medium text-foreground">Terminal Error</span>
+            <span className="text-center max-w-md font-mono text-xs">{authError}</span>
             <button
               type="button"
-              onClick={() => window.location.reload()}
+              onClick={() => {
+                setAuthError(null);
+                reconnect();
+              }}
               className="rounded-md border px-4 py-2 text-xs hover:bg-accent"
             >
               Retry

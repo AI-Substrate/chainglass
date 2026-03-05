@@ -55,7 +55,9 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
     // FT-001: Validate CWD before PTY spawn
     const allowedBase = process.env.TERMINAL_ALLOWED_BASE ?? process.cwd();
     if (!manager.validateCwd(cwd, allowedBase)) {
-      ws.send(JSON.stringify({ type: 'error', message: 'Invalid working directory' }));
+      const msg = `CWD "${cwd}" is outside allowed base "${allowedBase}". Set TERMINAL_ALLOWED_BASE in apps/web/.env.local to a parent directory that covers all your workspaces (e.g. /Users/jak).`;
+      console.error(`[terminal] Rejected connection (session=${sessionName}): ${msg}`);
+      ws.send(JSON.stringify({ type: 'error', message: msg }));
       ws.close(4400, 'Invalid cwd');
       return;
     }

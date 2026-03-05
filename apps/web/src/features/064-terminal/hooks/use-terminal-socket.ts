@@ -9,6 +9,9 @@ const CONTROL_TYPES = new Set(['status', 'error', 'sessions', 'clipboard']);
 /** Auth close codes from sidecar — don't retry with stale token (DYK-05) */
 const AUTH_CLOSE_CODES = new Set([4401, 4403]);
 
+/** Fatal close codes — retrying won't help (bad session name, CWD rejected) */
+const FATAL_CLOSE_CODES = new Set([4400]);
+
 const TOKEN_REFRESH_INTERVAL_MS = 4 * 60 * 1000; // 4 minutes (token expires in 5)
 
 export interface UseTerminalSocketOptions {
@@ -147,6 +150,11 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
       if (wsRef.current !== ws) return;
       wsRef.current = null;
       updateStatus('disconnected');
+
+      // Fatal close codes — no point retrying (bad CWD, bad session name)
+      if (FATAL_CLOSE_CODES.has(event.code)) {
+        return;
+      }
 
       // DYK-05: Auth close codes — fetch new token before reconnecting
       if (AUTH_CLOSE_CODES.has(event.code)) {
