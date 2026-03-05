@@ -192,6 +192,15 @@ Available MCP tools:
 
 See `/docs/how/nextjs-mcp-llm-agent-guide.md` for detailed workflows.
 
+## Auth Bypass (Development)
+
+To disable authentication for testing (e.g., Playwright browser automation):
+
+1. Set `DISABLE_AUTH=true` in `apps/web/.env.local`
+2. Restart the dev server (`just dev`)
+
+This bypasses both the middleware redirect (in `proxy.ts`) and API route session checks (in `auth.ts`). Remove or set to `false` to re-enable auth.
+
 ## Quick Reference
 
 ### Justfile Commands (Preferred)

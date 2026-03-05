@@ -4,13 +4,21 @@
  * MarkdownPreview — Client component for rendering server-rendered markdown HTML.
  *
  * Renders HTML from renderMarkdownToHtml() and activates mermaid diagrams
- * by finding data-mermaid divs and rendering them with the mermaid library.
+ * by finding data-mermaid divs and rendering them via MermaidRenderer portals.
  *
  * Fix FX001-7: Viewer integration for markdown preview.
  */
 
 import { useTheme } from 'next-themes';
-import { memo, useCallback, useEffect, useRef } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { MermaidRenderer } from '../../../components/viewers/mermaid-renderer';
+
+interface MermaidPortal {
+  code: string;
+  container: HTMLElement;
+  key: string;
+}
 
 interface MarkdownPreviewProps {
   html: string;
@@ -27,64 +35,30 @@ export const MarkdownPreview = memo(function MarkdownPreview({
 }: MarkdownPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { resolvedTheme } = useTheme();
-  const renderedHtmlRef = useRef<string>('');
+  const [mermaidPortals, setMermaidPortals] = useState<MermaidPortal[]>([]);
 
-  // Activate mermaid diagrams after HTML is rendered
+  // Find mermaid divs after HTML is set and create portal targets
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    // Skip if already rendered for this exact html + theme combo
-    const cacheKey = `${html}::${resolvedTheme}`;
-    if (renderedHtmlRef.current === cacheKey) return;
-
     const mermaidDivs = container.querySelectorAll<HTMLElement>('[data-mermaid="true"]');
     if (mermaidDivs.length === 0) {
-      renderedHtmlRef.current = cacheKey;
+      setMermaidPortals([]);
       return;
     }
 
-    let mounted = true;
-
-    import('mermaid').then(async (mod) => {
-      if (!mounted) return;
-      const mermaid = mod.default;
-
-      mermaid.initialize({
-        startOnLoad: false,
-        theme: resolvedTheme === 'dark' ? 'dark' : 'default',
-        securityLevel: 'strict',
+    const portals: MermaidPortal[] = [];
+    for (const div of mermaidDivs) {
+      const code = div.getAttribute('data-mermaid-code');
+      if (!code) continue;
+      portals.push({
+        code,
+        container: div,
+        key: `mermaid-${Math.random().toString(36).slice(2, 8)}`,
       });
-
-      for (const div of mermaidDivs) {
-        // Skip already-rendered diagrams
-        if (div.classList.contains('mermaid-renderer-svg')) continue;
-        const code = div.getAttribute('data-mermaid-code');
-        if (!code || !mounted) continue;
-
-        try {
-          const id = `mermaid-preview-${Math.random().toString(36).slice(2, 8)}`;
-          const result = await mermaid.render(id, code);
-          if (mounted) {
-            div.innerHTML = result.svg;
-            div.classList.add('mermaid-renderer-svg');
-          }
-        } catch {
-          if (mounted) {
-            div.textContent = 'Diagram rendering failed';
-            div.classList.add('mermaid-renderer-error');
-          }
-        }
-      }
-
-      if (mounted) {
-        renderedHtmlRef.current = cacheKey;
-      }
-    });
-
-    return () => {
-      mounted = false;
-    };
+    }
+    setMermaidPortals(portals);
   }, [html, resolvedTheme]);
 
   // Handle anchor link clicks and relative file link navigation
@@ -169,13 +143,18 @@ export const MarkdownPreview = memo(function MarkdownPreview({
   );
 
   return (
-    <div
-      ref={containerRef}
-      className="prose dark:prose-invert max-w-none"
-      onClick={handleClick}
-      onKeyDown={handleKeyDown}
-      // biome-ignore lint/security/noDangerouslySetInnerHtml: HTML is server-rendered from trusted markdown via renderMarkdownToHtml
-      dangerouslySetInnerHTML={{ __html: html }}
-    />
+    <>
+      <div
+        ref={containerRef}
+        className="prose dark:prose-invert max-w-none"
+        onClick={handleClick}
+        onKeyDown={handleKeyDown}
+        // biome-ignore lint/security/noDangerouslySetInnerHtml: HTML is server-rendered from trusted markdown via renderMarkdownToHtml
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
+      {mermaidPortals.map((portal) =>
+        createPortal(<MermaidRenderer code={portal.code} />, portal.container, portal.key)
+      )}
+    </>
   );
 });
