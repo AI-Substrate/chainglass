@@ -131,33 +131,11 @@ describe('extractIntent', () => {
   });
 
   describe('thinking events', () => {
-    it('extracts thinking content', () => {
+    it('returns null — thinking never sets intent', () => {
       const event: AgentEvent = {
         type: 'thinking',
         timestamp: '',
         data: { content: 'Let me analyze the code structure' },
-      };
-      expect(extractIntent(event)).toBe('Thinking: Let me analyze the code structure');
-    });
-
-    it('truncates long thinking to 60 chars', () => {
-      const longThought =
-        'I need to carefully consider the implications of changing the authentication middleware because it affects all routes';
-      const event: AgentEvent = {
-        type: 'thinking',
-        timestamp: '',
-        data: { content: longThought },
-      };
-      const result = extractIntent(event);
-      expect(result?.length).toBeLessThanOrEqual(60);
-      expect(result?.endsWith('…')).toBe(true);
-    });
-
-    it('returns null for empty thinking', () => {
-      const event: AgentEvent = {
-        type: 'thinking',
-        timestamp: '',
-        data: { content: '' },
       };
       expect(extractIntent(event)).toBeNull();
     });

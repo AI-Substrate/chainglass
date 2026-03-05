@@ -20,7 +20,7 @@
 
 import type { AgentEvent } from '../../interfaces/index.js';
 
-const INTENT_TYPES = new Set(['tool_call', 'thinking']);
+const INTENT_TYPES = new Set(['tool_call']);
 
 function truncate(s: string, max: number): string {
   if (s.length <= max) return s;
@@ -88,13 +88,6 @@ export function extractIntent(event: AgentEvent): string | null {
       return value ? truncate(`Searching: ${value}`, 60) : 'Searching';
     }
     return value ? truncate(`${toolName}: ${value}`, 60) : `Using ${toolName}`;
-  }
-
-  if (event.type === 'thinking') {
-    const content = (event.data as { content?: string }).content;
-    if (content) {
-      return truncate(`Thinking: ${content}`, 60);
-    }
   }
 
   return null;
