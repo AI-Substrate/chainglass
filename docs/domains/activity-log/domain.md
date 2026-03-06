@@ -76,3 +76,4 @@ apps/web/src/features/065-activity-log/
 | Plan | Changes | Date |
 |------|---------|------|
 | 065 Phase 1 | Domain created. Types, writer, reader, ignore patterns. | 2026-03-06 |
+| 065 Phase 2 | getPaneTitles() multi-pane method, activity log writes in sidecar, pane title badge removed | 2026-03-06 |

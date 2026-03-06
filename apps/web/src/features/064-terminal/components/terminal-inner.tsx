@@ -66,7 +66,6 @@ interface TerminalInnerProps {
   cwd: string;
   className?: string;
   onConnectionChange?: (status: ConnectionStatus) => void;
-  onPaneTitle?: (title: string) => void;
   onCopyBuffer?: () => void;
   themeOverride?: 'dark' | 'light' | 'system';
 }
@@ -76,7 +75,6 @@ export default function TerminalInner({
   cwd,
   className,
   onConnectionChange,
-  onPaneTitle,
   themeOverride,
 }: TerminalInnerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -168,7 +166,6 @@ export default function TerminalInner({
       }
     },
     onConnectionChange,
-    onPaneTitle,
   });
 
   // Store send in a ref so terminal.onData doesn't go stale

@@ -139,6 +139,30 @@ export class TmuxSessionManager {
     }
   }
 
+  /** Query pane titles for ALL panes across ALL windows in a session */
+  getPaneTitles(sessionName: string): Array<{ pane: string; title: string }> {
+    try {
+      const output = this.exec('tmux', [
+        'list-panes',
+        '-t',
+        sessionName,
+        '-s',
+        '-F',
+        '#{window_index}.#{pane_index}\t#{pane_title}',
+      ]);
+      return output
+        .trim()
+        .split('\n')
+        .filter((line) => line.includes('\t'))
+        .map((line) => {
+          const tabIdx = line.indexOf('\t');
+          return { pane: line.slice(0, tabIdx), title: line.slice(tabIdx + 1) };
+        });
+    } catch {
+      return [];
+    }
+  }
+
   /** Get the user's default shell or /bin/bash as fallback */
   getShellFallback(): string {
     return process.env.SHELL || '/bin/bash';

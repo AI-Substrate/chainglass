@@ -35,6 +35,14 @@ When returning to a workspace after time away, there's no way to recall what age
 | `apps/web/app/api/activity-log/route.ts` | activity-log | contract | API route: read entries for worktree |
 | `apps/web/src/features/064-terminal/server/tmux-session-manager.ts` | terminal | internal | Add getPaneTitles() multi-pane method |
 | `apps/web/src/features/064-terminal/server/terminal-ws.ts` | terminal | internal | Replace pane title badge with activity log writes |
+| `apps/web/src/features/064-terminal/components/terminal-inner.tsx` | terminal | internal | Remove paneTitle prop plumbing |
+| `apps/web/src/features/064-terminal/components/terminal-overlay-panel.tsx` | terminal | internal | Remove overlay badge state/rendering |
+| `apps/web/src/features/064-terminal/components/terminal-page-client.tsx` | terminal | internal | Remove page-level paneTitle state |
+| `apps/web/src/features/064-terminal/components/terminal-page-header.tsx` | terminal | internal | Remove header badge rendering |
+| `apps/web/src/features/064-terminal/components/terminal-view.tsx` | terminal | internal | Remove onPaneTitle prop pass-through |
+| `apps/web/src/features/064-terminal/hooks/use-terminal-socket.ts` | terminal | internal | Remove pane_title client handling |
+| `apps/web/src/features/064-terminal/types.ts` | terminal | contract | Remove pane_title message variant |
+| `docs/domains/terminal/domain.md` | terminal | contract | Record Phase 2 dependency/history updates |
 | `apps/web/src/lib/navigation-utils.ts` | _platform | cross-domain | Add activity-log nav item |
 | `apps/web/src/components/dashboard-sidebar.tsx` | _platform | cross-domain | Add activity-log toggle button |
 | `apps/web/src/lib/sdk/sdk-bootstrap.ts` | _platform | cross-domain | Register activity-log.toggleOverlay command |

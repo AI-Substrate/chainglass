@@ -276,4 +276,129 @@ describe('Terminal WebSocket Server', () => {
       expect(server.derivePort(3004)).toBe(4504);
     });
   });
+
+  describe('activity log polling (Phase 2)', () => {
+    it('resolves worktree root via git -C <cwd> rev-parse', () => {
+      /*
+      Test Doc:
+      - Why: CWD may be a subdirectory — must resolve worktree root for correct log location
+      - Contract: handleConnection uses git -C <cwd> rev-parse --show-toplevel
+      - Usage Notes: Uses injectable execCommand, so we verify via FakeTmuxExecutor
+      - Quality Contribution: Prevents activity log being written to wrong directory
+      - Worked Example: cwd=/project/apps/web → git resolves /project → entries written to /project/.chainglass/data/
+      */
+      exec.whenCommand('tmux', ['-V']).returns('tmux 3.4');
+      exec
+        .whenCommand('git', ['-C', '/project/apps/web', 'rev-parse', '--show-toplevel'])
+        .returns('/project\n');
+      exec
+        .whenCommand('tmux', [
+          'list-panes',
+          '-t',
+          'test-session',
+          '-s',
+          '-F',
+          '#{window_index}.#{pane_index}\t#{pane_title}',
+        ])
+        .returns('');
+
+      const origBase = process.env.TERMINAL_ALLOWED_BASE;
+      process.env.TERMINAL_ALLOWED_BASE = '/project';
+      try {
+        const server = createTerminalServer(deps);
+        const ws = createFakeWs();
+        server.handleConnection(
+          ws as unknown as import('ws').WebSocket,
+          'test-session',
+          '/project/apps/web'
+        );
+
+        exec.assertExecuted('git', ['-C', '/project/apps/web', 'rev-parse', '--show-toplevel']);
+      } finally {
+        if (origBase === undefined) process.env.TERMINAL_ALLOWED_BASE = undefined;
+        else process.env.TERMINAL_ALLOWED_BASE = origBase;
+      }
+    });
+
+    it('falls back to CWD when git fails', () => {
+      /*
+      Test Doc:
+      - Why: Non-git directories, bare repos, or missing git must not crash
+      - Contract: handleConnection falls back to CWD when git rev-parse throws
+      - Usage Notes: FakeTmuxExecutor throws on unconfigured commands
+      - Quality Contribution: Ensures sidecar works without git
+      - Worked Example: git rev-parse throws → worktreeRoot = cwd
+      */
+      exec.whenCommand('tmux', ['-V']).returns('tmux 3.4');
+      // git rev-parse not configured → throws → should fall back to CWD
+
+      const origBase = process.env.TERMINAL_ALLOWED_BASE;
+      process.env.TERMINAL_ALLOWED_BASE = '/';
+      try {
+        const server = createTerminalServer(deps);
+        const ws = createFakeWs();
+        // Should not throw even though git fails
+        expect(() => {
+          server.handleConnection(
+            ws as unknown as import('ws').WebSocket,
+            'test-session',
+            '/some/path'
+          );
+        }).not.toThrow();
+      } finally {
+        if (origBase === undefined) process.env.TERMINAL_ALLOWED_BASE = undefined;
+        else process.env.TERMINAL_ALLOWED_BASE = origBase;
+      }
+    });
+
+    it('does not emit pane_title WS messages', () => {
+      /*
+      Test Doc:
+      - Why: Phase 2 replaced badge WS messages with filesystem writes
+      - Contract: No pane_title messages sent over WebSocket
+      - Usage Notes: Check ws.sent for absence of pane_title type
+      - Quality Contribution: Confirms clean removal of PR #37 badge path
+      - Worked Example: Connect → no pane_title in ws.sent
+      */
+      exec.whenCommand('tmux', ['-V']).returns('tmux 3.4');
+      exec
+        .whenCommand('git', ['-C', process.cwd(), 'rev-parse', '--show-toplevel'])
+        .returns(`${process.cwd()}\n`);
+      exec
+        .whenCommand('tmux', [
+          'list-panes',
+          '-t',
+          'test-session',
+          '-s',
+          '-F',
+          '#{window_index}.#{pane_index}\t#{pane_title}',
+        ])
+        .returns('0.0\tSome Title\n');
+
+      const origBase = process.env.TERMINAL_ALLOWED_BASE;
+      process.env.TERMINAL_ALLOWED_BASE = process.cwd();
+      try {
+        const server = createTerminalServer(deps);
+        const ws = createFakeWs();
+        server.handleConnection(
+          ws as unknown as import('ws').WebSocket,
+          'test-session',
+          process.cwd()
+        );
+
+        // No pane_title messages should be sent
+        const paneTitleMsgs = ws.sent.filter((msg) => {
+          try {
+            return JSON.parse(msg).type === 'pane_title';
+          } catch {
+            return false;
+          }
+        });
+        expect(paneTitleMsgs).toHaveLength(0);
+      } finally {
+        if (origBase === undefined) process.env.TERMINAL_ALLOWED_BASE = undefined;
+        else process.env.TERMINAL_ALLOWED_BASE = origBase;
+      }
+    });
+  });
 });

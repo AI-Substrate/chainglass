@@ -68,9 +68,12 @@ Browser-based terminal emulator connected to tmux sessions for persistent, recon
 | _platform/events | sonner toast | tmux unavailable warning (AC-11) |
 | _platform/sdk | registerCommand, registerKeybinding | `terminal.toggleOverlay` + `$mod+Backquote` |
 | _platform/workspace-url | workspaceHref() | Sidebar navigation link |
+| activity-log | appendActivityLogEntry(), shouldIgnorePaneTitle() | Sidecar writes activity entries to worktree log |
 
 ### Domains That Depend On This
-None currently. Terminal is a leaf consumer domain.
+| Domain | Contract Used | Why |
+|--------|-------------|-----|
+| activity-log | Pane title source (sidecar polls tmux) | Terminal sidecar is the first activity log event source |
 
 ## Source Location
 

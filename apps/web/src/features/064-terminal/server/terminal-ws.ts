@@ -16,10 +16,12 @@ import fs from 'node:fs';
 import https from 'node:https';
 import { jwtVerify } from 'jose';
 import { type WebSocket, WebSocketServer } from 'ws';
+import { appendActivityLogEntry } from '../../065-activity-log/lib/activity-log-writer.js';
+import { shouldIgnorePaneTitle } from '../../065-activity-log/lib/ignore-patterns.js';
 import type { CommandExecutor, PtyProcess, PtySpawner } from '../types';
 import { TmuxSessionManager } from './tmux-session-manager';
 
-const PANE_TITLE_POLL_MS = Number(process.env.TERMINAL_PANE_TITLE_POLL_MS ?? '10000');
+const ACTIVITY_LOG_POLL_MS = Number(process.env.ACTIVITY_LOG_POLL_MS ?? '10000');
 
 export interface TerminalServerDeps {
   execCommand: CommandExecutor;
@@ -36,7 +38,7 @@ export interface TerminalServer {
 export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
   const manager = new TmuxSessionManager(deps.execCommand, deps.spawnPty);
   const activePtys = new Set<PtyProcess>();
-  const paneTitleIntervals = new Set<ReturnType<typeof setInterval>>();
+  const activityLogIntervals = new Set<ReturnType<typeof setInterval>>();
   let wss: WebSocketServer | null = null;
 
   // Auth config — hoisted to factory scope so handleConnection can access
@@ -96,30 +98,42 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
 
     activePtys.add(pty);
 
-    // Poll pane title and push to client (configurable via TERMINAL_PANE_TITLE_POLL_MS)
-    let lastPaneTitle = '';
-    if (tmuxAvailable && PANE_TITLE_POLL_MS > 0) {
-      const titleInterval = setInterval(() => {
-        if ((ws as unknown as { readyState: number }).readyState !== 1) return;
-        const title = manager.getPaneTitle(sessionName) ?? '';
-        if (title !== lastPaneTitle) {
-          lastPaneTitle = title;
-          ws.send(JSON.stringify({ type: 'pane_title', title }));
+    // Resolve worktree root from CWD (CWD may be a subdirectory)
+    let worktreeRoot = cwd;
+    try {
+      worktreeRoot = deps.execCommand('git', ['-C', cwd, 'rev-parse', '--show-toplevel']).trim();
+    } catch {
+      // Non-git directory, bare repo, or git not installed — fall back to CWD
+    }
+
+    // Poll all panes and write activity log entries (configurable via ACTIVITY_LOG_POLL_MS)
+    if (tmuxAvailable && ACTIVITY_LOG_POLL_MS > 0) {
+      const logInterval = setInterval(() => {
+        const paneTitles = manager.getPaneTitles(sessionName);
+        for (const { pane, title } of paneTitles) {
+          if (shouldIgnorePaneTitle(title)) continue;
+          try {
+            appendActivityLogEntry(worktreeRoot, {
+              id: `tmux:${pane}`,
+              source: 'tmux',
+              label: title,
+              timestamp: new Date().toISOString(),
+              meta: { pane, session: sessionName },
+            });
+          } catch (error) {
+            console.error('[terminal] Failed to append activity log entry', {
+              sessionName,
+              pane,
+              error,
+            });
+          }
         }
-      }, PANE_TITLE_POLL_MS);
-      paneTitleIntervals.add(titleInterval);
+      }, ACTIVITY_LOG_POLL_MS);
+      activityLogIntervals.add(logInterval);
 
-      // Send initial pane title immediately
-      const initial = manager.getPaneTitle(sessionName) ?? '';
-      if (initial) {
-        lastPaneTitle = initial;
-        ws.send(JSON.stringify({ type: 'pane_title', title: initial }));
-      }
-
-      // Clean up interval when connection closes
       ws.on('close', () => {
-        clearInterval(titleInterval);
-        paneTitleIntervals.delete(titleInterval);
+        clearInterval(logInterval);
+        activityLogIntervals.delete(logInterval);
       });
     }
 
@@ -186,10 +200,10 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
   }
 
   function cleanup(): void {
-    for (const interval of paneTitleIntervals) {
+    for (const interval of activityLogIntervals) {
       clearInterval(interval);
     }
-    paneTitleIntervals.clear();
+    activityLogIntervals.clear();
     for (const pty of activePtys) {
       pty.kill();
     }

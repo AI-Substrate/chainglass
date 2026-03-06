@@ -14,7 +14,6 @@ export function TerminalOverlayPanel() {
   const wsCtx = useWorkspaceContext();
   const terminalTheme = wsCtx?.worktreeIdentity?.terminalTheme || 'dark';
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
-  const [paneTitle, setPaneTitle] = useState('');
   const panelRef = useRef<HTMLDivElement>(null);
   const [anchorRect, setAnchorRect] = useState({ top: 0, left: 0, width: 0, height: 0 });
   // Only mount TerminalInner once the overlay has been opened at least once
@@ -95,11 +94,6 @@ export function TerminalOverlayPanel() {
         <div className="flex items-center gap-2">
           <TerminalSquare className="h-4 w-4 text-muted-foreground" />
           <span className="text-sm font-medium truncate">{sessionName}</span>
-          {paneTitle && (
-            <span className="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-              {paneTitle}
-            </span>
-          )}
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -129,7 +123,6 @@ export function TerminalOverlayPanel() {
           sessionName={sessionName}
           cwd={cwd}
           onConnectionChange={setConnectionStatus}
-          onPaneTitle={setPaneTitle}
           themeOverride={terminalTheme}
         />
       </div>
