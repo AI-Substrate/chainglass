@@ -33,6 +33,8 @@ Append-only per-worktree timeline capturing what agents and terminal sessions ar
 | `readActivityLog()` | Function | API routes, overlay panel | Read + filter entries (limit, since, source) |
 | `shouldIgnorePaneTitle()` | Function | terminal sidecar | Tmux-specific noise filter |
 | `ACTIVITY_LOG_FILE` | Constant | writer, reader | Filename: `activity-log.jsonl` |
+| `useActivityLogOverlay()` | Hook | overlay panel, wrapper | Context provider + hook for overlay state |
+| `ActivityLogOverlayProvider` | Component | workspace layout | Provider wrapping workspace for overlay state |
 
 ## Dependencies
 
@@ -51,6 +53,11 @@ Append-only per-worktree timeline capturing what agents and terminal sessions ar
 | readActivityLog | function | apps/web/src/features/065-activity-log/lib/activity-log-reader.ts | JSONL read with filtering |
 | shouldIgnorePaneTitle | function | apps/web/src/features/065-activity-log/lib/ignore-patterns.ts | Tmux noise filter |
 | ACTIVITY_LOG_FILE | constant | apps/web/src/features/065-activity-log/types.ts | Filename: activity-log.jsonl |
+| GET /api/activity-log | route | apps/web/app/api/activity-log/route.ts | API route: read entries for worktree |
+| useActivityLogOverlay | hook | apps/web/src/features/065-activity-log/hooks/use-activity-log-overlay.tsx | Context provider + hook for overlay state |
+| ActivityLogOverlayPanel | component | apps/web/src/features/065-activity-log/components/activity-log-overlay-panel.tsx | Fixed-position overlay panel |
+| ActivityLogEntryList | component | apps/web/src/features/065-activity-log/components/activity-log-entry-list.tsx | Entry list with gap separators |
+| ActivityLogOverlayWrapper | component | apps/web/app/(dashboard)/workspaces/[slug]/activity-log-overlay-wrapper.tsx | Mounts provider + panel in layout |
 
 ## Consumers
 
@@ -67,8 +74,17 @@ apps/web/src/features/065-activity-log/
   │   ├── activity-log-writer.ts  # appendActivityLogEntry()
   │   ├── activity-log-reader.ts  # readActivityLog()
   │   └── ignore-patterns.ts     # shouldIgnorePaneTitle()
-  ├── hooks/                      # (Phase 3)
-  └── components/                 # (Phase 3)
+  ├── hooks/
+  │   └── use-activity-log-overlay.tsx  # Context provider + hook
+  └── components/
+      ├── activity-log-overlay-panel.tsx  # Fixed-position overlay panel
+      └── activity-log-entry-list.tsx     # Entry list with gap separators
+
+apps/web/app/api/activity-log/
+  └── route.ts                   # GET /api/activity-log
+
+apps/web/app/(dashboard)/workspaces/[slug]/
+  └── activity-log-overlay-wrapper.tsx  # Mounts provider + panel in layout
 ```
 
 ## History
@@ -77,3 +93,4 @@ apps/web/src/features/065-activity-log/
 |------|---------|------|
 | 065 Phase 1 | Domain created. Types, writer, reader, ignore patterns. | 2026-03-06 |
 | 065 Phase 2 | getPaneTitles() multi-pane method, activity log writes in sidecar, pane title badge removed | 2026-03-06 |
+| 065 Phase 3 | API route, overlay hook/provider, overlay panel, entry list with gap separators, sidebar button, SDK command, mutual exclusion with terminal/agent overlays | 2026-03-06 |

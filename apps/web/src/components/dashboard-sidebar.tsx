@@ -28,6 +28,7 @@ import {
   ExternalLink,
   LogOut,
   PanelLeft,
+  ScrollText,
   Settings,
   TerminalSquare,
 } from 'lucide-react';
@@ -275,6 +276,15 @@ export function DashboardSidebar() {
             >
               <TerminalSquare className="h-5 w-5" />
               {!isCollapsed && <span>Terminal</span>}
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              onClick={() => window.dispatchEvent(new CustomEvent('activity-log:toggle'))}
+              tooltip="Toggle Activity Log"
+            >
+              <ScrollText className="h-5 w-5" />
+              {!isCollapsed && <span>Activity</span>}
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>

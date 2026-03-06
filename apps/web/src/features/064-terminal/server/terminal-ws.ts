@@ -110,7 +110,7 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
     if (tmuxAvailable && ACTIVITY_LOG_POLL_MS > 0) {
       const logInterval = setInterval(() => {
         const paneTitles = manager.getPaneTitles(sessionName);
-        for (const { pane, title } of paneTitles) {
+        for (const { pane, windowName, title } of paneTitles) {
           if (shouldIgnorePaneTitle(title)) continue;
           try {
             appendActivityLogEntry(worktreeRoot, {
@@ -118,7 +118,7 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
               source: 'tmux',
               label: title,
               timestamp: new Date().toISOString(),
-              meta: { pane, session: sessionName },
+              meta: { pane, windowName, session: sessionName },
             });
           } catch (error) {
             console.error('[terminal] Failed to append activity log entry', {

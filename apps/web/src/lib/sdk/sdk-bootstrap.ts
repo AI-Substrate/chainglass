@@ -100,6 +100,18 @@ export function bootstrapSDK(): IUSDK {
   });
   keybindings.register({ key: 'Backquote', command: 'terminal.toggleOverlay' });
 
+  // Activity log overlay toggle (Plan 065 Phase 3)
+  commands.register({
+    id: 'activity-log.toggleOverlay',
+    title: 'Toggle Activity Log',
+    domain: 'activity-log',
+    params: z.object({}),
+    handler: async () => {
+      window.dispatchEvent(new CustomEvent('activity-log:toggle'));
+    },
+    icon: 'scroll-text',
+  });
+
   const sdk: IUSDK = {
     commands,
     settings,

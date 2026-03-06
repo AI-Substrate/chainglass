@@ -9,7 +9,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { ACTIVITY_LOG_DIR, ACTIVITY_LOG_FILE, type ActivityLogEntry } from '../types.js';
+import { ACTIVITY_LOG_DIR, ACTIVITY_LOG_FILE, type ActivityLogEntry } from '../types';
 
 const DEDUP_LOOKBACK = 50;
 

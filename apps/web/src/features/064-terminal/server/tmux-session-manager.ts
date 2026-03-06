@@ -148,15 +148,27 @@ export class TmuxSessionManager {
         sessionName,
         '-s',
         '-F',
-        '#{window_index}.#{pane_index}\t#{pane_title}',
+        '#{window_index}.#{pane_index}\t#{window_name}\t#{pane_title}',
       ]);
       return output
         .trim()
         .split('\n')
         .filter((line) => line.includes('\t'))
         .map((line) => {
-          const tabIdx = line.indexOf('\t');
-          return { pane: line.slice(0, tabIdx), title: line.slice(tabIdx + 1) };
+          const firstTab = line.indexOf('\t');
+          const secondTab = line.indexOf('\t', firstTab + 1);
+          if (secondTab === -1) {
+            return {
+              pane: line.slice(0, firstTab),
+              windowName: '',
+              title: line.slice(firstTab + 1),
+            };
+          }
+          return {
+            pane: line.slice(0, firstTab),
+            windowName: line.slice(firstTab + 1, secondTab),
+            title: line.slice(secondTab + 1),
+          };
         });
     } catch {
       return [];

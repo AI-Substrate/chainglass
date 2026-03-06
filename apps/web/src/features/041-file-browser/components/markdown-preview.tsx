@@ -45,7 +45,6 @@ export const MarkdownPreview = memo(function MarkdownPreview({
   // This prevents React from re-writing innerHTML on state-driven re-renders
   // (e.g. when setMermaidPortals triggers a re-render), which would destroy
   // the portal target elements that MermaidRenderer is rendered into.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: html is the only input; resolvedTheme handled in mermaid scan below
   useLayoutEffect(() => {
     const container = containerRef.current;
     if (!container) return;

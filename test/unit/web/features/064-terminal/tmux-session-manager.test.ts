@@ -224,15 +224,15 @@ describe('TmuxSessionManager', () => {
           'my-session',
           '-s',
           '-F',
-          '#{window_index}.#{pane_index}\t#{pane_title}',
+          '#{window_index}.#{pane_index}\t#{window_name}\t#{pane_title}',
         ])
-        .returns('0.0\tImplementing Phase 1\n1.0\tRunning tests\n2.0\tIdle\n');
+        .returns('0.0\tmain\tImplementing Phase 1\n1.0\ttest\tRunning tests\n2.0\tmisc\tIdle\n');
 
       const result = manager.getPaneTitles('my-session');
       expect(result).toHaveLength(3);
-      expect(result[0]).toEqual({ pane: '0.0', title: 'Implementing Phase 1' });
-      expect(result[1]).toEqual({ pane: '1.0', title: 'Running tests' });
-      expect(result[2]).toEqual({ pane: '2.0', title: 'Idle' });
+      expect(result[0]).toEqual({ pane: '0.0', windowName: 'main', title: 'Implementing Phase 1' });
+      expect(result[1]).toEqual({ pane: '1.0', windowName: 'test', title: 'Running tests' });
+      expect(result[2]).toEqual({ pane: '2.0', windowName: 'misc', title: 'Idle' });
     });
 
     it('should handle single pane', () => {
@@ -252,13 +252,13 @@ describe('TmuxSessionManager', () => {
           'my-session',
           '-s',
           '-F',
-          '#{window_index}.#{pane_index}\t#{pane_title}',
+          '#{window_index}.#{pane_index}\t#{window_name}\t#{pane_title}',
         ])
-        .returns('0.0\tSolo pane\n');
+        .returns('0.0\tbash\tSolo pane\n');
 
       const result = manager.getPaneTitles('my-session');
       expect(result).toHaveLength(1);
-      expect(result[0]).toEqual({ pane: '0.0', title: 'Solo pane' });
+      expect(result[0]).toEqual({ pane: '0.0', windowName: 'bash', title: 'Solo pane' });
     });
 
     it('should return empty array on error', () => {
@@ -281,7 +281,7 @@ describe('TmuxSessionManager', () => {
       - Contract: getPaneTitles() splits only on the first tab to preserve title content.
       - Usage Notes: Uses indexOf('\t') instead of split('\t') for correct handling.
       - Quality Contribution: Prevents title truncation on unusual content.
-      - Worked Example: "0.0\tTitle with\ttab" → { pane: "0.0", title: "Title with\ttab" }
+      - Worked Example: "0.0\tbash\tTitle with\ttab" → { pane: "0.0", windowName: "bash", title: "Title with\ttab" }
       */
       const { manager, exec } = createManager();
       exec
@@ -291,13 +291,13 @@ describe('TmuxSessionManager', () => {
           'my-session',
           '-s',
           '-F',
-          '#{window_index}.#{pane_index}\t#{pane_title}',
+          '#{window_index}.#{pane_index}\t#{window_name}\t#{pane_title}',
         ])
-        .returns('0.0\tTitle with\ttab\n');
+        .returns('0.0\tbash\tTitle with\ttab\n');
 
       const result = manager.getPaneTitles('my-session');
       expect(result).toHaveLength(1);
-      expect(result[0]).toEqual({ pane: '0.0', title: 'Title with\ttab' });
+      expect(result[0]).toEqual({ pane: '0.0', windowName: 'bash', title: 'Title with\ttab' });
     });
   });
 

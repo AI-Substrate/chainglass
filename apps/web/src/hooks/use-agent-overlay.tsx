@@ -20,7 +20,7 @@
  * ```
  */
 
-import { type ReactNode, createContext, useCallback, useContext, useState } from 'react';
+import { type ReactNode, createContext, useCallback, useContext, useEffect, useState } from 'react';
 
 interface AgentOverlayState {
   /** Currently displayed agent ID, or null if closed */
@@ -59,6 +59,13 @@ export function AgentOverlayProvider({ children }: { children: ReactNode }) {
     closeAgent,
     toggleAgent,
   };
+
+  // Plan 065 Phase 3: Listen for overlay:close-all (mutual exclusion with terminal/activity-log)
+  useEffect(() => {
+    const handler = () => closeAgent();
+    window.addEventListener('overlay:close-all', handler);
+    return () => window.removeEventListener('overlay:close-all', handler);
+  }, [closeAgent]);
 
   return <AgentOverlayContext.Provider value={value}>{children}</AgentOverlayContext.Provider>;
 }
