@@ -1,0 +1,800 @@
+diff --git a/.gitignore b/.gitignore
+index be73d38..c334f69 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -171,3 +171,6 @@ packages/*/src/**/*.d.ts.map.current-run
+ dev/examples/wf/runs/
+ !dev/examples/wf/runs/exemplar-run-example-001/
+ apps/web/certificates/
++
++# Activity log — personal per-worktree diary, not shared state (Plan 065)
++**/activity-log.jsonl
+
+diff --git a/docs/domains/registry.md b/docs/domains/registry.md
+index 717f195..97deb1d 100644
+--- a/docs/domains/registry.md
++++ b/docs/domains/registry.md
+@@ -20,6 +20,7 @@
+ | Work Unit State | work-unit-state | business | — | Plan 059 — Fix Agents (new) | active |
+ | Workflow Events | workflow-events | business | — | Plan 061 — WorkflowEvents (new) | active |
+ | Terminal | terminal | business | — | Plan 064 | active |
++| Activity Log | activity-log | business | — | Plan 065 | active |
+ | Auth | _platform/auth | infrastructure | _platform | Plan 063-login | active |
+ 
+ ## Domain Types
+
+diff --git a/docs/domains/domain-map.md b/docs/domains/domain-map.md
+index 6640742..b202d71 100644
+--- a/docs/domains/domain-map.md
++++ b/docs/domains/domain-map.md
+@@ -36,6 +36,9 @@ flowchart LR
+     %% NEW business domains (Plan 061)
+     wfEvents["📡 workflow-events<br/>IWorkflowEvents<br/>WorkflowEventType<br/>WorkflowEventError<br/>FakeWorkflowEventsService"]:::new
+ 
++    %% NEW business domains (Plan 065)
++    activityLog["📋 activity-log<br/>ActivityLogEntry<br/>appendActivityLogEntry<br/>readActivityLog<br/>shouldIgnorePaneTitle"]:::new
++
+     %% Contract dependencies (consumer → provider)
+     fileBrowser -->|"IFileSystem<br/>IPathResolver"| fileOps
+     fileBrowser -->|"workspaceHref<br/>fileBrowserParams"| wsUrl
+@@ -104,6 +107,10 @@ flowchart LR
+     terminal -->|"IUSDK<br/>ICommandRegistry"| sdk
+     terminal -->|"workspaceHref"| wsUrl
+ 
++    %% Activity Log dependencies (consumer → provider)
++    activityLog -->|"PanelShell<br/>overlay anchor"| panels
++    activityLog -->|"pane title source<br/>(sidecar writes)"| terminal
++
+     %% Auth dependencies (consumer → provider: business domains consume auth protection)
+     fileBrowser -->|"middleware protection"| auth
+     workflowUI -->|"middleware protection"| auth
+
+diff --git adocs/domains/activity-log/domain.md bdocs/domains/activity-log/domain.md
+new file mode 100644
+index 0000000..bde4833
+--- /dev/null
++++ bdocs/domains/activity-log/domain.md
+@@ -0,0 +1,63 @@
++# Activity Log
++
++| Field | Value |
++|-------|-------|
++| **Slug** | `activity-log` |
++| **Type** | business |
++| **Parent** | — |
++| **Created By** | Plan 065 |
++| **Status** | active |
++
++## Purpose
++
++Append-only per-worktree timeline capturing what agents and terminal sessions are doing, persisted to disk for next-day recall. When you return to a workspace after time away, this domain answers "what was I working on?"
++
++## Concepts
++
++| Concept | Definition |
++|---------|-----------|
++| ActivityLogEntry | A single timestamped activity record with `id`, `source`, `label`, `timestamp`, and optional `meta` bag |
++| source | Identifies what system produced an entry (e.g., "tmux", "agent", "build"). Convention: lowercase, no spaces |
++| id | Dedup key in `{source}:{identifier}` format (e.g., "tmux:0.0", "agent:agent-1"). Same id + same label = duplicate |
++| label | Human-readable description of current activity. Primary display text in the overlay |
++| meta | Unstructured `Record<string, unknown>` for source-specific metadata. Writer persists as-is, reader returns as-is |
++| dedup | Writer reads last 50 lines and skips write if last entry for same `id` has same `label` |
++| ignore pattern | Per-source regex array for filtering noise (e.g., hostname pane titles). Sources own their own patterns |
++
++## Contracts
++
++| Contract | Type | Consumers | Description |
++|----------|------|-----------|-------------|
++| `ActivityLogEntry` | Type | terminal sidecar, API routes, overlay panel | Source-agnostic entry type with meta bag |
++| `appendActivityLogEntry()` | Function | terminal sidecar, agent manager (future) | Append JSONL entry with dedup |
++| `readActivityLog()` | Function | API routes, overlay panel | Read + filter entries (limit, since, source) |
++| `shouldIgnorePaneTitle()` | Function | terminal sidecar | Tmux-specific noise filter |
++| `ACTIVITY_LOG_FILE` | Constant | writer, reader | Filename: `activity-log.jsonl` |
++
++## Dependencies
++
++| Domain | What We Consume | Required? |
++|--------|----------------|-----------|
++| terminal | Pane title source (sidecar polls tmux) | Yes (Phase 2) |
++| _platform/panel-layout | PanelShell anchor for overlay positioning | Yes (Phase 3) |
++| _platform/state | GlobalStateSystem for reactive state paths | No (future) |
++| _platform/events | CentralEventNotifier for SSE broadcasting | No (future) |
++
++## Source Tree
++
++```
++apps/web/src/features/065-activity-log/
++  ├── types.ts                    # ActivityLogEntry type + constants
++  ├── lib/
++  │   ├── activity-log-writer.ts  # appendActivityLogEntry()
++  │   ├── activity-log-reader.ts  # readActivityLog()
++  │   └── ignore-patterns.ts     # shouldIgnorePaneTitle()
++  ├── hooks/                      # (Phase 3)
++  └── components/                 # (Phase 3)
++```
++
++## History
++
++| Plan | Changes | Date |
++|------|---------|------|
++| 065 Phase 1 | Domain created. Types, writer, reader, ignore patterns. | 2026-03-06 |
+
+diff --git aapps/web/src/features/065-activity-log/types.ts bapps/web/src/features/065-activity-log/types.ts
+new file mode 100644
+index 0000000..9f4ba13
+--- /dev/null
++++ bapps/web/src/features/065-activity-log/types.ts
+@@ -0,0 +1,59 @@
++/**
++ * Activity Log Domain — Types
++ *
++ * Source-agnostic types for the per-worktree activity log.
++ * Used by writers (terminal sidecar, agent manager, future sources)
++ * and readers (API routes, overlay panel).
++ *
++ * Plan 065: Worktree Activity Log
++ */
++
++/** Filename for the per-worktree activity log (JSONL format) */
++export const ACTIVITY_LOG_FILE = 'activity-log.jsonl';
++
++/** Path within worktree: .chainglass/data/activity-log.jsonl */
++export const ACTIVITY_LOG_DIR = '.chainglass/data';
++
++/**
++ * A single activity log entry — source-agnostic, append-only.
++ *
++ * Sources (tmux, agent, build, etc.) create entries and pass them
++ * to appendActivityLogEntry(). The writer persists them as JSONL.
++ */
++export interface ActivityLogEntry {
++  /**
++   * Dedup key: identifies the "slot" this entry occupies.
++   * Same id + same label = duplicate (skip).
++   * Convention: `{source}:{identifier}`
++   * @example "tmux:0.0", "agent:agent-1", "build:apps/web"
++   */
++  id: string;
++
++  /**
++   * Source type — identifies what system produced this entry.
++   * Convention: lowercase, no spaces.
++   * @example "tmux", "agent", "workflow", "build", "deploy"
++   */
++  source: string;
++
++  /**
++   * Human-readable label — what's happening right now.
++   * Primary display text in the overlay panel.
++   * @example "Implementing Phase 1", "Running tests"
++   */
++  label: string;
++
++  /**
++   * ISO-8601 timestamp — when this activity was observed.
++   * Set by the source, not the writer.
++   */
++  timestamp: string;
++
++  /**
++   * Source-specific metadata — unstructured bag of key-value pairs.
++   * The writer persists it as-is. The reader returns it as-is.
++   * The overlay panel MAY display specific keys if it recognizes the source.
++   * @example { pane: "0.0", session: "059-fix-agents" }
++   */
++  meta?: Record<string, unknown>;
++}
+
+diff --git aapps/web/src/features/065-activity-log/lib/activity-log-writer.ts bapps/web/src/features/065-activity-log/lib/activity-log-writer.ts
+new file mode 100644
+index 0000000..11e0d3a
+--- /dev/null
++++ bapps/web/src/features/065-activity-log/lib/activity-log-writer.ts
+@@ -0,0 +1,51 @@
++/**
++ * Activity Log Writer — append-only JSONL persistence with dedup.
++ *
++ * Pure function — no class, no DI, no state. Callable from any Node.js context
++ * (terminal sidecar, Next.js server, CLI, tests).
++ *
++ * Plan 065: Worktree Activity Log
++ */
++
++import * as fs from 'node:fs';
++import * as path from 'node:path';
++import { ACTIVITY_LOG_DIR, ACTIVITY_LOG_FILE, type ActivityLogEntry } from '../types.js';
++
++const DEDUP_LOOKBACK = 50;
++
++/**
++ * Append an activity log entry to the per-worktree JSONL file.
++ *
++ * Dedup: reads last 50 lines, skips write if the last entry for
++ * the same `id` has the same `label`.
++ *
++ * Creates `.chainglass/data/` directory if it doesn't exist.
++ */
++export function appendActivityLogEntry(worktreePath: string, entry: ActivityLogEntry): void {
++  const filePath = path.join(worktreePath, ACTIVITY_LOG_DIR, ACTIVITY_LOG_FILE);
++  const dir = path.dirname(filePath);
++
++  fs.mkdirSync(dir, { recursive: true });
++
++  if (fs.existsSync(filePath)) {
++    try {
++      const content = fs.readFileSync(filePath, 'utf-8');
++      const lines = content.trim().split('\n').slice(-DEDUP_LOOKBACK);
++      for (let i = lines.length - 1; i >= 0; i--) {
++        try {
++          const existing = JSON.parse(lines[i]);
++          if (existing.id === entry.id) {
++            if (existing.label === entry.label) return; // duplicate — skip
++            break; // different label — proceed to write
++          }
++        } catch {
++          /* skip malformed */
++        }
++      }
++    } catch {
++      /* file read error — proceed to write */
++    }
++  }
++
++  fs.appendFileSync(filePath, `${JSON.stringify(entry)}\n`);
++}
+
+diff --git aapps/web/src/features/065-activity-log/lib/activity-log-reader.ts bapps/web/src/features/065-activity-log/lib/activity-log-reader.ts
+new file mode 100644
+index 0000000..57144aa
+--- /dev/null
++++ bapps/web/src/features/065-activity-log/lib/activity-log-reader.ts
+@@ -0,0 +1,65 @@
++/**
++ * Activity Log Reader — JSONL file reader with filtering.
++ *
++ * Pure function — no class, no DI, no state. Callable from any Node.js context.
++ * Returns entries in chronological order (oldest first).
++ * Consumers that need reverse chronological (e.g., overlay panel) must .reverse().
++ *
++ * Plan 065: Worktree Activity Log
++ */
++
++import * as fs from 'node:fs';
++import * as path from 'node:path';
++import { ACTIVITY_LOG_DIR, ACTIVITY_LOG_FILE, type ActivityLogEntry } from '../types.js';
++
++const DEFAULT_LIMIT = 200;
++
++export interface ReadActivityLogOptions {
++  /** Maximum entries to return (from the end, most recent). Default: 200. */
++  limit?: number;
++  /** ISO timestamp — only entries after this time. */
++  since?: string;
++  /** Filter by source type (e.g., "tmux", "agent"). */
++  source?: string;
++}
++
++/**
++ * Read activity log entries for a worktree.
++ * Returns entries in chronological order (oldest first).
++ * Skips malformed lines gracefully.
++ */
++export function readActivityLog(
++  worktreePath: string,
++  options?: ReadActivityLogOptions
++): ActivityLogEntry[] {
++  const filePath = path.join(worktreePath, ACTIVITY_LOG_DIR, ACTIVITY_LOG_FILE);
++
++  if (!fs.existsSync(filePath)) return [];
++
++  try {
++    const content = fs.readFileSync(filePath, 'utf-8');
++    let entries: ActivityLogEntry[] = [];
++
++    for (const line of content.split('\n')) {
++      if (!line.trim()) continue;
++      try {
++        const entry = JSON.parse(line);
++        if (!entry.id || !entry.source || !entry.label || !entry.timestamp) continue;
++        if (options?.since && entry.timestamp <= options.since) continue;
++        if (options?.source && entry.source !== options.source) continue;
++        entries.push(entry);
++      } catch {
++        /* skip malformed line */
++      }
++    }
++
++    const limit = options?.limit ?? DEFAULT_LIMIT;
++    if (entries.length > limit) {
++      entries = entries.slice(-limit);
++    }
++
++    return entries;
++  } catch {
++    return [];
++  }
++}
+
+diff --git aapps/web/src/features/065-activity-log/lib/ignore-patterns.ts bapps/web/src/features/065-activity-log/lib/ignore-patterns.ts
+new file mode 100644
+index 0000000..80f3082
+--- /dev/null
++++ bapps/web/src/features/065-activity-log/lib/ignore-patterns.ts
+@@ -0,0 +1,25 @@
++/**
++ * Ignore Patterns — tmux pane title noise filtering.
++ *
++ * Each source owns its own ignore list. The writer does NOT filter.
++ * This module provides tmux-specific patterns.
++ *
++ * DYK-02: Lives in activity-log for now. May move to terminal domain
++ * in Phase 2 when sidecar integrates.
++ *
++ * Plan 065: Worktree Activity Log
++ */
++
++/** Patterns to ignore when capturing tmux pane titles */
++export const TMUX_PANE_TITLE_IGNORE: RegExp[] = [
++  /\.localdomain$/, // e.g. "Mac.localdomain"
++  /\.local$/, // e.g. "Jordans-MacBook-Pro.local"
++  /^$/, // empty string
++  /^-?(ba|z|fi)sh$/, // shell names: bash, zsh, fish, -bash, -zsh, -fish
++  /^~?\//, // bare paths like ~/project or /usr/bin
++];
++
++/** Returns true if the pane title should be filtered out (not written to activity log) */
++export function shouldIgnorePaneTitle(title: string): boolean {
++  return TMUX_PANE_TITLE_IGNORE.some((pattern) => pattern.test(title));
++}
+
+diff --git atest/unit/web/features/065-activity-log/activity-log-writer.test.ts btest/unit/web/features/065-activity-log/activity-log-writer.test.ts
+new file mode 100644
+index 0000000..b59d81a
+--- /dev/null
++++ btest/unit/web/features/065-activity-log/activity-log-writer.test.ts
+@@ -0,0 +1,120 @@
++import * as fs from 'node:fs';
++import * as os from 'node:os';
++import * as path from 'node:path';
++import { afterEach, describe, expect, it } from 'vitest';
++import { appendActivityLogEntry } from '@/features/065-activity-log/lib/activity-log-writer';
++import type { ActivityLogEntry } from '@/features/065-activity-log/types';
++
++function makeTmpDir(): string {
++  return fs.mkdtempSync(path.join(os.tmpdir(), 'activity-log-writer-'));
++}
++
++function logPath(worktree: string): string {
++  return path.join(worktree, '.chainglass', 'data', 'activity-log.jsonl');
++}
++
++function makeEntry(overrides?: Partial<ActivityLogEntry>): ActivityLogEntry {
++  return {
++    id: 'tmux:0.0',
++    source: 'tmux',
++    label: 'Implementing Phase 1',
++    timestamp: '2026-03-05T21:22:33Z',
++    ...overrides,
++  };
++}
++
++const tmpDirs: string[] = [];
++function getTmpDir(): string {
++  const dir = makeTmpDir();
++  tmpDirs.push(dir);
++  return dir;
++}
++
++afterEach(() => {
++  for (const dir of tmpDirs) {
++    fs.rmSync(dir, { recursive: true, force: true });
++  }
++  tmpDirs.length = 0;
++});
++
++describe('appendActivityLogEntry', () => {
++  it('appends a valid entry as a JSONL line', () => {
++    const dir = getTmpDir();
++    const entry = makeEntry();
++    appendActivityLogEntry(dir, entry);
++
++    const content = fs.readFileSync(logPath(dir), 'utf-8');
++    const parsed = JSON.parse(content.trim());
++    expect(parsed.id).toBe('tmux:0.0');
++    expect(parsed.label).toBe('Implementing Phase 1');
++    expect(parsed.source).toBe('tmux');
++    expect(parsed.timestamp).toBe('2026-03-05T21:22:33Z');
++  });
++
++  it('creates .chainglass/data/ directory if missing', () => {
++    const dir = getTmpDir();
++    expect(fs.existsSync(path.join(dir, '.chainglass', 'data'))).toBe(false);
++
++    appendActivityLogEntry(dir, makeEntry());
++
++    expect(fs.existsSync(path.join(dir, '.chainglass', 'data'))).toBe(true);
++    expect(fs.existsSync(logPath(dir))).toBe(true);
++  });
++
++  it('skips duplicate when last entry for same id has same label', () => {
++    const dir = getTmpDir();
++    appendActivityLogEntry(dir, makeEntry());
++    appendActivityLogEntry(dir, makeEntry({ timestamp: '2026-03-05T21:22:43Z' }));
++
++    const lines = fs.readFileSync(logPath(dir), 'utf-8').trim().split('\n');
++    expect(lines).toHaveLength(1);
++  });
++
++  it('allows write when same id has different label', () => {
++    const dir = getTmpDir();
++    appendActivityLogEntry(dir, makeEntry());
++    appendActivityLogEntry(dir, makeEntry({ label: 'Running tests', timestamp: '2026-03-05T21:23:00Z' }));
++
++    const lines = fs.readFileSync(logPath(dir), 'utf-8').trim().split('\n');
++    expect(lines).toHaveLength(2);
++    expect(JSON.parse(lines[1]).label).toBe('Running tests');
++  });
++
++  it('handles missing file gracefully', () => {
++    const dir = getTmpDir();
++    expect(() => appendActivityLogEntry(dir, makeEntry())).not.toThrow();
++    expect(fs.existsSync(logPath(dir))).toBe(true);
++  });
++
++  it('skips malformed lines during dedup scan without crashing', () => {
++    const dir = getTmpDir();
++    const filePath = logPath(dir);
++    fs.mkdirSync(path.dirname(filePath), { recursive: true });
++    fs.writeFileSync(filePath, 'not valid json\n{"id":"tmux:0.0","label":"Old","source":"tmux","timestamp":"T1"}\n');
++
++    appendActivityLogEntry(dir, makeEntry({ label: 'Old' }));
++    const lines = fs.readFileSync(filePath, 'utf-8').trim().split('\n');
++    // Should not append because last entry for tmux:0.0 has label "Old"
++    expect(lines).toHaveLength(2);
++  });
++
++  it('dedup works with interleaved pane ids', () => {
++    const dir = getTmpDir();
++    appendActivityLogEntry(dir, makeEntry({ id: 'tmux:0.0', label: 'Task A' }));
++    appendActivityLogEntry(dir, makeEntry({ id: 'tmux:1.0', label: 'Task B' }));
++    // tmux:0.0 still has label "Task A" — should skip
++    appendActivityLogEntry(dir, makeEntry({ id: 'tmux:0.0', label: 'Task A', timestamp: '2026-03-05T21:23:00Z' }));
++
++    const lines = fs.readFileSync(logPath(dir), 'utf-8').trim().split('\n');
++    expect(lines).toHaveLength(2);
++  });
++
++  it('preserves meta field', () => {
++    const dir = getTmpDir();
++    appendActivityLogEntry(dir, makeEntry({ meta: { pane: '0.0', session: '059-fix-agents' } }));
++
++    const content = fs.readFileSync(logPath(dir), 'utf-8');
++    const parsed = JSON.parse(content.trim());
++    expect(parsed.meta).toEqual({ pane: '0.0', session: '059-fix-agents' });
++  });
++});
+
+diff --git atest/unit/web/features/065-activity-log/activity-log-reader.test.ts btest/unit/web/features/065-activity-log/activity-log-reader.test.ts
+new file mode 100644
+index 0000000..d53855f
+--- /dev/null
++++ btest/unit/web/features/065-activity-log/activity-log-reader.test.ts
+@@ -0,0 +1,146 @@
++import * as fs from 'node:fs';
++import * as os from 'node:os';
++import * as path from 'node:path';
++import { afterEach, describe, expect, it } from 'vitest';
++import { readActivityLog } from '@/features/065-activity-log/lib/activity-log-reader';
++
++function makeTmpDir(): string {
++  return fs.mkdtempSync(path.join(os.tmpdir(), 'activity-log-reader-'));
++}
++
++function logPath(worktree: string): string {
++  return path.join(worktree, '.chainglass', 'data', 'activity-log.jsonl');
++}
++
++function writeLines(worktree: string, lines: string[]): void {
++  const filePath = logPath(worktree);
++  fs.mkdirSync(path.dirname(filePath), { recursive: true });
++  fs.writeFileSync(filePath, lines.join('\n') + '\n');
++}
++
++function makeLineJson(overrides?: Record<string, unknown>): string {
++  return JSON.stringify({
++    id: 'tmux:0.0',
++    source: 'tmux',
++    label: 'Task A',
++    timestamp: '2026-03-05T21:00:00Z',
++    ...overrides,
++  });
++}
++
++const tmpDirs: string[] = [];
++function getTmpDir(): string {
++  const dir = makeTmpDir();
++  tmpDirs.push(dir);
++  return dir;
++}
++
++afterEach(() => {
++  for (const dir of tmpDirs) {
++    fs.rmSync(dir, { recursive: true, force: true });
++  }
++  tmpDirs.length = 0;
++});
++
++describe('readActivityLog', () => {
++  it('reads valid entries from JSONL file', () => {
++    const dir = getTmpDir();
++    writeLines(dir, [
++      makeLineJson({ label: 'Task A', timestamp: '2026-03-05T21:00:00Z' }),
++      makeLineJson({ label: 'Task B', timestamp: '2026-03-05T21:01:00Z' }),
++    ]);
++
++    const entries = readActivityLog(dir);
++    expect(entries).toHaveLength(2);
++    expect(entries[0].label).toBe('Task A');
++    expect(entries[1].label).toBe('Task B');
++  });
++
++  it('skips malformed lines without crashing', () => {
++    const dir = getTmpDir();
++    writeLines(dir, [
++      'not json at all',
++      makeLineJson({ label: 'Valid' }),
++      '{"incomplete',
++    ]);
++
++    const entries = readActivityLog(dir);
++    expect(entries).toHaveLength(1);
++    expect(entries[0].label).toBe('Valid');
++  });
++
++  it('respects limit option (returns last N entries)', () => {
++    const dir = getTmpDir();
++    const lines = Array.from({ length: 10 }, (_, i) =>
++      makeLineJson({ label: `Task ${i}`, timestamp: `2026-03-05T21:0${i}:00Z` })
++    );
++    writeLines(dir, lines);
++
++    const entries = readActivityLog(dir, { limit: 3 });
++    expect(entries).toHaveLength(3);
++    expect(entries[0].label).toBe('Task 7');
++    expect(entries[2].label).toBe('Task 9');
++  });
++
++  it('filters by since timestamp', () => {
++    const dir = getTmpDir();
++    writeLines(dir, [
++      makeLineJson({ label: 'Old', timestamp: '2026-03-05T19:00:00Z' }),
++      makeLineJson({ label: 'New', timestamp: '2026-03-05T21:00:00Z' }),
++    ]);
++
++    const entries = readActivityLog(dir, { since: '2026-03-05T20:00:00Z' });
++    expect(entries).toHaveLength(1);
++    expect(entries[0].label).toBe('New');
++  });
++
++  it('filters by source type', () => {
++    const dir = getTmpDir();
++    writeLines(dir, [
++      makeLineJson({ source: 'tmux', label: 'Tmux task' }),
++      makeLineJson({ source: 'agent', label: 'Agent task', id: 'agent:1' }),
++    ]);
++
++    const entries = readActivityLog(dir, { source: 'agent' });
++    expect(entries).toHaveLength(1);
++    expect(entries[0].label).toBe('Agent task');
++  });
++
++  it('returns empty array for missing file', () => {
++    const dir = getTmpDir();
++    const entries = readActivityLog(dir);
++    expect(entries).toEqual([]);
++  });
++
++  it('returns empty array for empty file', () => {
++    const dir = getTmpDir();
++    const filePath = logPath(dir);
++    fs.mkdirSync(path.dirname(filePath), { recursive: true });
++    fs.writeFileSync(filePath, '');
++
++    const entries = readActivityLog(dir);
++    expect(entries).toEqual([]);
++  });
++
++  it('skips entries missing required fields', () => {
++    const dir = getTmpDir();
++    writeLines(dir, [
++      JSON.stringify({ id: 'x', source: 'y' }), // missing label + timestamp
++      makeLineJson({ label: 'Valid' }),
++    ]);
++
++    const entries = readActivityLog(dir);
++    expect(entries).toHaveLength(1);
++    expect(entries[0].label).toBe('Valid');
++  });
++
++  it('preserves meta field in returned entries', () => {
++    const dir = getTmpDir();
++    writeLines(dir, [
++      makeLineJson({ meta: { pane: '0.0', session: 'test' } }),
++    ]);
++
++    const entries = readActivityLog(dir);
++    expect(entries[0].meta).toEqual({ pane: '0.0', session: 'test' });
++  });
++});
+
+diff --git atest/unit/web/features/065-activity-log/ignore-patterns.test.ts btest/unit/web/features/065-activity-log/ignore-patterns.test.ts
+new file mode 100644
+index 0000000..d8f6f5a
+--- /dev/null
++++ btest/unit/web/features/065-activity-log/ignore-patterns.test.ts
+@@ -0,0 +1,44 @@
++import { describe, expect, it } from 'vitest';
++import { shouldIgnorePaneTitle } from '@/features/065-activity-log/lib/ignore-patterns';
++
++describe('shouldIgnorePaneTitle', () => {
++  it('ignores Mac.localdomain', () => {
++    expect(shouldIgnorePaneTitle('Mac.localdomain')).toBe(true);
++  });
++
++  it('ignores Jordans-MacBook-Pro.local', () => {
++    expect(shouldIgnorePaneTitle('Jordans-MacBook-Pro.local')).toBe(true);
++  });
++
++  it('ignores empty string', () => {
++    expect(shouldIgnorePaneTitle('')).toBe(true);
++  });
++
++  it('ignores shell names', () => {
++    expect(shouldIgnorePaneTitle('bash')).toBe(true);
++    expect(shouldIgnorePaneTitle('zsh')).toBe(true);
++    expect(shouldIgnorePaneTitle('fish')).toBe(true);
++    expect(shouldIgnorePaneTitle('-bash')).toBe(true);
++    expect(shouldIgnorePaneTitle('-zsh')).toBe(true);
++  });
++
++  it('ignores bare paths', () => {
++    expect(shouldIgnorePaneTitle('~/project')).toBe(true);
++    expect(shouldIgnorePaneTitle('/usr/bin')).toBe(true);
++  });
++
++  it('allows meaningful activity titles', () => {
++    expect(shouldIgnorePaneTitle('Implementing Phase 1')).toBe(false);
++    expect(shouldIgnorePaneTitle('Running tests')).toBe(false);
++    expect(shouldIgnorePaneTitle('Code review')).toBe(false);
++  });
++
++  it('allows emoji prefixed titles', () => {
++    expect(shouldIgnorePaneTitle('🤖 Exploring codebase')).toBe(false);
++    expect(shouldIgnorePaneTitle('🔮 Implementing Phase')).toBe(false);
++  });
++
++  it('allows titles with dots that are not hostnames', () => {
++    expect(shouldIgnorePaneTitle('Running v2.1.0 tests')).toBe(false);
++  });
++});
+
+diff --git atest/contracts/activity-log.contract.test.ts btest/contracts/activity-log.contract.test.ts
+new file mode 100644
+index 0000000..8340d7d
+--- /dev/null
++++ btest/contracts/activity-log.contract.test.ts
+@@ -0,0 +1,114 @@
++/**
++ * Activity Log — Roundtrip Integration Tests
++ *
++ * Verifies write-then-read behavioral correctness using real
++ * implementations against temp directories. No fakes needed —
++ * writer/reader are pure functions with a single implementation.
++ *
++ * DYK-04: Simplified from full contract factory — roundtrip test
++ * provides same confidence without the ceremony of a fake.
++ *
++ * Plan 065: Worktree Activity Log
++ */
++
++import * as fs from 'node:fs';
++import * as os from 'node:os';
++import * as path from 'node:path';
++import { afterEach, describe, expect, it } from 'vitest';
++import { readActivityLog } from '@/features/065-activity-log/lib/activity-log-reader';
++import { appendActivityLogEntry } from '@/features/065-activity-log/lib/activity-log-writer';
++import type { ActivityLogEntry } from '@/features/065-activity-log/types';
++
++function makeEntry(overrides?: Partial<ActivityLogEntry>): ActivityLogEntry {
++  return {
++    id: 'tmux:0.0',
++    source: 'tmux',
++    label: 'Task A',
++    timestamp: '2026-03-05T21:00:00Z',
++    ...overrides,
++  };
++}
++
++const tmpDirs: string[] = [];
++function getTmpDir(): string {
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'activity-log-roundtrip-'));
++  tmpDirs.push(dir);
++  return dir;
++}
++
++afterEach(() => {
++  for (const dir of tmpDirs) {
++    fs.rmSync(dir, { recursive: true, force: true });
++  }
++  tmpDirs.length = 0;
++});
++
++describe('Activity Log Roundtrip', () => {
++  it('write-then-read returns the same entry', () => {
++    const dir = getTmpDir();
++    const entry = makeEntry({ meta: { pane: '0.0' } });
++
++    appendActivityLogEntry(dir, entry);
++    const result = readActivityLog(dir);
++
++    expect(result).toHaveLength(1);
++    expect(result[0]).toEqual(entry);
++  });
++
++  it('dedup prevents duplicate reads', () => {
++    const dir = getTmpDir();
++    appendActivityLogEntry(dir, makeEntry());
++    appendActivityLogEntry(dir, makeEntry({ timestamp: '2026-03-05T21:00:10Z' }));
++    appendActivityLogEntry(dir, makeEntry({ timestamp: '2026-03-05T21:00:20Z' }));
++
++    const result = readActivityLog(dir);
++    expect(result).toHaveLength(1);
++  });
++
++  it('limit filtering returns most recent entries', () => {
++    const dir = getTmpDir();
++    for (let i = 0; i < 10; i++) {
++      appendActivityLogEntry(dir, makeEntry({
++        label: `Task ${i}`,
++        timestamp: `2026-03-05T21:0${i}:00Z`,
++      }));
++    }
++
++    const result = readActivityLog(dir, { limit: 3 });
++    expect(result).toHaveLength(3);
++    expect(result[0].label).toBe('Task 7');
++    expect(result[2].label).toBe('Task 9');
++  });
++
++  it('malformed lines are resilient — reader skips them', () => {
++    const dir = getTmpDir();
++    appendActivityLogEntry(dir, makeEntry({ label: 'Before' }));
++
++    // Manually inject a corrupted line
++    const filePath = path.join(dir, '.chainglass', 'data', 'activity-log.jsonl');
++    fs.appendFileSync(filePath, 'corrupted{json\n');
++
++    appendActivityLogEntry(dir, makeEntry({ label: 'After', timestamp: '2026-03-05T21:01:00Z' }));
++
++    const result = readActivityLog(dir);
++    expect(result).toHaveLength(2);
++    expect(result[0].label).toBe('Before');
++    expect(result[1].label).toBe('After');
++  });
++
++  it('multiple sources interleave correctly', () => {
++    const dir = getTmpDir();
++    appendActivityLogEntry(dir, makeEntry({ id: 'tmux:0.0', source: 'tmux', label: 'Coding', timestamp: '2026-03-05T21:00:00Z' }));
++    appendActivityLogEntry(dir, makeEntry({ id: 'agent:a1', source: 'agent', label: 'Exploring', timestamp: '2026-03-05T21:00:05Z' }));
++    appendActivityLogEntry(dir, makeEntry({ id: 'tmux:0.0', source: 'tmux', label: 'Testing', timestamp: '2026-03-05T21:00:10Z' }));
++
++    const all = readActivityLog(dir);
++    expect(all).toHaveLength(3);
++
++    const tmuxOnly = readActivityLog(dir, { source: 'tmux' });
++    expect(tmuxOnly).toHaveLength(2);
++
++    const agentOnly = readActivityLog(dir, { source: 'agent' });
++    expect(agentOnly).toHaveLength(1);
++  });
++});
