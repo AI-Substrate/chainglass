@@ -36,6 +36,9 @@ flowchart LR
     %% NEW business domains (Plan 061)
     wfEvents["📡 workflow-events<br/>IWorkflowEvents<br/>WorkflowEventType<br/>WorkflowEventError<br/>FakeWorkflowEventsService"]:::new
 
+    %% NEW business domains (Plan 065)
+    activityLog["📋 activity-log<br/>ActivityLogEntry<br/>appendActivityLogEntry<br/>readActivityLog<br/>shouldIgnorePaneTitle<br/>useActivityLogOverlay<br/>GET /api/activity-log"]:::new
+
     %% Contract dependencies (consumer → provider)
     fileBrowser -->|"IFileSystem<br/>IPathResolver"| fileOps
     fileBrowser -->|"workspaceHref<br/>fileBrowserParams"| wsUrl
@@ -103,6 +106,10 @@ flowchart LR
     terminal -->|"toast()"| events
     terminal -->|"IUSDK<br/>ICommandRegistry"| sdk
     terminal -->|"workspaceHref"| wsUrl
+
+    %% Activity Log dependencies (consumer → provider)
+    activityLog -->|"PanelShell<br/>overlay anchor"| panels
+    terminal -->|"appendActivityLogEntry()<br/>shouldIgnorePaneTitle()"| activityLog
 
     %% Auth dependencies (consumer → provider: business domains consume auth protection)
     fileBrowser -->|"middleware protection"| auth

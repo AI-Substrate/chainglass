@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 
 interface TerminalOverlayState {
@@ -34,7 +34,16 @@ export function TerminalOverlayProvider({
     cwd: defaultCwd ?? null,
   });
 
+  // Plan 065 Phase 3: Guard to prevent self-close when dispatching overlay:close-all
+  const isOpeningRef = useRef(false);
+  // Track state in a ref so toggleTerminal can read it outside setState
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
   const openTerminal = useCallback((sessionName: string, cwd: string) => {
+    isOpeningRef.current = true;
+    window.dispatchEvent(new CustomEvent('overlay:close-all'));
+    isOpeningRef.current = false;
     setState({ isOpen: true, sessionName, cwd });
   }, []);
 
@@ -43,37 +52,42 @@ export function TerminalOverlayProvider({
   }, []);
 
   const toggleTerminal = useCallback((sessionName?: string, cwd?: string) => {
-    setState((prev) => {
-      if (prev.isOpen) {
-        return { ...prev, isOpen: false };
-      }
+    const prev = stateRef.current;
+    if (prev.isOpen) {
+      setState({ ...prev, isOpen: false });
+      return;
+    }
 
-      // Always check URL params first — they reflect the current worktree context
-      const params = new URLSearchParams(window.location.search);
-      const worktree = params.get('worktree');
+    // Always check URL params first — they reflect the current worktree context
+    const params = new URLSearchParams(window.location.search);
+    const worktree = params.get('worktree');
 
-      let resolvedSession = sessionName ?? null;
-      let resolvedCwd = cwd ?? null;
+    let resolvedSession = sessionName ?? null;
+    let resolvedCwd = cwd ?? null;
 
-      if (worktree) {
-        resolvedCwd = resolvedCwd ?? worktree;
-        resolvedSession = resolvedSession ?? worktree.split('/').pop() ?? null;
-      }
+    if (worktree) {
+      resolvedCwd = resolvedCwd ?? worktree;
+      resolvedSession = resolvedSession ?? worktree.split('/').pop() ?? null;
+    }
 
-      // Fall back to prev state (which holds server-side defaults)
-      resolvedSession = resolvedSession ?? prev.sessionName;
-      resolvedCwd = resolvedCwd ?? prev.cwd;
+    // Fall back to prev state (which holds server-side defaults)
+    resolvedSession = resolvedSession ?? prev.sessionName;
+    resolvedCwd = resolvedCwd ?? prev.cwd;
 
-      if (!resolvedSession || !resolvedCwd) {
-        console.warn('[terminal-overlay] Cannot open: no session/cwd resolved');
-        return prev;
-      }
+    if (!resolvedSession || !resolvedCwd) {
+      console.warn('[terminal-overlay] Cannot open: no session/cwd resolved');
+      return;
+    }
 
-      return {
-        isOpen: true,
-        sessionName: resolvedSession,
-        cwd: resolvedCwd,
-      };
+    // Plan 065 Phase 3: Close sibling overlays OUTSIDE setState
+    isOpeningRef.current = true;
+    window.dispatchEvent(new CustomEvent('overlay:close-all'));
+    isOpeningRef.current = false;
+
+    setState({
+      isOpen: true,
+      sessionName: resolvedSession,
+      cwd: resolvedCwd,
     });
   }, []);
 
@@ -86,6 +100,16 @@ export function TerminalOverlayProvider({
     window.addEventListener('terminal:toggle', handler);
     return () => window.removeEventListener('terminal:toggle', handler);
   }, [toggleTerminal]);
+
+  // Plan 065 Phase 3: Listen for overlay:close-all (mutual exclusion)
+  useEffect(() => {
+    const handler = () => {
+      if (isOpeningRef.current) return; // Skip self-close
+      closeTerminal();
+    };
+    window.addEventListener('overlay:close-all', handler);
+    return () => window.removeEventListener('overlay:close-all', handler);
+  }, [closeTerminal]);
 
   // DYK-01: Auto-close overlay when navigating to terminal page
   useEffect(() => {

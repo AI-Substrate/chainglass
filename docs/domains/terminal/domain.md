@@ -31,8 +31,9 @@ Workspace-scoped terminal access via tmux. Users open terminal sessions for work
 | _platform/events | sonner toast |
 | _platform/sdk | registerCommand, registerKeybinding |
 | _platform/workspace-url | workspaceHref() |
+| activity-log | appendActivityLogEntry(), shouldIgnorePaneTitle() |
 
-No domains depend on terminal (leaf consumer).
+activity-log depends on terminal as an event source (terminal sidecar polls tmux and writes activity entries).
 
 ## History
 
@@ -43,4 +44,6 @@ No domains depend on terminal (leaf consumer).
 | 064 Phase 3 | Terminal page, session list, API route, nav item | 2026-03-02 |
 | 064 Phase 4 | Overlay panel, provider, SDK command, sidebar button | 2026-03-03 |
 | 064 Post-P4 | Copy buffer (deferred clipboard), HTTPS/WSS, ESM fix | 2026-03-03 |
+| 065 Phase 2 | getPaneTitles() multi-pane method, activity log integration, pane title badge removal | 2026-03-06 |
 | 064 Phase 5 | tmux fallback toast, domain docs, dev setup guide | 2026-03-03 |
+| 065 Phase 3 | Added overlay:close-all mutual exclusion to TerminalOverlayProvider | 2026-03-06 |

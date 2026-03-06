@@ -122,6 +122,59 @@ export class TmuxSessionManager {
     });
   }
 
+  /** Query the pane title for a tmux session (set by xterm OSC escape sequences) */
+  getPaneTitle(sessionName: string): string | null {
+    try {
+      const output = this.exec('tmux', [
+        'display-message',
+        '-t',
+        sessionName,
+        '-p',
+        '#{pane_title}',
+      ]);
+      const title = output.trim();
+      return title || null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Query pane titles for ALL panes across ALL windows in a session */
+  getPaneTitles(sessionName: string): Array<{ pane: string; title: string }> {
+    try {
+      const output = this.exec('tmux', [
+        'list-panes',
+        '-t',
+        sessionName,
+        '-s',
+        '-F',
+        '#{window_index}.#{pane_index}\t#{window_name}\t#{pane_title}',
+      ]);
+      return output
+        .trim()
+        .split('\n')
+        .filter((line) => line.includes('\t'))
+        .map((line) => {
+          const firstTab = line.indexOf('\t');
+          const secondTab = line.indexOf('\t', firstTab + 1);
+          if (secondTab === -1) {
+            return {
+              pane: line.slice(0, firstTab),
+              windowName: '',
+              title: line.slice(firstTab + 1),
+            };
+          }
+          return {
+            pane: line.slice(0, firstTab),
+            windowName: line.slice(firstTab + 1, secondTab),
+            title: line.slice(secondTab + 1),
+          };
+        });
+    } catch {
+      return [];
+    }
+  }
+
   /** Get the user's default shell or /bin/bash as fallback */
   getShellFallback(): string {
     return process.env.SHELL || '/bin/bash';

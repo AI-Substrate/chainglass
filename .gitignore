@@ -171,3 +171,6 @@ packages/*/src/**/*.d.ts.map.current-run
 dev/examples/wf/runs/
 !dev/examples/wf/runs/exemplar-run-example-001/
 apps/web/certificates/
+
+# Activity log — personal per-worktree diary, not shared state (Plan 065)
+**/activity-log.jsonl

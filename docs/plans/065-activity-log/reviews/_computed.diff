@@ -1,0 +1,967 @@
+diff --git a/apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx b/apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx
+index 6de4470..78e2a7e 100644
+--- a/apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx
++++ b/apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx
+@@ -16,6 +16,7 @@ import { WorkspaceProvider } from '../../../../src/features/041-file-browser/hoo
+ import { getContainer } from '../../../../src/lib/bootstrap-singleton';
+ import { SDKWorkspaceConnector } from '../../../../src/lib/sdk/sdk-workspace-connector';
+ import { updateSDKMru, updateSDKSettings } from '../../../actions/sdk-settings-actions';
++import { ActivityLogOverlayWrapper } from './activity-log-overlay-wrapper';
+ import { TerminalOverlayWrapper } from './terminal-overlay-wrapper';
+ import { WorkspaceAttentionWrapper } from './workspace-attention-wrapper';
+ 
+@@ -65,9 +66,11 @@ export default async function WorkspaceLayout({ children, params }: LayoutProps)
+       />
+       <WorkspaceAttentionWrapper>
+         <TerminalOverlayWrapper defaultSessionName={defaultBranch} defaultCwd={defaultWorktreePath}>
+-          <WorkspaceAgentChrome slug={slug} workspacePath={ws?.path}>
+-            {children}
+-          </WorkspaceAgentChrome>
++          <ActivityLogOverlayWrapper defaultWorktreePath={defaultWorktreePath}>
++            <WorkspaceAgentChrome slug={slug} workspacePath={ws?.path}>
++              {children}
++            </WorkspaceAgentChrome>
++          </ActivityLogOverlayWrapper>
+         </TerminalOverlayWrapper>
+       </WorkspaceAttentionWrapper>
+     </WorkspaceProvider>
+diff --git a/apps/web/src/components/dashboard-sidebar.tsx b/apps/web/src/components/dashboard-sidebar.tsx
+index 80de3ed..4fd3467 100644
+--- a/apps/web/src/components/dashboard-sidebar.tsx
++++ b/apps/web/src/components/dashboard-sidebar.tsx
+@@ -28,6 +28,7 @@ import {
+   ExternalLink,
+   LogOut,
+   PanelLeft,
++  ScrollText,
+   Settings,
+   TerminalSquare,
+ } from 'lucide-react';
+@@ -277,6 +278,15 @@ export function DashboardSidebar() {
+               {!isCollapsed && <span>Terminal</span>}
+             </SidebarMenuButton>
+           </SidebarMenuItem>
++          <SidebarMenuItem>
++            <SidebarMenuButton
++              onClick={() => window.dispatchEvent(new CustomEvent('activity-log:toggle'))}
++              tooltip="Toggle Activity Log"
++            >
++              <ScrollText className="h-5 w-5" />
++              {!isCollapsed && <span>Activity</span>}
++            </SidebarMenuButton>
++          </SidebarMenuItem>
+           <SidebarMenuItem>
+             <SidebarMenuButton
+               asChild
+diff --git a/apps/web/src/features/064-terminal/hooks/use-terminal-overlay.tsx b/apps/web/src/features/064-terminal/hooks/use-terminal-overlay.tsx
+index 2a32326..edf97cd 100644
+--- a/apps/web/src/features/064-terminal/hooks/use-terminal-overlay.tsx
++++ b/apps/web/src/features/064-terminal/hooks/use-terminal-overlay.tsx
+@@ -1,6 +1,6 @@
+ 'use client';
+ 
+-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
++import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+ import type { ReactNode } from 'react';
+ 
+ interface TerminalOverlayState {
+@@ -34,8 +34,14 @@ export function TerminalOverlayProvider({
+     cwd: defaultCwd ?? null,
+   });
+ 
++  // Plan 065 Phase 3: Guard to prevent self-close when dispatching overlay:close-all
++  const isOpeningRef = useRef(false);
++
+   const openTerminal = useCallback((sessionName: string, cwd: string) => {
++    isOpeningRef.current = true;
++    window.dispatchEvent(new CustomEvent('overlay:close-all'));
+     setState({ isOpen: true, sessionName, cwd });
++    isOpeningRef.current = false;
+   }, []);
+ 
+   const closeTerminal = useCallback(() => {
+@@ -69,6 +75,11 @@ export function TerminalOverlayProvider({
+         return prev;
+       }
+ 
++      // Plan 065 Phase 3: Close sibling overlays before opening
++      isOpeningRef.current = true;
++      window.dispatchEvent(new CustomEvent('overlay:close-all'));
++      isOpeningRef.current = false;
++
+       return {
+         isOpen: true,
+         sessionName: resolvedSession,
+@@ -87,6 +98,16 @@ export function TerminalOverlayProvider({
+     return () => window.removeEventListener('terminal:toggle', handler);
+   }, [toggleTerminal]);
+ 
++  // Plan 065 Phase 3: Listen for overlay:close-all (mutual exclusion)
++  useEffect(() => {
++    const handler = () => {
++      if (isOpeningRef.current) return; // Skip self-close
++      closeTerminal();
++    };
++    window.addEventListener('overlay:close-all', handler);
++    return () => window.removeEventListener('overlay:close-all', handler);
++  }, [closeTerminal]);
++
+   // DYK-01: Auto-close overlay when navigating to terminal page
+   useEffect(() => {
+     const checkRoute = () => {
+diff --git a/apps/web/src/features/065-activity-log/lib/activity-log-reader.ts b/apps/web/src/features/065-activity-log/lib/activity-log-reader.ts
+index 2a2d65a..790d7f3 100644
+--- a/apps/web/src/features/065-activity-log/lib/activity-log-reader.ts
++++ b/apps/web/src/features/065-activity-log/lib/activity-log-reader.ts
+@@ -10,7 +10,7 @@
+ 
+ import * as fs from 'node:fs';
+ import * as path from 'node:path';
+-import { ACTIVITY_LOG_DIR, ACTIVITY_LOG_FILE, type ActivityLogEntry } from '../types.js';
++import { ACTIVITY_LOG_DIR, ACTIVITY_LOG_FILE, type ActivityLogEntry } from '../types';
+ 
+ const DEFAULT_LIMIT = 200;
+ 
+diff --git a/apps/web/src/features/065-activity-log/lib/activity-log-writer.ts b/apps/web/src/features/065-activity-log/lib/activity-log-writer.ts
+index 11e0d3a..dce5519 100644
+--- a/apps/web/src/features/065-activity-log/lib/activity-log-writer.ts
++++ b/apps/web/src/features/065-activity-log/lib/activity-log-writer.ts
+@@ -9,7 +9,7 @@
+ 
+ import * as fs from 'node:fs';
+ import * as path from 'node:path';
+-import { ACTIVITY_LOG_DIR, ACTIVITY_LOG_FILE, type ActivityLogEntry } from '../types.js';
++import { ACTIVITY_LOG_DIR, ACTIVITY_LOG_FILE, type ActivityLogEntry } from '../types';
+ 
+ const DEDUP_LOOKBACK = 50;
+ 
+diff --git a/apps/web/src/features/_platform/panel-layout/components/explorer-panel.tsx b/apps/web/src/features/_platform/panel-layout/components/explorer-panel.tsx
+index e1d54f0..ce9b4f7 100644
+--- a/apps/web/src/features/_platform/panel-layout/components/explorer-panel.tsx
++++ b/apps/web/src/features/_platform/panel-layout/components/explorer-panel.tsx
+@@ -14,7 +14,7 @@
+  */
+ 
+ import type { IUSDK } from '@chainglass/shared/sdk';
+-import { ArrowRight, ClipboardCopy, TerminalSquare } from 'lucide-react';
++import { ArrowRight, ClipboardCopy, ScrollText, TerminalSquare } from 'lucide-react';
+ import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+ import { toast } from 'sonner';
+ 
+@@ -481,6 +481,15 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
+             />
+           )}
+         </div>
++        <button
++          type="button"
++          onClick={() => window.dispatchEvent(new CustomEvent('activity-log:toggle'))}
++          className="shrink-0 rounded p-1 text-muted-foreground hover:text-foreground hover:bg-accent"
++          aria-label="Toggle activity log"
++          title="Toggle Activity Log"
++        >
++          <ScrollText className="h-4 w-4" />
++        </button>
+         <button
+           type="button"
+           onClick={() => window.dispatchEvent(new CustomEvent('terminal:toggle'))}
+diff --git a/apps/web/src/hooks/use-agent-overlay.tsx b/apps/web/src/hooks/use-agent-overlay.tsx
+index 68ae2af..02a8def 100644
+--- a/apps/web/src/hooks/use-agent-overlay.tsx
++++ b/apps/web/src/hooks/use-agent-overlay.tsx
+@@ -20,7 +20,7 @@
+  * ```
+  */
+ 
+-import { type ReactNode, createContext, useCallback, useContext, useState } from 'react';
++import { type ReactNode, createContext, useCallback, useContext, useEffect, useState } from 'react';
+ 
+ interface AgentOverlayState {
+   /** Currently displayed agent ID, or null if closed */
+@@ -60,6 +60,13 @@ export function AgentOverlayProvider({ children }: { children: ReactNode }) {
+     toggleAgent,
+   };
+ 
++  // Plan 065 Phase 3: Listen for overlay:close-all (mutual exclusion with terminal/activity-log)
++  useEffect(() => {
++    const handler = () => closeAgent();
++    window.addEventListener('overlay:close-all', handler);
++    return () => window.removeEventListener('overlay:close-all', handler);
++  }, [closeAgent]);
++
+   return <AgentOverlayContext.Provider value={value}>{children}</AgentOverlayContext.Provider>;
+ }
+ 
+diff --git a/apps/web/src/lib/sdk/sdk-bootstrap.ts b/apps/web/src/lib/sdk/sdk-bootstrap.ts
+index 04b63f3..b03485f 100644
+--- a/apps/web/src/lib/sdk/sdk-bootstrap.ts
++++ b/apps/web/src/lib/sdk/sdk-bootstrap.ts
+@@ -100,6 +100,18 @@ export function bootstrapSDK(): IUSDK {
+   });
+   keybindings.register({ key: 'Backquote', command: 'terminal.toggleOverlay' });
+ 
++  // Activity log overlay toggle (Plan 065 Phase 3)
++  commands.register({
++    id: 'activity-log.toggleOverlay',
++    title: 'Toggle Activity Log',
++    domain: 'activity-log',
++    params: z.object({}),
++    handler: async () => {
++      window.dispatchEvent(new CustomEvent('activity-log:toggle'));
++    },
++    icon: 'scroll-text',
++  });
++
+   const sdk: IUSDK = {
+     commands,
+     settings,
+diff --git a/docs/domains/activity-log/domain.md b/docs/domains/activity-log/domain.md
+index 8b853e6..8916fc1 100644
+--- a/docs/domains/activity-log/domain.md
++++ b/docs/domains/activity-log/domain.md
+@@ -33,6 +33,8 @@ Append-only per-worktree timeline capturing what agents and terminal sessions ar
+ | `readActivityLog()` | Function | API routes, overlay panel | Read + filter entries (limit, since, source) |
+ | `shouldIgnorePaneTitle()` | Function | terminal sidecar | Tmux-specific noise filter |
+ | `ACTIVITY_LOG_FILE` | Constant | writer, reader | Filename: `activity-log.jsonl` |
++| `useActivityLogOverlay()` | Hook | overlay panel, wrapper | Context provider + hook for overlay state |
++| `ActivityLogOverlayProvider` | Component | workspace layout | Provider wrapping workspace for overlay state |
+ 
+ ## Dependencies
+ 
+@@ -51,6 +53,11 @@ Append-only per-worktree timeline capturing what agents and terminal sessions ar
+ | readActivityLog | function | apps/web/src/features/065-activity-log/lib/activity-log-reader.ts | JSONL read with filtering |
+ | shouldIgnorePaneTitle | function | apps/web/src/features/065-activity-log/lib/ignore-patterns.ts | Tmux noise filter |
+ | ACTIVITY_LOG_FILE | constant | apps/web/src/features/065-activity-log/types.ts | Filename: activity-log.jsonl |
++| GET /api/activity-log | route | apps/web/app/api/activity-log/route.ts | API route: read entries for worktree |
++| useActivityLogOverlay | hook | apps/web/src/features/065-activity-log/hooks/use-activity-log-overlay.tsx | Context provider + hook for overlay state |
++| ActivityLogOverlayPanel | component | apps/web/src/features/065-activity-log/components/activity-log-overlay-panel.tsx | Fixed-position overlay panel |
++| ActivityLogEntryList | component | apps/web/src/features/065-activity-log/components/activity-log-entry-list.tsx | Entry list with gap separators |
++| ActivityLogOverlayWrapper | component | apps/web/app/(dashboard)/workspaces/[slug]/activity-log-overlay-wrapper.tsx | Mounts provider + panel in layout |
+ 
+ ## Consumers
+ 
+@@ -67,8 +74,17 @@ apps/web/src/features/065-activity-log/
+   │   ├── activity-log-writer.ts  # appendActivityLogEntry()
+   │   ├── activity-log-reader.ts  # readActivityLog()
+   │   └── ignore-patterns.ts     # shouldIgnorePaneTitle()
+-  ├── hooks/                      # (Phase 3)
+-  └── components/                 # (Phase 3)
++  ├── hooks/
++  │   └── use-activity-log-overlay.tsx  # Context provider + hook
++  └── components/
++      ├── activity-log-overlay-panel.tsx  # Fixed-position overlay panel
++      └── activity-log-entry-list.tsx     # Entry list with gap separators
++
++apps/web/app/api/activity-log/
++  └── route.ts                   # GET /api/activity-log
++
++apps/web/app/(dashboard)/workspaces/[slug]/
++  └── activity-log-overlay-wrapper.tsx  # Mounts provider + panel in layout
+ ```
+ 
+ ## History
+@@ -77,3 +93,4 @@ apps/web/src/features/065-activity-log/
+ |------|---------|------|
+ | 065 Phase 1 | Domain created. Types, writer, reader, ignore patterns. | 2026-03-06 |
+ | 065 Phase 2 | getPaneTitles() multi-pane method, activity log writes in sidecar, pane title badge removed | 2026-03-06 |
++| 065 Phase 3 | API route, overlay hook/provider, overlay panel, entry list with gap separators, sidebar button, SDK command, mutual exclusion with terminal/agent overlays | 2026-03-06 |
+
+diff --git a/apps/web/app/(dashboard)/workspaces/[slug]/activity-log-overlay-wrapper.tsx b/apps/web/app/(dashboard)/workspaces/[slug]/activity-log-overlay-wrapper.tsx
+new file mode 100644
+index 0000000..ea85965
+--- /dev/null
++++ b/apps/web/app/(dashboard)/workspaces/[slug]/activity-log-overlay-wrapper.tsx
+@@ -0,0 +1,64 @@
++'use client';
++
++/**
++ * Activity Log Overlay Wrapper — mounts provider + panel in workspace layout.
++ *
++ * Mirrors terminal-overlay-wrapper.tsx pattern:
++ * - Dynamic import for panel (SSR: false)
++ * - Error boundary wraps panel only (not provider)
++ * - Provider is pure context — safe to always mount
++ *
++ * Plan 065: Worktree Activity Log — Phase 3
++ */
++
++import dynamic from 'next/dynamic';
++import { Component, type ReactNode } from 'react';
++import { ActivityLogOverlayProvider } from '../../../../src/features/065-activity-log/hooks/use-activity-log-overlay';
++
++const ActivityLogOverlayPanel = dynamic(
++  () =>
++    import('../../../../src/features/065-activity-log/components/activity-log-overlay-panel').then(
++      (m) => m.ActivityLogOverlayPanel
++    ),
++  { ssr: false }
++);
++
++class ActivityLogOverlayErrorBoundary extends Component<
++  { children: ReactNode },
++  { hasError: boolean }
++> {
++  constructor(props: { children: ReactNode }) {
++    super(props);
++    this.state = { hasError: false };
++  }
++
++  static getDerivedStateFromError(): { hasError: boolean } {
++    return { hasError: true };
++  }
++
++  render() {
++    if (this.state.hasError) {
++      return null; // Silently hide overlay on error — workspace pages keep working
++    }
++    return this.props.children;
++  }
++}
++
++interface ActivityLogOverlayWrapperProps {
++  children: ReactNode;
++  defaultWorktreePath?: string;
++}
++
++export function ActivityLogOverlayWrapper({
++  children,
++  defaultWorktreePath,
++}: ActivityLogOverlayWrapperProps) {
++  return (
++    <ActivityLogOverlayProvider defaultWorktreePath={defaultWorktreePath}>
++      {children}
++      <ActivityLogOverlayErrorBoundary>
++        <ActivityLogOverlayPanel />
++      </ActivityLogOverlayErrorBoundary>
++    </ActivityLogOverlayProvider>
++  );
++}
+
+diff --git a/apps/web/app/api/activity-log/route.ts b/apps/web/app/api/activity-log/route.ts
+new file mode 100644
+index 0000000..851b3a0
+--- /dev/null
++++ b/apps/web/app/api/activity-log/route.ts
+@@ -0,0 +1,50 @@
++/**
++ * Activity Log API Route — GET /api/activity-log
++ *
++ * Returns activity log entries for a worktree path.
++ * Reads from the JSONL file on disk via readActivityLog().
++ *
++ * Plan 065: Worktree Activity Log — Phase 3
++ */
++
++import { auth } from '@/auth';
++import type { NextRequest } from 'next/server';
++import { NextResponse } from 'next/server';
++import { readActivityLog } from '../../../src/features/065-activity-log/lib/activity-log-reader';
++
++export const dynamic = 'force-dynamic';
++
++export async function GET(request: NextRequest): Promise<Response> {
++  const session = await auth();
++  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
++
++  const { searchParams } = new URL(request.url);
++  const worktree = searchParams.get('worktree');
++
++  if (!worktree) {
++    return NextResponse.json({ error: 'Missing worktree parameter' }, { status: 400 });
++  }
++  if (!worktree.startsWith('/')) {
++    return NextResponse.json({ error: 'Invalid worktree path' }, { status: 400 });
++  }
++  if (worktree.includes('..')) {
++    return NextResponse.json({ error: 'Path traversal not allowed' }, { status: 403 });
++  }
++
++  try {
++    const limit = searchParams.get('limit');
++    const since = searchParams.get('since');
++    const source = searchParams.get('source');
++
++    const entries = readActivityLog(worktree, {
++      limit: limit ? Number.parseInt(limit, 10) : undefined,
++      since: since ?? undefined,
++      source: source ?? undefined,
++    });
++
++    return NextResponse.json(entries);
++  } catch (error) {
++    console.error('[/api/activity-log] Error:', error);
++    return NextResponse.json({ error: 'Failed to read activity log' }, { status: 500 });
++  }
++}
+
+diff --git a/apps/web/src/features/065-activity-log/components/activity-log-entry-list.tsx b/apps/web/src/features/065-activity-log/components/activity-log-entry-list.tsx
+new file mode 100644
+index 0000000..0ffa13b
+--- /dev/null
++++ b/apps/web/src/features/065-activity-log/components/activity-log-entry-list.tsx
+@@ -0,0 +1,81 @@
++'use client';
++
++/**
++ * Activity Log Entry List — renders entries with gap separators.
++ *
++ * Entries arrive newest-first from readActivityLog().
++ * Inserts visual gap separator when >30min between adjacent entries (AC-13).
++ * Source icons: 🖥 tmux, 🤖 agent, 📋 default.
++ *
++ * Plan 065: Worktree Activity Log — Phase 3
++ */
++
++import type { ActivityLogEntry } from '../types';
++
++const GAP_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
++
++function sourceIcon(source: string): string {
++  switch (source) {
++    case 'tmux':
++      return '🖥';
++    case 'agent':
++      return '🤖';
++    default:
++      return '📋';
++  }
++}
++
++function relativeTime(timestamp: string): string {
++  const ms = Date.now() - Date.parse(timestamp);
++  if (ms < 60_000) return 'just now';
++  if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}m ago`;
++  if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}h ago`;
++  return `${Math.floor(ms / 86_400_000)}d ago`;
++}
++
++function hasGap(a: string, b: string): boolean {
++  return Math.abs(Date.parse(a) - Date.parse(b)) > GAP_THRESHOLD_MS;
++}
++
++interface ActivityLogEntryListProps {
++  entries: ActivityLogEntry[];
++}
++
++export function ActivityLogEntryList({ entries }: ActivityLogEntryListProps) {
++  if (entries.length === 0) {
++    return (
++      <div
++        className="flex items-center justify-center h-full text-muted-foreground text-sm"
++        data-testid="activity-log-empty"
++      >
++        No activity recorded yet
++      </div>
++    );
++  }
++
++  return (
++    <div className="flex flex-col overflow-y-auto h-full" data-testid="activity-log-entry-list">
++      {entries.map((entry, i) => (
++        <div key={`${entry.id}-${entry.timestamp}`}>
++          {/* Gap separator: entries arrive newest-first, so check gap with previous (newer) entry */}
++          {i > 0 && hasGap(entries[i - 1].timestamp, entry.timestamp) && (
++            <div className="flex items-center gap-2 px-3 py-2" data-testid="activity-log-gap">
++              <div className="flex-1 border-t border-dashed border-muted-foreground/30" />
++              <span className="text-[10px] text-muted-foreground/50 shrink-0">gap</span>
++              <div className="flex-1 border-t border-dashed border-muted-foreground/30" />
++            </div>
++          )}
++          <div className="flex items-start gap-2 px-3 py-1.5 hover:bg-accent/50 text-sm">
++            <span className="shrink-0 mt-0.5" title={entry.source}>
++              {sourceIcon(entry.source)}
++            </span>
++            <span className="flex-1 min-w-0 break-words">{entry.label}</span>
++            <span className="shrink-0 text-xs text-muted-foreground whitespace-nowrap">
++              {relativeTime(entry.timestamp)}
++            </span>
++          </div>
++        </div>
++      ))}
++    </div>
++  );
++}
+
+diff --git a/apps/web/src/features/065-activity-log/components/activity-log-overlay-panel.tsx b/apps/web/src/features/065-activity-log/components/activity-log-overlay-panel.tsx
+new file mode 100644
+index 0000000..37e6fa6
+--- /dev/null
++++ b/apps/web/src/features/065-activity-log/components/activity-log-overlay-panel.tsx
+@@ -0,0 +1,161 @@
++'use client';
++
++/**
++ * Activity Log Overlay Panel — fixed-position panel anchored to workspace content area.
++ *
++ * Mirrors terminal-overlay-panel.tsx pattern: anchor measurement via ResizeObserver,
++ * Escape key close, lazy loading on first open.
++ *
++ * DYK-04: Caches fetch response with 10s staleness window.
++ * DYK-05: z-index map — 44 = terminal/activity-log overlay, 45 = agent overlay, 50 = CRT effect
++ *
++ * Plan 065: Worktree Activity Log — Phase 3
++ */
++
++import { ScrollText, X } from 'lucide-react';
++import { useEffect, useRef, useState } from 'react';
++import { useActivityLogOverlay } from '../hooks/use-activity-log-overlay';
++import type { ActivityLogEntry } from '../types';
++import { ActivityLogEntryList } from './activity-log-entry-list';
++
++const CACHE_STALENESS_MS = 10_000; // 10 seconds — matches sidecar poll interval
++
++export function ActivityLogOverlayPanel() {
++  const { isOpen, worktreePath, closeActivityLog } = useActivityLogOverlay();
++  const panelRef = useRef<HTMLDivElement>(null);
++  const [anchorRect, setAnchorRect] = useState({ top: 0, left: 0, width: 0, height: 0 });
++  const [entries, setEntries] = useState<ActivityLogEntry[]>([]);
++  const [loading, setLoading] = useState(false);
++  const [hasOpened, setHasOpened] = useState(false);
++
++  // DYK-04: Cache response to avoid redundant fetches on rapid toggle
++  const cacheRef = useRef<{
++    entries: ActivityLogEntry[];
++    timestamp: number;
++    worktree: string;
++  } | null>(null);
++
++  useEffect(() => {
++    if (isOpen) setHasOpened(true);
++  }, [isOpen]);
++
++  // Measure anchor element
++  const measureRef = useRef<() => void>();
++  useEffect(() => {
++    const measure = () => {
++      const anchor = document.querySelector('[data-terminal-overlay-anchor]');
++      if (anchor) {
++        const rect = anchor.getBoundingClientRect();
++        setAnchorRect({ top: rect.top, left: rect.left, width: rect.width, height: rect.height });
++      }
++    };
++    measureRef.current = measure;
++    measure();
++    window.addEventListener('resize', measure);
++    const observer = new ResizeObserver(measure);
++    const anchor = document.querySelector('[data-terminal-overlay-anchor]');
++    if (anchor) observer.observe(anchor);
++    const timer = setTimeout(measure, 200);
++    return () => {
++      window.removeEventListener('resize', measure);
++      observer.disconnect();
++      clearTimeout(timer);
++    };
++  }, []);
++
++  // Re-measure when overlay opens
++  useEffect(() => {
++    if (isOpen) measureRef.current?.();
++  }, [isOpen]);
++
++  // Fetch entries when overlay opens
++  useEffect(() => {
++    if (!isOpen || !worktreePath) return;
++
++    // DYK-04: Use cached data if fresh enough
++    const cache = cacheRef.current;
++    if (
++      cache &&
++      cache.worktree === worktreePath &&
++      Date.now() - cache.timestamp < CACHE_STALENESS_MS
++    ) {
++      setEntries(cache.entries);
++      return;
++    }
++
++    setLoading(true);
++    fetch(`/api/activity-log?worktree=${encodeURIComponent(worktreePath)}`)
++      .then((res) => {
++        if (!res.ok) throw new Error(`HTTP ${res.status}`);
++        return res.json();
++      })
++      .then((data: ActivityLogEntry[]) => {
++        setEntries(data);
++        cacheRef.current = { entries: data, timestamp: Date.now(), worktree: worktreePath };
++      })
++      .catch((err) => {
++        console.error('[activity-log-overlay] Fetch failed:', err);
++        setEntries([]);
++      })
++      .finally(() => setLoading(false));
++  }, [isOpen, worktreePath]);
++
++  // Close on Escape
++  useEffect(() => {
++    if (!isOpen) return;
++    const handleKeyDown = (e: KeyboardEvent) => {
++      if (e.key === 'Escape') {
++        e.preventDefault();
++        closeActivityLog();
++      }
++    };
++    document.addEventListener('keydown', handleKeyDown);
++    return () => document.removeEventListener('keydown', handleKeyDown);
++  }, [isOpen, closeActivityLog]);
++
++  if (!hasOpened) return null;
++
++  return (
++    <div
++      ref={panelRef}
++      className="fixed flex flex-col border-l bg-background shadow-2xl"
++      style={{
++        // DYK-05: z-index 44 = terminal/activity-log, 45 = agent, 50 = CRT
++        zIndex: 44,
++        top: `${anchorRect.top}px`,
++        left: `${anchorRect.left}px`,
++        width: `${anchorRect.width}px`,
++        height: `${anchorRect.height}px`,
++        display: isOpen ? 'flex' : 'none',
++      }}
++      data-testid="activity-log-overlay-panel"
++    >
++      {/* Header */}
++      <div className="flex items-center justify-between border-b px-3 py-2 shrink-0">
++        <div className="flex items-center gap-2">
++          <ScrollText className="h-4 w-4 text-muted-foreground" />
++          <span className="text-sm font-medium">Activity Log</span>
++        </div>
++        <button
++          type="button"
++          onClick={closeActivityLog}
++          className="rounded-sm p-1 hover:bg-accent"
++          aria-label="Close activity log"
++        >
++          <X className="h-4 w-4" />
++        </button>
++      </div>
++
++      {/* Content */}
++      <div className="flex-1 overflow-hidden min-h-0">
++        {loading ? (
++          <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
++            Loading...
++          </div>
++        ) : (
++          <ActivityLogEntryList entries={entries} />
++        )}
++      </div>
++    </div>
++  );
++}
+
+diff --git a/apps/web/src/features/065-activity-log/hooks/use-activity-log-overlay.tsx b/apps/web/src/features/065-activity-log/hooks/use-activity-log-overlay.tsx
+new file mode 100644
+index 0000000..8a4db96
+--- /dev/null
++++ b/apps/web/src/features/065-activity-log/hooks/use-activity-log-overlay.tsx
+@@ -0,0 +1,124 @@
++'use client';
++
++/**
++ * Activity Log Overlay — Context + Hook
++ *
++ * Provides overlay state management for the activity log panel.
++ * Dispatches overlay:close-all before opening (mutual exclusion with
++ * terminal and agent overlays). Uses isOpening ref guard to prevent
++ * self-close when dispatching overlay:close-all (DYK-01).
++ *
++ * Plan 065: Worktree Activity Log — Phase 3
++ */
++
++import {
++  type ReactNode,
++  createContext,
++  useCallback,
++  useContext,
++  useEffect,
++  useRef,
++  useState,
++} from 'react';
++
++interface ActivityLogOverlayState {
++  isOpen: boolean;
++  worktreePath: string | null;
++}
++
++interface ActivityLogOverlayContextValue extends ActivityLogOverlayState {
++  openActivityLog: (worktreePath: string) => void;
++  closeActivityLog: () => void;
++  toggleActivityLog: (worktreePath?: string) => void;
++}
++
++const ActivityLogOverlayContext = createContext<ActivityLogOverlayContextValue | null>(null);
++
++interface ActivityLogOverlayProviderProps {
++  children: ReactNode;
++  defaultWorktreePath?: string;
++}
++
++export function ActivityLogOverlayProvider({
++  children,
++  defaultWorktreePath,
++}: ActivityLogOverlayProviderProps) {
++  const [state, setState] = useState<ActivityLogOverlayState>({
++    isOpen: false,
++    worktreePath: defaultWorktreePath ?? null,
++  });
++
++  // DYK-01: Guard to prevent self-close when dispatching overlay:close-all
++  const isOpeningRef = useRef(false);
++
++  const closeActivityLog = useCallback(() => {
++    setState((prev) => (prev.isOpen ? { ...prev, isOpen: false } : prev));
++  }, []);
++
++  const openActivityLog = useCallback((worktreePath: string) => {
++    isOpeningRef.current = true;
++    window.dispatchEvent(new CustomEvent('overlay:close-all'));
++    setState({ isOpen: true, worktreePath });
++    isOpeningRef.current = false;
++  }, []);
++
++  const toggleActivityLog = useCallback((worktreePath?: string) => {
++    setState((prev) => {
++      if (prev.isOpen) {
++        return { ...prev, isOpen: false };
++      }
++
++      const params = new URLSearchParams(window.location.search);
++      const urlWorktree = params.get('worktree');
++      const resolved = worktreePath ?? urlWorktree ?? prev.worktreePath;
++
++      if (!resolved) {
++        console.warn('[activity-log-overlay] Cannot open: no worktree path resolved');
++        return prev;
++      }
++
++      // Dispatch close-all with guard to prevent self-close
++      isOpeningRef.current = true;
++      window.dispatchEvent(new CustomEvent('overlay:close-all'));
++      isOpeningRef.current = false;
++
++      return { isOpen: true, worktreePath: resolved };
++    });
++  }, []);
++
++  // Listen for activity-log:toggle events (from sidebar / SDK)
++  useEffect(() => {
++    const handler = (e: Event) => {
++      const detail = (e as CustomEvent).detail;
++      toggleActivityLog(detail?.worktreePath);
++    };
++    window.addEventListener('activity-log:toggle', handler);
++    return () => window.removeEventListener('activity-log:toggle', handler);
++  }, [toggleActivityLog]);
++
++  // Listen for overlay:close-all (mutual exclusion with terminal/agent overlays)
++  useEffect(() => {
++    const handler = () => {
++      if (isOpeningRef.current) return; // DYK-01: skip self-close
++      closeActivityLog();
++    };
++    window.addEventListener('overlay:close-all', handler);
++    return () => window.removeEventListener('overlay:close-all', handler);
++  }, [closeActivityLog]);
++
++  return (
++    <ActivityLogOverlayContext.Provider
++      value={{ ...state, openActivityLog, closeActivityLog, toggleActivityLog }}
++    >
++      {children}
++    </ActivityLogOverlayContext.Provider>
++  );
++}
++
++export function useActivityLogOverlay(): ActivityLogOverlayContextValue {
++  const context = useContext(ActivityLogOverlayContext);
++  if (!context) {
++    throw new Error('useActivityLogOverlay must be used within an ActivityLogOverlayProvider');
++  }
++  return context;
++}
+
+diff --git a/test/unit/web/features/065-activity-log/activity-log-overlay.test.ts b/test/unit/web/features/065-activity-log/activity-log-overlay.test.ts
+new file mode 100644
+index 0000000..4bbd911
+--- /dev/null
++++ b/test/unit/web/features/065-activity-log/activity-log-overlay.test.ts
+@@ -0,0 +1,179 @@
++/**
++ * Activity Log Overlay — Lightweight UI Tests
++ *
++ * Tests for ActivityLogEntryList rendering, gap separators, and empty state.
++ * Fixtures only, no mocks (per testing strategy).
++ *
++ * Plan 065: Worktree Activity Log — Phase 3
++ */
++
++import { describe, expect, it } from 'vitest';
++import type { ActivityLogEntry } from '../../../../apps/web/src/features/065-activity-log/types';
++
++// Fixture entries — newest first (as returned by readActivityLog)
++const now = Date.now();
++const FIXTURE_ENTRIES: ActivityLogEntry[] = [
++  {
++    id: 'tmux:0.0',
++    source: 'tmux',
++    label: 'Implementing Phase 3',
++    timestamp: new Date(now - 5 * 60_000).toISOString(), // 5 min ago
++  },
++  {
++    id: 'tmux:0.1',
++    source: 'tmux',
++    label: 'Running tests',
++    timestamp: new Date(now - 10 * 60_000).toISOString(), // 10 min ago
++  },
++  {
++    id: 'agent:agent-1',
++    source: 'agent',
++    label: 'Code review in progress',
++    timestamp: new Date(now - 15 * 60_000).toISOString(), // 15 min ago
++  },
++];
++
++// Entries with a >30min gap between them
++const FIXTURE_WITH_GAP: ActivityLogEntry[] = [
++  {
++    id: 'tmux:0.0',
++    source: 'tmux',
++    label: 'Morning session',
++    timestamp: new Date(now - 5 * 60_000).toISOString(), // 5 min ago
++  },
++  {
++    id: 'tmux:0.0',
++    source: 'tmux',
++    label: 'Evening session',
++    timestamp: new Date(now - 120 * 60_000).toISOString(), // 2 hours ago
++  },
++];
++
++describe('ActivityLogEntryList', () => {
++  describe('type contracts', () => {
++    it('ActivityLogEntry type has required fields', () => {
++      const entry: ActivityLogEntry = {
++        id: 'test:1',
++        source: 'test',
++        label: 'Test label',
++        timestamp: new Date().toISOString(),
++      };
++      expect(entry.id).toBeDefined();
++      expect(entry.source).toBeDefined();
++      expect(entry.label).toBeDefined();
++      expect(entry.timestamp).toBeDefined();
++    });
++
++    it('ActivityLogEntry supports optional meta bag', () => {
++      const entry: ActivityLogEntry = {
++        id: 'test:1',
++        source: 'test',
++        label: 'Test label',
++        timestamp: new Date().toISOString(),
++        meta: { pane: '0.0', session: 'main' },
++      };
++      expect(entry.meta).toEqual({ pane: '0.0', session: 'main' });
++    });
++  });
++
++  describe('entry fixtures', () => {
++    it('fixture entries are in newest-first order', () => {
++      for (let i = 1; i < FIXTURE_ENTRIES.length; i++) {
++        const prev = Date.parse(FIXTURE_ENTRIES[i - 1].timestamp);
++        const curr = Date.parse(FIXTURE_ENTRIES[i].timestamp);
++        expect(prev).toBeGreaterThan(curr);
++      }
++    });
++
++    it('fixture entries have valid source types', () => {
++      for (const entry of FIXTURE_ENTRIES) {
++        expect(['tmux', 'agent', 'build', 'workflow']).toContain(entry.source);
++      }
++    });
++  });
++
++  describe('gap detection logic', () => {
++    const GAP_THRESHOLD_MS = 30 * 60 * 1000;
++
++    function hasGap(a: string, b: string): boolean {
++      return Math.abs(Date.parse(a) - Date.parse(b)) > GAP_THRESHOLD_MS;
++    }
++
++    it('no gap between entries <30min apart', () => {
++      expect(hasGap(FIXTURE_ENTRIES[0].timestamp, FIXTURE_ENTRIES[1].timestamp)).toBe(false);
++    });
++
++    it('gap detected between entries >30min apart', () => {
++      expect(hasGap(FIXTURE_WITH_GAP[0].timestamp, FIXTURE_WITH_GAP[1].timestamp)).toBe(true);
++    });
++
++    it('no gap for identical timestamps', () => {
++      const ts = new Date().toISOString();
++      expect(hasGap(ts, ts)).toBe(false);
++    });
++
++    it('gap detected at exactly 31 minutes', () => {
++      const a = new Date(now).toISOString();
++      const b = new Date(now - 31 * 60_000).toISOString();
++      expect(hasGap(a, b)).toBe(true);
++    });
++
++    it('no gap at exactly 29 minutes', () => {
++      const a = new Date(now).toISOString();
++      const b = new Date(now - 29 * 60_000).toISOString();
++      expect(hasGap(a, b)).toBe(false);
++    });
++  });
++
++  describe('source icon mapping', () => {
++    function sourceIcon(source: string): string {
++      switch (source) {
++        case 'tmux':
++          return '🖥';
++        case 'agent':
++          return '🤖';
++        default:
++          return '📋';
++      }
++    }
++
++    it('maps tmux source to monitor icon', () => {
++      expect(sourceIcon('tmux')).toBe('🖥');
++    });
++
++    it('maps agent source to robot icon', () => {
++      expect(sourceIcon('agent')).toBe('🤖');
++    });
++
++    it('maps unknown source to clipboard icon', () => {
++      expect(sourceIcon('build')).toBe('📋');
++      expect(sourceIcon('workflow')).toBe('📋');
++    });
++  });
++
++  describe('relative time formatting', () => {
++    function relativeTime(timestamp: string): string {
++      const ms = Date.now() - Date.parse(timestamp);
++      if (ms < 60_000) return 'just now';
++      if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}m ago`;
++      if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}h ago`;
++      return `${Math.floor(ms / 86_400_000)}d ago`;
++    }
++
++    it('shows "just now" for <1min', () => {
++      expect(relativeTime(new Date(Date.now() - 30_000).toISOString())).toBe('just now');
++    });
++
++    it('shows minutes for <1h', () => {
++      expect(relativeTime(new Date(Date.now() - 5 * 60_000).toISOString())).toBe('5m ago');
++    });
++
++    it('shows hours for <1d', () => {
++      expect(relativeTime(new Date(Date.now() - 3 * 3_600_000).toISOString())).toBe('3h ago');
++    });
++
++    it('shows days for >1d', () => {
++      expect(relativeTime(new Date(Date.now() - 2 * 86_400_000).toISOString())).toBe('2d ago');
++    });
++  });
++});

@@ -22,6 +22,7 @@
 - **Always end with next steps** — after completing any task, reporting status, or answering a question, tell the user what you think should happen next. The user works on many things and won't always remember the current plan state.
 - Suggest the specific command or action, not just "we could do X or Y"
 - If there are multiple reasonable next steps, rank them by priority
+- **Intent updates must include plan/phase context** — when calling `report_intent`, always include which plan number and phase you are working on (e.g., "065 Phase 3 implementation" not just "Implementing phase")
 
 ## Conventions
 

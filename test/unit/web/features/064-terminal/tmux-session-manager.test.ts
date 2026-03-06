@@ -180,6 +180,127 @@ describe('TmuxSessionManager', () => {
     });
   });
 
+  describe('getPaneTitle', () => {
+    it('should return pane title when tmux responds', () => {
+      const { manager, exec } = createManager();
+      exec
+        .whenCommand('tmux', ['display-message', '-t', 'my-session', '-p', '#{pane_title}'])
+        .returns('Implementing Phase 1\n');
+
+      expect(manager.getPaneTitle('my-session')).toBe('Implementing Phase 1');
+    });
+
+    it('should return null when tmux command fails', () => {
+      const { manager } = createManager();
+      // No display-message configured → throws → should return null
+      expect(manager.getPaneTitle('nonexistent')).toBeNull();
+    });
+
+    it('should return null for empty pane title', () => {
+      const { manager, exec } = createManager();
+      exec
+        .whenCommand('tmux', ['display-message', '-t', 'my-session', '-p', '#{pane_title}'])
+        .returns('');
+
+      expect(manager.getPaneTitle('my-session')).toBeNull();
+    });
+  });
+
+  describe('getPaneTitles', () => {
+    it('should parse multi-window output', () => {
+      /*
+      Test Doc:
+      - Why: Multi-pane visibility is the core Phase 2 behavior.
+      - Contract: getPaneTitles() returns one { pane, title } entry per pane across all windows.
+      - Usage Notes: tmux output is tab-delimited; -s flag lists all windows.
+      - Quality Contribution: Catches regressions in parsing or accidental removal of the -s flag.
+      - Worked Example: "0.0\tImplementing Phase 1\n1.0\tRunning tests" → two parsed entries.
+      */
+      const { manager, exec } = createManager();
+      exec
+        .whenCommand('tmux', [
+          'list-panes',
+          '-t',
+          'my-session',
+          '-s',
+          '-F',
+          '#{window_index}.#{pane_index}\t#{window_name}\t#{pane_title}',
+        ])
+        .returns('0.0\tmain\tImplementing Phase 1\n1.0\ttest\tRunning tests\n2.0\tmisc\tIdle\n');
+
+      const result = manager.getPaneTitles('my-session');
+      expect(result).toHaveLength(3);
+      expect(result[0]).toEqual({ pane: '0.0', windowName: 'main', title: 'Implementing Phase 1' });
+      expect(result[1]).toEqual({ pane: '1.0', windowName: 'test', title: 'Running tests' });
+      expect(result[2]).toEqual({ pane: '2.0', windowName: 'misc', title: 'Idle' });
+    });
+
+    it('should handle single pane', () => {
+      /*
+      Test Doc:
+      - Why: Sessions with one window/pane are the common case.
+      - Contract: getPaneTitles() handles single-line output correctly.
+      - Usage Notes: No edge cases in tab splitting for single line.
+      - Quality Contribution: Ensures minimal case works.
+      - Worked Example: "0.0\tSolo pane" → [{ pane: "0.0", title: "Solo pane" }]
+      */
+      const { manager, exec } = createManager();
+      exec
+        .whenCommand('tmux', [
+          'list-panes',
+          '-t',
+          'my-session',
+          '-s',
+          '-F',
+          '#{window_index}.#{pane_index}\t#{window_name}\t#{pane_title}',
+        ])
+        .returns('0.0\tbash\tSolo pane\n');
+
+      const result = manager.getPaneTitles('my-session');
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({ pane: '0.0', windowName: 'bash', title: 'Solo pane' });
+    });
+
+    it('should return empty array on error', () => {
+      /*
+      Test Doc:
+      - Why: Graceful degradation when session doesn't exist or tmux unavailable.
+      - Contract: getPaneTitles() returns [] on error, never throws.
+      - Usage Notes: FakeTmuxExecutor throws on unconfigured commands.
+      - Quality Contribution: Prevents sidecar crash on tmux failures.
+      - Worked Example: nonexistent session → []
+      */
+      const { manager } = createManager();
+      expect(manager.getPaneTitles('nonexistent')).toEqual([]);
+    });
+
+    it('should handle titles containing tabs', () => {
+      /*
+      Test Doc:
+      - Why: Pane titles may contain tab characters (edge case from programs).
+      - Contract: getPaneTitles() splits only on the first tab to preserve title content.
+      - Usage Notes: Uses indexOf('\t') instead of split('\t') for correct handling.
+      - Quality Contribution: Prevents title truncation on unusual content.
+      - Worked Example: "0.0\tbash\tTitle with\ttab" → { pane: "0.0", windowName: "bash", title: "Title with\ttab" }
+      */
+      const { manager, exec } = createManager();
+      exec
+        .whenCommand('tmux', [
+          'list-panes',
+          '-t',
+          'my-session',
+          '-s',
+          '-F',
+          '#{window_index}.#{pane_index}\t#{window_name}\t#{pane_title}',
+        ])
+        .returns('0.0\tbash\tTitle with\ttab\n');
+
+      const result = manager.getPaneTitles('my-session');
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({ pane: '0.0', windowName: 'bash', title: 'Title with\ttab' });
+    });
+  });
+
   describe('getShellFallback', () => {
     it('should return SHELL env var or /bin/bash', () => {
       /*
