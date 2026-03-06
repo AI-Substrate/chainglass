@@ -6,11 +6,14 @@
  * Renders HTML from renderMarkdownToHtml() and activates mermaid diagrams
  * by finding data-mermaid divs and rendering them via MermaidRenderer portals.
  *
+ * innerHTML is set via ref (not dangerouslySetInnerHTML) so that React does not
+ * re-write the DOM on state-driven re-renders, which would destroy portal targets.
+ *
  * Fix FX001-7: Viewer integration for markdown preview.
  */
 
 import { useTheme } from 'next-themes';
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { MermaidRenderer } from '../../../components/viewers/mermaid-renderer';
 
@@ -36,10 +39,24 @@ export const MarkdownPreview = memo(function MarkdownPreview({
   const containerRef = useRef<HTMLDivElement>(null);
   const { resolvedTheme } = useTheme();
   const [mermaidPortals, setMermaidPortals] = useState<MermaidPortal[]>([]);
+  const prevHtmlRef = useRef<string>('');
+
+  // Set innerHTML via ref so React does not own these DOM nodes.
+  // This prevents React from re-writing innerHTML on state-driven re-renders
+  // (e.g. when setMermaidPortals triggers a re-render), which would destroy
+  // the portal target elements that MermaidRenderer is rendered into.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: html is the only input; resolvedTheme handled in mermaid scan below
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    if (prevHtmlRef.current === html) return;
+    prevHtmlRef.current = html;
+    container.innerHTML = html;
+  }, [html]);
 
   // Find mermaid divs after HTML is set and create portal targets
-  // biome-ignore lint/correctness/useExhaustiveDependencies: html and resolvedTheme trigger re-scan of data-mermaid divs after dangerouslySetInnerHTML updates
-  useEffect(() => {
+  // biome-ignore lint/correctness/useExhaustiveDependencies: html and resolvedTheme trigger re-scan of data-mermaid divs
+  useLayoutEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
@@ -56,7 +73,7 @@ export const MarkdownPreview = memo(function MarkdownPreview({
       portals.push({
         code,
         container: div,
-        key: `mermaid-${Math.random().toString(36).slice(2, 8)}`,
+        key: `mermaid-${code.length}-${code.charCodeAt(0)}`,
       });
     }
     setMermaidPortals(portals);
@@ -150,8 +167,6 @@ export const MarkdownPreview = memo(function MarkdownPreview({
         className="prose dark:prose-invert max-w-none"
         onClick={handleClick}
         onKeyDown={handleKeyDown}
-        // biome-ignore lint/security/noDangerouslySetInnerHtml: HTML is server-rendered from trusted markdown via renderMarkdownToHtml
-        dangerouslySetInnerHTML={{ __html: html }}
       />
       {mermaidPortals.map((portal) =>
         createPortal(<MermaidRenderer code={portal.code} />, portal.container, portal.key)
