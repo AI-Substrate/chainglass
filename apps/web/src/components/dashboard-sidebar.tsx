@@ -57,7 +57,7 @@ export function DashboardSidebar() {
   const isCollapsed = state === 'collapsed';
   const { user, isAuthenticated } = useAuth();
   const [devOpen, setDevOpen] = useState(false);
-  const [worktreesOpen, setWorktreesOpen] = useState(false);
+  const [worktreesOpen, setWorktreesOpen] = useState(true);
 
   // Detect workspace context from URL
   const workspaceSlug = useMemo(() => {
@@ -158,7 +158,23 @@ export function DashboardSidebar() {
               </SidebarGroup>
             )}
 
-            {/* 2. Worktree list — collapsible, contracted by default */}
+            {/* 2. Back to all workspaces */}
+            <SidebarGroup>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <Link href="/" className="flex items-center gap-2 text-muted-foreground">
+                        <ChevronLeft className="h-4 w-4" />
+                        {!isCollapsed && <span>All Workspaces</span>}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+
+            {/* 3. Worktree list — collapsible, expanded by default */}
             <SidebarGroup>
               {!isCollapsed && (
                 <SidebarGroupLabel
@@ -179,22 +195,6 @@ export function DashboardSidebar() {
                   </Suspense>
                 </SidebarGroupContent>
               )}
-            </SidebarGroup>
-
-            {/* 3. Back to all workspaces */}
-            <SidebarGroup>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <Link href="/" className="flex items-center gap-2 text-muted-foreground">
-                        <ChevronLeft className="h-4 w-4" />
-                        {!isCollapsed && <span>All Workspaces</span>}
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
             </SidebarGroup>
           </>
         ) : (

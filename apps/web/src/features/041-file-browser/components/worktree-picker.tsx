@@ -11,6 +11,7 @@
 
 import { Search, Star } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { compareWorktreeBranches } from '../../../lib/sort-worktrees';
 
 export interface WorktreeItem {
   path: string;
@@ -45,12 +46,12 @@ export function WorktreePicker({
         )
       : worktrees;
 
-    // Sort: starred first, then alphabetically by branch
+    // Sort: starred first, then by descending numeric prefix
     return [...matching].sort((a, b) => {
       const aStarred = starredSet.has(a.path);
       const bStarred = starredSet.has(b.path);
       if (aStarred !== bStarred) return aStarred ? -1 : 1;
-      return a.branch.localeCompare(b.branch);
+      return compareWorktreeBranches(a.branch, b.branch);
     });
   }, [worktrees, filter, starredSet]);
 
