@@ -37,7 +37,7 @@ flowchart LR
     wfEvents["📡 workflow-events<br/>IWorkflowEvents<br/>WorkflowEventType<br/>WorkflowEventError<br/>FakeWorkflowEventsService"]:::new
 
     %% NEW business domains (Plan 065)
-    activityLog["📋 activity-log<br/>ActivityLogEntry<br/>appendActivityLogEntry<br/>readActivityLog<br/>shouldIgnorePaneTitle"]:::new
+    activityLog["📋 activity-log<br/>ActivityLogEntry<br/>appendActivityLogEntry<br/>readActivityLog<br/>shouldIgnorePaneTitle<br/>useActivityLogOverlay<br/>GET /api/activity-log"]:::new
 
     %% Contract dependencies (consumer → provider)
     fileBrowser -->|"IFileSystem<br/>IPathResolver"| fileOps

@@ -20,7 +20,15 @@
  * ```
  */
 
-import { type ReactNode, createContext, useCallback, useContext, useEffect, useState } from 'react';
+import {
+  type ReactNode,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 
 interface AgentOverlayState {
   /** Currently displayed agent ID, or null if closed */
@@ -39,8 +47,12 @@ const AgentOverlayContext = createContext<AgentOverlayState | null>(null);
 
 export function AgentOverlayProvider({ children }: { children: ReactNode }) {
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null);
+  const isOpeningRef = useRef(false);
 
   const openAgent = useCallback((agentId: string) => {
+    isOpeningRef.current = true;
+    window.dispatchEvent(new CustomEvent('overlay:close-all'));
+    isOpeningRef.current = false;
     setActiveAgentId(agentId);
   }, []);
 
@@ -49,7 +61,13 @@ export function AgentOverlayProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const toggleAgent = useCallback((agentId: string) => {
-    setActiveAgentId((current) => (current === agentId ? null : agentId));
+    setActiveAgentId((current) => {
+      if (current === agentId) return null;
+      isOpeningRef.current = true;
+      window.dispatchEvent(new CustomEvent('overlay:close-all'));
+      isOpeningRef.current = false;
+      return agentId;
+    });
   }, []);
 
   const value: AgentOverlayState = {
@@ -60,9 +78,12 @@ export function AgentOverlayProvider({ children }: { children: ReactNode }) {
     toggleAgent,
   };
 
-  // Plan 065 Phase 3: Listen for overlay:close-all (mutual exclusion with terminal/activity-log)
+  // Plan 065 Phase 3: Listen for overlay:close-all (mutual exclusion)
   useEffect(() => {
-    const handler = () => closeAgent();
+    const handler = () => {
+      if (isOpeningRef.current) return;
+      closeAgent();
+    };
     window.addEventListener('overlay:close-all', handler);
     return () => window.removeEventListener('overlay:close-all', handler);
   }, [closeAgent]);

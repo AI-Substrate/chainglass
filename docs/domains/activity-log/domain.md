@@ -23,6 +23,9 @@ Append-only per-worktree timeline capturing what agents and terminal sessions ar
 | meta | Unstructured `Record<string, unknown>` for source-specific metadata. Writer persists as-is, reader returns as-is |
 | dedup | Writer reads last 50 lines and skips write if last entry for same `id` has same `label` |
 | ignore pattern | Per-source regex array for filtering noise (e.g., hostname pane titles). Sources own their own patterns |
+| Overlay Toggle | `useActivityLogOverlay().toggleActivityLog()` | Opens overlay panel, dispatches overlay:close-all for mutual exclusion |
+| Activity Feed | `GET /api/activity-log` | Returns last 200 entries for a worktree, newest-first |
+| Toast Notifications | `useActivityLogToasts()` | Polls for new entries every 15s, shows toast for each new one |
 
 ## Contracts
 
@@ -64,6 +67,9 @@ Append-only per-worktree timeline capturing what agents and terminal sessions ar
 | Domain | What They Consume | Phase |
 |--------|------------------|-------|
 | terminal | appendActivityLogEntry(), shouldIgnorePaneTitle() | Phase 2 |
+| workspace layout | ActivityLogOverlayProvider, ActivityLogOverlayPanel | Phase 3 |
+| sidebar | activity-log:toggle event dispatch | Phase 3 |
+| SDK | activity-log.toggleOverlay command | Phase 3 |
 
 ## Source Tree
 

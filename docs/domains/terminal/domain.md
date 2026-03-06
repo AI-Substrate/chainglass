@@ -46,3 +46,4 @@ activity-log depends on terminal as an event source (terminal sidecar polls tmux
 | 064 Post-P4 | Copy buffer (deferred clipboard), HTTPS/WSS, ESM fix | 2026-03-03 |
 | 065 Phase 2 | getPaneTitles() multi-pane method, activity log integration, pane title badge removal | 2026-03-06 |
 | 064 Phase 5 | tmux fallback toast, domain docs, dev setup guide | 2026-03-03 |
+| 065 Phase 3 | Added overlay:close-all mutual exclusion to TerminalOverlayProvider | 2026-03-06 |
