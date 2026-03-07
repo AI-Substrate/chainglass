@@ -67,7 +67,7 @@ interface TreeMutationHandlers {
   onStartRename: (targetPath: string) => void;
   onCancelEdit: () => void;
   onConfirmCreate: (parentDir: string, name: string) => void;
-  onConfirmRename: (oldPath: string, newName: string) => void;
+  onConfirmRename: (oldPath: string, newName: string, type: 'file' | 'directory') => void;
   onRequestDelete: (path: string, name: string, type: 'file' | 'directory') => void;
 }
 
@@ -99,7 +99,7 @@ export interface FileTreeProps {
   /** CRUD callbacks — when provided, enables mutation UI (hover buttons, context menu, keyboard shortcuts) */
   onCreateFile?: (parentDir: string, name: string) => void;
   onCreateFolder?: (parentDir: string, name: string) => void;
-  onRename?: (oldPath: string, newName: string) => void;
+  onRename?: (oldPath: string, newName: string, type: 'file' | 'directory') => void;
   onDelete?: (path: string) => void;
 }
 
@@ -223,8 +223,8 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
           }
           setEditState(null);
         },
-        onConfirmRename: (oldPath, newName) => {
-          onRename?.(oldPath, newName);
+        onConfirmRename: (oldPath, newName, type) => {
+          onRename?.(oldPath, newName, type);
           setEditState(null);
         },
         onRequestDelete: (path, name, type) => {
@@ -427,7 +427,9 @@ function TreeItem({
               <div className="flex-1 min-w-0">
                 <InlineEditInput
                   initialValue={entry.name}
-                  onConfirm={(newName) => mutations?.onConfirmRename(entry.path, newName)}
+                  onConfirm={(newName) =>
+                    mutations?.onConfirmRename(entry.path, newName, 'directory')
+                  }
                   onCancel={() => mutations?.onCancelEdit()}
                   commitOnBlur={true}
                   selectOnMount={true}
@@ -636,7 +638,7 @@ function TreeItem({
         <div className="flex-1 min-w-0">
           <InlineEditInput
             initialValue={entry.name}
-            onConfirm={(newName) => mutations?.onConfirmRename(entry.path, newName)}
+            onConfirm={(newName) => mutations?.onConfirmRename(entry.path, newName, 'file')}
             onCancel={() => mutations?.onCancelEdit()}
             commitOnBlur={true}
             selectOnMount={true}

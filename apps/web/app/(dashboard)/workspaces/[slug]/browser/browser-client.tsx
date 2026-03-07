@@ -111,6 +111,14 @@ function BrowserClientInner({
   // T006: Local new paths for immediate green animation before SSE fires
   const [localNewPaths, setLocalNewPaths] = useState<Set<string>>(new Set());
 
+  // FT-003: Re-sync root state when worktree changes (e.g. ?worktree= switch)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — reset on worktree or entries change
+  useEffect(() => {
+    setRootEntries(initialEntries);
+    setLocalNewPaths(new Set());
+    setExpandPaths([]);
+  }, [initialEntries]);
+
   const mode = (params.mode as ViewerMode) || 'preview';
   const selectedFile = params.file || undefined;
   const panelMode = (params.panel as PanelMode) || 'tree';
@@ -217,19 +225,30 @@ function BrowserClientInner({
   );
 
   // T002+T003: Rename → toast + refresh + URL sync for open file (DYK-P3-02)
+  // FT-001: skipNextFileRead prevents URL-change effect from overwriting dirty buffer
+  // FT-002: Only auto-select for files; for folders, just update expansion state
   const handleTreeRename = useCallback(
-    async (oldPath: string, newName: string) => {
+    async (oldPath: string, newName: string, type: 'file' | 'directory') => {
       const result = await mutations.handleRename(oldPath, newName);
       if (result?.ok) {
-        if (selectedFile === oldPath) {
-          // DYK-P3-02: Preserve unsaved edits — update URL without re-fetching
+        if (type === 'file' && selectedFile === oldPath) {
+          fileNav.skipNextFileRead();
           setParams({ file: result.newPath, line: null }, { history: 'replace' });
-        } else {
+        } else if (type === 'file') {
           fileNav.handleSelect(result.newPath);
+        } else {
+          // Folder rename: update expansion state, don't touch file viewer
+          setExpandPaths((prev) => prev.map((p) => (p === oldPath ? result.newPath : p)));
         }
       }
     },
-    [mutations.handleRename, selectedFile, setParams, fileNav.handleSelect]
+    [
+      mutations.handleRename,
+      selectedFile,
+      setParams,
+      fileNav.handleSelect,
+      fileNav.skipNextFileRead,
+    ]
   );
 
   // T002+T004: Delete → toast + refresh + clear selection if needed (DYK-P3-03)

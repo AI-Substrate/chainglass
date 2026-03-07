@@ -72,6 +72,7 @@ Workspace-scoped file browsing, editing, and diffing. The core feature that make
 | createFolderService | Create directory + security + duplicate check | IFileSystem (mkdir, exists, realpath), IPathResolver, validateFileName |
 | deleteItemService | Delete file/folder + security + size guard | IFileSystem (unlink, rmdir, stat, readDir, realpath), IPathResolver |
 | renameItemService | Rename file/folder + security + destination check | IFileSystem (rename, exists, realpath), IPathResolver, validateFileName |
+| validateFileName | Git-portable filename validation | None (pure function) |
 | useFileMutations | Hook: CRUD handlers with toast + tree refresh + edge cases | Server actions (createFile, createFolder, deleteItem, renameItem), handleRefreshDir |
 | InlineEditInput | Inline text input for create/rename in FileTree | validateFileName |
 | DeleteConfirmationDialog | VS Code-style delete confirmation dialog | Dialog (Radix UI) |

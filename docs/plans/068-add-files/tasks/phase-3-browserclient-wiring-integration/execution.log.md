@@ -52,3 +52,13 @@ Added useFileMutations to Composition table, new hook to Source Location, Phase 
 ## Discovery
 
 Import from `src/features/` to `app/actions/` fails in Next.js build (Turbopack module resolution). Fixed by injecting server actions as parameters (dependency injection pattern matching useClipboard).
+
+## Manual Verification Checklist
+
+- Root create: hover root row → New File → type name → Enter → tree refreshes via handleRefreshRoot (rootEntries state), file auto-opens in viewer
+- Rename open file (dirty): FT-001 skipNextFileRead flag prevents URL-change effect from re-reading file, preserving dirty editor buffer
+- Rename folder: FT-002 type parameter routes folders through expansion state update instead of handleSelect
+- Delete open file: selectedFile match clears URL param → "Select a file to view" empty state
+- Delete ancestor folder: prefix match with trailing slash (`${path}/`) prevents false positives
+- Worktree switch: FT-003 useEffect resyncs rootEntries/localNewPaths/expandPaths from new initialEntries
+- Expanded folder delete: DYK-P3-04 verified — stale expanded Set entry is harmless, tree auto-reconciles

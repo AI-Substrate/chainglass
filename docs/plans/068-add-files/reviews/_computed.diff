@@ -1,1010 +1,454 @@
-diff --git a/apps/web/src/features/041-file-browser/components/delete-confirmation-dialog.tsx b/apps/web/src/features/041-file-browser/components/delete-confirmation-dialog.tsx
-new file mode 100644
-index 0000000..029a496
---- /dev/null
-+++ b/apps/web/src/features/041-file-browser/components/delete-confirmation-dialog.tsx
-@@ -0,0 +1,90 @@
-+'use client';
-+
-+import { Button } from '@/components/ui/button';
-+import {
-+  Dialog,
-+  DialogClose,
-+  DialogContent,
-+  DialogDescription,
-+  DialogFooter,
-+  DialogHeader,
-+  DialogTitle,
-+} from '@/components/ui/dialog';
-+
-+export interface DeleteConfirmationDialogProps {
-+  open: boolean;
-+  onOpenChange: (open: boolean) => void;
-+  itemName: string;
-+  itemType: 'file' | 'directory';
-+  onConfirm: () => void;
-+  /** When set, shows a "too large" message instead of the normal prompt */
-+  tooLargeCount?: number;
-+}
-+
-+/**
-+ * VS Code-style delete confirmation dialog.
-+ *
-+ * - Files: "Delete 'name'?"
-+ * - Folders: "Delete 'name' and all its contents?"
-+ * - Too-large folders: shows item count error instead
-+ *
-+ * Plan 068 Phase 2
-+ */
-+export function DeleteConfirmationDialog({
-+  open,
-+  onOpenChange,
-+  itemName,
-+  itemType,
-+  onConfirm,
-+  tooLargeCount,
-+}: DeleteConfirmationDialogProps) {
-+  if (tooLargeCount !== undefined) {
-+    return (
-+      <Dialog open={open} onOpenChange={onOpenChange}>
-+        <DialogContent>
-+          <DialogHeader>
-+            <DialogTitle>Cannot Delete</DialogTitle>
-+            <DialogDescription>
-+              Folder has too many items ({tooLargeCount.toLocaleString()}) to delete from the
-+              browser.
-+            </DialogDescription>
-+          </DialogHeader>
-+          <DialogFooter>
-+            <DialogClose asChild>
-+              <Button variant="outline">Close</Button>
-+            </DialogClose>
-+          </DialogFooter>
-+        </DialogContent>
-+      </Dialog>
-+    );
-+  }
-+
-+  return (
-+    <Dialog open={open} onOpenChange={onOpenChange}>
-+      <DialogContent>
-+        <DialogHeader>
-+          <DialogTitle>Delete {itemType === 'directory' ? 'Folder' : 'File'}</DialogTitle>
-+          <DialogDescription>
-+            {itemType === 'directory'
-+              ? `Delete "${itemName}" and all its contents?`
-+              : `Delete "${itemName}"?`}
-+          </DialogDescription>
-+        </DialogHeader>
-+        <DialogFooter>
-+          <DialogClose asChild>
-+            <Button variant="outline">Cancel</Button>
-+          </DialogClose>
-+          <Button
-+            variant="destructive"
-+            onClick={() => {
-+              onConfirm();
-+              onOpenChange(false);
-+            }}
-+          >
-+            Delete
-+          </Button>
-+        </DialogFooter>
-+      </DialogContent>
-+    </Dialog>
-+  );
-+}
-diff --git a/apps/web/src/features/041-file-browser/components/file-tree.tsx b/apps/web/src/features/041-file-browser/components/file-tree.tsx
-index 8d82b5d..d1fa823 100644
---- a/apps/web/src/features/041-file-browser/components/file-tree.tsx
-+++ b/apps/web/src/features/041-file-browser/components/file-tree.tsx
-@@ -1,12 +1,14 @@
- 'use client';
+diff --git a/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx b/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
+index 5782149..a95d4b7 100644
+--- a/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
++++ b/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
+@@ -17,6 +17,7 @@ import {
+ } from '@/features/041-file-browser/components/file-viewer-panel';
+ import { useClipboard } from '@/features/041-file-browser/hooks/use-clipboard';
+ import { useFileFilter } from '@/features/041-file-browser/hooks/use-file-filter';
++import { useFileMutations } from '@/features/041-file-browser/hooks/use-file-mutations';
+ import { useFileNavigation } from '@/features/041-file-browser/hooks/use-file-navigation';
+ import { useFlowspaceSearch } from '@/features/041-file-browser/hooks/use-flowspace-search';
+ import { useGitGrepSearch } from '@/features/041-file-browser/hooks/use-git-grep-search';
+@@ -45,6 +46,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+ import { toast } from 'sonner';
+ import { z } from 'zod';
+ import {
++  createFile,
++  createFolder,
++  deleteItem,
+   fetchChangedFiles,
+   fetchDiffStats,
+   fetchFileList,
+@@ -54,6 +58,7 @@ import {
+   fileExists,
+   pathExists,
+   readFile,
++  renameItem,
+   saveFile,
+ } from '../../../../actions/file-actions';
  
- /**
-- * FileTree — Lazy-loading file tree with expand/collapse, filter, refresh.
-+ * FileTree — Lazy-loading file tree with expand/collapse, filter, refresh,
-+ * and inline file/folder CRUD (create, rename, delete).
-  *
-  * Pure presentational: receives entries as props, fires callbacks for
-- * file selection, directory expansion, and refresh.
-+ * file selection, directory expansion, refresh, and CRUD operations.
-  *
-  * Phase 4: File Browser — Plan 041
-+ * Phase 2: Add File/Folder Features — Plan 068
-  * DYK-P4-01: Lazy per-directory (onExpand callback)
-  * DYK-P4-03: Scales to huge repos
-  */
-@@ -24,14 +26,48 @@ import {
-   ClipboardCopy,
-   Download,
-   File,
-+  FilePlus,
-   FileText,
-   Folder,
-   FolderOpen,
-+  FolderPlus,
-   FolderTree,
-+  Pencil,
-   RefreshCw,
-+  Trash2,
- } from 'lucide-react';
- import { forwardRef, useCallback, useEffect, useImperativeHandle, useState } from 'react';
- import type { FileEntry } from '../services/directory-listing';
-+import { DeleteConfirmationDialog } from './delete-confirmation-dialog';
-+import { InlineEditInput } from './inline-edit-input';
-+
-+// --- Types ---
-+
-+/** Inline edit state for create/rename modes (DYK-P2-05: separate from delete) */
-+type EditState =
-+  | { mode: 'create-file' | 'create-folder'; parentDir: string }
-+  | { mode: 'rename'; targetPath: string }
-+  | null;
-+
-+/** Target for delete confirmation dialog (DYK-P2-05: independent of editState) */
-+type DeleteTarget = {
-+  path: string;
-+  name: string;
-+  type: 'file' | 'directory';
-+} | null;
-+
-+/** Bundled mutation handlers passed to TreeItem when CRUD callbacks exist */
-+interface TreeMutationHandlers {
-+  editState: EditState;
-+  onStartCreate: (parentDir: string, mode: 'create-file' | 'create-folder') => void;
-+  onStartRename: (targetPath: string) => void;
-+  onCancelEdit: () => void;
-+  onConfirmCreate: (parentDir: string, name: string) => void;
-+  onConfirmRename: (oldPath: string, newName: string) => void;
-+  onRequestDelete: (path: string, name: string, type: 'file' | 'directory') => void;
-+}
-+
-+// --- Public Interface ---
+@@ -100,6 +105,12 @@ function BrowserClientInner({
+   const explorerRef = useRef<ExplorerPanelHandle>(null);
+   const [expandPaths, setExpandPaths] = useState<string[]>([]);
  
- /** Handle exposed via ref for external access to tree state */
- export interface FileTreeHandle {
-@@ -56,8 +92,15 @@ export interface FileTreeProps {
-   onCopyContent?: (filePath: string) => void;
-   onCopyTree?: (dirPath: string) => void;
-   onDownload?: (filePath: string) => void;
-+  /** CRUD callbacks — when provided, enables mutation UI (hover buttons, context menu, keyboard shortcuts) */
-+  onCreateFile?: (parentDir: string, name: string) => void;
-+  onCreateFolder?: (parentDir: string, name: string) => void;
-+  onRename?: (oldPath: string, newName: string) => void;
-+  onDelete?: (path: string) => void;
- }
- 
-+// --- FileTree Component ---
++  // DYK-P3-01: Wrap server prop in state for client-side root refresh
++  const [rootEntries, setRootEntries] = useState(initialEntries);
 +
- export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileTree(
-   {
-     entries,
-@@ -74,6 +117,10 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
-     onCopyContent,
-     onCopyTree,
-     onDownload,
-+    onCreateFile,
-+    onCreateFolder,
-+    onRename,
-+    onDelete,
-   },
-   ref
- ) {
-@@ -90,6 +137,9 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
-     return paths;
-   });
- 
-+  const [editState, setEditState] = useState<EditState>(null);
-+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
++  // T006: Local new paths for immediate green animation before SSE fires
++  const [localNewPaths, setLocalNewPaths] = useState<Set<string>>(new Set());
 +
-   // Expose expanded dirs to parent via ref (DYK #4)
-   useImperativeHandle(
-     ref,
-@@ -133,12 +183,125 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
-     setExpanded(next);
-   };
+   const mode = (params.mode as ViewerMode) || 'preview';
+   const selectedFile = params.file || undefined;
+   const panelMode = (params.panel as PanelMode) || 'tree';
+@@ -139,6 +150,102 @@ function BrowserClientInner({
  
-+  // Build mutation handlers only when at least one CRUD callback exists
-+  const hasMutations = !!(onCreateFile || onCreateFolder || onRename || onDelete);
+   const clipboard = useClipboard({ slug, worktreePath, readFile });
+ 
++  // --- File CRUD mutations (Plan 068 Phase 3) ---
 +
-+  const mutations: TreeMutationHandlers | undefined = hasMutations
-+    ? {
-+        editState,
-+        onStartCreate: (parentDir, mode) => {
-+          setEditState({ mode, parentDir });
-+          // Auto-expand folder if collapsed
-+          if (parentDir && !expanded.has(parentDir)) {
-+            const next = new Set(expanded);
-+            next.add(parentDir);
-+            if (!childEntries[parentDir]) {
-+              onExpand(parentDir);
-+            }
-+            setExpanded(next);
-+          }
-+        },
-+        onStartRename: (targetPath) => {
-+          setEditState({ mode: 'rename', targetPath });
-+        },
-+        onCancelEdit: () => {
-+          setEditState(null);
-+        },
-+        onConfirmCreate: (parentDir, name) => {
-+          if (editState?.mode === 'create-file') {
-+            onCreateFile?.(parentDir, name);
-+          } else if (editState?.mode === 'create-folder') {
-+            onCreateFolder?.(parentDir, name);
-+          }
-+          setEditState(null);
-+        },
-+        onConfirmRename: (oldPath, newName) => {
-+          onRename?.(oldPath, newName);
-+          setEditState(null);
-+        },
-+        onRequestDelete: (path, name, type) => {
-+          setEditState(null);
-+          setDeleteTarget({ path, name, type });
-+        },
++  // DYK-P3-01: Refresh root entries from API (initialEntries is a server prop)
++  const handleRefreshRoot = useCallback(async () => {
++    try {
++      const url = `/api/workspaces/${slug}/files?worktree=${encodeURIComponent(worktreePath)}&dir=`;
++      const res = await fetch(url);
++      if (res.ok) {
++        const data = await res.json();
++        setRootEntries(data.entries);
 +      }
-+    : undefined;
++    } catch {
++      // Silent failure — SSE will eventually catch up
++    }
++  }, [slug, worktreePath]);
 +
-+  // F2 and Enter keyboard shortcuts for rename (T007)
-+  const handleTreeKeyDown = useCallback(
-+    (e: React.KeyboardEvent<HTMLDivElement>) => {
-+      if (!onRename || editState) return;
-+      if (e.key !== 'F2' && e.key !== 'Enter') return;
++  const mutations = useFileMutations({
++    slug,
++    worktreePath,
++    refreshDir: fileNav.handleRefreshDir,
++    refreshRoot: handleRefreshRoot,
++    actions: { createFile, createFolder, deleteItem, renameItem },
++  });
 +
-+      const target = e.target as HTMLElement;
-+      const treeItem = target.closest('[data-tree-path]');
-+      if (!treeItem) return;
++  // T006: Add path to local new paths with auto-cleanup (1.5s matches CSS animation)
++  const addNewlyCreatedPath = useCallback((path: string) => {
++    setLocalNewPaths((prev) => {
++      const next = new Set(prev);
++      next.add(path);
++      return next;
++    });
++    setTimeout(() => {
++      setLocalNewPaths((prev) => {
++        const next = new Set(prev);
++        next.delete(path);
++        return next;
++      });
++    }, 1500);
++  }, []);
 +
-+      const path = treeItem.getAttribute('data-tree-path');
-+      if (!path) return;
-+
-+      e.preventDefault();
-+      e.stopPropagation();
-+      setEditState({ mode: 'rename', targetPath: path });
++  // T002+T007: Create file → toast + refresh + auto-select in viewer
++  const handleTreeCreateFile = useCallback(
++    async (parentDir: string, name: string) => {
++      const result = await mutations.handleCreateFile(parentDir, name);
++      if (result?.ok) {
++        const newPath = result.path;
++        addNewlyCreatedPath(newPath);
++        fileNav.handleSelect(newPath);
++      }
 +    },
-+    [onRename, editState]
++    [mutations.handleCreateFile, addNewlyCreatedPath, fileNav.handleSelect]
 +  );
 +
-   if (entries.length === 0) {
-     return <div className="p-4 text-sm text-muted-foreground">No files found</div>;
-   }
- 
-+  // Root-level inline create input (parentDir is '' for root)
-+  const rootCreateInput =
-+    mutations?.editState &&
-+    'parentDir' in mutations.editState &&
-+    mutations.editState.parentDir === '' ? (
-+      <div className="flex items-center gap-1 px-2 py-1" style={{ paddingLeft: '22px' }}>
-+        {mutations.editState.mode === 'create-folder' ? (
-+          <Folder className="h-4 w-4 shrink-0 text-blue-500" />
-+        ) : (
-+          <File className="h-4 w-4 shrink-0 text-muted-foreground" />
-+        )}
-+        <div className="flex-1 min-w-0">
-+          <InlineEditInput
-+            placeholder={mutations.editState.mode === 'create-file' ? 'File name' : 'Folder name'}
-+            onConfirm={(name) => mutations.onConfirmCreate('', name)}
-+            onCancel={mutations.onCancelEdit}
-+            commitOnBlur={false}
-+          />
-+        </div>
-+      </div>
-+    ) : null;
++  // T002+T007: Create folder → toast + refresh + auto-expand
++  const handleTreeCreateFolder = useCallback(
++    async (parentDir: string, name: string) => {
++      const result = await mutations.handleCreateFolder(parentDir, name);
++      if (result?.ok) {
++        const newPath = result.path;
++        addNewlyCreatedPath(newPath);
++        setExpandPaths([newPath]);
++      }
++    },
++    [mutations.handleCreateFolder, addNewlyCreatedPath]
++  );
 +
-   return (
--    <div className="text-sm">
-+    <div className="text-sm" onKeyDown={hasMutations ? handleTreeKeyDown : undefined}>
-+      {/* Root row for root-level creation (DYK-P2-02) */}
-+      {mutations && (
-+        <div className="group flex items-center gap-1 px-2 py-0.5 hover:bg-accent">
-+          <Folder className="h-3.5 w-3.5 shrink-0 text-blue-500/60" />
-+          <span className="flex-1 truncate text-xs text-muted-foreground">.</span>
-+          {onCreateFile && (
-+            <button
-+              type="button"
-+              onClick={() => mutations.onStartCreate('', 'create-file')}
-+              className="hidden group-hover:block shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
-+              aria-label="New file at root"
-+            >
-+              <FilePlus className="h-3 w-3" />
-+            </button>
-+          )}
-+          {onCreateFolder && (
-+            <button
-+              type="button"
-+              onClick={() => mutations.onStartCreate('', 'create-folder')}
-+              className="hidden group-hover:block shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
-+              aria-label="New folder at root"
-+            >
-+              <FolderPlus className="h-3 w-3" />
-+            </button>
-+          )}
-+        </div>
-+      )}
-+      {rootCreateInput}
-       {entries.map((entry) => (
-         <TreeItem
-           key={entry.path}
-@@ -157,12 +320,30 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
-           onCopyContent={onCopyContent}
-           onCopyTree={onCopyTree}
-           onDownload={onDownload}
-+          mutations={mutations}
-         />
-       ))}
-+      {/* Delete confirmation dialog — rendered at tree level (DYK-P2-05) */}
-+      {deleteTarget && (
-+        <DeleteConfirmationDialog
-+          open={!!deleteTarget}
-+          onOpenChange={(open) => {
-+            if (!open) setDeleteTarget(null);
-+          }}
-+          itemName={deleteTarget.name}
-+          itemType={deleteTarget.type}
-+          onConfirm={() => {
-+            onDelete?.(deleteTarget.path);
-+            setDeleteTarget(null);
-+          }}
-+        />
-+      )}
-     </div>
-   );
- });
- 
-+// --- TreeItem Sub-Component ---
-+
- function TreeItem({
-   entry,
-   depth,
-@@ -179,6 +360,7 @@ function TreeItem({
-   onCopyContent,
-   onCopyTree,
-   onDownload,
-+  mutations,
- }: {
-   entry: FileEntry;
-   depth: number;
-@@ -195,12 +377,19 @@ function TreeItem({
-   onCopyContent?: (filePath: string) => void;
-   onCopyTree?: (dirPath: string) => void;
-   onDownload?: (filePath: string) => void;
-+  mutations?: TreeMutationHandlers;
- }) {
-   const isExpanded = expanded.has(entry.path);
-   const isSelected = selectedFile === entry.path;
-   const isChanged = changedFiles?.includes(entry.path);
-   const isNewlyAdded = newlyAddedPaths?.has(entry.path);
-   const children = childEntries[entry.path];
-+  const isRenaming =
-+    mutations?.editState?.mode === 'rename' && mutations.editState.targetPath === entry.path;
-+  const isCreatingHere =
-+    mutations?.editState &&
-+    'parentDir' in mutations.editState &&
-+    mutations.editState.parentDir === entry.path;
- 
-   if (entry.type === 'directory') {
-     return (
-@@ -211,55 +400,168 @@ function TreeItem({
-           } ${isNewlyAdded ? 'tree-entry-new' : ''}`}
-           style={{ paddingLeft: `${depth * 16 + 8}px` }}
-         >
--          <ContextMenu>
--            <ContextMenuTrigger asChild>
-+          {isRenaming ? (
-+            // Rename mode: keep icons, replace name with inline input (DYK-P2-04)
-+            <div className="flex items-center gap-1 min-w-0 flex-1">
-+              {isExpanded ? (
-+                <>
-+                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-+                  <FolderOpen className="h-4 w-4 shrink-0 text-blue-500" />
-+                </>
-+              ) : (
-+                <>
-+                  <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-+                  <Folder className="h-4 w-4 shrink-0 text-blue-500" />
-+                </>
-+              )}
-+              <div className="flex-1 min-w-0">
-+                <InlineEditInput
-+                  initialValue={entry.name}
-+                  onConfirm={(newName) => mutations?.onConfirmRename(entry.path, newName)}
-+                  onCancel={() => mutations?.onCancelEdit()}
-+                  commitOnBlur={true}
-+                  selectOnMount={true}
-+                />
-+              </div>
-+            </div>
-+          ) : (
-+            // Normal mode: clickable button with context menu + hover buttons
-+            <>
-+              <ContextMenu>
-+                <ContextMenuTrigger asChild>
-+                  <button
-+                    type="button"
-+                    onClick={() => onDirClick(entry.path)}
-+                    className="flex items-center gap-1 min-w-0 flex-1"
-+                  >
-+                    {isExpanded ? (
-+                      <>
-+                        <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-+                        <FolderOpen className="h-4 w-4 shrink-0 text-blue-500" />
-+                      </>
-+                    ) : (
-+                      <>
-+                        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-+                        <Folder className="h-4 w-4 shrink-0 text-blue-500" />
-+                      </>
-+                    )}
-+                    <span className="truncate">{entry.name}</span>
-+                  </button>
-+                </ContextMenuTrigger>
-+                <ContextMenuContent>
-+                  {mutations && (
-+                    <>
-+                      <ContextMenuItem
-+                        onSelect={() => mutations.onStartCreate(entry.path, 'create-file')}
-+                      >
-+                        <FilePlus className="h-3.5 w-3.5 mr-2" />
-+                        New File
-+                      </ContextMenuItem>
-+                      <ContextMenuItem
-+                        onSelect={() => mutations.onStartCreate(entry.path, 'create-folder')}
-+                      >
-+                        <FolderPlus className="h-3.5 w-3.5 mr-2" />
-+                        New Folder
-+                      </ContextMenuItem>
-+                      <ContextMenuSeparator />
-+                    </>
-+                  )}
-+                  <ContextMenuItem onSelect={() => onCopyFullPath?.(entry.path)}>
-+                    <ClipboardCopy className="h-3.5 w-3.5 mr-2" />
-+                    Copy Full Path
-+                  </ContextMenuItem>
-+                  <ContextMenuItem onSelect={() => onCopyRelativePath?.(entry.path)}>
-+                    <FileText className="h-3.5 w-3.5 mr-2" />
-+                    Copy Relative Path
-+                  </ContextMenuItem>
-+                  <ContextMenuSeparator />
-+                  <ContextMenuItem onSelect={() => onCopyTree?.(entry.path)}>
-+                    <FolderTree className="h-3.5 w-3.5 mr-2" />
-+                    Copy Tree From Here
-+                  </ContextMenuItem>
-+                  {mutations && (
-+                    <>
-+                      <ContextMenuSeparator />
-+                      <ContextMenuItem onSelect={() => mutations.onStartRename(entry.path)}>
-+                        <Pencil className="h-3.5 w-3.5 mr-2" />
-+                        Rename
-+                      </ContextMenuItem>
-+                      <ContextMenuItem
-+                        variant="destructive"
-+                        onSelect={() =>
-+                          mutations.onRequestDelete(entry.path, entry.name, 'directory')
-+                        }
-+                      >
-+                        <Trash2 className="h-3.5 w-3.5 mr-2" />
-+                        Delete
-+                      </ContextMenuItem>
-+                    </>
-+                  )}
-+                </ContextMenuContent>
-+              </ContextMenu>
-               <button
-                 type="button"
--                onClick={() => onDirClick(entry.path)}
--                className="flex items-center gap-1 min-w-0 flex-1"
-+                onClick={(e) => {
-+                  e.stopPropagation();
-+                  onExpand(entry.path);
-+                }}
-+                className="hidden group-hover:block shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
-+                aria-label={`Refresh ${entry.name}`}
-               >
--                {isExpanded ? (
--                  <>
--                    <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
--                    <FolderOpen className="h-4 w-4 shrink-0 text-blue-500" />
--                  </>
--                ) : (
--                  <>
--                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
--                    <Folder className="h-4 w-4 shrink-0 text-blue-500" />
--                  </>
--                )}
--                <span className="truncate">{entry.name}</span>
-+                <RefreshCw className="h-3 w-3" />
-               </button>
--            </ContextMenuTrigger>
--            <ContextMenuContent>
--              <ContextMenuItem onSelect={() => onCopyFullPath?.(entry.path)}>
--                <ClipboardCopy className="h-3.5 w-3.5 mr-2" />
--                Copy Full Path
--              </ContextMenuItem>
--              <ContextMenuItem onSelect={() => onCopyRelativePath?.(entry.path)}>
--                <FileText className="h-3.5 w-3.5 mr-2" />
--                Copy Relative Path
--              </ContextMenuItem>
--              <ContextMenuSeparator />
--              <ContextMenuItem onSelect={() => onCopyTree?.(entry.path)}>
--                <FolderTree className="h-3.5 w-3.5 mr-2" />
--                Copy Tree From Here
--              </ContextMenuItem>
--            </ContextMenuContent>
--          </ContextMenu>
--          <button
--            type="button"
--            onClick={(e) => {
--              e.stopPropagation();
--              onExpand(entry.path);
--            }}
--            className="hidden group-hover:block shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
--            aria-label={`Refresh ${entry.name}`}
--          >
--            <RefreshCw className="h-3 w-3" />
--          </button>
-+              {mutations && (
-+                <>
-+                  <button
-+                    type="button"
-+                    onClick={(e) => {
-+                      e.stopPropagation();
-+                      mutations.onStartCreate(entry.path, 'create-file');
-+                    }}
-+                    className="hidden group-hover:block shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
-+                    aria-label={`New file in ${entry.name}`}
-+                  >
-+                    <FilePlus className="h-3 w-3" />
-+                  </button>
-+                  <button
-+                    type="button"
-+                    onClick={(e) => {
-+                      e.stopPropagation();
-+                      mutations.onStartCreate(entry.path, 'create-folder');
-+                    }}
-+                    className="hidden group-hover:block shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
-+                    aria-label={`New folder in ${entry.name}`}
-+                  >
-+                    <FolderPlus className="h-3 w-3" />
-+                  </button>
-+                </>
-+              )}
-+            </>
-+          )}
-         </div>
-+        {/* Inline create input at top of children (T003) */}
-+        {isCreatingHere && mutations?.editState && 'mode' in mutations.editState && (
-+          <div
-+            className="flex items-center gap-1 px-2 py-1"
-+            style={{ paddingLeft: `${(depth + 1) * 16 + 8 + 14}px` }}
-+          >
-+            {mutations.editState.mode === 'create-folder' ? (
-+              <Folder className="h-4 w-4 shrink-0 text-blue-500" />
-+            ) : (
-+              <File className="h-4 w-4 shrink-0 text-muted-foreground" />
-+            )}
-+            <div className="flex-1 min-w-0">
-+              <InlineEditInput
-+                placeholder={
-+                  mutations.editState.mode === 'create-file' ? 'File name' : 'Folder name'
-+                }
-+                onConfirm={(name) => mutations.onConfirmCreate(entry.path, name)}
-+                onCancel={() => mutations.onCancelEdit()}
-+                commitOnBlur={false}
-+              />
-+            </div>
-+          </div>
-+        )}
-         {isExpanded && children && (
-           <div>
-             {children.map((child) => (
-@@ -280,6 +582,7 @@ function TreeItem({
-                 onCopyContent={onCopyContent}
-                 onCopyTree={onCopyTree}
-                 onDownload={onDownload}
-+                mutations={mutations}
-               />
-             ))}
-           </div>
-@@ -288,9 +591,11 @@ function TreeItem({
-     );
-   }
- 
-+  // --- File Item ---
-+
-   // Scroll selected file into view on mount — center so it's not at the edge
-   const scrollRef = useCallback(
--    (el: HTMLButtonElement | null) => {
-+    (el: HTMLElement | null) => {
-       if (el && isSelected) {
-         el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-       }
-@@ -298,44 +603,90 @@ function TreeItem({
-     [isSelected]
-   );
- 
-+  // Rename mode for file: keep icon, replace name with inline input (DYK-P2-04)
-+  if (isRenaming) {
-+    return (
-+      <div
-+        ref={scrollRef}
-+        data-tree-path={entry.path}
-+        className={`relative flex w-full items-center gap-1 px-2 py-1 text-left hover:bg-accent ${
-+          isSelected ? 'bg-accent font-medium' : ''
-+        } ${isNewlyAdded ? 'tree-entry-new' : ''}`}
-+        style={{ paddingLeft: `${depth * 16 + 8 + 14}px` }}
-+      >
-+        {isSelected && (
-+          <span className="absolute left-0.5 text-amber-500 font-black text-sm">▶</span>
-+        )}
-+        <File className="h-4 w-4 shrink-0 text-muted-foreground" />
-+        <div className="flex-1 min-w-0">
-+          <InlineEditInput
-+            initialValue={entry.name}
-+            onConfirm={(newName) => mutations?.onConfirmRename(entry.path, newName)}
-+            onCancel={() => mutations?.onCancelEdit()}
-+            commitOnBlur={true}
-+            selectOnMount={true}
-+          />
-+        </div>
-+      </div>
-+    );
-+  }
-+
-   return (
--    <ContextMenu>
--      <ContextMenuTrigger asChild>
--        <button
--          ref={scrollRef}
--          type="button"
--          onClick={() => onSelect(entry.path)}
--          className={`relative flex w-full items-center gap-1 px-2 py-1 text-left hover:bg-accent ${
--            isSelected ? 'bg-accent font-medium' : ''
--          } ${isChanged ? 'text-amber-600 dark:text-amber-400' : ''} ${isNewlyAdded ? 'tree-entry-new' : ''}`}
--          style={{ paddingLeft: `${depth * 16 + 8 + 14}px` }}
--        >
--          {isSelected && (
--            <span className="absolute left-0.5 text-amber-500 font-black text-sm">▶</span>
-+    <div data-tree-path={entry.path}>
-+      <ContextMenu>
-+        <ContextMenuTrigger asChild>
-+          <button
-+            ref={scrollRef as React.Ref<HTMLButtonElement>}
-+            type="button"
-+            onClick={() => onSelect(entry.path)}
-+            className={`relative flex w-full items-center gap-1 px-2 py-1 text-left hover:bg-accent ${
-+              isSelected ? 'bg-accent font-medium' : ''
-+            } ${isChanged ? 'text-amber-600 dark:text-amber-400' : ''} ${isNewlyAdded ? 'tree-entry-new' : ''}`}
-+            style={{ paddingLeft: `${depth * 16 + 8 + 14}px` }}
-+          >
-+            {isSelected && (
-+              <span className="absolute left-0.5 text-amber-500 font-black text-sm">▶</span>
-+            )}
-+            <File className="h-4 w-4 shrink-0 text-muted-foreground" />
-+            <span className={`truncate ${isSelected ? 'text-base' : ''}`}>{entry.name}</span>
-+          </button>
-+        </ContextMenuTrigger>
-+        <ContextMenuContent>
-+          <ContextMenuItem onSelect={() => onCopyFullPath?.(entry.path)}>
-+            <ClipboardCopy className="h-3.5 w-3.5 mr-2" />
-+            Copy Full Path
-+          </ContextMenuItem>
-+          <ContextMenuItem onSelect={() => onCopyRelativePath?.(entry.path)}>
-+            <FileText className="h-3.5 w-3.5 mr-2" />
-+            Copy Relative Path
-+          </ContextMenuItem>
-+          <ContextMenuSeparator />
-+          <ContextMenuItem onSelect={() => onCopyContent?.(entry.path)}>
-+            <ClipboardCopy className="h-3.5 w-3.5 mr-2" />
-+            Copy Content
-+          </ContextMenuItem>
-+          <ContextMenuItem onSelect={() => onDownload?.(entry.path)}>
-+            <Download className="h-3.5 w-3.5 mr-2" />
-+            Download
-+          </ContextMenuItem>
-+          {mutations && (
-+            <>
-+              <ContextMenuSeparator />
-+              <ContextMenuItem onSelect={() => mutations.onStartRename(entry.path)}>
-+                <Pencil className="h-3.5 w-3.5 mr-2" />
-+                Rename
-+              </ContextMenuItem>
-+              <ContextMenuItem
-+                variant="destructive"
-+                onSelect={() => mutations.onRequestDelete(entry.path, entry.name, 'file')}
-+              >
-+                <Trash2 className="h-3.5 w-3.5 mr-2" />
-+                Delete
-+              </ContextMenuItem>
-+            </>
-           )}
--          <File className="h-4 w-4 shrink-0 text-muted-foreground" />
--          <span className={`truncate ${isSelected ? 'text-base' : ''}`}>{entry.name}</span>
--        </button>
--      </ContextMenuTrigger>
--      <ContextMenuContent>
--        <ContextMenuItem onSelect={() => onCopyFullPath?.(entry.path)}>
--          <ClipboardCopy className="h-3.5 w-3.5 mr-2" />
--          Copy Full Path
--        </ContextMenuItem>
--        <ContextMenuItem onSelect={() => onCopyRelativePath?.(entry.path)}>
--          <FileText className="h-3.5 w-3.5 mr-2" />
--          Copy Relative Path
--        </ContextMenuItem>
--        <ContextMenuSeparator />
--        <ContextMenuItem onSelect={() => onCopyContent?.(entry.path)}>
--          <ClipboardCopy className="h-3.5 w-3.5 mr-2" />
--          Copy Content
--        </ContextMenuItem>
--        <ContextMenuItem onSelect={() => onDownload?.(entry.path)}>
--          <Download className="h-3.5 w-3.5 mr-2" />
--          Download
--        </ContextMenuItem>
--      </ContextMenuContent>
--    </ContextMenu>
-+        </ContextMenuContent>
-+      </ContextMenu>
-+    </div>
-   );
- }
-diff --git a/apps/web/src/features/041-file-browser/components/inline-edit-input.tsx b/apps/web/src/features/041-file-browser/components/inline-edit-input.tsx
-new file mode 100644
-index 0000000..63deaa8
---- /dev/null
-+++ b/apps/web/src/features/041-file-browser/components/inline-edit-input.tsx
-@@ -0,0 +1,153 @@
-+'use client';
-+
-+import { useEffect, useRef, useState } from 'react';
-+import { validateFileName } from '../lib/validate-filename';
-+
-+export interface InlineEditInputProps {
-+  /** Pre-filled value for rename mode */
-+  initialValue?: string;
-+  /** Placeholder text when input is empty */
-+  placeholder?: string;
-+  /** Called when user confirms (Enter or blur-commit) with a valid name */
-+  onConfirm: (value: string) => void;
-+  /** Called when user cancels (Escape or blur-cancel) */
-+  onCancel: () => void;
-+  /** If true, blur commits the value (for rename). If false, blur cancels (for create). Default: false */
-+  commitOnBlur?: boolean;
-+  /** Whether to select all text on mount (for rename pre-fill) */
-+  selectOnMount?: boolean;
-+}
-+
-+/**
-+ * Inline text input for file/folder creation and rename in the FileTree.
-+ *
-+ * - Auto-focuses on mount (via requestAnimationFrame to avoid Radix focus race)
-+ * - Validates name on every keystroke via validateFileName()
-+ * - Enter confirms, Escape cancels
-+ * - Blur behavior is configurable (commit for rename, cancel for create)
-+ * - Shows inline error message for invalid names
-+ *
-+ * Plan 068 Phase 2 — DYK-P2-01, DYK-P2-03
-+ */
-+export function InlineEditInput({
-+  initialValue = '',
-+  placeholder = 'Name',
-+  onConfirm,
-+  onCancel,
-+  commitOnBlur = false,
-+  selectOnMount = false,
-+}: InlineEditInputProps) {
-+  const inputRef = useRef<HTMLInputElement>(null);
-+  const [value, setValue] = useState(initialValue);
-+  const [error, setError] = useState<string | null>(null);
-+  // Track whether we've already committed/cancelled to avoid double-fire
-+  const settledRef = useRef(false);
-+
-+  // Auto-focus on mount — use requestAnimationFrame to win the race
-+  // against Radix ContextMenu's focus restore (DYK-P2-01)
-+  useEffect(() => {
-+    const raf = requestAnimationFrame(() => {
-+      const input = inputRef.current;
-+      if (input) {
-+        input.focus();
-+        if (selectOnMount && initialValue) {
-+          input.select();
++  // T002+T003: Rename → toast + refresh + URL sync for open file (DYK-P3-02)
++  const handleTreeRename = useCallback(
++    async (oldPath: string, newName: string) => {
++      const result = await mutations.handleRename(oldPath, newName);
++      if (result?.ok) {
++        if (selectedFile === oldPath) {
++          // DYK-P3-02: Preserve unsaved edits — update URL without re-fetching
++          setParams({ file: result.newPath, line: null }, { history: 'replace' });
++        } else {
++          fileNav.handleSelect(result.newPath);
 +        }
 +      }
-+    });
-+    return () => cancelAnimationFrame(raf);
-+  }, [selectOnMount, initialValue]);
-+
-+  const validate = (name: string): boolean => {
-+    const result = validateFileName(name);
-+    if (!result.ok) {
-+      switch (result.error) {
-+        case 'empty':
-+          setError('Name cannot be empty');
-+          break;
-+        case 'reserved':
-+          setError(`"${name}" is a reserved name`);
-+          break;
-+        case 'invalid-char':
-+          setError(`Character "${result.char}" is not allowed`);
-+          break;
-+      }
-+      return false;
-+    }
-+    setError(null);
-+    return true;
-+  };
-+
-+  const handleConfirm = () => {
-+    if (settledRef.current) return;
-+    const trimmed = value.trim();
-+    if (!validate(trimmed)) return;
-+    settledRef.current = true;
-+    onConfirm(trimmed);
-+  };
-+
-+  const handleCancel = () => {
-+    if (settledRef.current) return;
-+    settledRef.current = true;
-+    onCancel();
-+  };
-+
-+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-+    if (e.key === 'Enter') {
-+      e.preventDefault();
-+      e.stopPropagation();
-+      handleConfirm();
-+    } else if (e.key === 'Escape') {
-+      e.preventDefault();
-+      e.stopPropagation();
-+      handleCancel();
-+    }
-+  };
-+
-+  const handleBlur = () => {
-+    if (settledRef.current) return;
-+    if (commitOnBlur) {
-+      const trimmed = value.trim();
-+      if (trimmed && validate(trimmed)) {
-+        handleConfirm();
-+      } else {
-+        handleCancel();
-+      }
-+    } else {
-+      handleCancel();
-+    }
-+  };
-+
-+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-+    const newValue = e.target.value;
-+    setValue(newValue);
-+    // Validate on change but don't block typing — just show/clear error
-+    if (newValue.trim().length > 0) {
-+      validate(newValue);
-+    } else {
-+      setError(null);
-+    }
-+  };
-+
-+  return (
-+    <div className="flex flex-col">
-+      <input
-+        ref={inputRef}
-+        type="text"
-+        value={value}
-+        onChange={handleChange}
-+        onKeyDown={handleKeyDown}
-+        onBlur={handleBlur}
-+        placeholder={placeholder}
-+        className="h-6 w-full min-w-0 flex-1 rounded-sm border border-ring bg-background px-1 text-sm outline-none focus:ring-1 focus:ring-ring"
-+        aria-invalid={error ? true : undefined}
-+        aria-describedby={error ? 'inline-edit-error' : undefined}
-+      />
-+      {error && (
-+        <span id="inline-edit-error" className="mt-0.5 text-xs text-destructive">
-+          {error}
-+        </span>
-+      )}
-+    </div>
++    },
++    [mutations.handleRename, selectedFile, setParams, fileNav.handleSelect]
 +  );
++
++  // T002+T004: Delete → toast + refresh + clear selection if needed (DYK-P3-03)
++  const handleTreeDelete = useCallback(
++    async (path: string) => {
++      const result = await mutations.handleDelete(path);
++      if (result?.ok && selectedFile) {
++        // DYK-P3-03: Trailing slash prevents false prefix matches
++        if (selectedFile === path || selectedFile.startsWith(`${path}/`)) {
++          setParams({ file: '', line: null }, { history: 'replace' });
++        }
++      }
++    },
++    [mutations.handleDelete, selectedFile, setParams]
++  );
++
+   // --- File search filter (Plan 049 Feature 2) ---
+   const fileFilter = useFileFilter({ worktreePath, fetchFileList });
+ 
+@@ -178,6 +285,14 @@ function BrowserClientInner({
+   // T001: Watch expanded directories for tree updates
+   const treeChanges = useTreeDirectoryChanges(trackedExpandedDirs);
+ 
++  // T006: Merge local + SSE-driven new paths for green animation
++  const combinedNewPaths = useMemo(() => {
++    if (localNewPaths.size === 0) return treeChanges.newPaths;
++    const combined = new Set(treeChanges.newPaths);
++    for (const p of localNewPaths) combined.add(p);
++    return combined;
++  }, [treeChanges.newPaths, localNewPaths]);
++
+   // T005: Watch all files for ChangesView auto-refresh (500ms debounce)
+   const allChanges = useFileChanges('*', { debounce: 500 });
+ 
+@@ -474,10 +589,10 @@ function BrowserClientInner({
+               tree: (
+                 <FileTree
+                   ref={treeRef}
+-                  entries={initialEntries}
++                  entries={rootEntries}
+                   selectedFile={selectedFile}
+                   changedFiles={panelState.changedFiles}
+-                  newlyAddedPaths={treeChanges.newPaths}
++                  newlyAddedPaths={combinedNewPaths}
+                   onSelect={fileNav.handleSelect}
+                   onExpand={fileNav.handleExpand}
+                   childEntries={fileNav.childEntries}
+@@ -488,6 +603,10 @@ function BrowserClientInner({
+                   onCopyContent={clipboard.handleCopyContent}
+                   onCopyTree={clipboard.handleCopyTree}
+                   onDownload={clipboard.handleDownload}
++                  onCreateFile={handleTreeCreateFile}
++                  onCreateFolder={handleTreeCreateFolder}
++                  onRename={handleTreeRename}
++                  onDelete={handleTreeDelete}
+                 />
+               ),
+               changes: (
+diff --git a/apps/web/src/features/041-file-browser/hooks/use-file-mutations.ts b/apps/web/src/features/041-file-browser/hooks/use-file-mutations.ts
+new file mode 100644
+index 0000000..f17b4cd
+--- /dev/null
++++ b/apps/web/src/features/041-file-browser/hooks/use-file-mutations.ts
+@@ -0,0 +1,164 @@
++'use client';
++
++/**
++ * useFileMutations — CRUD operation handlers with toast feedback.
++ *
++ * Calls server actions for create/rename/delete, shows toast notifications,
++ * and refreshes the tree directory after success. Returns results so
++ * BrowserClient can handle edge cases (rename open file, delete selection, etc.).
++ *
++ * Plan 068 Phase 3
++ */
++
++import type {
++  CreateResult,
++  DeleteResult,
++  RenameResult,
++} from '@/features/041-file-browser/services/file-mutation-actions';
++import { useCallback } from 'react';
++import { toast } from 'sonner';
++
++interface UseFileMutationsOptions {
++  slug: string;
++  worktreePath: string;
++  /** Refresh a subdirectory's entries in the tree */
++  refreshDir: (dirPath: string) => Promise<void>;
++  /** Refresh root entries (DYK-P3-01: initialEntries is a server prop) */
++  refreshRoot: () => Promise<void>;
++  /** Server action dependencies — injected from BrowserClient */
++  actions: {
++    createFile: (
++      slug: string,
++      worktreePath: string,
++      dirPath: string,
++      fileName: string
++    ) => Promise<CreateResult>;
++    createFolder: (
++      slug: string,
++      worktreePath: string,
++      dirPath: string,
++      folderName: string
++    ) => Promise<CreateResult>;
++    deleteItem: (slug: string, worktreePath: string, itemPath: string) => Promise<DeleteResult>;
++    renameItem: (
++      slug: string,
++      worktreePath: string,
++      oldPath: string,
++      newName: string
++    ) => Promise<RenameResult>;
++  };
++}
++
++/** Extract parent directory from a path (empty string for root-level items) */
++function parentDir(path: string): string {
++  const idx = path.lastIndexOf('/');
++  return idx === -1 ? '' : path.substring(0, idx);
++}
++
++export function useFileMutations({
++  slug,
++  worktreePath,
++  refreshDir,
++  refreshRoot,
++  actions,
++}: UseFileMutationsOptions) {
++  const refresh = useCallback(
++    async (dirPath: string) => {
++      if (dirPath === '') {
++        await refreshRoot();
++      } else {
++        await refreshDir(dirPath);
++      }
++    },
++    [refreshDir, refreshRoot]
++  );
++
++  const handleCreateFile = useCallback(
++    async (dir: string, name: string) => {
++      const toastId = toast.loading(`Creating ${name}...`);
++      try {
++        const result = await actions.createFile(slug, worktreePath, dir, name);
++        if (result.ok) {
++          toast.success(`Created ${name}`, { id: toastId });
++          await refresh(dir);
++          return result;
++        }
++        toast.error(`Failed to create ${name}`, { id: toastId, description: result.message });
++        return result;
++      } catch {
++        toast.error(`Failed to create ${name}`, { id: toastId });
++        return null;
++      }
++    },
++    [slug, worktreePath, refresh, actions]
++  );
++
++  const handleCreateFolder = useCallback(
++    async (dir: string, name: string) => {
++      const toastId = toast.loading(`Creating ${name}/...`);
++      try {
++        const result = await actions.createFolder(slug, worktreePath, dir, name);
++        if (result.ok) {
++          toast.success(`Created ${name}/`, { id: toastId });
++          await refresh(dir);
++          return result;
++        }
++        toast.error(`Failed to create ${name}/`, { id: toastId, description: result.message });
++        return result;
++      } catch {
++        toast.error(`Failed to create ${name}/`, { id: toastId });
++        return null;
++      }
++    },
++    [slug, worktreePath, refresh, actions]
++  );
++
++  const handleRename = useCallback(
++    async (oldPath: string, newName: string) => {
++      const oldName = oldPath.split('/').pop() ?? oldPath;
++      const toastId = toast.loading(`Renaming ${oldName}...`);
++      try {
++        const result = await actions.renameItem(slug, worktreePath, oldPath, newName);
++        if (result.ok) {
++          toast.success(`Renamed to ${newName}`, { id: toastId });
++          await refresh(parentDir(oldPath));
++          return result;
++        }
++        toast.error(`Failed to rename ${oldName}`, { id: toastId, description: result.message });
++        return result;
++      } catch {
++        toast.error(`Failed to rename ${oldName}`, { id: toastId });
++        return null;
++      }
++    },
++    [slug, worktreePath, refresh, actions]
++  );
++
++  const handleDelete = useCallback(
++    async (path: string) => {
++      const name = path.split('/').pop() ?? path;
++      const toastId = toast.loading(`Deleting ${name}...`);
++      try {
++        const result = await actions.deleteItem(slug, worktreePath, path);
++        if (result.ok) {
++          toast.success(`Deleted ${name}`, { id: toastId });
++          await refresh(parentDir(path));
++          return result;
++        }
++        toast.error(`Failed to delete ${name}`, { id: toastId, description: result.message });
++        return result;
++      } catch {
++        toast.error(`Failed to delete ${name}`, { id: toastId });
++        return null;
++      }
++    },
++    [slug, worktreePath, refresh, actions]
++  );
++
++  return {
++    handleCreateFile,
++    handleCreateFolder,
++    handleRename,
++    handleDelete,
++  };
 +}
 diff --git a/docs/domains/file-browser/domain.md b/docs/domains/file-browser/domain.md
-index 5d9787b..3731afc 100644
+index 1b5d367..72512f1 100644
 --- a/docs/domains/file-browser/domain.md
 +++ b/docs/domains/file-browser/domain.md
-@@ -73,6 +73,8 @@ Workspace-scoped file browsing, editing, and diffing. The core feature that make
+@@ -72,7 +72,7 @@ Workspace-scoped file browsing, editing, and diffing. The core feature that make
+ | createFolderService | Create directory + security + duplicate check | IFileSystem (mkdir, exists, realpath), IPathResolver, validateFileName |
  | deleteItemService | Delete file/folder + security + size guard | IFileSystem (unlink, rmdir, stat, readDir, realpath), IPathResolver |
  | renameItemService | Rename file/folder + security + destination check | IFileSystem (rename, exists, realpath), IPathResolver, validateFileName |
- | validateFileName | Git-portable filename validation | None (pure function) |
-+| InlineEditInput | Inline text input for create/rename in FileTree | validateFileName |
-+| DeleteConfirmationDialog | VS Code-style delete confirmation dialog | Dialog (Radix UI) |
+-| validateFileName | Git-portable filename validation | None (pure function) |
++| useFileMutations | Hook: CRUD handlers with toast + tree refresh + edge cases | Server actions (createFile, createFolder, deleteItem, renameItem), handleRefreshDir |
+ | InlineEditInput | Inline text input for create/rename in FileTree | validateFileName |
+ | DeleteConfirmationDialog | VS Code-style delete confirmation dialog | Dialog (Radix UI) |
  | fileExists action | Lightweight stat check for ExplorerPanel | IFileSystem, IPathResolver |
- | Files API route | GET handler for client fetch | Directory listing service |
- | Raw file API route | Streaming binary file delivery with Range support | IFileSystem, IPathResolver |
-@@ -105,6 +107,8 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
+@@ -106,6 +106,7 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
+ | `apps/web/src/features/041-file-browser/services/changed-files.ts` | Changed files filter | Phase 4 |
  | `apps/web/src/features/041-file-browser/services/file-actions.ts` | readFile + saveFile service logic | Phase 4 |
  | `apps/web/src/features/041-file-browser/services/file-mutation-actions.ts` | createFile, createFolder, deleteItem, renameItem service logic | Plan 068 Phase 1 |
++| `apps/web/src/features/041-file-browser/hooks/use-file-mutations.ts` | useFileMutations hook (CRUD + toast + refresh) | Plan 068 Phase 3 |
  | `apps/web/src/features/041-file-browser/lib/validate-filename.ts` | Git-portable filename validation | Plan 068 Phase 1 |
-+| `apps/web/src/features/041-file-browser/components/inline-edit-input.tsx` | InlineEditInput (create/rename inline input) | Plan 068 Phase 2 |
-+| `apps/web/src/features/041-file-browser/components/delete-confirmation-dialog.tsx` | DeleteConfirmationDialog | Plan 068 Phase 2 |
- | `apps/web/src/features/041-file-browser/components/file-tree.tsx` | FileTree | Phase 4 |
- | `apps/web/src/features/041-file-browser/components/code-editor.tsx` | CodeEditor wrapper | Phase 4 |
- | `apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx` | FileViewerPanel | Phase 4, FX001-7 |
-@@ -179,3 +183,4 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
- | Plan 051 | FlowSpace code search: useFlowspaceSearch hook (debounce, availability, graph age), BrowserClient wiring for `#` text and `$` semantic search modes, context menu on FlowSpace results | 2026-02-26 |
+ | `apps/web/src/features/041-file-browser/components/inline-edit-input.tsx` | InlineEditInput (create/rename inline input) | Plan 068 Phase 2 |
+ | `apps/web/src/features/041-file-browser/components/delete-confirmation-dialog.tsx` | DeleteConfirmationDialog | Plan 068 Phase 2 |
+@@ -197,3 +198,4 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
  | Plan 053 P5 | GlobalStateSystem worktree exemplar: registerWorktreeState (multi-instance domain), WorktreeStatePublisher (useFileChanges → state), WorktreeStateSubtitle (sidebar consumer), GlobalStateConnector wiring in browser-client.tsx | 2026-02-27 |
  | Plan 068 Phase 1 | File CRUD service layer: createFileService, createFolderService, deleteItemService, renameItemService with path security + validateFileName utility + 4 server actions | 2026-03-07 |
-+| Plan 068 Phase 2 | FileTree UI extensions: InlineEditInput component, hover buttons (New File/Folder), inline create/rename modes, context menu Rename/Delete, DeleteConfirmationDialog, F2/Enter keyboard shortcuts, CRUD callback props | 2026-03-07 |
-diff --git a/docs/plans/068-add-files/tasks/phase-2-filetree-ui-extensions/execution.log.md b/docs/plans/068-add-files/tasks/phase-2-filetree-ui-extensions/execution.log.md
+ | Plan 068 Phase 2 | FileTree UI extensions: InlineEditInput component, hover buttons (New File/Folder), inline create/rename modes, context menu Rename/Delete, DeleteConfirmationDialog, F2/Enter keyboard shortcuts, CRUD callback props | 2026-03-07 |
++| Plan 068 Phase 3 | BrowserClient wiring: useFileMutations hook with toast feedback, CRUD callbacks wired to FileTree, rename-open-file URL sync, delete-open-file selection clear, local newlyAddedPaths animation, auto-select/expand after create, root entries state for root-level refresh | 2026-03-07 |
+diff --git a/docs/plans/068-add-files/tasks/phase-3-browserclient-wiring-integration/execution.log.md b/docs/plans/068-add-files/tasks/phase-3-browserclient-wiring-integration/execution.log.md
 new file mode 100644
-index 0000000..6f1297d
+index 0000000..6f1abe2
 --- /dev/null
-+++ b/docs/plans/068-add-files/tasks/phase-2-filetree-ui-extensions/execution.log.md
-@@ -0,0 +1,53 @@
-+# Execution Log: Phase 2 — FileTree UI Extensions
++++ b/docs/plans/068-add-files/tasks/phase-3-browserclient-wiring-integration/execution.log.md
+@@ -0,0 +1,54 @@
++# Execution Log: Phase 3 — BrowserClient Wiring & Integration
 +
 +**Plan**: 068-add-files
-+**Phase**: Phase 2
++**Phase**: Phase 3
 +**Started**: 2026-03-07
 +
 +---
 +
 +## Baseline
 +
-+- **Tests**: 356 files, 5020 tests passing, 77 skipped
-+- **Duration**: 164.11s
++- **Tests**: 357 files, 5030 tests passing, 77 skipped
++- **Duration**: 165.86s
 +- **Branch**: `068-add-files`
 +
 +---
 +
 +## Task Log
 +
-+### T001: InlineEditInput component — ✅
-+Created `inline-edit-input.tsx` with: auto-focus via `requestAnimationFrame` (DYK-P2-01), Enter/Escape/blur handling, `commitOnBlur` prop (default `false` per DYK-P2-03), `selectOnMount` for rename, live `validateFileName` validation with inline error display, `settledRef` to prevent double-fire. Typechecks clean.
++### T001: useFileMutations hook — ✅
++Created `use-file-mutations.ts` with 4 handlers: `handleCreateFile`, `handleCreateFolder`, `handleRename`, `handleDelete`. Each calls server action with toast feedback (loading→success/error) and awaits refreshDir on success. Uses dependency injection for server actions (avoids `src/` → `app/` import issue). Helper `parentDir()` extracts parent for refresh targeting.
 +
-+### T002: Hover buttons on folder rows — ✅
-+Added FilePlus + FolderPlus hover buttons next to RefreshCw on all folder rows using existing `hidden group-hover:block` pattern. Added thin root row (DYK-P2-02) at top of tree with `.` label and New File/New Folder buttons for root-level creation. All buttons gated behind CRUD callback existence.
++### T002: Wire into BrowserClient — ✅
++Called `useFileMutations` in BrowserClientInner with slug, worktreePath, handleRefreshDir, handleRefreshRoot, and injected server actions. Created 4 wrapper callbacks (handleTreeCreateFile, handleTreeCreateFolder, handleTreeRename, handleTreeDelete) that compose hook results with edge case logic. Passed all 4 as CRUD callback props to FileTree. DYK-P3-01: Wrapped `initialEntries` in `useState(initialEntries)` and added `handleRefreshRoot` for root-level creates.
 +
-+### T003: Inline create mode — ✅
-+Implemented editState machine with `{mode: 'create-file' | 'create-folder', parentDir}`. Hover button click sets editState and auto-expands folder if collapsed. InlineEditInput renders at top of folder children with file/folder icon hint. Root-level create renders InlineEditInput below root row. `commitOnBlur={false}` per DYK-P2-03.
++### T003: Handle rename of open file — ✅
++In `handleTreeRename`: if `selectedFile === oldPath`, uses `setParams({file: result.newPath})` instead of `handleSelect` to preserve unsaved edits (DYK-P3-02). For non-open files, calls `handleSelect(result.newPath)` for auto-select.
 +
-+### T004: Inline rename mode — ✅
-+Rename mode replaces name `<span>` with InlineEditInput while keeping chevron + file/folder icon visible (DYK-P2-04). Pre-fills current name with `selectOnMount={true}`. `commitOnBlur={true}` per DYK-P2-03. Works for both files and folders.
++### T004: Handle delete of open file — ✅
++In `handleTreeDelete`: checks both exact match (`selectedFile === path`) and ancestor match (`selectedFile.startsWith(\`${path}/\`)`) with trailing slash (DYK-P3-03). Clears selection via `setParams({file: '', line: null})`.
 +
-+### T005: Context menu Rename + Delete — ✅
-+Extended folder context menu: New File, New Folder, separator, existing items, separator, Rename, Delete (destructive). Extended file context menu: existing items, separator, Rename, Delete (destructive). All gated behind `mutations` prop. Rename sets editState, Delete sets deleteTarget (DYK-P2-05: separate state).
++### T005: Handle delete of expanded folder — ✅ (verification only)
++Confirmed DYK-P3-04: no code needed. After `handleRefreshDir` re-fetches parent, deleted folder disappears from `childEntries`. FileTree's internal expanded Set retains stale path harmlessly (nothing renders for a path with no entry).
 +
-+### T006: DeleteConfirmationDialog — ✅
-+Created `delete-confirmation-dialog.tsx` with VS Code-style messaging: "Delete '{name}'?" for files, "Delete '{name}' and all its contents?" for folders. Confirm button is `variant="destructive"`. Supports `tooLargeCount` prop for too-large folder error display. Follows Dialog/Button patterns from existing codebase.
++### T006: newlyAddedPaths local state — ✅
++Added `localNewPaths` state with `addNewlyCreatedPath` helper that adds path + sets 1.5s auto-cleanup timeout (matches CSS animation). Created `combinedNewPaths` useMemo merging local + SSE-driven paths. Passed to FileTree as `newlyAddedPaths={combinedNewPaths}`.
 +
-+### T007: F2 and Enter keyboard shortcuts — ✅
-+Added `onKeyDown` handler on tree container that intercepts F2 and Enter. Uses `data-tree-path` attribute to find focused item. Gated: only fires when `onRename` callback exists and no edit is already in progress. `preventDefault()` stops Enter from triggering button's native click.
++### T007: Auto-select/expand after create/rename — ✅
++Create file: calls `handleSelect(result.path)` to open in viewer. Create folder: calls `setExpandPaths([result.path])` to auto-expand. Rename: auto-selects new path (or just updates URL if file was dirty — T003 logic).
 +
-+### T008: FileTree props extension — ✅
-+Added 4 optional CRUD callback props: `onCreateFile`, `onCreateFolder`, `onRename`, `onDelete`. Built `TreeMutationHandlers` bundle that's only created when at least one callback exists. All mutation UI (hover buttons, context menu items, keyboard shortcuts, delete dialog) gated behind `mutations` prop existence. Fully backward-compatible — existing usages without CRUD callbacks see no change.
-+
-+### T009: Smoke tests for InlineEditInput — ✅
-+5 tests: (a) renders + auto-focuses on mount, (b) Enter calls onConfirm with value, (c) Escape calls onCancel, (d) invalid name shows error + blocks confirm, (e) blur cancels when commitOnBlur=false. All pass in 196ms.
++### T008: Domain.md update — ✅
++Added useFileMutations to Composition table, new hook to Source Location, Phase 3 entry to History.
 +
 +## Final Evidence
 +
 +- **`just fft`**: PASS
-+- **Test files**: 357 passed (+1 new), 9 skipped
-+- **Tests**: 5025 passed (+5 new smoke tests), 77 skipped
-+- **Duration**: 164.26s
-+- **New files**: 3 (inline-edit-input.tsx, delete-confirmation-dialog.tsx, inline-edit-input.test.tsx)
-+- **Modified files**: 1 (file-tree.tsx — comprehensive rewrite for CRUD UI)
-\ No newline at end of file
-diff --git a/docs/plans/068-add-files/tasks/phase-2-filetree-ui-extensions/tasks.fltplan.md b/docs/plans/068-add-files/tasks/phase-2-filetree-ui-extensions/tasks.fltplan.md
++- **Test files**: 357 passed, 9 skipped
++- **Tests**: 5030 passed, 77 skipped
++- **Duration**: 164.84s
++- **New files**: 1 (use-file-mutations.ts)
++- **Modified files**: 2 (browser-client.tsx, domain.md)
++
++## Discovery
++
++Import from `src/features/` to `app/actions/` fails in Next.js build (Turbopack module resolution). Fixed by injecting server actions as parameters (dependency injection pattern matching useClipboard).
+diff --git a/docs/plans/068-add-files/tasks/phase-3-browserclient-wiring-integration/tasks.fltplan.md b/docs/plans/068-add-files/tasks/phase-3-browserclient-wiring-integration/tasks.fltplan.md
 new file mode 100644
-index 0000000..17b2f68
+index 0000000..7164300
 --- /dev/null
-+++ b/docs/plans/068-add-files/tasks/phase-2-filetree-ui-extensions/tasks.fltplan.md
-@@ -0,0 +1,171 @@
-+# Flight Plan: Phase 2 — FileTree UI Extensions
++++ b/docs/plans/068-add-files/tasks/phase-3-browserclient-wiring-integration/tasks.fltplan.md
+@@ -0,0 +1,154 @@
++# Flight Plan: Phase 3 — BrowserClient Wiring & Integration
 +
 +**Plan**: [add-files-plan.md](../../add-files-plan.md)
-+**Phase**: Phase 2: FileTree UI Extensions
++**Phase**: Phase 3: BrowserClient Wiring & Integration
 +**Generated**: 2026-03-07
 +**Status**: Landed
 +
@@ -1012,9 +456,9 @@ index 0000000..17b2f68
 +
 +## Departure → Destination
 +
-+**Where we are**: Phase 1 delivered 4 service functions, filename validation, and 4 server actions — all TDD-tested with 43 unit tests. The FileTree can display files/folders, expand/collapse directories, show a context menu for copy/download operations, and has a hover refresh button. But users cannot create, rename, or delete anything from the tree.
++**Where we are**: Phase 1 delivered 4 server actions for file CRUD with full TDD coverage and path security. Phase 2 delivered all the UI — InlineEditInput, hover buttons, context menus, keyboard shortcuts, and DeleteConfirmationDialog in the FileTree. But clicking "New File" and typing a name does nothing — the callbacks are unconnected. The CRUD UI is visible but inert.
 +
-+**Where we're going**: A user can hover over any folder to see New File / New Folder buttons, click to get an inline text input, type a name with live validation, and press Enter to trigger creation. They can press F2 or right-click → Rename to edit any item's name inline. They can right-click → Delete to get a VS Code-style confirmation dialog. All mutation UI is callback-driven — Phase 3 wires the actual server actions.
++**Where we're going**: A user hovers a folder → clicks New File → types `notes.md` → presses Enter → the file is created on disk, a success toast appears, the tree refreshes with a green fade-in animation, and the new file auto-opens in the viewer. Rename updates the URL and viewer. Delete clears the selection if the viewed file was removed. All operations give instant toast feedback.
 +
 +---
 +
@@ -1024,16 +468,17 @@ index 0000000..17b2f68
 +
 +| Domain | What Changes | Key Files |
 +|--------|-------------|-----------|
-+| file-browser | New InlineEditInput component, DeleteConfirmationDialog, FileTree extended with hover buttons, inline edit state, context menu items, keyboard shortcuts | `components/inline-edit-input.tsx` (new), `components/delete-confirmation-dialog.tsx` (new), `components/file-tree.tsx` (modify), `test/.../inline-edit-input.test.ts` (new) |
++| file-browser | New useFileMutations hook, BrowserClient wired with CRUD callbacks + edge case handling | `hooks/use-file-mutations.ts` (new), `browser-client.tsx` (modify), `domain.md` (modify) |
 +
 +### Domains We Depend On (no changes)
 +
 +| Domain | What We Consume | Contract |
 +|--------|----------------|----------|
-+| file-browser (Phase 1) | Client-side filename validation | `validateFileName()` from `lib/validate-filename.ts` |
-+| _platform/viewer | Context menu with destructive variant | `ContextMenu*` from `@/components/ui/context-menu` |
-+| _platform/viewer | Dialog for delete confirmation | `Dialog*` from `@/components/ui/dialog` |
-+| _platform/viewer | Button with destructive variant | `Button` from `@/components/ui/button` |
++| file-browser (Phase 1) | Server actions for CRUD | `createFile`, `createFolder`, `deleteItem`, `renameItem` |
++| file-browser (Phase 2) | FileTree CRUD callback props | `onCreateFile`, `onCreateFolder`, `onRename`, `onDelete` |
++| file-browser | Tree refresh + file selection | `handleRefreshDir`, `handleSelect` from useFileNavigation |
++| file-browser | SSE-driven new paths | `newPaths` from useTreeDirectoryChanges |
++| _platform/workspace-url | URL state | `fileBrowserParams`, `setParams` |
 +
 +---
 +
@@ -1048,30 +493,24 @@ index 0000000..17b2f68
 +    classDef done fill:#4CAF50,stroke:#388E3C,color:#fff
 +    classDef blocked fill:#F44336,stroke:#D32F2F,color:#fff
 +
-+    state "1: InlineEditInput" as S1
-+    state "2: Hover buttons" as S2
-+    state "3: Inline create" as S3
-+    state "4: Inline rename" as S4
-+    state "5: Context menu" as S5
-+    state "6: Delete dialog" as S6
-+    state "7: Keyboard shortcuts" as S7
-+    state "8: Props extension" as S8
-+    state "9: Smoke tests" as S9
++    state "1: useFileMutations hook" as S1
++    state "2: BrowserClient wiring" as S2
++    state "3: Rename edge cases" as S3
++    state "4: Delete edge cases" as S4
++    state "5: Animation + auto-select" as S5
++    state "6: Domain docs" as S6
 +
 +    [*] --> S1
 +    S1 --> S2
-+    S1 --> S4
 +    S2 --> S3
-+    S1 --> S9
-+    S4 --> S5
-+    S6 --> S5
-+    S4 --> S7
-+    S3 --> S8
-+    S5 --> S8
-+    S7 --> S8
-+    S8 --> [*]
++    S2 --> S4
++    S2 --> S5
++    S3 --> S6
++    S4 --> S6
++    S5 --> S6
++    S6 --> [*]
 +
-+    class S1,S2,S3,S4,S5,S6,S7,S8,S9 done
++    class S1,S2,S3,S4,S5,S6 done
 +```
 +
 +**Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -1082,15 +521,12 @@ index 0000000..17b2f68
 +
 +<!-- Updated by /plan-6-v2 during implementation: [ ] → [~] → [x] -->
 +
-+- [x] **Stage 1: InlineEditInput component** — Reusable inline text input with auto-focus, validation, Enter/Escape, blur commit (`inline-edit-input.tsx` — new file)
-+- [x] **Stage 2: Hover buttons** — FilePlus + FolderPlus buttons on folder hover next to RefreshCw (`file-tree.tsx`)
-+- [x] **Stage 3: Inline create mode** — Edit state machine for create-file/create-folder, renders InlineEditInput at top of folder children (`file-tree.tsx`)
-+- [x] **Stage 4: Inline rename mode** — Edit state for rename, replaces item name with pre-filled InlineEditInput (`file-tree.tsx`)
-+- [x] **Stage 5: Context menu items** — Rename + Delete on files/folders, New File + New Folder on folders, destructive variant (`file-tree.tsx`)
-+- [x] **Stage 6: Delete dialog** — VS Code-style confirmation with file/folder messaging (`delete-confirmation-dialog.tsx` — new file)
-+- [x] **Stage 7: Keyboard shortcuts** — F2 and Enter trigger rename mode when tree has focus (`file-tree.tsx`)
-+- [x] **Stage 8: Props extension** — Optional CRUD callback props on FileTreeProps, gate mutation UI behind prop existence (`file-tree.tsx`)
-+- [x] **Stage 9: Smoke tests** — 3-5 tests for InlineEditInput: mount/focus, Enter, Escape, validation, blur (`inline-edit-input.test.ts` — new file)
++- [x] **Stage 1: useFileMutations hook** — Server action calls with toast feedback, refreshDir on success (`use-file-mutations.ts` — new file)
++- [x] **Stage 2: BrowserClient wiring** — Pass CRUD callbacks from hook to FileTree, immediate refresh (`browser-client.tsx`)
++- [x] **Stage 3: Rename edge cases** — Detect renamed open file, sync URL/viewer (`use-file-mutations.ts`, `browser-client.tsx`)
++- [x] **Stage 4: Delete edge cases** — Clear selection on delete of open file/folder, clean expanded state (`browser-client.tsx`)
++- [x] **Stage 5: Animation + auto-select** — Local newlyAddedPaths with 1.5s timeout, auto-select/expand after create/rename (`browser-client.tsx`)
++- [x] **Stage 6: Domain docs** — Update domain.md composition, history, source location (`domain.md`)
 +
 +---
 +
@@ -1102,23 +538,21 @@ index 0000000..17b2f68
 +    classDef changed fill:#FFF3E0,stroke:#FF9800,color:#000
 +    classDef new fill:#E3F2FD,stroke:#2196F3,color:#000
 +
-+    subgraph Before["Before Phase 2"]
-+        B_FT["FileTree<br/>(display + context menu:<br/>copy/download)"]:::existing
-+        B_CM["ContextMenu<br/>(3 file items, 3 dir items)"]:::existing
-+        B_VF["validateFileName()<br/>(Phase 1)"]:::existing
++    subgraph Before["Before Phase 3"]
++        B_FT["FileTree<br/>(CRUD UI — inert)"]:::existing
++        B_SA["Server Actions<br/>(untouched)"]:::existing
++        B_BC["BrowserClient<br/>(no CRUD wiring)"]:::existing
 +    end
 +
-+    subgraph After["After Phase 2"]
-+        A_FT["FileTree<br/>(+ hover buttons,<br/>inline edit state,<br/>CRUD callbacks,<br/>keyboard shortcuts)"]:::changed
-+        A_IE["InlineEditInput<br/>(auto-focus, validation,<br/>Enter/Escape/blur)"]:::new
-+        A_DD["DeleteConfirmation<br/>Dialog"]:::new
-+        A_CM["ContextMenu<br/>(+ Rename, Delete,<br/>New File, New Folder)"]:::changed
-+        A_VF["validateFileName()"]:::existing
++    subgraph After["After Phase 3"]
++        A_FT["FileTree<br/>(CRUD UI — live)"]:::existing
++        A_HK["useFileMutations<br/>(toast + refresh +<br/>edge cases)"]:::new
++        A_SA["Server Actions"]:::existing
++        A_BC["BrowserClient<br/>(CRUD wired +<br/>edge cases)"]:::changed
 +
-+        A_FT --> A_IE
-+        A_FT --> A_DD
-+        A_FT --> A_CM
-+        A_IE --> A_VF
++        A_FT -->|"callbacks"| A_BC
++        A_BC --> A_HK
++        A_HK --> A_SA
 +    end
 +```
 +
@@ -1128,135 +562,136 @@ index 0000000..17b2f68
 +
 +## Acceptance Criteria
 +
-+- [ ] AC-01: Hover over folder → "New File" button visible → click → inline input appears at top of folder children
-+- [ ] AC-02: Hover over folder → "New Folder" button visible → click → inline input appears
-+- [ ] AC-03: Escape during inline create → input removed, nothing created
-+- [ ] AC-04: Enter or F2 on selected file → inline rename input (pre-filled, text selected)
-+- [ ] AC-05: Right-click → Rename → inline rename mode activates
-+- [ ] AC-06: Right-click → Delete → confirmation dialog appears
-+- [ ] AC-07: Delete dialog for folder says "and all its contents"
-+- [ ] AC-13: Invalid names (git-portable chars) show inline error in real-time
-+- [ ] InlineEditInput smoke tests pass (3-5 cases)
++- [ ] AC-01: Hover New File → type name → Enter → file created + toast + green animation + auto-opens in viewer
++- [ ] AC-02: Hover New Folder → type name → Enter → folder created + toast + auto-expands
++- [ ] AC-06: Right-click Delete → confirm → item deleted + toast
++- [ ] AC-10: Rename currently-viewed file → URL updates, viewer shows new file
++- [ ] AC-11: Delete currently-viewed file → viewer clears to empty state
++- [ ] AC-12: Toast feedback on all operations (create/rename/delete, success/error)
 +- [ ] `just fft` passes (lint, format, typecheck, test)
-+- [ ] No changes to existing read/save/copy/download behavior (regression-free)
++- [ ] No changes to existing read/save/copy behavior (regression-free)
 +
 +## Goals & Non-Goals
 +
 +**Goals**:
-+- ✅ InlineEditInput with focus lifecycle and inline validation
-+- ✅ Hover buttons (New File, New Folder) on folder rows
-+- ✅ Inline create and rename modes with state management
-+- ✅ Extended context menus with Rename + Delete
-+- ✅ DeleteConfirmationDialog
-+- ✅ F2 and Enter keyboard shortcuts
-+- ✅ CRUD callback props on FileTree
-+- ✅ Lightweight smoke tests
++- ✅ useFileMutations hook with toast feedback
++- ✅ End-to-end CRUD wiring through BrowserClient
++- ✅ Edge case handling (rename open file, delete open file/folder)
++- ✅ Green fade-in animation for new items
++- ✅ Auto-select/expand after create and rename
++- ✅ Domain documentation updated
 +
 +**Non-Goals**:
-+- ❌ No server action calls (Phase 3)
-+- ❌ No toast notifications (Phase 3)
-+- ❌ No URL/editor sync on rename/delete (Phase 3)
-+- ❌ No auto-refresh after mutations (Phase 3)
-+- ❌ No BrowserClient changes (Phase 3)
++- ❌ No new UI components
++- ❌ No service layer changes
++- ❌ No FileTree modifications
++- ❌ No new server actions
 +
 +---
 +
 +## Checklist
 +
-+- [x] T001: Create InlineEditInput component
-+- [x] T002: Add hover buttons to folder rows in FileTree
-+- [x] T003: Add inline create mode to FileTree
-+- [x] T004: Add inline rename mode to FileTree
-+- [x] T005: Add Rename and Delete to context menus
-+- [x] T006: Create DeleteConfirmationDialog component
-+- [x] T007: Add F2 and Enter keyboard shortcuts to FileTree
-+- [x] T008: Extend FileTree props for CRUD callbacks
-+- [x] T009: Lightweight smoke tests for InlineEditInput
-diff --git a/docs/plans/068-add-files/tasks/phase-2-filetree-ui-extensions/tasks.md b/docs/plans/068-add-files/tasks/phase-2-filetree-ui-extensions/tasks.md
++- [x] T001: Create useFileMutations hook
++- [x] T002: Wire useFileMutations into BrowserClient
++- [x] T003: Handle rename of currently-viewed file
++- [x] T004: Handle delete of currently-viewed file
++- [x] T005: Handle delete of expanded folder
++- [x] T006: Add locally-created items to newlyAddedPaths
++- [x] T007: Auto-select and auto-expand after create/rename
++- [x] T008: Update file-browser domain.md
+diff --git a/docs/plans/068-add-files/tasks/phase-3-browserclient-wiring-integration/tasks.md b/docs/plans/068-add-files/tasks/phase-3-browserclient-wiring-integration/tasks.md
 new file mode 100644
-index 0000000..bfd5346
+index 0000000..5edb7f6
 --- /dev/null
-+++ b/docs/plans/068-add-files/tasks/phase-2-filetree-ui-extensions/tasks.md
-@@ -0,0 +1,328 @@
-+# Phase 2: FileTree UI Extensions — Tasks
++++ b/docs/plans/068-add-files/tasks/phase-3-browserclient-wiring-integration/tasks.md
+@@ -0,0 +1,324 @@
++# Phase 3: BrowserClient Wiring & Integration — Tasks
 +
 +## Executive Briefing
 +
-+**Purpose**: Add inline file/folder creation, rename, and delete capabilities directly in the FileTree sidebar. This phase delivers all the UI components and interaction patterns that make the Phase 1 service layer visible to users — hover buttons for create, inline text input for naming, context menu for rename/delete, and a delete confirmation dialog.
++**Purpose**: Wire the Phase 1 server actions and Phase 2 FileTree CRUD UI end-to-end through a `useFileMutations` hook in BrowserClient. This phase makes the mutation UI functional — hover buttons create files, rename commits persist, delete confirmations actually remove items — with toast feedback, immediate tree refresh, and edge case handling for rename/delete of the currently-viewed file.
 +
-+**What We're Building**: An InlineEditInput component with auto-focus and validation, hover action buttons (New File, New Folder) on folder rows, inline create/rename modes with state management, extended context menus with Rename and Delete items, a DeleteConfirmationDialog, and F2/Enter keyboard shortcuts for rename. All callbacks are optional props — Phase 3 wires the actual server actions.
++**What We're Building**: A `useFileMutations` hook that calls server actions with toast feedback (loading→success/error), wired into BrowserClient's FileTree via the 4 CRUD callback props from Phase 2. Plus edge case handling: renaming the open file syncs URL/viewer, deleting the open file clears selection, deleting expanded folders cleans up state, and newly created items get green fade-in animation with auto-select.
 +
 +**Goals**:
-+- ✅ InlineEditInput component with auto-focus, Enter/Escape, blur commit, inline validation
-+- ✅ Hover buttons (New File, New Folder) on folder rows including root
-+- ✅ Inline create mode: insert input at top of folder children, Enter creates, Escape cancels
-+- ✅ Inline rename mode: replace item text with pre-filled input, Enter confirms, Escape restores
-+- ✅ Context menu: Rename + Delete on files/folders, New File + New Folder on folders
-+- ✅ DeleteConfirmationDialog with VS Code-style messaging
-+- ✅ F2 and Enter keyboard shortcuts for rename
-+- ✅ FileTree extended with optional CRUD callback props
-+- ✅ Lightweight smoke tests for InlineEditInput
++- ✅ useFileMutations hook with server action calls + toast feedback
++- ✅ BrowserClient passes CRUD callbacks to FileTree
++- ✅ Immediate tree refresh after each mutation (handleRefreshDir)
++- ✅ Rename of open file syncs URL params + re-fetches content
++- ✅ Delete of open file/folder clears selection + shows empty state
++- ✅ Delete of expanded folder cleans expandedDirs + childEntries cache
++- ✅ Newly created items get green fade-in animation (newlyAddedPaths)
++- ✅ Auto-select new files, auto-expand new folders, auto-select renamed items
++- ✅ Updated file-browser domain.md
 +
 +**Non-Goals**:
-+- ❌ No server action calls (Phase 3 wires those via useFileMutations)
-+- ❌ No toast feedback (Phase 3 adds toasts in the hook)
-+- ❌ No URL sync or editor state handling (Phase 3)
-+- ❌ No auto-refresh after mutations (Phase 3)
-+- ❌ No BrowserClient changes
++- ❌ No new UI components (Phase 2 delivered all UI)
++- ❌ No service layer changes (Phase 1 is final)
++- ❌ No FileTree component changes (callbacks are already wired)
++- ❌ No new server actions
 +
 +## Prior Phase Context
 +
 +### Phase 1: Service Layer & Server Actions
 +
 +**A. Deliverables**:
-+- `apps/web/src/features/041-file-browser/services/file-mutation-actions.ts` — 4 service functions (`createFileService`, `createFolderService`, `deleteItemService`, `renameItemService`) + shared `resolveAndValidatePath` helper + result types + options interfaces
-+- `apps/web/src/features/041-file-browser/lib/validate-filename.ts` — `validateFileName()` returning discriminated union `{ok: true} | {ok: false, error, char?}`
-+- `apps/web/app/actions/file-actions.ts` — 4 new server actions (`createFile`, `createFolder`, `deleteItem`, `renameItem`)
-+- `test/unit/web/features/041-file-browser/file-mutation-actions.test.ts` — 23 tests
-+- `test/unit/web/features/041-file-browser/validate-filename.test.ts` — 20 tests
++- `apps/web/src/features/041-file-browser/services/file-mutation-actions.ts` — 4 service functions + types
++- `apps/web/src/features/041-file-browser/lib/validate-filename.ts` — `validateFileName()`
++- `apps/web/app/actions/file-actions.ts` — 4 server actions (createFile, createFolder, deleteItem, renameItem)
++- 23 service tests + 20 validation tests
 +
-+**B. Dependencies Exported** (available for Phase 2+):
++**B. Dependencies Exported**:
 +```typescript
-+// Server actions (app/actions/file-actions.ts)
++// Server actions (app/actions/file-actions.ts) — Phase 3 calls these
 +export async function createFile(slug: string, dirPath: string, fileName: string): Promise<CreateResult>
 +export async function createFolder(slug: string, dirPath: string, folderName: string): Promise<CreateResult>
 +export async function deleteItem(slug: string, itemPath: string): Promise<DeleteResult>
 +export async function renameItem(slug: string, oldPath: string, newName: string): Promise<RenameResult>
 +
-+// Client-importable validation (lib/validate-filename.ts)
-+export function validateFileName(name: string): ValidationResult
-+// ValidationResult = {ok: true} | {ok: false, error: 'empty' | 'invalid-char' | 'reserved', char?: string}
-+
-+// Result types (services/file-mutation-actions.ts)
-+export type CreateResult = {ok: true, path: string} | {ok: false, error: 'exists' | 'invalid-name' | 'security' | 'unknown', message: string}
-+export type DeleteResult = {ok: true} | {ok: false, error: 'not-found' | 'security' | 'too-large' | 'unknown', message: string, itemCount?: number}
-+export type RenameResult = {ok: true, oldPath: string, newPath: string} | {ok: false, error: 'exists' | 'not-found' | 'invalid-name' | 'security' | 'unknown', message: string}
++// Result types
++type CreateResult = {ok: true, path: string} | {ok: false, error: 'exists' | 'invalid-name' | 'security' | 'unknown', message: string}
++type DeleteResult = {ok: true} | {ok: false, error: 'not-found' | 'security' | 'too-large' | 'unknown', message: string, itemCount?: number}
++type RenameResult = {ok: true, oldPath: string, newPath: string} | {ok: false, error: 'exists' | 'not-found' | 'invalid-name' | 'security' | 'unknown', message: string}
 +```
 +
-+**C. Gotchas & Debt**:
-+- `realpath()` throws ENOENT on non-existent files — create operations realpath the PARENT directory (DYK-01)
-+- FakePathResolver enforces security by default — `../../` naturally throws PathSecurityError, no `setThrowOnResolve` needed
-+- FakeFileSystem `mkdir` needs parent directory to exist (realistic behavior)
-+- `MAX_DELETE_CHILDREN = 5000` — configurable in service, not a constant shared to client
++**C. Gotchas**: Server actions accept `slug` (not `worktreePath`) — trusted root resolved server-side. `deleteItem` returns `'too-large'` with `itemCount` for folders exceeding 5000 children.
 +
-+**D. Incomplete Items**: None — all 9 tasks complete, code review fixes applied (FT-001 through FT-004).
++**D. Incomplete Items**: None.
 +
-+**E. Patterns to Follow**:
-+- Discriminated union result types (`{ok: true, ...} | {ok: false, error: '...', message: string}`)
-+- Options interfaces with DI dependencies as fields
-+- `validateFileName()` returns structured errors — Phase 2 InlineEditInput should use this for inline validation
-+- Server actions accept `slug` (not raw `worktreePath`) for trusted root resolution
++**E. Patterns**: Discriminated union results; dynamic import service functions in server actions.
++
++### Phase 2: FileTree UI Extensions
++
++**A. Deliverables**:
++- `apps/web/src/features/041-file-browser/components/inline-edit-input.tsx` — InlineEditInput component
++- `apps/web/src/features/041-file-browser/components/delete-confirmation-dialog.tsx` — DeleteConfirmationDialog
++- `apps/web/src/features/041-file-browser/components/file-tree.tsx` — Extended with CRUD UI
++- 10 smoke tests
++
++**B. Dependencies Exported** (Phase 3 wires these):
++```typescript
++// FileTree CRUD callback props — Phase 3 passes these from useFileMutations
++onCreateFile?: (parentDir: string, name: string) => void;
++onCreateFolder?: (parentDir: string, name: string) => void;
++onRename?: (oldPath: string, newName: string) => void;
++onDelete?: (path: string) => void;
++```
++
++**C. Gotchas**: Per-callback gating — each UI affordance only shows when its specific callback exists. EditState/deleteTarget are separate state machines (DYK-P2-05). CommitOnBlur differs: false for create, true for rename (DYK-P2-03).
++
++**D. Incomplete Items**: None — all 9 tasks + 7 review fixes complete.
++
++**E. Patterns**: TreeMutationHandlers bundle; `data-tree-action` attribute on hover buttons; `requestAnimationFrame` for focus after Radix menu close.
 +
 +## Pre-Implementation Check
 +
 +| File | Exists? | Domain Check | Notes |
 +|------|---------|-------------|-------|
-+| `apps/web/src/features/041-file-browser/components/inline-edit-input.tsx` | ❌ NEW | ✅ Correct (components/) | New standalone component |
-+| `apps/web/src/features/041-file-browser/components/delete-confirmation-dialog.tsx` | ❌ NEW | ✅ Correct (components/) | New dialog component |
-+| `apps/web/src/features/041-file-browser/components/file-tree.tsx` | ✅ EXISTS (~341 lines) | ✅ Correct | Heavy modification — hover buttons, inline edit state, context menu items, keyboard handlers |
-+| `test/unit/web/features/041-file-browser/inline-edit-input.test.ts` | ❌ NEW | ✅ Correct (test dir) | Lightweight smoke tests |
++| `apps/web/src/features/041-file-browser/hooks/use-file-mutations.ts` | ❌ NEW | ✅ Correct (hooks/) | New hook alongside use-clipboard.ts |
++| `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | ✅ EXISTS (~581 lines) | ✅ Correct | Wire useFileMutations, pass callbacks to FileTree |
++| `docs/domains/file-browser/domain.md` | ✅ EXISTS | ✅ Correct | Update history, composition |
 +
-+**Concept search**: No existing inline edit or inline rename patterns found in the codebase (confirmed by exploration Finding 03). DeleteConfirmationDialog follows established `WorkspaceRemoveButton` / `SampleDeleteButton` dialog patterns.
++**Concept search**: `useClipboard` is the closest existing pattern — same shape (hook returning handlers that call server actions + show toasts). No duplication concern for `useFileMutations`.
 +
 +**Harness**: No agent harness configured. Implementation will use standard testing (`just fft`).
 +
@@ -1267,214 +702,198 @@ index 0000000..bfd5346
 +    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
 +    classDef completed fill:#4CAF50,stroke:#388E3C,color:#fff
 +    classDef inprogress fill:#FFC107,stroke:#FFA000,color:#000
-+    classDef test fill:#EF9A9A,stroke:#F44336,color:#000
 +
-+    subgraph Phase2["Phase 2: FileTree UI Extensions"]
-+        T001["T001: InlineEditInput<br/>component"]:::completed
-+        T002["T002: Hover buttons<br/>(New File, New Folder)"]:::completed
-+        T003["T003: Inline create mode"]:::completed
-+        T004["T004: Inline rename mode"]:::completed
-+        T005["T005: Context menu<br/>Rename + Delete"]:::completed
-+        T006["T006: DeleteConfirmation<br/>Dialog"]:::completed
-+        T007["T007: F2/Enter keyboard<br/>shortcuts"]:::completed
-+        T008["T008: FileTree props<br/>extension"]:::completed
-+        T009["T009: Smoke tests<br/>InlineEditInput"]:::completed
++    subgraph Phase3["Phase 3: BrowserClient Wiring & Integration"]
++        T001["T001: useFileMutations hook"]:::completed
++        T002["T002: Wire into BrowserClient"]:::completed
++        T003["T003: Handle rename of open file"]:::completed
++        T004["T004: Handle delete of open file"]:::completed
++        T005["T005: Handle delete of expanded folder"]:::completed
++        T006["T006: newlyAddedPaths animation"]:::completed
++        T007["T007: Auto-select/expand after create"]:::completed
++        T008["T008: Update domain.md"]:::completed
 +
-+        T001 --> T003
-+        T001 --> T004
++        T001 --> T002
 +        T002 --> T003
-+        T004 --> T005
-+        T006 --> T005
-+        T004 --> T007
++        T002 --> T004
++        T002 --> T005
++        T002 --> T006
++        T002 --> T007
 +        T003 --> T008
++        T004 --> T008
 +        T005 --> T008
++        T006 --> T008
 +        T007 --> T008
-+        T001 --> T009
 +    end
 +
-+    subgraph Existing["Consumed (no changes)"]
-+        VF["validateFileName()<br/>(Phase 1)"]
-+        CM["ContextMenu<br/>(Radix UI)"]
-+        DLG["Dialog<br/>(Radix UI)"]
++    subgraph Phase1["Phase 1 (consumed)"]
++        SA["Server Actions<br/>(createFile, createFolder,<br/>deleteItem, renameItem)"]
 +    end
 +
-+    subgraph Files["Files"]
-+        F1["inline-edit-input.tsx"]:::completed
-+        F2["delete-confirmation-dialog.tsx"]:::completed
-+        F3["file-tree.tsx"]:::completed
-+        F4["inline-edit-input.test.ts"]:::completed
++    subgraph Phase2["Phase 2 (consumed)"]
++        FT["FileTree CRUD callbacks<br/>(onCreateFile, onCreateFolder,<br/>onRename, onDelete)"]
 +    end
 +
-+    T001 -.-> F1
-+    T001 -.-> VF
-+    T006 -.-> F2
-+    T006 -.-> DLG
-+    T002 -.-> F3
-+    T005 -.-> CM
-+    T009 -.-> F4
++    subgraph Existing["Existing (consumed)"]
++        HRD["handleRefreshDir()"]
++        HS["handleSelect()"]
++        SP["setParams (URL)"]
++        NAP["newlyAddedPaths<br/>(useTreeDirectoryChanges)"]
++    end
++
++    T001 -.-> SA
++    T002 -.-> FT
++    T003 -.-> SP
++    T003 -.-> HS
++    T004 -.-> SP
++    T005 -.-> HRD
++    T006 -.-> NAP
++    T007 -.-> HS
 +```
 +
 +## Tasks
 +
 +| Status | ID | Task | Domain | Path(s) | Done When | Notes |
 +|--------|-----|------|--------|---------|-----------|-------|
-+| [x] | T001 | Create InlineEditInput component | file-browser | `apps/web/src/features/041-file-browser/components/inline-edit-input.tsx` | Auto-focuses on mount. Enter confirms value. Escape cancels. Blur commits (configurable via `commitOnBlur` prop, default `false`). Validates name via `validateFileName()` on every keystroke. Shows inline error text for invalid names. Calls `onConfirm(value)` or `onCancel()`. Accepts optional `initialValue` for rename pre-fill. Restores focus to previous element on unmount. Matches tree item height/indent. | Findings 02, 03, 07. Reused by create (T003) and rename (T004). Import `validateFileName` from Phase 1. DYK-P2-01: Use `requestAnimationFrame(() => inputRef.current?.focus())` for auto-focus to avoid Radix ContextMenu focus restore race. DYK-P2-03: default `commitOnBlur={false}` (safe — cancels on blur). Inline error shown below input in `text-destructive text-xs`. |
-+| [x] | T002 | Add hover buttons to folder rows in FileTree | file-browser | `apps/web/src/features/041-file-browser/components/file-tree.tsx` | "New File" (FilePlus icon) and "New Folder" (FolderPlus icon) buttons appear on folder hover next to existing RefreshCw button. Buttons use existing `hidden group-hover:block` pattern. `e.stopPropagation()` prevents folder toggle. Root directory entries also get buttons. Each button calls the appropriate CRUD callback prop. DYK-P2-02: Add a thin root row at top of tree with New File + New Folder hover buttons for root-level creation (no folder row exists for the root directory itself). | Plan 2.2. Follow existing RefreshCw hover button at line 251-261. Add FilePlus + FolderPlus from lucide-react. Same `shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground` styling. Root row renders when CRUD callbacks are provided, shows folder icon + workspace root name or "." with same hover button pattern. |
-+| [x] | T003 | Add inline create mode to FileTree | file-browser | `apps/web/src/features/041-file-browser/components/file-tree.tsx` | Clicking "New File" or "New Folder" hover button inserts InlineEditInput at top of folder's children list. Enter creates item via `onCreateFile(parentDir, name)` or `onCreateFolder(parentDir, name)` callback. Escape removes input. Only one edit input active at a time (setting new edit state cancels existing). Folder auto-expands if collapsed when create is triggered. DYK-P2-03: Pass `commitOnBlur={false}` — blur cancels create (no half-typed filenames). | Plan 2.3. State: `editState: {mode: 'create-file' \| 'create-folder', parentDir: string} \| null`. Render InlineEditInput before children when editState.parentDir matches current dir. Root row create uses parentDir="" or ".". |
-+| [x] | T004 | Add inline rename mode to FileTree | file-browser | `apps/web/src/features/041-file-browser/components/file-tree.tsx` | Entering rename mode replaces item's name text with InlineEditInput pre-filled with current name (text selected via `input.select()`). Enter confirms rename via `onRename(oldPath, newName)` callback. Escape cancels and restores original text. Works for both files and folders. DYK-P2-03: Pass `commitOnBlur={true}` — blur commits rename (preserves user's edit). DYK-P2-04: Keep file/folder icon visible — replace only the `<span>` name text with InlineEditInput styled `flex-1 min-w-0`, not the entire button. | Plan 2.4. Finding 02: unmount the button element, render only icon + InlineEditInput in edit mode. State: `editState: {mode: 'rename', targetPath: string}`. When `editState.targetPath === entry.path`, render icon + InlineEditInput instead of full button. |
-+| [x] | T005 | Add Rename and Delete to context menus | file-browser | `apps/web/src/features/041-file-browser/components/file-tree.tsx` | **File context menu** gains: ContextMenuSeparator, "Rename" item (Pencil icon), "Delete" item (Trash2 icon, `variant="destructive"`). **Folder context menu** gains: "New File" item (FilePlus), "New Folder" item (FolderPlus), ContextMenuSeparator, "Rename" item (Pencil), "Delete" item (Trash2, `variant="destructive"`). "Rename" sets editState to rename mode. "Delete" sets deleteTarget state (DYK-P2-05: separate from editState). | Plan 2.5. Uses existing ContextMenuItem with `variant="destructive"` (confirmed available at line 115 of context-menu.tsx). DYK-P2-05: Delete sets `deleteTarget` state, not `editState` — these are orthogonal. Clear `editState` when opening delete for cleanliness. |
-+| [x] | T006 | Create DeleteConfirmationDialog component | file-browser | `apps/web/src/features/041-file-browser/components/delete-confirmation-dialog.tsx` | VS Code-style dialog: "Delete '{name}'?" for files, "Delete '{name}' and all its contents?" for folders. Confirm button uses `variant="destructive"` (red). Cancel closes dialog. Props: `open`, `onOpenChange`, `itemName`, `itemType: 'file' \| 'directory'`, `onConfirm`. If parent passes `tooLargeCount`, shows "Folder has too many items (N) to delete from the browser." instead. | Plan 2.6. Follow WorkspaceRemoveButton/SampleDeleteButton pattern: Dialog + DialogContent + DialogHeader + DialogFooter. No server action call — just fires `onConfirm()` callback. |
-+| [x] | T007 | Add F2 and Enter keyboard shortcuts to FileTree | file-browser | `apps/web/src/features/041-file-browser/components/file-tree.tsx` | F2 on focused tree item enters rename mode for that item. Enter on focused tree item enters rename mode (when NOT already in edit mode — if in edit mode, Enter is handled by InlineEditInput). Both only fire when FileTree has focus (not CodeMirror or search). Requires `tabIndex={0}` and `onKeyDown` handler on tree container or individual items. | Plan 2.7. Gate: check `document.activeElement` is within the tree, not editor/search. Finding 02: Enter key conflict — only trigger rename when no edit input is active. Use `data-tree-path` attribute to identify which item has focus. |
-+| [x] | T008 | Extend FileTree props for CRUD callbacks | file-browser | `apps/web/src/features/041-file-browser/components/file-tree.tsx` | New optional props on FileTreeProps: `onCreateFile?: (parentDir: string, name: string) => void`, `onCreateFolder?: (parentDir: string, name: string) => void`, `onRename?: (oldPath: string, newName: string) => void`, `onDelete?: (path: string) => void`. Inline edit state managed internally. When callback is undefined, corresponding UI triggers are hidden (hover buttons, context menu items, keyboard shortcuts). | Plan 2.8. Follows existing callback pattern (onSelect, onExpand, onCopyFullPath). Integration task — verify all T002-T007 features wire through these props correctly. Guard all mutation UI behind `if (onCreateFile)` etc. |
-+| [x] | T009 | Lightweight smoke tests for InlineEditInput | file-browser | `test/unit/web/features/041-file-browser/inline-edit-input.test.ts` | 3-5 test cases: (a) renders and auto-focuses on mount, (b) Enter calls onConfirm with input value, (c) Escape calls onCancel, (d) invalid name shows error message, (e) blur behavior (commits or cancels based on prop). Uses @testing-library/react + vitest. | Plan 2.9. Lightweight per constitution deviation (P3). Import pattern: `import { render, screen, fireEvent } from '@testing-library/react'`. Follow `file-viewer.test.tsx` patterns. |
++| [x] | T001 | Create `use-file-mutations.ts` hook | file-browser | `apps/web/src/features/041-file-browser/hooks/use-file-mutations.ts` | Returns `handleCreateFile(parentDir, name)`, `handleCreateFolder(parentDir, name)`, `handleRename(oldPath, newName)`, `handleDelete(path)`. Each calls server action, shows toast (loading→success/error), calls `refreshDir` callback on success. Accepts `slug` and `refreshDir` as config. | Plan 3.1. Follow useClipboard toast pattern: `toast.loading()` → `toast.success/error(msg, {id})`. Server actions accept slug only (not worktreePath — FT-001 from Phase 1). DYK-P3-05: await refreshDir before auto-select to avoid tree/viewer desync. |
++| [x] | T002 | Wire useFileMutations into BrowserClient | file-browser | `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | BrowserClient calls `useFileMutations({ slug, refreshDir: fileNav.handleRefreshDir })`. Passes `mutations.handleCreateFile` etc. to FileTree as `onCreateFile`, `onCreateFolder`, `onRename`, `onDelete` props. Tree refreshes immediately after success via handleRefreshDir. DYK-P3-01: Wrap `initialEntries` in `useState(initialEntries)` and add `handleRefreshRoot` for root-level creates (parentDir=''). | Plan 3.2. Finding 04: immediate refresh — call handleRefreshDir(parentDir) on success, SSE handles external changes as fallback. FileTree already renders CRUD UI when callbacks exist (Phase 2 T008). DYK-P3-01: `initialEntries` is a server prop with no client update mechanism — must promote to state for root refresh. |
++| [x] | T003 | Handle rename of currently-viewed file | file-browser | `apps/web/src/features/041-file-browser/hooks/use-file-mutations.ts`, `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | If renamed file path matches `selectedFile`: update URL params to new path via `setParams({file: newPath})` WITHOUT re-fetching (preserves unsaved edits). Only use `handleSelect(newPath)` if file was clean. `handleRename` receives `RenameResult.newPath` from server action and detects match. DYK-P3-02: Use `setParams` not `handleSelect` to preserve in-memory editor content through rename. | Plan 3.3. Finding 05. RenameResult returns `{oldPath, newPath}` (DYK-04 from Phase 1). VS Code preserves unsaved edits through rename — we should too. |
++| [x] | T004 | Handle delete of currently-viewed file | file-browser | `apps/web/src/features/041-file-browser/hooks/use-file-mutations.ts`, `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | If deleted path matches `selectedFile` or is an ancestor of `selectedFile`: clear file URL param via `setParams({file: ''})` → shows "Select a file to view" empty state. DYK-P3-03: Use `selectedFile.startsWith(deletedPath + '/')` for ancestor check (trailing slash prevents false matches like `src` matching `src-utils/`). | Plan 3.4. AC-11. Check both exact match AND prefix match with trailing slash for folder deletion containing the selected file. |
++| [x] | T005 | Handle delete of expanded folder | file-browser | `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | DYK-P3-04: This is a verification task, not an implementation task. After handleRefreshDir re-fetches the parent, the deleted folder disappears from childEntries naturally. The FileTree internal expanded Set harmlessly retains the stale path (nothing renders). Verify no visual artifacts after deleting an expanded folder. | Plan 3.5. Likely no-op — tree auto-reconciles when parent is re-fetched. Just verify and document. |
++| [x] | T006 | Add locally-created items to newlyAddedPaths | file-browser | `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | After successful create, add new item's path to a local `Set<string>` state, merge with SSE-driven `treeChanges.newPaths`, pass combined set to FileTree's `newlyAddedPaths`. Clear local paths after 1.5s timeout (matches CSS animation duration). | Plan 3.6. SSE newlyAddedPaths from `useTreeDirectoryChanges` is already wired (line 480). Local state supplements it for immediate feedback before SSE fires. |
++| [x] | T007 | Auto-select and auto-expand after create/rename | file-browser | `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | After creating a file: call `handleSelect(newPath)` to open it in viewer. After creating a folder: add to `expandPaths` to expand it. After rename: call `handleSelect(newPath)` to select renamed item (or `setParams` if dirty — see T003). DYK-P3-05: Must `await handleRefreshDir(parentDir)` before calling `handleSelect(newPath)` — otherwise tree may not have the entry yet when selection runs. | Plan 3.7. Uses existing `fileNav.handleSelect` and `setExpandPaths`. Build full path from parentDir + name for create. |
++| [x] | T008 | Update file-browser domain.md | file-browser | `docs/domains/file-browser/domain.md` | Add useFileMutations to Composition table. Add Phase 3 entry to History. Update Source Location with new hook file. | Plan 3.8. Lightweight doc update. |
 +
 +## Context Brief
 +
 +### Key findings from plan
 +
-+- **Finding 02** (Critical): Enter key on tree item buttons fires onClick (select), conflicting with rename mode. **Action**: T004 unmounts the button element and renders only InlineEditInput when in edit mode — clean state swap, no key conflict.
-+- **Finding 03** (Critical): No inline edit pattern exists in codebase. **Action**: T001 builds InlineEditInput from scratch with full focus lifecycle management.
-+- **Finding 07** (High): Focus management for inline input needs explicit handling. **Action**: T001 uses `useRef` + `useEffect` for auto-focus on mount. On unmount (Escape/Enter/blur), restores focus to the tree item that triggered edit mode via saved ref.
++- **Finding 04** (High): File watcher SSE may lag ~200ms behind server action completion. **Action**: T001/T002 call `handleRefreshDir(parentDir)` immediately after successful server action. SSE serves as fallback for external changes.
++- **Finding 05** (High): Rename of currently-viewed file must sync URL state, editor content, and mtime. **Action**: T003 detects `selectedFile` match via `RenameResult.newPath`, updates URL params, triggers re-fetch.
 +
 +### Domain dependencies (concepts and contracts this phase consumes)
 +
-+- `file-browser` (Phase 1): **validateFileName** (`lib/validate-filename.ts`) — client-side name validation for InlineEditInput inline errors
-+- `_platform/viewer`: **ContextMenu** (`@/components/ui/context-menu`) — Radix ContextMenu with `variant="destructive"` support on ContextMenuItem
-+- `_platform/viewer`: **Dialog** (`@/components/ui/dialog`) — Radix Dialog for DeleteConfirmationDialog (Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose)
-+- `_platform/viewer`: **Button** (`@/components/ui/button`) — variant="destructive" for delete confirm button
-+- `lucide-react`: **Icons** — FilePlus, FolderPlus, Pencil, Trash2 (all confirmed available in lucide-react ^0.562.0)
++- `file-browser` (Phase 1): **Server actions** (`createFile`, `createFolder`, `deleteItem`, `renameItem`) — CRUD operations with trusted root resolution
++- `file-browser` (Phase 2): **FileTree CRUD callbacks** (`onCreateFile`, `onCreateFolder`, `onRename`, `onDelete`) — UI triggers that fire on user confirm
++- `file-browser`: **useFileNavigation** (`handleRefreshDir`, `handleSelect`, `editContent`, `setEditContent`) — immediate tree refresh and file selection
++- `file-browser`: **useTreeDirectoryChanges** (`newPaths`) — SSE-driven newlyAddedPaths for green animation
++- `file-browser`: **usePanelState** (`handleRefreshChanges`) — refresh changes panel after mutations
++- `_platform/workspace-url`: **fileBrowserParams** (`setParams`) — URL state management for selected file
++- `sonner`: **toast** — loading/success/error feedback pattern
 +
 +### Domain constraints
 +
-+- All new components live in `apps/web/src/features/041-file-browser/components/` (file-browser domain boundary)
-+- InlineEditInput is a client component (`'use client'`) — needs useState, useRef, useEffect
-+- FileTree is already a client component (uses useState, useCallback, useEffect)
-+- DeleteConfirmationDialog is a client component (needs Dialog state)
-+- No server action calls in this phase — callbacks receive path-based arguments, Phase 3 wires them
-+- Mutation UI (hover buttons, context menu items, keyboard shortcuts) must be gated behind callback prop existence — if `onCreateFile` is undefined, don't show New File button
++- New hook lives in `apps/web/src/features/041-file-browser/hooks/` (file-browser domain)
++- BrowserClient modifications in `apps/web/app/(dashboard)/workspaces/[slug]/browser/` (Next.js convention)
++- Server actions accept `slug` only (not `worktreePath`) — trusted root resolution (FT-001)
++- Toast patterns follow useClipboard: `toast.loading()` → replace with `toast.success/error(msg, {id})`
++- No mocking — standard testing with `just fft`
 +
 +### Harness context
 +
 +No agent harness configured. Agent will use standard testing approach from plan (`just fft`).
 +
-+### Reusable from Phase 1
++### Reusable from prior phases
 +
-+- `validateFileName(name)` — import directly for client-side validation in InlineEditInput
-+- Discriminated union result type pattern — Phase 2 doesn't return results but callbacks will receive them in Phase 3
-+- Test patterns from `validate-filename.test.ts` and `file-mutation-actions.test.ts` — describe/it/expect structure
-+
-+### Reusable from existing codebase
-+
-+- **RefreshCw hover button** (file-tree.tsx:251-261) — exact pattern to replicate for FilePlus/FolderPlus
-+- **group-hover CSS** — `hidden group-hover:block shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground`
-+- **ContextMenuItem destructive variant** — `variant="destructive"` on ContextMenuItem (context-menu.tsx:115)
-+- **Dialog pattern** — SampleDeleteButton (112 lines), WorkspaceRemoveButton (102 lines) — Dialog + open state + confirm/cancel
-+- **stopPropagation** — `onClick={(e) => { e.stopPropagation(); ... }}` on hover buttons
-+- **newlyAddedPaths animation** — `tree-entry-new` CSS class for green fade-in (reused in Phase 3)
-+- **Testing Library** — `@testing-library/react` ^16.3.2 + `@testing-library/user-event` ^14.6.1 + vitest
-+- **Toast** — `sonner` `toast.success/error/loading` (Phase 3 will use, not Phase 2)
++- **useClipboard** toast pattern — exact model for useFileMutations: call action → show toast → handle result
++- **handleRefreshDir** — already wired in useFileNavigation, accepts dirPath, re-fetches from API
++- **handleSelect** — already wired in useFileNavigation, updates URL + loads file content
++- **setExpandPaths** — BrowserClient state for programmatic tree expansion
++- **treeChanges.newPaths** — SSE-driven Set already passed to FileTree as newlyAddedPaths
++- **Result types** (CreateResult, DeleteResult, RenameResult) — discriminated unions from Phase 1
 +
 +### Key signatures to consume
 +
 +```typescript
-+// FileTree current props (file-tree.tsx)
-+export interface FileTreeProps {
-+  entries: FileEntry[];
-+  selectedFile?: string;
-+  changedFiles?: string[];
-+  newlyAddedPaths?: Set<string>;
-+  onSelect: (filePath: string) => void;
-+  onExpand: (dirPath: string) => void;
-+  childEntries?: Record<string, FileEntry[]>;
-+  expandPaths?: string[];
-+  onExpandedDirsChange?: (dirs: string[]) => void;
-+  onCopyFullPath?: (path: string) => void;
-+  onCopyRelativePath?: (path: string) => void;
-+  onCopyContent?: (filePath: string) => void;
-+  onCopyTree?: (dirPath: string) => void;
-+  onDownload?: (filePath: string) => void;
-+}
++// Server actions (Phase 1)
++export async function createFile(slug: string, dirPath: string, fileName: string): Promise<CreateResult>
++export async function createFolder(slug: string, dirPath: string, folderName: string): Promise<CreateResult>
++export async function deleteItem(slug: string, itemPath: string): Promise<DeleteResult>
++export async function renameItem(slug: string, oldPath: string, newName: string): Promise<RenameResult>
 +
-+// validateFileName (Phase 1 - client importable)
-+export function validateFileName(name: string):
-+  | { ok: true }
-+  | { ok: false; error: 'empty' | 'invalid-char' | 'reserved'; char?: string };
++// FileTree CRUD callbacks (Phase 2)
++onCreateFile?: (parentDir: string, name: string) => void;
++onCreateFolder?: (parentDir: string, name: string) => void;
++onRename?: (oldPath: string, newName: string) => void;
++onDelete?: (path: string) => void;
 +
-+// Radix ContextMenu
-+import { ContextMenu, ContextMenuTrigger, ContextMenuContent,
-+  ContextMenuItem, ContextMenuSeparator } from '@/components/ui/context-menu';
-+// ContextMenuItem supports variant="destructive"
++// Existing hooks
++fileNav.handleRefreshDir(dirPath: string): Promise<void>  // Re-fetch dir from API
++fileNav.handleSelect(filePath: string): Promise<void>     // Select file + load content
++setParams({file: string, line: null}, {history: 'push'})  // URL update
++setExpandPaths(paths: string[])                           // Programmatic expand
 +
-+// Radix Dialog
-+import { Dialog, DialogContent, DialogHeader, DialogTitle,
-+  DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
-+
-+// Icons (lucide-react)
-+import { FilePlus, FolderPlus, Pencil, Trash2 } from 'lucide-react';
++// Toast (sonner)
++import { toast } from 'sonner';
++const toastId = toast.loading('Creating file...');
++toast.success('File created', { id: toastId });
++toast.error('Failed to create file', { id: toastId, description: result.message });
 +```
 +
-+### Inline edit state machine
++### System flow diagram
 +
 +```mermaid
-+stateDiagram-v2
-+    [*] --> Idle
-+    Idle --> CreateFile: Click "New File" hover btn<br/>or context menu "New File"
-+    Idle --> CreateFolder: Click "New Folder" hover btn<br/>or context menu "New Folder"
-+    Idle --> Rename: F2 / Enter / context menu "Rename"
++flowchart LR
++    subgraph UI["FileTree (Phase 2)"]
++        HB["Hover Button / Context Menu"]
++        IE["InlineEditInput"]
++        DD["DeleteConfirmationDialog"]
++    end
 +
-+    CreateFile --> Idle: Escape / blur cancel
-+    CreateFile --> Idle: Enter (fires onCreateFile)
-+    CreateFolder --> Idle: Escape / blur cancel
-+    CreateFolder --> Idle: Enter (fires onCreateFolder)
-+    Rename --> Idle: Escape / blur cancel
-+    Rename --> Idle: Enter (fires onRename)
++    subgraph Hook["useFileMutations (this phase)"]
++        HC["handleCreate"]
++        HR["handleRename"]
++        HD["handleDelete"]
++    end
 +
-+    note right of CreateFile: InlineEditInput at top<br/>of folder's children
-+    note right of Rename: InlineEditInput replaces<br/>item name text
++    subgraph Server["Server Actions (Phase 1)"]
++        SA["createFile / deleteItem / renameItem"]
++    end
++
++    subgraph Post["Post-Success"]
++        RF["handleRefreshDir"]
++        SEL["handleSelect / setParams"]
++        NAP["newlyAddedPaths"]
++        T["Toast feedback"]
++    end
++
++    HB --> IE
++    IE -->|"onCreateFile(dir, name)"| HC
++    IE -->|"onRename(path, name)"| HR
++    DD -->|"onDelete(path)"| HD
++
++    HC --> SA
++    HR --> SA
++    HD --> SA
++
++    SA -->|"result"| RF
++    SA -->|"result"| SEL
++    SA -->|"result"| NAP
++    SA -->|"result"| T
 +```
 +
-+### UI interaction sequence
++### Mutation lifecycle sequence
 +
 +```mermaid
 +sequenceDiagram
 +    participant U as User
 +    participant FT as FileTree
-+    participant IE as InlineEditInput
-+    participant VF as validateFileName
-+    participant CB as CRUD Callback
++    participant BC as BrowserClient
++    participant HK as useFileMutations
++    participant SA as Server Action
++    participant T as Toast
 +
-+    Note over U,CB: Create flow
-+    U->>FT: Hover folder → click FilePlus
-+    FT->>FT: setEditState({mode: 'create-file', parentDir})
-+    FT->>FT: Auto-expand folder if collapsed
-+    FT->>IE: Render at top of folder children
-+    IE->>IE: Auto-focus input
-+    U->>IE: Type filename
-+    IE->>VF: validateFileName(value)
-+    VF-->>IE: {ok: true} or {ok: false, error}
-+    alt Invalid name
-+        IE->>IE: Show inline error
-+    else Valid name + Enter
-+        IE->>FT: onConfirm(value)
-+        FT->>CB: onCreateFile(parentDir, name)
-+        FT->>FT: setEditState(null)
-+    end
-+
-+    Note over U,CB: Rename flow
-+    U->>FT: F2 on focused item
-+    FT->>FT: setEditState({mode: 'rename', targetPath})
-+    FT->>IE: Render replacing item name (pre-filled, selected)
-+    U->>IE: Edit name → Enter
-+    IE->>VF: validateFileName(newName)
-+    IE->>FT: onConfirm(newName)
-+    FT->>CB: onRename(oldPath, newName)
-+    FT->>FT: setEditState(null)
-+
-+    Note over U,CB: Delete flow
-+    U->>FT: Right-click → Delete
-+    FT->>FT: Open DeleteConfirmationDialog
-+    U->>FT: Confirm
-+    FT->>CB: onDelete(path)
++    U->>FT: Click New File → type name → Enter
++    FT->>BC: onCreateFile(parentDir, name)
++    BC->>HK: handleCreateFile(parentDir, name)
++    HK->>T: toast.loading('Creating...')
++    HK->>SA: createFile(slug, parentDir, name)
++    SA-->>HK: {ok: true, path: 'dir/name.ts'}
++    HK->>T: toast.success('File created')
++    HK->>BC: refreshDir(parentDir)
++    BC->>FT: re-render with new childEntries
++    HK->>BC: handleSelect(path)
++    BC->>FT: selectedFile = path (auto-expand + view)
 +```
 +
 +## Discoveries & Learnings
@@ -1483,11 +902,11 @@ index 0000000..bfd5346
 +
 +| Date | Task | Type | Discovery | Resolution | References |
 +|------|------|------|-----------|------------|------------|
-+| 2026-03-07 | T001 | gotcha | DYK-P2-01: Radix ContextMenu restores focus to trigger after menu close, racing with InlineEditInput auto-focus | Use `requestAnimationFrame(() => inputRef.current?.focus())` instead of synchronous focus in useEffect | Radix ContextMenu focus behavior |
-+| 2026-03-07 | T002 | gap | DYK-P2-02: Root-level create has no folder row — FileTree renders entries directly with no root row | Add thin root row at top of tree with New File + New Folder hover buttons | Clarification Q7 confirmed root-level creation |
-+| 2026-03-07 | T003/T004 | decision | DYK-P2-03: Blur behavior should differ — create cancels (no half-typed files), rename commits (preserves edit) | Create: `commitOnBlur={false}`, Rename: `commitOnBlur={true}`, default `false` | VS Code behavior |
-+| 2026-03-07 | T004 | decision | DYK-P2-04: Rename must keep file/folder icon visible — replace only the name `<span>`, not entire button | Render icon + InlineEditInput in same flex row, input gets `flex-1 min-w-0` | VS Code rename visual |
-+| 2026-03-07 | T005/T006 | decision | DYK-P2-05: Delete dialog state must be independent of inline edit state — they're orthogonal interactions | Separate `editState` (create/rename) and `deleteTarget` (dialog) state variables | State machine design |
++| 2026-03-07 | T002 | gap | DYK-P3-01: Root-level refresh gap — `handleRefreshDir('')` updates `childEntries` but root entries come from server prop `initialEntries` with no client update mechanism | Wrap `initialEntries` in `useState`, add `handleRefreshRoot` that re-fetches from API for root-level creates | BrowserClient line 97, handleRefreshDir only updates childEntries |
++| 2026-03-07 | T003 | decision | DYK-P3-02: Rename of open file with unsaved edits — `handleSelect(newPath)` re-fetches content, discarding unsaved changes | Use `setParams({file: newPath})` to update URL without re-fetch; only `handleSelect` if file is clean. VS Code preserves edits through rename | Finding 05, VS Code behavior |
++| 2026-03-07 | T004 | gotcha | DYK-P3-03: Delete ancestor prefix match `startsWith(path)` false-positives — `"src-utils/file.ts".startsWith("src")` is true | Always use trailing slash: `selectedFile.startsWith(deletedPath + '/')` for ancestor checks | String prefix matching |
++| 2026-03-07 | T005 | insight | DYK-P3-04: T005 is likely a no-op — handleRefreshDir re-fetches parent, deleted folder disappears from childEntries, stale expanded Set entry is harmless | Verification task only, not implementation. Confirm no visual artifacts | FileTree expanded Set vs childEntries lifecycle |
++| 2026-03-07 | T007 | gotcha | DYK-P3-05: handleRefreshDir is async — must await before auto-select, otherwise tree may not have new entry when handleSelect fires | Ensure `await handleRefreshDir(parentDir)` completes before `handleSelect(newPath)` | Async state update ordering |
 +
 +---
 +
@@ -1501,101 +920,12 @@ index 0000000..bfd5346
 +      │   ├── tasks.md
 +      │   ├── tasks.fltplan.md
 +      │   └── execution.log.md
-+      └── phase-2-filetree-ui-extensions/
++      ├── phase-2-filetree-ui-extensions/
++      │   ├── tasks.md
++      │   ├── tasks.fltplan.md
++      │   └── execution.log.md
++      └── phase-3-browserclient-wiring-integration/
 +          ├── tasks.md              ← this file
 +          ├── tasks.fltplan.md      ← flight plan (below)
 +          └── execution.log.md      ← created by plan-6
 +```
-diff --git a/test/unit/web/features/041-file-browser/inline-edit-input.test.tsx b/test/unit/web/features/041-file-browser/inline-edit-input.test.tsx
-new file mode 100644
-index 0000000..4dad315
---- /dev/null
-+++ b/test/unit/web/features/041-file-browser/inline-edit-input.test.tsx
-@@ -0,0 +1,87 @@
-+import { InlineEditInput } from '@/features/041-file-browser/components/inline-edit-input';
-+import { fireEvent, render, screen } from '@testing-library/react';
-+import userEvent from '@testing-library/user-event';
-+import { describe, expect, it, vi } from 'vitest';
-+
-+describe('InlineEditInput', () => {
-+  /**
-+   * Why: Core contract — input must be visible and ready for typing on mount
-+   * Contract: Auto-focuses via requestAnimationFrame (DYK-P2-01)
-+   */
-+  it('renders an input that receives focus on mount', async () => {
-+    render(<InlineEditInput onConfirm={vi.fn()} onCancel={vi.fn()} />);
-+
-+    const input = screen.getByRole('textbox');
-+    expect(input).toBeInTheDocument();
-+
-+    // requestAnimationFrame focus — wait a tick
-+    await vi.waitFor(() => {
-+      expect(input).toHaveFocus();
-+    });
-+  });
-+
-+  /**
-+   * Why: Primary confirm path — Enter submits the valid name
-+   * Contract: onConfirm called with trimmed value on Enter
-+   */
-+  it('calls onConfirm with value when Enter is pressed', async () => {
-+    const user = userEvent.setup();
-+    const onConfirm = vi.fn();
-+    render(<InlineEditInput onConfirm={onConfirm} onCancel={vi.fn()} />);
-+
-+    const input = screen.getByRole('textbox');
-+    await user.type(input, 'new-file.ts{Enter}');
-+
-+    expect(onConfirm).toHaveBeenCalledWith('new-file.ts');
-+  });
-+
-+  /**
-+   * Why: Primary cancel path — Escape discards without side effects
-+   * Contract: onCancel called on Escape, onConfirm not called
-+   */
-+  it('calls onCancel when Escape is pressed', async () => {
-+    const user = userEvent.setup();
-+    const onCancel = vi.fn();
-+    const onConfirm = vi.fn();
-+    render(<InlineEditInput onConfirm={onConfirm} onCancel={onCancel} />);
-+
-+    const input = screen.getByRole('textbox');
-+    await user.type(input, 'partial{Escape}');
-+
-+    expect(onCancel).toHaveBeenCalled();
-+    expect(onConfirm).not.toHaveBeenCalled();
-+  });
-+
-+  /**
-+   * Why: Client-side validation prevents invalid names from reaching server
-+   * Contract: Invalid chars show inline error, Enter does not fire onConfirm
-+   */
-+  it('shows error for invalid filename and blocks confirm', async () => {
-+    const user = userEvent.setup();
-+    const onConfirm = vi.fn();
-+    render(<InlineEditInput onConfirm={onConfirm} onCancel={vi.fn()} />);
-+
-+    const input = screen.getByRole('textbox');
-+    await user.type(input, 'bad:name{Enter}');
-+
-+    expect(screen.getByText(/not allowed/)).toBeInTheDocument();
-+    expect(onConfirm).not.toHaveBeenCalled();
-+  });
-+
-+  /**
-+   * Why: Blur behavior differs for create (cancel) vs rename (commit) — DYK-P2-03
-+   * Contract: Default commitOnBlur=false means blur cancels
-+   */
-+  it('cancels on blur when commitOnBlur is false (default)', () => {
-+    const onCancel = vi.fn();
-+    const onConfirm = vi.fn();
-+    render(<InlineEditInput onConfirm={onConfirm} onCancel={onCancel} />);
-+
-+    const input = screen.getByRole('textbox');
-+    fireEvent.change(input, { target: { value: 'test.txt' } });
-+    fireEvent.blur(input);
-+
-+    expect(onCancel).toHaveBeenCalled();
-+    expect(onConfirm).not.toHaveBeenCalled();
-+  });
-+});
