@@ -48,16 +48,23 @@ export async function runAgent(
   // Initialize events file (may have zero events if adapter doesn't emit)
   fs.writeFileSync(eventsPath, '');
 
+  // Output and error paths
+  const outputPath = path.join(runDir, 'output', 'report.json');
+  const stderrPath = path.join(runDir, 'stderr.log');
+
   // Read prompt
   const prompt = fs.readFileSync(definition.promptPath, 'utf-8');
   const instructions = definition.instructionsPath
     ? fs.readFileSync(definition.instructionsPath, 'utf-8')
     : null;
 
-  // Build full prompt (instructions prepended if present)
-  const fullPrompt = instructions
-    ? `${instructions}\n\n---\n\n${prompt}`
-    : prompt;
+  // Build full prompt (instructions + output path hint + prompt)
+  const outputHint = definition.schemaPath
+    ? `Write your final JSON report to: ${outputPath}`
+    : null;
+  const fullPrompt = [instructions, outputHint, prompt]
+    .filter(Boolean)
+    .join('\n\n---\n\n');
 
   // Event tracking
   const stats: RunEventStats = {
@@ -68,6 +75,8 @@ export async function runAgent(
     thinking: 0,
     errors: 0,
   };
+  let activeSessionId = '';
+  const stderrLines: string[] = [];
 
   // Event handler — writes NDJSON incrementally and forwards to display
   const handleEvent = (event: AgentEvent): void => {
@@ -77,7 +86,13 @@ export async function runAgent(
       case 'tool_result': stats.toolResults++; break;
       case 'message': stats.messages++; break;
       case 'thinking': stats.thinking++; break;
-      case 'session_error': stats.errors++; break;
+      case 'session_error':
+        stats.errors++;
+        stderrLines.push(`[${event.timestamp}] ${event.data.errorType ?? 'ERROR'}: ${event.data.message ?? ''}`);
+        break;
+      case 'session_start':
+        if (event.data.sessionId) activeSessionId = event.data.sessionId;
+        break;
     }
 
     // Write to NDJSON incrementally (per Finding 08)
@@ -110,9 +125,9 @@ export async function runAgent(
     ]);
   } catch (error) {
     if (timedOut) {
-      // Attempt to terminate the adapter
+      // Attempt to terminate the adapter with the active session
       try {
-        await adapter.terminate('');
+        await adapter.terminate(activeSessionId);
       } catch {
         // Best-effort termination
       }
@@ -139,10 +154,22 @@ export async function runAgent(
   const completedAt = new Date();
   const durationMs = completedAt.getTime() - startedAt.getTime();
 
+  // Persist agent output to report.json (so validator can find it)
+  if (agentResult.output) {
+    fs.writeFileSync(outputPath, agentResult.output);
+  }
+
+  // Persist stderr/error output
+  if (agentResult.stderr) {
+    stderrLines.push(agentResult.stderr);
+  }
+  if (stderrLines.length > 0) {
+    fs.writeFileSync(stderrPath, stderrLines.join('\n'));
+  }
+
   // Validate output if schema exists
   let validation: ValidationResult | null = null;
   if (definition.schemaPath) {
-    const outputPath = path.join(runDir, 'output', 'report.json');
     validation = validateOutput(definition.schemaPath, outputPath);
   }
 

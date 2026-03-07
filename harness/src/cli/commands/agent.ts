@@ -126,8 +126,11 @@ export function registerAgentCommand(program: Command): void {
         : 'error';
 
       if (status === 'error') {
+        const errorCode = result.metadata.result === 'timeout'
+          ? ErrorCodes.AGENT_TIMEOUT
+          : ErrorCodes.AGENT_EXECUTION_FAILED;
         exitWithEnvelope(
-          formatError('agent run', ErrorCodes.AGENT_EXECUTION_FAILED, result.agentResult.output, {
+          formatError('agent run', errorCode, result.agentResult.output, {
             runDir: result.runDir,
             metadata: result.metadata,
           }),

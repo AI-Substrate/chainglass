@@ -8,6 +8,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as crypto from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import type { AgentDefinition } from './types.js';
 
 /** Base directory for agent definitions, relative to harness root. */
@@ -39,8 +40,9 @@ export function validateSlug(slug: string): string | null {
  * Walks up from __dirname to find the harness/ directory.
  */
 export function resolveHarnessRoot(): string {
-  // harness/src/agent/folder.ts → harness/
-  return path.resolve(new URL('.', import.meta.url).pathname, '..', '..', '..');
+  // harness/src/agent/folder.ts → ../../ → harness/
+  const thisDir = path.dirname(fileURLToPath(import.meta.url));
+  return path.resolve(thisDir, '..', '..');
 }
 
 /**
@@ -108,21 +110,14 @@ export function createRunFolder(
 ): { runDir: string; runId: string } {
   const now = new Date();
   const suffix = crypto.randomBytes(2).toString('hex'); // 4 hex chars
-  const runId = [
-    now.getFullYear(),
-    String(now.getMonth() + 1).padStart(2, '0'),
-    String(now.getDate()).padStart(2, '0'),
-    'T',
-    String(now.getHours()).padStart(2, '0'),
-    '-',
-    String(now.getMinutes()).padStart(2, '0'),
-    '-',
-    String(now.getSeconds()).padStart(2, '0'),
-    '-',
-    String(now.getMilliseconds()).padStart(3, '0'),
-    'Z-',
-    suffix,
-  ].join('');
+  const yyyy = String(now.getFullYear());
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  const hh = String(now.getHours()).padStart(2, '0');
+  const min = String(now.getMinutes()).padStart(2, '0');
+  const ss = String(now.getSeconds()).padStart(2, '0');
+  const ms = String(now.getMilliseconds()).padStart(3, '0');
+  const runId = `${yyyy}-${mm}-${dd}T${hh}-${min}-${ss}-${ms}Z-${suffix}`;
 
   const runsDir = path.join(agentDef.dir, 'runs');
   const runDir = path.join(runsDir, runId);

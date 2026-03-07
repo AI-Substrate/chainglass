@@ -36,6 +36,14 @@ function createTestAgent(tmpDir: string, opts?: { schema?: boolean; instructions
 
 describe('runner.ts', () => {
   it('should run agent and return completed result', async () => {
+    /*
+    Test Doc:
+    - Why: AC-01 — core happy path; agent must run to completion and produce all expected artifacts
+    - Contract: runAgent returns {metadata.result:'completed', agentResult.output, runDir with completed.json + events.ndjson + prompt.md}
+    - Usage Notes: FakeAgentAdapter returns synchronously; real adapters are async with streaming
+    - Quality Contribution: Catches regressions in the end-to-end run lifecycle
+    - Worked Example: FakeAdapter({output:'Test output'}) → metadata.result='completed', agentResult.output='Test output'
+    */
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'runner-test-'));
     try {
       const def = createTestAgent(tmpDir);
@@ -57,6 +65,14 @@ describe('runner.ts', () => {
   });
 
   it('should stream events and write NDJSON', async () => {
+    /*
+    Test Doc:
+    - Why: AC-01 — events.ndjson is the audit trail; must exist even when zero events are emitted
+    - Contract: runAgent creates events.ndjson and tracks eventCount in metadata
+    - Usage Notes: FakeAgentAdapter emits no events by default; eventCount is 0
+    - Quality Contribution: Catches regressions where NDJSON file creation is skipped
+    - Worked Example: FakeAdapter with no events → events.ndjson exists, metadata.eventCount=0
+    */
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'runner-test-'));
     try {
       const def = createTestAgent(tmpDir);
@@ -75,6 +91,14 @@ describe('runner.ts', () => {
   });
 
   it('should prepend instructions to prompt when present', async () => {
+    /*
+    Test Doc:
+    - Why: AC-01 — instructions.md must be prepended to prompt so the agent receives full context
+    - Contract: runAgent concatenates instructions + prompt and passes combined text to adapter
+    - Usage Notes: Verify via adapter.getRunHistory() — the prompt field contains both sections
+    - Quality Contribution: Catches regressions where instructions are dropped or appended instead of prepended
+    - Worked Example: instructions='# Rules', prompt='# Test prompt' → adapter receives both in order
+    */
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'runner-test-'));
     try {
       const def = createTestAgent(tmpDir, { instructions: true });
@@ -94,6 +118,14 @@ describe('runner.ts', () => {
   });
 
   it('should pass model and reasoningEffort to adapter', async () => {
+    /*
+    Test Doc:
+    - Why: AC-01 — model and reasoningEffort config must flow through to the adapter unchanged
+    - Contract: runAgent forwards config.model and config.reasoningEffort to adapter.run() options
+    - Usage Notes: Verify via adapter.getRunHistory() — checks passthrough, not validation
+    - Quality Contribution: Catches regressions where config fields are dropped during prompt assembly
+    - Worked Example: config {model:'gpt-5.4', reasoningEffort:'low'} → adapter sees same values
+    */
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'runner-test-'));
     try {
       const def = createTestAgent(tmpDir);
@@ -111,6 +143,14 @@ describe('runner.ts', () => {
   });
 
   it('should return degraded when schema validation fails', async () => {
+    /*
+    Test Doc:
+    - Why: AC-03 — agent completing without valid output is 'degraded', not 'completed' or 'failed'
+    - Contract: runAgent returns result='degraded', validated=false when schema present but output doesn't match
+    - Usage Notes: FakeAdapter output is plain text 'Done', which fails JSON schema validation
+    - Quality Contribution: Catches regressions in the degraded status classification logic
+    - Worked Example: schema expects {status:string}, adapter returns 'Done' → metadata.result='degraded', validation.valid=false
+    */
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'runner-test-'));
     try {
       const def = createTestAgent(tmpDir, { schema: true });
@@ -123,13 +163,21 @@ describe('runner.ts', () => {
       expect(result.metadata.result).toBe('degraded');
       expect(result.metadata.validated).toBe(false);
       expect(result.validation?.valid).toBe(false);
-      expect(result.validation?.errors[0]).toContain('not found');
+      expect(result.validation?.errors[0]).toContain('not valid JSON');
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   });
 
   it('should return completed with validated=true when output matches schema', async () => {
+    /*
+    Test Doc:
+    - Why: AC-03 — post-hoc validation of report.json against schema must work end-to-end
+    - Contract: validateOutput returns valid=true when output/report.json matches the schema
+    - Usage Notes: Runner validates before agent writes; this test verifies validator independently
+    - Quality Contribution: Catches regressions in the schema-to-output validation pipeline
+    - Worked Example: schema requires {status:string}, report.json={status:'healthy'} → valid: true
+    */
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'runner-test-'));
     try {
       const def = createTestAgent(tmpDir, { schema: true });
@@ -150,6 +198,57 @@ describe('runner.ts', () => {
       const { validateOutput } = await import('../../../src/agent/validator.js');
       const validation = validateOutput(def.schemaPath!, path.join(result.runDir, 'output', 'report.json'));
       expect(validation.valid).toBe(true);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('should write report.json from agentResult.output', async () => {
+    /*
+    Test Doc:
+    - Why: AC-03 — runner must persist agentResult.output to output/report.json for downstream validation
+    - Contract: runAgent writes agentResult.output string to runDir/output/report.json
+    - Usage Notes: report.json contains the raw output string, not parsed JSON
+    - Quality Contribution: Catches regressions where output persistence is skipped or written to wrong path
+    - Worked Example: FakeAdapter({output:'{"status":"ok"}'}) → report.json contains '{"status":"ok"}'
+    */
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'runner-test-'));
+    try {
+      const def = createTestAgent(tmpDir);
+      const adapter = new FakeAgentAdapter({ output: '{"status":"ok"}', sessionId: 'sess-report' });
+      const config: AgentRunConfig = { slug: 'test-agent' };
+
+      const result = await runAgent(adapter, def, config);
+
+      const reportPath = path.join(result.runDir, 'output', 'report.json');
+      expect(fs.existsSync(reportPath)).toBe(true);
+      expect(fs.readFileSync(reportPath, 'utf-8')).toBe('{"status":"ok"}');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('should write stderr.log when adapter returns stderr', async () => {
+    /*
+    Test Doc:
+    - Why: AC-01 — stderr from agents must be captured for post-run diagnostics
+    - Contract: runAgent writes agentResult.stderr to runDir/stderr.log when present
+    - Usage Notes: stderr.log may also contain session_error event messages appended by the event handler
+    - Quality Contribution: Catches regressions where stderr output is silently discarded
+    - Worked Example: FakeAdapter({stderr:'Warning: rate limit'}) → stderr.log contains 'Warning: rate limit'
+    */
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'runner-test-'));
+    try {
+      const def = createTestAgent(tmpDir);
+      const adapter = new FakeAgentAdapter({ output: 'Done', sessionId: 'sess-stderr', stderr: 'Warning: rate limit approaching' });
+      const config: AgentRunConfig = { slug: 'test-agent' };
+
+      const result = await runAgent(adapter, def, config);
+
+      const stderrPath = path.join(result.runDir, 'stderr.log');
+      expect(fs.existsSync(stderrPath)).toBe(true);
+      const content = fs.readFileSync(stderrPath, 'utf-8');
+      expect(content).toContain('Warning: rate limit approaching');
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
