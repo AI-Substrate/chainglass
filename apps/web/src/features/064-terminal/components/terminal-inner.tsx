@@ -68,6 +68,8 @@ interface TerminalInnerProps {
   onConnectionChange?: (status: ConnectionStatus) => void;
   onCopyBuffer?: () => void;
   themeOverride?: 'dark' | 'light' | 'system';
+  /** When true, auto-focus the terminal (e.g. overlay just became visible) */
+  isVisible?: boolean;
 }
 
 export default function TerminalInner({
@@ -76,6 +78,7 @@ export default function TerminalInner({
   className,
   onConnectionChange,
   themeOverride,
+  isVisible,
 }: TerminalInnerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
@@ -162,6 +165,7 @@ export default function TerminalInner({
           if (dims?.cols && dims.rows) {
             sendRef.current(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
           }
+          terminalRef.current?.focus();
         });
       }
     },
@@ -326,6 +330,15 @@ export default function TerminalInner({
     // DYK-05: Must assign a new object reference for xterm to detect the change
     terminalRef.current.options.theme = effectiveTheme === 'dark' ? DARK_THEME : LIGHT_THEME;
   }, [effectiveTheme]);
+
+  // Auto-focus terminal when overlay becomes visible (re-open case)
+  useEffect(() => {
+    if (!isVisible || disposedRef.current || !terminalRef.current) return;
+    requestAnimationFrame(() => {
+      if (disposedRef.current) return;
+      terminalRef.current?.focus();
+    });
+  }, [isVisible]);
 
   return (
     <div className={`relative h-full w-full ${className ?? ''}`}>

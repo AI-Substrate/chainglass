@@ -124,6 +124,7 @@ export function TerminalOverlayPanel() {
           cwd={cwd}
           onConnectionChange={setConnectionStatus}
           themeOverride={terminalTheme}
+          isVisible={isOpen}
         />
       </div>
     </div>
