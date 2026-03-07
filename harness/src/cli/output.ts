@@ -25,6 +25,13 @@ export const ErrorCodes = {
   INVALID_ARGS: 'E108',
   TIMEOUT: 'E109',
   DOCKER_UNAVAILABLE: 'E110',
+  // Agent runner error codes (Plan 070 Phase 2)
+  AGENT_EXECUTION_FAILED: 'E120',
+  AGENT_NOT_FOUND: 'E121',
+  AGENT_AUTH_MISSING: 'E122',
+  AGENT_TIMEOUT: 'E123',
+  AGENT_VALIDATION_FAILED: 'E124',
+  AGENT_RUN_FOLDER_FAILED: 'E125',
 } as const;
 
 export type HarnessErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];

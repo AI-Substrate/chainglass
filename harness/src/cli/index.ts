@@ -23,6 +23,7 @@ import { registerResultsCommand } from './commands/results.js';
 import { registerPortsCommand } from './commands/ports.js';
 import { registerSeedCommand } from './commands/seed.js';
 import { registerDoctorCommand } from './commands/doctor.js';
+import { registerAgentCommand } from './commands/agent.js';
 
 const HARNESS_ROOT = path.resolve(import.meta.dirname ?? '.', '../..');
 
@@ -63,6 +64,7 @@ export function createCli(): Command {
   registerPortsCommand(program);
   registerSeedCommand(program);
   registerDoctorCommand(program);
+  registerAgentCommand(program);
 
   return program;
 }

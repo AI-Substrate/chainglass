@@ -260,6 +260,13 @@ just harness results                         # Read latest test results
 # Seed Data
 just harness seed           # Create test workspace + worktrees
 
+# Agent Runner (Plan 070)
+just harness agent run <slug>              # Execute an agent definition
+just harness agent run <slug> --model gpt-5.4  # With model selection
+just harness agent list                    # List available agents
+just harness agent history <slug>          # Show past runs
+just harness agent validate <slug>         # Re-validate most recent output
+
 # Standalone harness deps (first time only)
 just harness-install        # Install harness node_modules
 ```

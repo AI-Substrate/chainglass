@@ -8,7 +8,7 @@
 
 The harness is a Docker-containerized dev environment with Playwright/CDP browser automation, controlled by a typed CLI that returns structured JSON. Agents boot the app, browse it at any viewport, capture screenshots, run tests, and seed test data.
 
-The harness is **external tooling** rooted at `harness/` — it is not a registered domain, not part of `apps/cli`, and not in `pnpm-workspace.yaml`.
+The harness is **external tooling** rooted at `harness/` — it is not a registered domain, not part of `apps/cli`. It is included in `pnpm-workspace.yaml` (per [ADR-0014 amendment](../plans/070-harness-agent-runner/agent-runner-plan.md#adr-0014-amendment-workspace-managed-tooling)) so it can import `@chainglass/shared` for typed SDK adapter integration. This is a build-system concern, not an architectural promotion to domain status.
 
 ## Boot
 
@@ -93,6 +93,10 @@ All commands return `{command, status, data?, error?}` JSON to stdout.
 | `just harness results` | Read latest test results |
 | `just harness seed` | Create test workspace + worktrees |
 | `just harness ports` | Show port allocation |
+| `just harness agent run <slug>` | Execute an agent definition (Plan 070) |
+| `just harness agent list` | List available agent definitions |
+| `just harness agent history <slug>` | Show past runs for an agent |
+| `just harness agent validate <slug>` | Re-validate most recent run output |
 
 ### Error Codes
 
@@ -109,6 +113,12 @@ All commands return `{command, status, data?, error?}` JSON to stdout.
 | E108 | Invalid arguments |
 | E109 | Timeout |
 | E110 | Docker unavailable |
+| E120 | Agent execution failed |
+| E121 | Agent not found |
+| E122 | Agent auth missing (GH_TOKEN) |
+| E123 | Agent timeout |
+| E124 | Agent validation failed |
+| E125 | Agent run folder creation failed |
 
 ## Observe
 
@@ -184,6 +194,8 @@ The harness tests three viewport tiers:
 | Phase 3 | CLI SDK with 9 commands + SDK helpers + dynamic ports | 2026-03-07 |
 | Phase 4 | Seed scripts + route/MCP/responsive tests + this doc | 2026-03-07 |
 | FX001 | Doctor command + .env port cache + prompt templates | 2026-03-07 |
+| Plan 070 P1 | SdkCopilotAdapter: model/reasoning/listModels/setModel | 2026-03-07 |
+| Plan 070 P2 | Agent runner: folder mgmt, runner, validator, display, CLI, error codes | 2026-03-07 |
 
 ## Prompt Templates
 

@@ -177,4 +177,7 @@ apps/web/certificates/
 
 # Harness test results — regenerated each run (Plan 067)
 harness/results/
+
+# Harness agent run folders — generated per agent execution (Plan 070)
+harness/agents/*/runs/
 .pnpm-store/
