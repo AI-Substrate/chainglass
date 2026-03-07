@@ -44,6 +44,7 @@ describe('CLI command registration', () => {
     expect(commandNames).toContain('screenshot');
     expect(commandNames).toContain('results');
     expect(commandNames).toContain('ports');
+    expect(commandNames).toContain('seed');
   });
 
   it('has a version string', () => {

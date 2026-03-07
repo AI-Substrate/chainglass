@@ -233,6 +233,33 @@ just reset                  # Full reset (clean + reinstall)
 
 See `docs/how/dev/fast-feedback-loops.md` for the full testing strategy and feedback tier guide.
 
+### Harness Commands (Agentic Development)
+
+The harness provides a Docker-containerized dev environment with browser automation. Each worktree gets unique ports derived from its name. See `docs/project-rules/harness.md` for full documentation.
+
+```bash
+# Port allocation (unique per worktree)
+just harness ports          # Show this worktree's port allocation
+
+# Lifecycle
+just harness dev            # Start container (auto-computes ports)
+just harness stop           # Stop container
+just harness health         # Probe all endpoints (JSON)
+just harness build          # Rebuild Docker image
+
+# Testing & Evidence
+just harness test --suite smoke              # Run smoke tests
+just harness test --viewport mobile          # Test at mobile viewport
+just harness screenshot home                 # Capture screenshot via CDP
+just harness results                         # Read latest test results
+
+# Seed Data
+just harness seed           # Create test workspace + worktrees
+
+# Standalone harness deps (first time only)
+just harness-install        # Install harness node_modules
+```
+
 ### pnpm Commands (Alternative)
 
 ```bash

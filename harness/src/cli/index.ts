@@ -15,6 +15,7 @@ import { registerTestCommand } from './commands/test.js';
 import { registerScreenshotCommand } from './commands/screenshot.js';
 import { registerResultsCommand } from './commands/results.js';
 import { registerPortsCommand } from './commands/ports.js';
+import { registerSeedCommand } from './commands/seed.js';
 
 export function createCli(): Command {
   const program = new Command()
@@ -30,6 +31,7 @@ export function createCli(): Command {
   registerScreenshotCommand(program);
   registerResultsCommand(program);
   registerPortsCommand(program);
+  registerSeedCommand(program);
 
   return program;
 }

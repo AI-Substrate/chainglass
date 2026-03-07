@@ -14,10 +14,12 @@
  */
 
 import { type BrowserContext, type Page, chromium, test as base } from '@playwright/test';
+import { computePorts } from '../../src/ports/allocator.js';
 
 export { expect } from '@playwright/test';
 
-const CDP_ENDPOINT = process.env.HARNESS_CDP_URL ?? 'http://localhost:9222';
+const ports = computePorts();
+const CDP_ENDPOINT = process.env.HARNESS_CDP_URL ?? `http://127.0.0.1:${ports.cdp}`;
 
 async function getWsEndpoint(): Promise<string> {
   const response = await fetch(`${CDP_ENDPOINT}/json/version`);

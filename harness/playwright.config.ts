@@ -13,8 +13,10 @@
 
 import { defineConfig } from '@playwright/test';
 import { HARNESS_VIEWPORTS } from './src/viewports/devices.js';
+import { computePorts } from './src/ports/allocator.js';
 
-const APP_URL = process.env.HARNESS_APP_URL ?? 'http://localhost:3100';
+const ports = computePorts();
+const APP_URL = process.env.HARNESS_APP_URL ?? `http://localhost:${ports.app}`;
 
 export default defineConfig({
   testDir: './tests',
