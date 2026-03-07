@@ -87,4 +87,56 @@ describe('FileTree', () => {
       expect(button).toHaveClass('tree-entry-glow');
     });
   });
+
+  describe('metafile detection and rendering', () => {
+    const metafileEntries = [
+      { name: 'photo.png', type: 'file' as const, path: 'photo.png' },
+      { name: 'photo.png.summary.md', type: 'file' as const, path: 'photo.png.summary.md' },
+      { name: 'photo.png.analysis.md', type: 'file' as const, path: 'photo.png.analysis.md' },
+      { name: 'readme.md', type: 'file' as const, path: 'readme.md' },
+    ];
+
+    it('renders metafiles with CornerDownRight arrow indicator', () => {
+      const { container } = render(
+        <FileTree entries={metafileEntries} onSelect={vi.fn()} onExpand={vi.fn()} />
+      );
+
+      // Metafile buttons should contain the CornerDownRight SVG (extra icon)
+      const summaryBtn = screen.getByText('photo.png.summary.md').closest('button');
+      const analysisBtn = screen.getByText('photo.png.analysis.md').closest('button');
+      // Each metafile button has 2 SVGs (CornerDownRight + File), regular files have 1 (File)
+      expect(summaryBtn?.querySelectorAll('svg').length).toBe(2);
+      expect(analysisBtn?.querySelectorAll('svg').length).toBe(2);
+
+      // Regular files only have 1 SVG (File icon)
+      const readmeBtn = screen.getByText('readme.md').closest('button');
+      expect(readmeBtn?.querySelectorAll('svg').length).toBe(1);
+      const photoBtn = screen.getByText('photo.png').closest('button');
+      expect(photoBtn?.querySelectorAll('svg').length).toBe(1);
+    });
+
+    it('does not treat .md files without matching parent as metafiles', () => {
+      const entries = [
+        { name: 'notes.md', type: 'file' as const, path: 'notes.md' },
+        { name: 'todo.md', type: 'file' as const, path: 'todo.md' },
+      ];
+      render(<FileTree entries={entries} onSelect={vi.fn()} onExpand={vi.fn()} />);
+
+      // Neither file has a parent match — both should have 1 SVG only
+      const notesBtn = screen.getByText('notes.md').closest('button');
+      expect(notesBtn?.querySelectorAll('svg').length).toBe(1);
+    });
+
+    it('does not treat directories as metafile parents', () => {
+      const entries = [
+        { name: 'src', type: 'directory' as const, path: 'src' },
+        { name: 'src.notes.md', type: 'file' as const, path: 'src.notes.md' },
+      ];
+      render(<FileTree entries={entries} onSelect={vi.fn()} onExpand={vi.fn()} />);
+
+      // src is a directory, so src.notes.md is NOT a metafile
+      const notesBtn = screen.getByText('src.notes.md').closest('button');
+      expect(notesBtn?.querySelectorAll('svg').length).toBe(1);
+    });
+  });
 });

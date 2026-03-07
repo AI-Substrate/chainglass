@@ -22,6 +22,7 @@ import {
   ChevronDown,
   ChevronRight,
   ClipboardCopy,
+  CornerDownRight,
   Download,
   File,
   FileText,
@@ -144,6 +145,7 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
           key={entry.path}
           entry={entry}
           depth={0}
+          isMetafile={isMetafileEntry(entry, entries)}
           expanded={expanded}
           selectedFile={selectedFile}
           changedFiles={changedFiles}
@@ -163,9 +165,20 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
   );
 });
 
+/** Detect if a file is a metafile (e.g., photo.png.summary.md for sibling photo.png) */
+function isMetafileEntry(entry: FileEntry, siblings: FileEntry[]): boolean {
+  if (entry.type !== 'file' || !entry.name.endsWith('.md')) return false;
+  const withoutMd = entry.name.slice(0, -3);
+  const lastDot = withoutMd.lastIndexOf('.');
+  if (lastDot <= 0) return false;
+  const candidateParent = withoutMd.slice(0, lastDot);
+  return siblings.some((s) => s.name === candidateParent && s.type === 'file');
+}
+
 function TreeItem({
   entry,
   depth,
+  isMetafile,
   expanded,
   selectedFile,
   changedFiles,
@@ -182,6 +195,7 @@ function TreeItem({
 }: {
   entry: FileEntry;
   depth: number;
+  isMetafile: boolean;
   expanded: Set<string>;
   selectedFile?: string;
   changedFiles?: string[];
@@ -267,6 +281,7 @@ function TreeItem({
                 key={child.path}
                 entry={child}
                 depth={depth + 1}
+                isMetafile={isMetafileEntry(child, children)}
                 expanded={expanded}
                 selectedFile={selectedFile}
                 changedFiles={changedFiles}
@@ -308,11 +323,12 @@ function TreeItem({
           className={`relative flex w-full items-center gap-1 px-2 py-1 text-left hover:bg-accent ${
             isSelected ? 'bg-accent font-medium' : ''
           } ${isChanged ? 'text-amber-600 dark:text-amber-400' : ''} ${isGlowing ? 'tree-entry-glow' : ''}`}
-          style={{ paddingLeft: `${depth * 16 + 8 + 14}px` }}
+          style={{ paddingLeft: `${depth * 16 + 8 + 14 + (isMetafile ? 12 : 0)}px` }}
         >
           {isSelected && (
             <span className="absolute left-0.5 text-amber-500 font-black text-sm">▶</span>
           )}
+          {isMetafile && <CornerDownRight className="h-3 w-3 shrink-0 text-muted-foreground/50" />}
           <File className="h-4 w-4 shrink-0 text-muted-foreground" />
           <span className={`truncate ${isSelected ? 'text-base' : ''}`}>{entry.name}</span>
         </button>
