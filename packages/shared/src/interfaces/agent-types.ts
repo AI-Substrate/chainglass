@@ -5,6 +5,9 @@ export type {
   AgentToolResultEvent,
 } from '../schemas/agent-event.schema.js';
 
+// Plan 070 Phase 1: Import CopilotReasoningEffort for AgentRunOptions
+import type { CopilotReasoningEffort } from './copilot-sdk.interface.js';
+
 /**
  * Agent execution status values.
  *
@@ -67,6 +70,21 @@ export interface AgentRunOptions {
    * When omitted, run() returns only the final AgentResult.
    */
   onEvent?: AgentEventHandler;
+  /**
+   * Model to use for this run (e.g., "gpt-5.4", "claude-sonnet-4").
+   * Honored by SdkCopilotAdapter (passed to createSession) and
+   * ClaudeCodeAdapter (passed as --model CLI flag).
+   * Other adapters may ignore this field.
+   */
+  model?: string;
+  /**
+   * Reasoning effort for models that support it.
+   * Only honored by SdkCopilotAdapter — check model capabilities
+   * via ICopilotClient.listModels() before setting.
+   * Passing this for a model that doesn't support it will cause the SDK
+   * to return an error (mapped to status: 'failed').
+   */
+  reasoningEffort?: CopilotReasoningEffort;
 }
 
 // ============================================

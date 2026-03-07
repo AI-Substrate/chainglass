@@ -87,6 +87,7 @@ export class FakeCopilotSession implements ICopilotSession {
   private readonly _sendHistory: CopilotMessageOptions[] = [];
   private _abortCount = 0;
   private _destroyed = false;
+  private _currentModel: string | undefined;
 
   constructor(options: FakeCopilotSessionOptions = {}) {
     this._sessionId = options.sessionId ?? `fake-session-${Date.now()}`;
@@ -201,6 +202,13 @@ export class FakeCopilotSession implements ICopilotSession {
     this._eventHandlers.clear();
   }
 
+  /**
+   * Change the model for this session (stub — records for test verification).
+   */
+  async setModel(model: string): Promise<void> {
+    this._currentModel = model;
+  }
+
   // ============================================
   // Test helper methods
   // ============================================
@@ -228,6 +236,13 @@ export class FakeCopilotSession implements ICopilotSession {
   }
 
   /**
+   * Get the model set via setModel().
+   */
+  getCurrentModel(): string | undefined {
+    return this._currentModel;
+  }
+
+  /**
    * Clear all call history.
    * Useful for test isolation between test cases.
    */
@@ -236,5 +251,6 @@ export class FakeCopilotSession implements ICopilotSession {
     this._abortCount = 0;
     this._destroyed = false;
     this._eventHandlers.clear();
+    this._currentModel = undefined;
   }
 }
