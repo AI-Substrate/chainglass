@@ -54,27 +54,33 @@ No new domains. Harness is external tooling at `harness/` in repo root.
 | `harness/src/ports/*.ts` | external | internal | Deterministic port allocator for parallel worktrees |
 | `harness/src/viewports/devices.ts` | external | internal | Viewport definitions |
 | `harness/bin/harness` | external | internal | Shell wrapper for bin entry point |
-| `harness/src/seed/seed-workspace.ts` | external | internal | HTTP-based workspace seeding |
+| `harness/src/seed/seed-workspace.ts` | external | internal | Workspace seeding via registry write + docker exec |
 | `harness/tests/smoke/docker-boot.test.ts` | external | internal | Smoke test suite |
 | `harness/tests/fixtures/base-test.ts` | external | internal | Shared CDP-backed Playwright fixture |
 | `harness/tests/smoke/browser-smoke.spec.ts` | external | internal | Browser smoke suite across desktop/tablet/mobile |
+| `harness/tests/smoke/routes-smoke.spec.ts` | external | internal | Route-level smoke tests (/, /workspaces, /settings, /agents) |
+| `harness/tests/smoke/mcp-smoke.test.ts` | external | internal | MCP JSON-RPC endpoint verification (Vitest) |
+| `harness/tests/smoke/seed-verification.spec.ts` | external | internal | Seeded workspace UI visibility tests |
 | `harness/tests/smoke/cdp-integration.test.ts` | external | internal | Host-to-CDP integration verification |
+| `harness/tests/responsive/sidebar-responsive.spec.ts` | external | internal | Responsive sidebar tests (Sheet overlay on mobile) |
+| `harness/tests/features/*.spec.ts` | external | internal | Feature test stubs (agents, browser, terminal, workflows) |
 | `harness/tests/unit/cli/*.test.ts` | external | internal | Harness CLI unit tests |
 | `harness/tests/unit/ports/*.test.ts` | external | internal | Port allocator unit tests |
 | `harness/tests/integration/cli/*.test.ts` | external | internal | CLI integration tests (require running container) |
 | `harness/vitest.config.ts` | external | internal | Harness Vitest configuration |
 | `harness/vitest.integration.config.ts` | external | internal | Integration test configuration |
-| `harness/tests/features/responsive/viewport-layouts.spec.ts` | external | internal | Responsive viewport tests |
 | `harness/results/.gitkeep` | external | internal | Results output directory |
 | `harness/.dockerignore` | external | internal | Docker build exclusions |
+| `docs/project-rules/harness.md` | cross-domain | cross-domain | L3 harness governance doc |
 | `.gitignore` | _platform | cross-domain | Add `harness/results/` |
-| `justfile` | _platform | cross-domain | Add `test-harness` recipe |
-| `tsconfig.json` | _platform | cross-domain | Exclude standalone harness from root TS gate; replacement gate lives in `harness/justfile` |
+| `justfile` | _platform | cross-domain | Add `test-harness` + `just harness` recipes |
+| `CLAUDE.md` | _platform | cross-domain | Harness commands in Quick Reference |
+| `tsconfig.json` | _platform | cross-domain | Exclude standalone harness from root TS gate |
 | `apps/web/src/auth.ts` | _platform/auth | cross-domain | Fix DISABLE_AUTH for Server Actions (Finding 02) |
 
 ## Harness Strategy
 
-- **Current Maturity**: L0 (no harness exists)
+- **Current Maturity**: L3 (auto boot + browser interaction + structured evidence + CLI SDK)
 - **Target Maturity**: L3 (auto boot + browser interaction + structured evidence)
 - **Boot Command**: `just test-harness` or `harness dev`
 - **Health Check**: `harness health` → JSON with app/MCP/CDP/terminal status

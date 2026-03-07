@@ -16,6 +16,12 @@ export function registerSeedCommand(program: Command): void {
           );
         }
 
+        if (!result.verified) {
+          exitWithEnvelope(
+            formatError('seed', ErrorCodes.HEALTH_FAILED, 'Workspace registered but not visible in API. App may need restart.', result),
+          );
+        }
+
         exitWithEnvelope(
           formatSuccess('seed', {
             ...result,

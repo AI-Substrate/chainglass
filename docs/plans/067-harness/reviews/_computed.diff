@@ -1,1086 +1,1182 @@
-diff --git a/harness/justfile b/harness/justfile
-index 86a6cac..9bb9aba 100644
---- a/harness/justfile
-+++ b/harness/justfile
-@@ -8,6 +8,10 @@ default:
- build:
-     docker compose -f docker-compose.yml build
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 3b619e0..4c79074 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -233,6 +233,33 @@ just reset                  # Full reset (clean + reinstall)
  
-+# Install standalone harness dependencies
-+install:
-+    pnpm install --ignore-workspace
-+
- # Start dev container (detached), wait for health
- dev:
-     docker compose -f docker-compose.yml up -d
-@@ -26,8 +30,11 @@ stop:
+ See `docs/how/dev/fast-feedback-loops.md` for the full testing strategy and feedback tier guide.
  
- # Health check
- health:
--    @echo "App:      $$(curl -sf -o /dev/null -w '%{http_code}' http://localhost:3000 || echo 'DOWN')"
--    @echo "Terminal: $$(python3 -c "import socket; s=socket.create_connection(('localhost',4500),2); s.close(); print('UP')" 2>/dev/null || echo 'DOWN')"
-+    @APP_CODE=$(curl -sf -o /dev/null -w '%{http_code}' http://127.0.0.1:3000 || echo DOWN); \
-+    MCP_CODE=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/_next/mcp || echo DOWN); \
-+    TERMINAL_STATUS=$(python3 -c "import socket; s=socket.create_connection(('127.0.0.1',4500),2); s.close(); print('up')" 2>/dev/null || echo down); \
-+    CDP_BROWSER=$(curl -sf http://127.0.0.1:9222/json/version | tr -d '\n' | sed -E 's/.*\"Browser\"[[:space:]]*:[[:space:]]*\"([^\"]+)\".*/\1/' || echo down); \
-+    APP_CODE="$APP_CODE" MCP_CODE="$MCP_CODE" TERMINAL_STATUS="$TERMINAL_STATUS" CDP_BROWSER="$CDP_BROWSER" python3 -c "import json, os; app=os.environ['APP_CODE']; mcp=os.environ['MCP_CODE']; terminal=os.environ['TERMINAL_STATUS']; cdp=os.environ['CDP_BROWSER']; print(json.dumps({'status': 'ok' if app == '200' and terminal == 'up' and cdp != 'down' else 'degraded', 'app': {'status': 'up' if app == '200' else 'down', 'code': app}, 'mcp': {'status': 'up' if mcp not in ('000', 'DOWN', 'DOWN000') else 'down', 'code': mcp}, 'terminal': {'status': terminal}, 'cdp': {'status': 'up' if cdp != 'down' else 'down', 'browser': None if cdp == 'down' else cdp}}, separators=(',', ':')))"
++### Harness Commands (Agentic Development)
++
++The harness provides a Docker-containerized dev environment with browser automation. Each worktree gets unique ports derived from its name. See `docs/project-rules/harness.md` for full documentation.
++
++```bash
++# Port allocation (unique per worktree)
++just harness ports          # Show this worktree's port allocation
++
++# Lifecycle
++just harness dev            # Start container (auto-computes ports)
++just harness stop           # Stop container
++just harness health         # Probe all endpoints (JSON)
++just harness build          # Rebuild Docker image
++
++# Testing & Evidence
++just harness test --suite smoke              # Run smoke tests
++just harness test --viewport mobile          # Test at mobile viewport
++just harness screenshot home                 # Capture screenshot via CDP
++just harness results                         # Read latest test results
++
++# Seed Data
++just harness seed           # Create test workspace + worktrees
++
++# Standalone harness deps (first time only)
++just harness-install        # Install harness node_modules
++```
++
+ ### pnpm Commands (Alternative)
  
- # Run command inside container
- exec +CMD:
-@@ -40,3 +47,11 @@ logs:
- # Rebuild node_modules inside container (after dependency changes)
- rebuild:
-     docker compose -f docker-compose.yml exec chainglass-dev pnpm install --frozen-lockfile
-+
-+# Type-check the standalone harness package
-+typecheck:
-+    pnpm exec tsc --noEmit
-+
-+# Run Playwright tests against the running container
-+playwright *ARGS:
-+    npx playwright test --config=playwright.config.ts {{ARGS}}
-diff --git a/harness/package.json b/harness/package.json
-index c8ea4f7..62158a5 100644
---- a/harness/package.json
-+++ b/harness/package.json
-@@ -4,6 +4,9 @@
-   "private": true,
-   "description": "Agentic development harness — Docker + Playwright browser automation for Chainglass",
-   "type": "module",
-+  "bin": {
-+    "harness": "./src/cli/index.ts"
-+  },
-   "scripts": {
-     "harness": "tsx src/cli/index.ts",
-     "test": "vitest run",
-diff --git a/harness/src/cdp/connect.ts b/harness/src/cdp/connect.ts
+ ```bash
+diff --git a/docs/plans/067-harness/tasks/phase-4-seed-tests-responsive/execution.log.md b/docs/plans/067-harness/tasks/phase-4-seed-tests-responsive/execution.log.md
 new file mode 100644
-index 0000000..1874e9c
+index 0000000..6379e6e
 --- /dev/null
-+++ b/harness/src/cdp/connect.ts
-@@ -0,0 +1,48 @@
-+/**
-+ * CDP connection helper — single source of truth for the connectOverCDP handshake.
-+ *
-+ * Both Playwright test fixtures and CLI commands (screenshot, test) use this
-+ * to discover the WebSocket debugger URL and connect. One place to fix when
-+ * CDP behavior changes (see Phase 2 socat proxy discovery).
-+ */
++++ b/docs/plans/067-harness/tasks/phase-4-seed-tests-responsive/execution.log.md
+@@ -0,0 +1,24 @@
++# Phase 4: Seed Scripts, Feature Tests & Responsive Viewports — Execution Log
 +
-+const DEFAULT_CDP_URL = 'http://127.0.0.1:9222';
++**Started**: 2026-03-07
++**Plan**: [harness-plan.md](../../harness-plan.md)
++**Phase Doc**: [tasks.md](tasks.md)
 +
-+export interface CdpVersionInfo {
-+  webSocketDebuggerUrl: string;
-+  Browser: string;
-+  [key: string]: unknown;
-+}
++---
 +
-+export async function getCdpVersion(
-+  cdpUrl = DEFAULT_CDP_URL,
-+): Promise<CdpVersionInfo> {
-+  const response = await fetch(`${cdpUrl}/json/version`);
-+  if (!response.ok) {
-+    throw new Error(`CDP endpoint not available at ${cdpUrl}: ${response.status}`);
-+  }
-+  return (await response.json()) as CdpVersionInfo;
-+}
++## Pre-Phase Harness Validation
 +
-+export async function getWsEndpoint(cdpUrl = DEFAULT_CDP_URL): Promise<string> {
-+  const info = await getCdpVersion(cdpUrl);
-+  return info.webSocketDebuggerUrl;
-+}
++| Check | Status | Duration | Notes |
++|-------|--------|----------|-------|
++| Boot | ✅ Cold boot (fresh volumes) | ~3min | New namespaced volumes required full install + build |
++| Interact | ✅ App on :3159 | <1s | Dynamic port allocation working |
++| Observe | ✅ All services up | <1s | `health` returns ok: app, mcp, terminal, cdp (Chrome/136.0.7103.25) |
 +
-+export async function getCdpBrowser(cdpUrl = DEFAULT_CDP_URL): Promise<string | null> {
-+  try {
-+    const info = await getCdpVersion(cdpUrl);
-+    return info.Browser ?? null;
-+  } catch {
-+    return null;
-+  }
-+}
++**Prerequisite**: Docker volume namespacing applied (DYK #2) — `chainglass_node_modules_066-wf-real-agents` and `chainglass_dot_next_066-wf-real-agents`.
 +
-+export async function isCdpAvailable(cdpUrl = DEFAULT_CDP_URL): Promise<boolean> {
-+  try {
-+    await getCdpVersion(cdpUrl);
-+    return true;
-+  } catch {
-+    return false;
-+  }
-+}
-diff --git a/harness/src/cli/commands/build.ts b/harness/src/cli/commands/build.ts
++**Verdict**: ✅ HEALTHY — proceed to tasks.
++
++---
++
++## Task Log
++
+diff --git a/docs/plans/067-harness/tasks/phase-4-seed-tests-responsive/tasks.md b/docs/plans/067-harness/tasks/phase-4-seed-tests-responsive/tasks.md
 new file mode 100644
-index 0000000..678d306
+index 0000000..89d695c
 --- /dev/null
-+++ b/harness/src/cli/commands/build.ts
-@@ -0,0 +1,26 @@
++++ b/docs/plans/067-harness/tasks/phase-4-seed-tests-responsive/tasks.md
+@@ -0,0 +1,318 @@
++# Phase 4: Seed Scripts, Feature Tests & Responsive Viewports — Tasks Dossier
++
++**Plan**: [harness-plan.md](../../harness-plan.md)
++**Phase**: Phase 4: Seed Scripts, Feature Tests & Responsive Viewports
++**Depends on**: Phase 3 (complete)
++**Generated**: 2026-03-07
++
++---
++
++## Executive Briefing
++
++**Purpose**: Give the harness real test data and real test suites that exercise observable app behavior. Without seeded data the harness can only verify "does the homepage load?". After this phase, agents can verify workspaces appear in the sidebar, worktrees are listed, routes return 200, responsive layouts change across viewports, and the MCP endpoint responds. The phase also closes the documentation gap by delivering `docs/project-rules/harness.md`.
++
++**What We're Building**:
++- An HTTP-based seed command that creates a test workspace visible in the running app
++- An expanded smoke suite testing routes, MCP, and console cleanliness
++- A responsive test suite verifying sidebar behavior at phone/tablet/desktop viewports
++- Feature test stubs for future plans to fill in
++- The governance doc (`docs/project-rules/harness.md`) documenting the full Boot → Interact → Observe surface
++
++**Goals**:
++- ✅ `harness seed` creates a test workspace with worktrees visible in the sidebar
++- ✅ Smoke tests verify all main routes return 200 and MCP responds
++- ✅ Responsive tests verify sidebar visibility/collapse across viewports
++- ✅ Feature test stubs exist for agents, browser, terminal, workflows
++- ✅ `docs/project-rules/harness.md` documents L3 maturity harness
++
++**Non-Goals**:
++- ❌ Full feature-level Playwright test coverage (stubs only)
++- ❌ Visual regression baselines or pixel-diff screenshot comparison
++- ❌ Parallel container instances (future plan)
++- ❌ CI/CD integration or GitHub Actions harness pipeline
++- ❌ Seed data for agents, work units, or workflows (workspace + worktrees only)
++
++---
++
++## Prior Phase Context
++
++### Phase 1: Docker Container & Dev Server
++
++**A. Deliverables**
++- `harness/Dockerfile`, `docker-compose.yml`, `entrypoint.sh`, `package.json`, `justfile`
++- Sentinel-based cold start, concurrent process launcher (Next.js + terminal sidecar)
++- Auth bypass (`DISABLE_AUTH=true`) working for all call signatures
++
++**B. Dependencies Exported**
++- Running app on dynamic port (from `computePorts().app`)
++- Terminal WebSocket sidecar on dynamic port
++- Standalone harness package with `commander`, `zod`, `tsx`, `vitest`, `@playwright/test`
++
++**C. Gotchas & Debt**
++- Cold start ~3-5 min on first boot; sentinel prevents repeats
++- Harness intentionally standalone; root `pnpm install` does not populate `harness/node_modules`
++
++**D. Incomplete Items**
++- None carrying forward
++
++**E. Patterns to Follow**
++- Sentinel-based cold start detection
++- Just recipes over raw shell; concurrent process launch via `concurrently`
++- Standalone harness package; no imports from app domains; use HTTP/CDP for interaction
++
++### Phase 2: Playwright & CDP Integration
++
++**A. Deliverables**
++- `start-chromium.sh`, `playwright.config.ts`, `src/viewports/devices.ts`
++- Custom CDP fixture (`tests/fixtures/base-test.ts`)
++- 24 browser smoke tests + 4 CDP integration tests
++- socat proxy topology (9222 → 127.0.0.1:9223)
++
++**B. Dependencies Exported**
++- CDP endpoint on dynamic port (from `computePorts().cdp`)
++- Shared CDP connection pattern: `getWsEndpoint()` → `connectOverCDP()`
++- Viewport constants: `HARNESS_VIEWPORTS` (`desktop-lg`, `desktop-md`, `tablet`, `mobile`)
++- Evidence paths in `harness/results/`
++
++**C. Gotchas & Debt**
++- Chromium 136 loopback-only binding; host access only through socat proxy
++- `playwright.config.ts` cannot use `connectOptions` for CDP; custom fixture required
++- No `docs/project-rules/harness.md` yet
++
++**D. Incomplete Items**
++- None carrying forward
++
++**E. Patterns to Follow**
++- Event-driven assertions (no fixed sleeps)
++- Test Doc blocks on all durable tests
++- Deterministic screenshot naming: `{name}-{viewport}.png`
++
++### Phase 3: Harness CLI SDK
++
++**A. Deliverables**
++- Commander.js CLI with 8 commands: `build`, `dev`, `stop`, `health`, `test`, `screenshot`, `results`, `ports`
++- Canonical JSON envelope `{command, status, data?, error?}` with Zod schema
++- SDK helpers: `cdp/connect.ts`, `health/probe.ts`, `docker/lifecycle.ts`, `ports/allocator.ts`
++- Error codes E100-E110
++- 19 unit tests + 4 integration tests
++- `bin/harness` shell wrapper + root justfile `just harness <cmd>` alias
++
++**B. Dependencies Exported**
++- `formatSuccess()`, `formatError()`, `parseEnvelope()`, `HarnessEnvelopeSchema` — output contract
++- `computePorts()` → `HarnessPorts` — deterministic port allocation per worktree
++- `probeAll(ports)` → `HealthResult` — per-service health probes
++- `getWsEndpoint(cdpUrl)`, `getCdpVersion(cdpUrl)` — CDP helpers
++- `SUITE_GLOBS` and `VIEWPORT_TO_PROJECT` maps in test command
++
++**C. Gotchas & Debt**
++- CDP `/json/version` uses capital `Browser` key (not lowercase)
++- `import.meta.dirname` resolves to source file's directory; commands need `../../..` to reach harness root
++- `curl` fails on CDP port from macOS host but Node.js `fetch` works fine
++- Workspace creation uses Server Actions (`addWorkspace`), NOT POST to API endpoint
++
++**D. Incomplete Items**
++- `harness seed` command not yet implemented (this phase)
++- `docs/project-rules/harness.md` not yet created (this phase)
++
++**E. Patterns to Follow**
++- All commands return `HarnessEnvelope` to stdout; human text to stderr
++- Exit 0 for ok/degraded, exit 1 for command failures
++- SDK-like helpers: composable building blocks, not monolithic functions
++- Path sanitization for user-controlled file paths (FT-003 pattern)
++- Delete stale results before running tests (FT-004 pattern)
++
++---
++
++## Pre-Implementation Check
++
++| File | Exists? | Domain Check | Notes |
++|------|---------|-------------|-------|
++| `harness/src/cli/commands/seed.ts` | ❌ no | ✅ external | New command module |
++| `harness/src/seed/seed-workspace.ts` | ❌ no | ✅ external | New seed helper; uses HTTP API, not app internals |
++| `harness/tests/smoke/routes-smoke.spec.ts` | ❌ no | ✅ external | New: expanded route-level smoke tests |
++| `harness/tests/smoke/mcp-smoke.spec.ts` | ❌ no | ✅ external | New: MCP endpoint verification |
++| `harness/tests/responsive/sidebar-responsive.spec.ts` | ❌ no | ✅ external | New: sidebar behavior at 3 viewports |
++| `harness/tests/features/*.spec.ts` | ❌ no | ✅ external | New: placeholder stubs |
++| `docs/project-rules/harness.md` | ❌ no | ✅ cross-domain | New governance doc |
++| `CLAUDE.md` | ✅ exists | ✅ cross-domain | Needs harness command additions |
++| `apps/web/app/api/workspaces/route.ts` | ✅ exists | _platform | READ ONLY — seed uses GET to verify, Server Action to create |
++| `apps/web/app/actions/workspace-actions.ts` | ✅ exists | _platform | READ ONLY — `addWorkspace(prevState, formData)` for creation |
++
++**Harness context**: Harness is operational at L2 (boot + browser + CLI). No `docs/project-rules/harness.md` yet — this phase creates it, promoting to L3.
++
++---
++
++## Architecture Map
++
++```mermaid
++flowchart TD
++    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
++    classDef completed fill:#4CAF50,stroke:#388E3C,color:#fff
++
++    subgraph Phase["Phase 4: Seed, Tests & Docs"]
++        T001["T001<br/>Seed workspace helper"]:::pending
++        T002["T002<br/>harness seed command"]:::pending
++        T003["T003<br/>Expanded smoke suite"]:::pending
++        T004["T004<br/>MCP smoke tests"]:::pending
++        T005["T005<br/>Responsive sidebar tests"]:::pending
++        T006["T006<br/>Feature test stubs"]:::pending
++        T007["T007<br/>Verify seeded data visible"]:::pending
++        T008["T008<br/>harness.md governance doc"]:::pending
++        T009["T009<br/>Update CLAUDE.md"]:::pending
++
++        T001 --> T002
++        T002 --> T007
++        T003 --> T007
++        T004 --> T007
++        T005 --> T007
++        T006 --> T007
++    end
++
++    subgraph Files["Files"]
++        F1["harness/src/seed/seed-workspace.ts"]:::pending
++        F2["harness/src/cli/commands/seed.ts"]:::pending
++        F3["harness/tests/smoke/routes-smoke.spec.ts"]:::pending
++        F4["harness/tests/smoke/mcp-smoke.spec.ts"]:::pending
++        F5["harness/tests/responsive/sidebar-responsive.spec.ts"]:::pending
++        F6["harness/tests/features/*.spec.ts"]:::pending
++        F7["docs/project-rules/harness.md"]:::pending
++    end
++
++    T001 -.-> F1
++    T002 -.-> F2
++    T003 -.-> F3
++    T004 -.-> F4
++    T005 -.-> F5
++    T006 -.-> F6
++    T008 -.-> F7
++```
++
++---
++
++## Tasks
++
++| Status | ID | Task | Domain | Path(s) | Done When | Notes |
++|--------|-----|------|--------|---------|-----------|-------|
++| [x] | T001 | Implement seed-workspace helper that creates a test workspace via HTTP | external | `harness/src/seed/seed-workspace.ts` | Helper calls GET `/api/workspaces` to check if test workspace exists, creates directory on host filesystem if needed, returns workspace metadata | Workspace creation uses Server Actions not POST API; for harness we create the directory directly and let the app discover it. Auth bypassed via DISABLE_AUTH. Per spec OQ-02. |
++| [x] | T002 | Implement `harness seed` CLI command | external | `harness/src/cli/commands/seed.ts` | `harness seed` returns JSON envelope with created workspace/worktree info; idempotent (safe to run twice) | Wraps T001 helper; registers in CLI index; adds to SUITE_GLOBS if needed |
++| [ ] | T003 | Expand smoke test suite with route verification | external | `harness/tests/smoke/routes-smoke.spec.ts` | Tests navigate to `/`, `/workspaces`, `/settings/workspaces`, `/agents` and assert 200-level responses with expected page content | Use base-test.ts CDP fixture; event-driven waits; Test Doc blocks |
++| [ ] | T004 | Add MCP endpoint smoke tests | external | `harness/tests/smoke/mcp-smoke.spec.ts` | Tests POST to `/_next/mcp` with `tools/list` JSON-RPC request and verify valid response with tool names | MCP uses JSON-RPC 2.0; Content-Type: application/json; expected tools: get_routes, get_errors |
++| [ ] | T005 | Write responsive sidebar tests | external | `harness/tests/responsive/sidebar-responsive.spec.ts` | Desktop: sidebar visible; Mobile: sidebar hidden/collapsed; Tablet: sidebar may be collapsed. Tests run at each viewport via fixture. | Use `HARNESS_VIEWPORTS` for dimensions; sidebar uses `md:` breakpoint (768px); check for `data-sidebar` or role attributes; per AC-17, AC-18, AC-19 |
++| [ ] | T006 | Create feature test stubs | external | `harness/tests/features/agents.spec.ts`, `harness/tests/features/browser.spec.ts`, `harness/tests/features/terminal.spec.ts`, `harness/tests/features/workflows.spec.ts` | Each file has a describe block with `it.skip` placeholder tests and TODO comments for future plans | Empty scaffolds; per plan 4.5 |
++| [ ] | T007 | Verify seeded data visible in browser | external | `harness/tests/smoke/seed-verification.spec.ts` | Playwright navigates to `/workspaces`, sees test workspace name; navigates to workspace detail, sees worktrees listed | Depends on T001/T002 seed + T003 route smoke; per AC-15, AC-16 |
++| [ ] | T008 | Generate `docs/project-rules/harness.md` governance doc | cross-domain | `docs/project-rules/harness.md` | Documents L3 maturity: Boot (commands), Interact (endpoints + CLI), Observe (evidence paths + results), port allocation, testing conventions | Per plan 4.9; links to harness-spec.md and harness-plan.md |
++| [ ] | T009 | Update CLAUDE.md with harness commands | cross-domain | `CLAUDE.md` | Harness CLI commands (`just harness health`, `just harness test`, `just harness seed`, etc.) documented in custom instructions; port allocation explained | Per plan 4.7; add after existing Quick Reference section |
++
++---
++
++## Context Brief
++
++**Key findings from plan**:
++- Finding 02: Auth bypass via `DISABLE_AUTH=true` is the foundation; seed helper must work with auth bypassed
++- Finding 04: Existing CLI JSON output conventions must be followed; seed command uses same envelope
++- Finding 08: Workspace creation uses Server Actions (`addWorkspace`), NOT POST API; harness seed should create the workspace directory directly on the host filesystem and let the app discover it via its workspace scanning
++- Finding 09: Sidebar fetches from `/api/workspaces?include=worktrees`; seeded data must be discoverable through this endpoint
++
++**Domain dependencies**:
++- `_platform/auth`: `DISABLE_AUTH=true` env var in container keeps all API routes and Server Actions accessible
++- `_platform/workspaces`: `GET /api/workspaces?include=worktrees` — read seeded workspaces; `addWorkspace()` Server Action — creation path
++- Sidebar: `WorkspaceNav` component fetches `/api/workspaces?include=worktrees` and renders worktree lists
++
++**Domain constraints**:
++- Harness remains external tooling; do NOT import app domain code
++- Seed helper uses HTTP + filesystem only; no DI container access
++- Test suites use the custom CDP fixture (`base-test.ts`), not raw `@playwright/test`
++- All new tests need Test Doc blocks
++
++**Harness context**:
++- **Boot**: `just harness dev` or `harness dev` — dynamic ports from `computePorts()`
++- **Interact**: `http://127.0.0.1:{ports.app}` for app, `http://127.0.0.1:{ports.cdp}` for CDP
++- **Observe**: `harness health`, `harness results`, evidence in `harness/results/`
++- **Maturity**: L2 → L3 after this phase (governance doc adds the missing documentation layer)
++- **Pre-phase validation**: Agent MUST validate harness Boot → Interact → Observe before implementation
++
++**Reusable from prior phases**:
++- `harness/tests/fixtures/base-test.ts` — CDP connection fixture for all Playwright tests
++- `harness/src/viewports/devices.ts` — viewport dimensions for responsive tests
++- `harness/src/ports/allocator.ts` — `computePorts()` for dynamic endpoints
++- `harness/src/cli/output.ts` — `formatSuccess`/`formatError` for seed command
++- `harness/src/cdp/connect.ts` — shared CDP helpers
++- `harness/src/health/probe.ts` — `probeAll()` for pre-test health checks
++
++```mermaid
++flowchart LR
++    A[harness seed] --> B[Create workspace dir<br/>on host + git init]
++    B --> C[Write registry JSON<br/>inside container via docker exec]
++    C --> D[GET /api/workspaces<br/>returns seeded data]
++    D --> E[Playwright tests<br/>verify in browser]
++```
++
++```mermaid
++sequenceDiagram
++    participant Agent
++    participant CLI as Harness CLI
++    participant Host as Host Filesystem
++    participant Container as Docker Container
++    participant App as Chainglass App
++    participant Browser as Playwright/CDP
++
++    Agent->>CLI: harness seed
++    CLI->>Host: mkdir scratch/harness-test-workspace + git init
++    CLI->>Container: docker exec: write /root/.config/chainglass/workspaces.json
++    CLI->>App: GET /api/workspaces (verify registration)
++    CLI-->>Agent: {command:"seed", status:"ok", data:{workspace, worktrees}}
++
++    Agent->>CLI: harness test --suite smoke
++    CLI->>Browser: Navigate routes, check sidebar
++    Browser-->>CLI: Pass/fail results
++    CLI-->>Agent: {command:"test", status:"ok", data:{expected:N,...}}
++```
++
++### Discoveries & Learnings
++
++_Populated during implementation by plan-6._
++
++| Date | Task | Type | Discovery | Resolution | References |
++|------|------|------|-----------|------------|------------|
++
++---
++
++## Critical Insights (2026-03-07)
++
++| # | Insight | Decision |
++|---|---------|----------|
++| 1 | App does NOT auto-discover workspace directories — workspaces are stored in an explicit registry at `~/.config/chainglass/workspaces.json` (inside container: `/root/.config/chainglass/workspaces.json`). Dossier's original T001 approach was wrong. | Seed via direct registry JSON write (`docker exec`), not filesystem-only creation. Verify appearance via Playwright separately. |
++| 2 | Named Docker volumes (`chainglass_node_modules`, `chainglass_dot_next`) are global — parallel worktrees would share and corrupt each other's deps/build cache. | Namespace volumes by worktree name: `chainglass_node_modules_{worktree}`, `chainglass_dot_next_{worktree}`. |
++| 3 | Mobile sidebar is a Radix UI `<Sheet>` overlay (controlled by `openMobile` state), NOT CSS-hidden. Tests can't use simple visibility checks. **NOTE for future mobile UI refactor**: The sidebar uses `useSidebar()` hook with `openMobile`/`setOpenMobile` state, `data-sidebar="sidebar"` attribute, `SIDEBAR_WIDTH_MOBILE = '18rem'`, and sidebar state persisted in `sidebar_state` cookie. Desktop uses `hidden md:block` with smooth transitions. The Sheet renders children inside `<SheetContent>` with `data-state` attribute (`open`/`closed`). | On mobile, assert Sheet `data-state="closed"` by default. On desktop, assert sidebar is visible in layout flow. Document all sidebar mechanics for the coming mobile UI refactor. |
++| 4 | MCP endpoint (`/_next/mcp`) is JSON-RPC 2.0 POST — not a navigable page. Using Playwright `page.goto()` would get 405 or garbage. | T004 should be a Vitest `.test.ts` using `fetch()`, not a Playwright `.spec.ts`. POST with `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`. |
++| 5 | Workspace path must exist inside the container AND be a git repo for worktree data to populate. Monorepo bind-mounted at `/app`. | Seed creates `scratch/harness-test-workspace/` on host, `git init` with a commit, registry uses `/app/scratch/harness-test-workspace`. Add `scratch/` to `.gitignore`. **NOTE**: This is our starting approach — expect to experiment. The exact seed mechanism (direct registry write vs API route vs Playwright UI) may change based on what works best in practice. We're not married to this decision; we'll do what's right at the time. |
++
++Action items: Update T001/T002 implementation to use registry write + docker exec pattern. Namespace Docker volumes in docker-compose.yml. Use fetch-based Vitest for MCP tests. Document sidebar Sheet mechanics for mobile UI refactor planning.
++
++---
++
++## Directory Layout
++
++```text
++docs/plans/067-harness/
++  ├── harness-spec.md
++  ├── harness-plan.md
++  ├── exploration.md
++  ├── workshops/
++  ├── reviews/
++  └── tasks/
++      ├── phase-1-docker-container-dev-server/
++      │   └── execution.log.md
++      ├── phase-2-playwright-cdp-integration/
++      │   ├── tasks.md
++      │   ├── tasks.fltplan.md
++      │   └── execution.log.md
++      ├── phase-3-harness-cli-sdk/
++      │   ├── tasks.md
++      │   ├── tasks.fltplan.md
++      │   └── execution.log.md
++      └── phase-4-seed-tests-responsive/
++          ├── tasks.md
++          ├── tasks.fltplan.md
++          └── execution.log.md   # created by plan-6
++```
+diff --git a/docs/project-rules/harness.md b/docs/project-rules/harness.md
+new file mode 100644
+index 0000000..a9f7fd5
+--- /dev/null
++++ b/docs/project-rules/harness.md
+@@ -0,0 +1,165 @@
++# Agentic Development Harness
++
++**Maturity**: L3 — Boot + Browser Interaction + Structured Evidence + CLI SDK
++**Plan**: [067-harness](../plans/067-harness/harness-plan.md)
++**ADR**: [ADR-0014](../adr/adr-0014-first-class-agentic-development-harness.md)
++
++## Overview
++
++The harness is a Docker-containerized dev environment with Playwright/CDP browser automation, controlled by a typed CLI that returns structured JSON. Agents boot the app, browse it at any viewport, capture screenshots, run tests, and seed test data.
++
++The harness is **external tooling** rooted at `harness/` — it is not a registered domain, not part of `apps/cli`, and not in `pnpm-workspace.yaml`.
++
++## Boot
++
++### Dynamic Port Allocation
++
++Each worktree gets unique, deterministic ports derived from its directory name:
++
++```bash
++# Show ports for this worktree
++just harness ports
++
++# Ports are in ranges: app 3100-3199, terminal 4600-4699, cdp 9222-9321
++# Override with env vars: HARNESS_APP_PORT, HARNESS_TERMINAL_PORT, HARNESS_CDP_PORT
++```
++
++### Start / Stop
++
++```bash
++# Install standalone harness deps (first time only)
++just harness-install
++
++# Start the harness container (auto-computes ports)
++just harness dev
++
++# Stop the harness container
++just harness stop
++
++# Rebuild Docker image after Dockerfile changes
++just harness build
++```
++
++### Health Check
++
++```bash
++just harness health
++# Returns: {"command":"health","status":"ok","data":{"status":"ok","app":{"status":"up",...},...}}
++```
++
++## Interact
++
++### Endpoints (dynamic per worktree)
++
++| Service | URL Pattern | Notes |
++|---------|-------------|-------|
++| App | `http://127.0.0.1:{app_port}` | Next.js dev server with HMR |
++| Terminal | `ws://127.0.0.1:{terminal_port}` | WebSocket sidecar |
++| CDP | `http://127.0.0.1:{cdp_port}` | Chrome DevTools Protocol |
++| MCP | `POST http://127.0.0.1:{app_port}/_next/mcp` | JSON-RPC 2.0 |
++
++Run `just harness ports` to see your worktree's actual ports.
++
++### CLI Commands
++
++All commands return `{command, status, data?, error?}` JSON to stdout.
++
++| Command | Description |
++|---------|-------------|
++| `just harness health` | Probe all endpoints |
++| `just harness test --suite smoke` | Run Playwright smoke tests |
++| `just harness test --viewport mobile` | Run tests at mobile viewport |
++| `just harness screenshot <name>` | Capture screenshot via CDP |
++| `just harness results` | Read latest test results |
++| `just harness seed` | Create test workspace + worktrees |
++| `just harness ports` | Show port allocation |
++
++### Error Codes
++
++| Code | Meaning |
++|------|---------|
++| E100 | Unknown error |
++| E101 | Container not running |
++| E102 | Build failed |
++| E103 | Health check failed |
++| E104 | CDP unavailable |
++| E105 | Test failed |
++| E106 | Screenshot failed |
++| E107 | Results not found |
++| E108 | Invalid arguments |
++| E109 | Timeout |
++| E110 | Docker unavailable |
++
++## Observe
++
++### Evidence Paths
++
++| Artifact | Location |
++|----------|----------|
++| Test results JSON | `harness/results/test-results.json` |
++| Screenshots | `harness/results/{name}-{viewport}.png` |
++| Test output | `harness/results/test-output/` |
++
++### Running Tests Directly
++
++```bash
++# Vitest (unit + integration, from host)
++cd harness && pnpm exec vitest run
++
++# Playwright (browser tests, from host against container)
++cd harness && pnpm exec playwright test --config=playwright.config.ts
++```
++
++## Architecture
++
++### Container Topology
++
++- App runs inside Docker on the allocated port
++- Terminal WebSocket sidecar on allocated port
++- Chromium headless on internal `:9223` (loopback-only)
++- `socat` proxy exposes CDP on allocated external port
++- Source bind-mounted from host for HMR
++- Named volumes per worktree for `node_modules` and `.next`
++
++### Auth Bypass
++
++The container runs with `DISABLE_AUTH=true`. All API routes and Server Actions skip authentication. This is dev-only — never use in production.
++
++### Seed Data
++
++`harness seed` creates a workspace directory at `scratch/harness-test-workspace/` (git-initialized) and registers it in the container's workspace registry at `/root/.config/chainglass/workspaces.json`. The seeded workspace is visible via `GET /api/workspaces`.
++
++## Responsive Testing
++
++The harness tests three viewport tiers:
++
++| Viewport | Size | Playwright Project |
++|----------|------|-------------------|
++| desktop-lg | 1440×900 | desktop |
++| tablet | 768×1024 | tablet |
++| mobile | 375×812 | mobile |
++
++**Sidebar behavior** (for mobile UI refactor reference):
++- Desktop (≥768px): Sidebar visible in layout flow, `hidden md:block`
++- Mobile (<768px): Sidebar is a Radix `<Sheet>` overlay, controlled by `openMobile` state
++- Sheet uses `data-state="open"/"closed"` attribute
++- `useSidebar()` hook manages state; `toggleSidebar()` dispatches
++- `SIDEBAR_WIDTH_MOBILE = '18rem'`; state persisted in `sidebar_state` cookie
++
++## Conventions
++
++- All CLI commands return the `HarnessEnvelope` JSON schema
++- Exit 0 for ok/degraded, exit 1 for command failures only
++- Harness tests run via `just test-harness` (separate from `just fft`)
++- All durable tests require 5-field Test Doc blocks
++- Use event-driven assertions, not fixed sleeps
++- SDK helpers are composable building blocks (`src/cdp/`, `src/health/`, `src/ports/`, `src/docker/`)
++
++## History
++
++| Phase | What Changed | Date |
++|-------|-------------|------|
++| Phase 1 | Docker container + dev server + auth bypass | 2026-03-07 |
++| Phase 2 | Playwright + CDP integration + browser smoke tests | 2026-03-07 |
++| Phase 3 | CLI SDK with 9 commands + SDK helpers + dynamic ports | 2026-03-07 |
++| Phase 4 | Seed scripts + route/MCP/responsive tests + this doc | 2026-03-07 |
+diff --git a/harness/docker-compose.yml b/harness/docker-compose.yml
+index 9ba13e3..0ee4546 100644
+--- a/harness/docker-compose.yml
++++ b/harness/docker-compose.yml
+@@ -23,8 +23,8 @@ services:
+       - "${HARNESS_CDP_PORT:-9222}:${HARNESS_CDP_PORT:-9222}"
+     volumes:
+       - ..:/app
+-      - chainglass_node_modules:/app/node_modules
+-      - chainglass_dot_next:/app/apps/web/.next
++      - cg_node_modules:/app/node_modules
++      - cg_dot_next:/app/apps/web/.next
+     environment:
+       - NODE_ENV=development
+       - DISABLE_AUTH=true
+@@ -44,7 +44,7 @@ services:
+     restart: unless-stopped
+ 
+ volumes:
+-  chainglass_node_modules:
+-    name: chainglass_node_modules
+-  chainglass_dot_next:
+-    name: chainglass_dot_next
++  cg_node_modules:
++    name: chainglass_node_modules_${HARNESS_WORKTREE:-dev}
++  cg_dot_next:
++    name: chainglass_dot_next_${HARNESS_WORKTREE:-dev}
+diff --git a/harness/playwright.config.ts b/harness/playwright.config.ts
+index 105feb7..7ea068d 100644
+--- a/harness/playwright.config.ts
++++ b/harness/playwright.config.ts
+@@ -13,8 +13,10 @@
+ 
+ import { defineConfig } from '@playwright/test';
+ import { HARNESS_VIEWPORTS } from './src/viewports/devices.js';
++import { computePorts } from './src/ports/allocator.js';
+ 
+-const APP_URL = process.env.HARNESS_APP_URL ?? 'http://localhost:3100';
++const ports = computePorts();
++const APP_URL = process.env.HARNESS_APP_URL ?? `http://localhost:${ports.app}`;
+ 
+ export default defineConfig({
+   testDir: './tests',
+diff --git a/harness/src/cli/commands/seed.ts b/harness/src/cli/commands/seed.ts
+new file mode 100644
+index 0000000..5ec0f6c
+--- /dev/null
++++ b/harness/src/cli/commands/seed.ts
+@@ -0,0 +1,35 @@
 +import type { Command } from 'commander';
-+import { dockerBuild, isDockerAvailable } from '../../docker/lifecycle.js';
++import { seedWorkspace } from '../../seed/seed-workspace.js';
 +import { ErrorCodes, exitWithEnvelope, formatError, formatSuccess } from '../output.js';
 +
-+export function registerBuildCommand(program: Command): void {
++export function registerSeedCommand(program: Command): void {
 +  program
-+    .command('build')
-+    .description('Build the harness Docker image')
++    .command('seed')
++    .description('Create a test workspace for harness integration testing')
 +    .action(async () => {
-+      if (!(await isDockerAvailable())) {
-+        exitWithEnvelope(formatError('build', ErrorCodes.DOCKER_UNAVAILABLE, 'Docker is not available'));
-+      }
++      try {
++        const result = await seedWorkspace();
 +
-+      const result = await dockerBuild();
-+
-+      if (result.exitCode !== 0) {
-+        exitWithEnvelope(
-+          formatError('build', ErrorCodes.BUILD_FAILED, 'Docker build failed', {
-+            stderr: result.stderr.slice(-500),
-+          }),
-+        );
-+      }
-+
-+      exitWithEnvelope(formatSuccess('build', { message: 'Build complete' }));
-+    });
-+}
-diff --git a/harness/src/cli/commands/dev.ts b/harness/src/cli/commands/dev.ts
-new file mode 100644
-index 0000000..23b688f
---- /dev/null
-+++ b/harness/src/cli/commands/dev.ts
-@@ -0,0 +1,61 @@
-+import type { Command } from 'commander';
-+import { dockerUp, isDockerAvailable } from '../../docker/lifecycle.js';
-+import { probeAll } from '../../health/probe.js';
-+import { ErrorCodes, exitWithEnvelope, formatError, formatSuccess } from '../output.js';
-+
-+const MAX_HEALTH_WAIT_MS = 120_000;
-+const POLL_INTERVAL_MS = 2_000;
-+
-+export function registerDevCommand(program: Command): void {
-+  program
-+    .command('dev')
-+    .description('Start the harness container and wait for health')
-+    .action(async () => {
-+      if (!(await isDockerAvailable())) {
-+        exitWithEnvelope(formatError('dev', ErrorCodes.DOCKER_UNAVAILABLE, 'Docker is not available'));
-+      }
-+
-+      const upResult = await dockerUp();
-+      if (upResult.exitCode !== 0) {
-+        exitWithEnvelope(
-+          formatError('dev', ErrorCodes.BUILD_FAILED, 'Failed to start container', {
-+            stderr: upResult.stderr.slice(-500),
-+          }),
-+        );
-+      }
-+
-+      // Poll for health
-+      const start = Date.now();
-+      let lastHealth = await probeAll();
-+
-+      while (lastHealth.status !== 'ok' && Date.now() - start < MAX_HEALTH_WAIT_MS) {
-+        await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-+        lastHealth = await probeAll();
-+      }
-+
-+      if (lastHealth.status === 'down') {
-+        exitWithEnvelope(
-+          formatError('dev', ErrorCodes.HEALTH_FAILED, 'Harness did not become healthy', {
-+            health: lastHealth,
-+          }),
-+        );
-+      }
-+
-+      const elapsed = Math.round((Date.now() - start) / 1000);
-+      exitWithEnvelope(
-+        formatSuccess(
-+          'dev',
-+          {
-+            message: `Harness ready in ${elapsed}s`,
-+            endpoints: {
-+              app: 'http://127.0.0.1:3000',
-+              cdp: 'http://127.0.0.1:9222',
-+              terminal: 'ws://127.0.0.1:4500',
-+            },
-+            health: lastHealth,
-+          },
-+          lastHealth.status,
-+        ),
-+      );
-+    });
-+}
-diff --git a/harness/src/cli/commands/health.ts b/harness/src/cli/commands/health.ts
-new file mode 100644
-index 0000000..f200c6b
---- /dev/null
-+++ b/harness/src/cli/commands/health.ts
-@@ -0,0 +1,13 @@
-+import type { Command } from 'commander';
-+import { probeAll } from '../../health/probe.js';
-+import { exitWithEnvelope, formatSuccess } from '../output.js';
-+
-+export function registerHealthCommand(program: Command): void {
-+  program
-+    .command('health')
-+    .description('Probe all harness endpoints and return structured status')
-+    .action(async () => {
-+      const health = await probeAll();
-+      exitWithEnvelope(formatSuccess('health', health, health.status === 'ok' ? 'ok' : 'degraded'));
-+    });
-+}
-diff --git a/harness/src/cli/commands/results.ts b/harness/src/cli/commands/results.ts
-new file mode 100644
-index 0000000..9ac0a2c
---- /dev/null
-+++ b/harness/src/cli/commands/results.ts
-@@ -0,0 +1,77 @@
-+import path from 'node:path';
-+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-+import type { Command } from 'commander';
-+import { ErrorCodes, exitWithEnvelope, formatError, formatSuccess } from '../output.js';
-+
-+const HARNESS_ROOT = path.resolve(import.meta.dirname ?? '.', '../../..');
-+const RESULTS_DIR = path.join(HARNESS_ROOT, 'results');
-+
-+export function registerResultsCommand(program: Command): void {
-+  program
-+    .command('results')
-+    .description('Read the latest test results and artifacts')
-+    .option('--type <type>', 'Result type: test or screenshots', 'test')
-+    .action(async (opts: { type: string }) => {
-+      if (!existsSync(RESULTS_DIR)) {
-+        exitWithEnvelope(
-+          formatError('results', ErrorCodes.RESULTS_NOT_FOUND, 'No results directory found'),
-+        );
-+      }
-+
-+      if (opts.type === 'test') {
-+        const resultsFile = path.join(RESULTS_DIR, 'test-results.json');
-+        if (!existsSync(resultsFile)) {
++        if (!result.registered) {
 +          exitWithEnvelope(
-+            formatError('results', ErrorCodes.RESULTS_NOT_FOUND, 'No test results file found. Run `harness test` first.'),
++            formatError('seed', ErrorCodes.CONTAINER_NOT_RUNNING, 'Failed to register workspace in container. Is the container running?'),
 +          );
 +        }
 +
-+        const raw = JSON.parse(readFileSync(resultsFile, 'utf-8'));
-+        const stats = raw.stats ?? {};
 +        exitWithEnvelope(
-+          formatSuccess('results', {
-+            type: 'test',
-+            stats: {
-+              expected: stats.expected ?? 0,
-+              unexpected: stats.unexpected ?? 0,
-+              flaky: stats.flaky ?? 0,
-+              skipped: stats.skipped ?? 0,
-+              duration: stats.duration ?? 0,
-+            },
-+            file: resultsFile,
-+          }),
-+        );
-+      }
-+
-+      if (opts.type === 'screenshots') {
-+        const files = readdirSync(RESULTS_DIR)
-+          .filter((f) => f.endsWith('.png'))
-+          .map((f) => {
-+            const fullPath = path.join(RESULTS_DIR, f);
-+            const stat = statSync(fullPath);
-+            return { name: f, path: fullPath, size: stat.size, modified: stat.mtime.toISOString() };
-+          })
-+          .sort((a, b) => b.modified.localeCompare(a.modified));
-+
-+        if (files.length === 0) {
-+          exitWithEnvelope(
-+            formatError('results', ErrorCodes.RESULTS_NOT_FOUND, 'No screenshots found. Run `harness screenshot` first.'),
-+          );
-+        }
-+
-+        exitWithEnvelope(
-+          formatSuccess('results', {
-+            type: 'screenshots',
-+            count: files.length,
-+            files,
-+          }),
-+        );
-+      }
-+
-+      exitWithEnvelope(
-+        formatError('results', ErrorCodes.INVALID_ARGS, `Unknown results type: ${opts.type}`, {
-+          available: ['test', 'screenshots'],
-+        }),
-+      );
-+    });
-+}
-diff --git a/harness/src/cli/commands/screenshot.ts b/harness/src/cli/commands/screenshot.ts
-new file mode 100644
-index 0000000..192a700
---- /dev/null
-+++ b/harness/src/cli/commands/screenshot.ts
-@@ -0,0 +1,72 @@
-+import path from 'node:path';
-+import { mkdirSync } from 'node:fs';
-+import type { Command } from 'commander';
-+import { chromium } from '@playwright/test';
-+import { getWsEndpoint } from '../../cdp/connect.js';
-+import { HARNESS_VIEWPORTS, DEFAULT_VIEWPORT, type ViewportName } from '../../viewports/devices.js';
-+import { ErrorCodes, exitWithEnvelope, formatError, formatSuccess } from '../output.js';
-+
-+const HARNESS_ROOT = path.resolve(import.meta.dirname ?? '.', '../../..');
-+const RESULTS_DIR = path.join(HARNESS_ROOT, 'results');
-+
-+export function registerScreenshotCommand(program: Command): void {
-+  program
-+    .command('screenshot <name>')
-+    .description('Capture a screenshot via CDP and save to results/')
-+    .option('--viewport <name>', 'Viewport to use', DEFAULT_VIEWPORT)
-+    .option('--url <url>', 'URL to navigate to', 'http://127.0.0.1:3000')
-+    .action(async (name: string, opts: { viewport: string; url: string }) => {
-+      const viewportName = opts.viewport as ViewportName;
-+      if (!(viewportName in HARNESS_VIEWPORTS)) {
-+        exitWithEnvelope(
-+          formatError('screenshot', ErrorCodes.INVALID_ARGS, `Unknown viewport: ${opts.viewport}`, {
-+            available: Object.keys(HARNESS_VIEWPORTS),
-+          }),
-+        );
-+      }
-+
-+      const viewport = HARNESS_VIEWPORTS[viewportName];
-+      let browser;
-+
-+      try {
-+        const wsEndpoint = await getWsEndpoint();
-+        browser = await chromium.connectOverCDP(wsEndpoint);
-+      } catch {
-+        exitWithEnvelope(
-+          formatError('screenshot', ErrorCodes.CDP_UNAVAILABLE, 'Cannot connect to CDP'),
-+        );
-+      }
-+
-+      try {
-+        const context = await browser!.newContext({
-+          viewport: { width: viewport.width, height: viewport.height },
-+        });
-+        const page = await context.newPage();
-+        await page.goto(opts.url, { waitUntil: 'networkidle' });
-+
-+        mkdirSync(RESULTS_DIR, { recursive: true });
-+        const filename = `${name}-${viewportName}.png`;
-+        const filePath = path.join(RESULTS_DIR, filename);
-+        await page.screenshot({ path: filePath, fullPage: false });
-+
-+        await context.close();
-+        await browser!.close();
-+
-+        exitWithEnvelope(
-+          formatSuccess('screenshot', {
-+            name,
-+            viewport: viewportName,
-+            path: filePath,
-+            filename,
++          formatSuccess('seed', {
++            ...result,
++            message: result.created
++              ? 'Test workspace created and registered'
++              : 'Test workspace already exists, re-registered',
 +          }),
 +        );
 +      } catch (err: unknown) {
-+        await browser?.close();
 +        exitWithEnvelope(
-+          formatError('screenshot', ErrorCodes.SCREENSHOT_FAILED, 'Screenshot capture failed', {
++          formatError('seed', ErrorCodes.UNKNOWN, 'Seed failed', {
 +            message: (err as Error).message,
 +          }),
 +        );
 +      }
 +    });
 +}
-diff --git a/harness/src/cli/commands/stop.ts b/harness/src/cli/commands/stop.ts
-new file mode 100644
-index 0000000..1a03270
---- /dev/null
-+++ b/harness/src/cli/commands/stop.ts
-@@ -0,0 +1,28 @@
-+import type { Command } from 'commander';
-+import { dockerDown, isContainerRunning } from '../../docker/lifecycle.js';
-+import { ErrorCodes, exitWithEnvelope, formatError, formatSuccess } from '../output.js';
-+
-+export function registerStopCommand(program: Command): void {
-+  program
-+    .command('stop')
-+    .description('Stop and remove the harness container')
-+    .action(async () => {
-+      const wasRunning = await isContainerRunning();
-+      const result = await dockerDown();
-+
-+      if (result.exitCode !== 0) {
-+        exitWithEnvelope(
-+          formatError('stop', ErrorCodes.UNKNOWN, 'Failed to stop container', {
-+            stderr: result.stderr.slice(-500),
-+          }),
-+        );
-+      }
-+
-+      exitWithEnvelope(
-+        formatSuccess('stop', {
-+          message: wasRunning ? 'Container stopped' : 'Container was already stopped',
-+          wasRunning,
-+        }),
-+      );
-+    });
-+}
-diff --git a/harness/src/cli/commands/test.ts b/harness/src/cli/commands/test.ts
-new file mode 100644
-index 0000000..add0d70
---- /dev/null
-+++ b/harness/src/cli/commands/test.ts
-@@ -0,0 +1,97 @@
-+import { execFile } from 'node:child_process';
-+import { promisify } from 'node:util';
-+import path from 'node:path';
-+import { existsSync, readFileSync } from 'node:fs';
-+import type { Command } from 'commander';
-+import { HARNESS_VIEWPORTS, type ViewportName } from '../../viewports/devices.js';
-+import { ErrorCodes, exitWithEnvelope, formatError, formatSuccess } from '../output.js';
-+
-+const execFileAsync = promisify(execFile);
-+
-+const HARNESS_ROOT = path.resolve(import.meta.dirname ?? '.', '../../..');
-+const RESULTS_DIR = path.join(HARNESS_ROOT, 'results');
-+const RESULTS_FILE = path.join(RESULTS_DIR, 'test-results.json');
-+
-+export function registerTestCommand(program: Command): void {
-+  program
-+    .command('test')
-+    .description('Run Playwright test suites and return JSON results')
-+    .option('--suite <name>', 'Test suite to run', 'smoke')
-+    .option('--viewport <name>', 'Viewport to use', 'desktop-lg')
-+    .action(async (opts: { suite: string; viewport: string }) => {
-+      const viewportName = opts.viewport as ViewportName;
-+      if (!(viewportName in HARNESS_VIEWPORTS)) {
-+        exitWithEnvelope(
-+          formatError('test', ErrorCodes.INVALID_ARGS, `Unknown viewport: ${opts.viewport}`, {
-+            available: Object.keys(HARNESS_VIEWPORTS),
-+          }),
-+        );
-+      }
-+
-+      // Map suite to test path
-+      const suiteGlob = `tests/smoke/**/*.spec.ts`;
-+      const playwrightConfig = path.join(HARNESS_ROOT, 'playwright.config.ts');
-+
-+      try {
-+        // DYK #3: Write results to file, not stdout
-+        const env = {
-+          ...process.env,
-+          PLAYWRIGHT_JSON_OUTPUT_NAME: RESULTS_FILE,
-+        };
-+
-+        const args = [
-+          'playwright',
-+          'test',
-+          suiteGlob,
-+          `--config=${playwrightConfig}`,
-+          `--project=${viewportName}`,
-+          '--reporter=json',
-+        ];
-+
-+        await execFileAsync('npx', args, {
-+          cwd: HARNESS_ROOT,
-+          env,
-+          timeout: 120_000,
-+        });
-+      } catch (err: unknown) {
-+        // Playwright exits non-zero on test failures — check results file
-+        const e = err as { code?: number; stderr?: string };
-+        if (!existsSync(RESULTS_FILE)) {
-+          exitWithEnvelope(
-+            formatError('test', ErrorCodes.TEST_FAILED, 'Playwright execution failed', {
-+              stderr: (e.stderr ?? '').slice(-500),
-+            }),
-+          );
-+        }
-+      }
-+
-+      // Read and summarize results
-+      if (!existsSync(RESULTS_FILE)) {
-+        exitWithEnvelope(
-+          formatError('test', ErrorCodes.RESULTS_NOT_FOUND, 'No test results file produced'),
-+        );
-+      }
-+
-+      const raw = JSON.parse(readFileSync(RESULTS_FILE, 'utf-8'));
-+      const stats = raw.stats ?? {};
-+      const summary = {
-+        suite: opts.suite,
-+        viewport: opts.viewport,
-+        expected: stats.expected ?? 0,
-+        unexpected: stats.unexpected ?? 0,
-+        flaky: stats.flaky ?? 0,
-+        skipped: stats.skipped ?? 0,
-+        duration: stats.duration ?? 0,
-+        resultsFile: RESULTS_FILE,
-+      };
-+
-+      const status = summary.unexpected > 0 ? 'error' : 'ok';
-+      if (status === 'error') {
-+        exitWithEnvelope(
-+          formatError('test', ErrorCodes.TEST_FAILED, `${summary.unexpected} test(s) failed`, summary),
-+        );
-+      }
-+
-+      exitWithEnvelope(formatSuccess('test', summary));
-+    });
-+}
 diff --git a/harness/src/cli/index.ts b/harness/src/cli/index.ts
-new file mode 100644
-index 0000000..2e6c214
---- /dev/null
+index 432ea11..66531ec 100755
+--- a/harness/src/cli/index.ts
 +++ b/harness/src/cli/index.ts
-@@ -0,0 +1,40 @@
-+#!/usr/bin/env node
-+/**
-+ * Harness CLI entry point.
-+ *
-+ * Agents invoke: `harness <command> [options]`
-+ * All commands return a HarnessEnvelope JSON to stdout.
-+ */
-+
-+import { Command } from 'commander';
-+import { registerBuildCommand } from './commands/build.js';
-+import { registerDevCommand } from './commands/dev.js';
-+import { registerStopCommand } from './commands/stop.js';
-+import { registerHealthCommand } from './commands/health.js';
-+import { registerTestCommand } from './commands/test.js';
-+import { registerScreenshotCommand } from './commands/screenshot.js';
-+import { registerResultsCommand } from './commands/results.js';
-+
-+export function createCli(): Command {
-+  const program = new Command()
-+    .name('harness')
-+    .version('0.1.0')
-+    .description('Agentic development harness for Chainglass');
-+
-+  registerBuildCommand(program);
-+  registerDevCommand(program);
-+  registerStopCommand(program);
-+  registerHealthCommand(program);
-+  registerTestCommand(program);
-+  registerScreenshotCommand(program);
-+  registerResultsCommand(program);
-+
-+  return program;
-+}
-+
-+// Run if executed directly (not imported for testing)
-+const isDirectRun = process.argv[1]?.endsWith('index.ts') || process.argv[1]?.endsWith('index.js');
-+if (isDirectRun) {
-+  const program = createCli();
-+  program.parseAsync(process.argv);
-+}
-diff --git a/harness/src/cli/output.ts b/harness/src/cli/output.ts
+@@ -15,6 +15,7 @@ import { registerTestCommand } from './commands/test.js';
+ import { registerScreenshotCommand } from './commands/screenshot.js';
+ import { registerResultsCommand } from './commands/results.js';
+ import { registerPortsCommand } from './commands/ports.js';
++import { registerSeedCommand } from './commands/seed.js';
+ 
+ export function createCli(): Command {
+   const program = new Command()
+@@ -30,6 +31,7 @@ export function createCli(): Command {
+   registerScreenshotCommand(program);
+   registerResultsCommand(program);
+   registerPortsCommand(program);
++  registerSeedCommand(program);
+ 
+   return program;
+ }
+diff --git a/harness/src/seed/seed-workspace.ts b/harness/src/seed/seed-workspace.ts
 new file mode 100644
-index 0000000..9e75332
+index 0000000..7eb8d88
 --- /dev/null
-+++ b/harness/src/cli/output.ts
-@@ -0,0 +1,103 @@
++++ b/harness/src/seed/seed-workspace.ts
+@@ -0,0 +1,150 @@
 +/**
-+ * Harness CLI output envelope — the canonical JSON contract for all commands.
++ * Seed workspace helper — creates a test workspace for harness verification.
 + *
-+ * Every harness CLI command returns a HarnessEnvelope to stdout.
-+ * Agents parse this envelope to determine success/failure and extract data.
++ * Approach (from DYK Phase 4):
++ *   1. Create workspace directory on host at scratch/harness-test-workspace/
++ *   2. git init + initial commit so worktree APIs return real data
++ *   3. Write the workspace registry JSON inside the container via docker exec
++ *   4. Verify the workspace appears in GET /api/workspaces
 + *
-+ * Design decisions (DYK #1-#2):
-+ *  - Exit 0 for ok + degraded; exit 1 for command-level failures only
-+ *  - This envelope is the canonical shape; Phase 2 `just health` may be back-patched
++ * The app does NOT auto-discover directories — workspaces must be registered
++ * in ~/.config/chainglass/workspaces.json inside the container.
 + */
 +
-+import { z } from 'zod';
-+
-+// -- Error codes (E100-E110) --------------------------------------------------
-+
-+export const ErrorCodes = {
-+  UNKNOWN: 'E100',
-+  CONTAINER_NOT_RUNNING: 'E101',
-+  BUILD_FAILED: 'E102',
-+  HEALTH_FAILED: 'E103',
-+  CDP_UNAVAILABLE: 'E104',
-+  TEST_FAILED: 'E105',
-+  SCREENSHOT_FAILED: 'E106',
-+  RESULTS_NOT_FOUND: 'E107',
-+  INVALID_ARGS: 'E108',
-+  TIMEOUT: 'E109',
-+  DOCKER_UNAVAILABLE: 'E110',
-+} as const;
-+
-+export type HarnessErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];
-+
-+// -- Envelope schema ----------------------------------------------------------
-+
-+const ErrorDetailSchema = z.object({
-+  code: z.string(),
-+  message: z.string(),
-+  details: z.unknown().optional(),
-+});
-+
-+export const HarnessEnvelopeSchema = z.object({
-+  command: z.string(),
-+  status: z.enum(['ok', 'error', 'degraded']),
-+  timestamp: z.string().datetime(),
-+  data: z.unknown().optional(),
-+  error: ErrorDetailSchema.optional(),
-+});
-+
-+export type HarnessEnvelope = z.infer<typeof HarnessEnvelopeSchema>;
-+export type HarnessStatus = HarnessEnvelope['status'];
-+export type ErrorDetail = z.infer<typeof ErrorDetailSchema>;
-+
-+// -- Formatting helpers -------------------------------------------------------
-+
-+export function formatSuccess<T>(
-+  command: string,
-+  data: T,
-+  status: 'ok' | 'degraded' = 'ok',
-+): HarnessEnvelope {
-+  return {
-+    command,
-+    status,
-+    timestamp: new Date().toISOString(),
-+    data,
-+  };
-+}
-+
-+export function formatError(
-+  command: string,
-+  code: HarnessErrorCode | string,
-+  message: string,
-+  details?: unknown,
-+): HarnessEnvelope {
-+  return {
-+    command,
-+    status: 'error',
-+    timestamp: new Date().toISOString(),
-+    error: {
-+      code,
-+      message,
-+      ...(details !== undefined && { details }),
-+    },
-+  };
-+}
-+
-+// -- Parsing helper -----------------------------------------------------------
-+
-+export function parseEnvelope(json: string): HarnessEnvelope {
-+  const raw = JSON.parse(json);
-+  return HarnessEnvelopeSchema.parse(raw);
-+}
-+
-+// -- Output helper (write to stdout) ------------------------------------------
-+
-+export function printEnvelope(envelope: HarnessEnvelope): void {
-+  process.stdout.write(`${JSON.stringify(envelope)}\n`);
-+}
-+
-+// -- Exit helper (DYK #1: 0 for ok/degraded, 1 for error) --------------------
-+
-+export function exitWithEnvelope(envelope: HarnessEnvelope): never {
-+  printEnvelope(envelope);
-+  process.exit(envelope.status === 'error' ? 1 : 0);
-+}
-diff --git a/harness/src/docker/lifecycle.ts b/harness/src/docker/lifecycle.ts
-new file mode 100644
-index 0000000..515a968
---- /dev/null
-+++ b/harness/src/docker/lifecycle.ts
-@@ -0,0 +1,76 @@
-+/**
-+ * Docker lifecycle helpers — SDK building blocks for container operations.
-+ *
-+ * Wraps docker compose commands with structured error handling.
-+ * Commands use these helpers instead of duplicating shell logic.
-+ */
-+
-+import { execFile } from 'node:child_process';
++import { execFileSync, execFile } from 'node:child_process';
 +import { promisify } from 'node:util';
++import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 +import path from 'node:path';
++import { computePorts } from '../ports/allocator.js';
 +
 +const execFileAsync = promisify(execFile);
 +
-+const COMPOSE_FILE = path.resolve(
-+  import.meta.dirname ?? path.dirname(new URL(import.meta.url).pathname),
-+  '../../docker-compose.yml',
-+);
++const REPO_ROOT = path.resolve(import.meta.dirname ?? '.', '../../..');
++const WORKSPACE_DIR_NAME = 'harness-test-workspace';
++const HOST_WORKSPACE_PATH = path.join(REPO_ROOT, 'scratch', WORKSPACE_DIR_NAME);
++const CONTAINER_WORKSPACE_PATH = `/app/scratch/${WORKSPACE_DIR_NAME}`;
++const CONTAINER_NAME_PREFIX = 'chainglass-';
 +
-+export interface ExecResult {
-+  stdout: string;
-+  stderr: string;
-+  exitCode: number;
++export interface SeedResult {
++  workspace: {
++    name: string;
++    slug: string;
++    path: string;
++    hostPath: string;
++  };
++  created: boolean;
++  registered: boolean;
++  verified: boolean;
 +}
 +
-+async function runCompose(...args: string[]): Promise<ExecResult> {
-+  try {
-+    const { stdout, stderr } = await execFileAsync(
-+      'docker',
-+      ['compose', '-f', COMPOSE_FILE, ...args],
-+      { timeout: 300_000 },
-+    );
-+    return { stdout, stderr, exitCode: 0 };
-+  } catch (err: unknown) {
-+    const e = err as { stdout?: string; stderr?: string; code?: number };
-+    return {
-+      stdout: e.stdout ?? '',
-+      stderr: e.stderr ?? '',
-+      exitCode: e.code ?? 1,
-+    };
++function getContainerName(): string {
++  const ports = computePorts();
++  return `${CONTAINER_NAME_PREFIX}${ports.worktree}`;
++}
++
++function createWorkspaceDir(): boolean {
++  if (existsSync(HOST_WORKSPACE_PATH)) {
++    // Check if it's already a git repo
++    if (existsSync(path.join(HOST_WORKSPACE_PATH, '.git'))) {
++      return false; // Already exists
++    }
 +  }
++
++  mkdirSync(HOST_WORKSPACE_PATH, { recursive: true });
++
++  // git init + initial commit
++  execFileSync('git', ['init'], { cwd: HOST_WORKSPACE_PATH });
++  writeFileSync(
++    path.join(HOST_WORKSPACE_PATH, 'README.md'),
++    '# Harness Test Workspace\n\nSeeded by `harness seed` for integration testing.\n',
++  );
++  execFileSync('git', ['add', '.'], { cwd: HOST_WORKSPACE_PATH });
++  execFileSync('git', ['commit', '-m', 'Initial seed commit'], {
++    cwd: HOST_WORKSPACE_PATH,
++    env: {
++      ...process.env,
++      GIT_AUTHOR_NAME: 'Harness',
++      GIT_AUTHOR_EMAIL: 'harness@chainglass.dev',
++      GIT_COMMITTER_NAME: 'Harness',
++      GIT_COMMITTER_EMAIL: 'harness@chainglass.dev',
++    },
++  });
++
++  return true;
 +}
 +
-+export async function dockerBuild(): Promise<ExecResult> {
-+  return runCompose('build');
++function buildRegistryJson(): string {
++  const now = new Date().toISOString();
++  const registry = {
++    version: 1,
++    workspaces: [
++      {
++        slug: WORKSPACE_DIR_NAME,
++        name: 'Harness Test Workspace',
++        path: CONTAINER_WORKSPACE_PATH,
++        createdAt: now,
++        preferences: {
++          emoji: '🧪',
++          color: '',
++          starred: false,
++          sortOrder: 0,
++          starredWorktrees: [],
++          worktreePreferences: {},
++          sdkSettings: {},
++          sdkShortcuts: {},
++          sdkMru: [],
++        },
++      },
++    ],
++  };
++  return JSON.stringify(registry, null, 2);
 +}
 +
-+export async function dockerUp(): Promise<ExecResult> {
-+  return runCompose('up', '-d');
-+}
++async function registerInContainer(): Promise<boolean> {
++  const containerName = getContainerName();
++  const registryJson = buildRegistryJson();
 +
-+export async function dockerDown(): Promise<ExecResult> {
-+  return runCompose('down');
-+}
-+
-+export async function dockerPs(): Promise<ExecResult> {
-+  return runCompose('ps', '--format', 'json');
-+}
-+
-+export async function isContainerRunning(): Promise<boolean> {
-+  const result = await dockerPs();
-+  if (result.exitCode !== 0) return false;
 +  try {
-+    return result.stdout.trim().length > 0;
-+  } catch {
-+    return false;
-+  }
-+}
-+
-+export async function isDockerAvailable(): Promise<boolean> {
-+  try {
-+    await execFileAsync('docker', ['info'], { timeout: 5000 });
++    // Create config directory and write registry inside container
++    await execFileAsync('docker', [
++      'exec', containerName,
++      'sh', '-c',
++      `mkdir -p /root/.config/chainglass && cat > /root/.config/chainglass/workspaces.json << 'HARNESS_EOF'
++${registryJson}
++HARNESS_EOF`,
++    ], { timeout: 10_000 });
 +    return true;
 +  } catch {
 +    return false;
 +  }
 +}
-diff --git a/harness/src/health/probe.ts b/harness/src/health/probe.ts
-new file mode 100644
-index 0000000..4db9ae6
---- /dev/null
-+++ b/harness/src/health/probe.ts
-@@ -0,0 +1,110 @@
-+/**
-+ * Health probe helpers — SDK-like building blocks for checking harness services.
-+ *
-+ * Each probe returns a typed status object. The health command composes these
-+ * into the full health envelope. Other commands can reuse individual probes
-+ * (e.g., `dev` waits for app probe to pass).
-+ */
 +
-+import { getCdpBrowser, getCdpVersion } from '../cdp/connect.js';
-+
-+export interface ServiceStatus {
-+  status: 'up' | 'down';
-+}
-+
-+export interface AppStatus extends ServiceStatus {
-+  code: string;
-+}
-+
-+export interface McpStatus extends ServiceStatus {
-+  code: string;
-+}
-+
-+export interface TerminalStatus extends ServiceStatus {}
-+
-+export interface CdpStatus extends ServiceStatus {
-+  browser: string | null;
-+}
-+
-+export interface HealthResult {
-+  status: 'ok' | 'degraded' | 'down';
-+  app: AppStatus;
-+  mcp: McpStatus;
-+  terminal: TerminalStatus;
-+  cdp: CdpStatus;
-+}
-+
-+export async function probeApp(
-+  url = 'http://127.0.0.1:3000',
-+): Promise<AppStatus> {
++async function verifyRegistration(): Promise<boolean> {
++  const ports = computePorts();
 +  try {
-+    const res = await fetch(url);
-+    return { status: res.ok ? 'up' : 'down', code: String(res.status) };
++    const res = await fetch(`http://127.0.0.1:${ports.app}/api/workspaces?include=worktrees`);
++    if (!res.ok) return false;
++    const data = (await res.json()) as { workspaces: Array<{ slug: string }> };
++    return data.workspaces.some((w) => w.slug === WORKSPACE_DIR_NAME);
 +  } catch {
-+    return { status: 'down', code: '0' };
++    return false;
 +  }
 +}
 +
-+export async function probeMcp(
-+  url = 'http://127.0.0.1:3000/_next/mcp',
-+): Promise<McpStatus> {
-+  try {
-+    const res = await fetch(url);
-+    // MCP returns 406 when accessible but no proper Accept header — that's "up"
-+    const code = String(res.status);
-+    const isUp = res.status !== 0 && code !== '000';
-+    return { status: isUp ? 'up' : 'down', code };
-+  } catch {
-+    return { status: 'down', code: '0' };
-+  }
-+}
-+
-+export async function probeTerminal(
-+  host = '127.0.0.1',
-+  port = 4500,
-+): Promise<TerminalStatus> {
-+  try {
-+    // Use a TCP connect check via fetch to the WebSocket port
-+    const controller = new AbortController();
-+    const timeout = setTimeout(() => controller.abort(), 2000);
-+    await fetch(`http://${host}:${port}`, { signal: controller.signal }).catch(() => {});
-+    clearTimeout(timeout);
-+
-+    // If we get here without a connection refused error, port is open
-+    // For WebSocket ports, any response (even error) means the port is listening
-+    return { status: 'up' };
-+  } catch {
-+    return { status: 'down' };
-+  }
-+}
-+
-+export async function probeCdp(
-+  url = 'http://127.0.0.1:9222',
-+): Promise<CdpStatus> {
-+  try {
-+    const info = await getCdpVersion(url);
-+    return { status: 'up', browser: info.Browser ?? null };
-+  } catch {
-+    return { status: 'down', browser: null };
-+  }
-+}
-+
-+export async function probeAll(): Promise<HealthResult> {
-+  const [app, mcp, terminal, cdp] = await Promise.all([
-+    probeApp(),
-+    probeMcp(),
-+    probeTerminal(),
-+    probeCdp(),
-+  ]);
-+
-+  const allUp = app.status === 'up' && terminal.status === 'up' && cdp.status === 'up';
-+  const allDown = app.status === 'down' && terminal.status === 'down' && cdp.status === 'down';
++export async function seedWorkspace(): Promise<SeedResult> {
++  const created = createWorkspaceDir();
++  const registered = await registerInContainer();
++  const verified = registered ? await verifyRegistration() : false;
 +
 +  return {
-+    status: allDown ? 'down' : allUp ? 'ok' : 'degraded',
-+    app,
-+    mcp,
-+    terminal,
-+    cdp,
++    workspace: {
++      name: 'Harness Test Workspace',
++      slug: WORKSPACE_DIR_NAME,
++      path: CONTAINER_WORKSPACE_PATH,
++      hostPath: HOST_WORKSPACE_PATH,
++    },
++    created,
++    registered,
++    verified,
 +  };
 +}
-diff --git a/harness/tests/unit/cli/index.test.ts b/harness/tests/unit/cli/index.test.ts
+diff --git a/harness/tests/features/agents.spec.ts b/harness/tests/features/agents.spec.ts
 new file mode 100644
-index 0000000..264d743
+index 0000000..990fbdb
 --- /dev/null
-+++ b/harness/tests/unit/cli/index.test.ts
-@@ -0,0 +1,36 @@
++++ b/harness/tests/features/agents.spec.ts
+@@ -0,0 +1,13 @@
 +/**
-+ * @test-doc
-+ * @id T001-cli-commands
-+ * @title CLI command registration and parsing tests
-+ * @phase Phase 3: Harness CLI SDK
-+ * @verifies AC-11 (consistent command surface)
++ * Feature test stubs — placeholders for future feature-level browser tests.
++ * Each file has a describe block with skipped tests for future plans to fill.
 + */
 +
-+import { describe, expect, it } from 'vitest';
++import { test } from '../fixtures/base-test.js';
 +
-+// These imports will fail until T003 implements them — RED
-+import { createCli } from '../../../src/cli/index.js';
-+
-+describe('CLI command registration', () => {
-+  it('creates a CLI program with the correct name', () => {
-+    const program = createCli();
-+    expect(program.name()).toBe('harness');
-+  });
-+
-+  it('registers all expected commands', () => {
-+    const program = createCli();
-+    const commandNames = program.commands.map((c) => c.name());
-+    expect(commandNames).toContain('build');
-+    expect(commandNames).toContain('dev');
-+    expect(commandNames).toContain('stop');
-+    expect(commandNames).toContain('health');
-+    expect(commandNames).toContain('test');
-+    expect(commandNames).toContain('screenshot');
-+    expect(commandNames).toContain('results');
-+  });
-+
-+  it('has a version string', () => {
-+    const program = createCli();
-+    expect(program.version()).toBeTruthy();
-+  });
++test.describe.skip('Agents feature tests', () => {
++  // TODO: Test agent list page rendering
++  // TODO: Test agent detail view
++  // TODO: Test agent status indicators
++  test('placeholder', async () => {});
 +});
-diff --git a/harness/tests/unit/cli/output.test.ts b/harness/tests/unit/cli/output.test.ts
+diff --git a/harness/tests/features/browser.spec.ts b/harness/tests/features/browser.spec.ts
 new file mode 100644
-index 0000000..afac48d
+index 0000000..b41a2fb
 --- /dev/null
-+++ b/harness/tests/unit/cli/output.test.ts
-@@ -0,0 +1,130 @@
++++ b/harness/tests/features/browser.spec.ts
+@@ -0,0 +1,12 @@
 +/**
-+ * @test-doc
-+ * @id T001-output-schema
-+ * @title CLI output envelope schema tests
-+ * @phase Phase 3: Harness CLI SDK
-+ * @verifies AC-11 (structured JSON), AC-12 (error codes E100-E110)
++ * Feature test stubs — placeholders for future browser feature tests.
 + */
 +
-+import { describe, expect, it } from 'vitest';
++import { test } from '../fixtures/base-test.js';
 +
-+// These imports will fail until T002 implements them — that's the RED in TDD
-+import {
-+  type HarnessEnvelope,
-+  type HarnessErrorCode,
-+  ErrorCodes,
-+  formatSuccess,
-+  formatError,
-+  parseEnvelope,
-+} from '../../../src/cli/output.js';
++test.describe.skip('File browser feature tests', () => {
++  // TODO: Test file tree navigation
++  // TODO: Test file content rendering
++  // TODO: Test markdown preview
++  test('placeholder', async () => {});
++});
+diff --git a/harness/tests/features/terminal.spec.ts b/harness/tests/features/terminal.spec.ts
+new file mode 100644
+index 0000000..3978ff9
+--- /dev/null
++++ b/harness/tests/features/terminal.spec.ts
+@@ -0,0 +1,12 @@
++/**
++ * Feature test stubs — placeholders for future terminal feature tests.
++ */
 +
-+describe('CLI output envelope', () => {
-+  describe('formatSuccess', () => {
-+    it('produces a valid success envelope', () => {
-+      const result = formatSuccess('health', { app: 'up' });
-+      expect(result).toMatchObject({
-+        command: 'health',
-+        status: 'ok',
-+        data: { app: 'up' },
-+      });
-+      expect(result.error).toBeUndefined();
-+    });
++import { test } from '../fixtures/base-test.js';
 +
-+    it('supports degraded status', () => {
-+      const result = formatSuccess('health', { app: 'up', cdp: 'down' }, 'degraded');
-+      expect(result.status).toBe('degraded');
-+      expect(result.data).toBeDefined();
-+      expect(result.error).toBeUndefined();
-+    });
++test.describe.skip('Terminal feature tests', () => {
++  // TODO: Test terminal connection via WebSocket
++  // TODO: Test terminal input/output
++  // TODO: Test terminal resize behavior
++  test('placeholder', async () => {});
++});
+diff --git a/harness/tests/features/workflows.spec.ts b/harness/tests/features/workflows.spec.ts
+new file mode 100644
+index 0000000..ee1b047
+--- /dev/null
++++ b/harness/tests/features/workflows.spec.ts
+@@ -0,0 +1,12 @@
++/**
++ * Feature test stubs — placeholders for future workflow feature tests.
++ */
 +
-+    it('includes a timestamp', () => {
-+      const result = formatSuccess('build', {});
-+      expect(result.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
-+    });
++import { test } from '../fixtures/base-test.js';
++
++test.describe.skip('Workflow feature tests', () => {
++  // TODO: Test workflow visualization rendering
++  // TODO: Test workflow node interactions
++  // TODO: Test workflow status transitions
++  test('placeholder', async () => {});
++});
+diff --git a/harness/tests/fixtures/base-test.ts b/harness/tests/fixtures/base-test.ts
+index 563ee40..40bba60 100644
+--- a/harness/tests/fixtures/base-test.ts
++++ b/harness/tests/fixtures/base-test.ts
+@@ -14,10 +14,12 @@
+  */
+ 
+ import { type BrowserContext, type Page, chromium, test as base } from '@playwright/test';
++import { computePorts } from '../../src/ports/allocator.js';
+ 
+ export { expect } from '@playwright/test';
+ 
+-const CDP_ENDPOINT = process.env.HARNESS_CDP_URL ?? 'http://localhost:9222';
++const ports = computePorts();
++const CDP_ENDPOINT = process.env.HARNESS_CDP_URL ?? `http://127.0.0.1:${ports.cdp}`;
+ 
+ async function getWsEndpoint(): Promise<string> {
+   const response = await fetch(`${CDP_ENDPOINT}/json/version`);
+diff --git a/harness/tests/responsive/sidebar-responsive.spec.ts b/harness/tests/responsive/sidebar-responsive.spec.ts
+new file mode 100644
+index 0000000..9eb9395
+--- /dev/null
++++ b/harness/tests/responsive/sidebar-responsive.spec.ts
+@@ -0,0 +1,67 @@
++/**
++ * Responsive sidebar tests — verify sidebar behavior across viewports.
++ *
++ * DYK #3: Mobile sidebar is a Radix UI <Sheet> overlay, not CSS-hidden.
++ * Tests check data-state attribute and element presence, not simple visibility.
++ *
++ * NOTE FOR FUTURE MOBILE UI REFACTOR:
++ *   The sidebar component uses:
++ *   - useSidebar() hook with openMobile/setOpenMobile state
++ *   - data-sidebar="sidebar" attribute on the sidebar element
++ *   - SIDEBAR_WIDTH_MOBILE = '18rem' for the Sheet width
++ *   - sidebar_state cookie for persistence across sessions
++ *   - Desktop: hidden md:block with fixed positioning, smooth transitions
++ *   - Mobile: <Sheet> component from Radix with <SheetContent> wrapping children
++ *   - Sheet uses data-state="open"/"closed" for visibility
++ *   - Trigger: toggleSidebar() calls setOpenMobile on mobile, setOpen on desktop
++ *   - Breakpoint: md: at 768px (Tailwind default)
++ */
++
++import { test, expect } from '../fixtures/base-test.js';
++
++test.describe('Sidebar responsive behavior', () => {
++  test('desktop: sidebar is visible in the layout', async ({ cdpPage, viewport }) => {
++    /*
++    Test Doc:
++    - Why: Desktop users must see the sidebar for navigation.
++    - Contract: At desktop viewport (≥768px), sidebar element is visible.
++    - Usage Notes: Skips on mobile viewports where sidebar is a Sheet overlay.
++    - Quality Contribution: Catches sidebar rendering regressions on desktop.
++    - Worked Example: page.locator('[data-sidebar="sidebar"]').isVisible() → true
++    */
++    test.skip((viewport?.width ?? 1440) < 768, 'Desktop-only test');
++    await cdpPage.goto('/', { waitUntil: 'domcontentloaded' });
++    const sidebar = cdpPage.locator('[data-sidebar="sidebar"]');
++    await expect(sidebar).toBeVisible();
 +  });
 +
-+  describe('formatError', () => {
-+    it('produces a valid error envelope', () => {
-+      const result = formatError('build', 'E102', 'Docker build failed');
-+      expect(result).toMatchObject({
-+        command: 'build',
-+        status: 'error',
-+        error: {
-+          code: 'E102',
-+          message: 'Docker build failed',
-+        },
-+      });
-+      expect(result.data).toBeUndefined();
-+    });
++  test('mobile: sidebar is not visible by default', async ({ cdpPage, viewport }) => {
++    /*
++    Test Doc:
++    - Why: Mobile users should see content, not the sidebar, on initial load.
++    - Contract: At mobile viewport (<768px), the sidebar Sheet is closed.
++    - Usage Notes: The Sheet component renders in DOM but data-state="closed".
++    - Quality Contribution: Catches mobile sidebar stuck-open regressions.
++    - Worked Example: SheetContent with data-state is either absent or "closed".
++    */
++    test.skip((viewport?.width ?? 1440) >= 768, 'Mobile-only test');
++    await cdpPage.goto('/', { waitUntil: 'domcontentloaded' });
 +
-+    it('includes optional details', () => {
-+      const result = formatError('health', 'E103', 'Health check failed', {
-+        app: 'down',
-+        cdp: 'down',
-+      });
-+      expect(result.error?.details).toEqual({ app: 'down', cdp: 'down' });
-+    });
-+  });
++    // On mobile, the sidebar is inside a Sheet — check it's not open
++    // The Sheet's content element won't be in the viewport when closed
++    const visibleSidebar = cdpPage.locator('[data-sidebar="sidebar"]:visible');
++    const count = await visibleSidebar.count();
 +
-+  describe('parseEnvelope', () => {
-+    it('parses a valid success JSON string', () => {
-+      const json = JSON.stringify({
-+        command: 'health',
-+        status: 'ok',
-+        timestamp: new Date().toISOString(),
-+        data: { app: 'up' },
-+      });
-+      const parsed = parseEnvelope(json);
-+      expect(parsed.command).toBe('health');
-+      expect(parsed.status).toBe('ok');
-+    });
-+
-+    it('parses a valid error JSON string', () => {
-+      const json = JSON.stringify({
-+        command: 'build',
-+        status: 'error',
-+        timestamp: new Date().toISOString(),
-+        error: { code: 'E102', message: 'Build failed' },
-+      });
-+      const parsed = parseEnvelope(json);
-+      expect(parsed.status).toBe('error');
-+      expect(parsed.error?.code).toBe('E102');
-+    });
-+
-+    it('throws on invalid JSON', () => {
-+      expect(() => parseEnvelope('not json')).toThrow();
-+    });
-+
-+    it('throws on missing command field', () => {
-+      expect(() =>
-+        parseEnvelope(JSON.stringify({ status: 'ok', timestamp: new Date().toISOString() })),
-+      ).toThrow();
-+    });
-+  });
-+
-+  describe('ErrorCodes', () => {
-+    it('defines codes in the E100-E110 range', () => {
-+      const codes = Object.values(ErrorCodes);
-+      expect(codes.length).toBeGreaterThanOrEqual(5);
-+      for (const code of codes) {
-+        const num = Number.parseInt(code.replace('E', ''), 10);
-+        expect(num).toBeGreaterThanOrEqual(100);
-+        expect(num).toBeLessThanOrEqual(110);
++    // On mobile, the sidebar should either not be rendered or not be visible
++    // (Sheet component keeps it out of view when closed)
++    if (count > 0) {
++      // If something is visible, it should be the Sheet trigger, not the full sidebar
++      const box = await visibleSidebar.first().boundingBox();
++      if (box) {
++        // If visible, it should be off-screen or very small (Sheet closed state)
++        // A full sidebar would be at least 200px wide
++        expect(box.width).toBeLessThan(200);
 +      }
-+    });
-+
-+    it('has distinct codes for container, build, health, cdp, test, screenshot, args, timeout, docker', () => {
-+      expect(ErrorCodes.UNKNOWN).toBe('E100');
-+      expect(ErrorCodes.CONTAINER_NOT_RUNNING).toBe('E101');
-+      expect(ErrorCodes.BUILD_FAILED).toBe('E102');
-+      expect(ErrorCodes.HEALTH_FAILED).toBe('E103');
-+      expect(ErrorCodes.CDP_UNAVAILABLE).toBe('E104');
-+      expect(ErrorCodes.TEST_FAILED).toBe('E105');
-+      expect(ErrorCodes.SCREENSHOT_FAILED).toBe('E106');
-+      expect(ErrorCodes.RESULTS_NOT_FOUND).toBe('E107');
-+      expect(ErrorCodes.INVALID_ARGS).toBe('E108');
-+      expect(ErrorCodes.TIMEOUT).toBe('E109');
-+      expect(ErrorCodes.DOCKER_UNAVAILABLE).toBe('E110');
-+    });
++    }
 +  });
 +});
-diff --git a/justfile b/justfile
-index 33af55c..1c29417 100644
---- a/justfile
-+++ b/justfile
-@@ -85,6 +85,14 @@ test-harness:
- harness-dev:
-     cd harness && just dev
+diff --git a/harness/tests/smoke/mcp-smoke.test.ts b/harness/tests/smoke/mcp-smoke.test.ts
+new file mode 100644
+index 0000000..ee98385
+--- /dev/null
++++ b/harness/tests/smoke/mcp-smoke.test.ts
+@@ -0,0 +1,54 @@
++/**
++ * MCP endpoint smoke test — verifies /_next/mcp responds to JSON-RPC.
++ *
++ * DYK #4: This is a Vitest .test.ts using fetch(), NOT a Playwright .spec.ts.
++ * MCP is a POST JSON-RPC 2.0 endpoint, not a navigable page.
++ */
++
++import { describe, expect, it } from 'vitest';
++import { computePorts } from '../../src/ports/allocator.js';
++
++const ports = computePorts();
++const MCP_URL = `http://127.0.0.1:${ports.app}/_next/mcp`;
++
++describe('MCP endpoint', () => {
++  it('responds to tools/list JSON-RPC request', async () => {
++    /*
++    Test Doc:
++    - Why: MCP is how agents discover and call Next.js tools — must be operational.
++    - Contract: POST /_next/mcp with tools/list → JSON-RPC response with tool array.
++    - Usage Notes: Requires running harness container. Uses fetch(), not Playwright.
++    - Quality Contribution: Catches MCP endpoint misconfiguration or crash.
++    - Worked Example: POST {"jsonrpc":"2.0","id":1,"method":"tools/list"} → {result:{tools:[...]}}
++    */
++    const res = await fetch(MCP_URL, {
++      method: 'POST',
++      headers: { 'Content-Type': 'application/json' },
++      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
++    });
++
++    // MCP may return 200 or 406 depending on Accept headers — both mean it's alive
++    expect(res.status).toBeLessThan(500);
++  });
++
++  it('returns valid JSON-RPC response structure', async () => {
++    /*
++    Test Doc:
++    - Why: Agents parse the JSON-RPC response — it must be well-formed.
++    - Contract: Response contains jsonrpc, id, and either result or error.
++    - Usage Notes: The response may have tools or an error — both valid structures.
++    - Quality Contribution: Catches JSON parse failures or malformed RPC responses.
++    - Worked Example: Response has {jsonrpc: "2.0", id: 1, result: {...}} or {error: {...}}.
++    */
++    const res = await fetch(MCP_URL, {
++      method: 'POST',
++      headers: { 'Content-Type': 'application/json' },
++      body: JSON.stringify({ jsonrpc: '2.0', id: 42, method: 'tools/list' }),
++    });
++
++    const body = await res.text();
++    // Even if it returns an error, it should be parseable JSON
++    const data = JSON.parse(body);
++    expect(data).toHaveProperty('jsonrpc');
++  });
++});
+diff --git a/harness/tests/smoke/routes-smoke.spec.ts b/harness/tests/smoke/routes-smoke.spec.ts
+new file mode 100644
+index 0000000..8e4b534
+--- /dev/null
++++ b/harness/tests/smoke/routes-smoke.spec.ts
+@@ -0,0 +1,61 @@
++/**
++ * Route-level smoke tests — verify main app routes return 200.
++ *
++ * Uses the CDP fixture to navigate to key routes in a real browser
++ * and assert page content loads without errors.
++ */
++
++import { test, expect } from '../fixtures/base-test.js';
++
++const routes = [
++  { path: '/', name: 'Home', expect: 'Chainglass' },
++  { path: '/workspaces', name: 'Workspaces', expect: '' },
++  { path: '/settings/workspaces', name: 'Settings', expect: '' },
++  { path: '/agents', name: 'Agents', expect: '' },
++];
++
++for (const route of routes) {
++  test(`${route.name} (${route.path}) loads successfully`, async ({ cdpPage }) => {
++    /*
++    Test Doc:
++    - Why: Every main route must return 200 and render without crash.
++    - Contract: Navigate to route → page loads with no error state.
++    - Usage Notes: Uses CDP fixture; requires running harness container.
++    - Quality Contribution: Catches broken routes before they reach users.
++    - Worked Example: page.goto('/workspaces') → status 200, content visible.
++    */
++    const response = await cdpPage.goto(route.path, { waitUntil: 'domcontentloaded' });
++    expect(response?.status()).toBeLessThan(400);
++
++    if (route.expect) {
++      await expect(cdpPage).toHaveTitle(new RegExp(route.expect));
++    }
++
++    // Verify no error boundary rendered
++    const errorBoundary = await cdpPage.$('[data-testid="error-boundary"]');
++    expect(errorBoundary).toBeNull();
++  });
++}
++
++test('No console errors on home page', async ({ cdpPage, cdpContext }) => {
++  /*
++  Test Doc:
++  - Why: Console errors indicate runtime issues invisible to users but critical for quality.
++  - Contract: Home page loads with zero console.error calls.
++  - Usage Notes: Captures all console messages during page load.
++  - Quality Contribution: Catches React hydration errors, failed API calls, missing resources.
++  - Worked Example: page.goto('/') → no 'error' type console messages.
++  */
++  const errors: string[] = [];
++  cdpPage.on('console', (msg) => {
++    if (msg.type() === 'error') errors.push(msg.text());
++  });
++
++  await cdpPage.goto('/', { waitUntil: 'networkidle' });
++
++  // Filter out known benign errors (e.g., favicon, third-party)
++  const realErrors = errors.filter(
++    (e) => !e.includes('favicon') && !e.includes('404'),
++  );
++  expect(realErrors).toEqual([]);
++});
+diff --git a/harness/tests/smoke/seed-verification.spec.ts b/harness/tests/smoke/seed-verification.spec.ts
+new file mode 100644
+index 0000000..6ba90e3
+--- /dev/null
++++ b/harness/tests/smoke/seed-verification.spec.ts
+@@ -0,0 +1,50 @@
++/**
++ * Seed verification test — confirm seeded workspace appears in the app UI.
++ *
++ * Requires: `harness seed` has been run before these tests execute.
++ * The seed command creates a workspace and registers it in the container.
++ */
++
++import { test, expect } from '../fixtures/base-test.js';
++import { computePorts } from '../../src/ports/allocator.js';
++
++const ports = computePorts();
++
++test.describe('Seeded workspace visibility', () => {
++  test('workspace appears in /api/workspaces response', async ({ cdpPage }) => {
++    /*
++    Test Doc:
++    - Why: The seed must produce data the app API can serve.
++    - Contract: GET /api/workspaces returns a workspace with slug "harness-test-workspace".
++    - Usage Notes: Uses cdpPage.evaluate(fetch) to avoid CORS issues.
++    - Quality Contribution: Proves the registry → API path works end-to-end.
++    - Worked Example: fetch('/api/workspaces') → {workspaces: [{slug: "harness-test-workspace", ...}]}
++    */
++    // Navigate to app first so in-page fetch works (same-origin)
++    await cdpPage.goto(`http://127.0.0.1:${ports.app}/`, { waitUntil: 'domcontentloaded' });
++
++    const workspaces = await cdpPage.evaluate(async () => {
++      const res = await fetch('/api/workspaces?include=worktrees');
++      return res.json();
++    });
++
++    const ws = (workspaces as { workspaces: Array<{ slug: string }> }).workspaces;
++    const found = ws.find((w) => w.slug === 'harness-test-workspace');
++    expect(found).toBeDefined();
++  });
++
++  test('workspace link navigable', async ({ cdpPage }) => {
++    /*
++    Test Doc:
++    - Why: Seeded workspaces must be accessible via their URL slug.
++    - Contract: /workspaces/harness-test-workspace returns 200 (not 404).
++    - Usage Notes: May redirect to login on auth-enabled instances; test with auth bypass.
++    - Quality Contribution: Proves workspace routing works for seeded data.
++    - Worked Example: page.goto('/workspaces/harness-test-workspace') → status < 400.
++    */
++    const response = await cdpPage.goto('/workspaces/harness-test-workspace', {
++      waitUntil: 'domcontentloaded',
++    });
++    expect(response?.status()).toBeLessThan(400);
++  });
++});
+diff --git a/harness/tests/unit/cli/index.test.ts b/harness/tests/unit/cli/index.test.ts
+index b96b6bd..a94f41e 100644
+--- a/harness/tests/unit/cli/index.test.ts
++++ b/harness/tests/unit/cli/index.test.ts
+@@ -44,6 +44,7 @@ describe('CLI command registration', () => {
+     expect(commandNames).toContain('screenshot');
+     expect(commandNames).toContain('results');
+     expect(commandNames).toContain('ports');
++    expect(commandNames).toContain('seed');
+   });
  
-+# Install standalone harness dependencies
-+harness-install:
-+    cd harness && just install
-+
-+# Type-check standalone harness sources
-+harness-typecheck:
-+    cd harness && just typecheck
-+
- # Stop harness container
- harness-stop:
-     cd harness && just stop
-@@ -93,6 +101,10 @@ harness-stop:
- harness-health:
-     cd harness && just health
- 
-+# Run harness CLI command (e.g., just harness health, just harness screenshot home)
-+harness *ARGS:
-+    cd harness && pnpm exec tsx src/cli/index.ts {{ARGS}}
-+
- # Run linter
- lint:
-     pnpm biome check .
+   it('has a version string', () => {

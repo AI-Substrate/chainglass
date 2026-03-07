@@ -39,29 +39,17 @@ test.describe('Sidebar responsive behavior', () => {
     /*
     Test Doc:
     - Why: Mobile users should see content, not the sidebar, on initial load.
-    - Contract: At mobile viewport (<768px), the sidebar Sheet is closed.
-    - Usage Notes: The Sheet component renders in DOM but data-state="closed".
+    - Contract: At mobile viewport (<768px), the sidebar Sheet is closed (data-state="closed" or absent).
+    - Usage Notes: Uses the Radix Sheet data-state contract, not bounding-box heuristics.
     - Quality Contribution: Catches mobile sidebar stuck-open regressions.
-    - Worked Example: SheetContent with data-state is either absent or "closed".
+    - Worked Example: Sheet [data-state="open"] count === 0 on initial load.
     */
     test.skip((viewport?.width ?? 1440) >= 768, 'Mobile-only test');
     await cdpPage.goto('/', { waitUntil: 'domcontentloaded' });
 
-    // On mobile, the sidebar is inside a Sheet — check it's not open
-    // The Sheet's content element won't be in the viewport when closed
-    const visibleSidebar = cdpPage.locator('[data-sidebar="sidebar"]:visible');
-    const count = await visibleSidebar.count();
-
-    // On mobile, the sidebar should either not be rendered or not be visible
-    // (Sheet component keeps it out of view when closed)
-    if (count > 0) {
-      // If something is visible, it should be the Sheet trigger, not the full sidebar
-      const box = await visibleSidebar.first().boundingBox();
-      if (box) {
-        // If visible, it should be off-screen or very small (Sheet closed state)
-        // A full sidebar would be at least 200px wide
-        expect(box.width).toBeLessThan(200);
-      }
-    }
+    // The mobile sidebar uses a Radix Sheet overlay.
+    // When closed: either no [data-state="open"] element, or data-state="closed".
+    const openSheet = cdpPage.locator('[role="dialog"][data-state="open"]');
+    await expect(openSheet).toHaveCount(0);
   });
 });

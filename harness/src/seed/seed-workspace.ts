@@ -73,39 +73,58 @@ function createWorkspaceDir(): boolean {
   return true;
 }
 
-function buildRegistryJson(): string {
-  const now = new Date().toISOString();
-  const registry = {
-    version: 1,
-    workspaces: [
-      {
-        slug: WORKSPACE_DIR_NAME,
-        name: 'Harness Test Workspace',
-        path: CONTAINER_WORKSPACE_PATH,
-        createdAt: now,
-        preferences: {
-          emoji: '🧪',
-          color: '',
-          starred: false,
-          sortOrder: 0,
-          starredWorktrees: [],
-          worktreePreferences: {},
-          sdkSettings: {},
-          sdkShortcuts: {},
-          sdkMru: [],
-        },
-      },
-    ],
+function buildSeedEntry(): Record<string, unknown> {
+  return {
+    slug: WORKSPACE_DIR_NAME,
+    name: 'Harness Test Workspace',
+    path: CONTAINER_WORKSPACE_PATH,
+    createdAt: new Date().toISOString(),
+    preferences: {
+      emoji: '🧪',
+      color: '',
+      starred: false,
+      sortOrder: 0,
+      starredWorktrees: [],
+      worktreePreferences: {},
+      sdkSettings: {},
+      sdkShortcuts: {},
+      sdkMru: [],
+    },
   };
-  return JSON.stringify(registry, null, 2);
 }
 
 async function registerInContainer(): Promise<boolean> {
   const containerName = getContainerName();
-  const registryJson = buildRegistryJson();
+  const seedEntry = buildSeedEntry();
 
   try {
-    // Create config directory and write registry inside container
+    // Read-modify-write: read existing registry, upsert our entry, write back
+    const readResult = await execFileAsync('docker', [
+      'exec', containerName,
+      'sh', '-c',
+      'cat /root/.config/chainglass/workspaces.json 2>/dev/null || echo "null"',
+    ], { timeout: 10_000 });
+
+    let registry: { version: number; workspaces: Record<string, unknown>[] };
+    try {
+      const existing = JSON.parse(readResult.stdout.trim());
+      if (existing && existing.version === 1 && Array.isArray(existing.workspaces)) {
+        registry = existing;
+      } else {
+        registry = { version: 1, workspaces: [] };
+      }
+    } catch {
+      registry = { version: 1, workspaces: [] };
+    }
+
+    // Upsert: remove old harness entry if present, add fresh one
+    registry.workspaces = registry.workspaces.filter(
+      (w) => (w as { slug?: string }).slug !== WORKSPACE_DIR_NAME,
+    );
+    registry.workspaces.push(seedEntry);
+
+    const registryJson = JSON.stringify(registry, null, 2);
+
     await execFileAsync('docker', [
       'exec', containerName,
       'sh', '-c',

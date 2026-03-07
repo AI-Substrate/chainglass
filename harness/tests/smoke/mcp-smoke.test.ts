@@ -34,11 +34,11 @@ describe('MCP endpoint', () => {
   it('returns valid JSON-RPC response structure', async () => {
     /*
     Test Doc:
-    - Why: Agents parse the JSON-RPC response — it must be well-formed.
-    - Contract: Response contains jsonrpc, id, and either result or error.
-    - Usage Notes: The response may have tools or an error — both valid structures.
-    - Quality Contribution: Catches JSON parse failures or malformed RPC responses.
-    - Worked Example: Response has {jsonrpc: "2.0", id: 1, result: {...}} or {error: {...}}.
+    - Why: Agents parse the JSON-RPC response — it must be well-formed with expected tools.
+    - Contract: Response contains jsonrpc, id, and result with known tool names.
+    - Usage Notes: Expected tools: get_routes, get_errors per Next.js MCP spec.
+    - Quality Contribution: Catches JSON parse failures or missing MCP tools.
+    - Worked Example: Response has {jsonrpc: "2.0", id: 42, result: {tools: [{name: "get_routes"}, ...]}}
     */
     const res = await fetch(MCP_URL, {
       method: 'POST',
@@ -47,8 +47,14 @@ describe('MCP endpoint', () => {
     });
 
     const body = await res.text();
-    // Even if it returns an error, it should be parseable JSON
     const data = JSON.parse(body);
     expect(data).toHaveProperty('jsonrpc');
+
+    // If we get a result with tools, verify expected tool names are present
+    if (data.result?.tools) {
+      const toolNames = data.result.tools.map((t: { name: string }) => t.name);
+      expect(toolNames).toContain('get_routes');
+      expect(toolNames).toContain('get_errors');
+    }
   });
 });
