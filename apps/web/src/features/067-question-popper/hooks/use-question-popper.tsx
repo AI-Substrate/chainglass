@@ -120,7 +120,9 @@ export function QuestionPopperProvider({ children }: { children: ReactNode }) {
       }
       const data: { items: EventPopperItem[]; total: number } = await res.json();
       if (!mountedRef.current) return;
+      const fetchedOutstanding = data.items.filter(isOutstanding).length;
       setItems(data.items);
+      setOutstandingCount(fetchedOutstanding);
       setError(null);
     } catch (err) {
       if (!mountedRef.current) return;

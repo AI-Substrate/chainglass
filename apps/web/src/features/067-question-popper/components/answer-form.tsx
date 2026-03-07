@@ -238,17 +238,15 @@ export function AnswerForm({ question, onAnswer, onDismiss, onClarify }: AnswerF
         </div>
       )}
 
-      {/* Freeform text — always available (AC-21) */}
-      {questionType !== 'text' && (
-        <textarea
-          value={freeformText}
-          onChange={(e) => setFreeformText(e.target.value)}
-          placeholder="Additional context (optional)..."
-          rows={2}
-          className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100"
-          disabled={isSubmitting}
-        />
-      )}
+      {/* Freeform text — always available regardless of question type (AC-21) */}
+      <textarea
+        value={freeformText}
+        onChange={(e) => setFreeformText(e.target.value)}
+        placeholder={questionType === 'text' ? 'Additional context (optional)...' : 'Additional context (optional)...'}
+        rows={2}
+        className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100"
+        disabled={isSubmitting}
+      />
 
       {/* Error display */}
       {submitError && (

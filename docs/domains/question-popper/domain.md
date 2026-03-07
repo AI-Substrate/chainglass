@@ -29,9 +29,7 @@ First-class question-and-answer experience built on top of Event Popper infrastr
 - Event ID generation (`generateEventId` — owned by `_platform/external-events`)
 - SSE infrastructure (`ICentralEventNotifier` — owned by `_platform/events`)
 - Port discovery, localhost guard, tmux detection (owned by `_platform/external-events`)
-- CLI commands (`cg question ask|get|answer|list`, `cg alert send` — blocking poll loop, help surface)
-- API routes (`/api/event-popper/*` — 7 HTTP endpoints consumed by CLI and UI)
-- UI components (Phase 5 — implemented)
+- Toast rendering infrastructure (`sonner` — owned by `_platform/events`)
 
 ## Composition
 
@@ -61,6 +59,8 @@ First-class question-and-answer experience built on top of Event Popper infrastr
 | Answer a question | `IQuestionPopperService.answerQuestion()` | Records answer with atomic write (first-write-wins), decrements count, emits SSE. |
 | Send an alert | `IQuestionPopperService.sendAlert()` | Fire-and-forget one-way notification. Stored on disk, increments outstanding count, emits SSE. |
 | Track outstanding items | `IQuestionPopperService.getOutstandingCount()` | In-memory counter of unanswered questions + unread alerts. Rehydrated from disk on construction. |
+| View and respond to questions | `useQuestionPopper()` + `QuestionPopperOverlayPanel` | SSE-driven overlay panel showing outstanding questions with type-appropriate answer forms. Mutual exclusion with other overlays. |
+| Receive notifications | `desktop-notifications.ts` | Toast (sonner) + desktop (Notifications API) on new questions/alerts. Permission requested lazily. |
 
 ## Contracts
 
