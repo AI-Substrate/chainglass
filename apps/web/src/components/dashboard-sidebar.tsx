@@ -75,17 +75,19 @@ export function DashboardSidebar() {
         <div className="flex items-center justify-between gap-2">
           {!isCollapsed && (
             <div className="min-w-0 flex-1">
-              <span className="block truncate font-semibold">
-                {isInWorkspace
-                  ? `${wsCtx?.worktreeIdentity?.emoji || wsCtx?.emoji || ''} ${wsCtx?.worktreeIdentity?.branch || wsCtx?.name || decodeURIComponent(workspaceSlug)}`.trim()
-                  : 'Chainglass'}
-              </span>
-              {isInWorkspace && currentWorktree && !wsCtx?.worktreeIdentity && (
-                <span className="block truncate text-xs text-muted-foreground">
-                  {currentWorktree.split('/').pop()}
-                </span>
+              {isInWorkspace ? (
+                <>
+                  <span className="block truncate font-semibold">
+                    {`${wsCtx?.worktreeIdentity?.emoji || wsCtx?.emoji || ''} ${wsCtx?.worktreeIdentity?.branch || currentWorktree?.split('/').pop() || decodeURIComponent(workspaceSlug)}`.trim()}
+                  </span>
+                  <span className="block truncate text-xs text-muted-foreground">
+                    {wsCtx?.name || decodeURIComponent(workspaceSlug)}
+                  </span>
+                  {workspaceSlug && <WorktreeStateSubtitle slug={workspaceSlug} />}
+                </>
+              ) : (
+                <span className="block truncate font-semibold">Chainglass</span>
               )}
-              {isInWorkspace && workspaceSlug && <WorktreeStateSubtitle slug={workspaceSlug} />}
             </div>
           )}
         </div>
