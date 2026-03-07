@@ -40,7 +40,21 @@ function defaultSource(prefix: string): string {
   return `${prefix}:${process.env.USER || 'unknown'}`;
 }
 
-// ── Exported Handlers (testable with FakeEventPopperClient) ──
+// ── Injectable IO Seams (FT-003: testable without vi.spyOn) ──
+
+export interface CliIO {
+  log(msg: string): void;
+  error(msg: string): void;
+  sleep(ms: number): Promise<void>;
+}
+
+export const defaultCliIO: CliIO = {
+  log: (msg) => console.log(msg),
+  error: (msg) => console.error(msg),
+  sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+};
+
+// ── Exported Handlers (testable with FakeEventPopperClient + CliIO) ──
 
 export async function handleQuestionAsk(
   client: IEventPopperClient,
@@ -53,11 +67,12 @@ export async function handleQuestionAsk(
     timeout: string;
     previousQuestionId?: string;
     source: string;
-  }
+  },
+  io: CliIO = defaultCliIO
 ): Promise<void> {
   const timeout = Number.parseInt(options.timeout, 10);
   if (Number.isNaN(timeout) || timeout < 0) {
-    console.error(chalk.red('--timeout must be a non-negative integer'));
+    io.error(chalk.red('--timeout must be a non-negative integer'));
     process.exitCode = 1;
     return;
   }
@@ -78,34 +93,43 @@ export async function handleQuestionAsk(
 
   // --timeout 0: return immediately (AC-07)
   if (timeout === 0) {
-    console.log(JSON.stringify({ questionId, status: 'pending' }));
+    io.log(JSON.stringify({ questionId, status: 'pending' }));
     return;
   }
 
   // DYK-01: SIGINT handler prints questionId for agent recovery
   const sigintHandler = () => {
-    console.log(JSON.stringify({ questionId, status: 'interrupted' }));
+    io.log(JSON.stringify({ questionId, status: 'interrupted' }));
     process.exit(0);
   };
   process.on('SIGINT', sigintHandler);
   process.on('SIGTERM', sigintHandler);
 
   try {
-    const result = await pollForAnswer(client, questionId, timeout);
-    console.log(JSON.stringify(result));
+    const result = await pollForAnswer(client, questionId, timeout, io);
+    io.log(JSON.stringify(result));
   } finally {
     process.removeListener('SIGINT', sigintHandler);
     process.removeListener('SIGTERM', sigintHandler);
   }
 }
 
-export async function handleQuestionGet(client: IEventPopperClient, id: string): Promise<void> {
+export async function handleQuestionGet(
+  client: IEventPopperClient,
+  id: string,
+  io: CliIO = defaultCliIO
+): Promise<void> {
   try {
     const question = await client.getQuestion(id);
-    console.log(JSON.stringify(question));
+    // AC-08: Return compact payload for pending, full QuestionOut otherwise
+    if (question.status === 'pending') {
+      io.log(JSON.stringify({ questionId: question.questionId, status: 'pending' }));
+      return;
+    }
+    io.log(JSON.stringify(question));
   } catch (error) {
     if (error instanceof EventPopperClientError && error.isNotFound) {
-      console.error(chalk.red(`Question not found: ${id}`));
+      io.error(chalk.red(`Question not found: ${id}`));
       process.exitCode = 1;
       return;
     }
@@ -116,7 +140,8 @@ export async function handleQuestionGet(client: IEventPopperClient, id: string):
 export async function handleQuestionAnswer(
   client: IEventPopperClient,
   id: string,
-  options: { answer: string; text?: string }
+  options: { answer: string; text?: string },
+  io: CliIO = defaultCliIO
 ): Promise<void> {
   // DYK-04: GET question first to determine type, then coerce answer value
   let question: QuestionOut;
@@ -124,7 +149,7 @@ export async function handleQuestionAnswer(
     question = await client.getQuestion(id);
   } catch (error) {
     if (error instanceof EventPopperClientError && error.isNotFound) {
-      console.error(chalk.red(`Question not found: ${id}`));
+      io.error(chalk.red(`Question not found: ${id}`));
       process.exitCode = 1;
       return;
     }
@@ -138,16 +163,16 @@ export async function handleQuestionAnswer(
       answer: coerced,
       text: options.text ?? null,
     });
-    console.log(JSON.stringify(updated));
+    io.log(JSON.stringify(updated));
   } catch (error) {
     if (error instanceof EventPopperClientError) {
       if (error.isNotFound) {
-        console.error(chalk.red(`Question not found: ${id}`));
+        io.error(chalk.red(`Question not found: ${id}`));
         process.exitCode = 1;
         return;
       }
       if (error.isConflict) {
-        console.error(chalk.red(`Question already resolved: ${id}`));
+        io.error(chalk.red(`Question already resolved: ${id}`));
         process.exitCode = 1;
         return;
       }
@@ -158,7 +183,8 @@ export async function handleQuestionAnswer(
 
 export async function handleQuestionList(
   client: IEventPopperClient,
-  options: { status?: string; limit: string; json?: boolean }
+  options: { status?: string; limit: string; json?: boolean },
+  io: CliIO = defaultCliIO
 ): Promise<void> {
   const limit = Number.parseInt(options.limit, 10);
   const result = await client.listAll({
@@ -167,22 +193,22 @@ export async function handleQuestionList(
   });
 
   if (options.json) {
-    console.log(JSON.stringify(result));
+    io.log(JSON.stringify(result));
     return;
   }
 
   // Human-readable table
   if (result.items.length === 0) {
-    console.log(chalk.gray('No questions or alerts found.'));
+    io.log(chalk.gray('No questions or alerts found.'));
     return;
   }
 
-  console.log(
+  io.log(
     chalk.bold(
       `${'Type'.padEnd(10)}${'Status'.padEnd(20)}${'Source'.padEnd(25)}${'Text'.padEnd(40)}Age`
     )
   );
-  console.log('─'.repeat(105));
+  io.log('─'.repeat(105));
 
   for (const item of result.items) {
     const isQuestion = 'questionId' in item;
@@ -202,13 +228,13 @@ export async function handleQuestionList(
           ? chalk.green
           : chalk.gray;
 
-    console.log(
+    io.log(
       `${type.padEnd(10)}${statusColor(status.padEnd(20))}${source.slice(0, 24).padEnd(25)}${text.slice(0, 39).padEnd(40)}${age}`
     );
   }
 
   if (result.total > result.items.length) {
-    console.log(chalk.gray(`\n... and ${result.total - result.items.length} more`));
+    io.log(chalk.gray(`\n... and ${result.total - result.items.length} more`));
   }
 }
 
@@ -217,7 +243,8 @@ export async function handleQuestionList(
 async function pollForAnswer(
   client: IEventPopperClient,
   questionId: string,
-  timeoutSeconds: number
+  timeoutSeconds: number,
+  io: CliIO = defaultCliIO
 ): Promise<QuestionOut | { questionId: string; status: 'pending' }> {
   const deadline = Date.now() + timeoutSeconds * 1000;
   let consecutiveFailures = 0;
@@ -234,14 +261,14 @@ async function pollForAnswer(
       if (error instanceof EventPopperClientError && error.isTransient) {
         consecutiveFailures++;
         if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-          console.error(
+          io.error(
             chalk.red(
               `Server unreachable after ${MAX_CONSECUTIVE_FAILURES} attempts. Question ID: ${questionId}`
             )
           );
           return { questionId, status: 'pending' };
         }
-        console.error(
+        io.error(
           chalk.yellow(
             `Connection error (attempt ${consecutiveFailures}/${MAX_CONSECUTIVE_FAILURES}), retrying...`
           )
@@ -251,7 +278,7 @@ async function pollForAnswer(
       }
     }
 
-    await sleep(POLL_INTERVAL_MS);
+    await io.sleep(POLL_INTERVAL_MS);
   }
 
   // Timeout (AC-06)
@@ -259,10 +286,6 @@ async function pollForAnswer(
 }
 
 // ── Helpers ──
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 /** DYK-04: Coerce string answer to correct type based on questionType */
 function coerceAnswer(raw: string, questionType: string): string | boolean | string[] {
@@ -304,6 +327,21 @@ SUBCOMMANDS:
   get      Check the status of a previously asked question
   answer   Submit an answer to a question (for scripting/testing)
   list     List all questions and alerts with their status
+
+KEY FLAGS:
+  ask --text <question>                   The question to ask (required)
+  ask --type <text|single|multi|confirm>  Question type (default: text)
+  ask --timeout <seconds>                 Wait duration, 0 = no wait (default: 600)
+  ask --description <markdown>            Detailed context shown in UI
+  ask --options <choice1> <choice2> ...   Choices for single/multi types
+  ask --previous-question-id <id>         Link to previous question (chaining)
+  ask --source <name>                     Source identifier (default: cg-question:$USER)
+  get <id>                                Question ID to check
+  answer <id> --answer <value>            Submit an answer value
+  answer <id> --text <freeform>           Optional commentary with answer
+  list --status <filter>                  Filter by status (pending, answered, etc.)
+  list --limit <n>                        Max items (default: 20)
+  list --json                             Raw JSON output
 
 BLOCKING BEHAVIOR:
   By default, 'cg question ask' blocks for up to 600 seconds (10 minutes),

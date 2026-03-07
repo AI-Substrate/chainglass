@@ -17,6 +17,7 @@ import {
   createEventPopperClient,
   discoverServerUrl,
 } from './event-popper-client.js';
+import { type CliIO, defaultCliIO } from './question.command.js';
 
 // ── Exported Handler (testable with FakeEventPopperClient) ──
 
@@ -26,7 +27,8 @@ export async function handleAlertSend(
     text: string;
     description?: string;
     source: string;
-  }
+  },
+  io: CliIO = defaultCliIO
 ): Promise<void> {
   const body = {
     source: options.source,
@@ -36,7 +38,7 @@ export async function handleAlertSend(
   };
 
   const result = await client.sendAlert(body);
-  console.log(JSON.stringify(result));
+  io.log(JSON.stringify(result));
 }
 
 // ── Command Registration (AC-35: agent-oriented help) ──
@@ -59,6 +61,11 @@ BEHAVIOR:
   The alert appears in the Chainglass web UI as a notification badge.
   The CLI returns immediately with the alert ID. No blocking, no polling.
   The user can acknowledge (mark as read) the alert in the UI.
+
+KEY FLAGS:
+  send --text <message>           Alert text (required)
+  send --description <markdown>   Detailed context shown in UI
+  send --source <name>            Source identifier (default: cg-alert:$USER)
 
 EXAMPLES:
   cg alert send --text "Build completed"

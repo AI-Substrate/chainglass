@@ -43,4 +43,5 @@
 - 3 tests in `describe.skip` — requires running server
 
 ### Evidence
-- `just fft` running — awaiting results
+- `just fft` passing — 5106 tests, 0 failures
+- Phase 3 review artifacts (`_computed.diff`, `review.phase-3-server-api-routes.md`) committed alongside Phase 4 as they were generated between commits

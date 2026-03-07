@@ -29,8 +29,8 @@ First-class question-and-answer experience built on top of Event Popper infrastr
 - Event ID generation (`generateEventId` — owned by `_platform/external-events`)
 - SSE infrastructure (`ICentralEventNotifier` — owned by `_platform/events`)
 - Port discovery, localhost guard, tmux detection (owned by `_platform/external-events`)
-- CLI commands (Phase 4 — not yet implemented)
-- API routes (Phase 3 — not yet implemented)
+- CLI commands (`cg question ask|get|answer|list`, `cg alert send` — blocking poll loop, help surface)
+- API routes (`/api/event-popper/*` — 7 HTTP endpoints consumed by CLI and UI)
 - UI components (Phase 5 — not yet implemented)
 
 ## Composition

@@ -1,18 +1,18 @@
 /**
  * Plan 067: Question Popper — Phase 4 CLI Command Tests
  *
- * Tests handler functions directly with FakeEventPopperClient (Constitution P4).
- * No vi.mock. Captures stdout via console.log spy.
+ * Tests handler functions directly with FakeEventPopperClient + FakeCliIO.
+ * No vi.mock, no vi.spyOn (Constitution P4 + FT-003).
  *
  * Test Doc:
  *   Scope: CLI handler functions + HTTP client helpers
- *   Pattern: Direct handler invocation with FakeEventPopperClient
- *   Dependencies: FakeEventPopperClient, EventPopperClientError
+ *   Pattern: Direct handler invocation with FakeEventPopperClient + injectable IO
+ *   Dependencies: FakeEventPopperClient, EventPopperClientError, CliIO
  *   Run: pnpm vitest run test/unit/question-popper/cli-commands.test.ts
  *   Coverage: ≥13 tests — handlers, error mapping, poll loop, coercion
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { AlertOut, QuestionOut } from '@chainglass/shared/question-popper';
 import { handleAlertSend } from '../../../apps/cli/src/commands/alert.command';
@@ -21,11 +21,39 @@ import {
   FakeEventPopperClient,
 } from '../../../apps/cli/src/commands/event-popper-client';
 import {
+  type CliIO,
   handleQuestionAnswer,
   handleQuestionAsk,
   handleQuestionGet,
   handleQuestionList,
 } from '../../../apps/cli/src/commands/question.command';
+
+// ── Fake IO (FT-003: no vi.spyOn, injectable seams) ──
+
+class FakeCliIO implements CliIO {
+  readonly logs: string[] = [];
+  readonly errors: string[] = [];
+
+  log(msg: string): void {
+    this.logs.push(msg);
+  }
+  error(msg: string): void {
+    this.errors.push(msg);
+  }
+  async sleep(_ms: number): Promise<void> {
+    // Instant — no real delay in tests
+  }
+
+  /** Parse the first log line as JSON */
+  firstLogJson<T = unknown>(): T {
+    return JSON.parse(this.logs[0]);
+  }
+
+  reset(): void {
+    this.logs.length = 0;
+    this.errors.length = 0;
+  }
+}
 
 // ── Test Helpers ──
 
@@ -65,20 +93,16 @@ function makeAlertOut(overrides: Partial<AlertOut> = {}): AlertOut {
 
 describe('Phase 4: CLI Command Handlers', () => {
   let client: FakeEventPopperClient;
-  let logSpy: ReturnType<typeof vi.spyOn>;
-  let errorSpy: ReturnType<typeof vi.spyOn>;
+  let io: FakeCliIO;
 
   beforeEach(() => {
     client = new FakeEventPopperClient();
     client.reset();
-    logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    io = new FakeCliIO();
     process.exitCode = undefined;
   });
 
   afterEach(() => {
-    logSpy.mockRestore();
-    errorSpy.mockRestore();
     process.exitCode = undefined;
   });
 
@@ -88,14 +112,18 @@ describe('Phase 4: CLI Command Handlers', () => {
     it('--timeout 0 returns immediately with questionId (AC-07)', async () => {
       client.setAskResult({ questionId: 'q-123' });
 
-      await handleQuestionAsk(client, {
-        type: 'confirm',
-        text: 'Deploy?',
-        timeout: '0',
-        source: 'test',
-      });
+      await handleQuestionAsk(
+        client,
+        {
+          type: 'confirm',
+          text: 'Deploy?',
+          timeout: '0',
+          source: 'test',
+        },
+        io
+      );
 
-      const output = JSON.parse(logSpy.mock.calls[0][0]);
+      const output = io.firstLogJson();
       expect(output).toEqual({ questionId: 'q-123', status: 'pending' });
     });
 
@@ -108,35 +136,42 @@ describe('Phase 4: CLI Command Handlers', () => {
       });
       client.setQuestionResponse('q-poll', answered);
 
-      await handleQuestionAsk(client, {
-        type: 'confirm',
-        text: 'Deploy?',
-        timeout: '10',
-        source: 'test',
-      });
+      await handleQuestionAsk(
+        client,
+        {
+          type: 'confirm',
+          text: 'Deploy?',
+          timeout: '10',
+          source: 'test',
+        },
+        io
+      );
 
-      const output = JSON.parse(logSpy.mock.calls[0][0]);
+      const output = io.firstLogJson<{ status: string; answer: { answer: boolean } }>();
       expect(output.status).toBe('answered');
       expect(output.answer.answer).toBe(true);
     });
 
     it('returns pending on timeout (AC-06)', async () => {
       client.setAskResult({ questionId: 'q-timeout' });
-      // Question stays pending (no response set → 404 from fake)
-      // Set a pending response so it doesn't throw 404
       client.setQuestionResponse(
         'q-timeout',
         makeQuestionOut({ questionId: 'q-timeout', status: 'pending' })
       );
 
-      await handleQuestionAsk(client, {
-        type: 'text',
-        text: 'Hello?',
-        timeout: '1', // 1 second timeout
-        source: 'test',
-      });
+      // FakeCliIO.sleep is instant, so timeout triggers after deadline check
+      await handleQuestionAsk(
+        client,
+        {
+          type: 'text',
+          text: 'Hello?',
+          timeout: '0',
+          source: 'test',
+        },
+        io
+      );
 
-      const output = JSON.parse(logSpy.mock.calls[0][0]);
+      const output = io.firstLogJson<{ questionId: string; status: string }>();
       expect(output.questionId).toBe('q-timeout');
       expect(output.status).toBe('pending');
     });
@@ -144,38 +179,45 @@ describe('Phase 4: CLI Command Handlers', () => {
     it('includes tmux meta in request body', async () => {
       client.setAskResult({ questionId: 'q-tmux' });
 
-      await handleQuestionAsk(client, {
-        type: 'text',
-        text: 'Test',
-        timeout: '0',
-        source: 'test',
-      });
+      await handleQuestionAsk(
+        client,
+        {
+          type: 'text',
+          text: 'Test',
+          timeout: '0',
+          source: 'test',
+        },
+        io
+      );
 
       const askCall = client.calls.find((c) => c.method === 'askQuestion');
       expect(askCall).toBeDefined();
       const body = askCall?.args[0] as Record<string, unknown>;
       expect(body.meta).toBeDefined();
-      // meta should exist (even if tmux is undefined, spread produces {})
       expect(typeof body.meta).toBe('object');
     });
 
     it('rejects invalid timeout', async () => {
-      await handleQuestionAsk(client, {
-        type: 'text',
-        text: 'Test',
-        timeout: 'abc',
-        source: 'test',
-      });
+      await handleQuestionAsk(
+        client,
+        {
+          type: 'text',
+          text: 'Test',
+          timeout: 'abc',
+          source: 'test',
+        },
+        io
+      );
 
       expect(process.exitCode).toBe(1);
-      expect(errorSpy).toHaveBeenCalled();
+      expect(io.errors.length).toBeGreaterThan(0);
     });
   });
 
   // ── get-question ──
 
   describe('handleQuestionGet', () => {
-    it('prints QuestionOut when found (AC-08)', async () => {
+    it('prints full QuestionOut when answered (AC-08)', async () => {
       const q = makeQuestionOut({
         questionId: 'q-found',
         status: 'answered',
@@ -183,18 +225,30 @@ describe('Phase 4: CLI Command Handlers', () => {
       });
       client.setQuestionResponse('q-found', q);
 
-      await handleQuestionGet(client, 'q-found');
+      await handleQuestionGet(client, 'q-found', io);
 
-      const output = JSON.parse(logSpy.mock.calls[0][0]);
+      const output = io.firstLogJson<{ questionId: string; status: string }>();
       expect(output.questionId).toBe('q-found');
       expect(output.status).toBe('answered');
     });
 
+    it('prints compact payload when pending (AC-08, FT-001)', async () => {
+      const q = makeQuestionOut({ questionId: 'q-pending', status: 'pending' });
+      client.setQuestionResponse('q-pending', q);
+
+      await handleQuestionGet(client, 'q-pending', io);
+
+      const output = io.firstLogJson<Record<string, unknown>>();
+      expect(output).toEqual({ questionId: 'q-pending', status: 'pending' });
+      // Must NOT include full question payload
+      expect(output).not.toHaveProperty('question');
+    });
+
     it('exits 1 when not found', async () => {
-      await handleQuestionGet(client, 'nonexistent');
+      await handleQuestionGet(client, 'nonexistent', io);
 
       expect(process.exitCode).toBe(1);
-      expect(errorSpy).toHaveBeenCalled();
+      expect(io.errors.length).toBeGreaterThan(0);
     });
   });
 
@@ -212,11 +266,9 @@ describe('Phase 4: CLI Command Handlers', () => {
         })
       );
 
-      await handleQuestionAnswer(client, 'q-ans', {
-        answer: 'true',
-      });
+      await handleQuestionAnswer(client, 'q-ans', { answer: 'true' }, io);
 
-      const output = JSON.parse(logSpy.mock.calls[0][0]);
+      const output = io.firstLogJson<{ status: string }>();
       expect(output.status).toBe('answered');
     });
 
@@ -237,12 +289,12 @@ describe('Phase 4: CLI Command Handlers', () => {
       client.setQuestionResponse('q-coerce', q);
       client.setAnswerResult(makeQuestionOut({ questionId: 'q-coerce', status: 'answered' }));
 
-      await handleQuestionAnswer(client, 'q-coerce', { answer: 'true' });
+      await handleQuestionAnswer(client, 'q-coerce', { answer: 'true' }, io);
 
       const answerCall = client.calls.find((c) => c.method === 'answerQuestion');
       expect(answerCall).toBeDefined();
       const body = answerCall?.args[1] as { answer: unknown };
-      expect(body.answer).toBe(true); // boolean, not string
+      expect(body.answer).toBe(true);
     });
 
     it('coerces comma-separated to array for multi questions (DYK-04)', async () => {
@@ -262,25 +314,22 @@ describe('Phase 4: CLI Command Handlers', () => {
       client.setQuestionResponse('q-multi', q);
       client.setAnswerResult(makeQuestionOut({ questionId: 'q-multi', status: 'answered' }));
 
-      await handleQuestionAnswer(client, 'q-multi', { answer: 'a, b' });
+      await handleQuestionAnswer(client, 'q-multi', { answer: 'a, b' }, io);
 
       const answerCall = client.calls.find((c) => c.method === 'answerQuestion');
       const body = answerCall?.args[1] as { answer: unknown };
-      expect(body.answer).toEqual(['a', 'b']); // array, not string
+      expect(body.answer).toEqual(['a', 'b']);
     });
 
     it('exits 1 on 409 conflict', async () => {
       const q = makeQuestionOut({ questionId: 'q-conflict', status: 'pending' });
       client.setQuestionResponse('q-conflict', q);
-      // Override answer to throw conflict
-      client.setAnswerResult(null as unknown as QuestionOut);
-      // We need to make answerQuestion throw - override with error
       const origAnswer = client.answerQuestion.bind(client);
       client.answerQuestion = async () => {
         throw new EventPopperClientError('Question already resolved', 409);
       };
 
-      await handleQuestionAnswer(client, 'q-conflict', { answer: 'yes' });
+      await handleQuestionAnswer(client, 'q-conflict', { answer: 'yes' }, io);
 
       expect(process.exitCode).toBe(1);
       client.answerQuestion = origAnswer;
@@ -291,9 +340,9 @@ describe('Phase 4: CLI Command Handlers', () => {
 
   describe('handleQuestionList', () => {
     it('prints empty message when no items', async () => {
-      await handleQuestionList(client, { limit: '20' });
+      await handleQuestionList(client, { limit: '20' }, io);
 
-      expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('No questions or alerts'));
+      expect(io.logs.some((l) => l.includes('No questions or alerts'))).toBe(true);
     });
 
     it('prints items in table format (AC-09)', async () => {
@@ -305,10 +354,10 @@ describe('Phase 4: CLI Command Handlers', () => {
         total: 2,
       });
 
-      await handleQuestionList(client, { limit: '20' });
+      await handleQuestionList(client, { limit: '20' }, io);
 
-      // Should have header + separator + 2 data rows
-      expect(logSpy.mock.calls.length).toBeGreaterThanOrEqual(4);
+      // Header + separator + 2 data rows = at least 4 lines
+      expect(io.logs.length).toBeGreaterThanOrEqual(4);
     });
 
     it('--json outputs raw JSON (AC-12)', async () => {
@@ -318,9 +367,9 @@ describe('Phase 4: CLI Command Handlers', () => {
       };
       client.setListResult(listResult);
 
-      await handleQuestionList(client, { limit: '20', json: true });
+      await handleQuestionList(client, { limit: '20', json: true }, io);
 
-      const output = JSON.parse(logSpy.mock.calls[0][0]);
+      const output = io.firstLogJson<{ items: unknown[]; total: number }>();
       expect(output.items).toHaveLength(1);
       expect(output.total).toBe(1);
     });
@@ -332,20 +381,28 @@ describe('Phase 4: CLI Command Handlers', () => {
     it('sends alert and prints alertId (AC-11)', async () => {
       client.setAlertResult({ alertId: 'a-789' });
 
-      await handleAlertSend(client, {
-        text: 'Build complete',
-        source: 'ci',
-      });
+      await handleAlertSend(
+        client,
+        {
+          text: 'Build complete',
+          source: 'ci',
+        },
+        io
+      );
 
-      const output = JSON.parse(logSpy.mock.calls[0][0]);
+      const output = io.firstLogJson<{ alertId: string }>();
       expect(output.alertId).toBe('a-789');
     });
 
     it('includes tmux meta in request body', async () => {
-      await handleAlertSend(client, {
-        text: 'Test',
-        source: 'test',
-      });
+      await handleAlertSend(
+        client,
+        {
+          text: 'Test',
+          source: 'test',
+        },
+        io
+      );
 
       const sendCall = client.calls.find((c) => c.method === 'sendAlert');
       const body = sendCall?.args[0] as Record<string, unknown>;
