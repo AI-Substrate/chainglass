@@ -64,7 +64,7 @@ Central event platform for the entire application. Owns the full pipeline from f
 | `ISSEBroadcaster` | Interface | Agent notifier, central event notifier | `broadcast(channel, eventType, data)` |
 | `ICentralWatcherService` | Interface | Bootstrap, DI container | `start()`, `registerAdapter()` |
 | `IWatcherAdapter` | Interface | Concrete watcher adapters | `handleEvent(WatcherEvent)` callback contract |
-| `WorkspaceDomain` | Const object | Adapters, hooks, routes | Channel name registry (`Workflows`, `Agents`, `FileChanges`, `WorkUnitState`; `Workgraphs` deprecated) |
+| `WorkspaceDomain` | Const object | Adapters, hooks, routes | Channel name registry (`Workflows`, `Agents`, `FileChanges`, `WorkUnitState`, `EventPopper`; `Workgraphs` deprecated) |
 | `useSSE` | Hook | Feature-specific SSE hooks | Generic SSE connection with reconnection |
 | `useWorkspaceSSE` | Hook | Workflow content, kanban | Workspace-scoped SSE subscription |
 | `FileChangeHub` | Class | FileChangeProvider, testing | Client-side pattern-based event dispatcher |
@@ -171,5 +171,6 @@ Primary: scattered across `packages/shared`, `packages/workflow`, `apps/web` (Pl
 | Plan 045 (E2E fix) | Fixed SOURCE_WATCHER_IGNORED to use function-based path-segment matching (glob patterns unreliable with chokidar). Added handleRefreshDir for cache-bypass tree refresh. All 3 phases verified working end-to-end | 2026-02-24 |
 | 047-usdk Phase 6 | SDK contribution (toast.show, toast.dismiss commands) | 2026-02-25 |
 | 059-ST001 | Added WorkUnitState: 'work-unit-state' to WorkspaceDomain const (new SSE channel for work-unit-state events) | 2026-03-01 |
+| 067 Phase 1 | Added EventPopper: 'event-popper' to WorkspaceDomain const (SSE channel for question/alert lifecycle events) | 2026-03-07 |
 | 050 Phase 6-7 | Added WorkflowWatcherAdapter + WorkflowDomainEventAdapter; removed WorkGraphWatcherAdapter + WorkGraphDomainEventAdapter; added Workflows channel; deprecated Workgraphs channel | 2026-02-27 |
 | Plan 060 | Replaced ChokidarFileWatcherAdapter with NativeFileWatcherAdapter (Node.js fs.watch recursive). Eliminated FD exhaustion (12,700 → ~20 FDs). Removed chokidar dependency. | 2026-02-28 |

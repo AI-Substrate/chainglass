@@ -39,6 +39,12 @@ flowchart LR
     %% NEW business domains (Plan 065)
     activityLog["📋 activity-log<br/>ActivityLogEntry<br/>appendActivityLogEntry<br/>readActivityLog<br/>shouldIgnorePaneTitle<br/>useActivityLogOverlay<br/>GET /api/activity-log"]:::new
 
+    %% NEW infrastructure domains (Plan 067)
+    externalEvents["⚙️ _platform/external-events<br/>EventPopperRequest<br/>generateEventId<br/>readServerInfo<br/>localhostGuard<br/>detectTmuxContext"]:::new
+
+    %% NEW business domains (Plan 067)
+    questionPopper["❓ question-popper<br/>IQuestionPopperService<br/>QuestionPayloadSchema<br/>AnswerPayloadSchema<br/>AlertPayloadSchema<br/>FakeQuestionPopperService"]:::new
+
     %% Contract dependencies (consumer → provider)
     fileBrowser -->|"IFileSystem<br/>IPathResolver"| fileOps
     fileBrowser -->|"workspaceHref<br/>fileBrowserParams"| wsUrl
@@ -111,6 +117,13 @@ flowchart LR
     activityLog -->|"PanelShell<br/>overlay anchor"| panels
     terminal -->|"appendActivityLogEntry()<br/>shouldIgnorePaneTitle()"| activityLog
 
+    %% External Events dependencies (Plan 067)
+    externalEvents -->|"WorkspaceDomain.EventPopper"| events
+
+    %% Question Popper dependencies (Plan 067)
+    questionPopper -->|"EventPopperRequest<br/>generateEventId()"| externalEvents
+    questionPopper -->|"ICentralEventNotifier<br/>WorkspaceDomain.EventPopper"| events
+
     %% Auth dependencies (consumer → provider: business domains consume auth protection)
     fileBrowser -->|"middleware protection"| auth
     workflowUI -->|"middleware protection"| auth
@@ -149,3 +162,5 @@ flowchart LR
 | workflow-events | IWorkflowEvents, WorkflowEventType, WorkflowEventError, FakeWorkflowEventsService | agents (observer hooks), workflow-ui (answerQuestion), CLI (ask/answer/get-answer) | IPositionalGraphService, ICentralEventNotifier | positional-graph, events | 🟠 New |
 | terminal | _(none — leaf consumer)_ | — | PanelShell, LeftPanel, MainPanel, toast(), IUSDK, ICommandRegistry, workspaceHref | panel-layout, events, sdk, workspace-url | ✅ |
 | _platform/auth | auth(), signIn(), signOut(), requireAuth(), useAuth(), middleware protection, isUserAllowed(), SessionProvider | file-browser, workflow-ui, workunit-editor (via middleware), server actions (via requireAuth) | — | — | ✅ |
+| _platform/external-events | EventPopperRequest, EventPopperResponse, generateEventId, readServerInfo, writeServerInfo, localhostGuard, detectTmuxContext, WorkspaceDomain.EventPopper | question-popper | WorkspaceDomain | events | 🟠 New |
+| question-popper | IQuestionPopperService, QuestionPayloadSchema, AnswerPayloadSchema, AlertPayloadSchema, FakeQuestionPopperService, QuestionIn, QuestionOut, AlertIn | (Phase 3: API routes) | EventPopperRequest, generateEventId, ICentralEventNotifier | external-events, events | 🟠 New |
