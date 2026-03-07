@@ -1,0 +1,42 @@
+# Harness Development Commands
+
+# Default - show help
+default:
+    @just --list
+
+# Build Docker image
+build:
+    docker compose -f docker-compose.yml build
+
+# Start dev container (detached), wait for health
+dev:
+    docker compose -f docker-compose.yml up -d
+    @echo "Waiting for health..."
+    @for i in $(seq 1 60); do \
+        if curl -sf http://localhost:3000 > /dev/null 2>&1; then \
+            echo "✓ App healthy on :3000"; \
+            break; \
+        fi; \
+        sleep 2; \
+    done
+
+# Stop and remove container
+stop:
+    docker compose -f docker-compose.yml down
+
+# Health check
+health:
+    @echo "App:      $$(curl -sf -o /dev/null -w '%{http_code}' http://localhost:3000 || echo 'DOWN')"
+    @echo "Terminal: $$(python3 -c "import socket; s=socket.create_connection(('localhost',4500),2); s.close(); print('UP')" 2>/dev/null || echo 'DOWN')"
+
+# Run command inside container
+exec +CMD:
+    docker compose -f docker-compose.yml exec chainglass-dev {{CMD}}
+
+# Stream server logs
+logs:
+    docker compose -f docker-compose.yml logs -f chainglass-dev
+
+# Rebuild node_modules inside container (after dependency changes)
+rebuild:
+    docker compose -f docker-compose.yml exec chainglass-dev pnpm install --frozen-lockfile

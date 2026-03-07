@@ -26,10 +26,11 @@ const nextAuth = NextAuth({
 
 export const { handlers, signIn, signOut } = nextAuth;
 
-// Wrap auth() to return a fake session when DISABLE_AUTH=true
+// Wrap auth() to return a fake session when DISABLE_AUTH=true.
+// Must work for ALL call signatures — Server Actions pass args to auth().
 const _auth = nextAuth.auth;
 export const auth: typeof _auth = ((...args: unknown[]) => {
-  if (process.env.DISABLE_AUTH === 'true' && args.length === 0) {
+  if (process.env.DISABLE_AUTH === 'true') {
     return Promise.resolve({ user: { name: 'debug', email: 'debug@local' } }) as ReturnType<
       typeof _auth
     >;

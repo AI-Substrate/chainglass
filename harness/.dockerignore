@@ -1,0 +1,11 @@
+# Harness Docker build context exclusions
+# The Dockerfile only needs entrypoint.sh — source is bind-mounted at runtime
+
+node_modules
+.next
+dist
+.git
+*.md
+tests/
+src/
+results/

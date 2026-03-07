@@ -174,3 +174,7 @@ apps/web/certificates/
 
 # Activity log — personal per-worktree diary, not shared state (Plan 065)
 **/activity-log.jsonl
+
+# Harness test results — regenerated each run (Plan 067)
+harness/results/
+.pnpm-store/

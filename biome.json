@@ -37,7 +37,9 @@
       "apps/web/src/hooks/use-mobile.ts",
       "**/next-env.d.ts",
       "coverage",
-      "test/coverage"
+      "test/coverage",
+      "harness",
+      ".pnpm-store"
     ]
   }
 }
