@@ -42,8 +42,8 @@ export interface FileTreeProps {
   entries: FileEntry[];
   selectedFile?: string;
   changedFiles?: string[];
-  /** Paths of newly added files/dirs — get green fade-in animation */
-  newlyAddedPaths?: Set<string>;
+  /** Paths of files/dirs to glow green (refresh, create, update) */
+  glowingPaths?: Set<string>;
   onSelect: (filePath: string) => void;
   onExpand: (dirPath: string) => void;
   childEntries?: Record<string, FileEntry[]>;
@@ -63,7 +63,7 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
     entries,
     selectedFile,
     changedFiles,
-    newlyAddedPaths,
+    glowingPaths,
     onSelect,
     onExpand,
     childEntries = {},
@@ -147,7 +147,7 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
           expanded={expanded}
           selectedFile={selectedFile}
           changedFiles={changedFiles}
-          newlyAddedPaths={newlyAddedPaths}
+          glowingPaths={glowingPaths}
           childEntries={childEntries}
           onSelect={onSelect}
           onDirClick={handleDirClick}
@@ -169,7 +169,7 @@ function TreeItem({
   expanded,
   selectedFile,
   changedFiles,
-  newlyAddedPaths,
+  glowingPaths,
   childEntries,
   onSelect,
   onDirClick,
@@ -185,7 +185,7 @@ function TreeItem({
   expanded: Set<string>;
   selectedFile?: string;
   changedFiles?: string[];
-  newlyAddedPaths?: Set<string>;
+  glowingPaths?: Set<string>;
   childEntries: Record<string, FileEntry[]>;
   onSelect: (path: string) => void;
   onDirClick: (path: string) => void;
@@ -199,7 +199,7 @@ function TreeItem({
   const isExpanded = expanded.has(entry.path);
   const isSelected = selectedFile === entry.path;
   const isChanged = changedFiles?.includes(entry.path);
-  const isNewlyAdded = newlyAddedPaths?.has(entry.path);
+  const isGlowing = glowingPaths?.has(entry.path);
   const children = childEntries[entry.path];
 
   if (entry.type === 'directory') {
@@ -208,7 +208,7 @@ function TreeItem({
         <div
           className={`group relative flex w-full items-center gap-1 px-2 py-1 text-left hover:bg-accent ${
             isSelected ? 'bg-accent' : ''
-          } ${isNewlyAdded ? 'tree-entry-new' : ''}`}
+          } ${isGlowing ? 'tree-entry-glow' : ''}`}
           style={{ paddingLeft: `${depth * 16 + 8}px` }}
         >
           <ContextMenu>
@@ -270,7 +270,7 @@ function TreeItem({
                 expanded={expanded}
                 selectedFile={selectedFile}
                 changedFiles={changedFiles}
-                newlyAddedPaths={newlyAddedPaths}
+                glowingPaths={glowingPaths}
                 childEntries={childEntries}
                 onSelect={onSelect}
                 onDirClick={onDirClick}
@@ -307,7 +307,7 @@ function TreeItem({
           onClick={() => onSelect(entry.path)}
           className={`relative flex w-full items-center gap-1 px-2 py-1 text-left hover:bg-accent ${
             isSelected ? 'bg-accent font-medium' : ''
-          } ${isChanged ? 'text-amber-600 dark:text-amber-400' : ''} ${isNewlyAdded ? 'tree-entry-new' : ''}`}
+          } ${isChanged ? 'text-amber-600 dark:text-amber-400' : ''} ${isGlowing ? 'tree-entry-glow' : ''}`}
           style={{ paddingLeft: `${depth * 16 + 8 + 14}px` }}
         >
           {isSelected && (

@@ -112,6 +112,40 @@ function BrowserClientInner({
     }
   }, [scrollToLine, mode, setParams]);
 
+  // --- Glowing paths (5s green glow for refresh/create/update) ---
+
+  const [glowingPaths, setGlowingPaths] = useState<Set<string>>(new Set());
+  const glowTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
+  const addGlow = useCallback((path: string) => {
+    setGlowingPaths((prev) => {
+      const next = new Set(prev);
+      next.add(path);
+      return next;
+    });
+    // Clear previous timer for this path (re-glow extends duration)
+    const existing = glowTimersRef.current.get(path);
+    if (existing) clearTimeout(existing);
+    const timer = setTimeout(() => {
+      setGlowingPaths((prev) => {
+        const next = new Set(prev);
+        next.delete(path);
+        return next;
+      });
+      glowTimersRef.current.delete(path);
+    }, 5000);
+    glowTimersRef.current.set(path, timer);
+  }, []);
+
+  // Clean up glow timers on unmount
+  useEffect(() => {
+    const timers = glowTimersRef.current;
+    return () => {
+      for (const timer of timers.values()) clearTimeout(timer);
+      timers.clear();
+    };
+  }, []);
+
   // --- Hooks ---
 
   const fileNav = useFileNavigation({
@@ -124,6 +158,7 @@ function BrowserClientInner({
     fetchGitDiff,
     setUrlFile: (file) => setParams({ file, line: null }, { history: 'push' }),
     setUrlMode: (m) => setParams({ mode: m as 'edit' | 'preview' | 'diff' }),
+    onFileRefreshed: addGlow,
   });
 
   const panelState = usePanelState({
@@ -216,6 +251,15 @@ function BrowserClientInner({
       fileNav.handleRefreshDir(dir);
     }
     treeChanges.clearAll();
+  }, [treeChanges.hasChanges]);
+
+  // Feed SSE glow paths into glowing state
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — only trigger on hasChanges flip
+  useEffect(() => {
+    if (!treeChanges.hasChanges) return;
+    for (const path of treeChanges.glowPaths) {
+      addGlow(path);
+    }
   }, [treeChanges.hasChanges]);
 
   // Phase 5: Sync working changes into WorkspaceContext for tab title attention
@@ -477,7 +521,7 @@ function BrowserClientInner({
                   entries={initialEntries}
                   selectedFile={selectedFile}
                   changedFiles={panelState.changedFiles}
-                  newlyAddedPaths={treeChanges.newPaths}
+                  glowingPaths={glowingPaths}
                   onSelect={fileNav.handleSelect}
                   onExpand={fileNav.handleExpand}
                   childEntries={fileNav.childEntries}

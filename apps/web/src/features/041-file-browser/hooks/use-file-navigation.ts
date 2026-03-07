@@ -32,6 +32,7 @@ interface UseFileNavigationOptions {
   fetchGitDiff: (filePath: string, cwd: string) => Promise<DiffResult>;
   setUrlFile: (file: string) => void;
   setUrlMode: (mode: string) => void;
+  onFileRefreshed?: (path: string) => void;
 }
 
 export function useFileNavigation(options: UseFileNavigationOptions) {
@@ -44,6 +45,7 @@ export function useFileNavigation(options: UseFileNavigationOptions) {
     fetchGitDiff: fetchGitDiffFn,
     setUrlFile,
     setUrlMode,
+    onFileRefreshed,
   } = options;
 
   const [childEntries, setChildEntries] = useState<Record<string, FileEntry[]>>({});
@@ -211,14 +213,14 @@ export function useFileNavigation(options: UseFileNavigationOptions) {
     setFileData(result);
     if (result.ok && !result.isBinary) {
       setEditContent(result.content);
-      toast.info('File refreshed');
+      onFileRefreshed?.(initialFile);
     }
     setDiffCache((prev) => {
       const next = { ...prev };
       delete next[initialFile];
       return next;
     });
-  }, [slug, worktreePath, initialFile, readFileFn]);
+  }, [slug, worktreePath, initialFile, readFileFn, onFileRefreshed]);
 
   return {
     childEntries,
