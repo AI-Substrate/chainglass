@@ -30,6 +30,8 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: '250mb',
     },
+    // Raise proxy body buffering limit to match (default 10MB)
+    proxyClientMaxBodySize: '250mb',
   },
   // Enable Turbopack (default in Next.js 16) - empty config acknowledges migration
   turbopack: {},
