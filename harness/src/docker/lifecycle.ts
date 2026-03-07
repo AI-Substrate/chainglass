@@ -8,6 +8,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import path from 'node:path';
+import { computePorts } from '../ports/allocator.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -22,12 +23,23 @@ export interface ExecResult {
   exitCode: number;
 }
 
+function getComposeEnv(): Record<string, string> {
+  const ports = computePorts();
+  return {
+    ...process.env as Record<string, string>,
+    HARNESS_APP_PORT: String(ports.app),
+    HARNESS_TERMINAL_PORT: String(ports.terminal),
+    HARNESS_CDP_PORT: String(ports.cdp),
+    HARNESS_WORKTREE: ports.worktree,
+  };
+}
+
 async function runCompose(...args: string[]): Promise<ExecResult> {
   try {
     const { stdout, stderr } = await execFileAsync(
       'docker',
       ['compose', '-f', COMPOSE_FILE, ...args],
-      { timeout: 300_000 },
+      { timeout: 300_000, env: getComposeEnv() },
     );
     return { stdout, stderr, exitCode: 0 };
   } catch (err: unknown) {
@@ -73,4 +85,26 @@ export async function isDockerAvailable(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+export async function getContainerAge(): Promise<number | null> {
+  const ports = computePorts();
+  const containerName = `chainglass-${ports.worktree}`;
+  try {
+    const { stdout } = await execFileAsync(
+      'docker',
+      ['inspect', '--format', '{{.State.StartedAt}}', containerName],
+      { timeout: 5000 },
+    );
+    const started = new Date(stdout.trim());
+    if (Number.isNaN(started.getTime())) return null;
+    return Math.round((Date.now() - started.getTime()) / 1000);
+  } catch {
+    return null;
+  }
+}
+
+export async function getContainerLogs(lines = 10): Promise<string> {
+  const result = await runCompose('logs', '--tail', String(lines), '--no-color');
+  return result.stdout || result.stderr;
 }

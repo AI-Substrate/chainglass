@@ -47,6 +47,24 @@ just harness health
 # Returns: {"command":"health","status":"ok","data":{"status":"ok","app":{"status":"up",...},...}}
 ```
 
+### Doctor (Diagnostics)
+
+Like `flutter doctor` — runs layered checks and tells you exactly what's wrong and how to fix it.
+
+```bash
+just harness doctor              # One-shot diagnostic
+just harness doctor --wait       # Wait for harness to become healthy (up to 5 min)
+just harness doctor --wait 60    # Custom timeout in seconds
+```
+
+**Always start here** when something isn't working. Doctor checks Docker → Ports → Container → App → Services in order.
+
+**Cold boot**: First boot takes ~2-3 min (installs deps + builds). Use `--wait` to let it finish automatically.
+
+### `.env` Port Cache
+
+Every CLI command auto-generates `harness/.env` with the computed ports. This means `docker compose` commands also use the correct ports, even when run directly. The `.env` is gitignored and regenerated on every CLI call.
+
 ## Interact
 
 ### Endpoints (dynamic per worktree)
@@ -66,7 +84,9 @@ All commands return `{command, status, data?, error?}` JSON to stdout.
 
 | Command | Description |
 |---------|-------------|
-| `just harness health` | Probe all endpoints |
+| `just harness doctor` | Run diagnostic checks with actionable fixes |
+| `just harness doctor --wait` | Wait for harness to become healthy (up to 5 min) |
+| `just harness health` | Quick status probe (JSON) |
 | `just harness test --suite smoke` | Run Playwright smoke tests |
 | `just harness test --viewport mobile` | Run tests at mobile viewport |
 | `just harness screenshot <name>` | Capture screenshot via CDP |
@@ -163,3 +183,14 @@ The harness tests three viewport tiers:
 | Phase 2 | Playwright + CDP integration + browser smoke tests | 2026-03-07 |
 | Phase 3 | CLI SDK with 9 commands + SDK helpers + dynamic ports | 2026-03-07 |
 | Phase 4 | Seed scripts + route/MCP/responsive tests + this doc | 2026-03-07 |
+| FX001 | Doctor command + .env port cache + prompt templates | 2026-03-07 |
+
+## Prompt Templates
+
+Reusable agent task templates live in `harness/prompts/`. These are the agent-facing API for the harness — versioned, discoverable, iterable.
+
+| Prompt | Description |
+|--------|-------------|
+| `harness/prompts/screenshot-audit.md` | Boot harness, screenshot at 3 viewports, report findings |
+
+When creating a new harness task for an agent, write a prompt template and commit it to `harness/prompts/`.

@@ -241,6 +241,10 @@ The harness provides a Docker-containerized dev environment with browser automat
 # Port allocation (unique per worktree)
 just harness ports          # Show this worktree's port allocation
 
+# Diagnostics (start here when something's wrong)
+just harness doctor         # Run diagnostic checks with actionable fixes
+just harness doctor --wait  # Wait for harness to become healthy (cold boot ~2-3 min)
+
 # Lifecycle
 just harness dev            # Start container (auto-computes ports)
 just harness stop           # Stop container

@@ -247,3 +247,11 @@ No new domains. Harness is external tooling at `harness/` in repo root.
 ---
 
 **Next step**: Run `/plan-5-v2-phase-tasks-and-brief` for Phase 1 dossier, then implement.
+
+---
+
+## Fixes
+
+| ID | Created | Summary | Domain(s) | Status | Source |
+|----|---------|---------|-----------|--------|--------|
+| FX001 | 2026-03-07 | Harness doctor command + port persistence + prompt improvements | external, cross-domain | Proposed | [Test Run #1 retro](workshops/004-test-run-001-retro.md) |
