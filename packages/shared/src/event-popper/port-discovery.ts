@@ -1,5 +1,12 @@
-import { existsSync, readFileSync, writeFileSync, unlinkSync, mkdirSync, renameSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { dirname, join } from 'node:path';
 import { z } from 'zod';
 
 /**
@@ -48,7 +55,10 @@ function getProcessStartTime(pid: number): number | null {
   try {
     if (process.platform === 'darwin') {
       const { execSync } = require('node:child_process');
-      const output = execSync(`ps -o lstart= -p ${pid}`, { encoding: 'utf-8', timeout: 3000 }).trim();
+      const output = execSync(`ps -o lstart= -p ${pid}`, {
+        encoding: 'utf-8',
+        timeout: 3000,
+      }).trim();
       if (!output) return null;
       const parsed = new Date(output).getTime();
       return Number.isNaN(parsed) ? null : parsed;

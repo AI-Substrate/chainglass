@@ -45,7 +45,7 @@ import {
   YamlParserAdapter,
 } from '@chainglass/shared';
 // Plan 059: Import FakeWorkUnitStateService for test container
-import { FakeWorkUnitStateService, FakeQuestionPopperService } from '@chainglass/shared/fakes';
+import { FakeQuestionPopperService, FakeWorkUnitStateService } from '@chainglass/shared/fakes';
 // Plan 019: Import AgentManagerService for central agent registry
 import {
   type AdapterFactory as AgentAdapterFactory,
@@ -61,10 +61,10 @@ import {
 // Plan 027: Import CentralEventNotifier types from shared
 import type { ICentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events';
 import { FakeCentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events';
-// Plan 059: WorkUnitStateService for centralized work unit status registry
-import type { IWorkUnitStateService } from '@chainglass/shared/interfaces/work-unit-state.interface';
 // Plan 067: QuestionPopperService for external question/answer lifecycle
 import type { IQuestionPopperService } from '@chainglass/shared/interfaces';
+// Plan 059: WorkUnitStateService for centralized work unit status registry
+import type { IWorkUnitStateService } from '@chainglass/shared/interfaces/work-unit-state.interface';
 // Plan 014 Phase 6: Import workspace services from @chainglass/workflow
 // Plan 018 Phase 2: Import AgentEventAdapter for workspace-scoped event storage
 // Plan 018 Phase 3: Import AgentSessionAdapter and AgentSessionService
@@ -116,12 +116,12 @@ import { SSEManagerBroadcaster } from '../features/019-agent-manager-refactor/ss
 import { CentralEventNotifierService } from '../features/027-central-notify-events/central-event-notifier.service';
 // Plan 059: AgentWorkUnitBridge (agent lifecycle → work-unit-state)
 import { AgentWorkUnitBridge } from '../features/059-fix-agents/agent-work-unit-bridge';
+// Plan 067: QuestionPopperService (real implementation)
+import { QuestionPopperService } from '../features/067-question-popper/lib/question-popper.service';
 import { SampleService } from '../services/sample.service';
 import { sseManager } from './sse-manager';
 // Plan 059: WorkUnitStateService (real implementation)
 import { WorkUnitStateService } from './work-unit-state/work-unit-state.service';
-// Plan 067: QuestionPopperService (real implementation)
-import { QuestionPopperService } from '../features/067-question-popper/lib/question-popper.service';
 
 // Token constants for type-safe resolution
 export const DI_TOKENS = {
@@ -596,34 +596,29 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
   // ==================== Plan 067: QuestionPopperService ====================
   // Singleton: one service per process. Rehydrates from disk on construction.
   let questionPopperInstance: IQuestionPopperService | null = null;
-  childContainer.register<IQuestionPopperService>(
-    WORKSPACE_DI_TOKENS.QUESTION_POPPER_SERVICE,
-    {
-      useFactory: (c) => {
-        if (questionPopperInstance) return questionPopperInstance;
-        if (!resolvedWorktreePath) {
-          try {
-            const { execSync } = require('node:child_process');
-            resolvedWorktreePath = execSync('git rev-parse --show-toplevel', {
-              encoding: 'utf-8',
-              cwd: process.cwd(),
-            }).trim();
-          } catch {
-            resolvedWorktreePath = process.cwd();
-            console.warn('[DI] Failed to resolve git worktree root, falling back to cwd');
-          }
+  childContainer.register<IQuestionPopperService>(WORKSPACE_DI_TOKENS.QUESTION_POPPER_SERVICE, {
+    useFactory: (c) => {
+      if (questionPopperInstance) return questionPopperInstance;
+      if (!resolvedWorktreePath) {
+        try {
+          const { execSync } = require('node:child_process');
+          resolvedWorktreePath = execSync('git rev-parse --show-toplevel', {
+            encoding: 'utf-8',
+            cwd: process.cwd(),
+          }).trim();
+        } catch {
+          resolvedWorktreePath = process.cwd();
+          console.warn('[DI] Failed to resolve git worktree root, falling back to cwd');
         }
-        const notifier = c.resolve<ICentralEventNotifier>(
-          WORKSPACE_DI_TOKENS.CENTRAL_EVENT_NOTIFIER
-        );
-        questionPopperInstance = new QuestionPopperService(
-          resolvedWorktreePath ?? process.cwd(),
-          notifier
-        );
-        return questionPopperInstance;
-      },
-    }
-  );
+      }
+      const notifier = c.resolve<ICentralEventNotifier>(WORKSPACE_DI_TOKENS.CENTRAL_EVENT_NOTIFIER);
+      questionPopperInstance = new QuestionPopperService(
+        resolvedWorktreePath ?? process.cwd(),
+        notifier
+      );
+      return questionPopperInstance;
+    },
+  });
 
   // FIX-010: Performance metrics for container creation
   const durationMs = performance.now() - startTime;
@@ -839,12 +834,9 @@ export function createTestContainer(): DependencyContainer {
 
   // ==================== Plan 067: QuestionPopperService (Fake) ====================
 
-  childContainer.register<IQuestionPopperService>(
-    WORKSPACE_DI_TOKENS.QUESTION_POPPER_SERVICE,
-    {
-      useValue: new FakeQuestionPopperService(),
-    }
-  );
+  childContainer.register<IQuestionPopperService>(WORKSPACE_DI_TOKENS.QUESTION_POPPER_SERVICE, {
+    useValue: new FakeQuestionPopperService(),
+  });
 
   return childContainer;
 }

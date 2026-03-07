@@ -46,8 +46,5 @@ export function localhostGuard(request: NextRequest): NextResponse | null {
     return null;
   }
 
-  return NextResponse.json(
-    { error: 'Forbidden: localhost only' },
-    { status: 403 },
-  );
+  return NextResponse.json({ error: 'Forbidden: localhost only' }, { status: 403 });
 }

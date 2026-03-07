@@ -28,9 +28,7 @@ export async function register() {
     if (!globalForEventPopper.__eventPopperServerInfoWritten) {
       globalForEventPopper.__eventPopperServerInfoWritten = true;
 
-      const { writeServerInfo, removeServerInfo } = await import(
-        '@chainglass/shared/event-popper'
-      );
+      const { writeServerInfo, removeServerInfo } = await import('@chainglass/shared/event-popper');
       const worktreePath = process.cwd();
       const port = Number.parseInt(process.env.PORT ?? '3000', 10);
 

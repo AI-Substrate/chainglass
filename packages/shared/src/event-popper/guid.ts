@@ -17,10 +17,7 @@ let lastTimestamp = '';
 let sameMsSequence = 0;
 
 export function generateEventId(): string {
-  const timestamp = new Date()
-    .toISOString()
-    .replace(/:/g, '-')
-    .replace(/\./g, '-');
+  const timestamp = new Date().toISOString().replace(/:/g, '-').replace(/\./g, '-');
 
   sameMsSequence = timestamp === lastTimestamp ? sameMsSequence + 1 : 0;
   lastTimestamp = timestamp;

@@ -1,18 +1,18 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { existsSync, mkdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   EventPopperRequestSchema,
   EventPopperResponseSchema,
   generateEventId,
   readServerInfo,
-  writeServerInfo,
   removeServerInfo,
+  writeServerInfo,
 } from '@chainglass/shared/event-popper';
 import { detectTmuxContext, getTmuxMeta } from '@chainglass/shared/event-popper';
-import { isLocalhostRequest, localhostGuard } from '../../../apps/web/src/lib/localhost-guard.js';
-import { existsSync, mkdirSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
-import { tmpdir } from 'node:os';
 import { NextRequest } from 'next/server';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { isLocalhostRequest, localhostGuard } from '../../../apps/web/src/lib/localhost-guard.js';
 
 /*
 Test Doc:
@@ -140,7 +140,10 @@ describe('port-discovery', () => {
   let testDir: string;
 
   beforeEach(() => {
-    testDir = join(tmpdir(), `event-popper-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    testDir = join(
+      tmpdir(),
+      `event-popper-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    );
     mkdirSync(testDir, { recursive: true });
   });
 
@@ -205,17 +208,17 @@ describe('detectTmuxContext', () => {
     if (originalTmux !== undefined) {
       process.env.TMUX = originalTmux;
     } else {
-      delete process.env.TMUX;
+      process.env.TMUX = undefined;
     }
     if (originalPane !== undefined) {
       process.env.TMUX_PANE = originalPane;
     } else {
-      delete process.env.TMUX_PANE;
+      process.env.TMUX_PANE = undefined;
     }
   });
 
   it('returns undefined when $TMUX is not set', () => {
-    delete process.env.TMUX;
+    process.env.TMUX = undefined;
     const result = detectTmuxContext();
     expect(result).toBeUndefined();
   });
@@ -232,7 +235,7 @@ describe('detectTmuxContext', () => {
 describe('getTmuxMeta', () => {
   it('returns undefined when not in tmux', () => {
     const original = process.env.TMUX;
-    delete process.env.TMUX;
+    process.env.TMUX = undefined;
     const result = getTmuxMeta();
     expect(result).toBeUndefined();
     if (original !== undefined) process.env.TMUX = original;
@@ -324,7 +327,10 @@ describe('readServerInfo recycled PID', () => {
   let testDir: string;
 
   beforeEach(() => {
-    testDir = join(tmpdir(), `event-popper-recycle-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    testDir = join(
+      tmpdir(),
+      `event-popper-recycle-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    );
     mkdirSync(testDir, { recursive: true });
   });
 
