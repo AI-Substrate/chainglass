@@ -1,0 +1,2090 @@
+diff --git a/apps/web/app/actions/file-actions.ts b/apps/web/app/actions/file-actions.ts
+index 231d530..38b6e53 100644
+--- a/apps/web/app/actions/file-actions.ts
++++ b/apps/web/app/actions/file-actions.ts
+@@ -220,3 +220,82 @@ export async function pathExists(
+     return false;
+   }
+ }
++
++// ==================== File Mutation Actions — Plan 068 ====================
++
++export type {
++  CreateResult,
++  DeleteResult,
++  RenameResult,
++} from '../../src/features/041-file-browser/services/file-mutation-actions';
++
++export async function createFile(
++  slug: string,
++  worktreePath: string,
++  dirPath: string,
++  fileName: string
++): Promise<
++  import('../../src/features/041-file-browser/services/file-mutation-actions').CreateResult
++> {
++  await requireAuth();
++  const container = getContainer();
++  const fileSystem = container.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
++  const pathResolver = container.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
++  const { createFileService } = await import(
++    '../../src/features/041-file-browser/services/file-mutation-actions'
++  );
++  return createFileService({ worktreePath, dirPath, fileName, fileSystem, pathResolver });
++}
++
++export async function createFolder(
++  slug: string,
++  worktreePath: string,
++  dirPath: string,
++  folderName: string
++): Promise<
++  import('../../src/features/041-file-browser/services/file-mutation-actions').CreateResult
++> {
++  await requireAuth();
++  const container = getContainer();
++  const fileSystem = container.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
++  const pathResolver = container.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
++  const { createFolderService } = await import(
++    '../../src/features/041-file-browser/services/file-mutation-actions'
++  );
++  return createFolderService({ worktreePath, dirPath, folderName, fileSystem, pathResolver });
++}
++
++export async function deleteItem(
++  slug: string,
++  worktreePath: string,
++  itemPath: string
++): Promise<
++  import('../../src/features/041-file-browser/services/file-mutation-actions').DeleteResult
++> {
++  await requireAuth();
++  const container = getContainer();
++  const fileSystem = container.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
++  const pathResolver = container.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
++  const { deleteItemService } = await import(
++    '../../src/features/041-file-browser/services/file-mutation-actions'
++  );
++  return deleteItemService({ worktreePath, itemPath, fileSystem, pathResolver });
++}
++
++export async function renameItem(
++  slug: string,
++  worktreePath: string,
++  oldPath: string,
++  newName: string
++): Promise<
++  import('../../src/features/041-file-browser/services/file-mutation-actions').RenameResult
++> {
++  await requireAuth();
++  const container = getContainer();
++  const fileSystem = container.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
++  const pathResolver = container.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
++  const { renameItemService } = await import(
++    '../../src/features/041-file-browser/services/file-mutation-actions'
++  );
++  return renameItemService({ worktreePath, oldPath, newName, fileSystem, pathResolver });
++}
+diff --git a/apps/web/src/features/041-file-browser/lib/validate-filename.ts b/apps/web/src/features/041-file-browser/lib/validate-filename.ts
+new file mode 100644
+index 0000000..fc71a88
+--- /dev/null
++++ b/apps/web/src/features/041-file-browser/lib/validate-filename.ts
+@@ -0,0 +1,44 @@
++// Candidate for packages/shared if needed outside file-browser
++
++export type ValidateFileNameResult =
++  | { ok: true }
++  | { ok: false; error: 'empty' | 'reserved' | 'invalid-char'; char?: string };
++
++/** Characters that are invalid in git-portable filenames (Windows compat) */
++const INVALID_CHARS = /[/\\:\0*?"<>|]/;
++
++/**
++ * Validate a file or folder name for git-portable safety.
++ *
++ * Rejects: empty, whitespace-only, reserved (`.`, `..`),
++ * git-portable invalid chars (/ \ : * ? " < > | NUL),
++ * trailing spaces, and trailing dots (Windows issues).
++ */
++export function validateFileName(name: string): ValidateFileNameResult {
++  const trimmed = name.trim();
++
++  if (trimmed.length === 0) {
++    return { ok: false, error: 'empty' };
++  }
++
++  if (trimmed === '.' || trimmed === '..') {
++    return { ok: false, error: 'reserved' };
++  }
++
++  const match = INVALID_CHARS.exec(name);
++  if (match) {
++    return { ok: false, error: 'invalid-char', char: match[0] };
++  }
++
++  // Trailing spaces cause issues on Windows NTFS
++  if (name !== name.trimEnd()) {
++    return { ok: false, error: 'invalid-char', char: ' ' };
++  }
++
++  // Trailing dots cause issues on Windows
++  if (name.endsWith('.') && name !== '.' && name !== '..') {
++    return { ok: false, error: 'invalid-char', char: '.' };
++  }
++
++  return { ok: true };
++}
+diff --git a/apps/web/src/features/041-file-browser/services/file-mutation-actions.ts b/apps/web/src/features/041-file-browser/services/file-mutation-actions.ts
+new file mode 100644
+index 0000000..19deb80
+--- /dev/null
++++ b/apps/web/src/features/041-file-browser/services/file-mutation-actions.ts
+@@ -0,0 +1,239 @@
++/**
++ * File Mutation Actions — create, delete, rename
++ *
++ * Secure file/folder CRUD operations with path security,
++ * duplicate detection, filename validation, and typed results.
++ *
++ * Plan 068: Add File/Folder Features — Phase 1
++ */
++
++import * as nodePath from 'node:path';
++import type { IFileSystem, IPathResolver } from '@chainglass/shared';
++import { PathSecurityError } from '@chainglass/shared';
++import { validateFileName } from '../lib/validate-filename';
++
++// ==================== Result Types ====================
++
++export type CreateResult =
++  | { ok: true; path: string }
++  | { ok: false; error: 'exists' | 'security' | 'invalid-name'; message: string };
++
++export type DeleteResult =
++  | { ok: true }
++  | {
++      ok: false;
++      error: 'not-found' | 'security' | 'too-large';
++      message: string;
++      itemCount?: number;
++    };
++
++export type RenameResult =
++  | { ok: true; oldPath: string; newPath: string }
++  | { ok: false; error: 'not-found' | 'exists' | 'security' | 'invalid-name'; message: string };
++
++// ==================== Options Interfaces ====================
++
++export interface CreateFileOptions {
++  worktreePath: string;
++  /** Directory relative to worktree root where the file will be created */
++  dirPath: string;
++  /** File name (not a path — validated for git-portable characters) */
++  fileName: string;
++  fileSystem: IFileSystem;
++  pathResolver: IPathResolver;
++}
++
++export interface CreateFolderOptions {
++  worktreePath: string;
++  /** Directory relative to worktree root where the folder will be created */
++  dirPath: string;
++  /** Folder name (not a path — validated for git-portable characters) */
++  folderName: string;
++  fileSystem: IFileSystem;
++  pathResolver: IPathResolver;
++}
++
++export interface DeleteItemOptions {
++  worktreePath: string;
++  /** Path relative to worktree root of the item to delete */
++  itemPath: string;
++  fileSystem: IFileSystem;
++  pathResolver: IPathResolver;
++}
++
++export interface RenameItemOptions {
++  worktreePath: string;
++  /** Current path relative to worktree root */
++  oldPath: string;
++  /** New name (not a path — validated for git-portable characters) */
++  newName: string;
++  fileSystem: IFileSystem;
++  pathResolver: IPathResolver;
++}
++
++// ==================== Constants ====================
++
++/** Maximum direct children before rejecting folder deletion */
++export const MAX_DELETE_CHILDREN = 5000;
++
++// ==================== Shared Helpers ====================
++
++/**
++ * Resolve and validate a path within the worktree.
++ * Returns the absolute path, or a security error result.
++ * DYK-01: For create ops, pass the parent directory path (target doesn't exist yet).
++ */
++async function resolveAndValidatePath(
++  worktreePath: string,
++  relativePath: string,
++  fileSystem: IFileSystem,
++  pathResolver: IPathResolver
++): Promise<{ absolutePath: string } | { ok: false; error: 'security'; message: string }> {
++  let absolutePath: string;
++  try {
++    absolutePath = pathResolver.resolvePath(worktreePath, relativePath);
++  } catch (e) {
++    if (e instanceof PathSecurityError) {
++      return { ok: false, error: 'security', message: `Path security violation: ${relativePath}` };
++    }
++    throw e;
++  }
++
++  // Symlink escape check: resolve real path and verify containment
++  try {
++    const checkPath = (await fileSystem.exists(absolutePath))
++      ? absolutePath
++      : nodePath.dirname(absolutePath);
++    if (await fileSystem.exists(checkPath)) {
++      const realPath = await fileSystem.realpath(checkPath);
++      const normalizedRoot = worktreePath.endsWith('/') ? worktreePath : `${worktreePath}/`;
++      if (realPath !== worktreePath && !realPath.startsWith(normalizedRoot)) {
++        return { ok: false, error: 'security', message: 'Symlink escape detected' };
++      }
++    }
++  } catch {
++    // realpath failure on non-existent parent is OK for create ops
++  }
++
++  return { absolutePath };
++}
++
++// ==================== Service Functions ====================
++
++export async function createFileService(options: CreateFileOptions): Promise<CreateResult> {
++  const { worktreePath, dirPath, fileName, fileSystem, pathResolver } = options;
++
++  const nameCheck = validateFileName(fileName);
++  if (!nameCheck.ok) {
++    return { ok: false, error: 'invalid-name', message: `Invalid filename: ${fileName}` };
++  }
++
++  const relativePath = dirPath ? `${dirPath}/${fileName}` : fileName;
++  const resolved = await resolveAndValidatePath(
++    worktreePath,
++    relativePath,
++    fileSystem,
++    pathResolver
++  );
++  if ('ok' in resolved) return resolved;
++
++  if (await fileSystem.exists(resolved.absolutePath)) {
++    return { ok: false, error: 'exists', message: `Already exists: ${relativePath}` };
++  }
++
++  await fileSystem.writeFile(resolved.absolutePath, '');
++  return { ok: true, path: relativePath };
++}
++
++export async function createFolderService(options: CreateFolderOptions): Promise<CreateResult> {
++  const { worktreePath, dirPath, folderName, fileSystem, pathResolver } = options;
++
++  const nameCheck = validateFileName(folderName);
++  if (!nameCheck.ok) {
++    return { ok: false, error: 'invalid-name', message: `Invalid folder name: ${folderName}` };
++  }
++
++  const relativePath = dirPath ? `${dirPath}/${folderName}` : folderName;
++  const resolved = await resolveAndValidatePath(
++    worktreePath,
++    relativePath,
++    fileSystem,
++    pathResolver
++  );
++  if ('ok' in resolved) return resolved;
++
++  if (await fileSystem.exists(resolved.absolutePath)) {
++    return { ok: false, error: 'exists', message: `Already exists: ${relativePath}` };
++  }
++
++  await fileSystem.mkdir(resolved.absolutePath, { recursive: true });
++  return { ok: true, path: relativePath };
++}
++
++export async function deleteItemService(options: DeleteItemOptions): Promise<DeleteResult> {
++  const { worktreePath, itemPath, fileSystem, pathResolver } = options;
++
++  const resolved = await resolveAndValidatePath(worktreePath, itemPath, fileSystem, pathResolver);
++  if ('ok' in resolved) return resolved;
++
++  if (!(await fileSystem.exists(resolved.absolutePath))) {
++    return { ok: false, error: 'not-found', message: `Not found: ${itemPath}` };
++  }
++
++  const stats = await fileSystem.stat(resolved.absolutePath);
++
++  if (stats.isDirectory) {
++    // Safety check: reject folders with too many direct children
++    const children = await fileSystem.readDir(resolved.absolutePath);
++    if (children.length > MAX_DELETE_CHILDREN) {
++      return {
++        ok: false,
++        error: 'too-large',
++        message: `Folder has ${children.length} items — too many to delete from the browser`,
++        itemCount: children.length,
++      };
++    }
++    await fileSystem.rmdir(resolved.absolutePath, { recursive: true });
++  } else {
++    await fileSystem.unlink(resolved.absolutePath);
++  }
++
++  return { ok: true };
++}
++
++export async function renameItemService(options: RenameItemOptions): Promise<RenameResult> {
++  const { worktreePath, oldPath, newName, fileSystem, pathResolver } = options;
++
++  const nameCheck = validateFileName(newName);
++  if (!nameCheck.ok) {
++    return { ok: false, error: 'invalid-name', message: `Invalid name: ${newName}` };
++  }
++
++  // Resolve source path
++  const oldResolved = await resolveAndValidatePath(worktreePath, oldPath, fileSystem, pathResolver);
++  if ('ok' in oldResolved) return oldResolved;
++
++  if (!(await fileSystem.exists(oldResolved.absolutePath))) {
++    return { ok: false, error: 'not-found', message: `Not found: ${oldPath}` };
++  }
++
++  // Compute new relative path: same parent directory + new name
++  const parentDir = nodePath.dirname(oldPath);
++  const newRelativePath = parentDir === '.' ? newName : `${parentDir}/${newName}`;
++
++  // Resolve destination path
++  const newResolved = await resolveAndValidatePath(
++    worktreePath,
++    newRelativePath,
++    fileSystem,
++    pathResolver
++  );
++  if ('ok' in newResolved) return newResolved;
++
++  if (await fileSystem.exists(newResolved.absolutePath)) {
++    return { ok: false, error: 'exists', message: `Already exists: ${newRelativePath}` };
++  }
++
++  await fileSystem.rename(oldResolved.absolutePath, newResolved.absolutePath);
++  return { ok: true, oldPath, newPath: newRelativePath };
++}
+diff --git a/docs/domains/file-browser/domain.md b/docs/domains/file-browser/domain.md
+index 49ccb78..5d9787b 100644
+--- a/docs/domains/file-browser/domain.md
++++ b/docs/domains/file-browser/domain.md
+@@ -21,7 +21,7 @@ Workspace-scoped file browsing, editing, and diffing. The core feature that make
+ - Directory listing service — `git ls-files -- <dir>` with readDir fallback (per-directory lazy, `FileEntry{name, type, path}`)
+ - File list service — `git ls-files --cached --others` + `fs.stat` for full-tree flat listing (`FileListEntry{path, mtime}`). Distinct from directory-listing: returns all files in one call with mtimes for sort-by-recent in file search cache. Directory-listing is scoped to a single directory for tree expansion.
+ - Changed-files service — `git diff --name-only` for filter
+-- File server actions — readFile (size limit, binary detection, symlink check), saveFile (mtime conflict, atomic write)
++- File server actions — readFile (size limit, binary detection, symlink check), saveFile (mtime conflict, atomic write), createFile, createFolder, deleteItem, renameItem (path security, duplicate detection, filename validation)
+ - Files API route — `GET /api/workspaces/[slug]/files` for client-side directory fetching
+ - File browser URL params — `fileBrowserParams` (dir, file, mode, changed)
+ - Landing page components — WorkspaceCard, FleetStatusBar (Phase 3)
+@@ -68,6 +68,11 @@ Workspace-scoped file browsing, editing, and diffing. The core feature that make
+ | Recent files service | git log --name-only parser | execFile |
+ | readFile action | Read + security checks | IFileSystem (stat, readFile, realpath), IPathResolver |
+ | saveFile action | Atomic write + conflict detection | IFileSystem (stat, writeFile, rename), IPathResolver |
++| createFileService | Create empty file + security + duplicate check | IFileSystem (writeFile, exists, realpath), IPathResolver, validateFileName |
++| createFolderService | Create directory + security + duplicate check | IFileSystem (mkdir, exists, realpath), IPathResolver, validateFileName |
++| deleteItemService | Delete file/folder + security + size guard | IFileSystem (unlink, rmdir, stat, readDir, realpath), IPathResolver |
++| renameItemService | Rename file/folder + security + destination check | IFileSystem (rename, exists, realpath), IPathResolver, validateFileName |
++| validateFileName | Git-portable filename validation | None (pure function) |
+ | fileExists action | Lightweight stat check for ExplorerPanel | IFileSystem, IPathResolver |
+ | Files API route | GET handler for client fetch | Directory listing service |
+ | Raw file API route | Streaming binary file delivery with Range support | IFileSystem, IPathResolver |
+@@ -98,11 +103,13 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
+ | `apps/web/src/features/041-file-browser/services/directory-listing.ts` | Directory listing | Phase 4 |
+ | `apps/web/src/features/041-file-browser/services/changed-files.ts` | Changed files filter | Phase 4 |
+ | `apps/web/src/features/041-file-browser/services/file-actions.ts` | readFile + saveFile service logic | Phase 4 |
++| `apps/web/src/features/041-file-browser/services/file-mutation-actions.ts` | createFile, createFolder, deleteItem, renameItem service logic | Plan 068 Phase 1 |
++| `apps/web/src/features/041-file-browser/lib/validate-filename.ts` | Git-portable filename validation | Plan 068 Phase 1 |
+ | `apps/web/src/features/041-file-browser/components/file-tree.tsx` | FileTree | Phase 4 |
+ | `apps/web/src/features/041-file-browser/components/code-editor.tsx` | CodeEditor wrapper | Phase 4 |
+ | `apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx` | FileViewerPanel | Phase 4, FX001-7 |
+ | `apps/web/src/features/041-file-browser/components/markdown-preview.tsx` | MarkdownPreview (mermaid activation) | FX001-7 |
+-| `apps/web/app/actions/file-actions.ts` | Server actions (readFile, saveFile, fetchGitDiff, fetchChangedFiles, fetchWorkingChanges, fetchRecentFiles, fileExists, uploadFile) | Phase 4, FX001, Plan 043, Plan 044 |
++| `apps/web/app/actions/file-actions.ts` | Server actions (readFile, saveFile, fetchGitDiff, fetchChangedFiles, fetchWorkingChanges, fetchRecentFiles, fileExists, uploadFile, createFile, createFolder, deleteItem, renameItem) | Phase 4, FX001, Plan 043, Plan 044, Plan 068 |
+ | `apps/web/app/api/workspaces/[slug]/files/route.ts` | Files API route | Phase 4 |
+ | `apps/web/app/(dashboard)/workspaces/[slug]/browser/page.tsx` | Browser page (Server Component) | Phase 4 |
+ | `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | BrowserClient (Client Component shell) | Phase 4, FX001 |
+@@ -171,3 +178,4 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
+ | Plan 049 Feature 2 | File search via ExplorerPanel: getFileList service (git ls-files + fs.stat), file-filter utilities (substring/glob/sort), useFileFilter hook (Map cache + SSE deltas + debounce), fetchFileList server action, BrowserClient wiring | 2026-02-26 |
+ | Plan 051 | FlowSpace code search: useFlowspaceSearch hook (debounce, availability, graph age), BrowserClient wiring for `#` text and `$` semantic search modes, context menu on FlowSpace results | 2026-02-26 |
+ | Plan 053 P5 | GlobalStateSystem worktree exemplar: registerWorktreeState (multi-instance domain), WorktreeStatePublisher (useFileChanges → state), WorktreeStateSubtitle (sidebar consumer), GlobalStateConnector wiring in browser-client.tsx | 2026-02-27 |
++| Plan 068 Phase 1 | File CRUD service layer: createFileService, createFolderService, deleteItemService, renameItemService with path security + validateFileName utility + 4 server actions | 2026-03-07 |
+diff --git a/docs/plans/068-add-files/add-files-plan.md b/docs/plans/068-add-files/add-files-plan.md
+new file mode 100644
+index 0000000..69cabc6
+--- /dev/null
++++ b/docs/plans/068-add-files/add-files-plan.md
+@@ -0,0 +1,184 @@
++# Add File/Folder Features — Implementation Plan
++
++**Plan Version**: 1.0.0
++**Created**: 2026-03-07
++**Spec**: [add-files-spec.md](./add-files-spec.md)
++**Exploration**: [exploration.md](./exploration.md)
++**Status**: DRAFT
++
++## Summary
++
++Users cannot create, rename, or delete files in the file browser — they must switch to an external tool. This plan adds inline file/folder CRUD to the tree panel: hover buttons for create, Enter/F2 for rename, context menu for rename and delete. The approach is layered — service functions (TDD) first, then FileTree UI extensions, then BrowserClient wiring with edge case handling. All infrastructure exists (IFileSystem CRUD methods, FakeFileSystem, Radix ContextMenu, FileChangeHub auto-refresh). No new domains required.
++
++## Target Domains
++
++| Domain | Status | Relationship | Role |
++|--------|--------|-------------|------|
++| file-browser | existing | **modify** | New server actions, service functions, FileTree inline edit, hover buttons, context menu, useFileMutations hook, delete dialog |
++| _platform/file-ops | existing | **consume** | IFileSystem (mkdir, writeFile, unlink, rmdir, rename) + IPathResolver — no changes |
++| _platform/events | existing | **consume** | FileChangeHub auto-refresh on add/unlink/addDir/unlinkDir — no changes |
++
++## Domain Manifest
++
++| File | Domain | Classification | Rationale |
++|------|--------|---------------|-----------|
++| `apps/web/src/features/041-file-browser/services/file-mutation-actions.ts` | file-browser | internal | Service layer for create/rename/delete with path security |
++| `apps/web/src/features/041-file-browser/lib/validate-filename.ts` | file-browser | internal | Git-portable file name validation utility |
++| `apps/web/app/actions/file-actions.ts` | file-browser | internal | Extended with 5 new server actions |
++| `test/unit/web/features/041-file-browser/file-mutation-actions.test.ts` | file-browser | internal | TDD tests for service layer |
++| `test/unit/web/features/041-file-browser/validate-filename.test.ts` | file-browser | internal | TDD tests for name validation |
++| `test/unit/web/features/041-file-browser/inline-edit-input.test.ts` | file-browser | internal | Lightweight smoke tests for InlineEditInput |
++| `apps/web/src/features/041-file-browser/components/file-tree.tsx` | file-browser | internal | Extended with inline edit, hover buttons, context menu items |
++| `apps/web/src/features/041-file-browser/components/inline-edit-input.tsx` | file-browser | internal | Reusable inline edit input component |
++| `apps/web/src/features/041-file-browser/components/delete-confirmation-dialog.tsx` | file-browser | internal | Delete confirmation dialog component |
++| `apps/web/src/features/041-file-browser/hooks/use-file-mutations.ts` | file-browser | internal | Hook encapsulating CRUD callbacks with toast feedback |
++| `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | file-browser | internal | Extended with useFileMutations wiring + edge case handling |
++| `docs/domains/file-browser/domain.md` | file-browser | contract | Updated boundary/composition for CRUD operations |
++
++## Harness Strategy
++
++Harness: Not applicable (user override — service tests + manual browser verification is sufficient for this feature).
++
++## Constitution Compliance
++
++| Principle | Status | Notes |
++|-----------|--------|-------|
++| P1: Clean Architecture | ✅ Compliant | Services depend on IFileSystem/IPathResolver interfaces only |
++| P2: Interface-First | ✅ Compliant | Consuming existing IFileSystem interface; no new interfaces needed |
++| P3: TDD | ⚠️ Partial deviation | Hybrid TDD: full TDD for services, lightweight for UI components |
++| P4: Fakes Over Mocks | ✅ Compliant | FakeFileSystem + FakePathResolver only, no mocking libraries |
++| P5: Fast Feedback | ✅ Compliant | Service tests run in <2s |
++
++| Principle Violated | Why Needed | Simpler Alternative Rejected | Risk Mitigation |
++|-------------------|------------|------------------------------|-----------------|
++| P3: TDD (UI layer) | UI components (inline edit, context menu) are interaction-heavy and better verified manually in browser. TDD for React tree rendering yields brittle tests. | Full TDD for all layers — rejected because focus/blur/keyboard tests are fragile and slow. | Service layer is fully TDD (security-critical). UI is manually verified + lightweight smoke tests. |
++
++## Key Findings
++
++| # | Impact | Finding | Action |
++|---|--------|---------|--------|
++| 01 | Critical | No file name validation utility exists | Build `validate-filename.ts` in Phase 1 before server actions |
++| 02 | Critical | Enter key on tree item buttons fires onClick (select), conflicting with rename mode | Phase 2: unmount button and render only `<input>` when in edit mode — clean state machine |
++| 03 | Critical | No inline edit pattern exists in codebase | Phase 2: build InlineEditInput component with focus management |
++| 04 | High | File watcher SSE event may lag ~200ms behind server action completion | Phase 3: immediate `handleRefreshDir()` after successful action; SSE as fallback for external changes |
++| 05 | High | Rename of currently-viewed file must sync URL state, editor content, and mtime | Phase 3: detect selectedFile match, call handleSelect(newPath), clear dirty state |
++| 06 | High | rmdir recursive has no file count limit — could delete 10k+ files silently | Phase 1: add stat-based size check in service; Phase 2: show item count in delete confirmation |
++| 07 | High | Focus management for inline input needs explicit handling (auto-focus, restore on escape/blur) | Phase 2: InlineEditInput manages own focus lifecycle with refs |
++
++## Testing Approach
++
++- **Service layer**: Full TDD — red/green/refactor for all service functions and name validation
++- **Server actions**: Lightweight wiring tests verifying auth + DI + delegation
++- **UI components**: Manual browser verification + lightweight smoke tests for InlineEditInput
++- **Fakes**: FakeFileSystem and FakePathResolver (contract-tested, no mocks)
++
++---
++
++## Phases
++
++### Phase 1: Service Layer & Server Actions
++
++**Objective**: Build the backend CRUD operations with TDD, including file name validation and path security.
++**Domain**: file-browser
++**Delivers**:
++- Git-portable file name validation utility with tests
++- 5 service functions (createFile, createFolder, deleteItem, renameItem) with path security, duplicate detection, error mapping
++- 4 server actions wired to service layer with requireAuth + DI
++- Full unit test coverage for services
++
++**Depends on**: None
++**Key risks**: None — all IFileSystem methods are contract-tested and proven.
++
++Task ordering follows TDD: types → tests → implementations → wiring.
++
++| # | Task | Domain | Success Criteria | Notes |
++|---|------|--------|-----------------|-------|
++| 1.1 | Define result types for CRUD operations | file-browser | CreateResult, DeleteResult, RenameResult types exported from service file. Discriminated unions with typed error codes. DeleteResult includes `'too-large'` error with `itemCount` for server-side safety rejection. | Types first — tests and implementations depend on these. |
++| 1.2 | Create `validate-filename.test.ts` — TDD tests (RED) | file-browser | All invalid chars rejected (/ \ null : * ? " < > \|). Edge cases: `.`, `..`, trailing spaces, leading dots, empty string. Tests fail (RED). All tests include Test Doc (Why/Contract/Usage Notes/Quality Contribution/Worked Example). |  |
++| 1.3 | Create `validate-filename.ts` — git-portable validation (GREEN) | file-browser | Rejects all invalid chars. Returns discriminated union `{ok} \| {ok: false, error, char}`. All tests pass (GREEN). | Per finding 01. Shared between client + server. |
++| 1.4 | Create `file-mutation-actions.test.ts` — TDD test suite (RED) | file-browser | Happy path + security (traversal, symlink) + error cases (exists, not-found, permission) for createFile, createFolder, deleteItem, renameItem. Uses FakeFileSystem + FakePathResolver. Tests fail (RED). All tests include Test Doc format. | Target: 15-20 test cases |
++| 1.5 | Implement createFileService + createFolderService (GREEN) | file-browser | Creates empty file or directory at path. Returns `{ok, path}`. Rejects duplicates with `'exists'` error. Path security validated via realpath on PARENT directory (target doesn't exist yet). Relevant tests pass (GREEN). | Uses IFileSystem.writeFile/mkdir + IPathResolver.resolvePath. DYK-01: realpath parent dir, not target. |
++| 1.6 | Implement deleteItemService (GREEN) | file-browser | Deletes file (unlink) or folder (rmdir recursive). Returns `{ok}`. Path security validated. Server-side safety: quick `readDir` count rejects folders with >5000 direct children, returning `{ok: false, error: 'too-large', itemCount}`. Relevant tests pass (GREEN). | Per finding 06. VS Code-style: UI shows "Delete 'name' and all its contents?" — count only surfaces on error. |
++| 1.7 | Implement renameItemService (GREEN) | file-browser | Renames file or folder. Returns `{ok, oldPath, newPath}`. Rejects if destination exists. Path security on both old and new paths. Relevant tests pass (GREEN). | Uses IFileSystem.rename. DYK-04: return both oldPath and newPath so consumers can detect if the renamed file was the active selection. |
++| 1.8 | Refactor service layer (REFACTOR) | file-browser | All 15-20 tests green. Extract shared path-validation helper if duplicated. Clean up error mapping. | TDD refactor step. |
++| 1.9 | Add server actions to `app/actions/file-actions.ts` | file-browser | 4 new exports: createFile, createFolder, deleteItem, renameItem. Each: requireAuth → DI resolve → call service → return result. | DYK-02: dropped getDirectoryItemCount — VS Code-style dialog, server-side safety limit returns count only on rejection. |
++
++### Phase 2: FileTree UI Extensions
++
++**Objective**: Add inline edit mode, hover action buttons, extended context menu items, and delete confirmation dialog to the tree.
++**Domain**: file-browser
++**Delivers**:
++- InlineEditInput component with focus management
++- Hover buttons (New File, New Folder) on folder rows including root
++- Context menu Rename and Delete items on files and folders
++- DeleteConfirmationDialog component
++- FileTree extended with inline edit state management
++
++**Depends on**: Phase 1 (server actions must exist for wiring)
++**Key risks**: Enter key conflict (finding 02), focus management (finding 03, 07). Mitigated by unmounting button in edit mode and explicit focus lifecycle in InlineEditInput.
++
++| # | Task | Domain | Success Criteria | Notes |
++|---|------|--------|-----------------|-------|
++| 2.1 | Create `inline-edit-input.tsx` — reusable inline edit component | file-browser | Auto-focuses on mount. Enter confirms, Escape cancels. Blur commits (configurable). Validates name via validateFileName. Shows inline error for invalid names. Restores focus to caller on unmount. | Per findings 02, 03, 07. Extracted component for reuse in create + rename. |
++| 2.2 | Add hover buttons to folder rows in FileTree | file-browser | "New File" (FilePlus icon) and "New Folder" (FolderPlus icon) appear on hover next to refresh button. Buttons use `group-hover:block` pattern. `e.stopPropagation()` prevents folder toggle. Root directory also gets buttons. | Follows existing refresh button pattern (PS-04). |
++| 2.3 | Add inline create mode to FileTree | file-browser | Clicking "New File" or "New Folder" button inserts InlineEditInput at top of folder's children. Enter creates item via callback. Escape removes input. Only one edit input active at a time. | State: `{mode: 'create-file'|'create-folder', parentDir: string}` |
++| 2.4 | Add inline rename mode to FileTree | file-browser | Selecting "Rename" from context menu or pressing F2 replaces item text with InlineEditInput pre-filled with current name (text selected). Enter confirms rename via callback. Escape cancels and restores original text. | Per finding 02: unmount button, render only input in edit mode. |
++| 2.5 | Add Rename and Delete to file context menu | file-browser | File context menu gains: separator, "Rename" item, "Delete" item (destructive variant). Folder context menu gains: "New File", "New Folder", separator, "Rename", "Delete" (destructive). | Uses existing ContextMenuItem + destructive variant. |
++| 2.6 | Create `delete-confirmation-dialog.tsx` | file-browser | VS Code-style dialog: "Delete 'name' and all its contents?" for folders, "Delete 'name'?" for files. Confirm button is destructive (red). Cancel closes dialog. If server returns `'too-large'` error, show "Folder has too many items (N) to delete from the browser." | Follows WorkspaceRemoveButton pattern. No pre-flight count fetch. |
++| 2.7 | Add F2 and Enter keyboard shortcuts to FileTree | file-browser | F2 on focused tree item enters rename mode. Enter on focused tree item enters rename mode (when not already in edit mode). Both only fire when FileTree panel has focus (not CodeMirror). | Gate: only when tree has focus, not when editor or search is focused. |
++| 2.8 | Extend FileTree props for CRUD callbacks | file-browser | New optional props: `onCreateFile`, `onCreateFolder`, `onRename`, `onDelete`. All accept path-based arguments. Inline edit state managed internally. | Follows callback pattern (PS-02). |
++| 2.9 | Lightweight smoke tests for InlineEditInput | file-browser | 3-5 test cases: mount + auto-focus, Enter commits value, Escape cancels, invalid name shows error, blur behavior. Uses React Testing Library. | Per spec Testing Strategy: lightweight for UI. |
++
++### Phase 3: BrowserClient Wiring & Integration
++
++**Objective**: Wire CRUD operations end-to-end through useFileMutations hook, handle edge cases (rename open file, delete selected file), and update domain documentation.
++**Domain**: file-browser
++**Delivers**:
++- useFileMutations hook with toast feedback
++- BrowserClient wired with all CRUD callbacks
++- Edge case handling: rename open file (URL sync), delete selected file (clear selection)
++- Immediate tree refresh after mutations (not waiting for SSE)
++- Updated file-browser domain.md
++
++**Depends on**: Phase 1, Phase 2
++**Key risks**: Rename of viewed file must sync URL + editor + mtime (finding 05). File watcher timing gap (finding 04). Mitigated by immediate refresh + selected file detection.
++
++| # | Task | Domain | Success Criteria | Notes |
++|---|------|--------|-----------------|-------|
++| 3.1 | Create `use-file-mutations.ts` hook | file-browser | Returns handlers: handleCreateFile, handleCreateFolder, handleRename, handleDelete. Each calls server action, shows toast (loading→success/error), calls handleRefreshDir on success. | Follows useClipboard pattern (IA-06). |
++| 3.2 | Wire useFileMutations into BrowserClient | file-browser | BrowserClient passes CRUD callbacks to FileTree. Callbacks trigger server actions via hook. Tree refreshes immediately after success (not waiting for SSE). | Per finding 04: immediate refresh. |
++| 3.3 | Handle rename of currently-viewed file | file-browser | If renamed file matches selectedFile: update URL params to new path, re-fetch file content, clear dirty state. If file has unsaved changes, show warning toast and block rename. | Per finding 05. Return newPath from renameItem. |
++| 3.4 | Handle delete of currently-viewed file | file-browser | If deleted file matches selectedFile: clear file URL param, show empty viewer state. If deleted folder contains selectedFile: same behavior. | Per AC-11. |
++| 3.5 | Handle delete of expanded folder | file-browser | If deleted folder is in expandedDirs: remove from expanded set. Clean up childEntries cache for deleted directory and descendants. | Prevents stale state in tree. |
++| 3.6 | Add newly created items to newlyAddedPaths | file-browser | After successful create, add new path to a local `newlyAddedPaths` set for green fade-in animation. Clear after animation completes (1.5s timeout). | Reuses existing animation system (IA-09). |
++| 3.7 | Auto-select and auto-expand after create | file-browser | After creating a file: auto-select it (opens in viewer). After creating a folder: auto-expand it. After rename: auto-select new path. | UX polish for seamless workflow. |
++| 3.8 | Update file-browser domain.md | file-browser | Add CRUD operations to Boundary Owns, Composition table, Source Location table, and History. | Per documentation strategy. |
++
++---
++
++## Acceptance Criteria
++
++- [ ] AC-01: Hover over folder → "New File" button → inline input → Enter → file created with green fade-in
++- [ ] AC-02: Hover over folder → "New Folder" button → inline input → Enter → folder created
++- [ ] AC-03: Escape during inline create → input removed, nothing created
++- [ ] AC-04: Enter or F2 on selected file → inline rename input (pre-filled, selected) → Enter confirms
++- [ ] AC-05: Right-click → Rename → inline rename mode
++- [ ] AC-06: Right-click → Delete → confirmation dialog → confirm → item deleted
++- [ ] AC-07: Delete folder recursively, confirmation shows it's recursive
++- [ ] AC-08: Path traversal and symlink escape rejected with security error
++- [ ] AC-09: Duplicate name shows "already exists" error toast
++- [ ] AC-10: Rename currently-viewed file updates viewer and URL
++- [ ] AC-11: Delete currently-viewed file clears viewer and URL
++- [ ] AC-12: Toast feedback on all operations (create/rename/delete, success/error)
++- [ ] AC-13: Invalid names (git-portable chars) rejected client-side
++
++## Risks
++
++| Risk | Likelihood | Impact | Mitigation |
++|------|------------|--------|------------|
++| Enter key conflict between select and rename | High | High | Unmount button in edit mode; gate Enter based on edit state |
++| Focus lost after inline edit completes | Medium | Medium | InlineEditInput restores focus to tree item on unmount |
++| File watcher SSE lags behind server action | Medium | Low | Immediate handleRefreshDir after success; SSE as fallback |
++| Rename of open file with unsaved changes | Medium | High | Block rename if dirty; show "save first" toast |
++| Large folder delete blocks server | Low | Medium | Stat-based pre-check; item count in confirmation dialog |
++| F2 intercepted by browser or CodeMirror | Low | Low | Gate F2 to tree-focused state only; test across browsers |
+diff --git a/docs/plans/068-add-files/add-files-spec.md b/docs/plans/068-add-files/add-files-spec.md
+new file mode 100644
+index 0000000..7b30b3e
+--- /dev/null
++++ b/docs/plans/068-add-files/add-files-spec.md
+@@ -0,0 +1,152 @@
++# Add File/Folder Features
++
++**Mode**: Full
++
++📚 This specification incorporates findings from exploration.md
++
++## Research Context
++
++The exploration (8 parallel research agents) confirmed:
++- **IFileSystem already has all CRUD methods** (`mkdir`, `writeFile`, `unlink`, `rmdir`, `rename`) — implemented in both production adapter and test fake
++- **FileTree is a pure presentational component** using callback props and Radix ContextMenu — proven pattern for extending with CRUD operations
++- **Live file events (FileChangeHub)** already track add/unlink/addDir/unlinkDir — tree auto-refreshes affected directories
++- **Hover button pattern exists** (`group-hover:block`) on folder rows (refresh button) — ready to extend
++- **newlyAddedPaths animation** already provides green fade-in for new tree entries
++- **File CRUD was explicitly deferred** from Plan 041 Phase 4 as a non-goal — this plan picks it up
++
++## Summary
++
++Users need to create, rename, and delete files and folders directly from the file browser tree panel without leaving the UI or using a terminal. This is a core file management capability that completes the file browser as a practical workspace tool. Today, users can browse and edit files but cannot perform basic file system operations — they must switch to an external tool for something as simple as creating a new file.
++
++## Goals
++
++- **Create files and folders inline**: Hover over a folder to reveal "New File" and "New Folder" icon buttons. Clicking one inserts an editable text input at the top of that folder's children. Type a name, press Enter to create.
++- **Rename files and folders**: Press Enter on a selected file (or F2) to enter inline rename mode. The file name becomes an editable input, pre-filled and selected. Press Enter to confirm, Escape to cancel. Also accessible via right-click context menu "Rename" option.
++- **Delete files and folders**: Right-click context menu "Delete" option. Shows a confirmation dialog before proceeding. Deleting a folder deletes its contents recursively.
++- **Consistent feedback**: All operations show toast notifications (success/error). New items highlight with green fade-in animation. Operations that fail show clear error messages.
++- **Keyboard-driven workflow**: Create, rename, and delete are all achievable without the mouse via context menu keyboard navigation, Enter to confirm, Escape to cancel.
++
++## Non-Goals
++
++- **Multi-file operations**: No batch select, batch delete, or batch rename. Single-item operations only.
++- **Drag-and-drop move**: Moving files between folders via drag is out of scope.
++- **Undo/redo**: No undo for delete operations. Git-tracked files can be recovered via git; untracked files are permanently deleted.
++- **File permissions management**: No chmod or ownership changes.
++- **File templates**: No template selection when creating new files (always creates empty files).
++- **Copy/paste files**: No clipboard-based file duplication between folders.
++- **Rename via file viewer panel**: Rename only happens in the tree, not in the viewer header.
++
++## Target Domains
++
++| Domain | Status | Relationship | Role in This Feature |
++|--------|--------|-------------|---------------------|
++| file-browser | existing | **modify** | New server actions, service functions, FileTree inline edit mode, hover buttons, extended context menu, useFileMutations hook, delete confirmation dialog |
++| _platform/file-ops | existing | **consume** | Use IFileSystem (mkdir, writeFile, unlink, rmdir, rename) and IPathResolver — no changes to domain |
++| _platform/events | existing | **consume** | FileChangeHub already emits add/unlink/addDir/unlinkDir events from file watcher — tree auto-refresh happens automatically, no changes to domain |
++
++No new domains required. All new code lives within the existing `file-browser` domain boundary.
++
++## Complexity
++
++- **Score**: CS-3 (medium)
++- **Breakdown**: S=1, I=0, D=1, N=1, F=1, T=1
++- **Confidence**: 0.85
++- **Assumptions**:
++  - IFileSystem methods work correctly for all CRUD operations (contract-tested)
++  - File watcher (FileChangeHub) reliably detects changes made by server actions
++  - Radix ContextMenu supports adding new items without architectural changes
++  - Inline input in tree items is achievable without major FileTree restructuring
++- **Dependencies**:
++  - No external dependencies or blockers. All infrastructure exists.
++- **Risks**:
++  - Inline edit UX in a virtualized/lazy tree requires careful focus management
++  - Rename of currently-viewed file must update URL state and editor content
++  - Delete of untracked files is irreversible — confirmation UX must be clear
++  - Keyboard shortcut (F2, Enter) conflicts with CodeMirror editor or browser defaults
++- **Phases**:
++  - Phase 1: Server actions + service layer (create, rename, delete)
++  - Phase 2: FileTree UI (inline edit, hover buttons, context menu items, delete dialog)
++  - Phase 3: BrowserClient wiring + integration (hook composition, URL state sync, edge cases)
++
++## Acceptance Criteria
++
++1. **Create file via hover button**: Hovering over any folder row (including the root directory) reveals a "New File" icon button. Clicking it shows an inline text input at the top of that folder's children. Typing a name and pressing Enter creates the file. The new file appears in the tree with a green fade-in animation.
++
++2. **Create folder via hover button**: Hovering over a folder row reveals a "New Folder" icon button (alongside "New File" and the existing refresh button). Clicking it shows an inline text input. Typing a name and pressing Enter creates the folder.
++
++3. **Cancel creation with Escape**: While in inline create mode, pressing Escape removes the input field without creating anything.
++
++4. **Rename via Enter key**: Selecting a file in the tree and pressing Enter (or F2) converts the file name into an editable input, pre-filled with the current name and fully selected. Pressing Enter confirms the rename. Pressing Escape cancels.
++
++5. **Rename via context menu**: Right-clicking a file or folder shows a "Rename" option in the context menu. Selecting it enters inline rename mode for that item.
++
++6. **Delete via context menu**: Right-clicking a file or folder shows a "Delete" option (styled as destructive/red). Selecting it shows a confirmation dialog stating the file/folder name. Confirming deletes the item.
++
++7. **Delete folder recursively**: Deleting a folder that contains files/subfolders deletes everything inside it. The confirmation dialog indicates this is a recursive operation.
++
++8. **Path security enforced**: All operations validate paths via IPathResolver and realpath — directory traversal attacks and symlink escapes are rejected with a security error.
++
++9. **Duplicate name handling**: Creating a file/folder with a name that already exists in that directory shows an error toast ("already exists") without overwriting.
++
++10. **Rename updates open file**: If the currently-viewed file is renamed, the viewer panel updates to show the new path. URL state reflects the new file path.
++
++11. **Delete clears selection**: If the currently-viewed file is deleted, the viewer panel clears (shows empty state). URL state is updated to remove the file parameter.
++
++12. **Toast feedback on all operations**: Create shows "Created: filename". Rename shows "Renamed: old → new". Delete shows "Deleted: filename". Errors show specific messages ("File already exists", "Permission denied", etc.).
++
++13. **Invalid name rejection**: Names containing path separators (`/`, `\`), null bytes, or git-portable reserved characters (`:`, `*`, `?`, `"`, `<`, `>`, `|`) are rejected client-side before hitting the server. Empty names are rejected.
++
++## Risks & Assumptions
++
++- **Assumption**: File watcher events arrive within ~200ms of server action completion (debounce window in useTreeDirectoryChanges). If slower, there may be a brief inconsistency before auto-refresh.
++- **Assumption**: The existing `group-hover:block` CSS pattern accommodates 3 buttons (refresh + new file + new folder) without layout overflow on narrow sidebar widths.
++- **Risk**: Inline `<input>` focus management in a tree with keyboard navigation may have edge cases (focus trapping, Tab behavior, screen reader announcements).
++- **Risk**: Renaming a file that's open in another browser tab could cause stale state. This is single-tab scope — no cross-tab sync.
++- **Risk**: Deleting a large folder tree could be slow. No progress indicator is planned — just a loading toast.
++- **Assumption**: The confirmation dialog for delete is sufficient UX — no "move to trash" semantics. Files are permanently deleted from disk.
++
++## Open Questions
++
++All resolved — see Clarifications below.
++
++## Testing Strategy
++
++- **Approach**: Hybrid — TDD for service layer, lightweight for UI
++- **Rationale**: Service functions (create, rename, delete) have security-critical path validation and error handling that benefit from TDD. UI components (inline edit, context menu) are better verified manually in the browser with lightweight smoke tests.
++- **Focus Areas**:
++  - Service layer: path security (traversal, symlink escape), duplicate name detection, error code mapping, atomic operations
++  - Server actions: auth check, DI wiring, result type correctness
++  - UI: inline edit focus/blur/Enter/Escape behavior (lightweight)
++- **Excluded**: E2E browser automation, cross-tab scenarios, performance benchmarks
++- **Mock Policy**: Avoid mocks entirely — use FakeFileSystem and FakePathResolver (contract-tested fakes with production parity)
++
++## Documentation Strategy
++
++- **Location**: domain.md update only
++- **Rationale**: No user-facing documentation needed. Update file-browser domain.md boundary/composition to include CRUD operations. No new guides or README sections.
++
++## Workshop Opportunities
++
++| Topic | Type | Why Workshop | Key Questions |
++|-------|------|--------------|---------------|
++| Inline Edit State Machine | State Machine | The inline edit input has multiple states (idle → creating → editing name → confirming → error → idle, plus rename variant). Clear state transitions prevent bugs like double-submit, stale focus, or orphaned inputs. | What triggers each transition? How does focus flow? What happens on blur (commit or cancel)? How does this interact with tree keyboard navigation? |
++
++## Clarifications
++
++### Session 2026-03-07
++
++**Q1: Workflow Mode** → **Full**. CS-3 feature with 3 phases — all gates required.
++
++**Q2: Testing Strategy** → **Hybrid**. TDD for service layer (security, error handling), lightweight for UI components.
++
++**Q3: Mock Policy** → **Avoid mocks**. Use FakeFileSystem and FakePathResolver (contract-tested fakes), not mock objects.
++
++**Q4: Documentation Strategy** → **No new docs**. Update file-browser domain.md boundary only.
++
++**Q5: Domain Review** → **Confirmed**. file-browser (modify), _platform/file-ops (consume), _platform/events (consume). No new domains. No contract-breaking changes.
++
++**Q6: Harness Readiness** → **Continue without harness**. Service tests + manual browser verification is sufficient. No Phase 0 needed.
++
++**Q7: Root-level creation** → **Yes**. Root directory (workspace root) also shows "New File" and "New Folder" hover buttons. Creating files at the workspace root is a common operation (README.md, .gitignore, etc.).
++
++**Q8: Name validation rules** → **Git-portable**. Reject: `/`, `\`, null bytes, `:`, `*`, `?`, `"`, `<`, `>`, `|`. Prevents issues when files are cloned to Windows via git. Validation runs client-side before server action call.
+diff --git a/docs/plans/068-add-files/exploration.md b/docs/plans/068-add-files/exploration.md
+new file mode 100644
+index 0000000..4979588
+--- /dev/null
++++ b/docs/plans/068-add-files/exploration.md
+@@ -0,0 +1,187 @@
++# Exploration Report: 068 — Add File/Folder Features
++
++**Plan**: 068-add-files
++**Branch**: `068-add-files`
++**Domain**: file-browser (business)
++**Date**: 2026-03-07
++
++## Feature Summary
++
++Add file/folder creation, rename, and delete capabilities to the file browser's tree panel:
++
++- **Hover buttons**: When hovering over a folder row, show "New File" and "New Folder" icon buttons (next to existing refresh button)
++- **Inline edit mode**: New items appear as editable input fields in the tree; user types a name and presses Enter to confirm, Escape to cancel
++- **Rename**: Press Enter on a file (or F2 on Windows) to enter rename mode; also available via right-click context menu
++- **Delete**: Right-click context menu option with confirmation
++- **Right-click context menu**: Extended with Rename and Delete items for both files and folders
++
++---
++
++## Research Findings
++
++### IA: Implementation Archaeology
++
++| ID | Finding | Detail |
++|----|---------|--------|
++| IA-01 | **FileTree component** (`file-tree.tsx`, 342 lines) | Pure presentational component. Each tree item wrapped in Radix `<ContextMenu>`. Accepts callback props (`onSelect`, `onExpand`, `onCopy*`). Hover buttons use `group-hover:block` pattern. Already supports `newlyAddedPaths: Set<string>` for green fade-in animation. |
++| IA-02 | **Context Menu primitive** (`components/ui/context-menu.tsx`, 251 lines) | Full shadcn/Radix ContextMenu with destructive variant, sub-menus, keyboard nav, disabled state. Already used for clipboard operations on file/folder items. |
++| IA-03 | **File Actions service** (`services/file-actions.ts`, 215 lines) | `readFileAction()` and `saveFileAction()` with path security (PathResolver + realpath), atomic write (`.tmp` + rename), mtime conflict detection. Template for CRUD actions. |
++| IA-04 | **IFileSystem interface** (`filesystem.interface.ts`, 167 lines) | Complete CRUD: `mkdir`, `writeFile`, `unlink`, `rmdir`, `rename`, `realpath`, `stat`, `exists`. All async, all throw typed `FileSystemError`. |
++| IA-05 | **Server actions** (`app/actions/file-actions.ts`, 230+ lines) | 11 existing actions (readFile, saveFile, uploadFile, fetchGitDiff, etc.). Pattern: `requireAuth()` → DI resolve → call service → return Result type. |
++| IA-06 | **useClipboard hook** (133 lines) | Callback pattern model: hook returns handler functions, each calls server action + shows toast. Template for `useFileMutations` hook. |
++| IA-07 | **useTreeDirectoryChanges hook** (83 lines) | Live file events via FileChangeHub. Tracks `newPaths`, `removedPaths`, `changedDirs`. Already auto-refreshes expanded dirs on changes. CRUD operations will trigger these events automatically. |
++| IA-08 | **BrowserClient** (`browser-client.tsx`, 450+ lines) | Orchestrator: composes useFileNavigation, usePanelState, useClipboard, useTreeDirectoryChanges. Passes all callbacks to FileTree. New CRUD handlers wire in here. |
++| IA-09 | **Animation system** (`globals.css`) | `tree-entry-new` class with green fade-in (1.5s). `tree-entry-navigated` with slower flash. Extensible for delete (red fade) and rename (yellow flash). |
++| IA-10 | **Context menu workshop** (`workshops/file-tree-context-menu.md`) | Design decisions documented: D1 (Radix), D2 (callback pattern), D3 (toast feedback), D4 (recursive API). Proven architecture to extend. |
++
++### DC: Dependency Cartography
++
++| ID | Finding | Detail |
++|----|---------|--------|
++| DC-01 | **IFileSystem has all CRUD methods** | `writeFile`, `mkdir`, `unlink`, `rmdir`, `rename` — all exist, all implemented in NodeFileSystemAdapter and FakeFileSystem. No interface changes needed. |
++| DC-02 | **PathResolver security model** | `resolvePath(base, relative)` prevents traversal. Combined with `realpath()` for symlink escape. Pattern proven in readFile/saveFile. |
++| DC-03 | **6 new server actions needed** | createFile, createFolder, deleteFile, deleteFolder, renameFile, renameFolder — follow existing readFile/saveFile pattern exactly. |
++| DC-04 | **Atomic write pattern** | `.tmp` file → rename proven in saveFileAction. Reuse for createFile. |
++| DC-05 | **Upload service as create template** | `uploadFileService` demonstrates: path validate → mkdir recursive → atomic write. Copy this pattern. |
++| DC-06 | **Directory listing service** | Returns `FileEntry{name, type, path}` sorted dirs-first. After CRUD ops, call `handleRefresh(parentDir)` to re-fetch. |
++
++### PS: Patterns & Conventions
++
++| ID | Finding | Detail |
++|----|---------|--------|
++| PS-01 | **Client state + server action** | Client components use `'use client'`, delegate mutations to `'use server'` actions. Return discriminated unions. |
++| PS-02 | **Callback-based props** | FileTree is presentational. Parent (BrowserClient) owns state. Extend with `onCreateFile`, `onCreateFolder`, `onRename`, `onDelete`. |
++| PS-03 | **ContextMenu as primary interaction** | Radix ContextMenu wraps each tree item. Add: New File, New Folder (folders only), separator, Rename, Delete (destructive). |
++| PS-04 | **Hover buttons via group-hover** | `hidden group-hover:block` + `e.stopPropagation()`. Existing: refresh button. Add: new-file, new-folder buttons on folder rows. |
++| PS-05 | **Dialog modal pattern** | PasteUploadModal shows: Dialog + state + async submit. Use for delete confirmation. Inline input preferred for create/rename. |
++| PS-06 | **Discriminated union results** | `{ok: true, ...} | {ok: false, error: 'exists'|'security'|'invalid-name'}`. All CRUD actions must follow. |
++| PS-07 | **Toast notifications** | sonner library. `toast.loading()` → `toast.success()` / `toast.error()` with ID tracking. |
++| PS-08 | **newlyAddedPaths animation** | `Set<string>` prop → `tree-entry-new` CSS class → green fade-in. After create/rename, add path to set. |
++| PS-09 | **No existing inline edit** | Must implement: replace tree item text with `<input>`, auto-focus, auto-select, Enter to confirm, Escape to cancel. |
++| PS-10 | **Lazy tree expansion** | `childEntries` cache per-directory. After CRUD, refresh only affected directory via `handleRefresh(parentDir)`. |
++
++### DB: Domain & Boundary Analysis
++
++| ID | Finding | Detail |
++|----|---------|--------|
++| DB-01 | **IFileSystem ready** | All 5 CRUD methods exist. No interface changes needed. |
++| DB-02 | **file-browser boundary needs extension** | Currently owns read/write. Must add create/delete/rename to boundary. |
++| DB-03 | **New actions in file-browser domain** | `apps/web/app/actions/file-actions.ts` + service layer in `services/`. Follow existing pattern. |
++| DB-04 | **Path security mandatory** | Every CRUD action: `resolvePath()` + `realpath()` + `PathSecurityError` catch. |
++| DB-05 | **FileChangeHub integration optional** | Events domain already models add/unlink/addDir/unlinkDir. CRUD ops trigger file watcher automatically — no manual event emission needed. |
++| DB-06 | **domain.md update required** | Add createFile, createFolder, deleteFile, deleteFolder, renameFile to boundary Owns section and Composition table. |
++| DB-07 | **workflow-events NOT affected** | File CRUD is user-facing browser concern, not workflow/agent concern. |
++| DB-08 | **No new infra domains** | All DI tokens, adapters, fakes already exist. |
++
++### QT: Quality & Testing
++
++| ID | Finding | Detail |
++|----|---------|--------|
++| QT-01 | **Discriminated union pattern** | Established in ReadFileResult/SaveFileResult. Copy for CRUD results. |
++| QT-02 | **Security test coverage mature** | Path traversal + symlink escape tested. Need 3 security tests per CRUD op. |
++| QT-03 | **FakeFileSystem has all CRUD** | `unlink`, `rmdir`, `rename`, `mkdir`, `writeFile` all implemented with proper error codes. Test infra ready. |
++| QT-04 | **Contract tests ensure parity** | `filesystem.contract.test.ts` (384 lines) runs identical suites on NodeAdapter + Fake. |
++| QT-05 | **Conflict detection extensible** | mtime-based pattern from saveFile. Adapt for rename (destination exists) and delete (file changed since list). |
++| QT-08 | **Server action tests are a gap** | Service functions tested; server action wrappers not directly tested. Follow service-test pattern. |
++
++### PL: Prior Learnings
++
++| ID | Finding | Detail |
++|----|---------|--------|
++| PL-01 | **toast() is client-only** | Server actions return Result; client shows toast. Never call toast in server action. |
++| PL-02 | **Biome rejects `as any`** | Use `as unknown as TargetType`. |
++| PL-03 | **Semantic HTML required** | Use `<button>` not `<div role="button">`. Biome enforces. |
++| PL-04 | **URLSearchParams + spaces** | Spaces encoded as `+` not `%20`. Handle carefully for file paths. |
++| PL-11 | **realpath() for symlink safety** | Cross-plan edit already done. Use in all CRUD actions. |
++| PL-13 | **Callback pattern proven** | FileTree fires callbacks, BrowserClient implements. Keeps tree presentational. |
++| PL-15 | **Context menu is Radix-based** | `components/ui/context-menu.tsx` — accessible, keyboard-navigable, reusable. |
++
++### DE: Documentation & Evolution
++
++| ID | Finding | Detail |
++|----|---------|--------|
++| DE-01 | **File CRUD was explicitly deferred** | Phase 4 tasks.md lists "❌ File creation/deletion" as non-goal. This plan (068) picks it up. |
++| DE-03 | **Security patterns fully proven** | IPathResolver + realpath + workspace jail model. Battle-tested. |
++| DE-09 | **IFileSystem already complete** | Correction to DE report: `mkdir`, `rmdir`, `unlink`, `rename` all exist (confirmed by IC-01 and DC-01). No interface changes needed. |
++
++---
++
++## Key Infrastructure Assessment
++
++### Ready to Use (No Changes)
++
++| Component | Location | Status |
++|-----------|----------|--------|
++| IFileSystem (mkdir, unlink, rmdir, rename, writeFile) | `packages/shared/src/interfaces/filesystem.interface.ts` | ✅ Complete |
++| NodeFileSystemAdapter | `packages/shared/src/adapters/node-filesystem.adapter.ts` | ✅ Complete |
++| FakeFileSystem (all CRUD methods) | `packages/shared/src/fakes/fake-filesystem.ts` | ✅ Complete |
++| IPathResolver + PathResolverAdapter | `packages/shared/src/interfaces/path-resolver.interface.ts` | ✅ Complete |
++| Radix ContextMenu primitive | `apps/web/src/components/ui/context-menu.tsx` | ✅ Complete |
++| Animation system (tree-entry-new) | `apps/web/app/globals.css` | ✅ Complete |
++| useTreeDirectoryChanges (live events) | `apps/web/src/features/041-file-browser/hooks/` | ✅ Complete |
++| DI container + tokens | `apps/web/src/lib/bootstrap-singleton.ts` | ✅ Complete |
++| Contract tests | `test/contracts/filesystem.contract.ts` | ✅ Complete |
++
++### Needs New Code
++
++| Component | Location | What's Needed |
++|-----------|----------|---------------|
++| CRUD server actions | `apps/web/app/actions/file-actions.ts` | createFile, createFolder, deleteFile, deleteFolder, renameFile |
++| CRUD service functions | `apps/web/src/features/041-file-browser/services/` | Service layer with path validation + error mapping |
++| FileTree inline edit mode | `file-tree.tsx` | Input field replacing item text, Enter/Escape/blur handling |
++| FileTree hover buttons | `file-tree.tsx` | New File + New Folder icon buttons on folder rows |
++| FileTree context menu items | `file-tree.tsx` | Rename, Delete, New File, New Folder menu items |
++| useFileMutations hook | `hooks/use-file-mutations.ts` | Hook encapsulating CRUD callbacks with toast + error handling |
++| Delete confirmation dialog | `components/` | Simple confirm dialog before delete |
++| BrowserClient wiring | `browser-client.tsx` | Thread new callbacks through to FileTree |
++| Unit tests | `test/unit/web/features/041-file-browser/` | Service + action tests |
++| domain.md update | `docs/domains/file-browser/domain.md` | Boundary + composition table |
++
++---
++
++## Risks & Considerations
++
++1. **Race conditions**: User creates file while another process writes to same path. Mitigate with exists-check + atomic write, but not perfectly safe.
++2. **Delete is destructive**: No undo mechanism (git can recover tracked files, but untracked files are gone). Confirmation dialog is essential.
++3. **Rename breaks open file**: If the currently-viewed file is renamed, URL state and editor content must update. Handle in BrowserClient.
++4. **Long paths / special characters**: File names with spaces, dots, Unicode need testing. Path validation should reject invalid filesystem characters.
++5. **Large directory refresh**: After creating many files rapidly, directory listing refresh could be expensive. Debounce or optimistic UI update.
++6. **Keyboard shortcut conflicts**: F2 for rename must not conflict with browser or CodeMirror shortcuts. Enter on file selection vs. Enter to confirm rename need clear state gating.
++
++---
++
++## Suggested Architecture
++
++```
++User Action (hover button / context menu / F2)
++    ↓
++FileTree (presentational) → fires callback (onCreateFile, onRename, onDelete)
++    ↓
++BrowserClient / useFileMutations hook
++    ↓
++Server Action (createFile, renameFile, deleteFile)
++    ↓
++Service Layer (path security + IFileSystem call)
++    ↓
++IFileSystem (mkdir / writeFile / rename / unlink / rmdir)
++    ↓
++File watcher detects change → FileChangeHub → useTreeDirectoryChanges → auto-refresh
++```
++
++**Inline Edit Flow:**
++1. User clicks "New File" button on folder → `editingState = {parentDir, type: 'new-file'}`
++2. FileTree renders `<input>` at top of folder's children, auto-focused
++3. User types name → Enter → `onCreateFile(parentDir, name)` callback
++4. Server action creates file → tree auto-refreshes via file watcher events
++5. New file highlighted via `newlyAddedPaths` animation
++
++**Rename Flow:**
++1. User presses F2 or selects "Rename" from context menu → `editingState = {path, type: 'rename', originalName}`
++2. FileTree replaces item text with `<input>` pre-filled with current name, text selected
++3. User edits → Enter → `onRename(oldPath, newName)` callback
++4. Server action renames → tree auto-refreshes; if renamed file was selected, update URL state
++
++**Delete Flow:**
++1. User selects "Delete" from context menu → confirmation dialog
++2. User confirms → `onDelete(path, type)` callback
++3. Server action deletes → tree auto-refreshes; if deleted file was selected, clear selection
+diff --git a/docs/plans/068-add-files/tasks/phase-1-service-layer-server-actions/execution.log.md b/docs/plans/068-add-files/tasks/phase-1-service-layer-server-actions/execution.log.md
+new file mode 100644
+index 0000000..a228a3a
+--- /dev/null
++++ b/docs/plans/068-add-files/tasks/phase-1-service-layer-server-actions/execution.log.md
+@@ -0,0 +1,47 @@
++# Execution Log: Phase 1 — Service Layer & Server Actions
++
++**Plan**: 068-add-files
++**Phase**: Phase 1
++**Started**: 2026-03-07
++
++---
++
++## Baseline
++
++- **Tests**: 354 files, 4977 tests passing, 9 skipped
++- **Duration**: 168.73s
++- **Branch**: `068-add-files`
++
++---
++
++## Task Log
++
++### T001: Define CRUD result types — ✅
++Created `file-mutation-actions.ts` with `CreateResult`, `DeleteResult`, `RenameResult` discriminated unions + 4 options interfaces + `MAX_DELETE_CHILDREN` constant. Types compile clean.
++
++### T002: validate-filename tests (RED) — ✅
++20 test cases: valid names (4), empty/reserved (4), git-portable invalid chars (10), edge cases (2). All 16 negative tests FAIL as expected. Created stub for import resolution.
++
++### T003: validate-filename implementation (GREEN) — ✅
++Implemented git-portable validation: rejects `/\:*?"<>|` + null bytes, empty, `.`, `..`, trailing spaces/dots. 20/20 tests pass.
++
++### T004: mutation service tests (RED) — ✅
++18 test cases across 4 describe blocks: createFile (4), createFolder (3), deleteItem (5), renameItem (6). All FAIL (imports unresolved). Fixed FakePathResolver usage — it enforces security by default, no `setThrowOnResolve` needed.
++
++### T005-T007: Service implementations (GREEN) — ✅
++Implemented all 4 service functions with shared `resolveAndValidatePath` helper. DYK-01 applied: realpath checks parent directory for create operations. 18/18 tests pass. Fixed test setup issue (FakeFileSystem mkdir needs parent to exist).
++
++### T008: Refactor — ✅
++`resolveAndValidatePath` was already extracted during T005. No additional refactoring needed. 38/38 tests green.
++
++### T009: Server actions — ✅
++Added 4 server actions to `file-actions.ts`: `createFile`, `createFolder`, `deleteItem`, `renameItem`. Each follows existing pattern: requireAuth → getContainer → resolve DI → dynamic import service → call → return result. Also exports result types.
++
++## Final Evidence
++
++- **`just fft`**: PASS
++- **Test files**: 356 passed (+2 new), 9 skipped
++- **Tests**: 5015 passed (+38 new), 77 skipped
++- **Duration**: 167.38s
++- **New files**: 4 (service, validator, 2 test files)
++- **Modified files**: 1 (file-actions.ts server actions)
+diff --git a/docs/plans/068-add-files/tasks/phase-1-service-layer-server-actions/tasks.fltplan.md b/docs/plans/068-add-files/tasks/phase-1-service-layer-server-actions/tasks.fltplan.md
+new file mode 100644
+index 0000000..6818671
+--- /dev/null
++++ b/docs/plans/068-add-files/tasks/phase-1-service-layer-server-actions/tasks.fltplan.md
+@@ -0,0 +1,147 @@
++# Flight Plan: Phase 1 — Service Layer & Server Actions
++
++**Plan**: [add-files-plan.md](../../add-files-plan.md)
++**Phase**: Phase 1: Service Layer & Server Actions
++**Generated**: 2026-03-07
++**Status**: Landed
++
++---
++
++## Departure → Destination
++
++**Where we are**: The file browser can read, edit, save, and upload files — but cannot create new files/folders, rename anything, or delete anything. IFileSystem already has all the CRUD methods (`mkdir`, `unlink`, `rmdir`, `rename`, `writeFile`) — they're just not wired to any server actions or services. No filename validation utility exists.
++
++**Where we're going**: A developer implementing Phase 2 UI can call `createFile(slug, worktreePath, dir, name)`, `deleteItem(slug, worktreePath, path)`, `renameItem(slug, worktreePath, oldPath, newName)` server actions that validate names (git-portable), enforce path security, and return typed result objects. All backed by 15-20 unit tests using FakeFileSystem.
++
++---
++
++## Domain Context
++
++### Domains We're Changing
++
++| Domain | What Changes | Key Files |
++|--------|-------------|-----------|
++| file-browser | New service functions (create, delete, rename) + filename validator + 5 server actions + result types | `services/file-mutation-actions.ts`, `lib/validate-filename.ts`, `app/actions/file-actions.ts` |
++
++### Domains We Depend On (no changes)
++
++| Domain | What We Consume | Contract |
++|--------|----------------|----------|
++| _platform/file-ops | Filesystem CRUD + path security | IFileSystem (mkdir, unlink, rmdir, rename, writeFile, exists, stat, realpath), IPathResolver (resolvePath) |
++| _platform/file-ops | Test doubles | FakeFileSystem, FakePathResolver |
++| _platform/auth | Server action authentication | requireAuth() |
++
++---
++
++## Flight Status
++
++<!-- Updated by /plan-6-v2: pending → active → done. Use blocked for problems/input needed. -->
++
++```mermaid
++stateDiagram-v2
++    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
++    classDef active fill:#FFC107,stroke:#FFA000,color:#000
++    classDef done fill:#4CAF50,stroke:#388E3C,color:#fff
++    classDef blocked fill:#F44336,stroke:#D32F2F,color:#fff
++
++    state "1: Result types" as S1
++    state "2: Filename validation (TDD)" as S2
++    state "3: Mutation services (TDD)" as S3
++    state "4: Refactor" as S4
++    state "5: Server action wiring" as S5
++
++    [*] --> S1
++    S1 --> S2
++    S1 --> S3
++    S2 --> S3
++    S3 --> S4
++    S4 --> S5
++    S5 --> [*]
++
++    class S1,S2,S3,S4,S5 pending
++```
++
++**Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
++
++---
++
++## Stages
++
++<!-- Updated by /plan-6-v2 during implementation: [ ] → [~] → [x] -->
++
++- [ ] **Stage 1: Define result types** — CreateResult, DeleteResult, RenameResult, ItemCountResult discriminated unions + options interfaces (`file-mutation-actions.ts` — new file)
++- [ ] **Stage 2: Filename validation TDD** — RED tests then GREEN implementation for git-portable name checking (`validate-filename.test.ts` — new file, `validate-filename.ts` — new file)
++- [ ] **Stage 3: Mutation services TDD** — RED tests (15-20 cases) then GREEN implementations for createFile, createFolder, deleteItem, renameItem (`file-mutation-actions.test.ts` — new file, `file-mutation-actions.ts`)
++- [ ] **Stage 4: Refactor** — Extract shared path-validation helper, clean error mapping (`file-mutation-actions.ts`)
++- [ ] **Stage 5: Wire server actions** — 4 new exports in existing file-actions.ts with requireAuth + DI (`file-actions.ts` — modify)
++
++---
++
++## Architecture: Before & After
++
++```mermaid
++flowchart LR
++    classDef existing fill:#E8F5E9,stroke:#4CAF50,color:#000
++    classDef changed fill:#FFF3E0,stroke:#FF9800,color:#000
++    classDef new fill:#E3F2FD,stroke:#2196F3,color:#000
++
++    subgraph Before["Before Phase 1"]
++        B_SA["file-actions.ts<br/>(11 server actions)"]:::existing
++        B_SVC["services/file-actions.ts<br/>(readFile, saveFile)"]:::existing
++        B_IFS["IFileSystem<br/>(all CRUD methods)"]:::existing
++    end
++
++    subgraph After["After Phase 1"]
++        A_SA["file-actions.ts<br/>(16 server actions)"]:::changed
++        A_SVC["services/file-actions.ts<br/>(readFile, saveFile)"]:::existing
++        A_MUT["services/file-mutation-actions.ts<br/>(create, delete, rename)"]:::new
++        A_VAL["lib/validate-filename.ts"]:::new
++        A_IFS["IFileSystem"]:::existing
++
++        A_SA --> A_MUT
++        A_MUT --> A_VAL
++        A_MUT --> A_IFS
++    end
++```
++
++**Legend**: existing (green, unchanged) | changed (orange, modified) | new (blue, created)
++
++---
++
++## Acceptance Criteria
++
++- [ ] AC-08: Path traversal and symlink escape rejected with security error
++- [ ] AC-09: Duplicate name shows "already exists" error without overwriting
++- [ ] AC-13: Invalid names (git-portable chars) rejected
++- [ ] All 15-20 unit tests pass with `just test`
++- [ ] `just fft` passes (lint, format, typecheck, test)
++- [ ] No changes to existing readFile/saveFile behavior (regression-free)
++
++## Goals & Non-Goals
++
++**Goals**:
++- ✅ TDD service layer for all CRUD operations
++- ✅ Git-portable filename validation (shared client + server)
++- ✅ Path security on all operations
++- ✅ 5 authenticated server actions
++- ✅ Full test coverage with fakes
++
++**Non-Goals**:
++- ❌ No UI changes
++- ❌ No context menu work
++- ❌ No BrowserClient wiring
++- ❌ No API route changes
++
++---
++
++## Checklist
++
++- [x] T001: Define CRUD result types and options interfaces
++- [x] T002: Write validate-filename tests (RED)
++- [x] T003: Implement validate-filename (GREEN)
++- [x] T004: Write mutation service tests (RED)
++- [x] T005: Implement createFileService + createFolderService (GREEN)
++- [x] T006: Implement deleteItemService (GREEN)
++- [x] T007: Implement renameItemService (GREEN)
++- [x] T008: Refactor service layer (REFACTOR)
++- [x] T009: Add 4 server actions to file-actions.ts
+diff --git a/docs/plans/068-add-files/tasks/phase-1-service-layer-server-actions/tasks.md b/docs/plans/068-add-files/tasks/phase-1-service-layer-server-actions/tasks.md
+new file mode 100644
+index 0000000..bead134
+--- /dev/null
++++ b/docs/plans/068-add-files/tasks/phase-1-service-layer-server-actions/tasks.md
+@@ -0,0 +1,271 @@
++# Phase 1: Service Layer & Server Actions — Tasks
++
++## Executive Briefing
++
++**Purpose**: Build the backend file mutation operations (create, rename, delete) with full TDD coverage and path security. This phase delivers the trusted server-side foundation that Phase 2 (UI) and Phase 3 (wiring) will consume.
++
++**What We're Building**: 4 service functions (`createFileService`, `createFolderService`, `deleteItemService`, `renameItemService`) with git-portable filename validation, path traversal prevention, symlink escape detection, and discriminated union result types. Plus 5 server actions wiring them to the DI container with authentication.
++
++**Goals**:
++- ✅ TDD service layer for all 4 CRUD operations (RED → GREEN → REFACTOR)
++- ✅ Git-portable filename validation utility (reusable client + server)
++- ✅ Path security on all operations (PathResolver + realpath)
++- ✅ 5 authenticated server actions (createFile, createFolder, deleteItem, renameItem, getDirectoryItemCount)
++- ✅ Full unit test coverage with FakeFileSystem + FakePathResolver
++
++**Non-Goals**:
++- ❌ No UI changes in this phase
++- ❌ No context menu or inline edit work
++- ❌ No BrowserClient wiring
++- ❌ No new API routes (server actions only)
++
++## Prior Phase Context
++
++_Phase 1 — no prior phases to review._
++
++## Pre-Implementation Check
++
++| File | Exists? | Domain Check | Notes |
++|------|---------|-------------|-------|
++| `apps/web/src/features/041-file-browser/services/file-mutation-actions.ts` | ❌ NEW | ✅ Correct (services/) | Services dir has 11 existing files |
++| `apps/web/src/features/041-file-browser/lib/validate-filename.ts` | ❌ NEW | ⚠️ `lib/` dir missing | Create `lib/` directory first |
++| `test/unit/web/features/041-file-browser/file-mutation-actions.test.ts` | ❌ NEW | ✅ Correct (test dir exists) | Test dir has 29 existing test files |
++| `test/unit/web/features/041-file-browser/validate-filename.test.ts` | ❌ NEW | ✅ Correct | |
++| `apps/web/app/actions/file-actions.ts` | ✅ EXISTS | ✅ Server actions file | 223 lines, 11 existing exports — will add 5 more |
++
++**Concept search**: No duplication found for validateFileName, createFile, deleteItem, or renameItem in the codebase.
++
++**Harness**: No agent harness configured. Implementation will use standard testing only (`just fft`).
++
++## Architecture Map
++
++```mermaid
++flowchart TD
++    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
++    classDef types fill:#CE93D8,stroke:#9C27B0,color:#000
++    classDef test fill:#EF9A9A,stroke:#F44336,color:#000
++    classDef impl fill:#A5D6A7,stroke:#4CAF50,color:#000
++    classDef wire fill:#90CAF9,stroke:#2196F3,color:#000
++
++    subgraph Phase1["Phase 1: Service Layer & Server Actions"]
++        T001["T001: Result types"]:::types
++        T002["T002: validate-filename tests RED"]:::test
++        T003["T003: validate-filename GREEN"]:::pending
++        T004["T004: mutation service tests RED"]:::test
++        T005["T005: createFile + createFolder GREEN"]:::pending
++        T006["T006: deleteItem GREEN"]:::pending
++        T007["T007: renameItem GREEN"]:::pending
++        T008["T008: Refactor"]:::pending
++        T009["T009: Server actions wiring"]:::wire
++
++        T001 --> T002
++        T001 --> T004
++        T002 --> T003
++        T004 --> T005
++        T004 --> T006
++        T004 --> T007
++        T005 --> T008
++        T006 --> T008
++        T007 --> T008
++        T003 --> T005
++        T008 --> T009
++    end
++
++    subgraph Existing["Consumed (no changes)"]
++        IFS["IFileSystem<br/>(mkdir, unlink, rmdir,<br/>rename, writeFile)"]
++        IPR["IPathResolver<br/>(resolvePath)"]
++        FFS["FakeFileSystem"]
++        FPR["FakePathResolver"]
++    end
++
++    T005 -.-> IFS
++    T005 -.-> IPR
++    T004 -.-> FFS
++    T004 -.-> FPR
++    T009 -.-> |"requireAuth + DI"| IFS
++```
++
++## Tasks
++
++| Status | ID | Task | Domain | Path(s) | Done When | Notes |
++|--------|-----|------|--------|---------|-----------|-------|
++| [x] | T001 | Define CRUD result types and options interfaces | file-browser | `apps/web/src/features/041-file-browser/services/file-mutation-actions.ts` | `CreateResult`, `DeleteResult`, `RenameResult` types exported. Each is a discriminated union (`{ok: true, ...} \| {ok: false, error: '...'}`) with typed error codes. `DeleteResult` includes `'too-large'` error variant with `itemCount` field for server-side safety rejection. `CreateFileOptions`, `CreateFolderOptions`, `DeleteItemOptions`, `RenameItemOptions` interfaces exported. | Plan task 1.1. Types first — tests depend on these. Follow `ReadFileResult`/`SaveFileResult` pattern from `file-actions.ts`. DYK-02: dropped ItemCountResult — VS Code-style confirmation, count only on server rejection. |
++| [x] | T002 | Write validate-filename tests (RED) | file-browser | `test/unit/web/features/041-file-browser/validate-filename.test.ts` | Tests exist for: each invalid char (`/ \ \0 : * ? " < > \|`), empty string, `.`, `..`, trailing spaces, leading dots (valid), normal names (valid). All tests FAIL (RED). All include Test Doc format. | Plan task 1.2. Create `lib/` directory first. |
++| [x] | T003 | Implement validate-filename (GREEN) | file-browser | `apps/web/src/features/041-file-browser/lib/validate-filename.ts` | `validateFileName(name: string)` returns `{ok: true} \| {ok: false, error: 'empty' \| 'invalid-char' \| 'reserved', char?: string}`. All T002 tests pass (GREEN). | Plan task 1.3. Finding 01. Git-portable chars: `/ \ \0 : * ? " < > \|`. Reserved: `.`, `..`. Allow leading dots (hidden files like `.gitignore`). |
++| [x] | T004 | Write mutation service tests (RED) | file-browser | `test/unit/web/features/041-file-browser/file-mutation-actions.test.ts` | 15-20 test cases covering: (a) createFile happy path, (b) createFolder happy path, (c) deleteFile happy path, (d) deleteFolder happy path, (e) renameFile happy path, (f) renameFolder happy path, (g) create rejects duplicate name, (h) rename rejects if destination exists, (i) path traversal rejected for each operation, (j) symlink escape rejected, (k) delete rejects non-existent path, (l) rename rejects non-existent source, (m) deleteFolder stat-check for large dirs, (n) createFile validates filename. All FAIL (RED). All include Test Doc. Uses FakeFileSystem + FakePathResolver. | Plan task 1.4. Target 15-20 cases. Follow `file-actions.test.ts` patterns. |
++| [x] | T005 | Implement createFileService + createFolderService (GREEN) | file-browser | `apps/web/src/features/041-file-browser/services/file-mutation-actions.ts` | `createFileService(opts)` creates empty file via `writeFile`. `createFolderService(opts)` creates dir via `mkdir`. Both: validate name via `validateFileName`, resolve path via `pathResolver.resolvePath`, check `exists` before write (reject duplicates), symlink check via `realpath` on PARENT directory (target doesn't exist yet — DYK-01). Return `CreateResult`. Relevant tests pass (GREEN). | Plan task 1.5. DYK-01: realpath on parent dir, not target file. Pattern: resolvePath → exists check → realpath(dirname) check → writeFile/mkdir → return `{ok, path}`. |
++| [x] | T006 | Implement deleteItemService (GREEN) | file-browser | `apps/web/src/features/041-file-browser/services/file-mutation-actions.ts` | `deleteItemService(opts)` deletes file (`unlink`) or folder (`rmdir({recursive: true})`). Resolves path, checks exists + type via `stat`, symlink check. For folders: server-side safety — quick `readDir` count, reject with `{ok: false, error: 'too-large', itemCount}` if direct children exceed 5000 (configurable). Returns `DeleteResult`. Relevant tests pass (GREEN). | Plan task 1.6. DYK-02: VS Code-style — no pre-flight count action. Count only surfaces in error response when folder is too large. |
++| [x] | T007 | Implement renameItemService (GREEN) | file-browser | `apps/web/src/features/041-file-browser/services/file-mutation-actions.ts` | `renameItemService(opts)` renames file or folder. Validates new name via `validateFileName`. Resolves BOTH old and new paths. Checks source exists, destination does NOT exist. Symlink check on source. Calls `fileSystem.rename(oldAbsPath, newAbsPath)`. Returns `RenameResult` with `{ok: true, oldPath, newPath}`. Relevant tests pass (GREEN). | Plan task 1.7. Security: validate both source and destination paths. DYK-04: return both oldPath and newPath — result should be self-contained so consumers can detect if renamed file was active selection without external context. |
++| [x] | T008 | Refactor service layer (REFACTOR) | file-browser | `apps/web/src/features/041-file-browser/services/file-mutation-actions.ts` | All 15-20 tests green after refactor. Extract shared `resolveAndValidatePath(worktreePath, filePath, fileSystem, pathResolver)` helper if path-validation is duplicated across services. Clean error mapping. No new test failures. | Plan task 1.8. TDD refactor step. |
++| [x] | T009 | Add 4 server actions to file-actions.ts | file-browser | `apps/web/app/actions/file-actions.ts` | 4 new `'use server'` exports: `createFile(slug, worktreePath, dirPath, fileName)`, `createFolder(slug, worktreePath, dirPath, folderName)`, `deleteItem(slug, worktreePath, itemPath)`, `renameItem(slug, worktreePath, oldPath, newName)`. Each: `requireAuth()` → `getContainer()` → resolve IFileSystem + IPathResolver → call service → return result. | Plan task 1.9. DYK-02: dropped getDirectoryItemCount — VS Code-style dialog with server-side safety limit. |
++
++## Context Brief
++
++### Key findings from plan
++
++- **Finding 01** (Critical): No filename validation utility exists. T002/T003 build it from scratch with git-portable rules.
++- **Finding 06** (High): `rmdir({recursive: true})` has no file count limit — could silently delete 10k+ files. T006 adds stat-based pre-check.
++
++### Domain dependencies (concepts and contracts this phase consumes)
++
++- `_platform/file-ops`: **IFileSystem** (`packages/shared/src/interfaces/filesystem.interface.ts`) — `mkdir`, `writeFile`, `unlink`, `rmdir`, `rename`, `exists`, `stat`, `realpath`, `readDir`. All methods throw `FileSystemError` with code/path.
++- `_platform/file-ops`: **IPathResolver** (`packages/shared/src/interfaces/path-resolver.interface.ts`) — `resolvePath(base, relative)` validates path containment. Throws `PathSecurityError{base, requested}`.
++- `_platform/file-ops`: **FakeFileSystem** (`packages/shared/src/fakes/fake-filesystem.ts`) — In-memory test double with `setFile()`, `simulateError()`. Contract-tested parity with NodeFileSystemAdapter.
++- `_platform/file-ops`: **FakePathResolver** (`packages/shared/src/fakes/fake-path-resolver.ts`) — Configurable test double with call tracking.
++- `_platform/auth`: **requireAuth** (`apps/web/src/features/063-login/lib/require-auth.ts`) — Blocks unauthenticated server action calls.
++- `_platform/file-ops`: **DI tokens** — `SHARED_DI_TOKENS.FILESYSTEM`, `SHARED_DI_TOKENS.PATH_RESOLVER`, resolved via `getContainer()`.
++
++### Domain constraints
++
++- All new service code lives in `apps/web/src/features/041-file-browser/` (file-browser domain boundary).
++- Services import only from interfaces (`@chainglass/shared`), never from adapters directly.
++- Server actions live in `apps/web/app/actions/file-actions.ts` — this is the one file outside the feature folder (Next.js convention).
++- No mocking libraries — FakeFileSystem + FakePathResolver only (P4: Fakes Over Mocks).
++- All tests include 5-field Test Doc (Why/Contract/Usage Notes/Quality Contribution/Worked Example).
++
++### Harness context
++
++No agent harness configured. Agent will use standard testing approach from plan (`just fft`).
++
++### Reusable from prior phases
++
++_Phase 1 — nothing from prior phases. But these existing patterns are reusable:_
++- `readFileAction` / `saveFileAction` in `services/file-actions.ts` — path security pattern (resolvePath → realpath → containment check)
++- `uploadFileService` in `services/upload-file.ts` — create pattern (mkdir recursive → atomic write → result)
++- `ReadFileResult` / `SaveFileResult` — discriminated union result type pattern
++- `ReadFileOptions` / `SaveFileOptions` — options interface pattern (dependencies injected as fields)
++
++### Key signatures to consume
++
++```typescript
++// IFileSystem methods
++mkdir(path: string, options?: { recursive?: boolean }): Promise<void>;
++writeFile(path: string, content: string | Buffer): Promise<void>;
++unlink(path: string): Promise<void>;
++rmdir(path: string, options?: { recursive?: boolean }): Promise<void>;
++rename(oldPath: string, newPath: string): Promise<void>;
++exists(path: string): Promise<boolean>;
++stat(path: string): Promise<FileStat>;  // {isFile, isDirectory, size, mtime}
++realpath(path: string): Promise<string>;
++
++// IPathResolver
++resolvePath(base: string, relative: string): string;  // throws PathSecurityError
++```
++
++```typescript
++// Path security pattern (from existing saveFileAction)
++let absolutePath: string;
++try {
++  absolutePath = pathResolver.resolvePath(worktreePath, filePath);
++} catch (e) {
++  if (e instanceof PathSecurityError) {
++    return { ok: false, error: 'security' };
++  }
++  throw e;
++}
++// Symlink check
++const realPath = await fileSystem.realpath(absolutePath);
++const normalizedRoot = worktreePath.endsWith('/') ? worktreePath : `${worktreePath}/`;
++if (realPath !== worktreePath && !realPath.startsWith(normalizedRoot)) {
++  return { ok: false, error: 'security' };
++}
++```
++
++```typescript
++// Server action pattern (from existing readFile)
++export async function readFile(slug: string, worktreePath: string, filePath: string) {
++  'use server';
++  await requireAuth();
++  const container = getContainer();
++  const fileSystem = container.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
++  const pathResolver = container.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
++  return readFileAction({ worktreePath, filePath, fileSystem, pathResolver });
++}
++```
++
++### System flow diagram
++
++```mermaid
++flowchart LR
++    subgraph Client["Client (Phase 2+)"]
++        UI["FileTree / BrowserClient"]
++    end
++
++    subgraph Server["Server Actions"]
++        SA["createFile / deleteItem / renameItem"]
++    end
++
++    subgraph Services["Service Layer (this phase)"]
++        VF["validateFileName()"]
++        CS["createFileService()"]
++        DS["deleteItemService()"]
++        RS["renameItemService()"]
++    end
++
++    subgraph Infra["Infrastructure (consumed)"]
++        IFS["IFileSystem"]
++        IPR["IPathResolver"]
++    end
++
++    UI -->|"server action call"| SA
++    SA -->|"requireAuth + DI"| CS
++    SA -->|"requireAuth + DI"| DS
++    SA -->|"requireAuth + DI"| RS
++    CS --> VF
++    RS --> VF
++    CS --> IPR
++    CS --> IFS
++    DS --> IPR
++    DS --> IFS
++    RS --> IPR
++    RS --> IFS
++```
++
++### Service interaction sequence
++
++```mermaid
++sequenceDiagram
++    participant C as Client
++    participant SA as Server Action
++    participant SVC as Service Function
++    participant VF as validateFileName
++    participant PR as IPathResolver
++    participant FS as IFileSystem
++
++    C->>SA: createFile(slug, worktreePath, dir, name)
++    SA->>SA: requireAuth()
++    SA->>SA: getContainer().resolve(IFileSystem, IPathResolver)
++    SA->>SVC: createFileService(opts)
++    SVC->>VF: validateFileName(name)
++    VF-->>SVC: {ok: true} or {ok: false, error}
++    SVC->>PR: resolvePath(worktreePath, dir/name)
++    PR-->>SVC: absolutePath (or PathSecurityError)
++    SVC->>FS: exists(absolutePath)
++    FS-->>SVC: false
++    SVC->>FS: realpath(absolutePath parent)
++    FS-->>SVC: realPath (symlink check)
++    SVC->>FS: writeFile(absolutePath, "")
++    FS-->>SVC: void
++    SVC-->>SA: {ok: true, path: "dir/name"}
++    SA-->>C: CreateResult
++```
++
++## Discoveries & Learnings
++
++_Populated during implementation by plan-6._
++
++| Date | Task | Type | Discovery | Resolution | References |
++|------|------|------|-----------|------------|------------|
++
++---
++
++```
++docs/plans/068-add-files/
++  ├── add-files-spec.md
++  ├── add-files-plan.md
++  ├── exploration.md
++  └── tasks/phase-1-service-layer-server-actions/
++      ├── tasks.md
++      ├── tasks.fltplan.md        # flight plan (below)
++      └── execution.log.md        # created by plan-6
++```
+diff --git a/test/unit/web/features/041-file-browser/file-mutation-actions.test.ts b/test/unit/web/features/041-file-browser/file-mutation-actions.test.ts
+new file mode 100644
+index 0000000..a51a2ef
+--- /dev/null
++++ b/test/unit/web/features/041-file-browser/file-mutation-actions.test.ts
+@@ -0,0 +1,442 @@
++/**
++ * File Mutation Actions Tests (create, delete, rename)
++ *
++ * Purpose: Verify secure file/folder CRUD with path security,
++ *          duplicate detection, filename validation, and error handling.
++ * Quality Contribution: Security-critical — prevents path traversal and symlink attacks.
++ *
++ * Plan 068: Add File/Folder Features — Phase 1
++ */
++
++import {
++  type CreateFileOptions,
++  type CreateFolderOptions,
++  type DeleteItemOptions,
++  MAX_DELETE_CHILDREN,
++  type RenameItemOptions,
++  createFileService,
++  createFolderService,
++  deleteItemService,
++  renameItemService,
++} from '@/features/041-file-browser/services/file-mutation-actions';
++import { FakeFileSystem, FakePathResolver } from '@chainglass/shared';
++import { beforeEach, describe, expect, it } from 'vitest';
++
++describe('createFileService', () => {
++  let fs: InstanceType<typeof FakeFileSystem>;
++  let pathResolver: InstanceType<typeof FakePathResolver>;
++
++  beforeEach(() => {
++    fs = new FakeFileSystem();
++    pathResolver = new FakePathResolver();
++    // Ensure parent directory exists
++    fs.setFile('/workspace/src/.gitkeep', '');
++  });
++
++  const opts = (overrides?: Partial<CreateFileOptions>): CreateFileOptions => ({
++    worktreePath: '/workspace',
++    dirPath: 'src',
++    fileName: 'index.ts',
++    fileSystem: fs,
++    pathResolver,
++    ...overrides,
++  });
++
++  it('creates an empty file and returns its path', async () => {
++    /*
++    Test Doc:
++    - Why: Verify the core happy path for file creation
++    - Contract: createFileService creates file at dirPath/fileName, returns {ok: true, path}
++    - Usage Notes: File is created empty — content editing happens after via saveFile
++    - Quality Contribution: Core CRUD operation
++    - Worked Example: createFileService({dirPath: 'src', fileName: 'index.ts'}) → {ok: true, path: 'src/index.ts'}
++    */
++    const result = await createFileService(opts());
++
++    expect(result.ok).toBe(true);
++    if (result.ok) {
++      expect(result.path).toBe('src/index.ts');
++    }
++    expect(await fs.exists('/workspace/src/index.ts')).toBe(true);
++  });
++
++  it('rejects duplicate file names', async () => {
++    /*
++    Test Doc:
++    - Why: Creating over an existing file would silently destroy content
++    - Contract: Returns {ok: false, error: 'exists'} if file already exists
++    - Usage Notes: Check before write — no overwrite behavior
++    - Quality Contribution: Prevents data loss from accidental overwrites
++    - Worked Example: createFileService for existing file → {ok: false, error: 'exists'}
++    */
++    fs.setFile('/workspace/src/index.ts', 'existing content');
++
++    const result = await createFileService(opts());
++
++    expect(result.ok).toBe(false);
++    if (!result.ok) {
++      expect(result.error).toBe('exists');
++    }
++  });
++
++  it('rejects invalid file names', async () => {
++    /*
++    Test Doc:
++    - Why: Invalid names would fail on disk or cause cross-platform issues
++    - Contract: Returns {ok: false, error: 'invalid-name'} for git-portable violations
++    - Usage Notes: Validates before any filesystem I/O
++    - Quality Contribution: Prevents bad filenames from reaching disk
++    - Worked Example: createFileService({fileName: 'file*.ts'}) → {ok: false, error: 'invalid-name'}
++    */
++    const result = await createFileService(opts({ fileName: 'file*.ts' }));
++
++    expect(result.ok).toBe(false);
++    if (!result.ok) {
++      expect(result.error).toBe('invalid-name');
++    }
++  });
++
++  it('rejects path traversal attempts', async () => {
++    /*
++    Test Doc:
++    - Why: Attacker could use ../../../etc/passwd as dirPath
++    - Contract: Returns {ok: false, error: 'security'} on path traversal
++    - Usage Notes: PathResolver.resolvePath throws PathSecurityError
++    - Quality Contribution: Blocks directory traversal attack vector
++    - Worked Example: createFileService({dirPath: '../../etc'}) → {ok: false, error: 'security'}
++    */
++
++    const result = await createFileService(opts({ dirPath: '../../etc' }));
++
++    expect(result.ok).toBe(false);
++    if (!result.ok) {
++      expect(result.error).toBe('security');
++    }
++  });
++});
++
++describe('createFolderService', () => {
++  let fs: InstanceType<typeof FakeFileSystem>;
++  let pathResolver: InstanceType<typeof FakePathResolver>;
++
++  beforeEach(() => {
++    fs = new FakeFileSystem();
++    pathResolver = new FakePathResolver();
++    fs.setFile('/workspace/src/.gitkeep', '');
++  });
++
++  const opts = (overrides?: Partial<CreateFolderOptions>): CreateFolderOptions => ({
++    worktreePath: '/workspace',
++    dirPath: 'src',
++    folderName: 'components',
++    fileSystem: fs,
++    pathResolver,
++    ...overrides,
++  });
++
++  it('creates a directory and returns its path', async () => {
++    /*
++    Test Doc:
++    - Why: Verify the core happy path for folder creation
++    - Contract: createFolderService creates dir at dirPath/folderName, returns {ok: true, path}
++    - Usage Notes: Creates directory with mkdir
++    - Quality Contribution: Core CRUD operation
++    - Worked Example: createFolderService({dirPath: 'src', folderName: 'components'}) → {ok: true, path: 'src/components'}
++    */
++    const result = await createFolderService(opts());
++
++    expect(result.ok).toBe(true);
++    if (result.ok) {
++      expect(result.path).toBe('src/components');
++    }
++  });
++
++  it('rejects duplicate folder names', async () => {
++    /*
++    Test Doc:
++    - Why: Creating over an existing directory is confusing and may lose data
++    - Contract: Returns {ok: false, error: 'exists'} if folder already exists
++    - Usage Notes: Uses exists() check before mkdir
++    - Quality Contribution: Prevents confusion from silent no-ops
++    - Worked Example: createFolderService for existing dir → {ok: false, error: 'exists'}
++    */
++    await fs.mkdir('/workspace/src/components');
++
++    const result = await createFolderService(opts());
++
++    expect(result.ok).toBe(false);
++    if (!result.ok) {
++      expect(result.error).toBe('exists');
++    }
++  });
++
++  it('rejects path traversal', async () => {
++    /*
++    Test Doc:
++    - Why: Attacker could use directory traversal to create folders outside workspace
++    - Contract: Returns {ok: false, error: 'security'} on traversal
++    - Usage Notes: PathResolver catches the escape
++    - Quality Contribution: Security boundary enforcement
++    - Worked Example: createFolderService({dirPath: '../..'}) → {ok: false, error: 'security'}
++    */
++
++    const result = await createFolderService(opts({ dirPath: '../../etc' }));
++
++    expect(result.ok).toBe(false);
++    if (!result.ok) {
++      expect(result.error).toBe('security');
++    }
++  });
++});
++
++describe('deleteItemService', () => {
++  let fs: InstanceType<typeof FakeFileSystem>;
++  let pathResolver: InstanceType<typeof FakePathResolver>;
++
++  beforeEach(() => {
++    fs = new FakeFileSystem();
++    pathResolver = new FakePathResolver();
++  });
++
++  const opts = (overrides?: Partial<DeleteItemOptions>): DeleteItemOptions => ({
++    worktreePath: '/workspace',
++    itemPath: 'src/old.ts',
++    fileSystem: fs,
++    pathResolver,
++    ...overrides,
++  });
++
++  it('deletes a file', async () => {
++    /*
++    Test Doc:
++    - Why: Verify the core happy path for file deletion
++    - Contract: deleteItemService removes the file, returns {ok: true}
++    - Usage Notes: Uses unlink for files
++    - Quality Contribution: Core CRUD operation
++    - Worked Example: deleteItemService({itemPath: 'src/old.ts'}) → {ok: true}
++    */
++    fs.setFile('/workspace/src/old.ts', 'content');
++
++    const result = await deleteItemService(opts());
++
++    expect(result.ok).toBe(true);
++    expect(await fs.exists('/workspace/src/old.ts')).toBe(false);
++  });
++
++  it('deletes a folder recursively', async () => {
++    /*
++    Test Doc:
++    - Why: Verify folder deletion with contents
++    - Contract: deleteItemService removes dir and contents, returns {ok: true}
++    - Usage Notes: Uses rmdir({recursive: true}) for directories
++    - Quality Contribution: Handles the more dangerous delete case
++    - Worked Example: deleteItemService({itemPath: 'src/old-dir'}) → {ok: true}
++    */
++    fs.setFile('/workspace/src/old-dir/a.ts', 'a');
++    fs.setFile('/workspace/src/old-dir/b.ts', 'b');
++
++    const result = await deleteItemService(opts({ itemPath: 'src/old-dir' }));
++
++    expect(result.ok).toBe(true);
++    expect(await fs.exists('/workspace/src/old-dir')).toBe(false);
++  });
++
++  it('rejects deletion of non-existent paths', async () => {
++    /*
++    Test Doc:
++    - Why: Deleting a non-existent file should fail clearly
++    - Contract: Returns {ok: false, error: 'not-found'}
++    - Usage Notes: Stat check before delete
++    - Quality Contribution: Clear error instead of ENOENT crash
++    - Worked Example: deleteItemService for missing file → {ok: false, error: 'not-found'}
++    */
++    const result = await deleteItemService(opts({ itemPath: 'src/nonexistent.ts' }));
++
++    expect(result.ok).toBe(false);
++    if (!result.ok) {
++      expect(result.error).toBe('not-found');
++    }
++  });
++
++  it('rejects path traversal', async () => {
++    /*
++    Test Doc:
++    - Why: Attacker could try to delete files outside workspace
++    - Contract: Returns {ok: false, error: 'security'} on traversal
++    - Usage Notes: PathResolver validates containment
++    - Quality Contribution: Blocks deletion outside workspace boundary
++    - Worked Example: deleteItemService({itemPath: '../../etc/passwd'}) → {ok: false, error: 'security'}
++    */
++
++    const result = await deleteItemService(opts({ itemPath: '../../etc/passwd' }));
++
++    expect(result.ok).toBe(false);
++    if (!result.ok) {
++      expect(result.error).toBe('security');
++    }
++  });
++
++  it('rejects deletion of folders with too many children', async () => {
++    /*
++    Test Doc:
++    - Why: Deleting node_modules (10k+ files) could block the server
++    - Contract: Returns {ok: false, error: 'too-large', itemCount} for oversized dirs
++    - Usage Notes: Quick readDir count before rmdir — server-side safety limit
++    - Quality Contribution: Prevents accidental mass deletion and server stalls
++    - Worked Example: deleteItemService for folder with >5000 children → {ok: false, error: 'too-large'}
++    */
++    // Create a directory with entries exceeding the limit
++    fs.setFile('/workspace/.gitkeep', '');
++    await fs.mkdir('/workspace/huge-dir');
++    const entries: string[] = [];
++    for (let i = 0; i < MAX_DELETE_CHILDREN + 1; i++) {
++      entries.push(`file${i}.ts`);
++    }
++    // FakeFileSystem.readDir returns children — simulate many entries
++    for (const entry of entries) {
++      fs.setFile(`/workspace/huge-dir/${entry}`, '');
++    }
++
++    const result = await deleteItemService(opts({ itemPath: 'huge-dir' }));
++
++    expect(result.ok).toBe(false);
++    if (!result.ok) {
++      expect(result.error).toBe('too-large');
++      expect(result.itemCount).toBeGreaterThan(MAX_DELETE_CHILDREN);
++    }
++  });
++});
++
++describe('renameItemService', () => {
++  let fs: InstanceType<typeof FakeFileSystem>;
++  let pathResolver: InstanceType<typeof FakePathResolver>;
++
++  beforeEach(() => {
++    fs = new FakeFileSystem();
++    pathResolver = new FakePathResolver();
++  });
++
++  const opts = (overrides?: Partial<RenameItemOptions>): RenameItemOptions => ({
++    worktreePath: '/workspace',
++    oldPath: 'src/old.ts',
++    newName: 'new.ts',
++    fileSystem: fs,
++    pathResolver,
++    ...overrides,
++  });
++
++  it('renames a file and returns both paths', async () => {
++    /*
++    Test Doc:
++    - Why: Verify core rename happy path with both old and new paths in result
++    - Contract: renameItemService renames file, returns {ok: true, oldPath, newPath}
++    - Usage Notes: DYK-04: Both paths needed for Phase 3 selectedFile sync
++    - Quality Contribution: Core CRUD + state management support
++    - Worked Example: renameItemService({oldPath: 'src/old.ts', newName: 'new.ts'}) → {ok: true, oldPath: 'src/old.ts', newPath: 'src/new.ts'}
++    */
++    fs.setFile('/workspace/src/old.ts', 'content');
++
++    const result = await renameItemService(opts());
++
++    expect(result.ok).toBe(true);
++    if (result.ok) {
++      expect(result.oldPath).toBe('src/old.ts');
++      expect(result.newPath).toBe('src/new.ts');
++    }
++    expect(await fs.exists('/workspace/src/old.ts')).toBe(false);
++    expect(await fs.exists('/workspace/src/new.ts')).toBe(true);
++  });
++
++  it('renames a folder', async () => {
++    /*
++    Test Doc:
++    - Why: Verify folder rename works — same IFileSystem.rename under the hood
++    - Contract: renameItemService renames folder, returns {ok: true, oldPath, newPath}
++    - Usage Notes: Folder rename preserves all children
++    - Quality Contribution: Ensures folder rename doesn't lose contents
++    - Worked Example: renameItemService({oldPath: 'src/old-dir', newName: 'new-dir'}) → {ok: true}
++    */
++    fs.setFile('/workspace/src/old-dir/child.ts', 'child');
++
++    const result = await renameItemService(opts({ oldPath: 'src/old-dir', newName: 'new-dir' }));
++
++    expect(result.ok).toBe(true);
++    if (result.ok) {
++      expect(result.newPath).toBe('src/new-dir');
++    }
++  });
++
++  it('rejects rename if destination already exists', async () => {
++    /*
++    Test Doc:
++    - Why: Renaming onto an existing file would silently overwrite
++    - Contract: Returns {ok: false, error: 'exists'} if destination exists
++    - Usage Notes: Check before rename — no clobber behavior
++    - Quality Contribution: Prevents data loss from name collision
++    - Worked Example: rename to existing name → {ok: false, error: 'exists'}
++    */
++    fs.setFile('/workspace/src/old.ts', 'old content');
++    fs.setFile('/workspace/src/new.ts', 'new content');
++
++    const result = await renameItemService(opts());
++
++    expect(result.ok).toBe(false);
++    if (!result.ok) {
++      expect(result.error).toBe('exists');
++    }
++  });
++
++  it('rejects rename of non-existent source', async () => {
++    /*
++    Test Doc:
++    - Why: Renaming a non-existent file should fail clearly
++    - Contract: Returns {ok: false, error: 'not-found'} if source doesn't exist
++    - Usage Notes: Stat check on source before rename
++    - Quality Contribution: Clear error instead of ENOENT crash
++    - Worked Example: rename missing file → {ok: false, error: 'not-found'}
++    */
++    const result = await renameItemService(opts());
++
++    expect(result.ok).toBe(false);
++    if (!result.ok) {
++      expect(result.error).toBe('not-found');
++    }
++  });
++
++  it('rejects invalid new name', async () => {
++    /*
++    Test Doc:
++    - Why: Invalid names would fail on disk or cause cross-platform issues
++    - Contract: Returns {ok: false, error: 'invalid-name'} for git-portable violations
++    - Usage Notes: Validates before any filesystem I/O
++    - Quality Contribution: Prevents bad filenames from reaching disk
++    - Worked Example: rename with newName containing '?' → {ok: false, error: 'invalid-name'}
++    */
++    fs.setFile('/workspace/src/old.ts', 'content');
++
++    const result = await renameItemService(opts({ newName: 'invalid?.ts' }));
++
++    expect(result.ok).toBe(false);
++    if (!result.ok) {
++      expect(result.error).toBe('invalid-name');
++    }
++  });
++
++  it('rejects path traversal', async () => {
++    /*
++    Test Doc:
++    - Why: Attacker could rename files outside workspace
++    - Contract: Returns {ok: false, error: 'security'} on traversal
++    - Usage Notes: PathResolver validates both source and destination
++    - Quality Contribution: Security boundary enforcement
++    - Worked Example: rename with traversal path → {ok: false, error: 'security'}
++    */
++
++    const result = await renameItemService(opts({ oldPath: '../../etc/passwd' }));
++
++    expect(result.ok).toBe(false);
++    if (!result.ok) {
++      expect(result.error).toBe('security');
++    }
++  });
++});
+diff --git a/test/unit/web/features/041-file-browser/validate-filename.test.ts b/test/unit/web/features/041-file-browser/validate-filename.test.ts
+new file mode 100644
+index 0000000..9cd545c
+--- /dev/null
++++ b/test/unit/web/features/041-file-browser/validate-filename.test.ts
+@@ -0,0 +1,185 @@
++import { validateFileName } from '@/features/041-file-browser/lib/validate-filename';
++import { describe, expect, it } from 'vitest';
++
++describe('validateFileName', () => {
++  describe('valid names', () => {
++    it('should accept a simple filename', () => {
++      /*
++      Test Doc:
++      - Why: Verify the most common case works
++      - Contract: validateFileName('readme.md') returns {ok: true}
++      - Usage Notes: Basic happy path — no special characters
++      - Quality Contribution: Prevents false rejections
++      - Worked Example: 'readme.md' → {ok: true}
++      */
++      const result = validateFileName('readme.md');
++      expect(result.ok).toBe(true);
++    });
++
++    it('should accept filenames with leading dots (hidden files)', () => {
++      /*
++      Test Doc:
++      - Why: Hidden files like .gitignore are common and must be allowed
++      - Contract: validateFileName('.gitignore') returns {ok: true}
++      - Usage Notes: Leading dots are valid on POSIX and needed for dotfiles
++      - Quality Contribution: Prevents blocking legitimate hidden file creation
++      - Worked Example: '.gitignore' → {ok: true}
++      */
++      expect(validateFileName('.gitignore').ok).toBe(true);
++      expect(validateFileName('.env.local').ok).toBe(true);
++    });
++
++    it('should accept filenames with spaces', () => {
++      /*
++      Test Doc:
++      - Why: Spaces are valid in filenames on all platforms
++      - Contract: validateFileName('my file.txt') returns {ok: true}
++      - Usage Notes: Spaces are allowed — git handles them fine
++      - Quality Contribution: Prevents overly strict rejection
++      - Worked Example: 'my file.txt' → {ok: true}
++      */
++      expect(validateFileName('my file.txt').ok).toBe(true);
++    });
++
++    it('should accept filenames with hyphens, underscores, and numbers', () => {
++      /*
++      Test Doc:
++      - Why: Common naming patterns must be allowed
++      - Contract: validateFileName('test-file_2.ts') returns {ok: true}
++      - Usage Notes: Standard chars for code files
++      - Quality Contribution: Ensures typical developer filenames work
++      - Worked Example: 'test-file_2.ts' → {ok: true}
++      */
++      expect(validateFileName('test-file_2.ts').ok).toBe(true);
++      expect(validateFileName('Component123.tsx').ok).toBe(true);
++    });
++  });
++
++  describe('empty and reserved names', () => {
++    it('should reject empty string', () => {
++      /*
++      Test Doc:
++      - Why: Empty filenames are invalid on all filesystems
++      - Contract: validateFileName('') returns {ok: false, error: 'empty'}
++      - Usage Notes: Check before any filesystem operation
++      - Quality Contribution: Prevents ENOENT errors from empty paths
++      - Worked Example: '' → {ok: false, error: 'empty'}
++      */
++      const result = validateFileName('');
++      expect(result.ok).toBe(false);
++      if (!result.ok) {
++        expect(result.error).toBe('empty');
++      }
++    });
++
++    it('should reject whitespace-only strings', () => {
++      /*
++      Test Doc:
++      - Why: Whitespace-only names create invisible files
++      - Contract: validateFileName('   ') returns {ok: false, error: 'empty'}
++      - Usage Notes: Trim before checking — whitespace-only is effectively empty
++      - Quality Contribution: Prevents confusing invisible entries in tree
++      - Worked Example: '   ' → {ok: false, error: 'empty'}
++      */
++      const result = validateFileName('   ');
++      expect(result.ok).toBe(false);
++      if (!result.ok) {
++        expect(result.error).toBe('empty');
++      }
++    });
++
++    it('should reject "." (current directory)', () => {
++      /*
++      Test Doc:
++      - Why: "." is a reserved filesystem name meaning current directory
++      - Contract: validateFileName('.') returns {ok: false, error: 'reserved'}
++      - Usage Notes: Must reject to prevent path confusion
++      - Quality Contribution: Prevents accidental directory reference as filename
++      - Worked Example: '.' → {ok: false, error: 'reserved'}
++      */
++      const result = validateFileName('.');
++      expect(result.ok).toBe(false);
++      if (!result.ok) {
++        expect(result.error).toBe('reserved');
++      }
++    });
++
++    it('should reject ".." (parent directory)', () => {
++      /*
++      Test Doc:
++      - Why: ".." is a reserved name that could enable path traversal
++      - Contract: validateFileName('..') returns {ok: false, error: 'reserved'}
++      - Usage Notes: Security-critical — prevents directory traversal
++      - Quality Contribution: Blocks trivial traversal attack vector
++      - Worked Example: '..' → {ok: false, error: 'reserved'}
++      */
++      const result = validateFileName('..');
++      expect(result.ok).toBe(false);
++      if (!result.ok) {
++        expect(result.error).toBe('reserved');
++      }
++    });
++  });
++
++  describe('git-portable invalid characters', () => {
++    const invalidChars = [
++      { char: '/', label: 'forward slash' },
++      { char: '\\', label: 'backslash' },
++      { char: '\0', label: 'null byte' },
++      { char: ':', label: 'colon' },
++      { char: '*', label: 'asterisk' },
++      { char: '?', label: 'question mark' },
++      { char: '"', label: 'double quote' },
++      { char: '<', label: 'less than' },
++      { char: '>', label: 'greater than' },
++      { char: '|', label: 'pipe' },
++    ];
++
++    for (const { char, label } of invalidChars) {
++      it(`should reject names containing ${label}`, () => {
++        /*
++        Test Doc:
++        - Why: Git-portable filenames must avoid characters invalid on Windows
++        - Contract: validateFileName containing the char returns {ok: false, error: 'invalid-char'}
++        - Usage Notes: Per spec clarification Q8 — git-portable validation
++        - Quality Contribution: Prevents cross-platform git issues
++        - Worked Example: 'file<char>name' → {ok: false, error: 'invalid-char', char}
++        */
++        const result = validateFileName(`file${char}name`);
++        expect(result.ok).toBe(false);
++        if (!result.ok) {
++          expect(result.error).toBe('invalid-char');
++          expect(result.char).toBe(char);
++        }
++      });
++    }
++  });
++
++  describe('edge cases', () => {
++    it('should reject names with trailing spaces', () => {
++      /*
++      Test Doc:
++      - Why: Trailing spaces cause issues on Windows NTFS
++      - Contract: validateFileName('file.txt ') returns {ok: false, error: 'invalid-char'}
++      - Usage Notes: Windows silently strips trailing spaces, causing mismatches
++      - Quality Contribution: Prevents cross-platform filename inconsistencies
++      - Worked Example: 'file.txt ' → {ok: false, error: 'invalid-char'}
++      */
++      const result = validateFileName('file.txt ');
++      expect(result.ok).toBe(false);
++    });
++
++    it('should reject names with trailing dots', () => {
++      /*
++      Test Doc:
++      - Why: Trailing dots cause issues on Windows
++      - Contract: validateFileName('file.') returns {ok: false, error: 'invalid-char'}
++      - Usage Notes: Windows silently strips trailing dots
++      - Quality Contribution: Prevents cross-platform filename inconsistencies
++      - Worked Example: 'file.' → {ok: false, error: 'invalid-char'}
++      */
++      const result = validateFileName('file.');
++      expect(result.ok).toBe(false);
++    });
++  });
++});

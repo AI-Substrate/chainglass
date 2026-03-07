@@ -153,6 +153,20 @@ export async function createFolderService(options: CreateFolderOptions): Promise
     return { ok: false, error: 'invalid-name', message: `Invalid folder name: ${folderName}` };
   }
 
+  // FT-002: Validate parent directory exists and is safe (prevents symlink ancestor escape)
+  if (dirPath) {
+    const parentResolved = await resolveAndValidatePath(
+      worktreePath,
+      dirPath,
+      fileSystem,
+      pathResolver
+    );
+    if ('ok' in parentResolved) return parentResolved;
+    if (!(await fileSystem.exists(parentResolved.absolutePath))) {
+      return { ok: false, error: 'security', message: `Parent directory missing: ${dirPath}` };
+    }
+  }
+
   const relativePath = dirPath ? `${dirPath}/${folderName}` : folderName;
   const resolved = await resolveAndValidatePath(
     worktreePath,
@@ -166,7 +180,8 @@ export async function createFolderService(options: CreateFolderOptions): Promise
     return { ok: false, error: 'exists', message: `Already exists: ${relativePath}` };
   }
 
-  await fileSystem.mkdir(resolved.absolutePath, { recursive: true });
+  // Non-recursive mkdir — parent must already exist (validated above)
+  await fileSystem.mkdir(resolved.absolutePath);
   return { ok: true, path: relativePath };
 }
 

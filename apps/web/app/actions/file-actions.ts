@@ -239,12 +239,24 @@ export async function createFile(
 > {
   await requireAuth();
   const container = getContainer();
+  const workspaceService = container.resolve<IWorkspaceService>(
+    WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
+  );
   const fileSystem = container.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
   const pathResolver = container.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
+  const info = await workspaceService.getInfo(slug);
+  if (!info) return { ok: false, error: 'security', message: 'Workspace not found' };
+  const trustedRoot = info.worktrees.find((w) => w.path === worktreePath)?.path ?? info.path;
   const { createFileService } = await import(
     '../../src/features/041-file-browser/services/file-mutation-actions'
   );
-  return createFileService({ worktreePath, dirPath, fileName, fileSystem, pathResolver });
+  return createFileService({
+    worktreePath: trustedRoot,
+    dirPath,
+    fileName,
+    fileSystem,
+    pathResolver,
+  });
 }
 
 export async function createFolder(
@@ -257,12 +269,24 @@ export async function createFolder(
 > {
   await requireAuth();
   const container = getContainer();
+  const workspaceService = container.resolve<IWorkspaceService>(
+    WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
+  );
   const fileSystem = container.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
   const pathResolver = container.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
+  const info = await workspaceService.getInfo(slug);
+  if (!info) return { ok: false, error: 'security', message: 'Workspace not found' };
+  const trustedRoot = info.worktrees.find((w) => w.path === worktreePath)?.path ?? info.path;
   const { createFolderService } = await import(
     '../../src/features/041-file-browser/services/file-mutation-actions'
   );
-  return createFolderService({ worktreePath, dirPath, folderName, fileSystem, pathResolver });
+  return createFolderService({
+    worktreePath: trustedRoot,
+    dirPath,
+    folderName,
+    fileSystem,
+    pathResolver,
+  });
 }
 
 export async function deleteItem(
@@ -274,12 +298,18 @@ export async function deleteItem(
 > {
   await requireAuth();
   const container = getContainer();
+  const workspaceService = container.resolve<IWorkspaceService>(
+    WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
+  );
   const fileSystem = container.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
   const pathResolver = container.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
+  const info = await workspaceService.getInfo(slug);
+  if (!info) return { ok: false, error: 'not-found', message: 'Workspace not found' };
+  const trustedRoot = info.worktrees.find((w) => w.path === worktreePath)?.path ?? info.path;
   const { deleteItemService } = await import(
     '../../src/features/041-file-browser/services/file-mutation-actions'
   );
-  return deleteItemService({ worktreePath, itemPath, fileSystem, pathResolver });
+  return deleteItemService({ worktreePath: trustedRoot, itemPath, fileSystem, pathResolver });
 }
 
 export async function renameItem(
@@ -292,10 +322,22 @@ export async function renameItem(
 > {
   await requireAuth();
   const container = getContainer();
+  const workspaceService = container.resolve<IWorkspaceService>(
+    WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
+  );
   const fileSystem = container.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
   const pathResolver = container.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
+  const info = await workspaceService.getInfo(slug);
+  if (!info) return { ok: false, error: 'not-found', message: 'Workspace not found' };
+  const trustedRoot = info.worktrees.find((w) => w.path === worktreePath)?.path ?? info.path;
   const { renameItemService } = await import(
     '../../src/features/041-file-browser/services/file-mutation-actions'
   );
-  return renameItemService({ worktreePath, oldPath, newName, fileSystem, pathResolver });
+  return renameItemService({
+    worktreePath: trustedRoot,
+    oldPath,
+    newName,
+    fileSystem,
+    pathResolver,
+  });
 }

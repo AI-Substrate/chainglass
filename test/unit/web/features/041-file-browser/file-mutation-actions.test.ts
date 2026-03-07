@@ -187,6 +187,46 @@ describe('createFolderService', () => {
       expect(result.error).toBe('security');
     }
   });
+
+  it('rejects creation when parent directory does not exist', async () => {
+    /*
+    Test Doc:
+    - Why: FT-002 — non-recursive mkdir prevents symlink ancestor escape
+    - Contract: Returns {ok: false, error: 'security'} when parent is missing
+    - Usage Notes: Parent must exist before folder creation to prevent mkdir -p through symlinks
+    - Quality Contribution: Blocks symlink-ancestor traversal attack
+    - Worked Example: createFolderService({dirPath: 'nonexistent/deep'}) → {ok: false, error: 'security'}
+    */
+    const result = await createFolderService(
+      opts({ dirPath: 'nonexistent/deep', folderName: 'child' })
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toBe('security');
+    }
+  });
+
+  it('rejects createFolder when parent resolves outside workspace via symlink', async () => {
+    /*
+    Test Doc:
+    - Why: FT-002 regression — symlinked ancestor could escape workspace boundary
+    - Contract: Returns {ok: false, error: 'security'} when parent realpath escapes workspace
+    - Usage Notes: The parent dir exists but its realpath is outside the workspace
+    - Quality Contribution: Blocks the specific attack vector from code review
+    - Worked Example: /workspace/link -> /outside; createFolder({dirPath: 'link'}) → security error
+    */
+    // Simulate a symlinked directory: /workspace/link exists but resolves to /outside
+    fs.setFile('/workspace/link/.gitkeep', '');
+    pathResolver.blockPath('link');
+
+    const result = await createFolderService(opts({ dirPath: 'link', folderName: 'child' }));
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toBe('security');
+    }
+  });
 });
 
 describe('deleteItemService', () => {
@@ -438,5 +478,82 @@ describe('renameItemService', () => {
     if (!result.ok) {
       expect(result.error).toBe('security');
     }
+  });
+});
+
+describe('defense-in-depth: hostile worktreePath (FT-003)', () => {
+  /*
+   * Server actions resolve a trusted root from slug before calling services.
+   * These tests validate that the SERVICE LAYER also rejects hostile operations even
+   * if the server action's trusted-root resolution were bypassed.
+   * Server action wiring (requireAuth + DI + trusted root) is verified by code review
+   * since testing 'use server' functions requires the Next.js runtime.
+   */
+  let fs: InstanceType<typeof FakeFileSystem>;
+  let pathResolver: InstanceType<typeof FakePathResolver>;
+
+  beforeEach(() => {
+    fs = new FakeFileSystem();
+    pathResolver = new FakePathResolver();
+  });
+
+  it('createFile rejects when dirPath escapes workspace', async () => {
+    /*
+    Test Doc:
+    - Why: FT-003 — even if server action passes wrong root, service catches traversal
+    - Contract: PathResolver rejects relative paths escaping any base
+    - Usage Notes: Defense-in-depth — server action resolves trusted root, service double-checks
+    - Quality Contribution: Proves service layer is safe independent of caller
+    - Worked Example: createFile with hostile dirPath still blocked by PathResolver
+    */
+    fs.setFile('/legit-workspace/src/.gitkeep', '');
+    const result = await createFileService({
+      worktreePath: '/legit-workspace',
+      dirPath: '../../etc',
+      fileName: 'evil.sh',
+      fileSystem: fs,
+      pathResolver,
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBe('security');
+  });
+
+  it('deleteItem rejects when target escapes workspace', async () => {
+    /*
+    Test Doc:
+    - Why: FT-003 — delete must not escape even with a valid-looking worktreePath
+    - Contract: PathResolver rejects traversal regardless of base
+    - Usage Notes: Defense-in-depth for delete
+    - Quality Contribution: Proves delete service is safe independent of caller
+    - Worked Example: deleteItem with traversal path blocked
+    */
+    const result = await deleteItemService({
+      worktreePath: '/legit-workspace',
+      itemPath: '../../etc/passwd',
+      fileSystem: fs,
+      pathResolver,
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBe('security');
+  });
+
+  it('renameItem rejects when source escapes workspace', async () => {
+    /*
+    Test Doc:
+    - Why: FT-003 — rename must not escape even with a valid-looking worktreePath
+    - Contract: PathResolver rejects traversal on source path
+    - Usage Notes: Defense-in-depth for rename
+    - Quality Contribution: Proves rename service is safe independent of caller
+    - Worked Example: renameItem with traversal source blocked
+    */
+    const result = await renameItemService({
+      worktreePath: '/legit-workspace',
+      oldPath: '../../etc/passwd',
+      newName: 'renamed.txt',
+      fileSystem: fs,
+      pathResolver,
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBe('security');
   });
 });
