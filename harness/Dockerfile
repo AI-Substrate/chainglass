@@ -30,6 +30,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     tmux \
     curl \
+    socat \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
@@ -60,9 +61,10 @@ WORKDIR /app
 # Source code will be bind-mounted at /app
 # node_modules will be a named Docker volume at /app/node_modules
 
-# Copy entrypoint
+# Copy entrypoint and Chromium startup script
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
+COPY start-chromium.sh /usr/local/bin/start-chromium.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/start-chromium.sh
 
 # Expose ports: Next.js dev server, terminal WebSocket sidecar, CDP (future Phase 2)
 EXPOSE 3000 4500 9222

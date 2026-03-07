@@ -1,2725 +1,775 @@
-diff --git a/.gitignore b/.gitignore
-index c334f69..979683f 100644
---- a/.gitignore
-+++ b/.gitignore
-@@ -174,3 +174,6 @@ apps/web/certificates/
+diff --git a/docs/plans/067-harness/tasks/phase-2-playwright-cdp-integration/tasks.md b/docs/plans/067-harness/tasks/phase-2-playwright-cdp-integration/tasks.md
+index dafadb2..77f8f4c 100644
+--- a/docs/plans/067-harness/tasks/phase-2-playwright-cdp-integration/tasks.md
++++ b/docs/plans/067-harness/tasks/phase-2-playwright-cdp-integration/tasks.md
+@@ -111,15 +111,15 @@ flowchart TD
  
- # Activity log — personal per-worktree diary, not shared state (Plan 065)
- **/activity-log.jsonl
-+
-+# Harness test results — regenerated each run (Plan 067)
-+harness/results/
-diff --git a/apps/web/src/auth.ts b/apps/web/src/auth.ts
-index 54688c0..b3aed73 100644
---- a/apps/web/src/auth.ts
-+++ b/apps/web/src/auth.ts
-@@ -26,10 +26,11 @@ const nextAuth = NextAuth({
+ | Status | ID | Task | Domain | Path(s) | Done When | Notes |
+ |--------|-----|------|--------|---------|-----------|-------|
+-| [ ] | T001 | Write CDP integration test (RED) | external | `harness/tests/smoke/cdp-integration.test.ts` | `describe.skip` test: CDP connects on 9222, page loads, screenshot file produced | TDD first; Finding 06 |
+-| [ ] | T002 | Create Chromium startup script | external | `harness/start-chromium.sh` | Script launches Chromium headless with `--remote-debugging-port=9222` | Separate from entrypoint for restartability |
+-| [ ] | T003 | Update entrypoint.sh to launch Chromium | external | `harness/entrypoint.sh` | Chromium starts alongside Next.js + terminal sidecar | Add as 3rd concurrent process |
+-| [ ] | T004 | Create playwright.config.ts | external | `harness/playwright.config.ts` | Config with baseURL :3000, 3 viewport projects (desktop/tablet/mobile), 30s timeout | Per Workshop 002 |
+-| [ ] | T005 | Create viewport definitions | external | `harness/src/viewports/devices.ts` | Exports `HARNESS_VIEWPORTS` with desktop-lg, desktop-md, tablet, mobile | Per Workshop 002 spec |
+-| [ ] | T006 | Write smoke Playwright test | external | `harness/tests/smoke/browser-smoke.spec.ts` | `npx playwright test` passes: page loads at :3000, title contains expected text, no console errors | First real browser test; AC-05/06 |
+-| [ ] | T007 | Verify multi-context browsing | external | `harness/tests/smoke/browser-smoke.spec.ts` | Test opens 2+ contexts at different viewports simultaneously | AC-07 — proves parallel capability |
+-| [ ] | T008 | Verify browser console access | external | `harness/tests/smoke/browser-smoke.spec.ts` | Test captures console.log output via `page.on('console')` | AC-10 |
+-| [ ] | T009 | Run integration test (GREEN) | external | `harness/tests/smoke/cdp-integration.test.ts` | Unskip T001 test — CDP connects, screenshot captured, file exists | Validates full Phase 2 |
++| [x] | T001 | Write CDP integration test (RED) | external | `harness/tests/smoke/cdp-integration.test.ts` | `describe.skip` test: CDP connects on 9222, page loads, screenshot file produced | TDD first; Finding 06 |
++| [x] | T002 | Create Chromium startup script | external | `harness/start-chromium.sh` | Script launches Chromium headless with `--remote-debugging-port=9222` | Separate from entrypoint for restartability |
++| [x] | T003 | Update entrypoint.sh to launch Chromium | external | `harness/entrypoint.sh` | Chromium starts alongside Next.js + terminal sidecar | Add as 3rd concurrent process |
++| [x] | T004 | Create playwright.config.ts | external | `harness/playwright.config.ts` | Config with baseURL :3000, 3 viewport projects (desktop/tablet/mobile), 30s timeout | Per Workshop 002 |
++| [x] | T005 | Create viewport definitions | external | `harness/src/viewports/devices.ts` | Exports `HARNESS_VIEWPORTS` with desktop-lg, desktop-md, tablet, mobile | Per Workshop 002 spec |
++| [x] | T006 | Write smoke Playwright test | external | `harness/tests/smoke/browser-smoke.spec.ts` | `npx playwright test` passes: page loads at :3000, title contains expected text, no console errors | First real browser test; AC-05/06 |
++| [x] | T007 | Verify multi-context browsing | external | `harness/tests/smoke/browser-smoke.spec.ts` | Test opens 2+ contexts at different viewports simultaneously | AC-07 — proves parallel capability |
++| [x] | T008 | Verify browser console access | external | `harness/tests/smoke/browser-smoke.spec.ts` | Test captures console.log output via `page.on('console')` | AC-10 |
++| [~] | T009 | Run integration test (GREEN) | external | `harness/tests/smoke/cdp-integration.test.ts` | Unskip T001 test — CDP connects, screenshot captured, file exists | Validates full Phase 2 |
  
- export const { handlers, signIn, signOut } = nextAuth;
+ ---
  
--// Wrap auth() to return a fake session when DISABLE_AUTH=true
-+// Wrap auth() to return a fake session when DISABLE_AUTH=true.
-+// Must work for ALL call signatures — Server Actions pass args to auth().
- const _auth = nextAuth.auth;
- export const auth: typeof _auth = ((...args: unknown[]) => {
--  if (process.env.DISABLE_AUTH === 'true' && args.length === 0) {
-+  if (process.env.DISABLE_AUTH === 'true') {
-     return Promise.resolve({ user: { name: 'debug', email: 'debug@local' } }) as ReturnType<
-       typeof _auth
-     >;
-diff --git a/docs/adr/README.md b/docs/adr/README.md
-index 5bbc239..0e9ee63 100644
---- a/docs/adr/README.md
-+++ b/docs/adr/README.md
-@@ -19,6 +19,7 @@ Architecture Decision Records (ADRs) document significant architectural decision
- | 0011 | [First-Class Domain Concepts Over Diffuse Functions](./adr-0011-first-class-domain-concepts.md) | 2026-02-08 | Accepted | - | - | Golden example: INodeEventService (Plan 032 WS09) |
- | 0012 | [Workflow System Domain Boundaries](./adr-0012-workflow-domain-boundaries.md) | 2026-02-17 | Accepted | - | - | Six domains, dependency rules, litmus test. **Read before any WF plan.** |
- | 0013 | [USDK Internal SDK Architecture](./adr-0013-usdk-internal-sdk-architecture.md) | 2026-02-25 | Accepted | - | - | SDK vs DI boundary, command palette, keyboard shortcuts, settings. **Read before extending SDK.** |
-+| 0014 | [First-Class Agentic Development Harness](./adr-0014-first-class-agentic-development-harness.md) | 2026-03-07 | Accepted | - | - | Harness-first development, Docker + Playwright, SDK control plane. **Read before any UI feature.** |
+diff --git a/docs/plans/067-harness/tasks/phase-2-playwright-cdp-integration/tasks.fltplan.md b/docs/plans/067-harness/tasks/phase-2-playwright-cdp-integration/tasks.fltplan.md
+index e0fda0c..d9e595b 100644
+--- a/docs/plans/067-harness/tasks/phase-2-playwright-cdp-integration/tasks.fltplan.md
++++ b/docs/plans/067-harness/tasks/phase-2-playwright-cdp-integration/tasks.fltplan.md
+@@ -54,7 +54,8 @@ stateDiagram-v2
+     S4 --> S5
+     S5 --> [*]
  
- ## ADR Format
-diff --git a/Users/jordanknight/substrate/066-wf-real-agents/docs/adr/adr-0014-first-class-agentic-development-harness.md b/Users/jordanknight/substrate/066-wf-real-agents/docs/adr/adr-0014-first-class-agentic-development-harness.md
+-    class S1,S2,S3,S4,S5 pending
++    class S1,S2,S3,S4 done
++    class S5 active
+ ```
+ 
+ **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
+@@ -63,11 +64,11 @@ stateDiagram-v2
+ 
+ ## Stages
+ 
+-- [ ] **Stage 1: Write RED integration test** — CDP connection + screenshot assertion (`cdp-integration.test.ts` — new file)
+-- [ ] **Stage 2: Launch Chromium in container** — Startup script + entrypoint update (`start-chromium.sh` — new, `entrypoint.sh` — modified)
+-- [ ] **Stage 3: Playwright config + viewports** — Config with 3 viewport projects (`playwright.config.ts`, `devices.ts` — new files)
+-- [ ] **Stage 4: Smoke Playwright tests** — Page load, multi-context, console capture (`browser-smoke.spec.ts` — new file)
+-- [ ] **Stage 5: GREEN integration test** — Unskip and verify CDP works end-to-end
++- [x] **Stage 1: Write RED integration test** — CDP connection + screenshot assertion (`cdp-integration.test.ts` — new file)
++- [x] **Stage 2: Launch Chromium in container** — Startup script + entrypoint update (`start-chromium.sh` — new, `entrypoint.sh` — modified)
++- [x] **Stage 3: Playwright config + viewports** — Config with 3 viewport projects (`playwright.config.ts`, `devices.ts` — new files)
++- [x] **Stage 4: Smoke Playwright tests** — Page load, multi-context, console capture (`browser-smoke.spec.ts` — new file)
++- [~] **Stage 5: GREEN integration test** — Unskip and verify CDP works end-to-end
+ 
+ ---
+ 
+@@ -124,12 +125,12 @@ flowchart LR
+ 
+ ## Checklist
+ 
+-- [ ] T001: Write CDP integration test (RED)
+-- [ ] T002: Create Chromium startup script
+-- [ ] T003: Update entrypoint.sh to launch Chromium
+-- [ ] T004: Create playwright.config.ts
+-- [ ] T005: Create viewport definitions
+-- [ ] T006: Write smoke Playwright test
+-- [ ] T007: Verify multi-context browsing
+-- [ ] T008: Verify browser console access
+-- [ ] T009: Run integration test (GREEN)
++- [x] T001: Write CDP integration test (RED)
++- [x] T002: Create Chromium startup script
++- [x] T003: Update entrypoint.sh to launch Chromium
++- [x] T004: Create playwright.config.ts
++- [x] T005: Create viewport definitions
++- [x] T006: Write smoke Playwright test
++- [x] T007: Verify multi-context browsing
++- [x] T008: Verify browser console access
++- [~] T009: Run integration test (GREEN)
+diff --git a/docs/plans/067-harness/tasks/phase-2-playwright-cdp-integration/execution.log.md b/docs/plans/067-harness/tasks/phase-2-playwright-cdp-integration/execution.log.md
 new file mode 100644
-index 0000000..ef1c50b
+index 0000000..31a1bc8
 --- /dev/null
-+++ b/Users/jordanknight/substrate/066-wf-real-agents/docs/adr/adr-0014-first-class-agentic-development-harness.md
-@@ -0,0 +1,127 @@
-+---
-+title: "ADR-0014: First-Class Agentic Development Harness"
-+status: "Accepted"
-+date: "2026-03-07"
-+authors: "Jordan Knight (Lead), AI Agent (Copilot CLI)"
-+tags: ["architecture", "testing", "docker", "playwright", "harness", "agentic"]
-+domains: ["none"]
-+supersedes: ""
-+superseded_by: ""
-+---
-+
-+# ADR-0014: First-Class Agentic Development Harness
-+
-+## Status
-+
-+Accepted
-+
-+## Context
-+
-+Chainglass has 4984 unit/integration tests but zero browser-based end-to-end tests. 168 React components have 31% unit test coverage and 0% browser coverage. The AI agents building this application (via Copilot CLI) cannot see the running site, cannot verify their visual changes, and cannot catch UI regressions.
-+
-+Current development relies on the agent making changes, running `just fft` (lint + test), and hoping the UI is correct. This is flying blind — the agent can verify logic but not experience. A human must manually check every visual change.
-+
-+The harness is not optional infrastructure — it is the **primary quality mechanism** for agentic development. Without it, AI agents are limited to text-based reasoning about visual systems. With it, agents can iterate on UI the same way they iterate on logic: change → observe → fix → verify.
-+
-+Constraints:
-+- Must work from the existing Copilot CLI agent (no special tooling)
-+- Must produce structured, validated output (agents can't be trusted with freeform formats)
-+- Must support responsive testing (mobile, tablet, desktop viewports)
-+- Must not slow down `just fft` — harness tests are separate, opt-in
-+- Must support volume-mounted source code for HMR (dev mode, not CI rebuild)
-+- Future: must not preclude parallel container instances (Plan 2)
-+
-+## Decision
-+
-+Establish the **Agentic Development Harness** as a first-class, permanent subsystem of the Chainglass project. The harness lives at `harness/` in the repository root and provides a rich SDK/CLI that agents use to boot, observe, and test the running application inside a Docker container with Playwright browser automation.
-+
-+**Core principles**:
-+
-+1. **Harness-first development**: Every new feature, every UI change, every domain addition MUST consider harness impact. If functionality cannot be verified by the harness, it is incomplete. The harness is not an afterthought — it ships with the feature.
-+
-+2. **SDK-first control plane**: All harness operations go through a typed CLI that returns validated JSON. Agents call `harness health`, `harness test`, `harness screenshot` — not raw docker/curl/playwright commands. The SDK makes operations repeatable, parseable, and error-coded.
-+
-+3. **Single container, single browser**: One Docker container runs the full app (Next.js dev server + terminal sidecar). One Playwright Chromium instance with multiple browser contexts provides isolated parallel page sessions. CDP port 9222 exposed for host-side agent connection.
-+
-+4. **External tooling, not a domain**: The harness consumes domain contracts but exports none. It is test infrastructure, not business capability. Lives in `harness/`, not in `packages/` or `apps/`.
-+
-+5. **Feature completeness includes harness coverage**: A feature is not "done" until the harness can verify it. Plan reviews should ask: "How does the harness test this?"
-+
-+## Domain Impact
-+
-+### Affected Domains
-+
-+| Domain | Relationship | Impact Summary |
-+|--------|-------------|----------------|
-+| (all domains) | consume | Harness tests all domains through their browser-observable behavior |
-+| _platform/auth | consume | Auth bypassed via DISABLE_AUTH=true in harness container |
-+| _platform/positional-graph | consume | Workflow templates used for test orchestration (future) |
-+
-+### Contract Changes
-+
-+No contract changes — the harness is a pure consumer of existing domain contracts. It interacts through the web UI and public API routes, never through internal service interfaces.
-+
-+### Topology Changes
-+
-+No topology changes — the harness sits outside the domain map as external tooling. No new domain-to-domain edges are created.
-+
-+### Domain Map Update Required
-+
-+**No**. The harness is external infrastructure. If it later grows into a domain (`_platform/harness`), a new ADR and domain extraction would be needed.
-+
-+## Consequences
-+
-+**Positive**
-+
-+- **POS-001**: Agents can see and verify their UI changes — closing the observe gap in the agentic development loop (Boot → Interact → **Observe**)
-+- **POS-002**: Responsive testing catches layout breakage across mobile/tablet/desktop before humans ever see it
-+- **POS-003**: Structured JSON results make test outcomes machine-parseable — agents can programmatically reason about failures and fix them
-+- **POS-004**: Docker containerization makes the dev environment reproducible — no more "works on my machine"
-+- **POS-005**: CDP exposure enables ad-hoc agent browsing during development, not just structured test runs
-+- **POS-006**: Cultural shift — "harness or bust" means quality is built in, not bolted on
-+
-+**Negative**
-+
-+- **NEG-001**: Docker adds complexity — image builds, volume mount gotchas, native compilation (node-pty) in containers
-+- **NEG-002**: Playwright browser tests are inherently slower than unit tests — harness runs measured in minutes, not seconds
-+- **NEG-003**: Maintenance burden — harness tests must evolve with the UI; stale tests become false negatives
-+- **NEG-004**: Docker Desktop required on developer machines — additional system dependency
-+- **NEG-005**: Risk of harness tests becoming a bottleneck if not kept fast and focused
-+
-+## Alternatives Considered
-+
-+### Alternative 1: Browser automation without Docker
-+
-+- **ALT-001**: **Description**: Run Playwright directly against `pnpm dev` on the host machine, no containerization. Agent starts dev server, runs Playwright tests locally.
-+- **ALT-002**: **Rejection Reason**: Not reproducible across environments. Host-specific Node versions, OS differences, port conflicts. Cannot support parallel instances (Plan 2). Volume mount strategy not needed but also loses isolation benefits.
-+- **ALT-003**: **Domain Impact**: Same — pure consumer. But without Docker, seeding and teardown are harder (no ephemeral filesystem).
-+
-+### Alternative 2: Screenshot diffing service (external)
-+
-+- **ALT-004**: **Description**: Use an external visual regression service (Percy, Chromatic) to capture and diff screenshots. No local Docker or Playwright.
-+- **ALT-005**: **Rejection Reason**: External dependency, cost, latency. Agent can't iterate in real-time — must push, wait for CI, read results. Breaks the fast feedback loop. Doesn't support ad-hoc agent browsing.
-+- **ALT-006**: **Domain Impact**: None — purely external. But loses the "agent can see the site" capability.
-+
-+### Alternative 3: Extend existing vitest with jsdom browser simulation
-+
-+- **ALT-007**: **Description**: Use vitest + jsdom (already configured) to render components and assert DOM state. No real browser.
-+- **ALT-008**: **Rejection Reason**: jsdom cannot render CSS, execute Tailwind, show responsive layouts, or capture screenshots. It tests component logic, not visual experience. The agent needs to *see* the page, not just assert DOM nodes exist.
-+- **ALT-009**: **Domain Impact**: None — stays within existing test infrastructure.
-+
-+## Implementation Notes
-+
-+- **IMP-001**: Harness infrastructure lives in `harness/` at repo root — Dockerfile, docker-compose.yml, justfile, playwright.config.ts, CLI source, test suites
-+- **IMP-002**: All harness CLI commands return structured JSON to stdout, human messages to stderr. Error codes E100-E110 reserved for harness
-+- **IMP-003**: `just fft` is unaffected — harness tests run via `just test-harness` or `harness test` (separate, opt-in)
-+- **IMP-004**: Feature planning template should include "Harness Coverage" section asking: what harness tests verify this feature? At what viewports?
-+- **IMP-005**: Plan reviews (code review phase) should verify harness coverage for UI-visible changes
-+- **IMP-006**: Workshop documents in `docs/plans/067-harness/workshops/` detail Docker setup (001) and folder/CLI design (002)
-+
-+## References
-+
-+- **REF-001**: [Exploration Dossier](../plans/067-harness/exploration.md) — 8-subagent research synthesis
-+- **REF-002**: [Workshop 001: Docker Container Setup](../plans/067-harness/workshops/001-docker-container-setup.md)
-+- **REF-003**: [Workshop 002: Harness Folder & CLI](../plans/067-harness/workshops/002-harness-folder-and-agentic-prompts.md)
-+- **REF-004**: [ADR-0005: Next.js MCP Developer Experience Loop](./adr-0005-nextjs-mcp-developer-experience-loop.md) — MCP integration the harness consumes
-+- **REF-005**: [ADR-0006: CLI-Based Workflow Agent Orchestration](./adr-0006-cli-based-workflow-agent-orchestration.md) — Agent orchestration patterns
-+- **REF-006**: [ADR-0002: Exemplar-Driven Development](./adr-0002-exemplar-driven-development.md) — Testing philosophy the harness extends
-diff --git a/Users/jordanknight/substrate/066-wf-real-agents/docs/plans/067-harness/exploration.md b/Users/jordanknight/substrate/066-wf-real-agents/docs/plans/067-harness/exploration.md
-new file mode 100644
-index 0000000..ad5dfb2
---- /dev/null
-+++ b/Users/jordanknight/substrate/066-wf-real-agents/docs/plans/067-harness/exploration.md
-@@ -0,0 +1,307 @@
-+# Plan 067 — First-Class Agentic Development Harness
-+
-+## Exploration Research Dossier
-+
-+> Generated: 2026-03-06 | Branch: 066-wf-real-agents | Status: Research Complete
-+
-+---
-+
-+## Executive Summary
-+
-+Eight parallel research subagents explored the Chainglass monorepo to assess readiness for a "first-class agentic development harness" — a Dockerized, browser-automated, parallel-capable test orchestration system. The codebase has **strong foundations** (DI, fakes, workflow templates, MCP, CLI orchestration) but **critical gaps** (no Docker, no Playwright, 0 browser-based E2E tests, sequential-only test execution).
-+
-+### Readiness Scorecard
-+
-+| Capability | Status | Evidence |
-+|------------|--------|----------|
-+| Standalone build | ✅ Ready | `next.config.mjs` output: 'standalone', CLI bundles it |
-+| DI & Fakes | ✅ Ready | 137 Fake implementations, contract-tested |
-+| MCP integration | ✅ Ready | `/_next/mcp` auto-exposed, `cg mcp --stdio` CLI |
-+| Workflow templates | ✅ Ready | smoke, simple-serial, advanced-pipeline templates |
-+| CLI orchestration | ✅ Ready | `cg agent run/compact`, JSON output, session chaining |
-+| Terminal sidecar | ✅ Ready | WebSocket PTY server on port 4500 |
-+| Docker containerization | ❌ Missing | No Dockerfile, docker-compose, or .devcontainer |
-+| Browser automation | ❌ Missing | No Playwright dependency or tests |
-+| Parallel test execution | ❌ Blocked | `fileParallelism: false` due to process spawning |
-+| E2E browser tests | ❌ Missing | 0 of 168 components have browser tests |
-+| Responsive viewport testing | ❌ Missing | No device emulation or viewport tests |
-+
-+---
-+
-+## Key Research Findings
-+
-+### 1. Docker Strategy (IA-01, DC-01, DC-10)
-+
-+**Current state**: No Docker files exist. However, Next.js standalone output is already configured and the CLI bundles it to `dist/web/standalone/`.
-+
-+**Recommended approach**: Multi-stage Dockerfile:
-+- **Builder stage** (~500MB): Node 20.19, pnpm, gcc/python3 (for node-pty native compilation), turbo build
-+- **Runtime stage** (~100MB): Node 20.19 slim, standalone output only, git ≥2.13
-+
-+**Critical native dependencies** requiring build tools:
-+- `node-pty` (C++ compile, needs gcc + python3)
-+- `vscode-oniguruma` (WASM blob, bundled)
-+- 8 packages in `serverExternalPackages` must NOT be bundled to client
-+
-+**Port mapping**: 3000 (Next.js) + 4500 (terminal WebSocket sidecar)
-+
-+**Dev mode (Plan 1)**: Volume-mount source code, use Turbopack HMR. No rebuild on file changes. Agent kills/restarts dev server as needed.
-+
-+**CI mode (Plan 2, future)**: Full build at container creation, multiple instances on different ports.
-+
-+### 2. Browser Automation Architecture (QT-02, QT-09, IA-02)
-+
-+**Current state**: Zero browser-based tests. 168 React components with 31% unit test coverage, 0% E2E coverage.
-+
-+**Playwright plan**:
-+- Headless Chromium inside Docker container (co-located with app)
-+- CDP (Chrome DevTools Protocol) for programmatic control
-+- Multiple browser contexts (NOT multiple browsers) for parallel page viewing — Playwright supports this natively via `browser.newContext()`
-+- Device emulation for responsive testing: `devices['iPhone 14']`, `devices['iPad Pro']`, custom viewports
-+
-+**Parallel browser isolation**:
-+- **Same browser, multiple contexts**: Playwright's `browser.newContext()` creates isolated cookie/storage environments. Each subagent gets its own context. This scales to 8-16 concurrent contexts per browser instance.
-+- **Multiple browser types**: Chromium + Firefox + WebKit available if needed for cross-browser testing
-+- **Scaling beyond single host**: Future option — headless Chrome in separate Docker containers via CDP remote connection
-+
-+**Responsive viewport testing**:
-+- `page.setViewportSize({ width: 375, height: 812 })` — iPhone
-+- `page.setViewportSize({ width: 768, height: 1024 })` — iPad  
-+- `page.setViewportSize({ width: 1440, height: 900 })` — Desktop
-+- Built-in device descriptors: `playwright.devices['iPhone 14']` includes UA, viewport, touch, pixel ratio
-+
-+**Key browser capabilities for agents**:
-+- Screenshot capture: `page.screenshot({ path, fullPage: true })`
-+- Console log capture: `page.on('console', msg => ...)`
-+- Network interception: `page.route('**/api/**', route => ...)`
-+- Visual comparison: `expect(page).toHaveScreenshot()`
-+
-+### 3. Next.js MCP Integration (DE-03, IA-05, IC-05)
-+
-+**Current state**: Production-ready. Next.js 16 auto-exposes MCP at `/_next/mcp`.
-+
-+**Available MCP tools**:
-+- `get_routes` — list all application routes
-+- `get_errors` — current build/runtime errors
-+- `get_page_metadata` — page component information  
-+- `get_project_metadata` — project configuration
-+- `get_logs` — server logs
-+- `get_server_action_by_id` — inspect server actions
-+
-+**Custom MCP server** (`cg mcp --stdio`):
-+- `check_health` — system health
-+- `wf_compose` — create workflow from template
-+- `phase_prepare/validate/finalize` — workflow phase lifecycle
-+
-+**Agent loop**: Start container → MCP health check → browse pages → capture errors → fix → verify via MCP.
-+
-+### 4. Parallel Testing Architecture (DB-06, PL-06, QT-10)
-+
-+**Domain-based parallelism boundaries**:
-+
-+| Group | Domains | Safe Parallelism |
-+|-------|---------|-----------------|
-+| Independent | file-ops, workspace-url, viewer, settings | 8+ parallel |
-+| Platform | state, events, sdk | 4x parallel |
-+| Orchestration | positional-graph, agents, work-unit-state | Sequential (2x max) |
-+| UI Layer | workflow-ui, terminal, file-browser, workunit-editor | 4x parallel |
-+
-+**Key constraint**: Orchestration tests share `.chainglass/instances/` on disk — need workspace isolation per parallel runner. Each runner gets its own seeded workspace.
-+
-+**Playwright parallelism**: Use `--workers 4 --shard N/M` for distributing across containers (Plan 2). Within a single container, use multiple browser contexts.
-+
-+### 5. Test Orchestration via Chainglass Workflows (DB-07, DE-07, IC-11)
-+
-+**Strategy**: Test suites ARE Chainglass workflows. Each test group is a workflow template.
-+
-+**Template structure**:
-+```
-+.chainglass/templates/workflows/
-+├── harness-smoke/           # Quick health check (1 node)
-+├── harness-agent-serial/    # Agent lifecycle test (3 nodes)
-+├── harness-ui-parallel/     # Browser tests (4 parallel nodes)
-+├── harness-responsive/      # Viewport tests (3 parallel nodes)
-+└── harness-full-suite/      # Orchestrates all above (6+ nodes)
-+```
-+
-+**Three programmable entry points** (DB-03):
-+1. CLI: `cg wf run --graph=harness-smoke`
-+2. Orchestration API: `IGraphOrchestration.drive()` with event observers
-+3. Web Actions: `createWorkflow()`, `instantiateTemplate()`
-+
-+### 6. CLI & Harness Tooling (PS-01, PL-03, IA-06)
-+
-+**Harness folder structure**:
-+```
-+harness/
-+├── justfile                    # harness-build, harness-dev, harness-test, harness-seed
-+├── Dockerfile                  # Multi-stage (builder + runtime)
-+├── docker-compose.yml          # App + Playwright + volume mounts
-+├── playwright.config.ts        # Browser config, viewports, devices
-+├── scripts/
-+│   ├── seed-workspace.ts       # Create test workspace + worktrees
-+│   ├── seed-workflows.ts       # Instantiate test workflow templates
-+│   └── run-harness.ts          # Orchestrate full test suite
-+├── test/
-+│   ├── smoke.spec.ts           # Health + route verification
-+│   ├── agents.spec.ts          # Agent lifecycle browser tests
-+│   ├── workflows.spec.ts       # Workflow execution browser tests
-+│   ├── responsive.spec.ts      # Viewport/device tests
-+│   └── terminal.spec.ts        # Terminal WebSocket tests
-+└── results/                    # JSON output (gitignored)
-+    └── run-YYYY-MM-DD-NNN.json
-+```
-+
-+**CLI for agents** (structured JSON output):
-+```bash
-+harness build          # Build Docker image
-+harness dev            # Start dev container (volume-mounted)
-+harness seed           # Seed workspace + workflows
-+harness test           # Run full Playwright suite
-+harness test --group agents   # Run specific test group
-+harness results        # Show latest results JSON
-+harness screenshot     # Capture current state
-+```
-+
-+### 7. Agent Adapter Extension (DB-04, PS-05)
-+
-+**Existing pattern**: `IAgentAdapter` with 3 implementations (ClaudeCode, SdkCopilot, CopilotCLI).
-+
-+**Harness can add**: `TestHarnessAdapter` for deterministic, fast test scenarios:
-+```typescript
-+class TestHarnessAdapter implements IAgentAdapter {
-+  async run(prompt, onEvent) {
-+    // Return predetermined responses from scenario registry
-+    // Instant, reproducible, no API calls
-+  }
-+}
-+```
-+
-+**DI swap**: Test container registers `TestHarnessAdapter` instead of real adapters. Same code paths, deterministic results.
-+
-+### 8. Prior Learnings & Gotchas (PL-01 through PL-15)
-+
-+**Critical rules for harness**:
-+- **PL-01**: Harness tests MUST NOT run in `just fft` — separate `just test-harness` command
-+- **PL-02**: Use `describe.skip` (hardcoded), not env detection, for slow tests
-+- **PL-06**: Parallel agents via `Promise.all()` — each gets unique sessionId
-+- **PL-08**: Set `describe.timeout(120000)` per test — no built-in timeout
-+- **PL-10**: Harness is opt-in validation, not regression gate
-+- **PL-13**: Hybrid model — in-process setup + CLI subprocess + in-process verify
-+- **PL-14**: Manual harness discovers real bugs (template schema violations, etc.)
-+- **PL-15**: MCP test client needs Zod schemas + negative tests
-+
-+### 9. Interface Surface for Harness (IC-01 through IC-14)
-+
-+**API routes the harness can call**:
-+- `GET /api/workspaces?include=worktrees` — list workspaces
-+- `GET /api/health` — health check
-+- `POST /api/agents` — create agent session
-+- `GET /api/agents/events` — SSE agent events
-+- `GET /api/events/[channel]` — generic SSE channel
-+- `GET /api/terminal` — tmux session list
-+- `GET /api/activity-log` — activity entries
-+
-+**Server actions (13+)**: addWorkspace, createWorkflow, instantiateTemplate, answerQuestion, etc.
-+
-+**DI tokens (8)**: WORKSPACE_SERVICE, AGENT_SESSION_SERVICE, POSITIONAL_GRAPH_SERVICE, TEMPLATE_SERVICE, ORCHESTRATION_SERVICE, etc.
-+
-+### 10. Domain Placement (DB-01, DB-08)
-+
-+**Recommendation**: Harness is **external tooling**, NOT a domain. It consumes domain contracts but exports none. Lives in `harness/` at repo root.
-+
-+**Future**: If harness grows to 1000+ LOC with 3+ consumers, consider `_platform/harness` infrastructure domain. But today: keep it simple.
-+
-+---
-+
-+## Architecture Diagram
-+
-+```
-+┌─────────────────────────────────────────────────────┐
-+│                 Agent (Copilot CLI)                   │
-+│  Orchestrates: build → seed → test → report          │
-+└──────────────┬──────────────────────┬────────────────┘
-+               │ docker/justfile      │ playwright
-+               ▼                      ▼
-+┌──────────────────────┐  ┌─────────────────────────────┐
-+│   Docker Container    │  │   Playwright Browser(s)      │
-+│                       │  │                               │
-+│  ┌─────────────────┐ │  │  Context 1: Desktop 1440px    │
-+│  │ Next.js Dev      │ │  │  Context 2: iPad 768px        │
-+│  │ :3000            │◄├──│  Context 3: iPhone 375px      │
-+│  │ /_next/mcp       │ │  │  Context 4: Agent test        │
-+│  └─────────────────┘ │  │  Context 5: Agent test         │
-+│  ┌─────────────────┐ │  │  ...up to 16 contexts          │
-+│  │ Terminal Sidecar │ │  └─────────────────────────────┘
-+│  │ :4500 (WS)      │ │
-+│  └─────────────────┘ │
-+│  ┌─────────────────┐ │
-+│  │ Volume: ./src    │ │  HMR via Turbopack
-+│  │ (read/write)     │ │
-+│  └─────────────────┘ │
-+│  ┌─────────────────┐ │
-+│  │ Git ≥2.13       │ │  Worktree support
-+│  │ Node 20.19      │ │
-+│  └─────────────────┘ │
-+└──────────────────────┘
-+
-+Results → harness/results/run-*.json (structured, CLI-validated)
-+```
-+
-+---
-+
-+## Risk Register
-+
-+| Risk | Severity | Mitigation |
-+|------|----------|------------|
-+| node-pty native compilation in Docker | High | Multi-stage build with gcc/python3 in builder stage |
-+| Playwright + Next.js HMR conflicts | Medium | Playwright connects to running server, doesn't manage it |
-+| Parallel tests corrupt shared state | High | Workspace isolation per runner + unique ports |
-+| Docker image size bloat | Medium | Standalone output + slim runtime stage (~100MB) |
-+| Agent timeout in E2E tests | Medium | Per-test `describe.timeout(120000)`, no global timeout |
-+| SSE connections leak in tests | Low | `afterEach` cleanup, browser context disposal |
-+| Responsive tests flaky on CI | Medium | Fixed viewports (not device emulation), screenshot baselines |
-+
-+---
-+
-+## User-Specified Additional Requirement
-+
-+**Responsive viewport testing**: The harness MUST test the site at multiple viewport sizes (mobile, tablet, desktop). Playwright natively supports this via `page.setViewportSize()` and device descriptors. Each viewport can be a separate browser context running in parallel.
-+
-+---
-+
-+## Recommended Plan Structure
-+
-+### Plan 1: "Full On Agentic Dev Mode" (This Plan — 067)
-+1. **Phase 1**: Dockerfile + docker-compose + justfile for dev container
-+2. **Phase 2**: Playwright integration + seed scripts + smoke tests
-+3. **Phase 3**: Responsive viewport tests + screenshot capture
-+4. **Phase 4**: Parallel browser contexts + test grouping
-+5. **Phase 5**: Structured JSON results + harness CLI
-+6. **Phase 6**: Workflow template integration (test suites as workflows)
-+
-+### Plan 2: "Parallel CI Mode" (Future — separate plan ID)
-+- Proper built containers (not volume-mounted)
-+- Multiple instances on different ports
-+- Workflow-driven test orchestration
-+- Each test gets a work unit for tracking
-+
-+### Separate Plan: "CI Build Docker" (Future — separate plan ID per user request)
-+- CI/CD optimized Docker build
-+- GitHub Actions integration
-+- Caching strategy for turbo + pnpm
-+
-+---
-+
-+## Source Attribution
-+
-+| Subagent | Focus | Findings |
-+|----------|-------|----------|
-+| IA (agent-0) | Implementation archaeology | 10 findings: Docker gaps, standalone build, MCP, templates |
-+| DC (agent-1) | Dependency mapping | 10 findings: native deps, ports, filesystem, Node version |
-+| PS (agent-2) | Pattern & convention scout | 10 findings: justfile, sidecar, DI, fakes, SSE, errors |
-+| QT (agent-3) | Quality & testing | 10 findings: 310 tests, 0 browser E2E, 137 fakes, CI gaps |
-+| IC (agent-4) | Interface & contract analyst | 14 findings: 16+ API routes, 13+ actions, 150+ methods |
-+| DE (agent-5) | Documentation & history | 10 findings: exemplar testing, MCP strategy, ADRs |
-+| PL (agent-6) | Prior learnings scout | 15 findings: E2E isolation, parallel agents, hybrid model |
-+| DB (agent-7) | Domain & boundary scout | 8 findings: not a domain, 3 test clusters, adapter pattern |
-diff --git a/Users/jordanknight/substrate/066-wf-real-agents/docs/plans/067-harness/harness-plan.md b/Users/jordanknight/substrate/066-wf-real-agents/docs/plans/067-harness/harness-plan.md
-new file mode 100644
-index 0000000..456488b
---- /dev/null
-+++ b/Users/jordanknight/substrate/066-wf-real-agents/docs/plans/067-harness/harness-plan.md
-@@ -0,0 +1,228 @@
-+# First-Class Agentic Development Harness — Implementation Plan
-+
-+**Plan Version**: 1.0.0
-+**Created**: 2026-03-07
-+**Spec**: [harness-spec.md](harness-spec.md)
-+**ADR**: [ADR-0014](../../adr/adr-0014-first-class-agentic-development-harness.md)
-+**Status**: DRAFT
-+**Complexity**: CS-4 (large)
-+
-+## Summary
-+
-+AI agents building Chainglass cannot see the running application — 168 components, 0 browser tests. This plan builds the **Agentic Development Harness**: a Docker container running the full Chainglass app with Playwright browser automation, controlled by a rich CLI that returns structured JSON. Four phases: Docker container → Playwright + CDP → CLI SDK → Seed + test suites + responsive viewports. The harness is the primary quality mechanism — harness or bust.
-+
-+## Target Domains
-+
-+| Domain | Status | Relationship | Role |
-+|--------|--------|-------------|------|
-+| (all domains) | existing | consume | All domains are test targets via their browser-observable behavior |
-+| _platform/auth | existing | consume | Auth bypassed via DISABLE_AUTH=true; **fix auth() wrapper** per Finding 02 |
-+
-+No new domains. Harness is external tooling at `harness/` in repo root.
-+
-+## Key Findings
-+
-+| # | Impact | Finding | Action |
-+|---|--------|---------|--------|
-+| 01 | Critical | No Docker infrastructure exists — greenfield | Build from scratch in Phase 1; Debian-based image (not Alpine) for node-pty |
-+| 02 | High | DISABLE_AUTH partial bypass — Server Actions pass args, fake session only works with 0 args | Fix `auth()` wrapper to return fake session for ALL call signatures; add integration test |
-+| 03 | High | Playwright not in any package.json yet | Add `@playwright/test` to `harness/package.json`; install Chromium in Docker |
-+| 04 | High | CLI JSON output convention exists — `JsonOutputAdapter` + `ConsoleOutputAdapter` pattern | Mirror pattern in harness CLI: `--json` flag, `{command, status, data?, error?}` envelope |
-+| 05 | High | pnpm named volume race — host/container node_modules can desync | `harness rebuild` command syncs volumes; health check validates workspace integrity |
-+| 06 | High | CDP port 9222 not yet configured — must set `--remote-debugging-port=9222` on Chromium | Configure in Playwright launch args; expose in compose; verify in health check |
-+| 07 | High | Terminal WS port 4500 hardcoded — no fallback | Support `TERMINAL_WS_PORT` env var override in Docker; less critical for single-container mode |
-+| 08 | High | `.gitignore` needs `harness/results/`; no `.dockerignore` exists | Create both as part of Phase 1 scaffold |
-+
-+## Domain Manifest
-+
-+| File | Domain | Classification | Rationale |
-+|------|--------|---------------|-----------|
-+| `harness/Dockerfile` | external | internal | Docker image definition |
-+| `harness/docker-compose.yml` | external | internal | Dev container orchestration |
-+| `harness/entrypoint.sh` | external | internal | Container startup script |
-+| `harness/package.json` | external | internal | Harness deps (Playwright, zod) |
-+| `harness/tsconfig.json` | external | internal | TypeScript config for harness |
-+| `harness/playwright.config.ts` | external | internal | Browser test configuration |
-+| `harness/justfile` | external | internal | Harness-specific commands |
-+| `harness/src/cli/index.ts` | external | internal | CLI entry point (Commander.js) |
-+| `harness/src/cli/commands/*.ts` | external | internal | CLI commands (build, dev, stop, health, test, screenshot, seed, results) |
-+| `harness/src/cli/output.ts` | external | internal | Structured JSON output helpers |
-+| `harness/src/viewports/devices.ts` | external | internal | Viewport definitions |
-+| `harness/src/seed/seed-workspace.ts` | external | internal | HTTP-based workspace seeding |
-+| `harness/tests/smoke/health.spec.ts` | external | internal | Smoke test suite |
-+| `harness/tests/features/responsive/viewport-layouts.spec.ts` | external | internal | Responsive viewport tests |
-+| `harness/results/.gitkeep` | external | internal | Results output directory |
-+| `harness/.dockerignore` | external | internal | Docker build exclusions |
-+| `.gitignore` | _platform | cross-domain | Add `harness/results/` |
-+| `justfile` | _platform | cross-domain | Add `test-harness` recipe |
-+| `apps/web/src/lib/auth.ts` | _platform/auth | cross-domain | Fix DISABLE_AUTH for Server Actions (Finding 02) |
-+
-+## Harness Strategy
-+
-+- **Current Maturity**: L0 (no harness exists)
-+- **Target Maturity**: L3 (auto boot + browser interaction + structured evidence)
-+- **Boot Command**: `just test-harness` or `harness dev`
-+- **Health Check**: `harness health` → JSON with app/MCP/CDP/terminal status
-+- **Interaction Model**: Browser via Playwright/CDP + HTTP API for seeding
-+- **Evidence Capture**: Screenshots (PNG), test results (JSON), server logs
-+- **Pre-Phase Validation**: At start of every subsequent plan phase: `harness health` must pass
-+
-+---
-+
-+## Phase 1: Docker Container & Dev Server
-+
-+**Objective**: Get the full Chainglass app running in a Docker container with HMR and all services healthy.
-+**Domain**: External tooling (harness/)
-+**Delivers**:
-+- Multi-stage Dockerfile (Debian bookworm-slim, node-pty compiles, pnpm monorepo)
-+- docker-compose.yml with volume mounts, port mappings, named volumes
-+- Entrypoint script that starts Next.js dev server + terminal sidecar
-+- `.dockerignore`, `.gitignore` updates
-+- `harness build` and `harness dev` commands (shell scripts, not full CLI yet)
-+- `just test-harness` recipe in root justfile
-+- Fix `DISABLE_AUTH` for Server Actions (Finding 02)
-+- Integration test: container starts, app responds on 3000, sidecar on 4500
-+
-+**Depends on**: None
-+**Key risks**: node-pty compilation (use Debian, not Alpine); Turbopack HMR over bind mounts (fallback to `WATCHPACK_POLLING=true`)
-+
-+| # | Task | Domain | Success Criteria | Notes |
-+|---|------|--------|-----------------|-------|
-+| 1.1 | Scaffold harness/ folder structure | external | `harness/` dir with Dockerfile, compose, package.json, tsconfig, justfile | Per Workshop 001; include biome config (inherit from root) |
-+| 1.2 | Write integration test: Docker boot (RED) | external | `describe.skip` test asserting: container starts, GET / returns 200, port 4500 open | TDD: write test first, drive implementation |
-+| 1.3 | Write multi-stage Dockerfile | external | `docker build harness/` succeeds; image < 1.5GB | Debian bookworm-slim, node-pty builds, pnpm install |
-+| 1.4 | Write docker-compose.yml | external | `docker compose up` starts container | Bind mount source, named volume for node_modules, ports 3000/4500 |
-+| 1.5 | Write entrypoint.sh | external | Dev server + terminal sidecar start on container boot | Concurrent: turbopack + terminal-ws |
-+| 1.6 | Fix DISABLE_AUTH for Server Actions | _platform/auth | Server Actions succeed with DISABLE_AUTH=true | Per Finding 02 — extend auth() wrapper |
-+| 1.7 | Create .dockerignore + update .gitignore | external | `harness/results/` ignored by git; node_modules excluded from Docker context | Per Finding 08 |
-+| 1.8 | Add `just test-harness` to root justfile | external | `just test-harness` runs harness integration tests | After existing test-e2e recipe |
-+| 1.9 | Run integration test (GREEN) | external | Unskip test from 1.2 — container boots, health passes | Validates full Phase 1 |
-+
-+### Acceptance Criteria
-+- AC-01, AC-02, AC-03, AC-08, AC-09, AC-20, AC-21
-+
-+---
-+
-+## Phase 2: Playwright & CDP Integration
-+
-+**Objective**: Add Playwright Chromium to the container with CDP exposed, enabling browser automation from host.
-+**Domain**: External tooling (harness/)
-+**Delivers**:
-+- Playwright installed in Docker image with Chromium + system deps
-+- CDP port 9222 exposed in docker-compose.yml
-+- playwright.config.ts with viewport definitions
-+- `harness health` checks CDP availability
-+- Agent can connect from host via `chromium.connectOverCDP('http://localhost:9222')`
-+- Smoke Playwright test: page loads, title correct
-+- Integration test: CDP connection works, screenshot captured
-+
-+**Depends on**: Phase 1
-+**Key risks**: Chromium system deps in Docker; shared memory for headless Chrome (--shm-size)
-+
-+| # | Task | Domain | Success Criteria | Notes |
-+|---|------|--------|-----------------|-------|
-+| 2.1 | Write integration test: CDP + screenshot (RED) | external | `describe.skip` test asserting: CDP connects on 9222, screenshot file produced | TDD: write test first |
-+| 2.2 | Add `@playwright/test` to harness/package.json | external | `pnpm install` succeeds in harness/ | Pin version |
-+| 2.3 | Install Chromium + system deps in Dockerfile | external | `npx playwright install chromium --with-deps` in Docker build | Per Finding 03 |
-+| 2.4 | Configure CDP port 9222 in Playwright launch | external | Chromium starts with `--remote-debugging-port=9222` | Per Finding 06 |
-+| 2.5 | Expose CDP in docker-compose.yml | external | Port 9222 mapped to host | Add --shm-size=1gb |
-+| 2.6 | Create playwright.config.ts | external | Config with baseURL, viewport projects, timeouts | 3 projects: desktop, tablet, mobile |
-+| 2.7 | Create viewport definitions (devices.ts) | external | desktop-lg/md, tablet, mobile viewports exported | Per Workshop 002 |
-+| 2.8 | Write smoke Playwright test | external | `npx playwright test smoke/` passes — page loads at localhost:3000 | First real browser test |
-+| 2.9 | Run integration test (GREEN) | external | Unskip test from 2.1 — CDP connects, screenshot captured | Validates full Phase 2 |
-+
-+### Acceptance Criteria
-+- AC-04, AC-05, AC-06, AC-07, AC-10
-+
-+---
-+
-+## Phase 3: Harness CLI SDK
-+
-+**Objective**: Build the typed CLI that agents use — structured JSON output, error codes, composable commands.
-+**Domain**: External tooling (harness/)
-+**Delivers**:
-+- Commander.js CLI at `harness/src/cli/`
-+- Commands: init, build, dev, stop, health, test, screenshot, results
-+- All commands return `{command, status, data?, error?}` JSON envelope to stdout
-+- Error codes E100-E110
-+- `harness test --suite smoke --viewport desktop-lg` runs Playwright and returns JSON
-+- `harness screenshot <name>` captures via CDP and saves to results/
-+- `harness health` probes all endpoints and returns structured status
-+
-+**Depends on**: Phase 2
-+**Key risks**: None significant — straightforward CLI development
-+
-+| # | Task | Domain | Success Criteria | Notes |
-+|---|------|--------|-----------------|-------|
-+| 3.1 | TDD: CLI output schema unit tests (RED) | external | Unit tests for JSON envelope, error codes, command parsing | Runs in `just fft` — pure logic, no Docker |
-+| 3.2 | Implement output.ts (JSON envelope) (GREEN) | external | `formatSuccess()`, `formatError()` produce validated JSON | Zod schema for envelope |
-+| 3.3 | Scaffold CLI with Commander.js | external | `npx tsx harness/src/cli/index.ts --help` shows commands | Per Finding 04 — JSON adapter pattern |
-+| 3.4 | Implement `harness build` command | external | Runs `docker compose build`, returns JSON status | Wraps docker compose |
-+| 3.5 | Implement `harness dev` command | external | Starts container, waits for health, returns JSON | Polls health endpoint |
-+| 3.6 | Implement `harness stop` command | external | Stops container, returns JSON confirmation | Wraps docker compose down |
-+| 3.7 | Implement `harness health` command | external | Probes 3000, 9222, 4500, MCP; returns JSON per-check status | Per AC-04 |
-+| 3.8 | Implement `harness test` command | external | Runs Playwright with `--suite` and `--viewport` flags; returns JSON results | Wraps npx playwright test |
-+| 3.9 | Implement `harness screenshot` command | external | Captures screenshot via CDP, saves to results/, returns path in JSON | Per AC-14 |
-+| 3.10 | Implement `harness results` command | external | Reads latest results JSON, outputs to stdout | Simple file reader |
-+
-+### Acceptance Criteria
-+- AC-11, AC-12, AC-13, AC-14
-+
-+---
-+
-+## Phase 4: Seed Scripts, Feature Tests & Responsive Viewports
-+
-+**Objective**: Create test data and write Playwright tests that verify real app behavior across viewports.
-+**Domain**: External tooling (harness/)
-+**Delivers**:
-+- `harness seed` creates test workspace + worktree via HTTP API
-+- Smoke test suite: health, routes, MCP
-+- Responsive test suite: sidebar behavior at mobile/tablet/desktop
-+- Feature test stubs: agents, browser, terminal, workflows (placeholder specs)
-+- `harness test --viewport mobile` works end-to-end
-+- Documentation updates: CLAUDE.md, justfile, harness.md governance doc
-+
-+**Depends on**: Phase 3
-+**Key risks**: Seeding via HTTP API requires app to be running and auth bypassed (verified in Phase 1)
-+
-+| # | Task | Domain | Success Criteria | Notes |
-+|---|------|--------|-----------------|-------|
-+| 4.1 | Implement `harness seed` command | external | Creates workspace via POST /api/workspaces, creates worktree | HTTP API calls, per OQ-02 |
-+| 4.2 | Write seed-workspace.ts | external | Idempotent: safe to run twice; workspace visible in sidebar | Check if exists first |
-+| 4.3 | Expand smoke test suite | external | Tests: app loads, all main routes 200, MCP responds, no console errors | 5-8 assertions |
-+| 4.4 | Write responsive viewport tests | external | Sidebar visible on desktop, collapsed/hidden on mobile; cards stack on mobile | Per AC-17, AC-18, AC-19 |
-+| 4.5 | Create feature test stubs | external | Placeholder .spec.ts files for agents, browser, terminal, workflows | Empty describe blocks — filled in future plans |
-+| 4.6 | Verify seeded data visible in browser | external | Playwright navigates to /workspaces, sees test workspace and worktrees | Per AC-15, AC-16 |
-+| 4.7 | Update CLAUDE.md with harness commands | cross-domain | Harness commands documented in custom instructions | `just test-harness`, `harness dev`, etc. |
-+| 4.8 | Update justfile with harness recipes | cross-domain | `just harness-dev`, `just harness-stop`, `just test-harness` | After existing test recipes |
-+| 4.9 | Generate harness.md governance doc | cross-domain | `docs/project-rules/harness.md` documents L3 maturity | Boot/Interact/Observe documented |
-+
-+### Acceptance Criteria
-+- AC-15, AC-16, AC-17, AC-18, AC-19
-+
-+---
-+
-+## Risks
-+
-+| Risk | Likelihood | Impact | Mitigation | Phase |
-+|------|-----------|--------|------------|-------|
-+| node-pty compilation fails in Docker | Medium | High | Debian bookworm-slim + build-essential; test in 1.2 | 1 |
-+| Turbopack HMR over bind mounts | Low | Medium | OrbStack 2-way mounts support native fs events; test without polling first; add `WATCHPACK_POLLING=true` only if needed | 1 |
-+| Chromium OOM in container | Low | High | `--shm-size=1gb` in compose; single browser instance | 2 |
-+| DISABLE_AUTH doesn't cover all Server Actions | High | High | Fix auth() wrapper in 1.5; integration test | 1 |
-+| pnpm named volume stale after host dep change | Medium | Medium | `harness rebuild` command; health check validates | 3 |
-+| Seed API calls fail due to missing routes | Low | Medium | Use existing `/api/workspaces` routes; test in 4.1 | 4 |
-+
-+## Did You Know (DYK)
-+
-+- **DYK-01: Cold start accepted** — First `harness dev` takes ~3-5 min (empty named volume → pnpm install → node-pty compile → turbo build). Subsequent boots are fast. entrypoint.sh should detect empty node_modules and install only when needed.
-+- **DYK-02: OrbStack HMR should work without polling** — OrbStack uses 2-way bind mounts with native macOS virtualization APIs, significantly faster than Docker Desktop. Turbopack HMR likely works out of the box. Default `WATCHPACK_POLLING=false`; only enable if needed.
-+- **DYK-03: Phase 2 is the minimum viable harness** — After Phase 2, the agent has CDP on port 9222 and can browse, screenshot, and inspect at any viewport. Don't wait for the CLI (Phase 3) to start using the harness for real work.
-+- **DYK-04: DISABLE_AUTH is a maintenance contract** — The auth() wrapper fix (Finding 02) must be the ONLY way Server Actions check auth. If anyone imports NextAuth's auth() directly, harness mode breaks silently. Add to CLAUDE.md and code review checklist.
-+- **DYK-05: Harness tests need explicit unit/integration boundary** — `harness/test/unit/` (pure logic, runs in `just fft`, no Docker) vs `harness/test/integration/` (needs Docker, `describe.skip`). Mix them and `just fft` breaks when Docker isn't running.
-+- **DYK-06: OrbStack gives us container domains for free** — OrbStack auto-assigns `.orb.local` domains and supports automatic HTTPS. Could be useful for multi-container Plan 2 scenarios.
-+- **DYK-07: OrbStack starts in ~2 seconds** — Near-instant container boot vs Docker Desktop's slow VM spin-up. Agent iteration loop benefits directly.
-+
-+---
-+
-+**Next step**: Run `/plan-5-v2-phase-tasks-and-brief` for Phase 1 dossier, then implement.
-diff --git a/Users/jordanknight/substrate/066-wf-real-agents/docs/plans/067-harness/harness-spec.md b/Users/jordanknight/substrate/066-wf-real-agents/docs/plans/067-harness/harness-spec.md
-new file mode 100644
-index 0000000..5a3d572
---- /dev/null
-+++ b/Users/jordanknight/substrate/066-wf-real-agents/docs/plans/067-harness/harness-spec.md
-@@ -0,0 +1,175 @@
-+# First-Class Agentic Development Harness
-+
-+**Mode**: Full
-+
-+📚 This specification incorporates findings from [research-dossier.md](exploration.md), [Workshop 001](workshops/001-docker-container-setup.md), [Workshop 002](workshops/002-harness-folder-and-agentic-prompts.md), and [ADR-0014](../../adr/adr-0014-first-class-agentic-development-harness.md).
-+
-+## Research Context
-+
-+Eight parallel subagents explored the codebase. Key findings:
-+- **Strong foundations**: DI (137 fakes), MCP endpoint, workflow templates, CLI orchestration all production-ready
-+- **Critical gaps**: No Docker, no Playwright, 0 browser E2E tests, sequential-only test execution, no responsive testing
-+- **168 React components** with 31% unit coverage and 0% browser coverage
-+- Next.js standalone output already configured; terminal WebSocket sidecar on port 4500
-+- Auth bypass (`DISABLE_AUTH=true`) already exists for testing
-+- Prior learnings: harness tests MUST NOT run in `just fft` (PL-01), use `describe.skip` for slow tests (PL-02)
-+
-+## Summary
-+
-+The AI agents building Chainglass cannot see the running application. They make changes, run text-based tests, and hope the UI is correct. The **Agentic Development Harness** closes this gap: a Docker-containerized dev environment with Playwright browser automation, exposed via a rich SDK/CLI that returns structured JSON. The agent boots the app, browses it at any viewport, captures screenshots, runs tests — and iterates. **Harness-first development**: every feature ships with harness verification. The harness is the primary quality mechanism.
-+
-+## Goals
-+
-+- **Agent can see the site**: Boot a Docker container with the full Chainglass app, connect via CDP, browse pages, capture screenshots at any viewport
-+- **Rich SDK control plane**: All operations via typed CLI commands returning validated JSON — `harness dev`, `harness health`, `harness test`, `harness screenshot`. Agents parse structured output, not raw text
-+- **Responsive testing**: Verify layouts at desktop (1440px), tablet (768px), and mobile (375px) viewports
-+- **Fast iteration loop**: Volume-mounted source code with HMR — agent edits code on host, sees changes in container instantly without rebuild
-+- **Reproducible environment**: Same Docker image, same seed data, same results every time
-+- **Harness-first culture**: Every new feature considers harness coverage. Feature reviews ask "how does the harness test this?"
-+- **Server and browser observability**: Agent can read server logs, browser console, MCP errors, and Next.js diagnostics from the running container
-+
-+## Non-Goals
-+
-+- **Sub-agent orchestration / parallel dispatch**: Prompt templates, orchestrator patterns, and multi-agent coordination are out of scope. Will be discovered through usage and implemented as Chainglass work units / workflow nodes later
-+- **CI/CD Docker builds**: A separate future plan (distinct plan ID) will address CI-optimized containers, image caching, and GitHub Actions integration
-+- **Multiple parallel container instances**: Plan 2 ("Parallel CI Mode") will address spinning up N containers on different ports. This plan focuses on one container for one agent
-+- **Visual regression baselines**: Pixel-diff screenshot comparison (e.g., `toHaveScreenshot()`) is a future enhancement. Start with capture-only
-+- **Production deployment**: The harness container is dev-only — not a deployment artifact
-+- **Workflow template integration for tests**: Test suites as workflow nodes is a future pattern
-+
-+## Target Domains
-+
-+| Domain | Status | Relationship | Role in This Feature |
-+|--------|--------|-------------|---------------------|
-+| (all domains) | existing | **consume** | All domains are test targets — harness verifies their browser-observable behavior |
-+| _platform/auth | existing | **consume** | Auth bypassed via DISABLE_AUTH=true in harness container |
-+| _platform/positional-graph | existing | **consume** | Future: workflow templates for test orchestration (OOS this plan) |
-+
-+No new domains created. The harness is external tooling in `harness/` at repository root.
-+
-+## Complexity
-+
-+- **Score**: CS-4 (large)
-+- **Breakdown**: S=2, I=2, D=0, N=1, F=1, T=2 (Total P=8)
-+- **Confidence**: 0.75
-+
-+| Dimension | Score | Rationale |
-+|-----------|-------|-----------|
-+| Surface Area (S) | 2 | Cross-cutting: new `harness/` folder, Dockerfile, compose, CLI, Playwright config, test suites, justfile integration |
-+| Integration (I) | 2 | Docker, Playwright/Chromium, CDP protocol, Next.js MCP, terminal WebSocket — multiple external integration points |
-+| Data/State (D) | 0 | No schema/migration — ephemeral container state, JSON result files |
-+| Novelty (N) | 1 | Docker + Playwright is well-understood, but integrating with this specific monorepo (node-pty, pnpm, turbopack) has unknowns |
-+| Non-Functional (F) | 1 | Container startup speed matters; Playwright memory usage; volume mount HMR performance |
-+| Testing (T) | 2 | The harness IS the testing system — meta-testing required (does the harness itself work?) |
-+
-+**Assumptions**:
-+- OrbStack (Docker-compatible runtime) available on developer machines — 2-way bind mounts, native macOS virtualization, ~2s startup
-+- node-pty compiles in Debian-based Docker images (not Alpine)
-+- OrbStack bind mounts support native filesystem events — Turbopack HMR should work without polling
-+- Single Playwright Chromium instance handles 4-8 concurrent contexts
-+
-+**Dependencies**:
-+- Docker Engine / Docker Desktop
-+- Playwright (new dependency — `@playwright/test`)
-+- Chromium browser binaries (installed by Playwright)
-+
-+**Risks**:
-+- node-pty native compilation in Docker may require specific base image tuning
-+- Turbopack HMR over Docker bind mounts may need `WATCHPACK_POLLING=true`
-+- Container image size could bloat with Chromium (~400MB) — mitigate with multi-stage build
-+
-+**Phases** (suggested):
-+1. Docker container (Dockerfile + compose + dev server running)
-+2. Playwright integration + CDP exposure + smoke tests
-+3. Harness CLI (structured JSON commands)
-+4. Seed scripts + feature test suites + responsive viewports
-+
-+## Testing Strategy
-+
-+- **Approach**: Full TDD
-+- **Rationale**: Everything the harness does is testable — Docker booting is an assertion, Playwright attaching is an assertion, screenshot capture producing a file is an assertion. Slow tests are fine for harness (they run outside `just fft`).
-+- **CLI/SDK**: TDD — JSON output schemas, error codes, health check parsing, seed script logic
-+- **Docker**: TDD — container starts, health endpoint responds, ports are open, dev server returns 200
-+- **Playwright/CDP**: TDD — browser connects via CDP, page loads, screenshot file is produced, viewport changes apply
-+- **Mock Usage**: No mocks. Real Docker, real Playwright, real browser. That's the whole point.
-+- **Gating**: Harness tests run via `just test-harness` (separate from `just fft`). Docker/Playwright tests use `describe.skip` — skippable integration tests, not CI blockers. Unskip locally to verify.
-+
-+## Acceptance Criteria
-+
-+### Boot & Lifecycle
-+- **AC-01**: `harness build` creates a Docker image containing Node 20.19, pnpm, git ≥2.13, and Playwright Chromium
-+- **AC-02**: `harness dev` starts the container, runs the Next.js dev server on port 3000 and terminal sidecar on port 4500, and waits for health check to pass
-+- **AC-03**: `harness stop` stops and removes the container cleanly
-+- **AC-04**: `harness health` returns structured JSON with status of app (3000), MCP endpoint, CDP (9222), and terminal sidecar (4500)
-+
-+### Browser Automation
-+- **AC-05**: Agent can connect to `http://localhost:9222` (CDP) from outside the container and open pages
-+- **AC-06**: Agent can capture screenshots at desktop (1440x900), tablet (768x1024), and mobile (375x812) viewports via harness CLI
-+- **AC-07**: Multiple Playwright browser contexts can browse the site simultaneously within one Chromium instance
-+
-+### HMR & Dev Loop
-+- **AC-08**: Source code changes on the host are reflected in the container within 5 seconds via HMR (no container rebuild)
-+- **AC-09**: Agent can read Next.js server logs from the container
-+- **AC-10**: Agent can read browser console output via CDP
-+
-+### SDK / CLI
-+- **AC-11**: All harness CLI commands return structured JSON to stdout with consistent schema
-+- **AC-12**: Error conditions return JSON with error code (E100-E110 range) and human-readable message
-+- **AC-13**: `harness test --suite smoke` runs a minimal Playwright test suite and returns pass/fail JSON
-+- **AC-14**: `harness screenshot <name>` captures and saves a screenshot to `harness/results/`
-+
-+### Seed & Test Data
-+- **AC-15**: `harness seed` creates a test workspace with at least one worktree, accessible in the running app
-+- **AC-16**: Seeded data is visible when browsing the app (workspace appears in sidebar, worktrees listed)
-+
-+### Responsive Testing
-+- **AC-17**: `harness test --viewport mobile` runs tests at 375x812 viewport
-+- **AC-18**: `harness test --viewport tablet` runs tests at 768x1024 viewport
-+- **AC-19**: Responsive tests verify sidebar behavior changes between desktop and mobile viewports
-+
-+### Isolation
-+- **AC-20**: `just fft` is unaffected by the harness — harness tests do not run as part of the standard quality gate
-+- **AC-21**: Harness container uses `DISABLE_AUTH=true` to bypass authentication
-+
-+## Risks & Assumptions
-+
-+| Risk | Likelihood | Impact | Mitigation |
-+|------|-----------|--------|------------|
-+| node-pty fails to compile in Docker | Medium | High | Use Debian-based image with build-essential; test early in Phase 1 |
-+| Turbopack HMR doesn't work over bind mounts | Low | Medium | OrbStack 2-way mounts support native fs events; add `WATCHPACK_POLLING=true` only if needed |
-+| Chromium bloats container image | Low | Medium | Multi-stage build; Chromium in runtime stage only |
-+| CDP port conflict with other tools | Low | Low | Make port configurable via env var |
-+| Playwright version drift breaks tests | Low | Medium | Pin Playwright version in harness/package.json |
-+
-+**Assumptions**:
-+- Developer has OrbStack installed and running (Docker-compatible, preferred over Docker Desktop for macOS)
-+- Host machine has sufficient RAM for container + Chromium (~2GB)
-+- pnpm workspace symlinks resolve correctly inside Docker bind mount
-+- Auth bypass is sufficient for all test scenarios (no auth-specific tests needed in Plan 1)
-+
-+## Open Questions
-+
-+All resolved:
-+
-+- **OQ-01**: ~~CLI placement~~ → **Standalone script in `harness/src/cli/`**. Decoupled from `apps/cli`, no DI dependency, runs without building the main CLI.
-+- **OQ-02**: ~~Seed script approach~~ → **HTTP API calls**. Portable — works from host or inside container, no package build dependency. Calls `POST /api/workspaces`, etc.
-+- **OQ-03**: ~~node_modules strategy~~ → **Named volume**. Docker manages `node_modules`; `pnpm install` runs inside container. Fast I/O, no cross-OS symlink issues. Agent runs `harness exec pnpm install` when deps change.
-+
-+## Documentation Strategy
-+
-+- **ADR-0014** already accepted — captures the "harness or bust" principle
-+- Update `CLAUDE.md` custom instructions with harness commands (`just test-harness`, `harness dev`, etc.)
-+- Add harness section to `scripts/scripts.md` index
-+- Update `justfile` with harness commands
-+- Generate `docs/project-rules/harness.md` (via `/harness-v2 --create`) after Docker is working — documents Boot/Interact/Observe capabilities
-+
-+## Workshop Opportunities
-+
-+All workshops already completed:
-+
-+| Topic | Type | Status | Document |
-+|-------|------|--------|----------|
-+| Docker Container Setup | Integration Pattern | ✅ Complete | [001-docker-container-setup.md](workshops/001-docker-container-setup.md) |
-+| Harness Folder & CLI | Storage Design + CLI Flow | ✅ Complete | [002-harness-folder-and-agentic-prompts.md](workshops/002-harness-folder-and-agentic-prompts.md) |
-+
-+No additional workshops needed before architecture.
-diff --git a/Users/jordanknight/substrate/066-wf-real-agents/docs/plans/067-harness/tasks/phase-1-docker-container-dev-server/execution.log.md b/Users/jordanknight/substrate/066-wf-real-agents/docs/plans/067-harness/tasks/phase-1-docker-container-dev-server/execution.log.md
-new file mode 100644
-index 0000000..824f350
---- /dev/null
-+++ b/Users/jordanknight/substrate/066-wf-real-agents/docs/plans/067-harness/tasks/phase-1-docker-container-dev-server/execution.log.md
-@@ -0,0 +1,65 @@
-+# Phase 1: Docker Container & Dev Server — Execution Log
-+
-+**Plan**: 067-harness
-+**Phase**: 1 — Docker Container & Dev Server
++++ b/docs/plans/067-harness/tasks/phase-2-playwright-cdp-integration/execution.log.md
+@@ -0,0 +1,64 @@
++# Phase 2: Playwright & CDP Integration — Execution Log
++
++**Plan**: [harness-plan.md](../../harness-plan.md)
++**Phase**: Phase 2: Playwright & CDP Integration
 +**Started**: 2026-03-07
-+**Status**: In Progress
 +
 +---
 +
 +## Pre-Phase Validation
 +
-+Harness does not exist yet (this phase builds it). Skip pre-phase validation.
-+Validation will run at END of phase to confirm harness works.
++| Check | Status | Duration | Notes |
++|-------|--------|----------|-------|
++| Boot | ⏭ skipped | — | Container not running; will boot for integration tests |
++| Interact | ⏭ skipped | — | CDP not yet configured (this phase adds it) |
++| Observe | ⏭ skipped | — | No harness.md exists yet |
++
++**Verdict**: Phase 2 adds browser capability — pre-phase browser validation N/A.
 +
 +---
 +
 +## Task Log
 +
-+### T1.1 — Scaffold harness/ folder structure
-+**Status**: ✅ done
-+Created: `harness/` with `src/cli/commands/`, `src/seed/`, `src/viewports/`, `src/reporters/`, `tests/smoke/`, `tests/features/{agents,browser,terminal,workflows,responsive}`, `tests/fixtures/`, `results/.gitkeep`, `package.json`, `tsconfig.json`, `justfile`, `vitest.config.ts`
++### T001: Write CDP integration test (RED)
++- **Status**: ✅ Done
++- **Files**: `harness/tests/smoke/cdp-integration.test.ts` (new)
++- **Evidence**: 4 test cases in `describe.skip` — CDP version endpoint, target listing, Playwright `connectOverCDP`, screenshot capture to results/
++- **Notes**: Uses `playwright-core` (not `@playwright/test`) for vitest compatibility. Fetches wsEndpoint from `/json/version` per Perplexity research. Tests are RED (skipped) — will be unskipped in T009.
 +
-+### T1.2 — Write integration test: Docker boot (RED)
-+**Status**: ✅ done
-+Created `harness/tests/smoke/docker-boot.test.ts` — 7 assertions: app 200, HTML content, health API, MCP endpoint, terminal sidecar, auth bypass, dev mode. All `describe.skip`.
++### T002: Create Chromium startup script
++- **Status**: ✅ Done
++- **Files**: `harness/start-chromium.sh` (new), `harness/Dockerfile` (modified — COPY start-chromium.sh)
++- **Evidence**: Script auto-discovers Playwright Chromium binary, launches with `--headless --no-sandbox --disable-gpu --disable-dev-shm-usage --remote-debugging-port=9222 --remote-debugging-address=0.0.0.0`, restart loop on crash.
 +
-+### T1.3 — Write multi-stage Dockerfile
-+**Status**: ✅ done
-+Created `harness/Dockerfile` — Debian bookworm-slim, build-essential + python3 + git + tmux + curl, pnpm 9.15.4, DISABLE_AUTH=true, ports 3000/4500/9222.
++### T003: Update entrypoint.sh to launch Chromium
++- **Status**: ✅ Done
++- **Files**: `harness/entrypoint.sh` (modified)
++- **Evidence**: Chromium added as 3rd concurrent process via concurrently: `next,terminal,chromium` with magenta color prefix.
 +
-+### T1.4 — Write docker-compose.yml
-+**Status**: ✅ done
-+Created `harness/docker-compose.yml` — bind mount monorepo, named volumes for node_modules + .next, ports 3000/4500/9222, shm_size 1gb, healthcheck with 120s start_period.
++### T004: Create playwright.config.ts
++- **Status**: ✅ Done
++- **Files**: `harness/playwright.config.ts` (new), `harness/tests/fixtures/base-test.ts` (new)
++- **Evidence**: Config defines 3 viewport projects (desktop/tablet/mobile), custom CDP fixture (`base-test.ts`) connects via `connectOverCDP` fetching wsEndpoint from `/json/version`. Config does NOT use `connectOptions` (which is for Playwright Server, not CDP).
++- **Discovery**: Playwright config `connectOptions.wsEndpoint` is for Playwright Server, NOT CDP. Custom fixture required per Perplexity research.
 +
-+### T1.5 — Write entrypoint.sh
-+**Status**: ✅ done
-+Created `harness/entrypoint.sh` — sentinel-based pnpm install (cold start detection), turbo build packages, node-pty permissions, concurrent dev server + terminal sidecar via exec.
++### T005: Create viewport definitions
++- **Status**: ✅ Done
++- **Files**: `harness/src/viewports/devices.ts` (new)
++- **Evidence**: Exports `HARNESS_VIEWPORTS` with 4 viewports: desktop-lg (1440x900), desktop-md (1280x800), tablet (768x1024), mobile (375x812). Type-safe with `satisfies Record<string, HarnessViewport>`.
 +
-+### T1.6 — Fix DISABLE_AUTH for Server Actions
-+**Status**: ✅ done
-+Removed `args.length === 0` condition from `apps/web/src/auth.ts`. Now returns fake session for ALL call signatures when DISABLE_AUTH=true. `just fft` passes (4985 tests).
++### T006: Write smoke Playwright test
++- **Status**: ✅ Done
++- **Files**: `harness/tests/smoke/browser-smoke.spec.ts` (new)
++- **Evidence**: 5 test cases: page load 200, HTML structure, page title set, no console errors, screenshot capture to results/.
 +
-+### T1.7 — Create .dockerignore + update .gitignore
-+**Status**: ✅ done
-+Created `harness/.dockerignore` (exclude node_modules, .next, tests, src). Added `harness/results/` to root `.gitignore`.
++### T007: Verify multi-context browsing
++- **Status**: ✅ Done
++- **Files**: `harness/tests/smoke/browser-smoke.spec.ts` (same file)
++- **Evidence**: Test opens desktop (1440x900) + mobile (375x812) contexts simultaneously, navigates both in parallel, verifies viewportSize, captures screenshots at both viewports.
 +
-+### T1.8 — Add `just test-harness` to root justfile
-+**Status**: ✅ done
-+Added: `test-harness`, `harness-dev`, `harness-stop`, `harness-health` recipes to root justfile.
++### T008: Verify browser console access
++- **Status**: ✅ Done
++- **Files**: `harness/tests/smoke/browser-smoke.spec.ts` (same file)
++- **Evidence**: 2 test cases: captures injected console.log via `page.on('console')`, and separately captures console.warn + console.error with correct type discrimination.
 +
-+### T1.9 — Run integration test (GREEN)
-+**Status**: ✅ done — manually verified: app 200 on :3000, API 200 on /api/workspaces, terminal sidecar on :4500, auth bypassed. Cold start ~3 min, subsequent responses ~30ms.
+diff --git a/harness/Dockerfile b/harness/Dockerfile
+index 592e61a..d7896e6 100644
+--- a/harness/Dockerfile
++++ b/harness/Dockerfile
+@@ -60,9 +60,10 @@ WORKDIR /app
+ # Source code will be bind-mounted at /app
+ # node_modules will be a named Docker volume at /app/node_modules
+ 
+-# Copy entrypoint
++# Copy entrypoint and Chromium startup script
+ COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+-RUN chmod +x /usr/local/bin/entrypoint.sh
++COPY start-chromium.sh /usr/local/bin/start-chromium.sh
++RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/start-chromium.sh
+ 
+ # Expose ports: Next.js dev server, terminal WebSocket sidecar, CDP (future Phase 2)
+ EXPOSE 3000 4500 9222
+diff --git a/harness/entrypoint.sh b/harness/entrypoint.sh
+index 605b8bd..1710b20 100644
+--- a/harness/entrypoint.sh
++++ b/harness/entrypoint.sh
+@@ -45,14 +45,15 @@ if [ -f "$SPAWN_HELPER" ]; then
+   echo "✓ node-pty spawn-helper permissions set"
+ fi
+ 
+-# --- Step 4: Start dev server + terminal sidecar ---
++# --- Step 4: Start dev server + terminal sidecar + Chromium ---
+ echo ""
+-echo "🚀 Starting dev server on :${PORT:-3000} + terminal sidecar on :$((${PORT:-3000} + 1500))"
++echo "🚀 Starting dev server on :${PORT:-3000} + terminal sidecar on :$((${PORT:-3000} + 1500)) + Chromium CDP on :${CDP_PORT:-9222}"
+ echo ""
+ 
+ cd /app
+ 
+ # Use exec to forward signals properly
+-exec npx concurrently --names "next,terminal" --prefix-colors "blue,green" \
++exec npx concurrently --names "next,terminal,chromium" --prefix-colors "blue,green,magenta" \
+   "pnpm turbo dev -- --port ${PORT:-3000}" \
+-  "pnpm tsx watch apps/web/src/features/064-terminal/server/terminal-ws.ts"
++  "pnpm tsx watch apps/web/src/features/064-terminal/server/terminal-ws.ts" \
++  "/usr/local/bin/start-chromium.sh"
+diff --git a/harness/justfile b/harness/justfile
+index 86a6cac..d72ff14 100644
+--- a/harness/justfile
++++ b/harness/justfile
+@@ -28,6 +28,7 @@ stop:
+ health:
+     @echo "App:      $$(curl -sf -o /dev/null -w '%{http_code}' http://localhost:3000 || echo 'DOWN')"
+     @echo "Terminal: $$(python3 -c "import socket; s=socket.create_connection(('localhost',4500),2); s.close(); print('UP')" 2>/dev/null || echo 'DOWN')"
++    @echo "CDP:      $$(curl -sf http://localhost:9222/json/version | python3 -c 'import sys,json; print(json.load(sys.stdin).get(\"Browser\",\"UP\"))' 2>/dev/null || echo 'DOWN')"
+ 
+ # Run command inside container
+ exec +CMD:
+@@ -40,3 +41,7 @@ logs:
+ # Rebuild node_modules inside container (after dependency changes)
+ rebuild:
+     docker compose -f docker-compose.yml exec chainglass-dev pnpm install --frozen-lockfile
 +
-+---
-+
-+## Discoveries & Learnings
-+
-+| # | Discovery | Impact | Resolution |
-+|---|-----------|--------|------------|
-+| D1 | Auth wrapper `args.length === 0` was the only guard — removing it is safe because DISABLE_AUTH is an explicit env var, never set in production | Low | Simple one-line fix, all 4985 tests pass |
-+| D2 | Harness package.json is NOT in pnpm-workspace.yaml — standalone by design (OQ-01). Needs its own `pnpm install` inside harness/ | Medium | Documented in README. Agent runs `cd harness && pnpm install` separately |
-+| D3 | entrypoint.sh uses lockfile timestamp comparison for install detection — `pnpm-lock.yaml -nt sentinel` triggers reinstall on dep changes | Low | Simple, effective cold-start detection |
-+| D4 | OrbStack bind mounts work perfectly — `GET / 200 in 30ms` after initial compile. No polling needed. HMR likely works out of the box. | High | DYK-02 confirmed: OrbStack native fs events are sufficient |
-+| D5 | node-pty compiled successfully on Debian bookworm-slim with build-essential + python3 — no issues | High | Risk 01 (node-pty compilation) fully mitigated |
-+| D6 | Cold start was ~3 min (pnpm install + turbo build + dev server start) — acceptable per DYK-01 | Low | First boot only; subsequent boots are near-instant |
-diff --git a/Users/jordanknight/substrate/066-wf-real-agents/docs/plans/067-harness/workshops/001-docker-container-setup.md b/Users/jordanknight/substrate/066-wf-real-agents/docs/plans/067-harness/workshops/001-docker-container-setup.md
-new file mode 100644
-index 0000000..a770d8a
++# Run Playwright tests against the running container
++playwright *ARGS:
++    npx playwright test --config=playwright.config.ts {{ARGS}}
+diff --git a/harness/start-chromium.sh b/harness/start-chromium.sh
+new file mode 100755
+index 0000000..33a2573
 --- /dev/null
-+++ b/Users/jordanknight/substrate/066-wf-real-agents/docs/plans/067-harness/workshops/001-docker-container-setup.md
-@@ -0,0 +1,826 @@
-+# Workshop: Docker Container Setup
-+
-+**Type**: Integration Pattern
-+**Plan**: 067-harness
-+**Spec**: [exploration.md](../exploration.md)
-+**Created**: 2026-03-06
-+**Status**: Draft
-+
-+**Related Documents**:
-+- [exploration.md](../exploration.md)
-+- 002-harness-folder-and-agentic-prompts.md (companion workshop)
-+
-+**Domain Context**:
-+- **Primary Domain**: External tooling (not a domain)
-+- **Related Domains**: All domains are test targets
-+
-+---
-+
-+## Purpose
-+
-+Define the complete Docker containerization strategy for the agentic development harness, enabling agents to start/stop/rebuild a fully functional Chainglass instance with browser automation capabilities.
-+
-+## Key Questions Addressed
-+
-+- What goes in the Dockerfile (multi-stage design)?
-+- How does dev mode work with volume mounts and HMR?
-+- How do Playwright browsers coexist in the container?
-+- What ports/networking is needed?
-+- How does the agent start/stop/restart the container?
-+- What env vars are required?
-+- How does auth bypass work for testing?
-+- How does the terminal sidecar start inside Docker?
-+
-+---
-+
-+## 1. Container Architecture Diagram
-+
-+```
-+┌─── Host Machine ──────────────────────────────────────────────────────────────┐
-+│                                                                               │
-+│  Agent (Copilot CLI / Claude Code)                                            │
-+│    ├── harness dev          → docker compose up                               │
-+│    ├── harness exec <cmd>   → docker compose exec chainglass-dev <cmd>        │
-+│    └── harness health       → curl :3000/api/health + playwright check        │
-+│                                                                               │
-+│  Volume Mounts:                                                               │
-+│    ./  ─────────────────────►  /app  (full monorepo, read/write)              │
-+│    chainglass_node_modules ─►  /app/node_modules  (named volume)              │
-+│    chainglass_dot_next ─────►  /app/apps/web/.next  (named volume)            │
-+│    .chainglass/ ────────────►  /app/.chainglass  (bind mount)                 │
-+│                                                                               │
-+├───────────────────────────────────────────────────────────────────────────────┤
-+│                                                                               │
-+│  ┌─── Docker Container: chainglass-dev ────────────────────────────────────┐  │
-+│  │                                                                         │  │
-+│  │  ┌─────────────────────┐   ┌──────────────────────┐                     │  │
-+│  │  │  Next.js Dev Server │   │  Terminal Sidecar     │                     │  │
-+│  │  │  (Turbopack HMR)    │   │  (node-pty + tmux)    │                     │  │
-+│  │  │  :3000              │   │  :4500 (WebSocket)    │                     │  │
-+│  │  │                     │   │                        │                     │  │
-+│  │  │  /_next/mcp         │   │  PTY ↔ tmux sessions  │                     │  │
-+│  │  └─────────────────────┘   └──────────────────────┘                     │  │
-+│  │                                                                         │  │
-+│  │  ┌─────────────────────┐   ┌──────────────────────┐                     │  │
-+│  │  │  Playwright         │   │  System Tools         │                     │  │
-+│  │  │  Chromium (headless)│   │  git ≥2.13            │                     │  │
-+│  │  │  /dev/shm (shared)  │   │  tmux                 │                     │  │
-+│  │  │  CDP on :9222       │   │  Node 20.19.0         │                     │  │
-+│  │  └─────────────────────┘   │  pnpm 9.15.4          │                     │  │
-+│  │                             └──────────────────────┘                     │  │
-+│  │                                                                         │  │
-+│  │  Port Map:  host:3000 → container:3000  (Next.js)                       │  │
-+│  │             host:4500 → container:4500  (Terminal WS)                    │  │
-+│  │             host:9222 → container:9222  (CDP, optional)                  │  │
-+│  └─────────────────────────────────────────────────────────────────────────┘  │
-+│                                                                               │
-+└───────────────────────────────────────────────────────────────────────────────┘
-+```
-+
-+---
-+
-+## 2. Dockerfile Design (Multi-Stage)
-+
-+The Dockerfile lives at `harness/Dockerfile`. Three stages: dependency install, dev environment, and a minimal mention of prod for Plan 2.
-+
-+### Why Debian, not Alpine
-+
-+`node-pty` compiles native C++ bindings that link against glibc. Alpine uses musl libc, which causes runtime segfaults with node-pty's PTY handling. Debian-based images avoid this entirely.
-+
-+### Full Dockerfile
-+
-+```dockerfile
++++ b/harness/start-chromium.sh
+@@ -0,0 +1,67 @@
++#!/bin/bash
 +# =============================================================================
-+# Stage 1: deps — Install all monorepo dependencies with pnpm
-+# =============================================================================
-+FROM node:20.19.0-bookworm-slim AS deps
-+
-+# Install build tools for native modules (node-pty needs gcc, make, python3)
-+RUN apt-get update && apt-get install -y --no-install-recommends \
-+    python3 \
-+    make \
-+    gcc \
-+    g++ \
-+    && rm -rf /var/lib/apt/lists/*
-+
-+# Install pnpm at the exact version the project uses
-+RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
-+
-+WORKDIR /app
-+
-+# Copy dependency manifests first (cache layer — only re-runs on lockfile change)
-+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
-+COPY patches/ ./patches/
-+
-+# Copy all package.json files for workspace resolution
-+# Each workspace package needs its manifest for pnpm to resolve the graph
-+COPY apps/web/package.json ./apps/web/
-+COPY apps/cli/package.json ./apps/cli/
-+COPY packages/shared/package.json ./packages/shared/
-+COPY packages/workflow/package.json ./packages/workflow/
-+COPY packages/positional-graph/package.json ./packages/positional-graph/
-+COPY packages/workgraph/package.json ./packages/workgraph/
-+COPY packages/mcp-server/package.json ./packages/mcp-server/
-+
-+# Install all dependencies including devDependencies (needed for dev mode)
-+# --frozen-lockfile ensures reproducible installs
-+RUN pnpm install --frozen-lockfile
-+
-+# =============================================================================
-+# Stage 2: dev — Full development environment with Playwright + system tools
-+# =============================================================================
-+FROM node:20.19.0-bookworm-slim AS dev
-+
-+# System dependencies:
-+# - git ≥2.13 for worktree support (Debian bookworm ships 2.39+)
-+# - tmux for terminal sidecar PTY sessions
-+# - python3/gcc for node-pty rebuild if node_modules mounted fresh
-+# - Playwright system deps (libx11, libnss, etc.)
-+RUN apt-get update && apt-get install -y --no-install-recommends \
-+    git \
-+    tmux \
-+    python3 \
-+    make \
-+    gcc \
-+    g++ \
-+    curl \
-+    # Playwright Chromium dependencies
-+    libnss3 \
-+    libnspr4 \
-+    libatk1.0-0 \
-+    libatk-bridge2.0-0 \
-+    libcups2 \
-+    libdrm2 \
-+    libdbus-1-3 \
-+    libxkbcommon0 \
-+    libatspi2.0-0 \
-+    libxcomposite1 \
-+    libxdamage1 \
-+    libxfixes3 \
-+    libxrandr2 \
-+    libgbm1 \
-+    libpango-1.0-0 \
-+    libcairo2 \
-+    libasound2 \
-+    libxshmfence1 \
-+    && rm -rf /var/lib/apt/lists/*
-+
-+# Install pnpm
-+RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
-+
-+WORKDIR /app
-+
-+# Copy installed node_modules from deps stage
-+# In dev mode with volume mounts, this provides the baseline
-+# A named volume overlays /app/node_modules to avoid host conflicts
-+COPY --from=deps /app/node_modules ./node_modules
-+COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
-+COPY --from=deps /app/apps/cli/node_modules ./apps/cli/node_modules
-+COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
-+COPY --from=deps /app/packages/workflow/node_modules ./packages/workflow/node_modules
-+COPY --from=deps /app/packages/positional-graph/node_modules ./packages/positional-graph/node_modules
-+COPY --from=deps /app/packages/workgraph/node_modules ./packages/workgraph/node_modules
-+COPY --from=deps /app/packages/mcp-server/node_modules ./packages/mcp-server/node_modules
-+
-+# Install Playwright Chromium (headless only — ~300MB)
-+# PLAYWRIGHT_BROWSERS_PATH controls where browsers are cached
-+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright-browsers
-+RUN npx playwright install chromium
-+
-+# Entrypoint script handles startup sequence
-+COPY harness/scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
-+
-+EXPOSE 3000 4500 9222
-+
-+ENTRYPOINT ["docker-entrypoint.sh"]
-+CMD ["dev"]
-+
-+# =============================================================================
-+# Stage 3: prod — Standalone build for CI/built mode (Plan 2 — future)
-+# =============================================================================
-+# FROM node:20.19.0-bookworm-slim AS prod
-+# WORKDIR /app
-+# COPY --from=builder /app/apps/web/.next/standalone ./
-+# COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
-+# COPY --from=builder /app/apps/web/public ./apps/web/public
-+# ENV NODE_ENV=production
-+# EXPOSE 3000
-+# CMD ["node", "apps/web/server.js"]
-+```
-+
-+### Entrypoint Script (`harness/scripts/docker-entrypoint.sh`)
-+
-+```bash
-+#!/usr/bin/env bash
-+set -euo pipefail
-+
-+MODE="${1:-dev}"
-+
-+case "$MODE" in
-+  dev)
-+    echo "[harness] Starting in dev mode..."
-+
-+    # If node_modules volume is empty (first run), install deps
-+    if [ ! -d "/app/node_modules/.pnpm" ]; then
-+      echo "[harness] node_modules empty — running pnpm install..."
-+      pnpm install --frozen-lockfile
-+    fi
-+
-+    # Build workspace packages (shared, workflow, etc.) so imports resolve
-+    echo "[harness] Building workspace packages..."
-+    pnpm turbo build --filter='./packages/*'
-+
-+    # Start Next.js dev server + terminal sidecar concurrently
-+    echo "[harness] Starting Next.js dev server (Turbopack) on :${PORT:-3000}..."
-+    echo "[harness] Starting terminal sidecar on :${TERMINAL_WS_PORT:-4500}..."
-+
-+    exec pnpm concurrently --names "next,terminal" --prefix-colors "blue,green" \
-+      "pnpm turbo dev -- --port ${PORT:-3000} --hostname 0.0.0.0" \
-+      "pnpm tsx watch --env-file=apps/web/.env.local apps/web/src/features/064-terminal/server/terminal-ws.ts"
-+    ;;
-+
-+  shell)
-+    echo "[harness] Starting interactive shell..."
-+    exec /bin/bash
-+    ;;
-+
-+  build)
-+    echo "[harness] Running full build..."
-+    pnpm turbo build
-+    ;;
-+
-+  test)
-+    echo "[harness] Running test suite..."
-+    pnpm vitest run
-+    ;;
-+
-+  *)
-+    echo "[harness] Running custom command: $*"
-+    exec "$@"
-+    ;;
-+esac
-+```
-+
-+---
-+
-+## 3. docker-compose.yml
-+
-+Lives at `harness/docker-compose.yml`. This is the primary interface agents use.
-+
-+```yaml
-+# harness/docker-compose.yml
-+# Dev mode: volume-mounted source code with HMR
++# Chainglass Harness — Chromium Startup Script
 +#
-+# Usage:
-+#   docker compose up -d          # Start dev container
-+#   docker compose logs -f        # Stream all logs
-+#   docker compose exec chainglass-dev bash  # Shell into container
-+#   docker compose down           # Stop and remove
-+
-+services:
-+  chainglass-dev:
-+    build:
-+      context: ..
-+      dockerfile: harness/Dockerfile
-+      target: dev
-+    container_name: chainglass-dev
-+    ports:
-+      - "${PORT:-3000}:${PORT:-3000}"           # Next.js dev server
-+      - "${TERMINAL_WS_PORT:-4500}:${TERMINAL_WS_PORT:-4500}"  # Terminal sidecar
-+      - "9222:9222"                               # CDP (Playwright debug)
-+    volumes:
-+      # Mount entire monorepo for HMR — file changes on host propagate instantly
-+      - ..:/app
-+
-+      # Named volumes overlay host node_modules to avoid platform conflicts
-+      # (host may be macOS arm64, container is linux amd64)
-+      - chainglass_node_modules:/app/node_modules
-+      - chainglass_web_node_modules:/app/apps/web/node_modules
-+      - chainglass_cli_node_modules:/app/apps/cli/node_modules
-+      - chainglass_shared_node_modules:/app/packages/shared/node_modules
-+      - chainglass_workflow_node_modules:/app/packages/workflow/node_modules
-+      - chainglass_pg_node_modules:/app/packages/positional-graph/node_modules
-+      - chainglass_wg_node_modules:/app/packages/workgraph/node_modules
-+      - chainglass_mcp_node_modules:/app/packages/mcp-server/node_modules
-+
-+      # Preserve .next build cache across restarts
-+      - chainglass_dot_next:/app/apps/web/.next
-+    environment:
-+      - NODE_ENV=development
-+      - PORT=${PORT:-3000}
-+      - TERMINAL_WS_PORT=${TERMINAL_WS_PORT:-4500}
-+      - TERMINAL_WS_HOST=0.0.0.0
-+      - TERMINAL_ALLOWED_BASE=/app
-+      - DISABLE_AUTH=true
-+      - AUTH_SECRET=${AUTH_SECRET:-harness-dev-secret-not-for-production}
-+      # Turbopack polling for Docker volume mounts (see Section 9)
-+      - WATCHPACK_POLLING=true
-+      - CHOKIDAR_USEPOLLING=true
-+      # Playwright browser location
-+      - PLAYWRIGHT_BROWSERS_PATH=/opt/playwright-browsers
-+    # Shared memory for Chromium (default 64MB is too small)
-+    shm_size: '2gb'
-+    healthcheck:
-+      test: ["CMD", "curl", "-f", "http://localhost:${PORT:-3000}/api/health"]
-+      interval: 10s
-+      timeout: 5s
-+      retries: 30          # Dev server can take 30-60s to compile
-+      start_period: 60s    # Don't count failures during initial build
-+    restart: unless-stopped
-+    # init ensures proper signal handling for child processes
-+    init: true
-+
-+volumes:
-+  chainglass_node_modules:
-+  chainglass_web_node_modules:
-+  chainglass_cli_node_modules:
-+  chainglass_shared_node_modules:
-+  chainglass_workflow_node_modules:
-+  chainglass_pg_node_modules:
-+  chainglass_wg_node_modules:
-+  chainglass_mcp_node_modules:
-+  chainglass_dot_next:
-+```
-+
-+### Compose `.env` file (`harness/.env`)
-+
-+```bash
-+# Default port configuration — override to run multiple instances
-+PORT=3000
-+TERMINAL_WS_PORT=4500
-+AUTH_SECRET=harness-dev-secret-not-for-production
-+```
-+
-+---
-+
-+## 4. Volume Mount Strategy
-+
-+### Problem
-+
-+The monorepo has native modules (`node-pty`) compiled for the host platform (macOS arm64). Docker runs Linux amd64/arm64. If host `node_modules` are mounted directly into the container, native binaries crash.
-+
-+### Solution: Named Volume Overlay Pattern
-+
-+```
-+Host filesystem                    Container filesystem
-+─────────────────                  ────────────────────
-+./                 ──bind mount──► /app/
-+  ├── apps/web/src/  (HMR ✓)        ├── apps/web/src/  (same files)
-+  ├── packages/      (HMR ✓)        ├── packages/      (same files)
-+  ├── node_modules/  (macOS)         ├── node_modules/  ◄── named volume (Linux)
-+  └── apps/web/                      └── apps/web/
-+      └── node_modules/ (macOS)          └── node_modules/ ◄── named volume (Linux)
-+```
-+
-+Named volumes **shadow** the host's `node_modules` directories. The container gets its own Linux-native copies while source files pass through for HMR.
-+
-+### Directory Breakdown
-+
-+| Mount | Type | Purpose |
-+|-------|------|---------|
-+| `..:/app` | Bind | Entire monorepo — source code, configs, scripts |
-+| `chainglass_node_modules:/app/node_modules` | Named | Root node_modules with Linux-native binaries |
-+| `chainglass_web_node_modules:/app/apps/web/node_modules` | Named | Web app deps (node-pty prebuild for Linux) |
-+| `chainglass_cli_node_modules:/app/apps/cli/node_modules` | Named | CLI deps |
-+| `chainglass_*_node_modules:/app/packages/*/node_modules` | Named | Per-package deps |
-+| `chainglass_dot_next:/app/apps/web/.next` | Named | Build cache — survives `docker compose down` |
-+
-+### When to Rebuild node_modules
-+
-+The entrypoint checks for `/app/node_modules/.pnpm` — if missing (first run or after `docker volume rm`), it runs `pnpm install`. To force a full reinstall:
-+
-+```bash
-+# Nuke all named volumes and rebuild from scratch
-+docker compose down -v
-+docker compose up -d
-+```
-+
-+### .chainglass Data Directory
-+
-+The `.chainglass/` directory at monorepo root stores workspace instances, workflow data, and test results. It is part of the bind mount (`..:/app`) so data persists on the host and is visible to both the agent and the container.
-+
-+---
-+
-+## 5. Playwright in Docker
-+
-+### Chromium Installation
-+
-+Playwright's Chromium is installed during image build (Stage 2) at `/opt/playwright-browsers`. The `PLAYWRIGHT_BROWSERS_PATH` env var tells Playwright where to find it at runtime.
-+
-+```dockerfile
-+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright-browsers
-+RUN npx playwright install chromium
-+```
-+
-+Only Chromium is installed (not Firefox/WebKit) to keep image size manageable. Cross-browser testing is a Plan 2 concern.
-+
-+### Shared Memory Configuration
-+
-+Chromium renders pages using shared memory (`/dev/shm`). Docker's default 64MB allocation causes tab crashes on non-trivial pages. The compose file sets `shm_size: '2gb'`.
-+
-+Alternative approach (mount host's `/dev/shm`):
-+```yaml
-+volumes:
-+  - /dev/shm:/dev/shm
-+```
-+
-+The `shm_size` approach is preferred because it's explicit and portable.
-+
-+### Browser Contexts for Parallel Testing
-+
-+Playwright creates isolated browser contexts (separate cookies, storage, sessions) within a single Chromium instance. Each test or agent gets its own context:
-+
-+```typescript
-+// Each context is fully isolated — no shared state
-+const browser = await chromium.launch({ headless: true });
-+
-+const desktopCtx = await browser.newContext({
-+  viewport: { width: 1440, height: 900 },
-+});
-+
-+const tabletCtx = await browser.newContext({
-+  ...devices['iPad Pro'],
-+});
-+
-+const mobileCtx = await browser.newContext({
-+  ...devices['iPhone 14'],
-+});
-+
-+// 8-16 concurrent contexts per browser instance
-+```
-+
-+### Screenshot and Video Capture
-+
-+Playwright outputs go to a mounted directory visible to both host and container:
-+
-+```typescript
-+// Screenshots
-+await page.screenshot({
-+  path: '/app/harness/results/screenshots/homepage-desktop.png',
-+  fullPage: true,
-+});
-+
-+// Video capture (enabled per-context)
-+const context = await browser.newContext({
-+  recordVideo: { dir: '/app/harness/results/videos/' },
-+});
-+```
-+
-+These paths are under the bind mount, so results appear on the host filesystem immediately.
-+
-+### CDP Exposure for External Connections
-+
-+Port 9222 is mapped for Chrome DevTools Protocol access. This allows an agent on the host to connect to the container's Chromium for debugging:
-+
-+```typescript
-+// Launch with CDP server
-+const browser = await chromium.launch({
-+  headless: true,
-+  args: ['--remote-debugging-port=9222', '--remote-debugging-address=0.0.0.0'],
-+});
-+
-+// External agent connects via CDP
-+const browser = await chromium.connectOverCDP('http://localhost:9222');
-+```
-+
-+---
-+
-+## 6. Startup Sequence
-+
-+What happens when the agent runs `harness dev` (which wraps `docker compose up -d`):
-+
-+```
-+Step 1: Docker Compose Up
-+  └─► Pulls/builds image if needed (~2-5 min first time, cached after)
-+  └─► Creates named volumes (if first run)
-+  └─► Starts container with bind mount + volume overlays
-+
-+Step 2: Entrypoint — Dependency Check
-+  └─► Checks /app/node_modules/.pnpm exists
-+  └─► If missing: runs `pnpm install --frozen-lockfile` (~60-90s)
-+  └─► If exists: skips (instant)
-+
-+Step 3: Workspace Package Build
-+  └─► `pnpm turbo build --filter='./packages/*'`
-+  └─► Builds: shared → workflow → positional-graph → workgraph → mcp-server
-+  └─► 4-level dependency chain, turbo caches results (~5s cached, ~30s cold)
-+
-+Step 4: Concurrent Server Startup
-+  ├─► Next.js dev server (Turbopack)
-+  │     └─► Listens on 0.0.0.0:3000
-+  │     └─► Initial compilation: ~10-20s
-+  │     └─► MCP endpoint auto-exposed at /_next/mcp
-+  │
-+  └─► Terminal WebSocket sidecar
-+        └─► Listens on 0.0.0.0:4500
-+        └─► Spawns tmux sessions on connection
-+        └─► PORT=3000 → sidecar derives 3000+1500=4500
-+
-+Step 5: Health Check Loop
-+  └─► Docker health check: curl http://localhost:3000/api/health
-+  └─► start_period=60s (no failures counted during initial compile)
-+  └─► interval=10s, retries=30
-+  └─► Container marked "healthy" when /api/health returns 200
-+
-+Step 6: MCP Endpoint Available
-+  └─► Agent can query: GET http://localhost:3000/_next/mcp
-+  └─► Available tools: get_routes, get_errors, get_page_metadata, get_project_metadata
-+
-+Step 7: Playwright Ready
-+  └─► Chromium binary at /opt/playwright-browsers
-+  └─► Agent launches browser on demand (not pre-started)
-+  └─► First browser launch: ~2s cold start
-+```
-+
-+### Timing Summary
-+
-+| Phase | Cold Start | Warm Start |
-+|-------|-----------|------------|
-+| Image build | 3-5 min | 0s (cached) |
-+| pnpm install | 60-90s | 0s (volume exists) |
-+| Package build | 30s | 5s (turbo cached) |
-+| Next.js compile | 10-20s | 3-5s (HMR reconnect) |
-+| Total to healthy | ~2-3 min | ~10-15s |
-+
-+---
-+
-+## 7. Agent Interaction Commands
-+
-+These commands live in `harness/justfile` and wrap Docker Compose operations. Agents call them via shell execution.
-+
-+```bash
-+# Build or rebuild the Docker image (no cache on rebuild)
-+harness build
-+# → docker compose -f harness/docker-compose.yml build
-+
-+harness build --no-cache
-+# → docker compose -f harness/docker-compose.yml build --no-cache
-+
-+# Start the dev container (detached)
-+harness dev
-+# → docker compose -f harness/docker-compose.yml up -d
-+# → Waits for health check to pass
-+# → Prints: "Chainglass dev ready at http://localhost:3000"
-+
-+# Restart the dev server inside the container (without rebuilding container)
-+harness dev --restart
-+# → docker compose -f harness/docker-compose.yml exec chainglass-dev \
-+#     sh -c "kill -TERM $(pgrep -f 'next dev') $(pgrep -f 'terminal-ws')"
-+# → Entrypoint's `exec` respawns the processes via init
-+
-+# Stop the container
-+harness stop
-+# → docker compose -f harness/docker-compose.yml down
-+
-+# Stop and remove volumes (full reset)
-+harness stop --clean
-+# → docker compose -f harness/docker-compose.yml down -v
-+
-+# Stream server logs (both Next.js and terminal sidecar)
-+harness logs
-+# → docker compose -f harness/docker-compose.yml logs -f
-+
-+# Stream only Next.js logs
-+harness logs --next
-+# → docker compose -f harness/docker-compose.yml logs -f | grep '\[next\]'
-+
-+# Run arbitrary command inside the container
-+harness exec <cmd>
-+# → docker compose -f harness/docker-compose.yml exec chainglass-dev <cmd>
-+
-+# Examples:
-+harness exec pnpm test
-+harness exec pnpm turbo build
-+harness exec bash                    # Interactive shell
-+
-+# Health check (returns JSON)
-+harness health
-+# → curl -s http://localhost:3000/api/health | jq .
-+# → Checks: Next.js responding, MCP endpoint available, terminal sidecar alive
-+
-+# Check container status
-+harness status
-+# → docker compose -f harness/docker-compose.yml ps
-+```
-+
-+### Justfile Implementation (`harness/justfile`)
-+
-+```just
-+# Harness commands for agentic development
-+# Usage: just -f harness/justfile <command>
-+
-+compose := "docker compose -f harness/docker-compose.yml"
-+
-+# Build the Docker image
-+build *args:
-+    {{compose}} build {{args}}
-+
-+# Start dev container, wait for healthy
-+dev *args:
-+    {{compose}} up -d {{args}}
-+    @echo "Waiting for health check..."
-+    @timeout 180 sh -c 'until docker inspect --format="{{{{.State.Health.Status}}}}" chainglass-dev 2>/dev/null | grep -q healthy; do sleep 2; done'
-+    @echo "Chainglass dev ready at http://localhost:${PORT:-3000}"
-+
-+# Stop container
-+stop *args:
-+    {{compose}} down {{args}}
-+
-+# Stream logs
-+logs *args:
-+    {{compose}} logs -f {{args}}
-+
-+# Execute command in container
-+exec *args:
-+    {{compose}} exec chainglass-dev {{args}}
-+
-+# Health check
-+health:
-+    @curl -sf http://localhost:${PORT:-3000}/api/health | python3 -m json.tool 2>/dev/null || echo '{"status":"unreachable"}'
-+
-+# Container status
-+status:
-+    {{compose}} ps
-+```
-+
-+---
-+
-+## 8. Environment Variables Reference
-+
-+| Variable | Default | Required | Description |
-+|----------|---------|----------|-------------|
-+| `PORT` | `3000` | No | Next.js dev server port |
-+| `TERMINAL_WS_PORT` | `4500` | No | Terminal WebSocket sidecar port. Auto-derived as PORT+1500 if not set. |
-+| `TERMINAL_WS_HOST` | `0.0.0.0` | No | Sidecar bind address. Must be `0.0.0.0` in Docker for port mapping to work. |
-+| `TERMINAL_ALLOWED_BASE` | `/app` | Yes | Base directory for allowed terminal CWD paths. Set to `/app` (monorepo root in container). |
-+| `DISABLE_AUTH` | `true` | Yes (harness) | Bypasses GitHub OAuth in middleware (`proxy.ts`) and API route session checks (`auth.ts`). Must be `true` for agent testing. |
-+| `AUTH_SECRET` | (generated) | Yes | Session encryption key for next-auth. Any non-empty string works when `DISABLE_AUTH=true`. |
-+| `AUTH_GITHUB_ID` | — | No | GitHub OAuth App client ID. Not needed when auth is disabled. |
-+| `AUTH_GITHUB_SECRET` | — | No | GitHub OAuth App client secret. Not needed when auth is disabled. |
-+| `NODE_ENV` | `development` | No | Must be `development` for dev mode (HMR, error overlays). |
-+| `WATCHPACK_POLLING` | `true` | Yes (Docker) | Enables filesystem polling for Turbopack file watching. Required when source is volume-mounted. |
-+| `CHOKIDAR_USEPOLLING` | `true` | Yes (Docker) | Enables polling for chokidar-based watchers (tsx watch for sidecar). |
-+| `PLAYWRIGHT_BROWSERS_PATH` | `/opt/playwright-browsers` | Yes | Location of Playwright browser binaries in container. |
-+| `ACTIVITY_LOG_POLL_MS` | `10000` | No | Terminal activity log polling interval (ms). |
-+
-+### Auth Bypass Mechanics
-+
-+When `DISABLE_AUTH=true`:
-+1. **Middleware** (`proxy.ts`): Skips the auth redirect — all routes are accessible without login.
-+2. **API routes** (`auth.ts`): Session checks return a synthetic session object instead of rejecting unauthenticated requests.
-+3. **Terminal sidecar**: JWT verification is bypassed — WebSocket connections are accepted without tokens.
-+
-+This is already implemented in the codebase. The harness simply sets the env var.
-+
-+---
-+
-+## 9. Known Gotchas & Mitigations
-+
-+### 9.1 node-pty Native Compilation
-+
-+**Problem**: `node-pty` includes C++ bindings that compile at install time. Alpine Linux uses musl libc which causes segfaults with PTY operations. Even on Debian, the host's macOS-compiled binaries won't work in Linux containers.
-+
-+**Mitigation**:
-+- Use `node:20.19.0-bookworm-slim` (Debian, glibc).
-+- Install `python3 make gcc g++` in the image for native compilation.
-+- Named volume shadows host `node_modules` so Linux-compiled `node-pty` is used inside the container.
-+- `node-pty` has prebuilds for `linux-x64` and `linux-arm64` — pnpm downloads the correct one at install time.
-+
-+### 9.2 pnpm Symlink Behavior in Containers
-+
-+**Problem**: pnpm uses symlinks extensively for its `node_modules/.pnpm` store. Docker volumes and bind mounts handle symlinks correctly, but some edge cases exist with cross-device symlink resolution.
-+
-+**Mitigation**:
-+- Named volumes for `node_modules` keep the pnpm store on the same filesystem.
-+- `--frozen-lockfile` ensures reproducible installs.
-+- If symlinks break, `docker compose down -v && docker compose up -d` forces a clean install.
-+
-+### 9.3 Turbopack File Watching with Volume Mounts
-+
-+**Problem**: Docker bind mounts on macOS use gRPC-FUSE or VirtioFS for filesystem events. Neither reliably forwards inotify events. Turbopack may not detect file changes for HMR.
-+
-+**Mitigation**:
-+- Set `WATCHPACK_POLLING=true` — Turbopack's underlying watcher falls back to polling.
-+- Set `CHOKIDAR_USEPOLLING=true` — the tsx watcher (terminal sidecar) also uses polling.
-+- Polling interval is typically 1000ms — introduces ~1s delay to HMR. Acceptable for agent workflows where the agent waits for compilation anyway.
-+
-+**Performance note**: Docker Desktop's VirtioFS backend (default on macOS) is significantly faster than gRPC-FUSE. Ensure Docker Desktop settings use VirtioFS. On Linux hosts, bind mounts use native inotify and polling is not needed — but leaving the env vars set is harmless.
-+
-+### 9.4 Shared Memory for Chromium
-+
-+**Problem**: Chromium uses `/dev/shm` for inter-process communication. Docker's default 64MB allocation causes crashes on pages with complex rendering (Mermaid diagrams, CodeMirror editors, large workflow graphs).
-+
-+**Mitigation**: `shm_size: '2gb'` in compose file. This is generous but prevents intermittent Chromium OOM crashes that are extremely difficult to debug.
-+
-+### 9.5 Git Worktree Operations Inside Docker
-+
-+**Problem**: Git worktrees reference the parent `.git` directory via absolute paths. If the host monorepo is at `/Users/jordanknight/substrate/066-wf-real-agents` but the container mounts it at `/app`, worktree paths break.
-+
-+**Mitigation**:
-+- Worktrees created inside the container use `/app/...` paths and work correctly within the container.
-+- Worktrees created on the host use host paths and break inside the container.
-+- **Rule**: The harness seed script creates worktrees inside the container, never on the host. `TERMINAL_ALLOWED_BASE=/app` enforces this.
-+
-+### 9.6 Port Conflicts
-+
-+**Problem**: If the host already has a Next.js dev server on port 3000 (from `just dev`), Docker port mapping fails.
-+
-+**Mitigation**:
-+- Stop host dev server before starting container: `just dev` and `harness dev` are mutually exclusive.
-+- Alternatively, override ports: `PORT=3001 TERMINAL_WS_PORT=4501 docker compose up -d`.
-+- The harness `dev` command should check for port conflicts and emit a clear error.
-+
-+### 9.7 Build Context Size
-+
-+**Problem**: The Docker build context is the monorepo root (`..` from `harness/`). This includes `node_modules/` (~1GB), `.next/`, `.git/`, etc. Sending this to the Docker daemon is slow.
-+
-+**Mitigation**: Add a `.dockerignore` at monorepo root:
-+
-+```dockerignore
-+# harness/.dockerignore (or monorepo root .dockerignore)
-+node_modules
-+.next
-+.git
-+*.log
-+harness/results
-+.chainglass/instances
-+```
-+
-+The Dockerfile only COPYs specific manifests in Stage 1 (not the whole tree), so the ignore file mainly speeds up context transfer. Stage 2 (dev) doesn't COPY source at all — it relies on the bind mount.
-+
-+### 9.8 Container Time Drift
-+
-+**Problem**: On macOS, Docker Desktop VMs can experience clock drift, causing JWT validation failures and incorrect timestamps.
-+
-+**Mitigation**: Docker Desktop auto-syncs time. If drift is observed, restart Docker Desktop. Since `DISABLE_AUTH=true` skips JWT validation, this is a non-issue for the harness.
-+
-+---
-+
-+## 10. Open Questions
-+
-+| # | Question | Status | Notes |
-+|---|----------|--------|-------|
-+| Q1 | Should Playwright be pre-installed in the image or installed at startup? | **RESOLVED** | Pre-installed in image (Stage 2). Installing at startup adds ~60s and requires internet access. |
-+| Q2 | Named volume per workspace package, or single root volume? | **RESOLVED** | Per-package named volumes. pnpm hoists some deps to root, others to workspace packages. A single volume would shadow all workspace `node_modules` which breaks pnpm's linking. |
-+| Q3 | Should the harness support arm64 Docker images natively? | **OPEN** | macOS developers on Apple Silicon run arm64 Docker. node-pty prebuilds exist for linux-arm64. Chromium supports arm64. No blockers, but needs testing. Default to platform-native builds (`--platform linux/arm64` on Apple Silicon). |
-+| Q4 | How to handle `pnpm-lock.yaml` changes while container is running? | **OPEN** | If a developer (or agent) adds a dependency, `pnpm-lock.yaml` changes on the host. The container sees the change via bind mount but `node_modules` is a named volume. Options: (a) agent runs `harness exec pnpm install`, (b) entrypoint watches lockfile, (c) require `harness stop --clean && harness dev`. Leaning toward (a) — explicit is better. |
-+| Q5 | Should we support `docker compose watch` (Compose Watch)? | **OPEN** | Docker Compose Watch can sync files and trigger rebuilds. But we already have Turbopack HMR via bind mounts. Compose Watch would add complexity for no clear benefit in dev mode. Revisit for prod/CI mode. |
-+| Q6 | CDP port (9222) — expose by default or only on demand? | **OPEN** | Exposing CDP allows external debugging but is a security surface. For dev harness this is fine. For CI mode, should be opt-in. Current design: exposed by default in dev compose, omitted in prod. |
-+| Q7 | How to handle `.env.local` secrets in the container? | **RESOLVED** | The bind mount exposes `apps/web/.env.local` from the host. The entrypoint script for the terminal sidecar already reads it via `--env-file`. For Next.js, env vars from compose override `.env.local`. Auth secrets are irrelevant since `DISABLE_AUTH=true`. |
-+
-+---
-+
-+## Appendix A: Image Size Estimates
-+
-+| Component | Size |
-+|-----------|------|
-+| node:20.19.0-bookworm-slim (base) | ~200MB |
-+| System packages (git, tmux, build tools, Chromium deps) | ~150MB |
-+| pnpm + node_modules (all workspaces) | ~600MB |
-+| Playwright Chromium | ~300MB |
-+| **Total dev image** | **~1.25GB** |
-+
-+For comparison, the prod image (Stage 3, future) would be ~150MB using standalone output.
-+
-+## Appendix B: File Tree
-+
-+```
-+harness/
-+├── Dockerfile
-+├── docker-compose.yml
-+├── .env                        # Default env vars
-+├── justfile                    # Agent-facing commands
-+├── scripts/
-+│   └── docker-entrypoint.sh    # Container startup logic
-+├── playwright.config.ts        # Browser test configuration (Phase 2)
-+├── test/                       # Browser tests (Phase 2)
-+└── results/                    # Test output (gitignored)
-+```
-+
-+## Appendix C: Quick Start for Agents
-+
-+```bash
-+# First time setup (build image + start container)
-+cd harness
-+just build
-+just dev
-+# → Wait for "Chainglass dev ready at http://localhost:3000"
-+
-+# Verify everything works
-+just health
-+# → {"status":"ok","timestamp":"..."}
-+
-+curl -s http://localhost:3000/_next/mcp
-+# → MCP endpoint responds
-+
-+just exec npx playwright install --dry-run
-+# → Chromium already installed
-+
-+# Make code changes on host — HMR applies in ~1-2s
-+# Run tests inside container
-+just exec pnpm vitest run
-+
-+# Done for the day
-+just stop
-+```
-diff --git a/Users/jordanknight/substrate/066-wf-real-agents/docs/plans/067-harness/workshops/002-harness-folder-and-agentic-prompts.md b/Users/jordanknight/substrate/066-wf-real-agents/docs/plans/067-harness/workshops/002-harness-folder-and-agentic-prompts.md
++# Launches headless Chromium with CDP (Chrome DevTools Protocol) on port 9222.
++# Designed to run as a long-lived process inside the Docker container.
++#
++# Features:
++#   - Auto-discovers Playwright-installed Chromium binary
++#   - Restart loop: if Chromium crashes, restarts after 2s delay
++#   - Proper signal forwarding for clean shutdown
++#
++# Required Docker flags (already in docker-compose.yml):
++#   - shm_size: 1gb (Chromium needs shared memory)
++#   - Port 9222 exposed
++# =============================================================================
++
++CDP_PORT="${CDP_PORT:-9222}"
++CDP_ADDRESS="${CDP_ADDRESS:-0.0.0.0}"
++
++# Find Playwright-installed Chromium binary
++find_chromium() {
++  local binary
++  # Playwright installs Chromium at a versioned path
++  binary=$(find /root/.cache/ms-playwright -name "chrome" -path "*/chrome-linux/chrome" 2>/dev/null | head -1)
++  if [ -z "$binary" ]; then
++    # Fallback: try headless_shell
++    binary=$(find /root/.cache/ms-playwright -name "headless_shell" 2>/dev/null | head -1)
++  fi
++  echo "$binary"
++}
++
++CHROMIUM_BIN=$(find_chromium)
++
++if [ -z "$CHROMIUM_BIN" ]; then
++  echo "ERROR: Chromium binary not found in /root/.cache/ms-playwright/"
++  echo "Run: npx playwright install chromium"
++  exit 1
++fi
++
++echo "🌐 Starting Chromium (CDP on :${CDP_PORT})"
++echo "   Binary: ${CHROMIUM_BIN}"
++
++# Restart loop — if Chromium crashes, restart after a brief delay
++while true; do
++  "$CHROMIUM_BIN" \
++    --headless \
++    --no-sandbox \
++    --disable-gpu \
++    --disable-dev-shm-usage \
++    --disable-setuid-sandbox \
++    --disable-software-rasterizer \
++    --remote-debugging-port="$CDP_PORT" \
++    --remote-debugging-address="$CDP_ADDRESS" \
++    --no-first-run \
++    --no-default-browser-check \
++    --disable-background-networking \
++    --disable-sync \
++    --disable-translate \
++    --metrics-recording-only \
++    --safebrowsing-disable-auto-update \
++    about:blank
++
++  EXIT_CODE=$?
++  echo "⚠️  Chromium exited with code $EXIT_CODE, restarting in 2s..."
++  sleep 2
++done
+diff --git a/harness/playwright.config.ts b/harness/playwright.config.ts
 new file mode 100644
-index 0000000..995fbf5
+index 0000000..6a78b30
 --- /dev/null
-+++ b/Users/jordanknight/substrate/066-wf-real-agents/docs/plans/067-harness/workshops/002-harness-folder-and-agentic-prompts.md
-@@ -0,0 +1,479 @@
-+# Workshop: Harness Folder Structure & Agentic Prompts
++++ b/harness/playwright.config.ts
+@@ -0,0 +1,75 @@
++/**
++ * Playwright configuration for Chainglass Harness.
++ *
++ * Key design: Tests connect to a pre-running Chromium instance inside the Docker
++ * container via CDP (Chrome DevTools Protocol) on port 9222. This is NOT the default
++ * Playwright browser launcher — we use a custom fixture (base-test.ts) that calls
++ * connectOverCDP. The config does NOT use connectOptions (which is for Playwright
++ * Server, not CDP).
++ *
++ * Three viewport projects: desktop, tablet, mobile.
++ * Tests run from the HOST against the containerized app on localhost:3000.
++ */
 +
-+**Type**: Storage Design + CLI Flow
-+**Plan**: 067-harness
-+**Spec**: [exploration.md](../exploration.md)
-+**Created**: 2026-03-06
-+**Status**: Draft
++import { defineConfig } from '@playwright/test';
++import { HARNESS_VIEWPORTS } from './src/viewports/devices.js';
 +
-+**Related Documents**:
-+- [exploration.md](../exploration.md)
-+- [001-docker-container-setup.md](001-docker-container-setup.md)
-+
-+**Domain Context**:
-+- **Primary Domain**: External tooling (not a domain)
-+- **Related Domains**: All domains are test targets; workflow-ui and positional-graph for test orchestration
-+
-+---
-+
-+## Purpose
-+
-+Define the complete harness folder structure, CLI tool design, agentic prompt system, test result format, and workflow integration — everything needed for an AI agent to orchestrate end-to-end testing of Chainglass.
-+
-+## Key Questions Addressed
-+
-+- What is the folder structure for `harness/`?
-+- What CLI commands does the harness provide?
-+- What structured JSON format do test results use?
-+- How does an agent (us, in Copilot CLI) start, browse, and test the site?
-+- How do viewports and responsive testing work?
-+
-+> **Out of scope for now**: Sub-agent orchestration, workflow template integration,
-+> parallel test dispatch, report consolidation prompts. We'll discover those patterns
-+> by using the harness. Focus is: get the infra working for us first.
-+
-+---
-+
-+## 1. Folder Structure
-+
-+```
-+harness/
-+├── justfile                          # Harness commands (build, dev, test, seed, etc.)
-+├── Dockerfile                        # Multi-stage (from Workshop 001)
-+├── docker-compose.yml                # Dev mode compose (from Workshop 001)
-+├── playwright.config.ts              # Playwright: base URL, viewports, timeouts
-+├── package.json                      # Deps: @playwright/test, zod (result validation)
-+├── tsconfig.json                     # Strict TS for harness code
-+│
-+├── src/
-+│   ├── cli/                          # Harness CLI (structured JSON output)
-+│   │   ├── index.ts                  # Entry point (Commander.js)
-+│   │   ├── commands/
-+│   │   │   ├── init.ts               # Check Docker, Playwright, write .env
-+│   │   │   ├── build.ts              # docker compose build
-+│   │   │   ├── dev.ts                # docker compose up -d + health wait
-+│   │   │   ├── stop.ts               # docker compose down
-+│   │   │   ├── health.ts             # Probe app + MCP + CDP endpoints
-+│   │   │   ├── seed.ts               # Seed workspace, worktrees, workflows
-+│   │   │   ├── test.ts               # Run Playwright suites
-+│   │   │   ├── screenshot.ts         # Capture named screenshot via CDP
-+│   │   │   ├── results.ts            # Show/query latest run results
-+│   │   │   └── report.ts             # Generate HTML report from JSON
-+│   │   └── output.ts                 # Structured JSON output helpers
-+│   │
-+│   ├── reporters/
-+│   │   ├── json-reporter.ts          # Playwright custom reporter → JSON
-+│   │   └── html-reporter.ts          # Optional: HTML summary page
-+│   │
-+│   ├── seed/
-+│   │   ├── seed-workspace.ts         # Create test workspace + git init + worktrees
-+│   │   ├── seed-workflows.ts         # Instantiate harness workflow templates
-+│   │   └── seed-fixtures.ts          # Sample files, agent sessions, etc.
-+│   │
-+│   └── viewports/
-+│       └── devices.ts                # Named viewport definitions
-+│
-+├── tests/                            # Playwright test suites
-+│   ├── smoke/
-+│   │   └── health.spec.ts            # App loads, routes exist, MCP responds
-+│   ├── features/
-+│   │   ├── agents/
-+│   │   │   └── agent-lifecycle.spec.ts
-+│   │   ├── browser/
-+│   │   │   └── file-browser.spec.ts
-+│   │   ├── terminal/
-+│   │   │   └── terminal-session.spec.ts
-+│   │   ├── workflows/
-+│   │   │   └── workflow-execution.spec.ts
-+│   │   └── responsive/
-+│   │       └── viewport-layouts.spec.ts
-+│   └── fixtures/
-+│       ├── test-workspace/           # Git repo template for seeding
-+│       └── sample-files/             # Files for browser testing
-+│
-+├── results/                          # Test output (gitignored)
-+```
-+
-+---
-+
-+## 2. Harness CLI Commands
-+
-+All commands output structured JSON to stdout. Human-readable summaries go to stderr so agents can `JSON.parse(stdout)` cleanly.
-+
-+| Command | Description | Exit Code |
-+|---------|-------------|-----------|
-+| `harness init` | Verify Docker, Playwright, write `.env.harness` | 0=ready, 1=missing deps |
-+| `harness build` | Build Docker image | 0=success, 1=build fail |
-+| `harness dev` | Start container, wait for health | 0=healthy, 1=timeout |
-+| `harness stop` | Stop and remove container | 0=stopped |
-+| `harness health` | Probe app (3000), MCP, CDP (9222) | 0=all healthy, 1=degraded |
-+| `harness seed` | Seed test workspace + workflows | 0=seeded, 1=seed fail |
-+| `harness test` | Run all Playwright suites | 0=all pass, 1=failures |
-+| `harness test --suite <name>` | Run specific suite | 0=pass, 1=fail |
-+| `harness test --viewport <name>` | Run at specific viewport | 0=pass, 1=fail |
-+| `harness screenshot <name>` | Capture screenshot via CDP | 0=saved, 1=error |
-+| `harness results` | Show latest run JSON | 0=found, 1=no results |
-+| `harness report` | Generate HTML from latest JSON | 0=generated |
-+
-+### Example: `harness health` output
-+
-+```json
-+{
-+  "command": "health",
-+  "status": "ok",
-+  "checks": {
-+    "container": { "status": "running", "uptime": "2m 15s" },
-+    "app": { "status": "ok", "url": "http://localhost:3000", "responseMs": 42 },
-+    "mcp": { "status": "ok", "url": "http://localhost:3000/_next/mcp", "tools": 6 },
-+    "cdp": { "status": "ok", "url": "http://localhost:9222", "browsers": 1 },
-+    "terminal": { "status": "ok", "url": "ws://localhost:4500" }
-+  }
-+}
-+```
-+
-+### Example: `harness test --suite smoke` output
-+
-+```json
-+{
-+  "command": "test",
-+  "runId": "run-2026-03-07-001",
-+  "suite": "smoke",
-+  "status": "pass",
-+  "duration": 3200,
-+  "tests": [
-+    { "id": "smoke-health", "name": "App loads and responds", "status": "pass", "duration": 450 },
-+    { "id": "smoke-routes", "name": "All routes accessible", "status": "pass", "duration": 1200 },
-+    { "id": "smoke-mcp", "name": "MCP endpoint responds", "status": "pass", "duration": 320 }
-+  ],
-+  "summary": { "total": 3, "pass": 3, "fail": 0, "skip": 0 }
-+}
-+```
-+
-+### Error Codes
-+
-+| Code | Meaning |
-+|------|---------|
-+| E100 | Docker not running or not installed |
-+| E101 | Container failed to start |
-+| E102 | Health check timeout (app not responding within 60s) |
-+| E103 | Playwright browser launch failed |
-+| E104 | Seed script failed (workspace creation error) |
-+| E105 | Test suite not found |
-+| E106 | Screenshot capture failed |
-+| E107 | Results file not found or corrupt |
-+| E108 | CDP connection refused |
-+| E109 | MCP endpoint not responding |
-+
-+---
-+
-+## 3. Test Result JSON Format
-+
-+### TypeScript Interfaces
-+
-+```typescript
-+interface HarnessRunResult {
-+  runId: string;                    // "run-2026-03-07-001"
-+  timestamp: string;                // ISO-8601
-+  duration: number;                 // Total ms
-+  container: {
-+    image: string;                  // "chainglass-harness:dev"
-+    ports: { app: number; cdp: number; terminal: number };
-+  };
-+  suites: HarnessSuiteResult[];
-+  summary: {
-+    total: number;
-+    pass: number;
-+    fail: number;
-+    skip: number;
-+    error: number;
-+  };
-+}
-+
-+interface HarnessSuiteResult {
-+  name: string;                     // "smoke", "agents", "responsive"
-+  viewport: ViewportConfig;
-+  tests: HarnessTestResult[];
-+  duration: number;
-+}
-+
-+interface HarnessTestResult {
-+  id: string;                       // "agents-create-session"
-+  name: string;                     // "Can create agent session"
-+  status: 'pass' | 'fail' | 'skip' | 'error';
-+  duration: number;
-+  viewport: ViewportConfig;
-+  screenshots?: string[];           // Relative paths in run folder
-+  error?: {
-+    message: string;
-+    stack?: string;
-+    screenshot?: string;            // Auto-captured on failure
-+  };
-+  assertions: Array<{
-+    name: string;
-+    passed: boolean;
-+    expected?: string;
-+    actual?: string;
-+  }>;
-+}
-+
-+interface ViewportConfig {
-+  name: string;                     // "desktop-lg"
-+  width: number;
-+  height: number;
-+  deviceScaleFactor?: number;
-+  isMobile?: boolean;
-+  hasTouch?: boolean;
-+}
-+```
-+
-+### Example Full Result
-+
-+```json
-+{
-+  "runId": "run-2026-03-07-001",
-+  "timestamp": "2026-03-07T00:15:00.000Z",
-+  "duration": 45200,
-+  "container": {
-+    "image": "chainglass-harness:dev",
-+    "ports": { "app": 3000, "cdp": 9222, "terminal": 4500 }
-+  },
-+  "suites": [
-+    {
-+      "name": "smoke",
-+      "viewport": { "name": "desktop-lg", "width": 1440, "height": 900 },
-+      "duration": 3200,
-+      "tests": [
-+        {
-+          "id": "smoke-health",
-+          "name": "App loads and responds",
-+          "status": "pass",
-+          "duration": 450,
-+          "viewport": { "name": "desktop-lg", "width": 1440, "height": 900 },
-+          "assertions": [
-+            { "name": "HTTP 200", "passed": true },
-+            { "name": "Page title contains Chainglass", "passed": true }
-+          ]
-+        }
-+      ]
-+    },
-+    {
-+      "name": "responsive",
-+      "viewport": { "name": "mobile", "width": 375, "height": 812, "isMobile": true, "hasTouch": true },
-+      "duration": 5100,
-+      "tests": [
-+        {
-+          "id": "responsive-sidebar-collapsed",
-+          "name": "Sidebar collapses on mobile",
-+          "status": "pass",
-+          "duration": 1200,
-+          "viewport": { "name": "mobile", "width": 375, "height": 812, "isMobile": true, "hasTouch": true },
-+          "screenshots": ["screenshots/responsive-sidebar-mobile.png"],
-+          "assertions": [
-+            { "name": "Sidebar not visible", "passed": true },
-+            { "name": "Hamburger menu visible", "passed": true }
-+          ]
-+        }
-+      ]
-+    }
-+  ],
-+  "summary": { "total": 2, "pass": 2, "fail": 0, "skip": 0, "error": 0 }
-+}
-+```
-+
-+---
-+
-+## 4. Agentic Usage Notes
-+
-+> **Sub-agent prompts, orchestrator prompts, and test dispatch patterns are OUT OF SCOPE
-+> for this plan.** In the final system, these will be Chainglass work units / workflow
-+> nodes — not static prompt files. This workshop focuses on the **infrastructure** the
-+> agents will use, not the agents themselves.
-+
-+### What agents need from the harness
-+
-+The harness CLI provides the **tool surface** agents interact with:
-+
-+1. **Boot**: `harness dev` → starts app, returns health JSON
-+2. **Seed**: `harness seed` → creates test data, returns confirmation JSON
-+3. **Test**: `harness test --suite X --viewport Y` → runs Playwright, returns result JSON
-+4. **Observe**: `harness screenshot <name>` → captures current state via CDP
-+5. **Report**: `harness results --json` → returns consolidated run results
-+
-+All commands return structured JSON to stdout. Agents parse it. The CLI validates output format so agents cannot produce malformed results.
-+
-+### CDP for ad-hoc browsing
-+
-+Agents connect to `http://localhost:9222` (CDP) from outside the container to:
-+- Open pages at specific viewports
-+- Capture screenshots
-+- Read console logs
-+- Interact with UI elements
-+
-+This enables the "full on agentic dev mode" iteration loop without running the full test suite.
-+
-+---
-+
-+## 5. Parallel Browser Strategy
-+
-+One Playwright browser instance per container. Multiple **contexts** for parallel sessions.
-+
-+```
-+Docker Container
-+└── Chromium (single instance, headless, CDP on :9222)
-+    ├── Context A → Desktop 1440x900  → smoke suite
-+    ├── Context B → Desktop 1440x900  → agents suite
-+    ├── Context C → Desktop 1440x900  → workflows suite
-+    ├── Context D → iPad 768x1024     → responsive suite
-+    ├── Context E → iPhone 375x812    → responsive suite
-+    └── Context F → Desktop 1440x900  → browser suite
-+```
-+
-+Each context has **isolated cookies, localStorage, and session state**. They share the same Chromium process (efficient memory) but cannot see each other's data.
-+
-+**Playwright config** (`playwright.config.ts`):
-+```typescript
-+import { defineConfig, devices } from '@playwright/test';
++const APP_URL = process.env.HARNESS_APP_URL ?? 'http://localhost:3000';
 +
 +export default defineConfig({
 +  testDir: './tests',
++  testMatch: '**/*.spec.ts',
++
 +  timeout: 30_000,
-+  retries: 1,
-+  workers: 4,                         // 4 parallel workers
++  expect: { timeout: 10_000 },
++
++  // Harness tests run sequentially — single shared browser via CDP
++  fullyParallel: false,
++  workers: 1,
++
++  // Output
++  outputDir: './results/test-output',
++  reporter: [
++    ['list'],
++    ['json', { outputFile: './results/test-results.json' }],
++  ],
++
 +  use: {
-+    baseURL: 'http://localhost:3000',
++    baseURL: APP_URL,
++    // Browser connection handled by custom fixture (base-test.ts) via connectOverCDP
++    // Do NOT set connectOptions here — that's for Playwright Server, not CDP
 +    screenshot: 'only-on-failure',
-+    trace: 'on-first-retry',
++    trace: 'retain-on-failure',
++    video: 'off',
 +  },
++
 +  projects: [
-+    { name: 'desktop', use: { viewport: { width: 1440, height: 900 } } },
-+    { name: 'tablet', use: { ...devices['iPad Pro 11'] } },
-+    { name: 'mobile', use: { ...devices['iPhone 14'] } },
++    {
++      name: 'desktop',
++      use: {
++        viewport: {
++          width: HARNESS_VIEWPORTS['desktop-lg'].width,
++          height: HARNESS_VIEWPORTS['desktop-lg'].height,
++        },
++      },
++    },
++    {
++      name: 'tablet',
++      use: {
++        viewport: {
++          width: HARNESS_VIEWPORTS.tablet.width,
++          height: HARNESS_VIEWPORTS.tablet.height,
++        },
++      },
++    },
++    {
++      name: 'mobile',
++      use: {
++        viewport: {
++          width: HARNESS_VIEWPORTS.mobile.width,
++          height: HARNESS_VIEWPORTS.mobile.height,
++        },
++      },
++    },
 +  ],
 +});
-+```
+diff --git a/harness/src/viewports/devices.ts b/harness/src/viewports/devices.ts
+new file mode 100644
+index 0000000..b66a4fb
+--- /dev/null
++++ b/harness/src/viewports/devices.ts
+@@ -0,0 +1,44 @@
++/**
++ * Viewport definitions for responsive harness testing.
++ *
++ * Four standard viewports covering the primary breakpoints agents need to verify.
++ * Used by playwright.config.ts to create per-viewport test projects.
++ */
 +
-+**From outside the container** (agent on host):
-+```typescript
-+import { chromium } from 'playwright';
-+const browser = await chromium.connectOverCDP('http://localhost:9222');
-+const context = await browser.newContext({ viewport: { width: 375, height: 812 } });
-+const page = await context.newPage();
-+await page.goto('http://localhost:3000');
-+await page.screenshot({ path: 'mobile-home.png' });
-+```
++export interface HarnessViewport {
++  readonly name: string;
++  readonly width: number;
++  readonly height: number;
++  readonly description: string;
++}
 +
-+---
-+
-+## 6. Viewport Definitions
-+
-+**File**: `harness/src/viewports/devices.ts`
-+
-+```typescript
 +export const HARNESS_VIEWPORTS = {
-+  'desktop-lg': { width: 1440, height: 900 },
-+  'desktop-md': { width: 1280, height: 800 },
-+  'tablet':     { width: 768,  height: 1024, isMobile: true, hasTouch: true },
-+  'mobile':     { width: 375,  height: 812,  isMobile: true, hasTouch: true, deviceScaleFactor: 3 },
-+} as const;
++  'desktop-lg': {
++    name: 'desktop-lg',
++    width: 1440,
++    height: 900,
++    description: 'Large desktop — primary development viewport',
++  },
++  'desktop-md': {
++    name: 'desktop-md',
++    width: 1280,
++    height: 800,
++    description: 'Medium desktop — common laptop resolution',
++  },
++  tablet: {
++    name: 'tablet',
++    width: 768,
++    height: 1024,
++    description: 'Tablet portrait — iPad breakpoint',
++  },
++  mobile: {
++    name: 'mobile',
++    width: 375,
++    height: 812,
++    description: 'Mobile portrait — iPhone breakpoint',
++  },
++} as const satisfies Record<string, HarnessViewport>;
 +
 +export type ViewportName = keyof typeof HARNESS_VIEWPORTS;
-+```
 +
-+| Name | Width | Height | Mobile | Touch | Use Case |
-+|------|-------|--------|--------|-------|----------|
-+| desktop-lg | 1440 | 900 | no | no | Primary development view |
-+| desktop-md | 1280 | 800 | no | no | Smaller desktop / laptop |
-+| tablet | 768 | 1024 | yes | yes | iPad-class tablet |
-+| mobile | 375 | 812 | yes | yes | iPhone 14 class phone |
-+
-+---
-+
-+## 7. Seed Scripts
-+
-+The harness seeds a reproducible test environment before each run.
-+
-+**`harness seed` creates**:
-+
-+| What | How | Purpose |
-+|------|-----|---------|
-+| Test workspace | `IWorkspaceService.add('harness-test', '/tmp/harness-workspace')` | Target for all tests |
-+| Git repo + worktrees | `git init` + `git worktree add` (2 worktrees) | Test worktree switching |
-+| Sample files | Copy fixture files into workspace | Test file browser |
-+| Workflow instance | `ITemplateService.instantiate('smoke')` | Test workflow UI |
-+| Sample agent session | Create via API `POST /api/agents` | Test agent panel |
-+
-+**Idempotent**: Seed checks if data exists before creating. Safe to run multiple times.
-+
-+**Teardown**: `harness stop` removes the container (ephemeral). Seeded data lives only in the container's filesystem. Fresh seed on every `harness dev + harness seed` cycle.
-+
-+---
-+
-+## 8. Test Lifecycle
-+
-+```mermaid
-+sequenceDiagram
-+    participant Agent as Copilot CLI Agent
-+    participant CLI as harness CLI
-+    participant Docker as Docker Container
-+    participant App as Next.js App
-+    participant PW as Playwright/CDP
-+    participant Results as results/*.json
-+
-+    Agent->>CLI: harness build
-+    CLI->>Docker: docker compose build
-+    Docker-->>CLI: Image built
-+
-+    Agent->>CLI: harness dev
-+    CLI->>Docker: docker compose up -d
-+    Docker->>App: pnpm dev (turbopack)
-+    Docker->>PW: chromium --remote-debugging-port=9222
-+    CLI->>App: Poll GET / until 200
-+    App-->>CLI: 200 OK
-+    CLI-->>Agent: {"status":"healthy"}
-+
-+    Agent->>CLI: harness seed
-+    CLI->>App: POST /api/workspaces (create test workspace)
-+    App-->>CLI: workspace created
-+    CLI-->>Agent: {"status":"seeded"}
-+
-+    par Parallel test suites
-+        Agent->>CLI: harness test --suite smoke
-+        CLI->>PW: Run smoke.spec.ts
-+        PW->>App: Navigate pages, check routes
-+        PW-->>CLI: Test results
-+        CLI-->>Agent: {"suite":"smoke","status":"pass"}
-+    and
-+        Agent->>CLI: harness test --suite agents
-+        CLI->>PW: Run agent-lifecycle.spec.ts
-+        PW->>App: Navigate agent UI, interact
-+        PW-->>CLI: Test results
-+        CLI-->>Agent: {"suite":"agents","status":"pass"}
-+    and
-+        Agent->>CLI: harness test --suite responsive --viewport mobile
-+        CLI->>PW: Run viewport-layouts.spec.ts (375x812)
-+        PW->>App: Navigate, check layout
-+        PW->>Results: Save screenshots
-+        PW-->>CLI: Test results
-+        CLI-->>Agent: {"suite":"responsive","status":"pass"}
-+    end
-+
-+    Agent->>CLI: harness results --json
-+    CLI->>Results: Read + merge all suite results
-+    CLI-->>Agent: Full HarnessRunResult JSON
-+
-+    Agent->>CLI: harness report
-+    CLI->>Results: Generate HTML from JSON
-+    CLI-->>Agent: {"report":"results/run-*/report.html"}
-+```
-+
-+---
-+
-+## 9. Open Questions
-+
-+| # | Question | Status | Notes |
-+|---|----------|--------|-------|
-+| Q1 | Should harness CLI be a standalone package or part of `apps/cli`? | **OPEN** | Standalone keeps it decoupled; part of `apps/cli` reuses DI infrastructure |
-+| Q2 | How to handle auth in seeded test environment? | **RESOLVED** | `DISABLE_AUTH=true` env var bypasses middleware + API session checks |
-+| Q3 | Should screenshots use visual regression (pixel diff) or just capture? | **OPEN** | Start with capture-only; add `expect(page).toHaveScreenshot()` baselines later |
-+| Q4 | How to make seed scripts work both inside Docker and locally? | **OPEN** | Use API calls (HTTP) not DI imports, so they work from any context |
-+| Q5 | Max number of parallel Playwright contexts per browser? | **RESOLVED** | Chromium handles 8-16 contexts comfortably; beyond that, memory pressure. Plan 2 uses multiple containers. |
-diff --git a/Users/jordanknight/substrate/066-wf-real-agents/harness/.dockerignore b/Users/jordanknight/substrate/066-wf-real-agents/harness/.dockerignore
++export const DEFAULT_VIEWPORT: ViewportName = 'desktop-lg';
+diff --git a/harness/tests/fixtures/base-test.ts b/harness/tests/fixtures/base-test.ts
 new file mode 100644
-index 0000000..bfa9a7a
+index 0000000..563ee40
 --- /dev/null
-+++ b/Users/jordanknight/substrate/066-wf-real-agents/harness/.dockerignore
-@@ -0,0 +1,11 @@
-+# Harness Docker build context exclusions
-+# The Dockerfile only needs entrypoint.sh — source is bind-mounted at runtime
-+
-+node_modules
-+.next
-+dist
-+.git
-+*.md
-+tests/
-+src/
-+results/
-diff --git a/Users/jordanknight/substrate/066-wf-real-agents/harness/Dockerfile b/Users/jordanknight/substrate/066-wf-real-agents/harness/Dockerfile
-new file mode 100644
-index 0000000..1cd7b75
---- /dev/null
-+++ b/Users/jordanknight/substrate/066-wf-real-agents/harness/Dockerfile
-@@ -0,0 +1,67 @@
-+# =============================================================================
-+# Chainglass Agentic Development Harness — Dockerfile
-+#
-+# Multi-stage build for running the full Chainglass dev environment in Docker.
-+# Designed for OrbStack on macOS (also works with Docker Desktop).
-+#
-+# Stage 1 (deps): Install pnpm + system deps for native modules (node-pty)
-+# Stage 2 (dev):  Full monorepo dev environment with HMR
-+#
-+# Usage:
-+#   docker compose up     (from harness/ directory)
-+#   just dev              (from harness/ directory)
-+#
-+# Key design decisions:
-+#   - Debian bookworm-slim (not Alpine) — node-pty needs glibc
-+#   - Source code bind-mounted from host (not COPY'd) — enables HMR
-+#   - Named volume for node_modules — avoids macOS↔Linux binary conflicts
-+#   - pnpm install runs in entrypoint on first boot (cold start ~3-5 min)
-+# =============================================================================
-+
-+# ---------------------------------------------------------------------------
-+# Stage 1: deps — system dependencies + pnpm
-+# ---------------------------------------------------------------------------
-+FROM node:20.19.0-bookworm-slim AS deps
-+
-+# System deps for node-pty native compilation and git worktree support
-+RUN apt-get update && apt-get install -y --no-install-recommends \
-+    build-essential \
-+    python3 \
-+    git \
-+    tmux \
-+    curl \
-+    ca-certificates \
-+    && rm -rf /var/lib/apt/lists/*
-+
-+# Install pnpm
-+RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
-+
-+WORKDIR /app
-+
-+# ---------------------------------------------------------------------------
-+# Stage 2: dev — full monorepo dev environment
-+# ---------------------------------------------------------------------------
-+FROM deps AS dev
-+
-+# Environment
-+ENV NODE_ENV=development
-+ENV DISABLE_AUTH=true
-+ENV TERMINAL_ALLOWED_BASE=/app
-+ENV TERMINAL_WS_HOST=0.0.0.0
-+ENV PORT=3000
-+# Auth secret for next-auth (dev-only, not sensitive)
-+ENV AUTH_SECRET=harness-dev-secret-not-for-production
-+
-+WORKDIR /app
-+
-+# Source code will be bind-mounted at /app
-+# node_modules will be a named Docker volume at /app/node_modules
-+
-+# Copy entrypoint
-+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-+RUN chmod +x /usr/local/bin/entrypoint.sh
-+
-+# Expose ports: Next.js dev server, terminal WebSocket sidecar, CDP (future Phase 2)
-+EXPOSE 3000 4500 9222
-+
-+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-diff --git a/Users/jordanknight/substrate/066-wf-real-agents/harness/docker-compose.yml b/Users/jordanknight/substrate/066-wf-real-agents/harness/docker-compose.yml
-new file mode 100644
-index 0000000..fe448c3
---- /dev/null
-+++ b/Users/jordanknight/substrate/066-wf-real-agents/harness/docker-compose.yml
-@@ -0,0 +1,54 @@
-+# =============================================================================
-+# Chainglass Harness — Docker Compose (Dev Mode)
-+#
-+# Runs the full Chainglass dev environment:
-+#   - Next.js dev server on :3000 (Turbopack HMR)
-+#   - Terminal WebSocket sidecar on :4500
-+#   - Source code bind-mounted from host for live editing
-+#   - Named volume for node_modules (Linux-compiled binaries)
-+#
-+# Usage:
-+#   cd harness && docker compose up
-+#   cd harness && just dev
-+# =============================================================================
-+
-+services:
-+  chainglass-dev:
-+    build:
-+      context: .
-+      dockerfile: Dockerfile
-+      target: dev
-+    container_name: chainglass-dev
-+    ports:
-+      - "3000:3000"     # Next.js dev server
-+      - "4500:4500"     # Terminal WebSocket sidecar
-+      - "9222:9222"     # CDP (Playwright, Phase 2)
-+    volumes:
-+      # Bind mount entire monorepo for HMR (OrbStack: 2-way sync)
-+      - ..:/app
-+      # Named volume shadows host node_modules — Linux binaries, not macOS
-+      - chainglass_node_modules:/app/node_modules
-+      # Named volume for .next build cache (avoid cross-OS issues)
-+      - chainglass_dot_next:/app/apps/web/.next
-+    environment:
-+      - NODE_ENV=development
-+      - DISABLE_AUTH=true
-+      - PORT=3000
-+      - TERMINAL_WS_HOST=0.0.0.0
-+      - TERMINAL_ALLOWED_BASE=/app
-+      - AUTH_SECRET=harness-dev-secret-not-for-production
-+    # Shared memory for headless Chromium (Phase 2)
-+    shm_size: '1gb'
-+    healthcheck:
-+      test: ["CMD", "curl", "-sf", "http://localhost:3000/"]
-+      interval: 10s
-+      timeout: 5s
-+      retries: 30
-+      start_period: 120s
-+    restart: unless-stopped
-+
-+volumes:
-+  chainglass_node_modules:
-+    name: chainglass_node_modules
-+  chainglass_dot_next:
-+    name: chainglass_dot_next
-diff --git a/Users/jordanknight/substrate/066-wf-real-agents/harness/entrypoint.sh b/Users/jordanknight/substrate/066-wf-real-agents/harness/entrypoint.sh
-new file mode 100644
-index 0000000..97106a3
---- /dev/null
-+++ b/Users/jordanknight/substrate/066-wf-real-agents/harness/entrypoint.sh
-@@ -0,0 +1,58 @@
-+#!/bin/bash
-+set -e
-+
-+# =============================================================================
-+# Chainglass Harness — Container Entrypoint
-+#
-+# Handles first-boot dependency installation and starts the dev environment:
-+#   1. Check if node_modules is populated (named volume may be empty)
-+#   2. Run pnpm install if needed (cold start: ~3-5 min)
-+#   3. Build packages (turbo build)
-+#   4. Start Next.js dev server + terminal WebSocket sidecar concurrently
-+# =============================================================================
-+
-+SENTINEL="/app/node_modules/.harness-installed"
-+
-+echo "╔══════════════════════════════════════════╗"
-+echo "║  Chainglass Agentic Development Harness  ║"
-+echo "╚══════════════════════════════════════════╝"
-+
-+# --- Step 1: Dependencies ---
-+if [ ! -f "$SENTINEL" ] || [ "/app/pnpm-lock.yaml" -nt "$SENTINEL" ]; then
-+  echo ""
-+  echo "📦 Installing dependencies (first boot or lockfile changed)..."
-+  echo "   This may take 3-5 minutes on first run."
-+  echo ""
-+  cd /app
-+  pnpm install --frozen-lockfile
-+  touch "$SENTINEL"
-+  echo "✓ Dependencies installed"
-+else
-+  echo "✓ Dependencies up to date (sentinel: $SENTINEL)"
-+fi
-+
-+# --- Step 2: Build packages ---
-+echo ""
-+echo "🔨 Building packages..."
-+cd /app
-+pnpm turbo build --filter='@chainglass/*'
-+echo "✓ Packages built"
-+
-+# --- Step 3: node-pty spawn helper permissions ---
-+SPAWN_HELPER="/app/apps/web/node_modules/node-pty/prebuilds/linux-x64/spawn-helper"
-+if [ -f "$SPAWN_HELPER" ]; then
-+  chmod +x "$SPAWN_HELPER"
-+  echo "✓ node-pty spawn-helper permissions set"
-+fi
-+
-+# --- Step 4: Start dev server + terminal sidecar ---
-+echo ""
-+echo "🚀 Starting dev server on :${PORT:-3000} + terminal sidecar on :$((${PORT:-3000} + 1500))"
-+echo ""
-+
-+cd /app
-+
-+# Use exec to forward signals properly
-+exec npx concurrently --names "next,terminal" --prefix-colors "blue,green" \
-+  "pnpm turbo dev -- --port ${PORT:-3000}" \
-+  "pnpm tsx watch --env-file=apps/web/.env.local apps/web/src/features/064-terminal/server/terminal-ws.ts"
-diff --git a/Users/jordanknight/substrate/066-wf-real-agents/harness/justfile b/Users/jordanknight/substrate/066-wf-real-agents/harness/justfile
-new file mode 100644
-index 0000000..28f661e
---- /dev/null
-+++ b/Users/jordanknight/substrate/066-wf-real-agents/harness/justfile
-@@ -0,0 +1,42 @@
-+# Harness Development Commands
-+
-+# Default - show help
-+default:
-+    @just --list
-+
-+# Build Docker image
-+build:
-+    docker compose -f docker-compose.yml build
-+
-+# Start dev container (detached), wait for health
-+dev:
-+    docker compose -f docker-compose.yml up -d
-+    @echo "Waiting for health..."
-+    @for i in $(seq 1 60); do \
-+        if curl -sf http://localhost:3000 > /dev/null 2>&1; then \
-+            echo "✓ App healthy on :3000"; \
-+            break; \
-+        fi; \
-+        sleep 2; \
-+    done
-+
-+# Stop and remove container
-+stop:
-+    docker compose -f docker-compose.yml down
-+
-+# Health check
-+health:
-+    @echo "App:      $$(curl -sf -o /dev/null -w '%{http_code}' http://localhost:3000 || echo 'DOWN')"
-+    @echo "Terminal: $$(curl -sf -o /dev/null -w '%{http_code}' http://localhost:4500 || echo 'DOWN')"
-+
-+# Run command inside container
-+exec +CMD:
-+    docker compose -f docker-compose.yml exec chainglass-dev {{CMD}}
-+
-+# Stream server logs
-+logs:
-+    docker compose -f docker-compose.yml logs -f chainglass-dev
-+
-+# Rebuild node_modules inside container (after dependency changes)
-+rebuild:
-+    docker compose -f docker-compose.yml exec chainglass-dev pnpm install --frozen-lockfile
-diff --git a/Users/jordanknight/substrate/066-wf-real-agents/harness/package.json b/Users/jordanknight/substrate/066-wf-real-agents/harness/package.json
-new file mode 100644
-index 0000000..c8ea4f7
---- /dev/null
-+++ b/Users/jordanknight/substrate/066-wf-real-agents/harness/package.json
-@@ -0,0 +1,26 @@
-+{
-+  "name": "@chainglass/harness",
-+  "version": "0.1.0",
-+  "private": true,
-+  "description": "Agentic development harness — Docker + Playwright browser automation for Chainglass",
-+  "type": "module",
-+  "scripts": {
-+    "harness": "tsx src/cli/index.ts",
-+    "test": "vitest run",
-+    "test:integration": "vitest run --config vitest.integration.config.ts"
-+  },
-+  "dependencies": {
-+    "commander": "^13.1.0",
-+    "zod": "^3.25.67"
-+  },
-+  "devDependencies": {
-+    "@playwright/test": "^1.52.0",
-+    "@types/node": "^22.15.0",
-+    "tsx": "^4.19.0",
-+    "typescript": "^5.7.3",
-+    "vitest": "^3.2.4"
-+  },
-+  "engines": {
-+    "node": ">=20.19.0"
-+  }
-+}
-diff --git a/Users/jordanknight/substrate/066-wf-real-agents/harness/tests/smoke/docker-boot.test.ts b/Users/jordanknight/substrate/066-wf-real-agents/harness/tests/smoke/docker-boot.test.ts
-new file mode 100644
-index 0000000..f6bb3a3
---- /dev/null
-+++ b/Users/jordanknight/substrate/066-wf-real-agents/harness/tests/smoke/docker-boot.test.ts
-@@ -0,0 +1,73 @@
++++ b/harness/tests/fixtures/base-test.ts
+@@ -0,0 +1,52 @@
 +/**
-+ * Harness Integration Test: Docker Boot
++ * Custom Playwright test fixture for CDP connection.
 + *
-+ * Full TDD — this test was written BEFORE the Dockerfile.
-+ * Validates: container starts, app responds on :3000, terminal sidecar on :4500.
++ * Connects to the pre-running Chromium inside the Docker container via
++ * connectOverCDP. Tests import { test, expect } from this file instead of
++ * '@playwright/test' directly.
 + *
-+ * Uses describe.skip — unskip locally when Docker/OrbStack is running.
++ * The fixture:
++ *  1. Fetches the WebSocket debugger URL from CDP's /json/version endpoint
++ *  2. Connects via chromium.connectOverCDP()
++ *  3. Creates a new browser context per test (with the project's viewport)
++ *  4. Provides a fresh page to each test
++ *  5. Cleans up the context after the test
++ */
++
++import { type BrowserContext, type Page, chromium, test as base } from '@playwright/test';
++
++export { expect } from '@playwright/test';
++
++const CDP_ENDPOINT = process.env.HARNESS_CDP_URL ?? 'http://localhost:9222';
++
++async function getWsEndpoint(): Promise<string> {
++  const response = await fetch(`${CDP_ENDPOINT}/json/version`);
++  if (!response.ok) {
++    throw new Error(`CDP endpoint not available at ${CDP_ENDPOINT}: ${response.status}`);
++  }
++  const data = (await response.json()) as { webSocketDebuggerUrl: string };
++  return data.webSocketDebuggerUrl;
++}
++
++export const test = base.extend<{ cdpContext: BrowserContext; cdpPage: Page }>({
++  // Override the default browser fixture to connect via CDP
++  cdpContext: async ({ viewport }, use) => {
++    const wsEndpoint = await getWsEndpoint();
++    const browser = await chromium.connectOverCDP(wsEndpoint);
++
++    const context = await browser.newContext({
++      viewport: viewport ?? { width: 1440, height: 900 },
++    });
++
++    await use(context);
++
++    await context.close();
++    await browser.close();
++  },
++
++  cdpPage: async ({ cdpContext }, use) => {
++    const page = await cdpContext.newPage();
++    await use(page);
++    // Page is closed when context is closed
++  },
++});
+diff --git a/harness/tests/smoke/browser-smoke.spec.ts b/harness/tests/smoke/browser-smoke.spec.ts
+new file mode 100644
+index 0000000..a1acc8b
+--- /dev/null
++++ b/harness/tests/smoke/browser-smoke.spec.ts
+@@ -0,0 +1,183 @@
++/**
++ * Smoke Playwright Tests — Browser Automation Verification
++ *
++ * These tests verify the Chainglass app loads correctly through the harness
++ * browser (Chromium via CDP). Covers:
++ *   - Page load and basic content (T006)
++ *   - Multi-context parallel browsing at different viewports (T007)
++ *   - Browser console output capture (T008)
++ *
++ * Run with: npx playwright test --config=playwright.config.ts
++ * Requires: Docker container running (`just harness-dev` from repo root)
++ */
++
++import { existsSync, mkdirSync } from 'node:fs';
++import { join } from 'node:path';
++import { test, expect } from '../fixtures/base-test.js';
++import { HARNESS_VIEWPORTS } from '../../src/viewports/devices.js';
++
++const RESULTS_DIR = join(import.meta.dirname, '../../results');
++
++// ─── T006: Smoke — Page Loads ───────────────────────────────────────────────
++
++test.describe('Smoke: Page Load', () => {
++  test('app loads and returns 200', async ({ cdpPage, baseURL }) => {
++    const response = await cdpPage.goto(baseURL!, { waitUntil: 'domcontentloaded' });
++    expect(response?.status()).toBe(200);
++  });
++
++  test('page contains expected HTML structure', async ({ cdpPage, baseURL }) => {
++    await cdpPage.goto(baseURL!, { waitUntil: 'domcontentloaded' });
++    const html = await cdpPage.content();
++    expect(html).toContain('<!DOCTYPE html');
++    expect(html).toContain('_next');
++  });
++
++  test('page title is set', async ({ cdpPage, baseURL }) => {
++    await cdpPage.goto(baseURL!, { waitUntil: 'domcontentloaded' });
++    const title = await cdpPage.title();
++    expect(title).toBeTruthy();
++  });
++
++  test('no console errors on page load', async ({ cdpPage, baseURL }) => {
++    const errors: string[] = [];
++    cdpPage.on('console', (msg) => {
++      if (msg.type() === 'error') {
++        errors.push(msg.text());
++      }
++    });
++
++    await cdpPage.goto(baseURL!, { waitUntil: 'domcontentloaded' });
++    // Wait briefly for any async console errors
++    await cdpPage.waitForTimeout(2000);
++
++    // Filter out known non-critical errors (e.g., favicon 404)
++    const criticalErrors = errors.filter(
++      (e) => !e.includes('favicon') && !e.includes('404'),
++    );
++    expect(criticalErrors).toEqual([]);
++  });
++
++  test('captures screenshot to results directory', async ({ cdpPage, baseURL }) => {
++    await cdpPage.goto(baseURL!, { waitUntil: 'domcontentloaded' });
++
++    if (!existsSync(RESULTS_DIR)) {
++      mkdirSync(RESULTS_DIR, { recursive: true });
++    }
++    const screenshotPath = join(RESULTS_DIR, 'smoke-homepage.png');
++    await cdpPage.screenshot({ path: screenshotPath, fullPage: false });
++
++    expect(existsSync(screenshotPath)).toBe(true);
++  });
++});
++
++// ─── T007: Multi-Context Browsing ───────────────────────────────────────────
++
++test.describe('Multi-Context: Parallel Viewports', () => {
++  test('opens 2 contexts at different viewports simultaneously', async ({ baseURL }) => {
++    const { chromium } = await import('playwright-core');
++
++    const CDP_ENDPOINT = process.env.HARNESS_CDP_URL ?? 'http://localhost:9222';
++    const versionRes = await fetch(`${CDP_ENDPOINT}/json/version`);
++    const { webSocketDebuggerUrl } = (await versionRes.json()) as {
++      webSocketDebuggerUrl: string;
++    };
++
++    const browser = await chromium.connectOverCDP(webSocketDebuggerUrl);
++
++    try {
++      // Desktop context
++      const desktopCtx = await browser.newContext({
++        viewport: {
++          width: HARNESS_VIEWPORTS['desktop-lg'].width,
++          height: HARNESS_VIEWPORTS['desktop-lg'].height,
++        },
++      });
++      const desktopPage = await desktopCtx.newPage();
++
++      // Mobile context
++      const mobileCtx = await browser.newContext({
++        viewport: {
++          width: HARNESS_VIEWPORTS.mobile.width,
++          height: HARNESS_VIEWPORTS.mobile.height,
++        },
++      });
++      const mobilePage = await mobileCtx.newPage();
++
++      // Navigate both simultaneously
++      const [desktopRes, mobileRes] = await Promise.all([
++        desktopPage.goto(baseURL!, { waitUntil: 'domcontentloaded' }),
++        mobilePage.goto(baseURL!, { waitUntil: 'domcontentloaded' }),
++      ]);
++
++      expect(desktopRes?.status()).toBe(200);
++      expect(mobileRes?.status()).toBe(200);
++
++      // Verify different viewport sizes
++      const desktopSize = desktopPage.viewportSize();
++      const mobileSize = mobilePage.viewportSize();
++      expect(desktopSize?.width).toBe(HARNESS_VIEWPORTS['desktop-lg'].width);
++      expect(mobileSize?.width).toBe(HARNESS_VIEWPORTS.mobile.width);
++
++      // Capture screenshots at both viewports
++      if (!existsSync(RESULTS_DIR)) {
++        mkdirSync(RESULTS_DIR, { recursive: true });
++      }
++      await Promise.all([
++        desktopPage.screenshot({ path: join(RESULTS_DIR, 'multi-desktop.png') }),
++        mobilePage.screenshot({ path: join(RESULTS_DIR, 'multi-mobile.png') }),
++      ]);
++
++      await desktopCtx.close();
++      await mobileCtx.close();
++    } finally {
++      await browser.close();
++    }
++  });
++});
++
++// ─── T008: Console Output Capture ───────────────────────────────────────────
++
++test.describe('Console: Output Capture', () => {
++  test('captures console.log messages via CDP', async ({ cdpPage, baseURL }) => {
++    const messages: Array<{ type: string; text: string }> = [];
++
++    cdpPage.on('console', (msg) => {
++      messages.push({ type: msg.type(), text: msg.text() });
++    });
++
++    await cdpPage.goto(baseURL!, { waitUntil: 'domcontentloaded' });
++
++    // Inject a console.log to verify capture works
++    await cdpPage.evaluate(() => {
++      console.log('harness-test-marker');
++    });
++
++    // Wait for the message to be captured
++    await cdpPage.waitForTimeout(500);
++
++    const markerMsg = messages.find((m) => m.text === 'harness-test-marker');
++    expect(markerMsg).toBeDefined();
++    expect(markerMsg?.type).toBe('log');
++  });
++
++  test('captures console.warn and console.error separately', async ({ cdpPage, baseURL }) => {
++    const messages: Array<{ type: string; text: string }> = [];
++
++    cdpPage.on('console', (msg) => {
++      messages.push({ type: msg.type(), text: msg.text() });
++    });
++
++    await cdpPage.goto(baseURL!, { waitUntil: 'domcontentloaded' });
++
++    await cdpPage.evaluate(() => {
++      console.warn('harness-warn-test');
++      console.error('harness-error-test');
++    });
++
++    await cdpPage.waitForTimeout(500);
++
++    expect(messages.find((m) => m.text === 'harness-warn-test')?.type).toBe('warning');
++    expect(messages.find((m) => m.text === 'harness-error-test')?.type).toBe('error');
++  });
++});
+diff --git a/harness/tests/smoke/cdp-integration.test.ts b/harness/tests/smoke/cdp-integration.test.ts
+new file mode 100644
+index 0000000..b42b2f5
+--- /dev/null
++++ b/harness/tests/smoke/cdp-integration.test.ts
+@@ -0,0 +1,84 @@
++/**
++ * Harness Integration Test: CDP Connection
++ *
++ * Full TDD — this test was written BEFORE Chromium is launched in the container.
++ * Validates: CDP endpoint on :9222 responds, browser connects, page loads, screenshot captured.
++ *
++ * Uses describe.skip — unskip (T009) after Chromium startup is configured.
 + * Does NOT run in `just fft`.
 + */
 +
++import { existsSync, mkdirSync } from 'node:fs';
++import { join } from 'node:path';
 +import { describe, expect, it } from 'vitest';
 +
++const CDP_ENDPOINT = process.env.HARNESS_CDP_URL ?? 'http://localhost:9222';
 +const APP_URL = process.env.HARNESS_APP_URL ?? 'http://localhost:3000';
-+const TERMINAL_URL = process.env.HARNESS_TERMINAL_URL ?? 'http://localhost:4500';
++const RESULTS_DIR = join(import.meta.dirname, '../../results');
 +
-+describe.skip('Harness: Docker Boot', () => {
-+  it('app responds with 200 on root', async () => {
-+    const response = await fetch(APP_URL);
++describe.skip('Harness: CDP Integration', () => {
++  it('CDP endpoint responds with version info', async () => {
++    const response = await fetch(`${CDP_ENDPOINT}/json/version`);
 +    expect(response.status).toBe(200);
++    const data = (await response.json()) as { Browser: string; webSocketDebuggerUrl: string };
++    expect(data.Browser).toBeDefined();
++    expect(data.webSocketDebuggerUrl).toBeDefined();
 +  }, 10_000);
 +
-+  it('app returns HTML content', async () => {
-+    const response = await fetch(APP_URL);
-+    const text = await response.text();
-+    expect(text).toContain('<!DOCTYPE html');
++  it('CDP lists available targets', async () => {
++    const response = await fetch(`${CDP_ENDPOINT}/json/list`);
++    expect(response.status).toBe(200);
++    const targets = (await response.json()) as Array<{ type: string }>;
++    expect(Array.isArray(targets)).toBe(true);
 +  }, 10_000);
 +
-+  it('API health endpoint responds', async () => {
-+    const response = await fetch(`${APP_URL}/api/health`);
-+    expect(response.ok).toBe(true);
-+  }, 10_000);
++  it('Playwright connects via CDP and opens a page', async () => {
++    const { chromium } = await import('playwright-core');
 +
-+  it('MCP endpoint is accessible', async () => {
-+    const response = await fetch(`${APP_URL}/_next/mcp`, {
-+      method: 'POST',
-+      headers: { 'Content-Type': 'application/json' },
-+      body: JSON.stringify({ jsonrpc: '2.0', method: 'tools/list', id: 1 }),
-+    });
-+    // MCP may return 200 or 405 depending on transport — just check it responds
-+    expect(response.status).toBeLessThan(500);
-+  }, 10_000);
++    const versionRes = await fetch(`${CDP_ENDPOINT}/json/version`);
++    const { webSocketDebuggerUrl } = (await versionRes.json()) as {
++      webSocketDebuggerUrl: string;
++    };
 +
-+  it('terminal sidecar is listening', async () => {
-+    // Terminal WS server doesn't serve HTTP, but the port should be open
++    const browser = await chromium.connectOverCDP(webSocketDebuggerUrl);
 +    try {
-+      const response = await fetch(TERMINAL_URL);
-+      // Any response (even 400/426 upgrade required) means the server is running
-+      expect(response.status).toBeDefined();
-+    } catch (error: unknown) {
-+      // Connection refused = server not running
-+      if (
-+        error instanceof TypeError &&
-+        (error as { cause?: { code?: string } }).cause?.code === 'ECONNREFUSED'
-+      ) {
-+        expect.fail('Terminal sidecar not responding on port 4500');
-+      }
-+      // Other errors (e.g., upgrade required) are acceptable — server is running
++      const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
++      const page = await context.newPage();
++
++      const response = await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
++      expect(response?.status()).toBe(200);
++
++      await context.close();
++    } finally {
++      await browser.close();
 +    }
-+  }, 10_000);
++  }, 30_000);
 +
-+  it('auth is bypassed (DISABLE_AUTH=true)', async () => {
-+    const response = await fetch(`${APP_URL}/api/workspaces`);
-+    // Should NOT get 401 — auth bypass should work
-+    expect(response.status).not.toBe(401);
-+  }, 10_000);
++  it('captures screenshot to results directory', async () => {
++    const { chromium } = await import('playwright-core');
 +
-+  it('HMR/dev mode is active', async () => {
-+    const response = await fetch(APP_URL);
-+    const text = await response.text();
-+    // Dev mode includes Next.js dev scripts
-+    expect(text).toContain('_next');
-+  }, 10_000);
++    const versionRes = await fetch(`${CDP_ENDPOINT}/json/version`);
++    const { webSocketDebuggerUrl } = (await versionRes.json()) as {
++      webSocketDebuggerUrl: string;
++    };
++
++    const browser = await chromium.connectOverCDP(webSocketDebuggerUrl);
++    try {
++      const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
++      const page = await context.newPage();
++      await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
++
++      if (!existsSync(RESULTS_DIR)) {
++        mkdirSync(RESULTS_DIR, { recursive: true });
++      }
++      const screenshotPath = join(RESULTS_DIR, 'cdp-integration-test.png');
++      await page.screenshot({ path: screenshotPath, fullPage: false });
++
++      expect(existsSync(screenshotPath)).toBe(true);
++
++      await context.close();
++    } finally {
++      await browser.close();
++    }
++  }, 30_000);
 +});
-diff --git a/Users/jordanknight/substrate/066-wf-real-agents/harness/tsconfig.json b/Users/jordanknight/substrate/066-wf-real-agents/harness/tsconfig.json
-new file mode 100644
-index 0000000..9188145
---- /dev/null
-+++ b/Users/jordanknight/substrate/066-wf-real-agents/harness/tsconfig.json
-@@ -0,0 +1,16 @@
-+{
-+  "compilerOptions": {
-+    "target": "ES2022",
-+    "module": "ESNext",
-+    "moduleResolution": "bundler",
-+    "strict": true,
-+    "esModuleInterop": true,
-+    "skipLibCheck": true,
-+    "outDir": "dist",
-+    "rootDir": ".",
-+    "declaration": true,
-+    "resolveJsonModule": true
-+  },
-+  "include": ["src/**/*.ts", "tests/**/*.ts"],
-+  "exclude": ["node_modules", "dist"]
-+}
-diff --git a/Users/jordanknight/substrate/066-wf-real-agents/harness/vitest.config.ts b/Users/jordanknight/substrate/066-wf-real-agents/harness/vitest.config.ts
-new file mode 100644
-index 0000000..d17efb0
---- /dev/null
-+++ b/Users/jordanknight/substrate/066-wf-real-agents/harness/vitest.config.ts
-@@ -0,0 +1,8 @@
-+import { defineConfig } from 'vitest/config';
-+
-+export default defineConfig({
-+  test: {
-+    include: ['tests/**/*.test.ts'],
-+    testTimeout: 30_000,
-+  },
-+});
-diff --git a/justfile b/justfile
-index 217fb14..cece002 100644
---- a/justfile
-+++ b/justfile
-@@ -48,6 +48,22 @@ test:
- test-e2e:
-     pnpm vitest run test/e2e/agent-cli-e2e.test.ts --config vitest.e2e.config.ts
- 
-+# Run harness integration tests (requires Docker/OrbStack running + container up)
-+test-harness:
-+    cd harness && pnpm vitest run
-+
-+# Start harness dev container
-+harness-dev:
-+    cd harness && just dev
-+
-+# Stop harness container
-+harness-stop:
-+    cd harness && just stop
-+
-+# Show harness health
-+harness-health:
-+    cd harness && just health
-+
- # Run linter
- lint:
-     pnpm biome check .
+diff --git a/tsconfig.json b/tsconfig.json
+index 6b0ec49..fe2c3e6 100644
+--- a/tsconfig.json
++++ b/tsconfig.json
+@@ -33,5 +33,15 @@
+       "@test/*": ["./test/*"]
+     }
+   },
+-  "exclude": ["node_modules", "dist", ".next", ".turbo", "test", "apps", "scripts", "docs"]
++  "exclude": [
++    "node_modules",
++    "dist",
++    ".next",
++    ".turbo",
++    "test",
++    "apps",
++    "scripts",
++    "docs",
++    "harness"
++  ]
+ }

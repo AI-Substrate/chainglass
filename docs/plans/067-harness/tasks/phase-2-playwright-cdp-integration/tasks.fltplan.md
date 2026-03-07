@@ -54,7 +54,7 @@ stateDiagram-v2
     S4 --> S5
     S5 --> [*]
 
-    class S1,S2,S3,S4,S5 pending
+    class S1,S2,S3,S4,S5 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -63,11 +63,11 @@ stateDiagram-v2
 
 ## Stages
 
-- [ ] **Stage 1: Write RED integration test** — CDP connection + screenshot assertion (`cdp-integration.test.ts` — new file)
-- [ ] **Stage 2: Launch Chromium in container** — Startup script + entrypoint update (`start-chromium.sh` — new, `entrypoint.sh` — modified)
-- [ ] **Stage 3: Playwright config + viewports** — Config with 3 viewport projects (`playwright.config.ts`, `devices.ts` — new files)
-- [ ] **Stage 4: Smoke Playwright tests** — Page load, multi-context, console capture (`browser-smoke.spec.ts` — new file)
-- [ ] **Stage 5: GREEN integration test** — Unskip and verify CDP works end-to-end
+- [x] **Stage 1: Write RED integration test** — CDP connection + screenshot assertion (`cdp-integration.test.ts` — new file)
+- [x] **Stage 2: Launch Chromium in container** — Startup script + entrypoint update (`start-chromium.sh` — new, `entrypoint.sh` — modified)
+- [x] **Stage 3: Playwright config + viewports** — Config with 3 viewport projects (`playwright.config.ts`, `devices.ts` — new files)
+- [x] **Stage 4: Smoke Playwright tests** — Page load, multi-context, console capture (`browser-smoke.spec.ts` — new file)
+- [x] **Stage 5: GREEN integration test** — Unskip and verify CDP works end-to-end
 
 ---
 
@@ -90,7 +90,8 @@ flowchart LR
     subgraph After["After Phase 2"]
         A_Next["Next.js :3000"]:::existing
         A_Term["Terminal :4500"]:::existing
-        A_Chrome["Chromium :9222"]:::new
+        A_Chrome["Chromium :9223<br/>(internal loopback)"]:::new
+        A_Proxy["CDP Proxy :9222"]:::new
         A_Entry["entrypoint.sh"]:::changed
         A_Config["playwright.config.ts"]:::new
         A_VP["devices.ts"]:::new
@@ -98,6 +99,8 @@ flowchart LR
         A_Entry --> A_Next
         A_Entry --> A_Term
         A_Entry --> A_Chrome
+        A_Entry --> A_Proxy
+        A_Proxy --> A_Chrome
         A_Smoke --> A_Config
         A_Config --> A_VP
     end
@@ -109,11 +112,11 @@ flowchart LR
 
 ## Acceptance Criteria
 
-- [ ] AC-04: `harness health` returns JSON with CDP status on :9222
-- [ ] AC-05: Agent connects to `http://localhost:9222` via CDP and opens pages
-- [ ] AC-06: Screenshots captured at desktop (1440x900), tablet (768x1024), mobile (375x812)
-- [ ] AC-07: Multiple browser contexts browse simultaneously
-- [ ] AC-10: Browser console output accessible via `page.on('console')`
+- [x] AC-04: `harness health` returns JSON with CDP status on :9222
+- [x] AC-05: Agent connects to `http://localhost:9222` via CDP and opens pages
+- [x] AC-06: Screenshots captured at desktop (1440x900), tablet (768x1024), mobile (375x812)
+- [x] AC-07: Multiple browser contexts browse simultaneously
+- [x] AC-10: Browser console output accessible via `page.on('console')`
 
 ## Goals & Non-Goals
 
@@ -124,12 +127,12 @@ flowchart LR
 
 ## Checklist
 
-- [ ] T001: Write CDP integration test (RED)
-- [ ] T002: Create Chromium startup script
-- [ ] T003: Update entrypoint.sh to launch Chromium
-- [ ] T004: Create playwright.config.ts
-- [ ] T005: Create viewport definitions
-- [ ] T006: Write smoke Playwright test
-- [ ] T007: Verify multi-context browsing
-- [ ] T008: Verify browser console access
-- [ ] T009: Run integration test (GREEN)
+- [x] T001: Write CDP integration test (RED)
+- [x] T002: Create Chromium startup script
+- [x] T003: Update entrypoint.sh to launch Chromium
+- [x] T004: Create playwright.config.ts
+- [x] T005: Create viewport definitions
+- [x] T006: Write smoke Playwright test
+- [x] T007: Verify multi-context browsing
+- [x] T008: Verify browser console access
+- [x] T009: Run integration test (GREEN)

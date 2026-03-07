@@ -85,11 +85,14 @@ flowchart TD
     subgraph Container["Docker Container (harness-chainglass-dev)"]
         NextJS["Next.js Dev :3000"]:::existing
         Terminal["Terminal WS :4500"]:::existing
-        Chromium["Chromium Headless :9222"]:::new
+        Chromium["Chromium Headless :9223<br/>(internal loopback)"]:::new
+        Proxy["CDP TCP Proxy :9222"]:::new
         Entry["entrypoint.sh"]:::modified
         Entry --> NextJS
         Entry --> Terminal
         Entry --> Chromium
+        Entry --> Proxy
+        Proxy --> Chromium
     end
 
     subgraph Host["Host (Agent)"]
@@ -99,7 +102,7 @@ flowchart TD
         Smoke["browser-smoke.spec.ts"]:::new
     end
 
-    CDP -->|"connectOverCDP"| Chromium
+    CDP -->|"connectOverCDP"| Proxy
     Smoke -->|"uses"| PW
     PW -->|"defines"| VP
     Smoke -->|"browses"| NextJS
@@ -111,15 +114,15 @@ flowchart TD
 
 | Status | ID | Task | Domain | Path(s) | Done When | Notes |
 |--------|-----|------|--------|---------|-----------|-------|
-| [ ] | T001 | Write CDP integration test (RED) | external | `harness/tests/smoke/cdp-integration.test.ts` | `describe.skip` test: CDP connects on 9222, page loads, screenshot file produced | TDD first; Finding 06 |
-| [ ] | T002 | Create Chromium startup script | external | `harness/start-chromium.sh` | Script launches Chromium headless with `--remote-debugging-port=9222` | Separate from entrypoint for restartability |
-| [ ] | T003 | Update entrypoint.sh to launch Chromium | external | `harness/entrypoint.sh` | Chromium starts alongside Next.js + terminal sidecar | Add as 3rd concurrent process |
-| [ ] | T004 | Create playwright.config.ts | external | `harness/playwright.config.ts` | Config with baseURL :3000, 3 viewport projects (desktop/tablet/mobile), 30s timeout | Per Workshop 002 |
-| [ ] | T005 | Create viewport definitions | external | `harness/src/viewports/devices.ts` | Exports `HARNESS_VIEWPORTS` with desktop-lg, desktop-md, tablet, mobile | Per Workshop 002 spec |
-| [ ] | T006 | Write smoke Playwright test | external | `harness/tests/smoke/browser-smoke.spec.ts` | `npx playwright test` passes: page loads at :3000, title contains expected text, no console errors | First real browser test; AC-05/06 |
-| [ ] | T007 | Verify multi-context browsing | external | `harness/tests/smoke/browser-smoke.spec.ts` | Test opens 2+ contexts at different viewports simultaneously | AC-07 — proves parallel capability |
-| [ ] | T008 | Verify browser console access | external | `harness/tests/smoke/browser-smoke.spec.ts` | Test captures console.log output via `page.on('console')` | AC-10 |
-| [ ] | T009 | Run integration test (GREEN) | external | `harness/tests/smoke/cdp-integration.test.ts` | Unskip T001 test — CDP connects, screenshot captured, file exists | Validates full Phase 2 |
+| [x] | T001 | Write CDP integration test (RED) | external | `harness/tests/smoke/cdp-integration.test.ts` | `describe.skip` test: CDP connects on 9222, page loads, screenshot file produced | TDD first; Finding 06 |
+| [x] | T002 | Create Chromium startup script | external | `harness/start-chromium.sh` | Script launches Chromium headless on internal CDP `:9223` | Separate from entrypoint for restartability |
+| [x] | T003 | Update entrypoint.sh to launch Chromium | external | `harness/entrypoint.sh` | Chromium + CDP proxy start alongside Next.js + terminal sidecar | Add concurrent processes |
+| [x] | T004 | Create playwright.config.ts | external | `harness/playwright.config.ts` | Config with baseURL :3000, 3 viewport projects (desktop/tablet/mobile), 30s timeout | Per Workshop 002 |
+| [x] | T005 | Create viewport definitions | external | `harness/src/viewports/devices.ts` | Exports `HARNESS_VIEWPORTS` with desktop-lg, desktop-md, tablet, mobile | Per Workshop 002 spec |
+| [x] | T006 | Write smoke Playwright test | external | `harness/tests/smoke/browser-smoke.spec.ts` | `npx playwright test` passes: page loads at :3000, title contains expected text, no console errors | First real browser test; AC-05/06 |
+| [x] | T007 | Verify multi-context browsing | external | `harness/tests/smoke/browser-smoke.spec.ts` | Test opens 2+ contexts at different viewports simultaneously | AC-07 — proves parallel capability |
+| [x] | T008 | Verify browser console access | external | `harness/tests/smoke/browser-smoke.spec.ts` | Test captures console.log output via `page.on('console')` | AC-10 |
+| [x] | T009 | Run integration test (GREEN) | external | `harness/tests/smoke/cdp-integration.test.ts` | Unskip T001 test — CDP connects, screenshot captured, file exists | Validates full Phase 2 |
 
 ---
 
@@ -149,18 +152,21 @@ flowchart TD
 - shm_size 1gb already configured for Chromium
 - harness/package.json with @playwright/test already present
 
-**Key technical detail**: Chromium needs to be launched as a long-running process inside the container with `--remote-debugging-port=9222`. Playwright on the host connects via `chromium.connectOverCDP()`. This is NOT the same as Playwright launching its own browser — we use a shared browser instance that persists across test runs.
+**Key technical detail**: Chromium 136 keeps remote debugging loopback-only inside Docker even when `--remote-debugging-address=0.0.0.0` is passed. The harness launches Chromium on internal port `:9223` and exposes host-facing CDP `:9222` through a `socat` TCP proxy. Playwright on the host connects via `chromium.connectOverCDP()` to the proxy, which forwards to Chromium. This is NOT the same as Playwright launching its own browser — we use a shared browser instance that persists across test runs.
 
 ```mermaid
 sequenceDiagram
     participant Agent as Agent (Host)
     participant Entry as entrypoint.sh
-    participant Chrome as Chromium :9222
+    participant Proxy as CDP Proxy :9222
+    participant Chrome as Chromium :9223
     participant App as Next.js :3000
 
-    Entry->>Chrome: Launch headless with --remote-debugging-port=9222
+    Entry->>Chrome: Launch headless with --remote-debugging-port=9223
+    Entry->>Proxy: Start socat TCP proxy on :9222
     Entry->>App: Start dev server on :3000
-    Agent->>Chrome: connectOverCDP('localhost:9222')
+    Agent->>Proxy: connectOverCDP('localhost:9222')
+    Proxy->>Chrome: Forward TCP to 127.0.0.1:9223
     Agent->>Chrome: browser.newContext({viewport: 375x812})
     Chrome->>App: Navigate to localhost:3000
     App-->>Chrome: HTML response
@@ -175,6 +181,9 @@ _Populated during implementation by plan-6._
 
 | Date | Task | Type | Discovery | Resolution | References |
 |------|------|------|-----------|------------|------------|
+| 2026-03-07 | T004 | Architecture | `playwright.config.ts` `connectOptions` is for Playwright Server, not CDP. | Added custom fixture at `harness/tests/fixtures/base-test.ts` that fetches `/json/version` and uses `chromium.connectOverCDP()`. | `harness/playwright.config.ts`, `harness/tests/fixtures/base-test.ts` |
+| 2026-03-07 | T009 | Infrastructure | Chromium 136 binds remote debugging to loopback inside Docker, so host access to published `:9222` failed even though in-container CDP was healthy. | Moved Chromium to internal `:9223` and added `socat` proxy on `0.0.0.0:9222` for host access. | `harness/start-chromium.sh`, `harness/entrypoint.sh`, `harness/Dockerfile` |
+| 2026-03-07 | T009 | Quality Gate | Excluding `harness/` from root `tsconfig.json` needs an explicit replacement gate so standalone harness code is still type-checked. | Added `just install` + `just typecheck` to `harness/justfile`, mirrored with root `harness-install` + `harness-typecheck`, and verified `pnpm --dir harness exec tsc --noEmit` passes. | `harness/justfile`, `justfile`, `tsconfig.json` |
 
 ---
 

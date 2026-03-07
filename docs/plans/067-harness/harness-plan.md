@@ -43,6 +43,7 @@ No new domains. Harness is external tooling at `harness/` in repo root.
 | `harness/package.json` | external | internal | Harness deps (Playwright, zod) |
 | `harness/tsconfig.json` | external | internal | TypeScript config for harness |
 | `harness/playwright.config.ts` | external | internal | Browser test configuration |
+| `harness/start-chromium.sh` | external | internal | Chromium launcher for internal CDP port |
 | `harness/justfile` | external | internal | Harness-specific commands |
 | `harness/src/cli/index.ts` | external | internal | CLI entry point (Commander.js) |
 | `harness/src/cli/commands/*.ts` | external | internal | CLI commands (build, dev, stop, health, test, screenshot, seed, results) |
@@ -50,12 +51,16 @@ No new domains. Harness is external tooling at `harness/` in repo root.
 | `harness/src/viewports/devices.ts` | external | internal | Viewport definitions |
 | `harness/src/seed/seed-workspace.ts` | external | internal | HTTP-based workspace seeding |
 | `harness/tests/smoke/docker-boot.test.ts` | external | internal | Smoke test suite |
+| `harness/tests/fixtures/base-test.ts` | external | internal | Shared CDP-backed Playwright fixture |
+| `harness/tests/smoke/browser-smoke.spec.ts` | external | internal | Browser smoke suite across desktop/tablet/mobile |
+| `harness/tests/smoke/cdp-integration.test.ts` | external | internal | Host-to-CDP integration verification |
 | `harness/vitest.config.ts` | external | internal | Harness Vitest configuration |
 | `harness/tests/features/responsive/viewport-layouts.spec.ts` | external | internal | Responsive viewport tests |
 | `harness/results/.gitkeep` | external | internal | Results output directory |
 | `harness/.dockerignore` | external | internal | Docker build exclusions |
 | `.gitignore` | _platform | cross-domain | Add `harness/results/` |
 | `justfile` | _platform | cross-domain | Add `test-harness` recipe |
+| `tsconfig.json` | _platform | cross-domain | Exclude standalone harness from root TS gate; replacement gate lives in `harness/justfile` |
 | `apps/web/src/auth.ts` | _platform/auth | cross-domain | Fix DISABLE_AUTH for Server Actions (Finding 02) |
 
 ## Harness Strategy

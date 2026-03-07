@@ -85,6 +85,14 @@ test-harness:
 harness-dev:
     cd harness && just dev
 
+# Install standalone harness dependencies
+harness-install:
+    cd harness && just install
+
+# Type-check standalone harness sources
+harness-typecheck:
+    cd harness && just typecheck
+
 # Stop harness container
 harness-stop:
     cd harness && just stop
@@ -92,6 +100,10 @@ harness-stop:
 # Show harness health
 harness-health:
     cd harness && just health
+
+# Run harness CLI command (e.g., just harness health, just harness screenshot home)
+harness *ARGS:
+    cd harness && pnpm exec tsx src/cli/index.ts {{ARGS}}
 
 # Run linter
 lint:
