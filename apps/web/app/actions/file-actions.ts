@@ -220,3 +220,124 @@ export async function pathExists(
     return false;
   }
 }
+
+// ==================== File Mutation Actions — Plan 068 ====================
+
+export type {
+  CreateResult,
+  DeleteResult,
+  RenameResult,
+} from '../../src/features/041-file-browser/services/file-mutation-actions';
+
+export async function createFile(
+  slug: string,
+  worktreePath: string,
+  dirPath: string,
+  fileName: string
+): Promise<
+  import('../../src/features/041-file-browser/services/file-mutation-actions').CreateResult
+> {
+  await requireAuth();
+  const container = getContainer();
+  const workspaceService = container.resolve<IWorkspaceService>(
+    WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
+  );
+  const fileSystem = container.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
+  const pathResolver = container.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
+  const info = await workspaceService.getInfo(slug);
+  if (!info) return { ok: false, error: 'security', message: 'Workspace not found' };
+  const trustedRoot = info.worktrees.find((w) => w.path === worktreePath)?.path ?? info.path;
+  const { createFileService } = await import(
+    '../../src/features/041-file-browser/services/file-mutation-actions'
+  );
+  return createFileService({
+    worktreePath: trustedRoot,
+    dirPath,
+    fileName,
+    fileSystem,
+    pathResolver,
+  });
+}
+
+export async function createFolder(
+  slug: string,
+  worktreePath: string,
+  dirPath: string,
+  folderName: string
+): Promise<
+  import('../../src/features/041-file-browser/services/file-mutation-actions').CreateResult
+> {
+  await requireAuth();
+  const container = getContainer();
+  const workspaceService = container.resolve<IWorkspaceService>(
+    WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
+  );
+  const fileSystem = container.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
+  const pathResolver = container.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
+  const info = await workspaceService.getInfo(slug);
+  if (!info) return { ok: false, error: 'security', message: 'Workspace not found' };
+  const trustedRoot = info.worktrees.find((w) => w.path === worktreePath)?.path ?? info.path;
+  const { createFolderService } = await import(
+    '../../src/features/041-file-browser/services/file-mutation-actions'
+  );
+  return createFolderService({
+    worktreePath: trustedRoot,
+    dirPath,
+    folderName,
+    fileSystem,
+    pathResolver,
+  });
+}
+
+export async function deleteItem(
+  slug: string,
+  worktreePath: string,
+  itemPath: string
+): Promise<
+  import('../../src/features/041-file-browser/services/file-mutation-actions').DeleteResult
+> {
+  await requireAuth();
+  const container = getContainer();
+  const workspaceService = container.resolve<IWorkspaceService>(
+    WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
+  );
+  const fileSystem = container.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
+  const pathResolver = container.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
+  const info = await workspaceService.getInfo(slug);
+  if (!info) return { ok: false, error: 'not-found', message: 'Workspace not found' };
+  const trustedRoot = info.worktrees.find((w) => w.path === worktreePath)?.path ?? info.path;
+  const { deleteItemService } = await import(
+    '../../src/features/041-file-browser/services/file-mutation-actions'
+  );
+  return deleteItemService({ worktreePath: trustedRoot, itemPath, fileSystem, pathResolver });
+}
+
+export async function renameItem(
+  slug: string,
+  worktreePath: string,
+  oldPath: string,
+  newName: string
+): Promise<
+  import('../../src/features/041-file-browser/services/file-mutation-actions').RenameResult
+> {
+  await requireAuth();
+  const container = getContainer();
+  const workspaceService = container.resolve<IWorkspaceService>(
+    WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
+  );
+  const fileSystem = container.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
+  const pathResolver = container.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
+  const info = await workspaceService.getInfo(slug);
+  if (!info) return { ok: false, error: 'not-found', message: 'Workspace not found' };
+  const trustedRoot = info.worktrees.find((w) => w.path === worktreePath)?.path ?? info.path;
+  const { renameItemService } = await import(
+    '../../src/features/041-file-browser/services/file-mutation-actions'
+  );
+  return renameItemService({
+    worktreePath: trustedRoot,
+    oldPath,
+    newName,
+    fileSystem,
+    pathResolver,
+  });
+}

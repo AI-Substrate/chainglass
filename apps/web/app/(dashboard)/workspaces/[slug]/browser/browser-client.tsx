@@ -17,6 +17,7 @@ import {
 } from '@/features/041-file-browser/components/file-viewer-panel';
 import { useClipboard } from '@/features/041-file-browser/hooks/use-clipboard';
 import { useFileFilter } from '@/features/041-file-browser/hooks/use-file-filter';
+import { useFileMutations } from '@/features/041-file-browser/hooks/use-file-mutations';
 import { useFileNavigation } from '@/features/041-file-browser/hooks/use-file-navigation';
 import { useFlowspaceSearch } from '@/features/041-file-browser/hooks/use-flowspace-search';
 import { useGitGrepSearch } from '@/features/041-file-browser/hooks/use-git-grep-search';
@@ -45,6 +46,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import {
+  createFile,
+  createFolder,
+  deleteItem,
   fetchChangedFiles,
   fetchDiffStats,
   fetchFileList,
@@ -54,6 +58,7 @@ import {
   fileExists,
   pathExists,
   readFile,
+  renameItem,
   saveFile,
 } from '../../../../actions/file-actions';
 
@@ -100,6 +105,20 @@ function BrowserClientInner({
   const explorerRef = useRef<ExplorerPanelHandle>(null);
   const [expandPaths, setExpandPaths] = useState<string[]>([]);
 
+  // DYK-P3-01: Wrap server prop in state for client-side root refresh
+  const [rootEntries, setRootEntries] = useState(initialEntries);
+
+  // T006: Local new paths for immediate green animation before SSE fires
+  const [localNewPaths, setLocalNewPaths] = useState<Set<string>>(new Set());
+
+  // FT-003: Re-sync root state when worktree changes (e.g. ?worktree= switch)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — reset on worktree or entries change
+  useEffect(() => {
+    setRootEntries(initialEntries);
+    setLocalNewPaths(new Set());
+    setExpandPaths([]);
+  }, [initialEntries]);
+
   const mode = (params.mode as ViewerMode) || 'preview';
   const selectedFile = params.file || undefined;
   const panelMode = (params.panel as PanelMode) || 'tree';
@@ -139,6 +158,113 @@ function BrowserClientInner({
 
   const clipboard = useClipboard({ slug, worktreePath, readFile });
 
+  // --- File CRUD mutations (Plan 068 Phase 3) ---
+
+  // DYK-P3-01: Refresh root entries from API (initialEntries is a server prop)
+  const handleRefreshRoot = useCallback(async () => {
+    try {
+      const url = `/api/workspaces/${slug}/files?worktree=${encodeURIComponent(worktreePath)}&dir=`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        setRootEntries(data.entries);
+      }
+    } catch {
+      // Silent failure — SSE will eventually catch up
+    }
+  }, [slug, worktreePath]);
+
+  const mutations = useFileMutations({
+    slug,
+    worktreePath,
+    refreshDir: fileNav.handleRefreshDir,
+    refreshRoot: handleRefreshRoot,
+    actions: { createFile, createFolder, deleteItem, renameItem },
+  });
+
+  // T006: Add path to local new paths with auto-cleanup (1.5s matches CSS animation)
+  const addNewlyCreatedPath = useCallback((path: string) => {
+    setLocalNewPaths((prev) => {
+      const next = new Set(prev);
+      next.add(path);
+      return next;
+    });
+    setTimeout(() => {
+      setLocalNewPaths((prev) => {
+        const next = new Set(prev);
+        next.delete(path);
+        return next;
+      });
+    }, 1500);
+  }, []);
+
+  // T002+T007: Create file → toast + refresh + auto-select in viewer
+  const handleTreeCreateFile = useCallback(
+    async (parentDir: string, name: string) => {
+      const result = await mutations.handleCreateFile(parentDir, name);
+      if (result?.ok) {
+        const newPath = result.path;
+        addNewlyCreatedPath(newPath);
+        fileNav.handleSelect(newPath);
+      }
+    },
+    [mutations.handleCreateFile, addNewlyCreatedPath, fileNav.handleSelect]
+  );
+
+  // T002+T007: Create folder → toast + refresh + auto-expand
+  const handleTreeCreateFolder = useCallback(
+    async (parentDir: string, name: string) => {
+      const result = await mutations.handleCreateFolder(parentDir, name);
+      if (result?.ok) {
+        const newPath = result.path;
+        addNewlyCreatedPath(newPath);
+        setExpandPaths([newPath]);
+      }
+    },
+    [mutations.handleCreateFolder, addNewlyCreatedPath]
+  );
+
+  // T002+T003: Rename → toast + refresh + URL sync for open file (DYK-P3-02)
+  // FT-001: skipNextFileRead prevents URL-change effect from overwriting dirty buffer
+  // FT-002: Only auto-select for files; for folders, just update expansion state
+  const handleTreeRename = useCallback(
+    async (oldPath: string, newName: string, type: 'file' | 'directory') => {
+      const result = await mutations.handleRename(oldPath, newName);
+      if (result?.ok) {
+        if (type === 'file' && selectedFile === oldPath) {
+          fileNav.skipNextFileRead();
+          setParams({ file: result.newPath, line: null }, { history: 'replace' });
+        } else if (type === 'file') {
+          fileNav.handleSelect(result.newPath);
+        } else {
+          // Folder rename: update expansion state, don't touch file viewer
+          setExpandPaths((prev) => prev.map((p) => (p === oldPath ? result.newPath : p)));
+        }
+      }
+    },
+    [
+      mutations.handleRename,
+      selectedFile,
+      setParams,
+      fileNav.handleSelect,
+      fileNav.skipNextFileRead,
+    ]
+  );
+
+  // T002+T004: Delete → toast + refresh + clear selection if needed (DYK-P3-03)
+  const handleTreeDelete = useCallback(
+    async (path: string) => {
+      const result = await mutations.handleDelete(path);
+      if (result?.ok && selectedFile) {
+        // DYK-P3-03: Trailing slash prevents false prefix matches
+        if (selectedFile === path || selectedFile.startsWith(`${path}/`)) {
+          setParams({ file: '', line: null }, { history: 'replace' });
+        }
+      }
+    },
+    [mutations.handleDelete, selectedFile, setParams]
+  );
+
   // --- File search filter (Plan 049 Feature 2) ---
   const fileFilter = useFileFilter({ worktreePath, fetchFileList });
 
@@ -177,6 +303,14 @@ function BrowserClientInner({
 
   // T001: Watch expanded directories for tree updates
   const treeChanges = useTreeDirectoryChanges(trackedExpandedDirs);
+
+  // T006: Merge local + SSE-driven new paths for green animation
+  const combinedNewPaths = useMemo(() => {
+    if (localNewPaths.size === 0) return treeChanges.newPaths;
+    const combined = new Set(treeChanges.newPaths);
+    for (const p of localNewPaths) combined.add(p);
+    return combined;
+  }, [treeChanges.newPaths, localNewPaths]);
 
   // T005: Watch all files for ChangesView auto-refresh (500ms debounce)
   const allChanges = useFileChanges('*', { debounce: 500 });
@@ -474,10 +608,10 @@ function BrowserClientInner({
               tree: (
                 <FileTree
                   ref={treeRef}
-                  entries={initialEntries}
+                  entries={rootEntries}
                   selectedFile={selectedFile}
                   changedFiles={panelState.changedFiles}
-                  newlyAddedPaths={treeChanges.newPaths}
+                  newlyAddedPaths={combinedNewPaths}
                   onSelect={fileNav.handleSelect}
                   onExpand={fileNav.handleExpand}
                   childEntries={fileNav.childEntries}
@@ -488,6 +622,10 @@ function BrowserClientInner({
                   onCopyContent={clipboard.handleCopyContent}
                   onCopyTree={clipboard.handleCopyTree}
                   onDownload={clipboard.handleDownload}
+                  onCreateFile={handleTreeCreateFile}
+                  onCreateFolder={handleTreeCreateFolder}
+                  onRename={handleTreeRename}
+                  onDelete={handleTreeDelete}
                 />
               ),
               changes: (
