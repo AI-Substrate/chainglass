@@ -148,6 +148,19 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 ## Dependencies
 
 ### This Domain Depends On
+
+## Concepts
+
+| Concept | Entry Point | What It Does |
+|---------|-------------|--------------|
+| Browse files | `FileTree`, `FileViewerPanel`, `CodeEditor` | Navigate workspace files in a tree, view with syntax highlighting, edit with CodeMirror, preview markdown |
+| Read/write files | `readFile`, `saveFile` server actions | Read file content with size/binary/symlink checks; save with mtime conflict detection and atomic write |
+| Tree CRUD UI | `FileTree`, `InlineEditInput`, `DeleteConfirmationDialog` | Inline create, rename, and delete affordances in the browser tree via hover buttons, context menu, keyboard shortcuts |
+| File CRUD services | `createFileService`, `createFolderService`, `deleteItemService`, `renameItemService` | Server-side file mutation with path security, duplicate detection, filename validation, and safety limits |
+| Search files | `useFileFilter`, `useFlowspaceSearch` | Client-side file search (substring/glob) and FlowSpace semantic code search |
+| Track changes | `ChangesView`, working changes service | Git status display with file badges and recent files |
+| Workspace identity | `WorkspaceProvider`, `useWorkspaceContext` | React context for workspace preferences, worktree identity, emoji/color, tab title |
+
 - `_platform/sdk` — IUSDK for publishing commands and settings to SDK surface
 - `_platform/file-ops` — IFileSystem, IPathResolver for all file operations
 - `_platform/viewer` — FileViewer, MarkdownViewer, DiffViewer for rendering

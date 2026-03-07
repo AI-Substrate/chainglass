@@ -43,6 +43,18 @@ export function InlineEditInput({
   // Track whether we've already committed/cancelled to avoid double-fire
   const settledRef = useRef(false);
 
+  // Capture previously focused element for focus restoration (FT-004)
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    previousFocusRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    return () => {
+      if (previousFocusRef.current?.isConnected) {
+        previousFocusRef.current.focus();
+      }
+    };
+  }, []);
+
   // Auto-focus on mount — use requestAnimationFrame to win the race
   // against Radix ContextMenu's focus restore (DYK-P2-01)
   useEffect(() => {

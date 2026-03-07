@@ -59,6 +59,10 @@ type DeleteTarget = {
 /** Bundled mutation handlers passed to TreeItem when CRUD callbacks exist */
 interface TreeMutationHandlers {
   editState: EditState;
+  hasCreateFile: boolean;
+  hasCreateFolder: boolean;
+  hasRename: boolean;
+  hasDelete: boolean;
   onStartCreate: (parentDir: string, mode: 'create-file' | 'create-folder') => void;
   onStartRename: (targetPath: string) => void;
   onCancelEdit: () => void;
@@ -189,6 +193,10 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
   const mutations: TreeMutationHandlers | undefined = hasMutations
     ? {
         editState,
+        hasCreateFile: !!onCreateFile,
+        hasCreateFolder: !!onCreateFolder,
+        hasRename: !!onRename,
+        hasDelete: !!onDelete,
         onStartCreate: (parentDir, mode) => {
           setEditState({ mode, parentDir });
           // Auto-expand folder if collapsed
@@ -233,6 +241,8 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
       if (e.key !== 'F2' && e.key !== 'Enter') return;
 
       const target = e.target as HTMLElement;
+      // Ignore action buttons (refresh, new file, new folder) — FT-001
+      if (target.closest('[data-tree-action]')) return;
       const treeItem = target.closest('[data-tree-path]');
       if (!treeItem) return;
 
@@ -449,22 +459,24 @@ function TreeItem({
                   </button>
                 </ContextMenuTrigger>
                 <ContextMenuContent>
-                  {mutations && (
-                    <>
-                      <ContextMenuItem
-                        onSelect={() => mutations.onStartCreate(entry.path, 'create-file')}
-                      >
-                        <FilePlus className="h-3.5 w-3.5 mr-2" />
-                        New File
-                      </ContextMenuItem>
-                      <ContextMenuItem
-                        onSelect={() => mutations.onStartCreate(entry.path, 'create-folder')}
-                      >
-                        <FolderPlus className="h-3.5 w-3.5 mr-2" />
-                        New Folder
-                      </ContextMenuItem>
-                      <ContextMenuSeparator />
-                    </>
+                  {mutations?.hasCreateFile && (
+                    <ContextMenuItem
+                      onSelect={() => mutations.onStartCreate(entry.path, 'create-file')}
+                    >
+                      <FilePlus className="h-3.5 w-3.5 mr-2" />
+                      New File
+                    </ContextMenuItem>
+                  )}
+                  {mutations?.hasCreateFolder && (
+                    <ContextMenuItem
+                      onSelect={() => mutations.onStartCreate(entry.path, 'create-folder')}
+                    >
+                      <FolderPlus className="h-3.5 w-3.5 mr-2" />
+                      New Folder
+                    </ContextMenuItem>
+                  )}
+                  {(mutations?.hasCreateFile || mutations?.hasCreateFolder) && (
+                    <ContextMenuSeparator />
                   )}
                   <ContextMenuItem onSelect={() => onCopyFullPath?.(entry.path)}>
                     <ClipboardCopy className="h-3.5 w-3.5 mr-2" />
@@ -479,28 +491,29 @@ function TreeItem({
                     <FolderTree className="h-3.5 w-3.5 mr-2" />
                     Copy Tree From Here
                   </ContextMenuItem>
-                  {mutations && (
-                    <>
-                      <ContextMenuSeparator />
-                      <ContextMenuItem onSelect={() => mutations.onStartRename(entry.path)}>
-                        <Pencil className="h-3.5 w-3.5 mr-2" />
-                        Rename
-                      </ContextMenuItem>
-                      <ContextMenuItem
-                        variant="destructive"
-                        onSelect={() =>
-                          mutations.onRequestDelete(entry.path, entry.name, 'directory')
-                        }
-                      >
-                        <Trash2 className="h-3.5 w-3.5 mr-2" />
-                        Delete
-                      </ContextMenuItem>
-                    </>
+                  {(mutations?.hasRename || mutations?.hasDelete) && <ContextMenuSeparator />}
+                  {mutations?.hasRename && (
+                    <ContextMenuItem onSelect={() => mutations.onStartRename(entry.path)}>
+                      <Pencil className="h-3.5 w-3.5 mr-2" />
+                      Rename
+                    </ContextMenuItem>
+                  )}
+                  {mutations?.hasDelete && (
+                    <ContextMenuItem
+                      variant="destructive"
+                      onSelect={() =>
+                        mutations.onRequestDelete(entry.path, entry.name, 'directory')
+                      }
+                    >
+                      <Trash2 className="h-3.5 w-3.5 mr-2" />
+                      Delete
+                    </ContextMenuItem>
                   )}
                 </ContextMenuContent>
               </ContextMenu>
               <button
                 type="button"
+                data-tree-action="refresh"
                 onClick={(e) => {
                   e.stopPropagation();
                   onExpand(entry.path);
@@ -510,31 +523,33 @@ function TreeItem({
               >
                 <RefreshCw className="h-3 w-3" />
               </button>
-              {mutations && (
-                <>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      mutations.onStartCreate(entry.path, 'create-file');
-                    }}
-                    className="hidden group-hover:block shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
-                    aria-label={`New file in ${entry.name}`}
-                  >
-                    <FilePlus className="h-3 w-3" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      mutations.onStartCreate(entry.path, 'create-folder');
-                    }}
-                    className="hidden group-hover:block shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
-                    aria-label={`New folder in ${entry.name}`}
-                  >
-                    <FolderPlus className="h-3 w-3" />
-                  </button>
-                </>
+              {mutations?.hasCreateFile && (
+                <button
+                  type="button"
+                  data-tree-action="create-file"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    mutations.onStartCreate(entry.path, 'create-file');
+                  }}
+                  className="hidden group-hover:block shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
+                  aria-label={`New file in ${entry.name}`}
+                >
+                  <FilePlus className="h-3 w-3" />
+                </button>
+              )}
+              {mutations?.hasCreateFolder && (
+                <button
+                  type="button"
+                  data-tree-action="create-folder"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    mutations.onStartCreate(entry.path, 'create-folder');
+                  }}
+                  className="hidden group-hover:block shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
+                  aria-label={`New folder in ${entry.name}`}
+                >
+                  <FolderPlus className="h-3 w-3" />
+                </button>
               )}
             </>
           )}
@@ -669,21 +684,21 @@ function TreeItem({
             <Download className="h-3.5 w-3.5 mr-2" />
             Download
           </ContextMenuItem>
-          {mutations && (
-            <>
-              <ContextMenuSeparator />
-              <ContextMenuItem onSelect={() => mutations.onStartRename(entry.path)}>
-                <Pencil className="h-3.5 w-3.5 mr-2" />
-                Rename
-              </ContextMenuItem>
-              <ContextMenuItem
-                variant="destructive"
-                onSelect={() => mutations.onRequestDelete(entry.path, entry.name, 'file')}
-              >
-                <Trash2 className="h-3.5 w-3.5 mr-2" />
-                Delete
-              </ContextMenuItem>
-            </>
+          {(mutations?.hasRename || mutations?.hasDelete) && <ContextMenuSeparator />}
+          {mutations?.hasRename && (
+            <ContextMenuItem onSelect={() => mutations.onStartRename(entry.path)}>
+              <Pencil className="h-3.5 w-3.5 mr-2" />
+              Rename
+            </ContextMenuItem>
+          )}
+          {mutations?.hasDelete && (
+            <ContextMenuItem
+              variant="destructive"
+              onSelect={() => mutations.onRequestDelete(entry.path, entry.name, 'file')}
+            >
+              <Trash2 className="h-3.5 w-3.5 mr-2" />
+              Delete
+            </ContextMenuItem>
           )}
         </ContextMenuContent>
       </ContextMenu>
