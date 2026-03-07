@@ -14,7 +14,7 @@
 import { defineConfig } from '@playwright/test';
 import { HARNESS_VIEWPORTS } from './src/viewports/devices.js';
 
-const APP_URL = process.env.HARNESS_APP_URL ?? 'http://localhost:3000';
+const APP_URL = process.env.HARNESS_APP_URL ?? 'http://localhost:3100';
 
 export default defineConfig({
   testDir: './tests',

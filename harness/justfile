@@ -4,6 +4,14 @@
 default:
     @just --list
 
+# Compute port allocation for this worktree (used by other recipes)
+_ports:
+    @pnpm exec tsx src/cli/index.ts ports 2>/dev/null | python3 -c "import sys,json; p=json.loads(sys.stdin.read())['data']; print(f\"HARNESS_APP_PORT={p['app']}\nHARNESS_TERMINAL_PORT={p['terminal']}\nHARNESS_CDP_PORT={p['cdp']}\nHARNESS_WORKTREE={p['worktree']}\")"
+
+# Show port allocation for this worktree
+ports:
+    @pnpm exec tsx src/cli/index.ts ports
+
 # Build Docker image
 build:
     docker compose -f docker-compose.yml build
@@ -12,29 +20,31 @@ build:
 install:
     pnpm install --ignore-workspace
 
-# Start dev container (detached), wait for health
+# Start dev container (detached), wait for health using dynamic ports
 dev:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    eval "$(just _ports)"
+    export HARNESS_APP_PORT HARNESS_TERMINAL_PORT HARNESS_CDP_PORT HARNESS_WORKTREE
+    echo "Starting harness for worktree: $HARNESS_WORKTREE"
+    echo "  App: :$HARNESS_APP_PORT  Terminal: :$HARNESS_TERMINAL_PORT  CDP: :$HARNESS_CDP_PORT"
     docker compose -f docker-compose.yml up -d
-    @echo "Waiting for health..."
-    @for i in $(seq 1 60); do \
-        if curl -sf http://localhost:3000 > /dev/null 2>&1; then \
-            echo "✓ App healthy on :3000"; \
-            break; \
-        fi; \
-        sleep 2; \
+    echo "Waiting for health..."
+    for i in $(seq 1 60); do
+        if curl -sf "http://localhost:$HARNESS_APP_PORT" > /dev/null 2>&1; then
+            echo "✓ App healthy on :$HARNESS_APP_PORT"
+            break
+        fi
+        sleep 2
     done
 
 # Stop and remove container
 stop:
     docker compose -f docker-compose.yml down
 
-# Health check
+# Health check using dynamic ports
 health:
-    @APP_CODE=$(curl -sf -o /dev/null -w '%{http_code}' http://127.0.0.1:3000 || echo DOWN); \
-    MCP_CODE=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/_next/mcp || echo DOWN); \
-    TERMINAL_STATUS=$(python3 -c "import socket; s=socket.create_connection(('127.0.0.1',4500),2); s.close(); print('up')" 2>/dev/null || echo down); \
-    CDP_BROWSER=$(curl -sf http://127.0.0.1:9222/json/version | tr -d '\n' | sed -E 's/.*\"Browser\"[[:space:]]*:[[:space:]]*\"([^\"]+)\".*/\1/' || echo down); \
-    APP_CODE="$APP_CODE" MCP_CODE="$MCP_CODE" TERMINAL_STATUS="$TERMINAL_STATUS" CDP_BROWSER="$CDP_BROWSER" python3 -c "import json, os; app=os.environ['APP_CODE']; mcp=os.environ['MCP_CODE']; terminal=os.environ['TERMINAL_STATUS']; cdp=os.environ['CDP_BROWSER']; print(json.dumps({'status': 'ok' if app == '200' and terminal == 'up' and cdp != 'down' else 'degraded', 'app': {'status': 'up' if app == '200' else 'down', 'code': app}, 'mcp': {'status': 'up' if mcp not in ('000', 'DOWN', 'DOWN000') else 'down', 'code': mcp}, 'terminal': {'status': terminal}, 'cdp': {'status': 'up' if cdp != 'down' else 'down', 'browser': None if cdp == 'down' else cdp}}, separators=(',', ':')))"
+    @pnpm exec tsx src/cli/index.ts health 2>/dev/null
 
 # Run command inside container
 exec +CMD:

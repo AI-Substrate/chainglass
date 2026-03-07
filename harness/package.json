@@ -5,7 +5,7 @@
   "description": "Agentic development harness — Docker + Playwright browser automation for Chainglass",
   "type": "module",
   "bin": {
-    "harness": "./src/cli/index.ts"
+    "harness": "./bin/harness"
   },
   "scripts": {
     "harness": "tsx src/cli/index.ts",

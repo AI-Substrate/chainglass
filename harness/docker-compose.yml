@@ -1,15 +1,13 @@
 # =============================================================================
 # Chainglass Harness — Docker Compose (Dev Mode)
 #
-# Runs the full Chainglass dev environment:
-#   - Next.js dev server on :3000 (Turbopack HMR)
-#   - Terminal WebSocket sidecar on :4500
-#   - Source code bind-mounted from host for live editing
-#   - Named volume for node_modules (Linux-compiled binaries)
+# Runs the full Chainglass dev environment with dynamically allocated ports.
+# Ports are derived from the worktree name by the harness CLI `ports` command
+# and passed as environment variables (HARNESS_APP_PORT, etc.).
 #
 # Usage:
-#   cd harness && docker compose up
-#   cd harness && just dev
+#   cd harness && just dev        # auto-computes ports from worktree name
+#   cd harness && docker compose up   # uses .env defaults
 # =============================================================================
 
 services:
@@ -18,29 +16,27 @@ services:
       context: .
       dockerfile: Dockerfile
       target: dev
-    container_name: chainglass-dev
+    container_name: chainglass-${HARNESS_WORKTREE:-dev}
     ports:
-      - "3000:3000"     # Next.js dev server
-      - "4500:4500"     # Terminal WebSocket sidecar
-      - "9222:9222"     # CDP (Playwright, Phase 2)
+      - "${HARNESS_APP_PORT:-3100}:${HARNESS_APP_PORT:-3100}"
+      - "${HARNESS_TERMINAL_PORT:-4600}:${HARNESS_TERMINAL_PORT:-4600}"
+      - "${HARNESS_CDP_PORT:-9222}:${HARNESS_CDP_PORT:-9222}"
     volumes:
-      # Bind mount entire monorepo for HMR (OrbStack: 2-way sync)
       - ..:/app
-      # Named volume shadows host node_modules — Linux binaries, not macOS
       - chainglass_node_modules:/app/node_modules
-      # Named volume for .next build cache (avoid cross-OS issues)
       - chainglass_dot_next:/app/apps/web/.next
     environment:
       - NODE_ENV=development
       - DISABLE_AUTH=true
-      - PORT=3000
+      - PORT=${HARNESS_APP_PORT:-3100}
       - TERMINAL_WS_HOST=0.0.0.0
+      - TERMINAL_WS_PORT=${HARNESS_TERMINAL_PORT:-4600}
       - TERMINAL_ALLOWED_BASE=/app
       - AUTH_SECRET=harness-dev-secret-not-for-production
-    # Shared memory for headless Chromium (Phase 2)
+      - CDP_PORT=${HARNESS_CDP_PORT:-9222}
     shm_size: '1gb'
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:3000/"]
+      test: ["CMD", "curl", "-sf", "http://localhost:${HARNESS_APP_PORT:-3100}/"]
       interval: 10s
       timeout: 5s
       retries: 30

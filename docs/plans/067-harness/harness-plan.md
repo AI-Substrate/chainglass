@@ -46,15 +46,24 @@ No new domains. Harness is external tooling at `harness/` in repo root.
 | `harness/start-chromium.sh` | external | internal | Chromium launcher for internal CDP port |
 | `harness/justfile` | external | internal | Harness-specific commands |
 | `harness/src/cli/index.ts` | external | internal | CLI entry point (Commander.js) |
-| `harness/src/cli/commands/*.ts` | external | internal | CLI commands (build, dev, stop, health, test, screenshot, seed, results) |
+| `harness/src/cli/commands/*.ts` | external | internal | CLI commands (build, dev, stop, health, test, screenshot, results, ports) |
 | `harness/src/cli/output.ts` | external | internal | Structured JSON output helpers |
+| `harness/src/cdp/*.ts` | external | internal | CDP connection and discovery helpers |
+| `harness/src/docker/*.ts` | external | internal | Docker lifecycle wrappers for the CLI |
+| `harness/src/health/*.ts` | external | internal | Health probes used by CLI commands |
+| `harness/src/ports/*.ts` | external | internal | Deterministic port allocator for parallel worktrees |
 | `harness/src/viewports/devices.ts` | external | internal | Viewport definitions |
+| `harness/bin/harness` | external | internal | Shell wrapper for bin entry point |
 | `harness/src/seed/seed-workspace.ts` | external | internal | HTTP-based workspace seeding |
 | `harness/tests/smoke/docker-boot.test.ts` | external | internal | Smoke test suite |
 | `harness/tests/fixtures/base-test.ts` | external | internal | Shared CDP-backed Playwright fixture |
 | `harness/tests/smoke/browser-smoke.spec.ts` | external | internal | Browser smoke suite across desktop/tablet/mobile |
 | `harness/tests/smoke/cdp-integration.test.ts` | external | internal | Host-to-CDP integration verification |
+| `harness/tests/unit/cli/*.test.ts` | external | internal | Harness CLI unit tests |
+| `harness/tests/unit/ports/*.test.ts` | external | internal | Port allocator unit tests |
+| `harness/tests/integration/cli/*.test.ts` | external | internal | CLI integration tests (require running container) |
 | `harness/vitest.config.ts` | external | internal | Harness Vitest configuration |
+| `harness/vitest.integration.config.ts` | external | internal | Integration test configuration |
 | `harness/tests/features/responsive/viewport-layouts.spec.ts` | external | internal | Responsive viewport tests |
 | `harness/results/.gitkeep` | external | internal | Results output directory |
 | `harness/.dockerignore` | external | internal | Docker build exclusions |

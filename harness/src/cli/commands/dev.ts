@@ -1,6 +1,7 @@
 import type { Command } from 'commander';
 import { dockerUp, isDockerAvailable } from '../../docker/lifecycle.js';
 import { probeAll } from '../../health/probe.js';
+import { computePorts, describeAllocation } from '../../ports/allocator.js';
 import { ErrorCodes, exitWithEnvelope, formatError, formatSuccess } from '../output.js';
 
 const MAX_HEALTH_WAIT_MS = 120_000;
@@ -15,6 +16,9 @@ export function registerDevCommand(program: Command): void {
         exitWithEnvelope(formatError('dev', ErrorCodes.DOCKER_UNAVAILABLE, 'Docker is not available'));
       }
 
+      const ports = computePorts();
+      process.stderr.write(`${describeAllocation(ports)}\n`);
+
       const upResult = await dockerUp();
       if (upResult.exitCode !== 0) {
         exitWithEnvelope(
@@ -26,11 +30,11 @@ export function registerDevCommand(program: Command): void {
 
       // Poll for health
       const start = Date.now();
-      let lastHealth = await probeAll();
+      let lastHealth = await probeAll(ports);
 
       while (lastHealth.status !== 'ok' && Date.now() - start < MAX_HEALTH_WAIT_MS) {
         await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-        lastHealth = await probeAll();
+        lastHealth = await probeAll(ports);
       }
 
       if (lastHealth.status === 'down') {
@@ -48,9 +52,9 @@ export function registerDevCommand(program: Command): void {
           {
             message: `Harness ready in ${elapsed}s`,
             endpoints: {
-              app: 'http://127.0.0.1:3000',
-              cdp: 'http://127.0.0.1:9222',
-              terminal: 'ws://127.0.0.1:4500',
+              app: `http://127.0.0.1:${ports.app}`,
+              cdp: `http://127.0.0.1:${ports.cdp}`,
+              terminal: `ws://127.0.0.1:${ports.terminal}`,
             },
             health: lastHealth,
           },

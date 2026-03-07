@@ -3,6 +3,7 @@ import { mkdirSync } from 'node:fs';
 import type { Command } from 'commander';
 import { chromium } from '@playwright/test';
 import { getWsEndpoint } from '../../cdp/connect.js';
+import { computePorts } from '../../ports/allocator.js';
 import { HARNESS_VIEWPORTS, DEFAULT_VIEWPORT, type ViewportName } from '../../viewports/devices.js';
 import { ErrorCodes, exitWithEnvelope, formatError, formatSuccess } from '../output.js';
 
@@ -14,8 +15,16 @@ export function registerScreenshotCommand(program: Command): void {
     .command('screenshot <name>')
     .description('Capture a screenshot via CDP and save to results/')
     .option('--viewport <name>', 'Viewport to use', DEFAULT_VIEWPORT)
-    .option('--url <url>', 'URL to navigate to', 'http://127.0.0.1:3000')
-    .action(async (name: string, opts: { viewport: string; url: string }) => {
+    .option('--url <url>', 'URL to navigate to')
+    .action(async (name: string, opts: { viewport: string; url?: string }) => {
+      // FT-003: Sanitize name to prevent path traversal
+      const safeName = name.replace(/[^a-zA-Z0-9._-]+/g, '-');
+      if (safeName !== name || safeName.includes('..')) {
+        exitWithEnvelope(
+          formatError('screenshot', ErrorCodes.INVALID_ARGS, 'Screenshot name contains invalid characters. Use only alphanumeric, dot, dash, underscore.'),
+        );
+      }
+
       const viewportName = opts.viewport as ViewportName;
       if (!(viewportName in HARNESS_VIEWPORTS)) {
         exitWithEnvelope(
@@ -25,11 +34,13 @@ export function registerScreenshotCommand(program: Command): void {
         );
       }
 
+      const ports = computePorts();
+      const targetUrl = opts.url ?? `http://127.0.0.1:${ports.app}`;
       const viewport = HARNESS_VIEWPORTS[viewportName];
       let browser;
 
       try {
-        const wsEndpoint = await getWsEndpoint();
+        const wsEndpoint = await getWsEndpoint(`http://127.0.0.1:${ports.cdp}`);
         browser = await chromium.connectOverCDP(wsEndpoint);
       } catch {
         exitWithEnvelope(
@@ -42,11 +53,19 @@ export function registerScreenshotCommand(program: Command): void {
           viewport: { width: viewport.width, height: viewport.height },
         });
         const page = await context.newPage();
-        await page.goto(opts.url, { waitUntil: 'networkidle' });
+        await page.goto(targetUrl, { waitUntil: 'networkidle' });
 
         mkdirSync(RESULTS_DIR, { recursive: true });
-        const filename = `${name}-${viewportName}.png`;
-        const filePath = path.join(RESULTS_DIR, filename);
+        const filename = `${safeName}-${viewportName}.png`;
+        const filePath = path.resolve(RESULTS_DIR, filename);
+
+        // Final guard: resolved path must stay under RESULTS_DIR
+        if (!filePath.startsWith(path.resolve(RESULTS_DIR) + path.sep)) {
+          exitWithEnvelope(
+            formatError('screenshot', ErrorCodes.INVALID_ARGS, 'Screenshot path escaped results directory'),
+          );
+        }
+
         await page.screenshot({ path: filePath, fullPage: false });
 
         await context.close();
@@ -54,7 +73,7 @@ export function registerScreenshotCommand(program: Command): void {
 
         exitWithEnvelope(
           formatSuccess('screenshot', {
-            name,
+            name: safeName,
             viewport: viewportName,
             path: filePath,
             filename,

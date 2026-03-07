@@ -47,7 +47,7 @@ fi
 
 # --- Step 4: Start dev server + terminal sidecar + Chromium + CDP proxy ---
 echo ""
-echo "🚀 Starting dev server on :${PORT:-3000} + terminal sidecar on :$((${PORT:-3000} + 1500)) + Chromium CDP on :${CDP_PORT:-9222}"
+echo "🚀 Starting dev server on :${PORT:-3100} + terminal sidecar on :${TERMINAL_WS_PORT:-4600} + Chromium CDP on :${CDP_PORT:-9222}"
 echo ""
 
 cd /app

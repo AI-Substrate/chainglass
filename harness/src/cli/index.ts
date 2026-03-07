@@ -14,6 +14,7 @@ import { registerHealthCommand } from './commands/health.js';
 import { registerTestCommand } from './commands/test.js';
 import { registerScreenshotCommand } from './commands/screenshot.js';
 import { registerResultsCommand } from './commands/results.js';
+import { registerPortsCommand } from './commands/ports.js';
 
 export function createCli(): Command {
   const program = new Command()
@@ -28,6 +29,7 @@ export function createCli(): Command {
   registerTestCommand(program);
   registerScreenshotCommand(program);
   registerResultsCommand(program);
+  registerPortsCommand(program);
 
   return program;
 }

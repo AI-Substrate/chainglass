@@ -6,7 +6,10 @@
  * (e.g., `dev` waits for app probe to pass).
  */
 
+import net from 'node:net';
 import { getCdpBrowser, getCdpVersion } from '../cdp/connect.js';
+
+import type { HarnessPorts } from '../ports/allocator.js';
 
 export interface ServiceStatus {
   status: 'up' | 'down';
@@ -35,7 +38,7 @@ export interface HealthResult {
 }
 
 export async function probeApp(
-  url = 'http://127.0.0.1:3000',
+  url = 'http://127.0.0.1:3100',
 ): Promise<AppStatus> {
   try {
     const res = await fetch(url);
@@ -46,7 +49,7 @@ export async function probeApp(
 }
 
 export async function probeMcp(
-  url = 'http://127.0.0.1:3000/_next/mcp',
+  url = 'http://127.0.0.1:3100/_next/mcp',
 ): Promise<McpStatus> {
   try {
     const res = await fetch(url);
@@ -61,21 +64,20 @@ export async function probeMcp(
 
 export async function probeTerminal(
   host = '127.0.0.1',
-  port = 4500,
+  port = 4600,
 ): Promise<TerminalStatus> {
-  try {
-    // Use a TCP connect check via fetch to the WebSocket port
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 2000);
-    await fetch(`http://${host}:${port}`, { signal: controller.signal }).catch(() => {});
-    clearTimeout(timeout);
-
-    // If we get here without a connection refused error, port is open
-    // For WebSocket ports, any response (even error) means the port is listening
-    return { status: 'up' };
-  } catch {
-    return { status: 'down' };
-  }
+  return new Promise((resolve) => {
+    const socket = net.connect({ host, port });
+    socket.once('connect', () => {
+      socket.destroy();
+      resolve({ status: 'up' });
+    });
+    socket.once('error', () => resolve({ status: 'down' }));
+    socket.setTimeout(2000, () => {
+      socket.destroy();
+      resolve({ status: 'down' });
+    });
+  });
 }
 
 export async function probeCdp(
@@ -89,12 +91,16 @@ export async function probeCdp(
   }
 }
 
-export async function probeAll(): Promise<HealthResult> {
+export async function probeAll(ports?: HarnessPorts): Promise<HealthResult> {
+  const appPort = ports?.app ?? 3100;
+  const terminalPort = ports?.terminal ?? 4600;
+  const cdpPort = ports?.cdp ?? 9222;
+
   const [app, mcp, terminal, cdp] = await Promise.all([
-    probeApp(),
-    probeMcp(),
-    probeTerminal(),
-    probeCdp(),
+    probeApp(`http://127.0.0.1:${appPort}`),
+    probeMcp(`http://127.0.0.1:${appPort}/_next/mcp`),
+    probeTerminal('127.0.0.1', terminalPort),
+    probeCdp(`http://127.0.0.1:${cdpPort}`),
   ]);
 
   const allUp = app.status === 'up' && terminal.status === 'up' && cdp.status === 'up';

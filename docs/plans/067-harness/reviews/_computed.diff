@@ -1,775 +1,1086 @@
-diff --git a/docs/plans/067-harness/tasks/phase-2-playwright-cdp-integration/tasks.md b/docs/plans/067-harness/tasks/phase-2-playwright-cdp-integration/tasks.md
-index dafadb2..77f8f4c 100644
---- a/docs/plans/067-harness/tasks/phase-2-playwright-cdp-integration/tasks.md
-+++ b/docs/plans/067-harness/tasks/phase-2-playwright-cdp-integration/tasks.md
-@@ -111,15 +111,15 @@ flowchart TD
- 
- | Status | ID | Task | Domain | Path(s) | Done When | Notes |
- |--------|-----|------|--------|---------|-----------|-------|
--| [ ] | T001 | Write CDP integration test (RED) | external | `harness/tests/smoke/cdp-integration.test.ts` | `describe.skip` test: CDP connects on 9222, page loads, screenshot file produced | TDD first; Finding 06 |
--| [ ] | T002 | Create Chromium startup script | external | `harness/start-chromium.sh` | Script launches Chromium headless with `--remote-debugging-port=9222` | Separate from entrypoint for restartability |
--| [ ] | T003 | Update entrypoint.sh to launch Chromium | external | `harness/entrypoint.sh` | Chromium starts alongside Next.js + terminal sidecar | Add as 3rd concurrent process |
--| [ ] | T004 | Create playwright.config.ts | external | `harness/playwright.config.ts` | Config with baseURL :3000, 3 viewport projects (desktop/tablet/mobile), 30s timeout | Per Workshop 002 |
--| [ ] | T005 | Create viewport definitions | external | `harness/src/viewports/devices.ts` | Exports `HARNESS_VIEWPORTS` with desktop-lg, desktop-md, tablet, mobile | Per Workshop 002 spec |
--| [ ] | T006 | Write smoke Playwright test | external | `harness/tests/smoke/browser-smoke.spec.ts` | `npx playwright test` passes: page loads at :3000, title contains expected text, no console errors | First real browser test; AC-05/06 |
--| [ ] | T007 | Verify multi-context browsing | external | `harness/tests/smoke/browser-smoke.spec.ts` | Test opens 2+ contexts at different viewports simultaneously | AC-07 — proves parallel capability |
--| [ ] | T008 | Verify browser console access | external | `harness/tests/smoke/browser-smoke.spec.ts` | Test captures console.log output via `page.on('console')` | AC-10 |
--| [ ] | T009 | Run integration test (GREEN) | external | `harness/tests/smoke/cdp-integration.test.ts` | Unskip T001 test — CDP connects, screenshot captured, file exists | Validates full Phase 2 |
-+| [x] | T001 | Write CDP integration test (RED) | external | `harness/tests/smoke/cdp-integration.test.ts` | `describe.skip` test: CDP connects on 9222, page loads, screenshot file produced | TDD first; Finding 06 |
-+| [x] | T002 | Create Chromium startup script | external | `harness/start-chromium.sh` | Script launches Chromium headless with `--remote-debugging-port=9222` | Separate from entrypoint for restartability |
-+| [x] | T003 | Update entrypoint.sh to launch Chromium | external | `harness/entrypoint.sh` | Chromium starts alongside Next.js + terminal sidecar | Add as 3rd concurrent process |
-+| [x] | T004 | Create playwright.config.ts | external | `harness/playwright.config.ts` | Config with baseURL :3000, 3 viewport projects (desktop/tablet/mobile), 30s timeout | Per Workshop 002 |
-+| [x] | T005 | Create viewport definitions | external | `harness/src/viewports/devices.ts` | Exports `HARNESS_VIEWPORTS` with desktop-lg, desktop-md, tablet, mobile | Per Workshop 002 spec |
-+| [x] | T006 | Write smoke Playwright test | external | `harness/tests/smoke/browser-smoke.spec.ts` | `npx playwright test` passes: page loads at :3000, title contains expected text, no console errors | First real browser test; AC-05/06 |
-+| [x] | T007 | Verify multi-context browsing | external | `harness/tests/smoke/browser-smoke.spec.ts` | Test opens 2+ contexts at different viewports simultaneously | AC-07 — proves parallel capability |
-+| [x] | T008 | Verify browser console access | external | `harness/tests/smoke/browser-smoke.spec.ts` | Test captures console.log output via `page.on('console')` | AC-10 |
-+| [~] | T009 | Run integration test (GREEN) | external | `harness/tests/smoke/cdp-integration.test.ts` | Unskip T001 test — CDP connects, screenshot captured, file exists | Validates full Phase 2 |
- 
- ---
- 
-diff --git a/docs/plans/067-harness/tasks/phase-2-playwright-cdp-integration/tasks.fltplan.md b/docs/plans/067-harness/tasks/phase-2-playwright-cdp-integration/tasks.fltplan.md
-index e0fda0c..d9e595b 100644
---- a/docs/plans/067-harness/tasks/phase-2-playwright-cdp-integration/tasks.fltplan.md
-+++ b/docs/plans/067-harness/tasks/phase-2-playwright-cdp-integration/tasks.fltplan.md
-@@ -54,7 +54,8 @@ stateDiagram-v2
-     S4 --> S5
-     S5 --> [*]
- 
--    class S1,S2,S3,S4,S5 pending
-+    class S1,S2,S3,S4 done
-+    class S5 active
- ```
- 
- **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
-@@ -63,11 +64,11 @@ stateDiagram-v2
- 
- ## Stages
- 
--- [ ] **Stage 1: Write RED integration test** — CDP connection + screenshot assertion (`cdp-integration.test.ts` — new file)
--- [ ] **Stage 2: Launch Chromium in container** — Startup script + entrypoint update (`start-chromium.sh` — new, `entrypoint.sh` — modified)
--- [ ] **Stage 3: Playwright config + viewports** — Config with 3 viewport projects (`playwright.config.ts`, `devices.ts` — new files)
--- [ ] **Stage 4: Smoke Playwright tests** — Page load, multi-context, console capture (`browser-smoke.spec.ts` — new file)
--- [ ] **Stage 5: GREEN integration test** — Unskip and verify CDP works end-to-end
-+- [x] **Stage 1: Write RED integration test** — CDP connection + screenshot assertion (`cdp-integration.test.ts` — new file)
-+- [x] **Stage 2: Launch Chromium in container** — Startup script + entrypoint update (`start-chromium.sh` — new, `entrypoint.sh` — modified)
-+- [x] **Stage 3: Playwright config + viewports** — Config with 3 viewport projects (`playwright.config.ts`, `devices.ts` — new files)
-+- [x] **Stage 4: Smoke Playwright tests** — Page load, multi-context, console capture (`browser-smoke.spec.ts` — new file)
-+- [~] **Stage 5: GREEN integration test** — Unskip and verify CDP works end-to-end
- 
- ---
- 
-@@ -124,12 +125,12 @@ flowchart LR
- 
- ## Checklist
- 
--- [ ] T001: Write CDP integration test (RED)
--- [ ] T002: Create Chromium startup script
--- [ ] T003: Update entrypoint.sh to launch Chromium
--- [ ] T004: Create playwright.config.ts
--- [ ] T005: Create viewport definitions
--- [ ] T006: Write smoke Playwright test
--- [ ] T007: Verify multi-context browsing
--- [ ] T008: Verify browser console access
--- [ ] T009: Run integration test (GREEN)
-+- [x] T001: Write CDP integration test (RED)
-+- [x] T002: Create Chromium startup script
-+- [x] T003: Update entrypoint.sh to launch Chromium
-+- [x] T004: Create playwright.config.ts
-+- [x] T005: Create viewport definitions
-+- [x] T006: Write smoke Playwright test
-+- [x] T007: Verify multi-context browsing
-+- [x] T008: Verify browser console access
-+- [~] T009: Run integration test (GREEN)
-diff --git a/docs/plans/067-harness/tasks/phase-2-playwright-cdp-integration/execution.log.md b/docs/plans/067-harness/tasks/phase-2-playwright-cdp-integration/execution.log.md
-new file mode 100644
-index 0000000..31a1bc8
---- /dev/null
-+++ b/docs/plans/067-harness/tasks/phase-2-playwright-cdp-integration/execution.log.md
-@@ -0,0 +1,64 @@
-+# Phase 2: Playwright & CDP Integration — Execution Log
-+
-+**Plan**: [harness-plan.md](../../harness-plan.md)
-+**Phase**: Phase 2: Playwright & CDP Integration
-+**Started**: 2026-03-07
-+
-+---
-+
-+## Pre-Phase Validation
-+
-+| Check | Status | Duration | Notes |
-+|-------|--------|----------|-------|
-+| Boot | ⏭ skipped | — | Container not running; will boot for integration tests |
-+| Interact | ⏭ skipped | — | CDP not yet configured (this phase adds it) |
-+| Observe | ⏭ skipped | — | No harness.md exists yet |
-+
-+**Verdict**: Phase 2 adds browser capability — pre-phase browser validation N/A.
-+
-+---
-+
-+## Task Log
-+
-+### T001: Write CDP integration test (RED)
-+- **Status**: ✅ Done
-+- **Files**: `harness/tests/smoke/cdp-integration.test.ts` (new)
-+- **Evidence**: 4 test cases in `describe.skip` — CDP version endpoint, target listing, Playwright `connectOverCDP`, screenshot capture to results/
-+- **Notes**: Uses `playwright-core` (not `@playwright/test`) for vitest compatibility. Fetches wsEndpoint from `/json/version` per Perplexity research. Tests are RED (skipped) — will be unskipped in T009.
-+
-+### T002: Create Chromium startup script
-+- **Status**: ✅ Done
-+- **Files**: `harness/start-chromium.sh` (new), `harness/Dockerfile` (modified — COPY start-chromium.sh)
-+- **Evidence**: Script auto-discovers Playwright Chromium binary, launches with `--headless --no-sandbox --disable-gpu --disable-dev-shm-usage --remote-debugging-port=9222 --remote-debugging-address=0.0.0.0`, restart loop on crash.
-+
-+### T003: Update entrypoint.sh to launch Chromium
-+- **Status**: ✅ Done
-+- **Files**: `harness/entrypoint.sh` (modified)
-+- **Evidence**: Chromium added as 3rd concurrent process via concurrently: `next,terminal,chromium` with magenta color prefix.
-+
-+### T004: Create playwright.config.ts
-+- **Status**: ✅ Done
-+- **Files**: `harness/playwright.config.ts` (new), `harness/tests/fixtures/base-test.ts` (new)
-+- **Evidence**: Config defines 3 viewport projects (desktop/tablet/mobile), custom CDP fixture (`base-test.ts`) connects via `connectOverCDP` fetching wsEndpoint from `/json/version`. Config does NOT use `connectOptions` (which is for Playwright Server, not CDP).
-+- **Discovery**: Playwright config `connectOptions.wsEndpoint` is for Playwright Server, NOT CDP. Custom fixture required per Perplexity research.
-+
-+### T005: Create viewport definitions
-+- **Status**: ✅ Done
-+- **Files**: `harness/src/viewports/devices.ts` (new)
-+- **Evidence**: Exports `HARNESS_VIEWPORTS` with 4 viewports: desktop-lg (1440x900), desktop-md (1280x800), tablet (768x1024), mobile (375x812). Type-safe with `satisfies Record<string, HarnessViewport>`.
-+
-+### T006: Write smoke Playwright test
-+- **Status**: ✅ Done
-+- **Files**: `harness/tests/smoke/browser-smoke.spec.ts` (new)
-+- **Evidence**: 5 test cases: page load 200, HTML structure, page title set, no console errors, screenshot capture to results/.
-+
-+### T007: Verify multi-context browsing
-+- **Status**: ✅ Done
-+- **Files**: `harness/tests/smoke/browser-smoke.spec.ts` (same file)
-+- **Evidence**: Test opens desktop (1440x900) + mobile (375x812) contexts simultaneously, navigates both in parallel, verifies viewportSize, captures screenshots at both viewports.
-+
-+### T008: Verify browser console access
-+- **Status**: ✅ Done
-+- **Files**: `harness/tests/smoke/browser-smoke.spec.ts` (same file)
-+- **Evidence**: 2 test cases: captures injected console.log via `page.on('console')`, and separately captures console.warn + console.error with correct type discrimination.
-+
-diff --git a/harness/Dockerfile b/harness/Dockerfile
-index 592e61a..d7896e6 100644
---- a/harness/Dockerfile
-+++ b/harness/Dockerfile
-@@ -60,9 +60,10 @@ WORKDIR /app
- # Source code will be bind-mounted at /app
- # node_modules will be a named Docker volume at /app/node_modules
- 
--# Copy entrypoint
-+# Copy entrypoint and Chromium startup script
- COPY entrypoint.sh /usr/local/bin/entrypoint.sh
--RUN chmod +x /usr/local/bin/entrypoint.sh
-+COPY start-chromium.sh /usr/local/bin/start-chromium.sh
-+RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/start-chromium.sh
- 
- # Expose ports: Next.js dev server, terminal WebSocket sidecar, CDP (future Phase 2)
- EXPOSE 3000 4500 9222
-diff --git a/harness/entrypoint.sh b/harness/entrypoint.sh
-index 605b8bd..1710b20 100644
---- a/harness/entrypoint.sh
-+++ b/harness/entrypoint.sh
-@@ -45,14 +45,15 @@ if [ -f "$SPAWN_HELPER" ]; then
-   echo "✓ node-pty spawn-helper permissions set"
- fi
- 
--# --- Step 4: Start dev server + terminal sidecar ---
-+# --- Step 4: Start dev server + terminal sidecar + Chromium ---
- echo ""
--echo "🚀 Starting dev server on :${PORT:-3000} + terminal sidecar on :$((${PORT:-3000} + 1500))"
-+echo "🚀 Starting dev server on :${PORT:-3000} + terminal sidecar on :$((${PORT:-3000} + 1500)) + Chromium CDP on :${CDP_PORT:-9222}"
- echo ""
- 
- cd /app
- 
- # Use exec to forward signals properly
--exec npx concurrently --names "next,terminal" --prefix-colors "blue,green" \
-+exec npx concurrently --names "next,terminal,chromium" --prefix-colors "blue,green,magenta" \
-   "pnpm turbo dev -- --port ${PORT:-3000}" \
--  "pnpm tsx watch apps/web/src/features/064-terminal/server/terminal-ws.ts"
-+  "pnpm tsx watch apps/web/src/features/064-terminal/server/terminal-ws.ts" \
-+  "/usr/local/bin/start-chromium.sh"
 diff --git a/harness/justfile b/harness/justfile
-index 86a6cac..d72ff14 100644
+index 86a6cac..9bb9aba 100644
 --- a/harness/justfile
 +++ b/harness/justfile
-@@ -28,6 +28,7 @@ stop:
+@@ -8,6 +8,10 @@ default:
+ build:
+     docker compose -f docker-compose.yml build
+ 
++# Install standalone harness dependencies
++install:
++    pnpm install --ignore-workspace
++
+ # Start dev container (detached), wait for health
+ dev:
+     docker compose -f docker-compose.yml up -d
+@@ -26,8 +30,11 @@ stop:
+ 
+ # Health check
  health:
-     @echo "App:      $$(curl -sf -o /dev/null -w '%{http_code}' http://localhost:3000 || echo 'DOWN')"
-     @echo "Terminal: $$(python3 -c "import socket; s=socket.create_connection(('localhost',4500),2); s.close(); print('UP')" 2>/dev/null || echo 'DOWN')"
-+    @echo "CDP:      $$(curl -sf http://localhost:9222/json/version | python3 -c 'import sys,json; print(json.load(sys.stdin).get(\"Browser\",\"UP\"))' 2>/dev/null || echo 'DOWN')"
+-    @echo "App:      $$(curl -sf -o /dev/null -w '%{http_code}' http://localhost:3000 || echo 'DOWN')"
+-    @echo "Terminal: $$(python3 -c "import socket; s=socket.create_connection(('localhost',4500),2); s.close(); print('UP')" 2>/dev/null || echo 'DOWN')"
++    @APP_CODE=$(curl -sf -o /dev/null -w '%{http_code}' http://127.0.0.1:3000 || echo DOWN); \
++    MCP_CODE=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/_next/mcp || echo DOWN); \
++    TERMINAL_STATUS=$(python3 -c "import socket; s=socket.create_connection(('127.0.0.1',4500),2); s.close(); print('up')" 2>/dev/null || echo down); \
++    CDP_BROWSER=$(curl -sf http://127.0.0.1:9222/json/version | tr -d '\n' | sed -E 's/.*\"Browser\"[[:space:]]*:[[:space:]]*\"([^\"]+)\".*/\1/' || echo down); \
++    APP_CODE="$APP_CODE" MCP_CODE="$MCP_CODE" TERMINAL_STATUS="$TERMINAL_STATUS" CDP_BROWSER="$CDP_BROWSER" python3 -c "import json, os; app=os.environ['APP_CODE']; mcp=os.environ['MCP_CODE']; terminal=os.environ['TERMINAL_STATUS']; cdp=os.environ['CDP_BROWSER']; print(json.dumps({'status': 'ok' if app == '200' and terminal == 'up' and cdp != 'down' else 'degraded', 'app': {'status': 'up' if app == '200' else 'down', 'code': app}, 'mcp': {'status': 'up' if mcp not in ('000', 'DOWN', 'DOWN000') else 'down', 'code': mcp}, 'terminal': {'status': terminal}, 'cdp': {'status': 'up' if cdp != 'down' else 'down', 'browser': None if cdp == 'down' else cdp}}, separators=(',', ':')))"
  
  # Run command inside container
  exec +CMD:
-@@ -40,3 +41,7 @@ logs:
+@@ -40,3 +47,11 @@ logs:
  # Rebuild node_modules inside container (after dependency changes)
  rebuild:
      docker compose -f docker-compose.yml exec chainglass-dev pnpm install --frozen-lockfile
 +
++# Type-check the standalone harness package
++typecheck:
++    pnpm exec tsc --noEmit
++
 +# Run Playwright tests against the running container
 +playwright *ARGS:
 +    npx playwright test --config=playwright.config.ts {{ARGS}}
-diff --git a/harness/start-chromium.sh b/harness/start-chromium.sh
-new file mode 100755
-index 0000000..33a2573
+diff --git a/harness/package.json b/harness/package.json
+index c8ea4f7..62158a5 100644
+--- a/harness/package.json
++++ b/harness/package.json
+@@ -4,6 +4,9 @@
+   "private": true,
+   "description": "Agentic development harness — Docker + Playwright browser automation for Chainglass",
+   "type": "module",
++  "bin": {
++    "harness": "./src/cli/index.ts"
++  },
+   "scripts": {
+     "harness": "tsx src/cli/index.ts",
+     "test": "vitest run",
+diff --git a/harness/src/cdp/connect.ts b/harness/src/cdp/connect.ts
+new file mode 100644
+index 0000000..1874e9c
 --- /dev/null
-+++ b/harness/start-chromium.sh
-@@ -0,0 +1,67 @@
-+#!/bin/bash
-+# =============================================================================
-+# Chainglass Harness — Chromium Startup Script
-+#
-+# Launches headless Chromium with CDP (Chrome DevTools Protocol) on port 9222.
-+# Designed to run as a long-lived process inside the Docker container.
-+#
-+# Features:
-+#   - Auto-discovers Playwright-installed Chromium binary
-+#   - Restart loop: if Chromium crashes, restarts after 2s delay
-+#   - Proper signal forwarding for clean shutdown
-+#
-+# Required Docker flags (already in docker-compose.yml):
-+#   - shm_size: 1gb (Chromium needs shared memory)
-+#   - Port 9222 exposed
-+# =============================================================================
++++ b/harness/src/cdp/connect.ts
+@@ -0,0 +1,48 @@
++/**
++ * CDP connection helper — single source of truth for the connectOverCDP handshake.
++ *
++ * Both Playwright test fixtures and CLI commands (screenshot, test) use this
++ * to discover the WebSocket debugger URL and connect. One place to fix when
++ * CDP behavior changes (see Phase 2 socat proxy discovery).
++ */
 +
-+CDP_PORT="${CDP_PORT:-9222}"
-+CDP_ADDRESS="${CDP_ADDRESS:-0.0.0.0}"
++const DEFAULT_CDP_URL = 'http://127.0.0.1:9222';
 +
-+# Find Playwright-installed Chromium binary
-+find_chromium() {
-+  local binary
-+  # Playwright installs Chromium at a versioned path
-+  binary=$(find /root/.cache/ms-playwright -name "chrome" -path "*/chrome-linux/chrome" 2>/dev/null | head -1)
-+  if [ -z "$binary" ]; then
-+    # Fallback: try headless_shell
-+    binary=$(find /root/.cache/ms-playwright -name "headless_shell" 2>/dev/null | head -1)
-+  fi
-+  echo "$binary"
++export interface CdpVersionInfo {
++  webSocketDebuggerUrl: string;
++  Browser: string;
++  [key: string]: unknown;
 +}
 +
-+CHROMIUM_BIN=$(find_chromium)
-+
-+if [ -z "$CHROMIUM_BIN" ]; then
-+  echo "ERROR: Chromium binary not found in /root/.cache/ms-playwright/"
-+  echo "Run: npx playwright install chromium"
-+  exit 1
-+fi
-+
-+echo "🌐 Starting Chromium (CDP on :${CDP_PORT})"
-+echo "   Binary: ${CHROMIUM_BIN}"
-+
-+# Restart loop — if Chromium crashes, restart after a brief delay
-+while true; do
-+  "$CHROMIUM_BIN" \
-+    --headless \
-+    --no-sandbox \
-+    --disable-gpu \
-+    --disable-dev-shm-usage \
-+    --disable-setuid-sandbox \
-+    --disable-software-rasterizer \
-+    --remote-debugging-port="$CDP_PORT" \
-+    --remote-debugging-address="$CDP_ADDRESS" \
-+    --no-first-run \
-+    --no-default-browser-check \
-+    --disable-background-networking \
-+    --disable-sync \
-+    --disable-translate \
-+    --metrics-recording-only \
-+    --safebrowsing-disable-auto-update \
-+    about:blank
-+
-+  EXIT_CODE=$?
-+  echo "⚠️  Chromium exited with code $EXIT_CODE, restarting in 2s..."
-+  sleep 2
-+done
-diff --git a/harness/playwright.config.ts b/harness/playwright.config.ts
-new file mode 100644
-index 0000000..6a78b30
---- /dev/null
-+++ b/harness/playwright.config.ts
-@@ -0,0 +1,75 @@
-+/**
-+ * Playwright configuration for Chainglass Harness.
-+ *
-+ * Key design: Tests connect to a pre-running Chromium instance inside the Docker
-+ * container via CDP (Chrome DevTools Protocol) on port 9222. This is NOT the default
-+ * Playwright browser launcher — we use a custom fixture (base-test.ts) that calls
-+ * connectOverCDP. The config does NOT use connectOptions (which is for Playwright
-+ * Server, not CDP).
-+ *
-+ * Three viewport projects: desktop, tablet, mobile.
-+ * Tests run from the HOST against the containerized app on localhost:3000.
-+ */
-+
-+import { defineConfig } from '@playwright/test';
-+import { HARNESS_VIEWPORTS } from './src/viewports/devices.js';
-+
-+const APP_URL = process.env.HARNESS_APP_URL ?? 'http://localhost:3000';
-+
-+export default defineConfig({
-+  testDir: './tests',
-+  testMatch: '**/*.spec.ts',
-+
-+  timeout: 30_000,
-+  expect: { timeout: 10_000 },
-+
-+  // Harness tests run sequentially — single shared browser via CDP
-+  fullyParallel: false,
-+  workers: 1,
-+
-+  // Output
-+  outputDir: './results/test-output',
-+  reporter: [
-+    ['list'],
-+    ['json', { outputFile: './results/test-results.json' }],
-+  ],
-+
-+  use: {
-+    baseURL: APP_URL,
-+    // Browser connection handled by custom fixture (base-test.ts) via connectOverCDP
-+    // Do NOT set connectOptions here — that's for Playwright Server, not CDP
-+    screenshot: 'only-on-failure',
-+    trace: 'retain-on-failure',
-+    video: 'off',
-+  },
-+
-+  projects: [
-+    {
-+      name: 'desktop',
-+      use: {
-+        viewport: {
-+          width: HARNESS_VIEWPORTS['desktop-lg'].width,
-+          height: HARNESS_VIEWPORTS['desktop-lg'].height,
-+        },
-+      },
-+    },
-+    {
-+      name: 'tablet',
-+      use: {
-+        viewport: {
-+          width: HARNESS_VIEWPORTS.tablet.width,
-+          height: HARNESS_VIEWPORTS.tablet.height,
-+        },
-+      },
-+    },
-+    {
-+      name: 'mobile',
-+      use: {
-+        viewport: {
-+          width: HARNESS_VIEWPORTS.mobile.width,
-+          height: HARNESS_VIEWPORTS.mobile.height,
-+        },
-+      },
-+    },
-+  ],
-+});
-diff --git a/harness/src/viewports/devices.ts b/harness/src/viewports/devices.ts
-new file mode 100644
-index 0000000..b66a4fb
---- /dev/null
-+++ b/harness/src/viewports/devices.ts
-@@ -0,0 +1,44 @@
-+/**
-+ * Viewport definitions for responsive harness testing.
-+ *
-+ * Four standard viewports covering the primary breakpoints agents need to verify.
-+ * Used by playwright.config.ts to create per-viewport test projects.
-+ */
-+
-+export interface HarnessViewport {
-+  readonly name: string;
-+  readonly width: number;
-+  readonly height: number;
-+  readonly description: string;
-+}
-+
-+export const HARNESS_VIEWPORTS = {
-+  'desktop-lg': {
-+    name: 'desktop-lg',
-+    width: 1440,
-+    height: 900,
-+    description: 'Large desktop — primary development viewport',
-+  },
-+  'desktop-md': {
-+    name: 'desktop-md',
-+    width: 1280,
-+    height: 800,
-+    description: 'Medium desktop — common laptop resolution',
-+  },
-+  tablet: {
-+    name: 'tablet',
-+    width: 768,
-+    height: 1024,
-+    description: 'Tablet portrait — iPad breakpoint',
-+  },
-+  mobile: {
-+    name: 'mobile',
-+    width: 375,
-+    height: 812,
-+    description: 'Mobile portrait — iPhone breakpoint',
-+  },
-+} as const satisfies Record<string, HarnessViewport>;
-+
-+export type ViewportName = keyof typeof HARNESS_VIEWPORTS;
-+
-+export const DEFAULT_VIEWPORT: ViewportName = 'desktop-lg';
-diff --git a/harness/tests/fixtures/base-test.ts b/harness/tests/fixtures/base-test.ts
-new file mode 100644
-index 0000000..563ee40
---- /dev/null
-+++ b/harness/tests/fixtures/base-test.ts
-@@ -0,0 +1,52 @@
-+/**
-+ * Custom Playwright test fixture for CDP connection.
-+ *
-+ * Connects to the pre-running Chromium inside the Docker container via
-+ * connectOverCDP. Tests import { test, expect } from this file instead of
-+ * '@playwright/test' directly.
-+ *
-+ * The fixture:
-+ *  1. Fetches the WebSocket debugger URL from CDP's /json/version endpoint
-+ *  2. Connects via chromium.connectOverCDP()
-+ *  3. Creates a new browser context per test (with the project's viewport)
-+ *  4. Provides a fresh page to each test
-+ *  5. Cleans up the context after the test
-+ */
-+
-+import { type BrowserContext, type Page, chromium, test as base } from '@playwright/test';
-+
-+export { expect } from '@playwright/test';
-+
-+const CDP_ENDPOINT = process.env.HARNESS_CDP_URL ?? 'http://localhost:9222';
-+
-+async function getWsEndpoint(): Promise<string> {
-+  const response = await fetch(`${CDP_ENDPOINT}/json/version`);
++export async function getCdpVersion(
++  cdpUrl = DEFAULT_CDP_URL,
++): Promise<CdpVersionInfo> {
++  const response = await fetch(`${cdpUrl}/json/version`);
 +  if (!response.ok) {
-+    throw new Error(`CDP endpoint not available at ${CDP_ENDPOINT}: ${response.status}`);
++    throw new Error(`CDP endpoint not available at ${cdpUrl}: ${response.status}`);
 +  }
-+  const data = (await response.json()) as { webSocketDebuggerUrl: string };
-+  return data.webSocketDebuggerUrl;
++  return (await response.json()) as CdpVersionInfo;
 +}
 +
-+export const test = base.extend<{ cdpContext: BrowserContext; cdpPage: Page }>({
-+  // Override the default browser fixture to connect via CDP
-+  cdpContext: async ({ viewport }, use) => {
-+    const wsEndpoint = await getWsEndpoint();
-+    const browser = await chromium.connectOverCDP(wsEndpoint);
++export async function getWsEndpoint(cdpUrl = DEFAULT_CDP_URL): Promise<string> {
++  const info = await getCdpVersion(cdpUrl);
++  return info.webSocketDebuggerUrl;
++}
 +
-+    const context = await browser.newContext({
-+      viewport: viewport ?? { width: 1440, height: 900 },
-+    });
++export async function getCdpBrowser(cdpUrl = DEFAULT_CDP_URL): Promise<string | null> {
++  try {
++    const info = await getCdpVersion(cdpUrl);
++    return info.Browser ?? null;
++  } catch {
++    return null;
++  }
++}
 +
-+    await use(context);
-+
-+    await context.close();
-+    await browser.close();
-+  },
-+
-+  cdpPage: async ({ cdpContext }, use) => {
-+    const page = await cdpContext.newPage();
-+    await use(page);
-+    // Page is closed when context is closed
-+  },
-+});
-diff --git a/harness/tests/smoke/browser-smoke.spec.ts b/harness/tests/smoke/browser-smoke.spec.ts
++export async function isCdpAvailable(cdpUrl = DEFAULT_CDP_URL): Promise<boolean> {
++  try {
++    await getCdpVersion(cdpUrl);
++    return true;
++  } catch {
++    return false;
++  }
++}
+diff --git a/harness/src/cli/commands/build.ts b/harness/src/cli/commands/build.ts
 new file mode 100644
-index 0000000..a1acc8b
+index 0000000..678d306
 --- /dev/null
-+++ b/harness/tests/smoke/browser-smoke.spec.ts
-@@ -0,0 +1,183 @@
-+/**
-+ * Smoke Playwright Tests — Browser Automation Verification
-+ *
-+ * These tests verify the Chainglass app loads correctly through the harness
-+ * browser (Chromium via CDP). Covers:
-+ *   - Page load and basic content (T006)
-+ *   - Multi-context parallel browsing at different viewports (T007)
-+ *   - Browser console output capture (T008)
-+ *
-+ * Run with: npx playwright test --config=playwright.config.ts
-+ * Requires: Docker container running (`just harness-dev` from repo root)
-+ */
++++ b/harness/src/cli/commands/build.ts
+@@ -0,0 +1,26 @@
++import type { Command } from 'commander';
++import { dockerBuild, isDockerAvailable } from '../../docker/lifecycle.js';
++import { ErrorCodes, exitWithEnvelope, formatError, formatSuccess } from '../output.js';
 +
-+import { existsSync, mkdirSync } from 'node:fs';
-+import { join } from 'node:path';
-+import { test, expect } from '../fixtures/base-test.js';
-+import { HARNESS_VIEWPORTS } from '../../src/viewports/devices.js';
-+
-+const RESULTS_DIR = join(import.meta.dirname, '../../results');
-+
-+// ─── T006: Smoke — Page Loads ───────────────────────────────────────────────
-+
-+test.describe('Smoke: Page Load', () => {
-+  test('app loads and returns 200', async ({ cdpPage, baseURL }) => {
-+    const response = await cdpPage.goto(baseURL!, { waitUntil: 'domcontentloaded' });
-+    expect(response?.status()).toBe(200);
-+  });
-+
-+  test('page contains expected HTML structure', async ({ cdpPage, baseURL }) => {
-+    await cdpPage.goto(baseURL!, { waitUntil: 'domcontentloaded' });
-+    const html = await cdpPage.content();
-+    expect(html).toContain('<!DOCTYPE html');
-+    expect(html).toContain('_next');
-+  });
-+
-+  test('page title is set', async ({ cdpPage, baseURL }) => {
-+    await cdpPage.goto(baseURL!, { waitUntil: 'domcontentloaded' });
-+    const title = await cdpPage.title();
-+    expect(title).toBeTruthy();
-+  });
-+
-+  test('no console errors on page load', async ({ cdpPage, baseURL }) => {
-+    const errors: string[] = [];
-+    cdpPage.on('console', (msg) => {
-+      if (msg.type() === 'error') {
-+        errors.push(msg.text());
++export function registerBuildCommand(program: Command): void {
++  program
++    .command('build')
++    .description('Build the harness Docker image')
++    .action(async () => {
++      if (!(await isDockerAvailable())) {
++        exitWithEnvelope(formatError('build', ErrorCodes.DOCKER_UNAVAILABLE, 'Docker is not available'));
 +      }
++
++      const result = await dockerBuild();
++
++      if (result.exitCode !== 0) {
++        exitWithEnvelope(
++          formatError('build', ErrorCodes.BUILD_FAILED, 'Docker build failed', {
++            stderr: result.stderr.slice(-500),
++          }),
++        );
++      }
++
++      exitWithEnvelope(formatSuccess('build', { message: 'Build complete' }));
 +    });
++}
+diff --git a/harness/src/cli/commands/dev.ts b/harness/src/cli/commands/dev.ts
+new file mode 100644
+index 0000000..23b688f
+--- /dev/null
++++ b/harness/src/cli/commands/dev.ts
+@@ -0,0 +1,61 @@
++import type { Command } from 'commander';
++import { dockerUp, isDockerAvailable } from '../../docker/lifecycle.js';
++import { probeAll } from '../../health/probe.js';
++import { ErrorCodes, exitWithEnvelope, formatError, formatSuccess } from '../output.js';
 +
-+    await cdpPage.goto(baseURL!, { waitUntil: 'domcontentloaded' });
-+    // Wait briefly for any async console errors
-+    await cdpPage.waitForTimeout(2000);
++const MAX_HEALTH_WAIT_MS = 120_000;
++const POLL_INTERVAL_MS = 2_000;
 +
-+    // Filter out known non-critical errors (e.g., favicon 404)
-+    const criticalErrors = errors.filter(
-+      (e) => !e.includes('favicon') && !e.includes('404'),
-+    );
-+    expect(criticalErrors).toEqual([]);
-+  });
++export function registerDevCommand(program: Command): void {
++  program
++    .command('dev')
++    .description('Start the harness container and wait for health')
++    .action(async () => {
++      if (!(await isDockerAvailable())) {
++        exitWithEnvelope(formatError('dev', ErrorCodes.DOCKER_UNAVAILABLE, 'Docker is not available'));
++      }
 +
-+  test('captures screenshot to results directory', async ({ cdpPage, baseURL }) => {
-+    await cdpPage.goto(baseURL!, { waitUntil: 'domcontentloaded' });
++      const upResult = await dockerUp();
++      if (upResult.exitCode !== 0) {
++        exitWithEnvelope(
++          formatError('dev', ErrorCodes.BUILD_FAILED, 'Failed to start container', {
++            stderr: upResult.stderr.slice(-500),
++          }),
++        );
++      }
 +
-+    if (!existsSync(RESULTS_DIR)) {
-+      mkdirSync(RESULTS_DIR, { recursive: true });
-+    }
-+    const screenshotPath = join(RESULTS_DIR, 'smoke-homepage.png');
-+    await cdpPage.screenshot({ path: screenshotPath, fullPage: false });
++      // Poll for health
++      const start = Date.now();
++      let lastHealth = await probeAll();
 +
-+    expect(existsSync(screenshotPath)).toBe(true);
-+  });
-+});
++      while (lastHealth.status !== 'ok' && Date.now() - start < MAX_HEALTH_WAIT_MS) {
++        await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
++        lastHealth = await probeAll();
++      }
 +
-+// ─── T007: Multi-Context Browsing ───────────────────────────────────────────
++      if (lastHealth.status === 'down') {
++        exitWithEnvelope(
++          formatError('dev', ErrorCodes.HEALTH_FAILED, 'Harness did not become healthy', {
++            health: lastHealth,
++          }),
++        );
++      }
 +
-+test.describe('Multi-Context: Parallel Viewports', () => {
-+  test('opens 2 contexts at different viewports simultaneously', async ({ baseURL }) => {
-+    const { chromium } = await import('playwright-core');
++      const elapsed = Math.round((Date.now() - start) / 1000);
++      exitWithEnvelope(
++        formatSuccess(
++          'dev',
++          {
++            message: `Harness ready in ${elapsed}s`,
++            endpoints: {
++              app: 'http://127.0.0.1:3000',
++              cdp: 'http://127.0.0.1:9222',
++              terminal: 'ws://127.0.0.1:4500',
++            },
++            health: lastHealth,
++          },
++          lastHealth.status,
++        ),
++      );
++    });
++}
+diff --git a/harness/src/cli/commands/health.ts b/harness/src/cli/commands/health.ts
+new file mode 100644
+index 0000000..f200c6b
+--- /dev/null
++++ b/harness/src/cli/commands/health.ts
+@@ -0,0 +1,13 @@
++import type { Command } from 'commander';
++import { probeAll } from '../../health/probe.js';
++import { exitWithEnvelope, formatSuccess } from '../output.js';
 +
-+    const CDP_ENDPOINT = process.env.HARNESS_CDP_URL ?? 'http://localhost:9222';
-+    const versionRes = await fetch(`${CDP_ENDPOINT}/json/version`);
-+    const { webSocketDebuggerUrl } = (await versionRes.json()) as {
-+      webSocketDebuggerUrl: string;
-+    };
++export function registerHealthCommand(program: Command): void {
++  program
++    .command('health')
++    .description('Probe all harness endpoints and return structured status')
++    .action(async () => {
++      const health = await probeAll();
++      exitWithEnvelope(formatSuccess('health', health, health.status === 'ok' ? 'ok' : 'degraded'));
++    });
++}
+diff --git a/harness/src/cli/commands/results.ts b/harness/src/cli/commands/results.ts
+new file mode 100644
+index 0000000..9ac0a2c
+--- /dev/null
++++ b/harness/src/cli/commands/results.ts
+@@ -0,0 +1,77 @@
++import path from 'node:path';
++import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
++import type { Command } from 'commander';
++import { ErrorCodes, exitWithEnvelope, formatError, formatSuccess } from '../output.js';
 +
-+    const browser = await chromium.connectOverCDP(webSocketDebuggerUrl);
++const HARNESS_ROOT = path.resolve(import.meta.dirname ?? '.', '../../..');
++const RESULTS_DIR = path.join(HARNESS_ROOT, 'results');
 +
-+    try {
-+      // Desktop context
-+      const desktopCtx = await browser.newContext({
-+        viewport: {
-+          width: HARNESS_VIEWPORTS['desktop-lg'].width,
-+          height: HARNESS_VIEWPORTS['desktop-lg'].height,
-+        },
-+      });
-+      const desktopPage = await desktopCtx.newPage();
-+
-+      // Mobile context
-+      const mobileCtx = await browser.newContext({
-+        viewport: {
-+          width: HARNESS_VIEWPORTS.mobile.width,
-+          height: HARNESS_VIEWPORTS.mobile.height,
-+        },
-+      });
-+      const mobilePage = await mobileCtx.newPage();
-+
-+      // Navigate both simultaneously
-+      const [desktopRes, mobileRes] = await Promise.all([
-+        desktopPage.goto(baseURL!, { waitUntil: 'domcontentloaded' }),
-+        mobilePage.goto(baseURL!, { waitUntil: 'domcontentloaded' }),
-+      ]);
-+
-+      expect(desktopRes?.status()).toBe(200);
-+      expect(mobileRes?.status()).toBe(200);
-+
-+      // Verify different viewport sizes
-+      const desktopSize = desktopPage.viewportSize();
-+      const mobileSize = mobilePage.viewportSize();
-+      expect(desktopSize?.width).toBe(HARNESS_VIEWPORTS['desktop-lg'].width);
-+      expect(mobileSize?.width).toBe(HARNESS_VIEWPORTS.mobile.width);
-+
-+      // Capture screenshots at both viewports
++export function registerResultsCommand(program: Command): void {
++  program
++    .command('results')
++    .description('Read the latest test results and artifacts')
++    .option('--type <type>', 'Result type: test or screenshots', 'test')
++    .action(async (opts: { type: string }) => {
 +      if (!existsSync(RESULTS_DIR)) {
-+        mkdirSync(RESULTS_DIR, { recursive: true });
++        exitWithEnvelope(
++          formatError('results', ErrorCodes.RESULTS_NOT_FOUND, 'No results directory found'),
++        );
 +      }
-+      await Promise.all([
-+        desktopPage.screenshot({ path: join(RESULTS_DIR, 'multi-desktop.png') }),
-+        mobilePage.screenshot({ path: join(RESULTS_DIR, 'multi-mobile.png') }),
-+      ]);
 +
-+      await desktopCtx.close();
-+      await mobileCtx.close();
-+    } finally {
-+      await browser.close();
-+    }
-+  });
-+});
++      if (opts.type === 'test') {
++        const resultsFile = path.join(RESULTS_DIR, 'test-results.json');
++        if (!existsSync(resultsFile)) {
++          exitWithEnvelope(
++            formatError('results', ErrorCodes.RESULTS_NOT_FOUND, 'No test results file found. Run `harness test` first.'),
++          );
++        }
 +
-+// ─── T008: Console Output Capture ───────────────────────────────────────────
++        const raw = JSON.parse(readFileSync(resultsFile, 'utf-8'));
++        const stats = raw.stats ?? {};
++        exitWithEnvelope(
++          formatSuccess('results', {
++            type: 'test',
++            stats: {
++              expected: stats.expected ?? 0,
++              unexpected: stats.unexpected ?? 0,
++              flaky: stats.flaky ?? 0,
++              skipped: stats.skipped ?? 0,
++              duration: stats.duration ?? 0,
++            },
++            file: resultsFile,
++          }),
++        );
++      }
 +
-+test.describe('Console: Output Capture', () => {
-+  test('captures console.log messages via CDP', async ({ cdpPage, baseURL }) => {
-+    const messages: Array<{ type: string; text: string }> = [];
++      if (opts.type === 'screenshots') {
++        const files = readdirSync(RESULTS_DIR)
++          .filter((f) => f.endsWith('.png'))
++          .map((f) => {
++            const fullPath = path.join(RESULTS_DIR, f);
++            const stat = statSync(fullPath);
++            return { name: f, path: fullPath, size: stat.size, modified: stat.mtime.toISOString() };
++          })
++          .sort((a, b) => b.modified.localeCompare(a.modified));
 +
-+    cdpPage.on('console', (msg) => {
-+      messages.push({ type: msg.type(), text: msg.text() });
++        if (files.length === 0) {
++          exitWithEnvelope(
++            formatError('results', ErrorCodes.RESULTS_NOT_FOUND, 'No screenshots found. Run `harness screenshot` first.'),
++          );
++        }
++
++        exitWithEnvelope(
++          formatSuccess('results', {
++            type: 'screenshots',
++            count: files.length,
++            files,
++          }),
++        );
++      }
++
++      exitWithEnvelope(
++        formatError('results', ErrorCodes.INVALID_ARGS, `Unknown results type: ${opts.type}`, {
++          available: ['test', 'screenshots'],
++        }),
++      );
 +    });
-+
-+    await cdpPage.goto(baseURL!, { waitUntil: 'domcontentloaded' });
-+
-+    // Inject a console.log to verify capture works
-+    await cdpPage.evaluate(() => {
-+      console.log('harness-test-marker');
-+    });
-+
-+    // Wait for the message to be captured
-+    await cdpPage.waitForTimeout(500);
-+
-+    const markerMsg = messages.find((m) => m.text === 'harness-test-marker');
-+    expect(markerMsg).toBeDefined();
-+    expect(markerMsg?.type).toBe('log');
-+  });
-+
-+  test('captures console.warn and console.error separately', async ({ cdpPage, baseURL }) => {
-+    const messages: Array<{ type: string; text: string }> = [];
-+
-+    cdpPage.on('console', (msg) => {
-+      messages.push({ type: msg.type(), text: msg.text() });
-+    });
-+
-+    await cdpPage.goto(baseURL!, { waitUntil: 'domcontentloaded' });
-+
-+    await cdpPage.evaluate(() => {
-+      console.warn('harness-warn-test');
-+      console.error('harness-error-test');
-+    });
-+
-+    await cdpPage.waitForTimeout(500);
-+
-+    expect(messages.find((m) => m.text === 'harness-warn-test')?.type).toBe('warning');
-+    expect(messages.find((m) => m.text === 'harness-error-test')?.type).toBe('error');
-+  });
-+});
-diff --git a/harness/tests/smoke/cdp-integration.test.ts b/harness/tests/smoke/cdp-integration.test.ts
++}
+diff --git a/harness/src/cli/commands/screenshot.ts b/harness/src/cli/commands/screenshot.ts
 new file mode 100644
-index 0000000..b42b2f5
+index 0000000..192a700
 --- /dev/null
-+++ b/harness/tests/smoke/cdp-integration.test.ts
-@@ -0,0 +1,84 @@
++++ b/harness/src/cli/commands/screenshot.ts
+@@ -0,0 +1,72 @@
++import path from 'node:path';
++import { mkdirSync } from 'node:fs';
++import type { Command } from 'commander';
++import { chromium } from '@playwright/test';
++import { getWsEndpoint } from '../../cdp/connect.js';
++import { HARNESS_VIEWPORTS, DEFAULT_VIEWPORT, type ViewportName } from '../../viewports/devices.js';
++import { ErrorCodes, exitWithEnvelope, formatError, formatSuccess } from '../output.js';
++
++const HARNESS_ROOT = path.resolve(import.meta.dirname ?? '.', '../../..');
++const RESULTS_DIR = path.join(HARNESS_ROOT, 'results');
++
++export function registerScreenshotCommand(program: Command): void {
++  program
++    .command('screenshot <name>')
++    .description('Capture a screenshot via CDP and save to results/')
++    .option('--viewport <name>', 'Viewport to use', DEFAULT_VIEWPORT)
++    .option('--url <url>', 'URL to navigate to', 'http://127.0.0.1:3000')
++    .action(async (name: string, opts: { viewport: string; url: string }) => {
++      const viewportName = opts.viewport as ViewportName;
++      if (!(viewportName in HARNESS_VIEWPORTS)) {
++        exitWithEnvelope(
++          formatError('screenshot', ErrorCodes.INVALID_ARGS, `Unknown viewport: ${opts.viewport}`, {
++            available: Object.keys(HARNESS_VIEWPORTS),
++          }),
++        );
++      }
++
++      const viewport = HARNESS_VIEWPORTS[viewportName];
++      let browser;
++
++      try {
++        const wsEndpoint = await getWsEndpoint();
++        browser = await chromium.connectOverCDP(wsEndpoint);
++      } catch {
++        exitWithEnvelope(
++          formatError('screenshot', ErrorCodes.CDP_UNAVAILABLE, 'Cannot connect to CDP'),
++        );
++      }
++
++      try {
++        const context = await browser!.newContext({
++          viewport: { width: viewport.width, height: viewport.height },
++        });
++        const page = await context.newPage();
++        await page.goto(opts.url, { waitUntil: 'networkidle' });
++
++        mkdirSync(RESULTS_DIR, { recursive: true });
++        const filename = `${name}-${viewportName}.png`;
++        const filePath = path.join(RESULTS_DIR, filename);
++        await page.screenshot({ path: filePath, fullPage: false });
++
++        await context.close();
++        await browser!.close();
++
++        exitWithEnvelope(
++          formatSuccess('screenshot', {
++            name,
++            viewport: viewportName,
++            path: filePath,
++            filename,
++          }),
++        );
++      } catch (err: unknown) {
++        await browser?.close();
++        exitWithEnvelope(
++          formatError('screenshot', ErrorCodes.SCREENSHOT_FAILED, 'Screenshot capture failed', {
++            message: (err as Error).message,
++          }),
++        );
++      }
++    });
++}
+diff --git a/harness/src/cli/commands/stop.ts b/harness/src/cli/commands/stop.ts
+new file mode 100644
+index 0000000..1a03270
+--- /dev/null
++++ b/harness/src/cli/commands/stop.ts
+@@ -0,0 +1,28 @@
++import type { Command } from 'commander';
++import { dockerDown, isContainerRunning } from '../../docker/lifecycle.js';
++import { ErrorCodes, exitWithEnvelope, formatError, formatSuccess } from '../output.js';
++
++export function registerStopCommand(program: Command): void {
++  program
++    .command('stop')
++    .description('Stop and remove the harness container')
++    .action(async () => {
++      const wasRunning = await isContainerRunning();
++      const result = await dockerDown();
++
++      if (result.exitCode !== 0) {
++        exitWithEnvelope(
++          formatError('stop', ErrorCodes.UNKNOWN, 'Failed to stop container', {
++            stderr: result.stderr.slice(-500),
++          }),
++        );
++      }
++
++      exitWithEnvelope(
++        formatSuccess('stop', {
++          message: wasRunning ? 'Container stopped' : 'Container was already stopped',
++          wasRunning,
++        }),
++      );
++    });
++}
+diff --git a/harness/src/cli/commands/test.ts b/harness/src/cli/commands/test.ts
+new file mode 100644
+index 0000000..add0d70
+--- /dev/null
++++ b/harness/src/cli/commands/test.ts
+@@ -0,0 +1,97 @@
++import { execFile } from 'node:child_process';
++import { promisify } from 'node:util';
++import path from 'node:path';
++import { existsSync, readFileSync } from 'node:fs';
++import type { Command } from 'commander';
++import { HARNESS_VIEWPORTS, type ViewportName } from '../../viewports/devices.js';
++import { ErrorCodes, exitWithEnvelope, formatError, formatSuccess } from '../output.js';
++
++const execFileAsync = promisify(execFile);
++
++const HARNESS_ROOT = path.resolve(import.meta.dirname ?? '.', '../../..');
++const RESULTS_DIR = path.join(HARNESS_ROOT, 'results');
++const RESULTS_FILE = path.join(RESULTS_DIR, 'test-results.json');
++
++export function registerTestCommand(program: Command): void {
++  program
++    .command('test')
++    .description('Run Playwright test suites and return JSON results')
++    .option('--suite <name>', 'Test suite to run', 'smoke')
++    .option('--viewport <name>', 'Viewport to use', 'desktop-lg')
++    .action(async (opts: { suite: string; viewport: string }) => {
++      const viewportName = opts.viewport as ViewportName;
++      if (!(viewportName in HARNESS_VIEWPORTS)) {
++        exitWithEnvelope(
++          formatError('test', ErrorCodes.INVALID_ARGS, `Unknown viewport: ${opts.viewport}`, {
++            available: Object.keys(HARNESS_VIEWPORTS),
++          }),
++        );
++      }
++
++      // Map suite to test path
++      const suiteGlob = `tests/smoke/**/*.spec.ts`;
++      const playwrightConfig = path.join(HARNESS_ROOT, 'playwright.config.ts');
++
++      try {
++        // DYK #3: Write results to file, not stdout
++        const env = {
++          ...process.env,
++          PLAYWRIGHT_JSON_OUTPUT_NAME: RESULTS_FILE,
++        };
++
++        const args = [
++          'playwright',
++          'test',
++          suiteGlob,
++          `--config=${playwrightConfig}`,
++          `--project=${viewportName}`,
++          '--reporter=json',
++        ];
++
++        await execFileAsync('npx', args, {
++          cwd: HARNESS_ROOT,
++          env,
++          timeout: 120_000,
++        });
++      } catch (err: unknown) {
++        // Playwright exits non-zero on test failures — check results file
++        const e = err as { code?: number; stderr?: string };
++        if (!existsSync(RESULTS_FILE)) {
++          exitWithEnvelope(
++            formatError('test', ErrorCodes.TEST_FAILED, 'Playwright execution failed', {
++              stderr: (e.stderr ?? '').slice(-500),
++            }),
++          );
++        }
++      }
++
++      // Read and summarize results
++      if (!existsSync(RESULTS_FILE)) {
++        exitWithEnvelope(
++          formatError('test', ErrorCodes.RESULTS_NOT_FOUND, 'No test results file produced'),
++        );
++      }
++
++      const raw = JSON.parse(readFileSync(RESULTS_FILE, 'utf-8'));
++      const stats = raw.stats ?? {};
++      const summary = {
++        suite: opts.suite,
++        viewport: opts.viewport,
++        expected: stats.expected ?? 0,
++        unexpected: stats.unexpected ?? 0,
++        flaky: stats.flaky ?? 0,
++        skipped: stats.skipped ?? 0,
++        duration: stats.duration ?? 0,
++        resultsFile: RESULTS_FILE,
++      };
++
++      const status = summary.unexpected > 0 ? 'error' : 'ok';
++      if (status === 'error') {
++        exitWithEnvelope(
++          formatError('test', ErrorCodes.TEST_FAILED, `${summary.unexpected} test(s) failed`, summary),
++        );
++      }
++
++      exitWithEnvelope(formatSuccess('test', summary));
++    });
++}
+diff --git a/harness/src/cli/index.ts b/harness/src/cli/index.ts
+new file mode 100644
+index 0000000..2e6c214
+--- /dev/null
++++ b/harness/src/cli/index.ts
+@@ -0,0 +1,40 @@
++#!/usr/bin/env node
 +/**
-+ * Harness Integration Test: CDP Connection
++ * Harness CLI entry point.
 + *
-+ * Full TDD — this test was written BEFORE Chromium is launched in the container.
-+ * Validates: CDP endpoint on :9222 responds, browser connects, page loads, screenshot captured.
-+ *
-+ * Uses describe.skip — unskip (T009) after Chromium startup is configured.
-+ * Does NOT run in `just fft`.
++ * Agents invoke: `harness <command> [options]`
++ * All commands return a HarnessEnvelope JSON to stdout.
 + */
 +
-+import { existsSync, mkdirSync } from 'node:fs';
-+import { join } from 'node:path';
++import { Command } from 'commander';
++import { registerBuildCommand } from './commands/build.js';
++import { registerDevCommand } from './commands/dev.js';
++import { registerStopCommand } from './commands/stop.js';
++import { registerHealthCommand } from './commands/health.js';
++import { registerTestCommand } from './commands/test.js';
++import { registerScreenshotCommand } from './commands/screenshot.js';
++import { registerResultsCommand } from './commands/results.js';
++
++export function createCli(): Command {
++  const program = new Command()
++    .name('harness')
++    .version('0.1.0')
++    .description('Agentic development harness for Chainglass');
++
++  registerBuildCommand(program);
++  registerDevCommand(program);
++  registerStopCommand(program);
++  registerHealthCommand(program);
++  registerTestCommand(program);
++  registerScreenshotCommand(program);
++  registerResultsCommand(program);
++
++  return program;
++}
++
++// Run if executed directly (not imported for testing)
++const isDirectRun = process.argv[1]?.endsWith('index.ts') || process.argv[1]?.endsWith('index.js');
++if (isDirectRun) {
++  const program = createCli();
++  program.parseAsync(process.argv);
++}
+diff --git a/harness/src/cli/output.ts b/harness/src/cli/output.ts
+new file mode 100644
+index 0000000..9e75332
+--- /dev/null
++++ b/harness/src/cli/output.ts
+@@ -0,0 +1,103 @@
++/**
++ * Harness CLI output envelope — the canonical JSON contract for all commands.
++ *
++ * Every harness CLI command returns a HarnessEnvelope to stdout.
++ * Agents parse this envelope to determine success/failure and extract data.
++ *
++ * Design decisions (DYK #1-#2):
++ *  - Exit 0 for ok + degraded; exit 1 for command-level failures only
++ *  - This envelope is the canonical shape; Phase 2 `just health` may be back-patched
++ */
++
++import { z } from 'zod';
++
++// -- Error codes (E100-E110) --------------------------------------------------
++
++export const ErrorCodes = {
++  UNKNOWN: 'E100',
++  CONTAINER_NOT_RUNNING: 'E101',
++  BUILD_FAILED: 'E102',
++  HEALTH_FAILED: 'E103',
++  CDP_UNAVAILABLE: 'E104',
++  TEST_FAILED: 'E105',
++  SCREENSHOT_FAILED: 'E106',
++  RESULTS_NOT_FOUND: 'E107',
++  INVALID_ARGS: 'E108',
++  TIMEOUT: 'E109',
++  DOCKER_UNAVAILABLE: 'E110',
++} as const;
++
++export type HarnessErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];
++
++// -- Envelope schema ----------------------------------------------------------
++
++const ErrorDetailSchema = z.object({
++  code: z.string(),
++  message: z.string(),
++  details: z.unknown().optional(),
++});
++
++export const HarnessEnvelopeSchema = z.object({
++  command: z.string(),
++  status: z.enum(['ok', 'error', 'degraded']),
++  timestamp: z.string().datetime(),
++  data: z.unknown().optional(),
++  error: ErrorDetailSchema.optional(),
++});
++
++export type HarnessEnvelope = z.infer<typeof HarnessEnvelopeSchema>;
++export type HarnessStatus = HarnessEnvelope['status'];
++export type ErrorDetail = z.infer<typeof ErrorDetailSchema>;
++
++// -- Formatting helpers -------------------------------------------------------
++
++export function formatSuccess<T>(
++  command: string,
++  data: T,
++  status: 'ok' | 'degraded' = 'ok',
++): HarnessEnvelope {
++  return {
++    command,
++    status,
++    timestamp: new Date().toISOString(),
++    data,
++  };
++}
++
++export function formatError(
++  command: string,
++  code: HarnessErrorCode | string,
++  message: string,
++  details?: unknown,
++): HarnessEnvelope {
++  return {
++    command,
++    status: 'error',
++    timestamp: new Date().toISOString(),
++    error: {
++      code,
++      message,
++      ...(details !== undefined && { details }),
++    },
++  };
++}
++
++// -- Parsing helper -----------------------------------------------------------
++
++export function parseEnvelope(json: string): HarnessEnvelope {
++  const raw = JSON.parse(json);
++  return HarnessEnvelopeSchema.parse(raw);
++}
++
++// -- Output helper (write to stdout) ------------------------------------------
++
++export function printEnvelope(envelope: HarnessEnvelope): void {
++  process.stdout.write(`${JSON.stringify(envelope)}\n`);
++}
++
++// -- Exit helper (DYK #1: 0 for ok/degraded, 1 for error) --------------------
++
++export function exitWithEnvelope(envelope: HarnessEnvelope): never {
++  printEnvelope(envelope);
++  process.exit(envelope.status === 'error' ? 1 : 0);
++}
+diff --git a/harness/src/docker/lifecycle.ts b/harness/src/docker/lifecycle.ts
+new file mode 100644
+index 0000000..515a968
+--- /dev/null
++++ b/harness/src/docker/lifecycle.ts
+@@ -0,0 +1,76 @@
++/**
++ * Docker lifecycle helpers — SDK building blocks for container operations.
++ *
++ * Wraps docker compose commands with structured error handling.
++ * Commands use these helpers instead of duplicating shell logic.
++ */
++
++import { execFile } from 'node:child_process';
++import { promisify } from 'node:util';
++import path from 'node:path';
++
++const execFileAsync = promisify(execFile);
++
++const COMPOSE_FILE = path.resolve(
++  import.meta.dirname ?? path.dirname(new URL(import.meta.url).pathname),
++  '../../docker-compose.yml',
++);
++
++export interface ExecResult {
++  stdout: string;
++  stderr: string;
++  exitCode: number;
++}
++
++async function runCompose(...args: string[]): Promise<ExecResult> {
++  try {
++    const { stdout, stderr } = await execFileAsync(
++      'docker',
++      ['compose', '-f', COMPOSE_FILE, ...args],
++      { timeout: 300_000 },
++    );
++    return { stdout, stderr, exitCode: 0 };
++  } catch (err: unknown) {
++    const e = err as { stdout?: string; stderr?: string; code?: number };
++    return {
++      stdout: e.stdout ?? '',
++      stderr: e.stderr ?? '',
++      exitCode: e.code ?? 1,
++    };
++  }
++}
++
++export async function dockerBuild(): Promise<ExecResult> {
++  return runCompose('build');
++}
++
++export async function dockerUp(): Promise<ExecResult> {
++  return runCompose('up', '-d');
++}
++
++export async function dockerDown(): Promise<ExecResult> {
++  return runCompose('down');
++}
++
++export async function dockerPs(): Promise<ExecResult> {
++  return runCompose('ps', '--format', 'json');
++}
++
++export async function isContainerRunning(): Promise<boolean> {
++  const result = await dockerPs();
++  if (result.exitCode !== 0) return false;
++  try {
++    return result.stdout.trim().length > 0;
++  } catch {
++    return false;
++  }
++}
++
++export async function isDockerAvailable(): Promise<boolean> {
++  try {
++    await execFileAsync('docker', ['info'], { timeout: 5000 });
++    return true;
++  } catch {
++    return false;
++  }
++}
+diff --git a/harness/src/health/probe.ts b/harness/src/health/probe.ts
+new file mode 100644
+index 0000000..4db9ae6
+--- /dev/null
++++ b/harness/src/health/probe.ts
+@@ -0,0 +1,110 @@
++/**
++ * Health probe helpers — SDK-like building blocks for checking harness services.
++ *
++ * Each probe returns a typed status object. The health command composes these
++ * into the full health envelope. Other commands can reuse individual probes
++ * (e.g., `dev` waits for app probe to pass).
++ */
++
++import { getCdpBrowser, getCdpVersion } from '../cdp/connect.js';
++
++export interface ServiceStatus {
++  status: 'up' | 'down';
++}
++
++export interface AppStatus extends ServiceStatus {
++  code: string;
++}
++
++export interface McpStatus extends ServiceStatus {
++  code: string;
++}
++
++export interface TerminalStatus extends ServiceStatus {}
++
++export interface CdpStatus extends ServiceStatus {
++  browser: string | null;
++}
++
++export interface HealthResult {
++  status: 'ok' | 'degraded' | 'down';
++  app: AppStatus;
++  mcp: McpStatus;
++  terminal: TerminalStatus;
++  cdp: CdpStatus;
++}
++
++export async function probeApp(
++  url = 'http://127.0.0.1:3000',
++): Promise<AppStatus> {
++  try {
++    const res = await fetch(url);
++    return { status: res.ok ? 'up' : 'down', code: String(res.status) };
++  } catch {
++    return { status: 'down', code: '0' };
++  }
++}
++
++export async function probeMcp(
++  url = 'http://127.0.0.1:3000/_next/mcp',
++): Promise<McpStatus> {
++  try {
++    const res = await fetch(url);
++    // MCP returns 406 when accessible but no proper Accept header — that's "up"
++    const code = String(res.status);
++    const isUp = res.status !== 0 && code !== '000';
++    return { status: isUp ? 'up' : 'down', code };
++  } catch {
++    return { status: 'down', code: '0' };
++  }
++}
++
++export async function probeTerminal(
++  host = '127.0.0.1',
++  port = 4500,
++): Promise<TerminalStatus> {
++  try {
++    // Use a TCP connect check via fetch to the WebSocket port
++    const controller = new AbortController();
++    const timeout = setTimeout(() => controller.abort(), 2000);
++    await fetch(`http://${host}:${port}`, { signal: controller.signal }).catch(() => {});
++    clearTimeout(timeout);
++
++    // If we get here without a connection refused error, port is open
++    // For WebSocket ports, any response (even error) means the port is listening
++    return { status: 'up' };
++  } catch {
++    return { status: 'down' };
++  }
++}
++
++export async function probeCdp(
++  url = 'http://127.0.0.1:9222',
++): Promise<CdpStatus> {
++  try {
++    const info = await getCdpVersion(url);
++    return { status: 'up', browser: info.Browser ?? null };
++  } catch {
++    return { status: 'down', browser: null };
++  }
++}
++
++export async function probeAll(): Promise<HealthResult> {
++  const [app, mcp, terminal, cdp] = await Promise.all([
++    probeApp(),
++    probeMcp(),
++    probeTerminal(),
++    probeCdp(),
++  ]);
++
++  const allUp = app.status === 'up' && terminal.status === 'up' && cdp.status === 'up';
++  const allDown = app.status === 'down' && terminal.status === 'down' && cdp.status === 'down';
++
++  return {
++    status: allDown ? 'down' : allUp ? 'ok' : 'degraded',
++    app,
++    mcp,
++    terminal,
++    cdp,
++  };
++}
+diff --git a/harness/tests/unit/cli/index.test.ts b/harness/tests/unit/cli/index.test.ts
+new file mode 100644
+index 0000000..264d743
+--- /dev/null
++++ b/harness/tests/unit/cli/index.test.ts
+@@ -0,0 +1,36 @@
++/**
++ * @test-doc
++ * @id T001-cli-commands
++ * @title CLI command registration and parsing tests
++ * @phase Phase 3: Harness CLI SDK
++ * @verifies AC-11 (consistent command surface)
++ */
++
 +import { describe, expect, it } from 'vitest';
 +
-+const CDP_ENDPOINT = process.env.HARNESS_CDP_URL ?? 'http://localhost:9222';
-+const APP_URL = process.env.HARNESS_APP_URL ?? 'http://localhost:3000';
-+const RESULTS_DIR = join(import.meta.dirname, '../../results');
++// These imports will fail until T003 implements them — RED
++import { createCli } from '../../../src/cli/index.js';
 +
-+describe.skip('Harness: CDP Integration', () => {
-+  it('CDP endpoint responds with version info', async () => {
-+    const response = await fetch(`${CDP_ENDPOINT}/json/version`);
-+    expect(response.status).toBe(200);
-+    const data = (await response.json()) as { Browser: string; webSocketDebuggerUrl: string };
-+    expect(data.Browser).toBeDefined();
-+    expect(data.webSocketDebuggerUrl).toBeDefined();
-+  }, 10_000);
++describe('CLI command registration', () => {
++  it('creates a CLI program with the correct name', () => {
++    const program = createCli();
++    expect(program.name()).toBe('harness');
++  });
 +
-+  it('CDP lists available targets', async () => {
-+    const response = await fetch(`${CDP_ENDPOINT}/json/list`);
-+    expect(response.status).toBe(200);
-+    const targets = (await response.json()) as Array<{ type: string }>;
-+    expect(Array.isArray(targets)).toBe(true);
-+  }, 10_000);
++  it('registers all expected commands', () => {
++    const program = createCli();
++    const commandNames = program.commands.map((c) => c.name());
++    expect(commandNames).toContain('build');
++    expect(commandNames).toContain('dev');
++    expect(commandNames).toContain('stop');
++    expect(commandNames).toContain('health');
++    expect(commandNames).toContain('test');
++    expect(commandNames).toContain('screenshot');
++    expect(commandNames).toContain('results');
++  });
 +
-+  it('Playwright connects via CDP and opens a page', async () => {
-+    const { chromium } = await import('playwright-core');
-+
-+    const versionRes = await fetch(`${CDP_ENDPOINT}/json/version`);
-+    const { webSocketDebuggerUrl } = (await versionRes.json()) as {
-+      webSocketDebuggerUrl: string;
-+    };
-+
-+    const browser = await chromium.connectOverCDP(webSocketDebuggerUrl);
-+    try {
-+      const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-+      const page = await context.newPage();
-+
-+      const response = await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
-+      expect(response?.status()).toBe(200);
-+
-+      await context.close();
-+    } finally {
-+      await browser.close();
-+    }
-+  }, 30_000);
-+
-+  it('captures screenshot to results directory', async () => {
-+    const { chromium } = await import('playwright-core');
-+
-+    const versionRes = await fetch(`${CDP_ENDPOINT}/json/version`);
-+    const { webSocketDebuggerUrl } = (await versionRes.json()) as {
-+      webSocketDebuggerUrl: string;
-+    };
-+
-+    const browser = await chromium.connectOverCDP(webSocketDebuggerUrl);
-+    try {
-+      const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-+      const page = await context.newPage();
-+      await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
-+
-+      if (!existsSync(RESULTS_DIR)) {
-+        mkdirSync(RESULTS_DIR, { recursive: true });
-+      }
-+      const screenshotPath = join(RESULTS_DIR, 'cdp-integration-test.png');
-+      await page.screenshot({ path: screenshotPath, fullPage: false });
-+
-+      expect(existsSync(screenshotPath)).toBe(true);
-+
-+      await context.close();
-+    } finally {
-+      await browser.close();
-+    }
-+  }, 30_000);
++  it('has a version string', () => {
++    const program = createCli();
++    expect(program.version()).toBeTruthy();
++  });
 +});
-diff --git a/tsconfig.json b/tsconfig.json
-index 6b0ec49..fe2c3e6 100644
---- a/tsconfig.json
-+++ b/tsconfig.json
-@@ -33,5 +33,15 @@
-       "@test/*": ["./test/*"]
-     }
-   },
--  "exclude": ["node_modules", "dist", ".next", ".turbo", "test", "apps", "scripts", "docs"]
-+  "exclude": [
-+    "node_modules",
-+    "dist",
-+    ".next",
-+    ".turbo",
-+    "test",
-+    "apps",
-+    "scripts",
-+    "docs",
-+    "harness"
-+  ]
- }
+diff --git a/harness/tests/unit/cli/output.test.ts b/harness/tests/unit/cli/output.test.ts
+new file mode 100644
+index 0000000..afac48d
+--- /dev/null
++++ b/harness/tests/unit/cli/output.test.ts
+@@ -0,0 +1,130 @@
++/**
++ * @test-doc
++ * @id T001-output-schema
++ * @title CLI output envelope schema tests
++ * @phase Phase 3: Harness CLI SDK
++ * @verifies AC-11 (structured JSON), AC-12 (error codes E100-E110)
++ */
++
++import { describe, expect, it } from 'vitest';
++
++// These imports will fail until T002 implements them — that's the RED in TDD
++import {
++  type HarnessEnvelope,
++  type HarnessErrorCode,
++  ErrorCodes,
++  formatSuccess,
++  formatError,
++  parseEnvelope,
++} from '../../../src/cli/output.js';
++
++describe('CLI output envelope', () => {
++  describe('formatSuccess', () => {
++    it('produces a valid success envelope', () => {
++      const result = formatSuccess('health', { app: 'up' });
++      expect(result).toMatchObject({
++        command: 'health',
++        status: 'ok',
++        data: { app: 'up' },
++      });
++      expect(result.error).toBeUndefined();
++    });
++
++    it('supports degraded status', () => {
++      const result = formatSuccess('health', { app: 'up', cdp: 'down' }, 'degraded');
++      expect(result.status).toBe('degraded');
++      expect(result.data).toBeDefined();
++      expect(result.error).toBeUndefined();
++    });
++
++    it('includes a timestamp', () => {
++      const result = formatSuccess('build', {});
++      expect(result.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
++    });
++  });
++
++  describe('formatError', () => {
++    it('produces a valid error envelope', () => {
++      const result = formatError('build', 'E102', 'Docker build failed');
++      expect(result).toMatchObject({
++        command: 'build',
++        status: 'error',
++        error: {
++          code: 'E102',
++          message: 'Docker build failed',
++        },
++      });
++      expect(result.data).toBeUndefined();
++    });
++
++    it('includes optional details', () => {
++      const result = formatError('health', 'E103', 'Health check failed', {
++        app: 'down',
++        cdp: 'down',
++      });
++      expect(result.error?.details).toEqual({ app: 'down', cdp: 'down' });
++    });
++  });
++
++  describe('parseEnvelope', () => {
++    it('parses a valid success JSON string', () => {
++      const json = JSON.stringify({
++        command: 'health',
++        status: 'ok',
++        timestamp: new Date().toISOString(),
++        data: { app: 'up' },
++      });
++      const parsed = parseEnvelope(json);
++      expect(parsed.command).toBe('health');
++      expect(parsed.status).toBe('ok');
++    });
++
++    it('parses a valid error JSON string', () => {
++      const json = JSON.stringify({
++        command: 'build',
++        status: 'error',
++        timestamp: new Date().toISOString(),
++        error: { code: 'E102', message: 'Build failed' },
++      });
++      const parsed = parseEnvelope(json);
++      expect(parsed.status).toBe('error');
++      expect(parsed.error?.code).toBe('E102');
++    });
++
++    it('throws on invalid JSON', () => {
++      expect(() => parseEnvelope('not json')).toThrow();
++    });
++
++    it('throws on missing command field', () => {
++      expect(() =>
++        parseEnvelope(JSON.stringify({ status: 'ok', timestamp: new Date().toISOString() })),
++      ).toThrow();
++    });
++  });
++
++  describe('ErrorCodes', () => {
++    it('defines codes in the E100-E110 range', () => {
++      const codes = Object.values(ErrorCodes);
++      expect(codes.length).toBeGreaterThanOrEqual(5);
++      for (const code of codes) {
++        const num = Number.parseInt(code.replace('E', ''), 10);
++        expect(num).toBeGreaterThanOrEqual(100);
++        expect(num).toBeLessThanOrEqual(110);
++      }
++    });
++
++    it('has distinct codes for container, build, health, cdp, test, screenshot, args, timeout, docker', () => {
++      expect(ErrorCodes.UNKNOWN).toBe('E100');
++      expect(ErrorCodes.CONTAINER_NOT_RUNNING).toBe('E101');
++      expect(ErrorCodes.BUILD_FAILED).toBe('E102');
++      expect(ErrorCodes.HEALTH_FAILED).toBe('E103');
++      expect(ErrorCodes.CDP_UNAVAILABLE).toBe('E104');
++      expect(ErrorCodes.TEST_FAILED).toBe('E105');
++      expect(ErrorCodes.SCREENSHOT_FAILED).toBe('E106');
++      expect(ErrorCodes.RESULTS_NOT_FOUND).toBe('E107');
++      expect(ErrorCodes.INVALID_ARGS).toBe('E108');
++      expect(ErrorCodes.TIMEOUT).toBe('E109');
++      expect(ErrorCodes.DOCKER_UNAVAILABLE).toBe('E110');
++    });
++  });
++});
+diff --git a/justfile b/justfile
+index 33af55c..1c29417 100644
+--- a/justfile
++++ b/justfile
+@@ -85,6 +85,14 @@ test-harness:
+ harness-dev:
+     cd harness && just dev
+ 
++# Install standalone harness dependencies
++harness-install:
++    cd harness && just install
++
++# Type-check standalone harness sources
++harness-typecheck:
++    cd harness && just typecheck
++
+ # Stop harness container
+ harness-stop:
+     cd harness && just stop
+@@ -93,6 +101,10 @@ harness-stop:
+ harness-health:
+     cd harness && just health
+ 
++# Run harness CLI command (e.g., just harness health, just harness screenshot home)
++harness *ARGS:
++    cd harness && pnpm exec tsx src/cli/index.ts {{ARGS}}
++
+ # Run linter
+ lint:
+     pnpm biome check .

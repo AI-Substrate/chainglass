@@ -1,5 +1,6 @@
 import type { Command } from 'commander';
 import { probeAll } from '../../health/probe.js';
+import { computePorts } from '../../ports/allocator.js';
 import { exitWithEnvelope, formatSuccess } from '../output.js';
 
 export function registerHealthCommand(program: Command): void {
@@ -7,7 +8,8 @@ export function registerHealthCommand(program: Command): void {
     .command('health')
     .description('Probe all harness endpoints and return structured status')
     .action(async () => {
-      const health = await probeAll();
+      const ports = computePorts();
+      const health = await probeAll(ports);
       exitWithEnvelope(formatSuccess('health', health, health.status === 'ok' ? 'ok' : 'degraded'));
     });
 }
