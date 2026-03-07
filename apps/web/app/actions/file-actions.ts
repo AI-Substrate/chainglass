@@ -220,3 +220,82 @@ export async function pathExists(
     return false;
   }
 }
+
+// ==================== File Mutation Actions — Plan 068 ====================
+
+export type {
+  CreateResult,
+  DeleteResult,
+  RenameResult,
+} from '../../src/features/041-file-browser/services/file-mutation-actions';
+
+export async function createFile(
+  slug: string,
+  worktreePath: string,
+  dirPath: string,
+  fileName: string
+): Promise<
+  import('../../src/features/041-file-browser/services/file-mutation-actions').CreateResult
+> {
+  await requireAuth();
+  const container = getContainer();
+  const fileSystem = container.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
+  const pathResolver = container.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
+  const { createFileService } = await import(
+    '../../src/features/041-file-browser/services/file-mutation-actions'
+  );
+  return createFileService({ worktreePath, dirPath, fileName, fileSystem, pathResolver });
+}
+
+export async function createFolder(
+  slug: string,
+  worktreePath: string,
+  dirPath: string,
+  folderName: string
+): Promise<
+  import('../../src/features/041-file-browser/services/file-mutation-actions').CreateResult
+> {
+  await requireAuth();
+  const container = getContainer();
+  const fileSystem = container.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
+  const pathResolver = container.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
+  const { createFolderService } = await import(
+    '../../src/features/041-file-browser/services/file-mutation-actions'
+  );
+  return createFolderService({ worktreePath, dirPath, folderName, fileSystem, pathResolver });
+}
+
+export async function deleteItem(
+  slug: string,
+  worktreePath: string,
+  itemPath: string
+): Promise<
+  import('../../src/features/041-file-browser/services/file-mutation-actions').DeleteResult
+> {
+  await requireAuth();
+  const container = getContainer();
+  const fileSystem = container.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
+  const pathResolver = container.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
+  const { deleteItemService } = await import(
+    '../../src/features/041-file-browser/services/file-mutation-actions'
+  );
+  return deleteItemService({ worktreePath, itemPath, fileSystem, pathResolver });
+}
+
+export async function renameItem(
+  slug: string,
+  worktreePath: string,
+  oldPath: string,
+  newName: string
+): Promise<
+  import('../../src/features/041-file-browser/services/file-mutation-actions').RenameResult
+> {
+  await requireAuth();
+  const container = getContainer();
+  const fileSystem = container.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
+  const pathResolver = container.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
+  const { renameItemService } = await import(
+    '../../src/features/041-file-browser/services/file-mutation-actions'
+  );
+  return renameItemService({ worktreePath, oldPath, newName, fileSystem, pathResolver });
+}
