@@ -295,6 +295,16 @@ function BrowserClientInner({
   );
   // Plan 051: # stub removed, handled by FlowSpace search in dropdown
 
+  // --- File select (closes overlays) ---
+
+  const handleFileSelect = useCallback(
+    (filePath: string) => {
+      window.dispatchEvent(new CustomEvent('overlay:close-all'));
+      return fileNav.handleSelect(filePath);
+    },
+    [fileNav.handleSelect]
+  );
+
   // --- SDK + MRU for command palette ---
   const sdk = useSDK();
   const { mru, recordExecution } = useSDKMru();
@@ -305,7 +315,7 @@ function BrowserClientInner({
       worktreePath,
       fileExists: (relativePath: string) => fileExists(slug, worktreePath, relativePath),
       pathExists: (relativePath: string) => pathExists(slug, worktreePath, relativePath),
-      navigateToFile: (relativePath: string) => fileNav.handleSelect(relativePath),
+      navigateToFile: (relativePath: string) => handleFileSelect(relativePath),
       navigateToDirectory: (relativePath: string) => {
         // Expand all ancestors + the directory itself
         const parts = relativePath.split('/');
@@ -341,7 +351,7 @@ function BrowserClientInner({
     [
       slug,
       worktreePath,
-      fileNav.handleSelect,
+      handleFileSelect,
       fileNav.handleExpand,
       panelMode,
       panelState.handlePanelModeChange,
@@ -476,7 +486,7 @@ function BrowserClientInner({
             onSortModeChange={fileFilter.cycleSortMode}
             includeHidden={fileFilter.includeHidden}
             onIncludeHiddenChange={fileFilter.toggleIncludeHidden}
-            onFileSelect={fileNav.handleSelect}
+            onFileSelect={handleFileSelect}
             onCopyFullPath={clipboard.handleCopyFullPath}
             onCopyRelativePath={clipboard.handleCopyRelativePath}
             onCopyContent={clipboard.handleCopyContent}
@@ -522,7 +532,7 @@ function BrowserClientInner({
                   selectedFile={selectedFile}
                   changedFiles={panelState.changedFiles}
                   glowingPaths={glowingPaths}
-                  onSelect={fileNav.handleSelect}
+                  onSelect={handleFileSelect}
                   onExpand={fileNav.handleExpand}
                   childEntries={fileNav.childEntries}
                   expandPaths={expandPaths}
@@ -539,7 +549,7 @@ function BrowserClientInner({
                   workingChanges={panelState.workingChanges}
                   recentFiles={panelState.recentFiles}
                   selectedFile={selectedFile}
-                  onSelect={fileNav.handleSelect}
+                  onSelect={handleFileSelect}
                   onCopyFullPath={clipboard.handleCopyFullPath}
                   onCopyRelativePath={clipboard.handleCopyRelativePath}
                   onCopyContent={clipboard.handleCopyContent}
@@ -610,7 +620,7 @@ function BrowserClientInner({
                   fileNav.fileData && !fileNav.fileData.ok ? fileNav.fileData.error : undefined
                 }
                 scrollToLine={scrollToLine}
-                onNavigateToFile={fileNav.handleSelect}
+                onNavigateToFile={handleFileSelect}
               />
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground">
