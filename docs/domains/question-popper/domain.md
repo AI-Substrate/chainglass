@@ -31,7 +31,7 @@ First-class question-and-answer experience built on top of Event Popper infrastr
 - Port discovery, localhost guard, tmux detection (owned by `_platform/external-events`)
 - CLI commands (`cg question ask|get|answer|list`, `cg alert send` — blocking poll loop, help surface)
 - API routes (`/api/event-popper/*` — 7 HTTP endpoints consumed by CLI and UI)
-- UI components (Phase 5 — not yet implemented)
+- UI components (Phase 5 — implemented)
 
 ## Composition
 
@@ -44,6 +44,14 @@ First-class question-and-answer experience built on top of Event Popper infrastr
 | `IQuestionPopperService` | Service contract for question/alert lifecycle | Shared types |
 | `FakeQuestionPopperService` | In-memory test double | `IQuestionPopperService` |
 | `QuestionPopperService` | Real implementation with disk persistence + SSE | `ICentralEventNotifier`, `generateEventId`, `node:fs` |
+| `useQuestionPopper` | React hook for SSE subscription, API fetch, overlay state | `EventSource`, Fetch API |
+| `QuestionPopperProvider` | Context provider for overlay UI | React Context |
+| `QuestionPopperIndicator` | Green glow indicator with badge count | `useQuestionPopper` |
+| `QuestionPopperOverlayPanel` | Fixed-position panel showing items | `useQuestionPopper`, `QuestionCard`, `AlertCard` |
+| `AnswerForm` | Type-appropriate answer input | `AnswerPayload` types |
+| `QuestionCard` | Question renderer with markdown description | `react-markdown`, `remark-gfm` |
+| `AlertCard` | Alert renderer with "Mark Read" button | `useQuestionPopper` |
+| `QuestionPopperOverlayWrapper` | Provider + error boundary + indicator + panel + notifications | Dynamic import |
 
 ## Concepts
 
@@ -65,10 +73,12 @@ First-class question-and-answer experience built on top of Event Popper infrastr
 | `IQuestionPopperService` | Interface | API routes, DI | Full lifecycle service contract |
 | `FakeQuestionPopperService` | Class | Tests | In-memory test double with inspection helpers |
 | `QuestionIn` | TypeScript type | CLI, API routes | Ergonomic input type for asking questions |
-| `QuestionOut` | TypeScript type | CLI, API routes | Ergonomic output type for reading questions |
+| `QuestionOut` | TypeScript type | CLI, API routes, UI | Ergonomic output type for reading questions |
 | `AlertIn` | TypeScript type | CLI, API routes | Ergonomic input type for sending alerts |
 | `StoredQuestion` / `StoredAlert` | TypeScript types | Service internals | On-disk record types |
 | `QuestionStatus` / `AlertStatus` | TypeScript types | All consumers | Status enum types |
+| `useQuestionPopper` | React hook | UI components | SSE subscription, API fetch, overlay state, actions |
+| `QuestionPopperProvider` | React context | UI wrapper | Provides question popper state to subtree |
 
 ## Dependencies
 
@@ -101,11 +111,22 @@ packages/shared/src/fakes/
 
 apps/web/src/features/067-question-popper/
   └── lib/
-      └── question-popper.service.ts  # QuestionPopperService (real)
+      ├── question-popper.service.ts  # QuestionPopperService (real)
+      └── desktop-notifications.ts    # Toast + desktop notification utilities
+  └── hooks/
+      └── use-question-popper.tsx     # QuestionPopperProvider + useQuestionPopper hook
+  └── components/
+      ├── answer-form.tsx             # Type-appropriate answer form (4 variants)
+      ├── question-card.tsx           # Question renderer with markdown description
+      ├── alert-card.tsx              # Alert renderer with "Mark Read"
+      ├── question-popper-indicator.tsx  # Green glow indicator with badge
+      └── question-popper-overlay-panel.tsx  # Fixed-position overlay panel
 
-test/contracts/
-  ├── question-popper.contract.ts       # Contract test definitions (12 tests)
-  └── question-popper.contract.test.ts  # Runner (fake + real + 5 SSE companions)
+apps/web/app/(dashboard)/workspaces/[slug]/
+  └── question-popper-overlay-wrapper.tsx  # Provider + error boundary + dynamic import
+
+test/unit/question-popper/
+  └── ui-components.test.tsx          # 18 component tests
 ```
 
 ## History
@@ -113,3 +134,4 @@ test/contracts/
 | Plan | Change | Date |
 |------|--------|------|
 | 067 Phase 2 | Domain created: payload schemas, composed types, service interface, fake, real service, contract tests, DI registration, barrel exports | 2026-03-07 |
+| 067 Phase 5 | UI layer: useQuestionPopper hook, indicator, overlay panel, question/alert cards, answer form (4 types), toast + desktop notifications, workspace layout mount | 2026-03-07 |

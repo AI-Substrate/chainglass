@@ -17,6 +17,7 @@ import { getContainer } from '../../../../src/lib/bootstrap-singleton';
 import { SDKWorkspaceConnector } from '../../../../src/lib/sdk/sdk-workspace-connector';
 import { updateSDKMru, updateSDKSettings } from '../../../actions/sdk-settings-actions';
 import { ActivityLogOverlayWrapper } from './activity-log-overlay-wrapper';
+import { QuestionPopperOverlayWrapper } from './question-popper-overlay-wrapper';
 import { TerminalOverlayWrapper } from './terminal-overlay-wrapper';
 import { WorkspaceAttentionWrapper } from './workspace-attention-wrapper';
 
@@ -67,9 +68,11 @@ export default async function WorkspaceLayout({ children, params }: LayoutProps)
       <WorkspaceAttentionWrapper>
         <TerminalOverlayWrapper defaultSessionName={defaultBranch} defaultCwd={defaultWorktreePath}>
           <ActivityLogOverlayWrapper defaultWorktreePath={defaultWorktreePath}>
-            <WorkspaceAgentChrome slug={slug} workspacePath={ws?.path}>
-              {children}
-            </WorkspaceAgentChrome>
+            <QuestionPopperOverlayWrapper>
+              <WorkspaceAgentChrome slug={slug} workspacePath={ws?.path}>
+                {children}
+              </WorkspaceAgentChrome>
+            </QuestionPopperOverlayWrapper>
           </ActivityLogOverlayWrapper>
         </TerminalOverlayWrapper>
       </WorkspaceAttentionWrapper>
