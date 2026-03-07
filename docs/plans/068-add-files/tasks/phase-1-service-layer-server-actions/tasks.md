@@ -46,17 +46,18 @@ flowchart TD
     classDef test fill:#EF9A9A,stroke:#F44336,color:#000
     classDef impl fill:#A5D6A7,stroke:#4CAF50,color:#000
     classDef wire fill:#90CAF9,stroke:#2196F3,color:#000
+    classDef completed fill:#4CAF50,stroke:#388E3C,color:#fff
 
     subgraph Phase1["Phase 1: Service Layer & Server Actions"]
-        T001["T001: Result types"]:::types
-        T002["T002: validate-filename tests RED"]:::test
-        T003["T003: validate-filename GREEN"]:::pending
-        T004["T004: mutation service tests RED"]:::test
-        T005["T005: createFile + createFolder GREEN"]:::pending
-        T006["T006: deleteItem GREEN"]:::pending
-        T007["T007: renameItem GREEN"]:::pending
-        T008["T008: Refactor"]:::pending
-        T009["T009: Server actions wiring"]:::wire
+        T001["T001: Result types"]:::completed
+        T002["T002: validate-filename tests RED"]:::completed
+        T003["T003: validate-filename GREEN"]:::completed
+        T004["T004: mutation service tests RED"]:::completed
+        T005["T005: createFile + createFolder GREEN"]:::completed
+        T006["T006: deleteItem GREEN"]:::completed
+        T007["T007: renameItem GREEN"]:::completed
+        T008["T008: Refactor"]:::completed
+        T009["T009: Server actions wiring"]:::completed
 
         T001 --> T002
         T001 --> T004

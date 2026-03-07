@@ -58,7 +58,7 @@ stateDiagram-v2
     S4 --> S5
     S5 --> [*]
 
-    class S1,S2,S3,S4,S5 pending
+    class S1,S2,S3,S4,S5 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -69,11 +69,11 @@ stateDiagram-v2
 
 <!-- Updated by /plan-6-v2 during implementation: [ ] → [~] → [x] -->
 
-- [ ] **Stage 1: Define result types** — CreateResult, DeleteResult, RenameResult, ItemCountResult discriminated unions + options interfaces (`file-mutation-actions.ts` — new file)
-- [ ] **Stage 2: Filename validation TDD** — RED tests then GREEN implementation for git-portable name checking (`validate-filename.test.ts` — new file, `validate-filename.ts` — new file)
-- [ ] **Stage 3: Mutation services TDD** — RED tests (15-20 cases) then GREEN implementations for createFile, createFolder, deleteItem, renameItem (`file-mutation-actions.test.ts` — new file, `file-mutation-actions.ts`)
-- [ ] **Stage 4: Refactor** — Extract shared path-validation helper, clean error mapping (`file-mutation-actions.ts`)
-- [ ] **Stage 5: Wire server actions** — 4 new exports in existing file-actions.ts with requireAuth + DI (`file-actions.ts` — modify)
+- [x] **Stage 1: Define result types** — CreateResult, DeleteResult, RenameResult, ItemCountResult discriminated unions + options interfaces (`file-mutation-actions.ts` — new file)
+- [x] **Stage 2: Filename validation TDD** — RED tests then GREEN implementation for git-portable name checking (`validate-filename.test.ts` — new file, `validate-filename.ts` — new file)
+- [x] **Stage 3: Mutation services TDD** — RED tests (15-20 cases) then GREEN implementations for createFile, createFolder, deleteItem, renameItem (`file-mutation-actions.test.ts` — new file, `file-mutation-actions.ts`)
+- [x] **Stage 4: Refactor** — Extract shared path-validation helper, clean error mapping (`file-mutation-actions.ts`)
+- [x] **Stage 5: Wire server actions** — 4 new exports in existing file-actions.ts with requireAuth + DI (`file-actions.ts` — modify)
 
 ---
 
@@ -110,12 +110,12 @@ flowchart LR
 
 ## Acceptance Criteria
 
-- [ ] AC-08: Path traversal and symlink escape rejected with security error
-- [ ] AC-09: Duplicate name shows "already exists" error without overwriting
-- [ ] AC-13: Invalid names (git-portable chars) rejected
-- [ ] All 15-20 unit tests pass with `just test`
-- [ ] `just fft` passes (lint, format, typecheck, test)
-- [ ] No changes to existing readFile/saveFile behavior (regression-free)
+- [x] AC-08: Path traversal and symlink escape rejected with security error
+- [x] AC-09: Duplicate name shows "already exists" error without overwriting
+- [x] AC-13: Invalid names (git-portable chars) rejected
+- [x] All 15-20 unit tests pass with `just test`
+- [x] `just fft` passes (lint, format, typecheck, test)
+- [x] No changes to existing readFile/saveFile behavior (regression-free)
 
 ## Goals & Non-Goals
 

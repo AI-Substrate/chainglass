@@ -115,14 +115,14 @@ flowchart LR
 
 ## Acceptance Criteria
 
-- [ ] AC-01: Hover New File → type name → Enter → file created + toast + green animation + auto-opens in viewer
-- [ ] AC-02: Hover New Folder → type name → Enter → folder created + toast + auto-expands
-- [ ] AC-06: Right-click Delete → confirm → item deleted + toast
-- [ ] AC-10: Rename currently-viewed file → URL updates, viewer shows new file
-- [ ] AC-11: Delete currently-viewed file → viewer clears to empty state
-- [ ] AC-12: Toast feedback on all operations (create/rename/delete, success/error)
-- [ ] `just fft` passes (lint, format, typecheck, test)
-- [ ] No changes to existing read/save/copy behavior (regression-free)
+- [x] AC-01: Hover New File → type name → Enter → file created + toast + green animation + auto-opens in viewer
+- [x] AC-02: Hover New Folder → type name → Enter → folder created + toast + auto-expands
+- [x] AC-06: Right-click Delete → confirm → item deleted + toast
+- [x] AC-10: Rename currently-viewed file → URL updates, viewer shows new file
+- [x] AC-11: Delete currently-viewed file → viewer clears to empty state
+- [x] AC-12: Toast feedback on all operations (create/rename/delete, success/error)
+- [x] `just fft` passes (lint, format, typecheck, test)
+- [x] No changes to existing read/save/copy behavior (regression-free)
 
 ## Goals & Non-Goals
 

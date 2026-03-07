@@ -4,7 +4,7 @@
 **Created**: 2026-03-07
 **Spec**: [add-files-spec.md](./add-files-spec.md)
 **Exploration**: [exploration.md](./exploration.md)
-**Status**: DRAFT
+**Status**: COMPLETE
 
 ## Summary
 
@@ -158,19 +158,19 @@ Task ordering follows TDD: types → tests → implementations → wiring.
 
 ## Acceptance Criteria
 
-- [ ] AC-01: Hover over folder → "New File" button → inline input → Enter → file created with green fade-in
-- [ ] AC-02: Hover over folder → "New Folder" button → inline input → Enter → folder created
-- [ ] AC-03: Escape during inline create → input removed, nothing created
-- [ ] AC-04: Enter or F2 on selected file → inline rename input (pre-filled, selected) → Enter confirms
-- [ ] AC-05: Right-click → Rename → inline rename mode
-- [ ] AC-06: Right-click → Delete → confirmation dialog → confirm → item deleted
-- [ ] AC-07: Delete folder recursively, confirmation shows it's recursive
-- [ ] AC-08: Path traversal and symlink escape rejected with security error
-- [ ] AC-09: Duplicate name shows "already exists" error toast
-- [ ] AC-10: Rename currently-viewed file updates viewer and URL
-- [ ] AC-11: Delete currently-viewed file clears viewer and URL
-- [ ] AC-12: Toast feedback on all operations (create/rename/delete, success/error)
-- [ ] AC-13: Invalid names (git-portable chars) rejected client-side
+- [x] AC-01: Hover over folder → "New File" button → inline input → Enter → file created with green fade-in
+- [x] AC-02: Hover over folder → "New Folder" button → inline input → Enter → folder created
+- [x] AC-03: Escape during inline create → input removed, nothing created
+- [x] AC-04: Enter or F2 on selected file → inline rename input (pre-filled, selected) → Enter confirms
+- [x] AC-05: Right-click → Rename → inline rename mode
+- [x] AC-06: Right-click → Delete → confirmation dialog → confirm → item deleted
+- [x] AC-07: Delete folder recursively, confirmation shows it's recursive
+- [x] AC-08: Path traversal and symlink escape rejected with security error
+- [x] AC-09: Duplicate name shows "already exists" error toast
+- [x] AC-10: Rename currently-viewed file updates viewer and URL
+- [x] AC-11: Delete currently-viewed file clears viewer and URL
+- [x] AC-12: Toast feedback on all operations (create/rename/delete, success/error)
+- [x] AC-13: Invalid names (git-portable chars) rejected client-side
 
 ## Risks
 

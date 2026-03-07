@@ -125,17 +125,17 @@ flowchart LR
 
 ## Acceptance Criteria
 
-- [ ] AC-01: Hover over folder → "New File" button visible → click → inline input appears at top of folder children
-- [ ] AC-02: Hover over folder → "New Folder" button visible → click → inline input appears
-- [ ] AC-03: Escape during inline create → input removed, nothing created
-- [ ] AC-04: Enter or F2 on selected file → inline rename input (pre-filled, text selected)
-- [ ] AC-05: Right-click → Rename → inline rename mode activates
-- [ ] AC-06: Right-click → Delete → confirmation dialog appears
-- [ ] AC-07: Delete dialog for folder says "and all its contents"
-- [ ] AC-13: Invalid names (git-portable chars) show inline error in real-time
-- [ ] InlineEditInput smoke tests pass (3-5 cases)
-- [ ] `just fft` passes (lint, format, typecheck, test)
-- [ ] No changes to existing read/save/copy/download behavior (regression-free)
+- [x] AC-01: Hover over folder → "New File" button visible → click → inline input appears at top of folder children
+- [x] AC-02: Hover over folder → "New Folder" button visible → click → inline input appears
+- [x] AC-03: Escape during inline create → input removed, nothing created
+- [x] AC-04: Enter or F2 on selected file → inline rename input (pre-filled, text selected)
+- [x] AC-05: Right-click → Rename → inline rename mode activates
+- [x] AC-06: Right-click → Delete → confirmation dialog appears
+- [x] AC-07: Delete dialog for folder says "and all its contents"
+- [x] AC-13: Invalid names (git-portable chars) show inline error in real-time
+- [x] InlineEditInput smoke tests pass (3-5 cases)
+- [x] `just fft` passes (lint, format, typecheck, test)
+- [x] No changes to existing read/save/copy/download behavior (regression-free)
 
 ## Goals & Non-Goals
 
