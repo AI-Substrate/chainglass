@@ -242,3 +242,11 @@ ADR-0014 established the harness as **"external tooling"** not in `pnpm-workspac
 ---
 
 **Next step**: Run `/plan-4-complete-the-plan` to validate readiness, then `/plan-5-v2-phase-tasks-and-brief` for Phase 1 dossier.
+
+---
+
+## Fixes
+
+| ID | Created | Summary | Domain(s) | Status | Source |
+|----|---------|---------|-----------|--------|--------|
+| FX002 | 2026-03-08 | Smoke-test retrospective CLI improvements: `console-logs` + `screenshot-all` commands, pnpm workspace docs | external (harness/), cross-domain | Proposed | Smoke-test agent retrospective (run 2026-03-08T10-42-28-675Z-9dce) |

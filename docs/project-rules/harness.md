@@ -90,6 +90,8 @@ All commands return `{command, status, data?, error?}` JSON to stdout.
 | `just harness test --suite smoke` | Run Playwright smoke tests |
 | `just harness test --viewport mobile` | Run tests at mobile viewport |
 | `just harness screenshot <name>` | Capture screenshot via CDP |
+| `just harness screenshot-all <name>` | Capture screenshots at all viewports (or `--viewports` subset) |
+| `just harness console-logs` | Capture browser console messages via CDP (`--filter`, `--url`, `--wait`) |
 | `just harness results` | Read latest test results |
 | `just harness seed` | Create test workspace + worktrees |
 | `just harness ports` | Show port allocation |
@@ -119,6 +121,7 @@ All commands return `{command, status, data?, error?}` JSON to stdout.
 | E123 | Agent timeout |
 | E124 | Agent validation failed |
 | E125 | Agent run folder creation failed |
+| E126 | Console log capture failed |
 
 ## Observe
 
@@ -184,6 +187,7 @@ The harness tests three viewport tiers:
 - All durable tests require 5-field Test Doc blocks
 - Use event-driven assertions, not fixed sleeps
 - SDK helpers are composable building blocks (`src/cdp/`, `src/health/`, `src/ports/`, `src/docker/`)
+- **pnpm workspace**: Run scripts within harness using `cd harness && pnpm exec tsx <script.ts>` (not `npx tsx` — `npx` resolves from repo root in pnpm workspaces)
 
 ## History
 
@@ -197,6 +201,7 @@ The harness tests three viewport tiers:
 | Plan 070 P1 | SdkCopilotAdapter: model/reasoning/listModels/setModel | 2026-03-07 |
 | Plan 070 P2 | Agent runner: folder mgmt, runner, validator, display, CLI, error codes | 2026-03-07 |
 | Plan 070 P3 | Smoke-test agent: first agent definition, validated end-to-end run, retrospective feedback loop | 2026-03-08 |
+| Plan 070 FX002 | Console-logs + screenshot-all CLI commands, pnpm workspace docs — from smoke-test retrospective | 2026-03-08 |
 
 ## Prompt Templates
 

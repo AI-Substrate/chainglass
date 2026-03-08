@@ -26,6 +26,8 @@ All commands return JSON to stdout in the format `{command, status, data?, error
 | `just harness health` | Quick health probe — shows status of app, mcp, terminal, cdp |
 | `just harness doctor --wait` | Wait for harness to become healthy (retries for up to 5 min) |
 | `just harness screenshot <name> --viewport <vp>` | Capture screenshot. Viewports: `desktop-lg`, `desktop-md`, `tablet`, `mobile` |
+| `just harness screenshot-all <name>` | Capture screenshots at all viewports in one command (or `--viewports desktop-lg,mobile`) |
+| `just harness console-logs` | Capture browser console messages. Use `--filter errors` for errors only, `--url /path`, `--wait 10` |
 | `just harness ports` | Show port allocation for this worktree (app, terminal, cdp ports) |
 | `just harness seed` | Create test workspace with sample worktrees |
 | `just harness results --type screenshots` | List captured screenshots |

@@ -24,6 +24,8 @@ import { registerPortsCommand } from './commands/ports.js';
 import { registerSeedCommand } from './commands/seed.js';
 import { registerDoctorCommand } from './commands/doctor.js';
 import { registerAgentCommand } from './commands/agent.js';
+import { registerConsoleLogsCommand } from './commands/console-logs.js';
+import { registerScreenshotAllCommand } from './commands/screenshot-all.js';
 
 const HARNESS_ROOT = path.resolve(import.meta.dirname ?? '.', '../..');
 
@@ -60,6 +62,8 @@ export function createCli(): Command {
   registerHealthCommand(program);
   registerTestCommand(program);
   registerScreenshotCommand(program);
+  registerScreenshotAllCommand(program);
+  registerConsoleLogsCommand(program);
   registerResultsCommand(program);
   registerPortsCommand(program);
   registerSeedCommand(program);

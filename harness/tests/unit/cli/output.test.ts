@@ -189,7 +189,7 @@ describe('CLI output envelope', () => {
       for (const code of codes) {
         const num = Number.parseInt(code.replace('E', ''), 10);
         const inBaseRange = num >= 100 && num <= 110;
-        const inAgentRange = num >= 120 && num <= 125;
+        const inAgentRange = num >= 120 && num <= 126;
         expect(inBaseRange || inAgentRange).toBe(true);
       }
     });
