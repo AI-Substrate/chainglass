@@ -4,7 +4,7 @@
 **Created**: 2026-03-08
 **Spec**: [sse-multiplexing-spec.md](./sse-multiplexing-spec.md)
 **Mode**: Full
-**Status**: DRAFT
+**Status**: COMPLETE
 
 ## Summary
 
@@ -107,13 +107,13 @@ Harness: Not applicable (user override — transport layer change; unit tests + 
 
 ### Phase Index
 
-| Phase | Title | Primary Domain | Objective | Depends On | CS |
-|-------|-------|---------------|-----------|------------|-----|
-| 1 | Server Foundation | `_platform/events` | Add channel tagging to SSEManager + create mux route | None | CS-2 |
-| 2 | Client Provider + Hooks | `_platform/events` | MultiplexedSSEProvider, useChannelEvents, useChannelCallback | Phase 1 | CS-2 |
-| 3 | Priority Consumer Migration | `question-popper`, `file-browser` | Migrate QuestionPopper + FileChange to multiplexed channel | Phase 2 | CS-2 |
-| 4 | GlobalState Re-enablement | `_platform/state` | Re-enable GlobalStateConnector, migrate ServerEventRoute | Phase 2 | CS-2 |
-| 5 | Remaining Migrations + Docs | `workflow-ui`, `agents` | Migrate workflow SSE, (optional) agents; docs + domain updates | Phase 3, 4 | CS-2 |
+| Phase | Title | Primary Domain | Objective | Depends On | Status |
+|-------|-------|---------------|-----------|------------|--------|
+| 1 | Server Foundation | `_platform/events` | Add channel tagging to SSEManager + create mux route | None | ✅ Complete |
+| 2 | Client Provider + Hooks | `_platform/events` | MultiplexedSSEProvider, useChannelEvents, useChannelCallback | Phase 1 | ✅ Complete |
+| 3 | Priority Consumer Migration | `question-popper`, `file-browser` | Migrate QuestionPopper + FileChange to multiplexed channel | Phase 2 | ✅ Complete |
+| 4 | GlobalState Re-enablement | `_platform/state` | Re-enable GlobalStateConnector, migrate ServerEventRoute | Phase 2 | ✅ Complete |
+| 5 | Remaining Migrations + Docs | `workflow-ui`, `058-workunit-editor` | Migrate workflow SSE + workunit catalog; delete useSSE; docs | Phase 3, 4 | ✅ Complete |
 
 ---
 
