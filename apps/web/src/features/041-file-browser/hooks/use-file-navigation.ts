@@ -136,10 +136,16 @@ export function useFileNavigation(options: UseFileNavigationOptions) {
   }, []);
 
   // Load file when initialFile changes via URL params (e.g. code search navigation)
+  // FT-001: Skip re-read when the change is from a rename (dirty buffer preserved)
   const prevFileRef = useRef(initialFile);
+  const skipNextReadRef = useRef(false);
   useEffect(() => {
     if (initialFile && initialFile !== prevFileRef.current) {
       prevFileRef.current = initialFile;
+      if (skipNextReadRef.current) {
+        skipNextReadRef.current = false;
+        return;
+      }
       readFileFn(slug, worktreePath, initialFile)
         .then((result) => {
           setFileData(result);
@@ -236,5 +242,9 @@ export function useFileNavigation(options: UseFileNavigationOptions) {
     handleRefresh,
     handleSave,
     handleRefreshFile,
+    /** FT-001: Flag to skip re-read on next URL file param change (for rename) */
+    skipNextFileRead: () => {
+      skipNextReadRef.current = true;
+    },
   };
 }
