@@ -66,8 +66,10 @@ export function formatEvent(event: AgentEvent): string {
   }
 }
 
-/** Display a single event line to stderr. */
+/** Display a single event line to stderr. Skips noisy raw/streaming events. */
 export function displayEvent(event: AgentEvent): void {
+  // Skip raw/unhandled SDK streaming events — they're noise
+  if (event.type === 'raw' || event.type === 'session_start') return;
   process.stderr.write(`${formatEvent(event)}\n`);
 }
 
