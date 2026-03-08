@@ -9,8 +9,8 @@
  * Phase 6: Real-Time SSE Updates — Plan 050
  */
 
+import { useChannelEvents } from '@/lib/sse';
 import { useCallback, useEffect, useRef } from 'react';
-import { useSSE } from '../../../hooks/useSSE';
 
 interface WorkflowSSEMessage {
   graphSlug: string;
@@ -34,16 +34,16 @@ export function useWorkflowSSE({
   const structureTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { messages, isConnected, clearMessages } = useSSE<WorkflowSSEMessage>(
-    '/api/events/workflows',
-    undefined,
-    { autoConnect: enabled, maxMessages: 50 }
+  const { messages, isConnected, clearMessages } = useChannelEvents<WorkflowSSEMessage>(
+    'workflows',
+    { maxMessages: 50 }
   );
 
   // Process new messages — scan all queued messages for active graph
   useEffect(() => {
     if (messages.length === 0) return;
-    if (isMutatingRef.current) {
+    // DYK #2: no autoConnect equivalent — clear messages when disabled
+    if (!enabled || isMutatingRef.current) {
       clearMessages();
       return;
     }
@@ -71,7 +71,7 @@ export function useWorkflowSSE({
     }
 
     clearMessages();
-  }, [messages, graphSlug, onStructureChange, onStatusChange, clearMessages]);
+  }, [messages, enabled, graphSlug, onStructureChange, onStatusChange, clearMessages]);
 
   // Cleanup timers
   useEffect(() => {

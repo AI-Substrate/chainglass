@@ -28,7 +28,13 @@ export const dynamic = 'force-dynamic';
  * Defined outside the component to prevent re-renders from new array references.
  * Phase 3+ will consume these channels via useChannelEvents/useChannelCallback.
  */
-const WORKSPACE_SSE_CHANNELS = ['event-popper', 'file-changes', 'work-unit-state'] as const;
+const WORKSPACE_SSE_CHANNELS = [
+  'event-popper',
+  'file-changes',
+  'work-unit-state',
+  'workflows',
+  'unit-catalog',
+] as const;
 
 interface LayoutProps {
   children: React.ReactNode;

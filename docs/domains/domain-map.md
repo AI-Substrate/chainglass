@@ -66,7 +66,7 @@ flowchart LR
     %% Workflow UI dependencies
     workflowUI -->|"IPositionalGraphService<br/>ITemplateService<br/>IWorkUnitService"| posGraph
     workflowUI -->|"IFileSystem<br/>IPathResolver"| fileOps
-    workflowUI -->|"useSSE<br/>SSE infrastructure"| events
+    workflowUI -->|"useChannelEvents<br/>multiplexed SSE"| events
     workflowUI -->|"workspaceHref"| wsUrl
     workflowUI -->|"IUSDK"| sdk
 
@@ -155,7 +155,7 @@ flowchart LR
 | _platform/positional-graph | IPositionalGraphService, IOrchestrationService, IEventHandlerService, IWorkUnitService, ITemplateService, IInstanceService | CLI (`cg wf`, `cg template`), workflow-ui, dev/test-graphs | IFileSystem, IPathResolver, IStateService | file-ops, state | ✅ |
 | _platform/workgraph | IWorkGraphService, IWorkNodeService, IWorkUnitService | CLI (`cg wg`, `cg unit`) | IFileSystem, IPathResolver | file-ops | ❌ Removed from web (Plan 050 Phase 7) |
 | _platform/state | IStateService, useGlobalState, useGlobalStateList, GlobalStateProvider, GlobalStateConnector, StateChangeLog, ServerEventRoute, FakeGlobalStateSystem | positional-graph (publish), workflow-ui, panel-layout, file-browser, agents, work-unit-state (subscribe), dev-tools | useChannelEvents | events | ✅ |
-| workflow-ui | _(none — leaf consumer)_ | — | IPositionalGraphService, ITemplateService, IWorkUnitService, IFileSystem, IPathResolver, useSSE, workspaceHref, IUSDK, useGlobalState, useAgentOverlay (future) | positional-graph, file-ops, events, workspace-url, sdk, state, agents (future) | ✅ |
+| workflow-ui | _(none — leaf consumer)_ | — | IPositionalGraphService, ITemplateService, IWorkUnitService, IFileSystem, IPathResolver, useChannelEvents, workspaceHref, IUSDK, useGlobalState, useAgentOverlay (future) | positional-graph, file-ops, events, workspace-url, sdk, state, agents (future) | ✅ |
 | _platform/dev-tools | StateInspector, useStateChangeLog, useStateInspector | — | IStateService, StateChangeLog, useStateSystem | state | ✅ |
 | 058-workunit-editor | _(none — leaf consumer)_ | — | IWorkUnitService, CodeEditor, workspaceHref | positional-graph, viewer, workspace-url | ✅ |
 | agents | IAgentManagerService, IAgentAdapter, IAgentInstance, IAgentNotifierService, useAgentManager, useAgentInstance, useAgentOverlay, useRecentAgents, useWorktreeActivity, AgentChipBar, AgentOverlayPanel, AgentWorkUnitBridge | positional-graph (orchestration), workflow-ui (overlay), panel-layout (badge data via composition) | ISSEBroadcaster, useSSE, toast(), CopilotClient, IStateService, IWorkUnitStateService, IWorkflowEvents, DashboardShell | events, sdk, state, work-unit-state, workflow-events, panel-layout | 🟠 New |

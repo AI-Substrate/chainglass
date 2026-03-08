@@ -16,8 +16,9 @@
 export type MultiplexedSSEMessage = {
   /** SSE channel this event was broadcast on, e.g. 'event-popper', 'file-changes' */
   channel: string;
-  /** Event type within the channel, e.g. 'question-asked', 'file-changed' */
-  type: string;
+  /** Event type within the channel, e.g. 'question-asked', 'file-changed'.
+   * Optional — not all channel events include a type field (e.g. workflow, unit-catalog). */
+  type?: string;
   /** Domain-specific payload fields */
   [key: string]: unknown;
 };

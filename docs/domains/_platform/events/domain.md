@@ -79,7 +79,7 @@ Central event platform for the entire application. Owns the full pipeline from f
 | `MultiplexedSSEProvider` | Component | Workspace layout | React context — single EventSource per tab, demuxes by `msg.channel` to subscribers (Plan 072) |
 | `useChannelEvents` | Hook | ServerEventRoute, message accumulation consumers | `useChannelEvents(channel, {maxMessages?}) → {messages, isConnected, clearMessages}` (Plan 072) |
 | `useChannelCallback` | Hook | QuestionPopper, FileChange, notification-fetch consumers | `useChannelCallback(channel, callback) → {isConnected}` — fire per event, no accumulation (Plan 072) |
-| `MultiplexedSSEMessage` | Type | Provider, hooks, consumers | Wire format: `{channel: string, type: string, [key]: unknown}` (Plan 072) |
+| `MultiplexedSSEMessage` | Type | Provider, hooks, consumers | Wire format: `{channel?: string, type?: string, [key]: unknown}`. Both fields optional in consumer types — `channel` always present in wire (added by SSEManager), `type` present when domain includes it (Plan 072 Phase 5). |
 
 ## Composition (Internal)
 
@@ -210,3 +210,4 @@ Primary: scattered across `packages/shared`, `packages/workflow`, `apps/web` (Pl
 | Plan 072 Phase 2 | SSE Multiplexing client infrastructure: created `MultiplexedSSEProvider` (single EventSource, channel demux, exponential+jitter backoff, error isolation), `useChannelEvents` (accumulation), `useChannelCallback` (fire-and-forget), `FakeMultiplexedSSE` test fake, barrel export. Mounted provider in workspace layout. 24 new tests. | 2026-03-08 |
 | Plan 072 Phase 3 | Priority consumer migration: QuestionPopperProvider and FileChangeProvider migrated from direct EventSource to `useChannelCallback`. Removed ~180 lines SSE boilerplate. Per-tab connections: 3 → 1. E2E verified. | 2026-03-08 |
 | Plan 072 Phase 4 | GlobalState re-enablement: ServerEventRoute migrated from `useSSE` to `useChannelEvents('work-unit-state')`. GlobalStateConnector re-enabled in browser-client.tsx. Work-unit-state events now flow through multiplexed SSE → GlobalStateSystem. | 2026-03-08 |
+| Plan 072 Phase 5 | Remaining migrations: useWorkflowSSE and useWorkunitCatalogChanges migrated to `useChannelEvents`. Added `workflows` and `unit-catalog` to mux channel list (5 total). Deleted legacy `useSSE` hook (zero consumers) and dead `KanbanContent`. Made `MultiplexedSSEMessage.type` and `channel` optional in consumer types. SSE docs rewritten. | 2026-03-08 |

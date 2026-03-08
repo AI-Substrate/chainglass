@@ -3,7 +3,7 @@
 /**
  * Hook for tracking work unit catalog changes via SSE events.
  *
- * Subscribes to `/api/events/unit-catalog` SSE channel using shared useSSE hook.
+ * Subscribes to `unit-catalog` SSE channel via multiplexed useChannelEvents hook.
  * Returns whether changes have occurred since last dismiss, with dismiss function.
  *
  * Plan 058, Phase 4, T003.
@@ -11,7 +11,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { useSSE } from '@/hooks/useSSE';
+import { useChannelEvents } from '@/lib/sse';
 
 interface UnitCatalogSSEMessage {
   unitSlug?: string;
@@ -34,11 +34,9 @@ interface UseWorkunitCatalogChangesResult {
  * Calling `dismiss()` hides until the next change.
  */
 export function useWorkunitCatalogChanges(): UseWorkunitCatalogChangesResult {
-  const { messages, clearMessages } = useSSE<UnitCatalogSSEMessage>(
-    '/api/events/unit-catalog',
-    undefined,
-    { autoConnect: true, maxMessages: 10 }
-  );
+  const { messages, clearMessages } = useChannelEvents<UnitCatalogSSEMessage>('unit-catalog', {
+    maxMessages: 10,
+  });
   const [lastChanged, setLastChanged] = useState(0);
   const [dismissedAt, setDismissedAt] = useState(0);
   const prevCountRef = useRef(0);
