@@ -4,7 +4,7 @@
 **Created**: 2026-03-07
 **Spec**: [agent-runner-spec.md](agent-runner-spec.md)
 **ADR**: [ADR-0014](../../adr/adr-0014-first-class-agentic-development-harness.md) (referenced; workspace amendment below)
-**Status**: DRAFT
+**Status**: COMPLETE
 **Complexity**: CS-3 (medium)
 
 ## Summary
@@ -79,11 +79,50 @@ AI agents building Chainglass can boot and interact with the running app via the
 
 ## Phase Index
 
-| Phase | Title | Primary Domain | Objective | Depends On |
-|-------|-------|---------------|-----------|------------|
-| 1 | SdkCopilotAdapter Improvements | agents | Add model/reasoning support, fix approveAll bug, expose listModels() | None |
-| 2 | Agent Runner Infrastructure | external (harness/) | CLI commands, runner orchestrator, event logging, schema validation, folder management | Phase 1 |
-| 3 | Smoke Test Agent | external (harness/) | First agent definition, end-to-end validation against live harness | Phase 2 |
+| Phase | Title | Primary Domain | Objective | Status | Commit(s) |
+|-------|-------|---------------|-----------|--------|-----------|
+| 1 | SdkCopilotAdapter Improvements | agents | Add model/reasoning support, fix approveAll bug, expose listModels() | ✅ Complete | `699fe8f` |
+| 2 | Agent Runner Infrastructure | external (harness/) | CLI commands, runner orchestrator, event logging, schema validation, folder management | ✅ Complete | `dfd69b2`, `970c30a` |
+| 3 | Smoke Test Agent | external (harness/) | First agent definition, end-to-end validation against live harness | ✅ Complete | `176b17d`, `e03f8da` |
+
+## Progress
+
+### Commits (oldest → newest)
+
+| Commit | Description | Domain(s) |
+|--------|-------------|-----------|
+| `699fe8f` | Phase 1: SdkCopilotAdapter improvements — model/reasoningEffort, listModels, setModel, fakes, contracts | agents |
+| `dfd69b2` | Phase 2: Agent runner infrastructure — 6 modules, 4 CLI commands, 25 unit tests | external (harness/), _platform |
+| `970c30a` | Phase 2 review fixes — harness root resolution, report.json persistence, session ID capture, Test Doc blocks | external (harness/) |
+| `176b17d` | Phase 3: Smoke-test agent definition + infrastructure fixes (DYK-01 fallback, timeout wiring, Ajv2020) | external (harness/), agents |
+| `e03f8da` | Phase 3 review fixes — tighten schema, validate persistence, timeout JSDoc, npx→pnpm exec, docs sync | external (harness/), agents |
+| `d144c6a` | FX002: console-logs + screenshot-all CLI commands from smoke-test retrospective | external (harness/) |
+| `724678c` | Agent tail command + mobile-ux-audit agent definition | external (harness/) |
+| `c3ac4e6` | Filter raw/streaming noise from agent display output | external (harness/) |
+| `b30974e` | Fix tool_call display: show command instead of [object Object] | external (harness/) |
+
+### Verification
+
+- **`just fft`**: GREEN — 4996 passed, 77 skipped
+- **Harness unit tests**: 53/53 passed (7 test files)
+- **Smoke-test agent**: Validated run (89.6s, 14 tool calls, `completed.json` validated: true)
+- **Mobile-ux-audit agent**: Validated run (487s, 104 tool calls, `completed.json` validated: true)
+- **Concurrent execution**: Both agents ran simultaneously against same harness container — both completed successfully
+
+### Agent Definitions
+
+| Agent | Status | Last Run | Result |
+|-------|--------|----------|--------|
+| smoke-test | ✅ Operational | 2026-03-08T02:37:47Z | completed, validated |
+| mobile-ux-audit | ✅ Operational | 2026-03-08T02:36:14Z | completed, validated |
+
+### Domain Changes
+
+| Domain | What Changed | Contract Impact |
+|--------|-------------|----------------|
+| agents | `AgentRunOptions` +3 fields (model, reasoningEffort, timeout), `ICopilotClient` +listModels(), `ICopilotSession` +setModel(), 5 new types | Additive only — no breaking changes |
+| external (harness/) | 6 agent modules, 6 CLI commands (run/list/history/validate/tail/console-logs/screenshot-all), 2 agent definitions, E120-E126 error codes | N/A (external tooling) |
+| _platform | .gitignore, pnpm-workspace.yaml, harness.md, CLAUDE.md | Build-system only |
 
 ---
 
@@ -249,4 +288,12 @@ ADR-0014 established the harness as **"external tooling"** not in `pnpm-workspac
 
 | ID | Created | Summary | Domain(s) | Status | Source |
 |----|---------|---------|-----------|--------|--------|
-| FX002 | 2026-03-08 | Smoke-test retrospective CLI improvements: `console-logs` + `screenshot-all` commands, pnpm workspace docs | external (harness/), cross-domain | Proposed | Smoke-test agent retrospective (run 2026-03-08T10-42-28-675Z-9dce) |
+| FX002 | 2026-03-08 | console-logs + screenshot-all CLI commands, pnpm workspace docs | external (harness/), cross-domain | ✅ Complete (`d144c6a`) | Smoke-test agent retrospective |
+
+## Post-Plan Improvements
+
+| Commit | Summary | Source |
+|--------|---------|--------|
+| `724678c` | `agent tail` command for real-time event following + mobile-ux-audit agent definition | User request during testing |
+| `c3ac4e6` | Filter raw/streaming noise from display output | User feedback during tail testing |
+| `b30974e` | Fix tool_call display: show actual command instead of `[object Object]` | User feedback during tail testing |
