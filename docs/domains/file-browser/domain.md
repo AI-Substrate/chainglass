@@ -141,6 +141,7 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 - `_platform/file-ops` — IFileSystem, IPathResolver for all file operations
 - `_platform/viewer` — FileViewer, MarkdownViewer, DiffViewer for rendering
 - `_platform/state` — IStateService, useGlobalState, GlobalStateConnector for worktree state publishing/consumption
+- `_platform/events` — `useChannelCallback`, `WorkspaceDomain.FileChanges` for multiplexed SSE file-change subscription (Plan 072)
 - `_platform/workspace-url` — workspaceHref, param caches, NuqsAdapter
 - `_platform/panel-layout` — PanelShell, ExplorerPanel, LeftPanel, MainPanel for page layout
 - `@chainglass/workflow` — IWorkspaceService, workspace entity, preferences
@@ -171,3 +172,4 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 | Plan 049 Feature 2 | File search via ExplorerPanel: getFileList service (git ls-files + fs.stat), file-filter utilities (substring/glob/sort), useFileFilter hook (Map cache + SSE deltas + debounce), fetchFileList server action, BrowserClient wiring | 2026-02-26 |
 | Plan 051 | FlowSpace code search: useFlowspaceSearch hook (debounce, availability, graph age), BrowserClient wiring for `#` text and `$` semantic search modes, context menu on FlowSpace results | 2026-02-26 |
 | Plan 053 P5 | GlobalStateSystem worktree exemplar: registerWorktreeState (multi-instance domain), WorktreeStatePublisher (useFileChanges → state), WorktreeStateSubtitle (sidebar consumer), GlobalStateConnector wiring in browser-client.tsx | 2026-02-27 |
+| Plan 072 Phase 3 | Migrated FileChangeProvider from direct EventSource to `useChannelCallback('file-changes')` via multiplexed SSE. Removed ~100 lines SSE lifecycle + reconnect code, removed `eventSourceFactory` prop. | 2026-03-08 |

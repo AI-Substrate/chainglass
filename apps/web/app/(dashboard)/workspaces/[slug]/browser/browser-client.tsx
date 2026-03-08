@@ -28,6 +28,7 @@ import { fileBrowserContribution } from '@/features/041-file-browser/sdk/contrib
 import type { FileEntry } from '@/features/041-file-browser/services/directory-listing';
 import { createFilePathHandler } from '@/features/041-file-browser/services/file-path-handler';
 import { FileChangeProvider, useFileChanges } from '@/features/045-live-file-events';
+import { QuestionPopperIndicator } from '@/features/067-question-popper/components/question-popper-indicator';
 import {
   type BarContext,
   ExplorerPanel,
@@ -460,6 +461,7 @@ function BrowserClientInner({
                 flowspace.setQuery(query, mode);
               }
             }}
+            rightActions={<QuestionPopperIndicator />}
           />
         }
         left={
