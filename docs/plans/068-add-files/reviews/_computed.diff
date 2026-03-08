@@ -1,0 +1,931 @@
+diff --git a/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx b/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
+index 5782149..a95d4b7 100644
+--- a/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
++++ b/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
+@@ -17,6 +17,7 @@ import {
+ } from '@/features/041-file-browser/components/file-viewer-panel';
+ import { useClipboard } from '@/features/041-file-browser/hooks/use-clipboard';
+ import { useFileFilter } from '@/features/041-file-browser/hooks/use-file-filter';
++import { useFileMutations } from '@/features/041-file-browser/hooks/use-file-mutations';
+ import { useFileNavigation } from '@/features/041-file-browser/hooks/use-file-navigation';
+ import { useFlowspaceSearch } from '@/features/041-file-browser/hooks/use-flowspace-search';
+ import { useGitGrepSearch } from '@/features/041-file-browser/hooks/use-git-grep-search';
+@@ -45,6 +46,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+ import { toast } from 'sonner';
+ import { z } from 'zod';
+ import {
++  createFile,
++  createFolder,
++  deleteItem,
+   fetchChangedFiles,
+   fetchDiffStats,
+   fetchFileList,
+@@ -54,6 +58,7 @@ import {
+   fileExists,
+   pathExists,
+   readFile,
++  renameItem,
+   saveFile,
+ } from '../../../../actions/file-actions';
+ 
+@@ -100,6 +105,12 @@ function BrowserClientInner({
+   const explorerRef = useRef<ExplorerPanelHandle>(null);
+   const [expandPaths, setExpandPaths] = useState<string[]>([]);
+ 
++  // DYK-P3-01: Wrap server prop in state for client-side root refresh
++  const [rootEntries, setRootEntries] = useState(initialEntries);
++
++  // T006: Local new paths for immediate green animation before SSE fires
++  const [localNewPaths, setLocalNewPaths] = useState<Set<string>>(new Set());
++
+   const mode = (params.mode as ViewerMode) || 'preview';
+   const selectedFile = params.file || undefined;
+   const panelMode = (params.panel as PanelMode) || 'tree';
+@@ -139,6 +150,102 @@ function BrowserClientInner({
+ 
+   const clipboard = useClipboard({ slug, worktreePath, readFile });
+ 
++  // --- File CRUD mutations (Plan 068 Phase 3) ---
++
++  // DYK-P3-01: Refresh root entries from API (initialEntries is a server prop)
++  const handleRefreshRoot = useCallback(async () => {
++    try {
++      const url = `/api/workspaces/${slug}/files?worktree=${encodeURIComponent(worktreePath)}&dir=`;
++      const res = await fetch(url);
++      if (res.ok) {
++        const data = await res.json();
++        setRootEntries(data.entries);
++      }
++    } catch {
++      // Silent failure — SSE will eventually catch up
++    }
++  }, [slug, worktreePath]);
++
++  const mutations = useFileMutations({
++    slug,
++    worktreePath,
++    refreshDir: fileNav.handleRefreshDir,
++    refreshRoot: handleRefreshRoot,
++    actions: { createFile, createFolder, deleteItem, renameItem },
++  });
++
++  // T006: Add path to local new paths with auto-cleanup (1.5s matches CSS animation)
++  const addNewlyCreatedPath = useCallback((path: string) => {
++    setLocalNewPaths((prev) => {
++      const next = new Set(prev);
++      next.add(path);
++      return next;
++    });
++    setTimeout(() => {
++      setLocalNewPaths((prev) => {
++        const next = new Set(prev);
++        next.delete(path);
++        return next;
++      });
++    }, 1500);
++  }, []);
++
++  // T002+T007: Create file → toast + refresh + auto-select in viewer
++  const handleTreeCreateFile = useCallback(
++    async (parentDir: string, name: string) => {
++      const result = await mutations.handleCreateFile(parentDir, name);
++      if (result?.ok) {
++        const newPath = result.path;
++        addNewlyCreatedPath(newPath);
++        fileNav.handleSelect(newPath);
++      }
++    },
++    [mutations.handleCreateFile, addNewlyCreatedPath, fileNav.handleSelect]
++  );
++
++  // T002+T007: Create folder → toast + refresh + auto-expand
++  const handleTreeCreateFolder = useCallback(
++    async (parentDir: string, name: string) => {
++      const result = await mutations.handleCreateFolder(parentDir, name);
++      if (result?.ok) {
++        const newPath = result.path;
++        addNewlyCreatedPath(newPath);
++        setExpandPaths([newPath]);
++      }
++    },
++    [mutations.handleCreateFolder, addNewlyCreatedPath]
++  );
++
++  // T002+T003: Rename → toast + refresh + URL sync for open file (DYK-P3-02)
++  const handleTreeRename = useCallback(
++    async (oldPath: string, newName: string) => {
++      const result = await mutations.handleRename(oldPath, newName);
++      if (result?.ok) {
++        if (selectedFile === oldPath) {
++          // DYK-P3-02: Preserve unsaved edits — update URL without re-fetching
++          setParams({ file: result.newPath, line: null }, { history: 'replace' });
++        } else {
++          fileNav.handleSelect(result.newPath);
++        }
++      }
++    },
++    [mutations.handleRename, selectedFile, setParams, fileNav.handleSelect]
++  );
++
++  // T002+T004: Delete → toast + refresh + clear selection if needed (DYK-P3-03)
++  const handleTreeDelete = useCallback(
++    async (path: string) => {
++      const result = await mutations.handleDelete(path);
++      if (result?.ok && selectedFile) {
++        // DYK-P3-03: Trailing slash prevents false prefix matches
++        if (selectedFile === path || selectedFile.startsWith(`${path}/`)) {
++          setParams({ file: '', line: null }, { history: 'replace' });
++        }
++      }
++    },
++    [mutations.handleDelete, selectedFile, setParams]
++  );
++
+   // --- File search filter (Plan 049 Feature 2) ---
+   const fileFilter = useFileFilter({ worktreePath, fetchFileList });
+ 
+@@ -178,6 +285,14 @@ function BrowserClientInner({
+   // T001: Watch expanded directories for tree updates
+   const treeChanges = useTreeDirectoryChanges(trackedExpandedDirs);
+ 
++  // T006: Merge local + SSE-driven new paths for green animation
++  const combinedNewPaths = useMemo(() => {
++    if (localNewPaths.size === 0) return treeChanges.newPaths;
++    const combined = new Set(treeChanges.newPaths);
++    for (const p of localNewPaths) combined.add(p);
++    return combined;
++  }, [treeChanges.newPaths, localNewPaths]);
++
+   // T005: Watch all files for ChangesView auto-refresh (500ms debounce)
+   const allChanges = useFileChanges('*', { debounce: 500 });
+ 
+@@ -474,10 +589,10 @@ function BrowserClientInner({
+               tree: (
+                 <FileTree
+                   ref={treeRef}
+-                  entries={initialEntries}
++                  entries={rootEntries}
+                   selectedFile={selectedFile}
+                   changedFiles={panelState.changedFiles}
+-                  newlyAddedPaths={treeChanges.newPaths}
++                  newlyAddedPaths={combinedNewPaths}
+                   onSelect={fileNav.handleSelect}
+                   onExpand={fileNav.handleExpand}
+                   childEntries={fileNav.childEntries}
+@@ -488,6 +603,10 @@ function BrowserClientInner({
+                   onCopyContent={clipboard.handleCopyContent}
+                   onCopyTree={clipboard.handleCopyTree}
+                   onDownload={clipboard.handleDownload}
++                  onCreateFile={handleTreeCreateFile}
++                  onCreateFolder={handleTreeCreateFolder}
++                  onRename={handleTreeRename}
++                  onDelete={handleTreeDelete}
+                 />
+               ),
+               changes: (
+diff --git a/apps/web/src/features/041-file-browser/hooks/use-file-mutations.ts b/apps/web/src/features/041-file-browser/hooks/use-file-mutations.ts
+new file mode 100644
+index 0000000..f17b4cd
+--- /dev/null
++++ b/apps/web/src/features/041-file-browser/hooks/use-file-mutations.ts
+@@ -0,0 +1,164 @@
++'use client';
++
++/**
++ * useFileMutations — CRUD operation handlers with toast feedback.
++ *
++ * Calls server actions for create/rename/delete, shows toast notifications,
++ * and refreshes the tree directory after success. Returns results so
++ * BrowserClient can handle edge cases (rename open file, delete selection, etc.).
++ *
++ * Plan 068 Phase 3
++ */
++
++import type {
++  CreateResult,
++  DeleteResult,
++  RenameResult,
++} from '@/features/041-file-browser/services/file-mutation-actions';
++import { useCallback } from 'react';
++import { toast } from 'sonner';
++
++interface UseFileMutationsOptions {
++  slug: string;
++  worktreePath: string;
++  /** Refresh a subdirectory's entries in the tree */
++  refreshDir: (dirPath: string) => Promise<void>;
++  /** Refresh root entries (DYK-P3-01: initialEntries is a server prop) */
++  refreshRoot: () => Promise<void>;
++  /** Server action dependencies — injected from BrowserClient */
++  actions: {
++    createFile: (
++      slug: string,
++      worktreePath: string,
++      dirPath: string,
++      fileName: string
++    ) => Promise<CreateResult>;
++    createFolder: (
++      slug: string,
++      worktreePath: string,
++      dirPath: string,
++      folderName: string
++    ) => Promise<CreateResult>;
++    deleteItem: (slug: string, worktreePath: string, itemPath: string) => Promise<DeleteResult>;
++    renameItem: (
++      slug: string,
++      worktreePath: string,
++      oldPath: string,
++      newName: string
++    ) => Promise<RenameResult>;
++  };
++}
++
++/** Extract parent directory from a path (empty string for root-level items) */
++function parentDir(path: string): string {
++  const idx = path.lastIndexOf('/');
++  return idx === -1 ? '' : path.substring(0, idx);
++}
++
++export function useFileMutations({
++  slug,
++  worktreePath,
++  refreshDir,
++  refreshRoot,
++  actions,
++}: UseFileMutationsOptions) {
++  const refresh = useCallback(
++    async (dirPath: string) => {
++      if (dirPath === '') {
++        await refreshRoot();
++      } else {
++        await refreshDir(dirPath);
++      }
++    },
++    [refreshDir, refreshRoot]
++  );
++
++  const handleCreateFile = useCallback(
++    async (dir: string, name: string) => {
++      const toastId = toast.loading(`Creating ${name}...`);
++      try {
++        const result = await actions.createFile(slug, worktreePath, dir, name);
++        if (result.ok) {
++          toast.success(`Created ${name}`, { id: toastId });
++          await refresh(dir);
++          return result;
++        }
++        toast.error(`Failed to create ${name}`, { id: toastId, description: result.message });
++        return result;
++      } catch {
++        toast.error(`Failed to create ${name}`, { id: toastId });
++        return null;
++      }
++    },
++    [slug, worktreePath, refresh, actions]
++  );
++
++  const handleCreateFolder = useCallback(
++    async (dir: string, name: string) => {
++      const toastId = toast.loading(`Creating ${name}/...`);
++      try {
++        const result = await actions.createFolder(slug, worktreePath, dir, name);
++        if (result.ok) {
++          toast.success(`Created ${name}/`, { id: toastId });
++          await refresh(dir);
++          return result;
++        }
++        toast.error(`Failed to create ${name}/`, { id: toastId, description: result.message });
++        return result;
++      } catch {
++        toast.error(`Failed to create ${name}/`, { id: toastId });
++        return null;
++      }
++    },
++    [slug, worktreePath, refresh, actions]
++  );
++
++  const handleRename = useCallback(
++    async (oldPath: string, newName: string) => {
++      const oldName = oldPath.split('/').pop() ?? oldPath;
++      const toastId = toast.loading(`Renaming ${oldName}...`);
++      try {
++        const result = await actions.renameItem(slug, worktreePath, oldPath, newName);
++        if (result.ok) {
++          toast.success(`Renamed to ${newName}`, { id: toastId });
++          await refresh(parentDir(oldPath));
++          return result;
++        }
++        toast.error(`Failed to rename ${oldName}`, { id: toastId, description: result.message });
++        return result;
++      } catch {
++        toast.error(`Failed to rename ${oldName}`, { id: toastId });
++        return null;
++      }
++    },
++    [slug, worktreePath, refresh, actions]
++  );
++
++  const handleDelete = useCallback(
++    async (path: string) => {
++      const name = path.split('/').pop() ?? path;
++      const toastId = toast.loading(`Deleting ${name}...`);
++      try {
++        const result = await actions.deleteItem(slug, worktreePath, path);
++        if (result.ok) {
++          toast.success(`Deleted ${name}`, { id: toastId });
++          await refresh(parentDir(path));
++          return result;
++        }
++        toast.error(`Failed to delete ${name}`, { id: toastId, description: result.message });
++        return result;
++      } catch {
++        toast.error(`Failed to delete ${name}`, { id: toastId });
++        return null;
++      }
++    },
++    [slug, worktreePath, refresh, actions]
++  );
++
++  return {
++    handleCreateFile,
++    handleCreateFolder,
++    handleRename,
++    handleDelete,
++  };
++}
+diff --git a/docs/domains/file-browser/domain.md b/docs/domains/file-browser/domain.md
+index 1b5d367..72512f1 100644
+--- a/docs/domains/file-browser/domain.md
++++ b/docs/domains/file-browser/domain.md
+@@ -72,7 +72,7 @@ Workspace-scoped file browsing, editing, and diffing. The core feature that make
+ | createFolderService | Create directory + security + duplicate check | IFileSystem (mkdir, exists, realpath), IPathResolver, validateFileName |
+ | deleteItemService | Delete file/folder + security + size guard | IFileSystem (unlink, rmdir, stat, readDir, realpath), IPathResolver |
+ | renameItemService | Rename file/folder + security + destination check | IFileSystem (rename, exists, realpath), IPathResolver, validateFileName |
+-| validateFileName | Git-portable filename validation | None (pure function) |
++| useFileMutations | Hook: CRUD handlers with toast + tree refresh + edge cases | Server actions (createFile, createFolder, deleteItem, renameItem), handleRefreshDir |
+ | InlineEditInput | Inline text input for create/rename in FileTree | validateFileName |
+ | DeleteConfirmationDialog | VS Code-style delete confirmation dialog | Dialog (Radix UI) |
+ | fileExists action | Lightweight stat check for ExplorerPanel | IFileSystem, IPathResolver |
+@@ -106,6 +106,7 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
+ | `apps/web/src/features/041-file-browser/services/changed-files.ts` | Changed files filter | Phase 4 |
+ | `apps/web/src/features/041-file-browser/services/file-actions.ts` | readFile + saveFile service logic | Phase 4 |
+ | `apps/web/src/features/041-file-browser/services/file-mutation-actions.ts` | createFile, createFolder, deleteItem, renameItem service logic | Plan 068 Phase 1 |
++| `apps/web/src/features/041-file-browser/hooks/use-file-mutations.ts` | useFileMutations hook (CRUD + toast + refresh) | Plan 068 Phase 3 |
+ | `apps/web/src/features/041-file-browser/lib/validate-filename.ts` | Git-portable filename validation | Plan 068 Phase 1 |
+ | `apps/web/src/features/041-file-browser/components/inline-edit-input.tsx` | InlineEditInput (create/rename inline input) | Plan 068 Phase 2 |
+ | `apps/web/src/features/041-file-browser/components/delete-confirmation-dialog.tsx` | DeleteConfirmationDialog | Plan 068 Phase 2 |
+@@ -197,3 +198,4 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
+ | Plan 053 P5 | GlobalStateSystem worktree exemplar: registerWorktreeState (multi-instance domain), WorktreeStatePublisher (useFileChanges → state), WorktreeStateSubtitle (sidebar consumer), GlobalStateConnector wiring in browser-client.tsx | 2026-02-27 |
+ | Plan 068 Phase 1 | File CRUD service layer: createFileService, createFolderService, deleteItemService, renameItemService with path security + validateFileName utility + 4 server actions | 2026-03-07 |
+ | Plan 068 Phase 2 | FileTree UI extensions: InlineEditInput component, hover buttons (New File/Folder), inline create/rename modes, context menu Rename/Delete, DeleteConfirmationDialog, F2/Enter keyboard shortcuts, CRUD callback props | 2026-03-07 |
++| Plan 068 Phase 3 | BrowserClient wiring: useFileMutations hook with toast feedback, CRUD callbacks wired to FileTree, rename-open-file URL sync, delete-open-file selection clear, local newlyAddedPaths animation, auto-select/expand after create, root entries state for root-level refresh | 2026-03-07 |
+diff --git a/docs/plans/068-add-files/tasks/phase-3-browserclient-wiring-integration/execution.log.md b/docs/plans/068-add-files/tasks/phase-3-browserclient-wiring-integration/execution.log.md
+new file mode 100644
+index 0000000..6f1abe2
+--- /dev/null
++++ b/docs/plans/068-add-files/tasks/phase-3-browserclient-wiring-integration/execution.log.md
+@@ -0,0 +1,54 @@
++# Execution Log: Phase 3 — BrowserClient Wiring & Integration
++
++**Plan**: 068-add-files
++**Phase**: Phase 3
++**Started**: 2026-03-07
++
++---
++
++## Baseline
++
++- **Tests**: 357 files, 5030 tests passing, 77 skipped
++- **Duration**: 165.86s
++- **Branch**: `068-add-files`
++
++---
++
++## Task Log
++
++### T001: useFileMutations hook — ✅
++Created `use-file-mutations.ts` with 4 handlers: `handleCreateFile`, `handleCreateFolder`, `handleRename`, `handleDelete`. Each calls server action with toast feedback (loading→success/error) and awaits refreshDir on success. Uses dependency injection for server actions (avoids `src/` → `app/` import issue). Helper `parentDir()` extracts parent for refresh targeting.
++
++### T002: Wire into BrowserClient — ✅
++Called `useFileMutations` in BrowserClientInner with slug, worktreePath, handleRefreshDir, handleRefreshRoot, and injected server actions. Created 4 wrapper callbacks (handleTreeCreateFile, handleTreeCreateFolder, handleTreeRename, handleTreeDelete) that compose hook results with edge case logic. Passed all 4 as CRUD callback props to FileTree. DYK-P3-01: Wrapped `initialEntries` in `useState(initialEntries)` and added `handleRefreshRoot` for root-level creates.
++
++### T003: Handle rename of open file — ✅
++In `handleTreeRename`: if `selectedFile === oldPath`, uses `setParams({file: result.newPath})` instead of `handleSelect` to preserve unsaved edits (DYK-P3-02). For non-open files, calls `handleSelect(result.newPath)` for auto-select.
++
++### T004: Handle delete of open file — ✅
++In `handleTreeDelete`: checks both exact match (`selectedFile === path`) and ancestor match (`selectedFile.startsWith(\`${path}/\`)`) with trailing slash (DYK-P3-03). Clears selection via `setParams({file: '', line: null})`.
++
++### T005: Handle delete of expanded folder — ✅ (verification only)
++Confirmed DYK-P3-04: no code needed. After `handleRefreshDir` re-fetches parent, deleted folder disappears from `childEntries`. FileTree's internal expanded Set retains stale path harmlessly (nothing renders for a path with no entry).
++
++### T006: newlyAddedPaths local state — ✅
++Added `localNewPaths` state with `addNewlyCreatedPath` helper that adds path + sets 1.5s auto-cleanup timeout (matches CSS animation). Created `combinedNewPaths` useMemo merging local + SSE-driven paths. Passed to FileTree as `newlyAddedPaths={combinedNewPaths}`.
++
++### T007: Auto-select/expand after create/rename — ✅
++Create file: calls `handleSelect(result.path)` to open in viewer. Create folder: calls `setExpandPaths([result.path])` to auto-expand. Rename: auto-selects new path (or just updates URL if file was dirty — T003 logic).
++
++### T008: Domain.md update — ✅
++Added useFileMutations to Composition table, new hook to Source Location, Phase 3 entry to History.
++
++## Final Evidence
++
++- **`just fft`**: PASS
++- **Test files**: 357 passed, 9 skipped
++- **Tests**: 5030 passed, 77 skipped
++- **Duration**: 164.84s
++- **New files**: 1 (use-file-mutations.ts)
++- **Modified files**: 2 (browser-client.tsx, domain.md)
++
++## Discovery
++
++Import from `src/features/` to `app/actions/` fails in Next.js build (Turbopack module resolution). Fixed by injecting server actions as parameters (dependency injection pattern matching useClipboard).
+diff --git a/docs/plans/068-add-files/tasks/phase-3-browserclient-wiring-integration/tasks.fltplan.md b/docs/plans/068-add-files/tasks/phase-3-browserclient-wiring-integration/tasks.fltplan.md
+new file mode 100644
+index 0000000..7164300
+--- /dev/null
++++ b/docs/plans/068-add-files/tasks/phase-3-browserclient-wiring-integration/tasks.fltplan.md
+@@ -0,0 +1,154 @@
++# Flight Plan: Phase 3 — BrowserClient Wiring & Integration
++
++**Plan**: [add-files-plan.md](../../add-files-plan.md)
++**Phase**: Phase 3: BrowserClient Wiring & Integration
++**Generated**: 2026-03-07
++**Status**: Landed
++
++---
++
++## Departure → Destination
++
++**Where we are**: Phase 1 delivered 4 server actions for file CRUD with full TDD coverage and path security. Phase 2 delivered all the UI — InlineEditInput, hover buttons, context menus, keyboard shortcuts, and DeleteConfirmationDialog in the FileTree. But clicking "New File" and typing a name does nothing — the callbacks are unconnected. The CRUD UI is visible but inert.
++
++**Where we're going**: A user hovers a folder → clicks New File → types `notes.md` → presses Enter → the file is created on disk, a success toast appears, the tree refreshes with a green fade-in animation, and the new file auto-opens in the viewer. Rename updates the URL and viewer. Delete clears the selection if the viewed file was removed. All operations give instant toast feedback.
++
++---
++
++## Domain Context
++
++### Domains We're Changing
++
++| Domain | What Changes | Key Files |
++|--------|-------------|-----------|
++| file-browser | New useFileMutations hook, BrowserClient wired with CRUD callbacks + edge case handling | `hooks/use-file-mutations.ts` (new), `browser-client.tsx` (modify), `domain.md` (modify) |
++
++### Domains We Depend On (no changes)
++
++| Domain | What We Consume | Contract |
++|--------|----------------|----------|
++| file-browser (Phase 1) | Server actions for CRUD | `createFile`, `createFolder`, `deleteItem`, `renameItem` |
++| file-browser (Phase 2) | FileTree CRUD callback props | `onCreateFile`, `onCreateFolder`, `onRename`, `onDelete` |
++| file-browser | Tree refresh + file selection | `handleRefreshDir`, `handleSelect` from useFileNavigation |
++| file-browser | SSE-driven new paths | `newPaths` from useTreeDirectoryChanges |
++| _platform/workspace-url | URL state | `fileBrowserParams`, `setParams` |
++
++---
++
++## Flight Status
++
++<!-- Updated by /plan-6-v2: pending → active → done. Use blocked for problems/input needed. -->
++
++```mermaid
++stateDiagram-v2
++    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
++    classDef active fill:#FFC107,stroke:#FFA000,color:#000
++    classDef done fill:#4CAF50,stroke:#388E3C,color:#fff
++    classDef blocked fill:#F44336,stroke:#D32F2F,color:#fff
++
++    state "1: useFileMutations hook" as S1
++    state "2: BrowserClient wiring" as S2
++    state "3: Rename edge cases" as S3
++    state "4: Delete edge cases" as S4
++    state "5: Animation + auto-select" as S5
++    state "6: Domain docs" as S6
++
++    [*] --> S1
++    S1 --> S2
++    S2 --> S3
++    S2 --> S4
++    S2 --> S5
++    S3 --> S6
++    S4 --> S6
++    S5 --> S6
++    S6 --> [*]
++
++    class S1,S2,S3,S4,S5,S6 done
++```
++
++**Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
++
++---
++
++## Stages
++
++<!-- Updated by /plan-6-v2 during implementation: [ ] → [~] → [x] -->
++
++- [x] **Stage 1: useFileMutations hook** — Server action calls with toast feedback, refreshDir on success (`use-file-mutations.ts` — new file)
++- [x] **Stage 2: BrowserClient wiring** — Pass CRUD callbacks from hook to FileTree, immediate refresh (`browser-client.tsx`)
++- [x] **Stage 3: Rename edge cases** — Detect renamed open file, sync URL/viewer (`use-file-mutations.ts`, `browser-client.tsx`)
++- [x] **Stage 4: Delete edge cases** — Clear selection on delete of open file/folder, clean expanded state (`browser-client.tsx`)
++- [x] **Stage 5: Animation + auto-select** — Local newlyAddedPaths with 1.5s timeout, auto-select/expand after create/rename (`browser-client.tsx`)
++- [x] **Stage 6: Domain docs** — Update domain.md composition, history, source location (`domain.md`)
++
++---
++
++## Architecture: Before & After
++
++```mermaid
++flowchart LR
++    classDef existing fill:#E8F5E9,stroke:#4CAF50,color:#000
++    classDef changed fill:#FFF3E0,stroke:#FF9800,color:#000
++    classDef new fill:#E3F2FD,stroke:#2196F3,color:#000
++
++    subgraph Before["Before Phase 3"]
++        B_FT["FileTree<br/>(CRUD UI — inert)"]:::existing
++        B_SA["Server Actions<br/>(untouched)"]:::existing
++        B_BC["BrowserClient<br/>(no CRUD wiring)"]:::existing
++    end
++
++    subgraph After["After Phase 3"]
++        A_FT["FileTree<br/>(CRUD UI — live)"]:::existing
++        A_HK["useFileMutations<br/>(toast + refresh +<br/>edge cases)"]:::new
++        A_SA["Server Actions"]:::existing
++        A_BC["BrowserClient<br/>(CRUD wired +<br/>edge cases)"]:::changed
++
++        A_FT -->|"callbacks"| A_BC
++        A_BC --> A_HK
++        A_HK --> A_SA
++    end
++```
++
++**Legend**: existing (green, unchanged) | changed (orange, modified) | new (blue, created)
++
++---
++
++## Acceptance Criteria
++
++- [ ] AC-01: Hover New File → type name → Enter → file created + toast + green animation + auto-opens in viewer
++- [ ] AC-02: Hover New Folder → type name → Enter → folder created + toast + auto-expands
++- [ ] AC-06: Right-click Delete → confirm → item deleted + toast
++- [ ] AC-10: Rename currently-viewed file → URL updates, viewer shows new file
++- [ ] AC-11: Delete currently-viewed file → viewer clears to empty state
++- [ ] AC-12: Toast feedback on all operations (create/rename/delete, success/error)
++- [ ] `just fft` passes (lint, format, typecheck, test)
++- [ ] No changes to existing read/save/copy behavior (regression-free)
++
++## Goals & Non-Goals
++
++**Goals**:
++- ✅ useFileMutations hook with toast feedback
++- ✅ End-to-end CRUD wiring through BrowserClient
++- ✅ Edge case handling (rename open file, delete open file/folder)
++- ✅ Green fade-in animation for new items
++- ✅ Auto-select/expand after create and rename
++- ✅ Domain documentation updated
++
++**Non-Goals**:
++- ❌ No new UI components
++- ❌ No service layer changes
++- ❌ No FileTree modifications
++- ❌ No new server actions
++
++---
++
++## Checklist
++
++- [x] T001: Create useFileMutations hook
++- [x] T002: Wire useFileMutations into BrowserClient
++- [x] T003: Handle rename of currently-viewed file
++- [x] T004: Handle delete of currently-viewed file
++- [x] T005: Handle delete of expanded folder
++- [x] T006: Add locally-created items to newlyAddedPaths
++- [x] T007: Auto-select and auto-expand after create/rename
++- [x] T008: Update file-browser domain.md
+diff --git a/docs/plans/068-add-files/tasks/phase-3-browserclient-wiring-integration/tasks.md b/docs/plans/068-add-files/tasks/phase-3-browserclient-wiring-integration/tasks.md
+new file mode 100644
+index 0000000..5edb7f6
+--- /dev/null
++++ b/docs/plans/068-add-files/tasks/phase-3-browserclient-wiring-integration/tasks.md
+@@ -0,0 +1,324 @@
++# Phase 3: BrowserClient Wiring & Integration — Tasks
++
++## Executive Briefing
++
++**Purpose**: Wire the Phase 1 server actions and Phase 2 FileTree CRUD UI end-to-end through a `useFileMutations` hook in BrowserClient. This phase makes the mutation UI functional — hover buttons create files, rename commits persist, delete confirmations actually remove items — with toast feedback, immediate tree refresh, and edge case handling for rename/delete of the currently-viewed file.
++
++**What We're Building**: A `useFileMutations` hook that calls server actions with toast feedback (loading→success/error), wired into BrowserClient's FileTree via the 4 CRUD callback props from Phase 2. Plus edge case handling: renaming the open file syncs URL/viewer, deleting the open file clears selection, deleting expanded folders cleans up state, and newly created items get green fade-in animation with auto-select.
++
++**Goals**:
++- ✅ useFileMutations hook with server action calls + toast feedback
++- ✅ BrowserClient passes CRUD callbacks to FileTree
++- ✅ Immediate tree refresh after each mutation (handleRefreshDir)
++- ✅ Rename of open file syncs URL params + re-fetches content
++- ✅ Delete of open file/folder clears selection + shows empty state
++- ✅ Delete of expanded folder cleans expandedDirs + childEntries cache
++- ✅ Newly created items get green fade-in animation (newlyAddedPaths)
++- ✅ Auto-select new files, auto-expand new folders, auto-select renamed items
++- ✅ Updated file-browser domain.md
++
++**Non-Goals**:
++- ❌ No new UI components (Phase 2 delivered all UI)
++- ❌ No service layer changes (Phase 1 is final)
++- ❌ No FileTree component changes (callbacks are already wired)
++- ❌ No new server actions
++
++## Prior Phase Context
++
++### Phase 1: Service Layer & Server Actions
++
++**A. Deliverables**:
++- `apps/web/src/features/041-file-browser/services/file-mutation-actions.ts` — 4 service functions + types
++- `apps/web/src/features/041-file-browser/lib/validate-filename.ts` — `validateFileName()`
++- `apps/web/app/actions/file-actions.ts` — 4 server actions (createFile, createFolder, deleteItem, renameItem)
++- 23 service tests + 20 validation tests
++
++**B. Dependencies Exported**:
++```typescript
++// Server actions (app/actions/file-actions.ts) — Phase 3 calls these
++export async function createFile(slug: string, dirPath: string, fileName: string): Promise<CreateResult>
++export async function createFolder(slug: string, dirPath: string, folderName: string): Promise<CreateResult>
++export async function deleteItem(slug: string, itemPath: string): Promise<DeleteResult>
++export async function renameItem(slug: string, oldPath: string, newName: string): Promise<RenameResult>
++
++// Result types
++type CreateResult = {ok: true, path: string} | {ok: false, error: 'exists' | 'invalid-name' | 'security' | 'unknown', message: string}
++type DeleteResult = {ok: true} | {ok: false, error: 'not-found' | 'security' | 'too-large' | 'unknown', message: string, itemCount?: number}
++type RenameResult = {ok: true, oldPath: string, newPath: string} | {ok: false, error: 'exists' | 'not-found' | 'invalid-name' | 'security' | 'unknown', message: string}
++```
++
++**C. Gotchas**: Server actions accept `slug` (not `worktreePath`) — trusted root resolved server-side. `deleteItem` returns `'too-large'` with `itemCount` for folders exceeding 5000 children.
++
++**D. Incomplete Items**: None.
++
++**E. Patterns**: Discriminated union results; dynamic import service functions in server actions.
++
++### Phase 2: FileTree UI Extensions
++
++**A. Deliverables**:
++- `apps/web/src/features/041-file-browser/components/inline-edit-input.tsx` — InlineEditInput component
++- `apps/web/src/features/041-file-browser/components/delete-confirmation-dialog.tsx` — DeleteConfirmationDialog
++- `apps/web/src/features/041-file-browser/components/file-tree.tsx` — Extended with CRUD UI
++- 10 smoke tests
++
++**B. Dependencies Exported** (Phase 3 wires these):
++```typescript
++// FileTree CRUD callback props — Phase 3 passes these from useFileMutations
++onCreateFile?: (parentDir: string, name: string) => void;
++onCreateFolder?: (parentDir: string, name: string) => void;
++onRename?: (oldPath: string, newName: string) => void;
++onDelete?: (path: string) => void;
++```
++
++**C. Gotchas**: Per-callback gating — each UI affordance only shows when its specific callback exists. EditState/deleteTarget are separate state machines (DYK-P2-05). CommitOnBlur differs: false for create, true for rename (DYK-P2-03).
++
++**D. Incomplete Items**: None — all 9 tasks + 7 review fixes complete.
++
++**E. Patterns**: TreeMutationHandlers bundle; `data-tree-action` attribute on hover buttons; `requestAnimationFrame` for focus after Radix menu close.
++
++## Pre-Implementation Check
++
++| File | Exists? | Domain Check | Notes |
++|------|---------|-------------|-------|
++| `apps/web/src/features/041-file-browser/hooks/use-file-mutations.ts` | ❌ NEW | ✅ Correct (hooks/) | New hook alongside use-clipboard.ts |
++| `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | ✅ EXISTS (~581 lines) | ✅ Correct | Wire useFileMutations, pass callbacks to FileTree |
++| `docs/domains/file-browser/domain.md` | ✅ EXISTS | ✅ Correct | Update history, composition |
++
++**Concept search**: `useClipboard` is the closest existing pattern — same shape (hook returning handlers that call server actions + show toasts). No duplication concern for `useFileMutations`.
++
++**Harness**: No agent harness configured. Implementation will use standard testing (`just fft`).
++
++## Architecture Map
++
++```mermaid
++flowchart TD
++    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
++    classDef completed fill:#4CAF50,stroke:#388E3C,color:#fff
++    classDef inprogress fill:#FFC107,stroke:#FFA000,color:#000
++
++    subgraph Phase3["Phase 3: BrowserClient Wiring & Integration"]
++        T001["T001: useFileMutations hook"]:::completed
++        T002["T002: Wire into BrowserClient"]:::completed
++        T003["T003: Handle rename of open file"]:::completed
++        T004["T004: Handle delete of open file"]:::completed
++        T005["T005: Handle delete of expanded folder"]:::completed
++        T006["T006: newlyAddedPaths animation"]:::completed
++        T007["T007: Auto-select/expand after create"]:::completed
++        T008["T008: Update domain.md"]:::completed
++
++        T001 --> T002
++        T002 --> T003
++        T002 --> T004
++        T002 --> T005
++        T002 --> T006
++        T002 --> T007
++        T003 --> T008
++        T004 --> T008
++        T005 --> T008
++        T006 --> T008
++        T007 --> T008
++    end
++
++    subgraph Phase1["Phase 1 (consumed)"]
++        SA["Server Actions<br/>(createFile, createFolder,<br/>deleteItem, renameItem)"]
++    end
++
++    subgraph Phase2["Phase 2 (consumed)"]
++        FT["FileTree CRUD callbacks<br/>(onCreateFile, onCreateFolder,<br/>onRename, onDelete)"]
++    end
++
++    subgraph Existing["Existing (consumed)"]
++        HRD["handleRefreshDir()"]
++        HS["handleSelect()"]
++        SP["setParams (URL)"]
++        NAP["newlyAddedPaths<br/>(useTreeDirectoryChanges)"]
++    end
++
++    T001 -.-> SA
++    T002 -.-> FT
++    T003 -.-> SP
++    T003 -.-> HS
++    T004 -.-> SP
++    T005 -.-> HRD
++    T006 -.-> NAP
++    T007 -.-> HS
++```
++
++## Tasks
++
++| Status | ID | Task | Domain | Path(s) | Done When | Notes |
++|--------|-----|------|--------|---------|-----------|-------|
++| [x] | T001 | Create `use-file-mutations.ts` hook | file-browser | `apps/web/src/features/041-file-browser/hooks/use-file-mutations.ts` | Returns `handleCreateFile(parentDir, name)`, `handleCreateFolder(parentDir, name)`, `handleRename(oldPath, newName)`, `handleDelete(path)`. Each calls server action, shows toast (loading→success/error), calls `refreshDir` callback on success. Accepts `slug` and `refreshDir` as config. | Plan 3.1. Follow useClipboard toast pattern: `toast.loading()` → `toast.success/error(msg, {id})`. Server actions accept slug only (not worktreePath — FT-001 from Phase 1). DYK-P3-05: await refreshDir before auto-select to avoid tree/viewer desync. |
++| [x] | T002 | Wire useFileMutations into BrowserClient | file-browser | `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | BrowserClient calls `useFileMutations({ slug, refreshDir: fileNav.handleRefreshDir })`. Passes `mutations.handleCreateFile` etc. to FileTree as `onCreateFile`, `onCreateFolder`, `onRename`, `onDelete` props. Tree refreshes immediately after success via handleRefreshDir. DYK-P3-01: Wrap `initialEntries` in `useState(initialEntries)` and add `handleRefreshRoot` for root-level creates (parentDir=''). | Plan 3.2. Finding 04: immediate refresh — call handleRefreshDir(parentDir) on success, SSE handles external changes as fallback. FileTree already renders CRUD UI when callbacks exist (Phase 2 T008). DYK-P3-01: `initialEntries` is a server prop with no client update mechanism — must promote to state for root refresh. |
++| [x] | T003 | Handle rename of currently-viewed file | file-browser | `apps/web/src/features/041-file-browser/hooks/use-file-mutations.ts`, `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | If renamed file path matches `selectedFile`: update URL params to new path via `setParams({file: newPath})` WITHOUT re-fetching (preserves unsaved edits). Only use `handleSelect(newPath)` if file was clean. `handleRename` receives `RenameResult.newPath` from server action and detects match. DYK-P3-02: Use `setParams` not `handleSelect` to preserve in-memory editor content through rename. | Plan 3.3. Finding 05. RenameResult returns `{oldPath, newPath}` (DYK-04 from Phase 1). VS Code preserves unsaved edits through rename — we should too. |
++| [x] | T004 | Handle delete of currently-viewed file | file-browser | `apps/web/src/features/041-file-browser/hooks/use-file-mutations.ts`, `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | If deleted path matches `selectedFile` or is an ancestor of `selectedFile`: clear file URL param via `setParams({file: ''})` → shows "Select a file to view" empty state. DYK-P3-03: Use `selectedFile.startsWith(deletedPath + '/')` for ancestor check (trailing slash prevents false matches like `src` matching `src-utils/`). | Plan 3.4. AC-11. Check both exact match AND prefix match with trailing slash for folder deletion containing the selected file. |
++| [x] | T005 | Handle delete of expanded folder | file-browser | `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | DYK-P3-04: This is a verification task, not an implementation task. After handleRefreshDir re-fetches the parent, the deleted folder disappears from childEntries naturally. The FileTree internal expanded Set harmlessly retains the stale path (nothing renders). Verify no visual artifacts after deleting an expanded folder. | Plan 3.5. Likely no-op — tree auto-reconciles when parent is re-fetched. Just verify and document. |
++| [x] | T006 | Add locally-created items to newlyAddedPaths | file-browser | `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | After successful create, add new item's path to a local `Set<string>` state, merge with SSE-driven `treeChanges.newPaths`, pass combined set to FileTree's `newlyAddedPaths`. Clear local paths after 1.5s timeout (matches CSS animation duration). | Plan 3.6. SSE newlyAddedPaths from `useTreeDirectoryChanges` is already wired (line 480). Local state supplements it for immediate feedback before SSE fires. |
++| [x] | T007 | Auto-select and auto-expand after create/rename | file-browser | `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | After creating a file: call `handleSelect(newPath)` to open it in viewer. After creating a folder: add to `expandPaths` to expand it. After rename: call `handleSelect(newPath)` to select renamed item (or `setParams` if dirty — see T003). DYK-P3-05: Must `await handleRefreshDir(parentDir)` before calling `handleSelect(newPath)` — otherwise tree may not have the entry yet when selection runs. | Plan 3.7. Uses existing `fileNav.handleSelect` and `setExpandPaths`. Build full path from parentDir + name for create. |
++| [x] | T008 | Update file-browser domain.md | file-browser | `docs/domains/file-browser/domain.md` | Add useFileMutations to Composition table. Add Phase 3 entry to History. Update Source Location with new hook file. | Plan 3.8. Lightweight doc update. |
++
++## Context Brief
++
++### Key findings from plan
++
++- **Finding 04** (High): File watcher SSE may lag ~200ms behind server action completion. **Action**: T001/T002 call `handleRefreshDir(parentDir)` immediately after successful server action. SSE serves as fallback for external changes.
++- **Finding 05** (High): Rename of currently-viewed file must sync URL state, editor content, and mtime. **Action**: T003 detects `selectedFile` match via `RenameResult.newPath`, updates URL params, triggers re-fetch.
++
++### Domain dependencies (concepts and contracts this phase consumes)
++
++- `file-browser` (Phase 1): **Server actions** (`createFile`, `createFolder`, `deleteItem`, `renameItem`) — CRUD operations with trusted root resolution
++- `file-browser` (Phase 2): **FileTree CRUD callbacks** (`onCreateFile`, `onCreateFolder`, `onRename`, `onDelete`) — UI triggers that fire on user confirm
++- `file-browser`: **useFileNavigation** (`handleRefreshDir`, `handleSelect`, `editContent`, `setEditContent`) — immediate tree refresh and file selection
++- `file-browser`: **useTreeDirectoryChanges** (`newPaths`) — SSE-driven newlyAddedPaths for green animation
++- `file-browser`: **usePanelState** (`handleRefreshChanges`) — refresh changes panel after mutations
++- `_platform/workspace-url`: **fileBrowserParams** (`setParams`) — URL state management for selected file
++- `sonner`: **toast** — loading/success/error feedback pattern
++
++### Domain constraints
++
++- New hook lives in `apps/web/src/features/041-file-browser/hooks/` (file-browser domain)
++- BrowserClient modifications in `apps/web/app/(dashboard)/workspaces/[slug]/browser/` (Next.js convention)
++- Server actions accept `slug` only (not `worktreePath`) — trusted root resolution (FT-001)
++- Toast patterns follow useClipboard: `toast.loading()` → replace with `toast.success/error(msg, {id})`
++- No mocking — standard testing with `just fft`
++
++### Harness context
++
++No agent harness configured. Agent will use standard testing approach from plan (`just fft`).
++
++### Reusable from prior phases
++
++- **useClipboard** toast pattern — exact model for useFileMutations: call action → show toast → handle result
++- **handleRefreshDir** — already wired in useFileNavigation, accepts dirPath, re-fetches from API
++- **handleSelect** — already wired in useFileNavigation, updates URL + loads file content
++- **setExpandPaths** — BrowserClient state for programmatic tree expansion
++- **treeChanges.newPaths** — SSE-driven Set already passed to FileTree as newlyAddedPaths
++- **Result types** (CreateResult, DeleteResult, RenameResult) — discriminated unions from Phase 1
++
++### Key signatures to consume
++
++```typescript
++// Server actions (Phase 1)
++export async function createFile(slug: string, dirPath: string, fileName: string): Promise<CreateResult>
++export async function createFolder(slug: string, dirPath: string, folderName: string): Promise<CreateResult>
++export async function deleteItem(slug: string, itemPath: string): Promise<DeleteResult>
++export async function renameItem(slug: string, oldPath: string, newName: string): Promise<RenameResult>
++
++// FileTree CRUD callbacks (Phase 2)
++onCreateFile?: (parentDir: string, name: string) => void;
++onCreateFolder?: (parentDir: string, name: string) => void;
++onRename?: (oldPath: string, newName: string) => void;
++onDelete?: (path: string) => void;
++
++// Existing hooks
++fileNav.handleRefreshDir(dirPath: string): Promise<void>  // Re-fetch dir from API
++fileNav.handleSelect(filePath: string): Promise<void>     // Select file + load content
++setParams({file: string, line: null}, {history: 'push'})  // URL update
++setExpandPaths(paths: string[])                           // Programmatic expand
++
++// Toast (sonner)
++import { toast } from 'sonner';
++const toastId = toast.loading('Creating file...');
++toast.success('File created', { id: toastId });
++toast.error('Failed to create file', { id: toastId, description: result.message });
++```
++
++### System flow diagram
++
++```mermaid
++flowchart LR
++    subgraph UI["FileTree (Phase 2)"]
++        HB["Hover Button / Context Menu"]
++        IE["InlineEditInput"]
++        DD["DeleteConfirmationDialog"]
++    end
++
++    subgraph Hook["useFileMutations (this phase)"]
++        HC["handleCreate"]
++        HR["handleRename"]
++        HD["handleDelete"]
++    end
++
++    subgraph Server["Server Actions (Phase 1)"]
++        SA["createFile / deleteItem / renameItem"]
++    end
++
++    subgraph Post["Post-Success"]
++        RF["handleRefreshDir"]
++        SEL["handleSelect / setParams"]
++        NAP["newlyAddedPaths"]
++        T["Toast feedback"]
++    end
++
++    HB --> IE
++    IE -->|"onCreateFile(dir, name)"| HC
++    IE -->|"onRename(path, name)"| HR
++    DD -->|"onDelete(path)"| HD
++
++    HC --> SA
++    HR --> SA
++    HD --> SA
++
++    SA -->|"result"| RF
++    SA -->|"result"| SEL
++    SA -->|"result"| NAP
++    SA -->|"result"| T
++```
++
++### Mutation lifecycle sequence
++
++```mermaid
++sequenceDiagram
++    participant U as User
++    participant FT as FileTree
++    participant BC as BrowserClient
++    participant HK as useFileMutations
++    participant SA as Server Action
++    participant T as Toast
++
++    U->>FT: Click New File → type name → Enter
++    FT->>BC: onCreateFile(parentDir, name)
++    BC->>HK: handleCreateFile(parentDir, name)
++    HK->>T: toast.loading('Creating...')
++    HK->>SA: createFile(slug, parentDir, name)
++    SA-->>HK: {ok: true, path: 'dir/name.ts'}
++    HK->>T: toast.success('File created')
++    HK->>BC: refreshDir(parentDir)
++    BC->>FT: re-render with new childEntries
++    HK->>BC: handleSelect(path)
++    BC->>FT: selectedFile = path (auto-expand + view)
++```
++
++## Discoveries & Learnings
++
++_Populated during implementation by plan-6._
++
++| Date | Task | Type | Discovery | Resolution | References |
++|------|------|------|-----------|------------|------------|
++| 2026-03-07 | T002 | gap | DYK-P3-01: Root-level refresh gap — `handleRefreshDir('')` updates `childEntries` but root entries come from server prop `initialEntries` with no client update mechanism | Wrap `initialEntries` in `useState`, add `handleRefreshRoot` that re-fetches from API for root-level creates | BrowserClient line 97, handleRefreshDir only updates childEntries |
++| 2026-03-07 | T003 | decision | DYK-P3-02: Rename of open file with unsaved edits — `handleSelect(newPath)` re-fetches content, discarding unsaved changes | Use `setParams({file: newPath})` to update URL without re-fetch; only `handleSelect` if file is clean. VS Code preserves edits through rename | Finding 05, VS Code behavior |
++| 2026-03-07 | T004 | gotcha | DYK-P3-03: Delete ancestor prefix match `startsWith(path)` false-positives — `"src-utils/file.ts".startsWith("src")` is true | Always use trailing slash: `selectedFile.startsWith(deletedPath + '/')` for ancestor checks | String prefix matching |
++| 2026-03-07 | T005 | insight | DYK-P3-04: T005 is likely a no-op — handleRefreshDir re-fetches parent, deleted folder disappears from childEntries, stale expanded Set entry is harmless | Verification task only, not implementation. Confirm no visual artifacts | FileTree expanded Set vs childEntries lifecycle |
++| 2026-03-07 | T007 | gotcha | DYK-P3-05: handleRefreshDir is async — must await before auto-select, otherwise tree may not have new entry when handleSelect fires | Ensure `await handleRefreshDir(parentDir)` completes before `handleSelect(newPath)` | Async state update ordering |
++
++---
++
++```
++docs/plans/068-add-files/
++  ├── add-files-spec.md
++  ├── add-files-plan.md
++  ├── exploration.md
++  └── tasks/
++      ├── phase-1-service-layer-server-actions/
++      │   ├── tasks.md
++      │   ├── tasks.fltplan.md
++      │   └── execution.log.md
++      ├── phase-2-filetree-ui-extensions/
++      │   ├── tasks.md
++      │   ├── tasks.fltplan.md
++      │   └── execution.log.md
++      └── phase-3-browserclient-wiring-integration/
++          ├── tasks.md              ← this file
++          ├── tasks.fltplan.md      ← flight plan (below)
++          └── execution.log.md      ← created by plan-6
++```

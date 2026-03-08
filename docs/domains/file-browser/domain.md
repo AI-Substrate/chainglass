@@ -21,7 +21,7 @@ Workspace-scoped file browsing, editing, and diffing. The core feature that make
 - Directory listing service — `git ls-files -- <dir>` with readDir fallback (per-directory lazy, `FileEntry{name, type, path}`)
 - File list service — `git ls-files --cached --others` + `fs.stat` for full-tree flat listing (`FileListEntry{path, mtime}`). Distinct from directory-listing: returns all files in one call with mtimes for sort-by-recent in file search cache. Directory-listing is scoped to a single directory for tree expansion.
 - Changed-files service — `git diff --name-only` for filter
-- File server actions — readFile (size limit, binary detection, symlink check), saveFile (mtime conflict, atomic write)
+- File server actions — readFile (size limit, binary detection, symlink check), saveFile (mtime conflict, atomic write), createFile, createFolder, deleteItem, renameItem (path security, duplicate detection, filename validation)
 - Files API route — `GET /api/workspaces/[slug]/files` for client-side directory fetching
 - File browser URL params — `fileBrowserParams` (dir, file, mode, changed)
 - Landing page components — WorkspaceCard, FleetStatusBar (Phase 3)
@@ -68,6 +68,14 @@ Workspace-scoped file browsing, editing, and diffing. The core feature that make
 | Recent files service | git log --name-only parser | execFile |
 | readFile action | Read + security checks | IFileSystem (stat, readFile, realpath), IPathResolver |
 | saveFile action | Atomic write + conflict detection | IFileSystem (stat, writeFile, rename), IPathResolver |
+| createFileService | Create empty file + security + duplicate check | IFileSystem (writeFile, exists, realpath), IPathResolver, validateFileName |
+| createFolderService | Create directory + security + duplicate check | IFileSystem (mkdir, exists, realpath), IPathResolver, validateFileName |
+| deleteItemService | Delete file/folder + security + size guard | IFileSystem (unlink, rmdir, stat, readDir, realpath), IPathResolver |
+| renameItemService | Rename file/folder + security + destination check | IFileSystem (rename, exists, realpath), IPathResolver, validateFileName |
+| validateFileName | Git-portable filename validation | None (pure function) |
+| useFileMutations | Hook: CRUD handlers with toast + tree refresh + edge cases | Server actions (createFile, createFolder, deleteItem, renameItem), handleRefreshDir |
+| InlineEditInput | Inline text input for create/rename in FileTree | validateFileName |
+| DeleteConfirmationDialog | VS Code-style delete confirmation dialog | Dialog (Radix UI) |
 | fileExists action | Lightweight stat check for ExplorerPanel | IFileSystem, IPathResolver |
 | Files API route | GET handler for client fetch | Directory listing service |
 | Raw file API route | Streaming binary file delivery with Range support | IFileSystem, IPathResolver |
@@ -98,11 +106,16 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 | `apps/web/src/features/041-file-browser/services/directory-listing.ts` | Directory listing | Phase 4 |
 | `apps/web/src/features/041-file-browser/services/changed-files.ts` | Changed files filter | Phase 4 |
 | `apps/web/src/features/041-file-browser/services/file-actions.ts` | readFile + saveFile service logic | Phase 4 |
+| `apps/web/src/features/041-file-browser/services/file-mutation-actions.ts` | createFile, createFolder, deleteItem, renameItem service logic | Plan 068 Phase 1 |
+| `apps/web/src/features/041-file-browser/hooks/use-file-mutations.ts` | useFileMutations hook (CRUD + toast + refresh) | Plan 068 Phase 3 |
+| `apps/web/src/features/041-file-browser/lib/validate-filename.ts` | Git-portable filename validation | Plan 068 Phase 1 |
+| `apps/web/src/features/041-file-browser/components/inline-edit-input.tsx` | InlineEditInput (create/rename inline input) | Plan 068 Phase 2 |
+| `apps/web/src/features/041-file-browser/components/delete-confirmation-dialog.tsx` | DeleteConfirmationDialog | Plan 068 Phase 2 |
 | `apps/web/src/features/041-file-browser/components/file-tree.tsx` | FileTree | Phase 4 |
 | `apps/web/src/features/041-file-browser/components/code-editor.tsx` | CodeEditor wrapper | Phase 4 |
 | `apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx` | FileViewerPanel | Phase 4, FX001-7 |
 | `apps/web/src/features/041-file-browser/components/markdown-preview.tsx` | MarkdownPreview (mermaid activation) | FX001-7 |
-| `apps/web/app/actions/file-actions.ts` | Server actions (readFile, saveFile, fetchGitDiff, fetchChangedFiles, fetchWorkingChanges, fetchRecentFiles, fileExists, uploadFile) | Phase 4, FX001, Plan 043, Plan 044 |
+| `apps/web/app/actions/file-actions.ts` | Server actions (readFile, saveFile, fetchGitDiff, fetchChangedFiles, fetchWorkingChanges, fetchRecentFiles, fileExists, uploadFile, createFile, createFolder, deleteItem, renameItem) | Phase 4, FX001, Plan 043, Plan 044, Plan 068 |
 | `apps/web/app/api/workspaces/[slug]/files/route.ts` | Files API route | Phase 4 |
 | `apps/web/app/(dashboard)/workspaces/[slug]/browser/page.tsx` | Browser page (Server Component) | Phase 4 |
 | `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | BrowserClient (Client Component shell) | Phase 4, FX001 |
@@ -137,6 +150,19 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 ## Dependencies
 
 ### This Domain Depends On
+
+## Concepts
+
+| Concept | Entry Point | What It Does |
+|---------|-------------|--------------|
+| Browse files | `FileTree`, `FileViewerPanel`, `CodeEditor` | Navigate workspace files in a tree, view with syntax highlighting, edit with CodeMirror, preview markdown |
+| Read/write files | `readFile`, `saveFile` server actions | Read file content with size/binary/symlink checks; save with mtime conflict detection and atomic write |
+| Tree CRUD UI | `FileTree`, `InlineEditInput`, `DeleteConfirmationDialog` | Inline create, rename, and delete affordances in the browser tree via hover buttons, context menu, keyboard shortcuts |
+| File CRUD services | `createFileService`, `createFolderService`, `deleteItemService`, `renameItemService` | Server-side file mutation with path security, duplicate detection, filename validation, and safety limits |
+| Search files | `useFileFilter`, `useFlowspaceSearch` | Client-side file search (substring/glob) and FlowSpace semantic code search |
+| Track changes | `ChangesView`, working changes service | Git status display with file badges and recent files |
+| Workspace identity | `WorkspaceProvider`, `useWorkspaceContext` | React context for workspace preferences, worktree identity, emoji/color, tab title |
+
 - `_platform/sdk` — IUSDK for publishing commands and settings to SDK surface
 - `_platform/file-ops` — IFileSystem, IPathResolver for all file operations
 - `_platform/viewer` — FileViewer, MarkdownViewer, DiffViewer for rendering
@@ -172,4 +198,7 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 | Plan 049 Feature 2 | File search via ExplorerPanel: getFileList service (git ls-files + fs.stat), file-filter utilities (substring/glob/sort), useFileFilter hook (Map cache + SSE deltas + debounce), fetchFileList server action, BrowserClient wiring | 2026-02-26 |
 | Plan 051 | FlowSpace code search: useFlowspaceSearch hook (debounce, availability, graph age), BrowserClient wiring for `#` text and `$` semantic search modes, context menu on FlowSpace results | 2026-02-26 |
 | Plan 053 P5 | GlobalStateSystem worktree exemplar: registerWorktreeState (multi-instance domain), WorktreeStatePublisher (useFileChanges → state), WorktreeStateSubtitle (sidebar consumer), GlobalStateConnector wiring in browser-client.tsx | 2026-02-27 |
+| Plan 068 Phase 1 | File CRUD service layer: createFileService, createFolderService, deleteItemService, renameItemService with path security + validateFileName utility + 4 server actions | 2026-03-07 |
+| Plan 068 Phase 2 | FileTree UI extensions: InlineEditInput component, hover buttons (New File/Folder), inline create/rename modes, context menu Rename/Delete, DeleteConfirmationDialog, F2/Enter keyboard shortcuts, CRUD callback props | 2026-03-07 |
+| Plan 068 Phase 3 | BrowserClient wiring: useFileMutations hook with toast feedback, CRUD callbacks wired to FileTree, rename-open-file URL sync, delete-open-file selection clear, local newlyAddedPaths animation, auto-select/expand after create, root entries state for root-level refresh | 2026-03-07 |
 | Plan 072 Phase 3 | Migrated FileChangeProvider from direct EventSource to `useChannelCallback('file-changes')` via multiplexed SSE. Removed ~100 lines SSE lifecycle + reconnect code, removed `eventSourceFactory` prop. | 2026-03-08 |
