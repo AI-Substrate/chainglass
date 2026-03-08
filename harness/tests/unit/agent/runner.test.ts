@@ -206,11 +206,11 @@ describe('runner.ts', () => {
   it('should write report.json from agentResult.output', async () => {
     /*
     Test Doc:
-    - Why: AC-03 — runner must persist agentResult.output to output/report.json for downstream validation
-    - Contract: runAgent writes agentResult.output string to runDir/output/report.json
-    - Usage Notes: report.json contains the raw output string, not parsed JSON
-    - Quality Contribution: Catches regressions where output persistence is skipped or written to wrong path
-    - Worked Example: FakeAdapter({output:'{"status":"ok"}'}) → report.json contains '{"status":"ok"}'
+    - Why: AC-03 — runner must persist agentResult.output to output/report.json as fallback when agent didn't write it
+    - Contract: runAgent writes agentResult.output to report.json ONLY if the file doesn't already exist on disk
+    - Usage Notes: If the agent wrote report.json via tool calls, the runner respects it (no overwrite)
+    - Quality Contribution: Catches regressions where fallback persistence is skipped or written to wrong path
+    - Worked Example: FakeAdapter({output:'{"status":"ok"}'}) + no agent-written file → report.json contains '{"status":"ok"}'
     */
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'runner-test-'));
     try {

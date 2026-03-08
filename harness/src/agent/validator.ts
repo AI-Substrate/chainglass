@@ -10,11 +10,11 @@
  */
 
 import * as fs from 'node:fs';
-import Ajv from 'ajv';
+import Ajv2020 from 'ajv/dist/2020.js';
 import type { ValidationResult } from './types.js';
 
-/** Shared ajv instance with allErrors for comprehensive reporting. */
-const ajv = new Ajv({ allErrors: true });
+/** Shared ajv instance with allErrors for comprehensive reporting. Supports JSON Schema 2020-12. */
+const ajv = new Ajv2020({ allErrors: true });
 
 /**
  * Validate an output file against a JSON Schema.

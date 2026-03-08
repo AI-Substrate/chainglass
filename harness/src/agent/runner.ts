@@ -115,6 +115,7 @@ export async function runAgent(
         reasoningEffort: config.reasoningEffort,
         cwd: config.cwd,
         onEvent: handleEvent,
+        timeout: timeoutMs,
       }),
       new Promise<never>((_, reject) => {
         setTimeout(() => {
@@ -154,8 +155,10 @@ export async function runAgent(
   const completedAt = new Date();
   const durationMs = completedAt.getTime() - startedAt.getTime();
 
-  // Persist agent output to report.json (so validator can find it)
-  if (agentResult.output) {
+  // Persist agent output to report.json as fallback.
+  // If the agent already wrote the file (via tool calls), respect it.
+  // Only use agentResult.output when the agent didn't produce a file.
+  if (agentResult.output && !fs.existsSync(outputPath)) {
     fs.writeFileSync(outputPath, agentResult.output);
   }
 

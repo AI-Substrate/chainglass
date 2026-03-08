@@ -85,6 +85,13 @@ export interface AgentRunOptions {
    * to return an error (mapped to status: 'failed').
    */
   reasoningEffort?: CopilotReasoningEffort;
+  /**
+   * Timeout in milliseconds for the agent session to complete.
+   * For SdkCopilotAdapter: passed to sendAndWait() (default 60000ms).
+   * For ClaudeCodeAdapter: not used (process timeout handled externally).
+   * Set this to at least your expected agent run duration.
+   */
+  timeout?: number;
 }
 
 // ============================================

@@ -178,18 +178,19 @@ describe('CLI output envelope', () => {
     it('defines codes in the E100-E110 range', () => {
       /*
       Test Doc:
-      - Why: Error codes must stay in the documented range for agent compatibility.
-      - Contract: All ErrorCodes values are E100-E110.
-      - Usage Notes: Adding new codes outside this range would break the contract.
-      - Quality Contribution: Prevents accidental code range expansion.
-      - Worked Example: Object.values(ErrorCodes).every(c => 100 <= parseInt(c.slice(1)) <= 110).
+      - Why: Error codes must stay in the documented ranges for agent compatibility.
+      - Contract: All ErrorCodes values are E100-E110 (base) or E120-E125 (agent runner).
+      - Usage Notes: Base codes E100-E110 are harness infrastructure. Agent codes E120-E125 added by Plan 070.
+      - Quality Contribution: Prevents accidental code range expansion outside documented ranges.
+      - Worked Example: All codes fall in [100-110] or [120-125].
       */
       const codes = Object.values(ErrorCodes);
       expect(codes.length).toBeGreaterThanOrEqual(5);
       for (const code of codes) {
         const num = Number.parseInt(code.replace('E', ''), 10);
-        expect(num).toBeGreaterThanOrEqual(100);
-        expect(num).toBeLessThanOrEqual(110);
+        const inBaseRange = num >= 100 && num <= 110;
+        const inAgentRange = num >= 120 && num <= 125;
+        expect(inBaseRange || inAgentRange).toBe(true);
       }
     });
 
@@ -197,7 +198,7 @@ describe('CLI output envelope', () => {
       /*
       Test Doc:
       - Why: Each failure mode needs a unique code so agents can branch on it.
-      - Contract: ErrorCodes maps names to E100-E110 with no duplicates.
+      - Contract: ErrorCodes maps names to E100-E110 (base) or E120-E125 (agent) with no duplicates.
       - Usage Notes: The exact mapping is part of the public API contract.
       - Quality Contribution: Catches accidental code reuse or renaming.
       - Worked Example: ErrorCodes.BUILD_FAILED === 'E102'.

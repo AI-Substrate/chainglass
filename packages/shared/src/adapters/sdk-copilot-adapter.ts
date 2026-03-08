@@ -158,7 +158,8 @@ export class SdkCopilotAdapter implements IAgentAdapter {
       });
 
       // T006: Send prompt and wait for response
-      await session.sendAndWait({ prompt: prompt.trim() });
+      // Pass timeout if provided (default 60s in SDK, configurable for long-running agents)
+      await session.sendAndWait({ prompt: prompt.trim() }, options.timeout);
 
       // T006: Return success result
       return {

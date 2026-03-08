@@ -196,6 +196,7 @@ The harness tests three viewport tiers:
 | FX001 | Doctor command + .env port cache + prompt templates | 2026-03-07 |
 | Plan 070 P1 | SdkCopilotAdapter: model/reasoning/listModels/setModel | 2026-03-07 |
 | Plan 070 P2 | Agent runner: folder mgmt, runner, validator, display, CLI, error codes | 2026-03-07 |
+| Plan 070 P3 | Smoke-test agent: first agent definition, validated end-to-end run, retrospective feedback loop | 2026-03-08 |
 
 ## Prompt Templates
 
@@ -206,3 +207,54 @@ Reusable agent task templates live in `harness/prompts/`. These are the agent-fa
 | `harness/prompts/screenshot-audit.md` | Boot harness, screenshot at 3 viewports, report findings |
 
 When creating a new harness task for an agent, write a prompt template and commit it to `harness/prompts/`.
+
+## Agent Definitions
+
+Agent definitions live at `harness/agents/<slug>/`. Each agent is a versioned folder with a prompt, output schema, and optional instructions.
+
+### Reference Agent: smoke-test
+
+The smoke-test agent validates the harness end-to-end and provides a retrospective on the developer experience.
+
+```
+harness/agents/smoke-test/
+├── prompt.md              # Mission brief: health check, screenshots, console logs, report, retrospective
+├── output-schema.json     # JSON Schema for report validation (draft 2020-12)
+├── instructions.md        # Agent rules: output paths, CLI quick reference, CDP access, error handling
+└── runs/                  # Auto-created per execution (gitignored)
+    └── <timestamp>/
+        ├── events.ndjson     # All agent events (tool calls, thinking, messages)
+        ├── completed.json    # Run metadata (session ID, timing, validation)
+        ├── output/report.json # Validated structured report
+        ├── prompt.md         # Frozen copy at run time
+        └── instructions.md   # Frozen copy at run time
+```
+
+**Running the smoke-test**:
+```bash
+# Set GitHub token (required for Copilot SDK)
+export GH_TOKEN=$(gh auth token)
+
+# Boot harness if not running
+just harness dev
+
+# Execute the agent
+just harness agent run smoke-test
+
+# Re-validate after schema changes
+just harness agent validate smoke-test
+
+# View run history
+just harness agent history smoke-test
+```
+
+**What the smoke-test does**: Health check → 3-viewport screenshots → console error check via CDP → server log review → structured report → honest retrospective (UX audit of the harness).
+
+**The retrospective is the most valuable output** — it captures unfiltered feedback from an autonomous agent about what CLI commands are intuitive, what's confusing, and what improvements would help. This feedback loop drives harness evolution.
+
+### Creating New Agents
+
+1. Create `harness/agents/<slug>/prompt.md` (required)
+2. Optionally add `output-schema.json` (JSON Schema for validation)
+3. Optionally add `instructions.md` (agent-specific rules)
+4. Run with `just harness agent run <slug>`
