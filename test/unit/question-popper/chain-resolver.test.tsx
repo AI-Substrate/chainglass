@@ -12,13 +12,21 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import type { QuestionOut } from '@chainglass/shared/question-popper';
 
-import { buildChainIndex, isPartOfChain, resolveChain } from '../../../apps/web/src/features/067-question-popper/lib/chain-resolver';
+import {
+  buildChainIndex,
+  isPartOfChain,
+  resolveChain,
+} from '../../../apps/web/src/features/067-question-popper/lib/chain-resolver';
 
 afterEach(cleanup);
 
 // ── Test Fixtures ──
 
-function makeQ(id: string, previousId: string | null = null, status: QuestionOut['status'] = 'pending'): QuestionOut {
+function makeQ(
+  id: string,
+  previousId: string | null = null,
+  status: QuestionOut['status'] = 'pending'
+): QuestionOut {
   return {
     questionId: id,
     status,
@@ -87,8 +95,8 @@ describe('isPartOfChain', () => {
      */
     const items = [makeQ('a'), makeQ('b', 'a'), makeQ('c')];
 
-    expect(isPartOfChain('a', items)).toBe(true);  // parent
-    expect(isPartOfChain('b', items)).toBe(true);  // child
+    expect(isPartOfChain('a', items)).toBe(true); // parent
+    expect(isPartOfChain('b', items)).toBe(true); // child
     expect(isPartOfChain('c', items)).toBe(false); // standalone
   });
 });
