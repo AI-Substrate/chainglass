@@ -68,8 +68,14 @@
 ## Evidence
 
 - Command: `pnpm --filter @chainglass/workflow build` — exit 0
-- Command: `npx tsc --noEmit -p apps/web/tsconfig.json` — only pre-existing errors in `worktree/page.tsx` and `auth.ts` (not from our changes)
+- Command: `pnpm test -- --run test/unit/web/components/new-worktree-form.test.tsx` — 6/6 passed (4 state shape + 2 live preview)
 - Command: `pnpm test -- --run` (full suite) — 356 test files passed, 5020 tests passed, 0 failures
+- Command: `npx biome check <all Phase 3 files>` — clean after auto-fix
+
+### Fix Pass (post code-review)
+- FT-001: Added `test/unit/web/components/new-worktree-form.test.tsx` with 6 tests covering all 4 page-state shapes + live preview pure functions
+- FT-002: This evidence section updated with targeted test output
+- FT-003: Workspace domain.md updated with Phase 3 history row, source files, and naming helper surface
 
 ## Discoveries
 

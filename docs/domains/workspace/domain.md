@@ -178,14 +178,16 @@ Primary: `packages/workflow/src/` + `apps/web/app/(dashboard)/workspaces/` + `ap
 | `packages/workflow/src/adapters/workspace-registry.adapter.ts` | Registry persistence | Stores `~/.config/chainglass/workspaces.json` |
 | `packages/workflow/src/errors/workspace-errors.ts` | Domain errors | Workspace/worktree-specific error codes |
 | `packages/workflow/src/constants/workspace-palettes.ts` | Visual identity constants | Curated emoji/color sets |
-| `apps/web/app/actions/workspace-actions.ts` | Workspace actions | Add/remove workspace, worktree star, identity preference updates |
+| `apps/web/app/actions/workspace-actions.ts` | Workspace actions | Add/remove workspace, worktree star, identity preference updates, create worktree |
 | `apps/web/app/actions/sdk-settings-actions.ts` | Preference persistence bridge | Stores workspace-scoped SDK settings and MRU |
 | `apps/web/app/api/workspaces/route.ts` | Workspace list API | Optional `?include=worktrees` enrichment |
 | `apps/web/app/api/workspaces/[slug]/route.ts` | Workspace detail API | Full workspace info by slug |
 | `apps/web/app/(dashboard)/workspaces/page.tsx` | Workspace list page | Server-rendered list + add form |
 | `apps/web/app/(dashboard)/workspaces/[slug]/page.tsx` | Workspace detail page | Worktree list, metadata, navigation entrypoint |
+| `apps/web/app/(dashboard)/workspaces/[slug]/new-worktree/page.tsx` | New worktree page | Full-page create flow with preview (Plan 069) |
 | `apps/web/src/components/workspaces/workspace-nav.tsx` | Sidebar/worktree navigation | Workspace and worktree switching UI |
 | `apps/web/src/components/workspaces/workspace-add-form.tsx` | Registration form | Client mutation surface for add |
+| `apps/web/src/components/workspaces/new-worktree-form.tsx` | Create worktree form | Client form with 4 page states and live preview (Plan 069) |
 | `apps/web/src/components/workspaces/workspace-remove-button.tsx` | Removal UI | Client mutation surface for remove |
 | `apps/web/src/features/041-file-browser/hooks/use-workspace-context.tsx` | Client provider + hook | Workspace/worktree identity bridge |
 | `apps/cli/src/commands/workspace.command.ts` | CLI controller | `cg workspace add/list/info/remove` |
@@ -213,3 +215,4 @@ Primary: `packages/workflow/src/` + `apps/web/app/(dashboard)/workspaces/` + `ap
 | Plan 069 | Workspace named as the business domain for new worktree creation planning | 2026-03-07 |
 | Plan 069 Phase 1 | Added IGitWorktreeManager interface, preview/create types on IWorkspaceService, FakeGitWorktreeManager, contract test scaffold, DI token | 2026-03-07 |
 | Plan 069 Phase 2 | Implemented naming allocator, GitWorktreeManagerAdapter, WorktreeBootstrapRunner, full create-worktree orchestration in WorkspaceService, DI wiring in all containers | 2026-03-07 |
+| Plan 069 Phase 3 | Added full-page new-worktree route, create-worktree page-state/server-action adapter, and client live-preview form surface. Exported pure naming functions for client-side use. | 2026-03-08 |
