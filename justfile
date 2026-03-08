@@ -97,6 +97,11 @@ harness-typecheck:
 harness-stop:
     cd harness && just stop
 
+# Kill Next.js cache and restart dev server
+kill-cache:
+    rm -rf apps/web/.next
+    @echo "Next.js cache cleared"
+
 # Show harness health
 harness-health:
     cd harness && just health

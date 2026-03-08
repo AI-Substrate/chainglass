@@ -1,7 +1,7 @@
 # Fix FX001: Harness Doctor Command + Port Persistence + Prompt Improvements
 
 **Created**: 2026-03-07
-**Status**: Proposed
+**Status**: Complete
 **Plan**: [harness-plan.md](../harness-plan.md)
 **Source**: Test Run #1 retro ([004-test-run-001-retro.md](../workshops/004-test-run-001-retro.md)), Workshop [003-harness-doctor-command.md](../workshops/003-harness-doctor-command.md)
 **Domain(s)**: external (harness/)
@@ -38,14 +38,14 @@ The first real-world test of the harness by a zero-context agent revealed four p
 
 | Status | ID | Task | Domain | Path(s) | Done When | Notes |
 |--------|-----|------|--------|---------|-----------|-------|
-| [ ] | FX001-1 | Implement diagnostic cascade helper | external | `harness/src/doctor/diagnose.ts` | Cascade runs 5 layers (Docker → .env/ports → Container → App → Services), returns `DoctorResult` with checks array. Within each layer, reports ALL failures (not just first). Every failure includes an exact fix command. Messages are verbose and actionable — not "app down" but "App not responding on :3159. The container may still be building after cold boot (~2-3 min). Check progress: just harness doctor --wait" | Reuses `isDockerAvailable()`, `isContainerRunning()`, `probeAll()`. Layer 1.5 reads `.env` and compares against `computePorts()` for port mismatch detection. |
-| [ ] | FX001-2 | Add container age + log helpers | external | `harness/src/docker/lifecycle.ts` | `getContainerAge()` and `getContainerLogs(n)` return container start time and last N log lines. Age used to distinguish "cold booting (45s ago, wait ~2 min)" from "been up 10 min and still broken (check logs)". Logs included in error context so agents don't need a separate step. | Needed by doctor Layer 1 |
-| [ ] | FX001-3 | Implement `harness doctor` CLI command with `--wait` | external | `harness/src/cli/commands/doctor.ts`, `harness/src/cli/index.ts` | `harness doctor` returns verbose JSON envelope with `DoctorResult`; human-readable summary to stderr with ✓/✗/⏳ indicators. `--wait [seconds]` mode (default 300s) polls every 3s with stderr progress ("⏳ Waiting for app... 45s"), emits final JSON only when healthy or timed out. Exit 0 if healthy, exit 1 if not. | The goal: one command replaces the 8-step diagnostic flail from test run #1 |
-| [ ] | FX001-4 | Generate `.env` from `computePorts()` on every CLI entry | external | `harness/src/cli/index.ts` or shared prelude | Every CLI command writes `harness/.env` with computed ports before executing. `.env` is a regenerated cache, not persistent config. `docker compose` reads it automatically. Handles the "raw docker compose up uses wrong ports" problem. | Keep generation fast (<1ms). Write only if changed to avoid unnecessary disk writes. |
-| [ ] | FX001-5 | Add `.env` to `.gitignore` and `.dockerignore` | external | `.gitignore`, `harness/.dockerignore` | `.env` excluded from git and Docker build context | Prevents port values leaking into commits or images |
-| [ ] | FX001-6 | Write unit tests for doctor cascade | external | `harness/tests/unit/doctor/diagnose.test.ts` | Tests: Docker unavailable → Layer 0 with "Run: orbctl start", container missing → Layer 1, port mismatch → Layer 1.5 with specific ports in message, app down + CDP down → both reported in same layer, all healthy → ready with endpoint URLs. Every test asserts the fix command text is present and actionable. | ~8-10 tests |
-| [ ] | FX001-7 | Create `harness/prompts/` and move test prompt | external | `harness/prompts/screenshot-audit.md` | Move prompt from `scratch/` to `harness/prompts/`. Update to use `just harness doctor --wait` as the starting command, `just harness` aliases throughout. Add cold-boot timing guidance. These are versioned agent API templates. | Per DYK #4 |
-| [ ] | FX001-8 | Update docs | cross-domain | `docs/project-rules/harness.md` | Document `harness doctor`, `--wait` mode, `.env` cache behaviour, cold-boot timing, prompt templates location. Add to CLAUDE.md quick reference. | Per retro action items |
+| [x] | FX001-1 | Implement diagnostic cascade helper | external | `harness/src/doctor/diagnose.ts` | Cascade runs 5 layers (Docker → .env/ports → Container → App → Services), returns `DoctorResult` with checks array. Within each layer, reports ALL failures (not just first). Every failure includes an exact fix command. Messages are verbose and actionable — not "app down" but "App not responding on :3159. The container may still be building after cold boot (~2-3 min). Check progress: just harness doctor --wait" | Reuses `isDockerAvailable()`, `isContainerRunning()`, `probeAll()`. Layer 1.5 reads `.env` and compares against `computePorts()` for port mismatch detection. |
+| [x] | FX001-2 | Add container age + log helpers | external | `harness/src/docker/lifecycle.ts` | `getContainerAge()` and `getContainerLogs(n)` return container start time and last N log lines. Age used to distinguish "cold booting (45s ago, wait ~2 min)" from "been up 10 min and still broken (check logs)". Logs included in error context so agents don't need a separate step. | Needed by doctor Layer 1 |
+| [x] | FX001-3 | Implement `harness doctor` CLI command with `--wait` | external | `harness/src/cli/commands/doctor.ts`, `harness/src/cli/index.ts` | `harness doctor` returns verbose JSON envelope with `DoctorResult`; human-readable summary to stderr with ✓/✗/⏳ indicators. `--wait [seconds]` mode (default 300s) polls every 3s with stderr progress ("⏳ Waiting for app... 45s"), emits final JSON only when healthy or timed out. Exit 0 if healthy, exit 1 if not. | The goal: one command replaces the 8-step diagnostic flail from test run #1 |
+| [x] | FX001-4 | Generate `.env` from `computePorts()` on every CLI entry | external | `harness/src/cli/index.ts` or shared prelude | Every CLI command writes `harness/.env` with computed ports before executing. `.env` is a regenerated cache, not persistent config. `docker compose` reads it automatically. Handles the "raw docker compose up uses wrong ports" problem. | Keep generation fast (<1ms). Write only if changed to avoid unnecessary disk writes. |
+| [x] | FX001-5 | Add `.env` to `.gitignore` and `.dockerignore` | external | `.gitignore`, `harness/.dockerignore` | `.env` excluded from git and Docker build context | Prevents port values leaking into commits or images |
+| [x] | FX001-6 | Write unit tests for doctor cascade | external | `harness/tests/unit/doctor/diagnose.test.ts` | Tests: Docker unavailable → Layer 0 with "Run: orbctl start", container missing → Layer 1, port mismatch → Layer 1.5 with specific ports in message, app down + CDP down → both reported in same layer, all healthy → ready with endpoint URLs. Every test asserts the fix command text is present and actionable. | ~8-10 tests |
+| [x] | FX001-7 | Create `harness/prompts/` and move test prompt | external | `harness/prompts/screenshot-audit.md` | Move prompt from `scratch/` to `harness/prompts/`. Update to use `just harness doctor --wait` as the starting command, `just harness` aliases throughout. Add cold-boot timing guidance. These are versioned agent API templates. | Per DYK #4 |
+| [x] | FX001-8 | Update docs | cross-domain | `docs/project-rules/harness.md` | Document `harness doctor`, `--wait` mode, `.env` cache behaviour, cold-boot timing, prompt templates location. Add to CLAUDE.md quick reference. | Per retro action items |
 
 ## Workshops Consumed
 
@@ -54,12 +54,12 @@ The first real-world test of the harness by a zero-context agent revealed four p
 
 ## Acceptance
 
-- [ ] `harness doctor` returns actionable fix for "Docker not running" scenario
-- [ ] `harness doctor` returns "container booting" with wait guidance during cold start
-- [ ] `harness doctor` returns "healthy and ready" with endpoint URLs when all services up
-- [ ] `harness dev` generates `harness/.env` so direct `docker compose up` uses correct ports
-- [ ] Test prompt starts with `just harness doctor` not raw health checks
-- [ ] Zero-context agent can follow updated prompt without flailing
+- [x] `harness doctor` returns actionable fix for "Docker not running" scenario
+- [x] `harness doctor` returns "container booting" with wait guidance during cold start
+- [x] `harness doctor` returns "healthy and ready" with endpoint URLs when all services up
+- [x] `harness dev` generates `harness/.env` so direct `docker compose up` uses correct ports
+- [x] Test prompt starts with `just harness doctor` not raw health checks
+- [x] Zero-context agent can follow updated prompt without flailing
 
 ## Discoveries & Learnings
 
@@ -78,4 +78,9 @@ The first real-world test of the harness by a zero-context agent revealed four p
 Parallel agents within a worktree **share one container**. Each agent gets its own CDP browser context (proven in Phase 2 multi-context tests). Spinning up N containers per worktree wastes N×1GB+ memory for identical code. Agents that need isolated code changes should be in separate worktrees (which get their own container + ports + volumes automatically).
 
 | Date | Task | Type | Discovery | Resolution |
+|------|------|------|-----------|------------|
+| 2026-03-07 | FX001-1 | gotcha | `import.meta.dirname` resolves to source dir — commands at `src/cli/commands/` need `../../..` to reach harness root | Used `import.meta.dirname` with relative path traversal |
+| 2026-03-07 | FX001-3 | decision | Doctor exit codes: exit 0 for ok/degraded, exit 1 for errors only — aligns with agent expectation that non-zero = action needed | Implemented in doctor.ts |
+| 2026-03-07 | FX001-4 | insight | `.env` write-if-changed avoids unnecessary disk IO — cheap since `computePorts()` is deterministic | `syncEnvFile()` compares before writing |
+| 2026-03-07 | FX001-7 | insight | Agent test run #2 validated the prompt: "the harness felt good to use, doctor gave a precise next action" | Prompt template approach validated |
 |------|------|------|-----------|------------|

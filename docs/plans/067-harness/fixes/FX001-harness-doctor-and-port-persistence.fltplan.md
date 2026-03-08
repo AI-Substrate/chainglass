@@ -1,7 +1,7 @@
 # Flight Plan: Fix FX001 — Harness Doctor + Port Persistence
 
 **Fix**: [FX001-harness-doctor-and-port-persistence.md](FX001-harness-doctor-and-port-persistence.md)
-**Status**: Ready
+**Status**: Landed
 
 ## What → Why
 
@@ -18,12 +18,12 @@
 
 ## Stages
 
-- [ ] **Stage 1: SDK helpers** — Container age, logs, diagnostic cascade (`lifecycle.ts`, `diagnose.ts`)
-- [ ] **Stage 2: CLI + .env** — Doctor command, .env generation in dev (`doctor.ts`, `dev.ts`)
-- [ ] **Stage 3: Tests + docs** — Doctor unit tests, updated prompt, harness.md (`diagnose.test.ts`, prompt, docs)
+- [x] **Stage 1: SDK helpers** — Container age, logs, diagnostic cascade (`lifecycle.ts`, `diagnose.ts`)
+- [x] **Stage 2: CLI + .env** — Doctor command, .env generation in dev (`doctor.ts`, `dev.ts`)
+- [x] **Stage 3: Tests + docs** — Doctor unit tests, updated prompt, harness.md (`diagnose.test.ts`, prompt, docs)
 
 ## Acceptance
 
-- [ ] `harness doctor` returns actionable fixes at each failure layer
-- [ ] `harness dev` generates `.env` so `docker compose up` uses correct ports
-- [ ] Updated prompt works for zero-context agents
+- [x] `harness doctor` returns actionable fixes at each failure layer
+- [x] `harness dev` generates `.env` so `docker compose up` uses correct ports
+- [x] Updated prompt works for zero-context agents

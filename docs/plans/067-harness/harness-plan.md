@@ -4,7 +4,7 @@
 **Created**: 2026-03-07
 **Spec**: [harness-spec.md](harness-spec.md)
 **ADR**: [ADR-0014](../../adr/adr-0014-first-class-agentic-development-harness.md)
-**Status**: DRAFT
+**Status**: COMPLETE
 **Complexity**: CS-4 (large)
 
 ## Summary
@@ -254,4 +254,4 @@ No new domains. Harness is external tooling at `harness/` in repo root.
 
 | ID | Created | Summary | Domain(s) | Status | Source |
 |----|---------|---------|-----------|--------|--------|
-| FX001 | 2026-03-07 | Harness doctor command + port persistence + prompt improvements | external, cross-domain | Proposed | [Test Run #1 retro](workshops/004-test-run-001-retro.md) |
+| FX001 | 2026-03-07 | Harness doctor command + port persistence + prompt improvements | external, cross-domain | Complete | [Test Run #1 retro](workshops/004-test-run-001-retro.md) |
