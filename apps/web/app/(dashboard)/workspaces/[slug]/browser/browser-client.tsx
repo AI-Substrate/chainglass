@@ -75,10 +75,7 @@ export function BrowserClient({
 }: BrowserClientProps) {
   return (
     <FileChangeProvider worktreePath={worktreePath}>
-      {/* GlobalStateConnector disabled on browser page — its work-unit-state SSE
-         channel combined with file-changes SSE + terminal WS hits browser
-         per-origin connection limits, stalling client-side navigation.
-         Re-enable when SSE channels are multiplexed (single channel). */}
+      <GlobalStateConnector slug={slug} worktreeBranch={worktreeBranch} />
       <BrowserClientInner
         slug={slug}
         worktreePath={worktreePath}

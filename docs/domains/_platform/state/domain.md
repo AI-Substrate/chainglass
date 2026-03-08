@@ -76,8 +76,8 @@ Centralized ephemeral runtime state system. Domains publish runtime values (work
 | PathParser | parsePath(path) → ParsedPath (domain, instanceId, property) | — |
 | GlobalStateSystem | IStateService implementation composing store + matcher + dispatch | StateStore, PathMatcher |
 | GlobalStateProvider | React context provider, bootstraps GlobalStateSystem | GlobalStateSystem |
-| GlobalStateConnector | Workspace-scoped wiring: registers domains, connects SSE publishers, mounts ServerEventRoutes | IStateService, SSE hooks, ServerEventRoute |
-| ServerEventRoute | Invisible bridge: subscribes SSE channel → maps events → publishes to state with source metadata | useSSE, IStateService, ServerEventRouteDescriptor |
+| GlobalStateConnector | Workspace-scoped wiring: registers domains, connects multiplexed SSE publishers, mounts ServerEventRoutes | IStateService, useChannelEvents, ServerEventRoute |
+| ServerEventRoute | Invisible bridge: subscribes muxed channel events → maps events → publishes to state with source metadata | useChannelEvents, IStateService, ServerEventRouteDescriptor |
 | useGlobalState | Single-value subscription hook via useSyncExternalStore | IStateService (from context) |
 | useGlobalStateList | Multi-value pattern subscription hook via useSyncExternalStore | IStateService (from context) |
 | FakeGlobalStateSystem | Test double with getPublished(), getSubscribers(), wasPublishedWith() | IStateService interface |
@@ -131,7 +131,7 @@ Primary: `packages/shared/src/state/` (types + interface) + `apps/web/src/lib/st
 
 | Domain | Contract | Why |
 |--------|----------|-----|
-| `_platform/events` | useSSE, useWorkspaceSSE, FileChangeHub pattern | State change transport from server; GlobalStateConnector subscribes to SSE and translates events to state |
+| `_platform/events` | useChannelEvents, MultiplexedSSEProvider, FileChangeHub pattern | State change transport from server; GlobalStateConnector subscribes to multiplexed channel events and translates them to state |
 | React 19 | useSyncExternalStore | Concurrent-safe subscription hooks |
 
 ### Domains That Depend On This
@@ -171,3 +171,4 @@ Primary: `packages/shared/src/state/` (types + interface) + `apps/web/src/lib/st
 | 053-P6 | Phase 6: Developer guide at docs/how/global-state-system.md. Domain docs finalized. Quality gate passed. Plan 053 complete. | 2026-02-27 |
 | 059-ST001 | Plan 059 Subtask 001: Added StateEntrySource type (origin metadata for server/client tagging), extended publish() with optional source param across IStateService + GlobalStateSystem + FakeGlobalStateSystem, added getPublishedSource() to fake. Created ServerEventRoute component + ServerEventRouteDescriptor types. Extended GlobalStateConnector to mount server event routes. Added WorkUnitState to WorkspaceDomain. | 2026-03-01 |
 | 072-P1 | Plan 072 Phase 1: Added optional `channel?: string` metadata to ServerEvent interface for multiplexed SSE delivery. Non-breaking — existing ServerEventRoute consumers unaffected. | 2026-03-08 |
+| 072-P4 | Plan 072 Phase 4: Migrated ServerEventRoute from `useSSE` to `useChannelEvents` (multiplexed). Re-enabled GlobalStateConnector in browser-client.tsx. Updated connection limit comment — "future fix" is now reality. Zero additional SSE connections. | 2026-03-08 |

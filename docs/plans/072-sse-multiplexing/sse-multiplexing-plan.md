@@ -50,6 +50,7 @@ Each SSE feature (file-changes, event-popper, work-unit-state, workflows, agents
 | `CLAUDE.md` | cross-domain | cross-domain | Add SSE multiplexing to quick reference |
 | `docs/how/sse-multiplexing.md` | cross-domain | cross-domain | Migration guide for feature developers |
 | `docs/domains/_platform/events/domain.md` | `_platform/events` | internal | Add contracts, composition, history |
+| `docs/domains/_platform/state/domain.md` | `_platform/state` | internal | Update Phase 4 state-domain history and multiplexed transport docs |
 | `docs/domains/registry.md` | cross-domain | cross-domain | Update if needed |
 
 ## Key Findings
