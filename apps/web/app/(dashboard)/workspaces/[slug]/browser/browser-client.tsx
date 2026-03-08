@@ -131,40 +131,6 @@ function BrowserClientInner({
     }
   }, [scrollToLine, mode, setParams]);
 
-  // --- Glowing paths (5s green glow for refresh/create/update) ---
-
-  const [glowingPaths, setGlowingPaths] = useState<Set<string>>(new Set());
-  const glowTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
-
-  const addGlow = useCallback((path: string) => {
-    setGlowingPaths((prev) => {
-      const next = new Set(prev);
-      next.add(path);
-      return next;
-    });
-    // Clear previous timer for this path (re-glow extends duration)
-    const existing = glowTimersRef.current.get(path);
-    if (existing) clearTimeout(existing);
-    const timer = setTimeout(() => {
-      setGlowingPaths((prev) => {
-        const next = new Set(prev);
-        next.delete(path);
-        return next;
-      });
-      glowTimersRef.current.delete(path);
-    }, 5000);
-    glowTimersRef.current.set(path, timer);
-  }, []);
-
-  // Clean up glow timers on unmount
-  useEffect(() => {
-    const timers = glowTimersRef.current;
-    return () => {
-      for (const timer of timers.values()) clearTimeout(timer);
-      timers.clear();
-    };
-  }, []);
-
   // --- Hooks ---
 
   const fileNav = useFileNavigation({
@@ -177,7 +143,6 @@ function BrowserClientInner({
     fetchGitDiff,
     setUrlFile: (file) => setParams({ file, line: null }, { history: 'push' }),
     setUrlMode: (m) => setParams({ mode: m as 'edit' | 'preview' | 'diff' }),
-    onFileRefreshed: addGlow,
   });
 
   const panelState = usePanelState({
@@ -387,15 +352,6 @@ function BrowserClientInner({
     treeChanges.clearAll();
   }, [treeChanges.hasChanges]);
 
-  // Feed SSE glow paths into glowing state
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — only trigger on hasChanges flip
-  useEffect(() => {
-    if (!treeChanges.hasChanges) return;
-    for (const path of treeChanges.glowPaths) {
-      addGlow(path);
-    }
-  }, [treeChanges.hasChanges]);
-
   // Phase 5: Sync working changes into WorkspaceContext for tab title attention
   useEffect(() => {
     wsCtx?.setHasChanges(panelState.workingChanges.length > 0);
@@ -429,16 +385,6 @@ function BrowserClientInner({
   );
   // Plan 051: # stub removed, handled by FlowSpace search in dropdown
 
-  // --- File select (closes overlays) ---
-
-  const handleFileSelect = useCallback(
-    (filePath: string) => {
-      window.dispatchEvent(new CustomEvent('overlay:close-all'));
-      return fileNav.handleSelect(filePath);
-    },
-    [fileNav.handleSelect]
-  );
-
   // --- SDK + MRU for command palette ---
   const sdk = useSDK();
   const { mru, recordExecution } = useSDKMru();
@@ -449,7 +395,7 @@ function BrowserClientInner({
       worktreePath,
       fileExists: (relativePath: string) => fileExists(slug, worktreePath, relativePath),
       pathExists: (relativePath: string) => pathExists(slug, worktreePath, relativePath),
-      navigateToFile: (relativePath: string) => handleFileSelect(relativePath),
+      navigateToFile: (relativePath: string) => fileNav.handleSelect(relativePath),
       navigateToDirectory: (relativePath: string) => {
         // Expand all ancestors + the directory itself
         const parts = relativePath.split('/');
@@ -485,7 +431,7 @@ function BrowserClientInner({
     [
       slug,
       worktreePath,
-      handleFileSelect,
+      fileNav.handleSelect,
       fileNav.handleExpand,
       panelMode,
       panelState.handlePanelModeChange,
@@ -620,7 +566,7 @@ function BrowserClientInner({
             onSortModeChange={fileFilter.cycleSortMode}
             includeHidden={fileFilter.includeHidden}
             onIncludeHiddenChange={fileFilter.toggleIncludeHidden}
-            onFileSelect={handleFileSelect}
+            onFileSelect={fileNav.handleSelect}
             onCopyFullPath={clipboard.handleCopyFullPath}
             onCopyRelativePath={clipboard.handleCopyRelativePath}
             onCopyContent={clipboard.handleCopyContent}
@@ -665,7 +611,6 @@ function BrowserClientInner({
                   entries={rootEntries}
                   selectedFile={selectedFile}
                   changedFiles={panelState.changedFiles}
-                  glowingPaths={glowingPaths}
                   newlyAddedPaths={combinedNewPaths}
                   onSelect={fileNav.handleSelect}
                   onExpand={fileNav.handleExpand}
@@ -688,7 +633,7 @@ function BrowserClientInner({
                   workingChanges={panelState.workingChanges}
                   recentFiles={panelState.recentFiles}
                   selectedFile={selectedFile}
-                  onSelect={handleFileSelect}
+                  onSelect={fileNav.handleSelect}
                   onCopyFullPath={clipboard.handleCopyFullPath}
                   onCopyRelativePath={clipboard.handleCopyRelativePath}
                   onCopyContent={clipboard.handleCopyContent}
@@ -759,7 +704,7 @@ function BrowserClientInner({
                   fileNav.fileData && !fileNav.fileData.ok ? fileNav.fileData.error : undefined
                 }
                 scrollToLine={scrollToLine}
-                onNavigateToFile={handleFileSelect}
+                onNavigateToFile={fileNav.handleSelect}
               />
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground">

@@ -24,7 +24,6 @@ import {
   ChevronDown,
   ChevronRight,
   ClipboardCopy,
-  CornerDownRight,
   Download,
   File,
   FilePlus,
@@ -83,8 +82,8 @@ export interface FileTreeProps {
   entries: FileEntry[];
   selectedFile?: string;
   changedFiles?: string[];
-  /** Paths of files/dirs to glow green (refresh, create, update) */
-  glowingPaths?: Set<string>;
+  /** Paths of newly added files/dirs — get green fade-in animation */
+  newlyAddedPaths?: Set<string>;
   onSelect: (filePath: string) => void;
   onExpand: (dirPath: string) => void;
   childEntries?: Record<string, FileEntry[]>;
@@ -111,7 +110,7 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
     entries,
     selectedFile,
     changedFiles,
-    glowingPaths,
+    newlyAddedPaths,
     onSelect,
     onExpand,
     childEntries = {},
@@ -318,11 +317,10 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
           key={entry.path}
           entry={entry}
           depth={0}
-          isMetafile={isMetafileEntry(entry, entries)}
           expanded={expanded}
           selectedFile={selectedFile}
           changedFiles={changedFiles}
-          glowingPaths={glowingPaths}
+          newlyAddedPaths={newlyAddedPaths}
           childEntries={childEntries}
           onSelect={onSelect}
           onDirClick={handleDirClick}
@@ -354,26 +352,15 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
   );
 });
 
-/** Detect if a file is a metafile (e.g., photo.png.summary.md for sibling photo.png) */
-function isMetafileEntry(entry: FileEntry, siblings: FileEntry[]): boolean {
-  if (entry.type !== 'file' || !entry.name.endsWith('.md')) return false;
-  const withoutMd = entry.name.slice(0, -3);
-  const lastDot = withoutMd.lastIndexOf('.');
-  if (lastDot <= 0) return false;
-  const candidateParent = withoutMd.slice(0, lastDot);
-  return siblings.some((s) => s.name === candidateParent && s.type === 'file');
-}
-
 // --- TreeItem Sub-Component ---
 
 function TreeItem({
   entry,
   depth,
-  isMetafile,
   expanded,
   selectedFile,
   changedFiles,
-  glowingPaths,
+  newlyAddedPaths,
   childEntries,
   onSelect,
   onDirClick,
@@ -387,11 +374,10 @@ function TreeItem({
 }: {
   entry: FileEntry;
   depth: number;
-  isMetafile: boolean;
   expanded: Set<string>;
   selectedFile?: string;
   changedFiles?: string[];
-  glowingPaths?: Set<string>;
+  newlyAddedPaths?: Set<string>;
   childEntries: Record<string, FileEntry[]>;
   onSelect: (path: string) => void;
   onDirClick: (path: string) => void;
@@ -406,7 +392,7 @@ function TreeItem({
   const isExpanded = expanded.has(entry.path);
   const isSelected = selectedFile === entry.path;
   const isChanged = changedFiles?.includes(entry.path);
-  const isGlowing = glowingPaths?.has(entry.path);
+  const isNewlyAdded = newlyAddedPaths?.has(entry.path);
   const children = childEntries[entry.path];
   const isRenaming =
     mutations?.editState?.mode === 'rename' && mutations.editState.targetPath === entry.path;
@@ -421,7 +407,7 @@ function TreeItem({
         <div
           className={`group relative flex w-full items-center gap-1 px-2 py-1 text-left hover:bg-accent ${
             isSelected ? 'bg-accent' : ''
-          } ${isGlowing ? 'tree-entry-glow' : ''}`}
+          } ${isNewlyAdded ? 'tree-entry-new' : ''}`}
           style={{ paddingLeft: `${depth * 16 + 8}px` }}
         >
           {isRenaming ? (
@@ -600,11 +586,10 @@ function TreeItem({
                 key={child.path}
                 entry={child}
                 depth={depth + 1}
-                isMetafile={isMetafileEntry(child, children)}
                 expanded={expanded}
                 selectedFile={selectedFile}
                 changedFiles={changedFiles}
-                glowingPaths={glowingPaths}
+                newlyAddedPaths={newlyAddedPaths}
                 childEntries={childEntries}
                 onSelect={onSelect}
                 onDirClick={onDirClick}
