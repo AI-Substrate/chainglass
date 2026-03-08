@@ -29,6 +29,9 @@ flowchart LR
     workunitEditor["✏️ 058-workunit-editor<br/>Unit list page · Editor page<br/>Agent/Code/Input editors<br/>Creation modal · Auto-save"]:::business
     terminal["🖥️ terminal<br/>TerminalView · TerminalOverlay<br/>TmuxSessionManager · copyTmuxBuffer<br/>Sidecar WS/WSS Server"]:::business
 
+    %% NEW business domains (Plan 069)
+    workspace["🗂️ workspace<br/>IWorkspaceService<br/>IWorkspaceContextResolver<br/>IGitWorktreeResolver<br/>useWorkspaceContext"]:::new
+
     %% NEW business domains (Plan 059)
     agents["🤖 agents<br/>IAgentManagerService<br/>IAgentAdapter · IAgentInstance<br/>useAgentManager · useAgentInstance<br/>useAgentOverlay · useRecentAgents<br/>AgentChipBar · AgentOverlayPanel<br/>AgentWorkUnitBridge"]:::new
     workUnitState["📋 work-unit-state<br/>IWorkUnitStateService<br/>WorkUnitEntry · WorkUnitEvent<br/>FakeWorkUnitStateService<br/>workUnitStateRoute"]:::new
@@ -45,8 +48,13 @@ flowchart LR
     fileBrowser -->|"FileViewer<br/>MarkdownViewer<br/>DiffViewer<br/>detectContentType"| viewer
     fileBrowser -->|"toast()<br/>useFileChanges<br/>FileChangeProvider"| events
     fileBrowser -->|"PanelShell<br/>ExplorerPanel<br/>LeftPanel · MainPanel<br/>AsciiSpinner"| panels
+    fileBrowser -->|"IWorkspaceService<br/>useWorkspaceContext<br/>WorktreeVisualPreferences"| workspace
     panels -->|"panel URL param"| wsUrl
     viewer -->|"IFileSystem (Shiki reads)"| fileOps
+
+    %% Workspace domain dependencies
+    workspace -->|"IFileSystem<br/>IPathResolver"| fileOps
+    workspace -->|"workspaceHref<br/>workspaceParams"| wsUrl
 
     %% SDK consumed by publishing domains
     fileBrowser -->|"IUSDK<br/>(publishes commands)"| sdk
@@ -63,6 +71,7 @@ flowchart LR
     workflowUI -->|"useSSE<br/>SSE infrastructure"| events
     workflowUI -->|"workspaceHref"| wsUrl
     workflowUI -->|"IUSDK"| sdk
+    workflowUI -->|"IWorkspaceService<br/>WorkspaceContext"| workspace
 
     %% State system dependencies
     state -->|"useSSE<br/>SSE transport"| events
@@ -80,6 +89,7 @@ flowchart LR
     agents -->|"IStateService<br/>useGlobalState"| state
     agents -->|"IWorkUnitStateService<br/>(publish status)"| workUnitState
     agents -->|"DashboardShell<br/>(top bar slot)"| panels
+    agents -->|"IWorkspaceService<br/>WorkspaceContext"| workspace
     posGraph -->|"IAgentManagerService<br/>IAgentInstance<br/>(orchestration)"| agents
 
     %% NEW: Work Unit State dependencies
@@ -100,12 +110,14 @@ flowchart LR
     workunitEditor -->|"IWorkUnitService<br/>(CRUD)"| posGraph
     workunitEditor -->|"CodeEditor"| viewer
     workunitEditor -->|"workspaceHref"| wsUrl
+    workunitEditor -->|"WorkspaceInfo<br/>WorkspaceContext"| workspace
 
     %% Terminal dependencies
     terminal -->|"PanelShell<br/>LeftPanel · MainPanel"| panels
     terminal -->|"toast()"| events
     terminal -->|"IUSDK<br/>ICommandRegistry"| sdk
     terminal -->|"workspaceHref"| wsUrl
+    terminal -->|"IWorkspaceService<br/>useWorkspaceContext"| workspace
 
     %% Activity Log dependencies (consumer → provider)
     activityLog -->|"PanelShell<br/>overlay anchor"| panels
@@ -115,13 +127,14 @@ flowchart LR
     fileBrowser -->|"middleware protection"| auth
     workflowUI -->|"middleware protection"| auth
     workunitEditor -->|"middleware protection"| auth
+    workspace -->|"requireAuth()<br/>middleware protection"| auth
 ```
 
 ## Legend
 
 - **Blue**: Business domains (user-facing capabilities)
 - **Purple**: Infrastructure domains (cross-cutting technical capabilities)
-- **Orange**: Newly added domains (Plan 059 — change to blue after first implementation)
+- **Orange**: Newly added domains (change to blue or purple after follow-on implementation/documentation passes)
 - **Red**: Deprecated domains (pending removal)
 - **Solid arrows** (→): Contract dependency (A consumes B's contract)
 - **Labels on arrows**: Contract name being consumed
@@ -130,22 +143,23 @@ flowchart LR
 
 | Domain | Contracts Out | Consumers | Contracts In | Providers | Status |
 |--------|--------------|-----------|-------------|-----------|--------|
-| _platform/file-ops | IFileSystem, IPathResolver | file-browser, viewer, workflow-ui | — | — | ✅ |
-| _platform/workspace-url | workspaceHref, paramsCaches | file-browser, panel-layout | — | — | ✅ |
+| _platform/file-ops | IFileSystem, IPathResolver | file-browser, viewer, workflow-ui, workspace | — | — | ✅ |
+| _platform/workspace-url | workspaceHref, paramsCaches | file-browser, panel-layout, workflow-ui, workunit-editor, terminal, workspace | — | — | ✅ |
 | _platform/viewer | FileViewer, MarkdownViewer, DiffViewer, highlightCode, detectContentType, isBinaryExtension | file-browser | IFileSystem | file-ops | ✅ |
 | _platform/events | ICentralEventNotifier, ISSEBroadcaster, useSSE, FileChangeHub, useFileChanges, FileChangeProvider, toast() | file-browser, workflow-ui, agents, state | — | — | ✅ |
 | _platform/panel-layout | PanelShell, ExplorerPanel, LeftPanel, MainPanel, PanelHeader, BarHandler, AsciiSpinner, FlowSpaceSearchResult, FlowSpaceAvailability, FlowSpaceSearchMode | file-browser, future workspace pages | panel URL param | workspace-url | ✅ |
-| file-browser | Browser page, FileTree, FileViewerPanel, WorkspaceContext, EmojiPicker, ColorPicker, Settings | — | IFileSystem, workspaceHref, viewers, toast, events, panels | file-ops, workspace-url, viewer, events, panel-layout | ✅ |
+| file-browser | Browser page, FileTree, FileViewerPanel, WorkspaceContext, EmojiPicker, ColorPicker, Settings | — | IFileSystem, workspaceHref, viewers, toast, events, panels, IWorkspaceService, useWorkspaceContext | file-ops, workspace-url, viewer, events, panel-layout, workspace | ✅ |
+| workspace | IWorkspaceService, IWorkspaceContextResolver, IGitWorktreeResolver, useWorkspaceContext | file-browser, workflow-ui, workunit-editor, terminal, agents | IFileSystem, IPathResolver, workspaceHref, workspaceParams, requireAuth(), middleware protection | file-ops, workspace-url, auth | 🟠 New |
 | _platform/sdk | IUSDK, ICommandRegistry, ISDKSettings, IContextKeyService, IKeybindingService, SDKCommand, SDKSetting, FakeUSDK | file-browser, workflow-ui, events, panel-layout, settings | — | — | ✅ |
 | _platform/settings | Settings Page, sdk.openSettings | — | ISDKSettings, useSDKSetting, useSDK | sdk | ✅ |
 | _platform/positional-graph | IPositionalGraphService, IOrchestrationService, IEventHandlerService, IWorkUnitService, ITemplateService, IInstanceService | CLI (`cg wf`, `cg template`), workflow-ui, dev/test-graphs | IFileSystem, IPathResolver, IStateService | file-ops, state | ✅ |
 | _platform/workgraph | IWorkGraphService, IWorkNodeService, IWorkUnitService | CLI (`cg wg`, `cg unit`) | IFileSystem, IPathResolver | file-ops | ❌ Removed from web (Plan 050 Phase 7) |
 | _platform/state | IStateService, useGlobalState, useGlobalStateList, GlobalStateProvider, StateChangeLog, ServerEventRoute, FakeGlobalStateSystem | positional-graph (publish), workflow-ui, panel-layout, file-browser, agents, work-unit-state (subscribe), dev-tools | useSSE | events | ✅ |
-| workflow-ui | _(none — leaf consumer)_ | — | IPositionalGraphService, ITemplateService, IWorkUnitService, IFileSystem, IPathResolver, useSSE, workspaceHref, IUSDK, useGlobalState, useAgentOverlay (future) | positional-graph, file-ops, events, workspace-url, sdk, state, agents (future) | ✅ |
+| workflow-ui | _(none — leaf consumer)_ | — | IPositionalGraphService, ITemplateService, IWorkUnitService, IFileSystem, IPathResolver, useSSE, workspaceHref, IUSDK, useGlobalState, useAgentOverlay (future), IWorkspaceService, WorkspaceContext | positional-graph, file-ops, events, workspace-url, sdk, state, agents (future), workspace | ✅ |
 | _platform/dev-tools | StateInspector, useStateChangeLog, useStateInspector | — | IStateService, StateChangeLog, useStateSystem | state | ✅ |
-| 058-workunit-editor | _(none — leaf consumer)_ | — | IWorkUnitService, CodeEditor, workspaceHref | positional-graph, viewer, workspace-url | ✅ |
-| agents | IAgentManagerService, IAgentAdapter, IAgentInstance, IAgentNotifierService, useAgentManager, useAgentInstance, useAgentOverlay, useRecentAgents, useWorktreeActivity, AgentChipBar, AgentOverlayPanel, AgentWorkUnitBridge | positional-graph (orchestration), workflow-ui (overlay), panel-layout (badge data via composition) | ISSEBroadcaster, useSSE, toast(), CopilotClient, IStateService, IWorkUnitStateService, IWorkflowEvents, DashboardShell | events, sdk, state, work-unit-state, workflow-events, panel-layout | 🟠 New |
+| 058-workunit-editor | _(none — leaf consumer)_ | — | IWorkUnitService, CodeEditor, workspaceHref, WorkspaceInfo, WorkspaceContext | positional-graph, viewer, workspace-url, workspace | ✅ |
+| agents | IAgentManagerService, IAgentAdapter, IAgentInstance, IAgentNotifierService, useAgentManager, useAgentInstance, useAgentOverlay, useRecentAgents, useWorktreeActivity, AgentChipBar, AgentOverlayPanel, AgentWorkUnitBridge | positional-graph (orchestration), workflow-ui (overlay), panel-layout (badge data via composition) | ISSEBroadcaster, useSSE, toast(), CopilotClient, IStateService, IWorkUnitStateService, IWorkflowEvents, DashboardShell, IWorkspaceService, WorkspaceContext | events, sdk, state, work-unit-state, workflow-events, panel-layout, workspace | 🟠 New |
 | work-unit-state | IWorkUnitStateService, WorkUnitEntry, WorkUnitEvent, FakeWorkUnitStateService, workUnitStateRoute | agents (AgentWorkUnitBridge), workflow-ui (future) | ICentralEventNotifier, ServerEventRouteDescriptor | events, state | 🟠 New |
 | workflow-events | IWorkflowEvents, WorkflowEventType, WorkflowEventError, FakeWorkflowEventsService | agents (observer hooks), workflow-ui (answerQuestion), CLI (ask/answer/get-answer) | IPositionalGraphService, ICentralEventNotifier | positional-graph, events | 🟠 New |
-| terminal | _(none — leaf consumer)_ | — | PanelShell, LeftPanel, MainPanel, toast(), IUSDK, ICommandRegistry, workspaceHref | panel-layout, events, sdk, workspace-url | ✅ |
-| _platform/auth | auth(), signIn(), signOut(), requireAuth(), useAuth(), middleware protection, isUserAllowed(), SessionProvider | file-browser, workflow-ui, workunit-editor (via middleware), server actions (via requireAuth) | — | — | ✅ |
+| terminal | _(none — leaf consumer)_ | — | PanelShell, LeftPanel, MainPanel, toast(), IUSDK, ICommandRegistry, workspaceHref, IWorkspaceService, useWorkspaceContext | panel-layout, events, sdk, workspace-url, workspace | ✅ |
+| _platform/auth | auth(), signIn(), signOut(), requireAuth(), useAuth(), middleware protection, isUserAllowed(), SessionProvider | file-browser, workflow-ui, workunit-editor (via middleware), workspace (via middleware and server actions) | — | — | ✅ |

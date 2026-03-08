@@ -35,6 +35,7 @@ Start at L1 and zoom in to the level of detail you need:
 
 ### Business Domains
 
+- [Workspace](components/workspace.md) — Workspace registration, context resolution, worktree discovery
 - [File Browser](components/file-browser.md) — Workspace file browsing, editing, diffing
 - [Workflow UI](components/workflow-ui.md) — Visual workflow editor with drag-drop
 - [Work Unit Editor](components/workunit-editor.md) — CRUD interface for work unit definitions

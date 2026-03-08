@@ -61,6 +61,7 @@ import {
   getUserConfigDir,
 } from '@chainglass/shared';
 import {
+  FakeGitWorktreeManager,
   FakeGitWorktreeResolver,
   FakePhaseAdapter,
   FakePhaseService,
@@ -72,7 +73,9 @@ import {
   FakeWorkspaceContextResolver,
   FakeWorkspaceRegistryAdapter,
   FakeYamlParser,
+  GitWorktreeManagerAdapter,
   GitWorktreeResolver,
+  type IGitWorktreeManager,
   type IGitWorktreeResolver,
   type IPhaseAdapter,
   type IPhaseService,
@@ -100,6 +103,7 @@ import {
   WorkspaceContextResolver,
   WorkspaceRegistryAdapter,
   WorkspaceService,
+  WorktreeBootstrapRunner,
   YamlParserAdapter,
 } from '@chainglass/workflow';
 import type { ITemplateService } from '@chainglass/workflow';
@@ -408,13 +412,24 @@ export function createCliProductionContainer(): DependencyContainer {
       ),
   });
 
+  // Git worktree manager (Plan 069: mutation boundary)
+  childContainer.register<IGitWorktreeManager>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_MANAGER, {
+    useFactory: (c) =>
+      new GitWorktreeManagerAdapter(c.resolve<IProcessManager>(SHARED_DI_TOKENS.PROCESS_MANAGER)),
+  });
+
   // Workspace service
   childContainer.register<IWorkspaceService>(WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE, {
     useFactory: (c) =>
       new WorkspaceService(
         c.resolve<IWorkspaceRegistryAdapter>(WORKSPACE_DI_TOKENS.WORKSPACE_REGISTRY_ADAPTER),
         c.resolve<IWorkspaceContextResolver>(WORKSPACE_DI_TOKENS.WORKSPACE_CONTEXT_RESOLVER),
-        c.resolve<IGitWorktreeResolver>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER)
+        c.resolve<IGitWorktreeResolver>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER),
+        c.resolve<IGitWorktreeManager>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_MANAGER),
+        new WorktreeBootstrapRunner(
+          c.resolve<IProcessManager>(SHARED_DI_TOKENS.PROCESS_MANAGER),
+          c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM)
+        )
       ),
   });
 
@@ -549,13 +564,24 @@ export function createCliTestContainer(): DependencyContainer {
     useValue: fakeSampleAdapter,
   });
 
+  // Fake git worktree manager (Plan 069)
+  const fakeGitWorktreeManager = new FakeGitWorktreeManager();
+  childContainer.register<IGitWorktreeManager>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_MANAGER, {
+    useValue: fakeGitWorktreeManager,
+  });
+
   // Note: For CLI tests, we use real services with fake adapters per DYK-P5-03
   childContainer.register<IWorkspaceService>(WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE, {
     useFactory: (c) =>
       new WorkspaceService(
         c.resolve<IWorkspaceRegistryAdapter>(WORKSPACE_DI_TOKENS.WORKSPACE_REGISTRY_ADAPTER),
         c.resolve<IWorkspaceContextResolver>(WORKSPACE_DI_TOKENS.WORKSPACE_CONTEXT_RESOLVER),
-        c.resolve<IGitWorktreeResolver>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER)
+        c.resolve<IGitWorktreeResolver>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER),
+        c.resolve<IGitWorktreeManager>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_MANAGER),
+        new WorktreeBootstrapRunner(
+          c.resolve<IProcessManager>(SHARED_DI_TOKENS.PROCESS_MANAGER),
+          c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM)
+        )
       ),
   });
 

@@ -28,6 +28,7 @@ import {
 import { type DependencyContainer, container } from 'tsyringe';
 import { AgentEventAdapter } from './adapters/agent-event.adapter.js';
 import { AgentSessionAdapter } from './adapters/agent-session.adapter.js';
+import { GitWorktreeManagerAdapter } from './adapters/git-worktree-manager.adapter.js';
 import { PhaseAdapter } from './adapters/phase.adapter.js';
 import { SampleAdapter } from './adapters/sample.adapter.js';
 import { SchemaValidatorAdapter } from './adapters/schema-validator.adapter.js';
@@ -36,6 +37,7 @@ import { WorkspaceRegistryAdapter } from './adapters/workspace-registry.adapter.
 import { YamlParserAdapter } from './adapters/yaml-parser.adapter.js';
 import { FakeAgentEventAdapter } from './fakes/fake-agent-event-adapter.js';
 import { FakeAgentSessionAdapter } from './fakes/fake-agent-session-adapter.js';
+import { FakeGitWorktreeManager } from './fakes/fake-git-worktree-manager.js';
 import { FakeGitWorktreeResolver } from './fakes/fake-git-worktree-resolver.js';
 import { FakePhaseAdapter } from './fakes/fake-phase-adapter.js';
 import { FakePhaseService } from './fakes/fake-phase-service.js';
@@ -50,6 +52,7 @@ import { FakeYamlParser } from './fakes/fake-yaml-parser.js';
 import type { IAgentEventAdapter } from './interfaces/agent-event-adapter.interface.js';
 import type { IAgentSessionAdapter } from './interfaces/agent-session-adapter.interface.js';
 import type { IAgentSessionService } from './interfaces/agent-session-service.interface.js';
+import type { IGitWorktreeManager } from './interfaces/git-worktree-manager.interface.js';
 import type { IGitWorktreeResolver } from './interfaces/git-worktree-resolver.interface.js';
 import type {
   IPhaseAdapter,
@@ -73,6 +76,7 @@ import { SampleService } from './services/sample.service.js';
 import { WorkflowRegistryService } from './services/workflow-registry.service.js';
 import { WorkflowService } from './services/workflow.service.js';
 import { WorkspaceService } from './services/workspace.service.js';
+import { WorktreeBootstrapRunner } from './services/worktree-bootstrap-runner.js';
 
 /**
  * Creates a production DI container for workflow services.
@@ -209,13 +213,24 @@ export function createWorkflowProductionContainer(): DependencyContainer {
       ),
   });
 
+  // Register git worktree manager (Plan 069: mutation boundary)
+  childContainer.register<IGitWorktreeManager>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_MANAGER, {
+    useFactory: (c) =>
+      new GitWorktreeManagerAdapter(c.resolve<IProcessManager>(SHARED_DI_TOKENS.PROCESS_MANAGER)),
+  });
+
   // Register workspace service
   childContainer.register<IWorkspaceService>(WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE, {
     useFactory: (c) =>
       new WorkspaceService(
         c.resolve<IWorkspaceRegistryAdapter>(WORKSPACE_DI_TOKENS.WORKSPACE_REGISTRY_ADAPTER),
         c.resolve<IWorkspaceContextResolver>(WORKSPACE_DI_TOKENS.WORKSPACE_CONTEXT_RESOLVER),
-        c.resolve<IGitWorktreeResolver>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER)
+        c.resolve<IGitWorktreeResolver>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER),
+        c.resolve<IGitWorktreeManager>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_MANAGER),
+        new WorktreeBootstrapRunner(
+          c.resolve<IProcessManager>(SHARED_DI_TOKENS.PROCESS_MANAGER),
+          c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM)
+        )
       ),
   });
 
@@ -363,13 +378,24 @@ export function createWorkflowTestContainer(): DependencyContainer {
     useValue: fakeSampleAdapter,
   });
 
+  // Register fake git worktree manager (Plan 069)
+  const fakeGitManager = new FakeGitWorktreeManager();
+  childContainer.register<IGitWorktreeManager>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_MANAGER, {
+    useValue: fakeGitManager,
+  });
+
   // Register workspace service with fakes
   childContainer.register<IWorkspaceService>(WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE, {
     useFactory: (c) =>
       new WorkspaceService(
         c.resolve<IWorkspaceRegistryAdapter>(WORKSPACE_DI_TOKENS.WORKSPACE_REGISTRY_ADAPTER),
         c.resolve<IWorkspaceContextResolver>(WORKSPACE_DI_TOKENS.WORKSPACE_CONTEXT_RESOLVER),
-        c.resolve<IGitWorktreeResolver>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER)
+        c.resolve<IGitWorktreeResolver>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER),
+        c.resolve<IGitWorktreeManager>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_MANAGER),
+        new WorktreeBootstrapRunner(
+          c.resolve<IProcessManager>(SHARED_DI_TOKENS.PROCESS_MANAGER),
+          c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM)
+        )
       ),
   });
 
