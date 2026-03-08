@@ -29,6 +29,7 @@ import { fileBrowserContribution } from '@/features/041-file-browser/sdk/contrib
 import type { FileEntry } from '@/features/041-file-browser/services/directory-listing';
 import { createFilePathHandler } from '@/features/041-file-browser/services/file-path-handler';
 import { FileChangeProvider, useFileChanges } from '@/features/045-live-file-events';
+import { QuestionPopperIndicator } from '@/features/067-question-popper/components/question-popper-indicator';
 import {
   type BarContext,
   ExplorerPanel,
@@ -79,10 +80,7 @@ export function BrowserClient({
 }: BrowserClientProps) {
   return (
     <FileChangeProvider worktreePath={worktreePath}>
-      {/* GlobalStateConnector disabled on browser page — its work-unit-state SSE
-         channel combined with file-changes SSE + terminal WS hits browser
-         per-origin connection limits, stalling client-side navigation.
-         Re-enable when SSE channels are multiplexed (single channel). */}
+      <GlobalStateConnector slug={slug} worktreeBranch={worktreeBranch} />
       <BrowserClientInner
         slug={slug}
         worktreePath={worktreePath}
@@ -602,6 +600,7 @@ function BrowserClientInner({
                 flowspace.setQuery(query, mode);
               }
             }}
+            rightActions={<QuestionPopperIndicator />}
           />
         }
         left={

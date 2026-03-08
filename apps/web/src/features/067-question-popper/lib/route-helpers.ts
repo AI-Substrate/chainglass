@@ -85,7 +85,8 @@ export { AnswerPayloadSchema, ClarificationPayloadSchema };
  */
 export async function parseJsonBody<T>(
   request: Request,
-  schema: z.ZodType<T>
+  // biome-ignore lint/suspicious/noExplicitAny: Zod v3/v4 cross-version compatibility
+  schema: { safeParse: (data: unknown) => { success: boolean; data?: any; error?: any } }
 ): Promise<T | Response> {
   let body: unknown;
   try {
@@ -102,13 +103,13 @@ export async function parseJsonBody<T>(
     return Response.json(
       {
         error: 'Validation error',
-        message: result.error.issues.map((i) => i.message).join('; '),
+        message: result.error.issues.map((i: { message: string }) => i.message).join('; '),
       },
       { status: 400 }
     );
   }
 
-  return result.data;
+  return result.data as T;
 }
 
 // ── Error Mapping ──
@@ -188,7 +189,7 @@ export async function handleAskQuestion(
   request: Request,
   service: IQuestionPopperService
 ): Promise<Response> {
-  const bodyOrError = await parseJsonBody(request, AskQuestionRequestSchema);
+  const bodyOrError = await parseJsonBody<AskQuestionRequest>(request, AskQuestionRequestSchema);
   if (bodyOrError instanceof Response) return bodyOrError;
 
   const { questionId } = await service.askQuestion(bodyOrError);
@@ -216,7 +217,7 @@ export async function handleAnswerQuestion(
   service: IQuestionPopperService,
   id: string
 ): Promise<Response> {
-  const bodyOrError = await parseJsonBody(request, AnswerPayloadSchema);
+  const bodyOrError = await parseJsonBody<AnswerPayload>(request, AnswerPayloadSchema);
   if (bodyOrError instanceof Response) return bodyOrError;
 
   try {
@@ -238,7 +239,7 @@ export async function handleSendAlert(
   request: Request,
   service: IQuestionPopperService
 ): Promise<Response> {
-  const bodyOrError = await parseJsonBody(request, SendAlertRequestSchema);
+  const bodyOrError = await parseJsonBody<SendAlertRequest>(request, SendAlertRequestSchema);
   if (bodyOrError instanceof Response) return bodyOrError;
 
   const { alertId } = await service.sendAlert(bodyOrError);
@@ -299,7 +300,10 @@ export async function handleClarify(
   service: IQuestionPopperService,
   id: string
 ): Promise<Response> {
-  const bodyOrError = await parseJsonBody(request, ClarificationPayloadSchema);
+  const bodyOrError = await parseJsonBody<ClarificationPayload>(
+    request,
+    ClarificationPayloadSchema
+  );
   if (bodyOrError instanceof Response) return bodyOrError;
 
   try {

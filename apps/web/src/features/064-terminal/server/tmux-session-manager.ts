@@ -140,7 +140,7 @@ export class TmuxSessionManager {
   }
 
   /** Query pane titles for ALL panes across ALL windows in a session */
-  getPaneTitles(sessionName: string): Array<{ pane: string; title: string }> {
+  getPaneTitles(sessionName: string): Array<{ pane: string; windowName: string; title: string }> {
     try {
       const output = this.exec('tmux', [
         'list-panes',

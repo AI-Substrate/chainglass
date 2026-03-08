@@ -27,7 +27,7 @@ export function TerminalOverlayPanel() {
   }, [isOpen]);
 
   // Measure the main content area to align overlay exactly over it
-  const measureRef = useRef<() => void>();
+  const measureRef = useRef<(() => void) | null>(null);
   useEffect(() => {
     const measure = () => {
       const anchor = document.querySelector('[data-terminal-overlay-anchor]');

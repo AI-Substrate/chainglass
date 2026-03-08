@@ -1,0 +1,103 @@
+diff --git a/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx b/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
+index b562c878..5487aa48 100644
+--- a/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
++++ b/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
+@@ -75,10 +75,7 @@ export function BrowserClient({
+ }: BrowserClientProps) {
+   return (
+     <FileChangeProvider worktreePath={worktreePath}>
+-      {/* GlobalStateConnector disabled on browser page — its work-unit-state SSE
+-         channel combined with file-changes SSE + terminal WS hits browser
+-         per-origin connection limits, stalling client-side navigation.
+-         Re-enable when SSE channels are multiplexed (single channel). */}
++      <GlobalStateConnector slug={slug} worktreeBranch={worktreeBranch} />
+       <BrowserClientInner
+         slug={slug}
+         worktreePath={worktreePath}
+diff --git a/apps/web/src/lib/state/server-event-route.tsx b/apps/web/src/lib/state/server-event-route.tsx
+index 79f9a859..89d132ff 100644
+--- a/apps/web/src/lib/state/server-event-route.tsx
++++ b/apps/web/src/lib/state/server-event-route.tsx
+@@ -18,7 +18,7 @@ import { useEffect, useRef } from 'react';
+ 
+ import type { StateEntrySource } from '@chainglass/shared/state';
+ 
+-import { useSSE } from '@/hooks/useSSE';
++import { useChannelEvents } from '@/lib/sse';
+ 
+ import type { ServerEvent, ServerEventRouteDescriptor } from './server-event-router';
+ import { useStateSystem } from './state-provider';
+@@ -29,14 +29,9 @@ interface ServerEventRouteProps {
+ 
+ export function ServerEventRoute({ route }: ServerEventRouteProps): null {
+   const state = useStateSystem();
+-  const { messages } = useSSE<ServerEvent>(
+-    `/api/events/${route.channel}`,
+-    undefined,
+-    // Disable message pruning — index-based cursor breaks when useSSE
+-    // truncates the array at maxMessages (F001 review finding).
+-    // Memory is bounded by session lifetime (dashboard use case).
+-    { maxMessages: 0 }
+-  );
++  // DYK #4: ServerEvent structurally satisfies MultiplexedSSEMessage — no cast needed.
++  // maxMessages: 0 disables pruning — index-based cursor needs the full array.
++  const { messages } = useChannelEvents<ServerEvent>(route.channel, { maxMessages: 0 });
+   const lastProcessedIndexRef = useRef(-1);
+ 
+   useEffect(() => {
+diff --git a/apps/web/src/lib/state/state-connector.tsx b/apps/web/src/lib/state/state-connector.tsx
+index 289d661d..2144f4fb 100644
+--- a/apps/web/src/lib/state/state-connector.tsx
++++ b/apps/web/src/lib/state/state-connector.tsx
+@@ -3,6 +3,7 @@
+ /**
+  * Plan 053 Phase 5: GlobalStateConnector
+  * Plan 059 Subtask 001: Extended with ServerEventRoute mounting.
++ * Plan 072 Phase 4: GlobalState re-enabled — multiplexed SSE is active.
+  *
+  * Invisible wiring component that registers state domains and mounts
+  * publishers. Sits inside the provider scope for data sources and
+@@ -13,23 +14,8 @@
+  * Fail-fast: if registration throws, the error propagates (DYK-18).
+  *
+  * SERVER_EVENT_ROUTES: Array of descriptors for server→state bridges.
+- * Each route opens its own SSE EventSource connection.
+- *
+- * CONNECTION LIMIT NOTE (DYK #4):
+- * HTTP/1.1 browsers cap concurrent connections per domain at ~6 (Chrome,
+- * Firefox) or ~8 (Safari). Each ServerEventRoute opens one EventSource
+- * connection. With N routes, that leaves (6-N) connections for REST fetches,
+- * asset loading, and other SSE consumers (e.g., agent chat streams).
+- *
+- * Symptoms if exceeded: REST requests hang or queue, SSE connections fail
+- * to establish, intermittent timeouts on API calls.
+- *
+- * Current routes: 0 (work-unit-state descriptor added in T004).
+- * Safe ceiling: ~4 routes before investigating multiplexed SSE or HTTP/2.
+- *
+- * Future fix: A single multiplexed SSE endpoint that carries all channels
+- * in one connection, with server-side channel filtering. This requires
+- * changes to both the SSE API route and the useSSE hook.
++ * Each route subscribes to a channel from the MultiplexedSSEProvider
++ * (Plan 072) — all channels share one EventSource connection.
+  */
+ 
+ import type React from 'react';
+diff --git a/docs/domains/_platform/events/domain.md b/docs/domains/_platform/events/domain.md
+index bff969a3..aff8d153 100644
+--- a/docs/domains/_platform/events/domain.md
++++ b/docs/domains/_platform/events/domain.md
+@@ -209,3 +209,4 @@ Primary: scattered across `packages/shared`, `packages/workflow`, `apps/web` (Pl
+ | Plan 072 Phase 1 | SSE Multiplexing server foundation: added `channel` field to SSEManager.broadcast() payload, added `removeControllerFromAllChannels()` method, created `/api/events/mux` multiplexed endpoint (15s heartbeat, multi-channel registration, atomic cleanup). Extended ServerEvent type with optional `channel` field. | 2026-03-08 |
+ | Plan 072 Phase 2 | SSE Multiplexing client infrastructure: created `MultiplexedSSEProvider` (single EventSource, channel demux, exponential+jitter backoff, error isolation), `useChannelEvents` (accumulation), `useChannelCallback` (fire-and-forget), `FakeMultiplexedSSE` test fake, barrel export. Mounted provider in workspace layout. 24 new tests. | 2026-03-08 |
+ | Plan 072 Phase 3 | Priority consumer migration: QuestionPopperProvider and FileChangeProvider migrated from direct EventSource to `useChannelCallback`. Removed ~180 lines SSE boilerplate. Per-tab connections: 3 → 1. E2E verified. | 2026-03-08 |
++| Plan 072 Phase 4 | GlobalState re-enablement: ServerEventRoute migrated from `useSSE` to `useChannelEvents('work-unit-state')`. GlobalStateConnector re-enabled in browser-client.tsx. Work-unit-state events now flow through multiplexed SSE → GlobalStateSystem. | 2026-03-08 |
+diff --git a/docs/domains/_platform/state/domain.md b/docs/domains/_platform/state/domain.md
+index fb8d9653..5791d13b 100644
+--- a/docs/domains/_platform/state/domain.md
++++ b/docs/domains/_platform/state/domain.md
+@@ -171,3 +171,4 @@ Primary: `packages/shared/src/state/` (types + interface) + `apps/web/src/lib/st
+ | 053-P6 | Phase 6: Developer guide at docs/how/global-state-system.md. Domain docs finalized. Quality gate passed. Plan 053 complete. | 2026-02-27 |
+ | 059-ST001 | Plan 059 Subtask 001: Added StateEntrySource type (origin metadata for server/client tagging), extended publish() with optional source param across IStateService + GlobalStateSystem + FakeGlobalStateSystem, added getPublishedSource() to fake. Created ServerEventRoute component + ServerEventRouteDescriptor types. Extended GlobalStateConnector to mount server event routes. Added WorkUnitState to WorkspaceDomain. | 2026-03-01 |
+ | 072-P1 | Plan 072 Phase 1: Added optional `channel?: string` metadata to ServerEvent interface for multiplexed SSE delivery. Non-breaking — existing ServerEventRoute consumers unaffected. | 2026-03-08 |
++| 072-P4 | Plan 072 Phase 4: Migrated ServerEventRoute from `useSSE` to `useChannelEvents` (multiplexed). Re-enabled GlobalStateConnector in browser-client.tsx. Updated connection limit comment — "future fix" is now reality. Zero additional SSE connections. | 2026-03-08 |

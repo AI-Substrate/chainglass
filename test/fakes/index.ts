@@ -14,3 +14,4 @@ export {
 } from './fake-resize-observer';
 export { FakeTmuxExecutor } from './fake-tmux-executor';
 export { FakePty, createFakePtySpawner } from './fake-pty';
+export { createFakeMultiplexedSSEFactory } from './fake-multiplexed-sse';

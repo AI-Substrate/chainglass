@@ -5,7 +5,7 @@
  *
  * Core state management for the Question Popper overlay UI.
  *
- * - SSE subscription to `event-popper` channel for real-time updates
+ * - Multiplexed SSE subscription to `event-popper` channel via useChannelCallback (Plan 072)
  * - API fetch for item list (notification-fetch pattern)
  * - Outstanding count from SSE event payloads
  * - Overlay open/close with `overlay:close-all` mutual exclusion
@@ -27,6 +27,7 @@ import {
 import type { AlertOut, AnswerPayload, QuestionOut } from '@chainglass/shared/question-popper';
 
 import { clearTitlePrefix, setTitlePrefix } from '../../../lib/sdk/title-manager';
+import { useChannelCallback } from '../../../lib/sse';
 
 import { resolveChain as resolveChainFn } from '../lib/chain-resolver';
 
@@ -111,9 +112,6 @@ export function QuestionPopperProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<Error | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
-  const eventSourceRef = useRef<EventSource | null>(null);
-  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const reconnectAttemptsRef = useRef(0);
   const mountedRef = useRef(true);
   const chainCacheRef = useRef<Map<string, QuestionOut[]>>(new Map());
 
@@ -140,81 +138,31 @@ export function QuestionPopperProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // ── SSE Connection ──
+  // ── SSE Subscription (Plan 072: multiplexed via useChannelCallback) ──
 
-  const connectSSE = useCallback(() => {
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-      reconnectTimeoutRef.current = null;
+  const { isConnected: sseConnected } = useChannelCallback('event-popper', (msg) => {
+    // Cast from MultiplexedSSEMessage to domain type (DYK #2: loose typing)
+    const data = msg as unknown as EventPopperSSEMessage;
+    if (typeof data.outstandingCount === 'number') {
+      setOutstandingCount(data.outstandingCount);
     }
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-    }
+    // Notification-fetch pattern: refetch full list on any event
+    fetchItems();
+  });
 
-    const es = new EventSource('/api/events/event-popper');
-    eventSourceRef.current = es;
+  // Sync provider-level isConnected from multiplexed hook
+  useEffect(() => {
+    setIsConnected(sseConnected);
+  }, [sseConnected]);
 
-    es.onopen = () => {
-      if (!mountedRef.current) return;
-      setIsConnected(true);
-      setError(null);
-      reconnectAttemptsRef.current = 0;
-    };
-
-    es.onmessage = (event) => {
-      if (!mountedRef.current) return;
-      try {
-        const msg: EventPopperSSEMessage = JSON.parse(event.data);
-        // Update outstanding count from SSE payload
-        if (typeof msg.outstandingCount === 'number') {
-          setOutstandingCount(msg.outstandingCount);
-        }
-        // Notification-fetch pattern: refetch full list on any event
-        fetchItems();
-      } catch {
-        // Ignore malformed SSE messages
-      }
-    };
-
-    es.onerror = () => {
-      if (!mountedRef.current) return;
-      setIsConnected(false);
-      es.close();
-
-      // Reconnect with backoff (max 5 attempts)
-      if (reconnectAttemptsRef.current < 5) {
-        reconnectAttemptsRef.current++;
-        const delay = Math.min(2000 * reconnectAttemptsRef.current, 10000);
-        reconnectTimeoutRef.current = setTimeout(() => {
-          if (mountedRef.current) connectSSE();
-        }, delay);
-      }
-    };
-  }, [fetchItems]);
-
-  const disconnectSSE = useCallback(() => {
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-      reconnectTimeoutRef.current = null;
-    }
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-      eventSourceRef.current = null;
-    }
-    setIsConnected(false);
-  }, []);
-
-  // Initial fetch + SSE connection on mount
+  // Initial data load on mount (DYK #1: separated from SSE lifecycle)
   useEffect(() => {
     mountedRef.current = true;
     fetchItems();
-    connectSSE();
-
     return () => {
       mountedRef.current = false;
-      disconnectSSE();
     };
-  }, [fetchItems, connectSSE, disconnectSSE]);
+  }, [fetchItems]);
 
   // ── Overlay State (independent — does NOT participate in mutual exclusion) ──
   // Question popper floats over everything without closing terminal/agents/activity-log

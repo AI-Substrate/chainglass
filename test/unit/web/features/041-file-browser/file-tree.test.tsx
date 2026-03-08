@@ -68,10 +68,10 @@ describe('FileTree', () => {
   });
 
   describe('glowingPaths animation', () => {
-    it('should apply tree-entry-glow class to entries in glowingPaths set', () => {
+    it('should apply tree-entry-new class to entries in newlyAddedPaths set', () => {
       /**
        * Why: Refreshed/created/updated files should glow green for 5 seconds.
-       * Contract: Entry path in glowingPaths → tree-entry-glow class on that button.
+       * Contract: Entry path in newlyAddedPaths → tree-entry-new class on that button.
        * Usage Notes: Set<string> of relative paths; cleared by BrowserClient after 5s timer.
        */
       render(
@@ -79,12 +79,12 @@ describe('FileTree', () => {
           entries={[{ name: 'README.md', path: 'README.md', type: 'file' as const }]}
           onSelect={vi.fn()}
           onExpand={vi.fn()}
-          glowingPaths={new Set(['README.md'])}
+          newlyAddedPaths={new Set(['README.md'])}
         />
       );
 
       const button = screen.getByText('README.md').closest('button');
-      expect(button).toHaveClass('tree-entry-glow');
+      expect(button).toHaveClass('tree-entry-new');
     });
   });
 
@@ -96,19 +96,16 @@ describe('FileTree', () => {
       { name: 'readme.md', type: 'file' as const, path: 'readme.md' },
     ];
 
-    it('renders metafiles with CornerDownRight arrow indicator', () => {
-      const { container } = render(
-        <FileTree entries={metafileEntries} onSelect={vi.fn()} onExpand={vi.fn()} />
-      );
+    it('renders metafiles with file icon', () => {
+      render(<FileTree entries={metafileEntries} onSelect={vi.fn()} onExpand={vi.fn()} />);
 
-      // Metafile buttons should contain the CornerDownRight SVG (extra icon)
+      // All file entries render with 1 SVG (File icon)
       const summaryBtn = screen.getByText('photo.png.summary.md').closest('button');
       const analysisBtn = screen.getByText('photo.png.analysis.md').closest('button');
-      // Each metafile button has 2 SVGs (CornerDownRight + File), regular files have 1 (File)
-      expect(summaryBtn?.querySelectorAll('svg').length).toBe(2);
-      expect(analysisBtn?.querySelectorAll('svg').length).toBe(2);
+      expect(summaryBtn?.querySelectorAll('svg').length).toBe(1);
+      expect(analysisBtn?.querySelectorAll('svg').length).toBe(1);
 
-      // Regular files only have 1 SVG (File icon)
+      // Regular files also have 1 SVG (File icon)
       const readmeBtn = screen.getByText('readme.md').closest('button');
       expect(readmeBtn?.querySelectorAll('svg').length).toBe(1);
       const photoBtn = screen.getByText('photo.png').closest('button');

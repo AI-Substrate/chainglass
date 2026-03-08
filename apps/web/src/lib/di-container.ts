@@ -63,6 +63,7 @@ import type { ICentralEventNotifier } from '@chainglass/shared/features/027-cent
 import { FakeCentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events';
 // Plan 067: QuestionPopperService for external question/answer lifecycle
 import type { IQuestionPopperService } from '@chainglass/shared/interfaces';
+import type { ICopilotClient } from '@chainglass/shared/interfaces/copilot-sdk.interface';
 // Plan 059: WorkUnitStateService for centralized work unit status registry
 import type { IWorkUnitStateService } from '@chainglass/shared/interfaces/work-unit-state.interface';
 // Plan 014 Phase 6: Import workspace services from @chainglass/workflow
@@ -245,7 +246,7 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
     useFactory: (c) => {
       const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
       const client = c.resolve<CopilotClient>(DI_TOKENS.COPILOT_CLIENT);
-      return new SdkCopilotAdapter(client, { logger });
+      return new SdkCopilotAdapter(client as unknown as ICopilotClient, { logger });
     },
   });
 
@@ -264,7 +265,7 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
         }
         if (agentType === 'copilot') {
           // Reuse singleton CopilotClient to avoid repeated SDK client construction
-          return new SdkCopilotAdapter(copilotClient, { logger });
+          return new SdkCopilotAdapter(copilotClient as unknown as ICopilotClient, { logger });
         }
         if (agentType === 'copilot-cli') {
           return new CopilotCLIAdapter({
@@ -443,7 +444,7 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
         }
         if (agentType === 'copilot') {
           const copilotClient = c.resolve<CopilotClient>(DI_TOKENS.COPILOT_CLIENT);
-          return new SdkCopilotAdapter(copilotClient, { logger });
+          return new SdkCopilotAdapter(copilotClient as unknown as ICopilotClient, { logger });
         }
         if (agentType === 'copilot-cli') {
           const sendKeys = (target: string, text: string) => {
