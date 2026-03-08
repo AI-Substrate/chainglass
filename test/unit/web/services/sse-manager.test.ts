@@ -403,7 +403,10 @@ describe('SSEManager', () => {
       const muxController = new FakeController();
       const regularController = new FakeController();
       manager.addConnection('ch-a', muxController as unknown as ReadableStreamDefaultController);
-      manager.addConnection('ch-a', regularController as unknown as ReadableStreamDefaultController);
+      manager.addConnection(
+        'ch-a',
+        regularController as unknown as ReadableStreamDefaultController
+      );
 
       manager.removeControllerFromAllChannels(
         muxController as unknown as ReadableStreamDefaultController

@@ -9,9 +9,9 @@ import { act, renderHook } from '@testing-library/react';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FakeFileChangeHub } from '../../../../../apps/web/src/features/045-live-file-events/fake-file-change-hub';
+import { FileChangeProvider } from '../../../../../apps/web/src/features/045-live-file-events/file-change-provider';
 import type { FileChange } from '../../../../../apps/web/src/features/045-live-file-events/file-change.types';
 import { useFileChanges } from '../../../../../apps/web/src/features/045-live-file-events/use-file-changes';
-import { FileChangeProvider } from '../../../../../apps/web/src/features/045-live-file-events/file-change-provider';
 import { MultiplexedSSEProvider } from '../../../../../apps/web/src/lib/sse/multiplexed-sse-provider';
 import { createFakeMultiplexedSSEFactory } from '../../../../../test/fakes/fake-multiplexed-sse';
 
@@ -86,7 +86,6 @@ describe('useFileChanges', () => {
       wrapper: createWrapper(),
     });
 
-    
     act(() => {
       fakeMux.simulateOpen();
       simulateSSEMessage([
@@ -111,7 +110,6 @@ describe('useFileChanges', () => {
       wrapper: createWrapper(),
     });
 
-    
     act(() => {
       fakeMux.simulateOpen();
       simulateSSEMessage([
@@ -146,7 +144,6 @@ describe('useFileChanges', () => {
       wrapper: createWrapper(),
     });
 
-    
     act(() => {
       fakeMux.simulateOpen();
       simulateSSEMessage([
@@ -179,7 +176,6 @@ describe('useFileChanges', () => {
       wrapper: createWrapper(),
     });
 
-    
     act(() => {
       fakeMux.simulateOpen();
       simulateSSEMessage([
@@ -210,7 +206,6 @@ describe('useFileChanges', () => {
       { wrapper: createWrapper() }
     );
 
-    
     act(() => {
       fakeMux.simulateOpen();
       simulateSSEMessage([
@@ -254,7 +249,6 @@ describe('useFileChanges', () => {
       wrapper: createWrapper(),
     });
 
-    
     act(() => {
       fakeMux.simulateOpen();
       simulateSSEMessage([
@@ -288,7 +282,6 @@ describe('useFileChanges', () => {
       wrapper: createWrapper('/repo'),
     });
 
-    
     act(() => {
       fakeMux.simulateOpen();
       simulateSSEMessage([
@@ -318,7 +311,6 @@ describe('useFileChanges', () => {
       wrapper: createWrapper(),
     });
 
-    
     act(() => {
       fakeMux.simulateOpen();
       simulateSSEMessage([

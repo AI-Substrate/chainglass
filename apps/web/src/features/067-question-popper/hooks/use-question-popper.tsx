@@ -26,8 +26,8 @@ import {
 
 import type { AlertOut, AnswerPayload, QuestionOut } from '@chainglass/shared/question-popper';
 
-import { useChannelCallback } from '../../../lib/sse';
 import { clearTitlePrefix, setTitlePrefix } from '../../../lib/sdk/title-manager';
+import { useChannelCallback } from '../../../lib/sse';
 
 import { resolveChain as resolveChainFn } from '../lib/chain-resolver';
 

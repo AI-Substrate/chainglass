@@ -1,3 +1,4 @@
+import { NextRequest } from 'next/server';
 /**
  * Mux Route Contract Tests — Plan 072 Phase 1
  *
@@ -9,13 +10,12 @@
  * as fresh instance per test. No vi.mock().
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { NextRequest } from 'next/server';
-import { SSEManager } from '../../../../apps/web/src/lib/sse-manager';
 import {
-  handleMuxRequest,
   HEARTBEAT_INTERVAL,
   type MuxDeps,
+  handleMuxRequest,
 } from '../../../../apps/web/app/api/events/mux/route';
+import { SSEManager } from '../../../../apps/web/src/lib/sse-manager';
 
 /** Fake auth that returns a session */
 const fakeAuthOk = async () => ({ user: { name: 'test' } });
@@ -208,9 +208,7 @@ describe('/api/events/mux route handler', () => {
       */
       const manager = new SSEManager();
       const deps = makeDeps({ manager });
-      const request = makeRequest(
-        '/api/events/mux?channels=file-changes,event-popper'
-      );
+      const request = makeRequest('/api/events/mux?channels=file-changes,event-popper');
 
       await handleMuxRequest(request, deps);
       await new Promise((r) => setTimeout(r, 10));

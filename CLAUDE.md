@@ -261,7 +261,9 @@ When you need to ask the user a question or send them a notification, use the Ev
 
 ### SSE Multiplexing (Plan 072)
 
-All SSE consumers share a **single multiplexed EventSource** connection per browser tab via `/api/events/mux`. Do NOT use the legacy `useSSE` hook (deleted) or create direct EventSource connections.
+Migrated workspace channel consumers share a **single multiplexed EventSource** connection per browser tab via `/api/events/mux`. Do NOT use the legacy `useSSE` hook (deleted) or create new direct EventSource connections.
+
+> **Note**: Some agent hooks (`useAgentManager`, `useAgentInstance`) and the unused `useWorkspaceSSE`/`useServerSession` still use direct EventSource. These are outside Plan 072 scope.
 
 **Two hooks** (import from `@/lib/sse`):
 - **`useChannelEvents(channel, { maxMessages? })`** — Accumulates messages into an array. Use for index-cursor patterns or batch processing. Returns `{ messages, isConnected, clearMessages }`.

@@ -155,7 +155,7 @@ Individual SSE routes at `/api/events/[channel]` still exist and work for:
 - Direct curl/debug access: `curl -N http://localhost:3000/api/events/file-changes`
 - External tool integration
 
-These routes are NOT used by the browser — the browser uses `/api/events/mux` exclusively.
+These routes are NOT used by migrated workspace consumers — they use `/api/events/mux` exclusively. However, some agent hooks (`useAgentManager`, `useAgentInstance`) still use direct EventSource to `/api/agents/events` and are outside Plan 072 scope.
 
 ## Testing SSE
 

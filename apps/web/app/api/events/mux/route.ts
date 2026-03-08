@@ -91,9 +91,7 @@ export async function handleMuxRequest(
       for (const ch of channels) {
         manager.addConnection(ch, controller);
       }
-      console.debug(
-        `[SSE-MUX] Client connected to channels [${channels.join(', ')}]`
-      );
+      console.debug(`[SSE-MUX] Client connected to channels [${channels.join(', ')}]`);
 
       const encoder = new TextEncoder();
       controller.enqueue(encoder.encode(': heartbeat\n\n'));
@@ -110,9 +108,7 @@ export async function handleMuxRequest(
       const cleanup = () => {
         clearInterval(heartbeatInterval);
         const removed = manager.removeControllerFromAllChannels(controller);
-        console.debug(
-          `[SSE-MUX] Client disconnected from channels [${removed.join(', ')}]`
-        );
+        console.debug(`[SSE-MUX] Client disconnected from channels [${removed.join(', ')}]`);
         try {
           controller.close();
         } catch {

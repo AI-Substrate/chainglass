@@ -53,7 +53,6 @@ describe('useTreeDirectoryChanges', () => {
       wrapper: createWrapper(),
     });
 
-    
     act(() => {
       fakeMux.simulateOpen();
       simulateSSE([
@@ -78,7 +77,6 @@ describe('useTreeDirectoryChanges', () => {
       wrapper: createWrapper(),
     });
 
-    
     act(() => {
       fakeMux.simulateOpen();
       simulateSSE([
@@ -103,7 +101,6 @@ describe('useTreeDirectoryChanges', () => {
       wrapper: createWrapper(),
     });
 
-    
     act(() => {
       fakeMux.simulateOpen();
       simulateSSE([
@@ -127,7 +124,6 @@ describe('useTreeDirectoryChanges', () => {
       wrapper: createWrapper(),
     });
 
-    
     act(() => {
       fakeMux.simulateOpen();
       simulateSSE([
@@ -151,7 +147,6 @@ describe('useTreeDirectoryChanges', () => {
       wrapper: createWrapper(),
     });
 
-    
     act(() => {
       fakeMux.simulateOpen();
       simulateSSE([
@@ -175,7 +170,6 @@ describe('useTreeDirectoryChanges', () => {
       wrapper: createWrapper(),
     });
 
-    
     act(() => {
       fakeMux.simulateOpen();
       simulateSSE([
