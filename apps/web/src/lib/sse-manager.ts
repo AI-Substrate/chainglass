@@ -68,13 +68,14 @@ export class SSEManager {
       return; // No connections on this channel
     }
 
-    // Format as SSE message with type embedded in data payload.
+    // Format as SSE message with type and channel embedded in data payload.
     // Uses unnamed events (no "event:" line) so EventSource.onmessage receives them.
     // Named SSE events require addEventListener() which useSSE doesn't use.
+    // channel is authoritative — overwrites any caller-provided value
     const payload =
       typeof data === 'object' && data !== null
-        ? { ...(data as Record<string, unknown>), type: eventType }
-        : { type: eventType, data };
+        ? { ...(data as Record<string, unknown>), type: eventType, channel: channelId }
+        : { type: eventType, data, channel: channelId };
     const message = `data: ${JSON.stringify(payload)}\n\n`;
     const encoded = this.encoder.encode(message);
 
@@ -88,6 +89,29 @@ export class SSEManager {
         this.removeConnection(channelId, controller);
       }
     }
+  }
+
+  /**
+   * Remove a controller from ALL channels it belongs to.
+   * Used by the mux route for atomic cleanup on disconnect.
+   * O(channels) scan — acceptable for ~6 active channels.
+   * @param controller - The controller to remove from all channels
+   * @returns Array of channel IDs the controller was removed from
+   */
+  removeControllerFromAllChannels(controller: StreamController): string[] {
+    const removed: string[] = [];
+    // Snapshot channel entries to avoid mutation during iteration
+    const entries = Array.from(this.connections.entries());
+    for (const [channelId, channelSet] of entries) {
+      if (channelSet.has(controller)) {
+        channelSet.delete(controller);
+        removed.push(channelId);
+        if (channelSet.size === 0) {
+          this.connections.delete(channelId);
+        }
+      }
+    }
+    return removed;
   }
 
   /**

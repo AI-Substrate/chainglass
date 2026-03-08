@@ -116,6 +116,15 @@ Primary: `packages/shared/src/state/` (types + interface) + `apps/web/src/lib/st
 
 ---
 
+## Concepts
+
+| Concept | Entry Point | What It Does |
+|---------|-------------|--------------|
+| Publish Runtime State | `state.publish('domain:id:property', value)` | Domain publishers write ephemeral values to colon-delimited paths. Subscribers are notified synchronously with error isolation. |
+| Subscribe to State | `useGlobalState<T>(path, default)` | React components read single values with concurrent-safe re-renders via useSyncExternalStore. |
+| Server Event Bridge | `ServerEventRoute` + `ServerEventRouteDescriptor` | Invisible component subscribes to an SSE channel, maps events to state paths via mapEvent(). Optional `channel` metadata in ServerEvent identifies which SSE channel the event came from (Plan 072). |
+| Domain Registration | `state.registerDomain(descriptor)` | Domains declare their state shape (properties, multi-instance) at mount time via useState initializer for synchronous availability. |
+
 ## Dependencies
 
 ### This Domain Depends On
@@ -161,3 +170,4 @@ Primary: `packages/shared/src/state/` (types + interface) + `apps/web/src/lib/st
 | 053-P5 | Phase 5 implemented: Worktree exemplar. registerWorktreeState() multi-instance domain, WorktreeStatePublisher (useFileChanges), WorktreeStateSubtitle consumer, GlobalStateConnector wiring. Wired into browser-client.tsx + dashboard-sidebar.tsx. Idempotent registration for StrictMode. 7 publisher tests. Total: 145 state tests. | 2026-02-27 |
 | 053-P6 | Phase 6: Developer guide at docs/how/global-state-system.md. Domain docs finalized. Quality gate passed. Plan 053 complete. | 2026-02-27 |
 | 059-ST001 | Plan 059 Subtask 001: Added StateEntrySource type (origin metadata for server/client tagging), extended publish() with optional source param across IStateService + GlobalStateSystem + FakeGlobalStateSystem, added getPublishedSource() to fake. Created ServerEventRoute component + ServerEventRouteDescriptor types. Extended GlobalStateConnector to mount server event routes. Added WorkUnitState to WorkspaceDomain. | 2026-03-01 |
+| 072-P1 | Plan 072 Phase 1: Added optional `channel?: string` metadata to ServerEvent interface for multiplexed SSE delivery. Non-breaking — existing ServerEventRoute consumers unaffected. | 2026-03-08 |

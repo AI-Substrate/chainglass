@@ -125,6 +125,7 @@ flowchart LR
     questionPopper -->|"ICentralEventNotifier<br/>WorkspaceDomain.EventPopper"| events
 
     %% Auth dependencies (consumer → provider: business domains consume auth protection)
+    events -->|"auth()<br/>session check"| auth
     fileBrowser -->|"middleware protection"| auth
     workflowUI -->|"middleware protection"| auth
     workunitEditor -->|"middleware protection"| auth
