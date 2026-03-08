@@ -247,6 +247,18 @@ export function registerAgentCommand(program: Command): void {
       const outputPath = path.join(runsDir, latestRun, 'output', 'report.json');
       const result = validateOutput(definition.schemaPath, outputPath);
 
+      // Persist revalidation results into completed.json so history reflects current state
+      const completedPath = path.join(runsDir, latestRun, 'completed.json');
+      if (fs.existsSync(completedPath)) {
+        const completed = JSON.parse(fs.readFileSync(completedPath, 'utf-8'));
+        completed.validated = result.valid;
+        completed.validationErrors = result.errors;
+        if (result.valid && completed.result === 'degraded') {
+          completed.result = 'completed';
+        }
+        fs.writeFileSync(completedPath, JSON.stringify(completed, null, 2));
+      }
+
       exitWithEnvelope(
         formatSuccess('agent validate', {
           runId: latestRun,

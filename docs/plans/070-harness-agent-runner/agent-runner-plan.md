@@ -44,6 +44,7 @@ AI agents building Chainglass can boot and interact with the running app via the
 | `harness/tests/unit/agent/runner.test.ts` | external | internal | Runner unit tests (with fake adapter) |
 | `harness/tests/unit/agent/validator.test.ts` | external | internal | Schema validation unit tests |
 | `harness/tests/unit/agent/folder.test.ts` | external | internal | Slug validation, folder structure tests |
+| `harness/tests/unit/cli/output.test.ts` | external | internal | Output/error-code tests updated during smoke-test rollout |
 | `test/contracts/agent-adapter.contract.ts` | agents | internal | Add model/reasoningEffort contract tests |
 | `.gitignore` | _platform | cross-domain | Add `harness/agents/*/runs/` |
 | `pnpm-workspace.yaml` | _platform | cross-domain | Add `harness` to workspace packages |

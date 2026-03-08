@@ -86,10 +86,10 @@ export interface AgentRunOptions {
    */
   reasoningEffort?: CopilotReasoningEffort;
   /**
-   * Timeout in milliseconds for the agent session to complete.
-   * For SdkCopilotAdapter: passed to sendAndWait() (default 60000ms).
-   * For ClaudeCodeAdapter: not used (process timeout handled externally).
-   * Set this to at least your expected agent run duration.
+   * Timeout in milliseconds for how long the caller will wait for the session result.
+   * For SdkCopilotAdapter: forwarded to sendAndWait() (SDK default 60000ms).
+   * Hard execution timeout and session termination are the caller's responsibility
+   * (e.g., the harness runner uses Promise.race + adapter.terminate).
    */
   timeout?: number;
 }

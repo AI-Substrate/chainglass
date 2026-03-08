@@ -3,7 +3,7 @@
   "title": "Smoke Test Report",
   "description": "Structured output from the harness smoke-test agent. Validates harness health, captures screenshots, checks console logs, and provides an honest retrospective.",
   "type": "object",
-  "required": ["health", "screenshots", "verdict", "retrospective"],
+  "required": ["health", "screenshots", "consoleErrors", "serverLogSummary", "verdict", "retrospective"],
   "additionalProperties": true,
   "properties": {
     "health": {
@@ -19,8 +19,15 @@
         "services": {
           "type": "object",
           "description": "Per-service health status. Keys are service names (app, mcp, terminal, cdp), values are status strings.",
+          "required": ["app", "mcp", "terminal", "cdp"],
           "additionalProperties": {
             "type": "string"
+          },
+          "properties": {
+            "app": { "type": "string" },
+            "mcp": { "type": "string" },
+            "terminal": { "type": "string" },
+            "cdp": { "type": "string" }
           }
         }
       }
@@ -28,7 +35,7 @@
     "screenshots": {
       "type": "array",
       "description": "Screenshots captured at different viewports.",
-      "minItems": 1,
+      "minItems": 3,
       "items": {
         "type": "object",
         "required": ["name", "viewport", "path"],
@@ -40,7 +47,8 @@
           },
           "viewport": {
             "type": "string",
-            "description": "Viewport used (e.g., 'desktop-lg', 'tablet', 'mobile')."
+            "enum": ["desktop-lg", "desktop-md", "tablet", "mobile"],
+            "description": "Viewport used for the screenshot."
           },
           "path": {
             "type": "string",

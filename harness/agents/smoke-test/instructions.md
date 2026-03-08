@@ -39,7 +39,7 @@ import { chromium } from '@playwright/test';
 const browser = await chromium.connectOverCDP(`http://127.0.0.1:${cdpPort}`);
 ```
 
-Playwright is installed in the harness workspace (`harness/node_modules/`). Run scripts with `cd harness && npx tsx <your-script.ts>`.
+Playwright is installed in the harness workspace (`harness/node_modules/`). Run scripts with `cd harness && pnpm exec tsx <your-script.ts>`.
 
 ## Error Handling
 

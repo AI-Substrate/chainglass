@@ -37,7 +37,7 @@ just harness ports
 This returns the CDP port. You can connect with Playwright (already installed in the harness workspace):
 
 ```javascript
-// Run with: cd harness && npx tsx <script.ts>
+// Run with: cd harness && pnpm exec tsx <script.ts>
 import { chromium } from '@playwright/test';
 
 const browser = await chromium.connectOverCDP('http://127.0.0.1:<cdp_port>');
