@@ -14,19 +14,21 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { AlertOut, AnswerPayload, QuestionOut } from '@chainglass/shared/question-popper';
 
+import { AlertCard } from '../../../apps/web/src/features/067-question-popper/components/alert-card';
+import { AnswerForm } from '../../../apps/web/src/features/067-question-popper/components/answer-form';
 import {
   type EventPopperItem,
   isAlertItem,
   isQuestionItem,
 } from '../../../apps/web/src/features/067-question-popper/hooks/use-question-popper';
-import { AnswerForm } from '../../../apps/web/src/features/067-question-popper/components/answer-form';
-import { AlertCard } from '../../../apps/web/src/features/067-question-popper/components/alert-card';
 
 afterEach(cleanup);
 
 // ── Test Fixtures ──
 
-function makeQuestion(overrides: Partial<QuestionOut> & { question?: Partial<QuestionOut['question']> } = {}): QuestionOut {
+function makeQuestion(
+  overrides: Partial<QuestionOut> & { question?: Partial<QuestionOut['question']> } = {}
+): QuestionOut {
   const { question: qOverrides, ...rest } = overrides;
   return {
     questionId: 'q-001',
@@ -126,7 +128,15 @@ describe('AnswerForm', () => {
      * - Worked Example: typing "Ship it" + "because CI is green" submits { answer: 'Ship it', text: 'because CI is green' }.
      */
     const onAnswer = vi.fn().mockResolvedValue(undefined);
-    const q = makeQuestion({ question: { questionType: 'text', text: 'Describe', description: null, options: null, default: null } });
+    const q = makeQuestion({
+      question: {
+        questionType: 'text',
+        text: 'Describe',
+        description: null,
+        options: null,
+        default: null,
+      },
+    });
     render(<AnswerForm question={q} onAnswer={onAnswer} onDismiss={noop} onClarify={noop} />);
 
     const textareas = screen.getAllByRole('textbox');
@@ -153,7 +163,13 @@ describe('AnswerForm', () => {
      */
     const onAnswer = vi.fn().mockResolvedValue(undefined);
     const q = makeQuestion({
-      question: { questionType: 'single', text: 'Pick one', description: null, options: ['Alpha', 'Beta', 'Gamma'], default: null },
+      question: {
+        questionType: 'single',
+        text: 'Pick one',
+        description: null,
+        options: ['Alpha', 'Beta', 'Gamma'],
+        default: null,
+      },
     });
     render(<AnswerForm question={q} onAnswer={onAnswer} onDismiss={noop} onClarify={noop} />);
 
@@ -177,7 +193,13 @@ describe('AnswerForm', () => {
      */
     const onAnswer = vi.fn().mockResolvedValue(undefined);
     const q = makeQuestion({
-      question: { questionType: 'multi', text: 'Pick many', description: null, options: ['X', 'Y', 'Z'], default: null },
+      question: {
+        questionType: 'multi',
+        text: 'Pick many',
+        description: null,
+        options: ['X', 'Y', 'Z'],
+        default: null,
+      },
     });
     render(<AnswerForm question={q} onAnswer={onAnswer} onDismiss={noop} onClarify={noop} />);
 
@@ -202,7 +224,13 @@ describe('AnswerForm', () => {
      */
     const onAnswer = vi.fn().mockResolvedValue(undefined);
     const q = makeQuestion({
-      question: { questionType: 'confirm', text: 'Deploy?', description: null, options: null, default: null },
+      question: {
+        questionType: 'confirm',
+        text: 'Deploy?',
+        description: null,
+        options: null,
+        default: null,
+      },
     });
     render(<AnswerForm question={q} onAnswer={onAnswer} onDismiss={noop} onClarify={noop} />);
 
