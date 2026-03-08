@@ -242,7 +242,11 @@ export function AnswerForm({ question, onAnswer, onDismiss, onClarify }: AnswerF
       <textarea
         value={freeformText}
         onChange={(e) => setFreeformText(e.target.value)}
-        placeholder={questionType === 'text' ? 'Additional context (optional)...' : 'Additional context (optional)...'}
+        placeholder={
+          questionType === 'text'
+            ? 'Additional context (optional)...'
+            : 'Additional context (optional)...'
+        }
         rows={2}
         className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100"
         disabled={isSubmitting}

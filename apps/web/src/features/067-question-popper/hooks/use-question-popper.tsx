@@ -26,6 +26,8 @@ import {
 
 import type { AlertOut, AnswerPayload, QuestionOut } from '@chainglass/shared/question-popper';
 
+import { resolveChain as resolveChainFn } from '../lib/chain-resolver';
+
 // ── Types ──
 
 /** Union of items returned from the list API */
@@ -83,6 +85,9 @@ export interface QuestionPopperContextValue {
   acknowledgeAlert: (id: string) => Promise<void>;
   /** Manually refetch the item list */
   refetchItems: () => Promise<void>;
+
+  /** Resolve the conversation chain for a question (cached, DYK-04) */
+  getChain: (questionId: string) => Promise<QuestionOut[]>;
 }
 
 const QuestionPopperContext = createContext<QuestionPopperContextValue | null>(null);
@@ -109,6 +114,7 @@ export function QuestionPopperProvider({ children }: { children: ReactNode }) {
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const mountedRef = useRef(true);
+  const chainCacheRef = useRef<Map<string, QuestionOut[]>>(new Map());
 
   // ── API Fetch ──
 
@@ -123,6 +129,7 @@ export function QuestionPopperProvider({ children }: { children: ReactNode }) {
       const fetchedOutstanding = data.items.filter(isOutstanding).length;
       setItems(data.items);
       setOutstandingCount(fetchedOutstanding);
+      chainCacheRef.current.clear(); // DYK-04: invalidate chain cache on refetch
       setError(null);
     } catch (err) {
       if (!mountedRef.current) return;
@@ -300,6 +307,31 @@ export function QuestionPopperProvider({ children }: { children: ReactNode }) {
     [fetchItems]
   );
 
+  // ── Chain Resolution (DYK-04: cached in ref) ──
+
+  const fetchSingleQuestion = useCallback(async (id: string): Promise<QuestionOut | null> => {
+    try {
+      const res = await fetch(`/api/event-popper/question/${id}`);
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const getChain = useCallback(
+    async (questionId: string): Promise<QuestionOut[]> => {
+      const cached = chainCacheRef.current.get(questionId);
+      if (cached) return cached;
+
+      const questionItems = items.filter((i): i is QuestionOut => isQuestionItem(i));
+      const chain = await resolveChainFn(questionId, questionItems, fetchSingleQuestion);
+      chainCacheRef.current.set(questionId, chain);
+      return chain;
+    },
+    [items, fetchSingleQuestion]
+  );
+
   // ── Derived State ──
 
   const outstandingItems = items.filter(isOutstanding);
@@ -320,6 +352,7 @@ export function QuestionPopperProvider({ children }: { children: ReactNode }) {
     requestClarification,
     acknowledgeAlert,
     refetchItems: fetchItems,
+    getChain,
   };
 
   return <QuestionPopperContext.Provider value={value}>{children}</QuestionPopperContext.Provider>;

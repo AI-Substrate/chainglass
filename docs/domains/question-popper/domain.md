@@ -135,3 +135,4 @@ test/unit/question-popper/
 |------|--------|------|
 | 067 Phase 2 | Domain created: payload schemas, composed types, service interface, fake, real service, contract tests, DI registration, barrel exports | 2026-03-07 |
 | 067 Phase 5 | UI layer: useQuestionPopper hook, indicator, overlay panel, question/alert cards, answer form (4 types), toast + desktop notifications, workspace layout mount | 2026-03-07 |
+| 067 Phase 6 | Chain resolution (bidirectional index), QuestionChainView (timeline), QuestionHistoryList (compact expandable rows), tabbed overlay panel, chain indicator on QuestionCard | 2026-03-08 |

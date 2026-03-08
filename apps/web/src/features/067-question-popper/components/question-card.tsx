@@ -1,23 +1,29 @@
 'use client';
 
 /**
- * Plan 067 Phase 5: Question Popper — Question Card
+ * Plan 067 Phase 5+6: Question Popper — Question Card
  *
  * Renders a question with:
  * - Question text (prominent)
  * - Scrollable markdown description (react-markdown + remark-gfm)
  * - Tmux session/window badge (from meta.tmux)
  * - Source badge, time-ago display, status badge
+ * - Chain indicator + "View Thread" for linked questions (Phase 6, AC-24)
  * - AnswerForm for pending questions
  *
  * AC-20: Question renders text + markdown description + tmux badge
+ * AC-24: Chain rendering as conversation thread
  */
 
+import { useState } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 import type { AnswerPayload, QuestionOut } from '@chainglass/shared/question-popper';
+import type { EventPopperItem } from '../hooks/use-question-popper';
+import { isPartOfChain } from '../lib/chain-resolver';
 import { AnswerForm } from './answer-form';
+import { QuestionChainView } from './question-chain-view';
 
 // ── Time-ago utility (no date-fns in project) ──
 
@@ -48,20 +54,43 @@ interface QuestionCardProps {
   onAnswer: (id: string, answer: AnswerPayload) => Promise<void>;
   onDismiss: (id: string) => Promise<void>;
   onClarify: (id: string, text: string) => Promise<void>;
+  /** Chain resolution function from hook (DYK-04: cached) */
+  getChain?: (id: string) => Promise<QuestionOut[]>;
+  /** All items for chain index building */
+  allItems?: EventPopperItem[];
 }
 
-export function QuestionCard({ question, onAnswer, onDismiss, onClarify }: QuestionCardProps) {
+export function QuestionCard({
+  question,
+  onAnswer,
+  onDismiss,
+  onClarify,
+  getChain,
+  allItems,
+}: QuestionCardProps) {
+  const [showChain, setShowChain] = useState(false);
+
   const tmux = question.meta?.tmux as
     | { session?: string; window?: string; pane?: string }
     | undefined;
 
+  // Chain detection (DYK-01: bidirectional — check if part of any chain)
+  const questionItems = (allItems ?? []).filter((i): i is QuestionOut => 'questionId' in i);
+  const hasChain = isPartOfChain(question.questionId, questionItems);
+  const isFollowUp = !!question.question.previousQuestionId;
+
   return (
     <div className="space-y-3 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-700 dark:bg-neutral-850">
-      {/* Header: source + tmux + time + status */}
+      {/* Header: source + tmux + chain + time + status */}
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <span className="rounded-full bg-blue-100 px-2 py-0.5 font-medium text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
           {question.source}
         </span>
+        {isFollowUp && (
+          <span className="rounded-full bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+            ↩ follow-up
+          </span>
+        )}
         {tmux?.session && (
           <span className="rounded-full bg-neutral-100 px-2 py-0.5 font-mono text-neutral-600 dark:bg-neutral-700 dark:text-neutral-400">
             tmux:{tmux.session}
@@ -85,6 +114,23 @@ export function QuestionCard({ question, onAnswer, onDismiss, onClarify }: Quest
           {question.question.text}
         </p>
       </div>
+
+      {/* Chain indicator + View Thread (AC-24) */}
+      {hasChain && getChain && (
+        <button
+          type="button"
+          onClick={() => setShowChain(!showChain)}
+          className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+        >
+          <span>{showChain ? '▼' : '▶'}</span>
+          <span>{showChain ? 'Hide Thread' : 'View Thread'}</span>
+        </button>
+      )}
+
+      {/* Chain view (expanded) */}
+      {showChain && getChain && (
+        <QuestionChainView questionId={question.questionId} getChain={getChain} />
+      )}
 
       {/* Markdown description (scrollable) */}
       {question.question.description && (
