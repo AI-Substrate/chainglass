@@ -240,6 +240,17 @@ export default function TerminalInner({
     const clipboardAddon = new ClipboardAddon();
     terminal.loadAddon(clipboardAddon);
 
+    // Intercept Ctrl+V / Ctrl+Shift+V so the browser handles paste natively
+    // instead of xterm sending \x16 (literal ^V → tmux "verbatim insert").
+    // Ctrl+Shift+C allows copy; plain Ctrl+C is preserved as SIGINT.
+    terminal.attachCustomKeyEventHandler((event) => {
+      if (event.type !== 'keydown') return true;
+      const ctrl = event.ctrlKey && !event.metaKey;
+      if (ctrl && (event.key === 'v' || event.key === 'V')) return false;
+      if (ctrl && event.shiftKey && (event.key === 'c' || event.key === 'C')) return false;
+      return true;
+    });
+
     terminal.open(container);
 
     terminalRef.current = terminal;

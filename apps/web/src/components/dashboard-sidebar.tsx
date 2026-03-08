@@ -71,9 +71,9 @@ export function DashboardSidebar() {
 
   return (
     <Sidebar role="complementary" collapsible="icon" className={cn(isCollapsed && 'w-16')}>
-      <SidebarHeader className="border-b p-4">
-        <div className="flex items-center justify-between gap-2">
-          {!isCollapsed && (
+      <SidebarHeader className={cn('border-b', isCollapsed ? 'p-2' : 'p-4')}>
+        {!isCollapsed && (
+          <div className="flex items-center justify-between gap-2">
             <div className="min-w-0 flex-1">
               {isInWorkspace ? (
                 <>
@@ -89,10 +89,10 @@ export function DashboardSidebar() {
                 <span className="block truncate font-semibold">Chainglass</span>
               )}
             </div>
-          )}
-        </div>
-        <div className="mt-1 flex items-center gap-1">
-          {currentWorktree && workspaceSlug && (
+          </div>
+        )}
+        <div className={cn('flex items-center', isCollapsed ? 'justify-center' : 'mt-1 gap-1')}>
+          {!isCollapsed && currentWorktree && workspaceSlug && (
             <>
               <WorktreeIdentityPopover slug={workspaceSlug} worktreePath={currentWorktree} />
               <PasteUploadButton slug={workspaceSlug} worktreePath={currentWorktree} />
@@ -107,16 +107,20 @@ export function DashboardSidebar() {
           >
             <PanelLeft className="h-3.5 w-3.5" />
           </Button>
-          <ThemeToggle />
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => window.open(window.location.href, '_blank')}
-            aria-label="Open in new tab"
-            className="h-7 w-7"
-          >
-            <ExternalLink className="h-3.5 w-3.5" />
-          </Button>
+          {!isCollapsed && (
+            <>
+              <ThemeToggle />
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => window.open(window.location.href, '_blank')}
+                aria-label="Open in new tab"
+                className="h-7 w-7"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+              </Button>
+            </>
+          )}
         </div>
       </SidebarHeader>
 

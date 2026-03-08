@@ -112,7 +112,6 @@ function BrowserClientInner({
   const [localNewPaths, setLocalNewPaths] = useState<Set<string>>(new Set());
 
   // FT-003: Re-sync root state when worktree changes (e.g. ?worktree= switch)
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — reset on worktree or entries change
   useEffect(() => {
     setRootEntries(initialEntries);
     setLocalNewPaths(new Set());
@@ -151,7 +150,7 @@ function BrowserClientInner({
       window.dispatchEvent(new CustomEvent('overlay:close-all'));
       return fileNav.handleSelect(filePath);
     },
-    [fileNav.handleSelect],
+    [fileNav.handleSelect]
   );
 
   const panelState = usePanelState({
@@ -440,7 +439,7 @@ function BrowserClientInner({
     [
       slug,
       worktreePath,
-      fileNav.handleSelect,
+      handleFileSelect,
       fileNav.handleExpand,
       panelMode,
       panelState.handlePanelModeChange,
