@@ -147,5 +147,8 @@ export type { IWorkflowEvents } from './workflow-events.interface.js';
 // Work Unit State interface (Plan 059: WorkUnit State System)
 export type { IWorkUnitStateService } from './work-unit-state.interface.js';
 
+// Question Popper interface (Plan 067: Event Popper)
+export type { IQuestionPopperService } from './question-popper.interface.js';
+
 // Note: IEventStorage, EventStorageService, FakeEventStorage removed in Plan 018 Phase 2.
 // Use AgentEventAdapter from @chainglass/workflow for workspace-scoped event storage.

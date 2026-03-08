@@ -22,5 +22,7 @@ export const proxy =
       });
 
 export const config = {
-  matcher: ['/((?!login|api/health|api/auth|_next/static|_next/image|favicon\\.ico).*)'],
+  matcher: [
+    '/((?!login|api/health|api/auth|api/event-popper|_next/static|_next/image|favicon\\.ico).*)',
+  ],
 };
