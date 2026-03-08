@@ -51,8 +51,14 @@ export function formatEvent(event: AgentEvent): string {
       return `${c.cyan}[${ts()}]${c.reset} 📝 ${c.dim}(${event.data.content.length} chars)${c.reset}`;
     case 'thinking':
       return `${c.cyan}[${ts()}]${c.reset} 💭 ${c.dim}${event.data.content.slice(0, 80)}${c.reset}`;
-    case 'tool_call':
-      return `${c.cyan}[${ts()}]${c.reset} 🔧 ${c.magenta}${event.data.toolName}${c.reset} ${c.dim}${String(event.data.input).slice(0, 60)}${c.reset}`;
+    case 'tool_call': {
+      const input = event.data.input;
+      const preview = typeof input === 'string' ? input
+        : typeof input === 'object' && input !== null
+          ? (input as Record<string, unknown>).command ?? (input as Record<string, unknown>).description ?? JSON.stringify(input)
+          : String(input);
+      return `${c.cyan}[${ts()}]${c.reset} 🔧 ${c.magenta}${event.data.toolName}${c.reset} ${c.dim}${String(preview).slice(0, 100)}${c.reset}`;
+    }
     case 'tool_result':
       return `${c.cyan}[${ts()}]${c.reset}    ${event.data.isError ? `${c.red}✗` : `${c.green}✓`}${c.reset} ${c.dim}${event.data.output.slice(0, 80)}${c.reset}`;
     case 'usage':
