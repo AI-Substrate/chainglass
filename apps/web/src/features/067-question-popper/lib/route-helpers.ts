@@ -254,11 +254,7 @@ export async function handleList(
   const statusFilter = url.searchParams.get('status');
   const limitStr = url.searchParams.get('limit');
   const limit =
-    limitStr === 'all'
-      ? Number.MAX_SAFE_INTEGER
-      : limitStr
-        ? Number.parseInt(limitStr, 10)
-        : 100;
+    limitStr === 'all' ? Number.MAX_SAFE_INTEGER : limitStr ? Number.parseInt(limitStr, 10) : 100;
 
   if (limitStr !== 'all' && (Number.isNaN(limit) || limit < 1)) {
     return Response.json(

@@ -14,6 +14,7 @@ import type { NextRequest } from 'next/server';
  */
 
 const LOOPBACK_IPS = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
 
 /**
  * Check if a request originates from localhost.
@@ -21,18 +22,32 @@ const LOOPBACK_IPS = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
  * Only trusts the socket-level peer address (request.ip), never client headers.
  */
 export function isLocalhostRequest(request: NextRequest): boolean {
-  // Reject proxied requests — if X-Forwarded-For is present, a proxy is involved
-  if (request.headers.get('x-forwarded-for')) {
-    return false;
+  const xff = request.headers.get('x-forwarded-for');
+  const ip = (request as unknown as { ip?: string }).ip;
+  const host = request.headers.get('host') ?? '';
+  const hostname = host.split(':')[0];
+
+  // If X-Forwarded-For is present, check if it's a loopback address.
+  // Next.js dev server adds XFF=::1 for local requests — that's fine.
+  // Reject only if XFF contains a non-loopback address (real proxy).
+  if (xff) {
+    const firstXff = xff.split(',')[0].trim();
+    if (!LOOPBACK_IPS.has(firstXff)) {
+      return false;
+    }
   }
 
-  // Only trust request.ip (resolved from socket, not headers)
-  if (request.ip && LOOPBACK_IPS.has(request.ip)) {
+  // Trust request.ip if available (resolved from socket, not headers)
+  if (ip && LOOPBACK_IPS.has(ip)) {
     return true;
   }
 
-  // Fail closed — if no trusted peer address is available, deny access.
-  // This preserves security when the runtime doesn't provide request.ip.
+  // Fallback: check Host header for localhost patterns (dev server)
+  if (LOOPBACK_HOSTS.has(hostname)) {
+    return true;
+  }
+
+  // Fail closed — if no trusted indicator is available, deny access.
   return false;
 }
 

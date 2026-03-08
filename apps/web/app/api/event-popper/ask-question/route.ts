@@ -1,5 +1,5 @@
 /**
- * POST /api/event-popper/ask-question
+ * POST /api/event-popper/ask-question — CLI-only route.
  *
  * CLI-only route. Accepts a question from an external agent/script.
  * Validates full request body (source + meta + payload) via AskQuestionRequestSchema.

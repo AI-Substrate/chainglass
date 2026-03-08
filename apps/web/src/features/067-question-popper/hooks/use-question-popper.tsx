@@ -109,7 +109,6 @@ export function QuestionPopperProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<Error | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
-  const isOpeningRef = useRef(false);
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttemptsRef = useRef(0);
@@ -215,12 +214,10 @@ export function QuestionPopperProvider({ children }: { children: ReactNode }) {
     };
   }, [fetchItems, connectSSE, disconnectSSE]);
 
-  // ── Overlay State (Mutual Exclusion) ──
+  // ── Overlay State (independent — does NOT participate in mutual exclusion) ──
+  // Question popper floats over everything without closing terminal/agents/activity-log
 
   const openOverlay = useCallback(() => {
-    isOpeningRef.current = true;
-    window.dispatchEvent(new CustomEvent('overlay:close-all'));
-    isOpeningRef.current = false;
     setIsOverlayOpen(true);
   }, []);
 
@@ -229,24 +226,11 @@ export function QuestionPopperProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const toggleOverlay = useCallback(() => {
-    setIsOverlayOpen((current) => {
-      if (current) return false;
-      isOpeningRef.current = true;
-      window.dispatchEvent(new CustomEvent('overlay:close-all'));
-      isOpeningRef.current = false;
-      return true;
-    });
+    setIsOverlayOpen((current) => !current);
   }, []);
 
-  // Listen for overlay:close-all (mutual exclusion with agents, terminal, activity-log)
-  useEffect(() => {
-    const handler = () => {
-      if (isOpeningRef.current) return;
-      closeOverlay();
-    };
-    window.addEventListener('overlay:close-all', handler);
-    return () => window.removeEventListener('overlay:close-all', handler);
-  }, [closeOverlay]);
+  // Track: close overlay when outstanding drops to 0 after an action
+  const actionInProgressRef = useRef(false);
 
   // ── Action Methods ──
 
@@ -261,7 +245,7 @@ export function QuestionPopperProvider({ children }: { children: ReactNode }) {
         const data = await res.json().catch(() => ({ error: 'Unknown error' }));
         throw new Error(data.message || data.error || `Failed: ${res.status}`);
       }
-      // SSE will trigger refetch, but also refetch immediately for responsiveness
+      actionInProgressRef.current = true;
       await fetchItems();
     },
     [fetchItems]
@@ -274,6 +258,7 @@ export function QuestionPopperProvider({ children }: { children: ReactNode }) {
         const data = await res.json().catch(() => ({ error: 'Unknown error' }));
         throw new Error(data.message || data.error || `Failed: ${res.status}`);
       }
+      actionInProgressRef.current = true;
       await fetchItems();
     },
     [fetchItems]
@@ -290,6 +275,7 @@ export function QuestionPopperProvider({ children }: { children: ReactNode }) {
         const data = await res.json().catch(() => ({ error: 'Unknown error' }));
         throw new Error(data.message || data.error || `Failed: ${res.status}`);
       }
+      actionInProgressRef.current = true;
       await fetchItems();
     },
     [fetchItems]
@@ -302,6 +288,7 @@ export function QuestionPopperProvider({ children }: { children: ReactNode }) {
         const data = await res.json().catch(() => ({ error: 'Unknown error' }));
         throw new Error(data.message || data.error || `Failed: ${res.status}`);
       }
+      actionInProgressRef.current = true;
       await fetchItems();
     },
     [fetchItems]
@@ -335,6 +322,32 @@ export function QuestionPopperProvider({ children }: { children: ReactNode }) {
   // ── Derived State ──
 
   const outstandingItems = items.filter(isOutstanding);
+
+  // Auto-close overlay when last outstanding item is resolved
+  useEffect(() => {
+    if (actionInProgressRef.current && outstandingItems.length === 0 && isOverlayOpen) {
+      actionInProgressRef.current = false;
+      closeOverlay();
+    } else if (actionInProgressRef.current) {
+      actionInProgressRef.current = false;
+    }
+  }, [outstandingItems.length, isOverlayOpen, closeOverlay]);
+
+  // Prepend ❓ to document title when questions are outstanding
+  const baseTitleRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    // Capture the base title once on first render
+    if (baseTitleRef.current === null) {
+      baseTitleRef.current = document.title.replace(/^❓ /, '');
+    }
+    const base = baseTitleRef.current;
+    if (outstandingCount > 0) {
+      document.title = `❓ ${base}`;
+    } else {
+      document.title = base;
+    }
+  }, [outstandingCount]);
 
   const value: QuestionPopperContextValue = {
     items,

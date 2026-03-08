@@ -15,7 +15,7 @@
  */
 
 import dynamic from 'next/dynamic';
-import { Component, type ReactNode, useEffect, useRef } from 'react';
+import { Component, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 
 import { QuestionPopperIndicator } from '../../../../src/features/067-question-popper/components/question-popper-indicator';
 import {
@@ -30,6 +30,7 @@ import {
   toastNewAlert,
   toastNewQuestion,
 } from '../../../../src/features/067-question-popper/lib/desktop-notifications';
+import { installExplorerBarFlashListener } from '../../../../src/features/_platform/panel-layout/lib/explorer-bar-flash';
 
 const QuestionPopperOverlayPanel = dynamic(
   () =>
@@ -60,6 +61,12 @@ class QuestionPopperErrorBoundary extends Component<
     }
     return this.props.children;
   }
+}
+
+// ── Explorer Bar Flash (SDK approach) ──
+
+function triggerGreenFlash() {
+  window.dispatchEvent(new CustomEvent('explorer-bar:flash', { detail: { color: 'green' } }));
 }
 
 // ── Notification Bridge ──
@@ -109,7 +116,7 @@ function QuestionPopperNotificationBridge() {
       requestNotificationPermission();
     }
 
-    // Toast + desktop notification for each new item
+    // Toast + desktop notification + green flash for each new item
     for (const item of newItems) {
       if (isQuestionItem(item)) {
         toastNewQuestion(item.source, item.question.text);
@@ -119,6 +126,9 @@ function QuestionPopperNotificationBridge() {
         sendDesktopNotification(`Alert from ${item.source}`, item.alert.text);
       }
     }
+
+    // Flash the top bar green
+    triggerGreenFlash();
   }, [items, isOverlayOpen]);
 
   return null;
@@ -131,6 +141,11 @@ interface QuestionPopperOverlayWrapperProps {
 }
 
 export function QuestionPopperOverlayWrapper({ children }: QuestionPopperOverlayWrapperProps) {
+  // Install the explorer bar flash listener once
+  useEffect(() => {
+    installExplorerBarFlashListener();
+  }, []);
+
   return (
     <QuestionPopperProvider>
       {children}

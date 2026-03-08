@@ -13,6 +13,8 @@
  * Constitution Principle 4: FakeEventPopperClient, not vi.mock.
  */
 
+import { join } from 'node:path';
+
 import { readServerInfo } from '@chainglass/shared/event-popper';
 import type { AlertOut, QuestionOut } from '@chainglass/shared/question-popper';
 
@@ -138,9 +140,11 @@ export function createEventPopperClient(baseUrl: string): IEventPopperClient {
 // ── Server Discovery ──
 
 export function discoverServerUrl(worktreePath?: string): string {
-  const info = readServerInfo(worktreePath ?? process.cwd());
+  const cwd = worktreePath ?? process.cwd();
+  // Try cwd first, then apps/web (Next.js cwd differs from repo root)
+  const info = readServerInfo(cwd) ?? readServerInfo(join(cwd, 'apps', 'web'));
   if (!info) {
-    throw new Error('Chainglass server not running. Start with: cg web');
+    throw new Error('Chainglass server not running. Start with: just dev');
   }
   return `http://localhost:${info.port}`;
 }
