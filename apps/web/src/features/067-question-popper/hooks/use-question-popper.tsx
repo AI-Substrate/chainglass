@@ -26,6 +26,8 @@ import {
 
 import type { AlertOut, AnswerPayload, QuestionOut } from '@chainglass/shared/question-popper';
 
+import { clearTitlePrefix, setTitlePrefix } from '../../../lib/sdk/title-manager';
+
 import { resolveChain as resolveChainFn } from '../lib/chain-resolver';
 
 // ── Types ──
@@ -333,20 +335,14 @@ export function QuestionPopperProvider({ children }: { children: ReactNode }) {
     }
   }, [outstandingItems.length, isOverlayOpen, closeOverlay]);
 
-  // Prepend ❓ to document title when questions are outstanding
-  const baseTitleRef = useRef<string | null>(null);
+  // Show ❓ in browser tab via shared TitleManager SDK
   useEffect(() => {
-    if (typeof document === 'undefined') return;
-    // Capture the base title once on first render
-    if (baseTitleRef.current === null) {
-      baseTitleRef.current = document.title.replace(/^❓ /, '');
-    }
-    const base = baseTitleRef.current;
     if (outstandingCount > 0) {
-      document.title = `❓ ${base}`;
+      setTitlePrefix('question-popper', '❓');
     } else {
-      document.title = base;
+      clearTitlePrefix('question-popper');
     }
+    return () => clearTitlePrefix('question-popper');
   }, [outstandingCount]);
 
   const value: QuestionPopperContextValue = {
