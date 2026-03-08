@@ -30,3 +30,5 @@ export type { FakeUSDKInstance } from './fake-usdk.js';
 export { FakeWorkflowEventsService } from './fake-workflow-events.js';
 // Work Unit State fake (Plan 059: WorkUnit State System)
 export { FakeWorkUnitStateService } from './fake-work-unit-state.js';
+// Question Popper fake (Plan 067: Event Popper)
+export { FakeQuestionPopperService } from './fake-question-popper.js';

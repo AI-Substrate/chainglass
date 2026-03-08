@@ -16,3 +16,6 @@ export { registerWorkGraphCommands } from './workgraph.command.js';
 export { registerPositionalGraphCommands } from './positional-graph.command.js';
 // Template commands (Plan 048: Phase 2)
 export { registerTemplateCommands } from './template.command.js';
+// Question Popper commands (Plan 067: Phase 4)
+export { registerQuestionCommands } from './question.command.js';
+export { registerAlertCommands } from './alert.command.js';

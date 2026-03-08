@@ -25,6 +25,8 @@ export const WorkspaceDomain = {
   WorkUnitState: 'work-unit-state',
   /** SSE channel: `'unit-catalog'` — matches `/api/events/unit-catalog` subscription path (Plan 058) */
   UnitCatalog: 'unit-catalog',
+  /** SSE channel: `'event-popper'` — matches `/api/events/event-popper` subscription path (Plan 067) */
+  EventPopper: 'event-popper',
 } as const;
 
 /**

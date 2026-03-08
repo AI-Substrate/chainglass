@@ -385,7 +385,10 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
     const showInput = editing || !filePath;
 
     return (
-      <div className="flex justify-center border-b bg-muted/30 shrink-0 px-4 py-1.5">
+      <div
+        data-explorer-bar
+        className="flex justify-center border-b bg-muted/30 shrink-0 px-4 py-1.5 transition-colors duration-500"
+      >
         <div className="relative flex items-center gap-1.5 w-full max-w-2xl rounded-lg border bg-background px-3 py-1 shadow-sm">
           {processing ? (
             <AsciiSpinner active={processing} />
