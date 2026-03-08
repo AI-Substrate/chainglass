@@ -268,5 +268,120 @@ export function registerAgentCommand(program: Command): void {
       );
     });
 
+  // --- agent tail <slug> ---
+  agent
+    .command('tail <slug>')
+    .description('Follow a running agent\'s event stream in real-time')
+    .option('--run <runId>', 'Specific run ID (default: latest)')
+    .action(async (slug: string, opts: { run?: string }) => {
+      const slugError = validateSlug(slug);
+      if (slugError) {
+        process.stderr.write(`Error: ${slugError}\n`);
+        process.exit(1);
+      }
+
+      const definition = resolveAgent(slug);
+      if (!definition) {
+        process.stderr.write(`Agent "${slug}" not found.\n`);
+        process.exit(1);
+      }
+
+      const runsDir = path.join(definition.dir, 'runs');
+      if (!fs.existsSync(runsDir)) {
+        process.stderr.write(`No runs found for "${slug}".\n`);
+        process.exit(1);
+      }
+
+      // Find the target run
+      let runId: string;
+      if (opts.run) {
+        runId = opts.run;
+      } else {
+        const entries = fs.readdirSync(runsDir, { withFileTypes: true })
+          .filter((e) => e.isDirectory())
+          .sort((a, b) => b.name.localeCompare(a.name));
+        if (entries.length === 0) {
+          process.stderr.write(`No runs found for "${slug}".\n`);
+          process.exit(1);
+        }
+        runId = entries[0].name;
+      }
+
+      const eventsPath = path.join(runsDir, runId, 'events.ndjson');
+      const completedPath = path.join(runsDir, runId, 'completed.json');
+
+      process.stderr.write(`\n  Tailing: ${slug} / ${runId}\n`);
+      process.stderr.write(`  Events:  ${eventsPath}\n`);
+      process.stderr.write(`  Press Ctrl+C to stop\n\n`);
+
+      // Read existing events first
+      let bytesRead = 0;
+      if (fs.existsSync(eventsPath)) {
+        const existing = fs.readFileSync(eventsPath, 'utf-8');
+        bytesRead = Buffer.byteLength(existing, 'utf-8');
+        const lines = existing.split('\n').filter(Boolean);
+        // Show last 20 existing events for context
+        const recent = lines.slice(-20);
+        if (lines.length > 20) {
+          process.stderr.write(`  ... (${lines.length - 20} earlier events)\n\n`);
+        }
+        for (const line of recent) {
+          try {
+            const event = JSON.parse(line);
+            displayEvent(event);
+          } catch { /* skip malformed */ }
+        }
+      }
+
+      // Poll for new events (tail -f style)
+      const poll = setInterval(() => {
+        if (!fs.existsSync(eventsPath)) return;
+        const stat = fs.statSync(eventsPath);
+        if (stat.size <= bytesRead) return;
+
+        const fd = fs.openSync(eventsPath, 'r');
+        const buf = Buffer.alloc(stat.size - bytesRead);
+        fs.readSync(fd, buf, 0, buf.length, bytesRead);
+        fs.closeSync(fd);
+        bytesRead = stat.size;
+
+        const chunk = buf.toString('utf-8');
+        const lines = chunk.split('\n').filter(Boolean);
+        for (const line of lines) {
+          try {
+            const event = JSON.parse(line);
+            displayEvent(event);
+          } catch { /* skip malformed */ }
+        }
+      }, 200);
+
+      // Watch for completion
+      const completionPoll = setInterval(() => {
+        if (fs.existsSync(completedPath)) {
+          clearInterval(poll);
+          clearInterval(completionPoll);
+          try {
+            const completed = JSON.parse(fs.readFileSync(completedPath, 'utf-8'));
+            const statusColor = completed.result === 'completed' ? '\x1b[32m'
+              : completed.result === 'degraded' ? '\x1b[33m' : '\x1b[31m';
+            process.stderr.write(`\n\x1b[1m─── Run Complete ───\x1b[0m\n`);
+            process.stderr.write(`  Result:     ${statusColor}${completed.result}\x1b[0m\n`);
+            process.stderr.write(`  Duration:   ${(completed.durationMs / 1000).toFixed(1)}s\n`);
+            process.stderr.write(`  Events:     ${completed.eventCount} (${completed.toolCallCount} tool calls)\n`);
+            process.stderr.write(`  Validated:  ${completed.validated === true ? '\x1b[32m✓' : completed.validated === false ? '\x1b[31m✗' : '—'}\x1b[0m\n`);
+          } catch { /* ignore parse errors */ }
+          process.exit(0);
+        }
+      }, 500);
+
+      // Handle Ctrl+C gracefully
+      process.on('SIGINT', () => {
+        clearInterval(poll);
+        clearInterval(completionPoll);
+        process.stderr.write('\n  Stopped tailing.\n');
+        process.exit(0);
+      });
+    });
+
   program.addCommand(agent);
 }
