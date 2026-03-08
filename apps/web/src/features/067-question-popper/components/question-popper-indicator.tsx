@@ -31,10 +31,10 @@ export function QuestionPopperIndicator() {
       aria-expanded={isOverlayOpen}
       className={`
         relative flex items-center justify-center rounded-full transition-all duration-300
-        focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500
+        focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 shrink-0
         ${
           hasOutstanding
-            ? 'h-10 w-10 bg-green-500 text-white shadow-lg shadow-green-500/40 hover:bg-green-600 hover:shadow-green-500/60'
+            ? 'h-8 w-8 bg-green-500 text-white shadow-md shadow-green-500/40 hover:bg-green-600 hover:shadow-green-500/60'
             : 'h-7 w-7 bg-neutral-300 text-neutral-500 hover:bg-neutral-400 hover:text-neutral-600 dark:bg-neutral-600 dark:text-neutral-400 dark:hover:bg-neutral-500'
         }
       `}
@@ -48,7 +48,7 @@ export function QuestionPopperIndicator() {
         strokeWidth={2.5}
         strokeLinecap="round"
         strokeLinejoin="round"
-        className={hasOutstanding ? 'h-5 w-5' : 'h-4 w-4'}
+        className={hasOutstanding ? 'h-4.5 w-4.5' : 'h-3.5 w-3.5'}
         aria-hidden="true"
       >
         <circle cx="12" cy="12" r="10" />
@@ -58,7 +58,7 @@ export function QuestionPopperIndicator() {
 
       {/* Badge count */}
       {hasOutstanding && (
-        <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+        <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-0.5 text-[9px] font-bold text-white">
           {outstandingCount > 99 ? '99+' : outstandingCount}
         </span>
       )}

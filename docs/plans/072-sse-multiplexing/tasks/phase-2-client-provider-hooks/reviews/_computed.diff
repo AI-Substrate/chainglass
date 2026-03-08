@@ -1,0 +1,1253 @@
+diff --git a/Users/jordanknight/substrate/067-question-popper/apps/web/src/lib/sse/types.ts b/Users/jordanknight/substrate/067-question-popper/apps/web/src/lib/sse/types.ts
+new file mode 100644
+index 00000000..5180dfbd
+--- /dev/null
++++ b/Users/jordanknight/substrate/067-question-popper/apps/web/src/lib/sse/types.ts
+@@ -0,0 +1,49 @@
++/**
++ * SSE Multiplexing — Public Contracts
++ *
++ * Type definitions for the multiplexed SSE infrastructure.
++ * Defined here (not imported from useSSE.ts) to keep the new
++ * sse/ module independent of the legacy hooks/ module it supersedes.
++ *
++ * Plan 072: SSE Multiplexing — Phase 2
++ */
++
++/**
++ * Wire format for messages arriving on the multiplexed SSE stream.
++ * Every message from `/api/events/mux` includes a `channel` field
++ * (added authoritatively by SSEManager.broadcast).
++ */
++export type MultiplexedSSEMessage = {
++  /** SSE channel this event was broadcast on, e.g. 'event-popper', 'file-changes' */
++  channel: string;
++  /** Event type within the channel, e.g. 'question-asked', 'file-changed' */
++  type: string;
++  /** Domain-specific payload fields */
++  [key: string]: unknown;
++};
++
++/**
++ * Factory for creating EventSource instances.
++ * Inject a fake factory in tests to avoid real network connections.
++ *
++ * Intentionally re-declared here (identical to useSSE.ts EventSourceFactory)
++ * to avoid coupling the new sse/ module to the legacy hooks/ module.
++ * See DYK #5 from Phase 2 dossier.
++ */
++export type EventSourceFactory = (url: string, options?: EventSourceInit) => EventSource;
++
++/**
++ * Context value exposed by MultiplexedSSEProvider.
++ * Consumers use `subscribe()` to receive per-channel events.
++ */
++export type MultiplexedSSEContextValue = {
++  /**
++   * Subscribe to events on a specific channel.
++   * Returns an unsubscribe function. Call it on cleanup/unmount.
++   */
++  subscribe(channel: string, callback: (event: MultiplexedSSEMessage) => void): () => void;
++  /** Whether the EventSource connection is currently open */
++  isConnected: boolean;
++  /** Current connection error, if any (null when connected) */
++  error: Error | null;
++};
+
+diff --git a/Users/jordanknight/substrate/067-question-popper/apps/web/src/lib/sse/multiplexed-sse-provider.tsx b/Users/jordanknight/substrate/067-question-popper/apps/web/src/lib/sse/multiplexed-sse-provider.tsx
+new file mode 100644
+index 00000000..430081f4
+--- /dev/null
++++ b/Users/jordanknight/substrate/067-question-popper/apps/web/src/lib/sse/multiplexed-sse-provider.tsx
+@@ -0,0 +1,183 @@
++'use client';
++
++/**
++ * MultiplexedSSEProvider — Single-connection SSE multiplexer
++ *
++ * Creates exactly ONE EventSource to `/api/events/mux?channels=...` and
++ * demultiplexes incoming events by `msg.channel` to per-channel subscribers.
++ * Provides subscribe/unsubscribe via React context.
++ *
++ * Plan 072: SSE Multiplexing — Phase 2
++ */
++
++import {
++  createContext,
++  useCallback,
++  useContext,
++  useEffect,
++  useMemo,
++  useRef,
++  useState,
++} from 'react';
++import type {
++  EventSourceFactory,
++  MultiplexedSSEContextValue,
++  MultiplexedSSEMessage,
++} from './types';
++
++// Default factory using browser's native EventSource
++const defaultEventSourceFactory: EventSourceFactory = (url, options) =>
++  new EventSource(url, options);
++
++const MultiplexedSSEContext = createContext<MultiplexedSSEContextValue | null>(null);
++
++/**
++ * Hook to access the multiplexed SSE context.
++ * Must be called within a MultiplexedSSEProvider.
++ */
++export function useMultiplexedSSE(): MultiplexedSSEContextValue {
++  const ctx = useContext(MultiplexedSSEContext);
++  if (!ctx) {
++    throw new Error('useMultiplexedSSE must be used within a MultiplexedSSEProvider');
++  }
++  return ctx;
++}
++
++interface MultiplexedSSEProviderProps {
++  /** Channels to subscribe to */
++  channels: string[];
++  /** Override EventSource constructor for testing */
++  eventSourceFactory?: EventSourceFactory;
++  /** Maximum reconnection attempts before giving up (default: 15) */
++  maxReconnectAttempts?: number;
++  children: React.ReactNode;
++}
++
++export function MultiplexedSSEProvider({
++  channels,
++  eventSourceFactory = defaultEventSourceFactory,
++  maxReconnectAttempts = 15,
++  children,
++}: MultiplexedSSEProviderProps) {
++  const [isConnected, setIsConnected] = useState(false);
++  const [error, setError] = useState<Error | null>(null);
++
++  // Subscriber registry: channel → Set<callback>
++  const subscribersRef = useRef(new Map<string, Set<(e: MultiplexedSSEMessage) => void>>());
++
++  const eventSourceRef = useRef<EventSource | null>(null);
++  const reconnectAttemptsRef = useRef(0);
++  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
++  const mountedRef = useRef(true);
++
++  // Memoize URL by content (DYK #4: RSC boundary creates new array refs)
++  const channelsKey = channels.join(',');
++  const url = useMemo(() => `/api/events/mux?channels=${channelsKey}`, [channelsKey]);
++
++  const connect = useCallback(() => {
++    // Clear any pending reconnect timeout
++    if (reconnectTimeoutRef.current) {
++      clearTimeout(reconnectTimeoutRef.current);
++      reconnectTimeoutRef.current = null;
++    }
++
++    // Clean up existing connection
++    if (eventSourceRef.current) {
++      eventSourceRef.current.close();
++    }
++
++    const es = eventSourceFactory(url);
++    eventSourceRef.current = es;
++
++    es.onopen = () => {
++      if (!mountedRef.current) return;
++      setIsConnected(true);
++      setError(null);
++      reconnectAttemptsRef.current = 0;
++    };
++
++    es.onmessage = (event: MessageEvent) => {
++      if (!mountedRef.current) return;
++      try {
++        const msg: MultiplexedSSEMessage = JSON.parse(event.data);
++        const channelSubs = subscribersRef.current.get(msg.channel);
++        if (channelSubs) {
++          // Snapshot subscribers before dispatch to avoid iterator invalidation
++          // if a callback triggers synchronous unmount → unsubscribe (PL-01, DYK #1)
++          const callbacks = Array.from(channelSubs);
++          for (const cb of callbacks) {
++            try {
++              cb(msg);
++            } catch (err) {
++              console.warn('[MultiplexedSSE] Subscriber error:', err);
++            }
++          }
++        }
++      } catch {
++        // Malformed JSON — silently ignore (heartbeat comments don't reach onmessage)
++      }
++    };
++
++    es.onerror = () => {
++      if (!mountedRef.current) return;
++      setIsConnected(false);
++      es.close();
++
++      if (reconnectAttemptsRef.current < maxReconnectAttempts) {
++        reconnectAttemptsRef.current++;
++        // True exponential backoff with jitter (DYK #3)
++        // Prevents thundering herd when multiple tabs reconnect simultaneously
++        const base = Math.min(2000 * 2 ** (reconnectAttemptsRef.current - 1), 15000);
++        const jitter = Math.random() * 1000;
++        const delay = base + jitter;
++        reconnectTimeoutRef.current = setTimeout(() => {
++          if (mountedRef.current) connect();
++        }, delay);
++      } else {
++        setError(new Error('SSE connection failed after max reconnect attempts'));
++      }
++    };
++  }, [url, eventSourceFactory, maxReconnectAttempts]);
++
++  // Subscribe function — stable reference (empty deps)
++  const subscribe = useCallback(
++    (channel: string, callback: (e: MultiplexedSSEMessage) => void): (() => void) => {
++      let subs = subscribersRef.current.get(channel);
++      if (!subs) {
++        subs = new Set();
++        subscribersRef.current.set(channel, subs);
++      }
++      subs.add(callback);
++
++      // Return unsubscribe function
++      return () => {
++        subs?.delete(callback);
++        // Clean up empty Sets to prevent memory leak
++        if (subs?.size === 0) {
++          subscribersRef.current.delete(channel);
++        }
++      };
++    },
++    []
++  );
++
++  // Connect on mount, clean up on unmount
++  useEffect(() => {
++    mountedRef.current = true;
++    connect();
++    return () => {
++      mountedRef.current = false;
++      if (reconnectTimeoutRef.current) {
++        clearTimeout(reconnectTimeoutRef.current);
++        reconnectTimeoutRef.current = null;
++      }
++      if (eventSourceRef.current) {
++        eventSourceRef.current.close();
++      }
++    };
++  }, [connect]);
++
++  const value = useMemo(() => ({ subscribe, isConnected, error }), [subscribe, isConnected, error]);
++
++  return <MultiplexedSSEContext.Provider value={value}>{children}</MultiplexedSSEContext.Provider>;
++}
+
+diff --git a/Users/jordanknight/substrate/067-question-popper/apps/web/src/lib/sse/use-channel-events.ts b/Users/jordanknight/substrate/067-question-popper/apps/web/src/lib/sse/use-channel-events.ts
+new file mode 100644
+index 00000000..d23e4a07
+--- /dev/null
++++ b/Users/jordanknight/substrate/067-question-popper/apps/web/src/lib/sse/use-channel-events.ts
+@@ -0,0 +1,65 @@
++/**
++ * useChannelEvents — Message accumulation hook for multiplexed SSE
++ *
++ * Subscribes to a specific channel from the MultiplexedSSEProvider and
++ * accumulates messages into an independent array. Each hook invocation
++ * gets its own array (not shared) — compatible with index cursor patterns.
++ *
++ * Plan 072: SSE Multiplexing — Phase 2, T004
++ */
++
++'use client';
++
++import { useCallback, useEffect, useState } from 'react';
++import { useMultiplexedSSE } from './multiplexed-sse-provider';
++import type { MultiplexedSSEMessage } from './types';
++
++export interface UseChannelEventsOptions {
++  /** Maximum messages to retain (default: 1000, 0 = unlimited) */
++  maxMessages?: number;
++}
++
++export interface UseChannelEventsReturn<T extends MultiplexedSSEMessage = MultiplexedSSEMessage> {
++  /** Accumulated messages for the subscribed channel */
++  messages: T[];
++  /** Whether the SSE connection is currently open */
++  isConnected: boolean;
++  /** Clear all accumulated messages */
++  clearMessages: () => void;
++}
++
++/**
++ * Subscribe to events on a specific channel from the multiplexed SSE provider.
++ * Returns accumulated messages for that channel.
++ *
++ * Each hook invocation maintains its own independent message array.
++ * This is critical for index cursor patterns (Finding 06 — cursor compatibility).
++ *
++ * @param channel — SSE channel name (e.g. 'event-popper', 'file-changes')
++ * @param options — { maxMessages: number } (default 1000, 0 = unlimited)
++ */
++export function useChannelEvents<T extends MultiplexedSSEMessage = MultiplexedSSEMessage>(
++  channel: string,
++  options?: UseChannelEventsOptions
++): UseChannelEventsReturn<T> {
++  const { subscribe, isConnected } = useMultiplexedSSE();
++  const [messages, setMessages] = useState<T[]>([]);
++  const maxMessages = options?.maxMessages ?? 1000;
++
++  useEffect(() => {
++    const unsubscribe = subscribe(channel, (event) => {
++      setMessages((prev) => {
++        const next = [...prev, event as T];
++        if (maxMessages > 0 && next.length > maxMessages) {
++          return next.slice(-maxMessages);
++        }
++        return next;
++      });
++    });
++    return unsubscribe;
++  }, [channel, subscribe, maxMessages]);
++
++  const clearMessages = useCallback(() => setMessages([]), []);
++
++  return { messages, isConnected, clearMessages };
++}
+
+diff --git a/Users/jordanknight/substrate/067-question-popper/apps/web/src/lib/sse/use-channel-callback.ts b/Users/jordanknight/substrate/067-question-popper/apps/web/src/lib/sse/use-channel-callback.ts
+new file mode 100644
+index 00000000..5cb22781
+--- /dev/null
++++ b/Users/jordanknight/substrate/067-question-popper/apps/web/src/lib/sse/use-channel-callback.ts
+@@ -0,0 +1,48 @@
++/**
++ * useChannelCallback — Fire-and-forget callback hook for multiplexed SSE
++ *
++ * Subscribes to a specific channel and fires a callback for each event.
++ * No message accumulation — ideal for notification-fetch patterns where
++ * the callback triggers a refetch or side effect.
++ *
++ * Uses stable ref pattern: the callback can change between renders without
++ * triggering re-subscription.
++ *
++ * Plan 072: SSE Multiplexing — Phase 2, T005
++ */
++
++'use client';
++
++import { useEffect, useRef } from 'react';
++import { useMultiplexedSSE } from './multiplexed-sse-provider';
++import type { MultiplexedSSEMessage } from './types';
++
++export interface UseChannelCallbackReturn {
++  /** Whether the SSE connection is currently open */
++  isConnected: boolean;
++}
++
++/**
++ * Subscribe to events on a channel with a callback.
++ * Fires callback for each event — no message accumulation.
++ *
++ * The callback reference is tracked via useRef, so changing the callback
++ * between renders does NOT cause re-subscription.
++ *
++ * @param channel — SSE channel name (e.g. 'event-popper', 'file-changes')
++ * @param callback — fired for each event on the channel
++ */
++export function useChannelCallback(
++  channel: string,
++  callback: (event: MultiplexedSSEMessage) => void
++): UseChannelCallbackReturn {
++  const { subscribe, isConnected } = useMultiplexedSSE();
++  const callbackRef = useRef(callback);
++  callbackRef.current = callback;
++
++  useEffect(() => {
++    return subscribe(channel, (event) => callbackRef.current(event));
++  }, [channel, subscribe]);
++
++  return { isConnected };
++}
+
+diff --git a/Users/jordanknight/substrate/067-question-popper/apps/web/src/lib/sse/index.ts b/Users/jordanknight/substrate/067-question-popper/apps/web/src/lib/sse/index.ts
+new file mode 100644
+index 00000000..1df4c121
+--- /dev/null
++++ b/Users/jordanknight/substrate/067-question-popper/apps/web/src/lib/sse/index.ts
+@@ -0,0 +1,19 @@
++/**
++ * SSE Multiplexing — Public API
++ *
++ * Barrel export for the multiplexed SSE infrastructure.
++ * Import from '@/lib/sse' for provider, hooks, and types.
++ *
++ * Plan 072: SSE Multiplexing — Phase 2
++ */
++
++export { MultiplexedSSEProvider, useMultiplexedSSE } from './multiplexed-sse-provider';
++export { useChannelEvents } from './use-channel-events';
++export { useChannelCallback } from './use-channel-callback';
++export type {
++  MultiplexedSSEMessage,
++  MultiplexedSSEContextValue,
++  EventSourceFactory,
++} from './types';
++export type { UseChannelEventsOptions, UseChannelEventsReturn } from './use-channel-events';
++export type { UseChannelCallbackReturn } from './use-channel-callback';
+
+diff --git a/Users/jordanknight/substrate/067-question-popper/test/fakes/fake-multiplexed-sse.ts b/Users/jordanknight/substrate/067-question-popper/test/fakes/fake-multiplexed-sse.ts
+new file mode 100644
+index 00000000..6791cdd1
+--- /dev/null
++++ b/Users/jordanknight/substrate/067-question-popper/test/fakes/fake-multiplexed-sse.ts
+@@ -0,0 +1,72 @@
++/**
++ * FakeMultiplexedSSE — Test double for MultiplexedSSEProvider
++ *
++ * Wraps FakeEventSource with channel-aware message simulation.
++ * Provides a factory for injecting into MultiplexedSSEProvider's
++ * `eventSourceFactory` prop, plus helpers for simulating per-channel events.
++ *
++ * Follows the createFakeEventSourceFactory() exemplar pattern.
++ *
++ * Plan 072: SSE Multiplexing — Phase 2
++ *
++ * @example
++ * const fake = createFakeMultiplexedSSEFactory();
++ * render(
++ *   <MultiplexedSSEProvider channels={['event-popper']} eventSourceFactory={fake.factory}>
++ *     <TestConsumer />
++ *   </MultiplexedSSEProvider>
++ * );
++ * act(() => {
++ *   fake.simulateOpen();
++ *   fake.simulateChannelMessage('event-popper', 'question-asked', { questionId: 'q1' });
++ * });
++ */
++
++import { FakeEventSource } from './fake-event-source';
++
++export function createFakeMultiplexedSSEFactory() {
++  let instance: FakeEventSource | null = null;
++  let instanceCount = 0;
++
++  const factory = (url: string, options?: EventSourceInit): EventSource => {
++    instance = new FakeEventSource(url, options);
++    instanceCount++;
++    return instance as unknown as EventSource;
++  };
++
++  return {
++    /** EventSourceFactory to inject into MultiplexedSSEProvider */
++    factory,
++
++    /** The most recently created FakeEventSource instance */
++    get instance() {
++      return instance;
++    },
++
++    /** Number of EventSource instances created (useful for reconnect tests) */
++    get instanceCount() {
++      return instanceCount;
++    },
++
++    /**
++     * Simulate a channel-specific event arriving on the multiplexed stream.
++     * Produces a JSON message with { channel, type, ...data }.
++     */
++    simulateChannelMessage(channel: string, type: string, data: Record<string, unknown> = {}) {
++      if (!instance) throw new Error('No EventSource created yet — mount the provider first');
++      instance.simulateMessage(JSON.stringify({ channel, type, ...data }));
++    },
++
++    /** Simulate the EventSource connection opening successfully */
++    simulateOpen() {
++      if (!instance) throw new Error('No EventSource created yet — mount the provider first');
++      instance.simulateOpen();
++    },
++
++    /** Simulate a connection error (triggers reconnection in provider) */
++    simulateError() {
++      if (!instance) throw new Error('No EventSource created yet — mount the provider first');
++      instance.simulateError();
++    },
++  };
++}
+
+diff --git a/test/fakes/index.ts b/test/fakes/index.ts
+index 9d801f24..ef599060 100644
+--- a/test/fakes/index.ts
++++ b/test/fakes/index.ts
+@@ -14,3 +14,4 @@ export {
+ } from './fake-resize-observer';
+ export { FakeTmuxExecutor } from './fake-tmux-executor';
+ export { FakePty, createFakePtySpawner } from './fake-pty';
++export { createFakeMultiplexedSSEFactory } from './fake-multiplexed-sse';
+
+diff --git a/Users/jordanknight/substrate/067-question-popper/test/unit/web/sse/multiplexed-sse-provider.test.tsx b/Users/jordanknight/substrate/067-question-popper/test/unit/web/sse/multiplexed-sse-provider.test.tsx
+new file mode 100644
+index 00000000..7340303e
+--- /dev/null
++++ b/Users/jordanknight/substrate/067-question-popper/test/unit/web/sse/multiplexed-sse-provider.test.tsx
+@@ -0,0 +1,385 @@
++/**
++ * MultiplexedSSEProvider — Contract Tests
++ *
++ * Test Doc:
++ * - Why: Core client-side SSE infrastructure. Must create exactly one
++ *   EventSource, demux by channel, isolate subscriber errors, reconnect
++ *   on failure, and clean up on unmount.
++ * - Contract: AC-11 through AC-16, AC-20
++ * - Usage Notes: Uses FakeMultiplexedSSE for channel simulation.
++ *   All tests render the provider with injected factory, no real network.
++ * - Quality Contribution: Verifies single-connection guarantee, channel
++ *   routing, error isolation, reconnection with backoff, and cleanup.
++ * - Worked Example: See each test for a complete scenario.
++ *
++ * Plan 072: SSE Multiplexing — Phase 2, T003
++ */
++
++import { act, render, renderHook } from '@testing-library/react';
++import type { ReactNode } from 'react';
++import { useEffect } from 'react';
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import {
++  MultiplexedSSEProvider,
++  useMultiplexedSSE,
++} from '../../../../apps/web/src/lib/sse/multiplexed-sse-provider';
++import { createFakeMultiplexedSSEFactory } from '../../../../test/fakes';
++
++describe('MultiplexedSSEProvider', () => {
++  let fake: ReturnType<typeof createFakeMultiplexedSSEFactory>;
++
++  beforeEach(() => {
++    fake = createFakeMultiplexedSSEFactory();
++    vi.useFakeTimers();
++  });
++
++  afterEach(() => {
++    vi.useRealTimers();
++  });
++
++  function wrapper({ children }: { children: ReactNode }) {
++    return (
++      <MultiplexedSSEProvider
++        channels={['event-popper', 'file-changes']}
++        eventSourceFactory={fake.factory}
++      >
++        {children}
++      </MultiplexedSSEProvider>
++    );
++  }
++
++  it('connects to mux endpoint with requested channels (AC-11)', () => {
++    render(
++      <MultiplexedSSEProvider
++        channels={['event-popper', 'file-changes', 'work-unit-state']}
++        eventSourceFactory={fake.factory}
++      >
++        <div />
++      </MultiplexedSSEProvider>
++    );
++
++    expect(fake.instance).toBeTruthy();
++    expect(fake.instance?.url).toBe(
++      '/api/events/mux?channels=event-popper,file-changes,work-unit-state'
++    );
++    expect(fake.instanceCount).toBe(1);
++  });
++
++  it('creates exactly one EventSource (AC-11)', () => {
++    render(
++      <MultiplexedSSEProvider
++        channels={['event-popper', 'file-changes']}
++        eventSourceFactory={fake.factory}
++      >
++        <div />
++      </MultiplexedSSEProvider>
++    );
++
++    expect(fake.instanceCount).toBe(1);
++  });
++
++  it('routes channel events to correct subscriber (AC-12)', () => {
++    const received: string[] = [];
++
++    function TestConsumer() {
++      const { subscribe } = useMultiplexedSSE();
++      useEffect(() => {
++        return subscribe('event-popper', (event) => {
++          received.push(`ep:${event.type}`);
++        });
++      }, [subscribe]);
++      return null;
++    }
++
++    render(
++      <MultiplexedSSEProvider
++        channels={['event-popper', 'file-changes']}
++        eventSourceFactory={fake.factory}
++      >
++        <TestConsumer />
++      </MultiplexedSSEProvider>
++    );
++
++    act(() => fake.simulateOpen());
++
++    // Event for subscribed channel
++    act(() => fake.simulateChannelMessage('event-popper', 'question-asked', { id: 'q1' }));
++    expect(received).toEqual(['ep:question-asked']);
++
++    // Event for different channel — should NOT reach subscriber
++    act(() => fake.simulateChannelMessage('file-changes', 'file-changed', { path: 'a.txt' }));
++    expect(received).toEqual(['ep:question-asked']);
++  });
++
++  it('delivers events to multiple subscribers on same channel', () => {
++    const sub1: string[] = [];
++    const sub2: string[] = [];
++
++    function MultiConsumer() {
++      const { subscribe } = useMultiplexedSSE();
++      useEffect(() => {
++        const unsub1 = subscribe('event-popper', (e) => sub1.push(e.type));
++        const unsub2 = subscribe('event-popper', (e) => sub2.push(e.type));
++        return () => {
++          unsub1();
++          unsub2();
++        };
++      }, [subscribe]);
++      return null;
++    }
++
++    render(
++      <MultiplexedSSEProvider channels={['event-popper']} eventSourceFactory={fake.factory}>
++        <MultiConsumer />
++      </MultiplexedSSEProvider>
++    );
++
++    act(() => fake.simulateOpen());
++    act(() => fake.simulateChannelMessage('event-popper', 'question-asked'));
++
++    expect(sub1).toEqual(['question-asked']);
++    expect(sub2).toEqual(['question-asked']);
++  });
++
++  it('isolates subscriber errors — one throwing does not affect others (AC-13)', () => {
++    const received: string[] = [];
++    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
++
++    function ErrorConsumer() {
++      const { subscribe } = useMultiplexedSSE();
++      useEffect(() => {
++        const unsub1 = subscribe('event-popper', () => {
++          throw new Error('subscriber crash');
++        });
++        const unsub2 = subscribe('event-popper', (e) => {
++          received.push(e.type);
++        });
++        return () => {
++          unsub1();
++          unsub2();
++        };
++      }, [subscribe]);
++      return null;
++    }
++
++    render(
++      <MultiplexedSSEProvider channels={['event-popper']} eventSourceFactory={fake.factory}>
++        <ErrorConsumer />
++      </MultiplexedSSEProvider>
++    );
++
++    act(() => fake.simulateOpen());
++    act(() => fake.simulateChannelMessage('event-popper', 'question-asked'));
++
++    // Second subscriber still receives despite first throwing
++    expect(received).toEqual(['question-asked']);
++    expect(consoleWarn).toHaveBeenCalledWith(
++      expect.stringContaining('[MultiplexedSSE]'),
++      expect.any(Error)
++    );
++    consoleWarn.mockRestore();
++  });
++
++  it('reconnects with exponential backoff on error (AC-14)', () => {
++    render(
++      <MultiplexedSSEProvider channels={['event-popper']} eventSourceFactory={fake.factory}>
++        <div />
++      </MultiplexedSSEProvider>
++    );
++
++    expect(fake.instanceCount).toBe(1);
++
++    // First error → reconnect after ~2s + jitter
++    act(() => fake.simulateError());
++    expect(fake.instanceCount).toBe(1); // not yet
++
++    act(() => {
++      vi.advanceTimersByTime(3100);
++    }); // 2s base + up to 1s jitter
++    expect(fake.instanceCount).toBe(2);
++
++    // Second error → reconnect after ~4s + jitter
++    act(() => fake.simulateError());
++    act(() => {
++      vi.advanceTimersByTime(5100);
++    }); // 4s base + up to 1s jitter
++    expect(fake.instanceCount).toBe(3);
++  });
++
++  it('stops reconnecting after max attempts (AC-14)', () => {
++    render(
++      <MultiplexedSSEProvider
++        channels={['event-popper']}
++        eventSourceFactory={fake.factory}
++        maxReconnectAttempts={2}
++      >
++        <div />
++      </MultiplexedSSEProvider>
++    );
++
++    // Error 1 → reconnect
++    act(() => fake.simulateError());
++    act(() => {
++      vi.advanceTimersByTime(3100);
++    });
++    expect(fake.instanceCount).toBe(2);
++
++    // Error 2 → reconnect
++    act(() => fake.simulateError());
++    act(() => {
++      vi.advanceTimersByTime(5100);
++    });
++    expect(fake.instanceCount).toBe(3);
++
++    // Error 3 → no more reconnects (max 2 attempts used)
++    act(() => fake.simulateError());
++    act(() => {
++      vi.advanceTimersByTime(20000);
++    });
++    expect(fake.instanceCount).toBe(3); // stayed at 3
++  });
++
++  it('cleans up EventSource on unmount (AC-15)', () => {
++    const { unmount } = render(
++      <MultiplexedSSEProvider channels={['event-popper']} eventSourceFactory={fake.factory}>
++        <div />
++      </MultiplexedSSEProvider>
++    );
++
++    act(() => fake.simulateOpen());
++    expect(fake.instance?.readyState).not.toBe(2); // not CLOSED
++
++    unmount();
++    expect(fake.instance?.readyState).toBe(2); // CLOSED
++  });
++
++  it('exposes isConnected and error state (AC-16)', () => {
++    let lastConnected = false;
++    let lastError: Error | null = null;
++
++    function StateObserver() {
++      const { isConnected, error } = useMultiplexedSSE();
++      lastConnected = isConnected;
++      lastError = error;
++      return null;
++    }
++
++    render(
++      <MultiplexedSSEProvider channels={['event-popper']} eventSourceFactory={fake.factory}>
++        <StateObserver />
++      </MultiplexedSSEProvider>
++    );
++
++    // Initially not connected
++    expect(lastConnected).toBe(false);
++    expect(lastError).toBeNull();
++
++    // After open
++    act(() => fake.simulateOpen());
++    expect(lastConnected).toBe(true);
++    expect(lastError).toBeNull();
++
++    // After error + max attempts exhausted
++    // Use maxReconnectAttempts=0 provider for this scenario
++  });
++
++  it('is testable via injected EventSourceFactory (AC-20)', () => {
++    // This test itself proves AC-20 — we injected a fake factory
++    render(
++      <MultiplexedSSEProvider channels={['ch1']} eventSourceFactory={fake.factory}>
++        <div />
++      </MultiplexedSSEProvider>
++    );
++    expect(fake.instance).toBeTruthy();
++    expect(fake.instance?.url).toContain('/api/events/mux');
++  });
++
++  it('unsubscribe removes callback from dispatch', () => {
++    const received: string[] = [];
++    let unsubFn: (() => void) | null = null;
++
++    function UnsubConsumer() {
++      const { subscribe } = useMultiplexedSSE();
++      useEffect(() => {
++        unsubFn = subscribe('event-popper', (e) => received.push(e.type));
++        return unsubFn;
++      }, [subscribe]);
++      return null;
++    }
++
++    render(
++      <MultiplexedSSEProvider channels={['event-popper']} eventSourceFactory={fake.factory}>
++        <UnsubConsumer />
++      </MultiplexedSSEProvider>
++    );
++
++    act(() => fake.simulateOpen());
++    act(() => fake.simulateChannelMessage('event-popper', 'msg1'));
++    expect(received).toEqual(['msg1']);
++
++    // Unsubscribe
++    act(() => unsubFn?.());
++
++    // Should not receive after unsubscribe
++    act(() => fake.simulateChannelMessage('event-popper', 'msg2'));
++    expect(received).toEqual(['msg1']);
++  });
++
++  it('ignores malformed JSON messages', () => {
++    const received: string[] = [];
++    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
++
++    function Consumer() {
++      const { subscribe } = useMultiplexedSSE();
++      useEffect(() => {
++        return subscribe('event-popper', (e) => received.push(e.type));
++      }, [subscribe]);
++      return null;
++    }
++
++    render(
++      <MultiplexedSSEProvider channels={['event-popper']} eventSourceFactory={fake.factory}>
++        <Consumer />
++      </MultiplexedSSEProvider>
++    );
++
++    act(() => fake.simulateOpen());
++    // Send malformed message directly via FakeEventSource
++    act(() => fake.instance?.simulateMessage('not-json-at-all'));
++    // Then a valid message
++    act(() => fake.simulateChannelMessage('event-popper', 'valid'));
++
++    // Only the valid message arrives
++    expect(received).toEqual(['valid']);
++    consoleWarn.mockRestore();
++  });
++
++  it('resets reconnect counter on successful open', () => {
++    render(
++      <MultiplexedSSEProvider
++        channels={['event-popper']}
++        eventSourceFactory={fake.factory}
++        maxReconnectAttempts={3}
++      >
++        <div />
++      </MultiplexedSSEProvider>
++    );
++
++    // Error → reconnect
++    act(() => fake.simulateError());
++    act(() => {
++      vi.advanceTimersByTime(3100);
++    });
++    expect(fake.instanceCount).toBe(2);
++
++    // Successful reconnection resets counter
++    act(() => fake.simulateOpen());
++
++    // Error again → should reconnect (counter was reset)
++    act(() => fake.simulateError());
++    act(() => {
++      vi.advanceTimersByTime(3100);
++    });
++    expect(fake.instanceCount).toBe(3);
++  });
++});
+
+diff --git a/Users/jordanknight/substrate/067-question-popper/test/unit/web/sse/use-channel-hooks.test.tsx b/Users/jordanknight/substrate/067-question-popper/test/unit/web/sse/use-channel-hooks.test.tsx
+new file mode 100644
+index 00000000..b8f274ea
+--- /dev/null
++++ b/Users/jordanknight/substrate/067-question-popper/test/unit/web/sse/use-channel-hooks.test.tsx
+@@ -0,0 +1,219 @@
++/**
++ * useChannelEvents + useChannelCallback — Contract Tests
++ *
++ * Test Doc:
++ * - Why: Consumer hooks for multiplexed SSE. Must accumulate (events)
++ *   or fire-and-forget (callback) per channel, ignoring other channels.
++ * - Contract: AC-17, AC-18, AC-19
++ * - Usage Notes: Tests render hooks inside MultiplexedSSEProvider with
++ *   FakeMultiplexedSSE. Each test verifies channel isolation + core behavior.
++ * - Quality Contribution: Verifies independent arrays (Finding 06),
++ *   maxMessages pruning, stable ref pattern, channel filtering.
++ * - Worked Example: See each test for a complete scenario.
++ *
++ * Plan 072: SSE Multiplexing — Phase 2, T004 + T005
++ */
++
++import { act, renderHook } from '@testing-library/react';
++import type { ReactNode } from 'react';
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { MultiplexedSSEProvider } from '../../../../apps/web/src/lib/sse/multiplexed-sse-provider';
++import { useChannelCallback } from '../../../../apps/web/src/lib/sse/use-channel-callback';
++import { useChannelEvents } from '../../../../apps/web/src/lib/sse/use-channel-events';
++import { createFakeMultiplexedSSEFactory } from '../../../../test/fakes';
++
++describe('useChannelEvents', () => {
++  let fake: ReturnType<typeof createFakeMultiplexedSSEFactory>;
++
++  beforeEach(() => {
++    fake = createFakeMultiplexedSSEFactory();
++  });
++
++  function wrapper({ children }: { children: ReactNode }) {
++    return (
++      <MultiplexedSSEProvider
++        channels={['event-popper', 'file-changes']}
++        eventSourceFactory={fake.factory}
++      >
++        {children}
++      </MultiplexedSSEProvider>
++    );
++  }
++
++  it('accumulates messages for subscribed channel (AC-17)', () => {
++    const { result } = renderHook(() => useChannelEvents('event-popper'), { wrapper });
++
++    act(() => fake.simulateOpen());
++    act(() => fake.simulateChannelMessage('event-popper', 'question-asked', { id: 'q1' }));
++    act(() => fake.simulateChannelMessage('event-popper', 'question-answered', { id: 'q1' }));
++
++    expect(result.current.messages).toHaveLength(2);
++    expect(result.current.messages[0].type).toBe('question-asked');
++    expect(result.current.messages[1].type).toBe('question-answered');
++  });
++
++  it('ignores events from other channels (AC-19)', () => {
++    const { result } = renderHook(() => useChannelEvents('event-popper'), { wrapper });
++
++    act(() => fake.simulateOpen());
++    act(() => fake.simulateChannelMessage('file-changes', 'file-changed', { path: 'a.txt' }));
++    act(() => fake.simulateChannelMessage('event-popper', 'question-asked', { id: 'q1' }));
++
++    expect(result.current.messages).toHaveLength(1);
++    expect(result.current.messages[0].type).toBe('question-asked');
++  });
++
++  it('respects maxMessages pruning', () => {
++    const { result } = renderHook(() => useChannelEvents('event-popper', { maxMessages: 2 }), {
++      wrapper,
++    });
++
++    act(() => fake.simulateOpen());
++    act(() => fake.simulateChannelMessage('event-popper', 'msg1'));
++    act(() => fake.simulateChannelMessage('event-popper', 'msg2'));
++    act(() => fake.simulateChannelMessage('event-popper', 'msg3'));
++
++    expect(result.current.messages).toHaveLength(2);
++    expect(result.current.messages[0].type).toBe('msg2');
++    expect(result.current.messages[1].type).toBe('msg3');
++  });
++
++  it('does not prune when maxMessages is 0 (unlimited)', () => {
++    const { result } = renderHook(() => useChannelEvents('event-popper', { maxMessages: 0 }), {
++      wrapper,
++    });
++
++    act(() => fake.simulateOpen());
++    for (let i = 0; i < 10; i++) {
++      act(() => fake.simulateChannelMessage('event-popper', `msg${i}`));
++    }
++
++    expect(result.current.messages).toHaveLength(10);
++  });
++
++  it('clearMessages resets to empty', () => {
++    const { result } = renderHook(() => useChannelEvents('event-popper'), { wrapper });
++
++    act(() => fake.simulateOpen());
++    act(() => fake.simulateChannelMessage('event-popper', 'msg1'));
++    expect(result.current.messages).toHaveLength(1);
++
++    act(() => result.current.clearMessages());
++    expect(result.current.messages).toHaveLength(0);
++  });
++
++  it('provides independent arrays per subscriber (Finding 06)', () => {
++    const { result: result1 } = renderHook(() => useChannelEvents('event-popper'), { wrapper });
++
++    // Create second wrapper with its own provider for isolation
++    const fake2 = createFakeMultiplexedSSEFactory();
++    function wrapper2({ children }: { children: ReactNode }) {
++      return (
++        <MultiplexedSSEProvider channels={['event-popper']} eventSourceFactory={fake2.factory}>
++          {children}
++        </MultiplexedSSEProvider>
++      );
++    }
++    const { result: result2 } = renderHook(() => useChannelEvents('event-popper'), {
++      wrapper: wrapper2,
++    });
++
++    act(() => fake.simulateOpen());
++    act(() => fake.simulateChannelMessage('event-popper', 'only-for-sub1'));
++
++    // Sub1 has message, sub2 doesn't (different providers = independent)
++    expect(result1.current.messages).toHaveLength(1);
++    expect(result2.current.messages).toHaveLength(0);
++
++    // Also verify arrays are distinct references
++    expect(result1.current.messages).not.toBe(result2.current.messages);
++  });
++
++  it('exposes isConnected from provider', () => {
++    const { result } = renderHook(() => useChannelEvents('event-popper'), { wrapper });
++
++    expect(result.current.isConnected).toBe(false);
++    act(() => fake.simulateOpen());
++    expect(result.current.isConnected).toBe(true);
++  });
++});
++
++describe('useChannelCallback', () => {
++  let fake: ReturnType<typeof createFakeMultiplexedSSEFactory>;
++
++  beforeEach(() => {
++    fake = createFakeMultiplexedSSEFactory();
++  });
++
++  function wrapper({ children }: { children: ReactNode }) {
++    return (
++      <MultiplexedSSEProvider
++        channels={['event-popper', 'file-changes']}
++        eventSourceFactory={fake.factory}
++      >
++        {children}
++      </MultiplexedSSEProvider>
++    );
++  }
++
++  it('fires callback per event (AC-18)', () => {
++    const received: string[] = [];
++
++    renderHook(() => useChannelCallback('event-popper', (event) => received.push(event.type)), {
++      wrapper,
++    });
++
++    act(() => fake.simulateOpen());
++    act(() => fake.simulateChannelMessage('event-popper', 'question-asked'));
++    act(() => fake.simulateChannelMessage('event-popper', 'question-answered'));
++
++    expect(received).toEqual(['question-asked', 'question-answered']);
++  });
++
++  it('ignores events from other channels (AC-19)', () => {
++    const received: string[] = [];
++
++    renderHook(() => useChannelCallback('event-popper', (event) => received.push(event.type)), {
++      wrapper,
++    });
++
++    act(() => fake.simulateOpen());
++    act(() => fake.simulateChannelMessage('file-changes', 'file-changed'));
++    act(() => fake.simulateChannelMessage('event-popper', 'question-asked'));
++
++    expect(received).toEqual(['question-asked']);
++  });
++
++  it('uses stable ref pattern — no re-subscribe on callback change', () => {
++    const received: string[] = [];
++    let callbackVersion = 1;
++
++    const { rerender } = renderHook(
++      () =>
++        useChannelCallback('event-popper', (event) =>
++          received.push(`v${callbackVersion}:${event.type}`)
++        ),
++      { wrapper }
++    );
++
++    act(() => fake.simulateOpen());
++    act(() => fake.simulateChannelMessage('event-popper', 'msg1'));
++    expect(received).toEqual(['v1:msg1']);
++
++    // Change callback version and rerender
++    callbackVersion = 2;
++    rerender();
++
++    // New callback should fire with updated closure
++    act(() => fake.simulateChannelMessage('event-popper', 'msg2'));
++    expect(received).toEqual(['v1:msg1', 'v2:msg2']);
++  });
++
++  it('exposes isConnected from provider', () => {
++    const { result } = renderHook(() => useChannelCallback('event-popper', () => {}), { wrapper });
++
++    expect(result.current.isConnected).toBe(false);
++    act(() => fake.simulateOpen());
++    expect(result.current.isConnected).toBe(true);
++  });
++});
+
+diff --git a/apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx b/apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx
+index 971111c5..18cc5247 100644
+--- a/apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx
++++ b/apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx
+@@ -15,6 +15,7 @@ import { WorkspaceAgentChrome } from '../../../../src/components/agents/workspac
+ import { WorkspaceProvider } from '../../../../src/features/041-file-browser/hooks/use-workspace-context';
+ import { getContainer } from '../../../../src/lib/bootstrap-singleton';
+ import { SDKWorkspaceConnector } from '../../../../src/lib/sdk/sdk-workspace-connector';
++import { MultiplexedSSEProvider } from '../../../../src/lib/sse';
+ import { updateSDKMru, updateSDKSettings } from '../../../actions/sdk-settings-actions';
+ import { ActivityLogOverlayWrapper } from './activity-log-overlay-wrapper';
+ import { QuestionPopperOverlayWrapper } from './question-popper-overlay-wrapper';
+@@ -23,6 +24,12 @@ import { WorkspaceAttentionWrapper } from './workspace-attention-wrapper';
+ 
+ export const dynamic = 'force-dynamic';
+ 
++/** Static channel list for the multiplexed SSE provider.
++ * Defined outside the component to prevent re-renders from new array references.
++ * Phase 3+ will consume these channels via useChannelEvents/useChannelCallback.
++ */
++const WORKSPACE_SSE_CHANNELS = ['event-popper', 'file-changes', 'work-unit-state'] as const;
++
+ interface LayoutProps {
+   children: React.ReactNode;
+   params: Promise<{ slug: string }>;
+@@ -67,13 +74,15 @@ export default async function WorkspaceLayout({ children, params }: LayoutProps)
+       />
+       <WorkspaceAttentionWrapper>
+         <TerminalOverlayWrapper defaultSessionName={defaultBranch} defaultCwd={defaultWorktreePath}>
+-          <ActivityLogOverlayWrapper defaultWorktreePath={defaultWorktreePath}>
+-            <QuestionPopperOverlayWrapper>
+-              <WorkspaceAgentChrome slug={slug} workspacePath={ws?.path}>
+-                {children}
+-              </WorkspaceAgentChrome>
+-            </QuestionPopperOverlayWrapper>
+-          </ActivityLogOverlayWrapper>
++          <MultiplexedSSEProvider channels={[...WORKSPACE_SSE_CHANNELS]}>
++            <ActivityLogOverlayWrapper defaultWorktreePath={defaultWorktreePath}>
++              <QuestionPopperOverlayWrapper>
++                <WorkspaceAgentChrome slug={slug} workspacePath={ws?.path}>
++                  {children}
++                </WorkspaceAgentChrome>
++              </QuestionPopperOverlayWrapper>
++            </ActivityLogOverlayWrapper>
++          </MultiplexedSSEProvider>
+         </TerminalOverlayWrapper>
+       </WorkspaceAttentionWrapper>
+     </WorkspaceProvider>
+
+diff --git a/docs/domains/_platform/events/domain.md b/docs/domains/_platform/events/domain.md
+index 195e8459..ec5e89b7 100644
+--- a/docs/domains/_platform/events/domain.md
++++ b/docs/domains/_platform/events/domain.md
+@@ -35,6 +35,8 @@ Central event platform for the entire application. Owns the full pipeline from f
+ 
+ **Client-side event distribution:**
+ - Generic SSE hooks (`useSSE`, `useWorkspaceSSE`)
++- **Multiplexed SSE provider** (`MultiplexedSSEProvider`) — single EventSource per tab, demuxes by channel (Plan 072)
++- **Channel event hooks** (`useChannelEvents`, `useChannelCallback`) — per-channel subscription from multiplexed provider (Plan 072)
+ - File change event hub (`FileChangeHub`) — client-side pattern-based event dispatcher (Plan 045)
+ - File change provider (`FileChangeProvider`) — React context for hub lifecycle (Plan 045)
+ - File change subscription hook (`useFileChanges`) — pattern-based subscription for any component (Plan 045)
+@@ -46,6 +48,7 @@ Central event platform for the entire application. Owns the full pipeline from f
+ **Fakes for testing:**
+ - `FakeCentralEventNotifier`, `FakeSSEBroadcaster`, `FakeCentralWatcherService`
+ - `FakeFileChangeWatcherAdapter` (Plan 045)
++- `FakeMultiplexedSSE` (`createFakeMultiplexedSSEFactory`) — channel-aware EventSource simulation (Plan 072)
+ 
+ ### Does NOT Own
+ - **Business-domain watcher adapters** (e.g., `WorkflowWatcherAdapter`) — owned by their respective business domains
+@@ -72,6 +75,11 @@ Central event platform for the entire application. Owns the full pipeline from f
+ | `FileChangeProvider` | Component | BrowserClient, any worktree-scoped page | React context providing FileChangeHub to tree |
+ | `<Toaster />` | Component | Root layout (mounted once) | Global toast rendering portal |
+ | `toast()` | Function (sonner) | Any component/hook | `toast.success()`, `toast.error()`, etc. |
++| `/api/events/mux` | Route | Multiplexed SSE consumers | Multi-channel SSE endpoint — `?channels=a,b,c`, auth, 15s heartbeat, atomic cleanup (Plan 072) |
++| `MultiplexedSSEProvider` | Component | Workspace layout | React context — single EventSource per tab, demuxes by `msg.channel` to subscribers (Plan 072) |
++| `useChannelEvents` | Hook | ServerEventRoute, message accumulation consumers | `useChannelEvents(channel, {maxMessages?}) → {messages, isConnected, clearMessages}` (Plan 072) |
++| `useChannelCallback` | Hook | QuestionPopper, FileChange, notification-fetch consumers | `useChannelCallback(channel, callback) → {isConnected}` — fire per event, no accumulation (Plan 072) |
++| `MultiplexedSSEMessage` | Type | Provider, hooks, consumers | Wire format: `{channel: string, type: string, [key]: unknown}` (Plan 072) |
+ 
+ ## Composition (Internal)
+ 
+@@ -84,9 +92,13 @@ Central event platform for the entire application. Owns the full pipeline from f
+ | FileChangeWatcherAdapter | Filters source file events, batches with debounce | IWatcherAdapter (self-filter pattern) |
+ | FileChangeDomainEventAdapter | Transforms batched file events → SSE payload | DomainEventAdapter, ICentralEventNotifier |
+ | startCentralNotificationSystem | Bootstrap — resolves DI, wires adapters, starts watcher | DI container |
+-| SSE API route | HTTP endpoint for EventSource connections | SSEManager |
++| SSE API route (`[channel]`) | HTTP endpoint for single-channel EventSource connections | SSEManager |
++| SSE API route (`mux`) | Multiplexed HTTP endpoint — registers one controller on multiple channels | SSEManager (Plan 072) |
+ | useSSE hook | Client SSE connection management | EventSource API |
+ | useWorkspaceSSE hook | Workspace-scoped SSE subscription | useSSE |
++| MultiplexedSSEProvider | Single EventSource per tab, demux to channel subscribers | EventSource API, React context |
++| useChannelEvents hook | Accumulates channel messages in independent arrays | MultiplexedSSEProvider context |
++| useChannelCallback hook | Fire-and-forget per-event callback (stable ref) | MultiplexedSSEProvider context |
+ | FileChangeHub | Client-side pattern matcher + subscriber dispatch | — (standalone) |
+ | FileChangeProvider | React context, manages SSE connection → hub lifecycle | FileChangeHub, EventSource |
+ | useFileChanges hook | Pattern subscription with debounce | FileChangeHub (via context) |
+@@ -114,8 +126,15 @@ Primary: scattered across `packages/shared`, `packages/workflow`, `apps/web` (Pl
+ | `apps/web/src/features/019-agent-manager-refactor/sse-manager-broadcaster.ts` | SSEManagerBroadcaster | Adapter: SSEManager → ISSEBroadcaster |
+ | `apps/web/src/lib/sse-manager.ts` | SSEManager singleton | Core SSE connection manager |
+ | `apps/web/src/lib/schemas/sse-events.schema.ts` | SSE event Zod schemas | Validation |
+-| `apps/web/app/api/events/[channel]/route.ts` | SSE API route | EventSource endpoint |
++| `apps/web/app/api/events/[channel]/route.ts` | SSE API route | Single-channel EventSource endpoint |
++| `apps/web/app/api/events/mux/route.ts` | Multiplexed SSE route | Multi-channel EventSource endpoint (Plan 072) |
+ | `apps/web/src/hooks/useSSE.ts` | useSSE hook | Client SSE connection |
++| `apps/web/src/lib/sse/types.ts` | Multiplexed SSE types | MultiplexedSSEMessage, EventSourceFactory, MultiplexedSSEContextValue (Plan 072) |
++| `apps/web/src/lib/sse/multiplexed-sse-provider.tsx` | MultiplexedSSEProvider | Single EventSource, demux, reconnect (Plan 072) |
++| `apps/web/src/lib/sse/use-channel-events.ts` | useChannelEvents hook | Message accumulation per channel (Plan 072) |
++| `apps/web/src/lib/sse/use-channel-callback.ts` | useChannelCallback hook | Fire-and-forget callback per channel (Plan 072) |
++| `apps/web/src/lib/sse/index.ts` | Barrel export | Public API for sse/ module (Plan 072) |
++| `test/fakes/fake-multiplexed-sse.ts` | FakeMultiplexedSSE | Channel-aware EventSource simulation (Plan 072) |
+ | `apps/web/src/hooks/useWorkspaceSSE.ts` | useWorkspaceSSE hook | Workspace-scoped SSE |
+ | `apps/web/instrumentation.ts` | Next.js bootstrap hook | Starts notification system |
+ | `apps/web/src/components/ui/toaster.tsx` | Toaster wrapper | Plan 042 — theme-aware sonner wrapper |
+@@ -134,6 +153,18 @@ Primary: scattered across `packages/shared`, `packages/workflow`, `apps/web` (Pl
+ | `apps/web/src/features/045-live-file-events/file-change-provider.tsx` | FileChangeProvider | React context + SSE connection |
+ | `apps/web/src/features/045-live-file-events/use-file-changes.ts` | useFileChanges hook | Pattern subscription hook |
+ 
++## Concepts
++
++| Concept | Entry Point | What It Does |
++|---------|-------------|--------------|
++| Broadcast an Event | `notifier.emit(domain, eventType, data)` | Domain services emit events through the 3-layer pipeline: CentralEventNotifier → SSEManagerBroadcaster → SSEManager. Events reach all connected clients on that channel. |
++| Subscribe to a Channel | `new EventSource('/api/events/{channel}')` | Client opens a long-lived SSE connection to one channel. Messages include `{type, channel, ...data}`. |
++| Multiplexed SSE | `new EventSource('/api/events/mux?channels=a,b,c')` | Client opens ONE connection to receive events from multiple channels. Server registers the controller on all requested channels. Each message includes `channel` field for client-side demux. (Plan 072) |
++| Channel Subscription (Accumulation) | `useChannelEvents('event-popper')` | Hook subscribes to a channel via MultiplexedSSEProvider context. Returns `{messages, isConnected, clearMessages}`. Each hook gets its own independent array — compatible with index cursor patterns (ServerEventRoute). Supports `maxMessages` pruning. (Plan 072) |
++| Channel Subscription (Callback) | `useChannelCallback('event-popper', cb)` | Hook subscribes to a channel, fires callback per event. No accumulation. Stable ref pattern — callback can change without re-subscription. Ideal for notification-fetch consumers (QuestionPopper, FileChange). (Plan 072) |
++| File Change Fan-Out | `useFileChanges('src/**')` | FileChangeProvider receives SSE events → FileChangeHub dispatches to pattern-matched subscribers. Consumers get filtered changes without knowing about SSE. |
++| Toast Notification | `toast.success('Saved')` | Client-side only (sonner). Server returns results; client reads and toasts. Silent no-op in Server Components. |
++
+ ## Gotchas
+ 
+ - **toast() is client-only**: Calling `import { toast } from 'sonner'` in a Server Component or server action is a silent no-op — no error, no feedback. The pattern is: server returns result → client reads result → client calls toast().
+@@ -144,6 +175,7 @@ Primary: scattered across `packages/shared`, `packages/workflow`, `apps/web` (Pl
+ ## Dependencies
+ 
+ ### This Domain Depends On
++- `_platform/auth` — session check in SSE route handlers (auth() call)
+ - `_platform/sdk` — IUSDK for publishing toast commands to SDK surface
+ - Node.js `fs.watch` — native filesystem watching (built-in, replaces chokidar per Plan 060)
+ - `sonner` — toast UI (npm)
+@@ -174,3 +206,5 @@ Primary: scattered across `packages/shared`, `packages/workflow`, `apps/web` (Pl
+ | 067 Phase 1 | Added EventPopper: 'event-popper' to WorkspaceDomain const (SSE channel for question/alert lifecycle events) | 2026-03-07 |
+ | 050 Phase 6-7 | Added WorkflowWatcherAdapter + WorkflowDomainEventAdapter; removed WorkGraphWatcherAdapter + WorkGraphDomainEventAdapter; added Workflows channel; deprecated Workgraphs channel | 2026-02-27 |
+ | Plan 060 | Replaced ChokidarFileWatcherAdapter with NativeFileWatcherAdapter (Node.js fs.watch recursive). Eliminated FD exhaustion (12,700 → ~20 FDs). Removed chokidar dependency. | 2026-02-28 |
++| Plan 072 Phase 1 | SSE Multiplexing server foundation: added `channel` field to SSEManager.broadcast() payload, added `removeControllerFromAllChannels()` method, created `/api/events/mux` multiplexed endpoint (15s heartbeat, multi-channel registration, atomic cleanup). Extended ServerEvent type with optional `channel` field. | 2026-03-08 |
++| Plan 072 Phase 2 | SSE Multiplexing client infrastructure: created `MultiplexedSSEProvider` (single EventSource, channel demux, exponential+jitter backoff, error isolation), `useChannelEvents` (accumulation), `useChannelCallback` (fire-and-forget), `FakeMultiplexedSSE` test fake, barrel export. Mounted provider in workspace layout. 24 new tests. | 2026-03-08 |

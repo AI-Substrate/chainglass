@@ -90,6 +90,8 @@ export interface ExplorerPanelProps {
   onCodeSearchSelect?: (filePath: string, startLine: number) => void;
   /** Called when FlowSpace search query changes */
   onFlowspaceQueryChange?: (query: string, mode: 'grep' | 'semantic') => void;
+  /** Additional action buttons rendered after the terminal toggle (Plan 072 — slot for question popper indicator) */
+  rightActions?: React.ReactNode;
 }
 
 export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>(
@@ -125,6 +127,7 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
       codeSearchFolders,
       onCodeSearchSelect,
       onFlowspaceQueryChange,
+      rightActions,
     },
     ref
   ) {
@@ -387,7 +390,7 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
     return (
       <div
         data-explorer-bar
-        className="flex justify-center border-b bg-muted/30 shrink-0 px-4 py-1.5 transition-colors duration-500"
+        className="relative flex justify-center border-b bg-muted/30 shrink-0 px-4 py-1.5 transition-colors duration-500"
       >
         <div className="relative flex items-center gap-1.5 w-full max-w-2xl rounded-lg border bg-background px-3 py-1 shadow-sm">
           {processing ? (
@@ -502,6 +505,11 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
         >
           <TerminalSquare className="h-4 w-4" />
         </button>
+        {rightActions && (
+          <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center">
+            {rightActions}
+          </div>
+        )}
       </div>
     );
   }

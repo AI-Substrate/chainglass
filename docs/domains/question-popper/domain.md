@@ -92,7 +92,7 @@ First-class question-and-answer experience built on top of Event Popper infrastr
 | Domain | Contract | Why |
 |--------|----------|-----|
 | `_platform/external-events` | `EventPopperRequest`, `EventPopperResponse`, `generateEventId()` | Envelope format for disk persistence, ID generation |
-| `_platform/events` | `ICentralEventNotifier`, `WorkspaceDomain.EventPopper` | SSE emission on lifecycle events |
+| `_platform/events` | `ICentralEventNotifier`, `WorkspaceDomain.EventPopper`, `useChannelCallback` | SSE emission on lifecycle events; multiplexed channel subscription (Plan 072) |
 
 ### Domains That Depend On This
 
@@ -161,3 +161,4 @@ test/unit/question-popper/
 | 067 Phase 5 | UI layer: useQuestionPopper hook, indicator, overlay panel, question/alert cards, answer form (4 types), toast + desktop notifications, workspace layout mount | 2026-03-07 |
 | 067 Phase 6 | Chain resolution (bidirectional index), QuestionChainView (timeline), QuestionHistoryList (compact expandable rows), tabbed overlay panel, chain indicator on QuestionCard | 2026-03-08 |
 | 067 Phase 7 | CLAUDE.md prompt (AC-33), integration guide, TitleManager SDK, explorer bar flash SDK, live testing fixes (localhost guard, overlay positioning, auto-close) | 2026-03-08 |
+| 072 Phase 3 | Migrated QuestionPopperProvider from direct EventSource to `useChannelCallback('event-popper')` via multiplexed SSE. Removed ~80 lines of SSE lifecycle boilerplate. | 2026-03-08 |

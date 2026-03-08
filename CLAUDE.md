@@ -258,3 +258,20 @@ When you need to ask the user a question or send them a notification, use the Ev
 - **Send an alert**: `cg alert send --text "Your notification"` — fire-and-forget, returns immediately
 - **Check answer**: `cg question get <questionId>` — retrieve answer for a previously asked question
 - Run `cg question --help` and `cg alert --help` for full usage details, examples, and all available options.
+
+### SSE Multiplexing (Plan 072)
+
+Migrated workspace channel consumers share a **single multiplexed EventSource** connection per browser tab via `/api/events/mux`. Do NOT use the legacy `useSSE` hook (deleted) or create new direct EventSource connections.
+
+> **Note**: Some agent hooks (`useAgentManager`, `useAgentInstance`) and the unused `useWorkspaceSSE`/`useServerSession` still use direct EventSource. These are outside Plan 072 scope.
+
+**Two hooks** (import from `@/lib/sse`):
+- **`useChannelEvents(channel, { maxMessages? })`** — Accumulates messages into an array. Use for index-cursor patterns or batch processing. Returns `{ messages, isConnected, clearMessages }`.
+- **`useChannelCallback(channel, callback)`** — Fire-and-forget per-message callback. Use for notification→fetch patterns. Returns `{ isConnected }`.
+
+**Adding a new SSE channel**:
+1. Add channel name to `WORKSPACE_SSE_CHANNELS` in `apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx`
+2. Use `useChannelEvents` or `useChannelCallback` in your component
+3. Server-side: `sseManager.broadcast(channelName, data)` — the mux endpoint delivers it
+
+See `docs/how/sse-integration.md` for full guide.

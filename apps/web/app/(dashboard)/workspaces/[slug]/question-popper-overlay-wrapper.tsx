@@ -150,10 +150,7 @@ export function QuestionPopperOverlayWrapper({ children }: QuestionPopperOverlay
     <QuestionPopperProvider>
       {children}
       <QuestionPopperNotificationBridge />
-      {/* Indicator — fixed position top-right */}
-      <div className="fixed right-4 top-4 z-50">
-        <QuestionPopperIndicator />
-      </div>
+      {/* Indicator — rendered via ExplorerPanel rightActions slot (Plan 072 Phase 3) */}
       {/* Panel — dynamic import with error boundary */}
       <QuestionPopperErrorBoundary>
         <QuestionPopperOverlayPanel />

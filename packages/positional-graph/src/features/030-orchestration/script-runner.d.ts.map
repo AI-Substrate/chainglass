@@ -1,0 +1,1 @@
+{"version":3,"file":"script-runner.d.ts","sourceRoot":"","sources":["script-runner.ts"],"names":[],"mappings":"AAAA;;;;;;;;;GASG;AAGH,OAAO,KAAK,EAAE,aAAa,EAAE,gBAAgB,EAAE,eAAe,EAAE,MAAM,0BAA0B,CAAC;AAEjG,qBAAa,YAAa,YAAW,aAAa;IAChD,OAAO,CAAC,YAAY,CAAC,CAAe;IAE9B,GAAG,CAAC,OAAO,EAAE,gBAAgB,GAAG,OAAO,CAAC,eAAe,CAAC;IAmD9D,IAAI,IAAI,IAAI;CASb"}
