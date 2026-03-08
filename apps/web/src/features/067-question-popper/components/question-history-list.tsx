@@ -191,8 +191,6 @@ function HistoryItemDetail({
   getChain: (questionId: string) => Promise<QuestionOut[]>;
 }) {
   if (isQuestionItem(item)) {
-    const hasChain = !!item.question.previousQuestionId;
-
     return (
       <div className="mb-2 ml-4 space-y-2 rounded-md border border-neutral-100 bg-white p-3 text-xs dark:border-neutral-700 dark:bg-neutral-850">
         {/* Full question text */}
@@ -209,8 +207,8 @@ function HistoryItemDetail({
           </div>
         )}
 
-        {/* Chain view (AC-27: including conversation chain) */}
-        {hasChain && <QuestionChainView questionId={item.questionId} getChain={getChain} />}
+        {/* Chain view — always rendered; returns null for standalone questions (FT-001) */}
+        <QuestionChainView questionId={item.questionId} getChain={getChain} />
 
         {/* Answer form or resolved status */}
         {item.status === 'pending' ? (

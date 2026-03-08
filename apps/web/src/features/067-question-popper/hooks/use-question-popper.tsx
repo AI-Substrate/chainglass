@@ -120,7 +120,7 @@ export function QuestionPopperProvider({ children }: { children: ReactNode }) {
 
   const fetchItems = useCallback(async () => {
     try {
-      const res = await fetch('/api/event-popper/list');
+      const res = await fetch('/api/event-popper/list?limit=all');
       if (!res.ok) {
         throw new Error(`Failed to fetch items: ${res.status}`);
       }

@@ -50,6 +50,9 @@ First-class question-and-answer experience built on top of Event Popper infrastr
 | `QuestionCard` | Question renderer with markdown description | `react-markdown`, `remark-gfm` |
 | `AlertCard` | Alert renderer with "Mark Read" button | `useQuestionPopper` |
 | `QuestionPopperOverlayWrapper` | Provider + error boundary + indicator + panel + notifications | Dynamic import |
+| `chain-resolver.ts` | Resolve question threads and fetch missing ancestors | `QuestionOut`, Fetch API |
+| `QuestionChainView` | Render ordered conversation timelines | `useQuestionPopper().getChain` |
+| `QuestionHistoryList` | Render compact expandable history with thread detail | `QuestionChainView`, `AnswerForm` |
 
 ## Concepts
 
@@ -61,6 +64,8 @@ First-class question-and-answer experience built on top of Event Popper infrastr
 | Track outstanding items | `IQuestionPopperService.getOutstandingCount()` | In-memory counter of unanswered questions + unread alerts. Rehydrated from disk on construction. |
 | View and respond to questions | `useQuestionPopper()` + `QuestionPopperOverlayPanel` | SSE-driven overlay panel showing outstanding questions with type-appropriate answer forms. Mutual exclusion with other overlays. |
 | Receive notifications | `desktop-notifications.ts` | Toast (sonner) + desktop (Notifications API) on new questions/alerts. Permission requested lazily. |
+| Browse conversation chains | `resolveChain()` + `QuestionChainView` | Bidirectional chain resolution (DYK-01) with vertical timeline rendering. Cached in hook ref (DYK-04). |
+| Browse history | `QuestionHistoryList` | Compact scannable rows with expand/collapse. Tabbed overlay with smart default (DYK-03). |
 
 ## Contracts
 

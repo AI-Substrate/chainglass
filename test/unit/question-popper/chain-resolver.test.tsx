@@ -8,7 +8,7 @@
  */
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import type { QuestionOut } from '@chainglass/shared/question-popper';
 
@@ -156,10 +156,14 @@ describe('resolveChain', () => {
     const missingA = makeQ('a');
     const items = [makeQ('b', 'a')];
 
-    const fetchFn = vi.fn().mockResolvedValue(missingA);
+    const fetchCalls: string[] = [];
+    const fetchFn = async (id: string) => {
+      fetchCalls.push(id);
+      return id === 'a' ? missingA : null;
+    };
     const chain = await resolveChain('b', items, fetchFn);
 
-    expect(fetchFn).toHaveBeenCalledWith('a');
+    expect(fetchCalls).toEqual(['a']);
     expect(chain.map((q) => q.questionId)).toEqual(['a', 'b']);
   });
 

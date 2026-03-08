@@ -95,6 +95,8 @@
 | `apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx` | `question-popper` | internal |
 | `apps/web/src/features/067-question-popper/lib/desktop-notifications.ts` | `question-popper` | internal |
 | `test/unit/question-popper/ui-components.test.tsx` | `question-popper` | verification |
+| `apps/web/src/features/067-question-popper/lib/chain-resolver.ts` | `question-popper` | internal |
+| `test/unit/question-popper/chain-resolver.test.tsx` | `question-popper` | verification |
 | `docs/domains/_platform/external-events/domain.md` | `_platform/external-events` | contract |
 | `docs/domains/question-popper/domain.md` | `question-popper` | contract |
 | `test/contracts/question-popper.contract.ts` | `question-popper` | verification |
