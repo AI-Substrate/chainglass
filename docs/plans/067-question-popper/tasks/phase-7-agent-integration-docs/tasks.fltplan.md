@@ -3,7 +3,7 @@
 **Plan**: [plan.md](../../plan.md)
 **Phase**: Phase 7: Agent Integration + Domain Documentation
 **Generated**: 2026-03-08
-**Status**: Ready for takeoff
+**Status**: Landed
 
 ---
 
@@ -50,9 +50,7 @@ stateDiagram-v2
     S2 --> S3
     S3 --> [*]
 
-    class S1 done
-    class S2 active
-    class S3 pending
+    class S1,S2,S3 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -62,14 +60,14 @@ stateDiagram-v2
 ## Stages
 
 - [x] **Stage 1: Agent Prompt** — CLAUDE.md minimal prompt fragment (AC-33)
-- [~] **Stage 2: Documentation** — Integration guide (`docs/how/question-popper.md`)
-- [ ] **Stage 3: SDK + Finalize** — Keyboard shortcut, domain doc verification, Phase 7 history entries
+- [x] **Stage 2: Documentation** — Integration guide (`docs/how/question-popper.md`)
+- [x] **Stage 3: SDK + Finalize** — TitleManager SDK, explorer bar flash, domain doc finalization
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] AC-33: CLAUDE.md tells agents about `cg question` and `cg alert`, directs to `--help`
+- [x] AC-33: CLAUDE.md tells agents about `cg question` and `cg alert`, directs to `--help`
 
 ## Goals & Non-Goals
 
@@ -89,6 +87,6 @@ stateDiagram-v2
 ## Checklist
 
 - [x] T001: CLAUDE.md prompt fragment (AC-33)
-- [~] T002: Integration guide (docs/how/question-popper.md)
-- [ ] T003: Finalize domain docs (verify + history entries)
-- [ ] T004: SDK keyboard shortcut (question-popper.toggleOverlay)
+- [x] T002: Integration guide (docs/how/question-popper.md)
+- [x] T003: Finalize domain docs (verify + history entries)
+- [x] T004: SDK keyboard shortcut — SKIPPED (YAGNI), replaced with TitleManager SDK + explorer bar flash SDK

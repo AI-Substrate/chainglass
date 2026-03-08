@@ -98,7 +98,7 @@ First-class question-and-answer experience built on top of Event Popper infrastr
 
 | Domain | Contract Consumed | Why |
 |--------|------------------|-----|
-| (none yet) | — | API routes and CLI will consume in Phase 3-4 |
+| (none yet) | — | — |
 
 ## Source Location
 
@@ -114,18 +114,37 @@ packages/shared/src/interfaces/
 packages/shared/src/fakes/
   └── fake-question-popper.ts       # FakeQuestionPopperService
 
+apps/cli/src/commands/
+  ├── question.command.ts           # cg question ask|get|answer|list
+  ├── alert.command.ts              # cg alert send
+  └── event-popper-client.ts        # IEventPopperClient + FakeEventPopperClient
+
+apps/web/app/api/event-popper/
+  ├── ask-question/route.ts         # POST — CLI-only
+  ├── send-alert/route.ts           # POST — CLI-only
+  ├── question/[id]/route.ts        # GET — shared
+  ├── answer-question/[id]/route.ts # POST — shared
+  ├── dismiss/[id]/route.ts         # POST — shared
+  ├── clarify/[id]/route.ts         # POST — shared
+  ├── acknowledge/[id]/route.ts     # POST — shared
+  └── list/route.ts                 # GET — shared
+
 apps/web/src/features/067-question-popper/
   └── lib/
       ├── question-popper.service.ts  # QuestionPopperService (real)
-      └── desktop-notifications.ts    # Toast + desktop notification utilities
+      ├── route-helpers.ts            # Handler functions, schemas, mappers
+      ├── desktop-notifications.ts    # Toast + desktop notification utilities
+      └── chain-resolver.ts           # Bidirectional chain resolution
   └── hooks/
       └── use-question-popper.tsx     # QuestionPopperProvider + useQuestionPopper hook
   └── components/
       ├── answer-form.tsx             # Type-appropriate answer form (4 variants)
-      ├── question-card.tsx           # Question renderer with markdown description
+      ├── question-card.tsx           # Question renderer with chain indicator
       ├── alert-card.tsx              # Alert renderer with "Mark Read"
       ├── question-popper-indicator.tsx  # Green glow indicator with badge
-      └── question-popper-overlay-panel.tsx  # Fixed-position overlay panel
+      ├── question-popper-overlay-panel.tsx  # Centered modal overlay with tabs
+      ├── question-chain-view.tsx     # Conversation timeline
+      └── question-history-list.tsx   # Compact expandable history
 
 apps/web/app/(dashboard)/workspaces/[slug]/
   └── question-popper-overlay-wrapper.tsx  # Provider + error boundary + dynamic import
@@ -141,3 +160,4 @@ test/unit/question-popper/
 | 067 Phase 2 | Domain created: payload schemas, composed types, service interface, fake, real service, contract tests, DI registration, barrel exports | 2026-03-07 |
 | 067 Phase 5 | UI layer: useQuestionPopper hook, indicator, overlay panel, question/alert cards, answer form (4 types), toast + desktop notifications, workspace layout mount | 2026-03-07 |
 | 067 Phase 6 | Chain resolution (bidirectional index), QuestionChainView (timeline), QuestionHistoryList (compact expandable rows), tabbed overlay panel, chain indicator on QuestionCard | 2026-03-08 |
+| 067 Phase 7 | CLAUDE.md prompt (AC-33), integration guide, TitleManager SDK, explorer bar flash SDK, live testing fixes (localhost guard, overlay positioning, auto-close) | 2026-03-08 |

@@ -77,6 +77,12 @@ export function clearTitlePrefix(slot: string): void {
   }
 }
 
+/** Reset all state. For testing only. */
+export function resetTitleManager(): void {
+  state.base = '';
+  state.prefixes.clear();
+}
+
 // ── Hook ──
 
 export interface TitleManagerActions {
