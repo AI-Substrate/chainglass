@@ -216,3 +216,4 @@ Primary: `packages/workflow/src/` + `apps/web/app/(dashboard)/workspaces/` + `ap
 | Plan 069 Phase 1 | Added IGitWorktreeManager interface, preview/create types on IWorkspaceService, FakeGitWorktreeManager, contract test scaffold, DI token | 2026-03-07 |
 | Plan 069 Phase 2 | Implemented naming allocator, GitWorktreeManagerAdapter, WorktreeBootstrapRunner, full create-worktree orchestration in WorkspaceService, DI wiring in all containers | 2026-03-07 |
 | Plan 069 Phase 3 | Added full-page new-worktree route, create-worktree page-state/server-action adapter, and client live-preview form surface. Exported pure naming functions for client-side use. | 2026-03-08 |
+| Plan 069 Phase 4 | Added sidebar plus button for worktree creation, bootstrap hook authoring guide, web-UI route docs, README pointer. | 2026-03-09 |

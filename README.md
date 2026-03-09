@@ -257,6 +257,7 @@ cg agent run -t claude-code -p "Say hello" --stream
 - [Workflows Guide](docs/how/workflows/1-overview.md) - Multi-phase workflow execution
 - [Workflow Management](docs/how/workflows/5-workflow-management.md) - Template versioning and checkpoint workflow
 - [Workspaces Guide](docs/how/workspaces/1-overview.md) - Multi-workspace management (local dev tool)
+- [Worktree Creation](docs/how/workspaces/3-web-ui.md#creating-a-new-worktree) - In-product worktree creation and bootstrap hook
 - [Configuration Guide](docs/how/configuration/1-overview.md) - Configuration system
 - [Architecture Rules](docs/rules/architecture.md) - Clean architecture patterns and guidelines
 - [Authentication Setup](docs/how/auth/github-oauth-setup.md) - GitHub OAuth configuration
