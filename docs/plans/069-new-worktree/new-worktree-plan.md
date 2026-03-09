@@ -3,7 +3,7 @@
 **Plan Version**: 1.0.0
 **Created**: 2026-03-07
 **Spec**: [docs/plans/069-new-worktree/new-worktree-spec.md](./new-worktree-spec.md)
-**Status**: DRAFT
+**Status**: COMPLETE
 
 > **Quick Nav**
 > [Phase 1: Establish Workspace Contracts](#phase-1-establish-workspace-contracts)

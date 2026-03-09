@@ -3,7 +3,7 @@
 **Plan**: [new-worktree-plan.md](../../new-worktree-plan.md)
 **Phase**: Phase 4: Compose Navigation and Landing
 **Generated**: 2026-03-09
-**Status**: Ready
+**Status**: Complete
 
 ---
 
@@ -68,11 +68,11 @@
 
 | Status | ID | Task | Domain | Path(s) | Done When | Notes |
 |--------|-----|------|--------|---------|-----------|-------|
-| [ ] | T001 | Add plus button next to "Worktrees" in expanded sidebar only (no collapsed-state icon per D2) | workspace | `apps/web/src/components/dashboard-sidebar.tsx` | Plus icon button visible next to "Worktrees ▾" label in expanded sidebar, navigates to `/workspaces/[slug]/new-worktree` via `Link`. No special disabled state when on the page (per D1). No collapsed-sidebar icon (per D2). | Follow existing `Button variant="ghost" size="icon"` pattern with `h-7 w-7`. Use `Plus` from lucide-react. |
-| [ ] | T002 | Verify browser handoff — confirm `?worktree=` param lands correctly after creation | file-browser | `apps/web/app/(dashboard)/workspaces/[slug]/browser/page.tsx` | Verify (read-only): the browser route resolves the `worktree` search param, falls back to main path, and passes the correct path to file operations. No code changes expected — document verification in execution log. | Research confirmed browser page already handles `?worktree=` at line 48-50. |
-| [ ] | T003 | Update workspace web-ui docs with create-worktree flow AND detailed bootstrap hook authoring guide. Update README. | workspace | `docs/how/workspaces/3-web-ui.md`, `README.md` | `3-web-ui.md` gains: (a) "Creating a New Worktree" section covering sidebar entry point, full-page flow, naming convention, and main-only base branch. (b) "Bootstrap Hook" section covering hook file location, all env vars, 60s timeout, failure behavior, and a concrete example script (e.g., `pnpm install && cp .env.example .env`). `README.md` gains a pointer under existing Workspace Commands. | Per D3: bootstrap hook docs are the most valuable deliverable. Per hybrid documentation decision. |
-| [ ] | T004 | Update workspace domain docs with Phase 4 history row | workspace | `docs/domains/workspace/domain.md` | History table gains Plan 069 Phase 4 row. Verify Composition and C4 are current. | Keep in sync per domain rules. |
-| [ ] | T005 | Run final verification: lint, typecheck, tests, build, commit and push | workspace | — | `just lint`, `just typecheck`, `just test`, and `just build` all pass. All 069 artifacts committed. | Per acceptance criteria and project rules. |
+| [x] | T001 | Add plus button next to "Worktrees" in expanded sidebar only (no collapsed-state icon per D2) | workspace | `apps/web/src/components/dashboard-sidebar.tsx` | Plus icon button visible next to "Worktrees ▾" label in expanded sidebar, navigates to `/workspaces/[slug]/new-worktree` via `Link`. No special disabled state when on the page (per D1). No collapsed-sidebar icon (per D2). | Follow existing `Button variant="ghost" size="icon"` pattern with `h-7 w-7`. Use `Plus` from lucide-react. |
+| [x] | T002 | Verify browser handoff — confirm `?worktree=` param lands correctly after creation | file-browser | `apps/web/app/(dashboard)/workspaces/[slug]/browser/page.tsx` | Verify (read-only): the browser route resolves the `worktree` search param, falls back to main path, and passes the correct path to file operations. No code changes expected — document verification in execution log. | Research confirmed browser page already handles `?worktree=` at line 48-50. |
+| [x] | T003 | Update workspace web-ui docs with create-worktree flow AND detailed bootstrap hook authoring guide. Update README. | workspace | `docs/how/workspaces/3-web-ui.md`, `README.md` | `3-web-ui.md` gains: (a) "Creating a New Worktree" section covering sidebar entry point, full-page flow, naming convention, and main-only base branch. (b) "Bootstrap Hook" section covering hook file location, all env vars, 60s timeout, failure behavior, and a concrete example script (e.g., `pnpm install && cp .env.example .env`). `README.md` gains a pointer under existing Workspace Commands. | Per D3: bootstrap hook docs are the most valuable deliverable. Per hybrid documentation decision. |
+| [x] | T004 | Update workspace domain docs with Phase 4 history row | workspace | `docs/domains/workspace/domain.md` | History table gains Plan 069 Phase 4 row. Verify Composition and C4 are current. | Keep in sync per domain rules. |
+| [x] | T005 | Run final verification: lint, typecheck, tests, build, commit and push | workspace | — | `just lint`, `just typecheck`, `just test`, and `just build` all pass. All 069 artifacts committed. | Per acceptance criteria and project rules. |
 
 ---
 
