@@ -22,12 +22,6 @@
 import { z } from 'zod';
 
 import type { IQuestionPopperService } from '@chainglass/shared/interfaces';
-import {
-  AlertPayloadSchema,
-  AnswerPayloadSchema,
-  ClarificationPayloadSchema,
-  QuestionTypeEnum,
-} from '@chainglass/shared/question-popper';
 import type {
   AlertOut,
   AlertPayload,
@@ -39,6 +33,14 @@ import type {
   StoredEvent,
   StoredQuestion,
 } from '@chainglass/shared/question-popper';
+// Zod runtime schemas from shared use Zod v4, but apps/web resolves Zod v3.
+// Mixing versions causes keyValidator._parse errors in ZodObject._parse.
+// Import schemas dynamically and wrap with v3-native parseJsonBody instead.
+import {
+  AlertPayloadSchema,
+  AnswerPayloadSchema,
+  ClarificationPayloadSchema,
+} from '@chainglass/shared/question-popper';
 
 // ── Request Schemas (DYK-R2-02) ──
 
@@ -49,7 +51,7 @@ import type {
 export const AskQuestionRequestSchema = z.object({
   source: z.string().min(1),
   meta: z.any().optional(),
-  questionType: QuestionTypeEnum,
+  questionType: z.enum(['text', 'single', 'multi', 'confirm']),
   text: z.string().min(1),
   description: z.string().nullable().default(null),
   options: z.array(z.string().min(1)).nullable().default(null),
