@@ -1,0 +1,1740 @@
+diff --git a/apps/web/src/features/067-question-popper/components/answer-form.tsx b/apps/web/src/features/067-question-popper/components/answer-form.tsx
+index 5c4362d..4c5840f 100644
+--- a/apps/web/src/features/067-question-popper/components/answer-form.tsx
++++ b/apps/web/src/features/067-question-popper/components/answer-form.tsx
+@@ -242,7 +242,11 @@ export function AnswerForm({ question, onAnswer, onDismiss, onClarify }: AnswerF
+       <textarea
+         value={freeformText}
+         onChange={(e) => setFreeformText(e.target.value)}
+-        placeholder={questionType === 'text' ? 'Additional context (optional)...' : 'Additional context (optional)...'}
++        placeholder={
++          questionType === 'text'
++            ? 'Additional context (optional)...'
++            : 'Additional context (optional)...'
++        }
+         rows={2}
+         className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100"
+         disabled={isSubmitting}
+diff --git a/apps/web/src/features/067-question-popper/components/question-card.tsx b/apps/web/src/features/067-question-popper/components/question-card.tsx
+index 9ddd822..898b5e6 100644
+--- a/apps/web/src/features/067-question-popper/components/question-card.tsx
++++ b/apps/web/src/features/067-question-popper/components/question-card.tsx
+@@ -1,23 +1,29 @@
+ 'use client';
+ 
+ /**
+- * Plan 067 Phase 5: Question Popper — Question Card
++ * Plan 067 Phase 5+6: Question Popper — Question Card
+  *
+  * Renders a question with:
+  * - Question text (prominent)
+  * - Scrollable markdown description (react-markdown + remark-gfm)
+  * - Tmux session/window badge (from meta.tmux)
+  * - Source badge, time-ago display, status badge
++ * - Chain indicator + "View Thread" for linked questions (Phase 6, AC-24)
+  * - AnswerForm for pending questions
+  *
+  * AC-20: Question renders text + markdown description + tmux badge
++ * AC-24: Chain rendering as conversation thread
+  */
+ 
++import { useState } from 'react';
+ import Markdown from 'react-markdown';
+ import remarkGfm from 'remark-gfm';
+ 
+ import type { AnswerPayload, QuestionOut } from '@chainglass/shared/question-popper';
++import type { EventPopperItem } from '../hooks/use-question-popper';
++import { isPartOfChain } from '../lib/chain-resolver';
+ import { AnswerForm } from './answer-form';
++import { QuestionChainView } from './question-chain-view';
+ 
+ // ── Time-ago utility (no date-fns in project) ──
+ 
+@@ -48,20 +54,43 @@ interface QuestionCardProps {
+   onAnswer: (id: string, answer: AnswerPayload) => Promise<void>;
+   onDismiss: (id: string) => Promise<void>;
+   onClarify: (id: string, text: string) => Promise<void>;
++  /** Chain resolution function from hook (DYK-04: cached) */
++  getChain?: (id: string) => Promise<QuestionOut[]>;
++  /** All items for chain index building */
++  allItems?: EventPopperItem[];
+ }
+ 
+-export function QuestionCard({ question, onAnswer, onDismiss, onClarify }: QuestionCardProps) {
++export function QuestionCard({
++  question,
++  onAnswer,
++  onDismiss,
++  onClarify,
++  getChain,
++  allItems,
++}: QuestionCardProps) {
++  const [showChain, setShowChain] = useState(false);
++
+   const tmux = question.meta?.tmux as
+     | { session?: string; window?: string; pane?: string }
+     | undefined;
+ 
++  // Chain detection (DYK-01: bidirectional — check if part of any chain)
++  const questionItems = (allItems ?? []).filter((i): i is QuestionOut => 'questionId' in i);
++  const hasChain = isPartOfChain(question.questionId, questionItems);
++  const isFollowUp = !!question.question.previousQuestionId;
++
+   return (
+     <div className="space-y-3 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-700 dark:bg-neutral-850">
+-      {/* Header: source + tmux + time + status */}
++      {/* Header: source + tmux + chain + time + status */}
+       <div className="flex flex-wrap items-center gap-2 text-xs">
+         <span className="rounded-full bg-blue-100 px-2 py-0.5 font-medium text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+           {question.source}
+         </span>
++        {isFollowUp && (
++          <span className="rounded-full bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
++            ↩ follow-up
++          </span>
++        )}
+         {tmux?.session && (
+           <span className="rounded-full bg-neutral-100 px-2 py-0.5 font-mono text-neutral-600 dark:bg-neutral-700 dark:text-neutral-400">
+             tmux:{tmux.session}
+@@ -86,6 +115,23 @@ export function QuestionCard({ question, onAnswer, onDismiss, onClarify }: Quest
+         </p>
+       </div>
+ 
++      {/* Chain indicator + View Thread (AC-24) */}
++      {hasChain && getChain && (
++        <button
++          type="button"
++          onClick={() => setShowChain(!showChain)}
++          className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
++        >
++          <span>{showChain ? '▼' : '▶'}</span>
++          <span>{showChain ? 'Hide Thread' : 'View Thread'}</span>
++        </button>
++      )}
++
++      {/* Chain view (expanded) */}
++      {showChain && getChain && (
++        <QuestionChainView questionId={question.questionId} getChain={getChain} />
++      )}
++
+       {/* Markdown description (scrollable) */}
+       {question.question.description && (
+         <div className="max-h-48 overflow-y-auto rounded-md border border-neutral-100 bg-neutral-50 p-3 text-sm dark:border-neutral-700 dark:bg-neutral-800">
+diff --git a/apps/web/src/features/067-question-popper/components/question-chain-view.tsx b/apps/web/src/features/067-question-popper/components/question-chain-view.tsx
+new file mode 100644
+index 0000000..d660c2e
+--- /dev/null
++++ b/apps/web/src/features/067-question-popper/components/question-chain-view.tsx
+@@ -0,0 +1,163 @@
++'use client';
++
++/**
++ * Plan 067 Phase 6: Question Popper — Chain View
++ *
++ * Renders a conversation chain as a vertical timeline of turns.
++ * Each turn shows question text, answer (if resolved), status, time-ago.
++ * Current question is highlighted. Loading state while resolving (DYK-05).
++ *
++ * AC-24: Chain renders as conversation thread with sequential turns.
++ * DYK-02: Purpose-built UI, not QuestionCard reuse.
++ */
++
++import { useCallback, useEffect, useState } from 'react';
++import Markdown from 'react-markdown';
++import remarkGfm from 'remark-gfm';
++
++import type { QuestionOut } from '@chainglass/shared/question-popper';
++
++// ── Time-ago (shared pattern from question-card) ──
++
++function timeAgo(isoDate: string): string {
++  const delta = Date.now() - new Date(isoDate).getTime();
++  if (delta < 0) return 'just now';
++  const seconds = Math.floor(delta / 1000);
++  if (seconds < 60) return `${seconds}s ago`;
++  const minutes = Math.floor(seconds / 60);
++  if (minutes < 60) return `${minutes}m ago`;
++  const hours = Math.floor(minutes / 60);
++  if (hours < 24) return `${hours}h ago`;
++  const days = Math.floor(hours / 24);
++  return `${days}d ago`;
++}
++
++const STATUS_COLORS: Record<string, string> = {
++  pending: 'bg-amber-400',
++  answered: 'bg-green-400',
++  'needs-clarification': 'bg-purple-400',
++  dismissed: 'bg-neutral-400',
++};
++
++interface QuestionChainViewProps {
++  questionId: string;
++  getChain: (id: string) => Promise<QuestionOut[]>;
++}
++
++export function QuestionChainView({ questionId, getChain }: QuestionChainViewProps) {
++  const [chain, setChain] = useState<QuestionOut[] | null>(null);
++  const [isLoading, setIsLoading] = useState(true);
++
++  const loadChain = useCallback(async () => {
++    setIsLoading(true);
++    try {
++      const result = await getChain(questionId);
++      setChain(result);
++    } catch {
++      setChain(null);
++    } finally {
++      setIsLoading(false);
++    }
++  }, [questionId, getChain]);
++
++  useEffect(() => {
++    loadChain();
++  }, [loadChain]);
++
++  if (isLoading) {
++    return (
++      <div className="flex items-center gap-2 py-3 text-xs text-neutral-400">
++        <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-neutral-300 border-t-blue-500" />
++        Loading conversation...
++      </div>
++    );
++  }
++
++  if (!chain || chain.length <= 1) {
++    return null; // Single question or failed — nothing to show
++  }
++
++  return (
++    <div className="space-y-0 border-l-2 border-blue-200 pl-3 dark:border-blue-800">
++      {chain.map((turn, i) => {
++        const isCurrent = turn.questionId === questionId;
++        const isLast = i === chain.length - 1;
++
++        return (
++          <div
++            key={turn.questionId}
++            className={`relative pb-3 ${isCurrent ? 'opacity-100' : 'opacity-70'}`}
++          >
++            {/* Timeline dot */}
++            <div
++              className={`absolute -left-[calc(0.75rem+5px)] top-1 h-2.5 w-2.5 rounded-full ${STATUS_COLORS[turn.status] ?? 'bg-neutral-400'} ${isCurrent ? 'ring-2 ring-blue-400 ring-offset-1 dark:ring-offset-neutral-900' : ''}`}
++            />
++
++            {/* Turn content */}
++            <div
++              className={`rounded-md p-2 text-xs ${isCurrent ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
++            >
++              {/* Header */}
++              <div className="flex items-center gap-1.5 text-neutral-500 dark:text-neutral-400">
++                <span className="font-medium">{turn.source}</span>
++                <span>·</span>
++                <span>{timeAgo(turn.createdAt)}</span>
++                <span
++                  className={`ml-auto rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
++                    turn.status === 'pending'
++                      ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
++                      : turn.status === 'answered'
++                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
++                        : 'bg-neutral-100 text-neutral-600 dark:bg-neutral-700 dark:text-neutral-400'
++                  }`}
++                >
++                  {turn.status}
++                </span>
++              </div>
++
++              {/* Question text */}
++              <p
++                className={`mt-1 ${isCurrent ? 'font-medium text-neutral-900 dark:text-neutral-100' : 'text-neutral-700 dark:text-neutral-300'}`}
++              >
++                {turn.question.text}
++              </p>
++
++              {/* Description (collapsed for non-current turns) */}
++              {isCurrent && turn.question.description && (
++                <div className="mt-1.5 max-h-24 overflow-y-auto rounded border border-neutral-100 bg-white p-2 dark:border-neutral-700 dark:bg-neutral-800">
++                  <div className="prose prose-xs prose-neutral max-w-none dark:prose-invert">
++                    <Markdown remarkPlugins={[remarkGfm]}>{turn.question.description}</Markdown>
++                  </div>
++                </div>
++              )}
++
++              {/* Answer (if resolved) */}
++              {turn.answer && (
++                <div className="mt-1.5 rounded bg-green-50 px-2 py-1 text-green-800 dark:bg-green-900/20 dark:text-green-400">
++                  Answer: <code className="text-[10px]">{JSON.stringify(turn.answer.answer)}</code>
++                  {turn.answer.text && (
++                    <span className="ml-1 text-neutral-500">— {turn.answer.text}</span>
++                  )}
++                </div>
++              )}
++
++              {/* Clarification */}
++              {turn.clarification && (
++                <div className="mt-1.5 rounded bg-purple-50 px-2 py-1 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400">
++                  Clarification needed: {turn.clarification.text}
++                </div>
++              )}
++            </div>
++
++            {/* Connector arrow (not on last item) */}
++            {!isLast && (
++              <div className="ml-0.5 mt-0 text-[10px] text-neutral-300 dark:text-neutral-600">
++                ↓
++              </div>
++            )}
++          </div>
++        );
++      })}
++    </div>
++  );
++}
+diff --git a/apps/web/src/features/067-question-popper/components/question-history-list.tsx b/apps/web/src/features/067-question-popper/components/question-history-list.tsx
+new file mode 100644
+index 0000000..61c3fdd
+--- /dev/null
++++ b/apps/web/src/features/067-question-popper/components/question-history-list.tsx
+@@ -0,0 +1,273 @@
++'use client';
++
++/**
++ * Plan 067 Phase 6: Question Popper — History List
++ *
++ * Compact, scannable list of all past questions and alerts.
++ * Each item is a one-line row that expands on click to show full detail.
++ *
++ * DYK-02: Purpose-built compact rows, not QuestionCard reuse.
++ * AC-26: All past items, sorted newest-first, source/text/type/status/age.
++ * AC-27: Click expands to show full detail including conversation chain.
++ */
++
++import { useCallback, useState } from 'react';
++import Markdown from 'react-markdown';
++import remarkGfm from 'remark-gfm';
++
++import type { AlertOut, AnswerPayload, QuestionOut } from '@chainglass/shared/question-popper';
++
++import { type EventPopperItem, isAlertItem, isQuestionItem } from '../hooks/use-question-popper';
++import { AnswerForm } from './answer-form';
++import { QuestionChainView } from './question-chain-view';
++
++// ── Time-ago ──
++
++function timeAgo(isoDate: string): string {
++  const delta = Date.now() - new Date(isoDate).getTime();
++  if (delta < 0) return 'just now';
++  const seconds = Math.floor(delta / 1000);
++  if (seconds < 60) return `${seconds}s ago`;
++  const minutes = Math.floor(seconds / 60);
++  if (minutes < 60) return `${minutes}m ago`;
++  const hours = Math.floor(minutes / 60);
++  if (hours < 24) return `${hours}h ago`;
++  const days = Math.floor(hours / 24);
++  return `${days}d ago`;
++}
++
++// ── Status styling ──
++
++const STATUS_DOT: Record<string, string> = {
++  pending: 'bg-amber-400',
++  answered: 'bg-green-400',
++  'needs-clarification': 'bg-purple-400',
++  dismissed: 'bg-neutral-400',
++  unread: 'bg-amber-400',
++  acknowledged: 'bg-green-400',
++};
++
++// ── Props ──
++
++interface QuestionHistoryListProps {
++  items: EventPopperItem[];
++  onAnswer: (id: string, answer: AnswerPayload) => Promise<void>;
++  onDismiss: (id: string) => Promise<void>;
++  onClarify: (id: string, text: string) => Promise<void>;
++  onAcknowledge: (id: string) => Promise<void>;
++  getChain: (questionId: string) => Promise<QuestionOut[]>;
++}
++
++export function QuestionHistoryList({
++  items,
++  onAnswer,
++  onDismiss,
++  onClarify,
++  onAcknowledge,
++  getChain,
++}: QuestionHistoryListProps) {
++  const [expandedId, setExpandedId] = useState<string | null>(null);
++
++  const toggleExpand = useCallback((id: string) => {
++    setExpandedId((prev) => (prev === id ? null : id));
++  }, []);
++
++  if (items.length === 0) {
++    return (
++      <div className="py-8 text-center text-sm text-neutral-400">No questions or alerts yet.</div>
++    );
++  }
++
++  return (
++    <div className="space-y-1">
++      {items.map((item) => {
++        const id = isQuestionItem(item) ? item.questionId : isAlertItem(item) ? item.alertId : '';
++        const isExpanded = expandedId === id;
++
++        return (
++          <div key={id}>
++            <HistoryItemRow item={item} isExpanded={isExpanded} onToggle={() => toggleExpand(id)} />
++            {isExpanded && (
++              <HistoryItemDetail
++                item={item}
++                onAnswer={onAnswer}
++                onDismiss={onDismiss}
++                onClarify={onClarify}
++                onAcknowledge={onAcknowledge}
++                getChain={getChain}
++              />
++            )}
++          </div>
++        );
++      })}
++    </div>
++  );
++}
++
++// ── Compact Row (DYK-02) ──
++
++function HistoryItemRow({
++  item,
++  isExpanded,
++  onToggle,
++}: {
++  item: EventPopperItem;
++  isExpanded: boolean;
++  onToggle: () => void;
++}) {
++  const isQuestion = isQuestionItem(item);
++  const source = isQuestion ? item.source : isAlertItem(item) ? item.source : '';
++  const text = isQuestion ? item.question.text : isAlertItem(item) ? item.alert.text : '';
++  const status = isQuestion ? item.status : isAlertItem(item) ? item.status : '';
++  const createdAt = isQuestion ? item.createdAt : isAlertItem(item) ? item.createdAt : '';
++  const type = isQuestion ? 'question' : 'alert';
++
++  return (
++    <button
++      type="button"
++      onClick={onToggle}
++      className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors ${
++        isExpanded
++          ? 'bg-blue-50 dark:bg-blue-900/20'
++          : 'hover:bg-neutral-50 dark:hover:bg-neutral-800'
++      }`}
++      aria-expanded={isExpanded}
++    >
++      {/* Status dot */}
++      <span
++        className={`h-2 w-2 flex-shrink-0 rounded-full ${STATUS_DOT[status] ?? 'bg-neutral-300'}`}
++      />
++
++      {/* Type pill */}
++      <span
++        className={`flex-shrink-0 rounded px-1 py-0.5 text-[10px] font-semibold uppercase ${
++          type === 'question'
++            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
++            : 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
++        }`}
++      >
++        {type === 'question' ? 'Q' : 'A'}
++      </span>
++
++      {/* Source */}
++      <span
++        className="flex-shrink-0 truncate font-medium text-neutral-600 dark:text-neutral-400"
++        style={{ maxWidth: '80px' }}
++      >
++        {source}
++      </span>
++
++      {/* Truncated text */}
++      <span className="min-w-0 flex-1 truncate text-neutral-700 dark:text-neutral-300">{text}</span>
++
++      {/* Time-ago */}
++      <span className="flex-shrink-0 text-neutral-400">{timeAgo(createdAt)}</span>
++
++      {/* Expand chevron */}
++      <span
++        className={`flex-shrink-0 text-neutral-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
++      >
++        ›
++      </span>
++    </button>
++  );
++}
++
++// ── Expanded Detail (AC-27) ──
++
++function HistoryItemDetail({
++  item,
++  onAnswer,
++  onDismiss,
++  onClarify,
++  onAcknowledge,
++  getChain,
++}: {
++  item: EventPopperItem;
++  onAnswer: (id: string, answer: AnswerPayload) => Promise<void>;
++  onDismiss: (id: string) => Promise<void>;
++  onClarify: (id: string, text: string) => Promise<void>;
++  onAcknowledge: (id: string) => Promise<void>;
++  getChain: (questionId: string) => Promise<QuestionOut[]>;
++}) {
++  if (isQuestionItem(item)) {
++    const hasChain = !!item.question.previousQuestionId;
++
++    return (
++      <div className="mb-2 ml-4 space-y-2 rounded-md border border-neutral-100 bg-white p-3 text-xs dark:border-neutral-700 dark:bg-neutral-850">
++        {/* Full question text */}
++        <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
++          {item.question.text}
++        </p>
++
++        {/* Markdown description */}
++        {item.question.description && (
++          <div className="max-h-32 overflow-y-auto rounded border border-neutral-100 bg-neutral-50 p-2 dark:border-neutral-700 dark:bg-neutral-800">
++            <div className="prose prose-xs prose-neutral max-w-none dark:prose-invert">
++              <Markdown remarkPlugins={[remarkGfm]}>{item.question.description}</Markdown>
++            </div>
++          </div>
++        )}
++
++        {/* Chain view (AC-27: including conversation chain) */}
++        {hasChain && <QuestionChainView questionId={item.questionId} getChain={getChain} />}
++
++        {/* Answer form or resolved status */}
++        {item.status === 'pending' ? (
++          <AnswerForm
++            question={item}
++            onAnswer={onAnswer}
++            onDismiss={onDismiss}
++            onClarify={onClarify}
++          />
++        ) : (
++          <div className="rounded bg-neutral-50 px-2 py-1.5 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
++            {item.status === 'answered' && (
++              <>
++                Answered: <code>{JSON.stringify(item.answer?.answer)}</code>
++              </>
++            )}
++            {item.status === 'needs-clarification' && (
++              <>Clarification: {item.clarification?.text}</>
++            )}
++            {item.status === 'dismissed' && 'Dismissed'}
++          </div>
++        )}
++      </div>
++    );
++  }
++
++  if (isAlertItem(item)) {
++    return (
++      <div className="mb-2 ml-4 space-y-2 rounded-md border border-neutral-100 bg-white p-3 text-xs dark:border-neutral-700 dark:bg-neutral-850">
++        <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
++          {item.alert.text}
++        </p>
++
++        {item.alert.description && (
++          <div className="max-h-32 overflow-y-auto rounded border border-neutral-100 bg-neutral-50 p-2 dark:border-neutral-700 dark:bg-neutral-800">
++            <div className="prose prose-xs prose-neutral max-w-none dark:prose-invert">
++              <Markdown remarkPlugins={[remarkGfm]}>{item.alert.description}</Markdown>
++            </div>
++          </div>
++        )}
++
++        {item.status === 'unread' && (
++          <button
++            type="button"
++            onClick={() => onAcknowledge(item.alertId)}
++            className="rounded bg-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-300 dark:bg-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-600"
++          >
++            Mark Read
++          </button>
++        )}
++
++        {item.status === 'acknowledged' && item.acknowledgedAt && (
++          <div className="text-neutral-400">Acknowledged {timeAgo(item.acknowledgedAt)}</div>
++        )}
++      </div>
++    );
++  }
++
++  return null;
++}
+diff --git a/apps/web/src/features/067-question-popper/components/question-popper-overlay-panel.tsx b/apps/web/src/features/067-question-popper/components/question-popper-overlay-panel.tsx
+index 66e30d5..7b988f1 100644
+--- a/apps/web/src/features/067-question-popper/components/question-popper-overlay-panel.tsx
++++ b/apps/web/src/features/067-question-popper/components/question-popper-overlay-panel.tsx
+@@ -1,20 +1,18 @@
+ 'use client';
+ 
+ /**
+- * Plan 067 Phase 5: Question Popper — Overlay Panel
++ * Plan 067 Phase 5+6: Question Popper — Overlay Panel
+  *
+- * Fixed-position panel that shows outstanding questions/alerts.
+- * When no outstanding items, shows recent history.
+- * Close button + Escape key to dismiss.
++ * Fixed-position panel with tabbed interface:
++ * - Outstanding tab: actionable items (pending questions + unread alerts)
++ * - History tab: all past items with expand/collapse (AC-26, AC-27)
+  *
++ * DYK-03: Smart tab default — Outstanding if items pending, else preserve last tab.
+  * AC-18: Newest outstanding item shown first
+  * AC-19: Doesn't take over page, participates in mutual exclusion
+- * AC-28: Real-time updates via SSE
+- * AC-29: New items appear in real time when open
+- * AC-32: Dismissed questions visible with "dismissed" status
+  */
+ 
+-import { useEffect } from 'react';
++import { useEffect, useRef, useState } from 'react';
+ 
+ import {
+   type EventPopperItem,
+@@ -24,6 +22,9 @@ import {
+ } from '../hooks/use-question-popper';
+ import { AlertCard } from './alert-card';
+ import { QuestionCard } from './question-card';
++import { QuestionHistoryList } from './question-history-list';
++
++type TabId = 'outstanding' | 'history';
+ 
+ export function QuestionPopperOverlayPanel() {
+   const {
+@@ -37,8 +38,29 @@ export function QuestionPopperOverlayPanel() {
+     requestClarification,
+     acknowledgeAlert,
+     isConnected,
++    getChain,
+   } = useQuestionPopper();
+ 
++  // DYK-03: Smart tab default — Outstanding if pending, else preserve last
++  const lastTabRef = useRef<TabId>('outstanding');
++  const [activeTab, setActiveTab] = useState<TabId>('outstanding');
++
++  // When overlay opens, pick smart default
++  const prevOpenRef = useRef(false);
++  useEffect(() => {
++    if (isOverlayOpen && !prevOpenRef.current) {
++      // Just opened — pick smart tab
++      setActiveTab(outstandingCount > 0 ? 'outstanding' : lastTabRef.current);
++    }
++    prevOpenRef.current = isOverlayOpen;
++  }, [isOverlayOpen, outstandingCount]);
++
++  // Track last manually-selected tab
++  const handleTabChange = (tab: TabId) => {
++    setActiveTab(tab);
++    lastTabRef.current = tab;
++  };
++
+   // Close on Escape key
+   useEffect(() => {
+     if (!isOverlayOpen) return;
+@@ -54,11 +76,6 @@ export function QuestionPopperOverlayPanel() {
+ 
+   if (!isOverlayOpen) return null;
+ 
+-  // Show outstanding items if any, otherwise show all history
+-  const displayItems: EventPopperItem[] = outstandingItems.length > 0 ? outstandingItems : items;
+-
+-  const isShowingHistory = outstandingItems.length === 0;
+-
+   return (
+     <section
+       className="fixed bottom-4 right-4 z-45 flex max-h-[80vh] w-[420px] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-2xl dark:border-neutral-700 dark:bg-neutral-900"
+@@ -66,16 +83,11 @@ export function QuestionPopperOverlayPanel() {
+       aria-modal="false"
+     >
+       {/* Header */}
+-      <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3 dark:border-neutral-700">
++      <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-2.5 dark:border-neutral-700">
+         <div className="flex items-center gap-2">
+           <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+-            {isShowingHistory ? 'Question History' : 'Outstanding Questions'}
++            Questions
+           </h2>
+-          {outstandingCount > 0 && (
+-            <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/30 dark:text-green-400">
+-              {outstandingCount}
+-            </span>
+-          )}
+           {!isConnected && (
+             <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-600 dark:bg-red-900/30 dark:text-red-400">
+               disconnected
+@@ -105,37 +117,78 @@ export function QuestionPopperOverlayPanel() {
+         </button>
+       </div>
+ 
+-      {/* Item list */}
+-      <div className="flex-1 overflow-y-auto p-3 space-y-3">
+-        {displayItems.length === 0 ? (
+-          <div className="py-8 text-center text-sm text-neutral-400">
+-            {isShowingHistory ? 'No questions or alerts yet.' : 'No outstanding items.'}
+-          </div>
+-        ) : (
+-          <>
+-            {isShowingHistory && (
+-              <div className="mb-2 text-xs text-neutral-400">Showing all past items</div>
++      {/* Tabs */}
++      <div className="flex border-b border-neutral-200 dark:border-neutral-700">
++        <button
++          type="button"
++          onClick={() => handleTabChange('outstanding')}
++          className={`flex flex-1 items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${
++            activeTab === 'outstanding'
++              ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400'
++              : 'text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-300'
++          }`}
++        >
++          Outstanding
++          {outstandingCount > 0 && (
++            <span className="rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-bold text-green-800 dark:bg-green-900/30 dark:text-green-400">
++              {outstandingCount}
++            </span>
++          )}
++        </button>
++        <button
++          type="button"
++          onClick={() => handleTabChange('history')}
++          className={`flex flex-1 items-center justify-center px-3 py-2 text-xs font-medium transition-colors ${
++            activeTab === 'history'
++              ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400'
++              : 'text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-300'
++          }`}
++        >
++          History
++        </button>
++      </div>
++
++      {/* Tab content */}
++      <div className="flex-1 overflow-y-auto p-3">
++        {activeTab === 'outstanding' && (
++          <div className="space-y-3">
++            {outstandingItems.length === 0 ? (
++              <div className="py-8 text-center text-sm text-neutral-400">No outstanding items.</div>
++            ) : (
++              outstandingItems.map((item) => {
++                if (isQuestionItem(item)) {
++                  return (
++                    <QuestionCard
++                      key={item.questionId}
++                      question={item}
++                      onAnswer={answerQuestion}
++                      onDismiss={dismissQuestion}
++                      onClarify={requestClarification}
++                      getChain={getChain}
++                      allItems={items}
++                    />
++                  );
++                }
++                if (isAlertItem(item)) {
++                  return (
++                    <AlertCard key={item.alertId} alert={item} onAcknowledge={acknowledgeAlert} />
++                  );
++                }
++                return null;
++              })
+             )}
+-            {displayItems.map((item) => {
+-              if (isQuestionItem(item)) {
+-                return (
+-                  <QuestionCard
+-                    key={item.questionId}
+-                    question={item}
+-                    onAnswer={answerQuestion}
+-                    onDismiss={dismissQuestion}
+-                    onClarify={requestClarification}
+-                  />
+-                );
+-              }
+-              if (isAlertItem(item)) {
+-                return (
+-                  <AlertCard key={item.alertId} alert={item} onAcknowledge={acknowledgeAlert} />
+-                );
+-              }
+-              return null;
+-            })}
+-          </>
++          </div>
++        )}
++
++        {activeTab === 'history' && (
++          <QuestionHistoryList
++            items={items}
++            onAnswer={answerQuestion}
++            onDismiss={dismissQuestion}
++            onClarify={requestClarification}
++            onAcknowledge={acknowledgeAlert}
++            getChain={getChain}
++          />
+         )}
+       </div>
+     </section>
+diff --git a/apps/web/src/features/067-question-popper/hooks/use-question-popper.tsx b/apps/web/src/features/067-question-popper/hooks/use-question-popper.tsx
+index 824f5d2..9865e76 100644
+--- a/apps/web/src/features/067-question-popper/hooks/use-question-popper.tsx
++++ b/apps/web/src/features/067-question-popper/hooks/use-question-popper.tsx
+@@ -26,6 +26,8 @@ import {
+ 
+ import type { AlertOut, AnswerPayload, QuestionOut } from '@chainglass/shared/question-popper';
+ 
++import { resolveChain as resolveChainFn } from '../lib/chain-resolver';
++
+ // ── Types ──
+ 
+ /** Union of items returned from the list API */
+@@ -83,6 +85,9 @@ export interface QuestionPopperContextValue {
+   acknowledgeAlert: (id: string) => Promise<void>;
+   /** Manually refetch the item list */
+   refetchItems: () => Promise<void>;
++
++  /** Resolve the conversation chain for a question (cached, DYK-04) */
++  getChain: (questionId: string) => Promise<QuestionOut[]>;
+ }
+ 
+ const QuestionPopperContext = createContext<QuestionPopperContextValue | null>(null);
+@@ -109,6 +114,7 @@ export function QuestionPopperProvider({ children }: { children: ReactNode }) {
+   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+   const reconnectAttemptsRef = useRef(0);
+   const mountedRef = useRef(true);
++  const chainCacheRef = useRef<Map<string, QuestionOut[]>>(new Map());
+ 
+   // ── API Fetch ──
+ 
+@@ -123,6 +129,7 @@ export function QuestionPopperProvider({ children }: { children: ReactNode }) {
+       const fetchedOutstanding = data.items.filter(isOutstanding).length;
+       setItems(data.items);
+       setOutstandingCount(fetchedOutstanding);
++      chainCacheRef.current.clear(); // DYK-04: invalidate chain cache on refetch
+       setError(null);
+     } catch (err) {
+       if (!mountedRef.current) return;
+@@ -300,6 +307,31 @@ export function QuestionPopperProvider({ children }: { children: ReactNode }) {
+     [fetchItems]
+   );
+ 
++  // ── Chain Resolution (DYK-04: cached in ref) ──
++
++  const fetchSingleQuestion = useCallback(async (id: string): Promise<QuestionOut | null> => {
++    try {
++      const res = await fetch(`/api/event-popper/question/${id}`);
++      if (!res.ok) return null;
++      return await res.json();
++    } catch {
++      return null;
++    }
++  }, []);
++
++  const getChain = useCallback(
++    async (questionId: string): Promise<QuestionOut[]> => {
++      const cached = chainCacheRef.current.get(questionId);
++      if (cached) return cached;
++
++      const questionItems = items.filter((i): i is QuestionOut => isQuestionItem(i));
++      const chain = await resolveChainFn(questionId, questionItems, fetchSingleQuestion);
++      chainCacheRef.current.set(questionId, chain);
++      return chain;
++    },
++    [items, fetchSingleQuestion]
++  );
++
+   // ── Derived State ──
+ 
+   const outstandingItems = items.filter(isOutstanding);
+@@ -320,6 +352,7 @@ export function QuestionPopperProvider({ children }: { children: ReactNode }) {
+     requestClarification,
+     acknowledgeAlert,
+     refetchItems: fetchItems,
++    getChain,
+   };
+ 
+   return <QuestionPopperContext.Provider value={value}>{children}</QuestionPopperContext.Provider>;
+diff --git a/apps/web/src/features/067-question-popper/lib/chain-resolver.ts b/apps/web/src/features/067-question-popper/lib/chain-resolver.ts
+new file mode 100644
+index 0000000..672be6e
+--- /dev/null
++++ b/apps/web/src/features/067-question-popper/lib/chain-resolver.ts
+@@ -0,0 +1,161 @@
++/**
++ * Plan 067 Phase 6: Question Popper — Chain Resolver
++ *
++ * Resolves conversation chains by walking `previousQuestionId` links.
++ *
++ * DYK-01: Bidirectional chain index — single O(N) scan builds
++ *   parentToChildren + childToParent maps for discovery from any node.
++ * DYK-04: Results cached in hook via useRef<Map> (cleared on refetch).
++ * DYK-05: Sequential API fallback for missing links — accepted, show loading.
++ *
++ * Pure functions (no React dependency) — testable without rendering.
++ */
++
++import type { QuestionOut } from '@chainglass/shared/question-popper';
++
++// ── Types ──
++
++export interface ChainIndex {
++  /** Map from parent question ID → child question IDs (forward links) */
++  parentToChildren: Map<string, string[]>;
++  /** Map from child question ID → parent question ID (backward link) */
++  childToParent: Map<string, string>;
++}
++
++/** Function to fetch a single question by ID (API fallback) */
++export type FetchQuestionFn = (id: string) => Promise<QuestionOut | null>;
++
++// ── Index Builder (DYK-01) ──
++
++/**
++ * Build a bidirectional chain index from a list of items.
++ * Single O(N) scan — call once per items refresh.
++ */
++export function buildChainIndex(
++  items: Array<{ questionId?: string; question?: { previousQuestionId?: string | null } }>
++): ChainIndex {
++  const parentToChildren = new Map<string, string[]>();
++  const childToParent = new Map<string, string>();
++
++  for (const item of items) {
++    if (!item.questionId) continue;
++    const prevId = item.question?.previousQuestionId;
++    if (!prevId) continue;
++
++    childToParent.set(item.questionId, prevId);
++
++    const children = parentToChildren.get(prevId);
++    if (children) {
++      children.push(item.questionId);
++    } else {
++      parentToChildren.set(prevId, [item.questionId]);
++    }
++  }
++
++  return { parentToChildren, childToParent };
++}
++
++// ── Chain Resolver ──
++
++const MAX_CHAIN_DEPTH = 50;
++
++/**
++ * Resolve the full conversation chain containing the given question.
++ * Walks backwards to root, then returns ordered chain (oldest → newest).
++ *
++ * @param questionId - The question to resolve the chain for
++ * @param items - All known QuestionOut items (local cache)
++ * @param fetchQuestion - Optional API fallback for missing links
++ * @returns Ordered chain from root to leaf, or single-item array if no chain
++ */
++export async function resolveChain(
++  questionId: string,
++  items: QuestionOut[],
++  fetchQuestion?: FetchQuestionFn
++): Promise<QuestionOut[]> {
++  // Build lookup map from items
++  const itemMap = new Map<string, QuestionOut>();
++  for (const item of items) {
++    itemMap.set(item.questionId, item);
++  }
++
++  // Find or fetch a question by ID
++  async function findQuestion(id: string): Promise<QuestionOut | null> {
++    const local = itemMap.get(id);
++    if (local) return local;
++    if (!fetchQuestion) return null;
++    try {
++      const fetched = await fetchQuestion(id);
++      if (fetched) itemMap.set(fetched.questionId, fetched);
++      return fetched;
++    } catch {
++      return null;
++    }
++  }
++
++  // Start from the target question
++  const target = await findQuestion(questionId);
++  if (!target) return [];
++
++  // Walk backwards to find the root (oldest ancestor)
++  const visited = new Set<string>();
++  const backwardsChain: QuestionOut[] = [target];
++  visited.add(questionId);
++
++  let current = target;
++  let depth = 0;
++  while (depth < MAX_CHAIN_DEPTH) {
++    const prevId = current.question.previousQuestionId;
++    if (!prevId || visited.has(prevId)) break;
++
++    visited.add(prevId);
++    const prev = await findQuestion(prevId);
++    if (!prev) break; // Missing link — chain starts here
++
++    backwardsChain.unshift(prev);
++    current = prev;
++    depth++;
++  }
++
++  // Now walk forward from the target to find any children
++  // (questions that reference the target as their previousQuestionId)
++  const index = buildChainIndex(items);
++  const forwardChain: QuestionOut[] = [];
++
++  function collectChildren(parentId: string, depthRemaining: number): void {
++    if (depthRemaining <= 0) return;
++    const childIds = index.parentToChildren.get(parentId);
++    if (!childIds) return;
++
++    for (const childId of childIds) {
++      if (visited.has(childId)) continue;
++      visited.add(childId);
++      const child = itemMap.get(childId);
++      if (child) {
++        forwardChain.push(child);
++        collectChildren(childId, depthRemaining - 1);
++      }
++    }
++  }
++
++  collectChildren(questionId, MAX_CHAIN_DEPTH - depth);
++
++  return [...backwardsChain, ...forwardChain];
++}
++
++/**
++ * Check if a question is part of a chain (has previousQuestionId or has children).
++ * Cheap check — no API calls.
++ */
++export function isPartOfChain(questionId: string, items: QuestionOut[]): boolean {
++  const index = buildChainIndex(items);
++  // Has a parent or has children
++  return index.childToParent.has(questionId) || index.parentToChildren.has(questionId);
++}
++
++/**
++ * Get the previousQuestionId from a QuestionOut, if any.
++ */
++export function getPreviousQuestionId(question: QuestionOut): string | null {
++  return question.question.previousQuestionId ?? null;
++}
+diff --git a/docs/domains/question-popper/domain.md b/docs/domains/question-popper/domain.md
+index 016e6b5..8962851 100644
+--- a/docs/domains/question-popper/domain.md
++++ b/docs/domains/question-popper/domain.md
+@@ -135,3 +135,4 @@ test/unit/question-popper/
+ |------|--------|------|
+ | 067 Phase 2 | Domain created: payload schemas, composed types, service interface, fake, real service, contract tests, DI registration, barrel exports | 2026-03-07 |
+ | 067 Phase 5 | UI layer: useQuestionPopper hook, indicator, overlay panel, question/alert cards, answer form (4 types), toast + desktop notifications, workspace layout mount | 2026-03-07 |
++| 067 Phase 6 | Chain resolution (bidirectional index), QuestionChainView (timeline), QuestionHistoryList (compact expandable rows), tabbed overlay panel, chain indicator on QuestionCard | 2026-03-08 |
+diff --git a/docs/plans/067-question-popper/tasks/phase-6-question-chaining-history/execution.log.md b/docs/plans/067-question-popper/tasks/phase-6-question-chaining-history/execution.log.md
+new file mode 100644
+index 0000000..76fa74c
+--- /dev/null
++++ b/docs/plans/067-question-popper/tasks/phase-6-question-chaining-history/execution.log.md
+@@ -0,0 +1,75 @@
++# Execution Log: Phase 6 — Question Chaining + History
++
++## T001: Chain Resolver + Hook Cache
++
++**Started**: 2026-03-08T00:25Z
++**Completed**: 2026-03-08T00:28Z
++
++Created `chain-resolver.ts`:
++- `buildChainIndex(items)`: single O(N) scan → `parentToChildren` + `childToParent` maps (DYK-01)
++- `resolveChain(questionId, items, fetchQuestion?)`: walks backwards to root, forward to leaves. Visited set for circular ref protection. MAX_CHAIN_DEPTH=50.
++- `isPartOfChain(questionId, items)`: cheap boolean check for chain indicator
++- `getPreviousQuestionId(question)`: convenience accessor
++
++Added to hook (`use-question-popper.tsx`):
++- `chainCacheRef = useRef<Map>()` cleared on refetch (DYK-04)
++- `fetchSingleQuestion(id)` for API fallback
++- `getChain(questionId)` exposed in context value
++
++## T002: QuestionChainView
++
++**Completed**: 2026-03-08T00:29Z
++
++Created `question-chain-view.tsx`:
++- Vertical timeline with turn connectors (colored dots per status)
++- Current question highlighted with blue background + ring
++- Loading spinner while chain resolves (DYK-05)
++- Markdown description shown only for current turn
++- Answer/clarification shown for resolved turns
++
++## T003: QuestionHistoryList
++
++**Completed**: 2026-03-08T00:30Z
++
++Created `question-history-list.tsx`:
++- `HistoryItemRow`: compact one-line rows — status dot, type pill (Q/A), source, truncated text, time-ago, expand chevron (DYK-02)
++- `HistoryItemDetail`: expanded view with full text, markdown description, answer form for pending, chain view for chained questions
++- Expand/collapse via click toggle
++
++## T004: Enhance Overlay Panel with Tabs
++
++**Completed**: 2026-03-08T00:31Z
++
++Modified `question-popper-overlay-panel.tsx`:
++- Added Outstanding / History tab toggle
++- DYK-03: Smart tab default — Outstanding if `outstandingCount > 0`, else preserve last tab via `lastTabRef`
++- Outstanding tab renders QuestionCards/AlertCards (existing behavior)
++- History tab renders QuestionHistoryList
++- Passes `getChain` and `allItems` to QuestionCard for chain support
++
++## T005: Update QuestionCard with Chain Indicator
++
++**Completed**: 2026-03-08T00:31Z
++
++Modified `question-card.tsx`:
++- Added "↩ follow-up" badge when `previousQuestionId` is set
++- Added "View Thread" / "Hide Thread" toggle button when `isPartOfChain()` is true
++- Expands `QuestionChainView` inline when toggled
++- New optional props: `getChain`, `allItems` (backwards compatible)
++
++## T006: Tests
++
++**Completed**: 2026-03-08T00:32Z
++
++Created `chain-resolver.test.tsx` — 10 tests:
++- `buildChainIndex`: bidirectional maps, empty for unchained items (2 tests)
++- `isPartOfChain`: detects parent and child membership (1 test)
++- `resolveChain`: linear chain, standalone, missing links, API fallback, circular refs, root-forward (6 tests)
++- `QuestionHistoryList`: compact rows expand on click (1 test)
++- All tests have 5-field Test Docs
++
++## Evidence
++
++- Biome lint: clean (0 errors in our files)
++- Tests: 5130 passed, 80 skipped (10 new from this phase)
++- 360 test files passed, 10 skipped
+diff --git a/docs/plans/067-question-popper/tasks/phase-6-question-chaining-history/tasks.fltplan.md b/docs/plans/067-question-popper/tasks/phase-6-question-chaining-history/tasks.fltplan.md
+new file mode 100644
+index 0000000..dfae102
+--- /dev/null
++++ b/docs/plans/067-question-popper/tasks/phase-6-question-chaining-history/tasks.fltplan.md
+@@ -0,0 +1,137 @@
++# Flight Plan: Phase 6 — Question Chaining + History
++
++**Plan**: [plan.md](../../plan.md)
++**Phase**: Phase 6: Question Chaining + History
++**Generated**: 2026-03-07
++**Status**: Landed
++
++---
++
++## Departure → Destination
++
++**Where we are**: Phases 1-5 complete. The full stack works: CLI agents can ask questions, the server stores them and emits SSE events, and the web UI shows a glowing indicator, overlay panel, type-appropriate answer form, and toast/desktop notifications. Outstanding and historical items are visible. But follow-up questions linked via `previousQuestionId` render as isolated cards with no visible relationship, and the history view has no expand/collapse — it's a flat list.
++
++**Where we're going**: When an agent asks a follow-up question linked to a previous one, the UI renders the conversation as a threaded timeline showing each turn from oldest to newest. The overlay has clear tabs for "Outstanding" (actionable items) and "History" (all past items). Clicking any historical item expands it to show full detail including its conversation chain.
++
++---
++
++## Domain Context
++
++### Domains We're Changing
++
++| Domain | What Changes | Key Files |
++|--------|-------------|-----------|
++| `question-popper` | Add chain resolution, chain view component, history list with expand, tabbed overlay, chain indicator on question card | `lib/chain-resolver.ts`, `components/question-chain-view.tsx`, `components/question-history-list.tsx`, `components/question-popper-overlay-panel.tsx` (modify), `components/question-card.tsx` (modify) |
++
++### Domains We Depend On (no changes)
++
++| Domain | What We Consume | Contract |
++|--------|----------------|----------|
++| `question-popper` (prior phases) | `QuestionOut.question.previousQuestionId`, `useQuestionPopper().items`, `GET /api/event-popper/question/[id]` | Types, hook, API |
++
++---
++
++## Flight Status
++
++```mermaid
++stateDiagram-v2
++    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
++    classDef active fill:#FFC107,stroke:#FFA000,color:#000
++    classDef done fill:#4CAF50,stroke:#388E3C,color:#fff
++    classDef blocked fill:#F44336,stroke:#D32F2F,color:#fff
++
++    state "1: Chain Resolver" as S1
++    state "2: Chain + History Components" as S2
++    state "3: Panel + Card Integration" as S3
++    state "4: Tests" as S4
++
++    [*] --> S1
++    S1 --> S2
++    S2 --> S3
++    S3 --> S4
++    S4 --> [*]
++
++    class S1,S2,S3,S4 done
++```
++
++**Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
++
++---
++
++## Stages
++
++- [x] **Stage 1: Chain Resolver** — Pure function to walk `previousQuestionId` links, local-first with API fallback (`chain-resolver.ts`)
++- [x] **Stage 2: Chain + History Components** — `QuestionChainView` (conversation timeline) + `QuestionHistoryList` (expandable items) (`question-chain-view.tsx`, `question-history-list.tsx`)
++- [x] **Stage 3: Panel + Card Integration** — Tabbed overlay panel + chain indicator on QuestionCard (`question-popper-overlay-panel.tsx`, `question-card.tsx` — modify)
++- [x] **Stage 4: Tests** — Chain resolver unit tests + component rendering tests (`chain-resolver.test.tsx`)
++
++---
++
++## Architecture: Before & After
++
++```mermaid
++flowchart LR
++    classDef existing fill:#E8F5E9,stroke:#4CAF50,color:#000
++    classDef changed fill:#FFF3E0,stroke:#FF9800,color:#000
++    classDef new fill:#E3F2FD,stroke:#2196F3,color:#000
++
++    subgraph Before["Before Phase 6"]
++        B_Hook["useQuestionPopper"]:::existing
++        B_Panel["Overlay Panel<br/>(flat list)"]:::existing
++        B_Card["QuestionCard<br/>(no chain)"]:::existing
++        B_Hook --> B_Panel
++        B_Panel --> B_Card
++    end
++
++    subgraph After["After Phase 6"]
++        A_Hook["useQuestionPopper"]:::existing
++        A_Resolver["resolveChain()"]:::new
++        A_Panel["Overlay Panel<br/>(tabbed)"]:::changed
++        A_Card["QuestionCard<br/>(chain indicator)"]:::changed
++        A_Chain["QuestionChainView"]:::new
++        A_History["QuestionHistoryList"]:::new
++
++        A_Hook --> A_Panel
++        A_Panel -->|Outstanding tab| A_Card
++        A_Panel -->|History tab| A_History
++        A_Card -->|View Thread| A_Resolver
++        A_Resolver --> A_Chain
++        A_History -->|Expand| A_Card
++    end
++```
++
++**Legend**: existing (green, unchanged) | changed (orange, modified) | new (blue, created)
++
++---
++
++## Acceptance Criteria
++
++- [x] AC-24: Chain renders as conversation thread
++- [x] AC-25: Follow-up questions trigger independent notifications (already satisfied — verified)
++- [x] AC-26: History view shows all past items
++- [x] AC-27: Clicking historical item expands to show full detail including chain
++
++## Goals & Non-Goals
++
++**Goals**:
++- Conversation chains render as visual timelines with turn connectors
++- History is always accessible via tab (not just when no outstanding items)
++- Expandable detail on historical items
++- Chain resolution is robust (handles missing links, circular refs)
++
++**Non-Goals**:
++- Chain depth limits or pagination
++- Server-side chain resolution API endpoint
++- Agent integration / CLAUDE.md (Phase 7)
++- SDK keyboard shortcut (Phase 7)
++
++---
++
++## Checklist
++
++- [~] T001: `resolveChain()` — walk `previousQuestionId`, local-first + API fallback
++- [ ] T002: `QuestionChainView` — conversation timeline component
++- [ ] T003: `QuestionHistoryList` — expandable history with full detail
++- [ ] T004: Enhance overlay panel with Outstanding / History tabs
++- [ ] T005: Update QuestionCard with chain indicator + "View Thread"
++- [ ] T006: Chain resolver + component tests
+diff --git a/docs/plans/067-question-popper/tasks/phase-6-question-chaining-history/tasks.md b/docs/plans/067-question-popper/tasks/phase-6-question-chaining-history/tasks.md
+new file mode 100644
+index 0000000..c94332e
+--- /dev/null
++++ b/docs/plans/067-question-popper/tasks/phase-6-question-chaining-history/tasks.md
+@@ -0,0 +1,224 @@
++# Phase 6: Question Chaining + History
++
++## Executive Briefing
++
++- **Purpose**: Add conversation threading and historical browsing to the Question Popper overlay. When an agent asks a follow-up question linked to a previous one, the UI renders them as a conversation thread. Users can also browse all past questions and alerts with expandable detail.
++- **What We're Building**: A `resolveChain()` utility that walks `previousQuestionId` links, a `QuestionChainView` component rendering conversation turns, a tabbed overlay with "Outstanding" / "History" views, and expandable item detail in history.
++- **Goals**: ✅ Conversation chains render as sequential turns ✅ Follow-up questions trigger independent notifications (AC-25) ✅ History tab shows all past items, expandable with full detail + chain ✅ Chain resolution handles items already in memory and fetches missing links via API
++- **Non-Goals**: ❌ Agent integration / CLAUDE.md (Phase 7) ❌ SDK keyboard shortcut (Phase 7) ❌ Chain depth limits or pagination (YAGNI) ❌ Server-side chain resolution (client-side is sufficient)
++
++---
++
++## Prior Phase Context
++
++### Phase 5: Overlay UI ✅
++
++**A. Deliverables**: `useQuestionPopper` hook (SSE subscription, API fetch, overlay state, mutual exclusion), `QuestionPopperIndicator` (glow + badge), `QuestionPopperOverlayPanel` (fixed bottom-right, outstanding vs history toggle), `QuestionCard` (markdown description, tmux badge, time-ago), `AlertCard` (Mark Read), `AnswerForm` (4 input types + freeform + dismiss + NMI), `desktop-notifications.ts` (toast + Notifications API), `QuestionPopperOverlayWrapper` (provider + error boundary + dynamic import), mounted in workspace layout. 13 component tests.
++
++**B. Dependencies Exported**: `useQuestionPopper()` hook with `{ items, outstandingItems, outstandingCount, isOverlayOpen, toggleOverlay, answerQuestion, dismissQuestion, requestClarification, acknowledgeAlert, refetchItems }`. Type guards: `isQuestionItem()`, `isAlertItem()`. `EventPopperItem` union type. Notification utilities.
++
++**C. Gotchas**: Inline `timeAgo()` utility (no date-fns). `<section>` instead of `<div role="dialog">` per Biome a11y. SSE reconnect max 5 attempts. Confirm questions submit immediately on Yes/No click.
++
++**D. Incomplete**: None — all 10 tasks complete.
++
++**E. Patterns to Follow**: Notification-fetch pattern (SSE → refetch full list). Mutual exclusion via `overlay:close-all`. Provider + hook split. Type guards first. Dynamic import for panel (ssr: false). Error boundary on wrapper.
++
++---
++
++## Pre-Implementation Check
++
++| File | Exists? | Domain Check | Notes |
++|------|---------|-------------|-------|
++| `apps/web/src/features/067-question-popper/lib/chain-resolver.ts` | ❌ No | `question-popper` ✅ | New file — pure function |
++| `apps/web/src/features/067-question-popper/components/question-chain-view.tsx` | ❌ No | `question-popper` ✅ | New file — conversation thread UI |
++| `apps/web/src/features/067-question-popper/components/question-history-list.tsx` | ❌ No | `question-popper` ✅ | New file — expandable history list |
++| `apps/web/src/features/067-question-popper/components/question-popper-overlay-panel.tsx` | ✅ Yes | `question-popper` ✅ | Modify — add tabs (Outstanding / History) |
++| `apps/web/src/features/067-question-popper/components/question-card.tsx` | ✅ Yes | `question-popper` ✅ | Modify — add chain indicator |
++| `test/unit/question-popper/chain-resolver.test.ts` | ❌ No | `question-popper` ✅ | New file |
++
++**Key finding**: `previousQuestionId` already exists in `QuestionPayload` schema and is stored by the service. It's accessible via `questionOut.question.previousQuestionId`. No type changes to `QuestionOut` are needed — the chain resolver reads from the nested payload.
++
++**Harness**: No agent harness configured. Agent will use standard testing approach from plan.
++
++---
++
++## Architecture Map
++
++```mermaid
++flowchart TD
++    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
++    classDef completed fill:#4CAF50,stroke:#388E3C,color:#fff
++
++    subgraph Phase6["Phase 6: Chaining + History"]
++        T001["T001: resolveChain()"]:::pending
++        T002["T002: QuestionChainView"]:::pending
++        T003["T003: QuestionHistoryList"]:::pending
++        T004["T004: Enhance overlay panel"]:::pending
++        T005["T005: Update QuestionCard"]:::pending
++        T006["T006: Tests"]:::pending
++
++        T001 --> T002
++        T002 --> T005
++        T003 --> T004
++        T005 --> T004
++        T004 --> T006
++    end
++
++    subgraph Files["Files"]
++        F1["lib/chain-resolver.ts"]:::pending
++        F2["components/question-chain-view.tsx"]:::pending
++        F3["components/question-history-list.tsx"]:::pending
++        F4["components/question-popper-overlay-panel.tsx"]:::completed
++        F5["components/question-card.tsx"]:::completed
++        F6["test/chain-resolver.test.ts"]:::pending
++    end
++
++    T001 -.-> F1
++    T002 -.-> F2
++    T003 -.-> F3
++    T004 -.-> F4
++    T005 -.-> F5
++    T006 -.-> F6
++
++    subgraph Prior["Prior Phase Contracts"]
++        Hook["useQuestionPopper<br/>items, refetchItems"]:::completed
++        Types["QuestionOut.question<br/>.previousQuestionId"]:::completed
++        API["GET /api/event-popper<br/>/question/[id]"]:::completed
++    end
++
++    F1 --> Types
++    F1 --> API
++    F2 --> Hook
++```
++
++---
++
++## Tasks
++
++| Status | ID | Task | Domain | Path(s) | Done When | Notes |
++|--------|-----|------|--------|---------|-----------|-------|
++| [x] | T001 | `resolveChain(questionId, items, fetchQuestion)` + `buildChainIndex(items)`: Build bidirectional chain index (DYK-01: single O(N) scan creates `Map<parentId, childId[]>` + `Map<childId, parentId>`). Walk backwards to root, then forward to leaves. Local items first, API fetch fallback for missing links. Pure function + async. Circular ref protection (visited set). Simple `useRef<Map>` cache in hook cleared on refetch (DYK-04). Loading state for async resolution (DYK-05). | `question-popper` | `apps/web/src/features/067-question-popper/lib/chain-resolver.ts` | Chain returns ordered `QuestionOut[]` root→leaf. Bidirectional index enables discovery from any node. Handles missing links, circular refs. | DYK-01: bidirectional index. DYK-04: ref cache in hook. DYK-05: accept sequential fallback, show loading. CS-2. |
++| [x] | T002 | `QuestionChainView`: Render a chain as sequential conversation turns. Each turn shows question text, answer (if resolved), status badge, time-ago. Visual turn connectors (vertical line + dots). Current question highlighted. Loading state while chain resolves (DYK-05). Scrollable. | `question-popper` | `apps/web/src/features/067-question-popper/components/question-chain-view.tsx` | Chain renders as vertical timeline with turn connectors. Current question highlighted. Loading spinner while resolving. | AC-24. Purpose-built UI (DYK-02). CS-2. |
++| [x] | T003 | `QuestionHistoryList` with compact `HistoryItemRow`: Purpose-built compact rows (DYK-02) — one line per item showing source badge, truncated text, type pill, status dot, time-ago. Click expands to show full detail (text, markdown description, answer/status, conversation chain). Collapsible. Not a reuse of QuestionCard — designed for scanning. | `question-popper` | `apps/web/src/features/067-question-popper/components/question-history-list.tsx` | Compact scannable list. Expand reveals full detail + chain. Purpose-built, not QuestionCard reuse. | AC-26, AC-27. DYK-02: design for scanning. CS-2. |
++| [x] | T004 | Enhance `QuestionPopperOverlayPanel`: Add tab toggle ("Outstanding" / "History"). Smart tab default (DYK-03): open to Outstanding if `outstandingCount > 0`, else preserve last tab. Outstanding tab shows current cards. History tab shows `QuestionHistoryList`. | `question-popper` | `apps/web/src/features/067-question-popper/components/question-popper-overlay-panel.tsx` (modify) | Panel has two tabs. Smart default tab. Easy to tweak. | AC-26. DYK-03: smart tab default. CS-1. |
++| [x] | T005 | Update `QuestionCard`: When question has `previousQuestionId`, show chain indicator (link icon + "Follow-up" label). "View Thread" button expands `QuestionChainView` inline. Chain resolution uses hook cache (DYK-04). | `question-popper` | `apps/web/src/features/067-question-popper/components/question-card.tsx` (modify) | Chain indicator on follow-ups. "View Thread" expands chain. Uses cached resolution. | AC-24. DYK-04: hook cache avoids duplicate resolution. CS-1. |
++| [x] | T006 | Tests: Chain resolver unit tests (linear chain, single question, missing links, circular ref, bidirectional index). Component tests for chain view + history expand/collapse. All with Test Docs. | `question-popper` | `test/unit/question-popper/chain-resolver.test.ts` | Tests pass covering bidirectional resolution, edge cases, component rendering. | Lightweight. @testing-library/react for components. CS-2. |
++
++---
++
++## Context Brief
++
++### Key Findings from Plan
++
++- **Finding 2**: Activity-log overlay is closest structural template — Phase 5 followed it. Phase 6 enhances the panel with tabs.
++- **Notification-fetch pattern**: SSE events trigger refetch; items list is the single source of truth. Chain resolver should work from local items first.
++- **`previousQuestionId` already stored**: Accessible via `questionOut.question.previousQuestionId` — no type or schema changes needed.
++
++### Domain Dependencies
++
++- `question-popper` (prior phases): `QuestionOut.question.previousQuestionId` (chain link), `useQuestionPopper().items` (full item list), `GET /api/event-popper/question/[id]` (fetch individual for missing chain links)
++- `_platform/external-events`: `WorkspaceDomain.EventPopper` SSE channel — follow-up questions emit same events as first-time questions (AC-25 already satisfied by Phase 2 service)
++
++### Domain Constraints
++
++- All new files under `apps/web/src/features/067-question-popper/` (existing domain)
++- Client components only (`'use client'`) — all UI
++- No `vi.mock` — use fakes/injection (Constitution Principle 4)
++- Chain resolver is a pure function (testable without React) + async fetch fallback for missing links
++
++### AC-25 Note
++
++AC-25 says follow-up questions trigger their own notifications. This is **already satisfied** — the service treats every `askQuestion()` call identically regardless of `previousQuestionId`. The SSE event fires, the notification bridge toasts. No Phase 6 work needed for this AC.
++
++### Reusable from Prior Phases
++
++- `timeAgo()` utility (inline in question-card.tsx — extract to shared utils or duplicate)
++- `QuestionCard` + `AlertCard` components — rendered in history expanded view
++- `AnswerForm` — rendered within chain view for pending questions
++- `isQuestionItem()` / `isAlertItem()` type guards
++- `makeQuestion()` / `makeAlert()` test fixtures from ui-components.test.tsx
++
++### Chain Resolution Algorithm
++
++```
++resolveChain(targetId, items, fetchFn):
++  1. Find target question in items (or fetch via API)
++  2. Walk backwards: target → previous → ... → root
++  3. Reverse to get oldest-first order
++  4. Return QuestionOut[] chain
++  
++  Edge cases:
++  - Single question (no previousQuestionId) → chain of 1
++  - Missing link (deleted/purged question) → chain starts from first found
++  - Circular reference protection → visited set, max depth 50
++```
++
++### Mermaid Flow Diagram
++
++```mermaid
++flowchart LR
++    Click["User clicks<br/>View Thread"] --> Resolve["resolveChain()<br/>walk previousQuestionId"]
++    Resolve -->|local items| Local["Found in<br/>items array"]
++    Resolve -->|missing| Fetch["GET /question/id<br/>API fetch"]
++    Local --> Chain["QuestionChainView<br/>ordered turns"]
++    Fetch --> Chain
++    Chain --> Render["Render timeline<br/>oldest → newest"]
++```
++
++### Mermaid Sequence Diagram
++
++```mermaid
++sequenceDiagram
++    participant User
++    participant Card as QuestionCard
++    participant Resolver as resolveChain()
++    participant Hook as useQuestionPopper
++    participant API as GET /question/[id]
++
++    User->>Card: Click "View Thread"
++    Card->>Resolver: resolveChain(questionId, items)
++    Resolver->>Resolver: Walk previousQuestionId links
++    alt All in local items
++        Resolver-->>Card: QuestionOut[] chain
++    else Missing link
++        Resolver->>API: GET /question/{prevId}
++        API-->>Resolver: QuestionOut
++        Resolver-->>Card: QuestionOut[] chain
++    end
++    Card->>Card: Render QuestionChainView
++```
++
++---
++
++## Discoveries & Learnings
++
++_Populated during implementation by plan-6._
++
++| Date | Task | Type | Discovery | Resolution | References |
++|------|------|------|-----------|------------|------------|
++
++---
++
++## Critical Insights (DYK)
++
++| ID | Insight | Decision | Impact |
++|----|---------|----------|--------|
++| DYK-01 | Chain resolver only walks backwards — can't discover follow-ups from older questions. | Build bidirectional `chainIndex` map with single O(N) scan: `Map<parentId, childId[]>` + `Map<childId, parentId>`. Enables discovery from any node in a chain. | T001: chain-resolver.ts |
++| DYK-02 | History list using full QuestionCards creates a wall of large cards — AC-26 wants compact scannable rows. | Design purpose-built `HistoryItemRow` (compact one-liner) that expands on click. Don't reuse QuestionCard directly. Take design inspiration but build what's right. | T003: question-history-list.tsx |
++| DYK-03 | Tab state across overlay open/close — should Outstanding or History be the default? | Smart default: open to Outstanding tab if `outstandingCount > 0`, else preserve last tab. Easy to tweak later. | T004: overlay panel |
++| DYK-04 | Chain resolution in per-card state causes duplicate API calls for shared chains + lost state on tab switch. | Simple `useRef<Map<string, QuestionOut[]>>` cache in hook. Cleared on SSE refetch. ~10 lines of code. | T001/T005: hook + card integration |
++| DYK-05 | Deep chains (5+ turns past limit=100) require sequential API round-trips — inherently can't parallelize. | Accept sequential nature (KISS). Add loading state to chain view. Fix with server-side endpoint only if it becomes a real problem. | T001/T002: resolver + chain view |
++
++---
++
++## Directory Layout
++
++```
++docs/plans/067-question-popper/
++  ├── plan.md
++  ├── question-popper-spec.md
++  └── tasks/phase-6-question-chaining-history/
++      ├── tasks.md          ← this file
++      ├── tasks.fltplan.md  ← generated next
++      └── execution.log.md  ← created by plan-6
++```
+diff --git a/test/unit/question-popper/chain-resolver.test.tsx b/test/unit/question-popper/chain-resolver.test.tsx
+new file mode 100644
+index 0000000..529965f
+--- /dev/null
++++ b/test/unit/question-popper/chain-resolver.test.tsx
+@@ -0,0 +1,244 @@
++/**
++ * Plan 067 Phase 6: Question Popper — Chain Resolver + Component Tests
++ *
++ * Tests chain resolution logic (pure functions, no React) and
++ * component rendering for chain view and history list.
++ *
++ * Testing approach: Lightweight per plan.
++ */
++
++import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
++import { afterEach, describe, expect, it, vi } from 'vitest';
++
++import type { QuestionOut } from '@chainglass/shared/question-popper';
++
++import { buildChainIndex, isPartOfChain, resolveChain } from '../../../apps/web/src/features/067-question-popper/lib/chain-resolver';
++
++afterEach(cleanup);
++
++// ── Test Fixtures ──
++
++function makeQ(id: string, previousId: string | null = null, status: QuestionOut['status'] = 'pending'): QuestionOut {
++  return {
++    questionId: id,
++    status,
++    question: {
++      questionType: 'text',
++      text: `Question ${id}`,
++      description: null,
++      options: null,
++      default: null,
++      previousQuestionId: previousId,
++    },
++    source: 'test-agent',
++    createdAt: `2026-03-07T10:0${id.replace(/\D/g, '') || '0'}:00.000Z`,
++  };
++}
++
++// ── buildChainIndex ──
++
++describe('buildChainIndex', () => {
++  it('builds bidirectional maps from items with previousQuestionId', () => {
++    /**
++     * Test Doc:
++     * - Why: DYK-01 requires bidirectional chain discovery from any node.
++     * - Contract: Single O(N) scan produces parentToChildren + childToParent maps.
++     * - Usage Notes: Called internally by resolveChain and isPartOfChain.
++     * - Quality Contribution: Ensures forward+backward lookups work from any position.
++     * - Worked Example: A→B→C produces parent→children {A:[B], B:[C]} and child→parent {B:A, C:B}.
++     */
++    const items = [makeQ('a'), makeQ('b', 'a'), makeQ('c', 'b')];
++    const index = buildChainIndex(items);
++
++    expect(index.parentToChildren.get('a')).toEqual(['b']);
++    expect(index.parentToChildren.get('b')).toEqual(['c']);
++    expect(index.childToParent.get('b')).toBe('a');
++    expect(index.childToParent.get('c')).toBe('b');
++  });
++
++  it('returns empty maps for items without chains', () => {
++    /**
++     * Test Doc:
++     * - Why: Most questions won't be chained — index must handle this gracefully.
++     * - Contract: Items with no previousQuestionId produce empty maps.
++     * - Usage Notes: isPartOfChain returns false for unchained items.
++     * - Quality Contribution: Prevents false positives in chain detection.
++     * - Worked Example: Three independent questions → both maps empty.
++     */
++    const items = [makeQ('x'), makeQ('y'), makeQ('z')];
++    const index = buildChainIndex(items);
++
++    expect(index.parentToChildren.size).toBe(0);
++    expect(index.childToParent.size).toBe(0);
++  });
++});
++
++// ── isPartOfChain ──
++
++describe('isPartOfChain', () => {
++  it('detects chain membership for parent and child nodes', () => {
++    /**
++     * Test Doc:
++     * - Why: Chain indicator on QuestionCard relies on this check.
++     * - Contract: Returns true for any question that is a parent or child in a chain.
++     * - Usage Notes: Cheap O(N) check — no API calls.
++     * - Quality Contribution: Ensures "View Thread" button appears on correct cards.
++     * - Worked Example: A→B: both A (parent) and B (child) return true; C (standalone) returns false.
++     */
++    const items = [makeQ('a'), makeQ('b', 'a'), makeQ('c')];
++
++    expect(isPartOfChain('a', items)).toBe(true);  // parent
++    expect(isPartOfChain('b', items)).toBe(true);  // child
++    expect(isPartOfChain('c', items)).toBe(false); // standalone
++  });
++});
++
++// ── resolveChain ──
++
++describe('resolveChain', () => {
++  it('resolves a linear chain in order (oldest → newest)', async () => {
++    /**
++     * Test Doc:
++     * - Why: AC-24 requires conversation thread rendering in chronological order.
++     * - Contract: resolveChain returns QuestionOut[] from root to leaf.
++     * - Usage Notes: Walks backwards to root, then collects forward children.
++     * - Quality Contribution: Ensures chain order is correct for timeline rendering.
++     * - Worked Example: A→B→C, resolve from B → returns [A, B, C].
++     */
++    const items = [makeQ('a'), makeQ('b', 'a'), makeQ('c', 'b')];
++    const chain = await resolveChain('b', items);
++
++    expect(chain.map((q) => q.questionId)).toEqual(['a', 'b', 'c']);
++  });
++
++  it('returns single-item array for standalone questions', async () => {
++    /**
++     * Test Doc:
++     * - Why: Standalone questions have no chain — should return just themselves.
++     * - Contract: No previousQuestionId and no children → chain of length 1.
++     * - Usage Notes: QuestionChainView renders nothing for single-item chains.
++     * - Quality Contribution: Prevents empty chain or null return.
++     * - Worked Example: Standalone Q → returns [Q].
++     */
++    const items = [makeQ('solo')];
++    const chain = await resolveChain('solo', items);
++
++    expect(chain).toHaveLength(1);
++    expect(chain[0].questionId).toBe('solo');
++  });
++
++  it('handles missing links gracefully (chain starts from first found)', async () => {
++    /**
++     * Test Doc:
++     * - Why: Old questions may be purged — chain must not fail on missing parents.
++     * - Contract: When a previousQuestionId points to a missing item and no fetchFn is provided, chain starts from current.
++     * - Usage Notes: Missing root = chain is partial but still usable.
++     * - Quality Contribution: Prevents crashes on stale chains.
++     * - Worked Example: B references missing A → chain = [B, C].
++     */
++    // B references 'missing-a' which doesn't exist in items
++    const items = [makeQ('b', 'missing-a'), makeQ('c', 'b')];
++    const chain = await resolveChain('c', items);
++
++    // Should include b and c (missing-a not found), chain starts from b
++    expect(chain.map((q) => q.questionId)).toEqual(['b', 'c']);
++  });
++
++  it('uses fetchQuestion fallback for missing items', async () => {
++    /**
++     * Test Doc:
++     * - Why: DYK-05 — deep chains may have items beyond the API list limit.
++     * - Contract: When item not in local list, fetchQuestion is called as fallback.
++     * - Usage Notes: Sequential fetch — inherent to chain walking.
++     * - Quality Contribution: Verifies API fallback path works.
++     * - Worked Example: B references A not in items, fetchFn returns A → chain = [A, B].
++     */
++    const missingA = makeQ('a');
++    const items = [makeQ('b', 'a')];
++
++    const fetchFn = vi.fn().mockResolvedValue(missingA);
++    const chain = await resolveChain('b', items, fetchFn);
++
++    expect(fetchFn).toHaveBeenCalledWith('a');
++    expect(chain.map((q) => q.questionId)).toEqual(['a', 'b']);
++  });
++
++  it('protects against circular references', async () => {
++    /**
++     * Test Doc:
++     * - Why: Malformed data could create cycles — must not infinite loop.
++     * - Contract: Visited set breaks cycles; chain returns what was found before cycle.
++     * - Usage Notes: MAX_CHAIN_DEPTH (50) also limits traversal.
++     * - Quality Contribution: Prevents browser hang on corrupt data.
++     * - Worked Example: A→B→A (cycle) starting from B → returns [A, B] without looping.
++     */
++    const a = makeQ('a', 'b'); // A references B
++    const b = makeQ('b', 'a'); // B references A — circular!
++    const items = [a, b];
++
++    const chain = await resolveChain('b', items);
++
++    // Should not hang — returns items found before cycle detected
++    expect(chain.length).toBeLessThanOrEqual(2);
++    expect(chain.length).toBeGreaterThanOrEqual(1);
++  });
++
++  it('resolves chain from root node (forward-only)', async () => {
++    /**
++     * Test Doc:
++     * - Why: DYK-01 — bidirectional discovery must work from root (no backward walk needed).
++     * - Contract: From root, forward walk finds all descendants.
++     * - Usage Notes: Root has no previousQuestionId — backward walk returns immediately.
++     * - Quality Contribution: Verifies forward-only chain direction works.
++     * - Worked Example: A→B→C, resolve from A → returns [A, B, C].
++     */
++    const items = [makeQ('a'), makeQ('b', 'a'), makeQ('c', 'b')];
++    const chain = await resolveChain('a', items);
++
++    expect(chain.map((q) => q.questionId)).toEqual(['a', 'b', 'c']);
++  });
++});
++
++// ── QuestionHistoryList (component rendering) ──
++
++describe('QuestionHistoryList', () => {
++  it('renders compact rows that expand on click', async () => {
++    /**
++     * Test Doc:
++     * - Why: AC-26 requires scannable history list, AC-27 requires expandable detail.
++     * - Contract: Renders compact rows; clicking expands to show full detail.
++     * - Usage Notes: Uses HistoryItemRow (compact) + HistoryItemDetail (expanded).
++     * - Quality Contribution: Verifies expand/collapse UX wiring.
++     * - Worked Example: Click row → detail appears; click again → detail hides.
++     */
++    const { QuestionHistoryList } = await import(
++      '../../../apps/web/src/features/067-question-popper/components/question-history-list'
++    );
++
++    const items = [makeQ('q1', null, 'answered')];
++    const noop = async () => {};
++
++    render(
++      <QuestionHistoryList
++        items={items}
++        onAnswer={noop}
++        onDismiss={noop}
++        onClarify={noop}
++        onAcknowledge={noop}
++        getChain={async () => []}
++      />
++    );
++
++    // Compact row should be visible
++    const row = screen.getByText('Question q1');
++    expect(row).toBeDefined();
++
++    // Click to expand
++    fireEvent.click(row);
++
++    // Detail should now be visible (full question text rendered in expanded detail)
++    await waitFor(() => {
++      expect(screen.getByText('Answered:')).toBeDefined();
++    });
++  });
++});

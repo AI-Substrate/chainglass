@@ -91,6 +91,8 @@ export const WORKSPACE_DI_TOKENS = {
   CENTRAL_WATCHER_SERVICE: 'ICentralWatcherService',
   /** ICentralEventNotifier interface (Plan 027: Central Domain Event Notification) */
   CENTRAL_EVENT_NOTIFIER: 'ICentralEventNotifier',
+  /** IQuestionPopperService interface (Plan 067: Event Popper) */
+  QUESTION_POPPER_SERVICE: 'IQuestionPopperService',
 } as const;
 
 /**

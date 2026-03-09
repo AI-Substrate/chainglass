@@ -1,0 +1,720 @@
+diff --git a/apps/web/next-env.d.ts b/apps/web/next-env.d.ts
+index 9edff1c7..c4b7818f 100644
+--- a/apps/web/next-env.d.ts
++++ b/apps/web/next-env.d.ts
+@@ -1,6 +1,6 @@
+ /// <reference types="next" />
+ /// <reference types="next/image-types/global" />
+-import "./.next/types/routes.d.ts";
++import "./.next/dev/types/routes.d.ts";
+ 
+ // NOTE: This file should not be edited
+ // see https://nextjs.org/docs/app/api-reference/config/typescript for more information.
+
+diff --git a/apps/web/src/lib/sse-manager.ts b/apps/web/src/lib/sse-manager.ts
+index 597695c3..46b92433 100644
+--- a/apps/web/src/lib/sse-manager.ts
++++ b/apps/web/src/lib/sse-manager.ts
+@@ -68,13 +68,14 @@ export class SSEManager {
+       return; // No connections on this channel
+     }
+ 
+-    // Format as SSE message with type embedded in data payload.
++    // Format as SSE message with type and channel embedded in data payload.
+     // Uses unnamed events (no "event:" line) so EventSource.onmessage receives them.
+     // Named SSE events require addEventListener() which useSSE doesn't use.
++    // channel is authoritative — overwrites any caller-provided value
+     const payload =
+       typeof data === 'object' && data !== null
+-        ? { ...(data as Record<string, unknown>), type: eventType }
+-        : { type: eventType, data };
++        ? { ...(data as Record<string, unknown>), type: eventType, channel: channelId }
++        : { type: eventType, data, channel: channelId };
+     const message = `data: ${JSON.stringify(payload)}\n\n`;
+     const encoded = this.encoder.encode(message);
+ 
+@@ -90,6 +91,29 @@ export class SSEManager {
+     }
+   }
+ 
++  /**
++   * Remove a controller from ALL channels it belongs to.
++   * Used by the mux route for atomic cleanup on disconnect.
++   * O(channels) scan — acceptable for ~6 active channels.
++   * @param controller - The controller to remove from all channels
++   * @returns Array of channel IDs the controller was removed from
++   */
++  removeControllerFromAllChannels(controller: StreamController): string[] {
++    const removed: string[] = [];
++    // Snapshot channel entries to avoid mutation during iteration
++    const entries = Array.from(this.connections.entries());
++    for (const [channelId, channelSet] of entries) {
++      if (channelSet.has(controller)) {
++        channelSet.delete(controller);
++        removed.push(channelId);
++        if (channelSet.size === 0) {
++          this.connections.delete(channelId);
++        }
++      }
++    }
++    return removed;
++  }
++
+   /**
+    * Get the number of connections on a channel
+    * @param channelId - The channel to check
+
+diff --git a/apps/web/src/lib/state/server-event-router.ts b/apps/web/src/lib/state/server-event-router.ts
+index 82e92089..7266dabe 100644
+--- a/apps/web/src/lib/state/server-event-router.ts
++++ b/apps/web/src/lib/state/server-event-router.ts
+@@ -19,6 +19,8 @@ import type { StatePropertyDescriptor } from '@chainglass/shared/state';
+  */
+ export interface ServerEvent {
+   type: string;
++  /** SSE channel this event was broadcast on (e.g. 'event-popper', 'file-changes') */
++  channel?: string;
+   [key: string]: unknown;
+ }
+ 
+
+diff --git a/apps/web/app/api/events/mux/route.ts b/apps/web/app/api/events/mux/route.ts
+new file mode 100644
+index 00000000..32f53283
+--- /dev/null
++++ b/apps/web/app/api/events/mux/route.ts
+@@ -0,0 +1,126 @@
++/**
++ * SSE Multiplexed Route Handler - /api/events/mux
++ *
++ * Multiplexed SSE endpoint that registers a single controller on multiple
++ * channels. Clients connect with ?channels=a,b,c and receive events from
++ * ALL requested channels over one EventSource connection.
++ *
++ * Plan 072: SSE Multiplexing — Phase 1
++ * DYK-04: force-dynamic required to prevent Next.js static optimization.
++ * DEV-03: 15s heartbeat (reduced from 30s) to survive proxy idle timeouts.
++ */
++import { auth } from '@/auth';
++import type { NextRequest } from 'next/server';
++import { NextResponse } from 'next/server';
++import { sseManager } from '../../../../src/lib/sse-manager';
++
++export const dynamic = 'force-dynamic';
++
++/** Heartbeat interval — 15s to survive proxy idle timeouts (DEV-03) */
++const HEARTBEAT_INTERVAL = 15_000;
++
++/** Maximum channels per connection */
++const MAX_CHANNELS = 20;
++
++/** Channel name validation pattern */
++const CHANNEL_PATTERN = /^[a-zA-Z0-9_-]+$/;
++
++export async function GET(request: NextRequest): Promise<Response> {
++  const session = await auth();
++  if (!session) {
++    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
++  }
++
++  const channelsParam = request.nextUrl.searchParams.get('channels');
++  if (!channelsParam) {
++    return new Response('Missing channels query parameter', {
++      status: 400,
++      headers: { 'Content-Type': 'text/plain' },
++    });
++  }
++
++  // Parse, deduplicate, validate
++  const channels = [...new Set(channelsParam.split(',').filter(Boolean))];
++
++  if (channels.length === 0) {
++    return new Response('No valid channels provided', {
++      status: 400,
++      headers: { 'Content-Type': 'text/plain' },
++    });
++  }
++
++  if (channels.length > MAX_CHANNELS) {
++    return new Response(`Too many channels (max ${MAX_CHANNELS}, got ${channels.length})`, {
++      status: 400,
++      headers: { 'Content-Type': 'text/plain' },
++    });
++  }
++
++  for (const ch of channels) {
++    if (!CHANNEL_PATTERN.test(ch)) {
++      return new Response(`Invalid channel name: ${ch}`, {
++        status: 400,
++        headers: { 'Content-Type': 'text/plain' },
++      });
++    }
++  }
++
++  const stream = new ReadableStream({
++    start(controller) {
++      // Register ONE controller on ALL requested channels
++      for (const ch of channels) {
++        sseManager.addConnection(ch, controller);
++      }
++      console.debug(
++        `[SSE-MUX] Client connected to channels [${channels.join(', ')}]`
++      );
++
++      const encoder = new TextEncoder();
++      controller.enqueue(encoder.encode(': heartbeat\n\n'));
++
++      const heartbeatInterval = setInterval(() => {
++        try {
++          controller.enqueue(encoder.encode(': heartbeat\n\n'));
++        } catch {
++          // Controller closed — clean up from ALL channels
++          clearInterval(heartbeatInterval);
++          sseManager.removeControllerFromAllChannels(controller);
++        }
++      }, HEARTBEAT_INTERVAL);
++
++      const cleanup = () => {
++        clearInterval(heartbeatInterval);
++        const removed = sseManager.removeControllerFromAllChannels(controller);
++        console.debug(
++          `[SSE-MUX] Client disconnected from channels [${removed.join(', ')}]`
++        );
++        try {
++          controller.close();
++        } catch {
++          // Controller might already be closed
++        }
++      };
++
++      if (request.signal.aborted) {
++        cleanup();
++        return;
++      }
++
++      request.signal.addEventListener('abort', () => {
++        cleanup();
++      });
++    },
++    cancel() {
++      // Stream cancelled by client — cleanup handled by abort listener
++    },
++  });
++
++  return new Response(stream, {
++    status: 200,
++    headers: {
++      'Content-Type': 'text/event-stream',
++      'Cache-Control': 'no-cache',
++      Connection: 'keep-alive',
++    },
++  });
++}
+
+diff --git a/docs/domains/_platform/events/domain.md b/docs/domains/_platform/events/domain.md
+index 195e8459..b86fe518 100644
+--- a/docs/domains/_platform/events/domain.md
++++ b/docs/domains/_platform/events/domain.md
+@@ -84,7 +84,8 @@ Central event platform for the entire application. Owns the full pipeline from f
+ | FileChangeWatcherAdapter | Filters source file events, batches with debounce | IWatcherAdapter (self-filter pattern) |
+ | FileChangeDomainEventAdapter | Transforms batched file events → SSE payload | DomainEventAdapter, ICentralEventNotifier |
+ | startCentralNotificationSystem | Bootstrap — resolves DI, wires adapters, starts watcher | DI container |
+-| SSE API route | HTTP endpoint for EventSource connections | SSEManager |
++| SSE API route (`[channel]`) | HTTP endpoint for single-channel EventSource connections | SSEManager |
++| SSE API route (`mux`) | Multiplexed HTTP endpoint — registers one controller on multiple channels | SSEManager (Plan 072) |
+ | useSSE hook | Client SSE connection management | EventSource API |
+ | useWorkspaceSSE hook | Workspace-scoped SSE subscription | useSSE |
+ | FileChangeHub | Client-side pattern matcher + subscriber dispatch | — (standalone) |
+@@ -174,3 +175,4 @@ Primary: scattered across `packages/shared`, `packages/workflow`, `apps/web` (Pl
+ | 067 Phase 1 | Added EventPopper: 'event-popper' to WorkspaceDomain const (SSE channel for question/alert lifecycle events) | 2026-03-07 |
+ | 050 Phase 6-7 | Added WorkflowWatcherAdapter + WorkflowDomainEventAdapter; removed WorkGraphWatcherAdapter + WorkGraphDomainEventAdapter; added Workflows channel; deprecated Workgraphs channel | 2026-02-27 |
+ | Plan 060 | Replaced ChokidarFileWatcherAdapter with NativeFileWatcherAdapter (Node.js fs.watch recursive). Eliminated FD exhaustion (12,700 → ~20 FDs). Removed chokidar dependency. | 2026-02-28 |
++| Plan 072 Phase 1 | SSE Multiplexing server foundation: added `channel` field to SSEManager.broadcast() payload, added `removeControllerFromAllChannels()` method, created `/api/events/mux` multiplexed endpoint (15s heartbeat, multi-channel registration, atomic cleanup). Extended ServerEvent type with optional `channel` field. | 2026-03-08 |
+
+diff --git a/test/unit/web/services/sse-manager.test.ts b/test/unit/web/services/sse-manager.test.ts
+index b866106b..1a878743 100644
+--- a/test/unit/web/services/sse-manager.test.ts
++++ b/test/unit/web/services/sse-manager.test.ts
+@@ -151,10 +151,10 @@ describe('SSEManager', () => {
+       /*
+       Test Doc:
+       - Why: Verify protocol compliance
+-      - Contract: Event formatted as unnamed SSE with type in data payload: `data: {JSON}\n\n`
++      - Contract: Event formatted as unnamed SSE with type and channel in data payload: `data: {JSON}\n\n`
+       - Usage Notes: Check exact string written to FakeController
+       - Quality Contribution: SSE spec compliance — unnamed events ensure EventSource.onmessage receives them
+-      - Worked Example: broadcast('ch1', 'heartbeat', {timestamp}) → data: {"type":"heartbeat","timestamp":...}\n\n
++      - Worked Example: broadcast('ch1', 'heartbeat', {timestamp}) → data: {"type":"heartbeat","channel":"ch1","timestamp":...}\n\n
+       */
+       const controller = new FakeController();
+       manager.addConnection('workflow-1', controller as unknown as ReadableStreamDefaultController);
+@@ -164,6 +164,7 @@ describe('SSEManager', () => {
+       const content = controller.getAllContent();
+       expect(content).toMatch(/^data: \{/);
+       expect(content).toContain('"type":"heartbeat"');
++      expect(content).toContain('"channel":"workflow-1"');
+       expect(content).toContain('"timestamp":"2026-01-23T00:00:00Z"');
+       expect(content).toMatch(/\n\n$/);
+     });
+@@ -229,4 +230,205 @@ describe('SSEManager', () => {
+       expect(sseManager).toBeInstanceOf(SSEManager);
+     });
+   });
++
++  describe('channel tagging (Plan 072)', () => {
++    it('should include channel field in broadcast payload', () => {
++      /*
++      Test Doc:
++      - Why: Multiplexed clients need to demux events by channel
++      - Contract: broadcast(channelId, eventType, data) includes channel: channelId in JSON payload
++      - Usage Notes: Parse the JSON from the SSE data frame, check channel field
++      - Quality Contribution: Core multiplexing contract — without this, demux is impossible
++      - Worked Example: broadcast('event-popper', 'question-asked', {id:'q1'}) → payload has channel:'event-popper'
++      */
++      const controller = new FakeController();
++      manager.addConnection(
++        'event-popper',
++        controller as unknown as ReadableStreamDefaultController
++      );
++
++      manager.broadcast('event-popper', 'question-asked', { questionId: 'q1' });
++
++      const content = controller.getAllContent();
++      const jsonStr = content.replace(/^data: /, '').replace(/\n\n$/, '');
++      const payload = JSON.parse(jsonStr);
++      expect(payload.channel).toBe('event-popper');
++      expect(payload.type).toBe('question-asked');
++      expect(payload.questionId).toBe('q1');
++    });
++
++    it('should include channel in primitive data payloads', () => {
++      /*
++      Test Doc:
++      - Why: broadcast() has two payload paths (object spread vs wrapper). Both need channel.
++      - Contract: When data is not an object, payload is {type, data, channel}
++      - Usage Notes: Pass a string as data to hit the primitive branch
++      - Quality Contribution: Covers both payload construction branches
++      - Worked Example: broadcast('ch', 'ping', 'hello') → {type:'ping', data:'hello', channel:'ch'}
++      */
++      const controller = new FakeController();
++      manager.addConnection('test-ch', controller as unknown as ReadableStreamDefaultController);
++
++      manager.broadcast('test-ch', 'ping', 'hello');
++
++      const content = controller.getAllContent();
++      const jsonStr = content.replace(/^data: /, '').replace(/\n\n$/, '');
++      const payload = JSON.parse(jsonStr);
++      expect(payload.channel).toBe('test-ch');
++      expect(payload.type).toBe('ping');
++      expect(payload.data).toBe('hello');
++    });
++
++    it('should overwrite caller-provided channel field (authoritative)', () => {
++      /*
++      Test Doc:
++      - Why: SSEManager is authoritative about channel identity — caller can't spoof it
++      - Contract: If data already has a channel field, SSEManager overwrites it with channelId
++      - Usage Notes: Pass data with channel:'wrong', verify it gets channelId instead
++      - Quality Contribution: Security — prevents channel spoofing by domain services
++      - Worked Example: broadcast('real-ch', 'evt', {channel:'fake'}) → payload.channel === 'real-ch'
++      */
++      const controller = new FakeController();
++      manager.addConnection('real-ch', controller as unknown as ReadableStreamDefaultController);
++
++      manager.broadcast('real-ch', 'test-event', { channel: 'fake-channel', value: 42 });
++
++      const content = controller.getAllContent();
++      const jsonStr = content.replace(/^data: /, '').replace(/\n\n$/, '');
++      const payload = JSON.parse(jsonStr);
++      expect(payload.channel).toBe('real-ch');
++      expect(payload.value).toBe(42);
++    });
++
++    it('should deliver to same controller registered on multiple channels', () => {
++      /*
++      Test Doc:
++      - Why: Core mux route pattern — one controller in multiple channel Sets
++      - Contract: A controller added to channels A and B receives broadcasts from both
++      - Usage Notes: Register same FakeController on two channels, broadcast to each
++      - Quality Contribution: Proves the multiplexing architecture works at SSEManager level
++      - Worked Example: controller in 'ch-a' and 'ch-b' → broadcast to 'ch-a' → controller gets it
++      */
++      const muxController = new FakeController();
++      manager.addConnection(
++        'file-changes',
++        muxController as unknown as ReadableStreamDefaultController
++      );
++      manager.addConnection(
++        'event-popper',
++        muxController as unknown as ReadableStreamDefaultController
++      );
++
++      manager.broadcast('file-changes', 'file-changed', { path: 'README.md' });
++      manager.broadcast('event-popper', 'question-asked', { questionId: 'q1' });
++
++      const chunks = muxController.getDecodedChunks();
++      expect(chunks.length).toBe(2);
++      expect(chunks[0]).toContain('"channel":"file-changes"');
++      expect(chunks[1]).toContain('"channel":"event-popper"');
++    });
++  });
++
++  describe('removeControllerFromAllChannels (Plan 072)', () => {
++    it('should remove controller from all registered channels', () => {
++      /*
++      Test Doc:
++      - Why: Mux route disconnect must clean up all channel registrations atomically
++      - Contract: removeControllerFromAllChannels(ctrl) removes it from every channel Set
++      - Usage Notes: Register on 3 channels, call method, verify 0 connections on each
++      - Quality Contribution: Memory leak prevention for multiplexed connections
++      - Worked Example: ctrl in [a,b,c] → removeControllerFromAllChannels(ctrl) → 0 on all
++      */
++      const controller = new FakeController();
++      const fc = controller as unknown as ReadableStreamDefaultController;
++      manager.addConnection('ch-a', fc);
++      manager.addConnection('ch-b', fc);
++      manager.addConnection('ch-c', fc);
++
++      manager.removeControllerFromAllChannels(fc);
++
++      expect(manager.getConnectionCount('ch-a')).toBe(0);
++      expect(manager.getConnectionCount('ch-b')).toBe(0);
++      expect(manager.getConnectionCount('ch-c')).toBe(0);
++    });
++
++    it('should return array of removed channel names', () => {
++      /*
++      Test Doc:
++      - Why: Caller needs to know which channels were cleaned up (for logging)
++      - Contract: Returns string[] of channelIds the controller was removed from
++      - Usage Notes: Register on 2 channels, verify returned array contains both
++      - Quality Contribution: Observability — enables debug logging of cleanup
++      - Worked Example: ctrl in [a,b] → removeControllerFromAllChannels(ctrl) → ['a', 'b']
++      */
++      const controller = new FakeController();
++      const fc = controller as unknown as ReadableStreamDefaultController;
++      manager.addConnection('ch-a', fc);
++      manager.addConnection('ch-b', fc);
++
++      const removed = manager.removeControllerFromAllChannels(fc);
++
++      expect(removed).toContain('ch-a');
++      expect(removed).toContain('ch-b');
++      expect(removed.length).toBe(2);
++    });
++
++    it('should clean up empty channel Sets', () => {
++      /*
++      Test Doc:
++      - Why: Empty Sets waste memory and make hasChannel() return wrong results
++      - Contract: After removing the last controller, the channel is deleted from the Map
++      - Usage Notes: Register sole controller on channel, remove via method, verify channel gone
++      - Quality Contribution: Memory hygiene
++      - Worked Example: sole ctrl in 'ch-a' → removeControllerFromAllChannels → hasChannel('ch-a') === false
++      */
++      const controller = new FakeController();
++      const fc = controller as unknown as ReadableStreamDefaultController;
++      manager.addConnection('ch-a', fc);
++
++      manager.removeControllerFromAllChannels(fc);
++
++      expect(manager.hasChannel('ch-a')).toBe(false);
++    });
++
++    it('should not affect other controllers on shared channels', () => {
++      /*
++      Test Doc:
++      - Why: Removing mux controller must not remove per-channel controllers on same channel
++      - Contract: Only the specified controller is removed; others stay
++      - Usage Notes: Register mux ctrl + regular ctrl on same channel, remove mux, verify regular stays
++      - Quality Contribution: Isolation — migration safety (old [channel] route + new mux coexist)
++      - Worked Example: mux+regular on 'ch-a' → removeControllerFromAllChannels(mux) → regular stays
++      */
++      const muxController = new FakeController();
++      const regularController = new FakeController();
++      manager.addConnection('ch-a', muxController as unknown as ReadableStreamDefaultController);
++      manager.addConnection('ch-a', regularController as unknown as ReadableStreamDefaultController);
++
++      manager.removeControllerFromAllChannels(
++        muxController as unknown as ReadableStreamDefaultController
++      );
++
++      expect(manager.getConnectionCount('ch-a')).toBe(1);
++      expect(manager.hasChannel('ch-a')).toBe(true);
++    });
++
++    it('should handle controller not in any channel gracefully', () => {
++      /*
++      Test Doc:
++      - Why: Edge case — controller may have already been cleaned up
++      - Contract: Returns empty array, does not throw
++      - Usage Notes: Call with a controller that was never registered
++      - Quality Contribution: Robustness — double-cleanup safety
++      - Worked Example: unregistered ctrl → removeControllerFromAllChannels → [] (no error)
++      */
++      const controller = new FakeController();
++
++      const removed = manager.removeControllerFromAllChannels(
++        controller as unknown as ReadableStreamDefaultController
++      );
++
++      expect(removed).toEqual([]);
++    });
++  });
+ });
+
+diff --git a/test/unit/web/api/events-mux-route.test.ts b/test/unit/web/api/events-mux-route.test.ts
+new file mode 100644
+index 00000000..8be7433a
+--- /dev/null
++++ b/test/unit/web/api/events-mux-route.test.ts
+@@ -0,0 +1,248 @@
++/**
++ * Mux Route Contract Tests — Plan 072 Phase 1
++ *
++ * Tests for the /api/events/mux multiplexed SSE endpoint.
++ * Focuses on the SSEManager contract: channel validation, multi-channel
++ * registration, and atomic cleanup. Streaming and auth are verified
++ * via manual testing (DYK: first-of-kind route handler test).
++ *
++ * Per DYK-04: Tests SSEManager interaction, not actual ReadableStream
++ * streaming — that's an integration concern for manual DevTools verification.
++ */
++import { beforeEach, describe, expect, it } from 'vitest';
++import { FakeController } from '../../../fakes/fake-controller';
++import { SSEManager } from '../../../../apps/web/src/lib/sse-manager';
++
++/** Channel validation regex — mirrors the one in mux/route.ts */
++const CHANNEL_PATTERN = /^[a-zA-Z0-9_-]+$/;
++const MAX_CHANNELS = 20;
++
++/**
++ * Parses and validates a channels query parameter.
++ * Extracted here to test the exact logic the route uses.
++ */
++function parseChannels(channelsParam: string | null): {
++  ok: boolean;
++  channels: string[];
++  error?: string;
++} {
++  if (!channelsParam) {
++    return { ok: false, channels: [], error: 'Missing channels query parameter' };
++  }
++
++  const channels = [...new Set(channelsParam.split(',').filter(Boolean))];
++
++  if (channels.length === 0) {
++    return { ok: false, channels: [], error: 'No valid channels provided' };
++  }
++
++  if (channels.length > MAX_CHANNELS) {
++    return {
++      ok: false,
++      channels: [],
++      error: `Too many channels (max ${MAX_CHANNELS}, got ${channels.length})`,
++    };
++  }
++
++  for (const ch of channels) {
++    if (!CHANNEL_PATTERN.test(ch)) {
++      return { ok: false, channels: [], error: `Invalid channel name: ${ch}` };
++    }
++  }
++
++  return { ok: true, channels };
++}
++
++describe('/api/events/mux route contract', () => {
++  describe('channel validation', () => {
++    it('should reject missing channels parameter', () => {
++      /*
++      Test Doc:
++      - Why: Route must require channels param — connecting without channels is meaningless
++      - Contract: null channels param → error with descriptive message
++      - Usage Notes: Tests the validation path, not the HTTP response code
++      - Quality Contribution: Input validation boundary
++      - Worked Example: parseChannels(null) → {ok: false, error: 'Missing...'}
++      */
++      const result = parseChannels(null);
++      expect(result.ok).toBe(false);
++      expect(result.error).toContain('Missing');
++    });
++
++    it('should reject empty channels string', () => {
++      /*
++      Test Doc:
++      - Why: Empty string after split produces no valid channels
++      - Contract: '' → error
++      - Usage Notes: Edge case — user sends ?channels= with no value
++      - Quality Contribution: Robustness
++      - Worked Example: parseChannels('') → {ok: false}
++      */
++      const result = parseChannels('');
++      expect(result.ok).toBe(false);
++    });
++
++    it('should reject invalid channel names', () => {
++      /*
++      Test Doc:
++      - Why: Channel names must be safe for SSE protocol (no injection)
++      - Contract: Names with special chars → error identifying the bad name
++      - Usage Notes: Tests regex boundary: spaces, newlines, colons rejected
++      - Quality Contribution: Security boundary — prevents SSE injection via channel name
++      - Worked Example: parseChannels('good,bad name') → error mentioning 'bad name'
++      */
++      const result = parseChannels('good,bad name');
++      expect(result.ok).toBe(false);
++      expect(result.error).toContain('bad name');
++
++      const result2 = parseChannels('has:colon');
++      expect(result2.ok).toBe(false);
++
++      const result3 = parseChannels('new\nline');
++      expect(result3.ok).toBe(false);
++    });
++
++    it('should reject more than 20 channels', () => {
++      /*
++      Test Doc:
++      - Why: Prevent abuse — one connection subscribing to hundreds of channels
++      - Contract: >MAX_CHANNELS → error with count
++      - Usage Notes: Generate 21 channel names
++      - Quality Contribution: DoS prevention
++      - Worked Example: 21 channels → error mentioning 'max 20'
++      */
++      const channels = Array.from({ length: 21 }, (_, i) => `ch-${i}`).join(',');
++      const result = parseChannels(channels);
++      expect(result.ok).toBe(false);
++      expect(result.error).toContain('max 20');
++    });
++
++    it('should deduplicate channels', () => {
++      /*
++      Test Doc:
++      - Why: Duplicate channels waste Set entries and confuse cleanup
++      - Contract: 'a,b,a,c,b' → unique ['a', 'b', 'c']
++      - Usage Notes: Dedup happens before count check and validation
++      - Quality Contribution: Correctness — prevents double-registration
++      - Worked Example: parseChannels('a,a,b') → {ok: true, channels: ['a','b']}
++      */
++      const result = parseChannels('file-changes,event-popper,file-changes');
++      expect(result.ok).toBe(true);
++      expect(result.channels).toHaveLength(2);
++      expect(result.channels).toContain('file-changes');
++      expect(result.channels).toContain('event-popper');
++    });
++
++    it('should accept valid channel names', () => {
++      /*
++      Test Doc:
++      - Why: Standard WorkspaceDomain channel names must pass validation
++      - Contract: Alphanumeric + hyphen + underscore → ok
++      - Usage Notes: Tests real channel names from WorkspaceDomain
++      - Quality Contribution: Regression prevention — real channel names work
++      - Worked Example: parseChannels('file-changes,event-popper,work-unit-state') → ok
++      */
++      const result = parseChannels('file-changes,event-popper,work-unit-state');
++      expect(result.ok).toBe(true);
++      expect(result.channels).toHaveLength(3);
++    });
++
++    it('should filter empty segments from trailing commas', () => {
++      /*
++      Test Doc:
++      - Why: URL might have trailing comma: ?channels=a,b,
++      - Contract: Empty segments after split are filtered out
++      - Usage Notes: Tests .filter(Boolean) path
++      - Quality Contribution: Robustness
++      - Worked Example: parseChannels('a,,b,') → ['a', 'b']
++      */
++      const result = parseChannels('file-changes,,event-popper,');
++      expect(result.ok).toBe(true);
++      expect(result.channels).toHaveLength(2);
++    });
++  });
++
++  describe('SSEManager multi-channel registration', () => {
++    let manager: SSEManager;
++
++    beforeEach(() => {
++      manager = new SSEManager();
++    });
++
++    it('should register one controller on multiple channels', () => {
++      /*
++      Test Doc:
++      - Why: Core mux route pattern — single controller serves all channels
++      - Contract: After registration, controller count is 1 on each channel
++      - Usage Notes: Simulates what mux route does in start() callback
++      - Quality Contribution: Integration-level proof of mux registration pattern
++      - Worked Example: Register on [a,b,c] → getConnectionCount returns 1 for each
++      */
++      const controller = new FakeController();
++      const fc = controller as unknown as ReadableStreamDefaultController;
++      const channels = ['file-changes', 'event-popper', 'work-unit-state'];
++
++      for (const ch of channels) {
++        manager.addConnection(ch, fc);
++      }
++
++      for (const ch of channels) {
++        expect(manager.getConnectionCount(ch)).toBe(1);
++      }
++    });
++
++    it('should clean up all channels on disconnect', () => {
++      /*
++      Test Doc:
++      - Why: Mux route abort handler calls removeControllerFromAllChannels
++      - Contract: After cleanup, all channels have 0 connections
++      - Usage Notes: Full lifecycle: register → cleanup → verify zero
++      - Quality Contribution: Leak prevention — the mux route's most critical contract
++      - Worked Example: register on 3 channels → removeControllerFromAllChannels → 0 on all
++      */
++      const controller = new FakeController();
++      const fc = controller as unknown as ReadableStreamDefaultController;
++      const channels = ['file-changes', 'event-popper', 'work-unit-state'];
++
++      for (const ch of channels) {
++        manager.addConnection(ch, fc);
++      }
++
++      const removed = manager.removeControllerFromAllChannels(fc);
++
++      expect(removed.length).toBe(3);
++      for (const ch of channels) {
++        expect(manager.getConnectionCount(ch)).toBe(0);
++      }
++    });
++
++    it('should receive broadcasts from all registered channels', () => {
++      /*
++      Test Doc:
++      - Why: The whole point of mux — one connection gets events from multiple channels
++      - Contract: Broadcasts to different channels all reach the same controller
++      - Usage Notes: Register on 2 channels, broadcast to each, verify 2 messages received
++      - Quality Contribution: End-to-end proof of multiplexing at SSEManager level
++      - Worked Example: ctrl on [a,b] → broadcast(a) + broadcast(b) → ctrl gets 2 messages with correct channels
++      */
++      const controller = new FakeController();
++      const fc = controller as unknown as ReadableStreamDefaultController;
++      manager.addConnection('file-changes', fc);
++      manager.addConnection('event-popper', fc);
++
++      manager.broadcast('file-changes', 'file-changed', { path: 'README.md' });
++      manager.broadcast('event-popper', 'question-asked', { questionId: 'q1' });
++
++      const chunks = controller.getDecodedChunks();
++      expect(chunks.length).toBe(2);
++
++      const msg1 = JSON.parse(chunks[0].replace('data: ', '').trim());
++      const msg2 = JSON.parse(chunks[1].replace('data: ', '').trim());
++
++      expect(msg1.channel).toBe('file-changes');
++      expect(msg1.type).toBe('file-changed');
++      expect(msg2.channel).toBe('event-popper');
++      expect(msg2.type).toBe('question-asked');
++    });
++  });
++});
+

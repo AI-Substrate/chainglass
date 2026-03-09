@@ -35,6 +35,8 @@ Central event platform for the entire application. Owns the full pipeline from f
 
 **Client-side event distribution:**
 - Generic SSE hooks (`useSSE`, `useWorkspaceSSE`)
+- **Multiplexed SSE provider** (`MultiplexedSSEProvider`) — single EventSource per tab, demuxes by channel (Plan 072)
+- **Channel event hooks** (`useChannelEvents`, `useChannelCallback`) — per-channel subscription from multiplexed provider (Plan 072)
 - File change event hub (`FileChangeHub`) — client-side pattern-based event dispatcher (Plan 045)
 - File change provider (`FileChangeProvider`) — React context for hub lifecycle (Plan 045)
 - File change subscription hook (`useFileChanges`) — pattern-based subscription for any component (Plan 045)
@@ -46,6 +48,7 @@ Central event platform for the entire application. Owns the full pipeline from f
 **Fakes for testing:**
 - `FakeCentralEventNotifier`, `FakeSSEBroadcaster`, `FakeCentralWatcherService`
 - `FakeFileChangeWatcherAdapter` (Plan 045)
+- `FakeMultiplexedSSE` (`createFakeMultiplexedSSEFactory`) — channel-aware EventSource simulation (Plan 072)
 
 ### Does NOT Own
 - **Business-domain watcher adapters** (e.g., `WorkflowWatcherAdapter`) — owned by their respective business domains
@@ -64,7 +67,7 @@ Central event platform for the entire application. Owns the full pipeline from f
 | `ISSEBroadcaster` | Interface | Agent notifier, central event notifier | `broadcast(channel, eventType, data)` |
 | `ICentralWatcherService` | Interface | Bootstrap, DI container | `start()`, `registerAdapter()` |
 | `IWatcherAdapter` | Interface | Concrete watcher adapters | `handleEvent(WatcherEvent)` callback contract |
-| `WorkspaceDomain` | Const object | Adapters, hooks, routes | Channel name registry (`Workflows`, `Agents`, `FileChanges`, `WorkUnitState`; `Workgraphs` deprecated) |
+| `WorkspaceDomain` | Const object | Adapters, hooks, routes | Channel name registry (`Workflows`, `Agents`, `FileChanges`, `WorkUnitState`, `EventPopper`; `Workgraphs` deprecated) |
 | `useSSE` | Hook | Feature-specific SSE hooks | Generic SSE connection with reconnection |
 | `useWorkspaceSSE` | Hook | Workflow content, kanban | Workspace-scoped SSE subscription |
 | `FileChangeHub` | Class | FileChangeProvider, testing | Client-side pattern-based event dispatcher |
@@ -72,6 +75,11 @@ Central event platform for the entire application. Owns the full pipeline from f
 | `FileChangeProvider` | Component | BrowserClient, any worktree-scoped page | React context providing FileChangeHub to tree |
 | `<Toaster />` | Component | Root layout (mounted once) | Global toast rendering portal |
 | `toast()` | Function (sonner) | Any component/hook | `toast.success()`, `toast.error()`, etc. |
+| `/api/events/mux` | Route | Multiplexed SSE consumers | Multi-channel SSE endpoint — `?channels=a,b,c`, auth, 15s heartbeat, atomic cleanup (Plan 072) |
+| `MultiplexedSSEProvider` | Component | Workspace layout | React context — single EventSource per tab, demuxes by `msg.channel` to subscribers (Plan 072) |
+| `useChannelEvents` | Hook | ServerEventRoute, message accumulation consumers | `useChannelEvents(channel, {maxMessages?}) → {messages, isConnected, clearMessages}` (Plan 072) |
+| `useChannelCallback` | Hook | QuestionPopper, FileChange, notification-fetch consumers | `useChannelCallback(channel, callback) → {isConnected}` — fire per event, no accumulation (Plan 072) |
+| `MultiplexedSSEMessage` | Type | Provider, hooks, consumers | Wire format: `{channel?: string, type?: string, [key]: unknown}`. Both fields optional in consumer types — `channel` always present in wire (added by SSEManager), `type` present when domain includes it (Plan 072 Phase 5). |
 
 ## Composition (Internal)
 
@@ -84,9 +92,13 @@ Central event platform for the entire application. Owns the full pipeline from f
 | FileChangeWatcherAdapter | Filters source file events, batches with debounce | IWatcherAdapter (self-filter pattern) |
 | FileChangeDomainEventAdapter | Transforms batched file events → SSE payload | DomainEventAdapter, ICentralEventNotifier |
 | startCentralNotificationSystem | Bootstrap — resolves DI, wires adapters, starts watcher | DI container |
-| SSE API route | HTTP endpoint for EventSource connections | SSEManager |
+| SSE API route (`[channel]`) | HTTP endpoint for single-channel EventSource connections | SSEManager |
+| SSE API route (`mux`) | Multiplexed HTTP endpoint — registers one controller on multiple channels | SSEManager (Plan 072) |
 | useSSE hook | Client SSE connection management | EventSource API |
 | useWorkspaceSSE hook | Workspace-scoped SSE subscription | useSSE |
+| MultiplexedSSEProvider | Single EventSource per tab, demux to channel subscribers | EventSource API, React context |
+| useChannelEvents hook | Accumulates channel messages in independent arrays | MultiplexedSSEProvider context |
+| useChannelCallback hook | Fire-and-forget per-event callback (stable ref) | MultiplexedSSEProvider context |
 | FileChangeHub | Client-side pattern matcher + subscriber dispatch | — (standalone) |
 | FileChangeProvider | React context, manages SSE connection → hub lifecycle | FileChangeHub, EventSource |
 | useFileChanges hook | Pattern subscription with debounce | FileChangeHub (via context) |
@@ -114,8 +126,15 @@ Primary: scattered across `packages/shared`, `packages/workflow`, `apps/web` (Pl
 | `apps/web/src/features/019-agent-manager-refactor/sse-manager-broadcaster.ts` | SSEManagerBroadcaster | Adapter: SSEManager → ISSEBroadcaster |
 | `apps/web/src/lib/sse-manager.ts` | SSEManager singleton | Core SSE connection manager |
 | `apps/web/src/lib/schemas/sse-events.schema.ts` | SSE event Zod schemas | Validation |
-| `apps/web/app/api/events/[channel]/route.ts` | SSE API route | EventSource endpoint |
+| `apps/web/app/api/events/[channel]/route.ts` | SSE API route | Single-channel EventSource endpoint |
+| `apps/web/app/api/events/mux/route.ts` | Multiplexed SSE route | Multi-channel EventSource endpoint (Plan 072) |
 | `apps/web/src/hooks/useSSE.ts` | useSSE hook | Client SSE connection |
+| `apps/web/src/lib/sse/types.ts` | Multiplexed SSE types | MultiplexedSSEMessage, EventSourceFactory, MultiplexedSSEContextValue (Plan 072) |
+| `apps/web/src/lib/sse/multiplexed-sse-provider.tsx` | MultiplexedSSEProvider | Single EventSource, demux, reconnect (Plan 072) |
+| `apps/web/src/lib/sse/use-channel-events.ts` | useChannelEvents hook | Message accumulation per channel (Plan 072) |
+| `apps/web/src/lib/sse/use-channel-callback.ts` | useChannelCallback hook | Fire-and-forget callback per channel (Plan 072) |
+| `apps/web/src/lib/sse/index.ts` | Barrel export | Public API for sse/ module (Plan 072) |
+| `test/fakes/fake-multiplexed-sse.ts` | FakeMultiplexedSSE | Channel-aware EventSource simulation (Plan 072) |
 | `apps/web/src/hooks/useWorkspaceSSE.ts` | useWorkspaceSSE hook | Workspace-scoped SSE |
 | `apps/web/instrumentation.ts` | Next.js bootstrap hook | Starts notification system |
 | `apps/web/src/components/ui/toaster.tsx` | Toaster wrapper | Plan 042 — theme-aware sonner wrapper |
@@ -134,6 +153,18 @@ Primary: scattered across `packages/shared`, `packages/workflow`, `apps/web` (Pl
 | `apps/web/src/features/045-live-file-events/file-change-provider.tsx` | FileChangeProvider | React context + SSE connection |
 | `apps/web/src/features/045-live-file-events/use-file-changes.ts` | useFileChanges hook | Pattern subscription hook |
 
+## Concepts
+
+| Concept | Entry Point | What It Does |
+|---------|-------------|--------------|
+| Broadcast an Event | `notifier.emit(domain, eventType, data)` | Domain services emit events through the 3-layer pipeline: CentralEventNotifier → SSEManagerBroadcaster → SSEManager. Events reach all connected clients on that channel. |
+| Subscribe to a Channel | `new EventSource('/api/events/{channel}')` | Client opens a long-lived SSE connection to one channel. Messages include `{type, channel, ...data}`. |
+| Multiplexed SSE | `new EventSource('/api/events/mux?channels=a,b,c')` | Client opens ONE connection to receive events from multiple channels. Server registers the controller on all requested channels. Each message includes `channel` field for client-side demux. (Plan 072) |
+| Channel Subscription (Accumulation) | `useChannelEvents('event-popper')` | Hook subscribes to a channel via MultiplexedSSEProvider context. Returns `{messages, isConnected, clearMessages}`. Each hook gets its own independent array — compatible with index cursor patterns (ServerEventRoute). Supports `maxMessages` pruning. (Plan 072) |
+| Channel Subscription (Callback) | `useChannelCallback('event-popper', cb)` | Hook subscribes to a channel, fires callback per event. No accumulation. Stable ref pattern — callback can change without re-subscription. Ideal for notification-fetch consumers (QuestionPopper, FileChange). (Plan 072) |
+| File Change Fan-Out | `useFileChanges('src/**')` | FileChangeProvider receives SSE events → FileChangeHub dispatches to pattern-matched subscribers. Consumers get filtered changes without knowing about SSE. |
+| Toast Notification | `toast.success('Saved')` | Client-side only (sonner). Server returns results; client reads and toasts. Silent no-op in Server Components. |
+
 ## Gotchas
 
 - **toast() is client-only**: Calling `import { toast } from 'sonner'` in a Server Component or server action is a silent no-op — no error, no feedback. The pattern is: server returns result → client reads result → client calls toast().
@@ -144,6 +175,7 @@ Primary: scattered across `packages/shared`, `packages/workflow`, `apps/web` (Pl
 ## Dependencies
 
 ### This Domain Depends On
+- `_platform/auth` — session check in SSE route handlers (auth() call)
 - `_platform/sdk` — IUSDK for publishing toast commands to SDK surface
 - Node.js `fs.watch` — native filesystem watching (built-in, replaces chokidar per Plan 060)
 - `sonner` — toast UI (npm)
@@ -171,5 +203,11 @@ Primary: scattered across `packages/shared`, `packages/workflow`, `apps/web` (Pl
 | Plan 045 (E2E fix) | Fixed SOURCE_WATCHER_IGNORED to use function-based path-segment matching (glob patterns unreliable with chokidar). Added handleRefreshDir for cache-bypass tree refresh. All 3 phases verified working end-to-end | 2026-02-24 |
 | 047-usdk Phase 6 | SDK contribution (toast.show, toast.dismiss commands) | 2026-02-25 |
 | 059-ST001 | Added WorkUnitState: 'work-unit-state' to WorkspaceDomain const (new SSE channel for work-unit-state events) | 2026-03-01 |
+| 067 Phase 1 | Added EventPopper: 'event-popper' to WorkspaceDomain const (SSE channel for question/alert lifecycle events) | 2026-03-07 |
 | 050 Phase 6-7 | Added WorkflowWatcherAdapter + WorkflowDomainEventAdapter; removed WorkGraphWatcherAdapter + WorkGraphDomainEventAdapter; added Workflows channel; deprecated Workgraphs channel | 2026-02-27 |
 | Plan 060 | Replaced ChokidarFileWatcherAdapter with NativeFileWatcherAdapter (Node.js fs.watch recursive). Eliminated FD exhaustion (12,700 → ~20 FDs). Removed chokidar dependency. | 2026-02-28 |
+| Plan 072 Phase 1 | SSE Multiplexing server foundation: added `channel` field to SSEManager.broadcast() payload, added `removeControllerFromAllChannels()` method, created `/api/events/mux` multiplexed endpoint (15s heartbeat, multi-channel registration, atomic cleanup). Extended ServerEvent type with optional `channel` field. | 2026-03-08 |
+| Plan 072 Phase 2 | SSE Multiplexing client infrastructure: created `MultiplexedSSEProvider` (single EventSource, channel demux, exponential+jitter backoff, error isolation), `useChannelEvents` (accumulation), `useChannelCallback` (fire-and-forget), `FakeMultiplexedSSE` test fake, barrel export. Mounted provider in workspace layout. 24 new tests. | 2026-03-08 |
+| Plan 072 Phase 3 | Priority consumer migration: QuestionPopperProvider and FileChangeProvider migrated from direct EventSource to `useChannelCallback`. Removed ~180 lines SSE boilerplate. Per-tab connections: 3 → 1. E2E verified. | 2026-03-08 |
+| Plan 072 Phase 4 | GlobalState re-enablement: ServerEventRoute migrated from `useSSE` to `useChannelEvents('work-unit-state')`. GlobalStateConnector re-enabled in browser-client.tsx. Work-unit-state events now flow through multiplexed SSE → GlobalStateSystem. | 2026-03-08 |
+| Plan 072 Phase 5 | Remaining migrations: useWorkflowSSE and useWorkunitCatalogChanges migrated to `useChannelEvents`. Added `workflows` and `unit-catalog` to mux channel list (5 total). Deleted legacy `useSSE` hook (zero consumers) and dead `KanbanContent`. Made `MultiplexedSSEMessage.type` and `channel` optional in consumer types. SSE docs rewritten. | 2026-03-08 |

@@ -11,6 +11,7 @@
  */
 
 import { useAttentionTitle } from '@/features/041-file-browser/hooks/use-attention-title';
+import { resetTitleManager } from '@/lib/sdk/title-manager';
 import { renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -22,6 +23,7 @@ describe('useAttentionTitle', () => {
   beforeEach(() => {
     originalTitle = document.title;
     document.title = 'Chainglass';
+    resetTitleManager();
   });
 
   afterEach(() => {

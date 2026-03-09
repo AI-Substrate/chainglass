@@ -23,6 +23,8 @@
 | Terminal | terminal | business | — | Plan 064 | active |
 | Activity Log | activity-log | business | — | Plan 065 | active |
 | Auth | _platform/auth | infrastructure | _platform | Plan 063-login | active |
+| External Events | _platform/external-events | infrastructure | _platform | Plan 067 — Event Popper | active |
+| Question Popper | question-popper | business | — | Plan 067 — Event Popper | active |
 
 ## Domain Types
 

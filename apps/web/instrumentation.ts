@@ -1,11 +1,17 @@
 /**
  * Plan 027: Central Domain Event Notification System
+ * Plan 067: Event Popper — server.json port discovery
  *
  * Next.js instrumentation hook — called once at server startup.
  * Starts the central notification system (filesystem watcher → SSE events).
+ * Writes .chainglass/server.json so CLI tools can discover the server port.
  *
  * See: https://nextjs.org/docs/app/building-your-application/optimizing/instrumentation
  */
+
+const globalForEventPopper = globalThis as typeof globalThis & {
+  __eventPopperServerInfoWritten?: boolean;
+};
 
 export async function register() {
   // CentralWatcherService uses Node.js APIs (chokidar, fs) — skip on Edge runtime.
@@ -17,5 +23,28 @@ export async function register() {
       './src/features/027-central-notify-events/start-central-notifications'
     );
     await startCentralNotificationSystem();
+
+    // Plan 067: Write server.json for CLI port discovery (HMR-safe)
+    if (!globalForEventPopper.__eventPopperServerInfoWritten) {
+      globalForEventPopper.__eventPopperServerInfoWritten = true;
+
+      const { writeServerInfo, removeServerInfo } = await import('@chainglass/shared/event-popper');
+      const worktreePath = process.cwd();
+      const port = Number.parseInt(process.env.PORT ?? '3000', 10);
+
+      writeServerInfo(worktreePath, {
+        port,
+        pid: process.pid,
+        startedAt: new Date().toISOString(),
+      });
+      console.log(`[event-popper] server.json written (port: ${port}, pid: ${process.pid})`);
+
+      const cleanup = () => {
+        removeServerInfo(worktreePath);
+        console.log('[event-popper] server.json removed (shutdown)');
+      };
+      process.on('SIGTERM', cleanup);
+      process.on('SIGINT', cleanup);
+    }
   }
 }

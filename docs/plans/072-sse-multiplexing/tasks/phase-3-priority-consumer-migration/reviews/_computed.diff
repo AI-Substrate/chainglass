@@ -1,0 +1,785 @@
+diff --git a/apps/web/src/features/045-live-file-events/file-change-provider.tsx b/apps/web/src/features/045-live-file-events/file-change-provider.tsx
+index ff5b3d2a..85837e9c 100644
+--- a/apps/web/src/features/045-live-file-events/file-change-provider.tsx
++++ b/apps/web/src/features/045-live-file-events/file-change-provider.tsx
+@@ -1,27 +1,18 @@
+ /**
+  * Plan 045: Live File Events
+  *
+- * React context provider that manages the SSE connection lifecycle
+- * and feeds a FileChangeHub scoped to a single worktree.
++ * React context provider that feeds a FileChangeHub scoped to a single worktree.
++ * SSE connection lifecycle managed by MultiplexedSSEProvider (Plan 072).
+  *
+  * Per Workshop 01: Single SSE connection per worktree, client-side fan-out.
+  * Per DYK #1: MUST filter SSE messages by worktreePath before dispatching.
+  * Per DYK #3: SSEManager injects `type` at top level of payload.
+- *
+- * Uses raw EventSource (browser auto-reconnect per SSE spec).
+  */
+ 'use client';
+ 
+ import { WorkspaceDomain } from '@chainglass/shared/features/027-central-notify-events/workspace-domain';
+-import {
+-  createContext,
+-  useCallback,
+-  useContext,
+-  useEffect,
+-  useMemo,
+-  useRef,
+-  useState,
+-} from 'react';
++import { createContext, useContext, useMemo } from 'react';
++import { useChannelCallback } from '../../lib/sse';
+ import { FileChangeHub } from './file-change-hub';
+ import type { FileChange, FileChangeSSEMessage } from './file-change.types';
+ 
+@@ -35,137 +26,52 @@ const SSEConnectionStateContext = createContext<SSEConnectionState>('connecting'
+ interface FileChangeProviderProps {
+   worktreePath: string;
+   children: React.ReactNode;
+-  /** Override EventSource constructor for testing */
+-  eventSourceFactory?: (url: string) => EventSource;
+ }
+ 
+-/** Max reconnect attempts before giving up (resets on successful connection) */
+-const MAX_RECONNECT_ATTEMPTS = 50;
+-/** Base delay for manual reconnect backoff (ms) */
+-const RECONNECT_BASE_DELAY = 2000;
+-/** Max delay cap for backoff (ms) */
+-const RECONNECT_MAX_DELAY = 30000;
+-
+ /**
+  * Provides a FileChangeHub scoped to a worktree.
+- * Manages the single SSE connection lifecycle with reconnection and logging.
++ * SSE connection lifecycle is centralized in MultiplexedSSEProvider (Plan 072).
++ * This provider subscribes to file-change events and dispatches to the hub.
+  *
+  * Mount inside BrowserClient — one per worktree view.
+  */
+-export function FileChangeProvider({
+-  worktreePath,
+-  children,
+-  eventSourceFactory,
+-}: FileChangeProviderProps) {
++export function FileChangeProvider({ worktreePath, children }: FileChangeProviderProps) {
+   // New hub when worktreePath changes — the `worktreePath` dependency is intentional:
+   // navigating to a different worktree must create a fresh hub with no stale subscriptions.
+   // biome-ignore lint/correctness/useExhaustiveDependencies: worktreePath change = new hub by design
+   const hub = useMemo(() => new FileChangeHub(), [worktreePath]);
+-  const [connectionState, setConnectionState] = useState<SSEConnectionState>('connecting');
+-  const reconnectAttemptsRef = useRef(0);
+-  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+-
+-  const connect = useCallback(
+-    (factory: (url: string) => EventSource): EventSource => {
+-      const url = `/api/events/${WorkspaceDomain.FileChanges}`;
+-      const eventSource = factory(url);
+-
+-      eventSource.onopen = () => {
+-        if (reconnectAttemptsRef.current > 0) {
+-          console.info(
+-            `[FileChangeProvider] SSE reconnected after ${reconnectAttemptsRef.current} attempt(s)`
+-          );
+-        }
+-        reconnectAttemptsRef.current = 0;
+-        setConnectionState('connected');
+-      };
+-
+-      eventSource.onmessage = (event: MessageEvent) => {
+-        try {
+-          const data = JSON.parse(event.data) as FileChangeSSEMessage;
+-          if (data.type !== 'file-changed' || !Array.isArray(data.changes)) {
+-            return;
+-          }
+-
+-          // DYK #1: Filter to only changes matching this worktree
+-          const relevantChanges: FileChange[] = data.changes
+-            .filter((c) => c.worktreePath === worktreePath)
+-            .map((c) => ({
+-              path: c.path,
+-              eventType: c.eventType as FileChange['eventType'],
+-              timestamp: c.timestamp,
+-            }));
+-
+-          if (relevantChanges.length > 0) {
+-            hub.dispatch(relevantChanges);
+-          }
+-        } catch {
+-          // Malformed SSE message — ignore (heartbeats, etc.)
+-        }
+-      };
+-
+-      eventSource.onerror = () => {
+-        // EventSource.readyState: 0=CONNECTING, 1=OPEN, 2=CLOSED
+-        const state = eventSource.readyState;
+ 
+-        if (state === EventSource.CLOSED) {
+-          // Browser gave up on native reconnect — manually reconnect with backoff
+-          reconnectAttemptsRef.current++;
+-          console.warn(
+-            `[FileChangeProvider] SSE connection closed (attempt ${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS})`
+-          );
+-
+-          if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
+-            console.error(
+-              '[FileChangeProvider] SSE max reconnect attempts reached — giving up. Refresh the page to restore live events.'
+-            );
+-            setConnectionState('disconnected');
+-            return;
+-          }
+-
+-          setConnectionState('reconnecting');
+-          const delay = Math.min(
+-            RECONNECT_BASE_DELAY * 2 ** (reconnectAttemptsRef.current - 1),
+-            RECONNECT_MAX_DELAY
+-          );
+-          reconnectTimerRef.current = setTimeout(() => {
+-            console.info(
+-              `[FileChangeProvider] SSE manual reconnect attempt ${reconnectAttemptsRef.current}...`
+-            );
+-            eventSourceRef.current = connect(factory);
+-          }, delay);
+-        } else if (state === EventSource.CONNECTING) {
+-          // Browser is auto-reconnecting (native SSE behavior) — just log
+-          setConnectionState('reconnecting');
+-          console.debug('[FileChangeProvider] SSE auto-reconnecting...');
+-        }
+-      };
+-
+-      return eventSource;
+-    },
+-    [hub, worktreePath]
+-  );
+-
+-  const eventSourceRef = useRef<EventSource | null>(null);
+-
+-  useEffect(() => {
+-    const factory = eventSourceFactory ?? ((url: string) => new EventSource(url));
+-    setConnectionState('connecting');
+-    reconnectAttemptsRef.current = 0;
+-    eventSourceRef.current = connect(factory);
++  // Subscribe to file-changes channel via multiplexed SSE (Plan 072)
++  const { isConnected } = useChannelCallback(WorkspaceDomain.FileChanges, (msg) => {
++    // Cast from MultiplexedSSEMessage to domain type (DYK #2: loose typing)
++    const data = msg as unknown as FileChangeSSEMessage;
++    try {
++      if (data.type !== 'file-changed' || !Array.isArray(data.changes)) {
++        return;
++      }
+ 
+-    return () => {
+-      if (reconnectTimerRef.current) {
+-        clearTimeout(reconnectTimerRef.current);
+-        reconnectTimerRef.current = null;
++      // DYK #1: Filter to only changes matching this worktree
++      const relevantChanges: FileChange[] = data.changes
++        .filter((c) => c.worktreePath === worktreePath)
++        .map((c) => ({
++          path: c.path,
++          eventType: c.eventType as FileChange['eventType'],
++          timestamp: c.timestamp,
++        }));
++
++      if (relevantChanges.length > 0) {
++        hub.dispatch(relevantChanges);
+       }
+-      eventSourceRef.current?.close();
+-      eventSourceRef.current = null;
+-    };
+-  }, [connect, eventSourceFactory]);
++    } catch {
++      // Malformed SSE message — ignore
++    }
++  });
++
++  // Map boolean isConnected to SSEConnectionState (DYK #3: zero consumers, simplified mapping)
++  const effectiveState: SSEConnectionState = isConnected ? 'connected' : 'disconnected';
+ 
+   return (
+-    <SSEConnectionStateContext.Provider value={connectionState}>
++    <SSEConnectionStateContext.Provider value={effectiveState}>
+       <FileChangeHubContext.Provider value={hub}>{children}</FileChangeHubContext.Provider>
+     </SSEConnectionStateContext.Provider>
+   );
+diff --git a/apps/web/src/features/067-question-popper/hooks/use-question-popper.tsx b/apps/web/src/features/067-question-popper/hooks/use-question-popper.tsx
+index 8ec2c6b9..74c36fad 100644
+--- a/apps/web/src/features/067-question-popper/hooks/use-question-popper.tsx
++++ b/apps/web/src/features/067-question-popper/hooks/use-question-popper.tsx
+@@ -5,7 +5,7 @@
+  *
+  * Core state management for the Question Popper overlay UI.
+  *
+- * - SSE subscription to `event-popper` channel for real-time updates
++ * - Multiplexed SSE subscription to `event-popper` channel via useChannelCallback (Plan 072)
+  * - API fetch for item list (notification-fetch pattern)
+  * - Outstanding count from SSE event payloads
+  * - Overlay open/close with `overlay:close-all` mutual exclusion
+@@ -26,6 +26,7 @@ import {
+ 
+ import type { AlertOut, AnswerPayload, QuestionOut } from '@chainglass/shared/question-popper';
+ 
++import { useChannelCallback } from '../../../lib/sse';
+ import { clearTitlePrefix, setTitlePrefix } from '../../../lib/sdk/title-manager';
+ 
+ import { resolveChain as resolveChainFn } from '../lib/chain-resolver';
+@@ -111,9 +112,6 @@ export function QuestionPopperProvider({ children }: { children: ReactNode }) {
+   const [error, setError] = useState<Error | null>(null);
+   const [isConnected, setIsConnected] = useState(false);
+ 
+-  const eventSourceRef = useRef<EventSource | null>(null);
+-  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+-  const reconnectAttemptsRef = useRef(0);
+   const mountedRef = useRef(true);
+   const chainCacheRef = useRef<Map<string, QuestionOut[]>>(new Map());
+ 
+@@ -140,81 +138,31 @@ export function QuestionPopperProvider({ children }: { children: ReactNode }) {
+     }
+   }, []);
+ 
+-  // ── SSE Connection ──
++  // ── SSE Subscription (Plan 072: multiplexed via useChannelCallback) ──
+ 
+-  const connectSSE = useCallback(() => {
+-    if (reconnectTimeoutRef.current) {
+-      clearTimeout(reconnectTimeoutRef.current);
+-      reconnectTimeoutRef.current = null;
++  const { isConnected: sseConnected } = useChannelCallback('event-popper', (msg) => {
++    // Cast from MultiplexedSSEMessage to domain type (DYK #2: loose typing)
++    const data = msg as unknown as EventPopperSSEMessage;
++    if (typeof data.outstandingCount === 'number') {
++      setOutstandingCount(data.outstandingCount);
+     }
+-    if (eventSourceRef.current) {
+-      eventSourceRef.current.close();
+-    }
+-
+-    const es = new EventSource('/api/events/event-popper');
+-    eventSourceRef.current = es;
+-
+-    es.onopen = () => {
+-      if (!mountedRef.current) return;
+-      setIsConnected(true);
+-      setError(null);
+-      reconnectAttemptsRef.current = 0;
+-    };
+-
+-    es.onmessage = (event) => {
+-      if (!mountedRef.current) return;
+-      try {
+-        const msg: EventPopperSSEMessage = JSON.parse(event.data);
+-        // Update outstanding count from SSE payload
+-        if (typeof msg.outstandingCount === 'number') {
+-          setOutstandingCount(msg.outstandingCount);
+-        }
+-        // Notification-fetch pattern: refetch full list on any event
+-        fetchItems();
+-      } catch {
+-        // Ignore malformed SSE messages
+-      }
+-    };
+-
+-    es.onerror = () => {
+-      if (!mountedRef.current) return;
+-      setIsConnected(false);
+-      es.close();
+-
+-      // Reconnect with backoff (max 5 attempts)
+-      if (reconnectAttemptsRef.current < 5) {
+-        reconnectAttemptsRef.current++;
+-        const delay = Math.min(2000 * reconnectAttemptsRef.current, 10000);
+-        reconnectTimeoutRef.current = setTimeout(() => {
+-          if (mountedRef.current) connectSSE();
+-        }, delay);
+-      }
+-    };
+-  }, [fetchItems]);
++    // Notification-fetch pattern: refetch full list on any event
++    fetchItems();
++  });
+ 
+-  const disconnectSSE = useCallback(() => {
+-    if (reconnectTimeoutRef.current) {
+-      clearTimeout(reconnectTimeoutRef.current);
+-      reconnectTimeoutRef.current = null;
+-    }
+-    if (eventSourceRef.current) {
+-      eventSourceRef.current.close();
+-      eventSourceRef.current = null;
+-    }
+-    setIsConnected(false);
+-  }, []);
++  // Sync provider-level isConnected from multiplexed hook
++  useEffect(() => {
++    setIsConnected(sseConnected);
++  }, [sseConnected]);
+ 
+-  // Initial fetch + SSE connection on mount
++  // Initial data load on mount (DYK #1: separated from SSE lifecycle)
+   useEffect(() => {
+     mountedRef.current = true;
+     fetchItems();
+-    connectSSE();
+-
+     return () => {
+       mountedRef.current = false;
+-      disconnectSSE();
+     };
+-  }, [fetchItems, connectSSE, disconnectSSE]);
++  }, [fetchItems]);
+ 
+   // ── Overlay State (independent — does NOT participate in mutual exclusion) ──
+   // Question popper floats over everything without closing terminal/agents/activity-log
+diff --git a/docs/domains/_platform/events/domain.md b/docs/domains/_platform/events/domain.md
+index ec5e89b7..bff969a3 100644
+--- a/docs/domains/_platform/events/domain.md
++++ b/docs/domains/_platform/events/domain.md
+@@ -208,3 +208,4 @@ Primary: scattered across `packages/shared`, `packages/workflow`, `apps/web` (Pl
+ | Plan 060 | Replaced ChokidarFileWatcherAdapter with NativeFileWatcherAdapter (Node.js fs.watch recursive). Eliminated FD exhaustion (12,700 → ~20 FDs). Removed chokidar dependency. | 2026-02-28 |
+ | Plan 072 Phase 1 | SSE Multiplexing server foundation: added `channel` field to SSEManager.broadcast() payload, added `removeControllerFromAllChannels()` method, created `/api/events/mux` multiplexed endpoint (15s heartbeat, multi-channel registration, atomic cleanup). Extended ServerEvent type with optional `channel` field. | 2026-03-08 |
+ | Plan 072 Phase 2 | SSE Multiplexing client infrastructure: created `MultiplexedSSEProvider` (single EventSource, channel demux, exponential+jitter backoff, error isolation), `useChannelEvents` (accumulation), `useChannelCallback` (fire-and-forget), `FakeMultiplexedSSE` test fake, barrel export. Mounted provider in workspace layout. 24 new tests. | 2026-03-08 |
++| Plan 072 Phase 3 | Priority consumer migration: QuestionPopperProvider and FileChangeProvider migrated from direct EventSource to `useChannelCallback`. Removed ~180 lines SSE boilerplate. Per-tab connections: 3 → 1. E2E verified. | 2026-03-08 |
+diff --git a/docs/domains/file-browser/domain.md b/docs/domains/file-browser/domain.md
+index 49ccb78c..b543066a 100644
+--- a/docs/domains/file-browser/domain.md
++++ b/docs/domains/file-browser/domain.md
+@@ -141,6 +141,7 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
+ - `_platform/file-ops` — IFileSystem, IPathResolver for all file operations
+ - `_platform/viewer` — FileViewer, MarkdownViewer, DiffViewer for rendering
+ - `_platform/state` — IStateService, useGlobalState, GlobalStateConnector for worktree state publishing/consumption
++- `_platform/events` — `useChannelCallback`, `WorkspaceDomain.FileChanges` for multiplexed SSE file-change subscription (Plan 072)
+ - `_platform/workspace-url` — workspaceHref, param caches, NuqsAdapter
+ - `_platform/panel-layout` — PanelShell, ExplorerPanel, LeftPanel, MainPanel for page layout
+ - `@chainglass/workflow` — IWorkspaceService, workspace entity, preferences
+@@ -171,3 +172,4 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
+ | Plan 049 Feature 2 | File search via ExplorerPanel: getFileList service (git ls-files + fs.stat), file-filter utilities (substring/glob/sort), useFileFilter hook (Map cache + SSE deltas + debounce), fetchFileList server action, BrowserClient wiring | 2026-02-26 |
+ | Plan 051 | FlowSpace code search: useFlowspaceSearch hook (debounce, availability, graph age), BrowserClient wiring for `#` text and `$` semantic search modes, context menu on FlowSpace results | 2026-02-26 |
+ | Plan 053 P5 | GlobalStateSystem worktree exemplar: registerWorktreeState (multi-instance domain), WorktreeStatePublisher (useFileChanges → state), WorktreeStateSubtitle (sidebar consumer), GlobalStateConnector wiring in browser-client.tsx | 2026-02-27 |
++| Plan 072 Phase 3 | Migrated FileChangeProvider from direct EventSource to `useChannelCallback('file-changes')` via multiplexed SSE. Removed ~100 lines SSE lifecycle + reconnect code, removed `eventSourceFactory` prop. | 2026-03-08 |
+diff --git a/docs/domains/question-popper/domain.md b/docs/domains/question-popper/domain.md
+index 777dd5f2..ee680de5 100644
+--- a/docs/domains/question-popper/domain.md
++++ b/docs/domains/question-popper/domain.md
+@@ -92,7 +92,7 @@ First-class question-and-answer experience built on top of Event Popper infrastr
+ | Domain | Contract | Why |
+ |--------|----------|-----|
+ | `_platform/external-events` | `EventPopperRequest`, `EventPopperResponse`, `generateEventId()` | Envelope format for disk persistence, ID generation |
+-| `_platform/events` | `ICentralEventNotifier`, `WorkspaceDomain.EventPopper` | SSE emission on lifecycle events |
++| `_platform/events` | `ICentralEventNotifier`, `WorkspaceDomain.EventPopper`, `useChannelCallback` | SSE emission on lifecycle events; multiplexed channel subscription (Plan 072) |
+ 
+ ### Domains That Depend On This
+ 
+@@ -161,3 +161,4 @@ test/unit/question-popper/
+ | 067 Phase 5 | UI layer: useQuestionPopper hook, indicator, overlay panel, question/alert cards, answer form (4 types), toast + desktop notifications, workspace layout mount | 2026-03-07 |
+ | 067 Phase 6 | Chain resolution (bidirectional index), QuestionChainView (timeline), QuestionHistoryList (compact expandable rows), tabbed overlay panel, chain indicator on QuestionCard | 2026-03-08 |
+ | 067 Phase 7 | CLAUDE.md prompt (AC-33), integration guide, TitleManager SDK, explorer bar flash SDK, live testing fixes (localhost guard, overlay positioning, auto-close) | 2026-03-08 |
++| 072 Phase 3 | Migrated QuestionPopperProvider from direct EventSource to `useChannelCallback('event-popper')` via multiplexed SSE. Removed ~80 lines of SSE lifecycle boilerplate. | 2026-03-08 |
+diff --git a/test/unit/web/features/045-live-file-events/use-file-changes.test.tsx b/test/unit/web/features/045-live-file-events/use-file-changes.test.tsx
+index d92564da..a851c6a2 100644
+--- a/test/unit/web/features/045-live-file-events/use-file-changes.test.tsx
++++ b/test/unit/web/features/045-live-file-events/use-file-changes.test.tsx
+@@ -2,7 +2,7 @@
+  * Tests for useFileChanges hook.
+  *
+  * Per Plan 045: Live File Events - Phase 2 (T006/T007)
+- * Uses FakeFileChangeHub injected via context.
++ * Updated Plan 072 Phase 3: Uses MultiplexedSSEProvider with FakeMultiplexedSSE.
+  */
+ 
+ import { act, renderHook } from '@testing-library/react';
+@@ -11,33 +11,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+ import { FakeFileChangeHub } from '../../../../../apps/web/src/features/045-live-file-events/fake-file-change-hub';
+ import type { FileChange } from '../../../../../apps/web/src/features/045-live-file-events/file-change.types';
+ import { useFileChanges } from '../../../../../apps/web/src/features/045-live-file-events/use-file-changes';
+-
+-// We need to access the context to inject our fake hub.
+-// Import the provider's context indirectly by wrapping with the real provider
+-// but using a test helper that injects the fake.
+-
+-// Since FileChangeProvider creates its own hub, we need a way to inject
+-// our fake. We'll create a minimal test wrapper using the context directly.
+ import { FileChangeProvider } from '../../../../../apps/web/src/features/045-live-file-events/file-change-provider';
+-
+-// We can't easily inject a FakeFileChangeHub into FileChangeProvider (it creates its own).
+-// Instead, test through the real provider with a FakeEventSource to control SSE messages.
+-// OR: export the context and use it in tests. Since the context isn't exported,
+-// we'll test through the provider with controlled SSE.
+-
+-// However, for unit testing the hook in isolation, let's create a test wrapper
+-// that provides a fake hub directly via the context.
+-
+-// We need access to the context. Let's use a test-only approach:
+-// Create a wrapper component that provides the fake hub via React.createElement.
+-
+-// Actually, the cleanest approach: test useFileChanges through FileChangeProvider
+-// with a fake EventSource. This tests the integration properly.
+-
+-import {
+-  type FakeEventSource,
+-  createFakeEventSourceFactory,
+-} from '../../../../../test/fakes/fake-event-source';
++import { MultiplexedSSEProvider } from '../../../../../apps/web/src/lib/sse/multiplexed-sse-provider';
++import { createFakeMultiplexedSSEFactory } from '../../../../../test/fakes/fake-multiplexed-sse';
+ 
+ function makeChange(overrides: Partial<FileChange> = {}): FileChange {
+   return {
+@@ -49,11 +25,11 @@ function makeChange(overrides: Partial<FileChange> = {}): FileChange {
+ }
+ 
+ describe('useFileChanges', () => {
+-  let fakeESFactory: ReturnType<typeof createFakeEventSourceFactory>;
++  let fakeMux: ReturnType<typeof createFakeMultiplexedSSEFactory>;
+ 
+   beforeEach(() => {
+     vi.useFakeTimers();
+-    fakeESFactory = createFakeEventSourceFactory();
++    fakeMux = createFakeMultiplexedSSEFactory();
+   });
+ 
+   afterEach(() => {
+@@ -63,29 +39,20 @@ describe('useFileChanges', () => {
+   function createWrapper(worktreePath = '/repo') {
+     return function Wrapper({ children }: { children: React.ReactNode }) {
+       return React.createElement(
+-        FileChangeProvider,
+-        {
+-          worktreePath,
+-          eventSourceFactory: fakeESFactory.create as unknown as (url: string) => EventSource,
+-        },
+-        children
++        MultiplexedSSEProvider,
++        { channels: ['file-changes'], eventSourceFactory: fakeMux.factory },
++        React.createElement(FileChangeProvider, { worktreePath }, children)
+       );
+     };
+   }
+ 
+   function simulateSSEMessage(
+-    fakeES: FakeEventSource,
+     changes: Array<{ path: string; eventType: string; worktreePath: string; timestamp: number }>
+   ) {
+-    const data = JSON.stringify({ type: 'file-changed', changes });
+-    fakeES.simulateMessage(data);
++    fakeMux.simulateChannelMessage('file-changes', 'file-changed', { changes });
+   }
+ 
+-  function getLastES(): FakeEventSource {
+-    const es = fakeESFactory.lastInstance;
+-    if (!es) throw new Error('No EventSource created');
+-    return es;
+-  }
++  // No longer needed — SSE simulation goes through FakeMultiplexedSSE
+ 
+   // ═══════════════════════════════════════════════════════════
+   // Basic subscribe/dispatch
+@@ -119,10 +86,10 @@ describe('useFileChanges', () => {
+       wrapper: createWrapper(),
+     });
+ 
+-    const fakeES = getLastES();
++    
+     act(() => {
+-      fakeES.simulateOpen();
+-      simulateSSEMessage(fakeES, [
++      fakeMux.simulateOpen();
++      simulateSSEMessage([
+         { path: 'src/app.tsx', eventType: 'change', worktreePath: '/repo', timestamp: 1000 },
+       ]);
+     });
+@@ -144,10 +111,10 @@ describe('useFileChanges', () => {
+       wrapper: createWrapper(),
+     });
+ 
+-    const fakeES = getLastES();
++    
+     act(() => {
+-      fakeES.simulateOpen();
+-      simulateSSEMessage(fakeES, [
++      fakeMux.simulateOpen();
++      simulateSSEMessage([
+         { path: 'src/a.tsx', eventType: 'change', worktreePath: '/repo', timestamp: 1000 },
+       ]);
+     });
+@@ -179,10 +146,10 @@ describe('useFileChanges', () => {
+       wrapper: createWrapper(),
+     });
+ 
+-    const fakeES = getLastES();
++    
+     act(() => {
+-      fakeES.simulateOpen();
+-      simulateSSEMessage(fakeES, [
++      fakeMux.simulateOpen();
++      simulateSSEMessage([
+         { path: 'src/a.tsx', eventType: 'add', worktreePath: '/repo', timestamp: 1000 },
+       ]);
+     });
+@@ -190,7 +157,7 @@ describe('useFileChanges', () => {
+     expect(result.current.changes).toHaveLength(1);
+ 
+     act(() => {
+-      simulateSSEMessage(fakeES, [
++      simulateSSEMessage([
+         { path: 'src/b.tsx', eventType: 'change', worktreePath: '/repo', timestamp: 2000 },
+       ]);
+     });
+@@ -212,16 +179,16 @@ describe('useFileChanges', () => {
+       wrapper: createWrapper(),
+     });
+ 
+-    const fakeES = getLastES();
++    
+     act(() => {
+-      fakeES.simulateOpen();
+-      simulateSSEMessage(fakeES, [
++      fakeMux.simulateOpen();
++      simulateSSEMessage([
+         { path: 'src/a.tsx', eventType: 'add', worktreePath: '/repo', timestamp: 1000 },
+       ]);
+     });
+ 
+     act(() => {
+-      simulateSSEMessage(fakeES, [
++      simulateSSEMessage([
+         { path: 'src/b.tsx', eventType: 'change', worktreePath: '/repo', timestamp: 2000 },
+       ]);
+     });
+@@ -243,17 +210,17 @@ describe('useFileChanges', () => {
+       { wrapper: createWrapper() }
+     );
+ 
+-    const fakeES = getLastES();
++    
+     act(() => {
+-      fakeES.simulateOpen();
+-      simulateSSEMessage(fakeES, [
++      fakeMux.simulateOpen();
++      simulateSSEMessage([
+         { path: 'src/a.tsx', eventType: 'add', worktreePath: '/repo', timestamp: 1000 },
+       ]);
+     });
+ 
+     // Second batch within debounce window
+     act(() => {
+-      simulateSSEMessage(fakeES, [
++      simulateSSEMessage([
+         { path: 'src/b.tsx', eventType: 'change', worktreePath: '/repo', timestamp: 2000 },
+       ]);
+     });
+@@ -287,10 +254,10 @@ describe('useFileChanges', () => {
+       wrapper: createWrapper(),
+     });
+ 
+-    const fakeES = getLastES();
++    
+     act(() => {
+-      fakeES.simulateOpen();
+-      simulateSSEMessage(fakeES, [
++      fakeMux.simulateOpen();
++      simulateSSEMessage([
+         { path: 'src/a.tsx', eventType: 'change', worktreePath: '/repo', timestamp: 1000 },
+       ]);
+     });
+@@ -321,10 +288,10 @@ describe('useFileChanges', () => {
+       wrapper: createWrapper('/repo'),
+     });
+ 
+-    const fakeES = getLastES();
++    
+     act(() => {
+-      fakeES.simulateOpen();
+-      simulateSSEMessage(fakeES, [
++      fakeMux.simulateOpen();
++      simulateSSEMessage([
+         { path: 'src/a.tsx', eventType: 'change', worktreePath: '/repo', timestamp: 1000 },
+         { path: 'src/a.tsx', eventType: 'change', worktreePath: '/other-repo', timestamp: 1001 },
+       ]);
+@@ -351,10 +318,10 @@ describe('useFileChanges', () => {
+       wrapper: createWrapper(),
+     });
+ 
+-    const fakeES = getLastES();
++    
+     act(() => {
+-      fakeES.simulateOpen();
+-      simulateSSEMessage(fakeES, [
++      fakeMux.simulateOpen();
++      simulateSSEMessage([
+         { path: 'src/app.tsx', eventType: 'change', worktreePath: '/repo', timestamp: 1000 },
+         { path: 'test/app.test.tsx', eventType: 'change', worktreePath: '/repo', timestamp: 1001 },
+       ]);
+@@ -391,19 +358,19 @@ describe('useFileChanges', () => {
+      * Contract: unmount() closes the EventSource (readyState transitions to CLOSED=2).
+      * Usage Notes: React strict-mode double-mount/unmount exercises this path.
+      * Quality Contribution: Prevents orphaned SSE connections from accumulating in dev/prod.
+-     * Worked Example: renderHook → unmount → fakeES.readyState === 2 (CLOSED).
++     * Worked Example: renderHook → unmount → fakeMux.instance.readyState === 2 (CLOSED).
+      */
+     const { unmount } = renderHook(() => useFileChanges('*', { debounce: 0 }), {
+       wrapper: createWrapper(),
+     });
+ 
+-    const fakeES = getLastES();
+     act(() => {
+-      fakeES.simulateOpen();
++      fakeMux.simulateOpen();
+     });
+ 
+     unmount();
+ 
+-    expect(fakeES.readyState).toBe(2); // CLOSED
++    // EventSource cleanup is now handled by MultiplexedSSEProvider
++    expect(fakeMux.instance?.readyState).toBe(2); // CLOSED
+   });
+ });
+diff --git a/test/unit/web/features/045-live-file-events/use-tree-directory-changes.test.tsx b/test/unit/web/features/045-live-file-events/use-tree-directory-changes.test.tsx
+index eecf0550..6fa92329 100644
+--- a/test/unit/web/features/045-live-file-events/use-tree-directory-changes.test.tsx
++++ b/test/unit/web/features/045-live-file-events/use-tree-directory-changes.test.tsx
+@@ -2,7 +2,7 @@
+  * Tests for useTreeDirectoryChanges hook.
+  *
+  * Per Plan 045: Live File Events - Phase 3 (T001)
+- * Uses FakeEventSource via FileChangeProvider for controlled SSE.
++ * Updated Plan 072 Phase 3: Uses MultiplexedSSEProvider with FakeMultiplexedSSE.
+  */
+ 
+ import { act, renderHook } from '@testing-library/react';
+@@ -10,17 +10,15 @@ import React from 'react';
+ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+ import { useTreeDirectoryChanges } from '../../../../../apps/web/src/features/041-file-browser/hooks/use-tree-directory-changes';
+ import { FileChangeProvider } from '../../../../../apps/web/src/features/045-live-file-events/file-change-provider';
+-import {
+-  type FakeEventSource,
+-  createFakeEventSourceFactory,
+-} from '../../../../../test/fakes/fake-event-source';
++import { MultiplexedSSEProvider } from '../../../../../apps/web/src/lib/sse/multiplexed-sse-provider';
++import { createFakeMultiplexedSSEFactory } from '../../../../../test/fakes/fake-multiplexed-sse';
+ 
+ describe('useTreeDirectoryChanges', () => {
+-  let fakeESFactory: ReturnType<typeof createFakeEventSourceFactory>;
++  let fakeMux: ReturnType<typeof createFakeMultiplexedSSEFactory>;
+ 
+   beforeEach(() => {
+     vi.useFakeTimers();
+-    fakeESFactory = createFakeEventSourceFactory();
++    fakeMux = createFakeMultiplexedSSEFactory();
+   });
+ 
+   afterEach(() => {
+@@ -29,25 +27,18 @@ describe('useTreeDirectoryChanges', () => {
+ 
+   function createWrapper(worktreePath = '/repo') {
+     return function Wrapper({ children }: { children: React.ReactNode }) {
+-      return React.createElement(FileChangeProvider, {
+-        worktreePath,
+-        eventSourceFactory: fakeESFactory.create as unknown as (url: string) => EventSource,
+-        children,
+-      });
++      return React.createElement(
++        MultiplexedSSEProvider,
++        { channels: ['file-changes'], eventSourceFactory: fakeMux.factory },
++        React.createElement(FileChangeProvider, { worktreePath }, children)
++      );
+     };
+   }
+ 
+-  function getLastES(): FakeEventSource {
+-    const es = fakeESFactory.lastInstance;
+-    if (!es) throw new Error('No EventSource created');
+-    return es;
+-  }
+-
+   function simulateSSE(
+-    fakeES: FakeEventSource,
+     changes: Array<{ path: string; eventType: string; worktreePath: string; timestamp: number }>
+   ) {
+-    fakeES.simulateMessage(JSON.stringify({ type: 'file-changed', changes }));
++    fakeMux.simulateChannelMessage('file-changes', 'file-changed', { changes });
+   }
+ 
+   it('should detect changes in expanded directories', () => {
+@@ -62,10 +53,10 @@ describe('useTreeDirectoryChanges', () => {
+       wrapper: createWrapper(),
+     });
+ 
+-    const fakeES = getLastES();
++    
+     act(() => {
+-      fakeES.simulateOpen();
+-      simulateSSE(fakeES, [
++      fakeMux.simulateOpen();
++      simulateSSE([
+         { path: 'src/new.ts', eventType: 'add', worktreePath: '/repo', timestamp: 1000 },
+       ]);
+       vi.advanceTimersByTime(300);
+@@ -87,10 +78,10 @@ describe('useTreeDirectoryChanges', () => {
+       wrapper: createWrapper(),
+     });
+ 
+-    const fakeES = getLastES();
++    
+     act(() => {
+-      fakeES.simulateOpen();
+-      simulateSSE(fakeES, [
++      fakeMux.simulateOpen();
++      simulateSSE([
+         { path: 'test/new.ts', eventType: 'add', worktreePath: '/repo', timestamp: 1000 },
+       ]);
+       vi.advanceTimersByTime(300);
+@@ -112,10 +103,10 @@ describe('useTreeDirectoryChanges', () => {
+       wrapper: createWrapper(),
+     });
+ 
+-    const fakeES = getLastES();
++    
+     act(() => {
+-      fakeES.simulateOpen();
+-      simulateSSE(fakeES, [
++      fakeMux.simulateOpen();
++      simulateSSE([
+         { path: 'src/lib/utils.ts', eventType: 'change', worktreePath: '/repo', timestamp: 1000 },
+       ]);
+       vi.advanceTimersByTime(300);
+@@ -136,10 +127,10 @@ describe('useTreeDirectoryChanges', () => {
+       wrapper: createWrapper(),
+     });
+ 
+-    const fakeES = getLastES();
++    
+     act(() => {
+-      fakeES.simulateOpen();
+-      simulateSSE(fakeES, [
++      fakeMux.simulateOpen();
++      simulateSSE([
+         { path: 'src/new.ts', eventType: 'add', worktreePath: '/repo', timestamp: 1000 },
+       ]);
+       vi.advanceTimersByTime(300);
+@@ -160,10 +151,10 @@ describe('useTreeDirectoryChanges', () => {
+       wrapper: createWrapper(),
+     });
+ 
+-    const fakeES = getLastES();
++    
+     act(() => {
+-      fakeES.simulateOpen();
+-      simulateSSE(fakeES, [
++      fakeMux.simulateOpen();
++      simulateSSE([
+         { path: 'src/old.ts', eventType: 'unlink', worktreePath: '/repo', timestamp: 1000 },
+       ]);
+       vi.advanceTimersByTime(300);
+@@ -184,10 +175,10 @@ describe('useTreeDirectoryChanges', () => {
+       wrapper: createWrapper(),
+     });
+ 
+-    const fakeES = getLastES();
++    
+     act(() => {
+-      fakeES.simulateOpen();
+-      simulateSSE(fakeES, [
++      fakeMux.simulateOpen();
++      simulateSSE([
+         { path: 'src/new.ts', eventType: 'add', worktreePath: '/repo', timestamp: 1000 },
+       ]);
+       vi.advanceTimersByTime(300);

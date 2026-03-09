@@ -44,6 +44,14 @@
     "./workflow-events": {
       "import": "./dist/workflow-events/index.js",
       "types": "./dist/workflow-events/index.d.ts"
+    },
+    "./event-popper": {
+      "import": "./dist/event-popper/index.js",
+      "types": "./dist/event-popper/index.d.ts"
+    },
+    "./question-popper": {
+      "import": "./dist/question-popper/index.js",
+      "types": "./dist/question-popper/index.d.ts"
     }
   },
   "scripts": {
