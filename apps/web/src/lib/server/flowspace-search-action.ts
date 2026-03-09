@@ -9,7 +9,7 @@
  * Plan 051: FlowSpace Code Search
  */
 
-import { execFile } from 'node:child_process';
+import { exec, execFile } from 'node:child_process';
 import { access } from 'node:fs/promises';
 import { stat } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -21,6 +21,7 @@ import type {
   FlowSpaceSearchResult,
 } from '@/features/_platform/panel-layout/types';
 
+const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
 
 const LOG_PREFIX = '[flowspace]';
@@ -32,6 +33,7 @@ function log(...args: unknown[]) {
 const REGEX_METACHARS = /[*?[\]^$|+{}()]/;
 
 let fs2AvailableCache: boolean | null = null;
+let fs2ResolvedPath: string | null = null;
 
 /**
  * Check if fs2 CLI is installed and the codebase graph exists.
@@ -44,9 +46,10 @@ export async function checkFlowspaceAvailability(
   // Check fs2 binary
   if (fs2AvailableCache === null) {
     try {
-      const { stdout } = await execFileAsync('fs2', ['--version'], { timeout: 3000 });
+      const { stdout } = await execAsync('command -v fs2', { timeout: 3000 });
+      fs2ResolvedPath = stdout.trim();
       fs2AvailableCache = true;
-      log('fs2 found:', stdout.trim());
+      log('fs2 found at:', fs2ResolvedPath);
     } catch (err) {
       fs2AvailableCache = false;
       log('fs2 not found:', (err as Error).message);
@@ -165,7 +168,7 @@ export async function flowspaceSearch(
 
   try {
     const startMs = Date.now();
-    const { stdout, stderr } = await execFileAsync('fs2', args, {
+    const { stdout, stderr } = await execFileAsync(fs2ResolvedPath ?? 'fs2', args, {
       cwd,
       timeout: 5000,
       maxBuffer: 5 * 1024 * 1024,

@@ -72,7 +72,7 @@ The hook is always read from the **main worktree** (never from the new worktree)
 
 - The file must be executable (`chmod +x .chainglass/new-worktree.sh`)
 - It must be a valid Bash script
-- It must complete within **60 seconds** (after which it is killed)
+- It must complete within **5 minutes** (after which it is killed)
 
 ### Environment Variables
 
@@ -100,7 +100,7 @@ The hook's working directory (`cwd`) is set to the **new worktree path**. You ca
 - Hook failure is **informational only** — the worktree is never rolled back
 - The UI shows the hook's exit code and the last 200 lines of output
 - The user can re-run the hook manually or fix issues themselves
-- If the hook times out (>60s), it is terminated and reported as a timeout failure
+- If the hook times out (>5 minutes), it is terminated and reported as a timeout failure
 
 ### Example Hook Script
 
@@ -143,7 +143,7 @@ echo "Setup complete."
 |---------|-------|-----|
 | Hook not detected | File doesn't exist or wrong path | Verify `.chainglass/new-worktree.sh` exists in the main worktree root |
 | Permission denied | File not executable | Run `chmod +x .chainglass/new-worktree.sh` |
-| Timeout | Script takes longer than 60 seconds | Optimize the script or move slow tasks to a separate background process |
+| Timeout | Script takes longer than 5 minutes | Optimize the script or move slow tasks to a separate background process |
 | Non-zero exit | Script error | Check the output log shown in the UI; fix the script and re-run manually |
 
 ## Server Actions

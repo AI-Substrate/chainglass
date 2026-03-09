@@ -35,13 +35,21 @@ function SubmitButton() {
   const { pending } = useFormStatus();
 
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-    >
-      {pending ? 'Creating Worktree…' : 'Create Worktree'}
-    </button>
+    <div className="space-y-3">
+      <button
+        type="submit"
+        disabled={pending}
+        className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+      >
+        {pending ? 'Creating Worktree…' : 'Create Worktree'}
+      </button>
+      {pending && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+          <span>Creating worktree and running bootstrap hook…</span>
+        </div>
+      )}
+    </div>
   );
 }
 
