@@ -293,6 +293,8 @@ pnpm dev                    # Start dev server (apps/web)
 pnpm build                  # Build all packages
 pnpm test                   # Run test suite
 
+NOTE: `just fft` is the preferred way to run tests and linter etc before commiting. 
+
 # From apps/web
 ANALYZE=true pnpm build     # Bundle analysis (requires --webpack flag with Turbopack)
 ```

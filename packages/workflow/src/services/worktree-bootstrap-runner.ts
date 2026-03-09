@@ -15,7 +15,7 @@ import type { IFileSystem, IProcessManager } from '@chainglass/shared';
 import type { BootstrapStatus } from '../interfaces/workspace-service.interface.js';
 
 const HOOK_RELATIVE_PATH = '.chainglass/new-worktree.sh';
-const TIMEOUT_MS = 60_000;
+const TIMEOUT_MS = 300_000;
 const MAX_LOG_LINES = 200;
 
 /**
@@ -87,8 +87,11 @@ export class WorktreeBootstrapRunner {
       };
     }
 
-    // Build environment variables
+    // Build environment variables — extend process.env so PATH, HOME, etc. are available
     const processEnv: Record<string, string> = {
+      ...Object.fromEntries(
+        Object.entries(process.env).filter((e): e is [string, string] => e[1] != null)
+      ),
       CHAINGLASS_MAIN_REPO_PATH: env.mainRepoPath,
       CHAINGLASS_MAIN_BRANCH: 'main',
       CHAINGLASS_WORKSPACE_SLUG: env.workspaceSlug,
