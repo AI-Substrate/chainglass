@@ -48,7 +48,7 @@ import type {
  */
 export const AskQuestionRequestSchema = z.object({
   source: z.string().min(1),
-  meta: z.record(z.string(), z.unknown()).optional(),
+  meta: z.record(z.unknown()).optional(),
   questionType: QuestionTypeEnum,
   text: z.string().min(1),
   description: z.string().nullable().default(null),
@@ -66,7 +66,7 @@ export type AskQuestionRequest = z.infer<typeof AskQuestionRequestSchema>;
  */
 export const SendAlertRequestSchema = z.object({
   source: z.string().min(1),
-  meta: z.record(z.string(), z.unknown()).optional(),
+  meta: z.record(z.unknown()).optional(),
   text: z.string().min(1),
   description: z.string().nullable().default(null),
 });
