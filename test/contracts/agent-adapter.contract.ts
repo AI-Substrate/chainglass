@@ -198,5 +198,45 @@ export function agentAdapterContractTests(name: string, createAdapter: () => IAg
       expect(['completed', 'failed', 'killed']).toContain(result.status);
       expect(typeof result.exitCode).toBe('number');
     });
+
+    // Plan 070 Phase 1: Contract tests for model/reasoning options
+
+    it('should accept model in run options without error', async () => {
+      /*
+      Test Doc:
+      - Why: Plan 070 AC-05 requires model selection via adapter run options
+      - Contract: run() with model option returns completed AgentResult
+      - Usage Notes: SdkCopilot/ClaudeCode honor it; other adapters may ignore
+      - Quality Contribution: Ensures model option doesn't cause errors
+      - Worked Example: run({prompt:"hi", model:"gpt-5.4"}) → {status:"completed"}
+      */
+      const adapter = createAdapter();
+      const result = await adapter.run({
+        prompt: 'test',
+        model: 'fake-model',
+      });
+
+      expect(result.status).toBe('completed');
+      expect(result.sessionId).toBeDefined();
+    });
+
+    it('should accept reasoningEffort in run options without error', async () => {
+      /*
+      Test Doc:
+      - Why: Plan 070 requires reasoning effort selection for models that support it
+      - Contract: run() with reasoningEffort returns completed AgentResult
+      - Usage Notes: Only SdkCopilotAdapter honors this; others ignore it
+      - Quality Contribution: Ensures reasoning option doesn't cause errors
+      - Worked Example: run({prompt:"hi", reasoningEffort:"low"}) → {status:"completed"}
+      */
+      const adapter = createAdapter();
+      const result = await adapter.run({
+        prompt: 'test',
+        reasoningEffort: 'low',
+      });
+
+      expect(result.status).toBe('completed');
+      expect(result.sessionId).toBeDefined();
+    });
   });
 }

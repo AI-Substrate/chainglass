@@ -1,0 +1,50 @@
+# =============================================================================
+# Chainglass Harness — Docker Compose (Dev Mode)
+#
+# Runs the full Chainglass dev environment with dynamically allocated ports.
+# Ports are derived from the worktree name by the harness CLI `ports` command
+# and passed as environment variables (HARNESS_APP_PORT, etc.).
+#
+# Usage:
+#   cd harness && just dev        # auto-computes ports from worktree name
+#   cd harness && docker compose up   # uses .env defaults
+# =============================================================================
+
+services:
+  chainglass-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    container_name: chainglass-${HARNESS_WORKTREE:-dev}
+    ports:
+      - "${HARNESS_APP_PORT:-3100}:${HARNESS_APP_PORT:-3100}"
+      - "${HARNESS_TERMINAL_PORT:-4600}:${HARNESS_TERMINAL_PORT:-4600}"
+      - "${HARNESS_CDP_PORT:-9222}:${HARNESS_CDP_PORT:-9222}"
+    volumes:
+      - ..:/app
+      - cg_node_modules:/app/node_modules
+      - cg_dot_next:/app/apps/web/.next
+    environment:
+      - NODE_ENV=development
+      - DISABLE_AUTH=true
+      - PORT=${HARNESS_APP_PORT:-3100}
+      - TERMINAL_WS_HOST=0.0.0.0
+      - TERMINAL_WS_PORT=${HARNESS_TERMINAL_PORT:-4600}
+      - TERMINAL_ALLOWED_BASE=/app
+      - AUTH_SECRET=harness-dev-secret-not-for-production
+      - CDP_PORT=${HARNESS_CDP_PORT:-9222}
+    shm_size: '1gb'
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:${HARNESS_APP_PORT:-3100}/"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 120s
+    restart: unless-stopped
+
+volumes:
+  cg_node_modules:
+    name: chainglass_node_modules_${HARNESS_WORKTREE:-dev}
+  cg_dot_next:
+    name: chainglass_dot_next_${HARNESS_WORKTREE:-dev}

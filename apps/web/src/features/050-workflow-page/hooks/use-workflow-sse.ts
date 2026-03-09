@@ -15,6 +15,7 @@ import { useCallback, useEffect, useRef } from 'react';
 interface WorkflowSSEMessage {
   graphSlug: string;
   changeType: 'structure' | 'status';
+  [key: string]: unknown;
 }
 
 export interface UseWorkflowSSEOptions {

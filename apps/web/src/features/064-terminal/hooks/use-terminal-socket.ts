@@ -160,15 +160,18 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
       if (AUTH_CLOSE_CODES.has(event.code)) {
         if (enabledRef.current && reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
           reconnectAttemptsRef.current++;
-          // Re-fetch token then reconnect
-          fetch('/api/terminal/token')
-            .then((r) => (r.ok ? r.json() : null))
-            .then((data) => {
-              if (disposedRef.current) return;
-              tokenRef.current = data?.token ?? null;
-              if (tokenRef.current) connect();
-            })
-            .catch(() => {});
+          // Delay before re-fetch to avoid spamming on persistent auth failures
+          setTimeout(() => {
+            if (disposedRef.current) return;
+            fetch('/api/terminal/token')
+              .then((r) => (r.ok ? r.json() : null))
+              .then((data) => {
+                if (disposedRef.current) return;
+                tokenRef.current = data?.token ?? null;
+                if (tokenRef.current) connect();
+              })
+              .catch(() => {});
+          }, 2000);
         }
         return;
       }

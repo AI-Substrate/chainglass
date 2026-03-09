@@ -51,7 +51,8 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
     try {
       const { payload } = await jwtVerify(token, authKey);
       return typeof payload.sub === 'string' ? payload.sub : null;
-    } catch {
+    } catch (err) {
+      console.error('[terminal] Token validation failed:', (err as Error).message);
       return null;
     }
   }

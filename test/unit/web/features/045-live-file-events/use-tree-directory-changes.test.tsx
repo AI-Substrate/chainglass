@@ -112,13 +112,11 @@ describe('useTreeDirectoryChanges', () => {
     expect(result.current.hasChanges).toBe(false);
   });
 
-  it('should populate newPaths for add events', () => {
+  it('should populate glowPaths for add events', () => {
     /**
-     * Why: newPaths enables green fade-in animation for newly created files.
-     * Contract: 'add' eventType → path in newPaths set.
-     * Usage Notes: Used by FileTree's newlyAddedPaths prop.
-     * Quality Contribution: Ensures animation targets only new files, not modifications.
-     * Worked Example: 'add' event for 'src/new.ts' → newPaths contains 'src/new.ts'.
+     * Why: glowPaths enables green glow animation for created/modified files.
+     * Contract: 'add' eventType → path in glowPaths set.
+     * Usage Notes: Used by FileTree's glowingPaths prop via BrowserClient.
      */
     const { result } = renderHook(() => useTreeDirectoryChanges(['src']), {
       wrapper: createWrapper(),
@@ -132,7 +130,27 @@ describe('useTreeDirectoryChanges', () => {
       vi.advanceTimersByTime(300);
     });
 
-    expect(result.current.newPaths.has('src/new.ts')).toBe(true);
+    expect(result.current.glowPaths.has('src/new.ts')).toBe(true);
+  });
+
+  it('should populate glowPaths for change events', () => {
+    /**
+     * Why: Modified files should also glow green in the tree view.
+     * Contract: 'change' eventType → path in glowPaths set.
+     */
+    const { result } = renderHook(() => useTreeDirectoryChanges(['src']), {
+      wrapper: createWrapper(),
+    });
+
+    act(() => {
+      fakeMux.simulateOpen();
+      simulateSSE([
+        { path: 'src/modified.ts', eventType: 'change', worktreePath: '/repo', timestamp: 1000 },
+      ]);
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(result.current.glowPaths.has('src/modified.ts')).toBe(true);
   });
 
   it('should populate removedPaths for unlink events', () => {
@@ -161,7 +179,7 @@ describe('useTreeDirectoryChanges', () => {
   it('should reset on clearAll', () => {
     /**
      * Why: After handling changes, state must be reset to detect next batch.
-     * Contract: clearAll() resets changes, changedDirs, newPaths, removedPaths.
+     * Contract: clearAll() resets changes, changedDirs, glowPaths, removedPaths.
      * Usage Notes: Called after re-fetching directory contents.
      * Quality Contribution: Prevents stale change state from triggering duplicate re-fetches.
      * Worked Example: Receive changes → clearAll() → hasChanges is false.

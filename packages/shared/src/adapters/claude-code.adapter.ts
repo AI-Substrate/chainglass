@@ -193,7 +193,7 @@ export class ClaudeCodeAdapter implements IAgentAdapter {
     const validatedCwd = this._validateCwd(cwd);
 
     // Build command arguments (validates prompt - may throw)
-    const args = this._buildArgs(prompt, sessionId);
+    const args = this._buildArgs(prompt, sessionId, options.model);
 
     // Variables to accumulate streamed content
     let streamedSessionId = sessionId ?? '';
@@ -374,7 +374,7 @@ export class ClaudeCodeAdapter implements IAgentAdapter {
    *
    * @throws Error if prompt is empty, too long, or contains invalid characters
    */
-  private _buildArgs(prompt: string, sessionId?: string): string[] {
+  private _buildArgs(prompt: string, sessionId?: string, model?: string): string[] {
     const args: string[] = [
       '--output-format=stream-json',
       '--verbose', // Required for stream-json with -p flag
@@ -383,6 +383,10 @@ export class ClaudeCodeAdapter implements IAgentAdapter {
 
     if (sessionId) {
       args.push('--resume', sessionId);
+    }
+
+    if (model) {
+      args.push('--model', model);
     }
 
     // Validate and sanitize prompt

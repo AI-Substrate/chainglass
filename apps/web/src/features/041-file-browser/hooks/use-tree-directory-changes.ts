@@ -18,8 +18,8 @@ export interface UseTreeDirectoryChangesReturn {
   changes: FileChange[];
   /** Set of expanded directory paths that have changes */
   changedDirs: Set<string>;
-  /** Paths that were added (eventType 'add' or 'addDir') */
-  newPaths: Set<string>;
+  /** Paths that should glow (added, modified, or dir added) */
+  glowPaths: Set<string>;
   /** Paths that were removed (eventType 'unlink' or 'unlinkDir') */
   removedPaths: Set<string>;
   /** Whether any expanded directory has changes */
@@ -42,9 +42,9 @@ export function useTreeDirectoryChanges(expandedDirs: string[]): UseTreeDirector
   });
 
   // Filter changes to only those in expanded directories (direct children)
-  const { filtered, changedDirs, newPaths, removedPaths } = useMemo(() => {
+  const { filtered, changedDirs, glowPaths, removedPaths } = useMemo(() => {
     const dirs = new Set<string>();
-    const added = new Set<string>();
+    const glowing = new Set<string>();
     const removed = new Set<string>();
     const matching: FileChange[] = [];
 
@@ -57,8 +57,12 @@ export function useTreeDirectoryChanges(expandedDirs: string[]): UseTreeDirector
           if (!rest.includes('/')) {
             matching.push(change);
             dirs.add(dir);
-            if (change.eventType === 'add' || change.eventType === 'addDir') {
-              added.add(change.path);
+            if (
+              change.eventType === 'add' ||
+              change.eventType === 'addDir' ||
+              change.eventType === 'change'
+            ) {
+              glowing.add(change.path);
             }
             if (change.eventType === 'unlink' || change.eventType === 'unlinkDir') {
               removed.add(change.path);
@@ -68,13 +72,13 @@ export function useTreeDirectoryChanges(expandedDirs: string[]): UseTreeDirector
       }
     }
 
-    return { filtered: matching, changedDirs: dirs, newPaths: added, removedPaths: removed };
+    return { filtered: matching, changedDirs: dirs, glowPaths: glowing, removedPaths: removed };
   }, [changes, expandedDirs]);
 
   return {
     changes: filtered,
     changedDirs,
-    newPaths,
+    glowPaths,
     removedPaths,
     hasChanges: filtered.length > 0,
     clearAll: clearChanges,

@@ -288,3 +288,9 @@ Harness: Not applicable (user override — transport layer change; unit tests + 
 | ServerEventRoute cursor breaks with new array source | Low | High | Verify independent array per useChannelEvents subscriber | 4 |
 | Dual-route double delivery during migration | Low | Medium | Atomic per-consumer migration; never dual-connect same channel | 3 |
 | Agent text deltas saturate mux stream | Low (not implemented) | Medium | Defer to future plan; server-side batching when needed | N/A |
+
+## Fixes
+
+| ID | Created | Summary | Domain(s) | Status | Source |
+|----|---------|---------|-----------|--------|--------|
+| FX001 | 2026-03-09 | Migrate agent hooks to multiplexed SSE | _platform/events, agents | Proposed | Post-merge regression — agents page lockup |

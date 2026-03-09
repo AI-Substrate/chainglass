@@ -16,6 +16,8 @@
  * Part of Plan 019: Agent Manager Refactor (Phase 4: Web Integration)
  */
 
+import { useChannelCallback } from '@/lib/sse';
+import type { MultiplexedSSEMessage } from '@/lib/sse';
 import type {
   AgentInstanceStatus,
   AgentRunOptions,
@@ -23,7 +25,6 @@ import type {
   AgentType,
 } from '@chainglass/shared/features/019-agent-manager-refactor/agent-instance.interface';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useRef, useState } from 'react';
 
 // ============ Types ============
 
@@ -90,9 +91,6 @@ export interface UseAgentInstanceReturn {
 // ============ Constants ============
 
 const AGENT_QUERY_KEY = 'agent';
-const SSE_ENDPOINT = '/api/agents/events';
-const RECONNECT_DELAY = 3000;
-const MAX_RECONNECT_ATTEMPTS = 5;
 
 // ============ Hook Implementation ============
 
@@ -108,12 +106,41 @@ export function useAgentInstance(
   const { subscribeToSSE = true, onAgentEvent } = options;
 
   const queryClient = useQueryClient();
-  const [isConnected, setIsConnected] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
 
-  const eventSourceRef = useRef<EventSource | null>(null);
-  const reconnectAttemptsRef = useRef(0);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // Subscribe to agent events via multiplexed SSE (FX001, Plan 072)
+  // DYK-1: Mux delivers all events via onmessage with msg.type, not named event listeners
+  // DYK-4: agent_event unwrap pattern preserved exactly from original
+  const { isConnected } = useChannelCallback('agents', (msg: MultiplexedSSEMessage) => {
+    if (!subscribeToSSE) return;
+
+    const data = msg as unknown as AgentSSEEvent;
+    const eventType = data.type ?? 'unknown';
+
+    // Filter events for this specific agent (client-side per ADR-0007)
+    if (data.agentId !== agentId) return;
+
+    // Only refetch on status/intent changes, NOT on every event.
+    // During streaming, the onAgentEvent callback + streamingContent overlay
+    // handles real-time display. Refetching on every text_delta would cause
+    // the content to double up (server events + streaming overlay).
+    if (eventType === 'agent_status' || eventType === 'agent_intent') {
+      queryClient.invalidateQueries({ queryKey: [AGENT_QUERY_KEY, agentId] });
+    }
+
+    // Call callback if provided, preserving agent_event unwrap (DYK-4)
+    if (onAgentEvent) {
+      if (eventType === 'agent_event') {
+        // Unwrap the inner event type for the callback
+        // Server sends: { type: 'agent_event', agentId, event: { type: 'text_delta', data: {...} } }
+        const innerEvent = (data as { event?: { type?: string; data?: Record<string, unknown> } })
+          .event;
+        const innerType = innerEvent?.type ? `agent_${innerEvent.type}` : eventType;
+        onAgentEvent(innerType, { agentId, ...innerEvent?.data } as AgentSSEEvent);
+      } else {
+        onAgentEvent(eventType, data);
+      }
+    }
+  });
 
   // Fetch agent from API
   const {
@@ -166,95 +193,6 @@ export function useAgentInstance(
     },
   });
 
-  // SSE connection management
-  const connectSSE = useCallback(() => {
-    if (!subscribeToSSE || typeof EventSource === 'undefined') {
-      return;
-    }
-
-    // Clean up existing connection
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-    }
-
-    const eventSource = new EventSource(SSE_ENDPOINT);
-    eventSourceRef.current = eventSource;
-
-    eventSource.onopen = () => {
-      setIsConnected(true);
-      setError(null);
-      reconnectAttemptsRef.current = 0;
-    };
-
-    eventSource.onerror = () => {
-      setIsConnected(false);
-      eventSource.close();
-
-      // Attempt reconnection
-      if (reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
-        reconnectAttemptsRef.current += 1;
-        reconnectTimeoutRef.current = setTimeout(() => {
-          connectSSE();
-        }, RECONNECT_DELAY);
-      } else {
-        setError(new Error('SSE connection failed after max reconnect attempts'));
-      }
-    };
-
-    // Listen to SSE event types broadcast by AgentNotifierService
-    const eventTypes = ['agent_status', 'agent_intent', 'agent_event'];
-
-    for (const eventType of eventTypes) {
-      eventSource.addEventListener(eventType, (event) => {
-        const data = JSON.parse(event.data) as AgentSSEEvent;
-
-        // Filter events for this specific agent (client-side per ADR-0007)
-        if (data.agentId !== agentId) {
-          return;
-        }
-
-        // Only refetch on status/intent changes, NOT on every event.
-        // During streaming, the onAgentEvent callback + streamingContent overlay
-        // handles real-time display. Refetching on every text_delta would cause
-        // the content to double up (server events + streaming overlay).
-        if (eventType !== 'agent_event') {
-          queryClient.invalidateQueries({ queryKey: [AGENT_QUERY_KEY, agentId] });
-        }
-
-        // Call callback if provided
-        if (onAgentEvent) {
-          if (eventType === 'agent_event') {
-            // Unwrap the inner event type for the callback
-            // Server sends: { type: 'agent_event', agentId, event: { type: 'text_delta', data: {...} } }
-            const innerEvent = (
-              data as { event?: { type?: string; data?: Record<string, unknown> } }
-            ).event;
-            const innerType = innerEvent?.type ? `agent_${innerEvent.type}` : eventType;
-            onAgentEvent(innerType, { agentId, ...innerEvent?.data } as AgentSSEEvent);
-          } else {
-            onAgentEvent(eventType, data);
-          }
-        }
-      });
-    }
-  }, [subscribeToSSE, agentId, queryClient, onAgentEvent]);
-
-  // Connect on mount, cleanup on unmount
-  useEffect(() => {
-    connectSSE();
-
-    return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
-      }
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-        reconnectTimeoutRef.current = null;
-      }
-    };
-  }, [connectSSE]);
-
   // Compute derived values
   const status = agent?.status ?? null;
   const intent = agent?.intent ?? null;
@@ -268,7 +206,7 @@ export function useAgentInstance(
     events,
     isWorking,
     isLoading,
-    error: queryError || error,
+    error: queryError ?? null,
     isConnected,
     run: runMutation.mutateAsync,
     refetch,
