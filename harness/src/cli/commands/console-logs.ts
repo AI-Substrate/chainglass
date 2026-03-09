@@ -8,6 +8,8 @@
 import type { Command } from 'commander';
 import { chromium } from '@playwright/test';
 import { getWsEndpoint } from '../../cdp/connect.js';
+import { DEFAULT_TIMEOUT, DEFAULT_WAIT_UNTIL, WAIT_UNTIL_VALUES, navigateTo } from '../../cdp/navigate.js';
+import type { WaitUntilValue } from '../../cdp/navigate.js';
 import { computePorts } from '../../ports/allocator.js';
 import { ErrorCodes, exitWithEnvelope, formatError, formatSuccess } from '../output.js';
 
@@ -27,7 +29,9 @@ export function registerConsoleLogsCommand(program: Command): void {
     .option('--filter <level>', 'Filter: all, errors, warnings', 'all')
     .option('--url <path>', 'URL path to navigate to', '/')
     .option('--wait <seconds>', 'Seconds to wait for messages after load', '5')
-    .action(async (opts: { filter: string; url: string; wait: string }) => {
+    .option('--wait-until <strategy>', `Page load strategy: ${WAIT_UNTIL_VALUES.join(', ')}`, DEFAULT_WAIT_UNTIL)
+    .option('--timeout <ms>', 'Navigation timeout in milliseconds', String(DEFAULT_TIMEOUT))
+    .action(async (opts: { filter: string; url: string; wait: string; waitUntil: string; timeout: string }) => {
       const filter = opts.filter as FilterLevel;
       if (!['all', 'errors', 'warnings'].includes(filter)) {
         exitWithEnvelope(
@@ -41,6 +45,15 @@ export function registerConsoleLogsCommand(program: Command): void {
       if (Number.isNaN(waitSeconds) || waitSeconds < 1 || waitSeconds > 60) {
         exitWithEnvelope(
           formatError('console-logs', ErrorCodes.INVALID_ARGS, 'Wait must be 1-60 seconds'),
+        );
+      }
+
+      const waitUntil = opts.waitUntil as WaitUntilValue;
+      if (!WAIT_UNTIL_VALUES.includes(waitUntil)) {
+        exitWithEnvelope(
+          formatError('console-logs', ErrorCodes.INVALID_ARGS, `Unknown wait-until strategy: ${waitUntil}`, {
+            available: [...WAIT_UNTIL_VALUES],
+          }),
         );
       }
 
@@ -71,7 +84,7 @@ export function registerConsoleLogsCommand(program: Command): void {
           });
         });
 
-        await page.goto(targetUrl, { waitUntil: 'networkidle' });
+        await navigateTo(page, targetUrl, { waitUntil, timeout: Number(opts.timeout) });
 
         // Wait additional time for late-arriving messages
         await new Promise((resolve) => setTimeout(resolve, waitSeconds * 1000));

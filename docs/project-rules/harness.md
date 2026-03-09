@@ -257,6 +257,27 @@ just harness agent history smoke-test
 
 **The retrospective is the most valuable output** — it captures unfiltered feedback from an autonomous agent about what CLI commands are intuitive, what's confusing, and what improvements would help. This feedback loop drives harness evolution.
 
+#### The Feedback Loop in Practice
+
+Every agent retrospective is a potential fix task. The workflow:
+
+1. Agent runs and writes retrospective with `magicWand` suggestion
+2. Developer reads retrospective, creates FX task quoting the agent's exact words
+3. FX is implemented and verified using the harness (dogfooding the dogfood)
+4. Same agent runs again — confirms the issue is resolved
+5. FX recorded in plan with "Source: [agent] retrospective"
+
+This is not aspirational. FX002 (`console-logs` + `screenshot-all`) shipped within hours of the smoke-test agent's first retrospective. Every harness agent MUST include a retrospective section with `magicWand` as a required field.
+
+#### Creating New Agents — Mandatory Retrospective
+
+All harness agents MUST include:
+- `prompt.md`: Retrospective section asking what worked, what was confusing, magic wand
+- `output-schema.json`: `retrospective.magicWand` as a required field
+- `instructions.md`: "This is dogfooding" framing with good/bad feedback examples
+
+See `harness/agents/smoke-test/` as the reference implementation.
+
 ### Creating New Agents
 
 1. Create `harness/agents/<slug>/prompt.md` (required)

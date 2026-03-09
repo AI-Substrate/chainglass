@@ -49,6 +49,33 @@ just harness agent tail smoke-test
 
 Ports are dynamically allocated per worktree (derived from name hash), so multiple worktrees can run harness containers simultaneously. Use `just harness ports` to see your allocation.
 
+## Philosophy: Agents Improving the Product
+
+The harness exists to create a **virtuous feedback loop** where agents don't just test the product — they actively improve it.
+
+Every agent writes a structured retrospective answering:
+- **What worked well?** — Which commands were intuitive? What was pleasant?
+- **What was confusing?** — What required trial-and-error? What error messages were unhelpful?
+- **Magic wand** — If you could change one thing, what would it be? Be concrete.
+- **Improvement suggestions** — 1-3 specific, actionable changes
+
+These retrospectives are the most valuable output of any agent run. They capture friction that humans stop noticing — and they become real fix tasks that ship in the same sprint.
+
+### Proof It Works
+
+| Retrospective Finding | Fix | Result |
+|-----------------------|-----|--------|
+| "No `console-logs` command — had to write Playwright from scratch" | FX002: Added `console-logs` + `screenshot-all` commands | Committed `d144c6a` |
+| Screenshot command timed out on SSE pages | FX003: Added `--wait-until` flag, changed default to `domcontentloaded` | In progress |
+
+### The Loop
+
+```
+Agent runs → Retrospective → Fix task → Implementation → Better next run
+```
+
+This is dogfooding at the infrastructure level. The harness tests the product, and the product improves the harness.
+
 ## CLI Commands
 
 All commands return structured JSON: `{command, status, data?, error?}`
@@ -66,9 +93,9 @@ All commands return structured JSON: `{command, status, data?, error?}`
 | `just harness test` | Run Playwright test suite |
 | `just harness test --suite smoke` | Run smoke tests only |
 | `just harness test --viewport mobile` | Test at mobile viewport |
-| `just harness screenshot <name>` | Capture screenshot via CDP |
-| `just harness screenshot-all <name>` | Screenshots at all viewports |
-| `just harness console-logs` | Capture browser console logs |
+| `just harness screenshot <name>` | Capture screenshot via CDP. Options: `--viewport`, `--url`, `--wait-until`, `--timeout`, `--delay` |
+| `just harness screenshot-all <name>` | Screenshots at all viewports. Options: `--viewports`, `--url`, `--wait-until`, `--timeout`, `--delay` |
+| `just harness console-logs` | Capture browser console logs. Options: `--filter`, `--url`, `--wait`, `--wait-until`, `--timeout` |
 | `just harness results` | List captured results |
 | `just harness agent run <slug>` | Execute an agent definition |
 | `just harness agent run <slug> --model gpt-5.4` | With model selection |
@@ -76,6 +103,36 @@ All commands return structured JSON: `{command, status, data?, error?}`
 | `just harness agent history <slug>` | Show past runs |
 | `just harness agent validate <slug>` | Re-validate most recent output |
 | `just harness agent tail <slug>` | Follow running agent's event stream |
+
+### Page Navigation
+
+All commands that navigate to pages (`screenshot`, `screenshot-all`, `console-logs`) accept these options:
+
+| Option | Default | Values | Purpose |
+|--------|---------|--------|---------|
+| `--wait-until` | `domcontentloaded` | `commit`, `domcontentloaded`, `load`, `networkidle` | When to consider page "loaded" |
+| `--timeout` | `30000` | milliseconds | How long to wait before timing out |
+| `--delay` | `2000` (screenshots) / `0` (console-logs) | milliseconds | Post-navigation delay for React hydration |
+
+**Which strategy to use:**
+
+- **`domcontentloaded`** (default) — DOM is parsed and ready. Works on all pages including SSE-enabled workspace pages.
+- **`networkidle`** — No network requests for 500ms. Only works on fully static pages with no SSE, WebSocket, or polling.
+- **`load`** — All resources (images, CSS) finished loading. Use when visual completeness matters.
+- **`commit`** — Server responded. Fastest, but page content may not be rendered yet.
+
+**Why `--delay`?** Next.js with React 19 renders via client-side hydration. The `load` event fires when scripts are loaded, but React still needs ~1-2s to hydrate and render components. The `--delay` flag waits after navigation so screenshots capture the fully rendered page.
+
+```bash
+# Default — works on SSE pages, 2s hydration delay
+just harness screenshot agents --url http://127.0.0.1:3159/workspaces/ws/agents
+
+# No delay (page is pre-rendered / static)
+just harness screenshot login --delay 0
+
+# Explicit networkidle for a known-static page
+just harness screenshot login --wait-until networkidle --delay 0
+```
 
 ## Agent Definitions
 
@@ -107,11 +164,31 @@ agents/smoke-test/
 
 1. Create `agents/<your-slug>/`
 2. Add `prompt.md` — the system prompt that frames the agent's task
+   - **MUST** include a Retrospective section (see `agents/smoke-test/prompt.md` for the template)
+   - Ask: what worked, what was confusing, magic wand, improvement suggestions
 3. Add `instructions.md` — agent identity, guidelines, CLI quick reference
+   - **MUST** include: "This is dogfooding — your experience improves the harness for everyone"
+   - Include good vs bad retrospective examples
 4. Add `output-schema.json` — JSON Schema (Draft 2020-12) for the expected output
+   - **MUST** include `retrospective` object with `magicWand` as a **required** field
+   - Copy the retrospective schema from `agents/smoke-test/output-schema.json`
 5. Run: `just harness agent run <your-slug>`
 
+The retrospective is not optional. It's the mechanism that makes the harness better over time. See "From Retrospective to Fix" below.
+
 The runner validates output against the schema and stores everything in a timestamped `runs/` folder for auditability.
+
+## From Retrospective to Fix
+
+When an agent's retrospective surfaces an improvement, here's how to close the loop:
+
+1. **Read the retrospective** in `agents/<slug>/runs/<timestamp>/output/report.json`
+2. **Create a fix task** using `/plan-5-v2-phase-tasks-and-brief` — quote the agent's exact words as the source
+3. **Implement the fix** — use the harness itself to verify (dogfooding the dogfood)
+4. **Run the same agent again** — confirm the retrospective no longer mentions the issue
+5. **Update the plan** — record the FX with "Source: [agent] retrospective" in the Fixes table
+
+The fix task should quote the agent's feedback directly. This creates traceability: every harness improvement traces back to the agent run that suggested it.
 
 ## Docker Details
 

@@ -3,6 +3,8 @@ import { mkdirSync } from 'node:fs';
 import type { Command } from 'commander';
 import { chromium } from '@playwright/test';
 import { getWsEndpoint } from '../../cdp/connect.js';
+import { DEFAULT_TIMEOUT, DEFAULT_WAIT_UNTIL, WAIT_UNTIL_VALUES, navigateTo } from '../../cdp/navigate.js';
+import type { WaitUntilValue } from '../../cdp/navigate.js';
 import { computePorts } from '../../ports/allocator.js';
 import { HARNESS_VIEWPORTS, DEFAULT_VIEWPORT, type ViewportName } from '../../viewports/devices.js';
 import { ErrorCodes, exitWithEnvelope, formatError, formatSuccess } from '../output.js';
@@ -16,7 +18,10 @@ export function registerScreenshotCommand(program: Command): void {
     .description('Capture a screenshot via CDP and save to results/')
     .option('--viewport <name>', 'Viewport to use', DEFAULT_VIEWPORT)
     .option('--url <url>', 'URL to navigate to')
-    .action(async (name: string, opts: { viewport: string; url?: string }) => {
+    .option('--wait-until <strategy>', `Page load strategy: ${WAIT_UNTIL_VALUES.join(', ')}`, DEFAULT_WAIT_UNTIL)
+    .option('--timeout <ms>', 'Navigation timeout in milliseconds', String(DEFAULT_TIMEOUT))
+    .option('--delay <ms>', 'Post-navigation delay for React hydration', '2000')
+    .action(async (name: string, opts: { viewport: string; url?: string; waitUntil: string; timeout: string; delay: string }) => {
       // FT-003: Sanitize name to prevent path traversal
       const safeName = name.replace(/[^a-zA-Z0-9._-]+/g, '-');
       if (safeName !== name || safeName.includes('..')) {
@@ -30,6 +35,15 @@ export function registerScreenshotCommand(program: Command): void {
         exitWithEnvelope(
           formatError('screenshot', ErrorCodes.INVALID_ARGS, `Unknown viewport: ${opts.viewport}`, {
             available: Object.keys(HARNESS_VIEWPORTS),
+          }),
+        );
+      }
+
+      const waitUntil = opts.waitUntil as WaitUntilValue;
+      if (!WAIT_UNTIL_VALUES.includes(waitUntil)) {
+        exitWithEnvelope(
+          formatError('screenshot', ErrorCodes.INVALID_ARGS, `Unknown wait-until strategy: ${waitUntil}`, {
+            available: [...WAIT_UNTIL_VALUES],
           }),
         );
       }
@@ -53,7 +67,7 @@ export function registerScreenshotCommand(program: Command): void {
           viewport: { width: viewport.width, height: viewport.height },
         });
         const page = await context.newPage();
-        await page.goto(targetUrl, { waitUntil: 'networkidle' });
+        await navigateTo(page, targetUrl, { waitUntil, timeout: Number(opts.timeout), delay: Number(opts.delay) });
 
         mkdirSync(RESULTS_DIR, { recursive: true });
         const filename = `${safeName}-${viewportName}.png`;

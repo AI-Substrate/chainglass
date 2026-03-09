@@ -237,6 +237,21 @@ See `docs/how/dev/fast-feedback-loops.md` for the full testing strategy and feed
 
 The harness provides a Docker-containerized dev environment with browser automation. Each worktree gets unique ports derived from its name. See `docs/project-rules/harness.md` for full documentation.
 
+#### Harness Feedback Loop
+
+The harness isn't just a testing tool — it's a product improvement engine. Every harness agent writes a structured retrospective with a required `magicWand` field capturing what would make the agent's job easier. These retrospectives become real fix tasks that ship in the same sprint.
+
+**The cycle**: Agent runs → honest retrospective → FX task → implementation → better next run.
+
+This is operational, not aspirational. FX002 (`console-logs` + `screenshot-all` commands) was sourced from the smoke-test agent's first retrospective. FX003 (`--wait-until` flag) was sourced from FX001 harness verification.
+
+**When creating harness agents**, always include:
+- A retrospective section in `prompt.md` asking what worked, what was confusing, and a magic wand wish
+- `magicWand` as a **required** field in `output-schema.json`
+- Specific examples of good vs bad feedback in `instructions.md`
+
+See `harness/README.md` for the full philosophy and agent creation guide.
+
 ```bash
 # Port allocation (unique per worktree)
 just harness ports          # Show this worktree's port allocation

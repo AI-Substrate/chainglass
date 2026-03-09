@@ -100,6 +100,10 @@ open http://localhost:3000
 - **Theme System**: CSS variables with next-themes for FOUC-free switching
 - **Real-time Updates**: Server-Sent Events infrastructure for live data
 
+### Harness Feedback Loop
+
+Autonomous agents test the product and write structured retrospectives with "magic wand" suggestions. Those suggestions become fix tasks that ship in the same sprint — the product gets better every time an agent touches it. See [`harness/README.md`](harness/README.md) for the full philosophy.
+
 See [How-To Guides](docs/how/) for detailed documentation on extending these patterns.
 
 ## CLI Commands

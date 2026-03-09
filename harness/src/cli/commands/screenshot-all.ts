@@ -10,6 +10,8 @@ import { mkdirSync } from 'node:fs';
 import type { Command } from 'commander';
 import { chromium } from '@playwright/test';
 import { getWsEndpoint } from '../../cdp/connect.js';
+import { DEFAULT_TIMEOUT, DEFAULT_WAIT_UNTIL, WAIT_UNTIL_VALUES, navigateTo } from '../../cdp/navigate.js';
+import type { WaitUntilValue } from '../../cdp/navigate.js';
 import { computePorts } from '../../ports/allocator.js';
 import { HARNESS_VIEWPORTS, type ViewportName } from '../../viewports/devices.js';
 import { ErrorCodes, exitWithEnvelope, formatError, formatSuccess } from '../output.js';
@@ -23,7 +25,10 @@ export function registerScreenshotAllCommand(program: Command): void {
     .description('Capture screenshots at multiple viewports in one command')
     .option('--viewports <list>', 'Comma-separated viewport names (default: all)')
     .option('--url <url>', 'URL to navigate to')
-    .action(async (name: string, opts: { viewports?: string; url?: string }) => {
+    .option('--wait-until <strategy>', `Page load strategy: ${WAIT_UNTIL_VALUES.join(', ')}`, DEFAULT_WAIT_UNTIL)
+    .option('--timeout <ms>', 'Navigation timeout in milliseconds', String(DEFAULT_TIMEOUT))
+    .option('--delay <ms>', 'Post-navigation delay for React hydration', '2000')
+    .action(async (name: string, opts: { viewports?: string; url?: string; waitUntil: string; timeout: string; delay: string }) => {
       const safeName = name.replace(/[^a-zA-Z0-9._-]+/g, '-');
       if (safeName !== name || safeName.includes('..')) {
         exitWithEnvelope(
@@ -49,6 +54,15 @@ export function registerScreenshotAllCommand(program: Command): void {
         viewports = allViewports;
       }
 
+      const waitUntil = opts.waitUntil as WaitUntilValue;
+      if (!WAIT_UNTIL_VALUES.includes(waitUntil)) {
+        exitWithEnvelope(
+          formatError('screenshot-all', ErrorCodes.INVALID_ARGS, `Unknown wait-until strategy: ${waitUntil}`, {
+            available: [...WAIT_UNTIL_VALUES],
+          }),
+        );
+      }
+
       const ports = computePorts();
       const targetUrl = opts.url ?? `http://127.0.0.1:${ports.app}`;
       let browser;
@@ -72,7 +86,7 @@ export function registerScreenshotAllCommand(program: Command): void {
             viewport: { width: viewport.width, height: viewport.height },
           });
           const page = await context.newPage();
-          await page.goto(targetUrl, { waitUntil: 'networkidle' });
+          await navigateTo(page, targetUrl, { waitUntil, timeout: Number(opts.timeout), delay: Number(opts.delay) });
 
           const filename = `${safeName}-${viewportName}.png`;
           const filePath = path.resolve(RESULTS_DIR, filename);

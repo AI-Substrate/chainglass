@@ -289,6 +289,8 @@ ADR-0014 established the harness as **"external tooling"** not in `pnpm-workspac
 | ID | Created | Summary | Domain(s) | Status | Source |
 |----|---------|---------|-----------|--------|--------|
 | FX002 | 2026-03-08 | console-logs + screenshot-all CLI commands, pnpm workspace docs | external (harness/), cross-domain | ✅ Complete (`d144c6a`) | Smoke-test agent retrospective |
+| FX003 | 2026-03-09 | Add `--wait-until`, `--timeout`, `--delay` flags to screenshot/console-logs commands | `_platform/harness` | ✅ Complete | FX001 harness verification — `networkidle` hangs on SSE pages |
+| FX004 | 2026-03-09 | Lock in harness feedback loop philosophy across all docs | `_platform/harness` | ✅ Complete | Workshop 004 — philosophy is operational but not documented prominently |
 
 ## Post-Plan Improvements
 
