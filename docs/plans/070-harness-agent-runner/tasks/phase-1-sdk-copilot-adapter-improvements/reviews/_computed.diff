@@ -1,0 +1,469 @@
+diff --git a/packages/shared/src/adapters/claude-code.adapter.ts b/packages/shared/src/adapters/claude-code.adapter.ts
+index 6fb69c1..daaee1f 100644
+--- a/packages/shared/src/adapters/claude-code.adapter.ts
++++ b/packages/shared/src/adapters/claude-code.adapter.ts
+@@ -193,7 +193,7 @@ export class ClaudeCodeAdapter implements IAgentAdapter {
+     const validatedCwd = this._validateCwd(cwd);
+ 
+     // Build command arguments (validates prompt - may throw)
+-    const args = this._buildArgs(prompt, sessionId);
++    const args = this._buildArgs(prompt, sessionId, options.model);
+ 
+     // Variables to accumulate streamed content
+     let streamedSessionId = sessionId ?? '';
+@@ -374,7 +374,7 @@ export class ClaudeCodeAdapter implements IAgentAdapter {
+    *
+    * @throws Error if prompt is empty, too long, or contains invalid characters
+    */
+-  private _buildArgs(prompt: string, sessionId?: string): string[] {
++  private _buildArgs(prompt: string, sessionId?: string, model?: string): string[] {
+     const args: string[] = [
+       '--output-format=stream-json',
+       '--verbose', // Required for stream-json with -p flag
+@@ -385,6 +385,10 @@ export class ClaudeCodeAdapter implements IAgentAdapter {
+       args.push('--resume', sessionId);
+     }
+ 
++    if (model) {
++      args.push('--model', model);
++    }
++
+     // Validate and sanitize prompt
+     const sanitizedPrompt = this._validateAndSanitizePrompt(prompt);
+     args.push('-p', sanitizedPrompt);
+diff --git a/packages/shared/src/adapters/sdk-copilot-adapter.ts b/packages/shared/src/adapters/sdk-copilot-adapter.ts
+index bdfdaa1..4b6b898 100644
+--- a/packages/shared/src/adapters/sdk-copilot-adapter.ts
++++ b/packages/shared/src/adapters/sdk-copilot-adapter.ts
+@@ -85,7 +85,7 @@ export class SdkCopilotAdapter implements IAgentAdapter {
+   async run(options: AgentRunOptions): Promise<AgentResult> {
+     this._logger?.debug('SdkCopilotAdapter.run() called', { prompt: options.prompt?.slice(0, 50) });
+ 
+-    const { prompt, sessionId, cwd, onEvent } = options;
++    const { prompt, sessionId, cwd, onEvent, model, reasoningEffort } = options;
+ 
+     // T009: Validate inputs - return failed result instead of throwing
+     const validationError = this._validateInputs(prompt, cwd);
+@@ -102,9 +102,19 @@ export class SdkCopilotAdapter implements IAgentAdapter {
+     // T006/T007: Create or resume session
+     // DYK-06: Enable streaming when onEvent callback is provided
+     // FX006: onPermissionRequest required by SDK 0.1.30+ for tool execution
++    // Plan 070 Phase 1: Wire model, reasoningEffort, and SDK config fields
+     const session = sessionId
+-      ? await this._client.resumeSession(sessionId, { onPermissionRequest: approveAll })
+-      : await this._client.createSession({ streaming: !!onEvent, onPermissionRequest: approveAll });
++      ? await this._client.resumeSession(sessionId, {
++          onPermissionRequest: approveAll,
++          ...(model && { model }),
++          ...(reasoningEffort && { reasoningEffort }),
++        })
++      : await this._client.createSession({
++          streaming: !!onEvent,
++          onPermissionRequest: approveAll,
++          ...(model && { model }),
++          ...(reasoningEffort && { reasoningEffort }),
++        });
+ 
+     try {
+       // DYK-02: Register handler BEFORE sendAndWait to avoid race condition
+diff --git a/packages/shared/src/fakes/fake-copilot-client.ts b/packages/shared/src/fakes/fake-copilot-client.ts
+index 0880af0..a77c03b 100644
+--- a/packages/shared/src/fakes/fake-copilot-client.ts
++++ b/packages/shared/src/fakes/fake-copilot-client.ts
+@@ -1,5 +1,6 @@
+ import { randomUUID } from 'node:crypto';
+ import type {
++  CopilotModelInfo,
+   CopilotResumeSessionConfig,
+   CopilotSessionConfig,
+   CopilotSessionEvent,
+@@ -86,6 +87,8 @@ export class FakeCopilotClient implements ICopilotClient {
+   private readonly _sessions = new Map<string, FakeCopilotSession>();
+   private _sessionCounter = 0;
+   private _lastSession: FakeCopilotSession | null = null;
++  private _lastSessionConfig: CopilotSessionConfig | CopilotResumeSessionConfig | undefined;
++  private _lastResumeConfig: CopilotResumeSessionConfig | undefined;
+ 
+   constructor(options: FakeCopilotClientOptions = {}) {
+     this._options = {
+@@ -106,6 +109,7 @@ export class FakeCopilotClient implements ICopilotClient {
+     const sessionId = config?.sessionId ?? this._generateSessionId();
+     this._sessionHistory.push(sessionId);
+     this._createdSessions.add(sessionId);
++    this._lastSessionConfig = config;
+ 
+     const session = new FakeCopilotSession({
+       sessionId,
+@@ -134,6 +138,7 @@ export class FakeCopilotClient implements ICopilotClient {
+     }
+ 
+     this._sessionHistory.push(sessionId);
++    this._lastResumeConfig = config;
+ 
+     const session = new FakeCopilotSession({
+       sessionId,
+@@ -166,6 +171,32 @@ export class FakeCopilotClient implements ICopilotClient {
+     return this._options.status;
+   }
+ 
++  /**
++   * List available models. Returns a canned model list for testing.
++   */
++  async listModels(): Promise<CopilotModelInfo[]> {
++    return [
++      {
++        id: 'fake-model-reasoning',
++        name: 'Fake Model (Reasoning)',
++        capabilities: {
++          supports: { vision: false, reasoningEffort: true },
++          limits: { max_context_window_tokens: 200000 },
++        },
++        supportedReasoningEfforts: ['low', 'medium', 'high'],
++        defaultReasoningEffort: 'medium',
++      },
++      {
++        id: 'fake-model-basic',
++        name: 'Fake Model (Basic)',
++        capabilities: {
++          supports: { vision: true, reasoningEffort: false },
++          limits: { max_context_window_tokens: 128000 },
++        },
++      },
++    ];
++  }
++
+   // ============================================
+   // Test helper methods
+   // ============================================
+@@ -178,6 +209,21 @@ export class FakeCopilotClient implements ICopilotClient {
+     return [...this._sessionHistory];
+   }
+ 
++  /**
++   * Get the config passed to the most recent createSession() or resumeSession().
++   * Useful for verifying adapter correctly forwards model/reasoning options.
++   */
++  getLastSessionConfig(): CopilotSessionConfig | CopilotResumeSessionConfig | undefined {
++    return this._lastSessionConfig;
++  }
++
++  /**
++   * Get the config passed to the most recent resumeSession().
++   */
++  getLastResumeConfig(): CopilotResumeSessionConfig | undefined {
++    return this._lastResumeConfig;
++  }
++
+   /**
+    * Clear all session history.
+    * Useful for test isolation between test cases.
+@@ -188,6 +234,8 @@ export class FakeCopilotClient implements ICopilotClient {
+     this._sessions.clear();
+     this._sessionCounter = 0;
+     this._lastSession = null;
++    this._lastSessionConfig = undefined;
++    this._lastResumeConfig = undefined;
+   }
+ 
+   /**
+diff --git a/packages/shared/src/fakes/fake-copilot-session.ts b/packages/shared/src/fakes/fake-copilot-session.ts
+index a4e53b5..3e36c3b 100644
+--- a/packages/shared/src/fakes/fake-copilot-session.ts
++++ b/packages/shared/src/fakes/fake-copilot-session.ts
+@@ -87,6 +87,7 @@ export class FakeCopilotSession implements ICopilotSession {
+   private readonly _sendHistory: CopilotMessageOptions[] = [];
+   private _abortCount = 0;
+   private _destroyed = false;
++  private _currentModel: string | undefined;
+ 
+   constructor(options: FakeCopilotSessionOptions = {}) {
+     this._sessionId = options.sessionId ?? `fake-session-${Date.now()}`;
+@@ -201,6 +202,13 @@ export class FakeCopilotSession implements ICopilotSession {
+     this._eventHandlers.clear();
+   }
+ 
++  /**
++   * Change the model for this session (stub — records for test verification).
++   */
++  async setModel(model: string): Promise<void> {
++    this._currentModel = model;
++  }
++
+   // ============================================
+   // Test helper methods
+   // ============================================
+@@ -227,6 +235,13 @@ export class FakeCopilotSession implements ICopilotSession {
+     return this._destroyed;
+   }
+ 
++  /**
++   * Get the model set via setModel().
++   */
++  getCurrentModel(): string | undefined {
++    return this._currentModel;
++  }
++
+   /**
+    * Clear all call history.
+    * Useful for test isolation between test cases.
+@@ -236,5 +251,6 @@ export class FakeCopilotSession implements ICopilotSession {
+     this._abortCount = 0;
+     this._destroyed = false;
+     this._eventHandlers.clear();
++    this._currentModel = undefined;
+   }
+ }
+diff --git a/packages/shared/src/index.ts b/packages/shared/src/index.ts
+index 701a5c1..b53f751 100644
+--- a/packages/shared/src/index.ts
++++ b/packages/shared/src/index.ts
+@@ -104,6 +104,19 @@ export type {
+   TokenMetrics,
+ } from './interfaces/index.js';
+ 
++// Copilot SDK interfaces and types (Plan 070: re-export for harness consumption)
++export type {
++  CopilotModelBilling,
++  CopilotModelCapabilities,
++  CopilotModelInfo,
++  CopilotModelPolicy,
++  CopilotReasoningEffort,
++  CopilotSessionConfig,
++  CopilotResumeSessionConfig,
++  ICopilotClient,
++  ICopilotSession,
++} from './interfaces/index.js';
++
+ // Workflow Events interface (Plan 061)
+ export type { IWorkflowEvents } from './interfaces/index.js';
+ 
+diff --git a/packages/shared/src/interfaces/agent-types.ts b/packages/shared/src/interfaces/agent-types.ts
+index 82235ed..0cae796 100644
+--- a/packages/shared/src/interfaces/agent-types.ts
++++ b/packages/shared/src/interfaces/agent-types.ts
+@@ -5,6 +5,9 @@ export type {
+   AgentToolResultEvent,
+ } from '../schemas/agent-event.schema.js';
+ 
++// Plan 070 Phase 1: Import CopilotReasoningEffort for AgentRunOptions
++import type { CopilotReasoningEffort } from './copilot-sdk.interface.js';
++
+ /**
+  * Agent execution status values.
+  *
+@@ -67,6 +70,21 @@ export interface AgentRunOptions {
+    * When omitted, run() returns only the final AgentResult.
+    */
+   onEvent?: AgentEventHandler;
++  /**
++   * Model to use for this run (e.g., "gpt-5.4", "claude-sonnet-4").
++   * Honored by SdkCopilotAdapter (passed to createSession) and
++   * ClaudeCodeAdapter (passed as --model CLI flag).
++   * Other adapters may ignore this field.
++   */
++  model?: string;
++  /**
++   * Reasoning effort for models that support it.
++   * Only honored by SdkCopilotAdapter — check model capabilities
++   * via ICopilotClient.listModels() before setting.
++   * Passing this for a model that doesn't support it will cause the SDK
++   * to return an error (mapped to status: 'failed').
++   */
++  reasoningEffort?: CopilotReasoningEffort;
+ }
+ 
+ // ============================================
+diff --git a/packages/shared/src/interfaces/copilot-sdk.interface.ts b/packages/shared/src/interfaces/copilot-sdk.interface.ts
+index 842be71..03fcb5d 100644
+--- a/packages/shared/src/interfaces/copilot-sdk.interface.ts
++++ b/packages/shared/src/interfaces/copilot-sdk.interface.ts
+@@ -180,6 +180,23 @@ export interface CopilotSessionConfig {
+     request: unknown,
+     invocation: unknown
+   ) => { kind: string } | Promise<{ kind: string }>;
++  /**
++   * Reasoning effort for models that support it.
++   * Check model capabilities via ICopilotClient.listModels() before setting.
++   */
++  reasoningEffort?: CopilotReasoningEffort;
++  /**
++   * Working directory for tool operations (SDK-native).
++   * Note: AgentRunOptions.cwd is validated by the adapter (SEC-001).
++   * This field passes through directly to the SDK session without adapter validation.
++   */
++  workingDirectory?: string;
++  /** System message configuration injected at session start. */
++  systemMessage?: { content: string };
++  /** Whitelist of allowed tool names. When set, only these tools are available. */
++  availableTools?: string[];
++  /** Blacklist of excluded tool names. These tools are removed from defaults. */
++  excludedTools?: string[];
+ }
+ 
+ /**
+@@ -192,6 +209,10 @@ export interface CopilotResumeSessionConfig {
+     request: unknown,
+     invocation: unknown
+   ) => { kind: string } | Promise<{ kind: string }>;
++  /** Model to use for the resumed session */
++  model?: string;
++  /** Reasoning effort for the resumed session */
++  reasoningEffort?: CopilotReasoningEffort;
+ }
+ 
+ /**
+@@ -204,6 +225,63 @@ export interface CopilotStatusResponse {
+   protocolVersion: number;
+ }
+ 
++// ============================================
++// Model types (Plan 070 Phase 1)
++// Mirrors SDK ModelInfo shape per R-ARCH-001
++// ============================================
++
++/** Valid reasoning effort levels for models that support it. */
++export type CopilotReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh';
++
++/** Model capabilities and limits. Mirrors SDK ModelCapabilities. */
++export interface CopilotModelCapabilities {
++  supports: {
++    vision: boolean;
++    reasoningEffort: boolean;
++  };
++  limits: {
++    max_prompt_tokens?: number;
++    max_context_window_tokens: number;
++    vision?: {
++      supported_media_types: string[];
++      max_prompt_images: number;
++      max_prompt_image_size: number;
++    };
++  };
++}
++
++/** Model policy state. Mirrors SDK ModelPolicy. */
++export interface CopilotModelPolicy {
++  state: 'enabled' | 'disabled' | 'unconfigured';
++  terms: string;
++}
++
++/** Model billing information. Mirrors SDK ModelBilling. */
++export interface CopilotModelBilling {
++  multiplier: number;
++}
++
++/**
++ * Information about an available model. Mirrors SDK ModelInfo shape exactly.
++ * Use `capabilities.supports.reasoningEffort` to check reasoning support.
++ */
++export interface CopilotModelInfo {
++  /** Model identifier (e.g., "gpt-5.4", "claude-sonnet-4") */
++  id: string;
++  /** Display name */
++  name: string;
++  /** Model capabilities and limits */
++  capabilities: CopilotModelCapabilities;
++  /** Policy state (optional) */
++  policy?: CopilotModelPolicy;
++  /** Billing information (optional) */
++  billing?: CopilotModelBilling;
++  /** Supported reasoning effort levels (only present if model supports reasoning effort) */
++  supportedReasoningEfforts?: CopilotReasoningEffort[];
++  /** Default reasoning effort level (only present if model supports reasoning effort) */
++  defaultReasoningEffort?: CopilotReasoningEffort;
++}
++
+ /**
+  * Interface for Copilot session operations.
+  *
+@@ -261,6 +339,12 @@ export interface ICopilotSession {
+    * To continue the conversation, use ICopilotClient.resumeSession().
+    */
+   destroy(): Promise<void>;
++
++  /**
++   * Change the model for this session mid-conversation.
++   * History is preserved. Takes effect on the next message.
++   */
++  setModel(model: string): Promise<void>;
+ }
+ 
+ /**
+@@ -305,4 +389,11 @@ export interface ICopilotClient {
+    * @returns Status response with version and protocol version
+    */
+   getStatus(): Promise<CopilotStatusResponse>;
++
++  /**
++   * List available models with their metadata.
++   * Results are cached after the first call.
++   * Requires a connected client (call after first createSession, or create a throwaway session).
++   */
++  listModels(): Promise<CopilotModelInfo[]>;
+ }
+diff --git a/packages/shared/src/interfaces/index.ts b/packages/shared/src/interfaces/index.ts
+index 84b24ab..9631b44 100644
+--- a/packages/shared/src/interfaces/index.ts
++++ b/packages/shared/src/interfaces/index.ts
+@@ -121,6 +121,11 @@ export type {
+   CopilotAssistantMessageEvent,
+   CopilotAssistantUsageEvent,
+   CopilotMessageOptions,
++  CopilotModelBilling,
++  CopilotModelCapabilities,
++  CopilotModelInfo,
++  CopilotModelPolicy,
++  CopilotReasoningEffort,
+   CopilotResumeSessionConfig,
+   CopilotSessionConfig,
+   CopilotSessionErrorEvent,
+diff --git a/test/contracts/agent-adapter.contract.ts b/test/contracts/agent-adapter.contract.ts
+index b363e11..c7b1f55 100644
+--- a/test/contracts/agent-adapter.contract.ts
++++ b/test/contracts/agent-adapter.contract.ts
+@@ -198,5 +198,45 @@ export function agentAdapterContractTests(name: string, createAdapter: () => IAg
+       expect(['completed', 'failed', 'killed']).toContain(result.status);
+       expect(typeof result.exitCode).toBe('number');
+     });
++
++    // Plan 070 Phase 1: Contract tests for model/reasoning options
++
++    it('should accept model in run options without error', async () => {
++      /*
++      Test Doc:
++      - Why: Plan 070 AC-05 requires model selection via adapter run options
++      - Contract: run() with model option returns completed AgentResult
++      - Usage Notes: SdkCopilot/ClaudeCode honor it; other adapters may ignore
++      - Quality Contribution: Ensures model option doesn't cause errors
++      - Worked Example: run({prompt:"hi", model:"gpt-5.4"}) → {status:"completed"}
++      */
++      const adapter = createAdapter();
++      const result = await adapter.run({
++        prompt: 'test',
++        model: 'fake-model',
++      });
++
++      expect(result.status).toBe('completed');
++      expect(result.sessionId).toBeDefined();
++    });
++
++    it('should accept reasoningEffort in run options without error', async () => {
++      /*
++      Test Doc:
++      - Why: Plan 070 requires reasoning effort selection for models that support it
++      - Contract: run() with reasoningEffort returns completed AgentResult
++      - Usage Notes: Only SdkCopilotAdapter honors this; others ignore it
++      - Quality Contribution: Ensures reasoning option doesn't cause errors
++      - Worked Example: run({prompt:"hi", reasoningEffort:"low"}) → {status:"completed"}
++      */
++      const adapter = createAdapter();
++      const result = await adapter.run({
++        prompt: 'test',
++        reasoningEffort: 'low',
++      });
++
++      expect(result.status).toBe('completed');
++      expect(result.sessionId).toBeDefined();
++    });
+   });
+ }

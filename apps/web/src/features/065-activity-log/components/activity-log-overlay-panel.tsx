@@ -40,7 +40,7 @@ export function ActivityLogOverlayPanel() {
   }, [isOpen]);
 
   // Measure anchor element
-  const measureRef = useRef<() => void>();
+  const measureRef = useRef<(() => void) | null>(null);
   useEffect(() => {
     const measure = () => {
       const anchor = document.querySelector('[data-terminal-overlay-anchor]');

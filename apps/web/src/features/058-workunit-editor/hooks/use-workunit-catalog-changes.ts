@@ -16,6 +16,7 @@ import { useChannelEvents } from '@/lib/sse';
 interface UnitCatalogSSEMessage {
   unitSlug?: string;
   workspaceSlug?: string;
+  [key: string]: unknown;
 }
 
 interface UseWorkunitCatalogChangesResult {

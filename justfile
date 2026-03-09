@@ -18,10 +18,25 @@ install:
 # PORT env var controls both: Next.js listens on PORT, sidecar on PORT+1500
 # If PORT not set, Next.js auto-selects and sidecar defaults to 3000+1500
 dev:
-    @cd apps/web && node -e "require('node-pty').spawn('/bin/echo',['ok'],{name:'x',cols:1,rows:1,cwd:'/tmp',env:{}})" 2>/dev/null || (echo "Error: node-pty can't spawn. Run: chmod +x apps/web/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper" && exit 1)
-    PORT=${PORT:-3000} TERMINAL_WS_HOST=${TERMINAL_WS_HOST:-0.0.0.0} \
+    #!/usr/bin/env bash
+    set -euo pipefail
+    NEXT_PORT=${PORT:-3000}
+    WS_PORT=$((NEXT_PORT + 1500))
+    # Pre-flight: detect stale processes on our ports
+    for p in $NEXT_PORT $WS_PORT; do
+      PID=$(lsof -ti TCP:$p -sTCP:LISTEN 2>/dev/null || true)
+      if [ -n "$PID" ]; then
+        CMD=$(ps -p $PID -o command= 2>/dev/null || echo "unknown")
+        echo "⚠️  Port $p already in use by PID $PID ($CMD)"
+        echo "   Killing stale process..."
+        kill $PID 2>/dev/null && sleep 1 || true
+      fi
+    done
+    cd apps/web && node -e "require('node-pty').spawn('/bin/echo',['ok'],{name:'x',cols:1,rows:1,cwd:'/tmp',env:{}})" 2>/dev/null || (echo "Error: node-pty can't spawn. Run: chmod +x apps/web/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper" && exit 1)
+    cd "$OLDPWD"
+    PORT=$NEXT_PORT TERMINAL_WS_HOST=${TERMINAL_WS_HOST:-0.0.0.0} \
       pnpm concurrently --names "next,terminal" --prefix-colors "blue,green" \
-        "pnpm turbo dev -- --port ${PORT:-3000}" \
+        "pnpm turbo dev -- --port $NEXT_PORT" \
         "pnpm tsx watch --env-file=apps/web/.env.local apps/web/src/features/064-terminal/server/terminal-ws.ts"
 
 # Start terminal WebSocket server only
@@ -30,10 +45,24 @@ dev-terminal:
 
 # Start development server with HTTPS (enables clipboard API on remote devices)
 dev-https:
-    @cd apps/web && node -e "require('node-pty').spawn('/bin/echo',['ok'],{name:'x',cols:1,rows:1,cwd:'/tmp',env:{}})" 2>/dev/null || (echo "Error: node-pty can't spawn. Run: chmod +x apps/web/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper" && exit 1)
-    PORT=${PORT:-3000} TERMINAL_WS_HOST=${TERMINAL_WS_HOST:-0.0.0.0} TERMINAL_WS_CERT=apps/web/certificates/localhost.pem TERMINAL_WS_KEY=apps/web/certificates/localhost-key.pem \
+    #!/usr/bin/env bash
+    set -euo pipefail
+    NEXT_PORT=${PORT:-3000}
+    WS_PORT=$((NEXT_PORT + 1500))
+    for p in $NEXT_PORT $WS_PORT; do
+      PID=$(lsof -ti TCP:$p -sTCP:LISTEN 2>/dev/null || true)
+      if [ -n "$PID" ]; then
+        CMD=$(ps -p $PID -o command= 2>/dev/null || echo "unknown")
+        echo "⚠️  Port $p already in use by PID $PID ($CMD)"
+        echo "   Killing stale process..."
+        kill $PID 2>/dev/null && sleep 1 || true
+      fi
+    done
+    cd apps/web && node -e "require('node-pty').spawn('/bin/echo',['ok'],{name:'x',cols:1,rows:1,cwd:'/tmp',env:{}})" 2>/dev/null || (echo "Error: node-pty can't spawn. Run: chmod +x apps/web/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper" && exit 1)
+    cd "$OLDPWD"
+    PORT=$NEXT_PORT TERMINAL_WS_HOST=${TERMINAL_WS_HOST:-0.0.0.0} TERMINAL_WS_CERT=apps/web/certificates/localhost.pem TERMINAL_WS_KEY=apps/web/certificates/localhost-key.pem \
       pnpm concurrently --names "next,terminal" --prefix-colors "blue,green" \
-        "pnpm turbo dev -- --port ${PORT:-3000} --experimental-https" \
+        "pnpm turbo dev -- --port $NEXT_PORT --experimental-https" \
         "pnpm tsx watch --env-file=apps/web/.env.local apps/web/src/features/064-terminal/server/terminal-ws.ts"
 
 # Build all packages
@@ -47,6 +76,39 @@ test:
 # Run E2E agent tests (requires real agent CLIs, manually unskip tests first)
 test-e2e:
     pnpm vitest run test/e2e/agent-cli-e2e.test.ts --config vitest.e2e.config.ts
+
+# Run harness integration tests (requires Docker/OrbStack running + container up)
+test-harness:
+    cd harness && pnpm vitest run
+
+# Start harness dev container
+harness-dev:
+    cd harness && just dev
+
+# Install standalone harness dependencies
+harness-install:
+    cd harness && just install
+
+# Type-check standalone harness sources
+harness-typecheck:
+    cd harness && just typecheck
+
+# Stop harness container
+harness-stop:
+    cd harness && just stop
+
+# Kill Next.js cache and restart dev server
+kill-cache:
+    rm -rf apps/web/.next
+    @echo "Next.js cache cleared"
+
+# Show harness health
+harness-health:
+    cd harness && just health
+
+# Run harness CLI command (e.g., just harness health, just harness screenshot home)
+harness *ARGS:
+    cd harness && pnpm exec tsx src/cli/index.ts {{ARGS}}
 
 # Run linter
 lint:

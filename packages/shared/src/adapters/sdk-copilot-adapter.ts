@@ -85,7 +85,7 @@ export class SdkCopilotAdapter implements IAgentAdapter {
   async run(options: AgentRunOptions): Promise<AgentResult> {
     this._logger?.debug('SdkCopilotAdapter.run() called', { prompt: options.prompt?.slice(0, 50) });
 
-    const { prompt, sessionId, cwd, onEvent } = options;
+    const { prompt, sessionId, cwd, onEvent, model, reasoningEffort } = options;
 
     // T009: Validate inputs - return failed result instead of throwing
     const validationError = this._validateInputs(prompt, cwd);
@@ -102,9 +102,19 @@ export class SdkCopilotAdapter implements IAgentAdapter {
     // T006/T007: Create or resume session
     // DYK-06: Enable streaming when onEvent callback is provided
     // FX006: onPermissionRequest required by SDK 0.1.30+ for tool execution
+    // Plan 070 Phase 1: Wire model, reasoningEffort, and SDK config fields
     const session = sessionId
-      ? await this._client.resumeSession(sessionId, { onPermissionRequest: approveAll })
-      : await this._client.createSession({ streaming: !!onEvent, onPermissionRequest: approveAll });
+      ? await this._client.resumeSession(sessionId, {
+          onPermissionRequest: approveAll,
+          ...(model && { model }),
+          ...(reasoningEffort && { reasoningEffort }),
+        })
+      : await this._client.createSession({
+          streaming: !!onEvent,
+          onPermissionRequest: approveAll,
+          ...(model && { model }),
+          ...(reasoningEffort && { reasoningEffort }),
+        });
 
     try {
       // DYK-02: Register handler BEFORE sendAndWait to avoid race condition
@@ -148,7 +158,8 @@ export class SdkCopilotAdapter implements IAgentAdapter {
       });
 
       // T006: Send prompt and wait for response
-      await session.sendAndWait({ prompt: prompt.trim() });
+      // Pass timeout if provided (default 60s in SDK, configurable for long-running agents)
+      await session.sendAndWait({ prompt: prompt.trim() }, options.timeout);
 
       // T006: Return success result
       return {

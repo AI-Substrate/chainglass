@@ -9,11 +9,17 @@
 
 import type { z } from 'zod';
 
+// Structural bridge for Zod v3/v4 type compatibility.
+// packages/shared ships v4 types, but consumers may resolve v3 at build time.
+// Both versions share this runtime interface, so the constraint is safe.
+// biome-ignore lint/suspicious/noExplicitAny: Zod v3/v4 structural bridge
+type ZodSchema = { parse: (data: any) => any; safeParse: (data: any) => any };
+
 /**
  * A command registered by a domain.
  * Commands are the atomic unit of SDK functionality.
  */
-export interface SDKCommand<TParams extends z.ZodType = z.ZodType> {
+export interface SDKCommand<TParams extends ZodSchema = ZodSchema> {
   /** Unique ID: 'domain.verb' or 'domain.noun.verb' */
   id: string;
 
@@ -44,7 +50,7 @@ export interface SDKCommand<TParams extends z.ZodType = z.ZodType> {
  * Settings are typed via Zod schema, validated on read/write,
  * and observable via onChange.
  */
-export interface SDKSetting<T extends z.ZodType = z.ZodType> {
+export interface SDKSetting<T extends ZodSchema = ZodSchema> {
   /** Unique key: 'domain.settingName' */
   key: string;
 

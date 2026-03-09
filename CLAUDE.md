@@ -233,6 +233,59 @@ just reset                  # Full reset (clean + reinstall)
 
 See `docs/how/dev/fast-feedback-loops.md` for the full testing strategy and feedback tier guide.
 
+### Harness Commands (Agentic Development)
+
+The harness provides a Docker-containerized dev environment with browser automation. Each worktree gets unique ports derived from its name. See `docs/project-rules/harness.md` for full documentation.
+
+#### Harness Feedback Loop
+
+The harness isn't just a testing tool — it's a product improvement engine. Every harness agent writes a structured retrospective with a required `magicWand` field capturing what would make the agent's job easier. These retrospectives become real fix tasks that ship in the same sprint.
+
+**The cycle**: Agent runs → honest retrospective → FX task → implementation → better next run.
+
+This is operational, not aspirational. FX002 (`console-logs` + `screenshot-all` commands) was sourced from the smoke-test agent's first retrospective. FX003 (`--wait-until` flag) was sourced from FX001 harness verification.
+
+**When creating harness agents**, always include:
+- A retrospective section in `prompt.md` asking what worked, what was confusing, and a magic wand wish
+- `magicWand` as a **required** field in `output-schema.json`
+- Specific examples of good vs bad feedback in `instructions.md`
+
+See `harness/README.md` for the full philosophy and agent creation guide.
+
+```bash
+# Port allocation (unique per worktree)
+just harness ports          # Show this worktree's port allocation
+
+# Diagnostics (start here when something's wrong)
+just harness doctor         # Run diagnostic checks with actionable fixes
+just harness doctor --wait  # Wait for harness to become healthy (cold boot ~2-3 min)
+
+# Lifecycle
+just harness dev            # Start container (auto-computes ports)
+just harness stop           # Stop container
+just harness health         # Probe all endpoints (JSON)
+just harness build          # Rebuild Docker image
+
+# Testing & Evidence
+just harness test --suite smoke              # Run smoke tests
+just harness test --viewport mobile          # Test at mobile viewport
+just harness screenshot home                 # Capture screenshot via CDP
+just harness results                         # Read latest test results
+
+# Seed Data
+just harness seed           # Create test workspace + worktrees
+
+# Agent Runner (Plan 070)
+just harness agent run <slug>              # Execute an agent definition
+just harness agent run <slug> --model gpt-5.4  # With model selection
+just harness agent list                    # List available agents
+just harness agent history <slug>          # Show past runs
+just harness agent validate <slug>         # Re-validate most recent output
+
+# Standalone harness deps (first time only)
+just harness-install        # Install harness node_modules
+```
+
 ### pnpm Commands (Alternative)
 
 ```bash

@@ -4,6 +4,7 @@ import { useWorkspaceContext } from '@/features/041-file-browser/hooks/use-works
 import { ClipboardCopy, TerminalSquare, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useTerminalOverlay } from '../hooks/use-terminal-overlay';
+import { useTerminalWindowBadges } from '../hooks/use-terminal-window-badges';
 import { copyTmuxBuffer } from '../lib/copy-tmux-buffer';
 import type { ConnectionStatus } from '../types';
 import { ConnectionStatusBadge } from './connection-status-badge';
@@ -19,13 +20,14 @@ export function TerminalOverlayPanel() {
   // Only mount TerminalInner once the overlay has been opened at least once
   // This prevents WebSocket connections on every workspace page load
   const [hasOpened, setHasOpened] = useState(false);
+  const windowBadges = useTerminalWindowBadges({ cwd, enabled: isOpen });
 
   useEffect(() => {
     if (isOpen) setHasOpened(true);
   }, [isOpen]);
 
   // Measure the main content area to align overlay exactly over it
-  const measureRef = useRef<() => void>();
+  const measureRef = useRef<(() => void) | null>(null);
   useEffect(() => {
     const measure = () => {
       const anchor = document.querySelector('[data-terminal-overlay-anchor]');
@@ -91,9 +93,29 @@ export function TerminalOverlayPanel() {
     >
       {/* Header */}
       <div className="flex items-center justify-between border-b px-3 py-2 shrink-0">
-        <div className="flex items-center gap-2">
-          <TerminalSquare className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-medium truncate">{sessionName}</span>
+        <div className="flex items-center gap-2 min-w-0">
+          <TerminalSquare className="h-4 w-4 text-muted-foreground shrink-0" />
+          <span className="text-sm font-medium shrink-0">{sessionName}</span>
+          {windowBadges.length > 0 && (
+            <div
+              className="flex items-center gap-1.5 flex-wrap"
+              data-testid="terminal-window-badges"
+            >
+              {windowBadges.map((badge) => (
+                <span
+                  key={badge.windowIndex}
+                  className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[11px] font-mono text-muted-foreground whitespace-nowrap"
+                  title={badge.label}
+                >
+                  <span className="text-foreground/70">
+                    {badge.windowIndex}
+                    {badge.windowName ? `:${badge.windowName}` : ''}
+                  </span>
+                  <span className="text-muted-foreground/80">{badge.label}</span>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -124,6 +146,7 @@ export function TerminalOverlayPanel() {
           cwd={cwd}
           onConnectionChange={setConnectionStatus}
           themeOverride={terminalTheme}
+          isVisible={isOpen}
         />
       </div>
     </div>

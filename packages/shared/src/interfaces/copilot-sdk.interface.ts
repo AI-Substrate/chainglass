@@ -180,6 +180,23 @@ export interface CopilotSessionConfig {
     request: unknown,
     invocation: unknown
   ) => { kind: string } | Promise<{ kind: string }>;
+  /**
+   * Reasoning effort for models that support it.
+   * Check model capabilities via ICopilotClient.listModels() before setting.
+   */
+  reasoningEffort?: CopilotReasoningEffort;
+  /**
+   * Working directory for tool operations (SDK-native).
+   * Note: AgentRunOptions.cwd is validated by the adapter (SEC-001).
+   * This field passes through directly to the SDK session without adapter validation.
+   */
+  workingDirectory?: string;
+  /** System message configuration injected at session start. */
+  systemMessage?: { content: string };
+  /** Whitelist of allowed tool names. When set, only these tools are available. */
+  availableTools?: string[];
+  /** Blacklist of excluded tool names. These tools are removed from defaults. */
+  excludedTools?: string[];
 }
 
 /**
@@ -192,6 +209,10 @@ export interface CopilotResumeSessionConfig {
     request: unknown,
     invocation: unknown
   ) => { kind: string } | Promise<{ kind: string }>;
+  /** Model to use for the resumed session */
+  model?: string;
+  /** Reasoning effort for the resumed session */
+  reasoningEffort?: CopilotReasoningEffort;
 }
 
 /**
@@ -202,6 +223,63 @@ export interface CopilotStatusResponse {
   version: string;
   /** Protocol version for SDK compatibility */
   protocolVersion: number;
+}
+
+// ============================================
+// Model types (Plan 070 Phase 1)
+// Mirrors SDK ModelInfo shape per R-ARCH-001
+// ============================================
+
+/** Valid reasoning effort levels for models that support it. */
+export type CopilotReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh';
+
+/** Model capabilities and limits. Mirrors SDK ModelCapabilities. */
+export interface CopilotModelCapabilities {
+  supports: {
+    vision: boolean;
+    reasoningEffort: boolean;
+  };
+  limits: {
+    max_prompt_tokens?: number;
+    max_context_window_tokens: number;
+    vision?: {
+      supported_media_types: string[];
+      max_prompt_images: number;
+      max_prompt_image_size: number;
+    };
+  };
+}
+
+/** Model policy state. Mirrors SDK ModelPolicy. */
+export interface CopilotModelPolicy {
+  state: 'enabled' | 'disabled' | 'unconfigured';
+  terms: string;
+}
+
+/** Model billing information. Mirrors SDK ModelBilling. */
+export interface CopilotModelBilling {
+  multiplier: number;
+}
+
+/**
+ * Information about an available model. Mirrors SDK ModelInfo shape exactly.
+ * Use `capabilities.supports.reasoningEffort` to check reasoning support.
+ */
+export interface CopilotModelInfo {
+  /** Model identifier (e.g., "gpt-5.4", "claude-sonnet-4") */
+  id: string;
+  /** Display name */
+  name: string;
+  /** Model capabilities and limits */
+  capabilities: CopilotModelCapabilities;
+  /** Policy state (optional) */
+  policy?: CopilotModelPolicy;
+  /** Billing information (optional) */
+  billing?: CopilotModelBilling;
+  /** Supported reasoning effort levels (only present if model supports reasoning effort) */
+  supportedReasoningEfforts?: CopilotReasoningEffort[];
+  /** Default reasoning effort level (only present if model supports reasoning effort) */
+  defaultReasoningEffort?: CopilotReasoningEffort;
 }
 
 /**
@@ -261,6 +339,12 @@ export interface ICopilotSession {
    * To continue the conversation, use ICopilotClient.resumeSession().
    */
   destroy(): Promise<void>;
+
+  /**
+   * Change the model for this session mid-conversation.
+   * History is preserved. Takes effect on the next message.
+   */
+  setModel(model: string): Promise<void>;
 }
 
 /**
@@ -305,4 +389,11 @@ export interface ICopilotClient {
    * @returns Status response with version and protocol version
    */
   getStatus(): Promise<CopilotStatusResponse>;
+
+  /**
+   * List available models with their metadata.
+   * Results are cached after the first call.
+   * Requires a connected client (call after first createSession, or create a throwaway session).
+   */
+  listModels(): Promise<CopilotModelInfo[]>;
 }

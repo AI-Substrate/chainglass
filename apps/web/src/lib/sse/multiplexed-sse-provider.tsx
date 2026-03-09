@@ -100,7 +100,7 @@ export function MultiplexedSSEProvider({
       if (!mountedRef.current) return;
       try {
         const msg: MultiplexedSSEMessage = JSON.parse(event.data);
-        const channelSubs = subscribersRef.current.get(msg.channel);
+        const channelSubs = subscribersRef.current.get(msg.channel ?? '');
         if (channelSubs) {
           // Snapshot subscribers before dispatch to avoid iterator invalidation
           // if a callback triggers synchronous unmount → unsubscribe (PL-01, DYK #1)

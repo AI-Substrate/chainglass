@@ -67,14 +67,12 @@ describe('FileTree', () => {
     expect(screen.getByText('README.md')).toBeInTheDocument();
   });
 
-  describe('newlyAddedPaths animation', () => {
+  describe('glowingPaths animation', () => {
     it('should apply tree-entry-new class to entries in newlyAddedPaths set', () => {
       /**
-       * Why: New files should visually fade in with green animation.
+       * Why: Refreshed/created/updated files should glow green for 5 seconds.
        * Contract: Entry path in newlyAddedPaths → tree-entry-new class on that button.
-       * Usage Notes: Set<string> of relative paths; cleared by BrowserClient after timeout.
-       * Quality Contribution: Ensures animation CSS class is correctly applied.
-       * Worked Example: newlyAddedPaths=Set(['README.md']) → README.md button has tree-entry-new class.
+       * Usage Notes: Set<string> of relative paths; cleared by BrowserClient after 5s timer.
        */
       render(
         <FileTree
@@ -87,6 +85,55 @@ describe('FileTree', () => {
 
       const button = screen.getByText('README.md').closest('button');
       expect(button).toHaveClass('tree-entry-new');
+    });
+  });
+
+  describe('metafile detection and rendering', () => {
+    const metafileEntries = [
+      { name: 'photo.png', type: 'file' as const, path: 'photo.png' },
+      { name: 'photo.png.summary.md', type: 'file' as const, path: 'photo.png.summary.md' },
+      { name: 'photo.png.analysis.md', type: 'file' as const, path: 'photo.png.analysis.md' },
+      { name: 'readme.md', type: 'file' as const, path: 'readme.md' },
+    ];
+
+    it('renders metafiles with file icon', () => {
+      render(<FileTree entries={metafileEntries} onSelect={vi.fn()} onExpand={vi.fn()} />);
+
+      // All file entries render with 1 SVG (File icon)
+      const summaryBtn = screen.getByText('photo.png.summary.md').closest('button');
+      const analysisBtn = screen.getByText('photo.png.analysis.md').closest('button');
+      expect(summaryBtn?.querySelectorAll('svg').length).toBe(1);
+      expect(analysisBtn?.querySelectorAll('svg').length).toBe(1);
+
+      // Regular files also have 1 SVG (File icon)
+      const readmeBtn = screen.getByText('readme.md').closest('button');
+      expect(readmeBtn?.querySelectorAll('svg').length).toBe(1);
+      const photoBtn = screen.getByText('photo.png').closest('button');
+      expect(photoBtn?.querySelectorAll('svg').length).toBe(1);
+    });
+
+    it('does not treat .md files without matching parent as metafiles', () => {
+      const entries = [
+        { name: 'notes.md', type: 'file' as const, path: 'notes.md' },
+        { name: 'todo.md', type: 'file' as const, path: 'todo.md' },
+      ];
+      render(<FileTree entries={entries} onSelect={vi.fn()} onExpand={vi.fn()} />);
+
+      // Neither file has a parent match — both should have 1 SVG only
+      const notesBtn = screen.getByText('notes.md').closest('button');
+      expect(notesBtn?.querySelectorAll('svg').length).toBe(1);
+    });
+
+    it('does not treat directories as metafile parents', () => {
+      const entries = [
+        { name: 'src', type: 'directory' as const, path: 'src' },
+        { name: 'src.notes.md', type: 'file' as const, path: 'src.notes.md' },
+      ];
+      render(<FileTree entries={entries} onSelect={vi.fn()} onExpand={vi.fn()} />);
+
+      // src is a directory, so src.notes.md is NOT a metafile
+      const notesBtn = screen.getByText('src.notes.md').closest('button');
+      expect(notesBtn?.querySelectorAll('svg').length).toBe(1);
     });
   });
 });

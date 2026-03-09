@@ -34,6 +34,7 @@ const WORKSPACE_SSE_CHANNELS = [
   'work-unit-state',
   'workflows',
   'unit-catalog',
+  'agents',
 ] as const;
 
 interface LayoutProps {
