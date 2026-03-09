@@ -179,6 +179,19 @@ export function DashboardSidebar() {
                   </Button>
                 </div>
               )}
+              {isCollapsed && (
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild tooltip="Create new worktree">
+                        <Link href={`/workspaces/${workspaceSlug}/new-worktree`}>
+                          <Plus className="h-5 w-5" />
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              )}
               {(worktreesOpen || isCollapsed) && (
                 <SidebarGroupContent>
                   <Suspense

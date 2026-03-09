@@ -30,7 +30,7 @@ flowchart LR
     terminal["🖥️ terminal<br/>TerminalView · TerminalOverlay<br/>TmuxSessionManager · copyTmuxBuffer<br/>Sidecar WS/WSS Server"]:::business
 
     %% NEW business domains (Plan 069)
-    workspace["🗂️ workspace<br/>IWorkspaceService<br/>IWorkspaceContextResolver<br/>IGitWorktreeResolver<br/>useWorkspaceContext"]:::new
+    workspace["🗂️ workspace<br/>IWorkspaceService<br/>IWorkspaceContextResolver<br/>IGitWorktreeResolver<br/>IGitWorktreeManager<br/>useWorkspaceContext"]:::new
 
     %% NEW business domains (Plan 059)
     agents["🤖 agents<br/>IAgentManagerService<br/>IAgentAdapter · IAgentInstance<br/>useAgentManager · useAgentInstance<br/>useAgentOverlay · useRecentAgents<br/>AgentChipBar · AgentOverlayPanel<br/>AgentWorkUnitBridge"]:::new
@@ -149,7 +149,7 @@ flowchart LR
 | _platform/events | ICentralEventNotifier, ISSEBroadcaster, useSSE, FileChangeHub, useFileChanges, FileChangeProvider, toast() | file-browser, workflow-ui, agents, state | — | — | ✅ |
 | _platform/panel-layout | PanelShell, ExplorerPanel, LeftPanel, MainPanel, PanelHeader, BarHandler, AsciiSpinner, FlowSpaceSearchResult, FlowSpaceAvailability, FlowSpaceSearchMode | file-browser, future workspace pages | panel URL param | workspace-url | ✅ |
 | file-browser | Browser page, FileTree, FileViewerPanel, WorkspaceContext, EmojiPicker, ColorPicker, Settings | — | IFileSystem, workspaceHref, viewers, toast, events, panels, IWorkspaceService, useWorkspaceContext | file-ops, workspace-url, viewer, events, panel-layout, workspace | ✅ |
-| workspace | IWorkspaceService, IWorkspaceContextResolver, IGitWorktreeResolver, useWorkspaceContext | file-browser, workflow-ui, workunit-editor, terminal, agents | IFileSystem, IPathResolver, workspaceHref, workspaceParams, requireAuth(), middleware protection | file-ops, workspace-url, auth | 🟠 New |
+| workspace | IWorkspaceService, IWorkspaceContextResolver, IGitWorktreeResolver, IGitWorktreeManager, useWorkspaceContext | file-browser, workflow-ui, workunit-editor, terminal, agents | IFileSystem, IPathResolver, workspaceHref, workspaceParams, requireAuth(), middleware protection | file-ops, workspace-url, auth | 🟠 New |
 | _platform/sdk | IUSDK, ICommandRegistry, ISDKSettings, IContextKeyService, IKeybindingService, SDKCommand, SDKSetting, FakeUSDK | file-browser, workflow-ui, events, panel-layout, settings | — | — | ✅ |
 | _platform/settings | Settings Page, sdk.openSettings | — | ISDKSettings, useSDKSetting, useSDK | sdk | ✅ |
 | _platform/positional-graph | IPositionalGraphService, IOrchestrationService, IEventHandlerService, IWorkUnitService, ITemplateService, IInstanceService | CLI (`cg wf`, `cg template`), workflow-ui, dev/test-graphs | IFileSystem, IPathResolver, IStateService | file-ops, state | ✅ |

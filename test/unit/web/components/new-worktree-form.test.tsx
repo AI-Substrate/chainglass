@@ -12,8 +12,8 @@
  * and the pure naming functions that power live preview.
  */
 
+import { buildWorktreeName, normalizeSlug } from '@chainglass/workflow';
 import { describe, expect, it } from 'vitest';
-import { normalizeSlug, buildWorktreeName } from '@chainglass/workflow';
 
 // ==================== Page State Shape Tests ====================
 

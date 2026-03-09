@@ -152,7 +152,7 @@ if (status.status === 'clean') {
 | `WorktreeBootstrapRunner` | Detects, validates, and executes `.chainglass/new-worktree.sh` post-create hook | `IProcessManager`, `IFileSystem` |
 | `WorkspaceRegistryAdapter` | Persists global workspace registry and preference updates | `IFileSystem`, `IPathResolver` |
 | `Workspace` entity | Defines metadata, slugging, defaults, and immutable preference updates | `slugify`, workspace palette constants |
-| Workspace pages + nav | Render workspace list/detail/worktree switching surfaces | `IWorkspaceService`, `workspaceHref`, `WorkspaceProvider` |
+| Workspace pages + nav | Render workspace list/detail/worktree switching surfaces, including dashboard sidebar create-worktree entrypoints | `IWorkspaceService`, `workspaceHref`, `WorkspaceProvider` |
 | Workspace actions + routes | Handle authenticated mutations and workspace JSON responses | `IWorkspaceService`, `requireAuth`, `revalidatePath` |
 | `WorkspaceProvider` | Derives active worktree identity from persisted preferences | `WorkspacePreferences`, `WorktreeVisualPreferences` |
 | CLI workspace commands | Expose add/list/info/remove from terminal workflows | `IWorkspaceService` |
@@ -188,6 +188,7 @@ Primary: `packages/workflow/src/` + `apps/web/app/(dashboard)/workspaces/` + `ap
 | `apps/web/src/components/workspaces/workspace-nav.tsx` | Sidebar/worktree navigation | Workspace and worktree switching UI |
 | `apps/web/src/components/workspaces/workspace-add-form.tsx` | Registration form | Client mutation surface for add |
 | `apps/web/src/components/workspaces/new-worktree-form.tsx` | Create worktree form | Client form with 4 page states and live preview (Plan 069) |
+| `apps/web/src/components/dashboard-sidebar.tsx` | Dashboard sidebar composition | Expanded plus button and collapsed-state create-worktree entrypoint (Plan 069) |
 | `apps/web/src/components/workspaces/workspace-remove-button.tsx` | Removal UI | Client mutation surface for remove |
 | `apps/web/src/features/041-file-browser/hooks/use-workspace-context.tsx` | Client provider + hook | Workspace/worktree identity bridge |
 | `apps/cli/src/commands/workspace.command.ts` | CLI controller | `cg workspace add/list/info/remove` |

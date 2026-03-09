@@ -26,7 +26,7 @@ If omitted, defaults to the main workspace path.
 
 ### Entry Point
 
-The sidebar displays a **+** button next to the "Worktrees" label when the sidebar is expanded and you are inside a workspace. Clicking it navigates to the full-page create flow.
+The sidebar displays a **+** button next to the "Worktrees" label when the sidebar is expanded and you are inside a workspace. When the sidebar is collapsed, a **+** icon appears in the worktrees section with a tooltip. Clicking either navigates to the full-page create flow.
 
 ### Full-Page Create Flow
 

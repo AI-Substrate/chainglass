@@ -18,7 +18,7 @@ import { useFormStatus } from 'react-dom';
 import {
   type CreateWorktreePageState,
   createNewWorktree,
-} from '../../../../app/actions/workspace-actions';
+} from '../../../app/actions/workspace-actions';
 
 // ==================== Props ====================
 
