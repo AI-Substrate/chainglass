@@ -78,16 +78,19 @@ import {
   FakeAgentSessionAdapter,
   FakeCentralWatcherService,
   FakeFileWatcherFactory,
+  FakeGitWorktreeManager,
   FakeGitWorktreeResolver,
   FakeSampleAdapter,
   FakeWorkspaceContextResolver,
   FakeWorkspaceRegistryAdapter,
+  GitWorktreeManagerAdapter,
   GitWorktreeResolver,
   type IAgentEventAdapter,
   type IAgentSessionAdapter,
   type IAgentSessionService,
   type ICentralWatcherService,
   type IFileWatcherFactory,
+  type IGitWorktreeManager,
   type IGitWorktreeResolver,
   type ISampleAdapter,
   type ISampleService,
@@ -100,6 +103,7 @@ import {
   WorkspaceContextResolver,
   WorkspaceRegistryAdapter,
   WorkspaceService,
+  WorktreeBootstrapRunner,
 } from '@chainglass/workflow';
 import {
   type ITemplateService,
@@ -369,13 +373,24 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
       ),
   });
 
+  // Register git worktree manager (Plan 069: mutation boundary)
+  childContainer.register<IGitWorktreeManager>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_MANAGER, {
+    useFactory: (c) =>
+      new GitWorktreeManagerAdapter(c.resolve<IProcessManager>(SHARED_DI_TOKENS.PROCESS_MANAGER)),
+  });
+
   // Register workspace service
   childContainer.register<IWorkspaceService>(WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE, {
     useFactory: (c) =>
       new WorkspaceService(
         c.resolve<IWorkspaceRegistryAdapter>(WORKSPACE_DI_TOKENS.WORKSPACE_REGISTRY_ADAPTER),
         c.resolve<IWorkspaceContextResolver>(WORKSPACE_DI_TOKENS.WORKSPACE_CONTEXT_RESOLVER),
-        c.resolve<IGitWorktreeResolver>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER)
+        c.resolve<IGitWorktreeResolver>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER),
+        c.resolve<IGitWorktreeManager>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_MANAGER),
+        new WorktreeBootstrapRunner(
+          c.resolve<IProcessManager>(SHARED_DI_TOKENS.PROCESS_MANAGER),
+          c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM)
+        )
       ),
   });
 
@@ -760,13 +775,24 @@ export function createTestContainer(): DependencyContainer {
     useValue: fakeSampleAdapter,
   });
 
+  // Register fake git worktree manager (Plan 069)
+  const fakeGitManager = new FakeGitWorktreeManager();
+  childContainer.register<IGitWorktreeManager>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_MANAGER, {
+    useValue: fakeGitManager,
+  });
+
   // Register workspace service with fakes
   childContainer.register<IWorkspaceService>(WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE, {
     useFactory: (c) =>
       new WorkspaceService(
         c.resolve<IWorkspaceRegistryAdapter>(WORKSPACE_DI_TOKENS.WORKSPACE_REGISTRY_ADAPTER),
         c.resolve<IWorkspaceContextResolver>(WORKSPACE_DI_TOKENS.WORKSPACE_CONTEXT_RESOLVER),
-        c.resolve<IGitWorktreeResolver>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER)
+        c.resolve<IGitWorktreeResolver>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER),
+        c.resolve<IGitWorktreeManager>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_MANAGER),
+        new WorktreeBootstrapRunner(
+          c.resolve<IProcessManager>(SHARED_DI_TOKENS.PROCESS_MANAGER),
+          c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM)
+        )
       ),
   });
 

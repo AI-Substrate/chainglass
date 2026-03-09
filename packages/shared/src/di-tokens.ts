@@ -71,6 +71,8 @@ export const WORKSPACE_DI_TOKENS = {
   WORKSPACE_CONTEXT_RESOLVER: 'IWorkspaceContextResolver',
   /** IGitWorktreeResolver interface */
   GIT_WORKTREE_RESOLVER: 'IGitWorktreeResolver',
+  /** IGitWorktreeManager interface (Plan 069: worktree creation mutation boundary) */
+  GIT_WORKTREE_MANAGER: 'IGitWorktreeManager',
   /** ISampleAdapter interface */
   SAMPLE_ADAPTER: 'ISampleAdapter',
   /** IWorkspaceService interface */

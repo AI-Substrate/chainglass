@@ -1,0 +1,831 @@
+diff --git a/README.md b/README.md
+index db678dc7..25f6f096 100644
+--- a/README.md
++++ b/README.md
+@@ -257,6 +257,7 @@ cg agent run -t claude-code -p "Say hello" --stream
+ - [Workflows Guide](docs/how/workflows/1-overview.md) - Multi-phase workflow execution
+ - [Workflow Management](docs/how/workflows/5-workflow-management.md) - Template versioning and checkpoint workflow
+ - [Workspaces Guide](docs/how/workspaces/1-overview.md) - Multi-workspace management (local dev tool)
++- [Worktree Creation](docs/how/workspaces/3-web-ui.md#creating-a-new-worktree) - In-product worktree creation and bootstrap hook
+ - [Configuration Guide](docs/how/configuration/1-overview.md) - Configuration system
+ - [Architecture Rules](docs/rules/architecture.md) - Clean architecture patterns and guidelines
+ - [Authentication Setup](docs/how/auth/github-oauth-setup.md) - GitHub OAuth configuration
+diff --git a/apps/web/src/components/dashboard-sidebar.tsx b/apps/web/src/components/dashboard-sidebar.tsx
+index 62983665..e822c3a4 100644
+--- a/apps/web/src/components/dashboard-sidebar.tsx
++++ b/apps/web/src/components/dashboard-sidebar.tsx
+@@ -28,6 +28,7 @@ import {
+   ExternalLink,
+   LogOut,
+   PanelLeft,
++  Plus,
+   ScrollText,
+   Settings,
+   TerminalSquare,
+@@ -161,12 +162,22 @@ export function DashboardSidebar() {
+             {/* 2. Worktree list — collapsible, contracted by default */}
+             <SidebarGroup>
+               {!isCollapsed && (
+-                <SidebarGroupLabel
+-                  className="cursor-pointer select-none"
+-                  onClick={() => setWorktreesOpen((p) => !p)}
+-                >
+-                  Worktrees {worktreesOpen ? '▾' : '▸'}
+-                </SidebarGroupLabel>
++                <div className="flex items-center justify-between pr-1">
++                  <SidebarGroupLabel
++                    className="cursor-pointer select-none"
++                    onClick={() => setWorktreesOpen((p) => !p)}
++                  >
++                    Worktrees {worktreesOpen ? '▾' : '▸'}
++                  </SidebarGroupLabel>
++                  <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
++                    <Link
++                      href={`/workspaces/${workspaceSlug}/new-worktree`}
++                      aria-label="Create new worktree"
++                    >
++                      <Plus className="h-3.5 w-3.5" />
++                    </Link>
++                  </Button>
++                </div>
+               )}
+               {(worktreesOpen || isCollapsed) && (
+                 <SidebarGroupContent>
+diff --git a/docs/domains/workspace/domain.md b/docs/domains/workspace/domain.md
+index af740e91..87dbcbea 100644
+--- a/docs/domains/workspace/domain.md
++++ b/docs/domains/workspace/domain.md
+@@ -216,3 +216,4 @@ Primary: `packages/workflow/src/` + `apps/web/app/(dashboard)/workspaces/` + `ap
+ | Plan 069 Phase 1 | Added IGitWorktreeManager interface, preview/create types on IWorkspaceService, FakeGitWorktreeManager, contract test scaffold, DI token | 2026-03-07 |
+ | Plan 069 Phase 2 | Implemented naming allocator, GitWorktreeManagerAdapter, WorktreeBootstrapRunner, full create-worktree orchestration in WorkspaceService, DI wiring in all containers | 2026-03-07 |
+ | Plan 069 Phase 3 | Added full-page new-worktree route, create-worktree page-state/server-action adapter, and client live-preview form surface. Exported pure naming functions for client-side use. | 2026-03-08 |
++| Plan 069 Phase 4 | Added sidebar plus button for worktree creation, bootstrap hook authoring guide, web-UI route docs, README pointer. | 2026-03-09 |
+diff --git a/docs/how/workspaces/3-web-ui.md b/docs/how/workspaces/3-web-ui.md
+index b84436f2..f50d9ee2 100644
+--- a/docs/how/workspaces/3-web-ui.md
++++ b/docs/how/workspaces/3-web-ui.md
+@@ -1,6 +1,6 @@
+ # Web UI Reference
+ 
+-Brief reference for workspace web pages.
++Reference for workspace web pages, worktree creation, and the bootstrap hook contract.
+ 
+ ## Routes
+ 
+@@ -8,6 +8,8 @@ Brief reference for workspace web pages.
+ |-------|---------|
+ | `/workspaces` | List all registered workspaces |
+ | `/workspaces/[slug]` | Workspace details with worktree selector |
++| `/workspaces/[slug]/browser` | File browser for selected worktree |
++| `/workspaces/[slug]/new-worktree` | Full-page worktree creation flow |
+ | `/workspaces/[slug]/samples` | Sample list for selected worktree |
+ 
+ ## Worktree Selection
+@@ -15,15 +17,140 @@ Brief reference for workspace web pages.
+ Use the `?worktree=` query parameter to select a specific worktree:
+ 
+ ```
+-/workspaces/my-project/samples?worktree=/path/to/worktree
++/workspaces/my-project/browser?worktree=/path/to/worktree
+ ```
+ 
+ If omitted, defaults to the main workspace path.
+ 
++## Creating a New Worktree
++
++### Entry Point
++
++The sidebar displays a **+** button next to the "Worktrees" label when the sidebar is expanded and you are inside a workspace. Clicking it navigates to the full-page create flow.
++
++### Full-Page Create Flow
++
++The `/workspaces/[slug]/new-worktree` page provides:
++
++1. **Live preview** — as you type a name, the computed branch name and worktree path update in real-time using the same naming algorithm the server uses.
++2. **Ordinal allocation** — Chainglass scans existing local branches, remote branches, and plan folders to find the next available ordinal (e.g., `070`). The ordinal is zero-padded to 3 digits and prepended to your slug.
++3. **Main sync** — before creating the worktree, the system verifies the main branch is clean and fast-forwards it from origin.
++4. **Creation** — runs `git worktree add` with the computed branch name and path.
++5. **Bootstrap hook** — if a hook script exists (see below), it runs automatically after creation.
++6. **Navigation** — on success, the browser hard-navigates to `/workspaces/[slug]/browser?worktree=<new-path>`, which remounts the sidebar with the new worktree visible.
++
++### Naming Convention
++
++Names follow the pattern `NNN-slug` where:
++
++- **NNN** is the next available ordinal (scanned from branches and plan folders)
++- **slug** is your input normalized to lowercase alphanumeric with hyphens
++- Example: typing "my feature" when the highest existing ordinal is 069 produces `070-my-feature`
++
++If you paste a name that already starts with a 3-digit ordinal (e.g., `070-my-feature`), the allocator uses that ordinal directly instead of computing the next one.
++
++### Error States
++
++| State | What Happened | What To Do |
++|-------|--------------|------------|
++| **Blocking error** | Branch name or worktree path already exists, or main has uncommitted changes | Fix the conflict (rename, commit, or stash in the main worktree), then try again |
++| **Created with bootstrap error** | Worktree was created but the hook script failed | The worktree is usable. Check the bootstrap log output shown on screen and run the hook manually if needed |
++
++## Bootstrap Hook
++
++The bootstrap hook is an optional shell script that runs automatically after a new worktree is created. Use it to automate per-worktree setup tasks like installing dependencies, copying environment files, or seeding local data.
++
++### Hook Location
++
++```
++<main-repo-path>/.chainglass/new-worktree.sh
++```
++
++The hook is always read from the **main worktree** (never from the new worktree). This means all worktrees share the same hook definition, and you can version it alongside your project.
++
++### Requirements
++
++- The file must be executable (`chmod +x .chainglass/new-worktree.sh`)
++- It must be a valid Bash script
++- It must complete within **60 seconds** (after which it is killed)
++
++### Environment Variables
++
++The hook receives these environment variables:
++
++| Variable | Description | Example |
++|----------|-------------|---------|
++| `CHAINGLASS_MAIN_REPO_PATH` | Absolute path to the main worktree | `/Users/me/repos/chainglass` |
++| `CHAINGLASS_MAIN_BRANCH` | Name of the main branch | `main` |
++| `CHAINGLASS_WORKSPACE_SLUG` | Slug of the workspace | `chainglass` |
++| `CHAINGLASS_REQUESTED_NAME` | Raw name the user typed | `my feature` |
++| `CHAINGLASS_NORMALIZED_SLUG` | Cleaned slug | `my-feature` |
++| `CHAINGLASS_NEW_WORKTREE_ORDINAL` | Allocated ordinal number | `70` |
++| `CHAINGLASS_NEW_BRANCH_NAME` | Full branch name | `070-my-feature` |
++| `CHAINGLASS_NEW_WORKTREE_NAME` | Same as branch name | `070-my-feature` |
++| `CHAINGLASS_NEW_WORKTREE_PATH` | Absolute path to the new worktree | `/Users/me/repos/070-my-feature` |
++| `CHAINGLASS_TRIGGER` | What triggered the creation | `chainglass-web` |
++
++### Working Directory
++
++The hook's working directory (`cwd`) is set to the **new worktree path**. You can reference files relative to the new worktree directly.
++
++### Failure Behavior
++
++- Hook failure is **informational only** — the worktree is never rolled back
++- The UI shows the hook's exit code and the last 200 lines of output
++- The user can re-run the hook manually or fix issues themselves
++- If the hook times out (>60s), it is terminated and reported as a timeout failure
++
++### Example Hook Script
++
++```bash
++#!/usr/bin/env bash
++# .chainglass/new-worktree.sh
++# Post-create setup for new worktrees
++
++set -euo pipefail
++
++echo "Setting up worktree: $CHAINGLASS_NEW_BRANCH_NAME"
++echo "  Path: $CHAINGLASS_NEW_WORKTREE_PATH"
++echo "  Main: $CHAINGLASS_MAIN_REPO_PATH"
++
++# Install dependencies
++if [ -f "pnpm-lock.yaml" ]; then
++  echo "Installing dependencies..."
++  pnpm install --frozen-lockfile
++fi
++
++# Copy environment files from main
++if [ -f "$CHAINGLASS_MAIN_REPO_PATH/apps/web/.env.local" ]; then
++  echo "Copying .env.local..."
++  cp "$CHAINGLASS_MAIN_REPO_PATH/apps/web/.env.local" apps/web/.env.local
++fi
++
++# Create plan folder
++PLAN_DIR="docs/plans/$CHAINGLASS_NEW_BRANCH_NAME"
++if [ ! -d "$PLAN_DIR" ]; then
++  echo "Creating plan folder: $PLAN_DIR"
++  mkdir -p "$PLAN_DIR"
++fi
++
++echo "Setup complete."
++```
++
++### Troubleshooting
++
++| Symptom | Cause | Fix |
++|---------|-------|-----|
++| Hook not detected | File doesn't exist or wrong path | Verify `.chainglass/new-worktree.sh` exists in the main worktree root |
++| Permission denied | File not executable | Run `chmod +x .chainglass/new-worktree.sh` |
++| Timeout | Script takes longer than 60 seconds | Optimize the script or move slow tasks to a separate background process |
++| Non-zero exit | Script error | Check the output log shown in the UI; fix the script and re-run manually |
++
+ ## Server Actions
+ 
+ The web UI uses Server Actions for mutations:
+ - `addWorkspace` / `removeWorkspace`
+ - `addSample` / `deleteSample`
++- `createNewWorktree` — creates a new worktree from canonical main
+ 
+ All data reads from `~/.config/chainglass/` (workspace registry) and `<worktree>/.chainglass/data/` (domain data) for same-user deployment.
+diff --git a/docs/plans/069-new-worktree/tasks/phase-4-compose-navigation-and-landing/tasks.fltplan.md b/docs/plans/069-new-worktree/tasks/phase-4-compose-navigation-and-landing/tasks.fltplan.md
+new file mode 100644
+index 00000000..898ea04b
+--- /dev/null
++++ b/docs/plans/069-new-worktree/tasks/phase-4-compose-navigation-and-landing/tasks.fltplan.md
+@@ -0,0 +1,59 @@
++# Flight Plan: Phase 4 — Compose Navigation and Landing
++
++**Plan**: [new-worktree-plan.md](../../new-worktree-plan.md)
++**Phase**: Phase 4: Compose Navigation and Landing
++**Generated**: 2026-03-09
++**Status**: Ready for takeoff
++
++---
++
++## Departure → Destination
++
++**Where we are**: The full create-worktree flow works end-to-end in the domain and web layers. But users can only reach it by typing the URL manually — no sidebar entrypoint, no documentation.
++
++**Where we're going**: A user sees a `+` button next to "Worktrees" in the sidebar, clicks it, creates a worktree, and lands in the browser view. The docs explain how it works and what the bootstrap hook does.
++
++---
++
++## Flight Status
++
++```mermaid
++stateDiagram-v2
++    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
++
++    state "1: Sidebar entrypoints" as S1
++    state "2: Browser handoff verify" as S2
++    state "3: Documentation" as S3
++    state "4: Domain docs sync" as S4
++    state "5: Final verification" as S5
++
++    [*] --> S1
++    [*] --> S2
++    S1 --> S3
++    S2 --> S3
++    S3 --> S4
++    S4 --> S5
++    S5 --> [*]
++
++    class S1,S2,S3,S4,S5 pending
++```
++
++---
++
++## Stages
++
++- [ ] **Stage 1: Sidebar plus button** — Add plus icon next to "Worktrees" label in expanded sidebar only. No collapsed icon. No disabled state. (`dashboard-sidebar.tsx`)
++- [ ] **Stage 2: Browser handoff** — Read-only verification that `browser/page.tsx` handles `?worktree=` correctly (no code changes)
++- [ ] **Stage 3: Documentation** — Add "Creating a New Worktree" + detailed "Bootstrap Hook" authoring guide to `3-web-ui.md`; add pointer to `README.md`
++- [ ] **Stage 4: Domain docs** — Phase 4 history row in workspace domain.md
++- [ ] **Stage 5: Final verification** — Lint, test, commit and push
++
++---
++
++## Checklist
++
++- [ ] T001: Sidebar plus button (expanded only, no collapsed icon)
++- [ ] T002: Browser handoff verification (read-only)
++- [ ] T003: Web-UI docs + bootstrap hook authoring guide + README
++- [ ] T004: Workspace domain docs Phase 4 row
++- [ ] T005: Final verification (lint, test, commit)
+diff --git a/docs/plans/069-new-worktree/tasks/phase-4-compose-navigation-and-landing/tasks.md b/docs/plans/069-new-worktree/tasks/phase-4-compose-navigation-and-landing/tasks.md
+new file mode 100644
+index 00000000..209e4146
+--- /dev/null
++++ b/docs/plans/069-new-worktree/tasks/phase-4-compose-navigation-and-landing/tasks.md
+@@ -0,0 +1,111 @@
++# Phase 4: Compose Navigation and Landing — Tasks Dossier
++
++**Plan**: [new-worktree-plan.md](../../new-worktree-plan.md)
++**Phase**: Phase 4: Compose Navigation and Landing
++**Generated**: 2026-03-09
++**Status**: Ready
++
++---
++
++## Executive Briefing
++
++**Purpose**: Expose the create-worktree flow to users through always-available sidebar entrypoints, verify the browser handoff works end-to-end, and ship documentation. This is the composition phase — no new domain logic, just wiring the UI and docs.
++
++**What We're Building**:
++- Plus button next to "Worktrees" in the expanded sidebar
++- Reachable action in the collapsed sidebar state
++- Documentation of the new flow and bootstrap hook contract
++- Final verification across all surfaces
++
++**Non-Goals**:
++- ❌ New domain logic (Phases 1-2 complete)
++- ❌ New pages or server actions (Phase 3 complete)
++- ❌ Workspace detail page button (out of v1 scope per clarification)
++
++---
++
++## Prior Phase Context
++
++**Phase 3 delivered**:
++- `/workspaces/[slug]/new-worktree` route (Server Component)
++- `NewWorktreeForm` client component with 4 page states
++- `createNewWorktree` server action with `CreateWorktreePageState` union
++- Hard navigation on success via `window.location.assign()`
++
++**Key finding from research**:
++- `browser/page.tsx` already handles `?worktree=` query param correctly — **no code changes needed for the handoff** (task 4.2 is verification only)
++- `dashboard-sidebar.tsx` has a "Worktrees" section label at line 164-169 with toggle chevron — the plus button goes next to it
++- `workspace-nav.tsx` has collapsed state rendering at lines 128-144
++- `docs/how/workspaces/3-web-ui.md` exists and needs a new section
++
++---
++
++## Decisions (from DYK review)
++
++| # | Decision | Rationale |
++|---|----------|-----------|
++| D1 | No disable/hide of plus button when on `/new-worktree` page | Clicking it again just navigates to a fresh form. User's mistake, not worth special handling. |
++| D2 | No separate collapsed-sidebar plus icon | Expanding the sidebar reveals the plus button. That IS the fallback. Keep it simple. |
++| D3 | Bootstrap hook authoring guide is the key doc deliverable | Users need to know: where to put the hook, env vars, timeout, failure behavior, and a concrete example. The UI flow docs are secondary. |
++| D4 | Integration testing follows Workshop 005 pattern | `mkdtemp` + `git init` + `execSync` + teardown worktrees before main repo. Fakes cover 90% — real git only for adapter verification. |
++
++---
++
++## Pre-Implementation Check
++
++| File | Exists? | Action | Domain | Notes |
++|------|---------|--------|--------|-------|
++| `apps/web/src/components/dashboard-sidebar.tsx` | ✅ Yes (330 lines) | Extend | workspace | Add plus button next to "Worktrees" label (expanded only per D2) |
++| `apps/web/app/(dashboard)/workspaces/[slug]/browser/page.tsx` | ✅ Yes (75 lines) | Verify only | file-browser | Already handles `?worktree=` — no code changes |
++| `docs/how/workspaces/3-web-ui.md` | ✅ Yes | Extend | workspace | Add create-worktree flow + bootstrap hook authoring guide (D3) |
++| `README.md` | ✅ Yes (293 lines) | Extend | workspace | Add web UI worktree creation pointer |
++| `docs/domains/workspace/domain.md` | ✅ Yes | Extend | workspace | Phase 4 history row |
++| `docs/c4/components/workspace.md` | ✅ Yes | Verify | workspace | Already has Phase 2 components — verify complete |
++
++---
++
++## Tasks
++
++| Status | ID | Task | Domain | Path(s) | Done When | Notes |
++|--------|-----|------|--------|---------|-----------|-------|
++| [ ] | T001 | Add plus button next to "Worktrees" in expanded sidebar only (no collapsed-state icon per D2) | workspace | `apps/web/src/components/dashboard-sidebar.tsx` | Plus icon button visible next to "Worktrees ▾" label in expanded sidebar, navigates to `/workspaces/[slug]/new-worktree` via `Link`. No special disabled state when on the page (per D1). No collapsed-sidebar icon (per D2). | Follow existing `Button variant="ghost" size="icon"` pattern with `h-7 w-7`. Use `Plus` from lucide-react. |
++| [ ] | T002 | Verify browser handoff — confirm `?worktree=` param lands correctly after creation | file-browser | `apps/web/app/(dashboard)/workspaces/[slug]/browser/page.tsx` | Verify (read-only): the browser route resolves the `worktree` search param, falls back to main path, and passes the correct path to file operations. No code changes expected — document verification in execution log. | Research confirmed browser page already handles `?worktree=` at line 48-50. |
++| [ ] | T003 | Update workspace web-ui docs with create-worktree flow AND detailed bootstrap hook authoring guide. Update README. | workspace | `docs/how/workspaces/3-web-ui.md`, `README.md` | `3-web-ui.md` gains: (a) "Creating a New Worktree" section covering sidebar entry point, full-page flow, naming convention, and main-only base branch. (b) "Bootstrap Hook" section covering hook file location, all env vars, 60s timeout, failure behavior, and a concrete example script (e.g., `pnpm install && cp .env.example .env`). `README.md` gains a pointer under existing Workspace Commands. | Per D3: bootstrap hook docs are the most valuable deliverable. Per hybrid documentation decision. |
++| [ ] | T004 | Update workspace domain docs with Phase 4 history row | workspace | `docs/domains/workspace/domain.md` | History table gains Plan 069 Phase 4 row. Verify Composition and C4 are current. | Keep in sync per domain rules. |
++| [ ] | T005 | Run final verification: lint, tests, commit and push | workspace | — | `just lint` clean (our files). `pnpm test` passes. All 069 artifacts committed. | Per acceptance criteria. |
++
++---
++
++## Context Brief
++
++### Acceptance Criteria (from plan)
++
++- [ ] The Worktrees plus action is available in both expanded and collapsed sidebar states while inside a workspace.
++- [ ] Successful creation hard-navigates to `/workspaces/[slug]/browser?worktree=<new-path>` and the sidebar remounts with the new worktree visible.
++- [ ] The shipped docs explain both the in-product flow and the repo-owned bootstrap hook.
++
++### Key patterns
++
++- Sidebar buttons: `Button variant="ghost" size="icon"` with `h-7 w-7`, using lucide-react icons
++- Navigation: `<Link href={...}>` from `next/link` for the sidebar plus button
++- The sidebar already knows the current workspace slug via URL detection
++- Collapsed sidebar has a workspace header action cluster (lines 72-119 in dashboard-sidebar.tsx)
++
++### System flow (Phase 4 scope — entry points only)
++
++```mermaid
++flowchart LR
++    classDef existing fill:#E8F5E9,stroke:#4CAF50,color:#000
++    classDef new fill:#E3F2FD,stroke:#2196F3,color:#000
++
++    Sidebar["Sidebar<br/>Worktrees [+]"]:::new
++    Collapsed["Collapsed<br/>[+] icon"]:::new
++    Page["new-worktree/page.tsx"]:::existing
++    Form["NewWorktreeForm"]:::existing
++    Browser["browser?worktree=..."]:::existing
++
++    Sidebar -->|Link| Page
++    Collapsed -->|Link| Page
++    Page --> Form
++    Form -->|success| Browser
++```
+diff --git a/docs/plans/069-new-worktree/workshops/005-worktree-integration-testing-patterns.md b/docs/plans/069-new-worktree/workshops/005-worktree-integration-testing-patterns.md
+new file mode 100644
+index 00000000..bbdca570
+--- /dev/null
++++ b/docs/plans/069-new-worktree/workshops/005-worktree-integration-testing-patterns.md
+@@ -0,0 +1,418 @@
++# Workshop: Worktree Integration Testing — Setup & Teardown Patterns
++
++**Type**: Integration Pattern
++**Plan**: 069-new-worktree
++**Spec**: [new-worktree-spec.md](../new-worktree-spec.md)
++**Created**: 2026-03-09
++**Status**: Draft
++
++**Related Documents**:
++- [Workshop 002: Main Sync Strategy and Git Safety](./002-main-sync-strategy-and-git-safety.md)
++- [Workshop 001: Naming and Post-Create Hook](./001-new-worktree-naming-and-post-create-hook.md)
++
++**Domain Context**:
++- **Primary Domain**: workspace
++- **Related Domains**: `_platform/file-ops` (IFileSystem, IProcessManager)
++
++---
++
++## Purpose
++
++Document how to create, verify, and tear down real git worktrees in integration tests. The codebase has no existing worktree integration tests — this workshop establishes the pattern for posterity so future plans can test worktree-mutating behavior against real git repos without guesswork.
++
++## Key Questions Addressed
++
++- How do we create a throwaway git repo in a temp directory for testing?
++- How do we run `git worktree add` in tests and verify the result?
++- How do we clean up worktrees and temp dirs reliably?
++- What's the hybrid approach (real git + fake services) and when to use each?
++- How does the existing codebase handle integration test setup?
++
++---
++
++## Existing Codebase Patterns
++
++### Pattern 1: Temp Directory + Real Filesystem (Integration)
++
++From `test/helpers/positional-graph-e2e-helpers.ts`:
++
++```typescript
++import fs from 'node:fs/promises';
++import os from 'node:os';
++import path from 'node:path';
++
++async function createTestServiceStack(prefix: string) {
++  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), `${prefix}-`));
++  const chaingleassDir = path.join(tmpDir, '.chainglass', 'data', 'workflows');
++  await fs.mkdir(chaingleassDir, { recursive: true });
++  // ... wire real adapters
++  return { workspacePath: tmpDir };
++}
++```
++
++**Key characteristics**:
++- `fs.mkdtemp()` for unique temp directories
++- Pre-creates `.chainglass/` structure inside temp dir
++- Real `NodeFileSystemAdapter` + `PathResolverAdapter`
++- Cleanup via `fs.rm(tmpDir, { recursive: true, force: true })`
++
++### Pattern 2: Git Repo Fixture (Unit)
++
++From `test/unit/web/features/041-file-browser/file-list.test.ts`:
++
++```typescript
++import { execSync } from 'node:child_process';
++import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
++import { join } from 'node:path';
++import { tmpdir } from 'node:os';
++
++let fixtureDir: string;
++
++beforeEach(() => {
++  fixtureDir = mkdtempSync(join(tmpdir(), 'file-list-test-'));
++  execSync('git init', { cwd: fixtureDir, stdio: 'ignore' });
++  execSync('git config user.email "test@test.com"', { cwd: fixtureDir, stdio: 'ignore' });
++  execSync('git config user.name "Test"', { cwd: fixtureDir, stdio: 'ignore' });
++  mkdirSync(join(fixtureDir, 'src'), { recursive: true });
++  writeFileSync(join(fixtureDir, 'src', 'app.ts'), 'export const app = true;');
++  writeFileSync(join(fixtureDir, 'README.md'), '# Test');
++  execSync('git add . && git commit -m "init"', { cwd: fixtureDir, stdio: 'ignore' });
++});
++
++afterEach(() => {
++  rmSync(fixtureDir, { recursive: true, force: true });
++});
++```
++
++**Key characteristics**:
++- Synchronous setup with `execSync` for git commands
++- Sets git identity (required for commits)
++- Creates real files and commits them
++- Synchronous teardown with `rmSync`
++
++### Pattern 3: Hybrid (Real FS + Fake Services)
++
++From `test/integration/workflow/features/023/central-watcher.integration.test.ts`:
++
++```typescript
++// Real infrastructure
++realFilesystem = new NodeFileSystemAdapter();
++realWatcherFactory = new NativeFileWatcherFactory();
++
++// Controlled fakes
++fakeRegistry = new FakeWorkspaceRegistryAdapter();
++fakeWorktreeResolver = new FakeGitWorktreeResolver();
++
++// Mix real + fake
++service = new CentralWatcherService(
++  fakeRegistry, fakeWorktreeResolver,
++  realFilesystem, realWatcherFactory,
++  registryPath
++);
++```
++
++**Key characteristics**:
++- Real filesystem for I/O operations
++- Fake registry/resolver for controlled workspace state
++- Best of both: real side effects where needed, deterministic state elsewhere
++
++### macOS `/var` Symlink Warning
++
++On macOS, `os.tmpdir()` returns `/var/folders/...` but `/var` is a symlink to `/private/var`. If your test compares paths, normalize with `fs.realpath()`:
++
++```typescript
++const rawTmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'test-'));
++const tmpDir = await fs.realpath(rawTmpDir);  // /private/var/... on macOS
++```
++
++---
++
++## Worktree Integration Test Pattern
++
++### The Full Pattern
++
++This is the recommended pattern for testing worktree creation end-to-end:
++
++```typescript
++import { execSync } from 'node:child_process';
++import { existsSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
++import { realpathSync } from 'node:fs';
++import { join } from 'node:path';
++import { tmpdir } from 'node:os';
++import { describe, beforeEach, afterEach, it, expect } from 'vitest';
++
++describe('Worktree creation integration', () => {
++  let mainRepoPath: string;
++  let worktreePath: string;
++
++  beforeEach(() => {
++    // 1. Create temp directory (realpath for macOS /var symlink)
++    const raw = mkdtempSync(join(tmpdir(), 'wt-integration-'));
++    mainRepoPath = realpathSync(raw);
++
++    // 2. Initialize a git repo with at least one commit
++    execSync('git init', { cwd: mainRepoPath, stdio: 'ignore' });
++    execSync('git config user.email "test@test.com"', { cwd: mainRepoPath, stdio: 'ignore' });
++    execSync('git config user.name "Test"', { cwd: mainRepoPath, stdio: 'ignore' });
++
++    // 3. Create initial content and commit
++    writeFileSync(join(mainRepoPath, 'README.md'), '# Test Repo');
++    mkdirSync(join(mainRepoPath, 'docs', 'plans'), { recursive: true });
++    execSync('git add . && git commit -m "Initial commit"', {
++      cwd: mainRepoPath,
++      stdio: 'ignore',
++    });
++
++    // 4. Worktree path is a sibling directory
++    worktreePath = join(mainRepoPath, '..', '069-test-feature');
++  });
++
++  afterEach(() => {
++    // IMPORTANT: Remove worktrees BEFORE removing the main repo
++    // git worktree remove requires the main repo to exist
++    try {
++      execSync(`git worktree remove "${worktreePath}" --force`, {
++        cwd: mainRepoPath,
++        stdio: 'ignore',
++      });
++    } catch {
++      // Worktree may not have been created in this test
++    }
++
++    // Now safe to remove the main repo
++    rmSync(mainRepoPath, { recursive: true, force: true });
++
++    // Clean up worktree directory if it still exists
++    if (existsSync(worktreePath)) {
++      rmSync(worktreePath, { recursive: true, force: true });
++    }
++  });
++
++  it('creates a worktree with a new branch', () => {
++    // Create the worktree
++    execSync(
++      `git worktree add -b 069-test-feature "${worktreePath}" main`,
++      { cwd: mainRepoPath, stdio: 'ignore' }
++    );
++
++    // Verify the worktree exists
++    expect(existsSync(worktreePath)).toBe(true);
++    expect(existsSync(join(worktreePath, 'README.md'))).toBe(true);
++
++    // Verify the branch was created
++    const branches = execSync('git branch', { cwd: mainRepoPath, encoding: 'utf-8' });
++    expect(branches).toContain('069-test-feature');
++
++    // Verify git worktree list shows it
++    const worktrees = execSync('git worktree list', {
++      cwd: mainRepoPath,
++      encoding: 'utf-8',
++    });
++    expect(worktrees).toContain('069-test-feature');
++  });
++});
++```
++
++### Teardown Order Is Critical
++
++```
++1. git worktree remove <path> --force    ← FIRST (needs main repo)
++2. rm -rf <mainRepoPath>                  ← SECOND
++3. rm -rf <worktreePath> (if still exists) ← LAST (cleanup stragglers)
++```
++
++If you reverse steps 1 and 2, `git worktree remove` fails because the main repo is gone, and the worktree directory becomes an orphan that confuses future `git` operations in the same parent directory.
++
++### Testing with `GitWorktreeManagerAdapter`
++
++To test the real adapter (not just raw git commands):
++
++```typescript
++import { NodeProcessManager } from '@chainglass/shared';
++import { GitWorktreeManagerAdapter } from '@chainglass/workflow';
++
++describe('GitWorktreeManagerAdapter integration', () => {
++  let mainRepoPath: string;
++  let adapter: GitWorktreeManagerAdapter;
++
++  beforeEach(() => {
++    // ... same temp dir + git init as above ...
++    const processManager = new NodeProcessManager();
++    adapter = new GitWorktreeManagerAdapter(processManager);
++  });
++
++  it('checkMainStatus returns clean for fresh repo', async () => {
++    const status = await adapter.checkMainStatus(mainRepoPath);
++    // Note: fresh repo has no 'origin' remote, so fetch will fail
++    // This tests the local-only path
++    expect(status.status).toBeDefined();
++  });
++
++  it('createWorktree creates a real worktree', async () => {
++    const result = await adapter.createWorktree(
++      mainRepoPath,
++      '069-test',
++      worktreePath
++    );
++    expect(result.status).toBe('created');
++    expect(existsSync(worktreePath)).toBe(true);
++  });
++});
++```
++
++### Testing with Bootstrap Hook
++
++```typescript
++it('runs .chainglass/new-worktree.sh after creation', () => {
++  // Create the hook
++  const hookDir = join(mainRepoPath, '.chainglass');
++  mkdirSync(hookDir, { recursive: true });
++  writeFileSync(
++    join(hookDir, 'new-worktree.sh'),
++    '#!/bin/bash\necho "HOOK_RAN=true" > "$CHAINGLASS_NEW_WORKTREE_PATH/.hook-result"',
++    { mode: 0o755 }
++  );
++  execSync('git add . && git commit -m "Add hook"', {
++    cwd: mainRepoPath,
++    stdio: 'ignore',
++  });
++
++  // Create worktree
++  execSync(
++    `git worktree add -b 069-hooked "${worktreePath}" main`,
++    { cwd: mainRepoPath, stdio: 'ignore' }
++  );
++
++  // Run hook manually (or via WorktreeBootstrapRunner)
++  execSync(`bash "${join(hookDir, 'new-worktree.sh')}"`, {
++    cwd: worktreePath,
++    env: {
++      ...process.env,
++      CHAINGLASS_MAIN_REPO_PATH: mainRepoPath,
++      CHAINGLASS_NEW_WORKTREE_PATH: worktreePath,
++      CHAINGLASS_NEW_BRANCH_NAME: '069-hooked',
++    },
++    stdio: 'ignore',
++  });
++
++  // Verify hook ran
++  expect(existsSync(join(worktreePath, '.hook-result'))).toBe(true);
++});
++```
++
++---
++
++## Environment Variables for Bootstrap Hooks
++
++| Variable | Type | Example | Description |
++|----------|------|---------|-------------|
++| `CHAINGLASS_MAIN_REPO_PATH` | string | `/Users/dev/project` | Absolute path to main repo |
++| `CHAINGLASS_MAIN_BRANCH` | string | `main` | Always `main` in v1 |
++| `CHAINGLASS_WORKSPACE_SLUG` | string | `my-project` | Workspace slug |
++| `CHAINGLASS_REQUESTED_NAME` | string | `my-feature` | What the user typed |
++| `CHAINGLASS_NORMALIZED_SLUG` | string | `my-feature` | After normalization |
++| `CHAINGLASS_NEW_WORKTREE_ORDINAL` | string | `069` | Allocated ordinal |
++| `CHAINGLASS_NEW_BRANCH_NAME` | string | `069-my-feature` | Full branch name |
++| `CHAINGLASS_NEW_WORKTREE_NAME` | string | `069-my-feature` | Same as branch name |
++| `CHAINGLASS_NEW_WORKTREE_PATH` | string | `/Users/dev/069-my-feature` | Absolute worktree path |
++| `CHAINGLASS_TRIGGER` | string | `chainglass-web` | What triggered creation |
++
++---
++
++## Testing Tiers
++
++| Tier | Speed | What It Tests | When to Use |
++|------|-------|---------------|-------------|
++| **Unit (fakes)** | < 1ms | Domain logic, naming, state mapping | Always — covers 90% of behavior |
++| **Contract (fake/real parity)** | < 100ms | Interface shape conformance | After changing interface or adding implementations |
++| **Integration (real git)** | 1-5s | Actual `git worktree add`, file existence, branch creation | Before shipping git-mutating features |
++| **E2E (full stack)** | 60-180s | CLI → service → git → verify | Smoke testing release candidates |
++
++### When Fakes Are Sufficient
++
++- Naming allocator (pure functions — no git needed)
++- Service orchestration (fake manager returns configured states)
++- Form state mapping (type-level testing)
++- Error handling paths (fake injects errors)
++
++### When Real Git Is Needed
++
++- `GitWorktreeManagerAdapter.checkMainStatus()` parses real git output
++- `GitWorktreeManagerAdapter.createWorktree()` runs real `git worktree add`
++- Bootstrap runner executes real bash scripts
++- Verifying the worktree directory structure after creation
++
++---
++
++## Quick Reference
++
++```bash
++# Create a temp git repo for testing
++TMPDIR=$(mktemp -d)
++cd "$TMPDIR"
++git init
++git config user.email "test@test.com"
++git config user.name "Test"
++echo "# Test" > README.md
++git add . && git commit -m "init"
++
++# Create a worktree
++git worktree add -b 069-test ../069-test main
++
++# Verify
++ls ../069-test/README.md  # should exist
++git branch               # should show 069-test
++git worktree list         # should show both
++
++# Teardown (ORDER MATTERS)
++git worktree remove ../069-test --force   # 1. remove worktree first
++rm -rf "$TMPDIR"                           # 2. then remove main repo
++rm -rf "$(dirname "$TMPDIR")/069-test"     # 3. cleanup stragglers
++```
++
++---
++
++## Open Questions
++
++### Q1: Should we add a shared `createTestGitRepo()` helper?
++
++**RECOMMENDATION**: Yes, but only when a second test file needs it. The file-list test uses inline `execSync` and that's fine for a single file. When we add worktree integration tests, extract a shared helper to `test/helpers/git-fixture.ts`:
++
++```typescript
++export function createTestGitRepo(prefix: string): string {
++  const raw = mkdtempSync(join(tmpdir(), `${prefix}-`));
++  const dir = realpathSync(raw);
++  execSync('git init', { cwd: dir, stdio: 'ignore' });
++  execSync('git config user.email "test@test.com"', { cwd: dir, stdio: 'ignore' });
++  execSync('git config user.name "Test"', { cwd: dir, stdio: 'ignore' });
++  writeFileSync(join(dir, 'README.md'), '# Test');
++  execSync('git add . && git commit -m "init"', { cwd: dir, stdio: 'ignore' });
++  return dir;
++}
++
++export function cleanupTestGitRepo(mainPath: string, ...worktreePaths: string[]): void {
++  for (const wt of worktreePaths) {
++    try { execSync(`git worktree remove "${wt}" --force`, { cwd: mainPath, stdio: 'ignore' }); } catch {}
++  }
++  rmSync(mainPath, { recursive: true, force: true });
++  for (const wt of worktreePaths) {
++    if (existsSync(wt)) rmSync(wt, { recursive: true, force: true });
++  }
++}
++```
++
++### Q2: Should worktree integration tests run in the main test suite or E2E?
++
++**RECOMMENDATION**: Integration suite (`test/integration/`), not E2E. They're fast (1-5s per test), don't need a running server, and follow the existing `central-watcher.integration.test.ts` pattern. Run via `vitest.e2e.config.ts` or a dedicated integration config.
++
++---
++
++## Decision Summary
++
++| Decision | Rationale |
++|----------|-----------|
++| Use `execSync` for git setup, not `IProcessManager` | Setup is test infrastructure, not the system under test |
++| Always `realpath()` temp dirs on macOS | `/var` → `/private/var` symlink breaks path comparisons |
++| Teardown worktrees BEFORE main repo | `git worktree remove` needs the main repo to exist |
++| Hybrid approach: real git + fake registry | Tests real git behavior without needing workspace registration infrastructure |
++| Extract shared helper on second use | YAGNI until multiple test files need git repos |

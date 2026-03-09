@@ -19,6 +19,7 @@ import { Workspace } from '../entities/workspace.js';
 import type { WorkspacePreferences } from '../entities/workspace.js';
 import { EntityNotFoundError } from '../errors/entity-not-found.error.js';
 import { type WorkspaceError, WorkspaceErrors } from '../errors/workspace-errors.js';
+import type { IGitWorktreeManager } from '../interfaces/git-worktree-manager.interface.js';
 import type { IGitWorktreeResolver } from '../interfaces/git-worktree-resolver.interface.js';
 import type {
   IWorkspaceContextResolver,
@@ -29,10 +30,18 @@ import type { IWorkspaceRegistryAdapter } from '../interfaces/workspace-registry
 import type {
   AddWorkspaceOptions,
   AddWorkspaceResult,
+  BootstrapStatus,
+  CreateWorktreeRequest,
+  CreateWorktreeResult,
   IWorkspaceService,
+  PreviewCreateWorktreeRequest,
+  PreviewCreateWorktreeResult,
   RemoveWorkspaceResult,
   WorkspaceOperationResult,
 } from '../interfaces/workspace-service.interface.js';
+import type { WorktreeBootstrapRunner } from './worktree-bootstrap-runner.js';
+import { buildWorktreeName, hasBranchConflict, resolveWorktreeName } from './worktree-name.js';
+import type { OrdinalSources } from './worktree-name.js';
 
 /**
  * WorkspaceService implements workspace management.
@@ -40,10 +49,14 @@ import type {
  * Per ADR-0004: Uses constructor injection for all dependencies.
  */
 export class WorkspaceService implements IWorkspaceService {
+  private readonly locks = new Map<string, Promise<void>>();
+
   constructor(
     private readonly registryAdapter: IWorkspaceRegistryAdapter,
     private readonly contextResolver: IWorkspaceContextResolver,
-    private readonly gitResolver: IGitWorktreeResolver
+    private readonly gitResolver: IGitWorktreeResolver,
+    private readonly gitManager: IGitWorktreeManager,
+    private readonly bootstrapRunner: WorktreeBootstrapRunner
   ) {}
 
   /**
@@ -319,5 +332,239 @@ export class WorkspaceService implements IWorkspaceService {
     }
 
     return undefined;
+  }
+
+  // ==================== Worktree Creation (Plan 069 Phase 2) ====================
+
+  async previewCreateWorktree(
+    request: PreviewCreateWorktreeRequest
+  ): Promise<PreviewCreateWorktreeResult> {
+    // 1. Resolve workspace to get main repo path
+    const info = await this.getInfo(request.workspaceSlug);
+    if (!info) {
+      throw new EntityNotFoundError('Workspace', request.workspaceSlug, 'workspace-registry');
+    }
+
+    const mainRepoPath = info.path;
+
+    // 2. Fetch branch and plan data for naming
+    const sources = await this.fetchOrdinalSources(mainRepoPath);
+
+    // 3. Resolve the worktree name
+    const nameResult = resolveWorktreeName(request.requestedName, sources);
+    if (!nameResult) {
+      throw new Error(`Invalid worktree name: '${request.requestedName}'`);
+    }
+
+    // 4. Compute worktree path (sibling of main repo)
+    const parentDir = mainRepoPath.replace(/\/[^/]+$/, '');
+    const worktreePath = `${parentDir}/${nameResult.branchName}`;
+
+    // 5. Check for bootstrap hook
+    const hasBootstrapHook = await this.bootstrapRunner.hasHook(mainRepoPath);
+
+    return {
+      normalizedSlug: nameResult.slug,
+      ordinal: nameResult.ordinal,
+      branchName: nameResult.branchName,
+      worktreePath,
+      hasBootstrapHook,
+    };
+  }
+
+  async createWorktree(request: CreateWorktreeRequest): Promise<CreateWorktreeResult> {
+    // 1. Resolve workspace
+    const info = await this.getInfo(request.workspaceSlug);
+    if (!info) {
+      return {
+        status: 'blocked',
+        errors: [WorkspaceErrors.notFound(request.workspaceSlug)],
+      };
+    }
+
+    const mainRepoPath = info.path;
+
+    // 2. Serialize by mainRepoPath
+    return this.withLock(mainRepoPath, async () => {
+      // 3. Preflight checks
+      const mainStatus = await this.gitManager.checkMainStatus(mainRepoPath);
+      if (mainStatus.status !== 'clean') {
+        return {
+          status: 'blocked' as const,
+          errors: [this.mainStatusToError(mainStatus)],
+        };
+      }
+
+      // 4. Sync main
+      const syncResult = await this.gitManager.syncMain(mainRepoPath);
+      if (syncResult.status !== 'synced' && syncResult.status !== 'already-up-to-date') {
+        return {
+          status: 'blocked' as const,
+          errors: [WorkspaceErrors.gitError(mainRepoPath, syncResult.detail ?? 'Sync failed')],
+        };
+      }
+
+      // 5. Allocate name inside the lock (fresh sources)
+      const sources = await this.fetchOrdinalSources(mainRepoPath);
+      const nameResult = resolveWorktreeName(request.requestedName, sources);
+      if (!nameResult) {
+        return {
+          status: 'blocked' as const,
+          errors: [WorkspaceErrors.invalidPath(request.requestedName, 'Invalid worktree name')],
+        };
+      }
+
+      const parentDir = mainRepoPath.replace(/\/[^/]+$/, '');
+      const worktreePath = `${parentDir}/${nameResult.branchName}`;
+
+      // 6. Check for conflicts (per DYK D14: hard block if allocated name conflicts)
+      if (hasBranchConflict(nameResult.branchName, sources)) {
+        // Try re-allocating with incremented ordinal
+        const retryName = buildWorktreeName(nameResult.ordinal + 1, nameResult.slug);
+        if (hasBranchConflict(retryName, sources)) {
+          // Hard block — both ordinals taken, this is a bug
+          return {
+            status: 'blocked' as const,
+            errors: [
+              WorkspaceErrors.gitError(
+                mainRepoPath,
+                `Branch '${nameResult.branchName}' already exists and retry also conflicts`
+              ),
+            ],
+          };
+        }
+        // Silent re-allocation (DYK D14)
+        const retryPath = `${parentDir}/${retryName}`;
+        return this.executeCreate(
+          mainRepoPath,
+          retryName,
+          retryPath,
+          request,
+          nameResult.slug,
+          nameResult.ordinal + 1
+        );
+      }
+
+      return this.executeCreate(
+        mainRepoPath,
+        nameResult.branchName,
+        worktreePath,
+        request,
+        nameResult.slug,
+        nameResult.ordinal
+      );
+    });
+  }
+
+  // ==================== Private Helpers ====================
+
+  private async executeCreate(
+    mainRepoPath: string,
+    branchName: string,
+    worktreePath: string,
+    request: CreateWorktreeRequest,
+    slug: string,
+    ordinal: number
+  ): Promise<CreateWorktreeResult> {
+    // Create the worktree
+    const createResult = await this.gitManager.createWorktree(
+      mainRepoPath,
+      branchName,
+      worktreePath
+    );
+    if (createResult.status !== 'created') {
+      // FT-003: Return refreshed preview on branch/path conflicts
+      if (createResult.status === 'branch-exists' || createResult.status === 'path-exists') {
+        const refreshedSources = await this.fetchOrdinalSources(mainRepoPath);
+        const refreshedName = resolveWorktreeName(request.requestedName, refreshedSources);
+        const parentDir = mainRepoPath.replace(/\/[^/]+$/, '');
+        const refreshedPreview = refreshedName
+          ? {
+              normalizedSlug: refreshedName.slug,
+              ordinal: refreshedName.ordinal,
+              branchName: refreshedName.branchName,
+              worktreePath: `${parentDir}/${refreshedName.branchName}`,
+              hasBootstrapHook: false,
+            }
+          : undefined;
+        return {
+          status: 'blocked',
+          errors: [
+            WorkspaceErrors.gitError(
+              mainRepoPath,
+              createResult.detail ?? 'Worktree creation conflict'
+            ),
+          ],
+          refreshedPreview,
+        };
+      }
+      return {
+        status: 'blocked',
+        errors: [
+          WorkspaceErrors.gitError(mainRepoPath, createResult.detail ?? 'Worktree creation failed'),
+        ],
+      };
+    }
+
+    // Run bootstrap hook (informational only)
+    const bootstrapStatus = await this.bootstrapRunner.run({
+      mainRepoPath,
+      workspaceSlug: request.workspaceSlug,
+      requestedName: request.requestedName,
+      normalizedSlug: slug,
+      ordinal,
+      branchName,
+      worktreePath,
+    });
+
+    return {
+      status: 'created',
+      branchName,
+      worktreePath,
+      bootstrapStatus,
+    };
+  }
+
+  private async fetchOrdinalSources(mainRepoPath: string): Promise<OrdinalSources> {
+    const [branches, planFolders] = await Promise.all([
+      this.gitManager.listBranches(mainRepoPath),
+      this.gitManager.listPlanFolders(mainRepoPath),
+    ]);
+    return {
+      localBranches: branches.localBranches,
+      remoteBranches: branches.remoteBranches,
+      planFolders,
+    };
+  }
+
+  private mainStatusToError(status: { status: string; detail?: string }): WorkspaceError {
+    const messages: Record<string, string> = {
+      dirty: 'Main branch has uncommitted changes',
+      ahead: 'Main branch has unpushed commits',
+      diverged: 'Main branch has diverged from origin',
+      'no-main-branch': 'Not on the main branch',
+      'lock-held': 'A git operation is already in progress',
+      'git-failure': 'Git operation failed',
+    };
+    return WorkspaceErrors.gitError(
+      status.detail ?? '',
+      messages[status.status] ?? `Unexpected status: ${status.status}`
+    );
+  }
+
+  private async withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+    const prev = this.locks.get(key) ?? Promise.resolve();
+    let resolve!: () => void;
+    const next = new Promise<void>((r) => {
+      resolve = r;
+    });
+    this.locks.set(key, next);
+
+    await prev;
+    try {
+      return await fn();
+    } finally {
+      resolve?.();
+    }
   }
 }

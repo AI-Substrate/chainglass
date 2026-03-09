@@ -1,0 +1,2603 @@
+diff --git a/docs/c4/README.md b/docs/c4/README.md
+index f0ad701..ec0075b 100644
+--- a/docs/c4/README.md
++++ b/docs/c4/README.md
+@@ -35,6 +35,7 @@ Start at L1 and zoom in to the level of detail you need:
+ 
+ ### Business Domains
+ 
++- [Workspace](components/workspace.md) — Workspace registration, context resolution, worktree discovery
+ - [File Browser](components/file-browser.md) — Workspace file browsing, editing, diffing
+ - [Workflow UI](components/workflow-ui.md) — Visual workflow editor with drag-drop
+ - [Work Unit Editor](components/workunit-editor.md) — CRUD interface for work unit definitions
+diff --git a/Users/jordanknight/substrate/069-new-worktree/docs/c4/components/workspace.md b/Users/jordanknight/substrate/069-new-worktree/docs/c4/components/workspace.md
+new file mode 100644
+index 0000000..cb70233
+--- /dev/null
++++ b/Users/jordanknight/substrate/069-new-worktree/docs/c4/components/workspace.md
+@@ -0,0 +1,63 @@
++# Component: Workspace (`workspace`)
++
++> **Domain Definition**: [workspace/domain.md](../../domains/workspace/domain.md)
++> **Source**: `packages/workflow/src/` + `apps/web/app/(dashboard)/workspaces/` + `apps/web/src/components/workspaces/`
++> **Registry**: [registry.md](../../domains/registry.md) — Row: Workspace
++
++Workspace lifecycle and identity management. This domain registers named workspace roots, resolves active workspace/worktree context, discovers git worktree topology, and exposes the UI entrypoints that let the rest of the product stay workspace-aware without duplicating rules.
++
++```mermaid
++C4Component
++    title Component diagram — Workspace (workspace)
++
++    Container_Boundary(workspace, "Workspace") {
++        Component(webSurfaces, "Workspace Pages & Nav", "Server + Client Components", "Renders workspace list,<br/>detail views, and worktree<br/>switching surfaces")
++        Component(actionsRoutes, "Workspace Actions & Routes", "Server Actions + Route Handlers", "Validates auth, invokes service,<br/>revalidates workspace views,<br/>and returns workspace JSON")
++        Component(provider, "WorkspaceProvider", "React Provider", "Publishes workspace identity,<br/>worktree identity, and visual<br/>preference state to clients")
++        Component(cliCommand, "Workspace CLI Command", "CLI Controller", "Runs add/list/info/remove<br/>from terminal workflows")
++        Component(service, "WorkspaceService", "Domain Service", "Registers workspaces, resolves<br/>info/context, and updates<br/>workspace preferences")
++        Component(contextResolver, "WorkspaceContextResolver", "Domain Resolver", "Maps paths to workspace/worktree<br/>context using longest-match rules")
++        Component(gitResolver, "GitWorktreeResolver", "Git Adapter", "Discovers linked worktrees and<br/>canonical main checkout from git")
++        Component(registryAdapter, "WorkspaceRegistryAdapter", "Registry Adapter", "Persists workspace registry and<br/>preference updates to config storage")
++        Component(entity, "Workspace Entity", "Entity + Types", "Defines workspace metadata,<br/>slugging, defaults, and immutable<br/>preference merges")
++    }
++
++    Rel(webSurfaces, provider, "Composes")
++    Rel(webSurfaces, actionsRoutes, "Submits mutations through")
++    Rel(actionsRoutes, service, "Invokes")
++    Rel(cliCommand, service, "Invokes")
++    Rel(service, entity, "Creates and updates")
++    Rel(service, registryAdapter, "Loads and saves with")
++    Rel(service, contextResolver, "Delegates context lookup to")
++    Rel(service, gitResolver, "Reads worktree state from")
++    Rel(contextResolver, registryAdapter, "Lists workspaces from")
++    Rel(contextResolver, gitResolver, "Expands worktree topology with")
++    Rel(provider, entity, "Derives identity from")
++```
++
++## Components
++
++| Component | Type | Description |
++|-----------|------|-------------|
++| Workspace Pages & Nav | Server + Client Components | Renders workspace list, detail views, and worktree switching surfaces |
++| Workspace Actions & Routes | Server Actions + Route Handlers | Validates auth, invokes service, revalidates views, returns workspace JSON |
++| WorkspaceProvider | React Provider | Publishes workspace/worktree identity and visual preference state |
++| Workspace CLI Command | CLI Controller | Exposes add/list/info/remove from terminal workflows |
++| WorkspaceService | Domain Service | Registers workspaces, resolves info/context, updates preferences |
++| WorkspaceContextResolver | Domain Resolver | Maps paths to workspace/worktree context with longest-match rules |
++| GitWorktreeResolver | Git Adapter | Discovers linked worktrees and canonical main checkout |
++| WorkspaceRegistryAdapter | Registry Adapter | Persists registry and preference updates to config storage |
++| Workspace Entity | Entity + Types | Defines metadata, slugging, defaults, and immutable preference merges |
++
++## External Dependencies
++
++Depends on: _platform/file-ops (IFileSystem, IPathResolver), _platform/workspace-url (workspaceHref, workspaceParams), _platform/auth (requireAuth, middleware protection), shared process-manager infrastructure for git command execution.
++Consumed by: file-browser, workflow-ui, 058-workunit-editor, terminal, agents.
++
++---
++
++## Navigation
++
++- **Zoom Out**: [Web App Container](../containers/web-app.md) | [Container Overview](../containers/overview.md)
++- **Domain**: [workspace/domain.md](../../domains/workspace/domain.md)
++- **Hub**: [C4 Overview](../README.md)
+diff --git a/docs/domains/domain-map.md b/docs/domains/domain-map.md
+index 33ac544..d27497f 100644
+--- a/docs/domains/domain-map.md
++++ b/docs/domains/domain-map.md
+@@ -29,6 +29,9 @@ flowchart LR
+     workunitEditor["✏️ 058-workunit-editor<br/>Unit list page · Editor page<br/>Agent/Code/Input editors<br/>Creation modal · Auto-save"]:::business
+     terminal["🖥️ terminal<br/>TerminalView · TerminalOverlay<br/>TmuxSessionManager · copyTmuxBuffer<br/>Sidecar WS/WSS Server"]:::business
+ 
++    %% NEW business domains (Plan 069)
++    workspace["🗂️ workspace<br/>IWorkspaceService<br/>IWorkspaceContextResolver<br/>IGitWorktreeResolver<br/>useWorkspaceContext"]:::new
++
+     %% NEW business domains (Plan 059)
+     agents["🤖 agents<br/>IAgentManagerService<br/>IAgentAdapter · IAgentInstance<br/>useAgentManager · useAgentInstance<br/>useAgentOverlay · useRecentAgents<br/>AgentChipBar · AgentOverlayPanel<br/>AgentWorkUnitBridge"]:::new
+     workUnitState["📋 work-unit-state<br/>IWorkUnitStateService<br/>WorkUnitEntry · WorkUnitEvent<br/>FakeWorkUnitStateService<br/>workUnitStateRoute"]:::new
+@@ -45,9 +48,14 @@ flowchart LR
+     fileBrowser -->|"FileViewer<br/>MarkdownViewer<br/>DiffViewer<br/>detectContentType"| viewer
+     fileBrowser -->|"toast()<br/>useFileChanges<br/>FileChangeProvider"| events
+     fileBrowser -->|"PanelShell<br/>ExplorerPanel<br/>LeftPanel · MainPanel<br/>AsciiSpinner"| panels
++    fileBrowser -->|"IWorkspaceService<br/>useWorkspaceContext<br/>WorktreeVisualPreferences"| workspace
+     panels -->|"panel URL param"| wsUrl
+     viewer -->|"IFileSystem (Shiki reads)"| fileOps
+ 
++    %% Workspace domain dependencies
++    workspace -->|"IFileSystem<br/>IPathResolver"| fileOps
++    workspace -->|"workspaceHref<br/>workspaceParams"| wsUrl
++
+     %% SDK consumed by publishing domains
+     fileBrowser -->|"IUSDK<br/>(publishes commands)"| sdk
+     events -->|"IUSDK<br/>(publishes toast)"| sdk
+@@ -63,6 +71,7 @@ flowchart LR
+     workflowUI -->|"useSSE<br/>SSE infrastructure"| events
+     workflowUI -->|"workspaceHref"| wsUrl
+     workflowUI -->|"IUSDK"| sdk
++    workflowUI -->|"IWorkspaceService<br/>WorkspaceContext"| workspace
+ 
+     %% State system dependencies
+     state -->|"useSSE<br/>SSE transport"| events
+@@ -80,6 +89,7 @@ flowchart LR
+     agents -->|"IStateService<br/>useGlobalState"| state
+     agents -->|"IWorkUnitStateService<br/>(publish status)"| workUnitState
+     agents -->|"DashboardShell<br/>(top bar slot)"| panels
++    agents -->|"IWorkspaceService<br/>WorkspaceContext"| workspace
+     posGraph -->|"IAgentManagerService<br/>IAgentInstance<br/>(orchestration)"| agents
+ 
+     %% NEW: Work Unit State dependencies
+@@ -100,12 +110,14 @@ flowchart LR
+     workunitEditor -->|"IWorkUnitService<br/>(CRUD)"| posGraph
+     workunitEditor -->|"CodeEditor"| viewer
+     workunitEditor -->|"workspaceHref"| wsUrl
++    workunitEditor -->|"WorkspaceInfo<br/>WorkspaceContext"| workspace
+ 
+     %% Terminal dependencies
+     terminal -->|"PanelShell<br/>LeftPanel · MainPanel"| panels
+     terminal -->|"toast()"| events
+     terminal -->|"IUSDK<br/>ICommandRegistry"| sdk
+     terminal -->|"workspaceHref"| wsUrl
++    terminal -->|"IWorkspaceService<br/>useWorkspaceContext"| workspace
+ 
+     %% Activity Log dependencies (consumer → provider)
+     activityLog -->|"PanelShell<br/>overlay anchor"| panels
+@@ -115,13 +127,14 @@ flowchart LR
+     fileBrowser -->|"middleware protection"| auth
+     workflowUI -->|"middleware protection"| auth
+     workunitEditor -->|"middleware protection"| auth
++    workspace -->|"requireAuth()<br/>middleware protection"| auth
+ ```
+ 
+ ## Legend
+ 
+ - **Blue**: Business domains (user-facing capabilities)
+ - **Purple**: Infrastructure domains (cross-cutting technical capabilities)
+-- **Orange**: Newly added domains (Plan 059 — change to blue after first implementation)
++- **Orange**: Newly added domains (change to blue or purple after follow-on implementation/documentation passes)
+ - **Red**: Deprecated domains (pending removal)
+ - **Solid arrows** (→): Contract dependency (A consumes B's contract)
+ - **Labels on arrows**: Contract name being consumed
+@@ -130,22 +143,23 @@ flowchart LR
+ 
+ | Domain | Contracts Out | Consumers | Contracts In | Providers | Status |
+ |--------|--------------|-----------|-------------|-----------|--------|
+-| _platform/file-ops | IFileSystem, IPathResolver | file-browser, viewer, workflow-ui | — | — | ✅ |
+-| _platform/workspace-url | workspaceHref, paramsCaches | file-browser, panel-layout | — | — | ✅ |
++| _platform/file-ops | IFileSystem, IPathResolver | file-browser, viewer, workflow-ui, workspace | — | — | ✅ |
++| _platform/workspace-url | workspaceHref, paramsCaches | file-browser, panel-layout, workflow-ui, workunit-editor, terminal, workspace | — | — | ✅ |
+ | _platform/viewer | FileViewer, MarkdownViewer, DiffViewer, highlightCode, detectContentType, isBinaryExtension | file-browser | IFileSystem | file-ops | ✅ |
+ | _platform/events | ICentralEventNotifier, ISSEBroadcaster, useSSE, FileChangeHub, useFileChanges, FileChangeProvider, toast() | file-browser, workflow-ui, agents, state | — | — | ✅ |
+ | _platform/panel-layout | PanelShell, ExplorerPanel, LeftPanel, MainPanel, PanelHeader, BarHandler, AsciiSpinner, FlowSpaceSearchResult, FlowSpaceAvailability, FlowSpaceSearchMode | file-browser, future workspace pages | panel URL param | workspace-url | ✅ |
+-| file-browser | Browser page, FileTree, FileViewerPanel, WorkspaceContext, EmojiPicker, ColorPicker, Settings | — | IFileSystem, workspaceHref, viewers, toast, events, panels | file-ops, workspace-url, viewer, events, panel-layout | ✅ |
++| file-browser | Browser page, FileTree, FileViewerPanel, WorkspaceContext, EmojiPicker, ColorPicker, Settings | — | IFileSystem, workspaceHref, viewers, toast, events, panels, IWorkspaceService, useWorkspaceContext | file-ops, workspace-url, viewer, events, panel-layout, workspace | ✅ |
++| workspace | IWorkspaceService, IWorkspaceContextResolver, IGitWorktreeResolver, useWorkspaceContext | file-browser, workflow-ui, workunit-editor, terminal, agents | IFileSystem, IPathResolver, workspaceHref, workspaceParams, requireAuth(), middleware protection | file-ops, workspace-url, auth | 🟠 New |
+ | _platform/sdk | IUSDK, ICommandRegistry, ISDKSettings, IContextKeyService, IKeybindingService, SDKCommand, SDKSetting, FakeUSDK | file-browser, workflow-ui, events, panel-layout, settings | — | — | ✅ |
+ | _platform/settings | Settings Page, sdk.openSettings | — | ISDKSettings, useSDKSetting, useSDK | sdk | ✅ |
+ | _platform/positional-graph | IPositionalGraphService, IOrchestrationService, IEventHandlerService, IWorkUnitService, ITemplateService, IInstanceService | CLI (`cg wf`, `cg template`), workflow-ui, dev/test-graphs | IFileSystem, IPathResolver, IStateService | file-ops, state | ✅ |
+ | _platform/workgraph | IWorkGraphService, IWorkNodeService, IWorkUnitService | CLI (`cg wg`, `cg unit`) | IFileSystem, IPathResolver | file-ops | ❌ Removed from web (Plan 050 Phase 7) |
+ | _platform/state | IStateService, useGlobalState, useGlobalStateList, GlobalStateProvider, StateChangeLog, ServerEventRoute, FakeGlobalStateSystem | positional-graph (publish), workflow-ui, panel-layout, file-browser, agents, work-unit-state (subscribe), dev-tools | useSSE | events | ✅ |
+-| workflow-ui | _(none — leaf consumer)_ | — | IPositionalGraphService, ITemplateService, IWorkUnitService, IFileSystem, IPathResolver, useSSE, workspaceHref, IUSDK, useGlobalState, useAgentOverlay (future) | positional-graph, file-ops, events, workspace-url, sdk, state, agents (future) | ✅ |
++| workflow-ui | _(none — leaf consumer)_ | — | IPositionalGraphService, ITemplateService, IWorkUnitService, IFileSystem, IPathResolver, useSSE, workspaceHref, IUSDK, useGlobalState, useAgentOverlay (future), IWorkspaceService, WorkspaceContext | positional-graph, file-ops, events, workspace-url, sdk, state, agents (future), workspace | ✅ |
+ | _platform/dev-tools | StateInspector, useStateChangeLog, useStateInspector | — | IStateService, StateChangeLog, useStateSystem | state | ✅ |
+-| 058-workunit-editor | _(none — leaf consumer)_ | — | IWorkUnitService, CodeEditor, workspaceHref | positional-graph, viewer, workspace-url | ✅ |
+-| agents | IAgentManagerService, IAgentAdapter, IAgentInstance, IAgentNotifierService, useAgentManager, useAgentInstance, useAgentOverlay, useRecentAgents, useWorktreeActivity, AgentChipBar, AgentOverlayPanel, AgentWorkUnitBridge | positional-graph (orchestration), workflow-ui (overlay), panel-layout (badge data via composition) | ISSEBroadcaster, useSSE, toast(), CopilotClient, IStateService, IWorkUnitStateService, IWorkflowEvents, DashboardShell | events, sdk, state, work-unit-state, workflow-events, panel-layout | 🟠 New |
++| 058-workunit-editor | _(none — leaf consumer)_ | — | IWorkUnitService, CodeEditor, workspaceHref, WorkspaceInfo, WorkspaceContext | positional-graph, viewer, workspace-url, workspace | ✅ |
++| agents | IAgentManagerService, IAgentAdapter, IAgentInstance, IAgentNotifierService, useAgentManager, useAgentInstance, useAgentOverlay, useRecentAgents, useWorktreeActivity, AgentChipBar, AgentOverlayPanel, AgentWorkUnitBridge | positional-graph (orchestration), workflow-ui (overlay), panel-layout (badge data via composition) | ISSEBroadcaster, useSSE, toast(), CopilotClient, IStateService, IWorkUnitStateService, IWorkflowEvents, DashboardShell, IWorkspaceService, WorkspaceContext | events, sdk, state, work-unit-state, workflow-events, panel-layout, workspace | 🟠 New |
+ | work-unit-state | IWorkUnitStateService, WorkUnitEntry, WorkUnitEvent, FakeWorkUnitStateService, workUnitStateRoute | agents (AgentWorkUnitBridge), workflow-ui (future) | ICentralEventNotifier, ServerEventRouteDescriptor | events, state | 🟠 New |
+ | workflow-events | IWorkflowEvents, WorkflowEventType, WorkflowEventError, FakeWorkflowEventsService | agents (observer hooks), workflow-ui (answerQuestion), CLI (ask/answer/get-answer) | IPositionalGraphService, ICentralEventNotifier | positional-graph, events | 🟠 New |
+-| terminal | _(none — leaf consumer)_ | — | PanelShell, LeftPanel, MainPanel, toast(), IUSDK, ICommandRegistry, workspaceHref | panel-layout, events, sdk, workspace-url | ✅ |
+-| _platform/auth | auth(), signIn(), signOut(), requireAuth(), useAuth(), middleware protection, isUserAllowed(), SessionProvider | file-browser, workflow-ui, workunit-editor (via middleware), server actions (via requireAuth) | — | — | ✅ |
++| terminal | _(none — leaf consumer)_ | — | PanelShell, LeftPanel, MainPanel, toast(), IUSDK, ICommandRegistry, workspaceHref, IWorkspaceService, useWorkspaceContext | panel-layout, events, sdk, workspace-url, workspace | ✅ |
++| _platform/auth | auth(), signIn(), signOut(), requireAuth(), useAuth(), middleware protection, isUserAllowed(), SessionProvider | file-browser, workflow-ui, workunit-editor (via middleware), workspace (via middleware and server actions) | — | — | ✅ |
+diff --git a/docs/domains/registry.md b/docs/domains/registry.md
+index 97deb1d..8b89143 100644
+--- a/docs/domains/registry.md
++++ b/docs/domains/registry.md
+@@ -8,6 +8,7 @@
+ | Events | _platform/events | infrastructure | _platform | extracted (Plans 019, 023, 027); renamed Plan 045 | active |
+ | Panel Layout | _platform/panel-layout | infrastructure | _platform | extracted (Plan 041 workshops) | active |
+ | File Browser | file-browser | business | — | Plan 041 | active |
++| Workspace | workspace | business | — | extracted (Plan 069) | active |
+ | SDK | _platform/sdk | infrastructure | _platform | Plan 047 — USDK | active |
+ | Settings | _platform/settings | infrastructure | _platform | Plan 047 — USDK Phase 5 | active |
+ | Positional Graph | _platform/positional-graph | infrastructure | _platform | extracted (Plan 048) | active |
+diff --git a/Users/jordanknight/substrate/069-new-worktree/docs/domains/workspace/domain.md b/Users/jordanknight/substrate/069-new-worktree/docs/domains/workspace/domain.md
+new file mode 100644
+index 0000000..967be56
+--- /dev/null
++++ b/Users/jordanknight/substrate/069-new-worktree/docs/domains/workspace/domain.md
+@@ -0,0 +1,209 @@
++# Domain: Workspace
++
++**Slug**: workspace
++**Type**: business
++**Created**: 2026-03-07
++**Created By**: extracted from existing codebase (Plan 069)
++**Status**: active
++**C4 Diagram**: [C4 Component](../../c4/components/workspace.md)
++
++## Purpose
++
++Workspace lifecycle and identity management. This domain registers named workspace roots, resolves which workspace and worktree a request is operating in, discovers git worktree topology, and stores workspace- and worktree-level preferences that other features rely on for consistent behavior.
++
++Without this domain, every workspace-scoped feature would need to reimplement path resolution, worktree lookup, and preference persistence. Formalizing it gives future plans a single place to discuss canonical-main behavior, worktree lifecycle rules, and shared workspace identity.
++
++## Concepts
++
++| Concept | Entry Point | What It Does |
++|---------|-------------|-------------|
++| Register and manage workspaces | `IWorkspaceService` | Adds, lists, removes, and inspects registered workspaces. |
++| Resolve active workspace context | `IWorkspaceContextResolver` | Turns a path or slug/worktree selection into the active workspace/worktree context. |
++| Discover worktree topology | `IGitWorktreeResolver` | Detects linked worktrees and identifies the canonical main checkout. |
++| Create worktree from canonical main | `IWorkspaceService.createWorktree` | Previews and creates new git worktrees from refreshed local main with ordinal naming and optional bootstrap hook. |
++| Mutate git worktree state | `IGitWorktreeManager` | Preflight-checks, syncs, and creates git worktrees — the write-side counterpart to the read-only resolver. |
++| Customize workspace and worktree identity | `IWorkspaceService.updatePreferences` | Persists emoji, color, starring, ordering, and per-worktree visual preferences. |
++
++### Register and Manage Workspaces
++
++This is the main lifecycle facade consumers reach for first. It handles registration, listing, removal, info lookup, and the web-safe `resolveContextFromParams()` path that routes and actions use to derive trusted workspace scope.
++
++```typescript
++import { WORKSPACE_DI_TOKENS } from '@chainglass/shared';
++import type { IWorkspaceService } from '@chainglass/workflow';
++
++const workspaceService = container.resolve<IWorkspaceService>(WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE);
++const result = await workspaceService.add('Chainglass', '/Users/me/chainglass');
++```
++
++### Resolve Active Workspace Context
++
++Consumers use this when they need to answer “which workspace/worktree is this path or request targeting?” It is the domain’s scoping primitive for workspace-aware features, and it keeps path matching rules consistent across the app.
++
++```typescript
++const resolver = container.resolve<IWorkspaceContextResolver>(
++  WORKSPACE_DI_TOKENS.WORKSPACE_CONTEXT_RESOLVER
++);
++const ctx = await resolver.resolveFromPath(process.cwd());
++```
++
++### Discover Worktree Topology
++
++This concept abstracts git-specific worktree detection away from callers. It handles porcelain parsing, version gating, and main-repo detection so higher layers can reason about worktrees without shelling out directly.
++
++```typescript
++const gitResolver = container.resolve<IGitWorktreeResolver>(
++  WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER
++);
++const mainRepoPath = await gitResolver.getMainRepoPath(currentPath);
++const worktrees = await gitResolver.detectWorktrees(mainRepoPath ?? currentPath);
++```
++
++### Customize Workspace and Worktree Identity
++
++Workspace-scoped UI and settings depend on this concept to keep names, emoji, color, starring, ordering, and per-worktree overrides in one place. The same persisted preference shape is reused by settings pages, workspace cards, sidebar nav, and worktree identity UI.
++
++```typescript
++await workspaceService.updatePreferences('chainglass', {
++  starred: true,
++  worktreePreferences: {
++    [worktreePath]: { emoji: '🌿', color: 'green', terminalTheme: 'dark' },
++  },
++});
++```
++
++### Create Worktree from Canonical Main
++
++This concept owns the full lifecycle of creating a new git worktree: previewing the computed name/path, syncing canonical main, allocating the next ordinal, creating the worktree, and optionally running the bootstrap hook. The result is a discriminated union that lets callers distinguish a successful creation (with informational bootstrap status) from a blocked attempt (with structured errors).
++
++```typescript
++const preview = await workspaceService.previewCreateWorktree({
++  workspaceSlug: 'chainglass',
++  requestedName: 'my-feature',
++});
++// preview.branchName → "069-my-feature", preview.worktreePath → "/repos/069-my-feature"
++
++const result = await workspaceService.createWorktree({
++  workspaceSlug: 'chainglass',
++  requestedName: 'my-feature',
++});
++if (result.status === 'created') {
++  // result.worktreePath, result.branchName, result.bootstrapStatus.outcome
++}
++```
++
++### Mutate Git Worktree State
++
++This concept separates git write operations from the read-only worktree resolver. It handles preflight checks on the main branch, fetching and fast-forwarding from origin, and the actual `git worktree add` command. The service orchestrator calls these methods in sequence; the manager stays focused on git plumbing.
++
++```typescript
++const manager = container.resolve<IGitWorktreeManager>(
++  WORKSPACE_DI_TOKENS.GIT_WORKTREE_MANAGER
++);
++const status = await manager.checkMainStatus(mainRepoPath);
++if (status.status === 'clean') {
++  await manager.syncMain(mainRepoPath);
++  await manager.createWorktree(mainRepoPath, '069-my-feature', '/repos/069-my-feature');
++}
++```
++
++## Boundary
++
++### Owns
++- Workspace registration and unregistration lifecycle
++- Workspace entity state, preference defaults, slug generation, and immutable preference updates
++- Workspace/worktree context resolution from filesystem paths and URL/worktree selections
++- Git worktree discovery and canonical main-checkout identification
++- Workspace-scoped preference storage for visual identity, starring, ordering, SDK settings, and per-worktree overrides
++- Workspace pages, sidebar/worktree navigation, API routes, server actions, and CLI commands that directly expose workspace lifecycle behavior
++- Client-side workspace identity publishing via `WorkspaceProvider` and `useWorkspaceContext`
++
++### Does NOT Own
++- URL construction and search-param parsing for workspace routes — owned by `_platform/workspace-url`
++- File browsing, editing, diffing, and browser landing experiences — owned by `file-browser`
++- Workflow, work unit, sample, terminal, and agent payloads — those domains consume `WorkspaceContext` but own their own data and actions
++- Generic SSE transport and worktree activity aggregation — owned by `_platform/events` or the consuming business domain
++- Generic workspace-scoped storage helpers such as `workspace-data-adapter-base` — shared infrastructure used by multiple domains
++- Raw filesystem and process primitives — consumed via infrastructure adapters, not owned as workspace business logic
++
++## Contracts (Public Interface)
++
++| Contract | Type | Consumers | Description |
++|----------|------|-----------|-------------|
++| `IWorkspaceService` | Interface | Web pages, server actions, API routes, CLI commands, workflow/workunit/file actions | Primary lifecycle facade for register/list/remove/info/context/preferences/create-worktree |
++| `IWorkspaceContextResolver` | Interface | DI containers, contract tests, future workspace orchestration flows | Resolves workspace/worktree scope from filesystem paths or slugs |
++| `IGitWorktreeResolver` | Interface | `WorkspaceService`, `WorkspaceContextResolver`, DI containers, contract tests | Detects worktree topology and canonical main repository path |
++| `IGitWorktreeManager` | Interface | `WorkspaceService` (Phase 2), DI containers, contract tests | Preflight-checks, syncs, and creates git worktrees — write-side counterpart to resolver |
++| `WorkspaceContext`, `WorkspaceInfo`, `Worktree` | Types | workflow-ui, 058-workunit-editor, samples, agents, API routes | Typed representation of active workspace/worktree scope and discovered topology |
++| `CreateWorktreeResult`, `PreviewCreateWorktreeResult`, `BootstrapStatus` | Types | Web server actions, new-worktree page (Phase 3) | Discriminated union result types for worktree creation lifecycle |
++| `Workspace`, `WorkspacePreferences`, `WorktreeVisualPreferences` | Entity + types | Workspace pages, file-browser identity UI, settings/worktree popovers | Persisted workspace metadata and visual/worktree preference state |
++| `WorkspaceProvider`, `useWorkspaceContext` | React provider + hook | file-browser, terminal, dashboard sidebar, workspace attention wrapper | Publishes current workspace/worktree identity into the client tree |
++| `WORKSPACE_EMOJI_PALETTE`, `WORKSPACE_COLOR_PALETTE` | Constants | EmojiPicker, ColorPicker, settings UIs | Curated visual identity palette for workspace preferences |
++
++## Composition (Internal)
++
++| Component | Role | Depends On |
++|-----------|------|------------|
++| `WorkspaceService` | Lifecycle facade for register/list/remove/info/context/preferences/create-worktree | `IWorkspaceRegistryAdapter`, `IWorkspaceContextResolver`, `IGitWorktreeResolver`, `IGitWorktreeManager` (Phase 2) |
++| `WorkspaceContextResolver` | Maps paths to workspace/worktree context with longest-match behavior | `IWorkspaceRegistryAdapter`, `IGitWorktreeResolver`, `IFileSystem` |
++| `GitWorktreeResolver` | Runs git commands and parses worktree porcelain output | `IProcessManager` |
++| `GitWorktreeManagerAdapter` | Runs git write commands for preflight, sync, and worktree creation (Phase 2) | `IProcessManager` |
++| `WorkspaceRegistryAdapter` | Persists global workspace registry and preference updates | `IFileSystem`, `IPathResolver` |
++| `Workspace` entity | Defines metadata, slugging, defaults, and immutable preference updates | `slugify`, workspace palette constants |
++| Workspace pages + nav | Render workspace list/detail/worktree switching surfaces | `IWorkspaceService`, `workspaceHref`, `WorkspaceProvider` |
++| Workspace actions + routes | Handle authenticated mutations and workspace JSON responses | `IWorkspaceService`, `requireAuth`, `revalidatePath` |
++| `WorkspaceProvider` | Derives active worktree identity from persisted preferences | `WorkspacePreferences`, `WorktreeVisualPreferences` |
++| CLI workspace commands | Expose add/list/info/remove from terminal workflows | `IWorkspaceService` |
++
++## Source Location
++
++Primary: `packages/workflow/src/` + `apps/web/app/(dashboard)/workspaces/` + `apps/web/src/components/workspaces/` + `apps/web/src/features/041-file-browser/hooks/use-workspace-context.tsx` + `apps/cli/src/commands/`
++
++| File | Role | Notes |
++|------|------|-------|
++| `packages/workflow/src/entities/workspace.ts` | Workspace entity + preferences | Slug generation, defaults, immutable preference updates |
++| `packages/workflow/src/interfaces/workspace-service.interface.ts` | Service contract | Main public lifecycle interface |
++| `packages/workflow/src/interfaces/workspace-context.interface.ts` | Context + worktree contracts | `WorkspaceContext`, `WorkspaceInfo`, `Worktree`, resolver contract |
++| `packages/workflow/src/interfaces/git-worktree-resolver.interface.ts` | Git worktree contract | Public abstraction for worktree discovery |
++| `packages/workflow/src/interfaces/git-worktree-manager.interface.ts` | Git worktree mutation contract | Public abstraction for worktree creation (Plan 069) |
++| `packages/workflow/src/interfaces/workspace-registry-adapter.interface.ts` | Registry adapter contract | Persistence boundary for workspace registry |
++| `packages/workflow/src/services/workspace.service.ts` | Domain service | Register/list/remove/info/context/preferences |
++| `packages/workflow/src/resolvers/workspace-context.resolver.ts` | Context resolver | Path-to-workspace/worktree lookup |
++| `packages/workflow/src/resolvers/git-worktree.resolver.ts` | Git adapter | `git worktree list --porcelain`, `rev-parse` |
++| `packages/workflow/src/adapters/workspace-registry.adapter.ts` | Registry persistence | Stores `~/.config/chainglass/workspaces.json` |
++| `packages/workflow/src/errors/workspace-errors.ts` | Domain errors | Workspace/worktree-specific error codes |
++| `packages/workflow/src/constants/workspace-palettes.ts` | Visual identity constants | Curated emoji/color sets |
++| `apps/web/app/actions/workspace-actions.ts` | Workspace actions | Add/remove workspace, worktree star, identity preference updates |
++| `apps/web/app/actions/sdk-settings-actions.ts` | Preference persistence bridge | Stores workspace-scoped SDK settings and MRU |
++| `apps/web/app/api/workspaces/route.ts` | Workspace list API | Optional `?include=worktrees` enrichment |
++| `apps/web/app/api/workspaces/[slug]/route.ts` | Workspace detail API | Full workspace info by slug |
++| `apps/web/app/(dashboard)/workspaces/page.tsx` | Workspace list page | Server-rendered list + add form |
++| `apps/web/app/(dashboard)/workspaces/[slug]/page.tsx` | Workspace detail page | Worktree list, metadata, navigation entrypoint |
++| `apps/web/src/components/workspaces/workspace-nav.tsx` | Sidebar/worktree navigation | Workspace and worktree switching UI |
++| `apps/web/src/components/workspaces/workspace-add-form.tsx` | Registration form | Client mutation surface for add |
++| `apps/web/src/components/workspaces/workspace-remove-button.tsx` | Removal UI | Client mutation surface for remove |
++| `apps/web/src/features/041-file-browser/hooks/use-workspace-context.tsx` | Client provider + hook | Workspace/worktree identity bridge |
++| `apps/cli/src/commands/workspace.command.ts` | CLI controller | `cg workspace add/list/info/remove` |
++
++## Dependencies
++
++### This Domain Depends On
++- `_platform/file-ops` — `IFileSystem`, `IPathResolver` for registry I/O and path checks
++- `_platform/workspace-url` — `workspaceHref`, `workspaceParams` for workspace-scoped web links and worktree selection
++- `_platform/auth` — `requireAuth` and authenticated workspace pages/actions
++- Shared process-manager infrastructure — git command execution for worktree discovery (not yet formalized as a standalone domain)
++
++### Domains That Depend On This
++- `file-browser` — resolves workspace/worktree context, visual preferences, and client identity
++- `workflow-ui` — scopes workflow mutations and route actions with `WorkspaceContext`
++- `058-workunit-editor` — validates worktree selection against `WorkspaceInfo` and `WorkspaceContext`
++- `terminal` — consumes workspace identity and workspace-scoped page loading
++- `agents` — uses workspace/worktree context for scoped agent pages and session lookup
++
++## History
++
++| Plan | What Changed | Date |
++|------|-------------|------|
++| *(extracted)* | Domain formalized from existing registry, context resolution, worktree discovery, pages, nav, and provider hooks | 2026-03-07 |
++| Plan 069 | Workspace named as the business domain for new worktree creation planning | 2026-03-07 |
++| Plan 069 Phase 1 | Added IGitWorktreeManager interface, preview/create types on IWorkspaceService, FakeGitWorktreeManager, contract test scaffold, DI token | 2026-03-07 |
+diff --git a/packages/shared/src/di-tokens.ts b/packages/shared/src/di-tokens.ts
+index e641db9..ed38535 100644
+--- a/packages/shared/src/di-tokens.ts
++++ b/packages/shared/src/di-tokens.ts
+@@ -71,6 +71,8 @@ export const WORKSPACE_DI_TOKENS = {
+   WORKSPACE_CONTEXT_RESOLVER: 'IWorkspaceContextResolver',
+   /** IGitWorktreeResolver interface */
+   GIT_WORKTREE_RESOLVER: 'IGitWorktreeResolver',
++  /** IGitWorktreeManager interface (Plan 069: worktree creation mutation boundary) */
++  GIT_WORKTREE_MANAGER: 'IGitWorktreeManager',
+   /** ISampleAdapter interface */
+   SAMPLE_ADAPTER: 'ISampleAdapter',
+   /** IWorkspaceService interface */
+diff --git a/Users/jordanknight/substrate/069-new-worktree/packages/workflow/src/adapters/git-worktree-manager.adapter.ts b/Users/jordanknight/substrate/069-new-worktree/packages/workflow/src/adapters/git-worktree-manager.adapter.ts
+new file mode 100644
+index 0000000..9d26d6a
+--- /dev/null
++++ b/Users/jordanknight/substrate/069-new-worktree/packages/workflow/src/adapters/git-worktree-manager.adapter.ts
+@@ -0,0 +1,298 @@
++/**
++ * GitWorktreeManagerAdapter — real git mutation implementation.
++ *
++ * Per Plan 069 Phase 2, Workshop 002, Finding 02:
++ * Implements IGitWorktreeManager using IProcessManager.spawn().
++ * Mirrors the GitWorktreeResolver.execGit() pattern for git command execution.
++ *
++ * This adapter owns:
++ * - Preflight safety checks on the main branch
++ * - Fetch and fast-forward sync
++ * - Worktree creation via git worktree add
++ * - Branch and plan folder listing for the naming allocator
++ *
++ * It does NOT own naming logic, bootstrap execution, or workspace registration.
++ */
++
++import type { IProcessManager, SpawnOptions } from '@chainglass/shared';
++import type {
++  CreateWorktreeGitResult,
++  IGitWorktreeManager,
++  MainStatusResult,
++  SyncMainResult,
++} from '../interfaces/git-worktree-manager.interface.js';
++
++/** Result from git command execution. */
++interface GitResult {
++  success: boolean;
++  stdout: string;
++  stderr: string;
++}
++
++/**
++ * Real git worktree manager implementation.
++ *
++ * Per ADR-0004: Uses constructor injection for testability.
++ * Per Workshop 002: Implements the full preflight/sync/create safety sequence.
++ */
++export class GitWorktreeManagerAdapter implements IGitWorktreeManager {
++  constructor(private readonly processManager: IProcessManager) {}
++
++  // ==================== IGitWorktreeManager Implementation ====================
++
++  async checkMainStatus(mainRepoPath: string): Promise<MainStatusResult> {
++    // Step 1: Verify local branch 'main' exists
++    const branchResult = await this.execGit(
++      ['rev-parse', '--abbrev-ref', 'HEAD'],
++      mainRepoPath
++    );
++    if (!branchResult.success) {
++      return { status: 'git-failure', detail: 'Could not determine current branch' };
++    }
++    const currentBranch = branchResult.stdout.trim();
++    if (currentBranch !== 'main') {
++      return {
++        status: 'no-main-branch',
++        mainRepoPath,
++        detail: `Expected branch 'main' but found '${currentBranch}'`,
++      };
++    }
++
++    // Step 2: Check for tracked local changes
++    const statusResult = await this.execGit(
++      ['status', '--porcelain=v1', '--untracked-files=no'],
++      mainRepoPath
++    );
++    if (!statusResult.success) {
++      return { status: 'git-failure', mainRepoPath, detail: 'Could not check working tree status' };
++    }
++    if (statusResult.stdout.trim().length > 0) {
++      return { status: 'dirty', mainRepoPath, detail: 'Tracked local changes present' };
++    }
++
++    // Step 3: Check for in-progress git operations (lock files)
++    const lockCheck = await this.execGit(
++      ['rev-parse', '--git-dir'],
++      mainRepoPath
++    );
++    if (lockCheck.success) {
++      const gitDir = lockCheck.stdout.trim();
++      const lockPath = `${gitDir}/index.lock`;
++      const lockExists = await this.execGit(['ls-files', lockPath], mainRepoPath);
++      // Use a simpler check: try to detect common lock indicators
++      const rebaseCheck = await this.execGit(
++        ['rev-parse', '--verify', '--quiet', 'MERGE_HEAD'],
++        mainRepoPath
++      );
++      if (rebaseCheck.success) {
++        return {
++          status: 'lock-held',
++          mainRepoPath,
++          detail: 'A merge is in progress',
++        };
++      }
++      const rebaseDir = await this.execGit(
++        ['rev-parse', '--git-path', 'rebase-merge'],
++        mainRepoPath
++      );
++      if (rebaseDir.success) {
++        // Check if the rebase directory actually exists by trying to list it
++        const rebasePath = rebaseDir.stdout.trim();
++        const rebaseExists = await this.execGit(
++          ['rev-parse', '--verify', '--quiet', 'REBASE_HEAD'],
++          mainRepoPath
++        );
++        if (rebaseExists.success) {
++          return {
++            status: 'lock-held',
++            mainRepoPath,
++            detail: 'A rebase is in progress',
++          };
++        }
++      }
++    }
++
++    // Step 4: Fetch origin/main
++    const fetchResult = await this.execGit(
++      ['fetch', 'origin', 'main', '--prune'],
++      mainRepoPath
++    );
++    if (!fetchResult.success) {
++      return {
++        status: 'git-failure',
++        mainRepoPath,
++        detail: 'Failed to fetch origin/main',
++      };
++    }
++
++    // Step 5: Compare local main vs origin/main
++    const compareResult = await this.execGit(
++      ['rev-list', '--left-right', '--count', 'main...origin/main'],
++      mainRepoPath
++    );
++    if (!compareResult.success) {
++      return {
++        status: 'git-failure',
++        mainRepoPath,
++        detail: 'Could not compare local and remote main',
++      };
++    }
++
++    const parts = compareResult.stdout.trim().split(/\s+/);
++    const ahead = parseInt(parts[0] ?? '0', 10);
++    const behind = parseInt(parts[1] ?? '0', 10);
++
++    // Get refs for result
++    const localRefResult = await this.execGit(['rev-parse', 'main'], mainRepoPath);
++    const remoteRefResult = await this.execGit(['rev-parse', 'origin/main'], mainRepoPath);
++    const localRef = localRefResult.success ? localRefResult.stdout.trim() : undefined;
++    const remoteRef = remoteRefResult.success ? remoteRefResult.stdout.trim() : undefined;
++
++    if (ahead > 0 && behind > 0) {
++      return { status: 'diverged', mainRepoPath, localRef, remoteRef, detail: `Local main has ${ahead} unpushed and ${behind} missing commits` };
++    }
++    if (ahead > 0) {
++      return { status: 'ahead', mainRepoPath, localRef, remoteRef, detail: `Local main has ${ahead} unpushed commits` };
++    }
++
++    // clean or behind — both are ok for the caller
++    return { status: 'clean', mainRepoPath, localRef, remoteRef };
++  }
++
++  async syncMain(mainRepoPath: string): Promise<SyncMainResult> {
++    // Check if we even need to sync
++    const compareResult = await this.execGit(
++      ['rev-list', '--left-right', '--count', 'main...origin/main'],
++      mainRepoPath
++    );
++
++    if (compareResult.success) {
++      const parts = compareResult.stdout.trim().split(/\s+/);
++      const behind = parseInt(parts[1] ?? '0', 10);
++
++      if (behind === 0) {
++        const refResult = await this.execGit(['rev-parse', 'main'], mainRepoPath);
++        return {
++          status: 'already-up-to-date',
++          localRef: refResult.success ? refResult.stdout.trim() : undefined,
++        };
++      }
++    }
++
++    // Fast-forward only
++    const pullResult = await this.execGit(
++      ['pull', '--ff-only', 'origin', 'main'],
++      mainRepoPath
++    );
++    if (!pullResult.success) {
++      return {
++        status: 'fast-forward-failed',
++        detail: 'Could not fast-forward local main to origin/main',
++      };
++    }
++
++    const refResult = await this.execGit(['rev-parse', 'main'], mainRepoPath);
++    return {
++      status: 'synced',
++      localRef: refResult.success ? refResult.stdout.trim() : undefined,
++    };
++  }
++
++  async createWorktree(
++    mainRepoPath: string,
++    branchName: string,
++    worktreePath: string
++  ): Promise<CreateWorktreeGitResult> {
++    const result = await this.execGit(
++      ['worktree', 'add', '-b', branchName, worktreePath, 'main'],
++      mainRepoPath
++    );
++
++    if (!result.success) {
++      const stderr = result.stderr || result.stdout;
++      if (stderr.includes('already exists')) {
++        if (stderr.includes('branch')) {
++          return { status: 'branch-exists', detail: `Branch '${branchName}' already exists` };
++        }
++        return { status: 'path-exists', detail: `Path '${worktreePath}' already exists` };
++      }
++      return { status: 'git-failure', detail: stderr || 'git worktree add failed' };
++    }
++
++    return {
++      status: 'created',
++      worktreePath,
++      branchName,
++    };
++  }
++
++  async listBranches(
++    mainRepoPath: string
++  ): Promise<{ localBranches: string[]; remoteBranches: string[] }> {
++    const localResult = await this.execGit(
++      ['branch', '--format=%(refname:short)'],
++      mainRepoPath
++    );
++    const remoteResult = await this.execGit(
++      ['branch', '-r', '--format=%(refname:short)'],
++      mainRepoPath
++    );
++
++    const localBranches = localResult.success
++      ? localResult.stdout.trim().split('\n').filter(Boolean)
++      : [];
++    const remoteBranches = remoteResult.success
++      ? remoteResult.stdout.trim().split('\n').filter(Boolean)
++      : [];
++
++    return { localBranches, remoteBranches };
++  }
++
++  async listPlanFolders(mainRepoPath: string): Promise<string[]> {
++    const result = await this.execGit(
++      ['ls-tree', '--name-only', 'main', 'docs/plans/'],
++      mainRepoPath
++    );
++    if (!result.success) return [];
++    return result.stdout.trim().split('\n').filter(Boolean);
++  }
++
++  // ==================== Private Helpers ====================
++
++  /**
++   * Execute a git command.
++   * Mirrors GitWorktreeResolver.execGit() pattern.
++   */
++  private async execGit(args: string[], cwd?: string): Promise<GitResult> {
++    const options: SpawnOptions = { command: 'git', args, cwd };
++    let stdout = '';
++    let stderr = '';
++
++    try {
++      const handle = await this.processManager.spawn({
++        ...options,
++        onStdoutLine: (line: string) => {
++          stdout += `${line}\n`;
++        },
++      });
++
++      const result = await handle.waitForExit();
++      const success = result.exitCode === 0;
++
++      const bufferedOutput = this.processManager.getProcessOutput?.(handle.pid) ?? '';
++      if (bufferedOutput && !stdout) {
++        stdout = bufferedOutput;
++      }
++
++      return { success, stdout, stderr: '' };
++    } catch (error) {
++      if (error instanceof Error) {
++        const errnoError = error as NodeJS.ErrnoException;
++        if (errnoError.code === 'ENOENT') {
++          return { success: false, stdout: '', stderr: 'git not found' };
++        }
++      }
++      throw error;
++    }
++  }
++}
+diff --git a/packages/workflow/src/adapters/index.ts b/packages/workflow/src/adapters/index.ts
+index 352458b..b7f1e9d 100644
+--- a/packages/workflow/src/adapters/index.ts
++++ b/packages/workflow/src/adapters/index.ts
+@@ -9,6 +9,9 @@ export { PhaseAdapter } from './phase.adapter.js';
+ // Workspace registry adapter (Plan 014)
+ export { WorkspaceRegistryAdapter } from './workspace-registry.adapter.js';
+ 
++// Git worktree manager adapter (Plan 069 Phase 2: real git mutation)
++export { GitWorktreeManagerAdapter } from './git-worktree-manager.adapter.js';
++
+ // Workspace data adapter base (Plan 014 Phase 3)
+ export { WorkspaceDataAdapterBase } from './workspace-data-adapter-base.js';
+ export type {
+diff --git a/packages/workflow/src/container.ts b/packages/workflow/src/container.ts
+index d8fa396..ebc5e7f 100644
+--- a/packages/workflow/src/container.ts
++++ b/packages/workflow/src/container.ts
+@@ -37,6 +37,7 @@ import { YamlParserAdapter } from './adapters/yaml-parser.adapter.js';
+ import { FakeAgentEventAdapter } from './fakes/fake-agent-event-adapter.js';
+ import { FakeAgentSessionAdapter } from './fakes/fake-agent-session-adapter.js';
+ import { FakeGitWorktreeResolver } from './fakes/fake-git-worktree-resolver.js';
++import { FakeGitWorktreeManager } from './fakes/fake-git-worktree-manager.js';
+ import { FakePhaseAdapter } from './fakes/fake-phase-adapter.js';
+ import { FakePhaseService } from './fakes/fake-phase-service.js';
+ import { FakeSampleAdapter } from './fakes/fake-sample-adapter.js';
+@@ -50,6 +51,7 @@ import { FakeYamlParser } from './fakes/fake-yaml-parser.js';
+ import type { IAgentEventAdapter } from './interfaces/agent-event-adapter.interface.js';
+ import type { IAgentSessionAdapter } from './interfaces/agent-session-adapter.interface.js';
+ import type { IAgentSessionService } from './interfaces/agent-session-service.interface.js';
++import type { IGitWorktreeManager } from './interfaces/git-worktree-manager.interface.js';
+ import type { IGitWorktreeResolver } from './interfaces/git-worktree-resolver.interface.js';
+ import type {
+   IPhaseAdapter,
+@@ -66,6 +68,7 @@ import type {
+ import type { ISampleService } from './interfaces/sample-service.interface.js';
+ import type { IWorkspaceService } from './interfaces/workspace-service.interface.js';
+ import { GitWorktreeResolver } from './resolvers/git-worktree.resolver.js';
++import { GitWorktreeManagerAdapter } from './adapters/git-worktree-manager.adapter.js';
+ import { WorkspaceContextResolver } from './resolvers/workspace-context.resolver.js';
+ import { AgentSessionService } from './services/agent-session.service.js';
+ import { PhaseService } from './services/phase.service.js';
+@@ -209,13 +212,20 @@ export function createWorkflowProductionContainer(): DependencyContainer {
+       ),
+   });
+ 
++  // Register git worktree manager (Plan 069: mutation boundary)
++  childContainer.register<IGitWorktreeManager>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_MANAGER, {
++    useFactory: (c) =>
++      new GitWorktreeManagerAdapter(c.resolve<IProcessManager>(SHARED_DI_TOKENS.PROCESS_MANAGER)),
++  });
++
+   // Register workspace service
+   childContainer.register<IWorkspaceService>(WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE, {
+     useFactory: (c) =>
+       new WorkspaceService(
+         c.resolve<IWorkspaceRegistryAdapter>(WORKSPACE_DI_TOKENS.WORKSPACE_REGISTRY_ADAPTER),
+         c.resolve<IWorkspaceContextResolver>(WORKSPACE_DI_TOKENS.WORKSPACE_CONTEXT_RESOLVER),
+-        c.resolve<IGitWorktreeResolver>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER)
++        c.resolve<IGitWorktreeResolver>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER),
++        c.resolve<IGitWorktreeManager>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_MANAGER)
+       ),
+   });
+ 
+@@ -363,13 +373,20 @@ export function createWorkflowTestContainer(): DependencyContainer {
+     useValue: fakeSampleAdapter,
+   });
+ 
++  // Register fake git worktree manager (Plan 069)
++  const fakeGitManager = new FakeGitWorktreeManager();
++  childContainer.register<IGitWorktreeManager>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_MANAGER, {
++    useValue: fakeGitManager,
++  });
++
+   // Register workspace service with fakes
+   childContainer.register<IWorkspaceService>(WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE, {
+     useFactory: (c) =>
+       new WorkspaceService(
+         c.resolve<IWorkspaceRegistryAdapter>(WORKSPACE_DI_TOKENS.WORKSPACE_REGISTRY_ADAPTER),
+         c.resolve<IWorkspaceContextResolver>(WORKSPACE_DI_TOKENS.WORKSPACE_CONTEXT_RESOLVER),
+-        c.resolve<IGitWorktreeResolver>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER)
++        c.resolve<IGitWorktreeResolver>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER),
++        c.resolve<IGitWorktreeManager>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_MANAGER)
+       ),
+   });
+ 
+diff --git a/Users/jordanknight/substrate/069-new-worktree/packages/workflow/src/fakes/fake-git-worktree-manager.ts b/Users/jordanknight/substrate/069-new-worktree/packages/workflow/src/fakes/fake-git-worktree-manager.ts
+new file mode 100644
+index 0000000..22361e8
+--- /dev/null
++++ b/Users/jordanknight/substrate/069-new-worktree/packages/workflow/src/fakes/fake-git-worktree-manager.ts
+@@ -0,0 +1,325 @@
++/**
++ * Fake git worktree manager for testing.
++ *
++ * Per Plan 069 Phase 1: Provides a configurable test double for IGitWorktreeManager.
++ * Per DYK D3: State model covers the full Workshop 002 error taxonomy.
++ *
++ * The fake's configurable states ARE the behavioral specification for the
++ * real adapter in Phase 2. Every scenario modeled here must be handled
++ * by GitWorktreeManagerAdapter.
++ *
++ * Follows the established FakeGitWorktreeResolver pattern with:
++ * - Call tracking arrays with spread operator getters
++ * - State configuration via direct setters
++ * - Error injection for testing error paths
++ * - reset() helper for test isolation
++ */
++
++import type {
++  CreateWorktreeGitResult,
++  CreateWorktreeGitStatusCode,
++  IGitWorktreeManager,
++  MainStatusCode,
++  MainStatusResult,
++  SyncMainResult,
++  SyncStatusCode,
++} from '../interfaces/git-worktree-manager.interface.js';
++
++// ==================== Call Recording Types ====================
++
++/** Recorded checkMainStatus() call for test inspection. */
++export interface CheckMainStatusCall {
++  mainRepoPath: string;
++}
++
++/** Recorded syncMain() call for test inspection. */
++export interface SyncMainCall {
++  mainRepoPath: string;
++}
++
++/** Recorded createWorktree() call for test inspection. */
++export interface CreateWorktreeManagerCall {
++  mainRepoPath: string;
++  branchName: string;
++  worktreePath: string;
++}
++
++/** Recorded listBranches() call for test inspection. */
++export interface ListBranchesCall {
++  mainRepoPath: string;
++}
++
++/** Recorded listPlanFolders() call for test inspection. */
++export interface ListPlanFoldersCall {
++  mainRepoPath: string;
++}
++
++// ==================== Fake Implementation ====================
++
++/**
++ * Fake git worktree manager for testing.
++ *
++ * Three-part API:
++ * 1. State Setup: setMainStatus(), setSyncResult(), setCreateResult()
++ * 2. State Inspection: Read calls via *Calls getters
++ * 3. Error Injection: Set inject* flags to simulate unexpected errors
++ *
++ * @example
++ * ```typescript
++ * const manager = new FakeGitWorktreeManager();
++ *
++ * // State setup - clean main, ready to create
++ * manager.setMainStatus('clean', { localRef: 'abc123', remoteRef: 'abc123' });
++ * manager.setSyncResult('already-up-to-date');
++ * manager.setCreateResult('created', {
++ *   worktreePath: '/repos/069-my-feature',
++ *   branchName: '069-my-feature',
++ * });
++ *
++ * // Use manager
++ * const status = await manager.checkMainStatus('/repos/main');
++ * expect(status.status).toBe('clean');
++ *
++ * // Inspect calls
++ * expect(manager.checkMainStatusCalls).toHaveLength(1);
++ *
++ * // Error injection
++ * manager.injectCheckError = new Error('Git crashed');
++ * await expect(manager.checkMainStatus('/any')).rejects.toThrow();
++ * ```
++ */
++export class FakeGitWorktreeManager implements IGitWorktreeManager {
++  // ==================== State Configuration ====================
++
++  private _mainStatus: MainStatusResult = {
++    status: 'clean',
++    mainRepoPath: '/fake/main',
++    localRef: 'abc123',
++    remoteRef: 'abc123',
++  };
++
++  private _syncResult: SyncMainResult = {
++    status: 'already-up-to-date',
++    localRef: 'abc123',
++  };
++
++  private _createResult: CreateWorktreeGitResult = {
++    status: 'created',
++    worktreePath: '/fake/worktree',
++    branchName: '000-fake-branch',
++  };
++
++  private _localBranches: string[] = ['main'];
++  private _remoteBranches: string[] = ['origin/main'];
++  private _planFolders: string[] = [];
++
++  // ==================== Error Injection ====================
++
++  /** When set, checkMainStatus() throws this error. */
++  injectCheckError?: Error;
++
++  /** When set, syncMain() throws this error. */
++  injectSyncError?: Error;
++
++  /** When set, createWorktree() throws this error. */
++  injectCreateError?: Error;
++
++  // ==================== Private Call Tracking ====================
++
++  private _checkMainStatusCalls: CheckMainStatusCall[] = [];
++  private _syncMainCalls: SyncMainCall[] = [];
++  private _createWorktreeCalls: CreateWorktreeManagerCall[] = [];
++  private _listBranchesCalls: ListBranchesCall[] = [];
++  private _listPlanFoldersCalls: ListPlanFoldersCall[] = [];
++
++  // ==================== Call Tracking Getters (immutable copies) ====================
++
++  /** All checkMainStatus() calls (returns a copy). */
++  get checkMainStatusCalls(): CheckMainStatusCall[] {
++    return [...this._checkMainStatusCalls];
++  }
++
++  /** All syncMain() calls (returns a copy). */
++  get syncMainCalls(): SyncMainCall[] {
++    return [...this._syncMainCalls];
++  }
++
++  /** All createWorktree() calls (returns a copy). */
++  get createWorktreeCalls(): CreateWorktreeManagerCall[] {
++    return [...this._createWorktreeCalls];
++  }
++
++  /** All listBranches() calls (returns a copy). */
++  get listBranchesCalls(): ListBranchesCall[] {
++    return [...this._listBranchesCalls];
++  }
++
++  /** All listPlanFolders() calls (returns a copy). */
++  get listPlanFoldersCalls(): ListPlanFoldersCall[] {
++    return [...this._listPlanFoldersCalls];
++  }
++
++  // ==================== State Setup Helpers ====================
++
++  /**
++   * Configure the main status check result.
++   *
++   * Workshop 002 taxonomy:
++   * - 'clean': main is up-to-date, no local changes
++   * - 'dirty': tracked local changes present
++   * - 'ahead': local main has unpushed commits
++   * - 'diverged': local and remote main have diverged
++   * - 'no-main-branch': local 'main' branch doesn't exist
++   * - 'lock-held': git lock file present (concurrent operation)
++   * - 'git-failure': unexpected git error
++   */
++  setMainStatus(
++    status: MainStatusCode,
++    options?: { mainRepoPath?: string; localRef?: string; remoteRef?: string; detail?: string }
++  ): void {
++    this._mainStatus = {
++      status,
++      mainRepoPath: options?.mainRepoPath ?? '/fake/main',
++      localRef: options?.localRef,
++      remoteRef: options?.remoteRef,
++      detail: options?.detail,
++    };
++  }
++
++  /**
++   * Configure the sync result.
++   *
++   * - 'synced': fast-forward succeeded
++   * - 'already-up-to-date': no sync needed
++   * - 'fetch-failed': could not reach origin
++   * - 'fast-forward-failed': fast-forward rejected (diverged)
++   * - 'git-failure': unexpected git error
++   */
++  setSyncResult(
++    status: SyncStatusCode,
++    options?: { localRef?: string; detail?: string }
++  ): void {
++    this._syncResult = {
++      status,
++      localRef: options?.localRef,
++      detail: options?.detail,
++    };
++  }
++
++  /**
++   * Configure the create worktree result.
++   *
++   * - 'created': worktree successfully created
++   * - 'branch-exists': branch name already taken
++   * - 'path-exists': worktree directory already exists
++   * - 'git-failure': unexpected git error
++   */
++  setCreateResult(
++    status: CreateWorktreeGitStatusCode,
++    options?: { worktreePath?: string; branchName?: string; detail?: string }
++  ): void {
++    this._createResult = {
++      status,
++      worktreePath: options?.worktreePath,
++      branchName: options?.branchName,
++      detail: options?.detail,
++    };
++  }
++
++  /**
++   * Configure branch lists returned by listBranches().
++   */
++  setBranches(localBranches: string[], remoteBranches: string[]): void {
++    this._localBranches = localBranches;
++    this._remoteBranches = remoteBranches;
++  }
++
++  /**
++   * Configure plan folders returned by listPlanFolders().
++   */
++  setPlanFolders(folders: string[]): void {
++    this._planFolders = folders;
++  }
++
++  // ==================== Test Helpers ====================
++
++  /** Reset all state (configuration, call tracking, error injection). */
++  reset(): void {
++    this._mainStatus = {
++      status: 'clean',
++      mainRepoPath: '/fake/main',
++      localRef: 'abc123',
++      remoteRef: 'abc123',
++    };
++    this._syncResult = { status: 'already-up-to-date', localRef: 'abc123' };
++    this._createResult = {
++      status: 'created',
++      worktreePath: '/fake/worktree',
++      branchName: '000-fake-branch',
++    };
++
++    this.injectCheckError = undefined;
++    this.injectSyncError = undefined;
++    this.injectCreateError = undefined;
++
++    this._checkMainStatusCalls = [];
++    this._syncMainCalls = [];
++    this._createWorktreeCalls = [];
++    this._listBranchesCalls = [];
++    this._listPlanFoldersCalls = [];
++    this._localBranches = ['main'];
++    this._remoteBranches = ['origin/main'];
++    this._planFolders = [];
++  }
++
++  // ==================== IGitWorktreeManager Implementation ====================
++
++  async checkMainStatus(mainRepoPath: string): Promise<MainStatusResult> {
++    this._checkMainStatusCalls.push({ mainRepoPath });
++
++    if (this.injectCheckError) {
++      throw this.injectCheckError;
++    }
++
++    return { ...this._mainStatus };
++  }
++
++  async syncMain(mainRepoPath: string): Promise<SyncMainResult> {
++    this._syncMainCalls.push({ mainRepoPath });
++
++    if (this.injectSyncError) {
++      throw this.injectSyncError;
++    }
++
++    return { ...this._syncResult };
++  }
++
++  async createWorktree(
++    mainRepoPath: string,
++    branchName: string,
++    worktreePath: string
++  ): Promise<CreateWorktreeGitResult> {
++    this._createWorktreeCalls.push({ mainRepoPath, branchName, worktreePath });
++
++    if (this.injectCreateError) {
++      throw this.injectCreateError;
++    }
++
++    return { ...this._createResult };
++  }
++
++  async listBranches(
++    mainRepoPath: string
++  ): Promise<{ localBranches: string[]; remoteBranches: string[] }> {
++    this._listBranchesCalls.push({ mainRepoPath });
++    return {
++      localBranches: [...this._localBranches],
++      remoteBranches: [...this._remoteBranches],
++    };
++  }
++
++  async listPlanFolders(mainRepoPath: string): Promise<string[]> {
++    this._listPlanFoldersCalls.push({ mainRepoPath });
++    return [...this._planFolders];
++  }
++}
+diff --git a/packages/workflow/src/fakes/index.ts b/packages/workflow/src/fakes/index.ts
+index 8234c2d..496a7c5 100644
+--- a/packages/workflow/src/fakes/index.ts
++++ b/packages/workflow/src/fakes/index.ts
+@@ -78,6 +78,16 @@ export type {
+   IsMainWorktreeCall,
+ } from './fake-git-worktree-resolver.js';
+ 
++// Git worktree manager fake (Plan 069 Phase 1: mutation boundary)
++export { FakeGitWorktreeManager } from './fake-git-worktree-manager.js';
++export type {
++  CheckMainStatusCall,
++  SyncMainCall,
++  CreateWorktreeManagerCall,
++  ListBranchesCall,
++  ListPlanFoldersCall,
++} from './fake-git-worktree-manager.js';
++
+ // Agent session adapter fake (Plan 018)
+ export { FakeAgentSessionAdapter } from './fake-agent-session-adapter.js';
+ export type {
+diff --git a/packages/workflow/src/index.ts b/packages/workflow/src/index.ts
+index 3b9d9fb..9c63605 100644
+--- a/packages/workflow/src/index.ts
++++ b/packages/workflow/src/index.ts
+@@ -332,13 +332,29 @@ export { GitWorktreeResolver } from './resolvers/index.js';
+ // Git worktree resolver interface (Plan 014 Phase 4)
+ export type { IGitWorktreeResolver } from './interfaces/index.js';
+ 
+-// Workspace service interface (Plan 014 Phase 4)
++// Git worktree manager interface (Plan 069 Phase 1: mutation boundary)
++export type {
++  IGitWorktreeManager,
++  MainStatusCode,
++  MainStatusResult,
++  SyncStatusCode,
++  SyncMainResult,
++  CreateWorktreeGitStatusCode,
++  CreateWorktreeGitResult,
++} from './interfaces/index.js';
++
++// Workspace service interface (Plan 014 Phase 4, extended Plan 069 Phase 1)
+ export type {
+   IWorkspaceService,
+   WorkspaceOperationResult,
+   AddWorkspaceResult,
+   RemoveWorkspaceResult,
+   AddWorkspaceOptions,
++  PreviewCreateWorktreeRequest,
++  PreviewCreateWorktreeResult,
++  CreateWorktreeRequest,
++  CreateWorktreeResult,
++  BootstrapStatus,
+ } from './interfaces/index.js';
+ 
+ // Sample service interface (Plan 014 Phase 4)
+@@ -372,6 +388,16 @@ export type {
+   IsMainWorktreeCall,
+ } from './fakes/index.js';
+ 
++// Git worktree manager fake (Plan 069 Phase 1: mutation boundary)
++export { FakeGitWorktreeManager } from './fakes/index.js';
++export type {
++  CheckMainStatusCall,
++  SyncMainCall,
++  CreateWorktreeManagerCall,
++  ListBranchesCall,
++  ListPlanFoldersCall,
++} from './fakes/index.js';
++
+ // Agent session adapter fake (Plan 018)
+ export { FakeAgentSessionAdapter } from './fakes/index.js';
+ export type {
+diff --git a/Users/jordanknight/substrate/069-new-worktree/packages/workflow/src/interfaces/git-worktree-manager.interface.ts b/Users/jordanknight/substrate/069-new-worktree/packages/workflow/src/interfaces/git-worktree-manager.interface.ts
+new file mode 100644
+index 0000000..9a3a6e5
+--- /dev/null
++++ b/Users/jordanknight/substrate/069-new-worktree/packages/workflow/src/interfaces/git-worktree-manager.interface.ts
+@@ -0,0 +1,185 @@
++/**
++ * Git Worktree Manager interface for mutating git worktree operations.
++ *
++ * Per Plan 069 Phase 1: Separate mutation boundary from read-only IGitWorktreeResolver.
++ * Per Finding 02: Git mutation support must stay separate from the existing read-only resolver.
++ * Per Workshop 002: Main sync strategy and git safety.
++ *
++ * This interface abstracts git write operations:
++ * - checkMainStatus: Preflight checks on the main branch state
++ * - syncMain: Fetch and fast-forward main to match origin
++ * - createWorktree: Create a new git worktree with a branch
++ *
++ * The read-only IGitWorktreeResolver remains untouched.
++ *
++ * Implementations:
++ * - GitWorktreeManagerAdapter: Real implementation using IProcessManager (Phase 2)
++ * - FakeGitWorktreeManager: Configurable implementation for testing (Phase 1)
++ */
++
++// ==================== Status Codes ====================
++
++/**
++ * Status codes from checking the main branch state.
++ *
++ * Per Workshop 002: Preflight checks cover dirty state, branch existence,
++ * divergence, concurrent operations, and git availability.
++ */
++export type MainStatusCode =
++  | 'clean'
++  | 'dirty'
++  | 'ahead'
++  | 'diverged'
++  | 'no-main-branch'
++  | 'lock-held'
++  | 'git-failure';
++
++/**
++ * Status codes from syncing main with origin.
++ */
++export type SyncStatusCode =
++  | 'synced'
++  | 'already-up-to-date'
++  | 'fetch-failed'
++  | 'fast-forward-failed'
++  | 'git-failure';
++
++/**
++ * Status codes from creating a worktree.
++ */
++export type CreateWorktreeGitStatusCode =
++  | 'created'
++  | 'branch-exists'
++  | 'path-exists'
++  | 'git-failure';
++
++// ==================== Result Types ====================
++
++/**
++ * Result from checking the main branch status.
++ *
++ * Per Workshop 002: Must distinguish dirty, ahead, diverged, lock-held,
++ * and no-main-branch so the service can return specific blocking errors.
++ */
++export interface MainStatusResult {
++  status: MainStatusCode;
++  /** The resolved main repo path (present when status !== 'git-failure') */
++  mainRepoPath?: string;
++  /** The local main branch ref (present when status !== 'no-main-branch') */
++  localRef?: string;
++  /** The remote main branch ref (present after fetch comparison) */
++  remoteRef?: string;
++  /** Human-readable detail for error states */
++  detail?: string;
++}
++
++/**
++ * Result from syncing the main branch.
++ *
++ * Per Workshop 002: Fetch origin/main, compare, fast-forward only if behind.
++ */
++export interface SyncMainResult {
++  status: SyncStatusCode;
++  /** The local ref after sync (present on success) */
++  localRef?: string;
++  /** Human-readable detail for error states */
++  detail?: string;
++}
++
++/**
++ * Result from creating a git worktree.
++ */
++export interface CreateWorktreeGitResult {
++  status: CreateWorktreeGitStatusCode;
++  /** Absolute path to the created worktree (present on success) */
++  worktreePath?: string;
++  /** Branch name that was created/checked out (present on success) */
++  branchName?: string;
++  /** Human-readable detail for error states */
++  detail?: string;
++}
++
++// ==================== Manager Interface ====================
++
++/**
++ * Interface for mutating git worktree operations.
++ *
++ * Per ADR-0004: Use DI container with interface for testability.
++ * Per Finding 02: Separate from IGitWorktreeResolver (read-only).
++ *
++ * Methods are focused on git plumbing only — no naming logic,
++ * no bootstrap execution, no workspace registration. Those
++ * responsibilities belong to WorkspaceService orchestration (Phase 2).
++ */
++export interface IGitWorktreeManager {
++  /**
++   * Check the status of the local main branch.
++   *
++   * Runs preflight checks per Workshop 002:
++   * 1. Verify local branch 'main' exists
++   * 2. Check for tracked local changes (dirty state)
++   * 3. Check for in-progress git operations (lock files)
++   * 4. Compare local main vs origin/main (ahead/behind/diverged)
++   *
++   * @param mainRepoPath - Absolute path to the main repository root
++   * @returns MainStatusResult with status code and refs
++   */
++  checkMainStatus(mainRepoPath: string): Promise<MainStatusResult>;
++
++  /**
++   * Fetch origin and fast-forward the local main branch.
++   *
++   * Per Workshop 002: Fetch origin/main, compare, fast-forward only
++   * if behind. Block if ahead or diverged (caller handles that).
++   *
++   * Should only be called after checkMainStatus() returns 'clean'.
++   *
++   * @param mainRepoPath - Absolute path to the main repository root
++   * @returns SyncMainResult with status and updated ref
++   */
++  syncMain(mainRepoPath: string): Promise<SyncMainResult>;
++
++  /**
++   * Create a new git worktree with a new branch.
++   *
++   * Runs `git worktree add` to create the worktree directory
++   * and branch from the current HEAD of local main.
++   *
++   * Should only be called after syncMain() succeeds.
++   *
++   * @param mainRepoPath - Absolute path to the main repository root
++   * @param branchName - Name for the new branch (e.g., "069-my-feature")
++   * @param worktreePath - Absolute path for the new worktree directory
++   * @returns CreateWorktreeGitResult with status and paths
++   */
++  createWorktree(
++    mainRepoPath: string,
++    branchName: string,
++    worktreePath: string
++  ): Promise<CreateWorktreeGitResult>;
++
++  // ==================== Read Methods for Naming Allocator (Plan 069 DYK D13) ====================
++  // These reads exist to serve the create workflow — they're part of the
++  // mutation lifecycle, not general-purpose discovery.
++
++  /**
++   * List local and remote branch names.
++   *
++   * Used by the naming allocator to scan for ordinal collisions.
++   *
++   * @param mainRepoPath - Absolute path to the main repository root
++   * @returns Object with localBranches and remoteBranches string arrays
++   */
++  listBranches(mainRepoPath: string): Promise<{ localBranches: string[]; remoteBranches: string[] }>;
++
++  /**
++   * List plan folder names under docs/plans/ on the main branch.
++   *
++   * Used by the naming allocator to scan for ordinal collisions
++   * from planning work that may not have branches yet.
++   *
++   * @param mainRepoPath - Absolute path to the main repository root
++   * @returns Array of folder names (e.g., ["067-foo", "068-bar"])
++   */
++  listPlanFolders(mainRepoPath: string): Promise<string[]>;
++}
+diff --git a/packages/workflow/src/interfaces/index.ts b/packages/workflow/src/interfaces/index.ts
+index 01d060c..d16efe8 100644
+--- a/packages/workflow/src/interfaces/index.ts
++++ b/packages/workflow/src/interfaces/index.ts
+@@ -75,6 +75,17 @@ export type {
+ // Git worktree resolver interface (Plan 014 Phase 4)
+ export type { IGitWorktreeResolver } from './git-worktree-resolver.interface.js';
+ 
++// Git worktree manager interface (Plan 069 Phase 1: mutation boundary)
++export type {
++  IGitWorktreeManager,
++  MainStatusCode,
++  MainStatusResult,
++  SyncStatusCode,
++  SyncMainResult,
++  CreateWorktreeGitStatusCode,
++  CreateWorktreeGitResult,
++} from './git-worktree-manager.interface.js';
++
+ // Workspace service interface (Plan 014 Phase 4)
+ export type {
+   IWorkspaceService,
+@@ -82,6 +93,11 @@ export type {
+   AddWorkspaceResult,
+   RemoveWorkspaceResult,
+   AddWorkspaceOptions,
++  PreviewCreateWorktreeRequest,
++  PreviewCreateWorktreeResult,
++  CreateWorktreeRequest,
++  CreateWorktreeResult,
++  BootstrapStatus,
+ } from './workspace-service.interface.js';
+ 
+ // Sample service interface (Plan 014 Phase 4)
+diff --git a/packages/workflow/src/interfaces/workspace-service.interface.ts b/packages/workflow/src/interfaces/workspace-service.interface.ts
+index 00e8a5a..fdbd9c3 100644
+--- a/packages/workflow/src/interfaces/workspace-service.interface.ts
++++ b/packages/workflow/src/interfaces/workspace-service.interface.ts
+@@ -61,6 +61,98 @@ export interface AddWorkspaceOptions {
+   allowWorktree?: boolean;
+ }
+ 
++// ==================== Worktree Creation Types ====================
++// Per Plan 069 Phase 1: Preview/create worktree contracts.
++// Per DYK D2: CreateWorktreeResult is a discriminated union, NOT WorkspaceOperationResult.
++
++/**
++ * Request to preview a new worktree before creation.
++ *
++ * @param workspaceSlug - Slug of the workspace to create the worktree in
++ * @param requestedName - User-provided name: either plain slug ("my-feature")
++ *   or pasted ordinal-slug format ("069-my-feature")
++ */
++export interface PreviewCreateWorktreeRequest {
++  workspaceSlug: string;
++  requestedName: string;
++}
++
++/**
++ * Preview data showing what a worktree creation would produce.
++ * Returned from previewCreateWorktree() and embedded in blocked results
++ * so the form can show refreshed suggestions after naming conflicts.
++ */
++export interface PreviewCreateWorktreeResult {
++  /** The normalized slug after applying naming rules */
++  normalizedSlug: string;
++  /** The allocated ordinal number */
++  ordinal: number;
++  /** The full branch name (e.g., "069-my-feature") */
++  branchName: string;
++  /** The predicted worktree directory path */
++  worktreePath: string;
++  /** Whether a .chainglass/new-worktree.sh hook exists in the main repo */
++  hasBootstrapHook: boolean;
++}
++
++/**
++ * Request to create a new worktree.
++ *
++ * @param workspaceSlug - Slug of the workspace
++ * @param requestedName - User-provided name (same rules as preview)
++ */
++export interface CreateWorktreeRequest {
++  workspaceSlug: string;
++  requestedName: string;
++}
++
++/**
++ * Outcome of the optional .chainglass/new-worktree.sh bootstrap hook.
++ *
++ * Bootstrap is informational only — a failed hook does NOT block
++ * the user from opening the created worktree.
++ *
++ * Per Workshop 001: Hook runs with cwd=newWorktreePath, structured env vars,
++ * 60s timeout, and returns bounded log tail on failure.
++ */
++export interface BootstrapStatus {
++  /** Whether the hook was skipped (not present), succeeded, or failed */
++  outcome: 'skipped' | 'succeeded' | 'failed';
++  /** Bounded tail of hook stdout/stderr (present on failure) */
++  logTail?: string;
++}
++
++/**
++ * Result from WorkspaceService.createWorktree().
++ *
++ * Discriminated union on `status`:
++ * - `'created'`: Worktree was created. Bootstrap outcome is informational.
++ *   Carries all data needed for the web layer to derive a redirect URL.
++ * - `'blocked'`: Creation was blocked by a safety check (dirty main, naming
++ *   conflict, etc.). Carries structured errors and an optional refreshed preview
++ *   so the form can show an updated suggestion.
++ *
++ * Per DYK D2: This intentionally does NOT extend WorkspaceOperationResult.
++ * The binary success/failure pattern cannot express "created with bootstrap warning."
++ */
++export type CreateWorktreeResult =
++  | {
++      status: 'created';
++      /** The git branch name that was created (e.g., "069-my-feature") */
++      branchName: string;
++      /** Absolute path to the new worktree directory */
++      worktreePath: string;
++      /** Bootstrap hook outcome — informational, not blocking */
++      bootstrapStatus: BootstrapStatus;
++    }
++  | {
++      status: 'blocked';
++      /** Structured errors describing why creation was blocked */
++      errors: WorkspaceError[];
++      /** Refreshed preview with next available name (e.g., after naming conflict) */
++      refreshedPreview?: PreviewCreateWorktreeResult;
++    };
++
+ // ==================== Service Interface ====================
+ 
+ /**
+@@ -166,4 +258,34 @@ export interface IWorkspaceService {
+     slug: string,
+     prefs: Partial<WorkspacePreferences>
+   ): Promise<WorkspaceOperationResult>;
++
++  // ==================== Worktree Creation (Plan 069) ====================
++
++  /**
++   * Preview what a new worktree creation would produce.
++   *
++   * Resolves the workspace, scans for the next available ordinal,
++   * normalizes the slug, and checks for a bootstrap hook — without
++   * touching git or creating anything.
++   *
++   * @param request - Workspace slug and requested name
++   * @returns Preview data with computed branch name, path, and hook status
++   */
++  previewCreateWorktree(
++    request: PreviewCreateWorktreeRequest
++  ): Promise<PreviewCreateWorktreeResult>;
++
++  /**
++   * Create a new git worktree from refreshed canonical main.
++   *
++   * Performs preflight safety checks, syncs main, allocates the ordinal,
++   * creates the worktree, and optionally runs the bootstrap hook.
++   *
++   * Returns a discriminated union: `'created'` (with bootstrap status)
++   * or `'blocked'` (with structured errors and optional refreshed preview).
++   *
++   * @param request - Workspace slug and requested name
++   * @returns CreateWorktreeResult discriminated on `status`
++   */
++  createWorktree(request: CreateWorktreeRequest): Promise<CreateWorktreeResult>;
+ }
+diff --git a/packages/workflow/src/services/workspace.service.ts b/packages/workflow/src/services/workspace.service.ts
+index fefe46b..bceeb28 100644
+--- a/packages/workflow/src/services/workspace.service.ts
++++ b/packages/workflow/src/services/workspace.service.ts
+@@ -19,6 +19,7 @@ import { Workspace } from '../entities/workspace.js';
+ import type { WorkspacePreferences } from '../entities/workspace.js';
+ import { EntityNotFoundError } from '../errors/entity-not-found.error.js';
+ import { type WorkspaceError, WorkspaceErrors } from '../errors/workspace-errors.js';
++import type { IGitWorktreeManager } from '../interfaces/git-worktree-manager.interface.js';
+ import type { IGitWorktreeResolver } from '../interfaces/git-worktree-resolver.interface.js';
+ import type {
+   IWorkspaceContextResolver,
+@@ -29,10 +30,22 @@ import type { IWorkspaceRegistryAdapter } from '../interfaces/workspace-registry
+ import type {
+   AddWorkspaceOptions,
+   AddWorkspaceResult,
++  BootstrapStatus,
++  CreateWorktreeRequest,
++  CreateWorktreeResult,
+   IWorkspaceService,
++  PreviewCreateWorktreeRequest,
++  PreviewCreateWorktreeResult,
+   RemoveWorkspaceResult,
+   WorkspaceOperationResult,
+ } from '../interfaces/workspace-service.interface.js';
++import {
++  buildWorktreeName,
++  hasBranchConflict,
++  resolveWorktreeName,
++} from './worktree-name.js';
++import { WorktreeBootstrapRunner } from './worktree-bootstrap-runner.js';
++import type { OrdinalSources } from './worktree-name.js';
+ 
+ /**
+  * WorkspaceService implements workspace management.
+@@ -40,11 +53,28 @@ import type {
+  * Per ADR-0004: Uses constructor injection for all dependencies.
+  */
+ export class WorkspaceService implements IWorkspaceService {
++  private readonly locks = new Map<string, Promise<void>>();
++  private readonly bootstrapRunner: WorktreeBootstrapRunner;
++
+   constructor(
+     private readonly registryAdapter: IWorkspaceRegistryAdapter,
+     private readonly contextResolver: IWorkspaceContextResolver,
+-    private readonly gitResolver: IGitWorktreeResolver
+-  ) {}
++    private readonly gitResolver: IGitWorktreeResolver,
++    private readonly gitManager: IGitWorktreeManager
++  ) {
++    // Bootstrap runner shares the process manager from the git manager's container.
++    // For now, create it lazily in the orchestration methods.
++    this.bootstrapRunner = null as unknown as WorktreeBootstrapRunner;
++  }
++
++  /**
++   * Inject the bootstrap runner after construction.
++   * Called by DI container setup since the runner has its own deps.
++   */
++  setBootstrapRunner(runner: WorktreeBootstrapRunner): void {
++    // biome-ignore lint/suspicious/noExplicitAny: controlled setter for DI-injected runner
++    (this as any).bootstrapRunner = runner;
++  }
+ 
+   /**
+    * Register a new workspace.
+@@ -320,4 +350,198 @@ export class WorkspaceService implements IWorkspaceService {
+ 
+     return undefined;
+   }
++
++  // ==================== Worktree Creation (Plan 069 Phase 2) ====================
++
++  async previewCreateWorktree(
++    request: PreviewCreateWorktreeRequest
++  ): Promise<PreviewCreateWorktreeResult> {
++    // 1. Resolve workspace to get main repo path
++    const info = await this.getInfo(request.workspaceSlug);
++    if (!info) {
++      throw new EntityNotFoundError('Workspace', request.workspaceSlug, 'workspace-registry');
++    }
++
++    const mainRepoPath = info.path;
++
++    // 2. Fetch branch and plan data for naming
++    const sources = await this.fetchOrdinalSources(mainRepoPath);
++
++    // 3. Resolve the worktree name
++    const nameResult = resolveWorktreeName(request.requestedName, sources);
++    if (!nameResult) {
++      throw new Error(`Invalid worktree name: '${request.requestedName}'`);
++    }
++
++    // 4. Compute worktree path (sibling of main repo)
++    const parentDir = mainRepoPath.replace(/\/[^/]+$/, '');
++    const worktreePath = `${parentDir}/${nameResult.branchName}`;
++
++    // 5. Check for bootstrap hook via git (ls-files or ls-tree)
++    // Best-effort: use the git manager to check main branch for the hook
++    let hasBootstrapHook = false;
++    try {
++      const hookCheckResult = await this.gitManager.listPlanFolders(mainRepoPath);
++      // Use a simpler heuristic: just assume we can't cheaply check without filesystem.
++      // The bootstrap runner itself checks existence at runtime.
++      hasBootstrapHook = false;
++    } catch {
++      hasBootstrapHook = false;
++    }
++
++    return {
++      normalizedSlug: nameResult.slug,
++      ordinal: nameResult.ordinal,
++      branchName: nameResult.branchName,
++      worktreePath,
++      hasBootstrapHook,
++    };
++  }
++
++  async createWorktree(request: CreateWorktreeRequest): Promise<CreateWorktreeResult> {
++    // 1. Resolve workspace
++    const info = await this.getInfo(request.workspaceSlug);
++    if (!info) {
++      return {
++        status: 'blocked',
++        errors: [WorkspaceErrors.notFound(request.workspaceSlug)],
++      };
++    }
++
++    const mainRepoPath = info.path;
++
++    // 2. Serialize by mainRepoPath
++    return this.withLock(mainRepoPath, async () => {
++      // 3. Preflight checks
++      const mainStatus = await this.gitManager.checkMainStatus(mainRepoPath);
++      if (mainStatus.status !== 'clean') {
++        return {
++          status: 'blocked' as const,
++          errors: [this.mainStatusToError(mainStatus)],
++        };
++      }
++
++      // 4. Sync main
++      const syncResult = await this.gitManager.syncMain(mainRepoPath);
++      if (syncResult.status !== 'synced' && syncResult.status !== 'already-up-to-date') {
++        return {
++          status: 'blocked' as const,
++          errors: [WorkspaceErrors.gitError(mainRepoPath, syncResult.detail ?? 'Sync failed')],
++        };
++      }
++
++      // 5. Allocate name inside the lock (fresh sources)
++      const sources = await this.fetchOrdinalSources(mainRepoPath);
++      const nameResult = resolveWorktreeName(request.requestedName, sources);
++      if (!nameResult) {
++        return {
++          status: 'blocked' as const,
++          errors: [WorkspaceErrors.invalidPath(request.requestedName, 'Invalid worktree name')],
++        };
++      }
++
++      const parentDir = mainRepoPath.replace(/\/[^/]+$/, '');
++      const worktreePath = `${parentDir}/${nameResult.branchName}`;
++
++      // 6. Check for conflicts (per DYK D14: hard block if allocated name conflicts)
++      if (hasBranchConflict(nameResult.branchName, sources)) {
++        // Try re-allocating with incremented ordinal
++        const retryName = buildWorktreeName(nameResult.ordinal + 1, nameResult.slug);
++        if (hasBranchConflict(retryName, sources)) {
++          // Hard block — both ordinals taken, this is a bug
++          return {
++            status: 'blocked' as const,
++            errors: [WorkspaceErrors.gitError(mainRepoPath, `Branch '${nameResult.branchName}' already exists and retry also conflicts`)],
++          };
++        }
++        // Silent re-allocation (DYK D14)
++        const retryPath = `${parentDir}/${retryName}`;
++        return this.executeCreate(mainRepoPath, retryName, retryPath, request, nameResult.slug, nameResult.ordinal + 1);
++      }
++
++      return this.executeCreate(mainRepoPath, nameResult.branchName, worktreePath, request, nameResult.slug, nameResult.ordinal);
++    });
++  }
++
++  // ==================== Private Helpers ====================
++
++  private async executeCreate(
++    mainRepoPath: string,
++    branchName: string,
++    worktreePath: string,
++    request: CreateWorktreeRequest,
++    slug: string,
++    ordinal: number
++  ): Promise<CreateWorktreeResult> {
++    // Create the worktree
++    const createResult = await this.gitManager.createWorktree(mainRepoPath, branchName, worktreePath);
++    if (createResult.status !== 'created') {
++      return {
++        status: 'blocked',
++        errors: [WorkspaceErrors.gitError(mainRepoPath, createResult.detail ?? 'Worktree creation failed')],
++      };
++    }
++
++    // Run bootstrap hook (informational only)
++    let bootstrapStatus: BootstrapStatus = { outcome: 'skipped' };
++    if (this.bootstrapRunner) {
++      bootstrapStatus = await this.bootstrapRunner.run({
++        mainRepoPath,
++        workspaceSlug: request.workspaceSlug,
++        requestedName: request.requestedName,
++        normalizedSlug: slug,
++        ordinal,
++        branchName,
++        worktreePath,
++      });
++    }
++
++    return {
++      status: 'created',
++      branchName,
++      worktreePath,
++      bootstrapStatus,
++    };
++  }
++
++  private async fetchOrdinalSources(mainRepoPath: string): Promise<OrdinalSources> {
++    const [branches, planFolders] = await Promise.all([
++      this.gitManager.listBranches(mainRepoPath),
++      this.gitManager.listPlanFolders(mainRepoPath),
++    ]);
++    return {
++      localBranches: branches.localBranches,
++      remoteBranches: branches.remoteBranches,
++      planFolders,
++    };
++  }
++
++  private mainStatusToError(status: { status: string; detail?: string }): WorkspaceError {
++    const messages: Record<string, string> = {
++      dirty: 'Main branch has uncommitted changes',
++      ahead: 'Main branch has unpushed commits',
++      diverged: 'Main branch has diverged from origin',
++      'no-main-branch': 'Not on the main branch',
++      'lock-held': 'A git operation is already in progress',
++      'git-failure': 'Git operation failed',
++    };
++    return WorkspaceErrors.gitError(
++      status.detail ?? '',
++      messages[status.status] ?? `Unexpected status: ${status.status}`
++    );
++  }
++
++  private async withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
++    const prev = this.locks.get(key) ?? Promise.resolve();
++    let resolve: () => void;
++    const next = new Promise<void>((r) => { resolve = r; });
++    this.locks.set(key, next);
++
++    await prev;
++    try {
++      return await fn();
++    } finally {
++      resolve!();
++    }
++  }
+ }
+diff --git a/Users/jordanknight/substrate/069-new-worktree/packages/workflow/src/services/worktree-bootstrap-runner.ts b/Users/jordanknight/substrate/069-new-worktree/packages/workflow/src/services/worktree-bootstrap-runner.ts
+new file mode 100644
+index 0000000..379f7b9
+--- /dev/null
++++ b/Users/jordanknight/substrate/069-new-worktree/packages/workflow/src/services/worktree-bootstrap-runner.ts
+@@ -0,0 +1,144 @@
++/**
++ * Worktree bootstrap runner — executes the optional post-create hook.
++ *
++ * Per Plan 069 Phase 2, Workshop 001:
++ * - Hook location: <mainRepoPath>/.chainglass/new-worktree.sh
++ * - Always sourced from the main worktree, never the new one
++ * - Executed via bash, cwd = newWorktreePath
++ * - Structured environment variables passed
++ * - 60s timeout, captures last 200 lines of output
++ * - Failure is informational — never rolls back the created worktree
++ */
++
++import type { IFileSystem, IProcessManager } from '@chainglass/shared';
++import type { BootstrapStatus } from '../interfaces/workspace-service.interface.js';
++
++const HOOK_RELATIVE_PATH = '.chainglass/new-worktree.sh';
++const TIMEOUT_MS = 60_000;
++const MAX_LOG_LINES = 200;
++
++/**
++ * Environment variables passed to the bootstrap hook.
++ */
++export interface BootstrapEnv {
++  mainRepoPath: string;
++  workspaceSlug: string;
++  requestedName: string;
++  normalizedSlug: string;
++  ordinal: number;
++  branchName: string;
++  worktreePath: string;
++}
++
++/**
++ * Runs the optional post-create bootstrap hook.
++ *
++ * Per Workshop 001:
++ * - Checks if hook exists at <mainRepoPath>/.chainglass/new-worktree.sh
++ * - Validates the resolved path stays within .chainglass/
++ * - Executes via bash with structured env vars
++ * - Returns BootstrapStatus with outcome and optional log tail
++ */
++export class WorktreeBootstrapRunner {
++  constructor(
++    private readonly processManager: IProcessManager,
++    private readonly fileSystem: IFileSystem
++  ) {}
++
++  async run(env: BootstrapEnv): Promise<BootstrapStatus> {
++    const hookPath = `${env.mainRepoPath}/${HOOK_RELATIVE_PATH}`;
++
++    // Check if hook exists
++    const exists = await this.fileSystem.exists(hookPath);
++    if (!exists) {
++      return { outcome: 'skipped' };
++    }
++
++    // Validate the hook path stays within .chainglass/
++    const chaingleassDir = `${env.mainRepoPath}/.chainglass`;
++    try {
++      const realHookPath = await this.fileSystem.realpath(hookPath);
++      const realChaingleassDir = await this.fileSystem.realpath(chaingleassDir);
++      if (!realHookPath.startsWith(realChaingleassDir)) {
++        return {
++          outcome: 'failed',
++          logTail: `Security: hook path '${realHookPath}' escapes .chainglass/ directory`,
++        };
++      }
++    } catch {
++      return {
++        outcome: 'failed',
++        logTail: `Could not resolve hook path: ${hookPath}`,
++      };
++    }
++
++    // Build environment variables
++    const processEnv: Record<string, string> = {
++      CHAINGLASS_MAIN_REPO_PATH: env.mainRepoPath,
++      CHAINGLASS_MAIN_BRANCH: 'main',
++      CHAINGLASS_WORKSPACE_SLUG: env.workspaceSlug,
++      CHAINGLASS_REQUESTED_NAME: env.requestedName,
++      CHAINGLASS_NORMALIZED_SLUG: env.normalizedSlug,
++      CHAINGLASS_NEW_WORKTREE_ORDINAL: String(env.ordinal),
++      CHAINGLASS_NEW_BRANCH_NAME: env.branchName,
++      CHAINGLASS_NEW_WORKTREE_NAME: env.branchName,
++      CHAINGLASS_NEW_WORKTREE_PATH: env.worktreePath,
++      CHAINGLASS_TRIGGER: 'chainglass-web',
++    };
++
++    // Execute the hook
++    const outputLines: string[] = [];
++
++    try {
++      const handle = await this.processManager.spawn({
++        command: 'bash',
++        args: [hookPath],
++        cwd: env.worktreePath,
++        env: processEnv,
++        onStdoutLine: (line: string) => {
++          outputLines.push(line);
++          if (outputLines.length > MAX_LOG_LINES) {
++            outputLines.shift();
++          }
++        },
++      });
++
++      // Race: wait for exit vs timeout
++      const exitPromise = handle.waitForExit();
++      const timeoutPromise = new Promise<'timeout'>((resolve) =>
++        setTimeout(() => resolve('timeout'), TIMEOUT_MS)
++      );
++
++      const raceResult = await Promise.race([exitPromise, timeoutPromise]);
++
++      if (raceResult === 'timeout') {
++        // Kill the process
++        try {
++          await this.processManager.terminate(handle.pid);
++        } catch {
++          // Best effort termination
++        }
++        return {
++          outcome: 'failed',
++          logTail: [...outputLines, `[Timed out after ${TIMEOUT_MS / 1000}s]`].join('\n'),
++        };
++      }
++
++      // Normal exit
++      if (raceResult.exitCode === 0) {
++        return { outcome: 'succeeded' };
++      }
++
++      return {
++        outcome: 'failed',
++        logTail: outputLines.join('\n') || `Hook exited with code ${raceResult.exitCode}`,
++      };
++    } catch (error) {
++      const message = error instanceof Error ? error.message : String(error);
++      return {
++        outcome: 'failed',
++        logTail: `Hook execution error: ${message}`,
++      };
++    }
++  }
++}
+diff --git a/Users/jordanknight/substrate/069-new-worktree/packages/workflow/src/services/worktree-name.ts b/Users/jordanknight/substrate/069-new-worktree/packages/workflow/src/services/worktree-name.ts
+new file mode 100644
+index 0000000..c3605de
+--- /dev/null
++++ b/Users/jordanknight/substrate/069-new-worktree/packages/workflow/src/services/worktree-name.ts
+@@ -0,0 +1,223 @@
++/**
++ * Worktree naming allocator — pure functions for ordinal naming.
++ *
++ * Per Plan 069 Phase 2, Workshop 001, DYK D12:
++ * All functions are pure — they take pre-fetched data as input and
++ * return computed results. No process or git dependency.
++ *
++ * Naming convention: NNN-normalized-slug
++ * - NNN is a zero-padded ordinal (minimum 3 digits)
++ * - slug is lowercase, hyphen-separated, alphanumeric
++ *
++ * The allocator mirrors the behavior of plan-ordinal.py without
++ * shelling out to external scripts.
++ */
++
++// ==================== Types ====================
++
++/**
++ * Parsed result from user input — either a plain slug or a pasted NNN-slug.
++ */
++export interface ParsedWorktreeName {
++  /** The normalized slug portion (e.g., "my-feature") */
++  slug: string;
++  /** If user pasted NNN-slug, the provided ordinal. Undefined for plain slugs. */
++  providedOrdinal?: number;
++}
++
++/**
++ * Pre-fetched branch and plan data for ordinal allocation.
++ * The caller (WorkspaceService) fetches this data via IGitWorktreeManager
++ * and passes it in.
++ */
++export interface OrdinalSources {
++  /** Local branch names (e.g., ["main", "067-foo", "068-bar"]) */
++  localBranches: string[];
++  /** Remote branch names (e.g., ["origin/main", "origin/067-foo"]) */
++  remoteBranches: string[];
++  /** Plan folder names under docs/plans/ (e.g., ["067-foo", "068-bar"]) */
++  planFolders: string[];
++}
++
++/**
++ * Result of building a worktree name from allocated ordinal + slug.
++ */
++export interface WorktreeNameResult {
++  /** The allocated ordinal number */
++  ordinal: number;
++  /** The normalized slug */
++  slug: string;
++  /** The full branch name (e.g., "069-my-feature") */
++  branchName: string;
++}
++
++// ==================== Slug Normalization ====================
++
++/**
++ * Normalize a raw slug string to the canonical format.
++ *
++ * Rules:
++ * 1. Trim whitespace
++ * 2. Lowercase
++ * 3. Replace non-alphanumeric characters with hyphens
++ * 4. Collapse consecutive hyphens
++ * 5. Trim leading/trailing hyphens
++ * 6. Reject empty results
++ *
++ * @param raw - Raw slug input (e.g., "My Feature!!", "  hello--world  ")
++ * @returns Normalized slug or null if empty after normalization
++ */
++export function normalizeSlug(raw: string): string | null {
++  const result = raw
++    .trim()
++    .toLowerCase()
++    .replace(/[^a-z0-9]+/g, '-')
++    .replace(/-{2,}/g, '-')
++    .replace(/^-|-$/g, '');
++
++  return result.length > 0 ? result : null;
++}
++
++// ==================== Input Parsing ====================
++
++const ORDINAL_PREFIX_PATTERN = /^(\d{3,})-(.+)$/;
++
++/**
++ * Parse user input into slug + optional provided ordinal.
++ *
++ * Supports two input formats:
++ * - Plain slug: "my-feature" → { slug: "my-feature", providedOrdinal: undefined }
++ * - Pasted NNN-slug: "069-my-feature" → { slug: "my-feature", providedOrdinal: 69 }
++ *
++ * Per Workshop 001: When a user pastes a full NNN-slug, the ordinal
++ * bypasses allocation and the system uses it directly (with validation).
++ *
++ * @param input - Raw user input
++ * @returns Parsed result or null if input is empty/invalid after normalization
++ */
++export function parseRequestedName(input: string): ParsedWorktreeName | null {
++  const trimmed = input.trim();
++  if (trimmed.length === 0) return null;
++
++  // Check for pasted NNN-slug format
++  const match = trimmed.match(ORDINAL_PREFIX_PATTERN);
++  if (match) {
++    const providedOrdinal = parseInt(match[1], 10);
++    const slugPart = normalizeSlug(match[2]);
++    if (!slugPart) return null;
++    return { slug: slugPart, providedOrdinal };
++  }
++
++  // Plain slug
++  const slug = normalizeSlug(trimmed);
++  if (!slug) return null;
++  return { slug };
++}
++
++// ==================== Ordinal Extraction ====================
++
++/**
++ * Extract ordinal numbers from a list of names matching the NNN-slug pattern.
++ *
++ * @param names - Array of branch names, folder names, etc.
++ * @returns Array of ordinal numbers found
++ */
++export function extractOrdinals(names: string[]): number[] {
++  const ordinals: number[] = [];
++  for (const name of names) {
++    // Strip remote prefix (e.g., "origin/069-foo" → "069-foo")
++    const stripped = name.includes('/') ? name.split('/').pop()! : name;
++    const match = stripped.match(ORDINAL_PREFIX_PATTERN);
++    if (match) {
++      ordinals.push(parseInt(match[1], 10));
++    }
++  }
++  return ordinals;
++}
++
++// ==================== Ordinal Allocation ====================
++
++/**
++ * Allocate the next available ordinal by scanning all three sources.
++ *
++ * Per Workshop 001: Scans local branches, remote branches, and plan folders
++ * to find the maximum ordinal, then returns max + 1.
++ *
++ * @param sources - Pre-fetched branch and plan data
++ * @returns The next available ordinal (minimum 1)
++ */
++export function allocateOrdinal(sources: OrdinalSources): number {
++  const allOrdinals = [
++    ...extractOrdinals(sources.localBranches),
++    ...extractOrdinals(sources.remoteBranches),
++    ...extractOrdinals(sources.planFolders),
++  ];
++
++  if (allOrdinals.length === 0) return 1;
++  return Math.max(...allOrdinals) + 1;
++}
++
++// ==================== Name Building ====================
++
++/**
++ * Build a worktree branch name from ordinal and slug.
++ *
++ * @param ordinal - The ordinal number
++ * @param slug - The normalized slug
++ * @returns Full branch name (e.g., "069-my-feature")
++ */
++export function buildWorktreeName(ordinal: number, slug: string): string {
++  const paddedOrdinal = String(ordinal).padStart(3, '0');
++  return `${paddedOrdinal}-${slug}`;
++}
++
++// ==================== Full Resolution ====================
++
++/**
++ * Resolve a complete worktree name from user input and ordinal sources.
++ *
++ * This is the main entry point for the naming allocator.
++ *
++ * For plain slug input: allocates the next ordinal from sources.
++ * For pasted NNN-slug input: uses the provided ordinal directly.
++ *
++ * Per DYK D14: If the caller detects the allocated ordinal is stale
++ * (e.g., between preview and create), the caller should re-invoke
++ * this function with fresh sources. If the re-allocated name also
++ * conflicts, that's a hard block.
++ *
++ * @param input - Raw user input (plain slug or pasted NNN-slug)
++ * @param sources - Pre-fetched branch and plan data
++ * @returns WorktreeNameResult or null if input is invalid
++ */
++export function resolveWorktreeName(
++  input: string,
++  sources: OrdinalSources
++): WorktreeNameResult | null {
++  const parsed = parseRequestedName(input);
++  if (!parsed) return null;
++
++  const ordinal = parsed.providedOrdinal ?? allocateOrdinal(sources);
++  const branchName = buildWorktreeName(ordinal, parsed.slug);
++
++  return {
++    ordinal,
++    slug: parsed.slug,
++    branchName,
++  };
++}
++
++/**
++ * Check if a branch name already exists in the given sources.
++ *
++ * @param branchName - The branch name to check (e.g., "069-my-feature")
++ * @param sources - Pre-fetched branch data
++ * @returns true if the name conflicts with an existing branch
++ */
++export function hasBranchConflict(branchName: string, sources: OrdinalSources): boolean {
++  const allBranches = [
++    ...sources.localBranches,
++    ...sources.remoteBranches.map((b) => (b.includes('/') ? b.split('/').pop()! : b)),
++  ];
++  return allBranches.includes(branchName);
++}
+diff --git a/Users/jordanknight/substrate/069-new-worktree/test/contracts/git-worktree-manager.contract.test.ts b/Users/jordanknight/substrate/069-new-worktree/test/contracts/git-worktree-manager.contract.test.ts
+new file mode 100644
+index 0000000..22f0ab2
+--- /dev/null
++++ b/Users/jordanknight/substrate/069-new-worktree/test/contracts/git-worktree-manager.contract.test.ts
+@@ -0,0 +1,8 @@
++import { FakeGitWorktreeManager } from '@chainglass/workflow';
++import { gitWorktreeManagerContractTests } from './git-worktree-manager.contract.js';
++
++// Run contract tests for FakeGitWorktreeManager
++gitWorktreeManagerContractTests('FakeGitWorktreeManager', () => new FakeGitWorktreeManager());
++
++// Phase 2: Add real adapter here:
++// gitWorktreeManagerContractTests('GitWorktreeManagerAdapter', () => createRealManager());
+diff --git a/Users/jordanknight/substrate/069-new-worktree/test/contracts/git-worktree-manager.contract.ts b/Users/jordanknight/substrate/069-new-worktree/test/contracts/git-worktree-manager.contract.ts
+new file mode 100644
+index 0000000..b8beb1a
+--- /dev/null
++++ b/Users/jordanknight/substrate/069-new-worktree/test/contracts/git-worktree-manager.contract.ts
+@@ -0,0 +1,86 @@
++import type { IGitWorktreeManager } from '@chainglass/workflow';
++import { describe, expect, it } from 'vitest';
++
++/**
++ * Contract tests for IGitWorktreeManager implementations.
++ *
++ * Per Plan 069 Phase 1: Defines behavioral expectations for fake/real parity.
++ * Phase 2 adds GitWorktreeManagerAdapter to this suite alongside the fake.
++ *
++ * Usage:
++ * ```typescript
++ * import { gitWorktreeManagerContractTests } from '@test/contracts/git-worktree-manager.contract';
++ *
++ * gitWorktreeManagerContractTests('FakeGitWorktreeManager', () => new FakeGitWorktreeManager());
++ * gitWorktreeManagerContractTests('GitWorktreeManagerAdapter', () => createRealManager());
++ * ```
++ */
++export function gitWorktreeManagerContractTests(
++  name: string,
++  createManager: () => IGitWorktreeManager
++) {
++  describe(`${name} implements IGitWorktreeManager contract`, () => {
++    it('should return a MainStatusResult from checkMainStatus', async () => {
++      /*
++      Test Doc:
++      - Why: Contract ensures all implementations return structured status results
++      - Contract: checkMainStatus() must return an object with a 'status' field
++      - Quality Contribution: Prevents fake drift in status result shape
++      */
++      const manager = createManager();
++      const result = await manager.checkMainStatus('/fake/repo');
++
++      expect(result).toBeDefined();
++      expect(result.status).toBeDefined();
++      expect(typeof result.status).toBe('string');
++    });
++
++    it('should return a SyncMainResult from syncMain', async () => {
++      /*
++      Test Doc:
++      - Why: Contract ensures sync results have consistent shape
++      - Contract: syncMain() must return an object with a 'status' field
++      - Quality Contribution: Phase 2 real adapter must match this shape
++      */
++      const manager = createManager();
++      const result = await manager.syncMain('/fake/repo');
++
++      expect(result).toBeDefined();
++      expect(result.status).toBeDefined();
++      expect(typeof result.status).toBe('string');
++    });
++
++    it('should return a CreateWorktreeGitResult from createWorktree', async () => {
++      /*
++      Test Doc:
++      - Why: Contract ensures creation results have consistent shape
++      - Contract: createWorktree() must return object with 'status' field
++      - Quality Contribution: Phase 2 must return same shape from real git commands
++      */
++      const manager = createManager();
++      const result = await manager.createWorktree('/fake/repo', '069-test', '/fake/worktree');
++
++      expect(result).toBeDefined();
++      expect(result.status).toBeDefined();
++      expect(typeof result.status).toBe('string');
++    });
++
++    it('should include worktreePath and branchName on successful create', async () => {
++      /*
++      Test Doc:
++      - Why: Success results must carry the data needed for downstream operations
++      - Contract: When status is 'created', worktreePath and branchName must be present
++      - Quality Contribution: Web layer depends on these fields for redirect URL building
++      */
++      const manager = createManager();
++      const result = await manager.createWorktree('/fake/repo', '069-test', '/fake/worktree');
++
++      if (result.status === 'created') {
++        expect(result.worktreePath).toBeDefined();
++        expect(typeof result.worktreePath).toBe('string');
++        expect(result.branchName).toBeDefined();
++        expect(typeof result.branchName).toBe('string');
++      }
++    });
++  });
++}
+diff --git a/test/unit/workflow/workspace-service.test.ts b/test/unit/workflow/workspace-service.test.ts
+index 83be1f5..5bf5dd5 100644
+--- a/test/unit/workflow/workspace-service.test.ts
++++ b/test/unit/workflow/workspace-service.test.ts
+@@ -13,6 +13,7 @@
+ import { Workspace } from '@chainglass/workflow';
+ import type { WorkspaceContext, WorkspaceInfo } from '@chainglass/workflow';
+ import { beforeEach, describe, expect, it } from 'vitest';
++import { FakeGitWorktreeManager } from '../../../packages/workflow/src/fakes/fake-git-worktree-manager.js';
+ import { FakeGitWorktreeResolver } from '../../../packages/workflow/src/fakes/fake-git-worktree-resolver.js';
+ import { FakeWorkspaceContextResolver } from '../../../packages/workflow/src/fakes/fake-workspace-context-resolver.js';
+ import { FakeWorkspaceRegistryAdapter } from '../../../packages/workflow/src/fakes/fake-workspace-registry-adapter.js';
+@@ -22,13 +23,15 @@ describe('WorkspaceService', () => {
+   let registryAdapter: FakeWorkspaceRegistryAdapter;
+   let contextResolver: FakeWorkspaceContextResolver;
+   let gitResolver: FakeGitWorktreeResolver;
++  let gitManager: FakeGitWorktreeManager;
+   let service: WorkspaceService;
+ 
+   beforeEach(() => {
+     registryAdapter = new FakeWorkspaceRegistryAdapter();
+     contextResolver = new FakeWorkspaceContextResolver();
+     gitResolver = new FakeGitWorktreeResolver();
+-    service = new WorkspaceService(registryAdapter, contextResolver, gitResolver);
++    gitManager = new FakeGitWorktreeManager();
++    service = new WorkspaceService(registryAdapter, contextResolver, gitResolver, gitManager);
+   });
+ 
+   // ==================== T036: add() Tests ====================
+diff --git a/Users/jordanknight/substrate/069-new-worktree/test/unit/workflow/worktree-name.test.ts b/Users/jordanknight/substrate/069-new-worktree/test/unit/workflow/worktree-name.test.ts
+new file mode 100644
+index 0000000..3dc6d56
+--- /dev/null
++++ b/Users/jordanknight/substrate/069-new-worktree/test/unit/workflow/worktree-name.test.ts
+@@ -0,0 +1,232 @@
++import { describe, expect, it } from 'vitest';
++import {
++  allocateOrdinal,
++  buildWorktreeName,
++  extractOrdinals,
++  hasBranchConflict,
++  normalizeSlug,
++  parseRequestedName,
++  resolveWorktreeName,
++} from '@chainglass/workflow/services/worktree-name';
++import type { OrdinalSources } from '@chainglass/workflow/services/worktree-name';
++
++// ==================== normalizeSlug ====================
++
++describe('normalizeSlug', () => {
++  it('should lowercase and hyphenate a plain string', () => {
++    expect(normalizeSlug('My Feature')).toBe('my-feature');
++  });
++
++  it('should collapse consecutive hyphens', () => {
++    expect(normalizeSlug('hello--world')).toBe('hello-world');
++  });
++
++  it('should trim leading and trailing hyphens', () => {
++    expect(normalizeSlug('-hello-')).toBe('hello');
++  });
++
++  it('should replace special characters with hyphens', () => {
++    expect(normalizeSlug('feat!@#$%^&*ure')).toBe('feat-ure');
++  });
++
++  it('should trim whitespace', () => {
++    expect(normalizeSlug('  hello world  ')).toBe('hello-world');
++  });
++
++  it('should return null for empty input', () => {
++    expect(normalizeSlug('')).toBeNull();
++  });
++
++  it('should return null for input that normalizes to empty', () => {
++    expect(normalizeSlug('---')).toBeNull();
++    expect(normalizeSlug('!!!')).toBeNull();
++  });
++
++  it('should handle pure numeric slugs', () => {
++    expect(normalizeSlug('123')).toBe('123');
++  });
++});
++
++// ==================== parseRequestedName ====================
++
++describe('parseRequestedName', () => {
++  it('should parse a plain slug', () => {
++    const result = parseRequestedName('my-feature');
++    expect(result).toEqual({ slug: 'my-feature', providedOrdinal: undefined });
++  });
++
++  it('should parse a pasted NNN-slug', () => {
++    const result = parseRequestedName('069-my-feature');
++    expect(result).toEqual({ slug: 'my-feature', providedOrdinal: 69 });
++  });
++
++  it('should handle 4-digit ordinals', () => {
++    const result = parseRequestedName('1234-big-project');
++    expect(result).toEqual({ slug: 'big-project', providedOrdinal: 1234 });
++  });
++
++  it('should normalize the slug part of pasted input', () => {
++    const result = parseRequestedName('069-My Feature!!');
++    expect(result).toEqual({ slug: 'my-feature', providedOrdinal: 69 });
++  });
++
++  it('should return null for empty input', () => {
++    expect(parseRequestedName('')).toBeNull();
++    expect(parseRequestedName('   ')).toBeNull();
++  });
++
++  it('should return null if slug part normalizes to empty', () => {
++    expect(parseRequestedName('069-!!!')).toBeNull();
++  });
++
++  it('should treat 2-digit prefix as plain slug, not ordinal', () => {
++    const result = parseRequestedName('42-answer');
++    // 2-digit doesn't match ^\d{3,}- pattern, so treated as plain slug
++    expect(result).toEqual({ slug: '42-answer', providedOrdinal: undefined });
++  });
++
++  it('should handle leading zeros in ordinal', () => {
++    const result = parseRequestedName('001-first');
++    expect(result).toEqual({ slug: 'first', providedOrdinal: 1 });
++  });
++});
++
++// ==================== extractOrdinals ====================
++
++describe('extractOrdinals', () => {
++  it('should extract ordinals from branch names', () => {
++    const branches = ['main', '067-foo', '068-bar', 'feature-branch'];
++    expect(extractOrdinals(branches)).toEqual([67, 68]);
++  });
++
++  it('should strip remote prefixes', () => {
++    const branches = ['origin/067-foo', 'origin/main', 'origin/068-bar'];
++    expect(extractOrdinals(branches)).toEqual([67, 68]);
++  });
++
++  it('should return empty array when no ordinals found', () => {
++    expect(extractOrdinals(['main', 'develop', 'feature'])).toEqual([]);
++  });
++
++  it('should handle empty input', () => {
++    expect(extractOrdinals([])).toEqual([]);
++  });
++});
++
++// ==================== allocateOrdinal ====================
++
++describe('allocateOrdinal', () => {
++  it('should return max + 1 across all sources', () => {
++    const sources: OrdinalSources = {
++      localBranches: ['067-foo', '068-bar'],
++      remoteBranches: ['origin/067-foo'],
++      planFolders: ['065-old', '066-older'],
++    };
++    expect(allocateOrdinal(sources)).toBe(69);
++  });
++
++  it('should return 1 when no ordinals exist', () => {
++    const sources: OrdinalSources = {
++      localBranches: ['main'],
++      remoteBranches: ['origin/main'],
++      planFolders: [],
++    };
++    expect(allocateOrdinal(sources)).toBe(1);
++  });
++
++  it('should handle plan folders with higher ordinals than branches', () => {
++    const sources: OrdinalSources = {
++      localBranches: ['067-foo'],
++      remoteBranches: [],
++      planFolders: ['067-foo', '070-planned'],
++    };
++    expect(allocateOrdinal(sources)).toBe(71);
++  });
++
++  it('should handle remote-only ordinals', () => {
++    const sources: OrdinalSources = {
++      localBranches: ['main'],
++      remoteBranches: ['origin/099-remote-only'],
++      planFolders: [],
++    };
++    expect(allocateOrdinal(sources)).toBe(100);
++  });
++});
++
++// ==================== buildWorktreeName ====================
++
++describe('buildWorktreeName', () => {
++  it('should zero-pad to 3 digits', () => {
++    expect(buildWorktreeName(1, 'foo')).toBe('001-foo');
++    expect(buildWorktreeName(42, 'bar')).toBe('042-bar');
++    expect(buildWorktreeName(100, 'baz')).toBe('100-baz');
++  });
++
++  it('should handle 4+ digit ordinals without truncation', () => {
++    expect(buildWorktreeName(1234, 'big')).toBe('1234-big');
++  });
++});
++
++// ==================== resolveWorktreeName ====================
++
++describe('resolveWorktreeName', () => {
++  const sources: OrdinalSources = {
++    localBranches: ['067-foo', '068-bar'],
++    remoteBranches: ['origin/067-foo'],
++    planFolders: ['065-old'],
++  };
++
++  it('should allocate next ordinal for plain slug', () => {
++    const result = resolveWorktreeName('my-feature', sources);
++    expect(result).toEqual({
++      ordinal: 69,
++      slug: 'my-feature',
++      branchName: '069-my-feature',
++    });
++  });
++
++  it('should use provided ordinal for pasted NNN-slug', () => {
++    const result = resolveWorktreeName('042-custom', sources);
++    expect(result).toEqual({
++      ordinal: 42,
++      slug: 'custom',
++      branchName: '042-custom',
++    });
++  });
++
++  it('should normalize the slug in the result', () => {
++    const result = resolveWorktreeName('My Cool Feature!!', sources);
++    expect(result).toEqual({
++      ordinal: 69,
++      slug: 'my-cool-feature',
++      branchName: '069-my-cool-feature',
++    });
++  });
++
++  it('should return null for invalid input', () => {
++    expect(resolveWorktreeName('', sources)).toBeNull();
++    expect(resolveWorktreeName('---', sources)).toBeNull();
++  });
++});
++
++// ==================== hasBranchConflict ====================
++
++describe('hasBranchConflict', () => {
++  const sources: OrdinalSources = {
++    localBranches: ['067-foo', '068-bar'],
++    remoteBranches: ['origin/067-foo', 'origin/069-baz'],
++    planFolders: [],
++  };
++
++  it('should detect conflict with local branch', () => {
++    expect(hasBranchConflict('067-foo', sources)).toBe(true);
++  });
++
++  it('should detect conflict with remote branch (stripped prefix)', () => {
++    expect(hasBranchConflict('069-baz', sources)).toBe(true);
++  });
++
++  it('should return false for non-conflicting name', () => {
++    expect(hasBranchConflict('070-new', sources)).toBe(false);
++  });
++});

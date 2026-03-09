@@ -28,6 +28,7 @@ import {
   ExternalLink,
   LogOut,
   PanelLeft,
+  Plus,
   ScrollText,
   Settings,
   TerminalSquare,
@@ -183,12 +184,35 @@ export function DashboardSidebar() {
             {/* 3. Worktree list — collapsible, expanded by default */}
             <SidebarGroup>
               {!isCollapsed && (
-                <SidebarGroupLabel
-                  className="cursor-pointer select-none"
-                  onClick={() => setWorktreesOpen((p) => !p)}
-                >
-                  Worktrees {worktreesOpen ? '▾' : '▸'}
-                </SidebarGroupLabel>
+                <div className="flex items-center justify-between pr-1">
+                  <SidebarGroupLabel
+                    className="cursor-pointer select-none"
+                    onClick={() => setWorktreesOpen((p) => !p)}
+                  >
+                    Worktrees {worktreesOpen ? '▾' : '▸'}
+                  </SidebarGroupLabel>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
+                    <Link
+                      href={`/workspaces/${workspaceSlug}/new-worktree`}
+                      aria-label="Create new worktree"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </Link>
+                  </Button>
+                </div>
+              )}
+              {isCollapsed && (
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild tooltip="Create new worktree">
+                        <Link href={`/workspaces/${workspaceSlug}/new-worktree`}>
+                          <Plus className="h-5 w-5" />
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  </SidebarMenu>
+                </SidebarGroupContent>
               )}
               {(worktreesOpen || isCollapsed) && (
                 <SidebarGroupContent>

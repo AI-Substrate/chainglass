@@ -1,0 +1,1259 @@
+# git diff
+diff --git a/docs/c4/README.md b/docs/c4/README.md
+index f0ad701..ec0075b 100644
+--- a/docs/c4/README.md
++++ b/docs/c4/README.md
+@@ -35,6 +35,7 @@ Start at L1 and zoom in to the level of detail you need:
+ 
+ ### Business Domains
+ 
++- [Workspace](components/workspace.md) — Workspace registration, context resolution, worktree discovery
+ - [File Browser](components/file-browser.md) — Workspace file browsing, editing, diffing
+ - [Workflow UI](components/workflow-ui.md) — Visual workflow editor with drag-drop
+ - [Work Unit Editor](components/workunit-editor.md) — CRUD interface for work unit definitions
+diff --git a/docs/domains/domain-map.md b/docs/domains/domain-map.md
+index 33ac544..d27497f 100644
+--- a/docs/domains/domain-map.md
++++ b/docs/domains/domain-map.md
+@@ -29,6 +29,9 @@ flowchart LR
+     workunitEditor["✏️ 058-workunit-editor<br/>Unit list page · Editor page<br/>Agent/Code/Input editors<br/>Creation modal · Auto-save"]:::business
+     terminal["🖥️ terminal<br/>TerminalView · TerminalOverlay<br/>TmuxSessionManager · copyTmuxBuffer<br/>Sidecar WS/WSS Server"]:::business
+ 
++    %% NEW business domains (Plan 069)
++    workspace["🗂️ workspace<br/>IWorkspaceService<br/>IWorkspaceContextResolver<br/>IGitWorktreeResolver<br/>useWorkspaceContext"]:::new
++
+     %% NEW business domains (Plan 059)
+     agents["🤖 agents<br/>IAgentManagerService<br/>IAgentAdapter · IAgentInstance<br/>useAgentManager · useAgentInstance<br/>useAgentOverlay · useRecentAgents<br/>AgentChipBar · AgentOverlayPanel<br/>AgentWorkUnitBridge"]:::new
+     workUnitState["📋 work-unit-state<br/>IWorkUnitStateService<br/>WorkUnitEntry · WorkUnitEvent<br/>FakeWorkUnitStateService<br/>workUnitStateRoute"]:::new
+@@ -45,9 +48,14 @@ flowchart LR
+     fileBrowser -->|"FileViewer<br/>MarkdownViewer<br/>DiffViewer<br/>detectContentType"| viewer
+     fileBrowser -->|"toast()<br/>useFileChanges<br/>FileChangeProvider"| events
+     fileBrowser -->|"PanelShell<br/>ExplorerPanel<br/>LeftPanel · MainPanel<br/>AsciiSpinner"| panels
++    fileBrowser -->|"IWorkspaceService<br/>useWorkspaceContext<br/>WorktreeVisualPreferences"| workspace
+     panels -->|"panel URL param"| wsUrl
+     viewer -->|"IFileSystem (Shiki reads)"| fileOps
+ 
++    %% Workspace domain dependencies
++    workspace -->|"IFileSystem<br/>IPathResolver"| fileOps
++    workspace -->|"workspaceHref<br/>workspaceParams"| wsUrl
++
+     %% SDK consumed by publishing domains
+     fileBrowser -->|"IUSDK<br/>(publishes commands)"| sdk
+     events -->|"IUSDK<br/>(publishes toast)"| sdk
+@@ -63,6 +71,7 @@ flowchart LR
+     workflowUI -->|"useSSE<br/>SSE infrastructure"| events
+     workflowUI -->|"workspaceHref"| wsUrl
+     workflowUI -->|"IUSDK"| sdk
++    workflowUI -->|"IWorkspaceService<br/>WorkspaceContext"| workspace
+ 
+     %% State system dependencies
+     state -->|"useSSE<br/>SSE transport"| events
+@@ -80,6 +89,7 @@ flowchart LR
+     agents -->|"IStateService<br/>useGlobalState"| state
+     agents -->|"IWorkUnitStateService<br/>(publish status)"| workUnitState
+     agents -->|"DashboardShell<br/>(top bar slot)"| panels
++    agents -->|"IWorkspaceService<br/>WorkspaceContext"| workspace
+     posGraph -->|"IAgentManagerService<br/>IAgentInstance<br/>(orchestration)"| agents
+ 
+     %% NEW: Work Unit State dependencies
+@@ -100,12 +110,14 @@ flowchart LR
+     workunitEditor -->|"IWorkUnitService<br/>(CRUD)"| posGraph
+     workunitEditor -->|"CodeEditor"| viewer
+     workunitEditor -->|"workspaceHref"| wsUrl
++    workunitEditor -->|"WorkspaceInfo<br/>WorkspaceContext"| workspace
+ 
+     %% Terminal dependencies
+     terminal -->|"PanelShell<br/>LeftPanel · MainPanel"| panels
+     terminal -->|"toast()"| events
+     terminal -->|"IUSDK<br/>ICommandRegistry"| sdk
+     terminal -->|"workspaceHref"| wsUrl
++    terminal -->|"IWorkspaceService<br/>useWorkspaceContext"| workspace
+ 
+     %% Activity Log dependencies (consumer → provider)
+     activityLog -->|"PanelShell<br/>overlay anchor"| panels
+@@ -115,13 +127,14 @@ flowchart LR
+     fileBrowser -->|"middleware protection"| auth
+     workflowUI -->|"middleware protection"| auth
+     workunitEditor -->|"middleware protection"| auth
++    workspace -->|"requireAuth()<br/>middleware protection"| auth
+ ```
+ 
+ ## Legend
+ 
+ - **Blue**: Business domains (user-facing capabilities)
+ - **Purple**: Infrastructure domains (cross-cutting technical capabilities)
+-- **Orange**: Newly added domains (Plan 059 — change to blue after first implementation)
++- **Orange**: Newly added domains (change to blue or purple after follow-on implementation/documentation passes)
+ - **Red**: Deprecated domains (pending removal)
+ - **Solid arrows** (→): Contract dependency (A consumes B's contract)
+ - **Labels on arrows**: Contract name being consumed
+@@ -130,22 +143,23 @@ flowchart LR
+ 
+ | Domain | Contracts Out | Consumers | Contracts In | Providers | Status |
+ |--------|--------------|-----------|-------------|-----------|--------|
+-| _platform/file-ops | IFileSystem, IPathResolver | file-browser, viewer, workflow-ui | — | — | ✅ |
+-| _platform/workspace-url | workspaceHref, paramsCaches | file-browser, panel-layout | — | — | ✅ |
++| _platform/file-ops | IFileSystem, IPathResolver | file-browser, viewer, workflow-ui, workspace | — | — | ✅ |
++| _platform/workspace-url | workspaceHref, paramsCaches | file-browser, panel-layout, workflow-ui, workunit-editor, terminal, workspace | — | — | ✅ |
+ | _platform/viewer | FileViewer, MarkdownViewer, DiffViewer, highlightCode, detectContentType, isBinaryExtension | file-browser | IFileSystem | file-ops | ✅ |
+ | _platform/events | ICentralEventNotifier, ISSEBroadcaster, useSSE, FileChangeHub, useFileChanges, FileChangeProvider, toast() | file-browser, workflow-ui, agents, state | — | — | ✅ |
+ | _platform/panel-layout | PanelShell, ExplorerPanel, LeftPanel, MainPanel, PanelHeader, BarHandler, AsciiSpinner, FlowSpaceSearchResult, FlowSpaceAvailability, FlowSpaceSearchMode | file-browser, future workspace pages | panel URL param | workspace-url | ✅ |
+-| file-browser | Browser page, FileTree, FileViewerPanel, WorkspaceContext, EmojiPicker, ColorPicker, Settings | — | IFileSystem, workspaceHref, viewers, toast, events, panels | file-ops, workspace-url, viewer, events, panel-layout | ✅ |
++| file-browser | Browser page, FileTree, FileViewerPanel, WorkspaceContext, EmojiPicker, ColorPicker, Settings | — | IFileSystem, workspaceHref, viewers, toast, events, panels, IWorkspaceService, useWorkspaceContext | file-ops, workspace-url, viewer, events, panel-layout, workspace | ✅ |
++| workspace | IWorkspaceService, IWorkspaceContextResolver, IGitWorktreeResolver, useWorkspaceContext | file-browser, workflow-ui, workunit-editor, terminal, agents | IFileSystem, IPathResolver, workspaceHref, workspaceParams, requireAuth(), middleware protection | file-ops, workspace-url, auth | 🟠 New |
+ | _platform/sdk | IUSDK, ICommandRegistry, ISDKSettings, IContextKeyService, IKeybindingService, SDKCommand, SDKSetting, FakeUSDK | file-browser, workflow-ui, events, panel-layout, settings | — | — | ✅ |
+ | _platform/settings | Settings Page, sdk.openSettings | — | ISDKSettings, useSDKSetting, useSDK | sdk | ✅ |
+ | _platform/positional-graph | IPositionalGraphService, IOrchestrationService, IEventHandlerService, IWorkUnitService, ITemplateService, IInstanceService | CLI (`cg wf`, `cg template`), workflow-ui, dev/test-graphs | IFileSystem, IPathResolver, IStateService | file-ops, state | ✅ |
+ | _platform/workgraph | IWorkGraphService, IWorkNodeService, IWorkUnitService | CLI (`cg wg`, `cg unit`) | IFileSystem, IPathResolver | file-ops | ❌ Removed from web (Plan 050 Phase 7) |
+ | _platform/state | IStateService, useGlobalState, useGlobalStateList, GlobalStateProvider, StateChangeLog, ServerEventRoute, FakeGlobalStateSystem | positional-graph (publish), workflow-ui, panel-layout, file-browser, agents, work-unit-state (subscribe), dev-tools | useSSE | events | ✅ |
+-| workflow-ui | _(none — leaf consumer)_ | — | IPositionalGraphService, ITemplateService, IWorkUnitService, IFileSystem, IPathResolver, useSSE, workspaceHref, IUSDK, useGlobalState, useAgentOverlay (future) | positional-graph, file-ops, events, workspace-url, sdk, state, agents (future) | ✅ |
++| workflow-ui | _(none — leaf consumer)_ | — | IPositionalGraphService, ITemplateService, IWorkUnitService, IFileSystem, IPathResolver, useSSE, workspaceHref, IUSDK, useGlobalState, useAgentOverlay (future), IWorkspaceService, WorkspaceContext | positional-graph, file-ops, events, workspace-url, sdk, state, agents (future), workspace | ✅ |
+ | _platform/dev-tools | StateInspector, useStateChangeLog, useStateInspector | — | IStateService, StateChangeLog, useStateSystem | state | ✅ |
+-| 058-workunit-editor | _(none — leaf consumer)_ | — | IWorkUnitService, CodeEditor, workspaceHref | positional-graph, viewer, workspace-url | ✅ |
+-| agents | IAgentManagerService, IAgentAdapter, IAgentInstance, IAgentNotifierService, useAgentManager, useAgentInstance, useAgentOverlay, useRecentAgents, useWorktreeActivity, AgentChipBar, AgentOverlayPanel, AgentWorkUnitBridge | positional-graph (orchestration), workflow-ui (overlay), panel-layout (badge data via composition) | ISSEBroadcaster, useSSE, toast(), CopilotClient, IStateService, IWorkUnitStateService, IWorkflowEvents, DashboardShell | events, sdk, state, work-unit-state, workflow-events, panel-layout | 🟠 New |
++| 058-workunit-editor | _(none — leaf consumer)_ | — | IWorkUnitService, CodeEditor, workspaceHref, WorkspaceInfo, WorkspaceContext | positional-graph, viewer, workspace-url, workspace | ✅ |
++| agents | IAgentManagerService, IAgentAdapter, IAgentInstance, IAgentNotifierService, useAgentManager, useAgentInstance, useAgentOverlay, useRecentAgents, useWorktreeActivity, AgentChipBar, AgentOverlayPanel, AgentWorkUnitBridge | positional-graph (orchestration), workflow-ui (overlay), panel-layout (badge data via composition) | ISSEBroadcaster, useSSE, toast(), CopilotClient, IStateService, IWorkUnitStateService, IWorkflowEvents, DashboardShell, IWorkspaceService, WorkspaceContext | events, sdk, state, work-unit-state, workflow-events, panel-layout, workspace | 🟠 New |
+ | work-unit-state | IWorkUnitStateService, WorkUnitEntry, WorkUnitEvent, FakeWorkUnitStateService, workUnitStateRoute | agents (AgentWorkUnitBridge), workflow-ui (future) | ICentralEventNotifier, ServerEventRouteDescriptor | events, state | 🟠 New |
+ | workflow-events | IWorkflowEvents, WorkflowEventType, WorkflowEventError, FakeWorkflowEventsService | agents (observer hooks), workflow-ui (answerQuestion), CLI (ask/answer/get-answer) | IPositionalGraphService, ICentralEventNotifier | positional-graph, events | 🟠 New |
+-| terminal | _(none — leaf consumer)_ | — | PanelShell, LeftPanel, MainPanel, toast(), IUSDK, ICommandRegistry, workspaceHref | panel-layout, events, sdk, workspace-url | ✅ |
+-| _platform/auth | auth(), signIn(), signOut(), requireAuth(), useAuth(), middleware protection, isUserAllowed(), SessionProvider | file-browser, workflow-ui, workunit-editor (via middleware), server actions (via requireAuth) | — | — | ✅ |
++| terminal | _(none — leaf consumer)_ | — | PanelShell, LeftPanel, MainPanel, toast(), IUSDK, ICommandRegistry, workspaceHref, IWorkspaceService, useWorkspaceContext | panel-layout, events, sdk, workspace-url, workspace | ✅ |
++| _platform/auth | auth(), signIn(), signOut(), requireAuth(), useAuth(), middleware protection, isUserAllowed(), SessionProvider | file-browser, workflow-ui, workunit-editor (via middleware), workspace (via middleware and server actions) | — | — | ✅ |
+diff --git a/docs/domains/registry.md b/docs/domains/registry.md
+index 97deb1d..8b89143 100644
+--- a/docs/domains/registry.md
++++ b/docs/domains/registry.md
+@@ -8,6 +8,7 @@
+ | Events | _platform/events | infrastructure | _platform | extracted (Plans 019, 023, 027); renamed Plan 045 | active |
+ | Panel Layout | _platform/panel-layout | infrastructure | _platform | extracted (Plan 041 workshops) | active |
+ | File Browser | file-browser | business | — | Plan 041 | active |
++| Workspace | workspace | business | — | extracted (Plan 069) | active |
+ | SDK | _platform/sdk | infrastructure | _platform | Plan 047 — USDK | active |
+ | Settings | _platform/settings | infrastructure | _platform | Plan 047 — USDK Phase 5 | active |
+ | Positional Graph | _platform/positional-graph | infrastructure | _platform | extracted (Plan 048) | active |
+diff --git a/packages/shared/src/di-tokens.ts b/packages/shared/src/di-tokens.ts
+index e641db9..ed38535 100644
+--- a/packages/shared/src/di-tokens.ts
++++ b/packages/shared/src/di-tokens.ts
+@@ -71,6 +71,8 @@ export const WORKSPACE_DI_TOKENS = {
+   WORKSPACE_CONTEXT_RESOLVER: 'IWorkspaceContextResolver',
+   /** IGitWorktreeResolver interface */
+   GIT_WORKTREE_RESOLVER: 'IGitWorktreeResolver',
++  /** IGitWorktreeManager interface (Plan 069: worktree creation mutation boundary) */
++  GIT_WORKTREE_MANAGER: 'IGitWorktreeManager',
+   /** ISampleAdapter interface */
+   SAMPLE_ADAPTER: 'ISampleAdapter',
+   /** IWorkspaceService interface */
+diff --git a/packages/workflow/src/fakes/index.ts b/packages/workflow/src/fakes/index.ts
+index 8234c2d..2ac2fc8 100644
+--- a/packages/workflow/src/fakes/index.ts
++++ b/packages/workflow/src/fakes/index.ts
+@@ -78,6 +78,14 @@ export type {
+   IsMainWorktreeCall,
+ } from './fake-git-worktree-resolver.js';
+ 
++// Git worktree manager fake (Plan 069 Phase 1: mutation boundary)
++export { FakeGitWorktreeManager } from './fake-git-worktree-manager.js';
++export type {
++  CheckMainStatusCall,
++  SyncMainCall,
++  CreateWorktreeManagerCall,
++} from './fake-git-worktree-manager.js';
++
+ // Agent session adapter fake (Plan 018)
+ export { FakeAgentSessionAdapter } from './fake-agent-session-adapter.js';
+ export type {
+diff --git a/packages/workflow/src/index.ts b/packages/workflow/src/index.ts
+index 3b9d9fb..1d34cdd 100644
+--- a/packages/workflow/src/index.ts
++++ b/packages/workflow/src/index.ts
+@@ -332,13 +332,29 @@ export { GitWorktreeResolver } from './resolvers/index.js';
+ // Git worktree resolver interface (Plan 014 Phase 4)
+ export type { IGitWorktreeResolver } from './interfaces/index.js';
+ 
+-// Workspace service interface (Plan 014 Phase 4)
++// Git worktree manager interface (Plan 069 Phase 1: mutation boundary)
++export type {
++  IGitWorktreeManager,
++  MainStatusCode,
++  MainStatusResult,
++  SyncStatusCode,
++  SyncMainResult,
++  CreateWorktreeGitStatusCode,
++  CreateWorktreeGitResult,
++} from './interfaces/index.js';
++
++// Workspace service interface (Plan 014 Phase 4, extended Plan 069 Phase 1)
+ export type {
+   IWorkspaceService,
+   WorkspaceOperationResult,
+   AddWorkspaceResult,
+   RemoveWorkspaceResult,
+   AddWorkspaceOptions,
++  PreviewCreateWorktreeRequest,
++  PreviewCreateWorktreeResult,
++  CreateWorktreeRequest,
++  CreateWorktreeResult,
++  BootstrapStatus,
+ } from './interfaces/index.js';
+ 
+ // Sample service interface (Plan 014 Phase 4)
+@@ -372,6 +388,14 @@ export type {
+   IsMainWorktreeCall,
+ } from './fakes/index.js';
+ 
++// Git worktree manager fake (Plan 069 Phase 1: mutation boundary)
++export { FakeGitWorktreeManager } from './fakes/index.js';
++export type {
++  CheckMainStatusCall,
++  SyncMainCall,
++  CreateWorktreeManagerCall,
++} from './fakes/index.js';
++
+ // Agent session adapter fake (Plan 018)
+ export { FakeAgentSessionAdapter } from './fakes/index.js';
+ export type {
+diff --git a/packages/workflow/src/interfaces/index.ts b/packages/workflow/src/interfaces/index.ts
+index 01d060c..d16efe8 100644
+--- a/packages/workflow/src/interfaces/index.ts
++++ b/packages/workflow/src/interfaces/index.ts
+@@ -75,6 +75,17 @@ export type {
+ // Git worktree resolver interface (Plan 014 Phase 4)
+ export type { IGitWorktreeResolver } from './git-worktree-resolver.interface.js';
+ 
++// Git worktree manager interface (Plan 069 Phase 1: mutation boundary)
++export type {
++  IGitWorktreeManager,
++  MainStatusCode,
++  MainStatusResult,
++  SyncStatusCode,
++  SyncMainResult,
++  CreateWorktreeGitStatusCode,
++  CreateWorktreeGitResult,
++} from './git-worktree-manager.interface.js';
++
+ // Workspace service interface (Plan 014 Phase 4)
+ export type {
+   IWorkspaceService,
+@@ -82,6 +93,11 @@ export type {
+   AddWorkspaceResult,
+   RemoveWorkspaceResult,
+   AddWorkspaceOptions,
++  PreviewCreateWorktreeRequest,
++  PreviewCreateWorktreeResult,
++  CreateWorktreeRequest,
++  CreateWorktreeResult,
++  BootstrapStatus,
+ } from './workspace-service.interface.js';
+ 
+ // Sample service interface (Plan 014 Phase 4)
+diff --git a/packages/workflow/src/interfaces/workspace-service.interface.ts b/packages/workflow/src/interfaces/workspace-service.interface.ts
+index 00e8a5a..fdbd9c3 100644
+--- a/packages/workflow/src/interfaces/workspace-service.interface.ts
++++ b/packages/workflow/src/interfaces/workspace-service.interface.ts
+@@ -61,6 +61,98 @@ export interface AddWorkspaceOptions {
+   allowWorktree?: boolean;
+ }
+ 
++// ==================== Worktree Creation Types ====================
++// Per Plan 069 Phase 1: Preview/create worktree contracts.
++// Per DYK D2: CreateWorktreeResult is a discriminated union, NOT WorkspaceOperationResult.
++
++/**
++ * Request to preview a new worktree before creation.
++ *
++ * @param workspaceSlug - Slug of the workspace to create the worktree in
++ * @param requestedName - User-provided name: either plain slug ("my-feature")
++ *   or pasted ordinal-slug format ("069-my-feature")
++ */
++export interface PreviewCreateWorktreeRequest {
++  workspaceSlug: string;
++  requestedName: string;
++}
++
++/**
++ * Preview data showing what a worktree creation would produce.
++ * Returned from previewCreateWorktree() and embedded in blocked results
++ * so the form can show refreshed suggestions after naming conflicts.
++ */
++export interface PreviewCreateWorktreeResult {
++  /** The normalized slug after applying naming rules */
++  normalizedSlug: string;
++  /** The allocated ordinal number */
++  ordinal: number;
++  /** The full branch name (e.g., "069-my-feature") */
++  branchName: string;
++  /** The predicted worktree directory path */
++  worktreePath: string;
++  /** Whether a .chainglass/new-worktree.sh hook exists in the main repo */
++  hasBootstrapHook: boolean;
++}
++
++/**
++ * Request to create a new worktree.
++ *
++ * @param workspaceSlug - Slug of the workspace
++ * @param requestedName - User-provided name (same rules as preview)
++ */
++export interface CreateWorktreeRequest {
++  workspaceSlug: string;
++  requestedName: string;
++}
++
++/**
++ * Outcome of the optional .chainglass/new-worktree.sh bootstrap hook.
++ *
++ * Bootstrap is informational only — a failed hook does NOT block
++ * the user from opening the created worktree.
++ *
++ * Per Workshop 001: Hook runs with cwd=newWorktreePath, structured env vars,
++ * 60s timeout, and returns bounded log tail on failure.
++ */
++export interface BootstrapStatus {
++  /** Whether the hook was skipped (not present), succeeded, or failed */
++  outcome: 'skipped' | 'succeeded' | 'failed';
++  /** Bounded tail of hook stdout/stderr (present on failure) */
++  logTail?: string;
++}
++
++/**
++ * Result from WorkspaceService.createWorktree().
++ *
++ * Discriminated union on `status`:
++ * - `'created'`: Worktree was created. Bootstrap outcome is informational.
++ *   Carries all data needed for the web layer to derive a redirect URL.
++ * - `'blocked'`: Creation was blocked by a safety check (dirty main, naming
++ *   conflict, etc.). Carries structured errors and an optional refreshed preview
++ *   so the form can show an updated suggestion.
++ *
++ * Per DYK D2: This intentionally does NOT extend WorkspaceOperationResult.
++ * The binary success/failure pattern cannot express "created with bootstrap warning."
++ */
++export type CreateWorktreeResult =
++  | {
++      status: 'created';
++      /** The git branch name that was created (e.g., "069-my-feature") */
++      branchName: string;
++      /** Absolute path to the new worktree directory */
++      worktreePath: string;
++      /** Bootstrap hook outcome — informational, not blocking */
++      bootstrapStatus: BootstrapStatus;
++    }
++  | {
++      status: 'blocked';
++      /** Structured errors describing why creation was blocked */
++      errors: WorkspaceError[];
++      /** Refreshed preview with next available name (e.g., after naming conflict) */
++      refreshedPreview?: PreviewCreateWorktreeResult;
++    };
++
+ // ==================== Service Interface ====================
+ 
+ /**
+@@ -166,4 +258,34 @@ export interface IWorkspaceService {
+     slug: string,
+     prefs: Partial<WorkspacePreferences>
+   ): Promise<WorkspaceOperationResult>;
++
++  // ==================== Worktree Creation (Plan 069) ====================
++
++  /**
++   * Preview what a new worktree creation would produce.
++   *
++   * Resolves the workspace, scans for the next available ordinal,
++   * normalizes the slug, and checks for a bootstrap hook — without
++   * touching git or creating anything.
++   *
++   * @param request - Workspace slug and requested name
++   * @returns Preview data with computed branch name, path, and hook status
++   */
++  previewCreateWorktree(
++    request: PreviewCreateWorktreeRequest
++  ): Promise<PreviewCreateWorktreeResult>;
++
++  /**
++   * Create a new git worktree from refreshed canonical main.
++   *
++   * Performs preflight safety checks, syncs main, allocates the ordinal,
++   * creates the worktree, and optionally runs the bootstrap hook.
++   *
++   * Returns a discriminated union: `'created'` (with bootstrap status)
++   * or `'blocked'` (with structured errors and optional refreshed preview).
++   *
++   * @param request - Workspace slug and requested name
++   * @returns CreateWorktreeResult discriminated on `status`
++   */
++  createWorktree(request: CreateWorktreeRequest): Promise<CreateWorktreeResult>;
+ }
+diff --git a/packages/workflow/src/services/workspace.service.ts b/packages/workflow/src/services/workspace.service.ts
+index fefe46b..27a3d37 100644
+--- a/packages/workflow/src/services/workspace.service.ts
++++ b/packages/workflow/src/services/workspace.service.ts
+@@ -29,7 +29,11 @@ import type { IWorkspaceRegistryAdapter } from '../interfaces/workspace-registry
+ import type {
+   AddWorkspaceOptions,
+   AddWorkspaceResult,
++  CreateWorktreeRequest,
++  CreateWorktreeResult,
+   IWorkspaceService,
++  PreviewCreateWorktreeRequest,
++  PreviewCreateWorktreeResult,
+   RemoveWorkspaceResult,
+   WorkspaceOperationResult,
+ } from '../interfaces/workspace-service.interface.js';
+@@ -320,4 +324,17 @@ export class WorkspaceService implements IWorkspaceService {
+ 
+     return undefined;
+   }
++
++  // ==================== Worktree Creation Stubs (Plan 069 Phase 1) ====================
++  // Phase 2 replaces these stubs with real orchestration.
++
++  async previewCreateWorktree(
++    _request: PreviewCreateWorktreeRequest
++  ): Promise<PreviewCreateWorktreeResult> {
++    throw new Error('Not implemented: Phase 2 delivers real preview orchestration');
++  }
++
++  async createWorktree(_request: CreateWorktreeRequest): Promise<CreateWorktreeResult> {
++    throw new Error('Not implemented: Phase 2 delivers real create orchestration');
++  }
+ }
+
+# untracked docs/c4/components/workspace.md
+diff --git a/Users/jordanknight/substrate/069-new-worktree/docs/c4/components/workspace.md b/Users/jordanknight/substrate/069-new-worktree/docs/c4/components/workspace.md
+new file mode 100644
+index 0000000..cb70233
+--- /dev/null
++++ b/Users/jordanknight/substrate/069-new-worktree/docs/c4/components/workspace.md
+@@ -0,0 +1,63 @@
++# Component: Workspace (`workspace`)
++
++> **Domain Definition**: [workspace/domain.md](../../domains/workspace/domain.md)
++> **Source**: `packages/workflow/src/` + `apps/web/app/(dashboard)/workspaces/` + `apps/web/src/components/workspaces/`
++> **Registry**: [registry.md](../../domains/registry.md) — Row: Workspace
++
++Workspace lifecycle and identity management. This domain registers named workspace roots, resolves active workspace/worktree context, discovers git worktree topology, and exposes the UI entrypoints that let the rest of the product stay workspace-aware without duplicating rules.
++
++```mermaid
++C4Component
++    title Component diagram — Workspace (workspace)
++
++    Container_Boundary(workspace, "Workspace") {
++        Component(webSurfaces, "Workspace Pages & Nav", "Server + Client Components", "Renders workspace list,<br/>detail views, and worktree<br/>switching surfaces")
++        Component(actionsRoutes, "Workspace Actions & Routes", "Server Actions + Route Handlers", "Validates auth, invokes service,<br/>revalidates workspace views,<br/>and returns workspace JSON")
++        Component(provider, "WorkspaceProvider", "React Provider", "Publishes workspace identity,<br/>worktree identity, and visual<br/>preference state to clients")
++        Component(cliCommand, "Workspace CLI Command", "CLI Controller", "Runs add/list/info/remove<br/>from terminal workflows")
++        Component(service, "WorkspaceService", "Domain Service", "Registers workspaces, resolves<br/>info/context, and updates<br/>workspace preferences")
++        Component(contextResolver, "WorkspaceContextResolver", "Domain Resolver", "Maps paths to workspace/worktree<br/>context using longest-match rules")
++        Component(gitResolver, "GitWorktreeResolver", "Git Adapter", "Discovers linked worktrees and<br/>canonical main checkout from git")
++        Component(registryAdapter, "WorkspaceRegistryAdapter", "Registry Adapter", "Persists workspace registry and<br/>preference updates to config storage")
++        Component(entity, "Workspace Entity", "Entity + Types", "Defines workspace metadata,<br/>slugging, defaults, and immutable<br/>preference merges")
++    }
++
++    Rel(webSurfaces, provider, "Composes")
++    Rel(webSurfaces, actionsRoutes, "Submits mutations through")
++    Rel(actionsRoutes, service, "Invokes")
++    Rel(cliCommand, service, "Invokes")
++    Rel(service, entity, "Creates and updates")
++    Rel(service, registryAdapter, "Loads and saves with")
++    Rel(service, contextResolver, "Delegates context lookup to")
++    Rel(service, gitResolver, "Reads worktree state from")
++    Rel(contextResolver, registryAdapter, "Lists workspaces from")
++    Rel(contextResolver, gitResolver, "Expands worktree topology with")
++    Rel(provider, entity, "Derives identity from")
++```
++
++## Components
++
++| Component | Type | Description |
++|-----------|------|-------------|
++| Workspace Pages & Nav | Server + Client Components | Renders workspace list, detail views, and worktree switching surfaces |
++| Workspace Actions & Routes | Server Actions + Route Handlers | Validates auth, invokes service, revalidates views, returns workspace JSON |
++| WorkspaceProvider | React Provider | Publishes workspace/worktree identity and visual preference state |
++| Workspace CLI Command | CLI Controller | Exposes add/list/info/remove from terminal workflows |
++| WorkspaceService | Domain Service | Registers workspaces, resolves info/context, updates preferences |
++| WorkspaceContextResolver | Domain Resolver | Maps paths to workspace/worktree context with longest-match rules |
++| GitWorktreeResolver | Git Adapter | Discovers linked worktrees and canonical main checkout |
++| WorkspaceRegistryAdapter | Registry Adapter | Persists registry and preference updates to config storage |
++| Workspace Entity | Entity + Types | Defines metadata, slugging, defaults, and immutable preference merges |
++
++## External Dependencies
++
++Depends on: _platform/file-ops (IFileSystem, IPathResolver), _platform/workspace-url (workspaceHref, workspaceParams), _platform/auth (requireAuth, middleware protection), shared process-manager infrastructure for git command execution.
++Consumed by: file-browser, workflow-ui, 058-workunit-editor, terminal, agents.
++
++---
++
++## Navigation
++
++- **Zoom Out**: [Web App Container](../containers/web-app.md) | [Container Overview](../containers/overview.md)
++- **Domain**: [workspace/domain.md](../../domains/workspace/domain.md)
++- **Hub**: [C4 Overview](../README.md)
+
+# untracked docs/domains/workspace/domain.md
+diff --git a/Users/jordanknight/substrate/069-new-worktree/docs/domains/workspace/domain.md b/Users/jordanknight/substrate/069-new-worktree/docs/domains/workspace/domain.md
+new file mode 100644
+index 0000000..967be56
+--- /dev/null
++++ b/Users/jordanknight/substrate/069-new-worktree/docs/domains/workspace/domain.md
+@@ -0,0 +1,209 @@
++# Domain: Workspace
++
++**Slug**: workspace
++**Type**: business
++**Created**: 2026-03-07
++**Created By**: extracted from existing codebase (Plan 069)
++**Status**: active
++**C4 Diagram**: [C4 Component](../../c4/components/workspace.md)
++
++## Purpose
++
++Workspace lifecycle and identity management. This domain registers named workspace roots, resolves which workspace and worktree a request is operating in, discovers git worktree topology, and stores workspace- and worktree-level preferences that other features rely on for consistent behavior.
++
++Without this domain, every workspace-scoped feature would need to reimplement path resolution, worktree lookup, and preference persistence. Formalizing it gives future plans a single place to discuss canonical-main behavior, worktree lifecycle rules, and shared workspace identity.
++
++## Concepts
++
++| Concept | Entry Point | What It Does |
++|---------|-------------|-------------|
++| Register and manage workspaces | `IWorkspaceService` | Adds, lists, removes, and inspects registered workspaces. |
++| Resolve active workspace context | `IWorkspaceContextResolver` | Turns a path or slug/worktree selection into the active workspace/worktree context. |
++| Discover worktree topology | `IGitWorktreeResolver` | Detects linked worktrees and identifies the canonical main checkout. |
++| Create worktree from canonical main | `IWorkspaceService.createWorktree` | Previews and creates new git worktrees from refreshed local main with ordinal naming and optional bootstrap hook. |
++| Mutate git worktree state | `IGitWorktreeManager` | Preflight-checks, syncs, and creates git worktrees — the write-side counterpart to the read-only resolver. |
++| Customize workspace and worktree identity | `IWorkspaceService.updatePreferences` | Persists emoji, color, starring, ordering, and per-worktree visual preferences. |
++
++### Register and Manage Workspaces
++
++This is the main lifecycle facade consumers reach for first. It handles registration, listing, removal, info lookup, and the web-safe `resolveContextFromParams()` path that routes and actions use to derive trusted workspace scope.
++
++```typescript
++import { WORKSPACE_DI_TOKENS } from '@chainglass/shared';
++import type { IWorkspaceService } from '@chainglass/workflow';
++
++const workspaceService = container.resolve<IWorkspaceService>(WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE);
++const result = await workspaceService.add('Chainglass', '/Users/me/chainglass');
++```
++
++### Resolve Active Workspace Context
++
++Consumers use this when they need to answer “which workspace/worktree is this path or request targeting?” It is the domain’s scoping primitive for workspace-aware features, and it keeps path matching rules consistent across the app.
++
++```typescript
++const resolver = container.resolve<IWorkspaceContextResolver>(
++  WORKSPACE_DI_TOKENS.WORKSPACE_CONTEXT_RESOLVER
++);
++const ctx = await resolver.resolveFromPath(process.cwd());
++```
++
++### Discover Worktree Topology
++
++This concept abstracts git-specific worktree detection away from callers. It handles porcelain parsing, version gating, and main-repo detection so higher layers can reason about worktrees without shelling out directly.
++
++```typescript
++const gitResolver = container.resolve<IGitWorktreeResolver>(
++  WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER
++);
++const mainRepoPath = await gitResolver.getMainRepoPath(currentPath);
++const worktrees = await gitResolver.detectWorktrees(mainRepoPath ?? currentPath);
++```
++
++### Customize Workspace and Worktree Identity
++
++Workspace-scoped UI and settings depend on this concept to keep names, emoji, color, starring, ordering, and per-worktree overrides in one place. The same persisted preference shape is reused by settings pages, workspace cards, sidebar nav, and worktree identity UI.
++
++```typescript
++await workspaceService.updatePreferences('chainglass', {
++  starred: true,
++  worktreePreferences: {
++    [worktreePath]: { emoji: '🌿', color: 'green', terminalTheme: 'dark' },
++  },
++});
++```
++
++### Create Worktree from Canonical Main
++
++This concept owns the full lifecycle of creating a new git worktree: previewing the computed name/path, syncing canonical main, allocating the next ordinal, creating the worktree, and optionally running the bootstrap hook. The result is a discriminated union that lets callers distinguish a successful creation (with informational bootstrap status) from a blocked attempt (with structured errors).
++
++```typescript
++const preview = await workspaceService.previewCreateWorktree({
++  workspaceSlug: 'chainglass',
++  requestedName: 'my-feature',
++});
++// preview.branchName → "069-my-feature", preview.worktreePath → "/repos/069-my-feature"
++
++const result = await workspaceService.createWorktree({
++  workspaceSlug: 'chainglass',
++  requestedName: 'my-feature',
++});
++if (result.status === 'created') {
++  // result.worktreePath, result.branchName, result.bootstrapStatus.outcome
++}
++```
++
++### Mutate Git Worktree State
++
++This concept separates git write operations from the read-only worktree resolver. It handles preflight checks on the main branch, fetching and fast-forwarding from origin, and the actual `git worktree add` command. The service orchestrator calls these methods in sequence; the manager stays focused on git plumbing.
++
++```typescript
++const manager = container.resolve<IGitWorktreeManager>(
++  WORKSPACE_DI_TOKENS.GIT_WORKTREE_MANAGER
++);
++const status = await manager.checkMainStatus(mainRepoPath);
++if (status.status === 'clean') {
++  await manager.syncMain(mainRepoPath);
++  await manager.createWorktree(mainRepoPath, '069-my-feature', '/repos/069-my-feature');
++}
++```
++
++## Boundary
++
++### Owns
++- Workspace registration and unregistration lifecycle
++- Workspace entity state, preference defaults, slug generation, and immutable preference updates
++- Workspace/worktree context resolution from filesystem paths and URL/worktree selections
++- Git worktree discovery and canonical main-checkout identification
++- Workspace-scoped preference storage for visual identity, starring, ordering, SDK settings, and per-worktree overrides
++- Workspace pages, sidebar/worktree navigation, API routes, server actions, and CLI commands that directly expose workspace lifecycle behavior
++- Client-side workspace identity publishing via `WorkspaceProvider` and `useWorkspaceContext`
++
++### Does NOT Own
++- URL construction and search-param parsing for workspace routes — owned by `_platform/workspace-url`
++- File browsing, editing, diffing, and browser landing experiences — owned by `file-browser`
++- Workflow, work unit, sample, terminal, and agent payloads — those domains consume `WorkspaceContext` but own their own data and actions
++- Generic SSE transport and worktree activity aggregation — owned by `_platform/events` or the consuming business domain
++- Generic workspace-scoped storage helpers such as `workspace-data-adapter-base` — shared infrastructure used by multiple domains
++- Raw filesystem and process primitives — consumed via infrastructure adapters, not owned as workspace business logic
++
++## Contracts (Public Interface)
++
++| Contract | Type | Consumers | Description |
++|----------|------|-----------|-------------|
++| `IWorkspaceService` | Interface | Web pages, server actions, API routes, CLI commands, workflow/workunit/file actions | Primary lifecycle facade for register/list/remove/info/context/preferences/create-worktree |
++| `IWorkspaceContextResolver` | Interface | DI containers, contract tests, future workspace orchestration flows | Resolves workspace/worktree scope from filesystem paths or slugs |
++| `IGitWorktreeResolver` | Interface | `WorkspaceService`, `WorkspaceContextResolver`, DI containers, contract tests | Detects worktree topology and canonical main repository path |
++| `IGitWorktreeManager` | Interface | `WorkspaceService` (Phase 2), DI containers, contract tests | Preflight-checks, syncs, and creates git worktrees — write-side counterpart to resolver |
++| `WorkspaceContext`, `WorkspaceInfo`, `Worktree` | Types | workflow-ui, 058-workunit-editor, samples, agents, API routes | Typed representation of active workspace/worktree scope and discovered topology |
++| `CreateWorktreeResult`, `PreviewCreateWorktreeResult`, `BootstrapStatus` | Types | Web server actions, new-worktree page (Phase 3) | Discriminated union result types for worktree creation lifecycle |
++| `Workspace`, `WorkspacePreferences`, `WorktreeVisualPreferences` | Entity + types | Workspace pages, file-browser identity UI, settings/worktree popovers | Persisted workspace metadata and visual/worktree preference state |
++| `WorkspaceProvider`, `useWorkspaceContext` | React provider + hook | file-browser, terminal, dashboard sidebar, workspace attention wrapper | Publishes current workspace/worktree identity into the client tree |
++| `WORKSPACE_EMOJI_PALETTE`, `WORKSPACE_COLOR_PALETTE` | Constants | EmojiPicker, ColorPicker, settings UIs | Curated visual identity palette for workspace preferences |
++
++## Composition (Internal)
++
++| Component | Role | Depends On |
++|-----------|------|------------|
++| `WorkspaceService` | Lifecycle facade for register/list/remove/info/context/preferences/create-worktree | `IWorkspaceRegistryAdapter`, `IWorkspaceContextResolver`, `IGitWorktreeResolver`, `IGitWorktreeManager` (Phase 2) |
++| `WorkspaceContextResolver` | Maps paths to workspace/worktree context with longest-match behavior | `IWorkspaceRegistryAdapter`, `IGitWorktreeResolver`, `IFileSystem` |
++| `GitWorktreeResolver` | Runs git commands and parses worktree porcelain output | `IProcessManager` |
++| `GitWorktreeManagerAdapter` | Runs git write commands for preflight, sync, and worktree creation (Phase 2) | `IProcessManager` |
++| `WorkspaceRegistryAdapter` | Persists global workspace registry and preference updates | `IFileSystem`, `IPathResolver` |
++| `Workspace` entity | Defines metadata, slugging, defaults, and immutable preference updates | `slugify`, workspace palette constants |
++| Workspace pages + nav | Render workspace list/detail/worktree switching surfaces | `IWorkspaceService`, `workspaceHref`, `WorkspaceProvider` |
++| Workspace actions + routes | Handle authenticated mutations and workspace JSON responses | `IWorkspaceService`, `requireAuth`, `revalidatePath` |
++| `WorkspaceProvider` | Derives active worktree identity from persisted preferences | `WorkspacePreferences`, `WorktreeVisualPreferences` |
++| CLI workspace commands | Expose add/list/info/remove from terminal workflows | `IWorkspaceService` |
++
++## Source Location
++
++Primary: `packages/workflow/src/` + `apps/web/app/(dashboard)/workspaces/` + `apps/web/src/components/workspaces/` + `apps/web/src/features/041-file-browser/hooks/use-workspace-context.tsx` + `apps/cli/src/commands/`
++
++| File | Role | Notes |
++|------|------|-------|
++| `packages/workflow/src/entities/workspace.ts` | Workspace entity + preferences | Slug generation, defaults, immutable preference updates |
++| `packages/workflow/src/interfaces/workspace-service.interface.ts` | Service contract | Main public lifecycle interface |
++| `packages/workflow/src/interfaces/workspace-context.interface.ts` | Context + worktree contracts | `WorkspaceContext`, `WorkspaceInfo`, `Worktree`, resolver contract |
++| `packages/workflow/src/interfaces/git-worktree-resolver.interface.ts` | Git worktree contract | Public abstraction for worktree discovery |
++| `packages/workflow/src/interfaces/git-worktree-manager.interface.ts` | Git worktree mutation contract | Public abstraction for worktree creation (Plan 069) |
++| `packages/workflow/src/interfaces/workspace-registry-adapter.interface.ts` | Registry adapter contract | Persistence boundary for workspace registry |
++| `packages/workflow/src/services/workspace.service.ts` | Domain service | Register/list/remove/info/context/preferences |
++| `packages/workflow/src/resolvers/workspace-context.resolver.ts` | Context resolver | Path-to-workspace/worktree lookup |
++| `packages/workflow/src/resolvers/git-worktree.resolver.ts` | Git adapter | `git worktree list --porcelain`, `rev-parse` |
++| `packages/workflow/src/adapters/workspace-registry.adapter.ts` | Registry persistence | Stores `~/.config/chainglass/workspaces.json` |
++| `packages/workflow/src/errors/workspace-errors.ts` | Domain errors | Workspace/worktree-specific error codes |
++| `packages/workflow/src/constants/workspace-palettes.ts` | Visual identity constants | Curated emoji/color sets |
++| `apps/web/app/actions/workspace-actions.ts` | Workspace actions | Add/remove workspace, worktree star, identity preference updates |
++| `apps/web/app/actions/sdk-settings-actions.ts` | Preference persistence bridge | Stores workspace-scoped SDK settings and MRU |
++| `apps/web/app/api/workspaces/route.ts` | Workspace list API | Optional `?include=worktrees` enrichment |
++| `apps/web/app/api/workspaces/[slug]/route.ts` | Workspace detail API | Full workspace info by slug |
++| `apps/web/app/(dashboard)/workspaces/page.tsx` | Workspace list page | Server-rendered list + add form |
++| `apps/web/app/(dashboard)/workspaces/[slug]/page.tsx` | Workspace detail page | Worktree list, metadata, navigation entrypoint |
++| `apps/web/src/components/workspaces/workspace-nav.tsx` | Sidebar/worktree navigation | Workspace and worktree switching UI |
++| `apps/web/src/components/workspaces/workspace-add-form.tsx` | Registration form | Client mutation surface for add |
++| `apps/web/src/components/workspaces/workspace-remove-button.tsx` | Removal UI | Client mutation surface for remove |
++| `apps/web/src/features/041-file-browser/hooks/use-workspace-context.tsx` | Client provider + hook | Workspace/worktree identity bridge |
++| `apps/cli/src/commands/workspace.command.ts` | CLI controller | `cg workspace add/list/info/remove` |
++
++## Dependencies
++
++### This Domain Depends On
++- `_platform/file-ops` — `IFileSystem`, `IPathResolver` for registry I/O and path checks
++- `_platform/workspace-url` — `workspaceHref`, `workspaceParams` for workspace-scoped web links and worktree selection
++- `_platform/auth` — `requireAuth` and authenticated workspace pages/actions
++- Shared process-manager infrastructure — git command execution for worktree discovery (not yet formalized as a standalone domain)
++
++### Domains That Depend On This
++- `file-browser` — resolves workspace/worktree context, visual preferences, and client identity
++- `workflow-ui` — scopes workflow mutations and route actions with `WorkspaceContext`
++- `058-workunit-editor` — validates worktree selection against `WorkspaceInfo` and `WorkspaceContext`
++- `terminal` — consumes workspace identity and workspace-scoped page loading
++- `agents` — uses workspace/worktree context for scoped agent pages and session lookup
++
++## History
++
++| Plan | What Changed | Date |
++|------|-------------|------|
++| *(extracted)* | Domain formalized from existing registry, context resolution, worktree discovery, pages, nav, and provider hooks | 2026-03-07 |
++| Plan 069 | Workspace named as the business domain for new worktree creation planning | 2026-03-07 |
++| Plan 069 Phase 1 | Added IGitWorktreeManager interface, preview/create types on IWorkspaceService, FakeGitWorktreeManager, contract test scaffold, DI token | 2026-03-07 |
+
+# untracked packages/workflow/src/fakes/fake-git-worktree-manager.ts
+diff --git a/Users/jordanknight/substrate/069-new-worktree/packages/workflow/src/fakes/fake-git-worktree-manager.ts b/Users/jordanknight/substrate/069-new-worktree/packages/workflow/src/fakes/fake-git-worktree-manager.ts
+new file mode 100644
+index 0000000..9ef8709
+--- /dev/null
++++ b/Users/jordanknight/substrate/069-new-worktree/packages/workflow/src/fakes/fake-git-worktree-manager.ts
+@@ -0,0 +1,264 @@
++/**
++ * Fake git worktree manager for testing.
++ *
++ * Per Plan 069 Phase 1: Provides a configurable test double for IGitWorktreeManager.
++ * Per DYK D3: State model covers the full Workshop 002 error taxonomy.
++ *
++ * The fake's configurable states ARE the behavioral specification for the
++ * real adapter in Phase 2. Every scenario modeled here must be handled
++ * by GitWorktreeManagerAdapter.
++ *
++ * Follows the established FakeGitWorktreeResolver pattern with:
++ * - Call tracking arrays with spread operator getters
++ * - State configuration via direct setters
++ * - Error injection for testing error paths
++ * - reset() helper for test isolation
++ */
++
++import type {
++  CreateWorktreeGitResult,
++  CreateWorktreeGitStatusCode,
++  IGitWorktreeManager,
++  MainStatusCode,
++  MainStatusResult,
++  SyncMainResult,
++  SyncStatusCode,
++} from '../interfaces/git-worktree-manager.interface.js';
++
++// ==================== Call Recording Types ====================
++
++/** Recorded checkMainStatus() call for test inspection. */
++export interface CheckMainStatusCall {
++  mainRepoPath: string;
++}
++
++/** Recorded syncMain() call for test inspection. */
++export interface SyncMainCall {
++  mainRepoPath: string;
++}
++
++/** Recorded createWorktree() call for test inspection. */
++export interface CreateWorktreeManagerCall {
++  mainRepoPath: string;
++  branchName: string;
++  worktreePath: string;
++}
++
++// ==================== Fake Implementation ====================
++
++/**
++ * Fake git worktree manager for testing.
++ *
++ * Three-part API:
++ * 1. State Setup: setMainStatus(), setSyncResult(), setCreateResult()
++ * 2. State Inspection: Read calls via *Calls getters
++ * 3. Error Injection: Set inject* flags to simulate unexpected errors
++ *
++ * @example
++ * ```typescript
++ * const manager = new FakeGitWorktreeManager();
++ *
++ * // State setup - clean main, ready to create
++ * manager.setMainStatus('clean', { localRef: 'abc123', remoteRef: 'abc123' });
++ * manager.setSyncResult('already-up-to-date');
++ * manager.setCreateResult('created', {
++ *   worktreePath: '/repos/069-my-feature',
++ *   branchName: '069-my-feature',
++ * });
++ *
++ * // Use manager
++ * const status = await manager.checkMainStatus('/repos/main');
++ * expect(status.status).toBe('clean');
++ *
++ * // Inspect calls
++ * expect(manager.checkMainStatusCalls).toHaveLength(1);
++ *
++ * // Error injection
++ * manager.injectCheckError = new Error('Git crashed');
++ * await expect(manager.checkMainStatus('/any')).rejects.toThrow();
++ * ```
++ */
++export class FakeGitWorktreeManager implements IGitWorktreeManager {
++  // ==================== State Configuration ====================
++
++  private _mainStatus: MainStatusResult = {
++    status: 'clean',
++    mainRepoPath: '/fake/main',
++    localRef: 'abc123',
++    remoteRef: 'abc123',
++  };
++
++  private _syncResult: SyncMainResult = {
++    status: 'already-up-to-date',
++    localRef: 'abc123',
++  };
++
++  private _createResult: CreateWorktreeGitResult = {
++    status: 'created',
++    worktreePath: '/fake/worktree',
++    branchName: '000-fake-branch',
++  };
++
++  // ==================== Error Injection ====================
++
++  /** When set, checkMainStatus() throws this error. */
++  injectCheckError?: Error;
++
++  /** When set, syncMain() throws this error. */
++  injectSyncError?: Error;
++
++  /** When set, createWorktree() throws this error. */
++  injectCreateError?: Error;
++
++  // ==================== Private Call Tracking ====================
++
++  private _checkMainStatusCalls: CheckMainStatusCall[] = [];
++  private _syncMainCalls: SyncMainCall[] = [];
++  private _createWorktreeCalls: CreateWorktreeManagerCall[] = [];
++
++  // ==================== Call Tracking Getters (immutable copies) ====================
++
++  /** All checkMainStatus() calls (returns a copy). */
++  get checkMainStatusCalls(): CheckMainStatusCall[] {
++    return [...this._checkMainStatusCalls];
++  }
++
++  /** All syncMain() calls (returns a copy). */
++  get syncMainCalls(): SyncMainCall[] {
++    return [...this._syncMainCalls];
++  }
++
++  /** All createWorktree() calls (returns a copy). */
++  get createWorktreeCalls(): CreateWorktreeManagerCall[] {
++    return [...this._createWorktreeCalls];
++  }
++
++  // ==================== State Setup Helpers ====================
++
++  /**
++   * Configure the main status check result.
++   *
++   * Workshop 002 taxonomy:
++   * - 'clean': main is up-to-date, no local changes
++   * - 'dirty': tracked local changes present
++   * - 'ahead': local main has unpushed commits
++   * - 'diverged': local and remote main have diverged
++   * - 'no-main-branch': local 'main' branch doesn't exist
++   * - 'lock-held': git lock file present (concurrent operation)
++   * - 'git-failure': unexpected git error
++   */
++  setMainStatus(
++    status: MainStatusCode,
++    options?: { mainRepoPath?: string; localRef?: string; remoteRef?: string; detail?: string }
++  ): void {
++    this._mainStatus = {
++      status,
++      mainRepoPath: options?.mainRepoPath ?? '/fake/main',
++      localRef: options?.localRef,
++      remoteRef: options?.remoteRef,
++      detail: options?.detail,
++    };
++  }
++
++  /**
++   * Configure the sync result.
++   *
++   * - 'synced': fast-forward succeeded
++   * - 'already-up-to-date': no sync needed
++   * - 'fetch-failed': could not reach origin
++   * - 'fast-forward-failed': fast-forward rejected (diverged)
++   * - 'git-failure': unexpected git error
++   */
++  setSyncResult(
++    status: SyncStatusCode,
++    options?: { localRef?: string; detail?: string }
++  ): void {
++    this._syncResult = {
++      status,
++      localRef: options?.localRef,
++      detail: options?.detail,
++    };
++  }
++
++  /**
++   * Configure the create worktree result.
++   *
++   * - 'created': worktree successfully created
++   * - 'branch-exists': branch name already taken
++   * - 'path-exists': worktree directory already exists
++   * - 'git-failure': unexpected git error
++   */
++  setCreateResult(
++    status: CreateWorktreeGitStatusCode,
++    options?: { worktreePath?: string; branchName?: string; detail?: string }
++  ): void {
++    this._createResult = {
++      status,
++      worktreePath: options?.worktreePath,
++      branchName: options?.branchName,
++      detail: options?.detail,
++    };
++  }
++
++  // ==================== Test Helpers ====================
++
++  /** Reset all state (configuration, call tracking, error injection). */
++  reset(): void {
++    this._mainStatus = {
++      status: 'clean',
++      mainRepoPath: '/fake/main',
++      localRef: 'abc123',
++      remoteRef: 'abc123',
++    };
++    this._syncResult = { status: 'already-up-to-date', localRef: 'abc123' };
++    this._createResult = {
++      status: 'created',
++      worktreePath: '/fake/worktree',
++      branchName: '000-fake-branch',
++    };
++
++    this.injectCheckError = undefined;
++    this.injectSyncError = undefined;
++    this.injectCreateError = undefined;
++
++    this._checkMainStatusCalls = [];
++    this._syncMainCalls = [];
++    this._createWorktreeCalls = [];
++  }
++
++  // ==================== IGitWorktreeManager Implementation ====================
++
++  async checkMainStatus(mainRepoPath: string): Promise<MainStatusResult> {
++    this._checkMainStatusCalls.push({ mainRepoPath });
++
++    if (this.injectCheckError) {
++      throw this.injectCheckError;
++    }
++
++    return { ...this._mainStatus };
++  }
++
++  async syncMain(mainRepoPath: string): Promise<SyncMainResult> {
++    this._syncMainCalls.push({ mainRepoPath });
++
++    if (this.injectSyncError) {
++      throw this.injectSyncError;
++    }
++
++    return { ...this._syncResult };
++  }
++
++  async createWorktree(
++    mainRepoPath: string,
++    branchName: string,
++    worktreePath: string
++  ): Promise<CreateWorktreeGitResult> {
++    this._createWorktreeCalls.push({ mainRepoPath, branchName, worktreePath });
++
++    if (this.injectCreateError) {
++      throw this.injectCreateError;
++    }
++
++    return { ...this._createResult };
++  }
++}
+
+# untracked packages/workflow/src/interfaces/git-worktree-manager.interface.ts
+diff --git a/Users/jordanknight/substrate/069-new-worktree/packages/workflow/src/interfaces/git-worktree-manager.interface.ts b/Users/jordanknight/substrate/069-new-worktree/packages/workflow/src/interfaces/git-worktree-manager.interface.ts
+new file mode 100644
+index 0000000..e125a7e
+--- /dev/null
++++ b/Users/jordanknight/substrate/069-new-worktree/packages/workflow/src/interfaces/git-worktree-manager.interface.ts
+@@ -0,0 +1,160 @@
++/**
++ * Git Worktree Manager interface for mutating git worktree operations.
++ *
++ * Per Plan 069 Phase 1: Separate mutation boundary from read-only IGitWorktreeResolver.
++ * Per Finding 02: Git mutation support must stay separate from the existing read-only resolver.
++ * Per Workshop 002: Main sync strategy and git safety.
++ *
++ * This interface abstracts git write operations:
++ * - checkMainStatus: Preflight checks on the main branch state
++ * - syncMain: Fetch and fast-forward main to match origin
++ * - createWorktree: Create a new git worktree with a branch
++ *
++ * The read-only IGitWorktreeResolver remains untouched.
++ *
++ * Implementations:
++ * - GitWorktreeManagerAdapter: Real implementation using IProcessManager (Phase 2)
++ * - FakeGitWorktreeManager: Configurable implementation for testing (Phase 1)
++ */
++
++// ==================== Status Codes ====================
++
++/**
++ * Status codes from checking the main branch state.
++ *
++ * Per Workshop 002: Preflight checks cover dirty state, branch existence,
++ * divergence, concurrent operations, and git availability.
++ */
++export type MainStatusCode =
++  | 'clean'
++  | 'dirty'
++  | 'ahead'
++  | 'diverged'
++  | 'no-main-branch'
++  | 'lock-held'
++  | 'git-failure';
++
++/**
++ * Status codes from syncing main with origin.
++ */
++export type SyncStatusCode =
++  | 'synced'
++  | 'already-up-to-date'
++  | 'fetch-failed'
++  | 'fast-forward-failed'
++  | 'git-failure';
++
++/**
++ * Status codes from creating a worktree.
++ */
++export type CreateWorktreeGitStatusCode =
++  | 'created'
++  | 'branch-exists'
++  | 'path-exists'
++  | 'git-failure';
++
++// ==================== Result Types ====================
++
++/**
++ * Result from checking the main branch status.
++ *
++ * Per Workshop 002: Must distinguish dirty, ahead, diverged, lock-held,
++ * and no-main-branch so the service can return specific blocking errors.
++ */
++export interface MainStatusResult {
++  status: MainStatusCode;
++  /** The resolved main repo path (present when status !== 'git-failure') */
++  mainRepoPath?: string;
++  /** The local main branch ref (present when status !== 'no-main-branch') */
++  localRef?: string;
++  /** The remote main branch ref (present after fetch comparison) */
++  remoteRef?: string;
++  /** Human-readable detail for error states */
++  detail?: string;
++}
++
++/**
++ * Result from syncing the main branch.
++ *
++ * Per Workshop 002: Fetch origin/main, compare, fast-forward only if behind.
++ */
++export interface SyncMainResult {
++  status: SyncStatusCode;
++  /** The local ref after sync (present on success) */
++  localRef?: string;
++  /** Human-readable detail for error states */
++  detail?: string;
++}
++
++/**
++ * Result from creating a git worktree.
++ */
++export interface CreateWorktreeGitResult {
++  status: CreateWorktreeGitStatusCode;
++  /** Absolute path to the created worktree (present on success) */
++  worktreePath?: string;
++  /** Branch name that was created/checked out (present on success) */
++  branchName?: string;
++  /** Human-readable detail for error states */
++  detail?: string;
++}
++
++// ==================== Manager Interface ====================
++
++/**
++ * Interface for mutating git worktree operations.
++ *
++ * Per ADR-0004: Use DI container with interface for testability.
++ * Per Finding 02: Separate from IGitWorktreeResolver (read-only).
++ *
++ * Methods are focused on git plumbing only — no naming logic,
++ * no bootstrap execution, no workspace registration. Those
++ * responsibilities belong to WorkspaceService orchestration (Phase 2).
++ */
++export interface IGitWorktreeManager {
++  /**
++   * Check the status of the local main branch.
++   *
++   * Runs preflight checks per Workshop 002:
++   * 1. Verify local branch 'main' exists
++   * 2. Check for tracked local changes (dirty state)
++   * 3. Check for in-progress git operations (lock files)
++   * 4. Compare local main vs origin/main (ahead/behind/diverged)
++   *
++   * @param mainRepoPath - Absolute path to the main repository root
++   * @returns MainStatusResult with status code and refs
++   */
++  checkMainStatus(mainRepoPath: string): Promise<MainStatusResult>;
++
++  /**
++   * Fetch origin and fast-forward the local main branch.
++   *
++   * Per Workshop 002: Fetch origin/main, compare, fast-forward only
++   * if behind. Block if ahead or diverged (caller handles that).
++   *
++   * Should only be called after checkMainStatus() returns 'clean'.
++   *
++   * @param mainRepoPath - Absolute path to the main repository root
++   * @returns SyncMainResult with status and updated ref
++   */
++  syncMain(mainRepoPath: string): Promise<SyncMainResult>;
++
++  /**
++   * Create a new git worktree with a new branch.
++   *
++   * Runs `git worktree add` to create the worktree directory
++   * and branch from the current HEAD of local main.
++   *
++   * Should only be called after syncMain() succeeds.
++   *
++   * @param mainRepoPath - Absolute path to the main repository root
++   * @param branchName - Name for the new branch (e.g., "069-my-feature")
++   * @param worktreePath - Absolute path for the new worktree directory
++   * @returns CreateWorktreeGitResult with status and paths
++   */
++  createWorktree(
++    mainRepoPath: string,
++    branchName: string,
++    worktreePath: string
++  ): Promise<CreateWorktreeGitResult>;
++}
+
+# untracked test/contracts/git-worktree-manager.contract.test.ts
+diff --git a/Users/jordanknight/substrate/069-new-worktree/test/contracts/git-worktree-manager.contract.test.ts b/Users/jordanknight/substrate/069-new-worktree/test/contracts/git-worktree-manager.contract.test.ts
+new file mode 100644
+index 0000000..22f0ab2
+--- /dev/null
++++ b/Users/jordanknight/substrate/069-new-worktree/test/contracts/git-worktree-manager.contract.test.ts
+@@ -0,0 +1,8 @@
++import { FakeGitWorktreeManager } from '@chainglass/workflow';
++import { gitWorktreeManagerContractTests } from './git-worktree-manager.contract.js';
++
++// Run contract tests for FakeGitWorktreeManager
++gitWorktreeManagerContractTests('FakeGitWorktreeManager', () => new FakeGitWorktreeManager());
++
++// Phase 2: Add real adapter here:
++// gitWorktreeManagerContractTests('GitWorktreeManagerAdapter', () => createRealManager());
+
+# untracked test/contracts/git-worktree-manager.contract.ts
+diff --git a/Users/jordanknight/substrate/069-new-worktree/test/contracts/git-worktree-manager.contract.ts b/Users/jordanknight/substrate/069-new-worktree/test/contracts/git-worktree-manager.contract.ts
+new file mode 100644
+index 0000000..b8beb1a
+--- /dev/null
++++ b/Users/jordanknight/substrate/069-new-worktree/test/contracts/git-worktree-manager.contract.ts
+@@ -0,0 +1,86 @@
++import type { IGitWorktreeManager } from '@chainglass/workflow';
++import { describe, expect, it } from 'vitest';
++
++/**
++ * Contract tests for IGitWorktreeManager implementations.
++ *
++ * Per Plan 069 Phase 1: Defines behavioral expectations for fake/real parity.
++ * Phase 2 adds GitWorktreeManagerAdapter to this suite alongside the fake.
++ *
++ * Usage:
++ * ```typescript
++ * import { gitWorktreeManagerContractTests } from '@test/contracts/git-worktree-manager.contract';
++ *
++ * gitWorktreeManagerContractTests('FakeGitWorktreeManager', () => new FakeGitWorktreeManager());
++ * gitWorktreeManagerContractTests('GitWorktreeManagerAdapter', () => createRealManager());
++ * ```
++ */
++export function gitWorktreeManagerContractTests(
++  name: string,
++  createManager: () => IGitWorktreeManager
++) {
++  describe(`${name} implements IGitWorktreeManager contract`, () => {
++    it('should return a MainStatusResult from checkMainStatus', async () => {
++      /*
++      Test Doc:
++      - Why: Contract ensures all implementations return structured status results
++      - Contract: checkMainStatus() must return an object with a 'status' field
++      - Quality Contribution: Prevents fake drift in status result shape
++      */
++      const manager = createManager();
++      const result = await manager.checkMainStatus('/fake/repo');
++
++      expect(result).toBeDefined();
++      expect(result.status).toBeDefined();
++      expect(typeof result.status).toBe('string');
++    });
++
++    it('should return a SyncMainResult from syncMain', async () => {
++      /*
++      Test Doc:
++      - Why: Contract ensures sync results have consistent shape
++      - Contract: syncMain() must return an object with a 'status' field
++      - Quality Contribution: Phase 2 real adapter must match this shape
++      */
++      const manager = createManager();
++      const result = await manager.syncMain('/fake/repo');
++
++      expect(result).toBeDefined();
++      expect(result.status).toBeDefined();
++      expect(typeof result.status).toBe('string');
++    });
++
++    it('should return a CreateWorktreeGitResult from createWorktree', async () => {
++      /*
++      Test Doc:
++      - Why: Contract ensures creation results have consistent shape
++      - Contract: createWorktree() must return object with 'status' field
++      - Quality Contribution: Phase 2 must return same shape from real git commands
++      */
++      const manager = createManager();
++      const result = await manager.createWorktree('/fake/repo', '069-test', '/fake/worktree');
++
++      expect(result).toBeDefined();
++      expect(result.status).toBeDefined();
++      expect(typeof result.status).toBe('string');
++    });
++
++    it('should include worktreePath and branchName on successful create', async () => {
++      /*
++      Test Doc:
++      - Why: Success results must carry the data needed for downstream operations
++      - Contract: When status is 'created', worktreePath and branchName must be present
++      - Quality Contribution: Web layer depends on these fields for redirect URL building
++      */
++      const manager = createManager();
++      const result = await manager.createWorktree('/fake/repo', '069-test', '/fake/worktree');
++
++      if (result.status === 'created') {
++        expect(result.worktreePath).toBeDefined();
++        expect(typeof result.worktreePath).toBe('string');
++        expect(result.branchName).toBeDefined();
++        expect(typeof result.branchName).toBe('string');
++      }
++    });
++  });
++}

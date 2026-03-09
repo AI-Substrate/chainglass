@@ -10,25 +10,41 @@
  * - T038: getInfo() - with/without worktrees, not found
  */
 
+import { FakeFileSystem } from '@chainglass/shared';
+import { FakeProcessManager } from '@chainglass/shared';
 import { Workspace } from '@chainglass/workflow';
 import type { WorkspaceContext, WorkspaceInfo } from '@chainglass/workflow';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { FakeGitWorktreeManager } from '../../../packages/workflow/src/fakes/fake-git-worktree-manager.js';
 import { FakeGitWorktreeResolver } from '../../../packages/workflow/src/fakes/fake-git-worktree-resolver.js';
 import { FakeWorkspaceContextResolver } from '../../../packages/workflow/src/fakes/fake-workspace-context-resolver.js';
 import { FakeWorkspaceRegistryAdapter } from '../../../packages/workflow/src/fakes/fake-workspace-registry-adapter.js';
 import { WorkspaceService } from '../../../packages/workflow/src/services/workspace.service.js';
+import { WorktreeBootstrapRunner } from '../../../packages/workflow/src/services/worktree-bootstrap-runner.js';
 
 describe('WorkspaceService', () => {
   let registryAdapter: FakeWorkspaceRegistryAdapter;
   let contextResolver: FakeWorkspaceContextResolver;
   let gitResolver: FakeGitWorktreeResolver;
+  let gitManager: FakeGitWorktreeManager;
+  let bootstrapRunner: WorktreeBootstrapRunner;
   let service: WorkspaceService;
 
   beforeEach(() => {
     registryAdapter = new FakeWorkspaceRegistryAdapter();
     contextResolver = new FakeWorkspaceContextResolver();
     gitResolver = new FakeGitWorktreeResolver();
-    service = new WorkspaceService(registryAdapter, contextResolver, gitResolver);
+    gitManager = new FakeGitWorktreeManager();
+    const fakeFs = new FakeFileSystem();
+    const fakePm = new FakeProcessManager();
+    bootstrapRunner = new WorktreeBootstrapRunner(fakePm, fakeFs);
+    service = new WorkspaceService(
+      registryAdapter,
+      contextResolver,
+      gitResolver,
+      gitManager,
+      bootstrapRunner
+    );
   });
 
   // ==================== T036: add() Tests ====================
@@ -488,6 +504,146 @@ describe('WorkspaceService', () => {
       expect(result.success).toBe(true);
       const loaded = await registryAdapter.load(ws.slug);
       expect(loaded.preferences.sortOrder).toBe(5);
+    });
+  });
+
+  // ==================== Plan 069: previewCreateWorktree() Tests ====================
+
+  describe('previewCreateWorktree()', () => {
+    it('should return preview with allocated ordinal for plain slug', async () => {
+      const ws = Workspace.create({ name: 'Test', path: '/home/user/project' });
+      registryAdapter.addWorkspace(ws);
+      contextResolver.setWorkspaceInfo(ws.slug, {
+        slug: ws.slug,
+        name: ws.name,
+        path: ws.path,
+        createdAt: ws.createdAt,
+        hasGit: true,
+        worktrees: [],
+      });
+      gitManager.setBranches(['main', '067-foo', '068-bar'], ['origin/main']);
+      gitManager.setPlanFolders(['065-old']);
+
+      const result = await service.previewCreateWorktree({
+        workspaceSlug: ws.slug,
+        requestedName: 'my-feature',
+      });
+
+      expect(result.ordinal).toBe(69);
+      expect(result.normalizedSlug).toBe('my-feature');
+      expect(result.branchName).toBe('069-my-feature');
+      expect(result.worktreePath).toContain('069-my-feature');
+    });
+
+    it('should use provided ordinal for pasted NNN-slug', async () => {
+      const ws = Workspace.create({ name: 'Test', path: '/home/user/project' });
+      registryAdapter.addWorkspace(ws);
+      contextResolver.setWorkspaceInfo(ws.slug, {
+        slug: ws.slug,
+        name: ws.name,
+        path: ws.path,
+        createdAt: ws.createdAt,
+        hasGit: true,
+        worktrees: [],
+      });
+      gitManager.setBranches(['main'], ['origin/main']);
+
+      const result = await service.previewCreateWorktree({
+        workspaceSlug: ws.slug,
+        requestedName: '042-custom',
+      });
+
+      expect(result.ordinal).toBe(42);
+      expect(result.branchName).toBe('042-custom');
+    });
+  });
+
+  // ==================== Plan 069: createWorktree() Tests ====================
+
+  describe('createWorktree()', () => {
+    it('should block on dirty main before create', async () => {
+      const ws = Workspace.create({ name: 'Test', path: '/home/user/project' });
+      registryAdapter.addWorkspace(ws);
+      contextResolver.setWorkspaceInfo(ws.slug, {
+        slug: ws.slug,
+        name: ws.name,
+        path: ws.path,
+        createdAt: ws.createdAt,
+        hasGit: true,
+        worktrees: [],
+      });
+      gitManager.setMainStatus('dirty', { detail: 'Uncommitted changes' });
+
+      const result = await service.createWorktree({
+        workspaceSlug: ws.slug,
+        requestedName: 'my-feature',
+      });
+
+      expect(result.status).toBe('blocked');
+      if (result.status === 'blocked') {
+        expect(result.errors.length).toBeGreaterThan(0);
+      }
+    });
+
+    it('should block on diverged main', async () => {
+      const ws = Workspace.create({ name: 'Test', path: '/home/user/project' });
+      registryAdapter.addWorkspace(ws);
+      contextResolver.setWorkspaceInfo(ws.slug, {
+        slug: ws.slug,
+        name: ws.name,
+        path: ws.path,
+        createdAt: ws.createdAt,
+        hasGit: true,
+        worktrees: [],
+      });
+      gitManager.setMainStatus('diverged', { detail: 'Local and remote diverged' });
+
+      const result = await service.createWorktree({
+        workspaceSlug: ws.slug,
+        requestedName: 'my-feature',
+      });
+
+      expect(result.status).toBe('blocked');
+    });
+
+    it('should create worktree with skipped bootstrap', async () => {
+      const ws = Workspace.create({ name: 'Test', path: '/home/user/project' });
+      registryAdapter.addWorkspace(ws);
+      contextResolver.setWorkspaceInfo(ws.slug, {
+        slug: ws.slug,
+        name: ws.name,
+        path: ws.path,
+        createdAt: ws.createdAt,
+        hasGit: true,
+        worktrees: [],
+      });
+      gitManager.setMainStatus('clean');
+      gitManager.setSyncResult('already-up-to-date');
+      gitManager.setBranches(['main'], ['origin/main']);
+      gitManager.setCreateResult('created', {
+        worktreePath: '/home/user/069-my-feature',
+        branchName: '069-my-feature',
+      });
+
+      const result = await service.createWorktree({
+        workspaceSlug: ws.slug,
+        requestedName: 'my-feature',
+      });
+
+      expect(result.status).toBe('created');
+      if (result.status === 'created') {
+        expect(result.branchName).toContain('my-feature');
+        expect(result.bootstrapStatus.outcome).toBe('skipped');
+      }
+    });
+
+    it('should return blocked for non-existent workspace', async () => {
+      const result = await service.createWorktree({
+        workspaceSlug: 'nonexistent',
+        requestedName: 'my-feature',
+      });
+
+      expect(result.status).toBe('blocked');
     });
   });
 });

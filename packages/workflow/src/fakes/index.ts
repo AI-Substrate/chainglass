@@ -78,6 +78,16 @@ export type {
   IsMainWorktreeCall,
 } from './fake-git-worktree-resolver.js';
 
+// Git worktree manager fake (Plan 069 Phase 1: mutation boundary)
+export { FakeGitWorktreeManager } from './fake-git-worktree-manager.js';
+export type {
+  CheckMainStatusCall,
+  SyncMainCall,
+  CreateWorktreeManagerCall,
+  ListBranchesCall,
+  ListPlanFoldersCall,
+} from './fake-git-worktree-manager.js';
+
 // Agent session adapter fake (Plan 018)
 export { FakeAgentSessionAdapter } from './fake-agent-session-adapter.js';
 export type {
