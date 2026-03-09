@@ -12,7 +12,7 @@
  * and the pure naming functions that power live preview.
  */
 
-import { buildWorktreeName, normalizeSlug } from '@chainglass/workflow';
+import { buildWorktreeName, normalizeSlug } from '@chainglass/workflow/services/worktree-name';
 import { describe, expect, it } from 'vitest';
 
 // ==================== Page State Shape Tests ====================

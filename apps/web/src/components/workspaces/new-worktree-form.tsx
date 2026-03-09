@@ -11,7 +11,7 @@
  */
 
 import type { PreviewCreateWorktreeResult } from '@chainglass/workflow';
-import { buildWorktreeName, normalizeSlug } from '@chainglass/workflow';
+import { buildWorktreeName, normalizeSlug } from '@chainglass/workflow/services/worktree-name';
 import { useActionState } from 'react';
 import { useEffect, useState } from 'react';
 import { useFormStatus } from 'react-dom';

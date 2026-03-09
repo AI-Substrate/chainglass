@@ -33,6 +33,10 @@
     "./features/023-central-watcher-notifications": {
       "import": "./dist/features/023-central-watcher-notifications/index.js",
       "types": "./dist/features/023-central-watcher-notifications/index.d.ts"
+    },
+    "./services/worktree-name": {
+      "import": "./dist/services/worktree-name.js",
+      "types": "./dist/services/worktree-name.d.ts"
     }
   },
   "scripts": {
