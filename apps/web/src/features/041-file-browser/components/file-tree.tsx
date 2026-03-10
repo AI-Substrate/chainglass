@@ -36,7 +36,7 @@ import {
   RefreshCw,
   Trash2,
 } from 'lucide-react';
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import type { FileEntry } from '../services/directory-listing';
 import { DeleteConfirmationDialog } from './delete-confirmation-dialog';
 import { InlineEditInput } from './inline-edit-input';
@@ -85,6 +85,7 @@ export interface FileTreeProps {
   /** Paths of newly added files/dirs — get green fade-in animation */
   newlyAddedPaths?: Set<string>;
   onSelect: (filePath: string) => void;
+  onDoubleSelect?: (filePath: string, wasSelected: boolean) => void;
   onExpand: (dirPath: string) => void;
   childEntries?: Record<string, FileEntry[]>;
   /** Programmatically expand these paths (merged into internal state) */
@@ -112,6 +113,7 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
     changedFiles,
     newlyAddedPaths,
     onSelect,
+    onDoubleSelect,
     onExpand,
     childEntries = {},
     expandPaths,
@@ -323,6 +325,7 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
           newlyAddedPaths={newlyAddedPaths}
           childEntries={childEntries}
           onSelect={onSelect}
+          onDoubleSelect={onDoubleSelect}
           onDirClick={handleDirClick}
           onExpand={onExpand}
           onCopyFullPath={onCopyFullPath}
@@ -363,6 +366,7 @@ function TreeItem({
   newlyAddedPaths,
   childEntries,
   onSelect,
+  onDoubleSelect,
   onDirClick,
   onExpand,
   onCopyFullPath,
@@ -380,6 +384,7 @@ function TreeItem({
   newlyAddedPaths?: Set<string>;
   childEntries: Record<string, FileEntry[]>;
   onSelect: (path: string) => void;
+  onDoubleSelect?: (path: string, wasSelected: boolean) => void;
   onDirClick: (path: string) => void;
   onExpand: (path: string) => void;
   onCopyFullPath?: (path: string) => void;
@@ -619,6 +624,7 @@ function TreeItem({
     },
     [isSelected]
   );
+  const selectedOnMouseDownRef = useRef(isSelected);
 
   // Rename mode for file: keep icon, replace name with inline input (DYK-P2-04)
   if (isRenaming) {
@@ -655,7 +661,15 @@ function TreeItem({
           <button
             ref={scrollRef as React.Ref<HTMLButtonElement>}
             type="button"
-            onClick={() => onSelect(entry.path)}
+            onMouseDown={() => {
+              selectedOnMouseDownRef.current = isSelected;
+            }}
+            onClick={(event) => {
+              onSelect(entry.path);
+              if (event.detail === 2) {
+                onDoubleSelect?.(entry.path, selectedOnMouseDownRef.current);
+              }
+            }}
             className={`relative flex w-full items-center gap-1 px-2 py-1 text-left hover:bg-accent ${
               isSelected ? 'bg-accent font-medium' : ''
             } ${isChanged ? 'text-amber-600 dark:text-amber-400' : ''} ${isNewlyAdded ? 'tree-entry-new' : ''}`}

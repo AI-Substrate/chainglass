@@ -80,6 +80,24 @@ describe('ChangesView', () => {
     expect(onSelect).toHaveBeenCalledWith('src/utils.ts');
   });
 
+  it('fires onDoubleSelect with unselected state when file double clicked', async () => {
+    const user = userEvent.setup();
+    const onDoubleSelect = vi.fn();
+
+    render(
+      <ChangesView
+        workingChanges={sampleChanges}
+        recentFiles={[]}
+        selectedFile="src/new-file.ts"
+        onSelect={vi.fn()}
+        onDoubleSelect={onDoubleSelect}
+      />
+    );
+
+    await user.dblClick(screen.getByText('utils.ts'));
+    expect(onDoubleSelect).toHaveBeenCalledWith('src/utils.ts', false);
+  });
+
   it('highlights selected file with indicator', () => {
     render(
       <ChangesView

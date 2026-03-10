@@ -38,6 +38,23 @@ describe('FileTree', () => {
     expect(onSelect).toHaveBeenCalledWith('README.md');
   });
 
+  it('fires onDoubleSelect with selected state when a file is double clicked', async () => {
+    const user = userEvent.setup();
+    const onDoubleSelect = vi.fn();
+    render(
+      <FileTree
+        entries={sampleEntries}
+        selectedFile="README.md"
+        onSelect={vi.fn()}
+        onDoubleSelect={onDoubleSelect}
+        onExpand={vi.fn()}
+      />
+    );
+
+    await user.dblClick(screen.getByText('README.md'));
+    expect(onDoubleSelect).toHaveBeenCalledWith('README.md', true);
+  });
+
   it('fires onExpand when a directory is clicked', async () => {
     const user = userEvent.setup();
     const onExpand = vi.fn();

@@ -128,6 +128,25 @@ export function FileViewerPanel({
     scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
+  const handleEditModeKeyDownCapture = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (
+        mode !== 'edit' ||
+        event.repeat ||
+        event.shiftKey ||
+        event.altKey ||
+        !(event.metaKey || event.ctrlKey) ||
+        event.key.toLowerCase() !== 's'
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      onSave(currentContent);
+    },
+    [mode, onSave, currentContent]
+  );
+
   // Error states
   if (errorType === 'file-too-large') {
     return (
@@ -286,6 +305,7 @@ export function FileViewerPanel({
       <div
         ref={mode !== 'edit' ? scrollRef : undefined}
         onScroll={mode !== 'edit' ? handleScroll : undefined}
+        onKeyDownCapture={mode === 'edit' ? handleEditModeKeyDownCapture : undefined}
         className={mode === 'edit' ? 'flex-1 min-h-0 flex flex-col' : 'flex-1 overflow-auto'}
       >
         <Suspense fallback={<LoadingFallback />}>

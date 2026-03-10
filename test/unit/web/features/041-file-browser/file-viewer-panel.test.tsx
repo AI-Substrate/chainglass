@@ -9,7 +9,7 @@
  */
 
 import { FileViewerPanel } from '@/features/041-file-browser/components/file-viewer-panel';
-import { render, screen } from '@testing-library/react';
+import { createEvent, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -84,6 +84,52 @@ describe('FileViewerPanel', () => {
       render(<FileViewerPanel {...baseProps} mode="edit" conflictError="File changed on disk" />);
 
       expect(screen.getByText(/conflict/i)).toBeInTheDocument();
+    });
+
+    it('saves current content on Cmd+S in edit mode', async () => {
+      const onSave = vi.fn();
+      render(
+        <FileViewerPanel {...baseProps} mode="edit" editContent="edited content" onSave={onSave} />
+      );
+
+      const editor = await screen.findByTestId('code-editor');
+      const event = createEvent.keyDown(editor, {
+        key: 's',
+        metaKey: true,
+      });
+      fireEvent(editor, event);
+
+      expect(event.defaultPrevented).toBe(true);
+      expect(onSave).toHaveBeenCalledWith('edited content');
+    });
+
+    it('saves current content on Ctrl+S in edit mode', async () => {
+      const onSave = vi.fn();
+      render(
+        <FileViewerPanel {...baseProps} mode="edit" editContent="edited content" onSave={onSave} />
+      );
+
+      const editor = await screen.findByTestId('code-editor');
+      const event = createEvent.keyDown(editor, {
+        key: 's',
+        ctrlKey: true,
+      });
+      fireEvent(editor, event);
+
+      expect(event.defaultPrevented).toBe(true);
+      expect(onSave).toHaveBeenCalledWith('edited content');
+    });
+
+    it('does not save on Cmd+S outside edit mode', () => {
+      const onSave = vi.fn();
+      render(<FileViewerPanel {...baseProps} mode="preview" onSave={onSave} />);
+
+      fireEvent.keyDown(screen.getByText(baseProps.content), {
+        key: 's',
+        metaKey: true,
+      });
+
+      expect(onSave).not.toHaveBeenCalled();
     });
   });
 
