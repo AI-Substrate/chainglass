@@ -56,10 +56,11 @@ function PRViewPanelContent({
   }, [worktreePath]);
 
   // Fetch data on mount
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only — fetch once when panel opens
   useEffect(() => {
     refreshRef.current();
     fetchNoteFiles();
-  }, [fetchNoteFiles]);
+  }, []);
 
   // Phase 6 T004: SSE-driven auto-refresh
   const { hasChanges, clearChanges } = useFileChanges('*', { debounce: 300 });
@@ -71,13 +72,14 @@ function PRViewPanelContent({
   }, [hasChanges, clearChanges]);
 
   // Phase 7 DYK-02: Refresh note indicators when notes change
+  // biome-ignore lint/correctness/useExhaustiveDependencies: ref-stable — fetchNoteFiles is memoized on worktreePath
   useEffect(() => {
     const handler = () => {
       fetchNoteFiles();
     };
     window.addEventListener('notes:changed', handler);
     return () => window.removeEventListener('notes:changed', handler);
-  }, [fetchNoteFiles]);
+  }, []);
 
   const handleFileClick = useCallback((filePath: string) => {
     scrollToFileRef.current?.(filePath);

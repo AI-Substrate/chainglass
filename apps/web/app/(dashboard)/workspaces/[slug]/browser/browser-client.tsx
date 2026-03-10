@@ -166,18 +166,20 @@ function BrowserClientInner({
   }, [worktreePath]);
 
   // Fetch note file paths on mount
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only — fetch once on initial render
   useEffect(() => {
     refreshNoteFiles();
-  }, [refreshNoteFiles]);
+  }, []);
 
   // DYK-02: Listen for notes:changed to refresh immediately after CRUD
+  // biome-ignore lint/correctness/useExhaustiveDependencies: ref-stable — refreshNoteFiles is memoized on worktreePath
   useEffect(() => {
     const handler = () => {
       refreshNoteFiles();
     };
     window.addEventListener('notes:changed', handler);
     return () => window.removeEventListener('notes:changed', handler);
-  }, [refreshNoteFiles]);
+  }, []);
 
   // "Add Note" from tree context menu (DYK-01: direct hook call)
   const handleAddNote = useCallback(
