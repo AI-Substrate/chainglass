@@ -25,7 +25,9 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  // Immutable cache headers for generated icon assets (Plan 073)
+  // Cache headers for generated icon assets (Plan 073).
+  // Uses max-age with must-revalidate (not immutable) because icon URLs
+  // are not content-addressed — upgrading the icon theme reuses the same paths.
   async headers() {
     return [
       {
@@ -33,7 +35,7 @@ const nextConfig = {
         headers: [
           {
             key: 'Cache-Control',
-            value: 'public, immutable, max-age=31536000',
+            value: 'public, max-age=86400, must-revalidate',
           },
         ],
       },

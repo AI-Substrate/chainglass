@@ -2,6 +2,14 @@
 
 This guide explains how to add a VSCode-compatible icon theme to Chainglass. The architecture supports multiple icon themes — adding a new one requires an npm package, a build pipeline update, and an SDK setting registration.
 
+## Current Limitations
+
+Before following this guide, be aware of these limitations in the current implementation:
+
+1. **No runtime theme switching**: `IconThemeProvider` uses `DEFAULT_ICON_THEME` — the SDK setting `themes.iconTheme` is registered but not wired to the provider. Adding a second theme option won't switch icons until the provider is wired to read the setting value.
+2. **Light overrides assumed**: `generate-icon-assets.ts` expects `manifest.light` to exist. Icon themes that omit light overrides may need script adjustments to handle `undefined` gracefully.
+3. **Single theme tested**: Only `material-icon-theme` has been verified. A second theme will be the first real test of multi-theme support.
+
 ## Prerequisites
 
 - The icon theme must be published as an npm package with SVG icon files
@@ -173,5 +181,5 @@ If your theme provides light-mode icon variants:
 
 - Icons are **build-time generated** and gitignored (`apps/web/public/icons/`)
 - `just kill-cache` and `just clean` remove generated icons
-- Cache headers serve icons with `Cache-Control: public, immutable, max-age=31536000`
+- Cache headers serve icons with `Cache-Control: public, max-age=86400, must-revalidate`
 - The freshness check uses a `.version` sentinel file — delete it or use `--force` to regenerate

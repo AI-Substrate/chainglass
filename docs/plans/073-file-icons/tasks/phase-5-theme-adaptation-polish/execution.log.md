@@ -41,8 +41,12 @@
 - **Evidence**: 5,327 tests passed, 370 files, zero failures.
 
 ### T006: Harness visual verification ✅
-- **Screenshot**: `harness/results/file-icons-dark-desktop-lg.png` — dark mode file browser showing:
-  - Root folder (`.`): themed blue folder icon ✅
-  - `.git` folder: orange/red git-specific folder icon ✅
-  - `README.md`: blue info/markdown icon ✅
-- **Verdict**: Themed icons render correctly in the running app. Distinct colors visible for different file types and special folders.
+- **Dark mode**: `harness/results/file-icons-dark-desktop-lg.png` — themed icons visible
+- **Light mode**: `harness/results/file-icons-light-desktop-lg.png` — themed icons visible with good contrast on light background
+- **Icons verified**: Root folder (blue), .git folder (orange), README.md (blue info icon)
+- **Verdict**: Themed icons render correctly in both themes.
+
+### Code Review Fixes ✅
+- **F001 (HIGH)**: Downgraded cache policy from `immutable, max-age=31536000` to `max-age=86400, must-revalidate` — icon URLs are not content-addressed, so immutable would strand browsers on stale assets after theme upgrades.
+- **F002 (MEDIUM)**: Added "Current Limitations" section to extending-icon-themes.md documenting: no runtime theme switching, light overrides assumed, single theme tested.
+- **F003 (MEDIUM)**: Captured missing light-mode screenshot (`file-icons-light-desktop-lg.png`). Both dark and light evidence now exists.
