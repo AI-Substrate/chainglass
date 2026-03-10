@@ -44,8 +44,8 @@
   "packageManager": "pnpm@9.15.4",
   "pnpm": {
     "patchedDependencies": {
-      "next-auth@5.0.0-beta.30": "patches/next-auth@5.0.0-beta.30.patch"
+      "next-auth@5.0.0-beta.30": "patches/next-auth@5.0.0-beta.30.patch",
+      "@github/copilot-sdk@0.1.32": "patches/@github__copilot-sdk@0.1.32.patch"
     }
-  },
-  "dependencies": {}
+  }
 }
