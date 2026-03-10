@@ -70,6 +70,8 @@ export interface FileViewerPanelProps {
   binaryContentType?: string;
   binarySize?: number;
   rawFileUrl?: string;
+  /** Base URL for raw file API (without &file= param), for resolving relative images in markdown */
+  rawFileBaseUrl?: string;
   /** URL for pop-out button — opens file in new tab (Phase 5) */
   popOutUrl?: string;
   /** Line number to scroll to in code editor (Plan 047 Phase 6) */
@@ -100,6 +102,7 @@ export function FileViewerPanel({
   binaryContentType,
   binarySize,
   rawFileUrl,
+  rawFileBaseUrl,
   popOutUrl,
   scrollToLine,
   onNavigateToFile,
@@ -325,6 +328,7 @@ export function FileViewerPanel({
                 <MarkdownPreview
                   html={markdownHtml}
                   currentFilePath={filePath}
+                  rawFileBaseUrl={rawFileBaseUrl}
                   onNavigateToFile={onNavigateToFile}
                 />
               ) : highlightedHtml ? (
