@@ -39,6 +39,10 @@ flowchart LR
     %% NEW business domains (Plan 065)
     activityLog["📋 activity-log<br/>ActivityLogEntry<br/>appendActivityLogEntry<br/>readActivityLog<br/>shouldIgnorePaneTitle<br/>useActivityLogOverlay<br/>GET /api/activity-log"]:::new
 
+    %% NEW business domains (Plan 071)
+    fileNotes["📝 file-notes<br/>INoteService · NoteLinkType<br/>NoteFilter · FakeNoteService<br/>JsonlNoteService · registerNotesCommands<br/>NotesOverlayPanel · NoteModal<br/>NoteIndicatorDot · useNotes<br/>GET/POST/PATCH/DELETE<br/>/api/file-notes"]:::new
+    prView["🔍 pr-view<br/>PRViewFile · PRViewData<br/>ComparisonMode · PRViewFileState<br/>PRViewOverlayProvider · usePRViewOverlay<br/>usePRViewData · registerPRViewSDK<br/>aggregatePRViewData · getAllDiffs<br/>GET/POST/DELETE<br/>/api/pr-view"]:::new
+
     %% Contract dependencies (consumer → provider)
     fileBrowser -->|"IFileSystem<br/>IPathResolver"| fileOps
     fileBrowser -->|"workspaceHref<br/>fileBrowserParams"| wsUrl
@@ -115,6 +119,16 @@ flowchart LR
     fileBrowser -->|"middleware protection"| auth
     workflowUI -->|"middleware protection"| auth
     workunitEditor -->|"middleware protection"| auth
+    fileNotes -->|"requireAuth()<br/>auth()"| auth
+    fileNotes -->|"overlay anchor"| panels
+    fileNotes -->|"workspaceHref()"| wsUrl
+    fileNotes -->|"toast()"| events
+    fileNotes -->|"registerFileNotesSDK()"| sdk
+    prView -->|"getWorkingChanges()"| fileBrowser
+    prView -->|"requireAuth()<br/>auth()"| auth
+    prView -->|"DiffViewer"| viewer
+    prView -->|"overlay anchor"| panels
+    prView -->|"registerPRViewSDK()"| sdk
 ```
 
 ## Legend
@@ -148,4 +162,6 @@ flowchart LR
 | work-unit-state | IWorkUnitStateService, WorkUnitEntry, WorkUnitEvent, FakeWorkUnitStateService, workUnitStateRoute | agents (AgentWorkUnitBridge), workflow-ui (future) | ICentralEventNotifier, ServerEventRouteDescriptor | events, state | 🟠 New |
 | workflow-events | IWorkflowEvents, WorkflowEventType, WorkflowEventError, FakeWorkflowEventsService | agents (observer hooks), workflow-ui (answerQuestion), CLI (ask/answer/get-answer) | IPositionalGraphService, ICentralEventNotifier | positional-graph, events | 🟠 New |
 | terminal | _(none — leaf consumer)_ | — | PanelShell, LeftPanel, MainPanel, toast(), IUSDK, ICommandRegistry, workspaceHref | panel-layout, events, sdk, workspace-url | ✅ |
-| _platform/auth | auth(), signIn(), signOut(), requireAuth(), useAuth(), middleware protection, isUserAllowed(), SessionProvider | file-browser, workflow-ui, workunit-editor (via middleware), server actions (via requireAuth) | — | — | ✅ |
+| _platform/auth | auth(), signIn(), signOut(), requireAuth(), useAuth(), middleware protection, isUserAllowed(), SessionProvider | file-browser, workflow-ui, workunit-editor (via middleware), server actions (via requireAuth), file-notes | — | — | ✅ |
+| file-notes | INoteService, NoteLinkType, NoteFilter, FakeNoteService, JsonlNoteService, NotesOverlayPanel, NoteModal, NoteIndicatorDot, BulkDeleteDialog, useNotes, useNotesOverlay, registerFileNotesSDK, registerNotesCommands, GET/POST/PATCH/DELETE /api/file-notes | file-browser (future), CLI, pr-view (future) | requireAuth(), auth(), overlay anchor, workspaceHref(), toast(), registerFileNotesSDK | auth, panel-layout, workspace-url, events, sdk | 🟠 New |
+| pr-view | PRViewFile, PRViewData, ComparisonMode, PRViewFileState, PRViewOverlayProvider, usePRViewOverlay, usePRViewData, registerPRViewSDK, aggregatePRViewData, getAllDiffs, GET/POST/DELETE /api/pr-view | live updates (Phase 6), file-browser (Phase 7) | getWorkingChanges(), requireAuth(), auth(), DiffViewer, overlay anchor, registerPRViewSDK | file-browser, auth, viewer, panel-layout, sdk | 🟠 New |

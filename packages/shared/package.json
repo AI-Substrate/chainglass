@@ -44,6 +44,10 @@
     "./workflow-events": {
       "import": "./dist/workflow-events/index.js",
       "types": "./dist/workflow-events/index.d.ts"
+    },
+    "./file-notes": {
+      "import": "./dist/file-notes/index.js",
+      "types": "./dist/file-notes/index.d.ts"
     }
   },
   "scripts": {

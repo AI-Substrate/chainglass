@@ -28,7 +28,7 @@ import type { IUSDK } from '@chainglass/shared/sdk';
 import { KeyboardShortcutListener } from './keyboard-shortcut-listener';
 import { MruTracker } from './mru-tracker';
 import { bootstrapSDK } from './sdk-bootstrap';
-import { registerAllDomains } from './sdk-domain-registrations';
+import { registerAllDomains } from '@/app-composition/sdk-domain-registrations';
 
 type PersistFn = ((sdkSettings: Record<string, unknown>) => Promise<void>) | null;
 type PersistMruFn = ((sdkMru: string[]) => Promise<void>) | null;

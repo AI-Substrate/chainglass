@@ -12,6 +12,7 @@
  * - noContextError: Build a standard E074 error result for missing workspace context
  */
 
+import * as fs from 'node:fs';
 import {
   ConsoleOutputAdapter,
   type IOutputAdapter,
@@ -70,12 +71,34 @@ export async function resolveOrOverrideContext(
  *
  * Every command handler needs this when resolveOrOverrideContext returns null.
  * Returns an array of ResultError for inclusion in a result object.
+ *
+ * Per Plan 071 DYK-P3-03: When .chainglass/ folder exists but workspace isn't
+ * registered, provides a specific action message guiding the user to register.
  */
 export function noContextError(workspacePath?: string): {
   code: string;
   message: string;
   action: string;
 }[] {
+  const searchPath = workspacePath ?? process.cwd();
+
+  // Walk up to check for .chainglass/ folder
+  let dir = searchPath;
+  while (dir !== '/') {
+    if (fs.existsSync(`${dir}/.chainglass`)) {
+      return [
+        {
+          code: 'E074',
+          message: 'No workspace context found',
+          action: `A .chainglass/ folder was found at ${dir}. Register it first: cg workspace add <name> ${dir}`,
+        },
+      ];
+    }
+    const parent = dir.substring(0, dir.lastIndexOf('/')) || '/';
+    if (parent === dir) break;
+    dir = parent;
+  }
+
   return [
     {
       code: 'E074',

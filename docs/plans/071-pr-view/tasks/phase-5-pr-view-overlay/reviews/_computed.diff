@@ -1,0 +1,1339 @@
+diff --git a/apps/web/src/features/071-pr-view/hooks/use-pr-view-overlay.tsx b/apps/web/src/features/071-pr-view/hooks/use-pr-view-overlay.tsx
+new file mode 100644
+index 00000000..f227472a
+--- /dev/null
++++ b/apps/web/src/features/071-pr-view/hooks/use-pr-view-overlay.tsx
+@@ -0,0 +1,130 @@
++'use client';
++
++/**
++ * PR View Overlay — Context + Hook
++ *
++ * Provides overlay state management for the PR View panel.
++ * Dispatches overlay:close-all before opening (mutual exclusion with
++ * terminal, activity-log, notes, and agent overlays). Uses isOpeningRef
++ * guard to prevent self-close when dispatching overlay:close-all (PL-08).
++ *
++ * Plan 071: PR View & File Notes — Phase 5, T001
++ */
++
++import {
++  type ReactNode,
++  createContext,
++  useCallback,
++  useContext,
++  useEffect,
++  useRef,
++  useState,
++} from 'react';
++
++interface PRViewOverlayState {
++  isOpen: boolean;
++  worktreePath: string | null;
++}
++
++interface PRViewOverlayContextValue extends PRViewOverlayState {
++  openPRView: (worktreePath: string) => void;
++  closePRView: () => void;
++  togglePRView: (worktreePath?: string) => void;
++}
++
++const PRViewOverlayContext = createContext<PRViewOverlayContextValue | null>(null);
++
++interface PRViewOverlayProviderProps {
++  children: ReactNode;
++  defaultWorktreePath?: string;
++}
++
++export function PRViewOverlayProvider({
++  children,
++  defaultWorktreePath,
++}: PRViewOverlayProviderProps) {
++  const [state, setState] = useState<PRViewOverlayState>({
++    isOpen: false,
++    worktreePath: defaultWorktreePath ?? null,
++  });
++
++  // PL-08: Guard to prevent self-close when dispatching overlay:close-all
++  const isOpeningRef = useRef(false);
++  const stateRef = useRef(state);
++  stateRef.current = state;
++
++  const closePRView = useCallback(() => {
++    setState((prev) => (prev.isOpen ? { ...prev, isOpen: false } : prev));
++  }, []);
++
++  const openPRView = useCallback((worktreePath: string) => {
++    isOpeningRef.current = true;
++    window.dispatchEvent(new CustomEvent('overlay:close-all'));
++    isOpeningRef.current = false;
++    setState({ isOpen: true, worktreePath });
++  }, []);
++
++  const togglePRView = useCallback((worktreePath?: string) => {
++    const prev = stateRef.current;
++    if (prev.isOpen) {
++      setState({ ...prev, isOpen: false });
++      return;
++    }
++
++    const params = new URLSearchParams(window.location.search);
++    const urlWorktree = params.get('worktree');
++    const resolved = worktreePath ?? urlWorktree ?? prev.worktreePath;
++
++    if (!resolved) {
++      console.warn('[pr-view-overlay] Cannot open: no worktree path resolved');
++      return;
++    }
++
++    isOpeningRef.current = true;
++    window.dispatchEvent(new CustomEvent('overlay:close-all'));
++    isOpeningRef.current = false;
++
++    setState({ isOpen: true, worktreePath: resolved });
++  }, []);
++
++  // Listen for pr-view:toggle events (from sidebar / SDK)
++  useEffect(() => {
++    const handler = (e: Event) => {
++      const detail = (e as CustomEvent).detail;
++      togglePRView(detail?.worktreePath);
++    };
++    window.addEventListener('pr-view:toggle', handler);
++    return () => window.removeEventListener('pr-view:toggle', handler);
++  }, [togglePRView]);
++
++  // Listen for overlay:close-all (mutual exclusion)
++  useEffect(() => {
++    const handler = () => {
++      if (isOpeningRef.current) return; // PL-08: skip self-close
++      closePRView();
++    };
++    window.addEventListener('overlay:close-all', handler);
++    return () => window.removeEventListener('overlay:close-all', handler);
++  }, [closePRView]);
++
++  return (
++    <PRViewOverlayContext.Provider
++      value={{
++        ...state,
++        openPRView,
++        closePRView,
++        togglePRView,
++      }}
++    >
++      {children}
++    </PRViewOverlayContext.Provider>
++  );
++}
++
++export function usePRViewOverlay(): PRViewOverlayContextValue {
++  const context = useContext(PRViewOverlayContext);
++  if (!context) {
++    throw new Error('usePRViewOverlay must be used within a PRViewOverlayProvider');
++  }
++  return context;
++}
+diff --git a/apps/web/src/features/071-pr-view/hooks/use-pr-view-data.ts b/apps/web/src/features/071-pr-view/hooks/use-pr-view-data.ts
+new file mode 100644
+index 00000000..139c88d3
+--- /dev/null
++++ b/apps/web/src/features/071-pr-view/hooks/use-pr-view-data.ts
+@@ -0,0 +1,239 @@
++'use client';
++
++/**
++ * usePRViewData — Data hook for PR View overlay.
++ *
++ * Fetches PRViewData from server action, caches for 10s, provides
++ * mark/unmark/clear actions with optimistic cache mutation (DYK-03),
++ * and manages collapsed/expanded state for diff sections.
++ *
++ * Plan 071: PR View & File Notes — Phase 5, T002
++ */
++
++import { useCallback, useEffect, useRef, useState } from 'react';
++
++import type { ComparisonMode, PRViewData, PRViewFile } from '../types';
++
++interface UsePRViewDataReturn {
++  data: PRViewData | null;
++  loading: boolean;
++  error: string | null;
++  refresh: () => void;
++  /** Mark a file as reviewed — optimistic update + server action */
++  markReviewed: (filePath: string) => void;
++  /** Unmark a file — optimistic update + server action */
++  unmarkReviewed: (filePath: string) => void;
++  /** Toggle reviewed state for a file */
++  toggleReviewed: (filePath: string) => void;
++  /** Clear all reviewed state */
++  clearAllReviewed: () => void;
++  /** Set of collapsed file paths */
++  collapsedFiles: Set<string>;
++  /** Toggle collapsed state for one file */
++  toggleCollapsed: (filePath: string) => void;
++  /** Expand all files */
++  expandAll: () => void;
++  /** Collapse all files */
++  collapseAll: () => void;
++  /** Active comparison mode */
++  mode: ComparisonMode;
++}
++
++const CACHE_TTL_MS = 10_000;
++
++export function usePRViewData(worktreePath: string | null): UsePRViewDataReturn {
++  const [data, setData] = useState<PRViewData | null>(null);
++  const [loading, setLoading] = useState(false);
++  const [error, setError] = useState<string | null>(null);
++  const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set());
++  const [mode] = useState<ComparisonMode>('working');
++
++  const lastFetchTime = useRef(0);
++  const isMounted = useRef(true);
++
++  useEffect(() => {
++    isMounted.current = true;
++    return () => {
++      isMounted.current = false;
++    };
++  }, []);
++
++  const fetchData = useCallback(
++    async (force = false) => {
++      if (!worktreePath) return;
++
++      // 10s cache — skip fetch if recent (unless forced)
++      const now = Date.now();
++      if (!force && data && now - lastFetchTime.current < CACHE_TTL_MS) return;
++
++      setLoading(true);
++      setError(null);
++
++      try {
++        const { fetchPRViewData } = await import('../../../../app/actions/pr-view-actions');
++        const result = await fetchPRViewData(worktreePath, mode);
++        if (!isMounted.current) return;
++
++        if (result.ok) {
++          setData(result.data);
++          lastFetchTime.current = Date.now();
++        } else {
++          setError(result.error);
++        }
++      } catch (err) {
++        if (!isMounted.current) return;
++        setError(`Failed to fetch PR View data: ${err}`);
++      } finally {
++        if (isMounted.current) setLoading(false);
++      }
++    },
++    [worktreePath, mode, data]
++  );
++
++  const refresh = useCallback(() => {
++    fetchData(true);
++  }, [fetchData]);
++
++  // DYK-03: Mutate cached state directly on mark/unmark
++  const updateFileInCache = useCallback(
++    (filePath: string, updater: (file: PRViewFile) => PRViewFile) => {
++      setData((prev) => {
++        if (!prev) return prev;
++        const newFiles = prev.files.map((f) => (f.path === filePath ? updater(f) : f));
++        const reviewedCount = newFiles.filter((f) => f.reviewed).length;
++        return {
++          ...prev,
++          files: newFiles,
++          stats: { ...prev.stats, reviewedCount },
++        };
++      });
++    },
++    []
++  );
++
++  const markReviewed = useCallback(
++    (filePath: string) => {
++      // Optimistic update
++      updateFileInCache(filePath, (f) => ({
++        ...f,
++        reviewed: true,
++        previouslyReviewed: false,
++        reviewedAt: new Date().toISOString(),
++      }));
++      // Collapse on review
++      setCollapsedFiles((prev) => new Set([...prev, filePath]));
++      // Fire server action (no await — fire-and-forget with error logging)
++      if (worktreePath) {
++        import('../../../../app/actions/pr-view-actions')
++          .then(({ markFileAsReviewed }) => markFileAsReviewed(worktreePath, filePath))
++          .then((result) => {
++            if (!result.ok) console.error('[pr-view] markReviewed failed:', result.error);
++          })
++          .catch((err) => console.error('[pr-view] markReviewed error:', err));
++      }
++    },
++    [worktreePath, updateFileInCache]
++  );
++
++  const unmarkReviewed = useCallback(
++    (filePath: string) => {
++      updateFileInCache(filePath, (f) => ({
++        ...f,
++        reviewed: false,
++        previouslyReviewed: false,
++        reviewedAt: undefined,
++      }));
++      // Expand on unmark
++      setCollapsedFiles((prev) => {
++        const next = new Set(prev);
++        next.delete(filePath);
++        return next;
++      });
++      if (worktreePath) {
++        import('../../../../app/actions/pr-view-actions')
++          .then(({ unmarkFileAsReviewed }) => unmarkFileAsReviewed(worktreePath, filePath))
++          .then((result) => {
++            if (!result.ok) console.error('[pr-view] unmarkReviewed failed:', result.error);
++          })
++          .catch((err) => console.error('[pr-view] unmarkReviewed error:', err));
++      }
++    },
++    [worktreePath, updateFileInCache]
++  );
++
++  const toggleReviewed = useCallback(
++    (filePath: string) => {
++      const file = data?.files.find((f) => f.path === filePath);
++      if (!file) return;
++      if (file.reviewed) {
++        unmarkReviewed(filePath);
++      } else {
++        markReviewed(filePath);
++      }
++    },
++    [data, markReviewed, unmarkReviewed]
++  );
++
++  const clearAllReviewed = useCallback(() => {
++    setData((prev) => {
++      if (!prev) return prev;
++      return {
++        ...prev,
++        files: prev.files.map((f) => ({
++          ...f,
++          reviewed: false,
++          previouslyReviewed: false,
++          reviewedAt: undefined,
++        })),
++        stats: { ...prev.stats, reviewedCount: 0 },
++      };
++    });
++    setCollapsedFiles(new Set());
++    if (worktreePath) {
++      import('../../../../app/actions/pr-view-actions')
++        .then(({ clearAllReviewedState }) => clearAllReviewedState(worktreePath))
++        .then((result) => {
++          if (!result.ok) console.error('[pr-view] clearAll failed:', result.error);
++        })
++        .catch((err) => console.error('[pr-view] clearAll error:', err));
++    }
++  }, [worktreePath]);
++
++  // Collapsed state management
++  const toggleCollapsed = useCallback((filePath: string) => {
++    setCollapsedFiles((prev) => {
++      const next = new Set(prev);
++      if (next.has(filePath)) {
++        next.delete(filePath);
++      } else {
++        next.add(filePath);
++      }
++      return next;
++    });
++  }, []);
++
++  const expandAll = useCallback(() => {
++    setCollapsedFiles(new Set());
++  }, []);
++
++  const collapseAll = useCallback(() => {
++    if (!data) return;
++    setCollapsedFiles(new Set(data.files.map((f) => f.path)));
++  }, [data]);
++
++  return {
++    data,
++    loading,
++    error,
++    refresh,
++    markReviewed,
++    unmarkReviewed,
++    toggleReviewed,
++    clearAllReviewed,
++    collapsedFiles,
++    toggleCollapsed,
++    expandAll,
++    collapseAll,
++    mode,
++  };
++}
+diff --git a/apps/web/src/features/071-pr-view/components/pr-view-overlay-panel.tsx b/apps/web/src/features/071-pr-view/components/pr-view-overlay-panel.tsx
+new file mode 100644
+index 00000000..a5c80e27
+--- /dev/null
++++ b/apps/web/src/features/071-pr-view/components/pr-view-overlay-panel.tsx
+@@ -0,0 +1,164 @@
++'use client';
++
++/**
++ * PRViewOverlayPanel — Fixed-position overlay for PR View.
++ *
++ * Mirrors notes-overlay-panel.tsx pattern:
++ * - Anchor measurement via ResizeObserver on [data-terminal-overlay-anchor]
++ * - Escape key close
++ * - hasOpened lazy guard (no DOM until first open)
++ * - z-index 44 (same as terminal/activity-log/notes)
++ * - DYK-02: Unmounts children when closed ({isOpen && ...}) to free DiffViewer memory
++ *
++ * Plan 071: PR View & File Notes — Phase 5, T003
++ */
++
++import { GitPullRequest } from 'lucide-react';
++import { useCallback, useEffect, useRef, useState } from 'react';
++
++import { usePRViewData } from '../hooks/use-pr-view-data';
++import { usePRViewOverlay } from '../hooks/use-pr-view-overlay';
++import { PRViewDiffArea } from './pr-view-diff-area';
++import { PRViewFileList } from './pr-view-file-list';
++import { PRViewHeader } from './pr-view-header';
++
++export function PRViewOverlayPanel() {
++  const { isOpen, worktreePath, closePRView } = usePRViewOverlay();
++
++  const prViewData = usePRViewData(worktreePath);
++  const { data, loading, error } = prViewData;
++  const refreshRef = useRef(prViewData.refresh);
++  refreshRef.current = prViewData.refresh;
++
++  const panelRef = useRef<HTMLDivElement>(null);
++  const [anchorRect, setAnchorRect] = useState({ top: 0, left: 0, width: 0, height: 0 });
++  const [hasOpened, setHasOpened] = useState(false);
++
++  // Active file in diff area (scroll sync)
++  const [activeFile, setActiveFile] = useState<string | null>(null);
++
++  // Ref for scrollToFile from file list
++  const scrollToFileRef = useRef<((path: string) => void) | undefined>(undefined);
++
++  useEffect(() => {
++    if (isOpen) setHasOpened(true);
++  }, [isOpen]);
++
++  // Fetch data on open
++  useEffect(() => {
++    if (isOpen && worktreePath) {
++      refreshRef.current();
++    }
++  }, [isOpen, worktreePath]);
++
++  // Measure anchor element
++  const measureRef = useRef<(() => void) | undefined>(undefined);
++  useEffect(() => {
++    const measure = () => {
++      const anchor = document.querySelector('[data-terminal-overlay-anchor]');
++      if (anchor) {
++        const rect = anchor.getBoundingClientRect();
++        setAnchorRect({ top: rect.top, left: rect.left, width: rect.width, height: rect.height });
++      }
++    };
++    measureRef.current = measure;
++    measure();
++    window.addEventListener('resize', measure);
++    const observer = new ResizeObserver(measure);
++    const anchor = document.querySelector('[data-terminal-overlay-anchor]');
++    if (anchor) observer.observe(anchor);
++    const timer = setTimeout(measure, 200);
++    return () => {
++      window.removeEventListener('resize', measure);
++      observer.disconnect();
++      clearTimeout(timer);
++    };
++  }, []);
++
++  // Re-measure when overlay opens
++  useEffect(() => {
++    if (isOpen) measureRef.current?.();
++  }, [isOpen]);
++
++  // Close on Escape
++  useEffect(() => {
++    if (!isOpen) return;
++    const handleKeyDown = (e: KeyboardEvent) => {
++      if (e.key === 'Escape') {
++        e.preventDefault();
++        closePRView();
++      }
++    };
++    document.addEventListener('keydown', handleKeyDown);
++    return () => document.removeEventListener('keydown', handleKeyDown);
++  }, [isOpen, closePRView]);
++
++  const handleFileClick = useCallback((filePath: string) => {
++    scrollToFileRef.current?.(filePath);
++  }, []);
++
++  if (!hasOpened) return null;
++
++  return (
++    <div
++      ref={panelRef}
++      className="fixed flex flex-col border-l bg-background shadow-2xl"
++      style={{
++        zIndex: 44,
++        top: `${anchorRect.top}px`,
++        left: `${anchorRect.left}px`,
++        width: `${anchorRect.width}px`,
++        height: `${anchorRect.height}px`,
++        display: isOpen ? 'flex' : 'none',
++      }}
++      data-testid="pr-view-overlay-panel"
++    >
++      {/* DYK-02: Unmount children when closed to free DiffViewer memory */}
++      {isOpen && (
++        <>
++          <PRViewHeader
++            data={data}
++            loading={loading}
++            mode={prViewData.mode}
++            onClose={closePRView}
++            onRefresh={prViewData.refresh}
++            onExpandAll={prViewData.expandAll}
++            onCollapseAll={prViewData.collapseAll}
++          />
++
++          {loading && !data ? (
++            <div className="flex items-center justify-center flex-1 text-muted-foreground text-sm">
++              Loading changes...
++            </div>
++          ) : error ? (
++            <div className="flex items-center justify-center flex-1 text-red-500 text-sm px-4 text-center">
++              {error}
++            </div>
++          ) : !data || data.files.length === 0 ? (
++            <div className="flex flex-col items-center justify-center flex-1 text-muted-foreground text-sm gap-2">
++              <GitPullRequest className="h-8 w-8 opacity-30" />
++              <span>No changes detected</span>
++            </div>
++          ) : (
++            <div className="flex flex-1 overflow-hidden min-h-0">
++              <PRViewFileList
++                files={data.files}
++                activeFile={activeFile}
++                onFileClick={handleFileClick}
++                onToggleReviewed={prViewData.toggleReviewed}
++              />
++              <PRViewDiffArea
++                files={data.files}
++                collapsedFiles={prViewData.collapsedFiles}
++                onToggleCollapsed={prViewData.toggleCollapsed}
++                onToggleReviewed={prViewData.toggleReviewed}
++                onActiveFileChange={setActiveFile}
++                scrollToFileRef={scrollToFileRef}
++              />
++            </div>
++          )}
++        </>
++      )}
++    </div>
++  );
++}
+diff --git a/apps/web/src/features/071-pr-view/components/pr-view-header.tsx b/apps/web/src/features/071-pr-view/components/pr-view-header.tsx
+new file mode 100644
+index 00000000..07beff8f
+--- /dev/null
++++ b/apps/web/src/features/071-pr-view/components/pr-view-header.tsx
+@@ -0,0 +1,119 @@
++'use client';
++
++/**
++ * PRViewHeader — Branch name, stats, progress, mode toggle, expand/collapse.
++ *
++ * Per workshop section 3.2. Mode toggle renders but only 'working' is active
++ * (Branch mode wired in Phase 6).
++ *
++ * Plan 071: PR View & File Notes — Phase 5, T004
++ */
++
++import { ChevronsDownUp, ChevronsUpDown, GitPullRequest, RefreshCw, X } from 'lucide-react';
++
++import type { ComparisonMode, PRViewData } from '../types';
++
++interface PRViewHeaderProps {
++  data: PRViewData | null;
++  loading: boolean;
++  mode: ComparisonMode;
++  onClose: () => void;
++  onRefresh: () => void;
++  onExpandAll: () => void;
++  onCollapseAll: () => void;
++}
++
++export function PRViewHeader({
++  data,
++  loading,
++  mode,
++  onClose,
++  onRefresh,
++  onExpandAll,
++  onCollapseAll,
++}: PRViewHeaderProps) {
++  const branch = data?.branch ?? '...';
++  const stats = data?.stats;
++  const fileCount = stats?.fileCount ?? 0;
++  const totalInsertions = stats?.totalInsertions ?? 0;
++  const totalDeletions = stats?.totalDeletions ?? 0;
++  const reviewedCount = stats?.reviewedCount ?? 0;
++
++  return (
++    <div className="flex flex-col border-b shrink-0">
++      {/* Top row: title + actions */}
++      <div className="flex items-center justify-between px-3 py-2">
++        <div className="flex items-center gap-2 min-w-0">
++          <GitPullRequest className="h-4 w-4 shrink-0 text-muted-foreground" />
++          <span className="text-sm font-medium truncate">PR View: {branch}</span>
++          {/* Mode indicator */}
++          <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
++            {mode === 'working' ? 'Working' : 'Branch'}
++          </span>
++        </div>
++        <div className="flex items-center gap-1 shrink-0">
++          <button
++            type="button"
++            onClick={onRefresh}
++            className="rounded-sm p-1 text-muted-foreground hover:text-foreground hover:bg-accent"
++            title="Refresh"
++          >
++            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
++          </button>
++          <button
++            type="button"
++            onClick={onExpandAll}
++            className="rounded-sm p-1 text-muted-foreground hover:text-foreground hover:bg-accent"
++            title="Expand all files"
++          >
++            <ChevronsDownUp className="h-3.5 w-3.5" />
++          </button>
++          <button
++            type="button"
++            onClick={onCollapseAll}
++            className="rounded-sm p-1 text-muted-foreground hover:text-foreground hover:bg-accent"
++            title="Collapse all files"
++          >
++            <ChevronsUpDown className="h-3.5 w-3.5" />
++          </button>
++          <button
++            type="button"
++            onClick={onClose}
++            className="rounded-sm p-1 hover:bg-accent"
++            aria-label="Close PR view"
++          >
++            <X className="h-4 w-4" />
++          </button>
++        </div>
++      </div>
++
++      {/* Bottom row: stats + progress */}
++      {data && (
++        <div className="flex items-center gap-2 px-3 pb-2 text-xs text-muted-foreground">
++          <span>
++            {fileCount} file{fileCount !== 1 ? 's' : ''} changed
++          </span>
++          <span>&middot;</span>
++          {totalInsertions > 0 && <span className="text-green-500">+{totalInsertions}</span>}
++          {totalDeletions > 0 && <span className="text-red-500">&minus;{totalDeletions}</span>}
++          {(totalInsertions > 0 || totalDeletions > 0) && <span>&middot;</span>}
++          <span>
++            {reviewedCount} of {fileCount} viewed
++          </span>
++          {/* Mini progress blocks */}
++          <div className="flex gap-px ml-1">
++            {data.files.map((f) => (
++              <div
++                key={f.path}
++                className={`w-2 h-2 rounded-sm ${
++                  f.reviewed ? 'bg-green-500' : 'bg-muted-foreground/30'
++                }`}
++                title={f.name}
++              />
++            ))}
++          </div>
++        </div>
++      )}
++    </div>
++  );
++}
+diff --git a/apps/web/src/features/071-pr-view/components/pr-view-file-list.tsx b/apps/web/src/features/071-pr-view/components/pr-view-file-list.tsx
+new file mode 100644
+index 00000000..cfdef49c
+--- /dev/null
++++ b/apps/web/src/features/071-pr-view/components/pr-view-file-list.tsx
+@@ -0,0 +1,97 @@
++'use client';
++
++/**
++ * PRViewFileList — Left column file list with status badges, +/- counts,
++ * viewed checkboxes, and click-to-scroll.
++ *
++ * Per workshop section 3.3. Status colors match existing ChangesView.
++ *
++ * Plan 071: PR View & File Notes — Phase 5, T005
++ */
++
++import { cn } from '@/lib/utils';
++import type { DiffFileStatus, PRViewFile } from '../types';
++
++const STATUS_COLORS: Record<DiffFileStatus, string> = {
++  modified: 'text-amber-500',
++  added: 'text-green-500',
++  deleted: 'text-red-500',
++  renamed: 'text-blue-500',
++  untracked: 'text-muted-foreground',
++};
++
++const STATUS_LETTERS: Record<DiffFileStatus, string> = {
++  modified: 'M',
++  added: 'A',
++  deleted: 'D',
++  renamed: 'R',
++  untracked: '?',
++};
++
++interface PRViewFileListProps {
++  files: PRViewFile[];
++  activeFile: string | null;
++  onFileClick: (filePath: string) => void;
++  onToggleReviewed: (filePath: string) => void;
++}
++
++export function PRViewFileList({
++  files,
++  activeFile,
++  onFileClick,
++  onToggleReviewed,
++}: PRViewFileListProps) {
++  return (
++    <div className="w-[220px] shrink-0 border-r flex flex-col overflow-y-auto">
++      {files.map((file) => (
++        <button
++          key={file.path}
++          type="button"
++          onClick={() => onFileClick(file.path)}
++          className={cn(
++            'flex items-center gap-1.5 px-2 py-1 text-left text-sm hover:bg-accent/50',
++            activeFile === file.path && 'bg-accent font-medium',
++            file.reviewed && 'opacity-50'
++          )}
++        >
++          {/* Status badge */}
++          <span
++            className={cn(
++              'shrink-0 w-4 text-center font-mono text-xs font-bold',
++              STATUS_COLORS[file.status]
++            )}
++          >
++            {STATUS_LETTERS[file.status]}
++          </span>
++
++          {/* File path (dir in muted, name in normal) */}
++          <span className="truncate flex-1 text-xs">
++            {file.dir && <span className="text-muted-foreground">{file.dir}</span>}
++            <span>{file.name}</span>
++          </span>
++
++          {/* +/- counts (compact) */}
++          {(file.insertions > 0 || file.deletions > 0) && (
++            <span className="shrink-0 flex items-center gap-0.5 text-[10px]">
++              {file.insertions > 0 && <span className="text-green-500">+{file.insertions}</span>}
++              {file.deletions > 0 && <span className="text-red-500">-{file.deletions}</span>}
++            </span>
++          )}
++
++          {/* Viewed checkbox */}
++          <input
++            type="checkbox"
++            checked={file.reviewed}
++            onChange={(e) => {
++              e.stopPropagation();
++              onToggleReviewed(file.path);
++            }}
++            onClick={(e) => e.stopPropagation()}
++            className="shrink-0 h-3.5 w-3.5 rounded border-muted-foreground/50 cursor-pointer"
++            title="Mark as viewed"
++          />
++        </button>
++      ))}
++    </div>
++  );
++}
+diff --git a/apps/web/src/features/071-pr-view/components/pr-view-diff-section.tsx b/apps/web/src/features/071-pr-view/components/pr-view-diff-section.tsx
+new file mode 100644
+index 00000000..dfb38134
+--- /dev/null
++++ b/apps/web/src/features/071-pr-view/components/pr-view-diff-section.tsx
+@@ -0,0 +1,156 @@
++'use client';
++
++/**
++ * PRViewDiffSection — Collapsible per-file diff section.
++ *
++ * Per workshop section 3.4. Wraps DiffViewer with sticky header,
++ * status/stats/viewed controls, and "Previously viewed" banner.
++ *
++ * DYK-01: Owns error display — does NOT pass diffError to DiffViewer.
++ * If file.diffError exists, we render our own amber error bar.
++ *
++ * Plan 071: PR View & File Notes — Phase 5, T006
++ */
++
++import { ChevronDown, ChevronRight } from 'lucide-react';
++import { Suspense, lazy, useEffect, useRef, useState } from 'react';
++
++import type { PRViewFile } from '../types';
++
++const DiffViewer = lazy(() =>
++  import('@/components/viewers/diff-viewer').then((m) => ({ default: m.DiffViewer }))
++);
++
++interface PRViewDiffSectionProps {
++  file: PRViewFile;
++  collapsed: boolean;
++  onToggleCollapsed: (filePath: string) => void;
++  onToggleReviewed: (filePath: string) => void;
++}
++
++export function PRViewDiffSection({
++  file,
++  collapsed,
++  onToggleCollapsed,
++  onToggleReviewed,
++}: PRViewDiffSectionProps) {
++  const sectionRef = useRef<HTMLDivElement>(null);
++  // Lazy-mount: only render DiffViewer when expanded AND in viewport
++  const [inViewport, setInViewport] = useState(false);
++
++  useEffect(() => {
++    const el = sectionRef.current;
++    if (!el) return;
++
++    const observer = new IntersectionObserver(
++      ([entry]) => {
++        if (entry.isIntersecting) {
++          setInViewport(true);
++          observer.disconnect();
++        }
++      },
++      { threshold: 0.01 }
++    );
++    observer.observe(el);
++    return () => observer.disconnect();
++  }, []);
++
++  const showDiff = !collapsed && inViewport;
++  const maxBlocks = 5;
++  const insBlocks = Math.min(file.insertions, maxBlocks);
++  const delBlocks = Math.min(file.deletions, maxBlocks);
++
++  return (
++    <div ref={sectionRef} data-file-path={file.path} className="border-b">
++      {/* File header — always visible, clickable to collapse */}
++      <button
++        type="button"
++        onClick={() => onToggleCollapsed(file.path)}
++        className="flex items-center w-full gap-2 px-3 py-1.5 text-sm
++                   hover:bg-accent/30 sticky top-0 bg-background z-10 border-b"
++      >
++        {/* Collapse toggle */}
++        {collapsed ? (
++          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
++        ) : (
++          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
++        )}
++
++        {/* File path */}
++        <span className="truncate flex-1 text-left font-mono text-xs">{file.path}</span>
++
++        {/* Change stats + colored blocks */}
++        <span className="shrink-0 flex items-center gap-1 text-xs">
++          {file.insertions > 0 && <span className="text-green-500">+{file.insertions}</span>}
++          {file.deletions > 0 && <span className="text-red-500">&minus;{file.deletions}</span>}
++          <span className="flex gap-px ml-1">
++            {Array.from({ length: insBlocks }).map((_, i) => (
++              <span key={`ins-${file.path}-${i}`} className="w-1.5 h-1.5 bg-green-500 rounded-sm" />
++            ))}
++            {Array.from({ length: delBlocks }).map((_, i) => (
++              <span key={`del-${file.path}-${i}`} className="w-1.5 h-1.5 bg-red-500 rounded-sm" />
++            ))}
++          </span>
++        </span>
++
++        {/* Viewed checkbox */}
++        <input
++          type="checkbox"
++          checked={file.reviewed}
++          onChange={(e) => {
++            e.stopPropagation();
++            onToggleReviewed(file.path);
++          }}
++          onClick={(e) => e.stopPropagation()}
++          className="shrink-0 h-3.5 w-3.5 rounded border-muted-foreground/50 cursor-pointer"
++          title="Mark as viewed"
++        />
++      </button>
++
++      {/* "Previously viewed" indicator */}
++      {file.previouslyReviewed && !file.reviewed && (
++        <div className="px-3 py-1 text-xs text-amber-500 bg-amber-500/5 border-b">
++          Previously viewed — file has changed since last review
++        </div>
++      )}
++
++      {/* DYK-01: Own error display */}
++      {!collapsed && file.diffError && (
++        <div className="px-3 py-2 text-xs text-amber-600 bg-amber-50 dark:bg-amber-500/5 border-b">
++          Error loading diff: {file.diffError}
++        </div>
++      )}
++
++      {/* Diff content — lazy mounted */}
++      {showDiff && !file.diffError && file.diff && (
++        <div className="overflow-hidden">
++          <Suspense
++            fallback={
++              <div className="px-3 py-4 text-xs text-muted-foreground">Loading diff...</div>
++            }
++          >
++            <DiffViewer
++              file={{ path: file.path, filename: file.name, content: '' }}
++              diffData={file.diff}
++              error={null}
++            />
++          </Suspense>
++        </div>
++      )}
++
++      {/* Collapsed indicator */}
++      {collapsed && (
++        <div className="px-3 py-2 text-xs text-muted-foreground bg-muted/30">
++          File collapsed — click header to expand
++        </div>
++      )}
++
++      {/* No diff available (deleted or empty) */}
++      {!collapsed && !file.diffError && !file.diff && (
++        <div className="px-3 py-2 text-xs text-muted-foreground bg-muted/30">
++          {file.status === 'deleted' ? 'File deleted' : 'No diff available'}
++        </div>
++      )}
++    </div>
++  );
++}
+diff --git a/apps/web/src/features/071-pr-view/components/pr-view-diff-area.tsx b/apps/web/src/features/071-pr-view/components/pr-view-diff-area.tsx
+new file mode 100644
+index 00000000..c3aeb612
+--- /dev/null
++++ b/apps/web/src/features/071-pr-view/components/pr-view-diff-area.tsx
+@@ -0,0 +1,122 @@
++'use client';
++
++/**
++ * PRViewDiffArea — Scrollable right column with IntersectionObserver scroll sync.
++ *
++ * Per workshop section 3.5. Scrolling highlights active file in file list.
++ * DYK-04: isScrollingToRef guard prevents feedback loop when clicking file.
++ *
++ * Plan 071: PR View & File Notes — Phase 5, T007
++ */
++
++import { type MutableRefObject, useCallback, useEffect, useRef } from 'react';
++
++import type { PRViewFile } from '../types';
++import { PRViewDiffSection } from './pr-view-diff-section';
++
++interface PRViewDiffAreaProps {
++  files: PRViewFile[];
++  collapsedFiles: Set<string>;
++  onToggleCollapsed: (filePath: string) => void;
++  onToggleReviewed: (filePath: string) => void;
++  onActiveFileChange: (filePath: string | null) => void;
++  scrollToFileRef: MutableRefObject<((path: string) => void) | undefined>;
++}
++
++export function PRViewDiffArea({
++  files,
++  collapsedFiles,
++  onToggleCollapsed,
++  onToggleReviewed,
++  onActiveFileChange,
++  scrollToFileRef,
++}: PRViewDiffAreaProps) {
++  const diffAreaRef = useRef<HTMLDivElement>(null);
++  // DYK-04: Guard to prevent observer updates during programmatic scroll
++  const isScrollingToRef = useRef(false);
++
++  // scrollToFile — exposed to file list via ref
++  const scrollToFile = useCallback(
++    (filePath: string) => {
++      const container = diffAreaRef.current;
++      if (!container) return;
++
++      const section = container.querySelector(`[data-file-path="${CSS.escape(filePath)}"]`);
++      if (!section) return;
++
++      isScrollingToRef.current = true;
++      onActiveFileChange(filePath);
++      section.scrollIntoView({ behavior: 'smooth', block: 'start' });
++
++      // Clear guard after scroll animation settles
++      requestAnimationFrame(() => {
++        requestAnimationFrame(() => {
++          isScrollingToRef.current = false;
++        });
++      });
++    },
++    [onActiveFileChange]
++  );
++
++  // Expose scrollToFile to parent via ref
++  useEffect(() => {
++    scrollToFileRef.current = scrollToFile;
++  }, [scrollToFile, scrollToFileRef]);
++
++  // IntersectionObserver for scroll sync
++  // biome-ignore lint/correctness/useExhaustiveDependencies: files triggers re-observe when file list changes
++  useEffect(() => {
++    const container = diffAreaRef.current;
++    if (!container) return;
++
++    const sections = container.querySelectorAll('[data-file-path]');
++    if (sections.length === 0) return;
++
++    const observer = new IntersectionObserver(
++      (entries) => {
++        // DYK-04: Skip during programmatic scroll
++        if (isScrollingToRef.current) return;
++
++        // Find the most visible section
++        let bestEntry: IntersectionObserverEntry | null = null;
++        for (const entry of entries) {
++          if (
++            entry.isIntersecting &&
++            (!bestEntry || entry.intersectionRatio > bestEntry.intersectionRatio)
++          ) {
++            bestEntry = entry;
++          }
++        }
++
++        if (bestEntry) {
++          const filePath = (bestEntry.target as HTMLElement).dataset.filePath;
++          if (filePath) onActiveFileChange(filePath);
++        }
++      },
++      {
++        root: container,
++        threshold: [0, 0.1, 0.25, 0.5, 0.75, 1.0],
++      }
++    );
++
++    for (const section of sections) {
++      observer.observe(section);
++    }
++
++    return () => observer.disconnect();
++  }, [files, onActiveFileChange]);
++
++  return (
++    <div ref={diffAreaRef} className="flex-1 overflow-y-auto">
++      {files.map((file) => (
++        <PRViewDiffSection
++          key={file.path}
++          file={file}
++          collapsed={collapsedFiles.has(file.path)}
++          onToggleCollapsed={onToggleCollapsed}
++          onToggleReviewed={onToggleReviewed}
++        />
++      ))}
++    </div>
++  );
++}
+diff --git a/apps/web/app/(dashboard)/workspaces/[slug]/pr-view-overlay-wrapper.tsx b/apps/web/app/(dashboard)/workspaces/[slug]/pr-view-overlay-wrapper.tsx
+new file mode 100644
+index 00000000..8417579c
+--- /dev/null
++++ b/apps/web/app/(dashboard)/workspaces/[slug]/pr-view-overlay-wrapper.tsx
+@@ -0,0 +1,64 @@
++'use client';
++
++/**
++ * PR View Overlay Wrapper — mounts provider + panel in workspace layout.
++ *
++ * Mirrors notes-overlay-wrapper.tsx:
++ * - Dynamic import for panel (SSR: false — requires DOM for anchor measurement)
++ * - Error boundary wraps panel only (not provider)
++ * - Provider is pure context — safe to always mount
++ *
++ * Plan 071: PR View & File Notes — Phase 5, T008
++ */
++
++import nextDynamic from 'next/dynamic';
++import { Component, type ReactNode } from 'react';
++import { PRViewOverlayProvider } from '../../../../src/features/071-pr-view/hooks/use-pr-view-overlay';
++
++const PRViewOverlayPanel = nextDynamic(
++  () =>
++    import('../../../../src/features/071-pr-view/components/pr-view-overlay-panel').then(
++      (m) => m.PRViewOverlayPanel
++    ),
++  { ssr: false }
++);
++
++class PRViewOverlayErrorBoundary extends Component<
++  { children: ReactNode },
++  { hasError: boolean }
++> {
++  constructor(props: { children: ReactNode }) {
++    super(props);
++    this.state = { hasError: false };
++  }
++
++  static getDerivedStateFromError(): { hasError: boolean } {
++    return { hasError: true };
++  }
++
++  render() {
++    if (this.state.hasError) {
++      return null;
++    }
++    return this.props.children;
++  }
++}
++
++interface PRViewOverlayWrapperProps {
++  children: ReactNode;
++  defaultWorktreePath?: string;
++}
++
++export function PRViewOverlayWrapper({
++  children,
++  defaultWorktreePath,
++}: PRViewOverlayWrapperProps) {
++  return (
++    <PRViewOverlayProvider defaultWorktreePath={defaultWorktreePath}>
++      {children}
++      <PRViewOverlayErrorBoundary>
++        <PRViewOverlayPanel />
++      </PRViewOverlayErrorBoundary>
++    </PRViewOverlayProvider>
++  );
++}
+diff --git a/apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx b/apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx
+index 78e2a7e2..79f77325 100644
+--- a/apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx
++++ b/apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx
+@@ -17,6 +17,8 @@ import { getContainer } from '../../../../src/lib/bootstrap-singleton';
+ import { SDKWorkspaceConnector } from '../../../../src/lib/sdk/sdk-workspace-connector';
+ import { updateSDKMru, updateSDKSettings } from '../../../actions/sdk-settings-actions';
+ import { ActivityLogOverlayWrapper } from './activity-log-overlay-wrapper';
++import { NotesOverlayWrapper } from './notes-overlay-wrapper';
++import { PRViewOverlayWrapper } from './pr-view-overlay-wrapper';
+ import { TerminalOverlayWrapper } from './terminal-overlay-wrapper';
+ import { WorkspaceAttentionWrapper } from './workspace-attention-wrapper';
+ 
+@@ -67,9 +69,13 @@ export default async function WorkspaceLayout({ children, params }: LayoutProps)
+       <WorkspaceAttentionWrapper>
+         <TerminalOverlayWrapper defaultSessionName={defaultBranch} defaultCwd={defaultWorktreePath}>
+           <ActivityLogOverlayWrapper defaultWorktreePath={defaultWorktreePath}>
+-            <WorkspaceAgentChrome slug={slug} workspacePath={ws?.path}>
+-              {children}
+-            </WorkspaceAgentChrome>
++            <NotesOverlayWrapper defaultWorktreePath={defaultWorktreePath}>
++              <PRViewOverlayWrapper defaultWorktreePath={defaultWorktreePath}>
++                <WorkspaceAgentChrome slug={slug} workspacePath={ws?.path}>
++                  {children}
++                </WorkspaceAgentChrome>
++              </PRViewOverlayWrapper>
++            </NotesOverlayWrapper>
+           </ActivityLogOverlayWrapper>
+         </TerminalOverlayWrapper>
+       </WorkspaceAttentionWrapper>
+diff --git a/apps/web/src/components/dashboard-sidebar.tsx b/apps/web/src/components/dashboard-sidebar.tsx
+index 62983665..e923a41f 100644
+--- a/apps/web/src/components/dashboard-sidebar.tsx
++++ b/apps/web/src/components/dashboard-sidebar.tsx
+@@ -26,10 +26,12 @@ import { workspaceHref } from '@/lib/workspace-url';
+ import {
+   ChevronLeft,
+   ExternalLink,
++  GitPullRequest,
+   LogOut,
+   PanelLeft,
+   ScrollText,
+   Settings,
++  StickyNote,
+   TerminalSquare,
+ } from 'lucide-react';
+ import Link from 'next/link';
+@@ -289,6 +291,28 @@ export function DashboardSidebar() {
+               </SidebarMenuButton>
+             </SidebarMenuItem>
+           )}
++          {currentWorktree && (
++            <SidebarMenuItem>
++              <SidebarMenuButton
++                onClick={() => window.dispatchEvent(new CustomEvent('pr-view:toggle'))}
++                tooltip="Toggle PR View"
++              >
++                <GitPullRequest className="h-5 w-5" />
++                {!isCollapsed && <span>PR View</span>}
++              </SidebarMenuButton>
++            </SidebarMenuItem>
++          )}
++          {currentWorktree && (
++            <SidebarMenuItem>
++              <SidebarMenuButton
++                onClick={() => window.dispatchEvent(new CustomEvent('notes:toggle'))}
++                tooltip="Toggle Notes"
++              >
++                <StickyNote className="h-5 w-5" />
++                {!isCollapsed && <span>Notes</span>}
++              </SidebarMenuButton>
++            </SidebarMenuItem>
++          )}
+           <SidebarMenuItem>
+             <SidebarMenuButton
+               asChild
+diff --git a/apps/web/src/features/071-pr-view/sdk/contribution.ts b/apps/web/src/features/071-pr-view/sdk/contribution.ts
+new file mode 100644
+index 00000000..c348d204
+--- /dev/null
++++ b/apps/web/src/features/071-pr-view/sdk/contribution.ts
+@@ -0,0 +1,29 @@
++/**
++ * PR View SDK contribution manifest.
++ *
++ * Static declaration of commands and keybindings that the pr-view
++ * domain publishes to the USDK surface.
++ *
++ * Plan 071: PR View & File Notes — Phase 5, T010
++ */
++
++import { z } from 'zod';
++
++import type { SDKContribution } from '@chainglass/shared/sdk';
++
++export const prViewContribution: SDKContribution = {
++  domain: 'pr-view',
++  domainLabel: 'PR View',
++  commands: [
++    {
++      id: 'prView.toggleOverlay',
++      title: 'Toggle PR View',
++      domain: 'pr-view',
++      category: 'Overlays',
++      params: z.object({}),
++      icon: 'git-pull-request',
++    },
++  ],
++  settings: [],
++  keybindings: [{ key: '$mod+Shift+KeyR', command: 'prView.toggleOverlay' }],
++};
+diff --git a/apps/web/src/features/071-pr-view/sdk/register.ts b/apps/web/src/features/071-pr-view/sdk/register.ts
+new file mode 100644
+index 00000000..8fbba47a
+--- /dev/null
++++ b/apps/web/src/features/071-pr-view/sdk/register.ts
+@@ -0,0 +1,29 @@
++/**
++ * PR View SDK registration.
++ *
++ * Binds handlers to the static contribution manifest and registers
++ * commands + keybindings with the SDK.
++ *
++ * Per ADR-0009: registerXxxSDK(sdk) pattern.
++ * Plan 071: PR View & File Notes — Phase 5, T010
++ */
++
++import type { IUSDK } from '@chainglass/shared/sdk';
++
++import { prViewContribution } from './contribution';
++
++export function registerPRViewSDK(sdk: IUSDK): void {
++  const toggleCmd = prViewContribution.commands.find((c) => c.id === 'prView.toggleOverlay');
++  if (toggleCmd) {
++    sdk.commands.register({
++      ...toggleCmd,
++      handler: async () => {
++        window.dispatchEvent(new CustomEvent('pr-view:toggle'));
++      },
++    });
++  }
++
++  for (const binding of prViewContribution.keybindings) {
++    sdk.keybindings.register(binding);
++  }
++}
+diff --git a/apps/web/src/lib/sdk/sdk-domain-registrations.ts b/apps/web/src/lib/sdk/sdk-domain-registrations.ts
+index 0502e643..fb127b45 100644
+--- a/apps/web/src/lib/sdk/sdk-domain-registrations.ts
++++ b/apps/web/src/lib/sdk/sdk-domain-registrations.ts
+@@ -13,6 +13,8 @@ import type { IUSDK } from '@chainglass/shared/sdk';
+ 
+ import { registerEventsSDK } from '@/features/027-central-notify-events/sdk/register';
+ import { registerFileBrowserSDK } from '@/features/041-file-browser/sdk/register';
++import { registerFileNotesSDK } from '@/features/071-file-notes/sdk/register';
++import { registerPRViewSDK } from '@/features/071-pr-view/sdk/register';
+ 
+ /**
+  * Register all domain SDK contributions.
+@@ -21,4 +23,6 @@ import { registerFileBrowserSDK } from '@/features/041-file-browser/sdk/register
+ export function registerAllDomains(sdk: IUSDK): void {
+   registerFileBrowserSDK(sdk);
+   registerEventsSDK(sdk);
++  registerFileNotesSDK(sdk);
++  registerPRViewSDK(sdk);
+ }
+diff --git a/apps/web/src/features/071-pr-view/index.ts b/apps/web/src/features/071-pr-view/index.ts
+new file mode 100644
+index 00000000..974bf125
+--- /dev/null
++++ b/apps/web/src/features/071-pr-view/index.ts
+@@ -0,0 +1,28 @@
++/**
++ * PR View — Feature Barrel Exports
++ *
++ * Server-only exports (lib/) must be imported directly, not via barrel.
++ *
++ * Plan 071: PR View & File Notes — Phase 4 (types), Phase 5 (hooks/components/SDK)
++ */
++
++export type {
++  BranchChangedFile,
++  ComparisonMode,
++  DiffFileStats,
++  DiffFileStatus,
++  PRViewData,
++  PRViewFile,
++  PRViewFileState,
++  PRViewResult,
++} from './types';
++
++export { PR_VIEW_STATE_DIR, PR_VIEW_STATE_FILE } from './types';
++
++// Phase 5: Hooks
++export { PRViewOverlayProvider, usePRViewOverlay } from './hooks/use-pr-view-overlay';
++export { usePRViewData } from './hooks/use-pr-view-data';
++
++// Phase 5: SDK
++export { registerPRViewSDK } from './sdk/register';
++export { prViewContribution } from './sdk/contribution';

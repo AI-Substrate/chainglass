@@ -26,3 +26,7 @@ export type {
   WorktreeIdentity,
   WorktreeIdentityInput,
 } from './hooks/use-workspace-context';
+
+// Services (consumed by pr-view domain)
+export { getWorkingChanges } from './services/working-changes';
+export type { ChangedFile, WorkingChangesResult } from './services/working-changes';

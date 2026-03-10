@@ -144,3 +144,6 @@ export type { IWorkUnitStateService } from './work-unit-state.interface.js';
 
 // Note: IEventStorage, EventStorageService, FakeEventStorage removed in Plan 018 Phase 2.
 // Use AgentEventAdapter from @chainglass/workflow for workspace-scoped event storage.
+
+// File Notes interface (Plan 071: PR View & File Notes)
+export type { INoteService } from './note-service.interface.js';

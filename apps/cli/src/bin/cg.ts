@@ -17,6 +17,7 @@ import { Command, Help } from 'commander';
 import { registerAgentCommands } from '../commands/agent.command.js';
 import { registerInitCommand } from '../commands/init.command.js';
 import { registerMcpCommand } from '../commands/mcp.command.js';
+import { registerNotesCommands } from '../commands/notes.command.js';
 import { registerPhaseCommands } from '../commands/phase.command.js';
 import { registerPositionalGraphCommands } from '../commands/positional-graph.command.js';
 import { registerRunsCommands } from '../commands/runs.command.js';
@@ -239,6 +240,8 @@ export function createProgram(options: CreateProgramOptions = {}): Command {
   registerPositionalGraphCommands(program);
   // Template commands (Plan 048: Phase 2)
   registerTemplateCommands(program);
+  // Notes commands (Plan 071: Phase 3)
+  registerNotesCommands(program);
 
   // Default behavior: show help when no command provided
   if (!options.testMode) {

@@ -1,0 +1,15 @@
+action	path
+created	apps/web/src/features/071-pr-view/hooks/use-pr-view-overlay.tsx
+created	apps/web/src/features/071-pr-view/hooks/use-pr-view-data.ts
+created	apps/web/src/features/071-pr-view/components/pr-view-overlay-panel.tsx
+created	apps/web/src/features/071-pr-view/components/pr-view-header.tsx
+created	apps/web/src/features/071-pr-view/components/pr-view-file-list.tsx
+created	apps/web/src/features/071-pr-view/components/pr-view-diff-section.tsx
+created	apps/web/src/features/071-pr-view/components/pr-view-diff-area.tsx
+created	apps/web/app/(dashboard)/workspaces/[slug]/pr-view-overlay-wrapper.tsx
+modified	apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx
+modified	apps/web/src/components/dashboard-sidebar.tsx
+created	apps/web/src/features/071-pr-view/sdk/contribution.ts
+created	apps/web/src/features/071-pr-view/sdk/register.ts
+modified	apps/web/src/lib/sdk/sdk-domain-registrations.ts
+created	apps/web/src/features/071-pr-view/index.ts

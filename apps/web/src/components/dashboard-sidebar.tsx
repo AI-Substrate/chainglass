@@ -26,10 +26,12 @@ import { workspaceHref } from '@/lib/workspace-url';
 import {
   ChevronLeft,
   ExternalLink,
+  GitPullRequest,
   LogOut,
   PanelLeft,
   ScrollText,
   Settings,
+  StickyNote,
   TerminalSquare,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -286,6 +288,28 @@ export function DashboardSidebar() {
               >
                 <ScrollText className="h-5 w-5" />
                 {!isCollapsed && <span>Activity</span>}
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
+          {currentWorktree && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => window.dispatchEvent(new CustomEvent('pr-view:toggle'))}
+                tooltip="Toggle PR View"
+              >
+                <GitPullRequest className="h-5 w-5" />
+                {!isCollapsed && <span>PR View</span>}
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
+          {currentWorktree && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => window.dispatchEvent(new CustomEvent('notes:toggle'))}
+                tooltip="Toggle Notes"
+              >
+                <StickyNote className="h-5 w-5" />
+                {!isCollapsed && <span>Notes</span>}
               </SidebarMenuButton>
             </SidebarMenuItem>
           )}

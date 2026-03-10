@@ -22,6 +22,8 @@
 | Terminal | terminal | business | — | Plan 064 | active |
 | Activity Log | activity-log | business | — | Plan 065 | active |
 | Auth | _platform/auth | infrastructure | _platform | Plan 063-login | active |
+| File Notes | file-notes | business | — | Plan 071 Phase 1 | active |
+| PR View | pr-view | business | — | Plan 071 Phase 4 | active |
 
 ## Domain Types
 

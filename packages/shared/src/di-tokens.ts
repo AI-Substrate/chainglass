@@ -30,6 +30,10 @@ export const SHARED_DI_TOKENS = {
   AGENT_NOTIFIER_SERVICE: 'IAgentNotifierService',
   /** IAgentStorageAdapter interface (Plan 019: Phase 3) */
   AGENT_STORAGE_ADAPTER: 'IAgentStorageAdapter',
+  /** INoteService interface (Plan 071: File Notes) */
+  NOTE_SERVICE: 'INoteService',
+  /** INoteService factory — (worktreePath: string) => INoteService (Plan 071: Phase 3) */
+  NOTE_SERVICE_FACTORY: 'INoteServiceFactory',
 } as const;
 
 /**

@@ -1,0 +1,1416 @@
+diff --git a/apps/web/src/features/071-file-notes/types.ts b/apps/web/src/features/071-file-notes/types.ts
+new file mode 100644
+index 0000000..9d0659f
+--- /dev/null
++++ b/apps/web/src/features/071-file-notes/types.ts
+@@ -0,0 +1,26 @@
++/**
++ * File Notes Domain — Types (re-exported from @chainglass/shared)
++ *
++ * Plan 071: PR View & File Notes — Phase 1
++ */
++
++// Re-export all shared types
++export { NoteLinkType } from '@chainglass/shared/file-notes';
++export type {
++  CreateNoteInput,
++  EditNoteInput,
++  Note,
++  NoteAddressee,
++  NoteAuthor,
++  NoteFilter,
++  NoteResult,
++  NoteStatus,
++  NoteTargetMeta,
++} from '@chainglass/shared/file-notes';
++
++/** JSONL filename for per-worktree notes */
++export const NOTES_FILE = 'notes.jsonl';
++
++/** Directory within worktree: .chainglass/data/ */
++export const NOTES_DIR = '.chainglass/data';
++
+diff --git a/apps/web/src/features/071-file-notes/index.ts b/apps/web/src/features/071-file-notes/index.ts
+new file mode 100644
+index 0000000..91546f6
+--- /dev/null
++++ b/apps/web/src/features/071-file-notes/index.ts
+@@ -0,0 +1,29 @@
++/**
++ * File Notes Domain — Barrel Exports
++ *
++ * Plan 071: PR View & File Notes
++ */
++
++export { NOTES_DIR, NOTES_FILE, NoteLinkType } from './types';
++export type {
++  CreateNoteInput,
++  EditNoteInput,
++  Note,
++  NoteAddressee,
++  NoteAuthor,
++  NoteFilter,
++  NoteResult,
++  NoteStatus,
++  NoteTargetMeta,
++} from './types';
++
++export {
++  appendNote,
++  completeNote,
++  deleteAll,
++  deleteAllForTarget,
++  deleteNote,
++  editNote,
++} from './lib/note-writer';
++
++export { listFilesWithNotes, readNotes } from './lib/note-reader';
+diff --git a/apps/web/src/features/071-file-notes/lib/note-reader.ts b/apps/web/src/features/071-file-notes/lib/note-reader.ts
+new file mode 100644
+index 0000000..0f53c55
+--- /dev/null
++++ b/apps/web/src/features/071-file-notes/lib/note-reader.ts
+@@ -0,0 +1,60 @@
++/**
++ * File Notes Reader — JSONL file reader with filtering.
++ *
++ * Pure function — no class, no DI, no state.
++ * Returns notes newest-first by default.
++ *
++ * Plan 071: PR View & File Notes — Phase 1
++ */
++
++import * as fs from 'node:fs';
++import * as path from 'node:path';
++import type { Note, NoteFilter } from '../types';
++import { NOTES_DIR, NOTES_FILE } from '../types';
++
++/**
++ * Read notes from the per-worktree JSONL file with optional filtering.
++ * Returns notes newest-first. Skips malformed lines gracefully.
++ * Returns [] if file doesn't exist.
++ */
++export function readNotes(worktreePath: string, filter?: NoteFilter): Note[] {
++  const filePath = path.join(worktreePath, NOTES_DIR, NOTES_FILE);
++
++  if (!fs.existsSync(filePath)) return [];
++
++  try {
++    const content = fs.readFileSync(filePath, 'utf-8');
++    const notes: Note[] = [];
++
++    for (const line of content.split('\n')) {
++      if (!line.trim()) continue;
++      try {
++        const note: Note = JSON.parse(line);
++        if (!note.id || !note.linkType || !note.target || !note.content) continue;
++
++        if (filter?.linkType && note.linkType !== filter.linkType) continue;
++        if (filter?.target && note.target !== filter.target) continue;
++        if (filter?.status && note.status !== filter.status) continue;
++        if (filter?.to && note.to !== filter.to) continue;
++        if (filter?.threadId && note.threadId !== filter.threadId) continue;
++
++        notes.push(note);
++      } catch {
++        // skip malformed line
++      }
++    }
++
++    return notes.reverse();
++  } catch {
++    return [];
++  }
++}
++
++/**
++ * List unique targets (file paths, workflow IDs, etc.) that have notes.
++ */
++export function listFilesWithNotes(worktreePath: string): string[] {
++  const notes = readNotes(worktreePath, { status: 'open' });
++  const targets = new Set(notes.map((n) => n.target));
++  return [...targets].sort();
++}
+diff --git a/apps/web/src/features/071-file-notes/lib/note-writer.ts b/apps/web/src/features/071-file-notes/lib/note-writer.ts
+new file mode 100644
+index 0000000..c58f589
+--- /dev/null
++++ b/apps/web/src/features/071-file-notes/lib/note-writer.ts
+@@ -0,0 +1,154 @@
++/**
++ * File Notes Writer — JSONL persistence.
++ *
++ * Append for new notes, read-modify-rewrite for edits/deletes.
++ * Pure functions — no class, no DI, no state.
++ *
++ * Plan 071: PR View & File Notes — Phase 1
++ */
++
++import * as crypto from 'node:crypto';
++import * as fs from 'node:fs';
++import * as path from 'node:path';
++import type { CreateNoteInput, EditNoteInput, Note } from '../types';
++import { NOTES_DIR, NOTES_FILE } from '../types';
++
++function getFilePath(worktreePath: string): string {
++  return path.join(worktreePath, NOTES_DIR, NOTES_FILE);
++}
++
++function ensureDir(filePath: string): void {
++  fs.mkdirSync(path.dirname(filePath), { recursive: true });
++}
++
++function readAllNotes(filePath: string): Note[] {
++  if (!fs.existsSync(filePath)) return [];
++  const content = fs.readFileSync(filePath, 'utf-8');
++  const notes: Note[] = [];
++  for (const line of content.split('\n')) {
++    if (!line.trim()) continue;
++    try {
++      notes.push(JSON.parse(line));
++    } catch {
++      // skip malformed
++    }
++  }
++  return notes;
++}
++
++function writeAllNotes(filePath: string, notes: Note[]): void {
++  const tmpPath = `${filePath}.tmp`;
++  const content = notes.map((n) => JSON.stringify(n)).join('\n');
++  fs.writeFileSync(tmpPath, content ? `${content}\n` : '');
++  fs.renameSync(tmpPath, filePath);
++}
++
++/**
++ * Append a new note to the JSONL file.
++ * Creates .chainglass/data/ directory if it doesn't exist.
++ */
++export function appendNote(worktreePath: string, input: CreateNoteInput): Note {
++  const filePath = getFilePath(worktreePath);
++  ensureDir(filePath);
++
++  const now = new Date().toISOString();
++  const note: Note = {
++    id: crypto.randomUUID(),
++    linkType: input.linkType,
++    target: input.target,
++    targetMeta: input.targetMeta,
++    content: input.content,
++    to: input.to,
++    status: 'open',
++    author: input.author,
++    authorId: input.authorId,
++    threadId: input.threadId,
++    createdAt: now,
++    updatedAt: now,
++  };
++
++  fs.appendFileSync(filePath, `${JSON.stringify(note)}\n`);
++  return note;
++}
++
++/**
++ * Edit an existing note. Reads all notes, updates the matching one,
++ * rewrites the file atomically (write-to-temp + rename).
++ */
++export function editNote(
++  worktreePath: string,
++  noteId: string,
++  input: EditNoteInput,
++): Note | null {
++  const filePath = getFilePath(worktreePath);
++  const notes = readAllNotes(filePath);
++  const idx = notes.findIndex((n) => n.id === noteId);
++  if (idx === -1) return null;
++
++  const now = new Date().toISOString();
++  if (input.content !== undefined) notes[idx].content = input.content;
++  if (input.to !== undefined) notes[idx].to = input.to;
++  notes[idx].updatedAt = now;
++
++  writeAllNotes(filePath, notes);
++  return notes[idx];
++}
++
++/**
++ * Mark a note as complete.
++ */
++export function completeNote(
++  worktreePath: string,
++  noteId: string,
++  completedBy: 'human' | 'agent',
++): Note | null {
++  const filePath = getFilePath(worktreePath);
++  const notes = readAllNotes(filePath);
++  const idx = notes.findIndex((n) => n.id === noteId);
++  if (idx === -1) return null;
++
++  notes[idx].status = 'complete';
++  notes[idx].completedBy = completedBy;
++  notes[idx].updatedAt = new Date().toISOString();
++
++  writeAllNotes(filePath, notes);
++  return notes[idx];
++}
++
++/**
++ * Delete a single note by ID.
++ */
++export function deleteNote(worktreePath: string, noteId: string): boolean {
++  const filePath = getFilePath(worktreePath);
++  const notes = readAllNotes(filePath);
++  const filtered = notes.filter((n) => n.id !== noteId);
++  if (filtered.length === notes.length) return false;
++
++  writeAllNotes(filePath, filtered);
++  return true;
++}
++
++/**
++ * Delete all notes for a specific target.
++ */
++export function deleteAllForTarget(worktreePath: string, target: string): number {
++  const filePath = getFilePath(worktreePath);
++  const notes = readAllNotes(filePath);
++  const filtered = notes.filter((n) => n.target !== target);
++  const count = notes.length - filtered.length;
++
++  if (count > 0) writeAllNotes(filePath, filtered);
++  return count;
++}
++
++/**
++ * Delete all notes in the worktree.
++ */
++export function deleteAll(worktreePath: string): number {
++  const filePath = getFilePath(worktreePath);
++  const notes = readAllNotes(filePath);
++  if (notes.length === 0) return 0;
++
++  writeAllNotes(filePath, []);
++  return notes.length;
++}
+diff --git a/apps/web/app/api/file-notes/route.ts b/apps/web/app/api/file-notes/route.ts
+new file mode 100644
+index 0000000..4c1b7bd
+--- /dev/null
++++ b/apps/web/app/api/file-notes/route.ts
+@@ -0,0 +1,158 @@
++/**
++ * File Notes API Route — CRUD endpoints
++ *
++ * GET  /api/file-notes?worktree=...&linkType=...&status=...&to=...&target=...
++ * POST /api/file-notes  { worktree, ...CreateNoteInput }
++ * PATCH /api/file-notes { worktree, noteId, action: 'edit'|'complete', ...data }
++ * DELETE /api/file-notes { worktree, noteId?, target?, scope?: 'all' }
++ *
++ * Plan 071: PR View & File Notes — Phase 1
++ */
++
++import { auth } from '@/auth';
++import type { NextRequest } from 'next/server';
++import { NextResponse } from 'next/server';
++import { readNotes, listFilesWithNotes } from '../../../src/features/071-file-notes/lib/note-reader';
++import {
++  appendNote,
++  editNote,
++  completeNote,
++  deleteNote,
++  deleteAllForTarget,
++  deleteAll,
++} from '../../../src/features/071-file-notes/lib/note-writer';
++import type { NoteLinkType, NoteAddressee, NoteStatus } from '../../../src/features/071-file-notes/types';
++
++export const dynamic = 'force-dynamic';
++
++function validateWorktree(worktree: string | null): Response | null {
++  if (!worktree) {
++    return NextResponse.json({ error: 'Missing worktree parameter' }, { status: 400 });
++  }
++  if (!worktree.startsWith('/')) {
++    return NextResponse.json({ error: 'Invalid worktree path' }, { status: 400 });
++  }
++  if (worktree.includes('..')) {
++    return NextResponse.json({ error: 'Path traversal not allowed' }, { status: 403 });
++  }
++  return null;
++}
++
++export async function GET(request: NextRequest): Promise<Response> {
++  const session = await auth();
++  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
++
++  const { searchParams } = new URL(request.url);
++  const worktree = searchParams.get('worktree');
++
++  const validationError = validateWorktree(worktree);
++  if (validationError) return validationError;
++
++  try {
++    const mode = searchParams.get('mode');
++
++    if (mode === 'files') {
++      const files = listFilesWithNotes(worktree!);
++      return NextResponse.json(files);
++    }
++
++    const notes = readNotes(worktree!, {
++      linkType: (searchParams.get('linkType') as NoteLinkType) ?? undefined,
++      target: searchParams.get('target') ?? undefined,
++      status: (searchParams.get('status') as NoteStatus) ?? undefined,
++      to: (searchParams.get('to') as NoteAddressee) ?? undefined,
++    });
++
++    return NextResponse.json(notes);
++  } catch (error) {
++    console.error('[/api/file-notes] GET error:', error);
++    return NextResponse.json({ error: 'Failed to read notes' }, { status: 500 });
++  }
++}
++
++export async function POST(request: NextRequest): Promise<Response> {
++  const session = await auth();
++  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
++
++  try {
++    const body = await request.json();
++    const { worktree, ...input } = body;
++
++    const validationError = validateWorktree(worktree);
++    if (validationError) return validationError;
++
++    if (!input.linkType || !input.target || !input.content || !input.author) {
++      return NextResponse.json({ error: 'Missing required fields: linkType, target, content, author' }, { status: 400 });
++    }
++
++    const note = appendNote(worktree, input);
++    return NextResponse.json(note, { status: 201 });
++  } catch (error) {
++    console.error('[/api/file-notes] POST error:', error);
++    return NextResponse.json({ error: 'Failed to create note' }, { status: 500 });
++  }
++}
++
++export async function PATCH(request: NextRequest): Promise<Response> {
++  const session = await auth();
++  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
++
++  try {
++    const body = await request.json();
++    const { worktree, noteId, action, ...data } = body;
++
++    const validationError = validateWorktree(worktree);
++    if (validationError) return validationError;
++
++    if (!noteId) {
++      return NextResponse.json({ error: 'Missing noteId' }, { status: 400 });
++    }
++
++    if (action === 'complete') {
++      const note = completeNote(worktree, noteId, data.completedBy ?? 'human');
++      if (!note) return NextResponse.json({ error: 'Note not found' }, { status: 404 });
++      return NextResponse.json(note);
++    }
++
++    const note = editNote(worktree, noteId, data);
++    if (!note) return NextResponse.json({ error: 'Note not found' }, { status: 404 });
++    return NextResponse.json(note);
++  } catch (error) {
++    console.error('[/api/file-notes] PATCH error:', error);
++    return NextResponse.json({ error: 'Failed to update note' }, { status: 500 });
++  }
++}
++
++export async function DELETE(request: NextRequest): Promise<Response> {
++  const session = await auth();
++  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
++
++  try {
++    const body = await request.json();
++    const { worktree, noteId, target, scope } = body;
++
++    const validationError = validateWorktree(worktree);
++    if (validationError) return validationError;
++
++    if (scope === 'all') {
++      const count = deleteAll(worktree);
++      return NextResponse.json({ deleted: count });
++    }
++
++    if (target) {
++      const count = deleteAllForTarget(worktree, target);
++      return NextResponse.json({ deleted: count });
++    }
++
++    if (noteId) {
++      const success = deleteNote(worktree, noteId);
++      if (!success) return NextResponse.json({ error: 'Note not found' }, { status: 404 });
++      return NextResponse.json({ deleted: 1 });
++    }
++
++    return NextResponse.json({ error: 'Missing noteId, target, or scope' }, { status: 400 });
++  } catch (error) {
++    console.error('[/api/file-notes] DELETE error:', error);
++    return NextResponse.json({ error: 'Failed to delete note(s)' }, { status: 500 });
++  }
++}
+diff --git a/apps/web/app/actions/notes-actions.ts b/apps/web/app/actions/notes-actions.ts
+new file mode 100644
+index 0000000..6d5fd7c
+--- /dev/null
++++ b/apps/web/app/actions/notes-actions.ts
+@@ -0,0 +1,108 @@
++'use server';
++
++/**
++ * File Notes Server Actions
++ *
++ * Server actions callable from client components for note CRUD.
++ * Delegates to note-writer/reader service functions.
++ *
++ * Plan 071: PR View & File Notes — Phase 1
++ */
++
++import { requireAuth } from '@/features/063-login/lib/require-auth';
++import type { CreateNoteInput, EditNoteInput, Note, NoteFilter, NoteResult } from '../../src/features/071-file-notes/types';
++import { appendNote, editNote as editNoteWriter, completeNote as completeNoteWriter, deleteNote as deleteNoteWriter, deleteAllForTarget as deleteAllForTargetWriter, deleteAll as deleteAllWriter } from '../../src/features/071-file-notes/lib/note-writer';
++import { readNotes, listFilesWithNotes } from '../../src/features/071-file-notes/lib/note-reader';
++
++export async function addNote(
++  worktreePath: string,
++  input: CreateNoteInput,
++): Promise<NoteResult<Note>> {
++  await requireAuth();
++  try {
++    const note = appendNote(worktreePath, input);
++    return { ok: true, data: note };
++  } catch (error) {
++    return { ok: false, error: `Failed to add note: ${error}` };
++  }
++}
++
++export async function editNote(
++  worktreePath: string,
++  noteId: string,
++  input: EditNoteInput,
++): Promise<NoteResult<Note>> {
++  await requireAuth();
++  try {
++    const note = editNoteWriter(worktreePath, noteId, input);
++    if (!note) return { ok: false, error: 'Note not found' };
++    return { ok: true, data: note };
++  } catch (error) {
++    return { ok: false, error: `Failed to edit note: ${error}` };
++  }
++}
++
++export async function completeNote(
++  worktreePath: string,
++  noteId: string,
++  completedBy: 'human' | 'agent',
++): Promise<NoteResult<Note>> {
++  await requireAuth();
++  try {
++    const note = completeNoteWriter(worktreePath, noteId, completedBy);
++    if (!note) return { ok: false, error: 'Note not found' };
++    return { ok: true, data: note };
++  } catch (error) {
++    return { ok: false, error: `Failed to complete note: ${error}` };
++  }
++}
++
++export async function deleteNotes(
++  worktreePath: string,
++  options: { noteId?: string; target?: string; scope?: 'all' },
++): Promise<NoteResult<{ deleted: number }>> {
++  await requireAuth();
++  try {
++    if (options.scope === 'all') {
++      const count = deleteAllWriter(worktreePath);
++      return { ok: true, data: { deleted: count } };
++    }
++    if (options.target) {
++      const count = deleteAllForTargetWriter(worktreePath, options.target);
++      return { ok: true, data: { deleted: count } };
++    }
++    if (options.noteId) {
++      const success = deleteNoteWriter(worktreePath, options.noteId);
++      if (!success) return { ok: false, error: 'Note not found' };
++      return { ok: true, data: { deleted: 1 } };
++    }
++    return { ok: false, error: 'Missing noteId, target, or scope' };
++  } catch (error) {
++    return { ok: false, error: `Failed to delete note(s): ${error}` };
++  }
++}
++
++export async function fetchNotes(
++  worktreePath: string,
++  filter?: NoteFilter,
++): Promise<NoteResult<Note[]>> {
++  await requireAuth();
++  try {
++    const notes = readNotes(worktreePath, filter);
++    return { ok: true, data: notes };
++  } catch (error) {
++    return { ok: false, error: `Failed to read notes: ${error}` };
++  }
++}
++
++export async function fetchFilesWithNotes(
++  worktreePath: string,
++): Promise<NoteResult<string[]>> {
++  await requireAuth();
++  try {
++    const files = listFilesWithNotes(worktreePath);
++    return { ok: true, data: files };
++  } catch (error) {
++    return { ok: false, error: `Failed to list files with notes: ${error}` };
++  }
++}
+diff --git a/packages/shared/src/interfaces/note-service.interface.ts b/packages/shared/src/interfaces/note-service.interface.ts
+new file mode 100644
+index 0000000..6b7437a
+--- /dev/null
++++ b/packages/shared/src/interfaces/note-service.interface.ts
+@@ -0,0 +1,49 @@
++/**
++ * File Notes Service Interface
++ *
++ * Generic annotation service for attaching markdown notes to files,
++ * workflow nodes, agent runs, or any future linkable entity.
++ *
++ * Plan 071: PR View & File Notes — Phase 1
++ */
++
++import type {
++  CreateNoteInput,
++  EditNoteInput,
++  Note,
++  NoteFilter,
++  NoteResult,
++} from '../file-notes/types.js';
++
++/**
++ * Service interface for note CRUD and querying.
++ *
++ * Implementations:
++ * - Real: JSONL persistence in .chainglass/data/notes.jsonl
++ * - Fake: In-memory Map for tests
++ */
++export interface INoteService {
++  /** Create a new note. Returns the created note with generated ID. */
++  addNote(worktreePath: string, input: CreateNoteInput): Promise<NoteResult<Note>>;
++
++  /** Edit an existing note's content or addressee. */
++  editNote(worktreePath: string, noteId: string, input: EditNoteInput): Promise<NoteResult<Note>>;
++
++  /** Mark a note as complete. */
++  completeNote(worktreePath: string, noteId: string, completedBy: 'human' | 'agent'): Promise<NoteResult<Note>>;
++
++  /** Delete a single note by ID. */
++  deleteNote(worktreePath: string, noteId: string): Promise<NoteResult>;
++
++  /** List notes with optional filtering. */
++  listNotes(worktreePath: string, filter?: NoteFilter): Promise<NoteResult<Note[]>>;
++
++  /** List unique file paths (or targets) that have notes. */
++  listFilesWithNotes(worktreePath: string): Promise<NoteResult<string[]>>;
++
++  /** Delete all notes for a specific target (e.g., a file path). */
++  deleteAllForTarget(worktreePath: string, target: string): Promise<NoteResult>;
++
++  /** Delete all notes in the worktree. */
++  deleteAll(worktreePath: string): Promise<NoteResult>;
++}
+diff --git a/packages/shared/src/interfaces/index.ts b/packages/shared/src/interfaces/index.ts
+index 84b24ab..c1c029c 100644
+--- a/packages/shared/src/interfaces/index.ts
++++ b/packages/shared/src/interfaces/index.ts
+@@ -144,3 +144,6 @@ export type { IWorkUnitStateService } from './work-unit-state.interface.js';
+ 
+ // Note: IEventStorage, EventStorageService, FakeEventStorage removed in Plan 018 Phase 2.
+ // Use AgentEventAdapter from @chainglass/workflow for workspace-scoped event storage.
++
++// File Notes interface (Plan 071: PR View & File Notes)
++export type { INoteService } from './note-service.interface.js';
+diff --git a/packages/shared/src/fakes/fake-note-service.ts b/packages/shared/src/fakes/fake-note-service.ts
+new file mode 100644
+index 0000000..b161590
+--- /dev/null
++++ b/packages/shared/src/fakes/fake-note-service.ts
+@@ -0,0 +1,142 @@
++/**
++ * FakeNoteService — In-memory test double for INoteService
++ *
++ * Used in contract tests and consumer tests.
++ * Imports ONLY from @chainglass/shared interfaces and types.
++ *
++ * Plan 071: PR View & File Notes — Phase 1
++ */
++
++import type { INoteService } from '../interfaces/note-service.interface.js';
++import type {
++  CreateNoteInput,
++  EditNoteInput,
++  Note,
++  NoteFilter,
++  NoteResult,
++} from '../file-notes/types.js';
++
++let counter = 0;
++
++export class FakeNoteService implements INoteService {
++  private readonly notes = new Map<string, Note>();
++  private readonly addedIds: string[] = [];
++  private readonly editedIds: string[] = [];
++  private readonly completedIds: string[] = [];
++
++  async addNote(_worktreePath: string, input: CreateNoteInput): Promise<NoteResult<Note>> {
++    const now = new Date().toISOString();
++    const note: Note = {
++      id: `fake-${++counter}`,
++      linkType: input.linkType,
++      target: input.target,
++      targetMeta: input.targetMeta,
++      content: input.content,
++      to: input.to,
++      status: 'open',
++      author: input.author,
++      authorId: input.authorId,
++      threadId: input.threadId,
++      createdAt: now,
++      updatedAt: now,
++    };
++    this.notes.set(note.id, note);
++    this.addedIds.push(note.id);
++    return { ok: true, data: note };
++  }
++
++  async editNote(
++    _worktreePath: string,
++    noteId: string,
++    input: EditNoteInput,
++  ): Promise<NoteResult<Note>> {
++    const note = this.notes.get(noteId);
++    if (!note) return { ok: false, error: `Note ${noteId} not found` };
++
++    if (input.content !== undefined) note.content = input.content;
++    if (input.to !== undefined) note.to = input.to;
++    note.updatedAt = new Date().toISOString();
++    this.editedIds.push(noteId);
++    return { ok: true, data: note };
++  }
++
++  async completeNote(
++    _worktreePath: string,
++    noteId: string,
++    completedBy: 'human' | 'agent',
++  ): Promise<NoteResult<Note>> {
++    const note = this.notes.get(noteId);
++    if (!note) return { ok: false, error: `Note ${noteId} not found` };
++
++    note.status = 'complete';
++    note.completedBy = completedBy;
++    note.updatedAt = new Date().toISOString();
++    this.completedIds.push(noteId);
++    return { ok: true, data: note };
++  }
++
++  async deleteNote(_worktreePath: string, noteId: string): Promise<NoteResult> {
++    if (!this.notes.delete(noteId)) {
++      return { ok: false, error: `Note ${noteId} not found` };
++    }
++    return { ok: true, data: undefined };
++  }
++
++  async listNotes(_worktreePath: string, filter?: NoteFilter): Promise<NoteResult<Note[]>> {
++    let notes = Array.from(this.notes.values());
++
++    if (filter?.linkType) notes = notes.filter((n) => n.linkType === filter.linkType);
++    if (filter?.target) notes = notes.filter((n) => n.target === filter.target);
++    if (filter?.status) notes = notes.filter((n) => n.status === filter.status);
++    if (filter?.to) notes = notes.filter((n) => n.to === filter.to);
++    if (filter?.threadId) notes = notes.filter((n) => n.threadId === filter.threadId);
++
++    return { ok: true, data: notes.reverse() };
++  }
++
++  async listFilesWithNotes(_worktreePath: string): Promise<NoteResult<string[]>> {
++    const targets = new Set<string>();
++    for (const note of this.notes.values()) {
++      if (note.status === 'open') targets.add(note.target);
++    }
++    return { ok: true, data: [...targets].sort() };
++  }
++
++  async deleteAllForTarget(_worktreePath: string, target: string): Promise<NoteResult> {
++    for (const [id, note] of this.notes) {
++      if (note.target === target) this.notes.delete(id);
++    }
++    return { ok: true, data: undefined };
++  }
++
++  async deleteAll(_worktreePath: string): Promise<NoteResult> {
++    this.notes.clear();
++    return { ok: true, data: undefined };
++  }
++
++  // ── Inspection Methods (test-only) ──
++
++  getAdded(): readonly string[] {
++    return this.addedIds;
++  }
++
++  getEdited(): readonly string[] {
++    return this.editedIds;
++  }
++
++  getCompleted(): readonly string[] {
++    return this.completedIds;
++  }
++
++  getAllNotes(): readonly Note[] {
++    return Array.from(this.notes.values());
++  }
++
++  reset(): void {
++    this.notes.clear();
++    this.addedIds.length = 0;
++    this.editedIds.length = 0;
++    this.completedIds.length = 0;
++    counter = 0;
++  }
++}
+diff --git a/packages/shared/src/fakes/index.ts b/packages/shared/src/fakes/index.ts
+index bbb0b9f..c5b70da 100644
+--- a/packages/shared/src/fakes/index.ts
++++ b/packages/shared/src/fakes/index.ts
+@@ -30,3 +30,5 @@ export type { FakeUSDKInstance } from './fake-usdk.js';
+ export { FakeWorkflowEventsService } from './fake-workflow-events.js';
+ // Work Unit State fake (Plan 059: WorkUnit State System)
+ export { FakeWorkUnitStateService } from './fake-work-unit-state.js';
++// File Notes fake (Plan 071: PR View & File Notes)
++export { FakeNoteService } from './fake-note-service.js';
+diff --git a/packages/shared/src/file-notes/types.ts b/packages/shared/src/file-notes/types.ts
+new file mode 100644
+index 0000000..6a662ad
+--- /dev/null
++++ b/packages/shared/src/file-notes/types.ts
+@@ -0,0 +1,110 @@
++/**
++ * File Notes Domain — Shared Types
++ *
++ * Types consumed by both web and CLI via @chainglass/shared.
++ * Generic annotation system for files, workflow nodes, and agent runs.
++ *
++ * Plan 071: PR View & File Notes — Phase 1
++ */
++
++/**
++ * Link types — what entity a note is attached to.
++ * Extensible: add new values here without schema migration.
++ */
++export const NoteLinkType = {
++  File: 'file',
++  Workflow: 'workflow',
++  AgentRun: 'agent-run',
++} as const;
++
++export type NoteLinkType = (typeof NoteLinkType)[keyof typeof NoteLinkType];
++
++/**
++ * Target metadata — shape varies by link type.
++ * File notes can target a specific line.
++ * Workflow notes can target a specific node.
++ */
++export type NoteTargetMeta =
++  | { line?: number }
++  | { nodeId?: string }
++  | { runId?: string }
++  | Record<string, unknown>;
++
++/** Who can be addressed by a note */
++export type NoteAddressee = 'human' | 'agent';
++
++/** Who authored a note */
++export type NoteAuthor = 'human' | 'agent';
++
++/** Note completion status */
++export type NoteStatus = 'open' | 'complete';
++
++/**
++ * A single note entry — the core data type.
++ */
++export interface Note {
++  /** Unique identifier (UUID v4) */
++  id: string;
++  /** What kind of entity this note is attached to */
++  linkType: NoteLinkType;
++  /** Target identifier — file path, workflow ID, or agent run ID */
++  target: string;
++  /** Link-type-specific metadata (e.g., line number for files) */
++  targetMeta?: NoteTargetMeta;
++  /** Markdown content */
++  content: string;
++  /** Optional addressee — who this note is for */
++  to?: NoteAddressee;
++  /** Current status */
++  status: NoteStatus;
++  /** Who completed it (only set when status is 'complete') */
++  completedBy?: NoteAuthor;
++  /** Who created this note */
++  author: NoteAuthor;
++  /** Author identifier (e.g., agent ID) — optional */
++  authorId?: string;
++  /** Thread parent ID — if this is a reply to another note */
++  threadId?: string;
++  /** ISO-8601 creation timestamp */
++  createdAt: string;
++  /** ISO-8601 last-updated timestamp */
++  updatedAt: string;
++}
++
++/**
++ * Filter options for querying notes.
++ */
++export interface NoteFilter {
++  linkType?: NoteLinkType;
++  target?: string;
++  status?: NoteStatus;
++  to?: NoteAddressee;
++  threadId?: string;
++}
++
++/**
++ * Input for creating a new note.
++ */
++export interface CreateNoteInput {
++  linkType: NoteLinkType;
++  target: string;
++  targetMeta?: NoteTargetMeta;
++  content: string;
++  to?: NoteAddressee;
++  author: NoteAuthor;
++  authorId?: string;
++  threadId?: string;
++}
++
++/**
++ * Input for editing an existing note.
++ */
++export interface EditNoteInput {
++  content?: string;
++  to?: NoteAddressee;
++}
++
++/** Result type for note operations */
++export type NoteResult<T = void> =
++  | { ok: true; data: T }
++  | { ok: false; error: string };
+diff --git a/packages/shared/src/file-notes/index.ts b/packages/shared/src/file-notes/index.ts
+new file mode 100644
+index 0000000..05070e1
+--- /dev/null
++++ b/packages/shared/src/file-notes/index.ts
+@@ -0,0 +1,18 @@
++/**
++ * File Notes — Shared Barrel Exports
++ *
++ * Plan 071: PR View & File Notes
++ */
++
++export { NoteLinkType } from './types.js';
++export type {
++  CreateNoteInput,
++  EditNoteInput,
++  Note,
++  NoteAddressee,
++  NoteAuthor,
++  NoteFilter,
++  NoteResult,
++  NoteStatus,
++  NoteTargetMeta,
++} from './types.js';
+diff --git a/packages/shared/package.json b/packages/shared/package.json
+index e7a2dbb..9a97e28 100644
+--- a/packages/shared/package.json
++++ b/packages/shared/package.json
+@@ -44,6 +44,10 @@
+     "./workflow-events": {
+       "import": "./dist/workflow-events/index.js",
+       "types": "./dist/workflow-events/index.d.ts"
++    },
++    "./file-notes": {
++      "import": "./dist/file-notes/index.js",
++      "types": "./dist/file-notes/index.d.ts"
+     }
+   },
+   "scripts": {
+diff --git a/test/unit/web/features/071-file-notes/note-reader.test.ts b/test/unit/web/features/071-file-notes/note-reader.test.ts
+new file mode 100644
+index 0000000..4e5f9cd
+--- /dev/null
++++ b/test/unit/web/features/071-file-notes/note-reader.test.ts
+@@ -0,0 +1,131 @@
++/**
++ * Note Reader — Unit Tests
++ *
++ * Why: Validates JSONL reading and filtering for the File Notes domain.
++ * Contract: readNotes parses JSONL, applies filters, returns newest-first.
++ * Usage Notes: Tests use tmpdir fixtures with pre-written JSONL.
++ * Quality Contribution: Ensures correct filtering and graceful error handling.
++ * Worked Example: Write JSONL → readNotes with filter → verify filtered results.
++ *
++ * Plan 071: PR View & File Notes — Phase 1
++ */
++
++import * as fs from 'node:fs';
++import * as os from 'node:os';
++import * as path from 'node:path';
++import { afterEach, beforeEach, describe, expect, it } from 'vitest';
++import { appendNote } from '@/features/071-file-notes/lib/note-writer';
++import {
++  listFilesWithNotes,
++  readNotes,
++} from '@/features/071-file-notes/lib/note-reader';
++
++let tmpDir: string;
++
++beforeEach(() => {
++  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'note-reader-'));
++});
++
++afterEach(() => {
++  fs.rmSync(tmpDir, { recursive: true, force: true });
++});
++
++function notesFilePath(): string {
++  return path.join(tmpDir, '.chainglass', 'data', 'notes.jsonl');
++}
++
++describe('readNotes', () => {
++  it('returns empty array when file does not exist', () => {
++    expect(readNotes(tmpDir)).toEqual([]);
++  });
++
++  it('reads all notes newest-first', () => {
++    appendNote(tmpDir, { linkType: 'file', target: 'a.ts', content: 'First', author: 'human' });
++    appendNote(tmpDir, { linkType: 'file', target: 'b.ts', content: 'Second', author: 'human' });
++
++    const notes = readNotes(tmpDir);
++    expect(notes).toHaveLength(2);
++    expect(notes[0].content).toBe('Second');
++    expect(notes[1].content).toBe('First');
++  });
++
++  it('filters by linkType', () => {
++    appendNote(tmpDir, { linkType: 'file', target: 'a.ts', content: 'File note', author: 'human' });
++    appendNote(tmpDir, { linkType: 'workflow', target: 'wf-1', content: 'WF note', author: 'human' });
++
++    const notes = readNotes(tmpDir, { linkType: 'file' });
++    expect(notes).toHaveLength(1);
++    expect(notes[0].linkType).toBe('file');
++  });
++
++  it('filters by target', () => {
++    appendNote(tmpDir, { linkType: 'file', target: 'a.ts', content: 'A', author: 'human' });
++    appendNote(tmpDir, { linkType: 'file', target: 'b.ts', content: 'B', author: 'human' });
++
++    const notes = readNotes(tmpDir, { target: 'a.ts' });
++    expect(notes).toHaveLength(1);
++    expect(notes[0].target).toBe('a.ts');
++  });
++
++  it('filters by status', () => {
++    const note = appendNote(tmpDir, { linkType: 'file', target: 'a.ts', content: 'Open', author: 'human' });
++    appendNote(tmpDir, { linkType: 'file', target: 'b.ts', content: 'Also open', author: 'human' });
++
++    // Manually mark one as complete in the JSONL
++    const filePath = notesFilePath();
++    const content = fs.readFileSync(filePath, 'utf-8');
++    const lines = content.trim().split('\n');
++    const first = JSON.parse(lines[0]);
++    first.status = 'complete';
++    lines[0] = JSON.stringify(first);
++    fs.writeFileSync(filePath, `${lines.join('\n')}\n`);
++
++    const openNotes = readNotes(tmpDir, { status: 'open' });
++    expect(openNotes).toHaveLength(1);
++    expect(openNotes[0].content).toBe('Also open');
++  });
++
++  it('filters by addressee', () => {
++    appendNote(tmpDir, { linkType: 'file', target: 'a.ts', content: 'To human', to: 'human', author: 'agent' });
++    appendNote(tmpDir, { linkType: 'file', target: 'b.ts', content: 'To agent', to: 'agent', author: 'human' });
++    appendNote(tmpDir, { linkType: 'file', target: 'c.ts', content: 'To anyone', author: 'human' });
++
++    const agentNotes = readNotes(tmpDir, { to: 'agent' });
++    expect(agentNotes).toHaveLength(1);
++    expect(agentNotes[0].content).toBe('To agent');
++  });
++
++  it('skips malformed lines', () => {
++    const filePath = notesFilePath();
++    fs.mkdirSync(path.dirname(filePath), { recursive: true });
++    fs.writeFileSync(filePath, 'not json\n{"id":"1","linkType":"file","target":"a.ts","content":"Good","status":"open","author":"human","createdAt":"2026-01-01","updatedAt":"2026-01-01"}\n');
++
++    const notes = readNotes(tmpDir);
++    expect(notes).toHaveLength(1);
++    expect(notes[0].content).toBe('Good');
++  });
++
++  it('skips entries missing required fields', () => {
++    const filePath = notesFilePath();
++    fs.mkdirSync(path.dirname(filePath), { recursive: true });
++    fs.writeFileSync(filePath, '{"id":"1"}\n{"id":"2","linkType":"file","target":"a.ts","content":"Valid","status":"open","author":"human","createdAt":"2026-01-01","updatedAt":"2026-01-01"}\n');
++
++    const notes = readNotes(tmpDir);
++    expect(notes).toHaveLength(1);
++  });
++});
++
++describe('listFilesWithNotes', () => {
++  it('returns sorted unique targets with open notes', () => {
++    appendNote(tmpDir, { linkType: 'file', target: 'b.ts', content: 'B', author: 'human' });
++    appendNote(tmpDir, { linkType: 'file', target: 'a.ts', content: 'A', author: 'human' });
++    appendNote(tmpDir, { linkType: 'file', target: 'b.ts', content: 'B again', author: 'human' });
++
++    const files = listFilesWithNotes(tmpDir);
++    expect(files).toEqual(['a.ts', 'b.ts']);
++  });
++
++  it('returns empty when no notes exist', () => {
++    expect(listFilesWithNotes(tmpDir)).toEqual([]);
++  });
++});
+diff --git a/test/unit/web/features/071-file-notes/note-writer.test.ts b/test/unit/web/features/071-file-notes/note-writer.test.ts
+new file mode 100644
+index 0000000..6891e13
+--- /dev/null
++++ b/test/unit/web/features/071-file-notes/note-writer.test.ts
+@@ -0,0 +1,204 @@
++/**
++ * Note Writer — Unit Tests
++ *
++ * Why: Validates JSONL persistence for the File Notes domain.
++ * Contract: appendNote creates notes, editNote rewrites file, deleteNote removes entries.
++ * Usage Notes: Tests use tmpdir fixtures cleaned up after each test.
++ * Quality Contribution: Ensures data integrity for the core persistence layer.
++ * Worked Example: appendNote → readFile → verify JSON line; editNote → verify rewritten.
++ *
++ * Plan 071: PR View & File Notes — Phase 1
++ */
++
++import * as fs from 'node:fs';
++import * as os from 'node:os';
++import * as path from 'node:path';
++import { afterEach, beforeEach, describe, expect, it } from 'vitest';
++import {
++  appendNote,
++  completeNote,
++  deleteAll,
++  deleteAllForTarget,
++  deleteNote,
++  editNote,
++} from '@/features/071-file-notes/lib/note-writer';
++
++let tmpDir: string;
++
++beforeEach(() => {
++  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'note-writer-'));
++});
++
++afterEach(() => {
++  fs.rmSync(tmpDir, { recursive: true, force: true });
++});
++
++function notesFilePath(): string {
++  return path.join(tmpDir, '.chainglass', 'data', 'notes.jsonl');
++}
++
++function readLines(): string[] {
++  const content = fs.readFileSync(notesFilePath(), 'utf-8');
++  return content.trim().split('\n').filter(Boolean);
++}
++
++describe('appendNote', () => {
++  it('creates directory and appends a note', () => {
++    const note = appendNote(tmpDir, {
++      linkType: 'file',
++      target: 'src/index.ts',
++      content: 'Review this function',
++      author: 'human',
++    });
++
++    expect(note.id).toBeDefined();
++    expect(note.linkType).toBe('file');
++    expect(note.target).toBe('src/index.ts');
++    expect(note.content).toBe('Review this function');
++    expect(note.status).toBe('open');
++    expect(note.author).toBe('human');
++    expect(note.createdAt).toBeDefined();
++
++    const lines = readLines();
++    expect(lines).toHaveLength(1);
++    expect(JSON.parse(lines[0]).id).toBe(note.id);
++  });
++
++  it('appends multiple notes', () => {
++    appendNote(tmpDir, { linkType: 'file', target: 'a.ts', content: 'First', author: 'human' });
++    appendNote(tmpDir, { linkType: 'file', target: 'b.ts', content: 'Second', author: 'agent' });
++
++    const lines = readLines();
++    expect(lines).toHaveLength(2);
++  });
++
++  it('supports optional fields', () => {
++    const note = appendNote(tmpDir, {
++      linkType: 'file',
++      target: 'src/index.ts',
++      targetMeta: { line: 42 },
++      content: 'Check line 42',
++      to: 'agent',
++      author: 'human',
++      authorId: 'jordan',
++      threadId: 'parent-123',
++    });
++
++    expect(note.targetMeta).toEqual({ line: 42 });
++    expect(note.to).toBe('agent');
++    expect(note.authorId).toBe('jordan');
++    expect(note.threadId).toBe('parent-123');
++  });
++
++  it('supports workflow link type', () => {
++    const note = appendNote(tmpDir, {
++      linkType: 'workflow',
++      target: 'wf-build-deploy',
++      targetMeta: { nodeId: 'node-3' },
++      content: 'This node fails often',
++      author: 'human',
++    });
++
++    expect(note.linkType).toBe('workflow');
++    expect(note.targetMeta).toEqual({ nodeId: 'node-3' });
++  });
++});
++
++describe('editNote', () => {
++  it('updates content and updatedAt', () => {
++    const original = appendNote(tmpDir, {
++      linkType: 'file',
++      target: 'a.ts',
++      content: 'Original',
++      author: 'human',
++    });
++
++    const edited = editNote(tmpDir, original.id, { content: 'Revised' });
++    expect(edited).not.toBeNull();
++    expect(edited!.content).toBe('Revised');
++    expect(edited!.id).toBe(original.id);
++
++    const lines = readLines();
++    expect(lines).toHaveLength(1);
++    expect(JSON.parse(lines[0]).content).toBe('Revised');
++  });
++
++  it('returns null for non-existent note', () => {
++    const result = editNote(tmpDir, 'nonexistent', { content: 'Nope' });
++    expect(result).toBeNull();
++  });
++
++  it('updates to field', () => {
++    const original = appendNote(tmpDir, {
++      linkType: 'file',
++      target: 'a.ts',
++      content: 'Check',
++      author: 'human',
++    });
++
++    const edited = editNote(tmpDir, original.id, { to: 'agent' });
++    expect(edited!.to).toBe('agent');
++  });
++});
++
++describe('completeNote', () => {
++  it('marks note as complete', () => {
++    const note = appendNote(tmpDir, {
++      linkType: 'file',
++      target: 'a.ts',
++      content: 'Fix this',
++      author: 'human',
++    });
++
++    const completed = completeNote(tmpDir, note.id, 'agent');
++    expect(completed!.status).toBe('complete');
++    expect(completed!.completedBy).toBe('agent');
++  });
++});
++
++describe('deleteNote', () => {
++  it('removes a note', () => {
++    const note = appendNote(tmpDir, {
++      linkType: 'file',
++      target: 'a.ts',
++      content: 'Delete me',
++      author: 'human',
++    });
++
++    expect(deleteNote(tmpDir, note.id)).toBe(true);
++    const lines = readLines();
++    expect(lines).toHaveLength(0);
++  });
++
++  it('returns false for non-existent note', () => {
++    expect(deleteNote(tmpDir, 'nonexistent')).toBe(false);
++  });
++});
++
++describe('deleteAllForTarget', () => {
++  it('removes all notes for a target', () => {
++    appendNote(tmpDir, { linkType: 'file', target: 'a.ts', content: 'One', author: 'human' });
++    appendNote(tmpDir, { linkType: 'file', target: 'a.ts', content: 'Two', author: 'human' });
++    appendNote(tmpDir, { linkType: 'file', target: 'b.ts', content: 'Keep', author: 'human' });
++
++    const count = deleteAllForTarget(tmpDir, 'a.ts');
++    expect(count).toBe(2);
++
++    const lines = readLines();
++    expect(lines).toHaveLength(1);
++    expect(JSON.parse(lines[0]).target).toBe('b.ts');
++  });
++});
++
++describe('deleteAll', () => {
++  it('removes all notes', () => {
++    appendNote(tmpDir, { linkType: 'file', target: 'a.ts', content: 'One', author: 'human' });
++    appendNote(tmpDir, { linkType: 'file', target: 'b.ts', content: 'Two', author: 'human' });
++
++    const count = deleteAll(tmpDir);
++    expect(count).toBe(2);
++
++    const lines = readLines();
++    expect(lines).toHaveLength(0);
++  });
++});
+diff --git a/docs/domains/file-notes/domain.md b/docs/domains/file-notes/domain.md
+new file mode 100644
+index 0000000..8d54411
+--- /dev/null
++++ b/docs/domains/file-notes/domain.md
+@@ -0,0 +1,101 @@
++# Domain: File Notes
++
++**Slug**: file-notes
++**Type**: business
++**Created**: 2026-03-08
++**Created By**: Plan 071 — PR View & File Notes (Phase 1)
++**Status**: active
++
++## Purpose
++
++Generic annotation system where humans and agents attach markdown notes to files, workflow nodes, agent runs, or any linkable entity. Notes persist per-worktree in `.chainglass/data/notes.jsonl`, support threading, completion tracking, and addressee targeting. Consumed by file-browser (tree indicators), workflow-ui, agents, and CLI.
++
++## Boundary
++
++### Owns
++- Note data model with generic link-type system (file/workflow/agent-run)
++- JSONL persistence: note-writer.ts (append + read-modify-rewrite), note-reader.ts (read + filter)
++- INoteService interface in `@chainglass/shared`
++- FakeNoteService in `@chainglass/shared/fakes`
++- API routes: `GET/POST/PATCH/DELETE /api/file-notes`
++- Server actions: addNote, editNote, completeNote, deleteNotes, fetchNotes, fetchFilesWithNotes
++
++### Does NOT Own
++- Tree rendering (provides NoteIndicatorDot consumed by file-browser — Phase 2)
++- Overlay/modal UI (Phase 2)
++- CLI commands (Phase 3)
++- Workflow/agent integration details (future phases)
++
++## Contracts (Public Interface)
++
++| Contract | Type | Consumers | Description |
++|----------|------|-----------|-------------|
++| `INoteService` | Interface | CLI, web, tests | 8-method service: addNote, editNote, completeNote, deleteNote, listNotes, listFilesWithNotes, deleteAllForTarget, deleteAll |
++| `Note` | Type | All consumers | Core note data type with generic link-type system |
++| `NoteLinkType` | Const | All consumers | `'file' \| 'workflow' \| 'agent-run'` extensible link types |
++| `NoteFilter` | Type | API routes, CLI | Filter by linkType, target, status, to, threadId |
++| `CreateNoteInput` | Type | Writers | Input for creating a new note |
++| `EditNoteInput` | Type | Writers | Input for editing an existing note |
++| `NoteResult<T>` | Type | All consumers | `{ ok: true; data: T } \| { ok: false; error: string }` |
++| `FakeNoteService` | Fake | Tests | In-memory test double with inspection methods |
++| `appendNote` | Function | Server actions, API routes | Append a new note to JSONL |
++| `readNotes` | Function | Server actions, API routes | Read + filter notes from JSONL |
++| `listFilesWithNotes` | Function | Server actions, API routes | List unique targets with open notes |
++
++## Concepts
++
++| Concept | Entry Point | What It Does |
++|---------|-------------|--------------|
++| Add note | `appendNote()`, `addNote` server action, `POST /api/file-notes` | Create a new note on any linkable entity with optional line, addressee, and thread parent |
++| Edit note | `editNote()`, `editNote` server action, `PATCH /api/file-notes` | Update note content or addressee via read-modify-rewrite with atomic rename |
++| Complete note | `completeNote()`, `completeNote` server action | Mark note as complete, recording who completed (human or agent) |
++| Delete notes | `deleteNote()`, `deleteAllForTarget()`, `deleteAll()` | Remove individual notes, all notes for a target, or all notes in worktree |
++| Query notes | `readNotes()`, `fetchNotes` server action, `GET /api/file-notes` | Filter notes by linkType, target, status, addressee, threadId |
++| List files with notes | `listFilesWithNotes()`, `GET /api/file-notes?mode=files` | Returns sorted unique targets that have open notes |
++
++## Composition (Internal)
++
++| Component | Role | Depends On |
++|-----------|------|------------|
++| types.ts (shared) | Note, LinkType, Filter types | — |
++| types.ts (web) | Re-exports from shared + NOTES_FILE/NOTES_DIR constants | @chainglass/shared/file-notes |
++| note-writer.ts | JSONL append + read-modify-rewrite | Node.js fs |
++| note-reader.ts | JSONL read + parse + filter | Node.js fs |
++| route.ts | API endpoints (GET/POST/PATCH/DELETE) | note-writer, note-reader, auth |
++| notes-actions.ts | Server actions with requireAuth() | note-writer, note-reader, auth |
++| FakeNoteService | In-memory test double | INoteService interface |
++
++## Source Location
++
++Primary: `apps/web/src/features/071-file-notes/` + `packages/shared/src/file-notes/`
++
++| File | Role | Notes |
++|------|------|-------|
++| `packages/shared/src/file-notes/types.ts` | Shared types (Note, LinkType, etc.) | Phase 1 |
++| `packages/shared/src/file-notes/index.ts` | Shared barrel exports | Phase 1 |
++| `packages/shared/src/interfaces/note-service.interface.ts` | INoteService interface | Phase 1 |
++| `packages/shared/src/fakes/fake-note-service.ts` | FakeNoteService | Phase 1 |
++| `apps/web/src/features/071-file-notes/types.ts` | Web types (re-export + constants) | Phase 1 |
++| `apps/web/src/features/071-file-notes/lib/note-writer.ts` | JSONL writer | Phase 1 |
++| `apps/web/src/features/071-file-notes/lib/note-reader.ts` | JSONL reader | Phase 1 |
++| `apps/web/src/features/071-file-notes/index.ts` | Feature barrel | Phase 1 |
++| `apps/web/app/api/file-notes/route.ts` | API route | Phase 1 |
++| `apps/web/app/actions/notes-actions.ts` | Server actions | Phase 1 |
++
++## Dependencies
++
++### This Domain Depends On
++- `_platform/auth` — requireAuth() for server actions and API routes
++- Node.js `fs` — direct filesystem access for JSONL persistence
++
++### Domains That Depend On This
++- (Phase 2) file-browser — NoteIndicatorDot for tree decoration
++- (Phase 3) CLI — `cg notes` commands via INoteService
++- (Future) workflow-ui — Notes on workflow nodes
++- (Future) agents — Notes on agent runs
++
++## History
++
++| Plan | What Changed | Date |
++|------|-------------|------|
++| 071 Phase 1 | Domain created. Types, INoteService interface, JSONL writer/reader, FakeNoteService, API routes, server actions, 22 unit tests. | 2026-03-08 |
+diff --git a/docs/domains/registry.md b/docs/domains/registry.md
+index 97deb1d..561c2f9 100644
+--- a/docs/domains/registry.md
++++ b/docs/domains/registry.md
+@@ -22,6 +22,7 @@
+ | Terminal | terminal | business | — | Plan 064 | active |
+ | Activity Log | activity-log | business | — | Plan 065 | active |
+ | Auth | _platform/auth | infrastructure | _platform | Plan 063-login | active |
++| File Notes | file-notes | business | — | Plan 071 Phase 1 | active |
+ 
+ ## Domain Types
+ 
