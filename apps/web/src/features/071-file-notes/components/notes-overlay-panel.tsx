@@ -34,8 +34,22 @@ import { NoteFileGroup } from './note-file-group';
 import { NoteModal } from './note-modal';
 
 export function NotesOverlayPanel() {
-  const { isOpen, worktreePath, closeNotes, modalTarget, isModalOpen, openModal, closeModal } =
-    useNotesOverlay();
+  const {
+    isOpen,
+    worktreePath: contextWorktreePath,
+    closeNotes,
+    modalTarget,
+    isModalOpen,
+    openModal,
+    closeModal,
+  } = useNotesOverlay();
+
+  // Resolve worktree from URL param when context path is the workspace default (not the active worktree)
+  const urlWorktree =
+    typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search).get('worktree')
+      : null;
+  const worktreePath = urlWorktree ?? contextWorktreePath;
 
   const { groupedByFile, loading, error, refresh, filter, setFilter, openCount, completeCount } =
     useNotes(worktreePath);
