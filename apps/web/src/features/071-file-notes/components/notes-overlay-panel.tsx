@@ -21,7 +21,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import { workspaceHref } from '@/lib/workspace-url';
-import { completeNote, deleteNotes } from '../../../../app/actions/notes-actions';
+import {
+  completeNote,
+  deleteNotes,
+  fetchFilesWithNotesDetailed,
+} from '../../../../app/actions/notes-actions';
 import { type NoteFilterOption, useNotes } from '../hooks/use-notes';
 import { useNotesOverlay } from '../hooks/use-notes-overlay';
 import type { Note } from '../types';
@@ -36,9 +40,17 @@ export function NotesOverlayPanel() {
   const { groupedByFile, loading, error, refresh, filter, setFilter, openCount, completeCount } =
     useNotes(worktreePath);
 
+  // Phase 7 DYK-02: Notify other consumers (BrowserClient, PR View) when notes change
+  const refreshAndNotify = useCallback(() => {
+    refresh();
+    window.dispatchEvent(new CustomEvent('notes:changed'));
+  }, [refresh]);
+
   const panelRef = useRef<HTMLDivElement>(null);
   const [anchorRect, setAnchorRect] = useState({ top: 0, left: 0, width: 0, height: 0 });
   const [hasOpened, setHasOpened] = useState(false);
+  // Phase 7 T006: Deleted file detection (DYK-05)
+  const [deletedFiles, setDeletedFiles] = useState<Set<string>>(new Set());
 
   // Bulk delete state
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
@@ -49,6 +61,23 @@ export function NotesOverlayPanel() {
   useEffect(() => {
     if (isOpen) setHasOpened(true);
   }, [isOpen]);
+
+  // Phase 7 T006: Fetch deleted file status when notes are grouped (DYK-05)
+  useEffect(() => {
+    if (!worktreePath || groupedByFile.size === 0) {
+      setDeletedFiles(new Set());
+      return;
+    }
+    fetchFilesWithNotesDetailed(worktreePath).then((result) => {
+      if (result.ok) {
+        const deleted = new Set<string>();
+        for (const f of result.data) {
+          if (!f.exists) deleted.add(f.path);
+        }
+        setDeletedFiles(deleted);
+      }
+    });
+  }, [worktreePath, groupedByFile.size]);
 
   // Measure anchor element
   const measureRef = useRef<(() => void) | undefined>(undefined);
@@ -122,12 +151,12 @@ export function NotesOverlayPanel() {
       const result = await completeNote(worktreePath, noteId, 'human');
       if (result.ok) {
         toast.success('Note completed');
-        refresh();
+        refreshAndNotify();
       } else {
         toast.error(result.error);
       }
     },
-    [worktreePath, refresh]
+    [worktreePath, refreshAndNotify]
   );
 
   // Reply to a note
@@ -188,11 +217,11 @@ export function NotesOverlayPanel() {
     const result = await deleteNotes(worktreePath, options);
     if (result.ok) {
       toast.success(`${result.data.deleted} note${result.data.deleted !== 1 ? 's' : ''} deleted`);
-      refresh();
+      refreshAndNotify();
     } else {
       toast.error(result.error);
     }
-  }, [worktreePath, bulkDeleteScope, bulkDeleteFileName, refresh]);
+  }, [worktreePath, bulkDeleteScope, bulkDeleteFileName, refreshAndNotify]);
 
   // "Add Note" from overlay header
   const handleAddNote = useCallback(() => {
@@ -304,6 +333,7 @@ export function NotesOverlayPanel() {
                 key={filePath}
                 filePath={filePath}
                 threads={threads}
+                isDeleted={deletedFiles.has(filePath)}
                 onGoTo={handleGoTo}
                 onComplete={handleComplete}
                 onReply={handleReply}
@@ -323,7 +353,7 @@ export function NotesOverlayPanel() {
         }}
         target={modalTarget}
         worktreePath={worktreePath ?? ''}
-        onSaved={refresh}
+        onSaved={refreshAndNotify}
       />
 
       {/* Bulk Delete Dialog */}

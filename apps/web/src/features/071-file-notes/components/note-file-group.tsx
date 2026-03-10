@@ -23,6 +23,8 @@ interface NoteFileGroupProps {
   filePath: string;
   /** Thread-grouped notes for this file */
   threads: NoteThread[];
+  /** Whether the underlying file has been deleted from the worktree (Phase 7 T006) */
+  isDeleted?: boolean;
   /** Navigate to file+line */
   onGoTo: (target: string, line?: number) => void;
   /** Mark note as complete */
@@ -38,6 +40,7 @@ interface NoteFileGroupProps {
 export function NoteFileGroup({
   filePath,
   threads,
+  isDeleted,
   onGoTo,
   onComplete,
   onReply,
@@ -63,6 +66,12 @@ export function NoteFileGroup({
         )}
 
         <span className="truncate flex-1 text-left font-mono text-xs">{filePath}</span>
+
+        {isDeleted && (
+          <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400">
+            Deleted
+          </span>
+        )}
 
         <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
           {totalNotes}

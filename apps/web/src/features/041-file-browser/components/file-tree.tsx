@@ -20,6 +20,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
+import { NoteIndicatorDot } from '@/features/071-file-notes/components/note-indicator-dot';
 import {
   ChevronDown,
   ChevronRight,
@@ -34,6 +35,7 @@ import {
   FolderTree,
   Pencil,
   RefreshCw,
+  StickyNote,
   Trash2,
 } from 'lucide-react';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useState } from 'react';
@@ -82,6 +84,8 @@ export interface FileTreeProps {
   entries: FileEntry[];
   selectedFile?: string;
   changedFiles?: string[];
+  /** Set of file paths that have open notes — renders blue indicator dot */
+  filesWithNotes?: Set<string>;
   /** Paths of newly added files/dirs — get green fade-in animation */
   newlyAddedPaths?: Set<string>;
   onSelect: (filePath: string) => void;
@@ -96,6 +100,8 @@ export interface FileTreeProps {
   onCopyContent?: (filePath: string) => void;
   onCopyTree?: (dirPath: string) => void;
   onDownload?: (filePath: string) => void;
+  /** Called when "Add Note" is selected from context menu */
+  onAddNote?: (filePath: string) => void;
   /** CRUD callbacks — when provided, enables mutation UI (hover buttons, context menu, keyboard shortcuts) */
   onCreateFile?: (parentDir: string, name: string) => void;
   onCreateFolder?: (parentDir: string, name: string) => void;
@@ -110,6 +116,7 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
     entries,
     selectedFile,
     changedFiles,
+    filesWithNotes,
     newlyAddedPaths,
     onSelect,
     onExpand,
@@ -121,6 +128,7 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
     onCopyContent,
     onCopyTree,
     onDownload,
+    onAddNote,
     onCreateFile,
     onCreateFolder,
     onRename,
@@ -320,6 +328,7 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
           expanded={expanded}
           selectedFile={selectedFile}
           changedFiles={changedFiles}
+          filesWithNotes={filesWithNotes}
           newlyAddedPaths={newlyAddedPaths}
           childEntries={childEntries}
           onSelect={onSelect}
@@ -330,6 +339,7 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
           onCopyContent={onCopyContent}
           onCopyTree={onCopyTree}
           onDownload={onDownload}
+          onAddNote={onAddNote}
           mutations={mutations}
         />
       ))}
@@ -360,6 +370,7 @@ function TreeItem({
   expanded,
   selectedFile,
   changedFiles,
+  filesWithNotes,
   newlyAddedPaths,
   childEntries,
   onSelect,
@@ -370,6 +381,7 @@ function TreeItem({
   onCopyContent,
   onCopyTree,
   onDownload,
+  onAddNote,
   mutations,
 }: {
   entry: FileEntry;
@@ -377,6 +389,7 @@ function TreeItem({
   expanded: Set<string>;
   selectedFile?: string;
   changedFiles?: string[];
+  filesWithNotes?: Set<string>;
   newlyAddedPaths?: Set<string>;
   childEntries: Record<string, FileEntry[]>;
   onSelect: (path: string) => void;
@@ -387,6 +400,7 @@ function TreeItem({
   onCopyContent?: (filePath: string) => void;
   onCopyTree?: (dirPath: string) => void;
   onDownload?: (filePath: string) => void;
+  onAddNote?: (filePath: string) => void;
   mutations?: TreeMutationHandlers;
 }) {
   const isExpanded = expanded.has(entry.path);
@@ -589,6 +603,7 @@ function TreeItem({
                 expanded={expanded}
                 selectedFile={selectedFile}
                 changedFiles={changedFiles}
+                filesWithNotes={filesWithNotes}
                 newlyAddedPaths={newlyAddedPaths}
                 childEntries={childEntries}
                 onSelect={onSelect}
@@ -599,6 +614,7 @@ function TreeItem({
                 onCopyContent={onCopyContent}
                 onCopyTree={onCopyTree}
                 onDownload={onDownload}
+                onAddNote={onAddNote}
                 mutations={mutations}
               />
             ))}
@@ -664,11 +680,21 @@ function TreeItem({
             {isSelected && (
               <span className="absolute left-0.5 text-amber-500 font-black text-sm">▶</span>
             )}
+            <NoteIndicatorDot hasNotes={filesWithNotes?.has(entry.path) ?? false} />
             <File className="h-4 w-4 shrink-0 text-muted-foreground" />
             <span className={`truncate ${isSelected ? 'text-base' : ''}`}>{entry.name}</span>
           </button>
         </ContextMenuTrigger>
         <ContextMenuContent>
+          {onAddNote && (
+            <>
+              <ContextMenuItem onSelect={() => onAddNote(entry.path)}>
+                <StickyNote className="h-3.5 w-3.5 mr-2" />
+                Add Note
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+            </>
+          )}
           <ContextMenuItem onSelect={() => onCopyFullPath?.(entry.path)}>
             <ClipboardCopy className="h-3.5 w-3.5 mr-2" />
             Copy Full Path

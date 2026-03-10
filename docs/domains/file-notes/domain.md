@@ -19,7 +19,7 @@ Generic annotation system where humans and agents attach markdown notes to files
 - INoteService interface in `@chainglass/shared`
 - FakeNoteService in `@chainglass/shared/fakes`
 - API routes: `GET/POST/PATCH/DELETE /api/file-notes`
-- Server actions: addNote, editNote, completeNote, deleteNotes, fetchNotes, fetchFilesWithNotes
+- Server actions: addNote, editNote, completeNote, deleteNotes, fetchNotes, fetchFilesWithNotes, fetchFilesWithNotesDetailed
 - CLI commands: `cg notes list`, `cg notes files`, `cg notes add`, `cg notes complete`
 
 ### Does NOT Own
@@ -45,6 +45,10 @@ Generic annotation system where humans and agents attach markdown notes to files
 | `appendNote` | Function | Server actions, API routes | Append a new note to JSONL |
 | `readNotes` | Function | Server actions, API routes | Read + filter notes from JSONL |
 | `listFilesWithNotes` | Function | Server actions, API routes | List unique targets with open notes |
+| `listFilesWithNotesDetailed` | Function | Server actions | List files with notes including existence check against worktree |
+| `FileWithExistence` | Type | notes-overlay | `{ filePath: string; exists: boolean }` for deleted file detection |
+| `fetchFilesWithNotesDetailed` | Server Action | notes-overlay | Server action wrapping `listFilesWithNotesDetailed` |
+| `notes:changed` | CustomEvent | file-browser, pr-view | Dispatched on `window` after note CRUD to trigger re-fetch of note file paths |
 | `JsonlNoteService` | Class | CLI, web, contract tests | INoteService adapter wrapping sync writer/reader with NoteResult error handling |
 | `registerNotesCommands` | Function | CLI entry (cg.ts) | Commander.js `cg notes` command group with list/files/add/complete |
 
@@ -130,8 +134,9 @@ Primary: `apps/web/src/features/071-file-notes/` + `packages/shared/src/file-not
 - Node.js `fs` — direct filesystem access for JSONL persistence
 
 ### Domains That Depend On This
-- (Phase 2) file-browser — NoteIndicatorDot for tree decoration
-- (Phase 3) CLI — `cg notes` commands via INoteService + JsonlNoteService
+- file-browser — NoteIndicatorDot for tree decoration, `fetchFilesWithNotes` + `notes:changed` listener, filter toggle
+- pr-view — NoteIndicatorDot in file list, `fetchFilesWithNotes` + `notes:changed` listener
+- CLI — `cg notes` commands via INoteService + JsonlNoteService
 - (Future) workflow-ui — Notes on workflow nodes
 - (Future) agents — Notes on agent runs
 
@@ -142,3 +147,4 @@ Primary: `apps/web/src/features/071-file-notes/` + `packages/shared/src/file-not
 | 071 Phase 1 | Domain created. Types, INoteService interface, JSONL writer/reader, FakeNoteService, API routes, server actions, 22 unit tests. | 2026-03-08 |
 | 071 Phase 2 | Notes overlay (provider, panel, grouped-by-file display), NoteCard, NoteFileGroup, NoteModal (add/edit/reply), BulkDeleteDialog (YEES), NoteIndicatorDot, sidebar button, SDK command (Ctrl+Shift+L), useNotes data hook with caching + thread grouping. | 2026-03-09 |
 | 071 Phase 3 | Moved writer/reader/JsonlNoteService to `@chainglass/shared`. Added NOTES_DIR/NOTES_FILE/NOTE_SERVICE token to shared. CLI commands: `cg notes list/files/add/complete` with JSON output. Improved `noContextError()` with .chainglass/ detection. 16 CLI tests. | 2026-03-09 |
+| 071 Phase 7 | Cross-domain integration: NoteIndicatorDot wired into FileTree + PR View file list, deleted file detection via `listFilesWithNotesDetailed`, `notes:changed` CustomEvent dispatch after CRUD, filter toggle in file-browser with ancestor directory preservation. | 2026-03-10 |

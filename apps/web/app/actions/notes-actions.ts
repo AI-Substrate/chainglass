@@ -25,7 +25,12 @@ import {
   deleteNote as deleteNoteWriter,
   editNote as editNoteWriter,
 } from '@chainglass/shared/file-notes';
-import { listFilesWithNotes, readNotes } from '@chainglass/shared/file-notes';
+import {
+  type FileWithExistence,
+  listFilesWithNotes,
+  listFilesWithNotesDetailed,
+  readNotes,
+} from '@chainglass/shared/file-notes';
 
 export async function addNote(
   worktreePath: string,
@@ -112,6 +117,22 @@ export async function fetchFilesWithNotes(worktreePath: string): Promise<NoteRes
   await requireAuth();
   try {
     const files = listFilesWithNotes(worktreePath);
+    return { ok: true, data: files };
+  } catch (error) {
+    return { ok: false, error: `Failed to list files with notes: ${error}` };
+  }
+}
+
+/**
+ * List files with notes including existence status (Phase 7 DYK-05).
+ * One round-trip returns both file paths and whether they still exist.
+ */
+export async function fetchFilesWithNotesDetailed(
+  worktreePath: string
+): Promise<NoteResult<FileWithExistence[]>> {
+  await requireAuth();
+  try {
+    const files = listFilesWithNotesDetailed(worktreePath);
     return { ok: true, data: files };
   } catch (error) {
     return { ok: false, error: `Failed to list files with notes: ${error}` };

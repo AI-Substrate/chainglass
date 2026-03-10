@@ -17,6 +17,7 @@
 
 import { GitBranch, GitPullRequest, Info } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { fetchFilesWithNotes } from '../../../../app/actions/notes-actions';
 
 import { useFileChanges } from '@/features/045-live-file-events';
 import { usePRViewData } from '../hooks/use-pr-view-data';
@@ -45,10 +46,20 @@ function PRViewPanelContent({
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const scrollToFileRef = useRef<((path: string) => void) | undefined>(undefined);
 
+  // Phase 7 T005: Cross-domain noteFilePaths for indicator dots (DYK-04)
+  const [noteFilePaths, setNoteFilePaths] = useState<Set<string>>(new Set());
+  const fetchNoteFiles = useCallback(async () => {
+    const result = await fetchFilesWithNotes(worktreePath);
+    if (result.ok) {
+      setNoteFilePaths(new Set(result.data));
+    }
+  }, [worktreePath]);
+
   // Fetch data on mount
   useEffect(() => {
     refreshRef.current();
-  }, []);
+    fetchNoteFiles();
+  }, [fetchNoteFiles]);
 
   // Phase 6 T004: SSE-driven auto-refresh
   const { hasChanges, clearChanges } = useFileChanges('*', { debounce: 300 });
@@ -58,6 +69,15 @@ function PRViewPanelContent({
       clearChanges();
     }
   }, [hasChanges, clearChanges]);
+
+  // Phase 7 DYK-02: Refresh note indicators when notes change
+  useEffect(() => {
+    const handler = () => {
+      fetchNoteFiles();
+    };
+    window.addEventListener('notes:changed', handler);
+    return () => window.removeEventListener('notes:changed', handler);
+  }, [fetchNoteFiles]);
 
   const handleFileClick = useCallback((filePath: string) => {
     scrollToFileRef.current?.(filePath);
@@ -107,6 +127,7 @@ function PRViewPanelContent({
           <PRViewFileList
             files={data.files}
             activeFile={activeFile}
+            noteFilePaths={noteFilePaths}
             onFileClick={handleFileClick}
             onToggleReviewed={prViewData.toggleReviewed}
           />

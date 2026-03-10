@@ -121,10 +121,11 @@ Primary: `apps/web/src/features/071-pr-view/`
 - `_platform/panel-layout` — `[data-terminal-overlay-anchor]` for overlay positioning (Phase 5)
 - `_platform/sdk` — `IUSDK`, `SDKContribution` for command registration (Phase 5)
 - `_platform/events` — `FileChangeProvider`, `useFileChanges` for SSE-driven live updates (Phase 6)
+- `file-notes` — `NoteIndicatorDot`, `fetchFilesWithNotes`, `notes:changed` event for note indicators in file list (Phase 7)
 - Node.js `fs` — JSONL persistence
 
 ### Domains That Depend On This
-- (Phase 7) file-browser — reviewed-state indicators in file tree
+- (Future) file-browser — reviewed-state indicators in file tree
 
 ## History
 
@@ -133,3 +134,4 @@ Primary: `apps/web/src/features/071-pr-view/`
 | 071 Phase 4 | Domain created. Types, content hash, reviewed state JSONL, git branch service, per-file diff stats, all-diffs fetcher, diff aggregator, server actions, API route. | 2026-03-09 |
 | 071 Phase 5 | Overlay UI. Provider, data hook, panel, header, file list, diff sections, diff area with scroll sync, SDK command, sidebar button, layout wrapper. | 2026-03-10 |
 | 071 Phase 6 | Live updates + branch mode. Mode toggle, switchMode, split loading, fetch generation counter, FileChangeProvider SSE subscription, smart refresh, "on default branch" message. Fixed pre-existing Biome errors. | 2026-03-10 |
+| 071 Phase 7 | Cross-domain integration: PR View file list shows NoteIndicatorDot via noteFilePaths prop, overlay fetches note file paths and listens for `notes:changed` event. | 2026-03-10 |

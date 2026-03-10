@@ -9,6 +9,7 @@
  * Plan 071: PR View & File Notes — Phase 5, T005
  */
 
+import { NoteIndicatorDot } from '@/features/071-file-notes/components/note-indicator-dot';
 import { cn } from '@/lib/utils';
 import type { DiffFileStatus, PRViewFile } from '../types';
 
@@ -31,6 +32,8 @@ const STATUS_LETTERS: Record<DiffFileStatus, string> = {
 interface PRViewFileListProps {
   files: PRViewFile[];
   activeFile: string | null;
+  /** Set of file paths with notes — rendered as blue dot (DYK-04: separate prop, no PRViewFile mutation) */
+  noteFilePaths?: Set<string>;
   onFileClick: (filePath: string) => void;
   onToggleReviewed: (filePath: string) => void;
 }
@@ -38,6 +41,7 @@ interface PRViewFileListProps {
 export function PRViewFileList({
   files,
   activeFile,
+  noteFilePaths,
   onFileClick,
   onToggleReviewed,
 }: PRViewFileListProps) {
@@ -63,6 +67,9 @@ export function PRViewFileList({
           >
             {STATUS_LETTERS[file.status]}
           </span>
+
+          {/* Note indicator dot (Phase 7 — DYK-04) */}
+          <NoteIndicatorDot hasNotes={noteFilePaths?.has(file.path) ?? false} />
 
           {/* File path (dir in muted, name in normal) */}
           <span className="truncate flex-1 text-xs">

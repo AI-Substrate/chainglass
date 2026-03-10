@@ -70,3 +70,25 @@ export function listFilesWithNotes(
   const targets = new Set(notes.map((n) => n.target));
   return [...targets].sort();
 }
+
+/** File path with existence check result (DYK-05 Phase 7) */
+export interface FileWithExistence {
+  path: string;
+  exists: boolean;
+}
+
+/**
+ * List unique file targets that have notes, with existence check.
+ * Returns each file path and whether it still exists in the worktree.
+ * Defaults to open notes only.
+ */
+export function listFilesWithNotesDetailed(
+  worktreePath: string,
+  filter?: Pick<NoteFilter, 'status'>
+): FileWithExistence[] {
+  const files = listFilesWithNotes(worktreePath, filter);
+  return files.map((filePath) => ({
+    path: filePath,
+    exists: fs.existsSync(path.join(worktreePath, filePath)),
+  }));
+}

@@ -41,5 +41,10 @@ export {
   deleteAllForTarget,
   deleteAll,
 } from './note-writer.js';
-export { readNotes, listFilesWithNotes } from './note-reader.js';
+export {
+  type FileWithExistence,
+  listFilesWithNotes,
+  listFilesWithNotesDetailed,
+  readNotes,
+} from './note-reader.js';
 export { JsonlNoteService } from './jsonl-note-service.js';
