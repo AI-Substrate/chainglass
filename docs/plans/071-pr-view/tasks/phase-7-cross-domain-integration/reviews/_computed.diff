@@ -1,41 +1,518 @@
 diff --git a/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx b/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
-index c678dad3..78e4cc8b 100644
+index f4f6f78a..78e4cc8b 100644
 --- a/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
 +++ b/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
-@@ -158,7 +158,8 @@ function BrowserClientInner({
-   // Phase 7 T003: Note file paths for tree indicators (DYK-01, DYK-02)
-   const { openModal } = useNotesOverlay();
-   const [noteFilePaths, setNoteFilePaths] = useState<Set<string>>(new Set());
--  const refreshNoteFiles = useCallback(async () => {
+@@ -29,6 +29,7 @@ import { fileBrowserContribution } from '@/features/041-file-browser/sdk/contrib
+ import type { FileEntry } from '@/features/041-file-browser/services/directory-listing';
+ import { createFilePathHandler } from '@/features/041-file-browser/services/file-path-handler';
+ import { useFileChanges } from '@/features/045-live-file-events';
++import { useNotesOverlay } from '@/features/071-file-notes/hooks/use-notes-overlay';
+ import {
+   type BarContext,
+   ExplorerPanel,
+@@ -40,7 +41,7 @@ import {
+ import type { PanelMode } from '@/features/_platform/panel-layout';
+ import { useSDK, useSDKMru } from '@/lib/sdk/sdk-provider';
+ import { GlobalStateConnector } from '@/lib/state';
+-import { FileDiff, GitBranch } from 'lucide-react';
++import { FileDiff, GitBranch, StickyNote } from 'lucide-react';
+ import { useQueryStates } from 'nuqs';
+ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+ import { toast } from 'sonner';
+@@ -61,6 +62,7 @@ import {
+   renameItem,
+   saveFile,
+ } from '../../../../actions/file-actions';
++import { fetchFilesWithNotes } from '../../../../actions/notes-actions';
+ 
+ export interface BrowserClientProps {
+   slug: string;
+@@ -153,6 +155,79 @@ function BrowserClientInner({
+ 
+   const clipboard = useClipboard({ slug, worktreePath, readFile });
+ 
++  // Phase 7 T003: Note file paths for tree indicators (DYK-01, DYK-02)
++  const { openModal } = useNotesOverlay();
++  const [noteFilePaths, setNoteFilePaths] = useState<Set<string>>(new Set());
 +  const refreshNoteFilesRef = useRef<(() => Promise<void>) | undefined>(undefined);
 +  refreshNoteFilesRef.current = useCallback(async () => {
-     const result = await fetchFilesWithNotes(worktreePath);
-     if (result.ok) {
-       setNoteFilePaths(new Set(result.data));
-@@ -166,16 +167,14 @@ function BrowserClientInner({
-   }, [worktreePath]);
- 
-   // Fetch note file paths on mount
--  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only — fetch once on initial render
-   useEffect(() => {
--    refreshNoteFiles();
++    const result = await fetchFilesWithNotes(worktreePath);
++    if (result.ok) {
++      setNoteFilePaths(new Set(result.data));
++    }
++  }, [worktreePath]);
++
++  // Fetch note file paths on mount
++  useEffect(() => {
 +    refreshNoteFilesRef.current?.();
-   }, []);
- 
-   // DYK-02: Listen for notes:changed to refresh immediately after CRUD
--  // biome-ignore lint/correctness/useExhaustiveDependencies: ref-stable — refreshNoteFiles is memoized on worktreePath
-   useEffect(() => {
-     const handler = () => {
--      refreshNoteFiles();
++  }, []);
++
++  // DYK-02: Listen for notes:changed to refresh immediately after CRUD
++  useEffect(() => {
++    const handler = () => {
 +      refreshNoteFilesRef.current?.();
-     };
-     window.addEventListener('notes:changed', handler);
-     return () => window.removeEventListener('notes:changed', handler);
++    };
++    window.addEventListener('notes:changed', handler);
++    return () => window.removeEventListener('notes:changed', handler);
++  }, []);
++
++  // "Add Note" from tree context menu (DYK-01: direct hook call)
++  const handleAddNote = useCallback(
++    (filePath: string) => {
++      openModal({ target: filePath });
++    },
++    [openModal]
++  );
++
++  // Phase 7 T004: "Has notes" filter toggle (DYK-03: ancestor directory preservation)
++  const [showOnlyWithNotes, setShowOnlyWithNotes] = useState(false);
++
++  // Build ancestor directory paths from noteFilePaths for tree filtering
++  const noteAncestorPaths = useMemo(() => {
++    if (!showOnlyWithNotes || noteFilePaths.size === 0) return new Set<string>();
++    const ancestors = new Set<string>();
++    for (const filePath of noteFilePaths) {
++      const parts = filePath.split('/');
++      let current = '';
++      for (let i = 0; i < parts.length - 1; i++) {
++        current = current ? `${current}/${parts[i]}` : parts[i];
++        ancestors.add(current);
++      }
++    }
++    return ancestors;
++  }, [showOnlyWithNotes, noteFilePaths]);
++
++  // Filter entries for tree display when notes filter is active
++  const filteredRootEntries = useMemo(() => {
++    if (!showOnlyWithNotes) return rootEntries;
++    return rootEntries.filter((entry) =>
++      entry.type === 'directory' ? noteAncestorPaths.has(entry.path) : noteFilePaths.has(entry.path)
++    );
++  }, [showOnlyWithNotes, rootEntries, noteAncestorPaths, noteFilePaths]);
++
++  // Filter child entries when notes filter is active
++  const filteredChildEntries = useMemo(() => {
++    if (!showOnlyWithNotes) return fileNav.childEntries;
++    const filtered: Record<string, FileEntry[]> = {};
++    for (const [dir, children] of Object.entries(fileNav.childEntries)) {
++      filtered[dir] = children.filter((entry) =>
++        entry.type === 'directory'
++          ? noteAncestorPaths.has(entry.path)
++          : noteFilePaths.has(entry.path)
++      );
++    }
++    return filtered;
++  }, [showOnlyWithNotes, fileNav.childEntries, noteAncestorPaths, noteFilePaths]);
++
+   // --- File CRUD mutations (Plan 068 Phase 3) ---
+ 
+   // DYK-P3-01: Refresh root entries from API (initialEntries is a server prop)
+@@ -601,27 +676,53 @@ function BrowserClientInner({
+           >
+             {{
+               tree: (
+-                <FileTree
+-                  ref={treeRef}
+-                  entries={rootEntries}
+-                  selectedFile={selectedFile}
+-                  changedFiles={panelState.changedFiles}
+-                  newlyAddedPaths={combinedNewPaths}
+-                  onSelect={fileNav.handleSelect}
+-                  onExpand={fileNav.handleExpand}
+-                  childEntries={fileNav.childEntries}
+-                  expandPaths={expandPaths}
+-                  onExpandedDirsChange={setTrackedExpandedDirs}
+-                  onCopyFullPath={clipboard.handleCopyFullPath}
+-                  onCopyRelativePath={clipboard.handleCopyRelativePath}
+-                  onCopyContent={clipboard.handleCopyContent}
+-                  onCopyTree={clipboard.handleCopyTree}
+-                  onDownload={clipboard.handleDownload}
+-                  onCreateFile={handleTreeCreateFile}
+-                  onCreateFolder={handleTreeCreateFolder}
+-                  onRename={handleTreeRename}
+-                  onDelete={handleTreeDelete}
+-                />
++                <>
++                  {/* Phase 7 T004: Notes filter toggle */}
++                  {noteFilePaths.size > 0 && (
++                    <div className="flex items-center justify-end px-2 py-0.5 border-b">
++                      <button
++                        type="button"
++                        onClick={() => setShowOnlyWithNotes((v) => !v)}
++                        className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] ${
++                          showOnlyWithNotes
++                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
++                            : 'text-muted-foreground hover:text-foreground hover:bg-accent'
++                        }`}
++                        title={
++                          showOnlyWithNotes
++                            ? 'Show all files'
++                            : `Show only files with notes (${noteFilePaths.size})`
++                        }
++                      >
++                        <StickyNote className="h-3 w-3" />
++                        <span>{noteFilePaths.size}</span>
++                      </button>
++                    </div>
++                  )}
++                  <FileTree
++                    ref={treeRef}
++                    entries={filteredRootEntries}
++                    selectedFile={selectedFile}
++                    changedFiles={panelState.changedFiles}
++                    filesWithNotes={noteFilePaths}
++                    newlyAddedPaths={combinedNewPaths}
++                    onSelect={fileNav.handleSelect}
++                    onExpand={fileNav.handleExpand}
++                    childEntries={filteredChildEntries}
++                    expandPaths={expandPaths}
++                    onExpandedDirsChange={setTrackedExpandedDirs}
++                    onCopyFullPath={clipboard.handleCopyFullPath}
++                    onCopyRelativePath={clipboard.handleCopyRelativePath}
++                    onCopyContent={clipboard.handleCopyContent}
++                    onCopyTree={clipboard.handleCopyTree}
++                    onDownload={clipboard.handleDownload}
++                    onAddNote={handleAddNote}
++                    onCreateFile={handleTreeCreateFile}
++                    onCreateFolder={handleTreeCreateFolder}
++                    onRename={handleTreeRename}
++                    onDelete={handleTreeDelete}
++                  />
++                </>
+               ),
+               changes: (
+                 <ChangesView
+diff --git a/apps/web/app/actions/notes-actions.ts b/apps/web/app/actions/notes-actions.ts
+index ca57210c..c632d68a 100644
+--- a/apps/web/app/actions/notes-actions.ts
++++ b/apps/web/app/actions/notes-actions.ts
+@@ -25,7 +25,12 @@ import {
+   deleteNote as deleteNoteWriter,
+   editNote as editNoteWriter,
+ } from '@chainglass/shared/file-notes';
+-import { listFilesWithNotes, readNotes } from '@chainglass/shared/file-notes';
++import {
++  type FileWithExistence,
++  listFilesWithNotes,
++  listFilesWithNotesDetailed,
++  readNotes,
++} from '@chainglass/shared/file-notes';
+ 
+ export async function addNote(
+   worktreePath: string,
+@@ -117,3 +122,19 @@ export async function fetchFilesWithNotes(worktreePath: string): Promise<NoteRes
+     return { ok: false, error: `Failed to list files with notes: ${error}` };
+   }
+ }
++
++/**
++ * List files with notes including existence status (Phase 7 DYK-05).
++ * One round-trip returns both file paths and whether they still exist.
++ */
++export async function fetchFilesWithNotesDetailed(
++  worktreePath: string
++): Promise<NoteResult<FileWithExistence[]>> {
++  await requireAuth();
++  try {
++    const files = listFilesWithNotesDetailed(worktreePath);
++    return { ok: true, data: files };
++  } catch (error) {
++    return { ok: false, error: `Failed to list files with notes: ${error}` };
++  }
++}
+diff --git a/apps/web/next-env.d.ts b/apps/web/next-env.d.ts
+index 9edff1c7..c4b7818f 100644
+--- a/apps/web/next-env.d.ts
++++ b/apps/web/next-env.d.ts
+@@ -1,6 +1,6 @@
+ /// <reference types="next" />
+ /// <reference types="next/image-types/global" />
+-import "./.next/types/routes.d.ts";
++import "./.next/dev/types/routes.d.ts";
+ 
+ // NOTE: This file should not be edited
+ // see https://nextjs.org/docs/app/api-reference/config/typescript for more information.
+diff --git a/apps/web/src/features/041-file-browser/components/file-tree.tsx b/apps/web/src/features/041-file-browser/components/file-tree.tsx
+index 75ff53fa..a8cb4bfa 100644
+--- a/apps/web/src/features/041-file-browser/components/file-tree.tsx
++++ b/apps/web/src/features/041-file-browser/components/file-tree.tsx
+@@ -20,6 +20,7 @@ import {
+   ContextMenuSeparator,
+   ContextMenuTrigger,
+ } from '@/components/ui/context-menu';
++import { NoteIndicatorDot } from '@/features/071-file-notes/components/note-indicator-dot';
+ import {
+   ChevronDown,
+   ChevronRight,
+@@ -34,6 +35,7 @@ import {
+   FolderTree,
+   Pencil,
+   RefreshCw,
++  StickyNote,
+   Trash2,
+ } from 'lucide-react';
+ import { forwardRef, useCallback, useEffect, useImperativeHandle, useState } from 'react';
+@@ -82,6 +84,8 @@ export interface FileTreeProps {
+   entries: FileEntry[];
+   selectedFile?: string;
+   changedFiles?: string[];
++  /** Set of file paths that have open notes — renders blue indicator dot */
++  filesWithNotes?: Set<string>;
+   /** Paths of newly added files/dirs — get green fade-in animation */
+   newlyAddedPaths?: Set<string>;
+   onSelect: (filePath: string) => void;
+@@ -96,6 +100,8 @@ export interface FileTreeProps {
+   onCopyContent?: (filePath: string) => void;
+   onCopyTree?: (dirPath: string) => void;
+   onDownload?: (filePath: string) => void;
++  /** Called when "Add Note" is selected from context menu */
++  onAddNote?: (filePath: string) => void;
+   /** CRUD callbacks — when provided, enables mutation UI (hover buttons, context menu, keyboard shortcuts) */
+   onCreateFile?: (parentDir: string, name: string) => void;
+   onCreateFolder?: (parentDir: string, name: string) => void;
+@@ -110,6 +116,7 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
+     entries,
+     selectedFile,
+     changedFiles,
++    filesWithNotes,
+     newlyAddedPaths,
+     onSelect,
+     onExpand,
+@@ -121,6 +128,7 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
+     onCopyContent,
+     onCopyTree,
+     onDownload,
++    onAddNote,
+     onCreateFile,
+     onCreateFolder,
+     onRename,
+@@ -320,6 +328,7 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
+           expanded={expanded}
+           selectedFile={selectedFile}
+           changedFiles={changedFiles}
++          filesWithNotes={filesWithNotes}
+           newlyAddedPaths={newlyAddedPaths}
+           childEntries={childEntries}
+           onSelect={onSelect}
+@@ -330,6 +339,7 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
+           onCopyContent={onCopyContent}
+           onCopyTree={onCopyTree}
+           onDownload={onDownload}
++          onAddNote={onAddNote}
+           mutations={mutations}
+         />
+       ))}
+@@ -360,6 +370,7 @@ function TreeItem({
+   expanded,
+   selectedFile,
+   changedFiles,
++  filesWithNotes,
+   newlyAddedPaths,
+   childEntries,
+   onSelect,
+@@ -370,6 +381,7 @@ function TreeItem({
+   onCopyContent,
+   onCopyTree,
+   onDownload,
++  onAddNote,
+   mutations,
+ }: {
+   entry: FileEntry;
+@@ -377,6 +389,7 @@ function TreeItem({
+   expanded: Set<string>;
+   selectedFile?: string;
+   changedFiles?: string[];
++  filesWithNotes?: Set<string>;
+   newlyAddedPaths?: Set<string>;
+   childEntries: Record<string, FileEntry[]>;
+   onSelect: (path: string) => void;
+@@ -387,6 +400,7 @@ function TreeItem({
+   onCopyContent?: (filePath: string) => void;
+   onCopyTree?: (dirPath: string) => void;
+   onDownload?: (filePath: string) => void;
++  onAddNote?: (filePath: string) => void;
+   mutations?: TreeMutationHandlers;
+ }) {
+   const isExpanded = expanded.has(entry.path);
+@@ -589,6 +603,7 @@ function TreeItem({
+                 expanded={expanded}
+                 selectedFile={selectedFile}
+                 changedFiles={changedFiles}
++                filesWithNotes={filesWithNotes}
+                 newlyAddedPaths={newlyAddedPaths}
+                 childEntries={childEntries}
+                 onSelect={onSelect}
+@@ -599,6 +614,7 @@ function TreeItem({
+                 onCopyContent={onCopyContent}
+                 onCopyTree={onCopyTree}
+                 onDownload={onDownload}
++                onAddNote={onAddNote}
+                 mutations={mutations}
+               />
+             ))}
+@@ -664,11 +680,21 @@ function TreeItem({
+             {isSelected && (
+               <span className="absolute left-0.5 text-amber-500 font-black text-sm">▶</span>
+             )}
++            <NoteIndicatorDot hasNotes={filesWithNotes?.has(entry.path) ?? false} />
+             <File className="h-4 w-4 shrink-0 text-muted-foreground" />
+             <span className={`truncate ${isSelected ? 'text-base' : ''}`}>{entry.name}</span>
+           </button>
+         </ContextMenuTrigger>
+         <ContextMenuContent>
++          {onAddNote && (
++            <>
++              <ContextMenuItem onSelect={() => onAddNote(entry.path)}>
++                <StickyNote className="h-3.5 w-3.5 mr-2" />
++                Add Note
++              </ContextMenuItem>
++              <ContextMenuSeparator />
++            </>
++          )}
+           <ContextMenuItem onSelect={() => onCopyFullPath?.(entry.path)}>
+             <ClipboardCopy className="h-3.5 w-3.5 mr-2" />
+             Copy Full Path
+diff --git a/apps/web/src/features/071-file-notes/components/note-file-group.tsx b/apps/web/src/features/071-file-notes/components/note-file-group.tsx
+index 89cb0a4d..b029c198 100644
+--- a/apps/web/src/features/071-file-notes/components/note-file-group.tsx
++++ b/apps/web/src/features/071-file-notes/components/note-file-group.tsx
+@@ -23,6 +23,8 @@ interface NoteFileGroupProps {
+   filePath: string;
+   /** Thread-grouped notes for this file */
+   threads: NoteThread[];
++  /** Whether the underlying file has been deleted from the worktree (Phase 7 T006) */
++  isDeleted?: boolean;
+   /** Navigate to file+line */
+   onGoTo: (target: string, line?: number) => void;
+   /** Mark note as complete */
+@@ -38,6 +40,7 @@ interface NoteFileGroupProps {
+ export function NoteFileGroup({
+   filePath,
+   threads,
++  isDeleted,
+   onGoTo,
+   onComplete,
+   onReply,
+@@ -51,36 +54,41 @@ export function NoteFileGroup({
+   return (
+     <div className="border-b last:border-b-0">
+       {/* File header */}
+-      <button
+-        type="button"
+-        onClick={() => setCollapsed((c) => !c)}
+-        className="flex items-center w-full gap-2 px-3 py-2 text-sm hover:bg-accent/30"
+-      >
+-        {collapsed ? (
+-          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+-        ) : (
+-          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+-        )}
++      <div className="flex items-center w-full gap-2 px-3 py-2 text-sm hover:bg-accent/30">
++        <button
++          type="button"
++          onClick={() => setCollapsed((c) => !c)}
++          className="flex items-center gap-2 min-w-0 flex-1"
++        >
++          {collapsed ? (
++            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
++          ) : (
++            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
++          )}
+ 
+-        <span className="truncate flex-1 text-left font-mono text-xs">{filePath}</span>
++          <span className="truncate flex-1 text-left font-mono text-xs">{filePath}</span>
+ 
+-        <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
+-          {totalNotes}
+-        </span>
++          {isDeleted && (
++            <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400">
++              Deleted
++            </span>
++          )}
++
++          <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
++            {totalNotes}
++          </span>
++        </button>
+ 
+-        {/* Per-file delete */}
++        {/* Per-file delete — separate button to avoid nesting */}
+         <button
+           type="button"
+-          onClick={(e) => {
+-            e.stopPropagation();
+-            onDeleteFile(filePath, totalNotes);
+-          }}
++          onClick={() => onDeleteFile(filePath, totalNotes)}
+           className="shrink-0 rounded-sm p-0.5 text-muted-foreground hover:text-red-500 hover:bg-accent"
+           title={`Delete all notes for ${filePath.split('/').pop()}`}
+         >
+           <Trash2 className="h-3 w-3" />
+         </button>
+-      </button>
++      </div>
+ 
+       {/* Note cards */}
+       {!collapsed && (
 diff --git a/apps/web/src/features/071-file-notes/components/notes-overlay-panel.tsx b/apps/web/src/features/071-file-notes/components/notes-overlay-panel.tsx
-index c61632b6..516b72ca 100644
+index ba174ff9..57475559 100644
 --- a/apps/web/src/features/071-file-notes/components/notes-overlay-panel.tsx
 +++ b/apps/web/src/features/071-file-notes/components/notes-overlay-panel.tsx
-@@ -59,8 +59,8 @@ export function NotesOverlayPanel() {
+@@ -21,7 +21,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
+ import { toast } from 'sonner';
+ 
+ import { workspaceHref } from '@/lib/workspace-url';
+-import { completeNote, deleteNotes } from '../../../../app/actions/notes-actions';
++import {
++  completeNote,
++  deleteNotes,
++  fetchFilesWithNotesDetailed,
++} from '../../../../app/actions/notes-actions';
+ import { type NoteFilterOption, useNotes } from '../hooks/use-notes';
+ import { useNotesOverlay } from '../hooks/use-notes-overlay';
+ import type { Note } from '../types';
+@@ -30,15 +34,37 @@ import { NoteFileGroup } from './note-file-group';
+ import { NoteModal } from './note-modal';
+ 
+ export function NotesOverlayPanel() {
+-  const { isOpen, worktreePath, closeNotes, modalTarget, isModalOpen, openModal, closeModal } =
+-    useNotesOverlay();
++  const {
++    isOpen,
++    worktreePath: contextWorktreePath,
++    closeNotes,
++    modalTarget,
++    isModalOpen,
++    openModal,
++    closeModal,
++  } = useNotesOverlay();
++
++  // Resolve worktree from URL param when context path is the workspace default (not the active worktree)
++  const urlWorktree =
++    typeof window !== 'undefined'
++      ? new URLSearchParams(window.location.search).get('worktree')
++      : null;
++  const worktreePath = urlWorktree ?? contextWorktreePath;
+ 
+   const { groupedByFile, loading, error, refresh, filter, setFilter, openCount, completeCount } =
+     useNotes(worktreePath);
+ 
++  // Phase 7 DYK-02: Notify other consumers (BrowserClient, PR View) when notes change
++  const refreshAndNotify = useCallback(() => {
++    refresh();
++    window.dispatchEvent(new CustomEvent('notes:changed'));
++  }, [refresh]);
++
+   const panelRef = useRef<HTMLDivElement>(null);
+   const [anchorRect, setAnchorRect] = useState({ top: 0, left: 0, width: 0, height: 0 });
+   const [hasOpened, setHasOpened] = useState(false);
++  // Phase 7 T006: Deleted file detection (DYK-05)
++  const [deletedFiles, setDeletedFiles] = useState<Set<string>>(new Set());
+ 
+   // Bulk delete state
+   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+@@ -47,8 +73,25 @@ export function NotesOverlayPanel() {
    const [bulkDeleteCount, setBulkDeleteCount] = useState(0);
  
    useEffect(() => {
@@ -43,44 +520,879 @@ index c61632b6..516b72ca 100644
 -  }, [isOpen]);
 +    if (isOpen || isModalOpen) setHasOpened(true);
 +  }, [isOpen, isModalOpen]);
++
++  // Phase 7 T006: Fetch deleted file status when notes are grouped (DYK-05)
++  useEffect(() => {
++    if (!worktreePath || groupedByFile.size === 0) {
++      setDeletedFiles(new Set());
++      return;
++    }
++    fetchFilesWithNotesDetailed(worktreePath).then((result) => {
++      if (result.ok) {
++        const deleted = new Set<string>();
++        for (const f of result.data) {
++          if (!f.exists) deleted.add(f.path);
++        }
++        setDeletedFiles(deleted);
++      }
++    });
++  }, [worktreePath, groupedByFile.size]);
  
-   // Phase 7 T006: Fetch deleted file status when notes are grouped (DYK-05)
-   useEffect(() => {
+   // Measure anchor element
+   const measureRef = useRef<(() => void) | undefined>(undefined);
+@@ -122,12 +165,12 @@ export function NotesOverlayPanel() {
+       const result = await completeNote(worktreePath, noteId, 'human');
+       if (result.ok) {
+         toast.success('Note completed');
+-        refresh();
++        refreshAndNotify();
+       } else {
+         toast.error(result.error);
+       }
+     },
+-    [worktreePath, refresh]
++    [worktreePath, refreshAndNotify]
+   );
+ 
+   // Reply to a note
+@@ -188,11 +231,11 @@ export function NotesOverlayPanel() {
+     const result = await deleteNotes(worktreePath, options);
+     if (result.ok) {
+       toast.success(`${result.data.deleted} note${result.data.deleted !== 1 ? 's' : ''} deleted`);
+-      refresh();
++      refreshAndNotify();
+     } else {
+       toast.error(result.error);
+     }
+-  }, [worktreePath, bulkDeleteScope, bulkDeleteFileName, refresh]);
++  }, [worktreePath, bulkDeleteScope, bulkDeleteFileName, refreshAndNotify]);
+ 
+   // "Add Note" from overlay header
+   const handleAddNote = useCallback(() => {
+@@ -304,6 +347,7 @@ export function NotesOverlayPanel() {
+                 key={filePath}
+                 filePath={filePath}
+                 threads={threads}
++                isDeleted={deletedFiles.has(filePath)}
+                 onGoTo={handleGoTo}
+                 onComplete={handleComplete}
+                 onReply={handleReply}
+@@ -323,7 +367,7 @@ export function NotesOverlayPanel() {
+         }}
+         target={modalTarget}
+         worktreePath={worktreePath ?? ''}
+-        onSaved={refresh}
++        onSaved={refreshAndNotify}
+       />
+ 
+       {/* Bulk Delete Dialog */}
+diff --git a/apps/web/src/features/071-pr-view/components/pr-view-file-list.tsx b/apps/web/src/features/071-pr-view/components/pr-view-file-list.tsx
+index cfdef49c..d8d05abf 100644
+--- a/apps/web/src/features/071-pr-view/components/pr-view-file-list.tsx
++++ b/apps/web/src/features/071-pr-view/components/pr-view-file-list.tsx
+@@ -9,6 +9,7 @@
+  * Plan 071: PR View & File Notes — Phase 5, T005
+  */
+ 
++import { NoteIndicatorDot } from '@/features/071-file-notes/components/note-indicator-dot';
+ import { cn } from '@/lib/utils';
+ import type { DiffFileStatus, PRViewFile } from '../types';
+ 
+@@ -31,6 +32,8 @@ const STATUS_LETTERS: Record<DiffFileStatus, string> = {
+ interface PRViewFileListProps {
+   files: PRViewFile[];
+   activeFile: string | null;
++  /** Set of file paths with notes — rendered as blue dot (DYK-04: separate prop, no PRViewFile mutation) */
++  noteFilePaths?: Set<string>;
+   onFileClick: (filePath: string) => void;
+   onToggleReviewed: (filePath: string) => void;
+ }
+@@ -38,6 +41,7 @@ interface PRViewFileListProps {
+ export function PRViewFileList({
+   files,
+   activeFile,
++  noteFilePaths,
+   onFileClick,
+   onToggleReviewed,
+ }: PRViewFileListProps) {
+@@ -64,6 +68,9 @@ export function PRViewFileList({
+             {STATUS_LETTERS[file.status]}
+           </span>
+ 
++          {/* Note indicator dot (Phase 7 — DYK-04) */}
++          <NoteIndicatorDot hasNotes={noteFilePaths?.has(file.path) ?? false} />
++
+           {/* File path (dir in muted, name in normal) */}
+           <span className="truncate flex-1 text-xs">
+             {file.dir && <span className="text-muted-foreground">{file.dir}</span>}
 diff --git a/apps/web/src/features/071-pr-view/components/pr-view-overlay-panel.tsx b/apps/web/src/features/071-pr-view/components/pr-view-overlay-panel.tsx
-index a38200bf..d6a1bac6 100644
+index 4f08ce32..d6a1bac6 100644
 --- a/apps/web/src/features/071-pr-view/components/pr-view-overlay-panel.tsx
 +++ b/apps/web/src/features/071-pr-view/components/pr-view-overlay-panel.tsx
-@@ -48,7 +48,8 @@ function PRViewPanelContent({
+@@ -17,6 +17,7 @@
  
-   // Phase 7 T005: Cross-domain noteFilePaths for indicator dots (DYK-04)
-   const [noteFilePaths, setNoteFilePaths] = useState<Set<string>>(new Set());
--  const fetchNoteFiles = useCallback(async () => {
+ import { GitBranch, GitPullRequest, Info } from 'lucide-react';
+ import { useCallback, useEffect, useRef, useState } from 'react';
++import { fetchFilesWithNotes } from '../../../../app/actions/notes-actions';
+ 
+ import { useFileChanges } from '@/features/045-live-file-events';
+ import { usePRViewData } from '../hooks/use-pr-view-data';
+@@ -45,9 +46,20 @@ function PRViewPanelContent({
+   const [activeFile, setActiveFile] = useState<string | null>(null);
+   const scrollToFileRef = useRef<((path: string) => void) | undefined>(undefined);
+ 
++  // Phase 7 T005: Cross-domain noteFilePaths for indicator dots (DYK-04)
++  const [noteFilePaths, setNoteFilePaths] = useState<Set<string>>(new Set());
 +  const fetchNoteFilesRef = useRef<(() => Promise<void>) | undefined>(undefined);
 +  fetchNoteFilesRef.current = useCallback(async () => {
-     const result = await fetchFilesWithNotes(worktreePath);
-     if (result.ok) {
-       setNoteFilePaths(new Set(result.data));
-@@ -56,10 +57,9 @@ function PRViewPanelContent({
-   }, [worktreePath]);
- 
++    const result = await fetchFilesWithNotes(worktreePath);
++    if (result.ok) {
++      setNoteFilePaths(new Set(result.data));
++    }
++  }, [worktreePath]);
++
    // Fetch data on mount
--  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only — fetch once when panel opens
    useEffect(() => {
      refreshRef.current();
--    fetchNoteFiles();
 +    fetchNoteFilesRef.current?.();
    }, []);
  
    // Phase 6 T004: SSE-driven auto-refresh
-@@ -72,10 +72,9 @@ function PRViewPanelContent({
+@@ -59,6 +71,15 @@ function PRViewPanelContent({
+     }
    }, [hasChanges, clearChanges]);
  
-   // Phase 7 DYK-02: Refresh note indicators when notes change
--  // biome-ignore lint/correctness/useExhaustiveDependencies: ref-stable — fetchNoteFiles is memoized on worktreePath
-   useEffect(() => {
-     const handler = () => {
--      fetchNoteFiles();
++  // Phase 7 DYK-02: Refresh note indicators when notes change
++  useEffect(() => {
++    const handler = () => {
 +      fetchNoteFilesRef.current?.();
-     };
-     window.addEventListener('notes:changed', handler);
-     return () => window.removeEventListener('notes:changed', handler);
++    };
++    window.addEventListener('notes:changed', handler);
++    return () => window.removeEventListener('notes:changed', handler);
++  }, []);
++
+   const handleFileClick = useCallback((filePath: string) => {
+     scrollToFileRef.current?.(filePath);
+   }, []);
+@@ -107,6 +128,7 @@ function PRViewPanelContent({
+           <PRViewFileList
+             files={data.files}
+             activeFile={activeFile}
++            noteFilePaths={noteFilePaths}
+             onFileClick={handleFileClick}
+             onToggleReviewed={prViewData.toggleReviewed}
+           />
+diff --git a/docs/domains/domain-map.md b/docs/domains/domain-map.md
+index 4734e73c..a9972175 100644
+--- a/docs/domains/domain-map.md
++++ b/docs/domains/domain-map.md
+@@ -130,6 +130,10 @@ flowchart LR
+     prView -->|"overlay anchor"| panels
+     prView -->|"registerPRViewSDK()"| sdk
+     prView -->|"FileChangeProvider<br/>useFileChanges"| events
++
++    %% Cross-domain: file-notes consumed by file-browser and pr-view (Phase 7)
++    fileBrowser -->|"NoteIndicatorDot<br/>fetchFilesWithNotes<br/>useNotesOverlay"| fileNotes
++    prView -->|"NoteIndicatorDot<br/>fetchFilesWithNotes"| fileNotes
+ ```
+ 
+ ## Legend
+@@ -150,7 +154,7 @@ flowchart LR
+ | _platform/viewer | FileViewer, MarkdownViewer, DiffViewer, highlightCode, detectContentType, isBinaryExtension | file-browser | IFileSystem | file-ops | ✅ |
+ | _platform/events | ICentralEventNotifier, ISSEBroadcaster, useSSE, FileChangeHub, useFileChanges, FileChangeProvider, toast() | file-browser, workflow-ui, agents, state | — | — | ✅ |
+ | _platform/panel-layout | PanelShell, ExplorerPanel, LeftPanel, MainPanel, PanelHeader, BarHandler, AsciiSpinner, FlowSpaceSearchResult, FlowSpaceAvailability, FlowSpaceSearchMode | file-browser, future workspace pages | panel URL param | workspace-url | ✅ |
+-| file-browser | Browser page, FileTree, FileViewerPanel, WorkspaceContext, EmojiPicker, ColorPicker, Settings | — | IFileSystem, workspaceHref, viewers, toast, events, panels | file-ops, workspace-url, viewer, events, panel-layout | ✅ |
++| file-browser | Browser page, FileTree, FileViewerPanel, WorkspaceContext, EmojiPicker, ColorPicker, Settings | — | IFileSystem, workspaceHref, viewers, toast, events, panels, NoteIndicatorDot, fetchFilesWithNotes, useNotesOverlay | file-ops, workspace-url, viewer, events, panel-layout, file-notes | ✅ |
+ | _platform/sdk | IUSDK, ICommandRegistry, ISDKSettings, IContextKeyService, IKeybindingService, SDKCommand, SDKSetting, FakeUSDK | file-browser, workflow-ui, events, panel-layout, settings | — | — | ✅ |
+ | _platform/settings | Settings Page, sdk.openSettings | — | ISDKSettings, useSDKSetting, useSDK | sdk | ✅ |
+ | _platform/positional-graph | IPositionalGraphService, IOrchestrationService, IEventHandlerService, IWorkUnitService, ITemplateService, IInstanceService | CLI (`cg wf`, `cg template`), workflow-ui, dev/test-graphs | IFileSystem, IPathResolver, IStateService | file-ops, state | ✅ |
+@@ -164,5 +168,5 @@ flowchart LR
+ | workflow-events | IWorkflowEvents, WorkflowEventType, WorkflowEventError, FakeWorkflowEventsService | agents (observer hooks), workflow-ui (answerQuestion), CLI (ask/answer/get-answer) | IPositionalGraphService, ICentralEventNotifier | positional-graph, events | 🟠 New |
+ | terminal | _(none — leaf consumer)_ | — | PanelShell, LeftPanel, MainPanel, toast(), IUSDK, ICommandRegistry, workspaceHref | panel-layout, events, sdk, workspace-url | ✅ |
+ | _platform/auth | auth(), signIn(), signOut(), requireAuth(), useAuth(), middleware protection, isUserAllowed(), SessionProvider | file-browser, workflow-ui, workunit-editor (via middleware), server actions (via requireAuth), file-notes | — | — | ✅ |
+-| file-notes | INoteService, NoteLinkType, NoteFilter, FakeNoteService, JsonlNoteService, NotesOverlayPanel, NoteModal, NoteIndicatorDot, BulkDeleteDialog, useNotes, useNotesOverlay, registerFileNotesSDK, registerNotesCommands, GET/POST/PATCH/DELETE /api/file-notes | file-browser (future), CLI, pr-view (future) | requireAuth(), auth(), overlay anchor, workspaceHref(), toast(), registerFileNotesSDK | auth, panel-layout, workspace-url, events, sdk | 🟠 New |
+-| pr-view | PRViewFile, PRViewData, ComparisonMode, PRViewFileState, PRViewOverlayProvider, usePRViewOverlay, usePRViewData, registerPRViewSDK, aggregatePRViewData, getAllDiffs, GET/POST/DELETE /api/pr-view | file-browser (Phase 7) | getWorkingChanges(), requireAuth(), auth(), DiffViewer, overlay anchor, registerPRViewSDK, FileChangeProvider, useFileChanges | file-browser, auth, viewer, panel-layout, sdk, events | 🟠 New |
++| file-notes | INoteService, NoteLinkType, NoteFilter, FakeNoteService, JsonlNoteService, NotesOverlayPanel, NoteModal, NoteIndicatorDot, BulkDeleteDialog, useNotes, useNotesOverlay, registerFileNotesSDK, registerNotesCommands, GET/POST/PATCH/DELETE /api/file-notes | file-browser, CLI, pr-view | requireAuth(), auth(), overlay anchor, workspaceHref(), toast(), registerFileNotesSDK | auth, panel-layout, workspace-url, events, sdk | 🟠 New |
++| pr-view | PRViewFile, PRViewData, ComparisonMode, PRViewFileState, PRViewOverlayProvider, usePRViewOverlay, usePRViewData, registerPRViewSDK, aggregatePRViewData, getAllDiffs, GET/POST/DELETE /api/pr-view | file-browser (future) | getWorkingChanges(), requireAuth(), auth(), DiffViewer, overlay anchor, registerPRViewSDK, FileChangeProvider, useFileChanges, NoteIndicatorDot, fetchFilesWithNotes | file-browser, auth, viewer, panel-layout, sdk, events, file-notes | 🟠 New |
+diff --git a/docs/domains/file-notes/domain.md b/docs/domains/file-notes/domain.md
+index 5c509ca0..a752bf1d 100644
+--- a/docs/domains/file-notes/domain.md
++++ b/docs/domains/file-notes/domain.md
+@@ -19,7 +19,7 @@ Generic annotation system where humans and agents attach markdown notes to files
+ - INoteService interface in `@chainglass/shared`
+ - FakeNoteService in `@chainglass/shared/fakes`
+ - API routes: `GET/POST/PATCH/DELETE /api/file-notes`
+-- Server actions: addNote, editNote, completeNote, deleteNotes, fetchNotes, fetchFilesWithNotes
++- Server actions: addNote, editNote, completeNote, deleteNotes, fetchNotes, fetchFilesWithNotes, fetchFilesWithNotesDetailed
+ - CLI commands: `cg notes list`, `cg notes files`, `cg notes add`, `cg notes complete`
+ 
+ ### Does NOT Own
+@@ -45,6 +45,10 @@ Generic annotation system where humans and agents attach markdown notes to files
+ | `appendNote` | Function | Server actions, API routes | Append a new note to JSONL |
+ | `readNotes` | Function | Server actions, API routes | Read + filter notes from JSONL |
+ | `listFilesWithNotes` | Function | Server actions, API routes | List unique targets with open notes |
++| `listFilesWithNotesDetailed` | Function | Server actions | List files with notes including existence check against worktree |
++| `FileWithExistence` | Type | notes-overlay | `{ filePath: string; exists: boolean }` for deleted file detection |
++| `fetchFilesWithNotesDetailed` | Server Action | notes-overlay | Server action wrapping `listFilesWithNotesDetailed` |
++| `notes:changed` | CustomEvent | file-browser, pr-view | Dispatched on `window` after note CRUD to trigger re-fetch of note file paths |
+ | `JsonlNoteService` | Class | CLI, web, contract tests | INoteService adapter wrapping sync writer/reader with NoteResult error handling |
+ | `registerNotesCommands` | Function | CLI entry (cg.ts) | Commander.js `cg notes` command group with list/files/add/complete |
+ 
+@@ -130,8 +134,9 @@ Primary: `apps/web/src/features/071-file-notes/` + `packages/shared/src/file-not
+ - Node.js `fs` — direct filesystem access for JSONL persistence
+ 
+ ### Domains That Depend On This
+-- (Phase 2) file-browser — NoteIndicatorDot for tree decoration
+-- (Phase 3) CLI — `cg notes` commands via INoteService + JsonlNoteService
++- file-browser — NoteIndicatorDot for tree decoration, `fetchFilesWithNotes` + `notes:changed` listener, filter toggle
++- pr-view — NoteIndicatorDot in file list, `fetchFilesWithNotes` + `notes:changed` listener
++- CLI — `cg notes` commands via INoteService + JsonlNoteService
+ - (Future) workflow-ui — Notes on workflow nodes
+ - (Future) agents — Notes on agent runs
+ 
+@@ -142,3 +147,4 @@ Primary: `apps/web/src/features/071-file-notes/` + `packages/shared/src/file-not
+ | 071 Phase 1 | Domain created. Types, INoteService interface, JSONL writer/reader, FakeNoteService, API routes, server actions, 22 unit tests. | 2026-03-08 |
+ | 071 Phase 2 | Notes overlay (provider, panel, grouped-by-file display), NoteCard, NoteFileGroup, NoteModal (add/edit/reply), BulkDeleteDialog (YEES), NoteIndicatorDot, sidebar button, SDK command (Ctrl+Shift+L), useNotes data hook with caching + thread grouping. | 2026-03-09 |
+ | 071 Phase 3 | Moved writer/reader/JsonlNoteService to `@chainglass/shared`. Added NOTES_DIR/NOTES_FILE/NOTE_SERVICE token to shared. CLI commands: `cg notes list/files/add/complete` with JSON output. Improved `noContextError()` with .chainglass/ detection. 16 CLI tests. | 2026-03-09 |
++| 071 Phase 7 | Cross-domain integration: NoteIndicatorDot wired into FileTree + PR View file list, deleted file detection via `listFilesWithNotesDetailed`, `notes:changed` CustomEvent dispatch after CRUD, filter toggle in file-browser with ancestor directory preservation. | 2026-03-10 |
+diff --git a/docs/domains/pr-view/domain.md b/docs/domains/pr-view/domain.md
+index ceb1cb80..72537b9f 100644
+--- a/docs/domains/pr-view/domain.md
++++ b/docs/domains/pr-view/domain.md
+@@ -121,10 +121,11 @@ Primary: `apps/web/src/features/071-pr-view/`
+ - `_platform/panel-layout` — `[data-terminal-overlay-anchor]` for overlay positioning (Phase 5)
+ - `_platform/sdk` — `IUSDK`, `SDKContribution` for command registration (Phase 5)
+ - `_platform/events` — `FileChangeProvider`, `useFileChanges` for SSE-driven live updates (Phase 6)
++- `file-notes` — `NoteIndicatorDot`, `fetchFilesWithNotes`, `notes:changed` event for note indicators in file list (Phase 7)
+ - Node.js `fs` — JSONL persistence
+ 
+ ### Domains That Depend On This
+-- (Phase 7) file-browser — reviewed-state indicators in file tree
++- (Future) file-browser — reviewed-state indicators in file tree
+ 
+ ## History
+ 
+@@ -133,3 +134,4 @@ Primary: `apps/web/src/features/071-pr-view/`
+ | 071 Phase 4 | Domain created. Types, content hash, reviewed state JSONL, git branch service, per-file diff stats, all-diffs fetcher, diff aggregator, server actions, API route. | 2026-03-09 |
+ | 071 Phase 5 | Overlay UI. Provider, data hook, panel, header, file list, diff sections, diff area with scroll sync, SDK command, sidebar button, layout wrapper. | 2026-03-10 |
+ | 071 Phase 6 | Live updates + branch mode. Mode toggle, switchMode, split loading, fetch generation counter, FileChangeProvider SSE subscription, smart refresh, "on default branch" message. Fixed pre-existing Biome errors. | 2026-03-10 |
++| 071 Phase 7 | Cross-domain integration: PR View file list shows NoteIndicatorDot via noteFilePaths prop, overlay fetches note file paths and listens for `notes:changed` event. | 2026-03-10 |
+diff --git a/docs/plans/071-pr-view/tasks/phase-7-cross-domain-integration/reviews/_computed.diff b/docs/plans/071-pr-view/tasks/phase-7-cross-domain-integration/reviews/_computed.diff
+new file mode 100644
+index 00000000..6dafde6f
+--- /dev/null
++++ b/docs/plans/071-pr-view/tasks/phase-7-cross-domain-integration/reviews/_computed.diff
+@@ -0,0 +1,86 @@
++diff --git a/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx b/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
++index c678dad3..78e4cc8b 100644
++--- a/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
+++++ b/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
++@@ -158,7 +158,8 @@ function BrowserClientInner({
++   // Phase 7 T003: Note file paths for tree indicators (DYK-01, DYK-02)
++   const { openModal } = useNotesOverlay();
++   const [noteFilePaths, setNoteFilePaths] = useState<Set<string>>(new Set());
++-  const refreshNoteFiles = useCallback(async () => {
+++  const refreshNoteFilesRef = useRef<(() => Promise<void>) | undefined>(undefined);
+++  refreshNoteFilesRef.current = useCallback(async () => {
++     const result = await fetchFilesWithNotes(worktreePath);
++     if (result.ok) {
++       setNoteFilePaths(new Set(result.data));
++@@ -166,16 +167,14 @@ function BrowserClientInner({
++   }, [worktreePath]);
++ 
++   // Fetch note file paths on mount
++-  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only — fetch once on initial render
++   useEffect(() => {
++-    refreshNoteFiles();
+++    refreshNoteFilesRef.current?.();
++   }, []);
++ 
++   // DYK-02: Listen for notes:changed to refresh immediately after CRUD
++-  // biome-ignore lint/correctness/useExhaustiveDependencies: ref-stable — refreshNoteFiles is memoized on worktreePath
++   useEffect(() => {
++     const handler = () => {
++-      refreshNoteFiles();
+++      refreshNoteFilesRef.current?.();
++     };
++     window.addEventListener('notes:changed', handler);
++     return () => window.removeEventListener('notes:changed', handler);
++diff --git a/apps/web/src/features/071-file-notes/components/notes-overlay-panel.tsx b/apps/web/src/features/071-file-notes/components/notes-overlay-panel.tsx
++index c61632b6..516b72ca 100644
++--- a/apps/web/src/features/071-file-notes/components/notes-overlay-panel.tsx
+++++ b/apps/web/src/features/071-file-notes/components/notes-overlay-panel.tsx
++@@ -59,8 +59,8 @@ export function NotesOverlayPanel() {
++   const [bulkDeleteCount, setBulkDeleteCount] = useState(0);
++ 
++   useEffect(() => {
++-    if (isOpen) setHasOpened(true);
++-  }, [isOpen]);
+++    if (isOpen || isModalOpen) setHasOpened(true);
+++  }, [isOpen, isModalOpen]);
++ 
++   // Phase 7 T006: Fetch deleted file status when notes are grouped (DYK-05)
++   useEffect(() => {
++diff --git a/apps/web/src/features/071-pr-view/components/pr-view-overlay-panel.tsx b/apps/web/src/features/071-pr-view/components/pr-view-overlay-panel.tsx
++index a38200bf..d6a1bac6 100644
++--- a/apps/web/src/features/071-pr-view/components/pr-view-overlay-panel.tsx
+++++ b/apps/web/src/features/071-pr-view/components/pr-view-overlay-panel.tsx
++@@ -48,7 +48,8 @@ function PRViewPanelContent({
++ 
++   // Phase 7 T005: Cross-domain noteFilePaths for indicator dots (DYK-04)
++   const [noteFilePaths, setNoteFilePaths] = useState<Set<string>>(new Set());
++-  const fetchNoteFiles = useCallback(async () => {
+++  const fetchNoteFilesRef = useRef<(() => Promise<void>) | undefined>(undefined);
+++  fetchNoteFilesRef.current = useCallback(async () => {
++     const result = await fetchFilesWithNotes(worktreePath);
++     if (result.ok) {
++       setNoteFilePaths(new Set(result.data));
++@@ -56,10 +57,9 @@ function PRViewPanelContent({
++   }, [worktreePath]);
++ 
++   // Fetch data on mount
++-  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only — fetch once when panel opens
++   useEffect(() => {
++     refreshRef.current();
++-    fetchNoteFiles();
+++    fetchNoteFilesRef.current?.();
++   }, []);
++ 
++   // Phase 6 T004: SSE-driven auto-refresh
++@@ -72,10 +72,9 @@ function PRViewPanelContent({
++   }, [hasChanges, clearChanges]);
++ 
++   // Phase 7 DYK-02: Refresh note indicators when notes change
++-  // biome-ignore lint/correctness/useExhaustiveDependencies: ref-stable — fetchNoteFiles is memoized on worktreePath
++   useEffect(() => {
++     const handler = () => {
++-      fetchNoteFiles();
+++      fetchNoteFilesRef.current?.();
++     };
++     window.addEventListener('notes:changed', handler);
++     return () => window.removeEventListener('notes:changed', handler);
+diff --git a/docs/plans/071-pr-view/tasks/phase-7-cross-domain-integration/tasks.fltplan.md b/docs/plans/071-pr-view/tasks/phase-7-cross-domain-integration/tasks.fltplan.md
+new file mode 100644
+index 00000000..e13a6a2b
+--- /dev/null
++++ b/docs/plans/071-pr-view/tasks/phase-7-cross-domain-integration/tasks.fltplan.md
+@@ -0,0 +1,156 @@
++# Flight Plan: Phase 7 — Cross-Domain Integration
++
++**Plan**: [pr-view-plan.md](../../pr-view-plan.md)
++**Phase**: Phase 7: Cross-Domain Integration
++**Generated**: 2026-03-10
++**Status**: Landed
++
++---
++
++## Departure → Destination
++
++**Where we are**: Phases 1-6 are complete. File Notes has a full data layer, web UI, CLI, overlay, and NoteIndicatorDot component — but the dot isn't wired into the FileTree or PR View file list yet. PR View has a full overlay with live updates and mode switching — but `PRViewFile.hasNotes` is always undefined. The two new domains are fully functional in isolation but don't cross-pollinate with file-browser.
++
++**Where we're going**: A developer browsing the file tree sees a blue dot next to any file with open notes and can right-click to add a note. The tree can be filtered to show only files with notes. The PR View file list shows note indicators alongside change status. The notes overlay marks file groups whose underlying files have been deleted. All three domains are wired together.
++
++---
++
++## Domain Context
++
++### Domains We're Changing
++
++| Domain | What Changes | Key Files |
++|--------|-------------|-----------|
++| file-browser | Add `filesWithNotes` prop to FileTree, "Add Note" context menu, note filter toggle, BrowserClient wiring | `file-tree.tsx`, `browser-client.tsx` |
++| pr-view | Populate `hasNotes` on PRViewFile, render NoteIndicatorDot in file list | `pr-view-file-list.tsx`, `pr-view-overlay-panel.tsx` |
++| file-notes | Deleted file detection in overlay, batch file-exists server action | `note-file-group.tsx`, `notes-overlay-panel.tsx`, `notes-actions.ts` |
++
++### Domains We Depend On (no changes)
++
++| Domain | What We Consume | Contract |
++|--------|----------------|----------|
++| file-notes | NoteIndicatorDot component | `{ hasNotes: boolean }` prop |
++| file-notes | fetchFilesWithNotes server action | `NoteResult<string[]>` |
++| file-notes | useNotesOverlay().openModal | Programmatic note creation |
++| _platform/events | useFileChanges SSE | Trigger refresh on file changes |
++| _platform/file-ops | IFileSystem.stat | File existence checking |
++
++---
++
++## Flight Status
++
++<!-- Updated by /plan-6-v2: pending → active → done. Use blocked for problems/input needed. -->
++
++```mermaid
++stateDiagram-v2
++    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
++    classDef active fill:#FFC107,stroke:#FFA000,color:#000
++    classDef done fill:#4CAF50,stroke:#388E3C,color:#fff
++    classDef blocked fill:#F44336,stroke:#D32F2F,color:#fff
++
++    state "1: FileTree note dot prop" as S1
++    state "2: FileTree Add Note menu" as S2
++    state "3: BrowserClient wiring" as S3
++    state "4: Has-notes filter toggle" as S4
++    state "5: PR View note dots" as S5
++    state "6: Deleted file detection" as S6
++
++    [*] --> S1
++    S1 --> S3
++    S2 --> S3
++    [*] --> S2
++    S3 --> S4
++    [*] --> S5
++    [*] --> S6
++    S4 --> [*]
++    S5 --> [*]
++    S6 --> [*]
++
++    class S1,S2,S3,S4,S5,S6 done
++```
++
++**Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
++
++---
++
++## Stages
++
++<!-- Updated by /plan-6-v2 during implementation: [ ] → [~] → [x] -->
++
++- [x] **Stage 1: FileTree note indicator prop** — Add `filesWithNotes?: Set<string>` prop, render NoteIndicatorDot per file entry (`file-tree.tsx`)
++- [x] **Stage 2: FileTree "Add Note" context menu** — Add ContextMenuItem with StickyNote icon, `onAddNote` callback (`file-tree.tsx`)
++- [x] **Stage 3: BrowserClient wiring** — Fetch noteFilePaths, pass to FileTree, wire onAddNote to notes overlay (`browser-client.tsx`)
++- [x] **Stage 4: Has-notes filter toggle** — Boolean toggle filters tree entries to files with notes + ancestor dirs (`browser-client.tsx`)
++- [x] **Stage 5: PR View note indicators** — Fetch noteFilePaths in panel, pass as separate prop to file list (`pr-view-overlay-panel.tsx`, `pr-view-file-list.tsx`)
++- [x] **Stage 6: Deleted file detection** — Extended fetchFilesWithNotesDetailed, "Deleted" badge in note file groups (`notes-actions.ts`, `notes-overlay-panel.tsx`, `note-file-group.tsx`)
++
++---
++
++## Architecture: Before & After
++
++```mermaid
++flowchart LR
++    classDef existing fill:#E8F5E9,stroke:#4CAF50,color:#000
++    classDef changed fill:#FFF3E0,stroke:#FF9800,color:#000
++    classDef new fill:#E3F2FD,stroke:#2196F3,color:#000
++
++    subgraph Before["Before Phase 7"]
++        B_FT["FileTree<br/>(changedFiles only)"]:::existing
++        B_BC["BrowserClient<br/>(no notes awareness)"]:::existing
++        B_PV["PRViewFileList<br/>(hasNotes unused)"]:::existing
++        B_NO["NotesOverlay<br/>(no deleted detection)"]:::existing
++        B_NID["NoteIndicatorDot<br/>(component exists,<br/>not wired to tree)"]:::existing
++    end
++
++    subgraph After["After Phase 7"]
++        A_FT["FileTree<br/>+ filesWithNotes prop<br/>+ Add Note menu"]:::changed
++        A_BC["BrowserClient<br/>+ noteFilePaths fetch<br/>+ filter toggle<br/>+ onAddNote wiring"]:::changed
++        A_PV["PRViewFileList<br/>+ NoteIndicatorDot<br/>+ hasNotes populated"]:::changed
++        A_NO["NotesOverlay<br/>+ deleted file detection<br/>+ Deleted badge"]:::changed
++        A_NID["NoteIndicatorDot"]:::existing
++
++        A_BC -->|filesWithNotes| A_FT
++        A_FT -->|renders| A_NID
++        A_PV -->|renders| A_NID
++        A_NO -->|checkFilesExist| A_SRV["notes-actions<br/>+ checkFilesExist"]:::new
++    end
++```
++
++**Legend**: existing (green, unchanged) | changed (orange, modified) | new (blue, created)
++
++---
++
++## Acceptance Criteria
++
++- [ ] AC-21: File tree shows indicator dot next to files with open notes
++- [ ] AC-22: PR View file list shows indicator dot next to files with notes
++- [ ] AC-27: Tree can be filtered to show only files with notes
++- [ ] AC-15 (partial): "Add Note" context menu item in FileTree opens note modal with file pre-filled
++- [ ] OQ-2 (partial): Notes overlay shows "deleted" indicator for files no longer in worktree
++
++## Goals & Non-Goals
++
++**Goals**:
++- Wire NoteIndicatorDot into FileTree (blue dot per file with notes)
++- Wire NoteIndicatorDot into PR View file list
++- Add "has notes" toggle filter within tree mode
++- Add "Add Note" to FileTree context menu
++- Detect deleted files in notes overlay
++- Cross-domain data flow: BrowserClient fetches note file paths, passes to tree
++
++**Non-Goals**:
++- Tree-form file list in PR View (NG-2)
++- Inline diff commenting (NG-3)
++- Note indicators on directories
++- Note search (NG-9)
++
++---
++
++## Checklist
++
++- [x] T001: FileTree `filesWithNotes` prop + NoteIndicatorDot rendering
++- [x] T002: FileTree "Add Note" context menu item
++- [x] T003: BrowserClient fetch noteFilePaths + pass to FileTree + onAddNote wiring
++- [x] T004: "Has notes" toggle filter in tree mode
++- [x] T005: PR View file list NoteIndicatorDot + hasNotes population
++- [x] T006: Deleted file detection in notes overlay
+diff --git a/docs/plans/071-pr-view/tasks/phase-7-cross-domain-integration/tasks.md b/docs/plans/071-pr-view/tasks/phase-7-cross-domain-integration/tasks.md
+new file mode 100644
+index 00000000..2ffa8b8d
+--- /dev/null
++++ b/docs/plans/071-pr-view/tasks/phase-7-cross-domain-integration/tasks.md
+@@ -0,0 +1,313 @@
++# Phase 7: Cross-Domain Integration — Tasks Dossier
++
++**Plan**: [pr-view-plan.md](../../pr-view-plan.md)
++**Phase**: Phase 7: Cross-Domain Integration
++**Created**: 2026-03-10
++**Status**: Pending
++
++---
++
++## Executive Briefing
++
++- **Purpose**: Wire File Notes indicators into the FileTree and PR View file list, add a tree-level "has notes" toggle filter, and detect deleted files in the notes overlay. This is the phase where the two new domains (file-notes, pr-view) connect to the existing file-browser domain.
++- **What We're Building**: NoteIndicatorDot appears in both the FileTree and PR View file list for files with notes. A toggle filter in tree mode shows only files with notes. FileTree gets an "Add Note" context menu item. The notes overlay marks file groups where the underlying file has been deleted.
++- **Goals**: ✅ File tree shows blue indicator dot next to files with open notes ✅ PR View file list shows blue indicator dot ✅ Tree can be filtered to show only files with notes ✅ "Add Note" available from file tree context menu ✅ Deleted files' notes show "deleted" indicator in overlay
++- **Non-Goals**: ❌ Tree-form file list in PR View (flat list only per NG-2) ❌ Inline diff commenting (NG-3) ❌ Full-text note search (NG-9) ❌ Note indicators on directories (files only)
++
++---
++
++## Prior Phase Context
++
++### Phase 1 (File Notes Data Layer)
++
++**A. Deliverables**: Core types in `packages/shared/src/file-notes/`, INoteService interface, JSONL writer/reader, FakeNoteService, API route (`/api/file-notes`), 6 server actions in `notes-actions.ts`, domain.md.
++
++**B. Dependencies Exported**:
++- `fetchFilesWithNotes(worktreePath)` → `NoteResult<string[]>` — returns file paths with open notes
++- `fetchNotes(worktreePath, filter?)` → `NoteResult<Note[]>` — full note list
++- API `GET /api/file-notes?mode=files` — lightweight file-paths-only endpoint
++- `listFilesWithNotes(worktreePath, filter?)` — server-side, defaults to status='open'
++
++**C. Gotchas**: `listFilesWithNotes` defaults to `status: 'open'` only. Silent JSONL malformation skipping. Types MUST live in shared package.
++
++**D. Incomplete Items**: None.
++
++**E. Patterns to Follow**: Result pattern (`{ ok, data | error }`), server action pattern (auth + validation + delegation), JSONL atomic rename.
++
++### Phase 2 (File Notes Web UI)
++
++**A. Deliverables**: `use-notes.ts` hook (data + cache + filters + `noteFilePaths: Set<string>`), `use-notes-overlay.tsx` provider, NoteIndicatorDot (6px blue dot), note-card, note-file-group, notes-overlay-panel, note-modal, bulk-delete-dialog, SDK commands, sidebar button, overlay wrapper.
++
++**B. Dependencies Exported**:
++- `NoteIndicatorDot` component — `{ hasNotes: boolean }` prop, exported from feature barrel
++- `useNotes(worktreePath)` → `{ noteFilePaths: Set<string>, ... }`
++- `useNotesOverlay()` → `{ openModal(target) }` for adding notes from external triggers
++- `notes:toggle` CustomEvent for overlay toggle
++- Feature barrel: `@/features/071-file-notes/index.ts`
++
++**C. Gotchas**: `useRef<() => void>()` needs initial value in strict mode. No autoFocus (use useRef + useEffect). Overlay openCount/completeCount must come from unfiltered notes.
++
++**D. Incomplete Items**: None.
++
++**E. Patterns to Follow**: Overlay provider with `isOpeningRef` guard, dynamic import `{ ssr: false }`, overlay mutual exclusion via `overlay:close-all`.
++
++### Phase 5 (PR View Overlay)
++
++**A. Deliverables**: PR View overlay (provider, panel, header, file list, diff sections, diff area), SDK commands, overlay wrapper with FileChangeProvider, explorer panel button.
++
++**B. Dependencies Exported**:
++- `PRViewFile.hasNotes?: boolean` — field already defined in types.ts but not populated
++- `PRViewFileList` accepts `files: PRViewFile[]` prop
++- `usePRViewData()` → `{ data: PRViewData | null, ... }`
++- PR View overlay wrapper contains FileChangeProvider (shared SSE)
++
++**C. Gotchas**: DiffViewer error display is own (DYK-01). Unmount children when closed. `isScrollingToRef` guard for scroll sync. Import from service paths, NOT barrel (nuqs issue).
++
++**D. Incomplete Items**: None.
++
++**E. Patterns to Follow**: Lazy-mount DiffViewer via IntersectionObserver. Own error display. refreshRef pattern for Biome exhaustive-deps.
++
++### Phase 6 (PR View Live Updates)
++
++**A. Deliverables**: Mode toggle (Working/Branch), split loading, generation counter, SSE subscription, FileChangeProvider consolidated in wrapper.
++
++**B. Dependencies Exported**: `switchMode(newMode)`, `mode: ComparisonMode`, `initialLoading`, `refreshing`.
++
++**C. Gotchas**: FileChangeProvider cannot go in layout.tsx (Server Component). Stale mode fetch needs generation counter. Reset collapsed on mode switch.
++
++**D. Incomplete Items**: None.
++
++**E. Patterns to Follow**: Split loading (initial vs refreshing). Generation counter for race conditions. Custom event dispatch for toggle buttons.
++
++---
++
++## Pre-Implementation Check
++
++| File | Exists? | Domain Check | Notes |
++|------|---------|-------------|-------|
++| `apps/web/src/features/041-file-browser/components/file-tree.tsx` | ✅ Yes | file-browser ✅ | Add `filesWithNotes` prop + NoteIndicatorDot rendering |
++| `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | ✅ Yes | file-browser (cross-domain) ✅ | Add note file paths fetch + filter toggle + onAddNote wiring |
++| `apps/web/src/features/071-pr-view/components/pr-view-file-list.tsx` | ✅ Yes | pr-view ✅ | Add NoteIndicatorDot rendering |
++| `apps/web/src/features/071-pr-view/components/pr-view-overlay-panel.tsx` | ✅ Yes | pr-view ✅ | Fetch noteFilePaths, pass to file list |
++| `apps/web/src/features/071-file-notes/components/note-indicator-dot.tsx` | ✅ Yes | file-notes ✅ | Already exists — consumed as cross-domain contract |
++| `apps/web/src/features/071-file-notes/hooks/use-notes-overlay.tsx` | ✅ Yes | file-notes ✅ | May need to expose openModal dispatch event |
++| `apps/web/src/features/071-file-notes/components/note-file-group.tsx` | ✅ Yes | file-notes ✅ | Add `isDeleted` prop + indicator badge |
++| `apps/web/src/features/071-file-notes/components/notes-overlay-panel.tsx` | ✅ Yes | file-notes ✅ | Add deleted file detection logic |
++| `apps/web/app/actions/notes-actions.ts` | ✅ Yes | file-notes ✅ | May add `checkFilesExist` batch action |
++
++**Concept search**: NoteIndicatorDot already exists (Phase 2). No duplication risk. `filesWithNotes` / `noteFilePaths` pattern is new cross-domain wiring.
++
++**Harness**: No agent harness configured. Implementation will use standard testing approach (lightweight per deviation ledger).
++
++---
++
++## Architecture Map
++
++```mermaid
++flowchart TD
++    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
++    classDef completed fill:#4CAF50,stroke:#388E3C,color:#fff
++    classDef existing fill:#E8F5E9,stroke:#4CAF50,color:#000
++
++    subgraph Phase7["Phase 7: Cross-Domain Integration"]
++        T001["T001: FileTree noteFilePaths<br/>prop + NoteIndicatorDot"]:::pending
++        T002["T002: FileTree Add Note<br/>context menu"]:::pending
++        T003["T003: BrowserClient fetch<br/>+ pass noteFilePaths"]:::pending
++        T004["T004: Has-notes filter<br/>toggle in tree mode"]:::pending
++        T005["T005: PR View file list<br/>NoteIndicatorDot"]:::pending
++        T006["T006: Deleted file<br/>detection in notes overlay"]:::pending
++
++        T001 --> T003
++        T002 --> T003
++        T003 --> T004
++    end
++
++    subgraph Files["Files Modified"]
++        F1["file-tree.tsx"]:::pending
++        F2["browser-client.tsx"]:::pending
++        F3["pr-view-file-list.tsx"]:::pending
++        F4["pr-view-overlay-panel.tsx"]:::pending
++        F5["note-file-group.tsx"]:::pending
++        F6["notes-overlay-panel.tsx"]:::pending
++    end
++
++    subgraph Consumed["Consumed (no changes)"]
++        C1["NoteIndicatorDot"]:::existing
++        C2["fetchFilesWithNotes"]:::existing
++        C3["useNotes hook"]:::existing
++        C4["useNotesOverlay"]:::existing
++    end
++
++    T001 -.-> F1
++    T002 -.-> F1
++    T003 -.-> F2
++    T004 -.-> F2
++    T005 -.-> F3
++    T005 -.-> F4
++    T006 -.-> F5
++    T006 -.-> F6
++
++    T001 -.-> C1
++    T003 -.-> C2
++    T005 -.-> C2
++    T006 -.-> C2
++```
++
++---
++
++## Tasks
++
++| Status | ID | Task | Domain | Path(s) | Done When | Notes |
++|--------|-----|------|--------|---------|-----------|-------|
++| [x] | T001 | Add `filesWithNotes?: Set<string>` prop to FileTree + render NoteIndicatorDot per file entry | file-browser | `/apps/web/src/features/041-file-browser/components/file-tree.tsx` | Blue dot appears next to file icon for files in the set. Dot renders between File icon and filename. Prop threaded through recursive TreeItem. | Per AC-21. Import NoteIndicatorDot from `@/features/071-file-notes`. Follow `changedFiles` prop pattern. |
++| [x] | T002 | Add "Add Note" context menu item in FileTree for file entries | file-browser | `/apps/web/src/features/041-file-browser/components/file-tree.tsx` | Context menu shows "Add Note" item for files (not directories). Clicking dispatches `onAddNote(filePath)` callback. | Per AC-15. Add `onAddNote?: (filePath: string) => void` prop. Uses existing ContextMenu pattern with StickyNote icon. |
++| [x] | T003 | Wire BrowserClient to fetch noteFilePaths from server action + pass to FileTree + wire onAddNote | file-browser (cross-domain) | `/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | Note indicators appear in tree for correct files. Indicators update when notes change (refresh on file changes via SSE + `notes:changed` event). "Add Note" opens note modal with file pre-filled. | Cross-domain: calls `fetchFilesWithNotes` from `notes-actions.ts`. Use `useNotesOverlay().openModal()` directly (DYK-01 — BrowserClient is inside provider context). Listen for `notes:changed` CustomEvent to refresh immediately after CRUD (DYK-02). |
++| [x] | T004 | Add "has notes" toggle filter in tree mode | file-browser | `/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | Toggle button filters tree entries to show only files (and ancestor directories) with notes. Toggle off restores full tree. | Per AC-27, OQ-5. Boolean state `showOnlyWithNotes`. Build `ancestorPaths: Set<string>` from noteFilePaths by collecting directory prefixes (DYK-03). Filter BOTH rootEntries AND childEntries — show file if in noteFilePaths, show dir if in ancestorPaths. Add StickyNote filter icon button above tree area. |
++| [x] | T005 | Add NoteIndicatorDot to PR View file list + pass noteFilePaths as separate prop | pr-view | `/apps/web/src/features/071-pr-view/components/pr-view-file-list.tsx`, `/apps/web/src/features/071-pr-view/components/pr-view-overlay-panel.tsx` | Blue dot appears in PR View file list next to files that have notes. | Per AC-22. Pass `noteFilePaths: Set<string>` as separate prop to PRViewFileList (DYK-04 — don't merge into PRViewFile to avoid cache invalidation + DiffViewer re-renders). Fetch in panel, listen for `notes:changed` event (DYK-02). Render dot after status badge, before file path. |
++| [x] | T006 | Deleted file detection — notes overlay shows "deleted" indicator for files no longer in worktree | file-notes | `/apps/web/src/features/071-file-notes/components/note-file-group.tsx`, `/apps/web/src/features/071-file-notes/components/notes-overlay-panel.tsx`, `/apps/web/app/actions/notes-actions.ts` | File groups in notes overlay show red "Deleted" badge when underlying file no longer exists. | Per OQ-2. Extend `fetchFilesWithNotes` with optional `includeExistence?: boolean` param (DYK-05). When true, returns `{ path, exists }[]`. Notes overlay derives `deletedFiles: Set<string>` from enriched response. Pass `isDeleted` prop to NoteFileGroup. Show red badge in file group header. One round-trip, no separate action. |
++
++---
++
++## Context Brief
++
++### Key findings from plan
++
++- **Finding 01**: No anti-reinvention conflicts — NoteIndicatorDot is the established cross-domain contract component
++- **Finding 06**: Working changes services not exported from file-browser barrel — PR View imports directly from service paths (nuqs issue). Phase 7 cross-domain imports use feature barrel for file-notes (safe — no nuqs dependency)
++- **Finding 08**: Overlay mounting pattern is mature — `overlay:close-all` CustomEvent for mutual exclusion
++
++### Domain dependencies (concepts and contracts this phase consumes)
++
++- `file-notes`: NoteIndicatorDot component (`{ hasNotes: boolean }`) — blue dot indicator for tree and PR View
++- `file-notes`: `fetchFilesWithNotes(worktreePath)` server action — returns `NoteResult<string[]>` of file paths with open notes
++- `file-notes`: `useNotesOverlay().openModal(target)` — programmatic note creation from context menu
++- `file-notes`: `notes-overlay-panel` + `note-file-group` — add deleted file indicator
++- `pr-view`: `PRViewFile.hasNotes?: boolean` — already defined but unpopulated
++- `pr-view`: `PRViewFileList` — accepts `files: PRViewFile[]`
++- `_platform/events`: `useFileChanges` — SSE subscription for triggering noteFilePaths refresh
++- `file-browser`: `FileTreeProps` — existing prop interface to extend with `filesWithNotes`
++- `file-browser`: `changedFiles` pattern — reference pattern for prop threading and visual indicators
++
++### Domain constraints
++
++- **file-browser → file-notes**: Cross-domain import allowed via file-notes feature barrel (NoteIndicatorDot is declared as a cross-domain contract in domain manifest)
++- **pr-view → file-notes**: Cross-domain data fetch via server action (not direct import of notes internals)
++- **file-notes → _platform/file-ops**: Can use `fileExists` pattern for deleted file detection
++- **Direction**: business → business is ⚠️ contracts only — all cross-domain imports use public barrel exports or server actions
++
++### Harness context
++
++No agent harness configured. Agent will use standard testing approach from plan (lightweight per deviation ledger P3).
++
++### Reusable from prior phases
++
++- `NoteIndicatorDot` component (Phase 2) — ready to import and render
++- `fetchFilesWithNotes` server action (Phase 1) — ready to call
++- `useNotesOverlay` + `openModal` (Phase 2) — ready for programmatic note creation
++- `changedFiles` prop threading pattern (existing) — reference for `filesWithNotes`
++- ContextMenu pattern in FileTree (existing) — reference for "Add Note" item
++- `PRViewFile.hasNotes` type field (Phase 4) — already defined, just needs population
++- Result pattern `{ ok, data | error }` — all server action consumers follow this
++- `overlay:close-all` + `CustomEvent` pattern — for note modal dispatch from tree
++
++### Mermaid flow diagram (data flow for note indicators)
++
++```mermaid
++flowchart LR
++    subgraph Server["Server Actions"]
++        SA1["fetchFilesWithNotes<br/>(worktreePath)"]
++        SA2["checkFilesExist<br/>(worktreePath, paths)"]
++    end
++
++    subgraph BrowserClient["BrowserClient (tree mode)"]
++        BC1["noteFilePaths<br/>state: Set&lt;string&gt;"]
++        BC2["showOnlyWithNotes<br/>state: boolean"]
++        BC3["filteredEntries<br/>useMemo"]
++    end
++
++    subgraph FileTree["FileTree"]
++        FT1["TreeItem<br/>per file entry"]
++        FT2["NoteIndicatorDot"]
++        FT3["Context Menu<br/>Add Note"]
++    end
++
++    subgraph PRView["PR View Overlay"]
++        PV1["PRViewPanelContent<br/>fetch noteFilePaths"]
++        PV2["PRViewFileList<br/>per PRViewFile"]
++        PV3["NoteIndicatorDot"]
++    end
++
++    subgraph NotesOverlay["Notes Overlay"]
++        NO1["notes-overlay-panel<br/>fetch + check deleted"]
++        NO2["NoteFileGroup<br/>isDeleted badge"]
++    end
++
++    SA1 --> BC1
++    SA1 --> PV1
++    SA2 --> NO1
++    BC1 --> BC3
++    BC2 --> BC3
++    BC3 --> FT1
++    BC1 --> FT1
++    FT1 --> FT2
++    FT1 --> FT3
++    PV1 --> PV2
++    PV2 --> PV3
++    NO1 --> NO2
++```
++
++### Mermaid sequence diagram (Add Note from tree context menu)
++
++```mermaid
++sequenceDiagram
++    participant User
++    participant FileTree
++    participant BrowserClient
++    participant NotesOverlay
++    participant NoteModal
++
++    User->>FileTree: Right-click file → "Add Note"
++    FileTree->>BrowserClient: onAddNote(filePath)
++    BrowserClient->>NotesOverlay: dispatch notes:open-modal event<br/>{filePath}
++    NotesOverlay->>NoteModal: openModal({mode:'add', target:filePath})
++    NoteModal-->>User: Shows modal with file pre-filled
++    User->>NoteModal: Type note content → Save
++    NoteModal->>NotesOverlay: Server action → refresh
++    NotesOverlay->>BrowserClient: noteFilePaths updated on next refresh
++    BrowserClient->>FileTree: filesWithNotes updated
++    FileTree-->>User: Blue dot appears
++```
++
++---
++
++## DYK Decisions (Pre-Implementation)
++
++| ID | Insight | Decision | Affects |
++|----|---------|----------|---------|
++| DYK-01 | BrowserClient renders inside NotesOverlayProvider context — can call useNotesOverlay().openModal() directly | Use direct hook call instead of custom event dispatch for "Add Note" from tree context menu. Cross-domain import allowed (contracts only). | T003 |
++| DYK-02 | After note CRUD, BrowserClient's separate noteFilePaths state won't know to refresh — dot won't appear immediately | Dispatch `notes:changed` CustomEvent after note save in useNotes/overlay. BrowserClient + PR View panel listen for it to re-fetch noteFilePaths. Instant feedback. | T003, T005 |
++| DYK-03 | Filter toggle must preserve ancestor directories in a lazy-loaded tree — can't just filter rootEntries | Build `ancestorPaths: Set<string>` from noteFilePaths by collecting all directory prefixes. Filter both rootEntries AND childEntries: show file if in noteFilePaths, show dir if in ancestorPaths. | T004 |
++| DYK-04 | Merging hasNotes into PRViewFile[] creates new object refs, invalidating data hook cache and causing DiffViewer re-renders | Pass `noteFilePaths: Set<string>` as separate prop to PRViewFileList. Check `noteFilePaths.has(file.path)` inline. PRViewFile data stays untouched in cache. | T005 |
++| DYK-05 | Deleted file detection can piggyback on existing fetchFilesWithNotes — no separate batch action needed | Add optional `includeExistence?: boolean` param to fetchFilesWithNotes. When true, return `{ path, exists }[]`. Notes overlay derives deletedFiles from enriched response. One round-trip. | T006 |
++
++---
++
++## Discoveries & Learnings
++
++_Populated during implementation by plan-6._
++
++| Date | Task | Type | Discovery | Resolution | References |
++|------|------|------|-----------|------------|------------|
++
++---
++
++## Directory Layout
++
++```
++docs/plans/071-pr-view/
++  ├── pr-view-plan.md
++  └── tasks/phase-7-cross-domain-integration/
++      ├── tasks.md               ← this file
++      ├── tasks.fltplan.md       ← flight plan (next)
++      └── execution.log.md       ← created by plan-6
++```
+diff --git a/packages/shared/src/file-notes/index.ts b/packages/shared/src/file-notes/index.ts
+index 2c32a65b..a809a724 100644
+--- a/packages/shared/src/file-notes/index.ts
++++ b/packages/shared/src/file-notes/index.ts
+@@ -41,5 +41,10 @@ export {
+   deleteAllForTarget,
+   deleteAll,
+ } from './note-writer.js';
+-export { readNotes, listFilesWithNotes } from './note-reader.js';
++export {
++  type FileWithExistence,
++  listFilesWithNotes,
++  listFilesWithNotesDetailed,
++  readNotes,
++} from './note-reader.js';
+ export { JsonlNoteService } from './jsonl-note-service.js';
+diff --git a/packages/shared/src/file-notes/note-reader.ts b/packages/shared/src/file-notes/note-reader.ts
+index 50329c16..97ca1c9c 100644
+--- a/packages/shared/src/file-notes/note-reader.ts
++++ b/packages/shared/src/file-notes/note-reader.ts
+@@ -70,3 +70,25 @@ export function listFilesWithNotes(
+   const targets = new Set(notes.map((n) => n.target));
+   return [...targets].sort();
+ }
++
++/** File path with existence check result (DYK-05 Phase 7) */
++export interface FileWithExistence {
++  path: string;
++  exists: boolean;
++}
++
++/**
++ * List unique file targets that have notes, with existence check.
++ * Returns each file path and whether it still exists in the worktree.
++ * Defaults to open notes only.
++ */
++export function listFilesWithNotesDetailed(
++  worktreePath: string,
++  filter?: Pick<NoteFilter, 'status'>
++): FileWithExistence[] {
++  const files = listFilesWithNotes(worktreePath, filter);
++  return files.map((filePath) => ({
++    path: filePath,
++    exists: fs.existsSync(path.join(worktreePath, filePath)),
++  }));
++}

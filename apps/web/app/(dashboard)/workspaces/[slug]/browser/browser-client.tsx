@@ -191,6 +191,13 @@ function BrowserClientInner({
   // Phase 7 T004: "Has notes" filter toggle (DYK-03: ancestor directory preservation)
   const [showOnlyWithNotes, setShowOnlyWithNotes] = useState(false);
 
+  // FT-002: Auto-reset filter when all notes are cleared
+  useEffect(() => {
+    if (showOnlyWithNotes && noteFilePaths.size === 0) {
+      setShowOnlyWithNotes(false);
+    }
+  }, [showOnlyWithNotes, noteFilePaths.size]);
+
   // Build ancestor directory paths from noteFilePaths for tree filtering
   const noteAncestorPaths = useMemo(() => {
     if (!showOnlyWithNotes || noteFilePaths.size === 0) return new Set<string>();
@@ -677,8 +684,8 @@ function BrowserClientInner({
             {{
               tree: (
                 <>
-                  {/* Phase 7 T004: Notes filter toggle */}
-                  {noteFilePaths.size > 0 && (
+                  {/* Phase 7 T004: Notes filter toggle (FT-002: keep visible while active) */}
+                  {(showOnlyWithNotes || noteFilePaths.size > 0) && (
                     <div className="flex items-center justify-end px-2 py-0.5 border-b">
                       <button
                         type="button"

@@ -17,7 +17,7 @@
  */
 
 import { Plus, StickyNote, Trash2, X } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import { workspaceHref } from '@/lib/workspace-url';
@@ -76,22 +76,28 @@ export function NotesOverlayPanel() {
     if (isOpen || isModalOpen) setHasOpened(true);
   }, [isOpen, isModalOpen]);
 
-  // Phase 7 T006: Fetch deleted file status when notes are grouped (DYK-05)
+  // Phase 7 T006/FT-001: Deleted file detection from visible note groups
+  // Derive visible file paths from groupedByFile, re-check when groups change
+  const visibleFilePaths = useMemo(() => Array.from(groupedByFile.keys()), [groupedByFile]);
+
   useEffect(() => {
-    if (!worktreePath || groupedByFile.size === 0) {
+    if (!worktreePath || visibleFilePaths.length === 0) {
       setDeletedFiles(new Set());
       return;
     }
     fetchFilesWithNotesDetailed(worktreePath).then((result) => {
       if (result.ok) {
+        const existenceMap = new Map(result.data.map((f) => [f.path, f.exists]));
         const deleted = new Set<string>();
-        for (const f of result.data) {
-          if (!f.exists) deleted.add(f.path);
+        for (const fp of visibleFilePaths) {
+          if (existenceMap.has(fp) && !existenceMap.get(fp)) {
+            deleted.add(fp);
+          }
         }
         setDeletedFiles(deleted);
       }
     });
-  }, [worktreePath, groupedByFile.size]);
+  }, [worktreePath, visibleFilePaths]);
 
   // Measure anchor element
   const measureRef = useRef<(() => void) | undefined>(undefined);

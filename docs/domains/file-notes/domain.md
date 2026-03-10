@@ -44,6 +44,7 @@ Generic annotation system where humans and agents attach markdown notes to files
 | `NotesOverlayProvider` | Provider | Layout wrapper | Context provider for overlay state |
 | `appendNote` | Function | Server actions, API routes | Append a new note to JSONL |
 | `readNotes` | Function | Server actions, API routes | Read + filter notes from JSONL |
+| `fetchFilesWithNotes` | Server Action | file-browser (BrowserClient), pr-view (PRViewPanelContent) | Returns file targets with open notes |
 | `listFilesWithNotes` | Function | Server actions, API routes | List unique targets with open notes |
 | `listFilesWithNotesDetailed` | Function | Server actions | List files with notes including existence check against worktree |
 | `FileWithExistence` | Type | notes-overlay | `{ filePath: string; exists: boolean }` for deleted file detection |

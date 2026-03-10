@@ -172,6 +172,7 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 - `@chainglass/workflow` — IWorkspaceService, workspace entity, preferences
 - `@uiw/react-codemirror` — CodeMirror 6 editor (npm)
 - `nuqs` — URL state management (npm)
+- `file-notes` — NoteIndicatorDot, useNotesOverlay, fetchFilesWithNotes, `notes:changed` event listener for tree note indicators and filter toggle
 
 ### Domains That Depend On This
 - None currently (this is a leaf business domain)
@@ -200,3 +201,4 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 | Plan 068 Phase 1 | File CRUD service layer: createFileService, createFolderService, deleteItemService, renameItemService with path security + validateFileName utility + 4 server actions | 2026-03-07 |
 | Plan 068 Phase 2 | FileTree UI extensions: InlineEditInput component, hover buttons (New File/Folder), inline create/rename modes, context menu Rename/Delete, DeleteConfirmationDialog, F2/Enter keyboard shortcuts, CRUD callback props | 2026-03-07 |
 | Plan 068 Phase 3 | BrowserClient wiring: useFileMutations hook with toast feedback, CRUD callbacks wired to FileTree, rename-open-file URL sync, delete-open-file selection clear, local newlyAddedPaths animation, auto-select/expand after create, root entries state for root-level refresh | 2026-03-07 |
+| 071-phase-7 | Added note indicators in FileTree, Add Note context menu, has-notes filter toggle | 2026-03-10 |

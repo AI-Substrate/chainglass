@@ -132,7 +132,7 @@ flowchart LR
     prView -->|"FileChangeProvider<br/>useFileChanges"| events
 
     %% Cross-domain: file-notes consumed by file-browser and pr-view (Phase 7)
-    fileBrowser -->|"NoteIndicatorDot<br/>fetchFilesWithNotes<br/>useNotesOverlay"| fileNotes
+    fileBrowser -->|"NoteIndicatorDot<br/>useNotesOverlay<br/>fetchFilesWithNotes<br/>notes:changed"| fileNotes
     prView -->|"NoteIndicatorDot<br/>fetchFilesWithNotes"| fileNotes
 ```
 
