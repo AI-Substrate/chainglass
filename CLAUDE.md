@@ -260,7 +260,15 @@ After completing a `/plan-6-v2-implement-phase` run, **automatically trigger a c
 just code-review-agent <path-to-plan-dir-or-changed-file>
 ```
 
-This runs the `code-review` agent with GPT-5.4, xhigh reasoning, and a 20-minute timeout. Read the resulting report at the path shown in the output envelope. If the verdict is `REQUEST_CHANGES`, address the findings before committing.
+This runs the `code-review` agent with GPT-5.4, xhigh reasoning, and a 20-minute timeout. Read the resulting report:
+
+```bash
+just agent-last-run code-review              # Full envelope: verdict, summary, report path
+just agent-report code-review                # Just the report.json path (pipe-friendly)
+cat $(just agent-report code-review) | jq .  # Read the full report
+```
+
+If the verdict is `REQUEST_CHANGES`, address the findings before committing.
 
 ```bash
 # Port allocation (unique per worktree)
