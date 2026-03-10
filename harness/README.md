@@ -191,12 +191,12 @@ Example `input-schema.json`:
 ### Creating a New Agent
 
 1. Create `agents/<your-slug>/`
-2. Add `prompt.md` — the system prompt that frames the agent's task
+2. Add `prompt.md` — the mission brief that frames the agent's task
    - **MUST** include a Retrospective section (see `agents/smoke-test/prompt.md` for the template)
    - Ask: what worked, what was confusing, magic wand, improvement suggestions
-3. Add `instructions.md` — agent identity, guidelines, CLI quick reference
-   - **MUST** include: "This is dogfooding — your experience improves the harness for everyone"
-   - Include good vs bad retrospective examples
+3. Add `instructions.md` — agent identity and agent-specific rules only
+   - Common boilerplate (orientation, CLI reference, output rules, git commands, feedback philosophy) is auto-injected via `agents/_shared/preamble.md` — do NOT duplicate it
+   - Focus on what makes THIS agent different from others
 4. Add `input-schema.json` (optional) — JSON Schema for input parameters the agent requires
    - Parameters are validated before execution and injected into the prompt
    - Pass at runtime with `--param key=value`
@@ -204,6 +204,21 @@ Example `input-schema.json`:
    - **MUST** include `retrospective` object with `magicWand` as a **required** field
    - Copy the retrospective schema from `agents/smoke-test/output-schema.json`
 5. Run: `just harness agent run <your-slug>`
+
+### Shared Preamble
+
+`agents/_shared/preamble.md` is automatically prepended to every agent's prompt. It provides:
+
+- **Orientation**: Absolute repo root path, `pwd` check, key paths
+- **Environment gotchas**: `git --no-pager`, XDG_CONFIG_HOME auth, networkidle warnings
+- **Output discipline**: Where to write, what not to touch
+- **CLI quick reference**: All `just harness` commands with descriptions
+- **Browser/CDP access**: How to connect Playwright
+- **Feedback philosophy**: The magic wand contract, good vs bad feedback examples, proof the loop works
+
+The `{{REPO_ROOT}}` placeholder is resolved at runtime to the actual repository root path.
+
+To update the preamble for all agents, edit `agents/_shared/preamble.md` — changes take effect on the next agent run.
 
 The retrospective is not optional. It's the mechanism that makes the harness better over time. See "From Retrospective to Fix" below.
 

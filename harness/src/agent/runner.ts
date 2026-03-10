@@ -21,8 +21,16 @@ import type {
   RunEventStats,
   ValidationResult,
 } from './types.js';
-import { createRunFolder } from './folder.js';
+import { createRunFolder, resolveHarnessRoot } from './folder.js';
 import { validateOutput, validateInput } from './validator.js';
+
+/** Shared preamble path — injected at the top of every agent prompt. */
+const PREAMBLE_PATH = path.join(
+  resolveHarnessRoot(),
+  'agents',
+  '_shared',
+  'preamble.md',
+);
 
 /**
  * Execute an agent from its definition.
@@ -52,11 +60,20 @@ export async function runAgent(
   const outputPath = path.join(runDir, 'output', 'report.json');
   const stderrPath = path.join(runDir, 'stderr.log');
 
-  // Read prompt
+  // Read prompt and shared preamble
   const prompt = fs.readFileSync(definition.promptPath, 'utf-8');
   const instructions = definition.instructionsPath
     ? fs.readFileSync(definition.instructionsPath, 'utf-8')
     : null;
+
+  // Shared preamble — injected for all agents with repo root resolved
+  const repoRoot = config.cwd ?? path.resolve(resolveHarnessRoot(), '..');
+  let preamble: string | null = null;
+  if (fs.existsSync(PREAMBLE_PATH)) {
+    preamble = fs
+      .readFileSync(PREAMBLE_PATH, 'utf-8')
+      .replaceAll('{{REPO_ROOT}}', repoRoot);
+  }
 
   // Validate and format input parameters
   let paramsHint: string | null = null;
@@ -98,11 +115,11 @@ export async function runAgent(
     }
   }
 
-  // Build full prompt (instructions + output path hint + params + prompt)
+  // Build full prompt (preamble + instructions + output path hint + params + prompt)
   const outputHint = definition.schemaPath
     ? `Write your final JSON report to: ${outputPath}`
     : null;
-  const fullPrompt = [instructions, outputHint, paramsHint, prompt]
+  const fullPrompt = [preamble, instructions, outputHint, paramsHint, prompt]
     .filter(Boolean)
     .join('\n\n---\n\n');
 
