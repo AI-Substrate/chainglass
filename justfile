@@ -191,7 +191,7 @@ harness-require:
 
 # Run code-review agent with GPT-5.4 xhigh reasoning and 20-minute timeout
 code-review-agent file_path: harness-require
-    GH_TOKEN=$(XDG_CONFIG_HOME=~/.config gh auth token) just harness agent run code-review --model gpt-5.4 --reasoning xhigh --timeout 1200 --param file_path={{file_path}}
+    GH_TOKEN=$(XDG_CONFIG_HOME=~/.config gh auth token) just harness agent run code-review --model gpt-5.4 --timeout 1200 --param file_path={{file_path}}
 
 # Tail the code-review agent's live event stream
 code-review-agent-tail:
