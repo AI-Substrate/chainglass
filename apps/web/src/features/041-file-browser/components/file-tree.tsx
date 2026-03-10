@@ -20,16 +20,14 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
+import { FileIcon, FolderIcon } from '@/features/_platform/themes';
 import {
   ChevronDown,
   ChevronRight,
   ClipboardCopy,
   Download,
-  File,
   FilePlus,
   FileText,
-  Folder,
-  FolderOpen,
   FolderPlus,
   FolderTree,
   Pencil,
@@ -269,9 +267,9 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
     mutations.editState.parentDir === '' ? (
       <div className="flex items-center gap-1 px-2 py-1" style={{ paddingLeft: '22px' }}>
         {mutations.editState.mode === 'create-folder' ? (
-          <Folder className="h-4 w-4 shrink-0 text-blue-500" />
+          <FolderIcon name="" expanded={false} className="h-4 w-4 shrink-0" />
         ) : (
-          <File className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <FileIcon filename="" className="h-4 w-4 shrink-0" />
         )}
         <div className="flex-1 min-w-0">
           <InlineEditInput
@@ -289,7 +287,7 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
       {/* Root row for root-level creation (DYK-P2-02) */}
       {mutations && (
         <div className="group flex items-center gap-1 px-2 py-0.5 hover:bg-accent">
-          <Folder className="h-3.5 w-3.5 shrink-0 text-blue-500/60" />
+          <FolderIcon name="" expanded={true} className="h-3.5 w-3.5 shrink-0" />
           <span className="flex-1 truncate text-xs text-muted-foreground">.</span>
           {onCreateFile && (
             <button
@@ -421,12 +419,12 @@ function TreeItem({
               {isExpanded ? (
                 <>
                   <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                  <FolderOpen className="h-4 w-4 shrink-0 text-blue-500" />
+                  <FolderIcon name={entry.name} expanded={true} className="h-4 w-4 shrink-0" />
                 </>
               ) : (
                 <>
                   <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                  <Folder className="h-4 w-4 shrink-0 text-blue-500" />
+                  <FolderIcon name={entry.name} expanded={false} className="h-4 w-4 shrink-0" />
                 </>
               )}
               <div className="flex-1 min-w-0">
@@ -454,12 +452,20 @@ function TreeItem({
                     {isExpanded ? (
                       <>
                         <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                        <FolderOpen className="h-4 w-4 shrink-0 text-blue-500" />
+                        <FolderIcon
+                          name={entry.name}
+                          expanded={true}
+                          className="h-4 w-4 shrink-0"
+                        />
                       </>
                     ) : (
                       <>
                         <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                        <Folder className="h-4 w-4 shrink-0 text-blue-500" />
+                        <FolderIcon
+                          name={entry.name}
+                          expanded={false}
+                          className="h-4 w-4 shrink-0"
+                        />
                       </>
                     )}
                     <span className="truncate">{entry.name}</span>
@@ -568,9 +574,9 @@ function TreeItem({
             style={{ paddingLeft: `${(depth + 1) * 16 + 8 + 14}px` }}
           >
             {mutations.editState.mode === 'create-folder' ? (
-              <Folder className="h-4 w-4 shrink-0 text-blue-500" />
+              <FolderIcon name="" expanded={false} className="h-4 w-4 shrink-0" />
             ) : (
-              <File className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <FileIcon filename="" className="h-4 w-4 shrink-0" />
             )}
             <div className="flex-1 min-w-0">
               <InlineEditInput
@@ -640,7 +646,7 @@ function TreeItem({
         {isSelected && (
           <span className="absolute left-0.5 text-amber-500 font-black text-sm">▶</span>
         )}
-        <File className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <FileIcon filename={entry.name} className="h-4 w-4 shrink-0" />
         <div className="flex-1 min-w-0">
           <InlineEditInput
             initialValue={entry.name}
@@ -678,7 +684,7 @@ function TreeItem({
             {isSelected && (
               <span className="absolute left-0.5 text-amber-500 font-black text-sm">▶</span>
             )}
-            <File className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <FileIcon filename={entry.name} className="h-4 w-4 shrink-0" />
             <span className={`truncate ${isSelected ? 'text-base' : ''}`}>{entry.name}</span>
           </button>
         </ContextMenuTrigger>

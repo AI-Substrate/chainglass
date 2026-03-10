@@ -313,6 +313,76 @@ just harness test --suite responsive
 just harness-typecheck
 ```
 
+## Troubleshooting
+
+### Container won't start / is unhealthy
+
+The harness runs a Docker container with Next.js, a terminal sidecar, and headless Chromium. Things that go wrong:
+
+**1. Container not running at all**
+```bash
+just harness health    # Shows what's up/down
+docker ps | grep chainglass  # Check Docker directly
+```
+Fix: `just harness dev` starts the container (~2 min cold boot). If it fails, check Docker/OrbStack is running.
+
+**2. Container running but unhealthy (stale `.next` cache)**
+Most common issue. Symptoms: `docker ps` shows `(unhealthy)`, container logs show repeated `ENOENT: no such file or directory, open '.../build-manifest.json'`. This happens when the host code changes significantly (new dependencies, major file moves) while the container's `.next` dev cache is stale.
+
+Fix:
+```bash
+just harness stop     # Stop the container
+just harness dev      # Restart — fresh Next.js dev server compiles from scratch
+```
+If that doesn't work:
+```bash
+just harness stop
+just harness build    # Rebuild the Docker image entirely
+just harness dev
+```
+
+**3. `just harness health` or `just harness doctor` hangs**
+These probe HTTP endpoints inside the container. If the container isn't running or the app hasn't started, they wait indefinitely (no short timeout). Use `docker ps` to check container state before running health commands.
+
+**4. Ports already in use**
+Each worktree gets unique ports derived from its name. Check allocation with `just harness ports`. If ports conflict, stop other containers: `docker stop <container-name>`.
+
+**5. `GH_TOKEN` not set (agent commands)**
+Harness agents use the Copilot SDK which needs a GitHub token. The justfile recipes (`code-review-agent`, etc.) handle this automatically via `gh auth token`. If you see `GH_TOKEN environment variable is not set`, ensure `gh` CLI is authenticated: `XDG_CONFIG_HOME=~/.config gh auth status`.
+
+### Lifecycle cheat sheet
+
+```bash
+# Start → verify → use → stop
+just harness dev               # Start (2-3 min cold, <10s warm)
+just harness doctor --wait     # Block until healthy
+just harness health            # Quick JSON health probe
+just harness stop              # Graceful stop
+
+# Nuclear restart (stale cache, broken state)
+just harness stop && just harness dev
+
+# Full rebuild (dependency changes, Dockerfile changes)
+just harness stop && just harness build && just harness dev
+```
+
+### Running agents
+
+```bash
+# Code review (auto-handles GH_TOKEN)
+just code-review-agent /path/to/tasks.md
+
+# Check results
+just agent-last-run code-review
+cat $(just agent-report code-review) | jq .
+
+# Other agents
+just harness agent list                    # See available agents
+just harness agent run <slug>              # Run an agent
+just harness agent tail <slug>             # Live event stream
+just harness agent history <slug>          # Past runs
+```
+
 ## Related Documentation
 
 - [ADR-0014: First-Class Agentic Development Harness](../docs/adr/adr-0014-first-class-agentic-development-harness.md)

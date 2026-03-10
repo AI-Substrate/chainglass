@@ -181,3 +181,6 @@ harness/results/
 # Harness agent run folders — generated per agent execution (Plan 070)
 harness/agents/*/runs/
 .pnpm-store/
+
+# Generated icon assets (Plan 073) — rebuilt by scripts/generate-icon-assets.ts
+apps/web/public/icons/

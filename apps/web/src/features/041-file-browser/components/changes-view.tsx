@@ -17,7 +17,8 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
-import { Check, ClipboardCopy, Download, File, FileText } from 'lucide-react';
+import { FileIcon } from '@/features/_platform/themes';
+import { Check, ClipboardCopy, Download, FileText } from 'lucide-react';
 import { useCallback, useRef } from 'react';
 import type { ChangedFile } from '../services/working-changes';
 
@@ -164,15 +165,14 @@ function ChangeFileItem({
           {isSelected && (
             <span className="absolute left-0.5 text-amber-500 font-black text-sm">▶</span>
           )}
-          {badge ? (
+          {badge && (
             <span
               className={`shrink-0 w-4 text-center font-mono text-xs font-bold ${badge.className}`}
             >
               {badge.letter}
             </span>
-          ) : (
-            <File className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           )}
+          <FileIcon filename={name} className="h-3.5 w-3.5 shrink-0" />
           <span className="truncate">
             <span className="text-muted-foreground">{dir}</span>
             <span className={isSelected ? 'text-base' : ''}>{name}</span>

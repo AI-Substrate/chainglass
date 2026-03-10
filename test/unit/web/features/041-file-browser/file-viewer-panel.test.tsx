@@ -13,6 +13,13 @@ import { createEvent, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
+// Mock themed icon components — these tests care about FileViewerPanel behavior, not icon resolution.
+vi.mock('@/features/_platform/themes', () => ({
+  FileIcon: ({ className }: { className?: string }) => (
+    <img className={className} alt="" data-testid="file-icon" />
+  ),
+}));
+
 // Stub CodeMirror for jsdom
 vi.mock('@uiw/react-codemirror', () => ({
   __esModule: true,

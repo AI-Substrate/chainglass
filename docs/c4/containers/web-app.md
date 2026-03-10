@@ -20,6 +20,7 @@ C4Component
             Component(posGraph, "Positional Graph", "IPositionalGraphService,<br/>IWorkUnitService", "Workflow graph engine +<br/>orchestration")
             Component(state, "State", "IStateService,<br/>useGlobalState", "Global state pub/sub<br/>via SSE transport")
             Component(devTools, "Dev Tools", "StateInspector", "State debugging panel")
+            Component(themes, "Themes", "resolveFileIcon,<br/>resolveFolderIcon", "Manifest-driven icon<br/>theme resolution")
         }
 
         Boundary(biz, "Business Domains") {
@@ -54,6 +55,7 @@ C4Component
     Rel(posGraph, state, "Publishes orchestration")
     Rel(devTools, state, "Inspects state")
     Rel(settings, sdk, "Reads SDK settings")
+    Rel(fileBrowser, themes, "resolveFileIcon,<br/>resolveFolderIcon")
 ```
 
 ## Domain Index
@@ -72,6 +74,7 @@ C4Component
 | Positional Graph | IPositionalGraphService, IWorkUnitService | [positional-graph.md](../components/_platform/positional-graph.md) |
 | State | IStateService, useGlobalState | [state.md](../components/_platform/state.md) |
 | Dev Tools | StateInspector, useStateChangeLog | [dev-tools.md](../components/_platform/dev-tools.md) |
+| Themes | resolveFileIcon, resolveFolderIcon | [themes.md](../components/_platform/themes.md) |
 
 ### Business Domains
 

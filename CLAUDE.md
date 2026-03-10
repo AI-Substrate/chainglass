@@ -235,7 +235,9 @@ See `docs/how/dev/fast-feedback-loops.md` for the full testing strategy and feed
 
 ### Harness Commands (Agentic Development)
 
-The harness provides a Docker-containerized dev environment with browser automation. Each worktree gets unique ports derived from its name. See `docs/project-rules/harness.md` for full documentation.
+The harness provides a Docker-containerized dev environment with browser automation. Each worktree gets unique ports derived from its name. See `docs/project-rules/harness.md` for full documentation and `harness/README.md` for architecture, troubleshooting, and the agent lifecycle guide.
+
+**Before using harness commands**, the container must be running. Start with `just harness dev` (2-3 min cold boot). If the container shows `(unhealthy)` in `docker ps`, stop and restart it: `just harness stop && just harness dev`. See `harness/README.md § Troubleshooting` for common issues (stale cache, hanging health checks, GH_TOKEN).
 
 #### Harness Feedback Loop
 
