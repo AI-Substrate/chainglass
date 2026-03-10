@@ -72,7 +72,7 @@ flowchart TD
         T006["T006: BinaryPlaceholder"]:::completed
         T007["T007: AudioViewer"]:::completed
         T008["T008: just fft"]:::completed
-        T009["T009: Harness visual check"]:::pending
+        T009["T009: Harness visual check"]:::completed
 
         T001 --> T002
         T001 --> T003
@@ -110,7 +110,7 @@ flowchart TD
 | [x] | T006 | BinaryPlaceholder: replace `<FileQuestion className="h-16 w-16 ..." />` with `<FileIcon filename={filename} className="h-16 w-16" />`. Strip color classes. Import from themes. | `file-browser` | `apps/web/src/features/041-file-browser/components/binary-placeholder.tsx` | Binary files show type-specific icon. | DYK-5: large icon — verify visually in T009. |
 | [x] | T007 | AudioViewer: replace `<Music className="h-12 w-12 text-muted-foreground" />` with `<FileIcon filename={filename} className="h-12 w-12" />`. Strip color class. | `file-browser` | `apps/web/src/features/041-file-browser/components/audio-viewer.tsx` | Audio files show audio-type icon. | DYK-5: large icon — verify visually in T009. |
 | [x] | T008 | Run `just fft` — lint, format, typecheck, all tests pass. | cross-domain | — | Zero failures in full test suite. | Must pass before harness check. |
-| [ ] | T009 | Harness visual verification: navigate to file browser in harness, expand a directory with mixed file types, verify icons render. Screenshot evidence. | cross-domain | — | Icons visible in running app. Screenshot captured. | Use `just harness screenshot` or browser automation. |
+| [x] | T009 | Harness visual verification: navigate to file browser in harness, expand a directory with mixed file types, verify icons render. Screenshot evidence. | cross-domain | — | Icons visible in running app. Screenshot captured. | Use `just harness screenshot` or browser automation. |
 
 ## Context Brief
 

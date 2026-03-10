@@ -3,7 +3,7 @@
 **Plan**: [file-icons-plan.md](../../file-icons-plan.md)
 **Phase**: Phase 4: Tree & Surface Integration
 **Generated**: 2026-03-10
-**Status**: Ready for takeoff
+**Status**: Landed
 
 ---
 
@@ -63,8 +63,7 @@ stateDiagram-v2
     S8 --> S9
     S9 --> [*]
 
-    class S1,S2,S3,S4,S5,S6,S7,S8 done
-    class S9 pending
+    class S1,S2,S3,S4,S5,S6,S7,S8,S9 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -81,7 +80,7 @@ stateDiagram-v2
 - [x] **Stage 6: BinaryPlaceholder** — Replace `<FileQuestion>` with `<FileIcon>` (`binary-placeholder.tsx` — modify)
 - [x] **Stage 7: AudioViewer** — Replace `<Music>` with `<FileIcon>` (`audio-viewer.tsx` — modify)
 - [x] **Stage 8: just fft** — Full quality gate (`evidence`)
-- [ ] **Stage 9: Harness visual** — Screenshot verification of icons in running app (`evidence`)
+- [x] **Stage 9: Harness visual** — Screenshot verification of icons in running app (`evidence`)
 
 ---
 
@@ -160,4 +159,4 @@ flowchart LR
 - [x] T006: BinaryPlaceholder — replace `<FileQuestion>` with `<FileIcon>`
 - [x] T007: AudioViewer — replace `<Music>` with `<FileIcon>`
 - [x] T008: Run `just fft`
-- [ ] T009: Harness visual verification
+- [x] T009: Harness visual verification
