@@ -288,6 +288,59 @@ export function registerAgentCommand(program: Command): void {
       );
     });
 
+  // --- agent last-run <slug> ---
+  agent
+    .command('last-run <slug>')
+    .description('Print the latest run directory and report path for an agent')
+    .action(async (slug: string) => {
+      const slugError = validateSlug(slug);
+      if (slugError) {
+        exitWithEnvelope(formatError('agent last-run', ErrorCodes.INVALID_ARGS, slugError));
+      }
+
+      const definition = resolveAgent(slug);
+      if (!definition) {
+        exitWithEnvelope(formatError('agent last-run', ErrorCodes.AGENT_NOT_FOUND, `Agent "${slug}" not found.`));
+      }
+
+      const runsDir = path.join(definition.dir, 'runs');
+      if (!fs.existsSync(runsDir)) {
+        exitWithEnvelope(formatError('agent last-run', ErrorCodes.AGENT_VALIDATION_FAILED, 'No runs found.'));
+      }
+
+      const entries = fs.readdirSync(runsDir, { withFileTypes: true })
+        .filter((e) => e.isDirectory())
+        .sort((a, b) => b.name.localeCompare(a.name));
+
+      if (entries.length === 0) {
+        exitWithEnvelope(formatError('agent last-run', ErrorCodes.AGENT_VALIDATION_FAILED, 'No runs found.'));
+      }
+
+      const latestRun = entries[0].name;
+      const runDir = path.join(runsDir, latestRun);
+      const reportPath = path.join(runDir, 'output', 'report.json');
+      const completedPath = path.join(runDir, 'completed.json');
+
+      let metadata = null;
+      if (fs.existsSync(completedPath)) {
+        try { metadata = JSON.parse(fs.readFileSync(completedPath, 'utf-8')); } catch { /* ignore */ }
+      }
+
+      exitWithEnvelope(formatSuccess('agent last-run', {
+        runId: latestRun,
+        runDir,
+        reportPath: fs.existsSync(reportPath) ? reportPath : null,
+        result: metadata?.result ?? 'unknown',
+        verdict: null, // filled below if report exists
+        ...(fs.existsSync(reportPath) ? (() => {
+          try {
+            const report = JSON.parse(fs.readFileSync(reportPath, 'utf-8'));
+            return { verdict: report.verdict ?? null, summary: report.summary ?? null };
+          } catch { return {}; }
+        })() : {}),
+      }));
+    });
+
   // --- agent tail <slug> ---
   agent
     .command('tail <slug>')

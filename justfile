@@ -196,3 +196,11 @@ code-review-agent file_path: harness-require
 # Tail the code-review agent's live event stream
 code-review-agent-tail:
     just harness agent tail code-review
+
+# Show last run info for an agent (e.g., just agent-last-run code-review)
+agent-last-run slug:
+    just harness agent last-run {{slug}}
+
+# Print the report.json path from an agent's latest run (pipe-friendly)
+agent-report slug:
+    @just harness agent last-run {{slug}} 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); p=d.get('data',{}).get('reportPath'); print(p) if p else (print('No report found',file=sys.stderr),exit(1))"
