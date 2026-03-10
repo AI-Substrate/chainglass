@@ -54,42 +54,41 @@ export function NoteFileGroup({
   return (
     <div className="border-b last:border-b-0">
       {/* File header */}
-      <button
-        type="button"
-        onClick={() => setCollapsed((c) => !c)}
-        className="flex items-center w-full gap-2 px-3 py-2 text-sm hover:bg-accent/30"
-      >
-        {collapsed ? (
-          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-        ) : (
-          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-        )}
-
-        <span className="truncate flex-1 text-left font-mono text-xs">{filePath}</span>
-
-        {isDeleted && (
-          <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400">
-            Deleted
-          </span>
-        )}
-
-        <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
-          {totalNotes}
-        </span>
-
-        {/* Per-file delete */}
+      <div className="flex items-center w-full gap-2 px-3 py-2 text-sm hover:bg-accent/30">
         <button
           type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDeleteFile(filePath, totalNotes);
-          }}
+          onClick={() => setCollapsed((c) => !c)}
+          className="flex items-center gap-2 min-w-0 flex-1"
+        >
+          {collapsed ? (
+            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          ) : (
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          )}
+
+          <span className="truncate flex-1 text-left font-mono text-xs">{filePath}</span>
+
+          {isDeleted && (
+            <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400">
+              Deleted
+            </span>
+          )}
+
+          <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
+            {totalNotes}
+          </span>
+        </button>
+
+        {/* Per-file delete — separate button to avoid nesting */}
+        <button
+          type="button"
+          onClick={() => onDeleteFile(filePath, totalNotes)}
           className="shrink-0 rounded-sm p-0.5 text-muted-foreground hover:text-red-500 hover:bg-accent"
           title={`Delete all notes for ${filePath.split('/').pop()}`}
         >
           <Trash2 className="h-3 w-3" />
         </button>
-      </button>
+      </div>
 
       {/* Note cards */}
       {!collapsed && (
