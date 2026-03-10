@@ -28,7 +28,7 @@ import { fileBrowserParams } from '@/features/041-file-browser/params/file-brows
 import { fileBrowserContribution } from '@/features/041-file-browser/sdk/contribution';
 import type { FileEntry } from '@/features/041-file-browser/services/directory-listing';
 import { createFilePathHandler } from '@/features/041-file-browser/services/file-path-handler';
-import { FileChangeProvider, useFileChanges } from '@/features/045-live-file-events';
+import { useFileChanges } from '@/features/045-live-file-events';
 import {
   type BarContext,
   ExplorerPanel,
@@ -78,19 +78,15 @@ export function BrowserClient({
   initialEntries,
 }: BrowserClientProps) {
   return (
-    <FileChangeProvider worktreePath={worktreePath}>
-      {/* GlobalStateConnector disabled on browser page — its work-unit-state SSE
-         channel combined with file-changes SSE + terminal WS hits browser
-         per-origin connection limits, stalling client-side navigation.
-         Re-enable when SSE channels are multiplexed (single channel). */}
-      <BrowserClientInner
-        slug={slug}
-        worktreePath={worktreePath}
-        worktreeBranch={worktreeBranch}
-        isGit={isGit}
-        initialEntries={initialEntries}
-      />
-    </FileChangeProvider>
+    // FileChangeProvider is mounted in PRViewOverlayWrapper (layout.tsx)
+    // so both browser content and overlays share one SSE connection.
+    <BrowserClientInner
+      slug={slug}
+      worktreePath={worktreePath}
+      worktreeBranch={worktreeBranch}
+      isGit={isGit}
+      initialEntries={initialEntries}
+    />
   );
 }
 

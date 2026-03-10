@@ -135,12 +135,12 @@ export function usePRViewData(worktreePath: string | null): UsePRViewDataReturn 
   );
 
   // Re-fetch when mode changes
-  // biome-ignore lint/correctness/useExhaustiveDependencies: mode triggers re-fetch
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mode triggers re-fetch intentionally
   useEffect(() => {
-    if (worktreePath && data) {
+    if (worktreePath) {
       fetchData(true);
     }
-  }, [mode]);
+  }, [mode, worktreePath, fetchData]);
 
   // DYK-03: Mutate cached state directly on mark/unmark
   const updateFileInCache = useCallback(

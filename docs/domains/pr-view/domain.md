@@ -24,7 +24,6 @@ GitHub-style change review overlay showing all worktree changes with collapsible
 - Server actions: fetchPRViewData, markFileAsReviewed, unmarkFileAsReviewed, clearAllReviewedState
 
 ### Does NOT Own
-- SSE/live update integration (Phase 6)
 - File tree indicators (Phase 7)
 
 ## Contracts (Public Interface)
@@ -125,7 +124,6 @@ Primary: `apps/web/src/features/071-pr-view/`
 - Node.js `fs` — JSONL persistence
 
 ### Domains That Depend On This
-- (Phase 6) pr-view live updates — consumes aggregator for SSE refresh
 - (Phase 7) file-browser — reviewed-state indicators in file tree
 
 ## History

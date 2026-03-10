@@ -18,7 +18,7 @@
 import { GitBranch, GitPullRequest, Info } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { FileChangeProvider, useFileChanges } from '@/features/045-live-file-events';
+import { useFileChanges } from '@/features/045-live-file-events';
 import { usePRViewData } from '../hooks/use-pr-view-data';
 import { usePRViewOverlay } from '../hooks/use-pr-view-overlay';
 import { PRViewDiffArea } from './pr-view-diff-area';
@@ -194,11 +194,9 @@ export function PRViewOverlayPanel() {
       data-testid="pr-view-overlay-panel"
     >
       {/* DYK-02: Unmount children when closed to free DiffViewer memory.
-          FileChangeProvider mounts inside isOpen so SSE connects/disconnects with overlay. */}
+          FileChangeProvider is in PRViewOverlayWrapper (shared with browser). */}
       {isOpen && worktreePath && (
-        <FileChangeProvider worktreePath={worktreePath}>
-          <PRViewPanelContent worktreePath={worktreePath} closePRView={closePRView} />
-        </FileChangeProvider>
+        <PRViewPanelContent worktreePath={worktreePath} closePRView={closePRView} />
       )}
     </div>
   );

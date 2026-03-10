@@ -129,6 +129,7 @@ flowchart LR
     prView -->|"DiffViewer"| viewer
     prView -->|"overlay anchor"| panels
     prView -->|"registerPRViewSDK()"| sdk
+    prView -->|"FileChangeProvider<br/>useFileChanges"| events
 ```
 
 ## Legend
@@ -164,4 +165,4 @@ flowchart LR
 | terminal | _(none — leaf consumer)_ | — | PanelShell, LeftPanel, MainPanel, toast(), IUSDK, ICommandRegistry, workspaceHref | panel-layout, events, sdk, workspace-url | ✅ |
 | _platform/auth | auth(), signIn(), signOut(), requireAuth(), useAuth(), middleware protection, isUserAllowed(), SessionProvider | file-browser, workflow-ui, workunit-editor (via middleware), server actions (via requireAuth), file-notes | — | — | ✅ |
 | file-notes | INoteService, NoteLinkType, NoteFilter, FakeNoteService, JsonlNoteService, NotesOverlayPanel, NoteModal, NoteIndicatorDot, BulkDeleteDialog, useNotes, useNotesOverlay, registerFileNotesSDK, registerNotesCommands, GET/POST/PATCH/DELETE /api/file-notes | file-browser (future), CLI, pr-view (future) | requireAuth(), auth(), overlay anchor, workspaceHref(), toast(), registerFileNotesSDK | auth, panel-layout, workspace-url, events, sdk | 🟠 New |
-| pr-view | PRViewFile, PRViewData, ComparisonMode, PRViewFileState, PRViewOverlayProvider, usePRViewOverlay, usePRViewData, registerPRViewSDK, aggregatePRViewData, getAllDiffs, GET/POST/DELETE /api/pr-view | live updates (Phase 6), file-browser (Phase 7) | getWorkingChanges(), requireAuth(), auth(), DiffViewer, overlay anchor, registerPRViewSDK | file-browser, auth, viewer, panel-layout, sdk | 🟠 New |
+| pr-view | PRViewFile, PRViewData, ComparisonMode, PRViewFileState, PRViewOverlayProvider, usePRViewOverlay, usePRViewData, registerPRViewSDK, aggregatePRViewData, getAllDiffs, GET/POST/DELETE /api/pr-view | file-browser (Phase 7) | getWorkingChanges(), requireAuth(), auth(), DiffViewer, overlay anchor, registerPRViewSDK, FileChangeProvider, useFileChanges | file-browser, auth, viewer, panel-layout, sdk, events | 🟠 New |

@@ -7,12 +7,14 @@
  * - Dynamic import for panel (SSR: false — requires DOM for anchor measurement)
  * - Error boundary wraps panel only (not provider)
  * - Provider is pure context — safe to always mount
+ * - FileChangeProvider shared across browser + overlay (Phase 6 FT-005)
  *
- * Plan 071: PR View & File Notes — Phase 5, T008
+ * Plan 071: PR View & File Notes — Phase 5 T008, Phase 6 FT-005
  */
 
 import nextDynamic from 'next/dynamic';
 import { Component, type ReactNode } from 'react';
+import { FileChangeProvider } from '../../../../src/features/045-live-file-events';
 import { PRViewOverlayProvider } from '../../../../src/features/071-pr-view/hooks/use-pr-view-overlay';
 
 const PRViewOverlayPanel = nextDynamic(
@@ -49,10 +51,12 @@ interface PRViewOverlayWrapperProps {
 export function PRViewOverlayWrapper({ children, defaultWorktreePath }: PRViewOverlayWrapperProps) {
   return (
     <PRViewOverlayProvider defaultWorktreePath={defaultWorktreePath}>
-      {children}
-      <PRViewOverlayErrorBoundary>
-        <PRViewOverlayPanel />
-      </PRViewOverlayErrorBoundary>
+      <FileChangeProvider worktreePath={defaultWorktreePath ?? ''}>
+        {children}
+        <PRViewOverlayErrorBoundary>
+          <PRViewOverlayPanel />
+        </PRViewOverlayErrorBoundary>
+      </FileChangeProvider>
     </PRViewOverlayProvider>
   );
 }

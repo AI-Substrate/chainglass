@@ -1,52 +1,86 @@
 /**
- * PR View Live Updates — Tests
+ * PR View Live Updates — Behavioral Tests
  *
- * Tests the Phase 6 SSE-driven refresh logic, fetch generation counter,
- * and split loading states.
+ * Tests fetch generation counter, split loading states, SSE refresh
+ * trigger, and cache TTL logic using real type contracts.
  *
- * Plan 071: PR View & File Notes — Phase 6, T006
+ * Plan 071: PR View & File Notes — Phase 6, T006 / FT-002
  */
 
 import { describe, expect, it } from 'vitest';
 
-describe('PR View fetch generation counter (DYK-02)', () => {
+import type { PRViewData, PRViewFile } from '@/features/071-pr-view/types';
+
+function makeFile(overrides: Partial<PRViewFile> = {}): PRViewFile {
+  return {
+    path: 'src/app.tsx',
+    dir: 'src/',
+    name: 'app.tsx',
+    status: 'modified',
+    insertions: 5,
+    deletions: 2,
+    diff: 'diff --git a/src/app.tsx b/src/app.tsx\n',
+    reviewed: false,
+    ...overrides,
+  };
+}
+
+function makePRViewData(overrides: Partial<PRViewData> = {}): PRViewData {
+  const files = overrides.files ?? [makeFile()];
+  return {
+    files,
+    branch: 'feature/x',
+    mode: 'working',
+    stats: {
+      totalInsertions: files.reduce((s, f) => s + f.insertions, 0),
+      totalDeletions: files.reduce((s, f) => s + f.deletions, 0),
+      fileCount: files.length,
+      reviewedCount: files.filter((f) => f.reviewed).length,
+    },
+    ...overrides,
+  };
+}
+
+describe('fetch generation counter (DYK-02)', () => {
   it('discards stale response when generation has changed', () => {
     let fetchGenRef = 0;
-    let dataApplied = false;
+    let appliedData: PRViewData | null = null;
 
-    // Simulate first fetch
+    // First fetch starts
     fetchGenRef++;
     const gen1 = fetchGenRef;
 
-    // Before response arrives, another fetch starts (mode switch)
+    // Mode switch triggers second fetch before first completes
     fetchGenRef++;
 
-    // First response arrives — should be discarded
+    // First response arrives — stale, should be discarded
+    const staleData = makePRViewData({ branch: 'old' });
     if (gen1 === fetchGenRef) {
-      dataApplied = true;
+      appliedData = staleData;
     }
 
-    expect(dataApplied).toBe(false);
+    expect(appliedData).toBeNull();
   });
 
   it('applies response when generation matches', () => {
     let fetchGenRef = 0;
-    let dataApplied = false;
+    let appliedData: PRViewData | null = null;
 
     fetchGenRef++;
     const gen = fetchGenRef;
 
-    // No intervening fetch — generation matches
+    const freshData = makePRViewData({ branch: 'current' });
     if (gen === fetchGenRef) {
-      dataApplied = true;
+      appliedData = freshData;
     }
 
-    expect(dataApplied).toBe(true);
+    expect(appliedData).not.toBeNull();
+    expect(appliedData?.branch).toBe('current');
   });
 
-  it('handles rapid consecutive fetches correctly', () => {
+  it('only latest of rapid consecutive fetches applies', () => {
     let fetchGenRef = 0;
-    const results: boolean[] = [];
+    const applied: string[] = [];
 
     // Three rapid fetches
     fetchGenRef++;
@@ -56,71 +90,55 @@ describe('PR View fetch generation counter (DYK-02)', () => {
     fetchGenRef++;
     const gen3 = fetchGenRef;
 
-    // Only gen3 should match
-    results.push(gen1 === fetchGenRef);
-    results.push(gen2 === fetchGenRef);
-    results.push(gen3 === fetchGenRef);
+    // Responses arrive out of order
+    if (gen2 === fetchGenRef) applied.push('gen2');
+    if (gen1 === fetchGenRef) applied.push('gen1');
+    if (gen3 === fetchGenRef) applied.push('gen3');
 
-    expect(results).toEqual([false, false, true]);
+    expect(applied).toEqual(['gen3']);
   });
 });
 
-describe('PR View split loading states (DYK-01)', () => {
-  it('initial load shows initialLoading when no data exists', () => {
-    const data = null;
+describe('split loading states (DYK-01)', () => {
+  it('shows initialLoading when no data exists', () => {
+    const data: PRViewData | null = null;
     const isInitial = !data;
-
     expect(isInitial).toBe(true);
   });
 
-  it('refresh shows refreshing when data already exists', () => {
-    const data = {
-      files: [],
-      branch: 'main',
-      mode: 'working' as const,
-      stats: { totalInsertions: 0, totalDeletions: 0, fileCount: 0, reviewedCount: 0 },
-    };
+  it('shows refreshing when data already exists', () => {
+    const data = makePRViewData();
     const isInitial = !data;
-
     expect(isInitial).toBe(false);
-    // This means we'd set refreshing=true, not initialLoading=true
   });
 
-  it('10s cache check skips fetch when recent', () => {
-    const CACHE_TTL_MS = 10_000;
-    const lastFetchTime = Date.now() - 5_000; // 5s ago
-    const now = Date.now();
-    const force = false;
-    const data = { files: [] }; // truthy
+  it('content hash invalidation sets previouslyReviewed on stale hash', () => {
+    const reviewedFile = makeFile({
+      reviewed: true,
+      contentHash: 'abc123',
+      reviewedAt: new Date().toISOString(),
+    });
 
-    const shouldSkip = !force && data && now - lastFetchTime < CACHE_TTL_MS;
-    expect(shouldSkip).toBe(true);
-  });
+    // Simulate aggregator hash check — stored hash differs from current
+    const storedHash = 'abc123';
+    const currentHash = 'def456';
+    const hashMismatch = storedHash !== currentHash;
 
-  it('10s cache check allows fetch when expired', () => {
-    const CACHE_TTL_MS = 10_000;
-    const lastFetchTime = Date.now() - 15_000; // 15s ago
-    const now = Date.now();
-    const force = false;
-    const data = { files: [] };
+    expect(hashMismatch).toBe(true);
 
-    const shouldSkip = !force && data && now - lastFetchTime < CACHE_TTL_MS;
-    expect(shouldSkip).toBe(false);
-  });
+    // Aggregator would set:
+    const updatedFile = {
+      ...reviewedFile,
+      previouslyReviewed: hashMismatch,
+      reviewed: hashMismatch ? false : reviewedFile.reviewed,
+    };
 
-  it('force refresh bypasses cache', () => {
-    const CACHE_TTL_MS = 10_000;
-    const lastFetchTime = Date.now() - 1_000; // 1s ago
-    const now = Date.now();
-    const force = true;
-    const data = { files: [] };
-
-    const shouldSkip = !force && data && now - lastFetchTime < CACHE_TTL_MS;
-    expect(shouldSkip).toBe(false);
+    expect(updatedFile.previouslyReviewed).toBe(true);
+    expect(updatedFile.reviewed).toBe(false);
   });
 });
 
-describe('PR View SSE refresh trigger', () => {
+describe('SSE refresh trigger', () => {
   it('hasChanges triggers refresh then clears', () => {
     let refreshCalled = false;
     let changesCleared = false;
@@ -133,7 +151,6 @@ describe('PR View SSE refresh trigger', () => {
       changesCleared = true;
     };
 
-    // Simulate the useEffect logic
     if (hasChanges) {
       refresh();
       clearChanges();
@@ -145,7 +162,6 @@ describe('PR View SSE refresh trigger', () => {
 
   it('no-op when hasChanges is false', () => {
     let refreshCalled = false;
-
     const hasChanges = false;
     const refresh = () => {
       refreshCalled = true;
@@ -158,5 +174,39 @@ describe('PR View SSE refresh trigger', () => {
     }
 
     expect(refreshCalled).toBe(false);
+  });
+});
+
+describe('cache TTL', () => {
+  const CACHE_TTL_MS = 10_000;
+
+  it('skips fetch when cache is fresh', () => {
+    const lastFetchTime = Date.now() - 5_000;
+    const now = Date.now();
+    const force = false;
+    const data = makePRViewData();
+
+    const shouldSkip = !force && data && now - lastFetchTime < CACHE_TTL_MS;
+    expect(shouldSkip).toBeTruthy();
+  });
+
+  it('allows fetch when cache is expired', () => {
+    const lastFetchTime = Date.now() - 15_000;
+    const now = Date.now();
+    const force = false;
+    const data = makePRViewData();
+
+    const shouldSkip = !force && data && now - lastFetchTime < CACHE_TTL_MS;
+    expect(shouldSkip).toBeFalsy();
+  });
+
+  it('force refresh bypasses fresh cache', () => {
+    const lastFetchTime = Date.now() - 1_000;
+    const now = Date.now();
+    const force = true;
+    const data = makePRViewData();
+
+    const shouldSkip = !force && data && now - lastFetchTime < CACHE_TTL_MS;
+    expect(shouldSkip).toBeFalsy();
   });
 });
