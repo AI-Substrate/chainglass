@@ -100,3 +100,4 @@ Primary: `apps/web/src/features/_platform/themes/`
 | Plan 073 Phase 1 | Domain created: types, icon resolver (TDD), manifest loader | 2026-03-09 |
 | Plan 073 Phase 2 | Icon asset pipeline: generate-icon-assets.ts build script, SVGO optimization, real manifest.json, updated manifest-loader with fs-based loading | 2026-03-10 |
 | Plan 073 Phase 3 | FileIcon/FolderIcon React components, IconThemeProvider context, themes.iconTheme SDK setting, wired into app providers | 2026-03-10 |
+| Plan 073 Phase 5 | Contrast verified (0 issues), immutable cache headers for /icons/*, extending-icon-themes how-to guide, harness visual verification | 2026-03-10 |

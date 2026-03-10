@@ -25,6 +25,20 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  // Immutable cache headers for generated icon assets (Plan 073)
+  async headers() {
+    return [
+      {
+        source: '/icons/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, immutable, max-age=31536000',
+          },
+        ],
+      },
+    ];
+  },
   experimental: {
     // Raise server action body size limit for file uploads (default 1MB)
     serverActions: {
