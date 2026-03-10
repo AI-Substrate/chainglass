@@ -34,13 +34,7 @@ const nextConfig = {
     proxyClientMaxBodySize: '250mb',
   },
   // Enable Turbopack (default in Next.js 16)
-  turbopack: {
-    resolveAlias: {
-      // SDK 0.1.32 imports 'vscode-jsonrpc/node' without .js extension;
-      // Turbopack's strict ESM resolution requires the full path.
-      'vscode-jsonrpc/node': 'vscode-jsonrpc/node.js',
-    },
-  },
+  turbopack: {},
   // Allow cross-origin requests from local network during development
   allowedDevOrigins: ['192.168.1.*'],
   // Point to monorepo root for proper dependency tracing with pnpm
