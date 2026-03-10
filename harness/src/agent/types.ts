@@ -20,6 +20,8 @@ export interface AgentDefinition {
   schemaPath: string | null;
   /** Absolute path to instructions.md (optional) */
   instructionsPath: string | null;
+  /** Absolute path to input-schema.json (optional) */
+  inputSchemaPath: string | null;
 }
 
 /** Configuration for a single agent run. */
@@ -34,6 +36,8 @@ export interface AgentRunConfig {
   timeout?: number;
   /** Working directory for the agent (default: repo root) */
   cwd?: string;
+  /** Input parameters passed via CLI --param key=value */
+  params?: Record<string, string>;
 }
 
 /** Validation result from JSON Schema check. */

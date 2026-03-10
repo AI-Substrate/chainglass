@@ -2,7 +2,7 @@
  * Harness Integration Test: CDP Connection
  *
  * Full TDD — this test was written before Chromium was launched in the container.
- * Validates: CDP endpoint on :9222 responds, browser connects, page loads, screenshot captured.
+ * Validates: CDP endpoint responds, browser connects, page loads, screenshot captured.
  * Does NOT run in `just fft`.
  */
 
@@ -10,9 +10,11 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { chromium } from '@playwright/test';
 import { describe, expect, it } from 'vitest';
+import { computePorts } from '../../src/ports/allocator.js';
 
-const CDP_ENDPOINT = process.env.HARNESS_CDP_URL ?? 'http://localhost:9222';
-const APP_URL = process.env.HARNESS_APP_URL ?? 'http://localhost:3000';
+const ports = computePorts();
+const CDP_ENDPOINT = process.env.HARNESS_CDP_URL ?? `http://localhost:${ports.cdp}`;
+const APP_URL = process.env.HARNESS_APP_URL ?? `http://localhost:${ports.app}`;
 const RESULTS_DIR = join(import.meta.dirname, '../../results');
 
 describe('Harness: CDP Integration', () => {

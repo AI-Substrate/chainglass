@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Code Review Agent Input",
+  "description": "Input parameters for the code-review harness agent.",
+  "type": "object",
+  "required": ["file_path"],
+  "properties": {
+    "file_path": {
+      "type": "string",
+      "description": "Absolute path to the file or diff to review. Can be a single source file, a unified diff file, or a plan directory."
+    }
+  }
+}

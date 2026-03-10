@@ -252,6 +252,16 @@ This is operational, not aspirational. FX002 (`console-logs` + `screenshot-all` 
 
 See `harness/README.md` for the full philosophy and agent creation guide.
 
+#### Auto Code Review After Implementation
+
+After completing a `/plan-6-v2-implement-phase` run, **automatically trigger a code review** using the harness code-review agent:
+
+```bash
+just code-review-agent <path-to-plan-dir-or-changed-file>
+```
+
+This runs the `code-review` agent with GPT-5.4, xhigh reasoning, and a 20-minute timeout. Read the resulting report at the path shown in the output envelope. If the verdict is `REQUEST_CHANGES`, address the findings before committing.
+
 ```bash
 # Port allocation (unique per worktree)
 just harness ports          # Show this worktree's port allocation
@@ -278,9 +288,13 @@ just harness seed           # Create test workspace + worktrees
 # Agent Runner (Plan 070)
 just harness agent run <slug>              # Execute an agent definition
 just harness agent run <slug> --model gpt-5.4  # With model selection
+just harness agent run <slug> --param key=value  # Pass input parameters
 just harness agent list                    # List available agents
 just harness agent history <slug>          # Show past runs
 just harness agent validate <slug>         # Re-validate most recent output
+
+# Code Review Agent — auto-run after /plan-6-v2-implement-phase
+just code-review-agent <file_path>         # Shorthand for code-review with GPT-5.4 xhigh, 20min timeout
 
 # Standalone harness deps (first time only)
 just harness-install        # Install harness node_modules

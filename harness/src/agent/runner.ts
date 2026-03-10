@@ -22,7 +22,7 @@ import type {
   ValidationResult,
 } from './types.js';
 import { createRunFolder } from './folder.js';
-import { validateOutput } from './validator.js';
+import { validateOutput, validateInput } from './validator.js';
 
 /**
  * Execute an agent from its definition.
@@ -58,11 +58,51 @@ export async function runAgent(
     ? fs.readFileSync(definition.instructionsPath, 'utf-8')
     : null;
 
-  // Build full prompt (instructions + output path hint + prompt)
+  // Validate and format input parameters
+  let paramsHint: string | null = null;
+  if (definition.inputSchemaPath) {
+    const params = config.params ?? {};
+    const inputValidation = validateInput(definition.inputSchemaPath, params);
+    if (!inputValidation.valid) {
+      const errorMsg = `Input parameter validation failed:\n${inputValidation.errors.join('\n')}`;
+      return {
+        agentResult: {
+          output: errorMsg,
+          sessionId: '',
+          status: 'failed',
+          exitCode: 1,
+          tokens: null,
+        },
+        metadata: {
+          slug: definition.slug,
+          runId,
+          startedAt: startedAt.toISOString(),
+          completedAt: new Date().toISOString(),
+          durationMs: Date.now() - startedAt.getTime(),
+          sessionId: '',
+          result: 'failed',
+          exitCode: 1,
+          validated: null,
+          validationErrors: [],
+          eventCount: 0,
+          toolCallCount: 0,
+          artifacts: listArtifacts(runDir),
+        },
+        validation: null,
+        runDir,
+      };
+    }
+    if (Object.keys(params).length > 0) {
+      const lines = Object.entries(params).map(([k, v]) => `${k}: ${v}`);
+      paramsHint = `## Input Parameters\n\n${lines.join('\n')}`;
+    }
+  }
+
+  // Build full prompt (instructions + output path hint + params + prompt)
   const outputHint = definition.schemaPath
     ? `Write your final JSON report to: ${outputPath}`
     : null;
-  const fullPrompt = [instructions, outputHint, prompt]
+  const fullPrompt = [instructions, outputHint, paramsHint, prompt]
     .filter(Boolean)
     .join('\n\n---\n\n');
 

@@ -142,15 +142,42 @@ Agents live in `agents/<slug>/` with a declarative structure:
 agents/smoke-test/
 ├── prompt.md             # System prompt (injected before user input)
 ├── instructions.md       # Agent guidelines + CLI quick reference
+├── input-schema.json     # JSON Schema for input parameters (optional)
 ├── output-schema.json    # JSON Schema for validated output
 └── runs/                 # Timestamped run history
     └── 2026-03-09T12-56-54Z-6882/
         ├── events.ndjson       # Full event stream
         ├── instructions.md     # Snapshot of instructions used
         ├── prompt.md           # Snapshot of prompt used
+        ├── input-schema.json   # Snapshot of input schema used
         ├── output-schema.json  # Snapshot of schema used
         └── output/
             └── report.json     # Agent output (schema-validated)
+```
+
+### Input Parameters
+
+Agents can declare required input parameters via `input-schema.json` (JSON Schema Draft 2020-12). The runner validates parameters before execution and injects them into the prompt as an `## Input Parameters` section.
+
+Pass parameters via the CLI with repeatable `--param` flags:
+
+```bash
+just harness agent run code-review --param file_path=/abs/path/to/file.ts
+```
+
+Example `input-schema.json`:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["file_path"],
+  "properties": {
+    "file_path": {
+      "type": "string",
+      "description": "Absolute path to the file to review"
+    }
+  }
+}
 ```
 
 ### Available Agents
@@ -159,6 +186,7 @@ agents/smoke-test/
 |-------|---------|
 | `smoke-test` | Health check → 3-viewport screenshots → console log audit → server log review → retrospective |
 | `mobile-ux-audit` | Mobile UX quality assessment across viewports |
+| `code-review` | Read-only code review: correctness, domain compliance, reinvention check, live validation |
 
 ### Creating a New Agent
 
@@ -169,7 +197,10 @@ agents/smoke-test/
 3. Add `instructions.md` — agent identity, guidelines, CLI quick reference
    - **MUST** include: "This is dogfooding — your experience improves the harness for everyone"
    - Include good vs bad retrospective examples
-4. Add `output-schema.json` — JSON Schema (Draft 2020-12) for the expected output
+4. Add `input-schema.json` (optional) — JSON Schema for input parameters the agent requires
+   - Parameters are validated before execution and injected into the prompt
+   - Pass at runtime with `--param key=value`
+5. Add `output-schema.json` — JSON Schema (Draft 2020-12) for the expected output
    - **MUST** include `retrospective` object with `magicWand` as a **required** field
    - Copy the retrospective schema from `agents/smoke-test/output-schema.json`
 5. Run: `just harness agent run <your-slug>`
