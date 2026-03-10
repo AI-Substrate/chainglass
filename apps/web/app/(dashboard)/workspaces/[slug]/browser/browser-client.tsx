@@ -158,7 +158,8 @@ function BrowserClientInner({
   // Phase 7 T003: Note file paths for tree indicators (DYK-01, DYK-02)
   const { openModal } = useNotesOverlay();
   const [noteFilePaths, setNoteFilePaths] = useState<Set<string>>(new Set());
-  const refreshNoteFiles = useCallback(async () => {
+  const refreshNoteFilesRef = useRef<(() => Promise<void>) | undefined>(undefined);
+  refreshNoteFilesRef.current = useCallback(async () => {
     const result = await fetchFilesWithNotes(worktreePath);
     if (result.ok) {
       setNoteFilePaths(new Set(result.data));
@@ -166,16 +167,14 @@ function BrowserClientInner({
   }, [worktreePath]);
 
   // Fetch note file paths on mount
-  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only — fetch once on initial render
   useEffect(() => {
-    refreshNoteFiles();
+    refreshNoteFilesRef.current?.();
   }, []);
 
   // DYK-02: Listen for notes:changed to refresh immediately after CRUD
-  // biome-ignore lint/correctness/useExhaustiveDependencies: ref-stable — refreshNoteFiles is memoized on worktreePath
   useEffect(() => {
     const handler = () => {
-      refreshNoteFiles();
+      refreshNoteFilesRef.current?.();
     };
     window.addEventListener('notes:changed', handler);
     return () => window.removeEventListener('notes:changed', handler);

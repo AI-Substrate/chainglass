@@ -59,8 +59,8 @@ export function NotesOverlayPanel() {
   const [bulkDeleteCount, setBulkDeleteCount] = useState(0);
 
   useEffect(() => {
-    if (isOpen) setHasOpened(true);
-  }, [isOpen]);
+    if (isOpen || isModalOpen) setHasOpened(true);
+  }, [isOpen, isModalOpen]);
 
   // Phase 7 T006: Fetch deleted file status when notes are grouped (DYK-05)
   useEffect(() => {

@@ -48,7 +48,8 @@ function PRViewPanelContent({
 
   // Phase 7 T005: Cross-domain noteFilePaths for indicator dots (DYK-04)
   const [noteFilePaths, setNoteFilePaths] = useState<Set<string>>(new Set());
-  const fetchNoteFiles = useCallback(async () => {
+  const fetchNoteFilesRef = useRef<(() => Promise<void>) | undefined>(undefined);
+  fetchNoteFilesRef.current = useCallback(async () => {
     const result = await fetchFilesWithNotes(worktreePath);
     if (result.ok) {
       setNoteFilePaths(new Set(result.data));
@@ -56,10 +57,9 @@ function PRViewPanelContent({
   }, [worktreePath]);
 
   // Fetch data on mount
-  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only — fetch once when panel opens
   useEffect(() => {
     refreshRef.current();
-    fetchNoteFiles();
+    fetchNoteFilesRef.current?.();
   }, []);
 
   // Phase 6 T004: SSE-driven auto-refresh
@@ -72,10 +72,9 @@ function PRViewPanelContent({
   }, [hasChanges, clearChanges]);
 
   // Phase 7 DYK-02: Refresh note indicators when notes change
-  // biome-ignore lint/correctness/useExhaustiveDependencies: ref-stable — fetchNoteFiles is memoized on worktreePath
   useEffect(() => {
     const handler = () => {
-      fetchNoteFiles();
+      fetchNoteFilesRef.current?.();
     };
     window.addEventListener('notes:changed', handler);
     return () => window.removeEventListener('notes:changed', handler);
