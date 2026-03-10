@@ -5,9 +5,14 @@
  *
  * Fetches PRViewData from server action, caches for 10s, provides
  * mark/unmark/clear actions with optimistic cache mutation (DYK-03),
- * and manages collapsed/expanded state for diff sections.
+ * manages collapsed/expanded state for diff sections, and supports
+ * Working/Branch mode switching (Phase 6).
  *
- * Plan 071: PR View & File Notes — Phase 5, T002
+ * DYK-01 (Phase 6): Split loading into initialLoading + refreshing
+ * DYK-02 (Phase 6): Fetch generation counter prevents stale response race
+ * DYK-05 (Phase 6): Reset collapsed state on mode switch
+ *
+ * Plan 071: PR View & File Notes — Phase 5 T002, Phase 6 T001
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -16,7 +21,10 @@ import type { ComparisonMode, PRViewData, PRViewFile } from '../types';
 
 interface UsePRViewDataReturn {
   data: PRViewData | null;
-  loading: boolean;
+  /** True only on first fetch (no existing data). Shows full-screen loader. */
+  initialLoading: boolean;
+  /** True on background refresh (has existing data). Shows subtle indicator. */
+  refreshing: boolean;
   error: string | null;
   refresh: () => void;
   /** Mark a file as reviewed — optimistic update + server action */
@@ -37,19 +45,24 @@ interface UsePRViewDataReturn {
   collapseAll: () => void;
   /** Active comparison mode */
   mode: ComparisonMode;
+  /** Switch comparison mode — force-refreshes data */
+  switchMode: (newMode: ComparisonMode) => void;
 }
 
 const CACHE_TTL_MS = 10_000;
 
 export function usePRViewData(worktreePath: string | null): UsePRViewDataReturn {
   const [data, setData] = useState<PRViewData | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set());
-  const [mode] = useState<ComparisonMode>('working');
+  const [mode, setMode] = useState<ComparisonMode>('working');
 
   const lastFetchTime = useRef(0);
   const isMounted = useRef(true);
+  // DYK-02 (Phase 6): Generation counter prevents stale fetch race conditions
+  const fetchGenRef = useRef(0);
 
   useEffect(() => {
     isMounted.current = true;
@@ -66,13 +79,25 @@ export function usePRViewData(worktreePath: string | null): UsePRViewDataReturn 
       const now = Date.now();
       if (!force && data && now - lastFetchTime.current < CACHE_TTL_MS) return;
 
-      setLoading(true);
+      // DYK-01 (Phase 6): Split loading — initial vs refresh
+      const isInitial = !data;
+      if (isInitial) {
+        setInitialLoading(true);
+      } else {
+        setRefreshing(true);
+      }
       setError(null);
+
+      // DYK-02: Capture generation before async work
+      fetchGenRef.current++;
+      const gen = fetchGenRef.current;
 
       try {
         const { fetchPRViewData } = await import('../../../../app/actions/pr-view-actions');
         const result = await fetchPRViewData(worktreePath, mode);
         if (!isMounted.current) return;
+        // DYK-02: Discard stale response if generation changed
+        if (gen !== fetchGenRef.current) return;
 
         if (result.ok) {
           setData(result.data);
@@ -82,9 +107,13 @@ export function usePRViewData(worktreePath: string | null): UsePRViewDataReturn 
         }
       } catch (err) {
         if (!isMounted.current) return;
+        if (gen !== fetchGenRef.current) return;
         setError(`Failed to fetch PR View data: ${err}`);
       } finally {
-        if (isMounted.current) setLoading(false);
+        if (isMounted.current && gen === fetchGenRef.current) {
+          setInitialLoading(false);
+          setRefreshing(false);
+        }
       }
     },
     [worktreePath, mode, data]
@@ -93,6 +122,25 @@ export function usePRViewData(worktreePath: string | null): UsePRViewDataReturn 
   const refresh = useCallback(() => {
     fetchData(true);
   }, [fetchData]);
+
+  // DYK-05 (Phase 6): switchMode resets collapsed + force-refreshes
+  const switchMode = useCallback(
+    (newMode: ComparisonMode) => {
+      if (newMode === mode) return;
+      setMode(newMode);
+      setCollapsedFiles(new Set());
+      lastFetchTime.current = 0; // Invalidate cache
+    },
+    [mode]
+  );
+
+  // Re-fetch when mode changes
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mode triggers re-fetch
+  useEffect(() => {
+    if (worktreePath && data) {
+      fetchData(true);
+    }
+  }, [mode]);
 
   // DYK-03: Mutate cached state directly on mark/unmark
   const updateFileInCache = useCallback(
@@ -113,16 +161,13 @@ export function usePRViewData(worktreePath: string | null): UsePRViewDataReturn 
 
   const markReviewed = useCallback(
     (filePath: string) => {
-      // Optimistic update
       updateFileInCache(filePath, (f) => ({
         ...f,
         reviewed: true,
         previouslyReviewed: false,
         reviewedAt: new Date().toISOString(),
       }));
-      // Collapse on review
       setCollapsedFiles((prev) => new Set([...prev, filePath]));
-      // Fire server action (no await — fire-and-forget with error logging)
       if (worktreePath) {
         import('../../../../app/actions/pr-view-actions')
           .then(({ markFileAsReviewed }) => markFileAsReviewed(worktreePath, filePath))
@@ -143,7 +188,6 @@ export function usePRViewData(worktreePath: string | null): UsePRViewDataReturn 
         previouslyReviewed: false,
         reviewedAt: undefined,
       }));
-      // Expand on unmark
       setCollapsedFiles((prev) => {
         const next = new Set(prev);
         next.delete(filePath);
@@ -199,7 +243,6 @@ export function usePRViewData(worktreePath: string | null): UsePRViewDataReturn 
     }
   }, [worktreePath]);
 
-  // Collapsed state management
   const toggleCollapsed = useCallback((filePath: string) => {
     setCollapsedFiles((prev) => {
       const next = new Set(prev);
@@ -223,7 +266,8 @@ export function usePRViewData(worktreePath: string | null): UsePRViewDataReturn 
 
   return {
     data,
-    loading,
+    initialLoading,
+    refreshing,
     error,
     refresh,
     markReviewed,
@@ -235,5 +279,6 @@ export function usePRViewData(worktreePath: string | null): UsePRViewDataReturn 
     expandAll,
     collapseAll,
     mode,
+    switchMode,
   };
 }

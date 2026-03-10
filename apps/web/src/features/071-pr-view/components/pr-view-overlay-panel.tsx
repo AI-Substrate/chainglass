@@ -8,48 +8,132 @@
  * - Escape key close
  * - hasOpened lazy guard (no DOM until first open)
  * - z-index 44 (same as terminal/activity-log/notes)
- * - DYK-02: Unmounts children when closed ({isOpen && ...}) to free DiffViewer memory
+ * - DYK-02 (Phase 5): Unmounts children when closed to free DiffViewer memory
+ * - Phase 6: FileChangeProvider + useFileChanges for SSE-driven auto-refresh
+ * - Phase 6: Split loading (initialLoading vs refreshing)
  *
- * Plan 071: PR View & File Notes — Phase 5, T003
+ * Plan 071: PR View & File Notes — Phase 5 T003, Phase 6 T003/T004
  */
 
-import { GitPullRequest } from 'lucide-react';
+import { GitBranch, GitPullRequest, Info } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { FileChangeProvider, useFileChanges } from '@/features/045-live-file-events';
 import { usePRViewData } from '../hooks/use-pr-view-data';
 import { usePRViewOverlay } from '../hooks/use-pr-view-overlay';
 import { PRViewDiffArea } from './pr-view-diff-area';
 import { PRViewFileList } from './pr-view-file-list';
 import { PRViewHeader } from './pr-view-header';
 
-export function PRViewOverlayPanel() {
-  const { isOpen, worktreePath, closePRView } = usePRViewOverlay();
-
+/**
+ * Inner content that lives inside FileChangeProvider scope.
+ * Separated so useFileChanges can access the provider context.
+ */
+function PRViewPanelContent({
+  worktreePath,
+  closePRView,
+}: {
+  worktreePath: string;
+  closePRView: () => void;
+}) {
   const prViewData = usePRViewData(worktreePath);
-  const { data, loading, error } = prViewData;
+  const { data, initialLoading, refreshing, error } = prViewData;
   const refreshRef = useRef(prViewData.refresh);
   refreshRef.current = prViewData.refresh;
+
+  // Active file in diff area (scroll sync)
+  const [activeFile, setActiveFile] = useState<string | null>(null);
+  const scrollToFileRef = useRef<((path: string) => void) | undefined>(undefined);
+
+  // Fetch data on mount
+  useEffect(() => {
+    refreshRef.current();
+  }, []);
+
+  // Phase 6 T004: SSE-driven auto-refresh
+  const { hasChanges, clearChanges } = useFileChanges('*', { debounce: 300 });
+  useEffect(() => {
+    if (hasChanges) {
+      refreshRef.current();
+      clearChanges();
+    }
+  }, [hasChanges, clearChanges]);
+
+  const handleFileClick = useCallback((filePath: string) => {
+    scrollToFileRef.current?.(filePath);
+  }, []);
+
+  // DYK-03 (Phase 6): Detect "on default branch" for info message
+  const isOnDefaultBranch =
+    data && data.mode === 'branch' && data.files.length === 0 && !error && !initialLoading;
+
+  return (
+    <>
+      <PRViewHeader
+        data={data}
+        refreshing={refreshing}
+        mode={prViewData.mode}
+        onClose={closePRView}
+        onRefresh={prViewData.refresh}
+        onExpandAll={prViewData.expandAll}
+        onCollapseAll={prViewData.collapseAll}
+        onSwitchMode={prViewData.switchMode}
+      />
+
+      {initialLoading ? (
+        <div className="flex items-center justify-center flex-1 text-muted-foreground text-sm">
+          Loading changes...
+        </div>
+      ) : error ? (
+        <div className="flex items-center justify-center flex-1 text-red-500 text-sm px-4 text-center">
+          {error}
+        </div>
+      ) : isOnDefaultBranch ? (
+        <div className="flex flex-col items-center justify-center flex-1 text-muted-foreground text-sm gap-2 px-8 text-center">
+          <Info className="h-8 w-8 opacity-30" />
+          <span>You're on the default branch</span>
+          <span className="text-xs">
+            Branch mode shows changes between your feature branch and main. Switch to a feature
+            branch or use Working mode to see uncommitted changes.
+          </span>
+        </div>
+      ) : !data || data.files.length === 0 ? (
+        <div className="flex flex-col items-center justify-center flex-1 text-muted-foreground text-sm gap-2">
+          <GitPullRequest className="h-8 w-8 opacity-30" />
+          <span>No changes detected</span>
+        </div>
+      ) : (
+        <div className="flex flex-1 overflow-hidden min-h-0">
+          <PRViewFileList
+            files={data.files}
+            activeFile={activeFile}
+            onFileClick={handleFileClick}
+            onToggleReviewed={prViewData.toggleReviewed}
+          />
+          <PRViewDiffArea
+            files={data.files}
+            collapsedFiles={prViewData.collapsedFiles}
+            onToggleCollapsed={prViewData.toggleCollapsed}
+            onToggleReviewed={prViewData.toggleReviewed}
+            onActiveFileChange={setActiveFile}
+            scrollToFileRef={scrollToFileRef}
+          />
+        </div>
+      )}
+    </>
+  );
+}
+
+export function PRViewOverlayPanel() {
+  const { isOpen, worktreePath, closePRView } = usePRViewOverlay();
 
   const panelRef = useRef<HTMLDivElement>(null);
   const [anchorRect, setAnchorRect] = useState({ top: 0, left: 0, width: 0, height: 0 });
   const [hasOpened, setHasOpened] = useState(false);
 
-  // Active file in diff area (scroll sync)
-  const [activeFile, setActiveFile] = useState<string | null>(null);
-
-  // Ref for scrollToFile from file list
-  const scrollToFileRef = useRef<((path: string) => void) | undefined>(undefined);
-
   useEffect(() => {
     if (isOpen) setHasOpened(true);
   }, [isOpen]);
-
-  // Fetch data on open
-  useEffect(() => {
-    if (isOpen && worktreePath) {
-      refreshRef.current();
-    }
-  }, [isOpen, worktreePath]);
 
   // Measure anchor element
   const measureRef = useRef<(() => void) | undefined>(undefined);
@@ -93,10 +177,6 @@ export function PRViewOverlayPanel() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, closePRView]);
 
-  const handleFileClick = useCallback((filePath: string) => {
-    scrollToFileRef.current?.(filePath);
-  }, []);
-
   if (!hasOpened) return null;
 
   return (
@@ -113,51 +193,12 @@ export function PRViewOverlayPanel() {
       }}
       data-testid="pr-view-overlay-panel"
     >
-      {/* DYK-02: Unmount children when closed to free DiffViewer memory */}
-      {isOpen && (
-        <>
-          <PRViewHeader
-            data={data}
-            loading={loading}
-            mode={prViewData.mode}
-            onClose={closePRView}
-            onRefresh={prViewData.refresh}
-            onExpandAll={prViewData.expandAll}
-            onCollapseAll={prViewData.collapseAll}
-          />
-
-          {loading && !data ? (
-            <div className="flex items-center justify-center flex-1 text-muted-foreground text-sm">
-              Loading changes...
-            </div>
-          ) : error ? (
-            <div className="flex items-center justify-center flex-1 text-red-500 text-sm px-4 text-center">
-              {error}
-            </div>
-          ) : !data || data.files.length === 0 ? (
-            <div className="flex flex-col items-center justify-center flex-1 text-muted-foreground text-sm gap-2">
-              <GitPullRequest className="h-8 w-8 opacity-30" />
-              <span>No changes detected</span>
-            </div>
-          ) : (
-            <div className="flex flex-1 overflow-hidden min-h-0">
-              <PRViewFileList
-                files={data.files}
-                activeFile={activeFile}
-                onFileClick={handleFileClick}
-                onToggleReviewed={prViewData.toggleReviewed}
-              />
-              <PRViewDiffArea
-                files={data.files}
-                collapsedFiles={prViewData.collapsedFiles}
-                onToggleCollapsed={prViewData.toggleCollapsed}
-                onToggleReviewed={prViewData.toggleReviewed}
-                onActiveFileChange={setActiveFile}
-                scrollToFileRef={scrollToFileRef}
-              />
-            </div>
-          )}
-        </>
+      {/* DYK-02: Unmount children when closed to free DiffViewer memory.
+          FileChangeProvider mounts inside isOpen so SSE connects/disconnects with overlay. */}
+      {isOpen && worktreePath && (
+        <FileChangeProvider worktreePath={worktreePath}>
+          <PRViewPanelContent worktreePath={worktreePath} closePRView={closePRView} />
+        </FileChangeProvider>
       )}
     </div>
   );

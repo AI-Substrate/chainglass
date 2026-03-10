@@ -45,7 +45,8 @@ GitHub-style change review overlay showing all worktree changes with collapsible
 | `getPerFileDiffStats` | Function | Aggregator | git diff --numstat parser |
 | `PRViewOverlayProvider` | Component | Layout wrapper | Context provider for overlay state |
 | `usePRViewOverlay` | Hook | Components | Access overlay open/close/toggle |
-| `usePRViewData` | Hook | Overlay panel | Fetch + cache PRViewData, mark/unmark, collapsed state |
+| `switchMode` | Function | Overlay header | Switch between Working and Branch comparison modes |
+| `usePRViewData` | Hook | Overlay panel | Fetch + cache PRViewData, mark/unmark, collapsed state, mode switching, SSE refresh |
 | `registerPRViewSDK` | Function | SDK registrations | Registers toggle command + keybinding |
 
 ## Concepts
@@ -58,7 +59,8 @@ GitHub-style change review overlay showing all worktree changes with collapsible
 | Branch comparison | `getMergeBase()` + `getChangedFilesBranch()` + `getAllDiffs(cwd, base)` | Determines merge-base SHA and fetches branch-scope diffs |
 | Working comparison | `getWorkingChanges()` + `getAllDiffs(cwd)` | Fetches all uncommitted changes via git status + git diff HEAD |
 | Toggle PR View overlay | `usePRViewOverlay().togglePRView()`, sidebar button, Ctrl+Shift+R | Opens/closes overlay with mutual exclusion via overlay:close-all |
-| View changed files | `usePRViewData(worktreePath)` | Fetches PRViewData, provides optimistic mark/unmark, collapsed state, 10s cache |
+| Switch comparison mode | `usePRViewData().switchMode('branch')` | Switches between Working (uncommitted vs HEAD) and Branch (feature vs main), resets collapsed state, invalidates cache, force-refreshes |
+| Live file updates | `useFileChanges('*')` inside FileChangeProvider | SSE-driven auto-refresh — file changes trigger re-fetch with content hash invalidation |
 
 ## Composition (Internal)
 
@@ -119,7 +121,7 @@ Primary: `apps/web/src/features/071-pr-view/`
 - `_platform/viewer` — `DiffViewer` component for rendering per-file diffs (Phase 5)
 - `_platform/panel-layout` — `[data-terminal-overlay-anchor]` for overlay positioning (Phase 5)
 - `_platform/sdk` — `IUSDK`, `SDKContribution` for command registration (Phase 5)
-- Node.js `child_process` — git commands (execFile, not execSync)
+- `_platform/events` — `FileChangeProvider`, `useFileChanges` for SSE-driven live updates (Phase 6)
 - Node.js `fs` — JSONL persistence
 
 ### Domains That Depend On This
@@ -132,3 +134,4 @@ Primary: `apps/web/src/features/071-pr-view/`
 |------|-------------|------|
 | 071 Phase 4 | Domain created. Types, content hash, reviewed state JSONL, git branch service, per-file diff stats, all-diffs fetcher, diff aggregator, server actions, API route. | 2026-03-09 |
 | 071 Phase 5 | Overlay UI. Provider, data hook, panel, header, file list, diff sections, diff area with scroll sync, SDK command, sidebar button, layout wrapper. | 2026-03-10 |
+| 071 Phase 6 | Live updates + branch mode. Mode toggle, switchMode, split loading, fetch generation counter, FileChangeProvider SSE subscription, smart refresh, "on default branch" message. Fixed pre-existing Biome errors. | 2026-03-10 |

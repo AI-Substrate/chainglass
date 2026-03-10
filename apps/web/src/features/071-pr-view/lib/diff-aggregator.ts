@@ -9,8 +9,8 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import type { ChangedFile } from '@/features/041-file-browser';
-import { getWorkingChanges } from '@/features/041-file-browser';
+import type { ChangedFile } from '@/features/041-file-browser/services/working-changes';
+import { getWorkingChanges } from '@/features/041-file-browser/services/working-changes';
 import type {
   BranchChangedFile,
   ComparisonMode,

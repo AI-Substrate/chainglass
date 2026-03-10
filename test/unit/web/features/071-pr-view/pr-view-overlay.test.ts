@@ -146,11 +146,7 @@ describe('usePRViewData logic', () => {
   });
 
   it('collapseAll adds all file paths to collapsed set', () => {
-    const files = [
-      { path: 'a.ts' },
-      { path: 'b.ts' },
-      { path: 'c.ts' },
-    ];
+    const files = [{ path: 'a.ts' }, { path: 'b.ts' }, { path: 'c.ts' }];
 
     const collapseAll = () => new Set(files.map((f) => f.path));
 
@@ -171,9 +167,7 @@ describe('usePRViewData logic', () => {
     };
 
     // Simulate updateFileInCache for marking a.ts reviewed
-    const newFiles = data.files.map((f) =>
-      f.path === 'a.ts' ? { ...f, reviewed: true } : f
-    );
+    const newFiles = data.files.map((f) => (f.path === 'a.ts' ? { ...f, reviewed: true } : f));
     const reviewedCount = newFiles.filter((f) => f.reviewed).length;
 
     expect(reviewedCount).toBe(2);

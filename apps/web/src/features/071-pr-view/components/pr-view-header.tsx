@@ -15,22 +15,24 @@ import type { ComparisonMode, PRViewData } from '../types';
 
 interface PRViewHeaderProps {
   data: PRViewData | null;
-  loading: boolean;
+  refreshing: boolean;
   mode: ComparisonMode;
   onClose: () => void;
   onRefresh: () => void;
   onExpandAll: () => void;
   onCollapseAll: () => void;
+  onSwitchMode: (mode: ComparisonMode) => void;
 }
 
 export function PRViewHeader({
   data,
-  loading,
+  refreshing,
   mode,
   onClose,
   onRefresh,
   onExpandAll,
   onCollapseAll,
+  onSwitchMode,
 }: PRViewHeaderProps) {
   const branch = data?.branch ?? '...';
   const stats = data?.stats;
@@ -46,15 +48,22 @@ export function PRViewHeader({
         <div className="flex items-center gap-2 min-w-0">
           <GitPullRequest className="h-4 w-4 shrink-0 text-muted-foreground" />
           <span className="text-sm font-medium truncate">PR View: {branch}</span>
-          {/* Phase 6 placeholder: Working/Branch mode toggle */}
+          {/* Working/Branch mode toggle (Phase 6) */}
           <div className="inline-flex rounded border text-[10px] overflow-hidden shrink-0">
-            <span className="px-2 py-0.5 bg-accent text-foreground">Working</span>
-            <span
-              className="px-2 py-0.5 text-muted-foreground opacity-60 cursor-not-allowed"
-              title="Branch mode — coming in Phase 6"
+            <button
+              type="button"
+              onClick={() => onSwitchMode('working')}
+              className={`px-2 py-0.5 ${mode === 'working' ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent/50'}`}
+            >
+              Working
+            </button>
+            <button
+              type="button"
+              onClick={() => onSwitchMode('branch')}
+              className={`px-2 py-0.5 ${mode === 'branch' ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent/50'}`}
             >
               Branch
-            </span>
+            </button>
           </div>
         </div>
         <div className="flex items-center gap-1 shrink-0">
@@ -64,7 +73,7 @@ export function PRViewHeader({
             className="rounded-sm p-1 text-muted-foreground hover:text-foreground hover:bg-accent"
             title="Refresh"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
           </button>
           <button
             type="button"

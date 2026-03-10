@@ -112,7 +112,6 @@ function BrowserClientInner({
   const [localNewPaths, setLocalNewPaths] = useState<Set<string>>(new Set());
 
   // FT-003: Re-sync root state when worktree changes (e.g. ?worktree= switch)
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — reset on worktree or entries change
   useEffect(() => {
     setRootEntries(initialEntries);
     setLocalNewPaths(new Set());
