@@ -266,6 +266,9 @@ function main(): void {
 
   // Inject Chainglass plan artifact mappings (custom fileNames + folderNames)
   // These give first-class icon treatment to plan documents in docs/plans/
+  // Note: fileExtensions uses compound dot-separated suffixes (e.g., "spec.md"
+  // matches "foo.spec.md" but NOT "foo-spec.md"). For hyphenated names, use
+  // fileNames for exact matches or add a suffix-scanning step.
   const customFileNames: Record<string, string> = {
     'tasks.md': 'todo',
     'tasks.fltplan.md': 'rocket',
@@ -275,6 +278,7 @@ function main(): void {
     'spec.md': 'document',
     'plan.md': 'roadmap',
     'fltplan.md': 'rocket',
+    'log.md': 'log',
   };
   const customFolderNames: Record<string, string> = {
     plans: 'folder-project',

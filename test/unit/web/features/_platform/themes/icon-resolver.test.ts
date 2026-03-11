@@ -160,6 +160,22 @@ describe('resolveFileIcon', () => {
       expect(result.iconName).toBeDefined();
       expect(result.source).not.toBe('default');
     });
+
+    it('resolves hyphen-suffixed filenames via extension candidates', () => {
+      // Inject custom extensions for plan artifacts (simulating what generate-icon-assets does)
+      const customManifest = {
+        ...manifest,
+        fileExtensions: { ...manifest.fileExtensions, 'spec.md': 'document', 'plan.md': 'roadmap' },
+      };
+      // file-icons-spec.md → candidates include "spec.md" via hyphen-suffix scanning
+      const specResult = resolveFileIcon('file-icons-spec.md', customManifest);
+      expect(specResult.iconName).toBe('document');
+      expect(specResult.source).toBe('fileExtension');
+
+      const planResult = resolveFileIcon('file-icons-plan.md', customManifest);
+      expect(planResult.iconName).toBe('roadmap');
+      expect(planResult.source).toBe('fileExtension');
+    });
   });
 
   describe('languageIds lookup via detectLanguage() bridge', () => {

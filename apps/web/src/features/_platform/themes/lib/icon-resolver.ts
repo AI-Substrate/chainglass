@@ -67,24 +67,62 @@ function toResolution(
  * e.g., "index.d.ts" → ["d.ts", "ts"]
  *        ".env" → ["env"]
  *        "app.spec.tsx" → ["spec.tsx", "tsx"]
+ *
+ * Also generates hyphen-suffix candidates for files like "file-icons-spec.md"
+ * → ["icons-spec.md", "spec.md", "md"] so that custom extensions like "spec.md"
+ * match even when the compound suffix is hyphen-separated rather than dot-separated.
  */
 function getExtensionCandidates(lowerFilename: string): string[] {
-  const candidates: string[] = [];
   const basename = lowerFilename.includes('/')
     ? lowerFilename.slice(lowerFilename.lastIndexOf('/') + 1)
     : lowerFilename;
 
+  // Collect all dot-based suffix candidates with their start positions
+  const dotCandidates: { suffix: string; pos: number }[] = [];
   let idx = 0;
   while (idx < basename.length) {
     const dotPos = basename.indexOf('.', idx);
     if (dotPos === -1) break;
     const suffix = basename.slice(dotPos + 1);
     if (suffix.length > 0) {
-      candidates.push(suffix);
+      dotCandidates.push({ suffix, pos: dotPos });
     }
     idx = dotPos + 1;
   }
-  return candidates;
+
+  // Generate hyphen-suffix candidates: for "file-icons-spec.md",
+  // produce "icons-spec.md" and "spec.md" by scanning hyphens in the stem.
+  const firstDot = basename.indexOf('.');
+  const hyphenCandidates: string[] = [];
+  if (firstDot > 0) {
+    const stem = basename.slice(0, firstDot);
+    const ext = basename.slice(firstDot + 1);
+    let hIdx = 0;
+    while (hIdx < stem.length) {
+      const hyphenPos = stem.indexOf('-', hIdx);
+      if (hyphenPos === -1) break;
+      hyphenCandidates.push(`${stem.slice(hyphenPos + 1)}.${ext}`);
+      hIdx = hyphenPos + 1;
+    }
+  }
+
+  // Merge: interleave so longer candidates come first.
+  // dot candidates are already longest-first; insert hyphen candidates
+  // by length to maintain longest-match priority.
+  const all = [...dotCandidates.map((d) => d.suffix), ...hyphenCandidates];
+
+  // Deduplicate while preserving longest-first order
+  const seen = new Set<string>();
+  const result: string[] = [];
+  // Sort by length descending for longest-match priority
+  all.sort((a, b) => b.length - a.length);
+  for (const c of all) {
+    if (!seen.has(c)) {
+      seen.add(c);
+      result.push(c);
+    }
+  }
+  return result;
 }
 
 /**
