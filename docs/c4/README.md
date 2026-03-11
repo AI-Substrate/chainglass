@@ -32,6 +32,7 @@ Start at L1 and zoom in to the level of detail you need:
 - [Positional Graph](components/_platform/positional-graph.md) — IPositionalGraphService, IWorkUnitService
 - [State](components/_platform/state.md) — IStateService, useGlobalState
 - [Dev Tools](components/_platform/dev-tools.md) — StateInspector, useStateChangeLog
+- [Themes](components/_platform/themes.md) — resolveFileIcon, resolveFolderIcon, loadManifest
 
 ### Business Domains
 

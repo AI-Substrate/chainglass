@@ -17,8 +17,9 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
-import { Check, ClipboardCopy, Download, File, FileText } from 'lucide-react';
-import { useCallback } from 'react';
+import { FileIcon } from '@/features/_platform/themes';
+import { Check, ClipboardCopy, Download, FileText } from 'lucide-react';
+import { useCallback, useRef } from 'react';
 import type { ChangedFile } from '../services/working-changes';
 
 export interface ChangesViewProps {
@@ -26,6 +27,7 @@ export interface ChangesViewProps {
   recentFiles: string[];
   selectedFile?: string;
   onSelect: (filePath: string) => void;
+  onDoubleSelect?: (filePath: string, wasSelected: boolean) => void;
   onCopyFullPath?: (path: string) => void;
   onCopyRelativePath?: (path: string) => void;
   onCopyContent?: (filePath: string) => void;
@@ -45,6 +47,7 @@ export function ChangesView({
   recentFiles,
   selectedFile,
   onSelect,
+  onDoubleSelect,
   onCopyFullPath,
   onCopyRelativePath,
   onCopyContent,
@@ -73,6 +76,7 @@ export function ChangesView({
             badge={STATUS_BADGE[file.status]}
             isSelected={selectedFile === file.path}
             onSelect={onSelect}
+            onDoubleSelect={onDoubleSelect}
             onCopyFullPath={onCopyFullPath}
             onCopyRelativePath={onCopyRelativePath}
             onCopyContent={onCopyContent}
@@ -94,6 +98,7 @@ export function ChangesView({
               filePath={filePath}
               isSelected={selectedFile === filePath}
               onSelect={onSelect}
+              onDoubleSelect={onDoubleSelect}
               onCopyFullPath={onCopyFullPath}
               onCopyRelativePath={onCopyRelativePath}
               onCopyContent={onCopyContent}
@@ -112,6 +117,7 @@ function ChangeFileItem({
   badge,
   isSelected,
   onSelect,
+  onDoubleSelect,
   onCopyFullPath,
   onCopyRelativePath,
   onCopyContent,
@@ -122,6 +128,7 @@ function ChangeFileItem({
   badge?: { letter: string; className: string };
   isSelected: boolean;
   onSelect: (path: string) => void;
+  onDoubleSelect?: (path: string, wasSelected: boolean) => void;
   onCopyFullPath?: (path: string) => void;
   onCopyRelativePath?: (path: string) => void;
   onCopyContent?: (filePath: string) => void;
@@ -130,14 +137,26 @@ function ChangeFileItem({
 }) {
   const dir = filePath.includes('/') ? filePath.slice(0, filePath.lastIndexOf('/') + 1) : '';
   const name = filePath.split('/').pop() ?? filePath;
+  const selectedOnMouseDownRef = useRef(isSelected);
 
-  const handleClick = useCallback(() => onSelect(filePath), [onSelect, filePath]);
+  const handleClick = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      onSelect(filePath);
+      if (event.detail === 2) {
+        onDoubleSelect?.(filePath, selectedOnMouseDownRef.current);
+      }
+    },
+    [onSelect, filePath, onDoubleSelect]
+  );
 
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <button
           type="button"
+          onMouseDown={() => {
+            selectedOnMouseDownRef.current = isSelected;
+          }}
           onClick={handleClick}
           className={`relative flex w-full items-center gap-1.5 px-3 py-1 text-left hover:bg-accent ${
             isSelected ? 'bg-accent font-medium' : ''
@@ -146,15 +165,14 @@ function ChangeFileItem({
           {isSelected && (
             <span className="absolute left-0.5 text-amber-500 font-black text-sm">▶</span>
           )}
-          {badge ? (
+          {badge && (
             <span
               className={`shrink-0 w-4 text-center font-mono text-xs font-bold ${badge.className}`}
             >
               {badge.letter}
             </span>
-          ) : (
-            <File className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           )}
+          <FileIcon filename={name} className="h-3.5 w-3.5 shrink-0" />
           <span className="truncate">
             <span className="text-muted-foreground">{dir}</span>
             <span className={isSelected ? 'text-base' : ''}>{name}</span>

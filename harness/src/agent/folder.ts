@@ -76,6 +76,7 @@ export function listAgents(harnessRoot?: string): AgentDefinition[] {
 
     const schemaPath = path.join(dir, 'output-schema.json');
     const instructionsPath = path.join(dir, 'instructions.md');
+    const inputSchemaPath = path.join(dir, 'input-schema.json');
 
     agents.push({
       slug: entry.name,
@@ -83,6 +84,7 @@ export function listAgents(harnessRoot?: string): AgentDefinition[] {
       promptPath,
       schemaPath: fs.existsSync(schemaPath) ? schemaPath : null,
       instructionsPath: fs.existsSync(instructionsPath) ? instructionsPath : null,
+      inputSchemaPath: fs.existsSync(inputSchemaPath) ? inputSchemaPath : null,
     });
   }
 
@@ -130,6 +132,9 @@ export function createRunFolder(
   }
   if (agentDef.schemaPath) {
     fs.copyFileSync(agentDef.schemaPath, path.join(runDir, 'output-schema.json'));
+  }
+  if (agentDef.inputSchemaPath) {
+    fs.copyFileSync(agentDef.inputSchemaPath, path.join(runDir, 'input-schema.json'));
   }
 
   // Create output directory

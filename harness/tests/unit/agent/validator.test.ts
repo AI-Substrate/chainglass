@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { validateOutput } from '../../../src/agent/validator.js';
+import { validateOutput, validateInput } from '../../../src/agent/validator.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
@@ -150,6 +150,44 @@ describe('validator.ts', () => {
 
       const result = validateOutput(path.join(dir, 'schema.json'), path.join(dir, 'output.json'));
       expect(result.valid).toBe(true);
+    });
+  });
+
+  describe('validateInput', () => {
+    it('should validate params against input schema', () => {
+      withTempDir((dir) => {
+        const schema = {
+          type: 'object',
+          required: ['file_path'],
+          properties: { file_path: { type: 'string' } },
+        };
+        fs.writeFileSync(path.join(dir, 'input-schema.json'), JSON.stringify(schema));
+
+        const result = validateInput(path.join(dir, 'input-schema.json'), { file_path: '/tmp/test.ts' });
+        expect(result.valid).toBe(true);
+        expect(result.errors).toEqual([]);
+      });
+    });
+
+    it('should reject missing required params', () => {
+      withTempDir((dir) => {
+        const schema = {
+          type: 'object',
+          required: ['file_path'],
+          properties: { file_path: { type: 'string' } },
+        };
+        fs.writeFileSync(path.join(dir, 'input-schema.json'), JSON.stringify(schema));
+
+        const result = validateInput(path.join(dir, 'input-schema.json'), {});
+        expect(result.valid).toBe(false);
+        expect(result.errors.length).toBeGreaterThan(0);
+      });
+    });
+
+    it('should return error when input schema file not found', () => {
+      const result = validateInput('/tmp/nonexistent-schema.json', { file_path: 'test' });
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toContain('not found');
     });
   });
 });

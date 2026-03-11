@@ -1,0 +1,1243 @@
+diff --git a/docs/domains/domain-map.md b/docs/domains/domain-map.md
+index 8c44ff7f..566f0c6d 100644
+--- a/docs/domains/domain-map.md
++++ b/docs/domains/domain-map.md
+@@ -22,6 +22,7 @@ flowchart LR
+     state["💾 _platform/state<br/>IStateService<br/>useGlobalState<br/>useGlobalStateList<br/>GlobalStateProvider<br/>GlobalStateConnector<br/>StateChangeLog<br/>ServerEventRoute"]:::infra
+     devTools["🛠️ _platform/dev-tools<br/>StateInspector<br/>useStateInspector<br/>useStateChangeLog"]:::infra
+     auth["🔐 _platform/auth<br/>auth() · signIn() · signOut()<br/>requireAuth() · useAuth()<br/>middleware protection<br/>isUserAllowed()<br/>SessionProvider"]:::infra
++    themes["🎨 _platform/themes<br/>resolveFileIcon · resolveFolderIcon<br/>FileIcon · FolderIcon<br/>themes.iconTheme setting"]:::infra
+ 
+     %% Business domains
+     fileBrowser["📁 file-browser<br/>Browser page · FileTree<br/>CodeEditor re-export<br/>FileViewerPanel<br/>WorkspaceContext · Settings"]:::business
+@@ -85,6 +86,10 @@ flowchart LR
+     workflowUI -->|"useGlobalState<br/>(subscribe execution)"| state
+     panels -->|"useGlobalState<br/>(subscribe alerts)"| state
+     fileBrowser -->|"useGlobalState<br/>(subscribe worktree)"| state
++    fileBrowser -->|"resolveFileIcon<br/>resolveFolderIcon<br/>FileIcon · FolderIcon"| themes
++
++    %% Themes domain dependencies
++    themes -->|"IUSDK<br/>(publishes iconTheme)"| sdk
+ 
+     %% Dev tools dependencies
+     devTools -->|"IStateService<br/>StateChangeLog<br/>useStateSystem"| state
+diff --git a/docs/domains/registry.md b/docs/domains/registry.md
+index e8315013..2f8dd145 100644
+--- a/docs/domains/registry.md
++++ b/docs/domains/registry.md
+@@ -25,6 +25,7 @@
+ | Auth | _platform/auth | infrastructure | _platform | Plan 063-login | active |
+ | External Events | _platform/external-events | infrastructure | _platform | Plan 067 — Event Popper | active |
+ | Question Popper | question-popper | business | — | Plan 067 — Event Popper | active |
++| Themes | _platform/themes | infrastructure | _platform | Plan 073 — File Type Icons | active |
+ 
+ ## Domain Types
+ 
+diff --git a/package.json b/package.json
+index 2acda36c..73cf35e6 100644
+--- a/package.json
++++ b/package.json
+@@ -27,6 +27,7 @@
+     "ajv-cli": "^5.0.0",
+     "concurrently": "^9.2.1",
+     "jsdom": "^27.4.0",
++    "material-icon-theme": "5.32.0",
+     "reflect-metadata": "^0.2.2",
+     "tsx": "^4.21.0",
+     "tsyringe": "^4.8.0",
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index 81a2e9bc..192c2ba1 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -43,6 +43,9 @@ importers:
+       jsdom:
+         specifier: ^27.4.0
+         version: 27.4.0
++      material-icon-theme:
++        specifier: 5.32.0
++        version: 5.32.0
+       reflect-metadata:
+         specifier: ^0.2.2
+         version: 0.2.2
+@@ -2910,6 +2913,9 @@ packages:
+   chevrotain@11.0.3:
+     resolution: {integrity: sha512-ci2iJH6LeIkvP9eJW6gpueU8cnZhv85ELY8w8WiFtNjMHA5ad6pQLaJo9mEly/9qUyCpvqX8/POVUTf18/HFdw==}
+ 
++  chroma-js@3.2.0:
++    resolution: {integrity: sha512-os/OippSlX1RlWWr+QDPcGUZs0uoqr32urfxESG9U93lhUfbnlyckte84Q8P1UQY/qth983AS1JONKmLS4T0nw==}
++
+   class-variance-authority@0.7.1:
+     resolution: {integrity: sha512-Ka+9Trutv7G8M6WT6SeiRWz792K5qEqIGEGzXKhAE6xOWAY6pPH8U+9IY3oCMv6kqTmLsv7Xh/2w2RigkePMsg==}
+ 
+@@ -3200,6 +3206,10 @@ packages:
+     resolution: {integrity: sha512-h5k/5U50IJJFpzfL6nO9jaaumfjO/f2NjK/oYB2Djzm4p9L+3T9qWpZqZ2hAbLPuuYq9wrU08WQyBTL5GbPk5Q==}
+     engines: {node: '>=6'}
+ 
++  deep-rename-keys@0.2.1:
++    resolution: {integrity: sha512-RHd9ABw4Fvk+gYDWqwOftG849x0bYOySl/RgX0tLI9i27ZIeSO91mLZJEp7oPHOMFqHvpgu21YptmDt0FYD/0A==}
++    engines: {node: '>=0.10.0'}
++
+   delaunator@5.0.1:
+     resolution: {integrity: sha512-8nvh+XBe96aCESrGOqMp/84b13H9cdKbG5P2ejQCh4d4sK9RL4371qou9drQjMhvnPmhWl5hnmqbEE0fXr9Xnw==}
+ 
+@@ -3331,6 +3341,13 @@ packages:
+     resolution: {integrity: sha512-aIL5Fx7mawVa300al2BnEE4iNvo1qETxLrPI/o05L7z6go7fCw1J6EQmbK4FmJ2AS7kgVF/KEZWufBfdClMcPg==}
+     engines: {node: '>= 0.6'}
+ 
++  eventemitter3@2.0.3:
++    resolution: {integrity: sha512-jLN68Dx5kyFHaePoXWPsCGW5qdyZQtLYHkxkg02/Mz6g0kYpDx4FyP6XfArhQdlOC4b8Mv+EMxPo/8La7Tzghg==}
++
++  events@3.3.0:
++    resolution: {integrity: sha512-mQw+2fkQbALzQ7V0MY0IqdnXNOeTtP4r0lN9z7AAawCXgqea7bDii20AYrIBrFd/Hx0M2Ocz6S111CaFkUcb0Q==}
++    engines: {node: '>=0.8.x'}
++
+   eventsource-parser@3.0.6:
+     resolution: {integrity: sha512-Vo1ab+QXPzZ4tCa8SwIHJFaSzy4R6SHf7BY79rFBDf0idraZWAkYrDjDj8uWaSm3S2TK+hJ7/t1CEmZ7jXw+pg==}
+     engines: {node: '>=18.0.0'}
+@@ -3578,6 +3595,9 @@ packages:
+   is-alphanumerical@2.0.1:
+     resolution: {integrity: sha512-hmbYhX/9MUMF5uh7tOXyK/n0ZvWpad5caBA17GsC6vyuCqaWliRG5K1qS9inmUhEMaOBIW7/whAnSwveW/LtZw==}
+ 
++  is-buffer@1.1.6:
++    resolution: {integrity: sha512-NcdALwpXkTm5Zvvbk7owOUSvVvBKDgKP5/ewfXEznmQFfs4ZRmanOeKBTjRVjka3QFoN6XJ+9F3USqfHqTaU5w==}
++
+   is-decimal@2.0.1:
+     resolution: {integrity: sha512-AAB9hiomQs5DXWcRB1rqsxGUstbRroFOPPVAomNk/3XHR5JyEZChOyTWe2oayKnsSsr/kcGqF+z6yuH6HHpN0A==}
+ 
+@@ -3686,6 +3706,10 @@ packages:
+   khroma@2.1.0:
+     resolution: {integrity: sha512-Ls993zuzfayK269Svk9hzpeGUKob/sIgZzyHYdjQoAdQetRKpOLj+k/QQQ/6Qi0Yz65mlROrfd+Ev+1+7dz9Kw==}
+ 
++  kind-of@3.2.2:
++    resolution: {integrity: sha512-NOW9QQXMoZGg/oqnVNoNTTIFEIid1627WCffUBJEdMxYApq7mNE7CpzucIPc+ZQg25Phej7IJSmX3hO+oblOtQ==}
++    engines: {node: '>=0.10.0'}
++
+   langium@3.3.1:
+     resolution: {integrity: sha512-QJv/h939gDpvT+9SiLVlY7tZC3xB2qK57v0J04Sh9wpMb6MP1q8gB21L3WIo8T5P1MSMg3Ep14L7KkDCFG3y4w==}
+     engines: {node: '>=16.0.0'}
+@@ -3815,6 +3839,10 @@ packages:
+     engines: {node: '>= 20'}
+     hasBin: true
+ 
++  material-icon-theme@5.32.0:
++    resolution: {integrity: sha512-SxJxCcnk6cJIbd+AxmoeghXJ24joXGmUzjiGci16sX4mXZdXprGEzM6ZZ0VHGAofxNlMqznEbExINwFLsxf8eQ==}
++    engines: {vscode: ^1.55.0}
++
+   math-intrinsics@1.1.0:
+     resolution: {integrity: sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==}
+     engines: {node: '>= 0.4'}
+@@ -4377,6 +4405,10 @@ packages:
+   remark-stringify@11.0.0:
+     resolution: {integrity: sha512-1OSmLd3awB/t8qdoEOMazZkNsfVTeY4fTsgzcQFdXNq8ToTN4ZGwrMnlda4K6smTFKD+GRV6O48i6Z4iKgPPpw==}
+ 
++  rename-keys@1.2.0:
++    resolution: {integrity: sha512-U7XpAktpbSgHTRSNRrjKSrjYkZKuhUukfoBlXWXUExCAqhzh1TU3BDRAfJmarcl5voKS+pbKU9MvyLWKZ4UEEg==}
++    engines: {node: '>= 0.8.0'}
++
+   require-directory@2.1.1:
+     resolution: {integrity: sha512-fGxEI7+wsG9xrvdjsrlmL22OMTTiHRwAMroiEeMgq8gzoLC/PQr7RsRDSTLUg/bZAZtF+TVIkHc6/4RIKrui+Q==}
+     engines: {node: '>=0.10.0'}
+@@ -4591,6 +4623,9 @@ packages:
+     resolution: {integrity: sha512-MpUEN2OodtUzxvKQl72cUF7RQ5EiHsGvSsVG0ia9c5RbWGL2CI4C7EpPS8UTBIplnlzZiNuV56w+FuNxy3ty2Q==}
+     engines: {node: '>=10'}
+ 
++  svgson@5.3.1:
++    resolution: {integrity: sha512-qdPgvUNWb40gWktBJnbJRelWcPzkLed/ShhnRsjbayXz8OtdPOzbil9jtiZdrYvSDumAz/VNQr6JaNfPx/gvPA==}
++
+   symbol-tree@3.2.4:
+     resolution: {integrity: sha512-9QNk5KwDF+Bvz+PyObkmSYjI5ksVUYtjW7AU22r2NKcfLJcXp96hkDWU3+XndOsUb+AQ9QhfzfCT2O+CNWT5Tw==}
+ 
+@@ -5004,10 +5039,16 @@ packages:
+       utf-8-validate:
+         optional: true
+ 
++  xml-lexer@0.2.2:
++    resolution: {integrity: sha512-G0i98epIwiUEiKmMcavmVdhtymW+pCAohMRgybyIME9ygfVu8QheIi+YoQh3ngiThsT0SQzJT4R0sKDEv8Ou0w==}
++
+   xml-name-validator@5.0.0:
+     resolution: {integrity: sha512-EvGK8EJ3DhaHfbRlETOWAS5pO9MZITeauHKJyb8wyajUfQUenkIg2MvLDTZ4T/TgIcm3HU0TFBgWWboAZ30UHg==}
+     engines: {node: '>=18'}
+ 
++  xml-reader@2.4.3:
++    resolution: {integrity: sha512-xWldrIxjeAMAu6+HSf9t50ot1uL5M+BtOidRCWHXIeewvSeIpscWCsp4Zxjk8kHHhdqFBrfK8U0EJeCcnyQ/gA==}
++
+   xmlchars@2.2.0:
+     resolution: {integrity: sha512-JZnDKK8B0RCDw84FNdDAIpZK+JuJw+s7Lz8nksI7SIuU3UXJJslUthsi+uWBUYOwPFwW7W7PRLRfUKpxjtjFCw==}
+ 
+@@ -7169,14 +7210,6 @@ snapshots:
+       chai: 5.3.3
+       tinyrainbow: 2.0.0
+ 
+-  '@vitest/mocker@3.2.4(vite@5.4.21(@types/node@22.19.15)(lightningcss@1.30.2))':
+-    dependencies:
+-      '@vitest/spy': 3.2.4
+-      estree-walker: 3.0.3
+-      magic-string: 0.30.21
+-    optionalDependencies:
+-      vite: 5.4.21(@types/node@22.19.15)(lightningcss@1.30.2)
+-
+   '@vitest/mocker@3.2.4(vite@5.4.21(@types/node@25.0.9)(lightningcss@1.30.2))':
+     dependencies:
+       '@vitest/spy': 3.2.4
+@@ -7435,6 +7468,8 @@ snapshots:
+       '@chevrotain/utils': 11.0.3
+       lodash-es: 4.17.21
+ 
++  chroma-js@3.2.0: {}
++
+   class-variance-authority@0.7.1:
+     dependencies:
+       clsx: 2.1.1
+@@ -7740,6 +7775,11 @@ snapshots:
+ 
+   deep-eql@5.0.2: {}
+ 
++  deep-rename-keys@0.2.1:
++    dependencies:
++      kind-of: 3.2.2
++      rename-keys: 1.2.0
++
+   delaunator@5.0.1:
+     dependencies:
+       robust-predicates: 3.0.2
+@@ -7882,6 +7922,10 @@ snapshots:
+ 
+   etag@1.8.1: {}
+ 
++  eventemitter3@2.0.3: {}
++
++  events@3.3.0: {}
++
+   eventsource-parser@3.0.6: {}
+ 
+   eventsource@3.0.7:
+@@ -8179,6 +8223,8 @@ snapshots:
+       is-alphabetical: 2.0.1
+       is-decimal: 2.0.1
+ 
++  is-buffer@1.1.6: {}
++
+   is-decimal@2.0.1: {}
+ 
+   is-extglob@2.1.1: {}
+@@ -8289,6 +8335,10 @@ snapshots:
+ 
+   khroma@2.1.0: {}
+ 
++  kind-of@3.2.2:
++    dependencies:
++      is-buffer: 1.1.6
++
+   langium@3.3.1:
+     dependencies:
+       chevrotain: 11.0.3
+@@ -8392,6 +8442,13 @@ snapshots:
+ 
+   marked@16.4.2: {}
+ 
++  material-icon-theme@5.32.0:
++    dependencies:
++      chroma-js: 3.2.0
++      events: 3.3.0
++      fast-deep-equal: 3.1.3
++      svgson: 5.3.1
++
+   math-intrinsics@1.1.0: {}
+ 
+   mdast-util-find-and-replace@3.0.2:
+@@ -9229,6 +9286,8 @@ snapshots:
+       mdast-util-to-markdown: 2.1.2
+       unified: 11.0.5
+ 
++  rename-keys@1.2.0: {}
++
+   require-directory@2.1.1: {}
+ 
+   require-from-string@2.0.2: {}
+@@ -9510,6 +9569,11 @@ snapshots:
+     dependencies:
+       has-flag: 4.0.0
+ 
++  svgson@5.3.1:
++    dependencies:
++      deep-rename-keys: 0.2.1
++      xml-reader: 2.4.3
++
+   symbol-tree@3.2.4: {}
+ 
+   tail-file@1.4.16:
+@@ -9792,7 +9856,7 @@ snapshots:
+     dependencies:
+       '@types/chai': 5.2.3
+       '@vitest/expect': 3.2.4
+-      '@vitest/mocker': 3.2.4(vite@5.4.21(@types/node@22.19.15)(lightningcss@1.30.2))
++      '@vitest/mocker': 3.2.4(vite@5.4.21(@types/node@25.0.9)(lightningcss@1.30.2))
+       '@vitest/pretty-format': 3.2.4
+       '@vitest/runner': 3.2.4
+       '@vitest/snapshot': 3.2.4
+@@ -9950,8 +10014,17 @@ snapshots:
+ 
+   ws@8.19.0: {}
+ 
++  xml-lexer@0.2.2:
++    dependencies:
++      eventemitter3: 2.0.3
++
+   xml-name-validator@5.0.0: {}
+ 
++  xml-reader@2.4.3:
++    dependencies:
++      eventemitter3: 2.0.3
++      xml-lexer: 0.2.2
++
+   xmlchars@2.2.0: {}
+ 
+   y18n@5.0.8: {}
+diff --git a/Users/jordanknight/substrate/073-file-icons/docs/domains/_platform/themes/domain.md b/Users/jordanknight/substrate/073-file-icons/docs/domains/_platform/themes/domain.md
+new file mode 100644
+index 00000000..1472d47c
+--- /dev/null
++++ b/Users/jordanknight/substrate/073-file-icons/docs/domains/_platform/themes/domain.md
+@@ -0,0 +1,86 @@
++# Domain: Themes
++
++**Slug**: _platform/themes
++**Type**: infrastructure
++**Created**: 2026-03-09
++**Created By**: Plan 073 — File Type Icons
++**Status**: active
++
++## Purpose
++
++Visual identity infrastructure for icon themes. Provides a manifest-driven icon resolver that maps filenames and folder names to icon assets using the VSCode icon theme manifest format. Designed to grow into color themes, editor themes, and UI density settings in future plans.
++
++## Boundary
++
++### Owns
++- Icon theme manifest parsing — reads VSCode-format icon theme manifests (JSON with `fileExtensions`, `fileNames`, `folderNames`, `languageIds`, `iconDefinitions`)
++- Icon resolution logic — `resolveFileIcon(filename, manifest, theme?)` and `resolveFolderIcon(folderName, expanded, manifest, theme?)`
++- Icon React components — `<FileIcon>` and `<FolderIcon>` for rendering themed icons
++- Icon theme SDK setting — `themes.iconTheme` select setting for choosing active theme
++- Icon asset management — build-time curation, optimization, and deployment of SVG icon assets
++- Theme registration — constant registry of available icon themes
++
++### Does NOT Own
++- Syntax highlighting themes (Shiki dual themes, CodeMirror themes) — owned by `_platform/viewer`
++- Color themes / dark-light mode toggle — owned by `next-themes` integration in root layout
++- Editor appearance settings (fontSize, wordWrap, tabSize) — owned by `file-browser` SDK contribution
++- File type detection for rendering (`detectLanguage`, `detectContentType`) — owned by `_platform/viewer`
++
++## Contracts (Public Interface)
++
++| Contract | Type | Consumers | Description |
++|----------|------|-----------|-------------|
++| `resolveFileIcon` | Function | file-browser, _platform/panel-layout | `(filename, manifest, theme?) → IconResolution` — resolves filename to icon via fileNames → fileExtensions → languageIds → default |
++| `resolveFolderIcon` | Function | file-browser | `(folderName, expanded, manifest, theme?) → IconResolution` — resolves folder name to folder icon with expanded/collapsed variants |
++| `FileIcon` | Component | file-browser, _platform/panel-layout | `<FileIcon filename={...} className={...} />` — renders themed file icon via `<img>` tag |
++| `FolderIcon` | Component | file-browser | `<FolderIcon name={...} expanded={...} className={...} />` — renders themed folder icon |
++
++## Concepts
++
++| Concept | Entry Point | What It Does |
++|---------|-------------|--------------|
++| Resolve file icon | `resolveFileIcon(filename, manifest, theme?)` | Maps a filename to an icon by checking manifest.fileNames, then manifest.fileExtensions, then manifest.languageIds, falling back to default. Supports light-mode overrides via manifest.light.* |
++| Resolve folder icon | `resolveFolderIcon(name, expanded, manifest, theme?)` | Maps a folder name to a folder icon, with separate expanded/collapsed variants. Falls back to generic folder/folder-open |
++| Render file icon | `<FileIcon filename={...} />` | React component that calls resolveFileIcon internally and renders an `<img>` tag pointing to the themed SVG asset |
++
++## Composition (Internal)
++
++| Component | Role | Depends On |
++|-----------|------|------------|
++| `icon-resolver.ts` | Pure resolver functions (resolveFileIcon, resolveFolderIcon) | IconThemeManifest type |
++| `manifest-loader.ts` | Load and normalize theme manifests | Static JSON imports |
++| `types.ts` | Type definitions (IconThemeManifest, IconResolution, IconThemeId) | Nothing (pure types) |
++| `constants.ts` | Theme registry, default theme ID, icon base path | Nothing (pure constants) |
++| `FileIcon` component | Renders themed file icon via `<img>` | resolveFileIcon, manifest-loader, useTheme |
++| `FolderIcon` component | Renders themed folder icon via `<img>` | resolveFolderIcon, manifest-loader, useTheme |
++| `contribution.ts` | SDK setting: themes.iconTheme | _platform/sdk |
++| `register.ts` | SDK registration entry point | contribution.ts |
++
++## Source Location
++
++Primary: `apps/web/src/features/_platform/themes/`
++
++| File | Role | Notes |
++|------|------|-------|
++| `apps/web/src/features/_platform/themes/index.ts` | Barrel exports | Phase 1 |
++| `apps/web/src/features/_platform/themes/types.ts` | Type definitions | Phase 1 |
++| `apps/web/src/features/_platform/themes/constants.ts` | Constants | Phase 1 |
++| `apps/web/src/features/_platform/themes/lib/icon-resolver.ts` | Resolver functions | Phase 1 |
++| `apps/web/src/features/_platform/themes/lib/manifest-loader.ts` | Manifest loader | Phase 1 |
++
++## Dependencies
++
++### This Domain Depends On
++- `_platform/sdk` — IUSDK for publishing `themes.iconTheme` setting (Phase 3)
++- `next-themes` (npm) — `useTheme()` for light/dark mode detection in components (Phase 3)
++- `material-icon-theme` (npm, devDependency) — `generateManifest()` for build-time manifest extraction (Phase 2)
++
++### Domains That Depend On This
++- `file-browser` — consumes resolveFileIcon, resolveFolderIcon, FileIcon, FolderIcon in FileTree and ChangesView (Phase 4)
++- `_platform/panel-layout` — consumes FileIcon in CommandPaletteDropdown file search results (Phase 4)
++
++## History
++
++| Plan | What Changed | Date |
++|------|-------------|------|
++| Plan 073 Phase 1 | Domain created: types, icon resolver (TDD), manifest loader | 2026-03-09 |
+diff --git a/Users/jordanknight/substrate/073-file-icons/apps/web/src/features/_platform/themes/index.ts b/Users/jordanknight/substrate/073-file-icons/apps/web/src/features/_platform/themes/index.ts
+new file mode 100644
+index 00000000..a634be26
+--- /dev/null
++++ b/Users/jordanknight/substrate/073-file-icons/apps/web/src/features/_platform/themes/index.ts
+@@ -0,0 +1,8 @@
++export { resolveFileIcon, resolveFolderIcon } from './lib/icon-resolver';
++export { loadManifest } from './lib/manifest-loader';
++export type {
++  IconThemeManifest,
++  IconResolution,
++  IconThemeId,
++} from './types';
++export { DEFAULT_ICON_THEME, ICON_BASE_PATH } from './constants';
+diff --git a/Users/jordanknight/substrate/073-file-icons/apps/web/src/features/_platform/themes/constants.ts b/Users/jordanknight/substrate/073-file-icons/apps/web/src/features/_platform/themes/constants.ts
+new file mode 100644
+index 00000000..9fbe37b8
+--- /dev/null
++++ b/Users/jordanknight/substrate/073-file-icons/apps/web/src/features/_platform/themes/constants.ts
+@@ -0,0 +1,2 @@
++export const DEFAULT_ICON_THEME = 'material-icon-theme';
++export const ICON_BASE_PATH = '/icons';
+diff --git a/Users/jordanknight/substrate/073-file-icons/apps/web/src/features/_platform/themes/types.ts b/Users/jordanknight/substrate/073-file-icons/apps/web/src/features/_platform/themes/types.ts
+new file mode 100644
+index 00000000..87670818
+--- /dev/null
++++ b/Users/jordanknight/substrate/073-file-icons/apps/web/src/features/_platform/themes/types.ts
+@@ -0,0 +1,40 @@
++/** Normalized icon theme manifest matching VSCode icon theme format */
++export interface IconThemeManifest {
++  /** Exact filename → icon definition key (e.g., "package.json" → "nodejs") */
++  fileNames: Record<string, string>;
++  /** File extension → icon definition key (e.g., "py" → "python") */
++  fileExtensions: Record<string, string>;
++  /** VSCode language ID → icon definition key (e.g., "typescript" → "typescript") */
++  languageIds: Record<string, string>;
++  /** Folder name → icon definition key (collapsed state) */
++  folderNames: Record<string, string>;
++  /** Folder name → icon definition key (expanded state) */
++  folderNamesExpanded: Record<string, string>;
++  /** Icon definition key → icon metadata */
++  iconDefinitions: Record<string, { iconPath: string }>;
++  /** Light-mode overrides (same structure, partial) */
++  light: {
++    fileNames?: Record<string, string>;
++    fileExtensions?: Record<string, string>;
++    languageIds?: Record<string, string>;
++    folderNames?: Record<string, string>;
++    folderNamesExpanded?: Record<string, string>;
++  };
++  /** Default file icon definition key */
++  file: string;
++  /** Default folder icon definition key (collapsed) */
++  folder: string;
++  /** Default folder icon definition key (expanded) */
++  folderExpanded: string;
++}
++
++/** Result of resolving a filename or folder name to an icon */
++export interface IconResolution {
++  /** Icon definition key (e.g., "typescript", "folder-src-open") */
++  iconName: string;
++  /** How the icon was resolved */
++  source: 'fileName' | 'fileExtension' | 'languageId' | 'default';
++}
++
++/** Identifier for an icon theme */
++export type IconThemeId = string;
+diff --git a/Users/jordanknight/substrate/073-file-icons/apps/web/src/features/_platform/themes/lib/icon-resolver.ts b/Users/jordanknight/substrate/073-file-icons/apps/web/src/features/_platform/themes/lib/icon-resolver.ts
+new file mode 100644
+index 00000000..97384b6a
+--- /dev/null
++++ b/Users/jordanknight/substrate/073-file-icons/apps/web/src/features/_platform/themes/lib/icon-resolver.ts
+@@ -0,0 +1,112 @@
++import type { IconThemeManifest, IconResolution } from '../types';
++
++// Extension → VSCode languageId mapping for extensions not in fileExtensions
++const EXTENSION_TO_LANGUAGE_ID: Record<string, string> = {
++  ts: 'typescript',
++  mts: 'typescript',
++  cts: 'typescript',
++  js: 'javascript',
++  mjs: 'javascript',
++  cjs: 'javascript',
++  jsx: 'javascriptreact',
++  tsx: 'typescriptreact',
++};
++
++/**
++ * Resolve a filename to an icon using the VSCode icon theme manifest format.
++ * Priority: fileNames → fileExtensions → languageIds → default.
++ * When theme is 'light', checks manifest.light.* first for each source.
++ */
++export function resolveFileIcon(
++  filename: string,
++  manifest: IconThemeManifest,
++  theme?: 'light' | 'dark',
++): IconResolution {
++  const lowerFilename = filename.toLowerCase();
++
++  // 1. Check fileNames (exact filename match)
++  if (theme === 'light' && manifest.light.fileNames) {
++    const lightMatch = manifest.light.fileNames[lowerFilename];
++    if (lightMatch) {
++      return { iconName: lightMatch, source: 'fileName' };
++    }
++  }
++  const fileNameMatch = manifest.fileNames[lowerFilename];
++  if (fileNameMatch) {
++    return { iconName: fileNameMatch, source: 'fileName' };
++  }
++
++  // 2. Check fileExtensions
++  const ext = extractExtension(lowerFilename);
++  if (ext) {
++    if (theme === 'light' && manifest.light.fileExtensions) {
++      const lightMatch = manifest.light.fileExtensions[ext];
++      if (lightMatch) {
++        return { iconName: lightMatch, source: 'fileExtension' };
++      }
++    }
++    const extMatch = manifest.fileExtensions[ext];
++    if (extMatch) {
++      return { iconName: extMatch, source: 'fileExtension' };
++    }
++  }
++
++  // 3. Check languageIds (critical for .ts which is NOT in fileExtensions)
++  const langId = ext ? EXTENSION_TO_LANGUAGE_ID[ext] : undefined;
++  if (langId) {
++    if (theme === 'light' && manifest.light.languageIds) {
++      const lightMatch = manifest.light.languageIds[langId];
++      if (lightMatch) {
++        return { iconName: lightMatch, source: 'languageId' };
++      }
++    }
++    const langMatch = manifest.languageIds[langId];
++    if (langMatch) {
++      return { iconName: langMatch, source: 'languageId' };
++    }
++  }
++
++  // 4. Default
++  return { iconName: manifest.file, source: 'default' };
++}
++
++/**
++ * Resolve a folder name to a folder icon.
++ * Checks folderNames/folderNamesExpanded → default folder/folder-open.
++ */
++export function resolveFolderIcon(
++  folderName: string,
++  expanded: boolean,
++  manifest: IconThemeManifest,
++  theme?: 'light' | 'dark',
++): IconResolution {
++  const lowerName = folderName.toLowerCase();
++  const source = expanded ? manifest.folderNamesExpanded : manifest.folderNames;
++
++  if (theme === 'light') {
++    const lightSource = expanded
++      ? manifest.light.folderNamesExpanded
++      : manifest.light.folderNames;
++    if (lightSource) {
++      const lightMatch = lightSource[lowerName];
++      if (lightMatch) {
++        return { iconName: lightMatch, source: 'fileName' };
++      }
++    }
++  }
++
++  const match = source[lowerName];
++  if (match) {
++    return { iconName: match, source: 'fileName' };
++  }
++
++  // Default
++  const defaultIcon = expanded ? manifest.folderExpanded : manifest.folder;
++  return { iconName: defaultIcon, source: 'default' };
++}
++
++function extractExtension(filename: string): string | undefined {
++  const lastDot = filename.lastIndexOf('.');
++  if (lastDot <= 0 || lastDot === filename.length - 1) return undefined;
++  return filename.slice(lastDot + 1);
++}
+diff --git a/Users/jordanknight/substrate/073-file-icons/apps/web/src/features/_platform/themes/lib/manifest-loader.ts b/Users/jordanknight/substrate/073-file-icons/apps/web/src/features/_platform/themes/lib/manifest-loader.ts
+new file mode 100644
+index 00000000..dde9b83e
+--- /dev/null
++++ b/Users/jordanknight/substrate/073-file-icons/apps/web/src/features/_platform/themes/lib/manifest-loader.ts
+@@ -0,0 +1,42 @@
++import type { IconThemeManifest } from '../types';
++
++// In Phase 1, this is a minimal hardcoded manifest for compilation.
++// Phase 2 replaces this with the real generated manifest from material-icon-theme.
++let cachedManifest: IconThemeManifest | null = null;
++
++/**
++ * Load an icon theme manifest by theme ID.
++ * Phase 1: returns a minimal manifest for testing.
++ * Phase 2: loads the generated manifest from public/icons/{themeId}/manifest.json.
++ */
++export async function loadManifest(
++  _themeId: string,
++): Promise<IconThemeManifest> {
++  if (cachedManifest) return cachedManifest;
++
++  // Phase 2 will replace this with:
++  // const response = await fetch(`/icons/${themeId}/manifest.json`);
++  // const data = await response.json();
++  // cachedManifest = normalizeManifest(data);
++
++  // For now, return empty manifest that satisfies the type
++  cachedManifest = {
++    fileNames: {},
++    fileExtensions: {},
++    languageIds: {},
++    folderNames: {},
++    folderNamesExpanded: {},
++    iconDefinitions: {},
++    light: {},
++    file: 'file',
++    folder: 'folder',
++    folderExpanded: 'folder-open',
++  };
++
++  return cachedManifest;
++}
++
++/** Clear cached manifest (for testing or theme switching) */
++export function clearManifestCache(): void {
++  cachedManifest = null;
++}
+diff --git a/Users/jordanknight/substrate/073-file-icons/test/unit/web/features/_platform/themes/icon-resolver.test.ts b/Users/jordanknight/substrate/073-file-icons/test/unit/web/features/_platform/themes/icon-resolver.test.ts
+new file mode 100644
+index 00000000..607b4be6
+--- /dev/null
++++ b/Users/jordanknight/substrate/073-file-icons/test/unit/web/features/_platform/themes/icon-resolver.test.ts
+@@ -0,0 +1,210 @@
++import { describe, it, expect, beforeAll } from 'vitest';
++import { generateManifest } from 'material-icon-theme';
++import { resolveFileIcon, resolveFolderIcon } from '@/features/_platform/themes/lib/icon-resolver';
++import type { IconThemeManifest } from '@/features/_platform/themes/types';
++
++/**
++ * Icon resolver tests using REAL material-icon-theme manifest data.
++ * No mocks — per spec Testing Strategy.
++ */
++
++let manifest: IconThemeManifest;
++
++beforeAll(() => {
++  const raw = generateManifest();
++  manifest = {
++    fileNames: raw.fileNames ?? {},
++    fileExtensions: raw.fileExtensions ?? {},
++    languageIds: raw.languageIds ?? {},
++    folderNames: raw.folderNames ?? {},
++    folderNamesExpanded: raw.folderNamesExpanded ?? {},
++    iconDefinitions: raw.iconDefinitions ?? {},
++    light: {
++      fileNames: raw.light?.fileNames,
++      fileExtensions: raw.light?.fileExtensions,
++      languageIds: raw.light?.languageIds,
++      folderNames: raw.light?.folderNames,
++      folderNamesExpanded: raw.light?.folderNamesExpanded,
++    },
++    file: raw.file ?? 'file',
++    folder: raw.folder ?? 'folder',
++    folderExpanded: raw.folderExpanded ?? 'folder-open',
++  };
++});
++
++describe('resolveFileIcon', () => {
++  describe('fileNames lookup (highest priority)', () => {
++    it('resolves package.json to nodejs', () => {
++      const result = resolveFileIcon('package.json', manifest);
++      expect(result.iconName).toBe('nodejs');
++      expect(result.source).toBe('fileName');
++    });
++
++    it('resolves dockerfile (case-insensitive) to docker', () => {
++      const result = resolveFileIcon('Dockerfile', manifest);
++      expect(result.iconName).toBe('docker');
++      expect(result.source).toBe('fileName');
++    });
++
++    it('resolves .gitignore to git', () => {
++      const result = resolveFileIcon('.gitignore', manifest);
++      expect(result.iconName).toBe('git');
++      expect(result.source).toBe('fileName');
++    });
++
++    it('resolves tsconfig.json to tsconfig', () => {
++      const result = resolveFileIcon('tsconfig.json', manifest);
++      expect(result.iconName).toBe('tsconfig');
++      expect(result.source).toBe('fileName');
++    });
++
++    it('resolves justfile to just', () => {
++      const result = resolveFileIcon('justfile', manifest);
++      expect(result.iconName).toBe('just');
++      expect(result.source).toBe('fileName');
++    });
++  });
++
++  describe('fileExtensions lookup (second priority)', () => {
++    it('resolves .py to python', () => {
++      const result = resolveFileIcon('app.py', manifest);
++      expect(result.iconName).toBe('python');
++      expect(result.source).toBe('fileExtension');
++    });
++
++    it('resolves .json to json', () => {
++      const result = resolveFileIcon('data.json', manifest);
++      expect(result.iconName).toBe('json');
++      expect(result.source).toBe('fileExtension');
++    });
++
++    it('resolves .tsx to react_ts', () => {
++      const result = resolveFileIcon('component.tsx', manifest);
++      expect(result.iconName).toBe('react_ts');
++      expect(result.source).toBe('fileExtension');
++    });
++
++    it('resolves .md to markdown', () => {
++      const result = resolveFileIcon('README.md', manifest);
++      // README.md may match fileNames first — check either source
++      expect(result.iconName).toBeDefined();
++      expect(['fileName', 'fileExtension']).toContain(result.source);
++    });
++
++    it('handles case-insensitive extensions', () => {
++      const result = resolveFileIcon('data.JSON', manifest);
++      expect(result.iconName).toBe('json');
++    });
++  });
++
++  describe('languageIds lookup (third priority — critical for .ts)', () => {
++    it('resolves .ts via languageIds (NOT in fileExtensions)', () => {
++      // .ts is NOT in manifest.fileExtensions — it's only in languageIds
++      const result = resolveFileIcon('app.ts', manifest);
++      expect(result.iconName).toBe('typescript');
++      expect(result.source).toBe('languageId');
++    });
++
++    it('resolves .js via languageIds when not in fileExtensions', () => {
++      const result = resolveFileIcon('index.js', manifest);
++      // .js may be in fileExtensions or languageIds
++      expect(result.iconName).toBe('javascript');
++    });
++  });
++
++  describe('fallback to default', () => {
++    it('returns default file icon for unknown extension', () => {
++      const result = resolveFileIcon('data.xyz', manifest);
++      expect(result.iconName).toBe('file');
++      expect(result.source).toBe('default');
++    });
++
++    it('returns default file icon for no extension', () => {
++      const result = resolveFileIcon('LICENSE', manifest);
++      // LICENSE might match fileNames — if not, falls to default
++      const res = resolveFileIcon('RANDOMFILE', manifest);
++      expect(res.iconName).toBe('file');
++      expect(res.source).toBe('default');
++    });
++
++    it('returns default file icon for dotfile without known name', () => {
++      const result = resolveFileIcon('.unknowndotfile', manifest);
++      expect(result.source).toBe('default');
++    });
++  });
++
++  describe('light-mode overrides', () => {
++    it('returns light-mode override when available', () => {
++      // manifest.light.fileExtensions has ~31 entries
++      const lightExts = Object.keys(manifest.light.fileExtensions ?? {});
++      if (lightExts.length > 0) {
++        const ext = lightExts[0];
++        const filename = `test.${ext}`;
++        const darkResult = resolveFileIcon(filename, manifest);
++        const lightResult = resolveFileIcon(filename, manifest, 'light');
++        // Light result should differ from dark if override exists
++        expect(lightResult.iconName).toBeDefined();
++      }
++    });
++
++    it('falls back to base manifest when no light override exists', () => {
++      const result = resolveFileIcon('app.py', manifest, 'light');
++      // .py has no light override — should get same as dark
++      expect(result.iconName).toBe('python');
++    });
++
++    it('uses base manifest when theme is undefined or dark', () => {
++      const result1 = resolveFileIcon('app.py', manifest);
++      const result2 = resolveFileIcon('app.py', manifest, 'dark');
++      expect(result1.iconName).toBe(result2.iconName);
++    });
++  });
++});
++
++describe('resolveFolderIcon', () => {
++  describe('named folder resolution', () => {
++    it('resolves src folder (collapsed)', () => {
++      const result = resolveFolderIcon('src', false, manifest);
++      expect(result.iconName).toBe('folder-src');
++      expect(result.source).toBe('fileName');
++    });
++
++    it('resolves src folder (expanded)', () => {
++      const result = resolveFolderIcon('src', true, manifest);
++      expect(result.iconName).toBe('folder-src-open');
++      expect(result.source).toBe('fileName');
++    });
++
++    it('resolves node_modules folder', () => {
++      const result = resolveFolderIcon('node_modules', false, manifest);
++      expect(result.iconName).toBe('folder-node');
++      expect(result.source).toBe('fileName');
++    });
++
++    it('resolves test folder', () => {
++      const result = resolveFolderIcon('test', false, manifest);
++      expect(result.iconName).toBe('folder-test');
++      expect(result.source).toBe('fileName');
++    });
++
++    it('resolves .git folder', () => {
++      const result = resolveFolderIcon('.git', false, manifest);
++      expect(result.iconName).toBe('folder-git');
++      expect(result.source).toBe('fileName');
++    });
++  });
++
++  describe('default folder fallback', () => {
++    it('returns default folder for unknown name (collapsed)', () => {
++      const result = resolveFolderIcon('random-folder-xyz', false, manifest);
++      expect(result.iconName).toBe('folder');
++      expect(result.source).toBe('default');
++    });
++
++    it('returns default folder-open for unknown name (expanded)', () => {
++      const result = resolveFolderIcon('random-folder-xyz', true, manifest);
++      expect(result.iconName).toBe('folder-open');
++      expect(result.source).toBe('default');
++    });
++  });
++});
+diff --git a/Users/jordanknight/substrate/073-file-icons/docs/plans/073-file-icons/tasks/phase-1-domain-setup-icon-resolver/tasks.md b/Users/jordanknight/substrate/073-file-icons/docs/plans/073-file-icons/tasks/phase-1-domain-setup-icon-resolver/tasks.md
+new file mode 100644
+index 00000000..5891c6c5
+--- /dev/null
++++ b/Users/jordanknight/substrate/073-file-icons/docs/plans/073-file-icons/tasks/phase-1-domain-setup-icon-resolver/tasks.md
+@@ -0,0 +1,209 @@
++# Phase 1: Domain Setup & Icon Resolver — Tasks
++
++## Executive Briefing
++
++**Purpose**: Create the `_platform/themes` infrastructure domain and build a manifest-driven icon resolver that maps filenames to icon paths using the VSCode icon theme manifest format. This is the foundation that all subsequent phases build on.
++
++**What We're Building**: A pure-function resolver that takes a filename (e.g., `app.tsx`, `package.json`, `Dockerfile`) and a theme manifest, then returns the correct icon path by checking `fileNames` → `fileExtensions` → `languageIds` → default. The resolver also handles folder icons (with expanded/collapsed variants) and light-mode overrides. All logic is TDD with real `material-icon-theme` manifest data.
++
++**Goals**:
++- ✅ New `_platform/themes` domain with domain.md, registry entry, domain-map node
++- ✅ Feature folder scaffold at `apps/web/src/features/_platform/themes/`
++- ✅ Type definitions: `IconThemeManifest`, `IconResolution`, `IconThemeId`
++- ✅ `resolveFileIcon()` — TDD, handles `.ts` via `languageIds`, special filenames, fallbacks
++- ✅ `resolveFolderIcon()` — TDD, handles named folders, expanded/collapsed variants
++- ✅ Light-mode override support via `manifest.light.*`
++- ✅ `loadManifest()` — loads and normalizes theme manifests
++
++**Non-Goals**:
++- ❌ No React components yet (Phase 3)
++- ❌ No SVG asset files yet (Phase 2)
++- ❌ No UI wiring yet (Phase 4)
++- ❌ No SDK setting yet (Phase 3)
++
++## Prior Phase Context
++
++Phase 1 — no prior phases.
++
++## Pre-Implementation Check
++
++| File | Exists? | Domain Check | Notes |
++|------|---------|-------------|-------|
++| `docs/domains/_platform/themes/domain.md` | ❌ No | New domain | Create in T001 |
++| `docs/domains/registry.md` | ✅ Yes | cross-domain | Modify in T002 |
++| `docs/domains/domain-map.md` | ✅ Yes | cross-domain | Modify in T003 |
++| `apps/web/src/features/_platform/themes/` | ❌ No | New feature | Create in T004 |
++| `apps/web/src/features/_platform/themes/types.ts` | ❌ No | New file | Create in T005 |
++| `apps/web/src/features/_platform/themes/lib/icon-resolver.ts` | ❌ No | New file | Create in T006-T008 |
++| `apps/web/src/features/_platform/themes/lib/manifest-loader.ts` | ❌ No | New file | Create in T009 |
++| `test/unit/web/features/_platform/themes/icon-resolver.test.ts` | ❌ No | New test | Create in T006-T008 |
++
++**Concept search**: No existing "icon resolver", "theme resolver", or "file icon" concepts found in codebase. Clean creation.
++**Harness**: Available at L3 but not needed for Phase 1 (pure function TDD).
++
++## Architecture Map
++
++```mermaid
++flowchart TD
++    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
++    classDef doc fill:#E8F5E9,stroke:#4CAF50,color:#000
++
++    subgraph Phase1["Phase 1: Domain Setup & Icon Resolver"]
++        T001["T001: domain.md"]:::pending
++        T002["T002: registry.md"]:::pending
++        T003["T003: domain-map.md"]:::pending
++        T004["T004: Feature scaffold"]:::pending
++        T005["T005: Type definitions"]:::pending
++        T006["T006: TDD resolveFileIcon"]:::pending
++        T007["T007: TDD resolveFolderIcon"]:::pending
++        T008["T008: TDD light-mode override"]:::pending
++        T009["T009: loadManifest"]:::pending
++
++        T001 --> T004
++        T002 --> T004
++        T003 --> T004
++        T004 --> T005
++        T005 --> T006
++        T006 --> T007
++        T007 --> T008
++        T008 --> T009
++    end
++
++    subgraph Docs["Domain Artifacts"]
++        D1["docs/domains/_platform/themes/domain.md"]:::doc
++        D2["docs/domains/registry.md"]:::doc
++        D3["docs/domains/domain-map.md"]:::doc
++    end
++
++    subgraph Code["Feature Code"]
++        C1["_platform/themes/types.ts"]:::pending
++        C2["_platform/themes/lib/icon-resolver.ts"]:::pending
++        C3["_platform/themes/lib/manifest-loader.ts"]:::pending
++        C4["_platform/themes/constants.ts"]:::pending
++        C5["_platform/themes/index.ts"]:::pending
++    end
++
++    T001 -.-> D1
++    T002 -.-> D2
++    T003 -.-> D3
++    T005 -.-> C1
++    T006 -.-> C2
++    T009 -.-> C3
++    T004 -.-> C4
++    T004 -.-> C5
++```
++
++## Tasks
++
++| Status | ID | Task | Domain | Path(s) | Done When | Notes |
++|--------|-----|------|--------|---------|-----------|-------|
++| [x] | T001 | Create `_platform/themes` domain definition with Purpose, Boundary (Owns/Does NOT Own), Contracts, Composition, Source Location, Dependencies, History sections. Clarify: "Does NOT own: Syntax highlighting themes (Shiki, CodeMirror)" | `_platform/themes` | `docs/domains/_platform/themes/domain.md` | Domain file exists with complete boundary, 4 contracts listed (resolveFileIcon, resolveFolderIcon, FileIcon, FolderIcon), non-ownership of syntax themes documented | Per plan Finding 08 |
++| [x] | T002 | Add `_platform/themes` row to domain registry: `Themes \| _platform/themes \| infrastructure \| _platform \| Plan 073 \| active` | cross-domain | `docs/domains/registry.md` | Row visible in registry table between existing _platform entries | |
++| [x] | T003 | Add `_platform/themes` node to domain-map Mermaid diagram with contracts `resolveFileIcon<br/>resolveFolderIcon<br/>FileIcon · FolderIcon`, add edges: `fileBrowser -->themes`, `panels -->themes` (future), `themes -->sdk` | cross-domain | `docs/domains/domain-map.md` | Mermaid renders correctly with themes node + edges. Use `<br/>` for newlines (not `\n`) | Use infra classDef |
++| [x] | T004 | Create feature folder scaffold: `apps/web/src/features/_platform/themes/{index.ts, types.ts, constants.ts, lib/, components/, sdk/}`. Barrel `index.ts` exports nothing yet (placeholder). `constants.ts` defines `DEFAULT_ICON_THEME = 'material-icon-theme'` and `ICON_BASE_PATH = '/icons'` | `_platform/themes` | `apps/web/src/features/_platform/themes/index.ts`, `constants.ts` | Directory structure exists, `index.ts` compiles with `tsc --noEmit` | Follow panel-layout pattern |
++| [x] | T005 | Define types in `types.ts`: `IconThemeManifest` (normalized shape with `fileNames`, `fileExtensions`, `languageIds`, `folderNames`, `folderNamesExpanded`, `iconDefinitions`, `light`, `file`, `folder`, `folderExpanded`), `IconResolution` (`{ iconName: string; iconPath: string; source: 'fileName' \| 'fileExtension' \| 'languageId' \| 'default' }`), `IconThemeId` (string type). Export from barrel | `_platform/themes` | `apps/web/src/features/_platform/themes/types.ts` | Types compile, exported from barrel, `IconThemeManifest` matches verified API shape from Finding 01 | `fileExtensions` has 1,164 entries, `fileNames` has 2,050, `languageIds` has 198, `folderNames` 4,518 |
++| [x] | T006 | TDD (RED→GREEN→REFACTOR): Write failing tests for `resolveFileIcon(filename, manifest, theme?)` FIRST in test file. Then implement resolver that checks `fileNames` → `fileExtensions` → `languageIds` → default. Use real `material-icon-theme` manifest data via `generateManifest()` in tests | `_platform/themes` | `apps/web/src/features/_platform/themes/lib/icon-resolver.ts`, `test/unit/web/features/_platform/themes/icon-resolver.test.ts` | Tests pass for: `package.json`→nodejs (via fileNames), `.py`→python (via fileExtensions), `.ts`→typescript (via languageIds — NOT in fileExtensions!), `Dockerfile`→docker (via fileNames, case-insensitive), `.xyz`→file (fallback), `.gitignore`→git (via fileNames), no-extension files→file (fallback), `.JSON`→json (case-insensitive extensions) | **Critical**: `.ts` only in `languageIds`, not `fileExtensions` (Finding 01). Resolver must lowercase filename for `fileNames` lookup and extension for `fileExtensions` lookup |
++| [x] | T007 | TDD (RED→GREEN→REFACTOR): Write failing tests for `resolveFolderIcon(folderName, expanded, manifest, theme?)` FIRST. Then implement resolver checking `folderNames`/`folderNamesExpanded` → default `folder`/`folder-open` | `_platform/themes` | `apps/web/src/features/_platform/themes/lib/icon-resolver.ts`, `test/unit/web/features/_platform/themes/icon-resolver.test.ts` | Tests pass for: `src`→folder-src, `src` expanded→folder-src-open, `node_modules`→folder-node, `test`→folder-test, `.git`→folder-git, unknown folder→folder (default), unknown expanded→folder-open (default) | Manifest has 4,518 folderNames entries |
++| [x] | T008 | TDD (RED→GREEN→REFACTOR): Write failing tests for light-mode override FIRST. Then implement: when `theme='light'`, resolver checks `manifest.light.fileNames` → `manifest.light.fileExtensions` → `manifest.light.languageIds` first, falls back to base manifest if no light override | `_platform/themes` | `apps/web/src/features/_platform/themes/lib/icon-resolver.ts`, `test/unit/web/features/_platform/themes/icon-resolver.test.ts` | Tests pass for: light override returns different icon when `manifest.light.fileExtensions` has entry; light override falls back to base when no light entry; dark/undefined theme uses base manifest only | Finding 02: manifest.light has 31 fileExtension overrides |
++| [x] | T009 | Implement `loadManifest(themeId)`: imports the static manifest JSON (generated in Phase 2), validates shape against `IconThemeManifest` type, returns normalized manifest. For now, hardcode a minimal test manifest inline (Phase 2 generates the real one) | `_platform/themes` | `apps/web/src/features/_platform/themes/lib/manifest-loader.ts` | Function compiles, returns `IconThemeManifest` shape, exported from barrel. Test verifies shape validation | Hardcoded minimal manifest for Phase 1; replaced with real manifest in Phase 2 |
++
++## Context Brief
++
++### Key Findings from Plan
++
++- **Finding 01 (Critical)**: `.ts` is NOT in `fileExtensions` — only in `languageIds`. Resolver MUST check three sources: `fileNames` → `fileExtensions` → `languageIds` → default. Verified against real API.
++- **Finding 02 (Critical)**: Manifest includes `light` theme overrides (31 file extensions). Resolver must check `manifest.light.*` when theme is `'light'`.
++- **Finding 03 (High)**: `iconDefinitions` paths use `"./../icons/typescript.svg"` format. Icon name = definition key (e.g., `typescript`). Build script (Phase 2) extracts names.
++- **Finding 07 (High)**: SDK setting template: use `editor.wordWrap` pattern from file-browser SDK contribution (select UI + string schema). Deferred to Phase 3.
++- **Finding 08 (Medium)**: `_platform/viewer` owns "dual themes" for Shiki but that's syntax highlighting only. New `_platform/themes` domain must clarify non-ownership.
++
++### Domain Dependencies
++
++- **None consumed in Phase 1** — this phase creates the new domain and pure functions with no external domain dependencies
++- `material-icon-theme` npm package: `generateManifest()` returns manifest data used in tests (devDependency)
++
++### Domain Constraints
++
++- `_platform/themes` is infrastructure, NOT business domain
++- Resolver functions are **pure** (no side effects, no React, no state) — per Deviation Ledger
++- Follow panel-layout folder convention: `components/`, `lib/`, root `types.ts`, `index.ts`
++- Use `<br/>` not `\n` in Mermaid labels
++- Test files use real manifest data, no mocks (per spec Testing Strategy)
++
++### Reusable from Prior Phases
++
++- No prior phases — clean start
++- Reference patterns: `detectLanguage()` in `apps/web/src/lib/language-detection.ts` (extension mapping), `detectContentType()` in `apps/web/src/lib/content-type-detection.ts` (content categorization)
++
++### Data Flow
++
++```mermaid
++flowchart LR
++    A["filename<br/>(e.g., app.tsx)"] --> B["resolveFileIcon()"]
++    M["IconThemeManifest"] --> B
++    T["theme?<br/>(light/dark)"] --> B
++    B --> C{"fileNames<br/>match?"}
++    C -->|yes| D["IconResolution<br/>{iconName, iconPath, source}"]
++    C -->|no| E{"fileExtensions<br/>match?"}
++    E -->|yes| D
++    E -->|no| F{"languageIds<br/>match?"}
++    F -->|yes| D
++    F -->|no| G["default 'file' icon"]
++    G --> D
++```
++
++### Resolution Priority Sequence
++
++```mermaid
++sequenceDiagram
++    participant C as Consumer
++    participant R as resolveFileIcon()
++    participant M as Manifest
++
++    C->>R: resolveFileIcon("package.json", manifest, "dark")
++    R->>M: Check manifest.fileNames["package.json"]
++    M-->>R: "nodejs" ✓
++    R-->>C: {iconName: "nodejs", source: "fileName"}
++
++    Note over C,M: If not found in fileNames...
++
++    C->>R: resolveFileIcon("app.py", manifest, "dark")
++    R->>M: Check manifest.fileNames["app.py"]
++    M-->>R: undefined
++    R->>M: Check manifest.fileExtensions["py"]
++    M-->>R: "python" ✓
++    R-->>C: {iconName: "python", source: "fileExtension"}
++
++    Note over C,M: If not found in fileExtensions...
++
++    C->>R: resolveFileIcon("app.ts", manifest, "dark")
++    R->>M: Check fileNames → undefined
++    R->>M: Check fileExtensions["ts"] → undefined!
++    R->>M: Check languageIds["typescript"]
++    M-->>R: "typescript" ✓
++    R-->>C: {iconName: "typescript", source: "languageId"}
++```
++
++## Discoveries & Learnings
++
++_Populated during implementation by plan-6._
++
++| Date | Task | Type | Discovery | Resolution | References |
++|------|------|------|-----------|------------|------------|
++
++---
++
++## Directory Layout
++
++```
++docs/plans/073-file-icons/
++  ├── file-icons-spec.md
++  ├── file-icons-plan.md
++  ├── research-dossier.md
++  ├── deep-research-bundle-optimization.md
++  ├── deep-research-theme-adaptation.md
++  └── tasks/phase-1-domain-setup-icon-resolver/
++      ├── tasks.md                    ← this file
++      ├── tasks.fltplan.md            ← flight plan (below)
++      └── execution.log.md           ← created by plan-6
++```
+diff --git a/Users/jordanknight/substrate/073-file-icons/docs/plans/073-file-icons/tasks/phase-1-domain-setup-icon-resolver/tasks.fltplan.md b/Users/jordanknight/substrate/073-file-icons/docs/plans/073-file-icons/tasks/phase-1-domain-setup-icon-resolver/tasks.fltplan.md
+new file mode 100644
+index 00000000..fc734d87
+--- /dev/null
++++ b/Users/jordanknight/substrate/073-file-icons/docs/plans/073-file-icons/tasks/phase-1-domain-setup-icon-resolver/tasks.fltplan.md
+@@ -0,0 +1,136 @@
++# Flight Plan: Phase 1 — Domain Setup & Icon Resolver
++
++**Plan**: [file-icons-plan.md](../../file-icons-plan.md)
++**Phase**: Phase 1: Domain Setup & Icon Resolver
++**Generated**: 2026-03-09
++**Status**: Landed
++
++---
++
++## Departure → Destination
++
++**Where we are**: No icon theming infrastructure exists. The app has no `_platform/themes` domain. File icons are hardcoded Lucide `<File>` components everywhere. There is no filename → icon mapping logic.
++
++**Where we're going**: A developer can call `resolveFileIcon('app.tsx', manifest)` and get back `{iconName: 'react_ts', source: 'fileExtension'}`. A new `_platform/themes` infrastructure domain exists with domain definition, registry entry, and domain-map node. Nine TDD-tested resolver scenarios cover filenames, extensions, languageIds fallback, folder icons, and light-mode overrides.
++
++---
++
++## Domain Context
++
++### Domains We're Changing
++
++| Domain | What Changes | Key Files |
++|--------|-------------|-----------|
++| `_platform/themes` (NEW) | Create entire domain: definition, types, resolver, manifest loader | `docs/domains/_platform/themes/domain.md`, `apps/web/src/features/_platform/themes/**` |
++| cross-domain | Registry + domain map entries for new domain | `docs/domains/registry.md`, `docs/domains/domain-map.md` |
++
++### Domains We Depend On (no changes)
++
++| Domain | What We Consume | Contract |
++|--------|----------------|----------|
++| None | Phase 1 has no domain dependencies | — |
++
++---
++
++## Flight Status
++
++```mermaid
++stateDiagram-v2
++    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
++    classDef active fill:#FFC107,stroke:#FFA000,color:#000
++    classDef done fill:#4CAF50,stroke:#388E3C,color:#fff
++    classDef blocked fill:#F44336,stroke:#D32F2F,color:#fff
++
++    state "1: Domain docs" as S1
++    state "2: Feature scaffold" as S2
++    state "3: Types" as S3
++    state "4: TDD resolveFileIcon" as S4
++    state "5: TDD resolveFolderIcon" as S5
++    state "6: TDD light-mode" as S6
++    state "7: loadManifest" as S7
++
++    [*] --> S1
++    S1 --> S2
++    S2 --> S3
++    S3 --> S4
++    S4 --> S5
++    S5 --> S6
++    S6 --> S7
++    S7 --> [*]
++
++    class S1,S2,S3,S4,S5,S6,S7 done
++```
++
++**Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
++
++---
++
++## Stages
++
++- [x] **Stage 1: Create domain artifacts** — domain.md + registry row + domain-map node (`domain.md`, `registry.md`, `domain-map.md`)
++- [x] **Stage 2: Scaffold feature folder** — directory structure + barrel + constants (`_platform/themes/` — new directory)
++- [x] **Stage 3: Define type system** — IconThemeManifest, IconResolution, IconThemeId (`types.ts` — new file)
++- [x] **Stage 4: TDD file icon resolver** — RED→GREEN→REFACTOR with 8 test scenarios (`icon-resolver.ts`, `icon-resolver.test.ts` — new files)
++- [x] **Stage 5: TDD folder icon resolver** — expanded/collapsed variants, named folders (`icon-resolver.ts` — extend)
++- [x] **Stage 6: TDD light-mode overrides** — manifest.light.* sources checked first in light theme (`icon-resolver.ts` — extend)
++- [x] **Stage 7: Manifest loader** — load + normalize manifest data (`manifest-loader.ts` — new file)
++
++---
++
++## Architecture: Before & After
++
++```mermaid
++flowchart LR
++    classDef existing fill:#E8F5E9,stroke:#4CAF50,color:#000
++    classDef new fill:#E3F2FD,stroke:#2196F3,color:#000
++
++    subgraph Before["Before Phase 1"]
++        B1["_platform/viewer<br/>detectLanguage()<br/>detectContentType()"]:::existing
++        B2["file-browser<br/>FileTree uses<br/>generic File icon"]:::existing
++        B1 --> B2
++    end
++
++    subgraph After["After Phase 1"]
++        A1["_platform/viewer<br/>detectLanguage()<br/>detectContentType()"]:::existing
++        A2["_platform/themes (NEW)<br/>resolveFileIcon()<br/>resolveFolderIcon()<br/>loadManifest()"]:::new
++        A3["file-browser<br/>(unchanged — Phase 4)"]:::existing
++        A1 --> A3
++        A2 -.->|"Phase 4 wires"| A3
++    end
++```
++
++**Legend**: existing (green, unchanged) | new (blue, created)
++
++---
++
++## Acceptance Criteria
++
++- [ ] `resolveFileIcon('package.json', manifest)` returns `{iconName: 'nodejs', source: 'fileName'}`
++- [ ] `resolveFileIcon('app.ts', manifest)` returns `{iconName: 'typescript', source: 'languageId'}` (NOT fileExtension!)
++- [ ] `resolveFileIcon('app.py', manifest)` returns `{iconName: 'python', source: 'fileExtension'}`
++- [ ] `resolveFileIcon('unknown.xyz', manifest)` returns `{iconName: 'file', source: 'default'}`
++- [ ] `resolveFolderIcon('src', false, manifest)` returns `{iconName: 'folder-src'}`
++- [ ] `resolveFolderIcon('src', true, manifest)` returns `{iconName: 'folder-src-open'}`
++- [ ] Light-mode override works when `manifest.light.fileExtensions` has entry
++- [ ] All tests pass via `pnpm test`
++- [ ] Domain registered in `docs/domains/registry.md`
++- [ ] Domain visible in `docs/domains/domain-map.md` Mermaid
++
++## Goals & Non-Goals
++
++**Goals**: Domain definition, type system, TDD resolver, manifest loader
++**Non-Goals**: React components, SVG assets, UI wiring, SDK setting
++
++---
++
++## Checklist
++
++- [x] T001: Create domain.md
++- [x] T002: Update registry.md
++- [x] T003: Update domain-map.md
++- [x] T004: Create feature folder scaffold
++- [x] T005: Define types
++- [x] T006: TDD resolveFileIcon
++- [x] T007: TDD resolveFolderIcon
++- [x] T008: TDD light-mode overrides
++- [x] T009: Implement loadManifest
+diff --git a/Users/jordanknight/substrate/073-file-icons/docs/plans/073-file-icons/tasks/phase-1-domain-setup-icon-resolver/execution.log.md b/Users/jordanknight/substrate/073-file-icons/docs/plans/073-file-icons/tasks/phase-1-domain-setup-icon-resolver/execution.log.md
+new file mode 100644
+index 00000000..ad2c2c44
+--- /dev/null
++++ b/Users/jordanknight/substrate/073-file-icons/docs/plans/073-file-icons/tasks/phase-1-domain-setup-icon-resolver/execution.log.md
+@@ -0,0 +1,43 @@
++# Execution Log: Phase 1 — Domain Setup & Icon Resolver
++
++**Started**: 2026-03-09
++**Status**: In Progress
++
++## Pre-Phase Validation
++
++- **Harness**: Available at L3, not needed for Phase 1 (pure function TDD)
++- **material-icon-theme**: API verified — `generateManifest()` returns expected shape
++- **Branch**: `073-file-icons`
++
++## Task Log
++
++### T001-T003: Domain Artifacts (Complete)
++- Created `docs/domains/_platform/themes/domain.md` with full boundary (Owns/Does NOT Own), 4 contracts, 3 concepts, composition table, source locations, dependencies
++- Added row to `docs/domains/registry.md`: Themes | _platform/themes | infrastructure | _platform | Plan 073
++- Added themes node to `docs/domains/domain-map.md` with `resolveFileIcon<br/>resolveFolderIcon<br/>FileIcon · FolderIcon` contracts, edges from fileBrowser→themes and themes→sdk
++
++### T004: Feature Scaffold (Complete)
++- Created directory structure: `apps/web/src/features/_platform/themes/{lib/, components/, sdk/}`
++- Created `constants.ts` with `DEFAULT_ICON_THEME` and `ICON_BASE_PATH`
++- Created `index.ts` barrel with exports for resolver functions, types, and constants
++
++### T005: Type Definitions (Complete)
++- Created `types.ts` with `IconThemeManifest`, `IconResolution`, `IconThemeId`
++- `IconThemeManifest` mirrors verified API shape: fileNames (2,050), fileExtensions (1,164), languageIds (198), folderNames (4,518), folderNamesExpanded (4,518), iconDefinitions (1,205), light overrides
++
++### T006-T008: TDD Icon Resolver (Complete)
++- **25 tests, all passing** in `test/unit/web/features/_platform/themes/icon-resolver.test.ts`
++- Tests use REAL `material-icon-theme` manifest data via `generateManifest()` — no mocks
++- `resolveFileIcon()`: checks fileNames → fileExtensions → languageIds → default
++- `resolveFolderIcon()`: checks folderNames/folderNamesExpanded → default folder/folder-open
++- Light-mode overrides: checks manifest.light.* first when theme='light'
++- Key discovery confirmed: `.ts` is NOT in fileExtensions, only in languageIds. Resolver uses `EXTENSION_TO_LANGUAGE_ID` map for the bridge.
++
++### T009: Manifest Loader (Complete)
++- Created `manifest-loader.ts` with `loadManifest()` (async, cached) and `clearManifestCache()`
++- Phase 1 uses hardcoded empty manifest as placeholder; Phase 2 replaces with real generated manifest
++
++## Evidence
++- Test run: 25 passed, 0 failed (643ms total)
++- All resolver scenarios verified against real material-icon-theme@5.32.0 manifest
++

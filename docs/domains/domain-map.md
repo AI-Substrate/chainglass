@@ -22,6 +22,7 @@ flowchart LR
     state["💾 _platform/state<br/>IStateService<br/>useGlobalState<br/>useGlobalStateList<br/>GlobalStateProvider<br/>GlobalStateConnector<br/>StateChangeLog<br/>ServerEventRoute"]:::infra
     devTools["🛠️ _platform/dev-tools<br/>StateInspector<br/>useStateInspector<br/>useStateChangeLog"]:::infra
     auth["🔐 _platform/auth<br/>auth() · signIn() · signOut()<br/>requireAuth() · useAuth()<br/>middleware protection<br/>isUserAllowed()<br/>SessionProvider"]:::infra
+    themes["🎨 _platform/themes<br/>resolveFileIcon · resolveFolderIcon<br/>FileIcon · FolderIcon<br/>themes.iconTheme setting"]:::infra
 
     %% Business domains
     fileBrowser["📁 file-browser<br/>Browser page · FileTree<br/>CodeEditor re-export<br/>FileViewerPanel<br/>WorkspaceContext · Settings"]:::business
@@ -89,6 +90,11 @@ flowchart LR
     workflowUI -->|"useGlobalState<br/>(subscribe execution)"| state
     panels -->|"useGlobalState<br/>(subscribe alerts)"| state
     fileBrowser -->|"useGlobalState<br/>(subscribe worktree)"| state
+    fileBrowser -->|"resolveFileIcon<br/>resolveFolderIcon<br/>FileIcon · FolderIcon"| themes
+    panels -->|"FileIcon"| themes
+
+    %% Themes domain dependencies
+    themes -->|"IUSDK<br/>(publishes iconTheme)"| sdk
 
     %% Dev tools dependencies
     devTools -->|"IStateService<br/>StateChangeLog<br/>useStateSystem"| state

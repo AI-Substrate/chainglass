@@ -128,14 +128,6 @@ describe('folder.ts', () => {
     });
 
     it('should detect optional schema and instructions', () => {
-      /*
-      Test Doc:
-      - Why: AC-03 — schema and instructions are optional but must be detected when present
-      - Contract: listAgents populates schemaPath/instructionsPath when files exist alongside prompt.md
-      - Usage Notes: File names are fixed: output-schema.json, instructions.md
-      - Quality Contribution: Catches regressions where optional files are silently ignored
-      - Worked Example: agent dir with all 3 files → schemaPath and instructionsPath are non-null
-      */
       const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-test-'));
       const agentDir = path.join(tmpDir, 'agents', 'full-agent');
       fs.mkdirSync(agentDir, { recursive: true });
@@ -147,6 +139,27 @@ describe('folder.ts', () => {
         const agents = listAgents(tmpDir);
         expect(agents[0].schemaPath).not.toBeNull();
         expect(agents[0].instructionsPath).not.toBeNull();
+        expect(agents[0].inputSchemaPath).toBeNull();
+      } finally {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it('should detect input-schema.json when present', () => {
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-test-'));
+      const agentDir = path.join(tmpDir, 'agents', 'param-agent');
+      fs.mkdirSync(agentDir, { recursive: true });
+      fs.writeFileSync(path.join(agentDir, 'prompt.md'), '# Prompt');
+      fs.writeFileSync(path.join(agentDir, 'input-schema.json'), JSON.stringify({
+        type: 'object',
+        required: ['file_path'],
+        properties: { file_path: { type: 'string' } },
+      }));
+
+      try {
+        const agents = listAgents(tmpDir);
+        expect(agents).toHaveLength(1);
+        expect(agents[0].inputSchemaPath).not.toBeNull();
       } finally {
         fs.rmSync(tmpDir, { recursive: true, force: true });
       }
@@ -196,6 +209,7 @@ describe('folder.ts', () => {
         promptPath: path.join(agentDir, 'prompt.md'),
         schemaPath: null,
         instructionsPath: null,
+        inputSchemaPath: null,
       };
 
       try {
@@ -204,6 +218,32 @@ describe('folder.ts', () => {
         expect(fs.existsSync(path.join(runDir, 'prompt.md'))).toBe(true);
         expect(fs.existsSync(path.join(runDir, 'output'))).toBe(true);
         expect(runId).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z-[0-9a-f]{4}$/);
+      } finally {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it('should freeze input-schema.json into run folder when present', () => {
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-test-'));
+      const agentDir = path.join(tmpDir, 'agents', 'test-agent');
+      fs.mkdirSync(agentDir, { recursive: true });
+      fs.writeFileSync(path.join(agentDir, 'prompt.md'), '# Test prompt');
+      const inputSchema = JSON.stringify({ type: 'object', required: ['x'], properties: { x: { type: 'string' } } });
+      fs.writeFileSync(path.join(agentDir, 'input-schema.json'), inputSchema);
+
+      const def: AgentDefinition = {
+        slug: 'test-agent',
+        dir: agentDir,
+        promptPath: path.join(agentDir, 'prompt.md'),
+        schemaPath: null,
+        instructionsPath: null,
+        inputSchemaPath: path.join(agentDir, 'input-schema.json'),
+      };
+
+      try {
+        const { runDir } = createRunFolder(def);
+        expect(fs.existsSync(path.join(runDir, 'input-schema.json'))).toBe(true);
+        expect(fs.readFileSync(path.join(runDir, 'input-schema.json'), 'utf-8')).toBe(inputSchema);
       } finally {
         fs.rmSync(tmpDir, { recursive: true, force: true });
       }
@@ -229,6 +269,7 @@ describe('folder.ts', () => {
         promptPath: path.join(agentDir, 'prompt.md'),
         schemaPath: null,
         instructionsPath: null,
+        inputSchemaPath: null,
       };
 
       try {

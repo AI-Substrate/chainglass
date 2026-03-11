@@ -104,6 +104,7 @@ function BrowserClientInner({
   const [params, setParams] = useQueryStates(fileBrowserParams);
   const explorerRef = useRef<ExplorerPanelHandle>(null);
   const [expandPaths, setExpandPaths] = useState<string[]>([]);
+  const lastFileSelectionRef = useRef<{ filePath: string; at: number } | null>(null);
 
   // DYK-P3-01: Wrap server prop in state for client-side root refresh
   const [rootEntries, setRootEntries] = useState(initialEntries);
@@ -143,15 +144,6 @@ function BrowserClientInner({
     setUrlFile: (file) => setParams({ file, line: null }, { history: 'push' }),
     setUrlMode: (m) => setParams({ mode: m as 'edit' | 'preview' | 'diff' }),
   });
-
-  // Wrap file selection to collapse all overlays (terminal, agent, activity log)
-  const handleFileSelect = useCallback(
-    (filePath: string) => {
-      window.dispatchEvent(new CustomEvent('overlay:close-all'));
-      return fileNav.handleSelect(filePath);
-    },
-    [fileNav.handleSelect]
-  );
 
   const panelState = usePanelState({
     isGit,
@@ -447,7 +439,7 @@ function BrowserClientInner({
 
   // T006: Wrap save to track recently-saved paths for suppression
   const handleSaveWithSuppression = useCallback(
-    (content: string) => {
+    async (content: string) => {
       if (selectedFile) {
         // Clear previous timer for this path if exists (rapid save overlap fix)
         const prev = suppressedTimersRef.current.get(selectedFile);
@@ -457,9 +449,78 @@ function BrowserClientInner({
         }, 2000);
         suppressedTimersRef.current.set(selectedFile, timer);
       }
-      fileNav.handleSave(content);
+      return fileNav.handleSave(content);
     },
     [selectedFile, fileNav.handleSave]
+  );
+
+  const handleFileDoubleSelect = useCallback(
+    async (filePath: string, wasSelected: boolean) => {
+      if (mode === 'edit') {
+        // Double-click fires after click selection. Only toggle back to preview when the
+        // interaction started on the already-open file, so save-before-preview is reliable.
+        if (!wasSelected || selectedFile !== filePath) {
+          return;
+        }
+
+        const hasUnsavedChanges =
+          fileNav.fileData?.ok &&
+          !fileNav.fileData.isBinary &&
+          fileNav.editContent !== fileNav.fileData.content;
+
+        if (hasUnsavedChanges) {
+          const saved = await handleSaveWithSuppression(fileNav.editContent);
+          if (!saved) {
+            return;
+          }
+        }
+
+        await fileNav.handleModeChange('preview');
+        return;
+      }
+
+      await fileNav.handleModeChange('edit');
+    },
+    [
+      mode,
+      selectedFile,
+      fileNav.fileData,
+      fileNav.editContent,
+      fileNav.handleModeChange,
+      handleSaveWithSuppression,
+    ]
+  );
+
+  // Wrap file selection to collapse overlays and interpret rapid repeated
+  // selection of the same file as a double click. This is more reliable than
+  // depending on nested row-level dblclick handlers through wrapper components.
+  const handleFileSelect = useCallback(
+    async (filePath: string) => {
+      window.dispatchEvent(new CustomEvent('overlay:close-all'));
+
+      const wasSelected = selectedFile === filePath;
+      const now = Date.now();
+      const isDoubleSelect =
+        lastFileSelectionRef.current?.filePath === filePath &&
+        now - lastFileSelectionRef.current.at < 350;
+
+      lastFileSelectionRef.current = { filePath, at: now };
+
+      if (isDoubleSelect) {
+        if (!wasSelected) {
+          await fileNav.handleSelect(filePath);
+        }
+        await handleFileDoubleSelect(filePath, wasSelected);
+        return;
+      }
+
+      if (wasSelected) {
+        return;
+      }
+
+      await fileNav.handleSelect(filePath);
+    },
+    [selectedFile, fileNav.handleSelect, handleFileDoubleSelect]
   );
 
   // --- ExplorerPanel handler chain ---
@@ -810,6 +871,7 @@ function BrowserClientInner({
                     ? `/api/workspaces/${slug}/files/raw?worktree=${encodeURIComponent(worktreePath)}&file=${encodeURIComponent(selectedFile)}`
                     : undefined
                 }
+                rawFileBaseUrl={`/api/workspaces/${slug}/files/raw?worktree=${encodeURIComponent(worktreePath)}`}
                 popOutUrl={
                   selectedFile
                     ? `/workspaces/${slug}/browser?worktree=${encodeURIComponent(worktreePath)}&file=${encodeURIComponent(selectedFile)}&mode=${mode}`

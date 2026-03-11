@@ -8,7 +8,8 @@
  * Plan 046: Binary File Viewers (T008)
  */
 
-import { Download, FileQuestion } from 'lucide-react';
+import { FileIcon } from '@/features/_platform/themes';
+import { Download } from 'lucide-react';
 
 export interface BinaryPlaceholderProps {
   src: string;
@@ -29,7 +30,7 @@ export function BinaryPlaceholder({ src, size, mimeType, filename }: BinaryPlace
 
   return (
     <div className="flex flex-col items-center justify-center gap-4 h-full w-full p-8 text-muted-foreground">
-      <FileQuestion className="h-16 w-16" />
+      <FileIcon filename={filename} className="h-16 w-16" />
       <div className="text-center space-y-1">
         <p className="text-lg font-medium text-foreground">{filename}</p>
         <p className="text-sm">{mimeType}</p>

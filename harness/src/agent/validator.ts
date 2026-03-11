@@ -17,6 +17,49 @@ import type { ValidationResult } from './types.js';
 const ajv = new Ajv2020({ allErrors: true });
 
 /**
+ * Validate input parameters against an input schema.
+ *
+ * Unlike validateOutput (file-based), this validates an in-memory params object.
+ * Used by the runner before prompt assembly to fail fast on missing/invalid params.
+ */
+export function validateInput(
+  schemaPath: string,
+  params: Record<string, string>,
+): ValidationResult {
+  if (!fs.existsSync(schemaPath)) {
+    return { valid: false, errors: [`Input schema file not found: ${schemaPath}`] };
+  }
+
+  let schemaData: unknown;
+  try {
+    schemaData = JSON.parse(fs.readFileSync(schemaPath, 'utf-8'));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { valid: false, errors: [`Input schema is not valid JSON: ${message}`] };
+  }
+
+  let validate: ReturnType<typeof ajv.compile>;
+  try {
+    validate = ajv.compile(schemaData as Record<string, unknown>);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { valid: false, errors: [`Input schema compilation failed: ${message}`] };
+  }
+
+  const valid = validate(params);
+  if (valid) {
+    return { valid: true, errors: [] };
+  }
+
+  const errors = (validate.errors ?? []).map((e) => {
+    const path = e.instancePath || '/';
+    return `${path}: ${e.message ?? 'unknown error'}`;
+  });
+
+  return { valid: false, errors };
+}
+
+/**
  * Validate an output file against a JSON Schema.
  *
  * Pre-validation (DYK-03): Returns early with descriptive errors for:
