@@ -273,6 +273,7 @@ function main(): void {
     'tasks.md': 'todo',
     'tasks.fltplan.md': 'rocket',
     'execution.log.md': 'log',
+    'research-dossier.md': 'bibliography',
   };
   const customFileExtensions: Record<string, string> = {
     'spec.md': 'document',
