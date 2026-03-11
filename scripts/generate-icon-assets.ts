@@ -264,6 +264,33 @@ function main(): void {
   // Generate manifest from material-icon-theme
   const manifest = generateManifest() as unknown as ManifestData;
 
+  // Inject Chainglass plan artifact mappings (custom fileNames + folderNames)
+  // These give first-class icon treatment to plan documents in docs/plans/
+  const customFileNames: Record<string, string> = {
+    'tasks.md': 'todo',
+    'tasks.fltplan.md': 'rocket',
+    'execution.log.md': 'log',
+  };
+  const customFileExtensions: Record<string, string> = {
+    'spec.md': 'document',
+    'plan.md': 'roadmap',
+    'fltplan.md': 'rocket',
+  };
+  const customFolderNames: Record<string, string> = {
+    plans: 'folder-project',
+    tasks: 'folder-tasks',
+  };
+  const customFolderNamesExpanded: Record<string, string> = {
+    plans: 'folder-project-open',
+    tasks: 'folder-tasks-open',
+  };
+
+  Object.assign(manifest.fileNames, customFileNames);
+  Object.assign(manifest.fileExtensions, customFileExtensions);
+  Object.assign(manifest.folderNames, customFolderNames);
+  Object.assign(manifest.folderNamesExpanded, customFolderNamesExpanded);
+  log(`Injected ${Object.keys(customFileNames).length + Object.keys(customFileExtensions).length} custom file mappings, ${Object.keys(customFolderNames).length} custom folder mappings`);
+
   // Collect icon names
   const iconNames = collectIconNames(manifest);
   log(`Collected ${iconNames.size} unique icon names from manifest`);
