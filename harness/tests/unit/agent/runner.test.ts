@@ -7,7 +7,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 
-function createTestAgent(tmpDir: string, opts?: { schema?: boolean; instructions?: boolean }): AgentDefinition {
+function createTestAgent(tmpDir: string, opts?: { schema?: boolean; instructions?: boolean; inputSchema?: Record<string, unknown> }): AgentDefinition {
   const agentDir = path.join(tmpDir, 'agents', 'test-agent');
   fs.mkdirSync(agentDir, { recursive: true });
   fs.writeFileSync(path.join(agentDir, 'prompt.md'), '# Test prompt\nDo something simple.');
@@ -18,6 +18,7 @@ function createTestAgent(tmpDir: string, opts?: { schema?: boolean; instructions
     promptPath: path.join(agentDir, 'prompt.md'),
     schemaPath: null,
     instructionsPath: null,
+    inputSchemaPath: null,
   };
 
   if (opts?.schema) {
@@ -29,6 +30,11 @@ function createTestAgent(tmpDir: string, opts?: { schema?: boolean; instructions
   if (opts?.instructions) {
     fs.writeFileSync(path.join(agentDir, 'instructions.md'), '# Rules\nBe concise.');
     def.instructionsPath = path.join(agentDir, 'instructions.md');
+  }
+
+  if (opts?.inputSchema) {
+    fs.writeFileSync(path.join(agentDir, 'input-schema.json'), JSON.stringify(opts.inputSchema));
+    def.inputSchemaPath = path.join(agentDir, 'input-schema.json');
   }
 
   return def;
@@ -249,6 +255,51 @@ describe('runner.ts', () => {
       expect(fs.existsSync(stderrPath)).toBe(true);
       const content = fs.readFileSync(stderrPath, 'utf-8');
       expect(content).toContain('Warning: rate limit approaching');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('should inject input params into prompt', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'runner-test-'));
+    try {
+      const inputSchema = {
+        type: 'object',
+        required: ['file_path'],
+        properties: { file_path: { type: 'string' } },
+      };
+      const def = createTestAgent(tmpDir, { inputSchema });
+      const adapter = new FakeAgentAdapter({ output: 'Done', sessionId: 'sess-params' });
+      const config: AgentRunConfig = { slug: 'test-agent', params: { file_path: '/tmp/test.ts' } };
+
+      await runAgent(adapter, def, config);
+
+      const history = adapter.getRunHistory();
+      expect(history[0].prompt).toContain('## Input Parameters');
+      expect(history[0].prompt).toContain('file_path: /tmp/test.ts');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('should fail fast when required input params are missing', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'runner-test-'));
+    try {
+      const inputSchema = {
+        type: 'object',
+        required: ['file_path'],
+        properties: { file_path: { type: 'string' } },
+      };
+      const def = createTestAgent(tmpDir, { inputSchema });
+      const adapter = new FakeAgentAdapter({ output: 'Done', sessionId: 'sess-missing' });
+      const config: AgentRunConfig = { slug: 'test-agent', params: {} };
+
+      const result = await runAgent(adapter, def, config);
+
+      expect(result.metadata.result).toBe('failed');
+      expect(result.agentResult.output).toContain('Input parameter validation failed');
+      // Adapter should NOT have been called
+      expect(adapter.getRunHistory()).toHaveLength(0);
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }

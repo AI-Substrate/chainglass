@@ -25,6 +25,22 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  // Cache headers for generated icon assets (Plan 073).
+  // Uses max-age with must-revalidate (not immutable) because icon URLs
+  // are not content-addressed — upgrading the icon theme reuses the same paths.
+  async headers() {
+    return [
+      {
+        source: '/icons/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=86400, must-revalidate',
+          },
+        ],
+      },
+    ];
+  },
   experimental: {
     // Raise server action body size limit for file uploads (default 1MB)
     serverActions: {
@@ -33,7 +49,7 @@ const nextConfig = {
     // Raise proxy body buffering limit to match (default 10MB)
     proxyClientMaxBodySize: '250mb',
   },
-  // Enable Turbopack (default in Next.js 16) - empty config acknowledges migration
+  // Enable Turbopack (default in Next.js 16)
   turbopack: {},
   // Allow cross-origin requests from local network during development
   allowedDevOrigins: ['192.168.1.*'],

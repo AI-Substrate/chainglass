@@ -15,6 +15,7 @@ Index of all scripts in this directory. Keep this file updated when adding, remo
 | `test-copilot-serial.ts` | E2E: drives 3-node graph with real Copilot agent, streams SDK events | `npx tsx scripts/test-copilot-serial.ts` |
 | `session-watcher.ts` | Tail Copilot CLI events.jsonl live and send prompts via tmux send-keys | `npx tsx scripts/session-watcher.ts <sessionId> <tmuxSession> [window.pane]` |
 | `test-watcher-events.mjs` | File watcher stress test — writes to scratch/ every 5s (update, create, delete, mkdir, rmdir) | `node scripts/test-watcher-events.mjs` |
+| `generate-icon-assets.ts` | Extract, optimize, and deploy SVG icon assets from material-icon-theme to apps/web/public/icons/. Includes freshness check (skips if up to date). | `npx tsx scripts/generate-icon-assets.ts [--force]` |
 
 ## file-watcher/
 

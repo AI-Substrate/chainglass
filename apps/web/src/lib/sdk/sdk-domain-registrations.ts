@@ -13,6 +13,7 @@ import type { IUSDK } from '@chainglass/shared/sdk';
 
 import { registerEventsSDK } from '@/features/027-central-notify-events/sdk/register';
 import { registerFileBrowserSDK } from '@/features/041-file-browser/sdk/register';
+import { registerThemesSDK } from '@/features/_platform/themes/sdk/register';
 
 /**
  * Register all domain SDK contributions.
@@ -21,4 +22,5 @@ import { registerFileBrowserSDK } from '@/features/041-file-browser/sdk/register
 export function registerAllDomains(sdk: IUSDK): void {
   registerFileBrowserSDK(sdk);
   registerEventsSDK(sdk);
+  registerThemesSDK(sdk);
 }

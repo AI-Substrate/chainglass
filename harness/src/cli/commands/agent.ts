@@ -46,7 +46,8 @@ export function registerAgentCommand(program: Command): void {
     .option('-m, --model <model>', 'Model to use (e.g., gpt-5.4, claude-sonnet-4)')
     .option('-r, --reasoning <effort>', 'Reasoning effort (low, medium, high, xhigh)')
     .option('-t, --timeout <seconds>', 'Timeout in seconds', '300')
-    .action(async (slug: string, opts: { model?: string; reasoning?: string; timeout?: string }) => {
+    .option('-p, --param <key=value>', 'Input parameter (repeatable)', (val: string, acc: string[]) => { acc.push(val); return acc; }, [] as string[])
+    .action(async (slug: string, opts: { model?: string; reasoning?: string; timeout?: string; param?: string[] }) => {
       // Pre-flight: validate slug
       const slugError = validateSlug(slug);
       if (slugError) {
@@ -78,6 +79,18 @@ export function registerAgentCommand(program: Command): void {
         );
       }
 
+      // Parse --param key=value pairs into Record
+      const params: Record<string, string> = {};
+      for (const p of opts.param ?? []) {
+        const eq = p.indexOf('=');
+        if (eq < 1) {
+          exitWithEnvelope(
+            formatError('agent run', ErrorCodes.INVALID_ARGS, `Invalid --param format: "${p}". Expected key=value.`),
+          );
+        }
+        params[p.slice(0, eq)] = p.slice(eq + 1);
+      }
+
       // Build run config
       const config: AgentRunConfig = {
         slug,
@@ -85,6 +98,7 @@ export function registerAgentCommand(program: Command): void {
         reasoningEffort: opts.reasoning as AgentRunConfig['reasoningEffort'],
         timeout: Number.parseInt(opts.timeout ?? '300', 10),
         cwd: path.resolve(resolveHarnessRoot(), '..'), // Repo root
+        params: Object.keys(params).length > 0 ? params : undefined,
       };
 
       // Display header (stderr)
@@ -93,6 +107,11 @@ export function registerAgentCommand(program: Command): void {
         displayHeader(slug, '(starting...)', opts.model);
         displayPreflight('GH_TOKEN', true);
         displayPreflight('Agent definition', true, definition.dir);
+        if (config.params) {
+          for (const [k, v] of Object.entries(config.params)) {
+            displayPreflight(`param:${k}`, true, v);
+          }
+        }
         process.stderr.write('\n');
       }
 
@@ -165,6 +184,7 @@ export function registerAgentCommand(program: Command): void {
             slug: a.slug,
             hasSchema: a.schemaPath !== null,
             hasInstructions: a.instructionsPath !== null,
+            hasInputSchema: a.inputSchemaPath !== null,
           })),
           count: agents.length,
         }),
@@ -266,6 +286,59 @@ export function registerAgentCommand(program: Command): void {
           errors: result.errors,
         }, result.valid ? 'ok' : 'degraded'),
       );
+    });
+
+  // --- agent last-run <slug> ---
+  agent
+    .command('last-run <slug>')
+    .description('Print the latest run directory and report path for an agent')
+    .action(async (slug: string) => {
+      const slugError = validateSlug(slug);
+      if (slugError) {
+        exitWithEnvelope(formatError('agent last-run', ErrorCodes.INVALID_ARGS, slugError));
+      }
+
+      const definition = resolveAgent(slug);
+      if (!definition) {
+        exitWithEnvelope(formatError('agent last-run', ErrorCodes.AGENT_NOT_FOUND, `Agent "${slug}" not found.`));
+      }
+
+      const runsDir = path.join(definition.dir, 'runs');
+      if (!fs.existsSync(runsDir)) {
+        exitWithEnvelope(formatError('agent last-run', ErrorCodes.AGENT_VALIDATION_FAILED, 'No runs found.'));
+      }
+
+      const entries = fs.readdirSync(runsDir, { withFileTypes: true })
+        .filter((e) => e.isDirectory())
+        .sort((a, b) => b.name.localeCompare(a.name));
+
+      if (entries.length === 0) {
+        exitWithEnvelope(formatError('agent last-run', ErrorCodes.AGENT_VALIDATION_FAILED, 'No runs found.'));
+      }
+
+      const latestRun = entries[0].name;
+      const runDir = path.join(runsDir, latestRun);
+      const reportPath = path.join(runDir, 'output', 'report.json');
+      const completedPath = path.join(runDir, 'completed.json');
+
+      let metadata = null;
+      if (fs.existsSync(completedPath)) {
+        try { metadata = JSON.parse(fs.readFileSync(completedPath, 'utf-8')); } catch { /* ignore */ }
+      }
+
+      exitWithEnvelope(formatSuccess('agent last-run', {
+        runId: latestRun,
+        runDir,
+        reportPath: fs.existsSync(reportPath) ? reportPath : null,
+        result: metadata?.result ?? 'unknown',
+        verdict: null, // filled below if report exists
+        ...(fs.existsSync(reportPath) ? (() => {
+          try {
+            const report = JSON.parse(fs.readFileSync(reportPath, 'utf-8'));
+            return { verdict: report.verdict ?? null, summary: report.summary ?? null };
+          } catch { return {}; }
+        })() : {}),
+      }));
     });
 
   // --- agent tail <slug> ---

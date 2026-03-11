@@ -182,7 +182,7 @@ export function useFileNavigation(options: UseFileNavigationOptions) {
 
   const handleSave = useCallback(
     async (content: string) => {
-      if (!initialFile || !fileData?.ok) return;
+      if (!initialFile || !fileData?.ok) return false;
       const toastId = toast.loading('Saving...');
       try {
         const result = await saveFileFn(slug, worktreePath, initialFile, content, fileData.mtime);
@@ -192,10 +192,10 @@ export function useFileNavigation(options: UseFileNavigationOptions) {
               id: toastId,
               description: 'File was modified externally. Refresh to see changes.',
             });
-            return;
+            return false;
           }
           toast.error('Save failed', { id: toastId });
-          return;
+          return false;
         }
         const refreshed = await readFileFn(slug, worktreePath, initialFile);
         setFileData(refreshed);
@@ -206,8 +206,10 @@ export function useFileNavigation(options: UseFileNavigationOptions) {
           return next;
         });
         toast.success('File saved', { id: toastId });
+        return true;
       } catch {
         toast.error('Save failed', { id: toastId });
+        return false;
       }
     },
     [slug, worktreePath, initialFile, fileData, readFileFn, saveFileFn]

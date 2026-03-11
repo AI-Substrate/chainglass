@@ -70,6 +70,8 @@ export interface FileViewerPanelProps {
   binaryContentType?: string;
   binarySize?: number;
   rawFileUrl?: string;
+  /** Base URL for raw file API (without &file= param), for resolving relative images in markdown */
+  rawFileBaseUrl?: string;
   /** URL for pop-out button — opens file in new tab (Phase 5) */
   popOutUrl?: string;
   /** Line number to scroll to in code editor (Plan 047 Phase 6) */
@@ -100,6 +102,7 @@ export function FileViewerPanel({
   binaryContentType,
   binarySize,
   rawFileUrl,
+  rawFileBaseUrl,
   popOutUrl,
   scrollToLine,
   onNavigateToFile,
@@ -127,6 +130,25 @@ export function FileViewerPanel({
   const scrollToTop = useCallback(() => {
     scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
+
+  const handleEditModeKeyDownCapture = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (
+        mode !== 'edit' ||
+        event.repeat ||
+        event.shiftKey ||
+        event.altKey ||
+        !(event.metaKey || event.ctrlKey) ||
+        event.key.toLowerCase() !== 's'
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      onSave(currentContent);
+    },
+    [mode, onSave, currentContent]
+  );
 
   // Error states
   if (errorType === 'file-too-large') {
@@ -286,6 +308,7 @@ export function FileViewerPanel({
       <div
         ref={mode !== 'edit' ? scrollRef : undefined}
         onScroll={mode !== 'edit' ? handleScroll : undefined}
+        onKeyDownCapture={mode === 'edit' ? handleEditModeKeyDownCapture : undefined}
         className={mode === 'edit' ? 'flex-1 min-h-0 flex flex-col' : 'flex-1 overflow-auto'}
       >
         <Suspense fallback={<LoadingFallback />}>
@@ -305,6 +328,7 @@ export function FileViewerPanel({
                 <MarkdownPreview
                   html={markdownHtml}
                   currentFilePath={filePath}
+                  rawFileBaseUrl={rawFileBaseUrl}
                   onNavigateToFile={onNavigateToFile}
                 />
               ) : highlightedHtml ? (

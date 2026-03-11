@@ -85,6 +85,7 @@ Primary: `apps/web/src/features/_platform/panel-layout/`
 ### This Domain Depends On
 - `_platform/workspace-url` — URL state management for `panel` param
 - `_platform/sdk` — IUSDK, MruTracker for command palette
+- `_platform/themes` — `FileIcon` for themed file-type icons in CommandPaletteDropdown search results (Plan 073)
 - `nuqs` — URL param persistence (npm)
 - `lucide-react` — icons for panel headers (npm)
 - `sonner` — toast notifications for stubs (npm)
@@ -105,3 +106,4 @@ Primary: `apps/web/src/features/_platform/panel-layout/`
 | Plan 049 Feature 1 | PanelHeader + LeftPanel gain optional `subtitle?: ReactNode` prop for inline metadata display | 2026-02-26 |
 | Plan 049 Feature 2 | ExplorerPanel extended with file search props + keyboard delegation for search mode. CommandPaletteDropdown search mode replaced "coming soon" stub with live file results (badges, sort/hidden toggles, keyboard nav) | 2026-02-26 |
 | Plan 051 | FlowSpace code search: removed createSymbolSearchStub, added `#` (text) and `$` (semantic) search modes to CommandPaletteDropdown, added FlowSpace types (FlowSpaceSearchResult, FlowSpaceAvailability, FlowSpaceSearchMode), ExplorerPanel `$` mode detection + keyboard delegation for FlowSpace result modes, Quick Access hints updated | 2026-02-26 |
+| Plan 073 Phase 4 | Replaced Lucide File icon with FileIcon from _platform/themes in CommandPaletteDropdown search results. Badge+icon now coexist for working changes. | 2026-03-10 |

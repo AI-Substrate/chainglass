@@ -235,7 +235,9 @@ See `docs/how/dev/fast-feedback-loops.md` for the full testing strategy and feed
 
 ### Harness Commands (Agentic Development)
 
-The harness provides a Docker-containerized dev environment with browser automation. Each worktree gets unique ports derived from its name. See `docs/project-rules/harness.md` for full documentation.
+The harness provides a Docker-containerized dev environment with browser automation. Each worktree gets unique ports derived from its name. See `docs/project-rules/harness.md` for full documentation and `harness/README.md` for architecture, troubleshooting, and the agent lifecycle guide.
+
+**Before using harness commands**, the container must be running. Start with `just harness dev` (2-3 min cold boot). If the container shows `(unhealthy)` in `docker ps`, stop and restart it: `just harness stop && just harness dev`. See `harness/README.md § Troubleshooting` for common issues (stale cache, hanging health checks, GH_TOKEN).
 
 #### Harness Feedback Loop
 
@@ -251,6 +253,24 @@ This is operational, not aspirational. FX002 (`console-logs` + `screenshot-all` 
 - Specific examples of good vs bad feedback in `instructions.md`
 
 See `harness/README.md` for the full philosophy and agent creation guide.
+
+#### Auto Code Review After Implementation
+
+After completing a `/plan-6-v2-implement-phase` run, **automatically trigger a code review** using the harness code-review agent:
+
+```bash
+just code-review-agent <path-to-plan-dir-or-changed-file>
+```
+
+This runs the `code-review` agent with GPT-5.4, xhigh reasoning, and a 20-minute timeout. Read the resulting report:
+
+```bash
+just agent-last-run code-review              # Full envelope: verdict, summary, report path
+just agent-report code-review                # Just the report.json path (pipe-friendly)
+cat $(just agent-report code-review) | jq .  # Read the full report
+```
+
+If the verdict is `REQUEST_CHANGES`, address the findings before committing.
 
 ```bash
 # Port allocation (unique per worktree)
@@ -278,9 +298,13 @@ just harness seed           # Create test workspace + worktrees
 # Agent Runner (Plan 070)
 just harness agent run <slug>              # Execute an agent definition
 just harness agent run <slug> --model gpt-5.4  # With model selection
+just harness agent run <slug> --param key=value  # Pass input parameters
 just harness agent list                    # List available agents
 just harness agent history <slug>          # Show past runs
 just harness agent validate <slug>         # Re-validate most recent output
+
+# Code Review Agent — auto-run after /plan-6-v2-implement-phase
+just code-review-agent <file_path>         # Shorthand for code-review with GPT-5.4 xhigh, 20min timeout
 
 # Standalone harness deps (first time only)
 just harness-install        # Install harness node_modules

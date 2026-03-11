@@ -6,7 +6,9 @@
     "node": ">=20.19.0"
   },
   "scripts": {
+    "predev": "tsx ../../scripts/generate-icon-assets.ts",
     "dev": "next dev",
+    "prebuild": "tsx ../../scripts/generate-icon-assets.ts",
     "build": "next build",
     "start": "next start",
     "test": "vitest run"

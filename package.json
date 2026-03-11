@@ -27,7 +27,9 @@
     "ajv-cli": "^5.0.0",
     "concurrently": "^9.2.1",
     "jsdom": "^27.4.0",
+    "material-icon-theme": "5.32.0",
     "reflect-metadata": "^0.2.2",
+    "svgo": "^4.0.1",
     "tsx": "^4.21.0",
     "tsyringe": "^4.8.0",
     "turbo": "^2.3.3",
@@ -42,7 +44,8 @@
   "packageManager": "pnpm@9.15.4",
   "pnpm": {
     "patchedDependencies": {
-      "next-auth@5.0.0-beta.30": "patches/next-auth@5.0.0-beta.30.patch"
+      "next-auth@5.0.0-beta.30": "patches/next-auth@5.0.0-beta.30.patch",
+      "@github/copilot-sdk@0.1.32": "patches/@github__copilot-sdk@0.1.32.patch"
     }
   }
 }

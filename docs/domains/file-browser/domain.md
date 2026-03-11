@@ -168,6 +168,7 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 - `_platform/viewer` — FileViewer, MarkdownViewer, DiffViewer for rendering
 - `_platform/state` — IStateService, useGlobalState, GlobalStateConnector for worktree state publishing/consumption
 - `_platform/events` — `useChannelCallback`, `WorkspaceDomain.FileChanges` for multiplexed SSE file-change subscription (Plan 072)
+- `_platform/themes` — `FileIcon`, `FolderIcon` for themed file-type icons in FileTree, ChangesView, BinaryPlaceholder, AudioViewer (Plan 073)
 - `_platform/workspace-url` — workspaceHref, param caches, NuqsAdapter
 - `_platform/panel-layout` — PanelShell, ExplorerPanel, LeftPanel, MainPanel for page layout
 - `@chainglass/workflow` — IWorkspaceService, workspace entity, preferences
@@ -202,3 +203,4 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 | Plan 068 Phase 2 | FileTree UI extensions: InlineEditInput component, hover buttons (New File/Folder), inline create/rename modes, context menu Rename/Delete, DeleteConfirmationDialog, F2/Enter keyboard shortcuts, CRUD callback props | 2026-03-07 |
 | Plan 068 Phase 3 | BrowserClient wiring: useFileMutations hook with toast feedback, CRUD callbacks wired to FileTree, rename-open-file URL sync, delete-open-file selection clear, local newlyAddedPaths animation, auto-select/expand after create, root entries state for root-level refresh | 2026-03-07 |
 | Plan 072 Phase 3 | Migrated FileChangeProvider from direct EventSource to `useChannelCallback('file-changes')` via multiplexed SSE. Removed ~100 lines SSE lifecycle + reconnect code, removed `eventSourceFactory` prop. | 2026-03-08 |
+| Plan 073 Phase 4 | Replaced Lucide File/Folder/FolderOpen icons with themed FileIcon/FolderIcon from _platform/themes in FileTree, ChangesView, BinaryPlaceholder, AudioViewer. Badge+icon now coexist in ChangesView. | 2026-03-10 |

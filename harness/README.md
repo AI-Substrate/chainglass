@@ -142,15 +142,42 @@ Agents live in `agents/<slug>/` with a declarative structure:
 agents/smoke-test/
 ├── prompt.md             # System prompt (injected before user input)
 ├── instructions.md       # Agent guidelines + CLI quick reference
+├── input-schema.json     # JSON Schema for input parameters (optional)
 ├── output-schema.json    # JSON Schema for validated output
 └── runs/                 # Timestamped run history
     └── 2026-03-09T12-56-54Z-6882/
         ├── events.ndjson       # Full event stream
         ├── instructions.md     # Snapshot of instructions used
         ├── prompt.md           # Snapshot of prompt used
+        ├── input-schema.json   # Snapshot of input schema used
         ├── output-schema.json  # Snapshot of schema used
         └── output/
             └── report.json     # Agent output (schema-validated)
+```
+
+### Input Parameters
+
+Agents can declare required input parameters via `input-schema.json` (JSON Schema Draft 2020-12). The runner validates parameters before execution and injects them into the prompt as an `## Input Parameters` section.
+
+Pass parameters via the CLI with repeatable `--param` flags:
+
+```bash
+just harness agent run code-review --param file_path=/abs/path/to/file.ts
+```
+
+Example `input-schema.json`:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["file_path"],
+  "properties": {
+    "file_path": {
+      "type": "string",
+      "description": "Absolute path to the file to review"
+    }
+  }
+}
 ```
 
 ### Available Agents
@@ -159,20 +186,39 @@ agents/smoke-test/
 |-------|---------|
 | `smoke-test` | Health check → 3-viewport screenshots → console log audit → server log review → retrospective |
 | `mobile-ux-audit` | Mobile UX quality assessment across viewports |
+| `code-review` | Read-only code review: correctness, domain compliance, reinvention check, live validation |
 
 ### Creating a New Agent
 
 1. Create `agents/<your-slug>/`
-2. Add `prompt.md` — the system prompt that frames the agent's task
+2. Add `prompt.md` — the mission brief that frames the agent's task
    - **MUST** include a Retrospective section (see `agents/smoke-test/prompt.md` for the template)
    - Ask: what worked, what was confusing, magic wand, improvement suggestions
-3. Add `instructions.md` — agent identity, guidelines, CLI quick reference
-   - **MUST** include: "This is dogfooding — your experience improves the harness for everyone"
-   - Include good vs bad retrospective examples
-4. Add `output-schema.json` — JSON Schema (Draft 2020-12) for the expected output
+3. Add `instructions.md` — agent identity and agent-specific rules only
+   - Common boilerplate (orientation, CLI reference, output rules, git commands, feedback philosophy) is auto-injected via `agents/_shared/preamble.md` — do NOT duplicate it
+   - Focus on what makes THIS agent different from others
+4. Add `input-schema.json` (optional) — JSON Schema for input parameters the agent requires
+   - Parameters are validated before execution and injected into the prompt
+   - Pass at runtime with `--param key=value`
+5. Add `output-schema.json` — JSON Schema (Draft 2020-12) for the expected output
    - **MUST** include `retrospective` object with `magicWand` as a **required** field
    - Copy the retrospective schema from `agents/smoke-test/output-schema.json`
 5. Run: `just harness agent run <your-slug>`
+
+### Shared Preamble
+
+`agents/_shared/preamble.md` is automatically prepended to every agent's prompt. It provides:
+
+- **Orientation**: Absolute repo root path, `pwd` check, key paths
+- **Environment gotchas**: `git --no-pager`, XDG_CONFIG_HOME auth, networkidle warnings
+- **Output discipline**: Where to write, what not to touch
+- **CLI quick reference**: All `just harness` commands with descriptions
+- **Browser/CDP access**: How to connect Playwright
+- **Feedback philosophy**: The magic wand contract, good vs bad feedback examples, proof the loop works
+
+The `{{REPO_ROOT}}` placeholder is resolved at runtime to the actual repository root path.
+
+To update the preamble for all agents, edit `agents/_shared/preamble.md` — changes take effect on the next agent run.
 
 The retrospective is not optional. It's the mechanism that makes the harness better over time. See "From Retrospective to Fix" below.
 
@@ -265,6 +311,76 @@ just harness test --suite responsive
 
 # Type-check harness source
 just harness-typecheck
+```
+
+## Troubleshooting
+
+### Container won't start / is unhealthy
+
+The harness runs a Docker container with Next.js, a terminal sidecar, and headless Chromium. Things that go wrong:
+
+**1. Container not running at all**
+```bash
+just harness health    # Shows what's up/down
+docker ps | grep chainglass  # Check Docker directly
+```
+Fix: `just harness dev` starts the container (~2 min cold boot). If it fails, check Docker/OrbStack is running.
+
+**2. Container running but unhealthy (stale `.next` cache)**
+Most common issue. Symptoms: `docker ps` shows `(unhealthy)`, container logs show repeated `ENOENT: no such file or directory, open '.../build-manifest.json'`. This happens when the host code changes significantly (new dependencies, major file moves) while the container's `.next` dev cache is stale.
+
+Fix:
+```bash
+just harness stop     # Stop the container
+just harness dev      # Restart — fresh Next.js dev server compiles from scratch
+```
+If that doesn't work:
+```bash
+just harness stop
+just harness build    # Rebuild the Docker image entirely
+just harness dev
+```
+
+**3. `just harness health` or `just harness doctor` hangs**
+These probe HTTP endpoints inside the container. If the container isn't running or the app hasn't started, they wait indefinitely (no short timeout). Use `docker ps` to check container state before running health commands.
+
+**4. Ports already in use**
+Each worktree gets unique ports derived from its name. Check allocation with `just harness ports`. If ports conflict, stop other containers: `docker stop <container-name>`.
+
+**5. `GH_TOKEN` not set (agent commands)**
+Harness agents use the Copilot SDK which needs a GitHub token. The justfile recipes (`code-review-agent`, etc.) handle this automatically via `gh auth token`. If you see `GH_TOKEN environment variable is not set`, ensure `gh` CLI is authenticated: `XDG_CONFIG_HOME=~/.config gh auth status`.
+
+### Lifecycle cheat sheet
+
+```bash
+# Start → verify → use → stop
+just harness dev               # Start (2-3 min cold, <10s warm)
+just harness doctor --wait     # Block until healthy
+just harness health            # Quick JSON health probe
+just harness stop              # Graceful stop
+
+# Nuclear restart (stale cache, broken state)
+just harness stop && just harness dev
+
+# Full rebuild (dependency changes, Dockerfile changes)
+just harness stop && just harness build && just harness dev
+```
+
+### Running agents
+
+```bash
+# Code review (auto-handles GH_TOKEN)
+just code-review-agent /path/to/tasks.md
+
+# Check results
+just agent-last-run code-review
+cat $(just agent-report code-review) | jq .
+
+# Other agents
+just harness agent list                    # See available agents
+just harness agent run <slug>              # Run an agent
+just harness agent tail <slug>             # Live event stream
+just harness agent history <slug>          # Past runs
 ```
 
 ## Related Documentation

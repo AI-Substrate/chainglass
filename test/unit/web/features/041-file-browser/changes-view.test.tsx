@@ -11,6 +11,13 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
+// Mock themed icon components — these tests care about ChangesView behavior, not icon resolution.
+vi.mock('@/features/_platform/themes', () => ({
+  FileIcon: ({ className }: { className?: string }) => (
+    <img className={className} alt="" data-testid="file-icon" />
+  ),
+}));
+
 import { ChangesView } from '@/features/041-file-browser/components/changes-view';
 import type { ChangedFile } from '@/features/041-file-browser/services/working-changes';
 
@@ -37,6 +44,13 @@ describe('ChangesView', () => {
     expect(screen.getByText('D')).toBeInTheDocument();
     expect(screen.getByText('?')).toBeInTheDocument();
     expect(screen.getByText('R')).toBeInTheDocument();
+  });
+
+  it('renders file-type icons alongside badges for working changes', () => {
+    render(<ChangesView workingChanges={sampleChanges} recentFiles={[]} onSelect={vi.fn()} />);
+
+    const icons = screen.getAllByTestId('file-icon');
+    expect(icons.length).toBe(sampleChanges.length);
   });
 
   it('renders file paths with filename emphasized', () => {
@@ -78,6 +92,24 @@ describe('ChangesView', () => {
 
     await user.click(screen.getByText('utils.ts'));
     expect(onSelect).toHaveBeenCalledWith('src/utils.ts');
+  });
+
+  it('fires onDoubleSelect with unselected state when file double clicked', async () => {
+    const user = userEvent.setup();
+    const onDoubleSelect = vi.fn();
+
+    render(
+      <ChangesView
+        workingChanges={sampleChanges}
+        recentFiles={[]}
+        selectedFile="src/new-file.ts"
+        onSelect={vi.fn()}
+        onDoubleSelect={onDoubleSelect}
+      />
+    );
+
+    await user.dblClick(screen.getByText('utils.ts'));
+    expect(onDoubleSelect).toHaveBeenCalledWith('src/utils.ts', false);
   });
 
   it('highlights selected file with indicator', () => {

@@ -3,6 +3,16 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
+// Mock themed icon components — FileTree CRUD tests care about edit behavior, not icon resolution.
+vi.mock('@/features/_platform/themes', () => ({
+  FileIcon: ({ className }: { className?: string }) => (
+    <img className={className} alt="" data-testid="file-icon" />
+  ),
+  FolderIcon: ({ className }: { className?: string }) => (
+    <img className={className} alt="" data-testid="folder-icon" />
+  ),
+}));
+
 describe('InlineEditInput', () => {
   /*
    * Test Doc:

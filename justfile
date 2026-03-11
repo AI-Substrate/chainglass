@@ -100,7 +100,8 @@ harness-stop:
 # Kill Next.js cache and restart dev server
 kill-cache:
     rm -rf apps/web/.next
-    @echo "Next.js cache cleared"
+    rm -rf apps/web/public/icons
+    @echo "Next.js cache and generated icons cleared"
 
 # Show harness health
 harness-health:
@@ -134,7 +135,7 @@ clean-next:
 
 # Clean build artifacts
 clean:
-    rm -rf packages/*/dist apps/*/dist apps/*/.next node_modules/.cache
+    rm -rf packages/*/dist apps/*/dist apps/*/.next node_modules/.cache apps/web/public/icons
 
 # Reset everything (clean + reinstall)
 reset: clean
@@ -172,3 +173,34 @@ redope:
 # Watch a Copilot CLI session and send prompts via tmux
 session-watch session_id tmux_session pane='0':
     npx tsx scripts/session-watcher.ts {{session_id}} {{tmux_session}} {{pane}}
+
+# Quick preflight: fail immediately if harness isn't running
+harness-require:
+    #!/usr/bin/env bash
+    PORT=$(cd harness && pnpm exec tsx -e "import{computePorts}from'./src/ports/allocator.js';console.log(computePorts().app)" 2>/dev/null)
+    if [ -z "$PORT" ]; then PORT=3181; fi
+    if ! curl -sf --max-time 2 "http://127.0.0.1:$PORT" > /dev/null 2>&1; then
+      echo "Error: Harness is not running (app port $PORT unreachable)."
+      echo ""
+      echo "  1. just harness dev"
+      echo "  2. just harness doctor --wait"
+      echo ""
+      echo "Then retry your command."
+      exit 1
+    fi
+
+# Run code-review agent with GPT-5.4 xhigh reasoning and 20-minute timeout
+code-review-agent file_path: harness-require
+    GH_TOKEN=$(XDG_CONFIG_HOME=~/.config gh auth token) just harness agent run code-review --model gpt-5.4 --reasoning xhigh --timeout 1200 --param file_path={{file_path}}
+
+# Tail the code-review agent's live event stream
+code-review-agent-tail:
+    just harness agent tail code-review
+
+# Show last run info for an agent (e.g., just agent-last-run code-review)
+agent-last-run slug:
+    just harness agent last-run {{slug}}
+
+# Print the report.json path from an agent's latest run (pipe-friendly)
+agent-report slug:
+    @just harness agent last-run {{slug}} 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); p=d.get('data',{}).get('reportPath'); print(p) if p else (print('No report found',file=sys.stderr),exit(1))"

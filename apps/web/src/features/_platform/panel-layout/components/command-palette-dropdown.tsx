@@ -16,6 +16,7 @@
  * Per Plan 047 Phase 3, Task T002. Subtask 001: param gathering.
  */
 
+import { FileIcon } from '@/features/_platform/themes';
 import type { IUSDK, SDKCommand } from '@chainglass/shared/sdk';
 import {
   ArrowDownAZ,
@@ -657,15 +658,14 @@ export const CommandPaletteDropdown = forwardRef<
                             if (e.key === 'Enter') onFileSelect?.(entry.path);
                           }}
                         >
-                          {badge ? (
+                          {badge && (
                             <span
                               className={`shrink-0 w-4 text-center font-mono text-xs font-bold ${badge.className}`}
                             >
                               {badge.letter}
                             </span>
-                          ) : (
-                            <File className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                           )}
+                          <FileIcon filename={name} className="h-3.5 w-3.5 shrink-0" />
                           <span className="flex-1 truncate">
                             <span className="text-muted-foreground">{dir}</span>
                             <span>{name}</span>

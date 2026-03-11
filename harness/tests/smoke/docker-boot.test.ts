@@ -2,16 +2,18 @@
  * Harness Integration Test: Docker Boot
  *
  * Full TDD — this test was written BEFORE the Dockerfile.
- * Validates: container starts, app responds on :3000, terminal sidecar on :4500.
+ * Validates: container starts, app responds, terminal sidecar responds.
  *
  * Uses describe.skip — unskip locally when Docker/OrbStack is running.
  * Does NOT run in `just fft`.
  */
 
 import { describe, expect, it } from 'vitest';
+import { computePorts } from '../../src/ports/allocator.js';
 
-const APP_URL = process.env.HARNESS_APP_URL ?? 'http://localhost:3000';
-const TERMINAL_URL = process.env.HARNESS_TERMINAL_URL ?? 'http://localhost:4500';
+const ports = computePorts();
+const APP_URL = process.env.HARNESS_APP_URL ?? `http://localhost:${ports.app}`;
+const TERMINAL_URL = process.env.HARNESS_TERMINAL_URL ?? `http://localhost:${ports.terminal}`;
 
 describe.skip('Harness: Docker Boot', () => {
   it('app responds with 200 on root', async () => {

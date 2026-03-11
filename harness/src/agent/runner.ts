@@ -21,8 +21,16 @@ import type {
   RunEventStats,
   ValidationResult,
 } from './types.js';
-import { createRunFolder } from './folder.js';
-import { validateOutput } from './validator.js';
+import { createRunFolder, resolveHarnessRoot } from './folder.js';
+import { validateOutput, validateInput } from './validator.js';
+
+/** Shared preamble path — injected at the top of every agent prompt. */
+const PREAMBLE_PATH = path.join(
+  resolveHarnessRoot(),
+  'agents',
+  '_shared',
+  'preamble.md',
+);
 
 /**
  * Execute an agent from its definition.
@@ -52,17 +60,66 @@ export async function runAgent(
   const outputPath = path.join(runDir, 'output', 'report.json');
   const stderrPath = path.join(runDir, 'stderr.log');
 
-  // Read prompt
+  // Read prompt and shared preamble
   const prompt = fs.readFileSync(definition.promptPath, 'utf-8');
   const instructions = definition.instructionsPath
     ? fs.readFileSync(definition.instructionsPath, 'utf-8')
     : null;
 
-  // Build full prompt (instructions + output path hint + prompt)
+  // Shared preamble — injected for all agents with repo root resolved
+  const repoRoot = config.cwd ?? path.resolve(resolveHarnessRoot(), '..');
+  let preamble: string | null = null;
+  if (fs.existsSync(PREAMBLE_PATH)) {
+    preamble = fs
+      .readFileSync(PREAMBLE_PATH, 'utf-8')
+      .replaceAll('{{REPO_ROOT}}', repoRoot);
+  }
+
+  // Validate and format input parameters
+  let paramsHint: string | null = null;
+  if (definition.inputSchemaPath) {
+    const params = config.params ?? {};
+    const inputValidation = validateInput(definition.inputSchemaPath, params);
+    if (!inputValidation.valid) {
+      const errorMsg = `Input parameter validation failed:\n${inputValidation.errors.join('\n')}`;
+      return {
+        agentResult: {
+          output: errorMsg,
+          sessionId: '',
+          status: 'failed',
+          exitCode: 1,
+          tokens: null,
+        },
+        metadata: {
+          slug: definition.slug,
+          runId,
+          startedAt: startedAt.toISOString(),
+          completedAt: new Date().toISOString(),
+          durationMs: Date.now() - startedAt.getTime(),
+          sessionId: '',
+          result: 'failed',
+          exitCode: 1,
+          validated: null,
+          validationErrors: [],
+          eventCount: 0,
+          toolCallCount: 0,
+          artifacts: listArtifacts(runDir),
+        },
+        validation: null,
+        runDir,
+      };
+    }
+    if (Object.keys(params).length > 0) {
+      const lines = Object.entries(params).map(([k, v]) => `${k}: ${v}`);
+      paramsHint = `## Input Parameters\n\n${lines.join('\n')}`;
+    }
+  }
+
+  // Build full prompt (preamble + instructions + output path hint + params + prompt)
   const outputHint = definition.schemaPath
     ? `Write your final JSON report to: ${outputPath}`
     : null;
-  const fullPrompt = [instructions, outputHint, prompt]
+  const fullPrompt = [preamble, instructions, outputHint, paramsHint, prompt]
     .filter(Boolean)
     .join('\n\n---\n\n');
 

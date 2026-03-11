@@ -12,9 +12,6 @@ echo "Setting up worktree: $CHAINGLASS_NEW_BRANCH_NAME"
 echo "  Path: $CHAINGLASS_NEW_WORKTREE_PATH"
 echo "  Main: $CHAINGLASS_MAIN_REPO_PATH"
 
-# Install dependencies and build
-echo "Running just install..."
-just install
 
 # Copy .env.local from main
 if [ -f "$CHAINGLASS_MAIN_REPO_PATH/apps/web/.env.local" ]; then

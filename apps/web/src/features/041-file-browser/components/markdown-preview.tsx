@@ -27,6 +27,8 @@ interface MarkdownPreviewProps {
   html: string;
   /** Current file path relative to workspace root, for resolving relative links */
   currentFilePath?: string;
+  /** Base URL for raw file API, e.g. /api/workspaces/slug/files/raw?worktree=... */
+  rawFileBaseUrl?: string;
   /** Called when user clicks a relative file link (e.g., ./other.md) */
   onNavigateToFile?: (resolvedPath: string) => void;
 }
@@ -34,6 +36,7 @@ interface MarkdownPreviewProps {
 export const MarkdownPreview = memo(function MarkdownPreview({
   html,
   currentFilePath,
+  rawFileBaseUrl,
   onNavigateToFile,
 }: MarkdownPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -51,7 +54,27 @@ export const MarkdownPreview = memo(function MarkdownPreview({
     if (prevHtmlRef.current === html) return;
     prevHtmlRef.current = html;
     container.innerHTML = html;
-  }, [html]);
+
+    // Rewrite relative image src attributes to use the raw file API
+    if (rawFileBaseUrl && currentFilePath) {
+      const currentDir = currentFilePath.substring(0, currentFilePath.lastIndexOf('/'));
+      const imgs = container.querySelectorAll<HTMLImageElement>('img[src]');
+      for (const img of imgs) {
+        const src = img.getAttribute('src');
+        if (!src || src.startsWith('http') || src.startsWith('//') || src.startsWith('data:')) {
+          continue;
+        }
+        // Resolve relative path against current markdown file's directory
+        const parts = `${currentDir}/${src}`.split('/');
+        const resolved: string[] = [];
+        for (const part of parts) {
+          if (part === '..') resolved.pop();
+          else if (part !== '.' && part !== '') resolved.push(part);
+        }
+        img.src = `${rawFileBaseUrl}&file=${encodeURIComponent(resolved.join('/'))}`;
+      }
+    }
+  }, [html, rawFileBaseUrl, currentFilePath]);
 
   // Find mermaid divs after HTML is set and create portal targets
   // biome-ignore lint/correctness/useExhaustiveDependencies: html and resolvedTheme trigger re-scan of data-mermaid divs
