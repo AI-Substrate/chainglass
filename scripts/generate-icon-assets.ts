@@ -284,10 +284,12 @@ function main(): void {
   const customFolderNames: Record<string, string> = {
     plans: 'folder-project',
     tasks: 'folder-tasks',
+    workshops: 'lighthouse',
   };
   const customFolderNamesExpanded: Record<string, string> = {
     plans: 'folder-project-open',
     tasks: 'folder-tasks-open',
+    workshops: 'lighthouse',
   };
 
   Object.assign(manifest.fileNames, customFileNames);
