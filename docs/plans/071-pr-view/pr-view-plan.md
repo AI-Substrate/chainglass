@@ -5,7 +5,7 @@
 **Spec**: [pr-view-spec.md](pr-view-spec.md)
 **Research**: [research-dossier.md](research-dossier.md)
 **Workshop**: [001-ui-design-github-inspired.md](workshops/001-ui-design-github-inspired.md)
-**Status**: DRAFT
+**Status**: IN PROGRESS (Phases 1-7 complete, Phase 8 pending)
 **Mode**: Full
 **Complexity**: CS-4 (large)
 
@@ -170,11 +170,11 @@ Harness: Not applicable. No harness.md exists and this feature uses proven patte
 | 1.9 | Create `docs/domains/file-notes/domain.md` + update registry.md | file-notes | Domain registered with slug `file-notes`, type `business` | Domain creation workflow |
 
 ### Acceptance Criteria (Phase 1)
-- [ ] AC-34: All note data persists in `.chainglass/data/notes.jsonl`
-- [ ] AC-35: Notes use a `linkType` field supporting "file", "workflow", "agent-run"
-- [ ] AC-36: Each link type has its own `targetMeta` shape
-- [ ] AC-37: Adding a new link type requires no schema migration
-- [ ] AC-38: API routes support filtering by link type
+- [x] AC-34: All note data persists in `.chainglass/data/notes.jsonl`
+- [x] AC-35: Notes use a `linkType` field supporting "file", "workflow", "agent-run"
+- [x] AC-36: Each link type has its own `targetMeta` shape
+- [x] AC-37: Adding a new link type requires no schema migration
+- [x] AC-38: API routes support filtering by link type
 
 ### Risks (Phase 1)
 | Risk | Likelihood | Impact | Mitigation |
@@ -213,17 +213,17 @@ Harness: Not applicable. No harness.md exists and this feature uses proven patte
 | 2.10 | Notes overlay supports filtering by status, addressee, and link type | file-notes | Filter dropdown in header, list updates on filter change | Per AC-25 |
 
 ### Acceptance Criteria (Phase 2)
-- [ ] AC-15: Users can add a markdown note to any file via keyboard shortcut
-- [ ] AC-16: Notes can optionally target a specific line number
-- [ ] AC-17: Notes can optionally be addressed "to human" or "to agent"
-- [ ] AC-18: Notes display author, time, addressee, and line reference
-- [ ] AC-19: Notes can be marked as complete
-- [ ] AC-20: Notes support replies (flat threading)
-- [ ] AC-21: File tree shows indicator dot next to files with open notes (component created, wiring in Phase 7)
-- [ ] AC-23: Notes button in sidebar opens notes overlay
-- [ ] AC-24: Each note has "Go to" link navigating to file+line
-- [ ] AC-25: Notes overlay supports filtering
-- [ ] AC-26: Bulk delete guarded by "YEES" confirmation
+- [x] AC-15: Users can add a markdown note to any file via keyboard shortcut
+- [x] AC-16: Notes can optionally target a specific line number
+- [x] AC-17: Notes can optionally be addressed "to human" or "to agent"
+- [x] AC-18: Notes display author, time, addressee, and line reference
+- [x] AC-19: Notes can be marked as complete
+- [x] AC-20: Notes support replies (flat threading)
+- [x] AC-21: File tree shows indicator dot next to files with open notes (component created, wiring in Phase 7)
+- [x] AC-23: Notes button in sidebar opens notes overlay
+- [x] AC-24: Each note has "Go to" link navigating to file+line
+- [x] AC-25: Notes overlay supports filtering
+- [x] AC-26: Bulk delete guarded by "YEES" confirmation
 
 ---
 
@@ -251,12 +251,12 @@ Harness: Not applicable. No harness.md exists and this feature uses proven patte
 | 3.6 | Register INoteService in CLI DI container + add tests | file-notes | DI resolves service, tests cover all subcommands | Constitution P2 |
 
 ### Acceptance Criteria (Phase 3)
-- [ ] AC-28: `cg notes list` shows all notes
-- [ ] AC-29: `cg notes list --file <path>` filters to specific file
-- [ ] AC-30: `cg notes files` lists files with notes
-- [ ] AC-31: `cg notes add` creates a note
-- [ ] AC-32: `cg notes complete <id>` marks complete
-- [ ] AC-33: `cg notes list --json` outputs JSON
+- [x] AC-28: `cg notes list` shows all notes
+- [x] AC-29: `cg notes list --file <path>` filters to specific file
+- [x] AC-30: `cg notes files` lists files with notes
+- [x] AC-31: `cg notes add` creates a note
+- [x] AC-32: `cg notes complete <id>` marks complete
+- [x] AC-33: `cg notes list --json` outputs JSON
 
 ---
 
@@ -287,8 +287,8 @@ Harness: Not applicable. No harness.md exists and this feature uses proven patte
 | 4.9 | Write unit tests for git-branch-service, per-file-diff-stats, pr-view-state (TDD) | pr-view | All services tested with real git repos (no mocks) | Constitution P3, QT-08 |
 
 ### Acceptance Criteria (Phase 4)
-- [ ] AC-12: Viewed state persists across page refreshes
-- [ ] AC-14a: Two comparison modes supported (Working + Branch)
+- [x] AC-12: Viewed state persists across page refreshes
+- [x] AC-14a: Two comparison modes supported (Working + Branch)
 
 ### Risks (Phase 4)
 | Risk | Likelihood | Impact | Mitigation |
@@ -327,17 +327,17 @@ Harness: Not applicable. No harness.md exists and this feature uses proven patte
 | 5.9 | Create SDK contribution + register (toggle command, Ctrl+Shift+P keybinding) | pr-view | SDK command toggles PR View overlay | Keyboard shortcut |
 
 ### Acceptance Criteria (Phase 5)
-- [ ] AC-01: PR View button opens overlay
-- [ ] AC-02: Opening PR View closes other overlays
-- [ ] AC-03: Header shows branch name, mode toggle, stats, progress
-- [ ] AC-04: File list shows status badges, +/- counts, viewed checkboxes
-- [ ] AC-05: Each file shows collapsible diff section
-- [ ] AC-06: Clicking file scrolls to diff
-- [ ] AC-07: Checking viewed collapses diff section
-- [ ] AC-09: Expand All / Collapse All work
-- [ ] AC-11: State persists across overlay close/reopen
-- [ ] AC-13: Escape closes overlay
-- [ ] AC-14: Only appears when git worktree exists
+- [x] AC-01: PR View button opens overlay
+- [x] AC-02: Opening PR View closes other overlays
+- [x] AC-03: Header shows branch name, mode toggle, stats, progress
+- [x] AC-04: File list shows status badges, +/- counts, viewed checkboxes
+- [x] AC-05: Each file shows collapsible diff section
+- [x] AC-06: Clicking file scrolls to diff
+- [x] AC-07: Checking viewed collapses diff section
+- [x] AC-09: Expand All / Collapse All work
+- [x] AC-11: State persists across overlay close/reopen
+- [x] AC-13: Escape closes overlay
+- [x] AC-14: Only appears when git worktree exists
 
 ---
 
@@ -365,10 +365,10 @@ Harness: Not applicable. No harness.md exists and this feature uses proven patte
 | 6.6 | Write tests for content hash invalidation and mode switching | pr-view | Hash comparison logic tested, mode toggle produces correct git commands | TDD |
 
 ### Acceptance Criteria (Phase 6)
-- [ ] AC-08: Viewed file changes on disk → auto-resets with "Previously viewed"
-- [ ] AC-10: PR View updates live when files change
-- [ ] AC-14a: Working + Branch modes both functional
-- [ ] AC-14b: Toggle switches modes and updates display
+- [x] AC-08: Viewed file changes on disk → auto-resets with "Previously viewed"
+- [x] AC-10: PR View updates live when files change
+- [x] AC-14a: Working + Branch modes both functional
+- [x] AC-14b: Toggle switches modes and updates display
 
 ---
 
@@ -395,9 +395,9 @@ Harness: Not applicable. No harness.md exists and this feature uses proven patte
 | 7.6 | Deleted file detection — notes overlay shows "deleted" indicator for files no longer in worktree | file-notes | Deleted files' notes show indicator, remain visible | Per OQ-2 |
 
 ### Acceptance Criteria (Phase 7)
-- [ ] AC-21: File tree shows indicator dot
-- [ ] AC-22: PR View file list shows indicator dot
-- [ ] AC-27: Tree can be filtered to show only files with notes
+- [x] AC-21: File tree shows indicator dot
+- [x] AC-22: PR View file list shows indicator dot
+- [x] AC-27: Tree can be filtered to show only files with notes
 
 ---
 
@@ -430,8 +430,8 @@ Harness: Not applicable. No harness.md exists and this feature uses proven patte
 | 8.9 | Run `just fft` — full quality gate (lint, format, typecheck, test) | — | All checks pass | Pre-merge gate |
 
 ### Acceptance Criteria (Phase 8)
-- [ ] Domain docs created and accurate
-- [ ] Registry and domain-map updated
+- [x] Domain docs created and accurate
+- [x] Registry and domain-map updated
 - [ ] How-to guides exist
 - [ ] Explorer panel buttons work
 - [ ] `just fft` passes
