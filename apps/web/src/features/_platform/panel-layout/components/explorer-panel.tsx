@@ -19,6 +19,7 @@ import {
   ClipboardCopy,
   GitPullRequest,
   ScrollText,
+  StickyNote,
   TerminalSquare,
 } from 'lucide-react';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
@@ -495,6 +496,15 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
           title="Toggle PR View (Ctrl+Shift+R)"
         >
           <GitPullRequest className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent('notes:toggle'))}
+          className="shrink-0 rounded p-1 text-muted-foreground hover:text-foreground hover:bg-accent"
+          aria-label="Toggle Notes"
+          title="Toggle Notes (Ctrl+Shift+L)"
+        >
+          <StickyNote className="h-4 w-4" />
         </button>
         <button
           type="button"

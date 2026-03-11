@@ -5,7 +5,7 @@
 **Spec**: [pr-view-spec.md](pr-view-spec.md)
 **Research**: [research-dossier.md](research-dossier.md)
 **Workshop**: [001-ui-design-github-inspired.md](workshops/001-ui-design-github-inspired.md)
-**Status**: IN PROGRESS (Phases 1-7 complete, Phase 8 pending)
+**Status**: COMPLETE (all 8 phases done)
 **Mode**: Full
 **Complexity**: CS-4 (large)
 
@@ -432,6 +432,6 @@ Harness: Not applicable. No harness.md exists and this feature uses proven patte
 ### Acceptance Criteria (Phase 8)
 - [x] Domain docs created and accurate
 - [x] Registry and domain-map updated
-- [ ] How-to guides exist
-- [ ] Explorer panel buttons work
-- [ ] `just fft` passes
+- [x] How-to guides exist
+- [x] Explorer panel buttons work
+- [x] `just fft` passes

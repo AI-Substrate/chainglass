@@ -3,7 +3,7 @@
 **Plan**: [pr-view-plan.md](../../pr-view-plan.md)
 **Phase**: Phase 8: Documentation + Polish
 **Generated**: 2026-03-10
-**Status**: Ready for takeoff
+**Status**: Landed
 
 ---
 
@@ -67,11 +67,11 @@ stateDiagram-v2
 
 ## Stages
 
-- [ ] **Stage 1: File Notes how-to guide** — Create `docs/how/file-notes.md` covering web UI, CLI, SDK, link types, threading
-- [ ] **Stage 2: PR View how-to guide** — Create `docs/how/pr-view.md` covering modes, tracking, live updates, shortcuts
-- [ ] **Stage 3: README CLI update** — Add `cg notes` commands with examples to README.md
-- [ ] **Stage 4: Notes explorer button** — Add StickyNote button to `explorer-panel.tsx` next to PR View button
-- [ ] **Stage 5: Final quality gate** — Run `just fft`, verify all green
+- [x] **Stage 1: File Notes how-to guide** — Create `docs/how/file-notes.md` covering web UI, CLI, SDK, link types, threading
+- [x] **Stage 2: PR View how-to guide** — Create `docs/how/pr-view.md` covering modes, tracking, live updates, shortcuts
+- [x] **Stage 3: README CLI update** — Add `cg notes` commands with examples to README.md
+- [x] **Stage 4: Notes explorer button** — Add StickyNote button to `explorer-panel.tsx` next to PR View button
+- [x] **Stage 5: Final quality gate** — Run `just fft`, verify all green
 
 ---
 
@@ -126,8 +126,8 @@ flowchart LR
 
 ## Checklist
 
-- [ ] T001: Create `docs/how/file-notes.md` how-to guide
-- [ ] T002: Create `docs/how/pr-view.md` how-to guide
-- [ ] T003: Update README.md CLI section with `cg notes` commands
-- [ ] T004: Add Notes toggle button to ExplorerPanel
-- [ ] T005: Run `just fft` final quality gate
+- [x] T001: Create `docs/how/file-notes.md` how-to guide
+- [x] T002: Create `docs/how/pr-view.md` how-to guide
+- [x] T003: Update README.md CLI section with `cg notes` commands
+- [x] T004: Add Notes toggle button to ExplorerPanel
+- [x] T005: Run `just fft` final quality gate
