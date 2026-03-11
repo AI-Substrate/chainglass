@@ -279,6 +279,7 @@ function main(): void {
     'plan.md': 'roadmap',
     'fltplan.md': 'rocket',
     'log.md': 'log',
+    'workshop.md': 'lighthouse',
   };
   const customFolderNames: Record<string, string> = {
     plans: 'folder-project',
