@@ -15,7 +15,7 @@ Key capabilities:
 
 ## Opening PR View
 
-- **Explorer panel**: Click the GitPullRequest icon in the top bar (next to Activity Log and Terminal)
+- **Explorer panel**: Click the GitPullRequest icon in the explorer panel top bar
 - **Keyboard shortcut**: `Ctrl+Shift+R` (or `Cmd+Shift+R` on macOS)
 - **SDK command**: `prView.toggleOverlay`
 
