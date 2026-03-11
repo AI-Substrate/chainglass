@@ -75,6 +75,17 @@ export type {
 // Git worktree resolver interface (Plan 014 Phase 4)
 export type { IGitWorktreeResolver } from './git-worktree-resolver.interface.js';
 
+// Git worktree manager interface (Plan 069 Phase 1: mutation boundary)
+export type {
+  IGitWorktreeManager,
+  MainStatusCode,
+  MainStatusResult,
+  SyncStatusCode,
+  SyncMainResult,
+  CreateWorktreeGitStatusCode,
+  CreateWorktreeGitResult,
+} from './git-worktree-manager.interface.js';
+
 // Workspace service interface (Plan 014 Phase 4)
 export type {
   IWorkspaceService,
@@ -82,6 +93,11 @@ export type {
   AddWorkspaceResult,
   RemoveWorkspaceResult,
   AddWorkspaceOptions,
+  PreviewCreateWorktreeRequest,
+  PreviewCreateWorktreeResult,
+  CreateWorktreeRequest,
+  CreateWorktreeResult,
+  BootstrapStatus,
 } from './workspace-service.interface.js';
 
 // Sample service interface (Plan 014 Phase 4)

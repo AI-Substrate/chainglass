@@ -329,16 +329,54 @@ export type {
 export { WorkspaceContextResolver } from './resolvers/index.js';
 export { GitWorktreeResolver } from './resolvers/index.js';
 
+// Git worktree manager adapter (Plan 069 Phase 2: real git mutation)
+export { GitWorktreeManagerAdapter } from './adapters/index.js';
+
+// Worktree bootstrap runner (Plan 069 Phase 2: hook execution)
+export { WorktreeBootstrapRunner } from './services/worktree-bootstrap-runner.js';
+
+// Worktree naming pure functions (Plan 069 Phase 2: client-safe for live preview)
+export {
+  normalizeSlug,
+  buildWorktreeName,
+  resolveWorktreeName,
+  parseRequestedName,
+  allocateOrdinal,
+  extractOrdinals,
+  hasBranchConflict,
+} from './services/worktree-name.js';
+export type {
+  OrdinalSources,
+  ParsedWorktreeName,
+  WorktreeNameResult,
+} from './services/worktree-name.js';
+
 // Git worktree resolver interface (Plan 014 Phase 4)
 export type { IGitWorktreeResolver } from './interfaces/index.js';
 
-// Workspace service interface (Plan 014 Phase 4)
+// Git worktree manager interface (Plan 069 Phase 1: mutation boundary)
+export type {
+  IGitWorktreeManager,
+  MainStatusCode,
+  MainStatusResult,
+  SyncStatusCode,
+  SyncMainResult,
+  CreateWorktreeGitStatusCode,
+  CreateWorktreeGitResult,
+} from './interfaces/index.js';
+
+// Workspace service interface (Plan 014 Phase 4, extended Plan 069 Phase 1)
 export type {
   IWorkspaceService,
   WorkspaceOperationResult,
   AddWorkspaceResult,
   RemoveWorkspaceResult,
   AddWorkspaceOptions,
+  PreviewCreateWorktreeRequest,
+  PreviewCreateWorktreeResult,
+  CreateWorktreeRequest,
+  CreateWorktreeResult,
+  BootstrapStatus,
 } from './interfaces/index.js';
 
 // Sample service interface (Plan 014 Phase 4)
@@ -370,6 +408,16 @@ export type {
   DetectWorktreesCall,
   GetMainRepoPathCall,
   IsMainWorktreeCall,
+} from './fakes/index.js';
+
+// Git worktree manager fake (Plan 069 Phase 1: mutation boundary)
+export { FakeGitWorktreeManager } from './fakes/index.js';
+export type {
+  CheckMainStatusCall,
+  SyncMainCall,
+  CreateWorktreeManagerCall,
+  ListBranchesCall,
+  ListPlanFoldersCall,
 } from './fakes/index.js';
 
 // Agent session adapter fake (Plan 018)

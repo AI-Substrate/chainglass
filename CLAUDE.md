@@ -233,12 +233,67 @@ just reset                  # Full reset (clean + reinstall)
 
 See `docs/how/dev/fast-feedback-loops.md` for the full testing strategy and feedback tier guide.
 
+### Harness Commands (Agentic Development)
+
+The harness provides a Docker-containerized dev environment with browser automation. Each worktree gets unique ports derived from its name. See `docs/project-rules/harness.md` for full documentation.
+
+#### Harness Feedback Loop
+
+The harness isn't just a testing tool — it's a product improvement engine. Every harness agent writes a structured retrospective with a required `magicWand` field capturing what would make the agent's job easier. These retrospectives become real fix tasks that ship in the same sprint.
+
+**The cycle**: Agent runs → honest retrospective → FX task → implementation → better next run.
+
+This is operational, not aspirational. FX002 (`console-logs` + `screenshot-all` commands) was sourced from the smoke-test agent's first retrospective. FX003 (`--wait-until` flag) was sourced from FX001 harness verification.
+
+**When creating harness agents**, always include:
+- A retrospective section in `prompt.md` asking what worked, what was confusing, and a magic wand wish
+- `magicWand` as a **required** field in `output-schema.json`
+- Specific examples of good vs bad feedback in `instructions.md`
+
+See `harness/README.md` for the full philosophy and agent creation guide.
+
+```bash
+# Port allocation (unique per worktree)
+just harness ports          # Show this worktree's port allocation
+
+# Diagnostics (start here when something's wrong)
+just harness doctor         # Run diagnostic checks with actionable fixes
+just harness doctor --wait  # Wait for harness to become healthy (cold boot ~2-3 min)
+
+# Lifecycle
+just harness dev            # Start container (auto-computes ports)
+just harness stop           # Stop container
+just harness health         # Probe all endpoints (JSON)
+just harness build          # Rebuild Docker image
+
+# Testing & Evidence
+just harness test --suite smoke              # Run smoke tests
+just harness test --viewport mobile          # Test at mobile viewport
+just harness screenshot home                 # Capture screenshot via CDP
+just harness results                         # Read latest test results
+
+# Seed Data
+just harness seed           # Create test workspace + worktrees
+
+# Agent Runner (Plan 070)
+just harness agent run <slug>              # Execute an agent definition
+just harness agent run <slug> --model gpt-5.4  # With model selection
+just harness agent list                    # List available agents
+just harness agent history <slug>          # Show past runs
+just harness agent validate <slug>         # Re-validate most recent output
+
+# Standalone harness deps (first time only)
+just harness-install        # Install harness node_modules
+```
+
 ### pnpm Commands (Alternative)
 
 ```bash
 pnpm dev                    # Start dev server (apps/web)
 pnpm build                  # Build all packages
 pnpm test                   # Run test suite
+
+NOTE: `just fft` is the preferred way to run tests and linter etc before commiting. 
 
 # From apps/web
 ANALYZE=true pnpm build     # Bundle analysis (requires --webpack flag with Turbopack)
@@ -249,3 +304,29 @@ ANALYZE=true pnpm build     # Bundle analysis (requires --webpack flag with Turb
 The `scripts/` directory contains demo, test, and utility scripts. See `scripts/scripts.md` for the full index.
 
 **When adding, removing, or renaming scripts, update `scripts/scripts.md` to keep the index current.**
+
+### Event Popper CLI (Plan 067)
+
+When you need to ask the user a question or send them a notification, use the Event Popper CLI. Requires the Chainglass dev server running (`just dev`).
+
+- **Ask a question**: `cg question ask --type <text|single|multi|confirm> --text "Your question"` — blocks until answered (default 10 min timeout)
+- **Send an alert**: `cg alert send --text "Your notification"` — fire-and-forget, returns immediately
+- **Check answer**: `cg question get <questionId>` — retrieve answer for a previously asked question
+- Run `cg question --help` and `cg alert --help` for full usage details, examples, and all available options.
+
+### SSE Multiplexing (Plan 072)
+
+Migrated workspace channel consumers share a **single multiplexed EventSource** connection per browser tab via `/api/events/mux`. Do NOT use the legacy `useSSE` hook (deleted) or create new direct EventSource connections.
+
+> **Note**: Some agent hooks (`useAgentManager`, `useAgentInstance`) and the unused `useWorkspaceSSE`/`useServerSession` still use direct EventSource. These are outside Plan 072 scope.
+
+**Two hooks** (import from `@/lib/sse`):
+- **`useChannelEvents(channel, { maxMessages? })`** — Accumulates messages into an array. Use for index-cursor patterns or batch processing. Returns `{ messages, isConnected, clearMessages }`.
+- **`useChannelCallback(channel, callback)`** — Fire-and-forget per-message callback. Use for notification→fetch patterns. Returns `{ isConnected }`.
+
+**Adding a new SSE channel**:
+1. Add channel name to `WORKSPACE_SSE_CHANNELS` in `apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx`
+2. Use `useChannelEvents` or `useChannelCallback` in your component
+3. Server-side: `sseManager.broadcast(channelName, data)` — the mux endpoint delivers it
+
+See `docs/how/sse-integration.md` for full guide.

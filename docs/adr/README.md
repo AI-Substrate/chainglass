@@ -19,6 +19,7 @@ Architecture Decision Records (ADRs) document significant architectural decision
 | 0011 | [First-Class Domain Concepts Over Diffuse Functions](./adr-0011-first-class-domain-concepts.md) | 2026-02-08 | Accepted | - | - | Golden example: INodeEventService (Plan 032 WS09) |
 | 0012 | [Workflow System Domain Boundaries](./adr-0012-workflow-domain-boundaries.md) | 2026-02-17 | Accepted | - | - | Six domains, dependency rules, litmus test. **Read before any WF plan.** |
 | 0013 | [USDK Internal SDK Architecture](./adr-0013-usdk-internal-sdk-architecture.md) | 2026-02-25 | Accepted | - | - | SDK vs DI boundary, command palette, keyboard shortcuts, settings. **Read before extending SDK.** |
+| 0014 | [First-Class Agentic Development Harness](./adr-0014-first-class-agentic-development-harness.md) | 2026-03-07 | Accepted | - | - | Harness-first development, Docker + Playwright, SDK control plane. **Read before any UI feature.** |
 
 ## ADR Format
 

@@ -12,10 +12,15 @@
 import { existsSync, statSync } from 'node:fs';
 import { requireAuth } from '@/features/063-login/lib/require-auth';
 import { WORKSPACE_DI_TOKENS } from '@chainglass/shared';
-import type { ISampleService, IWorkspaceService } from '@chainglass/workflow';
+import type {
+  ISampleService,
+  IWorkspaceService,
+  PreviewCreateWorktreeResult,
+} from '@chainglass/workflow';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { getContainer } from '../../src/lib/bootstrap-singleton';
+import { workspaceHref } from '../../src/lib/workspace-url';
 
 // ==================== Action State Types ====================
 
@@ -573,5 +578,135 @@ export async function updateWorktreePreferences(
   } catch (error) {
     console.error('[updateWorktreePreferences] Error:', error);
     return { success: false, errors: { _form: ['Failed to update worktree preferences'] } };
+  }
+}
+
+// ==================== Create Worktree Types (Plan 069 Phase 3) ====================
+
+/**
+ * Page-state union for the create-worktree form.
+ *
+ * Per Workshop 003: 4 states that map directly to UI presentations.
+ * Per DYK D2: CreateWorktreeResult is a discriminated union, so
+ * the page state mirrors that structure.
+ */
+export type CreateWorktreePageState =
+  | {
+      kind: 'idle';
+      fields?: { requestedName?: string };
+      preview?: PreviewCreateWorktreeResult;
+    }
+  | {
+      kind: 'blocking_error';
+      message: string;
+      fields: { requestedName: string };
+      preview?: PreviewCreateWorktreeResult;
+      logTail?: string;
+    }
+  | {
+      kind: 'created';
+      branchName: string;
+      worktreePath: string;
+      redirectTo: string;
+    }
+  | {
+      kind: 'created_with_bootstrap_error';
+      branchName: string;
+      worktreePath: string;
+      redirectTo: string;
+      bootstrapLogTail: string;
+    };
+
+const CreateWorktreeSchema = z.object({
+  requestedName: z
+    .string()
+    .transform((s) => s.trim())
+    .pipe(z.string().min(1, 'Name is required').max(100, 'Name must be 100 characters or less')),
+  workspaceSlug: z.string().min(1, 'Workspace slug is required'),
+});
+
+/**
+ * Create a new worktree from canonical main.
+ *
+ * Per Plan 069 Phase 3: Thin server action that delegates to
+ * IWorkspaceService.createWorktree() and maps the domain result
+ * into a CreateWorktreePageState for the form.
+ */
+export async function createNewWorktree(
+  _prevState: CreateWorktreePageState,
+  formData: FormData
+): Promise<CreateWorktreePageState> {
+  await requireAuth();
+
+  const rawName = formData.get('requestedName') as string;
+  const rawSlug = formData.get('workspaceSlug') as string;
+
+  const validated = CreateWorktreeSchema.safeParse({
+    requestedName: rawName,
+    workspaceSlug: rawSlug,
+  });
+
+  if (!validated.success) {
+    return {
+      kind: 'blocking_error',
+      message: validated.error.issues[0]?.message ?? 'Invalid input',
+      fields: { requestedName: rawName ?? '' },
+    };
+  }
+
+  const { requestedName, workspaceSlug } = validated.data;
+
+  try {
+    const container = getContainer();
+    const workspaceService = container.resolve<IWorkspaceService>(
+      WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
+    );
+
+    const result = await workspaceService.createWorktree({
+      workspaceSlug,
+      requestedName,
+    });
+
+    if (result.status === 'blocked') {
+      return {
+        kind: 'blocking_error',
+        message: result.errors.map((e) => e.message).join('. '),
+        fields: { requestedName },
+        preview: result.refreshedPreview,
+      };
+    }
+
+    // status === 'created'
+    const redirectTo = workspaceHref(workspaceSlug, '/browser', {
+      worktree: result.worktreePath,
+    });
+
+    revalidatePath('/workspaces');
+    revalidatePath(`/workspaces/${workspaceSlug}`);
+
+    if (result.bootstrapStatus.outcome === 'failed') {
+      return {
+        kind: 'created_with_bootstrap_error',
+        branchName: result.branchName,
+        worktreePath: result.worktreePath,
+        redirectTo,
+        bootstrapLogTail:
+          result.bootstrapStatus.logTail ?? 'Bootstrap hook failed (no output captured)',
+      };
+    }
+
+    return {
+      kind: 'created',
+      branchName: result.branchName,
+      worktreePath: result.worktreePath,
+      redirectTo,
+    };
+  } catch (error) {
+    console.error('[createNewWorktree] Error:', error);
+    return {
+      kind: 'blocking_error',
+      message: error instanceof Error ? error.message : 'An unexpected error occurred',
+      fields: { requestedName },
+    };
   }
 }

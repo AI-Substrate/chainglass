@@ -9,6 +9,9 @@ export { PhaseAdapter } from './phase.adapter.js';
 // Workspace registry adapter (Plan 014)
 export { WorkspaceRegistryAdapter } from './workspace-registry.adapter.js';
 
+// Git worktree manager adapter (Plan 069 Phase 2: real git mutation)
+export { GitWorktreeManagerAdapter } from './git-worktree-manager.adapter.js';
+
 // Workspace data adapter base (Plan 014 Phase 3)
 export { WorkspaceDataAdapterBase } from './workspace-data-adapter-base.js';
 export type {

@@ -8,6 +8,7 @@
 | Events | _platform/events | infrastructure | _platform | extracted (Plans 019, 023, 027); renamed Plan 045 | active |
 | Panel Layout | _platform/panel-layout | infrastructure | _platform | extracted (Plan 041 workshops) | active |
 | File Browser | file-browser | business | — | Plan 041 | active |
+| Workspace | workspace | business | — | extracted (Plan 069) | active |
 | SDK | _platform/sdk | infrastructure | _platform | Plan 047 — USDK | active |
 | Settings | _platform/settings | infrastructure | _platform | Plan 047 — USDK Phase 5 | active |
 | Positional Graph | _platform/positional-graph | infrastructure | _platform | extracted (Plan 048) | active |
@@ -24,6 +25,8 @@
 | Auth | _platform/auth | infrastructure | _platform | Plan 063-login | active |
 | File Notes | file-notes | business | — | Plan 071 Phase 1 | active |
 | PR View | pr-view | business | — | Plan 071 Phase 4 | active |
+| External Events | _platform/external-events | infrastructure | _platform | Plan 067 — Event Popper | active |
+| Question Popper | question-popper | business | — | Plan 067 — Event Popper | active |
 
 ## Domain Types
 

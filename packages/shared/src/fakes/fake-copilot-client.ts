@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type {
+  CopilotModelInfo,
   CopilotResumeSessionConfig,
   CopilotSessionConfig,
   CopilotSessionEvent,
@@ -86,6 +87,8 @@ export class FakeCopilotClient implements ICopilotClient {
   private readonly _sessions = new Map<string, FakeCopilotSession>();
   private _sessionCounter = 0;
   private _lastSession: FakeCopilotSession | null = null;
+  private _lastSessionConfig: CopilotSessionConfig | CopilotResumeSessionConfig | undefined;
+  private _lastResumeConfig: CopilotResumeSessionConfig | undefined;
 
   constructor(options: FakeCopilotClientOptions = {}) {
     this._options = {
@@ -106,6 +109,7 @@ export class FakeCopilotClient implements ICopilotClient {
     const sessionId = config?.sessionId ?? this._generateSessionId();
     this._sessionHistory.push(sessionId);
     this._createdSessions.add(sessionId);
+    this._lastSessionConfig = config;
 
     const session = new FakeCopilotSession({
       sessionId,
@@ -134,6 +138,7 @@ export class FakeCopilotClient implements ICopilotClient {
     }
 
     this._sessionHistory.push(sessionId);
+    this._lastResumeConfig = config;
 
     const session = new FakeCopilotSession({
       sessionId,
@@ -166,6 +171,32 @@ export class FakeCopilotClient implements ICopilotClient {
     return this._options.status;
   }
 
+  /**
+   * List available models. Returns a canned model list for testing.
+   */
+  async listModels(): Promise<CopilotModelInfo[]> {
+    return [
+      {
+        id: 'fake-model-reasoning',
+        name: 'Fake Model (Reasoning)',
+        capabilities: {
+          supports: { vision: false, reasoningEffort: true },
+          limits: { max_context_window_tokens: 200000 },
+        },
+        supportedReasoningEfforts: ['low', 'medium', 'high'],
+        defaultReasoningEffort: 'medium',
+      },
+      {
+        id: 'fake-model-basic',
+        name: 'Fake Model (Basic)',
+        capabilities: {
+          supports: { vision: true, reasoningEffort: false },
+          limits: { max_context_window_tokens: 128000 },
+        },
+      },
+    ];
+  }
+
   // ============================================
   // Test helper methods
   // ============================================
@@ -179,6 +210,21 @@ export class FakeCopilotClient implements ICopilotClient {
   }
 
   /**
+   * Get the config passed to the most recent createSession() or resumeSession().
+   * Useful for verifying adapter correctly forwards model/reasoning options.
+   */
+  getLastSessionConfig(): CopilotSessionConfig | CopilotResumeSessionConfig | undefined {
+    return this._lastSessionConfig;
+  }
+
+  /**
+   * Get the config passed to the most recent resumeSession().
+   */
+  getLastResumeConfig(): CopilotResumeSessionConfig | undefined {
+    return this._lastResumeConfig;
+  }
+
+  /**
    * Clear all session history.
    * Useful for test isolation between test cases.
    */
@@ -188,6 +234,8 @@ export class FakeCopilotClient implements ICopilotClient {
     this._sessions.clear();
     this._sessionCounter = 0;
     this._lastSession = null;
+    this._lastSessionConfig = undefined;
+    this._lastResumeConfig = undefined;
   }
 
   /**

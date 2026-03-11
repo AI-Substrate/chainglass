@@ -28,6 +28,7 @@ import {
   ExternalLink,
   LogOut,
   PanelLeft,
+  Plus,
   ScrollText,
   Settings,
   StickyNote,
@@ -58,7 +59,7 @@ export function DashboardSidebar() {
   const isCollapsed = state === 'collapsed';
   const { user, isAuthenticated } = useAuth();
   const [devOpen, setDevOpen] = useState(false);
-  const [worktreesOpen, setWorktreesOpen] = useState(false);
+  const [worktreesOpen, setWorktreesOpen] = useState(true);
 
   // Detect workspace context from URL
   const workspaceSlug = useMemo(() => {
@@ -72,26 +73,28 @@ export function DashboardSidebar() {
 
   return (
     <Sidebar role="complementary" collapsible="icon" className={cn(isCollapsed && 'w-16')}>
-      <SidebarHeader className="border-b p-4">
-        <div className="flex items-center justify-between gap-2">
-          {!isCollapsed && (
+      <SidebarHeader className={cn('border-b', isCollapsed ? 'p-2' : 'p-4')}>
+        {!isCollapsed && (
+          <div className="flex items-center justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <span className="block truncate font-semibold">
-                {isInWorkspace
-                  ? `${wsCtx?.worktreeIdentity?.emoji || wsCtx?.emoji || ''} ${wsCtx?.worktreeIdentity?.branch || wsCtx?.name || decodeURIComponent(workspaceSlug)}`.trim()
-                  : 'Chainglass'}
-              </span>
-              {isInWorkspace && currentWorktree && !wsCtx?.worktreeIdentity && (
-                <span className="block truncate text-xs text-muted-foreground">
-                  {currentWorktree.split('/').pop()}
-                </span>
+              {isInWorkspace ? (
+                <>
+                  <span className="block truncate font-semibold">
+                    {`${wsCtx?.worktreeIdentity?.emoji || wsCtx?.emoji || ''} ${wsCtx?.worktreeIdentity?.branch || currentWorktree?.split('/').pop() || decodeURIComponent(workspaceSlug)}`.trim()}
+                  </span>
+                  <span className="block truncate text-xs text-muted-foreground">
+                    {wsCtx?.name || decodeURIComponent(workspaceSlug)}
+                  </span>
+                  {workspaceSlug && <WorktreeStateSubtitle slug={workspaceSlug} />}
+                </>
+              ) : (
+                <span className="block truncate font-semibold">Chainglass</span>
               )}
-              {isInWorkspace && workspaceSlug && <WorktreeStateSubtitle slug={workspaceSlug} />}
             </div>
-          )}
-        </div>
-        <div className="mt-1 flex items-center gap-1">
-          {currentWorktree && workspaceSlug && (
+          </div>
+        )}
+        <div className={cn('flex items-center', isCollapsed ? 'justify-center' : 'mt-1 gap-1')}>
+          {!isCollapsed && currentWorktree && workspaceSlug && (
             <>
               <WorktreeIdentityPopover slug={workspaceSlug} worktreePath={currentWorktree} />
               <PasteUploadButton slug={workspaceSlug} worktreePath={currentWorktree} />
@@ -106,16 +109,20 @@ export function DashboardSidebar() {
           >
             <PanelLeft className="h-3.5 w-3.5" />
           </Button>
-          <ThemeToggle />
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => window.open(window.location.href, '_blank')}
-            aria-label="Open in new tab"
-            className="h-7 w-7"
-          >
-            <ExternalLink className="h-3.5 w-3.5" />
-          </Button>
+          {!isCollapsed && (
+            <>
+              <ThemeToggle />
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => window.open(window.location.href, '_blank')}
+                aria-label="Open in new tab"
+                className="h-7 w-7"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+              </Button>
+            </>
+          )}
         </div>
       </SidebarHeader>
 
@@ -159,30 +166,7 @@ export function DashboardSidebar() {
               </SidebarGroup>
             )}
 
-            {/* 2. Worktree list — collapsible, contracted by default */}
-            <SidebarGroup>
-              {!isCollapsed && (
-                <SidebarGroupLabel
-                  className="cursor-pointer select-none"
-                  onClick={() => setWorktreesOpen((p) => !p)}
-                >
-                  Worktrees {worktreesOpen ? '▾' : '▸'}
-                </SidebarGroupLabel>
-              )}
-              {(worktreesOpen || isCollapsed) && (
-                <SidebarGroupContent>
-                  <Suspense
-                    fallback={
-                      <div className="px-3 py-2 text-xs text-muted-foreground">Loading...</div>
-                    }
-                  >
-                    <WorkspaceNav />
-                  </Suspense>
-                </SidebarGroupContent>
-              )}
-            </SidebarGroup>
-
-            {/* 3. Back to all workspaces */}
+            {/* 2. Back to all workspaces */}
             <SidebarGroup>
               <SidebarGroupContent>
                 <SidebarMenu>
@@ -196,6 +180,52 @@ export function DashboardSidebar() {
                   </SidebarMenuItem>
                 </SidebarMenu>
               </SidebarGroupContent>
+            </SidebarGroup>
+
+            {/* 3. Worktree list — collapsible, expanded by default */}
+            <SidebarGroup>
+              {!isCollapsed && (
+                <div className="flex items-center justify-between pr-1">
+                  <SidebarGroupLabel
+                    className="cursor-pointer select-none"
+                    onClick={() => setWorktreesOpen((p) => !p)}
+                  >
+                    Worktrees {worktreesOpen ? '▾' : '▸'}
+                  </SidebarGroupLabel>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
+                    <Link
+                      href={`/workspaces/${workspaceSlug}/new-worktree`}
+                      aria-label="Create new worktree"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </Link>
+                  </Button>
+                </div>
+              )}
+              {isCollapsed && (
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild tooltip="Create new worktree">
+                        <Link href={`/workspaces/${workspaceSlug}/new-worktree`}>
+                          <Plus className="h-5 w-5" />
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              )}
+              {(worktreesOpen || isCollapsed) && (
+                <SidebarGroupContent>
+                  <Suspense
+                    fallback={
+                      <div className="px-3 py-2 text-xs text-muted-foreground">Loading...</div>
+                    }
+                  >
+                    <WorkspaceNav />
+                  </Suspense>
+                </SidebarGroupContent>
+              )}
             </SidebarGroup>
           </>
         ) : (

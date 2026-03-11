@@ -35,6 +35,7 @@ Start at L1 and zoom in to the level of detail you need:
 
 ### Business Domains
 
+- [Workspace](components/workspace.md) — Workspace registration, context resolution, worktree discovery
 - [File Browser](components/file-browser.md) — Workspace file browsing, editing, diffing
 - [File Notes](components/file-notes.md) — Shared note contracts, JSONL persistence, API surface
 - [PR View](components/pr-view.md) — Diff aggregation, reviewed state, git branch service

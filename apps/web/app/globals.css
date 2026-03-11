@@ -315,17 +315,17 @@
    Tree Entry Animation (Plan 045: Live File Events)
    ============================================================ */
 
-@keyframes tree-entry-appear {
+@keyframes tree-entry-glow {
   from {
-    background-color: rgba(34, 197, 94, 0.2);
+    background-color: rgba(34, 197, 94, 0.25);
   }
   to {
     background-color: transparent;
   }
 }
 
-.tree-entry-new {
-  animation: tree-entry-appear 1.5s ease-out forwards;
+.tree-entry-glow {
+  animation: tree-entry-glow 5s ease-out forwards;
 }
 
 .tree-entry-navigated {

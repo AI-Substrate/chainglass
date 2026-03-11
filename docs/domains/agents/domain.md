@@ -264,3 +264,5 @@ Primary: scattered across `packages/shared/src/`, `packages/workflow/src/`, `app
 | Plan 059 FX004 | Extract and display agent intents from event stream — intent-extractor.ts pure function, wired into AgentInstance._captureEvent | 2026-03-04 |
 | Plan 059 FX005 | Top bar redesign — replace AgentChipBar/AgentChip with AgentTopBar (summary strip + expandable grid) and AgentCard (rich tiles). Remove DnD sorting, add urgency sort, aggregate status indicators | 2026-03-05 |
 | Plan 059 FX006 | Copilot SDK permissions (cliArgs + approveAll), report_intent first-class intent source, thinking block ordering, Enter-to-submit chat input, defensive JSON parsing | 2026-03-05 |
+| Plan 070 P1 | SdkCopilotAdapter: model/reasoningEffort on AgentRunOptions, CopilotModelInfo/CopilotReasoningEffort types, listModels(), setModel(), expanded session configs, fakes updated | 2026-03-07 |
+| Plan 070 P3 | AgentRunOptions.timeout exposed for harness smoke-test execution; SdkCopilotAdapter forwards wait timeout to sendAndWait | 2026-03-08 |

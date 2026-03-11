@@ -48,6 +48,14 @@
     "./file-notes": {
       "import": "./dist/file-notes/index.js",
       "types": "./dist/file-notes/index.d.ts"
+    },
+    "./event-popper": {
+      "import": "./dist/event-popper/index.js",
+      "types": "./dist/event-popper/index.d.ts"
+    },
+    "./question-popper": {
+      "import": "./dist/question-popper/index.js",
+      "types": "./dist/question-popper/index.d.ts"
     }
   },
   "scripts": {

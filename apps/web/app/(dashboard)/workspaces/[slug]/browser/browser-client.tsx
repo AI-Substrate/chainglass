@@ -28,7 +28,8 @@ import { fileBrowserParams } from '@/features/041-file-browser/params/file-brows
 import { fileBrowserContribution } from '@/features/041-file-browser/sdk/contribution';
 import type { FileEntry } from '@/features/041-file-browser/services/directory-listing';
 import { createFilePathHandler } from '@/features/041-file-browser/services/file-path-handler';
-import { useFileChanges } from '@/features/045-live-file-events';
+import { FileChangeProvider, useFileChanges } from '@/features/045-live-file-events';
+import { QuestionPopperIndicator } from '@/features/067-question-popper/components/question-popper-indicator';
 import { useNotesOverlay } from '@/features/071-file-notes/hooks/use-notes-overlay';
 import {
   type BarContext,
@@ -80,15 +81,16 @@ export function BrowserClient({
   initialEntries,
 }: BrowserClientProps) {
   return (
-    // FileChangeProvider is mounted in PRViewOverlayWrapper (layout.tsx)
-    // so both browser content and overlays share one SSE connection.
-    <BrowserClientInner
-      slug={slug}
-      worktreePath={worktreePath}
-      worktreeBranch={worktreeBranch}
-      isGit={isGit}
-      initialEntries={initialEntries}
-    />
+    <FileChangeProvider worktreePath={worktreePath}>
+      <GlobalStateConnector slug={slug} worktreeBranch={worktreeBranch} />
+      <BrowserClientInner
+        slug={slug}
+        worktreePath={worktreePath}
+        worktreeBranch={worktreeBranch}
+        isGit={isGit}
+        initialEntries={initialEntries}
+      />
+    </FileChangeProvider>
   );
 }
 
@@ -141,6 +143,15 @@ function BrowserClientInner({
     setUrlFile: (file) => setParams({ file, line: null }, { history: 'push' }),
     setUrlMode: (m) => setParams({ mode: m as 'edit' | 'preview' | 'diff' }),
   });
+
+  // Wrap file selection to collapse all overlays (terminal, agent, activity log)
+  const handleFileSelect = useCallback(
+    (filePath: string) => {
+      window.dispatchEvent(new CustomEvent('overlay:close-all'));
+      return fileNav.handleSelect(filePath);
+    },
+    [fileNav.handleSelect]
+  );
 
   const panelState = usePanelState({
     isGit,
@@ -383,11 +394,11 @@ function BrowserClientInner({
 
   // T006: Merge local + SSE-driven new paths for green animation
   const combinedNewPaths = useMemo(() => {
-    if (localNewPaths.size === 0) return treeChanges.newPaths;
-    const combined = new Set(treeChanges.newPaths);
+    if (localNewPaths.size === 0) return treeChanges.glowPaths;
+    const combined = new Set(treeChanges.glowPaths);
     for (const p of localNewPaths) combined.add(p);
     return combined;
-  }, [treeChanges.newPaths, localNewPaths]);
+  }, [treeChanges.glowPaths, localNewPaths]);
 
   // T005: Watch all files for ChangesView auto-refresh (500ms debounce)
   const allChanges = useFileChanges('*', { debounce: 500 });
@@ -472,7 +483,7 @@ function BrowserClientInner({
       worktreePath,
       fileExists: (relativePath: string) => fileExists(slug, worktreePath, relativePath),
       pathExists: (relativePath: string) => pathExists(slug, worktreePath, relativePath),
-      navigateToFile: (relativePath: string) => fileNav.handleSelect(relativePath),
+      navigateToFile: (relativePath: string) => handleFileSelect(relativePath),
       navigateToDirectory: (relativePath: string) => {
         // Expand all ancestors + the directory itself
         const parts = relativePath.split('/');
@@ -508,7 +519,7 @@ function BrowserClientInner({
     [
       slug,
       worktreePath,
-      fileNav.handleSelect,
+      handleFileSelect,
       fileNav.handleExpand,
       panelMode,
       panelState.handlePanelModeChange,
@@ -643,7 +654,7 @@ function BrowserClientInner({
             onSortModeChange={fileFilter.cycleSortMode}
             includeHidden={fileFilter.includeHidden}
             onIncludeHiddenChange={fileFilter.toggleIncludeHidden}
-            onFileSelect={fileNav.handleSelect}
+            onFileSelect={handleFileSelect}
             onCopyFullPath={clipboard.handleCopyFullPath}
             onCopyRelativePath={clipboard.handleCopyRelativePath}
             onCopyContent={clipboard.handleCopyContent}
@@ -671,6 +682,7 @@ function BrowserClientInner({
                 flowspace.setQuery(query, mode);
               }
             }}
+            rightActions={<QuestionPopperIndicator />}
           />
         }
         left={
@@ -713,7 +725,7 @@ function BrowserClientInner({
                     changedFiles={panelState.changedFiles}
                     filesWithNotes={noteFilePaths}
                     newlyAddedPaths={combinedNewPaths}
-                    onSelect={fileNav.handleSelect}
+                    onSelect={handleFileSelect}
                     onExpand={fileNav.handleExpand}
                     childEntries={filteredChildEntries}
                     expandPaths={expandPaths}
@@ -736,7 +748,7 @@ function BrowserClientInner({
                   workingChanges={panelState.workingChanges}
                   recentFiles={panelState.recentFiles}
                   selectedFile={selectedFile}
-                  onSelect={fileNav.handleSelect}
+                  onSelect={handleFileSelect}
                   onCopyFullPath={clipboard.handleCopyFullPath}
                   onCopyRelativePath={clipboard.handleCopyRelativePath}
                   onCopyContent={clipboard.handleCopyContent}
@@ -807,7 +819,7 @@ function BrowserClientInner({
                   fileNav.fileData && !fileNav.fileData.ok ? fileNav.fileData.error : undefined
                 }
                 scrollToLine={scrollToLine}
-                onNavigateToFile={fileNav.handleSelect}
+                onNavigateToFile={handleFileSelect}
               />
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground">

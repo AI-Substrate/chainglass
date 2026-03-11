@@ -104,6 +104,19 @@ export type {
   TokenMetrics,
 } from './interfaces/index.js';
 
+// Copilot SDK interfaces and types (Plan 070: re-export for harness consumption)
+export type {
+  CopilotModelBilling,
+  CopilotModelCapabilities,
+  CopilotModelInfo,
+  CopilotModelPolicy,
+  CopilotReasoningEffort,
+  CopilotSessionConfig,
+  CopilotResumeSessionConfig,
+  ICopilotClient,
+  ICopilotSession,
+} from './interfaces/index.js';
+
 // Workflow Events interface (Plan 061)
 export type { IWorkflowEvents } from './interfaces/index.js';
 

@@ -1,0 +1,560 @@
+diff --git a/apps/web/app/(dashboard)/workspaces/[slug]/new-worktree/page.tsx b/apps/web/app/(dashboard)/workspaces/[slug]/new-worktree/page.tsx
+new file mode 100644
+index 0000000..9d157ee
+--- /dev/null
++++ b/apps/web/app/(dashboard)/workspaces/[slug]/new-worktree/page.tsx
+@@ -0,0 +1,80 @@
++/**
++ * New Worktree Page - /workspaces/[slug]/new-worktree
++ *
++ * Part of Plan 069: New Worktree Creation Flow - Phase 3
++ *
++ * Server Component that loads workspace context and initial preview,
++ * then renders the NewWorktreeForm client component.
++ *
++ * Per DYK D1: Calls IWorkspaceService.previewCreateWorktree() directly
++ * during server render — no preview server action needed.
++ */
++
++import { WORKSPACE_DI_TOKENS } from '@chainglass/shared';
++import type { IWorkspaceService } from '@chainglass/workflow';
++import { ArrowLeft } from 'lucide-react';
++import Link from 'next/link';
++import { notFound } from 'next/navigation';
++import { NewWorktreeForm } from '../../../../../src/components/workspaces/new-worktree-form';
++import { getContainer } from '../../../../../src/lib/bootstrap-singleton';
++
++export const dynamic = 'force-dynamic';
++
++interface PageProps {
++  params: Promise<{
++    slug: string;
++  }>;
++}
++
++export default async function NewWorktreePage({ params }: PageProps) {
++  const { slug } = await params;
++
++  const container = getContainer();
++  const workspaceService = container.resolve<IWorkspaceService>(
++    WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
++  );
++
++  const info = await workspaceService.getInfo(slug);
++  if (!info) {
++    notFound();
++  }
++
++  // Load initial preview with empty name to show the next available ordinal
++  let initialPreview = undefined;
++  try {
++    initialPreview = await workspaceService.previewCreateWorktree({
++      workspaceSlug: slug,
++      requestedName: 'new-worktree',
++    });
++  } catch {
++    // Preview is best-effort — form still works without it
++  }
++
++  return (
++    <div className="mx-auto max-w-2xl space-y-6 p-6">
++      <div className="flex items-center gap-2 text-sm text-muted-foreground">
++        <Link
++          href={`/workspaces/${slug}`}
++          className="flex items-center gap-1 hover:text-foreground transition-colors"
++        >
++          <ArrowLeft className="h-4 w-4" />
++          Back to {info.name}
++        </Link>
++      </div>
++
++      <div>
++        <h1 className="text-2xl font-bold">New Worktree</h1>
++        <p className="text-muted-foreground mt-1">
++          Create a new git worktree from the canonical main branch.
++        </p>
++      </div>
++
++      <NewWorktreeForm
++        workspaceSlug={slug}
++        workspaceName={info.name}
++        mainRepoPath={info.path}
++        initialPreview={initialPreview ?? undefined}
++      />
++    </div>
++  );
++}
+diff --git a/apps/web/app/actions/workspace-actions.ts b/apps/web/app/actions/workspace-actions.ts
+index 34bb924..5784b07 100644
+--- a/apps/web/app/actions/workspace-actions.ts
++++ b/apps/web/app/actions/workspace-actions.ts
+@@ -12,10 +12,15 @@
+ import { existsSync, statSync } from 'node:fs';
+ import { requireAuth } from '@/features/063-login/lib/require-auth';
+ import { WORKSPACE_DI_TOKENS } from '@chainglass/shared';
+-import type { ISampleService, IWorkspaceService } from '@chainglass/workflow';
++import type {
++  ISampleService,
++  IWorkspaceService,
++  PreviewCreateWorktreeResult,
++} from '@chainglass/workflow';
+ import { revalidatePath } from 'next/cache';
+ import { z } from 'zod';
+ import { getContainer } from '../../src/lib/bootstrap-singleton';
++import { workspaceHref } from '../../src/lib/workspace-url';
+ 
+ // ==================== Action State Types ====================
+ 
+@@ -575,3 +580,133 @@ export async function updateWorktreePreferences(
+     return { success: false, errors: { _form: ['Failed to update worktree preferences'] } };
+   }
+ }
++
++// ==================== Create Worktree Types (Plan 069 Phase 3) ====================
++
++/**
++ * Page-state union for the create-worktree form.
++ *
++ * Per Workshop 003: 4 states that map directly to UI presentations.
++ * Per DYK D2: CreateWorktreeResult is a discriminated union, so
++ * the page state mirrors that structure.
++ */
++export type CreateWorktreePageState =
++  | {
++      kind: 'idle';
++      fields?: { requestedName?: string };
++      preview?: PreviewCreateWorktreeResult;
++    }
++  | {
++      kind: 'blocking_error';
++      message: string;
++      fields: { requestedName: string };
++      preview?: PreviewCreateWorktreeResult;
++      logTail?: string;
++    }
++  | {
++      kind: 'created';
++      branchName: string;
++      worktreePath: string;
++      redirectTo: string;
++    }
++  | {
++      kind: 'created_with_bootstrap_error';
++      branchName: string;
++      worktreePath: string;
++      redirectTo: string;
++      bootstrapLogTail: string;
++    };
++
++const CreateWorktreeSchema = z.object({
++  requestedName: z
++    .string()
++    .transform((s) => s.trim())
++    .pipe(z.string().min(1, 'Name is required').max(100, 'Name must be 100 characters or less')),
++  workspaceSlug: z.string().min(1, 'Workspace slug is required'),
++});
++
++/**
++ * Create a new worktree from canonical main.
++ *
++ * Per Plan 069 Phase 3: Thin server action that delegates to
++ * IWorkspaceService.createWorktree() and maps the domain result
++ * into a CreateWorktreePageState for the form.
++ */
++export async function createNewWorktree(
++  _prevState: CreateWorktreePageState,
++  formData: FormData
++): Promise<CreateWorktreePageState> {
++  await requireAuth();
++
++  const rawName = formData.get('requestedName') as string;
++  const rawSlug = formData.get('workspaceSlug') as string;
++
++  const validated = CreateWorktreeSchema.safeParse({
++    requestedName: rawName,
++    workspaceSlug: rawSlug,
++  });
++
++  if (!validated.success) {
++    return {
++      kind: 'blocking_error',
++      message: validated.error.issues[0]?.message ?? 'Invalid input',
++      fields: { requestedName: rawName ?? '' },
++    };
++  }
++
++  const { requestedName, workspaceSlug } = validated.data;
++
++  try {
++    const container = getContainer();
++    const workspaceService = container.resolve<IWorkspaceService>(
++      WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
++    );
++
++    const result = await workspaceService.createWorktree({
++      workspaceSlug,
++      requestedName,
++    });
++
++    if (result.status === 'blocked') {
++      return {
++        kind: 'blocking_error',
++        message: result.errors.map((e) => e.message).join('. '),
++        fields: { requestedName },
++        preview: result.refreshedPreview,
++      };
++    }
++
++    // status === 'created'
++    const redirectTo = workspaceHref(workspaceSlug, '/browser', {
++      worktree: result.worktreePath,
++    });
++
++    revalidatePath('/workspaces');
++    revalidatePath(`/workspaces/${workspaceSlug}`);
++
++    if (result.bootstrapStatus.outcome === 'failed') {
++      return {
++        kind: 'created_with_bootstrap_error',
++        branchName: result.branchName,
++        worktreePath: result.worktreePath,
++        redirectTo,
++        bootstrapLogTail:
++          result.bootstrapStatus.logTail ?? 'Bootstrap hook failed (no output captured)',
++      };
++    }
++
++    return {
++      kind: 'created',
++      branchName: result.branchName,
++      worktreePath: result.worktreePath,
++      redirectTo,
++    };
++  } catch (error) {
++    console.error('[createNewWorktree] Error:', error);
++    return {
++      kind: 'blocking_error',
++      message: error instanceof Error ? error.message : 'An unexpected error occurred',
++      fields: { requestedName },
++    };
++  }
++}
+diff --git a/apps/web/src/components/workspaces/new-worktree-form.tsx b/apps/web/src/components/workspaces/new-worktree-form.tsx
+new file mode 100644
+index 0000000..51a4f36
+--- /dev/null
++++ b/apps/web/src/components/workspaces/new-worktree-form.tsx
+@@ -0,0 +1,236 @@
++'use client';
++
++/**
++ * New Worktree Form - Client Component
++ *
++ * Part of Plan 069: New Worktree Creation Flow - Phase 3
++ *
++ * Per Workshop 003: 4 page states (idle, blocking_error, created, created_with_bootstrap_error).
++ * Per DYK D2: Hard navigation via window.location.assign() on success.
++ * Per DYK D3: Client-side live preview via pure normalizeSlug/buildWorktreeName.
++ */
++
++import type { PreviewCreateWorktreeResult } from '@chainglass/workflow';
++import { buildWorktreeName, normalizeSlug } from '@chainglass/workflow';
++import { useActionState } from 'react';
++import { useEffect, useState } from 'react';
++import { useFormStatus } from 'react-dom';
++import {
++  type CreateWorktreePageState,
++  createNewWorktree,
++} from '../../../../app/actions/workspace-actions';
++
++// ==================== Props ====================
++
++interface NewWorktreeFormProps {
++  workspaceSlug: string;
++  workspaceName: string;
++  mainRepoPath: string;
++  initialPreview?: PreviewCreateWorktreeResult;
++}
++
++// ==================== Submit Button ====================
++
++function SubmitButton() {
++  const { pending } = useFormStatus();
++
++  return (
++    <button
++      type="submit"
++      disabled={pending}
++      className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
++    >
++      {pending ? 'Creating Worktree…' : 'Create Worktree'}
++    </button>
++  );
++}
++
++// ==================== Main Form ====================
++
++export function NewWorktreeForm({
++  workspaceSlug,
++  workspaceName,
++  mainRepoPath,
++  initialPreview,
++}: NewWorktreeFormProps) {
++  const initialState: CreateWorktreePageState = {
++    kind: 'idle',
++    preview: initialPreview,
++  };
++
++  const [state, formAction] = useActionState(createNewWorktree, initialState);
++  const [nameInput, setNameInput] = useState(
++    state.kind === 'blocking_error' ? state.fields.requestedName : ''
++  );
++
++  // Per DYK D3: Client-side live preview using pure functions
++  const normalized = normalizeSlug(nameInput);
++  const previewOrdinal = initialPreview?.ordinal ?? 1;
++  const livePreviewName = normalized ? buildWorktreeName(previewOrdinal, normalized) : null;
++
++  // Per DYK D2: Hard navigation on success
++  useEffect(() => {
++    if (state.kind === 'created') {
++      window.location.assign(state.redirectTo);
++    }
++  }, [state]);
++
++  // ==================== Created with Bootstrap Error ====================
++  if (state.kind === 'created_with_bootstrap_error') {
++    return (
++      <div className="space-y-4">
++        <div className="rounded-lg border border-yellow-500/50 bg-yellow-50 dark:bg-yellow-900/20 p-4 space-y-3">
++          <h2 className="font-semibold text-yellow-800 dark:text-yellow-200">
++            Worktree created, but bootstrap failed
++          </h2>
++          <div className="text-sm space-y-1">
++            <p>
++              <span className="font-medium">Branch:</span> {state.branchName}
++            </p>
++            <p>
++              <span className="font-medium">Path:</span> {state.worktreePath}
++            </p>
++          </div>
++          {state.bootstrapLogTail && (
++            <details className="text-sm">
++              <summary className="cursor-pointer text-yellow-700 dark:text-yellow-300 hover:underline">
++                Bootstrap output
++              </summary>
++              <pre className="mt-2 rounded bg-black/10 dark:bg-black/30 p-3 text-xs overflow-x-auto whitespace-pre-wrap">
++                {state.bootstrapLogTail}
++              </pre>
++            </details>
++          )}
++        </div>
++        <div className="flex gap-3">
++          <button
++            type="button"
++            onClick={() => window.location.assign(state.redirectTo)}
++            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
++          >
++            Open Worktree Anyway
++          </button>
++          <span className="text-sm text-muted-foreground self-center">
++            The worktree is ready — the bootstrap hook just didn't complete.
++          </span>
++        </div>
++      </div>
++    );
++  }
++
++  // ==================== Created (redirecting) ====================
++  if (state.kind === 'created') {
++    return (
++      <div className="rounded-lg border p-4 text-center text-muted-foreground">
++        <p>Worktree created. Navigating to {state.branchName}…</p>
++      </div>
++    );
++  }
++
++  // ==================== Form (idle + blocking_error) ====================
++  const activePreview =
++    state.kind === 'blocking_error' && state.preview ? state.preview : initialPreview;
++
++  return (
++    <form action={formAction} className="space-y-6">
++      <input type="hidden" name="workspaceSlug" value={workspaceSlug} />
++
++      {/* Blocking Error Banner */}
++      {state.kind === 'blocking_error' && (
++        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 space-y-2">
++          <h3 className="font-semibold text-destructive">Could not create worktree</h3>
++          <p className="text-sm text-destructive">{state.message}</p>
++          {state.logTail && (
++            <pre className="mt-2 rounded bg-black/10 dark:bg-black/30 p-3 text-xs overflow-x-auto whitespace-pre-wrap">
++              {state.logTail}
++            </pre>
++          )}
++        </div>
++      )}
++
++      {/* Name Input */}
++      <div className="space-y-2">
++        <label htmlFor="requestedName" className="text-sm font-medium">
++          Worktree name
++        </label>
++        <input
++          id="requestedName"
++          name="requestedName"
++          type="text"
++          placeholder="my-feature"
++          required
++          value={nameInput}
++          onChange={(e) => setNameInput(e.target.value)}
++          className="w-full rounded-md border bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
++        />
++        <p className="text-xs text-muted-foreground">
++          Enter a slug like <code>my-feature</code> or paste a full name like{' '}
++          <code>069-my-feature</code>. The final name is confirmed on submit.
++        </p>
++      </div>
++
++      {/* Live Preview Card */}
++      {(livePreviewName || activePreview) && (
++        <div className="rounded-lg border bg-muted/50 p-4 space-y-2">
++          <h3 className="text-sm font-medium text-muted-foreground">Preview</h3>
++          <div className="text-sm space-y-1">
++            <p>
++              <span className="font-medium">Branch:</span>{' '}
++              <code className="rounded bg-muted px-1 py-0.5">
++                {livePreviewName ?? activePreview?.branchName ?? '—'}
++              </code>
++            </p>
++            {activePreview?.worktreePath && (
++              <p>
++                <span className="font-medium">Path:</span>{' '}
++                <code className="rounded bg-muted px-1 py-0.5 text-xs">
++                  {activePreview.worktreePath}
++                </code>
++              </p>
++            )}
++            {activePreview?.hasBootstrapHook && (
++              <p className="text-xs text-muted-foreground">
++                ⚙️ A bootstrap hook will run after creation
++              </p>
++            )}
++          </div>
++        </div>
++      )}
++
++      {/* Advanced Details */}
++      <details className="text-sm">
++        <summary className="cursor-pointer text-muted-foreground hover:text-foreground transition-colors">
++          Advanced details
++        </summary>
++        <div className="mt-2 rounded-lg border bg-muted/30 p-3 space-y-1 text-xs text-muted-foreground">
++          <p>
++            <span className="font-medium">Workspace:</span> {workspaceName}
++          </p>
++          <p>
++            <span className="font-medium">Main repo:</span> {mainRepoPath}
++          </p>
++          <p>
++            <span className="font-medium">Base branch:</span> main
++          </p>
++          <p>
++            <span className="font-medium">Hook:</span>{' '}
++            {activePreview?.hasBootstrapHook
++              ? '.chainglass/new-worktree.sh detected'
++              : 'None detected'}
++          </p>
++        </div>
++      </details>
++
++      {/* Actions */}
++      <div className="flex items-center gap-3">
++        <SubmitButton />
++        <a
++          href={`/workspaces/${workspaceSlug}`}
++          className="text-sm text-muted-foreground hover:text-foreground transition-colors"
++        >
++          Cancel
++        </a>
++      </div>
++    </form>
++  );
++}
+diff --git a/packages/workflow/src/index.ts b/packages/workflow/src/index.ts
+index 3b9d9fb..b2743ca 100644
+--- a/packages/workflow/src/index.ts
++++ b/packages/workflow/src/index.ts
+@@ -329,16 +329,54 @@ export type {
+ export { WorkspaceContextResolver } from './resolvers/index.js';
+ export { GitWorktreeResolver } from './resolvers/index.js';
+ 
++// Git worktree manager adapter (Plan 069 Phase 2: real git mutation)
++export { GitWorktreeManagerAdapter } from './adapters/index.js';
++
++// Worktree bootstrap runner (Plan 069 Phase 2: hook execution)
++export { WorktreeBootstrapRunner } from './services/worktree-bootstrap-runner.js';
++
++// Worktree naming pure functions (Plan 069 Phase 2: client-safe for live preview)
++export {
++  normalizeSlug,
++  buildWorktreeName,
++  resolveWorktreeName,
++  parseRequestedName,
++  allocateOrdinal,
++  extractOrdinals,
++  hasBranchConflict,
++} from './services/worktree-name.js';
++export type {
++  OrdinalSources,
++  ParsedWorktreeName,
++  WorktreeNameResult,
++} from './services/worktree-name.js';
++
+ // Git worktree resolver interface (Plan 014 Phase 4)
+ export type { IGitWorktreeResolver } from './interfaces/index.js';
+ 
+-// Workspace service interface (Plan 014 Phase 4)
++// Git worktree manager interface (Plan 069 Phase 1: mutation boundary)
++export type {
++  IGitWorktreeManager,
++  MainStatusCode,
++  MainStatusResult,
++  SyncStatusCode,
++  SyncMainResult,
++  CreateWorktreeGitStatusCode,
++  CreateWorktreeGitResult,
++} from './interfaces/index.js';
++
++// Workspace service interface (Plan 014 Phase 4, extended Plan 069 Phase 1)
+ export type {
+   IWorkspaceService,
+   WorkspaceOperationResult,
+   AddWorkspaceResult,
+   RemoveWorkspaceResult,
+   AddWorkspaceOptions,
++  PreviewCreateWorktreeRequest,
++  PreviewCreateWorktreeResult,
++  CreateWorktreeRequest,
++  CreateWorktreeResult,
++  BootstrapStatus,
+ } from './interfaces/index.js';
+ 
+ // Sample service interface (Plan 014 Phase 4)
+@@ -372,6 +410,16 @@ export type {
+   IsMainWorktreeCall,
+ } from './fakes/index.js';
+ 
++// Git worktree manager fake (Plan 069 Phase 1: mutation boundary)
++export { FakeGitWorktreeManager } from './fakes/index.js';
++export type {
++  CheckMainStatusCall,
++  SyncMainCall,
++  CreateWorktreeManagerCall,
++  ListBranchesCall,
++  ListPlanFoldersCall,
++} from './fakes/index.js';
++
+ // Agent session adapter fake (Plan 018)
+ export { FakeAgentSessionAdapter } from './fakes/index.js';
+ export type {

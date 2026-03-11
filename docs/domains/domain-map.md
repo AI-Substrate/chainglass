@@ -14,12 +14,12 @@ flowchart LR
     fileOps["⚙️ _platform/file-ops<br/>IFileSystem · IPathResolver"]:::infra
     wsUrl["🔗 _platform/workspace-url<br/>workspaceHref · paramsCaches"]:::infra
     viewer["🖥️ _platform/viewer<br/>FileViewer · MarkdownViewer<br/>DiffViewer · highlightCode<br/>detectContentType"]:::infra
-    events["🔔 _platform/events<br/>ICentralEventNotifier<br/>ISSEBroadcaster · useSSE<br/>FileChangeHub · useFileChanges<br/>toast() · Toaster"]:::infra
+    events["🔔 _platform/events<br/>ICentralEventNotifier<br/>ISSEBroadcaster · useSSE<br/>MultiplexedSSEProvider · useChannelEvents<br/>FileChangeHub · useFileChanges<br/>toast() · Toaster"]:::infra
     panels["🗂️ _platform/panel-layout<br/>PanelShell · ExplorerPanel<br/>LeftPanel · MainPanel<br/>PanelHeader · BarHandler<br/>AsciiSpinner<br/>FlowSpace types"]:::infra
     sdk["🧩 _platform/sdk<br/>IUSDK · ICommandRegistry<br/>ISDKSettings · IContextKeyService<br/>IKeybindingService<br/>SDKCommand · SDKSetting"]:::infra
     settings["⚙️ _platform/settings<br/>Settings Page<br/>SettingControl · SettingsSearch"]:::infra
     posGraph["📊 _platform/positional-graph<br/>IPositionalGraphService<br/>IOrchestrationService<br/>IEventHandlerService<br/>IWorkUnitService<br/>ITemplateService<br/>IInstanceService"]:::infra
-    state["💾 _platform/state<br/>IStateService<br/>useGlobalState<br/>useGlobalStateList<br/>GlobalStateProvider<br/>StateChangeLog<br/>ServerEventRoute"]:::infra
+    state["💾 _platform/state<br/>IStateService<br/>useGlobalState<br/>useGlobalStateList<br/>GlobalStateProvider<br/>GlobalStateConnector<br/>StateChangeLog<br/>ServerEventRoute"]:::infra
     devTools["🛠️ _platform/dev-tools<br/>StateInspector<br/>useStateInspector<br/>useStateChangeLog"]:::infra
     auth["🔐 _platform/auth<br/>auth() · signIn() · signOut()<br/>requireAuth() · useAuth()<br/>middleware protection<br/>isUserAllowed()<br/>SessionProvider"]:::infra
 
@@ -28,6 +28,9 @@ flowchart LR
     workflowUI["🔀 workflow-ui<br/>Workflow editor · Canvas<br/>Toolbox · Properties<br/>Doping system"]:::business
     workunitEditor["✏️ 058-workunit-editor<br/>Unit list page · Editor page<br/>Agent/Code/Input editors<br/>Creation modal · Auto-save"]:::business
     terminal["🖥️ terminal<br/>TerminalView · TerminalOverlay<br/>TmuxSessionManager · copyTmuxBuffer<br/>Sidecar WS/WSS Server"]:::business
+
+    %% NEW business domains (Plan 069)
+    workspace["🗂️ workspace<br/>IWorkspaceService<br/>IWorkspaceContextResolver<br/>IGitWorktreeResolver<br/>IGitWorktreeManager<br/>useWorkspaceContext"]:::new
 
     %% NEW business domains (Plan 059)
     agents["🤖 agents<br/>IAgentManagerService<br/>IAgentAdapter · IAgentInstance<br/>useAgentManager · useAgentInstance<br/>useAgentOverlay · useRecentAgents<br/>AgentChipBar · AgentOverlayPanel<br/>AgentWorkUnitBridge"]:::new
@@ -43,14 +46,25 @@ flowchart LR
     fileNotes["📝 file-notes<br/>INoteService · NoteLinkType<br/>NoteFilter · FakeNoteService<br/>JsonlNoteService · registerNotesCommands<br/>NotesOverlayPanel · NoteModal<br/>NoteIndicatorDot · useNotes<br/>GET/POST/PATCH/DELETE<br/>/api/file-notes"]:::new
     prView["🔍 pr-view<br/>PRViewFile · PRViewData<br/>ComparisonMode · PRViewFileState<br/>PRViewOverlayProvider · usePRViewOverlay<br/>usePRViewData · registerPRViewSDK<br/>aggregatePRViewData · getAllDiffs<br/>GET/POST/DELETE<br/>/api/pr-view"]:::new
 
+    %% NEW infrastructure domains (Plan 067)
+    externalEvents["⚙️ _platform/external-events<br/>EventPopperRequest<br/>generateEventId<br/>readServerInfo<br/>localhostGuard<br/>detectTmuxContext"]:::new
+
+    %% NEW business domains (Plan 067)
+    questionPopper["❓ question-popper<br/>IQuestionPopperService<br/>QuestionPayloadSchema<br/>AnswerPayloadSchema<br/>AlertPayloadSchema<br/>FakeQuestionPopperService"]:::new
+
     %% Contract dependencies (consumer → provider)
     fileBrowser -->|"IFileSystem<br/>IPathResolver"| fileOps
     fileBrowser -->|"workspaceHref<br/>fileBrowserParams"| wsUrl
     fileBrowser -->|"FileViewer<br/>MarkdownViewer<br/>DiffViewer<br/>detectContentType"| viewer
     fileBrowser -->|"toast()<br/>useFileChanges<br/>FileChangeProvider"| events
     fileBrowser -->|"PanelShell<br/>ExplorerPanel<br/>LeftPanel · MainPanel<br/>AsciiSpinner"| panels
+    fileBrowser -->|"IWorkspaceService<br/>useWorkspaceContext<br/>WorktreeVisualPreferences"| workspace
     panels -->|"panel URL param"| wsUrl
     viewer -->|"IFileSystem (Shiki reads)"| fileOps
+
+    %% Workspace domain dependencies
+    workspace -->|"IFileSystem<br/>IPathResolver"| fileOps
+    workspace -->|"workspaceHref<br/>workspaceParams"| wsUrl
 
     %% SDK consumed by publishing domains
     fileBrowser -->|"IUSDK<br/>(publishes commands)"| sdk
@@ -64,12 +78,13 @@ flowchart LR
     %% Workflow UI dependencies
     workflowUI -->|"IPositionalGraphService<br/>ITemplateService<br/>IWorkUnitService"| posGraph
     workflowUI -->|"IFileSystem<br/>IPathResolver"| fileOps
-    workflowUI -->|"useSSE<br/>SSE infrastructure"| events
+    workflowUI -->|"useChannelEvents<br/>multiplexed SSE"| events
     workflowUI -->|"workspaceHref"| wsUrl
     workflowUI -->|"IUSDK"| sdk
+    workflowUI -->|"IWorkspaceService<br/>WorkspaceContext"| workspace
 
     %% State system dependencies
-    state -->|"useSSE<br/>SSE transport"| events
+    state -->|"useChannelEvents<br/>multiplexed SSE transport"| events
     posGraph -->|"IStateService<br/>(publish orchestration)"| state
     workflowUI -->|"useGlobalState<br/>(subscribe execution)"| state
     panels -->|"useGlobalState<br/>(subscribe alerts)"| state
@@ -84,6 +99,7 @@ flowchart LR
     agents -->|"IStateService<br/>useGlobalState"| state
     agents -->|"IWorkUnitStateService<br/>(publish status)"| workUnitState
     agents -->|"DashboardShell<br/>(top bar slot)"| panels
+    agents -->|"IWorkspaceService<br/>WorkspaceContext"| workspace
     posGraph -->|"IAgentManagerService<br/>IAgentInstance<br/>(orchestration)"| agents
 
     %% NEW: Work Unit State dependencies
@@ -104,18 +120,28 @@ flowchart LR
     workunitEditor -->|"IWorkUnitService<br/>(CRUD)"| posGraph
     workunitEditor -->|"CodeEditor"| viewer
     workunitEditor -->|"workspaceHref"| wsUrl
+    workunitEditor -->|"WorkspaceInfo<br/>WorkspaceContext"| workspace
 
     %% Terminal dependencies
     terminal -->|"PanelShell<br/>LeftPanel · MainPanel"| panels
     terminal -->|"toast()"| events
     terminal -->|"IUSDK<br/>ICommandRegistry"| sdk
     terminal -->|"workspaceHref"| wsUrl
+    terminal -->|"IWorkspaceService<br/>useWorkspaceContext"| workspace
 
     %% Activity Log dependencies (consumer → provider)
     activityLog -->|"PanelShell<br/>overlay anchor"| panels
     terminal -->|"appendActivityLogEntry()<br/>shouldIgnorePaneTitle()"| activityLog
 
+    %% External Events dependencies (Plan 067)
+    externalEvents -->|"WorkspaceDomain.EventPopper"| events
+
+    %% Question Popper dependencies (Plan 067)
+    questionPopper -->|"EventPopperRequest<br/>generateEventId()"| externalEvents
+    questionPopper -->|"ICentralEventNotifier<br/>WorkspaceDomain.EventPopper"| events
+
     %% Auth dependencies (consumer → provider: business domains consume auth protection)
+    events -->|"auth()<br/>session check"| auth
     fileBrowser -->|"middleware protection"| auth
     workflowUI -->|"middleware protection"| auth
     workunitEditor -->|"middleware protection"| auth
@@ -134,13 +160,14 @@ flowchart LR
     %% Cross-domain: file-notes consumed by file-browser and pr-view (Phase 7)
     fileBrowser -->|"NoteIndicatorDot<br/>useNotesOverlay<br/>fetchFilesWithNotes<br/>notes:changed"| fileNotes
     prView -->|"NoteIndicatorDot<br/>fetchFilesWithNotes"| fileNotes
+    workspace -->|"requireAuth()<br/>middleware protection"| auth
 ```
 
 ## Legend
 
 - **Blue**: Business domains (user-facing capabilities)
 - **Purple**: Infrastructure domains (cross-cutting technical capabilities)
-- **Orange**: Newly added domains (Plan 059 — change to blue after first implementation)
+- **Orange**: Newly added domains (change to blue or purple after follow-on implementation/documentation passes)
 - **Red**: Deprecated domains (pending removal)
 - **Solid arrows** (→): Contract dependency (A consumes B's contract)
 - **Labels on arrows**: Contract name being consumed
@@ -149,24 +176,27 @@ flowchart LR
 
 | Domain | Contracts Out | Consumers | Contracts In | Providers | Status |
 |--------|--------------|-----------|-------------|-----------|--------|
-| _platform/file-ops | IFileSystem, IPathResolver | file-browser, viewer, workflow-ui | — | — | ✅ |
-| _platform/workspace-url | workspaceHref, paramsCaches | file-browser, panel-layout | — | — | ✅ |
+| _platform/file-ops | IFileSystem, IPathResolver | file-browser, viewer, workflow-ui, workspace | — | — | ✅ |
+| _platform/workspace-url | workspaceHref, paramsCaches | file-browser, panel-layout, workflow-ui, workunit-editor, terminal, workspace | — | — | ✅ |
 | _platform/viewer | FileViewer, MarkdownViewer, DiffViewer, highlightCode, detectContentType, isBinaryExtension | file-browser | IFileSystem | file-ops | ✅ |
-| _platform/events | ICentralEventNotifier, ISSEBroadcaster, useSSE, FileChangeHub, useFileChanges, FileChangeProvider, toast() | file-browser, workflow-ui, agents, state | — | — | ✅ |
+| _platform/events | ICentralEventNotifier, ISSEBroadcaster, useSSE, MultiplexedSSEProvider, useChannelEvents, useChannelCallback, FileChangeHub, useFileChanges, FileChangeProvider, toast() | file-browser, workflow-ui, agents, state, question-popper | — | — | ✅ |
 | _platform/panel-layout | PanelShell, ExplorerPanel, LeftPanel, MainPanel, PanelHeader, BarHandler, AsciiSpinner, FlowSpaceSearchResult, FlowSpaceAvailability, FlowSpaceSearchMode | file-browser, future workspace pages | panel URL param | workspace-url | ✅ |
-| file-browser | Browser page, FileTree, FileViewerPanel, WorkspaceContext, EmojiPicker, ColorPicker, Settings | — | IFileSystem, workspaceHref, viewers, toast, events, panels, NoteIndicatorDot, fetchFilesWithNotes, useNotesOverlay | file-ops, workspace-url, viewer, events, panel-layout, file-notes | ✅ |
+| file-browser | Browser page, FileTree, FileViewerPanel, WorkspaceContext, EmojiPicker, ColorPicker, Settings | — | IFileSystem, workspaceHref, viewers, toast, events, panels, IWorkspaceService, useWorkspaceContext, NoteIndicatorDot, fetchFilesWithNotes, useNotesOverlay | file-ops, workspace-url, viewer, events, panel-layout, workspace, file-notes | ✅ |
+| workspace | IWorkspaceService, IWorkspaceContextResolver, IGitWorktreeResolver, IGitWorktreeManager, useWorkspaceContext | file-browser, workflow-ui, workunit-editor, terminal, agents | IFileSystem, IPathResolver, workspaceHref, workspaceParams, requireAuth(), middleware protection | file-ops, workspace-url, auth | 🟠 New |
 | _platform/sdk | IUSDK, ICommandRegistry, ISDKSettings, IContextKeyService, IKeybindingService, SDKCommand, SDKSetting, FakeUSDK | file-browser, workflow-ui, events, panel-layout, settings | — | — | ✅ |
 | _platform/settings | Settings Page, sdk.openSettings | — | ISDKSettings, useSDKSetting, useSDK | sdk | ✅ |
 | _platform/positional-graph | IPositionalGraphService, IOrchestrationService, IEventHandlerService, IWorkUnitService, ITemplateService, IInstanceService | CLI (`cg wf`, `cg template`), workflow-ui, dev/test-graphs | IFileSystem, IPathResolver, IStateService | file-ops, state | ✅ |
 | _platform/workgraph | IWorkGraphService, IWorkNodeService, IWorkUnitService | CLI (`cg wg`, `cg unit`) | IFileSystem, IPathResolver | file-ops | ❌ Removed from web (Plan 050 Phase 7) |
-| _platform/state | IStateService, useGlobalState, useGlobalStateList, GlobalStateProvider, StateChangeLog, ServerEventRoute, FakeGlobalStateSystem | positional-graph (publish), workflow-ui, panel-layout, file-browser, agents, work-unit-state (subscribe), dev-tools | useSSE | events | ✅ |
-| workflow-ui | _(none — leaf consumer)_ | — | IPositionalGraphService, ITemplateService, IWorkUnitService, IFileSystem, IPathResolver, useSSE, workspaceHref, IUSDK, useGlobalState, useAgentOverlay (future) | positional-graph, file-ops, events, workspace-url, sdk, state, agents (future) | ✅ |
+| _platform/state | IStateService, useGlobalState, useGlobalStateList, GlobalStateProvider, GlobalStateConnector, StateChangeLog, ServerEventRoute, FakeGlobalStateSystem | positional-graph (publish), workflow-ui, panel-layout, file-browser, agents, work-unit-state (subscribe), dev-tools | useChannelEvents | events | ✅ |
+| workflow-ui | _(none — leaf consumer)_ | — | IPositionalGraphService, ITemplateService, IWorkUnitService, IFileSystem, IPathResolver, useChannelEvents, workspaceHref, IUSDK, useGlobalState, useAgentOverlay (future), IWorkspaceService, WorkspaceContext | positional-graph, file-ops, events, workspace-url, sdk, state, agents (future), workspace | ✅ |
 | _platform/dev-tools | StateInspector, useStateChangeLog, useStateInspector | — | IStateService, StateChangeLog, useStateSystem | state | ✅ |
-| 058-workunit-editor | _(none — leaf consumer)_ | — | IWorkUnitService, CodeEditor, workspaceHref | positional-graph, viewer, workspace-url | ✅ |
-| agents | IAgentManagerService, IAgentAdapter, IAgentInstance, IAgentNotifierService, useAgentManager, useAgentInstance, useAgentOverlay, useRecentAgents, useWorktreeActivity, AgentChipBar, AgentOverlayPanel, AgentWorkUnitBridge | positional-graph (orchestration), workflow-ui (overlay), panel-layout (badge data via composition) | ISSEBroadcaster, useSSE, toast(), CopilotClient, IStateService, IWorkUnitStateService, IWorkflowEvents, DashboardShell | events, sdk, state, work-unit-state, workflow-events, panel-layout | 🟠 New |
+| 058-workunit-editor | _(none — leaf consumer)_ | — | IWorkUnitService, CodeEditor, workspaceHref, WorkspaceInfo, WorkspaceContext | positional-graph, viewer, workspace-url, workspace | ✅ |
+| agents | IAgentManagerService, IAgentAdapter, IAgentInstance, IAgentNotifierService, useAgentManager, useAgentInstance, useAgentOverlay, useRecentAgents, useWorktreeActivity, AgentChipBar, AgentOverlayPanel, AgentWorkUnitBridge | positional-graph (orchestration), workflow-ui (overlay), panel-layout (badge data via composition) | ISSEBroadcaster, useSSE, toast(), CopilotClient, IStateService, IWorkUnitStateService, IWorkflowEvents, DashboardShell, IWorkspaceService, WorkspaceContext | events, sdk, state, work-unit-state, workflow-events, panel-layout, workspace | 🟠 New |
 | work-unit-state | IWorkUnitStateService, WorkUnitEntry, WorkUnitEvent, FakeWorkUnitStateService, workUnitStateRoute | agents (AgentWorkUnitBridge), workflow-ui (future) | ICentralEventNotifier, ServerEventRouteDescriptor | events, state | 🟠 New |
 | workflow-events | IWorkflowEvents, WorkflowEventType, WorkflowEventError, FakeWorkflowEventsService | agents (observer hooks), workflow-ui (answerQuestion), CLI (ask/answer/get-answer) | IPositionalGraphService, ICentralEventNotifier | positional-graph, events | 🟠 New |
-| terminal | _(none — leaf consumer)_ | — | PanelShell, LeftPanel, MainPanel, toast(), IUSDK, ICommandRegistry, workspaceHref | panel-layout, events, sdk, workspace-url | ✅ |
-| _platform/auth | auth(), signIn(), signOut(), requireAuth(), useAuth(), middleware protection, isUserAllowed(), SessionProvider | file-browser, workflow-ui, workunit-editor (via middleware), server actions (via requireAuth), file-notes | — | — | ✅ |
+| terminal | _(none — leaf consumer)_ | — | PanelShell, LeftPanel, MainPanel, toast(), IUSDK, ICommandRegistry, workspaceHref, IWorkspaceService, useWorkspaceContext | panel-layout, events, sdk, workspace-url, workspace | ✅ |
+| _platform/auth | auth(), signIn(), signOut(), requireAuth(), useAuth(), middleware protection, isUserAllowed(), SessionProvider | file-browser, workflow-ui, workunit-editor (via middleware), workspace (via middleware and server actions), file-notes | — | — | ✅ |
 | file-notes | INoteService, NoteLinkType, NoteFilter, FakeNoteService, JsonlNoteService, NotesOverlayPanel, NoteModal, NoteIndicatorDot, BulkDeleteDialog, useNotes, useNotesOverlay, registerFileNotesSDK, registerNotesCommands, GET/POST/PATCH/DELETE /api/file-notes | file-browser, CLI, pr-view | requireAuth(), auth(), overlay anchor, workspaceHref(), toast(), registerFileNotesSDK | auth, panel-layout, workspace-url, events, sdk | 🟠 New |
 | pr-view | PRViewFile, PRViewData, ComparisonMode, PRViewFileState, PRViewOverlayProvider, usePRViewOverlay, usePRViewData, registerPRViewSDK, aggregatePRViewData, getAllDiffs, GET/POST/DELETE /api/pr-view | file-browser (future) | getWorkingChanges(), requireAuth(), auth(), DiffViewer, overlay anchor, registerPRViewSDK, FileChangeProvider, useFileChanges, NoteIndicatorDot, fetchFilesWithNotes | file-browser, auth, viewer, panel-layout, sdk, events, file-notes | 🟠 New |
+| _platform/external-events | EventPopperRequest, EventPopperResponse, generateEventId, readServerInfo, writeServerInfo, localhostGuard, detectTmuxContext, WorkspaceDomain.EventPopper | question-popper | WorkspaceDomain | events | 🟠 New |
+| question-popper | IQuestionPopperService, QuestionPayloadSchema, AnswerPayloadSchema, AlertPayloadSchema, FakeQuestionPopperService, QuestionIn, QuestionOut, AlertIn | (Phase 3: API routes) | EventPopperRequest, generateEventId, ICentralEventNotifier | external-events, events | 🟠 New |

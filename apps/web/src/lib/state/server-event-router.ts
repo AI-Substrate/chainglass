@@ -19,6 +19,8 @@ import type { StatePropertyDescriptor } from '@chainglass/shared/state';
  */
 export interface ServerEvent {
   type: string;
+  /** SSE channel this event was broadcast on (e.g. 'event-popper', 'file-changes') */
+  channel?: string;
   [key: string]: unknown;
 }
 

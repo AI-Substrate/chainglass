@@ -18,3 +18,6 @@ export { registerPositionalGraphCommands } from './positional-graph.command.js';
 export { registerTemplateCommands } from './template.command.js';
 // Notes commands (Plan 071: Phase 3)
 export { registerNotesCommands } from './notes.command.js';
+// Question Popper commands (Plan 067: Phase 4)
+export { registerQuestionCommands } from './question.command.js';
+export { registerAlertCommands } from './alert.command.js';

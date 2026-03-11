@@ -18,7 +18,7 @@ import { useEffect, useRef } from 'react';
 
 import type { StateEntrySource } from '@chainglass/shared/state';
 
-import { useSSE } from '@/hooks/useSSE';
+import { useChannelEvents } from '@/lib/sse';
 
 import type { ServerEvent, ServerEventRouteDescriptor } from './server-event-router';
 import { useStateSystem } from './state-provider';
@@ -29,14 +29,9 @@ interface ServerEventRouteProps {
 
 export function ServerEventRoute({ route }: ServerEventRouteProps): null {
   const state = useStateSystem();
-  const { messages } = useSSE<ServerEvent>(
-    `/api/events/${route.channel}`,
-    undefined,
-    // Disable message pruning — index-based cursor breaks when useSSE
-    // truncates the array at maxMessages (F001 review finding).
-    // Memory is bounded by session lifetime (dashboard use case).
-    { maxMessages: 0 }
-  );
+  // DYK #4: ServerEvent structurally satisfies MultiplexedSSEMessage — no cast needed.
+  // maxMessages: 0 disables pruning — index-based cursor needs the full array.
+  const { messages } = useChannelEvents<ServerEvent>(route.channel, { maxMessages: 0 });
   const lastProcessedIndexRef = useRef(-1);
 
   useEffect(() => {

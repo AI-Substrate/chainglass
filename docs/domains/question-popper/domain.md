@@ -1,0 +1,164 @@
+# Domain: Question Popper (`question-popper`)
+
+| Field | Value |
+|-------|-------|
+| **Slug** | `question-popper` |
+| **Type** | business |
+| **Created By** | Plan 067 — Event Popper |
+| **Status** | active |
+
+## Purpose
+
+First-class question-and-answer experience built on top of Event Popper infrastructure. Any CLI tool, AI agent, or script can ask questions through the Chainglass web UI and receive answers. Includes fire-and-forget alerts as a second event type.
+
+## Boundary
+
+### Owns
+
+- Question, answer, clarification, and alert payload schemas (Zod `.strict()`)
+- Composed types (`QuestionIn`, `QuestionOut`, `AlertIn`, `AlertOut`, `StoredQuestion`, `StoredAlert`)
+- `IQuestionPopperService` interface and `FakeQuestionPopperService` test double
+- `QuestionPopperService` real implementation (disk persistence + SSE emission)
+- Question lifecycle: pending → answered | needs-clarification | dismissed
+- Alert lifecycle: unread → acknowledged
+- DI registration (`WORKSPACE_DI_TOKENS.QUESTION_POPPER_SERVICE`)
+
+### Does NOT Own
+
+- Generic envelope schemas (`EventPopperRequest`/`EventPopperResponse` — owned by `_platform/external-events`)
+- Event ID generation (`generateEventId` — owned by `_platform/external-events`)
+- SSE infrastructure (`ICentralEventNotifier` — owned by `_platform/events`)
+- Port discovery, localhost guard, tmux detection (owned by `_platform/external-events`)
+- Toast rendering infrastructure (`sonner` — owned by `_platform/events`)
+
+## Composition
+
+| Component | Role | Depends On |
+|-----------|------|------------|
+| `QuestionPayloadSchema` | Validate inbound question payloads | Zod |
+| `AnswerPayloadSchema` | Validate answer responses | Zod |
+| `ClarificationPayloadSchema` | Validate clarification requests | Zod |
+| `AlertPayloadSchema` | Validate alert payloads | Zod |
+| `IQuestionPopperService` | Service contract for question/alert lifecycle | Shared types |
+| `FakeQuestionPopperService` | In-memory test double | `IQuestionPopperService` |
+| `QuestionPopperService` | Real implementation with disk persistence + SSE | `ICentralEventNotifier`, `generateEventId`, `node:fs` |
+| `useQuestionPopper` | React hook for SSE subscription, API fetch, overlay state | `EventSource`, Fetch API |
+| `QuestionPopperProvider` | Context provider for overlay UI | React Context |
+| `QuestionPopperIndicator` | Green glow indicator with badge count | `useQuestionPopper` |
+| `QuestionPopperOverlayPanel` | Fixed-position panel showing items | `useQuestionPopper`, `QuestionCard`, `AlertCard` |
+| `AnswerForm` | Type-appropriate answer input | `AnswerPayload` types |
+| `QuestionCard` | Question renderer with markdown description | `react-markdown`, `remark-gfm` |
+| `AlertCard` | Alert renderer with "Mark Read" button | `useQuestionPopper` |
+| `QuestionPopperOverlayWrapper` | Provider + error boundary + indicator + panel + notifications | Dynamic import |
+| `chain-resolver.ts` | Resolve question threads and fetch missing ancestors | `QuestionOut`, Fetch API |
+| `QuestionChainView` | Render ordered conversation timelines | `useQuestionPopper().getChain` |
+| `QuestionHistoryList` | Render compact expandable history with thread detail | `QuestionChainView`, `AnswerForm` |
+
+## Concepts
+
+| Concept | Entry Point | What It Does |
+|---------|-------------|-------------|
+| Ask a question | `IQuestionPopperService.askQuestion()` | Stores a question on disk, emits SSE with outstanding count. Returns question ID for polling. |
+| Answer a question | `IQuestionPopperService.answerQuestion()` | Records answer with atomic write (first-write-wins), decrements count, emits SSE. |
+| Send an alert | `IQuestionPopperService.sendAlert()` | Fire-and-forget one-way notification. Stored on disk, increments outstanding count, emits SSE. |
+| Track outstanding items | `IQuestionPopperService.getOutstandingCount()` | In-memory counter of unanswered questions + unread alerts. Rehydrated from disk on construction. |
+| View and respond to questions | `useQuestionPopper()` + `QuestionPopperOverlayPanel` | SSE-driven overlay panel showing outstanding questions with type-appropriate answer forms. Mutual exclusion with other overlays. |
+| Receive notifications | `desktop-notifications.ts` | Toast (sonner) + desktop (Notifications API) on new questions/alerts. Permission requested lazily. |
+| Browse conversation chains | `resolveChain()` + `QuestionChainView` | Bidirectional chain resolution (DYK-01) with vertical timeline rendering. Cached in hook ref (DYK-04). |
+| Browse history | `QuestionHistoryList` | Compact scannable rows with expand/collapse. Tabbed overlay with smart default (DYK-03). |
+
+## Contracts
+
+| Contract | Type | Consumers | Description |
+|----------|------|-----------|-------------|
+| `QuestionPayloadSchema` | Zod schema | API routes, CLI | Validates question payloads (4 types: text, single, multi, confirm) |
+| `AnswerPayloadSchema` | Zod schema | API routes, UI | Validates answer responses (string, boolean, string[] + freeform text) |
+| `ClarificationPayloadSchema` | Zod schema | API routes, UI | Validates clarification requests |
+| `AlertPayloadSchema` | Zod schema | API routes, CLI | Validates alert payloads |
+| `IQuestionPopperService` | Interface | API routes, DI | Full lifecycle service contract |
+| `FakeQuestionPopperService` | Class | Tests | In-memory test double with inspection helpers |
+| `QuestionIn` | TypeScript type | CLI, API routes | Ergonomic input type for asking questions |
+| `QuestionOut` | TypeScript type | CLI, API routes, UI | Ergonomic output type for reading questions |
+| `AlertIn` | TypeScript type | CLI, API routes | Ergonomic input type for sending alerts |
+| `StoredQuestion` / `StoredAlert` | TypeScript types | Service internals | On-disk record types |
+| `QuestionStatus` / `AlertStatus` | TypeScript types | All consumers | Status enum types |
+| `useQuestionPopper` | React hook | UI components | SSE subscription, API fetch, overlay state, actions |
+| `QuestionPopperProvider` | React context | UI wrapper | Provides question popper state to subtree |
+
+## Dependencies
+
+### This Domain Depends On
+
+| Domain | Contract | Why |
+|--------|----------|-----|
+| `_platform/external-events` | `EventPopperRequest`, `EventPopperResponse`, `generateEventId()` | Envelope format for disk persistence, ID generation |
+| `_platform/events` | `ICentralEventNotifier`, `WorkspaceDomain.EventPopper`, `useChannelCallback` | SSE emission on lifecycle events; multiplexed channel subscription (Plan 072) |
+
+### Domains That Depend On This
+
+| Domain | Contract Consumed | Why |
+|--------|------------------|-----|
+| (none yet) | — | — |
+
+## Source Location
+
+```
+packages/shared/src/question-popper/
+  ├── schemas.ts          # QuestionPayload, AnswerPayload, ClarificationPayload, AlertPayload
+  ├── types.ts            # QuestionIn, QuestionOut, AlertIn, StoredQuestion, StoredAlert
+  └── index.ts            # Barrel exports
+
+packages/shared/src/interfaces/
+  └── question-popper.interface.ts  # IQuestionPopperService
+
+packages/shared/src/fakes/
+  └── fake-question-popper.ts       # FakeQuestionPopperService
+
+apps/cli/src/commands/
+  ├── question.command.ts           # cg question ask|get|answer|list
+  ├── alert.command.ts              # cg alert send
+  └── event-popper-client.ts        # IEventPopperClient + FakeEventPopperClient
+
+apps/web/app/api/event-popper/
+  ├── ask-question/route.ts         # POST — CLI-only
+  ├── send-alert/route.ts           # POST — CLI-only
+  ├── question/[id]/route.ts        # GET — shared
+  ├── answer-question/[id]/route.ts # POST — shared
+  ├── dismiss/[id]/route.ts         # POST — shared
+  ├── clarify/[id]/route.ts         # POST — shared
+  ├── acknowledge/[id]/route.ts     # POST — shared
+  └── list/route.ts                 # GET — shared
+
+apps/web/src/features/067-question-popper/
+  └── lib/
+      ├── question-popper.service.ts  # QuestionPopperService (real)
+      ├── route-helpers.ts            # Handler functions, schemas, mappers
+      ├── desktop-notifications.ts    # Toast + desktop notification utilities
+      └── chain-resolver.ts           # Bidirectional chain resolution
+  └── hooks/
+      └── use-question-popper.tsx     # QuestionPopperProvider + useQuestionPopper hook
+  └── components/
+      ├── answer-form.tsx             # Type-appropriate answer form (4 variants)
+      ├── question-card.tsx           # Question renderer with chain indicator
+      ├── alert-card.tsx              # Alert renderer with "Mark Read"
+      ├── question-popper-indicator.tsx  # Green glow indicator with badge
+      ├── question-popper-overlay-panel.tsx  # Centered modal overlay with tabs
+      ├── question-chain-view.tsx     # Conversation timeline
+      └── question-history-list.tsx   # Compact expandable history
+
+apps/web/app/(dashboard)/workspaces/[slug]/
+  └── question-popper-overlay-wrapper.tsx  # Provider + error boundary + dynamic import
+
+test/unit/question-popper/
+  └── ui-components.test.tsx          # 18 component tests
+```
+
+## History
+
+| Plan | Change | Date |
+|------|--------|------|
+| 067 Phase 2 | Domain created: payload schemas, composed types, service interface, fake, real service, contract tests, DI registration, barrel exports | 2026-03-07 |
+| 067 Phase 5 | UI layer: useQuestionPopper hook, indicator, overlay panel, question/alert cards, answer form (4 types), toast + desktop notifications, workspace layout mount | 2026-03-07 |
+| 067 Phase 6 | Chain resolution (bidirectional index), QuestionChainView (timeline), QuestionHistoryList (compact expandable rows), tabbed overlay panel, chain indicator on QuestionCard | 2026-03-08 |
+| 067 Phase 7 | CLAUDE.md prompt (AC-33), integration guide, TitleManager SDK, explorer bar flash SDK, live testing fixes (localhost guard, overlay positioning, auto-close) | 2026-03-08 |
+| 072 Phase 3 | Migrated QuestionPopperProvider from direct EventSource to `useChannelCallback('event-popper')` via multiplexed SSE. Removed ~80 lines of SSE lifecycle boilerplate. | 2026-03-08 |

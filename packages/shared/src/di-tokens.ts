@@ -75,6 +75,8 @@ export const WORKSPACE_DI_TOKENS = {
   WORKSPACE_CONTEXT_RESOLVER: 'IWorkspaceContextResolver',
   /** IGitWorktreeResolver interface */
   GIT_WORKTREE_RESOLVER: 'IGitWorktreeResolver',
+  /** IGitWorktreeManager interface (Plan 069: worktree creation mutation boundary) */
+  GIT_WORKTREE_MANAGER: 'IGitWorktreeManager',
   /** ISampleAdapter interface */
   SAMPLE_ADAPTER: 'ISampleAdapter',
   /** IWorkspaceService interface */
@@ -93,6 +95,8 @@ export const WORKSPACE_DI_TOKENS = {
   CENTRAL_WATCHER_SERVICE: 'ICentralWatcherService',
   /** ICentralEventNotifier interface (Plan 027: Central Domain Event Notification) */
   CENTRAL_EVENT_NOTIFIER: 'ICentralEventNotifier',
+  /** IQuestionPopperService interface (Plan 067: Event Popper) */
+  QUESTION_POPPER_SERVICE: 'IQuestionPopperService',
 } as const;
 
 /**

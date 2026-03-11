@@ -1,0 +1,1 @@
+{"version":3,"file":"onbas.types.d.ts","sourceRoot":"","sources":["onbas.types.ts"],"names":[],"mappings":"AAAA;;;;;;;GAOG;AAEH,OAAO,KAAK,EAAE,oBAAoB,EAAE,MAAM,mCAAmC,CAAC;AAC9E,OAAO,KAAK,EAAE,sBAAsB,EAAE,MAAM,oBAAoB,CAAC;AAEjE;;;;GAIG;AACH,MAAM,WAAW,MAAM;IACrB,aAAa,CAAC,OAAO,EAAE,sBAAsB,GAAG,oBAAoB,CAAC;CACtE"}

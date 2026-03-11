@@ -32,3 +32,5 @@ export { FakeWorkflowEventsService } from './fake-workflow-events.js';
 export { FakeWorkUnitStateService } from './fake-work-unit-state.js';
 // File Notes fake (Plan 071: PR View & File Notes)
 export { FakeNoteService } from './fake-note-service.js';
+// Question Popper fake (Plan 067: Event Popper)
+export { FakeQuestionPopperService } from './fake-question-popper.js';

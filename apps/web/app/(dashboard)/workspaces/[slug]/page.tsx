@@ -21,6 +21,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { WorkspaceRemoveButton } from '../../../../src/components/workspaces/workspace-remove-button';
 import { getContainer } from '../../../../src/lib/bootstrap-singleton';
+import { sortWorktrees } from '../../../../src/lib/sort-worktrees';
 import { toggleWorktreeStar } from '../../../actions/workspace-actions';
 
 export const dynamic = 'force-dynamic';
@@ -50,13 +51,8 @@ export default async function WorkspaceDetailPage({ params }: PageProps) {
   const ws = workspaces.find((w) => w.slug === slug);
   const starredWorktrees = new Set(ws?.toJSON().preferences.starredWorktrees ?? []);
 
-  // Sort: starred first, then alphabetically by branch
-  const sortedWorktrees = [...info.worktrees].sort((a, b) => {
-    const aStarred = starredWorktrees.has(a.path);
-    const bStarred = starredWorktrees.has(b.path);
-    if (aStarred !== bStarred) return aStarred ? -1 : 1;
-    return (a.branch ?? '').localeCompare(b.branch ?? '');
-  });
+  // Sort: starred first, then by descending numeric prefix
+  const sortedWorktrees = sortWorktrees(info.worktrees, starredWorktrees);
 
   return (
     <div className="container mx-auto py-6">

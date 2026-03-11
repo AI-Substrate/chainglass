@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Harness CLI wrapper — invokes the TypeScript entry point via tsx.
+# This exists so that the package.json bin field resolves to a plain
+# executable that works without special Node flags.
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+exec "${SCRIPT_DIR}/../node_modules/.bin/tsx" "${SCRIPT_DIR}/../src/cli/index.ts" "$@"

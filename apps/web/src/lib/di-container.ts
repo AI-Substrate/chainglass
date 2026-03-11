@@ -45,7 +45,7 @@ import {
   YamlParserAdapter,
 } from '@chainglass/shared';
 // Plan 059: Import FakeWorkUnitStateService for test container
-import { FakeWorkUnitStateService } from '@chainglass/shared/fakes';
+import { FakeQuestionPopperService, FakeWorkUnitStateService } from '@chainglass/shared/fakes';
 // Plan 019: Import AgentManagerService for central agent registry
 import {
   type AdapterFactory as AgentAdapterFactory,
@@ -61,6 +61,9 @@ import {
 // Plan 027: Import CentralEventNotifier types from shared
 import type { ICentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events';
 import { FakeCentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events';
+// Plan 067: QuestionPopperService for external question/answer lifecycle
+import type { IQuestionPopperService } from '@chainglass/shared/interfaces';
+import type { ICopilotClient } from '@chainglass/shared/interfaces/copilot-sdk.interface';
 // Plan 059: WorkUnitStateService for centralized work unit status registry
 import type { IWorkUnitStateService } from '@chainglass/shared/interfaces/work-unit-state.interface';
 // Plan 014 Phase 6: Import workspace services from @chainglass/workflow
@@ -75,16 +78,19 @@ import {
   FakeAgentSessionAdapter,
   FakeCentralWatcherService,
   FakeFileWatcherFactory,
+  FakeGitWorktreeManager,
   FakeGitWorktreeResolver,
   FakeSampleAdapter,
   FakeWorkspaceContextResolver,
   FakeWorkspaceRegistryAdapter,
+  GitWorktreeManagerAdapter,
   GitWorktreeResolver,
   type IAgentEventAdapter,
   type IAgentSessionAdapter,
   type IAgentSessionService,
   type ICentralWatcherService,
   type IFileWatcherFactory,
+  type IGitWorktreeManager,
   type IGitWorktreeResolver,
   type ISampleAdapter,
   type ISampleService,
@@ -97,6 +103,7 @@ import {
   WorkspaceContextResolver,
   WorkspaceRegistryAdapter,
   WorkspaceService,
+  WorktreeBootstrapRunner,
 } from '@chainglass/workflow';
 import {
   type ITemplateService,
@@ -114,6 +121,8 @@ import { SSEManagerBroadcaster } from '../features/019-agent-manager-refactor/ss
 import { CentralEventNotifierService } from '../features/027-central-notify-events/central-event-notifier.service';
 // Plan 059: AgentWorkUnitBridge (agent lifecycle → work-unit-state)
 import { AgentWorkUnitBridge } from '../features/059-fix-agents/agent-work-unit-bridge';
+// Plan 067: QuestionPopperService (real implementation)
+import { QuestionPopperService } from '../features/067-question-popper/lib/question-popper.service';
 import { SampleService } from '../services/sample.service';
 import { sseManager } from './sse-manager';
 // Plan 059: WorkUnitStateService (real implementation)
@@ -241,7 +250,7 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
     useFactory: (c) => {
       const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
       const client = c.resolve<CopilotClient>(DI_TOKENS.COPILOT_CLIENT);
-      return new SdkCopilotAdapter(client, { logger });
+      return new SdkCopilotAdapter(client as unknown as ICopilotClient, { logger });
     },
   });
 
@@ -260,7 +269,7 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
         }
         if (agentType === 'copilot') {
           // Reuse singleton CopilotClient to avoid repeated SDK client construction
-          return new SdkCopilotAdapter(copilotClient, { logger });
+          return new SdkCopilotAdapter(copilotClient as unknown as ICopilotClient, { logger });
         }
         if (agentType === 'copilot-cli') {
           return new CopilotCLIAdapter({
@@ -364,13 +373,24 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
       ),
   });
 
+  // Register git worktree manager (Plan 069: mutation boundary)
+  childContainer.register<IGitWorktreeManager>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_MANAGER, {
+    useFactory: (c) =>
+      new GitWorktreeManagerAdapter(c.resolve<IProcessManager>(SHARED_DI_TOKENS.PROCESS_MANAGER)),
+  });
+
   // Register workspace service
   childContainer.register<IWorkspaceService>(WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE, {
     useFactory: (c) =>
       new WorkspaceService(
         c.resolve<IWorkspaceRegistryAdapter>(WORKSPACE_DI_TOKENS.WORKSPACE_REGISTRY_ADAPTER),
         c.resolve<IWorkspaceContextResolver>(WORKSPACE_DI_TOKENS.WORKSPACE_CONTEXT_RESOLVER),
-        c.resolve<IGitWorktreeResolver>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER)
+        c.resolve<IGitWorktreeResolver>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER),
+        c.resolve<IGitWorktreeManager>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_MANAGER),
+        new WorktreeBootstrapRunner(
+          c.resolve<IProcessManager>(SHARED_DI_TOKENS.PROCESS_MANAGER),
+          c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM)
+        )
       ),
   });
 
@@ -439,7 +459,7 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
         }
         if (agentType === 'copilot') {
           const copilotClient = c.resolve<CopilotClient>(DI_TOKENS.COPILOT_CLIENT);
-          return new SdkCopilotAdapter(copilotClient, { logger });
+          return new SdkCopilotAdapter(copilotClient as unknown as ICopilotClient, { logger });
         }
         if (agentType === 'copilot-cli') {
           const sendKeys = (target: string, text: string) => {
@@ -589,6 +609,33 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
     },
   });
 
+  // ==================== Plan 067: QuestionPopperService ====================
+  // Singleton: one service per process. Rehydrates from disk on construction.
+  let questionPopperInstance: IQuestionPopperService | null = null;
+  childContainer.register<IQuestionPopperService>(WORKSPACE_DI_TOKENS.QUESTION_POPPER_SERVICE, {
+    useFactory: (c) => {
+      if (questionPopperInstance) return questionPopperInstance;
+      if (!resolvedWorktreePath) {
+        try {
+          const { execSync } = require('node:child_process');
+          resolvedWorktreePath = execSync('git rev-parse --show-toplevel', {
+            encoding: 'utf-8',
+            cwd: process.cwd(),
+          }).trim();
+        } catch {
+          resolvedWorktreePath = process.cwd();
+          console.warn('[DI] Failed to resolve git worktree root, falling back to cwd');
+        }
+      }
+      const notifier = c.resolve<ICentralEventNotifier>(WORKSPACE_DI_TOKENS.CENTRAL_EVENT_NOTIFIER);
+      questionPopperInstance = new QuestionPopperService(
+        resolvedWorktreePath ?? process.cwd(),
+        notifier
+      );
+      return questionPopperInstance;
+    },
+  });
+
   // FIX-010: Performance metrics for container creation
   const durationMs = performance.now() - startTime;
   console.debug(`[createProductionContainer] Container created in ${durationMs.toFixed(2)}ms`);
@@ -728,13 +775,24 @@ export function createTestContainer(): DependencyContainer {
     useValue: fakeSampleAdapter,
   });
 
+  // Register fake git worktree manager (Plan 069)
+  const fakeGitManager = new FakeGitWorktreeManager();
+  childContainer.register<IGitWorktreeManager>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_MANAGER, {
+    useValue: fakeGitManager,
+  });
+
   // Register workspace service with fakes
   childContainer.register<IWorkspaceService>(WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE, {
     useFactory: (c) =>
       new WorkspaceService(
         c.resolve<IWorkspaceRegistryAdapter>(WORKSPACE_DI_TOKENS.WORKSPACE_REGISTRY_ADAPTER),
         c.resolve<IWorkspaceContextResolver>(WORKSPACE_DI_TOKENS.WORKSPACE_CONTEXT_RESOLVER),
-        c.resolve<IGitWorktreeResolver>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER)
+        c.resolve<IGitWorktreeResolver>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER),
+        c.resolve<IGitWorktreeManager>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_MANAGER),
+        new WorktreeBootstrapRunner(
+          c.resolve<IProcessManager>(SHARED_DI_TOKENS.PROCESS_MANAGER),
+          c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM)
+        )
       ),
   });
 
@@ -799,6 +857,12 @@ export function createTestContainer(): DependencyContainer {
       );
       return new AgentWorkUnitBridge(workUnitState);
     },
+  });
+
+  // ==================== Plan 067: QuestionPopperService (Fake) ====================
+
+  childContainer.register<IQuestionPopperService>(WORKSPACE_DI_TOKENS.QUESTION_POPPER_SERVICE, {
+    useValue: new FakeQuestionPopperService(),
   });
 
   return childContainer;

@@ -15,11 +15,13 @@
 import chalk from 'chalk';
 import { Command, Help } from 'commander';
 import { registerAgentCommands } from '../commands/agent.command.js';
+import { registerAlertCommands } from '../commands/alert.command.js';
 import { registerInitCommand } from '../commands/init.command.js';
 import { registerMcpCommand } from '../commands/mcp.command.js';
 import { registerNotesCommands } from '../commands/notes.command.js';
 import { registerPhaseCommands } from '../commands/phase.command.js';
 import { registerPositionalGraphCommands } from '../commands/positional-graph.command.js';
+import { registerQuestionCommands } from '../commands/question.command.js';
 import { registerRunsCommands } from '../commands/runs.command.js';
 import { registerSampleCommands } from '../commands/sample.command.js';
 import { registerTemplateCommands } from '../commands/template.command.js';
@@ -242,6 +244,9 @@ export function createProgram(options: CreateProgramOptions = {}): Command {
   registerTemplateCommands(program);
   // Notes commands (Plan 071: Phase 3)
   registerNotesCommands(program);
+  // Question Popper commands (Plan 067: Phase 4)
+  registerQuestionCommands(program);
+  registerAlertCommands(program);
 
   // Default behavior: show help when no command provided
   if (!options.testMode) {

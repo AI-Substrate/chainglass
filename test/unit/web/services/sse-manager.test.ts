@@ -151,10 +151,10 @@ describe('SSEManager', () => {
       /*
       Test Doc:
       - Why: Verify protocol compliance
-      - Contract: Event formatted as unnamed SSE with type in data payload: `data: {JSON}\n\n`
+      - Contract: Event formatted as unnamed SSE with type and channel in data payload: `data: {JSON}\n\n`
       - Usage Notes: Check exact string written to FakeController
       - Quality Contribution: SSE spec compliance — unnamed events ensure EventSource.onmessage receives them
-      - Worked Example: broadcast('ch1', 'heartbeat', {timestamp}) → data: {"type":"heartbeat","timestamp":...}\n\n
+      - Worked Example: broadcast('ch1', 'heartbeat', {timestamp}) → data: {"type":"heartbeat","channel":"ch1","timestamp":...}\n\n
       */
       const controller = new FakeController();
       manager.addConnection('workflow-1', controller as unknown as ReadableStreamDefaultController);
@@ -164,6 +164,7 @@ describe('SSEManager', () => {
       const content = controller.getAllContent();
       expect(content).toMatch(/^data: \{/);
       expect(content).toContain('"type":"heartbeat"');
+      expect(content).toContain('"channel":"workflow-1"');
       expect(content).toContain('"timestamp":"2026-01-23T00:00:00Z"');
       expect(content).toMatch(/\n\n$/);
     });
@@ -227,6 +228,210 @@ describe('SSEManager', () => {
       - Worked Example: sseManager instanceof SSEManager === true
       */
       expect(sseManager).toBeInstanceOf(SSEManager);
+    });
+  });
+
+  describe('channel tagging (Plan 072)', () => {
+    it('should include channel field in broadcast payload', () => {
+      /*
+      Test Doc:
+      - Why: Multiplexed clients need to demux events by channel
+      - Contract: broadcast(channelId, eventType, data) includes channel: channelId in JSON payload
+      - Usage Notes: Parse the JSON from the SSE data frame, check channel field
+      - Quality Contribution: Core multiplexing contract — without this, demux is impossible
+      - Worked Example: broadcast('event-popper', 'question-asked', {id:'q1'}) → payload has channel:'event-popper'
+      */
+      const controller = new FakeController();
+      manager.addConnection(
+        'event-popper',
+        controller as unknown as ReadableStreamDefaultController
+      );
+
+      manager.broadcast('event-popper', 'question-asked', { questionId: 'q1' });
+
+      const content = controller.getAllContent();
+      const jsonStr = content.replace(/^data: /, '').replace(/\n\n$/, '');
+      const payload = JSON.parse(jsonStr);
+      expect(payload.channel).toBe('event-popper');
+      expect(payload.type).toBe('question-asked');
+      expect(payload.questionId).toBe('q1');
+    });
+
+    it('should include channel in primitive data payloads', () => {
+      /*
+      Test Doc:
+      - Why: broadcast() has two payload paths (object spread vs wrapper). Both need channel.
+      - Contract: When data is not an object, payload is {type, data, channel}
+      - Usage Notes: Pass a string as data to hit the primitive branch
+      - Quality Contribution: Covers both payload construction branches
+      - Worked Example: broadcast('ch', 'ping', 'hello') → {type:'ping', data:'hello', channel:'ch'}
+      */
+      const controller = new FakeController();
+      manager.addConnection('test-ch', controller as unknown as ReadableStreamDefaultController);
+
+      manager.broadcast('test-ch', 'ping', 'hello');
+
+      const content = controller.getAllContent();
+      const jsonStr = content.replace(/^data: /, '').replace(/\n\n$/, '');
+      const payload = JSON.parse(jsonStr);
+      expect(payload.channel).toBe('test-ch');
+      expect(payload.type).toBe('ping');
+      expect(payload.data).toBe('hello');
+    });
+
+    it('should overwrite caller-provided channel field (authoritative)', () => {
+      /*
+      Test Doc:
+      - Why: SSEManager is authoritative about channel identity — caller can't spoof it
+      - Contract: If data already has a channel field, SSEManager overwrites it with channelId
+      - Usage Notes: Pass data with channel:'wrong', verify it gets channelId instead
+      - Quality Contribution: Security — prevents channel spoofing by domain services
+      - Worked Example: broadcast('real-ch', 'evt', {channel:'fake'}) → payload.channel === 'real-ch'
+      */
+      const controller = new FakeController();
+      manager.addConnection('real-ch', controller as unknown as ReadableStreamDefaultController);
+
+      manager.broadcast('real-ch', 'test-event', { channel: 'fake-channel', value: 42 });
+
+      const content = controller.getAllContent();
+      const jsonStr = content.replace(/^data: /, '').replace(/\n\n$/, '');
+      const payload = JSON.parse(jsonStr);
+      expect(payload.channel).toBe('real-ch');
+      expect(payload.value).toBe(42);
+    });
+
+    it('should deliver to same controller registered on multiple channels', () => {
+      /*
+      Test Doc:
+      - Why: Core mux route pattern — one controller in multiple channel Sets
+      - Contract: A controller added to channels A and B receives broadcasts from both
+      - Usage Notes: Register same FakeController on two channels, broadcast to each
+      - Quality Contribution: Proves the multiplexing architecture works at SSEManager level
+      - Worked Example: controller in 'ch-a' and 'ch-b' → broadcast to 'ch-a' → controller gets it
+      */
+      const muxController = new FakeController();
+      manager.addConnection(
+        'file-changes',
+        muxController as unknown as ReadableStreamDefaultController
+      );
+      manager.addConnection(
+        'event-popper',
+        muxController as unknown as ReadableStreamDefaultController
+      );
+
+      manager.broadcast('file-changes', 'file-changed', { path: 'README.md' });
+      manager.broadcast('event-popper', 'question-asked', { questionId: 'q1' });
+
+      const chunks = muxController.getDecodedChunks();
+      expect(chunks.length).toBe(2);
+      expect(chunks[0]).toContain('"channel":"file-changes"');
+      expect(chunks[1]).toContain('"channel":"event-popper"');
+    });
+  });
+
+  describe('removeControllerFromAllChannels (Plan 072)', () => {
+    it('should remove controller from all registered channels', () => {
+      /*
+      Test Doc:
+      - Why: Mux route disconnect must clean up all channel registrations atomically
+      - Contract: removeControllerFromAllChannels(ctrl) removes it from every channel Set
+      - Usage Notes: Register on 3 channels, call method, verify 0 connections on each
+      - Quality Contribution: Memory leak prevention for multiplexed connections
+      - Worked Example: ctrl in [a,b,c] → removeControllerFromAllChannels(ctrl) → 0 on all
+      */
+      const controller = new FakeController();
+      const fc = controller as unknown as ReadableStreamDefaultController;
+      manager.addConnection('ch-a', fc);
+      manager.addConnection('ch-b', fc);
+      manager.addConnection('ch-c', fc);
+
+      manager.removeControllerFromAllChannels(fc);
+
+      expect(manager.getConnectionCount('ch-a')).toBe(0);
+      expect(manager.getConnectionCount('ch-b')).toBe(0);
+      expect(manager.getConnectionCount('ch-c')).toBe(0);
+    });
+
+    it('should return array of removed channel names', () => {
+      /*
+      Test Doc:
+      - Why: Caller needs to know which channels were cleaned up (for logging)
+      - Contract: Returns string[] of channelIds the controller was removed from
+      - Usage Notes: Register on 2 channels, verify returned array contains both
+      - Quality Contribution: Observability — enables debug logging of cleanup
+      - Worked Example: ctrl in [a,b] → removeControllerFromAllChannels(ctrl) → ['a', 'b']
+      */
+      const controller = new FakeController();
+      const fc = controller as unknown as ReadableStreamDefaultController;
+      manager.addConnection('ch-a', fc);
+      manager.addConnection('ch-b', fc);
+
+      const removed = manager.removeControllerFromAllChannels(fc);
+
+      expect(removed).toContain('ch-a');
+      expect(removed).toContain('ch-b');
+      expect(removed.length).toBe(2);
+    });
+
+    it('should clean up empty channel Sets', () => {
+      /*
+      Test Doc:
+      - Why: Empty Sets waste memory and make hasChannel() return wrong results
+      - Contract: After removing the last controller, the channel is deleted from the Map
+      - Usage Notes: Register sole controller on channel, remove via method, verify channel gone
+      - Quality Contribution: Memory hygiene
+      - Worked Example: sole ctrl in 'ch-a' → removeControllerFromAllChannels → hasChannel('ch-a') === false
+      */
+      const controller = new FakeController();
+      const fc = controller as unknown as ReadableStreamDefaultController;
+      manager.addConnection('ch-a', fc);
+
+      manager.removeControllerFromAllChannels(fc);
+
+      expect(manager.hasChannel('ch-a')).toBe(false);
+    });
+
+    it('should not affect other controllers on shared channels', () => {
+      /*
+      Test Doc:
+      - Why: Removing mux controller must not remove per-channel controllers on same channel
+      - Contract: Only the specified controller is removed; others stay
+      - Usage Notes: Register mux ctrl + regular ctrl on same channel, remove mux, verify regular stays
+      - Quality Contribution: Isolation — migration safety (old [channel] route + new mux coexist)
+      - Worked Example: mux+regular on 'ch-a' → removeControllerFromAllChannels(mux) → regular stays
+      */
+      const muxController = new FakeController();
+      const regularController = new FakeController();
+      manager.addConnection('ch-a', muxController as unknown as ReadableStreamDefaultController);
+      manager.addConnection(
+        'ch-a',
+        regularController as unknown as ReadableStreamDefaultController
+      );
+
+      manager.removeControllerFromAllChannels(
+        muxController as unknown as ReadableStreamDefaultController
+      );
+
+      expect(manager.getConnectionCount('ch-a')).toBe(1);
+      expect(manager.hasChannel('ch-a')).toBe(true);
+    });
+
+    it('should handle controller not in any channel gracefully', () => {
+      /*
+      Test Doc:
+      - Why: Edge case — controller may have already been cleaned up
+      - Contract: Returns empty array, does not throw
+      - Usage Notes: Call with a controller that was never registered
+      - Quality Contribution: Robustness — double-cleanup safety
+      - Worked Example: unregistered ctrl → removeControllerFromAllChannels → [] (no error)
+      */
+      const controller = new FakeController();
+
+      const removed = manager.removeControllerFromAllChannels(
+        controller as unknown as ReadableStreamDefaultController
+      );
+
+      expect(removed).toEqual([]);
     });
   });
 });
