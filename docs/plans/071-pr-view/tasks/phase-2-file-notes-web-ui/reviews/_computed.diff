@@ -1,0 +1,1689 @@
+diff --git a/apps/web/src/features/071-file-notes/hooks/use-notes.ts b/apps/web/src/features/071-file-notes/hooks/use-notes.ts
+new file mode 100644
+index 00000000..fcaa6fcb
+--- /dev/null
++++ b/apps/web/src/features/071-file-notes/hooks/use-notes.ts
+@@ -0,0 +1,261 @@
++'use client';
++
++/**
++ * useNotes — Data-fetching hook for the File Notes domain.
++ *
++ * Fetches notes via server actions, provides 10s cache to avoid
++ * redundant fetches on rapid overlay toggle (DYK-04 pattern from
++ * activity-log), filter state, thread-aware grouping by file, and
++ * a Set of file paths with open notes for tree indicators.
++ *
++ * Plan 071: PR View & File Notes — Phase 2, T001
++ */
++
++import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
++
++import {
++  fetchFilesWithNotes,
++  fetchNotes,
++} from '../../../../app/actions/notes-actions';
++import type { Note, NoteAddressee, NoteFilter, NoteStatus } from '../types';
++
++const CACHE_STALENESS_MS = 10_000; // 10 seconds
++
++export type NoteFilterOption = 'all' | 'open' | 'complete' | 'to-human' | 'to-agent';
++
++export interface NoteThread {
++  root: Note;
++  replies: Note[];
++}
++
++export interface UseNotesResult {
++  /** Raw flat list of notes (newest-first from API) */
++  notes: Note[];
++  /** Set of file targets that have open notes — for tree indicators */
++  noteFilePaths: Set<string>;
++  /** Notes grouped by file target with thread structure */
++  groupedByFile: Map<string, NoteThread[]>;
++  /** Loading state */
++  loading: boolean;
++  /** Error message if fetch failed */
++  error: string | null;
++  /** Force re-fetch (bypasses cache) */
++  refresh: () => void;
++  /** Current filter selection */
++  filter: NoteFilterOption;
++  /** Update filter selection */
++  setFilter: (filter: NoteFilterOption) => void;
++  /** Open note count */
++  openCount: number;
++  /** Complete note count */
++  completeCount: number;
++}
++
++/** Convert UI filter option to NoteFilter for server action */
++function filterOptionToNoteFilter(option: NoteFilterOption): NoteFilter | undefined {
++  switch (option) {
++    case 'all':
++      return undefined;
++    case 'open':
++      return { status: 'open' as NoteStatus };
++    case 'complete':
++      return { status: 'complete' as NoteStatus };
++    case 'to-human':
++      return { to: 'human' as NoteAddressee };
++    case 'to-agent':
++      return { to: 'agent' as NoteAddressee };
++  }
++}
++
++/**
++ * Group notes by file target with thread structure.
++ *
++ * Algorithm:
++ * 1. Partition notes into roots (no threadId) and replies (have threadId)
++ * 2. Group all notes by target (file path)
++ * 3. Within each file group, build { root, replies[] } by matching reply.threadId to root.id
++ * 4. Sort roots newest-first, replies chronologically (oldest-first = conversation order)
++ * 5. Orphan replies (parent missing) appear as standalone roots
++ */
++function buildGroupedByFile(notes: Note[]): Map<string, NoteThread[]> {
++  const grouped = new Map<string, NoteThread[]>();
++
++  // Group all notes by target
++  const byTarget = new Map<string, Note[]>();
++  for (const note of notes) {
++    const target = note.target;
++    if (!byTarget.has(target)) byTarget.set(target, []);
++    byTarget.get(target)!.push(note);
++  }
++
++  // Sort targets alphabetically for consistent display
++  const sortedTargets = Array.from(byTarget.keys()).sort();
++
++  for (const target of sortedTargets) {
++    const targetNotes = byTarget.get(target)!;
++
++    // Partition into roots and replies
++    const roots: Note[] = [];
++    const replies: Note[] = [];
++    for (const note of targetNotes) {
++      if (note.threadId) {
++        replies.push(note);
++      } else {
++        roots.push(note);
++      }
++    }
++
++    // Build a set of root IDs for quick lookup
++    const rootIds = new Set(roots.map((r) => r.id));
++
++    // Build threads
++    const threads: NoteThread[] = [];
++
++    // Collect replies by parent threadId
++    const repliesByParent = new Map<string, Note[]>();
++    const orphanReplies: Note[] = [];
++    for (const reply of replies) {
++      if (rootIds.has(reply.threadId!)) {
++        if (!repliesByParent.has(reply.threadId!)) repliesByParent.set(reply.threadId!, []);
++        repliesByParent.get(reply.threadId!)!.push(reply);
++      } else {
++        orphanReplies.push(reply);
++      }
++    }
++
++    // Roots are already newest-first from API; build threads
++    for (const root of roots) {
++      const rootReplies = repliesByParent.get(root.id) ?? [];
++      // Sort replies chronologically (oldest first = conversation order)
++      rootReplies.sort(
++        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
++      );
++      threads.push({ root, replies: rootReplies });
++    }
++
++    // Orphan replies become standalone roots
++    for (const orphan of orphanReplies) {
++      threads.push({ root: orphan, replies: [] });
++    }
++
++    grouped.set(target, threads);
++  }
++
++  return grouped;
++}
++
++export function useNotes(worktreePath: string | null): UseNotesResult {
++  const [notes, setNotes] = useState<Note[]>([]);
++  const [noteFilePaths, setNoteFilePaths] = useState<Set<string>>(new Set());
++  const [loading, setLoading] = useState(false);
++  const [error, setError] = useState<string | null>(null);
++  const [filter, setFilter] = useState<NoteFilterOption>('all');
++
++  // Cache to avoid redundant fetches (DYK-04)
++  const cacheRef = useRef<{
++    notes: Note[];
++    filePaths: Set<string>;
++    timestamp: number;
++    worktree: string;
++    filter: NoteFilterOption;
++  } | null>(null);
++
++  const fetchRef = useRef(0); // prevent stale responses
++
++  const doFetch = useCallback(
++    async (bypassCache = false) => {
++      if (!worktreePath) return;
++
++      // Check cache
++      if (!bypassCache) {
++        const cache = cacheRef.current;
++        if (
++          cache &&
++          cache.worktree === worktreePath &&
++          cache.filter === filter &&
++          Date.now() - cache.timestamp < CACHE_STALENESS_MS
++        ) {
++          setNotes(cache.notes);
++          setNoteFilePaths(cache.filePaths);
++          return;
++        }
++      }
++
++      const fetchId = ++fetchRef.current;
++      setLoading(true);
++      setError(null);
++
++      try {
++        const noteFilter = filterOptionToNoteFilter(filter);
++
++        // Fetch notes and file paths in parallel
++        const [notesResult, filesResult] = await Promise.all([
++          fetchNotes(worktreePath, noteFilter),
++          fetchFilesWithNotes(worktreePath),
++        ]);
++
++        // Stale response guard
++        if (fetchId !== fetchRef.current) return;
++
++        if (notesResult.ok) {
++          setNotes(notesResult.data);
++        } else {
++          setError(notesResult.error);
++          setNotes([]);
++        }
++
++        if (filesResult.ok) {
++          const paths = new Set<string>(filesResult.data);
++          setNoteFilePaths(paths);
++        } else {
++          setNoteFilePaths(new Set());
++        }
++
++        // Update cache
++        if (notesResult.ok && filesResult.ok) {
++          cacheRef.current = {
++            notes: notesResult.data,
++            filePaths: new Set(filesResult.data),
++            timestamp: Date.now(),
++            worktree: worktreePath,
++            filter,
++          };
++        }
++      } catch (err) {
++        if (fetchId !== fetchRef.current) return;
++        setError(`Failed to fetch notes: ${err}`);
++        setNotes([]);
++      } finally {
++        if (fetchId === fetchRef.current) setLoading(false);
++      }
++    },
++    [worktreePath, filter]
++  );
++
++  // Fetch on mount and when deps change
++  useEffect(() => {
++    doFetch();
++  }, [doFetch]);
++
++  const refresh = useCallback(() => doFetch(true), [doFetch]);
++
++  // Compute grouped-by-file with thread structure
++  const groupedByFile = useMemo(() => buildGroupedByFile(notes), [notes]);
++
++  // Compute open/complete counts from full note set (not filtered)
++  const openCount = useMemo(() => notes.filter((n) => n.status === 'open').length, [notes]);
++  const completeCount = useMemo(() => notes.filter((n) => n.status === 'complete').length, [notes]);
++
++  return {
++    notes,
++    noteFilePaths,
++    groupedByFile,
++    loading,
++    error,
++    refresh,
++    filter,
++    setFilter,
++    openCount,
++    completeCount,
++  };
++}
+diff --git a/apps/web/src/features/071-file-notes/hooks/use-notes-overlay.tsx b/apps/web/src/features/071-file-notes/hooks/use-notes-overlay.tsx
+new file mode 100644
+index 00000000..9c75b6f3
+--- /dev/null
++++ b/apps/web/src/features/071-file-notes/hooks/use-notes-overlay.tsx
+@@ -0,0 +1,170 @@
++'use client';
++
++/**
++ * Notes Overlay — Context + Hook
++ *
++ * Provides overlay state management for the notes panel and modal.
++ * Dispatches overlay:close-all before opening (mutual exclusion with
++ * terminal, activity-log, and agent overlays). Uses isOpeningRef guard
++ * to prevent self-close when dispatching overlay:close-all (PL-08).
++ *
++ * Also manages NoteModal state: target file/line for add/edit flows.
++ *
++ * Plan 071: PR View & File Notes — Phase 2, T002
++ */
++
++import {
++  type ReactNode,
++  createContext,
++  useCallback,
++  useContext,
++  useEffect,
++  useRef,
++  useState,
++} from 'react';
++
++export interface NoteModalTarget {
++  /** File path or other target identifier */
++  target: string;
++  /** Optional line number (file notes only) */
++  line?: number;
++  /** If editing, the note ID */
++  editNoteId?: string;
++  /** If editing, pre-fill content */
++  editContent?: string;
++  /** If editing, pre-fill addressee */
++  editTo?: 'human' | 'agent';
++  /** If replying, the parent note ID */
++  threadId?: string;
++}
++
++interface NotesOverlayState {
++  isOpen: boolean;
++  worktreePath: string | null;
++}
++
++interface NotesOverlayContextValue extends NotesOverlayState {
++  openNotes: (worktreePath: string) => void;
++  closeNotes: () => void;
++  toggleNotes: (worktreePath?: string) => void;
++  /** Modal state */
++  modalTarget: NoteModalTarget | null;
++  isModalOpen: boolean;
++  openModal: (target: NoteModalTarget) => void;
++  closeModal: () => void;
++}
++
++const NotesOverlayContext = createContext<NotesOverlayContextValue | null>(null);
++
++interface NotesOverlayProviderProps {
++  children: ReactNode;
++  defaultWorktreePath?: string;
++}
++
++export function NotesOverlayProvider({
++  children,
++  defaultWorktreePath,
++}: NotesOverlayProviderProps) {
++  const [state, setState] = useState<NotesOverlayState>({
++    isOpen: false,
++    worktreePath: defaultWorktreePath ?? null,
++  });
++
++  // Modal state
++  const [modalTarget, setModalTarget] = useState<NoteModalTarget | null>(null);
++  const [isModalOpen, setIsModalOpen] = useState(false);
++
++  // PL-08: Guard to prevent self-close when dispatching overlay:close-all
++  const isOpeningRef = useRef(false);
++  const stateRef = useRef(state);
++  stateRef.current = state;
++
++  const closeNotes = useCallback(() => {
++    setState((prev) => (prev.isOpen ? { ...prev, isOpen: false } : prev));
++  }, []);
++
++  const openNotes = useCallback((worktreePath: string) => {
++    isOpeningRef.current = true;
++    window.dispatchEvent(new CustomEvent('overlay:close-all'));
++    isOpeningRef.current = false;
++    setState({ isOpen: true, worktreePath });
++  }, []);
++
++  const toggleNotes = useCallback((worktreePath?: string) => {
++    const prev = stateRef.current;
++    if (prev.isOpen) {
++      setState({ ...prev, isOpen: false });
++      return;
++    }
++
++    const params = new URLSearchParams(window.location.search);
++    const urlWorktree = params.get('worktree');
++    const resolved = worktreePath ?? urlWorktree ?? prev.worktreePath;
++
++    if (!resolved) {
++      console.warn('[notes-overlay] Cannot open: no worktree path resolved');
++      return;
++    }
++
++    isOpeningRef.current = true;
++    window.dispatchEvent(new CustomEvent('overlay:close-all'));
++    isOpeningRef.current = false;
++
++    setState({ isOpen: true, worktreePath: resolved });
++  }, []);
++
++  const openModal = useCallback((target: NoteModalTarget) => {
++    setModalTarget(target);
++    setIsModalOpen(true);
++  }, []);
++
++  const closeModal = useCallback(() => {
++    setIsModalOpen(false);
++    setModalTarget(null);
++  }, []);
++
++  // Listen for notes:toggle events (from sidebar / SDK)
++  useEffect(() => {
++    const handler = (e: Event) => {
++      const detail = (e as CustomEvent).detail;
++      toggleNotes(detail?.worktreePath);
++    };
++    window.addEventListener('notes:toggle', handler);
++    return () => window.removeEventListener('notes:toggle', handler);
++  }, [toggleNotes]);
++
++  // Listen for overlay:close-all (mutual exclusion with terminal/activity-log/agent)
++  useEffect(() => {
++    const handler = () => {
++      if (isOpeningRef.current) return; // PL-08: skip self-close
++      closeNotes();
++    };
++    window.addEventListener('overlay:close-all', handler);
++    return () => window.removeEventListener('overlay:close-all', handler);
++  }, [closeNotes]);
++
++  return (
++    <NotesOverlayContext.Provider
++      value={{
++        ...state,
++        openNotes,
++        closeNotes,
++        toggleNotes,
++        modalTarget,
++        isModalOpen,
++        openModal,
++        closeModal,
++      }}
++    >
++      {children}
++    </NotesOverlayContext.Provider>
++  );
++}
++
++export function useNotesOverlay(): NotesOverlayContextValue {
++  const context = useContext(NotesOverlayContext);
++  if (!context) {
++    throw new Error('useNotesOverlay must be used within a NotesOverlayProvider');
++  }
++  return context;
++}
+diff --git a/apps/web/src/features/071-file-notes/components/note-card.tsx b/apps/web/src/features/071-file-notes/components/note-card.tsx
+new file mode 100644
+index 00000000..e3971121
+--- /dev/null
++++ b/apps/web/src/features/071-file-notes/components/note-card.tsx
+@@ -0,0 +1,153 @@
++'use client';
++
++/**
++ * NoteCard — Renders an individual note with metadata, content, and actions.
++ *
++ * Displays author (human/agent), optional line number, relative time,
++ * addressee tag, markdown content (via MarkdownInline), and action
++ * buttons: Go to, Complete, Reply, Edit.
++ *
++ * Plan 071: PR View & File Notes — Phase 2, T003
++ */
++
++import { MarkdownInline } from '@/components/markdown-inline';
++import { cn } from '@/lib/utils';
++import { Check, ExternalLink, MessageSquare, Pencil } from 'lucide-react';
++
++import type { Note } from '../types';
++
++interface NoteCardProps {
++  note: Note;
++  /** Navigate to file+line (closes overlay first) */
++  onGoTo: (target: string, line?: number) => void;
++  /** Mark note as complete */
++  onComplete: (noteId: string) => void;
++  /** Open reply modal */
++  onReply: (parentNoteId: string) => void;
++  /** Open edit modal */
++  onEdit: (note: Note) => void;
++  /** Whether this card is a reply (indented rendering) */
++  isReply?: boolean;
++}
++
++/** Format a timestamp as relative time (e.g., "2 min ago", "3 hours ago") */
++function relativeTime(isoDate: string): string {
++  const now = Date.now();
++  const then = new Date(isoDate).getTime();
++  const diffMs = now - then;
++  const diffMin = Math.floor(diffMs / 60_000);
++  const diffHr = Math.floor(diffMs / 3_600_000);
++  const diffDay = Math.floor(diffMs / 86_400_000);
++
++  if (diffMin < 1) return 'just now';
++  if (diffMin < 60) return `${diffMin} min ago`;
++  if (diffHr < 24) return `${diffHr}h ago`;
++  if (diffDay < 30) return `${diffDay}d ago`;
++  return new Date(isoDate).toLocaleDateString();
++}
++
++export function NoteCard({
++  note,
++  onGoTo,
++  onComplete,
++  onReply,
++  onEdit,
++  isReply = false,
++}: NoteCardProps) {
++  const line = note.linkType === 'file' && note.targetMeta
++    ? (note.targetMeta as { line?: number }).line
++    : undefined;
++
++  return (
++    <div
++      className={cn(
++        'border rounded-md',
++        isReply ? 'ml-4 border-l-2 border-l-muted' : 'mx-3 mb-2',
++        note.status === 'complete' && 'opacity-50',
++      )}
++    >
++      {/* Card header */}
++      <div className="flex items-center gap-2 px-3 py-1.5 text-xs border-b bg-muted/30">
++        <span>{note.author === 'human' ? '\u{1F9D1}' : '\u{1F916}'}</span>
++        <span className="font-medium">
++          {note.author === 'human' ? 'Human' : 'Agent'}
++        </span>
++        {line != null && (
++          <>
++            <span className="text-muted-foreground">&middot;</span>
++            <span className="text-muted-foreground">Line {line}</span>
++          </>
++        )}
++        <span className="text-muted-foreground">&middot;</span>
++        <span className="text-muted-foreground">{relativeTime(note.createdAt)}</span>
++
++        {/* Addressee tag */}
++        {note.to && (
++          <span
++            className={cn(
++              'ml-auto px-1.5 py-0.5 rounded-full text-[10px] border',
++              note.to === 'human'
++                ? 'border-blue-300 text-blue-600 dark:text-blue-400'
++                : 'border-purple-300 text-purple-600 dark:text-purple-400',
++            )}
++          >
++            &rarr; {note.to === 'human' ? 'Human' : 'Agent'}
++          </span>
++        )}
++      </div>
++
++      {/* Card content — rendered markdown */}
++      <div className="px-3 py-2">
++        <MarkdownInline
++          content={note.content}
++          className="text-sm prose-p:my-0.5 prose-headings:my-1"
++        />
++      </div>
++
++      {/* Card actions */}
++      <div className="flex items-center justify-end gap-2 px-3 py-1.5 border-t">
++        <button
++          type="button"
++          onClick={() => onGoTo(note.target, line)}
++          className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
++        >
++          Go to <ExternalLink className="h-3 w-3" />
++        </button>
++
++        {note.status === 'open' && (
++          <button
++            type="button"
++            onClick={() => onEdit(note)}
++            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
++          >
++            <Pencil className="h-3 w-3" /> Edit
++          </button>
++        )}
++
++        {!isReply && note.status === 'open' && (
++          <button
++            type="button"
++            onClick={() => onReply(note.id)}
++            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
++          >
++            <MessageSquare className="h-3 w-3" /> Reply
++          </button>
++        )}
++
++        {note.status === 'open' ? (
++          <button
++            type="button"
++            onClick={() => onComplete(note.id)}
++            className="text-xs text-green-600 hover:text-green-700 flex items-center gap-1"
++          >
++            <Check className="h-3 w-3" /> Complete
++          </button>
++        ) : (
++          <span className="text-xs text-green-600 flex items-center gap-1">
++            <Check className="h-3 w-3" /> {note.completedBy === 'agent' ? 'Agent' : 'Human'}
++          </span>
++        )}
++      </div>
++    </div>
++  );
++}
+diff --git a/apps/web/src/features/071-file-notes/components/note-file-group.tsx b/apps/web/src/features/071-file-notes/components/note-file-group.tsx
+new file mode 100644
+index 00000000..d3f36082
+--- /dev/null
++++ b/apps/web/src/features/071-file-notes/components/note-file-group.tsx
+@@ -0,0 +1,120 @@
++'use client';
++
++/**
++ * NoteFileGroup — Collapsible section grouping notes by file target.
++ *
++ * Shows file path header with note count, collapse/expand toggle,
++ * per-file delete button. Renders NoteCard for each root note with
++ * thread replies indented below.
++ *
++ * Plan 071: PR View & File Notes — Phase 2, T004
++ */
++
++import { cn } from '@/lib/utils';
++import { ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
++import { useState } from 'react';
++
++import type { Note } from '../types';
++import type { NoteThread } from '../hooks/use-notes';
++import { NoteCard } from './note-card';
++
++interface NoteFileGroupProps {
++  /** File path (target) for this group */
++  filePath: string;
++  /** Thread-grouped notes for this file */
++  threads: NoteThread[];
++  /** Navigate to file+line */
++  onGoTo: (target: string, line?: number) => void;
++  /** Mark note as complete */
++  onComplete: (noteId: string) => void;
++  /** Open reply modal */
++  onReply: (parentNoteId: string) => void;
++  /** Open edit modal */
++  onEdit: (note: Note) => void;
++  /** Open bulk delete dialog for this file */
++  onDeleteFile: (filePath: string, noteCount: number) => void;
++}
++
++export function NoteFileGroup({
++  filePath,
++  threads,
++  onGoTo,
++  onComplete,
++  onReply,
++  onEdit,
++  onDeleteFile,
++}: NoteFileGroupProps) {
++  const [collapsed, setCollapsed] = useState(false);
++
++  const totalNotes = threads.reduce(
++    (sum, t) => sum + 1 + t.replies.length,
++    0
++  );
++
++  return (
++    <div className="border-b last:border-b-0">
++      {/* File header */}
++      <button
++        type="button"
++        onClick={() => setCollapsed((c) => !c)}
++        className="flex items-center w-full gap-2 px-3 py-2 text-sm hover:bg-accent/30"
++      >
++        {collapsed ? (
++          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
++        ) : (
++          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
++        )}
++
++        <span className="truncate flex-1 text-left font-mono text-xs">
++          {filePath}
++        </span>
++
++        <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
++          {totalNotes}
++        </span>
++
++        {/* Per-file delete */}
++        <button
++          type="button"
++          onClick={(e) => {
++            e.stopPropagation();
++            onDeleteFile(filePath, totalNotes);
++          }}
++          className="shrink-0 rounded-sm p-0.5 text-muted-foreground hover:text-red-500 hover:bg-accent"
++          title={`Delete all notes for ${filePath.split('/').pop()}`}
++        >
++          <Trash2 className="h-3 w-3" />
++        </button>
++      </button>
++
++      {/* Note cards */}
++      {!collapsed && (
++        <div className="pb-2">
++          {threads.map((thread) => (
++            <div key={thread.root.id}>
++              <NoteCard
++                note={thread.root}
++                onGoTo={onGoTo}
++                onComplete={onComplete}
++                onReply={onReply}
++                onEdit={onEdit}
++              />
++              {thread.replies.map((reply) => (
++                <div key={reply.id} className="mx-3 mb-1">
++                  <NoteCard
++                    note={reply}
++                    onGoTo={onGoTo}
++                    onComplete={onComplete}
++                    onReply={onReply}
++                    onEdit={onEdit}
++                    isReply
++                  />
++                </div>
++              ))}
++            </div>
++          ))}
++        </div>
++      )}
++    </div>
++  );
++}
+diff --git a/apps/web/src/features/071-file-notes/components/notes-overlay-panel.tsx b/apps/web/src/features/071-file-notes/components/notes-overlay-panel.tsx
+new file mode 100644
+index 00000000..b2db1497
+--- /dev/null
++++ b/apps/web/src/features/071-file-notes/components/notes-overlay-panel.tsx
+@@ -0,0 +1,357 @@
++'use client';
++
++/**
++ * NotesOverlayPanel — Fixed-position overlay showing all worktree notes.
++ *
++ * Mirrors activity-log-overlay-panel.tsx pattern:
++ * - Anchor measurement via ResizeObserver on [data-terminal-overlay-anchor]
++ * - Escape key close
++ * - Lazy loading (hasOpened guard)
++ * - z-index 44 (same as terminal/activity-log)
++ * - 10s cache via useNotes hook (DYK-04)
++ *
++ * Renders notes grouped by file with filter dropdown, "Add Note" button,
++ * clear-all button, and per-file delete support.
++ *
++ * Plan 071: PR View & File Notes — Phase 2, T005
++ */
++
++import { Plus, StickyNote, Trash2, X } from 'lucide-react';
++import { useCallback, useEffect, useRef, useState } from 'react';
++import { toast } from 'sonner';
++
++import { completeNote, deleteNotes } from '../../../../app/actions/notes-actions';
++import { workspaceHref } from '@/lib/workspace-url';
++import type { Note } from '../types';
++import { useNotes, type NoteFilterOption } from '../hooks/use-notes';
++import { useNotesOverlay } from '../hooks/use-notes-overlay';
++import { BulkDeleteDialog } from './bulk-delete-dialog';
++import { NoteFileGroup } from './note-file-group';
++import { NoteModal } from './note-modal';
++
++export function NotesOverlayPanel() {
++  const {
++    isOpen,
++    worktreePath,
++    closeNotes,
++    modalTarget,
++    isModalOpen,
++    openModal,
++    closeModal,
++  } = useNotesOverlay();
++
++  const {
++    groupedByFile,
++    loading,
++    error,
++    refresh,
++    filter,
++    setFilter,
++    openCount,
++    completeCount,
++  } = useNotes(worktreePath);
++
++  const panelRef = useRef<HTMLDivElement>(null);
++  const [anchorRect, setAnchorRect] = useState({ top: 0, left: 0, width: 0, height: 0 });
++  const [hasOpened, setHasOpened] = useState(false);
++
++  // Bulk delete state
++  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
++  const [bulkDeleteScope, setBulkDeleteScope] = useState<'file' | 'all'>('all');
++  const [bulkDeleteFileName, setBulkDeleteFileName] = useState<string>('');
++  const [bulkDeleteCount, setBulkDeleteCount] = useState(0);
++
++  useEffect(() => {
++    if (isOpen) setHasOpened(true);
++  }, [isOpen]);
++
++  // Measure anchor element
++  const measureRef = useRef<(() => void) | undefined>(undefined);
++  useEffect(() => {
++    const measure = () => {
++      const anchor = document.querySelector('[data-terminal-overlay-anchor]');
++      if (anchor) {
++        const rect = anchor.getBoundingClientRect();
++        setAnchorRect({ top: rect.top, left: rect.left, width: rect.width, height: rect.height });
++      }
++    };
++    measureRef.current = measure;
++    measure();
++    window.addEventListener('resize', measure);
++    const observer = new ResizeObserver(measure);
++    const anchor = document.querySelector('[data-terminal-overlay-anchor]');
++    if (anchor) observer.observe(anchor);
++    const timer = setTimeout(measure, 200);
++    return () => {
++      window.removeEventListener('resize', measure);
++      observer.disconnect();
++      clearTimeout(timer);
++    };
++  }, []);
++
++  // Re-measure when overlay opens
++  useEffect(() => {
++    if (isOpen) measureRef.current?.();
++  }, [isOpen]);
++
++  // Close on Escape
++  useEffect(() => {
++    if (!isOpen) return;
++    const handleKeyDown = (e: KeyboardEvent) => {
++      if (e.key === 'Escape') {
++        e.preventDefault();
++        closeNotes();
++      }
++    };
++    document.addEventListener('keydown', handleKeyDown);
++    return () => document.removeEventListener('keydown', handleKeyDown);
++  }, [isOpen, closeNotes]);
++
++  // Resolve workspace slug from URL for navigation
++  const getSlug = useCallback(() => {
++    const match = window.location.pathname.match(/\/workspaces\/([^/]+)/);
++    return match ? decodeURIComponent(match[1]) : '';
++  }, []);
++
++  // "Go to" — close overlay, navigate to file+line
++  const handleGoTo = useCallback(
++    (target: string, line?: number) => {
++      closeNotes();
++      const slug = getSlug();
++      if (!slug || !worktreePath) return;
++      const href = workspaceHref(slug, '/browser', {
++        worktree: worktreePath,
++        file: target,
++        mode: 'edit',
++        ...(line != null ? { line: String(line) } : {}),
++      });
++      window.location.href = href;
++    },
++    [closeNotes, getSlug, worktreePath]
++  );
++
++  // Complete a note
++  const handleComplete = useCallback(
++    async (noteId: string) => {
++      if (!worktreePath) return;
++      const result = await completeNote(worktreePath, noteId, 'human');
++      if (result.ok) {
++        toast.success('Note completed');
++        refresh();
++      } else {
++        toast.error(result.error);
++      }
++    },
++    [worktreePath, refresh]
++  );
++
++  // Reply to a note
++  const handleReply = useCallback(
++    (parentNoteId: string) => {
++      // Find the parent note's target so modal knows which file
++      for (const [filePath, threads] of groupedByFile) {
++        for (const thread of threads) {
++          if (thread.root.id === parentNoteId) {
++            openModal({ target: filePath, threadId: parentNoteId });
++            return;
++          }
++        }
++      }
++    },
++    [groupedByFile, openModal]
++  );
++
++  // Edit a note
++  const handleEdit = useCallback(
++    (note: Note) => {
++      openModal({
++        target: note.target,
++        editNoteId: note.id,
++        editContent: note.content,
++        editTo: note.to,
++        line:
++          note.linkType === 'file' && note.targetMeta
++            ? (note.targetMeta as { line?: number }).line
++            : undefined,
++      });
++    },
++    [openModal]
++  );
++
++  // Per-file delete
++  const handleDeleteFile = useCallback(
++    (filePath: string, noteCount: number) => {
++      setBulkDeleteScope('file');
++      setBulkDeleteFileName(filePath);
++      setBulkDeleteCount(noteCount);
++      setBulkDeleteOpen(true);
++    },
++    []
++  );
++
++  // All delete
++  const handleDeleteAll = useCallback(() => {
++    const total = openCount + completeCount;
++    setBulkDeleteScope('all');
++    setBulkDeleteFileName('');
++    setBulkDeleteCount(total);
++    setBulkDeleteOpen(true);
++  }, [openCount, completeCount]);
++
++  // Execute bulk delete
++  const handleBulkDeleteConfirm = useCallback(async () => {
++    if (!worktreePath) return;
++    const options =
++      bulkDeleteScope === 'all'
++        ? { scope: 'all' as const }
++        : { target: bulkDeleteFileName };
++    const result = await deleteNotes(worktreePath, options);
++    if (result.ok) {
++      toast.success(`${result.data.deleted} note${result.data.deleted !== 1 ? 's' : ''} deleted`);
++      refresh();
++    } else {
++      toast.error(result.error);
++    }
++  }, [worktreePath, bulkDeleteScope, bulkDeleteFileName, refresh]);
++
++  // "Add Note" from overlay header
++  const handleAddNote = useCallback(() => {
++    openModal({ target: '' });
++  }, [openModal]);
++
++  if (!hasOpened) return null;
++
++  const fileGroups = Array.from(groupedByFile.entries());
++
++  return (
++    <>
++      <div
++        ref={panelRef}
++        className="fixed flex flex-col border-l bg-background shadow-2xl"
++        style={{
++          zIndex: 44,
++          top: `${anchorRect.top}px`,
++          left: `${anchorRect.left}px`,
++          width: `${anchorRect.width}px`,
++          height: `${anchorRect.height}px`,
++          display: isOpen ? 'flex' : 'none',
++        }}
++        data-testid="notes-overlay-panel"
++      >
++        {/* Header */}
++        <div className="flex items-center justify-between border-b px-3 py-2 shrink-0">
++          <div className="flex items-center gap-2">
++            <StickyNote className="h-4 w-4 text-muted-foreground" />
++            <span className="text-sm font-medium">Notes</span>
++            <span className="text-xs text-muted-foreground">
++              {openCount} open &middot; {completeCount} complete
++            </span>
++          </div>
++          <div className="flex items-center gap-1">
++            {/* Add Note button */}
++            <button
++              type="button"
++              onClick={handleAddNote}
++              className="rounded-sm p-1 text-muted-foreground hover:text-foreground hover:bg-accent"
++              title="Add Note"
++            >
++              <Plus className="h-3.5 w-3.5" />
++            </button>
++
++            {/* Filter dropdown */}
++            <select
++              value={filter}
++              onChange={(e) => setFilter(e.target.value as NoteFilterOption)}
++              className="text-xs bg-transparent border rounded px-1.5 py-0.5"
++            >
++              <option value="all">All</option>
++              <option value="open">Open</option>
++              <option value="complete">Complete</option>
++              <option value="to-human">To Human</option>
++              <option value="to-agent">To Agent</option>
++            </select>
++
++            {/* Clear all button */}
++            <button
++              type="button"
++              onClick={handleDeleteAll}
++              className="rounded-sm p-1 text-muted-foreground hover:text-red-500 hover:bg-accent"
++              title="Clear all notes..."
++            >
++              <Trash2 className="h-3.5 w-3.5" />
++            </button>
++
++            {/* Close */}
++            <button
++              type="button"
++              onClick={closeNotes}
++              className="rounded-sm p-1 hover:bg-accent"
++              aria-label="Close notes"
++            >
++              <X className="h-4 w-4" />
++            </button>
++          </div>
++        </div>
++
++        {/* Content */}
++        <div className="flex-1 overflow-y-auto min-h-0">
++          {loading ? (
++            <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
++              Loading...
++            </div>
++          ) : error ? (
++            <div className="flex items-center justify-center h-full text-red-500 text-sm px-4 text-center">
++              {error}
++            </div>
++          ) : fileGroups.length === 0 ? (
++            <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-sm gap-2">
++              <StickyNote className="h-8 w-8 opacity-30" />
++              <span>No notes in this worktree</span>
++              <button
++                type="button"
++                onClick={handleAddNote}
++                className="text-xs text-primary hover:underline"
++              >
++                Add a note
++              </button>
++            </div>
++          ) : (
++            fileGroups.map(([filePath, threads]) => (
++              <NoteFileGroup
++                key={filePath}
++                filePath={filePath}
++                threads={threads}
++                onGoTo={handleGoTo}
++                onComplete={handleComplete}
++                onReply={handleReply}
++                onEdit={handleEdit}
++                onDeleteFile={handleDeleteFile}
++              />
++            ))
++          )}
++        </div>
++      </div>
++
++      {/* Note Modal */}
++      <NoteModal
++        open={isModalOpen}
++        onOpenChange={(v) => {
++          if (!v) closeModal();
++        }}
++        target={modalTarget}
++        worktreePath={worktreePath ?? ''}
++        onSaved={refresh}
++      />
++
++      {/* Bulk Delete Dialog */}
++      <BulkDeleteDialog
++        open={bulkDeleteOpen}
++        onOpenChange={setBulkDeleteOpen}
++        scope={bulkDeleteScope}
++        fileName={bulkDeleteFileName}
++        noteCount={bulkDeleteCount}
++        onConfirm={handleBulkDeleteConfirm}
++      />
++    </>
++  );
++}
+diff --git a/apps/web/src/features/071-file-notes/components/note-modal.tsx b/apps/web/src/features/071-file-notes/components/note-modal.tsx
+new file mode 100644
+index 00000000..8982a75a
+--- /dev/null
++++ b/apps/web/src/features/071-file-notes/components/note-modal.tsx
+@@ -0,0 +1,250 @@
++'use client';
++
++/**
++ * NoteModal — Dialog for adding/editing a note.
++ *
++ * Supports three modes:
++ * 1. Add: target pre-filled from context (Ctrl+Shift+N, tree context menu)
++ * 2. Add (empty): target typed by user (overlay "+" button)
++ * 3. Edit: content/addressee pre-filled from existing note
++ * 4. Reply: threadId set from parent note
++ *
++ * Plan 071: PR View & File Notes — Phase 2, T006
++ */
++
++import { Button } from '@/components/ui/button';
++import {
++  Dialog,
++  DialogClose,
++  DialogContent,
++  DialogDescription,
++  DialogFooter,
++  DialogHeader,
++  DialogTitle,
++} from '@/components/ui/dialog';
++import { cn } from '@/lib/utils';
++import { useCallback, useEffect, useRef, useState } from 'react';
++import { toast } from 'sonner';
++
++import {
++  addNote,
++  editNote,
++} from '../../../../app/actions/notes-actions';
++import type { NoteAddressee } from '../types';
++import type { NoteModalTarget } from '../hooks/use-notes-overlay';
++
++interface NoteModalProps {
++  open: boolean;
++  onOpenChange: (open: boolean) => void;
++  /** Target context — null means user must type file path */
++  target: NoteModalTarget | null;
++  /** Worktree path for server action calls */
++  worktreePath: string;
++  /** Callback after successful save */
++  onSaved: () => void;
++}
++
++type ToOption = 'anyone' | 'human' | 'agent';
++
++export function NoteModal({
++  open,
++  onOpenChange,
++  target,
++  worktreePath,
++  onSaved,
++}: NoteModalProps) {
++  const textareaRef = useRef<HTMLTextAreaElement>(null);
++  const [content, setContent] = useState('');
++  const [to, setTo] = useState<NoteAddressee | undefined>(undefined);
++  const [targetPath, setTargetPath] = useState('');
++  const [line, setLine] = useState<string>('');
++  const [saving, setSaving] = useState(false);
++
++  const isEditing = !!target?.editNoteId;
++  const isReplying = !!target?.threadId;
++
++  // Pre-fill when target changes
++  useEffect(() => {
++    if (!open) return;
++    if (target) {
++      setTargetPath(target.target);
++      setLine(target.line != null ? String(target.line) : '');
++      setContent(target.editContent ?? '');
++      setTo(target.editTo);
++    } else {
++      setTargetPath('');
++      setLine('');
++      setContent('');
++      setTo(undefined);
++    }
++  }, [open, target]);
++
++  // Focus textarea on open
++  useEffect(() => {
++    if (open) {
++      setTimeout(() => textareaRef.current?.focus(), 100);
++    }
++  }, [open]);
++
++  const handleSave = useCallback(async () => {
++    const trimmedContent = content.trim();
++    if (!trimmedContent || !targetPath.trim()) return;
++
++    setSaving(true);
++    try {
++      if (isEditing && target?.editNoteId) {
++        const result = await editNote(worktreePath, target.editNoteId, {
++          content: trimmedContent,
++          to,
++        });
++        if (result.ok) {
++          toast.success('Note updated');
++        } else {
++          toast.error(result.error);
++          return;
++        }
++      } else {
++        const parsedLine = line ? Number.parseInt(line, 10) : undefined;
++        const result = await addNote(worktreePath, {
++          linkType: 'file',
++          target: targetPath.trim(),
++          targetMeta: parsedLine ? { line: parsedLine } : undefined,
++          content: trimmedContent,
++          to,
++          author: 'human',
++          threadId: target?.threadId,
++        });
++        if (result.ok) {
++          toast.success(
++            isReplying
++              ? 'Reply added'
++              : `Note added to ${targetPath.split('/').pop()}`
++          );
++        } else {
++          toast.error(result.error);
++          return;
++        }
++      }
++      onOpenChange(false);
++      onSaved();
++    } catch (err) {
++      toast.error(`Failed: ${err}`);
++    } finally {
++      setSaving(false);
++    }
++  }, [content, targetPath, line, to, worktreePath, target, isEditing, isReplying, onOpenChange, onSaved]);
++
++  const handleToClick = (option: ToOption) => {
++    setTo(option === 'anyone' ? undefined : option);
++  };
++
++  const title = isEditing ? 'Edit Note' : isReplying ? 'Reply' : 'Add Note';
++
++  return (
++    <Dialog open={open} onOpenChange={onOpenChange}>
++      <DialogContent className="sm:max-w-[500px]">
++        <DialogHeader>
++          <DialogTitle>{title}</DialogTitle>
++          <DialogDescription>
++            {target?.target ? (
++              <>
++                <span className="font-mono text-xs">{targetPath}</span>
++                {target.line != null && (
++                  <span className="text-muted-foreground"> &middot; Line {target.line}</span>
++                )}
++              </>
++            ) : (
++              'Add a note to a file'
++            )}
++          </DialogDescription>
++        </DialogHeader>
++
++        <div className="space-y-3">
++          {/* File path input — shown when target is not pre-filled */}
++          {!target?.target && !isEditing && (
++            <div className="space-y-1">
++              <label htmlFor="note-target" className="text-sm font-medium">
++                File path
++              </label>
++              <input
++                id="note-target"
++                type="text"
++                value={targetPath}
++                onChange={(e) => setTargetPath(e.target.value)}
++                placeholder="src/features/..."
++                className="w-full rounded-md border bg-transparent px-3 py-2 text-sm font-mono
++                           placeholder:text-muted-foreground
++                           focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
++              />
++            </div>
++          )}
++
++          {/* Optional line number — shown for new notes (not edits) */}
++          {!isEditing && !target?.line && (
++            <div className="space-y-1">
++              <label htmlFor="note-line" className="text-sm text-muted-foreground">
++                Line number (optional)
++              </label>
++              <input
++                id="note-line"
++                type="number"
++                value={line}
++                onChange={(e) => setLine(e.target.value)}
++                placeholder="e.g., 42"
++                min={1}
++                className="w-32 rounded-md border bg-transparent px-3 py-2 text-sm font-mono
++                           placeholder:text-muted-foreground
++                           focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
++              />
++            </div>
++          )}
++
++          {/* Content editor */}
++          <textarea
++            ref={textareaRef}
++            value={content}
++            onChange={(e) => setContent(e.target.value)}
++            placeholder="Leave a note... (markdown supported)"
++            className="w-full min-h-[120px] rounded-md border bg-transparent px-3 py-2
++                       text-sm placeholder:text-muted-foreground resize-y
++                       focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
++          />
++
++          {/* "To" selector */}
++          <div className="flex items-center gap-3 text-sm">
++            <span className="text-muted-foreground">To:</span>
++            <div className="flex gap-1">
++              {(['anyone', 'human', 'agent'] as const).map((option) => (
++                <button
++                  key={option}
++                  type="button"
++                  onClick={() => handleToClick(option)}
++                  className={cn(
++                    'px-2 py-0.5 rounded-full text-xs border',
++                    to === (option === 'anyone' ? undefined : option)
++                      ? 'bg-primary text-primary-foreground border-primary'
++                      : 'text-muted-foreground border-muted hover:border-foreground/30',
++                  )}
++                >
++                  {option === 'anyone' ? 'Anyone' : option === 'human' ? 'Human' : 'Agent'}
++                </button>
++              ))}
++            </div>
++          </div>
++        </div>
++
++        <DialogFooter>
++          <DialogClose asChild>
++            <Button variant="outline">Cancel</Button>
++          </DialogClose>
++          <Button
++            onClick={handleSave}
++            disabled={!content.trim() || !targetPath.trim() || saving}
++          >
++            {saving ? 'Saving...' : isEditing ? 'Update' : 'Save Note'}
++          </Button>
++        </DialogFooter>
++      </DialogContent>
++    </Dialog>
++  );
++}
+diff --git a/apps/web/src/features/071-file-notes/components/bulk-delete-dialog.tsx b/apps/web/src/features/071-file-notes/components/bulk-delete-dialog.tsx
+new file mode 100644
+index 00000000..74e38652
+--- /dev/null
++++ b/apps/web/src/features/071-file-notes/components/bulk-delete-dialog.tsx
+@@ -0,0 +1,107 @@
++'use client';
++
++/**
++ * BulkDeleteDialog — Type-to-confirm dialog requiring "YEES" for note deletion.
++ *
++ * Supports two scopes:
++ * - 'file': delete all notes for a specific file
++ * - 'all': delete all notes in the worktree
++ *
++ * Plan 071: PR View & File Notes — Phase 2, T007
++ */
++
++import { Button } from '@/components/ui/button';
++import {
++  Dialog,
++  DialogClose,
++  DialogContent,
++  DialogDescription,
++  DialogFooter,
++  DialogHeader,
++  DialogTitle,
++} from '@/components/ui/dialog';
++import { AlertTriangle } from 'lucide-react';
++import { useState } from 'react';
++
++const CONFIRMATION_WORD = 'YEES';
++
++interface BulkDeleteDialogProps {
++  open: boolean;
++  onOpenChange: (open: boolean) => void;
++  scope: 'file' | 'all';
++  /** Only when scope === 'file' */
++  fileName?: string;
++  noteCount: number;
++  onConfirm: () => void;
++}
++
++export function BulkDeleteDialog({
++  open,
++  onOpenChange,
++  scope,
++  fileName,
++  noteCount,
++  onConfirm,
++}: BulkDeleteDialogProps) {
++  const [confirmation, setConfirmation] = useState('');
++  const isConfirmed = confirmation === CONFIRMATION_WORD;
++
++  const handleOpenChange = (v: boolean) => {
++    setConfirmation('');
++    onOpenChange(v);
++  };
++
++  return (
++    <Dialog open={open} onOpenChange={handleOpenChange}>
++      <DialogContent>
++        <DialogHeader>
++          <DialogTitle className="flex items-center gap-2">
++            <AlertTriangle className="h-5 w-5 text-destructive" />
++            Delete {scope === 'all' ? 'All Notes' : `Notes for ${fileName}`}
++          </DialogTitle>
++          <DialogDescription>
++            This will permanently delete {noteCount} note{noteCount !== 1 ? 's' : ''}
++            {scope === 'file' ? ` for ${fileName}` : ' in this worktree'}.
++            This action cannot be undone.
++          </DialogDescription>
++        </DialogHeader>
++
++        <div className="space-y-2">
++          <label htmlFor="bulk-delete-confirm" className="text-sm font-medium">
++            Type{' '}
++            <code className="px-1 py-0.5 rounded bg-muted font-mono">
++              {CONFIRMATION_WORD}
++            </code>{' '}
++            to confirm:
++          </label>
++          <input
++            id="bulk-delete-confirm"
++            type="text"
++            value={confirmation}
++            onChange={(e) => setConfirmation(e.target.value)}
++            placeholder={CONFIRMATION_WORD}
++            className="w-full rounded-md border px-3 py-2 text-sm
++                       focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
++            autoFocus
++          />
++        </div>
++
++        <DialogFooter>
++          <DialogClose asChild>
++            <Button variant="outline">Cancel</Button>
++          </DialogClose>
++          <Button
++            variant="destructive"
++            disabled={!isConfirmed}
++            onClick={() => {
++              onConfirm();
++              handleOpenChange(false);
++            }}
++          >
++            Delete {scope === 'all' ? 'All' : 'File'} Notes
++          </Button>
++        </DialogFooter>
++      </DialogContent>
++    </Dialog>
++  );
++}
+diff --git a/apps/web/src/features/071-file-notes/components/note-indicator-dot.tsx b/apps/web/src/features/071-file-notes/components/note-indicator-dot.tsx
+new file mode 100644
+index 00000000..84e66886
+--- /dev/null
++++ b/apps/web/src/features/071-file-notes/components/note-indicator-dot.tsx
+@@ -0,0 +1,21 @@
++'use client';
++
++/**
++ * NoteIndicatorDot — 6px blue dot indicating a file has notes.
++ *
++ * Cross-domain contract: consumed by file-browser FileTree and PR View file list.
++ * Positioned next to the file name in tree/list items.
++ *
++ * Plan 071: PR View & File Notes — Phase 2, T008
++ */
++
++export function NoteIndicatorDot({ hasNotes }: { hasNotes: boolean }) {
++  if (!hasNotes) return null;
++  return (
++    <span
++      className="shrink-0 w-1.5 h-1.5 rounded-full bg-blue-500"
++      title="Has notes"
++      aria-label="File has notes"
++    />
++  );
++}
+diff --git a/apps/web/app/(dashboard)/workspaces/[slug]/notes-overlay-wrapper.tsx b/apps/web/app/(dashboard)/workspaces/[slug]/notes-overlay-wrapper.tsx
+new file mode 100644
+index 00000000..2452765f
+--- /dev/null
++++ b/apps/web/app/(dashboard)/workspaces/[slug]/notes-overlay-wrapper.tsx
+@@ -0,0 +1,66 @@
++'use client';
++
++/**
++ * Notes Overlay Wrapper — mounts provider + panel in workspace layout.
++ *
++ * Mirrors terminal-overlay-wrapper.tsx / activity-log-overlay-wrapper.tsx:
++ * - Dynamic import for panel (SSR: false — requires DOM for anchor measurement)
++ * - Error boundary wraps panel only (not provider)
++ * - Provider is pure context — safe to always mount
++ *
++ * Plan 071: PR View & File Notes — Phase 2, T009
++ */
++
++import nextDynamic from 'next/dynamic';
++import { Component, type ReactNode } from 'react';
++import {
++  NotesOverlayProvider,
++} from '../../../../src/features/071-file-notes/hooks/use-notes-overlay';
++
++const NotesOverlayPanel = nextDynamic(
++  () =>
++    import('../../../../src/features/071-file-notes/components/notes-overlay-panel').then(
++      (m) => m.NotesOverlayPanel
++    ),
++  { ssr: false }
++);
++
++class NotesOverlayErrorBoundary extends Component<
++  { children: ReactNode },
++  { hasError: boolean }
++> {
++  constructor(props: { children: ReactNode }) {
++    super(props);
++    this.state = { hasError: false };
++  }
++
++  static getDerivedStateFromError(): { hasError: boolean } {
++    return { hasError: true };
++  }
++
++  render() {
++    if (this.state.hasError) {
++      return null;
++    }
++    return this.props.children;
++  }
++}
++
++interface NotesOverlayWrapperProps {
++  children: ReactNode;
++  defaultWorktreePath?: string;
++}
++
++export function NotesOverlayWrapper({
++  children,
++  defaultWorktreePath,
++}: NotesOverlayWrapperProps) {
++  return (
++    <NotesOverlayProvider defaultWorktreePath={defaultWorktreePath}>
++      {children}
++      <NotesOverlayErrorBoundary>
++        <NotesOverlayPanel />
++      </NotesOverlayErrorBoundary>
++    </NotesOverlayProvider>
++  );
++}
+diff --git a/apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx b/apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx
+index 78e2a7e2..87a2e74d 100644
+--- a/apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx
++++ b/apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx
+@@ -17,6 +17,7 @@ import { getContainer } from '../../../../src/lib/bootstrap-singleton';
+ import { SDKWorkspaceConnector } from '../../../../src/lib/sdk/sdk-workspace-connector';
+ import { updateSDKMru, updateSDKSettings } from '../../../actions/sdk-settings-actions';
+ import { ActivityLogOverlayWrapper } from './activity-log-overlay-wrapper';
++import { NotesOverlayWrapper } from './notes-overlay-wrapper';
+ import { TerminalOverlayWrapper } from './terminal-overlay-wrapper';
+ import { WorkspaceAttentionWrapper } from './workspace-attention-wrapper';
+ 
+@@ -67,9 +68,11 @@ export default async function WorkspaceLayout({ children, params }: LayoutProps)
+       <WorkspaceAttentionWrapper>
+         <TerminalOverlayWrapper defaultSessionName={defaultBranch} defaultCwd={defaultWorktreePath}>
+           <ActivityLogOverlayWrapper defaultWorktreePath={defaultWorktreePath}>
+-            <WorkspaceAgentChrome slug={slug} workspacePath={ws?.path}>
+-              {children}
+-            </WorkspaceAgentChrome>
++            <NotesOverlayWrapper defaultWorktreePath={defaultWorktreePath}>
++              <WorkspaceAgentChrome slug={slug} workspacePath={ws?.path}>
++                {children}
++              </WorkspaceAgentChrome>
++            </NotesOverlayWrapper>
+           </ActivityLogOverlayWrapper>
+         </TerminalOverlayWrapper>
+       </WorkspaceAttentionWrapper>
+diff --git a/apps/web/src/components/dashboard-sidebar.tsx b/apps/web/src/components/dashboard-sidebar.tsx
+index 62983665..17c9bafd 100644
+--- a/apps/web/src/components/dashboard-sidebar.tsx
++++ b/apps/web/src/components/dashboard-sidebar.tsx
+@@ -30,6 +30,7 @@ import {
+   PanelLeft,
+   ScrollText,
+   Settings,
++  StickyNote,
+   TerminalSquare,
+ } from 'lucide-react';
+ import Link from 'next/link';
+@@ -289,6 +290,17 @@ export function DashboardSidebar() {
+               </SidebarMenuButton>
+             </SidebarMenuItem>
+           )}
++          {currentWorktree && (
++            <SidebarMenuItem>
++              <SidebarMenuButton
++                onClick={() => window.dispatchEvent(new CustomEvent('notes:toggle'))}
++                tooltip="Toggle Notes"
++              >
++                <StickyNote className="h-5 w-5" />
++                {!isCollapsed && <span>Notes</span>}
++              </SidebarMenuButton>
++            </SidebarMenuItem>
++          )}
+           <SidebarMenuItem>
+             <SidebarMenuButton
+               asChild
+diff --git a/apps/web/src/lib/sdk/sdk-bootstrap.ts b/apps/web/src/lib/sdk/sdk-bootstrap.ts
+index b03485f3..14559cd6 100644
+--- a/apps/web/src/lib/sdk/sdk-bootstrap.ts
++++ b/apps/web/src/lib/sdk/sdk-bootstrap.ts
+@@ -112,6 +112,19 @@ export function bootstrapSDK(): IUSDK {
+     icon: 'scroll-text',
+   });
+ 
++  // Notes overlay toggle (Plan 071 Phase 2)
++  commands.register({
++    id: 'notes.toggleOverlay',
++    title: 'Toggle Notes',
++    domain: 'file-notes',
++    params: z.object({}),
++    handler: async () => {
++      window.dispatchEvent(new CustomEvent('notes:toggle'));
++    },
++    icon: 'sticky-note',
++  });
++  keybindings.register({ key: '$mod+Shift+KeyL', command: 'notes.toggleOverlay' });
++
+   const sdk: IUSDK = {
+     commands,
+     settings,
+diff --git a/apps/web/src/features/071-file-notes/index.ts b/apps/web/src/features/071-file-notes/index.ts
+new file mode 100644
+index 00000000..08bf12d5
+--- /dev/null
++++ b/apps/web/src/features/071-file-notes/index.ts
+@@ -0,0 +1,43 @@
++/**
++ * File Notes Domain — Barrel Exports
++ *
++ * Plan 071: PR View & File Notes
++ */
++
++export { NOTES_DIR, NOTES_FILE, NoteLinkType } from './types';
++export type {
++  CreateNoteInput,
++  EditNoteInput,
++  Note,
++  NoteAddressee,
++  NoteAuthor,
++  NoteFilter,
++  NoteResult,
++  NoteStatus,
++  TargetMetaFor,
++} from './types';
++
++export {
++  appendNote,
++  completeNote,
++  deleteAll,
++  deleteAllForTarget,
++  deleteNote,
++  editNote,
++} from './lib/note-writer';
++
++export { listFilesWithNotes, readNotes } from './lib/note-reader';
++
++// Phase 2: Hooks
++export { useNotes } from './hooks/use-notes';
++export type { NoteThread, NoteFilterOption, UseNotesResult } from './hooks/use-notes';
++export { NotesOverlayProvider, useNotesOverlay } from './hooks/use-notes-overlay';
++export type { NoteModalTarget } from './hooks/use-notes-overlay';
++
++// Phase 2: Components
++export { NoteCard } from './components/note-card';
++export { NoteFileGroup } from './components/note-file-group';
++export { NoteIndicatorDot } from './components/note-indicator-dot';
++export { NoteModal } from './components/note-modal';
++export { NotesOverlayPanel } from './components/notes-overlay-panel';
++export { BulkDeleteDialog } from './components/bulk-delete-dialog';

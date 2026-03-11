@@ -1,0 +1,403 @@
+diff --git a/README.md b/README.md
+index db678dc7..33d067ec 100644
+--- a/README.md
++++ b/README.md
+@@ -130,6 +130,10 @@ After building (`just build`), the CLI is available:
+ | `cg sample delete <slug>` | Delete sample (--force required) |
+ | `cg agent run -t <type> -p <prompt>` | Run an agent with a prompt |
+ | `cg agent compact -t <type> -s <id>` | Compact an agent session |
++| `cg notes list` | List all notes (supports `--file`, `--status`, `--to`, `--json`) |
++| `cg notes files` | List files that have notes (`--json`) |
++| `cg notes add <file> --content "..."` | Add a note (`--line`, `--to`, `--author`) |
++| `cg notes complete <id>` | Mark a note as complete (`--by human\|agent`) |
+ | `cg --help` | Show available commands |
+ 
+ To use the CLI globally during development:
+diff --git a/apps/web/src/features/_platform/panel-layout/components/explorer-panel.tsx b/apps/web/src/features/_platform/panel-layout/components/explorer-panel.tsx
+index 273a8d67..6751e9ce 100644
+--- a/apps/web/src/features/_platform/panel-layout/components/explorer-panel.tsx
++++ b/apps/web/src/features/_platform/panel-layout/components/explorer-panel.tsx
+@@ -19,6 +19,7 @@ import {
+   ClipboardCopy,
+   GitPullRequest,
+   ScrollText,
++  StickyNote,
+   TerminalSquare,
+ } from 'lucide-react';
+ import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+@@ -496,6 +497,15 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
+         >
+           <GitPullRequest className="h-4 w-4" />
+         </button>
++        <button
++          type="button"
++          onClick={() => window.dispatchEvent(new CustomEvent('notes:toggle'))}
++          className="shrink-0 rounded p-1 text-muted-foreground hover:text-foreground hover:bg-accent"
++          aria-label="Toggle Notes"
++          title="Toggle Notes (Ctrl+Shift+L)"
++        >
++          <StickyNote className="h-4 w-4" />
++        </button>
+         <button
+           type="button"
+           onClick={() => window.dispatchEvent(new CustomEvent('activity-log:toggle'))}
+diff --git a/docs/how/file-notes.md b/docs/how/file-notes.md
+new file mode 100644
+index 00000000..32ed2b6b
+--- /dev/null
++++ b/docs/how/file-notes.md
+@@ -0,0 +1,158 @@
++# File Notes
++
++Architecture, usage guide, and extension reference for the File Notes annotation system.
++
++## Overview
++
++File Notes is a generic annotation system where humans and agents attach markdown notes to files, workflow nodes, or agent runs. Notes persist per-worktree in `.chainglass/data/notes.jsonl` and are committed to git, building cross-worktree history through merges.
++
++Key capabilities:
++- **Markdown notes** on any file (with optional line number targeting)
++- **Addressee targeting** — notes can be directed "to human" or "to agent"
++- **Threading** — flat replies (one level deep) on any note
++- **Completion tracking** — mark notes as complete (recording who completed)
++- **Cross-domain indicators** — blue dots in the file tree and PR View file list
++- **CLI access** — full note lifecycle via `cg notes` commands
++- **Generic link types** — extensible to workflow nodes and agent runs
++
++## Adding Notes
++
++### From the File Tree (Context Menu)
++
++Right-click any file in the tree and select **"Add Note"**. The modal opens with the file path pre-filled. Optionally specify a line number and addressee.
++
++### From the Notes Overlay
++
++Click the **Notes** button (StickyNote icon) in the sidebar or explorer panel, then click the **"+"** button in the overlay header. Type a file path and note content.
++
++### From the CLI
++
++```bash
++# Add a note to a file
++cg notes add src/auth/login.ts --content "Review the error handling here"
++
++# Add a note with line number and addressee
++cg notes add src/auth/login.ts --content "This needs rate limiting" --line 42 --to agent
++
++# Add a note as an agent
++cg notes add src/auth/login.ts --content "Rate limiting added" --author agent
++```
++
++## Viewing Notes
++
++### Notes Overlay
++
++The overlay (sidebar StickyNote button or `Ctrl+Shift+L`) shows all notes grouped by file. Each group is collapsible and shows:
++- File path with note count badge
++- "Deleted" badge if the file no longer exists
++- Per-file delete button
++
++Each note card shows:
++- Author (human/agent), timestamp, optional line reference
++- Addressee tag (blue = human, purple = agent) if specified
++- Markdown content
++- Action buttons: Go to, Edit, Reply, Complete
++
++### Filtering
++
++The overlay filter dropdown supports:
++- **All** / **Open** / **Complete** — by status
++- **To Human** / **To Agent** — by addressee
++- **Type: File** / **Type: Workflow** / **Type: Agent Run** — by link type
++
++### File Tree Indicators
++
++Files with open notes show a small blue dot next to their name in the file tree. The tree can be filtered to show only files with notes using the StickyNote toggle button above the tree.
++
++### PR View Indicators
++
++When PR View is open, files with notes show a blue dot next to their status badge in the file list.
++
++## Managing Notes
++
++### Completing Notes
++
++Click the checkmark button on a note card, or via CLI:
++
++```bash
++cg notes complete <note-id>
++cg notes complete <note-id> --by agent
++```
++
++### Editing Notes
++
++Click the edit button on a note card to modify content or addressee.
++
++### Replying to Notes
++
++Click the reply button to add a threaded reply (flat — one level deep).
++
++### Bulk Delete
++
++- **Per-file**: Click the trash icon on a file group header
++- **All notes**: Click the trash icon in the overlay header
++
++Both require typing **"YEES"** to confirm (safety gate).
++
++## CLI Reference
++
++```bash
++# List all notes
++cg notes list
++
++# List notes for a specific file
++cg notes list --file src/auth/login.ts
++
++# List with filters
++cg notes list --status open --to agent
++
++# JSON output (for agent consumption)
++cg notes list --json
++
++# List files that have notes
++cg notes files
++
++# Add a note
++cg notes add <file> --content "note text" [--line N] [--to human|agent] [--author human|agent]
++
++# Mark as complete
++cg notes complete <note-id> [--by human|agent]
++```
++
++## Architecture
++
++### Data Model
++
++Notes use a discriminated union keyed by `linkType`:
++
++| Link Type | Target | Target Meta | Example |
++|-----------|--------|-------------|---------|
++| `file` | Relative file path | `{ line?: number }` | `src/auth/login.ts` |
++| `workflow` | Workflow ID | `{ nodeId?: string }` | `wf-abc-123` |
++| `agent-run` | Run ID | `{ step?: string }` | `run-xyz-456` |
++
++### Persistence
++
++Notes are stored as JSONL (one JSON object per line) in `.chainglass/data/notes.jsonl`. Operations:
++- **New notes**: Appended to file
++- **Edits/deletes**: Read-modify-rewrite with atomic rename (temp file then rename)
++- **Merge-safe**: JSONL lines are independent, git merges cleanly
++
++### Cross-Domain Events
++
++After any note CRUD operation, a `notes:changed` CustomEvent is dispatched on `window`. Consumers (BrowserClient, PR View overlay) listen for this event to refresh their note indicator state immediately.
++
++## Extending Link Types
++
++To add a new link type (e.g., `deployment`):
++
++1. Add the type to `NoteLinkType` union in `packages/shared/src/file-notes/types.ts`
++2. Add `targetMeta` shape to `TargetMetaFor<T>` conditional type
++3. No schema migration needed — existing JSONL data is unaffected
++4. Add filtering/rendering support in the overlay and CLI as needed
++
++## Related Documentation
++
++- [Domain definition](../domains/file-notes/domain.md)
++- [PR View guide](./pr-view.md)
++- [SSE Integration](./sse-integration.md) (notes:changed event pattern)
+diff --git a/docs/how/pr-view.md b/docs/how/pr-view.md
+new file mode 100644
+index 00000000..f45d606d
+--- /dev/null
++++ b/docs/how/pr-view.md
+@@ -0,0 +1,123 @@
++# PR View
++
++Usage guide for the GitHub-style change review overlay with comparison modes, reviewed tracking, and live updates.
++
++## Overview
++
++PR View shows all worktree changes in a single scrollable overlay with collapsible per-file diffs, status badges, and persistent reviewed-file tracking. It supports two comparison modes and updates live as files change on disk.
++
++Key capabilities:
++- **Two comparison modes** — Working (uncommitted vs HEAD) and Branch (feature branch vs main)
++- **Per-file diffs** with syntax highlighting via Shiki
++- **Reviewed tracking** — mark files as viewed, auto-resets when content changes
++- **Live updates** — SSE-driven refresh as files change on disk
++- **File list** with status badges (M/A/D/R/?), insertion/deletion counts, and note indicators
++
++## Opening PR View
++
++- **Explorer panel**: Click the GitPullRequest icon in the top bar (next to Activity Log and Terminal)
++- **Keyboard shortcut**: `Ctrl+Shift+R` (or `Cmd+Shift+R` on macOS)
++- **SDK command**: `prView.toggleOverlay`
++
++PR View is mutually exclusive with other overlays (Terminal, Activity Log, Notes). Opening one closes the others.
++
++## Comparison Modes
++
++### Working Mode (Default)
++
++Shows uncommitted changes — the diff between your working tree and HEAD (`git diff` + untracked files).
++
++Use this when you're actively editing and want to see what you've changed since the last commit.
++
++### Branch Mode
++
++Shows branch changes — the diff between your current branch and main (`git diff main...HEAD`).
++
++Use this when reviewing all changes on a feature branch before merging. If you're already on main, Branch mode shows an info message explaining there are no branch-specific changes.
++
++### Switching Modes
++
++Click **Working** or **Branch** in the header toggle. The file list, diffs, and stats update immediately. Collapsed state resets on mode switch (different file sets between modes).
++
++## Reviewing Files
++
++### Mark as Viewed
++
++Click the checkbox next to a file in the file list, or the checkbox in the diff section header. Viewed files:
++- Collapse automatically
++- Dim in the file list (reduced opacity)
++- Show a progress indicator in the header
++
++### Auto-Invalidation
++
++If a viewed file changes on disk, the viewed status automatically resets and a **"Previously reviewed — file has changed"** banner appears in amber. This uses content hashing (`git hash-object`) to detect changes.
++
++### Expand All / Collapse All
++
++Use the header buttons to expand or collapse all file sections at once.
++
++## File List Navigation
++
++The left column (220px) shows all changed files. Click any file to smooth-scroll to its diff section in the right area. The active file is highlighted in the list.
++
++Each file entry shows:
++- **Status badge** — M (modified/amber), A (added/green), D (deleted/red), R (renamed/blue), ? (untracked/muted)
++- **Note indicator** — blue dot if the file has notes (from File Notes)
++- **+/- counts** — insertion and deletion counts
++- **Viewed checkbox** — check to mark as reviewed
++
++## Live Updates
++
++PR View subscribes to file change events via SSE (Server-Sent Events) with a 300ms debounce. When files change:
++- New files appear in the list
++- Removed files disappear
++- Changed diffs update
++- Reviewed status auto-invalidates if content changed
++
++The header shows a subtle refresh spinner during background updates (split loading — initial load is full-screen, subsequent refreshes are non-blocking).
++
++## Keyboard Shortcuts
++
++| Shortcut | Action |
++|----------|--------|
++| `Ctrl+Shift+R` | Toggle PR View overlay |
++| `Escape` | Close PR View |
++
++## Data Persistence
++
++Reviewed-file state is stored per-worktree in `.chainglass/data/pr-view-state.jsonl`:
++- Persists across overlay close/reopen
++- Persists across page refreshes
++- Content hash stored per reviewed file for auto-invalidation
++- Shared across comparison modes (same file reviewed in both)
++
++## Architecture
++
++### Data Flow
++
++```
++BrowserClient → pr-view:toggle event → PRViewOverlayProvider
++  → PRViewPanelContent (useFileChanges SSE subscription)
++    → usePRViewData hook (fetch → cache → optimistic mutations)
++      → aggregatePRViewData server action
++        → git diff / git diff main...HEAD
++        → per-file stats (git diff --numstat)
++        → reviewed state (JSONL load + content hash check)
++    → PRViewHeader (mode toggle, stats, controls)
++    → PRViewFileList (status badges, note dots, viewed checkboxes)
++    → PRViewDiffArea (collapsible DiffViewer sections, scroll sync)
++```
++
++### Performance
++
++- **Single git command** for all diffs (`git diff HEAD` split by file header)
++- **Lazy-mount DiffViewers** — only render when section is expanded AND visible (IntersectionObserver)
++- **10-second cache** — reopening within 10s shows cached data immediately
++- **Generation counter** — prevents stale responses from overwriting fresh data on rapid mode switches
++
++## Related Documentation
++
++- [Domain definition](../domains/pr-view/domain.md)
++- [File Notes guide](./file-notes.md) (note indicators in PR View)
++- [SSE Integration](./sse-integration.md) (live update infrastructure)
++- [Viewer Patterns](./viewer-patterns.md) (DiffViewer)
+diff --git a/docs/plans/071-pr-view/pr-view-plan.md b/docs/plans/071-pr-view/pr-view-plan.md
+index 391e6ef0..6b0ae409 100644
+--- a/docs/plans/071-pr-view/pr-view-plan.md
++++ b/docs/plans/071-pr-view/pr-view-plan.md
+@@ -5,7 +5,7 @@
+ **Spec**: [pr-view-spec.md](pr-view-spec.md)
+ **Research**: [research-dossier.md](research-dossier.md)
+ **Workshop**: [001-ui-design-github-inspired.md](workshops/001-ui-design-github-inspired.md)
+-**Status**: IN PROGRESS (Phases 1-7 complete, Phase 8 pending)
++**Status**: COMPLETE (all 8 phases done)
+ **Mode**: Full
+ **Complexity**: CS-4 (large)
+ 
+@@ -432,6 +432,6 @@ Harness: Not applicable. No harness.md exists and this feature uses proven patte
+ ### Acceptance Criteria (Phase 8)
+ - [x] Domain docs created and accurate
+ - [x] Registry and domain-map updated
+-- [ ] How-to guides exist
+-- [ ] Explorer panel buttons work
+-- [ ] `just fft` passes
++- [x] How-to guides exist
++- [x] Explorer panel buttons work
++- [x] `just fft` passes
+diff --git a/docs/plans/071-pr-view/tasks/phase-8-documentation-polish/tasks.fltplan.md b/docs/plans/071-pr-view/tasks/phase-8-documentation-polish/tasks.fltplan.md
+index b359d473..bf804c85 100644
+--- a/docs/plans/071-pr-view/tasks/phase-8-documentation-polish/tasks.fltplan.md
++++ b/docs/plans/071-pr-view/tasks/phase-8-documentation-polish/tasks.fltplan.md
+@@ -3,7 +3,7 @@
+ **Plan**: [pr-view-plan.md](../../pr-view-plan.md)
+ **Phase**: Phase 8: Documentation + Polish
+ **Generated**: 2026-03-10
+-**Status**: Ready for takeoff
++**Status**: Landed
+ 
+ ---
+ 
+@@ -67,11 +67,11 @@ stateDiagram-v2
+ 
+ ## Stages
+ 
+-- [ ] **Stage 1: File Notes how-to guide** — Create `docs/how/file-notes.md` covering web UI, CLI, SDK, link types, threading
+-- [ ] **Stage 2: PR View how-to guide** — Create `docs/how/pr-view.md` covering modes, tracking, live updates, shortcuts
+-- [ ] **Stage 3: README CLI update** — Add `cg notes` commands with examples to README.md
+-- [ ] **Stage 4: Notes explorer button** — Add StickyNote button to `explorer-panel.tsx` next to PR View button
+-- [ ] **Stage 5: Final quality gate** — Run `just fft`, verify all green
++- [x] **Stage 1: File Notes how-to guide** — Create `docs/how/file-notes.md` covering web UI, CLI, SDK, link types, threading
++- [x] **Stage 2: PR View how-to guide** — Create `docs/how/pr-view.md` covering modes, tracking, live updates, shortcuts
++- [x] **Stage 3: README CLI update** — Add `cg notes` commands with examples to README.md
++- [x] **Stage 4: Notes explorer button** — Add StickyNote button to `explorer-panel.tsx` next to PR View button
++- [x] **Stage 5: Final quality gate** — Run `just fft`, verify all green
+ 
+ ---
+ 
+@@ -126,8 +126,8 @@ flowchart LR
+ 
+ ## Checklist
+ 
+-- [ ] T001: Create `docs/how/file-notes.md` how-to guide
+-- [ ] T002: Create `docs/how/pr-view.md` how-to guide
+-- [ ] T003: Update README.md CLI section with `cg notes` commands
+-- [ ] T004: Add Notes toggle button to ExplorerPanel
+-- [ ] T005: Run `just fft` final quality gate
++- [x] T001: Create `docs/how/file-notes.md` how-to guide
++- [x] T002: Create `docs/how/pr-view.md` how-to guide
++- [x] T003: Update README.md CLI section with `cg notes` commands
++- [x] T004: Add Notes toggle button to ExplorerPanel
++- [x] T005: Run `just fft` final quality gate

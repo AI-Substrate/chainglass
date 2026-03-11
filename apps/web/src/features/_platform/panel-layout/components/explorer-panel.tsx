@@ -14,7 +14,14 @@
  */
 
 import type { IUSDK } from '@chainglass/shared/sdk';
-import { ArrowRight, ClipboardCopy, ScrollText, TerminalSquare } from 'lucide-react';
+import {
+  ArrowRight,
+  ClipboardCopy,
+  GitPullRequest,
+  ScrollText,
+  StickyNote,
+  TerminalSquare,
+} from 'lucide-react';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -487,6 +494,24 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
             />
           )}
         </div>
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent('pr-view:toggle'))}
+          className="shrink-0 rounded p-1 text-muted-foreground hover:text-foreground hover:bg-accent"
+          aria-label="Toggle PR View"
+          title="Toggle PR View (Ctrl+Shift+R)"
+        >
+          <GitPullRequest className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent('notes:toggle'))}
+          className="shrink-0 rounded p-1 text-muted-foreground hover:text-foreground hover:bg-accent"
+          aria-label="Toggle Notes"
+          title="Toggle Notes (Ctrl+Shift+L)"
+        >
+          <StickyNote className="h-4 w-4" />
+        </button>
         <button
           type="button"
           onClick={() => window.dispatchEvent(new CustomEvent('activity-log:toggle'))}

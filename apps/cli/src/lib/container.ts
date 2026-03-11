@@ -60,6 +60,8 @@ import {
   getProjectConfigDir,
   getUserConfigDir,
 } from '@chainglass/shared';
+import { FakeNoteService } from '@chainglass/shared/fakes';
+import { JsonlNoteService } from '@chainglass/shared/file-notes';
 import {
   FakeGitWorktreeManager,
   FakeGitWorktreeResolver,
@@ -439,6 +441,12 @@ export function createCliProductionContainer(): DependencyContainer {
       new SampleService(c.resolve<ISampleAdapter>(WORKSPACE_DI_TOKENS.SAMPLE_ADAPTER)),
   });
 
+  // Note service factory (Plan 071: Phase 3)
+  // INoteService needs worktreePath at construction time, so we register a factory.
+  childContainer.register(SHARED_DI_TOKENS.NOTE_SERVICE_FACTORY, {
+    useValue: (worktreePath: string) => new JsonlNoteService(worktreePath),
+  });
+
   return childContainer;
 }
 
@@ -588,6 +596,12 @@ export function createCliTestContainer(): DependencyContainer {
   childContainer.register<ISampleService>(WORKSPACE_DI_TOKENS.SAMPLE_SERVICE, {
     useFactory: (c) =>
       new SampleService(c.resolve<ISampleAdapter>(WORKSPACE_DI_TOKENS.SAMPLE_ADAPTER)),
+  });
+
+  // Note service factory — uses FakeNoteService for tests (Plan 071: Phase 3)
+  const fakeNoteService = new FakeNoteService();
+  childContainer.register(SHARED_DI_TOKENS.NOTE_SERVICE_FACTORY, {
+    useValue: (_worktreePath: string) => fakeNoteService,
   });
 
   return childContainer;

@@ -30,6 +30,7 @@ import type { FileEntry } from '@/features/041-file-browser/services/directory-l
 import { createFilePathHandler } from '@/features/041-file-browser/services/file-path-handler';
 import { FileChangeProvider, useFileChanges } from '@/features/045-live-file-events';
 import { QuestionPopperIndicator } from '@/features/067-question-popper/components/question-popper-indicator';
+import { useNotesOverlay } from '@/features/071-file-notes/hooks/use-notes-overlay';
 import {
   type BarContext,
   ExplorerPanel,
@@ -41,7 +42,7 @@ import {
 import type { PanelMode } from '@/features/_platform/panel-layout';
 import { useSDK, useSDKMru } from '@/lib/sdk/sdk-provider';
 import { GlobalStateConnector } from '@/lib/state';
-import { FileDiff, GitBranch } from 'lucide-react';
+import { FileDiff, GitBranch, StickyNote } from 'lucide-react';
 import { useQueryStates } from 'nuqs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -62,6 +63,7 @@ import {
   renameItem,
   saveFile,
 } from '../../../../actions/file-actions';
+import { fetchFilesWithNotes } from '../../../../actions/notes-actions';
 
 export interface BrowserClientProps {
   slug: string;
@@ -155,6 +157,86 @@ function BrowserClientInner({
   });
 
   const clipboard = useClipboard({ slug, worktreePath, readFile });
+
+  // Phase 7 T003: Note file paths for tree indicators (DYK-01, DYK-02)
+  const { openModal } = useNotesOverlay();
+  const [noteFilePaths, setNoteFilePaths] = useState<Set<string>>(new Set());
+  const refreshNoteFilesRef = useRef<(() => Promise<void>) | undefined>(undefined);
+  refreshNoteFilesRef.current = useCallback(async () => {
+    const result = await fetchFilesWithNotes(worktreePath);
+    if (result.ok) {
+      setNoteFilePaths(new Set(result.data));
+    }
+  }, [worktreePath]);
+
+  // Fetch note file paths on mount
+  useEffect(() => {
+    refreshNoteFilesRef.current?.();
+  }, []);
+
+  // DYK-02: Listen for notes:changed to refresh immediately after CRUD
+  useEffect(() => {
+    const handler = () => {
+      refreshNoteFilesRef.current?.();
+    };
+    window.addEventListener('notes:changed', handler);
+    return () => window.removeEventListener('notes:changed', handler);
+  }, []);
+
+  // "Add Note" from tree context menu (DYK-01: direct hook call)
+  const handleAddNote = useCallback(
+    (filePath: string) => {
+      openModal({ target: filePath });
+    },
+    [openModal]
+  );
+
+  // Phase 7 T004: "Has notes" filter toggle (DYK-03: ancestor directory preservation)
+  const [showOnlyWithNotes, setShowOnlyWithNotes] = useState(false);
+
+  // FT-002: Auto-reset filter when all notes are cleared
+  useEffect(() => {
+    if (showOnlyWithNotes && noteFilePaths.size === 0) {
+      setShowOnlyWithNotes(false);
+    }
+  }, [showOnlyWithNotes, noteFilePaths.size]);
+
+  // Build ancestor directory paths from noteFilePaths for tree filtering
+  const noteAncestorPaths = useMemo(() => {
+    if (!showOnlyWithNotes || noteFilePaths.size === 0) return new Set<string>();
+    const ancestors = new Set<string>();
+    for (const filePath of noteFilePaths) {
+      const parts = filePath.split('/');
+      let current = '';
+      for (let i = 0; i < parts.length - 1; i++) {
+        current = current ? `${current}/${parts[i]}` : parts[i];
+        ancestors.add(current);
+      }
+    }
+    return ancestors;
+  }, [showOnlyWithNotes, noteFilePaths]);
+
+  // Filter entries for tree display when notes filter is active
+  const filteredRootEntries = useMemo(() => {
+    if (!showOnlyWithNotes) return rootEntries;
+    return rootEntries.filter((entry) =>
+      entry.type === 'directory' ? noteAncestorPaths.has(entry.path) : noteFilePaths.has(entry.path)
+    );
+  }, [showOnlyWithNotes, rootEntries, noteAncestorPaths, noteFilePaths]);
+
+  // Filter child entries when notes filter is active
+  const filteredChildEntries = useMemo(() => {
+    if (!showOnlyWithNotes) return fileNav.childEntries;
+    const filtered: Record<string, FileEntry[]> = {};
+    for (const [dir, children] of Object.entries(fileNav.childEntries)) {
+      filtered[dir] = children.filter((entry) =>
+        entry.type === 'directory'
+          ? noteAncestorPaths.has(entry.path)
+          : noteFilePaths.has(entry.path)
+      );
+    }
+    return filtered;
+  }, [showOnlyWithNotes, fileNav.childEntries, noteAncestorPaths, noteFilePaths]);
 
   // --- File CRUD mutations (Plan 068 Phase 3) ---
 
@@ -674,27 +756,53 @@ function BrowserClientInner({
           >
             {{
               tree: (
-                <FileTree
-                  ref={treeRef}
-                  entries={rootEntries}
-                  selectedFile={selectedFile}
-                  changedFiles={panelState.changedFiles}
-                  newlyAddedPaths={combinedNewPaths}
-                  onSelect={handleFileSelect}
-                  onExpand={fileNav.handleExpand}
-                  childEntries={fileNav.childEntries}
-                  expandPaths={expandPaths}
-                  onExpandedDirsChange={setTrackedExpandedDirs}
-                  onCopyFullPath={clipboard.handleCopyFullPath}
-                  onCopyRelativePath={clipboard.handleCopyRelativePath}
-                  onCopyContent={clipboard.handleCopyContent}
-                  onCopyTree={clipboard.handleCopyTree}
-                  onDownload={clipboard.handleDownload}
-                  onCreateFile={handleTreeCreateFile}
-                  onCreateFolder={handleTreeCreateFolder}
-                  onRename={handleTreeRename}
-                  onDelete={handleTreeDelete}
-                />
+                <>
+                  {/* Phase 7 T004: Notes filter toggle (FT-002: keep visible while active) */}
+                  {(showOnlyWithNotes || noteFilePaths.size > 0) && (
+                    <div className="flex items-center justify-end px-2 py-0.5 border-b">
+                      <button
+                        type="button"
+                        onClick={() => setShowOnlyWithNotes((v) => !v)}
+                        className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] ${
+                          showOnlyWithNotes
+                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                        }`}
+                        title={
+                          showOnlyWithNotes
+                            ? 'Show all files'
+                            : `Show only files with notes (${noteFilePaths.size})`
+                        }
+                      >
+                        <StickyNote className="h-3 w-3" />
+                        <span>{noteFilePaths.size}</span>
+                      </button>
+                    </div>
+                  )}
+                  <FileTree
+                    ref={treeRef}
+                    entries={filteredRootEntries}
+                    selectedFile={selectedFile}
+                    changedFiles={panelState.changedFiles}
+                    filesWithNotes={noteFilePaths}
+                    newlyAddedPaths={combinedNewPaths}
+                    onSelect={handleFileSelect}
+                    onExpand={fileNav.handleExpand}
+                    childEntries={filteredChildEntries}
+                    expandPaths={expandPaths}
+                    onExpandedDirsChange={setTrackedExpandedDirs}
+                    onCopyFullPath={clipboard.handleCopyFullPath}
+                    onCopyRelativePath={clipboard.handleCopyRelativePath}
+                    onCopyContent={clipboard.handleCopyContent}
+                    onCopyTree={clipboard.handleCopyTree}
+                    onDownload={clipboard.handleDownload}
+                    onAddNote={handleAddNote}
+                    onCreateFile={handleTreeCreateFile}
+                    onCreateFolder={handleTreeCreateFolder}
+                    onRename={handleTreeRename}
+                    onDelete={handleTreeDelete}
+                  />
+                </>
               ),
               changes: (
                 <ChangesView

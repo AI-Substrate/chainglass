@@ -134,6 +134,10 @@ After building (`just build`), the CLI is available:
 | `cg sample delete <slug>` | Delete sample (--force required) |
 | `cg agent run -t <type> -p <prompt>` | Run an agent with a prompt |
 | `cg agent compact -t <type> -s <id>` | Compact an agent session |
+| `cg notes list` | List all notes (supports `--file`, `--status`, `--to`, `--json`) |
+| `cg notes files` | List files that have notes (`--json`) |
+| `cg notes add <file> --content "..."` | Add a note (`--line`, `--to`, `--author`) |
+| `cg notes complete <id>` | Mark a note as complete (`--by human\|agent`) |
 | `cg --help` | Show available commands |
 
 To use the CLI globally during development:

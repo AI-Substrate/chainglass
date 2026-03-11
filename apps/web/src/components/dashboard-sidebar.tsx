@@ -31,6 +31,7 @@ import {
   Plus,
   ScrollText,
   Settings,
+  StickyNote,
   TerminalSquare,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -316,6 +317,17 @@ export function DashboardSidebar() {
               >
                 <ScrollText className="h-5 w-5" />
                 {!isCollapsed && <span>Activity</span>}
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
+          {currentWorktree && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => window.dispatchEvent(new CustomEvent('notes:toggle'))}
+                tooltip="Toggle Notes"
+              >
+                <StickyNote className="h-5 w-5" />
+                {!isCollapsed && <span>Notes</span>}
               </SidebarMenuButton>
             </SidebarMenuItem>
           )}

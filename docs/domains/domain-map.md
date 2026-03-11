@@ -43,6 +43,10 @@ flowchart LR
     %% NEW business domains (Plan 065)
     activityLog["📋 activity-log<br/>ActivityLogEntry<br/>appendActivityLogEntry<br/>readActivityLog<br/>shouldIgnorePaneTitle<br/>useActivityLogOverlay<br/>GET /api/activity-log"]:::new
 
+    %% NEW business domains (Plan 071)
+    fileNotes["📝 file-notes<br/>INoteService · NoteLinkType<br/>NoteFilter · FakeNoteService<br/>JsonlNoteService · registerNotesCommands<br/>NotesOverlayPanel · NoteModal<br/>NoteIndicatorDot · useNotes<br/>GET/POST/PATCH/DELETE<br/>/api/file-notes"]:::new
+    prView["🔍 pr-view<br/>PRViewFile · PRViewData<br/>ComparisonMode · PRViewFileState<br/>PRViewOverlayProvider · usePRViewOverlay<br/>usePRViewData · registerPRViewSDK<br/>aggregatePRViewData · getAllDiffs<br/>GET/POST/DELETE<br/>/api/pr-view"]:::new
+
     %% NEW infrastructure domains (Plan 067)
     externalEvents["⚙️ _platform/external-events<br/>EventPopperRequest<br/>generateEventId<br/>readServerInfo<br/>localhostGuard<br/>detectTmuxContext"]:::new
 
@@ -147,6 +151,21 @@ flowchart LR
     fileBrowser -->|"middleware protection"| auth
     workflowUI -->|"middleware protection"| auth
     workunitEditor -->|"middleware protection"| auth
+    fileNotes -->|"requireAuth()<br/>auth()"| auth
+    fileNotes -->|"overlay anchor"| panels
+    fileNotes -->|"workspaceHref()"| wsUrl
+    fileNotes -->|"toast()"| events
+    fileNotes -->|"registerFileNotesSDK()"| sdk
+    prView -->|"getWorkingChanges()"| fileBrowser
+    prView -->|"requireAuth()<br/>auth()"| auth
+    prView -->|"DiffViewer"| viewer
+    prView -->|"overlay anchor"| panels
+    prView -->|"registerPRViewSDK()"| sdk
+    prView -->|"FileChangeProvider<br/>useFileChanges"| events
+
+    %% Cross-domain: file-notes consumed by file-browser and pr-view (Phase 7)
+    fileBrowser -->|"NoteIndicatorDot<br/>useNotesOverlay<br/>fetchFilesWithNotes<br/>notes:changed"| fileNotes
+    prView -->|"NoteIndicatorDot<br/>fetchFilesWithNotes"| fileNotes
     workspace -->|"requireAuth()<br/>middleware protection"| auth
 ```
 
@@ -168,7 +187,7 @@ flowchart LR
 | _platform/viewer | FileViewer, MarkdownViewer, DiffViewer, highlightCode, detectContentType, isBinaryExtension | file-browser | IFileSystem | file-ops | ✅ |
 | _platform/events | ICentralEventNotifier, ISSEBroadcaster, useSSE, MultiplexedSSEProvider, useChannelEvents, useChannelCallback, FileChangeHub, useFileChanges, FileChangeProvider, toast() | file-browser, workflow-ui, agents, state, question-popper | — | — | ✅ |
 | _platform/panel-layout | PanelShell, ExplorerPanel, LeftPanel, MainPanel, PanelHeader, BarHandler, AsciiSpinner, FlowSpaceSearchResult, FlowSpaceAvailability, FlowSpaceSearchMode | file-browser, future workspace pages | panel URL param | workspace-url | ✅ |
-| file-browser | Browser page, FileTree, FileViewerPanel, WorkspaceContext, EmojiPicker, ColorPicker, Settings | — | IFileSystem, workspaceHref, viewers, toast, events, panels, IWorkspaceService, useWorkspaceContext | file-ops, workspace-url, viewer, events, panel-layout, workspace | ✅ |
+| file-browser | Browser page, FileTree, FileViewerPanel, WorkspaceContext, EmojiPicker, ColorPicker, Settings | — | IFileSystem, workspaceHref, viewers, toast, events, panels, IWorkspaceService, useWorkspaceContext, NoteIndicatorDot, fetchFilesWithNotes, useNotesOverlay | file-ops, workspace-url, viewer, events, panel-layout, workspace, file-notes | ✅ |
 | workspace | IWorkspaceService, IWorkspaceContextResolver, IGitWorktreeResolver, IGitWorktreeManager, useWorkspaceContext | file-browser, workflow-ui, workunit-editor, terminal, agents | IFileSystem, IPathResolver, workspaceHref, workspaceParams, requireAuth(), middleware protection | file-ops, workspace-url, auth | 🟠 New |
 | _platform/sdk | IUSDK, ICommandRegistry, ISDKSettings, IContextKeyService, IKeybindingService, SDKCommand, SDKSetting, FakeUSDK | file-browser, workflow-ui, events, panel-layout, settings | — | — | ✅ |
 | _platform/settings | Settings Page, sdk.openSettings | — | ISDKSettings, useSDKSetting, useSDK | sdk | ✅ |
@@ -182,6 +201,8 @@ flowchart LR
 | work-unit-state | IWorkUnitStateService, WorkUnitEntry, WorkUnitEvent, FakeWorkUnitStateService, workUnitStateRoute | agents (AgentWorkUnitBridge), workflow-ui (future) | ICentralEventNotifier, ServerEventRouteDescriptor | events, state | 🟠 New |
 | workflow-events | IWorkflowEvents, WorkflowEventType, WorkflowEventError, FakeWorkflowEventsService | agents (observer hooks), workflow-ui (answerQuestion), CLI (ask/answer/get-answer) | IPositionalGraphService, ICentralEventNotifier | positional-graph, events | 🟠 New |
 | terminal | _(none — leaf consumer)_ | — | PanelShell, LeftPanel, MainPanel, toast(), IUSDK, ICommandRegistry, workspaceHref, IWorkspaceService, useWorkspaceContext | panel-layout, events, sdk, workspace-url, workspace | ✅ |
-| _platform/auth | auth(), signIn(), signOut(), requireAuth(), useAuth(), middleware protection, isUserAllowed(), SessionProvider | file-browser, workflow-ui, workunit-editor (via middleware), workspace (via middleware and server actions) | — | — | ✅ |
+| _platform/auth | auth(), signIn(), signOut(), requireAuth(), useAuth(), middleware protection, isUserAllowed(), SessionProvider | file-browser, workflow-ui, workunit-editor (via middleware), workspace (via middleware and server actions), file-notes | — | — | ✅ |
+| file-notes | INoteService, NoteLinkType, NoteFilter, FakeNoteService, JsonlNoteService, NotesOverlayPanel, NoteModal, NoteIndicatorDot, BulkDeleteDialog, useNotes, useNotesOverlay, registerFileNotesSDK, registerNotesCommands, GET/POST/PATCH/DELETE /api/file-notes | file-browser, CLI, pr-view | requireAuth(), auth(), overlay anchor, workspaceHref(), toast(), registerFileNotesSDK | auth, panel-layout, workspace-url, events, sdk | 🟠 New |
+| pr-view | PRViewFile, PRViewData, ComparisonMode, PRViewFileState, PRViewOverlayProvider, usePRViewOverlay, usePRViewData, registerPRViewSDK, aggregatePRViewData, getAllDiffs, GET/POST/DELETE /api/pr-view | file-browser (future) | getWorkingChanges(), requireAuth(), auth(), DiffViewer, overlay anchor, registerPRViewSDK, FileChangeProvider, useFileChanges, NoteIndicatorDot, fetchFilesWithNotes | file-browser, auth, viewer, panel-layout, sdk, events, file-notes | 🟠 New |
 | _platform/external-events | EventPopperRequest, EventPopperResponse, generateEventId, readServerInfo, writeServerInfo, localhostGuard, detectTmuxContext, WorkspaceDomain.EventPopper | question-popper | WorkspaceDomain | events | 🟠 New |
 | question-popper | IQuestionPopperService, QuestionPayloadSchema, AnswerPayloadSchema, AlertPayloadSchema, FakeQuestionPopperService, QuestionIn, QuestionOut, AlertIn | (Phase 3: API routes) | EventPopperRequest, generateEventId, ICentralEventNotifier | external-events, events | 🟠 New |
