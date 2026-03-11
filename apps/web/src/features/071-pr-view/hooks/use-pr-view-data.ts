@@ -63,6 +63,11 @@ export function usePRViewData(worktreePath: string | null): UsePRViewDataReturn 
   const isMounted = useRef(true);
   // DYK-02 (Phase 6): Generation counter prevents stale fetch race conditions
   const fetchGenRef = useRef(0);
+  // Ref mirror of data — used inside fetchData to avoid data in useCallback deps
+  // (having data in deps causes fetchData identity to change on every setData,
+  // which re-triggers the useEffect that calls fetchData → infinite loop)
+  const dataRef = useRef<PRViewData | null>(null);
+  dataRef.current = data;
 
   useEffect(() => {
     isMounted.current = true;
@@ -77,10 +82,10 @@ export function usePRViewData(worktreePath: string | null): UsePRViewDataReturn 
 
       // 10s cache — skip fetch if recent (unless forced)
       const now = Date.now();
-      if (!force && data && now - lastFetchTime.current < CACHE_TTL_MS) return;
+      if (!force && dataRef.current && now - lastFetchTime.current < CACHE_TTL_MS) return;
 
       // DYK-01 (Phase 6): Split loading — initial vs refresh
-      const isInitial = !data;
+      const isInitial = !dataRef.current;
       if (isInitial) {
         setInitialLoading(true);
       } else {
@@ -116,7 +121,7 @@ export function usePRViewData(worktreePath: string | null): UsePRViewDataReturn 
         }
       }
     },
-    [worktreePath, mode, data]
+    [worktreePath, mode]
   );
 
   const refresh = useCallback(() => {
