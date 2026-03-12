@@ -120,11 +120,15 @@ format:
     pnpm biome format --write .
 
 # Fix, format, and test (fft) - full quality check sequence
-fft: lint format build typecheck test
+fft: lint format build typecheck test security-audit
 
 # Run TypeScript type checking
 typecheck:
     pnpm tsc --noEmit
+
+# Audit dependencies for known security vulnerabilities (high/critical only)
+security-audit:
+    pnpm audit --audit-level=high
 
 # Run all quality checks
 check: lint typecheck test
@@ -188,6 +192,10 @@ harness-require:
       echo "Then retry your command."
       exit 1
     fi
+
+# Run smoke-test agent
+smoke-test-agent: harness-require
+    GH_TOKEN=$(XDG_CONFIG_HOME=~/.config gh auth token) just harness agent run smoke-test
 
 # Run code-review agent with GPT-5.4 xhigh reasoning and 20-minute timeout
 code-review-agent file_path: harness-require
