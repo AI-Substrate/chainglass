@@ -77,6 +77,10 @@ test:
 test-e2e:
     pnpm vitest run test/e2e/agent-cli-e2e.test.ts --config vitest.e2e.config.ts
 
+# Run advanced 6-node pipeline E2E with real Copilot agents (interactive mode)
+test-pipeline:
+    npx tsx scripts/test-advanced-pipeline.ts --interactive
+
 # Run harness integration tests (requires Docker/OrbStack running + container up)
 test-harness:
     cd harness && pnpm vitest run
