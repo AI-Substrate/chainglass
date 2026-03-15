@@ -28,8 +28,15 @@ The orchestration engine (`OrchestrationService` → `GraphOrchestration.drive()
 | `packages/positional-graph/src/features/030-orchestration/orchestration-service.types.ts` | positional-graph | contract | Add 'stopped' to DriveExitReason, signal to DriveOptions |
 | `packages/positional-graph/src/features/030-orchestration/reality.types.ts` | positional-graph | contract | Add 'interrupted' to ExecutionStatus |
 | `packages/positional-graph/src/features/030-orchestration/graph-orchestration.ts` | positional-graph | internal | AbortSignal check + abortable sleep in drive() |
-| `packages/positional-graph/src/features/030-orchestration/orchestration-service.ts` | positional-graph | internal | Compound cache key |
-| `packages/positional-graph/src/features/030-orchestration/onbas.ts` | positional-graph | internal | Handle 'interrupted' status in visitNode |
+| `packages/positional-graph/src/features/030-orchestration/orchestration-service.ts` | positional-graph | internal | Compound cache key, per-handle PodManager+ODS via factory |
+| `packages/positional-graph/src/features/030-orchestration/onbas.ts` | positional-graph | internal | Handle 'interrupted' status in visitNode and diagnoseStuckLine |
+| `packages/positional-graph/src/features/030-orchestration/abortable-sleep.ts` | positional-graph | internal | Abort-aware sleep utility for drive() (new file) |
+| `packages/positional-graph/src/features/030-orchestration/reality.schema.ts` | positional-graph | contract-support | Zod ExecutionStatusSchema — add 'interrupted' |
+| `packages/positional-graph/src/features/030-orchestration/reality.format.ts` | positional-graph | internal | Status glyph for 'interrupted' nodes |
+| `packages/positional-graph/src/features/030-orchestration/index.ts` | positional-graph | contract-support | Export PerHandleDeps type |
+| `packages/positional-graph/src/index.ts` | positional-graph | contract-support | Export PerHandleDeps from package barrel |
+| `packages/positional-graph/src/schemas/state.schema.ts` | positional-graph | contract-support | NodeExecutionStatusSchema — add 'interrupted' |
+| `packages/positional-graph/src/container.ts` | positional-graph | internal | Per-handle factory in registerOrchestrationServices() |
 | `packages/positional-graph/src/features/029-agentic-work-units/workunit.schema.ts` | positional-graph | contract | (no change — schema already supports update) |
 | `apps/web/src/lib/di-container.ts` | positional-graph | cross-domain | Register orchestration services |
 | `apps/web/instrumentation.ts` | positional-graph | cross-domain | Bootstrap WorkflowExecutionManager singleton |

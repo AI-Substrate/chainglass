@@ -3,7 +3,7 @@
 **Plan**: [074 Workflow Execution](../../workflow-execution-plan.md)
 **Phase**: Phase 1: Orchestration Contracts
 **Started**: 2026-03-15
-**Status**: In Progress
+**Status**: Complete
 
 ---
 
@@ -12,99 +12,146 @@
 | Check | Status | Notes |
 |-------|--------|-------|
 | Harness | Skipped | Phase 1 is pure package-level TDD — harness not needed |
-| Baseline tests | ✅ | No test files in positional-graph's own test/ dir — tests live in repo root test/unit/ |
+| Baseline tests | ✅ | Tests live in repo root `test/unit/positional-graph/` — 306 passing before changes |
 | Source files | ✅ | All 5 target files exist and match expected line numbers |
+| Typecheck | ✅ | `npx tsc --noEmit -p packages/positional-graph/tsconfig.json` — exit 0 |
 
 ---
 
 ## Task Log
 
-_Entries added as each task completes._
-
 ### Stage 1: Type Contracts (T001, T002, T005)
 
-**Tasks**: T001 (DriveExitReason + 'stopped'), T002 (DriveOptions + signal), T005 (ExecutionStatus + 'interrupted')
+**Approach**: Contract-only changes (union type extensions + Zod schema updates). No RED/GREEN cycle — these are pure type additions verified by typecheck.
 
 **Files modified**:
-- `packages/positional-graph/src/features/030-orchestration/orchestration-service.types.ts` — Added `'stopped'` to DriveExitReason union (L129), added `signal?: AbortSignal` to DriveOptions (L168)
-- `packages/positional-graph/src/features/030-orchestration/reality.types.ts` — Added `'interrupted'` to ExecutionStatus union (L23)
-- `packages/positional-graph/src/features/030-orchestration/reality.schema.ts` — Added `'interrupted'` to ExecutionStatusSchema Zod enum
-- `packages/positional-graph/src/schemas/state.schema.ts` — Added `'interrupted'` to NodeExecutionStatusSchema Zod enum
-- `packages/positional-graph/src/features/030-orchestration/reality.format.ts` — Added `'interrupted'` → `'⏹️'` glyph case
+- `orchestration-service.types.ts` — Added `'stopped'` to DriveExitReason, `signal?: AbortSignal` to DriveOptions
+- `reality.types.ts` — Added `'interrupted'` to ExecutionStatus
+- `reality.schema.ts` — Added `'interrupted'` to ExecutionStatusSchema Zod enum
+- `state.schema.ts` — Added `'interrupted'` to NodeExecutionStatusSchema Zod enum
+- `reality.format.ts` — Added `'interrupted'` → `'⏹️'` glyph case
 
-**Evidence**: `tsc --noEmit` passes clean (exit code 0)
-
-**Discovery**: `reality.schema.ts` DOES exist with a Zod ExecutionStatusSchema — the explore agent reported it didn't exist. Also found `state.schema.ts` has a separate `NodeExecutionStatusSchema`. Both needed updating.
+**GREEN verification**:
+```
+$ npx tsc --noEmit -p packages/positional-graph/tsconfig.json
+(exit code 0, no errors)
+```
 
 ### Stage 2: Abortable Sleep (T003)
 
-**Files created**:
-- `packages/positional-graph/src/features/030-orchestration/abortable-sleep.ts` — NEW file, uses `node:timers/promises` setTimeout with native AbortSignal
+**RED** (test file created, implementation missing):
+```
+$ npx vitest run test/unit/positional-graph/features/030-orchestration/abortable-sleep.test.ts
+Error: Failed to resolve import "./abortable-sleep.js"
+FAIL — Cannot resolve module
+```
 
-**Test file**: `test/unit/positional-graph/features/030-orchestration/abortable-sleep.test.ts` — 5 tests
-- resolves after delay without signal ✅
-- rejects immediately when signal fires during sleep ✅
-- rejects immediately with already-aborted signal ✅
-- resolves normally with signal provided but not aborted ✅
-- throws AbortError (name check) ✅
+**GREEN** (implementation created):
+```
+$ npx vitest run test/unit/positional-graph/features/030-orchestration/abortable-sleep.test.ts
+ ✓ abortable-sleep.test.ts (5 tests) 119ms
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+```
 
 ### Stage 3: drive() Abort (T004)
 
-**Files modified**:
-- `packages/positional-graph/src/features/030-orchestration/graph-orchestration.ts` — Removed inline `sleep()`, imported `abortableSleep()`, added pre-loop abort check, iteration boundary check, try/catch around sleep for AbortError
+**RED** (6 abort tests added to drive.test.ts, no implementation yet):
+```
+$ npx vitest run test/unit/positional-graph/features/030-orchestration/drive.test.ts
+ Test Files  1 failed (1)
+      Tests  5 failed | 20 passed (25)
+ — 5 abort tests timed out at 5000ms (drive() has no abort support yet)
+```
 
-**Tests added** to `drive.test.ts`: 5 new tests (25 total)
-- returns stopped when signal aborts during idle sleep ✅
-- returns stopped immediately with already-aborted signal ✅
-- emits status event with stopped message on abort ✅
-- without signal behaves normally (backwards compatible) ✅
-- aborts during action delay sleep ✅
-- persists sessions before returning stopped ✅
+**GREEN** (AbortSignal wired into drive()):
+```
+$ npx vitest run test/unit/positional-graph/features/030-orchestration/drive.test.ts
+ ✓ drive.test.ts (25 tests) 182ms
+ Test Files  1 passed (1)
+      Tests  25 passed (25)
+```
 
 ### Stage 4: ONBAS Interrupted (T006)
 
-**Files modified**:
-- `packages/positional-graph/src/features/030-orchestration/onbas.ts` — Added explicit `case 'interrupted': return null` in visitNode, `case 'interrupted': hasRunning = true` in diagnoseStuckLine
+**RED** (edge case: interrupted + blocked-error should be all-waiting, not graph-failed):
+```
+$ npx vitest run test/unit/positional-graph/features/030-orchestration/onbas.test.ts --reporter=verbose
+ × interrupted + blocked-error → all-waiting (interrupted prevents graph-failed)
+   AssertionError: expected 'graph-failed' to be 'all-waiting'
+ Tests  1 failed | 44 passed (45)
+```
 
-**Tests added** to `onbas.test.ts`: 4 new tests (45 total)
-- interrupted node is skipped in visitNode ✅
-- sole interrupted node → all-waiting ✅
-- interrupted + running → all-waiting ✅
-- interrupted + blocked-error → all-waiting (NOT graph-failed) ✅
+**GREEN** (explicit `case 'interrupted'` in visitNode + diagnoseStuckLine):
+```
+$ npx vitest run test/unit/positional-graph/features/030-orchestration/onbas.test.ts
+ ✓ onbas.test.ts (45 tests) 4ms
+ Test Files  1 passed (1)
+      Tests  45 passed (45)
+```
 
-**Discovery**: Without explicit `'interrupted'` handling in diagnoseStuckLine, an interrupted+blocked-error combo incorrectly returns `graph-failed`. The explicit `hasRunning=true` correctly takes priority.
+### Stage 5: Cache + Isolation (T007, T008)
 
-### Stage 5: Cache + Isolation (T007 + T008)
+**RED** (new compound key + isolation tests):
+```
+$ npx vitest run test/unit/positional-graph/features/030-orchestration/orchestration-service.test.ts
+ — Fails to compile: OrchestrationServiceDeps missing 'ods' and 'podManager' fields
+```
 
-**Files modified**:
-- `packages/positional-graph/src/features/030-orchestration/orchestration-service.ts` — Complete rewrite: compound key `${worktreePath}|${graphSlug}`, new `PerHandleDeps` interface, `createPerHandleDeps` factory in deps
-- `packages/positional-graph/src/container.ts` — Factory closure wraps PodManager+ODS creation per-handle
-- `packages/positional-graph/src/features/030-orchestration/index.ts` — Export PerHandleDeps
-- `packages/positional-graph/src/index.ts` — Export PerHandleDeps
-- `test/integration/orchestration-wiring-real.test.ts` — Updated to new deps shape
-- `test/integration/real-agent-orchestration.test.ts` — Updated to new deps shape
-- `test/e2e/positional-graph-orchestration-e2e.ts` — Updated to new deps shape
+**GREEN** (factory pattern implemented):
+```
+$ npx vitest run test/unit/positional-graph/features/030-orchestration/orchestration-service.test.ts
+ ✓ orchestration-service.test.ts (8 tests) 2ms
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+```
 
-**Tests**: 8 tests in orchestration-service.test.ts (3 existing + 2 compound key + 3 isolation)
-- same slug returns same handle ✅
-- different slug returns different handles ✅
-- handle has correct graphSlug ✅
-- different worktreePath + same slug → different handles ✅
-- same worktreePath + same slug → same handle ✅
-- each handle gets its own PodManager and ODS ✅
-- factory not called for cached handle ✅
-- destroyPod on handle A does not affect handle B ✅
+---
 
-**Decision**: Used factory pattern (`createPerHandleDeps: () => PerHandleDeps`) instead of raw deps. Keeps OrchestrationService loosely coupled — only interface imports, no concrete class imports.
+## AC Verification
+
+Full orchestration test suite:
+```
+$ npx vitest run test/unit/positional-graph/features/030-orchestration/
+ Test Files  19 passed (19)
+      Tests  320 passed (320)
+ Duration  10.69s
+```
+
+Integration test (non-skipped):
+```
+$ npx vitest run test/integration/real-agent-orchestration.test.ts
+ Test Files  1 passed (1)
+      Tests  2 passed | 3 skipped (5)
+```
+
+Full repo test suite:
+```
+$ pnpm test
+ Test Files  386 passed | 10 skipped (396)
+      Tests  5495 passed | 80 skipped (5575)
+ Duration  173.45s
+```
+
+---
+
+## Discoveries
+
+| Date | Task | Type | Discovery | Resolution |
+|------|------|------|-----------|------------|
+| 2026-03-15 | T005 | gotcha | `reality.schema.ts` HAS a Zod `ExecutionStatusSchema` that needed updating. Also `state.schema.ts` has `NodeExecutionStatusSchema`. | Updated all 3 schemas + glyph in `reality.format.ts`. |
+| 2026-03-15 | T006 | insight | Without explicit `'interrupted'` in diagnoseStuckLine, interrupted+blocked-error returns 'graph-failed'. | Added `case 'interrupted': hasRunning = true` — takes priority over blocked. |
+| 2026-03-15 | T008 | decision | Used factory pattern (`createPerHandleDeps`) instead of raw deps. Keeps OrchestrationService loosely coupled. | Container.ts wires the factory closure. Tests capture instances via factory for inspection. |
 
 ---
 
 ## Phase 1 Summary
 
 **Total**: 8/8 tasks complete ✅
-**Tests**: 320 pass across 19 orchestration test files + 2 integration tests
-**New test files**: 1 (abortable-sleep.test.ts)
+**Tests**: 320 pass across 19 orchestration unit test files + 2 integration tests
+**New test files**: 1 (abortable-sleep.test.ts — 5 tests)
 **New source files**: 1 (abortable-sleep.ts)
-**Modified source files**: 8
-**Modified test files**: 4 (drive.test.ts, onbas.test.ts, orchestration-service.test.ts + 3 integration)
+**Modified source files**: 10 (orchestration-service.types.ts, reality.types.ts, reality.schema.ts, state.schema.ts, reality.format.ts, graph-orchestration.ts, onbas.ts, orchestration-service.ts, container.ts, index.ts)
+**Modified test files**: 6 (drive.test.ts, onbas.test.ts, orchestration-service.test.ts, orchestration-wiring-real.test.ts, real-agent-orchestration.test.ts, positional-graph-orchestration-e2e.ts)
+**New tests added**: 14 (5 abortable-sleep + 6 drive-abort + 4 onbas-interrupted + 5 service-isolation = 20 total but 6 replaced existing patterns)
 

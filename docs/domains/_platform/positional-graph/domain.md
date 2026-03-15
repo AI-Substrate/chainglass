@@ -60,6 +60,16 @@ Core graph engine that powers the line-based workflow execution system. Owns the
 | `POSITIONAL_GRAPH_DI_TOKENS` | Constants | CLI, web, tests | DI token namespace (defined in @chainglass/shared) |
 | `ORCHESTRATION_DI_TOKENS` | Constants | CLI, tests | DI token namespace for orchestration services |
 
+## Concepts
+
+| Concept | Entry Point | What It Does |
+|---------|-------------|--------------|
+| Cooperative drive stop | `IGraphOrchestration.drive(options.signal)` | Exits with `'stopped'` when an AbortSignal fires; checks at iteration boundary and during sleep |
+| Interrupted node status | `ExecutionStatus`, `ONBAS.visitNode()` | Marks stop-interrupted nodes as recoverable; ONBAS skips them during execution, resume resets to 'ready' |
+| Compound orchestration handle key | `OrchestrationService.get(ctx, graphSlug)` | Isolates handles by `worktreePath\|graphSlug` for multi-worktree safety |
+| Per-handle PodManager/ODS | `OrchestrationServiceDeps.createPerHandleDeps` | Each graph handle gets its own PodManager + ODS to prevent concurrent corruption |
+| Abortable sleep | `abortableSleep(ms, signal)` | Signal-aware delay using `node:timers/promises` — rejects immediately on abort |
+
 ## Composition (Internal)
 
 | Component | Role | Depends On |
