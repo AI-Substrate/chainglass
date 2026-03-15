@@ -90,6 +90,7 @@ Visual workflow editor for the positional graph system. Users view and edit line
 ## Source Location
 
 Primary: `apps/web/src/features/050-workflow-page/`
+Supporting: `apps/web/src/features/074-workflow-execution/` — execution hook, button-state utility, manager types (shared with positional-graph domain)
 
 | File/Area | Role | Notes |
 |-----------|------|-------|
@@ -97,6 +98,8 @@ Primary: `apps/web/src/features/050-workflow-page/`
 | `apps/web/src/features/050-workflow-page/hooks/` | React hooks | useUndoRedo, useWorkflowSSE, useWorkflowMutations |
 | `apps/web/src/features/050-workflow-page/lib/` | Pure logic | UndoRedoManager, context-badge, related-nodes, compute-available-sources |
 | `apps/web/src/features/050-workflow-page/types.ts` | Shared types | WorkflowSnapshot, server action types |
+| `apps/web/src/features/074-workflow-execution/hooks/` | Execution hook | useWorkflowExecution (hydration + SSE + action gating) |
+| `apps/web/src/features/074-workflow-execution/execution-button-state.ts` | Button state utility | deriveButtonState() pure function |
 | `apps/web/app/(dashboard)/workspaces/[slug]/workflows/` | Route pages | List + editor server components |
 | `apps/web/app/actions/workflow-actions.ts` | Server actions | 17 actions: load, list, create, mutations, Q&A, undo, SSE refresh |
 | `packages/workflow/src/features/023-central-watcher-notifications/workflow-watcher.adapter.ts` | Watcher adapter | Filters graph.yaml/node.yaml/state.json changes, 200ms debounce |

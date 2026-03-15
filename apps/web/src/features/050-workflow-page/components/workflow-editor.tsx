@@ -58,6 +58,7 @@ import { QAModal } from './qa-modal';
 import { WorkUnitToolbox } from './work-unit-toolbox';
 import { WorkflowCanvas } from './workflow-canvas';
 import { WorkflowEditorLayout } from './workflow-editor-layout';
+import { isLineEditable } from './workflow-line';
 import { WorkflowTempBar } from './workflow-temp-bar';
 
 export interface WorkflowEditorProps {
@@ -218,6 +219,13 @@ export function WorkflowEditor({
     return graphStatus.lines.findIndex((l) => l.nodes.some((n) => n.nodeId === selectedNodeId));
   }, [selectedNodeId, graphStatus.lines]);
 
+  // FT-001: Gate keyboard/modal mutations on execution-aware editability
+  const selectedNodeEditable = useMemo(() => {
+    if (!selectedNodeId) return false;
+    const line = graphStatus.lines.find((l) => l.nodes.some((n) => n.nodeId === selectedNodeId));
+    return line ? isLineEditable(line, execution.status) : false;
+  }, [selectedNodeId, graphStatus.lines, execution.status]);
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor)
@@ -286,12 +294,12 @@ export function WorkflowEditor({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.key === 'Backspace' && selectedNodeId) {
+      if (e.key === 'Backspace' && selectedNodeId && selectedNodeEditable) {
         e.preventDefault();
         handleDeleteNode(selectedNodeId);
       }
     },
-    [selectedNodeId, handleDeleteNode]
+    [selectedNodeId, selectedNodeEditable, handleDeleteNode]
   );
 
   return (
@@ -380,7 +388,11 @@ export function WorkflowEditor({
                 contextColor={computeContextBadge(selectedNode, selectedNodeLineIndex)}
                 related={relatedNodes?.related ?? []}
                 onBack={() => setSelectedNodeId(null)}
-                onEditProperties={() => setEditModalNodeId(selectedNodeId)}
+                onEditProperties={
+                  selectedNodeEditable && selectedNodeId
+                    ? () => setEditModalNodeId(selectedNodeId)
+                    : undefined
+                }
                 onEditTemplate={
                   selectedNode.unitSlug
                     ? () => {
