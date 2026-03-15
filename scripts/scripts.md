@@ -35,6 +35,12 @@ Index of all scripts in this directory. Keep this file updated when adding, remo
 | `agent/demo-copilot-adapter-streaming.ts` | Demo: SdkCopilotAdapter streaming events with real Copilot execution | `npx tsx scripts/agent/demo-copilot-adapter-streaming.ts [--session-id <id>]` |
 | `agent/demo-copilot-multi-turn.ts` | Demo: multi-turn conversation with Copilot proving context survival | `npx tsx scripts/agent/demo-copilot-multi-turn.ts [--password "myword"]` |
 
+## explore/
+
+| Script | Description | Usage |
+|--------|-------------|-------|
+| `explore/copilot-tmux-sessions.sh` | Detect Copilot CLI sessions running in tmux panes. Resolves tmux pane → TTY → copilot PID → session ID, then extracts model, token usage, context budget, cwd, branch, and repo. | `bash scripts/explore/copilot-tmux-sessions.sh [--current] [--json]` |
+
 ## agents/
 
 | Script | Description | Usage |

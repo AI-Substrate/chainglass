@@ -3,11 +3,13 @@
 import { useWorkspaceContext } from '@/features/041-file-browser/hooks/use-workspace-context';
 import { ClipboardCopy, TerminalSquare, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { useCopilotSessionBadges } from '../hooks/use-copilot-session-badges';
 import { useTerminalOverlay } from '../hooks/use-terminal-overlay';
 import { useTerminalWindowBadges } from '../hooks/use-terminal-window-badges';
 import { copyTmuxBuffer } from '../lib/copy-tmux-buffer';
 import type { ConnectionStatus } from '../types';
 import { ConnectionStatusBadge } from './connection-status-badge';
+import { CopilotSessionBadges } from './copilot-session-badges';
 import TerminalInner from './terminal-inner';
 
 export function TerminalOverlayPanel() {
@@ -21,16 +23,21 @@ export function TerminalOverlayPanel() {
   // This prevents WebSocket connections on every workspace page load
   const [hasOpened, setHasOpened] = useState(false);
   const windowBadges = useTerminalWindowBadges({ cwd, enabled: isOpen });
+  const copilotBadges = useCopilotSessionBadges({ cwd, enabled: isOpen });
 
   useEffect(() => {
     if (isOpen) setHasOpened(true);
   }, [isOpen]);
 
-  // Measure the main content area to align overlay exactly over it
+  // Measure the content area to align overlay over it.
+  // Primary: [data-terminal-overlay-anchor] (panel-layout pages like browser).
+  // Fallback: [data-slot="sidebar-inset"] > main (all workspace pages).
   const measureRef = useRef<(() => void) | null>(null);
   useEffect(() => {
     const measure = () => {
-      const anchor = document.querySelector('[data-terminal-overlay-anchor]');
+      const anchor =
+        document.querySelector('[data-terminal-overlay-anchor]') ||
+        document.querySelector('[data-slot="sidebar-inset"]');
       if (anchor) {
         const rect = anchor.getBoundingClientRect();
         setAnchorRect({
@@ -45,7 +52,9 @@ export function TerminalOverlayPanel() {
     measure();
     window.addEventListener('resize', measure);
     const observer = new ResizeObserver(measure);
-    const anchor = document.querySelector('[data-terminal-overlay-anchor]');
+    const anchor =
+      document.querySelector('[data-terminal-overlay-anchor]') ||
+      document.querySelector('[data-slot="sidebar-inset"]');
     if (anchor) observer.observe(anchor);
     const timer = setTimeout(measure, 200);
     return () => {
@@ -60,7 +69,7 @@ export function TerminalOverlayPanel() {
     if (isOpen) measureRef.current?.();
   }, [isOpen]);
 
-  // Close on Escape
+  // Close on Escape or Shift+Escape
   useEffect(() => {
     if (!isOpen) return;
 
@@ -138,6 +147,9 @@ export function TerminalOverlayPanel() {
           </button>
         </div>
       </div>
+
+      {/* Copilot session status badges (Plan 075) */}
+      <CopilotSessionBadges badges={copilotBadges} />
 
       {/* Terminal — direct import, no next/dynamic wrapper */}
       <div className="flex-1 overflow-hidden min-h-0">
