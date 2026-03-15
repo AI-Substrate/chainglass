@@ -290,31 +290,20 @@ interface ProcessLogData {
 function getProcessLogData(copilotDir: string, pid: number, deps: DetectorDeps): ProcessLogData {
   const result: ProcessLogData = { model: null, reasoningEffort: null, promptTokens: null };
   try {
-    // Grab model, reasoning effort, and token count from the process log in one pass
-    // tac reads backwards so we get the most recent values first
+    // Single tac | grep pass — grab up to 5 matches to ensure we find all 3 fields
+    // Fields appear on separate lines throughout the log; -m5 gives enough headroom
     const output = deps.exec('bash', [
       '-c',
-      `tac "${copilotDir}/logs/"process-*-${pid}.log 2>/dev/null | grep -m1 -E '"model"|"prompt_tokens_count"|"reasoning_effort"' || true`,
+      `tac "${copilotDir}/logs/"process-*-${pid}.log 2>/dev/null | grep -m5 -E '"prompt_tokens_count"|"model"|"reasoning_effort"' || true`,
     ]);
+
     const tokenMatch = output.match(/"prompt_tokens_count":\s*(\d+)/);
     if (tokenMatch) result.promptTokens = Number.parseInt(tokenMatch[1], 10);
 
-    // Model and effort need separate greps since they're on different lines
-    const modelOutput = deps.exec('bash', [
-      '-c',
-      `tac "${copilotDir}/logs/"process-*-${pid}.log 2>/dev/null | grep -m1 '"model"' || true`,
-    ]);
-    const modelMatch = modelOutput.match(/"model":\s*"([^"]+)"/);
-    if (modelMatch) {
-      // Strip internal routing prefixes (e.g. "capi-noe-ptuc-h200-ib-gpt-5-mini-2025-08-07" -> use as-is)
-      result.model = modelMatch[1];
-    }
+    const modelMatch = output.match(/"model":\s*"([^"]+)"/);
+    if (modelMatch) result.model = modelMatch[1];
 
-    const effortOutput = deps.exec('bash', [
-      '-c',
-      `tac "${copilotDir}/logs/"process-*-${pid}.log 2>/dev/null | grep -m1 '"reasoning_effort"' || true`,
-    ]);
-    const effortMatch = effortOutput.match(/"reasoning_effort":\s*"([^"]+)"/);
+    const effortMatch = output.match(/"reasoning_effort":\s*"([^"]+)"/);
     if (effortMatch) result.reasoningEffort = effortMatch[1];
   } catch {
     // Return partial data
