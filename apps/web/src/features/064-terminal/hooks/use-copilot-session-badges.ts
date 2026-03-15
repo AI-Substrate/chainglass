@@ -70,8 +70,15 @@ export function useCopilotSessionBadges({
         const entries: ActivityLogEntry[] = await res.json();
 
         // Entries arrive newest-first. Take first occurrence per window index.
+        // Only include entries from the last 2 minutes to avoid showing stale
+        // sessions from previous tmux layouts.
+        const staleThresholdMs = 2 * 60 * 1000;
+        const now = Date.now();
         const latestByWindow = new Map<string, CopilotSessionBadge>();
         for (const entry of entries) {
+          const entryAge = now - new Date(entry.timestamp).getTime();
+          if (entryAge > staleThresholdMs) continue;
+
           const pane = (entry.meta?.pane as string) ?? '';
           const windowIndex = pane.split('.')[0];
           if (!windowIndex || latestByWindow.has(windowIndex)) continue;
