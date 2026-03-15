@@ -16,6 +16,7 @@ import type { IWorkspaceService } from '@chainglass/workflow';
 import { SSEManagerBroadcaster } from '../../features/019-agent-manager-refactor/sse-manager-broadcaster';
 import { getContainer } from '../../lib/bootstrap-singleton';
 import { sseManager } from '../../lib/sse-manager';
+import { createFileExecutionRegistry } from './execution-registry';
 import { WorkflowExecutionManager } from './workflow-execution-manager';
 
 export async function createWorkflowExecutionManager(): Promise<WorkflowExecutionManager> {
@@ -30,6 +31,7 @@ export async function createWorkflowExecutionManager(): Promise<WorkflowExecutio
     ),
     workspaceService: container.resolve<IWorkspaceService>(WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE),
     broadcaster: new SSEManagerBroadcaster(sseManager),
+    registry: createFileExecutionRegistry(),
   };
 
   return new WorkflowExecutionManager(deps);

@@ -3,6 +3,9 @@
  * TDD: Tests cover start/stop/restart/resume/getStatus/listRunning/cleanup.
  */
 
+import os from 'node:os';
+import type { IExecutionRegistry } from '@/features/074-workflow-execution/execution-registry.types';
+import { createEmptyRegistry } from '@/features/074-workflow-execution/execution-registry.types';
 import { WorkflowExecutionManager } from '@/features/074-workflow-execution/workflow-execution-manager';
 import type { ExecutionManagerDeps } from '@/features/074-workflow-execution/workflow-execution-manager.types';
 import { FakeOrchestrationService, FakePositionalGraphService } from '@chainglass/positional-graph';
@@ -32,23 +35,55 @@ const fakeWorkspaceService = {
     makeFullContext(),
 };
 
+/** In-memory fake registry for tests. */
+function createFakeRegistry(): IExecutionRegistry & {
+  lastWritten: ReturnType<typeof createEmptyRegistry> | null;
+  removed: boolean;
+} {
+  const state = {
+    registry: createEmptyRegistry(),
+    lastWritten: null as ReturnType<typeof createEmptyRegistry> | null,
+    removed: false,
+  };
+  return {
+    read: () => state.registry,
+    write: (reg) => {
+      state.registry = reg;
+      state.lastWritten = reg;
+    },
+    remove: () => {
+      state.registry = createEmptyRegistry();
+      state.removed = true;
+    },
+    get lastWritten() {
+      return state.lastWritten;
+    },
+    get removed() {
+      return state.removed;
+    },
+  };
+}
+
 function createDeps(overrides?: Partial<ExecutionManagerDeps>): {
   deps: ExecutionManagerDeps;
   orchService: FakeOrchestrationService;
   graphService: FakePositionalGraphService;
   broadcaster: FakeSSEBroadcaster;
+  registry: ReturnType<typeof createFakeRegistry>;
 } {
   const orchService = new FakeOrchestrationService();
   const graphService = new FakePositionalGraphService();
   const broadcaster = new FakeSSEBroadcaster();
+  const registry = createFakeRegistry();
   const deps: ExecutionManagerDeps = {
     orchestrationService: orchService,
     graphService,
     workspaceService: fakeWorkspaceService as ExecutionManagerDeps['workspaceService'],
     broadcaster,
+    registry,
     ...overrides,
   };
-  return { deps, orchService, graphService, broadcaster };
+  return { deps, orchService, graphService, broadcaster, registry };
 }
 
 function configureSimpleGraph(orchService: FakeOrchestrationService) {
@@ -84,6 +119,7 @@ describe('WorkflowExecutionManager', () => {
   let orchService: FakeOrchestrationService;
   let graphService: FakePositionalGraphService;
   let broadcaster: FakeSSEBroadcaster;
+  let registry: ReturnType<typeof createFakeRegistry>;
 
   beforeEach(() => {
     const created = createDeps();
@@ -91,6 +127,7 @@ describe('WorkflowExecutionManager', () => {
     orchService = created.orchService;
     graphService = created.graphService;
     broadcaster = created.broadcaster;
+    registry = created.registry;
   });
 
   describe('start()', () => {
@@ -529,6 +566,231 @@ describe('WorkflowExecutionManager', () => {
 
       fakeHandle.releaseDrive({ exitReason: 'complete', iterations: 1, totalActions: 0 });
       await new Promise((r) => setTimeout(r, 10));
+    });
+  });
+
+  // ── Registry persistence tests (Phase 5 T007) ────────────
+
+  describe('registry persistence', () => {
+    /**
+     * Test Doc: Verifies registry is persisted when a workflow starts.
+     */
+    it('persists registry on start()', async () => {
+      configureSimpleGraph(orchService);
+      const fakeHandle = (await orchService.get(makeFullContext(), TEST_SLUG)) as import(
+        '@chainglass/positional-graph'
+      ).FakeGraphOrchestration;
+      fakeHandle.blockDrive();
+
+      await manager.start(TEST_CTX, TEST_SLUG);
+
+      expect(registry.lastWritten).not.toBeNull();
+      expect(registry.lastWritten?.executions.length).toBeGreaterThanOrEqual(1);
+      const entry = registry.lastWritten?.executions.find((e) => e.graphSlug === TEST_SLUG);
+      expect(entry).toBeDefined();
+      // Status should be 'running' (last persist was after running transition)
+      expect(entry?.status).toBe('running');
+
+      fakeHandle.releaseDrive({ exitReason: 'complete', iterations: 1, totalActions: 0 });
+      await new Promise((r) => setTimeout(r, 10));
+    });
+
+    /**
+     * Test Doc: Verifies registry is persisted on workflow completion.
+     */
+    it('persists registry on completion', async () => {
+      configureSimpleGraph(orchService);
+      await manager.start(TEST_CTX, TEST_SLUG);
+      // Wait for drive to complete
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(registry.lastWritten).not.toBeNull();
+      const entry = registry.lastWritten?.executions.find((e) => e.graphSlug === TEST_SLUG);
+      expect(entry).toBeDefined();
+      expect(['completed', 'stopped', 'failed']).toContain(entry?.status);
+    });
+
+    /**
+     * Test Doc: Verifies registry is persisted on stop().
+     */
+    it('persists registry on stop()', async () => {
+      configureSimpleGraph(orchService);
+      const fakeHandle = (await orchService.get(makeFullContext(), TEST_SLUG)) as import(
+        '@chainglass/positional-graph'
+      ).FakeGraphOrchestration;
+      fakeHandle.blockDrive();
+
+      await manager.start(TEST_CTX, TEST_SLUG);
+
+      const stopPromise = manager.stop(TEST_CTX.worktreePath, TEST_SLUG);
+      fakeHandle.releaseDrive({ exitReason: 'stopped', iterations: 0, totalActions: 0 });
+      await stopPromise;
+
+      expect(registry.lastWritten).not.toBeNull();
+      const entry = registry.lastWritten?.executions.find((e) => e.graphSlug === TEST_SLUG);
+      expect(entry).toBeDefined();
+    });
+  });
+
+  // ── resumeAll tests (Phase 5 T007) ────────────────────────
+
+  describe('resumeAll()', () => {
+    /**
+     * Test Doc: Verifies resumeAll does nothing when registry is empty.
+     */
+    it('does nothing with empty registry', async () => {
+      await manager.resumeAll();
+
+      expect(manager.listRunning()).toHaveLength(0);
+    });
+
+    /**
+     * Test Doc: Verifies resumeAll resumes entries with status running.
+     */
+    it('resumes entries with running status', async () => {
+      configureSimpleGraph(orchService);
+
+      // Use a real existing path (os.tmpdir always exists) so fs.existsSync returns true
+      const existingPath = os.tmpdir();
+
+      // Seed registry with a running entry
+      const { deps: deps2 } = createDeps({
+        registry: {
+          read: () => ({
+            version: 1,
+            updatedAt: new Date().toISOString(),
+            executions: [
+              {
+                key: 'test-key',
+                worktreePath: existingPath,
+                graphSlug: TEST_SLUG,
+                workspaceSlug: TEST_CTX.workspaceSlug,
+                status: 'running' as const,
+                iterations: 5,
+                startedAt: new Date().toISOString(),
+                stoppedAt: null,
+              },
+            ],
+          }),
+          write: () => {},
+          remove: () => {},
+        },
+      });
+      const mgr2 = new WorkflowExecutionManager(deps2);
+
+      await mgr2.resumeAll();
+      await new Promise((r) => setTimeout(r, 50));
+
+      // Verify a start was attempted — the manager should have a handle now
+      const status = mgr2.getStatus(existingPath, TEST_SLUG);
+      expect(['running', 'completed', 'failed', 'starting']).toContain(status);
+
+      await mgr2.cleanup();
+    });
+
+    /**
+     * Test Doc: Verifies resumeAll skips entries where worktree no longer exists.
+     */
+    it('skips entries where worktree no longer exists', async () => {
+      const { deps: deps2 } = createDeps({
+        registry: {
+          read: () => ({
+            version: 1,
+            updatedAt: new Date().toISOString(),
+            executions: [
+              {
+                key: 'stale-key',
+                worktreePath: '/nonexistent/path/that/does/not/exist',
+                graphSlug: 'stale-pipeline',
+                workspaceSlug: 'stale-ws',
+                status: 'running' as const,
+                iterations: 0,
+                startedAt: new Date().toISOString(),
+                stoppedAt: null,
+              },
+            ],
+          }),
+          write: () => {},
+          remove: () => {},
+        },
+      });
+      const mgr2 = new WorkflowExecutionManager(deps2);
+
+      // Should not throw — gracefully skips
+      await mgr2.resumeAll();
+
+      expect(mgr2.getStatus('/nonexistent/path/that/does/not/exist', 'stale-pipeline')).toBe(
+        'idle'
+      );
+    });
+
+    /**
+     * Test Doc: Verifies resumeAll does not resume completed/failed/stopped entries.
+     */
+    it('does not resume completed/failed/stopped entries', async () => {
+      const { deps: deps2 } = createDeps({
+        registry: {
+          read: () => ({
+            version: 1,
+            updatedAt: new Date().toISOString(),
+            executions: [
+              {
+                key: 'done-key',
+                worktreePath: '/test/wt',
+                graphSlug: 'done-pipeline',
+                workspaceSlug: 'ws',
+                status: 'completed' as const,
+                iterations: 10,
+                startedAt: new Date().toISOString(),
+                stoppedAt: new Date().toISOString(),
+              },
+              {
+                key: 'fail-key',
+                worktreePath: '/test/wt',
+                graphSlug: 'failed-pipeline',
+                workspaceSlug: 'ws',
+                status: 'failed' as const,
+                iterations: 3,
+                startedAt: new Date().toISOString(),
+                stoppedAt: new Date().toISOString(),
+              },
+            ],
+          }),
+          write: () => {},
+          remove: () => {},
+        },
+      });
+      const mgr2 = new WorkflowExecutionManager(deps2);
+
+      await mgr2.resumeAll();
+
+      // Neither should be running
+      expect(mgr2.listRunning()).toHaveLength(0);
+    });
+
+    /**
+     * Test Doc: Verifies resumeAll self-heals on corrupt registry (P5-DYK #3).
+     */
+    it('self-heals on registry read failure', async () => {
+      let removed = false;
+      const { deps: deps2 } = createDeps({
+        registry: {
+          read: () => {
+            throw new Error('Corrupt file');
+          },
+          write: () => {},
+          remove: () => {
+            removed = true;
+          },
+        },
+      });
+      const mgr2 = new WorkflowExecutionManager(deps2);
+
+      // Should not throw — catches error and deletes corrupt registry
+      await mgr2.resumeAll();
+
+      expect(removed).toBe(true);
+      expect(mgr2.listRunning()).toHaveLength(0);
     });
   });
 });

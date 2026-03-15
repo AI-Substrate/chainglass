@@ -64,7 +64,30 @@ export async function register() {
         const manager = await createWorkflowExecutionManager();
         globalThis.__workflowExecutionManager = manager;
 
+        // Phase 5: Resume workflows that were running before server stopped.
+        // P5-DYK #3: Separate try/catch — resumeAll failure must NOT prevent startup.
+        try {
+          await manager.resumeAll();
+        } catch (resumeError) {
+          console.warn('[workflow-execution] resumeAll() failed (non-fatal):', resumeError);
+          // P5-DYK #3: Self-healing — delete corrupt registry so next restart is clean
+          try {
+            const { removeRegistry } = await import(
+              './src/features/074-workflow-execution/execution-registry'
+            );
+            removeRegistry();
+          } catch {
+            // ignore registry cleanup errors
+          }
+        }
+
         process.on('SIGTERM', async () => {
+          // P5-DYK #1: Best-effort persist BEFORE cleanup (cleanup is slow)
+          try {
+            manager.persistRegistry();
+          } catch {
+            // Best-effort — don't block cleanup
+          }
           await manager.cleanup();
         });
 

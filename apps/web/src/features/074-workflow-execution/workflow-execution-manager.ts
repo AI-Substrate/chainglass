@@ -3,14 +3,17 @@
  *
  * Owns the lifecycle of workflow executions across all worktrees.
  * Wraps drive() with AbortController for cooperative cancellation.
- * Plan 074: Workflow Execution from Web UI — Phases 2+3.
+ * Plan 074: Workflow Execution from Web UI — Phases 2+3+5.
  *
  * Phase 3: SSE broadcasting via injected broadcast function.
+ * Phase 5: Registry persistence for server restart recovery.
  * DYK #5: 6 broadcast call sites — start(starting), start(running),
  * handleEvent, .then(completed/stopped/failed), .catch(failed), stop(stopping).
  */
 
+import fs from 'node:fs';
 import type { DriveEvent, DriveResult } from '@chainglass/positional-graph';
+import { toRegistryEntry } from './execution-registry.types';
 import type {
   ExecutionHandle,
   ExecutionManagerDeps,
@@ -24,9 +27,15 @@ import { makeExecutionKey } from './workflow-execution-manager.types';
 
 const SSE_CHANNEL = 'workflow-execution';
 
+/** Debounce thresholds for iteration-level registry persistence. */
+const PERSIST_EVERY_N_ITERATIONS = 10;
+const PERSIST_EVERY_MS = 30_000;
+
 export class WorkflowExecutionManager implements IWorkflowExecutionManager {
   private readonly executions = new Map<string, ExecutionHandle>();
   private readonly deps: ExecutionManagerDeps;
+  /** Track last persist point per execution for debouncing. */
+  private readonly lastPersist = new Map<string, { iteration: number; time: number }>();
 
   constructor(deps: ExecutionManagerDeps) {
     this.deps = deps;
@@ -107,6 +116,7 @@ export class WorkflowExecutionManager implements IWorkflowExecutionManager {
 
     this.executions.set(key, handle);
     this.broadcastStatus(handle); // DYK #5 call site (1): 'starting'
+    this.persistRegistry(); // Phase 5: persist on start
 
     // Resolve the orchestration handle
     const workspaceCtx = await this.deps.workspaceService.resolveContextFromParams(
@@ -124,6 +134,7 @@ export class WorkflowExecutionManager implements IWorkflowExecutionManager {
     handle.orchestrationHandle = orchestrationHandle;
     handle.status = 'running';
     this.broadcastStatus(handle); // DYK #5 call site (2): 'running'
+    this.persistRegistry(); // Phase 5: persist on running transition
 
     // Start drive() in background — NOT awaited
     handle.drivePromise = orchestrationHandle.drive({
@@ -148,6 +159,7 @@ export class WorkflowExecutionManager implements IWorkflowExecutionManager {
         handle.drivePromise = null;
         handle.stoppedAt = new Date().toISOString();
         this.broadcastStatus(handle); // DYK #5 call site (4): terminal status
+        this.persistRegistry(); // Phase 5: persist on completion
       })
       .catch((error: unknown) => {
         handle.status = 'failed';
@@ -156,6 +168,7 @@ export class WorkflowExecutionManager implements IWorkflowExecutionManager {
         handle.drivePromise = null;
         handle.stoppedAt = new Date().toISOString();
         this.broadcastStatus(handle); // DYK #5 call site (5): error
+        this.persistRegistry(); // Phase 5: persist on failure
       });
 
     return { started: true, already: false, key };
@@ -171,6 +184,7 @@ export class WorkflowExecutionManager implements IWorkflowExecutionManager {
 
     handle.status = 'stopping';
     this.broadcastStatus(handle); // DYK #5 call site (6): 'stopping'
+    this.persistRegistry(); // Phase 5: persist on stopping
     handle.controller?.abort();
 
     // Wait for drive() to exit
@@ -300,7 +314,8 @@ export class WorkflowExecutionManager implements IWorkflowExecutionManager {
     this.deps.broadcaster.broadcast(SSE_CHANNEL, 'execution-removed', { key });
   }
 
-  /** DYK #5 call site (3): broadcasts on every DriveEvent during drive() loop. */
+  /** DYK #5 call site (3): broadcasts on every DriveEvent during drive() loop.
+   * Phase 5 T004: Debounced iteration persistence (every 10 iterations or 30s). */
   private handleEvent(key: string, event: DriveEvent): void {
     const handle = this.executions.get(key);
     if (!handle) return;
@@ -313,5 +328,97 @@ export class WorkflowExecutionManager implements IWorkflowExecutionManager {
     handle.lastMessage = event.message;
 
     this.broadcastStatus(handle);
+
+    // Debounced registry persist for iteration events
+    if (event.type === 'iteration') {
+      const last = this.lastPersist.get(key) ?? { iteration: 0, time: 0 };
+      const now = Date.now();
+      const iterDelta = handle.iterations - last.iteration;
+      const timeDelta = now - last.time;
+      if (iterDelta >= PERSIST_EVERY_N_ITERATIONS || timeDelta >= PERSIST_EVERY_MS) {
+        this.lastPersist.set(key, { iteration: handle.iterations, time: now });
+        this.persistRegistry();
+      }
+    }
+  }
+
+  // ── Registry Persistence (Phase 5) ────────────────────────
+
+  /** Persist current execution state to registry file.
+   * Called at all lifecycle transition points.
+   * P5-DYK #2: Synchronous writes prevent interleaving. */
+  persistRegistry(): void {
+    try {
+      const entries = [...this.executions.values()].map((h) => toRegistryEntry(h));
+      this.deps.registry.write({
+        version: 1,
+        updatedAt: new Date().toISOString(),
+        executions: entries,
+      });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.warn(`[workflow-execution] Failed to persist registry: ${msg}`);
+    }
+  }
+
+  /**
+   * Resume workflows that were running when the server last stopped.
+   * Called from instrumentation.ts after bootstrap.
+   * P5-DYK #3: Never throws — on error, deletes corrupt registry and continues.
+   */
+  async resumeAll(): Promise<void> {
+    let registry: import('./execution-registry.types').ExecutionRegistry;
+    try {
+      registry = this.deps.registry.read();
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.warn(`[workflow-execution] Failed to read registry for resume, deleting: ${msg}`);
+      this.deps.registry.remove();
+      return;
+    }
+
+    if (registry.executions.length === 0) return;
+
+    const toResume = registry.executions.filter(
+      (e) => e.status === 'running' || e.status === 'starting'
+    );
+    const toKeep = registry.executions.filter(
+      (e) => e.status !== 'running' && e.status !== 'starting'
+    );
+
+    let resumed = 0;
+    for (const entry of toResume) {
+      try {
+        // Verify worktree still exists
+        if (!fs.existsSync(entry.worktreePath)) {
+          console.warn(
+            `[workflow-execution] Skipping resume for ${entry.graphSlug}: worktree ${entry.worktreePath} no longer exists`
+          );
+          continue;
+        }
+
+        console.log(`[workflow-execution] Resuming ${entry.graphSlug} in ${entry.worktreePath}`);
+        await this.start(
+          {
+            workspaceSlug: entry.workspaceSlug,
+            worktreePath: entry.worktreePath,
+          },
+          entry.graphSlug
+        );
+        resumed++;
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        console.warn(`[workflow-execution] Failed to resume ${entry.graphSlug}: ${msg}`);
+      }
+    }
+
+    // Clean stale entries and persist updated registry
+    if (toKeep.length !== registry.executions.length || resumed > 0) {
+      this.persistRegistry();
+    }
+
+    if (resumed > 0) {
+      console.log(`[workflow-execution] Resumed ${resumed}/${toResume.length} workflows`);
+    }
   }
 }

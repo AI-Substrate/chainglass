@@ -11,6 +11,7 @@ import type {
 } from '@chainglass/positional-graph';
 import type { ISSEBroadcaster } from '@chainglass/shared/features/019-agent-manager-refactor/sse-broadcaster.interface';
 import type { IWorkspaceService } from '@chainglass/workflow';
+import type { IExecutionRegistry } from './execution-registry.types';
 
 // ── Execution Key ───────────────────────────────────────
 // FT-001: Key must be safe for GlobalState paths (domain:instanceId:property).
@@ -83,6 +84,7 @@ export interface IWorkflowExecutionManager {
   ): SerializableExecutionStatus | undefined;
   listRunning(): ExecutionHandle[];
   cleanup(): Promise<void>;
+  resumeAll(): Promise<void>;
 }
 
 // ── Manager Dependencies ────────────────────────────────
@@ -93,6 +95,8 @@ export interface ExecutionManagerDeps {
   readonly workspaceService: IWorkspaceService;
   /** SSE broadcaster for execution events (FT-003: use contract, not internal). */
   readonly broadcaster: ISSEBroadcaster;
+  /** Persistent execution registry for server restart recovery. Phase 5. */
+  readonly registry: IExecutionRegistry;
 }
 
 // ── Serializable Status (DYK #1: ExecutionHandle has non-serializable fields) ──

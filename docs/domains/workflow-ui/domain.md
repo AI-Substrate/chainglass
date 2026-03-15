@@ -152,3 +152,4 @@ Supporting: `apps/web/src/features/074-workflow-execution/` — execution hook, 
 | Plan 061 Phase 3 | answerQuestion server action migrated to IWorkflowEvents delegation (single call replaces 2-step PGService handshake) | 2026-03-01 |
 | Plan 072 Phase 5 | Migrated useWorkflowSSE from `useSSE` to `useChannelEvents('workflows')` via multiplexed SSE. Deleted legacy `useSSE` hook. | 2026-03-08 |
 | Plan 074 Phase 4 | Run/Stop/Restart execution controls in toolbar, execution-aware node locking, undo/redo blocking during execution, live status display | 2026-03-15 |
+| Plan 074 Phase 5 | Execution registry persistence for server restart recovery: registry types/Zod schema, sync atomic writes, resumeAll() with self-healing, debounced iteration persistence, SIGTERM best-effort persist | 2026-03-15 |
