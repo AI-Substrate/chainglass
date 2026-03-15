@@ -14,6 +14,7 @@ import {
 } from '@chainglass/shared';
 import type { IWorkspaceService } from '@chainglass/workflow';
 import { getContainer } from '../../lib/di-container';
+import { sseManager } from '../../lib/sse-manager';
 import { WorkflowExecutionManager } from './workflow-execution-manager';
 
 export async function createWorkflowExecutionManager(): Promise<WorkflowExecutionManager> {
@@ -27,6 +28,7 @@ export async function createWorkflowExecutionManager(): Promise<WorkflowExecutio
       POSITIONAL_GRAPH_DI_TOKENS.POSITIONAL_GRAPH_SERVICE
     ),
     workspaceService: container.resolve<IWorkspaceService>(WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE),
+    broadcast: sseManager.broadcast.bind(sseManager),
   };
 
   return new WorkflowExecutionManager(deps);

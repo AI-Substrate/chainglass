@@ -73,6 +73,10 @@ export interface IWorkflowExecutionManager {
   ): Promise<StartResult>;
   getStatus(worktreePath: string, graphSlug: string): ManagerExecutionStatus;
   getHandle(worktreePath: string, graphSlug: string): ExecutionHandle | undefined;
+  getSerializableStatus(
+    worktreePath: string,
+    graphSlug: string
+  ): SerializableExecutionStatus | undefined;
   listRunning(): ExecutionHandle[];
   cleanup(): Promise<void>;
 }
@@ -83,4 +87,23 @@ export interface ExecutionManagerDeps {
   readonly orchestrationService: IOrchestrationService;
   readonly graphService: IPositionalGraphService;
   readonly workspaceService: IWorkspaceService;
+  /** SSE broadcast function — injected for testability. Signature matches SSEManager.broadcast(). */
+  readonly broadcast: (channelId: string, eventType: string, data: unknown) => void;
+}
+
+// ── Serializable Status (DYK #1: ExecutionHandle has non-serializable fields) ──
+
+/** Safe-to-serialize snapshot of an execution handle for server action responses. */
+export interface SerializableExecutionStatus {
+  readonly key: ExecutionKey;
+  readonly worktreePath: string;
+  readonly graphSlug: string;
+  readonly workspaceSlug: string;
+  readonly status: ManagerExecutionStatus;
+  readonly iterations: number;
+  readonly totalActions: number;
+  readonly lastEventType: string;
+  readonly lastMessage: string;
+  readonly startedAt: string | null;
+  readonly stoppedAt: string | null;
 }

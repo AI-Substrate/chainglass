@@ -27,6 +27,11 @@ export const WorkspaceDomain = {
   UnitCatalog: 'unit-catalog',
   /** SSE channel: `'event-popper'` — matches `/api/events/event-popper` subscription path (Plan 067) */
   EventPopper: 'event-popper',
+  /**
+   * SSE channel: `'workflow-execution'` — matches `/api/events/workflow-execution`
+   * subscription path (Plan 074)
+   */
+  WorkflowExecution: 'workflow-execution',
 } as const;
 
 /**

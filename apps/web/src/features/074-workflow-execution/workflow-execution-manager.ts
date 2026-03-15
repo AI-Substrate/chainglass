@@ -3,9 +3,11 @@
  *
  * Owns the lifecycle of workflow executions across all worktrees.
  * Wraps drive() with AbortController for cooperative cancellation.
- * Plan 074: Workflow Execution from Web UI — Phase 2.
+ * Plan 074: Workflow Execution from Web UI — Phases 2+3.
  *
- * SSE/GlobalState broadcasting is stubbed here (Phase 3 wires it).
+ * Phase 3: SSE broadcasting via injected broadcast function.
+ * DYK #5: 6 broadcast call sites — start(starting), start(running),
+ * handleEvent, .then(completed/stopped/failed), .catch(failed), stop(stopping).
  */
 
 import type { DriveEvent, DriveResult } from '@chainglass/positional-graph';
@@ -14,10 +16,13 @@ import type {
   ExecutionManagerDeps,
   IWorkflowExecutionManager,
   ManagerExecutionStatus,
+  SerializableExecutionStatus,
   StartResult,
   StopResult,
 } from './workflow-execution-manager.types.js';
 import { makeExecutionKey } from './workflow-execution-manager.types.js';
+
+const SSE_CHANNEL = 'workflow-execution';
 
 export class WorkflowExecutionManager implements IWorkflowExecutionManager {
   private readonly executions = new Map<string, ExecutionHandle>();
@@ -101,6 +106,7 @@ export class WorkflowExecutionManager implements IWorkflowExecutionManager {
     };
 
     this.executions.set(key, handle);
+    this.broadcastStatus(handle); // DYK #5 call site (1): 'starting'
 
     // Resolve the orchestration handle
     const workspaceCtx = await this.deps.workspaceService.resolveContextFromParams(
@@ -110,12 +116,14 @@ export class WorkflowExecutionManager implements IWorkflowExecutionManager {
     if (!workspaceCtx) {
       handle.status = 'failed';
       handle.lastMessage = 'Failed to resolve workspace context';
+      this.broadcastStatus(handle); // broadcast failure
       return { started: false, already: false, key };
     }
 
     const orchestrationHandle = await this.deps.orchestrationService.get(workspaceCtx, graphSlug);
     handle.orchestrationHandle = orchestrationHandle;
     handle.status = 'running';
+    this.broadcastStatus(handle); // DYK #5 call site (2): 'running'
 
     // Start drive() in background — NOT awaited
     handle.drivePromise = orchestrationHandle.drive({
@@ -139,6 +147,7 @@ export class WorkflowExecutionManager implements IWorkflowExecutionManager {
         handle.controller = null;
         handle.drivePromise = null;
         handle.stoppedAt = new Date().toISOString();
+        this.broadcastStatus(handle); // DYK #5 call site (4): terminal status
       })
       .catch((error: unknown) => {
         handle.status = 'failed';
@@ -146,6 +155,7 @@ export class WorkflowExecutionManager implements IWorkflowExecutionManager {
         handle.controller = null;
         handle.drivePromise = null;
         handle.stoppedAt = new Date().toISOString();
+        this.broadcastStatus(handle); // DYK #5 call site (5): error
       });
 
     return { started: true, already: false, key };
@@ -160,6 +170,7 @@ export class WorkflowExecutionManager implements IWorkflowExecutionManager {
     }
 
     handle.status = 'stopping';
+    this.broadcastStatus(handle); // DYK #5 call site (6): 'stopping'
     handle.controller?.abort();
 
     // Wait for drive() to exit
@@ -218,7 +229,8 @@ export class WorkflowExecutionManager implements IWorkflowExecutionManager {
       graphSlug
     );
 
-    // 5. Delete execution handle
+    // 5. Delete execution handle (DYK #2: broadcast removal first)
+    this.broadcastRemoval(key);
     this.executions.delete(key);
 
     // 6. Start fresh
@@ -235,6 +247,27 @@ export class WorkflowExecutionManager implements IWorkflowExecutionManager {
     return this.executions.get(key);
   }
 
+  getSerializableStatus(
+    worktreePath: string,
+    graphSlug: string
+  ): SerializableExecutionStatus | undefined {
+    const handle = this.getHandle(worktreePath, graphSlug);
+    if (!handle) return undefined;
+    return {
+      key: handle.key,
+      worktreePath: handle.worktreePath,
+      graphSlug: handle.graphSlug,
+      workspaceSlug: handle.workspaceSlug,
+      status: handle.status,
+      iterations: handle.iterations,
+      totalActions: handle.totalActions,
+      lastEventType: handle.lastEventType,
+      lastMessage: handle.lastMessage,
+      startedAt: handle.startedAt,
+      stoppedAt: handle.stoppedAt,
+    };
+  }
+
   listRunning(): ExecutionHandle[] {
     return [...this.executions.values()].filter((h) => h.status === 'running');
   }
@@ -248,7 +281,26 @@ export class WorkflowExecutionManager implements IWorkflowExecutionManager {
     );
   }
 
-  // Phase 3 will wire this to SSE + GlobalState
+  // ── SSE Broadcast (Phase 3) ──────────────────────────────
+
+  /** Broadcast current handle state to SSE channel. DYK #5: called at all 6 transition points. */
+  private broadcastStatus(handle: ExecutionHandle): void {
+    this.deps.broadcast(SSE_CHANNEL, 'execution-update', {
+      key: handle.key,
+      status: handle.status,
+      iterations: handle.iterations,
+      totalActions: handle.totalActions,
+      lastEventType: handle.lastEventType,
+      lastMessage: handle.lastMessage,
+    });
+  }
+
+  /** Broadcast handle removal so client can clean up GlobalState. DYK #2. */
+  private broadcastRemoval(key: string): void {
+    this.deps.broadcast(SSE_CHANNEL, 'execution-removed', { key });
+  }
+
+  /** DYK #5 call site (3): broadcasts on every DriveEvent during drive() loop. */
   private handleEvent(key: string, event: DriveEvent): void {
     const handle = this.executions.get(key);
     if (!handle) return;
@@ -259,5 +311,7 @@ export class WorkflowExecutionManager implements IWorkflowExecutionManager {
     }
     handle.lastEventType = event.type;
     handle.lastMessage = event.message;
+
+    this.broadcastStatus(handle);
   }
 }
