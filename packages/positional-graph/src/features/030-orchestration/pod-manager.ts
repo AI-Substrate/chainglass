@@ -53,7 +53,11 @@ export class PodManager implements IPodManager {
     this.sessions.set(nodeId, sessionId);
   }
 
-  destroyPod(nodeId: string): void {
+  async destroyPod(nodeId: string): Promise<void> {
+    const pod = this.pods.get(nodeId);
+    if (pod) {
+      await pod.terminate().catch(() => {});
+    }
     this.pods.delete(nodeId);
   }
 

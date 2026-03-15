@@ -38,12 +38,13 @@ The orchestration engine (`OrchestrationService` → `GraphOrchestration.drive()
 | `packages/positional-graph/src/schemas/state.schema.ts` | positional-graph | contract-support | NodeExecutionStatusSchema — add 'interrupted' |
 | `packages/positional-graph/src/container.ts` | positional-graph | internal | Per-handle factory in registerOrchestrationServices() |
 | `packages/positional-graph/src/features/029-agentic-work-units/workunit.schema.ts` | positional-graph | contract | (no change — schema already supports update) |
-| `apps/web/src/lib/di-container.ts` | positional-graph | cross-domain | Register orchestration services |
-| `apps/web/instrumentation.ts` | positional-graph | cross-domain | Bootstrap WorkflowExecutionManager singleton |
-| `apps/web/src/features/074-workflow-execution/workflow-execution-manager.ts` | positional-graph | internal | Central execution host |
-| `apps/web/src/features/074-workflow-execution/execution-registry.ts` | positional-graph | internal | Persist running-workflow manifest for restart recovery |
-| `apps/web/src/features/074-workflow-execution/create-execution-manager.ts` | positional-graph | internal | Factory: resolve DI deps, create manager |
-| `apps/web/src/features/074-workflow-execution/get-manager.ts` | positional-graph | internal | globalThis getter |
+| `apps/web/src/lib/di-container.ts` | web-integration | cross-domain | Register orchestration services |
+| `apps/web/instrumentation.ts` | web-integration | cross-domain | Bootstrap WorkflowExecutionManager singleton |
+| `apps/web/src/features/074-workflow-execution/workflow-execution-manager.ts` | web-integration | internal | Central execution host (consumes positional-graph + workflow) |
+| `apps/web/src/features/074-workflow-execution/workflow-execution-manager.types.ts` | web-integration | contract | Types for execution manager |
+| `apps/web/src/features/074-workflow-execution/execution-registry.ts` | web-integration | internal | Persist running-workflow manifest for restart recovery |
+| `apps/web/src/features/074-workflow-execution/create-execution-manager.ts` | web-integration | internal | Factory: resolve DI deps, create manager |
+| `apps/web/src/features/074-workflow-execution/get-manager.ts` | web-integration | internal | globalThis getter |
 | `packages/shared/src/features/027-central-notify-events/workspace-domain.ts` | events | contract | Add WorkflowExecution channel name |
 | `apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx` | events | cross-domain | Add channel to WORKSPACE_SSE_CHANNELS |
 | `apps/web/src/lib/state/workflow-execution-route.ts` | state | internal | ServerEventRouteDescriptor for execution status |

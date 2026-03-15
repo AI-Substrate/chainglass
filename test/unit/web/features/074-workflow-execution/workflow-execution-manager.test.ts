@@ -285,4 +285,83 @@ describe('WorkflowExecutionManager', () => {
       expect(handle?.lastEventType).toBeTruthy();
     });
   });
+
+  // ── Deterministic lifecycle tests (FT-002) ────────────
+
+  describe('deterministic lifecycle (blocked drive)', () => {
+    it('AC5: second start() during active drive returns already:true', async () => {
+      configureSimpleGraph(orchService);
+      // Pre-resolve handle so we can block it
+      const fakeHandle = (await orchService.get(makeFullContext(), TEST_SLUG)) as import(
+        '@chainglass/positional-graph'
+      ).FakeGraphOrchestration;
+      fakeHandle.blockDrive();
+
+      // First start — drive() blocks
+      const r1 = await manager.start(TEST_CTX, TEST_SLUG);
+      expect(r1.started).toBe(true);
+
+      // Second start while drive is still running
+      const r2 = await manager.start(TEST_CTX, TEST_SLUG);
+      expect(r2.started).toBe(false);
+      expect(r2.already).toBe(true);
+
+      // Release to avoid dangling promise
+      fakeHandle.releaseDrive({ exitReason: 'complete', iterations: 1, totalActions: 0 });
+      await new Promise((r) => setTimeout(r, 10));
+    });
+
+    it('AC3: stop() aborts signal, awaits, calls cleanup + markNodesInterrupted', async () => {
+      configureSimpleGraph(orchService);
+      const fakeHandle = (await orchService.get(makeFullContext(), TEST_SLUG)) as import(
+        '@chainglass/positional-graph'
+      ).FakeGraphOrchestration;
+      fakeHandle.blockDrive();
+
+      // Set graph state with an active node
+      graphService.setState({
+        graph_status: 'in_progress',
+        updated_at: new Date().toISOString(),
+        nodes: { 'node-1': { status: 'starting' } },
+      });
+
+      await manager.start(TEST_CTX, TEST_SLUG);
+      expect(manager.getStatus(TEST_CTX.worktreePath, TEST_SLUG)).toBe('running');
+
+      // Stop — this should abort the signal
+      const stopPromise = manager.stop(TEST_CTX.worktreePath, TEST_SLUG);
+
+      // Release drive so stop can complete
+      fakeHandle.releaseDrive({ exitReason: 'stopped', iterations: 0, totalActions: 0 });
+      const stopResult = await stopPromise;
+
+      expect(stopResult.stopped).toBe(true);
+      expect(fakeHandle.getLastDriveSignal()?.aborted).toBe(true);
+      expect(fakeHandle.cleanupCalls).toBeGreaterThanOrEqual(1);
+      expect(graphService.calls.get('markNodesInterrupted')?.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('restart() evicts handle and gets fresh one', async () => {
+      configureSimpleGraph(orchService);
+      const fakeHandle = (await orchService.get(makeFullContext(), TEST_SLUG)) as import(
+        '@chainglass/positional-graph'
+      ).FakeGraphOrchestration;
+      fakeHandle.blockDrive();
+
+      await manager.start(TEST_CTX, TEST_SLUG);
+
+      // Restart — needs to stop first, then evict, then start fresh
+      const restartPromise = manager.restart(TEST_CTX, TEST_SLUG);
+
+      // Release original drive
+      fakeHandle.releaseDrive({ exitReason: 'stopped', iterations: 0, totalActions: 0 });
+      // Wait for restart to complete — it will start() again which needs a configured graph
+      // Eviction means orchService creates a new handle
+      const result = await restartPromise;
+
+      expect(result.started).toBe(true);
+      expect(orchService.evictCalls).toBeGreaterThanOrEqual(1);
+      expect(graphService.calls.get('resetGraphState')?.length).toBeGreaterThanOrEqual(1);
+    });
+  });
 });

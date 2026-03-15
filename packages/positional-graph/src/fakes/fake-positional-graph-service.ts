@@ -613,4 +613,9 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     this._inspectResult = null;
     this._state = null;
   }
+
+  /** Test helper: set state directly (for lifecycle tests). */
+  setState(state: State): void {
+    this._state = state;
+  }
 }

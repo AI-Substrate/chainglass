@@ -36,6 +36,12 @@ export class FakeGraphOrchestration implements IGraphOrchestration {
   private driveCallIndex = 0;
   private readonly driveHistory: (DriveOptions | undefined)[] = [];
   private driveEvents: DriveEvent[] = [];
+  private pendingDrive: {
+    promise: Promise<DriveResult>;
+    resolve: (result: DriveResult) => void;
+    reject: (error: unknown) => void;
+  } | null = null;
+  private lastDriveSignal: AbortSignal | undefined = undefined;
 
   constructor(graphSlug: string, config: FakeGraphConfig) {
     this.graphSlug = graphSlug;
@@ -54,6 +60,13 @@ export class FakeGraphOrchestration implements IGraphOrchestration {
 
   async drive(options?: DriveOptions): Promise<DriveResult> {
     this.driveHistory.push(options);
+    this.lastDriveSignal = options?.signal;
+
+    // If pending drive is set, block until released
+    if (this.pendingDrive) {
+      return this.pendingDrive.promise;
+    }
+
     if (this.driveResults.length === 0) {
       throw new Error(`FakeGraphOrchestration(${this.graphSlug}): no driveResults configured`);
     }
@@ -94,6 +107,28 @@ export class FakeGraphOrchestration implements IGraphOrchestration {
   /** Get all drive() call options. */
   getDriveHistory(): readonly (DriveOptions | undefined)[] {
     return [...this.driveHistory];
+  }
+
+  /** Make drive() block until releaseDrive() is called. */
+  blockDrive(): void {
+    let resolve!: (result: DriveResult) => void;
+    let reject!: (error: unknown) => void;
+    const promise = new Promise<DriveResult>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    this.pendingDrive = { promise, resolve, reject };
+  }
+
+  /** Release a blocked drive() with a result. */
+  releaseDrive(result: DriveResult): void {
+    this.pendingDrive?.resolve(result);
+    this.pendingDrive = null;
+  }
+
+  /** Get the AbortSignal passed to the last drive() call. */
+  getLastDriveSignal(): AbortSignal | undefined {
+    return this.lastDriveSignal;
   }
 }
 

@@ -223,7 +223,7 @@ describe('OrchestrationService — per-handle isolation (T008)', () => {
     });
 
     // Destroy in A
-    pmA.destroyPod('node-1');
+    await pmA.destroyPod('node-1');
 
     // B's pod should still exist
     expect(pmA.getPod('node-1')).toBeUndefined();

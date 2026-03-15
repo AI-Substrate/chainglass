@@ -34,8 +34,8 @@ export class WorkflowExecutionManager implements IWorkflowExecutionManager {
     const key = makeExecutionKey(ctx.worktreePath, graphSlug);
     const existing = this.executions.get(key);
 
-    // Idempotent: already running → return early
-    if (existing && existing.status === 'running') {
+    // Idempotent: already running or starting → return early
+    if (existing && (existing.status === 'running' || existing.status === 'starting')) {
       return { started: false, already: true, key };
     }
 

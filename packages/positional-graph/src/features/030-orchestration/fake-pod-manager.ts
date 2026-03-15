@@ -124,7 +124,7 @@ export class FakePodManager implements IPodManager {
     this.sessions.set(nodeId, sessionId);
   }
 
-  destroyPod(nodeId: string): void {
+  async destroyPod(nodeId: string): Promise<void> {
     this.pods.delete(nodeId);
   }
 
