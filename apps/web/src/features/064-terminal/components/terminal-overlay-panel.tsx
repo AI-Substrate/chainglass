@@ -2,15 +2,33 @@
 
 import { useWorkspaceContext } from '@/features/041-file-browser/hooks/use-workspace-context';
 import { ClipboardCopy, TerminalSquare, X } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useCopilotSessionBadges } from '../hooks/use-copilot-session-badges';
 import { useTerminalOverlay } from '../hooks/use-terminal-overlay';
 import { useTerminalWindowBadges } from '../hooks/use-terminal-window-badges';
 import { copyTmuxBuffer } from '../lib/copy-tmux-buffer';
 import type { ConnectionStatus } from '../types';
 import { ConnectionStatusBadge } from './connection-status-badge';
-import { CopilotSessionBadges } from './copilot-session-badges';
 import TerminalInner from './terminal-inner';
+
+function formatTokens(n: number | null): string {
+  if (n === null) return '—';
+  if (n >= 1000) return `${Math.round(n / 1000)}k`;
+  return String(n);
+}
+
+function getPctColorClass(pct: number | null): string {
+  if (pct === null) return 'text-muted-foreground';
+  if (pct >= 90) return 'text-red-500';
+  if (pct >= 75) return 'text-orange-500';
+  if (pct >= 50) return 'text-yellow-500';
+  return 'text-green-500';
+}
+
+function formatModel(model: string | null): string {
+  if (!model) return '?';
+  return model.replace('claude-', '').replace('gpt-', 'gpt');
+}
 
 export function TerminalOverlayPanel() {
   const { isOpen, sessionName, cwd, closeTerminal } = useTerminalOverlay();
@@ -24,6 +42,23 @@ export function TerminalOverlayPanel() {
   const [hasOpened, setHasOpened] = useState(false);
   const windowBadges = useTerminalWindowBadges({ cwd, enabled: isOpen });
   const copilotBadges = useCopilotSessionBadges({ cwd, enabled: isOpen });
+
+  // Left-join window badges with copilot session data by windowIndex
+  const combinedBadges = useMemo(() => {
+    const copilotByWindow = new Map(copilotBadges.map((cb) => [cb.windowIndex, cb]));
+    return windowBadges.map((wb) => {
+      const copilot = copilotByWindow.get(wb.windowIndex);
+      return {
+        ...wb,
+        model: copilot?.model ?? null,
+        reasoningEffort: copilot?.reasoningEffort ?? null,
+        promptTokens: copilot?.promptTokens ?? null,
+        contextWindow: copilot?.contextWindow ?? null,
+        pct: copilot?.pct ?? null,
+        lastActivityAgo: copilot?.lastActivityAgo ?? null,
+      };
+    });
+  }, [windowBadges, copilotBadges]);
 
   useEffect(() => {
     if (isOpen) setHasOpened(true);
@@ -105,24 +140,50 @@ export function TerminalOverlayPanel() {
         <div className="flex items-center gap-2 min-w-0">
           <TerminalSquare className="h-4 w-4 text-muted-foreground shrink-0" />
           <span className="text-sm font-medium shrink-0">{sessionName}</span>
-          {windowBadges.length > 0 && (
+          {combinedBadges.length > 0 && (
             <div
-              className="flex items-center gap-1.5 flex-wrap"
+              className="flex items-start gap-1.5 flex-wrap"
               data-testid="terminal-window-badges"
             >
-              {windowBadges.map((badge) => (
-                <span
-                  key={badge.windowIndex}
-                  className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[11px] font-mono text-muted-foreground whitespace-nowrap"
-                  title={badge.label}
-                >
-                  <span className="text-foreground/70">
-                    {badge.windowIndex}
-                    {badge.windowName ? `:${badge.windowName}` : ''}
-                  </span>
-                  <span className="text-muted-foreground/80">{badge.label}</span>
-                </span>
-              ))}
+              {combinedBadges.map((badge) => {
+                const hasCopilot = badge.model !== null;
+                return (
+                  <div
+                    key={badge.windowIndex}
+                    className="inline-flex flex-col rounded bg-muted px-1.5 py-0.5 font-mono"
+                    title={badge.label}
+                  >
+                    {/* Line 1: window title */}
+                    <span className="text-[11px] text-muted-foreground whitespace-nowrap">
+                      <span className="text-foreground/70">
+                        {badge.windowIndex}
+                        {badge.windowName ? `:${badge.windowName}` : ''}
+                      </span>{' '}
+                      <span className="text-muted-foreground/80">{badge.label}</span>
+                    </span>
+                    {/* Line 2: copilot details (only when present) */}
+                    {hasCopilot && (
+                      <span className="text-[10px] text-muted-foreground/70 whitespace-nowrap flex items-center gap-1">
+                        <span>{formatModel(badge.model)}</span>
+                        {badge.reasoningEffort && <span>({badge.reasoningEffort})</span>}
+                        <span className="text-border">|</span>
+                        <span>
+                          {formatTokens(badge.promptTokens)}/{formatTokens(badge.contextWindow)}
+                        </span>
+                        <span className={getPctColorClass(badge.pct)}>
+                          {badge.pct !== null ? `${badge.pct}%` : '—'}
+                        </span>
+                        {badge.lastActivityAgo && (
+                          <>
+                            <span className="text-border">|</span>
+                            <span>{badge.lastActivityAgo}</span>
+                          </>
+                        )}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -147,9 +208,6 @@ export function TerminalOverlayPanel() {
           </button>
         </div>
       </div>
-
-      {/* Copilot session status badges (Plan 075) */}
-      <CopilotSessionBadges badges={copilotBadges} />
 
       {/* Terminal — direct import, no next/dynamic wrapper */}
       <div className="flex-1 overflow-hidden min-h-0">

@@ -104,3 +104,9 @@ TerminalOverlayPanel → CopilotSessionBadges component
 | Process log grows beyond 100MB | Medium | High | Only read last 200 lines via `tail`, cache by mtime |
 | Docker env can't access `~/.copilot/` | Medium | Medium | Detect at startup, skip polling, no errors |
 | Dedup allows too many writes if label unstable | Low | Medium | Label is `model (effort)` only — stable across polls |
+
+## Fixes
+
+| ID | Created | Summary | Domain(s) | Status | Source |
+|----|---------|---------|-----------|--------|--------|
+| FX001 | 2026-03-15 | [Combine window + copilot badges into unified cards](fixes/FX001-combine-badges.md) | terminal | Complete | User request — visual disconnect between rows |
