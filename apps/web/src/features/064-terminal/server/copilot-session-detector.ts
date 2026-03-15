@@ -112,7 +112,7 @@ export async function detectCopilotSessions(
   const pidsByTty = getCopilotPidsByTty(deps);
   if (Object.keys(pidsByTty).length === 0) return [];
 
-  // Step 3: Read global config (model, effort)
+  // Step 3: Read global config as fallback (model, effort)
   const config = await readCopilotConfig(copilotDir, deps);
 
   // Step 4: For each pane, check if copilot is running and resolve session
@@ -128,15 +128,16 @@ export async function detectCopilotSessions(
 
     const sessionDir = path.join(copilotDir, 'session-state', sessionId);
 
-    // Get prompt tokens from process log
-    const promptTokens = getPromptTokens(copilotDir, pid, deps);
+    // Get model + tokens from process log (per-session, not global config)
+    const logData = getProcessLogData(copilotDir, pid, deps);
 
     // Get last activity from events.jsonl mtime
     const lastActivityTime = await getLastActivityTime(sessionDir, deps);
 
-    // Derive context window
-    const model = config.model;
+    // Per-session model from log, fall back to global config
+    const model = logData.model ?? config.model;
     const contextWindow = model ? (MODEL_CONTEXT_WINDOWS[model] ?? null) : null;
+    const promptTokens = logData.promptTokens;
     const pct =
       promptTokens !== null && contextWindow !== null
         ? Math.round((promptTokens / contextWindow) * 1000) / 10
@@ -149,7 +150,7 @@ export async function detectCopilotSessions(
       pid,
       sessionId,
       model,
-      reasoningEffort: config.reasoningEffort,
+      reasoningEffort: logData.reasoningEffort ?? config.reasoningEffort,
       promptTokens,
       contextWindow,
       pct,
@@ -280,19 +281,45 @@ async function resolveSessionId(
   }
 }
 
-function getPromptTokens(copilotDir: string, pid: number, deps: DetectorDeps): number | null {
+interface ProcessLogData {
+  model: string | null;
+  reasoningEffort: string | null;
+  promptTokens: number | null;
+}
+
+function getProcessLogData(copilotDir: string, pid: number, deps: DetectorDeps): ProcessLogData {
+  const result: ProcessLogData = { model: null, reasoningEffort: null, promptTokens: null };
   try {
-    // Use tail + grep to find last prompt_tokens_count without reading entire file
-    // tac (reverse cat) + grep -m1 finds the last occurrence efficiently
+    // Grab model, reasoning effort, and token count from the process log in one pass
+    // tac reads backwards so we get the most recent values first
     const output = deps.exec('bash', [
       '-c',
-      `tac "${copilotDir}/logs/"process-*-${pid}.log 2>/dev/null | grep -m1 '"prompt_tokens_count"' || true`,
+      `tac "${copilotDir}/logs/"process-*-${pid}.log 2>/dev/null | grep -m1 -E '"model"|"prompt_tokens_count"|"reasoning_effort"' || true`,
     ]);
-    const match = output.match(/"prompt_tokens_count":\s*(\d+)/);
-    return match ? Number.parseInt(match[1], 10) : null;
+    const tokenMatch = output.match(/"prompt_tokens_count":\s*(\d+)/);
+    if (tokenMatch) result.promptTokens = Number.parseInt(tokenMatch[1], 10);
+
+    // Model and effort need separate greps since they're on different lines
+    const modelOutput = deps.exec('bash', [
+      '-c',
+      `tac "${copilotDir}/logs/"process-*-${pid}.log 2>/dev/null | grep -m1 '"model"' || true`,
+    ]);
+    const modelMatch = modelOutput.match(/"model":\s*"([^"]+)"/);
+    if (modelMatch) {
+      // Strip internal routing prefixes (e.g. "capi-noe-ptuc-h200-ib-gpt-5-mini-2025-08-07" -> use as-is)
+      result.model = modelMatch[1];
+    }
+
+    const effortOutput = deps.exec('bash', [
+      '-c',
+      `tac "${copilotDir}/logs/"process-*-${pid}.log 2>/dev/null | grep -m1 '"reasoning_effort"' || true`,
+    ]);
+    const effortMatch = effortOutput.match(/"reasoning_effort":\s*"([^"]+)"/);
+    if (effortMatch) result.reasoningEffort = effortMatch[1];
   } catch {
-    return null;
+    // Return partial data
   }
+  return result;
 }
 
 async function getLastActivityTime(sessionDir: string, deps: DetectorDeps): Promise<string | null> {
