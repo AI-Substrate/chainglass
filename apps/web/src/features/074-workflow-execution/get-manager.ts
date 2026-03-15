@@ -6,7 +6,7 @@
  * This getter provides type-safe access from server-side code (server actions, API routes).
  */
 
-import type { IWorkflowExecutionManager } from './workflow-execution-manager.types.js';
+import type { IWorkflowExecutionManager } from './workflow-execution-manager.types';
 
 declare global {
   // biome-ignore lint/style/noVar: globalThis augmentation requires var

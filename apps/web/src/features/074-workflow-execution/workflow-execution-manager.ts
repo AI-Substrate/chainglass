@@ -19,8 +19,8 @@ import type {
   SerializableExecutionStatus,
   StartResult,
   StopResult,
-} from './workflow-execution-manager.types.js';
-import { makeExecutionKey } from './workflow-execution-manager.types.js';
+} from './workflow-execution-manager.types';
+import { makeExecutionKey } from './workflow-execution-manager.types';
 
 const SSE_CHANNEL = 'workflow-execution';
 
