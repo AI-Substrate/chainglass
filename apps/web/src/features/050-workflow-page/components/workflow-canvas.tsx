@@ -10,6 +10,7 @@
  */
 
 import type { GraphStatusResult } from '@chainglass/positional-graph';
+import type { ManagerExecutionStatus } from '../../074-workflow-execution/workflow-execution-manager.types';
 import { EmptyCanvasPlaceholder } from './empty-states';
 import { LineTransitionGate } from './line-transition-gate';
 import { WorkflowLine } from './workflow-line';
@@ -19,6 +20,7 @@ export interface WorkflowCanvasProps {
   isDragging?: boolean;
   selectedNodeId?: string | null;
   relatedNodeIds?: Set<string>;
+  executionStatus?: ManagerExecutionStatus;
   onSelectNode?: (nodeId: string | null) => void;
   onDeleteNode?: (nodeId: string) => void;
   onAddLine?: (label?: string) => void;
@@ -32,6 +34,7 @@ export function WorkflowCanvas({
   isDragging = false,
   selectedNodeId,
   relatedNodeIds,
+  executionStatus,
   onSelectNode,
   onDeleteNode,
   onAddLine,
@@ -79,6 +82,7 @@ export function WorkflowCanvas({
             isDragging={isDragging}
             selectedNodeId={selectedNodeId}
             relatedNodeIds={relatedNodeIds}
+            executionStatus={executionStatus}
             onSelectNode={onSelectNode}
             onDeleteNode={onDeleteNode}
             onSetLineLabel={onSetLineLabel}

@@ -43,6 +43,8 @@ import {
   submitUserInput as submitUserInputAction,
   updateNodeConfig as updateNodeConfigAction,
 } from '../../../../app/actions/workflow-actions';
+import { deriveButtonState } from '../../074-workflow-execution/execution-button-state';
+import { useWorkflowExecution } from '../../074-workflow-execution/hooks/use-workflow-execution';
 import { useUndoRedo } from '../hooks/use-undo-redo';
 import { useWorkflowMutations } from '../hooks/use-workflow-mutations';
 import { useWorkflowSSE } from '../hooks/use-workflow-sse';
@@ -126,6 +128,22 @@ export function WorkflowEditor({
     graphStatus,
     onStatusUpdate: setGraphStatus,
   });
+
+  // Workflow execution (Plan 074 Phase 4)
+  const execution = useWorkflowExecution({
+    workspaceSlug,
+    graphSlug,
+    worktreePath,
+  });
+  const buttonState = deriveButtonState(
+    execution.status,
+    execution.actionPending,
+    execution.hydrating
+  );
+  const isExecutionActive =
+    execution.status === 'starting' ||
+    execution.status === 'running' ||
+    execution.status === 'stopping';
 
   // Undo/redo
   const undoRedo = useUndoRedo({
@@ -293,8 +311,8 @@ export function WorkflowEditor({
               templateSource={templateSource}
               undoDepth={undoRedo.undoDepth}
               redoDepth={undoRedo.redoDepth}
-              canUndo={undoRedo.canUndo}
-              canRedo={undoRedo.canRedo}
+              canUndo={undoRedo.canUndo && !isExecutionActive}
+              canRedo={undoRedo.canRedo && !isExecutionActive}
               onUndo={async () => {
                 const current = await loadCurrentSnapshot();
                 await undoRedo.undo(current);
@@ -303,6 +321,14 @@ export function WorkflowEditor({
                 const current = await loadCurrentSnapshot();
                 await undoRedo.redo(current);
               }}
+              executionStatus={execution.status}
+              buttonState={execution.disabled ? undefined : buttonState}
+              iterations={execution.iterations}
+              lastMessage={execution.lastMessage}
+              hydrating={execution.hydrating}
+              onRun={execution.run}
+              onStop={execution.stop}
+              onRestart={execution.restart}
             />
           }
           main={
@@ -311,6 +337,7 @@ export function WorkflowEditor({
               isDragging={isDragging}
               selectedNodeId={selectedNodeId}
               relatedNodeIds={relatedNodes?.relatedNodeIds}
+              executionStatus={execution.status}
               onSelectNode={setSelectedNodeId}
               onDeleteNode={handleDeleteNode}
               onAddLine={async (label?: string) => {

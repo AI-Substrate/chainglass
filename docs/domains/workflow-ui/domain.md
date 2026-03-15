@@ -148,3 +148,4 @@ Primary: `apps/web/src/features/050-workflow-page/`
 | Plan 050 Phase 7 | Removed all Plan 022 workgraph UI (pages, API routes, feature folder, DI registrations, event adapters, tests). Workflows card replaces WorkGraphs on worktree page. | 2026-02-27 |
 | Plan 061 Phase 3 | answerQuestion server action migrated to IWorkflowEvents delegation (single call replaces 2-step PGService handshake) | 2026-03-01 |
 | Plan 072 Phase 5 | Migrated useWorkflowSSE from `useSSE` to `useChannelEvents('workflows')` via multiplexed SSE. Deleted legacy `useSSE` hook. | 2026-03-08 |
+| Plan 074 Phase 4 | Run/Stop/Restart execution controls in toolbar, execution-aware node locking, undo/redo blocking during execution, live status display | 2026-03-15 |
