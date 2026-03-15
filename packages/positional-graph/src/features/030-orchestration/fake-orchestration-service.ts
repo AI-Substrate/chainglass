@@ -70,6 +70,15 @@ export class FakeGraphOrchestration implements IGraphOrchestration {
     return this.config.reality;
   }
 
+  async cleanup(): Promise<void> {
+    this._cleanupCalls++;
+  }
+
+  private _cleanupCalls = 0;
+  get cleanupCalls(): number {
+    return this._cleanupCalls;
+  }
+
   // ── Test helpers ────────────────────────────────────────
 
   /** Queue a DriveResult for drive() — FIFO, last repeats. */
@@ -116,6 +125,16 @@ export class FakeOrchestrationService implements IOrchestrationService {
       this.handles.set(graphSlug, handle);
     }
     return handle;
+  }
+
+  evict(worktreePath: string, graphSlug: string): void {
+    this.handles.delete(graphSlug);
+    this._evictCalls++;
+  }
+
+  private _evictCalls = 0;
+  get evictCalls(): number {
+    return this._evictCalls;
   }
 
   /** Get all get() calls. */

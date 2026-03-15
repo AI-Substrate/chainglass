@@ -1,16 +1,22 @@
 /**
  * Plan 027: Central Domain Event Notification System
  * Plan 067: Event Popper — server.json port discovery
+ * Plan 074: Workflow Execution Manager bootstrap
  *
  * Next.js instrumentation hook — called once at server startup.
  * Starts the central notification system (filesystem watcher → SSE events).
  * Writes .chainglass/server.json so CLI tools can discover the server port.
+ * Bootstraps WorkflowExecutionManager singleton for workflow execution from web UI.
  *
  * See: https://nextjs.org/docs/app/building-your-application/optimizing/instrumentation
  */
 
 const globalForEventPopper = globalThis as typeof globalThis & {
   __eventPopperServerInfoWritten?: boolean;
+};
+
+const globalForExec = globalThis as typeof globalThis & {
+  __workflowExecutionManagerInitialized?: boolean;
 };
 
 export async function register() {
@@ -45,6 +51,28 @@ export async function register() {
       };
       process.on('SIGTERM', cleanup);
       process.on('SIGINT', cleanup);
+    }
+
+    // Plan 074: Bootstrap WorkflowExecutionManager singleton (HMR-safe)
+    if (!globalForExec.__workflowExecutionManagerInitialized) {
+      globalForExec.__workflowExecutionManagerInitialized = true;
+
+      try {
+        const { createWorkflowExecutionManager } = await import(
+          './src/features/074-workflow-execution/create-execution-manager'
+        );
+        const manager = await createWorkflowExecutionManager();
+        globalThis.__workflowExecutionManager = manager;
+
+        process.on('SIGTERM', async () => {
+          await manager.cleanup();
+        });
+
+        console.log('[workflow-execution] Manager initialized');
+      } catch (error) {
+        globalForExec.__workflowExecutionManagerInitialized = false;
+        console.error('[workflow-execution] Failed to initialize:', error);
+      }
     }
   }
 }

@@ -85,6 +85,12 @@ export interface IGraphOrchestration {
 
   /** Build and return a fresh reality snapshot (read-only). */
   getReality(): Promise<PositionalGraphReality>;
+
+  /**
+   * Terminate all running pods and persist sessions.
+   * Called by WorkflowExecutionManager on stop/restart. Plan 074.
+   */
+  cleanup(): Promise<void>;
 }
 
 // ── IOrchestrationService ──────────────────────────────
@@ -102,6 +108,12 @@ export interface IOrchestrationService {
    * @param graphSlug - Which graph to orchestrate
    */
   get(ctx: WorkspaceContext, graphSlug: string): Promise<IGraphOrchestration>;
+
+  /**
+   * Remove a cached handle so the next get() creates a fresh one.
+   * Called by WorkflowExecutionManager on restart. Plan 074 DYK #1.
+   */
+  evict(worktreePath: string, graphSlug: string): void;
 }
 
 // ── FakeGraphConfig ────────────────────────────────────

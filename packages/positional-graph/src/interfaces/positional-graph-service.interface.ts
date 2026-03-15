@@ -756,6 +756,20 @@ export interface IPositionalGraphService {
   loadGraphState(ctx: WorkspaceContext, graphSlug: string): Promise<State>;
   persistGraphState(ctx: WorkspaceContext, graphSlug: string, state: State): Promise<void>;
 
+  // Execution State Management (Plan 074: Workflow Execution from Web UI)
+
+  /**
+   * Mark specific nodes as 'interrupted'. Used when stopping a running workflow.
+   * Only modifies nodes currently in active statuses (starting, agent-accepted).
+   */
+  markNodesInterrupted(ctx: WorkspaceContext, graphSlug: string, nodeIds: string[]): Promise<void>;
+
+  /**
+   * Reset ALL node statuses to 'pending' and clear per-node events/outputs.
+   * Used when restarting a workflow from scratch.
+   */
+  resetGraphState(ctx: WorkspaceContext, graphSlug: string): Promise<void>;
+
   // Snapshot Restore (Phase 5, Plan 050 — undo/redo support)
   restoreSnapshot(
     ctx: WorkspaceContext,

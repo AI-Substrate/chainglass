@@ -72,4 +72,9 @@ export class OrchestrationService implements IOrchestrationService {
     }
     return handle;
   }
+
+  evict(worktreePath: string, graphSlug: string): void {
+    const key = `${worktreePath}|${graphSlug}`;
+    this.handles.delete(key);
+  }
 }

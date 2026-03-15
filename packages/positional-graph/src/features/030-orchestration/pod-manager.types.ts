@@ -68,6 +68,13 @@ export interface IPodManager {
   destroyPod(nodeId: string): void;
 
   /**
+   * Terminate and destroy ALL active pods.
+   * Calls terminate() on each pod before removing.
+   * Session IDs are retained. Plan 074: needed for stop/restart.
+   */
+  destroyAllPods(): Promise<void>;
+
+  /**
    * Get all tracked sessions (for PositionalGraphReality.podSessions).
    */
   getSessions(): ReadonlyMap<string, string>;

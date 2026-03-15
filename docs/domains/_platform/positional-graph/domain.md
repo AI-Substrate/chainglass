@@ -165,3 +165,4 @@ Primary: `packages/positional-graph/src/`
 | 050-P1 | FakePositionalGraphService, fakes barrel export, web DI registration (Phase 1) | 2026-02-26 |
 | 061-P3 | Removed PGService Q&A methods/types (askQuestion, answerQuestion, getAnswer); consumers migrated to workflow-events convenience API | 2026-03-01 |
 | 074-P1 | Orchestration contracts: AbortSignal in drive() with 'stopped' exit, 'interrupted' status in ExecutionStatus/ONBAS/Zod schemas, compound cache key (worktreePath\|slug), per-handle PodManager+ODS via factory | 2026-03-15 |
+| 074-P2 | Web DI + Execution Manager: de-aliased ORCHESTRATION_DI_TOKENS.AGENT_MANAGER, registered orchestration in web DI, added destroyAllPods/cleanup/evict/resetGraphState/markNodesInterrupted, created WorkflowExecutionManager singleton with start/stop/restart lifecycle, globalThis bootstrap in instrumentation.ts | 2026-03-15 |

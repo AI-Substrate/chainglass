@@ -373,6 +373,13 @@ export function createCliProductionContainer(): DependencyContainer {
     },
   });
 
+  // Plan 074: Bridge CLI agent manager to orchestration token (de-aliased in Plan 074).
+  // registerOrchestrationServices() resolves ORCHESTRATION_DI_TOKENS.AGENT_MANAGER,
+  // which is now a distinct token from CLI_DI_TOKENS.AGENT_MANAGER.
+  childContainer.register(ORCHESTRATION_DI_TOKENS.AGENT_MANAGER, {
+    useFactory: (c) => c.resolve(CLI_DI_TOKENS.AGENT_MANAGER),
+  });
+
   // Per Plan 014: Workspaces - Phase 5: Register workspace services for CLI commands
   // Workspace registry adapter
   childContainer.register<IWorkspaceRegistryAdapter>(

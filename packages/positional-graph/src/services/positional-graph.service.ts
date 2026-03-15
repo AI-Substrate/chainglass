@@ -2499,6 +2499,34 @@ export class PositionalGraphService implements IPositionalGraphService {
     return this.persistState(ctx, graphSlug, state);
   }
 
+  async markNodesInterrupted(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeIds: string[]
+  ): Promise<void> {
+    const state = await this.loadState(ctx, graphSlug);
+    const nodes = state.nodes ?? {};
+    const activeStatuses = new Set(['starting', 'agent-accepted']);
+    for (const nodeId of nodeIds) {
+      const entry = nodes[nodeId];
+      if (entry && activeStatuses.has(entry.status)) {
+        entry.status = 'interrupted';
+      }
+    }
+    await this.persistState(ctx, graphSlug, state);
+  }
+
+  async resetGraphState(ctx: WorkspaceContext, graphSlug: string): Promise<void> {
+    const state = await this.loadState(ctx, graphSlug);
+    state.graph_status = 'pending';
+    state.updated_at = new Date().toISOString();
+    // Clear all node entries — absent nodes are implicitly pending
+    state.nodes = {};
+    state.transitions = {};
+    state.questions = [];
+    await this.persistState(ctx, graphSlug, state);
+  }
+
   async restoreSnapshot(
     ctx: WorkspaceContext,
     graphSlug: string,

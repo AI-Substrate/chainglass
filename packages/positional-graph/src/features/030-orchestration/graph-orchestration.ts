@@ -139,6 +139,13 @@ export class GraphOrchestration implements IGraphOrchestration {
     return this.buildReality();
   }
 
+  async cleanup(): Promise<void> {
+    if (this.podManager) {
+      await this.podManager.destroyAllPods();
+      await this.podManager.persistSessions(this.ctx, this.graphSlug);
+    }
+  }
+
   async drive(options?: DriveOptions): Promise<DriveResult> {
     const maxIterations = options?.maxIterations ?? DEFAULT_DRIVE_MAX_ITERATIONS;
     const actionDelayMs = options?.actionDelayMs ?? DEFAULT_ACTION_DELAY_MS;
