@@ -94,9 +94,20 @@ function buildOrchestrationStack(
   const orchestrationService = new OrchestrationService({
     graphService: service,
     onbas: new ONBAS(),
-    ods,
     eventHandlerService,
-    podManager,
+    createPerHandleDeps: () => {
+      const pm = new PodManager(nodeFs);
+      const cs = new AgentContextService();
+      const o = new ODS({
+        graphService: service,
+        podManager: pm,
+        contextService: cs,
+        agentManager,
+        scriptRunner,
+        workUnitService,
+      });
+      return { podManager: pm, ods: o };
+    },
   });
 
   return { orchestrationService, podManager };

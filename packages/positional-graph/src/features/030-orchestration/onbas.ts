@@ -90,6 +90,9 @@ function visitNode(
     case 'blocked-error':
       return null;
 
+    case 'interrupted':
+      return null;
+
     case 'ready':
       // User-input nodes are a UI concern — orchestration does not start them
       if (node.unitType === 'user-input') {
@@ -124,6 +127,7 @@ function diagnoseStuckLine(reality: PositionalGraphReality, line: LineReality): 
     switch (node.status) {
       case 'starting':
       case 'agent-accepted':
+      case 'interrupted':
         hasRunning = true;
         break;
       case 'waiting-question':

@@ -110,9 +110,20 @@ function createOrchestrationStack(
   const orchestrationService = new OrchestrationService({
     graphService: service,
     onbas,
-    ods,
     eventHandlerService,
-    podManager,
+    createPerHandleDeps: () => {
+      const pm = new PodManager(nodeFs);
+      const cs = new AgentContextService();
+      const o = new ODS({
+        graphService: service,
+        podManager: pm,
+        contextService: cs,
+        agentManager,
+        scriptRunner,
+        workUnitService: new FakeWorkUnitService(),
+      });
+      return { podManager: pm, ods: o };
+    },
   });
 
   return { orchestrationService, eventHandlerService, agentManager, scriptRunner, podManager };

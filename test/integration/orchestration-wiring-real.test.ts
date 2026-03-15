@@ -132,9 +132,19 @@ async function createRealOrchestrationStack(
   const orchestrationService = new OrchestrationService({
     graphService: service,
     onbas,
-    ods,
     eventHandlerService,
-    podManager,
+    createPerHandleDeps: () => {
+      const pm = new PodManager(nodeFs);
+      const o = new ODS({
+        graphService: service,
+        podManager: pm,
+        contextService,
+        agentManager,
+        scriptRunner,
+        workUnitService: new FakeWorkUnitService(),
+      });
+      return { podManager: pm, ods: o };
+    },
   });
 
   return { orchestrationService, agentManager, podManager, eventHandlerService };

@@ -125,8 +125,9 @@ export interface FakeGraphConfig {
  * - 'complete': graph reached terminal success
  * - 'failed': graph reached terminal failure
  * - 'max-iterations': safety guard tripped
+ * - 'stopped': user-initiated abort via AbortSignal (Plan 074)
  */
-export type DriveExitReason = 'complete' | 'failed' | 'max-iterations';
+export type DriveExitReason = 'complete' | 'failed' | 'max-iterations' | 'stopped';
 
 /**
  * Result returned when drive() finishes.
@@ -162,4 +163,6 @@ export interface DriveOptions {
   readonly idleDelayMs?: number;
   /** Event callback — drive() awaits this if it returns a Promise. */
   readonly onEvent?: (event: DriveEvent) => void | Promise<void>;
+  /** AbortSignal for cooperative cancellation. When aborted, drive() exits with 'stopped'. (Plan 074) */
+  readonly signal?: AbortSignal;
 }

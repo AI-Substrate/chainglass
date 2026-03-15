@@ -18,6 +18,7 @@
 import type { WorkspaceContext } from '@chainglass/workflow';
 import type { IPositionalGraphService } from '../../interfaces/positional-graph-service.interface.js';
 import type { IEventHandlerService } from '../032-node-event-system/event-handler-service.interface.js';
+import { abortableSleep } from './abortable-sleep.js';
 import type { IODS } from './ods.types.js';
 import type { IONBAS } from './onbas.types.js';
 import type {
@@ -54,8 +55,6 @@ const DEFAULT_MAX_ITERATIONS = 100;
 const DEFAULT_DRIVE_MAX_ITERATIONS = 200;
 const DEFAULT_ACTION_DELAY_MS = 100;
 const DEFAULT_IDLE_DELAY_MS = 10_000;
-
-const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 // ── GraphOrchestration ──────────────────────────────────
 
@@ -144,9 +143,16 @@ export class GraphOrchestration implements IGraphOrchestration {
     const maxIterations = options?.maxIterations ?? DEFAULT_DRIVE_MAX_ITERATIONS;
     const actionDelayMs = options?.actionDelayMs ?? DEFAULT_ACTION_DELAY_MS;
     const idleDelayMs = options?.idleDelayMs ?? DEFAULT_IDLE_DELAY_MS;
+    const signal = options?.signal;
     const emit = async (event: DriveEvent) => {
       await options?.onEvent?.(event);
     };
+
+    // Check for already-aborted signal before starting
+    if (signal?.aborted) {
+      await emit({ type: 'status', message: 'Drive stopped — signal already aborted' });
+      return { exitReason: 'stopped', iterations: 0, totalActions: 0 };
+    }
 
     await this.podManager?.loadSessions(this.ctx, this.graphSlug);
 
@@ -154,6 +160,13 @@ export class GraphOrchestration implements IGraphOrchestration {
     let totalActions = 0;
 
     for (let i = 0; i < maxIterations; i++) {
+      // Check abort signal at iteration boundary
+      if (signal?.aborted) {
+        await emit({ type: 'status', message: 'Drive stopped — aborted between iterations' });
+        await this.podManager?.persistSessions(this.ctx, this.graphSlug);
+        return { exitReason: 'stopped', iterations, totalActions };
+      }
+
       let result: OrchestrationRunResult;
       try {
         result = await this.run();
@@ -185,7 +198,7 @@ export class GraphOrchestration implements IGraphOrchestration {
         return { exitReason: 'failed', iterations, totalActions };
       }
 
-      // Non-terminal: emit iteration or idle event, delay
+      // Non-terminal: emit iteration or idle event, delay with abort support
       const hadActions = result.actions.length > 0;
       if (hadActions) {
         await emit({
@@ -193,10 +206,18 @@ export class GraphOrchestration implements IGraphOrchestration {
           message: `${result.actions.length} action(s)`,
           data: result,
         });
-        await sleep(actionDelayMs);
       } else {
         await emit({ type: 'idle', message: 'No actions — polling' });
-        await sleep(idleDelayMs);
+      }
+
+      // Sleep with abort support — catches AbortError to exit cleanly
+      try {
+        await abortableSleep(hadActions ? actionDelayMs : idleDelayMs, signal);
+      } catch {
+        // AbortError — signal fired during sleep
+        await emit({ type: 'status', message: 'Drive stopped — aborted during sleep' });
+        await this.podManager?.persistSessions(this.ctx, this.graphSlug);
+        return { exitReason: 'stopped', iterations, totalActions };
       }
     }
 

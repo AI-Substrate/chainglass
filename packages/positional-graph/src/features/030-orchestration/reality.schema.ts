@@ -18,6 +18,7 @@ export const ExecutionStatusSchema = z.enum([
   'agent-accepted',
   'waiting-question',
   'blocked-error',
+  'interrupted',
   'complete',
 ]);
 

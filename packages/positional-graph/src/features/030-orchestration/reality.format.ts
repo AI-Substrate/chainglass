@@ -27,6 +27,8 @@ function getGlyph(node: NodeReality): string {
     case 'waiting-question':
     case 'restart-pending':
       return '⏸️';
+    case 'interrupted':
+      return '⏹️';
     case 'ready':
       return '⬜';
     case 'pending':

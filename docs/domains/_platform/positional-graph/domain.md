@@ -67,8 +67,8 @@ Core graph engine that powers the line-based workflow execution system. Owns the
 | `PositionalGraphService` | Core engine — graph CRUD, status, state, lifecycle | PositionalGraphAdapter, IFileSystem, IPathResolver, IYamlParser |
 | `PositionalGraphAdapter` | Filesystem persistence — load/save graph definitions | IFileSystem, IPathResolver |
 | `InputResolution` | Resolve node inputs from various sources | PositionalGraphService (state reads) |
-| `OrchestrationService` | Factory for per-graph orchestration handles | PositionalGraphService, ODS, ONBAS, PodManager |
-| `GraphOrchestration` | Per-graph orchestration loop (settle→decide→act) | PositionalGraphService, EventHandlerService, ONBAS, ODS |
+| `OrchestrationService` | Factory for per-graph orchestration handles | PositionalGraphService, ONBAS, EHS, createPerHandleDeps factory |
+| `GraphOrchestration` | Per-graph orchestration loop (settle→decide→act), abort-aware | PositionalGraphService, EventHandlerService, ONBAS, ODS, abortableSleep |
 | `ODS` | Orchestration Dispatch — fire-and-forget launch | PodManager, AgentContext |
 | `ONBAS` | Next-Best-Action decisions — pure, stateless | Reality snapshot (read-only) |
 | `PodManager` | Pod lifecycle management | AgentPod, CodePod, ScriptRunner |
@@ -154,3 +154,4 @@ Primary: `packages/positional-graph/src/`
 | 048-P4 | E2E test migration + docs — template generation script, smoke + simple-serial templates, withTemplateWorkflow() helper, 5 e2e lifecycle tests, workflow-templates.md guide, README quick-start (Phase 4) | 2026-02-26 |
 | 050-P1 | FakePositionalGraphService, fakes barrel export, web DI registration (Phase 1) | 2026-02-26 |
 | 061-P3 | Removed PGService Q&A methods/types (askQuestion, answerQuestion, getAnswer); consumers migrated to workflow-events convenience API | 2026-03-01 |
+| 074-P1 | Orchestration contracts: AbortSignal in drive() with 'stopped' exit, 'interrupted' status in ExecutionStatus/ONBAS/Zod schemas, compound cache key (worktreePath\|slug), per-handle PodManager+ODS via factory | 2026-03-15 |
