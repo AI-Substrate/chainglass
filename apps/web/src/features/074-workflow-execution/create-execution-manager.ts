@@ -13,6 +13,7 @@ import {
   WORKSPACE_DI_TOKENS,
 } from '@chainglass/shared';
 import type { IWorkspaceService } from '@chainglass/workflow';
+import { SSEManagerBroadcaster } from '../../features/019-agent-manager-refactor/sse-manager-broadcaster';
 import { getContainer } from '../../lib/di-container';
 import { sseManager } from '../../lib/sse-manager';
 import { WorkflowExecutionManager } from './workflow-execution-manager';
@@ -28,7 +29,7 @@ export async function createWorkflowExecutionManager(): Promise<WorkflowExecutio
       POSITIONAL_GRAPH_DI_TOKENS.POSITIONAL_GRAPH_SERVICE
     ),
     workspaceService: container.resolve<IWorkspaceService>(WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE),
-    broadcast: sseManager.broadcast.bind(sseManager),
+    broadcaster: new SSEManagerBroadcaster(sseManager),
   };
 
   return new WorkflowExecutionManager(deps);

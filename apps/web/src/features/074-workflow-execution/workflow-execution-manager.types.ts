@@ -9,14 +9,18 @@ import type {
   IOrchestrationService,
   IPositionalGraphService,
 } from '@chainglass/positional-graph';
+import type { ISSEBroadcaster } from '@chainglass/shared/features/019-agent-manager-refactor/sse-broadcaster.interface';
 import type { IWorkspaceService } from '@chainglass/workflow';
 
 // ── Execution Key ───────────────────────────────────────
+// FT-001: Key must be safe for GlobalState paths (domain:instanceId:property).
+// parsePath() splits on ':' and instanceId must match [a-zA-Z0-9_-]+.
+// Base64url encoding satisfies this and is reversible.
 
-export type ExecutionKey = `${string}:${string}`;
+export type ExecutionKey = string;
 
 export function makeExecutionKey(worktreePath: string, graphSlug: string): ExecutionKey {
-  return `${worktreePath}:${graphSlug}` as ExecutionKey;
+  return Buffer.from(`${worktreePath}:${graphSlug}`).toString('base64url');
 }
 
 // ── Execution Status (manager-level, not node-level) ────
@@ -87,8 +91,8 @@ export interface ExecutionManagerDeps {
   readonly orchestrationService: IOrchestrationService;
   readonly graphService: IPositionalGraphService;
   readonly workspaceService: IWorkspaceService;
-  /** SSE broadcast function — injected for testability. Signature matches SSEManager.broadcast(). */
-  readonly broadcast: (channelId: string, eventType: string, data: unknown) => void;
+  /** SSE broadcaster for execution events (FT-003: use contract, not internal). */
+  readonly broadcaster: ISSEBroadcaster;
 }
 
 // ── Serializable Status (DYK #1: ExecutionHandle has non-serializable fields) ──

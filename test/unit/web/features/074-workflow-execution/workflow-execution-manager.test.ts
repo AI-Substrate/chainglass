@@ -6,8 +6,9 @@
 import { WorkflowExecutionManager } from '@/features/074-workflow-execution/workflow-execution-manager';
 import type { ExecutionManagerDeps } from '@/features/074-workflow-execution/workflow-execution-manager.types';
 import { FakeOrchestrationService, FakePositionalGraphService } from '@chainglass/positional-graph';
+import { FakeSSEBroadcaster } from '@chainglass/shared/features/019-agent-manager-refactor/fake-sse-broadcaster';
 import type { WorkspaceContext } from '@chainglass/workflow';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 // ── Helpers ─────────────────────────────────────────────
 
@@ -35,19 +36,19 @@ function createDeps(overrides?: Partial<ExecutionManagerDeps>): {
   deps: ExecutionManagerDeps;
   orchService: FakeOrchestrationService;
   graphService: FakePositionalGraphService;
-  broadcast: ReturnType<typeof vi.fn>;
+  broadcaster: FakeSSEBroadcaster;
 } {
   const orchService = new FakeOrchestrationService();
   const graphService = new FakePositionalGraphService();
-  const broadcast = vi.fn();
+  const broadcaster = new FakeSSEBroadcaster();
   const deps: ExecutionManagerDeps = {
     orchestrationService: orchService,
     graphService,
     workspaceService: fakeWorkspaceService as ExecutionManagerDeps['workspaceService'],
-    broadcast,
+    broadcaster,
     ...overrides,
   };
-  return { deps, orchService, graphService, broadcast };
+  return { deps, orchService, graphService, broadcaster };
 }
 
 function configureSimpleGraph(orchService: FakeOrchestrationService) {
@@ -82,14 +83,14 @@ describe('WorkflowExecutionManager', () => {
   let manager: WorkflowExecutionManager;
   let orchService: FakeOrchestrationService;
   let graphService: FakePositionalGraphService;
-  let broadcast: ReturnType<typeof vi.fn>;
+  let broadcaster: FakeSSEBroadcaster;
 
   beforeEach(() => {
     const created = createDeps();
     manager = new WorkflowExecutionManager(created.deps);
     orchService = created.orchService;
     graphService = created.graphService;
-    broadcast = created.broadcast;
+    broadcaster = created.broadcaster;
   });
 
   describe('start()', () => {
@@ -100,7 +101,7 @@ describe('WorkflowExecutionManager', () => {
 
       expect(result.started).toBe(true);
       expect(result.already).toBe(false);
-      expect(result.key).toBe('/test/wt:my-pipeline');
+      expect(result.key).toMatch(/^[a-zA-Z0-9_-]+$/); // base64url-encoded key (FT-001)
     });
 
     it('returns already:true when workflow is already running', async () => {
@@ -370,22 +371,27 @@ describe('WorkflowExecutionManager', () => {
     });
   });
 
-  // ── SSE broadcast tests (Phase 3 T010) ────────────────
+  // ── SSE broadcast tests (Phase 3 T010, FT-004: use fakes not mocks) ──
 
   describe('SSE broadcasting', () => {
     it('broadcasts starting and running on start()', async () => {
       configureSimpleGraph(orchService);
-      await manager.start(TEST_CTX, TEST_SLUG);
-      await new Promise((r) => setTimeout(r, 10));
+      const fakeHandle = (await orchService.get(makeFullContext(), TEST_SLUG)) as import(
+        '@chainglass/positional-graph'
+      ).FakeGraphOrchestration;
+      fakeHandle.blockDrive();
 
-      // Should have broadcast at least 'starting' and 'running'
-      const calls = broadcast.mock.calls.filter(
-        (c: string[]) => c[0] === 'workflow-execution' && c[1] === 'execution-update'
-      );
-      expect(calls.length).toBeGreaterThanOrEqual(2);
-      const statuses = calls.map((c: [string, string, { status: string }]) => c[2].status);
+      await manager.start(TEST_CTX, TEST_SLUG);
+
+      const updates = broadcaster.getBroadcastsByChannel('workflow-execution');
+      const statuses = updates
+        .filter((b) => b.eventType === 'execution-update')
+        .map((b) => (b.data as Record<string, unknown>).status);
       expect(statuses).toContain('starting');
       expect(statuses).toContain('running');
+
+      fakeHandle.releaseDrive({ exitReason: 'complete', iterations: 1, totalActions: 0 });
+      await new Promise((r) => setTimeout(r, 10));
     });
 
     it('broadcasts stopping on stop()', async () => {
@@ -396,16 +402,16 @@ describe('WorkflowExecutionManager', () => {
       fakeHandle.blockDrive();
 
       await manager.start(TEST_CTX, TEST_SLUG);
-      broadcast.mockClear();
+      broadcaster.reset();
 
       const stopPromise = manager.stop(TEST_CTX.worktreePath, TEST_SLUG);
       fakeHandle.releaseDrive({ exitReason: 'stopped', iterations: 0, totalActions: 0 });
       await stopPromise;
 
-      const calls = broadcast.mock.calls.filter(
-        (c: string[]) => c[0] === 'workflow-execution' && c[1] === 'execution-update'
-      );
-      const statuses = calls.map((c: [string, string, { status: string }]) => c[2].status);
+      const updates = broadcaster.getBroadcastsByChannel('workflow-execution');
+      const statuses = updates
+        .filter((b) => b.eventType === 'execution-update')
+        .map((b) => (b.data as Record<string, unknown>).status);
       expect(statuses).toContain('stopping');
     });
 
@@ -417,17 +423,17 @@ describe('WorkflowExecutionManager', () => {
       fakeHandle.blockDrive();
 
       await manager.start(TEST_CTX, TEST_SLUG);
-      broadcast.mockClear();
+      broadcaster.reset();
 
       const restartPromise = manager.restart(TEST_CTX, TEST_SLUG);
       fakeHandle.releaseDrive({ exitReason: 'stopped', iterations: 0, totalActions: 0 });
       await restartPromise;
       await new Promise((r) => setTimeout(r, 10));
 
-      const removalCalls = broadcast.mock.calls.filter(
-        (c: string[]) => c[0] === 'workflow-execution' && c[1] === 'execution-removed'
-      );
-      expect(removalCalls.length).toBeGreaterThanOrEqual(1);
+      const removals = broadcaster
+        .getBroadcastsByChannel('workflow-execution')
+        .filter((b) => b.eventType === 'execution-removed');
+      expect(removals.length).toBeGreaterThanOrEqual(1);
     });
 
     it('broadcasts during handleEvent from drive loop', async () => {
@@ -465,34 +471,64 @@ describe('WorkflowExecutionManager', () => {
         {
           type: 'iteration',
           message: '1 action',
-          data: { actions: [1], stopReason: 'continue', finalReality: {} as never, iterations: 1 },
+          data: {
+            actions: [1],
+            stopReason: 'continue',
+            finalReality: {} as never,
+            iterations: 1,
+          },
         },
       ]);
 
-      broadcast.mockClear();
+      broadcaster.reset();
       await manager.start(TEST_CTX, TEST_SLUG);
       await new Promise((r) => setTimeout(r, 50));
 
-      // Should have at least broadcast the iteration event
-      const calls = broadcast.mock.calls.filter(
-        (c: string[]) => c[0] === 'workflow-execution' && c[1] === 'execution-update'
-      );
-      expect(calls.length).toBeGreaterThanOrEqual(1);
+      const updates = broadcaster
+        .getBroadcastsByChannel('workflow-execution')
+        .filter((b) => b.eventType === 'execution-update');
+      expect(updates.length).toBeGreaterThanOrEqual(1);
     });
 
     it('getSerializableStatus returns clean snapshot without internal refs', async () => {
       configureSimpleGraph(orchService);
+      const fakeHandle = (await orchService.get(makeFullContext(), TEST_SLUG)) as import(
+        '@chainglass/positional-graph'
+      ).FakeGraphOrchestration;
+      fakeHandle.blockDrive();
+
       await manager.start(TEST_CTX, TEST_SLUG);
-      await new Promise((r) => setTimeout(r, 10));
 
       const status = manager.getSerializableStatus(TEST_CTX.worktreePath, TEST_SLUG);
       expect(status).toBeDefined();
-      expect(status?.key).toContain(TEST_SLUG);
+      expect(status?.key).toBeTruthy();
       expect(status?.status).toBeDefined();
-      // Must NOT have internal fields
       expect((status as Record<string, unknown>).controller).toBeUndefined();
       expect((status as Record<string, unknown>).drivePromise).toBeUndefined();
       expect((status as Record<string, unknown>).orchestrationHandle).toBeUndefined();
+
+      fakeHandle.releaseDrive({ exitReason: 'complete', iterations: 1, totalActions: 0 });
+      await new Promise((r) => setTimeout(r, 10));
+    });
+
+    it('execution key is path-safe for GlobalState (FT-001)', async () => {
+      configureSimpleGraph(orchService);
+      const fakeHandle = (await orchService.get(makeFullContext(), TEST_SLUG)) as import(
+        '@chainglass/positional-graph'
+      ).FakeGraphOrchestration;
+      fakeHandle.blockDrive();
+
+      await manager.start(TEST_CTX, TEST_SLUG);
+
+      const status = manager.getSerializableStatus(TEST_CTX.worktreePath, TEST_SLUG);
+      expect(status?.key).toBeTruthy();
+      // Key must be base64url-safe: only [a-zA-Z0-9_-]
+      expect(status?.key).toMatch(/^[a-zA-Z0-9_-]+$/);
+      // Key must NOT contain ':' (would break GlobalState path parsing)
+      expect(status?.key).not.toContain(':');
+
+      fakeHandle.releaseDrive({ exitReason: 'complete', iterations: 1, totalActions: 0 });
+      await new Promise((r) => setTimeout(r, 10));
     });
   });
 });

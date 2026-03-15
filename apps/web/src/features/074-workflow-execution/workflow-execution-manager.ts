@@ -285,7 +285,7 @@ export class WorkflowExecutionManager implements IWorkflowExecutionManager {
 
   /** Broadcast current handle state to SSE channel. DYK #5: called at all 6 transition points. */
   private broadcastStatus(handle: ExecutionHandle): void {
-    this.deps.broadcast(SSE_CHANNEL, 'execution-update', {
+    this.deps.broadcaster.broadcast(SSE_CHANNEL, 'execution-update', {
       key: handle.key,
       status: handle.status,
       iterations: handle.iterations,
@@ -297,7 +297,7 @@ export class WorkflowExecutionManager implements IWorkflowExecutionManager {
 
   /** Broadcast handle removal so client can clean up GlobalState. DYK #2. */
   private broadcastRemoval(key: string): void {
-    this.deps.broadcast(SSE_CHANNEL, 'execution-removed', { key });
+    this.deps.broadcaster.broadcast(SSE_CHANNEL, 'execution-removed', { key });
   }
 
   /** DYK #5 call site (3): broadcasts on every DriveEvent during drive() loop. */
