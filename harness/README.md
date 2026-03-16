@@ -103,6 +103,14 @@ All commands return structured JSON: `{command, status, data?, error?}`
 | `just harness agent history <slug>` | Show past runs |
 | `just harness agent validate <slug>` | Re-validate most recent output |
 | `just harness agent tail <slug>` | Follow running agent's event stream |
+| `just test-data create env` | Create complete test environment (units + template + workflow) |
+| `just test-data create units` | Create 3 test work units (idempotent) |
+| `just test-data create template` | Build workflow template from test units |
+| `just test-data create workflow` | Instantiate workflow from template |
+| `just test-data clean` | Delete all test data |
+| `just test-data status` | Show what test data exists |
+| `just test-data run` | Execute the test workflow |
+| `just test-data stop` | Stop the running test workflow |
 
 ### Page Navigation
 

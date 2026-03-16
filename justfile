@@ -115,6 +115,10 @@ harness-health:
 harness *ARGS:
     cd harness && pnpm exec tsx src/cli/index.ts {{ARGS}}
 
+# Manage test workflow data (Plan 074 Phase 6)
+test-data *ARGS:
+    cd harness && pnpm exec tsx src/cli/index.ts test-data {{ARGS}}
+
 # Run linter
 lint:
     pnpm biome check .
