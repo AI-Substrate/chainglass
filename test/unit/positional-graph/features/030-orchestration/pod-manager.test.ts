@@ -237,14 +237,14 @@ describe('PodManager', () => {
   describe('persistence', () => {
     const ctx = { worktreePath: '/workspace' };
     const graphSlug = 'my-graph';
-    const sessionsPath = '/workspace/.chainglass/graphs/my-graph/pod-sessions.json';
+    const sessionsPath = '/workspace/.chainglass/data/workflows/my-graph/pod-sessions.json';
 
     it('persistSessions writes JSON via atomicWriteFile', async () => {
       manager.setSessionId('node-1', 'sess-1');
       manager.setSessionId('node-2', 'sess-2');
 
       // Ensure parent directory exists for atomic write
-      fs.setDir('/workspace/.chainglass/graphs/my-graph');
+      fs.setDir('/workspace/.chainglass/data/workflows/my-graph');
 
       await manager.persistSessions(ctx, graphSlug);
 
@@ -277,7 +277,7 @@ describe('PodManager', () => {
     });
 
     it('persist + load roundtrip preserves data', async () => {
-      fs.setDir('/workspace/.chainglass/graphs/my-graph');
+      fs.setDir('/workspace/.chainglass/data/workflows/my-graph');
       manager.setSessionId('node-1', 'sess-round');
 
       await manager.persistSessions(ctx, graphSlug);
