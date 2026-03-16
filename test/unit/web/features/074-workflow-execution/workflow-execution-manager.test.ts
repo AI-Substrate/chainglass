@@ -81,6 +81,7 @@ function createDeps(overrides?: Partial<ExecutionManagerDeps>): {
     workspaceService: fakeWorkspaceService as ExecutionManagerDeps['workspaceService'],
     broadcaster,
     registry,
+    worktreeExists: () => true, // FT-006: default to true in tests
     ...overrides,
   };
   return { deps, orchService, graphService, broadcaster, registry };
@@ -168,7 +169,7 @@ describe('WorkflowExecutionManager', () => {
 
     it('sets status to failed when workspace context resolution fails', async () => {
       configureSimpleGraph(orchService);
-      const { deps } = createDeps({
+      const { deps, registry: ftRegistry } = createDeps({
         workspaceService: {
           resolveContextFromParams: async () => null,
         } as ExecutionManagerDeps['workspaceService'],
@@ -179,6 +180,28 @@ describe('WorkflowExecutionManager', () => {
 
       expect(result.started).toBe(false);
       expect(mgr.getStatus(TEST_CTX.worktreePath, TEST_SLUG)).toBe('failed');
+      // FT-002: registry persisted even on pre-drive failure
+      expect(ftRegistry.lastWritten).not.toBeNull();
+    });
+
+    /**
+     * Test Doc: FT-002: Verifies registry is persisted when orchestration service throws.
+     */
+    it('persists failed status when orchestration.get() throws', async () => {
+      const throwingOrch = new FakeOrchestrationService();
+      // Don't configure graph → get() will throw
+      const { deps: deps2, registry: ftRegistry } = createDeps({
+        orchestrationService: throwingOrch,
+      });
+      const mgr = new WorkflowExecutionManager(deps2);
+
+      const result = await mgr.start(TEST_CTX, TEST_SLUG);
+
+      expect(result.started).toBe(false);
+      expect(mgr.getStatus(TEST_CTX.worktreePath, TEST_SLUG)).toBe('failed');
+      expect(ftRegistry.lastWritten).not.toBeNull();
+      const entry = ftRegistry.lastWritten?.executions.find((e) => e.graphSlug === TEST_SLUG);
+      expect(entry?.status).toBe('failed');
     });
   });
 
@@ -645,16 +668,19 @@ describe('WorkflowExecutionManager', () => {
     });
 
     /**
-     * Test Doc: Verifies resumeAll resumes entries with status running.
+     * Test Doc: FT-003: Verifies resumeAll resumes entries with status running,
+     * with a properly configured orchestration service.
      */
     it('resumes entries with running status', async () => {
-      configureSimpleGraph(orchService);
+      let writtenRegistry: ReturnType<typeof createEmptyRegistry> | null = null;
+      const resumeOrchService = new FakeOrchestrationService();
+      configureSimpleGraph(resumeOrchService);
 
-      // Use a real existing path (os.tmpdir always exists) so fs.existsSync returns true
-      const existingPath = os.tmpdir();
-
-      // Seed registry with a running entry
-      const { deps: deps2 } = createDeps({
+      const deps2: ExecutionManagerDeps = {
+        orchestrationService: resumeOrchService,
+        graphService: new FakePositionalGraphService(),
+        workspaceService: fakeWorkspaceService as ExecutionManagerDeps['workspaceService'],
+        broadcaster: new FakeSSEBroadcaster(),
         registry: {
           read: () => ({
             version: 1,
@@ -662,7 +688,7 @@ describe('WorkflowExecutionManager', () => {
             executions: [
               {
                 key: 'test-key',
-                worktreePath: existingPath,
+                worktreePath: TEST_CTX.worktreePath,
                 graphSlug: TEST_SLUG,
                 workspaceSlug: TEST_CTX.workspaceSlug,
                 status: 'running' as const,
@@ -672,26 +698,43 @@ describe('WorkflowExecutionManager', () => {
               },
             ],
           }),
-          write: () => {},
+          write: (reg) => {
+            writtenRegistry = reg;
+          },
           remove: () => {},
         },
-      });
+        worktreeExists: () => true,
+      };
       const mgr2 = new WorkflowExecutionManager(deps2);
+
+      // Pre-configure drive result (drive() needs driveResults, not runResults)
+      const fakeHandle = (await resumeOrchService.get(makeFullContext(), TEST_SLUG)) as import(
+        '@chainglass/positional-graph'
+      ).FakeGraphOrchestration;
+      fakeHandle.setDriveResult({
+        exitReason: 'complete',
+        iterations: 3,
+        totalActions: 1,
+      });
 
       await mgr2.resumeAll();
       await new Promise((r) => setTimeout(r, 50));
 
-      // Verify a start was attempted — the manager should have a handle now
-      const status = mgr2.getStatus(existingPath, TEST_SLUG);
-      expect(['running', 'completed', 'failed', 'starting']).toContain(status);
+      // FT-003: Assert running or completed — NOT failed
+      const status = mgr2.getStatus(TEST_CTX.worktreePath, TEST_SLUG);
+      expect(['running', 'completed']).toContain(status);
+      // FT-001: Verify registry was written after resume
+      expect(writtenRegistry).not.toBeNull();
 
       await mgr2.cleanup();
     });
 
     /**
-     * Test Doc: Verifies resumeAll skips entries where worktree no longer exists.
+     * Test Doc: Verifies resumeAll skips entries where worktree no longer exists (AC4).
      */
-    it('skips entries where worktree no longer exists', async () => {
+    it('skips entries where worktree no longer exists and cleans registry', async () => {
+      let writtenRegistry: ReturnType<typeof createEmptyRegistry> | null = null;
+      const stalePath = '/nonexistent/path/that/does/not/exist';
       const { deps: deps2 } = createDeps({
         registry: {
           read: () => ({
@@ -700,7 +743,7 @@ describe('WorkflowExecutionManager', () => {
             executions: [
               {
                 key: 'stale-key',
-                worktreePath: '/nonexistent/path/that/does/not/exist',
+                worktreePath: stalePath,
                 graphSlug: 'stale-pipeline',
                 workspaceSlug: 'stale-ws',
                 status: 'running' as const,
@@ -710,18 +753,22 @@ describe('WorkflowExecutionManager', () => {
               },
             ],
           }),
-          write: () => {},
+          write: (reg) => {
+            writtenRegistry = reg;
+          },
           remove: () => {},
         },
+        worktreeExists: (p) => p !== stalePath,
       });
       const mgr2 = new WorkflowExecutionManager(deps2);
 
       // Should not throw — gracefully skips
       await mgr2.resumeAll();
 
-      expect(mgr2.getStatus('/nonexistent/path/that/does/not/exist', 'stale-pipeline')).toBe(
-        'idle'
-      );
+      expect(mgr2.getStatus(stalePath, 'stale-pipeline')).toBe('idle');
+      // AC4: Verify stale entry was cleaned from persisted registry
+      expect(writtenRegistry).not.toBeNull();
+      expect(writtenRegistry?.executions.some((e) => e.worktreePath === stalePath)).toBe(false);
     });
 
     /**

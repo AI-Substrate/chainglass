@@ -46,15 +46,19 @@ function readRegistry(): ExecutionRegistry {
     const result = ExecutionRegistrySchema.safeParse(parsed);
     if (!result.success) {
       console.warn(
-        '[execution-registry] Registry file failed validation, returning empty:',
+        '[execution-registry] Registry file failed validation, deleting corrupt file:',
         result.error.message
       );
+      removeRegistry(); // FT-005: self-healing — delete corrupt file
       return createEmptyRegistry();
     }
     return result.data;
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    console.warn(`[execution-registry] Failed to read registry, returning empty: ${msg}`);
+    console.warn(
+      `[execution-registry] Failed to read registry, deleting and returning empty: ${msg}`
+    );
+    removeRegistry(); // FT-005: self-healing — delete corrupt file
     return createEmptyRegistry();
   }
 }

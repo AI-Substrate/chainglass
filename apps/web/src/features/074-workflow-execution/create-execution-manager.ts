@@ -6,6 +6,7 @@
  * Resolves all deps from the web DI container.
  */
 
+import fs from 'node:fs';
 import type { IOrchestrationService, IPositionalGraphService } from '@chainglass/positional-graph';
 import {
   ORCHESTRATION_DI_TOKENS,
@@ -32,6 +33,7 @@ export async function createWorkflowExecutionManager(): Promise<WorkflowExecutio
     workspaceService: container.resolve<IWorkspaceService>(WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE),
     broadcaster: new SSEManagerBroadcaster(sseManager),
     registry: createFileExecutionRegistry(),
+    worktreeExists: (p: string) => fs.existsSync(p),
   };
 
   return new WorkflowExecutionManager(deps);

@@ -90,7 +90,7 @@ Visual workflow editor for the positional graph system. Users view and edit line
 ## Source Location
 
 Primary: `apps/web/src/features/050-workflow-page/`
-Supporting: `apps/web/src/features/074-workflow-execution/` — execution hook, button-state utility, manager types (shared with positional-graph domain)
+Supporting: `apps/web/src/features/074-workflow-execution/` — execution hook, button-state utility, manager types, registry persistence, resume-on-bootstrap recovery (shared with positional-graph domain)
 
 | File/Area | Role | Notes |
 |-----------|------|-------|
@@ -100,6 +100,9 @@ Supporting: `apps/web/src/features/074-workflow-execution/` — execution hook, 
 | `apps/web/src/features/050-workflow-page/types.ts` | Shared types | WorkflowSnapshot, server action types |
 | `apps/web/src/features/074-workflow-execution/hooks/` | Execution hook | useWorkflowExecution (hydration + SSE + action gating) |
 | `apps/web/src/features/074-workflow-execution/execution-button-state.ts` | Button state utility | deriveButtonState() pure function |
+| `apps/web/src/features/074-workflow-execution/execution-registry.types.ts` | Registry types | Zod schemas, `IExecutionRegistry`, `toRegistryEntry()` |
+| `apps/web/src/features/074-workflow-execution/execution-registry.ts` | Registry I/O | read/write/remove with atomic writes, self-healing on corrupt files |
+| `apps/web/src/features/074-workflow-execution/workflow-execution-manager.ts` | Execution manager | start/stop/restart/resume lifecycle, registry persistence, debounced iteration writes |
 | `apps/web/app/(dashboard)/workspaces/[slug]/workflows/` | Route pages | List + editor server components |
 | `apps/web/app/actions/workflow-actions.ts` | Server actions | 17 actions: load, list, create, mutations, Q&A, undo, SSE refresh |
 | `packages/workflow/src/features/023-central-watcher-notifications/workflow-watcher.adapter.ts` | Watcher adapter | Filters graph.yaml/node.yaml/state.json changes, 200ms debounce |

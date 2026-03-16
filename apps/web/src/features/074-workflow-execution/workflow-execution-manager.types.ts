@@ -97,6 +97,8 @@ export interface ExecutionManagerDeps {
   readonly broadcaster: ISSEBroadcaster;
   /** Persistent execution registry for server restart recovery. Phase 5. */
   readonly registry: IExecutionRegistry;
+  /** FT-006: Injected worktree existence check for resume validation. */
+  readonly worktreeExists: (path: string) => boolean;
 }
 
 // ── Serializable Status (DYK #1: ExecutionHandle has non-serializable fields) ──

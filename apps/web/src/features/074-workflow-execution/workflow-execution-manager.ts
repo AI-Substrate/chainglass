@@ -11,7 +11,6 @@
  * handleEvent, .then(completed/stopped/failed), .catch(failed), stop(stopping).
  */
 
-import fs from 'node:fs';
 import type { DriveEvent, DriveResult } from '@chainglass/positional-graph';
 import { toRegistryEntry } from './execution-registry.types';
 import type {
@@ -127,10 +126,20 @@ export class WorkflowExecutionManager implements IWorkflowExecutionManager {
       handle.status = 'failed';
       handle.lastMessage = 'Failed to resolve workspace context';
       this.broadcastStatus(handle); // broadcast failure
+      this.persistRegistry(); // FT-002: persist on pre-drive failure
       return { started: false, already: false, key };
     }
 
-    const orchestrationHandle = await this.deps.orchestrationService.get(workspaceCtx, graphSlug);
+    let orchestrationHandle: Awaited<ReturnType<typeof this.deps.orchestrationService.get>>;
+    try {
+      orchestrationHandle = await this.deps.orchestrationService.get(workspaceCtx, graphSlug);
+    } catch (error) {
+      handle.status = 'failed';
+      handle.lastMessage = error instanceof Error ? error.message : String(error);
+      this.broadcastStatus(handle);
+      this.persistRegistry(); // FT-002: persist on orchestration failure
+      return { started: false, already: false, key };
+    }
     handle.orchestrationHandle = orchestrationHandle;
     handle.status = 'running';
     this.broadcastStatus(handle); // DYK #5 call site (2): 'running'
@@ -389,8 +398,8 @@ export class WorkflowExecutionManager implements IWorkflowExecutionManager {
     let resumed = 0;
     for (const entry of toResume) {
       try {
-        // Verify worktree still exists
-        if (!fs.existsSync(entry.worktreePath)) {
+        // FT-006: Use injected dependency instead of direct fs access
+        if (!this.deps.worktreeExists(entry.worktreePath)) {
           console.warn(
             `[workflow-execution] Skipping resume for ${entry.graphSlug}: worktree ${entry.worktreePath} no longer exists`
           );
@@ -412,10 +421,13 @@ export class WorkflowExecutionManager implements IWorkflowExecutionManager {
       }
     }
 
-    // Clean stale entries and persist updated registry
-    if (toKeep.length !== registry.executions.length || resumed > 0) {
-      this.persistRegistry();
-    }
+    // FT-001: Write merged registry — kept entries + live execution handles
+    const resumedEntries = [...this.executions.values()].map((h) => toRegistryEntry(h));
+    this.deps.registry.write({
+      version: 1 as const,
+      updatedAt: new Date().toISOString(),
+      executions: [...toKeep, ...resumedEntries],
+    });
 
     if (resumed > 0) {
       console.log(`[workflow-execution] Resumed ${resumed}/${toResume.length} workflows`);
