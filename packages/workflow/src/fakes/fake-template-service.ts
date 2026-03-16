@@ -7,6 +7,7 @@
  */
 
 import type {
+  DeleteTemplateResult,
   ITemplateService,
   InstantiateResult,
   ListInstancesResult,
@@ -123,6 +124,19 @@ export class FakeTemplateService implements ITemplateService {
     return this.refreshResult;
   }
 
+  readonly deleteCalls: Array<{ ctx: WorkspaceContext; templateSlug: string }> = [];
+  private deleteResult: DeleteTemplateResult = { deleted: true, errors: [] };
+
+  async delete(ctx: WorkspaceContext, templateSlug: string): Promise<DeleteTemplateResult> {
+    this.deleteCalls.push({ ctx, templateSlug });
+    return this.deleteResult;
+  }
+
+  withDeleteResult(result: DeleteTemplateResult): this {
+    this.deleteResult = result;
+    return this;
+  }
+
   // Test helpers
   reset(): void {
     this.saveFromCalls.length = 0;
@@ -131,6 +145,7 @@ export class FakeTemplateService implements ITemplateService {
     this.instantiateCalls.length = 0;
     this.listInstancesCalls.length = 0;
     this.refreshCalls.length = 0;
+    this.deleteCalls.length = 0;
     this.workflows = [];
     this.instances.clear();
     this.saveFromResult = { data: null, errors: [] };

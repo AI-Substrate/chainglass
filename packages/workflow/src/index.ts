@@ -482,6 +482,7 @@ export type {
   InstantiateResult,
   ListInstancesResult,
   RefreshResult,
+  DeleteTemplateResult,
 } from './interfaces/index.js';
 export type {
   IInstanceService,

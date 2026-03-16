@@ -13,6 +13,7 @@
 
 import type { Command } from 'commander';
 import type { CgExecOptions } from '../../test-data/cg-runner.js';
+import { computePorts } from '../../ports/allocator.js';
 import {
   cleanTestData,
   createEnv,
@@ -26,9 +27,12 @@ import {
 import { exitWithEnvelope, formatError, formatSuccess, ErrorCodes } from '../output.js';
 
 function resolveOptions(opts: { target?: string; workspacePath?: string }): CgExecOptions {
+  const target = (opts.target as 'local' | 'container') ?? 'local';
+  const ports = target === 'container' ? computePorts() : null;
   return {
-    target: (opts.target as 'local' | 'container') ?? 'local',
+    target,
     workspacePath: opts.workspacePath ?? process.cwd(),
+    containerName: ports ? `chainglass-${ports.worktree}` : undefined,
   };
 }
 

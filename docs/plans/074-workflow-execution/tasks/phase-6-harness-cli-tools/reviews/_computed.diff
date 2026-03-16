@@ -1,0 +1,1633 @@
+diff --git a/apps/cli/src/commands/unit.command.ts b/apps/cli/src/commands/unit.command.ts
+index 48b0ab76..864304a4 100644
+--- a/apps/cli/src/commands/unit.command.ts
++++ b/apps/cli/src/commands/unit.command.ts
+@@ -9,14 +9,17 @@
+  * - cg unit info <slug>       - Show unit details
+  * - cg unit create <slug>     - Create new unit scaffold
+  * - cg unit validate <slug>   - Validate unit definition
++ * - cg unit update <slug>     - Update unit definition (Plan 074 Phase 6)
++ * - cg unit delete <slug>     - Delete unit (Plan 074 Phase 6)
+  *
+  * Per ADR-0004: Uses DI container, not direct instantiation.
+  * Per ADR-0008: Workgraph services registered via registerWorkgraphServices().
+  * Per Plan 021: Uses --workspace-path flag for workspace context override.
+  */
+ 
+-import { WORKGRAPH_DI_TOKENS } from '@chainglass/shared';
+-import type { IWorkUnitService } from '@chainglass/workgraph';
++import fs from 'node:fs';
++import type { IWorkUnitService, UpdateUnitPatch } from '@chainglass/positional-graph';
++import { POSITIONAL_GRAPH_DI_TOKENS } from '@chainglass/shared';
+ import type { Command } from 'commander';
+ import { createCliProductionContainer } from '../lib/container.js';
+ import {
+@@ -63,6 +66,25 @@ interface CreateOptions extends BaseUnitOptions {
+  */
+ interface ValidateOptions extends BaseUnitOptions {}
+ 
++/**
++ * Options for unit update command (Plan 074 Phase 6 T001).
++ */
++interface UpdateOptions extends BaseUnitOptions {
++  description?: string;
++  version?: string;
++  patch?: string;
++  set?: string[];
++  addInput?: string[];
++  addOutput?: string[];
++  inputsJson?: string;
++  outputsJson?: string;
++}
++
++/**
++ * Options for unit delete command (Plan 074 Phase 6 T002).
++ */
++interface DeleteOptions extends BaseUnitOptions {}
++
+ // ============================================
+ // Helpers
+ // ============================================
+@@ -73,7 +95,7 @@ interface ValidateOptions extends BaseUnitOptions {}
+  */
+ function getWorkUnitService(): IWorkUnitService {
+   const container = createCliProductionContainer();
+-  return container.resolve<IWorkUnitService>(WORKGRAPH_DI_TOKENS.WORKUNIT_SERVICE);
++  return container.resolve<IWorkUnitService>(POSITIONAL_GRAPH_DI_TOKENS.WORKUNIT_SERVICE);
+ }
+ 
+ // ============================================
+@@ -179,7 +201,7 @@ async function handleUnitCreate(slug: string, options: CreateOptions): Promise<v
+   }
+ 
+   const service = getWorkUnitService();
+-  const result = await service.create(ctx, slug, options.type);
++  const result = await service.create(ctx, { slug, type: options.type });
+   const output = adapter.format('unit.create', result);
+ 
+   console.log(output);
+@@ -229,9 +251,169 @@ async function handleUnitValidate(slug: string, options: ValidateOptions): Promi
+ }
+ 
+ // ============================================
+-// Command Registration
++// Plan 074 Phase 6: Update + Delete Handlers
+ // ============================================
+ 
++/**
++ * Parse a --patch YAML/JSON file into an UpdateUnitPatch object.
++ */
++async function loadPatchFile(filePath: string): Promise<UpdateUnitPatch> {
++  const raw = fs.readFileSync(filePath, 'utf-8');
++
++  // Try JSON first
++  if (filePath.endsWith('.json')) {
++    return JSON.parse(raw) as UpdateUnitPatch;
++  }
++
++  // YAML — use a simple approach: the service will handle yaml→patch
++  // The patch file IS a partial unit.yaml, so parse as JSON-compatible subset
++  // For YAML support, we use the same yaml parser the service uses
++  const { parse: parseYaml } = await import('yaml');
++  return parseYaml(raw) as UpdateUnitPatch;
++}
++
++/**
++ * Parse --add-input/--add-output spec strings into declaration objects.
++ * Format: "name:spec,type:data,data_type:text,required:true"
++ */
++function parseIOSpec(spec: string): {
++  name: string;
++  type: 'data' | 'file';
++  data_type?: 'text' | 'number' | 'boolean' | 'json';
++  required: boolean;
++  description?: string;
++} {
++  const parts = spec.split(',');
++  const obj: Record<string, string> = {};
++  for (const part of parts) {
++    const [key, ...rest] = part.split(':');
++    obj[key.trim()] = rest.join(':').trim();
++  }
++  return {
++    name: obj.name ?? '',
++    type: (obj.type as 'data' | 'file') ?? 'data',
++    data_type: obj.data_type as 'text' | 'number' | 'boolean' | 'json' | undefined,
++    required: obj.required === 'true',
++    description: obj.description,
++  };
++}
++
++/**
++ * Handle cg unit update <slug> command (Plan 074 Phase 6 T001).
++ */
++async function handleUnitUpdate(slug: string, options: UpdateOptions): Promise<void> {
++  const adapter = createOutputAdapter(options.json ?? false);
++
++  const ctx = await resolveOrOverrideContext(options.workspacePath);
++  if (!ctx) {
++    console.log(
++      adapter.format('unit.update', { slug, errors: [noContextError(options.workspacePath)] })
++    );
++    process.exit(1);
++  }
++
++  const service = getWorkUnitService();
++
++  // Build the patch from options
++  const patch: UpdateUnitPatch = {};
++
++  // --patch file (highest precedence — provides full patch)
++  if (options.patch) {
++    const filePatch = await loadPatchFile(options.patch);
++    Object.assign(patch, filePatch);
++  }
++
++  // Scalar overrides
++  if (options.description !== undefined) patch.description = options.description;
++  if (options.version !== undefined) patch.version = options.version;
++
++  // --set key=value (type-config shallow merge)
++  if (options.set?.length) {
++    const setMap: Record<string, string> = {};
++    for (const s of options.set) {
++      const [key, ...rest] = s.split('=');
++      setMap[key.trim()] = rest.join('=').trim();
++    }
++    // Load current unit to determine type
++    const loaded = await service.load(ctx, slug);
++    if (loaded.errors.length > 0) {
++      console.log(adapter.format('unit.update', { slug, errors: loaded.errors }));
++      process.exit(1);
++    }
++    const unit = loaded.unit;
++    if (unit?.type === 'agent')
++      patch.agent = { ...patch.agent, ...setMap } as UpdateUnitPatch['agent'];
++    else if (unit?.type === 'code')
++      patch.code = { ...patch.code, ...setMap } as UpdateUnitPatch['code'];
++    else if (unit?.type === 'user-input')
++      patch.user_input = { ...patch.user_input, ...setMap } as UpdateUnitPatch['user_input'];
++  }
++
++  // --add-input (append to existing inputs)
++  if (options.addInput?.length) {
++    // Load current unit to get existing inputs
++    const loaded = await service.load(ctx, slug);
++    if (loaded.errors.length === 0 && loaded.unit) {
++      const existing = loaded.unit.inputs ?? [];
++      const added = options.addInput.map(parseIOSpec);
++      patch.inputs = [...existing, ...added];
++    }
++  }
++
++  // --add-output (append to existing outputs)
++  if (options.addOutput?.length) {
++    const loaded = await service.load(ctx, slug);
++    if (loaded.errors.length === 0 && loaded.unit) {
++      const existing = loaded.unit.outputs ?? [];
++      const added = options.addOutput.map(parseIOSpec);
++      patch.outputs = [...existing, ...added];
++    }
++  }
++
++  // --inputs-json (wholesale replacement)
++  if (options.inputsJson) {
++    patch.inputs = JSON.parse(options.inputsJson);
++  }
++
++  // --outputs-json (wholesale replacement)
++  if (options.outputsJson) {
++    patch.outputs = JSON.parse(options.outputsJson);
++  }
++
++  const result = await service.update(ctx, slug, patch);
++  console.log(adapter.format('unit.update', result));
++
++  if (result.errors.length > 0) {
++    process.exit(1);
++  }
++}
++
++/**
++ * Handle cg unit delete <slug> command (Plan 074 Phase 6 T002).
++ */
++async function handleUnitDelete(slug: string, options: DeleteOptions): Promise<void> {
++  const adapter = createOutputAdapter(options.json ?? false);
++
++  const ctx = await resolveOrOverrideContext(options.workspacePath);
++  if (!ctx) {
++    console.log(
++      adapter.format('unit.delete', {
++        deleted: false,
++        errors: [noContextError(options.workspacePath)],
++      })
++    );
++    process.exit(1);
++  }
++
++  const service = getWorkUnitService();
++  const result = await service.delete(ctx, slug);
++  console.log(adapter.format('unit.delete', result));
++
++  if (result.errors.length > 0) {
++    process.exit(1);
++  }
++}
++
+ /**
+  * Register the unit command group with the Commander program.
+  *
+@@ -240,6 +422,8 @@ async function handleUnitValidate(slug: string, options: ValidateOptions): Promi
+  * - cg unit info <slug>       - Show unit details
+  * - cg unit create <slug>     - Create new unit scaffold
+  * - cg unit validate <slug>   - Validate unit definition
++ * - cg unit update <slug>     - Update unit definition (Plan 074)
++ * - cg unit delete <slug>     - Delete unit (Plan 074)
+  *
+  * @param program - Commander.js program instance
+  */
+@@ -294,4 +478,51 @@ export function registerUnitCommands(program: Command): void {
+         await handleUnitValidate(slug, options);
+       })
+     );
++
++  // cg unit update <slug> (Plan 074 Phase 6 T001)
++  unit
++    .command('update <slug>')
++    .description('Update a unit definition')
++    .option('--json', 'Output as JSON', false)
++    .option('--workspace-path <path>', 'Override workspace context')
++    .option('--description <text>', 'Set description')
++    .option('--version <semver>', 'Set version')
++    .option('--patch <file>', 'Apply YAML/JSON patch file')
++    .option(
++      '--set <key=value>',
++      'Set type-config property (repeatable)',
++      (v: string, a: string[]) => [...a, v],
++      [] as string[]
++    )
++    .option(
++      '--add-input <spec>',
++      'Add input (repeatable, format: name:x,type:data,data_type:text,required:true)',
++      (v: string, a: string[]) => [...a, v],
++      [] as string[]
++    )
++    .option(
++      '--add-output <spec>',
++      'Add output (repeatable, same format as --add-input)',
++      (v: string, a: string[]) => [...a, v],
++      [] as string[]
++    )
++    .option('--inputs-json <json>', 'Replace all inputs (JSON array)')
++    .option('--outputs-json <json>', 'Replace all outputs (JSON array)')
++    .action(
++      wrapAction(async (slug: string, options: UpdateOptions) => {
++        await handleUnitUpdate(slug, options);
++      })
++    );
++
++  // cg unit delete <slug> (Plan 074 Phase 6 T002)
++  unit
++    .command('delete <slug>')
++    .description('Delete a unit (idempotent)')
++    .option('--json', 'Output as JSON', false)
++    .option('--workspace-path <path>', 'Override workspace context')
++    .action(
++      wrapAction(async (slug: string, options: DeleteOptions) => {
++        await handleUnitDelete(slug, options);
++      })
++    );
+ }
+diff --git a/docs/how/workflow-execution.md b/docs/how/workflow-execution.md
+new file mode 100644
+index 00000000..379d8cd8
+--- /dev/null
++++ b/docs/how/workflow-execution.md
+@@ -0,0 +1,141 @@
++# Running Workflows from the Web UI
++
++This guide covers how to execute workflow pipelines from the Chainglass web interface, set up test environments, and troubleshoot common issues.
++
++## Architecture Overview
++
++The workflow execution system has three layers:
++
++```
++Browser (UI)              Server (Next.js)           Engine
++┌────────────────┐       ┌───────────────────┐      ┌──────────────────┐
++│ Run/Stop/Restart│──────▸│ Server Actions     │─────▸│ drive() loop     │
++│ Buttons         │       │ (workflow-execution│      │ ONBAS → ODS → Pod│
++│                 │◂──────│  -actions.ts)      │      │                  │
++│ Status display  │  SSE  │                    │      │ Graph state on   │
++│ Node locking    │       │ ExecutionManager   │      │ disk (node.yaml, │
++│ Undo/redo gate  │       │ (singleton)        │      │ state.json)      │
++└────────────────┘       └───────────────────┘      └──────────────────┘
++```
++
++### Key Components
++
++| Component | Location | Purpose |
++|-----------|----------|---------|
++| `WorkflowExecutionManager` | `apps/web/src/features/074-workflow-execution/` | Central singleton managing all active executions |
++| `useWorkflowExecution` hook | Same feature folder | Client-side React hook for UI state |
++| `deriveButtonState()` | Same feature folder | Maps execution status → button visibility |
++| Server Actions | `apps/web/app/actions/workflow-execution-actions.ts` | 4 actions: run, stop, restart, getStatus |
++| SSE Route | `apps/web/src/lib/state/workflow-execution-route.ts` | Maps SSE events → GlobalState properties |
++| Execution Registry | `~/.config/chainglass/execution-registry.json` | Persists state for server restart recovery |
++
++## Running a Workflow
++
++1. Navigate to a workflow in the web UI
++2. Click the green **Run** button in the toolbar
++3. The workflow begins executing — you'll see:
++   - Status badge updates (starting → running → completed)
++   - Iteration counter incrementing
++   - Nodes locking as they execute (completed/running nodes are locked)
++   - Last event message updates
++4. Click **Stop** (red) to interrupt execution — active nodes become "interrupted"
++5. Click **Restart** to reset all state and start fresh
++
++### During Execution
++
++- **Locked nodes**: Completed and running nodes cannot be edited
++- **Future nodes**: Nodes not yet reached CAN still be edited while the workflow runs
++- **Undo/redo**: Blocked during active execution (starting/running/stopping)
++- **Stopping**: Sets all nodes to locked while the engine winds down
++
++## Setting Up Test Data
++
++Use the harness test-data commands to create a deterministic test workflow:
++
++```bash
++# Create complete test environment (3 units + template + workflow)
++just test-data create env
++
++# Or step by step:
++just test-data create units      # Create test-agent, test-code, test-user-input
++just test-data create template   # Build template from units
++just test-data create workflow   # Instantiate from template
++
++# Check what exists
++just test-data status
++
++# Run the test workflow (CLI path — visible in web UI via file watchers)
++just test-data run
++
++# Clean up
++just test-data clean
++```
++
++### Test Data Structure
++
++| Component | Slug | Type |
++|-----------|------|------|
++| Agent unit | `test-agent` | Processes a spec, returns result + summary |
++| Code unit | `test-code` | Transforms input data to output |
++| User-input unit | `test-user-input` | Collects user specification text |
++| Template | `test-workflow-tpl` | 3-line workflow: input → processing → output |
++| Workflow | `test-workflow` | Instance ready for execution |
++
++### CLI vs Web Execution
++
++Both paths share the same underlying engine (`ONBAS/ODS/drive()`) and write to the same files on disk. When `cg wf run` (CLI) or the web UI executes a workflow:
++
++- The same node events are processed
++- The same graph state files are written
++- The web UI updates via filesystem watchers regardless of who started the execution
++
++The difference is lifecycle management:
++- **Web path**: Uses `WorkflowExecutionManager` with AbortController, SSE broadcasting, execution registry, and UI controls
++- **CLI path**: Direct `drive()` call with simpler lifecycle
++
++## Server Restart Recovery
++
++If the dev server restarts while a workflow is running:
++
++1. The execution registry (`~/.config/chainglass/execution-registry.json`) tracks all active executions
++2. On restart, `resumeAll()` reads the registry and re-starts any workflows that were running
++3. Completed nodes are NOT re-executed (ONBAS skips them — the engine is idempotent)
++4. Stale entries (deleted worktrees) are automatically cleaned up
++5. Corrupt registry files self-heal (deleted, next restart is clean)
++
++## Troubleshooting
++
++### Workflow stuck in "starting"
++
++The workspace context couldn't be resolved. Check that:
++- The worktree path exists on disk
++- The workspace is registered (`cg workspace list`)
++
++### Nodes not updating in real-time
++
++Check the SSE connection:
++- Browser devtools → Network → EventSource connections
++- Look for `/api/events/mux` connection
++- The `workflow-execution` channel should be in the connection
++
++### Registry file issues
++
++If the execution registry gets corrupted:
++```bash
++# The file self-heals on next restart, but you can manually clear it:
++rm ~/.config/chainglass/execution-registry.json
++```
++
++### CLI build stale
++
++If `just test-data create env` fails with "unknown command: update":
++```bash
++# Rebuild the CLI
++pnpm --filter @chainglass/cli build
++```
++
++## Related Documentation
++
++- [Harness README](../../harness/README.md) — Docker dev environment, agent definitions
++- [SSE Integration Guide](./sse-integration.md) — How SSE channels work
++- [Plan 074 Spec](../plans/074-workflow-execution/workflow-execution-spec.md) — Full feature specification
+diff --git a/docs/plans/074-workflow-execution/tasks/phase-6-harness-cli-tools/execution.log.md b/docs/plans/074-workflow-execution/tasks/phase-6-harness-cli-tools/execution.log.md
+new file mode 100644
+index 00000000..f02bfa9a
+--- /dev/null
++++ b/docs/plans/074-workflow-execution/tasks/phase-6-harness-cli-tools/execution.log.md
+@@ -0,0 +1,18 @@
++# Execution Log: Phase 6 — Harness + CLI Tools
++
++**Phase**: Phase 6: Harness + CLI Tools
++**Started**: 2026-03-16
++**Implementor**: plan-6-v2
++
++---
++
++## Pre-Flight
++
++- **Harness validation**: Deferred — Phase 6 builds harness tooling itself
++- **Baseline tests**: To be verified
++
++---
++
++## Task Log
++
++_Entries added as tasks complete._
+diff --git a/docs/plans/074-workflow-execution/tasks/phase-6-harness-cli-tools/tasks.fltplan.md b/docs/plans/074-workflow-execution/tasks/phase-6-harness-cli-tools/tasks.fltplan.md
+new file mode 100644
+index 00000000..df4c4a52
+--- /dev/null
++++ b/docs/plans/074-workflow-execution/tasks/phase-6-harness-cli-tools/tasks.fltplan.md
+@@ -0,0 +1,148 @@
++# Flight Plan: Phase 6 — Harness + CLI Tools
++
++**Plan**: [workflow-execution-plan.md](../../workflow-execution-plan.md)
++**Phase**: Phase 6: Harness + CLI Tools
++**Generated**: 2026-03-16
++**Status**: Landed
++
++---
++
++## Departure → Destination
++
++**Where we are**: Phases 1-5 built the complete workflow execution stack: engine contracts, execution manager, SSE/GlobalState plumbing, UI controls (Run/Stop/Restart), and server restart recovery. But there's no automated way to set up a test workflow environment — every test requires manual creation of work units, templates, and workflow instances.
++
++**Where we're going**: A developer (or harness agent) runs `just test-data create env` and gets a fully configured test workflow with 3 work units, a template, and an instantiated workflow — deterministic, idempotent, ready for execution testing. `cg unit update/delete` commands provide the CLI surface for unit management.
++
++---
++
++## Domain Context
++
++### Domains We're Changing
++
++| Domain | What Changes | Key Files |
++|--------|-------------|-----------|
++| CLI | Add `cg unit update` and `cg unit delete` commands | `apps/cli/src/commands/unit.command.ts` |
++| Harness | Test-data command group, runCg helper, patch files | `harness/src/test-data/*.ts`, `harness/src/cli/commands/test-data.ts` |
++| docs | Harness README, workflow how-to guide | `harness/README.md`, `docs/how/workflow-execution.md` |
++| root | Justfile recipe | `justfile` |
++
++### Domains We Depend On (no changes)
++
++| Domain | What We Consume | Contract |
++|--------|----------------|----------|
++| `_platform/positional-graph` | WorkUnitService.update/delete | Update patches, idempotent delete |
++| `@chainglass/workgraph` | Template engine | save-from, instantiate |
++| `_platform/positional-graph` | Workflow commands | cg wf create/run/stop |
++
++---
++
++## Flight Status
++
++<!-- Updated by /plan-6-v2: pending → active → done. Use blocked for problems/input needed. -->
++
++```mermaid
++stateDiagram-v2
++    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
++    classDef active fill:#FFC107,stroke:#FFA000,color:#000
++    classDef done fill:#4CAF50,stroke:#388E3C,color:#fff
++    classDef blocked fill:#F44336,stroke:#D32F2F,color:#fff
++
++    state "1: CLI unit commands" as S1
++    state "2: runCg + constants + patches" as S2
++    state "3: Test-data create commands" as S3
++    state "4: Test-data lifecycle commands" as S4
++    state "5: Registration + docs" as S5
++
++    [*] --> S1
++    S1 --> S2
++    S2 --> S3
++    S3 --> S4
++    S4 --> S5
++    S5 --> [*]
++
++    class S1,S2,S3,S4,S5 done
++```
++
++**Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
++
++---
++
++## Stages
++
++<!-- Updated by /plan-6-v2 during implementation: [ ] → [~] → [x] -->
++
++- [x] **Stage 1: CLI unit commands** — `cg unit update` and `cg unit delete` in `unit.command.ts`
++- [x] **Stage 2: runCg + constants + patches** — `cg-runner.ts`, `constants.ts`, 3 patch YAML files (new files)
++- [x] **Stage 3: Test-data create commands** — `create units/template/workflow/env` commands
++- [x] **Stage 4: Test-data lifecycle commands** — `clean/status/run/stop` commands
++- [x] **Stage 5: Registration + docs** — CLI registration, justfile recipe, harness README, how-to guide
++
++---
++
++## Architecture: Before & After
++
++```mermaid
++flowchart LR
++    classDef existing fill:#E8F5E9,stroke:#4CAF50,color:#000
++    classDef changed fill:#FFF3E0,stroke:#FF9800,color:#000
++    classDef new fill:#E3F2FD,stroke:#2196F3,color:#000
++
++    subgraph Before["Before Phase 6"]
++        B_CLI["cg unit<br/>(list, info, create, validate)"]:::existing
++        B_Harness["harness CLI<br/>(13 commands)"]:::existing
++        B_Manual["Manual test setup<br/>(tedious)"]:::existing
++    end
++
++    subgraph After["After Phase 6"]
++        A_CLI["cg unit<br/>(+update, +delete)"]:::changed
++        A_RunCg["runCg() helper<br/>(local + container)"]:::new
++        A_TD["harness test-data<br/>(create, clean, status,<br/>run, stop)"]:::new
++        A_Patches["Patch files<br/>(3 YAML)"]:::new
++        A_Just["just test-data<br/>(recipe)"]:::new
++
++        A_TD -->|"uses"| A_RunCg
++        A_RunCg -->|"calls"| A_CLI
++        A_Just -->|"forwards"| A_TD
++        A_TD -->|"loads"| A_Patches
++    end
++```
++
++**Legend**: existing (green, unchanged) | changed (orange, modified) | new (blue, created)
++
++---
++
++## Acceptance Criteria
++
++- [ ] `cg unit update test-agent --patch patch.yaml` applies patch correctly
++- [ ] `cg unit delete test-agent` removes unit idempotently
++- [ ] `just test-data create env` creates 3 units + template + workflow instance
++- [ ] Running `create env` again resets everything to clean state (idempotent)
++- [ ] Every cg command printed with `▸` prefix to stderr
++- [ ] `--target container` routes commands into Docker container
++- [ ] `harness test-data status` shows what exists
++- [ ] `harness test-data clean` removes all test data
++- [ ] `docs/how/workflow-execution.md` exists with architecture + troubleshooting
++
++## Goals & Non-Goals
++
++**Goals**: CLI unit management, automated test environment, runCg helper, documentation
++**Non-Goals**: Browser-based execution testing, CI/CD integration, cross-workspace test data
++
++---
++
++## Checklist
++
++- [x] T001: Add `cg unit update <slug>` CLI command
++- [x] T002: Add `cg unit delete <slug>` CLI command
++- [x] T003: Create `runCg()` helper
++- [x] T004: Create `constants.ts` with test data slugs
++- [x] T005: Create test unit patch files
++- [x] T006: Implement `create units` command
++- [x] T007: Implement `create template` command
++- [x] T008: Implement `create workflow` command
++- [x] T009: Implement `create env` aggregate
++- [x] T010: Implement `clean/status/run/stop` commands
++- [x] T011: Register test-data command group
++- [x] T012: Add `just test-data` recipe to justfile
++- [x] T013: Update harness README
++- [x] T014: Create `docs/how/workflow-execution.md`
+diff --git a/docs/plans/074-workflow-execution/tasks/phase-6-harness-cli-tools/tasks.md b/docs/plans/074-workflow-execution/tasks/phase-6-harness-cli-tools/tasks.md
+new file mode 100644
+index 00000000..2f58d17a
+--- /dev/null
++++ b/docs/plans/074-workflow-execution/tasks/phase-6-harness-cli-tools/tasks.md
+@@ -0,0 +1,263 @@
++# Phase 6: Harness + CLI Tools — Tasks Dossier
++
++**Plan**: [workflow-execution-plan.md](../../workflow-execution-plan.md)
++**Phase**: Phase 6: Harness + CLI Tools
++**Created**: 2026-03-16
++**Domain**: `workflow-ui` (CLI extensions), Harness (test-data tooling)
++**Testing**: Lightweight — CLI commands tested via integration, harness commands via manual validation
++
++---
++
++## Executive Briefing
++
++**Purpose**: Build the test-data CLI tooling and `cg unit update/delete` commands so that developers and harness agents can create deterministic test workflow environments. Without this, every test requires manual setup of work units, templates, and workflow instances.
++
++**What We're Building**: A `harness test-data` command group that automates test environment lifecycle (create units → build template → instantiate workflow → run/stop/clean), backed by a `runCg()` helper that routes commands to either local or container-based CLI. Also adding `cg unit update` and `cg unit delete` CLI commands (the service methods already exist; we're adding the CLI surface).
++
++**Goals**:
++- ✅ `cg unit update <slug>` with --patch, --set, --add-input/output, --description, --version
++- ✅ `cg unit delete <slug>` (idempotent)
++- ✅ `runCg()` helper with command visibility (▸ prefix) and local/container routing
++- ✅ `harness test-data create units/template/workflow/env` commands (idempotent)
++- ✅ `harness test-data clean/status/run/stop` commands
++- ✅ Test unit patch files for deterministic hydration
++- ✅ `just test-data` recipe in justfile
++- ✅ `docs/how/workflow-execution.md` how-to guide
++
++**Non-Goals**:
++- ❌ Browser-based workflow execution testing (web WorkflowExecutionManager exercised via Phases 1-5)
++- ❌ CI/CD pipeline integration for test-data
++- ❌ Cross-workspace test-data management
++
++---
++
++## Prior Phase Context
++
++### Phase 5: Server Restart Recovery ✅ (most recent)
++
++**Deliverables**: ExecutionRegistry types/Zod schema, registry read/write module (sync atomic writes), persistRegistry() at 6 lifecycle points, debounced iteration persistence, resumeAll() with self-healing, bootstrap integration, SIGTERM best-effort persist. 54 tests.
++
++**Dependencies Exported**: `IExecutionRegistry` interface (read/write/remove), `resumeAll()` on IWorkflowExecutionManager, `ExecutionRegistry` Zod schema, `worktreeExists` injected dependency, `createFileExecutionRegistry()` factory.
++
++**Gotchas**: Can't vi.spyOn fs.existsSync in ESM modules — use real paths or injected deps. SIGTERM persist is best-effort (lifecycle writes keep registry recent). Corrupt registries self-heal via delete-and-continue.
++
++**Patterns**: Atomic writes (writeFileSync + renameSync). Self-healing on corrupt files. Debounce with counter+timestamp. Bootstrap error isolation (separate try/catch). FakeRegistry pattern for tests.
++
++### Phase 4: UI Execution Controls ✅
++
++**Deliverables**: useWorkflowExecution hook, deriveButtonState(), Run/Stop/Restart buttons in toolbar, execution-aware node locking, undo/redo blocking. 28 tests.
++
++### Phases 1-3 ✅
++
++Phase 1: Orchestration contracts (AbortSignal in drive(), 'interrupted' status, ONBAS handling). Phase 2: WorkflowExecutionManager singleton, DI wiring, globalThis bootstrap. Phase 3: SSE broadcasting, GlobalState routing, server actions. All complete, all tested.
++
++**Key for Phase 6**: Phase 1's `'stopped'` drive exit reason is what `test-data run/stop` will exercise via `cg wf run` / `cg wf stop` CLI commands.
++
++---
++
++## Pre-Implementation Check
++
++| File | Exists? | Domain Check | Notes |
++|------|---------|-------------|-------|
++| `apps/cli/src/commands/unit.command.ts` | ✅ modify | CLI | Add update/delete handlers alongside existing create/list/info/validate |
++| `harness/src/test-data/cg-runner.ts` | ❌ create | harness | runCg() helper — new file |
++| `harness/src/test-data/constants.ts` | ❌ create | harness | Hardcoded test data slugs |
++| `harness/src/test-data/unit-definitions.ts` | ❌ create | harness | Unit YAML definitions for test-agent/test-code/test-user-input |
++| `harness/src/test-data/template-builder.ts` | ❌ create | harness | Build source graph + save as template |
++| `harness/src/test-data/environment.ts` | ❌ create | harness | Aggregate create/clean/status commands |
++| `harness/src/cli/commands/test-data.ts` | ❌ create | harness | Commander.js command registration |
++| `harness/test-data/patches/test-agent.yaml` | ❌ create | harness | Patch file for test-agent unit |
++| `harness/test-data/patches/test-code.yaml` | ❌ create | harness | Patch file for test-code unit |
++| `harness/test-data/patches/test-user-input.yaml` | ❌ create | harness | Patch file for test-user-input unit |
++| `docs/how/workflow-execution.md` | ❌ create | docs | How-to guide |
++| `justfile` | ✅ modify | root | Add test-data recipe |
++| `harness/src/cli/index.ts` | ✅ modify | harness | Register test-data command group |
++| `harness/README.md` | ✅ modify | harness | Document test-data commands |
++
++**Harness context**: Harness available at L3. Pre-phase validation: `just harness health` before implementation.
++
++---
++
++## Architecture Map
++
++```mermaid
++flowchart TD
++    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
++    classDef completed fill:#4CAF50,stroke:#388E3C,color:#fff
++
++    subgraph Phase6["Phase 6: Harness + CLI Tools"]
++        T001["T001: cg unit update"]:::pending
++        T002["T002: cg unit delete"]:::pending
++        T003["T003: runCg() helper"]:::pending
++        T004["T004: constants.ts"]:::pending
++        T005["T005: Patch files"]:::pending
++        T006["T006: create units"]:::pending
++        T007["T007: create template"]:::pending
++        T008["T008: create workflow"]:::pending
++        T009["T009: create env"]:::pending
++        T010["T010: clean/status/run/stop"]:::pending
++        T011["T011: Register test-data CLI"]:::pending
++        T012["T012: just test-data recipe"]:::pending
++        T013["T013: harness README"]:::pending
++        T014["T014: How-to guide"]:::pending
++
++        T001 --> T006
++        T002 --> T010
++        T003 --> T006
++        T004 --> T005
++        T005 --> T006
++        T006 --> T007
++        T007 --> T008
++        T008 --> T009
++        T006 --> T010
++        T009 --> T011
++        T010 --> T011
++        T011 --> T012
++        T011 --> T013
++        T013 --> T014
++    end
++
++    subgraph Existing["Existing (consumed)"]
++        WUS["WorkUnitService<br/>(update/delete)"]:::completed
++        CLI["cg CLI framework<br/>(Commander.js)"]:::completed
++        HCLI["harness CLI<br/>(Commander.js)"]:::completed
++        TPL["cg template<br/>(save-from/instantiate)"]:::completed
++    end
++
++    WUS --> T001
++    WUS --> T002
++    CLI --> T001
++    HCLI --> T011
++    TPL --> T007
++```
++
++---
++
++## Tasks
++
++| Status | ID | Task | Domain | Path(s) | Done When | Notes |
++|--------|-----|------|--------|---------|-----------|-------|
++| [ ] | T001 | Add `cg unit update <slug>` CLI command | CLI | `apps/cli/src/commands/unit.command.ts` | `cg unit update test-agent --patch patch.yaml` applies patch. Supports --description, --version, --set, --add-input, --add-output, --patch, --inputs-json, --outputs-json. | Workshop 004. Fix create bug: `service.create(ctx, slug, options.type)` → correct args. Service `update()` exists at positional-graph line 267. |
++| [ ] | T002 | Add `cg unit delete <slug>` CLI command | CLI | `apps/cli/src/commands/unit.command.ts` | `cg unit delete test-agent` removes unit. Idempotent (no error if absent). | Service `delete()` exists at positional-graph line 331. |
++| [ ] | T003 | Create `runCg()` helper | harness | `harness/src/test-data/cg-runner.ts` | Prints `▸ cg ...` to stderr. Routes to `node apps/cli/dist/cli.cjs` (local) or `docker exec ... node /app/apps/cli/dist/cli.cjs` (container). Returns { stdout, stderr, exitCode }. | Workshop 003. NEVER use global `cg`. Use execFile() for local, computePorts() for container name. |
++| [ ] | T004 | Create `constants.ts` with test data slugs | harness | `harness/src/test-data/constants.ts` | Exports TEST_DATA object: `{ units: {agent, code, userInput}, template, workflow, workspacePath }`. All hardcoded, deterministic. | Workshop 003. |
++| [ ] | T005 | Create test unit patch files | harness | `harness/test-data/patches/{test-agent,test-code,test-user-input}.yaml` | 3 YAML patch files. Each defines inputs, outputs, type-config for its unit type. | Workshop 003+004 unit definitions. |
++| [ ] | T006 | Implement `create units` command | harness | `harness/src/test-data/unit-definitions.ts` | Creates 3 test units via `runCg('unit create ...')` then `runCg('unit update ... --patch ...')`. Idempotent (delete + recreate). Validates after. | Uses T001 (cg unit update) and T003 (runCg). |
++| [ ] | T007 | Implement `create template` command | harness | `harness/src/test-data/template-builder.ts` | Builds source graph via cg wf commands (create graph, add lines/nodes). Saves as template via `cg template save-from`. Deletes source graph. | Uses `cg wf create`, `cg wf line add`, `cg wf node add`, `cg template save-from`. |
++| [ ] | T008 | Implement `create workflow` command | harness | `harness/src/test-data/environment.ts` | Instantiates workflow from template: `cg template instantiate`. | Uses `cg template instantiate`. |
++| [ ] | T009 | Implement `create env` aggregate | harness | `harness/src/test-data/environment.ts` | Runs units → template → workflow in sequence. Single entry point for agents. Reports success/failure per step. | Orchestrates T006+T007+T008. |
++| [ ] | T010 | Implement `clean/status/run/stop` | harness | `harness/src/test-data/environment.ts` | `clean` deletes test data (units + template + workflow). `status` shows what exists. `run`/`stop` execute/halt test workflow. | `run` = `cg wf run`, `stop` = `cg wf stop`. |
++| [ ] | T011 | Register test-data command group | harness | `harness/src/cli/commands/test-data.ts`, `harness/src/cli/index.ts` | `just harness test-data --help` shows all subcommands. Commander.js with `create`, `clean`, `status`, `run`, `stop` subcommands. | Follow harness CLI registration pattern in index.ts. |
++| [ ] | T012 | Add `just test-data` recipe to justfile | root | `justfile` | `just test-data create env` works end-to-end. Forwards to `harness test-data`. | Follow existing `harness *ARGS` recipe pattern. |
++| [ ] | T013 | Update harness README | docs | `harness/README.md` | Test-data section with command reference, examples, agent usage guide. | Follow existing README structure. |
++| [ ] | T014 | Create `docs/how/workflow-execution.md` | docs | `docs/how/workflow-execution.md` | How-to guide: running workflows from UI, architecture overview, test-data setup, troubleshooting. | Reference Phases 1-6 deliverables. |
++
++---
++
++## Context Brief
++
++### Key findings from plan
++
++- **Finding (Phase 6 risk)**: `test-data run` exercises CLI orchestration, not the web WorkflowExecutionManager. Accepted for Plan 074 scope — future: add harness HTTP-based workflow execution test.
++- **Finding (CLI build freshness)**: Harness depends on built `apps/cli/dist/cli.cjs`. Must run `pnpm build` or `just build` before test-data commands work.
++- **Workshop 003**: Defines runCg() helper, command signatures, test data topology (3 lines: user-input → agent → code+agent parallel).
++- **Workshop 004**: Defines cg unit update patch methods (--patch, --set, --add-input/output). Service already exists; CLI is thin wrapper. Existing create bug to fix.
++
++### Domain dependencies
++
++- `_platform/positional-graph`: `WorkUnitService.update()` / `delete()` — apply patches, remove units
++- `_platform/positional-graph`: `IWorkflowService` — create/modify workflows via `cg wf` commands
++- `@chainglass/workgraph`: Template engine — `cg template save-from`, `cg template instantiate`
++- Harness CLI framework: `HarnessEnvelope`, error codes, Commander.js registration pattern
++
++### Domain constraints
++
++- harness/ is a standalone codebase (own package.json, own node_modules) — NOT part of the monorepo build graph
++- CLI commands must use `apps/cli/dist/cli.cjs` — NEVER global `cg`
++- All test data slugs are hardcoded and deterministic — no randomness
++- Patch files are checked into git (harness/test-data/patches/)
++
++### Harness context
++
++- **Boot**: `just harness dev` — health check: `just harness health`
++- **Maturity**: L3
++- **Pre-phase validation**: Verify harness healthy before test-data implementation
++
++### Reusable from prior phases
++
++- Workshop 003 defines complete command signatures and file layout
++- Workshop 004 defines UpdateUnitPatch interface and CLI flag mappings
++- Existing harness CLI patterns in `harness/src/cli/commands/*.ts`
++- `computePorts()` from `harness/src/ports/allocator.js` for container routing
++- `wrapAction()` pattern in CLI for error handling
++
++### Mermaid flow diagram (test-data lifecycle)
++
++```mermaid
++flowchart LR
++    A["create units"] --> B["create template"]
++    B --> C["create workflow"]
++    C --> D["run / stop"]
++    D --> E["clean"]
++    E --> A
++    
++    F["create env"] -.->|"aggregate"| A
++    F -.-> B
++    F -.-> C
++```
++
++### Mermaid sequence diagram (create env flow)
++
++```mermaid
++sequenceDiagram
++    participant Agent as Harness Agent
++    participant TD as test-data CLI
++    participant CG as cg CLI (local)
++    participant FS as Filesystem
++
++    Agent->>TD: just test-data create env
++    TD->>CG: cg unit create test-agent --type agent
++    CG->>FS: scaffold unit.yaml
++    TD->>CG: cg unit update test-agent --patch test-agent.yaml
++    CG->>FS: apply patch (atomic write)
++    Note over TD: Repeat for test-code, test-user-input
++    TD->>CG: cg wf create + line add + node add
++    CG->>FS: build source graph
++    TD->>CG: cg template save-from source-graph
++    CG->>FS: save template
++    TD->>CG: cg template instantiate test-workflow-tpl
++    CG->>FS: create workflow instance
++    TD-->>Agent: ✅ Environment ready
++```
++
++---
++
++## Discoveries & Learnings
++
++_Populated during implementation by plan-6._
++
++| Date | Task | Type | Discovery | Resolution | References |
++|------|------|------|-----------|------------|------------|
++
++---
++
++## Directory Layout
++
++```
++docs/plans/074-workflow-execution/
++  ├── workflow-execution-plan.md
++  ├── workflow-execution-spec.md
++  ├── workshops/
++  │   ├── 003-harness-test-data-cli.md
++  │   └── 004-cg-unit-update-cli.md
++  └── tasks/
++      ├── phase-1-orchestration-contracts/    ✅
++      ├── phase-2-web-di-execution-manager/   ✅
++      ├── phase-3-sse-globalstate-plumbing/   ✅
++      ├── phase-4-ui-execution-controls/      ✅
++      ├── phase-5-server-restart-recovery/    ✅
++      └── phase-6-harness-cli-tools/
++          ├── tasks.md                        ← this file
++          ├── tasks.fltplan.md                ← flight plan
++          └── execution.log.md               ← created by plan-6
++```
+diff --git a/harness/README.md b/harness/README.md
+index 99424d7f..91460d7d 100644
+--- a/harness/README.md
++++ b/harness/README.md
+@@ -103,6 +103,14 @@ All commands return structured JSON: `{command, status, data?, error?}`
+ | `just harness agent history <slug>` | Show past runs |
+ | `just harness agent validate <slug>` | Re-validate most recent output |
+ | `just harness agent tail <slug>` | Follow running agent's event stream |
++| `just test-data create env` | Create complete test environment (units + template + workflow) |
++| `just test-data create units` | Create 3 test work units (idempotent) |
++| `just test-data create template` | Build workflow template from test units |
++| `just test-data create workflow` | Instantiate workflow from template |
++| `just test-data clean` | Delete all test data |
++| `just test-data status` | Show what test data exists |
++| `just test-data run` | Execute the test workflow |
++| `just test-data stop` | Stop the running test workflow |
+ 
+ ### Page Navigation
+ 
+diff --git a/harness/src/cli/commands/test-data.ts b/harness/src/cli/commands/test-data.ts
+new file mode 100644
+index 00000000..f808bd06
+--- /dev/null
++++ b/harness/src/cli/commands/test-data.ts
+@@ -0,0 +1,154 @@
++/**
++ * test-data command group for the harness CLI.
++ *
++ * Plan 074 Phase 6 T011.
++ *
++ * Subcommands:
++ * - harness test-data create [units|template|workflow|env]
++ * - harness test-data clean
++ * - harness test-data status
++ * - harness test-data run
++ * - harness test-data stop
++ */
++
++import type { Command } from 'commander';
++import type { CgExecOptions } from '../../test-data/cg-runner.js';
++import {
++  cleanTestData,
++  createEnv,
++  createTemplate,
++  createUnits,
++  createWorkflow,
++  runTestWorkflow,
++  statusTestData,
++  stopTestWorkflow,
++} from '../../test-data/environment.js';
++import { exitWithEnvelope, formatError, formatSuccess, ErrorCodes } from '../output.js';
++
++function resolveOptions(opts: { target?: string; workspacePath?: string }): CgExecOptions {
++  return {
++    target: (opts.target as 'local' | 'container') ?? 'local',
++    workspacePath: opts.workspacePath ?? process.cwd(),
++  };
++}
++
++export function registerTestDataCommand(program: Command): void {
++  const td = program
++    .command('test-data')
++    .description('Manage deterministic test workflow environment (Plan 074)')
++    .option('--target <target>', 'Execution target: local or container', 'local')
++    .option('--workspace-path <path>', 'Workspace path', process.cwd());
++
++  // create subcommand group
++  const create = td.command('create').description('Create test data components');
++
++  create
++    .command('units')
++    .description('Create 3 test work units (idempotent)')
++    .action(async () => {
++      const options = resolveOptions(td.opts());
++      const result = await createUnits(options);
++      if (result.ok) {
++        exitWithEnvelope(formatSuccess('test-data.create.units', { created: true }));
++      } else {
++        exitWithEnvelope(formatError('test-data.create.units', ErrorCodes.UNKNOWN, 'Failed to create units'));
++      }
++    });
++
++  create
++    .command('template')
++    .description('Create workflow template from test units (idempotent)')
++    .action(async () => {
++      const options = resolveOptions(td.opts());
++      const result = await createTemplate(options);
++      if (result.ok) {
++        exitWithEnvelope(formatSuccess('test-data.create.template', { created: true }));
++      } else {
++        exitWithEnvelope(formatError('test-data.create.template', ErrorCodes.UNKNOWN, 'Failed to create template'));
++      }
++    });
++
++  create
++    .command('workflow')
++    .description('Instantiate workflow from template (idempotent)')
++    .action(async () => {
++      const options = resolveOptions(td.opts());
++      const result = await createWorkflow(options);
++      if (result.ok) {
++        exitWithEnvelope(formatSuccess('test-data.create.workflow', { created: true }));
++      } else {
++        exitWithEnvelope(
++          formatError('test-data.create.workflow', ErrorCodes.UNKNOWN, 'Failed to create workflow')
++        );
++      }
++    });
++
++  create
++    .command('env')
++    .description('Create complete test environment (units + template + workflow)')
++    .action(async () => {
++      const options = resolveOptions(td.opts());
++      const result = await createEnv(options);
++      if (result.ok) {
++        exitWithEnvelope(formatSuccess('test-data.create.env', { steps: result.steps }));
++      } else {
++        exitWithEnvelope(
++          formatError('test-data.create.env', ErrorCodes.UNKNOWN, 'Some steps failed', {
++            steps: result.steps,
++          })
++        );
++      }
++    });
++
++  // clean
++  td.command('clean')
++    .description('Delete all test data (units, template, workflow)')
++    .action(async () => {
++      const options = resolveOptions(td.opts());
++      await cleanTestData(options);
++      exitWithEnvelope(formatSuccess('test-data.clean', { cleaned: true }));
++    });
++
++  // status
++  td.command('status')
++    .description('Show what test data exists')
++    .action(async () => {
++      const options = resolveOptions(td.opts());
++      const status = await statusTestData(options);
++      exitWithEnvelope(formatSuccess('test-data.status', status));
++    });
++
++  // run
++  td.command('run')
++    .description('Execute the test workflow')
++    .action(async () => {
++      const options = resolveOptions(td.opts());
++      const result = await runTestWorkflow(options);
++      if (result.exitCode === 0) {
++        exitWithEnvelope(formatSuccess('test-data.run', { output: result.stdout }));
++      } else {
++        exitWithEnvelope(
++          formatError('test-data.run', ErrorCodes.UNKNOWN, 'Workflow execution failed', {
++            stderr: result.stderr,
++          })
++        );
++      }
++    });
++
++  // stop
++  td.command('stop')
++    .description('Stop the running test workflow')
++    .action(async () => {
++      const options = resolveOptions(td.opts());
++      const result = await stopTestWorkflow(options);
++      if (result.exitCode === 0) {
++        exitWithEnvelope(formatSuccess('test-data.stop', { output: result.stdout }));
++      } else {
++        exitWithEnvelope(
++          formatError('test-data.stop', ErrorCodes.UNKNOWN, 'Failed to stop workflow', {
++            stderr: result.stderr,
++          })
++        );
++      }
++    });
++}
+diff --git a/harness/src/cli/index.ts b/harness/src/cli/index.ts
+index 780b3d4c..f3ad0ec2 100755
+--- a/harness/src/cli/index.ts
++++ b/harness/src/cli/index.ts
+@@ -26,6 +26,7 @@ import { registerDoctorCommand } from './commands/doctor.js';
+ import { registerAgentCommand } from './commands/agent.js';
+ import { registerConsoleLogsCommand } from './commands/console-logs.js';
+ import { registerScreenshotAllCommand } from './commands/screenshot-all.js';
++import { registerTestDataCommand } from './commands/test-data.js';
+ 
+ const HARNESS_ROOT = path.resolve(import.meta.dirname ?? '.', '../..');
+ 
+@@ -69,6 +70,7 @@ export function createCli(): Command {
+   registerSeedCommand(program);
+   registerDoctorCommand(program);
+   registerAgentCommand(program);
++  registerTestDataCommand(program);
+ 
+   return program;
+ }
+diff --git a/harness/src/test-data/cg-runner.ts b/harness/src/test-data/cg-runner.ts
+new file mode 100644
+index 00000000..bbede5fa
+--- /dev/null
++++ b/harness/src/test-data/cg-runner.ts
+@@ -0,0 +1,150 @@
++/**
++ * runCg() — execute `cg` CLI commands from the harness.
++ *
++ * Plan 074 Phase 6 T003.
++ *
++ * - Routes to local `node apps/cli/dist/cli.cjs` or Docker container
++ * - Prints every command to stderr with ▸ prefix for agent visibility
++ * - Returns stdout/stderr/exitCode
++ * - P6-DYK #1: Checks CLI build freshness on first call
++ * - P6-DYK #4: NO monorepo imports — harness is fully self-contained
++ */
++
++import { execFile } from 'node:child_process';
++import fs from 'node:fs';
++import path from 'node:path';
++import { fileURLToPath } from 'node:url';
++
++export interface CgExecOptions {
++  /** Where to run: local process or inside Docker container */
++  target: 'local' | 'container';
++  /** Workspace path to pass as --workspace-path */
++  workspacePath?: string;
++  /** Container name (required for target=container) */
++  containerName?: string;
++}
++
++export interface CgExecResult {
++  command: string;
++  stdout: string;
++  stderr: string;
++  exitCode: number;
++}
++
++/** Resolve the monorepo root (harness/ is one level down from root) */
++function resolveProjectRoot(): string {
++  const thisDir = path.dirname(fileURLToPath(import.meta.url));
++  // harness/src/test-data/cg-runner.ts → ../../../ → project root
++  return path.resolve(thisDir, '..', '..', '..');
++}
++
++/** Path to the local CLI bundle */
++function getCliPath(): string {
++  return path.join(resolveProjectRoot(), 'apps', 'cli', 'dist', 'cli.cjs');
++}
++
++let buildFreshnessChecked = false;
++
++/**
++ * P6-DYK #1: Check if CLI build is stale (source newer than bundle).
++ * Warns once per process, doesn't block.
++ */
++function checkBuildFreshness(): void {
++  if (buildFreshnessChecked) return;
++  buildFreshnessChecked = true;
++
++  try {
++    const cliPath = getCliPath();
++    const sourcePath = path.join(resolveProjectRoot(), 'apps', 'cli', 'src', 'commands', 'unit.command.ts');
++    if (!fs.existsSync(cliPath)) {
++      console.error('⚠ CLI not built: run `pnpm --filter @chainglass/cli build` first');
++      return;
++    }
++    const bundleMtime = fs.statSync(cliPath).mtimeMs;
++    const sourceMtime = fs.statSync(sourcePath).mtimeMs;
++    if (sourceMtime > bundleMtime) {
++      console.error('⚠ CLI bundle may be stale (source newer). Run `pnpm --filter @chainglass/cli build`');
++    }
++  } catch {
++    // Ignore — freshness check is best-effort
++  }
++}
++
++/**
++ * Execute a `cg` CLI command.
++ *
++ * @param args - CLI arguments (e.g., ['unit', 'create', 'test-agent', '--type', 'agent'])
++ * @param options - Execution options (target, workspace path)
++ * @returns Command result with stdout, stderr, exitCode
++ */
++export async function runCg(args: string[], options: CgExecOptions): Promise<CgExecResult> {
++  checkBuildFreshness();
++
++  // Build full args with --workspace-path and --json
++  const fullArgs = [...args];
++  if (options.workspacePath && !fullArgs.includes('--workspace-path')) {
++    fullArgs.push('--workspace-path', options.workspacePath);
++  }
++  if (!fullArgs.includes('--json')) {
++    fullArgs.push('--json');
++  }
++
++  const commandStr = `cg ${fullArgs.join(' ')}`;
++  console.error(`▸ ${commandStr}`);
++
++  if (options.target === 'container') {
++    return runInContainer(fullArgs, options.containerName ?? 'chainglass-wt');
++  }
++  return runLocal(fullArgs);
++}
++
++async function runLocal(args: string[]): Promise<CgExecResult> {
++  const cliPath = getCliPath();
++  const commandStr = `cg ${args.join(' ')}`;
++
++  return new Promise((resolve) => {
++    execFile('node', [cliPath, ...args], { maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
++      resolve({
++        command: commandStr,
++        stdout: stdout.toString(),
++        stderr: stderr.toString(),
++        exitCode: error?.code ? Number(error.code) : error ? 1 : 0,
++      });
++    });
++  });
++}
++
++async function runInContainer(args: string[], containerName: string): Promise<CgExecResult> {
++  const commandStr = `cg ${args.join(' ')}`;
++
++  return new Promise((resolve) => {
++    execFile(
++      'docker',
++      ['exec', containerName, 'node', '/app/apps/cli/dist/cli.cjs', ...args],
++      { maxBuffer: 10 * 1024 * 1024 },
++      (error, stdout, stderr) => {
++        resolve({
++          command: commandStr,
++          stdout: stdout.toString(),
++          stderr: stderr.toString(),
++          exitCode: error?.code ? Number(error.code) : error ? 1 : 0,
++        });
++      }
++    );
++  });
++}
++
++/**
++ * P6-DYK #3: Delete-if-exists wrapper for idempotent creates.
++ * Runs delete, ignores errors, then runs the provided create function.
++ */
++export async function deleteIfExists(
++  slug: string,
++  deleteArgs: string[],
++  options: CgExecOptions
++): Promise<CgExecResult> {
++  // Best-effort delete — ignore errors (not found is fine)
++  await runCg(deleteArgs, options);
++  // Return is from the delete for logging; caller chains the create
++  return { command: `delete ${slug}`, stdout: '', stderr: '', exitCode: 0 };
++}
+diff --git a/harness/src/test-data/constants.ts b/harness/src/test-data/constants.ts
+new file mode 100644
+index 00000000..aaf46331
+--- /dev/null
++++ b/harness/src/test-data/constants.ts
+@@ -0,0 +1,35 @@
++/**
++ * Test-data constants — hardcoded, deterministic slugs.
++ *
++ * Plan 074 Phase 6 T004.
++ * All test data uses these fixed names for reproducibility.
++ * P6-DYK #2: templateSlug and workflowId are separate fields.
++ */
++
++export const TEST_DATA = {
++  units: {
++    agent: 'test-agent',
++    code: 'test-code',
++    userInput: 'test-user-input',
++  },
++  /** Template slug — used with `cg template save-from --as` */
++  templateSlug: 'test-workflow-tpl',
++  /** Source graph slug — temporary, deleted after template is saved */
++  sourceGraphSlug: 'test-workflow-source',
++  /** Workflow instance ID — used with `cg template instantiate --id` */
++  workflowId: 'test-workflow',
++} as const;
++
++/** All unit slugs as an array for iteration */
++export const ALL_UNIT_SLUGS = [
++  TEST_DATA.units.agent,
++  TEST_DATA.units.code,
++  TEST_DATA.units.userInput,
++] as const;
++
++/** Unit type mapping */
++export const UNIT_TYPES: Record<string, 'agent' | 'code' | 'user-input'> = {
++  [TEST_DATA.units.agent]: 'agent',
++  [TEST_DATA.units.code]: 'code',
++  [TEST_DATA.units.userInput]: 'user-input',
++};
+diff --git a/harness/src/test-data/environment.ts b/harness/src/test-data/environment.ts
+new file mode 100644
+index 00000000..4a82585c
+--- /dev/null
++++ b/harness/src/test-data/environment.ts
+@@ -0,0 +1,244 @@
++/**
++ * Test-data environment commands: create units/template/workflow, clean, status, run, stop.
++ *
++ * Plan 074 Phase 6 T006-T010.
++ *
++ * P6-DYK #3: All creates are delete-first for idempotency.
++ * P6-DYK #4: NO monorepo imports — harness is self-contained.
++ */
++
++import path from 'node:path';
++import { fileURLToPath } from 'node:url';
++import { runCg, type CgExecOptions, type CgExecResult } from './cg-runner.js';
++import { ALL_UNIT_SLUGS, TEST_DATA, UNIT_TYPES } from './constants.js';
++
++/** Resolve the patches directory (harness/test-data/patches/) */
++function getPatchesDir(): string {
++  const thisDir = path.dirname(fileURLToPath(import.meta.url));
++  // harness/src/test-data/ → ../../test-data/patches/
++  return path.resolve(thisDir, '..', '..', 'test-data', 'patches');
++}
++
++// ── T006: Create Units ──────────────────────────────────
++
++export async function createUnits(options: CgExecOptions): Promise<{ ok: boolean; results: CgExecResult[] }> {
++  const results: CgExecResult[] = [];
++  const patchesDir = getPatchesDir();
++
++  for (const slug of ALL_UNIT_SLUGS) {
++    const unitType = UNIT_TYPES[slug];
++
++    // P6-DYK #3: Delete first (ignore errors — may not exist)
++    await runCg(['unit', 'delete', slug], options);
++
++    // Create scaffold
++    const createResult = await runCg(['unit', 'create', slug, '--type', unitType], options);
++    results.push(createResult);
++    if (createResult.exitCode !== 0) {
++      console.error(`  ✗ Failed to create unit ${slug}`);
++      continue;
++    }
++
++    // Apply patch
++    const patchFile = path.join(patchesDir, `${slug}.yaml`);
++    const updateResult = await runCg(['unit', 'update', slug, '--patch', patchFile], options);
++    results.push(updateResult);
++    if (updateResult.exitCode !== 0) {
++      console.error(`  ✗ Failed to patch unit ${slug}`);
++      continue;
++    }
++
++    console.error(`  ✓ ${slug} (${unitType})`);
++  }
++
++  const ok = results.every((r) => r.exitCode === 0);
++  return { ok, results };
++}
++
++// ── T007: Create Template ───────────────────────────────
++
++export async function createTemplate(options: CgExecOptions): Promise<{ ok: boolean; results: CgExecResult[] }> {
++  const results: CgExecResult[] = [];
++  const src = TEST_DATA.sourceGraphSlug;
++  const tpl = TEST_DATA.templateSlug;
++
++  // P6-DYK #3: Delete existing template and source graph first
++  await runCg(['template', 'delete', tpl], options);
++  await runCg(['wf', 'delete', src], options);
++
++  // Create source graph
++  const createResult = await runCg(['wf', 'create', src], options);
++  results.push(createResult);
++  if (createResult.exitCode !== 0) {
++    console.error('  ✗ Failed to create source graph');
++    return { ok: false, results };
++  }
++
++  // Add 3 lines (per Workshop 003 topology)
++  // Line 0: user-input
++  const line0 = await runCg(['wf', 'line', 'add', src, '--label', 'Input'], options);
++  results.push(line0);
++
++  // Line 1: agent
++  const line1 = await runCg(['wf', 'line', 'add', src, '--label', 'Processing'], options);
++  results.push(line1);
++
++  // Line 2: code + agent parallel
++  const line2 = await runCg(['wf', 'line', 'add', src, '--label', 'Output'], options);
++  results.push(line2);
++
++  // Parse line IDs from JSON responses
++  const lineIds = [line0, line1, line2].map((r) => {
++    try {
++      const parsed = JSON.parse(r.stdout);
++      return parsed.data?.lineId ?? parsed.data?.id ?? null;
++    } catch {
++      return null;
++    }
++  });
++
++  if (lineIds.some((id) => !id)) {
++    // If we can't parse line IDs, try to get them from graph show
++    const showResult = await runCg(['wf', 'show', src], options);
++    try {
++      const parsed = JSON.parse(showResult.stdout);
++      const lines = parsed.data?.lines ?? parsed.data?.graph?.lines ?? [];
++      for (let i = 0; i < Math.min(lines.length, 3); i++) {
++        lineIds[i] = lines[i].id ?? lines[i].lineId;
++      }
++    } catch {
++      console.error('  ✗ Could not resolve line IDs');
++      return { ok: false, results };
++    }
++  }
++
++  // Add nodes to lines
++  if (lineIds[0]) {
++    const n0 = await runCg(['wf', 'node', 'add', src, lineIds[0], TEST_DATA.units.userInput], options);
++    results.push(n0);
++  }
++  if (lineIds[1]) {
++    const n1 = await runCg(['wf', 'node', 'add', src, lineIds[1], TEST_DATA.units.agent], options);
++    results.push(n1);
++  }
++  if (lineIds[2]) {
++    const n2a = await runCg(['wf', 'node', 'add', src, lineIds[2], TEST_DATA.units.code], options);
++    results.push(n2a);
++    const n2b = await runCg(['wf', 'node', 'add', src, lineIds[2], TEST_DATA.units.agent], options);
++    results.push(n2b);
++  }
++
++  // Save as template
++  const saveResult = await runCg(['template', 'save-from', src, '--as', tpl], options);
++  results.push(saveResult);
++  if (saveResult.exitCode !== 0) {
++    console.error('  ✗ Failed to save template');
++    return { ok: false, results };
++  }
++
++  // Delete source graph (no longer needed)
++  await runCg(['wf', 'delete', src], options);
++
++  console.error(`  ✓ Template ${tpl} created`);
++  const ok = results.every((r) => r.exitCode === 0);
++  return { ok, results };
++}
++
++// ── T008: Create Workflow ───────────────────────────────
++
++export async function createWorkflow(options: CgExecOptions): Promise<{ ok: boolean; results: CgExecResult[] }> {
++  const results: CgExecResult[] = [];
++
++  // P6-DYK #3: Delete existing workflow instance first
++  await runCg(['wf', 'delete', TEST_DATA.workflowId], options);
++
++  // P6-DYK #2: instantiate requires --id
++  const instantiateResult = await runCg(
++    ['template', 'instantiate', TEST_DATA.templateSlug, '--id', TEST_DATA.workflowId],
++    options
++  );
++  results.push(instantiateResult);
++
++  if (instantiateResult.exitCode !== 0) {
++    console.error('  ✗ Failed to instantiate workflow');
++    return { ok: false, results };
++  }
++
++  console.error(`  ✓ Workflow ${TEST_DATA.workflowId} created from template ${TEST_DATA.templateSlug}`);
++  return { ok: true, results };
++}
++
++// ── T009: Create Env (aggregate) ────────────────────────
++
++export async function createEnv(options: CgExecOptions): Promise<{ ok: boolean; steps: Record<string, boolean> }> {
++  console.error('\n[test-data] Creating test environment...\n');
++
++  console.error('[1/3] Creating units...');
++  const unitsResult = await createUnits(options);
++
++  console.error('\n[2/3] Creating template...');
++  const templateResult = await createTemplate(options);
++
++  console.error('\n[3/3] Creating workflow instance...');
++  const workflowResult = await createWorkflow(options);
++
++  const steps = {
++    units: unitsResult.ok,
++    template: templateResult.ok,
++    workflow: workflowResult.ok,
++  };
++
++  const ok = Object.values(steps).every(Boolean);
++  console.error(`\n[test-data] ${ok ? '✓ Environment ready' : '✗ Some steps failed'}`);
++  return { ok, steps };
++}
++
++// ── T010: Clean / Status / Run / Stop ───────────────────
++
++export async function cleanTestData(options: CgExecOptions): Promise<{ ok: boolean }> {
++  console.error('[test-data] Cleaning test data...');
++
++  // Delete workflow instance
++  await runCg(['wf', 'delete', TEST_DATA.workflowId], options);
++  // Delete template
++  await runCg(['template', 'delete', TEST_DATA.templateSlug], options);
++  // Delete source graph (if leftover)
++  await runCg(['wf', 'delete', TEST_DATA.sourceGraphSlug], options);
++  // Delete units
++  for (const slug of ALL_UNIT_SLUGS) {
++    await runCg(['unit', 'delete', slug], options);
++  }
++
++  console.error('[test-data] ✓ Cleaned');
++  return { ok: true };
++}
++
++export async function statusTestData(options: CgExecOptions): Promise<Record<string, string>> {
++  const status: Record<string, string> = {};
++
++  // Check units
++  for (const slug of ALL_UNIT_SLUGS) {
++    const result = await runCg(['unit', 'info', slug], options);
++    status[`unit:${slug}`] = result.exitCode === 0 ? 'exists' : 'missing';
++  }
++
++  // Check template
++  const tplResult = await runCg(['template', 'show', TEST_DATA.templateSlug], options);
++  status[`template:${TEST_DATA.templateSlug}`] = tplResult.exitCode === 0 ? 'exists' : 'missing';
++
++  // Check workflow
++  const wfResult = await runCg(['wf', 'show', TEST_DATA.workflowId], options);
++  status[`workflow:${TEST_DATA.workflowId}`] = wfResult.exitCode === 0 ? 'exists' : 'missing';
++
++  return status;
++}
++
++export async function runTestWorkflow(options: CgExecOptions): Promise<CgExecResult> {
++  console.error(`[test-data] Running workflow ${TEST_DATA.workflowId}...`);
++  return runCg(['wf', 'run', TEST_DATA.workflowId], options);
++}
++
++export async function stopTestWorkflow(options: CgExecOptions): Promise<CgExecResult> {
++  console.error(`[test-data] Stopping workflow ${TEST_DATA.workflowId}...`);
++  return runCg(['wf', 'stop', TEST_DATA.workflowId], options);
++}
+diff --git a/harness/test-data/patches/test-agent.yaml b/harness/test-data/patches/test-agent.yaml
+new file mode 100644
+index 00000000..fdc0217e
+--- /dev/null
++++ b/harness/test-data/patches/test-agent.yaml
+@@ -0,0 +1,27 @@
++# Test agent unit patch — Plan 074 Phase 6 T005
++# Applied via: cg unit update test-agent --patch <this-file>
++description: "Test agent for workflow execution validation"
++version: "1.0.0"
++inputs:
++  - name: spec
++    type: data
++    data_type: text
++    required: true
++    description: "Specification for the agent to process"
++outputs:
++  - name: result
++    type: data
++    data_type: text
++    required: true
++    description: "Agent processing result"
++  - name: summary
++    type: data
++    data_type: text
++    required: false
++    description: "Brief summary of the result"
++agent:
++  prompt_template: "Process the following specification:\n\n{{spec}}"
++  supported_agents:
++    - claude-code
++    - copilot
++  estimated_tokens: 2000
+diff --git a/harness/test-data/patches/test-code.yaml b/harness/test-data/patches/test-code.yaml
+new file mode 100644
+index 00000000..cd08ef31
+--- /dev/null
++++ b/harness/test-data/patches/test-code.yaml
+@@ -0,0 +1,19 @@
++# Test code unit patch — Plan 074 Phase 6 T005
++# Applied via: cg unit update test-code --patch <this-file>
++description: "Test code unit for workflow execution validation"
++version: "1.0.0"
++inputs:
++  - name: input_data
++    type: data
++    data_type: text
++    required: true
++    description: "Input data for the code unit to transform"
++outputs:
++  - name: output_data
++    type: data
++    data_type: text
++    required: true
++    description: "Transformed output data"
++code:
++  script: "scripts/test-transform.sh"
++  timeout: 30
+diff --git a/harness/test-data/patches/test-user-input.yaml b/harness/test-data/patches/test-user-input.yaml
+new file mode 100644
+index 00000000..7659824e
+--- /dev/null
++++ b/harness/test-data/patches/test-user-input.yaml
+@@ -0,0 +1,14 @@
++# Test user-input unit patch — Plan 074 Phase 6 T005
++# Applied via: cg unit update test-user-input --patch <this-file>
++description: "Test user-input unit for workflow execution validation"
++version: "1.0.0"
++inputs: []
++outputs:
++  - name: spec
++    type: data
++    data_type: text
++    required: true
++    description: "User-provided specification text"
++user_input:
++  question_type: text
++  prompt: "Enter the specification for processing:"
+diff --git a/justfile b/justfile
+index 77c7de47..a123f649 100644
+--- a/justfile
++++ b/justfile
+@@ -115,6 +115,10 @@ harness-health:
+ harness *ARGS:
+     cd harness && pnpm exec tsx src/cli/index.ts {{ARGS}}
+ 
++# Manage test workflow data (Plan 074 Phase 6)
++test-data *ARGS:
++    cd harness && pnpm exec tsx src/cli/index.ts test-data {{ARGS}}
++
+ # Run linter
+ lint:
+     pnpm biome check .

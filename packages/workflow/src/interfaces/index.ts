@@ -163,6 +163,7 @@ export type {
   InstantiateResult,
   ListInstancesResult,
   RefreshResult,
+  DeleteTemplateResult,
 } from './template-service.interface.js';
 export type {
   IInstanceService,

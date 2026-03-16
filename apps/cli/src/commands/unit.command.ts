@@ -256,20 +256,46 @@ async function handleUnitValidate(slug: string, options: ValidateOptions): Promi
 
 /**
  * Parse a --patch YAML/JSON file into an UpdateUnitPatch object.
+ * FT-004: Guards file existence and JSON parse errors.
  */
-async function loadPatchFile(filePath: string): Promise<UpdateUnitPatch> {
-  const raw = fs.readFileSync(filePath, 'utf-8');
-
-  // Try JSON first
-  if (filePath.endsWith('.json')) {
-    return JSON.parse(raw) as UpdateUnitPatch;
+async function loadPatchFile(
+  filePath: string,
+  slug: string,
+  adapter: ReturnType<typeof createOutputAdapter>
+): Promise<UpdateUnitPatch | null> {
+  if (!fs.existsSync(filePath)) {
+    console.log(
+      adapter.format('unit.update', {
+        slug,
+        errors: [{ message: `Patch file not found: ${filePath}`, code: 'E074' }],
+      })
+    );
+    return null;
   }
 
-  // YAML — use a simple approach: the service will handle yaml→patch
-  // The patch file IS a partial unit.yaml, so parse as JSON-compatible subset
-  // For YAML support, we use the same yaml parser the service uses
-  const { parse: parseYaml } = await import('yaml');
-  return parseYaml(raw) as UpdateUnitPatch;
+  const raw = fs.readFileSync(filePath, 'utf-8');
+
+  try {
+    if (filePath.endsWith('.json')) {
+      return JSON.parse(raw) as UpdateUnitPatch;
+    }
+
+    const { parse: parseYaml } = await import('yaml');
+    return parseYaml(raw) as UpdateUnitPatch;
+  } catch (err) {
+    console.log(
+      adapter.format('unit.update', {
+        slug,
+        errors: [
+          {
+            message: `Failed to parse patch file: ${err instanceof Error ? err.message : String(err)}`,
+            code: 'E074',
+          },
+        ],
+      })
+    );
+    return null;
+  }
 }
 
 /**
@@ -319,7 +345,10 @@ async function handleUnitUpdate(slug: string, options: UpdateOptions): Promise<v
 
   // --patch file (highest precedence — provides full patch)
   if (options.patch) {
-    const filePatch = await loadPatchFile(options.patch);
+    const filePatch = await loadPatchFile(options.patch, slug, adapter);
+    if (!filePatch) {
+      process.exit(1);
+    }
     Object.assign(patch, filePatch);
   }
 
@@ -351,33 +380,56 @@ async function handleUnitUpdate(slug: string, options: UpdateOptions): Promise<v
 
   // --add-input (append to existing inputs)
   if (options.addInput?.length) {
-    // Load current unit to get existing inputs
     const loaded = await service.load(ctx, slug);
-    if (loaded.errors.length === 0 && loaded.unit) {
-      const existing = loaded.unit.inputs ?? [];
-      const added = options.addInput.map(parseIOSpec);
-      patch.inputs = [...existing, ...added];
+    if (loaded.errors.length > 0) {
+      console.log(adapter.format('unit.update', { slug, errors: loaded.errors }));
+      process.exit(1);
     }
+    const existing = loaded.unit?.inputs ?? [];
+    const added = options.addInput.map(parseIOSpec);
+    patch.inputs = [...existing, ...added];
   }
 
   // --add-output (append to existing outputs)
   if (options.addOutput?.length) {
     const loaded = await service.load(ctx, slug);
-    if (loaded.errors.length === 0 && loaded.unit) {
-      const existing = loaded.unit.outputs ?? [];
-      const added = options.addOutput.map(parseIOSpec);
-      patch.outputs = [...existing, ...added];
+    if (loaded.errors.length > 0) {
+      console.log(adapter.format('unit.update', { slug, errors: loaded.errors }));
+      process.exit(1);
     }
+    const existing = loaded.unit?.outputs ?? [];
+    const added = options.addOutput.map(parseIOSpec);
+    patch.outputs = [...existing, ...added];
   }
 
   // --inputs-json (wholesale replacement)
   if (options.inputsJson) {
-    patch.inputs = JSON.parse(options.inputsJson);
+    try {
+      patch.inputs = JSON.parse(options.inputsJson);
+    } catch {
+      console.log(
+        adapter.format('unit.update', {
+          slug,
+          errors: [{ message: '--inputs-json must be valid JSON', code: 'E074' }],
+        })
+      );
+      process.exit(1);
+    }
   }
 
   // --outputs-json (wholesale replacement)
   if (options.outputsJson) {
-    patch.outputs = JSON.parse(options.outputsJson);
+    try {
+      patch.outputs = JSON.parse(options.outputsJson);
+    } catch {
+      console.log(
+        adapter.format('unit.update', {
+          slug,
+          errors: [{ message: '--outputs-json must be valid JSON', code: 'E074' }],
+        })
+      );
+      process.exit(1);
+    }
   }
 
   const result = await service.update(ctx, slug, patch);

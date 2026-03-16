@@ -133,18 +133,3 @@ async function runInContainer(args: string[], containerName: string): Promise<Cg
     );
   });
 }
-
-/**
- * P6-DYK #3: Delete-if-exists wrapper for idempotent creates.
- * Runs delete, ignores errors, then runs the provided create function.
- */
-export async function deleteIfExists(
-  slug: string,
-  deleteArgs: string[],
-  options: CgExecOptions
-): Promise<CgExecResult> {
-  // Best-effort delete — ignore errors (not found is fine)
-  await runCg(deleteArgs, options);
-  // Return is from the delete for logging; caller chains the create
-  return { command: `delete ${slug}`, stdout: '', stderr: '', exitCode: 0 };
-}
