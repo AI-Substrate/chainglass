@@ -385,9 +385,8 @@ export function createTestOrchestrationStack(
   const orchestrationService = new OrchestrationService({
     graphService: service,
     onbas,
-    ods,
     eventHandlerService,
-    podManager,
+    createPerHandleDeps: () => ({ podManager, ods }),
   });
 
   return { orchestrationService, eventHandlerService, agentManager, podManager };

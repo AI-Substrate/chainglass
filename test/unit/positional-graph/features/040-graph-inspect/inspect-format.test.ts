@@ -19,6 +19,12 @@ import type {
 } from '@chainglass/positional-graph';
 import { describe, expect, it } from 'vitest';
 
+// Strip ANSI escape codes so assertions match plain text
+const ANSI_RE = new RegExp(`${String.fromCharCode(0x1b)}\\[[0-9;]*m`, 'g');
+function stripAnsi(str: string): string {
+  return str.replace(ANSI_RE, '');
+}
+
 // ── Test Fixtures ───────────────────────────────────────
 
 function makeNode(overrides: Partial<InspectNodeResult> = {}): InspectNodeResult {
@@ -89,7 +95,7 @@ describe('formatInspect (T001)', () => {
     const nodeB = makeNode({ nodeId: 'worker-c3d', unitSlug: 'worker', lineIndex: 1 });
     const result = makeResult({ nodes: [nodeA, nodeB] });
 
-    const output = formatInspect(result);
+    const output = stripAnsi(formatInspect(result));
 
     expect(output).toContain('Graph: test-graph');
     expect(output).toContain('complete');
@@ -252,7 +258,7 @@ describe('formatInspectOutputs (T003)', () => {
     });
     const result = makeResult({ nodes: [nodeA, nodeB] });
 
-    const output = formatInspectOutputs(result);
+    const output = stripAnsi(formatInspectOutputs(result));
 
     expect(output).toContain('input-a1b:');
     expect(output).toContain('writer-c3d:');

@@ -9,7 +9,6 @@
 import type { IWorkflowExecutionManager } from './workflow-execution-manager.types';
 
 declare global {
-  // biome-ignore lint/style/noVar: globalThis augmentation requires var
   var __workflowExecutionManager: IWorkflowExecutionManager | undefined;
 }
 

@@ -27,6 +27,7 @@ import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 import { detectContentType } from '@/lib/content-type-detection';
 import { AudioViewer } from './audio-viewer';
 import { BinaryPlaceholder } from './binary-placeholder';
+import { HtmlViewer } from './html-viewer';
 import { ImageViewer } from './image-viewer';
 import { MarkdownPreview } from './markdown-preview';
 import { PdfViewer } from './pdf-viewer';
@@ -436,6 +437,7 @@ function BinaryFileView({
       <div className="flex-1 flex flex-col min-h-0">
         {category === 'image' && <ImageViewer src={rawFileUrl} alt={filename} />}
         {category === 'pdf' && <PdfViewer src={rawFileUrl} />}
+        {category === 'html' && <HtmlViewer src={rawFileUrl} />}
         {category === 'video' && <VideoViewer src={rawFileUrl} mimeType={contentType} />}
         {category === 'audio' && (
           <AudioViewer src={rawFileUrl} mimeType={contentType} filename={filename} />

@@ -10,7 +10,7 @@
  */
 
 export interface ContentTypeInfo {
-  category: 'image' | 'pdf' | 'video' | 'audio' | 'binary';
+  category: 'image' | 'pdf' | 'video' | 'audio' | 'html' | 'binary';
   mimeType: string;
 }
 
@@ -43,6 +43,10 @@ const EXTENSION_MAP: Record<string, ContentTypeInfo> = {
   flac: { category: 'audio', mimeType: 'audio/flac' },
   aac: { category: 'audio', mimeType: 'audio/aac' },
   m4a: { category: 'audio', mimeType: 'audio/mp4' },
+
+  // HTML (rendered in sandboxed iframe)
+  html: { category: 'html', mimeType: 'text/html' },
+  htm: { category: 'html', mimeType: 'text/html' },
 };
 
 const BINARY_FALLBACK: ContentTypeInfo = {

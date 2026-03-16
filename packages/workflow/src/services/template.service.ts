@@ -459,7 +459,11 @@ export class TemplateService implements ITemplateService {
     } catch (err) {
       return {
         deleted: false,
-        errors: [makeError(`Failed to delete template '${templateSlug}': ${err instanceof Error ? err.message : String(err)}`)],
+        errors: [
+          makeError(
+            `Failed to delete template '${templateSlug}': ${err instanceof Error ? err.message : String(err)}`
+          ),
+        ],
       };
     }
   }
