@@ -3,7 +3,7 @@
 **Plan Version**: 1.0.0
 **Created**: 2026-03-14
 **Spec**: [workflow-execution-spec.md](workflow-execution-spec.md)
-**Status**: DRAFT
+**Status**: COMPLETE
 
 ## Summary
 
@@ -138,11 +138,11 @@ The `WorkflowExecutionManager` sits ABOVE the engine as a **consumer** (like the
 | 1.8 | Create PodManager + ODS per-handle in `OrchestrationService.get()` | positional-graph | TDD: two concurrent handles have isolated pods and sessions maps. destroyPod on handle A does not affect handle B. | DYK #2: shared PodManager corrupts sessions across concurrent workflows. Move creation from factory into get(). |
 
 ### Acceptance Criteria (Phase 1)
-- [ ] `drive({signal})` returns `{exitReason:'stopped'}` when signal aborts
-- [ ] Abort during sleep returns within <100ms (not waiting for full delay)
-- [ ] ONBAS skips 'interrupted' nodes (returns null from visitNode)
-- [ ] Two different worktreePaths with same graphSlug get different handles
-- [ ] All existing orchestration tests pass unchanged
+- [x] `drive({signal})` returns `{exitReason:'stopped'}` when signal aborts
+- [x] Abort during sleep returns within <100ms (not waiting for full delay)
+- [x] ONBAS skips 'interrupted' nodes (returns null from visitNode)
+- [x] Two different worktreePaths with same graphSlug get different handles
+- [x] All existing orchestration tests pass unchanged
 
 ---
 
@@ -169,11 +169,11 @@ The `WorkflowExecutionManager` sits ABOVE the engine as a **consumer** (like the
 | 2.7 | Bootstrap manager in `instrumentation.ts` | positional-graph | Manager accessible via `getWorkflowExecutionManager()` after server start. HMR-safe: follows ADR-0010 §Bootstrap IMP-003 pattern (globalThis flag set before async, reset on failure). SIGTERM cleanup registered. | Follow ADR-0010 + Plan 027 pattern exactly |
 
 ### Acceptance Criteria (Phase 2)
-- [ ] `getWorkflowExecutionManager()` returns valid manager after server start
-- [ ] `manager.start(ctx, slug)` creates execution handle and begins drive() loop
-- [ ] `manager.stop(worktreePath, slug)` aborts drive() and awaits completion
-- [ ] `manager.restart(ctx, slug)` clears graph state and starts fresh
-- [ ] Calling start() twice for same workflow returns idempotent result
+- [x] `getWorkflowExecutionManager()` returns valid manager after server start
+- [x] `manager.start(ctx, slug)` creates execution handle and begins drive() loop
+- [x] `manager.stop(worktreePath, slug)` aborts drive() and awaits completion
+- [x] `manager.restart(ctx, slug)` clears graph state and starts fresh
+- [x] Calling start() twice for same workflow returns idempotent result
 
 ---
 
@@ -202,10 +202,10 @@ The `WorkflowExecutionManager` sits ABOVE the engine as a **consumer** (like the
 | 3.9 | Add `getWorkflowExecutionStatus` server action | workflow-ui | Returns {status, iterations} from manager | |
 
 ### Acceptance Criteria (Phase 3)
-- [ ] Calling runWorkflow server action starts the workflow and broadcasts to 'workflow-execution' SSE channel
-- [ ] `useGlobalState('workflow-execution:{key}:status')` updates reactively as workflow progresses
-- [ ] stopWorkflow server action halts execution within one iteration
-- [ ] restartWorkflow clears state and starts fresh
+- [x] Calling runWorkflow server action starts the workflow and broadcasts to 'workflow-execution' SSE channel
+- [x] `useGlobalState('workflow-execution:{key}:status')` updates reactively as workflow progresses
+- [x] stopWorkflow server action halts execution within one iteration
+- [x] restartWorkflow clears state and starts fresh
 
 ---
 
@@ -230,12 +230,12 @@ The `WorkflowExecutionManager` sits ABOVE the engine as a **consumer** (like the
 | 4.5 | Display execution progress | workflow-ui | Show iteration count, status message, elapsed time in toolbar or status area | |
 
 ### Acceptance Criteria (Phase 4)
-- [ ] Run button visible when idle/stopped/failed, hidden when running
-- [ ] Stop button visible when running, hidden otherwise
-- [ ] Restart button visible when stopped/completed/failed
-- [ ] Clicking Run starts the workflow, UI shows "Running"
-- [ ] Completed and running nodes cannot be dragged or removed
-- [ ] Future nodes CAN be edited while workflow is running
+- [x] Run button visible when idle/stopped/failed, hidden when running
+- [x] Stop button visible when running, hidden otherwise
+- [x] Restart button visible when stopped/completed/failed
+- [x] Clicking Run starts the workflow, UI shows "Running"
+- [x] Completed and running nodes cannot be dragged or removed
+- [x] Future nodes CAN be edited while workflow is running
 
 ---
 
@@ -260,10 +260,10 @@ The `WorkflowExecutionManager` sits ABOVE the engine as a **consumer** (like the
 | 5.5 | Handle graceful shutdown in SIGTERM handler | positional-graph | Manager.cleanup() called on SIGTERM — persists final state | |
 
 ### Acceptance Criteria (Phase 5)
-- [ ] Starting a workflow creates a registry entry
-- [ ] Restarting the dev server resumes previously-running workflows
-- [ ] Completed nodes are not re-executed after resume
-- [ ] Registry entries for deleted worktrees are cleaned up
+- [x] Starting a workflow creates a registry entry
+- [x] Restarting the dev server resumes previously-running workflows
+- [x] Completed nodes are not re-executed after resume
+- [x] Registry entries for deleted worktrees are cleaned up
 
 ---
 
@@ -301,12 +301,12 @@ The `WorkflowExecutionManager` sits ABOVE the engine as a **consumer** (like the
 | 6.14 | Create `docs/how/workflow-execution.md` | docs | How-to guide for running workflows from UI, architecture overview, troubleshooting | |
 
 ### Acceptance Criteria (Phase 6)
-- [ ] `just test-data create env` creates 3 units + template + workflow instance
-- [ ] Running `create env` again resets everything to clean state
-- [ ] Every cg command is printed with `▸` prefix
-- [ ] `--target container` creates test data inside Docker container
-- [ ] `cg unit update test-agent --patch patch.yaml` applies patch correctly
-- [ ] `cg unit delete test-agent` removes unit idempotently
+- [x] `just test-data create env` creates 3 units + template + workflow instance
+- [x] Running `create env` again resets everything to clean state
+- [x] Every cg command is printed with `▸` prefix
+- [x] `--target container` creates test data inside Docker container
+- [x] `cg unit update test-agent --patch patch.yaml` applies patch correctly
+- [x] `cg unit delete test-agent` removes unit idempotently
 
 ---
 
