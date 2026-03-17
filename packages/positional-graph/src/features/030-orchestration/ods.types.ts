@@ -36,6 +36,9 @@ export interface IODS {
     ctx: WorkspaceContext,
     reality: PositionalGraphReality
   ): Promise<OrchestrationExecuteResult>;
+
+  /** Drain queued pod execution errors. Returns and clears the pending error map. */
+  drainErrors(): Map<string, { code: string; message: string }>;
 }
 
 // ── ODSDependencies ─────────────────────────────────

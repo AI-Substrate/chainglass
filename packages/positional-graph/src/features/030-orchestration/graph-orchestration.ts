@@ -18,6 +18,7 @@
 import type { WorkspaceContext } from '@chainglass/workflow';
 import type { IPositionalGraphService } from '../../interfaces/positional-graph-service.interface.js';
 import type { IEventHandlerService } from '../032-node-event-system/event-handler-service.interface.js';
+import { generateEventId } from '../032-node-event-system/event-id.js';
 import { abortableSleep } from './abortable-sleep.js';
 import type { IODS } from './ods.types.js';
 import type { IONBAS } from './onbas.types.js';
@@ -89,6 +90,31 @@ export class GraphOrchestration implements IGraphOrchestration {
 
       // 1. Settle: process pending events and persist mutations
       const state = await this.graphService.loadGraphState(this.ctx, this.graphSlug);
+
+      // 1a. Drain ODS pod errors into state as node:error events (P1-DYK #1)
+      // Injected into in-memory state BEFORE processGraph() so handlers pick them up
+      // in the same settle cycle. No concurrent file access — drive loop owns state.
+      const podErrors = this.ods.drainErrors();
+      for (const [nodeId, error] of podErrors) {
+        if (!state.nodes) state.nodes = {};
+        const entry = state.nodes[nodeId];
+        if (entry) {
+          const events = entry.events ?? [];
+          entry.events = [
+            ...events,
+            {
+              event_id: generateEventId(),
+              event_type: 'node:error',
+              source: 'orchestrator',
+              payload: { code: error.code, message: error.message },
+              status: 'new',
+              stops_execution: true,
+              created_at: new Date().toISOString(),
+            },
+          ];
+        }
+      }
+
       this.eventHandlerService.processGraph(state, 'orchestrator', 'cli');
       await this.graphService.persistGraphState(this.ctx, this.graphSlug, state);
 

@@ -28,6 +28,18 @@ export class FakeODS implements IODS {
   private results: OrchestrationExecuteResult[] = [];
   private callIndex = 0;
   private readonly callHistory: FakeODSCallRecord[] = [];
+  private readonly pendingErrors = new Map<string, { code: string; message: string }>();
+
+  /** Inject a simulated pod error for testing drain logic. */
+  simulatePodError(nodeId: string, code: string, message: string): void {
+    this.pendingErrors.set(nodeId, { code, message });
+  }
+
+  drainErrors(): Map<string, { code: string; message: string }> {
+    const errors = new Map(this.pendingErrors);
+    this.pendingErrors.clear();
+    return errors;
+  }
 
   /** Set a single canned result for every call. */
   setNextResult(result: OrchestrationExecuteResult): void {

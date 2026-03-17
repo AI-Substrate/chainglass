@@ -1903,11 +1903,12 @@ export function registerPositionalGraphCommands(program: Command): void {
     .description('Drive a graph to completion (polling loop)')
     .option('--verbose', 'Show detailed iteration info', false)
     .option('--max-iterations <n>', 'Maximum drive iterations', '200')
+    .option('--timeout <seconds>', 'Abort drive after N seconds (default: 600)', '600')
     .action(
       wrapAction(
         async (
           slug: string,
-          options: { verbose: boolean; maxIterations: string },
+          options: { verbose: boolean; maxIterations: string; timeout: string },
           cmd: Command
         ) => {
           const parentOpts = cmd.parent?.opts() ?? {};
@@ -1922,6 +1923,55 @@ export function registerPositionalGraphCommands(program: Command): void {
 
           const orchestrationService = getOrchestrationService();
           const handle = await orchestrationService.get(ctx, slug);
+
+          // P1-DYK #4: Filesystem lock prevents concurrent drive() corruption
+          const { existsSync, writeFileSync, readFileSync, unlinkSync, mkdirSync } = await import(
+            'node:fs'
+          );
+          const { join } = await import('node:path');
+          const lockDir = join(ctx.worktreePath, '.chainglass', 'data', 'workflows', slug);
+          const lockPath = join(lockDir, 'drive.lock');
+
+          // Check for existing lock (with stale PID detection)
+          if (existsSync(lockPath)) {
+            try {
+              const lockPid = Number.parseInt(readFileSync(lockPath, 'utf-8').trim(), 10);
+              if (!Number.isNaN(lockPid)) {
+                try {
+                  process.kill(lockPid, 0); // throws if PID doesn't exist
+                  console.error(`Workflow '${slug}' is already running (PID ${lockPid})`);
+                  process.exit(1);
+                } catch {
+                  // PID doesn't exist — stale lock, clean up
+                  unlinkSync(lockPath);
+                }
+              }
+            } catch {
+              unlinkSync(lockPath);
+            }
+          }
+
+          // Acquire lock
+          mkdirSync(lockDir, { recursive: true });
+          writeFileSync(lockPath, String(process.pid));
+
+          const releaseLock = () => {
+            try {
+              unlinkSync(lockPath);
+            } catch {
+              /* already removed */
+            }
+          };
+          process.on('exit', releaseLock);
+          process.on('SIGTERM', () => {
+            releaseLock();
+            process.exit(1);
+          });
+          process.on('SIGINT', () => {
+            releaseLock();
+            process.exit(1);
+          });
+
           const maxIterations = Number.parseInt(options.maxIterations, 10);
           if (Number.isNaN(maxIterations) || maxIterations < 1) {
             console.error(`Invalid --max-iterations value: ${options.maxIterations}`);
@@ -1930,6 +1980,7 @@ export function registerPositionalGraphCommands(program: Command): void {
           const exitCode = await cliDriveGraph(handle, {
             maxIterations,
             verbose: options.verbose,
+            timeout: Number.parseInt(options.timeout, 10) || 600,
           });
           process.exit(exitCode);
         }

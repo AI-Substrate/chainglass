@@ -22,7 +22,15 @@ import type { OrchestrationExecuteResult } from './orchestration-request.types.j
 import type { NodeReality, PositionalGraphReality } from './reality.types.js';
 
 export class ODS implements IODS {
+  private readonly pendingErrors = new Map<string, { code: string; message: string }>();
+
   constructor(private readonly deps: ODSDependencies) {}
+
+  drainErrors(): Map<string, { code: string; message: string }> {
+    const errors = new Map(this.pendingErrors);
+    this.pendingErrors.clear();
+    return errors;
+  }
 
   async execute(
     request: OrchestrationRequest,
@@ -152,6 +160,7 @@ export class ODS implements IODS {
       .catch((err) => {
         const msg = err instanceof Error ? err.message : String(err);
         console.error(`[ODS] Pod execution failed for ${nodeId}: ${msg}`);
+        this.pendingErrors.set(nodeId, { code: 'POD_EXECUTION_FAILED', message: msg });
       });
 
     return { ok: true, request, newStatus: 'starting', sessionId: pod.sessionId };

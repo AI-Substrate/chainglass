@@ -23,6 +23,7 @@ export interface CliDriveOptions {
   readonly maxIterations?: number;
   readonly verbose?: boolean;
   readonly output?: CliOutput;
+  readonly timeout?: number;
 }
 
 /**
@@ -35,10 +36,23 @@ export async function cliDriveGraph(
 ): Promise<number> {
   const out = options.output ?? defaultOutput;
 
+  // P1-DYK #3: timeout with unref() so timer doesn't prevent clean exit
+  let controller: AbortController | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  if (options.timeout && options.timeout > 0) {
+    controller = new AbortController();
+    timer = setTimeout(() => {
+      out.error(`  [timeout] Drive aborted after ${options.timeout}s`);
+      controller?.abort();
+    }, options.timeout * 1000);
+    timer.unref();
+  }
+
   const result = await handle.drive({
     maxIterations: options.maxIterations,
     actionDelayMs: 100,
     idleDelayMs: 10_000,
+    signal: controller?.signal,
     onEvent: async (event: DriveEvent) => {
       switch (event.type) {
         case 'status':
@@ -64,6 +78,9 @@ export async function cliDriveGraph(
       }
     },
   });
+
+  if (timer) clearTimeout(timer);
+  await handle.cleanup();
 
   return result.exitReason === 'complete' ? 0 : 1;
 }
