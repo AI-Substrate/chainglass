@@ -200,7 +200,10 @@ async function handleWfCreate(slug: string, options: BaseOptions): Promise<void>
   if (result.errors.length > 0) process.exit(1);
 }
 
-async function handleWfShow(slug: string, options: BaseOptions): Promise<void> {
+async function handleWfShow(
+  slug: string,
+  options: BaseOptions & { detailed?: boolean }
+): Promise<void> {
   const adapter = createOutputAdapter(options.json ?? false);
 
   const ctx = await resolveOrOverrideContext(options.workspacePath);
@@ -211,6 +214,88 @@ async function handleWfShow(slug: string, options: BaseOptions): Promise<void> {
   }
 
   const service = getPositionalGraphService();
+
+  if (options.detailed) {
+    // --detailed: combine getStatus + loadGraphState + pod sessions
+    const { buildPositionalGraphReality, PodManager } = await import(
+      '@chainglass/positional-graph/features/030-orchestration'
+    );
+    const { NodeFileSystemAdapter } = await import('@chainglass/shared');
+
+    const statusResult = await service.getStatus(ctx, slug);
+    if (statusResult.errors?.length > 0) {
+      console.log(adapter.format('wf.show', { errors: statusResult.errors }));
+      process.exit(1);
+    }
+
+    const state = await service.loadGraphState(ctx, slug);
+    const reality = buildPositionalGraphReality({
+      statusResult,
+      state,
+      snapshotAt: new Date().toISOString(),
+    });
+
+    const podManager = new PodManager(new NodeFileSystemAdapter());
+    try {
+      await podManager.loadSessions(ctx, slug);
+    } catch {
+      // Pod sessions may not exist yet
+    }
+    const sessions: Record<string, string> = {};
+    for (const [nodeId, sessionId] of podManager.getSessions()) {
+      sessions[nodeId] = sessionId;
+    }
+
+    const detailed = {
+      slug,
+      execution: {
+        status: statusResult.status,
+        totalNodes: statusResult.totalNodes,
+        completedNodes: statusResult.completedNodes,
+        progress:
+          statusResult.totalNodes > 0
+            ? `${Math.round((statusResult.completedNodes / statusResult.totalNodes) * 100)}%`
+            : '0%',
+      },
+      lines: statusResult.lines.map(
+        (line: {
+          id: string;
+          label?: string;
+          nodes: Array<{ id: string; unitSlug: string; type: string; status: string }>;
+        }) => ({
+          id: line.id,
+          label: line.label ?? '',
+          nodes: line.nodes.map(
+            (node: { id: string; unitSlug: string; type: string; status: string }) => {
+              const nodeState = state?.nodes?.[node.id];
+              const nodeReality = reality.nodes.get(node.id);
+              return {
+                id: node.id,
+                unitSlug: node.unitSlug,
+                type: node.type,
+                status: node.status,
+                startedAt: nodeState?.started_at ?? null,
+                completedAt: nodeState?.completed_at ?? null,
+                error: nodeState?.error ?? null,
+                sessionId: sessions[node.id] ?? null,
+                blockedBy:
+                  nodeReality?.readyDetail?.reasons
+                    ?.filter((r: string) => r.includes('not complete'))
+                    ?.map((r: string) => r.replace(' not complete', '')) ?? [],
+              };
+            }
+          ),
+        })
+      ),
+      questions: reality.pendingQuestions ?? [],
+      sessions,
+      errors: [],
+    };
+
+    console.log(adapter.format('wf.show', detailed));
+    return;
+  }
+
   const result = await service.show(ctx, slug);
   console.log(adapter.format('wf.show', result));
 
@@ -1780,12 +1865,14 @@ export function registerPositionalGraphCommands(program: Command): void {
 
   wf.command('show <slug>')
     .description('Show graph structure')
+    .option('--detailed', 'Show runtime execution status, timing, pod sessions', false)
     .action(
-      wrapAction(async (slug: string, _options: BaseOptions, cmd: Command) => {
+      wrapAction(async (slug: string, options: { detailed: boolean }, cmd: Command) => {
         const parentOpts = cmd.parent?.opts() ?? {};
         await handleWfShow(slug, {
           json: parentOpts.json,
           workspacePath: parentOpts.workspacePath,
+          detailed: options.detailed,
         });
       })
     );
@@ -1902,13 +1989,19 @@ export function registerPositionalGraphCommands(program: Command): void {
   wf.command('run <slug>')
     .description('Drive a graph to completion (polling loop)')
     .option('--verbose', 'Show detailed iteration info', false)
+    .option('--json-events', 'Emit DriveEvents as NDJSON lines to stdout', false)
     .option('--max-iterations <n>', 'Maximum drive iterations', '200')
     .option('--timeout <seconds>', 'Abort drive after N seconds (default: 600)', '600')
     .action(
       wrapAction(
         async (
           slug: string,
-          options: { verbose: boolean; maxIterations: string; timeout: string },
+          options: {
+            verbose: boolean;
+            jsonEvents: boolean;
+            maxIterations: string;
+            timeout: string;
+          },
           cmd: Command
         ) => {
           const parentOpts = cmd.parent?.opts() ?? {};
@@ -1918,6 +2011,13 @@ export function registerPositionalGraphCommands(program: Command): void {
             console.log(
               adapter.format('wf.run', { errors: noContextError(parentOpts.workspacePath) })
             );
+            process.exit(1);
+          }
+
+          // T2.3: GH_TOKEN pre-flight check
+          if (!process.env.GH_TOKEN && !process.env.GITHUB_TOKEN) {
+            console.error('Error: GH_TOKEN environment variable required for agent execution.');
+            console.error('Set it with: export GH_TOKEN=$(gh auth token)');
             process.exit(1);
           }
 
@@ -1980,6 +2080,7 @@ export function registerPositionalGraphCommands(program: Command): void {
           const exitCode = await cliDriveGraph(handle, {
             maxIterations,
             verbose: options.verbose,
+            jsonEvents: options.jsonEvents,
             timeout: Number.parseInt(options.timeout, 10) || 600,
           });
           process.exit(exitCode);

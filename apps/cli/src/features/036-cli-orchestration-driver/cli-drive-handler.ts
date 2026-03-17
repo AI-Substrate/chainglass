@@ -22,6 +22,7 @@ const defaultOutput: CliOutput = {
 export interface CliDriveOptions {
   readonly maxIterations?: number;
   readonly verbose?: boolean;
+  readonly jsonEvents?: boolean;
   readonly output?: CliOutput;
   readonly timeout?: number;
 }
@@ -54,6 +55,23 @@ export async function cliDriveGraph(
     idleDelayMs: 10_000,
     signal: controller?.signal,
     onEvent: async (event: DriveEvent) => {
+      // NDJSON mode: one JSON object per line (Workshop 002 design)
+      if (options.jsonEvents) {
+        const entry: Record<string, unknown> = {
+          type: event.type,
+          message: event.message,
+          timestamp: new Date().toISOString(),
+        };
+        if (event.type === 'iteration') {
+          entry.data = event.data;
+        }
+        if (event.type === 'error' && event.error) {
+          entry.error = event.error instanceof Error ? event.error.message : String(event.error);
+        }
+        out.log(JSON.stringify(entry));
+        return;
+      }
+
       switch (event.type) {
         case 'status':
           out.log(event.message);
