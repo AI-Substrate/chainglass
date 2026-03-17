@@ -216,33 +216,17 @@ async function handleWfShow(
   const service = getPositionalGraphService();
 
   if (options.detailed) {
-    // --detailed: combine getStatus + loadGraphState + pod sessions
-    const { buildPositionalGraphReality, PodManager } = await import(
-      '@chainglass/positional-graph/features/030-orchestration'
-    );
-    const { NodeFileSystemAdapter } = await import('@chainglass/shared');
-
-    const statusResult = await service.getStatus(ctx, slug);
-    if (statusResult.errors?.length > 0) {
-      console.log(adapter.format('wf.show', { errors: statusResult.errors }));
-      process.exit(1);
-    }
+    // FT-001 + FT-003: Use sanctioned getReality() contract instead of
+    // constructing PodManager/NodeFileSystemAdapter directly
+    const orchestrationService = getOrchestrationService();
+    const handle = await orchestrationService.get(ctx, slug);
+    const reality = await handle.getReality();
 
     const state = await service.loadGraphState(ctx, slug);
-    const reality = buildPositionalGraphReality({
-      statusResult,
-      state,
-      snapshotAt: new Date().toISOString(),
-    });
+    const statusResult = await service.getStatus(ctx, slug);
 
-    const podManager = new PodManager(new NodeFileSystemAdapter());
-    try {
-      await podManager.loadSessions(ctx, slug);
-    } catch {
-      // Pod sessions may not exist yet
-    }
     const sessions: Record<string, string> = {};
-    for (const [nodeId, sessionId] of podManager.getSessions()) {
+    for (const [nodeId, sessionId] of reality.podSessions ?? []) {
       sessions[nodeId] = sessionId;
     }
 
@@ -257,36 +241,31 @@ async function handleWfShow(
             ? `${Math.round((statusResult.completedNodes / statusResult.totalNodes) * 100)}%`
             : '0%',
       },
-      lines: statusResult.lines.map(
-        (line: {
-          id: string;
-          label?: string;
-          nodes: Array<{ id: string; unitSlug: string; type: string; status: string }>;
-        }) => ({
-          id: line.id,
-          label: line.label ?? '',
-          nodes: line.nodes.map(
-            (node: { id: string; unitSlug: string; type: string; status: string }) => {
-              const nodeState = state?.nodes?.[node.id];
-              const nodeReality = reality.nodes.get(node.id);
-              return {
-                id: node.id,
-                unitSlug: node.unitSlug,
-                type: node.type,
-                status: node.status,
-                startedAt: nodeState?.started_at ?? null,
-                completedAt: nodeState?.completed_at ?? null,
-                error: nodeState?.error ?? null,
-                sessionId: sessions[node.id] ?? null,
-                blockedBy:
-                  nodeReality?.readyDetail?.reasons
-                    ?.filter((r: string) => r.includes('not complete'))
-                    ?.map((r: string) => r.replace(' not complete', '')) ?? [],
-              };
-            }
-          ),
-        })
-      ),
+      lines: statusResult.lines.map((line) => ({
+        id: line.lineId,
+        label: line.label ?? '',
+        nodes: line.nodes.map((node) => {
+          const nodeState = state?.nodes?.[node.nodeId];
+          const nodeReality = reality.nodes.get(node.nodeId);
+          const blockedBy: string[] = [];
+          if (nodeReality && !nodeReality.ready && nodeReality.readyDetail) {
+            if (!nodeReality.readyDetail.precedingLinesComplete) blockedBy.push('preceding-lines');
+            if (!nodeReality.readyDetail.inputsAvailable) blockedBy.push('inputs');
+            if (!nodeReality.readyDetail.serialNeighborComplete) blockedBy.push('serial-neighbor');
+          }
+          return {
+            id: node.nodeId,
+            unitSlug: node.unitSlug,
+            type: node.unitType,
+            status: node.status,
+            startedAt: nodeState?.started_at ?? null,
+            completedAt: nodeState?.completed_at ?? null,
+            error: nodeState?.error ?? null,
+            sessionId: sessions[node.nodeId] ?? null,
+            blockedBy,
+          };
+        }),
+      })),
       questions: reality.pendingQuestions ?? [],
       sessions,
       errors: [],
