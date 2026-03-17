@@ -148,24 +148,71 @@ export async function createTemplate(options: CgExecOptions): Promise<{ ok: bool
 
 export async function createWorkflow(options: CgExecOptions): Promise<{ ok: boolean; results: CgExecResult[] }> {
   const results: CgExecResult[] = [];
+  const wfId = TEST_DATA.workflowId;
 
-  // P6-DYK #3: Delete existing workflow instance first
-  await runCg(['wf', 'delete', TEST_DATA.workflowId], options);
+  // Delete existing workflow first (idempotent)
+  await runCg(['wf', 'delete', wfId], options);
 
-  // P6-DYK #2: instantiate requires --id
-  const instantiateResult = await runCg(
-    ['template', 'instantiate', TEST_DATA.templateSlug, '--id', TEST_DATA.workflowId],
-    options
-  );
-  results.push(instantiateResult);
-
-  if (instantiateResult.exitCode !== 0) {
-    console.error('  ✗ Failed to instantiate workflow');
+  // Create graph directly (not via template instantiate — instances/ path
+  // is invisible to PositionalGraphService which reads from data/workflows/)
+  const createResult = await runCg(['wf', 'create', wfId], options);
+  results.push(createResult);
+  if (createResult.exitCode !== 0) {
+    console.error('  ✗ Failed to create workflow graph');
     return { ok: false, results };
   }
 
-  console.error(`  ✓ Workflow ${TEST_DATA.workflowId} created from template ${TEST_DATA.templateSlug}`);
-  return { ok: true, results };
+  // Add 3 lines (same topology as createTemplate)
+  const line0 = await runCg(['wf', 'line', 'add', wfId, '--label', 'Input'], options);
+  results.push(line0);
+  const line1 = await runCg(['wf', 'line', 'add', wfId, '--label', 'Processing'], options);
+  results.push(line1);
+  const line2 = await runCg(['wf', 'line', 'add', wfId, '--label', 'Output'], options);
+  results.push(line2);
+
+  // Parse line IDs
+  const lineIds = [line0, line1, line2].map((r) => {
+    try {
+      const parsed = JSON.parse(r.stdout);
+      return parsed.data?.lineId ?? parsed.data?.id ?? null;
+    } catch {
+      return null;
+    }
+  });
+
+  if (lineIds.some((id) => !id)) {
+    const showResult = await runCg(['wf', 'show', wfId], options);
+    try {
+      const parsed = JSON.parse(showResult.stdout);
+      const lines = parsed.data?.lines ?? parsed.data?.graph?.lines ?? [];
+      for (let i = 0; i < Math.min(lines.length, 3); i++) {
+        lineIds[i] = lines[i].id ?? lines[i].lineId;
+      }
+    } catch {
+      console.error('  ✗ Could not resolve line IDs');
+      return { ok: false, results };
+    }
+  }
+
+  // Add nodes: Line 0 = user-input, Line 1 = agent, Line 2 = code + agent
+  if (lineIds[0]) {
+    results.push(await runCg(['wf', 'node', 'add', wfId, lineIds[0], TEST_DATA.units.userInput], options));
+  }
+  if (lineIds[1]) {
+    results.push(await runCg(['wf', 'node', 'add', wfId, lineIds[1], TEST_DATA.units.agent], options));
+  }
+  if (lineIds[2]) {
+    results.push(await runCg(['wf', 'node', 'add', wfId, lineIds[2], TEST_DATA.units.code], options));
+    results.push(await runCg(['wf', 'node', 'add', wfId, lineIds[2], TEST_DATA.units.agent], options));
+  }
+
+  const ok = results.every((r) => r.exitCode === 0);
+  if (ok) {
+    console.error(`  ✓ Workflow ${wfId} created with 4 nodes`);
+  } else {
+    console.error(`  ✗ Some workflow creation steps failed`);
+  }
+  return { ok, results };
 }
 
 // ── T009: Create Env (aggregate) ────────────────────────
