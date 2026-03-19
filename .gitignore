@@ -180,6 +180,9 @@ harness/results/
 
 # Harness agent run folders — generated per agent execution (Plan 070)
 harness/agents/*/runs/
+
+# Harness workflow run cache — ephemeral event data (Plan 076)
+harness/.cache/
 .pnpm-store/
 
 # Generated icon assets (Plan 073) — rebuilt by scripts/generate-icon-assets.ts

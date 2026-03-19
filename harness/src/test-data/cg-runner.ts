@@ -34,14 +34,14 @@ export interface CgExecResult {
 }
 
 /** Resolve the monorepo root (harness/ is one level down from root) */
-function resolveProjectRoot(): string {
+export function resolveProjectRoot(): string {
   const thisDir = path.dirname(fileURLToPath(import.meta.url));
   // harness/src/test-data/cg-runner.ts → ../../../ → project root
   return path.resolve(thisDir, '..', '..', '..');
 }
 
 /** Path to the local CLI bundle */
-function getCliPath(): string {
+export function getCliPath(): string {
   return path.join(resolveProjectRoot(), 'apps', 'cli', 'dist', 'cli.cjs');
 }
 
@@ -51,7 +51,7 @@ let buildFreshnessChecked = false;
  * P6-DYK #1 + P1-DYK #5: Check if CLI build is stale.
  * Throws on missing or stale bundle to prevent running with old code.
  */
-function checkBuildFreshness(): void {
+export function checkBuildFreshness(): void {
   if (buildFreshnessChecked) return;
   buildFreshnessChecked = true;
 

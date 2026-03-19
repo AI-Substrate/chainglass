@@ -371,9 +371,15 @@ importers:
 
   harness:
     dependencies:
+      '@chainglass/positional-graph':
+        specifier: workspace:*
+        version: link:../packages/positional-graph
       '@chainglass/shared':
         specifier: workspace:*
         version: link:../packages/shared
+      '@chainglass/workflow':
+        specifier: workspace:*
+        version: link:../packages/workflow
       ajv:
         specifier: ^8.17.1
         version: 8.17.1

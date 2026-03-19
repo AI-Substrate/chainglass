@@ -112,6 +112,7 @@ harness-health:
     cd harness && just health
 
 # Run harness CLI command (e.g., just harness health, just harness screenshot home)
+# Workflow commands (Plan 076): just harness workflow {reset|run|status|logs}
 harness *ARGS:
     cd harness && pnpm exec tsx src/cli/index.ts {{ARGS}}
 

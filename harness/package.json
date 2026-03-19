@@ -16,7 +16,9 @@
     "ajv": "^8.17.1",
     "commander": "^13.1.0",
     "zod": "^3.25.67",
-    "@chainglass/shared": "workspace:*"
+    "@chainglass/shared": "workspace:*",
+    "@chainglass/positional-graph": "workspace:*",
+    "@chainglass/workflow": "workspace:*"
   },
   "devDependencies": {
     "@playwright/test": "^1.52.0",
