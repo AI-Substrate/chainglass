@@ -1,0 +1,14 @@
+slug: test-user-input
+type: user-input
+version: 1.0.0
+inputs: []
+outputs:
+  - name: spec
+    type: data
+    data_type: text
+    required: true
+    description: User-provided specification text
+user_input:
+  question_type: text
+  prompt: "Enter the specification for processing:"
+description: Test user-input unit for workflow execution validation

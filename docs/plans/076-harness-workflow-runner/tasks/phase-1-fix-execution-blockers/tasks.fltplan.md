@@ -56,8 +56,7 @@ stateDiagram-v2
     S3 --> S4
     S4 --> [*]
 
-    class S1,S2,S3 done
-    class S4 blocked
+    class S1,S2,S3,S4 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -71,7 +70,7 @@ stateDiagram-v2
 - [x] **Stage 1: ODS error surfacing** — Add pendingErrors queue to ODS, drain in drive loop settle phase
 - [x] **Stage 2: SSE + CLI safety** — Fix error serialization (`server-event-route.tsx`), add `--timeout` + AbortSignal (`cli-drive-handler.ts`, `positional-graph.command.ts`), add filesystem lock (`positional-graph.command.ts`)
 - [x] **Stage 3: Harness tooling** — Strengthen `runCg()` build freshness to fail-fast, add subprocess timeout (`cg-runner.ts`)
-- [~] **Stage 4: Dogfooding checkpoint** — Rebuild packages, run `cg wf run test-workflow --verbose`, verify nodes progress or error clearly
+- [x] **Stage 4: Dogfooding checkpoint** — Rebuilt packages, ran `cg wf run test-workflow --verbose`, verified nodes display and drive loop polls. Fixed 2 pre-existing bugs found during dogfooding.
 
 ---
 
@@ -136,4 +135,4 @@ flowchart LR
 - [x] T005: Add filesystem lock for concurrent drive() prevention
 - [x] T006: Strengthen `runCg()` build freshness to fail-fast
 - [x] T007: Add subprocess timeout to `runCg()`
-- [!] T008: Dogfooding checkpoint — BLOCKED by pre-existing CLI DI bug (`_Ie.resolve is not a function`)
+- [x] T008: Dogfooding checkpoint — DONE (fixed 2 pre-existing bugs, workflow runs)

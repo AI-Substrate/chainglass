@@ -4,7 +4,7 @@
 **Phase**: Phase 1: Fix Execution Blockers
 **Spec**: [harness-workflow-runner-spec.md](../../harness-workflow-runner-spec.md)
 **Created**: 2026-03-17
-**Status**: Pending
+**Status**: Complete
 
 > **Read the spec's Problem Context section FIRST.** See `harness-workflow-runner-spec.md § Problem Context` for the bug table, dogfooding contract, and known runtime issues.
 
@@ -99,7 +99,7 @@ flowchart TD
 | [x] | T005 | Add filesystem lock for CLI drive() | _platform/positional-graph | `apps/cli/src/commands/positional-graph.command.ts` | Second `cg wf run test-wf` returns error "workflow already running" with exit code 1 | Lock file at `${worktreePath}/.chainglass/data/workflows/${slug}/drive.lock`. Write PID on acquire, delete on exit/signal. **P1-DYK #4**: Write PID inside lock file. On acquire, check if existing lock PID is still alive via `process.kill(pid, 0)`. If dead, delete stale lock and acquire. Register cleanup on `process.on('exit')`, `SIGTERM`, `SIGINT`. Create directory with `mkdir({recursive: true})` before writing lock. |
 | [x] | T006 | Strengthen `runCg()` build freshness — fail-fast | _(harness)_ | `harness/src/test-data/cg-runner.ts` | Missing CLI bundle → throw error (not warn). Stale bundle → throw error (not warn). | Currently at lines 52-71: `console.error()` + return. Change to `throw new Error()` so callers see failure. **P1-DYK #5**: Currently only checks `unit.command.ts` — misses the files we're changing (ods.ts, cli-drive-handler.ts, positional-graph.command.ts). Check CLI bundle mtime against `apps/cli/src/` directory (any .ts file newer = stale). Also check `packages/positional-graph/dist/` mtime to catch package rebuild needs. |
 | [x] | T007 | Add subprocess timeout to `runCg()` | _(harness)_ | `harness/src/test-data/cg-runner.ts` | `execFile()` calls include `timeout` option. Default 600s, configurable via `CgExecOptions.timeout` | Lines 101-115: add `timeout` to `execFile()` options in both `runLocal()` and `runInContainer()`. Node `execFile` supports `timeout` natively. Add `timeout?: number` to `CgExecOptions` interface. |
-| [!] | T008 | Rebuild packages + verify workflow runs past "starting" | _platform/positional-graph | N/A | `cg wf run test-workflow --verbose` shows nodes transitioning starting → accepted → complete (or blocked-error if agents unavailable) | **Dogfooding checkpoint**. Steps: `pnpm --filter @chainglass/positional-graph build && pnpm --filter @chainglass/cli build && just test-data create env && cg wf run test-workflow --verbose`. Include output in execution log. If nodes still stuck, diagnose using the improved error messages from T001-T003. |
+| [x] | T008 | Rebuild packages + verify workflow runs past "starting" | _platform/positional-graph | N/A | `cg wf run test-workflow --verbose` shows nodes transitioning starting → accepted → complete (or blocked-error if agents unavailable) | **Dogfooding checkpoint**. Steps: `pnpm --filter @chainglass/positional-graph build && pnpm --filter @chainglass/cli build && just test-data create env && cg wf run test-workflow --verbose`. Include output in execution log. If nodes still stuck, diagnose using the improved error messages from T001-T003. |
 
 ---
 
@@ -214,7 +214,8 @@ _Populated during implementation by plan-6._
 
 | Date | Task | Type | Discovery | Resolution | References |
 |------|------|------|-----------|------------|------------|
-| 2026-03-17 | T008 | Blocker | `cg wf run` fails with `_Ie.resolve is not a function` — CLI DI container resolution broken in compiled bundle. Pre-existing (verified on committed code). | Blocks dogfooding checkpoint. Need to fix CLI DI container or use `test-advanced-pipeline.ts` script (which builds its own stack). | `apps/cli/dist/cli.cjs`, `apps/cli/src/lib/container.ts:302` |
+| 2026-03-17 | T008 | Blocker | `cg wf run` fails with `_Ie.resolve is not a function` — CLI DI container resolution broken in compiled bundle. Pre-existing (verified on committed code). | Externalized `@github/copilot-sdk` from esbuild, changed to dynamic `import()` for CopilotClient. | `apps/cli/esbuild.config.ts`, `apps/cli/src/lib/container.ts`, commit `b5c7f60d` |
+| 2026-03-17 | T008 | Blocker | `cg wf show test-workflow` returns "not found" even though `cg wf list` shows it — template instantiate puts graphs in `instances/` not `data/workflows/`. | Changed `createWorkflow()` to use `cg wf create` + line/node adds directly (same as test-advanced-pipeline.ts). | `harness/src/test-data/environment.ts`, commit `c58cb3a3` |
 
 ---
 

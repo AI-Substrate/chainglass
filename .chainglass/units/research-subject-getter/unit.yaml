@@ -1,0 +1,12 @@
+slug: research-subject-getter
+type: user-input
+version: 1.0.0
+inputs: []
+outputs:
+  - name: result
+    type: data
+    data_type: text
+    required: true
+user_input:
+  question_type: text
+  prompt: Enter a value

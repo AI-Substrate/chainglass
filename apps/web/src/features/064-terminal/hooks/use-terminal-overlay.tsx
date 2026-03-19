@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
+import { sanitizeSessionName } from '../lib/sanitize-session-name';
 
 interface TerminalOverlayState {
   isOpen: boolean;
@@ -67,7 +68,8 @@ export function TerminalOverlayProvider({
 
     if (worktree) {
       resolvedCwd = resolvedCwd ?? worktree;
-      resolvedSession = resolvedSession ?? worktree.split('/').pop() ?? null;
+      resolvedSession =
+        resolvedSession ?? (sanitizeSessionName(worktree.split('/').pop() ?? '') || null);
     }
 
     // Fall back to prev state (which holds server-side defaults)
@@ -100,6 +102,13 @@ export function TerminalOverlayProvider({
     window.addEventListener('terminal:toggle', handler);
     return () => window.removeEventListener('terminal:toggle', handler);
   }, [toggleTerminal]);
+
+  // Shift+Escape: Listen for terminal:close — always close, no toggle
+  useEffect(() => {
+    const handler = () => closeTerminal();
+    window.addEventListener('terminal:close', handler);
+    return () => window.removeEventListener('terminal:close', handler);
+  }, [closeTerminal]);
 
   // Plan 065 Phase 3: Listen for overlay:close-all (mutual exclusion)
   useEffect(() => {

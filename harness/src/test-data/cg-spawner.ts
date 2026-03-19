@@ -28,7 +28,12 @@ export interface SpawnCgHandle {
   /** Line-by-line async iterable over stderr */
   stderrLines: readline.Interface;
   /** Resolves when the process exits with the full result */
-  result: Promise<CgExecResult>;
+  result: Promise<SpawnCgResult>;
+}
+
+export interface SpawnCgResult extends CgExecResult {
+  /** True if the process was killed by the timeout timer */
+  timedOut: boolean;
 }
 
 /**
@@ -56,11 +61,23 @@ export function spawnCg(
     fullArgs.push('--json');
   }
 
+  const isContainer = options.target === 'container' && options.containerName;
   const cliPath = getCliPath();
+
+  let spawnCmd: string;
+  let spawnArgs: string[];
+  if (isContainer) {
+    spawnCmd = 'docker';
+    spawnArgs = ['exec', options.containerName!, 'node', '/app/apps/cli/dist/cli.cjs', ...fullArgs];
+  } else {
+    spawnCmd = 'node';
+    spawnArgs = [cliPath, ...fullArgs];
+  }
+
   const commandStr = `cg ${fullArgs.join(' ')}`;
   console.error(`▸ [spawn] ${commandStr}`);
 
-  const child = spawn('node', [cliPath, ...fullArgs], {
+  const child = spawn(spawnCmd, spawnArgs, {
     stdio: ['pipe', 'pipe', 'pipe'],
     env: { ...process.env },
   });
@@ -68,16 +85,19 @@ export function spawnCg(
   const stdoutLines = readline.createInterface({ input: child.stdout! });
   const stderrLines = readline.createInterface({ input: child.stderr! });
 
-  // Subprocess kill timer
+  // Track whether we killed via timeout
+  let didTimeout = false;
+
   let killTimer: ReturnType<typeof setTimeout> | null = null;
   if (timeoutMs) {
     killTimer = setTimeout(() => {
+      didTimeout = true;
       child.kill('SIGTERM');
     }, timeoutMs);
     killTimer.unref();
   }
 
-  const result = new Promise<CgExecResult>((resolve) => {
+  const result = new Promise<SpawnCgResult>((resolve) => {
     const stdoutChunks: string[] = [];
     const stderrChunks: string[] = [];
 
@@ -95,6 +115,7 @@ export function spawnCg(
         stdout: stdoutChunks.join(''),
         stderr: stderrChunks.join(''),
         exitCode: code ?? 1,
+        timedOut: didTimeout,
       });
     });
 
@@ -105,6 +126,7 @@ export function spawnCg(
         stdout: stdoutChunks.join(''),
         stderr: stderrChunks.join('') + `\nSpawn error: ${err.message}`,
         exitCode: 1,
+        timedOut: false,
       });
     });
   });

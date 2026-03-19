@@ -13,6 +13,7 @@ import { WORKSPACE_DI_TOKENS } from '@chainglass/shared';
 import type { IWorkspaceService } from '@chainglass/workflow';
 import { WorkspaceAgentChrome } from '../../../../src/components/agents/workspace-agent-chrome';
 import { WorkspaceProvider } from '../../../../src/features/041-file-browser/hooks/use-workspace-context';
+import { sanitizeSessionName } from '../../../../src/features/064-terminal/lib/sanitize-session-name';
 import { getContainer } from '../../../../src/lib/bootstrap-singleton';
 import { SDKWorkspaceConnector } from '../../../../src/lib/sdk/sdk-workspace-connector';
 import { MultiplexedSSEProvider } from '../../../../src/lib/sse';
@@ -65,7 +66,7 @@ export default async function WorkspaceLayout({ children, params }: LayoutProps)
   const sdkMru = prefs?.sdkMru ?? [];
 
   const defaultWorktreePath = ws?.toJSON().path ?? '';
-  const defaultBranch = defaultWorktreePath.split('/').pop() ?? slug;
+  const defaultBranch = sanitizeSessionName(defaultWorktreePath.split('/').pop() ?? slug);
 
   return (
     <WorkspaceProvider

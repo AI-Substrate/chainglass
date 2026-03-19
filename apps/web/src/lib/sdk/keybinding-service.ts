@@ -46,14 +46,17 @@ export class KeybindingService implements IKeybindingService {
     for (const binding of this.bindings.values()) {
       map[binding.key] = (event: KeyboardEvent) => {
         // Skip when user is typing in an editable element (input, textarea, CodeMirror, etc.)
-        const el = event.target as HTMLElement;
-        if (
-          el?.tagName === 'INPUT' ||
-          el?.tagName === 'TEXTAREA' ||
-          el?.isContentEditable ||
-          el?.closest?.('.cm-editor')
-        ) {
-          return;
+        // Global bindings bypass this guard (e.g. Shift+Escape to close terminal)
+        if (!binding.global) {
+          const el = event.target as HTMLElement;
+          if (
+            el?.tagName === 'INPUT' ||
+            el?.tagName === 'TEXTAREA' ||
+            el?.isContentEditable ||
+            el?.closest?.('.cm-editor')
+          ) {
+            return;
+          }
         }
         // When-clause check
         if (binding.when && !this.contextKeys.evaluate(binding.when)) return;

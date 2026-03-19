@@ -44,6 +44,11 @@
 - Tailwind CSS with `tailwind-merge` for className composition
 - `next-themes` for dark mode support with `suppressHydrationWarning`
 
+### CLI Invocation
+
+- **Never use the global `cg` command** — it may point to a different worktree's build. Always invoke the CLI via the local built artifact: `node apps/cli/dist/cli.cjs <args>`. This applies to scripts, harness commands, and any automated tooling that needs to run `cg` subcommands.
+- **Harness test-data commands** must also use the local CLI path, not `cg` directly. When running inside the Docker container, use `node /app/apps/cli/dist/cli.cjs`.
+
 ### Testing
 
 - **Vitest** for unit/integration tests

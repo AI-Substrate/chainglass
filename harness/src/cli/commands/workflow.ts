@@ -33,6 +33,7 @@ import {
 } from '../../test-data/environment.js';
 import { TEST_DATA } from '../../test-data/constants.js';
 import { spawnCg } from '../../test-data/cg-spawner.js';
+import { computePorts } from '../../ports/allocator.js';
 
 /**
  * Lazy import for AutoCompletionRunner to avoid loading @chainglass/positional-graph
@@ -58,10 +59,14 @@ function getCacheDir(): string {
   return path.join(resolveHarnessRoot(), '.cache');
 }
 
-/** Build CgExecOptions from command options */
-function buildExecOptions(opts: { target?: string }): CgExecOptions {
+/** Build CgExecOptions from command options — mirrors resolveOptions in test-data.ts */
+function buildExecOptions(opts: { target?: string; workspacePath?: string }): CgExecOptions {
+  const target = (opts.target as 'local' | 'container') ?? 'local';
+  const ports = target === 'container' ? computePorts() : null;
   return {
-    target: (opts.target as 'local' | 'container') ?? 'local',
+    target,
+    workspacePath: opts.workspacePath ?? process.cwd(),
+    containerName: ports ? `chainglass-${ports.worktree}` : undefined,
   };
 }
 
@@ -290,7 +295,11 @@ export function registerWorkflowCommand(program: Command): void {
         exitWithEnvelope(
           formatSuccess('workflow.run', {
             exitCode: result.exitCode,
-            exitReason: result.exitCode === 0 ? 'complete' : 'timeout',
+            exitReason: result.timedOut
+              ? 'timeout'
+              : result.exitCode === 0
+                ? 'complete'
+                : 'error',
             iterations,
             totalEvents: events.length,
             errorCount: errorEvents.length,
@@ -392,6 +401,7 @@ export function registerWorkflowCommand(program: Command): void {
             filteredEvents: events.length,
             filters,
             events,
+            stderrLines: cached.stderrLines ?? [],
           }),
         );
       } catch (err) {
