@@ -187,6 +187,7 @@ export function FileViewerPanel({
         contentType={binaryContentType ?? 'application/octet-stream'}
         size={binarySize ?? 0}
         rawFileUrl={rawFileUrl}
+        rawFileBaseUrl={rawFileBaseUrl}
         onRefresh={onRefresh}
       />
     );
@@ -408,12 +409,14 @@ function BinaryFileView({
   contentType,
   size,
   rawFileUrl,
+  rawFileBaseUrl,
   onRefresh,
 }: {
   filePath: string;
   contentType: string;
   size: number;
   rawFileUrl: string;
+  rawFileBaseUrl?: string;
   onRefresh: () => void;
 }) {
   const filename = filePath.split('/').pop() ?? filePath;
@@ -437,7 +440,9 @@ function BinaryFileView({
       <div className="flex-1 flex flex-col min-h-0">
         {category === 'image' && <ImageViewer src={rawFileUrl} alt={filename} />}
         {category === 'pdf' && <PdfViewer src={rawFileUrl} />}
-        {category === 'html' && <HtmlViewer src={rawFileUrl} />}
+        {category === 'html' && (
+          <HtmlViewer src={rawFileUrl} currentFilePath={filePath} rawFileBaseUrl={rawFileBaseUrl} />
+        )}
         {category === 'video' && <VideoViewer src={rawFileUrl} mimeType={contentType} />}
         {category === 'audio' && (
           <AudioViewer src={rawFileUrl} mimeType={contentType} filename={filename} />
