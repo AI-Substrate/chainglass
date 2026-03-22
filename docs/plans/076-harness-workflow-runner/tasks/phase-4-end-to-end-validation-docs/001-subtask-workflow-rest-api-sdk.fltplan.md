@@ -3,7 +3,7 @@
 **Subtask**: [001-subtask-workflow-rest-api-sdk.md](001-subtask-workflow-rest-api-sdk.md)
 **Parent Phase**: Phase 4: End-to-End Validation + Docs
 **Generated**: 2026-03-21
-**Status**: Ready for takeoff
+**Status**: Landed
 
 ---
 
@@ -59,7 +59,7 @@ stateDiagram-v2
     S6 --> S5
     S5 --> [*]
 
-    class S1,S2,S3,S4,S5,S6 pending
+    class S1,S2,S3,S4,S5,S6 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -68,12 +68,12 @@ stateDiagram-v2
 
 ## Stages
 
-- [ ] **Stage 1: Define contract** — IWorkflowApiClient interface + response DTOs (`workflow-api-client.interface.ts`)
-- [ ] **Stage 2: Build REST API** — 5 Tier 1 endpoints wrapping WorkflowExecutionManager (`execution/route.ts`, `detailed/route.ts`)
-- [ ] **Stage 3: Build SDK client** — WorkflowApiClient with typed fetch calls (`workflow-api-client.ts`)
-- [ ] **Stage 4: Build fake + tests** — FakeWorkflowApiClient + contract test suite (`fake-workflow-api-client.ts`, `workflow-api-client.test.ts`)
-- [ ] **Stage 5: Wire harness** — `--server` mode in workflow commands, uses SDK instead of spawnCg
-- [ ] **Stage 6: Drive lock** — Move filesystem lock into GraphOrchestration.drive(), remove from CLI
+- [x] **Stage 1: Define contract** — IWorkflowApiClient interface + response DTOs (`workflow-api-client.interface.ts`)
+- [x] **Stage 2: Build REST API** — 5 Tier 1 endpoints wrapping WorkflowExecutionManager (`execution/route.ts`, `detailed/route.ts`)
+- [x] **Stage 3: Build SDK client** — WorkflowApiClient with typed fetch calls (`workflow-api-client.ts`)
+- [x] **Stage 4: Build fake + tests** — FakeWorkflowApiClient + contract test suite (`fake-workflow-api-client.ts`, `workflow-api-client.test.ts`)
+- [x] **Stage 5: Wire harness** — `--server` mode in workflow commands, uses SDK instead of spawnCg
+- [x] **Stage 6: Drive lock** — Move filesystem lock into GraphOrchestration.drive(), remove from CLI
 
 ---
 
@@ -114,22 +114,22 @@ flowchart LR
 
 ## Acceptance Criteria
 
-- [ ] `POST /api/workspaces/{slug}/workflows/{graph}/execution` starts a workflow
-- [ ] `GET .../execution` returns current execution status
-- [ ] `DELETE .../execution` stops a running workflow
-- [ ] `GET .../detailed` returns per-node status with timing/sessions/blockers
-- [ ] `WorkflowApiClient` implements `IWorkflowApiClient` with typed fetch calls
-- [ ] `FakeWorkflowApiClient` passes same contract tests as real client
-- [ ] `harness workflow run --server` triggers web execution and user sees it in browser
-- [ ] Concurrent `drive()` calls on same graph are rejected (lock in engine)
+- [x] `POST /api/workspaces/{slug}/workflows/{graph}/execution` starts a workflow
+- [x] `GET .../execution` returns current execution status
+- [x] `DELETE .../execution` stops a running workflow
+- [x] `GET .../detailed` returns per-node status with timing/sessions/blockers
+- [x] `WorkflowApiClient` implements `IWorkflowApiClient` with typed fetch calls
+- [x] `FakeWorkflowApiClient` passes same contract tests as real client
+- [x] `harness workflow run --server` triggers web execution and user sees it in browser
+- [x] Concurrent `drive()` calls on same graph are rejected (lock in engine)
 
 ---
 
 ## Checklist
 
-- [ ] ST001: Define IWorkflowApiClient interface + response types
-- [ ] ST002: Implement Tier 1 REST API endpoints (5 routes)
-- [ ] ST003: Implement WorkflowApiClient (fetch-based SDK)
-- [ ] ST004: Implement FakeWorkflowApiClient + contract tests
-- [ ] ST005: Wire SDK into harness `--server` mode
-- [ ] ST006: Move drive lock into GraphOrchestration.drive()
+- [x] ST001: Define IWorkflowApiClient interface + response types
+- [x] ST002: Implement Tier 1 REST API endpoints (5 routes)
+- [x] ST003: Implement WorkflowApiClient (fetch-based SDK)
+- [x] ST004: Implement FakeWorkflowApiClient + contract tests
+- [x] ST005: Wire SDK into harness `--server` mode
+- [x] ST006: Move drive lock into GraphOrchestration.drive()

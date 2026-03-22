@@ -15,6 +15,8 @@
  * @packageDocumentation
  */
 
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { WorkspaceContext } from '@chainglass/workflow';
 import type { IPositionalGraphService } from '../../interfaces/positional-graph-service.interface.js';
 import type { IEventHandlerService } from '../032-node-event-system/event-handler-service.interface.js';
@@ -187,74 +189,82 @@ export class GraphOrchestration implements IGraphOrchestration {
       return { exitReason: 'stopped', iterations: 0, totalActions: 0 };
     }
 
-    await this.podManager?.loadSessions(this.ctx, this.graphSlug);
+    // ST006: Filesystem lock — prevents concurrent drive() on same graph.
+    // Both CLI and web execution paths go through drive(), so one lock covers both.
+    const lockRelease = this.acquireDriveLock();
 
-    let iterations = 0;
-    let totalActions = 0;
+    try {
+      await this.podManager?.loadSessions(this.ctx, this.graphSlug);
 
-    for (let i = 0; i < maxIterations; i++) {
-      // Check abort signal at iteration boundary
-      if (signal?.aborted) {
-        await emit({ type: 'status', message: 'Drive stopped — aborted between iterations' });
+      let iterations = 0;
+      let totalActions = 0;
+
+      for (let i = 0; i < maxIterations; i++) {
+        // Check abort signal at iteration boundary
+        if (signal?.aborted) {
+          await emit({ type: 'status', message: 'Drive stopped — aborted between iterations' });
+          await this.podManager?.persistSessions(this.ctx, this.graphSlug);
+          return { exitReason: 'stopped', iterations, totalActions };
+        }
+
+        let result: OrchestrationRunResult;
+        try {
+          result = await this.run();
+        } catch (err) {
+          await emit({
+            type: 'error',
+            message: err instanceof Error ? err.message : String(err),
+            error: err,
+          });
+          return { exitReason: 'failed', iterations, totalActions };
+        }
+
+        iterations++;
+        totalActions += result.actions.length;
+
+        // Emit status view after every iteration (including terminal)
+        await emit({ type: 'status', message: formatGraphStatus(result.finalReality) });
+
+        // Persist sessions every iteration (fire-and-forget .then() may have settled)
         await this.podManager?.persistSessions(this.ctx, this.graphSlug);
-        return { exitReason: 'stopped', iterations, totalActions };
+
+        // Check for terminal state
+        if (result.stopReason === 'graph-complete') {
+          await emit({ type: 'iteration', message: 'Graph complete', data: result });
+          return { exitReason: 'complete', iterations, totalActions };
+        }
+        if (result.stopReason === 'graph-failed') {
+          await emit({ type: 'iteration', message: 'Graph failed', data: result });
+          return { exitReason: 'failed', iterations, totalActions };
+        }
+
+        // Non-terminal: emit iteration or idle event, delay with abort support
+        const hadActions = result.actions.length > 0;
+        if (hadActions) {
+          await emit({
+            type: 'iteration',
+            message: `${result.actions.length} action(s)`,
+            data: result,
+          });
+        } else {
+          await emit({ type: 'idle', message: 'No actions — polling' });
+        }
+
+        // Sleep with abort support — catches AbortError to exit cleanly
+        try {
+          await abortableSleep(hadActions ? actionDelayMs : idleDelayMs, signal);
+        } catch {
+          // AbortError — signal fired during sleep
+          await emit({ type: 'status', message: 'Drive stopped — aborted during sleep' });
+          await this.podManager?.persistSessions(this.ctx, this.graphSlug);
+          return { exitReason: 'stopped', iterations, totalActions };
+        }
       }
 
-      let result: OrchestrationRunResult;
-      try {
-        result = await this.run();
-      } catch (err) {
-        await emit({
-          type: 'error',
-          message: err instanceof Error ? err.message : String(err),
-          error: err,
-        });
-        return { exitReason: 'failed', iterations, totalActions };
-      }
-
-      iterations++;
-      totalActions += result.actions.length;
-
-      // Emit status view after every iteration (including terminal)
-      await emit({ type: 'status', message: formatGraphStatus(result.finalReality) });
-
-      // Persist sessions every iteration (fire-and-forget .then() may have settled)
-      await this.podManager?.persistSessions(this.ctx, this.graphSlug);
-
-      // Check for terminal state
-      if (result.stopReason === 'graph-complete') {
-        await emit({ type: 'iteration', message: 'Graph complete', data: result });
-        return { exitReason: 'complete', iterations, totalActions };
-      }
-      if (result.stopReason === 'graph-failed') {
-        await emit({ type: 'iteration', message: 'Graph failed', data: result });
-        return { exitReason: 'failed', iterations, totalActions };
-      }
-
-      // Non-terminal: emit iteration or idle event, delay with abort support
-      const hadActions = result.actions.length > 0;
-      if (hadActions) {
-        await emit({
-          type: 'iteration',
-          message: `${result.actions.length} action(s)`,
-          data: result,
-        });
-      } else {
-        await emit({ type: 'idle', message: 'No actions — polling' });
-      }
-
-      // Sleep with abort support — catches AbortError to exit cleanly
-      try {
-        await abortableSleep(hadActions ? actionDelayMs : idleDelayMs, signal);
-      } catch {
-        // AbortError — signal fired during sleep
-        await emit({ type: 'status', message: 'Drive stopped — aborted during sleep' });
-        await this.podManager?.persistSessions(this.ctx, this.graphSlug);
-        return { exitReason: 'stopped', iterations, totalActions };
-      }
+      return { exitReason: 'max-iterations', iterations, totalActions };
+    } finally {
+      lockRelease();
     }
-
-    return { exitReason: 'max-iterations', iterations, totalActions };
   }
 
   private async buildReality(): Promise<PositionalGraphReality> {
@@ -279,5 +289,66 @@ export class GraphOrchestration implements IGraphOrchestration {
       default:
         return 'no-action';
     }
+  }
+
+  /**
+   * Acquire PID-based filesystem lock for drive().
+   * Prevents concurrent drive() on the same graph from CLI and web server.
+   * Returns a release function to call in finally block.
+   *
+   * ST006: "must be same code, same system" — one lock, in the engine.
+   */
+  private acquireDriveLock(): () => void {
+    // Skip lock if no worktreePath (test environments)
+    if (!this.ctx.worktreePath) {
+      return () => {};
+    }
+
+    const lockDir = join(this.ctx.worktreePath, '.chainglass', 'data', 'workflows', this.graphSlug);
+    const lockPath = join(lockDir, 'drive.lock');
+
+    // Check for existing lock with stale PID detection
+    if (existsSync(lockPath)) {
+      try {
+        const lockPid = Number.parseInt(readFileSync(lockPath, 'utf-8').trim(), 10);
+        if (!Number.isNaN(lockPid)) {
+          try {
+            process.kill(lockPid, 0); // throws if PID doesn't exist
+            throw new Error(
+              `Workflow '${this.graphSlug}' is already being driven (PID ${lockPid}). Stop the other process or delete the stale lock at: ${lockPath}`
+            );
+          } catch (err) {
+            // If it's our error re-throw it; otherwise PID is dead → stale lock
+            if (err instanceof Error && err.message.includes('already being driven')) {
+              throw err;
+            }
+            unlinkSync(lockPath);
+          }
+        }
+      } catch (err) {
+        if (err instanceof Error && err.message.includes('already being driven')) {
+          throw err;
+        }
+        // Corrupt lock file — remove it
+        try {
+          unlinkSync(lockPath);
+        } catch {
+          /* already removed */
+        }
+      }
+    }
+
+    // Acquire lock
+    mkdirSync(lockDir, { recursive: true });
+    writeFileSync(lockPath, String(process.pid));
+
+    // Return release function
+    return () => {
+      try {
+        unlinkSync(lockPath);
+      } catch {
+        /* already removed */
+      }
+    };
   }
 }

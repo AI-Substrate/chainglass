@@ -2,6 +2,7 @@
  * Workflow CLI commands — harness workflow run/status/logs/reset.
  *
  * Plan 076 Phase 3: Harness Workflow Commands.
+ * Plan 076 Phase 4 ST005: --server mode via WorkflowApiClient SDK.
  *
  * The experience layer: composes CG CLI telemetry (--detailed, --json-events)
  * and test-data primitives (cleanTestData, createEnv) into agent-friendly
@@ -57,6 +58,154 @@ function resolveHarnessRoot(): string {
 /** Cache directory for workflow run data */
 function getCacheDir(): string {
   return path.join(resolveHarnessRoot(), '.cache');
+}
+
+/** Default server URL for --server mode */
+const DEFAULT_SERVER_URL = 'http://localhost:3000';
+const DEFAULT_WORKSPACE_SLUG = 'harness-test-workspace';
+const SERVER_POLL_INTERVAL_MS = 2_000;
+
+/**
+ * Lazy import for WorkflowApiClient to avoid loading SDK for non-server commands.
+ */
+async function createWorkflowApiClient(baseUrl: string, worktreePath: string) {
+  const { WorkflowApiClient } = await import('../../sdk/workflow-api-client.js');
+  return new WorkflowApiClient({
+    baseUrl,
+    workspaceSlug: DEFAULT_WORKSPACE_SLUG,
+    worktreePath,
+  });
+}
+
+/**
+ * Run workflow via web server REST API (--server mode).
+ * POST to start, poll GET for status, GET detailed for final snapshot.
+ */
+async function runViaServer(
+  opts: { timeout: number; verbose: boolean; baseUrl: string; worktreePath: string },
+): Promise<void> {
+  const { timeout, verbose, baseUrl, worktreePath } = opts;
+  const graphSlug = TEST_DATA.workflowId;
+
+  const client = await createWorkflowApiClient(baseUrl, worktreePath);
+
+  // Step 1: Start execution
+  if (verbose) console.error('[server] Starting workflow via REST API...');
+  const runResult = await client.run(graphSlug);
+
+  if (!runResult.ok) {
+    exitWithEnvelope(
+      formatError('workflow.run', WorkflowErrorCodes.WORKFLOW_RUN_FAILED,
+        runResult.error ?? 'Failed to start workflow via server'),
+    );
+  }
+
+  if (runResult.already) {
+    if (verbose) console.error('[server] Workflow already running');
+  } else {
+    if (verbose) console.error(`[server] Workflow started, key: ${runResult.key}`);
+  }
+
+  // Step 2: Poll for completion
+  const startTime = Date.now();
+  const timeoutMs = timeout * 1000;
+  let iterations = 0;
+  let lastStatus = '';
+
+  while (Date.now() - startTime < timeoutMs) {
+    const status = await client.getStatus(graphSlug);
+
+    if (status) {
+      iterations = status.iterations;
+      if (status.status !== lastStatus) {
+        lastStatus = status.status;
+        if (verbose) {
+          const ts = new Date().toISOString().slice(11, 19);
+          console.error(`[${ts}] 📊 status: ${status.status} (${status.iterations} iterations, ${status.totalActions} actions)`);
+        }
+      }
+
+      // Terminal states
+      if (status.status === 'completed' || status.status === 'failed' || status.status === 'stopped') {
+        break;
+      }
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, SERVER_POLL_INTERVAL_MS));
+  }
+
+  const timedOut = Date.now() - startTime >= timeoutMs;
+
+  // Step 3: Get final detailed snapshot
+  let nodeStatus: unknown = null;
+  try {
+    const detailed = await client.getDetailed(graphSlug);
+    nodeStatus = detailed;
+  } catch {
+    // Detailed fetch failed — continue without it
+  }
+
+  // Step 4: Build assertions
+  const assertions: Array<{ name: string; passed: boolean; detail?: string }> = [];
+
+  assertions.push({
+    name: 'workflow-started',
+    passed: runResult.ok,
+    detail: runResult.already ? 'already running' : 'started fresh',
+  });
+
+  assertions.push({
+    name: 'drive-iterated',
+    passed: iterations > 0,
+    detail: `${iterations} iterations`,
+  });
+
+  assertions.push({
+    name: 'completed-or-stopped',
+    passed: lastStatus === 'completed' || lastStatus === 'stopped',
+    detail: `final status: ${lastStatus}`,
+  });
+
+  assertions.push({
+    name: 'no-timeout',
+    passed: !timedOut,
+    detail: timedOut ? `timed out after ${timeout}s` : 'within time limit',
+  });
+
+  const allPassed = assertions.every((a) => a.passed);
+
+  // Step 5: Cache results
+  const cacheDir = getCacheDir();
+  fs.mkdirSync(cacheDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(cacheDir, 'last-workflow-run.json'),
+    JSON.stringify({
+      timestamp: new Date().toISOString(),
+      mode: 'server',
+      events: [],
+      stderrLines: [],
+      iterations,
+      exitCode: allPassed ? 0 : 1,
+      nodeStatus,
+      assertions,
+    }, null, 2),
+  );
+
+  // Step 6: Return HarnessEnvelope
+  exitWithEnvelope(
+    formatSuccess('workflow.run', {
+      mode: 'server',
+      exitCode: allPassed ? 0 : 1,
+      exitReason: timedOut ? 'timeout' : lastStatus === 'completed' ? 'complete' : lastStatus,
+      iterations,
+      totalEvents: 0,
+      errorCount: 0,
+      assertions,
+      allPassed,
+      nodeStatus,
+      stderrLines: [],
+    }, allPassed ? 'ok' : 'degraded'),
+  );
 }
 
 /** Build CgExecOptions from command options — mirrors resolveOptions in test-data.ts */
@@ -131,13 +280,38 @@ export function registerWorkflowCommand(program: Command): void {
     .command('run')
     .description('Execute workflow, capture telemetry, report pass/fail')
     .option('--target <target>', 'Execution target: local or container', 'local')
+    .option('--server', 'Execute via web server REST API instead of CLI subprocess')
+    .option('--server-url <url>', 'Web server URL for --server mode', DEFAULT_SERVER_URL)
     .option('--timeout <seconds>', 'Timeout in seconds', '120')
     .option('--verbose', 'Stream events to stderr in real time')
     .option('--no-auto-complete', 'Disable auto-completion of user-input and Q&A nodes')
-    .action(async (opts: { target?: string; timeout?: string; verbose?: boolean; autoComplete?: boolean }) => {
-      const execOptions = buildExecOptions(opts);
+    .action(async (opts: { target?: string; server?: boolean; serverUrl?: string; timeout?: string; verbose?: boolean; autoComplete?: boolean }) => {
       const timeoutSeconds = parseInt(opts.timeout ?? '120', 10);
       const verbose = opts.verbose ?? false;
+
+      // --server mode: use REST API via WorkflowApiClient SDK
+      if (opts.server) {
+        try {
+          await runViaServer({
+            timeout: timeoutSeconds,
+            verbose,
+            baseUrl: opts.serverUrl ?? DEFAULT_SERVER_URL,
+            worktreePath: resolveProjectRoot(),
+          });
+        } catch (err) {
+          exitWithEnvelope(
+            formatError(
+              'workflow.run',
+              WorkflowErrorCodes.WORKFLOW_RUN_FAILED,
+              err instanceof Error ? err.message : String(err),
+            ),
+          );
+        }
+        return;
+      }
+
+      // Local mode: spawn CLI subprocess
+      const execOptions = buildExecOptions(opts);
       const autoComplete = opts.autoComplete !== false;
 
       try {
@@ -325,7 +499,31 @@ export function registerWorkflowCommand(program: Command): void {
     .command('status')
     .description('Show current node-level workflow status')
     .option('--target <target>', 'Execution target: local or container', 'local')
-    .action(async (opts: { target?: string }) => {
+    .option('--server', 'Query via web server REST API instead of CLI subprocess')
+    .option('--server-url <url>', 'Web server URL for --server mode', DEFAULT_SERVER_URL)
+    .action(async (opts: { target?: string; server?: boolean; serverUrl?: string }) => {
+      // --server mode: use REST API via WorkflowApiClient SDK
+      if (opts.server) {
+        try {
+          const client = await createWorkflowApiClient(
+            opts.serverUrl ?? DEFAULT_SERVER_URL,
+            resolveProjectRoot(),
+          );
+          const detailed = await client.getDetailed(TEST_DATA.workflowId);
+          exitWithEnvelope(formatSuccess('workflow.status', detailed));
+        } catch (err) {
+          exitWithEnvelope(
+            formatError(
+              'workflow.status',
+              WorkflowErrorCodes.UNKNOWN,
+              err instanceof Error ? err.message : String(err),
+            ),
+          );
+        }
+        return;
+      }
+
+      // Local mode: use CLI subprocess
       const execOptions = buildExecOptions(opts);
 
       try {
