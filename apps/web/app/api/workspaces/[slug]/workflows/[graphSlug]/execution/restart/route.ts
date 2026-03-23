@@ -8,19 +8,16 @@
 
 import type { NextRequest } from 'next/server';
 
-import { auth } from '@/auth';
-
 import { getWorkflowExecutionManager } from '../../../../../../../../src/features/074-workflow-execution/get-manager';
-import { resolveValidatedWorktreePath } from '../_resolve-worktree';
-
+import { authenticateRequest, resolveValidatedWorktreePath } from '../_resolve-worktree';
 export const dynamic = 'force-dynamic';
 
 type RouteParams = { params: Promise<{ slug: string; graphSlug: string }> };
 
 /** POST /execution/restart — Restart a workflow (stop + reset + start). */
 export async function POST(request: NextRequest, { params }: RouteParams): Promise<Response> {
-  const session = await auth();
-  if (!session) {
+  const { authenticated } = await authenticateRequest(request);
+  if (!authenticated) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

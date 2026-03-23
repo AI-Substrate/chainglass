@@ -86,7 +86,7 @@ async function createWorkflowApiClient(
   workspaceSlug: string,
   worktreePath: string,
 ) {
-  const { WorkflowApiClient } = await import('../../sdk/workflow-api-client.js');
+  const { WorkflowApiClient } = await import('@chainglass/shared/sdk/workflow');
   return new WorkflowApiClient({
     baseUrl,
     workspaceSlug,

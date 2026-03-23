@@ -23,6 +23,7 @@ export const ServerInfoSchema = z
     port: z.number().int().min(1).max(65535),
     pid: z.number().int().min(1),
     startedAt: z.string().datetime(),
+    localToken: z.string().min(1).optional(),
   })
   .strict();
 

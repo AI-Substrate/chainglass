@@ -3,7 +3,7 @@
 **Subtask**: [002-subtask-cg-cli-server-mode.md](002-subtask-cg-cli-server-mode.md)
 **Parent Phase**: Phase 4: End-to-End Validation + Docs
 **Generated**: 2026-03-23
-**Status**: Ready for takeoff
+**Status**: Landed
 
 ---
 
@@ -60,7 +60,7 @@ stateDiagram-v2
     S5 --> [*]
     S6 --> [*]
 
-    class S1,S2,S3,S4,S5,S6 pending
+    class S1,S2,S3,S4,S5,S6 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -69,12 +69,12 @@ stateDiagram-v2
 
 ## Stages
 
-- [ ] **Stage 1: Move SDK** — Move interface + client to `packages/shared/src/sdk/workflow/`, add barrel + package.json export
-- [ ] **Stage 2: Update harness** — Repoint harness imports, delete old files, verify 83 tests pass
-- [ ] **Stage 3: Wire CLI** — Add `--server` parent flag, `discoverServerUrl()`, SDK instantiation in `positional-graph.command.ts`
-- [ ] **Stage 4: Run command** — `cg wf run --server` with poll loop, NDJSON synthesis, timeout
-- [ ] **Stage 5: Read commands** — `cg wf show --detailed --server` + `cg wf status --server`
-- [ ] **Stage 6: New commands** — `cg wf stop` + `cg wf restart` (server-only)
+- [x] **Stage 1: Move SDK** — Move interface + client to `packages/shared/src/sdk/workflow/`, add barrel + package.json export
+- [x] **Stage 2: Update harness** — Repoint harness imports, delete old files, verify 83 tests pass
+- [x] **Stage 3: Wire CLI** — Add `--server` parent flag, `discoverServerUrl()`, SDK instantiation in `positional-graph.command.ts`
+- [x] **Stage 4: Run command** — `cg wf run --server` with poll loop, NDJSON synthesis, timeout
+- [x] **Stage 5: Read commands** — `cg wf show --detailed --server` + `cg wf status --server`
+- [x] **Stage 6: New commands** — `cg wf stop` + `cg wf restart` (server-only)
 
 ---
 
@@ -114,24 +114,24 @@ flowchart LR
 
 ## Acceptance Criteria
 
-- [ ] `cg wf run test-workflow --server` starts execution via REST, user sees it in browser
-- [ ] `cg wf run test-workflow --server --json-events` emits NDJSON status lines
-- [ ] `cg wf show test-workflow --detailed --server --json` returns same structure as local
-- [ ] `cg wf status test-workflow --server` returns execution status
-- [ ] `cg wf stop test-workflow` stops a web-hosted execution
-- [ ] `cg wf restart test-workflow` restarts a web-hosted execution
-- [ ] `cg wf stop` without `--server` prints helpful error
-- [ ] Server URL auto-discovered from `.chainglass/server.json` — zero config needed
-- [ ] `import { WorkflowApiClient } from '@chainglass/shared/sdk/workflow'` works
-- [ ] All 5581 monorepo tests + 83 harness tests pass
+- [x] `cg wf run test-workflow --server` starts execution via REST, user sees it in browser
+- [x] `cg wf run test-workflow --server --json-events` emits NDJSON status lines
+- [x] `cg wf show test-workflow --detailed --server --json` returns same structure as local
+- [x] `cg wf status test-workflow --server` returns execution status
+- [x] `cg wf stop test-workflow` stops a web-hosted execution
+- [x] `cg wf restart test-workflow` restarts a web-hosted execution
+- [x] `cg wf stop` without `--server` prints helpful error
+- [x] Server URL auto-discovered from `.chainglass/server.json` — zero config needed
+- [x] `import { WorkflowApiClient } from '@chainglass/shared/sdk/workflow'` works
+- [x] All 5581 monorepo tests + 83 harness tests pass
 
 ---
 
 ## Checklist
 
-- [ ] ST001: Move SDK to packages/shared/src/sdk/workflow/
-- [ ] ST002: Update harness imports
-- [ ] ST003: Add --server flag + discoverServerUrl to cg wf
-- [ ] ST004: Implement cg wf run --server
-- [ ] ST005: Implement cg wf show/status --server
-- [ ] ST006: Add cg wf stop + restart commands
+- [x] ST001: Move SDK to packages/shared/src/sdk/workflow/
+- [x] ST002: Update harness imports
+- [x] ST003: Add --server flag + discoverServerUrl to cg wf
+- [x] ST004: Implement cg wf run --server
+- [x] ST005: Implement cg wf show/status --server
+- [x] ST006: Add cg wf stop + restart commands

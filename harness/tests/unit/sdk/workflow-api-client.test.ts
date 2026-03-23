@@ -11,7 +11,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 
-import type { IWorkflowApiClient } from '../../../src/sdk/workflow-api-client.interface.js';
+import type { IWorkflowApiClient } from '@chainglass/shared/sdk/workflow';
 import { FakeWorkflowApiClient } from '../../../src/sdk/fake-workflow-api-client.js';
 
 // ── Shared Contract Test Suite ──────────────────────────
@@ -253,7 +253,7 @@ const describeIfServer = hasServerEnv ? describe : describe.skip;
 describeIfServer('WorkflowApiClient (real server)', () => {
   async function makeRealClient() {
     const { WorkflowApiClient } = await import(
-      '../../../src/sdk/workflow-api-client.js'
+      '@chainglass/shared/sdk/workflow'
     );
     return new WorkflowApiClient({
       baseUrl: process.env.TEST_SERVER_URL!,
@@ -281,7 +281,7 @@ describeIfServer('WorkflowApiClient (real server)', () => {
   // Additional real-server-specific tests
   it('returns 400 for invalid worktree path', async () => {
     const { WorkflowApiClient } = await import(
-      '../../../src/sdk/workflow-api-client.js'
+      '@chainglass/shared/sdk/workflow'
     );
     const client = new WorkflowApiClient({
       baseUrl: process.env.TEST_SERVER_URL!,
@@ -289,14 +289,14 @@ describeIfServer('WorkflowApiClient (real server)', () => {
       worktreePath: '/nonexistent/path',
     });
     const { WorkflowApiError } = await import(
-      '../../../src/sdk/workflow-api-client.interface.js'
+      '@chainglass/shared/sdk/workflow'
     );
     await expect(client.run('test-workflow')).rejects.toThrow(WorkflowApiError);
   });
 
   it('handles network timeout gracefully', async () => {
     const { WorkflowApiClient } = await import(
-      '../../../src/sdk/workflow-api-client.js'
+      '@chainglass/shared/sdk/workflow'
     );
     const client = new WorkflowApiClient({
       baseUrl: 'http://127.0.0.1:1', // unreachable port
@@ -305,7 +305,7 @@ describeIfServer('WorkflowApiClient (real server)', () => {
       timeoutMs: 1000,
     });
     const { WorkflowApiError } = await import(
-      '../../../src/sdk/workflow-api-client.interface.js'
+      '@chainglass/shared/sdk/workflow'
     );
     await expect(client.run('test-workflow')).rejects.toThrow(WorkflowApiError);
   });

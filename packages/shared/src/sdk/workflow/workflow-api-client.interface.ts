@@ -1,9 +1,9 @@
 /**
  * IWorkflowApiClient — Typed contract for the Workflow REST API SDK.
  *
- * Plan 076 Phase 4 Subtask 001: REST API + SDK.
+ * Plan 076 Phase 4: REST API + SDK.
  *
- * Defines the interface between SDK consumers (harness CLI, future CG CLI --server)
+ * Defines the interface between SDK consumers (CG CLI, harness CLI)
  * and the Tier 1 REST API endpoints. Response DTOs mirror the existing
  * SerializableExecutionStatus and CLI --detailed output structures.
  *
@@ -90,7 +90,7 @@ export class WorkflowApiError extends Error {
   constructor(
     message: string,
     public readonly statusCode: number,
-    public readonly body?: unknown,
+    public readonly body?: unknown
   ) {
     super(message);
     this.name = 'WorkflowApiError';
@@ -128,4 +128,6 @@ export interface WorkflowApiClientConfig {
   readonly worktreePath: string;
   /** Request timeout in milliseconds (default: 30000) */
   readonly timeoutMs?: number;
+  /** Local auth token from .chainglass/server.json (DYK #5) */
+  readonly localToken?: string;
 }

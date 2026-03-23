@@ -11,7 +11,6 @@
 
 import type { NextRequest } from 'next/server';
 
-import { auth } from '@/auth';
 import type { IOrchestrationService, IPositionalGraphService } from '@chainglass/positional-graph';
 import {
   ORCHESTRATION_DI_TOKENS,
@@ -19,6 +18,7 @@ import {
   WORKSPACE_DI_TOKENS,
 } from '@chainglass/shared';
 import type { IWorkspaceService } from '@chainglass/workflow';
+import { authenticateRequest } from '../execution/_resolve-worktree';
 
 import { getContainer } from '../../../../../../../src/lib/bootstrap-singleton';
 
@@ -28,8 +28,8 @@ type RouteParams = { params: Promise<{ slug: string; graphSlug: string }> };
 
 /** GET /detailed — Rich per-node diagnostics (timing, sessions, blockers). */
 export async function GET(request: NextRequest, { params }: RouteParams): Promise<Response> {
-  const session = await auth();
-  if (!session) {
+  const { authenticated } = await authenticateRequest(request);
+  if (!authenticated) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

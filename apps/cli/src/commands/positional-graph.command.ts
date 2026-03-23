@@ -180,6 +180,210 @@ function createWorkflowEventsService(ctx: WorkspaceContext): IWorkflowEvents {
 }
 
 // ============================================
+// Server Mode Helpers (Plan 076 Phase 4 ST002)
+// ============================================
+
+const SERVER_POLL_INTERVAL_MS = 2_000;
+
+/**
+ * Discover server URL + local auth token from .chainglass/server.json.
+ * Falls back to --server-url override or CG_SERVER_URL env var.
+ * DYK #5: localToken proves filesystem access for CLI auth.
+ */
+async function discoverServerContext(
+  workspacePath: string | undefined,
+  serverUrlOverride: string | undefined
+): Promise<{ baseUrl: string; localToken?: string }> {
+  if (serverUrlOverride) {
+    return { baseUrl: serverUrlOverride };
+  }
+  if (process.env.CG_SERVER_URL) {
+    return { baseUrl: process.env.CG_SERVER_URL };
+  }
+
+  const { readServerInfo } = await import('@chainglass/shared/event-popper');
+  const { join } = await import('node:path');
+  const cwd = workspacePath ?? process.cwd();
+  const info = readServerInfo(cwd) ?? readServerInfo(join(cwd, 'apps', 'web'));
+  if (!info) {
+    throw new Error(
+      'Chainglass server not running (no .chainglass/server.json found).\n' +
+        'Start with: just dev\n' +
+        'Or specify: --server-url http://localhost:3000'
+    );
+  }
+  return {
+    baseUrl: `http://localhost:${info.port}`,
+    localToken: info.localToken,
+  };
+}
+
+/**
+ * Create a WorkflowApiClient from workspace context + server discovery.
+ */
+async function createServerClient(
+  ctx: WorkspaceContext,
+  opts: { serverUrl?: string; workspacePath?: string }
+) {
+  const { baseUrl, localToken } = await discoverServerContext(opts.workspacePath, opts.serverUrl);
+  const { WorkflowApiClient } = await import('@chainglass/shared/sdk/workflow');
+  return new WorkflowApiClient({
+    baseUrl,
+    workspaceSlug: ctx.workspaceSlug,
+    worktreePath: ctx.worktreePath,
+    localToken,
+  });
+}
+
+/**
+ * Run workflow via server REST API (--server mode for cg wf run).
+ * POST to start, poll status, synthesize NDJSON events, GET detailed on completion.
+ * DYK #1: Ctrl+C disconnects observer — workflow keeps running (fire-and-forget).
+ * DYK #3: Catch 400 with actionable "workspace not registered" error.
+ * DYK #4: NDJSON events include "mode": "server" for fidelity awareness.
+ */
+async function handleWfRunServer(
+  slug: string,
+  options: {
+    verbose: boolean;
+    jsonEvents: boolean;
+    timeout: string;
+    serverUrl?: string;
+    workspacePath?: string;
+    json?: boolean;
+  }
+): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    console.log(adapter.format('wf.run', { errors: noContextError(options.workspacePath) }));
+    process.exit(1);
+  }
+
+  const client = await createServerClient(ctx, options);
+  const timeoutSeconds = Number.parseInt(options.timeout, 10) || 600;
+
+  // Step 1: Start execution
+  if (options.verbose) {
+    console.error('[server] Starting workflow via REST API...');
+  }
+
+  let runResult: Awaited<ReturnType<typeof client.run>>;
+  try {
+    runResult = await client.run(slug);
+  } catch (error) {
+    // DYK #3: Actionable workspace error
+    const msg = error instanceof Error ? error.message : String(error);
+    if (msg.includes('400') || msg.includes('Invalid workspace')) {
+      console.error(
+        'Error: Workspace or worktree not registered on the server.\n' +
+          'Register it in the web UI or check your --workspace-path.'
+      );
+      process.exit(1);
+    }
+    throw error;
+  }
+
+  // FT-004: already:true is idempotent success
+  if (!runResult.ok && !runResult.already) {
+    console.log(
+      adapter.format('wf.run', {
+        errors: [{ code: 'SERVER_START_FAILED', message: runResult.error ?? 'Failed to start' }],
+      })
+    );
+    process.exit(1);
+  }
+
+  if (options.verbose) {
+    console.error(
+      runResult.already
+        ? '[server] Workflow already running'
+        : `[server] Started (key: ${runResult.key})`
+    );
+  }
+
+  // Step 2: Poll for completion
+  const startTime = Date.now();
+  const timeoutMs = timeoutSeconds * 1000;
+  let iterations = 0;
+  let lastStatus = '';
+
+  while (Date.now() - startTime < timeoutMs) {
+    try {
+      const status = await client.getStatus(slug);
+      if (status) {
+        iterations = status.iterations;
+        if (status.status !== lastStatus) {
+          lastStatus = status.status;
+          if (options.jsonEvents) {
+            // DYK #4: mode field for fidelity awareness
+            console.log(
+              JSON.stringify({
+                type: 'status',
+                mode: 'server',
+                message: status.status,
+                iterations: status.iterations,
+                totalActions: status.totalActions,
+                timestamp: new Date().toISOString(),
+              })
+            );
+          } else if (options.verbose) {
+            const ts = new Date().toISOString().slice(11, 19);
+            console.error(
+              `[${ts}] status: ${status.status} (${status.iterations} iterations, ${status.totalActions} actions)`
+            );
+          }
+        }
+
+        if (
+          status.status === 'completed' ||
+          status.status === 'failed' ||
+          status.status === 'stopped'
+        ) {
+          break;
+        }
+      }
+    } catch {
+      // Network error during poll — continue trying
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, SERVER_POLL_INTERVAL_MS));
+  }
+
+  // Step 3: Get final detailed snapshot
+  let detailed: unknown = null;
+  try {
+    detailed = await client.getDetailed(slug);
+  } catch {
+    // Best effort
+  }
+
+  if (options.jsonEvents) {
+    console.log(
+      JSON.stringify({
+        type: 'complete',
+        mode: 'server',
+        exitStatus: lastStatus || 'unknown',
+        iterations,
+        timestamp: new Date().toISOString(),
+      })
+    );
+  }
+
+  console.log(
+    adapter.format('wf.run', {
+      mode: 'server',
+      exitStatus: lastStatus || (Date.now() - startTime >= timeoutMs ? 'timeout' : 'unknown'),
+      iterations,
+      detailed,
+      errors: [],
+    })
+  );
+
+  process.exit(lastStatus === 'completed' ? 0 : 1);
+}
+
+// ============================================
 // Graph Command Handlers
 // ============================================
 
@@ -1826,7 +2030,12 @@ export function registerPositionalGraphCommands(program: Command): void {
     .command('wf')
     .description('Manage positional graphs (workflows)')
     .option('--json', 'Output as JSON', false)
-    .option('--workspace-path <path>', 'Override workspace context');
+    .option('--workspace-path <path>', 'Override workspace context')
+    .option('--server', 'Execute via web server REST API instead of locally')
+    .option(
+      '--server-url <url>',
+      'Override server URL (default: auto-discover from .chainglass/server.json)'
+    );
 
   // ==================== Graph Commands ====================
 
@@ -1848,6 +2057,33 @@ export function registerPositionalGraphCommands(program: Command): void {
     .action(
       wrapAction(async (slug: string, options: { detailed: boolean }, cmd: Command) => {
         const parentOpts = cmd.parent?.opts() ?? {};
+
+        // --server + --detailed: GET /detailed via SDK
+        if (parentOpts.server && options.detailed) {
+          const adapter = createOutputAdapter(parentOpts.json ?? false);
+          const ctx = await resolveOrOverrideContext(parentOpts.workspacePath);
+          if (!ctx) {
+            console.log(
+              adapter.format('wf.show', { errors: noContextError(parentOpts.workspacePath) })
+            );
+            process.exit(1);
+          }
+          const client = await createServerClient(ctx, {
+            serverUrl: parentOpts.serverUrl,
+            workspacePath: parentOpts.workspacePath,
+          });
+          const detailed = await client.getDetailed(slug);
+          console.log(
+            adapter.format(
+              'wf.show',
+              detailed ?? {
+                errors: [{ code: 'NOT_FOUND', message: 'No detailed status available' }],
+              }
+            )
+          );
+          return;
+        }
+
         await handleWfShow(slug, {
           json: parentOpts.json,
           workspacePath: parentOpts.workspacePath,
@@ -1925,6 +2161,26 @@ export function registerPositionalGraphCommands(program: Command): void {
     .action(
       wrapAction(async (slug: string, options: StatusOptions, cmd: Command) => {
         const parentOpts = cmd.parent?.opts() ?? {};
+
+        // --server mode: GET /execution via SDK
+        if (parentOpts.server) {
+          const adapter = createOutputAdapter(parentOpts.json ?? false);
+          const ctx = await resolveOrOverrideContext(parentOpts.workspacePath);
+          if (!ctx) {
+            console.log(
+              adapter.format('wf.status', { errors: noContextError(parentOpts.workspacePath) })
+            );
+            process.exit(1);
+          }
+          const client = await createServerClient(ctx, {
+            serverUrl: parentOpts.serverUrl,
+            workspacePath: parentOpts.workspacePath,
+          });
+          const status = await client.getStatus(slug);
+          console.log(adapter.format('wf.status', status ?? { status: 'idle' }));
+          return;
+        }
+
         await handleWfStatus(slug, {
           ...options,
           json: parentOpts.json,
@@ -1968,7 +2224,11 @@ export function registerPositionalGraphCommands(program: Command): void {
   wf.command('run <slug>')
     .description('Drive a graph to completion (polling loop)')
     .option('--verbose', 'Show detailed iteration info', false)
-    .option('--json-events', 'Emit DriveEvents as NDJSON lines to stdout', false)
+    .option(
+      '--json-events',
+      'Emit DriveEvents as NDJSON lines to stdout (DYK #4: adds mode field in server mode)',
+      false
+    )
     .option('--max-iterations <n>', 'Maximum drive iterations', '200')
     .option('--timeout <seconds>', 'Abort drive after N seconds (default: 600)', '600')
     .action(
@@ -1984,6 +2244,21 @@ export function registerPositionalGraphCommands(program: Command): void {
           cmd: Command
         ) => {
           const parentOpts = cmd.parent?.opts() ?? {};
+
+          // --server mode: drive via REST API
+          if (parentOpts.server) {
+            await handleWfRunServer(slug, {
+              verbose: options.verbose,
+              jsonEvents: options.jsonEvents,
+              timeout: options.timeout,
+              serverUrl: parentOpts.serverUrl,
+              workspacePath: parentOpts.workspacePath,
+              json: parentOpts.json,
+            });
+            return;
+          }
+
+          // Local mode: drive directly
           const ctx = await resolveOrOverrideContext(parentOpts.workspacePath);
           if (!ctx) {
             const adapter = createOutputAdapter(parentOpts.json ?? false);
@@ -2020,6 +2295,85 @@ export function registerPositionalGraphCommands(program: Command): void {
           process.exit(exitCode);
         }
       )
+    );
+
+  // ==================== Stop + Restart Commands (Plan 076 ST002) ====================
+  // DYK #2: Auto-discover server — no --server flag needed. These are server-only.
+
+  wf.command('stop <slug>')
+    .description('Stop a running workflow (server-mode only)')
+    .action(
+      wrapAction(async (slug: string, _options: Record<string, unknown>, cmd: Command) => {
+        const parentOpts = cmd.parent?.opts() ?? {};
+        const adapter = createOutputAdapter(parentOpts.json ?? false);
+
+        const ctx = await resolveOrOverrideContext(parentOpts.workspacePath);
+        if (!ctx) {
+          console.log(
+            adapter.format('wf.stop', { errors: noContextError(parentOpts.workspacePath) })
+          );
+          process.exit(1);
+        }
+
+        try {
+          const client = await createServerClient(ctx, {
+            serverUrl: parentOpts.serverUrl,
+            workspacePath: parentOpts.workspacePath,
+          });
+          const result = await client.stop(slug);
+          console.log(adapter.format('wf.stop', result));
+          process.exit(result.stopped ? 0 : 1);
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : String(error);
+          if (msg.includes('server not running') || msg.includes('server.json')) {
+            console.error(
+              'No running server found.\n' +
+                'Start the dev server with: just dev\n' +
+                'Or specify: cg wf stop <slug> --server-url http://localhost:3000'
+            );
+            process.exit(1);
+          }
+          throw error;
+        }
+      })
+    );
+
+  wf.command('restart <slug>')
+    .description('Restart a workflow (stop + reset + start, server-mode only)')
+    .action(
+      wrapAction(async (slug: string, _options: Record<string, unknown>, cmd: Command) => {
+        const parentOpts = cmd.parent?.opts() ?? {};
+        const adapter = createOutputAdapter(parentOpts.json ?? false);
+
+        const ctx = await resolveOrOverrideContext(parentOpts.workspacePath);
+        if (!ctx) {
+          console.log(
+            adapter.format('wf.restart', { errors: noContextError(parentOpts.workspacePath) })
+          );
+          process.exit(1);
+        }
+
+        try {
+          const client = await createServerClient(ctx, {
+            serverUrl: parentOpts.serverUrl,
+            workspacePath: parentOpts.workspacePath,
+          });
+          const result = await client.restart(slug);
+          console.log(adapter.format('wf.restart', result));
+          process.exit(result.ok ? 0 : 1);
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : String(error);
+          if (msg.includes('server not running') || msg.includes('server.json')) {
+            console.error(
+              'No running server found.\n' +
+                'Start the dev server with: just dev\n' +
+                'Or specify: cg wf restart <slug> --server-url http://localhost:3000'
+            );
+            process.exit(1);
+          }
+          throw error;
+        }
+      })
     );
 
   // ==================== Line Commands ====================

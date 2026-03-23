@@ -17,8 +17,8 @@ import type {
   WorkflowExecutionStatus,
   WorkflowRunResult,
   WorkflowStopResult,
-} from './workflow-api-client.interface.js';
-import { WorkflowApiError } from './workflow-api-client.interface.js';
+} from '@chainglass/shared/sdk/workflow';
+import { WorkflowApiError } from '@chainglass/shared/sdk/workflow';
 
 type FakeState = 'idle' | 'running' | 'stopped' | 'completed' | 'failed';
 

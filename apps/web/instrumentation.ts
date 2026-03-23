@@ -35,15 +35,20 @@ export async function register() {
       globalForEventPopper.__eventPopperServerInfoWritten = true;
 
       const { writeServerInfo, removeServerInfo } = await import('@chainglass/shared/event-popper');
+      const { randomUUID } = await import('node:crypto');
       const worktreePath = process.cwd();
       const port = Number.parseInt(process.env.PORT ?? '3000', 10);
+      const localToken = randomUUID();
 
       writeServerInfo(worktreePath, {
         port,
         pid: process.pid,
         startedAt: new Date().toISOString(),
+        localToken,
       });
-      console.log(`[event-popper] server.json written (port: ${port}, pid: ${process.pid})`);
+      console.log(
+        `[event-popper] server.json written (port: ${port}, pid: ${process.pid}, localToken: yes)`
+      );
 
       const cleanup = () => {
         removeServerInfo(worktreePath);

@@ -13,10 +13,8 @@
 
 import type { NextRequest } from 'next/server';
 
-import { auth } from '@/auth';
-
 import { getWorkflowExecutionManager } from '../../../../../../../src/features/074-workflow-execution/get-manager';
-import { resolveValidatedWorktreePath } from './_resolve-worktree';
+import { authenticateRequest, resolveValidatedWorktreePath } from './_resolve-worktree';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,8 +22,8 @@ type RouteParams = { params: Promise<{ slug: string; graphSlug: string }> };
 
 /** POST /execution — Start a workflow execution. */
 export async function POST(request: NextRequest, { params }: RouteParams): Promise<Response> {
-  const session = await auth();
-  if (!session) {
+  const { authenticated } = await authenticateRequest(request);
+  if (!authenticated) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -71,8 +69,8 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
 
 /** GET /execution — Poll current execution status. */
 export async function GET(request: NextRequest, { params }: RouteParams): Promise<Response> {
-  const session = await auth();
-  if (!session) {
+  const { authenticated } = await authenticateRequest(request);
+  if (!authenticated) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -105,8 +103,8 @@ export async function GET(request: NextRequest, { params }: RouteParams): Promis
 
 /** DELETE /execution — Stop a running workflow. */
 export async function DELETE(request: NextRequest, { params }: RouteParams): Promise<Response> {
-  const session = await auth();
-  if (!session) {
+  const { authenticated } = await authenticateRequest(request);
+  if (!authenticated) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
