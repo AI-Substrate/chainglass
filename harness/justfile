@@ -65,3 +65,16 @@ typecheck:
 # Run Playwright tests against the running container
 playwright *ARGS:
     npx playwright test --config=playwright.config.ts {{ARGS}}
+
+# Run a cg CLI command inside the harness container (auto-adds --json + --workspace-path)
+# Usage: just cg wf show test-workflow --detailed
+# DYK #2: Auto-adds --json for consistency with runCg(). DYK #5: Defaults workspace, override with --workspace-path.
+cg *ARGS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    eval "$(just _ports)"
+    CONTAINER="chainglass-${HARNESS_WORKTREE}"
+    docker exec "$CONTAINER" node /app/apps/cli/dist/cli.cjs \
+      --workspace-path /app/scratch/harness-test-workspace \
+      --json \
+      {{ARGS}}

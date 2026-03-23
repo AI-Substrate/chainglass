@@ -5,7 +5,7 @@
 **Plan**: [harness-workflow-runner-plan.md](../../harness-workflow-runner-plan.md)
 **Workshop**: [007-harness-container-commands.md](../../workshops/007-harness-container-commands.md)
 **Created**: 2026-03-23
-**Status**: Pending
+**Status**: Complete
 
 ---
 
@@ -100,9 +100,9 @@ flowchart TD
 
 | Status | ID | Task | Domain | Path(s) | Done When | Notes |
 |--------|-----|------|--------|---------|-----------|-------|
-| [ ] | ST001 | Add `cg` recipe to harness justfile — dumb passthrough wrapping `docker exec` with computed container name, auto-adds `--json`, defaults workspace path but allows override | _(harness)_ | `harness/justfile` | `just harness cg wf show test-workflow --detailed` returns valid JSON from inside the container | DYK #2: Auto-add `--json` to match `runCg()` behavior. DYK #5: Default workspace path with override capability. Recipe is a dumb passthrough — no logic, no pre-checks. |
-| [ ] | ST002 | Export `runCgInContainer()` AND `spawnCgInContainer()` — buffered + streaming convenience wrappers with container pre-check and optional workspace path override | _(harness)_ | `harness/src/test-data/cg-runner.ts`, `harness/src/test-data/cg-spawner.ts` | Both exports work in harness commands. `runCgInContainer` returns `CgExecResult`. `spawnCgInContainer` returns `SpawnCgHandle`. Container not running → actionable error. | DYK #3: Need both buffered (wait-for-result) and streaming (fire-and-forget). DYK #4: Pre-check container is running, actionable error in harness code not justfile. DYK #5: Accept optional `workspacePath` param, default to `/app/scratch/harness-test-workspace`. |
-| [ ] | ST003 | Documentation — add container CG command flow to README, project rules, and CLAUDE.md. Document distinction between `harness workflow run` (automated) and `harness cg wf run` (ad-hoc). | _(harness)_ + docs | `harness/README.md`, `docs/project-rules/harness.md`, `CLAUDE.md` | Agent reading project rules sees `just harness cg` in CLI table AND understands when to use it vs `harness workflow run`. README has "Running CG commands in container" section. CLAUDE.md Harness Commands lists `just harness cg`. | DYK #1: Clearly document: `harness workflow run` = automated testing (assertions + envelope). `harness cg wf run` = ad-hoc exploration (raw CLI output). Include full create→run→observe→stop recipe. |
+| [x] | ST001 | Add `cg` recipe to harness justfile — dumb passthrough wrapping `docker exec` with computed container name, auto-adds `--json`, defaults workspace path but allows override | _(harness)_ | `harness/justfile` | `just harness cg wf show test-workflow --detailed` returns valid JSON from inside the container | DYK #2: Auto-add `--json` to match `runCg()` behavior. DYK #5: Default workspace path with override capability. Recipe is a dumb passthrough — no logic, no pre-checks. |
+| [x] | ST002 | Export `runCgInContainer()` AND `spawnCgInContainer()` — buffered + streaming convenience wrappers with container pre-check and optional workspace path override | _(harness)_ | `harness/src/test-data/cg-runner.ts`, `harness/src/test-data/cg-spawner.ts` | Both exports work in harness commands. `runCgInContainer` returns `CgExecResult`. `spawnCgInContainer` returns `SpawnCgHandle`. Container not running → actionable error. | DYK #3: Need both buffered (wait-for-result) and streaming (fire-and-forget). DYK #4: Pre-check container is running, actionable error in harness code not justfile. DYK #5: Accept optional `workspacePath` param, default to `/app/scratch/harness-test-workspace`. |
+| [x] | ST003 | Documentation — add container CG command flow to README, project rules, and CLAUDE.md. Document distinction between `harness workflow run` (automated) and `harness cg wf run` (ad-hoc). | _(harness)_ + docs | `harness/README.md`, `docs/project-rules/harness.md`, `CLAUDE.md` | Agent reading project rules sees `just harness cg` in CLI table AND understands when to use it vs `harness workflow run`. README has "Running CG commands in container" section. CLAUDE.md Harness Commands lists `just harness cg`. | DYK #1: Clearly document: `harness workflow run` = automated testing (assertions + envelope). `harness cg wf run` = ad-hoc exploration (raw CLI output). Include full create→run→observe→stop recipe. |
 
 ---
 

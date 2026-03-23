@@ -3,7 +3,7 @@
 **Subtask**: [003-subtask-harness-container-cg.md](003-subtask-harness-container-cg.md)
 **Parent Phase**: Phase 4: End-to-End Validation + Docs
 **Generated**: 2026-03-23
-**Status**: Ready for takeoff
+**Status**: Landed
 
 ---
 
@@ -52,7 +52,7 @@ stateDiagram-v2
     S2 --> S3
     S3 --> [*]
 
-    class S1,S2,S3 pending
+    class S1,S2,S3 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -61,9 +61,9 @@ stateDiagram-v2
 
 ## Stages
 
-- [ ] **Stage 1: Justfile recipe** — add `cg` recipe that wraps `docker exec` (`harness/justfile`)
-- [ ] **Stage 2: Export helper** — add `runCgInContainer()` to cg-runner.ts (`harness/src/test-data/cg-runner.ts`)
-- [ ] **Stage 3: Documentation** — README container section, project rules CLI table, CLAUDE.md harness commands
+- [x] **Stage 1: Justfile recipe** — add `cg` recipe that wraps `docker exec` (`harness/justfile`)
+- [x] **Stage 2: Export helper** — add `runCgInContainer()` to cg-runner.ts (`harness/src/test-data/cg-runner.ts`)
+- [x] **Stage 3: Documentation** — README container section, project rules CLI table, CLAUDE.md harness commands
 
 ---
 
@@ -95,16 +95,16 @@ flowchart LR
 
 ## Acceptance Criteria
 
-- [ ] `just harness cg wf show test-workflow --detailed --json` returns valid JSON from container
-- [ ] `just harness cg wf run test-workflow --server --json` starts workflow via container's web server
-- [ ] `import { runCgInContainer } from '../../test-data/cg-runner.js'` works in harness code
+- [x] `just harness cg wf show test-workflow --detailed --json` returns valid JSON from container
+- [x] `just harness cg wf run test-workflow --server --json` starts workflow via container's web server
+- [x] `import { runCgInContainer } from '../../test-data/cg-runner.js'` works in harness code
 - [ ] CLAUDE.md shows `just harness cg` in Harness Commands
-- [ ] `docs/project-rules/harness.md` has full create→run→stop recipe
+- [x] `docs/project-rules/harness.md` has full create→run→stop recipe
 
 ---
 
 ## Checklist
 
-- [ ] ST001: Add `cg` recipe to harness justfile
-- [ ] ST002: Export `runCgInContainer()` from cg-runner
-- [ ] ST003: Documentation (README + project rules + CLAUDE.md)
+- [x] ST001: Add `cg` recipe to harness justfile
+- [x] ST002: Export `runCgInContainer()` from cg-runner
+- [x] ST003: Documentation (README + project rules + CLAUDE.md)

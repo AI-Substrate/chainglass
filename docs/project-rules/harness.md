@@ -99,6 +99,26 @@ All commands return `{command, status, data?, error?}` JSON to stdout.
 | `just harness agent list` | List available agent definitions |
 | `just harness agent history <slug>` | Show past runs for an agent |
 | `just harness agent validate <slug>` | Re-validate most recent run output |
+| `just harness cg <args>` | Run any `cg` CLI command inside the container (auto-adds `--json` + `--workspace-path`) |
+| `just harness workflow run [--server]` | Run workflow with assertions + envelope (automated testing) |
+| `just harness workflow status [--server]` | Node-level workflow status |
+| `just harness workflow reset` | Clean + recreate test workflow data |
+| `just harness workflow logs [--errors]` | Show cached event timeline |
+
+> **`harness cg` vs `harness workflow`**: Use `harness cg wf ...` for ad-hoc exploration (raw CLI output). Use `harness workflow run` for automated testing (structured assertions + HarnessEnvelope).
+
+#### Container CG Workflow Recipe
+
+```bash
+# Full end-to-end inside the container:
+just harness seed                                    # 1. Seed test workspace
+just harness cg wf create my-test                    # 2. Create workflow
+just harness cg wf node add my-test <lineId> test-agent  # 3. Add nodes
+just harness cg wf run my-test --server              # 4. Drive via server (fire-and-forget)
+just harness cg wf show my-test --detailed --server  # 5. Check progress
+just harness cg wf stop my-test                      # 6. Stop it
+just harness screenshot workflow-result              # 7. Visual proof
+```
 
 ### Error Codes
 

@@ -133,3 +133,34 @@ export function spawnCg(
 
   return { child, stdoutLines, stderrLines, result };
 }
+
+// ── Container Convenience Wrapper (Plan 076 P4 ST003) ──────────
+
+const DEFAULT_CONTAINER_WORKSPACE = '/app/scratch/harness-test-workspace';
+
+/**
+ * Spawn a cg CLI command inside the harness container (streaming).
+ * Non-blocking — returns immediately with readline interfaces for real-time output.
+ * Use for long-running commands (wf run --server --json-events).
+ * DYK #3: Use this for fire-and-forget, runCgInContainer() for wait-for-result.
+ * DYK #5: Defaults to test workspace, accepts optional override.
+ */
+export function spawnCgInContainer(
+  args: string[],
+  timeoutMs?: number,
+  workspacePath?: string,
+): SpawnCgHandle {
+  const { computePorts } = require('../ports/allocator.js');
+  const ports = computePorts();
+  const containerName = `chainglass-${ports.worktree}`;
+
+  return spawnCg(
+    args,
+    {
+      target: 'container',
+      containerName,
+      workspacePath: workspacePath ?? DEFAULT_CONTAINER_WORKSPACE,
+    },
+    timeoutMs,
+  );
+}

@@ -173,3 +173,58 @@ async function runInContainer(args: string[], containerName: string, timeout?: n
     );
   });
 }
+
+// ── Container Convenience Wrappers (Plan 076 P4 ST003) ──────────
+
+const DEFAULT_CONTAINER_WORKSPACE = '/app/scratch/harness-test-workspace';
+
+/**
+ * Check that the Docker container is running before exec.
+ * DYK #4: Actionable error lives in harness code, not justfile.
+ */
+async function assertContainerRunning(containerName: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    execFile(
+      'docker',
+      ['inspect', '--format', '{{.State.Running}}', containerName],
+      { timeout: 5000 },
+      (error, stdout) => {
+        if (error || stdout.trim() !== 'true') {
+          reject(
+            new Error(
+              `Container '${containerName}' is not running.\n` +
+                'Start it with: just harness dev\n' +
+                'Then seed the workspace: just harness seed',
+            ),
+          );
+        } else {
+          resolve();
+        }
+      },
+    );
+  });
+}
+
+function resolveContainerName(): string {
+  const { computePorts } = require('../ports/allocator.js');
+  const ports = computePorts();
+  return `chainglass-${ports.worktree}`;
+}
+
+/**
+ * Run a cg CLI command inside the harness container (buffered).
+ * Blocks until the command exits. Use for short commands (create, show, status, stop).
+ * DYK #5: Defaults to test workspace, accepts optional override.
+ */
+export async function runCgInContainer(
+  args: string[],
+  workspacePath?: string,
+): Promise<CgExecResult> {
+  const containerName = resolveContainerName();
+  await assertContainerRunning(containerName);
+  return runCg(args, {
+    target: 'container',
+    containerName,
+    workspacePath: workspacePath ?? DEFAULT_CONTAINER_WORKSPACE,
+  });
+}

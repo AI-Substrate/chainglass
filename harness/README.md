@@ -112,6 +112,32 @@ All commands return structured JSON: `{command, status, data?, error?}`
 | `just test-data run` | Execute the test workflow |
 | `just test-data stop` | Stop the running test workflow |
 
+### Running CG Commands Inside the Container
+
+Use `just harness cg` to run any `cg` CLI command inside the Docker container. This auto-adds `--json` and `--workspace-path /app/scratch/harness-test-workspace`.
+
+```bash
+# Ad-hoc workflow exploration inside the container
+just harness cg wf create my-test                    # Create workflow
+just harness cg wf show my-test --detailed           # Per-node diagnostics (JSON)
+just harness cg wf run my-test --server              # Drive via container's web server
+just harness cg wf status my-test --server            # Poll execution status
+just harness cg wf stop my-test                       # Stop a running workflow
+just harness cg wf restart my-test                    # Restart
+just harness cg unit list                             # List work units
+```
+
+**`harness cg` vs `harness workflow`**: Use `just harness cg wf ...` for ad-hoc exploration (raw CLI output). Use `just harness workflow run` for automated testing with structured assertions and HarnessEnvelope output.
+
+**Programmatic access** from harness code:
+```typescript
+import { runCgInContainer } from '../test-data/cg-runner.js';     // Buffered (wait for result)
+import { spawnCgInContainer } from '../test-data/cg-spawner.js';  // Streaming (fire-and-forget)
+
+const result = await runCgInContainer(['wf', 'show', 'my-test', '--detailed']);
+const handle = spawnCgInContainer(['wf', 'run', 'my-test', '--server', '--json-events']);
+```
+
 ### Page Navigation
 
 All commands that navigate to pages (`screenshot`, `screenshot-all`, `console-logs`) accept these options:
