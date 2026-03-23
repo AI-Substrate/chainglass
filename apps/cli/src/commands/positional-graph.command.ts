@@ -189,10 +189,18 @@ const SERVER_POLL_INTERVAL_MS = 2_000;
  * Discover server URL + local auth token from .chainglass/server.json.
  * Falls back to --server-url override or CG_SERVER_URL env var.
  * DYK #5: localToken proves filesystem access for CLI auth.
+ *
+ * Search order:
+ * 1. --server-url override
+ * 2. CG_SERVER_URL env var
+ * 3. server.json at workspacePath/.chainglass/
+ * 4. server.json at cwd/.chainglass/
+ * 5. server.json at cwd/apps/web/.chainglass/ (monorepo root)
+ * 6. Walk up from workspacePath looking for apps/web/.chainglass/server.json
  */
 async function discoverServerContext(
   workspacePath: string | undefined,
-  serverUrlOverride: string | undefined
+  serverUrlOverride: string | undefined,
 ): Promise<{ baseUrl: string; localToken?: string }> {
   if (serverUrlOverride) {
     return { baseUrl: serverUrlOverride };
@@ -202,20 +210,42 @@ async function discoverServerContext(
   }
 
   const { readServerInfo } = await import('@chainglass/shared/event-popper');
-  const { join } = await import('node:path');
-  const cwd = workspacePath ?? process.cwd();
-  const info = readServerInfo(cwd) ?? readServerInfo(join(cwd, 'apps', 'web'));
-  if (!info) {
-    throw new Error(
-      'Chainglass server not running (no .chainglass/server.json found).\n' +
-        'Start with: just dev\n' +
-        'Or specify: --server-url http://localhost:3000'
-    );
+  const { join, dirname } = await import('node:path');
+  const cwd = process.cwd();
+  const wsPath = workspacePath ?? cwd;
+
+  // Try workspace path, cwd, then cwd/apps/web (monorepo root pattern)
+  const candidates = [
+    wsPath,
+    cwd,
+    join(cwd, 'apps', 'web'),
+  ];
+
+  // Walk up from workspace path looking for apps/web (container pattern:
+  // workspace at /app/scratch/..., server.json at /app/apps/web/)
+  let dir = wsPath;
+  for (let i = 0; i < 5; i++) {
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    candidates.push(join(parent, 'apps', 'web'));
+    dir = parent;
   }
-  return {
-    baseUrl: `http://localhost:${info.port}`,
-    localToken: info.localToken,
-  };
+
+  for (const candidate of candidates) {
+    const info = readServerInfo(candidate);
+    if (info) {
+      return {
+        baseUrl: `http://localhost:${info.port}`,
+        localToken: info.localToken,
+      };
+    }
+  }
+
+  throw new Error(
+    'Chainglass server not running (no .chainglass/server.json found).\n' +
+      'Start with: just dev\n' +
+      'Or specify: --server-url http://localhost:3000',
+  );
 }
 
 /**
