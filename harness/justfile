@@ -68,15 +68,16 @@ playwright *ARGS:
 
 # Run a cg CLI command inside the harness container (auto-adds --json + --workspace-path)
 # Usage: just cg wf show test-workflow --detailed
-# When --server is in the args, auto-adds --server-url pointing to the container's internal port.
+# Auto-injects --server-url for commands that need server access:
+#   --server flag present, OR stop/restart subcommands (always server-mode)
 cg *ARGS:
     #!/usr/bin/env bash
     set -euo pipefail
     eval "$(just _ports)"
     CONTAINER="chainglass-${HARNESS_WORKTREE}"
     EXTRA_FLAGS=""
-    # If --server is in the args, auto-inject --server-url for the container's internal port
-    if echo "{{ARGS}}" | grep -q -- '--server'; then
+    # Auto-inject --server-url when --server is present OR for stop/restart commands
+    if echo "{{ARGS}}" | grep -qE -- '--server|wf stop|wf restart'; then
       EXTRA_FLAGS="--server-url http://localhost:${HARNESS_APP_PORT}"
     fi
     docker exec "$CONTAINER" node /app/apps/cli/dist/cli.cjs \

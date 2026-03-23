@@ -1,4 +1,23 @@
-# Chainglass Project Context for Claude Code
+# Chainglass Agent Guide
+
+## The Harness is Non-Negotiable
+
+**You MUST use the harness for all development verification, workflow execution, and dogfooding. No exceptions.**
+
+The harness exists so that every agent — whether arriving fresh or mid-session — can boot, interact with, and observe the running Chainglass application through a consistent, reproducible interface. It is the canonical way to prove your work is correct.
+
+**Rules**:
+- **NEVER use direct `curl`, REST calls, or browser automation against the dev server** when the harness provides the equivalent command. The harness IS the interface.
+- **NEVER bypass the harness because "it's simpler to just curl"**. If the harness is harder than the alternative, that's a bug — document it in the wishlist and fix it. Don't route around it.
+- **Always use `cd harness && just cg wf ...`** for workflow operations inside the container. Not `curl`. Not direct `node` invocations.
+- **Always use `just harness ...`** for harness CLI operations from the repo root.
+- **If you discover friction**, add it to `docs/plans/076-harness-workflow-runner/harness-wishlist.md`. Every friction point fixed makes the next agent's life better.
+
+**Why this matters**: The harness is a product improvement engine. Every time an agent uses it, we discover what's broken, what's missing, and what's confusing. Every time an agent bypasses it, we learn nothing and the harness rots. Our goal is to make this the absolute perfect system for developing Chainglass — for experienced agents and new agents alike. That only happens if we dogfood relentlessly.
+
+**The feedback loop**: Use harness → hit friction → document in wishlist → fix → next agent has it better. This is how `console-logs`, `screenshot-all`, `--wait-until`, and `--server-url` auto-injection all came to exist.
+
+---
 
 ## Framework & Stack
 
@@ -302,13 +321,13 @@ just harness seed           # Create test workspace + worktrees
 
 # CG CLI Inside Container (Plan 076 — runs `cg` commands inside the Docker container)
 # Use for ad-hoc exploration. For automated testing, use `just harness workflow run` instead.
-just harness cg wf create my-test           # Create workflow inside container
-just harness cg wf show my-test --detailed  # Per-node status (auto-adds --json)
-just harness cg wf run my-test --server     # Drive via container's web server
-just harness cg wf status my-test --server  # Poll execution status
-just harness cg wf stop my-test             # Stop a running workflow
-just harness cg wf restart my-test          # Restart a workflow
-just harness cg unit list                   # List work units inside container
+just harness-cg wf create my-test                  # Create workflow inside container
+just harness-cg wf show my-test --detailed         # Per-node status (auto-adds --json)
+just harness-cg wf run my-test --server            # Start workflow via container's web server
+just harness-cg wf show my-test --detailed --server  # Poll execution status
+just harness-cg wf stop my-test                    # Stop a running workflow
+just harness-cg wf restart my-test                 # Restart a workflow
+just harness-cg unit list                          # List work units inside container
 
 # Agent Runner (Plan 070)
 just harness agent run <slug>              # Execute an agent definition

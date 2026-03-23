@@ -183,8 +183,6 @@ function createWorkflowEventsService(ctx: WorkspaceContext): IWorkflowEvents {
 // Server Mode Helpers (Plan 076 Phase 4 ST002)
 // ============================================
 
-const SERVER_POLL_INTERVAL_MS = 2_000;
-
 /**
  * Discover server URL + local auth token from .chainglass/server.json.
  * Falls back to --server-url override or CG_SERVER_URL env var.
@@ -267,10 +265,9 @@ async function createServerClient(
 
 /**
  * Run workflow via server REST API (--server mode for cg wf run).
- * POST to start, poll status, synthesize NDJSON events, GET detailed on completion.
- * DYK #1: Ctrl+C disconnects observer — workflow keeps running (fire-and-forget).
+ * Fire-and-forget: POST to start, print actionable next steps, exit immediately.
+ * The server owns the lifecycle — use `cg wf show --detailed --server` to poll.
  * DYK #3: Catch 400 with actionable "workspace not registered" error.
- * DYK #4: NDJSON events include "mode": "server" for fidelity awareness.
  */
 async function handleWfRunServer(
   slug: string,
@@ -291,13 +288,8 @@ async function handleWfRunServer(
   }
 
   const client = await createServerClient(ctx, options);
-  const timeoutSeconds = Number.parseInt(options.timeout, 10) || 600;
 
-  // Step 1: Start execution
-  if (options.verbose) {
-    console.error('[server] Starting workflow via REST API...');
-  }
-
+  // POST to start execution
   let runResult: Awaited<ReturnType<typeof client.run>>;
   try {
     runResult = await client.run(slug);
@@ -324,93 +316,23 @@ async function handleWfRunServer(
     process.exit(1);
   }
 
-  if (options.verbose) {
-    console.error(
-      runResult.already
-        ? '[server] Workflow already running'
-        : `[server] Started (key: ${runResult.key})`
-    );
-  }
-
-  // Step 2: Poll for completion
-  const startTime = Date.now();
-  const timeoutMs = timeoutSeconds * 1000;
-  let iterations = 0;
-  let lastStatus = '';
-
-  while (Date.now() - startTime < timeoutMs) {
-    try {
-      const status = await client.getStatus(slug);
-      if (status) {
-        iterations = status.iterations;
-        if (status.status !== lastStatus) {
-          lastStatus = status.status;
-          if (options.jsonEvents) {
-            // DYK #4: mode field for fidelity awareness
-            console.log(
-              JSON.stringify({
-                type: 'status',
-                mode: 'server',
-                message: status.status,
-                iterations: status.iterations,
-                totalActions: status.totalActions,
-                timestamp: new Date().toISOString(),
-              })
-            );
-          } else if (options.verbose) {
-            const ts = new Date().toISOString().slice(11, 19);
-            console.error(
-              `[${ts}] status: ${status.status} (${status.iterations} iterations, ${status.totalActions} actions)`
-            );
-          }
-        }
-
-        if (
-          status.status === 'completed' ||
-          status.status === 'failed' ||
-          status.status === 'stopped'
-        ) {
-          break;
-        }
-      }
-    } catch {
-      // Network error during poll — continue trying
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, SERVER_POLL_INTERVAL_MS));
-  }
-
-  // Step 3: Get final detailed snapshot
-  let detailed: unknown = null;
-  try {
-    detailed = await client.getDetailed(slug);
-  } catch {
-    // Best effort
-  }
-
-  if (options.jsonEvents) {
-    console.log(
-      JSON.stringify({
-        type: 'complete',
-        mode: 'server',
-        exitStatus: lastStatus || 'unknown',
-        iterations,
-        timestamp: new Date().toISOString(),
-      })
-    );
-  }
-
+  // Fire-and-forget: print result and actionable next steps, then exit
   console.log(
     adapter.format('wf.run', {
       mode: 'server',
-      exitStatus: lastStatus || (Date.now() - startTime >= timeoutMs ? 'timeout' : 'unknown'),
-      iterations,
-      detailed,
+      started: !runResult.already,
+      already: runResult.already ?? false,
+      key: runResult.key ?? null,
       errors: [],
+      nextSteps: {
+        poll: `cg wf show ${slug} --detailed --server`,
+        stop: `cg wf stop ${slug}`,
+        restart: `cg wf restart ${slug}`,
+      },
     })
   );
 
-  process.exit(lastStatus === 'completed' ? 0 : 1);
+  process.exit(0);
 }
 
 // ============================================
@@ -2207,7 +2129,8 @@ export function registerPositionalGraphCommands(program: Command): void {
             workspacePath: parentOpts.workspacePath,
           });
           const status = await client.getStatus(slug);
-          console.log(adapter.format('wf.status', status ?? { status: 'idle' }));
+          const result = status ?? { status: 'idle' };
+          console.log(adapter.format('wf.status', { ...result, errors: [] }));
           return;
         }
 
@@ -2351,7 +2274,7 @@ export function registerPositionalGraphCommands(program: Command): void {
             workspacePath: parentOpts.workspacePath,
           });
           const result = await client.stop(slug);
-          console.log(adapter.format('wf.stop', result));
+          console.log(adapter.format('wf.stop', { ...result, errors: [] }));
           process.exit(result.stopped ? 0 : 1);
         } catch (error) {
           const msg = error instanceof Error ? error.message : String(error);
@@ -2389,7 +2312,7 @@ export function registerPositionalGraphCommands(program: Command): void {
             workspacePath: parentOpts.workspacePath,
           });
           const result = await client.restart(slug);
-          console.log(adapter.format('wf.restart', result));
+          console.log(adapter.format('wf.restart', { ...result, errors: [] }));
           process.exit(result.ok ? 0 : 1);
         } catch (error) {
           const msg = error instanceof Error ? error.message : String(error);

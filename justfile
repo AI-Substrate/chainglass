@@ -116,6 +116,12 @@ harness-health:
 harness *ARGS:
     cd harness && pnpm exec tsx src/cli/index.ts {{ARGS}}
 
+# Run cg CLI commands inside the harness container (Plan 076)
+# Auto-adds --json, --workspace-path, and --server-url when --server is present.
+# Example: just harness-cg wf show test-workflow --detailed --server
+harness-cg *ARGS:
+    cd harness && just cg {{ARGS}}
+
 # Manage test workflow data (Plan 074 Phase 6)
 test-data *ARGS:
     cd harness && pnpm exec tsx src/cli/index.ts test-data {{ARGS}}
