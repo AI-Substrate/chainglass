@@ -65,7 +65,11 @@ Visual workflow editor for the positional graph system. Users view and edit line
 
 | Contract | Type | Consumers | Description |
 |----------|------|-----------|-------------|
-| _None_ | — | — | Leaf consumer domain — no contracts exported |
+| `POST /api/.../execution` | REST API | Harness SDK, curl | Start workflow execution via WorkflowExecutionManager |
+| `GET /api/.../execution` | REST API | Harness SDK, curl | Poll current execution status |
+| `DELETE /api/.../execution` | REST API | Harness SDK, curl | Stop a running workflow |
+| `POST /api/.../execution/restart` | REST API | Harness SDK, curl | Restart workflow (stop + reset + start) |
+| `GET /api/.../detailed` | REST API | Harness SDK, curl | Per-node diagnostics via getReality() |
 
 ## Composition (Internal)
 
@@ -156,3 +160,4 @@ Supporting: `apps/web/src/features/074-workflow-execution/` — execution hook, 
 | Plan 072 Phase 5 | Migrated useWorkflowSSE from `useSSE` to `useChannelEvents('workflows')` via multiplexed SSE. Deleted legacy `useSSE` hook. | 2026-03-08 |
 | Plan 074 Phase 4 | Run/Stop/Restart execution controls in toolbar, execution-aware node locking, undo/redo blocking during execution, live status display | 2026-03-15 |
 | Plan 074 Phase 5 | Execution registry persistence for server restart recovery: registry types/Zod schema, sync atomic writes, resumeAll() with self-healing, debounced iteration persistence, SIGTERM best-effort persist | 2026-03-15 |
+| Plan 076 P4-ST001 | Workflow execution REST API (5 Tier 1 endpoints: execution CRUD + detailed diagnostics) for harness/server-mode validation. Uses IOrchestrationService + auth() for API routes. | 2026-03-22 |

@@ -237,3 +237,76 @@ describe('FakeWorkflowApiClient state machine', () => {
     expect(status2!.status).toBe('running');
   });
 });
+
+// ── Real-Client Parity Tests (FT-002) ──────────────────
+// Runs when TEST_SERVER_URL, TEST_WORKSPACE_SLUG, TEST_WORKTREE_PATH are set.
+// Example: TEST_SERVER_URL=http://127.0.0.1:3000 TEST_WORKSPACE_SLUG=chainglass \
+//   TEST_WORKTREE_PATH=/Users/jordan/substrate/074-actaul-real-agents pnpm exec vitest run ...
+
+const hasServerEnv =
+  process.env.TEST_SERVER_URL &&
+  process.env.TEST_WORKSPACE_SLUG &&
+  process.env.TEST_WORKTREE_PATH;
+
+const describeIfServer = hasServerEnv ? describe : describe.skip;
+
+describeIfServer('WorkflowApiClient (real server)', () => {
+  async function makeRealClient() {
+    const { WorkflowApiClient } = await import(
+      '../../../src/sdk/workflow-api-client.js'
+    );
+    return new WorkflowApiClient({
+      baseUrl: process.env.TEST_SERVER_URL!,
+      workspaceSlug: process.env.TEST_WORKSPACE_SLUG!,
+      worktreePath: process.env.TEST_WORKTREE_PATH!,
+    });
+  }
+
+  // Run the shared contract suite against the real client
+  workflowApiClientContractTests('WorkflowApiClient', () => {
+    // Factory is sync but we need async import — use a proxy that lazy-inits
+    let clientPromise: ReturnType<typeof makeRealClient> | null = null;
+    const proxy = new Proxy({} as IWorkflowApiClient, {
+      get(_target, prop: string) {
+        return async (...args: unknown[]) => {
+          if (!clientPromise) clientPromise = makeRealClient();
+          const client = await clientPromise;
+          return (client as Record<string, Function>)[prop](...args);
+        };
+      },
+    });
+    return proxy;
+  });
+
+  // Additional real-server-specific tests
+  it('returns 400 for invalid worktree path', async () => {
+    const { WorkflowApiClient } = await import(
+      '../../../src/sdk/workflow-api-client.js'
+    );
+    const client = new WorkflowApiClient({
+      baseUrl: process.env.TEST_SERVER_URL!,
+      workspaceSlug: process.env.TEST_WORKSPACE_SLUG!,
+      worktreePath: '/nonexistent/path',
+    });
+    const { WorkflowApiError } = await import(
+      '../../../src/sdk/workflow-api-client.interface.js'
+    );
+    await expect(client.run('test-workflow')).rejects.toThrow(WorkflowApiError);
+  });
+
+  it('handles network timeout gracefully', async () => {
+    const { WorkflowApiClient } = await import(
+      '../../../src/sdk/workflow-api-client.js'
+    );
+    const client = new WorkflowApiClient({
+      baseUrl: 'http://127.0.0.1:1', // unreachable port
+      workspaceSlug: 'test',
+      worktreePath: '/tmp',
+      timeoutMs: 1000,
+    });
+    const { WorkflowApiError } = await import(
+      '../../../src/sdk/workflow-api-client.interface.js'
+    );
+    await expect(client.run('test-workflow')).rejects.toThrow(WorkflowApiError);
+  });
+});

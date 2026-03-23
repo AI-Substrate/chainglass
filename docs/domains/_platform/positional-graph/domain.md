@@ -143,7 +143,7 @@ Primary: `packages/positional-graph/src/`
 | Consumer | What It Consumes | Notes |
 |----------|-----------------|-------|
 | CLI (`apps/cli/`) | `IPositionalGraphService`, `IOrchestrationService`, `IEventHandlerService`, `IWorkUnitService` | `cg wf` commands + `cg wf drive` handler |
-| Web UI (feature 022) | Via API routes that resolve graph services | workgraph-ui components (not yet a formalized domain) |
+| Web UI (workflow-ui) | `IPositionalGraphService`, `IOrchestrationService` via DI + REST API routes | Server actions + REST `/execution` and `/detailed` endpoints |
 | dev/test-graphs | `IPositionalGraphService` | Test fixture infrastructure |
 | Test suite | All interfaces | 80+ test files across unit/integration/e2e |
 
@@ -170,3 +170,4 @@ Primary: `packages/positional-graph/src/`
 | 074-P6 | CLI wrappers for `IWorkUnitService.update()` / `delete()`: `cg unit update` and `cg unit delete`, including --patch/--set/--add-input/--add-output/--inputs-json/--outputs-json flags. Added `cg template delete`. Fixed `create()` call signature to use `CreateUnitSpec` object. | 2026-03-16 |
 | 076-P1 | ODS pod error surfacing: pendingErrors queue + drive loop drain to node:error events. CLI --timeout with AbortSignal, filesystem lock for concurrent drive() prevention. SSE route error serialization fix. | 2026-03-17 |
 | 076-P2 | CLI telemetry: `cg wf show --detailed` (node-level status via getReality()), `cg wf run --json-events` (NDJSON DriveEvent output), GH_TOKEN pre-flight check | 2026-03-17 |
+| 076-P4-ST006 | Drive lock moved from CLI into `GraphOrchestration.drive()` — PID-based filesystem lock at `.chainglass/data/workflows/{slug}/drive.lock`. Both CLI and web paths protected by same engine lock. | 2026-03-22 |

@@ -60,19 +60,36 @@ function getCacheDir(): string {
   return path.join(resolveHarnessRoot(), '.cache');
 }
 
-/** Default server URL for --server mode */
-const DEFAULT_SERVER_URL = 'http://localhost:3000';
-const DEFAULT_WORKSPACE_SLUG = 'harness-test-workspace';
 const SERVER_POLL_INTERVAL_MS = 2_000;
+
+/**
+ * FT-001: Resolve correct server context from harness port allocator + seeded workspace.
+ * Uses computePorts() for the app URL and the seeded workspace path under scratch/.
+ */
+function resolveServerContext(opts: { target?: string; serverUrl?: string }) {
+  const ports = computePorts();
+  return {
+    baseUrl: opts.serverUrl ?? `http://127.0.0.1:${ports.app}`,
+    workspaceSlug: 'harness-test-workspace',
+    worktreePath:
+      opts.target === 'container'
+        ? '/app/scratch/harness-test-workspace'
+        : path.join(resolveProjectRoot(), 'scratch', 'harness-test-workspace'),
+  };
+}
 
 /**
  * Lazy import for WorkflowApiClient to avoid loading SDK for non-server commands.
  */
-async function createWorkflowApiClient(baseUrl: string, worktreePath: string) {
+async function createWorkflowApiClient(
+  baseUrl: string,
+  workspaceSlug: string,
+  worktreePath: string,
+) {
   const { WorkflowApiClient } = await import('../../sdk/workflow-api-client.js');
   return new WorkflowApiClient({
     baseUrl,
-    workspaceSlug: DEFAULT_WORKSPACE_SLUG,
+    workspaceSlug,
     worktreePath,
   });
 }
@@ -82,18 +99,20 @@ async function createWorkflowApiClient(baseUrl: string, worktreePath: string) {
  * POST to start, poll GET for status, GET detailed for final snapshot.
  */
 async function runViaServer(
-  opts: { timeout: number; verbose: boolean; baseUrl: string; worktreePath: string },
+  opts: { timeout: number; verbose: boolean; target?: string; serverUrl?: string },
 ): Promise<void> {
-  const { timeout, verbose, baseUrl, worktreePath } = opts;
+  const { timeout, verbose } = opts;
+  const { baseUrl, workspaceSlug, worktreePath } = resolveServerContext(opts);
   const graphSlug = TEST_DATA.workflowId;
 
-  const client = await createWorkflowApiClient(baseUrl, worktreePath);
+  const client = await createWorkflowApiClient(baseUrl, workspaceSlug, worktreePath);
 
   // Step 1: Start execution
-  if (verbose) console.error('[server] Starting workflow via REST API...');
+  if (verbose) console.error(`[server] Starting workflow via REST API at ${baseUrl}...`);
   const runResult = await client.run(graphSlug);
 
-  if (!runResult.ok) {
+  // FT-004: already:true is idempotent success, not a failure
+  if (!runResult.ok && !runResult.already) {
     exitWithEnvelope(
       formatError('workflow.run', WorkflowErrorCodes.WORKFLOW_RUN_FAILED,
         runResult.error ?? 'Failed to start workflow via server'),
@@ -281,7 +300,7 @@ export function registerWorkflowCommand(program: Command): void {
     .description('Execute workflow, capture telemetry, report pass/fail')
     .option('--target <target>', 'Execution target: local or container', 'local')
     .option('--server', 'Execute via web server REST API instead of CLI subprocess')
-    .option('--server-url <url>', 'Web server URL for --server mode', DEFAULT_SERVER_URL)
+    .option('--server-url <url>', 'Web server URL for --server mode (default: computed from harness ports)')
     .option('--timeout <seconds>', 'Timeout in seconds', '120')
     .option('--verbose', 'Stream events to stderr in real time')
     .option('--no-auto-complete', 'Disable auto-completion of user-input and Q&A nodes')
@@ -295,8 +314,8 @@ export function registerWorkflowCommand(program: Command): void {
           await runViaServer({
             timeout: timeoutSeconds,
             verbose,
-            baseUrl: opts.serverUrl ?? DEFAULT_SERVER_URL,
-            worktreePath: resolveProjectRoot(),
+            target: opts.target,
+            serverUrl: opts.serverUrl,
           });
         } catch (err) {
           exitWithEnvelope(
@@ -500,15 +519,13 @@ export function registerWorkflowCommand(program: Command): void {
     .description('Show current node-level workflow status')
     .option('--target <target>', 'Execution target: local or container', 'local')
     .option('--server', 'Query via web server REST API instead of CLI subprocess')
-    .option('--server-url <url>', 'Web server URL for --server mode', DEFAULT_SERVER_URL)
+    .option('--server-url <url>', 'Web server URL for --server mode (default: computed from harness ports)')
     .action(async (opts: { target?: string; server?: boolean; serverUrl?: string }) => {
       // --server mode: use REST API via WorkflowApiClient SDK
       if (opts.server) {
         try {
-          const client = await createWorkflowApiClient(
-            opts.serverUrl ?? DEFAULT_SERVER_URL,
-            resolveProjectRoot(),
-          );
+          const { baseUrl, workspaceSlug, worktreePath } = resolveServerContext(opts);
+          const client = await createWorkflowApiClient(baseUrl, workspaceSlug, worktreePath);
           const detailed = await client.getDetailed(TEST_DATA.workflowId);
           exitWithEnvelope(formatSuccess('workflow.status', detailed));
         } catch (err) {
