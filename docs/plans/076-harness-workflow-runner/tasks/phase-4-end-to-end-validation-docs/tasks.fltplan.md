@@ -3,7 +3,7 @@
 **Plan**: [harness-workflow-runner-plan.md](../../harness-workflow-runner-plan.md)
 **Phase**: Phase 4: End-to-End Validation + Docs
 **Generated**: 2026-03-20
-**Status**: Ready for takeoff
+**Status**: Landed
 
 ---
 
@@ -65,7 +65,7 @@ stateDiagram-v2
     S5 --> S6
     S6 --> [*]
 
-    class S1,S2,S3,S4,S5,S6 pending
+    class S1,S2,S3,S4,S5,S6 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -76,12 +76,12 @@ stateDiagram-v2
 
 <!-- Updated by /plan-6-v2 during implementation: [ ] → [~] → [x] -->
 
-- [ ] **Stage 1: Web UI validation** — start dev server, click Run, observe node transitions, capture evidence
-- [ ] **Stage 2: Agent system verification** — check if ODS-dispatched pods register in agent system
-- [ ] **Stage 3: README Workflow Execution section** — command table with examples
-- [ ] **Stage 4: harness-workflow.md how-to guide** — setup, running, progressive disclosure, troubleshooting
-- [ ] **Stage 5: Project rules update** — CLI table + ADR-0014 exception + history entry
-- [ ] **Stage 6: Final dogfooding checkpoint** — full reset→run→status→logs with real agents
+- [x] **Stage 1: Web UI validation** — start dev server, click Run, observe node transitions, capture evidence
+- [x] **Stage 2: Agent system verification** — check if ODS-dispatched pods register in agent system
+- [x] **Stage 3: README Workflow Execution section** — command table with examples
+- [x] **Stage 4: harness-workflow.md how-to guide** — setup, running, progressive disclosure, troubleshooting
+- [x] **Stage 5: Project rules update** — CLI table + ADR-0014 exception + history entry
+- [x] **Stage 6: Final dogfooding checkpoint** — full reset→run→status→logs with real agents
 
 ---
 
@@ -118,9 +118,9 @@ flowchart LR
 
 ## Acceptance Criteria
 
-- [ ] AC-2: Per-node status transitions observable
-- [ ] AC-8: Test workflow topology matches test-advanced-pipeline
-- [ ] AC-13: Web UI Run button works — nodes progress through full lifecycle
+- [x] AC-2: Per-node status transitions observable
+- [x] AC-8: Test workflow topology matches test-advanced-pipeline
+- [x] AC-13: Web UI Run button works — nodes progress through full lifecycle
 
 ---
 
@@ -143,9 +143,9 @@ flowchart LR
 
 ## Checklist
 
-- [ ] T001: Verify web UI workflow execution (click Run, observe nodes)
-- [ ] T002: Verify agent nodes in existing agent system
-- [ ] T003: Add Workflow Execution section to harness/README.md
-- [ ] T004: Create docs/how/harness-workflow.md guide
-- [ ] T005: Update docs/project-rules/harness.md (commands + ADR-0014)
-- [ ] T006: Final dogfooding checkpoint with evidence
+- [x] T001: Verify web UI workflow execution (click Run, observe nodes)
+- [x] T002: Verify agent nodes in existing agent system
+- [x] T003: Add Workflow Execution section to harness/README.md
+- [x] T004: Create docs/how/harness-workflow.md guide
+- [x] T005: Update docs/project-rules/harness.md (commands + ADR-0014)
+- [x] T006: Final dogfooding checkpoint with evidence

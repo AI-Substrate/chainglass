@@ -69,3 +69,62 @@ Result: `{"ok":true,"key":"L1VzZXJz..."}` — workflow restarted (stop + reset +
 - SSE broadcasts fire during REST-triggered execution — browser clients see node progress
 - Drive lock file created at `.chainglass/data/workflows/test-workflow/drive.lock` with server PID
 - `getReality()` correctly serializes ReadonlyMap → JSON object for detailed endpoint
+
+---
+
+## Phase 4 Main Tasks — Dogfooding Checkpoint (2026-03-23)
+
+### Fixes Applied During Dogfooding
+
+| Fix | Issue | Resolution |
+|-----|-------|------------|
+| `run --server` fire-and-forget | Command blocked with poll loop instead of returning immediately | POST start → print nextSteps → exit 0 |
+| `stop`/`restart` server-url | Justfile didn't inject `--server-url` for stop/restart (no `--server` flag) | Regex matches `wf stop\|wf restart` subcommands |
+| `stop`/`status`/`restart` crash | `adapter.format()` expects `errors` field, SDK results don't have it | Spread `...result, errors: []` |
+| Root `harness-cg` recipe | `just harness cg` failed — `cg` is a harness justfile recipe, not a CLI command | Added `just harness-cg` to root justfile |
+| CLAUDE.md → AGENTS.md | Renamed with mandatory harness dogfooding section | Strong language: never bypass harness |
+
+### Full Lifecycle Validation (via `just harness-cg` / `just harness workflow`)
+
+All commands executed from repo root using harness recipes. No direct curl/REST.
+
+**Step 1: Reset** — `just harness workflow reset`
+→ `{"status":"ok","data":{"cleaned":true,"created":{"units":true,"template":true,"workflow":true}}}`
+
+**Step 2: Run (fire-and-forget)** — `just harness-cg wf run test-workflow --server`
+→ Instant return: `{"started":true,"nextSteps":{"poll":"cg wf show...","stop":"cg wf stop..."}}`
+
+**Step 3: Poll** — `just harness-cg wf show test-workflow --detailed --server`
+→ 4 nodes: `test-user-input-eb5` (ready), 3 others (pending, blocked by preceding-lines)
+
+**Step 4: Stop** — `just harness-cg wf stop test-workflow`
+→ `{"ok":true,"stopped":true}`
+
+**Step 5: Status** — `just harness-cg wf status test-workflow --server`
+→ `{"status":"stopped","iterations":2,"lastMessage":"Drive stopped — aborted during sleep"}`
+
+**Step 6: Restart** — `just harness-cg wf restart test-workflow`
+→ `{"ok":true,"key":"..."}` — fresh start, all nodes reset to ready/pending
+
+**Step 7: Poll after restart** — `just harness-cg wf show test-workflow --detailed --server`
+→ All 4 nodes back to initial state (ready/pending), progress 0%
+
+**Step 8: Stop** — `just harness-cg wf stop test-workflow`
+→ `{"ok":true,"stopped":true}`
+
+**Step 9: Logs** — `just harness workflow logs`
+→ 13 cached events with emoji status display, drive timeout capture
+
+### Agent System Verification (T002)
+
+ODS-dispatched pods register as agents via `AgentManagerService.getNew()` / `getWithSessionId()`. Verified through code analysis:
+- ODS creates agents at `ods.ts:190-204` 
+- AgentManagerService stores in `_agents` Map and `_sessionIndex` Map
+- DI wires singleton AgentManagerService at `di-container.ts:505-525`
+- Test coverage at `ods-agent-wiring.test.ts` (4 tests)
+- **No gap found** — workflow pods ARE registered in the existing agent system
+
+### Harness Wishlist
+
+10 friction points documented in `docs/plans/076-harness-workflow-runner/harness-wishlist.md`.
+Blockers fixed during this session (W001, W003, W008). Remaining items tracked for future improvement.
