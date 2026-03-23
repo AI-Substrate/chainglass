@@ -10,6 +10,8 @@ The harness is a Docker-containerized dev environment with Playwright/CDP browse
 
 The harness is **external tooling** rooted at `harness/` — it is not a registered domain, not part of `apps/cli`. It is included in `pnpm-workspace.yaml` (per [ADR-0014 amendment](../plans/070-harness-agent-runner/agent-runner-plan.md#adr-0014-amendment-workspace-managed-tooling)) so it can import `@chainglass/shared` for typed SDK adapter integration. This is a build-system concern, not an architectural promotion to domain status.
 
+**ADR-0014 Import Exceptions**: The harness may import from `@chainglass/shared` (general SDK, types) and `@chainglass/positional-graph` (workflow auto-completion in Plan 076). These are sanctioned exceptions — the harness needs direct access to workflow engine types for auto-completion runner and workflow contract tests.
+
 ## Boot
 
 ### Dynamic Port Allocation
@@ -99,24 +101,24 @@ All commands return `{command, status, data?, error?}` JSON to stdout.
 | `just harness agent list` | List available agent definitions |
 | `just harness agent history <slug>` | Show past runs for an agent |
 | `just harness agent validate <slug>` | Re-validate most recent run output |
-| `just harness cg <args>` | Run any `cg` CLI command inside the container (auto-adds `--json` + `--workspace-path`) |
+| `just harness-cg <args>` | Run any `cg` CLI command inside the container (auto-adds `--json` + `--workspace-path` + `--server-url`) |
 | `just harness workflow run [--server]` | Run workflow with assertions + envelope (automated testing) |
 | `just harness workflow status [--server]` | Node-level workflow status |
 | `just harness workflow reset` | Clean + recreate test workflow data |
 | `just harness workflow logs [--errors]` | Show cached event timeline |
 
-> **`harness cg` vs `harness workflow`**: Use `harness cg wf ...` for ad-hoc exploration (raw CLI output). Use `harness workflow run` for automated testing (structured assertions + HarnessEnvelope).
+> **`harness-cg` vs `harness workflow`**: Use `just harness-cg wf ...` for ad-hoc exploration (raw CLI output). Use `just harness workflow run` for automated testing (structured assertions + HarnessEnvelope).
 
 #### Container CG Workflow Recipe
 
 ```bash
 # Full end-to-end inside the container:
 just harness seed                                    # 1. Seed test workspace
-just harness cg wf create my-test                    # 2. Create workflow
-just harness cg wf node add my-test <lineId> test-agent  # 3. Add nodes
-just harness cg wf run my-test --server              # 4. Drive via server (fire-and-forget)
-just harness cg wf show my-test --detailed --server  # 5. Check progress
-just harness cg wf stop my-test                      # 6. Stop it
+just harness-cg wf create my-test                    # 2. Create workflow
+just harness-cg wf node add my-test <lineId> test-agent  # 3. Add nodes
+just harness-cg wf run my-test --server              # 4. Start (returns immediately)
+just harness-cg wf show my-test --detailed --server  # 5. Check progress
+just harness-cg wf stop my-test                      # 6. Stop it
 just harness screenshot workflow-result              # 7. Visual proof
 ```
 
@@ -222,6 +224,8 @@ The harness tests three viewport tiers:
 | Plan 070 P2 | Agent runner: folder mgmt, runner, validator, display, CLI, error codes | 2026-03-07 |
 | Plan 070 P3 | Smoke-test agent: first agent definition, validated end-to-end run, retrospective feedback loop | 2026-03-08 |
 | Plan 070 FX002 | Console-logs + screenshot-all CLI commands, pnpm workspace docs — from smoke-test retrospective | 2026-03-08 |
+| Plan 076 P1-P3 | Workflow execution: ODS error queue, SSE fix, CLI telemetry (--detailed, --json-events), harness workflow commands (reset/run/status/logs), auto-completion runner | 2026-03-20 |
+| Plan 076 P4 | REST API + SDK at @chainglass/shared/sdk/workflow, CG CLI --server mode (fire-and-forget run), harness-cg recipe, container CG commands, localToken auth, drive lock in engine | 2026-03-23 |
 
 ## Prompt Templates
 

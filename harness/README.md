@@ -114,20 +114,20 @@ All commands return structured JSON: `{command, status, data?, error?}`
 
 ### Running CG Commands Inside the Container
 
-Use `just harness cg` to run any `cg` CLI command inside the Docker container. This auto-adds `--json` and `--workspace-path /app/scratch/harness-test-workspace`.
+Use `just harness-cg` (from repo root) to run any `cg` CLI command inside the Docker container. This auto-adds `--json`, `--workspace-path`, and `--server-url` (when needed).
 
 ```bash
 # Ad-hoc workflow exploration inside the container
-just harness cg wf create my-test                    # Create workflow
-just harness cg wf show my-test --detailed           # Per-node diagnostics (JSON)
-just harness cg wf run my-test --server              # Drive via container's web server
-just harness cg wf status my-test --server            # Poll execution status
-just harness cg wf stop my-test                       # Stop a running workflow
-just harness cg wf restart my-test                    # Restart
-just harness cg unit list                             # List work units
+just harness-cg wf create my-test                    # Create workflow
+just harness-cg wf show my-test --detailed           # Per-node diagnostics (JSON)
+just harness-cg wf run my-test --server              # Start workflow (returns immediately)
+just harness-cg wf show my-test --detailed --server  # Poll execution status
+just harness-cg wf stop my-test                      # Stop a running workflow
+just harness-cg wf restart my-test                   # Restart
+just harness-cg unit list                            # List work units
 ```
 
-**`harness cg` vs `harness workflow`**: Use `just harness cg wf ...` for ad-hoc exploration (raw CLI output). Use `just harness workflow run` for automated testing with structured assertions and HarnessEnvelope output.
+**`harness-cg` vs `harness workflow`**: Use `just harness-cg wf ...` for ad-hoc exploration (raw CLI output). Use `just harness workflow run` for automated testing with structured assertions and HarnessEnvelope output.
 
 **Programmatic access** from harness code:
 ```typescript
@@ -136,6 +136,60 @@ import { spawnCgInContainer } from '../test-data/cg-spawner.js';  // Streaming (
 
 const result = await runCgInContainer(['wf', 'show', 'my-test', '--detailed']);
 const handle = spawnCgInContainer(['wf', 'run', 'my-test', '--server', '--json-events']);
+```
+
+### Workflow Execution
+
+The harness supports running workflows end-to-end inside the container. Two paths are available:
+
+#### Quick Path: `harness-cg` (Ad-hoc)
+
+```bash
+# 1. Start workflow (fire-and-forget — returns immediately)
+just harness-cg wf run test-workflow --server
+
+# 2. Poll status (repeat until completed/failed/stopped)
+just harness-cg wf show test-workflow --detailed --server
+
+# 3. Stop or restart
+just harness-cg wf stop test-workflow
+just harness-cg wf restart test-workflow
+```
+
+The `run --server` command POSTs to start and exits immediately with actionable next steps:
+```json
+{
+  "data": {
+    "started": true,
+    "nextSteps": {
+      "poll": "cg wf show test-workflow --detailed --server",
+      "stop": "cg wf stop test-workflow",
+      "restart": "cg wf restart test-workflow"
+    }
+  }
+}
+```
+
+#### Automated Path: `harness workflow` (Assertions + Envelope)
+
+```bash
+# Run with structured output and assertions
+just harness workflow run --server
+just harness workflow status --server
+just harness workflow reset
+just harness workflow logs --errors
+```
+
+Returns HarnessEnvelope with `exitReason`, timing, and error details.
+
+#### Lifecycle: Start → Poll → Stop
+
+```
+run --server → POST /execution → "started" → exit 0
+                                    ↓
+show --detailed --server → GET /detailed → per-node status
+                                    ↓
+stop → DELETE /execution → "stopped" → exit 0
 ```
 
 ### Page Navigation
