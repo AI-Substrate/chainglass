@@ -162,19 +162,65 @@ The CLI currently resolves context via `--workspace-path` (defaults to cwd). For
 
 The resolution is already done by `resolveOrOverrideContext()` which returns a `WorkspaceContext` with both `workspaceSlug` and `worktreePath`. Server mode just uses those values differently.
 
-### Server URL Resolution
+### Server URL Resolution — Existing `server.json` Discovery
 
-Default: `http://localhost:3000` (standard dev server port).
+The infrastructure already exists. Plan 067 (Event Popper) built a complete port discovery system:
 
-```typescript
-function resolveServerUrl(options: { serverUrl?: string }): string {
-  if (options.serverUrl) return options.serverUrl;
-  // Could also check CG_SERVER_URL env var
-  return process.env.CG_SERVER_URL ?? 'http://localhost:3000';
+**Server writes** `.chainglass/server.json` on boot (`apps/web/instrumentation.ts`):
+```json
+{
+  "port": 3000,
+  "pid": 12345,
+  "startedAt": "2026-03-23T03:00:00.000Z"
 }
 ```
 
-**Why not `computePorts()`?** The harness uses `computePorts()` because the harness container runs on non-standard ports. The `cg` CLI talks to the user's actual dev server, which is always on the standard port (3000). The harness is special.
+**CLI reads** via `readServerInfo(worktreePath)` from `@chainglass/shared/event-popper`:
+- Validates JSON with Zod schema (`ServerInfoSchema`)
+- Checks PID is alive (`process.kill(pid, 0)`)
+- Guards against PID recycling (OS start time vs recorded `startedAt`, 5s tolerance)
+- Returns `null` if server isn't running → caller can throw a helpful error
+
+**Existing pattern** in `apps/cli/src/commands/event-popper-client.ts`:
+```typescript
+import { readServerInfo } from '@chainglass/shared/event-popper';
+
+export function discoverServerUrl(worktreePath?: string): string {
+  const cwd = worktreePath ?? process.cwd();
+  // Try cwd first, then apps/web (Next.js cwd differs from repo root)
+  const info = readServerInfo(cwd) ?? readServerInfo(join(cwd, 'apps', 'web'));
+  if (!info) {
+    throw new Error('Chainglass server not running. Start with: just dev');
+  }
+  return `http://localhost:${info.port}`;
+}
+```
+
+**For `cg wf --server`**, we reuse this exact pattern — zero new discovery infrastructure:
+
+```typescript
+import { readServerInfo } from '@chainglass/shared/event-popper';
+
+function resolveServerUrl(worktreePath: string, override?: string): string {
+  if (override) return override;
+  if (process.env.CG_SERVER_URL) return process.env.CG_SERVER_URL;
+
+  const info = readServerInfo(worktreePath)
+    ?? readServerInfo(join(worktreePath, 'apps', 'web'));
+  if (!info) {
+    throw new Error(
+      'Chainglass server not running (no .chainglass/server.json). Start with: just dev'
+    );
+  }
+  return `http://localhost:${info.port}`;
+}
+```
+
+**Precedence**: `--server-url` flag → `CG_SERVER_URL` env → `server.json` auto-discovery.
+
+**Why not hardcode port 3000?** The dev server port comes from `process.env.PORT` (defaults to 3000 but can vary). The `server.json` file records the actual port at runtime. Hardcoding would break if the user runs on a non-standard port.
+
+**Why not `computePorts()`?** That's harness-specific — computes unique ports per worktree for Docker containers. The `cg` CLI talks to the user's actual dev server, which writes its own port to `server.json`.
 
 ### Command Implementations
 
@@ -185,12 +231,13 @@ $ cg wf run test-workflow --server --json-events
 
 ┌─────────────────────────────────────────────────────────────┐
 │ 1. Resolve workspace context from cwd / --workspace-path    │
-│ 2. POST /api/workspaces/{slug}/workflows/{graph}/execution  │
+│ 2. Discover server URL from .chainglass/server.json         │
+│ 3. POST /api/workspaces/{slug}/workflows/{graph}/execution  │
 │    Body: { worktreePath: "/Users/jordan/substrate/074..." } │
-│ 3. If --json-events: poll + emit NDJSON status events       │
+│ 4. If --json-events: poll + emit NDJSON status events       │
 │    If not: poll silently, print final status                │
-│ 4. On completion/failure/timeout: GET /detailed             │
-│ 5. Print result                                            │
+│ 5. On completion/failure/timeout: GET /detailed             │
+│ 6. Print result                                            │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -340,6 +387,7 @@ apps/cli/src/commands/positional-graph.command.ts
 |------|-------|--------|
 | Move SDK to shared | 3 files moved, 2 import updates | Small |
 | Add `--server` parent flag | 1 file (positional-graph.command.ts) | Small |
+| Server URL discovery | Reuse `readServerInfo()` from `@chainglass/shared/event-popper` — **zero new code** | None |
 | `cg wf run --server` | ~80 lines (poll loop + NDJSON synthesis) | Medium |
 | `cg wf show --detailed --server` | ~15 lines (GET + format) | Small |
 | `cg wf status --server` | ~15 lines (GET + format) | Small |
@@ -353,7 +401,7 @@ apps/cli/src/commands/positional-graph.command.ts
 ## Quick Reference
 
 ```bash
-# P0 — Run workflow through web server
+# P0 — Run workflow through web server (auto-discovers port from .chainglass/server.json)
 cg wf run test-workflow --server
 cg wf run test-workflow --server --json-events --timeout 120
 
@@ -369,14 +417,14 @@ cg wf stop test-workflow --server
 # P2 — Restart
 cg wf restart test-workflow --server
 
-# Override server URL (non-standard port or remote)
+# Override server URL (non-standard port, remote, or server.json missing)
 cg wf run test-workflow --server --server-url http://10.0.0.5:3000
 
 # Override workspace slug (if auto-resolution fails)
 cg wf run test-workflow --server --workspace-slug my-workspace
 
-# Environment variable alternative
-export CG_SERVER_URL=http://localhost:3000
+# Environment variable alternative (overrides server.json)
+export CG_SERVER_URL=http://localhost:3100
 cg wf run test-workflow --server
 ```
 
