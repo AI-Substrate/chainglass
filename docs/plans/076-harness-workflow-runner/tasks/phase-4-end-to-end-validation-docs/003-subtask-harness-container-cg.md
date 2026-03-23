@@ -56,9 +56,10 @@ Subtask 001 built the REST API + SDK. Subtask 002 added `--server` mode to the `
 
 | File | Exists? | Domain Check | Notes |
 |------|---------|-------------|-------|
-| `harness/justfile` | ✓ | _(harness)_ | Add `cg` recipe |
-| `harness/src/test-data/cg-runner.ts` | ✓ | _(harness)_ | Add `runCgInContainer()` export |
-| `harness/README.md` | ✓ | _(harness)_ | Add Container CG Commands section |
+| `harness/justfile` | ✓ | _(harness)_ | Add `cg` recipe (dumb passthrough, auto-adds `--json`) |
+| `harness/src/test-data/cg-runner.ts` | ✓ | _(harness)_ | Add `runCgInContainer()` + `spawnCgInContainer()` exports |
+| `harness/src/test-data/cg-spawner.ts` | ✓ | _(harness)_ | Add `spawnCgInContainer()` export |
+| `harness/README.md` | ✓ | _(harness)_ | Add Container CG Commands section with harness-cmd vs cg distinction |
 | `docs/project-rules/harness.md` | ✓ | docs | Add `cg wf` container commands to CLI table |
 | `CLAUDE.md` | ✓ | docs | Add `just harness cg` to Harness Commands section |
 
@@ -99,9 +100,9 @@ flowchart TD
 
 | Status | ID | Task | Domain | Path(s) | Done When | Notes |
 |--------|-----|------|--------|---------|-----------|-------|
-| [ ] | ST001 | Add `cg` recipe to harness justfile — wraps `docker exec` with computed container name and hardcoded workspace path | _(harness)_ | `harness/justfile` | `just harness cg wf show test-workflow --detailed --json` returns valid JSON from inside the container | Pattern: follow existing `exec` recipe (line 50). Add `--workspace-path /app/scratch/harness-test-workspace` automatically. Use `_ports` for container name. |
-| [ ] | ST002 | Export `runCgInContainer()` from cg-runner — convenience wrapper that sets target=container, containerName, workspacePath for programmatic use | _(harness)_ | `harness/src/test-data/cg-runner.ts` | `import { runCgInContainer } from '../../test-data/cg-runner.js'` works in harness commands. Returns `CgExecResult`. | Wraps existing `runCg()` with `{ target: 'container', containerName: computePorts().worktree, workspacePath: '/app/scratch/harness-test-workspace' }`. 5-line function. |
-| [ ] | ST003 | Documentation — add container CG command flow to README, project rules, and CLAUDE.md so agents can discover it | _(harness)_ + docs | `harness/README.md`, `docs/project-rules/harness.md`, `CLAUDE.md` | Agent reading project rules sees `just harness cg` in the CLI table. README has "Running CG commands in container" section with examples. CLAUDE.md Harness Commands has `just harness cg`. | **Critical for discoverability**: agents coming in cold read CLAUDE.md and project rules first. If the flow isn't there, they won't find it. Include the full create→run→observe→stop recipe. |
+| [ ] | ST001 | Add `cg` recipe to harness justfile — dumb passthrough wrapping `docker exec` with computed container name, auto-adds `--json`, defaults workspace path but allows override | _(harness)_ | `harness/justfile` | `just harness cg wf show test-workflow --detailed` returns valid JSON from inside the container | DYK #2: Auto-add `--json` to match `runCg()` behavior. DYK #5: Default workspace path with override capability. Recipe is a dumb passthrough — no logic, no pre-checks. |
+| [ ] | ST002 | Export `runCgInContainer()` AND `spawnCgInContainer()` — buffered + streaming convenience wrappers with container pre-check and optional workspace path override | _(harness)_ | `harness/src/test-data/cg-runner.ts`, `harness/src/test-data/cg-spawner.ts` | Both exports work in harness commands. `runCgInContainer` returns `CgExecResult`. `spawnCgInContainer` returns `SpawnCgHandle`. Container not running → actionable error. | DYK #3: Need both buffered (wait-for-result) and streaming (fire-and-forget). DYK #4: Pre-check container is running, actionable error in harness code not justfile. DYK #5: Accept optional `workspacePath` param, default to `/app/scratch/harness-test-workspace`. |
+| [ ] | ST003 | Documentation — add container CG command flow to README, project rules, and CLAUDE.md. Document distinction between `harness workflow run` (automated) and `harness cg wf run` (ad-hoc). | _(harness)_ + docs | `harness/README.md`, `docs/project-rules/harness.md`, `CLAUDE.md` | Agent reading project rules sees `just harness cg` in CLI table AND understands when to use it vs `harness workflow run`. README has "Running CG commands in container" section. CLAUDE.md Harness Commands lists `just harness cg`. | DYK #1: Clearly document: `harness workflow run` = automated testing (assertions + envelope). `harness cg wf run` = ad-hoc exploration (raw CLI output). Include full create→run→observe→stop recipe. |
 
 ---
 
@@ -178,6 +179,23 @@ When all ST tasks are done:
 2. Harness commands can use `runCgInContainer()` programmatically
 3. Phase 4 T001 (web UI validation) can be done entirely through the container
 4. Phase 4 T006 (final dogfooding) has a clear recipe to follow
+
+---
+
+## Critical Insights (2026-03-23)
+
+| # | Insight | Decision |
+|---|---------|----------|
+| 1 | Two overlapping commands: `harness workflow run --server` (automated) vs `harness cg wf run --server` (ad-hoc) — agents won't know which to pick | Document clearly: harness command = assertions + envelope for testing. `cg` command = raw CLI for exploration. |
+| 2 | Justfile doesn't auto-add `--json` but `runCg()` does — inconsistent output format | Justfile recipe auto-adds `--json` to match programmatic behavior |
+| 3 | `runCgInContainer()` blocks until exit — can't fire-and-forget `cg wf run --server` | Also export `spawnCgInContainer()` using existing `spawnCg()` for streaming/non-blocking |
+| 4 | Container not running → cryptic docker exec error | Pre-check in harness code (`runCgInContainer`/`spawnCgInContainer`), NOT in justfile. Actionable error: "Container not running. Start with: just harness dev" |
+| 5 | Workspace path hardcoded to test workspace — can't test against other workspaces | Default to `/app/scratch/harness-test-workspace` but accept optional `workspacePath` param |
+
+Action items:
+- ST001: Auto-add `--json`, keep recipe as dumb passthrough
+- ST002: Export both `runCgInContainer()` AND `spawnCgInContainer()`, with container pre-check and optional workspace path
+- ST003: Document harness-command vs cg-command distinction prominently
 
 ---
 
