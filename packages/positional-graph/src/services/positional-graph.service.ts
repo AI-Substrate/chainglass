@@ -1129,6 +1129,13 @@ export class PositionalGraphService implements IPositionalGraphService {
       },
       inputPack,
       pendingQuestion: this.resolvePendingQuestion(storedState, state),
+      error: storedState?.error
+        ? {
+            code: storedState.error.code,
+            message: storedState.error.message,
+            occurredAt: storedState.started_at ?? new Date().toISOString(),
+          }
+        : undefined,
       startedAt: storedState?.started_at,
       completedAt: storedState?.completed_at,
     };
