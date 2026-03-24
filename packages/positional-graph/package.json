@@ -39,7 +39,7 @@
     }
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && cp src/features/030-orchestration/*.md dist/features/030-orchestration/",
     "test": "vitest run"
   },
   "dependencies": {
