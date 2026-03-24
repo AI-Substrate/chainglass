@@ -254,3 +254,11 @@ From spec, all 15:
 **Tasks**: 25
 **Domains**: 6 existing (consume) + 1 harness (modify), 0 new
 **Next step**: Run `/plan-4-complete-the-plan` to validate readiness
+
+---
+
+## Fixes
+
+| ID | Created | Summary | Domain(s) | Status | Source |
+|----|---------|---------|-----------|--------|--------|
+| [FX001](fixes/FX001-close-dev-loop.md) | 2026-03-24 | Close the agent development loop — host-default wf-*, wf-watch, AGENTS.md playbook | _(harness)_, docs | Proposed | Workshop 010 |
