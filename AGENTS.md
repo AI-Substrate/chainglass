@@ -1,29 +1,108 @@
 # Chainglass Agent Guide
 
-## The Harness is Non-Negotiable
+## Two Development Environments
 
-**You MUST use the harness for all development verification, workflow execution, and dogfooding. No exceptions.**
+Chainglass has two environments for development. Both are valid — pick the right one for the task.
 
-The harness exists so that every agent — whether arriving fresh or mid-session — can boot, interact with, and observe the running Chainglass application through a consistent, reproducible interface. It is the canonical way to prove your work is correct.
+### Host Dev Server (`just dev`)
 
-**Rules**:
-- **NEVER use direct `curl`, REST calls, or browser automation against the dev server** when the harness provides the equivalent command. The harness IS the interface.
-- **NEVER bypass the harness because "it's simpler to just curl"**. If the harness is harder than the alternative, that's a bug — document it in the wishlist and fix it. Don't route around it.
-- **Always use `just harness-cg wf ...`** for workflow operations inside the container. Not `curl`. Not direct `node` invocations.
-- **Always use `just harness ...`** for harness CLI operations from the repo root.
-- **If you discover friction**, add it to `docs/plans/076-harness-workflow-runner/harness-wishlist.md`. Every friction point fixed makes the next agent's life better.
+Your **primary development loop**. Real workspace, real workflows, fast iteration. Code changes reflect immediately via Hot Module Replacement.
 
-**Why this matters**: The harness is a product improvement engine. Every time an agent uses it, we discover what's broken, what's missing, and what's confusing. Every time an agent bypasses it, we learn nothing and the harness rots. Our goal is to make this the absolute perfect system for developing Chainglass — for experienced agents and new agents alike. That only happens if we dogfood relentlessly.
+```bash
+just dev                        # Start the dev server
+just preflight                  # Check CLI fresh, server running, workspace OK
+just wf-run <slug>              # Start a workflow (fire-and-forget)
+just wf-watch <slug>            # Live-poll status every 2s (auto-stops on terminal state)
+just wf-status <slug>           # One-shot per-node status
+just wf-stop <slug>             # Stop a running workflow
+just wf-restart <slug>          # Reset + start fresh
+```
 
-**The feedback loop**: Use harness → hit friction → document in wishlist → fix → next agent has it better. This is how `console-logs`, `screenshot-all`, `--wait-until`, and `--server-url` auto-injection all came to exist.
+### Harness Container (`just harness dev`)
+
+A **Docker sandbox** with seeded test data, browser automation, and structured CLI. Use for isolated testing, creating workflows from scratch, and CI-like validation.
+
+```bash
+just harness dev                # Boot container (~2 min cold boot)
+just harness doctor --wait      # Wait until healthy
+just wf-run <slug> --container  # Same shortcuts, targeting the container
+just harness-cg wf create test  # Ad-hoc CG CLI inside the container
+just harness seed               # Seed test workspace + worktrees
+```
+
+### When to Use Which
+
+| Task | Environment | Why |
+|------|-------------|-----|
+| Edit + run a real workflow | Host | Fast iteration, your actual data |
+| Create workflows from scratch | Container | Seeded test data, controlled environment |
+| Verify before committing | Either | Host for quick check, container for isolated proof |
+| Browser automation tests | Container | Playwright + CDP built-in |
+| Debug a failed node | Host | See the error via `just wf-status`, fix in code, `just wf-restart` |
+
+### Preflight Checks
+
+**Run `just preflight` before any workflow session.** It checks:
+- CLI build is fresh (no stale `dist/cli.cjs`)
+- Dev server is running (live PID in `server.json`)
+- Workspace directory exists
+
+If checks fail, it prints exactly what to fix. Don't skip this — stale builds cause silent wrong behavior.
+
+### Working on Workflows
+
+**The loop**: Edit → Run → Observe → Fix → Repeat
+
+1. **Start**: `just preflight` then `just wf-run <slug>`
+2. **Watch**: `just wf-watch <slug>` in another terminal — live status every 2s, auto-stops on completion/failure
+3. **Or poll**: `just wf-status <slug>` for a one-shot check
+4. **Fix**: Read the error from `wf-status` output, fix the code
+5. **Rebuild if needed**: `pnpm --filter @chainglass/cli build` (or whatever package changed)
+6. **Restart**: `just wf-restart <slug>` — clears progress and starts fresh
+
+The watch log is at `.chainglass/watch.log` — use `tail -f .chainglass/watch.log` in a separate terminal to follow execution.
+
+### Editing Workflow Structure
+
+Use the `cg` CLI directly for structural changes (adding nodes, lines):
+
+```bash
+# List available work units
+node apps/cli/dist/cli.cjs unit list --json --pretty --workspace-path "$(git rev-parse --show-toplevel)"
+
+# Add a line to a workflow
+node apps/cli/dist/cli.cjs wf line add <slug> --json --workspace-path "$(git rev-parse --show-toplevel)"
+
+# Add a node to a line
+node apps/cli/dist/cli.cjs wf node add <slug> <lineId> <unitSlug> --json --workspace-path "$(git rev-parse --show-toplevel)"
+```
+
+Changes appear in the browser automatically via file watchers.
+
+### Browser Verification
+
+When working on UI features or workflow execution, **verify in the browser** at these moments:
+
+1. **After adding/removing workflow nodes** — screenshot to confirm the canvas updated
+2. **After starting execution** — check the status badge changed from idle
+3. **After a failure** — check what the user sees (is the error visible? or just a generic badge?)
+4. **Before committing UI changes** — screenshot the affected page
+
+Use the Playwright browser automation tool to navigate and screenshot:
+```
+Navigate to: http://localhost:3000/workspaces/<workspace>/workflows/<slug>?worktree=<path>
+Take a screenshot
+Check for console errors
+```
+
+If you skip browser verification on UI work, visual regressions ship unnoticed.
 
 ### Harness Wishlist
 
-When you encounter friction using the harness — commands that fail, output that's unreadable, flows that are confusing, or capabilities that are missing — **add it to the wishlist**:
+When you encounter friction — commands that fail, output that's unreadable, flows that are confusing — **add it to the wishlist**:
 
 **Location**: `docs/plans/076-harness-workflow-runner/harness-wishlist.md`
 
-**Format**:
 ```markdown
 ### W0XX — Short description
 **Severity**: 🔴 Blocker | 🟠 Painful | 🟡 Friction | 🟢 Polish
@@ -336,14 +415,19 @@ just harness results                         # Read latest test results
 # Seed Data
 just harness seed           # Create test workspace + worktrees
 
-# Workflow Shortcuts (Plan 076) — most common workflow lifecycle commands
-just wf-run <slug>                                 # Start workflow (fire-and-forget, returns immediately)
-just wf-status <slug>                              # Per-node status (poll this after wf-run)
+# Workflow Shortcuts (Plan 076 FX001)
+# Default: host dev server. Add --container for harness Docker.
+just wf-run <slug>                                 # Start workflow (fire-and-forget)
+just wf-run <slug> --container                     # Same, targeting container
+just wf-watch <slug>                               # Live-poll every 2s (auto-stops on terminal state)
+just wf-status <slug>                              # One-shot per-node status
 just wf-stop <slug>                                # Stop a running workflow
 just wf-restart <slug>                             # Reset + start fresh
-just wf-reset                                      # Clean + recreate test data
+just wf-reset                                      # Clean + recreate test data (host)
+just wf-reset --container                          # Clean + recreate test data (container)
+just preflight                                     # Check CLI fresh, dev server up, workspace OK
 
-# CG CLI Inside Container (Plan 076 — for ad-hoc exploration beyond the shortcuts above)
+# CG CLI Inside Container (for ad-hoc exploration beyond the shortcuts)
 just harness-cg wf create my-test                  # Create workflow inside container
 just harness-cg wf show my-test --detailed         # Per-node status (auto-adds --json)
 just harness-cg unit list                          # List work units inside container

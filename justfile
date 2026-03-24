@@ -122,21 +122,114 @@ harness *ARGS:
 harness-cg *ARGS:
     cd harness && just cg {{ARGS}}
 
-# Workflow shortcuts (Plan 076) — common lifecycle commands via harness container
-wf-run slug:
-    just harness-cg wf run {{slug}} --server
+# Workflow shortcuts (Plan 076 FX001)
+# Default: host dev server via local CLI (auto-discovers server.json)
+# Add --container to target the harness Docker container instead
+#
+# Host mode:  just wf-run jordo-test
+# Container:  just wf-run test-workflow --container
 
-wf-status slug:
-    just harness-cg wf show {{slug}} --detailed --server
+wf-run slug *FLAGS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if echo "{{FLAGS}}" | grep -q -- '--container'; then
+        just harness-cg wf run {{slug}} --server
+    else
+        REPO_ROOT="$(git rev-parse --show-toplevel)"
+        node "$REPO_ROOT/apps/cli/dist/cli.cjs" wf run {{slug}} \
+          --json --pretty --server \
+          --workspace-path "$REPO_ROOT"
+    fi
 
-wf-stop slug:
-    just harness-cg wf stop {{slug}}
+wf-status slug *FLAGS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if echo "{{FLAGS}}" | grep -q -- '--container'; then
+        just harness-cg wf show {{slug}} --detailed --server
+    else
+        REPO_ROOT="$(git rev-parse --show-toplevel)"
+        node "$REPO_ROOT/apps/cli/dist/cli.cjs" wf show {{slug}} \
+          --detailed --json --pretty --server \
+          --workspace-path "$REPO_ROOT"
+    fi
 
-wf-restart slug:
-    just harness-cg wf restart {{slug}}
+wf-stop slug *FLAGS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if echo "{{FLAGS}}" | grep -q -- '--container'; then
+        just harness-cg wf stop {{slug}}
+    else
+        REPO_ROOT="$(git rev-parse --show-toplevel)"
+        node "$REPO_ROOT/apps/cli/dist/cli.cjs" wf stop {{slug}} \
+          --json --pretty \
+          --workspace-path "$REPO_ROOT"
+    fi
 
-wf-reset:
-    just harness workflow reset
+wf-restart slug *FLAGS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if echo "{{FLAGS}}" | grep -q -- '--container'; then
+        just harness-cg wf restart {{slug}}
+    else
+        REPO_ROOT="$(git rev-parse --show-toplevel)"
+        node "$REPO_ROOT/apps/cli/dist/cli.cjs" wf restart {{slug}} \
+          --json --pretty \
+          --workspace-path "$REPO_ROOT"
+    fi
+
+wf-reset *FLAGS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if echo "{{FLAGS}}" | grep -q -- '--container'; then
+        just harness workflow reset
+    else
+        REPO_ROOT="$(git rev-parse --show-toplevel)"
+        echo "Host reset: clearing workflow state..."
+        # Host reset uses the local CLI to delete + recreate
+        node "$REPO_ROOT/apps/cli/dist/cli.cjs" wf reset \
+          --json --pretty \
+          --workspace-path "$REPO_ROOT" 2>&1 || echo "Note: wf reset may not be available on host. Use --container for seeded test data."
+    fi
+
+# Watch workflow execution live (polls every 2s, appends to stdout + .chainglass/watch.log)
+# Auto-stops on terminal state (completed/failed/stopped). Ctrl+C to stop early.
+# Use: just wf-watch jordo-test
+# Also: tail -f .chainglass/watch.log (in another terminal)
+wf-watch slug *FLAGS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    REPO_ROOT="$(git rev-parse --show-toplevel)"
+    LOG_FILE="$REPO_ROOT/.chainglass/watch.log"
+    mkdir -p "$(dirname "$LOG_FILE")"
+    echo "Watching {{slug}} (polling every 2s, logging to $LOG_FILE)..."
+    echo "Press Ctrl+C to stop."
+    echo ""
+    echo "─── $(date +%H:%M:%S) ─── Start watching: {{slug}} ───" | tee -a "$LOG_FILE"
+    while true; do
+        TS=$(date +%H:%M:%S)
+        if echo "{{FLAGS}}" | grep -q -- '--container'; then
+            OUTPUT=$(just harness-cg wf show {{slug}} --detailed --server 2>&1) || true
+        else
+            OUTPUT=$(node "$REPO_ROOT/apps/cli/dist/cli.cjs" wf show {{slug}} \
+              --detailed --json --pretty --server \
+              --workspace-path "$REPO_ROOT" 2>&1) || true
+        fi
+        # Extract key fields for summary line
+        STATUS=$(echo "$OUTPUT" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const j=JSON.parse(d);const e=j.data?.execution||{};console.log(e.status||'unknown')}catch{console.log('error')}})" 2>/dev/null)
+        PROGRESS=$(echo "$OUTPUT" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const j=JSON.parse(d);const e=j.data?.execution||{};console.log(e.progress||'?')}catch{console.log('?')}})" 2>/dev/null)
+        NODES=$(echo "$OUTPUT" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const j=JSON.parse(d);const lines=j.data?.lines||[];const nodes=lines.flatMap(l=>l.nodes||[]);nodes.forEach(n=>{const icon=n.status==='complete'?'✅':n.status==='blocked-error'?'❌':n.status==='ready'?'🔵':n.status==='pending'?'⏸':'🔄';console.log('  '+icon+' '+n.id+'  '+n.status+(n.error?'  '+n.error.message:''))});if(!nodes.length)console.log('  (no nodes)')}catch{console.log('  (parse error)')}})" 2>/dev/null)
+        # Print summary
+        SUMMARY="─── $TS ─── {{slug}}: $STATUS ($PROGRESS) ───"
+        echo "$SUMMARY" | tee -a "$LOG_FILE"
+        echo "$NODES" | tee -a "$LOG_FILE"
+        echo "" | tee -a "$LOG_FILE"
+        # Auto-stop on terminal state
+        if [ "$STATUS" = "completed" ] || [ "$STATUS" = "failed" ] || [ "$STATUS" = "stopped" ]; then
+            echo "Workflow reached terminal state: $STATUS" | tee -a "$LOG_FILE"
+            break
+        fi
+        sleep 2
+    done
 
 # Manage test workflow data (Plan 074 Phase 6)
 test-data *ARGS:
@@ -208,6 +301,69 @@ redope:
 # Watch a Copilot CLI session and send prompts via tmux
 session-watch session_id tmux_session pane='0':
     npx tsx scripts/session-watcher.ts {{session_id}} {{tmux_session}} {{pane}}
+
+# Host dev server preflight checks (FX001)
+# Run before workflow operations to catch stale builds, missing server, etc.
+preflight:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    REPO_ROOT="$(git rev-parse --show-toplevel)"
+    PASS=true
+
+    echo "Preflight checks..."
+
+    # 1. CLI build freshness — compare newest src file vs dist/cli.cjs
+    CLI_DIST="$REPO_ROOT/apps/cli/dist/cli.cjs"
+    if [ ! -f "$CLI_DIST" ]; then
+        echo "  ✗ CLI not built: $CLI_DIST missing"
+        echo "    Fix: pnpm --filter @chainglass/cli build"
+        PASS=false
+    else
+        NEWEST_SRC=$(find "$REPO_ROOT/apps/cli/src" "$REPO_ROOT/packages/positional-graph/src" "$REPO_ROOT/packages/shared/src" -name '*.ts' -newer "$CLI_DIST" 2>/dev/null | head -1)
+        if [ -n "$NEWEST_SRC" ]; then
+            echo "  ✗ CLI build stale: $(basename "$NEWEST_SRC") is newer than dist/cli.cjs"
+            echo "    Fix: pnpm --filter @chainglass/cli build"
+            PASS=false
+        else
+            echo "  ✓ CLI build fresh"
+        fi
+    fi
+
+    # 2. Dev server running — check for server.json with live PID
+    SERVER_JSON="$REPO_ROOT/apps/web/.chainglass/server.json"
+    if [ ! -f "$SERVER_JSON" ]; then
+        echo "  ✗ Dev server not running: no server.json"
+        echo "    Fix: just dev"
+        PASS=false
+    else
+        SERVER_PID=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync('$SERVER_JSON','utf8')).pid)}catch{console.log('')}" 2>/dev/null)
+        if [ -n "$SERVER_PID" ] && kill -0 "$SERVER_PID" 2>/dev/null; then
+            SERVER_PORT=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync('$SERVER_JSON','utf8')).port)}catch{console.log('?')}" 2>/dev/null)
+            echo "  ✓ Dev server running (PID $SERVER_PID, port $SERVER_PORT)"
+        else
+            echo "  ✗ Dev server not running: server.json exists but PID $SERVER_PID is dead"
+            echo "    Fix: just dev"
+            PASS=false
+        fi
+    fi
+
+    # 3. Workspace registered — can the CLI resolve a workspace context?
+    if [ -d "$REPO_ROOT/.chainglass" ]; then
+        echo "  ✓ Workspace directory exists"
+    else
+        echo "  ✗ No .chainglass directory — workspace not initialized"
+        echo "    Fix: Open the web UI and register this directory as a workspace"
+        PASS=false
+    fi
+
+    if [ "$PASS" = "true" ]; then
+        echo ""
+        echo "All checks passed. Ready to run workflows."
+    else
+        echo ""
+        echo "Some checks failed. Fix the issues above before running workflows."
+        exit 1
+    fi
 
 # Quick preflight: fail immediately if harness isn't running
 harness-require:

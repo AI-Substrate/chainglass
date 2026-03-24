@@ -1,7 +1,7 @@
 # Fix FX001: Close the Agent Development Loop
 
 **Created**: 2026-03-24
-**Status**: Proposed
+**Status**: Complete
 **Plan**: [harness-workflow-runner-plan.md](../harness-workflow-runner-plan.md)
 **Source**: Workshop 010 — gaps G1, G2, G3, G5 identified during live dogfooding
 **Domain(s)**: _(harness)_, docs
@@ -32,12 +32,12 @@ Update `just wf-*` recipes to default to the host dev server (auto-discovers via
 
 | Status | ID | Task | Domain | Path(s) | Done When | Notes |
 |--------|-----|------|--------|---------|-----------|-------|
-| [ ] | FX001-1 | Update `just wf-*` to default to host dev server | _(harness)_ | `justfile` | `just wf-run jordo-test` starts workflow on localhost:3000. `--container` flag routes to container. Uses `git rev-parse --show-toplevel` for workspace path. | Workshop 010 § G1, DYK #5 |
-| [ ] | FX001-2 | Add `just wf-watch` append-only live polling | _(harness)_ | `justfile` | `just wf-watch jordo-test` polls every 2s, appends timestamped status to stdout + file at `.chainglass/watch.log`. No `clear`. Auto-stops on terminal state. `tail -f .chainglass/watch.log` works. | Workshop 010 § G2, DYK #4 |
-| [ ] | FX001-3 | Rewrite AGENTS.md — two environments, playbook, preflight | docs | `AGENTS.md` | Reframe harness section: host = real data, container = sandbox. Both valid. Add `just preflight` guidance. Narrative edit→run→observe→fix flow. Remove contradictory "NEVER bypass" language. | Workshop 010 § G5, DYK #1, #2, #3 |
-| [ ] | FX001-4 | Add browser verification guidance to AGENTS.md | docs | `AGENTS.md` | Section tells agents when to check the browser (after nodes, after failures, before commits) and how. | Workshop 010 § G3 |
-| [ ] | FX001-5 | Add `just preflight` host-side freshness checks | _(harness)_ | `justfile` | Checks: CLI build fresh, dev server running, workspace registered. Prints actionable errors. Prompted in AGENTS.md. | DYK #2 |
-| [ ] | FX001-6 | Commit positional-graph build fix for .md prompt assets | _platform/positional-graph | `packages/positional-graph/package.json` | Build script includes `cp src/features/030-orchestration/*.md dist/...`. Both prompt files in dist after `pnpm build`. | Already fixed, needs commit |
+| [x] | FX001-1 | Update `just wf-*` to default to host dev server | _(harness)_ | `justfile` | `just wf-run jordo-test` starts workflow on localhost:3000. `--container` flag routes to container. Uses `git rev-parse --show-toplevel` for workspace path. | Workshop 010 § G1, DYK #5 |
+| [x] | FX001-2 | Add `just wf-watch` append-only live polling | _(harness)_ | `justfile` | `just wf-watch jordo-test` polls every 2s, appends timestamped status to stdout + file at `.chainglass/watch.log`. No `clear`. Auto-stops on terminal state. `tail -f .chainglass/watch.log` works. | Workshop 010 § G2, DYK #4 |
+| [x] | FX001-3 | Rewrite AGENTS.md — two environments, playbook, preflight | docs | `AGENTS.md` | Reframe harness section: host = real data, container = sandbox. Both valid. Add `just preflight` guidance. Narrative edit→run→observe→fix flow. Remove contradictory "NEVER bypass" language. | Workshop 010 § G5, DYK #1, #2, #3 |
+| [x] | FX001-4 | Add browser verification guidance to AGENTS.md | docs | `AGENTS.md` | Section tells agents when to check the browser (after nodes, after failures, before commits) and how. | Workshop 010 § G3 |
+| [x] | FX001-5 | Add `just preflight` host-side freshness checks | _(harness)_ | `justfile` | Checks: CLI build fresh, dev server running, workspace registered. Prints actionable errors. Prompted in AGENTS.md. | DYK #2 |
+| [x] | FX001-6 | Commit positional-graph build fix for .md prompt assets | _platform/positional-graph | `packages/positional-graph/package.json` | Build script includes `cp src/features/030-orchestration/*.md dist/...`. Both prompt files in dist after `pnpm build`. | Already fixed, needs commit |
 
 ## Acceptance
 
