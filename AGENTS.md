@@ -9,13 +9,30 @@ The harness exists so that every agent — whether arriving fresh or mid-session
 **Rules**:
 - **NEVER use direct `curl`, REST calls, or browser automation against the dev server** when the harness provides the equivalent command. The harness IS the interface.
 - **NEVER bypass the harness because "it's simpler to just curl"**. If the harness is harder than the alternative, that's a bug — document it in the wishlist and fix it. Don't route around it.
-- **Always use `cd harness && just cg wf ...`** for workflow operations inside the container. Not `curl`. Not direct `node` invocations.
+- **Always use `just harness-cg wf ...`** for workflow operations inside the container. Not `curl`. Not direct `node` invocations.
 - **Always use `just harness ...`** for harness CLI operations from the repo root.
 - **If you discover friction**, add it to `docs/plans/076-harness-workflow-runner/harness-wishlist.md`. Every friction point fixed makes the next agent's life better.
 
 **Why this matters**: The harness is a product improvement engine. Every time an agent uses it, we discover what's broken, what's missing, and what's confusing. Every time an agent bypasses it, we learn nothing and the harness rots. Our goal is to make this the absolute perfect system for developing Chainglass — for experienced agents and new agents alike. That only happens if we dogfood relentlessly.
 
 **The feedback loop**: Use harness → hit friction → document in wishlist → fix → next agent has it better. This is how `console-logs`, `screenshot-all`, `--wait-until`, and `--server-url` auto-injection all came to exist.
+
+### Harness Wishlist
+
+When you encounter friction using the harness — commands that fail, output that's unreadable, flows that are confusing, or capabilities that are missing — **add it to the wishlist**:
+
+**Location**: `docs/plans/076-harness-workflow-runner/harness-wishlist.md`
+
+**Format**:
+```markdown
+### W0XX — Short description
+**Severity**: 🔴 Blocker | 🟠 Painful | 🟡 Friction | 🟢 Polish
+**Problem**: What happened, what you expected
+**Impact**: How this affects agent productivity
+**Fix**: Your proposed solution (even if rough)
+```
+
+This is not aspirational — wishlist items become real fix tasks. W001 (`harness-cg` recipe), W003 (fire-and-forget `--server`), and W008 (null crash) were all discovered and fixed in the same session they were documented.
 
 ---
 

@@ -20,9 +20,10 @@
 
 ### W001 — `just harness cg` not accessible from root justfile
 **Severity**: 🔴 Blocker
+**Status**: ✅ FIXED (`15dcf305`) — added `just harness-cg` root recipe
 **Problem**: The `cg` recipe lives in `harness/justfile` but the root justfile's `harness` recipe delegates to the harness CLI (`pnpm exec tsx src/cli/index.ts`), not to the harness justfile. An agent running `just harness cg wf show ...` gets `error: unknown command 'cg'`. The only way to use it is `cd harness && just cg ...` which breaks backgrounding and scripting.
 **Impact**: Every agent dogfooding workflows will hit this wall. Multiple session hours lost to this already.
-**Fix**: Add a root `harness-cg` recipe or make `just harness cg` route to `cd harness && just cg`.
+**Fix**: Added `just harness-cg` recipe to root justfile that delegates to `cd harness && just cg`.
 
 ### W002 — No root-level shortcut for common workflow operations
 **Severity**: 🟠 Painful
@@ -32,9 +33,10 @@
 
 ### W003 — `cg wf run --server` should return immediately (fire-and-forget)
 **Severity**: 🔴 Blocker
+**Status**: ✅ FIXED (`15dcf305`) — POST start → print nextSteps → exit 0
 **Problem**: `cg wf run --server` blocks the CLI waiting for the workflow to finish. This is wrong — `--server` means the server owns the lifecycle. The CLI should POST to start, print a success message with actionable next steps ("Workflow started. Check progress: `just harness cg wf show <slug> --detailed --server`"), and exit immediately. Only local (non-`--server`) runs should block and stream events.
 **Impact**: Agents background the process, can't tell if it's working, can't observe transitions. Natural pattern is "start, then poll" but the CLI fights this.
-**Fix**: `--server` mode: POST start → print actionable message → exit 0. Non-`--server` mode: block and stream NDJSON as today.
+**Fix**: `--server` mode: POST start → print actionable message with nextSteps → exit 0. Non-`--server` mode: block and stream NDJSON as today.
 
 ### W004 — `just cg wf show --detailed --server` output is raw JSON blob
 **Severity**: 🟡 Friction
@@ -62,19 +64,22 @@
 
 ### W008 — `cg wf status --server` crashes on null response
 **Severity**: 🟡 Friction
+**Status**: ✅ FIXED (`15dcf305`) — spread `{ ...result, errors: [] }`
 **Problem**: When no execution is running, `cg wf status --server --json` crashes because the adapter tries to format null.
-**Fix**: Return `{ status: "idle" }` instead of null when no execution exists.
+**Fix**: Spread `errors: []` into all server-mode adapter calls (stop, restart, status).
 
 ### W009 — No `just harness cg` recipe in root justfile's help text
 **Severity**: 🟡 Friction
+**Status**: ✅ FIXED (`15dcf305`) — `just harness-cg` has descriptive comment visible in `just --list`
 **Problem**: `just --list` at root doesn't show any `cg` command. Agent has no way to discover it exists without reading docs.
-**Fix**: Add to root justfile with descriptive comment.
+**Fix**: Root `harness-cg` recipe with comment is now visible in `just --list`.
 
 ### W010 — Background `just cg wf run` can't be observed alongside status checks
 **Severity**: 🟠 Painful
+**Status**: ✅ FIXED (moot) — W003 fix makes `run --server` exit immediately, no backgrounding needed
 **Problem**: Shell backgrounding (`&`) of `just cg wf run` doesn't work well because the recipe uses `#!/usr/bin/env bash` which changes directory. Status checks in the same shell fail.
 **Impact**: Can't do the natural "start in background, poll status in foreground" pattern.
-**Fix**: Make `run` command return immediately with a "started" message, then provide `status --watch` for polling.
+**Fix**: Moot — `run --server` returns immediately. Natural flow is now: `just wf-run slug` then `just wf-status slug`.
 
 ---
 
