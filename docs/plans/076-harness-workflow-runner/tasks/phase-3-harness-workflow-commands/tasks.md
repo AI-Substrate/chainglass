@@ -4,7 +4,7 @@
 **Phase**: Phase 3: Harness Workflow Commands
 **Spec**: [harness-workflow-runner-spec.md](../../harness-workflow-runner-spec.md)
 **Created**: 2026-03-18
-**Status**: Pending
+**Status**: Complete
 
 > **Read the spec's Problem Context section FIRST.** See `harness-workflow-runner-spec.md § Problem Context` for the bug table, dogfooding contract, and known runtime issues.
 

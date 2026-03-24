@@ -3,7 +3,7 @@
 **Plan Version**: 1.0.0
 **Created**: 2026-03-16
 **Spec**: [harness-workflow-runner-spec.md](harness-workflow-runner-spec.md)
-**Status**: DRAFT
+**Status**: COMPLETE
 
 ## ADR References
 
@@ -118,8 +118,8 @@ The approach: fix the critical execution blockers first (ODS pod error surfacing
 
 ### Acceptance Criteria (Phase 1)
 
-- [ ] AC-5: Pod failures visible in output (not silently swallowed)
-- [ ] AC-13: Nodes progress through full lifecycle, not stuck at "starting"
+- [x] AC-5: Pod failures visible in output (not silently swallowed)
+- [x] AC-13: Nodes progress through full lifecycle, not stuck at "starting"
 
 ---
 
@@ -143,9 +143,9 @@ The approach: fix the critical execution blockers first (ODS pod error surfacing
 
 ### Acceptance Criteria (Phase 2)
 
-- [ ] AC-3: What ONBAS decided visible at each iteration (via --json-events iteration data)
-- [ ] AC-4: What ODS dispatched visible (via --json-events iteration data)
-- [ ] AC-14: `cg wf show --detailed` returns node-level status with per-node state, timing, pod session info
+- [x] AC-3: What ONBAS decided visible at each iteration (via --json-events iteration data)
+- [x] AC-4: What ODS dispatched visible (via --json-events iteration data)
+- [x] AC-14: `cg wf show --detailed` returns node-level status with per-node state, timing, pod session info
 
 ---
 
@@ -175,14 +175,14 @@ The approach: fix the critical execution blockers first (ODS pod error surfacing
 
 ### Acceptance Criteria (Phase 3)
 
-- [ ] AC-1: `harness workflow run` creates test data, executes, collects telemetry, reports pass/fail
-- [ ] AC-6: `harness workflow status` returns node-level status, pods, sessions, iterations
-- [ ] AC-7: `harness workflow reset` cleans + recreates (idempotent)
-- [ ] AC-9: All commands return HarnessEnvelope JSON
-- [ ] AC-10: Agent can iterate using reset→run→read→fix→repeat cycle
-- [ ] AC-11: `harness workflow logs` captures execution timeline + server errors
-- [ ] AC-12: Works against local dev server
-- [ ] AC-15: Progressive disclosure (4 levels)
+- [x] AC-1: `harness workflow run` creates test data, executes, collects telemetry, reports pass/fail
+- [x] AC-6: `harness workflow status` returns node-level status, pods, sessions, iterations
+- [x] AC-7: `harness workflow reset` cleans + recreates (idempotent)
+- [x] AC-9: All commands return HarnessEnvelope JSON
+- [x] AC-10: Agent can iterate using reset→run→read→fix→repeat cycle
+- [x] AC-11: `harness workflow logs` captures execution timeline + server errors
+- [x] AC-12: Works against local dev server
+- [x] AC-15: Progressive disclosure (4 levels)
 
 ---
 
@@ -210,9 +210,9 @@ The approach: fix the critical execution blockers first (ODS pod error surfacing
 
 ### Acceptance Criteria (Phase 4)
 
-- [ ] AC-2: Per-node status transitions observable
-- [ ] AC-8: Test workflow topology matches test-advanced-pipeline
-- [ ] AC-13: Web UI Run button works — nodes progress through full lifecycle
+- [x] AC-2: Per-node status transitions observable
+- [x] AC-8: Test workflow topology matches test-advanced-pipeline
+- [x] AC-13: Web UI Run button works — nodes progress through full lifecycle
 
 ---
 
@@ -220,21 +220,21 @@ The approach: fix the critical execution blockers first (ODS pod error surfacing
 
 From spec, all 15:
 
-- [ ] AC-1: `harness workflow run` creates test data, executes, collects telemetry, reports pass/fail (Phase 3)
-- [ ] AC-2: Per-node status transitions observable (Phase 4)
-- [ ] AC-3: ONBAS decisions visible per iteration (Phase 2)
-- [ ] AC-4: ODS dispatches visible (Phase 2)
-- [ ] AC-5: Pod failures visible, not silently swallowed (Phase 1)
-- [ ] AC-6: `harness workflow status` returns node-level detail (Phase 3)
-- [ ] AC-7: `harness workflow reset` idempotent clean+create (Phase 3)
-- [ ] AC-8: Test workflow topology matches test-advanced-pipeline (Phase 4)
-- [ ] AC-9: All commands return HarnessEnvelope JSON (Phase 3)
-- [ ] AC-10: Agent can iterate: reset→run→read→fix→repeat (Phase 3)
-- [ ] AC-11: `harness workflow logs` captures timeline + server errors (Phase 3)
-- [ ] AC-12: Works against local dev server (Phase 3)
-- [ ] AC-13: Web UI Run button works, nodes not stuck at "starting" (Phase 1 + Phase 4)
-- [ ] AC-14: `cg wf show --detailed` returns node-level status (Phase 2)
-- [ ] AC-15: Progressive disclosure (4 levels) (Phase 3)
+- [x] AC-1: `harness workflow run` creates test data, executes, collects telemetry, reports pass/fail (Phase 3)
+- [x] AC-2: Per-node status transitions observable (Phase 4)
+- [x] AC-3: ONBAS decisions visible per iteration (Phase 2)
+- [x] AC-4: ODS dispatches visible (Phase 2)
+- [x] AC-5: Pod failures visible, not silently swallowed (Phase 1)
+- [x] AC-6: `harness workflow status` returns node-level detail (Phase 3)
+- [x] AC-7: `harness workflow reset` idempotent clean+create (Phase 3)
+- [x] AC-8: Test workflow topology matches test-advanced-pipeline (Phase 4)
+- [x] AC-9: All commands return HarnessEnvelope JSON (Phase 3)
+- [x] AC-10: Agent can iterate: reset→run→read→fix→repeat (Phase 3)
+- [x] AC-11: `harness workflow logs` captures timeline + server errors (Phase 3)
+- [x] AC-12: Works against local dev server (Phase 3)
+- [x] AC-13: Web UI Run button works, nodes not stuck at "starting" (Phase 1 + Phase 4)
+- [x] AC-14: `cg wf show --detailed` returns node-level status (Phase 2)
+- [x] AC-15: Progressive disclosure (4 levels) (Phase 3)
 
 ## Risks
 
