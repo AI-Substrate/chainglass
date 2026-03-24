@@ -4,6 +4,11 @@
 **Plan**: [067-harness](../plans/067-harness/harness-plan.md)
 **ADR**: [ADR-0014](../adr/adr-0014-first-class-agentic-development-harness.md)
 
+> **Harness Docs**: [Agent Rules](../../AGENTS.md#the-harness-is-non-negotiable) |
+> [Architecture](../../harness/README.md) |
+> **This file** |
+> [Workflow Guide](../how/harness-workflow.md)
+
 ## Overview
 
 The harness is a Docker-containerized dev environment with Playwright/CDP browser automation, controlled by a typed CLI that returns structured JSON. Agents boot the app, browse it at any viewport, capture screenshots, run tests, and seed test data.

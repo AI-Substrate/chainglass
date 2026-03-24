@@ -122,6 +122,22 @@ harness *ARGS:
 harness-cg *ARGS:
     cd harness && just cg {{ARGS}}
 
+# Workflow shortcuts (Plan 076) — common lifecycle commands via harness container
+wf-run slug:
+    just harness-cg wf run {{slug}} --server
+
+wf-status slug:
+    just harness-cg wf show {{slug}} --detailed --server
+
+wf-stop slug:
+    just harness-cg wf stop {{slug}}
+
+wf-restart slug:
+    just harness-cg wf restart {{slug}}
+
+wf-reset:
+    just harness workflow reset
+
 # Manage test workflow data (Plan 074 Phase 6)
 test-data *ARGS:
     cd harness && pnpm exec tsx src/cli/index.ts test-data {{ARGS}}

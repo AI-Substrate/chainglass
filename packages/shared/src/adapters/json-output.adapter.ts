@@ -27,6 +27,12 @@ import type {
  * Used when --json flag is passed to CLI commands.
  */
 export class JsonOutputAdapter implements IOutputAdapter {
+  private readonly indent: number | undefined;
+
+  constructor(pretty?: boolean) {
+    this.indent = pretty ? 2 : undefined;
+  }
+
   /**
    * Format a command result as JSON.
    *
@@ -45,7 +51,7 @@ export class JsonOutputAdapter implements IOutputAdapter {
         timestamp,
         data: this.omitErrors(result),
       };
-      return JSON.stringify(response);
+      return JSON.stringify(response, null, this.indent);
     }
     const response: CommandResponseError = {
       success: false,
@@ -53,7 +59,7 @@ export class JsonOutputAdapter implements IOutputAdapter {
       timestamp,
       error: this.formatErrors(result.errors),
     };
-    return JSON.stringify(response);
+    return JSON.stringify(response, null, this.indent);
   }
 
   /**

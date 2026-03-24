@@ -278,9 +278,10 @@ async function handleWfRunServer(
     serverUrl?: string;
     workspacePath?: string;
     json?: boolean;
+    pretty?: boolean;
   }
 ): Promise<void> {
-  const adapter = createOutputAdapter(options.json ?? false);
+  const adapter = createOutputAdapter(options.json ?? false, options.pretty);
   const ctx = await resolveOrOverrideContext(options.workspacePath);
   if (!ctx) {
     console.log(adapter.format('wf.run', { errors: noContextError(options.workspacePath) }));
@@ -1982,6 +1983,7 @@ export function registerPositionalGraphCommands(program: Command): void {
     .command('wf')
     .description('Manage positional graphs (workflows)')
     .option('--json', 'Output as JSON', false)
+    .option('--pretty', 'Pretty-print JSON output (when --json is active)', false)
     .option('--workspace-path <path>', 'Override workspace context')
     .option('--server', 'Execute via web server REST API instead of locally')
     .option(
@@ -2012,7 +2014,7 @@ export function registerPositionalGraphCommands(program: Command): void {
 
         // --server + --detailed: GET /detailed via SDK
         if (parentOpts.server && options.detailed) {
-          const adapter = createOutputAdapter(parentOpts.json ?? false);
+          const adapter = createOutputAdapter(parentOpts.json ?? false, parentOpts.pretty);
           const ctx = await resolveOrOverrideContext(parentOpts.workspacePath);
           if (!ctx) {
             console.log(
@@ -2116,7 +2118,7 @@ export function registerPositionalGraphCommands(program: Command): void {
 
         // --server mode: GET /execution via SDK
         if (parentOpts.server) {
-          const adapter = createOutputAdapter(parentOpts.json ?? false);
+          const adapter = createOutputAdapter(parentOpts.json ?? false, parentOpts.pretty);
           const ctx = await resolveOrOverrideContext(parentOpts.workspacePath);
           if (!ctx) {
             console.log(
@@ -2207,6 +2209,7 @@ export function registerPositionalGraphCommands(program: Command): void {
               serverUrl: parentOpts.serverUrl,
               workspacePath: parentOpts.workspacePath,
               json: parentOpts.json,
+              pretty: parentOpts.pretty,
             });
             return;
           }
@@ -2214,7 +2217,7 @@ export function registerPositionalGraphCommands(program: Command): void {
           // Local mode: drive directly
           const ctx = await resolveOrOverrideContext(parentOpts.workspacePath);
           if (!ctx) {
-            const adapter = createOutputAdapter(parentOpts.json ?? false);
+            const adapter = createOutputAdapter(parentOpts.json ?? false, parentOpts.pretty);
             console.log(
               adapter.format('wf.run', { errors: noContextError(parentOpts.workspacePath) })
             );
@@ -2258,7 +2261,7 @@ export function registerPositionalGraphCommands(program: Command): void {
     .action(
       wrapAction(async (slug: string, _options: Record<string, unknown>, cmd: Command) => {
         const parentOpts = cmd.parent?.opts() ?? {};
-        const adapter = createOutputAdapter(parentOpts.json ?? false);
+        const adapter = createOutputAdapter(parentOpts.json ?? false, parentOpts.pretty);
 
         const ctx = await resolveOrOverrideContext(parentOpts.workspacePath);
         if (!ctx) {
@@ -2296,7 +2299,7 @@ export function registerPositionalGraphCommands(program: Command): void {
     .action(
       wrapAction(async (slug: string, _options: Record<string, unknown>, cmd: Command) => {
         const parentOpts = cmd.parent?.opts() ?? {};
-        const adapter = createOutputAdapter(parentOpts.json ?? false);
+        const adapter = createOutputAdapter(parentOpts.json ?? false, parentOpts.pretty);
 
         const ctx = await resolveOrOverrideContext(parentOpts.workspacePath);
         if (!ctx) {

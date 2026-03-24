@@ -83,5 +83,5 @@ cg *ARGS:
     docker exec "$CONTAINER" node /app/apps/cli/dist/cli.cjs \
       {{ARGS}} \
       --workspace-path /app/scratch/harness-test-workspace \
-      --json \
+      --json --pretty \
       $EXTRA_FLAGS

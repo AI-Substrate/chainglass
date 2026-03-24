@@ -25,8 +25,8 @@ import { createCliProductionContainer } from '../lib/container.js';
 /**
  * Create an output adapter based on the --json flag.
  */
-export function createOutputAdapter(json: boolean): IOutputAdapter {
-  return json ? new JsonOutputAdapter() : new ConsoleOutputAdapter();
+export function createOutputAdapter(json: boolean, pretty?: boolean): IOutputAdapter {
+  return json ? new JsonOutputAdapter(pretty) : new ConsoleOutputAdapter();
 }
 
 /**

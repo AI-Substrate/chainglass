@@ -336,14 +336,16 @@ just harness results                         # Read latest test results
 # Seed Data
 just harness seed           # Create test workspace + worktrees
 
-# CG CLI Inside Container (Plan 076 — runs `cg` commands inside the Docker container)
-# Use for ad-hoc exploration. For automated testing, use `just harness workflow run` instead.
+# Workflow Shortcuts (Plan 076) — most common workflow lifecycle commands
+just wf-run <slug>                                 # Start workflow (fire-and-forget, returns immediately)
+just wf-status <slug>                              # Per-node status (poll this after wf-run)
+just wf-stop <slug>                                # Stop a running workflow
+just wf-restart <slug>                             # Reset + start fresh
+just wf-reset                                      # Clean + recreate test data
+
+# CG CLI Inside Container (Plan 076 — for ad-hoc exploration beyond the shortcuts above)
 just harness-cg wf create my-test                  # Create workflow inside container
 just harness-cg wf show my-test --detailed         # Per-node status (auto-adds --json)
-just harness-cg wf run my-test --server            # Start workflow via container's web server
-just harness-cg wf show my-test --detailed --server  # Poll execution status
-just harness-cg wf stop my-test                    # Stop a running workflow
-just harness-cg wf restart my-test                 # Restart a workflow
 just harness-cg unit list                          # List work units inside container
 
 # Agent Runner (Plan 070)

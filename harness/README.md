@@ -2,6 +2,11 @@
 
 An agentic development harness for the Chainglass monorepo. Docker-containerized dev environment with browser automation, structured CLI, and declarative agent execution.
 
+> **Harness Docs**: [Agent Rules](../AGENTS.md#the-harness-is-non-negotiable) |
+> **This file** |
+> [Project Rules](docs/project-rules/harness.md) |
+> [Workflow Guide](docs/how/harness-workflow.md)
+
 ## Quick Start
 
 ```bash

@@ -2,6 +2,11 @@
 
 This guide covers how to execute, monitor, and debug workflow pipelines using the Chainglass harness — the Docker-containerized dev environment for agentic development.
 
+> **Harness Docs**: [Agent Rules](../../AGENTS.md#the-harness-is-non-negotiable) |
+> [Architecture](../../harness/README.md) |
+> [Project Rules](../project-rules/harness.md) |
+> **This file**
+
 ## Prerequisites
 
 ```bash
