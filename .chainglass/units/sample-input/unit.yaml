@@ -1,17 +1,17 @@
 slug: sample-input
 type: user-input
 version: 1.0.0
-description: Provides initial specification for code generation
+description: Provides initial requirements for the software engineering workflow
 
 inputs: []
 
 outputs:
-  - name: spec
+  - name: requirements
     type: data
     data_type: text
     required: true
-    description: The specification for what code to generate
+    description: The user's requirements for what to build
 
 user_input:
   question_type: text
-  prompt: "What code would you like to generate?"
+  prompt: "What would you like to build? Describe your requirements."

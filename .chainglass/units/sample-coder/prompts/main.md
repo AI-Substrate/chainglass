@@ -6,9 +6,9 @@ You are generating code based on a specification.
 
 ## Step 1: Get the Specification
 
-Read the input specification:
+Read the reviewed specification:
 ```
-node apps/cli/dist/cli.cjs wf node get-input-data $GRAPH $NODE spec
+node apps/cli/dist/cli.cjs wf node get-input-data $GRAPH $NODE reviewed_spec
 ```
 
 ## Step 2: Ask Which Language

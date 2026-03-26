@@ -1,24 +1,14 @@
 slug: sample-coder
 type: agent
 version: 1.0.0
-description: Generates code based on specification, asks which language to use
+description: Generates code based on specification
 
 inputs:
-  - name: spec
+  - name: reviewed_spec
     type: data
     data_type: text
-    required: false
-    description: The specification for what code to generate (legacy)
-  - name: challenge
-    type: data
-    data_type: text
-    required: false
-    description: The coding challenge to solve
-  - name: language
-    type: data
-    data_type: text
-    required: false
-    description: The programming language to use
+    required: true
+    description: The reviewed specification to implement
 
 outputs:
   - name: language

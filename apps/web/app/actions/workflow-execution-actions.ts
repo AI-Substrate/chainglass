@@ -67,7 +67,10 @@ export async function runWorkflow(
       { workspaceSlug: slug, worktreePath: validatedPath },
       graphSlug
     );
-    return { ok: result.started, key: result.key, already: result.already };
+    if (result.already) {
+      return { ok: true, key: result.key, already: true };
+    }
+    return { ok: result.started, key: result.key, already: false };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
