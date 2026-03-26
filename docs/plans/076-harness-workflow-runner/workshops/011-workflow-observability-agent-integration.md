@@ -22,6 +22,21 @@ Three interconnected problems:
 2. **No agent chat access** — clicking an agent node doesn't let you see or interact with the running agent
 3. **Silent pod failures** — agent pods fail fire-and-forget with no visibility; nodes stuck at "starting" with no explanation
 
+## The Core Problem
+
+**There is no single place to see what happened in a workflow run.** The data exists but is scattered:
+
+| Data | Location | How to Access |
+|------|----------|---------------|
+| Node statuses | `.chainglass/data/workflows/{slug}/state.json` | `cg wf show --detailed` |
+| Node events (accept/complete/error) | `state.json → nodes.{id}.events[]` | Buried in state, not surfaced |
+| Pod sessions (agent ID mapping) | `pod-sessions.json` | Manual file read |
+| Agent conversation/output | `~/.config/chainglass/agents/{id}/events.ndjson` | Have to find the agent ID first |
+| ODS errors (pending) | In-memory `pendingErrors` Map | Lost on restart, never persisted |
+| Drive events (ONBAS decisions) | SSE broadcast, cached in harness | `just harness workflow logs` |
+
+**What's needed**: A single `GET /api/.../workflows/{slug}/logs` endpoint (and `cg wf logs` CLI command) that returns a unified, chronological execution log — all node transitions, agent output summaries, errors, timing — in one response. Same data, one call, no spelunking.
+
 ## Key Questions Addressed
 
 - What real-time information should surface during workflow execution?
