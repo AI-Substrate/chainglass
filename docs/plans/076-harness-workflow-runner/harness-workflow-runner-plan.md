@@ -261,4 +261,5 @@ From spec, all 15:
 
 | ID | Created | Summary | Domain(s) | Status | Source |
 |----|---------|---------|-----------|--------|--------|
-| [FX001](fixes/FX001-close-dev-loop.md) | 2026-03-24 | Close the agent development loop — host-default wf-*, wf-watch, AGENTS.md playbook | _(harness)_, docs | Proposed | Workshop 010 |
+| [FX001](fixes/FX001-close-dev-loop.md) | 2026-03-24 | Close the agent development loop — host-default wf-*, wf-watch, AGENTS.md playbook | _(harness)_, docs | Complete | Workshop 010 |
+| [FX002](fixes/FX002-unified-execution-logs.md) | 2026-03-26 | Unified workflow execution logs — timeline, diagnostics, cg wf logs, just wf-logs | positional-graph, workflow-ui, _(harness)_, docs | Proposed | Workshop 012 |
