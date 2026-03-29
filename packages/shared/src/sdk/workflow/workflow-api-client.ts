@@ -137,6 +137,22 @@ export class WorkflowApiClient implements IWorkflowApiClient {
     return body as WorkflowDetailedStatus | null;
   }
 
+  async getLogs(graphSlug: string): Promise<unknown> {
+    const url = `${this.workflowUrl(graphSlug)}/logs?worktreePath=${encodeURIComponent(this.worktreePath)}`;
+    const res = await this.fetch(url, { headers: this.headers() });
+
+    if (!res.ok) {
+      const body: unknown = await res.json();
+      throw new WorkflowApiError(
+        ((body as Record<string, unknown>).error as string) ?? `GET /logs failed: ${res.status}`,
+        res.status,
+        body
+      );
+    }
+
+    return res.json();
+  }
+
   // ── Headers with optional local token ─────────────────
 
   private headers(): Record<string, string> {

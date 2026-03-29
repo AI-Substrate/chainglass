@@ -263,6 +263,109 @@ async function createServerClient(
   });
 }
 
+// ============================================
+// Human-Readable Log Formatter (FX002)
+// ============================================
+
+function formatHumanReadableLog(
+  log: Record<string, unknown>,
+  options: { node?: string; errors?: boolean }
+): void {
+  const status = log.status as string;
+  const timing = log.timing as { startedAt: string | null; durationMs: number | null } | undefined;
+  const progress = log.progress as { totalNodes: number; completedNodes: number; failedNodes: number } | undefined;
+  const timeline = (log.timeline as Array<Record<string, unknown>>) ?? [];
+  const diagnostics = (log.diagnostics as Array<Record<string, unknown>>) ?? [];
+  const nodes = (log.nodes as Record<string, Record<string, unknown>>) ?? {};
+
+  // Header
+  const durationStr = timing?.durationMs
+    ? timing.durationMs < 60000
+      ? `${Math.round(timing.durationMs / 1000)}s`
+      : `${Math.round(timing.durationMs / 60000)}m`
+    : '';
+  const progressStr = progress
+    ? `${progress.completedNodes}/${progress.totalNodes} nodes`
+    : '';
+  console.log(`\n${log.slug} — ${status} (${progressStr}${durationStr ? `, ${durationStr}` : ''})`);
+  console.log('═'.repeat(60));
+
+  // Filter timeline
+  let filteredTimeline = timeline;
+  if (options.node) {
+    filteredTimeline = timeline.filter((e) => e.nodeId === options.node);
+  }
+  if (options.errors) {
+    filteredTimeline = filteredTimeline.filter((e) => e.event === 'error');
+  }
+
+  // Timeline
+  if (filteredTimeline.length > 0) {
+    for (const entry of filteredTimeline) {
+      const ts = typeof entry.timestamp === 'string' ? entry.timestamp.slice(11, 19) : '??:??:??';
+      const icon = entry.event === 'completed' ? '✅'
+        : entry.event === 'accepted' ? '🔄'
+        : entry.event === 'error' ? '❌'
+        : entry.event === 'started' ? '▶'
+        : entry.event === 'question-asked' ? '❓'
+        : entry.event === 'question-answered' ? '💬'
+        : '·';
+      console.log(`  ${ts}  ${icon} ${entry.message}`);
+    }
+  }
+
+  // Nodes with no events but interesting status (stuck, pending)
+  for (const [nodeId, node] of Object.entries(nodes)) {
+    if (options.node && nodeId !== options.node) continue;
+    const nodeEvents = (node.events as Array<unknown>) ?? [];
+    const nodeStatus = node.status as string;
+    const nodeTiming = node.timing as { startedAt: string | null } | undefined;
+
+    if (nodeEvents.length === 0 && nodeStatus === 'starting' && nodeTiming?.startedAt) {
+      const elapsed = Date.now() - new Date(nodeTiming.startedAt).getTime();
+      const elapsedStr = elapsed < 60000 ? `${Math.round(elapsed / 1000)}s` : `${Math.round(elapsed / 60000)}m`;
+      const ts = typeof nodeTiming.startedAt === 'string' ? nodeTiming.startedAt.slice(11, 19) : '??:??:??';
+      console.log(`  ${ts}  ⚠ ${node.unitSlug} started ${elapsedStr} ago — NO ACCEPT (agent may have failed)`);
+      if (node.agentSessionId) {
+        console.log(`          Agent session: ${String(node.agentSessionId).substring(0, 12)}...`);
+      }
+    } else if (nodeEvents.length === 0 && nodeStatus === 'pending') {
+      if (!options.errors) {
+        const blocked = (node.blockedBy as string[]) ?? [];
+        console.log(`          ⏸ ${node.unitSlug} pending (${blocked.join(', ') || 'waiting'})`);
+      }
+    }
+
+    // Show outputs for completed nodes
+    if (!options.errors && nodeStatus === 'complete') {
+      const outputs = node.outputs as Record<string, unknown> | undefined;
+      if (outputs && Object.keys(outputs).length > 0) {
+        for (const [name, value] of Object.entries(outputs)) {
+          const preview = typeof value === 'string'
+            ? value.length > 80 ? `${value.substring(0, 80)}...` : value
+            : JSON.stringify(value)?.substring(0, 80);
+          console.log(`          Output ${name}: ${preview}`);
+        }
+      }
+    }
+  }
+
+  // Diagnostics
+  if (diagnostics.length > 0) {
+    console.log('');
+    console.log('── Diagnostics ──');
+    for (const d of diagnostics) {
+      const icon = d.severity === 'error' ? '❌' : d.severity === 'warning' ? '⚠' : 'ℹ';
+      console.log(`  ${icon} ${d.message}`);
+      if (d.fix) {
+        console.log(`    Fix: ${d.fix}`);
+      }
+    }
+  }
+
+  console.log('');
+}
+
 /**
  * Run workflow via server REST API (--server mode for cg wf run).
  * Fire-and-forget: POST to start, print actionable next steps, exit immediately.
@@ -2328,6 +2431,71 @@ export function registerPositionalGraphCommands(program: Command): void {
             process.exit(1);
           }
           throw error;
+        }
+      })
+    );
+
+  // ==================== Logs Command (Plan 076 FX002) ====================
+
+  wf.command('logs <slug>')
+    .description('Show unified execution log — timeline, diagnostics, per-node detail')
+    .option('--node <nodeId>', 'Filter to a specific node')
+    .option('--errors', 'Show only errors and diagnostics')
+    .action(
+      wrapAction(async (slug: string, options: { node?: string; errors?: boolean }, cmd: Command) => {
+        const parentOpts = cmd.parent?.opts() ?? {};
+        const adapter = createOutputAdapter(parentOpts.json ?? false, parentOpts.pretty);
+
+        // --server mode: GET /logs via SDK
+        if (parentOpts.server) {
+          const ctx = await resolveOrOverrideContext(parentOpts.workspacePath);
+          if (!ctx) {
+            console.log(adapter.format('wf.logs', { errors: noContextError(parentOpts.workspacePath) }));
+            process.exit(1);
+          }
+          const client = await createServerClient(ctx, {
+            serverUrl: parentOpts.serverUrl,
+            workspacePath: parentOpts.workspacePath,
+          });
+          const log = await client.getLogs(slug) as Record<string, unknown>;
+
+          if (parentOpts.json) {
+            // JSON mode: output the full log (with optional filtering)
+            let result = log;
+            if (options.node && log.nodes) {
+              const nodeLog = (log.nodes as Record<string, unknown>)[options.node];
+              result = nodeLog ? { ...(log as object), nodes: { [options.node]: nodeLog }, timeline: ((log.timeline as Array<Record<string, unknown>>) ?? []).filter((e) => e.nodeId === options.node) } : log;
+            }
+            if (options.errors) {
+              result = { ...(result as object), timeline: ((result as Record<string, unknown>).timeline as Array<Record<string, unknown>> ?? []).filter((e) => e.event === 'error') };
+            }
+            console.log(adapter.format('wf.logs', { ...(result as object), errors: [] }));
+          } else {
+            // Human-readable mode
+            formatHumanReadableLog(log, options);
+          }
+          return;
+        }
+
+        // Local mode: build log directly via service
+        const ctx = await resolveOrOverrideContext(parentOpts.workspacePath);
+        if (!ctx) {
+          console.log(adapter.format('wf.logs', { errors: noContextError(parentOpts.workspacePath) }));
+          process.exit(1);
+        }
+
+        const { buildExecutionLog } = await import('@chainglass/positional-graph/features/040-graph-inspect');
+        const container = (await import('../lib/container.js')).createCliProductionContainer();
+        const service = container.resolve<import('@chainglass/positional-graph').IPositionalGraphService>(
+          (await import('@chainglass/shared')).POSITIONAL_GRAPH_DI_TOKENS.POSITIONAL_GRAPH_SERVICE
+        );
+
+        const log = await buildExecutionLog(service, ctx, slug);
+
+        if (parentOpts.json) {
+          console.log(adapter.format('wf.logs', { ...log, errors: [] }));
+        } else {
+          formatHumanReadableLog(log as unknown as Record<string, unknown>, options);
         }
       })
     );

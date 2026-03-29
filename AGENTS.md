@@ -14,6 +14,7 @@ just preflight                  # Check CLI fresh, server running, workspace OK
 just wf-run <slug>              # Start a workflow (fire-and-forget)
 just wf-watch <slug>            # Live-poll status every 2s (auto-stops on terminal state)
 just wf-status <slug>           # One-shot per-node status
+just wf-logs <slug>             # Full execution timeline + diagnostics (primary debug tool)
 just wf-stop <slug>             # Stop a running workflow
 just wf-restart <slug>          # Reset + start fresh
 ```
@@ -61,6 +62,22 @@ If checks fail, it prints exactly what to fix. Don't skip this — stale builds 
 6. **Restart**: `just wf-restart <slug>` — clears progress and starts fresh
 
 The watch log is at `.chainglass/watch.log` — use `tail -f .chainglass/watch.log` in a separate terminal to follow execution.
+
+#### When something fails
+
+**`just wf-logs <slug>` is your primary debugging tool.** It shows the full execution timeline with automatic diagnostics — which nodes ran, what they output, where things failed, and why.
+
+```bash
+just wf-logs jordo-test              # Full timeline + diagnostics
+just wf-logs jordo-test --errors     # Just errors and warnings
+just wf-logs jordo-test --node sample-coder-5c0   # One node's timeline
+```
+
+The diagnostics section at the bottom catches common problems automatically:
+- **STUCK_STARTING**: Agent node started but never accepted (check GH_TOKEN, agent adapter)
+- **UNWIRED_INPUT**: Required input not wired to a source node
+- **MISSING_UNIT**: Work unit not found
+- **STALE_LOCK**: Old drive lock from a dead process
 
 ### Editing Workflow Structure
 
@@ -421,6 +438,8 @@ just wf-run <slug>                                 # Start workflow (fire-and-fo
 just wf-run <slug> --container                     # Same, targeting container
 just wf-watch <slug>                               # Live-poll every 2s (auto-stops on terminal state)
 just wf-status <slug>                              # One-shot per-node status
+just wf-logs <slug>                                # Full execution timeline + diagnostics
+just wf-logs <slug> --errors                       # Just errors and warnings
 just wf-stop <slug>                                # Stop a running workflow
 just wf-restart <slug>                             # Reset + start fresh
 just wf-reset                                      # Clean + recreate test data (host)

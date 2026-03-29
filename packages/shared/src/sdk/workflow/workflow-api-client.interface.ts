@@ -115,6 +115,9 @@ export interface IWorkflowApiClient {
 
   /** GET /detailed — Rich per-node diagnostics (timing, sessions, blockers). */
   getDetailed(graphSlug: string): Promise<WorkflowDetailedStatus | null>;
+
+  /** GET /logs — Unified execution log with timeline + diagnostics. */
+  getLogs(graphSlug: string): Promise<unknown>;
 }
 
 // ── Client Configuration ────────────────────────────────

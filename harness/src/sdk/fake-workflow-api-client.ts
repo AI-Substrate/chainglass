@@ -225,6 +225,18 @@ export class FakeWorkflowApiClient implements IWorkflowApiClient {
   }
 
   /** Reset all state. */
+  async getLogs(graphSlug: string): Promise<unknown> {
+    return {
+      slug: graphSlug,
+      status: 'pending',
+      timing: { startedAt: null, completedAt: null, durationMs: null },
+      progress: { totalNodes: 0, completedNodes: 0, failedNodes: 0, runningNodes: 0, pendingNodes: 0 },
+      timeline: [],
+      nodes: {},
+      diagnostics: [],
+    };
+  }
+
   reset(): void {
     this.executions.clear();
   }

@@ -191,6 +191,28 @@ wf-reset *FLAGS:
           --workspace-path "$REPO_ROOT" 2>&1 || echo "Note: wf reset may not be available on host. Use --container for seeded test data."
     fi
 
+# Show unified workflow execution log — timeline, diagnostics, per-node detail (FX002)
+# Use: just wf-logs jordo-test
+# Flags: --errors (just problems), --node <id> (one node), --container
+wf-logs slug *FLAGS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    REPO_ROOT="$(git rev-parse --show-toplevel)"
+    if echo "{{FLAGS}}" | grep -q -- '--container'; then
+        just harness-cg wf logs {{slug}} --server
+    else
+        EXTRA_FLAGS=""
+        if echo "{{FLAGS}}" | grep -q -- '--errors'; then EXTRA_FLAGS="$EXTRA_FLAGS --errors"; fi
+        if echo "{{FLAGS}}" | grep -q -- '--node'; then
+            NODE=$(echo "{{FLAGS}}" | grep -oP '(?<=--node )\S+')
+            EXTRA_FLAGS="$EXTRA_FLAGS --node $NODE"
+        fi
+        node "$REPO_ROOT/apps/cli/dist/cli.cjs" wf logs {{slug}} \
+          --server \
+          --workspace-path "$REPO_ROOT" \
+          $EXTRA_FLAGS
+    fi
+
 # Watch workflow execution live (polls every 2s, appends to stdout + .chainglass/watch.log)
 # Auto-stops on terminal state (completed/failed/stopped). Ctrl+C to stop early.
 # Use: just wf-watch jordo-test
