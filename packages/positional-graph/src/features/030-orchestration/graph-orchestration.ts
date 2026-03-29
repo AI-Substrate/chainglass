@@ -149,6 +149,34 @@ export class GraphOrchestration implements IGraphOrchestration {
     }
 
     // Max iterations reached — safety exit
+    // Final drain: persist any pod errors that accumulated in the last iteration
+    const finalErrors = this.ods.drainErrors();
+    if (finalErrors.size > 0) {
+      const finalState = await this.graphService.loadGraphState(this.ctx, this.graphSlug);
+      for (const [nodeId, error] of finalErrors) {
+        if (!finalState.nodes) finalState.nodes = {};
+        const entry = finalState.nodes[nodeId];
+        if (entry) {
+          const events = entry.events ?? [];
+          entry.events = [
+            ...events,
+            {
+              event_id: generateEventId(),
+              event_type: 'node:error',
+              source: 'orchestrator',
+              payload: { code: error.code, message: error.message },
+              status: 'new',
+              stops_execution: true,
+              created_at: new Date().toISOString(),
+            },
+          ];
+          entry.status = 'blocked-error';
+          entry.error = { code: error.code, message: error.message };
+        }
+      }
+      await this.graphService.persistGraphState(this.ctx, this.graphSlug, finalState);
+    }
+
     return {
       errors: [
         {

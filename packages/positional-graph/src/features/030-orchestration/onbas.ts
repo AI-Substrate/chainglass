@@ -68,6 +68,9 @@ export function walkForNextAction(reality: PositionalGraphReality): Orchestratio
   return { type: 'no-action', graphSlug, reason: 'graph-complete' };
 }
 
+// Stuck-starting threshold: 60 seconds without agent accepting
+const STUCK_STARTING_THRESHOLD_MS = 60_000;
+
 // ── visitNode ───────────────────────────────────────
 
 function visitNode(
@@ -80,7 +83,26 @@ function visitNode(
     case 'complete':
       return null;
 
-    case 'starting':
+    case 'starting': {
+      // Check for stuck: starting for too long with no accept
+      if (node.startedAt) {
+        const elapsed = Date.now() - new Date(node.startedAt).getTime();
+        if (elapsed > STUCK_STARTING_THRESHOLD_MS) {
+          return {
+            type: 'error-node' as OrchestrationRequest['type'],
+            graphSlug,
+            nodeId: node.nodeId,
+            inputs: node.inputPack,
+            error: {
+              code: 'STUCK_STARTING',
+              message: `Node started ${Math.round(elapsed / 1000)}s ago with no accept — agent may have failed silently`,
+            },
+          } as OrchestrationRequest;
+        }
+      }
+      return null;
+    }
+
     case 'agent-accepted':
       return null;
 
@@ -125,7 +147,14 @@ function diagnoseStuckLine(reality: PositionalGraphReality, line: LineReality): 
     if (!node) continue;
 
     switch (node.status) {
-      case 'starting':
+      case 'starting': {
+        // Stuck-starting nodes should not count as "running" — they're about to be errored
+        const isStuck = node.startedAt &&
+          (Date.now() - new Date(node.startedAt).getTime()) > STUCK_STARTING_THRESHOLD_MS;
+        if (!isStuck) hasRunning = true;
+        else hasBlocked = true;
+        break;
+      }
       case 'agent-accepted':
       case 'interrupted':
         hasRunning = true;

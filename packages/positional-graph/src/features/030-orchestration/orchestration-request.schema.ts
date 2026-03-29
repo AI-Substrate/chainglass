@@ -81,6 +81,25 @@ export const NoActionRequestSchema = z
   .strict();
 export type NoActionRequest = z.infer<typeof NoActionRequestSchema>;
 
+// ── ErrorNodeRequest (Plan 076 FX003) ─────────────
+
+export const ErrorNodeRequestSchema = z
+  .object({
+    type: z.literal('error-node'),
+    graphSlug: z.string().regex(/^[a-z][a-z0-9-]*$/),
+    nodeId: z.string().min(1),
+    inputs: z.object({
+      inputs: z.record(z.unknown()),
+      ok: z.boolean(),
+    }),
+    error: z.object({
+      code: z.string().min(1),
+      message: z.string().min(1),
+    }),
+  })
+  .strict();
+export type ErrorNodeRequest = z.infer<typeof ErrorNodeRequestSchema>;
+
 // ── OrchestrationRequest (Discriminated Union) ───
 
 export const OrchestrationRequestSchema = z.discriminatedUnion('type', [
@@ -88,5 +107,6 @@ export const OrchestrationRequestSchema = z.discriminatedUnion('type', [
   ResumeNodeRequestSchema,
   QuestionPendingRequestSchema,
   NoActionRequestSchema,
+  ErrorNodeRequestSchema,
 ]);
 export type OrchestrationRequest = z.infer<typeof OrchestrationRequestSchema>;

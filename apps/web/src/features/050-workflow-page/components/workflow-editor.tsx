@@ -408,6 +408,16 @@ export function WorkflowEditor({
                     ? () => openHumanInputModal(selectedNodeId)
                     : undefined
                 }
+                onViewAgent={
+                  selectedNode.unitType === 'agent'
+                    ? () => {
+                        const wtParam = worktreePath
+                          ? `?worktree=${encodeURIComponent(worktreePath)}`
+                          : '';
+                        window.location.href = `/workspaces/${workspaceSlug}/agents${wtParam}`;
+                      }
+                    : undefined
+                }
               />
             ) : (
               <WorkUnitToolbox units={units} isDragging={isDragging} />

@@ -91,6 +91,7 @@ export function WorkflowTempBar({
   onRestart,
 }: WorkflowTempBarProps) {
   const showStatus = executionStatus !== 'idle' && !hydrating;
+  const isTerminalStatus = executionStatus === 'failed' || executionStatus === 'completed' || executionStatus === 'stopped';
 
   return (
     <div
@@ -125,7 +126,7 @@ export function WorkflowTempBar({
             )}
             {lastMessage && (
               <span
-                className="text-xs text-white/30 max-w-[200px] truncate"
+                className={`text-xs max-w-[300px] truncate ${isTerminalStatus ? 'text-white/60' : 'text-white/30'}`}
                 title={lastMessage}
                 data-testid="execution-last-message"
               >

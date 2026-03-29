@@ -41,6 +41,9 @@ export class ODS implements IODS {
       case 'start-node':
         return this.handleStartNode(request, ctx, reality);
 
+      case 'error-node':
+        return this.handleErrorNode(request);
+
       case 'no-action':
         return { ok: true, request };
 
@@ -164,6 +167,17 @@ export class ODS implements IODS {
       });
 
     return { ok: true, request, newStatus: 'starting', sessionId: pod.sessionId };
+  }
+
+  /** Handle error-node: transition node to blocked-error with the given error. */
+  private handleErrorNode(
+    request: OrchestrationRequest & { type: 'error-node'; error: { code: string; message: string } }
+  ): OrchestrationExecuteResult {
+    this.pendingErrors.set(request.nodeId, {
+      code: request.error.code,
+      message: request.error.message,
+    });
+    return { ok: true, request, newStatus: 'blocked-error' };
   }
 
   private async buildPodParams(
