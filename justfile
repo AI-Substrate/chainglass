@@ -358,9 +358,9 @@ preflight:
         echo "    Fix: just dev"
         PASS=false
     else
-        SERVER_PID=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync('$SERVER_JSON','utf8')).pid)}catch{console.log('')}" 2>/dev/null)
+        SERVER_PID=$(FORCE_COLOR=0 node -e "try{console.log(JSON.parse(require('fs').readFileSync('$SERVER_JSON','utf8')).pid)}catch{console.log('')}" 2>/dev/null)
         if [ -n "$SERVER_PID" ] && kill -0 "$SERVER_PID" 2>/dev/null; then
-            SERVER_PORT=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync('$SERVER_JSON','utf8')).port)}catch{console.log('?')}" 2>/dev/null)
+            SERVER_PORT=$(FORCE_COLOR=0 node -e "try{console.log(JSON.parse(require('fs').readFileSync('$SERVER_JSON','utf8')).port)}catch{console.log('?')}" 2>/dev/null)
             echo "  ✓ Dev server running (PID $SERVER_PID, port $SERVER_PORT)"
         else
             echo "  ✗ Dev server not running: server.json exists but PID $SERVER_PID is dead"
