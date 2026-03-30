@@ -45,6 +45,7 @@ import {
 } from '../../../../app/actions/workflow-actions';
 import { deriveButtonState } from '../../074-workflow-execution/execution-button-state';
 import { useWorkflowExecution } from '../../074-workflow-execution/hooks/use-workflow-execution';
+import { WorkflowSSEConnector } from '../../074-workflow-execution/components/workflow-sse-connector';
 import { useUndoRedo } from '../hooks/use-undo-redo';
 import { useWorkflowMutations } from '../hooks/use-workflow-mutations';
 import { useWorkflowSSE } from '../hooks/use-workflow-sse';
@@ -310,6 +311,7 @@ export function WorkflowEditor({
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
+      <WorkflowSSEConnector />
       {/* biome-ignore lint/a11y/noNoninteractiveTabindex: keyboard delete needs focus */}
       <div onKeyDown={handleKeyDown} tabIndex={0} className="h-full outline-none">
         <WorkflowEditorLayout
