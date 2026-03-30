@@ -57,6 +57,8 @@ function handleNodeRestart(ctx: HandlerContext): void {
   // builder maps to ready, ONBAS returns start-node, ODS executes.
   ctx.node.status = 'restart-pending';
   ctx.node.pending_question_id = undefined;
+  // FX003: Reset started_at so STUCK_STARTING detection counts from restart, not original start
+  ctx.node.started_at = undefined;
   ctx.stamp('restart-initiated');
 }
 
