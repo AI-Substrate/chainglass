@@ -1,91 +1,14 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Mobile UX Audit Report",
-  "description": "Structured assessment of mobile viewport experience, focused on terminal view and overall responsive design quality.",
+  "description": "Structured assessment of mobile viewport experience. Include per-page findings, screenshots, prioritized fixes, and retrospective.",
   "type": "object",
-  "required": ["pages", "terminalDeepDive", "consoleErrors", "topFixes", "verdict", "retrospective"],
+  "required": ["summary", "retrospective"],
   "additionalProperties": true,
   "properties": {
-    "pages": {
-      "type": "array",
-      "description": "Per-page mobile UX assessments.",
-      "minItems": 1,
-      "items": {
-        "type": "object",
-        "required": ["page", "route", "severity", "issues"],
-        "additionalProperties": true,
-        "properties": {
-          "page": { "type": "string", "description": "Page name (e.g., 'Homepage', 'Terminal', 'Workflows')." },
-          "route": { "type": "string", "description": "URL path assessed." },
-          "severity": { "type": "string", "enum": ["good", "minor", "major", "critical"], "description": "Overall mobile UX severity for this page." },
-          "screenshotPath": { "type": "string", "description": "Path to the screenshot evidence." },
-          "issues": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "required": ["issue", "severity"],
-              "additionalProperties": true,
-              "properties": {
-                "issue": { "type": "string" },
-                "severity": { "type": "string", "enum": ["minor", "major", "critical"] },
-                "suggestion": { "type": "string" }
-              }
-            }
-          }
-        }
-      }
-    },
-    "terminalDeepDive": {
-      "type": "object",
-      "description": "Detailed assessment of the terminal view on mobile.",
-      "required": ["screenSpacePercent", "readability", "interactivity", "overallVerdict"],
-      "additionalProperties": true,
-      "properties": {
-        "screenSpacePercent": { "type": "number", "description": "Estimated percentage of mobile screen the terminal occupies." },
-        "readability": { "type": "string", "description": "Assessment of text readability at mobile sizes." },
-        "interactivity": { "type": "string", "description": "Can the terminal be scrolled, resized, collapsed?" },
-        "overallVerdict": { "type": "string", "description": "Summary verdict on terminal mobile experience." },
-        "proposedChanges": {
-          "type": "array",
-          "items": { "type": "string" },
-          "description": "Specific CSS/layout/component changes to improve terminal on mobile."
-        }
-      }
-    },
-    "consoleErrors": {
-      "type": "array",
-      "description": "Browser console errors found during mobile assessment.",
-      "items": {
-        "type": "object",
-        "additionalProperties": true,
-        "properties": {
-          "level": { "type": "string" },
-          "message": { "type": "string" }
-        }
-      }
-    },
-    "topFixes": {
-      "type": "array",
-      "description": "Top 3 prioritized fixes that would most improve mobile UX.",
-      "minItems": 1,
-      "maxItems": 5,
-      "items": {
-        "type": "object",
-        "required": ["priority", "title", "description"],
-        "additionalProperties": true,
-        "properties": {
-          "priority": { "type": "integer", "minimum": 1 },
-          "title": { "type": "string" },
-          "description": { "type": "string" },
-          "effort": { "type": "string", "description": "Estimated effort: small, medium, large." },
-          "impact": { "type": "string", "description": "Expected impact: low, medium, high." }
-        }
-      }
-    },
-    "verdict": {
+    "summary": {
       "type": "string",
-      "enum": ["good", "needs-work", "poor", "unusable"],
-      "description": "Overall mobile UX verdict."
+      "description": "Executive summary of mobile UX findings."
     },
     "retrospective": {
       "type": "object",
