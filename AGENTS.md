@@ -451,18 +451,20 @@ just harness-cg wf create my-test                  # Create workflow inside cont
 just harness-cg wf show my-test --detailed         # Per-node status (auto-adds --json)
 just harness-cg unit list                          # List work units inside container
 
-# Agent Runner (Plan 070)
-just harness agent run <slug>              # Execute an agent definition
-just harness agent run <slug> --model gpt-5.4  # With model selection
-just harness agent run <slug> --param key=value  # Pass input parameters
-just harness agent list                    # List available agents
-just harness agent history <slug>          # Show past runs
-just harness agent validate <slug>         # Re-validate most recent output
+# Agent Runner (minih)
+just agent-list                            # List available agents
+just agent-doctor                          # Validate agent conventions
+just agent-dry-run <slug>                  # Preview assembled prompt (no API call)
+just smoke-test-agent                      # Run smoke-test agent
+just code-review-agent <file_path>         # Code review with GPT-5.4 xhigh, 20min timeout
+just agent-tail <slug>                     # Follow running agent's event stream
+just agent-history <slug>                  # Show past runs
+just agent-last-run <slug>                 # Latest run path + report
+just agent-validate <slug>                 # Re-validate latest output
+just agent-resume <slug> "message"         # Follow up on a completed session
 
 # Code Review Agent — auto-run after /plan-6-v2-implement-phase
 just code-review-agent <file_path>         # Shorthand for code-review with GPT-5.4 xhigh, 20min timeout
-
-# Standalone harness deps (first time only)
 just harness-install        # Install harness node_modules
 ```
 

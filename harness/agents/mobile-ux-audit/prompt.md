@@ -1,3 +1,8 @@
+---
+description: Evaluate mobile UX of the Chainglass web app — terminal view, layout, responsiveness
+tags: [ux, mobile, audit]
+---
+
 # Mobile UX Audit Agent
 
 ## Objective

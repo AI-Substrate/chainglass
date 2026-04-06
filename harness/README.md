@@ -19,12 +19,12 @@ just harness dev
 # Verify everything is healthy
 just harness doctor --wait
 
-# Run the smoke-test agent
+# Run the smoke-test agent (uses minih runner)
 export GH_TOKEN=$(gh auth token)
-just harness agent run smoke-test
+just smoke-test-agent
 
 # Tail agent output in another terminal
-just harness agent tail smoke-test
+just agent-tail smoke-test
 ```
 
 ## Architecture
@@ -47,7 +47,7 @@ just harness agent tail smoke-test
 │                                                    │
 │  • health / doctor    — probe services            │
 │  • screenshot / test  — browser automation        │
-│  • agent run / tail   — execute AI agents         │
+│  • minih agents      — declarative AI agents      │
 │  • seed               — create test workspaces    │
 └──────────────────────────────────────────────────┘
 ```
@@ -102,12 +102,16 @@ All commands return structured JSON: `{command, status, data?, error?}`
 | `just harness screenshot-all <name>` | Screenshots at all viewports. Options: `--viewports`, `--url`, `--wait-until`, `--timeout`, `--delay` |
 | `just harness console-logs` | Capture browser console logs. Options: `--filter`, `--url`, `--wait`, `--wait-until`, `--timeout` |
 | `just harness results` | List captured results |
-| `just harness agent run <slug>` | Execute an agent definition |
-| `just harness agent run <slug> --model gpt-5.4` | With model selection |
-| `just harness agent list` | List available agents |
-| `just harness agent history <slug>` | Show past runs |
-| `just harness agent validate <slug>` | Re-validate most recent output |
-| `just harness agent tail <slug>` | Follow running agent's event stream |
+| `just agent-list` | List available agents (via minih) |
+| `just agent-doctor` | Validate agent conventions (via minih) |
+| `just agent-dry-run <slug>` | Preview assembled prompt without executing |
+| `just smoke-test-agent` | Run smoke-test agent |
+| `just code-review-agent <path>` | Code review with GPT-5.4 xhigh, 20min timeout |
+| `just agent-tail <slug>` | Follow running agent's event stream |
+| `just agent-history <slug>` | Show past runs |
+| `just agent-last-run <slug>` | Latest run path + report |
+| `just agent-validate <slug>` | Re-validate latest output |
+| `just agent-resume <slug> "msg"` | Follow up on a completed session |
 | `just test-data create env` | Create complete test environment (units + template + workflow) |
 | `just test-data create units` | Create 3 test work units (idempotent) |
 | `just test-data create template` | Build workflow template from test units |
@@ -255,7 +259,9 @@ Agents can declare required input parameters via `input-schema.json` (JSON Schem
 Pass parameters via the CLI with repeatable `--param` flags:
 
 ```bash
-just harness agent run code-review --param file_path=/abs/path/to/file.ts
+just code-review-agent /abs/path/to/file.ts
+# or directly:
+minih run code-review --agents-dir harness/agents --param file_path=/abs/path/to/file.ts
 ```
 
 Example `input-schema.json`:
@@ -283,20 +289,22 @@ Example `input-schema.json`:
 
 ### Creating a New Agent
 
-1. Create `agents/<your-slug>/`
-2. Add `prompt.md` — the mission brief that frames the agent's task
+1. Scaffold with minih: `minih init <your-slug> --agents-dir harness/agents`
+2. Edit `prompt.md` — add YAML frontmatter with `description` and `tags`
    - **MUST** include a Retrospective section (see `agents/smoke-test/prompt.md` for the template)
    - Ask: what worked, what was confusing, magic wand, improvement suggestions
-3. Add `instructions.md` — agent identity and agent-specific rules only
+3. Edit `instructions.md` — agent identity and agent-specific rules only
    - Common boilerplate (orientation, CLI reference, output rules, git commands, feedback philosophy) is auto-injected via `agents/_shared/preamble.md` — do NOT duplicate it
    - Focus on what makes THIS agent different from others
 4. Add `input-schema.json` (optional) — JSON Schema for input parameters the agent requires
    - Parameters are validated before execution and injected into the prompt
    - Pass at runtime with `--param key=value`
-5. Add `output-schema.json` — JSON Schema (Draft 2020-12) for the expected output
-   - **MUST** include `retrospective` object with `magicWand` as a **required** field
+5. Edit `output-schema.json` — JSON Schema (Draft 2020-12) for the expected output
+   - **MUST** include `summary` (string) and `retrospective` object with `magicWand` as a **required** field
    - Copy the retrospective schema from `agents/smoke-test/output-schema.json`
-5. Run: `just harness agent run <your-slug>`
+6. Validate: `just agent-doctor`
+7. Preview: `just agent-dry-run <your-slug>`
+8. Run: `just smoke-test-agent` (or `minih run <slug> --agents-dir harness/agents`)
 
 ### Shared Preamble
 
@@ -470,10 +478,11 @@ just agent-last-run code-review
 cat $(just agent-report code-review) | jq .
 
 # Other agents
-just harness agent list                    # See available agents
-just harness agent run <slug>              # Run an agent
-just harness agent tail <slug>             # Live event stream
-just harness agent history <slug>          # Past runs
+just agent-list                            # See available agents
+just agent-dry-run <slug>                  # Preview prompt (no API call)
+just agent-tail <slug>                     # Live event stream
+just agent-history <slug>                  # Past runs
+just agent-resume <slug> "follow up"       # Continue a session
 ```
 
 ## Related Documentation

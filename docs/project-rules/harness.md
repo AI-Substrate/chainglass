@@ -102,10 +102,15 @@ All commands return `{command, status, data?, error?}` JSON to stdout.
 | `just harness results` | Read latest test results |
 | `just harness seed` | Create test workspace + worktrees |
 | `just harness ports` | Show port allocation |
-| `just harness agent run <slug>` | Execute an agent definition (Plan 070) |
-| `just harness agent list` | List available agent definitions |
-| `just harness agent history <slug>` | Show past runs for an agent |
-| `just harness agent validate <slug>` | Re-validate most recent run output |
+| `just agent-list` | List available agent definitions (via minih) |
+| `just agent-doctor` | Validate all agent conventions |
+| `just agent-dry-run <slug>` | Preview assembled prompt without executing |
+| `just smoke-test-agent` | Run smoke-test agent |
+| `just code-review-agent <path>` | Code review with GPT-5.4 xhigh, 20min timeout |
+| `just agent-tail <slug>` | Follow running agent's event stream |
+| `just agent-history <slug>` | Show past runs for an agent |
+| `just agent-validate <slug>` | Re-validate most recent run output |
+| `just agent-resume <slug> "msg"` | Follow up on a completed session |
 | `just harness-cg <args>` | Run any `cg` CLI command inside the container (auto-adds `--json` + `--workspace-path` + `--server-url`) |
 | `just harness workflow run [--server]` | Run workflow with assertions + envelope (automated testing) |
 | `just harness workflow status [--server]` | Node-level workflow status |
@@ -269,17 +274,20 @@ harness/agents/smoke-test/
 # Set GitHub token (required for Copilot SDK)
 export GH_TOKEN=$(gh auth token)
 
-# Boot harness if not running
+# Boot harness if not running (needed for Docker-dependent agents)
 just harness dev
 
 # Execute the agent
-just harness agent run smoke-test
+just smoke-test-agent
+
+# Preview prompt without executing
+just agent-dry-run smoke-test
 
 # Re-validate after schema changes
-just harness agent validate smoke-test
+just agent-validate smoke-test
 
 # View run history
-just harness agent history smoke-test
+just agent-history smoke-test
 ```
 
 **What the smoke-test does**: Health check → 3-viewport screenshots → console error check via CDP → server log review → structured report → honest retrospective (UX audit of the harness).
@@ -309,7 +317,10 @@ See `harness/agents/smoke-test/` as the reference implementation.
 
 ### Creating New Agents
 
-1. Create `harness/agents/<slug>/prompt.md` (required)
-2. Optionally add `output-schema.json` (JSON Schema for validation)
-3. Optionally add `instructions.md` (agent-specific rules)
-4. Run with `just harness agent run <slug>`
+1. Scaffold: `minih init <slug> --agents-dir harness/agents`
+2. Edit `prompt.md` — add YAML frontmatter (`description`, `tags`) and task prompt
+3. Optionally edit `output-schema.json` (JSON Schema for validation)
+4. Optionally edit `instructions.md` (agent-specific rules)
+5. Validate: `just agent-doctor`
+6. Preview: `just agent-dry-run <slug>`
+7. Run: `minih run <slug> --agents-dir harness/agents`

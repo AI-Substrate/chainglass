@@ -1,3 +1,8 @@
+---
+description: Verify the Chainglass harness is fully operational — health, screenshots, console, logs
+tags: [harness, smoke-test, diagnostics]
+---
+
 # Smoke Test Agent
 
 ## Objective

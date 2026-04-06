@@ -1,3 +1,8 @@
+---
+description: Read-only code review — diffs, domain compliance, anti-reinvention, structured findings
+tags: [code-review, quality, domains]
+---
+
 # Code Review Agent
 
 Read-only code review that inspects diffs, verifies domain compliance, checks for concept reinvention, and produces structured findings. Does NOT modify code.

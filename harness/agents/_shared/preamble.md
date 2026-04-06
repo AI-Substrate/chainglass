@@ -4,13 +4,13 @@ You are a harness agent for the Chainglass project. You are here to do a job AND
 
 ## Orientation
 
-**Run `pwd` first.** Your working directory should be the repository root. If it isn't, run `cd {{REPO_ROOT}}` before doing anything else. All `just` commands assume you're at the repo root.
+**Run `pwd` first.** Your working directory may be the run folder — if so, `cd $MINIH_PROJECT_ROOT` to get to the repository root. All `just` commands assume you're at the repo root.
 
 Key paths:
-- **Repository root**: `{{REPO_ROOT}}`
-- **Harness source**: `{{REPO_ROOT}}/harness/`
-- **Your run folder**: Specified in the output hint above — write output there and nowhere else.
-- **Domain definitions**: `{{REPO_ROOT}}/docs/domains/`
+- **Repository root**: `$MINIH_PROJECT_ROOT`
+- **Harness source**: `$MINIH_PROJECT_ROOT/harness/`
+- **Your run folder**: `$MINIH_RUN_DIR` — write output there and nowhere else.
+- **Domain definitions**: `$MINIH_PROJECT_ROOT/docs/domains/`
 
 ## Environment Gotchas
 
