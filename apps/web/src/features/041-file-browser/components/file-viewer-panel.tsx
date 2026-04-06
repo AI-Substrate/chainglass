@@ -421,6 +421,12 @@ function BinaryFileView({
 }) {
   const filename = filePath.split('/').pop() ?? filePath;
   const { category } = detectContentType(filename);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const handleRefresh = () => {
+    setRefreshKey((k) => k + 1);
+    onRefresh();
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -429,7 +435,7 @@ function BinaryFileView({
           <span className="text-xs text-muted-foreground">Preview</span>
           <button
             type="button"
-            onClick={onRefresh}
+            onClick={handleRefresh}
             className="rounded p-1 text-muted-foreground hover:text-foreground"
             aria-label="Refresh file"
           >
@@ -438,14 +444,26 @@ function BinaryFileView({
         </div>
       </div>
       <div className="flex-1 flex flex-col min-h-0">
-        {category === 'image' && <ImageViewer src={rawFileUrl} alt={filename} />}
-        {category === 'pdf' && <PdfViewer src={rawFileUrl} />}
+        {category === 'image' && <ImageViewer key={refreshKey} src={rawFileUrl} alt={filename} />}
+        {category === 'pdf' && <PdfViewer key={refreshKey} src={rawFileUrl} />}
         {category === 'html' && (
-          <HtmlViewer src={rawFileUrl} currentFilePath={filePath} rawFileBaseUrl={rawFileBaseUrl} />
+          <HtmlViewer
+            key={refreshKey}
+            src={rawFileUrl}
+            currentFilePath={filePath}
+            rawFileBaseUrl={rawFileBaseUrl}
+          />
         )}
-        {category === 'video' && <VideoViewer src={rawFileUrl} mimeType={contentType} />}
+        {category === 'video' && (
+          <VideoViewer key={refreshKey} src={rawFileUrl} mimeType={contentType} />
+        )}
         {category === 'audio' && (
-          <AudioViewer src={rawFileUrl} mimeType={contentType} filename={filename} />
+          <AudioViewer
+            key={refreshKey}
+            src={rawFileUrl}
+            mimeType={contentType}
+            filename={filename}
+          />
         )}
         {category === 'binary' && (
           <BinaryPlaceholder

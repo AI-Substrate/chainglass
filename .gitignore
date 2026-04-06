@@ -187,3 +187,4 @@ harness/.cache/
 
 # Generated icon assets (Plan 073) — rebuilt by scripts/generate-icon-assets.ts
 apps/web/public/icons/
+.playwright-mcp/
