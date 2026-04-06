@@ -145,10 +145,14 @@ export function NodePropertiesPanel({
             Started: {new Date(node.startedAt).toLocaleTimeString()}
             {node.completedAt ? (
               <span> · Completed: {new Date(node.completedAt).toLocaleTimeString()}</span>
-            ) : (node.status === 'starting' || node.status === 'agent-accepted') ? (
-              <span className={`${Math.round((Date.now() - new Date(node.startedAt).getTime()) / 1000) > 30 ? 'text-amber-500 font-medium' : ''}`}>
-                {' '}· {Math.round((Date.now() - new Date(node.startedAt).getTime()) / 1000)}s elapsed
-                {Math.round((Date.now() - new Date(node.startedAt).getTime()) / 1000) > 60 && ' (may be stuck)'}
+            ) : node.status === 'starting' || node.status === 'agent-accepted' ? (
+              <span
+                className={`${Math.round((Date.now() - new Date(node.startedAt).getTime()) / 1000) > 30 ? 'text-amber-500 font-medium' : ''}`}
+              >
+                {' '}
+                · {Math.round((Date.now() - new Date(node.startedAt).getTime()) / 1000)}s elapsed
+                {Math.round((Date.now() - new Date(node.startedAt).getTime()) / 1000) > 60 &&
+                  ' (may be stuck)'}
               </span>
             ) : null}
           </div>

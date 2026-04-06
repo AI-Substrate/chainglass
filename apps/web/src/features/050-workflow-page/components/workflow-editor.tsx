@@ -43,9 +43,9 @@ import {
   submitUserInput as submitUserInputAction,
   updateNodeConfig as updateNodeConfigAction,
 } from '../../../../app/actions/workflow-actions';
+import { WorkflowSSEConnector } from '../../074-workflow-execution/components/workflow-sse-connector';
 import { deriveButtonState } from '../../074-workflow-execution/execution-button-state';
 import { useWorkflowExecution } from '../../074-workflow-execution/hooks/use-workflow-execution';
-import { WorkflowSSEConnector } from '../../074-workflow-execution/components/workflow-sse-connector';
 import { useUndoRedo } from '../hooks/use-undo-redo';
 import { useWorkflowMutations } from '../hooks/use-workflow-mutations';
 import { useWorkflowSSE } from '../hooks/use-workflow-sse';

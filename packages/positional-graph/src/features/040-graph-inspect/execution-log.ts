@@ -53,13 +53,9 @@ export async function buildExecutionLog(
 
       // Count statuses
       if (nodeStatus.status === 'blocked-error') failedCount++;
-      else if (
-        nodeStatus.status === 'starting' ||
-        nodeStatus.status === 'agent-accepted'
-      )
+      else if (nodeStatus.status === 'starting' || nodeStatus.status === 'agent-accepted')
         runningCount++;
-      else if (nodeStatus.status === 'pending' || nodeStatus.status === 'ready')
-        pendingCount++;
+      else if (nodeStatus.status === 'pending' || nodeStatus.status === 'ready') pendingCount++;
 
       // Build timeline entries from node events
       const nodeTimeline: TimelineEntry[] = [];
@@ -204,7 +200,14 @@ export async function buildExecutionLog(
 
 function loadPodSessions(worktreePath: string, graphSlug: string): Record<string, string> {
   try {
-    const path = join(worktreePath, '.chainglass', 'data', 'workflows', graphSlug, 'pod-sessions.json');
+    const path = join(
+      worktreePath,
+      '.chainglass',
+      'data',
+      'workflows',
+      graphSlug,
+      'pod-sessions.json'
+    );
     if (!existsSync(path)) return {};
     const raw = readFileSync(path, 'utf-8');
     const parsed = JSON.parse(raw);
@@ -273,7 +276,17 @@ function summarizeOutput(value: unknown): unknown {
 /** Build automatic diagnostics from node state. */
 function buildDiagnostics(
   nodes: Record<string, NodeLog>,
-  status: { status: string; lines: Array<{ nodes: Array<{ readyDetail: { inputsAvailable: boolean; unitFound: boolean }; inputPack: { inputs: Record<string, { status: string; detail: { code?: string; inputName?: string } }> } }> }> },
+  status: {
+    status: string;
+    lines: Array<{
+      nodes: Array<{
+        readyDetail: { inputsAvailable: boolean; unitFound: boolean };
+        inputPack: {
+          inputs: Record<string, { status: string; detail: { code?: string; inputName?: string } }>;
+        };
+      }>;
+    }>;
+  },
   worktreePath: string,
   graphSlug: string
 ): Diagnostic[] {
@@ -291,7 +304,7 @@ function buildDiagnostics(
           nodeId,
           code: 'STUCK_STARTING',
           message: `${node.unitSlug} started ${elapsedStr} ago with no accept event — agent may have failed silently`,
-          fix: 'Check agent adapter (is GH_TOKEN set?). Check server logs for pod errors. Try: just wf-restart ' + graphSlug,
+          fix: `Check agent adapter (is GH_TOKEN set?). Check server logs for pod errors. Try: just wf-restart ${graphSlug}`,
         });
       }
     }
@@ -338,7 +351,14 @@ function buildDiagnostics(
 
   // STALE_LOCK: check for drive.lock with dead PID
   try {
-    const lockPath = join(worktreePath, '.chainglass', 'data', 'workflows', graphSlug, 'drive.lock');
+    const lockPath = join(
+      worktreePath,
+      '.chainglass',
+      'data',
+      'workflows',
+      graphSlug,
+      'drive.lock'
+    );
     if (existsSync(lockPath)) {
       const lockContent = readFileSync(lockPath, 'utf-8').trim();
       const lockPid = Number.parseInt(lockContent, 10);

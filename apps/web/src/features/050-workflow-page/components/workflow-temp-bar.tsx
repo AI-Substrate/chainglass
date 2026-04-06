@@ -91,7 +91,10 @@ export function WorkflowTempBar({
   onRestart,
 }: WorkflowTempBarProps) {
   const showStatus = executionStatus !== 'idle' && !hydrating;
-  const isTerminalStatus = executionStatus === 'failed' || executionStatus === 'completed' || executionStatus === 'stopped';
+  const isTerminalStatus =
+    executionStatus === 'failed' ||
+    executionStatus === 'completed' ||
+    executionStatus === 'stopped';
 
   return (
     <div

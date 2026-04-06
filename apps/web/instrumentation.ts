@@ -32,7 +32,10 @@ export async function register() {
 
     // Plan 067: Write server.json for CLI port discovery (HMR-safe)
     // FX003: Skip in container — host bind-mount causes file conflict
-    if (!globalForEventPopper.__eventPopperServerInfoWritten && process.env.CHAINGLASS_CONTAINER !== 'true') {
+    if (
+      !globalForEventPopper.__eventPopperServerInfoWritten &&
+      process.env.CHAINGLASS_CONTAINER !== 'true'
+    ) {
       globalForEventPopper.__eventPopperServerInfoWritten = true;
 
       const { writeServerInfo, removeServerInfo } = await import('@chainglass/shared/event-popper');

@@ -1,7 +1,7 @@
 # Fix FX002: Unified Workflow Execution Logs
 
 **Created**: 2026-03-26
-**Status**: Proposed
+**Status**: Complete
 **Plan**: [harness-workflow-runner-plan.md](../harness-workflow-runner-plan.md)
 **Source**: Workshop 012 — unified execution logs design
 **Domain(s)**: _platform/positional-graph, workflow-ui, _(harness)_, docs

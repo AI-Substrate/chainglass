@@ -149,8 +149,9 @@ function diagnoseStuckLine(reality: PositionalGraphReality, line: LineReality): 
     switch (node.status) {
       case 'starting': {
         // Stuck-starting nodes should not count as "running" — they're about to be errored
-        const isStuck = node.startedAt &&
-          (Date.now() - new Date(node.startedAt).getTime()) > STUCK_STARTING_THRESHOLD_MS;
+        const isStuck =
+          node.startedAt &&
+          Date.now() - new Date(node.startedAt).getTime() > STUCK_STARTING_THRESHOLD_MS;
         if (!isStuck) hasRunning = true;
         else hasBlocked = true;
         break;
