@@ -1,5 +1,6 @@
 'use client';
 
+import { usePageTitle } from '@/features/041-file-browser/hooks/use-page-title';
 import Link from 'next/link';
 import { useState } from 'react';
 import { UnitCreationModal } from './unit-creation-modal';
@@ -36,6 +37,7 @@ const TYPE_LABELS: Record<string, { label: string; color: string }> = {
  * Click navigates to editor. Server Component loads data, this renders.
  */
 export function UnitList({ workspaceSlug, units, worktreePath }: UnitListProps) {
+  usePageTitle('Work Units');
   const [showCreate, setShowCreate] = useState(false);
 
   // Group by type

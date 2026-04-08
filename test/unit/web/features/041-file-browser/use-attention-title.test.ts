@@ -36,12 +36,12 @@ describe('useAttentionTitle', () => {
     expect(document.title).toBe('🔮 Browser');
   });
 
-  it('uses first letter fallback when emoji is empty', () => {
+  it('uses first two letters fallback when emoji is empty', () => {
     renderHook(() =>
       useAttentionTitle({ emoji: '', pageName: 'Browser', workspaceName: 'substrate' })
     );
 
-    expect(document.title).toBe('S Browser');
+    expect(document.title).toBe('SU Browser');
   });
 
   it('prepends attention indicator when needsAttention is true', () => {

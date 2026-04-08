@@ -372,7 +372,6 @@ function BrowserClientInner({
         pageTitle: 'Browser',
       });
     }
-    return () => wsCtx?.setWorktreeIdentity(null);
   }, [worktreePath, worktreeBranch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // --- Live file events (Plan 045) ---

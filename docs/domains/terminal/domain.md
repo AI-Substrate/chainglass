@@ -47,3 +47,5 @@ activity-log depends on terminal as an event source (terminal sidecar polls tmux
 | 065 Phase 2 | getPaneTitles() multi-pane method, activity log integration, pane title badge removal | 2026-03-06 |
 | 064 Phase 5 | tmux fallback toast, domain docs, dev setup guide | 2026-03-03 |
 | 065 Phase 3 | Added overlay:close-all mutual exclusion to TerminalOverlayProvider | 2026-03-06 |
+| Plan 078 | Removed copilot status bar and window badges from overlay panel | 2026-04-08 |
+| Plan 079 | TerminalPageClient sets worktreeIdentity with pageTitle 'Terminal' for tab title | 2026-04-08 |

@@ -4,8 +4,10 @@
  * WorkflowListClient — Client wrapper for workflow list page with naming modals.
  *
  * Phase 3: Drag-and-Drop + Persistence — Plan 050
+ * Plan 079: usePageTitle for tab title
  */
 
+import { usePageTitle } from '@/features/041-file-browser/hooks/use-page-title';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { createWorkflow } from '../../../../app/actions/workflow-actions';
@@ -20,6 +22,7 @@ export interface WorkflowListClientProps {
 }
 
 export function WorkflowListClient({ slug, workflows, worktreePath }: WorkflowListClientProps) {
+  usePageTitle('Workflows');
   const [showNewBlank, setShowNewBlank] = useState(false);
   const router = useRouter();
   const wtParam = worktreePath ? `?worktree=${encodeURIComponent(worktreePath)}` : '';
