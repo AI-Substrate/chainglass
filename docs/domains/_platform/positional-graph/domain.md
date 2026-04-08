@@ -60,6 +60,16 @@ Core graph engine that powers the line-based workflow execution system. Owns the
 | `POSITIONAL_GRAPH_DI_TOKENS` | Constants | CLI, web, tests | DI token namespace (defined in @chainglass/shared) |
 | `ORCHESTRATION_DI_TOKENS` | Constants | CLI, tests | DI token namespace for orchestration services |
 
+## Concepts
+
+| Concept | Entry Point | What It Does |
+|---------|-------------|--------------|
+| Cooperative drive stop | `IGraphOrchestration.drive(options.signal)` | Exits with `'stopped'` when an AbortSignal fires; checks at iteration boundary and during sleep |
+| Interrupted node status | `ExecutionStatus`, `ONBAS.visitNode()` | Marks stop-interrupted nodes as recoverable; ONBAS skips them during execution, resume resets to 'ready' |
+| Compound orchestration handle key | `OrchestrationService.get(ctx, graphSlug)` | Isolates handles by `worktreePath\|graphSlug` for multi-worktree safety |
+| Per-handle PodManager/ODS | `OrchestrationServiceDeps.createPerHandleDeps` | Each graph handle gets its own PodManager + ODS to prevent concurrent corruption |
+| Abortable sleep | `abortableSleep(ms, signal)` | Signal-aware delay using `node:timers/promises` — rejects immediately on abort |
+
 ## Composition (Internal)
 
 | Component | Role | Depends On |
@@ -67,8 +77,8 @@ Core graph engine that powers the line-based workflow execution system. Owns the
 | `PositionalGraphService` | Core engine — graph CRUD, status, state, lifecycle | PositionalGraphAdapter, IFileSystem, IPathResolver, IYamlParser |
 | `PositionalGraphAdapter` | Filesystem persistence — load/save graph definitions | IFileSystem, IPathResolver |
 | `InputResolution` | Resolve node inputs from various sources | PositionalGraphService (state reads) |
-| `OrchestrationService` | Factory for per-graph orchestration handles | PositionalGraphService, ODS, ONBAS, PodManager |
-| `GraphOrchestration` | Per-graph orchestration loop (settle→decide→act) | PositionalGraphService, EventHandlerService, ONBAS, ODS |
+| `OrchestrationService` | Factory for per-graph orchestration handles | PositionalGraphService, ONBAS, EHS, createPerHandleDeps factory |
+| `GraphOrchestration` | Per-graph orchestration loop (settle→decide→act), abort-aware | PositionalGraphService, EventHandlerService, ONBAS, ODS, abortableSleep |
 | `ODS` | Orchestration Dispatch — fire-and-forget launch | PodManager, AgentContext |
 | `ONBAS` | Next-Best-Action decisions — pure, stateless | Reality snapshot (read-only) |
 | `PodManager` | Pod lifecycle management | AgentPod, CodePod, ScriptRunner |
@@ -133,7 +143,7 @@ Primary: `packages/positional-graph/src/`
 | Consumer | What It Consumes | Notes |
 |----------|-----------------|-------|
 | CLI (`apps/cli/`) | `IPositionalGraphService`, `IOrchestrationService`, `IEventHandlerService`, `IWorkUnitService` | `cg wf` commands + `cg wf drive` handler |
-| Web UI (feature 022) | Via API routes that resolve graph services | workgraph-ui components (not yet a formalized domain) |
+| Web UI (workflow-ui) | `IPositionalGraphService`, `IOrchestrationService` via DI + REST API routes | Server actions + REST `/execution` and `/detailed` endpoints |
 | dev/test-graphs | `IPositionalGraphService` | Test fixture infrastructure |
 | Test suite | All interfaces | 80+ test files across unit/integration/e2e |
 
@@ -154,3 +164,10 @@ Primary: `packages/positional-graph/src/`
 | 048-P4 | E2E test migration + docs — template generation script, smoke + simple-serial templates, withTemplateWorkflow() helper, 5 e2e lifecycle tests, workflow-templates.md guide, README quick-start (Phase 4) | 2026-02-26 |
 | 050-P1 | FakePositionalGraphService, fakes barrel export, web DI registration (Phase 1) | 2026-02-26 |
 | 061-P3 | Removed PGService Q&A methods/types (askQuestion, answerQuestion, getAnswer); consumers migrated to workflow-events convenience API | 2026-03-01 |
+| 074-P1 | Orchestration contracts: AbortSignal in drive() with 'stopped' exit, 'interrupted' status in ExecutionStatus/ONBAS/Zod schemas, compound cache key (worktreePath\|slug), per-handle PodManager+ODS via factory | 2026-03-15 |
+| 074-P2 | Web DI + Execution Manager: de-aliased ORCHESTRATION_DI_TOKENS.AGENT_MANAGER, registered orchestration in web DI, added destroyAllPods/cleanup/evict/resetGraphState/markNodesInterrupted, created WorkflowExecutionManager singleton with start/stop/restart lifecycle, globalThis bootstrap in instrumentation.ts | 2026-03-15 |
+| 074-P3 | SSE + GlobalState plumbing: wired handleEvent→SSE broadcast at 6 transition points, added broadcastStatus/broadcastRemoval helpers, added SerializableExecutionStatus type, added getSerializableStatus(), injected sseManager.broadcast as dep, created 4 server actions (run/stop/restart/getStatus) | 2026-03-15 |
+| 074-P6 | CLI wrappers for `IWorkUnitService.update()` / `delete()`: `cg unit update` and `cg unit delete`, including --patch/--set/--add-input/--add-output/--inputs-json/--outputs-json flags. Added `cg template delete`. Fixed `create()` call signature to use `CreateUnitSpec` object. | 2026-03-16 |
+| 076-P1 | ODS pod error surfacing: pendingErrors queue + drive loop drain to node:error events. CLI --timeout with AbortSignal, filesystem lock for concurrent drive() prevention. SSE route error serialization fix. | 2026-03-17 |
+| 076-P2 | CLI telemetry: `cg wf show --detailed` (node-level status via getReality()), `cg wf run --json-events` (NDJSON DriveEvent output), GH_TOKEN pre-flight check | 2026-03-17 |
+| 076-P4-ST006 | Drive lock moved from CLI into `GraphOrchestration.drive()` — PID-based filesystem lock at `.chainglass/data/workflows/{slug}/drive.lock`. Both CLI and web paths protected by same engine lock. | 2026-03-22 |

@@ -19,6 +19,15 @@ export { isFileOutput } from './inspect.types.js';
 
 export { buildInspectResult } from './inspect.js';
 
+export type {
+  WorkflowExecutionLog,
+  TimelineEntry,
+  NodeLog,
+  Diagnostic,
+} from './execution-log.types.js';
+
+export { buildExecutionLog } from './execution-log.js';
+
 export {
   formatInspect,
   formatInspectNode,

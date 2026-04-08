@@ -26,3 +26,6 @@ export { TerminalSkeleton } from './components/terminal-skeleton';
 // Overlay (Phase 4)
 export { TerminalOverlayPanel } from './components/terminal-overlay-panel';
 export { TerminalOverlayProvider, useTerminalOverlay } from './hooks/use-terminal-overlay';
+
+// Utilities
+export { sanitizeSessionName } from './lib/sanitize-session-name';

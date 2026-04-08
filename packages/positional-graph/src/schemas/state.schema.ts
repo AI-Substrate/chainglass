@@ -21,6 +21,7 @@ export const NodeExecutionStatusSchema = z.enum([
   'waiting-question',
   'blocked-error',
   'restart-pending',
+  'interrupted',
   'complete',
 ]);
 export type NodeExecutionStatus = z.infer<typeof NodeExecutionStatusSchema>;

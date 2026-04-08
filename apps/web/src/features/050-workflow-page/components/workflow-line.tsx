@@ -11,6 +11,7 @@
 
 import type { LineStatusResult } from '@chainglass/positional-graph';
 import { useState } from 'react';
+import type { ManagerExecutionStatus } from '../../074-workflow-execution/workflow-execution-manager.types';
 import { ContextFlowIndicator } from './context-flow-indicator';
 import { DropZone } from './drop-zone';
 import { EmptyLinePlaceholder } from './empty-states';
@@ -22,6 +23,7 @@ export interface WorkflowLineProps {
   isDragging?: boolean;
   selectedNodeId?: string | null;
   relatedNodeIds?: Set<string>;
+  executionStatus?: ManagerExecutionStatus;
   onSelectNode?: (nodeId: string | null) => void;
   onDeleteNode?: (nodeId: string) => void;
   onSetLineLabel?: (lineId: string, label: string) => void;
@@ -36,7 +38,22 @@ function lineStateBorder(line: LineStatusResult): string {
   return 'border-l-muted-foreground/20';
 }
 
-function isLineEditable(line: LineStatusResult): boolean {
+/**
+ * Determine if a line is editable given its status and optional execution context.
+ *
+ * P4-DYK #5: Exported for testing.
+ * Phase 4: Extended with execution-aware locking.
+ *   - 'stopping': all lines locked (hard stop in progress)
+ *   - 'running'/'stopped': current logic (running+complete locked, future editable)
+ *   - 'idle'/undefined: current behavior (no execution context)
+ */
+export function isLineEditable(
+  line: LineStatusResult,
+  executionStatus?: ManagerExecutionStatus
+): boolean {
+  // During stopping, ALL lines are locked
+  if (executionStatus === 'stopping') return false;
+
   // Empty lines are always editable (trivially "complete" but need nodes added)
   if (line.nodes.length === 0) return true;
   return !line.complete && line.runningNodes.length === 0;
@@ -48,6 +65,7 @@ export function WorkflowLine({
   isDragging = false,
   selectedNodeId,
   relatedNodeIds,
+  executionStatus,
   onSelectNode,
   onDeleteNode,
   onSetLineLabel,
@@ -55,7 +73,7 @@ export function WorkflowLine({
   onQuestionClick,
 }: WorkflowLineProps) {
   const borderClass = lineStateBorder(line);
-  const editable = isLineEditable(line);
+  const editable = isLineEditable(line, executionStatus);
   const showDropZones = isDragging && editable;
   const hasDimming = selectedNodeId != null && relatedNodeIds != null;
   // Drop zones always rendered (for dnd-kit registration), isActive controls visibility

@@ -1,0 +1,8 @@
+id: test-agent-7bd
+unit_slug: test-agent
+created_at: 2026-03-23T22:15:31.211Z
+properties: {}
+orchestratorSettings:
+  execution: serial
+  waitForPrevious: true
+  noContext: false

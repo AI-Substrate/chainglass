@@ -248,6 +248,8 @@ export default function TerminalInner({
       const ctrl = event.ctrlKey && !event.metaKey;
       if (ctrl && (event.key === 'v' || event.key === 'V')) return false;
       if (ctrl && event.shiftKey && (event.key === 'c' || event.key === 'C')) return false;
+      // Shift+Escape is the global close shortcut — never send to terminal
+      if (event.shiftKey && event.key === 'Escape') return false;
       return true;
     });
 

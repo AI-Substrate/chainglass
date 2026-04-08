@@ -1,0 +1,1548 @@
+diff --git a/apps/web/src/features/050-workflow-page/components/workflow-canvas.tsx b/apps/web/src/features/050-workflow-page/components/workflow-canvas.tsx
+index d370bea8..292a2056 100644
+--- a/apps/web/src/features/050-workflow-page/components/workflow-canvas.tsx
++++ b/apps/web/src/features/050-workflow-page/components/workflow-canvas.tsx
+@@ -10,6 +10,7 @@
+  */
+ 
+ import type { GraphStatusResult } from '@chainglass/positional-graph';
++import type { ManagerExecutionStatus } from '../../074-workflow-execution/workflow-execution-manager.types';
+ import { EmptyCanvasPlaceholder } from './empty-states';
+ import { LineTransitionGate } from './line-transition-gate';
+ import { WorkflowLine } from './workflow-line';
+@@ -19,6 +20,7 @@ export interface WorkflowCanvasProps {
+   isDragging?: boolean;
+   selectedNodeId?: string | null;
+   relatedNodeIds?: Set<string>;
++  executionStatus?: ManagerExecutionStatus;
+   onSelectNode?: (nodeId: string | null) => void;
+   onDeleteNode?: (nodeId: string) => void;
+   onAddLine?: (label?: string) => void;
+@@ -32,6 +34,7 @@ export function WorkflowCanvas({
+   isDragging = false,
+   selectedNodeId,
+   relatedNodeIds,
++  executionStatus,
+   onSelectNode,
+   onDeleteNode,
+   onAddLine,
+@@ -79,6 +82,7 @@ export function WorkflowCanvas({
+             isDragging={isDragging}
+             selectedNodeId={selectedNodeId}
+             relatedNodeIds={relatedNodeIds}
++            executionStatus={executionStatus}
+             onSelectNode={onSelectNode}
+             onDeleteNode={onDeleteNode}
+             onSetLineLabel={onSetLineLabel}
+diff --git a/apps/web/src/features/050-workflow-page/components/workflow-editor.tsx b/apps/web/src/features/050-workflow-page/components/workflow-editor.tsx
+index d1a77843..d9b5bfe3 100644
+--- a/apps/web/src/features/050-workflow-page/components/workflow-editor.tsx
++++ b/apps/web/src/features/050-workflow-page/components/workflow-editor.tsx
+@@ -43,6 +43,8 @@ import {
+   submitUserInput as submitUserInputAction,
+   updateNodeConfig as updateNodeConfigAction,
+ } from '../../../../app/actions/workflow-actions';
++import { deriveButtonState } from '../../074-workflow-execution/execution-button-state';
++import { useWorkflowExecution } from '../../074-workflow-execution/hooks/use-workflow-execution';
+ import { useUndoRedo } from '../hooks/use-undo-redo';
+ import { useWorkflowMutations } from '../hooks/use-workflow-mutations';
+ import { useWorkflowSSE } from '../hooks/use-workflow-sse';
+@@ -127,6 +129,22 @@ export function WorkflowEditor({
+     onStatusUpdate: setGraphStatus,
+   });
+ 
++  // Workflow execution (Plan 074 Phase 4)
++  const execution = useWorkflowExecution({
++    workspaceSlug,
++    graphSlug,
++    worktreePath,
++  });
++  const buttonState = deriveButtonState(
++    execution.status,
++    execution.actionPending,
++    execution.hydrating
++  );
++  const isExecutionActive =
++    execution.status === 'starting' ||
++    execution.status === 'running' ||
++    execution.status === 'stopping';
++
+   // Undo/redo
+   const undoRedo = useUndoRedo({
+     onRestore: async (snapshot) => {
+@@ -293,8 +311,8 @@ export function WorkflowEditor({
+               templateSource={templateSource}
+               undoDepth={undoRedo.undoDepth}
+               redoDepth={undoRedo.redoDepth}
+-              canUndo={undoRedo.canUndo}
+-              canRedo={undoRedo.canRedo}
++              canUndo={undoRedo.canUndo && !isExecutionActive}
++              canRedo={undoRedo.canRedo && !isExecutionActive}
+               onUndo={async () => {
+                 const current = await loadCurrentSnapshot();
+                 await undoRedo.undo(current);
+@@ -303,6 +321,14 @@ export function WorkflowEditor({
+                 const current = await loadCurrentSnapshot();
+                 await undoRedo.redo(current);
+               }}
++              executionStatus={execution.status}
++              buttonState={execution.disabled ? undefined : buttonState}
++              iterations={execution.iterations}
++              lastMessage={execution.lastMessage}
++              hydrating={execution.hydrating}
++              onRun={execution.run}
++              onStop={execution.stop}
++              onRestart={execution.restart}
+             />
+           }
+           main={
+@@ -311,6 +337,7 @@ export function WorkflowEditor({
+               isDragging={isDragging}
+               selectedNodeId={selectedNodeId}
+               relatedNodeIds={relatedNodes?.relatedNodeIds}
++              executionStatus={execution.status}
+               onSelectNode={setSelectedNodeId}
+               onDeleteNode={handleDeleteNode}
+               onAddLine={async (label?: string) => {
+diff --git a/apps/web/src/features/050-workflow-page/components/workflow-line.tsx b/apps/web/src/features/050-workflow-page/components/workflow-line.tsx
+index 00a0cab1..bd7d45ec 100644
+--- a/apps/web/src/features/050-workflow-page/components/workflow-line.tsx
++++ b/apps/web/src/features/050-workflow-page/components/workflow-line.tsx
+@@ -11,6 +11,7 @@
+ 
+ import type { LineStatusResult } from '@chainglass/positional-graph';
+ import { useState } from 'react';
++import type { ManagerExecutionStatus } from '../../074-workflow-execution/workflow-execution-manager.types';
+ import { ContextFlowIndicator } from './context-flow-indicator';
+ import { DropZone } from './drop-zone';
+ import { EmptyLinePlaceholder } from './empty-states';
+@@ -22,6 +23,7 @@ export interface WorkflowLineProps {
+   isDragging?: boolean;
+   selectedNodeId?: string | null;
+   relatedNodeIds?: Set<string>;
++  executionStatus?: ManagerExecutionStatus;
+   onSelectNode?: (nodeId: string | null) => void;
+   onDeleteNode?: (nodeId: string) => void;
+   onSetLineLabel?: (lineId: string, label: string) => void;
+@@ -36,7 +38,22 @@ function lineStateBorder(line: LineStatusResult): string {
+   return 'border-l-muted-foreground/20';
+ }
+ 
+-function isLineEditable(line: LineStatusResult): boolean {
++/**
++ * Determine if a line is editable given its status and optional execution context.
++ *
++ * P4-DYK #5: Exported for testing.
++ * Phase 4: Extended with execution-aware locking.
++ *   - 'stopping': all lines locked (hard stop in progress)
++ *   - 'running'/'stopped': current logic (running+complete locked, future editable)
++ *   - 'idle'/undefined: current behavior (no execution context)
++ */
++export function isLineEditable(
++  line: LineStatusResult,
++  executionStatus?: ManagerExecutionStatus
++): boolean {
++  // During stopping, ALL lines are locked
++  if (executionStatus === 'stopping') return false;
++
+   // Empty lines are always editable (trivially "complete" but need nodes added)
+   if (line.nodes.length === 0) return true;
+   return !line.complete && line.runningNodes.length === 0;
+@@ -48,6 +65,7 @@ export function WorkflowLine({
+   isDragging = false,
+   selectedNodeId,
+   relatedNodeIds,
++  executionStatus,
+   onSelectNode,
+   onDeleteNode,
+   onSetLineLabel,
+@@ -55,7 +73,7 @@ export function WorkflowLine({
+   onQuestionClick,
+ }: WorkflowLineProps) {
+   const borderClass = lineStateBorder(line);
+-  const editable = isLineEditable(line);
++  const editable = isLineEditable(line, executionStatus);
+   const showDropZones = isDragging && editable;
+   const hasDimming = selectedNodeId != null && relatedNodeIds != null;
+   // Drop zones always rendered (for dnd-kit registration), isActive controls visibility
+diff --git a/apps/web/src/features/050-workflow-page/components/workflow-temp-bar.tsx b/apps/web/src/features/050-workflow-page/components/workflow-temp-bar.tsx
+index b48adff7..a217f591 100644
+--- a/apps/web/src/features/050-workflow-page/components/workflow-temp-bar.tsx
++++ b/apps/web/src/features/050-workflow-page/components/workflow-temp-bar.tsx
+@@ -3,12 +3,16 @@
+ /**
+  * WorkflowTempBar — Top bar for the workflow editor.
+  *
+- * Shows graph name, template/instance breadcrumb, undo/redo buttons, and placeholder Run button.
+- * Will be replaced by shared ExplorerBar domain in a future plan.
++ * Shows graph name, template/instance breadcrumb, undo/redo buttons,
++ * execution controls (Run/Stop/Restart), and live execution progress.
+  *
+  * Phase 2+5: Canvas Core + Layout, Undo/Redo — Plan 050
++ * Phase 4: Execution controls + progress — Plan 074
+  */
+ 
++import type { ExecutionButtonState } from '../../074-workflow-execution/execution-button-state';
++import type { ManagerExecutionStatus } from '../../074-workflow-execution/workflow-execution-manager.types';
++
+ export interface WorkflowTempBarProps {
+   graphSlug: string;
+   templateSource?: string;
+@@ -18,6 +22,54 @@ export interface WorkflowTempBarProps {
+   canRedo?: boolean;
+   onUndo?: () => void;
+   onRedo?: () => void;
++  // Execution controls (Plan 074 Phase 4)
++  executionStatus?: ManagerExecutionStatus;
++  buttonState?: ExecutionButtonState;
++  iterations?: number;
++  lastMessage?: string;
++  hydrating?: boolean;
++  onRun?: () => void;
++  onStop?: () => void;
++  onRestart?: () => void;
++}
++
++// Status badge styling
++function statusBadgeClass(status: ManagerExecutionStatus): string {
++  switch (status) {
++    case 'running':
++      return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
++    case 'starting':
++      return 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30';
++    case 'stopping':
++      return 'bg-orange-500/20 text-orange-300 border-orange-500/30';
++    case 'stopped':
++      return 'bg-gray-500/20 text-gray-300 border-gray-500/30';
++    case 'completed':
++      return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
++    case 'failed':
++      return 'bg-red-500/20 text-red-300 border-red-500/30';
++    default:
++      return '';
++  }
++}
++
++function statusLabel(status: ManagerExecutionStatus): string {
++  switch (status) {
++    case 'starting':
++      return 'Starting…';
++    case 'running':
++      return 'Running';
++    case 'stopping':
++      return 'Stopping…';
++    case 'stopped':
++      return 'Stopped';
++    case 'completed':
++      return 'Completed';
++    case 'failed':
++      return 'Failed';
++    default:
++      return '';
++  }
+ }
+ 
+ export function WorkflowTempBar({
+@@ -29,13 +81,23 @@ export function WorkflowTempBar({
+   canRedo = false,
+   onUndo,
+   onRedo,
++  executionStatus = 'idle',
++  buttonState,
++  iterations = 0,
++  lastMessage = '',
++  hydrating = false,
++  onRun,
++  onStop,
++  onRestart,
+ }: WorkflowTempBarProps) {
++  const showStatus = executionStatus !== 'idle' && !hydrating;
++
+   return (
+     <div
+       data-testid="workflow-temp-bar"
+       className="flex items-center justify-between px-6 py-3.5 rounded-t-xl bg-gray-800 dark:bg-gray-950 text-white shrink-0"
+     >
+-      {/* Left: graph name + breadcrumb */}
++      {/* Left: graph name + breadcrumb + execution status */}
+       <div className="flex items-center gap-2.5">
+         <span className="text-base font-semibold tracking-tight">{graphSlug}</span>
+         {templateSource && (
+@@ -46,9 +108,35 @@ export function WorkflowTempBar({
+             </span>
+           </>
+         )}
++        {/* Execution status badge + progress */}
++        {showStatus && (
++          <>
++            <span className="text-white/20">|</span>
++            <span
++              className={`text-xs font-medium px-2 py-0.5 rounded-full border ${statusBadgeClass(executionStatus)}`}
++              data-testid="execution-status-badge"
++            >
++              {statusLabel(executionStatus)}
++            </span>
++            {iterations > 0 && (
++              <span className="text-xs text-white/40" data-testid="execution-iterations">
++                iter {iterations}
++              </span>
++            )}
++            {lastMessage && (
++              <span
++                className="text-xs text-white/30 max-w-[200px] truncate"
++                title={lastMessage}
++                data-testid="execution-last-message"
++              >
++                {lastMessage}
++              </span>
++            )}
++          </>
++        )}
+       </div>
+ 
+-      {/* Right: undo/redo + Run */}
++      {/* Right: undo/redo + execution buttons */}
+       <div className="flex items-center gap-2">
+         {/* Undo button */}
+         <button
+@@ -84,15 +172,59 @@ export function WorkflowTempBar({
+           )}
+         </button>
+ 
+-        {/* Placeholder Run button */}
+-        <button
+-          type="button"
+-          disabled
+-          className="px-4 py-1.5 text-xs font-medium rounded-lg bg-white/10 text-white/40 cursor-not-allowed border border-white/10"
+-          title="Coming in future plan"
+-        >
+-          ▶ Run
+-        </button>
++        {/* Execution button group (Plan 074 Phase 4) */}
++        {buttonState?.run.visible && (
++          <button
++            type="button"
++            disabled={!buttonState.run.enabled}
++            onClick={onRun}
++            data-testid="execution-run-button"
++            className="px-4 py-1.5 text-xs font-medium rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed border border-emerald-500/30 text-white transition-colors"
++            title={buttonState.run.label ?? 'Run'}
++          >
++            {!buttonState.run.enabled && executionStatus === 'starting' ? (
++              <span className="flex items-center gap-1.5">
++                <span className="animate-spin text-[10px]">⟳</span>
++                {buttonState.run.label ?? 'Run'}
++              </span>
++            ) : (
++              <span>▶ {buttonState.run.label ?? 'Run'}</span>
++            )}
++          </button>
++        )}
++
++        {buttonState?.stop.visible && (
++          <button
++            type="button"
++            disabled={!buttonState.stop.enabled}
++            onClick={onStop}
++            data-testid="execution-stop-button"
++            className="px-4 py-1.5 text-xs font-medium rounded-lg bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed border border-red-500/30 text-white transition-colors"
++            title="Stop"
++          >
++            {!buttonState.stop.enabled && executionStatus === 'stopping' ? (
++              <span className="flex items-center gap-1.5">
++                <span className="animate-spin text-[10px]">⟳</span>
++                Stop
++              </span>
++            ) : (
++              <span>⏹ Stop</span>
++            )}
++          </button>
++        )}
++
++        {buttonState?.restart.visible && (
++          <button
++            type="button"
++            disabled={!buttonState.restart.enabled}
++            onClick={onRestart}
++            data-testid="execution-restart-button"
++            className="px-4 py-1.5 text-xs font-medium rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-40 disabled:cursor-not-allowed border border-white/10 text-white transition-colors"
++            title="Restart"
++          >
++            ↺ Restart
++          </button>
++        )}
+       </div>
+     </div>
+   );
+diff --git a/apps/web/src/features/074-workflow-execution/execution-button-state.ts b/apps/web/src/features/074-workflow-execution/execution-button-state.ts
+new file mode 100644
+index 00000000..a78b3d09
+--- /dev/null
++++ b/apps/web/src/features/074-workflow-execution/execution-button-state.ts
+@@ -0,0 +1,117 @@
++/**
++ * Execution button state derivation — pure function.
++ *
++ * Maps ManagerExecutionStatus + actionPending → button visibility/enablement
++ * per Workshop 001 state machine table.
++ *
++ * Plan 074: Phase 4 — UI Execution Controls
++ */
++
++import type { ActionPending } from './hooks/use-workflow-execution';
++import type { ManagerExecutionStatus } from './workflow-execution-manager.types';
++
++// ── Types ───────────────────────────────────────────────────────────
++
++export interface ButtonVisibility {
++  readonly visible: boolean;
++  readonly enabled: boolean;
++  readonly label?: string;
++}
++
++export interface ExecutionButtonState {
++  readonly run: ButtonVisibility;
++  readonly stop: ButtonVisibility;
++  readonly restart: ButtonVisibility;
++}
++
++// ── Derivation ──────────────────────────────────────────────────────
++
++/**
++ * Derive button visibility and enablement from execution status.
++ *
++ * Workshop 001 state machine:
++ * | Status    | Run              | Stop             | Restart          |
++ * |-----------|------------------|------------------|------------------|
++ * | idle      | ▶ Run (enabled)  | hidden           | hidden           |
++ * | starting  | disabled+spinner | hidden           | hidden           |
++ * | running   | hidden           | ⏹ Stop (enabled) | hidden           |
++ * | stopping  | hidden           | disabled+spinner | hidden           |
++ * | stopped   | ▶ Resume (en)    | hidden           | ↺ Restart (en)   |
++ * | completed | hidden           | hidden           | ↺ Restart (en)   |
++ * | failed    | ▶ Retry (en)     | hidden           | ↺ Restart (en)   |
++ *
++ * P4-DYK #2: If hydrating, hide all buttons (prevents stale clicks).
++ * P4-DYK #3: actionPending disables the active button (gated on response).
++ */
++export function deriveButtonState(
++  status: ManagerExecutionStatus,
++  actionPending: ActionPending,
++  hydrating: boolean
++): ExecutionButtonState {
++  // During hydration, hide everything (P4-DYK #2)
++  if (hydrating) {
++    return {
++      run: { visible: false, enabled: false },
++      stop: { visible: false, enabled: false },
++      restart: { visible: false, enabled: false },
++    };
++  }
++
++  switch (status) {
++    case 'idle':
++      return {
++        run: { visible: true, enabled: actionPending === null, label: 'Run' },
++        stop: { visible: false, enabled: false },
++        restart: { visible: false, enabled: false },
++      };
++
++    case 'starting':
++      return {
++        run: { visible: true, enabled: false, label: 'Run' },
++        stop: { visible: false, enabled: false },
++        restart: { visible: false, enabled: false },
++      };
++
++    case 'running':
++      return {
++        run: { visible: false, enabled: false },
++        stop: { visible: true, enabled: actionPending === null },
++        restart: { visible: false, enabled: false },
++      };
++
++    case 'stopping':
++      return {
++        run: { visible: false, enabled: false },
++        stop: { visible: true, enabled: false },
++        restart: { visible: false, enabled: false },
++      };
++
++    case 'stopped':
++      return {
++        run: { visible: true, enabled: actionPending === null, label: 'Resume' },
++        stop: { visible: false, enabled: false },
++        restart: { visible: true, enabled: actionPending === null },
++      };
++
++    case 'completed':
++      return {
++        run: { visible: false, enabled: false },
++        stop: { visible: false, enabled: false },
++        restart: { visible: true, enabled: actionPending === null },
++      };
++
++    case 'failed':
++      return {
++        run: { visible: true, enabled: actionPending === null, label: 'Retry' },
++        stop: { visible: false, enabled: false },
++        restart: { visible: true, enabled: actionPending === null },
++      };
++
++    default:
++      return {
++        run: { visible: true, enabled: true, label: 'Run' },
++        stop: { visible: false, enabled: false },
++        restart: { visible: false, enabled: false },
++      };
++  }
++}
+diff --git a/apps/web/src/features/074-workflow-execution/hooks/use-workflow-execution.ts b/apps/web/src/features/074-workflow-execution/hooks/use-workflow-execution.ts
+new file mode 100644
+index 00000000..72102bfa
+--- /dev/null
++++ b/apps/web/src/features/074-workflow-execution/hooks/use-workflow-execution.ts
+@@ -0,0 +1,194 @@
++'use client';
++
++/**
++ * useWorkflowExecution — React hook for workflow execution lifecycle.
++ *
++ * Hydrates initial execution state on mount (P4-DYK #2), subscribes to
++ * GlobalState for live SSE updates, and wraps server actions with
++ * response-gated actionPending state (Phase 3 DYK #3).
++ *
++ * Plan 074: Phase 4 — UI Execution Controls
++ */
++
++import { useCallback, useEffect, useState } from 'react';
++
++import { useGlobalState } from '@/lib/state/use-global-state';
++import {
++  getWorkflowExecutionStatus,
++  restartWorkflow,
++  runWorkflow,
++  stopWorkflow,
++} from '../../../../app/actions/workflow-execution-actions';
++import type { ManagerExecutionStatus } from '../workflow-execution-manager.types';
++import type { SerializableExecutionStatus } from '../workflow-execution-manager.types';
++
++// ── Browser-safe execution key ──────────────────────────────────────
++// Must produce identical output to makeExecutionKey() in
++// workflow-execution-manager.types.ts which uses Buffer.from().toString('base64url').
++// P4-DYK #1: Buffer is not available in 'use client' components.
++// btoa() + char replacement produces the same base64url encoding for ASCII paths.
++
++function makeExecutionKeyClient(worktreePath: string, graphSlug: string): string {
++  const raw = `${worktreePath}:${graphSlug}`;
++  // encodeURIComponent + unescape handles UTF-8 → binary string for btoa
++  const base64 = btoa(unescape(encodeURIComponent(raw)));
++  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
++}
++
++// ── Noop path for disabled state ────────────────────────────────────
++const NOOP_PATH = '__noop_workflow_execution__';
++
++// ── Hook types ──────────────────────────────────────────────────────
++
++export type ActionPending = 'run' | 'stop' | 'restart' | null;
++
++export interface WorkflowExecutionState {
++  /** Current execution status (merged from hydration + SSE) */
++  readonly status: ManagerExecutionStatus;
++  /** Number of drive iterations completed */
++  readonly iterations: number;
++  /** Last status message from the engine */
++  readonly lastMessage: string;
++  /** True until initial getStatus call completes */
++  readonly hydrating: boolean;
++  /** True when worktreePath is undefined — all controls disabled */
++  readonly disabled: boolean;
++  /** Which action is currently in flight (null if none) */
++  readonly actionPending: ActionPending;
++  /** Start or resume the workflow */
++  readonly run: () => Promise<void>;
++  /** Stop the running workflow */
++  readonly stop: () => Promise<void>;
++  /** Restart the workflow from scratch */
++  readonly restart: () => Promise<void>;
++}
++
++export interface UseWorkflowExecutionOptions {
++  workspaceSlug: string;
++  worktreePath?: string;
++  graphSlug: string;
++}
++
++// ── Hook ────────────────────────────────────────────────────────────
++
++export function useWorkflowExecution({
++  workspaceSlug,
++  worktreePath,
++  graphSlug,
++}: UseWorkflowExecutionOptions): WorkflowExecutionState {
++  const disabled = !worktreePath;
++  const resolvedPath = worktreePath ?? '';
++  const key = worktreePath ? makeExecutionKeyClient(worktreePath, graphSlug) : '';
++
++  // GlobalState subscriptions — use NOOP_PATH when disabled to avoid subscribing to ''
++  const statusPath = key ? `workflow-execution:${key}:status` : NOOP_PATH;
++  const iterationsPath = key ? `workflow-execution:${key}:iterations` : NOOP_PATH;
++  const lastMessagePath = key ? `workflow-execution:${key}:lastMessage` : NOOP_PATH;
++
++  const gsStatus = useGlobalState<ManagerExecutionStatus>(statusPath);
++  const gsIterations = useGlobalState<number>(iterationsPath);
++  const gsLastMessage = useGlobalState<string>(lastMessagePath);
++
++  // Local state
++  const [hydrating, setHydrating] = useState(!disabled);
++  const [localStatus, setLocalStatus] = useState<ManagerExecutionStatus>('idle');
++  const [localIterations, setLocalIterations] = useState(0);
++  const [localLastMessage, setLocalLastMessage] = useState('');
++  const [actionPending, setActionPending] = useState<ActionPending>(null);
++
++  // Hydrate initial state on mount (P4-DYK #2)
++  useEffect(() => {
++    if (disabled) return;
++    let cancelled = false;
++
++    getWorkflowExecutionStatus(workspaceSlug, resolvedPath, graphSlug)
++      .then((result: SerializableExecutionStatus | null) => {
++        if (cancelled) return;
++        if (result) {
++          setLocalStatus(result.status);
++          setLocalIterations(result.iterations);
++          setLocalLastMessage(result.lastMessage);
++        }
++        setHydrating(false);
++      })
++      .catch(() => {
++        if (!cancelled) setHydrating(false);
++      });
++
++    return () => {
++      cancelled = true;
++    };
++  }, [disabled, workspaceSlug, resolvedPath, graphSlug]);
++
++  // Sync GlobalState → local state when SSE delivers updates
++  useEffect(() => {
++    if (gsStatus !== undefined) setLocalStatus(gsStatus);
++  }, [gsStatus]);
++
++  useEffect(() => {
++    if (gsIterations !== undefined) setLocalIterations(gsIterations);
++  }, [gsIterations]);
++
++  useEffect(() => {
++    if (gsLastMessage !== undefined) setLocalLastMessage(gsLastMessage);
++  }, [gsLastMessage]);
++
++  // ── Action wrappers (gate on response per DYK #3) ────────────────
++
++  const run = useCallback(async () => {
++    if (disabled || actionPending) return;
++    setActionPending('run');
++    try {
++      const result = await runWorkflow(workspaceSlug, resolvedPath, graphSlug);
++      if (!result.ok) {
++        console.error('[useWorkflowExecution] run failed:', result.error);
++      }
++    } catch (err) {
++      console.error('[useWorkflowExecution] run error:', err);
++    } finally {
++      setActionPending(null);
++    }
++  }, [disabled, actionPending, workspaceSlug, resolvedPath, graphSlug]);
++
++  const stop = useCallback(async () => {
++    if (disabled || actionPending) return;
++    setActionPending('stop');
++    try {
++      const result = await stopWorkflow(workspaceSlug, resolvedPath, graphSlug);
++      if (!result.ok) {
++        console.error('[useWorkflowExecution] stop failed:', result.error);
++      }
++    } catch (err) {
++      console.error('[useWorkflowExecution] stop error:', err);
++    } finally {
++      setActionPending(null);
++    }
++  }, [disabled, actionPending, workspaceSlug, resolvedPath, graphSlug]);
++
++  const restart = useCallback(async () => {
++    if (disabled || actionPending) return;
++    setActionPending('restart');
++    try {
++      const result = await restartWorkflow(workspaceSlug, resolvedPath, graphSlug);
++      if (!result.ok) {
++        console.error('[useWorkflowExecution] restart failed:', result.error);
++      }
++    } catch (err) {
++      console.error('[useWorkflowExecution] restart error:', err);
++    } finally {
++      setActionPending(null);
++    }
++  }, [disabled, actionPending, workspaceSlug, resolvedPath, graphSlug]);
++
++  return {
++    status: localStatus,
++    iterations: localIterations,
++    lastMessage: localLastMessage,
++    hydrating,
++    disabled,
++    actionPending,
++    run,
++    stop,
++    restart,
++  };
++}
+diff --git a/docs/domains/workflow-ui/domain.md b/docs/domains/workflow-ui/domain.md
+index bb0c7a85..151e0449 100644
+--- a/docs/domains/workflow-ui/domain.md
++++ b/docs/domains/workflow-ui/domain.md
+@@ -148,3 +148,4 @@ Primary: `apps/web/src/features/050-workflow-page/`
+ | Plan 050 Phase 7 | Removed all Plan 022 workgraph UI (pages, API routes, feature folder, DI registrations, event adapters, tests). Workflows card replaces WorkGraphs on worktree page. | 2026-02-27 |
+ | Plan 061 Phase 3 | answerQuestion server action migrated to IWorkflowEvents delegation (single call replaces 2-step PGService handshake) | 2026-03-01 |
+ | Plan 072 Phase 5 | Migrated useWorkflowSSE from `useSSE` to `useChannelEvents('workflows')` via multiplexed SSE. Deleted legacy `useSSE` hook. | 2026-03-08 |
++| Plan 074 Phase 4 | Run/Stop/Restart execution controls in toolbar, execution-aware node locking, undo/redo blocking during execution, live status display | 2026-03-15 |
+diff --git a/docs/plans/074-workflow-execution/tasks/phase-4-ui-execution-controls/execution.log.md b/docs/plans/074-workflow-execution/tasks/phase-4-ui-execution-controls/execution.log.md
+new file mode 100644
+index 00000000..c63ae1c3
+--- /dev/null
++++ b/docs/plans/074-workflow-execution/tasks/phase-4-ui-execution-controls/execution.log.md
+@@ -0,0 +1,104 @@
++# Phase 4: UI Execution Controls — Execution Log
++
++**Phase**: Phase 4: UI Execution Controls
++**Plan**: [workflow-execution-plan.md](../../workflow-execution-plan.md)
++**Started**: 2026-03-15
++**Baseline**: 5521 tests passing, 2 pre-existing failures (040-graph-inspect)
++
++---
++
++## Pre-Phase
++
++- Harness pre-validation: DEFERRED (UI leaf work, harness useful for visual verification after all tasks)
++- Baseline tests: 5521 passing (2 pre-existing failures in 040-graph-inspect unrelated)
++
++---
++
++## Task Log
++
++### T001: Create useWorkflowExecution hook ✅
++
++**File**: `apps/web/src/features/074-workflow-execution/hooks/use-workflow-execution.ts`
++
++Created hook that:
++- Hydrates initial state on mount via `getWorkflowExecutionStatus` server action (P4-DYK #2)
++- Subscribes to GlobalState for live SSE updates via `useGlobalState`
++- Wraps run/stop/restart server actions with `actionPending` gating (DYK #3)
++- Returns `disabled: true` when `worktreePath` is undefined (P4-DYK #3)
++- Uses browser-safe `makeExecutionKeyClient()` with `btoa()` + base64url replacement (P4-DYK #1)
++- Merges hydration + SSE state: local state updated by both sources, SSE takes precedence via useEffect
++
++### T002: Create deriveButtonState() utility ✅
++
++**File**: `apps/web/src/features/074-workflow-execution/execution-button-state.ts`
++
++Pure function mapping ManagerExecutionStatus + actionPending + hydrating → ButtonVisibility for run/stop/restart buttons. All 7 states covered per Workshop 001 table. Returns all hidden during hydration (P4-DYK #2).
++
++### T003: Extend WorkflowTempBar with execution button group ✅
++
++**File**: `apps/web/src/features/050-workflow-page/components/workflow-temp-bar.tsx`
++
++- Replaced disabled placeholder Run button with dynamic Run/Stop/Restart button group
++- Run button: emerald green, label changes (Run/Resume/Retry), spinner during starting
++- Stop button: red, spinner during stopping
++- Restart button: neutral, visible when stopped/completed/failed
++- Button visibility/enablement driven by `buttonState` prop from `deriveButtonState()`
++
++### T004: Add execution progress display ✅
++
++**File**: `apps/web/src/features/050-workflow-page/components/workflow-temp-bar.tsx` (same file as T003)
++
++- Status badge with color-coded styling (blue=running, yellow=starting, orange=stopping, etc.)
++- Iteration counter ("iter N")
++- Last message display (truncated to 200px with title tooltip)
++- Hidden when status is 'idle' or hydrating
++
++### T005: Wire useWorkflowExecution into WorkflowEditor ✅
++
++**Files**: `apps/web/src/features/050-workflow-page/components/workflow-editor.tsx`, `workflow-canvas.tsx`
++
++- Added `useWorkflowExecution` hook call in WorkflowEditor
++- Added `deriveButtonState` call for button state derivation
++- Computed `isExecutionActive` boolean for undo/redo blocking (T007)
++- Passed execution props to WorkflowTempBar (status, buttonState, iterations, lastMessage, hydrating, callbacks)
++- Added `executionStatus` prop to WorkflowCanvas, forwarded to WorkflowLine
++
++### T006: Extend isLineEditable() with execution-aware locking ✅
++
++**File**: `apps/web/src/features/050-workflow-page/components/workflow-line.tsx`
++
++- Exported `isLineEditable()` (was unexported local function — P4-DYK #5)
++- Added optional `executionStatus?: ManagerExecutionStatus` parameter
++- During 'stopping': all lines locked (return false)
++- All other states: existing per-line logic (running+complete locked, future editable)
++- Backwards-compatible: no executionStatus = existing behavior
++
++### T007: Block undo/redo during active execution ✅
++
++**File**: `apps/web/src/features/050-workflow-page/components/workflow-editor.tsx`
++
++- `canUndo={undoRedo.canUndo && !isExecutionActive}` — ANDs with execution check
++- `canRedo={undoRedo.canRedo && !isExecutionActive}` — same
++- `isExecutionActive = status is starting/running/stopping`
++- Undo stack NOT cleared on execution start (P4-DYK #4: self-corrects via SSE)
++
++### T008: Button state machine tests ✅
++
++**File**: `test/unit/web/features/074-workflow-execution/execution-button-state.test.ts`
++
++12 tests covering all 7 ManagerExecutionStatus values + actionPending combinations + hydrating.
++
++### T009: isLineEditable execution context tests ✅
++
++**File**: `test/unit/web/features/050-workflow-page/workflow-line-locking.test.ts`
++
++16 tests: backwards-compatible (no executionStatus), idle, stopping (all locked), running (per-line), stopped (per-line). Empty lines always editable.
++
++---
++
++## Final Results
++
++- **Tests**: 5549 passing (+28), 2 pre-existing failures, 0 regressions
++- **New files**: 4 (hook, button state utility, 2 test files)
++- **Modified files**: 4 (workflow-temp-bar, workflow-editor, workflow-canvas, workflow-line)
++- **Domain updates**: workflow-ui domain.md History table updated
+diff --git a/docs/plans/074-workflow-execution/tasks/phase-4-ui-execution-controls/tasks.fltplan.md b/docs/plans/074-workflow-execution/tasks/phase-4-ui-execution-controls/tasks.fltplan.md
+new file mode 100644
+index 00000000..188a69b9
+--- /dev/null
++++ b/docs/plans/074-workflow-execution/tasks/phase-4-ui-execution-controls/tasks.fltplan.md
+@@ -0,0 +1,150 @@
++# Flight Plan: Phase 4 — UI Execution Controls
++
++**Plan**: [workflow-execution-plan.md](../../workflow-execution-plan.md)
++**Phase**: Phase 4: UI Execution Controls
++**Generated**: 2026-03-15
++**Status**: Landed
++
++---
++
++## Departure → Destination
++
++**Where we are**: Phases 1-3 built the full backend stack: AbortSignal in drive(), WorkflowExecutionManager singleton, SSE broadcasting at 6 lifecycle points, GlobalState route mapping execution-update/removal events, and 4 server actions (run/stop/restart/getStatus). The workflow toolbar has a disabled placeholder Run button. `isLineEditable()` handles running nodes but has no execution-level awareness.
++
++**Where we're going**: A developer opens a workflow page and sees a "Run" button. Clicking it starts the workflow — the button changes to "Stop", iteration count ticks up, and a status message updates in real-time. Running and completed nodes lock; future nodes remain editable. Clicking "Stop" halts execution immediately. "Resume" picks up where it left off. "Restart" clears everything and starts fresh. All transitions are smooth with loading indicators.
++
++---
++
++## Domain Context
++
++### Domains We're Changing
++
++| Domain | What Changes | Key Files |
++|--------|-------------|-----------|
++| `074-workflow-execution` | New hook (useWorkflowExecution), new utility (deriveButtonState) | `hooks/use-workflow-execution.ts`, `execution-button-state.ts` |
++| `workflow-ui` | Execution buttons in toolbar, progress display, execution-aware node locking, undo/redo blocking | `workflow-temp-bar.tsx`, `workflow-line.tsx`, `workflow-editor.tsx` |
++
++### Domains We Depend On (no changes)
++
++| Domain | What We Consume | Contract |
++|--------|----------------|----------|
++| `_platform/state` | useGlobalState hook | `useGlobalState<T>(path, default)` |
++| `_platform/events` | SSE delivery to GlobalState | Transparent (Phase 3 wired) |
++| `074-workflow-execution` (Phase 3) | Server actions, types | runWorkflow, stopWorkflow, restartWorkflow, getWorkflowExecutionStatus, makeExecutionKey, ManagerExecutionStatus |
++
++---
++
++## Flight Status
++
++<!-- Updated by /plan-6-v2: pending → active → done. Use blocked for problems/input needed. -->
++
++```mermaid
++stateDiagram-v2
++    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
++    classDef active fill:#FFC107,stroke:#FFA000,color:#000
++    classDef done fill:#4CAF50,stroke:#388E3C,color:#fff
++    classDef blocked fill:#F44336,stroke:#D32F2F,color:#fff
++
++    state "1: Hook + Utility" as S1
++    state "2: Toolbar UI" as S2
++    state "3: Node Locking" as S3
++    state "4: Tests" as S4
++
++    [*] --> S1
++    S1 --> S2
++    S2 --> S3
++    S3 --> S4
++    S4 --> [*]
++
++    class S1,S2,S3,S4 done
++```
++
++**Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
++
++---
++
++## Stages
++
++<!-- Updated by /plan-6-v2 during implementation: [ ] → [~] → [x] -->
++
++- [x] **Stage 1: Hook + Utility** — Create useWorkflowExecution hook and deriveButtonState utility (`use-workflow-execution.ts`, `execution-button-state.ts` — new files)
++- [x] **Stage 2: Toolbar UI** — Extend WorkflowTempBar with execution buttons, progress display, wire into WorkflowEditor (`workflow-temp-bar.tsx`, `workflow-editor.tsx`)
++- [x] **Stage 3: Node Locking** — Extend isLineEditable with execution context, block undo/redo during execution (`workflow-line.tsx`, `workflow-editor.tsx`)
++- [x] **Stage 4: Tests** — Button state machine tests, isLineEditable execution tests (`execution-button-state.test.ts`, `workflow-line-locking.test.ts`)
++
++---
++
++## Architecture: Before & After
++
++```mermaid
++flowchart LR
++    classDef existing fill:#E8F5E9,stroke:#4CAF50,color:#000
++    classDef changed fill:#FFF3E0,stroke:#FF9800,color:#000
++    classDef new fill:#E3F2FD,stroke:#2196F3,color:#000
++
++    subgraph Before["Before Phase 4"]
++        B_Editor["WorkflowEditor"]:::existing
++        B_TempBar["WorkflowTempBar<br/>(disabled Run btn)"]:::existing
++        B_Line["WorkflowLine<br/>(isLineEditable)"]:::existing
++        B_GS["GlobalState<br/>(workflow-execution:*)"]:::existing
++        B_SA["Server Actions<br/>(run/stop/restart)"]:::existing
++
++        B_Editor --> B_TempBar
++        B_Editor --> B_Line
++        B_GS -.->|"not connected"| B_Editor
++        B_SA -.->|"not called"| B_Editor
++    end
++
++    subgraph After["After Phase 4"]
++        A_Editor["WorkflowEditor<br/>(+useWorkflowExecution)"]:::changed
++        A_TempBar["WorkflowTempBar<br/>(Run/Stop/Restart + progress)"]:::changed
++        A_Line["WorkflowLine<br/>(+execution-aware locking)"]:::changed
++        A_Hook["useWorkflowExecution<br/>(hydrate + subscribe + actions)"]:::new
++        A_Util["deriveButtonState()"]:::new
++        A_GS["GlobalState<br/>(workflow-execution:*)"]:::existing
++        A_SA["Server Actions<br/>(run/stop/restart)"]:::existing
++
++        A_Editor --> A_Hook
++        A_Hook --> A_GS
++        A_Hook --> A_SA
++        A_Hook --> A_Editor
++        A_Editor --> A_TempBar
++        A_Util --> A_TempBar
++        A_Editor --> A_Line
++    end
++```
++
++**Legend**: existing (green, unchanged) | changed (orange, modified) | new (blue, created)
++
++---
++
++## Acceptance Criteria
++
++- [ ] Run button visible when idle/stopped/failed, hidden when running (spec AC #14)
++- [ ] Stop button visible when running, hidden otherwise (spec AC #14)
++- [ ] Restart button visible when stopped/completed/failed (spec AC #14)
++- [ ] Clicking Run starts the workflow, UI shows "Running" (spec AC #1)
++- [ ] Completed and running nodes cannot be dragged or removed (spec AC #6)
++- [ ] Future nodes CAN be edited while workflow is running (spec AC #6)
++- [ ] Buttons disabled during transitional states (starting, stopping) (spec AC #14)
++- [ ] Initial state hydrated on mount (DYK #4)
++- [ ] Button enablement gated on action response, not SSE (DYK #3)
++
++## Goals & Non-Goals
++
++**Goals**: Run/Stop/Restart button group, live status display, node locking, transitional states, undo/redo blocking
++**Non-Goals**: Pod log viewer, scheduling, per-node status badges (existing), server restart recovery UI (Phase 5)
++
++---
++
++## Checklist
++
++- [x] T001: Create useWorkflowExecution hook
++- [x] T002: Create deriveButtonState() utility
++- [x] T003: Extend WorkflowTempBar with execution button group
++- [x] T004: Add execution progress display to toolbar
++- [x] T005: Wire useWorkflowExecution into WorkflowEditor
++- [x] T006: Extend isLineEditable() with execution-aware locking
++- [x] T007: Block undo/redo during active execution
++- [x] T008: Write button state machine tests
++- [x] T009: Write isLineEditable execution context tests
+diff --git a/docs/plans/074-workflow-execution/tasks/phase-4-ui-execution-controls/tasks.md b/docs/plans/074-workflow-execution/tasks/phase-4-ui-execution-controls/tasks.md
+new file mode 100644
+index 00000000..3f32a65c
+--- /dev/null
++++ b/docs/plans/074-workflow-execution/tasks/phase-4-ui-execution-controls/tasks.md
+@@ -0,0 +1,326 @@
++# Phase 4: UI Execution Controls — Tasks Dossier
++
++**Plan**: [workflow-execution-plan.md](../../workflow-execution-plan.md)
++**Phase**: Phase 4: UI Execution Controls
++**Created**: 2026-03-15
++**Domain**: `workflow-ui` (primary), `074-workflow-execution` (hook + utility)
++**Testing**: Lightweight — button state derivation unit tests + isLineEditable execution tests
++
++---
++
++## Executive Briefing
++
++**Purpose**: Build the user-facing execution controls that let users run, stop, and restart workflows directly from the browser. This phase wires the SSE + GlobalState plumbing (Phase 3) into visible, interactive UI — buttons, status display, progress indicators, and node locking.
++
++**What We're Building**: A `useWorkflowExecution` hook that hydrates initial state on mount, subscribes to live GlobalState updates, and wraps server actions with response-gated button state. A button state utility that maps `ManagerExecutionStatus` → button visibility/enablement. Extended `WorkflowTempBar` with Run/Stop/Restart button group and progress display. Execution-aware node locking in `WorkflowLine`.
++
++**Goals**:
++- ✅ Run/Stop/Restart buttons with correct state machine (Workshop 001)
++- ✅ Live execution status display (iterations, status message, elapsed time)
++- ✅ Node locking: running+completed nodes locked, future nodes editable
++- ✅ Transitional state handling (disabled buttons, loading indicators during starting/stopping)
++- ✅ Initial state hydration on mount (DYK #4)
++- ✅ Button gating on server action response, not SSE (DYK #3)
++- ✅ Undo/redo blocked during active execution
++
++**Non-Goals**:
++- ❌ Pod terminal/log viewer in browser
++- ❌ Per-node status badges (existing work-unit-state SSE handles this)
++- ❌ Workflow scheduling or triggers
++- ❌ Server restart recovery UI (Phase 5 concern)
++
++---
++
++## Prior Phase Context
++
++### Phase 1: Orchestration Contracts ✅
++
++**Deliverables**:
++- `abortable-sleep.ts` — AbortSignal-aware sleep utility
++- `DriveExitReason` extended with `'stopped'`, `DriveOptions` extended with `signal?: AbortSignal`
++- `ExecutionStatus` extended with `'interrupted'`, ONBAS handles it (skip + diagnoseStuckLine blocks line)
++- Compound cache key `${worktreePath}|${graphSlug}` in OrchestrationService
++- Per-handle PodManager + ODS via factory pattern
++
++**Dependencies Exported**: `DriveOptions.signal`, `DriveExitReason: 'stopped'`, `ExecutionStatus: 'interrupted'`, `PerHandleDeps`, `abortableSleep()`
++
++**Gotchas**: Always update Zod schemas (reality.schema.ts, state.schema.ts) when adding to type unions. ONBAS `diagnoseStuckLine` treats 'interrupted' as `hasRunning=true` (blocks line progression).
++
++**Patterns**: Type-first contract changes → Zod schema → format glyph. Per-handle factory pattern. AbortError catch in drive() loop.
++
++### Phase 2: Web DI + Execution Manager ✅
++
++**Deliverables**:
++- `WorkflowExecutionManager` class with start/stop/restart/getStatus/cleanup lifecycle
++- `ExecutionHandle` model (14 fields) with `ManagerExecutionStatus` (7 states)
++- `get-manager.ts` globalThis getter, `create-execution-manager.ts` factory
++- Bootstrap in `instrumentation.ts` (HMR-safe, SIGTERM handler)
++- DI token de-aliasing (`ORCHESTRATION_DI_TOKENS.AGENT_MANAGER` → unique `'IOrchestrationAgentManagerService'`)
++
++**Dependencies Exported**: `IWorkflowExecutionManager` (8 methods), `SerializableExecutionStatus` (14 fields), `ExecutionKey` (base64url), `ManagerExecutionStatus` union, `makeExecutionKey()`
++
++**Gotchas**: FakePositionalGraphService uses `calls.get('methodName')` not `getCalls()`. IWorkUnitPod already has `terminate()`. EventHandlerService loadState/persistState are intentionally stubbed. ExecutionKey is base64url-encoded (FT-001 fix). Restart on running workflow requires stop() first.
++
++**Patterns**: globalThis singleton + flag pattern. Factory closure for DI resolution. SerializableX types for JSON-safe API responses. Always `.catch()` on background promises.
++
++### Phase 3: SSE + GlobalState Plumbing ✅
++
++**Deliverables**:
++- `WorkspaceDomain.WorkflowExecution = 'workflow-execution'` SSE channel
++- `workflowExecutionRoute` ServerEventRouteDescriptor (maps execution-update → 4 properties, execution-removed → removal)
++- 4 server actions: `runWorkflow`, `stopWorkflow`, `restartWorkflow`, `getWorkflowExecutionStatus`
++- 6 broadcast call sites in WorkflowExecutionManager (start→starting, start→running, handleEvent, .then, .catch, stop→stopping)
++- `broadcastRemoval()` for restart/cleanup (prevents ghost entries)
++
++**Dependencies Exported**:
++- Server actions: `runWorkflow(slug, worktreePath, graphSlug)`, `stopWorkflow(slug, worktreePath, graphSlug)`, `restartWorkflow(slug, worktreePath, graphSlug)`, `getWorkflowExecutionStatus(slug, worktreePath, graphSlug)`
++- GlobalState paths: `workflow-execution:{key}:status`, `workflow-execution:{key}:iterations`, `workflow-execution:{key}:lastEventType`, `workflow-execution:{key}:lastMessage`
++- `SerializableExecutionStatus` returned by getWorkflowExecutionStatus
++
++**Gotchas**:
++- **DYK #3**: SSE broadcasts race ahead of server action responses. Phase 4 MUST gate button enablement on server action response, not SSE status.
++- **DYK #4**: Page load shows 'idle' even when workflow is running. Phase 4 MUST call `getWorkflowExecutionStatus` on component mount to hydrate initial state.
++- `makeExecutionKey(worktreePath, graphSlug)` returns base64url string for GlobalState path construction.
++- Server actions validate worktreePath against known workspace worktrees (FT-002).
++
++**Patterns**: ServerEventRouteDescriptor follows work-unit-state pattern. SSE→GlobalState is client-side only (no server-side state publishing). `ISSEBroadcaster` contract for testing with `FakeSSEBroadcaster`.
++
++---
++
++## Pre-Implementation Check
++
++| File | Exists? | Domain Check | Notes |
++|------|---------|-------------|-------|
++| `apps/web/src/features/074-workflow-execution/hooks/use-workflow-execution.ts` | ❌ create | 074-workflow-execution | New hook — encapsulates execution state + actions |
++| `apps/web/src/features/074-workflow-execution/execution-button-state.ts` | ❌ create | 074-workflow-execution | Pure function: status → button visibility/enablement |
++| `apps/web/src/features/050-workflow-page/components/workflow-temp-bar.tsx` | ✅ modify | workflow-ui | Add execution buttons + progress display |
++| `apps/web/src/features/050-workflow-page/components/workflow-line.tsx` | ✅ modify | workflow-ui | Extend isLineEditable with execution context |
++| `apps/web/src/features/050-workflow-page/components/workflow-editor.tsx` | ✅ modify | workflow-ui | Wire useWorkflowExecution hook, pass status to children |
++| `test/unit/web/features/074-workflow-execution/execution-button-state.test.ts` | ❌ create | test | Button state machine unit tests |
++| `test/unit/web/features/050-workflow-page/workflow-line-locking.test.ts` | ❌ create | test | isLineEditable execution context tests |
++
++**Harness context**: Harness available at L3. Pre-phase validation deferred — harness is for end-to-end testing; Phase 4 is UI leaf work with lightweight unit tests.
++
++---
++
++## Architecture Map
++
++```mermaid
++flowchart TD
++    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
++    classDef completed fill:#4CAF50,stroke:#388E3C,color:#fff
++
++    subgraph Phase4["Phase 4: UI Execution Controls"]
++        T001["T001: useWorkflowExecution hook"]:::pending
++        T002["T002: Button state utility"]:::pending
++        T003["T003: Extend WorkflowTempBar"]:::pending
++        T004["T004: Execution progress display"]:::pending
++        T005["T005: Wire hook into WorkflowEditor"]:::pending
++        T006["T006: Execution-aware node locking"]:::pending
++        T007["T007: Block undo/redo during execution"]:::pending
++        T008["T008: Button state + hook tests"]:::pending
++        T009["T009: isLineEditable execution tests"]:::pending
++
++        T001 --> T003
++        T002 --> T003
++        T001 --> T005
++        T003 --> T005
++        T004 --> T005
++        T005 --> T006
++        T005 --> T007
++        T002 --> T008
++        T006 --> T009
++    end
++
++    subgraph Files["Files"]
++        F1["use-workflow-execution.ts"]:::pending
++        F2["execution-button-state.ts"]:::pending
++        F3["workflow-temp-bar.tsx"]:::pending
++        F4["workflow-line.tsx"]:::pending
++        F5["workflow-editor.tsx"]:::pending
++        F6["execution-button-state.test.ts"]:::pending
++        F7["workflow-line-locking.test.ts"]:::pending
++    end
++
++    T001 -.-> F1
++    T002 -.-> F2
++    T003 -.-> F3
++    T004 -.-> F3
++    T005 -.-> F5
++    T006 -.-> F4
++    T008 -.-> F6
++    T009 -.-> F7
++
++    subgraph Prior["Phase 3 Deliverables (consumed)"]
++        SA["Server Actions<br/>(run/stop/restart/getStatus)"]:::completed
++        GS["GlobalState Route<br/>(workflow-execution:{key}:*)"]:::completed
++        MK["makeExecutionKey()"]:::completed
++        SS["SerializableExecutionStatus"]:::completed
++    end
++
++    SA --> T001
++    GS --> T001
++    MK --> T001
++    SS --> T001
++```
++
++---
++
++## Tasks
++
++| Status | ID | Task | Domain | Path(s) | Done When | Notes |
++|--------|-----|------|--------|---------|-----------|-------|
++| [x] | T001 | Create `useWorkflowExecution` hook | 074-workflow-execution | `apps/web/src/features/074-workflow-execution/hooks/use-workflow-execution.ts` | Hook returns executionStatus, actionPending, hydrating, disabled, run/stop/restart functions. Hydrates on mount via getWorkflowExecutionStatus (P4-DYK #2). Actions gate button state on response (DYK #3). | Consumes makeExecutionKey, useGlobalState, 4 server actions. **P4-DYK #1**: makeExecutionKey uses Buffer — must make browser-safe with btoa()+base64url replacement before importing in client component. **P4-DYK #2**: Add `hydrating` state — hide buttons until initial getStatus call completes (prevents "idle" flash/stale clicks). **P4-DYK #3**: If `worktreePath` is undefined, return `disabled: true` — all action calls prevented, UI hides execution controls. |
++| [x] | T002 | Create `deriveButtonState()` utility | 074-workflow-execution | `apps/web/src/features/074-workflow-execution/execution-button-state.ts` | Pure function maps ManagerExecutionStatus + actionPending → button visibility/enablement per Workshop 001 table. All 7 states covered. | Workshop 001 state machine table is source of truth. |
++| [x] | T003 | Extend WorkflowTempBar with execution button group | workflow-ui | `apps/web/src/features/050-workflow-page/components/workflow-temp-bar.tsx` | Run/Stop/Restart buttons render with correct visibility per state. Run visible when idle/stopped/failed. Stop visible when running. Restart visible when stopped/completed/failed. Transitional states show disabled + spinner. | Uses deriveButtonState(). Run label changes: "Run" (idle), "Resume" (stopped), "Retry" (failed). |
++| [x] | T004 | Add execution progress display to toolbar | workflow-ui | `apps/web/src/features/050-workflow-page/components/workflow-temp-bar.tsx` | Shows: status badge (running/stopped/etc), iteration count, last status message. Hidden when idle. | Receives data from useWorkflowExecution via props. |
++| [x] | T005 | Wire useWorkflowExecution into WorkflowEditor | workflow-ui | `apps/web/src/features/050-workflow-page/components/workflow-editor.tsx` | WorkflowEditor calls useWorkflowExecution, passes execution props to TempBar and execution status to WorkflowLine via Canvas. | Needs workspaceSlug, worktreePath, graphSlug (already in WorkflowEditor props). |
++| [x] | T006 | Extend isLineEditable() with execution-aware locking | workflow-ui | `apps/web/src/features/050-workflow-page/components/workflow-line.tsx` | During 'stopping': all lines locked. During 'running'/'stopped': current logic (running+complete locked, future editable). During 'idle': all editable. Function accepts optional executionStatus param. | Backwards-compatible: no executionStatus = current behavior. **P4-DYK #5**: Export isLineEditable directly from workflow-line.tsx (currently unexported local function) so T009 can import it. |
++| [x] | T007 | Block undo/redo during active execution | workflow-ui | `apps/web/src/features/050-workflow-page/components/workflow-editor.tsx` | Undo/redo buttons disabled when execution is active (starting/running/stopping). canUndo/canRedo overridden to false. | Simple boolean AND with existing canUndo/canRedo. **P4-DYK #4**: Don't clear undo stack on execution start — stale pre-execution snapshots self-correct via SSE within seconds. Clearing would remove useful undo history for future-line edits during execution. |
++| [x] | T008 | Write button state machine + action gating tests | test | `test/unit/web/features/074-workflow-execution/execution-button-state.test.ts` | All 7 ManagerExecutionStatus values produce correct button visibility/enablement. Action-pending state disables active button. | Pure function tests — no React needed. |
++| [x] | T009 | Write isLineEditable execution context tests | test | `test/unit/web/features/050-workflow-page/workflow-line-locking.test.ts` | Tests: 'stopping' locks all lines, 'running' uses current logic, 'idle'/undefined = current behavior, empty lines always editable. | Extract isLineEditable to testable export. |
++
++---
++
++## Context Brief
++
++### Key findings from plan
++
++- **Finding 08**: ServerEventRouteDescriptor pattern proven by work-unit-state — no new abstraction needed → Phase 3 followed this exactly. Phase 4 consumes the resulting GlobalState paths.
++- **Finding 09**: ADR-0010 IMP-001: WorkspaceDomain value IS the SSE channel name → Phase 3 verified this. Phase 4 uses `'workflow-execution'` as the state domain prefix.
++- **DYK #3 (Critical)**: SSE broadcasts race ahead of server action responses → Phase 4 MUST gate button enablement on the server action response, not on SSE status arriving. The hook tracks `actionPending` state separately from `executionStatus`.
++- **DYK #4 (Critical)**: Page load shows 'idle' even when workflow is running → Phase 4 MUST call `getWorkflowExecutionStatus` on component mount to hydrate initial state before SSE events arrive.
++
++### Domain dependencies
++
++- `_platform/state`: Read single state value (`useGlobalState`) — subscribe to `workflow-execution:{key}:status`, `:iterations`, `:lastEventType`, `:lastMessage`
++- `_platform/events`: SSE delivery (no direct consumption — state arrives via GlobalState after Phase 3 wiring)
++- `074-workflow-execution`: `makeExecutionKey(worktreePath, graphSlug)` for GlobalState path construction, `ManagerExecutionStatus` type, `SerializableExecutionStatus` type
++- Server actions: `runWorkflow`, `stopWorkflow`, `restartWorkflow`, `getWorkflowExecutionStatus` from `app/actions/workflow-execution-actions.ts`
++
++### Domain constraints
++
++- `workflow-ui` is a leaf business domain — no public contracts exported
++- Cross-domain imports from `074-workflow-execution` use public types only (makeExecutionKey, ManagerExecutionStatus, SerializableExecutionStatus)
++- Server actions imported from `app/actions/` (Next.js convention)
++- `useGlobalState` imported from `@/lib/state/use-global-state`
++
++### Harness context
++
++- **Boot**: `just harness dev` — health check: `just harness health`
++- **Interact**: Browser automation (Playwright/CDP) + CLI SDK
++- **Observe**: JSON envelopes, screenshots, console logs
++- **Maturity**: L3
++- **Pre-phase validation**: Deferred — Phase 4 is UI leaf work. Harness useful for visual verification after all tasks complete, not per-task.
++
++### Reusable from prior phases
++
++- `makeExecutionKey(worktreePath, graphSlug)` — base64url key for GlobalState paths
++- `SerializableExecutionStatus` — 14-field JSON-safe type for status snapshots
++- `ManagerExecutionStatus` — 7-state union type (idle, starting, running, stopping, stopped, completed, failed)
++- `FakeSSEBroadcaster` from @chainglass/shared — for any test that needs broadcast verification
++- Workshop 001 button state machine table — definitive source for button visibility/enablement rules
++
++### Data flow: worktreePath availability
++
++WorkflowEditor receives `workspaceSlug` and `worktreePath` as props (from URL route param `[slug]` and query param `?worktree=`). These are passed to `useWorkflowMutations` today. Phase 4 passes them to `useWorkflowExecution` identically.
++
++### Button state machine (Workshop 001)
++
++| Status | Run | Stop | Restart | Nodes Locked? |
++|--------|-----|------|---------|---------------|
++| `idle` | ▶ Run (enabled) | hidden | hidden | No |
++| `starting` | disabled + spinner | hidden | hidden | No |
++| `running` | hidden | ⏹ Stop (enabled) | hidden | Running+completed: yes; Future: no |
++| `stopping` | hidden | disabled + spinner | hidden | All locked |
++| `stopped` | ▶ Resume (enabled) | hidden | ↺ Restart (enabled) | Running+completed: yes; Future: no |
++| `completed` | hidden | hidden | ↺ Restart (enabled) | All complete |
++| `failed` | ▶ Retry (enabled) | hidden | ↺ Restart (enabled) | Errored: yes; Others: no |
++
++### Mermaid state diagram (execution lifecycle)
++
++```mermaid
++stateDiagram-v2
++    [*] --> idle
++    idle --> starting : user clicks Run
++    starting --> running : drive() begins
++    running --> stopping : user clicks Stop
++    running --> completed : graph-complete
++    running --> failed : graph-failed
++    stopping --> stopped : abort processed
++    stopped --> starting : user clicks Resume
++    stopped --> idle : user clicks Restart
++    completed --> idle : user clicks Restart
++    failed --> starting : user clicks Retry
++    failed --> idle : user clicks Restart
++```
++
++### Mermaid sequence diagram (run workflow interaction)
++
++```mermaid
++sequenceDiagram
++    participant User
++    participant TempBar
++    participant Hook as useWorkflowExecution
++    participant Action as runWorkflow()
++    participant Manager as WorkflowExecutionManager
++    participant SSE as SSE Channel
++    participant GS as GlobalState
++
++    User->>TempBar: Click "Run"
++    TempBar->>Hook: run()
++    Hook->>Hook: Set actionPending=true
++    Hook->>Action: runWorkflow(slug, wt, graph)
++    Action->>Manager: start(ctx, graph)
++    Manager->>SSE: broadcast('starting')
++    SSE->>GS: status='starting'
++    Manager->>Manager: drive() begins
++    Manager->>SSE: broadcast('running')
++    SSE->>GS: status='running'
++    Action-->>Hook: {ok:true, key}
++    Hook->>Hook: Set actionPending=false
++    Note over Hook: Button state now derived<br/>from GS status + actionPending
++
++    loop Each iteration
++        Manager->>SSE: broadcast(iteration N)
++        SSE->>GS: iterations=N
++        GS-->>TempBar: Re-render with progress
++    end
++```
++
++---
++
++## Discoveries & Learnings
++
++### Phase 4 DYK Session (2026-03-15)
++
++| # | Insight | Impact | Resolution | Tasks Affected |
++|---|---------|--------|------------|----------------|
++| P4-DYK #1 | `makeExecutionKey` uses `Buffer.from().toString('base64url')` — Node.js API, not available in `'use client'` components | CRITICAL | Make browser-safe: replace with `btoa()` + base64url char replacement (`+/=` → `-_`). Works in both Node.js 20+ and all browsers. | T001 |
++| P4-DYK #2 | Hydration race: `useGlobalState` returns 'idle' (default) until `getWorkflowExecutionStatus` response arrives. Run button flashes visible for ~200-500ms, user could click stale button. | HIGH | Add `hydrating: boolean` state to hook. While hydrating, hide all execution buttons (or show skeleton). Only derive button visibility after hydration completes. | T001, T002, T003 |
++| P4-DYK #3 | `worktreePath` is optional in `WorkflowEditorProps` but all 4 server actions require it as non-optional string | MEDIUM | Hook checks `worktreePath` on init. If undefined, returns `disabled: true` — prevents all action calls, UI hides execution controls or shows "Select a worktree". | T001, T003, T005 |
++| P4-DYK #4 | Undo stack contains pre-execution `GraphStatusResult` snapshots. After execution, undoing reverts visual state to pre-execution (pending nodes) while execution manager still says completed. | LOW | Don't clear undo stack — visual inconsistency self-corrects via next SSE event or page refresh. Clearing would lose useful undo history for future-line edits during execution. Document only. | T007 |
++| P4-DYK #5 | `isLineEditable()` is an unexported local function in `workflow-line.tsx`. T009 needs to import it for testing. | LOW | Export directly from `workflow-line.tsx`. No separate utility file — keep it simple for experimentation. | T006, T009 |
++
++_Additional discoveries populated during implementation by plan-6._
++
++| Date | Task | Type | Discovery | Resolution | References |
++|------|------|------|-----------|------------|------------|
++
++---
++
++## Directory Layout
++
++```
++docs/plans/074-workflow-execution/
++  ├── workflow-execution-plan.md
++  ├── workflow-execution-spec.md
++  └── tasks/
++      ├── phase-1-orchestration-contracts/  ✅
++      ├── phase-2-web-di-execution-manager/ ✅
++      ├── phase-3-sse-globalstate-plumbing/ ✅
++      └── phase-4-ui-execution-controls/
++          ├── tasks.md                      ← this file
++          ├── tasks.fltplan.md              ← flight plan
++          └── execution.log.md              ← created by plan-6
++```
+diff --git a/test/unit/web/features/050-workflow-page/workflow-line-locking.test.ts b/test/unit/web/features/050-workflow-page/workflow-line-locking.test.ts
+new file mode 100644
+index 00000000..1f99e418
+--- /dev/null
++++ b/test/unit/web/features/050-workflow-page/workflow-line-locking.test.ts
+@@ -0,0 +1,117 @@
++/**
++ * Tests for isLineEditable() with execution-aware locking.
++ *
++ * Verifies:
++ * - Backwards-compatible: no executionStatus = existing behavior
++ * - 'stopping' locks ALL lines (hard stop in progress)
++ * - 'running'/'stopped' uses existing per-line logic
++ * - 'idle'/undefined = existing behavior
++ * - Empty lines always editable
++ *
++ * Plan 074 Phase 4 — T009
++ */
++
++import { isLineEditable } from '@/features/050-workflow-page/components/workflow-line';
++import type { LineStatusResult } from '@chainglass/positional-graph';
++import { describe, expect, it } from 'vitest';
++
++// ── Helpers ────────────────────────────────────────────────────────
++
++function makeLine(overrides: Partial<LineStatusResult> = {}): LineStatusResult {
++  return {
++    lineId: 'line-1',
++    label: 'Test Line',
++    transition: 'auto',
++    complete: false,
++    nodes: [{ nodeId: 'n1', unitSlug: 'unit-1', unitType: 'agent', status: 'pending' }],
++    runningNodes: [],
++    blockedNodes: [],
++    ...overrides,
++  } as LineStatusResult;
++}
++
++const emptyLine = makeLine({ nodes: [], complete: true });
++const pendingLine = makeLine({ complete: false, runningNodes: [] });
++const runningLine = makeLine({
++  complete: false,
++  runningNodes: [{ nodeId: 'n1' }] as LineStatusResult['runningNodes'],
++});
++const completeLine = makeLine({ complete: true, runningNodes: [] });
++
++// ── Tests ──────────────────────────────────────────────────────────
++
++describe('isLineEditable', () => {
++  describe('backwards-compatible (no executionStatus)', () => {
++    it('empty lines are always editable', () => {
++      expect(isLineEditable(emptyLine)).toBe(true);
++    });
++
++    it('pending lines with no running nodes are editable', () => {
++      expect(isLineEditable(pendingLine)).toBe(true);
++    });
++
++    it('lines with running nodes are not editable', () => {
++      expect(isLineEditable(runningLine)).toBe(false);
++    });
++
++    it('complete lines are not editable', () => {
++      expect(isLineEditable(completeLine)).toBe(false);
++    });
++  });
++
++  describe('idle executionStatus (same as no status)', () => {
++    it('pending line is editable when idle', () => {
++      expect(isLineEditable(pendingLine, 'idle')).toBe(true);
++    });
++
++    it('empty line is editable when idle', () => {
++      expect(isLineEditable(emptyLine, 'idle')).toBe(true);
++    });
++  });
++
++  describe('stopping executionStatus — all lines locked', () => {
++    it('empty lines are locked during stopping', () => {
++      expect(isLineEditable(emptyLine, 'stopping')).toBe(false);
++    });
++
++    it('pending lines are locked during stopping', () => {
++      expect(isLineEditable(pendingLine, 'stopping')).toBe(false);
++    });
++
++    it('running lines are locked during stopping', () => {
++      expect(isLineEditable(runningLine, 'stopping')).toBe(false);
++    });
++
++    it('complete lines are locked during stopping', () => {
++      expect(isLineEditable(completeLine, 'stopping')).toBe(false);
++    });
++  });
++
++  describe('running executionStatus — per-line logic applies', () => {
++    it('pending line is editable (future node)', () => {
++      expect(isLineEditable(pendingLine, 'running')).toBe(true);
++    });
++
++    it('running line is not editable', () => {
++      expect(isLineEditable(runningLine, 'running')).toBe(false);
++    });
++
++    it('complete line is not editable', () => {
++      expect(isLineEditable(completeLine, 'running')).toBe(false);
++    });
++
++    it('empty line is editable during running', () => {
++      expect(isLineEditable(emptyLine, 'running')).toBe(true);
++    });
++  });
++
++  describe('stopped executionStatus — per-line logic applies', () => {
++    it('pending line is editable when stopped', () => {
++      expect(isLineEditable(pendingLine, 'stopped')).toBe(true);
++    });
++
++    it('complete line is not editable when stopped', () => {
++      expect(isLineEditable(completeLine, 'stopped')).toBe(false);
++    });
++  });
++});
+diff --git a/test/unit/web/features/074-workflow-execution/execution-button-state.test.ts b/test/unit/web/features/074-workflow-execution/execution-button-state.test.ts
+new file mode 100644
+index 00000000..37ff6d16
+--- /dev/null
++++ b/test/unit/web/features/074-workflow-execution/execution-button-state.test.ts
+@@ -0,0 +1,113 @@
++/**
++ * Tests for deriveButtonState() — execution button state machine.
++ *
++ * Covers all 7 ManagerExecutionStatus values and actionPending/hydrating combos.
++ * Source of truth: Workshop 001 state machine table.
++ *
++ * Plan 074 Phase 4 — T008
++ */
++
++import { deriveButtonState } from '@/features/074-workflow-execution/execution-button-state';
++import { describe, expect, it } from 'vitest';
++
++describe('deriveButtonState', () => {
++  // ── Hydrating ────────────────────────────────────────────────────
++
++  it('hides all buttons while hydrating', () => {
++    const state = deriveButtonState('running', null, true);
++    expect(state.run.visible).toBe(false);
++    expect(state.stop.visible).toBe(false);
++    expect(state.restart.visible).toBe(false);
++  });
++
++  // ── idle ─────────────────────────────────────────────────────────
++
++  it('idle: Run visible+enabled, Stop hidden, Restart hidden', () => {
++    const state = deriveButtonState('idle', null, false);
++    expect(state.run).toEqual({ visible: true, enabled: true, label: 'Run' });
++    expect(state.stop).toEqual({ visible: false, enabled: false });
++    expect(state.restart).toEqual({ visible: false, enabled: false });
++  });
++
++  it('idle + actionPending=run: Run visible but disabled', () => {
++    const state = deriveButtonState('idle', 'run', false);
++    expect(state.run.visible).toBe(true);
++    expect(state.run.enabled).toBe(false);
++  });
++
++  // ── starting ─────────────────────────────────────────────────────
++
++  it('starting: Run visible+disabled, Stop hidden, Restart hidden', () => {
++    const state = deriveButtonState('starting', null, false);
++    expect(state.run).toEqual({ visible: true, enabled: false, label: 'Run' });
++    expect(state.stop.visible).toBe(false);
++    expect(state.restart.visible).toBe(false);
++  });
++
++  // ── running ──────────────────────────────────────────────────────
++
++  it('running: Run hidden, Stop visible+enabled, Restart hidden', () => {
++    const state = deriveButtonState('running', null, false);
++    expect(state.run.visible).toBe(false);
++    expect(state.stop).toEqual({ visible: true, enabled: true });
++    expect(state.restart.visible).toBe(false);
++  });
++
++  it('running + actionPending=stop: Stop visible but disabled', () => {
++    const state = deriveButtonState('running', 'stop', false);
++    expect(state.stop.visible).toBe(true);
++    expect(state.stop.enabled).toBe(false);
++  });
++
++  // ── stopping ─────────────────────────────────────────────────────
++
++  it('stopping: Run hidden, Stop visible+disabled, Restart hidden', () => {
++    const state = deriveButtonState('stopping', null, false);
++    expect(state.run.visible).toBe(false);
++    expect(state.stop).toEqual({ visible: true, enabled: false });
++    expect(state.restart.visible).toBe(false);
++  });
++
++  // ── stopped ──────────────────────────────────────────────────────
++
++  it('stopped: Run "Resume" enabled, Stop hidden, Restart enabled', () => {
++    const state = deriveButtonState('stopped', null, false);
++    expect(state.run).toEqual({ visible: true, enabled: true, label: 'Resume' });
++    expect(state.stop.visible).toBe(false);
++    expect(state.restart).toEqual({ visible: true, enabled: true });
++  });
++
++  it('stopped + actionPending=run: Run visible but disabled', () => {
++    const state = deriveButtonState('stopped', 'run', false);
++    expect(state.run.visible).toBe(true);
++    expect(state.run.enabled).toBe(false);
++    expect(state.restart.visible).toBe(true);
++    expect(state.restart.enabled).toBe(false);
++  });
++
++  // ── completed ────────────────────────────────────────────────────
++
++  it('completed: Run hidden, Stop hidden, Restart enabled', () => {
++    const state = deriveButtonState('completed', null, false);
++    expect(state.run.visible).toBe(false);
++    expect(state.stop.visible).toBe(false);
++    expect(state.restart).toEqual({ visible: true, enabled: true });
++  });
++
++  // ── failed ───────────────────────────────────────────────────────
++
++  it('failed: Run "Retry" enabled, Stop hidden, Restart enabled', () => {
++    const state = deriveButtonState('failed', null, false);
++    expect(state.run).toEqual({ visible: true, enabled: true, label: 'Retry' });
++    expect(state.stop.visible).toBe(false);
++    expect(state.restart).toEqual({ visible: true, enabled: true });
++  });
++
++  it('failed + actionPending=restart: Restart visible but disabled', () => {
++    const state = deriveButtonState('failed', 'restart', false);
++    expect(state.run.visible).toBe(true);
++    expect(state.run.enabled).toBe(false);
++    expect(state.restart.visible).toBe(true);
++    expect(state.restart.enabled).toBe(false);
++  });
++});

@@ -111,6 +111,15 @@ export function useClipboard(options: UseClipboardOptions) {
           a.click();
           document.body.removeChild(a);
           URL.revokeObjectURL(url);
+        } else if (result.ok && result.isBinary) {
+          // Binary files: download via raw file API with ?download=true
+          const rawUrl = `/api/workspaces/${encodeURIComponent(slug)}/files/raw?worktree=${encodeURIComponent(worktreePath)}&file=${encodeURIComponent(filePath)}&download=true`;
+          const a = document.createElement('a');
+          a.href = rawUrl;
+          a.download = filePath.split('/').pop() ?? 'file';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
         } else {
           toast.error('Could not download file');
         }

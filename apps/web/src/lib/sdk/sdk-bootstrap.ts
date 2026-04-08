@@ -100,6 +100,19 @@ export function bootstrapSDK(): IUSDK {
   });
   keybindings.register({ key: 'Backquote', command: 'terminal.toggleOverlay' });
 
+  // Shift+Escape always closes terminal overlay regardless of screen
+  commands.register({
+    id: 'terminal.closeOverlay',
+    title: 'Close Terminal',
+    domain: 'terminal',
+    params: z.object({}),
+    handler: async () => {
+      window.dispatchEvent(new CustomEvent('terminal:close'));
+    },
+    icon: 'terminal',
+  });
+  keybindings.register({ key: 'Shift+Escape', command: 'terminal.closeOverlay', global: true });
+
   // Activity log overlay toggle (Plan 065 Phase 3)
   commands.register({
     id: 'activity-log.toggleOverlay',

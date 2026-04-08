@@ -46,6 +46,12 @@ describe('detectContentType', () => {
     expect(result).toEqual({ category: 'pdf', mimeType: 'application/pdf' });
   });
 
+  it('detects HTML types', () => {
+    expect(detectContentType('page.html')).toEqual({ category: 'html', mimeType: 'text/html' });
+    expect(detectContentType('page.htm')).toEqual({ category: 'html', mimeType: 'text/html' });
+    expect(detectContentType('report.HTML')).toEqual({ category: 'html', mimeType: 'text/html' });
+  });
+
   it('detects video types', () => {
     /*
     Test Doc:
@@ -110,6 +116,7 @@ describe('isBinaryExtension', () => {
     expect(isBinaryExtension('photo.png')).toBe(true);
     expect(isBinaryExtension('doc.pdf')).toBe(true);
     expect(isBinaryExtension('clip.mp4')).toBe(true);
+    expect(isBinaryExtension('page.html')).toBe(true);
   });
 
   it('returns false for text extensions', () => {

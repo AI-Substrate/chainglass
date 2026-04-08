@@ -37,6 +37,10 @@
       "import": "./dist/sdk/index.js",
       "types": "./dist/sdk/index.d.ts"
     },
+    "./sdk/workflow": {
+      "import": "./dist/sdk/workflow/index.js",
+      "types": "./dist/sdk/workflow/index.d.ts"
+    },
     "./state": {
       "import": "./dist/state/index.js",
       "types": "./dist/state/index.d.ts"

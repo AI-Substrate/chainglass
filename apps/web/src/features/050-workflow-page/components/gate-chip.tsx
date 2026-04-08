@@ -21,24 +21,24 @@ interface GateStatus {
 
 function computeGates(node: NodeStatusResult): GateStatus[] {
   const d = node.readyDetail;
+
+  // Distinguish wired-but-waiting inputs from unwired inputs
+  const hasUnwiredInputs = node.inputPack?.inputs
+    ? Object.values(node.inputPack.inputs).some((entry) => entry.status === 'error')
+    : false;
+  const inputMessage = d.inputsAvailable
+    ? 'Available'
+    : hasUnwiredInputs
+      ? 'Inputs not wired'
+      : 'Waiting on upstream';
+
+  // Ordered by actionability — show the most useful blocker first.
   return [
     {
-      name: 'Preceding Lines',
-      passing: d.precedingLinesComplete,
-      color: 'text-red-500',
-      message: d.precedingLinesComplete ? 'Complete' : 'Earlier lines incomplete',
-    },
-    {
-      name: 'Transition',
-      passing: d.transitionOpen,
-      color: 'text-amber-500',
-      message: d.transitionOpen ? 'Open' : 'Awaiting manual transition',
-    },
-    {
-      name: 'Serial Neighbor',
-      passing: d.serialNeighborComplete,
-      color: 'text-orange-500',
-      message: d.serialNeighborComplete ? 'Complete' : 'Left neighbor not done',
+      name: 'Inputs',
+      passing: d.inputsAvailable,
+      color: 'text-violet-500',
+      message: inputMessage,
     },
     {
       name: 'Context Source',
@@ -47,10 +47,22 @@ function computeGates(node: NodeStatusResult): GateStatus[] {
       message: d.contextFromReady !== false ? 'Ready' : 'Context source not ready',
     },
     {
-      name: 'Inputs',
-      passing: d.inputsAvailable,
-      color: 'text-violet-500',
-      message: d.inputsAvailable ? 'Available' : 'Inputs not resolved',
+      name: 'Serial Neighbor',
+      passing: d.serialNeighborComplete,
+      color: 'text-orange-500',
+      message: d.serialNeighborComplete ? 'Complete' : 'Left neighbor not done',
+    },
+    {
+      name: 'Transition',
+      passing: d.transitionOpen,
+      color: 'text-amber-500',
+      message: d.transitionOpen ? 'Open' : 'Awaiting manual transition',
+    },
+    {
+      name: 'Preceding Lines',
+      passing: d.precedingLinesComplete,
+      color: 'text-red-500',
+      message: d.precedingLinesComplete ? 'Complete' : 'Earlier lines incomplete',
     },
   ];
 }

@@ -65,7 +65,11 @@ Visual workflow editor for the positional graph system. Users view and edit line
 
 | Contract | Type | Consumers | Description |
 |----------|------|-----------|-------------|
-| _None_ | — | — | Leaf consumer domain — no contracts exported |
+| `POST /api/.../execution` | REST API | Harness SDK, curl | Start workflow execution via WorkflowExecutionManager |
+| `GET /api/.../execution` | REST API | Harness SDK, curl | Poll current execution status |
+| `DELETE /api/.../execution` | REST API | Harness SDK, curl | Stop a running workflow |
+| `POST /api/.../execution/restart` | REST API | Harness SDK, curl | Restart workflow (stop + reset + start) |
+| `GET /api/.../detailed` | REST API | Harness SDK, curl | Per-node diagnostics via getReality() |
 
 ## Composition (Internal)
 
@@ -90,6 +94,7 @@ Visual workflow editor for the positional graph system. Users view and edit line
 ## Source Location
 
 Primary: `apps/web/src/features/050-workflow-page/`
+Supporting: `apps/web/src/features/074-workflow-execution/` — execution hook, button-state utility, manager types, registry persistence, resume-on-bootstrap recovery (shared with positional-graph domain)
 
 | File/Area | Role | Notes |
 |-----------|------|-------|
@@ -97,6 +102,11 @@ Primary: `apps/web/src/features/050-workflow-page/`
 | `apps/web/src/features/050-workflow-page/hooks/` | React hooks | useUndoRedo, useWorkflowSSE, useWorkflowMutations |
 | `apps/web/src/features/050-workflow-page/lib/` | Pure logic | UndoRedoManager, context-badge, related-nodes, compute-available-sources |
 | `apps/web/src/features/050-workflow-page/types.ts` | Shared types | WorkflowSnapshot, server action types |
+| `apps/web/src/features/074-workflow-execution/hooks/` | Execution hook | useWorkflowExecution (hydration + SSE + action gating) |
+| `apps/web/src/features/074-workflow-execution/execution-button-state.ts` | Button state utility | deriveButtonState() pure function |
+| `apps/web/src/features/074-workflow-execution/execution-registry.types.ts` | Registry types | Zod schemas, `IExecutionRegistry`, `toRegistryEntry()` |
+| `apps/web/src/features/074-workflow-execution/execution-registry.ts` | Registry I/O | read/write/remove with atomic writes, self-healing on corrupt files |
+| `apps/web/src/features/074-workflow-execution/workflow-execution-manager.ts` | Execution manager | start/stop/restart/resume lifecycle, registry persistence, debounced iteration writes |
 | `apps/web/app/(dashboard)/workspaces/[slug]/workflows/` | Route pages | List + editor server components |
 | `apps/web/app/actions/workflow-actions.ts` | Server actions | 17 actions: load, list, create, mutations, Q&A, undo, SSE refresh |
 | `packages/workflow/src/features/023-central-watcher-notifications/workflow-watcher.adapter.ts` | Watcher adapter | Filters graph.yaml/node.yaml/state.json changes, 200ms debounce |
@@ -148,3 +158,6 @@ Primary: `apps/web/src/features/050-workflow-page/`
 | Plan 050 Phase 7 | Removed all Plan 022 workgraph UI (pages, API routes, feature folder, DI registrations, event adapters, tests). Workflows card replaces WorkGraphs on worktree page. | 2026-02-27 |
 | Plan 061 Phase 3 | answerQuestion server action migrated to IWorkflowEvents delegation (single call replaces 2-step PGService handshake) | 2026-03-01 |
 | Plan 072 Phase 5 | Migrated useWorkflowSSE from `useSSE` to `useChannelEvents('workflows')` via multiplexed SSE. Deleted legacy `useSSE` hook. | 2026-03-08 |
+| Plan 074 Phase 4 | Run/Stop/Restart execution controls in toolbar, execution-aware node locking, undo/redo blocking during execution, live status display | 2026-03-15 |
+| Plan 074 Phase 5 | Execution registry persistence for server restart recovery: registry types/Zod schema, sync atomic writes, resumeAll() with self-healing, debounced iteration persistence, SIGTERM best-effort persist | 2026-03-15 |
+| Plan 076 P4-ST001 | Workflow execution REST API (5 Tier 1 endpoints: execution CRUD + detailed diagnostics) for harness/server-mode validation. Uses IOrchestrationService + auth() for API routes. | 2026-03-22 |

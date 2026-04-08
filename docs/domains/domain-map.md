@@ -77,7 +77,7 @@ flowchart LR
     posGraph -->|"IFileSystem<br/>IPathResolver"| fileOps
 
     %% Workflow UI dependencies
-    workflowUI -->|"IPositionalGraphService<br/>ITemplateService<br/>IWorkUnitService"| posGraph
+    workflowUI -->|"IPositionalGraphService<br/>IOrchestrationService<br/>ITemplateService<br/>IWorkUnitService"| posGraph
     workflowUI -->|"IFileSystem<br/>IPathResolver"| fileOps
     workflowUI -->|"useChannelEvents<br/>multiplexed SSE"| events
     workflowUI -->|"workspaceHref"| wsUrl

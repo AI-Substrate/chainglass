@@ -23,6 +23,7 @@ export const ServerInfoSchema = z
     port: z.number().int().min(1).max(65535),
     pid: z.number().int().min(1),
     startedAt: z.string().datetime(),
+    localToken: z.string().min(1).optional(),
   })
   .strict();
 
@@ -108,17 +109,21 @@ export function readServerInfo(worktreePath: string): ServerInfo | null {
 
     const info = result.data;
 
-    if (!isPidAlive(info.pid)) {
-      return null;
-    }
+    // Inside a container, the host's PID is meaningless — skip PID validation.
+    const inContainer = process.env.CHAINGLASS_CONTAINER === 'true';
+    if (!inContainer) {
+      if (!isPidAlive(info.pid)) {
+        return null;
+      }
 
-    // PID recycling guard: compare OS-reported process start time against recorded startedAt.
-    // If the live process started significantly after our record, it's a different process.
-    const recordedStart = new Date(info.startedAt).getTime();
-    const liveStart = getProcessStartTime(info.pid);
-    if (liveStart !== null && liveStart > recordedStart + 5000) {
-      // Live process started >5s after recorded start — different process recycled the PID
-      return null;
+      // PID recycling guard: compare OS-reported process start time against recorded startedAt.
+      // If the live process started significantly after our record, it's a different process.
+      const recordedStart = new Date(info.startedAt).getTime();
+      const liveStart = getProcessStartTime(info.pid);
+      if (liveStart !== null && liveStart > recordedStart + 5000) {
+        // Live process started >5s after recorded start — different process recycled the PID
+        return null;
+      }
     }
 
     return info;

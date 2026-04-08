@@ -1,0 +1,14 @@
+# Test user-input unit patch — Plan 074 Phase 6 T005
+# Applied via: cg unit update test-user-input --patch <this-file>
+description: "Test user-input unit for workflow execution validation"
+version: "1.0.0"
+inputs: []
+outputs:
+  - name: spec
+    type: data
+    data_type: text
+    required: true
+    description: "User-provided specification text"
+user_input:
+  question_type: text
+  prompt: "Enter the specification for processing:"

@@ -53,6 +53,12 @@ export interface RefreshResult {
   errors: ResultError[];
 }
 
+/** Result from delete() operation (Plan 074 Phase 6 FT-002) */
+export interface DeleteTemplateResult {
+  deleted: boolean;
+  errors: ResultError[];
+}
+
 export interface ITemplateService {
   /**
    * Save a working graph instance as a reusable template.
@@ -90,4 +96,11 @@ export interface ITemplateService {
    * Warns if an active run is detected.
    */
   refresh(ctx: WorkspaceContext, templateSlug: string, instanceId: string): Promise<RefreshResult>;
+
+  /**
+   * Delete a workflow template and all its instances.
+   * Removes the template directory entirely. Idempotent.
+   * Plan 074 Phase 6 FT-002.
+   */
+  delete(ctx: WorkspaceContext, templateSlug: string): Promise<DeleteTemplateResult>;
 }

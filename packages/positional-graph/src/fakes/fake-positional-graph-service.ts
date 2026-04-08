@@ -555,6 +555,26 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     this._state = state;
   }
 
+  async markNodesInterrupted(
+    ctx: WorkspaceContext,
+    graphSlug: string,
+    nodeIds: string[]
+  ): Promise<void> {
+    this.track('markNodesInterrupted', [ctx, graphSlug, nodeIds]);
+    if (this._state) {
+      const nodes = this._state.nodes ?? {};
+      for (const nodeId of nodeIds) {
+        const entry = nodes[nodeId];
+        if (entry) entry.status = 'interrupted';
+      }
+    }
+  }
+
+  async resetGraphState(ctx: WorkspaceContext, graphSlug: string): Promise<void> {
+    this.track('resetGraphState', [ctx, graphSlug]);
+    this._state = { graph_status: 'pending', updated_at: new Date().toISOString(), nodes: {} };
+  }
+
   async restoreSnapshot(
     ctx: WorkspaceContext,
     graphSlug: string,
@@ -592,5 +612,10 @@ export class FakePositionalGraphService implements IPositionalGraphService {
     this._collateResult = { inputs: {}, ok: true };
     this._inspectResult = null;
     this._state = null;
+  }
+
+  /** Test helper: set state directly (for lifecycle tests). */
+  setState(state: State): void {
+    this._state = state;
   }
 }

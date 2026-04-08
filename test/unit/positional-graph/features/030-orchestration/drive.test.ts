@@ -390,3 +390,118 @@ describe('drive() session persistence', () => {
     expect(result.exitReason).toBe('complete');
   });
 });
+
+// ── Abort Signal Tests (Plan 074 T004) ──────────────
+
+describe('drive() abort signal', () => {
+  let deps: DriveDeps;
+  beforeEach(() => {
+    deps = makeDeps();
+  });
+
+  it('returns stopped when signal aborts during idle sleep', async () => {
+    deps.onbas.setNextAction(noAction('all-waiting'));
+    const handle = makeDriveHandle(deps);
+    const controller = new AbortController();
+
+    // Abort after 20ms — drive() should exit instead of sleeping full 10s
+    setTimeout(() => controller.abort(), 20);
+
+    const start = Date.now();
+    const result = await handle.drive({
+      ...FAST_OPTS,
+      idleDelayMs: 10_000,
+      signal: controller.signal,
+    });
+    const elapsed = Date.now() - start;
+
+    expect(result.exitReason).toBe('stopped');
+    expect(elapsed).toBeLessThan(100); // phase AC2: <100ms abort response
+  });
+
+  it('returns stopped immediately with already-aborted signal (deterministic)', async () => {
+    deps.onbas.setNextAction(noAction('all-waiting'));
+    const handle = makeDriveHandle(deps);
+    const controller = new AbortController();
+    controller.abort(); // pre-aborted — no timing dependency
+
+    const result = await handle.drive({
+      ...FAST_OPTS,
+      signal: controller.signal,
+    });
+
+    expect(result.exitReason).toBe('stopped');
+    expect(result.iterations).toBe(0);
+    expect(result.totalActions).toBe(0);
+  });
+
+  it('emits status event with stopped message on abort (deterministic)', async () => {
+    deps.onbas.setNextAction(noAction('all-waiting'));
+    const handle = makeDriveHandle(deps);
+    const controller = new AbortController();
+    controller.abort(); // pre-aborted
+
+    const events: DriveEvent[] = [];
+    await handle.drive({
+      ...FAST_OPTS,
+      signal: controller.signal,
+      onEvent: async (e) => events.push(e),
+    });
+
+    const statusEvents = events.filter((e) => e.type === 'status');
+    expect(statusEvents.some((e) => e.message.includes('stopped'))).toBe(true);
+  });
+
+  it('without signal behaves normally (backwards compatible)', async () => {
+    deps.onbas.setActions([startNode('n1'), noAction('graph-complete')]);
+    const handle = makeDriveHandle(deps);
+
+    const result = await handle.drive(FAST_OPTS);
+
+    expect(result.exitReason).toBe('complete');
+    expect(result.iterations).toBe(1);
+  });
+
+  it('aborts during action delay sleep within <100ms', async () => {
+    deps.onbas.setActions([startNode('n1'), noAction('all-waiting')]);
+    const handle = makeDriveHandle(deps);
+    const controller = new AbortController();
+
+    // Abort after 20ms — should exit during action delay, not wait 10s
+    setTimeout(() => controller.abort(), 20);
+
+    const start = Date.now();
+    const result = await handle.drive({
+      actionDelayMs: 10_000,
+      idleDelayMs: 10_000,
+      signal: controller.signal,
+    });
+    const elapsed = Date.now() - start;
+
+    expect(result.exitReason).toBe('stopped');
+    expect(result.totalActions).toBe(1);
+    expect(elapsed).toBeLessThan(100); // phase AC2
+  });
+
+  it('persists sessions before returning stopped (deterministic)', async () => {
+    deps.onbas.setActions([noAction('all-waiting'), noAction('all-waiting')]);
+    const handle = makeDriveHandle(deps);
+    const controller = new AbortController();
+
+    // Let one iteration happen at zero delay, then abort synchronously
+    let iterationCount = 0;
+    await handle.drive({
+      ...FAST_OPTS,
+      signal: controller.signal,
+      onEvent: async (e) => {
+        if (e.type === 'idle') {
+          iterationCount++;
+          if (iterationCount >= 1) controller.abort();
+        }
+      },
+    });
+
+    // Sessions persisted during the completed iteration
+    expect(deps.podManager.persistSessionsCalls).toBeGreaterThanOrEqual(1);
+  });
+});

@@ -94,28 +94,38 @@ function createOrchestrationStack(
   // Orchestration components (same wiring as registerOrchestrationServices)
   const nodeFs = new NodeFileSystemAdapter();
   const onbas = new ONBAS();
-  const contextService = new AgentContextService();
-  const podManager = new PodManager(nodeFs);
   const agentManager = new FakeAgentManagerService();
   const scriptRunner = new FakeScriptRunner();
-  const ods = new ODS({
-    graphService: service,
-    podManager,
-    contextService,
-    agentManager,
-    scriptRunner,
-    workUnitService: new FakeWorkUnitService(),
-  });
 
+  // Per-handle factory with capture for test inspection
+  let lastPerHandleDeps: { podManager: PodManager; ods: ODS } | undefined;
   const orchestrationService = new OrchestrationService({
     graphService: service,
     onbas,
-    ods,
     eventHandlerService,
-    podManager,
+    createPerHandleDeps: () => {
+      const pm = new PodManager(nodeFs);
+      const cs = new AgentContextService();
+      const o = new ODS({
+        graphService: service,
+        podManager: pm,
+        contextService: cs,
+        agentManager,
+        scriptRunner,
+        workUnitService: new FakeWorkUnitService(),
+      });
+      lastPerHandleDeps = { podManager: pm, ods: o };
+      return { podManager: pm, ods: o };
+    },
   });
 
-  return { orchestrationService, eventHandlerService, agentManager, scriptRunner, podManager };
+  return {
+    orchestrationService,
+    eventHandlerService,
+    agentManager,
+    scriptRunner,
+    getLastPerHandleDeps: () => lastPerHandleDeps,
+  };
 }
 
 // ============================================

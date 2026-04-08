@@ -3,9 +3,12 @@ type: agent
 version: 1.0.0
 description: Creates detailed specifications from user requirements
 
-inputs: []
-  # Entry point unit - no required inputs
-  # Gets user requirements interactively via Q&A protocol
+inputs:
+  - name: requirements
+    type: data
+    data_type: text
+    required: true
+    description: The user's requirements for what to build
 
 outputs:
   - name: spec

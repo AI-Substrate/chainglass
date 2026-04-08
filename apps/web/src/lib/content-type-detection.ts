@@ -10,7 +10,7 @@
  */
 
 export interface ContentTypeInfo {
-  category: 'image' | 'pdf' | 'video' | 'audio' | 'binary';
+  category: 'image' | 'pdf' | 'video' | 'audio' | 'html' | 'binary';
   mimeType: string;
 }
 
@@ -43,6 +43,20 @@ const EXTENSION_MAP: Record<string, ContentTypeInfo> = {
   flac: { category: 'audio', mimeType: 'audio/flac' },
   aac: { category: 'audio', mimeType: 'audio/aac' },
   m4a: { category: 'audio', mimeType: 'audio/mp4' },
+
+  // HTML (rendered in sandboxed iframe)
+  html: { category: 'html', mimeType: 'text/html' },
+  htm: { category: 'html', mimeType: 'text/html' },
+
+  // Web assets (served with correct MIME type for HTML sub-resources)
+  css: { category: 'binary', mimeType: 'text/css' },
+  js: { category: 'binary', mimeType: 'text/javascript' },
+  mjs: { category: 'binary', mimeType: 'text/javascript' },
+  json: { category: 'binary', mimeType: 'application/json' },
+  woff: { category: 'binary', mimeType: 'font/woff' },
+  woff2: { category: 'binary', mimeType: 'font/woff2' },
+  ttf: { category: 'binary', mimeType: 'font/ttf' },
+  otf: { category: 'binary', mimeType: 'font/otf' },
 };
 
 const BINARY_FALLBACK: ContentTypeInfo = {

@@ -101,6 +101,7 @@ export class AgentInstance implements IAgentInstance {
         sessionId: this._sessionId ?? undefined,
         cwd: options.cwd,
         onEvent: (event: AgentEvent) => this._dispatch(event, options.onEvent),
+        timeout: options.timeoutMs,
       };
 
       const result = await this._adapter.run(adapterOptions);

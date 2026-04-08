@@ -57,6 +57,7 @@ async function build() {
       // Runtime-loaded dependencies
       'pino', // Loaded at runtime by PinoLoggerAdapter
       'pino-pretty', // Optional pino transport
+      '@github/copilot-sdk', // Uses module.createRequire() internally — bundling breaks it
     ],
 
     // Note: Shebang is added to the package.json bin configuration,

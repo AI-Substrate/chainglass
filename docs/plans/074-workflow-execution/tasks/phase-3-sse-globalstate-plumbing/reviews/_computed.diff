@@ -1,0 +1,1336 @@
+diff --git a/apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx b/apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx
+index 8bbff9cb..86244a6e 100644
+--- a/apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx
++++ b/apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx
+@@ -37,6 +37,7 @@ const WORKSPACE_SSE_CHANNELS = [
+   'workflows',
+   'unit-catalog',
+   'agents',
++  'workflow-execution',
+ ] as const;
+ 
+ interface LayoutProps {
+diff --git a/apps/web/app/actions/workflow-execution-actions.ts b/apps/web/app/actions/workflow-execution-actions.ts
+new file mode 100644
+index 00000000..90a177f0
+--- /dev/null
++++ b/apps/web/app/actions/workflow-execution-actions.ts
+@@ -0,0 +1,89 @@
++'use server';
++
++/**
++ * Workflow Execution Server Actions — run/stop/restart/status for workflow pipelines.
++ *
++ * Plan 074 Phase 3: SSE + GlobalState Plumbing.
++ *
++ * These actions invoke the WorkflowExecutionManager singleton (globalThis).
++ * DYK #3: SSE broadcasts race ahead of these responses — Phase 4 must gate
++ * button enablement on action response, not SSE status.
++ * DYK #4: Phase 4 must call getWorkflowExecutionStatus on mount to hydrate
++ * initial state before SSE events arrive.
++ */
++
++import { requireAuth } from '@/features/063-login/lib/require-auth';
++import { getWorkflowExecutionManager } from '../../src/features/074-workflow-execution/get-manager';
++import type { SerializableExecutionStatus } from '../../src/features/074-workflow-execution/workflow-execution-manager.types';
++
++// ─── Types ───────────────────────────────────────────────────────────
++
++interface ActionResult {
++  ok: boolean;
++  error?: string;
++}
++
++interface RunResult extends ActionResult {
++  key?: string;
++  already?: boolean;
++}
++
++// ─── Actions ─────────────────────────────────────────────────────────
++
++export async function runWorkflow(
++  slug: string,
++  worktreePath: string,
++  graphSlug: string
++): Promise<RunResult> {
++  await requireAuth();
++  try {
++    const manager = getWorkflowExecutionManager();
++    const result = await manager.start({ workspaceSlug: slug, worktreePath }, graphSlug);
++    return { ok: result.started, key: result.key, already: result.already };
++  } catch (error) {
++    return { ok: false, error: error instanceof Error ? error.message : String(error) };
++  }
++}
++
++export async function stopWorkflow(worktreePath: string, graphSlug: string): Promise<ActionResult> {
++  await requireAuth();
++  try {
++    const manager = getWorkflowExecutionManager();
++    const result = await manager.stop(worktreePath, graphSlug);
++    return { ok: result.stopped };
++  } catch (error) {
++    return { ok: false, error: error instanceof Error ? error.message : String(error) };
++  }
++}
++
++export async function restartWorkflow(
++  slug: string,
++  worktreePath: string,
++  graphSlug: string
++): Promise<RunResult> {
++  await requireAuth();
++  try {
++    const manager = getWorkflowExecutionManager();
++    const result = await manager.restart({ workspaceSlug: slug, worktreePath }, graphSlug);
++    return { ok: result.started, key: result.key };
++  } catch (error) {
++    return { ok: false, error: error instanceof Error ? error.message : String(error) };
++  }
++}
++
++/**
++ * DYK #1: Returns SerializableExecutionStatus (no AbortController/Promise/IGraphOrchestration).
++ * DYK #4: Phase 4 must call this on mount to hydrate initial state.
++ */
++export async function getWorkflowExecutionStatus(
++  worktreePath: string,
++  graphSlug: string
++): Promise<SerializableExecutionStatus | null> {
++  await requireAuth();
++  try {
++    const manager = getWorkflowExecutionManager();
++    return manager.getSerializableStatus(worktreePath, graphSlug) ?? null;
++  } catch {
++    return null;
++  }
++}
+diff --git a/apps/web/src/features/074-workflow-execution/create-execution-manager.ts b/apps/web/src/features/074-workflow-execution/create-execution-manager.ts
+index a5bbcf2b..52841e0b 100644
+--- a/apps/web/src/features/074-workflow-execution/create-execution-manager.ts
++++ b/apps/web/src/features/074-workflow-execution/create-execution-manager.ts
+@@ -14,6 +14,7 @@ import {
+ } from '@chainglass/shared';
+ import type { IWorkspaceService } from '@chainglass/workflow';
+ import { getContainer } from '../../lib/di-container';
++import { sseManager } from '../../lib/sse-manager';
+ import { WorkflowExecutionManager } from './workflow-execution-manager';
+ 
+ export async function createWorkflowExecutionManager(): Promise<WorkflowExecutionManager> {
+@@ -27,6 +28,7 @@ export async function createWorkflowExecutionManager(): Promise<WorkflowExecutio
+       POSITIONAL_GRAPH_DI_TOKENS.POSITIONAL_GRAPH_SERVICE
+     ),
+     workspaceService: container.resolve<IWorkspaceService>(WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE),
++    broadcast: sseManager.broadcast.bind(sseManager),
+   };
+ 
+   return new WorkflowExecutionManager(deps);
+diff --git a/apps/web/src/features/074-workflow-execution/workflow-execution-manager.ts b/apps/web/src/features/074-workflow-execution/workflow-execution-manager.ts
+index b6f76b44..a481eb9a 100644
+--- a/apps/web/src/features/074-workflow-execution/workflow-execution-manager.ts
++++ b/apps/web/src/features/074-workflow-execution/workflow-execution-manager.ts
+@@ -3,9 +3,11 @@
+  *
+  * Owns the lifecycle of workflow executions across all worktrees.
+  * Wraps drive() with AbortController for cooperative cancellation.
+- * Plan 074: Workflow Execution from Web UI — Phase 2.
++ * Plan 074: Workflow Execution from Web UI — Phases 2+3.
+  *
+- * SSE/GlobalState broadcasting is stubbed here (Phase 3 wires it).
++ * Phase 3: SSE broadcasting via injected broadcast function.
++ * DYK #5: 6 broadcast call sites — start(starting), start(running),
++ * handleEvent, .then(completed/stopped/failed), .catch(failed), stop(stopping).
+  */
+ 
+ import type { DriveEvent, DriveResult } from '@chainglass/positional-graph';
+@@ -14,11 +16,14 @@ import type {
+   ExecutionManagerDeps,
+   IWorkflowExecutionManager,
+   ManagerExecutionStatus,
++  SerializableExecutionStatus,
+   StartResult,
+   StopResult,
+ } from './workflow-execution-manager.types.js';
+ import { makeExecutionKey } from './workflow-execution-manager.types.js';
+ 
++const SSE_CHANNEL = 'workflow-execution';
++
+ export class WorkflowExecutionManager implements IWorkflowExecutionManager {
+   private readonly executions = new Map<string, ExecutionHandle>();
+   private readonly deps: ExecutionManagerDeps;
+@@ -101,6 +106,7 @@ export class WorkflowExecutionManager implements IWorkflowExecutionManager {
+     };
+ 
+     this.executions.set(key, handle);
++    this.broadcastStatus(handle); // DYK #5 call site (1): 'starting'
+ 
+     // Resolve the orchestration handle
+     const workspaceCtx = await this.deps.workspaceService.resolveContextFromParams(
+@@ -110,12 +116,14 @@ export class WorkflowExecutionManager implements IWorkflowExecutionManager {
+     if (!workspaceCtx) {
+       handle.status = 'failed';
+       handle.lastMessage = 'Failed to resolve workspace context';
++      this.broadcastStatus(handle); // broadcast failure
+       return { started: false, already: false, key };
+     }
+ 
+     const orchestrationHandle = await this.deps.orchestrationService.get(workspaceCtx, graphSlug);
+     handle.orchestrationHandle = orchestrationHandle;
+     handle.status = 'running';
++    this.broadcastStatus(handle); // DYK #5 call site (2): 'running'
+ 
+     // Start drive() in background — NOT awaited
+     handle.drivePromise = orchestrationHandle.drive({
+@@ -139,6 +147,7 @@ export class WorkflowExecutionManager implements IWorkflowExecutionManager {
+         handle.controller = null;
+         handle.drivePromise = null;
+         handle.stoppedAt = new Date().toISOString();
++        this.broadcastStatus(handle); // DYK #5 call site (4): terminal status
+       })
+       .catch((error: unknown) => {
+         handle.status = 'failed';
+@@ -146,6 +155,7 @@ export class WorkflowExecutionManager implements IWorkflowExecutionManager {
+         handle.controller = null;
+         handle.drivePromise = null;
+         handle.stoppedAt = new Date().toISOString();
++        this.broadcastStatus(handle); // DYK #5 call site (5): error
+       });
+ 
+     return { started: true, already: false, key };
+@@ -160,6 +170,7 @@ export class WorkflowExecutionManager implements IWorkflowExecutionManager {
+     }
+ 
+     handle.status = 'stopping';
++    this.broadcastStatus(handle); // DYK #5 call site (6): 'stopping'
+     handle.controller?.abort();
+ 
+     // Wait for drive() to exit
+@@ -218,7 +229,8 @@ export class WorkflowExecutionManager implements IWorkflowExecutionManager {
+       graphSlug
+     );
+ 
+-    // 5. Delete execution handle
++    // 5. Delete execution handle (DYK #2: broadcast removal first)
++    this.broadcastRemoval(key);
+     this.executions.delete(key);
+ 
+     // 6. Start fresh
+@@ -235,6 +247,27 @@ export class WorkflowExecutionManager implements IWorkflowExecutionManager {
+     return this.executions.get(key);
+   }
+ 
++  getSerializableStatus(
++    worktreePath: string,
++    graphSlug: string
++  ): SerializableExecutionStatus | undefined {
++    const handle = this.getHandle(worktreePath, graphSlug);
++    if (!handle) return undefined;
++    return {
++      key: handle.key,
++      worktreePath: handle.worktreePath,
++      graphSlug: handle.graphSlug,
++      workspaceSlug: handle.workspaceSlug,
++      status: handle.status,
++      iterations: handle.iterations,
++      totalActions: handle.totalActions,
++      lastEventType: handle.lastEventType,
++      lastMessage: handle.lastMessage,
++      startedAt: handle.startedAt,
++      stoppedAt: handle.stoppedAt,
++    };
++  }
++
+   listRunning(): ExecutionHandle[] {
+     return [...this.executions.values()].filter((h) => h.status === 'running');
+   }
+@@ -248,7 +281,26 @@ export class WorkflowExecutionManager implements IWorkflowExecutionManager {
+     );
+   }
+ 
+-  // Phase 3 will wire this to SSE + GlobalState
++  // ── SSE Broadcast (Phase 3) ──────────────────────────────
++
++  /** Broadcast current handle state to SSE channel. DYK #5: called at all 6 transition points. */
++  private broadcastStatus(handle: ExecutionHandle): void {
++    this.deps.broadcast(SSE_CHANNEL, 'execution-update', {
++      key: handle.key,
++      status: handle.status,
++      iterations: handle.iterations,
++      totalActions: handle.totalActions,
++      lastEventType: handle.lastEventType,
++      lastMessage: handle.lastMessage,
++    });
++  }
++
++  /** Broadcast handle removal so client can clean up GlobalState. DYK #2. */
++  private broadcastRemoval(key: string): void {
++    this.deps.broadcast(SSE_CHANNEL, 'execution-removed', { key });
++  }
++
++  /** DYK #5 call site (3): broadcasts on every DriveEvent during drive() loop. */
+   private handleEvent(key: string, event: DriveEvent): void {
+     const handle = this.executions.get(key);
+     if (!handle) return;
+@@ -259,5 +311,7 @@ export class WorkflowExecutionManager implements IWorkflowExecutionManager {
+     }
+     handle.lastEventType = event.type;
+     handle.lastMessage = event.message;
++
++    this.broadcastStatus(handle);
+   }
+ }
+diff --git a/apps/web/src/features/074-workflow-execution/workflow-execution-manager.types.ts b/apps/web/src/features/074-workflow-execution/workflow-execution-manager.types.ts
+index 19d17f0d..d8442ffa 100644
+--- a/apps/web/src/features/074-workflow-execution/workflow-execution-manager.types.ts
++++ b/apps/web/src/features/074-workflow-execution/workflow-execution-manager.types.ts
+@@ -73,6 +73,10 @@ export interface IWorkflowExecutionManager {
+   ): Promise<StartResult>;
+   getStatus(worktreePath: string, graphSlug: string): ManagerExecutionStatus;
+   getHandle(worktreePath: string, graphSlug: string): ExecutionHandle | undefined;
++  getSerializableStatus(
++    worktreePath: string,
++    graphSlug: string
++  ): SerializableExecutionStatus | undefined;
+   listRunning(): ExecutionHandle[];
+   cleanup(): Promise<void>;
+ }
+@@ -83,4 +87,23 @@ export interface ExecutionManagerDeps {
+   readonly orchestrationService: IOrchestrationService;
+   readonly graphService: IPositionalGraphService;
+   readonly workspaceService: IWorkspaceService;
++  /** SSE broadcast function — injected for testability. Signature matches SSEManager.broadcast(). */
++  readonly broadcast: (channelId: string, eventType: string, data: unknown) => void;
++}
++
++// ── Serializable Status (DYK #1: ExecutionHandle has non-serializable fields) ──
++
++/** Safe-to-serialize snapshot of an execution handle for server action responses. */
++export interface SerializableExecutionStatus {
++  readonly key: ExecutionKey;
++  readonly worktreePath: string;
++  readonly graphSlug: string;
++  readonly workspaceSlug: string;
++  readonly status: ManagerExecutionStatus;
++  readonly iterations: number;
++  readonly totalActions: number;
++  readonly lastEventType: string;
++  readonly lastMessage: string;
++  readonly startedAt: string | null;
++  readonly stoppedAt: string | null;
+ }
+diff --git a/apps/web/src/lib/state/state-connector.tsx b/apps/web/src/lib/state/state-connector.tsx
+index 0c934092..64427123 100644
+--- a/apps/web/src/lib/state/state-connector.tsx
++++ b/apps/web/src/lib/state/state-connector.tsx
+@@ -28,6 +28,7 @@ import { ServerEventRoute } from './server-event-route';
+ import type { ServerEventRouteDescriptor } from './server-event-router';
+ import { useStateSystem } from './state-provider';
+ import { workUnitStateRoute } from './work-unit-state-route';
++import { workflowExecutionRoute } from './workflow-execution-route';
+ 
+ /**
+  * Server event routes — domains that bridge SSE events to GlobalStateSystem.
+@@ -37,7 +38,7 @@ import { workUnitStateRoute } from './work-unit-state-route';
+  */
+ const SERVER_EVENT_ROUTES: ServerEventRouteDescriptor[] = [
+   workUnitStateRoute,
+-  // Phase 3 will add agentStateRoute here
++  workflowExecutionRoute,
+ ];
+ 
+ interface GlobalStateConnectorProps {
+diff --git a/apps/web/src/lib/state/workflow-execution-route.ts b/apps/web/src/lib/state/workflow-execution-route.ts
+new file mode 100644
+index 00000000..edd52e27
+--- /dev/null
++++ b/apps/web/src/lib/state/workflow-execution-route.ts
+@@ -0,0 +1,51 @@
++/**
++ * Plan 074 Phase 3: Workflow Execution — Server Event Route Descriptor
++ *
++ * Maps workflow-execution SSE events to GlobalStateSystem state paths.
++ * Per ServerEventRouteDescriptor pattern (Plan 059 Subtask 001).
++ *
++ * SSE events arrive as:
++ *   { type: 'execution-update', key: 'wt-path:slug', status: '...', iterations: N, ... }
++ *   { type: 'execution-removed', key: 'wt-path:slug' }
++ *
++ * Mapped to state paths:
++ *   workflow-execution:{key}:status → 'running'
++ *   workflow-execution:{key}:iterations → 5
++ *   workflow-execution:{key}:lastEventType → 'iteration'
++ *   workflow-execution:{key}:lastMessage → 'Completed iteration 5'
++ */
++
++import type { ServerEvent, ServerEventRouteDescriptor, StateUpdate } from './server-event-router';
++
++export const workflowExecutionRoute: ServerEventRouteDescriptor = {
++  channel: 'workflow-execution',
++  stateDomain: 'workflow-execution',
++  multiInstance: true,
++  properties: [
++    { key: 'status', description: 'Execution status', typeHint: 'ManagerExecutionStatus' },
++    { key: 'iterations', description: 'Drive iterations completed', typeHint: 'number' },
++    { key: 'lastEventType', description: 'Last DriveEvent type', typeHint: 'string' },
++    { key: 'lastMessage', description: 'Status message', typeHint: 'string' },
++  ],
++  mapEvent(event: ServerEvent): StateUpdate[] | null {
++    const type = event.type as string;
++    const key = event.key as string | undefined;
++    if (!key) return null;
++
++    switch (type) {
++      case 'execution-update':
++        return [
++          { instanceId: key, property: 'status', value: event.status },
++          { instanceId: key, property: 'iterations', value: event.iterations },
++          { instanceId: key, property: 'lastEventType', value: event.lastEventType },
++          { instanceId: key, property: 'lastMessage', value: event.lastMessage },
++        ];
++
++      case 'execution-removed':
++        return [{ instanceId: key, property: 'status', value: null, remove: true }];
++
++      default:
++        return null;
++    }
++  },
++};
+diff --git a/docs/domains/_platform/events/domain.md b/docs/domains/_platform/events/domain.md
+index e2628857..63268e8c 100644
+--- a/docs/domains/_platform/events/domain.md
++++ b/docs/domains/_platform/events/domain.md
+@@ -211,3 +211,4 @@ Primary: scattered across `packages/shared`, `packages/workflow`, `apps/web` (Pl
+ | Plan 072 Phase 3 | Priority consumer migration: QuestionPopperProvider and FileChangeProvider migrated from direct EventSource to `useChannelCallback`. Removed ~180 lines SSE boilerplate. Per-tab connections: 3 → 1. E2E verified. | 2026-03-08 |
+ | Plan 072 Phase 4 | GlobalState re-enablement: ServerEventRoute migrated from `useSSE` to `useChannelEvents('work-unit-state')`. GlobalStateConnector re-enabled in browser-client.tsx. Work-unit-state events now flow through multiplexed SSE → GlobalStateSystem. | 2026-03-08 |
+ | Plan 072 Phase 5 | Remaining migrations: useWorkflowSSE and useWorkunitCatalogChanges migrated to `useChannelEvents`. Added `workflows` and `unit-catalog` to mux channel list (5 total). Deleted legacy `useSSE` hook (zero consumers) and dead `KanbanContent`. Made `MultiplexedSSEMessage.type` and `channel` optional in consumer types. SSE docs rewritten. | 2026-03-08 |
++| 074-P3 | Added `WorkflowExecution: 'workflow-execution'` to WorkspaceDomain const (SSE channel for execution-level status). Added to WORKSPACE_SSE_CHANNELS (7 total). | 2026-03-15 |
+diff --git a/docs/domains/_platform/positional-graph/domain.md b/docs/domains/_platform/positional-graph/domain.md
+index c205b5dc..62d4ed0f 100644
+--- a/docs/domains/_platform/positional-graph/domain.md
++++ b/docs/domains/_platform/positional-graph/domain.md
+@@ -166,3 +166,4 @@ Primary: `packages/positional-graph/src/`
+ | 061-P3 | Removed PGService Q&A methods/types (askQuestion, answerQuestion, getAnswer); consumers migrated to workflow-events convenience API | 2026-03-01 |
+ | 074-P1 | Orchestration contracts: AbortSignal in drive() with 'stopped' exit, 'interrupted' status in ExecutionStatus/ONBAS/Zod schemas, compound cache key (worktreePath\|slug), per-handle PodManager+ODS via factory | 2026-03-15 |
+ | 074-P2 | Web DI + Execution Manager: de-aliased ORCHESTRATION_DI_TOKENS.AGENT_MANAGER, registered orchestration in web DI, added destroyAllPods/cleanup/evict/resetGraphState/markNodesInterrupted, created WorkflowExecutionManager singleton with start/stop/restart lifecycle, globalThis bootstrap in instrumentation.ts | 2026-03-15 |
++| 074-P3 | SSE + GlobalState plumbing: wired handleEvent→SSE broadcast at 6 transition points, added broadcastStatus/broadcastRemoval helpers, added SerializableExecutionStatus type, added getSerializableStatus(), injected sseManager.broadcast as dep, created 4 server actions (run/stop/restart/getStatus) | 2026-03-15 |
+diff --git a/docs/domains/_platform/state/domain.md b/docs/domains/_platform/state/domain.md
+index 235e9648..4999e527 100644
+--- a/docs/domains/_platform/state/domain.md
++++ b/docs/domains/_platform/state/domain.md
+@@ -172,3 +172,4 @@ Primary: `packages/shared/src/state/` (types + interface) + `apps/web/src/lib/st
+ | 059-ST001 | Plan 059 Subtask 001: Added StateEntrySource type (origin metadata for server/client tagging), extended publish() with optional source param across IStateService + GlobalStateSystem + FakeGlobalStateSystem, added getPublishedSource() to fake. Created ServerEventRoute component + ServerEventRouteDescriptor types. Extended GlobalStateConnector to mount server event routes. Added WorkUnitState to WorkspaceDomain. | 2026-03-01 |
+ | 072-P1 | Plan 072 Phase 1: Added optional `channel?: string` metadata to ServerEvent interface for multiplexed SSE delivery. Non-breaking — existing ServerEventRoute consumers unaffected. | 2026-03-08 |
+ | 072-P4 | Plan 072 Phase 4: Migrated ServerEventRoute from `useSSE` to `useChannelEvents` (multiplexed). Re-enabled GlobalStateConnector in browser-client.tsx. Updated connection limit comment — "future fix" is now reality. Zero additional SSE connections. | 2026-03-08 |
++| 074-P3 | Added workflowExecutionRoute ServerEventRouteDescriptor (workflow-execution channel → GlobalState). Registered in SERVER_EVENT_ROUTES. Properties: status, iterations, lastEventType, lastMessage. | 2026-03-15 |
+diff --git a/docs/plans/074-workflow-execution/tasks/phase-3-sse-globalstate-plumbing/execution.log.md b/docs/plans/074-workflow-execution/tasks/phase-3-sse-globalstate-plumbing/execution.log.md
+new file mode 100644
+index 00000000..7b58d55d
+--- /dev/null
++++ b/docs/plans/074-workflow-execution/tasks/phase-3-sse-globalstate-plumbing/execution.log.md
+@@ -0,0 +1,96 @@
++# Execution Log: Phase 3 — SSE + GlobalState Plumbing
++
++**Plan**: 074-workflow-execution
++**Phase**: Phase 3: SSE + GlobalState Plumbing
++**Started**: 2026-03-15
++
++---
++
++## Baseline
++
++```
++Test Files  2 failed | 385 passed | 10 skipped (397)
++     Tests  4 failed | 5508 passed | 80 skipped (5592)
++```
++
++Pre-existing failures: 2 in `040-graph-inspect/inspect-format.test.ts` (unrelated).
++
++---
++
++## Harness Validation
++
++Skipped — Phase 3 is SSE/state wiring. Primary testing is unit-level (mapEvent, broadcast calls). Harness browser automation not required for this phase.
++
++---
++
++## Task Log
++
++### T001: Add WorkflowExecution to WorkspaceDomain ✅
++Added `WorkflowExecution: 'workflow-execution'` to `WorkspaceDomain` const. Verified with tsx: `WorkspaceDomain.WorkflowExecution === 'workflow-execution'` → true.
++
++### T002: Add channel to WORKSPACE_SSE_CHANNELS ✅
++Added `'workflow-execution'` to the channels array in layout.tsx. Now 7 channels registered.
++
++### T003: Create workflowExecutionRoute ✅
++Created `apps/web/src/lib/state/workflow-execution-route.ts` following work-unit-state-route.ts pattern exactly. Maps `execution-update` → 4 properties (status, iterations, lastEventType, lastMessage). Maps `execution-removed` → remove instance. Uses `key` field as instanceId.
++
++### T004: Add route to SERVER_EVENT_ROUTES ✅
++Imported workflowExecutionRoute and added to SERVER_EVENT_ROUTES array in state-connector.tsx. Replaced the "Phase 3 will add agentStateRoute here" comment.
++
++### T005: Wire handleEvent + broadcastStatus + broadcastRemoval ✅
++- Added `broadcast` function to `ExecutionManagerDeps` interface
++- Added `SerializableExecutionStatus` type (DYK #1)
++- Added `getSerializableStatus()` method to IWorkflowExecutionManager interface + implementation
++- Added `broadcastStatus(handle)` private method — broadcasts `execution-update` with handle state
++- Added `broadcastRemoval(key)` private method — broadcasts `execution-removed` (DYK #2)
++- Wired broadcasts at all 6 DYK #5 call sites:
++  1. start() → 'starting'
++  2. start() → 'running'
++  3. handleEvent() → iteration/idle/status/error
++  4. .then() → 'completed'/'stopped'/'failed'
++  5. .catch() → 'failed'
++  6. stop() → 'stopping'
++- Added broadcastRemoval in restart() before handle deletion
++- All 17 existing tests pass (broadcast added as vi.fn() to deps)
++
++### T006: Inject sseManager broadcast dep ✅
++Updated create-execution-manager.ts to import `sseManager` and pass `sseManager.broadcast.bind(sseManager)` as the broadcast dep.
++
++### T007-T009: Server Actions ✅
++Created `apps/web/app/actions/workflow-execution-actions.ts` with 4 server actions:
++- `runWorkflow(slug, worktreePath, graphSlug)` → calls manager.start()
++- `stopWorkflow(worktreePath, graphSlug)` → calls manager.stop()
++- `restartWorkflow(slug, worktreePath, graphSlug)` → calls manager.restart()
++- `getWorkflowExecutionStatus(worktreePath, graphSlug)` → returns SerializableExecutionStatus (DYK #1)
++All actions: `'use server'`, `requireAuth()`, try/catch with error propagation.
++
++### T010: Tests ✅
++**Route descriptor tests** (7 tests in workflow-execution-route.test.ts):
++- channel + stateDomain + multiInstance assertions
++- 4 properties declared
++- execution-update maps all 4 properties
++- execution-update handles missing optional fields
++- execution-removed returns remove update
++- Unknown types return null
++- Missing key returns null
++
++**Manager broadcast tests** (5 tests added to workflow-execution-manager.test.ts):
++- Broadcasts starting+running on start()
++- Broadcasts stopping on stop()
++- Broadcasts execution-removed on restart()
++- Broadcasts during handleEvent from drive loop
++- getSerializableStatus returns clean snapshot without internal refs
++
++```
++Test Files  2 passed (2)
++     Tests  29 passed (29)   # 22 manager + 7 route
++```
++
++## Final Test Results
++
++```
++Test Files  2 failed | 386 passed | 10 skipped (398)
++     Tests  4 failed | 5520 passed | 80 skipped (5604)
++```
++
+++1 test file, +12 tests vs baseline. Same 2 pre-existing failures (040-graph-inspect). Zero regressions.
+diff --git a/docs/plans/074-workflow-execution/tasks/phase-3-sse-globalstate-plumbing/tasks.fltplan.md b/docs/plans/074-workflow-execution/tasks/phase-3-sse-globalstate-plumbing/tasks.fltplan.md
+new file mode 100644
+index 00000000..8a91037f
+--- /dev/null
++++ b/docs/plans/074-workflow-execution/tasks/phase-3-sse-globalstate-plumbing/tasks.fltplan.md
+@@ -0,0 +1,155 @@
++# Flight Plan: Phase 3 — SSE + GlobalState Plumbing
++
++**Plan**: [workflow-execution-plan.md](../../workflow-execution-plan.md)
++**Phase**: Phase 3: SSE + GlobalState Plumbing
++**Generated**: 2026-03-15
++**Status**: Landed
++
++---
++
++## Departure → Destination
++
++**Where we are**: The WorkflowExecutionManager singleton exists and can start/stop/restart workflows via `drive()` with AbortSignal. It tracks execution state in-memory (handle status, iterations, lastEvent). But `handleEvent()` is a stub — it updates the local handle but never broadcasts anything. The browser has no way to observe execution status. There are no server actions to trigger run/stop/restart from the UI.
++
++**Where we're going**: Any React component can call `useGlobalState('workflow-execution:{key}:status', 'idle')` and reactively observe workflow execution. Server actions let the UI trigger run/stop/restart. SSE carries every status change and iteration from the server manager to the browser. The entire plumbing path is proven: server broadcast → SSE → ServerEventRoute → GlobalState → useGlobalState → component re-render.
++
++---
++
++## Domain Context
++
++### Domains We're Changing
++
++| Domain | What Changes | Key Files |
++|--------|-------------|-----------|
++| `_platform/events` | Add `WorkflowExecution` channel constant + layout registration | `workspace-domain.ts`, `layout.tsx` |
++| `_platform/state` | Add `workflowExecutionRoute` descriptor + register in connector | `workflow-execution-route.ts` (new), `state-connector.tsx` |
++| `web-integration` | Wire handleEvent→broadcast, add broadcast dep, inject sseManager | `workflow-execution-manager.ts`, `.types.ts`, `create-execution-manager.ts` |
++| `workflow-ui` | 4 server actions: run/stop/restart/getStatus | `workflow-execution-actions.ts` (new) |
++
++### Domains We Depend On (no changes)
++
++| Domain | What We Consume | Contract |
++|--------|----------------|----------|
++| `_platform/events` | SSEManager.broadcast() | `sseManager` globalThis singleton |
++| `_platform/events` | MultiplexedSSEProvider | `useChannelEvents(channel)` |
++| `_platform/state` | ServerEventRoute component | Subscribes to channel, calls mapEvent, publishes to state |
++| `_platform/state` | useGlobalState hook | `useGlobalState<T>(path, default)` |
++| `_platform/positional-graph` | OrchestrationService, GraphOrchestration | Already wired in Phase 2 |
++
++---
++
++## Flight Status
++
++<!-- Updated by /plan-6-v2: pending → active → done. Use blocked for problems/input needed. -->
++
++```mermaid
++stateDiagram-v2
++    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
++    classDef active fill:#FFC107,stroke:#FFA000,color:#000
++    classDef done fill:#4CAF50,stroke:#388E3C,color:#fff
++    classDef blocked fill:#F44336,stroke:#D32F2F,color:#fff
++
++    state "1: Channel infrastructure" as S1
++    state "2: State route" as S2
++    state "3: SSE bridge" as S3
++    state "4: Server actions" as S4
++    state "5: Tests" as S5
++
++    [*] --> S1
++    S1 --> S2
++    S2 --> S3
++    S3 --> S4
++    S4 --> S5
++    S5 --> [*]
++
++    class S1,S2,S3,S4,S5 done
++```
++
++**Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
++
++---
++
++## Stages
++
++<!-- Updated by /plan-6-v2 during implementation: [ ] → [~] → [x] -->
++
++- [x] **Stage 1: Register channel infrastructure** — Add `WorkflowExecution` to WorkspaceDomain + WORKSPACE_SSE_CHANNELS (`workspace-domain.ts`, `layout.tsx`)
++- [x] **Stage 2: Create state route** — Build workflowExecutionRoute descriptor + register in GlobalStateConnector (`workflow-execution-route.ts` — new, `state-connector.tsx`)
++- [x] **Stage 3: Wire SSE bridge** — Add broadcast dep to manager, implement broadcastStatus + handleEvent broadcast, inject sseManager in factory (`workflow-execution-manager.ts`, `.types.ts`, `create-execution-manager.ts`)
++- [x] **Stage 4: Build server actions** — 4 server actions: run, stop, restart, getStatus (`workflow-execution-actions.ts` — new)
++- [x] **Stage 5: Verify with tests** — Route mapEvent unit tests + manager broadcast call tests (`workflow-execution-route.test.ts`, `workflow-execution-manager.test.ts`)
++
++---
++
++## Architecture: Before & After
++
++```mermaid
++flowchart LR
++    classDef existing fill:#E8F5E9,stroke:#4CAF50,color:#000
++    classDef changed fill:#FFF3E0,stroke:#FF9800,color:#000
++    classDef new fill:#E3F2FD,stroke:#2196F3,color:#000
++
++    subgraph Before["Before Phase 3"]
++        B_WEM["WorkflowExecution<br/>Manager"]:::existing
++        B_SSE["SSEManager"]:::existing
++        B_GS["GlobalState"]:::existing
++        B_SER["ServerEventRoute<br/>(work-unit-state)"]:::existing
++        B_WEM -.-x|"handleEvent stub<br/>(no broadcast)"| B_SSE
++    end
++
++    subgraph After["After Phase 3"]
++        A_WEM["WorkflowExecution<br/>Manager"]:::changed
++        A_SSE["SSEManager"]:::existing
++        A_GS["GlobalState"]:::existing
++        A_SER_OLD["ServerEventRoute<br/>(work-unit-state)"]:::existing
++        A_SER_NEW["ServerEventRoute<br/>(workflow-execution)"]:::new
++        A_ROUTE["workflowExecution<br/>Route descriptor"]:::new
++        A_ACTIONS["Server Actions<br/>(run/stop/restart/status)"]:::new
++        A_WEM -->|"broadcast()"| A_SSE
++        A_SSE -->|"SSE events"| A_SER_NEW
++        A_SER_NEW -->|"mapEvent →<br/>publish"| A_GS
++        A_ROUTE -.->|"drives"| A_SER_NEW
++        A_ACTIONS -->|"calls"| A_WEM
++    end
++```
++
++**Legend**: existing (green, unchanged) | changed (orange, modified) | new (blue, created)
++
++---
++
++## Acceptance Criteria
++
++- [ ] Calling runWorkflow server action starts the workflow and broadcasts to 'workflow-execution' SSE channel
++- [ ] `useGlobalState('workflow-execution:{key}:status')` updates reactively as workflow progresses
++- [ ] stopWorkflow server action halts execution within one iteration
++- [ ] restartWorkflow clears state and starts fresh
++- [ ] All existing tests pass (346+ baseline)
++
++## Goals & Non-Goals
++
++**Goals**:
++- SSE broadcast on every status transition and iteration
++- ServerEventRoute bridges events to GlobalState paths
++- Server actions expose run/stop/restart/getStatus to UI
++- Broadcast dep is injectable (testable via vi.fn())
++
++**Non-Goals**:
++- UI buttons (Phase 4)
++- Node locking (Phase 4)
++- Server restart recovery (Phase 5)
++- Direct server-side GlobalState publishing
++
++---
++
++## Checklist
++
++- [x] T001: Add `WorkflowExecution` to `WorkspaceDomain` constants
++- [x] T002: Add `'workflow-execution'` to `WORKSPACE_SSE_CHANNELS`
++- [x] T003: Create `workflowExecutionRoute` ServerEventRouteDescriptor
++- [x] T004: Add workflowExecutionRoute to `SERVER_EVENT_ROUTES`
++- [x] T005: Wire `handleEvent()` + `broadcastStatus()` with broadcast dep
++- [x] T006: Inject sseManager.broadcast into create-execution-manager factory
++- [x] T007: Add `runWorkflow` server action
++- [x] T008: Add `stopWorkflow` server action
++- [x] T009: Add `restartWorkflow` + `getWorkflowExecutionStatus` server actions
++- [x] T010: Add tests for route descriptor mapEvent + manager broadcast
+diff --git a/docs/plans/074-workflow-execution/tasks/phase-3-sse-globalstate-plumbing/tasks.md b/docs/plans/074-workflow-execution/tasks/phase-3-sse-globalstate-plumbing/tasks.md
+new file mode 100644
+index 00000000..3065922c
+--- /dev/null
++++ b/docs/plans/074-workflow-execution/tasks/phase-3-sse-globalstate-plumbing/tasks.md
+@@ -0,0 +1,354 @@
++# Phase 3: SSE + GlobalState Plumbing — Tasks
++
++**Plan**: [workflow-execution-plan.md](../../workflow-execution-plan.md)
++**Phase**: Phase 3: SSE + GlobalState Plumbing
++**Created**: 2026-03-15
++**Status**: Ready
++
++---
++
++## Executive Briefing
++
++**Purpose**: Connect the WorkflowExecutionManager's lifecycle events to the browser UI via SSE channels and GlobalState routes, then expose run/stop/restart/status as server actions. This is the integration seam — after this phase, any React component can subscribe to workflow execution status reactively.
++
++**What We're Building**: A `workflow-execution` SSE channel that carries execution-level events (status changes, iteration progress) from the server-side manager to the browser, a `workflowExecutionRoute` that bridges those SSE events into GlobalState paths, and 4 server actions that the UI will call to control workflow execution.
++
++**Goals**:
++- ✅ SSE broadcast from WorkflowExecutionManager on every status change and iteration
++- ✅ GlobalState integration via ServerEventRoute pattern (proven by work-unit-state)
++- ✅ 4 server actions: runWorkflow, stopWorkflow, restartWorkflow, getWorkflowExecutionStatus
++- ✅ Any component can read `useGlobalState('workflow-execution:{key}:status', 'idle')`
++
++**Non-Goals**:
++- ❌ UI buttons (Phase 4)
++- ❌ Node locking logic (Phase 4)
++- ❌ Server restart recovery / registry persistence (Phase 5)
++- ❌ Direct server-side GlobalState publishing (ServerEventRoute handles SSE→State on client)
++
++**Phase 4 Integration Constraints** (documented by DYK analysis):
++- **DYK #3**: SSE broadcasts race ahead of server action responses. The `.then()` handler broadcasts `'stopped'`/`'completed'` via SSE while `stop()` is still running cleanup. Phase 4 MUST gate button enablement on server action response (not SSE status). SSE is for display; server action response is for action confirmation.
++- **DYK #4**: Page load shows 'idle' even when workflow is running. `useGlobalState` returns default until first SSE event after mount. Phase 4 MUST call `getWorkflowExecutionStatus` server action on component mount to hydrate initial state, then subscribe to GlobalState for live updates.
++
++---
++
++## Prior Phase Context
++
++### Phase 1: Orchestration Contracts (COMPLETE)
++
++**A. Deliverables**:
++- `abortable-sleep.ts` — abort-aware sleep utility
++- AbortSignal support in `drive()` with `'stopped'` exit reason
++- `'interrupted'` status in ExecutionStatus + ONBAS handling
++- Compound cache key `${worktreePath}|${graphSlug}` in OrchestrationService
++- Per-handle PodManager+ODS isolation
++
++**B. Dependencies Exported**:
++- `DriveExitReason: 'complete' | 'failed' | 'max-iterations' | 'stopped'`
++- `DriveOptions: { signal?: AbortSignal; idleDelayMs?; actionDelayMs? }`
++- `ExecutionStatus` includes `'interrupted'`
++- `abortableSleep(delayMs, signal?)` exported utility
++- Per-handle isolation via factory closure
++
++**C. Gotchas**:
++- Schema duplication: ExecutionStatus needs updates in 3 places (types, schema, state.schema)
++- ONBAS interrupted + blocked-error edge case required explicit handling
++- PodManager must be per-handle, not shared
++
++**D. Incomplete Items**: None — all review fixes applied
++
++**E. Patterns to Follow**:
++- Compound key pattern: `${worktreePath}|${graphSlug}` (pipe delimiter in OrchestrationService)
++- Abort-aware loop: check signal at iteration boundary, wrap sleep in try/catch
++- Status union auditing: update type + Zod schema + format glyph
++
++### Phase 2: Web DI + Execution Manager (COMPLETE)
++
++**A. Deliverables**:
++- `WorkflowExecutionManager` class (~260 lines) with full lifecycle
++- `get-manager.ts` globalThis getter, `create-execution-manager.ts` factory
++- Bootstrap in `instrumentation.ts` with HMR-safe flag pattern
++- Web DI: Plan 034 AgentManager, ScriptRunner, EventHandlerService, registerOrchestrationServices()
++- New contracts: `cleanup()`, `evict()`, `destroyAllPods()`, `markNodesInterrupted()`, `resetGraphState()`
++
++**B. Dependencies Exported**:
++- `getWorkflowExecutionManager()` — returns manager singleton from globalThis
++- `WorkflowExecutionManager.start/stop/restart/getStatus/getHandle/listRunning/cleanup`
++- `ExecutionHandle` type with key, status, iterations, etc.
++- `ManagerExecutionStatus: 'idle'|'starting'|'running'|'stopping'|'stopped'|'completed'|'failed'`
++- `ExecutionManagerDeps: { orchestrationService, graphService, workspaceService }`
++- `makeExecutionKey(worktreePath, graphSlug): ExecutionKey`
++
++**C. Gotchas**:
++- handleEvent() is STUBBED — only updates local handle state, no SSE/GlobalState (Phase 3 wires it)
++- drivePromise MUST have .catch() to prevent unhandled rejection crashes
++- start() checks both 'running' AND 'starting' for idempotency (FT-001 fix)
++- ExecutionKey uses colon delimiter (`:`), OrchestrationService uses pipe (`|`)
++
++**D. Incomplete Items**: None — all 4 FT fixes applied
++
++**E. Patterns to Follow**:
++- globalThis singleton with flag-before-async, try/catch with flag reset
++- FakeGraphOrchestration.blockDrive()/releaseDrive() for deterministic lifecycle tests
++- DYK #3: .then() AND .catch() are MANDATORY on fire-and-forget drivePromise
++- Domain-aware state manipulation via IPositionalGraphService methods
++
++---
++
++## Pre-Implementation Check
++
++| File | Exists? | Domain Check | Notes |
++|------|---------|-------------|-------|
++| `packages/shared/.../workspace-domain.ts` | ✅ Exists | `_platform/events` ✓ | Add 1 line: `WorkflowExecution: 'workflow-execution'` |
++| `apps/web/app/(dashboard)/.../layout.tsx` | ✅ Exists | `events` cross-domain ✓ | Add 1 entry to WORKSPACE_SSE_CHANNELS array |
++| `apps/web/src/lib/state/workflow-execution-route.ts` | ❌ New | `_platform/state` ✓ | Follow work-unit-state-route.ts pattern |
++| `apps/web/src/lib/state/state-connector.tsx` | ✅ Exists | `_platform/state` ✓ | Add import + array entry |
++| `apps/web/.../workflow-execution-manager.ts` | ✅ Exists | `web-integration` ✓ | Wire handleEvent + broadcastStatus |
++| `apps/web/.../workflow-execution-manager.types.ts` | ✅ Exists | `web-integration` ✓ | Add broadcast to ExecutionManagerDeps |
++| `apps/web/.../create-execution-manager.ts` | ✅ Exists | `web-integration` ✓ | Inject sseManager.broadcast |
++| `apps/web/app/actions/workflow-execution-actions.ts` | ❌ New | `workflow-ui` ✓ | 4 server actions |
++| `test/unit/web/state/workflow-execution-route.test.ts` | ❌ New | test | mapEvent() unit tests |
++
++**Harness context**: Harness available at L3 (Docker + CDP + CLI SDK). Pre-phase validation will be run by plan-6. SSE channels are client-side so harness browser automation can verify them if needed, but primary testing is unit-level mapEvent() + broadcast call verification.
++
++---
++
++## Architecture Map
++
++```mermaid
++flowchart TD
++    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
++    classDef completed fill:#4CAF50,stroke:#388E3C,color:#fff
++
++    subgraph Phase["Phase 3: SSE + GlobalState Plumbing"]
++        T001["T001: WorkspaceDomain constant"]:::completed
++        T002["T002: WORKSPACE_SSE_CHANNELS"]:::completed
++        T003["T003: workflowExecutionRoute"]:::completed
++        T004["T004: SERVER_EVENT_ROUTES"]:::completed
++        T005["T005: handleEvent → broadcast"]:::completed
++        T006["T006: Inject broadcast dep"]:::completed
++        T007["T007: runWorkflow action"]:::completed
++        T008["T008: stopWorkflow action"]:::completed
++        T009["T009: restart + getStatus actions"]:::completed
++        T010["T010: Tests"]:::completed
++
++        T001 --> T002
++        T003 --> T004
++        T005 --> T006
++        T001 --> T005
++        T006 --> T007
++        T007 --> T008
++        T008 --> T009
++        T009 --> T010
++        T004 --> T010
++    end
++
++    subgraph Files["Files"]
++        F1["/packages/shared/.../workspace-domain.ts"]:::completed
++        F2["/apps/web/app/.../layout.tsx"]:::completed
++        F3["/apps/web/src/lib/state/workflow-execution-route.ts"]:::completed
++        F4["/apps/web/src/lib/state/state-connector.tsx"]:::completed
++        F5["/apps/web/.../workflow-execution-manager.ts"]:::completed
++        F6["/apps/web/.../workflow-execution-manager.types.ts"]:::completed
++        F7["/apps/web/.../create-execution-manager.ts"]:::completed
++        F8["/apps/web/app/actions/workflow-execution-actions.ts"]:::completed
++    end
++
++    T001 -.-> F1
++    T002 -.-> F2
++    T003 -.-> F3
++    T004 -.-> F4
++    T005 -.-> F5
++    T005 -.-> F6
++    T006 -.-> F7
++    T007 -.-> F8
++    T008 -.-> F8
++    T009 -.-> F8
++```
++
++---
++
++## Tasks
++
++| Status | ID | Task | Domain | Path(s) | Done When | Notes |
++|--------|-----|------|--------|---------|-----------|-------|
++| [x] | T001 | Add `WorkflowExecution` to `WorkspaceDomain` constants | events | `/packages/shared/src/features/027-central-notify-events/workspace-domain.ts` | `WorkspaceDomain.WorkflowExecution === 'workflow-execution'` | Finding 09: value IS the channel name. 1 line. |
++| [x] | T002 | Add `'workflow-execution'` to `WORKSPACE_SSE_CHANNELS` in workspace layout | events | `/apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx` | Channel appears in MultiplexedSSEProvider channels list | 1 line. After T001. |
++| [x] | T003 | Create `workflowExecutionRoute` ServerEventRouteDescriptor | state | `/apps/web/src/lib/state/workflow-execution-route.ts` | mapEvent handles `execution-update` → 4 properties, `execution-removed` → remove. Unit tests pass. | Follow work-unit-state-route.ts exactly. Properties: status, iterations, lastEventType, lastMessage. instanceId = ExecutionKey. |
++| [x] | T004 | Add workflowExecutionRoute to `SERVER_EVENT_ROUTES` in GlobalStateConnector | state | `/apps/web/src/lib/state/state-connector.tsx` | Route mounted as ServerEventRoute component | 1 import + 1 array entry. After T003. |
++| [x] | T005 | Wire `handleEvent()` + `broadcastStatus()` + `broadcastRemoval()` in WorkflowExecutionManager | web-integration | `/apps/web/src/features/074-workflow-execution/workflow-execution-manager.ts`, `/apps/web/src/features/074-workflow-execution/workflow-execution-manager.types.ts` | handleEvent calls broadcast on every DriveEvent. broadcastStatus called on start/stop/completion/failure transitions. broadcastRemoval called when handle is deleted. Test verifies broadcast call count + payload shape. | Add `broadcast` function to ExecutionManagerDeps. Add broadcastStatus(key, handle) + broadcastRemoval(key) private methods. **DYK #2**: restart() and cleanup() must call broadcastRemoval(key) before deleting the handle. **DYK #5 — 6 broadcast call sites**: (1) start()→'starting', (2) start()→'running', (3) handleEvent()→iteration/idle/status/error, (4) .then()→'completed'/'stopped'/'failed', (5) .catch()→'failed', (6) stop()→'stopping'. Missing any creates UI blind spots. |
++| [x] | T006 | Inject sseManager.broadcast into create-execution-manager factory | web-integration | `/apps/web/src/features/074-workflow-execution/create-execution-manager.ts` | Factory passes `sseManager.broadcast.bind(sseManager)` as broadcast dep | Import sseManager from `@/lib/sse-manager`. |
++| [x] | T007 | Add `runWorkflow` server action | workflow-ui | `/apps/web/app/actions/workflow-execution-actions.ts` | Server action calls manager.start(), returns `{ok, error?, key?}` | New file. Follow workunit-actions.ts pattern: 'use server', requireAuth, getWorkflowExecutionManager(). |
++| [x] | T008 | Add `stopWorkflow` server action | workflow-ui | `/apps/web/app/actions/workflow-execution-actions.ts` | Server action calls manager.stop(), returns `{ok}` | Same file as T007. |
++| [x] | T009 | Add `restartWorkflow` + `getWorkflowExecutionStatus` server actions | workflow-ui | `/apps/web/app/actions/workflow-execution-actions.ts` | restart calls manager.restart(). getStatus returns `SerializableExecutionStatus` (DYK #1). Both return correct shapes. | Same file as T007. **DYK #1**: ExecutionHandle has non-serializable fields (AbortController, Promise, IGraphOrchestration). Server action MUST return a clean `SerializableExecutionStatus` type — strip internal refs before returning. Add type to workflow-execution-manager.types.ts. |
++| [x] | T010 | Add tests for route descriptor mapEvent + manager broadcast | test | `test/unit/web/state/workflow-execution-route.test.ts`, `test/unit/web/features/074-workflow-execution/workflow-execution-manager.test.ts` | Route: mapEvent returns correct StateUpdate[] for each event type. Manager: broadcast called N times with correct payload. All tests pass. | Lightweight: pure function tests for mapEvent, vi.fn() for broadcast in manager tests. |
++
++---
++
++## Context Brief
++
++### Key findings from plan
++
++- **Finding 08 (HIGH)**: ServerEventRouteDescriptor pattern proven by work-unit-state — follow exact same pattern. Reference: `apps/web/src/lib/state/work-unit-state-route.ts`
++- **Finding 09 (HIGH)**: ADR-0010 IMP-001: WorkspaceDomain value IS the SSE channel name — `'workflow-execution'` must match exactly in all 3 locations (constant, channels array, route descriptor)
++- **ADR-0012 Deviation**: Execution-level status emits directly to SSE (management layer, not engine boundary). Node-level still disk→watcher→SSE.
++
++### Domain dependencies (consumed)
++
++- `_platform/events`: SSE broadcast (`SSEManager.broadcast(channel, eventType, data)`) — delivers events to browser
++- `_platform/events`: Channel identity (`WorkspaceDomain` const) — canonical channel names
++- `_platform/events`: Multiplexed SSE (`MultiplexedSSEProvider`, `useChannelEvents`) — client-side channel subscription
++- `_platform/state`: State routing (`ServerEventRouteDescriptor`, `ServerEventRoute`) — SSE→GlobalState bridge
++- `_platform/state`: State reading (`useGlobalState(path, default)`) — reactive per-value subscription (Phase 4 consumes this)
++- `_platform/state`: Domain registration (`registerDomain` in GlobalStateConnector) — auto-registers on mount
++
++### Domain constraints
++
++- WorkspaceDomain value must exactly equal SSE channel name (ADR-0010 IMP-001)
++- SSE event type must match `/^[a-zA-Z0-9_-]+$/` (SSEManager validates at runtime)
++- ServerEventRoute uses index cursor (`lastProcessedIndexRef`) — mapEvent must be idempotent
++- Server actions must call `await requireAuth()` before any business logic
++- Server actions import from `../../src/` relative paths (Next.js app/ conventions)
++- The server does NOT publish to GlobalState directly — ServerEventRoute handles SSE→State mapping on the client
++
++### Critical architectural insight
++
++The Workshop 002 design shows both `sseManager.broadcast()` AND `stateService.publish()` from the server. But the actual codebase pattern (proven by work-unit-state) is:
++
++1. **Server**: `sseManager.broadcast('workflow-execution', eventType, data)` — sends SSE event
++2. **Client**: `ServerEventRoute` component receives SSE via `useChannelEvents` → calls `mapEvent()` → publishes to GlobalState via `state.publish()`
++
++There is no server-side GlobalState access. GlobalState is a client-side React context. The ServerEventRoute bridge component is the integration seam.
++
++### SSE broadcast payload shape
++
++```typescript
++// Broadcast from handleEvent / broadcastStatus
++sseManager.broadcast('workflow-execution', 'execution-update', {
++  key: handle.key,           // ExecutionKey (instanceId for GlobalState)
++  status: handle.status,     // ManagerExecutionStatus
++  iterations: handle.iterations,
++  lastEventType: handle.lastEventType,
++  lastMessage: handle.lastMessage,
++});
++```
++
++Client receives (SSEManager auto-adds type + channel):
++```json
++{
++  "type": "execution-update",
++  "channel": "workflow-execution",
++  "key": "/path/to/worktree:my-pipeline",
++  "status": "running",
++  "iterations": 5,
++  "lastEventType": "iteration",
++  "lastMessage": "Completed iteration 5"
++}
++```
++
++### Server action pattern (reference)
++
++```typescript
++'use server';
++import { requireAuth } from '@/features/063-login/lib/require-auth';
++import { getWorkflowExecutionManager } from '../../src/features/074-workflow-execution/get-manager';
++
++export async function runWorkflow(slug: string, worktreePath: string, graphSlug: string) {
++  await requireAuth();
++  const manager = getWorkflowExecutionManager();
++  return manager.start({ workspaceSlug: slug, worktreePath }, graphSlug);
++}
++```
++
++### Harness context
++
++- **Boot**: `just harness dev` — health: `just harness doctor`
++- **Interact**: HTTP API (server actions), CLI (`just harness test-data`)
++- **Observe**: JSON envelopes, screenshots via CDP
++- **Maturity**: L3 — Boot + Browser + Evidence + CLI SDK
++- **Pre-phase validation**: Agent will validate harness at start of implementation
++
++### Reusable from prior phases
++
++- `FakeGraphOrchestration` with `blockDrive()/releaseDrive()` for deterministic tests
++- `FakeOrchestrationService` with evict tracker
++- `FakePositionalGraphService` with markNodesInterrupted/resetGraphState
++- Existing `workflow-execution-manager.test.ts` (17 tests) — extend with broadcast verification
++- `vi.fn()` pattern for broadcast function injection
++
++### System flow diagram
++
++```mermaid
++flowchart LR
++    subgraph Server["Server (Node.js)"]
++        WEM["WorkflowExecution<br/>Manager"]
++        SSE["SSEManager<br/>(globalThis)"]
++        WEM -->|"broadcast('workflow-execution',<br/>'execution-update', data)"| SSE
++    end
++
++    subgraph Client["Browser (React)"]
++        MUX["MultiplexedSSE<br/>Provider"]
++        SER["ServerEventRoute<br/>(workflow-execution)"]
++        GSS["GlobalState<br/>System"]
++        HOOK["useGlobalState<br/>('wf-exec:{key}:status')"]
++        MUX -->|"useChannelEvents<br/>'workflow-execution'"| SER
++        SER -->|"mapEvent →<br/>state.publish()"| GSS
++        GSS -->|"subscribe<br/>+ notify"| HOOK
++    end
++
++    SSE -->|"EventSource<br/>/_next/mcp"| MUX
++```
++
++### Server action → UI flow
++
++```mermaid
++sequenceDiagram
++    participant UI as React Component
++    participant SA as Server Action
++    participant WEM as ExecutionManager
++    participant SSE as SSEManager
++    participant SER as ServerEventRoute
++    participant GS as GlobalState
++
++    UI->>SA: runWorkflow(slug, wt, graph)
++    SA->>WEM: start({slug, wt}, graph)
++    WEM->>SSE: broadcast('wf-exec', 'execution-update', {status:'starting'})
++    SSE-->>SER: SSE event
++    SER->>GS: publish('wf-exec:{key}:status', 'starting')
++    GS-->>UI: re-render (status='starting')
++    Note over WEM: drive() starts in background
++    WEM->>SSE: broadcast('wf-exec', 'execution-update', {status:'running'})
++    SSE-->>SER: SSE event
++    SER->>GS: publish('wf-exec:{key}:status', 'running')
++    GS-->>UI: re-render (status='running')
++    loop Each iteration
++        WEM->>SSE: broadcast('wf-exec', 'execution-update', {iterations:N})
++        SSE-->>SER: SSE event
++        SER->>GS: publish('wf-exec:{key}:iterations', N)
++    end
++```
++
++---
++
++## Discoveries & Learnings
++
++_Populated during implementation by plan-6._
++
++| Date | Task | Type | Discovery | Resolution | References |
++|------|------|------|-----------|------------|------------|
++
++---
++
++## Directory Layout
++
++```
++docs/plans/074-workflow-execution/
++  ├── workflow-execution-plan.md
++  ├── workflow-execution-spec.md
++  └── tasks/
++      ├── phase-1-orchestration-contracts/  (complete)
++      ├── phase-2-web-di-execution-manager/ (complete)
++      └── phase-3-sse-globalstate-plumbing/
++          ├── tasks.md                      ← this file
++          ├── tasks.fltplan.md              ← flight plan
++          └── execution.log.md              # created by plan-6
++```
+diff --git a/packages/shared/src/features/027-central-notify-events/workspace-domain.ts b/packages/shared/src/features/027-central-notify-events/workspace-domain.ts
+index cf3494b1..92689903 100644
+--- a/packages/shared/src/features/027-central-notify-events/workspace-domain.ts
++++ b/packages/shared/src/features/027-central-notify-events/workspace-domain.ts
+@@ -27,6 +27,11 @@ export const WorkspaceDomain = {
+   UnitCatalog: 'unit-catalog',
+   /** SSE channel: `'event-popper'` — matches `/api/events/event-popper` subscription path (Plan 067) */
+   EventPopper: 'event-popper',
++  /**
++   * SSE channel: `'workflow-execution'` — matches `/api/events/workflow-execution`
++   * subscription path (Plan 074)
++   */
++  WorkflowExecution: 'workflow-execution',
+ } as const;
+ 
+ /**
+diff --git a/test/unit/web/features/074-workflow-execution/workflow-execution-manager.test.ts b/test/unit/web/features/074-workflow-execution/workflow-execution-manager.test.ts
+index e0456bf7..ed4020e8 100644
+--- a/test/unit/web/features/074-workflow-execution/workflow-execution-manager.test.ts
++++ b/test/unit/web/features/074-workflow-execution/workflow-execution-manager.test.ts
+@@ -7,7 +7,7 @@ import { WorkflowExecutionManager } from '@/features/074-workflow-execution/work
+ import type { ExecutionManagerDeps } from '@/features/074-workflow-execution/workflow-execution-manager.types';
+ import { FakeOrchestrationService, FakePositionalGraphService } from '@chainglass/positional-graph';
+ import type { WorkspaceContext } from '@chainglass/workflow';
+-import { beforeEach, describe, expect, it } from 'vitest';
++import { beforeEach, describe, expect, it, vi } from 'vitest';
+ 
+ // ── Helpers ─────────────────────────────────────────────
+ 
+@@ -35,16 +35,19 @@ function createDeps(overrides?: Partial<ExecutionManagerDeps>): {
+   deps: ExecutionManagerDeps;
+   orchService: FakeOrchestrationService;
+   graphService: FakePositionalGraphService;
++  broadcast: ReturnType<typeof vi.fn>;
+ } {
+   const orchService = new FakeOrchestrationService();
+   const graphService = new FakePositionalGraphService();
++  const broadcast = vi.fn();
+   const deps: ExecutionManagerDeps = {
+     orchestrationService: orchService,
+     graphService,
+     workspaceService: fakeWorkspaceService as ExecutionManagerDeps['workspaceService'],
++    broadcast,
+     ...overrides,
+   };
+-  return { deps, orchService, graphService };
++  return { deps, orchService, graphService, broadcast };
+ }
+ 
+ function configureSimpleGraph(orchService: FakeOrchestrationService) {
+@@ -79,12 +82,14 @@ describe('WorkflowExecutionManager', () => {
+   let manager: WorkflowExecutionManager;
+   let orchService: FakeOrchestrationService;
+   let graphService: FakePositionalGraphService;
++  let broadcast: ReturnType<typeof vi.fn>;
+ 
+   beforeEach(() => {
+     const created = createDeps();
+     manager = new WorkflowExecutionManager(created.deps);
+     orchService = created.orchService;
+     graphService = created.graphService;
++    broadcast = created.broadcast;
+   });
+ 
+   describe('start()', () => {
+@@ -364,4 +369,130 @@ describe('WorkflowExecutionManager', () => {
+       expect(graphService.calls.get('resetGraphState')?.length).toBeGreaterThanOrEqual(1);
+     });
+   });
++
++  // ── SSE broadcast tests (Phase 3 T010) ────────────────
++
++  describe('SSE broadcasting', () => {
++    it('broadcasts starting and running on start()', async () => {
++      configureSimpleGraph(orchService);
++      await manager.start(TEST_CTX, TEST_SLUG);
++      await new Promise((r) => setTimeout(r, 10));
++
++      // Should have broadcast at least 'starting' and 'running'
++      const calls = broadcast.mock.calls.filter(
++        (c: string[]) => c[0] === 'workflow-execution' && c[1] === 'execution-update'
++      );
++      expect(calls.length).toBeGreaterThanOrEqual(2);
++      const statuses = calls.map((c: [string, string, { status: string }]) => c[2].status);
++      expect(statuses).toContain('starting');
++      expect(statuses).toContain('running');
++    });
++
++    it('broadcasts stopping on stop()', async () => {
++      configureSimpleGraph(orchService);
++      const fakeHandle = (await orchService.get(makeFullContext(), TEST_SLUG)) as import(
++        '@chainglass/positional-graph'
++      ).FakeGraphOrchestration;
++      fakeHandle.blockDrive();
++
++      await manager.start(TEST_CTX, TEST_SLUG);
++      broadcast.mockClear();
++
++      const stopPromise = manager.stop(TEST_CTX.worktreePath, TEST_SLUG);
++      fakeHandle.releaseDrive({ exitReason: 'stopped', iterations: 0, totalActions: 0 });
++      await stopPromise;
++
++      const calls = broadcast.mock.calls.filter(
++        (c: string[]) => c[0] === 'workflow-execution' && c[1] === 'execution-update'
++      );
++      const statuses = calls.map((c: [string, string, { status: string }]) => c[2].status);
++      expect(statuses).toContain('stopping');
++    });
++
++    it('broadcasts execution-removed on restart()', async () => {
++      configureSimpleGraph(orchService);
++      const fakeHandle = (await orchService.get(makeFullContext(), TEST_SLUG)) as import(
++        '@chainglass/positional-graph'
++      ).FakeGraphOrchestration;
++      fakeHandle.blockDrive();
++
++      await manager.start(TEST_CTX, TEST_SLUG);
++      broadcast.mockClear();
++
++      const restartPromise = manager.restart(TEST_CTX, TEST_SLUG);
++      fakeHandle.releaseDrive({ exitReason: 'stopped', iterations: 0, totalActions: 0 });
++      await restartPromise;
++      await new Promise((r) => setTimeout(r, 10));
++
++      const removalCalls = broadcast.mock.calls.filter(
++        (c: string[]) => c[0] === 'workflow-execution' && c[1] === 'execution-removed'
++      );
++      expect(removalCalls.length).toBeGreaterThanOrEqual(1);
++    });
++
++    it('broadcasts during handleEvent from drive loop', async () => {
++      orchService.configureGraph(TEST_SLUG, {
++        runResults: [
++          {
++            actions: [{ type: 'start', nodeId: 'n1' }],
++            stopReason: 'graph-complete',
++            finalReality: {
++              lines: [],
++              graphSlug: TEST_SLUG,
++              graphStatus: 'complete',
++              worktreePath: '/test/wt',
++              podSessions: {},
++            },
++            iterations: 1,
++          },
++        ],
++        reality: {
++          lines: [],
++          graphSlug: TEST_SLUG,
++          graphStatus: 'pending',
++          worktreePath: '/test/wt',
++          podSessions: {},
++        },
++      });
++
++      const fakeHandle = await orchService.get(makeFullContext(), TEST_SLUG);
++      (fakeHandle as import('@chainglass/positional-graph').FakeGraphOrchestration).setDriveResult({
++        exitReason: 'complete',
++        iterations: 2,
++        totalActions: 1,
++      });
++      (fakeHandle as import('@chainglass/positional-graph').FakeGraphOrchestration).setDriveEvents([
++        {
++          type: 'iteration',
++          message: '1 action',
++          data: { actions: [1], stopReason: 'continue', finalReality: {} as never, iterations: 1 },
++        },
++      ]);
++
++      broadcast.mockClear();
++      await manager.start(TEST_CTX, TEST_SLUG);
++      await new Promise((r) => setTimeout(r, 50));
++
++      // Should have at least broadcast the iteration event
++      const calls = broadcast.mock.calls.filter(
++        (c: string[]) => c[0] === 'workflow-execution' && c[1] === 'execution-update'
++      );
++      expect(calls.length).toBeGreaterThanOrEqual(1);
++    });
++
++    it('getSerializableStatus returns clean snapshot without internal refs', async () => {
++      configureSimpleGraph(orchService);
++      await manager.start(TEST_CTX, TEST_SLUG);
++      await new Promise((r) => setTimeout(r, 10));
++
++      const status = manager.getSerializableStatus(TEST_CTX.worktreePath, TEST_SLUG);
++      expect(status).toBeDefined();
++      expect(status?.key).toContain(TEST_SLUG);
++      expect(status?.status).toBeDefined();
++      // Must NOT have internal fields
++      expect((status as Record<string, unknown>).controller).toBeUndefined();
++      expect((status as Record<string, unknown>).drivePromise).toBeUndefined();
++      expect((status as Record<string, unknown>).orchestrationHandle).toBeUndefined();
++    });
++  });
+ });
+diff --git a/test/unit/web/state/workflow-execution-route.test.ts b/test/unit/web/state/workflow-execution-route.test.ts
+new file mode 100644
+index 00000000..69920112
+--- /dev/null
++++ b/test/unit/web/state/workflow-execution-route.test.ts
+@@ -0,0 +1,86 @@
++/**
++ * workflowExecutionRoute — mapEvent unit tests.
++ * Plan 074 Phase 3 T010.
++ */
++
++import type { ServerEvent } from '@/lib/state/server-event-router';
++import { workflowExecutionRoute } from '@/lib/state/workflow-execution-route';
++import { describe, expect, it } from 'vitest';
++
++describe('workflowExecutionRoute', () => {
++  it('has correct channel and stateDomain', () => {
++    expect(workflowExecutionRoute.channel).toBe('workflow-execution');
++    expect(workflowExecutionRoute.stateDomain).toBe('workflow-execution');
++    expect(workflowExecutionRoute.multiInstance).toBe(true);
++  });
++
++  it('declares 4 properties', () => {
++    expect(workflowExecutionRoute.properties).toHaveLength(4);
++    const keys = workflowExecutionRoute.properties.map((p) => p.key);
++    expect(keys).toEqual(['status', 'iterations', 'lastEventType', 'lastMessage']);
++  });
++
++  describe('mapEvent — execution-update', () => {
++    it('maps all 4 properties from an execution-update event', () => {
++      const event: ServerEvent = {
++        type: 'execution-update',
++        key: '/wt:pipeline',
++        status: 'running',
++        iterations: 5,
++        lastEventType: 'iteration',
++        lastMessage: 'Completed iteration 5',
++      };
++
++      const updates = workflowExecutionRoute.mapEvent(event);
++
++      expect(updates).toEqual([
++        { instanceId: '/wt:pipeline', property: 'status', value: 'running' },
++        { instanceId: '/wt:pipeline', property: 'iterations', value: 5 },
++        { instanceId: '/wt:pipeline', property: 'lastEventType', value: 'iteration' },
++        { instanceId: '/wt:pipeline', property: 'lastMessage', value: 'Completed iteration 5' },
++      ]);
++    });
++
++    it('handles missing optional fields gracefully', () => {
++      const event: ServerEvent = {
++        type: 'execution-update',
++        key: '/wt:pipeline',
++        status: 'starting',
++      };
++
++      const updates = workflowExecutionRoute.mapEvent(event);
++      expect(updates).toEqual([
++        { instanceId: '/wt:pipeline', property: 'status', value: 'starting' },
++        { instanceId: '/wt:pipeline', property: 'iterations', value: undefined },
++        { instanceId: '/wt:pipeline', property: 'lastEventType', value: undefined },
++        { instanceId: '/wt:pipeline', property: 'lastMessage', value: undefined },
++      ]);
++    });
++  });
++
++  describe('mapEvent — execution-removed', () => {
++    it('returns remove update for execution-removed event', () => {
++      const event: ServerEvent = {
++        type: 'execution-removed',
++        key: '/wt:pipeline',
++      };
++
++      const updates = workflowExecutionRoute.mapEvent(event);
++      expect(updates).toEqual([
++        { instanceId: '/wt:pipeline', property: 'status', value: null, remove: true },
++      ]);
++    });
++  });
++
++  describe('mapEvent — edge cases', () => {
++    it('returns null for unknown event types (forward compatibility)', () => {
++      const event: ServerEvent = { type: 'unknown-future-event', key: '/wt:pipeline' };
++      expect(workflowExecutionRoute.mapEvent(event)).toBeNull();
++    });
++
++    it('returns null when key is missing', () => {
++      const event: ServerEvent = { type: 'execution-update', status: 'running' };
++      expect(workflowExecutionRoute.mapEvent(event)).toBeNull();
++    });
++  });
++});

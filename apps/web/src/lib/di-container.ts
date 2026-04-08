@@ -15,6 +15,17 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 // Plan 050: Import positional-graph registration + template services
 import type { IWorkUnitLoader } from '@chainglass/positional-graph';
+// Plan 074: Import orchestration registration + EHS prerequisites
+import {
+  EventHandlerService,
+  NodeEventRegistry,
+  NodeEventService,
+  ScriptRunner,
+  createEventHandlerRegistry,
+  registerCoreEventTypes,
+  registerOrchestrationServices,
+} from '@chainglass/positional-graph';
+import type { IEventHandlerService, IScriptRunner } from '@chainglass/positional-graph';
 import { registerPositionalGraphServices } from '@chainglass/positional-graph';
 import {
   type AdapterFactory,
@@ -34,6 +45,7 @@ import {
   type IProcessManager,
   type IYamlParser,
   NodeFileSystemAdapter,
+  ORCHESTRATION_DI_TOKENS,
   POSITIONAL_GRAPH_DI_TOKENS,
   PathResolverAdapter,
   PinoLoggerAdapter,
@@ -61,6 +73,8 @@ import {
 // Plan 027: Import CentralEventNotifier types from shared
 import type { ICentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events';
 import { FakeCentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events';
+// Plan 034: AgentManagerService for orchestration (distinct from Plan 019 web agent UI)
+import { AgentManagerService as OrchestrationAgentManagerService } from '@chainglass/shared/features/034-agentic-cli';
 // Plan 067: QuestionPopperService for external question/answer lifecycle
 import type { IQuestionPopperService } from '@chainglass/shared/interfaces';
 import type { ICopilotClient } from '@chainglass/shared/interfaces/copilot-sdk.interface';
@@ -487,6 +501,60 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
   // ==================== Plan 050: Positional Graph Services ====================
 
   registerPositionalGraphServices(childContainer);
+
+  // ==================== Plan 074: Orchestration Agent Manager ====================
+  // Plan 034 AgentManagerService for orchestration (getNew/getWithSessionId).
+  // Distinct from Plan 019 web agent UI (createAgent) which stays under SHARED_DI_TOKENS.
+  // DYK #4: Adapter factory must be web-compatible — same adapters as Plan 019.
+  childContainer.register(ORCHESTRATION_DI_TOKENS.AGENT_MANAGER, {
+    useFactory: (c) => {
+      const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
+      const processManager = c.resolve<IProcessManager>(DI_TOKENS.PROCESS_MANAGER);
+      const adapterFactory = (agentType: string): IAgentAdapter => {
+        if (agentType === 'claude-code') {
+          return new ClaudeCodeAdapter(processManager, { logger });
+        }
+        if (agentType === 'copilot') {
+          const copilotClient = c.resolve<CopilotClient>(DI_TOKENS.COPILOT_CLIENT);
+          return new SdkCopilotAdapter(copilotClient as unknown as ICopilotClient, { logger });
+        }
+        throw new Error(`Unknown agent type for orchestration: ${agentType}`);
+      };
+      return new OrchestrationAgentManagerService(adapterFactory);
+    },
+  });
+
+  // Plan 074 T002: ScriptRunner — subprocess executor for code work units
+  childContainer.register<IScriptRunner>(ORCHESTRATION_DI_TOKENS.SCRIPT_RUNNER, {
+    useFactory: () => new ScriptRunner(),
+  });
+
+  // Plan 074 T002: EventHandlerService — settle phase processor (Plan 032)
+  // Note: loadState/persistState on NodeEventService are only used by raise() (agent CLI path).
+  // The orchestrator uses processGraph(state) which operates on state directly.
+  childContainer.register<IEventHandlerService>(ORCHESTRATION_DI_TOKENS.EVENT_HANDLER_SERVICE, {
+    useFactory: () => {
+      const registry = new NodeEventRegistry();
+      registerCoreEventTypes(registry);
+      const handlerRegistry = createEventHandlerRegistry();
+      const nes = new NodeEventService(
+        {
+          registry,
+          loadState: async () => {
+            throw new Error('loadState not available in orchestration context');
+          },
+          persistState: async () => {
+            throw new Error('persistState not available in orchestration context');
+          },
+        },
+        handlerRegistry
+      );
+      return new EventHandlerService(nes);
+    },
+  });
+
+  // Plan 074 T003: Register orchestration services (OrchestrationService + internal deps)
+  registerOrchestrationServices(childContainer);
 
   // Bridge WORK_UNIT_LOADER → WORKUNIT_SERVICE (PositionalGraphService needs this)
   childContainer.register<IWorkUnitLoader>(POSITIONAL_GRAPH_DI_TOKENS.WORK_UNIT_LOADER, {

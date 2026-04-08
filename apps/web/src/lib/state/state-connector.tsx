@@ -28,6 +28,7 @@ import { ServerEventRoute } from './server-event-route';
 import type { ServerEventRouteDescriptor } from './server-event-router';
 import { useStateSystem } from './state-provider';
 import { workUnitStateRoute } from './work-unit-state-route';
+import { workflowExecutionRoute } from './workflow-execution-route';
 
 /**
  * Server event routes — domains that bridge SSE events to GlobalStateSystem.
@@ -37,7 +38,7 @@ import { workUnitStateRoute } from './work-unit-state-route';
  */
 const SERVER_EVENT_ROUTES: ServerEventRouteDescriptor[] = [
   workUnitStateRoute,
-  // Phase 3 will add agentStateRoute here
+  workflowExecutionRoute,
 ];
 
 interface GlobalStateConnectorProps {

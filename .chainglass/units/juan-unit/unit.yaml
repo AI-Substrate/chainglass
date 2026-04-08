@@ -1,0 +1,14 @@
+slug: juan-unit
+type: agent
+version: 1.0.0
+inputs:
+  - name: research_subject
+    type: data
+    data_type: text
+    required: true
+outputs:
+  - name: research_dossier
+    type: file
+    required: true
+agent:
+  prompt_template: prompts/main.md

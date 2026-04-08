@@ -137,11 +137,11 @@ describe('FakePodManager', () => {
     expect(fakePod.wasTerminated).toBe(true);
   });
 
-  it('destroyPod retains session', () => {
+  it('destroyPod retains session', async () => {
     fake.seedSession('node-1', 'sess-1');
     fake.createPod('node-1', makeAgentParams());
 
-    fake.destroyPod('node-1');
+    await fake.destroyPod('node-1');
 
     expect(fake.getPod('node-1')).toBeUndefined();
     expect(fake.getSessionId('node-1')).toBe('sess-1');
@@ -199,9 +199,9 @@ describe('PodManager', () => {
       expect(manager.getPod('nonexistent')).toBeUndefined();
     });
 
-    it('returns undefined after destroy', () => {
+    it('returns undefined after destroy', async () => {
       manager.createPod('node-1', makeAgentParams());
-      manager.destroyPod('node-1');
+      await manager.destroyPod('node-1');
 
       expect(manager.getPod('node-1')).toBeUndefined();
     });
@@ -224,10 +224,10 @@ describe('PodManager', () => {
       expect(sessions.get('node-2')).toBe('sess-2');
     });
 
-    it('destroyPod retains session', () => {
+    it('destroyPod retains session', async () => {
       manager.createPod('node-1', makeAgentParams());
       manager.setSessionId('node-1', 'sess-1');
-      manager.destroyPod('node-1');
+      await manager.destroyPod('node-1');
 
       expect(manager.getPod('node-1')).toBeUndefined();
       expect(manager.getSessionId('node-1')).toBe('sess-1');
@@ -237,14 +237,14 @@ describe('PodManager', () => {
   describe('persistence', () => {
     const ctx = { worktreePath: '/workspace' };
     const graphSlug = 'my-graph';
-    const sessionsPath = '/workspace/.chainglass/graphs/my-graph/pod-sessions.json';
+    const sessionsPath = '/workspace/.chainglass/data/workflows/my-graph/pod-sessions.json';
 
     it('persistSessions writes JSON via atomicWriteFile', async () => {
       manager.setSessionId('node-1', 'sess-1');
       manager.setSessionId('node-2', 'sess-2');
 
       // Ensure parent directory exists for atomic write
-      fs.setDir('/workspace/.chainglass/graphs/my-graph');
+      fs.setDir('/workspace/.chainglass/data/workflows/my-graph');
 
       await manager.persistSessions(ctx, graphSlug);
 
@@ -277,7 +277,7 @@ describe('PodManager', () => {
     });
 
     it('persist + load roundtrip preserves data', async () => {
-      fs.setDir('/workspace/.chainglass/graphs/my-graph');
+      fs.setDir('/workspace/.chainglass/data/workflows/my-graph');
       manager.setSessionId('node-1', 'sess-round');
 
       await manager.persistSessions(ctx, graphSlug);
@@ -348,10 +348,10 @@ describe('IPodManager contract', () => {
         expect(sessions.get('node-2')).toBe('sess-2');
       });
 
-      it('destroyPod removes pod but retains session', () => {
+      it('destroyPod removes pod but retains session', async () => {
         manager.createPod('node-1', makeAgentParams());
         manager.setSessionId('node-1', 'sess-retained');
-        manager.destroyPod('node-1');
+        await manager.destroyPod('node-1');
 
         expect(manager.getPod('node-1')).toBeUndefined();
         expect(manager.getSessionId('node-1')).toBe('sess-retained');

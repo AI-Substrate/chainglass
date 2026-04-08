@@ -52,6 +52,9 @@ export class AgentPod implements IWorkUnitPod {
     return this.agentInstance.sessionId ?? undefined;
   }
 
+  // Default pod agent timeout: 5 minutes. Configurable via orchestratorSettings.agentTimeout.
+  private static readonly DEFAULT_TIMEOUT_MS = 300_000;
+
   async execute(options: PodExecuteOptions): Promise<PodExecuteResult> {
     const template = this._hasExecuted ? loadResumePrompt() : loadStarterPrompt();
     const prompt = this.resolveTemplate(template, options);
@@ -61,6 +64,7 @@ export class AgentPod implements IWorkUnitPod {
       const result = await this.agentInstance.run({
         prompt,
         cwd: options.ctx.worktreePath,
+        timeoutMs: AgentPod.DEFAULT_TIMEOUT_MS,
       });
 
       return this.mapAgentResult(result);

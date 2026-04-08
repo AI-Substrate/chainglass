@@ -89,6 +89,7 @@ export interface NodePropertiesPanelProps {
   onEditProperties?: () => void;
   onProvideInput?: () => void;
   onEditTemplate?: () => void;
+  onViewAgent?: () => void;
 }
 
 export function NodePropertiesPanel({
@@ -99,6 +100,7 @@ export function NodePropertiesPanel({
   onEditProperties,
   onProvideInput,
   onEditTemplate,
+  onViewAgent,
 }: NodePropertiesPanelProps) {
   const upstream = related.filter((r) => r.relation === 'upstream');
   const downstream = related.filter((r) => r.relation === 'downstream');
@@ -138,7 +140,46 @@ export function NodePropertiesPanel({
         <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 capitalize">
           {node.status}
         </div>
+        {node.startedAt && (
+          <div className="text-[10px] text-muted-foreground/50 mt-1">
+            Started: {new Date(node.startedAt).toLocaleTimeString()}
+            {node.completedAt ? (
+              <span> · Completed: {new Date(node.completedAt).toLocaleTimeString()}</span>
+            ) : node.status === 'starting' || node.status === 'agent-accepted' ? (
+              <span
+                className={`${Math.round((Date.now() - new Date(node.startedAt).getTime()) / 1000) > 30 ? 'text-amber-500 font-medium' : ''}`}
+              >
+                {' '}
+                · {Math.round((Date.now() - new Date(node.startedAt).getTime()) / 1000)}s elapsed
+                {Math.round((Date.now() - new Date(node.startedAt).getTime()) / 1000) > 60 &&
+                  ' (may be stuck)'}
+              </span>
+            ) : null}
+          </div>
+        )}
       </section>
+
+      {/* Error Details */}
+      {node.error && (
+        <section>
+          <h4 className="text-[10px] font-semibold uppercase tracking-wider text-red-500 mb-1.5">
+            Error
+          </h4>
+          <div className="rounded-lg bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900 p-3 space-y-1.5">
+            <div className="text-[11px] font-mono font-semibold text-red-700 dark:text-red-300">
+              {node.error.code}
+            </div>
+            <div className="text-[11px] text-red-600 dark:text-red-400 break-words whitespace-pre-wrap">
+              {node.error.message}
+            </div>
+            {node.error.occurredAt && (
+              <div className="text-[10px] text-red-400 dark:text-red-600">
+                {new Date(node.error.occurredAt).toLocaleString()}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Context Source */}
       <section>
@@ -249,6 +290,16 @@ export function NodePropertiesPanel({
 
       {/* Action buttons */}
       <div className="mt-auto pt-3 border-t border-border/20 flex flex-col gap-2">
+        {node.unitType === 'agent' && onViewAgent && (
+          <button
+            type="button"
+            onClick={onViewAgent}
+            className="w-full px-3 py-2 text-xs font-medium rounded-lg border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-900 cursor-pointer transition-colors"
+            data-testid="view-agent-button"
+          >
+            View Agent Chat
+          </button>
+        )}
         {node.unitType === 'user-input' && onProvideInput && (
           <button
             type="button"

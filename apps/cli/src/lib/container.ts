@@ -110,8 +110,10 @@ import {
 } from '@chainglass/workflow';
 import type { ITemplateService } from '@chainglass/workflow';
 import { registerWorkgraphServices, registerWorkgraphTestServices } from '@chainglass/workgraph';
-import { CopilotClient } from '@github/copilot-sdk';
 import { type DependencyContainer, container } from 'tsyringe';
+
+/** Module-level cache for lazy CopilotClient (ESM-only, loaded via dynamic import) */
+let _copilotClientInstance: unknown = null;
 
 /**
  * CLI-specific DI tokens.
@@ -340,22 +342,33 @@ export function createCliProductionContainer(): DependencyContainer {
     },
   });
 
-  // Register CopilotClient as singleton
-  childContainer.registerSingleton<CopilotClient>(CLI_DI_TOKENS.COPILOT_CLIENT, CopilotClient);
+  // Register CopilotClient as lazy singleton (ESM-only package — must use dynamic import)
+  childContainer.register(CLI_DI_TOKENS.COPILOT_CLIENT, {
+    useFactory: () => {
+      return _copilotClientInstance;
+    },
+  });
 
   // Register AgentManagerService with adapter factory (Plan 034, replaces AgentService)
   childContainer.register(CLI_DI_TOKENS.AGENT_MANAGER, {
     useFactory: (c) => {
       const logger = c.resolve<ILogger>(SHARED_DI_TOKENS.LOGGER);
       const processManager = c.resolve<IProcessManager>(CLI_DI_TOKENS.PROCESS_MANAGER);
-      const copilotClient = c.resolve<CopilotClient>(CLI_DI_TOKENS.COPILOT_CLIENT);
 
       const adapterFactory = (agentType: string): IAgentAdapter => {
         if (agentType === 'claude-code') {
           return new ClaudeCodeAdapter(processManager, { logger });
         }
         if (agentType === 'copilot') {
-          return new SdkCopilotAdapter(copilotClient, { logger });
+          if (!_copilotClientInstance) {
+            throw new Error(
+              'CopilotClient not initialized. Set GH_TOKEN and call initCopilotClient() first.'
+            );
+          }
+          return new SdkCopilotAdapter(
+            _copilotClientInstance as ConstructorParameters<typeof SdkCopilotAdapter>[0],
+            { logger }
+          );
         }
         if (agentType === 'copilot-cli') {
           const sendKeys = (target: string, text: string): void => {
@@ -371,6 +384,13 @@ export function createCliProductionContainer(): DependencyContainer {
 
       return new AgentManagerService(adapterFactory);
     },
+  });
+
+  // Plan 074: Bridge CLI agent manager to orchestration token (de-aliased in Plan 074).
+  // registerOrchestrationServices() resolves ORCHESTRATION_DI_TOKENS.AGENT_MANAGER,
+  // which is now a distinct token from CLI_DI_TOKENS.AGENT_MANAGER.
+  childContainer.register(ORCHESTRATION_DI_TOKENS.AGENT_MANAGER, {
+    useFactory: (c) => c.resolve(CLI_DI_TOKENS.AGENT_MANAGER),
   });
 
   // Per Plan 014: Workspaces - Phase 5: Register workspace services for CLI commands
@@ -605,4 +625,15 @@ export function createCliTestContainer(): DependencyContainer {
   });
 
   return childContainer;
+}
+
+/**
+ * Initialize CopilotClient via dynamic import (ESM-only package).
+ * Must be called before using copilot agent adapters.
+ * Safe to call multiple times — only initializes once.
+ */
+export async function initCopilotClient(): Promise<void> {
+  if (_copilotClientInstance) return;
+  const { CopilotClient } = await import('@github/copilot-sdk');
+  _copilotClientInstance = new CopilotClient();
 }

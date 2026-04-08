@@ -21,6 +21,7 @@ export type ExecutionStatus =
   | 'waiting-question'
   | 'blocked-error'
   | 'restart-pending'
+  | 'interrupted'
   | 'complete';
 
 // ============================================

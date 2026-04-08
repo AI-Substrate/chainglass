@@ -1,0 +1,19 @@
+# Test code unit patch — Plan 074 Phase 6 T005
+# Applied via: cg unit update test-code --patch <this-file>
+description: "Test code unit for workflow execution validation"
+version: "1.0.0"
+inputs:
+  - name: input_data
+    type: data
+    data_type: text
+    required: true
+    description: "Input data for the code unit to transform"
+outputs:
+  - name: output_data
+    type: data
+    data_type: text
+    required: true
+    description: "Transformed output data"
+code:
+  script: "scripts/test-transform.sh"
+  timeout: 30

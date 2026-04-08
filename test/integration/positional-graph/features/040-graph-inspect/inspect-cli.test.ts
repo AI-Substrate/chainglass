@@ -12,6 +12,12 @@ import type { WorkspaceContext } from '@chainglass/workflow';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { withTestGraph } from '../../../../../dev/test-graphs/shared/graph-test-runner.js';
 
+// Strip ANSI escape codes so assertions match plain text
+const ANSI_RE = new RegExp(`${String.fromCharCode(0x1b)}\\[[0-9;]*m`, 'g');
+function stripAnsi(str: string): string {
+  return str.replace(ANSI_RE, '');
+}
+
 // ── Helpers ─────────────────────────────────────────────
 
 async function buildFixtureGraph(
@@ -88,7 +94,7 @@ describe('cg wf inspect — default mode (T002)', () => {
         tgc.workspacePath,
       ]);
 
-      expect(capturedOutput).toContain('Graph: test-inspect');
+      expect(stripAnsi(capturedOutput)).toContain('Graph: test-inspect');
       expect(capturedOutput).toContain('complete');
       expect(capturedOutput).toContain('2/2');
     });
@@ -199,8 +205,8 @@ describe('cg wf inspect --outputs (T007)', () => {
         tgc.workspacePath,
       ]);
 
-      expect(capturedOutput).toContain(`${nodeAId}:`);
-      expect(capturedOutput).toContain(`${nodeBId}:`);
+      expect(stripAnsi(capturedOutput)).toContain(`${nodeAId}:`);
+      expect(stripAnsi(capturedOutput)).toContain(`${nodeBId}:`);
       expect(capturedOutput).toContain('instructions');
       expect(capturedOutput).toContain('result');
     });

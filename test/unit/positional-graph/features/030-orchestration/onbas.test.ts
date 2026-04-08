@@ -649,3 +649,74 @@ describe('walkForNextAction — purity and determinism', () => {
     expect(r2.type).toBe('no-action');
   });
 });
+
+// ═══════════════════════════════════════════════════════
+// Plan 074: interrupted status handling
+// ═══════════════════════════════════════════════════════
+
+describe('walkForNextAction — interrupted status', () => {
+  it('interrupted node is skipped in visitNode (returns null)', () => {
+    const reality = buildFakeReality({
+      nodes: [
+        { nodeId: 'A', status: 'interrupted' },
+        { nodeId: 'B', status: 'ready' },
+      ],
+    });
+
+    const result = walkForNextAction(reality);
+
+    // Skips A (interrupted), finds B (ready)
+    expect(result.type).toBe('start-node');
+    if (result.type === 'start-node') {
+      expect(result.nodeId).toBe('B');
+    }
+  });
+
+  it('sole interrupted node on incomplete line → all-waiting (blocks like running)', () => {
+    const reality = buildFakeReality({
+      nodes: [{ nodeId: 'A', status: 'interrupted' }],
+    });
+
+    const result = walkForNextAction(reality);
+
+    expect(result.type).toBe('no-action');
+    if (result.type === 'no-action') {
+      expect(result.reason).toBe('all-waiting');
+    }
+  });
+
+  it('interrupted + running on same line → all-waiting', () => {
+    const reality = buildFakeReality({
+      nodes: [
+        { nodeId: 'A', status: 'interrupted' },
+        { nodeId: 'B', status: 'starting' },
+      ],
+    });
+
+    const result = walkForNextAction(reality);
+
+    expect(result.type).toBe('no-action');
+    if (result.type === 'no-action') {
+      expect(result.reason).toBe('all-waiting');
+    }
+  });
+
+  it('interrupted + blocked-error → all-waiting (interrupted prevents graph-failed)', () => {
+    // This is the key correctness case: without explicit interrupted handling,
+    // diagnoseStuckLine would return 'graph-failed' because only hasBlocked=true.
+    // With explicit handling, hasRunning=true from interrupted takes priority.
+    const reality = buildFakeReality({
+      nodes: [
+        { nodeId: 'A', status: 'interrupted' },
+        { nodeId: 'B', status: 'blocked-error' },
+      ],
+    });
+
+    const result = walkForNextAction(reality);
+
+    expect(result.type).toBe('no-action');
+    if (result.type === 'no-action') {
+      expect(result.reason).toBe('all-waiting');
+    }
+  });
+});

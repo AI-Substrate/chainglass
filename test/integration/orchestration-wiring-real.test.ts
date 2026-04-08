@@ -117,27 +117,36 @@ async function createRealOrchestrationStack(
   // Orchestration components
   const nodeFs = new NodeFileSystemAdapter();
   const onbas = new ONBAS();
-  const contextService = new AgentContextService();
-  const podManager = new PodManager(nodeFs);
   const scriptRunner = new FakeScriptRunner();
-  const ods = new ODS({
-    graphService: service,
-    podManager,
-    contextService,
-    agentManager,
-    scriptRunner,
-    workUnitService: new FakeWorkUnitService(),
-  });
 
+  // Per-handle factory with capture for test inspection
+  let lastPerHandleDeps: { podManager: PodManager; ods: ODS } | undefined;
   const orchestrationService = new OrchestrationService({
     graphService: service,
     onbas,
-    ods,
     eventHandlerService,
-    podManager,
+    createPerHandleDeps: () => {
+      const contextService = new AgentContextService();
+      const pm = new PodManager(nodeFs);
+      const o = new ODS({
+        graphService: service,
+        podManager: pm,
+        contextService,
+        agentManager,
+        scriptRunner,
+        workUnitService: new FakeWorkUnitService(),
+      });
+      lastPerHandleDeps = { podManager: pm, ods: o };
+      return { podManager: pm, ods: o };
+    },
   });
 
-  return { orchestrationService, agentManager, podManager, eventHandlerService };
+  return {
+    orchestrationService,
+    agentManager,
+    eventHandlerService,
+    getLastPerHandleDeps: () => lastPerHandleDeps,
+  };
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -165,10 +174,13 @@ describe.skip('Claude Code orchestration wiring', { timeout: 180_000 }, () => {
     const nodeId = addResult.nodeId;
 
     // Run orchestration — ONBAS dispatches start-node, ODS fires pod
-    await stack.orchestrationService.run(ctx, graphSlug);
+    {
+      const h = await stack.orchestrationService.get(ctx, graphSlug);
+      await h.run();
+    }
 
     // Get the pod (ODS created it)
-    const pod = stack.podManager.getPod(nodeId);
+    const pod = stack.getLastPerHandleDeps()?.podManager.getPod(nodeId);
     assertDefined(pod, 'pod should exist after orchestration run');
     expect(pod.unitType).toBe('agent');
 
@@ -192,12 +204,15 @@ describe.skip('Claude Code orchestration wiring', { timeout: 180_000 }, () => {
     const nodeBId = addB.nodeId;
 
     // Run first iteration — starts node-a
-    await stack.orchestrationService.run(ctx, graphSlug);
+    {
+      const h = await stack.orchestrationService.get(ctx, graphSlug);
+      await h.run();
+    }
 
     // Wait for node-a to get sessionId
     const status = await service.getStatus(ctx, graphSlug);
     const nodeAId = status.lines[0].nodes[0].nodeId;
-    const podA = stack.podManager.getPod(nodeAId);
+    const podA = stack.getLastPerHandleDeps()?.podManager.getPod(nodeAId);
     assertDefined(podA, 'podA should exist');
     await waitForPodSession(podA, 120_000);
     assertDefined(podA.sessionId, 'podA.sessionId');
@@ -207,9 +222,12 @@ describe.skip('Claude Code orchestration wiring', { timeout: 180_000 }, () => {
     await service.completeNode(ctx, graphSlug, nodeAId, {});
 
     // Run again — node-b should inherit node-a's session
-    await stack.orchestrationService.run(ctx, graphSlug);
+    {
+      const h = await stack.orchestrationService.get(ctx, graphSlug);
+      await h.run();
+    }
 
-    const podB = stack.podManager.getPod(nodeBId);
+    const podB = stack.getLastPerHandleDeps()?.podManager.getPod(nodeBId);
     assertDefined(podB, 'podB should exist');
     await waitForPodSession(podB, 120_000);
 
@@ -230,7 +248,10 @@ describe.skip('Claude Code orchestration wiring', { timeout: 180_000 }, () => {
     // Note: handler attached after run() — real agents take seconds to start,
     // so events are reliably captured. This would race with instant adapters.
     const countBefore = stack.agentManager.getAgents().length;
-    await stack.orchestrationService.run(ctx, graphSlug);
+    {
+      const h = await stack.orchestrationService.get(ctx, graphSlug);
+      await h.run();
+    }
 
     const agents = stack.agentManager.getAgents();
     const newAgent = agents[countBefore];
@@ -238,7 +259,7 @@ describe.skip('Claude Code orchestration wiring', { timeout: 180_000 }, () => {
     newAgent.addEventHandler((e: AgentEvent) => events.push(e));
 
     // Wait for completion
-    const pod = stack.podManager.getPod(nodeId);
+    const pod = stack.getLastPerHandleDeps()?.podManager.getPod(nodeId);
     assertDefined(pod, 'pod should exist');
     await waitForPodSession(pod, 120_000);
 
@@ -272,9 +293,12 @@ describe.skip('Copilot SDK orchestration wiring', { timeout: 180_000 }, () => {
     assertDefined(addResult.nodeId, 'addResult.nodeId');
     const nodeId = addResult.nodeId;
 
-    await stack.orchestrationService.run(ctx, graphSlug);
+    {
+      const h = await stack.orchestrationService.get(ctx, graphSlug);
+      await h.run();
+    }
 
-    const pod = stack.podManager.getPod(nodeId);
+    const pod = stack.getLastPerHandleDeps()?.podManager.getPod(nodeId);
     assertDefined(pod, 'pod should exist');
     await waitForPodSession(pod, 120_000);
     expect(pod.sessionId).toBeTruthy();
@@ -289,20 +313,26 @@ describe.skip('Copilot SDK orchestration wiring', { timeout: 180_000 }, () => {
     assertDefined(addB.nodeId, 'addB.nodeId');
     const nodeBId = addB.nodeId;
 
-    await stack.orchestrationService.run(ctx, graphSlug);
+    {
+      const h = await stack.orchestrationService.get(ctx, graphSlug);
+      await h.run();
+    }
 
     const status = await service.getStatus(ctx, graphSlug);
     const nodeAId = status.lines[0].nodes[0].nodeId;
-    const podA = stack.podManager.getPod(nodeAId);
+    const podA = stack.getLastPerHandleDeps()?.podManager.getPod(nodeAId);
     assertDefined(podA, 'podA should exist');
     await waitForPodSession(podA, 120_000);
     assertDefined(podA.sessionId, 'podA.sessionId');
     const sessionA = podA.sessionId;
 
     await service.completeNode(ctx, graphSlug, nodeAId, {});
-    await stack.orchestrationService.run(ctx, graphSlug);
+    {
+      const h = await stack.orchestrationService.get(ctx, graphSlug);
+      await h.run();
+    }
 
-    const podB = stack.podManager.getPod(nodeBId);
+    const podB = stack.getLastPerHandleDeps()?.podManager.getPod(nodeBId);
     assertDefined(podB, 'podB should exist');
     await waitForPodSession(podB, 120_000);
     expect(podB.sessionId).toBeTruthy();
@@ -321,14 +351,17 @@ describe.skip('Copilot SDK orchestration wiring', { timeout: 180_000 }, () => {
     // Note: handler attached after run() — real agents take seconds to start,
     // so events are reliably captured. This would race with instant adapters.
     const countBefore = stack.agentManager.getAgents().length;
-    await stack.orchestrationService.run(ctx, graphSlug);
+    {
+      const h = await stack.orchestrationService.get(ctx, graphSlug);
+      await h.run();
+    }
 
     const agents = stack.agentManager.getAgents();
     const newAgent = agents[countBefore];
     assertDefined(newAgent, 'new agent should exist after run');
     newAgent.addEventHandler((e: AgentEvent) => events.push(e));
 
-    const pod = stack.podManager.getPod(nodeId);
+    const pod = stack.getLastPerHandleDeps()?.podManager.getPod(nodeId);
     assertDefined(pod, 'pod should exist');
     await waitForPodSession(pod, 120_000);
 
@@ -362,7 +395,10 @@ describe.skip('Cross-adapter parity', { timeout: 300_000 }, () => {
       // Note: handler attached after run() — real agents take seconds to start,
       // so events are reliably captured. This would race with instant adapters.
       const countBefore = stack.agentManager.getAgents().length;
-      await stack.orchestrationService.run(ctx, graphSlug);
+      {
+        const h = await stack.orchestrationService.get(ctx, graphSlug);
+        await h.run();
+      }
 
       const agents = stack.agentManager.getAgents();
       const newAgent = agents[countBefore];
@@ -370,7 +406,7 @@ describe.skip('Cross-adapter parity', { timeout: 300_000 }, () => {
         newAgent.addEventHandler((e: AgentEvent) => events.push(e));
       }
 
-      const pod = stack.podManager.getPod(nodeId);
+      const pod = stack.getLastPerHandleDeps()?.podManager.getPod(nodeId);
       assertDefined(pod, 'pod should exist');
       await waitForPodSession(pod, 120_000);
 
@@ -417,9 +453,12 @@ describe.skip('Session durability: poem → compact → recall', { timeout: 180_
     assertDefined(addResult.nodeId, 'addResult.nodeId');
     const nodeId = addResult.nodeId;
 
-    await stack.orchestrationService.run(ctx, graphSlug);
+    {
+      const h = await stack.orchestrationService.get(ctx, graphSlug);
+      await h.run();
+    }
 
-    const pod = stack.podManager.getPod(nodeId);
+    const pod = stack.getLastPerHandleDeps()?.podManager.getPod(nodeId);
     assertDefined(pod, 'pod should exist');
 
     // Wait for pod to complete with real agent (starter prompt)
@@ -430,7 +469,7 @@ describe.skip('Session durability: poem → compact → recall', { timeout: 180_
     expect(stack.agentManager.getAgents().length).toBeGreaterThanOrEqual(1);
 
     // ── Get THIS pod's instance via session lookup ──
-    const sessionId = stack.podManager.getSessionId(nodeId);
+    const sessionId = stack.getLastPerHandleDeps()?.podManager.getSessionId(nodeId);
     assertDefined(sessionId, 'sessionId should exist');
     const instance = stack.agentManager.getWithSessionId(sessionId, {
       name: 'spec-builder',

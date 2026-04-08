@@ -92,6 +92,9 @@ export interface SDKKeybinding {
 
   /** Arguments to pass to command */
   args?: Record<string, unknown>;
+
+  /** When true, fires even when focus is in an input, textarea, or terminal */
+  global?: boolean;
 }
 
 /**

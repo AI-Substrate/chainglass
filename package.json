@@ -46,6 +46,14 @@
     "patchedDependencies": {
       "next-auth@5.0.0-beta.30": "patches/next-auth@5.0.0-beta.30.patch",
       "@github/copilot-sdk@0.1.32": "patches/@github__copilot-sdk@0.1.32.patch"
+    },
+    "overrides": {
+      "fast-json-patch": ">=3.1.1",
+      "minimatch": ">=9.0.7",
+      "@modelcontextprotocol/sdk": ">=1.26.0",
+      "rollup": ">=4.59.0",
+      "hono": ">=4.12.4",
+      "@hono/node-server": ">=1.19.10"
     }
   }
 }

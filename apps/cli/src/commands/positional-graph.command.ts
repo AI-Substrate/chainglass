@@ -180,6 +180,276 @@ function createWorkflowEventsService(ctx: WorkspaceContext): IWorkflowEvents {
 }
 
 // ============================================
+// Server Mode Helpers (Plan 076 Phase 4 ST002)
+// ============================================
+
+/**
+ * Discover server URL + local auth token from .chainglass/server.json.
+ * Falls back to --server-url override or CG_SERVER_URL env var.
+ * DYK #5: localToken proves filesystem access for CLI auth.
+ *
+ * Search order:
+ * 1. --server-url override
+ * 2. CG_SERVER_URL env var
+ * 3. server.json at workspacePath/.chainglass/
+ * 4. server.json at cwd/.chainglass/
+ * 5. server.json at cwd/apps/web/.chainglass/ (monorepo root)
+ * 6. Walk up from workspacePath looking for apps/web/.chainglass/server.json
+ */
+async function discoverServerContext(
+  workspacePath: string | undefined,
+  serverUrlOverride: string | undefined
+): Promise<{ baseUrl: string; localToken?: string }> {
+  if (serverUrlOverride) {
+    return { baseUrl: serverUrlOverride };
+  }
+  if (process.env.CG_SERVER_URL) {
+    return { baseUrl: process.env.CG_SERVER_URL };
+  }
+
+  const { readServerInfo } = await import('@chainglass/shared/event-popper');
+  const { join, dirname } = await import('node:path');
+  const cwd = process.cwd();
+  const wsPath = workspacePath ?? cwd;
+
+  // Try workspace path, cwd, then cwd/apps/web (monorepo root pattern)
+  const candidates = [wsPath, cwd, join(cwd, 'apps', 'web')];
+
+  // Walk up from workspace path looking for apps/web (container pattern:
+  // workspace at /app/scratch/..., server.json at /app/apps/web/)
+  let dir = wsPath;
+  for (let i = 0; i < 5; i++) {
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    candidates.push(join(parent, 'apps', 'web'));
+    dir = parent;
+  }
+
+  for (const candidate of candidates) {
+    const info = readServerInfo(candidate);
+    if (info) {
+      return {
+        baseUrl: `http://localhost:${info.port}`,
+        localToken: info.localToken,
+      };
+    }
+  }
+
+  throw new Error(
+    'Chainglass server not running (no .chainglass/server.json found).\n' +
+      'Start with: just dev\n' +
+      'Or specify: --server-url http://localhost:3000'
+  );
+}
+
+/**
+ * Create a WorkflowApiClient from workspace context + server discovery.
+ */
+async function createServerClient(
+  ctx: WorkspaceContext,
+  opts: { serverUrl?: string; workspacePath?: string }
+) {
+  const { baseUrl, localToken } = await discoverServerContext(opts.workspacePath, opts.serverUrl);
+  const { WorkflowApiClient } = await import('@chainglass/shared/sdk/workflow');
+  return new WorkflowApiClient({
+    baseUrl,
+    workspaceSlug: ctx.workspaceSlug,
+    worktreePath: ctx.worktreePath,
+    localToken,
+  });
+}
+
+// ============================================
+// Human-Readable Log Formatter (FX002)
+// ============================================
+
+function formatHumanReadableLog(
+  log: Record<string, unknown>,
+  options: { node?: string; errors?: boolean }
+): void {
+  const status = log.status as string;
+  const timing = log.timing as { startedAt: string | null; durationMs: number | null } | undefined;
+  const progress = log.progress as
+    | { totalNodes: number; completedNodes: number; failedNodes: number }
+    | undefined;
+  const timeline = (log.timeline as Array<Record<string, unknown>>) ?? [];
+  const diagnostics = (log.diagnostics as Array<Record<string, unknown>>) ?? [];
+  const nodes = (log.nodes as Record<string, Record<string, unknown>>) ?? {};
+
+  // Header
+  const durationStr = timing?.durationMs
+    ? timing.durationMs < 60000
+      ? `${Math.round(timing.durationMs / 1000)}s`
+      : `${Math.round(timing.durationMs / 60000)}m`
+    : '';
+  const progressStr = progress ? `${progress.completedNodes}/${progress.totalNodes} nodes` : '';
+  console.log(`\n${log.slug} — ${status} (${progressStr}${durationStr ? `, ${durationStr}` : ''})`);
+  console.log('═'.repeat(60));
+
+  // Filter timeline
+  let filteredTimeline = timeline;
+  if (options.node) {
+    filteredTimeline = timeline.filter((e) => e.nodeId === options.node);
+  }
+  if (options.errors) {
+    filteredTimeline = filteredTimeline.filter((e) => e.event === 'error');
+  }
+
+  // Timeline
+  if (filteredTimeline.length > 0) {
+    for (const entry of filteredTimeline) {
+      const ts = typeof entry.timestamp === 'string' ? entry.timestamp.slice(11, 19) : '??:??:??';
+      const icon =
+        entry.event === 'completed'
+          ? '✅'
+          : entry.event === 'accepted'
+            ? '🔄'
+            : entry.event === 'error'
+              ? '❌'
+              : entry.event === 'started'
+                ? '▶'
+                : entry.event === 'question-asked'
+                  ? '❓'
+                  : entry.event === 'question-answered'
+                    ? '💬'
+                    : '·';
+      console.log(`  ${ts}  ${icon} ${entry.message}`);
+    }
+  }
+
+  // Nodes with no events but interesting status (stuck, pending)
+  for (const [nodeId, node] of Object.entries(nodes)) {
+    if (options.node && nodeId !== options.node) continue;
+    const nodeEvents = (node.events as Array<unknown>) ?? [];
+    const nodeStatus = node.status as string;
+    const nodeTiming = node.timing as { startedAt: string | null } | undefined;
+
+    if (nodeEvents.length === 0 && nodeStatus === 'starting' && nodeTiming?.startedAt) {
+      const elapsed = Date.now() - new Date(nodeTiming.startedAt).getTime();
+      const elapsedStr =
+        elapsed < 60000 ? `${Math.round(elapsed / 1000)}s` : `${Math.round(elapsed / 60000)}m`;
+      const ts =
+        typeof nodeTiming.startedAt === 'string' ? nodeTiming.startedAt.slice(11, 19) : '??:??:??';
+      console.log(
+        `  ${ts}  ⚠ ${node.unitSlug} started ${elapsedStr} ago — NO ACCEPT (agent may have failed)`
+      );
+      if (node.agentSessionId) {
+        console.log(`          Agent session: ${String(node.agentSessionId).substring(0, 12)}...`);
+      }
+    } else if (nodeEvents.length === 0 && nodeStatus === 'pending') {
+      if (!options.errors) {
+        const blocked = (node.blockedBy as string[]) ?? [];
+        console.log(`          ⏸ ${node.unitSlug} pending (${blocked.join(', ') || 'waiting'})`);
+      }
+    }
+
+    // Show outputs for completed nodes
+    if (!options.errors && nodeStatus === 'complete') {
+      const outputs = node.outputs as Record<string, unknown> | undefined;
+      if (outputs && Object.keys(outputs).length > 0) {
+        for (const [name, value] of Object.entries(outputs)) {
+          const preview =
+            typeof value === 'string'
+              ? value.length > 80
+                ? `${value.substring(0, 80)}...`
+                : value
+              : JSON.stringify(value)?.substring(0, 80);
+          console.log(`          Output ${name}: ${preview}`);
+        }
+      }
+    }
+  }
+
+  // Diagnostics
+  if (diagnostics.length > 0) {
+    console.log('');
+    console.log('── Diagnostics ──');
+    for (const d of diagnostics) {
+      const icon = d.severity === 'error' ? '❌' : d.severity === 'warning' ? '⚠' : 'ℹ';
+      console.log(`  ${icon} ${d.message}`);
+      if (d.fix) {
+        console.log(`    Fix: ${d.fix}`);
+      }
+    }
+  }
+
+  console.log('');
+}
+
+/**
+ * Run workflow via server REST API (--server mode for cg wf run).
+ * Fire-and-forget: POST to start, print actionable next steps, exit immediately.
+ * The server owns the lifecycle — use `cg wf show --detailed --server` to poll.
+ * DYK #3: Catch 400 with actionable "workspace not registered" error.
+ */
+async function handleWfRunServer(
+  slug: string,
+  options: {
+    verbose: boolean;
+    jsonEvents: boolean;
+    timeout: string;
+    serverUrl?: string;
+    workspacePath?: string;
+    json?: boolean;
+    pretty?: boolean;
+  }
+): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false, options.pretty);
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    console.log(adapter.format('wf.run', { errors: noContextError(options.workspacePath) }));
+    process.exit(1);
+  }
+
+  const client = await createServerClient(ctx, options);
+
+  // POST to start execution
+  let runResult: Awaited<ReturnType<typeof client.run>>;
+  try {
+    runResult = await client.run(slug);
+  } catch (error) {
+    // DYK #3: Actionable workspace error
+    const msg = error instanceof Error ? error.message : String(error);
+    if (msg.includes('400') || msg.includes('Invalid workspace')) {
+      console.error(
+        'Error: Workspace or worktree not registered on the server.\n' +
+          'Register it in the web UI or check your --workspace-path.'
+      );
+      process.exit(1);
+    }
+    throw error;
+  }
+
+  // FT-004: already:true is idempotent success
+  if (!runResult.ok && !runResult.already) {
+    console.log(
+      adapter.format('wf.run', {
+        errors: [{ code: 'SERVER_START_FAILED', message: runResult.error ?? 'Failed to start' }],
+      })
+    );
+    process.exit(1);
+  }
+
+  // Fire-and-forget: print result and actionable next steps, then exit
+  console.log(
+    adapter.format('wf.run', {
+      mode: 'server',
+      started: !runResult.already,
+      already: runResult.already ?? false,
+      key: runResult.key ?? null,
+      errors: [],
+      nextSteps: {
+        poll: `cg wf show ${slug} --detailed --server`,
+        stop: `cg wf stop ${slug}`,
+        restart: `cg wf restart ${slug}`,
+      },
+    })
+  );
+
+  process.exit(0);
+}
+
+// ============================================
 // Graph Command Handlers
 // ============================================
 
@@ -200,7 +470,10 @@ async function handleWfCreate(slug: string, options: BaseOptions): Promise<void>
   if (result.errors.length > 0) process.exit(1);
 }
 
-async function handleWfShow(slug: string, options: BaseOptions): Promise<void> {
+async function handleWfShow(
+  slug: string,
+  options: BaseOptions & { detailed?: boolean }
+): Promise<void> {
   const adapter = createOutputAdapter(options.json ?? false);
 
   const ctx = await resolveOrOverrideContext(options.workspacePath);
@@ -211,6 +484,67 @@ async function handleWfShow(slug: string, options: BaseOptions): Promise<void> {
   }
 
   const service = getPositionalGraphService();
+
+  if (options.detailed) {
+    // FT-001 + FT-003: Use sanctioned getReality() contract instead of
+    // constructing PodManager/NodeFileSystemAdapter directly
+    const orchestrationService = getOrchestrationService();
+    const handle = await orchestrationService.get(ctx, slug);
+    const reality = await handle.getReality();
+
+    const state = await service.loadGraphState(ctx, slug);
+    const statusResult = await service.getStatus(ctx, slug);
+
+    const sessions: Record<string, string> = {};
+    for (const [nodeId, sessionId] of reality.podSessions ?? []) {
+      sessions[nodeId] = sessionId;
+    }
+
+    const detailed = {
+      slug,
+      execution: {
+        status: statusResult.status,
+        totalNodes: statusResult.totalNodes,
+        completedNodes: statusResult.completedNodes,
+        progress:
+          statusResult.totalNodes > 0
+            ? `${Math.round((statusResult.completedNodes / statusResult.totalNodes) * 100)}%`
+            : '0%',
+      },
+      lines: statusResult.lines.map((line) => ({
+        id: line.lineId,
+        label: line.label ?? '',
+        nodes: line.nodes.map((node) => {
+          const nodeState = state?.nodes?.[node.nodeId];
+          const nodeReality = reality.nodes.get(node.nodeId);
+          const blockedBy: string[] = [];
+          if (nodeReality && !nodeReality.ready && nodeReality.readyDetail) {
+            if (!nodeReality.readyDetail.precedingLinesComplete) blockedBy.push('preceding-lines');
+            if (!nodeReality.readyDetail.inputsAvailable) blockedBy.push('inputs');
+            if (!nodeReality.readyDetail.serialNeighborComplete) blockedBy.push('serial-neighbor');
+          }
+          return {
+            id: node.nodeId,
+            unitSlug: node.unitSlug,
+            type: node.unitType,
+            status: node.status,
+            startedAt: nodeState?.started_at ?? null,
+            completedAt: nodeState?.completed_at ?? null,
+            error: nodeState?.error ?? null,
+            sessionId: sessions[node.nodeId] ?? null,
+            blockedBy,
+          };
+        }),
+      })),
+      questions: reality.pendingQuestions ?? [],
+      sessions,
+      errors: [],
+    };
+
+    console.log(adapter.format('wf.show', detailed));
+    return;
+  }
+
   const result = await service.show(ctx, slug);
   console.log(adapter.format('wf.show', result));
 
@@ -1762,7 +2096,13 @@ export function registerPositionalGraphCommands(program: Command): void {
     .command('wf')
     .description('Manage positional graphs (workflows)')
     .option('--json', 'Output as JSON', false)
-    .option('--workspace-path <path>', 'Override workspace context');
+    .option('--pretty', 'Pretty-print JSON output (when --json is active)', false)
+    .option('--workspace-path <path>', 'Override workspace context')
+    .option('--server', 'Execute via web server REST API instead of locally')
+    .option(
+      '--server-url <url>',
+      'Override server URL (default: auto-discover from .chainglass/server.json)'
+    );
 
   // ==================== Graph Commands ====================
 
@@ -1780,12 +2120,41 @@ export function registerPositionalGraphCommands(program: Command): void {
 
   wf.command('show <slug>')
     .description('Show graph structure')
+    .option('--detailed', 'Show runtime execution status, timing, pod sessions', false)
     .action(
-      wrapAction(async (slug: string, _options: BaseOptions, cmd: Command) => {
+      wrapAction(async (slug: string, options: { detailed: boolean }, cmd: Command) => {
         const parentOpts = cmd.parent?.opts() ?? {};
+
+        // --server + --detailed: GET /detailed via SDK
+        if (parentOpts.server && options.detailed) {
+          const adapter = createOutputAdapter(parentOpts.json ?? false, parentOpts.pretty);
+          const ctx = await resolveOrOverrideContext(parentOpts.workspacePath);
+          if (!ctx) {
+            console.log(
+              adapter.format('wf.show', { errors: noContextError(parentOpts.workspacePath) })
+            );
+            process.exit(1);
+          }
+          const client = await createServerClient(ctx, {
+            serverUrl: parentOpts.serverUrl,
+            workspacePath: parentOpts.workspacePath,
+          });
+          const detailed = await client.getDetailed(slug);
+          console.log(
+            adapter.format(
+              'wf.show',
+              detailed ?? {
+                errors: [{ code: 'NOT_FOUND', message: 'No detailed status available' }],
+              }
+            )
+          );
+          return;
+        }
+
         await handleWfShow(slug, {
           json: parentOpts.json,
           workspacePath: parentOpts.workspacePath,
+          detailed: options.detailed,
         });
       })
     );
@@ -1859,6 +2228,27 @@ export function registerPositionalGraphCommands(program: Command): void {
     .action(
       wrapAction(async (slug: string, options: StatusOptions, cmd: Command) => {
         const parentOpts = cmd.parent?.opts() ?? {};
+
+        // --server mode: GET /execution via SDK
+        if (parentOpts.server) {
+          const adapter = createOutputAdapter(parentOpts.json ?? false, parentOpts.pretty);
+          const ctx = await resolveOrOverrideContext(parentOpts.workspacePath);
+          if (!ctx) {
+            console.log(
+              adapter.format('wf.status', { errors: noContextError(parentOpts.workspacePath) })
+            );
+            process.exit(1);
+          }
+          const client = await createServerClient(ctx, {
+            serverUrl: parentOpts.serverUrl,
+            workspacePath: parentOpts.workspacePath,
+          });
+          const status = await client.getStatus(slug);
+          const result = status ?? { status: 'idle' };
+          console.log(adapter.format('wf.status', { ...result, errors: [] }));
+          return;
+        }
+
         await handleWfStatus(slug, {
           ...options,
           json: parentOpts.json,
@@ -1902,26 +2292,64 @@ export function registerPositionalGraphCommands(program: Command): void {
   wf.command('run <slug>')
     .description('Drive a graph to completion (polling loop)')
     .option('--verbose', 'Show detailed iteration info', false)
+    .option(
+      '--json-events',
+      'Emit DriveEvents as NDJSON lines to stdout (DYK #4: adds mode field in server mode)',
+      false
+    )
     .option('--max-iterations <n>', 'Maximum drive iterations', '200')
+    .option('--timeout <seconds>', 'Abort drive after N seconds (default: 600)', '600')
     .action(
       wrapAction(
         async (
           slug: string,
-          options: { verbose: boolean; maxIterations: string },
+          options: {
+            verbose: boolean;
+            jsonEvents: boolean;
+            maxIterations: string;
+            timeout: string;
+          },
           cmd: Command
         ) => {
           const parentOpts = cmd.parent?.opts() ?? {};
+
+          // --server mode: drive via REST API
+          if (parentOpts.server) {
+            await handleWfRunServer(slug, {
+              verbose: options.verbose,
+              jsonEvents: options.jsonEvents,
+              timeout: options.timeout,
+              serverUrl: parentOpts.serverUrl,
+              workspacePath: parentOpts.workspacePath,
+              json: parentOpts.json,
+              pretty: parentOpts.pretty,
+            });
+            return;
+          }
+
+          // Local mode: drive directly
           const ctx = await resolveOrOverrideContext(parentOpts.workspacePath);
           if (!ctx) {
-            const adapter = createOutputAdapter(parentOpts.json ?? false);
+            const adapter = createOutputAdapter(parentOpts.json ?? false, parentOpts.pretty);
             console.log(
               adapter.format('wf.run', { errors: noContextError(parentOpts.workspacePath) })
             );
             process.exit(1);
           }
 
+          // T2.3: GH_TOKEN pre-flight check
+          if (!process.env.GH_TOKEN && !process.env.GITHUB_TOKEN) {
+            console.error('Error: GH_TOKEN environment variable required for agent execution.');
+            console.error('Set it with: export GH_TOKEN=$(gh auth token)');
+            process.exit(1);
+          }
+
           const orchestrationService = getOrchestrationService();
           const handle = await orchestrationService.get(ctx, slug);
+
+          // ST006: Drive lock moved into GraphOrchestration.drive() — one lock, one place.
+          // Both CLI and web paths are protected by the engine lock.
+
           const maxIterations = Number.parseInt(options.maxIterations, 10);
           if (Number.isNaN(maxIterations) || maxIterations < 1) {
             console.error(`Invalid --max-iterations value: ${options.maxIterations}`);
@@ -1930,8 +2358,179 @@ export function registerPositionalGraphCommands(program: Command): void {
           const exitCode = await cliDriveGraph(handle, {
             maxIterations,
             verbose: options.verbose,
+            jsonEvents: options.jsonEvents,
+            timeout: Number.parseInt(options.timeout, 10) || 600,
           });
           process.exit(exitCode);
+        }
+      )
+    );
+
+  // ==================== Stop + Restart Commands (Plan 076 ST002) ====================
+  // DYK #2: Auto-discover server — no --server flag needed. These are server-only.
+
+  wf.command('stop <slug>')
+    .description('Stop a running workflow (server-mode only)')
+    .action(
+      wrapAction(async (slug: string, _options: Record<string, unknown>, cmd: Command) => {
+        const parentOpts = cmd.parent?.opts() ?? {};
+        const adapter = createOutputAdapter(parentOpts.json ?? false, parentOpts.pretty);
+
+        const ctx = await resolveOrOverrideContext(parentOpts.workspacePath);
+        if (!ctx) {
+          console.log(
+            adapter.format('wf.stop', { errors: noContextError(parentOpts.workspacePath) })
+          );
+          process.exit(1);
+        }
+
+        try {
+          const client = await createServerClient(ctx, {
+            serverUrl: parentOpts.serverUrl,
+            workspacePath: parentOpts.workspacePath,
+          });
+          const result = await client.stop(slug);
+          console.log(adapter.format('wf.stop', { ...result, errors: [] }));
+          process.exit(result.stopped ? 0 : 1);
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : String(error);
+          if (msg.includes('server not running') || msg.includes('server.json')) {
+            console.error(
+              'No running server found.\n' +
+                'Start the dev server with: just dev\n' +
+                'Or specify: cg wf stop <slug> --server-url http://localhost:3000'
+            );
+            process.exit(1);
+          }
+          throw error;
+        }
+      })
+    );
+
+  wf.command('restart <slug>')
+    .description('Restart a workflow (stop + reset + start, server-mode only)')
+    .action(
+      wrapAction(async (slug: string, _options: Record<string, unknown>, cmd: Command) => {
+        const parentOpts = cmd.parent?.opts() ?? {};
+        const adapter = createOutputAdapter(parentOpts.json ?? false, parentOpts.pretty);
+
+        const ctx = await resolveOrOverrideContext(parentOpts.workspacePath);
+        if (!ctx) {
+          console.log(
+            adapter.format('wf.restart', { errors: noContextError(parentOpts.workspacePath) })
+          );
+          process.exit(1);
+        }
+
+        try {
+          const client = await createServerClient(ctx, {
+            serverUrl: parentOpts.serverUrl,
+            workspacePath: parentOpts.workspacePath,
+          });
+          const result = await client.restart(slug);
+          console.log(adapter.format('wf.restart', { ...result, errors: [] }));
+          process.exit(result.ok ? 0 : 1);
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : String(error);
+          if (msg.includes('server not running') || msg.includes('server.json')) {
+            console.error(
+              'No running server found.\n' +
+                'Start the dev server with: just dev\n' +
+                'Or specify: cg wf restart <slug> --server-url http://localhost:3000'
+            );
+            process.exit(1);
+          }
+          throw error;
+        }
+      })
+    );
+
+  // ==================== Logs Command (Plan 076 FX002) ====================
+
+  wf.command('logs <slug>')
+    .description('Show unified execution log — timeline, diagnostics, per-node detail')
+    .option('--node <nodeId>', 'Filter to a specific node')
+    .option('--errors', 'Show only errors and diagnostics')
+    .action(
+      wrapAction(
+        async (slug: string, options: { node?: string; errors?: boolean }, cmd: Command) => {
+          const parentOpts = cmd.parent?.opts() ?? {};
+          const adapter = createOutputAdapter(parentOpts.json ?? false, parentOpts.pretty);
+
+          // --server mode: GET /logs via SDK
+          if (parentOpts.server) {
+            const ctx = await resolveOrOverrideContext(parentOpts.workspacePath);
+            if (!ctx) {
+              console.log(
+                adapter.format('wf.logs', { errors: noContextError(parentOpts.workspacePath) })
+              );
+              process.exit(1);
+            }
+            const client = await createServerClient(ctx, {
+              serverUrl: parentOpts.serverUrl,
+              workspacePath: parentOpts.workspacePath,
+            });
+            const log = (await client.getLogs(slug)) as Record<string, unknown>;
+
+            if (parentOpts.json) {
+              // JSON mode: output the full log (with optional filtering)
+              let result = log;
+              if (options.node && log.nodes) {
+                const nodeLog = (log.nodes as Record<string, unknown>)[options.node];
+                result = nodeLog
+                  ? {
+                      ...(log as object),
+                      nodes: { [options.node]: nodeLog },
+                      timeline: ((log.timeline as Array<Record<string, unknown>>) ?? []).filter(
+                        (e) => e.nodeId === options.node
+                      ),
+                    }
+                  : log;
+              }
+              if (options.errors) {
+                result = {
+                  ...(result as object),
+                  timeline: (
+                    ((result as Record<string, unknown>).timeline as Array<
+                      Record<string, unknown>
+                    >) ?? []
+                  ).filter((e) => e.event === 'error'),
+                };
+              }
+              console.log(adapter.format('wf.logs', { ...(result as object), errors: [] }));
+            } else {
+              // Human-readable mode
+              formatHumanReadableLog(log, options);
+            }
+            return;
+          }
+
+          // Local mode: build log directly via service
+          const ctx = await resolveOrOverrideContext(parentOpts.workspacePath);
+          if (!ctx) {
+            console.log(
+              adapter.format('wf.logs', { errors: noContextError(parentOpts.workspacePath) })
+            );
+            process.exit(1);
+          }
+
+          const { buildExecutionLog } = await import(
+            '@chainglass/positional-graph/features/040-graph-inspect'
+          );
+          const container = (await import('../lib/container.js')).createCliProductionContainer();
+          const service = container.resolve<
+            import('@chainglass/positional-graph').IPositionalGraphService
+          >(
+            (await import('@chainglass/shared')).POSITIONAL_GRAPH_DI_TOKENS.POSITIONAL_GRAPH_SERVICE
+          );
+
+          const log = await buildExecutionLog(service, ctx, slug);
+
+          if (parentOpts.json) {
+            console.log(adapter.format('wf.logs', { ...log, errors: [] }));
+          } else {
+            formatHumanReadableLog(log as unknown as Record<string, unknown>, options);
+          }
         }
       )
     );

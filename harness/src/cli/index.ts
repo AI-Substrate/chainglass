@@ -26,6 +26,8 @@ import { registerDoctorCommand } from './commands/doctor.js';
 import { registerAgentCommand } from './commands/agent.js';
 import { registerConsoleLogsCommand } from './commands/console-logs.js';
 import { registerScreenshotAllCommand } from './commands/screenshot-all.js';
+import { registerTestDataCommand } from './commands/test-data.js';
+import { registerWorkflowCommand } from './commands/workflow.js';
 
 const HARNESS_ROOT = path.resolve(import.meta.dirname ?? '.', '../..');
 
@@ -69,6 +71,8 @@ export function createCli(): Command {
   registerSeedCommand(program);
   registerDoctorCommand(program);
   registerAgentCommand(program);
+  registerTestDataCommand(program);
+  registerWorkflowCommand(program);
 
   return program;
 }
@@ -78,5 +82,8 @@ const isDirectRun = process.argv[1]?.endsWith('index.ts') || process.argv[1]?.en
 if (isDirectRun) {
   syncEnvFile();
   const program = createCli();
-  program.parseAsync(process.argv);
+  program.parseAsync(process.argv).catch((err: unknown) => {
+    console.error('Harness CLI error:', err);
+    process.exit(1);
+  });
 }

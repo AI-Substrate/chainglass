@@ -15,9 +15,13 @@
  * @packageDocumentation
  */
 
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { WorkspaceContext } from '@chainglass/workflow';
 import type { IPositionalGraphService } from '../../interfaces/positional-graph-service.interface.js';
 import type { IEventHandlerService } from '../032-node-event-system/event-handler-service.interface.js';
+import { generateEventId } from '../032-node-event-system/event-id.js';
+import { abortableSleep } from './abortable-sleep.js';
 import type { IODS } from './ods.types.js';
 import type { IONBAS } from './onbas.types.js';
 import type {
@@ -55,8 +59,6 @@ const DEFAULT_DRIVE_MAX_ITERATIONS = 200;
 const DEFAULT_ACTION_DELAY_MS = 100;
 const DEFAULT_IDLE_DELAY_MS = 10_000;
 
-const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
-
 // ── GraphOrchestration ──────────────────────────────────
 
 export class GraphOrchestration implements IGraphOrchestration {
@@ -90,6 +92,31 @@ export class GraphOrchestration implements IGraphOrchestration {
 
       // 1. Settle: process pending events and persist mutations
       const state = await this.graphService.loadGraphState(this.ctx, this.graphSlug);
+
+      // 1a. Drain ODS pod errors into state as node:error events (P1-DYK #1)
+      // Injected into in-memory state BEFORE processGraph() so handlers pick them up
+      // in the same settle cycle. No concurrent file access — drive loop owns state.
+      const podErrors = this.ods.drainErrors();
+      for (const [nodeId, error] of podErrors) {
+        if (!state.nodes) state.nodes = {};
+        const entry = state.nodes[nodeId];
+        if (entry) {
+          const events = entry.events ?? [];
+          entry.events = [
+            ...events,
+            {
+              event_id: generateEventId(),
+              event_type: 'node:error',
+              source: 'orchestrator',
+              payload: { code: error.code, message: error.message },
+              status: 'new',
+              stops_execution: true,
+              created_at: new Date().toISOString(),
+            },
+          ];
+        }
+      }
+
       this.eventHandlerService.processGraph(state, 'orchestrator', 'cli');
       await this.graphService.persistGraphState(this.ctx, this.graphSlug, state);
 
@@ -122,6 +149,34 @@ export class GraphOrchestration implements IGraphOrchestration {
     }
 
     // Max iterations reached — safety exit
+    // Final drain: persist any pod errors that accumulated in the last iteration
+    const finalErrors = this.ods.drainErrors();
+    if (finalErrors.size > 0) {
+      const finalState = await this.graphService.loadGraphState(this.ctx, this.graphSlug);
+      for (const [nodeId, error] of finalErrors) {
+        if (!finalState.nodes) finalState.nodes = {};
+        const entry = finalState.nodes[nodeId];
+        if (entry) {
+          const events = entry.events ?? [];
+          entry.events = [
+            ...events,
+            {
+              event_id: generateEventId(),
+              event_type: 'node:error',
+              source: 'orchestrator',
+              payload: { code: error.code, message: error.message },
+              status: 'new',
+              stops_execution: true,
+              created_at: new Date().toISOString(),
+            },
+          ];
+          entry.status = 'blocked-error';
+          entry.error = { code: error.code, message: error.message };
+        }
+      }
+      await this.graphService.persistGraphState(this.ctx, this.graphSlug, finalState);
+    }
+
     return {
       errors: [
         {
@@ -140,67 +195,104 @@ export class GraphOrchestration implements IGraphOrchestration {
     return this.buildReality();
   }
 
+  async cleanup(): Promise<void> {
+    if (this.podManager) {
+      await this.podManager.destroyAllPods();
+      await this.podManager.persistSessions(this.ctx, this.graphSlug);
+    }
+  }
+
   async drive(options?: DriveOptions): Promise<DriveResult> {
     const maxIterations = options?.maxIterations ?? DEFAULT_DRIVE_MAX_ITERATIONS;
     const actionDelayMs = options?.actionDelayMs ?? DEFAULT_ACTION_DELAY_MS;
     const idleDelayMs = options?.idleDelayMs ?? DEFAULT_IDLE_DELAY_MS;
+    const signal = options?.signal;
     const emit = async (event: DriveEvent) => {
       await options?.onEvent?.(event);
     };
 
-    await this.podManager?.loadSessions(this.ctx, this.graphSlug);
-
-    let iterations = 0;
-    let totalActions = 0;
-
-    for (let i = 0; i < maxIterations; i++) {
-      let result: OrchestrationRunResult;
-      try {
-        result = await this.run();
-      } catch (err) {
-        await emit({
-          type: 'error',
-          message: err instanceof Error ? err.message : String(err),
-          error: err,
-        });
-        return { exitReason: 'failed', iterations, totalActions };
-      }
-
-      iterations++;
-      totalActions += result.actions.length;
-
-      // Emit status view after every iteration (including terminal)
-      await emit({ type: 'status', message: formatGraphStatus(result.finalReality) });
-
-      // Persist sessions every iteration (fire-and-forget .then() may have settled)
-      await this.podManager?.persistSessions(this.ctx, this.graphSlug);
-
-      // Check for terminal state
-      if (result.stopReason === 'graph-complete') {
-        await emit({ type: 'iteration', message: 'Graph complete', data: result });
-        return { exitReason: 'complete', iterations, totalActions };
-      }
-      if (result.stopReason === 'graph-failed') {
-        await emit({ type: 'iteration', message: 'Graph failed', data: result });
-        return { exitReason: 'failed', iterations, totalActions };
-      }
-
-      // Non-terminal: emit iteration or idle event, delay
-      const hadActions = result.actions.length > 0;
-      if (hadActions) {
-        await emit({
-          type: 'iteration',
-          message: `${result.actions.length} action(s)`,
-          data: result,
-        });
-        await sleep(actionDelayMs);
-      } else {
-        await emit({ type: 'idle', message: 'No actions — polling' });
-        await sleep(idleDelayMs);
-      }
+    // Check for already-aborted signal before starting
+    if (signal?.aborted) {
+      await emit({ type: 'status', message: 'Drive stopped — signal already aborted' });
+      return { exitReason: 'stopped', iterations: 0, totalActions: 0 };
     }
 
-    return { exitReason: 'max-iterations', iterations, totalActions };
+    // ST006: Filesystem lock — prevents concurrent drive() on same graph.
+    // Both CLI and web execution paths go through drive(), so one lock covers both.
+    const lockRelease = this.acquireDriveLock();
+
+    try {
+      await this.podManager?.loadSessions(this.ctx, this.graphSlug);
+
+      let iterations = 0;
+      let totalActions = 0;
+
+      for (let i = 0; i < maxIterations; i++) {
+        // Check abort signal at iteration boundary
+        if (signal?.aborted) {
+          await emit({ type: 'status', message: 'Drive stopped — aborted between iterations' });
+          await this.podManager?.persistSessions(this.ctx, this.graphSlug);
+          return { exitReason: 'stopped', iterations, totalActions };
+        }
+
+        let result: OrchestrationRunResult;
+        try {
+          result = await this.run();
+        } catch (err) {
+          await emit({
+            type: 'error',
+            message: err instanceof Error ? err.message : String(err),
+            error: err,
+          });
+          return { exitReason: 'failed', iterations, totalActions };
+        }
+
+        iterations++;
+        totalActions += result.actions.length;
+
+        // Emit status view after every iteration (including terminal)
+        await emit({ type: 'status', message: formatGraphStatus(result.finalReality) });
+
+        // Persist sessions every iteration (fire-and-forget .then() may have settled)
+        await this.podManager?.persistSessions(this.ctx, this.graphSlug);
+
+        // Check for terminal state
+        if (result.stopReason === 'graph-complete') {
+          await emit({ type: 'iteration', message: 'Graph complete', data: result });
+          return { exitReason: 'complete', iterations, totalActions };
+        }
+        if (result.stopReason === 'graph-failed') {
+          await emit({ type: 'iteration', message: 'Graph failed', data: result });
+          return { exitReason: 'failed', iterations, totalActions };
+        }
+
+        // Non-terminal: emit iteration or idle event, delay with abort support
+        const hadActions = result.actions.length > 0;
+        if (hadActions) {
+          await emit({
+            type: 'iteration',
+            message: `${result.actions.length} action(s)`,
+            data: result,
+          });
+        } else {
+          await emit({ type: 'idle', message: 'No actions — polling' });
+        }
+
+        // Sleep with abort support — catches AbortError to exit cleanly
+        try {
+          await abortableSleep(hadActions ? actionDelayMs : idleDelayMs, signal);
+        } catch {
+          // AbortError — signal fired during sleep
+          await emit({ type: 'status', message: 'Drive stopped — aborted during sleep' });
+          await this.podManager?.persistSessions(this.ctx, this.graphSlug);
+          return { exitReason: 'stopped', iterations, totalActions };
+        }
+      }
+
+      return { exitReason: 'max-iterations', iterations, totalActions };
+    } finally {
+      lockRelease();
+    }
   }
 
   private async buildReality(): Promise<PositionalGraphReality> {
@@ -225,5 +317,66 @@ export class GraphOrchestration implements IGraphOrchestration {
       default:
         return 'no-action';
     }
+  }
+
+  /**
+   * Acquire PID-based filesystem lock for drive().
+   * Prevents concurrent drive() on the same graph from CLI and web server.
+   * Returns a release function to call in finally block.
+   *
+   * ST006: "must be same code, same system" — one lock, in the engine.
+   */
+  private acquireDriveLock(): () => void {
+    // Skip lock if no worktreePath (test environments)
+    if (!this.ctx.worktreePath) {
+      return () => {};
+    }
+
+    const lockDir = join(this.ctx.worktreePath, '.chainglass', 'data', 'workflows', this.graphSlug);
+    const lockPath = join(lockDir, 'drive.lock');
+
+    // Check for existing lock with stale PID detection
+    if (existsSync(lockPath)) {
+      try {
+        const lockPid = Number.parseInt(readFileSync(lockPath, 'utf-8').trim(), 10);
+        if (!Number.isNaN(lockPid)) {
+          try {
+            process.kill(lockPid, 0); // throws if PID doesn't exist
+            throw new Error(
+              `Workflow '${this.graphSlug}' is already being driven (PID ${lockPid}). Stop the other process or delete the stale lock at: ${lockPath}`
+            );
+          } catch (err) {
+            // If it's our error re-throw it; otherwise PID is dead → stale lock
+            if (err instanceof Error && err.message.includes('already being driven')) {
+              throw err;
+            }
+            unlinkSync(lockPath);
+          }
+        }
+      } catch (err) {
+        if (err instanceof Error && err.message.includes('already being driven')) {
+          throw err;
+        }
+        // Corrupt lock file — remove it
+        try {
+          unlinkSync(lockPath);
+        } catch {
+          /* already removed */
+        }
+      }
+    }
+
+    // Acquire lock
+    mkdirSync(lockDir, { recursive: true });
+    writeFileSync(lockPath, String(process.pid));
+
+    // Return release function
+    return () => {
+      try {
+        unlinkSync(lockPath);
+      } catch {
+        /* already removed */
+      }
+    };
   }
 }

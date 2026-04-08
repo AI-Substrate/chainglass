@@ -232,6 +232,32 @@ async function handleInstances(slug: string, options: BaseOptions): Promise<void
   }
 }
 
+/**
+ * Handle template delete <slug> (Plan 074 Phase 6 FT-002).
+ */
+async function handleDelete(slug: string, options: BaseOptions): Promise<void> {
+  const adapter = createOutputAdapter(options.json ?? false);
+
+  const ctx = await resolveOrOverrideContext(options.workspacePath);
+  if (!ctx) {
+    console.log(
+      adapter.format('template.delete', {
+        deleted: false,
+        errors: [noContextError(options.workspacePath)],
+      })
+    );
+    process.exit(1);
+  }
+
+  const service = getTemplateService();
+  const result = await service.delete(ctx, slug);
+  console.log(adapter.format('template.delete', result));
+
+  if (result.errors.length > 0) {
+    process.exit(1);
+  }
+}
+
 export function registerTemplateCommands(program: Command): void {
   const template = program
     .command('template')
@@ -303,6 +329,18 @@ export function registerTemplateCommands(program: Command): void {
     .action(
       wrapAction(async (slug: string, options: BaseOptions) => {
         await handleInstances(slug, options);
+      })
+    );
+
+  // template delete <slug> (Plan 074 Phase 6 FT-002)
+  template
+    .command('delete <slug>')
+    .description('Delete a workflow template (idempotent)')
+    .option('--json', 'Output as JSON', false)
+    .option('--workspace-path <path>', 'Override workspace path')
+    .action(
+      wrapAction(async (slug: string, options: BaseOptions) => {
+        await handleDelete(slug, options);
       })
     );
 }

@@ -184,7 +184,7 @@ export type {
 
 // OrchestrationService — Implementation (Phase 7)
 export { OrchestrationService } from './orchestration-service.js';
-export type { OrchestrationServiceDeps } from './orchestration-service.js';
+export type { OrchestrationServiceDeps, PerHandleDeps } from './orchestration-service.js';
 
 // GraphOrchestration — Implementation (Phase 7)
 export { GraphOrchestration } from './graph-orchestration.js';

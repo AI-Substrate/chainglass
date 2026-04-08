@@ -1,458 +1,457 @@
-# PR View & File Notes Features — Interface & Contract Documentation
+# Workflow Execution & Harness Integration Interface Documentation
 
-**Date:** 2025  
-**Context:** Research for two new features - PR View (GitHub-style diff view, worktree data, mark-as-reviewed) and File Notes (generic note system with links)
+## IC-01: IOrchestrationService
+**Location**: `packages/positional-graph/src/features/030-orchestration/orchestration-service.types.ts`
 
----
+Singleton factory for per-graph orchestration handles. Provides handle caching by graphSlug.
 
-## IC-01: IFileSystem Interface
-
-**File:** `/Users/jordanknight/substrate/071-pr-view/packages/shared/src/interfaces/filesystem.interface.ts`
-
-**Purpose:** Abstract filesystem operations for Node.js file handling. Critical for isolation and testing.
-
-**Key Methods:**
-- `exists(path: string): Promise<boolean>` — Check path existence
-- `readFile(path: string): Promise<string>` — Read UTF-8 file content
-- `writeFile(path: string, content: string | Buffer): Promise<void>` — Write file (parent must exist)
-- `readDir(path: string): Promise<string[]>` — List directory contents
-- `mkdir(path: string, options?: { recursive?: boolean }): Promise<void>` — Create directory
-- `stat(path: string): Promise<FileStat>` — Get file/directory metadata
-- `copyFile(source: string, dest: string): Promise<void>` — Copy single file
-- `copyDirectory(source: string, dest: string, options?: { exclude?: string[] }): Promise<void>` — Recursive copy with exclusions
-- `glob(pattern: string, options?: { cwd?: string; absolute?: boolean }): Promise<string[]>` — Glob pattern matching
-- `unlink(path: string): Promise<void>` — Delete file
-- `rmdir(path: string, options?: { recursive?: boolean }): Promise<void>` — Delete directory
-- `rename(oldPath: string, newPath: string): Promise<void>` — Atomic rename/move
-- `realpath(path: string): Promise<string>` — Resolve symlinks
-
-**Error Handling:** Custom `FileSystemError(message, code, path, cause?)` with error codes like `ENOENT`, `ENOTDIR`, `ENOTEMPTY`, `EISDIR`
-
-**Implementations:**
-- `NodeFileSystemAdapter` — Production (uses fs/promises)
-- `FakeFileSystem` — Testing (in-memory)
-
-**Key Contract:** All methods use absolute paths. Per CD-04, all services must use `IFileSystem`, never `fs` directly.
-
----
-
-## IC-02: IPathResolver Interface
-
-**File:** `/Users/jordanknight/substrate/071-pr-view/packages/shared/src/interfaces/path-resolver.interface.ts`
-
-**Purpose:** Secure path operations with directory traversal protection (Critical Discovery 11).
-
-**Key Methods:**
-- `resolvePath(base: string, relative: string): string` — Resolve relative path securely within base directory
-- `join(...segments: string[]): string` — Join and normalize path segments
-- `dirname(filePath: string): string` — Get directory name
-- `basename(filePath: string, ext?: string): string` — Get file name
-- `normalize(filePath: string): string` — Normalize path, resolve . and ..
-- `isAbsolute(filePath: string): boolean` — Check if path is absolute
-- `relative(from: string, to: string): string` — Get relative path between two paths
-
-**Error Handling:** `PathSecurityError(message, base, requested)` thrown when resolution escapes base directory
-
-**Implementations:**
-- `PathResolverAdapter` — Production (uses path module)
-- `FakePathResolver` — Testing (configurable)
-
-**Key Contract:** Prevents directory traversal attacks (e.g., `../../../etc/passwd`). Results always stay within base directory.
-
----
-
-## IC-03: IStateService Interface
-
-**File:** `/Users/jordanknight/substrate/071-pr-view/packages/shared/src/interfaces/state.interface.ts`
-
-**Purpose:** Centralized ephemeral runtime state system (Plan 053: GlobalStateSystem). Domains publish to colon-delimited paths; consumers subscribe without coupling.
-
-**Path Format:** `domain:property` (singleton, 2 segments) or `domain:instanceId:property` (multi-instance, 3 segments)
-
-**Key Methods - Domain Registration:**
-- `registerDomain(descriptor: StateDomainDescriptor): void` — Register domain at bootstrap
-- `listDomains(): StateDomainDescriptor[]` — List registered domains
-
-**Key Methods - Publishing:**
-- `publish<T>(path: string, value: T, source?: StateEntrySource): void` — Set state at path, notify subscribers
-- `remove(path: string): void` — Remove specific entry
-- `removeInstance(domain: string, instanceId: string): void` — Remove all entries for instance
-
-**Key Methods - Reading:**
-- `get<T>(path: string): T | undefined` — Get current value at path
-- `list(pattern: string): StateEntry[]` — List entries matching pattern
-- `listInstances(domain: string): string[]` — List instance IDs for multi-instance domain
-
-**Key Methods - Subscriptions:**
-- `subscribe(pattern: string, callback: StateChangeCallback): () => void` — Subscribe to changes
-  - Pattern types: exact, domain wildcard (`*`), instance wildcard, domain-all (`**`), global (`*`)
-  - Returns unsubscribe function
-
-**Subscribers:**
-- `readonly subscriberCount: number` — Total active subscriptions
-- `readonly entryCount: number` — Total stored entries
-
-**Key Contracts:**
-- Per PL-01: Store updated BEFORE subscribers notified
-- Per PL-07: Subscriber errors isolated (one error doesn't block others)
-- Per PL-08: Dispatch unidirectional (never calls back to publishers)
-- Per Workshop 002: Consumers are read-only (`useGlobalState` returns value, not tuple)
-
-**Source Metadata (`StateEntrySource`):**
 ```typescript
-interface StateEntrySource {
-  origin: 'client' | 'server';
-  channel?: string;      // SSE channel (server-origin only)
-  eventType?: string;    // Server event type (server-origin only)
+interface IOrchestrationService {
+  get(ctx: WorkspaceContext, graphSlug: string): Promise<IGraphOrchestration>;
+  evict(worktreePath: string, graphSlug: string): void;
+}
+```
+
+**Methods**:
+- `get()`: Creates or returns cached IGraphOrchestration handle for a graph
+- `evict()`: Removes cached handle to force fresh creation on next get()
+
+**Caller**: WorkflowExecutionManager (Plan 074)
+
+---
+
+## IC-02: IGraphOrchestration (GraphOrchestrationHandle)
+**Location**: `packages/positional-graph/src/features/030-orchestration/orchestration-service.types.ts`
+
+Per-graph orchestration handle implementing the Settle→Decide→Act loop.
+Implementation: `GraphOrchestration` class in `graph-orchestration.ts`
+
+```typescript
+interface IGraphOrchestration {
+  readonly graphSlug: string;
+  run(): Promise<OrchestrationRunResult>;
+  drive(options?: DriveOptions): Promise<DriveResult>;
+  getReality(): Promise<PositionalGraphReality>;
+  cleanup(): Promise<void>;
+}
+```
+
+**Methods**:
+- `run()`: Single orchestration loop iteration (settle→build reality→ONBAS→exit check→ODS)
+- `drive()`: Repeatedly calls run() until graph completes or exits (agent-agnostic polling)
+- `getReality()`: Fresh PositionalGraphReality snapshot (read-only)
+- `cleanup()`: Terminate all running pods and persist sessions (Plan 074)
+
+**Loop Pattern** (in run()):
+1. EHS.processGraph() — settle pending events
+2. buildPositionalGraphReality() — snapshot graph
+3. ONBAS.getNextAction() — decide what to do
+4. Exit check — return if no-action
+5. ODS.execute() — act on decision
+6. Record action — timestamp and store
+
+---
+
+## IC-03: DriveEvent (Telemetry Contract)
+**Location**: `packages/positional-graph/src/features/030-orchestration/orchestration-service.types.ts`
+
+Discriminated union of events emitted during drive() execution. Orchestration-domain only.
+
+```typescript
+type DriveEvent =
+  | { readonly type: 'iteration'; readonly message: string; readonly data: OrchestrationRunResult }
+  | { readonly type: 'idle'; readonly message: string }
+  | { readonly type: 'status'; readonly message: string }
+  | { readonly type: 'error'; readonly message: string; readonly error?: unknown };
+
+type DriveEventType = DriveEvent['type'];
+```
+
+**Event Types**:
+- `iteration`: Single run() completed; contains full OrchestrationRunResult (actions, stopReason, finalReality)
+- `idle`: No-action iteration (all-running, all-waiting, empty, transition-blocked)
+- `status`: General status message
+- `error`: Orchestration error with optional error details
+
+**Data Carried**:
+- `message`: Always present (human-readable)
+- `data`: Only on 'iteration' events (OrchestrationRunResult with actions array)
+- `error`: Only on 'error' events (optional details)
+
+---
+
+## IC-04: DriveResult (Drive Exit Contract)
+**Location**: `packages/positional-graph/src/features/030-orchestration/orchestration-service.types.ts`
+
+Return value of drive() when loop exits.
+
+```typescript
+interface DriveResult {
+  readonly exitReason: DriveExitReason;
+  readonly iterations: number;
+  readonly totalActions: number;
+}
+
+type DriveExitReason = 'complete' | 'failed' | 'max-iterations' | 'stopped';
+```
+
+**Fields**:
+- `exitReason`: Why drive() stopped
+  - `complete`: Graph reached terminal success
+  - `failed`: Graph reached terminal failure
+  - `max-iterations`: Safety guard (default 200) tripped
+  - `stopped`: User-initiated abort via AbortSignal (Plan 074)
+- `iterations`: Total run() calls executed
+- `totalActions`: Sum of all OrchestrationAction arrays across iterations
+
+**DriveOptions** (for drive() call):
+```typescript
+interface DriveOptions {
+  readonly maxIterations?: number;           // Default: 200
+  readonly actionDelayMs?: number;            // Default: 100 (after action-producing iteration)
+  readonly idleDelayMs?: number;              // Default: 10_000 (after no-action iteration)
+  readonly onEvent?: (event: DriveEvent) => void | Promise<void>;
+  readonly signal?: AbortSignal;              // For cooperative cancellation
 }
 ```
 
 ---
 
-## IC-04: IUSDK Interface (Command Registry, Settings, Context Keys, Keybindings)
+## IC-05: IAgentAdapter (Agent Execution Contract)
+**Location**: `packages/shared/src/interfaces/agent-adapter.interface.ts`
 
-**File:** `/Users/jordanknight/substrate/071-pr-view/packages/shared/src/interfaces/sdk.interface.ts`
+Interface for AI coding agent adapters. All methods return Promise for long-running ops.
 
-**Purpose:** Top-level SDK facade for commands, settings, context, and keybindings (Plan 047: USDK).
-
-### ICommandRegistry
-- `register(command: SDKCommand): { dispose: () => void }` — Register command (throws if ID exists)
-- `execute(id: string, params?: unknown): Promise<void>` — Execute command with Zod validation
-- `list(filter?: { domain?: string }): SDKCommand[]` — List commands
-- `isAvailable(id: string): boolean` — Check command availability via when-clause
-
-**Contract:** DYK-05 — execute() wraps handler in try/catch, never crashes caller
-
-### ISDKSettings
-- `hydrate(sdkSettings: Record<string, unknown>): void` — Seed with persisted values
-- `contribute(setting: SDKSetting): void` — Contribute setting definition
-- `get(key: string): unknown` — Get setting value (returns stable reference per DYK-02)
-- `set(key: string, value: unknown): void` — Set value with Zod validation
-- `reset(key: string): void` — Reset to schema default
-- `onChange(key: string, callback: (value: unknown) => void): { dispose: () => void }` — Subscribe to changes
-- `list(): SDKSetting[]` — List all settings
-- `toPersistedRecord(): Record<string, unknown>` — Export overridden values only
-
-**Contract:** DYK-02 — get() returns exact same reference for unchanged values (required for React hooks)
-
-### IContextKeyService
-- `set(key: string, value: unknown): void` — Set context key
-- `get(key: string): unknown` — Get context key value
-- `evaluate(expression: string | undefined): boolean` — Evaluate when-clause (supports `key`, `!key`, `key == value`)
-- `onChange(callback: (key: string, value: unknown) => void): { dispose: () => void }` — Subscribe to changes
-
-### IKeybindingService
-- `register(binding: SDKKeybinding): { dispose: () => void }` — Register keybinding (throws if duplicate)
-- `getBindings(): SDKKeybinding[]` — Get all bindings
-- `buildTinykeysMap(execute, isAvailable): Record<string, (event: KeyboardEvent) => void>` — Build tinykeys-compatible map
-
-**Contract:** DYK-P4-01 tinykeys owns chord resolution; DYK-P4-05 bindings are static
-
-### IUSDK (Top-Level Facade)
 ```typescript
-interface IUSDK {
-  readonly commands: ICommandRegistry;
-  readonly settings: ISDKSettings;
-  readonly context: IContextKeyService;
-  readonly keybindings: IKeybindingService;
-  readonly toast: {
-    success(message: string): void;
-    error(message: string): void;
-    info(message: string): void;
-    warning(message: string): void;
-  };
+interface IAgentAdapter {
+  run(options: AgentRunOptions): Promise<AgentResult>;
+  compact(sessionId: string): Promise<AgentResult>;
+  terminate(sessionId: string): Promise<AgentResult>;
 }
 ```
 
-**Contract:** DYK-03 — SDKProvider is global (not workspace-scoped)
+**Methods**:
+- `run()`: Execute prompt through agent. Returns AgentResult with output, sessionId, status, exitCode, tokens
+- `compact()`: Send /compact command to reduce context. Returns AgentResult with updated token counts
+- `terminate()`: Terminate running session. Returns AgentResult with status='killed' (10s timeout)
 
----
-
-## IC-05: IGitDiffService Interface
-
-**File:** `/Users/jordanknight/substrate/071-pr-view/packages/shared/src/interfaces/diff.interface.ts`
-
-**Purpose:** Git diff service for DiffViewer component (Phase 5).
-
-**Types:**
-- `DiffError = 'not-git' | 'no-changes' | 'git-not-available'`
-- `DiffResult { diff: string | null; error: DiffError | null }` — Result union
-
-**Key Method:**
-- `getGitDiff(filePath: string): Promise<DiffResult>` — Get git diff for file
-
-**Implementations:**
-- Real: `getGitDiff` server action
-- Test: `FakeDiffAction`
-
----
-
-## IC-06: ViewerFile Interface
-
-**File:** `/Users/jordanknight/substrate/071-pr-view/packages/shared/src/interfaces/viewer.interface.ts`
-
-**Purpose:** Shared interface for file viewer components (FileViewer, MarkdownViewer, DiffViewer). Pure data structure.
-
-**Properties:**
+**AgentRunOptions**:
 ```typescript
-interface ViewerFile {
-  path: string;           // Relative to project root (e.g., 'src/components/Button.tsx')
-  filename: string;       // File name only for language detection
-  content: string;        // File content as string
+interface AgentRunOptions {
+  readonly prompt: string;
+  readonly sessionId?: string;               // Resume existing or create new
+  readonly cwd?: string;                      // Working directory
+  readonly onEvent?: AgentEventHandler;       // Real-time streaming events
+  readonly model?: string;                    // e.g., "gpt-5.4", "claude-sonnet-4"
+  readonly reasoningEffort?: CopilotReasoningEffort;
+  readonly timeout?: number;                  // Wait timeout (ms), not hard execution timeout
+}
+```
+
+**AgentResult**:
+```typescript
+interface AgentResult {
+  readonly output: string;
+  readonly sessionId: string;
+  readonly status: AgentStatus;              // 'completed' | 'failed' | 'killed'
+  readonly exitCode: number;                 // 0 for success
+  readonly stderr?: string;
+  readonly tokens: TokenMetrics | null;      // Null when unavailable (e.g., Copilot)
+}
+
+interface TokenMetrics {
+  readonly used: number;      // Current turn
+  readonly total: number;     // Cumulative session
+  readonly limit: number;     // Context window
 }
 ```
 
 ---
 
-## IC-07: IWorkUnitStateService Interface
+## IC-06: IPodManager (Pod Lifecycle Contract)
+**Location**: `packages/positional-graph/src/features/030-orchestration/pod-manager.types.ts`
 
-**File:** `/Users/jordanknight/substrate/071-pr-view/packages/shared/src/interfaces/work-unit-state.interface.ts`
+Manages pod lifecycle and session persistence for a graph. One IPodManager per graph.
 
-**Purpose:** Centralized work unit status registry (Plan 059). Tracks status for agents, workflow nodes, pods. Publishes via CentralEventNotifier → SSE → GlobalStateSystem.
-
-**State Paths:** `work-unit-state:{id}:status`, `work-unit-state:{id}:intent`, `work-unit-state:{id}:name`
-
-**Key Methods:**
-- `register(input: RegisterWorkUnitInput): void` — Register work unit (emits 'registered' event)
-- `unregister(id: string): void` — Remove work unit (emits 'removed' event)
-- `updateStatus(id: string, input: UpdateWorkUnitInput): void` — Update status/intent (emits 'status-changed' event)
-- `getUnit(id: string): WorkUnitEntry | undefined` — Get single work unit
-- `getUnits(filter?: WorkUnitFilter): WorkUnitEntry[]` — Get all units (optionally filtered)
-- `getUnitBySourceRef(graphSlug: string, nodeId: string): WorkUnitEntry | undefined` — Look up by source reference
-- `tidyUp(): void` — Remove stale entries (> 24h old, not working/waiting)
-
-**Key Contract:** NOT the orchestrator (Plan 032). Only observes status. Persists to JSON for server restart survival.
-
----
-
-## IC-08: IWorkflowEvents Interface
-
-**File:** `/Users/jordanknight/substrate/071-pr-view/packages/shared/src/interfaces/workflow-events.interface.ts`
-
-**Purpose:** Intent-based API for workflow event interactions (Plan 061). Hides raiseEvent(), event handlers, state transitions, and 3-event QnA handshake.
-
-**Actions (5 methods):**
-- `askQuestion(graphSlug: string, nodeId: string, question: QuestionInput): Promise<{ questionId: string }>` — Ask question
-- `answerQuestion(graphSlug: string, nodeId: string, questionId: string, answer: unknown): Promise<void>` — Answer (handles 3-event handshake)
-- `getAnswer(graphSlug: string, nodeId: string, questionId: string): Promise<AnswerResult | null>` — Get previous answer
-- `reportProgress(graphSlug: string, nodeId: string, progress: ProgressInput): Promise<void>` — Report progress
-- `reportError(graphSlug: string, nodeId: string, error: ErrorInput): Promise<void>` — Report error
-
-**Observers (4 methods):**
-- `onQuestionAsked(graphSlug: string, handler: (event: QuestionAskedEvent) => void): () => void` — Subscribe to questions
-- `onQuestionAnswered(graphSlug: string, handler: (event: QuestionAnsweredEvent) => void): () => void` — Subscribe to answers
-- `onProgress(graphSlug: string, handler: (event: ProgressEvent) => void): () => void` — Subscribe to progress
-- `onEvent(graphSlug: string, handler: (event: WorkflowEvent) => void): () => void` — Subscribe to all events
-
-**Contract:** AC-01 — 5 actions + 4 observers = 9 total methods. Per AC-03, callers don't need to know about 3-event handshake.
-
----
-
-## IC-09: ICentralEventNotifier & ISSEBroadcaster Interfaces
-
-**Files:**
-- `/Users/jordanknight/substrate/071-pr-view/packages/shared/src/features/027-central-notify-events/central-event-notifier.interface.ts`
-- `/Users/jordanknight/substrate/071-pr-view/packages/shared/src/features/019-agent-manager-refactor/sse-broadcaster.interface.ts`
-
-**Purpose:** Plan 027 — Central domain event notification system. Two-layer architecture:
-1. ICentralEventNotifier — Domain-facing API
-2. ISSEBroadcaster — SSE transport layer
-
-### ICentralEventNotifier
-- `emit(domain: WorkspaceDomainType, eventType: string, data: Record<string, unknown>): void` — Emit domain event
-
-**Domain Enum (WorkspaceDomain):**
 ```typescript
-const WorkspaceDomain = {
-  Workgraphs: 'workgraphs',          // @deprecated (Plan 050 Phase 7)
-  Agents: 'agents',                  // SSE channel: 'agents'
-  FileChanges: 'file-changes',        // SSE channel: 'file-changes'
-  Workflows: 'workflows',             // SSE channel: 'workflows' (Plan 050)
-  WorkUnitState: 'work-unit-state',  // SSE channel: 'work-unit-state' (Plan 059)
-  UnitCatalog: 'unit-catalog',        // SSE channel: 'unit-catalog' (Plan 058)
-} as const;
-type WorkspaceDomainType = typeof WorkspaceDomain[keyof typeof WorkspaceDomain];
+interface IPodManager {
+  createPod(nodeId: string, params: PodCreateParams): IWorkUnitPod;
+  getPod(nodeId: string): IWorkUnitPod | undefined;
+  getSessionId(nodeId: string): string | undefined;
+  setSessionId(nodeId: string, sessionId: string): void;
+  destroyPod(nodeId: string): Promise<void>;
+  destroyAllPods(): Promise<void>;
+  getSessions(): ReadonlyMap<string, string>;
+  loadSessions(ctx: { readonly worktreePath: string }, graphSlug: string): Promise<void>;
+  persistSessions(ctx: { readonly worktreePath: string }, graphSlug: string): Promise<void>;
+}
+
+type PodCreateParams =
+  | { readonly unitType: 'agent'; readonly unitSlug: string; readonly agentInstance: IAgentInstance }
+  | { readonly unitType: 'code'; readonly unitSlug: string; readonly runner: IScriptRunner; readonly scriptPath: string };
 ```
 
-**Implementations:**
-- `FakeCentralEventNotifier` — Test double (packages/shared) with inspectable `emittedEvents` state
-- `CentralEventNotifierService` — Real (apps/web, Phase 2) wrapping ISSEBroadcaster
+**Lifecycle Methods**:
+- `createPod()`: Create new pod or return existing for node. Throws for user-input nodes.
+- `getPod()`: Get active pod (if any)
+- `destroyPod()`: Terminate then remove pod for single node. Session ID retained.
+- `destroyAllPods()`: Terminate and destroy ALL pods (Plan 074: needed for stop/restart)
 
-**Contract:** Per ADR-0004 resolved via DI token `WORKSPACE_DI_TOKENS.CENTRAL_EVENT_NOTIFIER`
-
-### ISSEBroadcaster
-- `broadcast(channel: string, eventType: string, data: unknown): void` — Broadcast SSE message
-
-**Implementations:**
-- `SSEManagerBroadcaster` — Production (apps/web, wraps SSEManager)
-- `FakeSSEBroadcaster` — Testing (packages/shared)
-
-**Contract:** Per ADR-0007 — data is `Record<string, unknown>`, carries only domain identifiers (e.g., `{ graphSlug }`). Clients fetch full state via REST.
+**Session Methods**:
+- `getSessionId()`: Retrieve stored session ID (available after pod destroyed)
+- `setSessionId()`: Record session ID after pod.execute returns
+- `getSessions()`: Get all tracked sessions (ReadonlyMap<nodeId, sessionId>)
+- `loadSessions()`: Rehydrate persisted sessions from disk (no error if missing)
+- `persistSessions()`: Persist sessions to disk (atomic write: temp-then-rename)
 
 ---
 
-## IC-10: IAgentManagerService Interface
+## IC-07: IONBAS (Next-Best-Action Service Contract)
+**Location**: `packages/positional-graph/src/features/030-orchestration/onbas.types.ts`
 
-**Files:**
-- `/Users/jordanknight/substrate/071-pr-view/packages/shared/src/features/019-agent-manager-refactor/agent-manager.interface.ts` (Plan 019, Phase 3+)
-- `/Users/jordanknight/substrate/071-pr-view/packages/shared/src/features/034-agentic-cli/agent-manager-service.interface.ts` (Plan 034, simpler version)
+Pure, synchronous, stateless service for determining next orchestration action.
 
-**Purpose:** Central agent management — single source of truth for all agent state across all workspaces.
-
-### Plan 019 Version (Full)
 ```typescript
-interface IAgentManagerService {
-  initialize(): Promise<void>;  // Load persisted agents from storage
-  createAgent(params: CreateAgentParams): IAgentInstance;
-  getAgents(filter?: AgentFilter): IAgentInstance[];
-  getAgent(agentId: string): IAgentInstance | null;
-  terminateAgent(agentId: string): Promise<boolean>;
-}
-
-interface CreateAgentParams {
-  name: string;
-  type: AgentType;
-  workspace: string;
-  sessionId?: string;
-  tmuxWindow?: string;
-  tmuxPane?: string;
-}
-
-interface AgentFilter {
-  workspace?: string;
+interface IONBAS {
+  getNextAction(reality: PositionalGraphReality): OrchestrationRequest;
 }
 ```
 
-**Key Contracts:**
-- Per AC-01: Creates agents with unique IDs
-- Per AC-02: Returns all agents regardless of workspace (when no filter)
-- Per AC-03: Filters agents by workspace when filter.workspace provided
-- Per AC-04: Returns null for unknown agent (graceful handling)
-- Per AC-23: Validates agent name/ID to prevent path traversal
-- Per DYK-12: initialize() only required when storage provided
-- Per DYK-13: Uses AgentInstance.hydrate() for persisted agents
-- Per AC-05: Enables agents to survive process restart
+**Method**:
+- `getNextAction()`: Takes graph reality snapshot, returns OrchestrationRequest for next action
 
-### Plan 034 Version (Agentic CLI)
+**Node Status Handling** (via visitNode() in implementation):
+```
+status: ExecutionStatus:
+  'complete' → return null (skip node)
+  'starting' / 'agent-accepted' → return null (skip, already running)
+  'waiting-question' → return null (skip, awaiting answer)
+  'blocked-error' → return null (skip, cannot recover)
+  'interrupted' → return null (skip, interrupted)
+  'ready' → return StartNodeRequest (except for user-input nodes, which return null)
+  'pending' → return null (skip, not ready)
+```
+
+**Exit Logic** (walkForNextAction):
+Returns NoActionRequest with reason when graph cannot proceed:
+- No startable nodes found
+- All running (serial waiting for parallel completion)
+- All waiting (on questions)
+- All blocked (errors)
+- Line transition blocked (serial line not yet triggered)
+
+---
+
+## IC-08: HarnessEnvelope (CLI Subprocess Contract)
+**Location**: `harness/src/cli/output.ts`
+
+Canonical JSON envelope format for all harness CLI commands. Exit codes: 0 for ok/degraded, 1 for error only.
+
 ```typescript
-interface IAgentManagerService {
-  getNew(params: CreateAgentParams): IAgentInstance;
-  getWithSessionId(sessionId: string, params: CreateAgentParams): IAgentInstance;
-  getAgent(agentId: string): IAgentInstance | null;
-  getAgents(filter?: AgentFilter): IAgentInstance[];
-  terminateAgent(agentId: string): Promise<boolean>;
-  initialize(): Promise<void>;
+type HarnessStatus = 'ok' | 'error' | 'degraded';
+
+interface ErrorDetail {
+  readonly code: string;
+  readonly message: string;
+  readonly details?: unknown;
+}
+
+interface HarnessEnvelope {
+  readonly command: string;
+  readonly status: HarnessStatus;
+  readonly timestamp: string;          // ISO 8601 datetime
+  readonly data?: unknown;             // Success data payload
+  readonly error?: ErrorDetail;        // Only when status='error'
 }
 ```
 
-**Key Contract:** Same-instance guarantee (MUST) — repeated calls with same `sessionId` return identical object reference (`===`). Ensures multiple consumers (UI, CLI, orchestrator) share cohesive state.
+**Error Codes** (E100-E110 range):
+```
+E100: UNKNOWN
+E101: CONTAINER_NOT_RUNNING
+E102: BUILD_FAILED
+E103: HEALTH_FAILED
+E104: CDP_UNAVAILABLE
+E105: TEST_FAILED
+E106: SCREENSHOT_FAILED
+E107: RESULTS_NOT_FOUND
+E108: INVALID_ARGS
+E109: TIMEOUT
+E110: DOCKER_UNAVAILABLE
+E120: AGENT_EXECUTION_FAILED
+E121: AGENT_NOT_FOUND
+E122: AGENT_AUTH_MISSING
+E123: AGENT_TIMEOUT
+E124: AGENT_VALIDATION_FAILED
+E125: AGENT_RUN_FOLDER_FAILED
+E126: CONSOLE_LOGS_FAILED
+```
 
-**Implementations:**
-- `AgentManagerService` — Real implementation (in-memory registry)
-- `FakeAgentManagerService` — Test double with state setup helpers
+**Helper Functions**:
+```typescript
+formatSuccess<T>(command: string, data: T, status?: 'ok' | 'degraded'): HarnessEnvelope
+formatError(command: string, code: HarnessErrorCode, message: string, details?: unknown): HarnessEnvelope
+parseEnvelope(json: string): HarnessEnvelope
+printEnvelope(envelope: HarnessEnvelope): void
+exitWithEnvelope(envelope: HarnessEnvelope): never
+```
+
+**Pattern**: Agents parse JSON envelope from harness stdout to determine success/failure and extract data.
 
 ---
 
-## IC-11: IAgentInstance Interface
+## IC-09: SSE Workflow Execution Events (Server-to-Browser Contract)
+**Location**: `apps/web/src/lib/state/workflow-execution-route.ts`
 
-**File:** `/Users/jordanknight/substrate/071-pr-view/packages/shared/src/features/034-agentic-cli/agent-instance.interface.ts`
+Server-sent events for workflow execution state updates mapped to GlobalStateSystem.
 
-**Purpose:** Domain-agnostic agent session wrapper (Plan 034, Workshop 02). Owns identity, status, session, metadata. Passes adapter events through. Does NOT store events, broadcast SSE, or depend on storage/notifier.
-
-**Identity (Immutable):**
 ```typescript
-readonly id: string;
-readonly name: string;
-readonly type: AgentType;
-readonly workspace: string;
+ServerEvent types:
+  { type: 'execution-update', key: string, status: ManagerExecutionStatus, iterations: number, lastEventType: string, lastMessage: string }
+  { type: 'execution-removed', key: string }
+
+State Domain: 'workflow-execution'
+State Paths:
+  workflow-execution:{key}:status          → ManagerExecutionStatus
+  workflow-execution:{key}:iterations      → number
+  workflow-execution:{key}:lastEventType   → string (DriveEventType)
+  workflow-execution:{key}:lastMessage     → string
 ```
 
-**State:**
-```typescript
-readonly status: AgentInstanceStatus;  // 'working' | 'stopped' | 'error'
-readonly isRunning: boolean;            // Convenience: status === 'working'
-readonly sessionId: string | null;      // Updated after run()/compact()
-readonly createdAt: Date;
-readonly updatedAt: Date;
-```
+**Event Mapping** (mapEvent):
+- `execution-update`: Sets all four properties above
+- `execution-removed`: Removes status property (cascade removal)
 
-**Metadata (Property Bag):**
-```typescript
-readonly metadata: Readonly<Record<string, unknown>>;
-setMetadata(key: string, value: unknown): void;  // Freeform, no validation
-```
-
-**Event Pass-Through:**
-```typescript
-addEventHandler(handler: AgentEventHandler): void;
-removeEventHandler(handler: AgentEventHandler): void;
-```
-
-**Actions:**
-```typescript
-run(options: AgentRunOptions): Promise<AgentResult>;        // Throws if already working
-compact(options?: AgentCompactOptions): Promise<AgentResult>; // Throws if no session
-terminate(): Promise<AgentResult>;                          // Always succeeds
-```
-
-**Contract:**
-- Transitions: `stopped → working → stopped|error`
-- Double-run guard — throws if `status === 'working'`
-- If `sessionId` is null before terminate(), skips adapter call, returns synthetic `status: 'killed'`
+**ExecutionKey Format**: Base64url-encoded `${worktreePath}:${graphSlug}` (safe for GlobalState paths)
 
 ---
 
-## Key Design Patterns Across Interfaces
+## IC-10: IWorkflowExecutionManager (Workflow Execution Orchestrator)
+**Location**: `apps/web/src/features/074-workflow-execution/workflow-execution-manager.types.ts`
 
-### 1. **Adapter Pattern**
-- **Examples:** `IAgentAdapter`, `IOutputAdapter`, `IFileSystem`, `IPathResolver`
-- **Contract:** Interfaces in `packages/shared/src/interfaces/`, implementations vary by context
-- **Fake implementations:** Always available in packages/shared for testing
+Manager for workflow execution lifecycle. Bridges WorkflowExecutionManager service and orchestration.
 
-### 2. **Service Registry / Manager Pattern**
-- **Examples:** `IAgentManagerService`, `IWorkUnitStateService`, `IStateService`
-- **Contract:** Single source of truth, publish/subscribe for state changes
-- **Lifecycle:** Initialize at bootstrap, persisted state optional
+```typescript
+interface IWorkflowExecutionManager {
+  start(ctx: { workspaceSlug: string; worktreePath: string }, graphSlug: string): Promise<StartResult>;
+  stop(worktreePath: string, graphSlug: string): Promise<StopResult>;
+  restart(ctx: { workspaceSlug: string; worktreePath: string }, graphSlug: string): Promise<StartResult>;
+  getStatus(worktreePath: string, graphSlug: string): ManagerExecutionStatus;
+  getHandle(worktreePath: string, graphSlug: string): ExecutionHandle | undefined;
+  getSerializableStatus(worktreePath: string, graphSlug: string): SerializableExecutionStatus | undefined;
+  listRunning(): ExecutionHandle[];
+  cleanup(): Promise<void>;
+  resumeAll(): Promise<void>;
+}
 
-### 3. **Domain Event System**
-- **Examples:** `ICentralEventNotifier`, `IWorkflowEvents`, `IWorkUnitStateService`
-- **Contract:** Minimal payload (per ADR-0007), clients fetch full state via REST
-- **Transport:** SSE channel + event type + data record
+type ManagerExecutionStatus = 'idle' | 'starting' | 'running' | 'stopping' | 'stopped' | 'completed' | 'failed';
 
-### 4. **State Path Hierarchies**
-- **Format:** `domain:property` (singleton) or `domain:instanceId:property` (multi-instance)
-- **Examples:**
-  - `work-unit-state:agent-abc:status`
-  - `workflow:wf-1:status`
-  - `worktree:main:branch`
+interface ExecutionHandle {
+  readonly key: ExecutionKey;
+  readonly worktreePath: string;
+  readonly graphSlug: string;
+  readonly workspaceSlug: string;
+  status: ManagerExecutionStatus;
+  controller: AbortController | null;           // For cancellation
+  drivePromise: Promise<DriveResult> | null;
+  orchestrationHandle: IGraphOrchestration | null;
+  iterations: number;
+  totalActions: number;
+  lastEventType: string;
+  lastMessage: string;
+  startedAt: string | null;
+  stoppedAt: string | null;
+}
 
-### 5. **Error Handling**
-- **File errors:** `FileSystemError(message, code, path, cause?)`
-- **Path errors:** `PathSecurityError(message, base, requested)`
-- **Commands:** ZodError on validation, try/catch wrapper (never propagates)
+interface SerializableExecutionStatus {
+  readonly key: ExecutionKey;
+  readonly worktreePath: string;
+  readonly graphSlug: string;
+  readonly workspaceSlug: string;
+  readonly status: ManagerExecutionStatus;
+  readonly iterations: number;
+  readonly totalActions: number;
+  readonly lastEventType: string;
+  readonly lastMessage: string;
+  readonly startedAt: string | null;
+  readonly stoppedAt: string | null;
+}
+```
 
-### 6. **Subscription Pattern**
-- **Pattern matching:** Exact, wildcard (`*`), domain-all (`**`), global (`*`)
-- **Return:** Unsubscribe function `() => void`
-- **Contract:** Isolated errors, store-first updates
+**Lifecycle Methods**:
+- `start()`: Initiate execution (creates AbortController, calls drive() with onEvent callback for SSE broadcasts)
+- `stop()`: Graceful abort via signal (sets status→stopping→stopped, calls orchestrationHandle.cleanup())
+- `restart()`: Evict handle, terminate pods, start fresh execution
+- `resumeAll()`: Called on server startup; resumes persisted executions from registry (Phase 5)
+- `cleanup()`: Terminate all active executions
+
+**Status/Query Methods**:
+- `getStatus()`: Current ManagerExecutionStatus for execution
+- `getHandle()`: Raw ExecutionHandle (non-serializable fields: AbortController, Promise)
+- `getSerializableStatus()`: Safe snapshot for server actions (excludes non-serializable fields)
+- `listRunning()`: All active execution handles
+
+**Dependencies** (ExecutionManagerDeps):
+- `orchestrationService`: IOrchestrationService
+- `graphService`: IPositionalGraphService
+- `workspaceService`: IWorkspaceService
+- `broadcaster`: ISSEBroadcaster (sends execution-update events)
+- `registry`: IExecutionRegistry (persistent state for restart recovery)
+- `worktreeExists`: Validation function for resume
 
 ---
 
-## Contract Summary for PR View & File Notes
+## IC-11: WorkspaceContext (Required for Orchestration Startup)
+**Location**: `packages/workflow/src/interfaces/workspace-context.interface.ts`
 
-### For PR View:
-1. Use `IFileSystem` for file operations (not fs directly)
-2. Use `IPathResolver.resolvePath()` for secure path handling
-3. Store PR view state in `IStateService` with paths like `pr-view:{worktreeId}:diffs`
-4. Emit state changes via `ICentralEventNotifier.emit('file-changes', 'pr-diff-reviewed', { ... })`
-5. Use `IGitDiffService.getGitDiff()` for diff fetching
-6. Per-worktree data via `domain:worktreeId:property` state paths
+Context resolved from filesystem path. Required to run orchestration.
 
-### For File Notes:
-1. Define note state domain in `IStateService` (singleton or multi-instance)
-2. Emit note events via `ICentralEventNotifier` with domain `'file-notes'`
-3. Link types: use `data: { fileSlug, workflowSlug, agentId, ... }`
-4. Use `IFileSystem` for note file storage (JSON or YAML)
-5. Register commands in `IUSDK.commands` for CLI + web
-6. Use `ISDKSettings` for note display preferences
+```typescript
+interface WorkspaceContext {
+  readonly workspaceSlug: string;              // URL-safe identifier
+  readonly workspaceName: string;
+  readonly workspacePath: string;              // Root path of registered workspace
+  readonly worktreePath: string;               // Current worktree (may differ in git worktrees)
+  readonly worktreeBranch: string | null;      // Current branch (null if main worktree)
+  readonly isMainWorktree: boolean;
+  readonly hasGit: boolean;
+}
+```
+
+**Usage**: Passed to IOrchestrationService.get() and used throughout orchestration for:
+- File operations (worktreePath)
+- Session/pod persistence paths
+- Graph state loading/persisting
+- Workspace identification for registry
+
+---
+
+## Summary: Workflow Execution Flow
+
+```
+IWorkflowExecutionManager.start()
+  ↓
+IOrchestrationService.get(ctx, graphSlug) → IGraphOrchestration
+  ↓
+IGraphOrchestration.drive(options)
+  ├─ onEvent: DriveEvent callback → SSE broadcast (execution-update)
+  ├─ signal: AbortSignal for cancellation
+  │
+  └─ Loop: run() until DriveExitReason
+      ├─ 1. EHS.processGraph() (settle)
+      ├─ 2. buildReality() → PositionalGraphReality
+      ├─ 3. IONBAS.getNextAction() → OrchestrationRequest
+      ├─ 4. Exit check (no-action?)
+      └─ 5. IODS.execute(request)
+            └─ IPodManager.createPod() → IWorkUnitPod
+                 ├─ AgentPod: IAgentAdapter.run() → AgentResult
+                 └─ CodePod: IScriptRunner.run() → ScriptRunResult
+
+IPodManager.persistSessions() → SSE workflow-execution:{key}:status events
+
+Harness CLI (subprocess):
+  ├─ Receives HarnessEnvelope JSON on stdout
+  ├─ Parses status, errorCode (if status='error')
+  └─ Extracts data payload
+```
 

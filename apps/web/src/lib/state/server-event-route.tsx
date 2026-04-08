@@ -68,7 +68,10 @@ export function ServerEventRoute({ route }: ServerEventRouteProps): null {
         console.warn('[ServerEventRoute] Failed to process event', {
           channel: route.channel,
           index: i,
-          error,
+          error:
+            error instanceof Error
+              ? { message: error.message, stack: error.stack, name: error.name }
+              : String(error),
         });
       }
     }

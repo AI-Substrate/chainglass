@@ -43,16 +43,19 @@ describe('computeGates', () => {
     const gates = computeGates(
       makeNode({ readyDetail: { ...makeNode().readyDetail, precedingLinesComplete: false } })
     );
-    expect(gates[0].passing).toBe(false);
-    expect(gates[0].name).toBe('Preceding Lines');
+    const precedingGate = gates.find((g) => g.name === 'Preceding Lines');
+    expect(precedingGate?.passing).toBe(false);
   });
 
   it('marks inputs gate as failing', () => {
     const gates = computeGates(
-      makeNode({ readyDetail: { ...makeNode().readyDetail, inputsAvailable: false } })
+      makeNode({
+        readyDetail: { ...makeNode().readyDetail, inputsAvailable: false },
+        inputPack: { inputs: {}, ok: false },
+      })
     );
-    expect(gates[4].passing).toBe(false);
-    expect(gates[4].name).toBe('Inputs');
+    const inputsGate = gates.find((g) => g.name === 'Inputs');
+    expect(inputsGate?.passing).toBe(false);
   });
 });
 
@@ -88,19 +91,20 @@ describe('GateChip', () => {
             precedingLinesComplete: false,
             inputsAvailable: false,
           },
+          inputPack: { inputs: {}, ok: false },
         })}
       />
     );
 
-    // Click to expand
-    fireEvent.click(screen.getByText('Earlier lines incomplete'));
+    // First blocking gate is now Inputs (reordered for actionability)
+    fireEvent.click(screen.getByText('Waiting on upstream'));
     expect(screen.getByTestId('gate-list-n1')).toBeDefined();
 
     // All 5 gates visible
-    expect(screen.getByText(/Preceding Lines/)).toBeDefined();
-    expect(screen.getByText(/Transition/)).toBeDefined();
-    expect(screen.getByText(/Serial Neighbor/)).toBeDefined();
-    expect(screen.getByText(/Context Source/)).toBeDefined();
     expect(screen.getByText(/^Inputs$/)).toBeDefined();
+    expect(screen.getByText(/Context Source/)).toBeDefined();
+    expect(screen.getByText(/Serial Neighbor/)).toBeDefined();
+    expect(screen.getByText(/Transition/)).toBeDefined();
+    expect(screen.getByText(/Preceding Lines/)).toBeDefined();
   });
 });

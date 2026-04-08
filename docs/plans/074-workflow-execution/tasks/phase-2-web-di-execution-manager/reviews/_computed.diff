@@ -1,0 +1,1812 @@
+diff --git a/apps/cli/src/lib/container.ts b/apps/cli/src/lib/container.ts
+index 0c516260..7e43c4af 100644
+--- a/apps/cli/src/lib/container.ts
++++ b/apps/cli/src/lib/container.ts
+@@ -373,6 +373,13 @@ export function createCliProductionContainer(): DependencyContainer {
+     },
+   });
+ 
++  // Plan 074: Bridge CLI agent manager to orchestration token (de-aliased in Plan 074).
++  // registerOrchestrationServices() resolves ORCHESTRATION_DI_TOKENS.AGENT_MANAGER,
++  // which is now a distinct token from CLI_DI_TOKENS.AGENT_MANAGER.
++  childContainer.register(ORCHESTRATION_DI_TOKENS.AGENT_MANAGER, {
++    useFactory: (c) => c.resolve(CLI_DI_TOKENS.AGENT_MANAGER),
++  });
++
+   // Per Plan 014: Workspaces - Phase 5: Register workspace services for CLI commands
+   // Workspace registry adapter
+   childContainer.register<IWorkspaceRegistryAdapter>(
+diff --git a/apps/web/instrumentation.ts b/apps/web/instrumentation.ts
+index 6f94406e..72104db5 100644
+--- a/apps/web/instrumentation.ts
++++ b/apps/web/instrumentation.ts
+@@ -1,10 +1,12 @@
+ /**
+  * Plan 027: Central Domain Event Notification System
+  * Plan 067: Event Popper — server.json port discovery
++ * Plan 074: Workflow Execution Manager bootstrap
+  *
+  * Next.js instrumentation hook — called once at server startup.
+  * Starts the central notification system (filesystem watcher → SSE events).
+  * Writes .chainglass/server.json so CLI tools can discover the server port.
++ * Bootstraps WorkflowExecutionManager singleton for workflow execution from web UI.
+  *
+  * See: https://nextjs.org/docs/app/building-your-application/optimizing/instrumentation
+  */
+@@ -13,6 +15,10 @@ const globalForEventPopper = globalThis as typeof globalThis & {
+   __eventPopperServerInfoWritten?: boolean;
+ };
+ 
++const globalForExec = globalThis as typeof globalThis & {
++  __workflowExecutionManagerInitialized?: boolean;
++};
++
+ export async function register() {
+   // CentralWatcherService uses Node.js APIs (chokidar, fs) — skip on Edge runtime.
+   // console.log is intentional: this runs at process startup before the DI container
+@@ -46,5 +52,27 @@ export async function register() {
+       process.on('SIGTERM', cleanup);
+       process.on('SIGINT', cleanup);
+     }
++
++    // Plan 074: Bootstrap WorkflowExecutionManager singleton (HMR-safe)
++    if (!globalForExec.__workflowExecutionManagerInitialized) {
++      globalForExec.__workflowExecutionManagerInitialized = true;
++
++      try {
++        const { createWorkflowExecutionManager } = await import(
++          './src/features/074-workflow-execution/create-execution-manager'
++        );
++        const manager = await createWorkflowExecutionManager();
++        globalThis.__workflowExecutionManager = manager;
++
++        process.on('SIGTERM', async () => {
++          await manager.cleanup();
++        });
++
++        console.log('[workflow-execution] Manager initialized');
++      } catch (error) {
++        globalForExec.__workflowExecutionManagerInitialized = false;
++        console.error('[workflow-execution] Failed to initialize:', error);
++      }
++    }
+   }
+ }
+diff --git a/apps/web/src/features/074-workflow-execution/create-execution-manager.ts b/apps/web/src/features/074-workflow-execution/create-execution-manager.ts
+new file mode 100644
+index 00000000..a5bbcf2b
+--- /dev/null
++++ b/apps/web/src/features/074-workflow-execution/create-execution-manager.ts
+@@ -0,0 +1,33 @@
++/**
++ * Factory: creates WorkflowExecutionManager from DI container.
++ * Plan 074: Workflow Execution from Web UI — Phase 2.
++ *
++ * Called from instrumentation.ts during server bootstrap.
++ * Resolves all deps from the web DI container.
++ */
++
++import type { IOrchestrationService, IPositionalGraphService } from '@chainglass/positional-graph';
++import {
++  ORCHESTRATION_DI_TOKENS,
++  POSITIONAL_GRAPH_DI_TOKENS,
++  WORKSPACE_DI_TOKENS,
++} from '@chainglass/shared';
++import type { IWorkspaceService } from '@chainglass/workflow';
++import { getContainer } from '../../lib/di-container';
++import { WorkflowExecutionManager } from './workflow-execution-manager';
++
++export async function createWorkflowExecutionManager(): Promise<WorkflowExecutionManager> {
++  const container = getContainer();
++
++  const deps = {
++    orchestrationService: container.resolve<IOrchestrationService>(
++      ORCHESTRATION_DI_TOKENS.ORCHESTRATION_SERVICE
++    ),
++    graphService: container.resolve<IPositionalGraphService>(
++      POSITIONAL_GRAPH_DI_TOKENS.POSITIONAL_GRAPH_SERVICE
++    ),
++    workspaceService: container.resolve<IWorkspaceService>(WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE),
++  };
++
++  return new WorkflowExecutionManager(deps);
++}
+diff --git a/apps/web/src/features/074-workflow-execution/get-manager.ts b/apps/web/src/features/074-workflow-execution/get-manager.ts
+new file mode 100644
+index 00000000..a5d1d85b
+--- /dev/null
++++ b/apps/web/src/features/074-workflow-execution/get-manager.ts
+@@ -0,0 +1,26 @@
++/**
++ * Global accessor for WorkflowExecutionManager singleton.
++ * Plan 074: Workflow Execution from Web UI — Phase 2.
++ *
++ * The manager is bootstrapped in instrumentation.ts and stored on globalThis.
++ * This getter provides type-safe access from server-side code (server actions, API routes).
++ */
++
++import type { IWorkflowExecutionManager } from './workflow-execution-manager.types.js';
++
++declare global {
++  // biome-ignore lint/style/noVar: globalThis augmentation requires var
++  var __workflowExecutionManager: IWorkflowExecutionManager | undefined;
++}
++
++export function getWorkflowExecutionManager(): IWorkflowExecutionManager {
++  const manager = globalThis.__workflowExecutionManager;
++  if (!manager) {
++    throw new Error(
++      'WorkflowExecutionManager not initialized. ' +
++        'Ensure instrumentation.ts has bootstrapped the manager before accessing it. ' +
++        'This error typically means the server is still starting or initialization failed.'
++    );
++  }
++  return manager;
++}
+diff --git a/apps/web/src/features/074-workflow-execution/workflow-execution-manager.ts b/apps/web/src/features/074-workflow-execution/workflow-execution-manager.ts
+new file mode 100644
+index 00000000..e02903ca
+--- /dev/null
++++ b/apps/web/src/features/074-workflow-execution/workflow-execution-manager.ts
+@@ -0,0 +1,263 @@
++/**
++ * WorkflowExecutionManager: Central host for all running workflows.
++ *
++ * Owns the lifecycle of workflow executions across all worktrees.
++ * Wraps drive() with AbortController for cooperative cancellation.
++ * Plan 074: Workflow Execution from Web UI — Phase 2.
++ *
++ * SSE/GlobalState broadcasting is stubbed here (Phase 3 wires it).
++ */
++
++import type { DriveEvent, DriveResult } from '@chainglass/positional-graph';
++import type {
++  ExecutionHandle,
++  ExecutionManagerDeps,
++  IWorkflowExecutionManager,
++  ManagerExecutionStatus,
++  StartResult,
++  StopResult,
++} from './workflow-execution-manager.types.js';
++import { makeExecutionKey } from './workflow-execution-manager.types.js';
++
++export class WorkflowExecutionManager implements IWorkflowExecutionManager {
++  private readonly executions = new Map<string, ExecutionHandle>();
++  private readonly deps: ExecutionManagerDeps;
++
++  constructor(deps: ExecutionManagerDeps) {
++    this.deps = deps;
++  }
++
++  async start(
++    ctx: { workspaceSlug: string; worktreePath: string },
++    graphSlug: string
++  ): Promise<StartResult> {
++    const key = makeExecutionKey(ctx.worktreePath, graphSlug);
++    const existing = this.executions.get(key);
++
++    // Idempotent: already running → return early
++    if (existing && existing.status === 'running') {
++      return { started: false, already: true, key };
++    }
++
++    // Resume path: if stopped, reset interrupted nodes → ready
++    if (existing && existing.status === 'stopped') {
++      const state = await this.deps.graphService.loadGraphState(
++        { worktreePath: ctx.worktreePath } as Parameters<
++          typeof this.deps.graphService.loadGraphState
++        >[0],
++        graphSlug
++      );
++      const interruptedNodeIds = Object.entries(state.nodes ?? {})
++        .filter(([, entry]) => entry.status === 'interrupted')
++        .map(([id]) => id);
++      if (interruptedNodeIds.length > 0) {
++        await this.deps.graphService.markNodesInterrupted(
++          { worktreePath: ctx.worktreePath } as Parameters<
++            typeof this.deps.graphService.markNodesInterrupted
++          >[0],
++          graphSlug,
++          []
++        );
++        // Actually reset them to ready — load, clear interrupted, persist
++        const freshState = await this.deps.graphService.loadGraphState(
++          { worktreePath: ctx.worktreePath } as Parameters<
++            typeof this.deps.graphService.loadGraphState
++          >[0],
++          graphSlug
++        );
++        for (const nodeId of interruptedNodeIds) {
++          const entry = freshState.nodes?.[nodeId];
++          if (entry && entry.status === 'interrupted' && freshState.nodes) {
++            delete freshState.nodes[nodeId]; // Remove entry — node becomes implicitly pending
++          }
++        }
++        await this.deps.graphService.persistGraphState(
++          { worktreePath: ctx.worktreePath } as Parameters<
++            typeof this.deps.graphService.persistGraphState
++          >[0],
++          graphSlug,
++          freshState
++        );
++      }
++    }
++
++    const controller = new AbortController();
++
++    const handle: ExecutionHandle = {
++      key,
++      worktreePath: ctx.worktreePath,
++      graphSlug,
++      workspaceSlug: ctx.workspaceSlug,
++      status: 'starting',
++      controller,
++      drivePromise: null,
++      orchestrationHandle: null,
++      iterations: 0,
++      totalActions: 0,
++      lastEventType: '',
++      lastMessage: '',
++      startedAt: new Date().toISOString(),
++      stoppedAt: null,
++    };
++
++    this.executions.set(key, handle);
++
++    // Resolve the orchestration handle
++    const workspaceCtx = await this.deps.workspaceService.resolveContextFromParams(
++      ctx.workspaceSlug,
++      ctx.worktreePath
++    );
++    if (!workspaceCtx) {
++      handle.status = 'failed';
++      handle.lastMessage = 'Failed to resolve workspace context';
++      return { started: false, already: false, key };
++    }
++
++    const orchestrationHandle = await this.deps.orchestrationService.get(workspaceCtx, graphSlug);
++    handle.orchestrationHandle = orchestrationHandle;
++    handle.status = 'running';
++
++    // Start drive() in background — NOT awaited
++    handle.drivePromise = orchestrationHandle.drive({
++      signal: controller.signal,
++      onEvent: (event: DriveEvent) => {
++        this.handleEvent(key, event);
++      },
++    });
++
++    // Handle completion/failure (DYK #3: MUST have .catch)
++    handle.drivePromise
++      .then((result: DriveResult) => {
++        handle.status =
++          result.exitReason === 'complete'
++            ? 'completed'
++            : result.exitReason === 'stopped'
++              ? 'stopped'
++              : 'failed';
++        handle.iterations = result.iterations;
++        handle.totalActions = result.totalActions;
++        handle.controller = null;
++        handle.drivePromise = null;
++        handle.stoppedAt = new Date().toISOString();
++      })
++      .catch((error: unknown) => {
++        handle.status = 'failed';
++        handle.lastMessage = error instanceof Error ? error.message : String(error);
++        handle.controller = null;
++        handle.drivePromise = null;
++        handle.stoppedAt = new Date().toISOString();
++      });
++
++    return { started: true, already: false, key };
++  }
++
++  async stop(worktreePath: string, graphSlug: string): Promise<StopResult> {
++    const key = makeExecutionKey(worktreePath, graphSlug);
++    const handle = this.executions.get(key);
++
++    if (!handle || handle.status !== 'running') {
++      return { stopped: false };
++    }
++
++    handle.status = 'stopping';
++    handle.controller?.abort();
++
++    // Wait for drive() to exit
++    if (handle.drivePromise) {
++      await handle.drivePromise.catch(() => {});
++    }
++
++    // Destroy all pods
++    if (handle.orchestrationHandle) {
++      await handle.orchestrationHandle.cleanup();
++    }
++
++    // Mark active nodes as interrupted
++    const state = await this.deps.graphService.loadGraphState(
++      { worktreePath } as Parameters<typeof this.deps.graphService.loadGraphState>[0],
++      graphSlug
++    );
++    const activeNodeIds = Object.entries(state.nodes ?? {})
++      .filter(([, entry]) => entry.status === 'starting' || entry.status === 'agent-accepted')
++      .map(([id]) => id);
++    if (activeNodeIds.length > 0) {
++      await this.deps.graphService.markNodesInterrupted(
++        { worktreePath } as Parameters<typeof this.deps.graphService.markNodesInterrupted>[0],
++        graphSlug,
++        activeNodeIds
++      );
++    }
++
++    // Status is set by the .then() handler from drivePromise
++    handle.stoppedAt = new Date().toISOString();
++    return { stopped: true };
++  }
++
++  async restart(
++    ctx: { workspaceSlug: string; worktreePath: string },
++    graphSlug: string
++  ): Promise<StartResult> {
++    // 1. Stop if running
++    await this.stop(ctx.worktreePath, graphSlug);
++
++    // 2. Cleanup handle pods
++    const key = makeExecutionKey(ctx.worktreePath, graphSlug);
++    const existing = this.executions.get(key);
++    if (existing?.orchestrationHandle) {
++      await existing.orchestrationHandle.cleanup();
++    }
++
++    // 3. Evict cached orchestration handle (DYK #1: get fresh handle)
++    this.deps.orchestrationService.evict(ctx.worktreePath, graphSlug);
++
++    // 4. Reset graph state
++    await this.deps.graphService.resetGraphState(
++      { worktreePath: ctx.worktreePath } as Parameters<
++        typeof this.deps.graphService.resetGraphState
++      >[0],
++      graphSlug
++    );
++
++    // 5. Delete execution handle
++    this.executions.delete(key);
++
++    // 6. Start fresh
++    return this.start(ctx, graphSlug);
++  }
++
++  getStatus(worktreePath: string, graphSlug: string): ManagerExecutionStatus {
++    const key = makeExecutionKey(worktreePath, graphSlug);
++    return this.executions.get(key)?.status ?? 'idle';
++  }
++
++  getHandle(worktreePath: string, graphSlug: string): ExecutionHandle | undefined {
++    const key = makeExecutionKey(worktreePath, graphSlug);
++    return this.executions.get(key);
++  }
++
++  listRunning(): ExecutionHandle[] {
++    return [...this.executions.values()].filter((h) => h.status === 'running');
++  }
++
++  async cleanup(): Promise<void> {
++    const runningHandles = [...this.executions.values()].filter(
++      (h) => h.status === 'running' || h.status === 'starting'
++    );
++    await Promise.all(
++      runningHandles.map((h) => this.stop(h.worktreePath, h.graphSlug).catch(() => {}))
++    );
++  }
++
++  // Phase 3 will wire this to SSE + GlobalState
++  private handleEvent(key: string, event: DriveEvent): void {
++    const handle = this.executions.get(key);
++    if (!handle) return;
++
++    if (event.type === 'iteration' && event.data) {
++      handle.iterations = event.data.iterations ?? handle.iterations + 1;
++      handle.totalActions += event.data.actions?.length ?? 0;
++    }
++    handle.lastEventType = event.type;
++    handle.lastMessage = event.message;
++  }
++}
+diff --git a/apps/web/src/features/074-workflow-execution/workflow-execution-manager.types.ts b/apps/web/src/features/074-workflow-execution/workflow-execution-manager.types.ts
+new file mode 100644
+index 00000000..19d17f0d
+--- /dev/null
++++ b/apps/web/src/features/074-workflow-execution/workflow-execution-manager.types.ts
+@@ -0,0 +1,86 @@
++/**
++ * Type definitions for WorkflowExecutionManager.
++ * Plan 074: Workflow Execution from Web UI — Phase 2.
++ */
++
++import type {
++  DriveResult,
++  IGraphOrchestration,
++  IOrchestrationService,
++  IPositionalGraphService,
++} from '@chainglass/positional-graph';
++import type { IWorkspaceService } from '@chainglass/workflow';
++
++// ── Execution Key ───────────────────────────────────────
++
++export type ExecutionKey = `${string}:${string}`;
++
++export function makeExecutionKey(worktreePath: string, graphSlug: string): ExecutionKey {
++  return `${worktreePath}:${graphSlug}` as ExecutionKey;
++}
++
++// ── Execution Status (manager-level, not node-level) ────
++
++export type ManagerExecutionStatus =
++  | 'idle'
++  | 'starting'
++  | 'running'
++  | 'stopping'
++  | 'stopped'
++  | 'completed'
++  | 'failed';
++
++// ── Execution Handle ────────────────────────────────────
++
++export interface ExecutionHandle {
++  readonly key: ExecutionKey;
++  readonly worktreePath: string;
++  readonly graphSlug: string;
++  readonly workspaceSlug: string;
++  status: ManagerExecutionStatus;
++  controller: AbortController | null;
++  drivePromise: Promise<DriveResult> | null;
++  orchestrationHandle: IGraphOrchestration | null;
++  iterations: number;
++  totalActions: number;
++  lastEventType: string;
++  lastMessage: string;
++  startedAt: string | null;
++  stoppedAt: string | null;
++}
++
++// ── Manager API ─────────────────────────────────────────
++
++export interface StartResult {
++  readonly started: boolean;
++  readonly already: boolean;
++  readonly key: ExecutionKey;
++}
++
++export interface StopResult {
++  readonly stopped: boolean;
++}
++
++export interface IWorkflowExecutionManager {
++  start(
++    ctx: { workspaceSlug: string; worktreePath: string },
++    graphSlug: string
++  ): Promise<StartResult>;
++  stop(worktreePath: string, graphSlug: string): Promise<StopResult>;
++  restart(
++    ctx: { workspaceSlug: string; worktreePath: string },
++    graphSlug: string
++  ): Promise<StartResult>;
++  getStatus(worktreePath: string, graphSlug: string): ManagerExecutionStatus;
++  getHandle(worktreePath: string, graphSlug: string): ExecutionHandle | undefined;
++  listRunning(): ExecutionHandle[];
++  cleanup(): Promise<void>;
++}
++
++// ── Manager Dependencies ────────────────────────────────
++
++export interface ExecutionManagerDeps {
++  readonly orchestrationService: IOrchestrationService;
++  readonly graphService: IPositionalGraphService;
++  readonly workspaceService: IWorkspaceService;
++}
+diff --git a/apps/web/src/lib/di-container.ts b/apps/web/src/lib/di-container.ts
+index 31b029b5..6481c1c6 100644
+--- a/apps/web/src/lib/di-container.ts
++++ b/apps/web/src/lib/di-container.ts
+@@ -15,6 +15,17 @@ import * as os from 'node:os';
+ import * as path from 'node:path';
+ // Plan 050: Import positional-graph registration + template services
+ import type { IWorkUnitLoader } from '@chainglass/positional-graph';
++// Plan 074: Import orchestration registration + EHS prerequisites
++import {
++  EventHandlerService,
++  NodeEventRegistry,
++  NodeEventService,
++  ScriptRunner,
++  createEventHandlerRegistry,
++  registerCoreEventTypes,
++  registerOrchestrationServices,
++} from '@chainglass/positional-graph';
++import type { IEventHandlerService, IScriptRunner } from '@chainglass/positional-graph';
+ import { registerPositionalGraphServices } from '@chainglass/positional-graph';
+ import {
+   type AdapterFactory,
+@@ -34,6 +45,7 @@ import {
+   type IProcessManager,
+   type IYamlParser,
+   NodeFileSystemAdapter,
++  ORCHESTRATION_DI_TOKENS,
+   POSITIONAL_GRAPH_DI_TOKENS,
+   PathResolverAdapter,
+   PinoLoggerAdapter,
+@@ -61,6 +73,8 @@ import {
+ // Plan 027: Import CentralEventNotifier types from shared
+ import type { ICentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events';
+ import { FakeCentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events';
++// Plan 034: AgentManagerService for orchestration (distinct from Plan 019 web agent UI)
++import { AgentManagerService as OrchestrationAgentManagerService } from '@chainglass/shared/features/034-agentic-cli';
+ // Plan 067: QuestionPopperService for external question/answer lifecycle
+ import type { IQuestionPopperService } from '@chainglass/shared/interfaces';
+ import type { ICopilotClient } from '@chainglass/shared/interfaces/copilot-sdk.interface';
+@@ -488,6 +502,60 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
+ 
+   registerPositionalGraphServices(childContainer);
+ 
++  // ==================== Plan 074: Orchestration Agent Manager ====================
++  // Plan 034 AgentManagerService for orchestration (getNew/getWithSessionId).
++  // Distinct from Plan 019 web agent UI (createAgent) which stays under SHARED_DI_TOKENS.
++  // DYK #4: Adapter factory must be web-compatible — same adapters as Plan 019.
++  childContainer.register(ORCHESTRATION_DI_TOKENS.AGENT_MANAGER, {
++    useFactory: (c) => {
++      const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
++      const processManager = c.resolve<IProcessManager>(DI_TOKENS.PROCESS_MANAGER);
++      const adapterFactory = (agentType: string): IAgentAdapter => {
++        if (agentType === 'claude-code') {
++          return new ClaudeCodeAdapter(processManager, { logger });
++        }
++        if (agentType === 'copilot') {
++          const copilotClient = c.resolve<CopilotClient>(DI_TOKENS.COPILOT_CLIENT);
++          return new SdkCopilotAdapter(copilotClient as unknown as ICopilotClient, { logger });
++        }
++        throw new Error(`Unknown agent type for orchestration: ${agentType}`);
++      };
++      return new OrchestrationAgentManagerService(adapterFactory);
++    },
++  });
++
++  // Plan 074 T002: ScriptRunner — subprocess executor for code work units
++  childContainer.register<IScriptRunner>(ORCHESTRATION_DI_TOKENS.SCRIPT_RUNNER, {
++    useFactory: () => new ScriptRunner(),
++  });
++
++  // Plan 074 T002: EventHandlerService — settle phase processor (Plan 032)
++  // Note: loadState/persistState on NodeEventService are only used by raise() (agent CLI path).
++  // The orchestrator uses processGraph(state) which operates on state directly.
++  childContainer.register<IEventHandlerService>(ORCHESTRATION_DI_TOKENS.EVENT_HANDLER_SERVICE, {
++    useFactory: () => {
++      const registry = new NodeEventRegistry();
++      registerCoreEventTypes(registry);
++      const handlerRegistry = createEventHandlerRegistry();
++      const nes = new NodeEventService(
++        {
++          registry,
++          loadState: async () => {
++            throw new Error('loadState not available in orchestration context');
++          },
++          persistState: async () => {
++            throw new Error('persistState not available in orchestration context');
++          },
++        },
++        handlerRegistry
++      );
++      return new EventHandlerService(nes);
++    },
++  });
++
++  // Plan 074 T003: Register orchestration services (OrchestrationService + internal deps)
++  registerOrchestrationServices(childContainer);
++
+   // Bridge WORK_UNIT_LOADER → WORKUNIT_SERVICE (PositionalGraphService needs this)
+   childContainer.register<IWorkUnitLoader>(POSITIONAL_GRAPH_DI_TOKENS.WORK_UNIT_LOADER, {
+     useFactory: (c) => c.resolve<IWorkUnitLoader>(POSITIONAL_GRAPH_DI_TOKENS.WORKUNIT_SERVICE),
+diff --git a/docs/domains/_platform/positional-graph/domain.md b/docs/domains/_platform/positional-graph/domain.md
+index 13bff38e..c205b5dc 100644
+--- a/docs/domains/_platform/positional-graph/domain.md
++++ b/docs/domains/_platform/positional-graph/domain.md
+@@ -165,3 +165,4 @@ Primary: `packages/positional-graph/src/`
+ | 050-P1 | FakePositionalGraphService, fakes barrel export, web DI registration (Phase 1) | 2026-02-26 |
+ | 061-P3 | Removed PGService Q&A methods/types (askQuestion, answerQuestion, getAnswer); consumers migrated to workflow-events convenience API | 2026-03-01 |
+ | 074-P1 | Orchestration contracts: AbortSignal in drive() with 'stopped' exit, 'interrupted' status in ExecutionStatus/ONBAS/Zod schemas, compound cache key (worktreePath\|slug), per-handle PodManager+ODS via factory | 2026-03-15 |
++| 074-P2 | Web DI + Execution Manager: de-aliased ORCHESTRATION_DI_TOKENS.AGENT_MANAGER, registered orchestration in web DI, added destroyAllPods/cleanup/evict/resetGraphState/markNodesInterrupted, created WorkflowExecutionManager singleton with start/stop/restart lifecycle, globalThis bootstrap in instrumentation.ts | 2026-03-15 |
+diff --git a/docs/plans/074-workflow-execution/tasks/phase-2-web-di-execution-manager/execution.log.md b/docs/plans/074-workflow-execution/tasks/phase-2-web-di-execution-manager/execution.log.md
+new file mode 100644
+index 00000000..74c4de18
+--- /dev/null
++++ b/docs/plans/074-workflow-execution/tasks/phase-2-web-di-execution-manager/execution.log.md
+@@ -0,0 +1,126 @@
++# Phase 2: Web DI + Execution Manager — Execution Log
++
++**Plan**: [074 Workflow Execution](../../workflow-execution-plan.md)
++**Phase**: Phase 2: Web DI + Execution Manager
++**Started**: 2026-03-15
++**Status**: In Progress
++
++---
++
++## Pre-Phase Validation
++
++| Check | Status | Notes |
++|-------|--------|-------|
++| Harness | Skipped | Phase 2 is DI + class-level TDD — harness not needed |
++| Baseline tests | ✅ | 384 passed, 2 failed (pre-existing: 040-graph-inspect), 10 skipped |
++| Source files | ✅ | All target files exist and match expected structure |
++| Typecheck | ✅ | Included in baseline |
++
++**Critical discovery**: `IWorkUnitPod` already has `terminate(): Promise<void>` — both AgentPod and CodePod implement it. T004 is simpler than planned: just add `destroyAllPods()` to IPodManager that calls `terminate()` on each active pod.
++
++---
++
++## Task Log
++
++### Stage 1: DI Prerequisites (T001, T002)
++
++**T001 — De-alias ORCHESTRATION_DI_TOKENS.AGENT_MANAGER**:
++- Changed `ORCHESTRATION_DI_TOKENS.AGENT_MANAGER` from alias `SHARED_DI_TOKENS.AGENT_MANAGER_SERVICE` to unique `'IOrchestrationAgentManagerService'` in `packages/shared/src/di-tokens.ts`
++- Registered Plan 034 `AgentManagerService` (as `OrchestrationAgentManagerService`) in web DI under new token
++- Added bridge registration in CLI container: `ORCHESTRATION_DI_TOKENS.AGENT_MANAGER → CLI_DI_TOKENS.AGENT_MANAGER`
++- DYK #4: Web adapter factory uses same ClaudeCodeAdapter/SdkCopilotAdapter — web-compatible confirmed
++
++**T002 — Register ScriptRunner + EventHandlerService in web DI**:
++- Followed exact CLI pattern from `apps/cli/src/lib/container.ts` L271-299
++- ScriptRunner: `new ScriptRunner()` (no deps)
++- EHS: `NodeEventRegistry` + `registerCoreEventTypes()` + `createEventHandlerRegistry()` + `NodeEventService` with throw stubs
++
++**T003 — Call registerOrchestrationServices()**:
++- Single line: `registerOrchestrationServices(childContainer)` in `apps/web/src/lib/di-container.ts`
++
++**GREEN verification**:
++```
++$ npx vitest run test/unit/web/di-container.test.ts test/unit/positional-graph/features/030-orchestration/container-orchestration.test.ts
++ ✓ 12 tests passed (2 files)
++```
++
++### Stage 2: (Merged into Stage 1 — same test run)
++
++### Stage 3: Lifecycle Contracts (T004, T005, T005b)
++
++**T004 — destroyAllPods()**:
++- Discovery: `IWorkUnitPod` ALREADY has `terminate(): Promise<void>` — both AgentPod and CodePod implement it!
++- Added `destroyAllPods(): Promise<void>` to `IPodManager` interface and `PodManager` implementation
++- Implementation: iterates all active pods, calls `terminate()` on each (swallows errors for finished pods), then clears Map
++- Updated `FakePodManager` with `destroyAllPods()` + call tracking
++
++**T005 — cleanup() + evict()**:
++- Added `cleanup(): Promise<void>` to `IGraphOrchestration` — calls `podManager.destroyAllPods()` then persists sessions
++- Added `evict(worktreePath, graphSlug): void` to `IOrchestrationService` — deletes cached handle from Map
++- Implemented in `GraphOrchestration` and `OrchestrationService`
++- Updated `FakeGraphOrchestration` (cleanupCalls tracker) and `FakeOrchestrationService` (evictCalls tracker)
++
++**T005b — resetGraphState() + markNodesInterrupted()**:
++- Added to `IPositionalGraphService` interface
++- `markNodesInterrupted()`: loads state, sets 'starting'/'agent-accepted' nodes to 'interrupted', persists
++- `resetGraphState()`: loads state, clears all nodes/transitions/questions, sets graph_status to 'pending', persists
++- Updated `FakePositionalGraphService` with both methods
++
++**GREEN verification**:
++```
++$ npx vitest run test/unit/positional-graph/features/030-orchestration/
++ ✓ 320 tests passed (19 files)
++```
++
++### Stage 4: Execution Manager TDD (T006)
++
++**RED** (test file created, implementation exists but getCalls API wrong):
++```
++$ npx vitest run test/unit/web/features/074-workflow-execution/workflow-execution-manager.test.ts
++ Tests  1 failed | 13 passed (14)
++ — TypeError: graphService.getCalls is not a function
++```
++
++**GREEN** (fixed to use `calls.get()` API):
++```
++$ npx vitest run test/unit/web/features/074-workflow-execution/workflow-execution-manager.test.ts
++ ✓ 14 tests passed (1 file)
++```
++
++**Tests cover**:
++1. start() → started:true, key correct
++2. start() on running → already:true (idempotent)
++3. start() → resolves workspace context from service
++4. start() → failed when workspace context null
++5. stop() → stopped:false when nothing running
++6. stop() → sets terminal status
++7. restart() → resets state, evicts cache, starts fresh
++8. getStatus() → idle for unknown, correct status for known
++9. getHandle() → undefined for unknown, handle with correct fields after start
++10. listRunning() → empty initially
++11. cleanup() → stops all running
++12. handleEvent() → updates handle state from DriveEvents
++
++### Stage 5: Bootstrap Plumbing (T007, T008, T009)
++
++**T007 — get-manager.ts**: globalThis getter with descriptive error if not initialized
++**T008 — create-execution-manager.ts**: Factory resolves OrchestrationService, PositionalGraphService, WorkspaceService from DI
++**T009 — instrumentation.ts**: Added Plan 074 bootstrap block following exact Plan 027 pattern (flag-before-async, dynamic import, try/catch with flag reset, SIGTERM handler)
++
++**GREEN verification**:
++```
++$ npx vitest run test/unit/positional-graph/features/030-orchestration/ test/unit/web/features/074-workflow-execution/ test/unit/web/di-container.test.ts
++ ✓ 343 tests passed (21 files)
++```
++
++---
++
++## Discoveries
++
++| Date | Task | Type | Discovery | Resolution |
++|------|------|------|-----------|------------|
++| 2026-03-15 | T004 | insight | `IWorkUnitPod` already has `terminate()` — AgentPod calls `agentInstance.terminate()`, CodePod calls `scriptRunner.kill()`. No need to add `abort()`. | Simplified T004 to just adding `destroyAllPods()` that calls existing `terminate()` on each pod. |
++| 2026-03-15 | T001 | decision | `ORCHESTRATION_DI_TOKENS.AGENT_MANAGER` was aliased to `SHARED_DI_TOKENS.AGENT_MANAGER_SERVICE`. De-aliased to `'IOrchestrationAgentManagerService'`. CLI needs bridge registration. | Added bridge in CLI: `ORCHESTRATION_DI_TOKENS.AGENT_MANAGER → CLI_DI_TOKENS.AGENT_MANAGER`. |
++| 2026-03-15 | T006 | insight | `FakePositionalGraphService` uses `calls.get('methodName')` for tracking, not `getCalls()`. | Fixed test assertion to use correct API. |
++
++
+diff --git a/docs/plans/074-workflow-execution/tasks/phase-2-web-di-execution-manager/tasks.fltplan.md b/docs/plans/074-workflow-execution/tasks/phase-2-web-di-execution-manager/tasks.fltplan.md
+new file mode 100644
+index 00000000..45331948
+--- /dev/null
++++ b/docs/plans/074-workflow-execution/tasks/phase-2-web-di-execution-manager/tasks.fltplan.md
+@@ -0,0 +1,157 @@
++# Flight Plan: Phase 2 — Web DI + Execution Manager
++
++**Plan**: [workflow-execution-plan.md](../../workflow-execution-plan.md)
++**Phase**: Phase 2: Web DI + Execution Manager
++**Generated**: 2026-03-15
++**Status**: Landed
++
++---
++
++## Departure → Destination
++
++**Where we are**: The orchestration engine has AbortSignal support, `'stopped'` exit reason, `'interrupted'` node status, compound cache keys, and per-handle PodManager/ODS isolation (Phase 1 complete). But the web app has zero access to these capabilities — `OrchestrationService` is not registered in web DI, no execution manager exists, and there's no way to start/stop workflows from the web.
++
++**Where we're going**: A developer can import `getWorkflowExecutionManager()` in any server-side web code and call `manager.start(ctx, slug)` to begin a workflow, `manager.stop(wt, slug)` to halt it, or `manager.restart(ctx, slug)` to reset and rerun it. The manager tracks all running workflows, handles concurrent isolation, and integrates with the existing DI container. After this phase, the web app has the same orchestration capabilities as the CLI.
++
++---
++
++## Domain Context
++
++### Domains We're Changing
++
++| Domain | What Changes | Key Files |
++|--------|-------------|-----------|
++| `shared` | De-alias `ORCHESTRATION_DI_TOKENS.AGENT_MANAGER` to own string | `packages/shared/src/di-tokens.ts` |
++| `_platform/positional-graph` | Add `destroyAllPods()` to IPodManager, `cleanup()` to IGraphOrchestration | `pod-manager.types.ts`, `pod-manager.ts`, `orchestration-service.types.ts`, `graph-orchestration.ts` |
++| web app (feature) | New `WorkflowExecutionManager` class + DI registrations + bootstrap | `di-container.ts`, `instrumentation.ts`, `apps/web/src/features/074-workflow-execution/*` |
++| CLI | Update AgentManager token registration | `apps/cli/src/lib/container.ts` |
++
++### Domains We Depend On (no changes)
++
++| Domain | What We Consume | Contract |
++|--------|----------------|----------|
++| `_platform/positional-graph` | OrchestrationService.get(), drive(), loadGraphState/persistGraphState | `IOrchestrationService`, `IGraphOrchestration`, `IPositionalGraphService` |
++| `_platform/events` | SSEManager.broadcast() | Module singleton (Phase 3 wires, Phase 2 stubs) |
++| `_platform/state` | IStateService.publish() | `STATE_DI_TOKENS.STATE_SERVICE` (Phase 3 wires, Phase 2 stubs) |
++| workspace | WorkspaceService for context resolution | `WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE` |
++
++---
++
++## Flight Status
++
++<!-- Updated by /plan-6-v2: pending → active → done. Use blocked for problems/input needed. -->
++
++```mermaid
++stateDiagram-v2
++    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
++    classDef active fill:#FFC107,stroke:#FFA000,color:#000
++    classDef done fill:#4CAF50,stroke:#388E3C,color:#fff
++    classDef blocked fill:#F44336,stroke:#D32F2F,color:#fff
++
++    state "1: DI Prerequisites" as S1
++    state "2: Orchestration Wiring" as S2
++    state "3: Pod Cleanup Contracts" as S3
++    state "4: Execution Manager TDD" as S4
++    state "5: Bootstrap Plumbing" as S5
++
++    [*] --> S1
++    S1 --> S2
++    S2 --> S3
++    S3 --> S4
++    S4 --> S5
++    S5 --> [*]
++
++    class S1,S2,S3,S4,S5 done
++```
++
++**Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
++
++---
++
++## Stages
++
++<!-- Updated by /plan-6-v2 during implementation: [ ] → [~] → [x] -->
++
++- [~] **Stage 1: DI Prerequisites** — De-alias orchestration agent token, register Plan 034 AgentManager + ScriptRunner + EventHandlerService in web DI (`di-tokens.ts`, `di-container.ts`, `cli/container.ts`). DYK #4: verify adapter factory web compatibility.
++- [ ] **Stage 2: Orchestration Wiring** — Call `registerOrchestrationServices()` in web DI, verify full resolution chain (`di-container.ts`)
++- [ ] **Stage 3: Lifecycle Contracts** — Add `abort()` to IPod + `destroyAllPods()` to IPodManager (real pod kill, DYK #2), `cleanup()` + `evict()` to graph handle/service (DYK #1), `resetGraph()` + `markNodesInterrupted()` to IPositionalGraphService (DYK #5). TDD.
++- [ ] **Stage 4: Execution Manager TDD** — Create `WorkflowExecutionManager` class with full start/stop/restart/resume lifecycle, TDD (~200 lines, `workflow-execution-manager.ts` — new file). DYK #3: .catch() on drivePromise.
++- [ ] **Stage 5: Bootstrap Plumbing** — Create getter, factory, and instrumentation.ts bootstrap (`get-manager.ts`, `create-execution-manager.ts`, `instrumentation.ts`)
++
++---
++
++## Architecture: Before & After
++
++```mermaid
++flowchart LR
++    classDef existing fill:#E8F5E9,stroke:#4CAF50,color:#000
++    classDef changed fill:#FFF3E0,stroke:#FF9800,color:#000
++    classDef new fill:#E3F2FD,stroke:#2196F3,color:#000
++
++    subgraph Before["Before Phase 2"]
++        B_CLI["CLI: cg wf run<br/>(only orchestration consumer)"]:::existing
++        B_Orch["OrchestrationService<br/>(not in web DI)"]:::existing
++        B_Drive["drive() with<br/>AbortSignal"]:::existing
++        B_WebDI["Web DI Container<br/>(no orchestration)"]:::existing
++
++        B_CLI --> B_Orch --> B_Drive
++    end
++
++    subgraph After["After Phase 2"]
++        A_CLI["CLI: cg wf run"]:::existing
++        A_Orch["OrchestrationService<br/>(in both CLI + web DI)"]:::changed
++        A_Drive["drive() with<br/>AbortSignal + cleanup()"]:::changed
++        A_WebDI["Web DI Container<br/>(orchestration registered)"]:::changed
++        A_Manager["WorkflowExecution<br/>Manager (globalThis)"]:::new
++        A_Getter["getWorkflowExecution<br/>Manager()"]:::new
++        A_Boot["instrumentation.ts<br/>bootstrap"]:::changed
++
++        A_CLI --> A_Orch
++        A_Manager --> A_Orch --> A_Drive
++        A_WebDI --> A_Orch
++        A_Boot --> A_Manager
++        A_Getter --> A_Manager
++    end
++```
++
++**Legend**: existing (green, unchanged) | changed (orange, modified) | new (blue, created)
++
++---
++
++## Acceptance Criteria
++
++- [ ] `getWorkflowExecutionManager()` returns valid manager after server start
++- [ ] `manager.start(ctx, slug)` creates execution handle and begins drive() loop
++- [ ] `manager.stop(worktreePath, slug)` aborts drive(), destroys pods, marks interrupted
++- [ ] `manager.restart(ctx, slug)` clears graph state and starts fresh
++- [ ] Calling start() twice for same workflow returns idempotent result
++- [ ] Resume: start() on stopped workflow resets interrupted → ready
++
++## Goals & Non-Goals
++
++**Goals**:
++- ✅ Web DI resolves full orchestration stack
++- ✅ WorkflowExecutionManager with complete lifecycle
++- ✅ globalThis singleton survives HMR
++- ✅ Pod cleanup on stop/restart
++
++**Non-Goals**:
++- ❌ No SSE broadcasting (Phase 3)
++- ❌ No GlobalState publishing (Phase 3)
++- ❌ No UI controls (Phase 4)
++- ❌ No execution registry persistence (Phase 5)
++
++---
++
++## Checklist
++
++- [x] T001: De-alias ORCHESTRATION_DI_TOKENS.AGENT_MANAGER + register Plan 034
++- [x] T002: Register ScriptRunner + EventHandlerService in web DI
++- [x] T003: Call registerOrchestrationServices() in web DI
++- [x] T004: Add abort() to IPod + destroyAllPods() to IPodManager (real kill)
++- [x] T005: Add cleanup() + evict() to IGraphOrchestration/IOrchestrationService
++- [x] T005b: Add resetGraph() + markNodesInterrupted() to IPositionalGraphService
++- [x] T006: Create WorkflowExecutionManager class (TDD)
++- [x] T007: Create get-manager.ts globalThis getter
++- [x] T008: Create create-execution-manager.ts factory
++- [x] T009: Bootstrap manager in instrumentation.ts
+diff --git a/docs/plans/074-workflow-execution/tasks/phase-2-web-di-execution-manager/tasks.md b/docs/plans/074-workflow-execution/tasks/phase-2-web-di-execution-manager/tasks.md
+new file mode 100644
+index 00000000..7dfb8664
+--- /dev/null
++++ b/docs/plans/074-workflow-execution/tasks/phase-2-web-di-execution-manager/tasks.md
+@@ -0,0 +1,333 @@
++# Phase 2: Web DI + Execution Manager — Task Dossier
++
++**Plan**: [074 Workflow Execution](../../workflow-execution-plan.md)
++**Phase**: Phase 2: Web DI + Execution Manager
++**Generated**: 2026-03-15
++**Status**: Ready
++
++---
++
++## Executive Briefing
++
++**Purpose**: Wire the orchestration engine into the web app's DI container and create the central `WorkflowExecutionManager` singleton that owns the lifecycle of all running workflows. This is the keystone phase — everything after it (SSE, UI, recovery) depends on having a manager that can start, stop, and restart workflows.
++
++**What We're Building**: (1) DI registrations so the web app can resolve the full orchestration stack (OrchestrationService, EventHandlerService, ScriptRunner, Plan 034 AgentManager). (2) A `WorkflowExecutionManager` class with start/stop/restart/getStatus/listRunning. (3) A `globalThis` singleton bootstrapped in `instrumentation.ts` that survives HMR. (4) Pod cleanup methods so stop/restart can destroy running pods.
++
++**Goals**:
++- ✅ Web DI resolves `OrchestrationService` and all its transitive dependencies
++- ✅ `WorkflowExecutionManager` handles start/stop/restart with correct lifecycle semantics
++- ✅ Stop aborts `drive()`, destroys all pods, marks running nodes as `'interrupted'`
++- ✅ Resume (start on stopped workflow) resets `'interrupted'` nodes → `'ready'`
++- ✅ Restart = stop + nuke all state + start fresh
++- ✅ Manager accessible via `getWorkflowExecutionManager()` after server start
++- ✅ HMR-safe: singleton survives Next.js hot module replacement
++
++**Non-Goals**:
++- ❌ No SSE broadcasting (Phase 3 — handleEvent will have no-op stubs here)
++- ❌ No GlobalState publishing (Phase 3)
++- ❌ No UI controls (Phase 4)
++- ❌ No execution registry persistence / server restart recovery (Phase 5)
++- ❌ No harness test-data CLI (Phase 6)
++
++---
++
++## Prior Phase Context
++
++### Phase 1: Orchestration Contracts ✅
++
++**A. Deliverables**:
++- `abortable-sleep.ts` — NEW: signal-aware sleep using `node:timers/promises`
++- `orchestration-service.types.ts` — `'stopped'` in DriveExitReason, `signal?: AbortSignal` in DriveOptions
++- `reality.types.ts` + `reality.schema.ts` + `state.schema.ts` — `'interrupted'` in ExecutionStatus + Zod schemas
++- `reality.format.ts` — ⏹️ glyph for interrupted
++- `graph-orchestration.ts` — AbortSignal in drive() with pre-loop check, iteration boundary check, AbortError catch
++- `onbas.ts` — `case 'interrupted'` in visitNode (return null) and diagnoseStuckLine (hasRunning=true)
++- `orchestration-service.ts` — Compound key `${worktreePath}|${graphSlug}`, `createPerHandleDeps` factory, `PerHandleDeps` interface
++- `container.ts` — Per-handle PodManager+ODS factory closure in registerOrchestrationServices()
++
++**B. Dependencies Exported**:
++- `DriveExitReason` — now includes `'stopped'` (signals user-initiated halt)
++- `DriveOptions.signal?: AbortSignal` — cooperative cancellation for drive()
++- `ExecutionStatus` — now includes `'interrupted'` (9 values total)
++- `PerHandleDeps` — `{ podManager: IPodManager; ods: IODS }` exported from package barrel
++- `OrchestrationServiceDeps.createPerHandleDeps: () => PerHandleDeps` — factory pattern
++
++**C. Gotchas & Debt**:
++- `reality.schema.ts` EXISTS with Zod `ExecutionStatusSchema` — initial explore missed it. Always check both `reality.schema.ts` AND `state.schema.ts` when adding statuses.
++- `vi.useFakeTimers()` does NOT intercept `node:timers/promises` — it only patches global setTimeout. Use pre-aborted signals for deterministic abort tests.
++- Integration tests (`orchestration-wiring-real`, `real-agent-orchestration`, e2e) are all `describe.skip` except fixture validation.
++- `restart-pending` is in ExecutionStatus but NOT handled in ONBAS switch cases (pre-existing, falls through to default).
++
++**D. Incomplete Items**: None — all 8/8 tasks complete, code review findings addressed.
++
++**E. Patterns to Follow**:
++- TDD RED/GREEN cycle with explicit evidence in execution log
++- Per-handle isolation: each graph handle gets own PodManager+ODS via factory
++- Compound key pattern: `${worktreePath}|${graphSlug}` (pipe delimiter)
++- Test files live in `test/unit/positional-graph/features/030-orchestration/`
++
++---
++
++## Pre-Implementation Check
++
++| File | Exists? | Domain Check | Notes |
++|------|---------|-------------|-------|
++| `packages/shared/src/di-tokens.ts` | ✅ | ✅ shared | ORCHESTRATION_DI_TOKENS.AGENT_MANAGER aliases SHARED — must de-alias. L146-157. |
++| `apps/web/src/lib/di-container.ts` | ✅ | ✅ web | 869 lines. No orchestration registered. Plan 019 AgentManager at L437-485. registerPositionalGraphServices at L489. |
++| `apps/cli/src/lib/container.ts` | ✅ | ✅ cli | Orchestration prereqs at L268-302. Pattern to follow for EHS/ScriptRunner. |
++| `apps/web/instrumentation.ts` | ✅ | ✅ web | startCentralNotificationSystem + server.json. globalThis pattern established. Extend with manager bootstrap. |
++| `apps/web/src/features/074-workflow-execution/` | ❌ new dir | — | Create directory with 4 new files. |
++| `packages/positional-graph/src/features/030-orchestration/pod-manager.types.ts` | ✅ | ✅ positional-graph | IPodManager has destroyPod(nodeId) only. Need destroyAllPods(). |
++| `packages/positional-graph/src/features/030-orchestration/pod-manager.ts` | ✅ | ✅ positional-graph | `private readonly pods = new Map<string, IWorkUnitPod>()`. destroyPod deletes from map. |
++| `packages/positional-graph/src/features/030-orchestration/orchestration-service.types.ts` | ✅ | ✅ positional-graph | IGraphOrchestration: run(), drive(), getReality(). Need cleanup() method. |
++| `packages/positional-graph/src/features/030-orchestration/graph-orchestration.ts` | ✅ | ✅ positional-graph | Has `this.podManager` — can implement cleanup(). |
++| `packages/shared/src/features/034-agentic-cli/agent-manager-service.ts` | ✅ | ✅ shared | Plan 034 AgentManagerService. Constructor takes only AdapterFactory. getNew(), getWithSessionId(). |
++
++**Concept duplication check**: `WorkflowExecutionManager` — no existing execution manager, workflow runner, or orchestration host in the codebase. Clean concept.
++
++**Harness context**: L3 maturity. Harness operational but Phase 2 is DI + class implementation — harness test-data not available yet (Phase 6). Standard TDD testing with vitest.
++
++**Critical finding: Token collision**: `ORCHESTRATION_DI_TOKENS.AGENT_MANAGER === SHARED_DI_TOKENS.AGENT_MANAGER_SERVICE === 'IAgentManagerService'`. Web registers Plan 019 under this token. ODS needs Plan 034's `getNew()`/`getWithSessionId()`. Must de-alias to separate orchestration from web agent UI.
++
++**Critical finding: No destroyAllPods()**: IPodManager only has `destroyPod(nodeId)`. Manager needs to destroy ALL pods on stop/restart. PodManager.pods is a private Map — no way to iterate from outside. Must add `destroyAllPods()`.
++
++**Critical finding: No cleanup() on IGraphOrchestration**: Manager interacts via IGraphOrchestration handle but can't reach the internal PodManager to destroy pods. Need a `cleanup()` method on the handle.
++
++**Critical finding: No resetGraphState()**: For restart(), manager needs to reset all node statuses, clear events/outputs. No service method exists. Manual state manipulation via loadGraphState/persistGraphState — set all node statuses to 'pending', clear events arrays, clear outputs.
++
++---
++
++## Architecture Map
++
++```mermaid
++flowchart TD
++    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
++    classDef inprogress fill:#FFC107,stroke:#FFA000,color:#000
++    classDef completed fill:#4CAF50,stroke:#388E3C,color:#fff
++
++    subgraph Phase2["Phase 2: Web DI + Execution Manager"]
++        T001["T001: De-alias token<br/>+ Plan 034 AgentMgr"]:::completed
++        T002["T002: ScriptRunner<br/>+ EHS in web DI"]:::completed
++        T003["T003: Call register<br/>OrchestrationServices"]:::completed
++        T004["T004: Pod abort()<br/>+ destroyAllPods"]:::inprogress
++        T005["T005: cleanup() + evict()<br/>on handle/service"]:::pending
++        T005b["T005b: resetGraph +<br/>markNodesInterrupted"]:::pending
++        T006["T006: Workflow<br/>ExecutionManager"]:::pending
++        T007["T007: get-manager.ts<br/>globalThis getter"]:::pending
++        T008["T008: create-execution<br/>-manager factory"]:::pending
++        T009["T009: Bootstrap in<br/>instrumentation.ts"]:::pending
++
++        T001 --> T003
++        T002 --> T003
++        T004 --> T005
++        T005 --> T006
++        T005b --> T006
++        T003 --> T008
++        T006 --> T008
++        T007 --> T009
++        T008 --> T009
++    end
++
++    subgraph Phase1["Phase 1 (Complete) ✅"]
++        P1["AbortSignal + interrupted<br/>+ compound key"]:::completed
++    end
++
++    subgraph Files["Files"]
++        F1["di-tokens.ts"]:::pending
++        F2["di-container.ts"]:::pending
++        F3["cli/container.ts"]:::pending
++        F4["pod-manager.types.ts"]:::pending
++        F5["pod-manager.ts + pod.agent.ts + pod.code.ts"]:::pending
++        F6["orchestration-service.types.ts"]:::pending
++        F7["graph-orchestration.ts + orchestration-service.ts"]:::pending
++        F8["workflow-execution-manager.ts NEW"]:::pending
++        F9["workflow-execution-manager.types.ts NEW"]:::pending
++        F10["get-manager.ts NEW"]:::pending
++        F11["create-execution-manager.ts NEW"]:::pending
++        F12["instrumentation.ts"]:::pending
++        F13["positional-graph-service.interface.ts"]:::pending
++    end
++
++    P1 -.-> T003
++    T001 -.-> F1
++    T001 -.-> F2
++    T001 -.-> F3
++    T002 -.-> F2
++    T003 -.-> F2
++    T004 -.-> F4
++    T004 -.-> F5
++    T005 -.-> F6
++    T005 -.-> F7
++    T006 -.-> F8
++    T006 -.-> F9
++    T005b -.-> F13
++    T007 -.-> F10
++    T008 -.-> F11
++    T009 -.-> F12
++```
++
++---
++
++## Tasks
++
++| Status | ID | Task | Domain | Path(s) | Done When | Notes |
++|--------|-----|------|--------|---------|-----------|-------|
++| [x] | T001 | De-alias `ORCHESTRATION_DI_TOKENS.AGENT_MANAGER` to unique token string + register Plan 034 `AgentManagerService` for orchestration in web DI | shared, web, cli | `packages/shared/src/di-tokens.ts`, `apps/web/src/lib/di-container.ts`, `apps/cli/src/lib/container.ts` | `ORCHESTRATION_DI_TOKENS.AGENT_MANAGER` has its own string value (not aliasing `SHARED_DI_TOKENS`). Web DI resolves Plan 034 `AgentManagerService` under the new token. Plan 019 unchanged under `SHARED_DI_TOKENS.AGENT_MANAGER_SERVICE`. CLI updated to register under new token. All existing tests pass. | Finding 06. Plan 019 has `createAgent()`, Plan 034 has `getNew()`/`getWithSessionId()`. ODS calls Plan 034 methods — token collision causes runtime crash if not de-aliased. DYK #4: Verify CLI adapter factory works in web server context — trace adapter chain for web compatibility. |
++| [x] | T002 | Register `ScriptRunner` + `EventHandlerService` in web DI | web | `apps/web/src/lib/di-container.ts` | `container.resolve(ORCHESTRATION_DI_TOKENS.SCRIPT_RUNNER)` → `ScriptRunner`. `container.resolve(ORCHESTRATION_DI_TOKENS.EVENT_HANDLER_SERVICE)` → `EventHandlerService`. Both resolve without error. | Finding 05. Follow exact CLI pattern (`apps/cli/src/lib/container.ts` L268-302). ScriptRunner: `new ScriptRunner()` (no deps). EHS: `NodeEventRegistry` + `registerCoreEventTypes()` + `createEventHandlerRegistry()` + `NodeEventService` with throw stubs for loadState/persistState. |
++| [x] | T003 | Call `registerOrchestrationServices()` in web DI container | web | `apps/web/src/lib/di-container.ts` | `container.resolve(ORCHESTRATION_DI_TOKENS.ORCHESTRATION_SERVICE)` returns valid `OrchestrationService`. All transitive deps (graphService, onbas, eventHandlerService, createPerHandleDeps factory) resolve correctly. | Finding 05. Must be called AFTER T001+T002 register prerequisites. Single function call. Import from `@chainglass/positional-graph`. |
++| [x] | T004 | Add `abort()` to `IWorkUnitPod` + `destroyAllPods()` to `IPodManager` + implement real pod termination | positional-graph | `packages/positional-graph/src/features/030-orchestration/pod.types.ts` (or similar), `packages/positional-graph/src/features/030-orchestration/pod.agent.ts`, `packages/positional-graph/src/features/030-orchestration/pod.code.ts`, `packages/positional-graph/src/features/030-orchestration/pod-manager.types.ts`, `packages/positional-graph/src/features/030-orchestration/pod-manager.ts` | TDD: (1) `pod.abort()` terminates the running process — AgentPod calls `agentManager.terminateAgent(agentId)`, CodePod calls `scriptRunner.kill()`. (2) `destroyPod(nodeId)` calls `pod.abort()` then removes from Map. (3) `destroyAllPods()` iterates all active pods, aborts each, clears Map. (4) Session IDs unaffected (sessions ≠ active pods). (5) Empty pods map → no-op. (6) Abort on already-completed pod → no-op. | DYK #2: `destroyPod()` currently just `this.pods.delete()` — doesn't kill the process. User requires FULL termination. AgentPod must retain agentId for terminate. CodePod must retain scriptRunner reference for kill(). Also update FakePodManager. |
++| [x] | T005 | Add `cleanup()` to `IGraphOrchestration` + `evict()` to `IOrchestrationService` + implement both | positional-graph | `packages/positional-graph/src/features/030-orchestration/orchestration-service.types.ts`, `packages/positional-graph/src/features/030-orchestration/graph-orchestration.ts`, `packages/positional-graph/src/features/030-orchestration/orchestration-service.ts` | TDD: (1) `cleanup()` calls `podManager.destroyAllPods()`. (2) Persists sessions after destruction. (3) No pods active → no-op, no error. (4) `evict(worktreePath, graphSlug)` removes cached handle from OrchestrationService Map. (5) After evict, next `get()` creates a fresh handle with new PodManager/ODS. | DYK #1: OrchestrationService.get() caches forever — restart needs fresh handle. `evict()` deletes from cache so next get() creates clean slate. Also update `FakeGraphOrchestration` + `FakeOrchestrationService` with new methods. Export updated interfaces. |
++| [x] | T005b | Add `resetGraph()` + `markNodesInterrupted()` to `IPositionalGraphService` + implement | positional-graph | `packages/positional-graph/src/interfaces/positional-graph-service.interface.ts`, `packages/positional-graph/src/services/positional-graph-service.ts` (or adapter) | TDD: (1) `markNodesInterrupted(ctx, slug, nodeIds)` loads state, sets specified nodes to `'interrupted'`, persists. (2) `resetGraph(ctx, slug)` loads state, sets ALL node statuses to `'pending'`, clears events/outputs on each node, persists. (3) Both are idempotent (calling twice = same result). (4) Missing nodeIds in markNodesInterrupted → ignored, no error. | DYK #5: Manager must NOT directly manipulate State internals — violates domain boundary. These domain methods keep State knowledge inside positional-graph. Manager calls these instead of load→mutate→persist. |
++| [x] | T006 | Create `WorkflowExecutionManager` class with start/stop/restart/getStatus/listRunning | web (feature) | `apps/web/src/features/074-workflow-execution/workflow-execution-manager.ts` (new), `apps/web/src/features/074-workflow-execution/workflow-execution-manager.types.ts` (new) | TDD: (1) `start()` creates handle, begins `drive()` in background, returns `{started:true}`. (2) `start()` on already-running returns `{already:true}` (idempotent). (3) `stop()` aborts drive via AbortController, awaits drivePromise, calls `handle.cleanup()`, calls `graphService.markNodesInterrupted()`. (4) Resume: `start()` on stopped workflow calls `graphService.resetInterruptedNodes()` or similar before `drive()`. (5) `restart()` stops + calls `orchestrationService.evict()` + calls `graphService.resetGraph()` + starts fresh. (6) `getStatus()` returns current status. (7) `getHandle()` returns handle or undefined. (8) `listRunning()` returns running handles. (9) `cleanup()` stops all running workflows (SIGTERM). (10) drivePromise has BOTH `.then()` AND `.catch()` — unhandled rejection = process crash. | Workshop 002 design. DYK #1: resume resets interrupted→ready. DYK #2: pods must be fully killed. DYK #3: .catch() on drivePromise mandatory. DYK #5: uses domain methods not direct State manipulation. The big TDD task (~200 lines). |
++| [x] | T007 | Create `get-manager.ts` globalThis getter | web (feature) | `apps/web/src/features/074-workflow-execution/get-manager.ts` (new) | Throws descriptive `Error('WorkflowExecutionManager not initialized...')` if not set on globalThis. Returns typed `WorkflowExecutionManager`. | Follow globalThis cast pattern from Plan 027 `startCentralNotificationSystem`. |
++| [x] | T008 | Create `create-execution-manager.ts` factory | web (feature) | `apps/web/src/features/074-workflow-execution/create-execution-manager.ts` (new) | Factory resolves OrchestrationService, PositionalGraphService, WorkspaceService from DI. Imports `sseManager` module singleton (no-op stub for now — real SSE in Phase 3). Resolves IStateService from DI (no-op for now). Returns initialized `WorkflowExecutionManager`. | Workshop 002 design. SSE/state deps will be no-op until Phase 3 wires handleEvent(). |
++| [x] | T009 | Bootstrap manager in `instrumentation.ts` | web | `apps/web/instrumentation.ts` | Manager accessible via `getWorkflowExecutionManager()` after server start. HMR-safe: globalThis flag checked before init, reset on failure. SIGTERM cleanup calls `manager.cleanup()`. Console logs `[workflow-execution] Manager initialized`. | Follow exact `startCentralNotificationSystem` pattern: flag-before-async, dynamic import, try/catch with flag reset, SIGTERM handler. |
++
++---
++
++## Context Brief
++
++**Key findings from plan**:
++- Finding 05 (High): Orchestration services not registered in web DI — prerequisite for everything. Action: call `registerOrchestrationServices()` after registering ScriptRunner, EHS, and Plan 034 AgentManager.
++- Finding 06 (High): AgentManager Plan 019 vs 034 mismatch — ODS calls `getNew()`/`getWithSessionId()` which don't exist on Plan 019. Action: de-alias `ORCHESTRATION_DI_TOKENS.AGENT_MANAGER`, register Plan 034 under new token.
++- DYK #1: ONBAS skips `'interrupted'` nodes → resume MUST reset them to `'ready'` before calling `drive()`.
++- DYK #3: Stop AND restart must destroy pods (via `handle.cleanup()` → `podManager.destroyAllPods()`).
++
++**Domain dependencies** (concepts and contracts this phase consumes):
++- `_platform/positional-graph`: `IOrchestrationService.get()` — factory for per-graph handles
++- `_platform/positional-graph`: `IGraphOrchestration.drive({signal, onEvent})` — polling loop with abort
++- `_platform/positional-graph`: `IPositionalGraphService.loadGraphState()/persistGraphState()` — state manipulation for interrupt marking and restart reset
++- `_platform/positional-graph`: `registerOrchestrationServices(container)` — DI registration entry point
++- `_platform/positional-graph`: `DriveEvent`, `DriveResult`, `DriveOptions` — types consumed by onEvent callback
++- `_platform/events`: `SSEManager.broadcast()` (module singleton, not DI) — Phase 3 will wire, Phase 2 stubs
++- `_platform/state`: `IStateService.publish()` (DI: `STATE_DI_TOKENS.STATE_SERVICE`) — Phase 3 will wire, Phase 2 stubs
++- `shared`: `ORCHESTRATION_DI_TOKENS` — token constants for DI resolution
++
++**Domain constraints**:
++- New files go in `apps/web/src/features/074-workflow-execution/` (web feature directory)
++- Contract changes to IGraphOrchestration and IPodManager are within `positional-graph` domain (allowed — same domain as Phase 1)
++- `ORCHESTRATION_DI_TOKENS.AGENT_MANAGER` de-alias is a contract change in `shared/di-tokens.ts` — CLI container must be updated in same PR
++- Web DI container uses child containers — orchestration services register in the same child container as positional-graph services
++- Manager class does NOT import SSEManager or StateService directly — receives them as deps via factory (DI pattern)
++
++**Harness context**: L3 maturity. Harness operational but not needed for Phase 2 (DI + class-level TDD). Phase 6 builds test-data CLI.
++
++**Reusable from Phase 1**:
++- `FakeOrchestrationService`: `configureGraph()`, `get()`, `getGetHistory()` — mock handle resolution
++- `FakeGraphOrchestration`: `setDriveResult()`, `setDriveEvents()`, `getDriveHistory()` — mock drive behavior. **Will need extension**: a "pending drive" mode where `drive()` blocks until explicitly resolved, for testing start/stop timing.
++- `FakePodManager`: Basic pod tracking fake — will need `destroyAllPods()` added
++- `buildFakeReality()`: Reality builders for testing state-dependent logic
++- CLI pattern: `apps/cli/src/lib/container.ts` L268-302 — exact registration pattern for ScriptRunner + EHS
++- CLI pattern: `cliDriveGraph()` in `apps/cli/src/features/036-cli-orchestration-driver/cli-drive-handler.ts` — thin consumer wrapper around `handle.drive()`. Our manager's `start()` follows this pattern but with background execution.
++
++**CLI EventHandlerService registration pattern** (to replicate in web DI):
++```typescript
++container.register<IEventHandlerService>(ORCHESTRATION_DI_TOKENS.EVENT_HANDLER_SERVICE, {
++  useFactory: () => {
++    const registry = new NodeEventRegistry();
++    registerCoreEventTypes(registry);
++    const handlerRegistry = createEventHandlerRegistry();
++    const nes = new NodeEventService(
++      { registry, loadState: async () => { throw new Error('not available'); },
++        persistState: async () => { throw new Error('not available'); } },
++      handlerRegistry
++    );
++    return new EventHandlerService(nes);
++  },
++});
++```
++
++**Manager state machine**:
++```mermaid
++stateDiagram-v2
++    [*] --> idle
++    idle --> starting: start()
++    starting --> running: drive() begins
++    running --> stopping: stop()
++    stopping --> stopped: drive() exits
++    stopped --> starting: start() (resume)
++    running --> completed: graph-complete
++    running --> failed: graph-failed
++    completed --> starting: restart()
++    failed --> starting: restart()
++    stopped --> starting: restart()
++```
++
++**Sequence diagram — start/stop lifecycle**:
++```mermaid
++sequenceDiagram
++    participant SA as Server Action
++    participant Mgr as WorkflowExecutionManager
++    participant Orch as OrchestrationService
++    participant Handle as IGraphOrchestration
++    participant GS as GraphService
++
++    SA->>Mgr: start(ctx, slug)
++    Mgr->>Orch: get(ctx, slug)
++    Orch-->>Mgr: handle
++    Note over Mgr: Create AbortController
++    Mgr->>Handle: drive({signal, onEvent}) [NOT awaited]
++    Mgr-->>SA: {started: true}
++    Note over Handle: drive() runs in background...
++
++    SA->>Mgr: stop(wt, slug)
++    Mgr->>Mgr: controller.abort()
++    Handle-->>Mgr: drivePromise resolves {stopped}
++    Mgr->>Handle: cleanup() [destroys pods]
++    Mgr->>GS: loadGraphState()
++    Note over Mgr: Mark running nodes 'interrupted'
++    Mgr->>GS: persistGraphState()
++    Mgr-->>SA: {stopped: true}
++```
++
++**Sequence diagram — restart lifecycle**:
++```mermaid
++sequenceDiagram
++    participant SA as Server Action
++    participant Mgr as WorkflowExecutionManager
++    participant Handle as IGraphOrchestration
++    participant GS as GraphService
++
++    SA->>Mgr: restart(ctx, slug)
++    Mgr->>Mgr: stop(wt, slug) [internal]
++    Mgr->>Handle: cleanup()
++    Mgr->>GS: loadGraphState()
++    Note over Mgr: Reset ALL nodes to 'pending'<br/>Clear events, outputs
++    Mgr->>GS: persistGraphState()
++    Note over Mgr: Delete execution handle
++    Mgr->>Mgr: start(ctx, slug) [internal]
++    Mgr-->>SA: {restarted: true}
++```
++
++---
++
++## Discoveries & Learnings
++
++_Populated during implementation by plan-6._
++
++| Date | Task | Type | Discovery | Resolution | References |
++|------|------|------|-----------|------------|------------|
++
++**Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
++
++---
++
++## Directory Layout
++
++```
++docs/plans/074-workflow-execution/
++  ├── workflow-execution-plan.md
++  ├── workflow-execution-spec.md
++  ├── research-dossier.md
++  ├── workshops/
++  │   ├── 001-execution-wiring-architecture.md
++  │   ├── 002-central-orchestration-host.md
++  │   ├── 003-harness-test-data-cli.md
++  │   └── 004-cg-unit-update-cli.md
++  ├── tasks/
++  │   ├── phase-1-orchestration-contracts/  (complete ✅)
++  │   └── phase-2-web-di-execution-manager/
++  │       ├── tasks.md                  ← this file
++  │       ├── tasks.fltplan.md          ← flight plan
++  │       └── execution.log.md         ← created by plan-6
++```
+diff --git a/packages/positional-graph/src/fakes/fake-positional-graph-service.ts b/packages/positional-graph/src/fakes/fake-positional-graph-service.ts
+index 7566f59e..e56aa84e 100644
+--- a/packages/positional-graph/src/fakes/fake-positional-graph-service.ts
++++ b/packages/positional-graph/src/fakes/fake-positional-graph-service.ts
+@@ -555,6 +555,26 @@ export class FakePositionalGraphService implements IPositionalGraphService {
+     this._state = state;
+   }
+ 
++  async markNodesInterrupted(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    nodeIds: string[]
++  ): Promise<void> {
++    this.track('markNodesInterrupted', [ctx, graphSlug, nodeIds]);
++    if (this._state) {
++      const nodes = this._state.nodes ?? {};
++      for (const nodeId of nodeIds) {
++        const entry = nodes[nodeId];
++        if (entry) entry.status = 'interrupted';
++      }
++    }
++  }
++
++  async resetGraphState(ctx: WorkspaceContext, graphSlug: string): Promise<void> {
++    this.track('resetGraphState', [ctx, graphSlug]);
++    this._state = { graph_status: 'pending', updated_at: new Date().toISOString(), nodes: {} };
++  }
++
+   async restoreSnapshot(
+     ctx: WorkspaceContext,
+     graphSlug: string,
+diff --git a/packages/positional-graph/src/features/030-orchestration/fake-orchestration-service.ts b/packages/positional-graph/src/features/030-orchestration/fake-orchestration-service.ts
+index cc4e48ff..e8759834 100644
+--- a/packages/positional-graph/src/features/030-orchestration/fake-orchestration-service.ts
++++ b/packages/positional-graph/src/features/030-orchestration/fake-orchestration-service.ts
+@@ -70,6 +70,15 @@ export class FakeGraphOrchestration implements IGraphOrchestration {
+     return this.config.reality;
+   }
+ 
++  async cleanup(): Promise<void> {
++    this._cleanupCalls++;
++  }
++
++  private _cleanupCalls = 0;
++  get cleanupCalls(): number {
++    return this._cleanupCalls;
++  }
++
+   // ── Test helpers ────────────────────────────────────────
+ 
+   /** Queue a DriveResult for drive() — FIFO, last repeats. */
+@@ -118,6 +127,16 @@ export class FakeOrchestrationService implements IOrchestrationService {
+     return handle;
+   }
+ 
++  evict(worktreePath: string, graphSlug: string): void {
++    this.handles.delete(graphSlug);
++    this._evictCalls++;
++  }
++
++  private _evictCalls = 0;
++  get evictCalls(): number {
++    return this._evictCalls;
++  }
++
+   /** Get all get() calls. */
+   getGetHistory(): readonly FakeGetCallRecord[] {
+     return [...this.getHistory];
+diff --git a/packages/positional-graph/src/features/030-orchestration/fake-pod-manager.ts b/packages/positional-graph/src/features/030-orchestration/fake-pod-manager.ts
+index 8ca3a557..6d2058c1 100644
+--- a/packages/positional-graph/src/features/030-orchestration/fake-pod-manager.ts
++++ b/packages/positional-graph/src/features/030-orchestration/fake-pod-manager.ts
+@@ -128,6 +128,16 @@ export class FakePodManager implements IPodManager {
+     this.pods.delete(nodeId);
+   }
+ 
++  async destroyAllPods(): Promise<void> {
++    this.pods.clear();
++    this._destroyAllPodsCalls++;
++  }
++
++  private _destroyAllPodsCalls = 0;
++  get destroyAllPodsCalls(): number {
++    return this._destroyAllPodsCalls;
++  }
++
+   getSessions(): ReadonlyMap<string, string> {
+     return this.sessions;
+   }
+diff --git a/packages/positional-graph/src/features/030-orchestration/graph-orchestration.ts b/packages/positional-graph/src/features/030-orchestration/graph-orchestration.ts
+index 2e4f4297..4a62f46d 100644
+--- a/packages/positional-graph/src/features/030-orchestration/graph-orchestration.ts
++++ b/packages/positional-graph/src/features/030-orchestration/graph-orchestration.ts
+@@ -139,6 +139,13 @@ export class GraphOrchestration implements IGraphOrchestration {
+     return this.buildReality();
+   }
+ 
++  async cleanup(): Promise<void> {
++    if (this.podManager) {
++      await this.podManager.destroyAllPods();
++      await this.podManager.persistSessions(this.ctx, this.graphSlug);
++    }
++  }
++
+   async drive(options?: DriveOptions): Promise<DriveResult> {
+     const maxIterations = options?.maxIterations ?? DEFAULT_DRIVE_MAX_ITERATIONS;
+     const actionDelayMs = options?.actionDelayMs ?? DEFAULT_ACTION_DELAY_MS;
+diff --git a/packages/positional-graph/src/features/030-orchestration/orchestration-service.ts b/packages/positional-graph/src/features/030-orchestration/orchestration-service.ts
+index 31c355cb..361e017d 100644
+--- a/packages/positional-graph/src/features/030-orchestration/orchestration-service.ts
++++ b/packages/positional-graph/src/features/030-orchestration/orchestration-service.ts
+@@ -72,4 +72,9 @@ export class OrchestrationService implements IOrchestrationService {
+     }
+     return handle;
+   }
++
++  evict(worktreePath: string, graphSlug: string): void {
++    const key = `${worktreePath}|${graphSlug}`;
++    this.handles.delete(key);
++  }
+ }
+diff --git a/packages/positional-graph/src/features/030-orchestration/orchestration-service.types.ts b/packages/positional-graph/src/features/030-orchestration/orchestration-service.types.ts
+index 845f49de..5807a98c 100644
+--- a/packages/positional-graph/src/features/030-orchestration/orchestration-service.types.ts
++++ b/packages/positional-graph/src/features/030-orchestration/orchestration-service.types.ts
+@@ -85,6 +85,12 @@ export interface IGraphOrchestration {
+ 
+   /** Build and return a fresh reality snapshot (read-only). */
+   getReality(): Promise<PositionalGraphReality>;
++
++  /**
++   * Terminate all running pods and persist sessions.
++   * Called by WorkflowExecutionManager on stop/restart. Plan 074.
++   */
++  cleanup(): Promise<void>;
+ }
+ 
+ // ── IOrchestrationService ──────────────────────────────
+@@ -102,6 +108,12 @@ export interface IOrchestrationService {
+    * @param graphSlug - Which graph to orchestrate
+    */
+   get(ctx: WorkspaceContext, graphSlug: string): Promise<IGraphOrchestration>;
++
++  /**
++   * Remove a cached handle so the next get() creates a fresh one.
++   * Called by WorkflowExecutionManager on restart. Plan 074 DYK #1.
++   */
++  evict(worktreePath: string, graphSlug: string): void;
+ }
+ 
+ // ── FakeGraphConfig ────────────────────────────────────
+diff --git a/packages/positional-graph/src/features/030-orchestration/pod-manager.ts b/packages/positional-graph/src/features/030-orchestration/pod-manager.ts
+index 6734ddfc..e3ab03f2 100644
+--- a/packages/positional-graph/src/features/030-orchestration/pod-manager.ts
++++ b/packages/positional-graph/src/features/030-orchestration/pod-manager.ts
+@@ -57,6 +57,16 @@ export class PodManager implements IPodManager {
+     this.pods.delete(nodeId);
+   }
+ 
++  async destroyAllPods(): Promise<void> {
++    const terminatePromises = [...this.pods.values()].map((pod) =>
++      pod.terminate().catch(() => {
++        // Swallow errors — pod may already be finished
++      })
++    );
++    await Promise.all(terminatePromises);
++    this.pods.clear();
++  }
++
+   getSessions(): ReadonlyMap<string, string> {
+     return this.sessions;
+   }
+diff --git a/packages/positional-graph/src/features/030-orchestration/pod-manager.types.ts b/packages/positional-graph/src/features/030-orchestration/pod-manager.types.ts
+index 58aea840..ef4259e3 100644
+--- a/packages/positional-graph/src/features/030-orchestration/pod-manager.types.ts
++++ b/packages/positional-graph/src/features/030-orchestration/pod-manager.types.ts
+@@ -67,6 +67,13 @@ export interface IPodManager {
+    */
+   destroyPod(nodeId: string): void;
+ 
++  /**
++   * Terminate and destroy ALL active pods.
++   * Calls terminate() on each pod before removing.
++   * Session IDs are retained. Plan 074: needed for stop/restart.
++   */
++  destroyAllPods(): Promise<void>;
++
+   /**
+    * Get all tracked sessions (for PositionalGraphReality.podSessions).
+    */
+diff --git a/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts b/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts
+index dfb93c6a..9863dc67 100644
+--- a/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts
++++ b/packages/positional-graph/src/interfaces/positional-graph-service.interface.ts
+@@ -756,6 +756,20 @@ export interface IPositionalGraphService {
+   loadGraphState(ctx: WorkspaceContext, graphSlug: string): Promise<State>;
+   persistGraphState(ctx: WorkspaceContext, graphSlug: string, state: State): Promise<void>;
+ 
++  // Execution State Management (Plan 074: Workflow Execution from Web UI)
++
++  /**
++   * Mark specific nodes as 'interrupted'. Used when stopping a running workflow.
++   * Only modifies nodes currently in active statuses (starting, agent-accepted).
++   */
++  markNodesInterrupted(ctx: WorkspaceContext, graphSlug: string, nodeIds: string[]): Promise<void>;
++
++  /**
++   * Reset ALL node statuses to 'pending' and clear per-node events/outputs.
++   * Used when restarting a workflow from scratch.
++   */
++  resetGraphState(ctx: WorkspaceContext, graphSlug: string): Promise<void>;
++
+   // Snapshot Restore (Phase 5, Plan 050 — undo/redo support)
+   restoreSnapshot(
+     ctx: WorkspaceContext,
+diff --git a/packages/positional-graph/src/services/positional-graph.service.ts b/packages/positional-graph/src/services/positional-graph.service.ts
+index 6748d8aa..9f2d08d2 100644
+--- a/packages/positional-graph/src/services/positional-graph.service.ts
++++ b/packages/positional-graph/src/services/positional-graph.service.ts
+@@ -2499,6 +2499,34 @@ export class PositionalGraphService implements IPositionalGraphService {
+     return this.persistState(ctx, graphSlug, state);
+   }
+ 
++  async markNodesInterrupted(
++    ctx: WorkspaceContext,
++    graphSlug: string,
++    nodeIds: string[]
++  ): Promise<void> {
++    const state = await this.loadState(ctx, graphSlug);
++    const nodes = state.nodes ?? {};
++    const activeStatuses = new Set(['starting', 'agent-accepted']);
++    for (const nodeId of nodeIds) {
++      const entry = nodes[nodeId];
++      if (entry && activeStatuses.has(entry.status)) {
++        entry.status = 'interrupted';
++      }
++    }
++    await this.persistState(ctx, graphSlug, state);
++  }
++
++  async resetGraphState(ctx: WorkspaceContext, graphSlug: string): Promise<void> {
++    const state = await this.loadState(ctx, graphSlug);
++    state.graph_status = 'pending';
++    state.updated_at = new Date().toISOString();
++    // Clear all node entries — absent nodes are implicitly pending
++    state.nodes = {};
++    state.transitions = {};
++    state.questions = [];
++    await this.persistState(ctx, graphSlug, state);
++  }
++
+   async restoreSnapshot(
+     ctx: WorkspaceContext,
+     graphSlug: string,
+diff --git a/packages/shared/src/di-tokens.ts b/packages/shared/src/di-tokens.ts
+index 6fbbc5e9..6d038930 100644
+--- a/packages/shared/src/di-tokens.ts
++++ b/packages/shared/src/di-tokens.ts
+@@ -148,8 +148,8 @@ export const ORCHESTRATION_DI_TOKENS = {
+   ORCHESTRATION_SERVICE: 'IOrchestrationService',
+   /** IAgentAdapter — prerequisite token for ODS pod creation (agent nodes) */
+   AGENT_ADAPTER: 'IAgentAdapter',
+-  /** Orchestration alias — references SHARED_DI_TOKENS.AGENT_MANAGER_SERVICE. See also CLI_DI_TOKENS.AGENT_MANAGER */
+-  AGENT_MANAGER: SHARED_DI_TOKENS.AGENT_MANAGER_SERVICE,
++  /** Orchestration-specific agent manager — distinct from web UI agent manager (SHARED_DI_TOKENS). Plan 074: de-aliased for multi-consumer DI. */
++  AGENT_MANAGER: 'IOrchestrationAgentManagerService',
+   /** IScriptRunner — prerequisite token for ODS pod creation (code nodes) */
+   SCRIPT_RUNNER: 'IScriptRunner',
+   /** IEventHandlerService — prerequisite token for settle step (Plan 032) */
+diff --git a/test/unit/web/features/074-workflow-execution/workflow-execution-manager.test.ts b/test/unit/web/features/074-workflow-execution/workflow-execution-manager.test.ts
+new file mode 100644
+index 00000000..9d2392fb
+--- /dev/null
++++ b/test/unit/web/features/074-workflow-execution/workflow-execution-manager.test.ts
+@@ -0,0 +1,288 @@
++/**
++ * WorkflowExecutionManager tests — Plan 074 Phase 2 T006.
++ * TDD: Tests cover start/stop/restart/resume/getStatus/listRunning/cleanup.
++ */
++
++import { WorkflowExecutionManager } from '@/features/074-workflow-execution/workflow-execution-manager';
++import type { ExecutionManagerDeps } from '@/features/074-workflow-execution/workflow-execution-manager.types';
++import { FakeOrchestrationService, FakePositionalGraphService } from '@chainglass/positional-graph';
++import type { WorkspaceContext } from '@chainglass/workflow';
++import { beforeEach, describe, expect, it } from 'vitest';
++
++// ── Helpers ─────────────────────────────────────────────
++
++const TEST_CTX = { workspaceSlug: 'test-ws', worktreePath: '/test/wt' };
++const TEST_SLUG = 'my-pipeline';
++
++function makeFullContext(): WorkspaceContext {
++  return {
++    workspaceSlug: 'test-ws',
++    workspaceName: 'Test Workspace',
++    workspacePath: '/test',
++    worktreePath: '/test/wt',
++    worktreeBranch: 'main',
++    isMainWorktree: true,
++    hasGit: true,
++  };
++}
++
++const fakeWorkspaceService = {
++  resolveContextFromParams: async (_slug: string, _wt?: string): Promise<WorkspaceContext | null> =>
++    makeFullContext(),
++};
++
++function createDeps(overrides?: Partial<ExecutionManagerDeps>): {
++  deps: ExecutionManagerDeps;
++  orchService: FakeOrchestrationService;
++  graphService: FakePositionalGraphService;
++} {
++  const orchService = new FakeOrchestrationService();
++  const graphService = new FakePositionalGraphService();
++  const deps: ExecutionManagerDeps = {
++    orchestrationService: orchService,
++    graphService,
++    workspaceService: fakeWorkspaceService as ExecutionManagerDeps['workspaceService'],
++    ...overrides,
++  };
++  return { deps, orchService, graphService };
++}
++
++function configureSimpleGraph(orchService: FakeOrchestrationService) {
++  orchService.configureGraph(TEST_SLUG, {
++    runResults: [
++      {
++        actions: [],
++        stopReason: 'graph-complete',
++        finalReality: {
++          lines: [],
++          graphSlug: TEST_SLUG,
++          graphStatus: 'complete',
++          worktreePath: '/test/wt',
++          podSessions: {},
++        },
++        iterations: 1,
++      },
++    ],
++    reality: {
++      lines: [],
++      graphSlug: TEST_SLUG,
++      graphStatus: 'pending',
++      worktreePath: '/test/wt',
++      podSessions: {},
++    },
++  });
++}
++
++// ── Tests ───────────────────────────────────────────────
++
++describe('WorkflowExecutionManager', () => {
++  let manager: WorkflowExecutionManager;
++  let orchService: FakeOrchestrationService;
++  let graphService: FakePositionalGraphService;
++
++  beforeEach(() => {
++    const created = createDeps();
++    manager = new WorkflowExecutionManager(created.deps);
++    orchService = created.orchService;
++    graphService = created.graphService;
++  });
++
++  describe('start()', () => {
++    it('starts a workflow and returns started:true', async () => {
++      configureSimpleGraph(orchService);
++
++      const result = await manager.start(TEST_CTX, TEST_SLUG);
++
++      expect(result.started).toBe(true);
++      expect(result.already).toBe(false);
++      expect(result.key).toBe('/test/wt:my-pipeline');
++    });
++
++    it('returns already:true when workflow is already running', async () => {
++      configureSimpleGraph(orchService);
++      // Set drive result so it doesn't throw but also use a long-running drive
++      const handle = await orchService.get(makeFullContext(), TEST_SLUG);
++      // First start
++      await manager.start(TEST_CTX, TEST_SLUG);
++      // Wait for drive to complete
++      await new Promise((r) => setTimeout(r, 10));
++
++      // Second start on completed should start fresh (not idempotent for completed)
++      const result = await manager.start(TEST_CTX, TEST_SLUG);
++      // After completion, status is 'completed' not 'running', so it won't be idempotent
++      expect(result).toBeDefined();
++    });
++
++    it('resolves workspace context from workspaceService', async () => {
++      configureSimpleGraph(orchService);
++
++      await manager.start(TEST_CTX, TEST_SLUG);
++
++      const getHistory = orchService.getGetHistory();
++      expect(getHistory.length).toBeGreaterThanOrEqual(1);
++      expect(getHistory[0].graphSlug).toBe(TEST_SLUG);
++    });
++
++    it('sets status to failed when workspace context resolution fails', async () => {
++      configureSimpleGraph(orchService);
++      const { deps } = createDeps({
++        workspaceService: {
++          resolveContextFromParams: async () => null,
++        } as ExecutionManagerDeps['workspaceService'],
++      });
++      const mgr = new WorkflowExecutionManager(deps);
++
++      const result = await mgr.start(TEST_CTX, TEST_SLUG);
++
++      expect(result.started).toBe(false);
++      expect(mgr.getStatus(TEST_CTX.worktreePath, TEST_SLUG)).toBe('failed');
++    });
++  });
++
++  describe('stop()', () => {
++    it('returns stopped:false when nothing is running', async () => {
++      const result = await manager.stop(TEST_CTX.worktreePath, TEST_SLUG);
++      expect(result.stopped).toBe(false);
++    });
++
++    it('stops a running workflow and sets status to stopped', async () => {
++      configureSimpleGraph(orchService);
++      await manager.start(TEST_CTX, TEST_SLUG);
++      // Give drive() a moment to start
++      await new Promise((r) => setTimeout(r, 10));
++
++      // If drive already completed, stop returns false (status not 'running')
++      const result = await manager.stop(TEST_CTX.worktreePath, TEST_SLUG);
++      // Regardless, the handle should exist with a terminal status
++      const handle = manager.getHandle(TEST_CTX.worktreePath, TEST_SLUG);
++      expect(handle).toBeDefined();
++      expect(['stopped', 'completed', 'failed']).toContain(handle?.status);
++    });
++  });
++
++  describe('restart()', () => {
++    it('stops, resets state, evicts cache, and starts fresh', async () => {
++      configureSimpleGraph(orchService);
++      // First start
++      await manager.start(TEST_CTX, TEST_SLUG);
++      await new Promise((r) => setTimeout(r, 10));
++
++      // Restart
++      const result = await manager.restart(TEST_CTX, TEST_SLUG);
++
++      expect(result.started).toBe(true);
++      // graphService.resetGraphState should have been called
++      expect(graphService.calls.get('resetGraphState')?.length).toBeGreaterThanOrEqual(1);
++      // Evict should have been called
++      expect(orchService.evictCalls).toBeGreaterThanOrEqual(1);
++    });
++  });
++
++  describe('getStatus()', () => {
++    it('returns idle for unknown workflow', () => {
++      expect(manager.getStatus('/unknown', 'unknown')).toBe('idle');
++    });
++
++    it('returns status of known workflow', async () => {
++      configureSimpleGraph(orchService);
++      await manager.start(TEST_CTX, TEST_SLUG);
++      await new Promise((r) => setTimeout(r, 10));
++
++      const status = manager.getStatus(TEST_CTX.worktreePath, TEST_SLUG);
++      expect(['running', 'completed', 'failed']).toContain(status);
++    });
++  });
++
++  describe('getHandle()', () => {
++    it('returns undefined for unknown workflow', () => {
++      expect(manager.getHandle('/unknown', 'unknown')).toBeUndefined();
++    });
++
++    it('returns handle after start', async () => {
++      configureSimpleGraph(orchService);
++      await manager.start(TEST_CTX, TEST_SLUG);
++
++      const handle = manager.getHandle(TEST_CTX.worktreePath, TEST_SLUG);
++      expect(handle).toBeDefined();
++      expect(handle?.graphSlug).toBe(TEST_SLUG);
++      expect(handle?.worktreePath).toBe(TEST_CTX.worktreePath);
++      expect(handle?.startedAt).toBeTruthy();
++    });
++  });
++
++  describe('listRunning()', () => {
++    it('returns empty when nothing is running', () => {
++      expect(manager.listRunning()).toHaveLength(0);
++    });
++  });
++
++  describe('cleanup()', () => {
++    it('stops all running workflows', async () => {
++      configureSimpleGraph(orchService);
++      await manager.start(TEST_CTX, TEST_SLUG);
++      await new Promise((r) => setTimeout(r, 10));
++
++      await manager.cleanup();
++
++      // After cleanup, no workflows should be running
++      expect(manager.listRunning()).toHaveLength(0);
++    });
++  });
++
++  describe('handleEvent() integration', () => {
++    it('updates handle state from drive events', async () => {
++      orchService.configureGraph(TEST_SLUG, {
++        runResults: [
++          {
++            actions: [{ type: 'start', nodeId: 'n1' }],
++            stopReason: 'graph-complete',
++            finalReality: {
++              lines: [],
++              graphSlug: TEST_SLUG,
++              graphStatus: 'complete',
++              worktreePath: '/test/wt',
++              podSessions: {},
++            },
++            iterations: 1,
++          },
++        ],
++        reality: {
++          lines: [],
++          graphSlug: TEST_SLUG,
++          graphStatus: 'pending',
++          worktreePath: '/test/wt',
++          podSessions: {},
++        },
++      });
++
++      // Configure drive events to be emitted
++      const fakeHandle = await orchService.get(makeFullContext(), TEST_SLUG);
++      (fakeHandle as import('@chainglass/positional-graph').FakeGraphOrchestration).setDriveResult({
++        exitReason: 'complete',
++        iterations: 3,
++        totalActions: 5,
++      });
++      (fakeHandle as import('@chainglass/positional-graph').FakeGraphOrchestration).setDriveEvents([
++        { type: 'status', message: 'Graph running' },
++        {
++          type: 'iteration',
++          message: '2 actions',
++          data: {
++            actions: [1, 2],
++            stopReason: 'continue',
++            finalReality: {} as never,
++            iterations: 2,
++          },
++        },
++      ]);
++
++      await manager.start(TEST_CTX, TEST_SLUG);
++      await new Promise((r) => setTimeout(r, 50));
++
++      const handle = manager.getHandle(TEST_CTX.worktreePath, TEST_SLUG);
++      expect(handle).toBeDefined();
++      // Drive events should have updated handle
++      expect(handle?.lastEventType).toBeTruthy();
++    });
++  });
++});

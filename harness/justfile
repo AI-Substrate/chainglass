@@ -65,3 +65,23 @@ typecheck:
 # Run Playwright tests against the running container
 playwright *ARGS:
     npx playwright test --config=playwright.config.ts {{ARGS}}
+
+# Run a cg CLI command inside the harness container (auto-adds --json + --workspace-path)
+# Usage: just cg wf show test-workflow --detailed
+# Auto-injects --server-url for commands that need server access:
+#   --server flag present, OR stop/restart subcommands (always server-mode)
+cg *ARGS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    eval "$(just _ports)"
+    CONTAINER="chainglass-${HARNESS_WORKTREE}"
+    EXTRA_FLAGS=""
+    # Auto-inject --server-url when --server is present OR for stop/restart commands
+    if echo "{{ARGS}}" | grep -qE -- '--server|wf stop|wf restart'; then
+      EXTRA_FLAGS="--server-url http://localhost:${HARNESS_APP_PORT}"
+    fi
+    docker exec "$CONTAINER" node /app/apps/cli/dist/cli.cjs \
+      {{ARGS}} \
+      --workspace-path /app/scratch/harness-test-workspace \
+      --json --pretty \
+      $EXTRA_FLAGS

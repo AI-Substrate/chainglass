@@ -14,6 +14,7 @@ import type { IFileSystem, IPathResolver, IYamlParser, ResultError } from '@chai
 import type { InstanceAdapter } from '../adapters/instance.adapter.js';
 import type { TemplateAdapter } from '../adapters/template.adapter.js';
 import type {
+  DeleteTemplateResult,
   ITemplateService,
   InstantiateResult,
   ListInstancesResult,
@@ -439,6 +440,31 @@ export class TemplateService implements ITemplateService {
       };
     } catch (err) {
       return { data: null, errors: [makeError(err instanceof Error ? err.message : String(err))] };
+    }
+  }
+
+  /**
+   * Delete a workflow template directory. Idempotent.
+   * Plan 074 Phase 6 FT-002.
+   */
+  async delete(ctx: WorkspaceContext, templateSlug: string): Promise<DeleteTemplateResult> {
+    const templateDir = this.templateAdapter.getTemplateDir(ctx, templateSlug);
+    try {
+      const exists = await this.fs.exists(templateDir);
+      if (!exists) {
+        return { deleted: true, errors: [] };
+      }
+      await this.fs.rmdir(templateDir);
+      return { deleted: true, errors: [] };
+    } catch (err) {
+      return {
+        deleted: false,
+        errors: [
+          makeError(
+            `Failed to delete template '${templateSlug}': ${err instanceof Error ? err.message : String(err)}`
+          ),
+        ],
+      };
     }
   }
 

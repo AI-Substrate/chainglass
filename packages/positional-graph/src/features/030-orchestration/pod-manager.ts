@@ -53,8 +53,22 @@ export class PodManager implements IPodManager {
     this.sessions.set(nodeId, sessionId);
   }
 
-  destroyPod(nodeId: string): void {
+  async destroyPod(nodeId: string): Promise<void> {
+    const pod = this.pods.get(nodeId);
+    if (pod) {
+      await pod.terminate().catch(() => {});
+    }
     this.pods.delete(nodeId);
+  }
+
+  async destroyAllPods(): Promise<void> {
+    const terminatePromises = [...this.pods.values()].map((pod) =>
+      pod.terminate().catch(() => {
+        // Swallow errors — pod may already be finished
+      })
+    );
+    await Promise.all(terminatePromises);
+    this.pods.clear();
   }
 
   getSessions(): ReadonlyMap<string, string> {
@@ -79,6 +93,10 @@ export class PodManager implements IPodManager {
   async persistSessions(ctx: { readonly worktreePath: string }, graphSlug: string): Promise<void> {
     const path = sessionsPath(ctx.worktreePath, graphSlug);
 
+    // Ensure directory exists before writing
+    const dir = path.substring(0, path.lastIndexOf('/'));
+    await this.fs.mkdir(dir, { recursive: true });
+
     const data = {
       sessions: Object.fromEntries(this.sessions),
       persisted_at: new Date().toISOString(),
@@ -89,5 +107,5 @@ export class PodManager implements IPodManager {
 }
 
 function sessionsPath(worktreePath: string, graphSlug: string): string {
-  return `${worktreePath}/.chainglass/graphs/${graphSlug}/pod-sessions.json`;
+  return `${worktreePath}/.chainglass/data/workflows/${graphSlug}/pod-sessions.json`;
 }

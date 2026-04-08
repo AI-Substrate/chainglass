@@ -78,28 +78,31 @@ function buildOrchestrationStack(
   );
   const eventHandlerService = new EventHandlerService(nes);
   const nodeFs = new NodeFileSystemAdapter();
-  const podManager = new PodManager(nodeFs);
-  const contextService = new AgentContextService();
   const scriptRunner = new ScriptRunner();
 
-  const ods = new ODS({
-    graphService: service,
-    podManager,
-    contextService,
-    agentManager,
-    scriptRunner,
-    workUnitService,
-  });
-
+  // Per-handle factory with capture for test inspection
+  let lastPerHandleDeps: { podManager: PodManager; ods: ODS } | undefined;
   const orchestrationService = new OrchestrationService({
     graphService: service,
     onbas: new ONBAS(),
-    ods,
     eventHandlerService,
-    podManager,
+    createPerHandleDeps: () => {
+      const pm = new PodManager(nodeFs);
+      const cs = new AgentContextService();
+      const o = new ODS({
+        graphService: service,
+        podManager: pm,
+        contextService: cs,
+        agentManager,
+        scriptRunner,
+        workUnitService,
+      });
+      lastPerHandleDeps = { podManager: pm, ods: o };
+      return { podManager: pm, ods: o };
+    },
   });
 
-  return { orchestrationService, podManager };
+  return { orchestrationService, getLastPerHandleDeps: () => lastPerHandleDeps };
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

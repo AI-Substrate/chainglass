@@ -45,6 +45,7 @@ export {
 } from './features/030-orchestration/index.js';
 export type {
   OrchestrationServiceDeps,
+  PerHandleDeps,
   GraphOrchestrationOptions,
   FakeGetCallRecord,
 } from './features/030-orchestration/index.js';

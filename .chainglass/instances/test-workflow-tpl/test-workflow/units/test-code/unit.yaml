@@ -1,0 +1,19 @@
+slug: test-code
+type: code
+version: 1.0.0
+inputs:
+  - name: input_data
+    type: data
+    data_type: text
+    required: true
+    description: Input data for the code unit to transform
+outputs:
+  - name: output_data
+    type: data
+    data_type: text
+    required: true
+    description: Transformed output data
+code:
+  script: scripts/test-transform.sh
+  timeout: 30
+description: Test code unit for workflow execution validation

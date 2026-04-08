@@ -43,6 +43,9 @@ import {
   submitUserInput as submitUserInputAction,
   updateNodeConfig as updateNodeConfigAction,
 } from '../../../../app/actions/workflow-actions';
+import { WorkflowSSEConnector } from '../../074-workflow-execution/components/workflow-sse-connector';
+import { deriveButtonState } from '../../074-workflow-execution/execution-button-state';
+import { useWorkflowExecution } from '../../074-workflow-execution/hooks/use-workflow-execution';
 import { useUndoRedo } from '../hooks/use-undo-redo';
 import { useWorkflowMutations } from '../hooks/use-workflow-mutations';
 import { useWorkflowSSE } from '../hooks/use-workflow-sse';
@@ -56,6 +59,7 @@ import { QAModal } from './qa-modal';
 import { WorkUnitToolbox } from './work-unit-toolbox';
 import { WorkflowCanvas } from './workflow-canvas';
 import { WorkflowEditorLayout } from './workflow-editor-layout';
+import { isLineEditable } from './workflow-line';
 import { WorkflowTempBar } from './workflow-temp-bar';
 
 export interface WorkflowEditorProps {
@@ -126,6 +130,22 @@ export function WorkflowEditor({
     graphStatus,
     onStatusUpdate: setGraphStatus,
   });
+
+  // Workflow execution (Plan 074 Phase 4)
+  const execution = useWorkflowExecution({
+    workspaceSlug,
+    graphSlug,
+    worktreePath,
+  });
+  const buttonState = deriveButtonState(
+    execution.status,
+    execution.actionPending,
+    execution.hydrating
+  );
+  const isExecutionActive =
+    execution.status === 'starting' ||
+    execution.status === 'running' ||
+    execution.status === 'stopping';
 
   // Undo/redo
   const undoRedo = useUndoRedo({
@@ -200,6 +220,13 @@ export function WorkflowEditor({
     return graphStatus.lines.findIndex((l) => l.nodes.some((n) => n.nodeId === selectedNodeId));
   }, [selectedNodeId, graphStatus.lines]);
 
+  // FT-001: Gate keyboard/modal mutations on execution-aware editability
+  const selectedNodeEditable = useMemo(() => {
+    if (!selectedNodeId) return false;
+    const line = graphStatus.lines.find((l) => l.nodes.some((n) => n.nodeId === selectedNodeId));
+    return line ? isLineEditable(line, execution.status) : false;
+  }, [selectedNodeId, graphStatus.lines, execution.status]);
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor)
@@ -268,12 +295,12 @@ export function WorkflowEditor({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.key === 'Backspace' && selectedNodeId) {
+      if (e.key === 'Backspace' && selectedNodeId && selectedNodeEditable) {
         e.preventDefault();
         handleDeleteNode(selectedNodeId);
       }
     },
-    [selectedNodeId, handleDeleteNode]
+    [selectedNodeId, selectedNodeEditable, handleDeleteNode]
   );
 
   return (
@@ -284,6 +311,7 @@ export function WorkflowEditor({
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
+      <WorkflowSSEConnector />
       {/* biome-ignore lint/a11y/noNoninteractiveTabindex: keyboard delete needs focus */}
       <div onKeyDown={handleKeyDown} tabIndex={0} className="h-full outline-none">
         <WorkflowEditorLayout
@@ -293,8 +321,8 @@ export function WorkflowEditor({
               templateSource={templateSource}
               undoDepth={undoRedo.undoDepth}
               redoDepth={undoRedo.redoDepth}
-              canUndo={undoRedo.canUndo}
-              canRedo={undoRedo.canRedo}
+              canUndo={undoRedo.canUndo && !isExecutionActive}
+              canRedo={undoRedo.canRedo && !isExecutionActive}
               onUndo={async () => {
                 const current = await loadCurrentSnapshot();
                 await undoRedo.undo(current);
@@ -303,6 +331,14 @@ export function WorkflowEditor({
                 const current = await loadCurrentSnapshot();
                 await undoRedo.redo(current);
               }}
+              executionStatus={execution.status}
+              buttonState={execution.disabled ? undefined : buttonState}
+              iterations={execution.iterations}
+              lastMessage={execution.lastMessage}
+              hydrating={execution.hydrating}
+              onRun={execution.run}
+              onStop={execution.stop}
+              onRestart={execution.restart}
             />
           }
           main={
@@ -311,6 +347,7 @@ export function WorkflowEditor({
               isDragging={isDragging}
               selectedNodeId={selectedNodeId}
               relatedNodeIds={relatedNodes?.relatedNodeIds}
+              executionStatus={execution.status}
               onSelectNode={setSelectedNodeId}
               onDeleteNode={handleDeleteNode}
               onAddLine={async (label?: string) => {
@@ -353,7 +390,11 @@ export function WorkflowEditor({
                 contextColor={computeContextBadge(selectedNode, selectedNodeLineIndex)}
                 related={relatedNodes?.related ?? []}
                 onBack={() => setSelectedNodeId(null)}
-                onEditProperties={() => setEditModalNodeId(selectedNodeId)}
+                onEditProperties={
+                  selectedNodeEditable && selectedNodeId
+                    ? () => setEditModalNodeId(selectedNodeId)
+                    : undefined
+                }
                 onEditTemplate={
                   selectedNode.unitSlug
                     ? () => {
@@ -367,6 +408,16 @@ export function WorkflowEditor({
                 onProvideInput={
                   selectedNode.unitType === 'user-input' && selectedNodeId
                     ? () => openHumanInputModal(selectedNodeId)
+                    : undefined
+                }
+                onViewAgent={
+                  selectedNode.unitType === 'agent'
+                    ? () => {
+                        const wtParam = worktreePath
+                          ? `?worktree=${encodeURIComponent(worktreePath)}`
+                          : '';
+                        window.location.href = `/workspaces/${workspaceSlug}/agents${wtParam}`;
+                      }
                     : undefined
                 }
               />

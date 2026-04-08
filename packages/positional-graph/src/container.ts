@@ -149,23 +149,28 @@ export function registerOrchestrationServices(container: DependencyContainer): v
       );
 
       const onbas = new ONBAS();
-      const contextService = new AgentContextService();
-      const podManager = new PodManager(fs);
-      const ods = new ODS({
-        graphService,
-        podManager,
-        contextService,
-        agentManager,
-        scriptRunner,
-        workUnitService,
-      });
+
+      // Per-handle factory: each graph handle gets its own PodManager + ODS
+      // for concurrent isolation (Plan 074 DYK #2)
+      const createPerHandleDeps = () => {
+        const podManager = new PodManager(fs);
+        const contextService = new AgentContextService();
+        const ods = new ODS({
+          graphService,
+          podManager,
+          contextService,
+          agentManager,
+          scriptRunner,
+          workUnitService,
+        });
+        return { podManager, ods };
+      };
 
       return new OrchestrationService({
         graphService,
         onbas,
-        ods,
         eventHandlerService,
-        podManager,
+        createPerHandleDeps,
       });
     },
   });

@@ -1,0 +1,27 @@
+# Test agent unit patch — Plan 074 Phase 6 T005
+# Applied via: cg unit update test-agent --patch <this-file>
+description: "Test agent for workflow execution validation"
+version: "1.0.0"
+inputs:
+  - name: spec
+    type: data
+    data_type: text
+    required: true
+    description: "Specification for the agent to process"
+outputs:
+  - name: result
+    type: data
+    data_type: text
+    required: true
+    description: "Agent processing result"
+  - name: summary
+    type: data
+    data_type: text
+    required: false
+    description: "Brief summary of the result"
+agent:
+  prompt_template: "Process the following specification:\n\n{{spec}}"
+  supported_agents:
+    - claude-code
+    - copilot
+  estimated_tokens: 2000

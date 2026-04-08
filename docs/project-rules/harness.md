@@ -4,11 +4,18 @@
 **Plan**: [067-harness](../plans/067-harness/harness-plan.md)
 **ADR**: [ADR-0014](../adr/adr-0014-first-class-agentic-development-harness.md)
 
+> **Harness Docs**: [Agent Rules](../../AGENTS.md#the-harness-is-non-negotiable) |
+> [Architecture](../../harness/README.md) |
+> **This file** |
+> [Workflow Guide](../how/harness-workflow.md)
+
 ## Overview
 
 The harness is a Docker-containerized dev environment with Playwright/CDP browser automation, controlled by a typed CLI that returns structured JSON. Agents boot the app, browse it at any viewport, capture screenshots, run tests, and seed test data.
 
 The harness is **external tooling** rooted at `harness/` — it is not a registered domain, not part of `apps/cli`. It is included in `pnpm-workspace.yaml` (per [ADR-0014 amendment](../plans/070-harness-agent-runner/agent-runner-plan.md#adr-0014-amendment-workspace-managed-tooling)) so it can import `@chainglass/shared` for typed SDK adapter integration. This is a build-system concern, not an architectural promotion to domain status.
+
+**ADR-0014 Import Exceptions**: The harness may import from `@chainglass/shared` (general SDK, types) and `@chainglass/positional-graph` (workflow auto-completion in Plan 076). These are sanctioned exceptions — the harness needs direct access to workflow engine types for auto-completion runner and workflow contract tests.
 
 ## Boot
 
@@ -95,10 +102,35 @@ All commands return `{command, status, data?, error?}` JSON to stdout.
 | `just harness results` | Read latest test results |
 | `just harness seed` | Create test workspace + worktrees |
 | `just harness ports` | Show port allocation |
-| `just harness agent run <slug>` | Execute an agent definition (Plan 070) |
-| `just harness agent list` | List available agent definitions |
-| `just harness agent history <slug>` | Show past runs for an agent |
-| `just harness agent validate <slug>` | Re-validate most recent run output |
+| `just agent-list` | List available agent definitions (via minih) |
+| `just agent-doctor` | Validate all agent conventions |
+| `just agent-dry-run <slug>` | Preview assembled prompt without executing |
+| `just smoke-test-agent` | Run smoke-test agent |
+| `just code-review-agent <path>` | Code review with GPT-5.4 xhigh, 20min timeout |
+| `just agent-tail <slug>` | Follow running agent's event stream |
+| `just agent-history <slug>` | Show past runs for an agent |
+| `just agent-validate <slug>` | Re-validate most recent run output |
+| `just agent-resume <slug> "msg"` | Follow up on a completed session |
+| `just harness-cg <args>` | Run any `cg` CLI command inside the container (auto-adds `--json` + `--workspace-path` + `--server-url`) |
+| `just harness workflow run [--server]` | Run workflow with assertions + envelope (automated testing) |
+| `just harness workflow status [--server]` | Node-level workflow status |
+| `just harness workflow reset` | Clean + recreate test workflow data |
+| `just harness workflow logs [--errors]` | Show cached event timeline |
+
+> **`harness-cg` vs `harness workflow`**: Use `just harness-cg wf ...` for ad-hoc exploration (raw CLI output). Use `just harness workflow run` for automated testing (structured assertions + HarnessEnvelope).
+
+#### Container CG Workflow Recipe
+
+```bash
+# Full end-to-end inside the container:
+just harness seed                                    # 1. Seed test workspace
+just harness-cg wf create my-test                    # 2. Create workflow
+just harness-cg wf node add my-test <lineId> test-agent  # 3. Add nodes
+just harness-cg wf run my-test --server              # 4. Start (returns immediately)
+just harness-cg wf show my-test --detailed --server  # 5. Check progress
+just harness-cg wf stop my-test                      # 6. Stop it
+just harness screenshot workflow-result              # 7. Visual proof
+```
 
 ### Error Codes
 
@@ -202,6 +234,8 @@ The harness tests three viewport tiers:
 | Plan 070 P2 | Agent runner: folder mgmt, runner, validator, display, CLI, error codes | 2026-03-07 |
 | Plan 070 P3 | Smoke-test agent: first agent definition, validated end-to-end run, retrospective feedback loop | 2026-03-08 |
 | Plan 070 FX002 | Console-logs + screenshot-all CLI commands, pnpm workspace docs — from smoke-test retrospective | 2026-03-08 |
+| Plan 076 P1-P3 | Workflow execution: ODS error queue, SSE fix, CLI telemetry (--detailed, --json-events), harness workflow commands (reset/run/status/logs), auto-completion runner | 2026-03-20 |
+| Plan 076 P4 | REST API + SDK at @chainglass/shared/sdk/workflow, CG CLI --server mode (fire-and-forget run), harness-cg recipe, container CG commands, localToken auth, drive lock in engine | 2026-03-23 |
 
 ## Prompt Templates
 
@@ -240,17 +274,20 @@ harness/agents/smoke-test/
 # Set GitHub token (required for Copilot SDK)
 export GH_TOKEN=$(gh auth token)
 
-# Boot harness if not running
+# Boot harness if not running (needed for Docker-dependent agents)
 just harness dev
 
 # Execute the agent
-just harness agent run smoke-test
+just smoke-test-agent
+
+# Preview prompt without executing
+just agent-dry-run smoke-test
 
 # Re-validate after schema changes
-just harness agent validate smoke-test
+just agent-validate smoke-test
 
 # View run history
-just harness agent history smoke-test
+just agent-history smoke-test
 ```
 
 **What the smoke-test does**: Health check → 3-viewport screenshots → console error check via CDP → server log review → structured report → honest retrospective (UX audit of the harness).
@@ -280,7 +317,10 @@ See `harness/agents/smoke-test/` as the reference implementation.
 
 ### Creating New Agents
 
-1. Create `harness/agents/<slug>/prompt.md` (required)
-2. Optionally add `output-schema.json` (JSON Schema for validation)
-3. Optionally add `instructions.md` (agent-specific rules)
-4. Run with `just harness agent run <slug>`
+1. Scaffold: `minih init <slug> --agents-dir harness/agents`
+2. Edit `prompt.md` — add YAML frontmatter (`description`, `tags`) and task prompt
+3. Optionally edit `output-schema.json` (JSON Schema for validation)
+4. Optionally edit `instructions.md` (agent-specific rules)
+5. Validate: `just agent-doctor`
+6. Preview: `just agent-dry-run <slug>`
+7. Run: `minih run <slug> --agents-dir harness/agents`
