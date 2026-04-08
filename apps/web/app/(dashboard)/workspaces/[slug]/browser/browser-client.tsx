@@ -380,8 +380,11 @@ function BrowserClientInner({
   const treeRef = useRef<FileTreeHandle>(null);
   const [trackedExpandedDirs, setTrackedExpandedDirs] = useState<string[]>([]);
   const trackedExpandedDirsRef = useRef<string[]>([]);
+  // Plan 077: Guard against programmatic expansion updating dir param
+  const isProgrammaticExpansionRef = useRef(false);
 
-  // Plan 077: Track last-expanded folder to show gallery in viewer panel
+  // Plan 077: Track last-expanded folder to show gallery in viewer panel.
+  // Only updates dir on user-initiated folder clicks, not programmatic expansion.
   const handleExpandedDirsChange = useCallback(
     (dirs: string[]) => {
       const oldSet = new Set(trackedExpandedDirsRef.current);
@@ -389,8 +392,8 @@ function BrowserClientInner({
       trackedExpandedDirsRef.current = dirs;
       setTrackedExpandedDirs(dirs);
 
-      if (newlyExpanded) {
-        setParams({ dir: newlyExpanded, file: '' }, { history: 'push' });
+      if (newlyExpanded && !isProgrammaticExpansionRef.current) {
+        setParams({ dir: newlyExpanded }, { history: 'push' });
       }
     },
     [setParams]
@@ -610,6 +613,7 @@ function BrowserClientInner({
     if (!selectedFile) return;
     const parts = selectedFile.split('/');
     if (parts.length <= 1) return;
+    isProgrammaticExpansionRef.current = true;
     const ancestors: string[] = [];
     let current = '';
     for (let i = 0; i < parts.length - 1; i++) {
@@ -618,6 +622,10 @@ function BrowserClientInner({
       fileNav.handleExpand(current);
     }
     setExpandPaths(ancestors);
+    // Reset flag after FileTree processes the expansion
+    requestAnimationFrame(() => {
+      isProgrammaticExpansionRef.current = false;
+    });
   }, [selectedFile, fileNav.handleExpand]);
 
   // --- DYK-P3-05: Register SDK commands via useEffect ---

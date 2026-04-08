@@ -8,7 +8,7 @@
  */
 
 import type { FileEntry } from '@/features/041-file-browser/services/directory-listing';
-import { detectContentType } from '@/lib/content-type-detection';
+import { detectContentType, isBinaryExtension } from '@/lib/content-type-detection';
 
 export type GalleryGroup = 'folder' | 'media' | 'document' | 'other';
 
@@ -34,13 +34,14 @@ function classifyEntry(entry: FileEntry): GalleryItem {
     };
   }
 
-  // PDF, HTML, and known binary web assets (css, js, json, fonts) go to 'other'
-  // Everything else (unknown extensions = text files) goes to 'document'
-  if (
-    contentType.category === 'binary' ||
-    contentType.category === 'pdf' ||
-    contentType.category === 'html'
-  ) {
+  // PDF and HTML go to 'other'
+  if (contentType.category === 'pdf' || contentType.category === 'html') {
+    return { ...entry, group: 'other' };
+  }
+
+  // If extension is known binary (css, js, json, fonts, etc.) → 'other'
+  // If extension is unknown (text files like .ts, .py, .md, .txt) → 'document'
+  if (isBinaryExtension(entry.name)) {
     return { ...entry, group: 'other' };
   }
 

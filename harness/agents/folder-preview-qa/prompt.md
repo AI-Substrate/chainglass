@@ -23,10 +23,14 @@ Validate the folder content preview gallery (Plan 077) by seeding a sample direc
 
 Create a test directory with mixed content types inside the workspace's worktree. The workspace and worktree path can be discovered from the dev server.
 
-First, find the workspace and worktree:
+First, discover the app port and workspace:
 ```bash
+# Get the app port from dev server info
+APP_PORT=$(cat .chainglass/server.json 2>/dev/null | python3 -c "import json,sys; print(json.load(sys.stdin).get('port',3000))" 2>/dev/null || echo 3000)
+echo "App running on port: $APP_PORT"
+
 # Get workspace slug from the dev server
-curl -s http://localhost:3000/api/workspaces | python3 -c "import json,sys; ws=json.load(sys.stdin); print(ws[0]['slug'] if ws else 'NONE')"
+curl -s "http://localhost:$APP_PORT/api/workspaces" | python3 -c "import json,sys; ws=json.load(sys.stdin); print(ws[0]['slug'] if ws else 'NONE')"
 ```
 
 Then create a sample directory structure inside the worktree with these file types:
@@ -107,7 +111,7 @@ ls -la "$SAMPLE_DIR"
 
 Use Playwright browser automation to:
 
-1. Navigate to the file browser: `http://localhost:3000/workspaces/<slug>/browser?worktree=<path>`
+1. Navigate to the file browser: `http://localhost:$APP_PORT/workspaces/<slug>/browser?worktree=<path>`
 2. Set viewport to desktop (1280×800)
 3. In the file tree, expand `scratch` → `gallery-test`
 4. Wait for the gallery to appear in the right panel

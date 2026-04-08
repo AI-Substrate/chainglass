@@ -31,7 +31,7 @@ export interface FolderPreviewPanelProps {
   onBreadcrumbNavigate: (path: string) => void;
 }
 
-type PanelState = 'loading' | 'empty' | 'warning' | 'gallery';
+type PanelState = 'loading' | 'empty' | 'error' | 'warning' | 'gallery';
 
 export function FolderPreviewPanel({
   dirPath,
@@ -54,7 +54,7 @@ export function FolderPreviewPanel({
       const url = `/api/workspaces/${encodeURIComponent(slug)}/files?worktree=${encodeURIComponent(worktreePath)}&dir=${encodeURIComponent(dirPath)}`;
       const res = await fetch(url);
       if (!res.ok) {
-        setState('empty');
+        setState('error');
         return;
       }
       const data = await res.json();
@@ -70,7 +70,7 @@ export function FolderPreviewPanel({
         setState('gallery');
       }
     } catch {
-      setState('empty');
+      setState('error');
     }
   }, [slug, worktreePath, dirPath]);
 
@@ -134,6 +134,23 @@ export function FolderPreviewPanel({
       {/* Content area */}
       <div className="flex-1 overflow-y-auto p-4">
         {state === 'loading' && <GallerySkeletonGrid />}
+
+        {state === 'error' && (
+          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground text-center gap-3">
+            <AlertTriangle className="h-10 w-10 text-destructive opacity-70" />
+            <span className="text-sm font-semibold">Failed to load folder</span>
+            <span className="text-xs max-w-[280px]">
+              Could not read directory contents. The folder may have been moved or deleted.
+            </span>
+            <button
+              type="button"
+              onClick={fetchEntries}
+              className="mt-2 px-4 py-1.5 rounded-md border border-border bg-primary text-primary-foreground text-xs font-medium hover:opacity-90 transition-opacity"
+            >
+              Retry
+            </button>
+          </div>
+        )}
 
         {state === 'empty' && (
           <div className="flex flex-col items-center justify-center py-16 text-muted-foreground text-center gap-3">
