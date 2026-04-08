@@ -15,6 +15,7 @@ import {
   FileViewerPanel,
   type ViewerMode,
 } from '@/features/041-file-browser/components/file-viewer-panel';
+import { FolderPreviewPanel } from '@/features/041-file-browser/components/folder-preview-panel';
 import { useClipboard } from '@/features/041-file-browser/hooks/use-clipboard';
 import { useFileFilter } from '@/features/041-file-browser/hooks/use-file-filter';
 import { useFileMutations } from '@/features/041-file-browser/hooks/use-file-mutations';
@@ -121,6 +122,7 @@ function BrowserClientInner({
 
   const mode = (params.mode as ViewerMode) || 'preview';
   const selectedFile = params.file || undefined;
+  const currentDir = params.dir || '';
   const panelMode = (params.panel as PanelMode) || 'tree';
   const scrollToLine = params.line ?? null;
 
@@ -377,6 +379,22 @@ function BrowserClientInner({
 
   const treeRef = useRef<FileTreeHandle>(null);
   const [trackedExpandedDirs, setTrackedExpandedDirs] = useState<string[]>([]);
+  const trackedExpandedDirsRef = useRef<string[]>([]);
+
+  // Plan 077: Track last-expanded folder to show gallery in viewer panel
+  const handleExpandedDirsChange = useCallback(
+    (dirs: string[]) => {
+      const oldSet = new Set(trackedExpandedDirsRef.current);
+      const newlyExpanded = dirs.find((d) => !oldSet.has(d));
+      trackedExpandedDirsRef.current = dirs;
+      setTrackedExpandedDirs(dirs);
+
+      if (newlyExpanded) {
+        setParams({ dir: newlyExpanded, file: '' }, { history: 'push' });
+      }
+    },
+    [setParams]
+  );
 
   // T004: Watch current open file for external changes
   const fileChanges = useFileChanges(selectedFile ?? '', { debounce: 100 });
@@ -790,7 +808,7 @@ function BrowserClientInner({
                     onExpand={fileNav.handleExpand}
                     childEntries={filteredChildEntries}
                     expandPaths={expandPaths}
-                    onExpandedDirsChange={setTrackedExpandedDirs}
+                    onExpandedDirsChange={handleExpandedDirsChange}
                     onCopyFullPath={clipboard.handleCopyFullPath}
                     onCopyRelativePath={clipboard.handleCopyRelativePath}
                     onCopyContent={clipboard.handleCopyContent}
@@ -882,6 +900,22 @@ function BrowserClientInner({
                 }
                 scrollToLine={scrollToLine}
                 onNavigateToFile={handleFileSelect}
+              />
+            ) : currentDir ? (
+              <FolderPreviewPanel
+                dirPath={currentDir}
+                slug={slug}
+                worktreePath={worktreePath}
+                onFileClick={(path) => setParams({ file: path, line: null }, { history: 'push' })}
+                onFolderNavigate={(path) => {
+                  setParams({ dir: path, file: '' }, { history: 'push' });
+                  fileNav.handleExpand(path);
+                }}
+                onCopyPath={clipboard.handleCopyFullPath}
+                onDownload={clipboard.handleDownload}
+                onBreadcrumbNavigate={(path) => {
+                  setParams({ dir: path, file: '' }, { history: 'push' });
+                }}
               />
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground">

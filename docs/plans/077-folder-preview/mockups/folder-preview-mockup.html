@@ -1,0 +1,1252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Folder Preview — Chainglass Mockup</title>
+<style>
+  /* ═══════════════════════════════════════════════════════════
+     Theme: Chainglass oklch tokens mapped to hsl for browser compat
+     ═══════════════════════════════════════════════════════════ */
+  :root {
+    --radius: 0.625rem;
+    --background: #ffffff;
+    --foreground: #0a0a0a;
+    --card: #ffffff;
+    --card-foreground: #0a0a0a;
+    --muted: #f5f5f5;
+    --muted-foreground: #737373;
+    --accent: #f5f5f5;
+    --accent-foreground: #171717;
+    --border: #e5e5e5;
+    --input: #e5e5e5;
+    --primary: #171717;
+    --primary-foreground: #fafafa;
+    --secondary: #f5f5f5;
+    --secondary-foreground: #171717;
+    --ring: #a3a3a3;
+    --destructive: #ef4444;
+    --skeleton-from: #e5e5e5;
+    --skeleton-to: #f0f0f0;
+    --overlay-bg: rgba(255,255,255,0.85);
+    --shadow-card: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-card-hover: 0 8px 25px rgba(0,0,0,0.08), 0 4px 10px rgba(0,0,0,0.04);
+    --code-bg: #f8f8f8;
+    --code-keyword: #d73a49;
+    --code-string: #032f62;
+    --code-comment: #6a737d;
+    --code-function: #6f42c1;
+    --code-number: #005cc5;
+    --breadcrumb-hover: #e5e7eb;
+  }
+  .dark {
+    --background: #171717;
+    --foreground: #fafafa;
+    --card: #262626;
+    --card-foreground: #fafafa;
+    --muted: #333333;
+    --muted-foreground: #a3a3a3;
+    --accent: #333333;
+    --accent-foreground: #fafafa;
+    --border: rgba(255,255,255,0.1);
+    --input: rgba(255,255,255,0.15);
+    --primary: #e5e5e5;
+    --primary-foreground: #171717;
+    --secondary: #333333;
+    --secondary-foreground: #fafafa;
+    --ring: #737373;
+    --skeleton-from: #333;
+    --skeleton-to: #3d3d3d;
+    --overlay-bg: rgba(38,38,38,0.9);
+    --shadow-card: 0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
+    --shadow-card-hover: 0 8px 25px rgba(0,0,0,0.4), 0 4px 10px rgba(0,0,0,0.3);
+    --code-bg: #1e1e1e;
+    --code-keyword: #c586c0;
+    --code-string: #ce9178;
+    --code-comment: #6a9955;
+    --code-function: #dcdcaa;
+    --code-number: #b5cea8;
+    --breadcrumb-hover: #333;
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     Reset & Base
+     ═══════════════════════════════════════════════════════════ */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+    background: var(--background);
+    color: var(--foreground);
+    line-height: 1.5;
+    transition: background 0.2s, color 0.2s;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     Layout: Simulated two-panel browser
+     ═══════════════════════════════════════════════════════════ */
+  .browser-shell {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+  }
+  .tree-panel {
+    width: 260px;
+    border-right: 1px solid var(--border);
+    background: var(--card);
+    overflow-y: auto;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .viewer-panel {
+    flex: 1;
+    overflow-y: auto;
+    background: var(--background);
+  }
+  @media (max-width: 768px) {
+    .tree-panel { display: none; }
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     Tree Panel (simplified)
+     ═══════════════════════════════════════════════════════════ */
+  .tree-header {
+    padding: 12px 16px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted-foreground);
+    border-bottom: 1px solid var(--border);
+  }
+  .tree-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px 4px 16px;
+    font-size: 13px;
+    cursor: pointer;
+    border-radius: 4px;
+    margin: 1px 4px;
+    transition: background 0.1s;
+    color: var(--foreground);
+  }
+  .tree-item:hover { background: var(--accent); }
+  .tree-item.selected { background: var(--accent); font-weight: 500; }
+  .tree-item.indent-1 { padding-left: 28px; }
+  .tree-item.indent-2 { padding-left: 44px; }
+  .tree-icon { font-size: 14px; width: 18px; text-align: center; flex-shrink: 0; }
+  .tree-chevron { font-size: 10px; width: 14px; text-align: center; color: var(--muted-foreground); flex-shrink: 0; }
+
+  /* ═══════════════════════════════════════════════════════════
+     Viewer Header / Breadcrumb
+     ═══════════════════════════════════════════════════════════ */
+  .viewer-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--background);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    backdrop-filter: blur(8px);
+  }
+  .breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    color: var(--muted-foreground);
+    flex-wrap: wrap;
+  }
+  .breadcrumb-item {
+    padding: 2px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.1s, color 0.1s;
+    text-decoration: none;
+    color: var(--muted-foreground);
+  }
+  .breadcrumb-item:hover { background: var(--breadcrumb-hover); color: var(--foreground); }
+  .breadcrumb-item.current { color: var(--foreground); font-weight: 500; cursor: default; }
+  .breadcrumb-item.current:hover { background: transparent; }
+  .breadcrumb-sep { color: var(--muted-foreground); font-size: 11px; }
+  .view-controls {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+  }
+  .view-btn {
+    padding: 5px 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--muted-foreground);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .view-btn:hover { background: var(--accent); color: var(--foreground); }
+  .view-btn.active { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
+
+  .item-count {
+    font-size: 12px;
+    color: var(--muted-foreground);
+    padding: 4px 10px;
+    background: var(--muted);
+    border-radius: 100px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     Gallery Grid
+     ═══════════════════════════════════════════════════════════ */
+  .gallery-container {
+    padding: 16px 20px 40px;
+  }
+  .gallery-grid {
+    display: grid;
+    gap: 14px;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+  }
+  @media (min-width: 900px) {
+    .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+  }
+  @media (min-width: 1200px) {
+    .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+  }
+
+  /* Section headers in grid */
+  .section-label {
+    grid-column: 1 / -1;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted-foreground);
+    padding: 8px 0 2px;
+    border-bottom: 1px solid var(--border);
+    margin-top: 8px;
+  }
+  .section-label:first-child { margin-top: 0; }
+
+  /* ═══════════════════════════════════════════════════════════
+     Preview Card (Base)
+     ═══════════════════════════════════════════════════════════ */
+  .preview-card {
+    position: relative;
+    border-radius: calc(var(--radius) + 2px);
+    border: 1px solid var(--border);
+    background: var(--card);
+    overflow: hidden;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    box-shadow: var(--shadow-card);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+  }
+  .preview-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-card-hover);
+    border-color: var(--ring);
+  }
+  .preview-card:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  /* Card thumbnail area */
+  .card-thumb {
+    position: relative;
+    aspect-ratio: 16 / 10;
+    overflow: hidden;
+    background: var(--muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .card-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s ease;
+  }
+  .preview-card:hover .card-thumb img {
+    transform: scale(1.03);
+  }
+
+  /* Card info area */
+  .card-info {
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-top: 1px solid var(--border);
+    min-height: 42px;
+  }
+  .card-icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+  }
+  .card-filename {
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+    color: var(--card-foreground);
+  }
+  .card-meta {
+    font-size: 10px;
+    color: var(--muted-foreground);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     Hover Action Overlay
+     ═══════════════════════════════════════════════════════════ */
+  .card-actions {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    transform: translateY(-4px);
+    transition: opacity 0.15s, transform 0.15s;
+    z-index: 5;
+  }
+  .preview-card:hover .card-actions {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .action-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 13px;
+    background: var(--overlay-bg);
+    color: var(--foreground);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    transition: background 0.1s, transform 0.1s;
+  }
+  .action-btn:hover {
+    background: var(--primary);
+    color: var(--primary-foreground);
+    transform: scale(1.08);
+  }
+  .action-btn svg { width: 14px; height: 14px; }
+
+  /* ═══════════════════════════════════════════════════════════
+     Video Card — Hover-to-play
+     ═══════════════════════════════════════════════════════════ */
+  .video-poster {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 2;
+    transition: opacity 0.3s;
+  }
+  .video-poster.hiding { opacity: 0; }
+  .card-thumb video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    position: absolute;
+    top: 0;
+    left: 0;
+  }
+  .play-badge {
+    position: absolute;
+    bottom: 8px;
+    left: 8px;
+    z-index: 3;
+    background: rgba(0,0,0,0.7);
+    color: white;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    backdrop-filter: blur(4px);
+  }
+  .play-badge svg { width: 10px; height: 10px; }
+  .duration-badge {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    z-index: 3;
+    background: rgba(0,0,0,0.7);
+    color: white;
+    font-size: 10px;
+    font-weight: 500;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     Text / Code Preview Card
+     ═══════════════════════════════════════════════════════════ */
+  .code-preview {
+    background: var(--code-bg);
+    padding: 10px 12px;
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'JetBrains Mono', Menlo, monospace;
+    font-size: 10.5px;
+    line-height: 1.6;
+    overflow: hidden;
+    height: 100%;
+    position: relative;
+    color: var(--card-foreground);
+  }
+  .code-preview::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 40px;
+    background: linear-gradient(transparent, var(--code-bg));
+    pointer-events: none;
+  }
+  .code-line-num {
+    display: inline-block;
+    width: 22px;
+    text-align: right;
+    margin-right: 10px;
+    color: var(--muted-foreground);
+    opacity: 0.5;
+    font-size: 10px;
+    user-select: none;
+  }
+  .kw { color: var(--code-keyword); }
+  .str { color: var(--code-string); }
+  .cmt { color: var(--code-comment); }
+  .fn { color: var(--code-function); }
+  .num { color: var(--code-number); }
+
+  /* ═══════════════════════════════════════════════════════════
+     Markdown Preview Card
+     ═══════════════════════════════════════════════════════════ */
+  .md-preview {
+    padding: 12px 14px;
+    font-size: 12px;
+    line-height: 1.65;
+    color: var(--card-foreground);
+    overflow: hidden;
+    height: 100%;
+    position: relative;
+  }
+  .md-preview::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 40px;
+    background: linear-gradient(transparent, var(--card));
+    pointer-events: none;
+  }
+  .md-preview h3 {
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: var(--foreground);
+  }
+  .md-preview p { margin-bottom: 6px; color: var(--muted-foreground); font-size: 11.5px; }
+  .md-preview ul { padding-left: 16px; margin-bottom: 6px; }
+  .md-preview li { font-size: 11.5px; color: var(--muted-foreground); margin-bottom: 2px; }
+  .md-preview code {
+    background: var(--muted);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 10.5px;
+    font-family: 'SF Mono', Menlo, monospace;
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     Folder Card
+     ═══════════════════════════════════════════════════════════ */
+  .folder-card-thumb {
+    background: var(--muted);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .folder-big-icon { font-size: 36px; opacity: 0.7; }
+  .folder-item-count {
+    font-size: 11px;
+    color: var(--muted-foreground);
+    font-weight: 500;
+  }
+  .folder-tags {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    justify-content: center;
+    padding: 0 12px;
+  }
+  .folder-tag {
+    font-size: 9px;
+    padding: 1px 6px;
+    border-radius: 100px;
+    background: var(--accent);
+    color: var(--muted-foreground);
+    border: 1px solid var(--border);
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     Audio Card
+     ═══════════════════════════════════════════════════════════ */
+  .audio-card-thumb {
+    background: linear-gradient(135deg, var(--muted), var(--accent));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .audio-icon { font-size: 28px; opacity: 0.6; }
+  .waveform {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 24px;
+    opacity: 0.4;
+  }
+  .waveform-bar {
+    width: 3px;
+    border-radius: 2px;
+    background: var(--foreground);
+    animation: wave 1.2s ease-in-out infinite;
+  }
+  @keyframes wave {
+    0%, 100% { height: 4px; }
+    50% { height: 20px; }
+  }
+  .waveform-bar:nth-child(2) { animation-delay: 0.1s; }
+  .waveform-bar:nth-child(3) { animation-delay: 0.2s; }
+  .waveform-bar:nth-child(4) { animation-delay: 0.3s; }
+  .waveform-bar:nth-child(5) { animation-delay: 0.15s; }
+  .waveform-bar:nth-child(6) { animation-delay: 0.25s; }
+  .waveform-bar:nth-child(7) { animation-delay: 0.35s; }
+  .waveform-bar:nth-child(8) { animation-delay: 0.05s; }
+
+  /* ═══════════════════════════════════════════════════════════
+     PDF Card
+     ═══════════════════════════════════════════════════════════ */
+  .pdf-card-thumb {
+    background: var(--muted);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .pdf-icon {
+    font-size: 32px;
+    color: #e74c3c;
+    font-weight: 700;
+    font-family: system-ui;
+  }
+  .pdf-pages { font-size: 10px; color: var(--muted-foreground); }
+
+  /* ═══════════════════════════════════════════════════════════
+     Skeleton Cards
+     ═══════════════════════════════════════════════════════════ */
+  .skeleton-card {
+    border-radius: calc(var(--radius) + 2px);
+    border: 1px solid var(--border);
+    background: var(--card);
+    overflow: hidden;
+  }
+  .skeleton-thumb {
+    aspect-ratio: 16 / 10;
+    background: linear-gradient(90deg, var(--skeleton-from) 25%, var(--skeleton-to) 50%, var(--skeleton-from) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+  }
+  .skeleton-info {
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-top: 1px solid var(--border);
+  }
+  .skeleton-circle {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    background: linear-gradient(90deg, var(--skeleton-from) 25%, var(--skeleton-to) 50%, var(--skeleton-from) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+  .skeleton-text {
+    height: 12px;
+    border-radius: 4px;
+    background: linear-gradient(90deg, var(--skeleton-from) 25%, var(--skeleton-to) 50%, var(--skeleton-from) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+  }
+  .skeleton-text.w60 { width: 60%; }
+  .skeleton-text.w40 { width: 40%; }
+  .skeleton-text.w80 { width: 80%; }
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     Card entrance animation
+     ═══════════════════════════════════════════════════════════ */
+  .preview-card, .skeleton-card {
+    animation: cardIn 0.3s ease both;
+  }
+  .preview-card:nth-child(2), .skeleton-card:nth-child(2) { animation-delay: 0.03s; }
+  .preview-card:nth-child(3), .skeleton-card:nth-child(3) { animation-delay: 0.06s; }
+  .preview-card:nth-child(4), .skeleton-card:nth-child(4) { animation-delay: 0.09s; }
+  .preview-card:nth-child(5), .skeleton-card:nth-child(5) { animation-delay: 0.12s; }
+  .preview-card:nth-child(6), .skeleton-card:nth-child(6) { animation-delay: 0.15s; }
+  .preview-card:nth-child(7), .skeleton-card:nth-child(7) { animation-delay: 0.18s; }
+  .preview-card:nth-child(8), .skeleton-card:nth-child(8) { animation-delay: 0.21s; }
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     Theme Toggle & Toolbar
+     ═══════════════════════════════════════════════════════════ */
+  .toolbar {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 100;
+    display: flex;
+    gap: 8px;
+    flex-direction: column;
+  }
+  .toolbar-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--foreground);
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    transition: all 0.15s;
+  }
+  .toolbar-btn:hover { transform: scale(1.08); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+
+  /* ═══════════════════════════════════════════════════════════
+     State toggle labels
+     ═══════════════════════════════════════════════════════════ */
+  .state-tabs {
+    display: flex;
+    gap: 2px;
+    padding: 2px;
+    background: var(--muted);
+    border-radius: var(--radius);
+  }
+  .state-tab {
+    padding: 4px 12px;
+    font-size: 12px;
+    border-radius: calc(var(--radius) - 2px);
+    border: none;
+    background: transparent;
+    color: var(--muted-foreground);
+    cursor: pointer;
+    transition: all 0.15s;
+    font-weight: 500;
+  }
+  .state-tab.active {
+    background: var(--card);
+    color: var(--foreground);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     Image placeholder patterns (since we have no real images)
+     ═══════════════════════════════════════════════════════════ */
+  .placeholder-img {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    color: var(--muted-foreground);
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+  .placeholder-img.sunset { background: linear-gradient(135deg, #ff9a56 0%, #ff6b6b 50%, #8b5cf6 100%); color: white; }
+  .placeholder-img.forest { background: linear-gradient(135deg, #22c55e 0%, #14b8a6 50%, #0ea5e9 100%); color: white; }
+  .placeholder-img.ocean  { background: linear-gradient(135deg, #3b82f6 0%, #6366f1 50%, #8b5cf6 100%); color: white; }
+  .placeholder-img.city   { background: linear-gradient(135deg, #6b7280 0%, #4b5563 50%, #374151 100%); color: white; }
+  .placeholder-img.arch   { background: linear-gradient(135deg, #f59e0b 0%, #ef4444 50%, #ec4899 100%); color: white; }
+  .placeholder-img.abstract { background: linear-gradient(135deg, #06b6d4 0%, #3b82f6 50%, #6366f1 100%); color: white; }
+  .placeholder-img.portrait { background: linear-gradient(135deg, #a78bfa 0%, #f472b6 50%, #fb923c 100%); color: white; }
+
+  /* ═══════════════════════════════════════════════════════════
+     Mobile Bottom Bar (simulated)
+     ═══════════════════════════════════════════════════════════ */
+  @media (max-width: 768px) {
+    .gallery-container { padding: 12px 12px 80px; }
+    .gallery-grid { gap: 10px; }
+    .viewer-header { padding: 8px 12px; }
+    .breadcrumb { font-size: 12px; }
+    .card-actions { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     Empty state
+     ═══════════════════════════════════════════════════════════ */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    color: var(--muted-foreground);
+    text-align: center;
+    gap: 12px;
+  }
+  .empty-state-icon { font-size: 48px; opacity: 0.3; }
+  .empty-state-title { font-size: 14px; font-weight: 600; }
+  .empty-state-desc { font-size: 12px; max-width: 280px; }
+</style>
+</head>
+<body>
+<div class="browser-shell">
+  <!-- ════════════ LEFT: Tree Panel ════════════ -->
+  <div class="tree-panel">
+    <div class="tree-header">Explorer</div>
+    <div style="padding: 4px 0;">
+      <div class="tree-item">
+        <span class="tree-chevron">▾</span>
+        <span class="tree-icon">📁</span>
+        <span>src</span>
+      </div>
+      <div class="tree-item indent-1">
+        <span class="tree-chevron">▾</span>
+        <span class="tree-icon">📁</span>
+        <span>components</span>
+      </div>
+      <div class="tree-item indent-1 selected">
+        <span class="tree-chevron">▾</span>
+        <span class="tree-icon">📂</span>
+        <span style="font-weight:600;">assets</span>
+      </div>
+      <div class="tree-item indent-2">
+        <span class="tree-chevron"></span>
+        <span class="tree-icon">🖼️</span>
+        <span>hero-banner.png</span>
+      </div>
+      <div class="tree-item indent-2">
+        <span class="tree-chevron"></span>
+        <span class="tree-icon">🎬</span>
+        <span>demo.mp4</span>
+      </div>
+      <div class="tree-item indent-2">
+        <span class="tree-chevron"></span>
+        <span class="tree-icon">📄</span>
+        <span>README.md</span>
+      </div>
+      <div class="tree-item indent-1">
+        <span class="tree-chevron">▸</span>
+        <span class="tree-icon">📁</span>
+        <span>utils</span>
+      </div>
+      <div class="tree-item indent-1">
+        <span class="tree-chevron">▸</span>
+        <span class="tree-icon">📁</span>
+        <span>hooks</span>
+      </div>
+      <div class="tree-item indent-1">
+        <span class="tree-chevron"></span>
+        <span class="tree-icon">📄</span>
+        <span>index.ts</span>
+      </div>
+      <div class="tree-item">
+        <span class="tree-chevron">▸</span>
+        <span class="tree-icon">📁</span>
+        <span>public</span>
+      </div>
+      <div class="tree-item">
+        <span class="tree-chevron"></span>
+        <span class="tree-icon">📄</span>
+        <span>package.json</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ RIGHT: Viewer Panel ════════════ -->
+  <div class="viewer-panel" id="viewerPanel">
+
+    <!-- Header with breadcrumb -->
+    <div class="viewer-header">
+      <div class="breadcrumb">
+        <span class="breadcrumb-item" onclick="showState('gallery')">src</span>
+        <span class="breadcrumb-sep">/</span>
+        <span class="breadcrumb-item current">assets</span>
+      </div>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <span class="item-count" id="itemCountBadge">12 items</span>
+        <div class="state-tabs">
+          <button class="state-tab active" onclick="showState('gallery')" id="tabGallery">Gallery</button>
+          <button class="state-tab" onclick="showState('skeleton')" id="tabSkeleton">Loading</button>
+          <button class="state-tab" onclick="showState('empty')" id="tabEmpty">Empty</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════ STATE: Gallery (main) ═══════ -->
+    <div class="gallery-container" id="stateGallery">
+      <div class="gallery-grid">
+
+        <!-- SECTION: Folders -->
+        <div class="section-label">📁 Folders · 2</div>
+
+        <!-- Folder Card: icons -->
+        <div class="preview-card" tabindex="0">
+          <div class="card-thumb folder-card-thumb">
+            <span class="folder-big-icon">📁</span>
+            <span class="folder-item-count">24 items</span>
+            <div class="folder-tags">
+              <span class="folder-tag">8 images</span>
+              <span class="folder-tag">3 videos</span>
+              <span class="folder-tag">13 files</span>
+            </div>
+          </div>
+          <div class="card-actions">
+            <button class="action-btn" title="Copy path">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </button>
+          </div>
+          <div class="card-info">
+            <span class="card-icon">📁</span>
+            <span class="card-filename">icons</span>
+            <span class="card-meta">24 items</span>
+          </div>
+        </div>
+
+        <!-- Folder Card: screenshots -->
+        <div class="preview-card" tabindex="0">
+          <div class="card-thumb folder-card-thumb">
+            <span class="folder-big-icon">📁</span>
+            <span class="folder-item-count">7 items</span>
+            <div class="folder-tags">
+              <span class="folder-tag">7 images</span>
+            </div>
+          </div>
+          <div class="card-actions">
+            <button class="action-btn" title="Copy path">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </button>
+          </div>
+          <div class="card-info">
+            <span class="card-icon">📁</span>
+            <span class="card-filename">screenshots</span>
+            <span class="card-meta">7 items</span>
+          </div>
+        </div>
+
+        <!-- SECTION: Media -->
+        <div class="section-label">🖼️ Media · 6</div>
+
+        <!-- Image Card 1 -->
+        <div class="preview-card" tabindex="0">
+          <div class="card-thumb">
+            <div class="placeholder-img sunset">hero-banner.png</div>
+          </div>
+          <div class="card-actions">
+            <button class="action-btn" title="Copy path">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </button>
+            <button class="action-btn" title="Download">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </button>
+          </div>
+          <div class="card-info">
+            <span class="card-icon">🖼️</span>
+            <span class="card-filename">hero-banner.png</span>
+            <span class="card-meta">1.2 MB</span>
+          </div>
+        </div>
+
+        <!-- Image Card 2 -->
+        <div class="preview-card" tabindex="0">
+          <div class="card-thumb">
+            <div class="placeholder-img forest">logo-dark.svg</div>
+          </div>
+          <div class="card-actions">
+            <button class="action-btn" title="Copy path">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </button>
+            <button class="action-btn" title="Download">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </button>
+          </div>
+          <div class="card-info">
+            <span class="card-icon">🖼️</span>
+            <span class="card-filename">logo-dark.svg</span>
+            <span class="card-meta">4.8 KB</span>
+          </div>
+        </div>
+
+        <!-- Image Card 3 -->
+        <div class="preview-card" tabindex="0">
+          <div class="card-thumb">
+            <div class="placeholder-img ocean">background.webp</div>
+          </div>
+          <div class="card-actions">
+            <button class="action-btn" title="Copy path">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </button>
+            <button class="action-btn" title="Download">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </button>
+          </div>
+          <div class="card-info">
+            <span class="card-icon">🖼️</span>
+            <span class="card-filename">background.webp</span>
+            <span class="card-meta">340 KB</span>
+          </div>
+        </div>
+
+        <!-- Video Card (hover-to-play) -->
+        <div class="preview-card" tabindex="0" id="videoCard">
+          <div class="card-thumb" onmouseenter="playVideo()" onmouseleave="pauseVideo()">
+            <div class="placeholder-img city video-poster" id="videoPoster">demo.mp4</div>
+            <div class="play-badge">
+              <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              Hover to preview
+            </div>
+            <div class="duration-badge">0:42</div>
+          </div>
+          <div class="card-actions">
+            <button class="action-btn" title="Copy path">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </button>
+            <button class="action-btn" title="Download">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </button>
+          </div>
+          <div class="card-info">
+            <span class="card-icon">🎬</span>
+            <span class="card-filename">demo.mp4</span>
+            <span class="card-meta">8.4 MB</span>
+          </div>
+        </div>
+
+        <!-- Video Card 2 -->
+        <div class="preview-card" tabindex="0">
+          <div class="card-thumb">
+            <div class="placeholder-img arch">walkthrough.webm</div>
+            <div class="play-badge">
+              <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              Hover to preview
+            </div>
+            <div class="duration-badge">3:17</div>
+          </div>
+          <div class="card-actions">
+            <button class="action-btn" title="Copy path">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </button>
+            <button class="action-btn" title="Download">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </button>
+          </div>
+          <div class="card-info">
+            <span class="card-icon">🎬</span>
+            <span class="card-filename">walkthrough.webm</span>
+            <span class="card-meta">24.1 MB</span>
+          </div>
+        </div>
+
+        <!-- Audio Card -->
+        <div class="preview-card" tabindex="0">
+          <div class="card-thumb audio-card-thumb">
+            <span class="audio-icon">🎵</span>
+            <div class="waveform">
+              <div class="waveform-bar" style="height:8px;"></div>
+              <div class="waveform-bar" style="height:14px;"></div>
+              <div class="waveform-bar" style="height:6px;"></div>
+              <div class="waveform-bar" style="height:18px;"></div>
+              <div class="waveform-bar" style="height:10px;"></div>
+              <div class="waveform-bar" style="height:16px;"></div>
+              <div class="waveform-bar" style="height:7px;"></div>
+              <div class="waveform-bar" style="height:12px;"></div>
+            </div>
+            <div class="duration-badge" style="position:static; background:rgba(0,0,0,0.3);">2:34</div>
+          </div>
+          <div class="card-actions">
+            <button class="action-btn" title="Copy path">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </button>
+            <button class="action-btn" title="Download">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </button>
+          </div>
+          <div class="card-info">
+            <span class="card-icon">🎵</span>
+            <span class="card-filename">notification.mp3</span>
+            <span class="card-meta">890 KB</span>
+          </div>
+        </div>
+
+        <!-- SECTION: Documents & Code -->
+        <div class="section-label">📄 Documents · 4</div>
+
+        <!-- Markdown Card -->
+        <div class="preview-card" tabindex="0">
+          <div class="card-thumb" style="background:var(--card);">
+            <div class="md-preview">
+              <h3>📦 Assets Directory</h3>
+              <p>This folder contains all static assets used throughout the application.</p>
+              <ul>
+                <li>Images for the landing page</li>
+                <li>SVG icons and logos</li>
+                <li>Demo videos for <code>onboarding</code></li>
+              </ul>
+              <p>See the <code>icons/</code> subfolder for the icon theme assets.</p>
+            </div>
+          </div>
+          <div class="card-actions">
+            <button class="action-btn" title="Copy path">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </button>
+            <button class="action-btn" title="Download">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </button>
+          </div>
+          <div class="card-info">
+            <span class="card-icon">📝</span>
+            <span class="card-filename">README.md</span>
+            <span class="card-meta">1.4 KB</span>
+          </div>
+        </div>
+
+        <!-- Code Card: TypeScript -->
+        <div class="preview-card" tabindex="0">
+          <div class="card-thumb" style="padding:0;">
+            <div class="code-preview">
+              <div><span class="code-line-num">1</span><span class="kw">import</span> { resolve } <span class="kw">from</span> <span class="str">'node:path'</span>;</div>
+              <div><span class="code-line-num">2</span><span class="kw">import</span> type { Config } <span class="kw">from</span> <span class="str">'./types'</span>;</div>
+              <div><span class="code-line-num">3</span></div>
+              <div><span class="code-line-num">4</span><span class="cmt">/** Asset pipeline configuration */</span></div>
+              <div><span class="code-line-num">5</span><span class="kw">export const</span> <span class="fn">assetConfig</span>: Config = {</div>
+              <div><span class="code-line-num">6</span>  outputDir: <span class="fn">resolve</span>(<span class="str">'public/assets'</span>),</div>
+              <div><span class="code-line-num">7</span>  formats: [<span class="str">'webp'</span>, <span class="str">'avif'</span>],</div>
+              <div><span class="code-line-num">8</span>  quality: <span class="num">85</span>,</div>
+              <div><span class="code-line-num">9</span>  maxWidth: <span class="num">2048</span>,</div>
+              <div><span class="code-line-num">10</span>};</div>
+            </div>
+          </div>
+          <div class="card-actions">
+            <button class="action-btn" title="Copy path">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </button>
+            <button class="action-btn" title="Download">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </button>
+          </div>
+          <div class="card-info">
+            <span class="card-icon">📄</span>
+            <span class="card-filename">asset-config.ts</span>
+            <span class="card-meta">420 B</span>
+          </div>
+        </div>
+
+        <!-- PDF Card -->
+        <div class="preview-card" tabindex="0">
+          <div class="card-thumb pdf-card-thumb">
+            <span class="pdf-icon">PDF</span>
+            <span class="pdf-pages">12 pages · 2.4 MB</span>
+          </div>
+          <div class="card-actions">
+            <button class="action-btn" title="Copy path">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </button>
+            <button class="action-btn" title="Download">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </button>
+          </div>
+          <div class="card-info">
+            <span class="card-icon">📕</span>
+            <span class="card-filename">brand-guidelines.pdf</span>
+            <span class="card-meta">2.4 MB</span>
+          </div>
+        </div>
+
+        <!-- Generic file card -->
+        <div class="preview-card" tabindex="0">
+          <div class="card-thumb folder-card-thumb" style="opacity:0.6;">
+            <span style="font-size:32px;">📦</span>
+            <span style="font-size:11px; color:var(--muted-foreground);">Binary file</span>
+          </div>
+          <div class="card-actions">
+            <button class="action-btn" title="Copy path">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </button>
+            <button class="action-btn" title="Download">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </button>
+          </div>
+          <div class="card-info">
+            <span class="card-icon">📦</span>
+            <span class="card-filename">font-pack.zip</span>
+            <span class="card-meta">5.1 MB</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ═══════ STATE: Skeleton Loading ═══════ -->
+    <div class="gallery-container" id="stateSkeleton" style="display:none;">
+      <div class="gallery-grid">
+        <div class="skeleton-card"><div class="skeleton-thumb"></div><div class="skeleton-info"><div class="skeleton-circle"></div><div class="skeleton-text w60"></div></div></div>
+        <div class="skeleton-card"><div class="skeleton-thumb"></div><div class="skeleton-info"><div class="skeleton-circle"></div><div class="skeleton-text w80"></div></div></div>
+        <div class="skeleton-card"><div class="skeleton-thumb"></div><div class="skeleton-info"><div class="skeleton-circle"></div><div class="skeleton-text w40"></div></div></div>
+        <div class="skeleton-card"><div class="skeleton-thumb"></div><div class="skeleton-info"><div class="skeleton-circle"></div><div class="skeleton-text w60"></div></div></div>
+        <div class="skeleton-card"><div class="skeleton-thumb"></div><div class="skeleton-info"><div class="skeleton-circle"></div><div class="skeleton-text w80"></div></div></div>
+        <div class="skeleton-card"><div class="skeleton-thumb"></div><div class="skeleton-info"><div class="skeleton-circle"></div><div class="skeleton-text w60"></div></div></div>
+        <div class="skeleton-card"><div class="skeleton-thumb"></div><div class="skeleton-info"><div class="skeleton-circle"></div><div class="skeleton-text w40"></div></div></div>
+        <div class="skeleton-card"><div class="skeleton-thumb"></div><div class="skeleton-info"><div class="skeleton-circle"></div><div class="skeleton-text w80"></div></div></div>
+      </div>
+    </div>
+
+    <!-- ═══════ STATE: Empty ═══════ -->
+    <div id="stateEmpty" style="display:none;">
+      <div class="empty-state">
+        <span class="empty-state-icon">📂</span>
+        <span class="empty-state-title">This folder is empty</span>
+        <span class="empty-state-desc">Drop files here or use the upload button to add content to this directory.</span>
+        <button style="margin-top:8px; padding: 6px 16px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--primary); color: var(--primary-foreground); font-size: 12px; cursor: pointer; font-weight: 500;">Upload Files</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ════════════ Floating Toolbar ════════════ -->
+<div class="toolbar">
+  <button class="toolbar-btn" onclick="toggleTheme()" title="Toggle dark/light" id="themeBtn">🌙</button>
+  <button class="toolbar-btn" onclick="toggleMobile()" title="Toggle mobile view" id="mobileBtn">📱</button>
+</div>
+
+<script>
+  // ── Theme toggle ──
+  function toggleTheme() {
+    document.documentElement.classList.toggle('dark');
+    const isDark = document.documentElement.classList.contains('dark');
+    document.getElementById('themeBtn').textContent = isDark ? '☀️' : '🌙';
+  }
+
+  // ── Mobile toggle ──
+  let isMobile = false;
+  function toggleMobile() {
+    isMobile = !isMobile;
+    const viewer = document.querySelector('.viewer-panel');
+    const tree = document.querySelector('.tree-panel');
+    if (isMobile) {
+      tree.style.display = 'none';
+      viewer.style.maxWidth = '390px';
+      viewer.style.margin = '0 auto';
+      viewer.style.borderLeft = '1px solid var(--border)';
+      viewer.style.borderRight = '1px solid var(--border)';
+      document.getElementById('mobileBtn').textContent = '🖥️';
+    } else {
+      tree.style.display = '';
+      viewer.style.maxWidth = '';
+      viewer.style.margin = '';
+      viewer.style.borderLeft = '';
+      viewer.style.borderRight = '';
+      document.getElementById('mobileBtn').textContent = '📱';
+    }
+  }
+
+  // ── State switching ──
+  function showState(state) {
+    document.getElementById('stateGallery').style.display = state === 'gallery' ? '' : 'none';
+    document.getElementById('stateSkeleton').style.display = state === 'skeleton' ? '' : 'none';
+    document.getElementById('stateEmpty').style.display = state === 'empty' ? '' : 'none';
+
+    document.getElementById('tabGallery').classList.toggle('active', state === 'gallery');
+    document.getElementById('tabSkeleton').classList.toggle('active', state === 'skeleton');
+    document.getElementById('tabEmpty').classList.toggle('active', state === 'empty');
+
+    document.getElementById('itemCountBadge').textContent =
+      state === 'gallery' ? '12 items' :
+      state === 'skeleton' ? 'Loading...' : '0 items';
+  }
+
+  // ── Video hover-to-play simulation ──
+  let playTimeout;
+  function playVideo() {
+    const poster = document.getElementById('videoPoster');
+    playTimeout = setTimeout(() => {
+      poster.classList.add('hiding');
+      poster.textContent = '▶ Playing...';
+    }, 300);
+  }
+  function pauseVideo() {
+    clearTimeout(playTimeout);
+    const poster = document.getElementById('videoPoster');
+    poster.classList.remove('hiding');
+    poster.textContent = 'demo.mp4';
+  }
+
+  // ── Action button click simulation ──
+  document.querySelectorAll('.action-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const original = btn.innerHTML;
+      btn.innerHTML = '✓';
+      btn.style.background = 'var(--primary)';
+      btn.style.color = 'var(--primary-foreground)';
+      setTimeout(() => {
+        btn.innerHTML = original;
+        btn.style.background = '';
+        btn.style.color = '';
+      }, 800);
+    });
+  });
+</script>
+</body>
+</html>
