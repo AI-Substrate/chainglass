@@ -11,10 +11,7 @@
 
 import { useTmuxBellNotification } from '@/features/064-terminal/hooks/use-tmux-bell-notification';
 
-export function TmuxBellWrapper({
-  children,
-  defaultWorktreePath,
-}: { children: React.ReactNode; defaultWorktreePath?: string }) {
-  useTmuxBellNotification(defaultWorktreePath);
+export function TmuxBellWrapper({ children }: { children: React.ReactNode }) {
+  useTmuxBellNotification();
   return <>{children}</>;
 }

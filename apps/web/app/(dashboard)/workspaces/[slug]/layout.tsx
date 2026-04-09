@@ -102,7 +102,7 @@ export default async function WorkspaceLayout({ children, params }: LayoutProps)
       <WorkspaceAttentionWrapper>
         <TerminalOverlayWrapper defaultSessionName={defaultBranch} defaultCwd={defaultWorktreePath}>
           <MultiplexedSSEProvider channels={[...WORKSPACE_SSE_CHANNELS]}>
-            <TmuxBellWrapper defaultWorktreePath={defaultWorktreePath}>
+            <TmuxBellWrapper>
               <ActivityLogOverlayWrapper defaultWorktreePath={defaultWorktreePath}>
                 <NotesOverlayWrapper defaultWorktreePath={defaultWorktreePath}>
                   <PRViewOverlayWrapper defaultWorktreePath={defaultWorktreePath}>
