@@ -31,9 +31,9 @@ function deriveSessionName(worktreePath: string | undefined): string | null {
   return sanitizeSessionName(basename);
 }
 
-export function useTmuxBellNotification(): void {
+export function useTmuxBellNotification(defaultWorktreePath?: string): void {
   const ctx = useWorkspaceContext();
-  const worktreePath = ctx?.worktreeIdentity?.worktreePath;
+  const worktreePath = ctx?.worktreeIdentity?.worktreePath ?? defaultWorktreePath;
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -58,9 +58,10 @@ export function useTmuxBellNotification(): void {
       const eventSession = (event as Record<string, unknown>).session;
       if (typeof eventSession !== 'string') return;
 
-      // Match bell to this workspace's tmux session
+      // Match bell to this workspace's tmux session — skip if no match
       const expectedSession = deriveSessionName(worktreePath);
-      if (expectedSession && eventSession !== expectedSession) return;
+      if (!expectedSession) return;
+      if (eventSession !== expectedSession) return;
 
       // Play sound (gracefully handle autoplay restrictions)
       if (audioRef.current) {
