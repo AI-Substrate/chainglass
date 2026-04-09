@@ -49,3 +49,4 @@ activity-log depends on terminal as an event source (terminal sidecar polls tmux
 | 065 Phase 3 | Added overlay:close-all mutual exclusion to TerminalOverlayProvider | 2026-03-06 |
 | Plan 078 | Removed copilot status bar and window badges from overlay panel | 2026-04-08 |
 | Plan 079 | TerminalPageClient sets worktreeIdentity with pageTitle 'Terminal' for tab title | 2026-04-08 |
+| Plan 080 | tmux eventing: monitor polls all sessions, POSTs events to API route; bell hook plays sound + flashes title | 2026-04-09 |

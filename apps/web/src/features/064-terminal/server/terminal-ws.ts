@@ -339,4 +339,12 @@ if (isDirectRun) {
     : server.derivePort(nextPort);
 
   server.start(wsPort);
+
+  // Start tmux monitor — separate from activity log polling (PL-10)
+  try {
+    const { startTmuxMonitor } = await import('./tmux-monitor');
+    startTmuxMonitor(nextPort);
+  } catch (error) {
+    console.error('[terminal] Failed to start tmux monitor (continuing without it):', error);
+  }
 }
