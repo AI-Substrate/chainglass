@@ -4,8 +4,8 @@
  * Streams raw binary file content with correct Content-Type headers.
  * Supports HTTP Range requests for video seeking.
  *
- * Security: Uses IPathResolver for path traversal prevention,
- * fs.realpath for symlink escape detection.
+ * Security: Uses IPathResolver for path traversal prevention.
+ * Symlinks are followed — this is a local dev tool.
  *
  * Plan 046: Binary File Viewers
  * DYK-01: Uses fs.createReadStream — never buffers full file.
@@ -57,16 +57,9 @@ export async function GET(
     return new Response('File not found', { status: 404 });
   }
 
-  // Symlink escape check via realpath
-  try {
-    const realPath = await fsPromises.realpath(absolutePath);
-    const normalizedRoot = worktree.endsWith('/') ? worktree : `${worktree}/`;
-    if (realPath !== worktree && !realPath.startsWith(normalizedRoot)) {
-      return new Response('Path escape not allowed', { status: 403 });
-    }
-  } catch {
-    return new Response('File not found', { status: 404 });
-  }
+  // Symlink following: allow symlinks that point outside the workspace.
+  // PathResolver.resolvePath() above already prevents ../traversal in the URL path.
+  // This is a local dev tool — the user controls what's symlinked.
 
   // Stat for size + existence
   let stat: fs.Stats;
