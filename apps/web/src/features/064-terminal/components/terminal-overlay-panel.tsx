@@ -8,6 +8,7 @@ import { copyTmuxBuffer } from '../lib/copy-tmux-buffer';
 import type { ConnectionStatus } from '../types';
 import { ConnectionStatusBadge } from './connection-status-badge';
 import TerminalInner from './terminal-inner';
+import { TerminalThemeSelect } from './terminal-theme-select';
 
 export function TerminalOverlayPanel() {
   const { isOpen, sessionName, cwd, closeTerminal } = useTerminalOverlay();
@@ -101,6 +102,7 @@ export function TerminalOverlayPanel() {
           <span className="text-sm font-medium shrink-0">{sessionName}</span>
         </div>
         <div className="flex items-center gap-2">
+          <TerminalThemeSelect />
           <button
             type="button"
             onClick={() => copyTmuxBuffer()}

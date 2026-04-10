@@ -50,3 +50,4 @@ activity-log depends on terminal as an event source (terminal sidecar polls tmux
 | Plan 078 | Removed copilot status bar and window badges from overlay panel | 2026-04-08 |
 | Plan 079 | TerminalPageClient sets worktreeIdentity with pageTitle 'Terminal' for tab title | 2026-04-08 |
 | Plan 080 | tmux eventing: monitor polls all sessions, POSTs events to API route; bell hook plays sound + flashes title | 2026-04-09 |
+| Plan 081 | 25 terminal color themes via SDK setting + Palette popover picker in header | 2026-04-10 |
