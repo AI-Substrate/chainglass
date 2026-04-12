@@ -4,7 +4,7 @@ import { useWorkspaceContext } from '@/features/041-file-browser/hooks/use-works
 import { LeftPanel, MainPanel, PanelShell } from '@/features/_platform/panel-layout';
 import type { PanelMode } from '@/features/_platform/panel-layout';
 import type { LeftPanelMode } from '@/features/_platform/panel-layout';
-import { List } from 'lucide-react';
+import { List, TerminalSquare } from 'lucide-react';
 import { useState } from 'react';
 import { useTerminalSessions } from '../hooks/use-terminal-sessions';
 import type { ConnectionStatus } from '../types';
@@ -37,6 +37,29 @@ export function TerminalPageClient({
 
   return (
     <PanelShell
+      mobileViews={[
+        {
+          label: 'Terminal',
+          icon: <TerminalSquare className="h-4 w-4" />,
+          content: (
+            <MainPanel>
+              {selectedSession ? (
+                <TerminalView
+                  sessionName={selectedSession}
+                  cwd={worktreePath}
+                  onConnectionChange={setConnectionStatus}
+                  themeOverride={terminalTheme}
+                />
+              ) : (
+                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                  {loading ? 'Loading sessions…' : 'Select a session to connect'}
+                </div>
+              )}
+            </MainPanel>
+          ),
+          isTerminal: true,
+        },
+      ]}
       explorer={
         <TerminalPageHeader sessionName={selectedSession} connectionStatus={connectionStatus} />
       }

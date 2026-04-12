@@ -12,11 +12,7 @@ interface LayoutProps {
 }
 
 export default function TerminalLayout({ children }: LayoutProps) {
-  // Mobile: fixed fullscreen above bottom tab bar (65px)
   // Desktop: relative within flex layout (sidebar provides height)
-  return (
-    <div className="fixed inset-0 bottom-[65px] z-10 bg-background md:relative md:bottom-0 md:z-auto md:h-full">
-      {children}
-    </div>
-  );
+  // Mobile sizing is owned by MobilePanelShell (Plan 078, finding 01)
+  return <div className="relative h-full bg-background">{children}</div>;
 }

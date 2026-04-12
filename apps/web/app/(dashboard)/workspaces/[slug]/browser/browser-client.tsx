@@ -42,7 +42,7 @@ import {
 import type { PanelMode } from '@/features/_platform/panel-layout';
 import { useSDK, useSDKMru } from '@/lib/sdk/sdk-provider';
 import { GlobalStateConnector } from '@/lib/state';
-import { FileDiff, GitBranch, StickyNote } from 'lucide-react';
+import { FileDiff, FileText, FolderOpen, GitBranch, StickyNote } from 'lucide-react';
 import { useQueryStates } from 'nuqs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -697,6 +697,159 @@ function BrowserClientInner({
   return (
     <div className="h-full overflow-hidden">
       <PanelShell
+        mobileViews={[
+          {
+            label: 'Files',
+            icon: <FolderOpen className="h-4 w-4" />,
+            content: (
+              <LeftPanel
+                mode={panelMode}
+                onModeChange={panelState.handlePanelModeChange}
+                modes={panelModes}
+                onRefresh={handlePanelRefresh}
+                subtitle={diffStatsSubtitle}
+              >
+                {{
+                  tree: (
+                    <>
+                      {(showOnlyWithNotes || noteFilePaths.size > 0) && (
+                        <div className="flex items-center justify-end px-2 py-0.5 border-b">
+                          <button
+                            type="button"
+                            onClick={() => setShowOnlyWithNotes((v) => !v)}
+                            className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] ${
+                              showOnlyWithNotes
+                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                                : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                            }`}
+                            title={
+                              showOnlyWithNotes
+                                ? 'Show all files'
+                                : `Show only files with notes (${noteFilePaths.size})`
+                            }
+                          >
+                            <StickyNote className="h-3 w-3" />
+                            <span>{noteFilePaths.size}</span>
+                          </button>
+                        </div>
+                      )}
+                      <FileTree
+                        ref={treeRef}
+                        entries={filteredRootEntries}
+                        selectedFile={selectedFile}
+                        changedFiles={panelState.changedFiles}
+                        filesWithNotes={noteFilePaths}
+                        newlyAddedPaths={combinedNewPaths}
+                        onSelect={handleFileSelect}
+                        onExpand={fileNav.handleExpand}
+                        childEntries={filteredChildEntries}
+                        expandPaths={expandPaths}
+                        onExpandedDirsChange={setTrackedExpandedDirs}
+                        onCopyFullPath={clipboard.handleCopyFullPath}
+                        onCopyRelativePath={clipboard.handleCopyRelativePath}
+                        onCopyContent={clipboard.handleCopyContent}
+                        onCopyTree={clipboard.handleCopyTree}
+                        onDownload={clipboard.handleDownload}
+                        onAddNote={handleAddNote}
+                        onCreateFile={handleTreeCreateFile}
+                        onCreateFolder={handleTreeCreateFolder}
+                        onRename={handleTreeRename}
+                        onDelete={handleTreeDelete}
+                      />
+                    </>
+                  ),
+                  changes: (
+                    <ChangesView
+                      workingChanges={panelState.workingChanges}
+                      recentFiles={panelState.recentFiles}
+                      selectedFile={selectedFile}
+                      onSelect={handleFileSelect}
+                      onCopyFullPath={clipboard.handleCopyFullPath}
+                      onCopyRelativePath={clipboard.handleCopyRelativePath}
+                      onCopyContent={clipboard.handleCopyContent}
+                      onDownload={clipboard.handleDownload}
+                    />
+                  ),
+                }}
+              </LeftPanel>
+            ),
+          },
+          {
+            label: 'Content',
+            icon: <FileText className="h-4 w-4" />,
+            content: (
+              <MainPanel>
+                {selectedFile ? (
+                  <FileViewerPanel
+                    filePath={selectedFile}
+                    content={
+                      fileNav.fileData?.ok && !fileNav.fileData.isBinary
+                        ? fileNav.fileData.content
+                        : null
+                    }
+                    language={
+                      fileNav.fileData?.ok && !fileNav.fileData.isBinary
+                        ? fileNav.fileData.language
+                        : 'text'
+                    }
+                    mtime={fileNav.fileData?.ok ? fileNav.fileData.mtime : ''}
+                    mode={mode}
+                    onModeChange={fileNav.handleModeChange}
+                    onSave={handleSaveWithSuppression}
+                    onRefresh={fileNav.handleRefreshFile}
+                    editContent={fileNav.editContent}
+                    onEditChange={fileNav.setEditContent}
+                    externallyChanged={externallyChanged && (isDirty || mode === 'diff')}
+                    highlightedHtml={
+                      fileNav.fileData?.ok && !fileNav.fileData.isBinary
+                        ? fileNav.fileData.highlightedHtml
+                        : undefined
+                    }
+                    markdownHtml={
+                      fileNav.fileData?.ok && !fileNav.fileData.isBinary
+                        ? fileNav.fileData.markdownHtml
+                        : undefined
+                    }
+                    diffData={currentDiff?.diff}
+                    diffError={currentDiff?.error}
+                    diffLoading={fileNav.diffLoading}
+                    isBinary={fileNav.fileData?.ok ? fileNav.fileData.isBinary : false}
+                    binaryContentType={
+                      fileNav.fileData?.ok && fileNav.fileData.isBinary
+                        ? fileNav.fileData.contentType
+                        : undefined
+                    }
+                    binarySize={
+                      fileNav.fileData?.ok && fileNav.fileData.isBinary
+                        ? fileNav.fileData.size
+                        : undefined
+                    }
+                    rawFileUrl={
+                      selectedFile
+                        ? `/api/workspaces/${slug}/files/raw?worktree=${encodeURIComponent(worktreePath)}&file=${encodeURIComponent(selectedFile)}`
+                        : undefined
+                    }
+                    rawFileBaseUrl={`/api/workspaces/${slug}/files/raw?worktree=${encodeURIComponent(worktreePath)}`}
+                    popOutUrl={
+                      selectedFile
+                        ? `/workspaces/${slug}/browser?worktree=${encodeURIComponent(worktreePath)}&file=${encodeURIComponent(selectedFile)}&mode=${mode}`
+                        : undefined
+                    }
+                    errorType={
+                      fileNav.fileData && !fileNav.fileData.ok ? fileNav.fileData.error : undefined
+                    }
+                    scrollToLine={scrollToLine}
+                    onNavigateToFile={handleFileSelect}
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-full text-muted-foreground">
+                    Select a file to view
+                  </div>
+                )}
+              </MainPanel>
+            ),
+          },
+        ]}
         explorer={
           <ExplorerPanel
             ref={explorerRef}
