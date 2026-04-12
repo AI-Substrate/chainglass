@@ -61,7 +61,7 @@ describe('MobileView', () => {
       </MobileView>
     );
     const wrapper = container.firstElementChild as HTMLElement;
-    expect(wrapper.style.width).toBe('100%');
+    expect(wrapper.style.width).toBe('100vw');
     expect(wrapper.style.height).toBe('100%');
     expect(wrapper.style.flexShrink).toBe('0');
   });

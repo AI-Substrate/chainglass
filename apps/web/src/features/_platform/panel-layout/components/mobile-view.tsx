@@ -25,7 +25,7 @@ export function MobileView({ isActive, isTerminal, children }: MobileViewProps) 
   return (
     <div
       style={{
-        width: '100%',
+        width: '100vw',
         height: '100%',
         flexShrink: 0,
         visibility: isActive ? 'visible' : 'hidden',

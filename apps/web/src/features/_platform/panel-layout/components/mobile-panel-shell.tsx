@@ -51,7 +51,7 @@ export function MobilePanelShell({
 
   const [activeIndex, setActiveIndex] = useState(clampedInitial);
 
-  const [activatedViews] = useState<Set<number>>(() => {
+  const [activatedViews, setActivatedViews] = useState<Set<number>>(() => {
     const s = new Set<number>();
     views.forEach((v, i) => {
       if (!v.lazy) s.add(i);
@@ -63,10 +63,15 @@ export function MobilePanelShell({
   const handleViewChange = useCallback(
     (index: number) => {
       setActiveIndex(index);
-      activatedViews.add(index);
+      setActivatedViews((prev) => {
+        if (prev.has(index)) return prev;
+        const next = new Set(prev);
+        next.add(index);
+        return next;
+      });
       onViewChange?.(index);
     },
-    [onViewChange, activatedViews]
+    [onViewChange]
   );
 
   return (
