@@ -75,11 +75,11 @@ No new domains required. Mobile layout is an extension of `_platform/panel-layou
 
 1. **AC-01**: On a phone viewport (`<768px`), `PanelShell` renders `MobilePanelShell` instead of the desktop three-panel layout
 2. **AC-02**: On tablet viewport (768-1023px) and desktop (≥1024px), `PanelShell` renders the existing desktop layout — zero behavior change
-3. **AC-03**: On the browser page, the mobile shell shows two swipeable full-screen views: **Files** and **Content**
-4. **AC-04**: On the terminal page, the mobile shell shows a single full-screen **Terminal** view (no session list panel — tmux sessions managed via tmux status bar/keybindings)
+3. **AC-03**: On the browser page, the mobile shell shows three swipeable full-screen views: **Files**, **Content**, and **Terminal** (Terminal lazy-mounts on first swipe)
+4. **AC-04**: On the terminal page, mobile viewports redirect to the browser page with `?mobileView=2` (Terminal tab active). Desktop terminal page unchanged.
 5. **AC-05**: A segmented control at the top of the screen allows tapping to switch views, with a sliding pill indicator showing the active view
 6. **AC-06**: Swiping left/right on the segmented control strip switches views with a smooth CSS transition (≤350ms)
-7. **AC-07**: Off-screen views remain mounted (preserving terminal WebSocket, scroll positions, expanded tree nodes) but are hidden via `visibility: hidden` and `pointer-events: none`
+7. **AC-07**: Off-screen views remain mounted (preserving terminal WebSocket, scroll positions, expanded tree nodes) but are hidden via `visibility: hidden` and `pointer-events: none`. Lazy views (Terminal) mount on first activation, then stay mounted.
 8. **AC-08**: Lucide icons in the segmented control match the icons used in the production app (`FolderOpen`, `FileText`, `TerminalSquare`)
 
 ### File Browser Mobile

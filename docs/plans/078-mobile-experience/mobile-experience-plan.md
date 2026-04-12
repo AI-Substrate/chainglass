@@ -70,7 +70,7 @@ The constitution mandates TDD (RED-GREEN-REFACTOR) for all implementation. This 
 |---|--------|---------|--------|
 | 01 | Critical | Terminal `layout.tsx` has existing mobile CSS (`fixed inset-0 bottom-[65px]`) that will conflict with `MobilePanelShell`'s own sizing. Two owners for mobile positioning. | Phase 1: Remove mobile CSS from `terminal/layout.tsx`; `MobilePanelShell` becomes the single owner of mobile sizing. |
 | 02 | High | CSS `contain: layout style paint` on off-screen views creates new stacking contexts, which can break popovers, dropdowns, and modals that use `position: absolute/fixed`. Known overlay-prone components: `worktree-identity-popover`, `paste-upload-modal`. | Phase 1: Use `visibility: hidden` + `pointer-events: none` without `contain` initially. Add `contain` as a perf optimization in Phase 4 after testing overlays. |
-| 03 | High | `BrowserClient` is ~900 lines of shared behavior (URL sync, tree expansion, command registration). Adding mobile branching inside it risks regressing desktop. | Phase 3: Keep mobile concerns in `MobilePanelShell` wrapper layer. `BrowserClient` passes a view-switch callback but doesn't branch internally. |
+| 03 | High | `BrowserClient` is ~900 lines of shared behavior (URL sync, tree expansion, command registration). Adding mobile branching inside it risks regressing desktop. | Phase 3: Keep mobile concerns in `MobilePanelShell` wrapper layer. `BrowserClient` passes a view-switch callback but doesn't branch internally. **FX002 exception**: BrowserClient renders TerminalView as 3rd `mobileViews` slot — this is slot composition, not branching logic. |
 | 04 | High | Terminal overlay anchor (`[data-terminal-overlay-anchor]`) is on PanelShell's main div. MobilePanelShell changes DOM structure — overlay may mis-position. | Phase 1: Preserve `data-terminal-overlay-anchor` on the terminal's MobileView wrapper. |
 | 05 | High | File tree rows use `px-2 py-1` with no `min-h-*` — well below 48px touch targets. | Phase 3: Add conditional `min-h-12` class on phone viewport. |
 | 06 | High | `useResponsive` is only used by 2 components currently. Adding it to `PanelShell` is safe — no import cycles. | Phase 1: Safe to import directly. |
@@ -142,16 +142,16 @@ Each phase includes a harness verification step as its final task:
 | 1.4 | Modify `PanelShell` to branch on mobile | `_platform/panel-layout` | When `useMobilePatterns` is true, renders `MobilePanelShell`; desktop layout unchanged; `data-terminal-overlay-anchor` preserved on mobile main view | Test: PanelShell at 375px → MobilePanelShell; at 1024px → desktop |
 | 1.5 | Remove conflicting mobile CSS from `terminal/layout.tsx` | `terminal` | Remove `fixed inset-0 bottom-[65px] z-10` mobile styles; keep `md:relative md:bottom-0 md:z-auto md:h-full` desktop styles; MobilePanelShell owns mobile sizing | Per finding 01 |
 | 1.6 | Update barrel export | `_platform/panel-layout` | Export `MobilePanelShell`, `MobileSwipeStrip` from `index.ts` (`MobileView` is internal — not exported, per domain manifest) | |
-| 1.7 | Wire `BrowserClient` for mobile views | `file-browser` | `BrowserClient`'s `PanelShell` usage now auto-branches on mobile; browser page shows 2 views (Files + Content) with correct slot mapping: `left` → Files view, `main` → Content view | Visual verification at 375px viewport |
-| 1.8 | Wire `TerminalPageClient` for mobile | `terminal` | Terminal page shows single full-screen terminal view on mobile; sessions list hidden (tmux manages sessions) | Visual verification at 375px viewport |
+| 1.7 | Wire `BrowserClient` for mobile views | `file-browser` | `BrowserClient`'s `PanelShell` usage now auto-branches on mobile; browser page shows 3 views (Files + Content + Terminal) with correct slot mapping. Terminal is lazy-mounted and uses `useTerminalSessions` for auto-session. | Visual verification at 375px viewport |
+| 1.8 | Wire `TerminalPageClient` for mobile | `terminal` | Terminal page redirects to browser page on mobile via `TerminalMobileGate` wrapper with `?mobileView=2`. Desktop terminal page unchanged. | Visual verification at 375px viewport |
 | 1.9 | Harness verification — Phase 1 | — | Run `just harness screenshot-all phase1-mobile` at mobile + desktop viewports; verify MobilePanelShell renders at 375px, desktop layout at 1024px; browser page shows 2 views; terminal page shows 1 view | Per ADR-0014 harness coverage |
 
 ### Acceptance Criteria
 
 - [ ] AC-01: Phone viewport → MobilePanelShell renders
 - [ ] AC-02: Tablet/desktop → desktop layout unchanged
-- [ ] AC-03: Browser page mobile → 2 views (Files, Content)
-- [ ] AC-04: Terminal page mobile → 1 full-screen terminal view
+- [ ] AC-03: Browser page mobile → 3 views (Files, Content, Terminal)
+- [ ] AC-04: Terminal page mobile → redirects to browser with ?mobileView=2
 - [ ] AC-05: Segmented control with tap switching + pill indicator
 - [ ] AC-06: Swipe on strip switches views with ≤350ms transition
 - [ ] AC-07: Off-screen views remain mounted, hidden via visibility

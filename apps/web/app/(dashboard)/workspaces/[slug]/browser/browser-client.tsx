@@ -30,6 +30,9 @@ import { fileBrowserContribution } from '@/features/041-file-browser/sdk/contrib
 import type { FileEntry } from '@/features/041-file-browser/services/directory-listing';
 import { createFilePathHandler } from '@/features/041-file-browser/services/file-path-handler';
 import { FileChangeProvider, useFileChanges } from '@/features/045-live-file-events';
+import { sanitizeSessionName } from '@/features/064-terminal';
+import { TerminalView } from '@/features/064-terminal/components/terminal-view';
+import { useTerminalSessions } from '@/features/064-terminal/hooks/use-terminal-sessions';
 import { QuestionPopperIndicator } from '@/features/067-question-popper/components/question-popper-indicator';
 import { useNotesOverlay } from '@/features/071-file-notes/hooks/use-notes-overlay';
 import {
@@ -43,7 +46,14 @@ import {
 import type { PanelMode } from '@/features/_platform/panel-layout';
 import { useSDK, useSDKMru } from '@/lib/sdk/sdk-provider';
 import { GlobalStateConnector } from '@/lib/state';
-import { FileDiff, FileText, FolderOpen, GitBranch, StickyNote } from 'lucide-react';
+import {
+  FileDiff,
+  FileText,
+  FolderOpen,
+  GitBranch,
+  StickyNote,
+  TerminalSquare,
+} from 'lucide-react';
 import { useQueryStates } from 'nuqs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -106,6 +116,15 @@ function BrowserClientInner({
   const explorerRef = useRef<ExplorerPanelHandle>(null);
   const [expandPaths, setExpandPaths] = useState<string[]>([]);
   const lastFileSelectionRef = useRef<{ filePath: string; at: number } | null>(null);
+
+  // FX002: Mobile view index from URL param (for terminal redirect landing)
+  const [mobileActiveIndex, setMobileActiveIndex] = useState(() => {
+    if (typeof window === 'undefined') return 0;
+    const raw = new URLSearchParams(window.location.search).get('mobileView');
+    if (raw == null) return 0;
+    const parsed = Number.parseInt(raw, 10);
+    return Number.isNaN(parsed) ? 0 : Math.max(0, Math.min(parsed, 2));
+  });
 
   // DYK-P3-01: Wrap server prop in state for client-side root refresh
   const [rootEntries, setRootEntries] = useState(initialEntries);
@@ -361,6 +380,16 @@ function BrowserClientInner({
 
   // --- Workspace attention context (Phase 5) ---
   const wsCtx = useWorkspaceContext();
+  const terminalTheme = wsCtx?.worktreeIdentity?.terminalTheme || 'dark';
+
+  // FX002: Terminal sessions for 3rd mobile view
+  const {
+    sessions: termSessions,
+    loading: termLoading,
+    selectedSession: termSelectedSession,
+  } = useTerminalSessions({
+    currentBranch: sanitizeSessionName(worktreeBranch ?? ''),
+  });
 
   // Set worktree identity for tab title (Subtask 001)
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — only re-run on worktree change, not context ref
@@ -858,13 +887,40 @@ function BrowserClientInner({
     </MainPanel>
   );
 
+  // FX002: Terminal as 3rd mobile view (lazy — mounts on first swipe only)
+  const terminalContent = (
+    <MainPanel>
+      {termSelectedSession ? (
+        <TerminalView
+          sessionName={termSelectedSession}
+          cwd={worktreePath}
+          themeOverride={terminalTheme}
+          isActive={mobileActiveIndex === 2}
+        />
+      ) : (
+        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+          {termLoading ? 'Loading sessions…' : 'No terminal sessions'}
+        </div>
+      )}
+    </MainPanel>
+  );
+
   return (
     <div className="h-full overflow-hidden">
       <PanelShell
         mobileViews={[
           { label: 'Files', icon: <FolderOpen className="h-4 w-4" />, content: filesContent },
           { label: 'Content', icon: <FileText className="h-4 w-4" />, content: contentView },
+          {
+            label: 'Terminal',
+            icon: <TerminalSquare className="h-4 w-4" />,
+            content: terminalContent,
+            isTerminal: true,
+            lazy: true,
+          },
         ]}
+        initialMobileActiveIndex={mobileActiveIndex}
+        onMobileViewChange={setMobileActiveIndex}
         explorer={
           <ExplorerPanel
             ref={explorerRef}

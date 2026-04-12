@@ -11,6 +11,8 @@ export interface MobilePanelShellView {
   content: ReactNode;
   /** Whether this view should receive data-terminal-overlay-anchor */
   isTerminal?: boolean;
+  /** When true, view content mounts only on first activation (preserves after) */
+  lazy?: boolean;
 }
 
 export interface MobilePanelShellProps {
@@ -19,6 +21,8 @@ export interface MobilePanelShellProps {
   onViewChange?: (index: number) => void;
   /** Optional action slot for the swipe strip (e.g. search icon) */
   rightAction?: ReactNode;
+  /** Initial active view index (default 0). Clamped to valid range. */
+  initialActiveIndex?: number;
 }
 
 /**
@@ -29,17 +33,40 @@ export interface MobilePanelShellProps {
  * 350ms cubic-bezier transition. Off-screen views remain mounted but are
  * hidden with visibility: hidden + pointer-events: none.
  *
- * Plan 078: Mobile Experience — Phase 1
+ * Supports lazy views that mount only on first activation (e.g. terminal
+ * with WebSocket — avoid allocating resources until the user swipes to it).
+ *
+ * Plan 078: Mobile Experience — FX002
  */
-export function MobilePanelShell({ views, onViewChange, rightAction }: MobilePanelShellProps) {
-  const [activeIndex, setActiveIndex] = useState(0);
+export function MobilePanelShell({
+  views,
+  onViewChange,
+  rightAction,
+  initialActiveIndex,
+}: MobilePanelShellProps) {
+  const clampedInitial =
+    initialActiveIndex != null && Number.isFinite(initialActiveIndex)
+      ? Math.max(0, Math.min(Math.floor(initialActiveIndex), views.length - 1))
+      : 0;
+
+  const [activeIndex, setActiveIndex] = useState(clampedInitial);
+
+  const [activatedViews] = useState<Set<number>>(() => {
+    const s = new Set<number>();
+    views.forEach((v, i) => {
+      if (!v.lazy) s.add(i);
+    });
+    s.add(clampedInitial);
+    return s;
+  });
 
   const handleViewChange = useCallback(
     (index: number) => {
       setActiveIndex(index);
+      activatedViews.add(index);
       onViewChange?.(index);
     },
-    [onViewChange]
+    [onViewChange, activatedViews]
   );
 
   return (
@@ -75,7 +102,7 @@ export function MobilePanelShell({ views, onViewChange, rightAction }: MobilePan
             isActive={index === activeIndex}
             isTerminal={view.isTerminal}
           >
-            {view.content}
+            {activatedViews.has(index) ? view.content : null}
           </MobileView>
         ))}
       </div>

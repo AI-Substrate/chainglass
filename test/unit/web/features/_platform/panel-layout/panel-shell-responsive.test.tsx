@@ -7,9 +7,9 @@
  * @vitest-environment jsdom
  */
 
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FakeMatchMedia } from '../../../../../../test/fakes/fake-match-media';
 
@@ -61,6 +61,12 @@ describe('PanelShell responsive branch', () => {
       icon: <span>C</span>,
       content: <div data-testid="mobile-content">Content</div>,
     },
+    {
+      label: 'Terminal',
+      icon: <span>T</span>,
+      content: <div data-testid="mobile-terminal">Terminal</div>,
+      lazy: true,
+    },
   ];
 
   it('renders desktop layout at 1024px regardless of mobileViews', () => {
@@ -89,6 +95,56 @@ describe('PanelShell responsive branch', () => {
         mobileViews={mobileViews}
       />
     );
+    expect(screen.getByTestId('mobile-files')).toBeInTheDocument();
+    expect(screen.getByTestId('mobile-content')).toBeInTheDocument();
+    // Terminal is lazy — not mounted until activated
+    expect(screen.queryByTestId('mobile-terminal')).not.toBeInTheDocument();
+  });
+
+  it('PanelShell passes initialMobileActiveIndex through', () => {
+    setViewportWidth(375);
+    render(
+      <PanelShell
+        explorer={<div>Explorer</div>}
+        left={<div>Left</div>}
+        main={<div>Main</div>}
+        mobileViews={mobileViews}
+        initialMobileActiveIndex={2}
+      />
+    );
+    const container = screen.getByTestId('mobile-view-container');
+    expect(container.style.transform).toBe('translateX(-200%)');
+  });
+
+  it('PanelShell calls onMobileViewChange', () => {
+    setViewportWidth(375);
+    const spy = vi.fn();
+    render(
+      <PanelShell
+        explorer={<div>Explorer</div>}
+        left={<div>Left</div>}
+        main={<div>Main</div>}
+        mobileViews={mobileViews}
+        onMobileViewChange={spy}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Content/ }));
+    expect(spy).toHaveBeenCalledWith(1);
+  });
+
+  it('lazy terminal view not mounted until activated', () => {
+    setViewportWidth(375);
+    render(
+      <PanelShell
+        explorer={<div>Explorer</div>}
+        left={<div>Left</div>}
+        main={<div>Main</div>}
+        mobileViews={mobileViews}
+      />
+    );
+    // Terminal (index 2) is lazy and not the initial view — should not be in DOM
+    expect(screen.queryByTestId('mobile-terminal')).not.toBeInTheDocument();
+    // Non-lazy views are mounted
     expect(screen.getByTestId('mobile-files')).toBeInTheDocument();
     expect(screen.getByTestId('mobile-content')).toBeInTheDocument();
   });

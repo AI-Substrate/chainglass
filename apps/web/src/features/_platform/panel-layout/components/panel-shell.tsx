@@ -27,13 +27,34 @@ export interface PanelShellProps {
   autoSaveId?: string;
   /** Mobile view configuration. When provided + phone viewport, renders MobilePanelShell. */
   mobileViews?: MobilePanelShellView[];
+  /** Initial active mobile view index (e.g. 2 for Terminal). Clamped to valid range. */
+  initialMobileActiveIndex?: number;
+  /** Called when mobile view changes (for tracking active index in parent). */
+  onMobileViewChange?: (index: number) => void;
+  /** Optional action slot for mobile swipe strip right side (e.g. search icon). */
+  mobileRightAction?: ReactNode;
 }
 
-export function PanelShell({ explorer, left, main, mobileViews }: PanelShellProps) {
+export function PanelShell({
+  explorer,
+  left,
+  main,
+  mobileViews,
+  initialMobileActiveIndex,
+  onMobileViewChange,
+  mobileRightAction,
+}: PanelShellProps) {
   const { useMobilePatterns } = useResponsive();
 
   if (useMobilePatterns && mobileViews && mobileViews.length > 0) {
-    return <MobilePanelShell views={mobileViews} />;
+    return (
+      <MobilePanelShell
+        views={mobileViews}
+        initialActiveIndex={initialMobileActiveIndex}
+        onViewChange={onMobileViewChange}
+        rightAction={mobileRightAction}
+      />
+    );
   }
 
   return (

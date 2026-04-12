@@ -40,18 +40,29 @@ export function BottomTabBar() {
 
   const navItems = isInWorkspace
     ? currentWorktree
-      ? WORKSPACE_NAV_ITEMS.map((item) => ({
-          ...item,
-          href: workspaceHref(workspaceSlug, item.href, {
+      ? WORKSPACE_NAV_ITEMS.map((item) => {
+          const baseHref = workspaceHref(workspaceSlug, item.href, {
             worktree: currentWorktree,
-          }),
-        }))
+          });
+          // FX002: Terminal on mobile goes to browser page's Terminal tab
+          if (item.id === 'terminal') {
+            return {
+              ...item,
+              href: workspaceHref(workspaceSlug, '/browser', {
+                worktree: currentWorktree,
+                mobileView: '2',
+              }),
+            };
+          }
+          return { ...item, href: baseHref };
+        })
       : LANDING_NAV_ITEMS
     : LANDING_NAV_ITEMS;
 
   const handleTabClick = (href: string) => {
-    // Don't navigate if already on this route
-    if (pathname === href) {
+    // Don't navigate if already on this route (compare pathname only, ignore query params)
+    const targetPath = href.split('?')[0];
+    if (pathname === targetPath && !href.includes('mobileView')) {
       return;
     }
     router.push(href);
@@ -72,7 +83,12 @@ export function BottomTabBar() {
         aria-label="Mobile navigation"
       >
         {navItems.map((item) => {
-          const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+          // FX002: Terminal on mobile points to /browser — check by item id, not just pathname
+          const itemPathname = item.href.split('?')[0];
+          const isActive =
+            item.id === 'terminal'
+              ? pathname.includes('/browser') && searchParams.get('mobileView') === '2'
+              : pathname === itemPathname || pathname.startsWith(`${itemPathname}/`);
           const Icon = item.icon;
 
           return (

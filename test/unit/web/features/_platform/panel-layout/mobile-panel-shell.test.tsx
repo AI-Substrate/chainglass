@@ -117,4 +117,67 @@ describe('MobilePanelShell', () => {
     const anchor = container.querySelector('[data-terminal-overlay-anchor]');
     expect(anchor).toBeInTheDocument();
   });
+
+  describe('lazy mount', () => {
+    const lazyViews = [
+      { label: 'Files', icon: <span>F</span>, content: <div data-testid="files">Files</div> },
+      { label: 'Content', icon: <span>C</span>, content: <div data-testid="content">Content</div> },
+      {
+        label: 'Terminal',
+        icon: <span>T</span>,
+        content: <div data-testid="terminal">Terminal</div>,
+        lazy: true,
+      },
+    ];
+
+    it('renders non-lazy view content immediately', () => {
+      render(<MobilePanelShell views={lazyViews} />);
+      expect(screen.getByTestId('files')).toBeInTheDocument();
+      expect(screen.getByTestId('content')).toBeInTheDocument();
+    });
+
+    it('does not render lazy view content before activation', () => {
+      render(<MobilePanelShell views={lazyViews} />);
+      expect(screen.queryByTestId('terminal')).not.toBeInTheDocument();
+    });
+
+    it('renders lazy view content after switching to it', () => {
+      render(<MobilePanelShell views={lazyViews} />);
+      fireEvent.click(screen.getByText('Terminal'));
+      expect(screen.getByTestId('terminal')).toBeInTheDocument();
+    });
+
+    it('keeps activated lazy views mounted after switching away and back', () => {
+      render(<MobilePanelShell views={lazyViews} />);
+      fireEvent.click(screen.getByText('Terminal'));
+      expect(screen.getByTestId('terminal')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: /Files/ }));
+      expect(screen.getByTestId('terminal')).toBeInTheDocument();
+    });
+
+    it('activates lazy view immediately when initialActiveIndex points to it', () => {
+      render(<MobilePanelShell views={lazyViews} initialActiveIndex={2} />);
+      expect(screen.getByTestId('terminal')).toBeInTheDocument();
+    });
+
+    it('clamps invalid initialActiveIndex to last valid index', () => {
+      const { container } = render(<MobilePanelShell views={lazyViews} initialActiveIndex={99} />);
+      const viewContainer = container.querySelector(
+        '[data-testid="mobile-view-container"]'
+      ) as HTMLElement;
+      expect(viewContainer.style.transform).toBe('translateX(-200%)');
+      expect(screen.getByTestId('terminal')).toBeInTheDocument();
+    });
+
+    it('defaults to index 0 when initialActiveIndex is NaN', () => {
+      const { container } = render(
+        <MobilePanelShell views={lazyViews} initialActiveIndex={Number.NaN} />
+      );
+      const viewContainer = container.querySelector(
+        '[data-testid="mobile-view-container"]'
+      ) as HTMLElement;
+      expect(viewContainer.style.transform).toBe('translateX(-0%)');
+      expect(screen.queryByTestId('terminal')).not.toBeInTheDocument();
+    });
+  });
 });
