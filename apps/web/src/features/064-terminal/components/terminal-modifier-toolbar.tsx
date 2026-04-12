@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 export interface ModifierState {
   ctrl: boolean;
@@ -76,9 +76,9 @@ export function TerminalModifierToolbar({
   }, [updateModifiers]);
 
   // Expose resetModifiers to parent via ref callback
-  if (toolbarRef) {
-    toolbarRef({ resetModifiers });
-  }
+  useEffect(() => {
+    toolbarRef?.({ resetModifiers });
+  }, [toolbarRef, resetModifiers]);
 
   const handleCtrl = useCallback(() => {
     const next = { ...modifiers, ctrl: !modifiers.ctrl };

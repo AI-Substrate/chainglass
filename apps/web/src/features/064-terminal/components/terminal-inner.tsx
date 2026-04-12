@@ -238,13 +238,31 @@ export default function TerminalInner({
     // Intercept Ctrl+V / Ctrl+Shift+V so the browser handles paste natively
     // instead of xterm sending \x16 (literal ^V → tmux "verbatim insert").
     // Ctrl+Shift+C allows copy; plain Ctrl+C is preserved as SIGINT.
+    // Also handles mobile modifier toolbar Ctrl/Alt intercept (Phase 2 T006).
     terminal.attachCustomKeyEventHandler((event) => {
       if (event.type !== 'keydown') return true;
       const ctrl = event.ctrlKey && !event.metaKey;
       if (ctrl && (event.key === 'v' || event.key === 'V')) return false;
       if (ctrl && event.shiftKey && (event.key === 'c' || event.key === 'C')) return false;
-      // Shift+Escape is the global close shortcut — never send to terminal
       if (event.shiftKey && event.key === 'Escape') return false;
+
+      // Mobile modifier toolbar intercept — Ctrl/Alt toggle keys
+      if (ctrlActiveRef.current && event.key.length === 1) {
+        const code = event.key.toUpperCase().charCodeAt(0) & 0x1f;
+        sendRef.current(String.fromCharCode(code));
+        ctrlActiveRef.current = false;
+        altActiveRef.current = false;
+        toolbarRef.current?.resetModifiers();
+        return false;
+      }
+      if (altActiveRef.current && event.key.length === 1) {
+        sendRef.current(`\x1b${event.key}`);
+        ctrlActiveRef.current = false;
+        altActiveRef.current = false;
+        toolbarRef.current?.resetModifiers();
+        return false;
+      }
+
       return true;
     });
 
@@ -380,37 +398,6 @@ export default function TerminalInner({
     ctrlActiveRef.current = state.ctrl;
     altActiveRef.current = state.alt;
   }, []);
-
-  // T006: Ctrl/Alt intercept — modify next keypress when modifier is active
-  useEffect(() => {
-    const terminal = terminalRef.current;
-    if (!terminal || !useMobilePatterns) return;
-
-    const handler = (event: KeyboardEvent): boolean => {
-      if (event.type !== 'keydown') return true;
-
-      if (ctrlActiveRef.current && event.key.length === 1) {
-        const code = event.key.toUpperCase().charCodeAt(0) & 0x1f;
-        sendRef.current(String.fromCharCode(code));
-        ctrlActiveRef.current = false;
-        altActiveRef.current = false;
-        toolbarRef.current?.resetModifiers();
-        return false;
-      }
-
-      if (altActiveRef.current && event.key.length === 1) {
-        sendRef.current(`\x1b${event.key}`);
-        ctrlActiveRef.current = false;
-        altActiveRef.current = false;
-        toolbarRef.current?.resetModifiers();
-        return false;
-      }
-
-      return true;
-    };
-
-    terminal.attachCustomKeyEventHandler(handler);
-  }, [useMobilePatterns]);
 
   return (
     <div className={`relative h-full w-full ${className ?? ''}`}>
