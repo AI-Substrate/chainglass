@@ -9,8 +9,11 @@ import { useTheme } from 'next-themes';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import '@xterm/xterm/css/xterm.css';
 
+import { useResponsive } from '@/hooks/useResponsive';
+import { useKeyboardOpen } from '../hooks/use-keyboard-open';
 import { useTerminalSocket } from '../hooks/use-terminal-socket';
 import type { ConnectionStatus } from '../types';
+import { TerminalModifierToolbar } from './terminal-modifier-toolbar';
 
 // DYK-05: xterm.js v6 requires new object references for theme updates
 const DARK_THEME = {
@@ -88,31 +91,22 @@ export default function TerminalInner({
   const disposedRef = useRef(false);
   const [copyModalText, setCopyModalText] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
-  const [bottomOffset, setBottomOffset] = useState(0);
   const tmuxWarningShownRef = useRef(false);
+  const toolbarRef = useRef<{ resetModifiers: () => void } | null>(null);
+  const ctrlActiveRef = useRef(false);
+  const altActiveRef = useRef(false);
   const { resolvedTheme } = useTheme();
+  const { useMobilePatterns } = useResponsive();
+
+  // T006: Replace bottomOffset with useKeyboardOpen hook
+  const { isOpen: keyboardOpen, keyboardHeight } = useKeyboardOpen();
+  const TOOLBAR_HEIGHT = 36;
+  const showToolbar = useMobilePatterns && keyboardOpen;
+  const bottomOffset = showToolbar ? keyboardHeight + TOOLBAR_HEIGHT : keyboardHeight;
 
   // Effective theme: override takes precedence, 'system' falls through to resolvedTheme
   const effectiveTheme =
     themeOverride && themeOverride !== 'system' ? themeOverride : resolvedTheme;
-
-  // Dynamic bottom offset via visualViewport — for iOS keyboard/browser chrome
-  // Only activates on touch devices; desktop gets full height (bottom: 0)
-  useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-    // Only apply on touch devices (iPad, phone)
-    const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    if (!isTouch) return;
-
-    const handleResize = () => {
-      const offset = Math.max(0, Math.round(window.innerHeight - vv.height));
-      setBottomOffset(offset);
-    };
-    handleResize();
-    vv.addEventListener('resize', handleResize);
-    return () => vv.removeEventListener('resize', handleResize);
-  }, []);
 
   const showCopyModal = useCallback((text: string) => setCopyModalText(text), []);
 
@@ -201,6 +195,7 @@ export default function TerminalInner({
   initialThemeRef.current = effectiveTheme;
 
   // Initialize terminal + addons + ResizeObserver
+  // biome-ignore lint/correctness/useExhaustiveDependencies: terminal init runs once at mount
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -211,7 +206,7 @@ export default function TerminalInner({
 
     const terminal = new Terminal({
       cursorBlink: true,
-      fontSize: 14,
+      fontSize: useMobilePatterns ? 12 : 14,
       fontFamily:
         "'JetBrains Mono', 'Fira Code', 'Cascadia Code', Menlo, Monaco, 'Courier New', monospace",
       theme,
@@ -254,6 +249,18 @@ export default function TerminalInner({
     });
 
     terminal.open(container);
+
+    // T003: Prevent double-tap zoom on mobile
+    const xtermScreen = container.querySelector('.xterm-screen') as HTMLElement | null;
+    if (xtermScreen) {
+      xtermScreen.style.touchAction = 'manipulation';
+    }
+
+    // T008: Prevent iOS auto-zoom on textarea focus (font-size < 16px triggers zoom)
+    const helperTextarea = container.querySelector('.xterm-helper-textarea') as HTMLElement | null;
+    if (helperTextarea) {
+      helperTextarea.style.fontSize = '16px';
+    }
 
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
@@ -353,6 +360,58 @@ export default function TerminalInner({
     });
   }, [isVisible]);
 
+  // T007: Auto-focus terminal on mobile mount so keyboard can open on tap
+  useEffect(() => {
+    if (!useMobilePatterns || disposedRef.current || !terminalRef.current) return;
+    requestAnimationFrame(() => {
+      if (disposedRef.current) return;
+      terminalRef.current?.focus();
+    });
+  }, [useMobilePatterns]);
+
+  // T006: Handle toolbar key sends
+  const handleToolbarKey = useCallback((data: string) => {
+    sendRef.current(data);
+    terminalRef.current?.focus();
+  }, []);
+
+  // T006: Handle modifier state changes (Ctrl/Alt toggle)
+  const handleModifierChange = useCallback((state: { ctrl: boolean; alt: boolean }) => {
+    ctrlActiveRef.current = state.ctrl;
+    altActiveRef.current = state.alt;
+  }, []);
+
+  // T006: Ctrl/Alt intercept — modify next keypress when modifier is active
+  useEffect(() => {
+    const terminal = terminalRef.current;
+    if (!terminal || !useMobilePatterns) return;
+
+    const handler = (event: KeyboardEvent): boolean => {
+      if (event.type !== 'keydown') return true;
+
+      if (ctrlActiveRef.current && event.key.length === 1) {
+        const code = event.key.toUpperCase().charCodeAt(0) & 0x1f;
+        sendRef.current(String.fromCharCode(code));
+        ctrlActiveRef.current = false;
+        altActiveRef.current = false;
+        toolbarRef.current?.resetModifiers();
+        return false;
+      }
+
+      if (altActiveRef.current && event.key.length === 1) {
+        sendRef.current(`\x1b${event.key}`);
+        ctrlActiveRef.current = false;
+        altActiveRef.current = false;
+        toolbarRef.current?.resetModifiers();
+        return false;
+      }
+
+      return true;
+    };
+
+    terminal.attachCustomKeyEventHandler(handler);
+  }, [useMobilePatterns]);
+
   return (
     <div className={`relative h-full w-full ${className ?? ''}`}>
       <div
@@ -397,7 +456,7 @@ export default function TerminalInner({
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/90">
           <div
             className="flex flex-col gap-3 rounded-lg border bg-background p-4 shadow-xl"
-            style={{ width: '800px', maxWidth: '95vw', height: '800px', maxHeight: '90vh' }}
+            style={{ width: '100%', maxWidth: '95vw', maxHeight: '80vh' }}
           >
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">Select and copy text below</span>
@@ -420,6 +479,25 @@ export default function TerminalInner({
             />
             <span className="text-xs text-muted-foreground">Long-press or Ctrl+A then copy</span>
           </div>
+        </div>
+      )}
+      {showToolbar && (
+        <div
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: `${keyboardHeight}px`,
+            zIndex: 30,
+          }}
+        >
+          <TerminalModifierToolbar
+            onKey={handleToolbarKey}
+            onModifierChange={handleModifierChange}
+            toolbarRef={(handle) => {
+              toolbarRef.current = handle;
+            }}
+          />
         </div>
       )}
     </div>
