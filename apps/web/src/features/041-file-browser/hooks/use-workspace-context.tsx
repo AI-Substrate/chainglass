@@ -11,6 +11,7 @@
  * Subtask 001: Worktree Identity & Tab Titles
  * DYK-ST-02: Single setWorktreeIdentity setter
  * DYK-ST-04: Provider resolves emoji/color from worktreePreferences map
+ * Plan 079: Default identity from layout props; setPageTitle convenience API
  */
 
 import type { WorktreeVisualPreferences } from '@chainglass/workflow';
@@ -41,6 +42,8 @@ export interface WorkspaceContextValue {
   setHasChanges: (value: boolean) => void;
   worktreeIdentity: WorktreeIdentity | null;
   setWorktreeIdentity: (input: WorktreeIdentityInput | null) => void;
+  /** Set only the page label portion of the title (e.g., 'Terminal', 'Workflows') */
+  setPageTitle: (title: string | null) => void;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
@@ -55,6 +58,10 @@ export interface WorkspaceProviderProps {
   emoji: string;
   color: string;
   worktreePreferences: Record<string, WorktreeVisualPreferences>;
+  /** Default worktree path from workspace root — used to initialize identity */
+  defaultWorktreePath?: string;
+  /** Default branch name from workspace root — used to initialize identity */
+  defaultBranch?: string;
   children: ReactNode;
 }
 
@@ -64,15 +71,27 @@ export function WorkspaceProvider({
   emoji,
   color,
   worktreePreferences,
+  defaultWorktreePath,
+  defaultBranch,
   children,
 }: WorkspaceProviderProps) {
   const [hasChanges, setHasChangesRaw] = useState(false);
   const setHasChanges = useCallback((value: boolean) => setHasChangesRaw(value), []);
 
-  const [worktreeInput, setWorktreeInput] = useState<WorktreeIdentityInput | null>(null);
+  const [worktreeInput, setWorktreeInput] = useState<WorktreeIdentityInput | null>(
+    defaultWorktreePath && defaultBranch
+      ? { worktreePath: defaultWorktreePath, branch: defaultBranch }
+      : null
+  );
 
   const setWorktreeIdentity = useCallback(
     (input: WorktreeIdentityInput | null) => setWorktreeInput(input),
+    []
+  );
+
+  const setPageTitle = useCallback(
+    (title: string | null) =>
+      setWorktreeInput((prev) => (prev ? { ...prev, pageTitle: title ?? undefined } : prev)),
     []
   );
 
@@ -99,8 +118,19 @@ export function WorkspaceProvider({
       setHasChanges,
       worktreeIdentity,
       setWorktreeIdentity,
+      setPageTitle,
     }),
-    [slug, name, emoji, color, hasChanges, setHasChanges, worktreeIdentity, setWorktreeIdentity]
+    [
+      slug,
+      name,
+      emoji,
+      color,
+      hasChanges,
+      setHasChanges,
+      worktreeIdentity,
+      setWorktreeIdentity,
+      setPageTitle,
+    ]
   );
 
   return <WorkspaceContext value={value}>{children}</WorkspaceContext>;

@@ -14,6 +14,7 @@ import type { SDKSetting } from '@chainglass/shared/sdk';
 import { Settings } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
+import { usePageTitle } from '@/features/041-file-browser/hooks/use-page-title';
 import { useSDK } from '@/lib/sdk/sdk-provider';
 
 import { SettingControl } from './setting-control';
@@ -48,6 +49,7 @@ function filterSettings(settings: SDKSetting[], query: string): SDKSetting[] {
 }
 
 export function SettingsPage({ slug: _slug }: SettingsPageProps) {
+  usePageTitle('Settings');
   const sdk = useSDK();
   const [search, setSearch] = useState('');
 

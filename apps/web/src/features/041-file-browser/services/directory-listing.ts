@@ -20,6 +20,7 @@ export interface FileEntry {
   name: string;
   type: 'file' | 'directory';
   path: string;
+  size?: number;
 }
 
 export interface ListDirectoryOptions {
@@ -138,6 +139,7 @@ async function listFromReadDir(
         name: item,
         type: stats.isDirectory ? 'directory' : 'file',
         path: relativePath,
+        size: stats.isDirectory ? undefined : stats.size,
       });
     } catch {
       // Skip items we can't stat

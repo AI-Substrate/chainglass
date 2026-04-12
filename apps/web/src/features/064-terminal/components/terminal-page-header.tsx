@@ -4,6 +4,7 @@ import { ClipboardCopy, TerminalSquare } from 'lucide-react';
 import { copyTmuxBuffer } from '../lib/copy-tmux-buffer';
 import type { ConnectionStatus } from '../types';
 import { ConnectionStatusBadge } from './connection-status-badge';
+import { TerminalThemeSelect } from './terminal-theme-select';
 
 interface TerminalPageHeaderProps {
   sessionName: string | null;
@@ -23,6 +24,7 @@ export function TerminalPageHeader({
         <span className="text-sm font-medium">{sessionName ?? 'No session'}</span>
       </div>
       <div className="flex items-center gap-2">
+        <TerminalThemeSelect />
         <button
           type="button"
           onClick={() => copyTmuxBuffer()}

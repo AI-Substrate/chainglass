@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Folder Preview QA Report",
+  "description": "Structured output from the folder-preview-qa agent. Visual validation of the gallery across viewports, themes, and interactions.",
+  "type": "object",
+  "required": ["summary", "screenshots", "checks", "issues", "verdict", "retrospective"],
+  "additionalProperties": true,
+  "properties": {
+    "summary": {
+      "type": "string",
+      "description": "One-paragraph summary of the QA results."
+    },
+    "screenshots": {
+      "type": "array",
+      "description": "Screenshots captured during testing.",
+      "items": {
+        "type": "object",
+        "required": ["name", "viewport", "path"],
+        "additionalProperties": true,
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Screenshot name (e.g., 'desktop-gallery')."
+          },
+          "viewport": {
+            "type": "string",
+            "description": "Viewport used (e.g., '1280x800', '375x812', '768x1024')."
+          },
+          "path": {
+            "type": "string",
+            "description": "File path where the screenshot was saved."
+          },
+          "description": {
+            "type": "string",
+            "description": "What the screenshot shows."
+          }
+        }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "description": "Individual visual checks performed.",
+      "items": {
+        "type": "object",
+        "required": ["name", "result"],
+        "additionalProperties": true,
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Check name (e.g., 'desktop-gallery-renders', 'mobile-actions-visible')."
+          },
+          "result": {
+            "type": "string",
+            "enum": ["pass", "fail", "skip"],
+            "description": "Check result."
+          },
+          "notes": {
+            "type": "string",
+            "description": "Details about the check result."
+          }
+        }
+      }
+    },
+    "issues": {
+      "type": "array",
+      "description": "Visual or functional issues found.",
+      "items": {
+        "type": "object",
+        "required": ["severity", "description"],
+        "additionalProperties": true,
+        "properties": {
+          "severity": {
+            "type": "string",
+            "enum": ["critical", "major", "minor", "cosmetic"],
+            "description": "Issue severity."
+          },
+          "description": {
+            "type": "string",
+            "description": "What the issue is."
+          },
+          "screenshot": {
+            "type": "string",
+            "description": "Screenshot showing the issue."
+          }
+        }
+      }
+    },
+    "verdict": {
+      "type": "string",
+      "enum": ["pass", "fail", "partial"],
+      "description": "Overall verdict. 'pass' = all checks pass. 'fail' = blocking issues. 'partial' = minor issues."
+    },
+    "retrospective": {
+      "type": "object",
+      "description": "Honest feedback on the gallery visual quality and UX.",
+      "required": ["workedWell", "confusing", "magicWand"],
+      "additionalProperties": true,
+      "properties": {
+        "workedWell": {
+          "type": "string",
+          "description": "What looked great? Which card types rendered well?"
+        },
+        "confusing": {
+          "type": "string",
+          "description": "Any cards that looked broken? Layout issues? Missing states?"
+        },
+        "magicWand": {
+          "type": "string",
+          "description": "One concrete improvement to the gallery UX."
+        },
+        "visualQuality": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "description": "Overall polish rating from 1-10."
+        },
+        "improvementSuggestions": {
+          "type": "array",
+          "description": "1-3 specific visual or interaction improvements.",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

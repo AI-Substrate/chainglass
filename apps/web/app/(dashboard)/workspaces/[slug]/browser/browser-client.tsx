@@ -15,6 +15,7 @@ import {
   FileViewerPanel,
   type ViewerMode,
 } from '@/features/041-file-browser/components/file-viewer-panel';
+import { FolderPreviewPanel } from '@/features/041-file-browser/components/folder-preview-panel';
 import { useClipboard } from '@/features/041-file-browser/hooks/use-clipboard';
 import { useFileFilter } from '@/features/041-file-browser/hooks/use-file-filter';
 import { useFileMutations } from '@/features/041-file-browser/hooks/use-file-mutations';
@@ -121,6 +122,7 @@ function BrowserClientInner({
 
   const mode = (params.mode as ViewerMode) || 'preview';
   const selectedFile = params.file || undefined;
+  const currentDir = params.dir || '';
   const panelMode = (params.panel as PanelMode) || 'tree';
   const scrollToLine = params.line ?? null;
 
@@ -370,13 +372,31 @@ function BrowserClientInner({
         pageTitle: 'Browser',
       });
     }
-    return () => wsCtx?.setWorktreeIdentity(null);
   }, [worktreePath, worktreeBranch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // --- Live file events (Plan 045) ---
 
   const treeRef = useRef<FileTreeHandle>(null);
   const [trackedExpandedDirs, setTrackedExpandedDirs] = useState<string[]>([]);
+  const trackedExpandedDirsRef = useRef<string[]>([]);
+  // Plan 077: Guard against programmatic expansion updating dir param
+  const isProgrammaticExpansionRef = useRef(false);
+
+  // Plan 077: Track last-expanded folder to show gallery in viewer panel.
+  // Only updates dir on user-initiated folder clicks, not programmatic expansion.
+  const handleExpandedDirsChange = useCallback(
+    (dirs: string[]) => {
+      const oldSet = new Set(trackedExpandedDirsRef.current);
+      const newlyExpanded = dirs.find((d) => !oldSet.has(d));
+      trackedExpandedDirsRef.current = dirs;
+      setTrackedExpandedDirs(dirs);
+
+      if (newlyExpanded && !isProgrammaticExpansionRef.current) {
+        setParams({ dir: newlyExpanded }, { history: 'push' });
+      }
+    },
+    [setParams]
+  );
 
   // T004: Watch current open file for external changes
   const fileChanges = useFileChanges(selectedFile ?? '', { debounce: 100 });
@@ -592,6 +612,7 @@ function BrowserClientInner({
     if (!selectedFile) return;
     const parts = selectedFile.split('/');
     if (parts.length <= 1) return;
+    isProgrammaticExpansionRef.current = true;
     const ancestors: string[] = [];
     let current = '';
     for (let i = 0; i < parts.length - 1; i++) {
@@ -600,6 +621,10 @@ function BrowserClientInner({
       fileNav.handleExpand(current);
     }
     setExpandPaths(ancestors);
+    // Reset flag after FileTree processes the expansion
+    requestAnimationFrame(() => {
+      isProgrammaticExpansionRef.current = false;
+    });
   }, [selectedFile, fileNav.handleExpand]);
 
   // --- DYK-P3-05: Register SDK commands via useEffect ---
@@ -933,7 +958,7 @@ function BrowserClientInner({
                     onExpand={fileNav.handleExpand}
                     childEntries={filteredChildEntries}
                     expandPaths={expandPaths}
-                    onExpandedDirsChange={setTrackedExpandedDirs}
+                    onExpandedDirsChange={handleExpandedDirsChange}
                     onCopyFullPath={clipboard.handleCopyFullPath}
                     onCopyRelativePath={clipboard.handleCopyRelativePath}
                     onCopyContent={clipboard.handleCopyContent}
@@ -1025,6 +1050,22 @@ function BrowserClientInner({
                 }
                 scrollToLine={scrollToLine}
                 onNavigateToFile={handleFileSelect}
+              />
+            ) : currentDir ? (
+              <FolderPreviewPanel
+                dirPath={currentDir}
+                slug={slug}
+                worktreePath={worktreePath}
+                onFileClick={(path) => setParams({ file: path, line: null }, { history: 'push' })}
+                onFolderNavigate={(path) => {
+                  setParams({ dir: path, file: '' }, { history: 'push' });
+                  fileNav.handleExpand(path);
+                }}
+                onCopyPath={clipboard.handleCopyFullPath}
+                onDownload={clipboard.handleDownload}
+                onBreadcrumbNavigate={(path) => {
+                  setParams({ dir: path, file: '' }, { history: 'push' });
+                }}
               />
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground">

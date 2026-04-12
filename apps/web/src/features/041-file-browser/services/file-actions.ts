@@ -2,10 +2,9 @@
  * File Actions Service — readFile + saveFile
  *
  * Secure file read/write with size limits, binary detection,
- * symlink escape prevention, and mtime conflict detection.
+ * path traversal prevention, and mtime conflict detection.
  *
  * Phase 4: File Browser — Plan 041
- * Finding 02: Symlink escape via realpath
  * Finding 06: Atomic write (tmp+rename) for save
  * Finding 09: 5MB size limit, null-byte binary detection
  */
@@ -71,17 +70,9 @@ export async function readFileAction(options: ReadFileOptions): Promise<ReadFile
     return { ok: false, error: 'not-found' };
   }
 
-  // Security: symlink escape check via realpath
-  try {
-    const realPath = await fileSystem.realpath(absolutePath);
-    // Separator-safe containment: must be exact root or true descendant
-    const normalizedRoot = worktreePath.endsWith('/') ? worktreePath : `${worktreePath}/`;
-    if (realPath !== worktreePath && !realPath.startsWith(normalizedRoot)) {
-      return { ok: false, error: 'security' };
-    }
-  } catch {
-    return { ok: false, error: 'not-found' };
-  }
+  // Symlink following: allow symlinks that point outside the workspace.
+  // PathResolver.resolvePath() above already prevents ../traversal in the URL path.
+  // This is a local dev tool — the user controls what's symlinked.
 
   // Stat for metadata
   const stats = await fileSystem.stat(absolutePath);

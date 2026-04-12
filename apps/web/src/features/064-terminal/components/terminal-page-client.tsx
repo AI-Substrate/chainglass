@@ -5,7 +5,7 @@ import { LeftPanel, MainPanel, PanelShell } from '@/features/_platform/panel-lay
 import type { PanelMode } from '@/features/_platform/panel-layout';
 import type { LeftPanelMode } from '@/features/_platform/panel-layout';
 import { List, TerminalSquare } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTerminalSessions } from '../hooks/use-terminal-sessions';
 import type { ConnectionStatus } from '../types';
 import { TerminalPageHeader } from './terminal-page-header';
@@ -34,6 +34,18 @@ export function TerminalPageClient({
   const wsCtx = useWorkspaceContext();
   const terminalTheme = wsCtx?.worktreeIdentity?.terminalTheme || 'dark';
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
+
+  // Set worktree identity for tab title (Plan 079)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — only re-run on worktree change, not context ref
+  useEffect(() => {
+    if (worktreeBranch) {
+      wsCtx?.setWorktreeIdentity({
+        worktreePath,
+        branch: worktreeBranch,
+        pageTitle: 'Terminal',
+      });
+    }
+  }, [worktreePath, worktreeBranch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <PanelShell

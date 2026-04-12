@@ -137,3 +137,4 @@ test/fakes/
 | 064-tmux Phase 4 | Overlay panel, provider, SDK command, sidebar button | 2026-03-03 |
 | 064-tmux Post-P4 | Copy buffer (deferred clipboard), HTTPS/WSS, ESM fix | 2026-03-03 |
 | 064-tmux Phase 5 | tmux fallback toast, domain docs, dev setup guide | 2026-03-03 |
+| Plan 081 | 25 terminal color themes (Dracula, Nord, Catppuccin, etc.) via SDK setting + Palette popover picker in header | 2026-04-10 |
