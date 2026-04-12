@@ -28,6 +28,7 @@ Workspace-scoped file browsing, editing, and diffing. The core feature that make
 - Worktree picker component (Phase 3)
 - useAttentionTitle hook (Phase 3)
 - Binary file viewers — ImageViewer, PdfViewer, VideoViewer, AudioViewer, BinaryPlaceholder for inline binary rendering
+- Folder preview gallery — FolderPreviewPanel, FolderPreviewGrid, preview cards (ImageCard, VideoCard, AudioCard, FolderCard, GenericCard) for visual folder content browsing
 - Raw file streaming API route — /api/workspaces/[slug]/files/raw with Range request support
 
 ### Does NOT Own
@@ -84,6 +85,16 @@ Workspace-scoped file browsing, editing, and diffing. The core feature that make
 | VideoViewer | HTML5 video player | Raw file API route, detectContentType |
 | AudioViewer | HTML5 audio player | Raw file API route, detectContentType |
 | BinaryPlaceholder | Fallback for unknown binary types | detectContentType |
+| FolderPreviewPanel | Gallery orchestrator for folder contents | Files API, sortGalleryItems, FolderPreviewGrid |
+| FolderPreviewGrid | Responsive grid with type-grouped sections | ImageCard, VideoCard, AudioCard, FolderCard, GenericCard |
+| ImageCard | Image thumbnail with lazy loading | useLazyLoad, CardActions, raw file API |
+| VideoCard | Video hover-to-play / tap-to-play | useLazyLoad, CardActions, raw file API |
+| AudioCard | Audio waveform visualization card | CardActions |
+| FolderCard | Subfolder navigation card | FolderIcon, CardActions |
+| GenericCard | Fallback card for non-media files | FileIcon, CardActions |
+| CardActions | Copy-path + download overlay buttons | useClipboard |
+| sortGalleryItems | Group + sort entries by type | detectContentType |
+| useLazyLoad | IntersectionObserver for lazy loading | None |
 | WorkspaceProvider | React context for workspace prefs + worktree identity | WorktreeVisualPreferences, useAttentionTitle |
 | WorkspaceAttentionWrapper | Client wrapper composing tab title from context | useAttentionTitle, useWorkspaceContext |
 | WorktreeIdentityPopover | Inline gear popover for worktree emoji/color | EmojiPicker, ColorPicker, updateWorktreePreferences |
@@ -135,6 +146,17 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 | `apps/web/src/features/041-file-browser/components/video-viewer.tsx` | VideoViewer component | Plan 046 |
 | `apps/web/src/features/041-file-browser/components/audio-viewer.tsx` | AudioViewer component | Plan 046 |
 | `apps/web/src/features/041-file-browser/components/binary-placeholder.tsx` | BinaryPlaceholder component | Plan 046 |
+| `apps/web/src/features/041-file-browser/components/folder-preview-panel.tsx` | FolderPreviewPanel gallery orchestrator | Plan 077 |
+| `apps/web/src/features/041-file-browser/components/folder-preview-grid.tsx` | FolderPreviewGrid responsive grid | Plan 077 |
+| `apps/web/src/features/041-file-browser/components/preview-cards/image-card.tsx` | ImageCard thumbnail | Plan 077 |
+| `apps/web/src/features/041-file-browser/components/preview-cards/video-card.tsx` | VideoCard hover-to-play | Plan 077 |
+| `apps/web/src/features/041-file-browser/components/preview-cards/audio-card.tsx` | AudioCard waveform | Plan 077 |
+| `apps/web/src/features/041-file-browser/components/preview-cards/folder-card.tsx` | FolderCard navigation | Plan 077 |
+| `apps/web/src/features/041-file-browser/components/preview-cards/generic-card.tsx` | GenericCard fallback | Plan 077 |
+| `apps/web/src/features/041-file-browser/components/preview-cards/card-actions.tsx` | CardActions overlay buttons | Plan 077 |
+| `apps/web/src/features/041-file-browser/components/preview-cards/card-skeleton.tsx` | CardSkeleton shimmer | Plan 077 |
+| `apps/web/src/features/041-file-browser/lib/sort-gallery-items.ts` | Gallery sort/group utility | Plan 077 |
+| `apps/web/src/features/041-file-browser/hooks/use-lazy-load.ts` | IntersectionObserver hook | Plan 077 |
 | `apps/web/src/features/041-file-browser/hooks/use-workspace-context.tsx` | WorkspaceProvider + useWorkspaceContext | Phase 5 |
 | `apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx` | Workspace layout (provides context) | Phase 5 |
 | `apps/web/app/(dashboard)/workspaces/[slug]/workspace-attention-wrapper.tsx` | Tab title composition client wrapper | Phase 5 |
@@ -206,3 +228,5 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 | 071-phase-7 | Added note indicators in FileTree, Add Note context menu, has-notes filter toggle | 2026-03-10 |
 | Plan 072 Phase 3 | Migrated FileChangeProvider from direct EventSource to `useChannelCallback('file-changes')` via multiplexed SSE. Removed ~100 lines SSE lifecycle + reconnect code, removed `eventSourceFactory` prop. | 2026-03-08 |
 | Plan 073 Phase 4 | Replaced Lucide File/Folder/FolderOpen icons with themed FileIcon/FolderIcon from _platform/themes in FileTree, ChangesView, BinaryPlaceholder, AudioViewer. Badge+icon now coexist in ChangesView. | 2026-03-10 |
+| Plan 077 | Folder content preview gallery: FolderPreviewPanel with responsive grid, ImageCard (lazy-load thumbnails), VideoCard (hover-to-play), AudioCard (waveform), FolderCard (navigation), GenericCard (fallback). Breadcrumb nav, skeleton loading, empty/large-folder states. Extended FileEntry with size. Wired dir URL param into BrowserClient. | 2026-04-08 |
+| Plan 079 | Fix window titles reverting to "Chainglass": metadata template in root layout, generateMetadata in workspace layout, WorkspaceProvider default identity + setPageTitle API, usePageTitle hook, BrowserClient cleanup removal, 2-char prefix fallback | 2026-04-08 |

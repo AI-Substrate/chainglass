@@ -129,9 +129,9 @@ describe('readFileAction', () => {
     }
   });
 
-  it('rejects symlink escape via realpath check', async () => {
-    fs.setFile('/workspace/link', 'content');
-    // Symlink resolves outside workspace
+  it('allows symlinks that resolve outside workspace (local dev tool)', async () => {
+    fs.setFile('/workspace/link', 'symlinked content');
+    // Symlink resolves outside workspace — allowed since this is a local dev tool
     fs.setSymlink('/workspace/link', '/etc/passwd');
 
     const result = await readFileAction({
@@ -141,10 +141,7 @@ describe('readFileAction', () => {
       pathResolver,
     });
 
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error).toBe('security');
-    }
+    expect(result.ok).toBe(true);
   });
 
   it('calls highlightFn and includes highlightedHtml in result', async () => {

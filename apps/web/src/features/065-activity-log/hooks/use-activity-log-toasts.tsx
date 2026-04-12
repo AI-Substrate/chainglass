@@ -70,11 +70,11 @@ export function useActivityLogToasts({
         sinceRef.current = entries[0].timestamp;
 
         // Toast each new entry (oldest first so they appear in order)
-        // Skip tmux/copilot entries — those are polled telemetry, not actionable events
+        // Skip tmux entries — those are polled telemetry, not actionable events
         if (!isOverlayOpen) {
           for (let i = entries.length - 1; i >= 0; i--) {
             const entry = entries[i];
-            if (entry.source === 'tmux' || entry.source === 'copilot') continue;
+            if (entry.source === 'tmux') continue;
             const icon = entry.source === 'agent' ? '🤖' : '🖥';
             const windowInfo = entry.meta?.windowName ? ` ${entry.meta.windowName}` : '';
             toast(`${icon}${windowInfo} ${entry.label}`, { duration: 4000 });

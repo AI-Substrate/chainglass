@@ -19,11 +19,9 @@ import { type WebSocket, WebSocketServer } from 'ws';
 import { appendActivityLogEntry } from '../../065-activity-log/lib/activity-log-writer.js';
 import { shouldIgnorePaneTitle } from '../../065-activity-log/lib/ignore-patterns.js';
 import type { CommandExecutor, PtyProcess, PtySpawner } from '../types';
-import { createRealDeps, detectCopilotSessions } from './copilot-session-detector';
 import { TmuxSessionManager } from './tmux-session-manager';
 
 const ACTIVITY_LOG_POLL_MS = Number(process.env.ACTIVITY_LOG_POLL_MS ?? '10000');
-const COPILOT_POLL_MS = Number(process.env.COPILOT_POLL_MS ?? '30000');
 
 export interface TerminalServerDeps {
   execCommand: CommandExecutor;
@@ -137,58 +135,6 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
       ws.on('close', () => {
         clearInterval(logInterval);
         activityLogIntervals.delete(logInterval);
-      });
-    }
-
-    // Poll copilot session metadata on a separate, slower interval (Plan 075)
-    if (tmuxAvailable && COPILOT_POLL_MS > 0) {
-      const copilotDeps = createRealDeps(deps.execCommand);
-      const copilotInterval = setInterval(async () => {
-        try {
-          const sessions = await detectCopilotSessions(sessionName, copilotDeps);
-          for (const session of sessions) {
-            const shortModel = session.model?.replace('claude-', '') ?? '?';
-            const effortStr = session.reasoningEffort ? ` (${session.reasoningEffort})` : '';
-            const tokensStr =
-              session.promptTokens !== null ? ` ${Math.round(session.promptTokens / 1000)}k` : '';
-            const label = `${shortModel}${effortStr}${tokensStr}`;
-            try {
-              appendActivityLogEntry(worktreeRoot, {
-                id: `copilot:${session.pane}`,
-                source: 'copilot',
-                label,
-                timestamp: new Date().toISOString(),
-                meta: {
-                  pane: session.pane,
-                  windowIndex: session.windowIndex,
-                  windowName: session.windowName,
-                  pid: session.pid,
-                  sessionId: session.sessionId,
-                  model: session.model,
-                  reasoningEffort: session.reasoningEffort,
-                  promptTokens: session.promptTokens,
-                  contextWindow: session.contextWindow,
-                  pct: session.pct,
-                  lastActivityTime: session.lastActivityTime,
-                },
-              });
-            } catch (error) {
-              console.error('[terminal] Failed to write copilot activity log entry', {
-                sessionName,
-                pane: session.pane,
-                error,
-              });
-            }
-          }
-        } catch (error) {
-          console.error('[terminal] Copilot session detection failed', { sessionName, error });
-        }
-      }, COPILOT_POLL_MS);
-      activityLogIntervals.add(copilotInterval);
-
-      ws.on('close', () => {
-        clearInterval(copilotInterval);
-        activityLogIntervals.delete(copilotInterval);
       });
     }
 
@@ -393,4 +339,12 @@ if (isDirectRun) {
     : server.derivePort(nextPort);
 
   server.start(wsPort);
+
+  // Start tmux monitor — separate from activity log polling (PL-10)
+  try {
+    const { startTmuxMonitor } = await import('./tmux-monitor');
+    startTmuxMonitor(nextPort);
+  } catch (error) {
+    console.error('[terminal] Failed to start tmux monitor (continuing without it):', error);
+  }
 }

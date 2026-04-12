@@ -54,6 +54,14 @@ export async function register() {
         `[event-popper] server.json written (port: ${port}, pid: ${process.pid}, localToken: yes)`
       );
 
+      // Plan 080: Seed global hooks to ~/.chainglass/hooks/
+      try {
+        const { seedGlobalHooks } = await import('./src/features/064-terminal/server/seed-hooks');
+        seedGlobalHooks(port);
+      } catch (error) {
+        console.warn('[hooks] Failed to seed global hooks (non-fatal):', error);
+      }
+
       const cleanup = () => {
         removeServerInfo(worktreePath);
         console.log('[event-popper] server.json removed (shutdown)');

@@ -17,7 +17,10 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: 'Chainglass',
+  title: {
+    template: '%s | Chainglass',
+    default: 'Chainglass',
+  },
   description: 'Spec-driven development enrichment workflow tool',
   manifest: '/manifest.webmanifest',
   appleWebApp: {

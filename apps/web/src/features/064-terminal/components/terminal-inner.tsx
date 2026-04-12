@@ -6,60 +6,13 @@ import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Terminal } from '@xterm/xterm';
 import { useTheme } from 'next-themes';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import '@xterm/xterm/css/xterm.css';
 
+import { useSDKSetting } from '@/lib/sdk/use-sdk-setting';
 import { useTerminalSocket } from '../hooks/use-terminal-socket';
+import { resolveTerminalTheme } from '../lib/terminal-themes';
 import type { ConnectionStatus } from '../types';
-
-// DYK-05: xterm.js v6 requires new object references for theme updates
-const DARK_THEME = {
-  background: '#1e1e1e',
-  foreground: '#d4d4d4',
-  cursor: '#d4d4d4',
-  cursorAccent: '#1e1e1e',
-  selectionBackground: '#264f78',
-  black: '#1e1e1e',
-  red: '#f44747',
-  green: '#6a9955',
-  yellow: '#d7ba7d',
-  blue: '#569cd6',
-  magenta: '#c586c0',
-  cyan: '#4ec9b0',
-  white: '#d4d4d4',
-  brightBlack: '#808080',
-  brightRed: '#f44747',
-  brightGreen: '#6a9955',
-  brightYellow: '#d7ba7d',
-  brightBlue: '#569cd6',
-  brightMagenta: '#c586c0',
-  brightCyan: '#4ec9b0',
-  brightWhite: '#e8e8e8',
-};
-
-const LIGHT_THEME = {
-  background: '#ffffff',
-  foreground: '#1e1e1e',
-  cursor: '#1e1e1e',
-  cursorAccent: '#ffffff',
-  selectionBackground: '#add6ff',
-  black: '#1e1e1e',
-  red: '#cd3131',
-  green: '#008000',
-  yellow: '#795e26',
-  blue: '#0451a5',
-  magenta: '#af00db',
-  cyan: '#0598bc',
-  white: '#d4d4d4',
-  brightBlack: '#808080',
-  brightRed: '#cd3131',
-  brightGreen: '#008000',
-  brightYellow: '#795e26',
-  brightBlue: '#0451a5',
-  brightMagenta: '#af00db',
-  brightCyan: '#0598bc',
-  brightWhite: '#1e1e1e',
-};
 
 interface TerminalInnerProps {
   sessionName: string;
@@ -91,10 +44,15 @@ export default function TerminalInner({
   const [bottomOffset, setBottomOffset] = useState(0);
   const tmuxWarningShownRef = useRef(false);
   const { resolvedTheme } = useTheme();
+  const [colorThemeId] = useSDKSetting<string>('terminal.colorTheme');
 
-  // Effective theme: override takes precedence, 'system' falls through to resolvedTheme
-  const effectiveTheme =
-    themeOverride && themeOverride !== 'system' ? themeOverride : resolvedTheme;
+  // Resolve the active terminal theme from the SDK setting + app dark/light mode.
+  // When colorThemeId is 'auto', follows the app theme. Named themes are used directly.
+  const appMode = (resolvedTheme === 'light' ? 'light' : 'dark') as 'dark' | 'light';
+  const activeThemeEntry = useMemo(
+    () => resolveTerminalTheme(colorThemeId ?? 'auto', appMode),
+    [colorThemeId, appMode]
+  );
 
   // Dynamic bottom offset via visualViewport — for iOS keyboard/browser chrome
   // Only activates on touch devices; desktop gets full height (bottom: 0)
@@ -196,9 +154,9 @@ export default function TerminalInner({
     return () => window.removeEventListener('terminal:show-copy-modal', handler);
   }, [showCopyModal]);
 
-  // Store initial theme in ref so init effect doesn't depend on resolvedTheme
-  const initialThemeRef = useRef(effectiveTheme);
-  initialThemeRef.current = effectiveTheme;
+  // Store initial theme in ref so init effect doesn't depend on activeThemeEntry
+  const initialThemeRef = useRef(activeThemeEntry);
+  initialThemeRef.current = activeThemeEntry;
 
   // Initialize terminal + addons + ResizeObserver
   useEffect(() => {
@@ -207,14 +165,12 @@ export default function TerminalInner({
 
     disposedRef.current = false;
 
-    const theme = initialThemeRef.current === 'dark' ? DARK_THEME : LIGHT_THEME;
-
     const terminal = new Terminal({
       cursorBlink: true,
       fontSize: 14,
       fontFamily:
         "'JetBrains Mono', 'Fira Code', 'Cascadia Code', Menlo, Monaco, 'Courier New', monospace",
-      theme,
+      theme: { ...initialThemeRef.current.theme },
       scrollback: 10000,
       allowProposedApi: true,
       // OSC 52 clipboard integration — tmux sends clipboard data via escape sequences
@@ -337,12 +293,13 @@ export default function TerminalInner({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- terminal init runs once
   }, []);
 
-  // T005: Theme sync — update terminal theme when app theme changes
+  // Theme sync — update terminal theme when SDK setting or app mode changes
   useEffect(() => {
     if (disposedRef.current || !terminalRef.current) return;
-    // DYK-05: Must assign a new object reference for xterm to detect the change
-    terminalRef.current.options.theme = effectiveTheme === 'dark' ? DARK_THEME : LIGHT_THEME;
-  }, [effectiveTheme]);
+    // PL-01: xterm v6 requires a new object reference to detect theme changes.
+    // Spread creates a fresh object even if the source entry is the same reference.
+    terminalRef.current.options.theme = { ...activeThemeEntry.theme };
+  }, [activeThemeEntry]);
 
   // Auto-focus terminal when overlay becomes visible (re-open case)
   useEffect(() => {
@@ -354,7 +311,10 @@ export default function TerminalInner({
   }, [isVisible]);
 
   return (
-    <div className={`relative h-full w-full ${className ?? ''}`}>
+    <div
+      className={`relative h-full w-full ${className ?? ''}`}
+      style={{ backgroundColor: activeThemeEntry.theme.background }}
+    >
       <div
         ref={containerRef}
         className="absolute top-0 left-0 right-0"

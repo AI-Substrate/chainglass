@@ -29,3 +29,17 @@ export { TerminalOverlayProvider, useTerminalOverlay } from './hooks/use-termina
 
 // Utilities
 export { sanitizeSessionName } from './lib/sanitize-session-name';
+
+// Theme System (Plan 081)
+export type {
+  TerminalThemeId,
+  TerminalThemeEntry,
+  TerminalThemeCategory,
+} from './lib/terminal-theme-types';
+export {
+  TERMINAL_THEMES,
+  resolveTerminalTheme,
+  getThemesByCategory,
+  DEFAULT_TERMINAL_THEME,
+} from './lib/terminal-themes';
+export { TerminalThemeSelect } from './components/terminal-theme-select';
