@@ -36,11 +36,6 @@ export function MobileSwipeStrip({
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     startXRef.current = e.clientX;
-    try {
-      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    } catch {
-      // setPointerCapture not supported in test env (jsdom)
-    }
   }, []);
 
   const handlePointerUp = useCallback(
@@ -78,14 +73,11 @@ export function MobileSwipeStrip({
         position: 'relative',
         touchAction: 'pan-y',
         userSelect: 'none',
-        borderBottom: '1px solid rgba(255,255,255,0.06)',
-        background: 'rgba(24,24,27,0.85)',
-        backdropFilter: 'blur(16px)',
-        WebkitBackdropFilter: 'blur(16px)',
         flexShrink: 0,
         padding: '0 6px',
         zIndex: 20,
       }}
+      className="border-b border-border bg-background/85 backdrop-blur-md"
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
     >
@@ -100,9 +92,9 @@ export function MobileSwipeStrip({
           width: `${tabWidthPercent}%`,
           transform: `translateX(${activeIndex * 100}%)`,
           transition: 'transform 200ms ease-out',
-          background: 'var(--primary, #3b82f6)',
           borderRadius: '1px 1px 0 0',
         }}
+        className="bg-primary"
       />
 
       {/* Tab buttons */}
@@ -111,25 +103,11 @@ export function MobileSwipeStrip({
           key={view.label}
           type="button"
           onClick={() => handleTabClick(index)}
-          style={{
-            flex: 1,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '6px',
-            height: '100%',
-            border: 'none',
-            background: 'transparent',
-            cursor: 'pointer',
-            fontSize: '13px',
-            fontWeight: index === activeIndex ? 600 : 400,
-            color:
-              index === activeIndex
-                ? 'var(--foreground, #fafafa)'
-                : 'var(--muted-foreground, #a1a1aa)',
-            transition: 'color 150ms, font-weight 150ms',
-            padding: 0,
-          }}
+          className={`flex-1 flex items-center justify-center gap-1.5 h-full border-none bg-transparent cursor-pointer text-[13px] transition-colors duration-150 p-0 ${
+            index === activeIndex
+              ? 'text-foreground font-semibold'
+              : 'text-muted-foreground font-normal'
+          }`}
         >
           {view.icon}
           {view.label}
@@ -138,11 +116,7 @@ export function MobileSwipeStrip({
 
       {/* Optional right action (e.g. search icon) */}
       {rightAction && (
-        <div
-          style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)' }}
-        >
-          {rightAction}
-        </div>
+        <div className="absolute right-2 top-1/2 -translate-y-1/2">{rightAction}</div>
       )}
     </div>
   );
