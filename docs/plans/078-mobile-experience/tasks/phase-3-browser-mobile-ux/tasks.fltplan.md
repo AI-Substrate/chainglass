@@ -3,16 +3,75 @@
 **Plan**: 078-mobile-experience
 **Phase**: Phase 3: Browser Mobile UX
 **Tasks Dossier**: [tasks.md](tasks.md)
+**Revised**: 2026-04-13 (post-validation)
 
 ---
 
-## What This Phase Does
+## Departure → Destination
 
-Transforms the file browser from a desktop-only experience into a touch-friendly mobile interface. After this phase, a user on a phone can browse files with properly sized touch targets, tap a file to auto-switch to the content viewer, see a helpful empty state when no file is selected, and access the search/command palette via a bottom sheet.
+**Departure (Phase 2 complete)**: Browser page on mobile shows swipeable Files + Content views via MobilePanelShell, but file rows are tiny (~28px), tapping a file doesn't auto-switch views, content shows generic inline text when empty, and ExplorerPanel (search/commands/path) is inaccessible on mobile.
+
+**Destination (Phase 3 complete)**: File rows are 48px touch targets, tapping a file auto-switches to Content view via controlled MobilePanelShell, content shows a proper empty state with "Browse Files" button, and ExplorerPanel is accessible via a search icon → bottom Sheet in the swipe strip. All mobile logic lives in PanelShell/MobilePanelShell layer — BrowserClient has zero mobile branching.
 
 ---
 
-## Before → After
+## Domain Context
+
+| Domain | Role | Changes |
+|--------|------|---------|
+| `_platform/panel-layout` | Infrastructure | MobilePanelShell gains controlled mode; PanelShell forwards new props; new MobileExplorerSheet component |
+| `file-browser` | Business | FileTree touch targets; ContentEmptyState component; BrowserClient passes new PanelShell props |
+| `shadcn/ui` | External | Consume Sheet with `side="bottom"` (Radix Dialog) — no changes |
+
+---
+
+## Flight Status
+
+```mermaid
+stateDiagram-v2
+    [*] --> T001_TouchTargets: Independent
+    [*] --> T002_ControlledMode: Independent
+    [*] --> T003_EmptyState: Independent (TDD)
+    [*] --> T004_ExplorerSheet: Independent (TDD)
+
+    T002_ControlledMode --> T005_WireSheet: depends
+    T004_ExplorerSheet --> T005_WireSheet: depends
+
+    T001_TouchTargets --> T006_Verify: depends
+    T003_EmptyState --> T006_Verify: depends
+    T005_WireSheet --> T006_Verify: depends
+
+    T006_Verify --> [*]: Gate
+```
+
+---
+
+## Stages
+
+### Stage 1: Independent tasks (parallel)
+
+| Task | Type | What |
+|------|------|------|
+| T001 | Lightweight | Add `min-h-12` to `<button>` elements in file-tree.tsx on mobile |
+| T002 | Lightweight | MobilePanelShell controlled mode + PanelShell forwarding + BrowserClient props (no render branching) |
+| T003 | TDD | Create ContentEmptyState component with icon + "Browse Files" button |
+| T004 | TDD | Create MobileExplorerSheet with shadcn Sheet, controlled `open`/`onOpenChange` API |
+
+### Stage 2: Integration
+
+| Task | Type | What | Depends |
+|------|------|------|---------|
+| T005 | Lightweight | Wire Sheet as `mobileRightAction`, auto-close on file select / code search select / command execute | T002, T004 |
+
+### Stage 3: Verification
+
+| Task | Type | What | Depends |
+|------|------|------|---------|
+| T006 | Harness | Screenshots at 375px + 1024px, terminal page uncontrolled mode check | All |
+
+---
+
+## Architecture Before/After
 
 ### Before (Phase 2 complete)
 
@@ -44,14 +103,14 @@ flowchart LR
         subgraph SwipeStrip["MobileSwipeStrip"]
             F["📁 Files"]
             C["📄 Content"]
-            S["🔍 Search icon"]
+            S["🔍 Search icon<br/>(rightAction)"]
         end
         subgraph Views["Views"]
             FV["Files View<br/>• 48px rows (min-h-12)<br/>• Tap file → auto-switch<br/>  to Content"]
-            CV["Content View<br/>• Empty state with icon<br/>  + 'Browse Files' button<br/>• FileViewerPanel when<br/>  file selected"]
+            CV["Content View<br/>• ContentEmptyState with icon<br/>  + 'Browse Files' button<br/>• FileViewerPanel when<br/>  file selected"]
         end
         subgraph Sheet["Bottom Sheet (60vh)"]
-            EP["ExplorerPanel<br/>search + commands<br/>+ path bar"]
+            EP["ExplorerPanel<br/>search + commands<br/>+ path bar<br/>(auto-close on select)"]
         end
         F --> FV
         C --> CV
@@ -59,21 +118,16 @@ flowchart LR
     end
 ```
 
----
+### Key Architecture Changes
 
-## Key Architecture Changes
-
-### 1. MobilePanelShell gains controlled mode
-
+**1. MobilePanelShell gains controlled mode**
 ```
-BEFORE: activeIndex = internal useState (uncontrolled)
+BEFORE: activeIndex = internal useState (uncontrolled only)
 AFTER:  activeIndex = optional prop (controlled when provided, uncontrolled otherwise)
 ```
+Terminal page continues uncontrolled (no `activeIndex` prop). Browser page uses controlled mode.
 
-This enables BrowserClient to programmatically switch views (file-tap → Content, "Browse Files" → Files).
-
-### 2. PanelShell forwards new mobile props
-
+**2. PanelShell forwards new mobile props**
 ```
 BEFORE: <MobilePanelShell views={mobileViews} />
 AFTER:  <MobilePanelShell views={mobileViews}
@@ -82,47 +136,35 @@ AFTER:  <MobilePanelShell views={mobileViews}
            rightAction={mobileRightAction} />
 ```
 
-### 3. ExplorerPanel reused inside Sheet (no duplication)
+**3. BrowserClient: props only, no render branching**
+BrowserClient passes `mobileActiveIndex`, `onMobileViewChange`, and `mobileRightAction` to PanelShell. The `onSelect` callback wrapping for view-switch happens in `mobileViews` prop assembly. BrowserClient does NOT import `useResponsive` or conditionally render based on viewport.
 
-The same `ExplorerPanel` component rendered in the desktop explorer bar is wrapped in a `Sheet` for mobile — same props, same behavior, different container.
+**4. ExplorerPanel reused inside Sheet (no duplication)**
+Same `ExplorerPanel` component, same props — wrapped in `MobileExplorerSheet` on mobile.
 
----
-
-## Task Dependency Graph
-
-```mermaid
-flowchart TD
-    T001["T001: File tree 48px rows<br/>(independent)"]
-    T003["T003: Content empty state<br/>(TDD — new component)"]
-    T002["T002: File-tap view-switch<br/>(needs T003 for empty state)"]
-    T004["T004: MobileExplorerSheet<br/>(TDD — new component)"]
-    T005["T005: Wire Sheet into<br/>BrowserClient<br/>(needs T002 + T004)"]
-    T006["T006: Harness verification<br/>(needs all above)"]
-
-    T003 --> T002
-    T002 --> T005
-    T004 --> T005
-    T005 --> T006
-    T001 --> T006
-
-    style T001 fill:#FFF9C4,stroke:#F9A825
-    style T003 fill:#E3F2FD,stroke:#1565C0
-    style T004 fill:#E3F2FD,stroke:#1565C0
-    style T002 fill:#FFF9C4,stroke:#F9A825
-    style T005 fill:#FFF9C4,stroke:#F9A825
-    style T006 fill:#E8F5E9,stroke:#4CAF50
-```
-
-Legend: 🟦 TDD (write tests first) · 🟨 Lightweight · 🟩 Harness
+**5. Sheet close API: Radix native + auto-close**
+shadcn Sheet uses Radix Dialog: Escape, backdrop click, X button are native. Swipe-down NOT supported (scoped out V1). Auto-close on file select / code search select / command execute via consumer calling `onOpenChange(false)`.
 
 ---
 
-## Suggested Execution Order
+## Acceptance Criteria
 
-1. **T001** (independent) + **T003** (TDD, independent) + **T004** (TDD, independent) — _can be parallel_
-2. **T002** — depends on T003 (uses ContentEmptyState in the empty state slot)
-3. **T005** — depends on T002 + T004 (wires everything together)
-4. **T006** — verification gate
+| AC | Criteria | Task(s) |
+|----|----------|---------|
+| AC-09 | File rows ≥48px on mobile (`min-h-12` on `<button>` elements) | T001 |
+| AC-10 | File tap → content view auto-switch (always, even if same file re-selected) | T002 |
+| AC-11 | Folder tap → expand/navigate (unchanged) | T002 |
+| AC-12 | Content view shows selected file viewer | T002, T005 |
+| AC-13 | Empty state when no file selected (icon + text + "Browse Files" button) | T003 |
+| AC-23 | Explorer bar hidden by default, accessible via search icon → bottom sheet; auto-closes on file select, code search select, or command execute | T004, T005 |
+
+---
+
+## Goals / Non-Goals
+
+**Goals**: Touch-friendly file rows, programmatic view switching via controlled MobilePanelShell, proper empty state, ExplorerPanel in bottom Sheet.
+
+**Non-Goals**: No mobile branching in BrowserClient render tree. No swipe-down-to-close (Radix limitation). No `useMobilePatterns` in BrowserClient. No CSS containment (Phase 4). No documentation (Phase 4).
 
 ---
 
@@ -130,10 +172,12 @@ Legend: 🟦 TDD (write tests first) · 🟨 Lightweight · 🟩 Harness
 
 | Risk | Mitigation |
 |------|------------|
-| BrowserClient regression from view-switch wiring | Per finding 03: callback is wired at PanelShell props level only, no mobile branching inside BrowserClient render tree |
-| ExplorerPanel inside Sheet has focus/keyboard issues | Test command palette keyboard interaction; Sheet manages focus trap via Radix |
-| MobilePanelShell controlled mode breaks terminal page | Terminal page doesn't pass `activeIndex` — uncontrolled mode preserved as default |
-| Sheet component missing `side="bottom"` | Confirmed: `sheet.tsx` supports `side="bottom"` with proper animations |
+| BrowserClient regression from view-switch wiring | Finding 03: ALL mobile logic in PanelShell/MobilePanelShell. BrowserClient only passes generic props. Zero render branching. |
+| ExplorerPanel inside Sheet has focus/keyboard issues | Sheet manages focus trap via Radix; test command palette keyboard interaction inside Sheet |
+| MobilePanelShell controlled mode breaks terminal page | Terminal page doesn't pass `activeIndex` — uncontrolled mode preserved as default. Add test to verify. |
+| Same-file re-select doesn't switch view | Mobile `onSelect` wrapper calls `setMobileActiveIndex(1)` unconditionally BEFORE delegating to `handleFileSelect` |
+| Sheet close is confusing without swipe-down | Radix provides Escape + backdrop click + X button natively. Scoped out for V1 — document as known limitation. |
+| `min-h-12` on wrong element | Apply to `<button>` elements (~line 461 dirs, ~line 683 files), NOT wrapper `<div>` |
 
 ---
 
@@ -141,15 +185,30 @@ Legend: 🟦 TDD (write tests first) · 🟨 Lightweight · 🟩 Harness
 
 | File | Change Type | Domain |
 |------|-------------|--------|
-| `file-tree.tsx` | Modify (add `min-h-12` on mobile) | `file-browser` |
+| `file-tree.tsx` | Modify (add `min-h-12` on `<button>` on mobile) | `file-browser` |
 | `content-empty-state.tsx` | **Create** | `file-browser` |
-| `mobile-explorer-sheet.tsx` | **Create** | `_platform/panel-layout` |
-| `mobile-panel-shell.tsx` | Modify (controlled mode) | `_platform/panel-layout` |
-| `panel-shell.tsx` | Modify (forward new props) | `_platform/panel-layout` |
-| `browser-client.tsx` | Modify (view-switch + Sheet wiring) | `file-browser` |
-| `index.ts` (panel-layout barrel) | Modify (export MobileExplorerSheet) | `_platform/panel-layout` |
 | `content-empty-state.test.tsx` | **Create** | test |
+| `mobile-explorer-sheet.tsx` | **Create** | `_platform/panel-layout` |
 | `mobile-explorer-sheet.test.tsx` | **Create** | test |
+| `mobile-panel-shell.tsx` | Modify (controlled mode `activeIndex` prop) | `_platform/panel-layout` |
+| `mobile-panel-shell.test.tsx` | Modify (add controlled mode tests) | test |
+| `panel-shell.tsx` | Modify (forward `onMobileViewChange`, `mobileActiveIndex`, `mobileRightAction`) | `_platform/panel-layout` |
+| `panel-shell-responsive.test.tsx` | Modify (add forwarding tests) | test |
+| `browser-client.tsx` | Modify (new PanelShell props — no render branching) | `file-browser` |
+| `index.ts` (panel-layout barrel) | Modify (export MobileExplorerSheet) | `_platform/panel-layout` |
+
+---
+
+## Checklist
+
+- [ ] T001 — File tree 48px touch targets on `<button>` elements
+- [ ] T002a — MobilePanelShell controlled mode + tests
+- [ ] T002b — PanelShell prop forwarding + tests
+- [ ] T002c — BrowserClient props (no render branching, unconditional view-switch on file tap)
+- [ ] T003 — ContentEmptyState component + tests
+- [ ] T004 — MobileExplorerSheet with controlled `open`/`onOpenChange` + tests
+- [ ] T005 — Wire Sheet as `mobileRightAction`, auto-close on file/code-search/command select
+- [ ] T006 — Harness verification at 375px + 1024px + terminal uncontrolled check
 
 ---
 

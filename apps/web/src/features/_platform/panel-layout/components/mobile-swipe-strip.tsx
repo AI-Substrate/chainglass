@@ -78,8 +78,13 @@ export function MobileSwipeStrip({
         position: 'relative',
         touchAction: 'pan-y',
         userSelect: 'none',
-        borderBottom: '1px solid var(--border, #27272a)',
-        background: 'var(--background, #09090b)',
+        borderBottom: '1px solid rgba(255,255,255,0.06)',
+        background: 'rgba(24,24,27,0.85)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        flexShrink: 0,
+        padding: '0 6px',
+        zIndex: 20,
       }}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
