@@ -176,12 +176,16 @@ export default function TerminalInner({
     terminal.loadAddon(fitAddon);
 
     // Canvas renderer for multi-instance safety (DR-01 finding 4)
+    // Skip CanvasAddon on mobile — iOS Safari has a known blank-canvas bug
+    // (xterm.js #3065, #3357). DOM renderer is the reliable fallback.
     let canvasAddon: CanvasAddon | null = null;
-    try {
-      canvasAddon = new CanvasAddon();
-      terminal.loadAddon(canvasAddon);
-    } catch {
-      canvasAddon = null;
+    if (!useMobilePatterns) {
+      try {
+        canvasAddon = new CanvasAddon();
+        terminal.loadAddon(canvasAddon);
+      } catch {
+        canvasAddon = null;
+      }
     }
 
     const webLinksAddon = new WebLinksAddon();
@@ -326,12 +330,16 @@ export default function TerminalInner({
     terminalRef.current.options.theme = { ...activeThemeEntry.theme };
   }, [activeThemeEntry]);
 
-  // Auto-focus terminal when overlay becomes visible (re-open case)
+  // Auto-focus and refit terminal when overlay becomes visible (re-open / lazy mount case)
   useEffect(() => {
     if (!isVisible || disposedRef.current || !terminalRef.current) return;
     requestAnimationFrame(() => {
       if (disposedRef.current) return;
       terminalRef.current?.focus();
+      // Refit after becoming visible — container may have been zero-sized during initial mount
+      if (fitAddonRef.current) {
+        fitAddonRef.current.fit();
+      }
     });
   }, [isVisible]);
 
@@ -358,13 +366,13 @@ export default function TerminalInner({
 
   return (
     <div
-      className={`relative h-full w-full ${className ?? ''}`}
+      className={`relative flex flex-col h-full w-full ${className ?? ''}`}
       style={{ backgroundColor: activeThemeEntry.theme.background }}
     >
       <div
         ref={containerRef}
-        className="absolute top-0 left-0 right-0"
-        style={{ bottom: `${bottomOffset}px` }}
+        className="flex-1 min-h-0"
+        style={{ marginBottom: `${bottomOffset}px` }}
         data-testid="terminal-container"
       />
       {authError && status === 'disconnected' && (

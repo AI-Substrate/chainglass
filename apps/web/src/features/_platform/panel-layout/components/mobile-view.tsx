@@ -31,6 +31,8 @@ export function MobileView({ isActive, isTerminal, children }: MobileViewProps) 
         visibility: isActive ? 'visible' : 'hidden',
         pointerEvents: isActive ? 'auto' : 'none',
         overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
       }}
       {...(isTerminal ? { 'data-terminal-overlay-anchor': '' } : {})}
     >

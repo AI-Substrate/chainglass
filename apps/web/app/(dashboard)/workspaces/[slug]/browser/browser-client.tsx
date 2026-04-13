@@ -889,7 +889,7 @@ function BrowserClientInner({
 
   // FX002: Terminal as 3rd mobile view (lazy — mounts on first swipe only)
   const terminalContent = (
-    <MainPanel>
+    <div className="h-full w-full">
       {termSelectedSession ? (
         <TerminalView
           sessionName={termSelectedSession}
@@ -902,7 +902,7 @@ function BrowserClientInner({
           {termLoading ? 'Loading sessions…' : 'No terminal sessions'}
         </div>
       )}
-    </MainPanel>
+    </div>
   );
 
   return (

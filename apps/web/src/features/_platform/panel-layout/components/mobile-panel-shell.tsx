@@ -96,7 +96,7 @@ export function MobilePanelShell({
         style={{
           flex: 1,
           display: 'flex',
-          transform: `translateX(-${activeIndex * 100}%)`,
+          transform: `translateX(-${activeIndex * 100}vw)`,
           transition: 'transform 350ms cubic-bezier(0.22, 1, 0.36, 1)',
           minHeight: 0,
         }}
