@@ -122,7 +122,11 @@ export function TerminalModifierToolbar({
     <div>
       {/* Voice input bar — above modifier toolbar */}
       {voiceOpen && (
-        <div
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleVoiceSend();
+          }}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -137,12 +141,6 @@ export function TerminalModifierToolbar({
             type="text"
             value={voiceText}
             onChange={(e) => setVoiceText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                handleVoiceSend();
-              }
-            }}
             placeholder="Dictate or type..."
             style={{
               flex: 1,
@@ -158,10 +156,10 @@ export function TerminalModifierToolbar({
             autoComplete="off"
             autoCorrect="off"
             spellCheck={false}
+            enterKeyHint="send"
           />
           <button
-            type="button"
-            onClick={handleVoiceSend}
+            type="submit"
             style={{
               ...buttonBase,
               minWidth: '44px',
@@ -173,7 +171,7 @@ export function TerminalModifierToolbar({
           >
             ↵
           </button>
-        </div>
+        </form>
       )}
 
       {/* Modifier keys toolbar */}
