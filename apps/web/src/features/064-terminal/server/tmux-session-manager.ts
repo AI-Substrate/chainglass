@@ -175,8 +175,12 @@ export class TmuxSessionManager {
     }
   }
 
-  /** Get the user's default shell or /bin/bash as fallback */
+  /** Get the user's default shell, with platform-aware fallback */
   getShellFallback(): string {
-    return process.env.SHELL || '/bin/bash';
+    if (process.env.SHELL) return process.env.SHELL;
+    if (process.platform === 'win32') {
+      return process.env.COMSPEC || 'powershell.exe';
+    }
+    return '/bin/bash';
   }
 }
