@@ -42,8 +42,8 @@ const buttonBase: React.CSSProperties = {
   touchAction: 'manipulation',
 };
 
-const modifierSize: React.CSSProperties = { minWidth: '38px', height: '28px' };
-const arrowSize: React.CSSProperties = { minWidth: '30px', height: '28px' };
+const modifierSize: React.CSSProperties = { minWidth: '34px', height: '28px' };
+const arrowSize: React.CSSProperties = { minWidth: '28px', height: '28px' };
 const activeStyle: React.CSSProperties = {
   background: 'var(--primary, #3b82f6)',
   color: 'var(--primary-foreground, #fff)',
@@ -67,6 +67,7 @@ export function TerminalModifierToolbar({
   const [modifiers, setModifiers] = useState<ModifierState>({ ctrl: false, alt: false });
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [voiceText, setVoiceText] = useState('');
+  const [tmuxPickerOpen, setTmuxPickerOpen] = useState(false);
   const voiceInputRef = useRef<HTMLInputElement>(null);
 
   const updateModifiers = useCallback(
@@ -230,11 +231,18 @@ export function TerminalModifierToolbar({
           🎤
         </button>
 
-        {/* Tmux window picker — sends Ctrl+B w */}
+        {/* Tmux window picker toggle — Ctrl+B w to open, q to close */}
         <button
           type="button"
-          style={{ ...buttonBase, ...modifierSize }}
-          onClick={() => onKey('\x02w')}
+          style={{ ...buttonBase, ...modifierSize, ...(tmuxPickerOpen ? activeStyle : {}) }}
+          onClick={() => {
+            if (tmuxPickerOpen) {
+              onKey('q');
+            } else {
+              onKey('\x02w');
+            }
+            setTmuxPickerOpen((prev) => !prev);
+          }}
           aria-label="Tmux windows"
         >
           W
