@@ -801,7 +801,16 @@ function BrowserClientInner({
               onExpand={fileNav.handleExpand}
               childEntries={filteredChildEntries}
               expandPaths={expandPaths}
-              onExpandedDirsChange={setTrackedExpandedDirs}
+              onExpandedDirsChange={(dirs) => {
+                const oldSet = new Set(trackedExpandedDirsRef.current);
+                const newlyExpanded = dirs.find((d) => !oldSet.has(d));
+                trackedExpandedDirsRef.current = dirs;
+                setTrackedExpandedDirs(dirs);
+                if (newlyExpanded) {
+                  setParams({ dir: newlyExpanded, file: '' }, { history: 'push' });
+                  setMobileActiveIndex(1);
+                }
+              }}
               onCopyFullPath={clipboard.handleCopyFullPath}
               onCopyRelativePath={clipboard.handleCopyRelativePath}
               onCopyContent={clipboard.handleCopyContent}
@@ -886,6 +895,25 @@ function BrowserClientInner({
           errorType={fileNav.fileData && !fileNav.fileData.ok ? fileNav.fileData.error : undefined}
           scrollToLine={scrollToLine}
           onNavigateToFile={handleFileSelect}
+        />
+      ) : currentDir ? (
+        <FolderPreviewPanel
+          dirPath={currentDir}
+          slug={slug}
+          worktreePath={worktreePath}
+          onFileClick={(path) => {
+            setParams({ file: path, line: null }, { history: 'push' });
+            setMobileActiveIndex(1);
+          }}
+          onFolderNavigate={(path) => {
+            setParams({ dir: path, file: '' }, { history: 'push' });
+            fileNav.handleExpand(path);
+          }}
+          onCopyPath={clipboard.handleCopyFullPath}
+          onDownload={clipboard.handleDownload}
+          onBreadcrumbNavigate={(path) => {
+            setParams({ dir: path, file: '' }, { history: 'push' });
+          }}
         />
       ) : (
         <ContentEmptyState onBrowseFiles={() => setMobileActiveIndex(0)} />
