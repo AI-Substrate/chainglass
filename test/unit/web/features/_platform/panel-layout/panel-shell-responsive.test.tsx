@@ -113,7 +113,7 @@ describe('PanelShell responsive branch', () => {
       />
     );
     const container = screen.getByTestId('mobile-view-container');
-    expect(container.style.transform).toBe('translateX(-200%)');
+    expect(container.style.transform).toBe('translateX(-200vw)');
   });
 
   it('PanelShell calls onMobileViewChange', () => {
@@ -175,5 +175,38 @@ describe('PanelShell responsive branch', () => {
     );
     expect(screen.getByTestId('explorer')).toBeInTheDocument();
     expect(screen.getByTestId('left')).toBeInTheDocument();
+  });
+
+  it('PanelShell forwards mobileActiveIndex for controlled mode', () => {
+    setViewportWidth(375);
+    render(
+      <PanelShell
+        explorer={<div>Explorer</div>}
+        left={<div>Left</div>}
+        main={<div>Main</div>}
+        mobileViews={mobileViews}
+        mobileActiveIndex={1}
+      />
+    );
+    const container = screen.getByTestId('mobile-view-container');
+    expect(container.style.transform).toBe('translateX(-100vw)');
+  });
+
+  it('PanelShell forwards mobileRightAction', () => {
+    setViewportWidth(375);
+    render(
+      <PanelShell
+        explorer={<div>Explorer</div>}
+        left={<div>Left</div>}
+        main={<div>Main</div>}
+        mobileViews={mobileViews}
+        mobileRightAction={
+          <button type="button" data-testid="search-btn">
+            Search
+          </button>
+        }
+      />
+    );
+    expect(screen.getByTestId('search-btn')).toBeInTheDocument();
   });
 });

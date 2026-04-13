@@ -42,5 +42,7 @@ export { MobilePanelShell } from './components/mobile-panel-shell';
 export type { MobilePanelShellProps, MobilePanelShellView } from './components/mobile-panel-shell';
 export { MobileSwipeStrip } from './components/mobile-swipe-strip';
 export type { MobileSwipeStripProps, MobileSwipeStripView } from './components/mobile-swipe-strip';
+export { MobileExplorerSheet } from './components/mobile-explorer-sheet';
+export type { MobileExplorerSheetProps } from './components/mobile-explorer-sheet';
 export { AsciiSpinner } from './components/ascii-spinner';
 export type { AsciiSpinnerProps } from './components/ascii-spinner';

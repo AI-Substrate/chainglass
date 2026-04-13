@@ -21,8 +21,10 @@ export interface MobilePanelShellProps {
   onViewChange?: (index: number) => void;
   /** Optional action slot for the swipe strip (e.g. search icon) */
   rightAction?: ReactNode;
-  /** Initial active view index (default 0). Clamped to valid range. */
+  /** Initial active view index (default 0). Clamped to valid range. Used in uncontrolled mode. */
   initialActiveIndex?: number;
+  /** When provided, MobilePanelShell uses this as source of truth (controlled mode). */
+  activeIndex?: number;
 }
 
 /**
@@ -43,13 +45,17 @@ export function MobilePanelShell({
   onViewChange,
   rightAction,
   initialActiveIndex,
+  activeIndex: controlledActiveIndex,
 }: MobilePanelShellProps) {
   const clampedInitial =
     initialActiveIndex != null && Number.isFinite(initialActiveIndex)
       ? Math.max(0, Math.min(Math.floor(initialActiveIndex), views.length - 1))
       : 0;
 
-  const [activeIndex, setActiveIndex] = useState(clampedInitial);
+  const [internalIndex, setInternalIndex] = useState(clampedInitial);
+
+  // Controlled mode: use prop as source of truth. Uncontrolled: use internal state.
+  const currentIndex = controlledActiveIndex ?? internalIndex;
 
   const [activatedViews, setActivatedViews] = useState<Set<number>>(() => {
     const s = new Set<number>();
@@ -62,7 +68,7 @@ export function MobilePanelShell({
 
   const handleViewChange = useCallback(
     (index: number) => {
-      setActiveIndex(index);
+      setInternalIndex(index);
       setActivatedViews((prev) => {
         if (prev.has(index)) return prev;
         const next = new Set(prev);
@@ -86,7 +92,7 @@ export function MobilePanelShell({
     >
       <MobileSwipeStrip
         views={views}
-        activeIndex={activeIndex}
+        activeIndex={currentIndex}
         onViewChange={handleViewChange}
         rightAction={rightAction}
       />
@@ -96,7 +102,7 @@ export function MobilePanelShell({
         style={{
           flex: 1,
           display: 'flex',
-          transform: `translateX(-${activeIndex * 100}vw)`,
+          transform: `translateX(-${currentIndex * 100}vw)`,
           transition: 'transform 350ms cubic-bezier(0.22, 1, 0.36, 1)',
           minHeight: 0,
         }}
@@ -104,7 +110,7 @@ export function MobilePanelShell({
         {views.map((view, index) => (
           <MobileView
             key={view.label}
-            isActive={index === activeIndex}
+            isActive={index === currentIndex}
             isTerminal={view.isTerminal}
           >
             {activatedViews.has(index) ? view.content : null}

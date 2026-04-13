@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/context-menu';
 import { NoteIndicatorDot } from '@/features/071-file-notes/components/note-indicator-dot';
 import { FileIcon, FolderIcon } from '@/features/_platform/themes';
+import { useResponsive } from '@/hooks/useResponsive';
 import {
   ChevronDown,
   ChevronRight,
@@ -406,6 +407,7 @@ function TreeItem({
   onAddNote?: (filePath: string) => void;
   mutations?: TreeMutationHandlers;
 }) {
+  const { useMobilePatterns } = useResponsive();
   const isExpanded = expanded.has(entry.path);
   const isSelected = selectedFile === entry.path;
   const isChanged = changedFiles?.includes(entry.path);
@@ -461,7 +463,7 @@ function TreeItem({
                   <button
                     type="button"
                     onClick={() => onDirClick(entry.path)}
-                    className="flex items-center gap-1 min-w-0 flex-1"
+                    className={`flex items-center gap-1 min-w-0 flex-1${useMobilePatterns ? ' min-h-12' : ''}`}
                   >
                     {isExpanded ? (
                       <>
@@ -692,7 +694,7 @@ function TreeItem({
                 onDoubleSelect?.(entry.path, selectedOnMouseDownRef.current);
               }
             }}
-            className={`relative flex w-full items-center gap-1 px-2 py-1 text-left hover:bg-accent ${
+            className={`relative flex w-full items-center gap-1 px-2 py-1 text-left hover:bg-accent${useMobilePatterns ? ' min-h-12' : ''} ${
               isSelected ? 'bg-accent font-medium' : ''
             } ${isChanged ? 'text-amber-600 dark:text-amber-400' : ''} ${isNewlyAdded ? 'tree-entry-new' : ''}`}
             style={{ paddingLeft: `${depth * 16 + 8 + 14}px` }}

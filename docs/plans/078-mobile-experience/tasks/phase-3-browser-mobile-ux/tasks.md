@@ -110,16 +110,16 @@
 
 ```mermaid
 flowchart TD
-    classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
+    classDef completed fill:#4CAF50,stroke:#2E7D32,color:#fff
     classDef existing fill:#E8F5E9,stroke:#4CAF50,color:#000
 
     subgraph Phase3["Phase 3: Browser Mobile UX"]
-        T001["T001: File tree<br/>touch targets (48px)"]:::pending
-        T002["T002: MobilePanelShell<br/>controlled mode +<br/>PanelShell forwarding +<br/>BrowserClient props"]:::pending
-        T003["T003: Content view<br/>empty state"]:::pending
-        T004["T004: MobileExplorerSheet<br/>component"]:::pending
-        T005["T005: Wire Sheet into<br/>PanelShell via<br/>mobileRightAction"]:::pending
-        T006["T006: Harness<br/>verification"]:::pending
+        T001["T001: File tree<br/>touch targets (48px)"]:::completed
+        T002["T002: MobilePanelShell<br/>controlled mode +<br/>PanelShell forwarding +<br/>BrowserClient props"]:::completed
+        T003["T003: Content view<br/>empty state"]:::completed
+        T004["T004: MobileExplorerSheet<br/>component"]:::completed
+        T005["T005: Wire Sheet into<br/>PanelShell via<br/>mobileRightAction"]:::completed
+        T006["T006: Harness<br/>verification"]:::completed
 
         T002 --> T005
         T004 --> T005
@@ -158,12 +158,12 @@ flowchart TD
 
 | Status | ID | Task | Domain | Path(s) | Done When | Notes |
 |--------|-----|------|--------|---------|-----------|-------|
-| [ ] | T001 | Increase file tree row height on mobile | `file-browser` | `apps/web/src/features/041-file-browser/components/file-tree.tsx` | See below | **Lightweight**. Independent — no dependencies. |
-| [ ] | T002 | MobilePanelShell controlled mode + PanelShell forwarding + BrowserClient props | `_platform/panel-layout`, `file-browser` | `mobile-panel-shell.tsx`, `panel-shell.tsx`, `browser-client.tsx`, tests | See below | **Lightweight**. Independent — no dependencies. |
-| [ ] | T003 | Create Content view empty state | `file-browser` | `content-empty-state.tsx`, test, `browser-client.tsx` | See below | **TDD**. Independent — no dependencies. |
-| [ ] | T004 | Create `MobileExplorerSheet` component | `_platform/panel-layout` | `mobile-explorer-sheet.tsx`, test | See below | **TDD**. Independent — no dependencies. |
-| [ ] | T005 | Wire Sheet into BrowserClient via PanelShell props | `file-browser`, `_platform/panel-layout` | `browser-client.tsx`, `panel-shell.tsx`, `index.ts` | See below | **Lightweight**. Depends on T002 + T004. |
-| [ ] | T006 | Harness verification — Phase 3 | — | — | See below | **Harness**. Depends on all above. |
+| [x] | T001 | Increase file tree row height on mobile | `file-browser` | `apps/web/src/features/041-file-browser/components/file-tree.tsx` | See below | **Lightweight**. Independent — no dependencies. |
+| [x] | T002 | MobilePanelShell controlled mode + PanelShell forwarding + BrowserClient props | `_platform/panel-layout`, `file-browser` | `mobile-panel-shell.tsx`, `panel-shell.tsx`, `browser-client.tsx`, tests | See below | **Lightweight**. Independent — no dependencies. |
+| [x] | T003 | Create Content view empty state | `file-browser` | `content-empty-state.tsx`, test, `browser-client.tsx` | See below | **TDD**. Independent — no dependencies. |
+| [x] | T004 | Create `MobileExplorerSheet` component | `_platform/panel-layout` | `mobile-explorer-sheet.tsx`, test | See below | **TDD**. Independent — no dependencies. |
+| [x] | T005 | Wire Sheet into BrowserClient via PanelShell props | `file-browser`, `_platform/panel-layout` | `browser-client.tsx`, `panel-shell.tsx`, `index.ts` | See below | **Lightweight**. Depends on T002 + T004. |
+| [x] | T006 | Harness verification — Phase 3 | — | — | See below | **Harness**. Depends on all above. |
 
 ### T001: Increase file tree row height on mobile
 
@@ -490,6 +490,10 @@ _Populated during implementation by plan-6._
 
 | Date | Task | Type | Discovery | Resolution | References |
 |------|------|------|-----------|------------|------------|
+| 2026-04-13 | T001 | insight | `useResponsive` can be called in child component `TreeItem` directly — it's a cached hook with no perf concern | Used directly in TreeItem instead of threading `isMobile` prop through multiple layers | file-tree.tsx:410 |
+| 2026-04-13 | T002c | decision | `setMobileActiveIndex(1)` called unconditionally in `handleFileSelect` BEFORE the `wasSelected` early return — harmless on desktop (state never read), correct on mobile (switches view even on same-file re-tap) | Added at top of handleFileSelect — no branching, no `useMobilePatterns` import | browser-client.tsx:549 |
+| 2026-04-13 | T004 | gotcha | Radix Dialog warns about missing `Description` — added `VisuallyHidden` wrapper with `SheetTitle` + `SheetDescription` to suppress | Added `@radix-ui/react-visually-hidden` import, wrapped title/description | mobile-explorer-sheet.tsx |
+| 2026-04-13 | T005 | insight | MobileSwipeStrip `rightAction` was absolutely positioned — overlapped last tab text. Fixed by making rightAction a normal flex item and wrapping tabs in their own flex container | Changed from `absolute right-2` to `shrink-0 flex items-center`, pill indicator scoped to tab area | mobile-swipe-strip.tsx |
 
 **Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
 

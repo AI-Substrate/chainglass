@@ -10,6 +10,7 @@
  */
 
 import { ChangesView } from '@/features/041-file-browser/components/changes-view';
+import { ContentEmptyState } from '@/features/041-file-browser/components/content-empty-state';
 import { FileTree, type FileTreeHandle } from '@/features/041-file-browser/components/file-tree';
 import {
   FileViewerPanel,
@@ -41,6 +42,7 @@ import {
   type ExplorerPanelHandle,
   LeftPanel,
   MainPanel,
+  MobileExplorerSheet,
   PanelShell,
 } from '@/features/_platform/panel-layout';
 import type { PanelMode } from '@/features/_platform/panel-layout';
@@ -125,6 +127,9 @@ function BrowserClientInner({
     const parsed = Number.parseInt(raw, 10);
     return Number.isNaN(parsed) ? 0 : Math.max(0, Math.min(parsed, 2));
   });
+
+  // Phase 3 T005: Explorer Sheet state (controlled open/close)
+  const [explorerSheetOpen, setExplorerSheetOpen] = useState(false);
 
   // DYK-P3-01: Wrap server prop in state for client-side root refresh
   const [rootEntries, setRootEntries] = useState(initialEntries);
@@ -545,6 +550,9 @@ function BrowserClientInner({
   // depending on nested row-level dblclick handlers through wrapper components.
   const handleFileSelect = useCallback(
     async (filePath: string) => {
+      // Mobile: always switch to Content view on file tap, even if same file re-selected
+      setMobileActiveIndex(1);
+
       window.dispatchEvent(new CustomEvent('overlay:close-all'));
 
       const wasSelected = selectedFile === filePath;
@@ -880,9 +888,7 @@ function BrowserClientInner({
           onNavigateToFile={handleFileSelect}
         />
       ) : (
-        <div className="flex items-center justify-center h-full text-muted-foreground">
-          Select a file to view
-        </div>
+        <ContentEmptyState onBrowseFiles={() => setMobileActiveIndex(0)} />
       )}
     </MainPanel>
   );
@@ -920,7 +926,65 @@ function BrowserClientInner({
           },
         ]}
         initialMobileActiveIndex={mobileActiveIndex}
+        mobileActiveIndex={mobileActiveIndex}
         onMobileViewChange={setMobileActiveIndex}
+        mobileRightAction={
+          <MobileExplorerSheet open={explorerSheetOpen} onOpenChange={setExplorerSheetOpen}>
+            <ExplorerPanel
+              filePath={selectedFile ?? ''}
+              handlers={[filePathHandler]}
+              context={barContext}
+              onCopy={() => clipboard.copyToClipboard(selectedFile ?? '')}
+              placeholder="Search files or > for commands..."
+              sdk={sdk}
+              mru={mru}
+              onCommandExecute={(cmdId) => {
+                recordExecution(cmdId);
+                setExplorerSheetOpen(false);
+              }}
+              fileSearchResults={fileFilter.results}
+              fileSearchLoading={fileFilter.loading}
+              fileSearchError={fileFilter.error}
+              sortMode={fileFilter.sortMode}
+              onSortModeChange={fileFilter.cycleSortMode}
+              includeHidden={fileFilter.includeHidden}
+              onIncludeHiddenChange={fileFilter.toggleIncludeHidden}
+              onFileSelect={(filePath) => {
+                handleFileSelect(filePath);
+                setExplorerSheetOpen(false);
+              }}
+              onCopyFullPath={clipboard.handleCopyFullPath}
+              onCopyRelativePath={clipboard.handleCopyRelativePath}
+              onCopyContent={clipboard.handleCopyContent}
+              onDownload={clipboard.handleDownload}
+              workingChanges={panelState.workingChanges}
+              onSearchQueryChange={fileFilter.setQuery}
+              codeSearchResults={
+                activeCodeSearchMode === 'grep' ? gitGrep.results : flowspace.results
+              }
+              codeSearchLoading={
+                activeCodeSearchMode === 'grep' ? gitGrep.loading : flowspace.loading
+              }
+              codeSearchError={activeCodeSearchMode === 'grep' ? gitGrep.error : flowspace.error}
+              codeSearchAvailability={flowspace.availability}
+              codeSearchGraphAge={flowspace.graphAge}
+              codeSearchFolders={flowspace.folders}
+              onCodeSearchSelect={(filePath, startLine) => {
+                setParams({ file: filePath, line: startLine, mode: 'edit' }, { history: 'push' });
+                setExplorerSheetOpen(false);
+                setMobileActiveIndex(1);
+              }}
+              onFlowspaceQueryChange={(query, mode) => {
+                setActiveCodeSearchMode(mode);
+                if (mode === 'grep') {
+                  gitGrep.setQuery(query);
+                } else {
+                  flowspace.setQuery(query, mode);
+                }
+              }}
+            />
+          </MobileExplorerSheet>
+        }
         explorer={
           <ExplorerPanel
             ref={explorerRef}
@@ -1124,9 +1188,7 @@ function BrowserClientInner({
                 }}
               />
             ) : (
-              <div className="flex items-center justify-center h-full text-muted-foreground">
-                Select a file to view
-              </div>
+              <ContentEmptyState />
             )}
           </MainPanel>
         }

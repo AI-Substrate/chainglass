@@ -81,43 +81,44 @@ export function MobileSwipeStrip({
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
     >
-      {/* Sliding pill indicator */}
-      <div
-        data-testid="swipe-strip-pill"
-        style={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          height: '2px',
-          width: `${tabWidthPercent}%`,
-          transform: `translateX(${activeIndex * 100}%)`,
-          transition: 'transform 200ms ease-out',
-          borderRadius: '1px 1px 0 0',
-        }}
-        className="bg-primary"
-      />
+      {/* Tab area — tabs + pill indicator scoped to this region */}
+      <div className="flex-1 flex items-center h-full relative min-w-0">
+        {/* Sliding pill indicator */}
+        <div
+          data-testid="swipe-strip-pill"
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            height: '2px',
+            width: `${tabWidthPercent}%`,
+            transform: `translateX(${activeIndex * 100}%)`,
+            transition: 'transform 200ms ease-out',
+            borderRadius: '1px 1px 0 0',
+          }}
+          className="bg-primary"
+        />
 
-      {/* Tab buttons */}
-      {views.map((view, index) => (
-        <button
-          key={view.label}
-          type="button"
-          onClick={() => handleTabClick(index)}
-          className={`flex-1 flex items-center justify-center gap-1.5 h-full border-none bg-transparent cursor-pointer text-[13px] transition-colors duration-150 p-0 ${
-            index === activeIndex
-              ? 'text-foreground font-semibold'
-              : 'text-muted-foreground font-normal'
-          }`}
-        >
-          {view.icon}
-          {view.label}
-        </button>
-      ))}
+        {/* Tab buttons */}
+        {views.map((view, index) => (
+          <button
+            key={view.label}
+            type="button"
+            onClick={() => handleTabClick(index)}
+            className={`flex-1 flex items-center justify-center gap-1.5 h-full border-none bg-transparent cursor-pointer text-[13px] transition-colors duration-150 p-0 ${
+              index === activeIndex
+                ? 'text-foreground font-semibold'
+                : 'text-muted-foreground font-normal'
+            }`}
+          >
+            {view.icon}
+            {view.label}
+          </button>
+        ))}
+      </div>
 
       {/* Optional right action (e.g. search icon) */}
-      {rightAction && (
-        <div className="absolute right-2 top-1/2 -translate-y-1/2">{rightAction}</div>
-      )}
+      {rightAction && <div className="shrink-0 flex items-center pl-1">{rightAction}</div>}
     </div>
   );
 }

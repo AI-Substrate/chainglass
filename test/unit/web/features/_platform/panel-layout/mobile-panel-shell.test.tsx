@@ -52,7 +52,7 @@ describe('MobilePanelShell', () => {
     const viewContainer = container.querySelector(
       '[data-testid="mobile-view-container"]'
     ) as HTMLElement;
-    expect(viewContainer.style.transform).toBe('translateX(-0%)');
+    expect(viewContainer.style.transform).toBe('translateX(-0vw)');
   });
 
   it('switches view on tab tap', () => {
@@ -61,7 +61,7 @@ describe('MobilePanelShell', () => {
     const viewContainer = container.querySelector(
       '[data-testid="mobile-view-container"]'
     ) as HTMLElement;
-    expect(viewContainer.style.transform).toBe('translateX(-100%)');
+    expect(viewContainer.style.transform).toBe('translateX(-100vw)');
   });
 
   it('applies CSS transition for smooth animation', () => {
@@ -165,7 +165,7 @@ describe('MobilePanelShell', () => {
       const viewContainer = container.querySelector(
         '[data-testid="mobile-view-container"]'
       ) as HTMLElement;
-      expect(viewContainer.style.transform).toBe('translateX(-200%)');
+      expect(viewContainer.style.transform).toBe('translateX(-200vw)');
       expect(screen.getByTestId('terminal')).toBeInTheDocument();
     });
 
@@ -176,8 +176,51 @@ describe('MobilePanelShell', () => {
       const viewContainer = container.querySelector(
         '[data-testid="mobile-view-container"]'
       ) as HTMLElement;
-      expect(viewContainer.style.transform).toBe('translateX(-0%)');
+      expect(viewContainer.style.transform).toBe('translateX(-0vw)');
       expect(screen.queryByTestId('terminal')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('controlled mode', () => {
+    it('uses activeIndex prop as source of truth', () => {
+      const { container } = render(<MobilePanelShell views={twoViews} activeIndex={1} />);
+      const viewContainer = container.querySelector(
+        '[data-testid="mobile-view-container"]'
+      ) as HTMLElement;
+      expect(viewContainer.style.transform).toBe('translateX(-100vw)');
+    });
+
+    it('follows activeIndex prop changes', () => {
+      const { container, rerender } = render(<MobilePanelShell views={twoViews} activeIndex={0} />);
+      const viewContainer = container.querySelector(
+        '[data-testid="mobile-view-container"]'
+      ) as HTMLElement;
+      expect(viewContainer.style.transform).toBe('translateX(-0vw)');
+
+      rerender(<MobilePanelShell views={twoViews} activeIndex={1} />);
+      expect(viewContainer.style.transform).toBe('translateX(-100vw)');
+    });
+
+    it('fires onViewChange on tab tap in controlled mode', () => {
+      const onViewChange = vi.fn();
+      render(<MobilePanelShell views={twoViews} activeIndex={0} onViewChange={onViewChange} />);
+      fireEvent.click(screen.getByText('Content'));
+      expect(onViewChange).toHaveBeenCalledWith(1);
+    });
+
+    it('uncontrolled mode works when activeIndex is not provided', () => {
+      const onViewChange = vi.fn();
+      const { container } = render(
+        <MobilePanelShell views={twoViews} onViewChange={onViewChange} />
+      );
+      const viewContainer = container.querySelector(
+        '[data-testid="mobile-view-container"]'
+      ) as HTMLElement;
+      expect(viewContainer.style.transform).toBe('translateX(-0vw)');
+
+      fireEvent.click(screen.getByText('Content'));
+      expect(viewContainer.style.transform).toBe('translateX(-100vw)');
+      expect(onViewChange).toHaveBeenCalledWith(1);
     });
   });
 });

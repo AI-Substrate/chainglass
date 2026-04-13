@@ -29,6 +29,8 @@ export interface PanelShellProps {
   mobileViews?: MobilePanelShellView[];
   /** Initial active mobile view index (e.g. 2 for Terminal). Clamped to valid range. */
   initialMobileActiveIndex?: number;
+  /** Controlled mobile active index — drives MobilePanelShell externally. */
+  mobileActiveIndex?: number;
   /** Called when mobile view changes (for tracking active index in parent). */
   onMobileViewChange?: (index: number) => void;
   /** Optional action slot for mobile swipe strip right side (e.g. search icon). */
@@ -41,6 +43,7 @@ export function PanelShell({
   main,
   mobileViews,
   initialMobileActiveIndex,
+  mobileActiveIndex,
   onMobileViewChange,
   mobileRightAction,
 }: PanelShellProps) {
@@ -51,6 +54,7 @@ export function PanelShell({
       <MobilePanelShell
         views={mobileViews}
         initialActiveIndex={initialMobileActiveIndex}
+        activeIndex={mobileActiveIndex}
         onViewChange={onMobileViewChange}
         rightAction={mobileRightAction}
       />

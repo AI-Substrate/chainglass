@@ -53,7 +53,7 @@ export default function TerminalInner({
   const [colorThemeId] = useSDKSetting<string>('terminal.colorTheme');
 
   // T006: Replace bottomOffset with useKeyboardOpen hook
-  const { isOpen: keyboardOpen, keyboardHeight } = useKeyboardOpen();
+  const { isOpen: keyboardOpen, keyboardHeight, toolbarTop } = useKeyboardOpen();
   const TOOLBAR_HEIGHT = 36;
   const showToolbar = useMobilePatterns && keyboardOpen;
   const bottomOffset = showToolbar ? keyboardHeight + TOOLBAR_HEIGHT : keyboardHeight;
@@ -439,10 +439,10 @@ export default function TerminalInner({
       {showToolbar && (
         <div
           style={{
-            position: 'absolute',
+            position: 'fixed',
             left: 0,
             right: 0,
-            bottom: `${keyboardHeight}px`,
+            top: toolbarTop != null ? `${toolbarTop - TOOLBAR_HEIGHT}px` : undefined,
             zIndex: 30,
           }}
         >

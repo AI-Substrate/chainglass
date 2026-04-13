@@ -4,6 +4,7 @@
 **Phase**: Phase 3: Browser Mobile UX
 **Tasks Dossier**: [tasks.md](tasks.md)
 **Revised**: 2026-04-13 (post-validation)
+**Status**: Landed ✅
 
 ---
 
@@ -42,6 +43,9 @@ stateDiagram-v2
     T005_WireSheet --> T006_Verify: depends
 
     T006_Verify --> [*]: Gate
+
+    classDef done fill:#4CAF50,color:#fff
+    class T001_TouchTargets,T002_ControlledMode,T003_EmptyState,T004_ExplorerSheet,T005_WireSheet,T006_Verify done
 ```
 
 ---
@@ -201,14 +205,14 @@ shadcn Sheet uses Radix Dialog: Escape, backdrop click, X button are native. Swi
 
 ## Checklist
 
-- [ ] T001 — File tree 48px touch targets on `<button>` elements
-- [ ] T002a — MobilePanelShell controlled mode + tests
-- [ ] T002b — PanelShell prop forwarding + tests
-- [ ] T002c — BrowserClient props (no render branching, unconditional view-switch on file tap)
-- [ ] T003 — ContentEmptyState component + tests
-- [ ] T004 — MobileExplorerSheet with controlled `open`/`onOpenChange` + tests
-- [ ] T005 — Wire Sheet as `mobileRightAction`, auto-close on file/code-search/command select
-- [ ] T006 — Harness verification at 375px + 1024px + terminal uncontrolled check
+- [x] T001 — File tree 48px touch targets on `<button>` elements
+- [x] T002a — MobilePanelShell controlled mode + tests
+- [x] T002b — PanelShell prop forwarding + tests
+- [x] T002c — BrowserClient props (no render branching, unconditional view-switch on file tap)
+- [x] T003 — ContentEmptyState component + tests
+- [x] T004 — MobileExplorerSheet with controlled `open`/`onOpenChange` + tests
+- [x] T005 — Wire Sheet as `mobileRightAction`, auto-close on file/code-search/command select
+- [x] T006 — Harness verification at 375px + 1024px + terminal uncontrolled check
 
 ---
 
