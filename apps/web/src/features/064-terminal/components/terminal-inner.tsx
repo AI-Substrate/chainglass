@@ -274,7 +274,33 @@ export default function TerminalInner({
     });
 
     // PL-08: Register onData handler BEFORE terminal is connected
+    // iOS voice dictation / IME composition guard: suppress onData during
+    // active composition to prevent incremental doubling (e.g. "h he hel hello")
+    let isComposing = false;
+    let compositionJustEnded = false;
+
+    const textarea = container.querySelector(
+      '.xterm-helper-textarea'
+    ) as HTMLTextAreaElement | null;
+    const onCompStart = () => {
+      isComposing = true;
+    };
+    const onCompEnd = () => {
+      isComposing = false;
+      compositionJustEnded = true;
+    };
+    if (textarea) {
+      textarea.addEventListener('compositionstart', onCompStart);
+      textarea.addEventListener('compositionend', onCompEnd);
+    }
+
     terminal.onData((data) => {
+      if (isComposing) return;
+      if (compositionJustEnded) {
+        compositionJustEnded = false;
+        // iOS Safari fires one more input after compositionend — let it through
+        // as it contains the final composed text
+      }
       sendRef.current(data);
     });
 
@@ -298,8 +324,12 @@ export default function TerminalInner({
     return () => {
       disposedRef.current = true;
 
-      // 0. Remove mobile touch handler
+      // 0. Remove mobile touch handler + composition listeners
       (container as HTMLElement & { _mobileTouchCleanup?: () => void })._mobileTouchCleanup?.();
+      if (textarea) {
+        textarea.removeEventListener('compositionstart', onCompStart);
+        textarea.removeEventListener('compositionend', onCompEnd);
+      }
 
       // 1. Stop resize events
       observer.disconnect();
