@@ -228,10 +228,12 @@ export default function TerminalInner({
 
     terminal.open(container);
 
-    // T003: Prevent double-tap zoom on mobile
+    // T003: Prevent browser from handling touch gestures on terminal.
+    // 'none' ensures all touch events reach xterm.js — required for tmux
+    // mouse mode scrolling. Also prevents double-tap zoom.
     const xtermScreen = container.querySelector('.xterm-screen') as HTMLElement | null;
     if (xtermScreen) {
-      xtermScreen.style.touchAction = 'manipulation';
+      xtermScreen.style.touchAction = 'none';
     }
 
     // T008: Prevent iOS auto-zoom on textarea focus (font-size < 16px triggers zoom)
