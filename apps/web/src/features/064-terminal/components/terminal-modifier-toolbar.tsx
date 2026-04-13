@@ -230,6 +230,16 @@ export function TerminalModifierToolbar({
           🎤
         </button>
 
+        {/* Tmux window picker — sends Ctrl+B w */}
+        <button
+          type="button"
+          style={{ ...buttonBase, ...modifierSize }}
+          onClick={() => onKey('\x02w')}
+          aria-label="Tmux windows"
+        >
+          W
+        </button>
+
         {/* Spacer */}
         <div style={{ flex: 1 }} />
 
