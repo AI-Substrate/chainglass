@@ -423,11 +423,13 @@ function TreeItem({
   if (entry.type === 'directory') {
     return (
       <div data-tree-path={entry.path}>
+        {/* biome-ignore lint/a11y/useKeyWithClickEvents: keyboard handled at tree level via handleTreeKeyDown */}
         <div
-          className={`group relative flex w-full items-center gap-1 px-2 py-1 text-left hover:bg-accent ${
+          onClick={isRenaming ? undefined : () => onDirClick(entry.path)}
+          className={`group relative flex w-full items-center gap-1 px-2 py-1 text-left hover:bg-accent cursor-pointer ${
             isSelected ? 'bg-accent' : ''
-          } ${isNewlyAdded ? 'tree-entry-new' : ''}`}
-          style={{ paddingLeft: `${depth * 16 + 8}px` }}
+          } ${isNewlyAdded ? 'tree-entry-new' : ''}${useMobilePatterns ? ' min-h-12' : ''}`}
+          style={{ paddingLeft: `${depth * 16 + 8}px`, touchAction: 'manipulation' }}
         >
           {isRenaming ? (
             // Rename mode: keep icons, replace name with inline input (DYK-P2-04)
@@ -463,7 +465,7 @@ function TreeItem({
                   <button
                     type="button"
                     onClick={() => onDirClick(entry.path)}
-                    className={`flex items-center gap-1 min-w-0 flex-1${useMobilePatterns ? ' min-h-12' : ''}`}
+                    className="flex items-center gap-1 min-w-0 flex-1"
                   >
                     {isExpanded ? (
                       <>
@@ -697,7 +699,7 @@ function TreeItem({
             className={`relative flex w-full items-center gap-1 px-2 py-1 text-left hover:bg-accent${useMobilePatterns ? ' min-h-12' : ''} ${
               isSelected ? 'bg-accent font-medium' : ''
             } ${isChanged ? 'text-amber-600 dark:text-amber-400' : ''} ${isNewlyAdded ? 'tree-entry-new' : ''}`}
-            style={{ paddingLeft: `${depth * 16 + 8 + 14}px` }}
+            style={{ paddingLeft: `${depth * 16 + 8 + 14}px`, touchAction: 'manipulation' }}
           >
             {isSelected && (
               <span className="absolute left-0.5 text-amber-500 font-black text-sm">▶</span>
