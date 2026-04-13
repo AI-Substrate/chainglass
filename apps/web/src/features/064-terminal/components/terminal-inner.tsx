@@ -460,10 +460,10 @@ export default function TerminalInner({
       {showToolbar && (
         <div
           style={{
-            position: 'fixed',
+            position: 'absolute',
             left: 0,
             right: 0,
-            top: toolbarTop != null ? `${toolbarTop - TOOLBAR_HEIGHT}px` : undefined,
+            bottom: `${keyboardHeight}px`,
             zIndex: 30,
           }}
         >
