@@ -42,8 +42,8 @@ const buttonBase: React.CSSProperties = {
   touchAction: 'manipulation',
 };
 
-const modifierSize: React.CSSProperties = { minWidth: '44px', height: '28px' };
-const arrowSize: React.CSSProperties = { minWidth: '36px', height: '28px' };
+const modifierSize: React.CSSProperties = { minWidth: '38px', height: '28px' };
+const arrowSize: React.CSSProperties = { minWidth: '30px', height: '28px' };
 const activeStyle: React.CSSProperties = {
   background: 'var(--primary, #3b82f6)',
   color: 'var(--primary-foreground, #fff)',
@@ -189,10 +189,11 @@ export function TerminalModifierToolbar({
           backdropFilter: 'blur(8px)',
         }}
       >
-        {/* Modifier keys */}
+        {/* Modifier keys — preventDefault on mousedown keeps xterm focused */}
         <button
           type="button"
           style={{ ...buttonBase, ...modifierSize }}
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => onKey('\x1b')}
         >
           Esc
@@ -200,6 +201,7 @@ export function TerminalModifierToolbar({
         <button
           type="button"
           style={{ ...buttonBase, ...modifierSize }}
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => onKey('\t')}
         >
           Tab
@@ -207,6 +209,7 @@ export function TerminalModifierToolbar({
         <button
           type="button"
           style={{ ...buttonBase, ...modifierSize, ...(modifiers.ctrl ? activeStyle : {}) }}
+          onMouseDown={(e) => e.preventDefault()}
           onClick={handleCtrl}
         >
           Ctrl
@@ -214,15 +217,17 @@ export function TerminalModifierToolbar({
         <button
           type="button"
           style={{ ...buttonBase, ...modifierSize, ...(modifiers.alt ? activeStyle : {}) }}
+          onMouseDown={(e) => e.preventDefault()}
           onClick={handleAlt}
         >
           Alt
         </button>
 
-        {/* Mic toggle */}
+        {/* Mic toggle — preventDefault on mousedown keeps xterm focused so keyboard stays open */}
         <button
           type="button"
           style={{ ...buttonBase, ...modifierSize, ...(voiceOpen ? activeStyle : {}) }}
+          onMouseDown={(e) => e.preventDefault()}
           onClick={handleVoiceToggle}
           aria-label="Voice input"
         >
@@ -238,6 +243,7 @@ export function TerminalModifierToolbar({
             key={key.label}
             type="button"
             style={{ ...buttonBase, ...arrowSize }}
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => onKey(key.seq)}
           >
             {key.label}
