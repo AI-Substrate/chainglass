@@ -175,6 +175,7 @@ export function TerminalModifierToolbar({
       )}
 
       {/* Modifier keys toolbar */}
+      {/* biome-ignore lint/a11y/useKeyWithClickEvents: toolbar buttons handle their own clicks */}
       <div
         style={{
           height: '36px',
@@ -186,12 +187,13 @@ export function TerminalModifierToolbar({
           background: 'var(--background, #09090b)',
           backdropFilter: 'blur(8px)',
         }}
+        onMouseDown={(e) => e.preventDefault()}
+        onTouchStart={(e) => e.preventDefault()}
       >
-        {/* Modifier keys — preventDefault on mousedown keeps xterm focused */}
+        {/* Modifier keys */}
         <button
           type="button"
           style={{ ...buttonBase, ...modifierSize }}
-          onMouseDown={(e) => e.preventDefault()}
           onClick={() => onKey('\x1b')}
         >
           Esc
@@ -199,7 +201,6 @@ export function TerminalModifierToolbar({
         <button
           type="button"
           style={{ ...buttonBase, ...modifierSize }}
-          onMouseDown={(e) => e.preventDefault()}
           onClick={() => onKey('\t')}
         >
           Tab
@@ -207,7 +208,6 @@ export function TerminalModifierToolbar({
         <button
           type="button"
           style={{ ...buttonBase, ...modifierSize, ...(modifiers.ctrl ? activeStyle : {}) }}
-          onMouseDown={(e) => e.preventDefault()}
           onClick={handleCtrl}
         >
           Ctrl
@@ -215,17 +215,15 @@ export function TerminalModifierToolbar({
         <button
           type="button"
           style={{ ...buttonBase, ...modifierSize, ...(modifiers.alt ? activeStyle : {}) }}
-          onMouseDown={(e) => e.preventDefault()}
           onClick={handleAlt}
         >
           Alt
         </button>
 
-        {/* Mic toggle — preventDefault on mousedown keeps xterm focused so keyboard stays open */}
+        {/* Mic toggle */}
         <button
           type="button"
           style={{ ...buttonBase, ...modifierSize, ...(voiceOpen ? activeStyle : {}) }}
-          onMouseDown={(e) => e.preventDefault()}
           onClick={handleVoiceToggle}
           aria-label="Voice input"
         >
@@ -241,7 +239,6 @@ export function TerminalModifierToolbar({
             key={key.label}
             type="button"
             style={{ ...buttonBase, ...arrowSize }}
-            onMouseDown={(e) => e.preventDefault()}
             onClick={() => onKey(key.seq)}
           >
             {key.label}
