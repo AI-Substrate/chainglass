@@ -274,11 +274,14 @@ export default function TerminalInner({
     });
 
     // PL-08: Register onData handler BEFORE terminal is connected
-    // iOS voice dictation / IME composition guard: iOS dictation fires multiple
-    // compositionend events with cumulative text ("te", "test", "testing",
-    // "testing one"). We track what was sent and only forward the delta.
+    // iOS Safari voice dictation fix (CodeMirror-style):
+    // 1. Suppress onData during active composition (isComposing)
+    // 2. After compositionend, suppress onData for 200ms (Safari fires
+    //    interleaved keydown 229 + input events unpredictably after end)
+    // 3. Only the compositionend event sends the final text
+    // 4. Track cumulative sent text to only forward deltas
     let isComposing = false;
-    let compositionJustEnded = false;
+    let compositionEndAt = 0;
     let compositionSent = '';
     let compositionResetTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -294,31 +297,41 @@ export default function TerminalInner({
     };
     const onCompEnd = (e: CompositionEvent) => {
       isComposing = false;
-      compositionJustEnded = true;
+      compositionEndAt = Date.now();
       const fullText = e.data || '';
+      // Only send the new characters since last compositionend
       if (fullText.length > compositionSent.length && fullText.startsWith(compositionSent)) {
         const delta = fullText.slice(compositionSent.length);
         sendRef.current(delta);
       } else if (fullText && fullText !== compositionSent) {
+        // Text changed entirely (autocorrect) — send full text
         sendRef.current(fullText);
       }
       compositionSent = fullText;
-      // Reset after dictation session ends (no new composition within 1s)
+      // Reset buffer after dictation session ends (no new composition within 1s)
       compositionResetTimer = setTimeout(() => {
         compositionSent = '';
       }, 1000);
     };
+    // Intercept keydown 229 (Safari IME artifact) during/after composition
+    const onKeyDown229 = (e: KeyboardEvent) => {
+      if (e.keyCode === 229 && (isComposing || Date.now() - compositionEndAt < 200)) {
+        e.stopImmediatePropagation();
+      }
+    };
     if (textarea) {
       textarea.addEventListener('compositionstart', onCompStart);
       textarea.addEventListener('compositionend', onCompEnd);
+      // Must be added BEFORE xterm's own handler — use capture phase
+      textarea.addEventListener('keydown', onKeyDown229, true);
     }
 
     terminal.onData((data) => {
+      // Suppress during composition
       if (isComposing) return;
-      if (compositionJustEnded) {
-        compositionJustEnded = false;
-        return; // Already sent via compositionend handler
-      }
+      // Suppress for 200ms after compositionend (Safari quirk: delayed input events)
+      if (Date.now() - compositionEndAt < 200) return;
+      // Regular (non-composition) input — single chars from keyboard
       sendRef.current(data);
     });
 
@@ -347,7 +360,9 @@ export default function TerminalInner({
       if (textarea) {
         textarea.removeEventListener('compositionstart', onCompStart);
         textarea.removeEventListener('compositionend', onCompEnd);
+        textarea.removeEventListener('keydown', onKeyDown229, true);
       }
+      if (compositionResetTimer) clearTimeout(compositionResetTimer);
 
       // 1. Stop resize events
       observer.disconnect();
