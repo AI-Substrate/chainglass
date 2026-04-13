@@ -20,6 +20,7 @@
 
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { generateManifest } from 'material-icon-theme';
 import { optimize } from 'svgo';
 
@@ -27,7 +28,7 @@ import { optimize } from 'svgo';
 // Constants
 // ---------------------------------------------------------------------------
 
-const ROOT_DIR = resolve(dirname(new URL(import.meta.url).pathname), '..');
+const ROOT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SOURCE_ICONS_DIR = join(ROOT_DIR, 'node_modules/material-icon-theme/icons');
 const OUTPUT_DIR = join(ROOT_DIR, 'apps/web/public/icons/material-icon-theme');
 const VERSION_SENTINEL = join(OUTPUT_DIR, '.version');

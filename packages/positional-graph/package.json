@@ -39,7 +39,7 @@
     }
   },
   "scripts": {
-    "build": "tsc && cp src/features/030-orchestration/*.md dist/features/030-orchestration/",
+    "build": "tsc && node -e \"const fs=require('fs'),p=require('path'),s='src/features/030-orchestration',d='dist/features/030-orchestration';fs.readdirSync(s).filter(f=>f.endsWith('.md')).forEach(f=>fs.copyFileSync(p.join(s,f),p.join(d,f)))\"",
     "test": "vitest run"
   },
   "dependencies": {
