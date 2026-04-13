@@ -274,20 +274,39 @@ export default function TerminalInner({
     });
 
     // PL-08: Register onData handler BEFORE terminal is connected
-    // iOS voice dictation / IME composition guard: suppress onData during
-    // active composition to prevent incremental doubling (e.g. "h he hel hello")
+    // iOS voice dictation / IME composition guard: iOS dictation fires multiple
+    // compositionend events with cumulative text ("te", "test", "testing",
+    // "testing one"). We track what was sent and only forward the delta.
     let isComposing = false;
     let compositionJustEnded = false;
+    let compositionSent = '';
+    let compositionResetTimer: ReturnType<typeof setTimeout> | null = null;
 
     const textarea = container.querySelector(
       '.xterm-helper-textarea'
     ) as HTMLTextAreaElement | null;
     const onCompStart = () => {
       isComposing = true;
+      if (compositionResetTimer) {
+        clearTimeout(compositionResetTimer);
+        compositionResetTimer = null;
+      }
     };
-    const onCompEnd = () => {
+    const onCompEnd = (e: CompositionEvent) => {
       isComposing = false;
       compositionJustEnded = true;
+      const fullText = e.data || '';
+      if (fullText.length > compositionSent.length && fullText.startsWith(compositionSent)) {
+        const delta = fullText.slice(compositionSent.length);
+        sendRef.current(delta);
+      } else if (fullText && fullText !== compositionSent) {
+        sendRef.current(fullText);
+      }
+      compositionSent = fullText;
+      // Reset after dictation session ends (no new composition within 1s)
+      compositionResetTimer = setTimeout(() => {
+        compositionSent = '';
+      }, 1000);
     };
     if (textarea) {
       textarea.addEventListener('compositionstart', onCompStart);
@@ -298,8 +317,7 @@ export default function TerminalInner({
       if (isComposing) return;
       if (compositionJustEnded) {
         compositionJustEnded = false;
-        // iOS Safari fires one more input after compositionend — let it through
-        // as it contains the final composed text
+        return; // Already sent via compositionend handler
       }
       sendRef.current(data);
     });
