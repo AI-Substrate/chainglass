@@ -274,64 +274,7 @@ export default function TerminalInner({
     });
 
     // PL-08: Register onData handler BEFORE terminal is connected
-    // iOS Safari voice dictation fix (CodeMirror-style):
-    // 1. Suppress onData during active composition (isComposing)
-    // 2. After compositionend, suppress onData for 200ms (Safari fires
-    //    interleaved keydown 229 + input events unpredictably after end)
-    // 3. Only the compositionend event sends the final text
-    // 4. Track cumulative sent text to only forward deltas
-    let isComposing = false;
-    let compositionEndAt = 0;
-    let compositionSent = '';
-    let compositionResetTimer: ReturnType<typeof setTimeout> | null = null;
-
-    const textarea = container.querySelector(
-      '.xterm-helper-textarea'
-    ) as HTMLTextAreaElement | null;
-    const onCompStart = () => {
-      isComposing = true;
-      if (compositionResetTimer) {
-        clearTimeout(compositionResetTimer);
-        compositionResetTimer = null;
-      }
-    };
-    const onCompEnd = (e: CompositionEvent) => {
-      isComposing = false;
-      compositionEndAt = Date.now();
-      const fullText = e.data || '';
-      // Only send the new characters since last compositionend
-      if (fullText.length > compositionSent.length && fullText.startsWith(compositionSent)) {
-        const delta = fullText.slice(compositionSent.length);
-        sendRef.current(delta);
-      } else if (fullText && fullText !== compositionSent) {
-        // Text changed entirely (autocorrect) — send full text
-        sendRef.current(fullText);
-      }
-      compositionSent = fullText;
-      // Reset buffer after dictation session ends (no new composition within 1s)
-      compositionResetTimer = setTimeout(() => {
-        compositionSent = '';
-      }, 1000);
-    };
-    // Intercept keydown 229 (Safari IME artifact) during/after composition
-    const onKeyDown229 = (e: KeyboardEvent) => {
-      if (e.keyCode === 229 && (isComposing || Date.now() - compositionEndAt < 200)) {
-        e.stopImmediatePropagation();
-      }
-    };
-    if (textarea) {
-      textarea.addEventListener('compositionstart', onCompStart);
-      textarea.addEventListener('compositionend', onCompEnd);
-      // Must be added BEFORE xterm's own handler — use capture phase
-      textarea.addEventListener('keydown', onKeyDown229, true);
-    }
-
     terminal.onData((data) => {
-      // Suppress during composition
-      if (isComposing) return;
-      // Suppress for 200ms after compositionend (Safari quirk: delayed input events)
-      if (Date.now() - compositionEndAt < 200) return;
-      // Regular (non-composition) input — single chars from keyboard
       sendRef.current(data);
     });
 
@@ -355,14 +298,8 @@ export default function TerminalInner({
     return () => {
       disposedRef.current = true;
 
-      // 0. Remove mobile touch handler + composition listeners
+      // 0. Remove mobile touch handler
       (container as HTMLElement & { _mobileTouchCleanup?: () => void })._mobileTouchCleanup?.();
-      if (textarea) {
-        textarea.removeEventListener('compositionstart', onCompStart);
-        textarea.removeEventListener('compositionend', onCompEnd);
-        textarea.removeEventListener('keydown', onKeyDown229, true);
-      }
-      if (compositionResetTimer) clearTimeout(compositionResetTimer);
 
       // 1. Stop resize events
       observer.disconnect();
@@ -441,6 +378,12 @@ export default function TerminalInner({
   // T006: Handle toolbar key sends
   const handleToolbarKey = useCallback((data: string) => {
     sendRef.current(data);
+    terminalRef.current?.focus();
+  }, []);
+
+  // Voice input: send text + newline to terminal
+  const handleSendText = useCallback((text: string) => {
+    sendRef.current(text);
     terminalRef.current?.focus();
   }, []);
 
@@ -534,6 +477,7 @@ export default function TerminalInner({
         >
           <TerminalModifierToolbar
             onKey={handleToolbarKey}
+            onSendText={handleSendText}
             onModifierChange={handleModifierChange}
             toolbarRef={(handle) => {
               toolbarRef.current = handle;

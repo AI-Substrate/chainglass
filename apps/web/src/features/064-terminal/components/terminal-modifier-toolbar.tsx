@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 export interface ModifierState {
   ctrl: boolean;
@@ -13,6 +13,8 @@ export interface TerminalModifierToolbarHandle {
 
 export interface TerminalModifierToolbarProps {
   onKey: (data: string) => void;
+  /** Send composed text to terminal (for voice input overlay) */
+  onSendText?: (text: string) => void;
   onModifierChange?: (state: ModifierState) => void;
   toolbarRef?: (handle: TerminalModifierToolbarHandle) => void;
 }
@@ -58,10 +60,14 @@ const activeStyle: React.CSSProperties = {
  */
 export function TerminalModifierToolbar({
   onKey,
+  onSendText,
   onModifierChange,
   toolbarRef,
 }: TerminalModifierToolbarProps) {
   const [modifiers, setModifiers] = useState<ModifierState>({ ctrl: false, alt: false });
+  const [voiceOpen, setVoiceOpen] = useState(false);
+  const [voiceText, setVoiceText] = useState('');
+  const voiceInputRef = useRef<HTMLInputElement>(null);
 
   const updateModifiers = useCallback(
     (next: ModifierState) => {
@@ -90,59 +96,151 @@ export function TerminalModifierToolbar({
     updateModifiers(next);
   }, [modifiers, updateModifiers]);
 
+  const handleVoiceSend = useCallback(() => {
+    if (voiceText.trim()) {
+      onSendText?.(voiceText);
+      setVoiceText('');
+    }
+    setVoiceOpen(false);
+  }, [voiceText, onSendText]);
+
+  const handleVoiceToggle = useCallback(() => {
+    setVoiceOpen((prev) => {
+      if (!prev) {
+        // Focus input after render
+        requestAnimationFrame(() => voiceInputRef.current?.focus());
+      }
+      return !prev;
+    });
+    setVoiceText('');
+  }, []);
+
   return (
-    <div
-      style={{
-        height: '36px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '4px',
-        padding: '0 6px',
-        borderTop: '1px solid var(--border, #27272a)',
-        background: 'var(--background, #09090b)',
-        backdropFilter: 'blur(8px)',
-      }}
-    >
-      {/* Modifier keys */}
-      <button
-        type="button"
-        style={{ ...buttonBase, ...modifierSize }}
-        onClick={() => onKey('\x1b')}
-      >
-        Esc
-      </button>
-      <button type="button" style={{ ...buttonBase, ...modifierSize }} onClick={() => onKey('\t')}>
-        Tab
-      </button>
-      <button
-        type="button"
-        style={{ ...buttonBase, ...modifierSize, ...(modifiers.ctrl ? activeStyle : {}) }}
-        onClick={handleCtrl}
-      >
-        Ctrl
-      </button>
-      <button
-        type="button"
-        style={{ ...buttonBase, ...modifierSize, ...(modifiers.alt ? activeStyle : {}) }}
-        onClick={handleAlt}
-      >
-        Alt
-      </button>
-
-      {/* Spacer */}
-      <div style={{ flex: 1 }} />
-
-      {/* Arrow keys */}
-      {ARROW_KEYS.map((key) => (
-        <button
-          key={key.label}
-          type="button"
-          style={{ ...buttonBase, ...arrowSize }}
-          onClick={() => onKey(key.seq)}
+    <div>
+      {/* Voice input bar — above modifier toolbar */}
+      {voiceOpen && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            padding: '4px 6px',
+            borderTop: '1px solid var(--border, #27272a)',
+            background: 'var(--background, #09090b)',
+          }}
         >
-          {key.label}
+          <input
+            ref={voiceInputRef}
+            type="text"
+            value={voiceText}
+            onChange={(e) => setVoiceText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleVoiceSend();
+              }
+            }}
+            placeholder="Dictate or type..."
+            style={{
+              flex: 1,
+              height: '32px',
+              fontSize: '16px',
+              padding: '0 8px',
+              border: '1px solid var(--border, #27272a)',
+              borderRadius: '6px',
+              background: 'var(--muted, #27272a)',
+              color: 'var(--foreground, #fafafa)',
+              outline: 'none',
+            }}
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
+          />
+          <button
+            type="button"
+            onClick={handleVoiceSend}
+            style={{
+              ...buttonBase,
+              minWidth: '44px',
+              height: '32px',
+              fontSize: '16px',
+              background: 'var(--primary, #3b82f6)',
+              color: 'var(--primary-foreground, #fff)',
+            }}
+          >
+            ↵
+          </button>
+        </div>
+      )}
+
+      {/* Modifier keys toolbar */}
+      <div
+        style={{
+          height: '36px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+          padding: '0 6px',
+          borderTop: '1px solid var(--border, #27272a)',
+          background: 'var(--background, #09090b)',
+          backdropFilter: 'blur(8px)',
+        }}
+      >
+        {/* Modifier keys */}
+        <button
+          type="button"
+          style={{ ...buttonBase, ...modifierSize }}
+          onClick={() => onKey('\x1b')}
+        >
+          Esc
         </button>
-      ))}
+        <button
+          type="button"
+          style={{ ...buttonBase, ...modifierSize }}
+          onClick={() => onKey('\t')}
+        >
+          Tab
+        </button>
+        <button
+          type="button"
+          style={{ ...buttonBase, ...modifierSize, ...(modifiers.ctrl ? activeStyle : {}) }}
+          onClick={handleCtrl}
+        >
+          Ctrl
+        </button>
+        <button
+          type="button"
+          style={{ ...buttonBase, ...modifierSize, ...(modifiers.alt ? activeStyle : {}) }}
+          onClick={handleAlt}
+        >
+          Alt
+        </button>
+
+        {/* Mic toggle */}
+        <button
+          type="button"
+          style={{ ...buttonBase, ...modifierSize, ...(voiceOpen ? activeStyle : {}) }}
+          onClick={handleVoiceToggle}
+          aria-label="Voice input"
+        >
+          🎤
+        </button>
+
+        {/* Spacer */}
+        <div style={{ flex: 1 }} />
+
+        {/* Arrow keys */}
+        {ARROW_KEYS.map((key) => (
+          <button
+            key={key.label}
+            type="button"
+            style={{ ...buttonBase, ...arrowSize }}
+            onClick={() => onKey(key.seq)}
+          >
+            {key.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

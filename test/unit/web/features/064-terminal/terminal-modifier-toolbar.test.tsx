@@ -24,10 +24,11 @@ describe('TerminalModifierToolbar', () => {
     expect(screen.getByText('→')).toBeInTheDocument();
   });
 
-  it('has 36px height', () => {
+  it('has 36px height on modifier bar', () => {
     const { container } = render(<TerminalModifierToolbar onKey={() => {}} />);
-    const toolbar = container.firstElementChild as HTMLElement;
-    expect(toolbar.style.height).toBe('36px');
+    // The root is a wrapper div; the modifier bar is the last child
+    const modifierBar = container.firstElementChild?.lastElementChild as HTMLElement;
+    expect(modifierBar.style.height).toBe('36px');
   });
 
   it('sends \\x1b on Esc tap', () => {
