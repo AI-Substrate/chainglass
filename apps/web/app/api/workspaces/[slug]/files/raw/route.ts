@@ -40,7 +40,7 @@ export async function GET(
     return new Response('Missing worktree or file parameter', { status: 400 });
   }
 
-  if (!worktree.startsWith('/')) {
+  if (!worktree.startsWith('/') && !/^[A-Za-z]:[\\/]/.test(worktree)) {
     return new Response('Invalid worktree path', { status: 400 });
   }
 

@@ -37,7 +37,7 @@ export async function GET(
   }
 
   // Security: must be absolute path
-  if (!worktree.startsWith('/')) {
+  if (!worktree.startsWith('/') && !/^[A-Za-z]:[\\/]/.test(worktree)) {
     return Response.json({ error: 'Invalid worktree path' }, { status: 400 });
   }
 

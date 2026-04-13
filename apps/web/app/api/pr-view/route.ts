@@ -18,7 +18,7 @@ function validateWorktree(worktree: string | null): Response | null {
   if (!worktree) {
     return NextResponse.json({ error: 'Missing worktree parameter' }, { status: 400 });
   }
-  if (!worktree.startsWith('/')) {
+  if (!worktree.startsWith('/') && !/^[A-Za-z]:[\\/]/.test(worktree)) {
     return NextResponse.json({ error: 'Invalid worktree path' }, { status: 400 });
   }
   if (worktree.includes('..')) {
