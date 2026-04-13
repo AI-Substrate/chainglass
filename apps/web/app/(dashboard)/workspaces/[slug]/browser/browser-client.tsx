@@ -432,6 +432,22 @@ function BrowserClientInner({
     [setParams]
   );
 
+  // Mobile: folder tap sets dir + switches to Content view for FolderPreviewPanel
+  const handleMobileExpandedDirsChange = useCallback(
+    (dirs: string[]) => {
+      const oldSet = new Set(trackedExpandedDirsRef.current);
+      const newlyExpanded = dirs.find((d) => !oldSet.has(d));
+      trackedExpandedDirsRef.current = dirs;
+      setTrackedExpandedDirs(dirs);
+
+      if (newlyExpanded) {
+        setParams({ dir: newlyExpanded, file: '' }, { history: 'push' });
+        setMobileActiveIndex(1);
+      }
+    },
+    [setParams]
+  );
+
   // T004: Watch current open file for external changes
   const fileChanges = useFileChanges(selectedFile ?? '', { debounce: 100 });
 
@@ -801,16 +817,7 @@ function BrowserClientInner({
               onExpand={fileNav.handleExpand}
               childEntries={filteredChildEntries}
               expandPaths={expandPaths}
-              onExpandedDirsChange={(dirs) => {
-                const oldSet = new Set(trackedExpandedDirsRef.current);
-                const newlyExpanded = dirs.find((d) => !oldSet.has(d));
-                trackedExpandedDirsRef.current = dirs;
-                setTrackedExpandedDirs(dirs);
-                if (newlyExpanded) {
-                  setParams({ dir: newlyExpanded, file: '' }, { history: 'push' });
-                  setMobileActiveIndex(1);
-                }
-              }}
+              onExpandedDirsChange={handleMobileExpandedDirsChange}
               onCopyFullPath={clipboard.handleCopyFullPath}
               onCopyRelativePath={clipboard.handleCopyRelativePath}
               onCopyContent={clipboard.handleCopyContent}
