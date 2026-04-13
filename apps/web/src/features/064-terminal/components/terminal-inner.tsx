@@ -235,9 +235,27 @@ export default function TerminalInner({
     }
 
     // T008: Prevent iOS auto-zoom on textarea focus (font-size < 16px triggers zoom)
-    const helperTextarea = container.querySelector('.xterm-helper-textarea') as HTMLElement | null;
+    const helperTextarea = container.querySelector(
+      '.xterm-helper-textarea'
+    ) as HTMLTextAreaElement | null;
     if (helperTextarea) {
       helperTextarea.style.fontSize = '16px';
+    }
+
+    // iOS Safari: keyboard only appears from a direct user gesture on an input.
+    // xterm.js's hidden textarea doesn't reliably trigger the OSK on tap.
+    // Add touchstart handler to explicitly focus the textarea on tap.
+    if (useMobilePatterns) {
+      const handleTouchStart = () => {
+        const ta = container.querySelector('.xterm-helper-textarea') as HTMLTextAreaElement | null;
+        ta?.focus();
+      };
+      container.addEventListener('touchstart', handleTouchStart, { passive: true });
+      // Clean up in the dispose closure below
+      (container as HTMLElement & { _mobileTouchCleanup?: () => void })._mobileTouchCleanup =
+        () => {
+          container.removeEventListener('touchstart', handleTouchStart);
+        };
     }
 
     terminalRef.current = terminal;
@@ -277,6 +295,9 @@ export default function TerminalInner({
     // DYK-03: Cleanup order matters — observer before dispose
     return () => {
       disposedRef.current = true;
+
+      // 0. Remove mobile touch handler
+      (container as HTMLElement & { _mobileTouchCleanup?: () => void })._mobileTouchCleanup?.();
 
       // 1. Stop resize events
       observer.disconnect();
