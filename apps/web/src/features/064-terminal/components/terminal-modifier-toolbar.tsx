@@ -98,11 +98,14 @@ export function TerminalModifierToolbar({
 
   const handleVoiceSend = useCallback(() => {
     if (voiceText.trim()) {
-      onSendText?.(voiceText);
+      const text = voiceText;
+      onSendText?.(text);
+      // Auto-press Enter after a short delay so the command executes
+      setTimeout(() => onKey('\r'), 500);
       setVoiceText('');
     }
     setVoiceOpen(false);
-  }, [voiceText, onSendText]);
+  }, [voiceText, onSendText, onKey]);
 
   const handleVoiceToggle = useCallback(() => {
     setVoiceOpen((prev) => {
