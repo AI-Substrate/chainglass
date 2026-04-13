@@ -67,7 +67,6 @@ export function TerminalModifierToolbar({
   const [modifiers, setModifiers] = useState<ModifierState>({ ctrl: false, alt: false });
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [voiceText, setVoiceText] = useState('');
-  const [tmuxPickerOpen, setTmuxPickerOpen] = useState(false);
   const voiceInputRef = useRef<HTMLInputElement>(null);
 
   const updateModifiers = useCallback(
@@ -231,18 +230,11 @@ export function TerminalModifierToolbar({
           🎤
         </button>
 
-        {/* Tmux window picker toggle — Ctrl+B w to open, q to close */}
+        {/* Tmux window picker — Ctrl+B w. Picker closes itself on Enter/q/Esc */}
         <button
           type="button"
-          style={{ ...buttonBase, ...modifierSize, ...(tmuxPickerOpen ? activeStyle : {}) }}
-          onClick={() => {
-            if (tmuxPickerOpen) {
-              onKey('q');
-            } else {
-              onKey('\x02w');
-            }
-            setTmuxPickerOpen((prev) => !prev);
-          }}
+          style={{ ...buttonBase, ...modifierSize }}
+          onClick={() => onKey('\x02w')}
           aria-label="Tmux windows"
         >
           W
