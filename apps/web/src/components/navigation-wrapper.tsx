@@ -29,8 +29,8 @@ export function NavigationWrapper({ children }: { children: ReactNode }) {
 
   // Phone layout: simple wrapper with bottom tab bar
   return (
-    <div className="flex min-h-screen flex-col">
-      <main className="flex-1 pb-20 p-4">{children}</main>
+    <div className="flex h-dvh flex-col overflow-hidden">
+      <main className="flex-1 min-h-0 overflow-auto">{children}</main>
       <BottomTabBar />
     </div>
   );
