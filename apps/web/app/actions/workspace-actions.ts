@@ -53,7 +53,10 @@ const AddWorkspaceSchema = z.object({
   path: z
     .string()
     .transform((s) => s.trim())
-    .pipe(z.string().min(1, 'Path is required').startsWith('/', 'Path must be absolute')),
+    .pipe(z.string().min(1, 'Path is required').refine(
+      (p) => p.startsWith('/') || p.startsWith('~') || /^[A-Za-z]:[\\/]/.test(p),
+      'Path must be absolute',
+    )),
 });
 
 const AddSampleSchema = z.object({

@@ -319,7 +319,8 @@ export class WorkspaceService implements IWorkspaceService {
    */
   private validatePath(path: string): WorkspaceError | undefined {
     // Check for relative path (doesn't start with / or ~)
-    if (!path.startsWith('/') && !path.startsWith('~')) {
+    const isWindowsAbsolute = /^[A-Za-z]:[\\/]/.test(path);
+    if (!path.startsWith('/') && !path.startsWith('~') && !isWindowsAbsolute) {
       return WorkspaceErrors.invalidPath(
         path,
         'Path must be absolute (start with / or ~), not relative'

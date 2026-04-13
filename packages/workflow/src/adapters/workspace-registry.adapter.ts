@@ -265,7 +265,7 @@ export class WorkspaceRegistryAdapter implements IWorkspaceRegistryAdapter {
     }
 
     // Check if path is absolute (starts with / or ~)
-    const isAbsolute = decoded.startsWith('/') || decoded.startsWith('~');
+    const isAbsolute = decoded.startsWith('/') || decoded.startsWith('~') || /^[A-Za-z]:[\\/]/.test(decoded);
     if (!isAbsolute) {
       return {
         ok: false,
