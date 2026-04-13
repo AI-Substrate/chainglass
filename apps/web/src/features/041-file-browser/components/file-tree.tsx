@@ -426,9 +426,9 @@ function TreeItem({
         {/* biome-ignore lint/a11y/useKeyWithClickEvents: keyboard handled at tree level via handleTreeKeyDown */}
         <div
           onClick={isRenaming ? undefined : () => onDirClick(entry.path)}
-          className={`group relative flex w-full items-center gap-1 px-2 py-1 text-left hover:bg-accent cursor-pointer ${
+          className={`group relative flex w-full items-center gap-1 px-2 text-left hover:bg-accent cursor-pointer ${
             isSelected ? 'bg-accent' : ''
-          } ${isNewlyAdded ? 'tree-entry-new' : ''}${useMobilePatterns ? ' min-h-12' : ''}`}
+          } ${isNewlyAdded ? 'tree-entry-new' : ''}${useMobilePatterns ? ' min-h-[36px] py-1.5' : ' py-1'}`}
           style={{ paddingLeft: `${depth * 16 + 8}px`, touchAction: 'manipulation' }}
         >
           {isRenaming ? (
@@ -696,7 +696,7 @@ function TreeItem({
                 onDoubleSelect?.(entry.path, selectedOnMouseDownRef.current);
               }
             }}
-            className={`relative flex w-full items-center gap-1 px-2 py-1 text-left hover:bg-accent${useMobilePatterns ? ' min-h-12' : ''} ${
+            className={`relative flex w-full items-center gap-1 px-2 text-left hover:bg-accent${useMobilePatterns ? ' min-h-[36px] py-1.5' : ' py-1'} ${
               isSelected ? 'bg-accent font-medium' : ''
             } ${isChanged ? 'text-amber-600 dark:text-amber-400' : ''} ${isNewlyAdded ? 'tree-entry-new' : ''}`}
             style={{ paddingLeft: `${depth * 16 + 8 + 14}px`, touchAction: 'manipulation' }}
