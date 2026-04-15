@@ -42,7 +42,7 @@ import {
   type ExplorerPanelHandle,
   LeftPanel,
   MainPanel,
-  MobileExplorerSheet,
+  MobileSearchOverlay,
   PanelShell,
 } from '@/features/_platform/panel-layout';
 import type { PanelMode } from '@/features/_platform/panel-layout';
@@ -53,6 +53,7 @@ import {
   FileText,
   FolderOpen,
   GitBranch,
+  Search,
   StickyNote,
   TerminalSquare,
 } from 'lucide-react';
@@ -964,61 +965,14 @@ function BrowserClientInner({
         mobileActiveIndex={mobileActiveIndex}
         onMobileViewChange={setMobileActiveIndex}
         mobileRightAction={
-          <MobileExplorerSheet open={explorerSheetOpen} onOpenChange={setExplorerSheetOpen}>
-            <ExplorerPanel
-              filePath={selectedFile ?? ''}
-              handlers={[filePathHandler]}
-              context={barContext}
-              onCopy={() => clipboard.copyToClipboard(selectedFile ?? '')}
-              placeholder="Search files or > for commands..."
-              sdk={sdk}
-              mru={mru}
-              onCommandExecute={(cmdId) => {
-                recordExecution(cmdId);
-                setExplorerSheetOpen(false);
-              }}
-              fileSearchResults={fileFilter.results}
-              fileSearchLoading={fileFilter.loading}
-              fileSearchError={fileFilter.error}
-              sortMode={fileFilter.sortMode}
-              onSortModeChange={fileFilter.cycleSortMode}
-              includeHidden={fileFilter.includeHidden}
-              onIncludeHiddenChange={fileFilter.toggleIncludeHidden}
-              onFileSelect={(filePath) => {
-                handleFileSelect(filePath);
-                setExplorerSheetOpen(false);
-              }}
-              onCopyFullPath={clipboard.handleCopyFullPath}
-              onCopyRelativePath={clipboard.handleCopyRelativePath}
-              onCopyContent={clipboard.handleCopyContent}
-              onDownload={clipboard.handleDownload}
-              workingChanges={panelState.workingChanges}
-              onSearchQueryChange={fileFilter.setQuery}
-              codeSearchResults={
-                activeCodeSearchMode === 'grep' ? gitGrep.results : flowspace.results
-              }
-              codeSearchLoading={
-                activeCodeSearchMode === 'grep' ? gitGrep.loading : flowspace.loading
-              }
-              codeSearchError={activeCodeSearchMode === 'grep' ? gitGrep.error : flowspace.error}
-              codeSearchAvailability={flowspace.availability}
-              codeSearchGraphAge={flowspace.graphAge}
-              codeSearchFolders={flowspace.folders}
-              onCodeSearchSelect={(filePath, startLine) => {
-                setParams({ file: filePath, line: startLine, mode: 'edit' }, { history: 'push' });
-                setExplorerSheetOpen(false);
-                setMobileActiveIndex(1);
-              }}
-              onFlowspaceQueryChange={(query, mode) => {
-                setActiveCodeSearchMode(mode);
-                if (mode === 'grep') {
-                  gitGrep.setQuery(query);
-                } else {
-                  flowspace.setQuery(query, mode);
-                }
-              }}
-            />
-          </MobileExplorerSheet>
+          <button
+            type="button"
+            onClick={() => setExplorerSheetOpen(true)}
+            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            aria-label="Search"
+          >
+            <Search className="h-4 w-4" />
+          </button>
         }
         explorer={
           <ExplorerPanel
@@ -1227,6 +1181,43 @@ function BrowserClientInner({
             )}
           </MainPanel>
         }
+      />
+      <MobileSearchOverlay
+        open={explorerSheetOpen}
+        onClose={() => setExplorerSheetOpen(false)}
+        onFileSelect={(path) => {
+          handleFileSelect(path);
+        }}
+        onCodeSearchSelect={(filePath, startLine) => {
+          setParams({ file: filePath, line: startLine, mode: 'edit' }, { history: 'push' });
+          setMobileActiveIndex(1);
+        }}
+        onCommandExecute={recordExecution}
+        fileSearchResults={fileFilter.results}
+        fileSearchLoading={fileFilter.loading}
+        fileSearchError={fileFilter.error}
+        sortMode={fileFilter.sortMode}
+        onSortModeChange={fileFilter.cycleSortMode}
+        includeHidden={fileFilter.includeHidden}
+        onIncludeHiddenChange={fileFilter.toggleIncludeHidden}
+        onSearchQueryChange={fileFilter.setQuery}
+        codeSearchResults={activeCodeSearchMode === 'grep' ? gitGrep.results : flowspace.results}
+        codeSearchLoading={activeCodeSearchMode === 'grep' ? gitGrep.loading : flowspace.loading}
+        codeSearchError={activeCodeSearchMode === 'grep' ? gitGrep.error : flowspace.error}
+        codeSearchAvailability={flowspace.availability}
+        codeSearchGraphAge={flowspace.graphAge}
+        codeSearchFolders={flowspace.folders}
+        onFlowspaceQueryChange={(query, mode) => {
+          setActiveCodeSearchMode(mode);
+          if (mode === 'grep') {
+            gitGrep.setQuery(query);
+          } else {
+            flowspace.setQuery(query, mode);
+          }
+        }}
+        workingChanges={panelState.workingChanges}
+        sdk={sdk}
+        mru={mru}
       />
     </div>
   );

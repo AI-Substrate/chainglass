@@ -118,9 +118,16 @@ export function TerminalModifierToolbar({
     setVoiceText('');
   }, []);
 
+  const [toolsOpen, setToolsOpen] = useState(false);
+
+  const handleToolAction = useCallback((action: () => void) => {
+    action();
+    setToolsOpen(false);
+  }, []);
+
   return (
     <div>
-      {/* Voice input bar — above modifier toolbar */}
+      {/* Voice input bar — above everything */}
       {voiceOpen && (
         <form
           onSubmit={(e) => {
@@ -174,7 +181,42 @@ export function TerminalModifierToolbar({
         </form>
       )}
 
-      {/* Modifier keys toolbar */}
+      {/* Tools popout row — above main toolbar */}
+      {toolsOpen && (
+        // biome-ignore lint/a11y/useKeyWithClickEvents: toolbar
+        <div
+          style={{
+            height: '36px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '0 6px',
+            borderTop: '1px solid var(--border, #27272a)',
+            background: 'var(--background, #09090b)',
+          }}
+          onMouseDown={(e) => e.preventDefault()}
+          onTouchStart={(e) => e.preventDefault()}
+        >
+          <button
+            type="button"
+            style={{ ...buttonBase, ...modifierSize }}
+            onClick={() => handleToolAction(handleVoiceToggle)}
+            aria-label="Voice input"
+          >
+            🎤
+          </button>
+          <button
+            type="button"
+            style={{ ...buttonBase, ...modifierSize }}
+            onClick={() => handleToolAction(() => onKey('\x02w'))}
+            aria-label="Tmux windows"
+          >
+            W
+          </button>
+        </div>
+      )}
+
+      {/* Main modifier keys toolbar */}
       {/* biome-ignore lint/a11y/useKeyWithClickEvents: toolbar buttons handle their own clicks */}
       <div
         style={{
@@ -190,6 +232,16 @@ export function TerminalModifierToolbar({
         onMouseDown={(e) => e.preventDefault()}
         onTouchStart={(e) => e.preventDefault()}
       >
+        {/* Tools toggle */}
+        <button
+          type="button"
+          style={{ ...buttonBase, ...arrowSize, ...(toolsOpen ? activeStyle : {}) }}
+          onClick={() => setToolsOpen((prev) => !prev)}
+          aria-label="Tools"
+        >
+          ⚡
+        </button>
+
         {/* Modifier keys */}
         <button
           type="button"
@@ -218,26 +270,6 @@ export function TerminalModifierToolbar({
           onClick={handleAlt}
         >
           Alt
-        </button>
-
-        {/* Mic toggle */}
-        <button
-          type="button"
-          style={{ ...buttonBase, ...modifierSize, ...(voiceOpen ? activeStyle : {}) }}
-          onClick={handleVoiceToggle}
-          aria-label="Voice input"
-        >
-          🎤
-        </button>
-
-        {/* Tmux window picker — Ctrl+B w. Picker closes itself on Enter/q/Esc */}
-        <button
-          type="button"
-          style={{ ...buttonBase, ...modifierSize }}
-          onClick={() => onKey('\x02w')}
-          aria-label="Tmux windows"
-        >
-          W
         </button>
 
         {/* Spacer */}
