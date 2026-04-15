@@ -432,7 +432,8 @@ function BrowserClientInner({
     [setParams]
   );
 
-  // Mobile: folder tap sets dir + switches to Content view for FolderPreviewPanel
+  // Mobile: folder tap sets dir param (for FolderPreviewPanel in Content view)
+  // but does NOT auto-switch — user stays in Files view to continue browsing
   const handleMobileExpandedDirsChange = useCallback(
     (dirs: string[]) => {
       const oldSet = new Set(trackedExpandedDirsRef.current);
@@ -442,7 +443,6 @@ function BrowserClientInner({
 
       if (newlyExpanded) {
         setParams({ dir: newlyExpanded, file: '' }, { history: 'push' });
-        setMobileActiveIndex(1);
       }
     },
     [setParams]
