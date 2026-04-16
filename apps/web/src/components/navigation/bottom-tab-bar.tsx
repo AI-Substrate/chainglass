@@ -73,9 +73,9 @@ export function BottomTabBar() {
       className={cn(
         'fixed bottom-0 left-0 right-0 w-full',
         'bg-background border-t border-border',
-        'safe-area-inset-bottom',
         'z-50'
       )}
+      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
       <div
         role="tablist"

@@ -190,6 +190,10 @@ export function MobileSearchOverlay({
   return (
     <div
       className="fixed inset-0 z-50 flex flex-col bg-background"
+      style={{
+        paddingTop: 'env(safe-area-inset-top)',
+        paddingBottom: 'env(safe-area-inset-bottom)',
+      }}
       data-testid="mobile-search-overlay"
     >
       {/* Header: close + input */}

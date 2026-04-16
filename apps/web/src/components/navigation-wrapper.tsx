@@ -29,8 +29,16 @@ export function NavigationWrapper({ children }: { children: ReactNode }) {
 
   // Phone layout: simple wrapper with bottom tab bar
   // position:fixed prevents iOS Safari from scrolling the page when keyboard opens
+  // pt-[env(safe-area-inset-top)] pushes content below the iOS status bar / notch
+  // pb-[env(safe-area-inset-bottom)] accounts for home indicator on notched iPhones
   return (
-    <div className="fixed inset-0 flex flex-col overflow-hidden">
+    <div
+      className="fixed inset-0 flex flex-col overflow-hidden bg-background"
+      style={{
+        paddingTop: 'env(safe-area-inset-top)',
+        paddingBottom: 'env(safe-area-inset-bottom)',
+      }}
+    >
       <main className="flex-1 min-h-0 overflow-hidden">{children}</main>
       <BottomTabBar />
     </div>
