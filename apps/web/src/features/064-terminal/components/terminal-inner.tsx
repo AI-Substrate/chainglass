@@ -46,8 +46,6 @@ export default function TerminalInner({
   const [authError, setAuthError] = useState<string | null>(null);
   const tmuxWarningShownRef = useRef(false);
   const toolbarRef = useRef<{ resetModifiers: () => void } | null>(null);
-  const ctrlActiveRef = useRef(false);
-  const altActiveRef = useRef(false);
   const { resolvedTheme } = useTheme();
   const { useMobilePatterns } = useResponsive();
   const [colorThemeId] = useSDKSetting<string>('terminal.colorTheme');
@@ -198,31 +196,12 @@ export default function TerminalInner({
     // Intercept Ctrl+V / Ctrl+Shift+V so the browser handles paste natively
     // instead of xterm sending \x16 (literal ^V → tmux "verbatim insert").
     // Ctrl+Shift+C allows copy; plain Ctrl+C is preserved as SIGINT.
-    // Also handles mobile modifier toolbar Ctrl/Alt intercept (Phase 2 T006).
     terminal.attachCustomKeyEventHandler((event) => {
       if (event.type !== 'keydown') return true;
       const ctrl = event.ctrlKey && !event.metaKey;
       if (ctrl && (event.key === 'v' || event.key === 'V')) return false;
       if (ctrl && event.shiftKey && (event.key === 'c' || event.key === 'C')) return false;
       if (event.shiftKey && event.key === 'Escape') return false;
-
-      // Mobile modifier toolbar intercept — Ctrl/Alt toggle keys
-      if (ctrlActiveRef.current && event.key.length === 1) {
-        const code = event.key.toUpperCase().charCodeAt(0) & 0x1f;
-        sendRef.current(String.fromCharCode(code));
-        ctrlActiveRef.current = false;
-        altActiveRef.current = false;
-        toolbarRef.current?.resetModifiers();
-        return false;
-      }
-      if (altActiveRef.current && event.key.length === 1) {
-        sendRef.current(`\x1b${event.key}`);
-        ctrlActiveRef.current = false;
-        altActiveRef.current = false;
-        toolbarRef.current?.resetModifiers();
-        return false;
-      }
-
       return true;
     });
 
@@ -387,10 +366,9 @@ export default function TerminalInner({
     terminalRef.current?.focus();
   }, []);
 
-  // T006: Handle modifier state changes (Ctrl/Alt toggle)
-  const handleModifierChange = useCallback((state: { ctrl: boolean; alt: boolean }) => {
-    ctrlActiveRef.current = state.ctrl;
-    altActiveRef.current = state.alt;
+  // Refocus terminal (called by toolbar after modifier capture completes)
+  const handleRefocusTerminal = useCallback(() => {
+    terminalRef.current?.focus();
   }, []);
 
   return (
@@ -478,7 +456,7 @@ export default function TerminalInner({
           <TerminalModifierToolbar
             onKey={handleToolbarKey}
             onSendText={handleSendText}
-            onModifierChange={handleModifierChange}
+            onRefocusTerminal={handleRefocusTerminal}
             toolbarRef={(handle) => {
               toolbarRef.current = handle;
             }}

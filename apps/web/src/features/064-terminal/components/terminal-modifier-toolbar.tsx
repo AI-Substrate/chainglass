@@ -15,7 +15,8 @@ export interface TerminalModifierToolbarProps {
   onKey: (data: string) => void;
   /** Send composed text to terminal (for voice input overlay) */
   onSendText?: (text: string) => void;
-  onModifierChange?: (state: ModifierState) => void;
+  /** Called to refocus the terminal after modifier capture completes */
+  onRefocusTerminal?: () => void;
   toolbarRef?: (handle: TerminalModifierToolbarHandle) => void;
 }
 
@@ -61,40 +62,74 @@ const activeStyle: React.CSSProperties = {
 export function TerminalModifierToolbar({
   onKey,
   onSendText,
-  onModifierChange,
+  onRefocusTerminal,
   toolbarRef,
 }: TerminalModifierToolbarProps) {
-  const [modifiers, setModifiers] = useState<ModifierState>({ ctrl: false, alt: false });
+  // Which modifier is pending capture: null = none, 'ctrl' or 'alt'
+  const [pendingModifier, setPendingModifier] = useState<'ctrl' | 'alt' | null>(null);
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [voiceText, setVoiceText] = useState('');
   const voiceInputRef = useRef<HTMLInputElement>(null);
-
-  const updateModifiers = useCallback(
-    (next: ModifierState) => {
-      setModifiers(next);
-      onModifierChange?.(next);
-    },
-    [onModifierChange]
-  );
+  const captureInputRef = useRef<HTMLInputElement>(null);
 
   const resetModifiers = useCallback(() => {
-    updateModifiers({ ctrl: false, alt: false });
-  }, [updateModifiers]);
+    setPendingModifier(null);
+  }, []);
 
   // Expose resetModifiers to parent via ref callback
   useEffect(() => {
     toolbarRef?.({ resetModifiers });
   }, [toolbarRef, resetModifiers]);
 
+  // When a character is captured in the hidden input, convert and send
+  const handleCaptureInput = useCallback(
+    (e: React.FormEvent<HTMLInputElement>) => {
+      const input = e.currentTarget;
+      const char = input.value;
+      input.value = '';
+
+      if (!char || char.length === 0 || !pendingModifier) return;
+
+      if (pendingModifier === 'ctrl') {
+        const code = char.toUpperCase().charCodeAt(0) & 0x1f;
+        onKey(String.fromCharCode(code));
+      } else if (pendingModifier === 'alt') {
+        onKey(`\x1b${char}`);
+      }
+
+      setPendingModifier(null);
+      // Refocus terminal so subsequent typing goes to xterm
+      requestAnimationFrame(() => onRefocusTerminal?.());
+    },
+    [pendingModifier, onKey, onRefocusTerminal]
+  );
+
+  // If capture input loses focus while modifier is pending, cancel
+  const handleCaptureBlur = useCallback(() => {
+    setPendingModifier(null);
+  }, []);
+
   const handleCtrl = useCallback(() => {
-    const next = { ...modifiers, ctrl: !modifiers.ctrl };
-    updateModifiers(next);
-  }, [modifiers, updateModifiers]);
+    if (pendingModifier === 'ctrl') {
+      // Toggle off
+      setPendingModifier(null);
+      onRefocusTerminal?.();
+      return;
+    }
+    setPendingModifier('ctrl');
+    // Focus our hidden capture input so the next keypress comes to us
+    requestAnimationFrame(() => captureInputRef.current?.focus());
+  }, [pendingModifier, onRefocusTerminal]);
 
   const handleAlt = useCallback(() => {
-    const next = { ...modifiers, alt: !modifiers.alt };
-    updateModifiers(next);
-  }, [modifiers, updateModifiers]);
+    if (pendingModifier === 'alt') {
+      setPendingModifier(null);
+      onRefocusTerminal?.();
+      return;
+    }
+    setPendingModifier('alt');
+    requestAnimationFrame(() => captureInputRef.current?.focus());
+  }, [pendingModifier, onRefocusTerminal]);
 
   const handleVoiceSend = useCallback(() => {
     if (voiceText.trim()) {
@@ -127,6 +162,31 @@ export function TerminalModifierToolbar({
 
   return (
     <div>
+      {/* Hidden capture input for Ctrl/Alt modifier key combos.
+          When Ctrl or Alt is tapped, focus moves here. The next character
+          typed goes into this input (not xterm), gets converted to a
+          control sequence, and sent to the terminal. */}
+      <input
+        ref={captureInputRef}
+        type="text"
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck={false}
+        onInput={handleCaptureInput}
+        onBlur={handleCaptureBlur}
+        style={{
+          position: 'absolute',
+          opacity: 0,
+          width: '1px',
+          height: '1px',
+          overflow: 'hidden',
+          // 16px prevents iOS auto-zoom
+          fontSize: '16px',
+        }}
+        aria-hidden="true"
+        tabIndex={-1}
+      />
       {/* Voice input bar — above everything */}
       {voiceOpen && (
         <form
@@ -259,14 +319,14 @@ export function TerminalModifierToolbar({
         </button>
         <button
           type="button"
-          style={{ ...buttonBase, ...modifierSize, ...(modifiers.ctrl ? activeStyle : {}) }}
+          style={{ ...buttonBase, ...modifierSize, ...(pendingModifier === 'ctrl' ? activeStyle : {}) }}
           onClick={handleCtrl}
         >
           Ctrl
         </button>
         <button
           type="button"
-          style={{ ...buttonBase, ...modifierSize, ...(modifiers.alt ? activeStyle : {}) }}
+          style={{ ...buttonBase, ...modifierSize, ...(pendingModifier === 'alt' ? activeStyle : {}) }}
           onClick={handleAlt}
         >
           Alt
