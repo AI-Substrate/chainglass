@@ -81,47 +81,55 @@ describe('TerminalModifierToolbar', () => {
       expect(onKey).not.toHaveBeenCalled();
     });
 
-    it('reports Ctrl active via onModifierChange', () => {
-      const onModifierChange = vi.fn();
-      render(<TerminalModifierToolbar onKey={() => {}} onModifierChange={onModifierChange} />);
-      fireEvent.click(screen.getByText('Ctrl'));
-      expect(onModifierChange).toHaveBeenCalledWith({ ctrl: true, alt: false });
-    });
-
-    it('deactivates Ctrl on second tap', () => {
-      const onModifierChange = vi.fn();
-      render(<TerminalModifierToolbar onKey={() => {}} onModifierChange={onModifierChange} />);
-      fireEvent.click(screen.getByText('Ctrl'));
-      fireEvent.click(screen.getByText('Ctrl'));
-      expect(onModifierChange).toHaveBeenLastCalledWith({ ctrl: false, alt: false });
+    it('highlights Ctrl on first tap and removes on second tap', () => {
+      render(<TerminalModifierToolbar onKey={() => {}} />);
+      const ctrlBtn = screen.getByText('Ctrl');
+      fireEvent.click(ctrlBtn);
+      // Ctrl is now pending — button should have active style (primary bg)
+      expect(ctrlBtn.closest('button')?.style.background).toContain('primary');
+      fireEvent.click(ctrlBtn);
+      // Ctrl deactivated — button should have default style
+      expect(ctrlBtn.closest('button')?.style.background).toContain('muted');
     });
   });
 
   describe('Alt toggle', () => {
-    it('reports Alt active via onModifierChange', () => {
-      const onModifierChange = vi.fn();
-      render(<TerminalModifierToolbar onKey={() => {}} onModifierChange={onModifierChange} />);
-      fireEvent.click(screen.getByText('Alt'));
-      expect(onModifierChange).toHaveBeenCalledWith({ ctrl: false, alt: true });
+    it('highlights Alt on tap', () => {
+      render(<TerminalModifierToolbar onKey={() => {}} />);
+      const altBtn = screen.getByText('Alt');
+      fireEvent.click(altBtn);
+      expect(altBtn.closest('button')?.style.background).toContain('primary');
     });
   });
 
-  it('calls resetModifiers when invoked externally', () => {
-    const onModifierChange = vi.fn();
+  it('calls resetModifiers to clear pending modifier', async () => {
     const ref = { current: null as { resetModifiers: () => void } | null };
-    render(
+    const { rerender } = render(
       <TerminalModifierToolbar
         onKey={() => {}}
-        onModifierChange={onModifierChange}
         toolbarRef={(r) => {
           ref.current = r;
         }}
       />
     );
     fireEvent.click(screen.getByText('Ctrl'));
-    expect(onModifierChange).toHaveBeenCalledWith({ ctrl: true, alt: false });
+    // Ctrl should be pending
+    expect(screen.getByText('Ctrl').closest('button')?.style.background).toContain('primary');
 
-    ref.current?.resetModifiers();
-    expect(onModifierChange).toHaveBeenLastCalledWith({ ctrl: false, alt: false });
+    // Reset and re-render to flush state
+    await vi.waitFor(() => {
+      ref.current?.resetModifiers();
+      rerender(
+        <TerminalModifierToolbar
+          onKey={() => {}}
+          toolbarRef={(r) => {
+            ref.current = r;
+          }}
+        />
+      );
+      expect(screen.getByText('Ctrl').closest('button')?.style.background).not.toContain(
+        'primary'
+      );
+    });
   });
 });

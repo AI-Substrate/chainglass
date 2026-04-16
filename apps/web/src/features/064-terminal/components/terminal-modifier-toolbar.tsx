@@ -243,7 +243,6 @@ export function TerminalModifierToolbar({
 
       {/* Tools popout row — above main toolbar */}
       {toolsOpen && (
-        // biome-ignore lint/a11y/useKeyWithClickEvents: toolbar
         <div
           style={{
             height: '36px',
@@ -277,7 +276,6 @@ export function TerminalModifierToolbar({
       )}
 
       {/* Main modifier keys toolbar */}
-      {/* biome-ignore lint/a11y/useKeyWithClickEvents: toolbar buttons handle their own clicks */}
       <div
         style={{
           height: '36px',
@@ -319,14 +317,22 @@ export function TerminalModifierToolbar({
         </button>
         <button
           type="button"
-          style={{ ...buttonBase, ...modifierSize, ...(pendingModifier === 'ctrl' ? activeStyle : {}) }}
+          style={{
+            ...buttonBase,
+            ...modifierSize,
+            ...(pendingModifier === 'ctrl' ? activeStyle : {}),
+          }}
           onClick={handleCtrl}
         >
           Ctrl
         </button>
         <button
           type="button"
-          style={{ ...buttonBase, ...modifierSize, ...(pendingModifier === 'alt' ? activeStyle : {}) }}
+          style={{
+            ...buttonBase,
+            ...modifierSize,
+            ...(pendingModifier === 'alt' ? activeStyle : {}),
+          }}
           onClick={handleAlt}
         >
           Alt
