@@ -10,6 +10,7 @@
  */
 
 import { ChangesView } from '@/features/041-file-browser/components/changes-view';
+import { ContentEmptyState } from '@/features/041-file-browser/components/content-empty-state';
 import { FileTree, type FileTreeHandle } from '@/features/041-file-browser/components/file-tree';
 import {
   FileViewerPanel,
@@ -30,6 +31,9 @@ import { fileBrowserContribution } from '@/features/041-file-browser/sdk/contrib
 import type { FileEntry } from '@/features/041-file-browser/services/directory-listing';
 import { createFilePathHandler } from '@/features/041-file-browser/services/file-path-handler';
 import { FileChangeProvider, useFileChanges } from '@/features/045-live-file-events';
+import { sanitizeSessionName } from '@/features/064-terminal';
+import { TerminalView } from '@/features/064-terminal/components/terminal-view';
+import { useTerminalSessions } from '@/features/064-terminal/hooks/use-terminal-sessions';
 import { QuestionPopperIndicator } from '@/features/067-question-popper/components/question-popper-indicator';
 import { useNotesOverlay } from '@/features/071-file-notes/hooks/use-notes-overlay';
 import {
@@ -38,12 +42,21 @@ import {
   type ExplorerPanelHandle,
   LeftPanel,
   MainPanel,
+  MobileSearchOverlay,
   PanelShell,
 } from '@/features/_platform/panel-layout';
 import type { PanelMode } from '@/features/_platform/panel-layout';
 import { useSDK, useSDKMru } from '@/lib/sdk/sdk-provider';
 import { GlobalStateConnector } from '@/lib/state';
-import { FileDiff, GitBranch, StickyNote } from 'lucide-react';
+import {
+  FileDiff,
+  FileText,
+  FolderOpen,
+  GitBranch,
+  Search,
+  StickyNote,
+  TerminalSquare,
+} from 'lucide-react';
 import { useQueryStates } from 'nuqs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -106,6 +119,18 @@ function BrowserClientInner({
   const explorerRef = useRef<ExplorerPanelHandle>(null);
   const [expandPaths, setExpandPaths] = useState<string[]>([]);
   const lastFileSelectionRef = useRef<{ filePath: string; at: number } | null>(null);
+
+  // FX002: Mobile view index from URL param (for terminal redirect landing)
+  const [mobileActiveIndex, setMobileActiveIndex] = useState(() => {
+    if (typeof window === 'undefined') return 0;
+    const raw = new URLSearchParams(window.location.search).get('mobileView');
+    if (raw == null) return 0;
+    const parsed = Number.parseInt(raw, 10);
+    return Number.isNaN(parsed) ? 0 : Math.max(0, Math.min(parsed, 2));
+  });
+
+  // Phase 3 T005: Explorer Sheet state (controlled open/close)
+  const [explorerSheetOpen, setExplorerSheetOpen] = useState(false);
 
   // DYK-P3-01: Wrap server prop in state for client-side root refresh
   const [rootEntries, setRootEntries] = useState(initialEntries);
@@ -361,6 +386,16 @@ function BrowserClientInner({
 
   // --- Workspace attention context (Phase 5) ---
   const wsCtx = useWorkspaceContext();
+  const terminalTheme = wsCtx?.worktreeIdentity?.terminalTheme || 'dark';
+
+  // FX002: Terminal sessions for 3rd mobile view
+  const {
+    sessions: termSessions,
+    loading: termLoading,
+    selectedSession: termSelectedSession,
+  } = useTerminalSessions({
+    currentBranch: sanitizeSessionName(worktreeBranch ?? ''),
+  });
 
   // Set worktree identity for tab title (Subtask 001)
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — only re-run on worktree change, not context ref
@@ -393,6 +428,22 @@ function BrowserClientInner({
 
       if (newlyExpanded && !isProgrammaticExpansionRef.current) {
         setParams({ dir: newlyExpanded }, { history: 'push' });
+      }
+    },
+    [setParams]
+  );
+
+  // Mobile: folder tap sets dir param (for FolderPreviewPanel in Content view)
+  // but does NOT auto-switch — user stays in Files view to continue browsing
+  const handleMobileExpandedDirsChange = useCallback(
+    (dirs: string[]) => {
+      const oldSet = new Set(trackedExpandedDirsRef.current);
+      const newlyExpanded = dirs.find((d) => !oldSet.has(d));
+      trackedExpandedDirsRef.current = dirs;
+      setTrackedExpandedDirs(dirs);
+
+      if (newlyExpanded) {
+        setParams({ dir: newlyExpanded, file: '' }, { history: 'push' });
       }
     },
     [setParams]
@@ -516,6 +567,9 @@ function BrowserClientInner({
   // depending on nested row-level dblclick handlers through wrapper components.
   const handleFileSelect = useCallback(
     async (filePath: string) => {
+      // Mobile: always switch to Content view on file tap, even if same file re-selected
+      setMobileActiveIndex(1);
+
       window.dispatchEvent(new CustomEvent('overlay:close-all'));
 
       const wasSelected = selectedFile === filePath;
@@ -719,9 +773,207 @@ function BrowserClientInner({
     );
   }, [panelState.diffStats]);
 
+  // FX001: Shared panel content — used by both mobileViews and desktop left/main slots
+  const filesContent = (
+    <LeftPanel
+      mode={panelMode}
+      onModeChange={panelState.handlePanelModeChange}
+      modes={panelModes}
+      onRefresh={handlePanelRefresh}
+      subtitle={diffStatsSubtitle}
+    >
+      {{
+        tree: (
+          <>
+            {/* Phase 7 T004: Notes filter toggle (FT-002: keep visible while active) */}
+            {(showOnlyWithNotes || noteFilePaths.size > 0) && (
+              <div className="flex items-center justify-end px-2 py-0.5 border-b">
+                <button
+                  type="button"
+                  onClick={() => setShowOnlyWithNotes((v) => !v)}
+                  className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] ${
+                    showOnlyWithNotes
+                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                  }`}
+                  title={
+                    showOnlyWithNotes
+                      ? 'Show all files'
+                      : `Show only files with notes (${noteFilePaths.size})`
+                  }
+                >
+                  <StickyNote className="h-3 w-3" />
+                  <span>{noteFilePaths.size}</span>
+                </button>
+              </div>
+            )}
+            <FileTree
+              ref={treeRef}
+              entries={filteredRootEntries}
+              selectedFile={selectedFile}
+              changedFiles={panelState.changedFiles}
+              filesWithNotes={noteFilePaths}
+              newlyAddedPaths={combinedNewPaths}
+              onSelect={handleFileSelect}
+              onExpand={fileNav.handleExpand}
+              childEntries={filteredChildEntries}
+              expandPaths={expandPaths}
+              onExpandedDirsChange={handleMobileExpandedDirsChange}
+              onCopyFullPath={clipboard.handleCopyFullPath}
+              onCopyRelativePath={clipboard.handleCopyRelativePath}
+              onCopyContent={clipboard.handleCopyContent}
+              onCopyTree={clipboard.handleCopyTree}
+              onDownload={clipboard.handleDownload}
+              onAddNote={handleAddNote}
+              onCreateFile={handleTreeCreateFile}
+              onCreateFolder={handleTreeCreateFolder}
+              onRename={handleTreeRename}
+              onDelete={handleTreeDelete}
+            />
+          </>
+        ),
+        changes: (
+          <ChangesView
+            workingChanges={panelState.workingChanges}
+            recentFiles={panelState.recentFiles}
+            selectedFile={selectedFile}
+            onSelect={handleFileSelect}
+            onCopyFullPath={clipboard.handleCopyFullPath}
+            onCopyRelativePath={clipboard.handleCopyRelativePath}
+            onCopyContent={clipboard.handleCopyContent}
+            onDownload={clipboard.handleDownload}
+          />
+        ),
+      }}
+    </LeftPanel>
+  );
+
+  const contentView = (
+    <MainPanel>
+      {selectedFile ? (
+        <FileViewerPanel
+          filePath={selectedFile}
+          content={
+            fileNav.fileData?.ok && !fileNav.fileData.isBinary ? fileNav.fileData.content : null
+          }
+          language={
+            fileNav.fileData?.ok && !fileNav.fileData.isBinary ? fileNav.fileData.language : 'text'
+          }
+          mtime={fileNav.fileData?.ok ? fileNav.fileData.mtime : ''}
+          mode={mode}
+          onModeChange={fileNav.handleModeChange}
+          onSave={handleSaveWithSuppression}
+          onRefresh={fileNav.handleRefreshFile}
+          editContent={fileNav.editContent}
+          onEditChange={fileNav.setEditContent}
+          externallyChanged={externallyChanged && (isDirty || mode === 'diff')}
+          highlightedHtml={
+            fileNav.fileData?.ok && !fileNav.fileData.isBinary
+              ? fileNav.fileData.highlightedHtml
+              : undefined
+          }
+          markdownHtml={
+            fileNav.fileData?.ok && !fileNav.fileData.isBinary
+              ? fileNav.fileData.markdownHtml
+              : undefined
+          }
+          diffData={currentDiff?.diff}
+          diffError={currentDiff?.error}
+          diffLoading={fileNav.diffLoading}
+          isBinary={fileNav.fileData?.ok ? fileNav.fileData.isBinary : false}
+          binaryContentType={
+            fileNav.fileData?.ok && fileNav.fileData.isBinary
+              ? fileNav.fileData.contentType
+              : undefined
+          }
+          binarySize={
+            fileNav.fileData?.ok && fileNav.fileData.isBinary ? fileNav.fileData.size : undefined
+          }
+          rawFileUrl={
+            selectedFile
+              ? `/api/workspaces/${slug}/files/raw?worktree=${encodeURIComponent(worktreePath)}&file=${encodeURIComponent(selectedFile)}`
+              : undefined
+          }
+          rawFileBaseUrl={`/api/workspaces/${slug}/files/raw?worktree=${encodeURIComponent(worktreePath)}`}
+          popOutUrl={
+            selectedFile
+              ? `/workspaces/${slug}/browser?worktree=${encodeURIComponent(worktreePath)}&file=${encodeURIComponent(selectedFile)}&mode=${mode}`
+              : undefined
+          }
+          errorType={fileNav.fileData && !fileNav.fileData.ok ? fileNav.fileData.error : undefined}
+          scrollToLine={scrollToLine}
+          onNavigateToFile={handleFileSelect}
+        />
+      ) : currentDir ? (
+        <FolderPreviewPanel
+          dirPath={currentDir}
+          slug={slug}
+          worktreePath={worktreePath}
+          onFileClick={(path) => {
+            setParams({ file: path, line: null }, { history: 'push' });
+            setMobileActiveIndex(1);
+          }}
+          onFolderNavigate={(path) => {
+            setParams({ dir: path, file: '' }, { history: 'push' });
+            fileNav.handleExpand(path);
+          }}
+          onCopyPath={clipboard.handleCopyFullPath}
+          onDownload={clipboard.handleDownload}
+          onBreadcrumbNavigate={(path) => {
+            setParams({ dir: path, file: '' }, { history: 'push' });
+          }}
+        />
+      ) : (
+        <ContentEmptyState onBrowseFiles={() => setMobileActiveIndex(0)} />
+      )}
+    </MainPanel>
+  );
+
+  // FX002: Terminal as 3rd mobile view (lazy — mounts on first swipe only)
+  const terminalContent = (
+    <div className="h-full w-full">
+      {termSelectedSession ? (
+        <TerminalView
+          sessionName={termSelectedSession}
+          cwd={worktreePath}
+          themeOverride={terminalTheme}
+          isActive={mobileActiveIndex === 2}
+        />
+      ) : (
+        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+          {termLoading ? 'Loading sessions…' : 'No terminal sessions'}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="h-full overflow-hidden">
       <PanelShell
+        mobileViews={[
+          { label: 'Files', icon: <FolderOpen className="h-4 w-4" />, content: filesContent },
+          { label: 'Content', icon: <FileText className="h-4 w-4" />, content: contentView },
+          {
+            label: 'Terminal',
+            icon: <TerminalSquare className="h-4 w-4" />,
+            content: terminalContent,
+            isTerminal: true,
+            lazy: true,
+          },
+        ]}
+        initialMobileActiveIndex={mobileActiveIndex}
+        mobileActiveIndex={mobileActiveIndex}
+        onMobileViewChange={setMobileActiveIndex}
+        mobileRightAction={
+          <button
+            type="button"
+            onClick={() => setExplorerSheetOpen(true)}
+            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            aria-label="Search"
+          >
+            <Search className="h-4 w-4" />
+          </button>
+        }
         explorer={
           <ExplorerPanel
             ref={explorerRef}
@@ -925,12 +1177,47 @@ function BrowserClientInner({
                 }}
               />
             ) : (
-              <div className="flex items-center justify-center h-full text-muted-foreground">
-                Select a file to view
-              </div>
+              <ContentEmptyState />
             )}
           </MainPanel>
         }
+      />
+      <MobileSearchOverlay
+        open={explorerSheetOpen}
+        onClose={() => setExplorerSheetOpen(false)}
+        onFileSelect={(path) => {
+          handleFileSelect(path);
+        }}
+        onCodeSearchSelect={(filePath, startLine) => {
+          setParams({ file: filePath, line: startLine, mode: 'edit' }, { history: 'push' });
+          setMobileActiveIndex(1);
+        }}
+        onCommandExecute={recordExecution}
+        fileSearchResults={fileFilter.results}
+        fileSearchLoading={fileFilter.loading}
+        fileSearchError={fileFilter.error}
+        sortMode={fileFilter.sortMode}
+        onSortModeChange={fileFilter.cycleSortMode}
+        includeHidden={fileFilter.includeHidden}
+        onIncludeHiddenChange={fileFilter.toggleIncludeHidden}
+        onSearchQueryChange={fileFilter.setQuery}
+        codeSearchResults={activeCodeSearchMode === 'grep' ? gitGrep.results : flowspace.results}
+        codeSearchLoading={activeCodeSearchMode === 'grep' ? gitGrep.loading : flowspace.loading}
+        codeSearchError={activeCodeSearchMode === 'grep' ? gitGrep.error : flowspace.error}
+        codeSearchAvailability={flowspace.availability}
+        codeSearchGraphAge={flowspace.graphAge}
+        codeSearchFolders={flowspace.folders}
+        onFlowspaceQueryChange={(query, mode) => {
+          setActiveCodeSearchMode(mode);
+          if (mode === 'grep') {
+            gitGrep.setQuery(query);
+          } else {
+            flowspace.setQuery(query, mode);
+          }
+        }}
+        workingChanges={panelState.workingChanges}
+        sdk={sdk}
+        mru={mru}
       />
     </div>
   );

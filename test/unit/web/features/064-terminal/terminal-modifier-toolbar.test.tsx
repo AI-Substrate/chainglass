@@ -1,0 +1,135 @@
+/**
+ * TerminalModifierToolbar Tests — TDD
+ *
+ * Tests for the modifier key toolbar (Esc/Tab/Ctrl/Alt/arrows).
+ *
+ * @vitest-environment jsdom
+ */
+
+import { fireEvent, render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+
+import { TerminalModifierToolbar } from '../../../../../apps/web/src/features/064-terminal/components/terminal-modifier-toolbar';
+
+describe('TerminalModifierToolbar', () => {
+  it('renders all 8 buttons', () => {
+    render(<TerminalModifierToolbar onKey={() => {}} />);
+    expect(screen.getByText('Esc')).toBeInTheDocument();
+    expect(screen.getByText('Tab')).toBeInTheDocument();
+    expect(screen.getByText('Ctrl')).toBeInTheDocument();
+    expect(screen.getByText('Alt')).toBeInTheDocument();
+    expect(screen.getByText('←')).toBeInTheDocument();
+    expect(screen.getByText('↑')).toBeInTheDocument();
+    expect(screen.getByText('↓')).toBeInTheDocument();
+    expect(screen.getByText('→')).toBeInTheDocument();
+  });
+
+  it('has 36px height on modifier bar', () => {
+    const { container } = render(<TerminalModifierToolbar onKey={() => {}} />);
+    // The root is a wrapper div; the modifier bar is the last child
+    const modifierBar = container.firstElementChild?.lastElementChild as HTMLElement;
+    expect(modifierBar.style.height).toBe('36px');
+  });
+
+  it('sends \\x1b on Esc tap', () => {
+    const onKey = vi.fn();
+    render(<TerminalModifierToolbar onKey={onKey} />);
+    fireEvent.click(screen.getByText('Esc'));
+    expect(onKey).toHaveBeenCalledWith('\x1b');
+  });
+
+  it('sends \\t on Tab tap', () => {
+    const onKey = vi.fn();
+    render(<TerminalModifierToolbar onKey={onKey} />);
+    fireEvent.click(screen.getByText('Tab'));
+    expect(onKey).toHaveBeenCalledWith('\t');
+  });
+
+  it('sends \\x1b[A on ↑ tap', () => {
+    const onKey = vi.fn();
+    render(<TerminalModifierToolbar onKey={onKey} />);
+    fireEvent.click(screen.getByText('↑'));
+    expect(onKey).toHaveBeenCalledWith('\x1b[A');
+  });
+
+  it('sends \\x1b[B on ↓ tap', () => {
+    const onKey = vi.fn();
+    render(<TerminalModifierToolbar onKey={onKey} />);
+    fireEvent.click(screen.getByText('↓'));
+    expect(onKey).toHaveBeenCalledWith('\x1b[B');
+  });
+
+  it('sends \\x1b[C on → tap', () => {
+    const onKey = vi.fn();
+    render(<TerminalModifierToolbar onKey={onKey} />);
+    fireEvent.click(screen.getByText('→'));
+    expect(onKey).toHaveBeenCalledWith('\x1b[C');
+  });
+
+  it('sends \\x1b[D on ← tap', () => {
+    const onKey = vi.fn();
+    render(<TerminalModifierToolbar onKey={onKey} />);
+    fireEvent.click(screen.getByText('←'));
+    expect(onKey).toHaveBeenCalledWith('\x1b[D');
+  });
+
+  describe('Ctrl toggle', () => {
+    it('does not send key immediately on Ctrl tap', () => {
+      const onKey = vi.fn();
+      render(<TerminalModifierToolbar onKey={onKey} />);
+      fireEvent.click(screen.getByText('Ctrl'));
+      expect(onKey).not.toHaveBeenCalled();
+    });
+
+    it('highlights Ctrl on first tap and removes on second tap', () => {
+      render(<TerminalModifierToolbar onKey={() => {}} />);
+      const ctrlBtn = screen.getByText('Ctrl');
+      fireEvent.click(ctrlBtn);
+      // Ctrl is now pending — button should have active style (primary bg)
+      expect(ctrlBtn.closest('button')?.style.background).toContain('primary');
+      fireEvent.click(ctrlBtn);
+      // Ctrl deactivated — button should have default style
+      expect(ctrlBtn.closest('button')?.style.background).toContain('muted');
+    });
+  });
+
+  describe('Alt toggle', () => {
+    it('highlights Alt on tap', () => {
+      render(<TerminalModifierToolbar onKey={() => {}} />);
+      const altBtn = screen.getByText('Alt');
+      fireEvent.click(altBtn);
+      expect(altBtn.closest('button')?.style.background).toContain('primary');
+    });
+  });
+
+  it('calls resetModifiers to clear pending modifier', async () => {
+    const ref = { current: null as { resetModifiers: () => void } | null };
+    const { rerender } = render(
+      <TerminalModifierToolbar
+        onKey={() => {}}
+        toolbarRef={(r) => {
+          ref.current = r;
+        }}
+      />
+    );
+    fireEvent.click(screen.getByText('Ctrl'));
+    // Ctrl should be pending
+    expect(screen.getByText('Ctrl').closest('button')?.style.background).toContain('primary');
+
+    // Reset and re-render to flush state
+    await vi.waitFor(() => {
+      ref.current?.resetModifiers();
+      rerender(
+        <TerminalModifierToolbar
+          onKey={() => {}}
+          toolbarRef={(r) => {
+            ref.current = r;
+          }}
+        />
+      );
+      expect(screen.getByText('Ctrl').closest('button')?.style.background).not.toContain(
+        'primary'
+      );
+    });
+  });
+});

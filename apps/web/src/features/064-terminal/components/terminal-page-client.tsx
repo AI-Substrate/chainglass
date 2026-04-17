@@ -4,12 +4,15 @@ import { useWorkspaceContext } from '@/features/041-file-browser/hooks/use-works
 import { LeftPanel, MainPanel, PanelShell } from '@/features/_platform/panel-layout';
 import type { PanelMode } from '@/features/_platform/panel-layout';
 import type { LeftPanelMode } from '@/features/_platform/panel-layout';
-import { List } from 'lucide-react';
+import { useResponsive } from '@/hooks/useResponsive';
+import { List, TerminalSquare } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useTerminalSessions } from '../hooks/use-terminal-sessions';
 import type { ConnectionStatus } from '../types';
 import { TerminalPageHeader } from './terminal-page-header';
 import { TerminalSessionList } from './terminal-session-list';
+import { TerminalSkeleton } from './terminal-skeleton';
 import { TerminalView } from './terminal-view';
 
 const TERMINAL_MODES: LeftPanelMode[] = [
@@ -22,11 +25,30 @@ interface TerminalPageClientProps {
   worktreeBranch: string;
 }
 
-export function TerminalPageClient({
-  slug,
-  worktreePath,
-  worktreeBranch,
-}: TerminalPageClientProps) {
+/**
+ * TerminalMobileGate — redirects phone users to the browser page's
+ * Terminal tab. Desktop users get the full TerminalPageClient.
+ * FX002: Unified Three-View Mobile Page
+ */
+export function TerminalMobileGate(props: TerminalPageClientProps) {
+  const { useMobilePatterns } = useResponsive();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (useMobilePatterns) {
+      const worktreeParam = encodeURIComponent(props.worktreePath);
+      router.replace(`/workspaces/${props.slug}/browser?worktree=${worktreeParam}&mobileView=2`);
+    }
+  }, [useMobilePatterns, props.slug, props.worktreePath, router]);
+
+  if (useMobilePatterns) {
+    return <TerminalSkeleton />;
+  }
+
+  return <TerminalPageClient {...props} />;
+}
+
+function TerminalPageClient({ slug, worktreePath, worktreeBranch }: TerminalPageClientProps) {
   const { sessions, loading, selectedSession, setSelectedSession, refresh } = useTerminalSessions({
     currentBranch: worktreeBranch,
   });
@@ -49,6 +71,29 @@ export function TerminalPageClient({
 
   return (
     <PanelShell
+      mobileViews={[
+        {
+          label: 'Terminal',
+          icon: <TerminalSquare className="h-4 w-4" />,
+          content: (
+            <MainPanel>
+              {selectedSession ? (
+                <TerminalView
+                  sessionName={selectedSession}
+                  cwd={worktreePath}
+                  onConnectionChange={setConnectionStatus}
+                  themeOverride={terminalTheme}
+                />
+              ) : (
+                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                  {loading ? 'Loading sessions…' : 'Select a session to connect'}
+                </div>
+              )}
+            </MainPanel>
+          ),
+          isTerminal: true,
+        },
+      ]}
       explorer={
         <TerminalPageHeader sessionName={selectedSession} connectionStatus={connectionStatus} />
       }

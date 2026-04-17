@@ -16,6 +16,8 @@ export interface TerminalViewProps {
   className?: string;
   onConnectionChange?: (status: ConnectionStatus) => void;
   themeOverride?: 'dark' | 'light' | 'system';
+  /** When true, terminal is the active mobile view — triggers refocus via isVisible */
+  isActive?: boolean;
 }
 
 export function TerminalView({
@@ -24,6 +26,7 @@ export function TerminalView({
   className,
   onConnectionChange,
   themeOverride,
+  isActive,
 }: TerminalViewProps) {
   return (
     <div className={`h-full w-full ${className ?? ''}`}>
@@ -33,6 +36,7 @@ export function TerminalView({
           cwd={cwd}
           onConnectionChange={onConnectionChange}
           themeOverride={themeOverride}
+          isVisible={isActive}
         />
       </Suspense>
     </div>

@@ -9,10 +9,13 @@ import { useTheme } from 'next-themes';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import '@xterm/xterm/css/xterm.css';
 
+import { useResponsive } from '@/hooks/useResponsive';
 import { useSDKSetting } from '@/lib/sdk/use-sdk-setting';
+import { useKeyboardOpen } from '../hooks/use-keyboard-open';
 import { useTerminalSocket } from '../hooks/use-terminal-socket';
 import { resolveTerminalTheme } from '../lib/terminal-themes';
 import type { ConnectionStatus } from '../types';
+import { TerminalModifierToolbar } from './terminal-modifier-toolbar';
 
 interface TerminalInnerProps {
   sessionName: string;
@@ -41,10 +44,17 @@ export default function TerminalInner({
   const disposedRef = useRef(false);
   const [copyModalText, setCopyModalText] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
-  const [bottomOffset, setBottomOffset] = useState(0);
   const tmuxWarningShownRef = useRef(false);
+  const toolbarRef = useRef<{ resetModifiers: () => void } | null>(null);
   const { resolvedTheme } = useTheme();
+  const { useMobilePatterns } = useResponsive();
   const [colorThemeId] = useSDKSetting<string>('terminal.colorTheme');
+
+  // T006: Replace bottomOffset with useKeyboardOpen hook
+  const { isOpen: keyboardOpen, keyboardHeight, toolbarTop } = useKeyboardOpen();
+  const TOOLBAR_HEIGHT = 36;
+  const showToolbar = useMobilePatterns && keyboardOpen;
+  const bottomOffset = showToolbar ? keyboardHeight + TOOLBAR_HEIGHT : keyboardHeight;
 
   // Resolve the active terminal theme from the SDK setting + app dark/light mode.
   // When colorThemeId is 'auto', follows the app theme. Named themes are used directly.
@@ -53,24 +63,6 @@ export default function TerminalInner({
     () => resolveTerminalTheme(colorThemeId ?? 'auto', appMode),
     [colorThemeId, appMode]
   );
-
-  // Dynamic bottom offset via visualViewport — for iOS keyboard/browser chrome
-  // Only activates on touch devices; desktop gets full height (bottom: 0)
-  useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-    // Only apply on touch devices (iPad, phone)
-    const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    if (!isTouch) return;
-
-    const handleResize = () => {
-      const offset = Math.max(0, Math.round(window.innerHeight - vv.height));
-      setBottomOffset(offset);
-    };
-    handleResize();
-    vv.addEventListener('resize', handleResize);
-    return () => vv.removeEventListener('resize', handleResize);
-  }, []);
 
   const showCopyModal = useCallback((text: string) => setCopyModalText(text), []);
 
@@ -159,6 +151,7 @@ export default function TerminalInner({
   initialThemeRef.current = activeThemeEntry;
 
   // Initialize terminal + addons + ResizeObserver
+  // biome-ignore lint/correctness/useExhaustiveDependencies: terminal init runs once at mount
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -167,7 +160,7 @@ export default function TerminalInner({
 
     const terminal = new Terminal({
       cursorBlink: true,
-      fontSize: 14,
+      fontSize: useMobilePatterns ? 12 : 14,
       fontFamily:
         "'JetBrains Mono', 'Fira Code', 'Cascadia Code', Menlo, Monaco, 'Courier New', monospace",
       theme: { ...initialThemeRef.current.theme },
@@ -181,12 +174,16 @@ export default function TerminalInner({
     terminal.loadAddon(fitAddon);
 
     // Canvas renderer for multi-instance safety (DR-01 finding 4)
+    // Skip CanvasAddon on mobile — iOS Safari has a known blank-canvas bug
+    // (xterm.js #3065, #3357). DOM renderer is the reliable fallback.
     let canvasAddon: CanvasAddon | null = null;
-    try {
-      canvasAddon = new CanvasAddon();
-      terminal.loadAddon(canvasAddon);
-    } catch {
-      canvasAddon = null;
+    if (!useMobilePatterns) {
+      try {
+        canvasAddon = new CanvasAddon();
+        terminal.loadAddon(canvasAddon);
+      } catch {
+        canvasAddon = null;
+      }
     }
 
     const webLinksAddon = new WebLinksAddon();
@@ -204,12 +201,43 @@ export default function TerminalInner({
       const ctrl = event.ctrlKey && !event.metaKey;
       if (ctrl && (event.key === 'v' || event.key === 'V')) return false;
       if (ctrl && event.shiftKey && (event.key === 'c' || event.key === 'C')) return false;
-      // Shift+Escape is the global close shortcut — never send to terminal
       if (event.shiftKey && event.key === 'Escape') return false;
       return true;
     });
 
     terminal.open(container);
+
+    // T003: Prevent browser from handling touch gestures on terminal.
+    // 'none' ensures all touch events reach xterm.js — required for tmux
+    // mouse mode scrolling. Also prevents double-tap zoom.
+    const xtermScreen = container.querySelector('.xterm-screen') as HTMLElement | null;
+    if (xtermScreen) {
+      xtermScreen.style.touchAction = 'none';
+    }
+
+    // T008: Prevent iOS auto-zoom on textarea focus (font-size < 16px triggers zoom)
+    const helperTextarea = container.querySelector(
+      '.xterm-helper-textarea'
+    ) as HTMLTextAreaElement | null;
+    if (helperTextarea) {
+      helperTextarea.style.fontSize = '16px';
+    }
+
+    // iOS Safari: keyboard only appears from a direct user gesture on an input.
+    // xterm.js's hidden textarea doesn't reliably trigger the OSK on tap.
+    // Add touchstart handler to explicitly focus the textarea on tap.
+    if (useMobilePatterns) {
+      const handleTouchStart = () => {
+        const ta = container.querySelector('.xterm-helper-textarea') as HTMLTextAreaElement | null;
+        ta?.focus();
+      };
+      container.addEventListener('touchstart', handleTouchStart, { passive: true });
+      // Clean up in the dispose closure below
+      (container as HTMLElement & { _mobileTouchCleanup?: () => void })._mobileTouchCleanup =
+        () => {
+          container.removeEventListener('touchstart', handleTouchStart);
+        };
+    }
 
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
@@ -248,6 +276,9 @@ export default function TerminalInner({
     // DYK-03: Cleanup order matters — observer before dispose
     return () => {
       disposedRef.current = true;
+
+      // 0. Remove mobile touch handler
+      (container as HTMLElement & { _mobileTouchCleanup?: () => void })._mobileTouchCleanup?.();
 
       // 1. Stop resize events
       observer.disconnect();
@@ -301,24 +332,54 @@ export default function TerminalInner({
     terminalRef.current.options.theme = { ...activeThemeEntry.theme };
   }, [activeThemeEntry]);
 
-  // Auto-focus terminal when overlay becomes visible (re-open case)
+  // Auto-focus and refit terminal when overlay becomes visible (re-open / lazy mount case)
   useEffect(() => {
     if (!isVisible || disposedRef.current || !terminalRef.current) return;
     requestAnimationFrame(() => {
       if (disposedRef.current) return;
       terminalRef.current?.focus();
+      // Refit after becoming visible — container may have been zero-sized during initial mount
+      if (fitAddonRef.current) {
+        fitAddonRef.current.fit();
+      }
     });
   }, [isVisible]);
 
+  // T007: Auto-focus terminal on mobile mount so keyboard can open on tap
+  useEffect(() => {
+    if (!useMobilePatterns || disposedRef.current || !terminalRef.current) return;
+    requestAnimationFrame(() => {
+      if (disposedRef.current) return;
+      terminalRef.current?.focus();
+    });
+  }, [useMobilePatterns]);
+
+  // T006: Handle toolbar key sends
+  const handleToolbarKey = useCallback((data: string) => {
+    sendRef.current(data);
+    terminalRef.current?.focus();
+  }, []);
+
+  // Voice input: send text + newline to terminal
+  const handleSendText = useCallback((text: string) => {
+    sendRef.current(text);
+    terminalRef.current?.focus();
+  }, []);
+
+  // Refocus terminal (called by toolbar after modifier capture completes)
+  const handleRefocusTerminal = useCallback(() => {
+    terminalRef.current?.focus();
+  }, []);
+
   return (
     <div
-      className={`relative h-full w-full ${className ?? ''}`}
+      className={`relative flex flex-col h-full w-full ${className ?? ''}`}
       style={{ backgroundColor: activeThemeEntry.theme.background }}
     >
       <div
         ref={containerRef}
-        className="absolute top-0 left-0 right-0"
-        style={{ bottom: `${bottomOffset}px` }}
+        className="flex-1 min-h-0"
+        style={{ marginBottom: `${bottomOffset}px` }}
         data-testid="terminal-container"
       />
       {authError && status === 'disconnected' && (
@@ -357,7 +418,7 @@ export default function TerminalInner({
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/90">
           <div
             className="flex flex-col gap-3 rounded-lg border bg-background p-4 shadow-xl"
-            style={{ width: '800px', maxWidth: '95vw', height: '800px', maxHeight: '90vh' }}
+            style={{ width: '100%', maxWidth: '95vw', maxHeight: '80vh' }}
           >
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">Select and copy text below</span>
@@ -380,6 +441,26 @@ export default function TerminalInner({
             />
             <span className="text-xs text-muted-foreground">Long-press or Ctrl+A then copy</span>
           </div>
+        </div>
+      )}
+      {showToolbar && (
+        <div
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: `${keyboardHeight}px`,
+            zIndex: 30,
+          }}
+        >
+          <TerminalModifierToolbar
+            onKey={handleToolbarKey}
+            onSendText={handleSendText}
+            onRefocusTerminal={handleRefocusTerminal}
+            toolbarRef={(handle) => {
+              toolbarRef.current = handle;
+            }}
+          />
         </div>
       )}
     </div>

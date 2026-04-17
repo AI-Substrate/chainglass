@@ -11,7 +11,7 @@
 import { WORKSPACE_DI_TOKENS } from '@chainglass/shared';
 import type { IWorkspaceService } from '@chainglass/workflow';
 import { Suspense } from 'react';
-import { TerminalPageClient } from '../../../../../src/features/064-terminal/components/terminal-page-client';
+import { TerminalMobileGate } from '../../../../../src/features/064-terminal/components/terminal-page-client';
 import { sanitizeSessionName } from '../../../../../src/features/064-terminal/lib/sanitize-session-name';
 import { getContainer } from '../../../../../src/lib/bootstrap-singleton';
 
@@ -48,7 +48,7 @@ export default async function TerminalPage({ params, searchParams }: PageProps) 
 
   return (
     <Suspense fallback={<div className="p-4">Loading terminal...</div>}>
-      <TerminalPageClient slug={slug} worktreePath={worktreePath} worktreeBranch={worktreeBranch} />
+      <TerminalMobileGate slug={slug} worktreePath={worktreePath} worktreeBranch={worktreeBranch} />
     </Suspense>
   );
 }
