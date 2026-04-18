@@ -1,10 +1,13 @@
 'use client';
 
+import { PasteUploadModal } from '@/features/041-file-browser/components/paste-upload-modal';
 import { useResponsive } from '@/hooks/useResponsive';
-import { LANDING_NAV_ITEMS, WORKSPACE_NAV_ITEMS } from '@/lib/navigation-utils';
+import { LANDING_NAV_ITEMS } from '@/lib/navigation-utils';
 import { cn } from '@/lib/utils';
 import { workspaceHref } from '@/lib/workspace-url';
+import { FolderOpen, Home, LayoutGrid, Upload } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useState } from 'react';
 
 /**
  * BottomTabBar
@@ -27,6 +30,7 @@ export function BottomTabBar() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const [uploadOpen, setUploadOpen] = useState(false);
 
   // Only render on phone viewports
   if (!useMobilePatterns) {
@@ -40,27 +44,42 @@ export function BottomTabBar() {
 
   const navItems = isInWorkspace
     ? currentWorktree
-      ? WORKSPACE_NAV_ITEMS.map((item) => {
-          const baseHref = workspaceHref(workspaceSlug, item.href, {
-            worktree: currentWorktree,
-          });
-          // FX002: Terminal on mobile goes to browser page's Terminal tab
-          if (item.id === 'terminal') {
-            return {
-              ...item,
-              href: workspaceHref(workspaceSlug, '/browser', {
-                worktree: currentWorktree,
-                mobileView: '2',
-              }),
-            };
-          }
-          return { ...item, href: baseHref };
-        })
+      ? [
+          {
+            id: 'browser',
+            label: 'Browse',
+            href: workspaceHref(workspaceSlug, '/browser', {
+              worktree: currentWorktree,
+            }),
+            icon: FolderOpen,
+          },
+          {
+            id: 'home',
+            label: 'Home',
+            href: `/workspaces/${workspaceSlug}`,
+            icon: Home,
+          },
+          {
+            id: 'workspaces',
+            label: 'Workspaces',
+            href: '/',
+            icon: LayoutGrid,
+          },
+          {
+            id: 'upload',
+            label: 'Upload',
+            href: '__upload__', // handled specially in click handler
+            icon: Upload,
+          },
+        ]
       : LANDING_NAV_ITEMS
     : LANDING_NAV_ITEMS;
 
-  const handleTabClick = (href: string) => {
-    // Don't navigate if already on this route (compare pathname only, ignore query params)
+  const handleTabClick = (href: string, itemId: string) => {
+    if (itemId === 'upload') {
+      setUploadOpen(true);
+      return;
+    }
     const targetPath = href.split('?')[0];
     if (pathname === targetPath && !href.includes('mobileView')) {
       return;
@@ -83,11 +102,10 @@ export function BottomTabBar() {
         aria-label="Mobile navigation"
       >
         {navItems.map((item) => {
-          // FX002: Terminal on mobile points to /browser — check by item id, not just pathname
           const itemPathname = item.href.split('?')[0];
           const isActive =
-            item.id === 'terminal'
-              ? pathname.includes('/browser') && searchParams.get('mobileView') === '2'
+            item.id === 'upload'
+              ? false
               : pathname === itemPathname || pathname.startsWith(`${itemPathname}/`);
           const Icon = item.icon;
 
@@ -97,7 +115,7 @@ export function BottomTabBar() {
               role="tab"
               type="button"
               aria-selected={isActive}
-              onClick={() => handleTabClick(item.href)}
+              onClick={() => handleTabClick(item.href, item.id)}
               className={cn(
                 // Touch target sizing (48px minimum)
                 'min-h-12 min-w-12',
@@ -120,6 +138,14 @@ export function BottomTabBar() {
           );
         })}
       </div>
+      {workspaceSlug && currentWorktree && (
+        <PasteUploadModal
+          open={uploadOpen}
+          onOpenChange={setUploadOpen}
+          slug={workspaceSlug}
+          worktreePath={currentWorktree}
+        />
+      )}
     </nav>
   );
 }

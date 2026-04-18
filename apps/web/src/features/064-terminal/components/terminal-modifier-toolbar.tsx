@@ -68,8 +68,11 @@ export function TerminalModifierToolbar({
   // Which modifier is pending capture: null = none, 'ctrl' or 'alt'
   const [pendingModifier, setPendingModifier] = useState<'ctrl' | 'alt' | null>(null);
   const [voiceOpen, setVoiceOpen] = useState(false);
+  const [pasteOpen, setPasteOpen] = useState(false);
   const [voiceText, setVoiceText] = useState('');
+  const [pasteText, setPasteText] = useState('');
   const voiceInputRef = useRef<HTMLInputElement>(null);
+  const pasteInputRef = useRef<HTMLInputElement>(null);
   const captureInputRef = useRef<HTMLInputElement>(null);
 
   const resetModifiers = useCallback(() => {
@@ -145,12 +148,31 @@ export function TerminalModifierToolbar({
   const handleVoiceToggle = useCallback(() => {
     setVoiceOpen((prev) => {
       if (!prev) {
-        // Focus input after render
+        setPasteOpen(false);
         requestAnimationFrame(() => voiceInputRef.current?.focus());
       }
       return !prev;
     });
     setVoiceText('');
+  }, []);
+
+  const handlePasteSend = useCallback(() => {
+    if (pasteText) {
+      onSendText?.(pasteText);
+      setPasteText('');
+    }
+    setPasteOpen(false);
+  }, [pasteText, onSendText]);
+
+  const handlePasteToggle = useCallback(() => {
+    setPasteOpen((prev) => {
+      if (!prev) {
+        setVoiceOpen(false);
+        requestAnimationFrame(() => pasteInputRef.current?.focus());
+      }
+      return !prev;
+    });
+    setPasteText('');
   }, []);
 
   const [toolsOpen, setToolsOpen] = useState(false);
@@ -241,6 +263,61 @@ export function TerminalModifierToolbar({
         </form>
       )}
 
+      {/* Paste input bar — long-press here to paste on iOS */}
+      {pasteOpen && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handlePasteSend();
+          }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            padding: '4px 6px',
+            borderTop: '1px solid var(--border, #27272a)',
+            background: 'var(--background, #09090b)',
+          }}
+        >
+          <input
+            ref={pasteInputRef}
+            type="text"
+            value={pasteText}
+            onChange={(e) => setPasteText(e.target.value)}
+            placeholder="Long-press here to paste..."
+            style={{
+              flex: 1,
+              height: '32px',
+              fontSize: '16px',
+              padding: '0 8px',
+              border: '1px solid var(--border, #27272a)',
+              borderRadius: '6px',
+              background: 'var(--muted, #27272a)',
+              color: 'var(--foreground, #fafafa)',
+              outline: 'none',
+              WebkitUserSelect: 'text',
+            } as React.CSSProperties}
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
+            enterKeyHint="send"
+          />
+          <button
+            type="submit"
+            style={{
+              ...buttonBase,
+              minWidth: '44px',
+              height: '32px',
+              fontSize: '16px',
+              background: 'var(--primary, #3b82f6)',
+              color: 'var(--primary-foreground, #fff)',
+            }}
+          >
+            ↵
+          </button>
+        </form>
+      )}
+
       {/* Tools popout row — above main toolbar */}
       {toolsOpen && (
         <div
@@ -263,6 +340,14 @@ export function TerminalModifierToolbar({
             aria-label="Voice input"
           >
             🎤
+          </button>
+          <button
+            type="button"
+            style={{ ...buttonBase, ...modifierSize }}
+            onClick={() => handleToolAction(handlePasteToggle)}
+            aria-label="Paste"
+          >
+            📋
           </button>
           <button
             type="button"
