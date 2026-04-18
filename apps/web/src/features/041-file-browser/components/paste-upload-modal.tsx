@@ -83,6 +83,30 @@ export function PasteUploadModal({
     [worktreePath, slug, onOpenChange]
   );
 
+  const handleClipboardRead = useCallback(async () => {
+    try {
+      const items = await navigator.clipboard.read();
+      const files: File[] = [];
+      for (const item of items) {
+        for (const type of item.types) {
+          if (type.startsWith('image/') || type === 'application/octet-stream') {
+            const blob = await item.getType(type);
+            const ext = type.split('/')[1] || 'png';
+            const name = `paste-${Date.now()}.${ext}`;
+            files.push(new File([blob], name, { type }));
+          }
+        }
+      }
+      if (files.length > 0) {
+        handleUploadFiles(files);
+      } else {
+        toast.error('No image found in clipboard');
+      }
+    } catch {
+      toast.error('Could not read clipboard — try "Browse files" instead');
+    }
+  }, [handleUploadFiles]);
+
   const handlePaste = useCallback(
     (e: React.ClipboardEvent) => {
       const files = e.clipboardData?.files;
@@ -142,11 +166,33 @@ export function PasteUploadModal({
             <>
               <Upload className="mb-3 h-8 w-8 text-muted-foreground" />
               <p className="text-sm font-medium">Paste, drag, or select files</p>
-              <p className="mt-1 text-xs text-muted-foreground">Ctrl+V to paste from clipboard</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Long-press below to paste an image, or browse files
+              </p>
+              {/* Paste target: long-press → Paste works without HTTPS */}
+              <div
+                contentEditable
+                suppressContentEditableWarning
+                onPaste={(e) => {
+                  e.preventDefault();
+                  const files = e.clipboardData?.files;
+                  if (files && files.length > 0) {
+                    handleUploadFiles(files);
+                  } else {
+                    toast.error('No image found — copy an image first');
+                  }
+                  // Clear any text that got pasted
+                  e.currentTarget.textContent = '';
+                }}
+                className="mt-3 w-full rounded-md border-2 border-dashed px-4 py-3 text-center text-sm text-muted-foreground focus:border-primary focus:outline-none"
+                style={{ minHeight: '44px', fontSize: '16px', WebkitUserSelect: 'text' }}
+              >
+                Tap here, then long-press to paste
+              </div>
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="mt-4 rounded-md border px-4 py-2 text-sm hover:bg-muted"
+                className="mt-3 rounded-md border px-4 py-2 text-sm hover:bg-muted"
               >
                 Browse files...
               </button>

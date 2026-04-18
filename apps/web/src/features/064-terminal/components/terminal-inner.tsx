@@ -213,6 +213,61 @@ export default function TerminalInner({
     const xtermScreen = container.querySelector('.xterm-screen') as HTMLElement | null;
     if (xtermScreen) {
       xtermScreen.style.touchAction = 'none';
+
+      // xterm.js does NOT convert touch events to wheel events (issue #5377).
+      // Tmux mouse mode expects wheel events for scroll-back. Synthesize them
+      // from touch gestures: track touchmove deltaY → dispatch WheelEvent.
+      if (useMobilePatterns) {
+        let lastTouchY = 0;
+        let isTouchScrolling = false;
+        let accumulatedDelta = 0;
+        // Pixels of finger movement per scroll tick — higher = slower scroll
+        const SCROLL_THRESHOLD = 30;
+
+        xtermScreen.addEventListener(
+          'touchstart',
+          (e) => {
+            lastTouchY = e.touches[0]?.clientY ?? 0;
+            isTouchScrolling = false;
+            accumulatedDelta = 0;
+          },
+          { passive: true }
+        );
+
+        xtermScreen.addEventListener(
+          'touchmove',
+          (e) => {
+            const currentY = e.touches[0]?.clientY ?? 0;
+            const deltaY = lastTouchY - currentY;
+            lastTouchY = currentY;
+
+            if (!isTouchScrolling && Math.abs(deltaY) > 5) {
+              isTouchScrolling = true;
+            }
+
+            if (isTouchScrolling) {
+              accumulatedDelta += deltaY;
+              e.preventDefault();
+
+              // Only fire a scroll tick when enough distance has accumulated
+              while (Math.abs(accumulatedDelta) >= SCROLL_THRESHOLD) {
+                const direction = accumulatedDelta > 0 ? 1 : -1;
+                const wheelEvent = new WheelEvent('wheel', {
+                  deltaY: direction * 30,
+                  deltaMode: 0,
+                  cancelable: true,
+                  bubbles: true,
+                  clientX: e.touches[0]?.clientX ?? 0,
+                  clientY: currentY,
+                });
+                xtermScreen.dispatchEvent(wheelEvent);
+                accumulatedDelta -= direction * SCROLL_THRESHOLD;
+              }
+            }
+          },
+          { passive: false }
+        );
+      }
     }
 
     // T008: Prevent iOS auto-zoom on textarea focus (font-size < 16px triggers zoom)
@@ -225,17 +280,30 @@ export default function TerminalInner({
 
     // iOS Safari: keyboard only appears from a direct user gesture on an input.
     // xterm.js's hidden textarea doesn't reliably trigger the OSK on tap.
-    // Add touchstart handler to explicitly focus the textarea on tap.
+    // Use touchend (not touchstart) so we don't interfere with xterm.js's
+    // touch-to-mouse conversion needed for tmux mouse mode scrolling.
+    // Only focus if it was a tap (no significant movement), not a scroll gesture.
     if (useMobilePatterns) {
-      const handleTouchStart = () => {
-        const ta = container.querySelector('.xterm-helper-textarea') as HTMLTextAreaElement | null;
-        ta?.focus();
+      let touchStartY = 0;
+      const handleTouchStartCapture = (e: TouchEvent) => {
+        touchStartY = e.touches[0]?.clientY ?? 0;
       };
-      container.addEventListener('touchstart', handleTouchStart, { passive: true });
-      // Clean up in the dispose closure below
+      const handleTouchEnd = (e: TouchEvent) => {
+        const endY = e.changedTouches[0]?.clientY ?? 0;
+        // Only focus on tap — if finger moved more than 10px, it's a scroll
+        if (Math.abs(endY - touchStartY) < 10) {
+          const ta = container.querySelector(
+            '.xterm-helper-textarea'
+          ) as HTMLTextAreaElement | null;
+          ta?.focus();
+        }
+      };
+      container.addEventListener('touchstart', handleTouchStartCapture, { passive: true });
+      container.addEventListener('touchend', handleTouchEnd, { passive: true });
       (container as HTMLElement & { _mobileTouchCleanup?: () => void })._mobileTouchCleanup =
         () => {
-          container.removeEventListener('touchstart', handleTouchStart);
+          container.removeEventListener('touchstart', handleTouchStartCapture);
+          container.removeEventListener('touchend', handleTouchEnd);
         };
     }
 
@@ -253,7 +321,23 @@ export default function TerminalInner({
     });
 
     // PL-08: Register onData handler BEFORE terminal is connected
+    // iOS double-space → period shortcut doesn't work in xterm.js because
+    // xterm clears the textarea after each keystroke, so iOS can't detect
+    // the double-space. Emulate it: two spaces within 300ms → ". "
+    let lastSpaceTime = 0;
     terminal.onData((data) => {
+      if (useMobilePatterns && data === ' ') {
+        const now = Date.now();
+        if (now - lastSpaceTime < 300) {
+          // Delete the first space we already sent, then insert ". "
+          sendRef.current('\b. ');
+          lastSpaceTime = 0;
+          return;
+        }
+        lastSpaceTime = now;
+      } else {
+        lastSpaceTime = 0;
+      }
       sendRef.current(data);
     });
 
