@@ -127,9 +127,7 @@ describe('TerminalModifierToolbar', () => {
           }}
         />
       );
-      expect(screen.getByText('Ctrl').closest('button')?.style.background).not.toContain(
-        'primary'
-      );
+      expect(screen.getByText('Ctrl').closest('button')?.style.background).not.toContain('primary');
     });
   });
 });

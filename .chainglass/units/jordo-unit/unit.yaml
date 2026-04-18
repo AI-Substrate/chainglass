@@ -1,0 +1,19 @@
+slug: jordo-unit
+type: agent
+version: 1.0.0
+description: This is a test unit
+inputs: []
+outputs:
+  - name: result
+    type: data
+    data_type: text
+    required: true
+  - name: poem
+    type: file
+    required: true
+  - name: word_count
+    type: data
+    data_type: text
+    required: true
+agent:
+  prompt_template: prompts/main.md
