@@ -220,12 +220,16 @@ export default function TerminalInner({
       if (useMobilePatterns) {
         let lastTouchY = 0;
         let isTouchScrolling = false;
+        let accumulatedDelta = 0;
+        // Pixels of finger movement per scroll tick — higher = slower scroll
+        const SCROLL_THRESHOLD = 30;
 
         xtermScreen.addEventListener(
           'touchstart',
           (e) => {
             lastTouchY = e.touches[0]?.clientY ?? 0;
             isTouchScrolling = false;
+            accumulatedDelta = 0;
           },
           { passive: true }
         );
@@ -235,27 +239,30 @@ export default function TerminalInner({
           (e) => {
             const currentY = e.touches[0]?.clientY ?? 0;
             const deltaY = lastTouchY - currentY;
+            lastTouchY = currentY;
 
-            // Only start synthesizing after a meaningful drag (>5px)
             if (!isTouchScrolling && Math.abs(deltaY) > 5) {
               isTouchScrolling = true;
             }
 
             if (isTouchScrolling) {
-              // Synthesize wheel events — tmux interprets each as ~3 lines
-              // Use sign-only delta so each event = one scroll tick
-              const wheelDelta = deltaY > 0 ? 1 : -1;
-              const wheelEvent = new WheelEvent('wheel', {
-                deltaY: wheelDelta * 30,
-                deltaMode: 0, // DOM_DELTA_PIXEL
-                cancelable: true,
-                bubbles: true,
-                clientX: e.touches[0]?.clientX ?? 0,
-                clientY: currentY,
-              });
-              xtermScreen.dispatchEvent(wheelEvent);
-              lastTouchY = currentY;
+              accumulatedDelta += deltaY;
               e.preventDefault();
+
+              // Only fire a scroll tick when enough distance has accumulated
+              while (Math.abs(accumulatedDelta) >= SCROLL_THRESHOLD) {
+                const direction = accumulatedDelta > 0 ? 1 : -1;
+                const wheelEvent = new WheelEvent('wheel', {
+                  deltaY: direction * 30,
+                  deltaMode: 0,
+                  cancelable: true,
+                  bubbles: true,
+                  clientX: e.touches[0]?.clientX ?? 0,
+                  clientY: currentY,
+                });
+                xtermScreen.dispatchEvent(wheelEvent);
+                accumulatedDelta -= direction * SCROLL_THRESHOLD;
+              }
             }
           },
           { passive: false }
@@ -314,7 +321,23 @@ export default function TerminalInner({
     });
 
     // PL-08: Register onData handler BEFORE terminal is connected
+    // iOS double-space → period shortcut doesn't work in xterm.js because
+    // xterm clears the textarea after each keystroke, so iOS can't detect
+    // the double-space. Emulate it: two spaces within 300ms → ". "
+    let lastSpaceTime = 0;
     terminal.onData((data) => {
+      if (useMobilePatterns && data === ' ') {
+        const now = Date.now();
+        if (now - lastSpaceTime < 300) {
+          // Delete the first space we already sent, then insert ". "
+          sendRef.current('\b. ');
+          lastSpaceTime = 0;
+          return;
+        }
+        lastSpaceTime = now;
+      } else {
+        lastSpaceTime = 0;
+      }
       sendRef.current(data);
     });
 
