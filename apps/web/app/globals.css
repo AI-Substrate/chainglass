@@ -508,3 +508,16 @@
     background: none !important;
   }
 }
+
+/*
+ * WYSIWYG markdown editor — placeholder rendering for the empty-first-paragraph
+ * state (workshop § 6.2). Scoped to `.md-wysiwyg` to avoid leaking to any future
+ * Tiptap editor mounted elsewhere in the app.
+ */
+.md-wysiwyg .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: hsl(var(--muted-foreground));
+  pointer-events: none;
+  float: left;
+  height: 0;
+}

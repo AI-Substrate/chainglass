@@ -16,6 +16,7 @@ import { useTheme } from 'next-themes';
 import { memo, useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { MermaidRenderer } from '../../../components/viewers/mermaid-renderer';
+import { resolveImageUrl } from '@/features/_platform/viewer';
 
 interface MermaidPortal {
   code: string;
@@ -55,24 +56,16 @@ export const MarkdownPreview = memo(function MarkdownPreview({
     prevHtmlRef.current = html;
     container.innerHTML = html;
 
-    // Rewrite relative image src attributes to use the raw file API
-    if (rawFileBaseUrl && currentFilePath) {
-      const currentDir = currentFilePath.substring(0, currentFilePath.lastIndexOf('/'));
-      const imgs = container.querySelectorAll<HTMLImageElement>('img[src]');
-      for (const img of imgs) {
-        const src = img.getAttribute('src');
-        if (!src || src.startsWith('http') || src.startsWith('//') || src.startsWith('data:')) {
-          continue;
-        }
-        // Resolve relative path against current markdown file's directory
-        const parts = `${currentDir}/${src}`.split('/');
-        const resolved: string[] = [];
-        for (const part of parts) {
-          if (part === '..') resolved.pop();
-          else if (part !== '.' && part !== '') resolved.push(part);
-        }
-        img.src = `${rawFileBaseUrl}&file=${encodeURIComponent(resolved.join('/'))}`;
-      }
+    // Rewrite relative image src attributes via the shared resolver.
+    // Rich mode uses the same resolver so both surfaces agree on image URLs.
+    const imgs = container.querySelectorAll<HTMLImageElement>('img[src]');
+    for (const img of imgs) {
+      const resolved = resolveImageUrl({
+        src: img.getAttribute('src') ?? undefined,
+        currentFilePath,
+        rawFileBaseUrl,
+      });
+      if (resolved !== null) img.src = resolved;
     }
   }, [html, rawFileBaseUrl, currentFilePath]);
 

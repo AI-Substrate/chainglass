@@ -1,0 +1,11 @@
+ apps/web/app/globals.css                        | 13 +++++++++++++
+ apps/web/src/features/_platform/viewer/index.ts | 16 ++++++++++++++++
+ docs/domains/_platform/viewer/domain.md         |  2 ++
+ 3 files changed, 31 insertions(+)
+---NEW FILES---
+-rw-r--r--@ 1 jordanknight  staff  1964 18 Apr 19:40 apps/web/app/dev/markdown-wysiwyg-smoke/page.tsx
+-rw-r--r--@ 1 jordanknight  staff  5029 18 Apr 19:32 apps/web/src/features/_platform/viewer/components/wysiwyg-toolbar.tsx
+-rw-r--r--@ 1 jordanknight  staff  6855 18 Apr 19:28 apps/web/src/features/_platform/viewer/lib/wysiwyg-toolbar-config.ts
+-rw-r--r--@ 1 jordanknight  staff  6045 18 Apr 19:44 harness/tests/smoke/markdown-wysiwyg-smoke.spec.ts
+-rw-r--r--@ 1 jordanknight  staff  7236 18 Apr 19:38 test/unit/web/features/_platform/viewer/wysiwyg-toolbar.markdown.test.ts
+-rw-r--r--@ 1 jordanknight  staff  9386 18 Apr 19:37 test/unit/web/features/_platform/viewer/wysiwyg-toolbar.test.tsx
