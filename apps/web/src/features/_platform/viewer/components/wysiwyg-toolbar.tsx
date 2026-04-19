@@ -166,6 +166,7 @@ export function WysiwygToolbar({
       {WYSIWYG_TOOLBAR_GROUPS.map((group, index) => (
         <div key={group.id} className="flex items-center gap-0.5">
           {index > 0 ? (
+            // biome-ignore lint/a11y/useFocusableInteractive: separator is purely decorative (vertical rule between toolbar groups). role="separator" + aria-orientation describe it to screen readers; it is not interactive and must not be focusable.
             <div className="mx-1 h-5 w-px bg-border" role="separator" aria-orientation="vertical" />
           ) : null}
           {group.actions.map((action) => (

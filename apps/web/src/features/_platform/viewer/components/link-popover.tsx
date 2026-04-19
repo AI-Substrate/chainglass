@@ -144,6 +144,7 @@ function LinkPopoverBody({
   }, []);
 
   return (
+    // biome-ignore lint/a11y/useSemanticElements: <dialog> sets display:block and implicit modality; this is an inline floating popover anchored by Radix, not a native dialog. role="dialog" on a div preserves screen-reader semantics without the native element's sizing/backdrop quirks.
     <div
       role="dialog"
       aria-labelledby="link-popover-title"

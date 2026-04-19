@@ -30,6 +30,7 @@ const ASCII_SCHEME_RX = /^([a-zA-Z][a-zA-Z0-9+\-]*):/;
 
 /** Strips ASCII control characters (U+0000-U+001F and U+007F). */
 function stripControlChars(s: string): string {
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: intentional — stripping ASCII control chars from user-supplied URLs is the point of this function (defeats `jav\tascript:` style evasions).
   return s.replace(/[\u0000-\u001F\u007F]/g, '');
 }
 
@@ -60,7 +61,7 @@ export function sanitizeLinkHref(raw: string): SanitizedHref {
   //    a narrow union so callers can switch-exhaust it.
   const schemeMatch = ASCII_SCHEME_RX.exec(s);
   if (schemeMatch) {
-    const scheme = schemeMatch[1]!.toLowerCase();
+    const scheme = (schemeMatch[1] ?? '').toLowerCase();
     if (ALLOWED_SCHEMES.has(scheme)) {
       return { ok: true, href: s };
     }
@@ -79,11 +80,14 @@ export function sanitizeLinkHref(raw: string): SanitizedHref {
   //    resulting `https://javascrıpt:alert(1)` is NOT a javascript:
   //    URL — browsers only dispatch js execution on ASCII scheme
   //    matches — so prepending is safe. Tradeoff documented.
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: ASCII-range detection [\x00-\x7F] intentionally spans the control-char range; the guard distinguishes ASCII-origin input from non-ASCII Unicode-scheme spoofs.
   if (!/^[\x00-\x7F]/.test(s)) {
     const colonIdx = s.indexOf(':');
     if (colonIdx !== -1) {
       const boundaryCandidates = ['/', '?', '#'].map((c) => s.indexOf(c)).filter((i) => i !== -1);
-      const boundaryIdx = boundaryCandidates.length ? Math.min(...boundaryCandidates) : Infinity;
+      const boundaryIdx = boundaryCandidates.length
+        ? Math.min(...boundaryCandidates)
+        : Number.POSITIVE_INFINITY;
       if (colonIdx < boundaryIdx) {
         return { ok: false, reason: 'javascript-scheme' };
       }

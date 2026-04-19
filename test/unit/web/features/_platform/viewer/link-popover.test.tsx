@@ -202,10 +202,12 @@ describe('LinkPopover — render modes', () => {
       '[data-testid="link-popover-url-input"]'
     ) as HTMLInputElement | null;
     expect(urlInput).not.toBeNull();
+    // biome-ignore lint/style/noNonNullAssertion: existence asserted on the previous line
     expect(urlInput!.disabled).toBe(true);
     const submit = document.querySelector(
       '[data-testid="link-popover-submit"]'
     ) as HTMLButtonElement | null;
+    // biome-ignore lint/style/noNonNullAssertion: submit is guaranteed to exist when the popover mounts in edit mode
     expect(submit!.disabled).toBe(true);
   });
 });

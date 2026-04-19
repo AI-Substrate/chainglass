@@ -273,6 +273,7 @@ describe('MarkdownWysiwygEditor', () => {
     await waitForEditorReady(container);
     await new Promise((r) => setTimeout(r, 50));
     expect(captured.length).toBeGreaterThan(0);
+    // biome-ignore lint/style/noNonNullAssertion: existence asserted via expect(captured.length).toBeGreaterThan(0) above
     const editor = captured[0]!;
     act(() => {
       editor.commands.keyboardShortcut('Mod-k');
@@ -306,6 +307,7 @@ describe('MarkdownWysiwygEditor', () => {
     await waitForEditorReady(container);
     await new Promise((r) => setTimeout(r, 50));
     expect(captured.length).toBeGreaterThan(0);
+    // biome-ignore lint/style/noNonNullAssertion: existence asserted via expect(captured.length).toBeGreaterThan(0) above
     const editor = captured[0]!;
     act(() => {
       editor.commands.keyboardShortcut('Mod-k');
@@ -338,8 +340,9 @@ describe('MarkdownWysiwygEditor', () => {
     await waitForEditorReady(container);
     await new Promise((r) => setTimeout(r, 50));
     expect(captured.length).toBeGreaterThan(0);
+    // biome-ignore lint/style/noNonNullAssertion: existence asserted via expect(captured.length).toBeGreaterThan(0) above
     const editor = captured[0]!;
-    let ran: boolean = true;
+    let ran = true;
     act(() => {
       ran = editor.chain().setLink({ href: 'javascript:alert(1)' }).run();
     });
@@ -428,6 +431,7 @@ describe('MarkdownWysiwygEditor', () => {
 
     // Programmatic edit — bypasses jsdom's unreliable beforeinput path and
     // directly dispatches a ProseMirror transaction that marks docChanged.
+    // biome-ignore lint/style/noNonNullAssertion: existence asserted via expect(captured.length).toBeGreaterThan(0) above
     const editor = captured[0]!;
     act(() => {
       editor.commands.insertContent(' more');
@@ -436,6 +440,7 @@ describe('MarkdownWysiwygEditor', () => {
 
     // At least one onChange fire.
     expect(calls.length).toBeGreaterThan(0);
+    // biome-ignore lint/style/noNonNullAssertion: length > 0 asserted on the previous line
     const emitted = calls[calls.length - 1]!;
 
     // CRITICAL: the emitted markdown must begin with the original front-matter.
@@ -511,6 +516,7 @@ describe('MarkdownWysiwygEditor', () => {
 
     // Serialization check: the pill's DOM must not leak into emitted markdown.
     expect(capturedGetMarkdown).not.toBeNull();
+    // biome-ignore lint/style/noNonNullAssertion: not-null asserted on the previous line
     const serialized = capturedGetMarkdown!();
     expect(serialized.startsWith('```python')).toBe(true);
     expect(serialized).not.toContain('</span>');
