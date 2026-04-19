@@ -43,7 +43,7 @@ describe('MarkdownWysiwygEditor', () => {
     */
     const calls: string[] = [];
     const { container } = render(
-      <MarkdownWysiwygEditor value="hello world" onChange={(v) => calls.push(v)} />,
+      <MarkdownWysiwygEditor value="hello world" onChange={(v) => calls.push(v)} />
     );
     await waitForEditorReady(container);
     expect(container.querySelector('[data-testid="md-wysiwyg-root"]')).toBeInTheDocument();
@@ -55,9 +55,7 @@ describe('MarkdownWysiwygEditor', () => {
     - Why: The whole point of WYSIWYG — markdown syntax must render as its visual equivalent
     - Contract: value='# Hello' → <h1> element containing 'Hello' appears in the DOM
     */
-    const { container } = render(
-      <MarkdownWysiwygEditor value={'# Hello\n'} onChange={() => {}} />,
-    );
+    const { container } = render(<MarkdownWysiwygEditor value={'# Hello\n'} onChange={() => {}} />);
     await waitForEditorReady(container);
     const h1 = container.querySelector('h1');
     expect(h1).not.toBeNull();
@@ -72,7 +70,7 @@ describe('MarkdownWysiwygEditor', () => {
     */
     const calls: string[] = [];
     const { container } = render(
-      <MarkdownWysiwygEditor value={'# Mount Only\n'} onChange={(v) => calls.push(v)} />,
+      <MarkdownWysiwygEditor value={'# Mount Only\n'} onChange={(v) => calls.push(v)} />
     );
     await waitForEditorReady(container);
     // Give Tiptap any deferred async ticks a chance to fire.
@@ -88,7 +86,7 @@ describe('MarkdownWysiwygEditor', () => {
     */
     const calls: string[] = [];
     const { container, rerender } = render(
-      <MarkdownWysiwygEditor value={'# Same\n'} onChange={(v) => calls.push(v)} />,
+      <MarkdownWysiwygEditor value={'# Same\n'} onChange={(v) => calls.push(v)} />
     );
     await waitForEditorReady(container);
     await new Promise((r) => setTimeout(r, 50));
@@ -108,7 +106,7 @@ describe('MarkdownWysiwygEditor', () => {
     - Contract: rerender with '# Second' replaces the '# First' heading text
     */
     const { container, rerender } = render(
-      <MarkdownWysiwygEditor value={'# First\n'} onChange={() => {}} />,
+      <MarkdownWysiwygEditor value={'# First\n'} onChange={() => {}} />
     );
     await waitForEditorReady(container);
     expect(container.querySelector('h1')?.textContent).toContain('First');
@@ -127,13 +125,15 @@ describe('MarkdownWysiwygEditor', () => {
     */
     const calls: string[] = [];
     const { container } = render(
-      <MarkdownWysiwygEditor value={'\n'} onChange={(v) => calls.push(v)} />,
+      <MarkdownWysiwygEditor value={'\n'} onChange={(v) => calls.push(v)} />
     );
     await waitForEditorReady(container);
 
     // Reach into the ProseMirror DOM and dispatch an input via the editable contenteditable.
     // Simpler and deterministic: find the EditorContent root and insert text via the keyboard.
-    const contentEditable = container.querySelector('[contenteditable="true"]') as HTMLElement | null;
+    const contentEditable = container.querySelector(
+      '[contenteditable="true"]'
+    ) as HTMLElement | null;
     expect(contentEditable).not.toBeNull();
     // Directly programmatically type via execCommand-like contenteditable insert.
     // Since jsdom lacks a full contenteditable, we dispatch a beforeinput event.
@@ -185,9 +185,7 @@ describe('MarkdownWysiwygEditor', () => {
     this environment. So the component defaults to the 'prose' classes without
     the 'dark:prose-invert' class. That's still the observable behavior for light mode.
     */
-    const { container } = render(
-      <MarkdownWysiwygEditor value="x" onChange={() => {}} />,
-    );
+    const { container } = render(<MarkdownWysiwygEditor value="x" onChange={() => {}} />);
     await waitForEditorReady(container);
     const root = container.querySelector('[data-testid="md-wysiwyg-root"]') as HTMLElement;
     expect(root.className).toContain('prose');
@@ -200,7 +198,7 @@ describe('MarkdownWysiwygEditor', () => {
     - Contract: rendering then unmounting completes without exceptions
     */
     const { container, unmount } = render(
-      <MarkdownWysiwygEditor value={'# U\n'} onChange={() => {}} />,
+      <MarkdownWysiwygEditor value={'# U\n'} onChange={() => {}} />
     );
     await waitForEditorReady(container);
     expect(() => unmount()).not.toThrow();
@@ -221,11 +219,7 @@ describe('MarkdownWysiwygEditor', () => {
     };
 
     const { container, rerender, unmount } = render(
-      <MarkdownWysiwygEditor
-        value={'# Ready\n'}
-        onChange={() => {}}
-        onEditorReady={onReady}
-      />,
+      <MarkdownWysiwygEditor value={'# Ready\n'} onChange={() => {}} onEditorReady={onReady} />
     );
     await waitForEditorReady(container);
     // Give the post-mount ready effect a tick to fire.
@@ -241,18 +235,10 @@ describe('MarkdownWysiwygEditor', () => {
     const beforeCount = readyCalls.length;
 
     rerender(
-      <MarkdownWysiwygEditor
-        value={'# Ready\n'}
-        onChange={() => {}}
-        onEditorReady={onReady}
-      />,
+      <MarkdownWysiwygEditor value={'# Ready\n'} onChange={() => {}} onEditorReady={onReady} />
     );
     rerender(
-      <MarkdownWysiwygEditor
-        value={'# Ready\n'}
-        onChange={() => {}}
-        onEditorReady={onReady}
-      />,
+      <MarkdownWysiwygEditor value={'# Ready\n'} onChange={() => {}} onEditorReady={onReady} />
     );
     await new Promise((r) => setTimeout(r, 50));
 
@@ -282,7 +268,7 @@ describe('MarkdownWysiwygEditor', () => {
         onEditorReady={(e) => {
           if (e) captured.push(e as unknown as CapturedEditor);
         }}
-      />,
+      />
     );
     await waitForEditorReady(container);
     await new Promise((r) => setTimeout(r, 50));
@@ -315,7 +301,7 @@ describe('MarkdownWysiwygEditor', () => {
         onEditorReady={(e) => {
           if (e) captured.push(e as unknown as CapturedEditor);
         }}
-      />,
+      />
     );
     await waitForEditorReady(container);
     await new Promise((r) => setTimeout(r, 50));
@@ -347,7 +333,7 @@ describe('MarkdownWysiwygEditor', () => {
         onEditorReady={(e) => {
           if (e) captured.push(e as unknown as CapturedEditor);
         }}
-      />,
+      />
     );
     await waitForEditorReady(container);
     await new Promise((r) => setTimeout(r, 50));
@@ -384,7 +370,7 @@ describe('MarkdownWysiwygEditor', () => {
       <MarkdownWysiwygEditor
         value={'---\nfoo: bar\n---\n# Heading\n'}
         onChange={(v) => calls.push(v)}
-      />,
+      />
     );
     await waitForEditorReady(container);
     await new Promise((r) => setTimeout(r, 50));
@@ -400,7 +386,7 @@ describe('MarkdownWysiwygEditor', () => {
       <MarkdownWysiwygEditor
         value={'---\nfoo: bar\n---\n# Heading\n'}
         onChange={(v) => calls.push(v)}
-      />,
+      />
     );
     await new Promise((r) => setTimeout(r, 50));
     expect(calls).toEqual([]);
@@ -433,7 +419,7 @@ describe('MarkdownWysiwygEditor', () => {
         onEditorReady={(e) => {
           if (e) captured.push(e as unknown as CapturedEditor);
         }}
-      />,
+      />
     );
     await waitForEditorReady(container);
     // Give the post-mount ready effect a tick to fire.
@@ -476,7 +462,7 @@ describe('MarkdownWysiwygEditor', () => {
         imageUrlResolver={resolver}
         currentFilePath="docs/readme.md"
         rawFileBaseUrl="/raw?worktree=main"
-      />,
+      />
     );
     await waitForEditorReady(container);
     await new Promise((r) => setTimeout(r, 50));
@@ -485,5 +471,63 @@ describe('MarkdownWysiwygEditor', () => {
     // When the resolver returns a string, src should be rewritten to it.
     // If jsdom's ProseMirror render is async, tolerate a slight delay.
     expect(img?.getAttribute('src')).toBe('/resolved/foo.png');
+  });
+
+  it('renders a read-only language pill inside code blocks with a language attr', async () => {
+    /*
+    Test Doc:
+    - Why: AC-12 — code blocks with a language attr must display a read-only pill.
+    - Contract:
+      (a) value=```python\nprint(1)\n``` renders a `<span data-testid="code-block-language-pill">`
+      whose textContent is "python" AND whose closest `<pre>` ancestor exists — proves
+      the widget sits as a DESCENDANT of the code block (required for CSS positioning).
+      (b) The serialized markdown (via tiptap-markdown storage) starts with ```python and
+      contains NO literal `</span>` or pill artifact — proves widget decorations don't
+      leak into serialization (Phase 6.2 / Finding round-trip contract).
+    */
+    let capturedGetMarkdown: (() => string) | null = null;
+    const { container } = render(
+      <MarkdownWysiwygEditor
+        value={'```python\nprint(1)\n```\n'}
+        onChange={() => {}}
+        onEditorReady={(editor) => {
+          if (editor) {
+            const storage = (editor.storage as { markdown?: { getMarkdown: () => string } })
+              .markdown;
+            capturedGetMarkdown = storage ? () => storage.getMarkdown() : null;
+          }
+        }}
+      />
+    );
+    await waitForEditorReady(container);
+    await new Promise((r) => setTimeout(r, 50));
+
+    const pill = container.querySelector<HTMLElement>('[data-testid="code-block-language-pill"]');
+    expect(pill).not.toBeNull();
+    expect(pill?.textContent).toBe('python');
+    expect(pill?.getAttribute('contenteditable')).toBe('false');
+    // Pill must be a descendant of the <pre> for CSS positioning to resolve correctly.
+    expect(pill?.closest('pre')).not.toBeNull();
+
+    // Serialization check: the pill's DOM must not leak into emitted markdown.
+    expect(capturedGetMarkdown).not.toBeNull();
+    const serialized = capturedGetMarkdown!();
+    expect(serialized.startsWith('```python')).toBe(true);
+    expect(serialized).not.toContain('</span>');
+    expect(serialized).not.toContain('data-testid');
+  });
+
+  it('does NOT render a language pill for code blocks without a language', async () => {
+    /*
+    Test Doc:
+    - Why: A pill with no language label would be visual noise and hint at broken state.
+    - Contract: value='```\nnote\n```' — no `data-testid=code-block-language-pill` in the DOM.
+    */
+    const { container } = render(
+      <MarkdownWysiwygEditor value={'```\nnote\n```\n'} onChange={() => {}} />
+    );
+    await waitForEditorReady(container);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(container.querySelector('[data-testid="code-block-language-pill"]')).toBeNull();
   });
 });

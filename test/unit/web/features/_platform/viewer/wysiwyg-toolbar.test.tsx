@@ -10,9 +10,9 @@
  */
 
 import '@testing-library/jest-dom/vitest';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import { Editor } from '@tiptap/react';
 import { StarterKit } from '@tiptap/starter-kit';
-import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { WysiwygToolbar } from '../../../../../../apps/web/src/features/_platform/viewer/components/wysiwyg-toolbar';

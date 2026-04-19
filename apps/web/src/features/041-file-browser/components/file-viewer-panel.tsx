@@ -11,6 +11,7 @@
  */
 
 import type { DiffError } from '@chainglass/shared';
+import type { Editor } from '@tiptap/react';
 import {
   ArrowUp,
   Edit,
@@ -20,10 +21,20 @@ import {
   Loader2,
   RefreshCw,
   Save,
+  Sparkles,
   WrapText,
+  X,
 } from 'lucide-react';
-import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import {
+  LinkPopover,
+  MarkdownWysiwygEditorLazy,
+  WysiwygToolbar,
+  exceedsRichSizeCap,
+  hasTables,
+  resolveImageUrl,
+} from '@/features/_platform/viewer';
 import { detectContentType } from '@/lib/content-type-detection';
 import { AudioViewer } from './audio-viewer';
 import { BinaryPlaceholder } from './binary-placeholder';
@@ -39,7 +50,32 @@ const DiffViewer = lazy(() =>
   import('@/components/viewers/diff-viewer').then((m) => ({ default: m.DiffViewer }))
 );
 
-export type ViewerMode = 'edit' | 'preview' | 'diff';
+export type ViewerMode = 'source' | 'rich' | 'preview' | 'diff';
+
+const TABLE_BANNER_SESSION_KEY = 'md-wysiwyg:dismissed-table-banners';
+
+/** Read dismissed-paths array from sessionStorage; tolerant of quota/security/parse failures. */
+function readDismissedBanners(): string[] {
+  try {
+    const raw = sessionStorage.getItem(TABLE_BANNER_SESSION_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    // QuotaExceeded on read is impossible, but JSON.parse errors + SecurityError (Safari
+    // private mode for some setups) are — treat as empty.
+    return [];
+  }
+}
+
+/** Write dismissed-paths array to sessionStorage; swallow quota/security errors. */
+function writeDismissedBanners(paths: string[]): void {
+  try {
+    sessionStorage.setItem(TABLE_BANNER_SESSION_KEY, JSON.stringify(paths));
+  } catch {
+    // Banner reappearing next session is acceptable graceful degradation.
+  }
+}
 
 export interface FileViewerPanelProps {
   filePath: string;
@@ -79,6 +115,13 @@ export interface FileViewerPanelProps {
   scrollToLine?: number | null;
   /** Called when user clicks a relative file link in markdown preview */
   onNavigateToFile?: (resolvedPath: string) => void;
+  /**
+   * Optional save implementation — used by integration tests to intercept save calls with
+   * a `FakeSaveFile` class (plan 083 Phase 5 Finding 05). Production callers pass nothing,
+   * in which case the existing `onSave` prop is invoked synchronously and wrapped in a
+   * resolved Promise.
+   */
+  saveFileImpl?: (content: string) => Promise<void>;
 }
 
 export function FileViewerPanel({
@@ -107,13 +150,51 @@ export function FileViewerPanel({
   popOutUrl,
   scrollToLine,
   onNavigateToFile,
+  saveFileImpl,
 }: FileViewerPanelProps) {
   // All hooks must be called before any early returns (Rules of Hooks)
   const isMarkdown = language === 'markdown';
   const currentContent = editContent ?? content ?? '';
+  const isEditable = mode === 'source' || mode === 'rich';
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrolledDown, setScrolledDown] = useState(false);
   const [wordWrap, setWordWrap] = useState(true);
+
+  // Rich-mode composition state — shared open/close across the toolbar Link button and the
+  // editor's Mod-k shortcut. Ref to the toolbar Link button so the LinkPopover anchors to it.
+  const [linkOpen, setLinkOpen] = useState(false);
+  const linkButtonRef = useRef<HTMLButtonElement>(null);
+  const richEditorRef = useRef<Editor | null>(null);
+  // Mount wrapper ref — T011 writes the last-emitted markdown to its `data-emitted-markdown`
+  // attribute so harness smoke + Phase 6.2 corpus tests can assert round-trip integrity.
+  const richMountRef = useRef<HTMLDivElement>(null);
+
+  // Phase 6.6 will swap this for an ErrorBoundary; for now the `.md-wysiwyg-editor-mount`
+  // wrapper is the single independently-wrappable node (toolbar + popover are siblings).
+  const handleRichEditorReady = useCallback((editor: Editor | null) => {
+    richEditorRef.current = editor;
+  }, []);
+  const handleOpenLinkDialog = useCallback(() => {
+    setLinkOpen(true);
+  }, []);
+
+  // Size + language gate for the Rich button (plan 083 Phase 5 T004, AC-01 + AC-16a).
+  const richDisabled = useMemo(() => exceedsRichSizeCap(currentContent), [currentContent]);
+
+  // Table-warn banner (plan 083 Phase 5 T005, AC-11). Dismissal is per-file-path and
+  // session-scoped; initial state reads sessionStorage so an in-tab reload keeps dismissal.
+  const [tableBannerDismissed, setTableBannerDismissed] = useState(false);
+  useEffect(() => {
+    setTableBannerDismissed(readDismissedBanners().includes(filePath));
+  }, [filePath]);
+  const tableBannerVisible = mode === 'rich' && hasTables(currentContent) && !tableBannerDismissed;
+  const dismissTableBanner = useCallback(() => {
+    setTableBannerDismissed(true);
+    const current = readDismissedBanners();
+    if (!current.includes(filePath)) {
+      writeDismissedBanners([...current, filePath]);
+    }
+  }, [filePath]);
 
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
@@ -132,10 +213,24 @@ export function FileViewerPanel({
     scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
+  // Unified save dispatch used by BOTH the Save button AND the Cmd+S handler. When
+  // `saveFileImpl` is provided (integration tests inject a `FakeSaveFile`), it's invoked
+  // instead of `onSave` — a minimal DI surface per Constitution §4/§7 (Finding 05).
+  const performSave = useCallback(
+    (next: string) => {
+      if (saveFileImpl) {
+        void saveFileImpl(next);
+        return;
+      }
+      onSave(next);
+    },
+    [saveFileImpl, onSave]
+  );
+
   const handleEditModeKeyDownCapture = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
       if (
-        mode !== 'edit' ||
+        (mode !== 'source' && mode !== 'rich') ||
         event.repeat ||
         event.shiftKey ||
         event.altKey ||
@@ -146,9 +241,22 @@ export function FileViewerPanel({
       }
 
       event.preventDefault();
-      onSave(currentContent);
+      performSave(currentContent);
     },
-    [mode, onSave, currentContent]
+    [mode, performSave, currentContent]
+  );
+
+  // Mirror the last-emitted markdown into the mount wrapper's data-attr (T011). Phase 6.2
+  // round-trip corpus tests read from this attribute — it is an intentional test affordance.
+  const handleRichChange = useCallback(
+    (next: string) => {
+      onEditChange?.(next);
+      const el = richMountRef.current;
+      if (el) {
+        el.dataset.emittedMarkdown = next;
+      }
+    },
+    [onEditChange]
   );
 
   // Error states
@@ -199,10 +307,10 @@ export function FileViewerPanel({
       <div className="border-b shrink-0">
         <div className="flex items-center justify-between px-3 py-1.5">
           <div className="flex items-center gap-1">
-            {mode === 'edit' && (
+            {isEditable && (
               <button
                 type="button"
-                onClick={() => onSave(currentContent)}
+                onClick={() => performSave(currentContent)}
                 className="flex items-center gap-1 rounded px-2 py-1 text-xs bg-green-600 text-white hover:bg-green-700 shrink-0"
                 aria-label="Save file"
               >
@@ -211,11 +319,25 @@ export function FileViewerPanel({
               </button>
             )}
             <ModeButton
-              label="Edit"
+              label="Source"
               icon={<Edit className="h-3.5 w-3.5" />}
-              active={mode === 'edit'}
-              onClick={() => onModeChange('edit')}
+              active={mode === 'source'}
+              onClick={() => onModeChange('source')}
             />
+            {isMarkdown && (
+              <ModeButton
+                label="Rich"
+                icon={<Sparkles className="h-3.5 w-3.5" />}
+                active={mode === 'rich'}
+                onClick={() => onModeChange('rich')}
+                disabled={richDisabled}
+                title={
+                  richDisabled
+                    ? 'File too large for Rich mode — use Source'
+                    : 'Rich (WYSIWYG markdown editor)'
+                }
+              />
+            )}
             <ModeButton
               label="Preview"
               icon={<Eye className="h-3.5 w-3.5" />}
@@ -230,7 +352,7 @@ export function FileViewerPanel({
             />
           </div>
           <div className="flex items-center gap-0.5">
-            {mode === 'edit' && (
+            {mode === 'source' && (
               <button
                 type="button"
                 onClick={() => setWordWrap((w) => !w)}
@@ -280,8 +402,29 @@ export function FileViewerPanel({
         </div>
       )}
 
+      {/* Table warn banner — Rich mode only, dismissable per-file for the session */}
+      {tableBannerVisible && (
+        <div
+          className="border-b bg-amber-50 dark:bg-amber-950 px-3 py-2 text-sm text-amber-700 dark:text-amber-300 flex items-center justify-between"
+          data-testid="rich-mode-table-warning"
+        >
+          <span>
+            This file contains Markdown tables. Rich mode may reformat them — Source mode preserves
+            exact formatting.
+          </span>
+          <button
+            type="button"
+            onClick={dismissTableBanner}
+            className="rounded p-0.5 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900"
+            aria-label="Dismiss table warning"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* Externally changed banner — only when user has dirty edits or in diff mode */}
-      {externallyChanged && mode === 'edit' && editContent != null && (
+      {externallyChanged && isEditable && editContent != null && (
         <div className="border-b bg-blue-50 dark:bg-blue-950 px-3 py-2 text-sm text-blue-700 dark:text-blue-300 flex items-center justify-between">
           <span>ℹ️ This file was modified outside the editor</span>
           <button
@@ -306,15 +449,15 @@ export function FileViewerPanel({
         </div>
       )}
 
-      {/* Content area — in edit mode, CodeEditor fills this entirely via flex */}
+      {/* Content area — in editable modes, content fills via flex */}
       <div
-        ref={mode !== 'edit' ? scrollRef : undefined}
-        onScroll={mode !== 'edit' ? handleScroll : undefined}
-        onKeyDownCapture={mode === 'edit' ? handleEditModeKeyDownCapture : undefined}
-        className={mode === 'edit' ? 'flex-1 min-h-0 flex flex-col' : 'flex-1 overflow-auto'}
+        ref={isEditable ? undefined : scrollRef}
+        onScroll={isEditable ? undefined : handleScroll}
+        onKeyDownCapture={isEditable ? handleEditModeKeyDownCapture : undefined}
+        className={isEditable ? 'flex-1 min-h-0 flex flex-col' : 'flex-1 overflow-auto'}
       >
         <Suspense fallback={<LoadingFallback />}>
-          {mode === 'edit' && (
+          {mode === 'source' && (
             <CodeEditor
               key={filePath}
               value={currentContent}
@@ -323,6 +466,36 @@ export function FileViewerPanel({
               scrollToLine={scrollToLine}
               wordWrap={wordWrap}
             />
+          )}
+          {mode === 'rich' && (
+            <>
+              <WysiwygToolbar
+                editor={richEditorRef.current}
+                onOpenLinkDialog={handleOpenLinkDialog}
+                linkButtonRef={linkButtonRef}
+              />
+              <div
+                ref={richMountRef}
+                className="md-wysiwyg-editor-mount flex-1 min-h-0 overflow-auto"
+                data-emitted-markdown={currentContent}
+              >
+                <MarkdownWysiwygEditorLazy
+                  value={currentContent}
+                  onChange={handleRichChange}
+                  imageUrlResolver={resolveImageUrl}
+                  currentFilePath={filePath}
+                  rawFileBaseUrl={rawFileBaseUrl}
+                  onEditorReady={handleRichEditorReady}
+                  onOpenLinkDialog={handleOpenLinkDialog}
+                />
+              </div>
+              <LinkPopover
+                editor={richEditorRef.current}
+                open={linkOpen}
+                onOpenChange={setLinkOpen}
+                anchorRef={linkButtonRef}
+              />
+            </>
           )}
           {mode === 'preview' && (
             <div className="p-4">
@@ -380,22 +553,31 @@ function ModeButton({
   icon,
   active,
   onClick,
+  disabled,
+  title,
 }: {
   label: string;
   icon: React.ReactNode;
   active: boolean;
   onClick: () => void;
+  disabled?: boolean;
+  title?: string;
 }) {
+  const activeClasses = active
+    ? 'bg-accent text-accent-foreground font-medium'
+    : 'text-muted-foreground hover:text-foreground';
+  const disabledClasses = disabled
+    ? 'opacity-50 cursor-not-allowed hover:text-muted-foreground'
+    : '';
   return (
     <button
       type="button"
       onClick={onClick}
       aria-label={label}
-      className={`flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors ${
-        active
-          ? 'bg-accent text-accent-foreground font-medium'
-          : 'text-muted-foreground hover:text-foreground'
-      }`}
+      disabled={disabled}
+      title={title}
+      data-disabled={disabled ? 'true' : undefined}
+      className={`flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors ${activeClasses} ${disabledClasses}`.trim()}
     >
       {icon}
       {label}

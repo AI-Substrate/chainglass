@@ -13,11 +13,7 @@
 
 import type { ImageUrlResolver } from './wysiwyg-extensions';
 
-export const resolveImageUrl: ImageUrlResolver = ({
-  src,
-  currentFilePath,
-  rawFileBaseUrl,
-}) => {
+export const resolveImageUrl: ImageUrlResolver = ({ src, currentFilePath, rawFileBaseUrl }) => {
   if (!src) return null;
   if (
     src.startsWith('http://') ||

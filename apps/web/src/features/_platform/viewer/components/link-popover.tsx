@@ -61,17 +61,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-} from '@/components/ui/popover';
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetTitle,
-} from '@/components/ui/sheet';
+import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover';
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 
@@ -200,11 +191,7 @@ function LinkPopoverBody({
         </div>
       </div>
       {error ? (
-        <p
-          role="alert"
-          data-testid="link-popover-error"
-          className="text-xs text-destructive"
-        >
+        <p role="alert" data-testid="link-popover-error" className="text-xs text-destructive">
           {error}
         </p>
       ) : null}
@@ -323,11 +310,7 @@ export function LinkPopover({
     if (!editor) return;
     const result = sanitizeLinkHref(url);
     if (!result.ok) {
-      setError(
-        result.reason === 'empty'
-          ? 'URL cannot be empty.'
-          : 'URL scheme is not allowed.',
-      );
+      setError(result.reason === 'empty' ? 'URL cannot be empty.' : 'URL scheme is not allowed.');
       return;
     }
     const href = result.href;
@@ -426,16 +409,9 @@ export function LinkPopover({
   return (
     <Popover open={open} onOpenChange={onOpenChange} modal>
       {anchorRef ? (
-        <PopoverAnchor
-          virtualRef={anchorRef as RefObject<HTMLElement>}
-          asChild={false}
-        />
+        <PopoverAnchor virtualRef={anchorRef as RefObject<HTMLElement>} asChild={false} />
       ) : null}
-      <PopoverContent
-        className="w-auto p-3"
-        align="start"
-        onCloseAutoFocus={restoreOpenerFocus}
-      >
+      <PopoverContent className="w-auto p-3" align="start" onCloseAutoFocus={restoreOpenerFocus}>
         <LinkPopoverBody {...bodyProps} />
       </PopoverContent>
     </Popover>

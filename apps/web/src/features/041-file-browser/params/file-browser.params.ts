@@ -5,7 +5,7 @@
  * Domain: _platform/workspace-url (composes workspaceParams)
  *
  * @example URL:
- * /workspaces/my-proj/browser?worktree=/path&dir=src/lib&file=utils.ts&mode=edit
+ * /workspaces/my-proj/browser?worktree=/path&dir=src/lib&file=utils.ts&mode=source
  */
 
 import { workspaceParams } from '@/lib/params/workspace.params';
@@ -17,8 +17,11 @@ export const fileBrowserParams = {
   dir: parseAsString.withDefault(''),
   /** Selected file path (relative to worktree root) */
   file: parseAsString.withDefault(''),
-  /** Viewer mode */
-  mode: parseAsStringLiteral(['edit', 'preview', 'diff'] as const).withDefault('preview'),
+  // Viewer mode. 'edit' is a legacy alias — browser-client coerces it to 'source'
+  // on load. TODO: remove legacy 'edit' alias after 1 release (plan 083-md-editor / Finding 04).
+  mode: parseAsStringLiteral(['source', 'rich', 'edit', 'preview', 'diff'] as const).withDefault(
+    'preview'
+  ),
   /** Left panel mode (Plan 043) */
   panel: parseAsStringLiteral(['tree', 'changes'] as const).withDefault('tree'),
   /** Line number to scroll to (Plan 047 Phase 6) */

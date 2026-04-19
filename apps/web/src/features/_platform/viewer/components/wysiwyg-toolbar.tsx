@@ -159,18 +159,14 @@ export function WysiwygToolbar({
       aria-label="Formatting toolbar"
       className={cn(
         'flex items-center gap-0.5 overflow-x-auto no-scrollbar px-2 py-1 border-b',
-        className,
+        className
       )}
       data-testid="wysiwyg-toolbar"
     >
       {WYSIWYG_TOOLBAR_GROUPS.map((group, index) => (
         <div key={group.id} className="flex items-center gap-0.5">
           {index > 0 ? (
-            <div
-              className="mx-1 h-5 w-px bg-border"
-              role="separator"
-              aria-orientation="vertical"
-            />
+            <div className="mx-1 h-5 w-px bg-border" role="separator" aria-orientation="vertical" />
           ) : null}
           {group.actions.map((action) => (
             <ToolbarButton

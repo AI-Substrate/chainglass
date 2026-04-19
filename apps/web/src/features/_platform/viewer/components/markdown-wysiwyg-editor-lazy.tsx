@@ -24,5 +24,5 @@ export const MarkdownWysiwygEditorLazy = dynamic<MarkdownWysiwygEditorProps>(
   {
     ssr: false,
     loading: () => <div className="animate-pulse rounded bg-muted p-4 h-64" />,
-  },
+  }
 );

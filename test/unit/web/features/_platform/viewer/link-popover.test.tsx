@@ -150,7 +150,7 @@ describe('LinkPopover — render modes', () => {
         onEditorRef={(e) => {
           if (e) captured.push(e);
         }}
-      />,
+      />
     );
     await waitForEditor(captured);
     await waitFor(() => {
@@ -176,7 +176,7 @@ describe('LinkPopover — render modes', () => {
         onEditorRef={(e) => {
           if (e) captured.push(e);
         }}
-      />,
+      />
     );
     await waitForEditor(captured);
     await waitFor(() => {
@@ -195,22 +195,16 @@ describe('LinkPopover — render modes', () => {
       all buttons + inputs marked disabled.
     */
     // Render LinkPopover directly without an editor.
-    render(
-      <LinkPopover
-        editor={null}
-        open={true}
-        onOpenChange={() => {}}
-      />,
-    );
+    render(<LinkPopover editor={null} open={true} onOpenChange={() => {}} />);
     const body = document.querySelector('[data-testid="link-popover"]');
     expect(body).not.toBeNull();
     const urlInput = document.querySelector(
-      '[data-testid="link-popover-url-input"]',
+      '[data-testid="link-popover-url-input"]'
     ) as HTMLInputElement | null;
     expect(urlInput).not.toBeNull();
     expect(urlInput!.disabled).toBe(true);
     const submit = document.querySelector(
-      '[data-testid="link-popover-submit"]',
+      '[data-testid="link-popover-submit"]'
     ) as HTMLButtonElement | null;
     expect(submit!.disabled).toBe(true);
   });
@@ -231,7 +225,7 @@ describe('LinkPopover — Insert mode', () => {
         onEditorRef={(e) => {
           if (e) captured.push(e);
         }}
-      />,
+      />
     );
     await waitForEditor(captured);
     await waitFor(() => {
@@ -259,7 +253,7 @@ describe('LinkPopover — Insert mode', () => {
         onEditorRef={(e) => {
           if (e) captured.push(e);
         }}
-      />,
+      />
     );
     await waitForEditor(captured);
     await waitFor(() => {
@@ -289,7 +283,7 @@ describe('LinkPopover — Insert mode', () => {
           if (e) captured.push(e);
         }}
         onOpenChangeSpy={(next) => openChanges.push(next)}
-      />,
+      />
     );
     const editor = await waitForEditor(captured);
     // Select some text so the link wraps it.
@@ -300,7 +294,7 @@ describe('LinkPopover — Insert mode', () => {
       expect(document.querySelector('[data-testid="link-popover-url-input"]')).not.toBeNull();
     });
     const urlInput = document.querySelector(
-      '[data-testid="link-popover-url-input"]',
+      '[data-testid="link-popover-url-input"]'
     ) as HTMLInputElement;
     act(() => {
       fireEvent.change(urlInput, { target: { value: 'https://example.com' } });
@@ -327,7 +321,7 @@ describe('LinkPopover — Insert mode', () => {
         onEditorRef={(e) => {
           if (e) captured.push(e);
         }}
-      />,
+      />
     );
     const editor = await waitForEditor(captured);
     act(() => {
@@ -337,7 +331,7 @@ describe('LinkPopover — Insert mode', () => {
       expect(document.querySelector('[data-testid="link-popover-url-input"]')).not.toBeNull();
     });
     const urlInput = document.querySelector(
-      '[data-testid="link-popover-url-input"]',
+      '[data-testid="link-popover-url-input"]'
     ) as HTMLInputElement;
     act(() => {
       fireEvent.change(urlInput, { target: { value: 'example.com' } });
@@ -366,7 +360,7 @@ describe('LinkPopover — Insert mode', () => {
         onEditorRef={(e) => {
           if (e) captured.push(e);
         }}
-      />,
+      />
     );
     const editor = await waitForEditor(captured);
     act(() => {
@@ -376,7 +370,7 @@ describe('LinkPopover — Insert mode', () => {
       expect(document.querySelector('[data-testid="link-popover-url-input"]')).not.toBeNull();
     });
     const urlInput = document.querySelector(
-      '[data-testid="link-popover-url-input"]',
+      '[data-testid="link-popover-url-input"]'
     ) as HTMLInputElement;
     act(() => {
       fireEvent.change(urlInput, { target: { value: 'javascript:alert(1)' } });
@@ -408,14 +402,14 @@ describe('LinkPopover — Insert mode', () => {
           if (e) captured.push(e);
         }}
         onOpenChangeSpy={(next) => openChanges.push(next)}
-      />,
+      />
     );
     await waitForEditor(captured);
     await waitFor(() => {
       expect(document.querySelector('[data-testid="link-popover-cancel"]')).not.toBeNull();
     });
     const cancel = document.querySelector(
-      '[data-testid="link-popover-cancel"]',
+      '[data-testid="link-popover-cancel"]'
     ) as HTMLButtonElement;
     act(() => {
       fireEvent.click(cancel);
@@ -442,7 +436,7 @@ describe('LinkPopover — Insert mode', () => {
         onEditorRef={(e) => {
           if (e) captured.push(e);
         }}
-      />,
+      />
     );
     const editor = await waitForEditor(captured);
     act(() => {
@@ -452,7 +446,7 @@ describe('LinkPopover — Insert mode', () => {
       expect(document.querySelector('[data-testid="link-popover-url-input"]')).not.toBeNull();
     });
     const urlInput = document.querySelector(
-      '[data-testid="link-popover-url-input"]',
+      '[data-testid="link-popover-url-input"]'
     ) as HTMLInputElement;
     const href = 'https://en.wikipedia.org/wiki/Foo_(bar)';
     act(() => {
@@ -517,11 +511,11 @@ describe('LinkPopover — Edit mode', () => {
       expect(document.querySelector('[data-testid="link-popover-unlink"]')).not.toBeNull();
     });
     const urlInput = document.querySelector(
-      '[data-testid="link-popover-url-input"]',
+      '[data-testid="link-popover-url-input"]'
     ) as HTMLInputElement;
     expect(urlInput.value).toBe('https://a.test');
     const textInput = document.querySelector(
-      '[data-testid="link-popover-text-input"]',
+      '[data-testid="link-popover-text-input"]'
     ) as HTMLInputElement;
     expect(textInput.value).toBe('foo');
   });
@@ -541,7 +535,7 @@ describe('LinkPopover — Edit mode', () => {
         onEditorRef={(e) => {
           if (e) captured.push(e);
         }}
-      />,
+      />
     );
     const editor = await waitForEditor(captured);
     act(() => {
@@ -551,7 +545,7 @@ describe('LinkPopover — Edit mode', () => {
       expect(document.querySelector('[data-testid="link-popover-unlink"]')).not.toBeNull();
     });
     const unlink = document.querySelector(
-      '[data-testid="link-popover-unlink"]',
+      '[data-testid="link-popover-unlink"]'
     ) as HTMLButtonElement;
     act(() => {
       fireEvent.click(unlink);

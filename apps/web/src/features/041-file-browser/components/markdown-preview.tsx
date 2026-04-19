@@ -12,11 +12,11 @@
  * Fix FX001-7: Viewer integration for markdown preview.
  */
 
+import { resolveImageUrl } from '@/features/_platform/viewer';
 import { useTheme } from 'next-themes';
 import { memo, useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { MermaidRenderer } from '../../../components/viewers/mermaid-renderer';
-import { resolveImageUrl } from '@/features/_platform/viewer';
 
 interface MermaidPortal {
   code: string;

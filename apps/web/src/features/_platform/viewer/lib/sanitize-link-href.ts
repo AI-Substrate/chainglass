@@ -82,12 +82,8 @@ export function sanitizeLinkHref(raw: string): SanitizedHref {
   if (!/^[\x00-\x7F]/.test(s)) {
     const colonIdx = s.indexOf(':');
     if (colonIdx !== -1) {
-      const boundaryCandidates = ['/', '?', '#']
-        .map((c) => s.indexOf(c))
-        .filter((i) => i !== -1);
-      const boundaryIdx = boundaryCandidates.length
-        ? Math.min(...boundaryCandidates)
-        : Infinity;
+      const boundaryCandidates = ['/', '?', '#'].map((c) => s.indexOf(c)).filter((i) => i !== -1);
+      const boundaryIdx = boundaryCandidates.length ? Math.min(...boundaryCandidates) : Infinity;
       if (colonIdx < boundaryIdx) {
         return { ok: false, reason: 'javascript-scheme' };
       }

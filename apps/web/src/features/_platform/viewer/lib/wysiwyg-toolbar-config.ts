@@ -258,7 +258,7 @@ export const WYSIWYG_TOOLBAR_GROUPS: readonly ToolbarGroup[] = [
 
 /** Flattened action list — convenient for structural assertions. */
 export const WYSIWYG_TOOLBAR_ACTIONS: readonly ToolbarAction[] = WYSIWYG_TOOLBAR_GROUPS.flatMap(
-  (group) => group.actions,
+  (group) => group.actions
 );
 
 export { DISABLED_IN_CODE_BLOCK };

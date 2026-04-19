@@ -31,6 +31,7 @@ import { useTheme } from 'next-themes';
 import { useEffect, useRef } from 'react';
 import { Markdown } from 'tiptap-markdown';
 
+import { CodeBlockLanguagePill } from '../lib/code-block-language-pill';
 import { joinFrontMatter, splitFrontMatter } from '../lib/markdown-frontmatter';
 import { sanitizeLinkHref } from '../lib/sanitize-link-href';
 import type { ImageUrlResolver, MarkdownWysiwygEditorProps } from '../lib/wysiwyg-extensions';
@@ -45,7 +46,7 @@ const DEFAULT_PLACEHOLDER = 'Start writing…';
 function buildImageExtension(
   resolver: ImageUrlResolver | undefined,
   currentFilePath: string | undefined,
-  rawFileBaseUrl: string | undefined,
+  rawFileBaseUrl: string | undefined
 ) {
   const base = TiptapImage.configure({
     inline: false,
@@ -59,7 +60,7 @@ function buildImageExtension(
       return {
         ...parentAttrs,
         src: {
-          ...(parentAttrs as Record<string, unknown>).src as object,
+          ...((parentAttrs as Record<string, unknown>).src as object),
           default: null,
           renderHTML: (attributes: Record<string, unknown>) => {
             const src = typeof attributes.src === 'string' ? attributes.src : undefined;
@@ -137,6 +138,7 @@ export function MarkdownWysiwygEditor({
         },
       }),
       buildImageExtension(imageUrlResolver, currentFilePath, rawFileBaseUrl),
+      CodeBlockLanguagePill,
     ],
     onUpdate({ editor: updatedEditor, transaction }) {
       if (!transaction.docChanged) return;

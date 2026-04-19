@@ -18,8 +18,8 @@ import { Image as TiptapImage } from '@tiptap/extension-image';
 import { Link as TiptapLink } from '@tiptap/extension-link';
 import { Editor } from '@tiptap/react';
 import { StarterKit } from '@tiptap/starter-kit';
-import { describe, expect, it } from 'vitest';
 import { Markdown } from 'tiptap-markdown';
+import { describe, expect, it } from 'vitest';
 
 import {
   WYSIWYG_TOOLBAR_ACTIONS,
