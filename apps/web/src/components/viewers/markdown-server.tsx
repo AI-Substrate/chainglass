@@ -18,6 +18,7 @@
 
 import rehypeShiki from '@shikijs/rehype';
 import { MarkdownAsync } from 'react-markdown';
+import remarkFrontmatter from 'remark-frontmatter';
 import remarkGfm from 'remark-gfm';
 
 import { remarkMermaid } from '../../lib/remark-mermaid';
@@ -43,7 +44,7 @@ export async function MarkdownServer({ content }: MarkdownServerProps) {
   return (
     <article className="prose dark:prose-invert max-w-none">
       <MarkdownAsync
-        remarkPlugins={[remarkGfm, remarkMermaid]}
+        remarkPlugins={[[remarkFrontmatter, ['yaml']], remarkGfm, remarkMermaid]}
         rehypePlugins={[
           [
             rehypeShiki,

@@ -146,6 +146,8 @@ function MarkdownWysiwygEditorInner({
   });
 
   // Sync `value` → editor content.
+  // Uses addToHistory:false so external state loads (initial + prop changes)
+  // don't pollute the undo stack — Ctrl+Z should only undo user edits.
   useEffect(() => {
     if (!editor) return;
     if (value === lastRenderedValueRef.current) return;
@@ -153,7 +155,14 @@ function MarkdownWysiwygEditorInner({
       const { frontMatter, body } = splitFrontMatter(value);
       frontMatterRef.current = frontMatter;
       lastRenderedValueRef.current = value;
-      editor.commands.setContent(body, false);
+      editor
+        .chain()
+        .command(({ tr }) => {
+          tr.setMeta('addToHistory', false);
+          return true;
+        })
+        .setContent(body, false)
+        .run();
     } catch (err) {
       setRuntimeError(err instanceof Error ? err.message : 'Failed to set editor content');
     }

@@ -476,7 +476,7 @@ export function FileViewerPanel({
               />
               <div
                 ref={richMountRef}
-                className="md-wysiwyg-editor-mount flex-1 min-h-0 overflow-auto"
+                className="md-wysiwyg-editor-mount flex-1 min-h-0 overflow-auto p-4"
                 data-emitted-markdown={currentContent}
               >
                 <MarkdownWysiwygEditorLazy
