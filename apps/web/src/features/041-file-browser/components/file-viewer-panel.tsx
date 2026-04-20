@@ -487,6 +487,7 @@ export function FileViewerPanel({
                   rawFileBaseUrl={rawFileBaseUrl}
                   onEditorReady={handleRichEditorReady}
                   onOpenLinkDialog={handleOpenLinkDialog}
+                  onFallback={() => onModeChange('source')}
                 />
               </div>
               <LinkPopover

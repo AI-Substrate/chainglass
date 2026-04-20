@@ -77,6 +77,11 @@ export interface MarkdownWysiwygEditorProps {
    * the Tiptap Link extension.
    */
   onOpenLinkDialog?: () => void;
+  /**
+   * Phase 6 / T006: Called when the editor fails to mount or encounters
+   * a post-mount error. FileViewerPanel wires this to switch back to Source mode.
+   */
+  onFallback?: () => void;
 }
 
 /**

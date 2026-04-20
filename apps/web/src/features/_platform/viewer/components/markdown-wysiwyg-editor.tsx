@@ -3,189 +3,173 @@
 /**
  * MarkdownWysiwygEditor — Tiptap-backed WYSIWYG editor for markdown.
  *
- * Phase 1: scaffolds the core editing surface. No toolbar (Phase 2),
- * no link popover (Phase 3), and YAML front-matter is passed through
- * unsplit (Phase 4 replaces the passthrough with real YAML split/rejoin).
- *
  * Contract:
  *   - onChange fires ONLY when the user edits (Tiptap transaction.docChanged === true).
- *     Mounting, remounting with the same value, or changing unrelated props
- *     does NOT emit. This preserves bit-identical round-trip for unedited files.
- *   - editor.destroy() is called on unmount (managed by @tiptap/react's useEditor,
- *     plus an explicit cleanup as belt-and-suspenders per Tiptap common pitfall).
+ *   - editor.destroy() is called on unmount.
+ *   - If Tiptap fails to mount or a post-mount error occurs, the fallback UI renders
+ *     with a "Switch to Source mode" button (Phase 6 / T006, AC-18).
  *
- * Extensions:
- *   StarterKit + tiptap-markdown + Placeholder + Link + Image (read-only rendering).
- *   Code-block-lowlight is deliberately NOT included (130 KB gz budget).
- *
- * Image handling: when `imageUrlResolver` is provided, image src attributes
- * are rewritten at render time via the shared resolver — same logic as Preview.
+ * Extensions built by `buildMarkdownExtensions()` (extracted Phase 6 / T002).
  */
 
-import { Image as TiptapImage } from '@tiptap/extension-image';
-import { Link as TiptapLink } from '@tiptap/extension-link';
-import { Placeholder } from '@tiptap/extension-placeholder';
 import { EditorContent, useEditor } from '@tiptap/react';
-import { StarterKit } from '@tiptap/starter-kit';
 import { useTheme } from 'next-themes';
-import { useEffect, useRef } from 'react';
-import { Markdown } from 'tiptap-markdown';
+import { Component, type ErrorInfo, type ReactNode, useEffect, useRef, useState } from 'react';
 
-import { CodeBlockLanguagePill } from '../lib/code-block-language-pill';
+import { Button } from '@/components/ui/button';
+
+import { buildMarkdownExtensions } from '../lib/build-markdown-extensions';
 import { joinFrontMatter, splitFrontMatter } from '../lib/markdown-frontmatter';
-import { sanitizeLinkHref } from '../lib/sanitize-link-href';
-import type { ImageUrlResolver, MarkdownWysiwygEditorProps } from '../lib/wysiwyg-extensions';
+import type { MarkdownWysiwygEditorProps } from '../lib/wysiwyg-extensions';
 
-const DEFAULT_PLACEHOLDER = 'Start writing…';
+// ---------------------------------------------------------------------------
+// Error Boundary — catches both mount and post-mount rendering errors
+// ---------------------------------------------------------------------------
 
-/**
- * Builds a read-only Image extension whose rendered `src` routes through
- * the provided resolver. When the resolver returns null, the original src
- * is preserved (external URLs, data URLs, etc.).
- */
-function buildImageExtension(
-  resolver: ImageUrlResolver | undefined,
-  currentFilePath: string | undefined,
-  rawFileBaseUrl: string | undefined
-) {
-  const base = TiptapImage.configure({
-    inline: false,
-    HTMLAttributes: { class: 'md-inline-image' },
-  });
-  if (!resolver) return base;
-
-  return base.extend({
-    addAttributes() {
-      const parentAttrs = this.parent?.() ?? {};
-      return {
-        ...parentAttrs,
-        src: {
-          ...((parentAttrs as Record<string, unknown>).src as object),
-          default: null,
-          renderHTML: (attributes: Record<string, unknown>) => {
-            const src = typeof attributes.src === 'string' ? attributes.src : undefined;
-            if (!src) return {};
-            const resolved = resolver({ src, currentFilePath, rawFileBaseUrl });
-            return { src: resolved ?? src };
-          },
-        },
-      };
-    },
-  });
+interface ErrorBoundaryProps {
+  onFallback?: () => void;
+  fallbackClassName: string;
+  children: ReactNode;
 }
 
-export function MarkdownWysiwygEditor({
+interface ErrorBoundaryState {
+  error: string | null;
+}
+
+class EditorErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  state: ErrorBoundaryState = { error: null };
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { error: error.message || 'Unknown editor error' };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    // Log for debugging — don't swallow the error silently.
+    console.error('[MarkdownWysiwygEditor] Caught error:', error, info);
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <FallbackPanel
+          error={this.state.error}
+          onFallback={this.props.onFallback}
+          className={this.props.fallbackClassName}
+        />
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Fallback Panel — shown when editor fails
+// ---------------------------------------------------------------------------
+
+function FallbackPanel({
+  error,
+  onFallback,
+  className,
+}: {
+  error: string;
+  onFallback?: () => void;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`flex flex-col items-center justify-center gap-4 p-8 text-center ${className ?? ''}`}
+      data-testid="md-wysiwyg-fallback"
+    >
+      <h3 className="text-lg font-semibold">Rich mode couldn&apos;t load this file.</h3>
+      <p className="text-sm text-muted-foreground max-w-md">{error}</p>
+      {onFallback && (
+        <Button variant="outline" onClick={onFallback} data-testid="md-wysiwyg-fallback-source-btn">
+          Switch to Source mode
+        </Button>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Inner Editor — the actual Tiptap editor (wrapped by error boundary above)
+// ---------------------------------------------------------------------------
+
+function MarkdownWysiwygEditorInner({
   value,
   onChange,
   readOnly = false,
-  placeholder = DEFAULT_PLACEHOLDER,
+  placeholder,
   imageUrlResolver,
   currentFilePath,
   rawFileBaseUrl,
   className,
   onEditorReady,
   onOpenLinkDialog,
+  onFallback,
 }: MarkdownWysiwygEditorProps) {
   const { resolvedTheme } = useTheme();
+  const [runtimeError, setRuntimeError] = useState<string | null>(null);
 
-  // Tracks the last `value` the editor was loaded with. Guards against
-  // cascading setContent calls from unrelated parent re-renders.
   const lastRenderedValueRef = useRef<string | null>(null);
-
-  // Latest onChange reference — kept in a ref so the Tiptap onUpdate handler
-  // captured at mount doesn't go stale when the parent passes a new callback.
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
-
-  // Same ref pattern for onEditorReady — parent re-render with a new callback
-  // identity must not re-fire the ready effect (it only re-fires on editor change).
   const onEditorReadyRef = useRef(onEditorReady);
   onEditorReadyRef.current = onEditorReady;
-
-  // Ref-stable link dialog opener — captured once inside the Tiptap Link
-  // extension's `addKeyboardShortcuts` closure so callback-identity changes
-  // from the parent don't require re-registering extensions (which would
-  // thrash useEditor's dependency array).
   const onOpenLinkDialogRef = useRef(onOpenLinkDialog);
   onOpenLinkDialogRef.current = onOpenLinkDialog;
-
   const frontMatterRef = useRef<string>('');
 
   const editor = useEditor({
     immediatelyRender: false,
     editable: !readOnly,
-    extensions: [
-      StarterKit,
-      Markdown.configure({ html: false, transformPastedText: true }),
-      Placeholder.configure({ placeholder }),
-      TiptapLink.configure({
-        openOnClick: false,
-        autolink: false,
-        // Allow-list at the Tiptap layer too — defense-in-depth so a
-        // programmatic `setLink({ href: 'javascript:…' })` is refused
-        // even if the popover is bypassed.
-        protocols: ['http', 'https', 'mailto'],
-        isAllowedUri: (url: string) => sanitizeLinkHref(url).ok,
-      }).extend({
-        addKeyboardShortcuts() {
-          return {
-            'Mod-k': () => {
-              if (!this.editor.isEditable) return false;
-              onOpenLinkDialogRef.current?.();
-              return true;
-            },
-          };
-        },
-      }),
-      buildImageExtension(imageUrlResolver, currentFilePath, rawFileBaseUrl),
-      CodeBlockLanguagePill,
-    ],
+    extensions: buildMarkdownExtensions({
+      placeholder,
+      imageUrlResolver,
+      currentFilePath,
+      rawFileBaseUrl,
+      onOpenLinkDialog: () => onOpenLinkDialogRef.current?.(),
+    }),
     onUpdate({ editor: updatedEditor, transaction }) {
       if (!transaction.docChanged) return;
-      // tiptap-markdown exposes a markdown serializer via editor.storage.markdown.
-      const storage = (updatedEditor.storage as { markdown?: { getMarkdown: () => string } })
-        .markdown;
-      const bodyMarkdown = storage?.getMarkdown() ?? '';
-      const assembled = joinFrontMatter(frontMatterRef.current, bodyMarkdown);
-      lastRenderedValueRef.current = assembled;
-      onChangeRef.current(assembled);
+      try {
+        const storage = (updatedEditor.storage as { markdown?: { getMarkdown: () => string } })
+          .markdown;
+        const bodyMarkdown = storage?.getMarkdown() ?? '';
+        const assembled = joinFrontMatter(frontMatterRef.current, bodyMarkdown);
+        lastRenderedValueRef.current = assembled;
+        onChangeRef.current(assembled);
+      } catch (err) {
+        setRuntimeError(err instanceof Error ? err.message : 'Post-mount editor error');
+      }
     },
   });
 
-  // Sync `value` → editor content. Uses a ref-based equality check so that
-  // same-value parent re-renders do not trigger setContent (which would
-  // thrash the DOM and could break the onChange-on-docChanged contract).
+  // Sync `value` → editor content.
   useEffect(() => {
     if (!editor) return;
     if (value === lastRenderedValueRef.current) return;
-
-    const { frontMatter, body } = splitFrontMatter(value);
-    frontMatterRef.current = frontMatter;
-    lastRenderedValueRef.current = value;
-
-    // emitUpdate === false → prevents this sync from triggering onUpdate.
-    // Without it, AC-08 (no onChange on mount) would fail.
-    editor.commands.setContent(body, false);
+    try {
+      const { frontMatter, body } = splitFrontMatter(value);
+      frontMatterRef.current = frontMatter;
+      lastRenderedValueRef.current = value;
+      editor.commands.setContent(body, false);
+    } catch (err) {
+      setRuntimeError(err instanceof Error ? err.message : 'Failed to set editor content');
+    }
   }, [editor, value]);
 
-  // Sync readOnly → editor.setEditable.
   useEffect(() => {
     if (!editor) return;
     editor.setEditable(!readOnly);
   }, [editor, readOnly]);
 
-  // Belt-and-suspenders destroy on unmount. @tiptap/react's useEditor cleans
-  // up automatically, but an explicit destroy guards against future upstream
-  // changes to the library and makes the lifecycle explicit.
   useEffect(() => {
     return () => {
       editor?.destroy();
     };
   }, [editor]);
 
-  // Expose the Editor instance to the parent once it's ready. Fires when
-  // `editor` transitions from null (immediatelyRender: false gap) to a live
-  // instance; consumers manage their own cleanup on unmount (setState pattern).
   useEffect(() => {
     onEditorReadyRef.current?.(editor);
   }, [editor]);
@@ -198,10 +182,12 @@ export function MarkdownWysiwygEditor({
     .filter(Boolean)
     .join(' ');
 
+  // Post-mount runtime error — render fallback.
+  if (runtimeError) {
+    return <FallbackPanel error={runtimeError} onFallback={onFallback} className={wrapperClass} />;
+  }
+
   if (!editor) {
-    // Rendering path during SSR / first paint before immediatelyRender resolves.
-    // Minimal placeholder keeps the smoke test from hard-crashing; full
-    // error-fallback UI arrives in Phase 6 (AC-18).
     return <div className={wrapperClass} data-testid="md-wysiwyg-loading" />;
   }
 
@@ -209,5 +195,30 @@ export function MarkdownWysiwygEditor({
     <div className={wrapperClass} data-testid="md-wysiwyg-root">
       <EditorContent editor={editor} />
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Public export — wraps the inner editor in an error boundary
+// ---------------------------------------------------------------------------
+
+export function MarkdownWysiwygEditor(props: MarkdownWysiwygEditorProps) {
+  const { resolvedTheme } = useTheme();
+  const wrapperClass = [
+    'md-wysiwyg prose max-w-none',
+    resolvedTheme === 'dark' ? 'dark:prose-invert' : '',
+    props.className ?? '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  return (
+    <EditorErrorBoundary
+      key={props.currentFilePath ?? '__no-file'}
+      onFallback={props.onFallback}
+      fallbackClassName={wrapperClass}
+    >
+      <MarkdownWysiwygEditorInner {...props} />
+    </EditorErrorBoundary>
   );
 }

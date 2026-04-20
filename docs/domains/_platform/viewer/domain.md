@@ -6,6 +6,7 @@
 **Created By**: extracted from existing codebase (Plan 006-web-extras)
 **Status**: active
 **C4 Diagram**: [C4 Component](../../../c4/components/_platform/viewer.md)
+**User Guide**: [Markdown WYSIWYG Editor](../../../how/markdown-wysiwyg.md)
 
 ## Purpose
 
@@ -23,9 +24,21 @@ Reusable rendering primitives for displaying code, markdown, and git diffs. Prov
 - Headless state hooks (useFileViewerState, useMarkdownViewerState, useDiffViewerState)
 - ViewerFile interface and DiffError types
 - highlight server action (highlightCodeAction)
+- WYSIWYG markdown editor (`MarkdownWysiwygEditor` — Tiptap-backed, lazy-loaded)
+- WYSIWYG editor lazy wrapper (`MarkdownWysiwygEditorLazy` — dynamic import boundary)
+- WYSIWYG toolbar (`WysiwygToolbar` — 16-button toolbar with active/disabled states)
+- Link insertion popover (`LinkPopover` — desktop popover + mobile bottom-sheet)
+- WYSIWYG extension types (`wysiwyg-extensions.ts` — type-only module)
+- WYSIWYG toolbar config (`wysiwyg-toolbar-config.ts` — action definitions)
+- Link URL sanitizer (`sanitize-link-href.ts` — allow-list scheme validation)
+- Front-matter codec (`markdown-frontmatter.ts` — `splitFrontMatter` / `joinFrontMatter`)
+- Table detection (`markdown-has-tables.ts` — GFM table heuristic)
+- Rich mode size cap (`rich-size-cap.ts` — 200 KB threshold)
+- Image URL resolver (`image-url.ts` — shared by Preview and Rich)
+- Code block language pill (`code-block-language-pill.ts` — internal decoration)
+- Extension factory (`build-markdown-extensions.ts` — runtime Tiptap extension builder)
 
 ### Does NOT Own
-- CodeMirror editor (editing is `file-browser` domain concern)
 - Git diff DATA fetching (getGitDiff action — viewer receives diff string as prop)
 - File reading / file system operations — that's `_platform/file-ops`
 - Page routing or URL state — viewers are embedded in pages, not routed themselves
@@ -43,6 +56,13 @@ Reusable rendering primitives for displaying code, markdown, and git diffs. Prov
 | `DiffError` | Type | DiffViewer consumers | `'not-git' \| 'no-changes' \| 'git-not-available' \| null` |
 | `detectContentType()` | Function | file-browser | `(filename) → { category, mimeType }` |
 | `isBinaryExtension()` | Function | file-browser | `(filename) → boolean` |
+| `MarkdownWysiwygEditor` | Component | file-browser | `<MarkdownWysiwygEditorLazy value={string} onChange={fn} />` — Tiptap WYSIWYG editor for `.md` files, lazy-loaded |
+| `splitFrontMatter` | Function | file-browser, roundtrip tests | `(md) → { frontMatter, body }` — YAML front-matter codec |
+| `joinFrontMatter` | Function | file-browser, roundtrip tests | `(fm, body) → string` — YAML front-matter rejoin |
+| `resolveImageUrl` | Function | file-browser | `(src, currentFilePath, rawFileBaseUrl) → string \| null` — shared image URL resolver |
+| `exceedsRichSizeCap` | Function | file-browser | `(content) → boolean` — 200 KB threshold check |
+| `hasTables` | Function | file-browser | `(md) → boolean` — GFM table detection |
+| `buildMarkdownExtensions` | Function | roundtrip tests | `(config?) → Extension[]` — headless-safe Tiptap extension factory |
 
 ## Composition (Internal)
 
@@ -56,6 +76,15 @@ Reusable rendering primitives for displaying code, markdown, and git diffs. Prov
 | `shiki-processor` | Server-side syntax highlighter | `shiki` (npm), lazy singleton |
 | `detectLanguage()` | File extension → language mapping | Nothing (pure function) |
 | Headless hooks | State management | `viewer-state-utils` base factory |
+| `MarkdownWysiwygEditor` | Tiptap WYSIWYG markdown editor | `buildMarkdownExtensions`, `markdown-frontmatter`, `useEditor` (@tiptap/react) |
+| `MarkdownWysiwygEditorLazy` | Dynamic import wrapper | `next/dynamic`, `MarkdownWysiwygEditor` |
+| `WysiwygToolbar` | 16-button formatting toolbar | Tiptap `Editor` instance, `wysiwyg-toolbar-config` |
+| `LinkPopover` | Link insert/edit popover | `sanitize-link-href`, Radix Popover + shadcn Sheet |
+| `buildMarkdownExtensions` | Runtime extension factory | StarterKit, tiptap-markdown, Link, Image, Placeholder, CodeBlockLanguagePill |
+| `markdown-frontmatter` | YAML front-matter codec | Nothing (pure function) |
+| `markdown-has-tables` | GFM table detector | Nothing (pure function) |
+| `rich-size-cap` | 200 KB threshold | TextEncoder |
+| `sanitize-link-href` | URL allow-list validator | Nothing (pure function) |
 
 ## Source Location
 
@@ -78,6 +107,27 @@ Primary: `apps/web/src/components/viewers/` + `apps/web/src/lib/server/` + `apps
 | `packages/shared/src/interfaces/viewer.interface.ts` | ViewerFile interface | Shared type |
 | `packages/shared/src/interfaces/diff.interface.ts` | DiffError type | Shared type |
 | `apps/web/src/lib/content-type-detection.ts` | detectContentType + isBinaryExtension | Content type detection |
+| `apps/web/src/features/_platform/viewer/components/markdown-wysiwyg-editor.tsx` | MarkdownWysiwygEditor | Client Component (lazy-loaded) |
+| `apps/web/src/features/_platform/viewer/components/markdown-wysiwyg-editor-lazy.tsx` | Dynamic import wrapper | Client Component |
+| `apps/web/src/features/_platform/viewer/components/wysiwyg-toolbar.tsx` | WysiwygToolbar | Client Component |
+| `apps/web/src/features/_platform/viewer/components/link-popover.tsx` | LinkPopover | Client Component |
+| `apps/web/src/features/_platform/viewer/lib/wysiwyg-extensions.ts` | Type-only module | Types for editor, toolbar, actions |
+| `apps/web/src/features/_platform/viewer/lib/wysiwyg-toolbar-config.ts` | Toolbar action definitions | Pure data |
+| `apps/web/src/features/_platform/viewer/lib/build-markdown-extensions.ts` | Runtime extension factory | Pure function |
+| `apps/web/src/features/_platform/viewer/lib/sanitize-link-href.ts` | URL sanitizer | Pure function |
+| `apps/web/src/features/_platform/viewer/lib/markdown-frontmatter.ts` | Front-matter codec | Pure function |
+| `apps/web/src/features/_platform/viewer/lib/markdown-has-tables.ts` | GFM table detector | Pure function |
+| `apps/web/src/features/_platform/viewer/lib/rich-size-cap.ts` | Size threshold | Pure function |
+| `apps/web/src/features/_platform/viewer/lib/image-url.ts` | Image URL resolver | Pure function |
+| `apps/web/src/features/_platform/viewer/lib/code-block-language-pill.ts` | Language pill decoration | Internal (not exported from barrel) |
+
+## Concepts
+
+| Concept | Entry Point | Description |
+|---------|-------------|-------------|
+| **WYSIWYG Markdown Editing** | `MarkdownWysiwygEditorLazy` | Tiptap-backed editor that parses markdown in, emits markdown out. Split front-matter before parse, rejoin after serialize. `onChange` only fires on user edits (AC-08). Lazy-loaded via `dynamic(...)` to keep the 125 KB Tiptap bundle out of the eager path. |
+| **Formatting Toolbar** | `WysiwygToolbar` | 16-button toolbar driven by a Tiptap `Editor` instance. Each button maps to a `ToolbarAction` with `isActive`/`isDisabled` predicates. `aria-pressed` + `role="toolbar"` for accessibility. Config in `wysiwyg-toolbar-config.ts`. |
+| **Link Insertion** | `LinkPopover` | Desktop popover + mobile bottom-sheet for insert/edit/unlink. URL validated by `sanitize-link-href.ts` (allow-list: http/https/mailto). Anchored to the toolbar Link button via Radix `PopoverAnchor virtualRef`. |
 
 ## Dependencies
 
@@ -86,6 +136,8 @@ Primary: `apps/web/src/components/viewers/` + `apps/web/src/lib/server/` + `apps
 - `react-markdown` + `@shikijs/rehype` — markdown rendering
 - `@git-diff-view/react` + `@git-diff-view/shiki` — diff rendering
 - `_platform/file-ops` — indirectly (Shiki reads files server-side)
+- `@tiptap/core` + `@tiptap/react` + `@tiptap/starter-kit` + `tiptap-markdown` — WYSIWYG editor (lazy-loaded)
+- `@tiptap/extension-image` + `@tiptap/extension-link` + `@tiptap/extension-placeholder` — Tiptap extensions
 
 ### Domains That Depend On This
 - `file-browser` — integrates FileViewer, MarkdownViewer, DiffViewer in the viewer panel
@@ -104,3 +156,4 @@ Primary: `apps/web/src/components/viewers/` + `apps/web/src/lib/server/` + `apps
 | Plan 083-md-editor / Phase 4 | Added three pure-utility modules — `lib/markdown-frontmatter.ts` (`splitFrontMatter`/`joinFrontMatter` — BOM + CRLF tolerant, 500-line scan cap, setext-`---`-in-body safe, forward + reverse round-trip invariant documented in JSDoc); `lib/markdown-has-tables.ts` (`hasTables` — GFM detector with fence-type pairing so ``` inside ~~~ correctly stays fenced, rejects 4-space-indented tables as CommonMark code blocks, accepts alignment colons); `lib/rich-size-cap.ts` (`RICH_MODE_SIZE_CAP_BYTES = 200_000` with decimal-KB-not-KiB disambiguation JSDoc + `exceedsRichSizeCap` via `TextEncoder`). Wired the fm codec into `markdown-wysiwyg-editor.tsx`, replacing the Phase 1 passthrough stubs; added a lifecycle-safety test that mounts fm-bearing content, triggers a real edit via `editor.commands.insertContent`, and asserts the emitted onChange starts with the original front-matter — closes the silent-data-loss path that pure unit tests cannot detect (Finding 03, FC-validator Issue 4). Extended barrel with 5 new exports consumed by Phase 5. 148/148 unit tests green (59 new: 34 frontmatter + 18 has-tables + 7 rich-size-cap). Harness smoke: desktop + tablet green with new fm-round-trip assertions proving end-to-end fm preservation through a real edit. | 2026-04-19 |
 | Plan 041 Phase 4 | Extracts `detectLanguage()` as shared utility (DYK-P4-05), integrates viewers in file browser | 2026-02-24 |
 | Plan 046 | Added detectContentType() and isBinaryExtension() content type utilities | 2026-02-24 |
+| Plan 083-md-editor / Phase 6 | Extracted `buildMarkdownExtensions()` runtime factory from inline extensions (T002); added `EditorErrorBoundary` + fallback panel with "Switch to Source mode" button (T006, AC-18); wired `onFallback` prop through lazy wrapper to `FileViewerPanel`; reconciled domain.md — added Owns/Contracts/Composition/Source/Concepts entries for all WYSIWYG components, removed stale "Does NOT Own: CodeMirror" line (Finding 02, F005); published user guide at `docs/how/markdown-wysiwyg.md`. | 2026-04-20 |
