@@ -264,3 +264,4 @@ From spec, all 15:
 | [FX001](fixes/FX001-close-dev-loop.md) | 2026-03-24 | Close the agent development loop — host-default wf-*, wf-watch, AGENTS.md playbook | _(harness)_, docs | Complete | Workshop 010 |
 | [FX002](fixes/FX002-unified-execution-logs.md) | 2026-03-26 | Unified workflow execution logs — timeline, diagnostics, cg wf logs, just wf-logs | positional-graph, workflow-ui, _(harness)_, docs | Complete | Workshop 012 |
 | [FX003](fixes/FX003-pod-timeout-ui-diagnostics.md) | 2026-03-29 | Pod timeout, stuck detection, UI diagnostics, server.json fix | positional-graph, shared, workflow-ui, _(harness)_ | Proposed | Workshops 009/011/013 |
+| [FX004](fixes/FX004-check-route-mobile-fix.md) | 2026-04-20 | Harness check-route command + mobile viewer auto-switch | _(harness)_, file-browser | Proposed | Plan 083 Phase 6 code review magic wand + D008 |

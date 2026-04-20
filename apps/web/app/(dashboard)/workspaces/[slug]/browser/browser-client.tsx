@@ -122,12 +122,20 @@ function BrowserClientInner({
   const lastFileSelectionRef = useRef<{ filePath: string; at: number } | null>(null);
 
   // FX002: Mobile view index from URL param (for terminal redirect landing)
+  // FX004: Auto-switch to Content (1) when file param present and mobileView absent
   const [mobileActiveIndex, setMobileActiveIndex] = useState(() => {
     if (typeof window === 'undefined') return 0;
-    const raw = new URLSearchParams(window.location.search).get('mobileView');
-    if (raw == null) return 0;
-    const parsed = Number.parseInt(raw, 10);
-    return Number.isNaN(parsed) ? 0 : Math.max(0, Math.min(parsed, 2));
+    const search = new URLSearchParams(window.location.search);
+    const raw = search.get('mobileView');
+    if (raw != null) {
+      const parsed = Number.parseInt(raw, 10);
+      return Number.isNaN(parsed) ? 0 : Math.max(0, Math.min(parsed, 2));
+    }
+    // FX004: If a file is selected via URL but no explicit mobileView,
+    // auto-switch to Content tab so the viewer is visible.
+    const fileParam = search.get('file');
+    if (fileParam) return 1;
+    return 0;
   });
 
   // Phase 3 T005: Explorer Sheet state (controlled open/close)
