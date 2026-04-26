@@ -508,3 +508,39 @@
     background: none !important;
   }
 }
+
+/*
+ * WYSIWYG markdown editor — placeholder rendering for the empty-first-paragraph
+ * state (workshop § 6.2). Scoped to `.md-wysiwyg` to avoid leaking to any future
+ * Tiptap editor mounted elsewhere in the app.
+ */
+.md-wysiwyg .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: hsl(var(--muted-foreground));
+  pointer-events: none;
+  float: left;
+  height: 0;
+}
+
+/*
+ * Language pill — read-only decoration positioned top-right of a <pre> code block.
+ * Plan 083-md-editor / Phase 5 T007 / AC-12. Pill is rendered via a ProseMirror
+ * widget decoration inside the <pre>, so `position: absolute` resolves against
+ * `.md-wysiwyg pre` (which gets `position: relative` below).
+ */
+.md-wysiwyg pre {
+  position: relative;
+}
+.md-wysiwyg-code-lang-pill {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+  pointer-events: none;
+  user-select: none;
+}

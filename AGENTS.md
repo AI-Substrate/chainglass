@@ -461,6 +461,32 @@ just agent-tail <slug>                     # Follow running agent's event stream
 just agent-history <slug>                  # Show past runs
 just agent-last-run <slug>                 # Latest run path + report
 just agent-validate <slug>                 # Re-validate latest output
+
+#### Reading minih agent progress (IMPORTANT for automated agents)
+
+`just agent-tail` (aka `minih tail <slug>`) is a **streaming command** — it follows events in real time and never exits on its own. Running it backgrounded or via a tool that captures stdout in a buffer will return immediately with no useful output. **Do not background `agent-tail`.** Pick one of these patterns instead:
+
+```bash
+# Pattern 1 — one-shot status snapshot (preferred for automation)
+just agent-last-run code-review
+# Fields: runId, runDir, reportPath, result (ok | unknown | failed)
+# "unknown" means the run is still in flight.
+
+# Pattern 2 — read the in-progress report while the agent is still running
+cat $(just agent-report code-review) | jq '.verdict, .findings[].severity, .retrospective.magicWand'
+
+# Pattern 3 — inspect the structured event stream directly
+RUN_DIR=$(just agent-last-run code-review | jq -r .data.runDir)
+tail -n 50 "$RUN_DIR/events.ndjson" | jq -r 'select(.data.originalType=="skill.invoked" or .data.originalType=="subagent.started" or .data.originalType=="subagent.completed")'
+
+# Pattern 4 — if you really want live tail output in a foreground buffer,
+# constrain it with head or a timeout so the command actually returns:
+timeout 10 just agent-tail code-review | head -200
+```
+
+**How to know when an agent is done**: `just agent-last-run <slug>` returns `result: "ok"` (or `"failed"`) — as long as it says `"unknown"`, the process is still running. Check process presence with `ps aux | grep minih` if in doubt.
+
+**Retrospective + Magic Wand**: every agent's `output/report.json` has a `retrospective` object with `workedWell`, `confusing`, `magicWand`, `magicWandTarget`, `cliDiscoverability`, `improvementSuggestions`, and `difficulties[]`. Always surface these when reporting agent results — the Magic Wand is the canonical "what friction did this run hit" signal and feeds the next sprint's fix tasks.
 just agent-resume <slug> "message"         # Follow up on a completed session
 
 # Code Review Agent — auto-run after /plan-6-v2-implement-phase

@@ -23,6 +23,7 @@ import { useFileMutations } from '@/features/041-file-browser/hooks/use-file-mut
 import { useFileNavigation } from '@/features/041-file-browser/hooks/use-file-navigation';
 import { useFlowspaceSearch } from '@/features/041-file-browser/hooks/use-flowspace-search';
 import { useGitGrepSearch } from '@/features/041-file-browser/hooks/use-git-grep-search';
+import { useLegacyModeCoercion } from '@/features/041-file-browser/hooks/use-legacy-mode-coercion';
 import { usePanelState } from '@/features/041-file-browser/hooks/use-panel-state';
 import { useTreeDirectoryChanges } from '@/features/041-file-browser/hooks/use-tree-directory-changes';
 import { useWorkspaceContext } from '@/features/041-file-browser/hooks/use-workspace-context';
@@ -121,12 +122,20 @@ function BrowserClientInner({
   const lastFileSelectionRef = useRef<{ filePath: string; at: number } | null>(null);
 
   // FX002: Mobile view index from URL param (for terminal redirect landing)
+  // FX004: Auto-switch to Content (1) when file param present and mobileView absent
   const [mobileActiveIndex, setMobileActiveIndex] = useState(() => {
     if (typeof window === 'undefined') return 0;
-    const raw = new URLSearchParams(window.location.search).get('mobileView');
-    if (raw == null) return 0;
-    const parsed = Number.parseInt(raw, 10);
-    return Number.isNaN(parsed) ? 0 : Math.max(0, Math.min(parsed, 2));
+    const search = new URLSearchParams(window.location.search);
+    const raw = search.get('mobileView');
+    if (raw != null) {
+      const parsed = Number.parseInt(raw, 10);
+      return Number.isNaN(parsed) ? 0 : Math.max(0, Math.min(parsed, 2));
+    }
+    // FX004: If a file is selected via URL but no explicit mobileView,
+    // auto-switch to Content tab so the viewer is visible.
+    const fileParam = search.get('file');
+    if (fileParam) return 1;
+    return 0;
   });
 
   // Phase 3 T005: Explorer Sheet state (controlled open/close)
@@ -151,10 +160,17 @@ function BrowserClientInner({
   const panelMode = (params.panel as PanelMode) || 'tree';
   const scrollToLine = params.line ?? null;
 
-  // FT-005: Auto-switch to edit mode when line param is present (preview can't scroll)
+  // Plan 083 Phase 5 T002: legacy mode alias coercion. Runs BEFORE the scrollToLine effect so
+  // `?mode=edit&line=42` first normalizes to `?mode=source`, then scrollToLine sees `source`
+  // and no-ops (no thrash). Remove after 1 release.
+  useLegacyModeCoercion(params.mode, setParams);
+
+  // FT-005: Auto-switch to source mode when line param is present (preview can't scroll).
+  // Guard widened to `!source && !rich` so Rich-mode users aren't flipped back to Source by
+  // a late `line` param (plan 083 Phase 5 C1 race guard).
   useEffect(() => {
-    if (scrollToLine != null && scrollToLine > 0 && mode !== 'edit') {
-      setParams({ mode: 'edit' }, { history: 'replace' });
+    if (scrollToLine != null && scrollToLine > 0 && mode !== 'source' && mode !== 'rich') {
+      setParams({ mode: 'source' }, { history: 'replace' });
     }
   }, [scrollToLine, mode, setParams]);
 
@@ -169,7 +185,7 @@ function BrowserClientInner({
     saveFile,
     fetchGitDiff,
     setUrlFile: (file) => setParams({ file, line: null }, { history: 'push' }),
-    setUrlMode: (m) => setParams({ mode: m as 'edit' | 'preview' | 'diff' }),
+    setUrlMode: (m) => setParams({ mode: m as 'source' | 'rich' | 'preview' | 'diff' }),
   });
 
   const panelState = usePanelState({
@@ -470,7 +486,10 @@ function BrowserClientInner({
   const suppressedTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   const isSuppressed = selectedFile ? suppressedTimersRef.current.has(selectedFile) : false;
-  const isDirty = fileNav.editContent != null;
+  const isDirty =
+    fileNav.editContent != null &&
+    fileNav.fileData?.content != null &&
+    fileNav.editContent !== fileNav.fileData.content;
 
   // Determine if we should show banner vs auto-refresh (DYK #3)
   const externallyChanged = selectedFile ? fileChanges.hasChanges && !isSuppressed : false;
@@ -479,7 +498,7 @@ function BrowserClientInner({
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — only trigger on change detection, not every handler reference
   useEffect(() => {
     if (!externallyChanged || !selectedFile) return;
-    if (mode === 'preview' || (mode === 'edit' && !isDirty)) {
+    if (mode === 'preview' || ((mode === 'source' || mode === 'rich') && !isDirty)) {
       fileNav.handleRefreshFile();
       fileChanges.clearChanges();
     }
@@ -527,7 +546,7 @@ function BrowserClientInner({
 
   const handleFileDoubleSelect = useCallback(
     async (filePath: string, wasSelected: boolean) => {
-      if (mode === 'edit') {
+      if (mode === 'source' || mode === 'rich') {
         // Double-click fires after click selection. Only toggle back to preview when the
         // interaction started on the already-open file, so save-before-preview is reliable.
         if (!wasSelected || selectedFile !== filePath) {
@@ -550,7 +569,7 @@ function BrowserClientInner({
         return;
       }
 
-      await fileNav.handleModeChange('edit');
+      await fileNav.handleModeChange('source');
     },
     [
       mode,
@@ -1010,7 +1029,7 @@ function BrowserClientInner({
             codeSearchGraphAge={flowspace.graphAge}
             codeSearchFolders={flowspace.folders}
             onCodeSearchSelect={(filePath, startLine) => {
-              setParams({ file: filePath, line: startLine, mode: 'edit' }, { history: 'push' });
+              setParams({ file: filePath, line: startLine, mode: 'source' }, { history: 'push' });
             }}
             onFlowspaceQueryChange={(query, mode) => {
               setActiveCodeSearchMode(mode);
@@ -1189,7 +1208,7 @@ function BrowserClientInner({
           handleFileSelect(path);
         }}
         onCodeSearchSelect={(filePath, startLine) => {
-          setParams({ file: filePath, line: startLine, mode: 'edit' }, { history: 'push' });
+          setParams({ file: filePath, line: startLine, mode: 'source' }, { history: 'push' });
           setMobileActiveIndex(1);
         }}
         onCommandExecute={recordExecution}

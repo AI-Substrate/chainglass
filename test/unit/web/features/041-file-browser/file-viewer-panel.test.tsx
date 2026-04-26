@@ -56,27 +56,54 @@ describe('FileViewerPanel', () => {
   };
 
   describe('mode toggle', () => {
-    it('renders Edit, Preview, and Diff mode buttons', () => {
+    it('renders Source, Preview, and Diff mode buttons for non-markdown files', () => {
       render(<FileViewerPanel {...baseProps} />);
 
-      expect(screen.getByRole('button', { name: /edit/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /source/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /preview/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /diff/i })).toBeInTheDocument();
+      // Rich mode is markdown-only (plan 083 Phase 5 T004 / AC-01).
+      expect(screen.queryByRole('button', { name: /^rich$/i })).not.toBeInTheDocument();
+    });
+
+    it('renders Source, Rich, Preview, and Diff mode buttons for markdown files', () => {
+      render(<FileViewerPanel {...baseProps} language="markdown" content="# hi" />);
+
+      expect(screen.getByRole('button', { name: /source/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /^rich$/i })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /preview/i })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /diff/i })).toBeInTheDocument();
     });
 
-    it('fires onModeChange when mode button clicked', async () => {
+    it('fires onModeChange when Source button clicked', async () => {
       const user = userEvent.setup();
       const onModeChange = vi.fn();
       render(<FileViewerPanel {...baseProps} onModeChange={onModeChange} />);
 
-      await user.click(screen.getByRole('button', { name: /edit/i }));
-      expect(onModeChange).toHaveBeenCalledWith('edit');
+      await user.click(screen.getByRole('button', { name: /source/i }));
+      expect(onModeChange).toHaveBeenCalledWith('source');
+    });
+
+    it('fires onModeChange with "rich" when Rich button clicked for markdown', async () => {
+      const user = userEvent.setup();
+      const onModeChange = vi.fn();
+      render(
+        <FileViewerPanel
+          {...baseProps}
+          language="markdown"
+          content="# hi"
+          onModeChange={onModeChange}
+        />
+      );
+
+      await user.click(screen.getByRole('button', { name: /^rich$/i }));
+      expect(onModeChange).toHaveBeenCalledWith('rich');
     });
   });
 
   describe('save', () => {
-    it('shows save button in edit mode', () => {
-      render(<FileViewerPanel {...baseProps} mode="edit" />);
+    it('shows save button in source mode', () => {
+      render(<FileViewerPanel {...baseProps} mode="source" />);
 
       expect(screen.getByRole('button', { name: /save/i })).toBeInTheDocument();
     });
@@ -88,15 +115,20 @@ describe('FileViewerPanel', () => {
     });
 
     it('shows conflict error when provided', () => {
-      render(<FileViewerPanel {...baseProps} mode="edit" conflictError="File changed on disk" />);
+      render(<FileViewerPanel {...baseProps} mode="source" conflictError="File changed on disk" />);
 
       expect(screen.getByText(/conflict/i)).toBeInTheDocument();
     });
 
-    it('saves current content on Cmd+S in edit mode', async () => {
+    it('saves current content on Cmd+S in source mode', async () => {
       const onSave = vi.fn();
       render(
-        <FileViewerPanel {...baseProps} mode="edit" editContent="edited content" onSave={onSave} />
+        <FileViewerPanel
+          {...baseProps}
+          mode="source"
+          editContent="edited content"
+          onSave={onSave}
+        />
       );
 
       const editor = await screen.findByTestId('code-editor');
@@ -110,10 +142,15 @@ describe('FileViewerPanel', () => {
       expect(onSave).toHaveBeenCalledWith('edited content');
     });
 
-    it('saves current content on Ctrl+S in edit mode', async () => {
+    it('saves current content on Ctrl+S in source mode', async () => {
       const onSave = vi.fn();
       render(
-        <FileViewerPanel {...baseProps} mode="edit" editContent="edited content" onSave={onSave} />
+        <FileViewerPanel
+          {...baseProps}
+          mode="source"
+          editContent="edited content"
+          onSave={onSave}
+        />
       );
 
       const editor = await screen.findByTestId('code-editor');
@@ -127,7 +164,7 @@ describe('FileViewerPanel', () => {
       expect(onSave).toHaveBeenCalledWith('edited content');
     });
 
-    it('does not save on Cmd+S outside edit mode', () => {
+    it('does not save on Cmd+S outside editable modes', () => {
       const onSave = vi.fn();
       render(<FileViewerPanel {...baseProps} mode="preview" onSave={onSave} />);
 
@@ -184,9 +221,9 @@ describe('FileViewerPanel', () => {
     });
   });
 
-  describe('edit mode', () => {
+  describe('source mode', () => {
     it('renders CodeEditor with file content', async () => {
-      render(<FileViewerPanel {...baseProps} mode="edit" editContent="edited" />);
+      render(<FileViewerPanel {...baseProps} mode="source" editContent="edited" />);
 
       const editor = await screen.findByTestId('code-editor');
       expect(editor).toBeInTheDocument();
@@ -231,7 +268,7 @@ describe('FileViewerPanel', () => {
       render(
         <FileViewerPanel
           {...baseProps}
-          mode="edit"
+          mode="source"
           editContent="some content"
           externallyChanged={true}
         />
@@ -259,7 +296,7 @@ describe('FileViewerPanel', () => {
       render(
         <FileViewerPanel
           {...baseProps}
-          mode="edit"
+          mode="source"
           editContent="some content"
           externallyChanged={true}
           onRefresh={onRefresh}

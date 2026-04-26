@@ -28,6 +28,7 @@ import { registerConsoleLogsCommand } from './commands/console-logs.js';
 import { registerScreenshotAllCommand } from './commands/screenshot-all.js';
 import { registerTestDataCommand } from './commands/test-data.js';
 import { registerWorkflowCommand } from './commands/workflow.js';
+import { registerCheckRouteCommand } from './commands/check-route.js';
 
 const HARNESS_ROOT = path.resolve(import.meta.dirname ?? '.', '../..');
 
@@ -73,6 +74,7 @@ export function createCli(): Command {
   registerAgentCommand(program);
   registerTestDataCommand(program);
   registerWorkflowCommand(program);
+  registerCheckRouteCommand(program);
 
   return program;
 }

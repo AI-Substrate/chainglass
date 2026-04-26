@@ -34,6 +34,10 @@ export const ErrorCodes = {
   AGENT_RUN_FOLDER_FAILED: 'E125',
   // CLI improvement error codes (Plan 070 FX002)
   CONSOLE_LOGS_FAILED: 'E126',
+  // Route check error codes (Plan 076 FX004)
+  ROUTE_CHECK_FAILED: 'E135',
+  ROUTE_WAIT_FOR_TIMEOUT: 'E136',
+  ROUTE_CONSOLE_ERRORS: 'E137',
 } as const;
 
 export type HarnessErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];

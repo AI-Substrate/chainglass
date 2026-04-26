@@ -1,0 +1,1617 @@
+diff --git a/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx b/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
+index afcdfabd..8c5808d5 100644
+--- a/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
++++ b/apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
+@@ -151,10 +151,21 @@ function BrowserClientInner({
+   const panelMode = (params.panel as PanelMode) || 'tree';
+   const scrollToLine = params.line ?? null;
+ 
+-  // FT-005: Auto-switch to edit mode when line param is present (preview can't scroll)
++  // Plan 083 Phase 5 T002: legacy mode alias coercion. Runs BEFORE the scrollToLine effect so
++  // `?mode=edit&line=42` first normalizes to `?mode=source`, then scrollToLine sees `source`
++  // and no-ops (no thrash). Remove after 1 release.
+   useEffect(() => {
+-    if (scrollToLine != null && scrollToLine > 0 && mode !== 'edit') {
+-      setParams({ mode: 'edit' }, { history: 'replace' });
++    if (params.mode === 'edit') {
++      setParams({ mode: 'source' }, { history: 'replace' });
++    }
++  }, [params.mode, setParams]);
++
++  // FT-005: Auto-switch to source mode when line param is present (preview can't scroll).
++  // Guard widened to `!source && !rich` so Rich-mode users aren't flipped back to Source by
++  // a late `line` param (plan 083 Phase 5 C1 race guard).
++  useEffect(() => {
++    if (scrollToLine != null && scrollToLine > 0 && mode !== 'source' && mode !== 'rich') {
++      setParams({ mode: 'source' }, { history: 'replace' });
+     }
+   }, [scrollToLine, mode, setParams]);
+ 
+@@ -169,7 +180,7 @@ function BrowserClientInner({
+     saveFile,
+     fetchGitDiff,
+     setUrlFile: (file) => setParams({ file, line: null }, { history: 'push' }),
+-    setUrlMode: (m) => setParams({ mode: m as 'edit' | 'preview' | 'diff' }),
++    setUrlMode: (m) => setParams({ mode: m as 'source' | 'rich' | 'preview' | 'diff' }),
+   });
+ 
+   const panelState = usePanelState({
+@@ -479,7 +490,7 @@ function BrowserClientInner({
+   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — only trigger on change detection, not every handler reference
+   useEffect(() => {
+     if (!externallyChanged || !selectedFile) return;
+-    if (mode === 'preview' || (mode === 'edit' && !isDirty)) {
++    if (mode === 'preview' || ((mode === 'source' || mode === 'rich') && !isDirty)) {
+       fileNav.handleRefreshFile();
+       fileChanges.clearChanges();
+     }
+@@ -527,7 +538,7 @@ function BrowserClientInner({
+ 
+   const handleFileDoubleSelect = useCallback(
+     async (filePath: string, wasSelected: boolean) => {
+-      if (mode === 'edit') {
++      if (mode === 'source' || mode === 'rich') {
+         // Double-click fires after click selection. Only toggle back to preview when the
+         // interaction started on the already-open file, so save-before-preview is reliable.
+         if (!wasSelected || selectedFile !== filePath) {
+@@ -550,7 +561,7 @@ function BrowserClientInner({
+         return;
+       }
+ 
+-      await fileNav.handleModeChange('edit');
++      await fileNav.handleModeChange('source');
+     },
+     [
+       mode,
+@@ -1010,7 +1021,7 @@ function BrowserClientInner({
+             codeSearchGraphAge={flowspace.graphAge}
+             codeSearchFolders={flowspace.folders}
+             onCodeSearchSelect={(filePath, startLine) => {
+-              setParams({ file: filePath, line: startLine, mode: 'edit' }, { history: 'push' });
++              setParams({ file: filePath, line: startLine, mode: 'source' }, { history: 'push' });
+             }}
+             onFlowspaceQueryChange={(query, mode) => {
+               setActiveCodeSearchMode(mode);
+@@ -1189,7 +1200,7 @@ function BrowserClientInner({
+           handleFileSelect(path);
+         }}
+         onCodeSearchSelect={(filePath, startLine) => {
+-          setParams({ file: filePath, line: startLine, mode: 'edit' }, { history: 'push' });
++          setParams({ file: filePath, line: startLine, mode: 'source' }, { history: 'push' });
+           setMobileActiveIndex(1);
+         }}
+         onCommandExecute={recordExecution}
+diff --git a/apps/web/app/dev/markdown-wysiwyg-smoke/page.tsx b/apps/web/app/dev/markdown-wysiwyg-smoke/page.tsx
+deleted file mode 100644
+index 9d428c72..00000000
+--- a/apps/web/app/dev/markdown-wysiwyg-smoke/page.tsx
++++ /dev/null
+@@ -1,147 +0,0 @@
+-'use client';
+-
+-/**
+- * Dev-only smoke route for Phase 1 + Phase 2 + Phase 3 harness validation.
+- *
+- * Mounts the lazy WYSIWYG editor with a fixed sample markdown string, a
+- * `WysiwygToolbar` sibling wired through `onEditorReady`, and a
+- * `LinkPopover` (Phase 3) composed via shared open-state.
+- *
+- * Phase 1 assertions (T006): h1 renders, img src routes through resolver,
+- * no hydration warnings in console.
+- *
+- * Phase 2 assertions (T008): toolbar `role="toolbar"` present with
+- * 16 buttons; clicking Bold toggles `<strong>`; clicking H2 toggles `<h2>`;
+- * `Mod-Alt-c` chord toggles `<pre><code>`.
+- *
+- * Phase 3 assertions (T008):
+- *   - Click the toolbar Link button → popover opens with role="dialog".
+- *   - Type a URL + Enter → editor DOM contains <a href="…">.
+- *   - Mod-k while caret inside link → popover reopens in Edit mode with
+- *     URL + Text pre-filled; Update submits; Unlink removes the link.
+- *   - Esc closes and returns focus to the opener (toolbar-button vs editor).
+- *   - javascript: URLs rejected with inline error.
+- *   - Mod-k while popover open is swallowed; browser chrome unaffected.
+- *   - Parenthesized URL round-trip preserved byte-for-byte (read via
+- *     data-markdown-output attribute the harness inspects).
+- *
+- * Guarded: in production, the route 404s. Tracked for deletion at Phase 5.11
+- * once the harness smoke migrates onto `FileViewerPanel`.
+- */
+-
+-import type { Editor } from '@tiptap/react';
+-import { notFound } from 'next/navigation';
+-import { useCallback, useEffect, useRef, useState } from 'react';
+-
+-import {
+-  LinkPopover,
+-  MarkdownWysiwygEditorLazy,
+-  WysiwygToolbar,
+-  resolveImageUrl,
+-} from '@/features/_platform/viewer';
+-
+-const SAMPLE_MARKDOWN = '# Hello\n\nSome text.\n\n![alt](./test.png)\n';
+-
+-// Phase 4 / T007: front-matter-bearing fixture used by the fm round-trip
+-// assertion. When the user clicks the toggle button, the editor's `value`
+-// prop switches to this sample. The harness spec then reads
+-// window.__smokeGetMarkdown() before and after a user edit and asserts
+-// the front-matter prefix is preserved byte-for-byte.
+-const SAMPLE_MARKDOWN_FRONTMATTER =
+-  '---\ntitle: Test Doc\ntags:\n  - a\n  - b\n---\n\n# Body\n\nparagraph.\n';
+-
+-export default function MarkdownWysiwygSmokePage() {
+-  if (process.env.NODE_ENV === 'production') {
+-    notFound();
+-  }
+-
+-  const [editor, setEditor] = useState<Editor | null>(null);
+-  const [linkOpen, setLinkOpen] = useState(false);
+-  const [value, setValue] = useState(SAMPLE_MARKDOWN);
+-  const toolbarLinkBtnRef = useRef<HTMLButtonElement | null>(null);
+-  // Phase 4 / T007: captures the most recent onChange argument so the harness
+-  // can read the full assembled markdown (front-matter + body). Ref-based to
+-  // avoid re-rendering on every keystroke (Phase 3 gotcha).
+-  const lastEmittedMarkdownRef = useRef<string>('');
+-
+-  const openLink = useCallback(() => setLinkOpen(true), []);
+-  const toggleFrontmatter = useCallback(
+-    () => setValue(SAMPLE_MARKDOWN_FRONTMATTER),
+-    [],
+-  );
+-  const captureOnChange = useCallback((md: string) => {
+-    lastEmittedMarkdownRef.current = md;
+-  }, []);
+-
+-  // Expose the current serialized markdown to the harness via a global
+-  // hook on window so the round-trip assertion can read it without
+-  // triggering a React re-render on every edit (which disrupted Tiptap
+-  // shortcut timing in Phase 2's assertion).
+-  useEffect(() => {
+-    if (!editor) return;
+-    type WithGetter = Window & {
+-      __smokeGetMarkdown?: () => string;
+-      __smokeGetLastEmittedMarkdown?: () => string;
+-    };
+-    const w = window as WithGetter;
+-    w.__smokeGetMarkdown = () => {
+-      const storage = (editor.storage as { markdown?: { getMarkdown: () => string } })
+-        .markdown;
+-      return storage?.getMarkdown() ?? '';
+-    };
+-    // Phase 4 / T007: authoritative full-output getter — returns the most
+-    // recent argument passed to the parent onChange handler (fm + body
+-    // assembled by the editor's joinFrontMatter path). Proves end-to-end
+-    // that split + ref + join preserves the fm prefix across a real edit.
+-    w.__smokeGetLastEmittedMarkdown = () => lastEmittedMarkdownRef.current;
+-    return () => {
+-      delete w.__smokeGetMarkdown;
+-      delete w.__smokeGetLastEmittedMarkdown;
+-    };
+-  }, [editor]);
+-
+-  return (
+-    <div className="min-h-screen p-8 bg-background text-foreground">
+-      <h2 className="text-xl mb-4" data-testid="smoke-heading">
+-        Markdown WYSIWYG Smoke (Phase 3 / T008 + Phase 4 / T007)
+-      </h2>
+-      <div className="mb-4">
+-        <button
+-          type="button"
+-          onClick={toggleFrontmatter}
+-          data-testid="fixture-toggle-frontmatter"
+-          className="px-3 py-1 border rounded text-sm"
+-        >
+-          Load front-matter fixture
+-        </button>
+-      </div>
+-      <div
+-        className="max-w-3xl border rounded overflow-hidden"
+-        data-testid="markdown-output-container"
+-      >
+-        <WysiwygToolbar
+-          editor={editor}
+-          onOpenLinkDialog={openLink}
+-          linkButtonRef={toolbarLinkBtnRef}
+-        />
+-        <div className="p-4">
+-          <MarkdownWysiwygEditorLazy
+-            value={value}
+-            onChange={captureOnChange}
+-            imageUrlResolver={resolveImageUrl}
+-            currentFilePath="smoke.md"
+-            rawFileBaseUrl="/api/workspaces/test/files/raw?worktree=test"
+-            onEditorReady={setEditor}
+-            onOpenLinkDialog={openLink}
+-          />
+-        </div>
+-      </div>
+-      <LinkPopover
+-        editor={editor}
+-        open={linkOpen}
+-        onOpenChange={setLinkOpen}
+-        anchorRef={toolbarLinkBtnRef}
+-      />
+-    </div>
+-  );
+-}
+diff --git a/apps/web/app/globals.css b/apps/web/app/globals.css
+index 9172f59b..2f924e15 100644
+--- a/apps/web/app/globals.css
++++ b/apps/web/app/globals.css
+@@ -521,3 +521,26 @@
+   float: left;
+   height: 0;
+ }
++
++/*
++ * Language pill — read-only decoration positioned top-right of a <pre> code block.
++ * Plan 083-md-editor / Phase 5 T007 / AC-12. Pill is rendered via a ProseMirror
++ * widget decoration inside the <pre>, so `position: absolute` resolves against
++ * `.md-wysiwyg pre` (which gets `position: relative` below).
++ */
++.md-wysiwyg pre {
++  position: relative;
++}
++.md-wysiwyg-code-lang-pill {
++  position: absolute;
++  top: 0.25rem;
++  right: 0.5rem;
++  font-size: 0.75rem;
++  line-height: 1;
++  padding: 0.125rem 0.375rem;
++  border-radius: 0.25rem;
++  background: hsl(var(--muted));
++  color: hsl(var(--muted-foreground));
++  pointer-events: none;
++  user-select: none;
++}
+diff --git a/apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx b/apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx
+index 4c65d6f6..915e140f 100644
+--- a/apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx
++++ b/apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx
+@@ -11,6 +11,7 @@
+  */
+ 
+ import type { DiffError } from '@chainglass/shared';
++import type { Editor } from '@tiptap/react';
+ import {
+   ArrowUp,
+   Edit,
+@@ -20,10 +21,20 @@ import {
+   Loader2,
+   RefreshCw,
+   Save,
++  Sparkles,
+   WrapText,
++  X,
+ } from 'lucide-react';
+-import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
++import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+ 
++import {
++  exceedsRichSizeCap,
++  hasTables,
++  LinkPopover,
++  MarkdownWysiwygEditorLazy,
++  resolveImageUrl,
++  WysiwygToolbar,
++} from '@/features/_platform/viewer';
+ import { detectContentType } from '@/lib/content-type-detection';
+ import { AudioViewer } from './audio-viewer';
+ import { BinaryPlaceholder } from './binary-placeholder';
+@@ -39,7 +50,32 @@ const DiffViewer = lazy(() =>
+   import('@/components/viewers/diff-viewer').then((m) => ({ default: m.DiffViewer }))
+ );
+ 
+-export type ViewerMode = 'edit' | 'preview' | 'diff';
++export type ViewerMode = 'source' | 'rich' | 'preview' | 'diff';
++
++const TABLE_BANNER_SESSION_KEY = 'md-wysiwyg:dismissed-table-banners';
++
++/** Read dismissed-paths array from sessionStorage; tolerant of quota/security/parse failures. */
++function readDismissedBanners(): string[] {
++  try {
++    const raw = sessionStorage.getItem(TABLE_BANNER_SESSION_KEY);
++    if (!raw) return [];
++    const parsed = JSON.parse(raw);
++    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
++  } catch {
++    // QuotaExceeded on read is impossible, but JSON.parse errors + SecurityError (Safari
++    // private mode for some setups) are — treat as empty.
++    return [];
++  }
++}
++
++/** Write dismissed-paths array to sessionStorage; swallow quota/security errors. */
++function writeDismissedBanners(paths: string[]): void {
++  try {
++    sessionStorage.setItem(TABLE_BANNER_SESSION_KEY, JSON.stringify(paths));
++  } catch {
++    // Banner reappearing next session is acceptable graceful degradation.
++  }
++}
+ 
+ export interface FileViewerPanelProps {
+   filePath: string;
+@@ -79,6 +115,13 @@ export interface FileViewerPanelProps {
+   scrollToLine?: number | null;
+   /** Called when user clicks a relative file link in markdown preview */
+   onNavigateToFile?: (resolvedPath: string) => void;
++  /**
++   * Optional save implementation — used by integration tests to intercept save calls with
++   * a `FakeSaveFile` class (plan 083 Phase 5 Finding 05). Production callers pass nothing,
++   * in which case the existing `onSave` prop is invoked synchronously and wrapped in a
++   * resolved Promise.
++   */
++  saveFileImpl?: (content: string) => Promise<void>;
+ }
+ 
+ export function FileViewerPanel({
+@@ -107,14 +150,53 @@ export function FileViewerPanel({
+   popOutUrl,
+   scrollToLine,
+   onNavigateToFile,
++  saveFileImpl,
+ }: FileViewerPanelProps) {
+   // All hooks must be called before any early returns (Rules of Hooks)
+   const isMarkdown = language === 'markdown';
+   const currentContent = editContent ?? content ?? '';
++  const isEditable = mode === 'source' || mode === 'rich';
+   const scrollRef = useRef<HTMLDivElement>(null);
+   const [scrolledDown, setScrolledDown] = useState(false);
+   const [wordWrap, setWordWrap] = useState(true);
+ 
++  // Rich-mode composition state — shared open/close across the toolbar Link button and the
++  // editor's Mod-k shortcut. Ref to the toolbar Link button so the LinkPopover anchors to it.
++  const [linkOpen, setLinkOpen] = useState(false);
++  const linkButtonRef = useRef<HTMLButtonElement>(null);
++  const richEditorRef = useRef<Editor | null>(null);
++  // Mount wrapper ref — T011 writes the last-emitted markdown to its `data-emitted-markdown`
++  // attribute so harness smoke + Phase 6.2 corpus tests can assert round-trip integrity.
++  const richMountRef = useRef<HTMLDivElement>(null);
++
++  // Phase 6.6 will swap this for an ErrorBoundary; for now the `.md-wysiwyg-editor-mount`
++  // wrapper is the single independently-wrappable node (toolbar + popover are siblings).
++  const handleRichEditorReady = useCallback((editor: Editor | null) => {
++    richEditorRef.current = editor;
++  }, []);
++  const handleOpenLinkDialog = useCallback(() => {
++    setLinkOpen(true);
++  }, []);
++
++  // Size + language gate for the Rich button (plan 083 Phase 5 T004, AC-01 + AC-16a).
++  const richDisabled = useMemo(() => exceedsRichSizeCap(currentContent), [currentContent]);
++
++  // Table-warn banner (plan 083 Phase 5 T005, AC-11). Dismissal is per-file-path and
++  // session-scoped; initial state reads sessionStorage so an in-tab reload keeps dismissal.
++  const [tableBannerDismissed, setTableBannerDismissed] = useState(false);
++  useEffect(() => {
++    setTableBannerDismissed(readDismissedBanners().includes(filePath));
++  }, [filePath]);
++  const tableBannerVisible =
++    mode === 'rich' && hasTables(currentContent) && !tableBannerDismissed;
++  const dismissTableBanner = useCallback(() => {
++    setTableBannerDismissed(true);
++    const current = readDismissedBanners();
++    if (!current.includes(filePath)) {
++      writeDismissedBanners([...current, filePath]);
++    }
++  }, [filePath]);
++
+   const handleScroll = useCallback(() => {
+     const el = scrollRef.current;
+     if (el) setScrolledDown(el.scrollTop > 100);
+@@ -132,10 +214,24 @@ export function FileViewerPanel({
+     scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+   }, []);
+ 
++  // Unified save dispatch used by BOTH the Save button AND the Cmd+S handler. When
++  // `saveFileImpl` is provided (integration tests inject a `FakeSaveFile`), it's invoked
++  // instead of `onSave` — a minimal DI surface per Constitution §4/§7 (Finding 05).
++  const performSave = useCallback(
++    (next: string) => {
++      if (saveFileImpl) {
++        void saveFileImpl(next);
++        return;
++      }
++      onSave(next);
++    },
++    [saveFileImpl, onSave]
++  );
++
+   const handleEditModeKeyDownCapture = useCallback(
+     (event: React.KeyboardEvent<HTMLDivElement>) => {
+       if (
+-        mode !== 'edit' ||
++        (mode !== 'source' && mode !== 'rich') ||
+         event.repeat ||
+         event.shiftKey ||
+         event.altKey ||
+@@ -146,9 +242,22 @@ export function FileViewerPanel({
+       }
+ 
+       event.preventDefault();
+-      onSave(currentContent);
++      performSave(currentContent);
++    },
++    [mode, performSave, currentContent]
++  );
++
++  // Mirror the last-emitted markdown into the mount wrapper's data-attr (T011). Phase 6.2
++  // round-trip corpus tests read from this attribute — it is an intentional test affordance.
++  const handleRichChange = useCallback(
++    (next: string) => {
++      onEditChange?.(next);
++      const el = richMountRef.current;
++      if (el) {
++        el.dataset.emittedMarkdown = next;
++      }
+     },
+-    [mode, onSave, currentContent]
++    [onEditChange]
+   );
+ 
+   // Error states
+@@ -199,10 +308,10 @@ export function FileViewerPanel({
+       <div className="border-b shrink-0">
+         <div className="flex items-center justify-between px-3 py-1.5">
+           <div className="flex items-center gap-1">
+-            {mode === 'edit' && (
++            {isEditable && (
+               <button
+                 type="button"
+-                onClick={() => onSave(currentContent)}
++                onClick={() => performSave(currentContent)}
+                 className="flex items-center gap-1 rounded px-2 py-1 text-xs bg-green-600 text-white hover:bg-green-700 shrink-0"
+                 aria-label="Save file"
+               >
+@@ -211,11 +320,25 @@ export function FileViewerPanel({
+               </button>
+             )}
+             <ModeButton
+-              label="Edit"
++              label="Source"
+               icon={<Edit className="h-3.5 w-3.5" />}
+-              active={mode === 'edit'}
+-              onClick={() => onModeChange('edit')}
++              active={mode === 'source'}
++              onClick={() => onModeChange('source')}
+             />
++            {isMarkdown && (
++              <ModeButton
++                label="Rich"
++                icon={<Sparkles className="h-3.5 w-3.5" />}
++                active={mode === 'rich'}
++                onClick={() => onModeChange('rich')}
++                disabled={richDisabled}
++                title={
++                  richDisabled
++                    ? 'File too large for Rich mode — use Source'
++                    : 'Rich (WYSIWYG markdown editor)'
++                }
++              />
++            )}
+             <ModeButton
+               label="Preview"
+               icon={<Eye className="h-3.5 w-3.5" />}
+@@ -230,7 +353,7 @@ export function FileViewerPanel({
+             />
+           </div>
+           <div className="flex items-center gap-0.5">
+-            {mode === 'edit' && (
++            {mode === 'source' && (
+               <button
+                 type="button"
+                 onClick={() => setWordWrap((w) => !w)}
+@@ -280,8 +403,29 @@ export function FileViewerPanel({
+         </div>
+       )}
+ 
++      {/* Table warn banner — Rich mode only, dismissable per-file for the session */}
++      {tableBannerVisible && (
++        <div
++          className="border-b bg-amber-50 dark:bg-amber-950 px-3 py-2 text-sm text-amber-700 dark:text-amber-300 flex items-center justify-between"
++          data-testid="rich-mode-table-warning"
++        >
++          <span>
++            This file contains Markdown tables. Rich mode may reformat them — Source mode
++            preserves exact formatting.
++          </span>
++          <button
++            type="button"
++            onClick={dismissTableBanner}
++            className="rounded p-0.5 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900"
++            aria-label="Dismiss table warning"
++          >
++            <X className="h-3.5 w-3.5" />
++          </button>
++        </div>
++      )}
++
+       {/* Externally changed banner — only when user has dirty edits or in diff mode */}
+-      {externallyChanged && mode === 'edit' && editContent != null && (
++      {externallyChanged && isEditable && editContent != null && (
+         <div className="border-b bg-blue-50 dark:bg-blue-950 px-3 py-2 text-sm text-blue-700 dark:text-blue-300 flex items-center justify-between">
+           <span>ℹ️ This file was modified outside the editor</span>
+           <button
+@@ -306,15 +450,15 @@ export function FileViewerPanel({
+         </div>
+       )}
+ 
+-      {/* Content area — in edit mode, CodeEditor fills this entirely via flex */}
++      {/* Content area — in editable modes, content fills via flex */}
+       <div
+-        ref={mode !== 'edit' ? scrollRef : undefined}
+-        onScroll={mode !== 'edit' ? handleScroll : undefined}
+-        onKeyDownCapture={mode === 'edit' ? handleEditModeKeyDownCapture : undefined}
+-        className={mode === 'edit' ? 'flex-1 min-h-0 flex flex-col' : 'flex-1 overflow-auto'}
++        ref={isEditable ? undefined : scrollRef}
++        onScroll={isEditable ? undefined : handleScroll}
++        onKeyDownCapture={isEditable ? handleEditModeKeyDownCapture : undefined}
++        className={isEditable ? 'flex-1 min-h-0 flex flex-col' : 'flex-1 overflow-auto'}
+       >
+         <Suspense fallback={<LoadingFallback />}>
+-          {mode === 'edit' && (
++          {mode === 'source' && (
+             <CodeEditor
+               key={filePath}
+               value={currentContent}
+@@ -324,6 +468,36 @@ export function FileViewerPanel({
+               wordWrap={wordWrap}
+             />
+           )}
++          {mode === 'rich' && (
++            <>
++              <WysiwygToolbar
++                editor={richEditorRef.current}
++                onOpenLinkDialog={handleOpenLinkDialog}
++                linkButtonRef={linkButtonRef}
++              />
++              <div
++                ref={richMountRef}
++                className="md-wysiwyg-editor-mount flex-1 min-h-0 overflow-auto"
++                data-emitted-markdown={currentContent}
++              >
++                <MarkdownWysiwygEditorLazy
++                  value={currentContent}
++                  onChange={handleRichChange}
++                  imageUrlResolver={resolveImageUrl}
++                  currentFilePath={filePath}
++                  rawFileBaseUrl={rawFileBaseUrl}
++                  onEditorReady={handleRichEditorReady}
++                  onOpenLinkDialog={handleOpenLinkDialog}
++                />
++              </div>
++              <LinkPopover
++                editor={richEditorRef.current}
++                open={linkOpen}
++                onOpenChange={setLinkOpen}
++                anchorRef={linkButtonRef}
++              />
++            </>
++          )}
+           {mode === 'preview' && (
+             <div className="p-4">
+               {isMarkdown && markdownHtml ? (
+@@ -380,22 +554,29 @@ function ModeButton({
+   icon,
+   active,
+   onClick,
++  disabled,
++  title,
+ }: {
+   label: string;
+   icon: React.ReactNode;
+   active: boolean;
+   onClick: () => void;
++  disabled?: boolean;
++  title?: string;
+ }) {
++  const activeClasses = active
++    ? 'bg-accent text-accent-foreground font-medium'
++    : 'text-muted-foreground hover:text-foreground';
++  const disabledClasses = disabled ? 'opacity-50 cursor-not-allowed hover:text-muted-foreground' : '';
+   return (
+     <button
+       type="button"
+       onClick={onClick}
+       aria-label={label}
+-      className={`flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors ${
+-        active
+-          ? 'bg-accent text-accent-foreground font-medium'
+-          : 'text-muted-foreground hover:text-foreground'
+-      }`}
++      disabled={disabled}
++      title={title}
++      data-disabled={disabled ? 'true' : undefined}
++      className={`flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors ${activeClasses} ${disabledClasses}`.trim()}
+     >
+       {icon}
+       {label}
+diff --git a/apps/web/src/features/041-file-browser/params/file-browser.params.ts b/apps/web/src/features/041-file-browser/params/file-browser.params.ts
+index 6e7b0c3d..17b000d8 100644
+--- a/apps/web/src/features/041-file-browser/params/file-browser.params.ts
++++ b/apps/web/src/features/041-file-browser/params/file-browser.params.ts
+@@ -5,7 +5,7 @@
+  * Domain: _platform/workspace-url (composes workspaceParams)
+  *
+  * @example URL:
+- * /workspaces/my-proj/browser?worktree=/path&dir=src/lib&file=utils.ts&mode=edit
++ * /workspaces/my-proj/browser?worktree=/path&dir=src/lib&file=utils.ts&mode=source
+  */
+ 
+ import { workspaceParams } from '@/lib/params/workspace.params';
+@@ -17,8 +17,11 @@ export const fileBrowserParams = {
+   dir: parseAsString.withDefault(''),
+   /** Selected file path (relative to worktree root) */
+   file: parseAsString.withDefault(''),
+-  /** Viewer mode */
+-  mode: parseAsStringLiteral(['edit', 'preview', 'diff'] as const).withDefault('preview'),
++  // Viewer mode. 'edit' is a legacy alias — browser-client coerces it to 'source'
++  // on load. TODO: remove legacy 'edit' alias after 1 release (plan 083-md-editor / Finding 04).
++  mode: parseAsStringLiteral(['source', 'rich', 'edit', 'preview', 'diff'] as const).withDefault(
++    'preview',
++  ),
+   /** Left panel mode (Plan 043) */
+   panel: parseAsStringLiteral(['tree', 'changes'] as const).withDefault('tree'),
+   /** Line number to scroll to (Plan 047 Phase 6) */
+diff --git a/apps/web/src/features/_platform/viewer/components/markdown-wysiwyg-editor.tsx b/apps/web/src/features/_platform/viewer/components/markdown-wysiwyg-editor.tsx
+index 6ec778bf..5a37dd30 100644
+--- a/apps/web/src/features/_platform/viewer/components/markdown-wysiwyg-editor.tsx
++++ b/apps/web/src/features/_platform/viewer/components/markdown-wysiwyg-editor.tsx
+@@ -31,6 +31,7 @@ import { useTheme } from 'next-themes';
+ import { useEffect, useRef } from 'react';
+ import { Markdown } from 'tiptap-markdown';
+ 
++import { CodeBlockLanguagePill } from '../lib/code-block-language-pill';
+ import { joinFrontMatter, splitFrontMatter } from '../lib/markdown-frontmatter';
+ import { sanitizeLinkHref } from '../lib/sanitize-link-href';
+ import type { ImageUrlResolver, MarkdownWysiwygEditorProps } from '../lib/wysiwyg-extensions';
+@@ -137,6 +138,7 @@ export function MarkdownWysiwygEditor({
+         },
+       }),
+       buildImageExtension(imageUrlResolver, currentFilePath, rawFileBaseUrl),
++      CodeBlockLanguagePill,
+     ],
+     onUpdate({ editor: updatedEditor, transaction }) {
+       if (!transaction.docChanged) return;
+diff --git a/docs/domains/_platform/viewer/domain.md b/docs/domains/_platform/viewer/domain.md
+index 3f1530c1..e2f7cad5 100644
+--- a/docs/domains/_platform/viewer/domain.md
++++ b/docs/domains/_platform/viewer/domain.md
+@@ -100,6 +100,7 @@ Primary: `apps/web/src/components/viewers/` + `apps/web/src/lib/server/` + `apps
+ | Plan 083-md-editor / Phase 1 | Added `MarkdownWysiwygEditor` (Tiptap) + lazy wrapper; added shared `resolveImageUrl` utility in `lib/image-url.ts` consumed by both Preview and Rich surfaces; added `lib/wysiwyg-extensions.ts` type module. Full Owns/Composition/Concepts alignment and stale "Does NOT Own: CodeMirror" correction deferred to Phase 6.8. | 2026-04-18 |
+ | Plan 083-md-editor / Phase 2 | Added `WysiwygToolbar` client component + `lib/wysiwyg-toolbar-config.ts` (5 groups / 16 actions); extended `MarkdownWysiwygEditorProps` with additive `onEditorReady?(editor)` callback (Phase 1 editor now exposes its Tiptap `Editor` instance for sibling composition); shipped scoped placeholder CSS (`.md-wysiwyg .ProseMirror p.is-editor-empty:first-child::before` in `globals.css`); extended dev smoke route + harness spec (desktop + tablet green, Bold/H2 click + `Mod-Alt-C` chord verified). | 2026-04-18 |
+ | Plan 083-md-editor / Phase 3 | Added `LinkPopover` client component (desktop Popover `modal={true}` + mobile Sheet `side="bottom"`, anchored via Radix `PopoverAnchor virtualRef` to the toolbar Link button) + `lib/sanitize-link-href.ts` pure utility (allow-list http/https/mailto, `javascript:*`/data/vbscript/file rejected, evasion vectors incl. `\t`/`\n`/`\r` embeds + `%XX` + fullwidth Unicode guarded). Extended `MarkdownWysiwygEditorProps` with optional `onOpenLinkDialog?` + wired `TiptapLink.configure({ isAllowedUri }).extend({ addKeyboardShortcuts: 'Mod-k' })` (defense-in-depth gate at the Tiptap layer in addition to the popover-layer sanitizer). Extended `WysiwygToolbarProps` with optional `linkButtonRef` for Radix anchor. 87/87 unit tests green (26 sanitize + 13 popover + 3 editor new — TDD RED→GREEN for sanitize). Harness smoke: desktop + tablet green; 8 new assertions covering every didyouknow-v2 insight (popover anchor, selection pre-fill, parenthesized URL round-trip, Mod-k swallow while open, focus-return split by open path). Mobile deferred to Phase 6.4. | 2026-04-19 |
++| Plan 083-md-editor / Phase 5 | Added internal `lib/code-block-language-pill.ts` Tiptap extension (ProseMirror `DecorationSet` plugin; widget decoration with `side:-1` placed as descendant of `<pre>`); wired into `markdown-wysiwyg-editor.tsx` via direct relative import; `.md-wysiwyg-code-lang-pill` CSS positioning in `globals.css`; `.md-wysiwyg pre { position: relative }` parent anchor. Extension intentionally NOT exported from the barrel — private dependency of the Rich editor so Phase 6.7 bundle analysis can confirm lazy-chunk inclusion. Consumer-side changes live in `file-browser` (`FileViewerPanel` Rich branch). | 2026-04-19 |
+ | Plan 083-md-editor / Phase 4 | Added three pure-utility modules — `lib/markdown-frontmatter.ts` (`splitFrontMatter`/`joinFrontMatter` — BOM + CRLF tolerant, 500-line scan cap, setext-`---`-in-body safe, forward + reverse round-trip invariant documented in JSDoc); `lib/markdown-has-tables.ts` (`hasTables` — GFM detector with fence-type pairing so ``` inside ~~~ correctly stays fenced, rejects 4-space-indented tables as CommonMark code blocks, accepts alignment colons); `lib/rich-size-cap.ts` (`RICH_MODE_SIZE_CAP_BYTES = 200_000` with decimal-KB-not-KiB disambiguation JSDoc + `exceedsRichSizeCap` via `TextEncoder`). Wired the fm codec into `markdown-wysiwyg-editor.tsx`, replacing the Phase 1 passthrough stubs; added a lifecycle-safety test that mounts fm-bearing content, triggers a real edit via `editor.commands.insertContent`, and asserts the emitted onChange starts with the original front-matter — closes the silent-data-loss path that pure unit tests cannot detect (Finding 03, FC-validator Issue 4). Extended barrel with 5 new exports consumed by Phase 5. 148/148 unit tests green (59 new: 34 frontmatter + 18 has-tables + 7 rich-size-cap). Harness smoke: desktop + tablet green with new fm-round-trip assertions proving end-to-end fm preservation through a real edit. | 2026-04-19 |
+ | Plan 041 Phase 4 | Extracts `detectLanguage()` as shared utility (DYK-P4-05), integrates viewers in file browser | 2026-02-24 |
+ | Plan 046 | Added detectContentType() and isBinaryExtension() content type utilities | 2026-02-24 |
+diff --git a/docs/domains/file-browser/domain.md b/docs/domains/file-browser/domain.md
+index 45f4a35b..2ab1f52a 100644
+--- a/docs/domains/file-browser/domain.md
++++ b/docs/domains/file-browser/domain.md
+@@ -205,6 +205,7 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
+ 
+ | Plan | What Changed | Date |
+ |------|-------------|------|
++| Plan 083-md-editor / Phase 5 | `FileViewerPanel` Rich-mode integration: `ViewerMode` union renamed `edit → source`, added `rich` member; `parseAsStringLiteral` extended with `'edit'` legacy alias + `useEffect` coercion in `browser-client.tsx`; 8 `'edit'` call sites migrated (4 literal renames, 4 conditional/type widenings); scrollToLine auto-switch guard widened to `!== 'source' && !== 'rich'`. Rich branch composes `MarkdownWysiwygEditorLazy` + `WysiwygToolbar` + `LinkPopover` inside a single `.md-wysiwyg-editor-mount` wrapper (Phase 6.6 error-boundary target + Phase 6.2 `data-emitted-markdown` test affordance). `ModeButton` extended with optional `disabled?` + `title?` props. Rich button gated on `language === 'markdown'` + `!exceedsRichSizeCap(content)` (200 KB decimal soft cap) with tooltip. Dismissible table warn banner (sessionStorage-per-file; quota/security/parse try/catch). `handleEditModeKeyDownCapture` extended to cover both `source` + `rich`; Save button + Cmd+S dispatch through unified `performSave` helper with optional `saveFileImpl?` DI prop (backward-compat for existing callers; used by `FakeSaveFile` integration tests per Constitution §4/§7). 22 unit tests green + 5 new integration tests (zero `vi.mock` on business logic). | 2026-04-19 |
+ | Plan 041 Phase 1 | Feature folder scaffold, params infrastructure | 2026-02-22 |
+ | Plan 041 Phase 2 | fileBrowserParams + cache, workspaceHref | 2026-02-22 |
+ | Plan 041 Phase 3 | WorkspaceCard, FleetStatusBar, WorktreePicker, useAttentionTitle, landing page | 2026-02-23 |
+diff --git a/docs/plans/083-md-editor/md-editor.fltplan.md b/docs/plans/083-md-editor/md-editor.fltplan.md
+index c7b345d4..04506aaa 100644
+--- a/docs/plans/083-md-editor/md-editor.fltplan.md
++++ b/docs/plans/083-md-editor/md-editor.fltplan.md
+@@ -56,7 +56,7 @@ file-browser/components/
+ - [x] **Phase 2 — Toolbar & shortcuts** (2026-04-18): `WysiwygToolbar` (5 groups / 16 actions) shipped with `useEditorState` selector, `role="toolbar"` + a11y, scoped placeholder CSS, and additive `onEditorReady` on Phase 1 editor. 45/45 unit tests pass; harness smoke green on desktop + tablet. [Dossier](tasks/phase-2-toolbar-shortcuts/tasks.md).
+ - [x] **Phase 3 — Link popover** (2026-04-19): `LinkPopover` (desktop Popover + mobile Sheet, PopoverAnchor virtualRef); `sanitizeLinkHref` allow-list with `%XX`/fullwidth-Unicode guards; `Mod-k` keybinding via Tiptap Link extension + `isAllowedUri` defense-in-depth; 87/87 unit tests pass; harness smoke green on desktop + tablet. [Dossier](tasks/phase-3-link-popover/tasks.md).
+ - [x] **Phase 4 — Utilities (TDD)** (2026-04-19): Three pure utilities — `splitFrontMatter`/`joinFrontMatter` (YAML codec with BOM+CRLF, setext-safe, forward+reverse round-trip invariant); `hasTables` (GFM detector with fence-type pairing); `exceedsRichSizeCap` + `RICH_MODE_SIZE_CAP_BYTES`. Editor stubs replaced with real codec + lifecycle-safety test. 148/148 unit tests pass (59 new); harness smoke green with fm-round-trip assertions on desktop + tablet. [Dossier](tasks/phase-4-utilities/tasks.md).
+-- [ ] **Phase 5 — FileViewerPanel integration**: rename `edit` → `source`; add `rich` branch; migrate all callers (TypeScript-enforced); extend Cmd/Ctrl+S handler; wire the size gate + table warn banner from Phase 4; wire read-only code-block language pill.
++- [x] **Phase 5 — FileViewerPanel integration** (2026-04-19): `ViewerMode` renamed `edit → source` + `rich` added; params literal extended with `'edit'` legacy alias + `useEffect` coercion in `browser-client.tsx`; Rich branch composes `MarkdownWysiwygEditorLazy` + `WysiwygToolbar` + `LinkPopover` inside a single `.md-wysiwyg-editor-mount` wrapper (Phase 6.6 boundary + Phase 6.2 `data-emitted-markdown` affordance); `ModeButton` extended with `disabled?` + `title?`; size-cap gate (200 KB soft cap), markdown-only visibility gate, table warn banner (sessionStorage-dismissible with quota/security try/catch), Cmd+S handler widened for both editable modes, unified `performSave` helper + optional `saveFileImpl?` DI prop (backward-compat); Tiptap `CodeBlockLanguagePill` widget-decoration extension (internal to viewer, widget placed as descendant of `<pre>` with `side:-1`, CSS positioning scoped to `.md-wysiwyg`). Tests: 22 unit + 5 integration green (integration uses `FakeSaveFile` class + real Tiptap, zero `vi.mock` on business logic); harness smoke rewritten onto real file-browser surface (desktop + tablet green, 6.2s/6.3s); dev `/dev/markdown-wysiwyg-smoke` route deleted. [Dossier](tasks/phase-5-fileviewerpanel-integration/tasks.md).
+ - [ ] **Phase 6 — Round-trip corpus, polish, docs**: pinned corpus round-trip tests (AC-08/09/10); mobile toolbar scroll + a11y audit; Tiptap-init error fallback; bundle-size verification (≤ 130 KB gz); `docs/how/markdown-wysiwyg.md` user guide; domain.md final alignment.
+ 
+ ## Key Constraints
+diff --git a/docs/plans/083-md-editor/tasks/phase-3-link-popover/tasks.md b/docs/plans/083-md-editor/tasks/phase-3-link-popover/tasks.md
+index e535616e..e92deed5 100644
+--- a/docs/plans/083-md-editor/tasks/phase-3-link-popover/tasks.md
++++ b/docs/plans/083-md-editor/tasks/phase-3-link-popover/tasks.md
+@@ -1,10 +1,6 @@
+-# Phase 3: Link Popover
++# Phase 3: Link Popovers
+ 
+-**Plan**: [../../md-editor-plan.md](../../md-editor-plan.md)
+-**Spec**: [../../md-editor-spec.md](../../md-editor-spec.md)
+-**Workshop**: [../../workshops/001-editing-experience-and-ui.md](../../workshops/001-editing-experience-and-ui.md)
+-**Generated**: 2026-04-18
+-**Status**: Ready for takeoff
++**Plan**: [../../md-editor-plan.md](../../md-editor-plan.md)**Spec**: [../../md-editor-spec.md](../../md-editor-spec.md)**Workshop**: [../../workshops/001-editing-experience-and-ui.md](../../workshops/001-editing-experience-and-ui.md)**Generated**: 2026-04-18 **Status**: Ready for takeoff
+ 
+ ---
+ 
+@@ -13,17 +9,20 @@
+ **Purpose**: Make link insertion a first-class interaction in Rich mode. Phase 2 shipped a Link toolbar button that calls a stub `onOpenLinkDialog?.()` and nothing more; the `⌘K` shortcut doesn't exist yet. Phase 3 delivers the actual popover UI (desktop) / bottom-sheet (mobile ≤ 768 px), wires `⌘K` through the Tiptap Link extension's keymap, implements URL sanitation (allow-list protocols; auto-prepend `https://`; reject `javascript:`), and closes the edit/unlink branch when the caret is already inside a link. This is the last piece of the "Rich mode can compose a document" story — after Phase 3, a user has every MVP editing affordance. Phase 4+ then move to utilities and integration.
+ 
+ **What We're Building**:
++
++- **Testing** *123*
+ - A new `LinkPopover` client component that renders differently per viewport: desktop uses shadcn `Popover` anchored to the caret; mobile uses shadcn `Sheet` (`side="bottom"`) — workshop § 5.4 accepts either `Drawer` or `Sheet`; `sheet.tsx` is the component that actually exists in this repo (`apps/web/src/components/ui/`).
+ - A pure URL-sanitation helper `sanitizeLinkHref(raw)` returning a discriminated-union result (`{ ok: true, href } | { ok: false, reason }`). Allow-list: `http:`, `https:`, `mailto:`, `/…` (root-relative), `#…` (anchor), `./…` / `../…` (repo-relative). Everything else without a scheme → prepend `https://`. `javascript:*` → rejected.
+ - `⌘K` keybinding integrated into the editor's Tiptap keymap via `TiptapLink.extend({ addKeyboardShortcuts })`, calling a ref-stable `onOpenLinkDialog` callback threaded through `MarkdownWysiwygEditorProps` (additive, mirrors the Phase 2 `onEditorReady` pattern).
+ - Edit vs Insert flow: caret inside an existing link → popover pre-fills the Text and URL fields with the link mark's attrs; shows an `Unlink` button. Caret outside a link with a selection → Text pre-filled, URL empty and focused. Caret outside with no selection → both empty, URL focused.
+-- A11y: popover/sheet has `role="dialog"`, `aria-labelledby` pointing to a titled `<h3>`, explicit `<Label htmlFor>` ↔ `<Input id>` wiring (shadcn Label does NOT auto-bind), focus trap via Radix — **desktop Popover requires `modal={true}` prop** (Radix Popover is not Dialog; default `modal={false}` does NOT trap focus); mobile Sheet uses `@radix-ui/react-dialog` under the hood and traps by default. Esc closes. **Focus-return target depends on open path** (workshop § 5.1 assumed single-entry-point; real usage has two). On popover open, capture `document.activeElement` into `openerRef`; on close, explicitly `.focus()` the captured node — for toolbar-click entry that's the Link button (user stays on the toolbar), for ⌘K entry that's the editor contenteditable (user's caret returns to their writing flow). Do NOT rely on Radix's default `onCloseAutoFocus` alone — it targets the Trigger, which for the ⌘K path pulls focus away from the editor. Override `onCloseAutoFocus={(e) => { e.preventDefault(); openerRef.current?.focus?.(); }}`.
++- A11y: popover/sheet has `role="dialog"`, `aria-labelledby` pointing to a titled `<h3>`, explicit `<Label htmlFor>` ↔ `<Input id>` wiring (shadcn Label does NOT auto-bind), focus trap via Radix — **desktop Popover requires** `modal={true}` **prop** (Radix Popover is not Dialog; default `modal={false}` does NOT trap focus); mobile Sheet uses `@radix-ui/react-dialog` under the hood and traps by default. Esc closes. **Focus-return target depends on open path** (workshop § 5.1 assumed single-entry-point; real usage has two). On popover open, capture `document.activeElement` into `openerRef`; on close, explicitly `.focus()` the captured node — for toolbar-click entry that's the Link button (user stays on the toolbar), for ⌘K entry that's the editor contenteditable (user's caret returns to their writing flow). Do NOT rely on Radix's default `onCloseAutoFocus` alone — it targets the Trigger, which for the ⌘K path pulls focus away from the editor. Override `onCloseAutoFocus={(e) => { e.preventDefault(); openerRef.current?.focus?.(); }}`.
+ - `WysiwygToolbar`'s Link button now opens the popover (Phase 2 shipped the callback wiring; Phase 3 supplies a real handler at the smoke route + parent layer).
+ - Dev smoke route extended to compose `<MarkdownWysiwygEditorLazy>` + `<WysiwygToolbar>` + `<LinkPopover>` with shared state.
+ - Unit tests for `sanitizeLinkHref` (TDD — test file red first, then green), `LinkPopover` rendering / keyboard submit / cancel / unlink, and the toolbar-side integration.
+ - Harness smoke extension: click Link → popover opens; type `https://example.com` + Enter → `<a href="https://example.com">` appears; `⌘K` reopens; click Unlink → anchor gone.
+ 
+ **Goals**:
++
+ - ✅ `⌘K` opens the popover (workshop § 4, AC-05, AC-13)
+ - ✅ Toolbar Link button also opens it (AC-04)
+ - ✅ Typing a URL + Enter inserts a link with `href` through sanitation (AC-13)
+@@ -37,6 +36,7 @@
+ - ✅ Zero regressions in 45 unit tests from Phase 1/2; Phase 2 harness assertions preserved
+ 
+ **Non-Goals**:
++
+ - ❌ FileViewerPanel integration — Phase 5 owns it; the dev smoke route remains the sole mount point through Phase 4 (will be deleted at Phase 5.11)
+ - ❌ Front-matter real implementation — still a passthrough stub; Phase 4 replaces
+ - ❌ Image insertion popover — out of plan scope (images are read-only display; no upload/embed — spec Non-Goals)
+@@ -53,6 +53,7 @@
+ ### Phase 1 (completed 2026-04-18)
+ 
+ **A. Deliverables** (absolute paths — relevant to Phase 3)
++
+ - `/Users/jordanknight/substrate/083-md-editor/apps/web/src/features/_platform/viewer/components/markdown-wysiwyg-editor.tsx` — core Tiptap editor, `'use client'`. Phase 3 modifies additively: threads `onOpenLinkDialog` prop through to an extended Link extension that owns the `Mod-k` shortcut.
+ - `/Users/jordanknight/substrate/083-md-editor/apps/web/src/features/_platform/viewer/components/markdown-wysiwyg-editor-lazy.tsx` — `dynamic({ ssr: false })` wrapper. No change.
+ - `/Users/jordanknight/substrate/083-md-editor/apps/web/src/features/_platform/viewer/lib/wysiwyg-extensions.ts` — type module. Phase 3 adds: `LinkPopoverProps`, `SanitizedHref` (discriminated union), extends `MarkdownWysiwygEditorProps` with optional `onOpenLinkDialog?: () => void`.
+@@ -60,6 +61,7 @@
+ - Installed: `@tiptap/extension-link@^2.27.2` already in Phase 1 deps; Phase 3 uses `.extend()` composition on the already-configured extension.
+ 
+ **B. Dependencies Exported** (consumed by Phase 3)
++
+ - `MarkdownWysiwygEditor` accepts `onEditorReady?(editor)` — Phase 3's smoke route uses this (via Phase 2 T008 pattern) to get the Tiptap instance for (a) computing whether caret is inside an existing link and (b) running `setLink` / `unsetLink` commands from the popover.
+ - `Link.configure({ openOnClick: false, autolink: false })` is already baked in the editor extensions array. Phase 3's `.extend()` composes on top of this — Tiptap v2 merges `addKeyboardShortcuts` from `.extend()` with the already-configured options; `openOnClick: false` and `autolink: false` persist.
+ - `editor.storage.markdown.getMarkdown()` still the serializer; edits via `editor.chain().focus().setLink({ href }).run()` round-trip to `[text](href)` in the markdown output.
+@@ -67,6 +69,7 @@
+ ### Phase 2 (completed 2026-04-18)
+ 
+ **A. Deliverables** (absolute paths — relevant to Phase 3)
++
+ - `/Users/jordanknight/substrate/083-md-editor/apps/web/src/features/_platform/viewer/components/wysiwyg-toolbar.tsx` — 16-button toolbar with `role="toolbar"`. Phase 3 does NOT modify this file; the existing Link button already calls `onOpenLinkDialog?.()` via T001's config.
+ - `/Users/jordanknight/substrate/083-md-editor/apps/web/src/features/_platform/viewer/lib/wysiwyg-toolbar-config.ts` — 16-action config array. Link action's `run` is `(editor, { onOpenLinkDialog }) => onOpenLinkDialog?.()`. Already correct; Phase 3 reuses.
+ - Harness spec `/Users/jordanknight/substrate/083-md-editor/harness/tests/smoke/markdown-wysiwyg-smoke.spec.ts` — Phase 3 extends with Link assertions, preserves all Phase 1 + Phase 2 assertions.
+@@ -74,12 +77,14 @@
+ - Tests under `/Users/jordanknight/substrate/083-md-editor/test/unit/web/features/_platform/viewer/` — 45 green (10 editor + 10 toolbar + 14 toolbar-markdown + 11 image-url). Phase 3 adds ≥ 3 new files (sanitize, link-popover, editor onOpenLinkDialog integration); existing 45 must stay green.
+ 
+ **B. Dependencies Exported** (consumed by Phase 3)
++
+ - `WysiwygToolbarProps.onOpenLinkDialog?: () => void` — Phase 3's dev-route composition supplies a real handler.
+ - `WysiwygToolbar` renders `[data-testid="toolbar-link"]` button — Phase 3 harness clicks it.
+ - `ToolbarAction.run(editor, { onOpenLinkDialog })` — the second arg is a context object; Phase 3 adds no new actions, just calls the existing Link action.
+ - `md-wysiwyg` class on editor wrapper (Phase 2 T003) — irrelevant to popover but documented for reference.
+ 
+ **C. Gotchas & Debt** (carry into Phase 3)
++
+ - `gotcha` — Phase 1: `setContent(body, false)` second arg is a boolean, not an options object. Irrelevant to Phase 3 (no content sync changes).
+ - `gotcha` — Phase 2: `jsdom` + ProseMirror focus is unreliable — `editor.isFocused` returned false in unit tests after `.chain().focus()`. Apply to Phase 3: Unit tests for the popover MUST use `fireEvent` + DOM assertions; popover focus-restore (return to toolbar button) is asserted in the harness, not in unit tests.
+ - `gotcha` — Phase 2: `tiptap-markdown@0.8.10` initial-content is parsed as markdown, not HTML. So `setContent('<a href="...">x</a>')` won't be interpreted as an anchor — use markdown `[x](url)` instead when seeding link fixtures in tests.
+@@ -94,52 +99,44 @@
+ **D. Incomplete Items**: Phase 2 shipped all 8 tasks and all phase-local ACs green. The only explicit Phase 3-scoped deferral carried forward is: Phase 2's toolbar Link button is wired to `onOpenLinkDialog?.()` but the smoke route supplies no handler — **Phase 3 closes this gap** by wiring a real handler in the dev route (T006).
+ 
+ **E. Patterns to Follow** (from Phases 1 + 2)
++
+ - **Interface-First** (Constitution §2 / Finding 08): every task group opens with a types addition in `wysiwyg-extensions.ts` before implementation.
+ - **Ref-stable callbacks** (Phase 1 `onChangeRef`, Phase 2 `onEditorReadyRef`): Phase 3's `onOpenLinkDialog` similarly goes through `onOpenLinkDialogRef` inside `markdown-wysiwyg-editor.tsx` so `.extend({ addKeyboardShortcuts })` doesn't capture a stale closure when the parent re-renders with a new callback identity.
+ - **Tiptap extension composition** (Phase 2 Forward-Compat note documented): `TiptapLink.configure({ openOnClick: false, autolink: false }).extend({ addKeyboardShortcuts() { return { 'Mod-k': …} } })` — `.extend()` merges with the already-configured options. Phase 3 does NOT redeclare Link from scratch; it extends the existing instance.
+ - **Test files** live under `/Users/jordanknight/substrate/083-md-editor/test/unit/web/features/_platform/viewer/`. Vitest root config picks them up; run `pnpm exec vitest run <path>` from repo root.
+ - **No mocking library** — plain callbacks only.
+ - **Barrel re-export** new components from `_platform/viewer/index.ts`.
+-- **`use client` directive** at the top of every file using React hooks / event handlers.
++- `use client` **directive** at the top of every file using React hooks / event handlers.
+ - **Dev smoke route**: extend, don't duplicate. Phase 3 adds popover composition to the existing `/dev/markdown-wysiwyg-smoke` route; Phase 5.11 deletes the route after migration.
+ - **Harness spec**: preserve every prior-phase assertion verbatim; add Phase 3 assertions after.
+-- **Tiptap runtime inside lazy boundary**: `LinkPopover` consumes `Editor` as type-only for the sanitation + attrs-read path. Runtime Tiptap commands (`setLink`, `unsetLink`) are called on the `editor` prop that was constructed in the lazy chunk. `LinkPopover` itself can be eagerly loaded (it's a shadcn-based form component, ~2 KB) but in practice it only renders when Rich mode is active, so the lazy boundary is preserved.
++- **Tiptap runtime inside lazy boundary**: `LinkPopover` consumes `Editor` as type-only for the sanitation + attrs-read path. Runtime Tiptap commands (`setLink`, `unsetLink`) are called on the `editor` prop that was constructed in the lazy chunk. `LinkPopover` itself can be eagerly loaded (it's a shadcn-based form component, \~2 KB) but in practice it only renders when Rich mode is active, so the lazy boundary is preserved.
+ 
+ ---
+ 
+ ## Pre-Implementation Check
+ 
+-| File | Exists? | Domain Check | Notes |
+-|------|---------|-------------|-------|
+-| `apps/web/src/features/_platform/viewer/components/link-popover.tsx` | **No** (create) | `_platform/viewer` ✅ | New — desktop `Popover` (modal, anchored to toolbar Link button via `anchorRef`) + mobile `Sheet` bottom-variant, form fields, submit/cancel/unlink |
+-| `apps/web/src/features/_platform/viewer/components/wysiwyg-toolbar.tsx` | **Yes** (modify — minimal) | `_platform/viewer` ✅ | T003 adds optional `linkButtonRef?: React.Ref<HTMLButtonElement>` prop; when set, the Link button forwards its native `ref` to it (enables popover anchoring). Additive, backward-compatible with Phase 2's existing WysiwygToolbar tests. |
+-| `apps/web/src/features/_platform/viewer/lib/sanitize-link-href.ts` | **No** (create) | `_platform/viewer` ✅ | New — pure TDD utility; discriminated-union return; allow-list protocols |
+-| `apps/web/src/features/_platform/viewer/lib/wysiwyg-extensions.ts` | **Yes** (modify) | `_platform/viewer` ✅ | Add `LinkPopoverProps`, `SanitizedHref`, `MarkdownWysiwygEditorProps.onOpenLinkDialog?` |
+-| `apps/web/src/features/_platform/viewer/components/markdown-wysiwyg-editor.tsx` | **Yes** (modify) | `_platform/viewer` ✅ | Additive: thread `onOpenLinkDialog` through `onOpenLinkDialogRef`; extend the `TiptapLink` instance with `addKeyboardShortcuts` registering `Mod-k`. No behavioral change to existing contract. |
+-| `apps/web/src/features/_platform/viewer/index.ts` | **Yes** (modify) | `_platform/viewer` ✅ | Re-export `LinkPopover`, `sanitizeLinkHref`, new types |
+-| `apps/web/app/dev/markdown-wysiwyg-smoke/page.tsx` | **Yes** (modify) | (dev-only) | Add `useState<{ open: boolean, anchorRect?: DOMRect }>` and mount `<LinkPopover>`; wire `onOpenLinkDialog={() => setLinkOpen(true)}` on both the editor prop AND the toolbar prop (they share one handler) |
+-| `harness/tests/smoke/markdown-wysiwyg-smoke.spec.ts` | **Yes** (modify) | (harness) | Extend: click `[data-testid="toolbar-link"]` → popover visible; type URL → `<a href>` appears; `Mod-k` reopens; click Unlink → anchor gone. Preserve Phase 1 + 2 assertions. |
+-| `test/unit/web/features/_platform/viewer/sanitize-link-href.test.ts` | **No** (create) | `_platform/viewer` ✅ | New — TDD; 12+ cases covering each sanitation branch |
+-| `test/unit/web/features/_platform/viewer/link-popover.test.tsx` | **No** (create) | `_platform/viewer` ✅ | New — React-mount + userEvent; rendering, input focus, submit, cancel, unlink, edit-mode pre-fill |
+-| `test/unit/web/features/_platform/viewer/markdown-wysiwyg-editor.test.tsx` | **Yes** (modify, minimal) | `_platform/viewer` ✅ | Add 1 case — `onOpenLinkDialog` fires on `Mod-k` keypress; editor contract otherwise unchanged |
++FileExists?Domain CheckNotes`apps/web/src/features/_platform/viewer/components/link-popover.tsx`**No** (create)`_platform/viewer` ✅New — desktop `Popover` (modal, anchored to toolbar Link button via `anchorRef`) + mobile `Sheet` bottom-variant, form fields, submit/cancel/unlink`apps/web/src/features/_platform/viewer/components/wysiwyg-toolbar.tsx`**Yes** (modify — minimal)`_platform/viewer` ✅T003 adds optional `linkButtonRef?: React.Ref<HTMLButtonElement>` prop; when set, the Link button forwards its native `ref` to it (enables popover anchoring). Additive, backward-compatible with Phase 2's existing WysiwygToolbar tests.`apps/web/src/features/_platform/viewer/lib/sanitize-link-href.ts`**No** (create)`_platform/viewer` ✅New — pure TDD utility; discriminated-union return; allow-list protocols`apps/web/src/features/_platform/viewer/lib/wysiwyg-extensions.ts`**Yes** (modify)`_platform/viewer` ✅Add `LinkPopoverProps`, `SanitizedHref`, `MarkdownWysiwygEditorProps.onOpenLinkDialog?apps/web/src/features/_platform/viewer/components/markdown-wysiwyg-editor.tsx`**Yes** (modify)`_platform/viewer` ✅Additive: thread `onOpenLinkDialog` through `onOpenLinkDialogRef`; extend the `TiptapLink` instance with `addKeyboardShortcuts` registering `Mod-k`. No behavioral change to existing contract.`apps/web/src/features/_platform/viewer/index.ts`**Yes** (modify)`_platform/viewer` ✅Re-export `LinkPopover`, `sanitizeLinkHref`, new types`apps/web/app/dev/markdown-wysiwyg-smoke/page.tsx`**Yes** (modify)(dev-only)Add `useState<{ open: boolean, anchorRect?: DOMRect }>` and mount `<LinkPopover>`; wire `onOpenLinkDialog={() => setLinkOpen(true)}` on both the editor prop AND the toolbar prop (they share one handler)`harness/tests/smoke/markdown-wysiwyg-smoke.spec.ts`**Yes** (modify)(harness)Extend: click `[data-testid="toolbar-link"]` → popover visible; type URL → `<a href>` appears; `Mod-k` reopens; click Unlink → anchor gone. Preserve Phase 1 + 2 assertions.`test/unit/web/features/_platform/viewer/sanitize-link-href.test.ts`**No** (create)`_platform/viewer` ✅New — TDD; 12+ cases covering each sanitation branch`test/unit/web/features/_platform/viewer/link-popover.test.tsx`**No** (create)`_platform/viewer` ✅New — React-mount + userEvent; rendering, input focus, submit, cancel, unlink, edit-mode pre-fill`test/unit/web/features/_platform/viewer/markdown-wysiwyg-editor.test.tsx`**Yes** (modify, minimal)`_platform/viewer` ✅Add 1 case — `onOpenLinkDialog` fires on `Mod-k` keypress; editor contract otherwise unchanged
+ 
+ **Concept duplication check** (`/code-concept-search-v2`-style scan):
++
+ - **URL sanitation** — grep on `sanitize.*[Uu]rl|sanitiz.*[Hh]ref` in `apps/web/src` returned zero hits other than this editor's own `TiptapLink.configure({ autolink: false })` mention. No existing helper to reuse. ✅ no duplication.
+ - **Link popover** — grep on `LinkPopover|link.*popover` returned zero hits. ✅ no duplication.
+ - **Form popover pattern** — shadcn `popover.tsx`, `sheet.tsx`, `input.tsx`, `label.tsx`, `dialog.tsx` all exist in `apps/web/src/components/ui/`. Phase 3 composes these as-is. No new primitive.
+ - **Focus trap** — shadcn's `Popover` uses `@radix-ui/react-popover` (NOT Dialog); default `modal={false}` does NOT trap focus. T003 passes `modal={true}` to activate Radix FocusScope. Mobile `Sheet` uses `@radix-ui/react-dialog` and traps by default.
+ 
+ **Contract risks**:
+-- **`MarkdownWysiwygEditor` prop addition** (`onOpenLinkDialog?`): optional, additive, backward-compatible. Phase 1/2's 10 editor tests must still pass (1 new test added in T002). Risk: **low**.
+-- **`TiptapLink.extend({ addKeyboardShortcuts })` composition**: Phase 2's Forward-Compat matrix committed to this being safe (`.extend` merges with `.configure`). Concrete risk: if Tiptap's internal keymap-merging changes in a future release, `Mod-k` could collide with StarterKit's built-in. StarterKit does NOT register `Mod-k` as of v2.27 (verified — `Mod-k` is reserved in the Link extension ecosystem specifically for link insertion). Risk: **low, documented**.
+-- **`Mod-k` browser-default collision** — `Cmd+K` is the macOS quick-command / Spotlight in many apps (VS Code, GitHub, Linear). Inside a Tiptap `contenteditable`, Tiptap's keymap has priority, and the keybinding returns `true` (handled), which calls `event.preventDefault()` and stops propagation. The shortcut only fires when the editor has focus. Risk: **low** — matches the workshop § 5.1 intent and other markdown editors (Notion, Obsidian, Bear all use `Mod-k`).
+-- **`Sheet` vs `Drawer` nomenclature** — workshop § 5.4 says "shadcn Drawer / Sheet". `drawer.tsx` does NOT exist in this repo (verified via `ls apps/web/src/components/ui/`); `sheet.tsx` DOES. Decision: use `Sheet` component with `side="bottom"` — this is the shadcn bottom-sheet pattern. Workshop accepts either. Risk: **none**.
++
++- `MarkdownWysiwygEditor` **prop addition** (`onOpenLinkDialog?`): optional, additive, backward-compatible. Phase 1/2's 10 editor tests must still pass (1 new test added in T002). Risk: **low**.
++- `TiptapLink.extend({ addKeyboardShortcuts })` **composition**: Phase 2's Forward-Compat matrix committed to this being safe (`.extend` merges with `.configure`). Concrete risk: if Tiptap's internal keymap-merging changes in a future release, `Mod-k` could collide with StarterKit's built-in. StarterKit does NOT register `Mod-k` as of v2.27 (verified — `Mod-k` is reserved in the Link extension ecosystem specifically for link insertion). Risk: **low, documented**.
++- `Mod-k` **browser-default collision** — `Cmd+K` is the macOS quick-command / Spotlight in many apps (VS Code, GitHub, Linear). Inside a Tiptap `contenteditable`, Tiptap's keymap has priority, and the keybinding returns `true` (handled), which calls `event.preventDefault()` and stops propagation. The shortcut only fires when the editor has focus. Risk: **low** — matches the workshop § 5.1 intent and other markdown editors (Notion, Obsidian, Bear all use `Mod-k`).
++- `Sheet` **vs** `Drawer` **nomenclature** — workshop § 5.4 says "shadcn Drawer / Sheet". `drawer.tsx` does NOT exist in this repo (verified via `ls apps/web/src/components/ui/`); `sheet.tsx` DOES. Decision: use `Sheet` component with `side="bottom"` — this is the shadcn bottom-sheet pattern. Workshop accepts either. Risk: **none**.
+ - **Popover anchor during selection** — The popover should anchor to the current text selection's bounding rect. Radix Popover supports `anchor` or a visible trigger; for caret-anchored popovers the idiomatic Radix pattern is a `PopoverAnchor` component whose `ref` points to an invisible absolute-positioned `<span>` at the selection's bounding rect (computed via `editor.view.coordsAtPos(selection.anchor)`). Alternative, simpler: anchor to the toolbar Link button (already visible) — this is what Slack, GitHub, and Notion do for markdown link insertion UX. Decision: **anchor to the toolbar Link button** for MVP; workshop § 5.2 mockup is agnostic. Revisit if UX feedback demands caret-anchoring (Phase 6 polish ticket, out of scope here). Risk: **low, decision documented**.
+-- **`⌘K` with a selection** — workshop § 5.1 says: if the user has a selection when pressing `⌘K`, the popover's Text field pre-fills with the selected text; inserting a link wraps that selection. Tiptap's `setLink({ href })` operates on the current selection natively — no custom extraction needed. The popover just reads `editor.state.doc.textBetween(from, to)` to pre-fill the Text field. Risk: **low**.
++- `⌘K` **with a selection** — workshop § 5.1 says: if the user has a selection when pressing `⌘K`, the popover's Text field pre-fills with the selected text; inserting a link wraps that selection. Tiptap's `setLink({ href })` operates on the current selection natively — no custom extraction needed. The popover just reads `editor.state.doc.textBetween(from, to)` to pre-fill the Text field. Risk: **low**.
+ - **Editing an existing link** (workshop § 5.3) — when caret is inside a link mark, the popover must pre-fill `Text` and `URL` from the mark's attrs. Accessor: `editor.getAttributes('link')` returns `{ href, target?, rel?, class? }`. Pre-fill Text with the full link's visible text (extract via `editor.state.doc.textBetween` over the link mark's range, which we can determine via `editor.state.selection.$from.marks()` and ProseMirror's `MarkRange` helper OR simpler: use Tiptap's `extendMarkRange('link')` to select the whole link, then read the selection text). Risk: **low, but non-trivial** — T005 documents the extendMarkRange approach explicitly.
+ - **Unlink semantics** — `editor.chain().focus().extendMarkRange('link').unsetLink().run()` is the standard Tiptap unlink. This preserves the link's visible text and removes only the anchor. Risk: **none**.
+ 
+ **Harness health check**:
++
+ - Harness L3 is operational. Phase 2 confirmed desktop + tablet pass; mobile project is skipped as planned.
+ - Re-run before T008: `just harness-dev && just harness ports && just harness-health`. If unhealthy: `just harness-stop && just harness-dev`.
+ - Status: **Harness available at L3**.
+@@ -212,16 +209,7 @@ flowchart TD
+ 
+ ## Tasks
+ 
+-| Status | ID | Task | Domain | Path(s) | Done When | Notes |
+-|--------|-----|------|--------|---------|-----------|-------|
+-| [x] | T001 | Define Phase 3 types in `lib/wysiwyg-extensions.ts`. Add: `SanitizedHref = { ok: true; href: string } \| { ok: false; reason: 'javascript-scheme' \| 'empty' }`; `LinkPopoverProps = { editor: Editor \| null; open: boolean; onOpenChange: (next: boolean) => void; anchorRef?: React.RefObject<HTMLElement>; className?: string }` (Radix `Popover` accepts an explicit anchor via `PopoverAnchor`, but shadcn's composition uses a `Trigger` ref or children — anchorRef is the escape hatch for anchoring to a non-trigger element like the selection caret if desired later; MVP uses the toolbar Link button as the `Trigger`, so this ref is optional / unused in the first pass). Extend `MarkdownWysiwygEditorProps` with optional `onOpenLinkDialog?: () => void` — the editor's `⌘K` shortcut calls this. Import `Editor` as type-only. Update `index.ts` barrel to re-export the new types. | `_platform/viewer` | `/Users/jordanknight/substrate/083-md-editor/apps/web/src/features/_platform/viewer/lib/wysiwyg-extensions.ts` (modify), `/Users/jordanknight/substrate/083-md-editor/apps/web/src/features/_platform/viewer/index.ts` (modify) | `pnpm -F web typecheck` shows no NEW errors (pre-existing 4 debt errors OK); new types exported; `MarkdownWysiwygEditorProps.onOpenLinkDialog` is optional and non-breaking for all existing consumers (Phase 1/2 tests + smoke route) | Finding 08 Interface-First. `SanitizedHref` as a discriminated union keeps the caller pattern-matching (`if (result.ok) …`) rather than sentinel-value checks. |
+-| [x] | T002 | TDD `sanitizeLinkHref(raw: string): SanitizedHref`. **RED first** — write all test cases in `test/unit/web/features/_platform/viewer/sanitize-link-href.test.ts`, verify they fail, then implement. Cases (≥ 22 — Security lens expanded): **Happy-path accept**: (a) `'https://example.com'` → `ok, href='https://example.com'`; (b) `'http://example.com'` → `ok, href='http://example.com'`; (c) `'example.com'` → `ok, href='https://example.com'` (scheme prepended); (d) `'www.example.com'` → `ok, href='https://www.example.com'`; (e) `'mailto:a@b.c'` → `ok, href='mailto:a@b.c'` (preserved); (f) `'/relative/path'` → `ok, href='/relative/path'` (root-relative preserved); (g) `'./file.md'` → `ok, href='./file.md'` (repo-relative preserved); (h) `'../sibling.md'` → `ok, href='../sibling.md'`; (i) `'#anchor'` → `ok, href='#anchor'` (fragment preserved); (j) `'  https://example.com  '` → trimmed; (n) trailing `\n` trimmed. **Rejections (dangerous schemes)**: (k) `'javascript:alert(1)'` → `{ ok: false, reason: 'javascript-scheme' }`; (l) `'JavaScript:alert(1)'` → rejected (case-insensitive); (o) `'vbscript:msgbox(1)'` → rejected; (p) `'data:text/html,<script>'` → rejected; (q) `'file:///etc/passwd'` → rejected. **Rejections (evasion vectors)**: (r) tab-embedded scheme `'jav\tascript:alert(1)'` (literal `\t` U+0009) → strip control chars first then detect → rejected; (s) newline-embedded `'java\nscript:alert(1)'` → rejected; (t) CR-embedded `'javas\rcript:alert(1)'` → rejected; (u) null-byte prefix `'\u0000javascript:alert(1)'` → rejected; (v) URL-encoded scheme `'%6Aavascript:alert(1)'` → sanitizer MUST decode first `%`-encoded prefix OR reject unknown scheme without `https://` prepend (safer: if pre-scheme chars look like `%XX`, reject as `javascript-scheme`); (w) fullwidth Unicode `'ｊavascript:alert(1)'` → ASCII-normalize or reject; (x) dotless-i spoof `'javascrıpt:alert(1)'` (U+0131) is harmless because scheme detection fails and `https://` prepend makes it `'https://javascrıpt:alert(1)'` — confirm in test as accept-as-unknown-then-prepend, documenting the trade-off. **Empty**: (m) `'  '`/`''` → `{ ok: false, reason: 'empty' }`. **GREEN implementation**: (1) trim whitespace; (2) strip ASCII control chars `\u0000-\u001F` AND `\u007F`; (3) if empty → `{ ok: false, reason: 'empty' }`; (4) scheme detection `/^([a-z][a-z0-9+\-.]*):/i` — if match AND scheme-lowercased in `{'http','https','mailto'}` → accept; if match AND scheme NOT in allow-list → `{ ok: false, reason: 'javascript-scheme' }`; (5) pre-scheme `%` detection — if trimmed starts with `%` followed by 2 hex digits, reject (paranoid guard against `%6A` etc.); (6) no scheme AND starts with `/|#|./|../` → accept verbatim; (7) otherwise prepend `https://` + accept. No mocks; pure function. **Defense-in-depth: also configure `TiptapLink.configure({ protocols: ['http', 'https', 'mailto'], isAllowedUri: (url) => sanitizeLinkHref(url).ok })`** — Tiptap v2.2+ exposes `isAllowedUri`; this second gate catches any `setLink` call that bypasses the popover (e.g., programmatic calls, future extensions). Wire this in T006 where the Link extension is configured. | `_platform/viewer` | `/Users/jordanknight/substrate/083-md-editor/apps/web/src/features/_platform/viewer/lib/sanitize-link-href.ts` (new), `/Users/jordanknight/substrate/083-md-editor/test/unit/web/features/_platform/viewer/sanitize-link-href.test.ts` (new) | Test file starts RED; after implementation, all 22+ cases GREEN; `pnpm exec vitest run test/unit/web/features/_platform/viewer/sanitize-link-href.test.ts` exits 0; zero Phase 1/2 regression (45/45 still pass); `TiptapLink.configure({ isAllowedUri })` integration in T006 verified (a programmatic `setLink({ href: 'javascript:...' })` returns false and inserts nothing) | Constitution §3 (TDD). Security lens: allow-list not deny-list. Tiptap's `setLink` runs its own `isAllowedUri` gate internally (`node_modules/@tiptap/extension-link/dist/index.js:320`) which by default allows http/https/ftp/mailto/tel/etc. but not `javascript:`; pairing our sanitizer with `Link.configure({ isAllowedUri })` makes the editor refuse malformed hrefs even if the popover layer is bypassed. |
+-| [x] | T003 | Implement `LinkPopover` desktop variant in `components/link-popover.tsx`. `'use client'`. Component signature: `LinkPopover({ editor, open, onOpenChange, anchorRef, className }: LinkPopoverProps)`. Detect viewport via `window.matchMedia('(max-width: 768px)')` wrapped in a `useMediaQuery` hook (create minimal inline or reuse an existing one if present — grep reveals none; ship a 10-line hook in the same file; use `useSyncExternalStore` with `getServerSnapshot` returning `false` for SSR consistency). Branch: if mobile → render `Sheet` (see T004); else → render `Popover` from `@/components/ui/popover` **with `modal={true}` prop** — shadcn's default is `modal={false}` which does NOT trap focus (Radix Popover primitive is not Dialog; only modal popovers trap). `modal={true}` activates the focus trap via Radix's FocusScope so Tab cycles inside the popover until Esc. Desktop layout (workshop § 5.2): container has `role="dialog"`, `aria-labelledby="link-popover-title"`, inner flex column. Title: `<h3 id="link-popover-title" className="…">🔗 Insert link</h3>` (or "Edit link" if editing — see T005). **A11y / label wiring (explicit — shadcn `Label` does NOT auto-bind)**: Text row renders `<Label htmlFor="link-popover-text">Text</Label><Input id="link-popover-text" data-testid="link-popover-text-input" ... />`; URL row similarly uses `htmlFor="link-popover-url"` / `id="link-popover-url"`. `id` and `data-testid` are distinct — id is for the label binding (screen readers), testid is for Playwright. Test assertion: `getByLabelText('URL')` resolves the correct input. **PopoverAnchor positioning (SOLVED — was deferred; now shipped)**: Radix `PopoverContent` requires a sibling `<PopoverTrigger>` or `<PopoverAnchor>` inside the `<Popover>` root — without one, content renders at viewport (0,0). Phase 3 anchors to the toolbar Link button. Wiring: (i) `WysiwygToolbar` gains an optional `linkButtonRef?: React.Ref<HTMLButtonElement>` prop; when set, the Link button forwards its native `<button ref>` to this ref (3-line prop addition + forwardRef on the button render); (ii) `LinkPopover` accepts `anchorRef: React.RefObject<HTMLButtonElement>` (promoted from optional to required when `open=true`); (iii) inside `<Popover modal>` render `<PopoverAnchor asChild virtualRef={anchorRef} />` — Radix v1.1+ supports `virtualRef` that points at an existing DOM element without wrapping it. If the installed `@radix-ui/react-popover` predates `virtualRef`, fall back to rendering a `<span ref={anchorRef}>` child of `<PopoverAnchor asChild>` and use `getBoundingClientRect()` sync. Parent (dev route + Phase 5.3) declares `const toolbarLinkBtnRef = useRef<HTMLButtonElement>(null)` and threads it through `<WysiwygToolbar linkButtonRef={toolbarLinkBtnRef} />` + `<LinkPopover anchorRef={toolbarLinkBtnRef} />`. Footer row: `[Cancel]` (ghost) and `[Insert]` (default) buttons. Buttons: Cancel calls `onOpenChange(false)`; Insert collects Text + URL, runs `sanitizeLinkHref(url)` — if `ok`: `const applied = editor.chain().focus().extendMarkRange('link').setLink({ href }).run()`; **capture the return value** — if `applied === false` (Tiptap `isAllowedUri` second-gate rejection or no-selection + no-text), leave popover open and render inline `<p role="alert" data-testid="link-popover-error">Could not insert link.</p>`. On successful apply: `onOpenChange(false)`. **Capture-and-restore opener on open/close**: add `const openerRef = useRef<HTMLElement | null>(null)`; on `open` transition to `true`, run `openerRef.current = document.activeElement as HTMLElement`; on close (via Cancel / Esc / Submit), Radix's `onCloseAutoFocus` is overridden: `onCloseAutoFocus={(e) => { e.preventDefault(); openerRef.current?.focus?.(); openerRef.current = null; }}`. This handles both entry paths correctly — toolbar-button-click opener → focus returns to button; ⌘K-from-editor opener → focus returns to the editor's contenteditable (user's writing flow preserved). Keyboard: `Enter` on URL field submits (`onKeyDown: e.key === 'Enter' → handleInsert()`); `Esc` closes (Radix `onEscapeKeyDown` fires — passed as `onOpenChange(false)`). **Swallow `Mod-k` at the popover root**: add `onKeyDown` on the outer `<div>` (inside `PopoverContent`/`SheetContent`) that intercepts `(e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k'` → `e.preventDefault(); e.stopPropagation();` then re-focuses the URL input (`urlInputRef.current?.focus()`). Without this, re-pressing ⌘K while the popover is open and URL field has focus escapes to the browser (Firefox search bar / Chrome omnibox) because Tiptap's keymap only fires while the editor is focused. Unit test: dispatch `keyDown` with `ctrlKey: true, key: 'k'` on the popover root → assert `preventDefault` called (use a plain callback on a synthetic event wrapper, no vi.fn). Data attrs: `data-testid="link-popover"` on root, plus input/submit/cancel testids per label wiring above. | `_platform/viewer` | `/Users/jordanknight/substrate/083-md-editor/apps/web/src/features/_platform/viewer/components/link-popover.tsx` (new), `/Users/jordanknight/substrate/083-md-editor/apps/web/src/features/_platform/viewer/index.ts` (modify — add export) | Component compiles; desktop render path produces `role="dialog"` + `aria-labelledby` + 2 labeled inputs (each with matching `htmlFor`/`id`) + Cancel/Insert buttons; typing URL + Enter triggers `setLink` and handles its boolean return; clicking Cancel closes; URL field auto-focuses on open; `modal={true}` traps Tab cycle; `getByLabelText('URL')` + `getByLabelText('Text')` both resolve; `PopoverAnchor` positions the content relative to the toolbar Link button | Workshop § 5.1–5.2. **Corrected from dossier v1**: Radix `Popover` is NOT Dialog — focus trap requires `modal={true}`. shadcn `Label` is Radix Label which requires explicit `htmlFor`; no auto-binding. `PopoverAnchor` must be inside `<Popover>` root or content positions at (0,0). |
+-| [x] | T004 | Implement `LinkPopover` mobile variant. When `useMediaQuery('(max-width: 768px)')` → true, render `Sheet` from `@/components/ui/sheet` with `side="bottom"` in place of the desktop `Popover`. Same inner content (title, inputs, footer, testids, handlers) — extract into a `<LinkPopoverBody>` inner component to avoid duplication. Mobile tweaks: URL input auto-focuses so the on-screen keyboard appears; sheet `max-h` about 50% viewport (`className="max-h-[50vh]"`); footer buttons are stacked on narrow widths (`flex-col sm:flex-row`). Also wire the "is caret in link?" reactive read via `useEditorState` (Phase 2 insight — Tiptap's idiomatic selective-subscription hook): `const isInLink = useEditorState({ editor, selector: (ctx) => ctx.editor?.isActive('link') ?? false })`. Store this as state so the title flips between "Insert link" / "Edit link" and T005's Unlink button conditionally renders. Null-editor case: render the popover structure with all controls disabled (matches Phase 2 toolbar skeleton pattern — avoids flicker if `editor` is briefly null). | `_platform/viewer` | `/Users/jordanknight/substrate/083-md-editor/apps/web/src/features/_platform/viewer/components/link-popover.tsx` (modify — add mobile branch + `LinkPopoverBody` extraction + `useEditorState` integration) | Viewport-dependent render (`jsdom` doesn't have real matchMedia; use a manual mock-free pattern: inject `useMediaQuery` result via test-only prop? — NO, see Notes); component renders as `Sheet` at ≤ 768 px; desktop + mobile branches use the same inner body; `isInLink` reactively flips title + Unlink visibility | Workshop § 5.4 + § 11.3. **Test strategy for viewport branching**: `useMediaQuery` reads `window.matchMedia`. Unit tests set `window.matchMedia = (q) => ({ matches: q.includes('max-width: 768px'), … })` — that's NOT `vi.mock` / `vi.fn`, it's a direct property assignment (allowed under Constitution §4/§7 — the rule is "no mocking library", not "no test-time state setup"). Alternatively, accept a `__mediaMatches?: boolean` test-only prop; simpler but less clean. Decision: window.matchMedia property assignment per test case. |
+-| [x] | T005 | Edit + Unlink flow. When the popover opens AND `isInLink === true` (from T004's `useEditorState`): (a) pre-fill the URL input with `editor.getAttributes('link').href ?? ''`; (b) pre-fill the Text input with the link's visible text. **Simplest correct approach**: on open, call `editor.chain().focus().extendMarkRange('link').run()` to make the entire link the selection, then read `editor.state.doc.textBetween(editor.state.selection.from, editor.state.selection.to)` (no 3rd arg — `blockSeparator` defaults to empty; links live within a single block so the arg is irrelevant), store the pre-fill values in popover state, leave the selection extended so re-submit naturally replaces it. (c) Title flips from "🔗 Insert link" to "🔗 Edit link"; (d) Footer shows three buttons: `[Unlink] [Cancel] [Update]`. **Render `data-testid="link-popover-unlink"` on the Unlink button** (T008 depends on this selector). Unlink: `editor.chain().focus().extendMarkRange('link').unsetLink().run()` then `onOpenChange(false)`. Update: same sanitation + `setLink` as Insert. **Preserve nested marks (bold/italic inside a link)** — if Text field is unchanged from the pre-fill, skip `insertContent` and only re-apply the link: `editor.chain().focus().extendMarkRange('link').setLink({ href }).run()`. If Text changed, `editor.chain().focus().insertContent(newText).setLink({ href }).run()` (chain order: insertContent replaces selection, setLink applies to the just-inserted content). **Malformed href** — if `getAttributes('link').href` is undefined/empty but `isActive('link')` is true, treat as Insert mode (don't show Unlink), and log a console.warn. **Caret-on-link-boundary ambiguity**: Tiptap's `isActive('link')` may return false when caret is immediately after a link's trailing edge; `isInLink` is sourced from `useEditorState({ editor, selector: ctx => ctx.editor?.isActive('link') ?? false })` which handles the inclusive-right edge correctly per Tiptap's convention. Add a test case to confirm this boundary behavior. **Insert mode** (caret NOT in link): **On popover open (when `!isInLink`)**, pre-fill Text from the current editor selection per workshop § 5.1 step 3: `const selText = editor.state.doc.textBetween(editor.state.selection.from, editor.state.selection.to)` — if non-empty, seed the Text input state with it; if collapsed selection, leave empty. This pre-fill runs exactly once per open transition (guard via `useEffect(() => { if (open && !isInLink) setText(selText) }, [open, isInLink])`). **On submit**: with selection → `editor.chain().focus().setLink({ href }).run()` (Text field may have been edited — if Text diverged from the captured selection text, run `insertContent(text).setLink({ href })` instead to replace the selection with the user's edited text); no selection + Text typed → `insertContent(text)` then `setLink({ href })`; no selection + no Text → use URL as visible text (workshop § 5.1 step 4). Add a T007 unit case: "select word 'Claude' in editor, open popover in Insert mode → Text field value is 'Claude'"; and a harness assertion in T008 covering the select-word → toolbar-link-click → Text-prefilled path. **Always check `chain().run()` return value** — if false, keep popover open and show `data-testid="link-popover-error"` inline. | `_platform/viewer` | `/Users/jordanknight/substrate/083-md-editor/apps/web/src/features/_platform/viewer/components/link-popover.tsx` (modify — add edit-mode branch + Unlink button with testid + collapsed-selection handling + nested-mark preservation) | Caret inside link + open popover → Text + URL pre-filled, Unlink button visible with `data-testid="link-popover-unlink"`, title = "Edit link"; Unlink click → link mark removed, visible text AND nested marks preserved, popover closes; Update with unchanged Text → nested marks preserved (bold-inside-link survives); Update with new Text → selection replaced + new link applied; Insert mode with no selection + only URL typed → inserts URL as visible text with itself as href; caret exactly after link trailing edge → `isInLink === false`, popover opens in Insert mode (tested); failed `setLink` → popover stays open with `link-popover-error` visible | Workshop § 5.1 / § 5.3. Tiptap chain commands batch transactions (one undo step per popover submit). Boundary + nested-marks edge cases added per Completeness validation. |
+-| [x] | T006 | Wire `⌘K` keybinding into the editor's Link extension via `.extend({ addKeyboardShortcuts })` AND integrate `sanitizeLinkHref` as `Link.configure({ isAllowedUri })` (T002 defense-in-depth). Modify `markdown-wysiwyg-editor.tsx`: (a) add `onOpenLinkDialogRef = useRef(onOpenLinkDialog); onOpenLinkDialogRef.current = onOpenLinkDialog;` (mirror of `onChangeRef` / `onEditorReadyRef` pattern — ref-stable so `.extend()`'s closure captures the latest callback without re-registering extensions on every parent re-render); (b) **replace** the existing `TiptapLink.configure({ openOnClick: false, autolink: false })` (line 121) with `TiptapLink.configure({ openOnClick: false, autolink: false, protocols: ['http', 'https', 'mailto'], isAllowedUri: (url) => sanitizeLinkHref(url).ok }).extend({ addKeyboardShortcuts() { return { 'Mod-k': () => { if (!this.editor.isEditable) return false; onOpenLinkDialogRef.current?.(); return true; } }; } })` — `isAllowedUri` is the Tiptap v2.2+ gate that runs inside `setLink`; pairing it with the popover sanitizer makes the editor refuse unsafe hrefs even from programmatic calls. Returning `true` from the keymap preventsDefault on `Cmd+K`; returning `false` when not editable lets the browser default fire (readOnly docs should not open the dialog). (c) Import `sanitizeLinkHref` from `../lib/sanitize-link-href`. Do NOT touch any other extension, prop, or contract beyond these three additions. **Tests** in `markdown-wysiwyg-editor.test.tsx`: (t1) mount editor with `onOpenLinkDialog` plain-callback collector; dispatch `editor.commands.keyboardShortcut('Mod-k')` → collector called once (jsdom-reliable alternative to `fireEvent.keyDown`; `keyboardShortcut` is a Tiptap-native imperative trigger; lowercase `'Mod-k'` matches Tiptap convention); (t2) `readOnly={true}` editor + `Mod-k` → collector NOT called (editable gate works); (t3) `editor.chain().setLink({ href: 'javascript:alert(1)' }).run()` → returns false, editor DOM contains no `<a>` node (isAllowedUri gate works). | `_platform/viewer` | `/Users/jordanknight/substrate/083-md-editor/apps/web/src/features/_platform/viewer/components/markdown-wysiwyg-editor.tsx` (modify), `/Users/jordanknight/substrate/083-md-editor/test/unit/web/features/_platform/viewer/markdown-wysiwyg-editor.test.tsx` (modify — add 3 cases) | Phase 1/2's existing 10 tests still green; 3 new tests pass (Mod-k, readOnly gate, isAllowedUri rejection); `Mod-k` pressed while editor has focus and is editable → `onOpenLinkDialog` callback invoked exactly once; readOnly editor → no callback; programmatic `setLink({ href: 'javascript:...' })` → returns false, no DOM mutation; no regression in `onChange` / `onEditorReady` / readOnly / placeholder behavior | Phase 2 Forward-Compat matrix pre-approved `.extend` composes with `.configure`. `isAllowedUri` is the Tiptap v2.2+ `setLink` gate (`node_modules/@tiptap/extension-link/dist/index.js:320`). `keyboardShortcut` is a Tiptap-core imperative trigger documented for this exact testing pattern. `'Mod-k'` (lowercase) is the convention; prosemirror-keymap normalizes `Mod` to the host modifier. |
+-| [x] | T007 | Unit tests for Phase 3. Two test files already created in T002 and T003's pathway; confirm + expand: **(A)** `sanitize-link-href.test.ts` (from T002): 22+ cases covering the allow-list, evasion vectors (data:, vbscript:, file:, control-char embeds, %-encoded, Unicode spoof), rejection, trim, case-insensitivity, relative-URL preservation; all GREEN. **(A.round-trip)** Add a headless-Editor round-trip case in a dedicated `link-round-trip.test.ts` OR as part of the existing `wysiwyg-toolbar.markdown.test.ts` fixture: seed `[Foo](https://en.wikipedia.org/wiki/Foo_(bar))` (and a second case with JIRA-style `https://x.atlassian.net/browse/PROJ-42?param=(1)`), verify `editor.storage.markdown.getMarkdown()` returns a markdown form that ROUND-TRIPS cleanly — either angle-bracket form `<https://…>` OR `\(` / `\)` escaping OR balanced parens that the parser accepts as part of the URL. Failure mode to watch: bare `(https://en.wikipedia.org/wiki/Foo_(bar))` truncates the href at the first `)` on re-parse. If `tiptap-markdown@0.8.10` does not escape/wrap, log a Discovery row and configure `Markdown.configure({...})` or wrap the href via `Link.configure({ HTMLAttributes: { ... } })` or add a lightweight `transformPastedHTML`-adjacent serializer shim. AC-09 (round-trip fidelity with edits) is the load-bearing promise this protects. **(B)** `link-popover.test.tsx` (new): React-mount cases — (i) renders desktop variant on wide viewport (`window.matchMedia` asserts `max-width: 768px → false`); renders mobile `Sheet` variant on narrow viewport; (ii) null `editor` prop → all controls `disabled` (no flicker); (iii) open with Insert mode (caret not in link) → title "Insert link", only `[Cancel] [Insert]` buttons, URL field auto-focused; (iv) open with Edit mode (seed editor with `[text](url)`, place caret inside) → title "Edit link", `[Unlink] [Cancel] [Update]`, Text + URL pre-filled; (v) type URL + Enter → `onOpenChange(false)` called + editor DOM contains `<a href="…">`; (vi) click Cancel → `onOpenChange(false)` + editor unchanged; (vii) click Unlink → link mark removed, visible text preserved; (viii) URL with `javascript:` → popover stays open, no link inserted (silent rejection per workshop § 5.5); (ix) URL without scheme (`example.com`) + Enter → link inserted with `href="https://example.com"`; (x) `isInLink` reactive flip: start outside link → title "Insert link"; run `editor.commands.setLink({ href: 'x' })` in selection → re-open popover → title "Edit link". **(C)** `markdown-wysiwyg-editor.test.tsx` (modify from T006): 1 added case — Mod-K via keymap fires `onOpenLinkDialog`. Constitution §4/§7: plain callbacks, `window.matchMedia` property assignment. | `_platform/viewer` | `/Users/jordanknight/substrate/083-md-editor/test/unit/web/features/_platform/viewer/sanitize-link-href.test.ts` (new — from T002), `/Users/jordanknight/substrate/083-md-editor/test/unit/web/features/_platform/viewer/link-popover.test.tsx` (new), `/Users/jordanknight/substrate/083-md-editor/test/unit/web/features/_platform/viewer/markdown-wysiwyg-editor.test.tsx` (modify — add Mod-K case) | All Phase 3 unit tests pass; Phase 1/2's 45 tests unchanged; `pnpm exec vitest run test/unit/web/features/_platform/viewer/` (from repo root) exits 0 with ≥ 60 total tests | Constitution §4/§7 — no mocking library. `window.matchMedia` property override per test is not mocking; it's test-time environment shaping. Phase 2 `jsdom` focus gotcha applies — do not assert `editor.isFocused` after chain commands; assert DOM structure (link node presence) instead. |
+-| [x] | T008 | Harness smoke extension. Modify dev route `app/dev/markdown-wysiwyg-smoke/page.tsx`: **preserve** `'use client'` directive, `process.env.NODE_ENV === 'production' && notFound()` guard, all Phase 1/2 composition (editor + toolbar); add `const [linkOpen, setLinkOpen] = useState(false)` and `const toolbarLinkBtnRef = useRef<HTMLButtonElement>(null)`. Pass `linkButtonRef={toolbarLinkBtnRef}` to `<WysiwygToolbar>` (new prop added in T003 — see Pre-Impl Contract Risks) and `anchorRef={toolbarLinkBtnRef}` to `<LinkPopover>`. This anchors the popover to the toolbar Link button — visibly positioned correctly (no viewport-origin render bug). Render `<LinkPopover editor={editor} open={linkOpen} onOpenChange={setLinkOpen} />` alongside the existing editor + toolbar. Wire BOTH the editor's `onOpenLinkDialog={() => setLinkOpen(true)}` prop AND the toolbar's `onOpenLinkDialog={() => setLinkOpen(true)}` prop to the same handler — matches the Phase 5.3 integration pattern. Modify harness spec `harness/tests/smoke/markdown-wysiwyg-smoke.spec.ts`: **preserve every Phase 1 + Phase 2 assertion verbatim** (h1, img src, hydration-free, role=toolbar, 16 buttons, Bold click → `<strong>`, H2 click → `<h2>`, Mod-Alt-c → `<pre><code>`). Add Phase 3 block: (1) click `[data-testid="toolbar-link"]` → `[data-testid="link-popover"]` becomes visible with `role="dialog"`; (2) type `https://example.com` into `[data-testid="link-popover-url-input"]`, press Enter → popover closes, editor DOM contains `a[href="https://example.com"]`; (3) place caret inside the just-inserted link, press `Mod-k` (`Control+k` in the Linux container) → popover reopens; URL field pre-filled `https://example.com`, Text field pre-filled; title text contains "Edit"; (4) click `[data-testid="link-popover-submit"]` with the same URL → popover closes, link still present; (5) place caret back inside link + Mod-k → click `[data-testid="link-popover-unlink"]` → editor DOM no longer contains `<a>`, visible text remains; (6a) **[a11y/focus-return, click path]** click `[data-testid="toolbar-link"]` → popover opens; press Escape → popover closes AND `document.activeElement` matches `[data-testid="toolbar-link"]` (capture-and-restore restores to the Link button the user clicked); (6b) **[a11y/focus-return, ⌘K path]** click inside the editor to set caret, press `Control+k` → popover opens; press Escape → popover closes AND the editor's contenteditable element (`[data-testid="md-wysiwyg-root"] [contenteditable="true"]`) has focus, NOT the toolbar Link button (capture-and-restore restores the editor where the user was writing); (7) **[NEW — isAllowedUri gate]** open popover, type `javascript:alert(1)`, press Enter → popover stays open, `[data-testid="link-popover-error"]` is visible, editor DOM contains no new `<a>`; (8a) **[NEW — Mod-k-while-open swallow]** open popover via toolbar Link click; URL input auto-focused; press `Control+k` (MOD_KEY in Linux harness) → popover stays open, URL input retains focus (`page.locator('[data-testid="link-popover-url-input"]:focus')` matches), browser did NOT navigate / chrome did not trigger (check: `page.url()` unchanged; no tab switch); typed URL value is preserved. (8b) **[NEW — parenthesized-URL round-trip]** open popover, type `https://en.wikipedia.org/wiki/Foo_(bar)`, press Enter → `a[href="https://en.wikipedia.org/wiki/Foo_(bar)"]` in editor DOM; read `editor.storage.markdown.getMarkdown()` via a dev-route debug hook (or a `data-markdown-output` attribute the dev route exposes for harness inspection) → parse the emitted markdown back through `tiptap-markdown` (quick round-trip via a second throwaway Editor) and assert the href is preserved byte-for-byte. If `tiptap-markdown` does not escape/wrap parens, this assertion fails and the implementor must add a serializer shim BEFORE Phase 6's broader round-trip corpus runs — catch it here, not at AC-09 time. Screenshot to `harness/results/phase-3/link-popover-desktop.png`. Mobile project: skip with reason "Mobile link popover bottom-sheet verification is Phase 6.4 scope" (consistent with Phase 2). | (harness) | `/Users/jordanknight/substrate/083-md-editor/apps/web/app/dev/markdown-wysiwyg-smoke/page.tsx` (modify), `/Users/jordanknight/substrate/083-md-editor/harness/tests/smoke/markdown-wysiwyg-smoke.spec.ts` (modify) | Spec exits 0 on desktop + tablet; Phase 1 + 2 assertions preserved; Phase 3 assertions (8 steps — link click, Enter insert, Mod-k reopen/pre-fill, Update, Unlink, Esc focus-return, isAllowedUri rejection, Mod-k swallow while open, parenthesized-URL round-trip) all pass in Playwright; screenshot saved; mobile skipped with explicit reason. **Every didyouknow-v2 insight (popover anchor, Text pre-fill from selection, parenthesized-URL round-trip, Mod-k swallow, focus-return path) MUST have at least one explicit Playwright assertion — do not rely on unit-test coverage alone for the behaviors that caused this dossier to be revised.** | Workshop § 5.1 + § 12 a11y (Esc closes + focus returns to trigger). Pre-phase harness health: `just harness-dev && just harness ports && just harness-health`. MOD_KEY=Control (Phase 2 gotcha). Focus-return is explicitly asserted here — Radix `modal={true}` Popover's default `onCloseAutoFocus` restores focus to the Trigger element; when the popover was opened via Mod-k (no trigger click), the focus-return will land on `document.body` unless the component explicitly captures `document.activeElement` on open and restores on close — see T005/T003 for the capture-and-restore logic that supplements Radix's default. |
++StatusIDTaskDomainPath(s)Done WhenNotes\[x\]T001Define Phase 3 types in `lib/wysiwyg-extensions.ts`. Add: `SanitizedHref = { ok: true; href: string } | { ok: false; reason: 'javascript-scheme' | 'empty' }`; `LinkPopoverProps = { editor: Editor | null; open: boolean; onOpenChange: (next: boolean) => void; anchorRef?: React.RefObject<HTMLElement>; className?: string }` (Radix `Popover` accepts an explicit anchor via `PopoverAnchor`, but shadcn's composition uses a `Trigger` ref or children — anchorRef is the escape hatch for anchoring to a non-trigger element like the selection caret if desired later; MVP uses the toolbar Link button as the `Trigger`, so this ref is optional / unused in the first pass). Extend `MarkdownWysiwygEditorProps` with optional `onOpenLinkDialog?: () => void` — the editor's `⌘K` shortcut calls this. Import `Editor` as type-only. Update `index.ts` barrel to re-export the new types.`_platform/viewer/Users/jordanknight/substrate/083-md-editor/apps/web/src/features/_platform/viewer/lib/wysiwyg-extensions.ts` (modify), `/Users/jordanknight/substrate/083-md-editor/apps/web/src/features/_platform/viewer/index.ts` (modify)`pnpm -F web typecheck` shows no NEW errors (pre-existing 4 debt errors OK); new types exported; `MarkdownWysiwygEditorProps.onOpenLinkDialog` is optional and non-breaking for all existing consumers (Phase 1/2 tests + smoke route)Finding 08 Interface-First. `SanitizedHref` as a discriminated union keeps the caller pattern-matching (`if (result.ok) …`) rather than sentinel-value checks.\[x\]T002TDD `sanitizeLinkHref(raw: string): SanitizedHref`. **RED first** — write all test cases in `test/unit/web/features/_platform/viewer/sanitize-link-href.test.ts`, verify they fail, then implement. Cases (≥ 22 — Security lens expanded): **Happy-path accept**: (a) `'https://example.com'` → `ok, href='https://example.com'`; (b) `'http://example.com'` → `ok, href='http://example.com'`; (c) `'example.com'` → `ok, href='https://example.com'` (scheme prepended); (d) `'www.example.com'` → `ok, href='https://www.example.com'`; (e) `'mailto:a@b.c'` → `ok, href='mailto:a@b.c'` (preserved); (f) `'/relative/path'` → `ok, href='/relative/path'` (root-relative preserved); (g) `'./file.md'` → `ok, href='./file.md'` (repo-relative preserved); (h) `'../sibling.md'` → `ok, href='../sibling.md'`; (i) `'#anchor'` → `ok, href='#anchor'` (fragment preserved); (j) `' https://example.com '` → trimmed; (n) trailing `\n` trimmed. **Rejections (dangerous schemes)**: (k) `'javascript:alert(1)'` → `{ ok: false, reason: 'javascript-scheme' }`; (l) `'JavaScript:alert(1)'` → rejected (case-insensitive); (o) `'vbscript:msgbox(1)'` → rejected; (p) `'data:text/html,<script>'` → rejected; (q) `'file:///etc/passwd'` → rejected. **Rejections (evasion vectors)**: (r) tab-embedded scheme `'jav\tascript:alert(1)'` (literal `\t` U+0009) → strip control chars first then detect → rejected; (s) newline-embedded `'java\nscript:alert(1)'` → rejected; (t) CR-embedded `'javas\rcript:alert(1)'` → rejected; (u) null-byte prefix `'\u0000javascript:alert(1)'` → rejected; (v) URL-encoded scheme `'%6Aavascript:alert(1)'` → sanitizer MUST decode first `%`-encoded prefix OR reject unknown scheme without `https://` prepend (safer: if pre-scheme chars look like `%XX`, reject as `javascript-scheme`); (w) fullwidth Unicode `'ｊavascript:alert(1)'` → ASCII-normalize or reject; (x) dotless-i spoof `'javascrıpt:alert(1)'` (U+0131) is harmless because scheme detection fails and `https://` prepend makes it `'https://javascrıpt:alert(1)'` — confirm in test as accept-as-unknown-then-prepend, documenting the trade-off. **Empty**: (m) `' '`/`''` → `{ ok: false, reason: 'empty' }`. **GREEN implementation**: (1) trim whitespace; (2) strip ASCII control chars `\u0000-\u001F` AND `\u007F`; (3) if empty → `{ ok: false, reason: 'empty' }`; (4) scheme detection `/^([a-z][a-z0-9+\-.]*):/i` — if match AND scheme-lowercased in `{'http','https','mailto'}` → accept; if match AND scheme NOT in allow-list → `{ ok: false, reason: 'javascript-scheme' }`; (5) pre-scheme `%` detection — if trimmed starts with `%` followed by 2 hex digits, reject (paranoid guard against `%6A` etc.); (6) no scheme AND starts with \`/#./../`→ accept verbatim; (7) otherwise prepend`https://`+ accept. No mocks; pure function. **Defense-in-depth: also configure`TiptapLink.configure({ protocols: \['http', 'https', 'mailto'\], isAllowedUri: (url) =&gt; sanitizeLinkHref(url).ok })`** — Tiptap v2.2+ exposes `isAllowedUri`; this second gate catches any `setLink\` call that bypasses the popover (e.g., programmatic calls, future extensions). Wire this in T006 where the Link extension is configured.`_platform/viewer`\[x\]T003Implement `LinkPopover` desktop variant in `components/link-popover.tsx`. `'use client'`. Component signature: `LinkPopover({ editor, open, onOpenChange, anchorRef, className }: LinkPopoverProps)`. Detect viewport via `window.matchMedia('(max-width: 768px)')` wrapped in a `useMediaQuery` hook (create minimal inline or reuse an existing one if present — grep reveals none; ship a 10-line hook in the same file; use `useSyncExternalStore` with `getServerSnapshot` returning `false` for SSR consistency). Branch: if mobile → render `Sheet` (see T004); else → render `Popover` from `@/components/ui/popover` **with** `modal={true}` **prop** — shadcn's default is `modal={false}` which does NOT trap focus (Radix Popover primitive is not Dialog; only modal popovers trap). `modal={true}` activates the focus trap via Radix's FocusScope so Tab cycles inside the popover until Esc. Desktop layout (workshop § 5.2): container has `role="dialog"`, `aria-labelledby="link-popover-title"`, inner flex column. Title: `<h3 id="link-popover-title" className="…">🔗 Insert link</h3>` (or "Edit link" if editing — see T005). **A11y / label wiring (explicit — shadcn** `Label` **does NOT auto-bind)**: Text row renders `<Label htmlFor="link-popover-text">Text</Label><Input id="link-popover-text" data-testid="link-popover-text-input" ... />`; URL row similarly uses `htmlFor="link-popover-url"` / `id="link-popover-url"`. `id` and `data-testid` are distinct — id is for the label binding (screen readers), testid is for Playwright. Test assertion: `getByLabelText('URL')` resolves the correct input. **PopoverAnchor positioning (SOLVED — was deferred; now shipped)**: Radix `PopoverContent` requires a sibling `<PopoverTrigger>` or `<PopoverAnchor>` inside the `<Popover>` root — without one, content renders at viewport (0,0). Phase 3 anchors to the toolbar Link button. Wiring: (i) `WysiwygToolbar` gains an optional `linkButtonRef?: React.Ref<HTMLButtonElement>` prop; when set, the Link button forwards its native `<button ref>` to this ref (3-line prop addition + forwardRef on the button render); (ii) `LinkPopover` accepts `anchorRef: React.RefObject<HTMLButtonElement>` (promoted from optional to required when `open=true`); (iii) inside `<Popover modal>` render `<PopoverAnchor asChild virtualRef={anchorRef} />` — Radix v1.1+ supports `virtualRef` that points at an existing DOM element without wrapping it. If the installed `@radix-ui/react-popover` predates `virtualRef`, fall back to rendering a `<span ref={anchorRef}>` child of `<PopoverAnchor asChild>` and use `getBoundingClientRect()` sync. Parent (dev route + Phase 5.3) declares `const toolbarLinkBtnRef = useRef<HTMLButtonElement>(null)` and threads it through `<WysiwygToolbar linkButtonRef={toolbarLinkBtnRef} />` + `<LinkPopover anchorRef={toolbarLinkBtnRef} />`. Footer row: `[Cancel]` (ghost) and `[Insert]` (default) buttons. Buttons: Cancel calls `onOpenChange(false)`; Insert collects Text + URL, runs `sanitizeLinkHref(url)` — if `ok`: `const applied = editor.chain().focus().extendMarkRange('link').setLink({ href }).run()`; **capture the return value** — if `applied === false` (Tiptap `isAllowedUri` second-gate rejection or no-selection + no-text), leave popover open and render inline `<p role="alert" data-testid="link-popover-error">Could not insert link.</p>`. On successful apply: `onOpenChange(false)`. **Capture-and-restore opener on open/close**: add \`const openerRef = useRef&lt;HTMLElementnull&gt;(null)`; on `open`transition to`true`, run `openerRef.current = document.activeElement as HTMLElement`; on close (via Cancel / Esc / Submit), Radix's `onCloseAutoFocus`is overridden:`onCloseAutoFocus={(e) =&gt; { e.preventDefault(); openerRef.current?.focus?.(); openerRef.current = null; }}`. This handles both entry paths correctly — toolbar-button-click opener → focus returns to button; ⌘K-from-editor opener → focus returns to the editor's contenteditable (user's writing flow preserved). Keyboard: `Enter` on URL field submits (`onKeyDown: e.key === 'Enter' → handleInsert()`); `Esc`closes (Radix`onEscapeKeyDown`fires — passed as`onOpenChange(false)`). **Swallow `Mod-k`at the popover root**: add`onKeyDown`on the outer`&lt;div&gt;`(inside`PopoverContent`/`SheetContent`) that intercepts `(e.metaKeye.ctrlKey) && e.key.toLowerCase() === 'k'`→`e.preventDefault(); e.stopPropagation();` then re-focuses the URL input (`urlInputRef.current?.focus()`). Without this, re-pressing ⌘K while the popover is open and URL field has focus escapes to the browser (Firefox search bar / Chrome omnibox) because Tiptap's keymap only fires while the editor is focused. Unit test: dispatch `keyDown`with`ctrlKey: true, key: 'k'`on the popover root → assert`preventDefault`called (use a plain callback on a synthetic event wrapper, no vi.fn). Data attrs:`data-testid="link-popover"\` on root, plus input/submit/cancel testids per label wiring above.`_platform/viewer`\[x\]T004Implement `LinkPopover` mobile variant. When `useMediaQuery('(max-width: 768px)')` → true, render `Sheet` from `@/components/ui/sheet` with `side="bottom"` in place of the desktop `Popover`. Same inner content (title, inputs, footer, testids, handlers) — extract into a `<LinkPopoverBody>` inner component to avoid duplication. Mobile tweaks: URL input auto-focuses so the on-screen keyboard appears; sheet `max-h` about 50% viewport (`className="max-h-[50vh]"`); footer buttons are stacked on narrow widths (`flex-col sm:flex-row`). Also wire the "is caret in link?" reactive read via `useEditorState` (Phase 2 insight — Tiptap's idiomatic selective-subscription hook): `const isInLink = useEditorState({ editor, selector: (ctx) => ctx.editor?.isActive('link') ?? false })`. Store this as state so the title flips between "Insert link" / "Edit link" and T005's Unlink button conditionally renders. Null-editor case: render the popover structure with all controls disabled (matches Phase 2 toolbar skeleton pattern — avoids flicker if `editor` is briefly null).`_platform/viewer/Users/jordanknight/substrate/083-md-editor/apps/web/src/features/_platform/viewer/components/link-popover.tsx` (modify — add mobile branch + `LinkPopoverBody` extraction + `useEditorState` integration)Viewport-dependent render (`jsdom` doesn't have real matchMedia; use a manual mock-free pattern: inject `useMediaQuery` result via test-only prop? — NO, see Notes); component renders as `Sheet` at ≤ 768 px; desktop + mobile branches use the same inner body; `isInLink` reactively flips title + Unlink visibilityWorkshop § 5.4 + § 11.3. **Test strategy for viewport branching**: `useMediaQuery` reads `window.matchMedia`. Unit tests set `window.matchMedia = (q) => ({ matches: q.includes('max-width: 768px'), … })` — that's NOT `vi.mock` / `vi.fn`, it's a direct property assignment (allowed under Constitution §4/§7 — the rule is "no mocking library", not "no test-time state setup"). Alternatively, accept a `__mediaMatches?: boolean` test-only prop; simpler but less clean. Decision: window.matchMedia property assignment per test case.\[x\]T005Edit + Unlink flow. When the popover opens AND `isInLink === true` (from T004's `useEditorState`): (a) pre-fill the URL input with `editor.getAttributes('link').href ?? ''`; (b) pre-fill the Text input with the link's visible text. **Simplest correct approach**: on open, call `editor.chain().focus().extendMarkRange('link').run()` to make the entire link the selection, then read `editor.state.doc.textBetween(editor.state.selection.from, editor.state.selection.to)` (no 3rd arg — `blockSeparator` defaults to empty; links live within a single block so the arg is irrelevant), store the pre-fill values in popover state, leave the selection extended so re-submit naturally replaces it. (c) Title flips from "🔗 Insert link" to "🔗 Edit link"; (d) Footer shows three buttons: `[Unlink] [Cancel] [Update]`. **Render** `data-testid="link-popover-unlink"` **on the Unlink button** (T008 depends on this selector). Unlink: `editor.chain().focus().extendMarkRange('link').unsetLink().run()` then `onOpenChange(false)`. Update: same sanitation + `setLink` as Insert. **Preserve nested marks (bold/italic inside a link)** — if Text field is unchanged from the pre-fill, skip `insertContent` and only re-apply the link: `editor.chain().focus().extendMarkRange('link').setLink({ href }).run()`. If Text changed, `editor.chain().focus().insertContent(newText).setLink({ href }).run()` (chain order: insertContent replaces selection, setLink applies to the just-inserted content). **Malformed href** — if `getAttributes('link').href` is undefined/empty but `isActive('link')` is true, treat as Insert mode (don't show Unlink), and log a console.warn. **Caret-on-link-boundary ambiguity**: Tiptap's `isActive('link')` may return false when caret is immediately after a link's trailing edge; `isInLink` is sourced from `useEditorState({ editor, selector: ctx => ctx.editor?.isActive('link') ?? false })` which handles the inclusive-right edge correctly per Tiptap's convention. Add a test case to confirm this boundary behavior. **Insert mode** (caret NOT in link): **On popover open (when** `!isInLink`**)**, pre-fill Text from the current editor selection per workshop § 5.1 step 3: `const selText = editor.state.doc.textBetween(editor.state.selection.from, editor.state.selection.to)` — if non-empty, seed the Text input state with it; if collapsed selection, leave empty. This pre-fill runs exactly once per open transition (guard via `useEffect(() => { if (open && !isInLink) setText(selText) }, [open, isInLink])`). **On submit**: with selection → `editor.chain().focus().setLink({ href }).run()` (Text field may have been edited — if Text diverged from the captured selection text, run `insertContent(text).setLink({ href })` instead to replace the selection with the user's edited text); no selection + Text typed → `insertContent(text)` then `setLink({ href })`; no selection + no Text → use URL as visible text (workshop § 5.1 step 4). Add a T007 unit case: "select word 'Claude' in editor, open popover in Insert mode → Text field value is 'Claude'"; and a harness assertion in T008 covering the select-word → toolbar-link-click → Text-prefilled path. **Always check** `chain().run()` **return value** — if false, keep popover open and show `data-testid="link-popover-error"` inline.`_platform/viewer/Users/jordanknight/substrate/083-md-editor/apps/web/src/features/_platform/viewer/components/link-popover.tsx` (modify — add edit-mode branch + Unlink button with testid + collapsed-selection handling + nested-mark preservation)Caret inside link + open popover → Text + URL pre-filled, Unlink button visible with `data-testid="link-popover-unlink"`, title = "Edit link"; Unlink click → link mark removed, visible text AND nested marks preserved, popover closes; Update with unchanged Text → nested marks preserved (bold-inside-link survives); Update with new Text → selection replaced + new link applied; Insert mode with no selection + only URL typed → inserts URL as visible text with itself as href; caret exactly after link trailing edge → `isInLink === false`, popover opens in Insert mode (tested); failed `setLink` → popover stays open with `link-popover-error` visibleWorkshop § 5.1 / § 5.3. Tiptap chain commands batch transactions (one undo step per popover submit). Boundary + nested-marks edge cases added per Completeness validation.\[x\]T006Wire `⌘K` keybinding into the editor's Link extension via `.extend({ addKeyboardShortcuts })` AND integrate `sanitizeLinkHref` as `Link.configure({ isAllowedUri })` (T002 defense-in-depth). Modify `markdown-wysiwyg-editor.tsx`: (a) add `onOpenLinkDialogRef = useRef(onOpenLinkDialog); onOpenLinkDialogRef.current = onOpenLinkDialog;` (mirror of `onChangeRef` / `onEditorReadyRef` pattern — ref-stable so `.extend()`'s closure captures the latest callback without re-registering extensions on every parent re-render); (b) **replace** the existing `TiptapLink.configure({ openOnClick: false, autolink: false })` (line 121) with `TiptapLink.configure({ openOnClick: false, autolink: false, protocols: ['http', 'https', 'mailto'], isAllowedUri: (url) => sanitizeLinkHref(url).ok }).extend({ addKeyboardShortcuts() { return { 'Mod-k': () => { if (!this.editor.isEditable) return false; onOpenLinkDialogRef.current?.(); return true; } }; } })` — `isAllowedUri` is the Tiptap v2.2+ gate that runs inside `setLink`; pairing it with the popover sanitizer makes the editor refuse unsafe hrefs even from programmatic calls. Returning `true` from the keymap preventsDefault on `Cmd+K`; returning `false` when not editable lets the browser default fire (readOnly docs should not open the dialog). (c) Import `sanitizeLinkHref` from `../lib/sanitize-link-href`. Do NOT touch any other extension, prop, or contract beyond these three additions. **Tests** in `markdown-wysiwyg-editor.test.tsx`: (t1) mount editor with `onOpenLinkDialog` plain-callback collector; dispatch `editor.commands.keyboardShortcut('Mod-k')` → collector called once (jsdom-reliable alternative to `fireEvent.keyDown`; `keyboardShortcut` is a Tiptap-native imperative trigger; lowercase `'Mod-k'` matches Tiptap convention); (t2) `readOnly={true}` editor + `Mod-k` → collector NOT called (editable gate works); (t3) `editor.chain().setLink({ href: 'javascript:alert(1)' }).run()` → returns false, editor DOM contains no `<a>` node (isAllowedUri gate works).`_platform/viewer/Users/jordanknight/substrate/083-md-editor/apps/web/src/features/_platform/viewer/components/markdown-wysiwyg-editor.tsx` (modify), `/Users/jordanknight/substrate/083-md-editor/test/unit/web/features/_platform/viewer/markdown-wysiwyg-editor.test.tsx` (modify — add 3 cases)Phase 1/2's existing 10 tests still green; 3 new tests pass (Mod-k, readOnly gate, isAllowedUri rejection); `Mod-k` pressed while editor has focus and is editable → `onOpenLinkDialog` callback invoked exactly once; readOnly editor → no callback; programmatic `setLink({ href: 'javascript:...' })` → returns false, no DOM mutation; no regression in `onChange` / `onEditorReady` / readOnly / placeholder behaviorPhase 2 Forward-Compat matrix pre-approved `.extend` composes with `.configure`. `isAllowedUri` is the Tiptap v2.2+ `setLink` gate (`node_modules/@tiptap/extension-link/dist/index.js:320`). `keyboardShortcut` is a Tiptap-core imperative trigger documented for this exact testing pattern. `'Mod-k'` (lowercase) is the convention; prosemirror-keymap normalizes `Mod` to the host modifier.\[x\]T007Unit tests for Phase 3. Two test files already created in T002 and T003's pathway; confirm + expand: **(A)** `sanitize-link-href.test.ts` (from T002): 22+ cases covering the allow-list, evasion vectors (data:, vbscript:, file:, control-char embeds, %-encoded, Unicode spoof), rejection, trim, case-insensitivity, relative-URL preservation; all GREEN. **(A.round-trip)** Add a headless-Editor round-trip case in a dedicated `link-round-trip.test.ts` OR as part of the existing `wysiwyg-toolbar.markdown.test.ts` fixture: seed `[Foo](https://en.wikipedia.org/wiki/Foo_(bar))` (and a second case with JIRA-style `https://x.atlassian.net/browse/PROJ-42?param=(1)`), verify `editor.storage.markdown.getMarkdown()` returns a markdown form that ROUND-TRIPS cleanly — either angle-bracket form `<https://…>` OR `\(` / `\)` escaping OR balanced parens that the parser accepts as part of the URL. Failure mode to watch: bare `(https://en.wikipedia.org/wiki/Foo_(bar))` truncates the href at the first `)` on re-parse. If `tiptap-markdown@0.8.10` does not escape/wrap, log a Discovery row and configure `Markdown.configure({...})` or wrap the href via `Link.configure({ HTMLAttributes: { ... } })` or add a lightweight `transformPastedHTML`-adjacent serializer shim. AC-09 (round-trip fidelity with edits) is the load-bearing promise this protects. **(B)** `link-popover.test.tsx` (new): React-mount cases — (i) renders desktop variant on wide viewport (`window.matchMedia` asserts `max-width: 768px → false`); renders mobile `Sheet` variant on narrow viewport; (ii) null `editor` prop → all controls `disabled` (no flicker); (iii) open with Insert mode (caret not in link) → title "Insert link", only `[Cancel] [Insert]` buttons, URL field auto-focused; (iv) open with Edit mode (seed editor with `[text](url)`, place caret inside) → title "Edit link", `[Unlink] [Cancel] [Update]`, Text + URL pre-filled; (v) type URL + Enter → `onOpenChange(false)` called + editor DOM contains `<a href="…">`; (vi) click Cancel → `onOpenChange(false)` + editor unchanged; (vii) click Unlink → link mark removed, visible text preserved; (viii) URL with `javascript:` → popover stays open, no link inserted (silent rejection per workshop § 5.5); (ix) URL without scheme (`example.com`) + Enter → link inserted with `href="https://example.com"`; (x) `isInLink` reactive flip: start outside link → title "Insert link"; run `editor.commands.setLink({ href: 'x' })` in selection → re-open popover → title "Edit link". **(C)** `markdown-wysiwyg-editor.test.tsx` (modify from T006): 1 added case — Mod-K via keymap fires `onOpenLinkDialog`. Constitution §4/§7: plain callbacks, `window.matchMedia` property assignment.`_platform/viewer/Users/jordanknight/substrate/083-md-editor/test/unit/web/features/_platform/viewer/sanitize-link-href.test.ts` (new — from T002), `/Users/jordanknight/substrate/083-md-editor/test/unit/web/features/_platform/viewer/link-popover.test.tsx` (new), `/Users/jordanknight/substrate/083-md-editor/test/unit/web/features/_platform/viewer/markdown-wysiwyg-editor.test.tsx` (modify — add Mod-K case)All Phase 3 unit tests pass; Phase 1/2's 45 tests unchanged; `pnpm exec vitest run test/unit/web/features/_platform/viewer/` (from repo root) exits 0 with ≥ 60 total testsConstitution §4/§7 — no mocking library. `window.matchMedia` property override per test is not mocking; it's test-time environment shaping. Phase 2 `jsdom` focus gotcha applies — do not assert `editor.isFocused` after chain commands; assert DOM structure (link node presence) instead.\[x\]T008Harness smoke extension. Modify dev route `app/dev/markdown-wysiwyg-smoke/page.tsx`: **preserve** `'use client'` directive, `process.env.NODE_ENV === 'production' && notFound()` guard, all Phase 1/2 composition (editor + toolbar); add `const [linkOpen, setLinkOpen] = useState(false)` and `const toolbarLinkBtnRef = useRef<HTMLButtonElement>(null)`. Pass `linkButtonRef={toolbarLinkBtnRef}` to `<WysiwygToolbar>` (new prop added in T003 — see Pre-Impl Contract Risks) and `anchorRef={toolbarLinkBtnRef}` to `<LinkPopover>`. This anchors the popover to the toolbar Link button — visibly positioned correctly (no viewport-origin render bug). Render `<LinkPopover editor={editor} open={linkOpen} onOpenChange={setLinkOpen} />` alongside the existing editor + toolbar. Wire BOTH the editor's `onOpenLinkDialog={() => setLinkOpen(true)}` prop AND the toolbar's `onOpenLinkDialog={() => setLinkOpen(true)}` prop to the same handler — matches the Phase 5.3 integration pattern. Modify harness spec `harness/tests/smoke/markdown-wysiwyg-smoke.spec.ts`: **preserve every Phase 1 + Phase 2 assertion verbatim** (h1, img src, hydration-free, role=toolbar, 16 buttons, Bold click → `<strong>`, H2 click → `<h2>`, Mod-Alt-c → `<pre><code>`). Add Phase 3 block: (1) click `[data-testid="toolbar-link"]` → `[data-testid="link-popover"]` becomes visible with `role="dialog"`; (2) type `https://example.com` into `[data-testid="link-popover-url-input"]`, press Enter → popover closes, editor DOM contains `a[href="https://example.com"]`; (3) place caret inside the just-inserted link, press `Mod-k` (`Control+k` in the Linux container) → popover reopens; URL field pre-filled `https://example.com`, Text field pre-filled; title text contains "Edit"; (4) click `[data-testid="link-popover-submit"]` with the same URL → popover closes, link still present; (5) place caret back inside link + Mod-k → click `[data-testid="link-popover-unlink"]` → editor DOM no longer contains `<a>`, visible text remains; (6a) **\[a11y/focus-return, click path\]** click `[data-testid="toolbar-link"]` → popover opens; press Escape → popover closes AND `document.activeElement` matches `[data-testid="toolbar-link"]` (capture-and-restore restores to the Link button the user clicked); (6b) **\[a11y/focus-return, ⌘K path\]** click inside the editor to set caret, press `Control+k` → popover opens; press Escape → popover closes AND the editor's contenteditable element (`[data-testid="md-wysiwyg-root"] [contenteditable="true"]`) has focus, NOT the toolbar Link button (capture-and-restore restores the editor where the user was writing); (7) **\[NEW — isAllowedUri gate\]** open popover, type `javascript:alert(1)`, press Enter → popover stays open, `[data-testid="link-popover-error"]` is visible, editor DOM contains no new `<a>`; (8a) **\[NEW — Mod-k-while-open swallow\]** open popover via toolbar Link click; URL input auto-focused; press `Control+k` (MOD_KEY in Linux harness) → popover stays open, URL input retains focus (`page.locator('[data-testid="link-popover-url-input"]:focus')` matches), browser did NOT navigate / chrome did not trigger (check: `page.url()` unchanged; no tab switch); typed URL value is preserved. (8b) **\[NEW — parenthesized-URL round-trip\]** open popover, type `https://en.wikipedia.org/wiki/Foo_(bar)`, press Enter → `a[href="https://en.wikipedia.org/wiki/Foo_(bar)"]` in editor DOM; read `editor.storage.markdown.getMarkdown()` via a dev-route debug hook (or a `data-markdown-output` attribute the dev route exposes for harness inspection) → parse the emitted markdown back through `tiptap-markdown` (quick round-trip via a second throwaway Editor) and assert the href is preserved byte-for-byte. If `tiptap-markdown` does not escape/wrap parens, this assertion fails and the implementor must add a serializer shim BEFORE Phase 6's broader round-trip corpus runs — catch it here, not at AC-09 time. Screenshot to `harness/results/phase-3/link-popover-desktop.png`. Mobile project: skip with reason "Mobile link popover bottom-sheet verification is Phase 6.4 scope" (consistent with Phase 2).(harness)`/Users/jordanknight/substrate/083-md-editor/apps/web/app/dev/markdown-wysiwyg-smoke/page.tsx` (modify), `/Users/jordanknight/substrate/083-md-editor/harness/tests/smoke/markdown-wysiwyg-smoke.spec.ts` (modify)Spec exits 0 on desktop + tablet; Phase 1 + 2 assertions preserved; Phase 3 assertions (8 steps — link click, Enter insert, Mod-k reopen/pre-fill, Update, Unlink, Esc focus-return, isAllowedUri rejection, Mod-k swallow while open, parenthesized-URL round-trip) all pass in Playwright; screenshot saved; mobile skipped with explicit reason. **Every didyouknow-v2 insight (popover anchor, Text pre-fill from selection, parenthesized-URL round-trip, Mod-k swallow, focus-return path) MUST have at least one explicit Playwright assertion — do not rely on unit-test coverage alone for the behaviors that caused this dossier to be revised**.Workshop § 5.1 + § 12 a11y (Esc closes + focus returns to trigger). Pre-phase harness health: `just harness-dev && just harness ports && just harness-health`. MOD_KEY=Control (Phase 2 gotcha). Focus-return is explicitly asserted here — Radix `modal={true}` Popover's default `onCloseAutoFocus` restores focus to the Trigger element; when the popover was opened via Mod-k (no trigger click), the focus-return will land on `document.body` unless the component explicitly captures `document.activeElement` on open and restores on close — see T005/T003 for the capture-and-restore logic that supplements Radix's default.
+ 
+ ---
+ 
+@@ -231,7 +219,7 @@ flowchart TD
+ 
+ - **Finding 08** (Medium, Interface-First) — T001 opens with types; `SanitizedHref` discriminated union + `LinkPopoverProps` defined before component code.
+ - **Finding 10** (Medium, React 19 + App Router) — `LinkPopover` is a client component. No new hydration risk: `useMediaQuery` reads `window` on mount (guard with `typeof window !== 'undefined'` inside the hook); initial SSR render returns the desktop branch (matches historical default).
+-- **Finding 12** (Low, Bundle 130 KB gz) — `LinkPopover` is ~2-3 KB uncompressed (form + shadcn primitives + lucide icons). Well within budget. `sanitize-link-href.ts` is ~500 B.
++- **Finding 12** (Low, Bundle 130 KB gz) — `LinkPopover` is \~2-3 KB uncompressed (form + shadcn primitives + lucide icons). Well within budget. `sanitize-link-href.ts` is \~500 B.
+ 
+ ### Spec / Workshop references
+ 
+@@ -340,10 +328,9 @@ sequenceDiagram
+ 
+ ## Discoveries & Learnings
+ 
+-_Populated during implementation by plan-6._
++*Populated during implementation by plan-6.*
+ 
+-| Date | Task | Type | Discovery | Resolution | References |
+-|------|------|------|-----------|------------|------------|
++DateTaskTypeDiscoveryResolutionReferences
+ 
+ **Types**: `gotcha` | `research-needed` | `unexpected-behavior` | `workaround` | `decision` | `debt` | `insight`
+ 
+@@ -378,15 +365,15 @@ docs/plans/083-md-editor/
+ 
+ ## Acceptance Criteria (phase-local, from plan)
+ 
+-- [ ] `⌘K` opens popover; typing URL + Enter inserts link (AC-13)
+-- [ ] Scheme-less URL gets `https://` prepended; `javascript:` rejected silently (AC-13; workshop § 5.5)
+-- [ ] Caret in existing link → pre-fills + shows Unlink (AC-13; workshop § 5.3)
+-- [ ] Mobile viewport (≤ 768 px) → bottom-sheet with URL auto-focus (AC-14; workshop § 5.4 / § 11.3)
+-- [ ] All interactive elements keyboard-reachable (AC-17; workshop § 5.1 / § 12)
+-- [ ] `MarkdownWysiwygEditor` additive `onOpenLinkDialog` prop — Phase 1/2 10 editor tests still green + 1 new
+-- [ ] Harness smoke: Phase 1/2 assertions preserved; Phase 3 link-insert, ⌘K reopen, edit, unlink all verified desktop + tablet
+-- [ ] Zero regression in 45 unit tests from Phase 1/2; new sanitize tests (≥ 14) + popover tests (≥ 10) + editor integration test (1) all green
+-- [ ] No new `vi.mock` / `vi.fn` / `vi.spyOn` (Constitution §4/§7)
++- \[ \] `⌘K` opens popover; typing URL + Enter inserts link (AC-13)
++- \[ \] Scheme-less URL gets `https://` prepended; `javascript:` rejected silently (AC-13; workshop § 5.5)
++- \[ \] Caret in existing link → pre-fills + shows Unlink (AC-13; workshop § 5.3)
++- \[ \] Mobile viewport (≤ 768 px) → bottom-sheet with URL auto-focus (AC-14; workshop § 5.4 / § 11.3)
++- \[ \] All interactive elements keyboard-reachable (AC-17; workshop § 5.1 / § 12)
++- \[ \] `MarkdownWysiwygEditor` additive `onOpenLinkDialog` prop — Phase 1/2 10 editor tests still green + 1 new
++- \[ \] Harness smoke: Phase 1/2 assertions preserved; Phase 3 link-insert, ⌘K reopen, edit, unlink all verified desktop + tablet
++- \[ \] Zero regression in 45 unit tests from Phase 1/2; new sanitize tests (≥ 14) + popover tests (≥ 10) + editor integration test (1) all green
++- \[ \] No new `vi.mock` / `vi.fn` / `vi.spyOn` (Constitution §4/§7)
+ 
+ ---
+ 
+@@ -398,48 +385,35 @@ CS-3 (medium). S=1 (new component in one domain), I=1 (one external ecosystem 
+ 
+ ## Validation Record (2026-04-18 — validate-v2 broad scope)
+ 
+-| Agent | Lenses Covered | Issues | Verdict |
+-|-------|---------------|--------|---------|
+-| Source Truth | Technical Constraints, Hidden Assumptions, Concept Documentation | 1 MEDIUM (setLink isAllowedUri second gate) + 1 MEDIUM (Mod-k case clarification, no-op) + 4 LOW (sheet imports incompleteness, textBetween arg wording, PopoverAnchor positioning, T001 dual-prop clarification) — 1 MEDIUM + 2 LOW folded into HIGH fixes below | PASS with fixes |
+-| Cross-Reference | System Behavior, Integration & Ripple, Domain Boundaries | 1 MEDIUM (plan 3.6 focus-return not committed — escalated to HIGH #2), 2 LOW (typo `onOpenOnLinkDialogRef`, T002 decision-tree phrasing) — typo fixed | PASS with fixes |
+-| Completeness | Edge Cases & Failures, Hidden Assumptions, Performance & Scale, Security & Privacy, UX, Deployment & Ops | 3 HIGH (sanitation coverage gaps, focus-return uncommitted, htmlFor/id wiring) + 7 MEDIUM (Radix Popover modal, edit-mode edge cases, useMediaQuery SSR, useEditorState gating, Mod-K idempotency/readOnly, paste-URL-on-selection, malformed href) + 2 LOW (anchor decision in ACs, setLink error path) — 3 HIGH + 3 MEDIUM fixed; 4 MEDIUM open for user decision | PASS with fixes (3 HIGH applied) |
+-| Forward-Compatibility | Forward-Compatibility (5 modes), Integration & Ripple (forward), Hidden Assumptions (forward) | 1 MEDIUM (T005 missing `data-testid="link-popover-unlink"` in done-when — folded into T005 fix) | PASS |
++AgentLenses CoveredIssuesVerdictSource TruthTechnical Constraints, Hidden Assumptions, Concept Documentation1 MEDIUM (setLink isAllowedUri second gate) + 1 MEDIUM (Mod-k case clarification, no-op) + 4 LOW (sheet imports incompleteness, textBetween arg wording, PopoverAnchor positioning, T001 dual-prop clarification) — 1 MEDIUM + 2 LOW folded into HIGH fixes belowPASS with fixesCross-ReferenceSystem Behavior, Integration & Ripple, Domain Boundaries1 MEDIUM (plan 3.6 focus-return not committed — escalated to HIGH #2), 2 LOW (typo `onOpenOnLinkDialogRef`, T002 decision-tree phrasing) — typo fixedPASS with fixesCompletenessEdge Cases & Failures, Hidden Assumptions, Performance & Scale, Security & Privacy, UX, Deployment & Ops3 HIGH (sanitation coverage gaps, focus-return uncommitted, htmlFor/id wiring) + 7 MEDIUM (Radix Popover modal, edit-mode edge cases, useMediaQuery SSR, useEditorState gating, Mod-K idempotency/readOnly, paste-URL-on-selection, malformed href) + 2 LOW (anchor decision in ACs, setLink error path) — 3 HIGH + 3 MEDIUM fixed; 4 MEDIUM open for user decisionPASS with fixes (3 HIGH applied)Forward-CompatibilityForward-Compatibility (5 modes), Integration & Ripple (forward), Hidden Assumptions (forward)1 MEDIUM (T005 missing `data-testid="link-popover-unlink"` in done-when — folded into T005 fix)PASS
+ 
+ **Lens coverage**: 11/12 (Concept Documentation, Technical Constraints, Hidden Assumptions, System Behavior, Integration & Ripple, Domain Boundaries, Edge Cases, Performance, Security, UX, Deployment, Forward-Compat). Above the 8-floor.
+ 
+ ### Forward-Compatibility Matrix
+ 
+-| Consumer | Requirement | Failure Mode | Verdict | Evidence |
+-|----------|-------------|--------------|---------|----------|
+-| Phase 5.3 (FileViewerPanel composition) | Parent holds `useState<Editor\|null>` + `useState<boolean>(linkOpen)`, passes `onEditorReady={setEditor}` + `onOpenLinkDialog={() => setLinkOpen(true)}` to editor, `editor` + same handler to toolbar, `editor` + `open` + `onOpenChange` to popover, using only Phase 3's public contract | Lifecycle ownership + Shape mismatch | ✅ | T001 types `LinkPopoverProps = { editor, open, onOpenChange, anchorRef?, className? }` and extends `MarkdownWysiwygEditorProps` with optional `onOpenLinkDialog?`. T008 dev route composes exactly this pattern. Phase 2 `WysiwygToolbarProps.onOpenLinkDialog?` already matches. No private state needed by the parent. |
+-| Phase 5.11 (harness migration) | Stable testids `link-popover`, `link-popover-text-input`, `link-popover-url-input`, `link-popover-submit`, `link-popover-cancel`, `link-popover-unlink`, `link-popover-error` preserved in FileViewerPanel's Rich-mode DOM | Test boundary + Encapsulation lockout | ✅ | T003 ships root + input + cancel + submit testids; T005 now explicitly requires `link-popover-unlink` in its done-when; T003's `link-popover-error` added for isAllowedUri rejection path. DOM encapsulated in `<LinkPopover>`; parent re-renders don't alter child testids. |
+-| Phase 6.5 (a11y audit via `@axe-core/playwright` at serious+) | `role="dialog"`, `aria-labelledby` → title id, `<Label htmlFor>` ↔ `<Input id>`, keyboard-reachable, focus trap (modal), Esc closes, focus returns to trigger | Contract drift | ✅ | T003 (post-fix) ships `role="dialog"` + `aria-labelledby="link-popover-title"` + explicit `htmlFor`/`id` on both inputs + `modal={true}` on desktop Popover (was missing) + focus-restore logic in T005 for Mod-k-opened case (was missing). Radix handles trigger-opened case. T008 asserts focus-return in harness. |
+-| Phase 6.3 (harness smoke post-migration) | Phase 3 assertions continue passing against FileViewerPanel: testid selectors unique, `Mod-k` fires, `<LinkPopover>` mount path survives | Contract drift | ✅ | All seven testids are unique namespaced strings. T006 registers `Mod-k` inside the Tiptap Link extension's keymap — binding lives on the editor instance regardless of mount location. MOD_KEY=Control preserved per Phase 2 gotcha. |
+-| Phase 2 backward integrity (toolbar contract) | Phase 3's `onOpenLinkDialog` on editor and toolbar are the same shape; toolbar Link button continues to work | Encapsulation lockout | ✅ | Toolbar config calls `onOpenLinkDialog?.()` with zero args; both props are `() => void`. One handler reused; fully additive; no Phase 1/2 test regression. `T001` clarifies the dual-prop relationship. |
+-| Phase 4 (utilities TDD) | INDEPENDENT — not a true consumer | n/a | N/A | Phase 4 ships front-matter + tables + size-gate utilities; no import dependency on `LinkPopover` or `sanitizeLinkHref`. Listed for completeness. |
+-| `SanitizedHref` shape for future consumers | Discriminated union `{ ok: true; href } \| { ok: false; reason }` sufficient for Phase 5/6 | Shape mismatch | ✅ | Only call site is `LinkPopover` submit path: needs `href` on success + silent drop on rejection (workshop § 5.5). No downstream requires `display`/`safeForSrcdoc`. Union is minimally specified; extensible additively (new variant fields) without breaking existing `if (result.ok)` consumers. |
++ConsumerRequirementFailure ModeVerdictEvidencePhase 5.3 (FileViewerPanel composition)Parent holds `useState<Editor|null>` + `useState<boolean>(linkOpen)`, passes `onEditorReady={setEditor}` + `onOpenLinkDialog={() => setLinkOpen(true)}` to editor, `editor` + same handler to toolbar, `editor` + `open` + `onOpenChange` to popover, using only Phase 3's public contractLifecycle ownership + Shape mismatch✅T001 types `LinkPopoverProps = { editor, open, onOpenChange, anchorRef?, className? }` and extends `MarkdownWysiwygEditorProps` with optional `onOpenLinkDialog?`. T008 dev route composes exactly this pattern. Phase 2 `WysiwygToolbarProps.onOpenLinkDialog?` already matches. No private state needed by the parent.Phase 5.11 (harness migration)Stable testids `link-popover`, `link-popover-text-input`, `link-popover-url-input`, `link-popover-submit`, `link-popover-cancel`, `link-popover-unlink`, `link-popover-error` preserved in FileViewerPanel's Rich-mode DOMTest boundary + Encapsulation lockout✅T003 ships root + input + cancel + submit testids; T005 now explicitly requires `link-popover-unlink` in its done-when; T003's `link-popover-error` added for isAllowedUri rejection path. DOM encapsulated in `<LinkPopover>`; parent re-renders don't alter child testids.Phase 6.5 (a11y audit via `@axe-core/playwright` at serious+)`role="dialog"`, `aria-labelledby` → title id, `<Label htmlFor>` ↔ `<Input id>`, keyboard-reachable, focus trap (modal), Esc closes, focus returns to triggerContract drift✅T003 (post-fix) ships `role="dialog"` + `aria-labelledby="link-popover-title"` + explicit `htmlFor`/`id` on both inputs + `modal={true}` on desktop Popover (was missing) + focus-restore logic in T005 for Mod-k-opened case (was missing). Radix handles trigger-opened case. T008 asserts focus-return in harness.Phase 6.3 (harness smoke post-migration)Phase 3 assertions continue passing against FileViewerPanel: testid selectors unique, `Mod-k` fires, `<LinkPopover>` mount path survivesContract drift✅All seven testids are unique namespaced strings. T006 registers `Mod-k` inside the Tiptap Link extension's keymap — binding lives on the editor instance regardless of mount location. MOD_KEY=Control preserved per Phase 2 gotcha.Phase 2 backward integrity (toolbar contract)Phase 3's `onOpenLinkDialog` on editor and toolbar are the same shape; toolbar Link button continues to workEncapsulation lockout✅Toolbar config calls `onOpenLinkDialog?.()` with zero args; both props are `() => void`. One handler reused; fully additive; no Phase 1/2 test regression. `T001` clarifies the dual-prop relationship.Phase 4 (utilities TDD)INDEPENDENT — not a true consumern/aN/APhase 4 ships front-matter + tables + size-gate utilities; no import dependency on `LinkPopover` or `sanitizeLinkHref`. Listed for completeness.`SanitizedHref` shape for future consumersDiscriminated union `{ ok: true; href } | { ok: false; reason }` sufficient for Phase 5/6Shape mismatch✅Only call site is `LinkPopover` submit path: needs `href` on success + silent drop on rejection (workshop § 5.5). No downstream requires `display`/`safeForSrcdoc`. Union is minimally specified; extensible additively (new variant fields) without breaking existing `if (result.ok)` consumers.
+ 
+-**Outcome alignment** (verbatim from Forward-Compatibility Agent): *The VPO Outcome states "Editing .md files today requires knowing markdown syntax. That's fine for power users but creates friction for everyone else... A WYSIWYG mode removes that friction without removing the Source escape hatch." — and Phase 3 as specified materially advances it by delivering the last first-class editing affordance (link insert/edit/unlink via ⌘K and toolbar click with URL sanitation), which closes the "Rich mode can compose a document" story so non-power-users no longer need to type `[text](url)` syntax to hyperlink, while leaving the Source escape hatch untouched.*
++**Outcome alignment** (verbatim from Forward-Compatibility Agent): *The VPO Outcome states "Editing .md files today requires knowing markdown syntax. That's fine for power users but creates friction for everyone else... A WYSIWYG mode removes that friction without removing the Source escape hatch." — and Phase 3 as specified materially advances it by delivering the last first-class editing affordance (link insert/edit/unlink via ⌘K and toolbar click with URL sanitation), which closes the "Rich mode can compose a document" story so non-power-users no longer need to type* `[text](url)` *syntax to hyperlink, while leaving the Source escape hatch untouched.*
+ 
+ **Standalone?**: No — 6 named consumers (5 forward + 1 backward integrity) with concrete requirements.
+ 
+ ### Fixes Applied in This Pass
+ 
+-1. **(HIGH)** T002 sanitation coverage expanded from 14 to 22+ cases covering data:, vbscript:, file:, tab/newline/CR/null-byte embeds, URL-encoded scheme (`%6A…`), fullwidth Unicode, dotless-i spoof. Implementation updated to strip control chars before scheme detection + paranoid `%XX`-prefix guard. Tiptap `Link.configure({ isAllowedUri: (url) => sanitizeLinkHref(url).ok })` integration added as defense-in-depth (T006).
+-2. **(HIGH)** Focus-return to toolbar button committed in T008 step (6) with explicit harness assertion on `document.activeElement`. T005 specifies capture-and-restore of `document.activeElement` for the Mod-k-opened case (Radix only handles trigger-click-opened). Executive Briefing a11y bullet rewritten to reflect the Radix reality.
+-3. **(HIGH)** `htmlFor`/`id` wiring on Label↔Input made explicit in T003 with distinct `id` (`link-popover-text`, `link-popover-url`) from `data-testid` attributes. `getByLabelText` unit-test assertion added.
+-4. **(MEDIUM)** `modal={true}` on desktop Popover added to T003 + Pre-Implementation Contract Risks. Prevents focus-trap escape into editor.
+-5. **(MEDIUM)** `setLink` return-value check + `link-popover-error` inline alert added to T003 + T005 — handles both `isAllowedUri` rejection and no-selection+no-text no-op.
+-6. **(MEDIUM)** T006 `Mod-k` handler returns `false` when `!editor.isEditable` — readOnly editors don't open the popover. New test case t2.
+-7. **(MEDIUM)** T005 Unlink button `data-testid="link-popover-unlink"` now explicit in done-when (not just in T008's note).
+-8. **(MEDIUM)** T005 edge cases added: nested-marks preservation (skip `insertContent` if Text unchanged), malformed `getAttributes('link').href` treated as Insert, caret-at-link-boundary behavior tested.
+-9. **(LOW)** Typo `onOpenOnLinkDialogRef` → `onOpenLinkDialogRef`.
++ 1. **(HIGH)** T002 sanitation coverage expanded from 14 to 22+ cases covering data:, vbscript:, file:, tab/newline/CR/null-byte embeds, URL-encoded scheme (`%6A…`), fullwidth Unicode, dotless-i spoof. Implementation updated to strip control chars before scheme detection + paranoid `%XX`-prefix guard. Tiptap `Link.configure({ isAllowedUri: (url) => sanitizeLinkHref(url).ok })` integration added as defense-in-depth (T006).
++ 2. **(HIGH)** Focus-return to toolbar button committed in T008 step (6) with explicit harness assertion on `document.activeElement`. T005 specifies capture-and-restore of `document.activeElement` for the Mod-k-opened case (Radix only handles trigger-click-opened). Executive Briefing a11y bullet rewritten to reflect the Radix reality.
++ 3. **(HIGH)** `htmlFor`/`id` wiring on Label↔Input made explicit in T003 with distinct `id` (`link-popover-text`, `link-popover-url`) from `data-testid` attributes. `getByLabelText` unit-test assertion added.
++ 4. **(MEDIUM)** `modal={true}` on desktop Popover added to T003 + Pre-Implementation Contract Risks. Prevents focus-trap escape into editor.
++ 5. **(MEDIUM)** `setLink` return-value check + `link-popover-error` inline alert added to T003 + T005 — handles both `isAllowedUri` rejection and no-selection+no-text no-op.
++ 6. **(MEDIUM)** T006 `Mod-k` handler returns `false` when `!editor.isEditable` — readOnly editors don't open the popover. New test case t2.
++ 7. **(MEDIUM)** T005 Unlink button `data-testid="link-popover-unlink"` now explicit in done-when (not just in T008's note).
++ 8. **(MEDIUM)** T005 edge cases added: nested-marks preservation (skip `insertContent` if Text unchanged), malformed `getAttributes('link').href` treated as Insert, caret-at-link-boundary behavior tested.
++ 9. **(LOW)** Typo `onOpenOnLinkDialogRef` → `onOpenLinkDialogRef`.
+ 10. **(LOW)** Contract Risks corrected: Radix Popover is NOT Dialog; Sheet uses Dialog and traps by default; desktop requires `modal={true}`.
+ 
+ ### Open Items (MEDIUM/LOW — user decision before implementation)
+ 
+-- **`useMediaQuery` SSR hydration flash** (MEDIUM) — T004 should use `useSyncExternalStore` with `getServerSnapshot: () => false` for desktop-first consistent SSR; open popover on mount would flash desktop→mobile. Mitigation cost: ~5 lines of hook code.
+-- **`useEditorState` subscription runs when popover closed** (MEDIUM) — Performance nit. Can gate via `useEditorState({ editor: open ? editor : null, ... })`. Cost: 1-line change. User can defer to Phase 6.7 bundle-analysis pass if profiling shows no measurable impact.
++- `useMediaQuery` **SSR hydration flash** (MEDIUM) — T004 should use `useSyncExternalStore` with `getServerSnapshot: () => false` for desktop-first consistent SSR; open popover on mount would flash desktop→mobile. Mitigation cost: \~5 lines of hook code.
++- `useEditorState` **subscription runs when popover closed** (MEDIUM) — Performance nit. Can gate via `useEditorState({ editor: open ? editor : null, ... })`. Cost: 1-line change. User can defer to Phase 6.7 bundle-analysis pass if profiling shows no measurable impact.
+ - **Paste-URL-on-selection gap** (MEDIUM) — Workshop implicit, not explicit. User choice: (a) document as Non-Goal for Phase 3 + revisit Phase 6 polish, or (b) add minimal `handlePaste` plugin now. Not blocking the feature's primary promise.
+ - **Anchor decision diverges from workshop** (LOW) — T003 anchors to toolbar button, not caret. Documented in Contract Risks but missing from ACs. User can elect to add an AC row or leave as-is (workshop § 5.2 mockup is anchor-agnostic).
+ 
+@@ -449,14 +423,8 @@ CS-3 (medium). S=1 (new component in one domain), I=1 (one external ecosystem 
+ 
+ ## Critical Insights (2026-04-18 — didyouknow-v2)
+ 
+-| # | Insight | Decision |
+-|---|---------|----------|
+-| 1 | T008's "simplest for MVP: omit `anchorRef`" renders the popover at viewport (0,0) — a visible shipping bug that Phase 5.3 would have to fix anyway | Solve anchoring now — T003 adds `linkButtonRef` forwarded ref to `WysiwygToolbar` + `PopoverAnchor` wiring on `LinkPopover`; dev route (T008) threads the ref |
+-| 2 | Workshop § 5.1 step 3 requires Text-field auto-fill from selection in Insert mode, but the dossier only pre-fills in Edit mode — the most common "select word + ⌘K + type URL" flow is broken | T005 adds `editor.state.doc.textBetween(selection.from, selection.to)` pre-fill on popover open when `!isInLink`; T007 unit + T008 harness case added |
+-| 3 | `tiptap-markdown@0.8.10` may serialize `https://en.wikipedia.org/wiki/Foo_(bar)` without escaping parens, breaking AC-09 round-trip silently | T007 adds a parenthesized-URL round-trip case (Wikipedia + JIRA); T008 step (8b) asserts markdown output round-trips cleanly — catches serializer gaps here, not at Phase 6 |
+-| 4 | Re-pressing `⌘K` while popover is open and URL input is focused escapes to the browser (Firefox search bar / Chrome omnibox) because Tiptap's keymap only fires when the editor is focused | T003 adds `onKeyDown` handler on popover root that intercepts `Mod-k` → `preventDefault + stopPropagation + refocus URL input`; T008 step (8a) Playwright-asserts no browser navigation |
+-| 5 | Radix's default `onCloseAutoFocus` always restores focus to the Trigger, but `⌘K`-opened popover has no trigger — the correct focus-return target is the editor, not the toolbar button | T003 adds `openerRef` capture on open + `onCloseAutoFocus` override; T008 splits focus-return assertion into (6a) click path → toolbar and (6b) ⌘K path → editor contenteditable |
++#InsightDecision1T008's "simplest for MVP: omit `anchorRef`" renders the popover at viewport (0,0) — a visible shipping bug that Phase 5.3 would have to fix anywaySolve anchoring now — T003 adds `linkButtonRef` forwarded ref to `WysiwygToolbar` + `PopoverAnchor` wiring on `LinkPopover`; dev route (T008) threads the ref2Workshop § 5.1 step 3 requires Text-field auto-fill from selection in Insert mode, but the dossier only pre-fills in Edit mode — the most common "select word + ⌘K + type URL" flow is brokenT005 adds `editor.state.doc.textBetween(selection.from, selection.to)` pre-fill on popover open when `!isInLink`; T007 unit + T008 harness case added3`tiptap-markdown@0.8.10` may serialize `https://en.wikipedia.org/wiki/Foo_(bar)` without escaping parens, breaking AC-09 round-trip silentlyT007 adds a parenthesized-URL round-trip case (Wikipedia + JIRA); T008 step (8b) asserts markdown output round-trips cleanly — catches serializer gaps here, not at Phase 64Re-pressing `⌘K` while popover is open and URL input is focused escapes to the browser (Firefox search bar / Chrome omnibox) because Tiptap's keymap only fires when the editor is focusedT003 adds `onKeyDown` handler on popover root that intercepts `Mod-k` → `preventDefault + stopPropagation + refocus URL input`; T008 step (8a) Playwright-asserts no browser navigation5Radix's default `onCloseAutoFocus` always restores focus to the Trigger, but `⌘K`-opened popover has no trigger — the correct focus-return target is the editor, not the toolbar buttonT003 adds `openerRef` capture on open + `onCloseAutoFocus` override; T008 splits focus-return assertion into (6a) click path → toolbar and (6b) ⌘K path → editor contenteditable
+ 
+ Action items: none remaining — all 5 applied to T003/T005/T007/T008. User directive: "test all this in Playwright after" — T008 done-when explicitly mandates Playwright coverage for every insight.
+ 
+----
++---
+\ No newline at end of file
+diff --git a/harness/tests/smoke/markdown-wysiwyg-smoke.spec.ts b/harness/tests/smoke/markdown-wysiwyg-smoke.spec.ts
+index ef8edfb0..48c4cab9 100644
+--- a/harness/tests/smoke/markdown-wysiwyg-smoke.spec.ts
++++ b/harness/tests/smoke/markdown-wysiwyg-smoke.spec.ts
+@@ -1,36 +1,25 @@
+ /**
+- * Phase 1 + Phase 2 + Phase 3 — MarkdownWysiwygEditor + WysiwygToolbar
+- * + LinkPopover harness smoke.
++ * Phase 5 T011 — WYSIWYG smoke migrated onto the real `FileViewerPanel` surface.
+  *
+- * Navigates the harness CDP browser to /dev/markdown-wysiwyg-smoke, waits
+- * for the lazy Tiptap chunk to hydrate, and asserts:
++ * Navigates the harness CDP browser to a `.md` file in the harness test workspace
++ * with `?mode=rich` already in the URL, then asserts:
++ *   - Phase 1 (T006)  — editor mounts, h1 renders, image src routed through resolver,
++ *                       front-matter fences stripped from DOM, zero hydration warnings.
++ *   - Phase 2 (T008)  — toolbar present with role="toolbar" and 16 buttons; Bold + H2
++ *                       click toggles, Mod-Alt-C chord toggles code block.
++ *   - Phase 3 smoke   — Link toolbar button opens the popover. (Full link flow is
++ *                       covered by Phase 3 unit + integration tests; this is a smoke
++ *                       check that the popover is reachable on the real surface.)
++ *   - Phase 4 (T007)  — front-matter byte-preserved across a real edit, via the
++ *                       `data-emitted-markdown` attribute on `.md-wysiwyg-editor-mount`
++ *                       (Phase 5 test affordance committed in T003).
++ *   - Phase 5 (T007)  — language pill visible for ```python code block.
+  *
+- *   Phase 1 (T006) — preserved verbatim:
+- *     - `<h1>Hello</h1>` appears in the DOM (WYSIWYG rendering works)
+- *     - `<img>` src starts with the raw-file API base (resolver runs)
+- *     - Zero console messages matching /hydration|did not match|mismatch/i
++ * Fixture: `scratch/harness-test-workspace/sample-rich.md` (created by T011 Step 0;
++ * contains heading + paragraph + image + code block + YAML front-matter). The
++ * harness test workspace is seeded via `just harness seed`.
+  *
+- *   Phase 2 (T008) — preserved verbatim:
+- *     - `role="toolbar"` present with 16 buttons
+- *     - Clicking `[data-testid="toolbar-bold"]` on a selection toggles `<strong>`
+- *     - Clicking `[data-testid="toolbar-h2"]` toggles an `<h2>`
+- *     - `Mod-Alt-C` keybinding toggles a code block
+- *
+- *   Phase 3 (T008) — NEW (every didyouknow-v2 insight is covered):
+- *     (1) click [data-testid="toolbar-link"] → popover opens with role="dialog"
+- *     (2) type URL + Enter → popover closes, anchor inserted
+- *     (3) caret inside link + Mod-k → popover reopens in Edit mode, pre-fill
+- *     (4) click Update → link retained
+- *     (5) click Unlink → anchor removed, text preserved
+- *     (6a) Esc after toolbar-click open → focus returns to Link button
+- *     (6b) Esc after Mod-k open → focus returns to editor contenteditable
+- *     (7) type javascript:alert(1) + Enter → error visible, no anchor
+- *     (8a) open popover + press Mod-k → popover stays open, URL input focused
+- *     (8b) parenthesized-URL round-trip → markdown output preserves href
+- *
+- * Screenshot persisted under harness/results/phase-3/.
+- *
+- * Requires: `just harness-dev` from the repo root; app reachable at baseURL.
++ * Requires: `just harness dev` from the repo root.
+  */
+ 
+ import { existsSync, mkdirSync } from 'node:fs';
+@@ -38,16 +27,21 @@ import { join } from 'node:path';
+ 
+ import { expect, test } from '../fixtures/base-test.js';
+ 
+-const RESULTS_DIR_P2 = join(import.meta.dirname, '../../results/phase-2');
+-const RESULTS_DIR_P3 = join(import.meta.dirname, '../../results/phase-3');
+-const RESULTS_DIR_P4 = join(import.meta.dirname, '../../results/phase-4');
+-const SMOKE_PATH = '/dev/markdown-wysiwyg-smoke';
++const RESULTS_DIR_P5 = join(import.meta.dirname, '../../results/phase-5');
++
++const WORKSPACE_SLUG = 'harness-test-workspace';
++const WORKTREE_PATH = '/app/scratch/harness-test-workspace';
++const FIXTURE_FILE = 'sample-rich.md';
++const SMOKE_PATH =
++  `/workspaces/${WORKSPACE_SLUG}/browser?worktree=${encodeURIComponent(WORKTREE_PATH)}` +
++  `&file=${encodeURIComponent(FIXTURE_FILE)}&mode=rich`;
++
+ const HYDRATION_RX = /hydration|did not match|mismatch/i;
+ // Harness Chromium runs inside a Linux Docker container — `Mod-` maps to Control.
+ const MOD_KEY = 'Control';
+ 
+-test.describe('Phase 3 / T008: WYSIWYG smoke (editor + toolbar + link popover)', () => {
+-  test('editor, toolbar, and link popover compose end-to-end', async ({
++test.describe('Phase 5 T011: WYSIWYG smoke on real FileViewerPanel', () => {
++  test('Rich mode composes end-to-end on the real file-browser surface', async ({
+     cdpPage,
+     baseURL,
+   }, testInfo) => {
+@@ -57,15 +51,16 @@ test.describe('Phase 3 / T008: WYSIWYG smoke (editor + toolbar + link popover)',
+     );
+     /*
+     Test Doc:
+-    - Why: End-to-end verification that Phases 1–3 compose on Next 16 + React 19.
+-      Every didyouknow-v2 insight from the dossier has at least one assertion
+-      here (popover anchor, selection pre-fill, parenthesized URL round-trip,
+-      Mod-k swallow, focus-return path depending on opener).
+-    - Contract: full matrix from the file-level doc comment above.
+-    - Quality contribution: locks in AC-04 (toolbar click), AC-05 (Mod-k),
+-      AC-13 (link insertion + sanitation), AC-17 (a11y basics).
++    - Why: Load-bearing Phase 5 proof — the Rich branch of FileViewerPanel composes
++      Phases 1–4 + Phase 5's language pill on the real file-browser surface with
++      a URL-driven mode, emits front-matter-preserving markdown via the new
++      `data-emitted-markdown` affordance (Phase 6.2 dependency), and shows no
++      hydration warnings. Full Phase 3 link popover flows stay covered by the
++      87-assertion unit+integration suite.
++    - Contract: navigating to a .md file with ?mode=rich lands directly in Rich
++      mode; toolbar toggles work; popover opens; fm byte-preserved; language pill
++      renders; zero hydration warnings.
+     */
+-
+     const hydrationWarnings: string[] = [];
+     cdpPage.on('console', (msg) => {
+       const type = msg.type();
+@@ -81,11 +76,24 @@ test.describe('Phase 3 / T008: WYSIWYG smoke (editor + toolbar + link popover)',
+     // ── Phase 1 assertions ──────────────────────────────────────────
+     await cdpPage.waitForSelector('[data-testid="md-wysiwyg-root"]', { timeout: 15_000 });
+     const editorRoot = cdpPage.locator('[data-testid="md-wysiwyg-root"]');
+-    const h1Text = await editorRoot.locator('h1').first().textContent();
+-    expect(h1Text).toContain('Hello');
++    const mountWrapper = cdpPage.locator('.md-wysiwyg-editor-mount');
++    await expect(mountWrapper).toBeVisible({ timeout: 5_000 });
++
++    // Body renders: <h1>Hello</h1> from fixture body.
++    await expect(editorRoot.locator('h1', { hasText: 'Hello' }).first()).toBeVisible({
++      timeout: 5_000,
++    });
++
++    // Image is routed through the raw-file API resolver.
+     const imgSrc = await editorRoot.locator('img').first().getAttribute('src');
+     expect(imgSrc).not.toBeNull();
+-    expect(imgSrc).toMatch(/\/api\/workspaces\/test\/files\/raw\?worktree=test&file=/);
++    expect(imgSrc).toMatch(/\/api\/workspaces\/[^?]+\/files\/raw/);
++
++    // Front-matter fences are NOT visible in the rendered DOM (Phase 4 split()
++    // extracts them into the editor's frontMatterRef).
++    const renderedText = (await editorRoot.textContent()) ?? '';
++    expect(renderedText).not.toContain('---');
++    expect(renderedText).not.toContain('title: Smoke Fixture');
+ 
+     // ── Phase 2 assertions ──────────────────────────────────────────
+     const toolbar = cdpPage.locator('[data-testid="wysiwyg-toolbar"]');
+@@ -94,233 +102,62 @@ test.describe('Phase 3 / T008: WYSIWYG smoke (editor + toolbar + link popover)',
+     const buttons = toolbar.locator('[data-testid^="toolbar-"]');
+     await expect(buttons).toHaveCount(16);
+ 
+-    // Bold click (select-all → Bold)
++    // Bold click (select-all → Bold).
+     await editorRoot.locator('h1').first().click();
+     await cdpPage.keyboard.press(`${MOD_KEY}+a`);
+     await cdpPage.locator('[data-testid="toolbar-bold"]').click();
+     await expect(editorRoot.locator('strong').first()).toBeVisible({ timeout: 5_000 });
+ 
+-    // H2 click
++    // H2 click.
+     await editorRoot.locator('p', { hasText: 'Some text.' }).click();
+     await cdpPage.locator('[data-testid="toolbar-h2"]').click();
+     await expect(editorRoot.locator('h2').first()).toBeVisible({ timeout: 5_000 });
+ 
+-    // Mod-Alt-C code block
+-    await editorRoot.click();
+-    await cdpPage.keyboard.press(`${MOD_KEY}+End`);
+-    await cdpPage.keyboard.press(`${MOD_KEY}+Alt+c`);
+-    await expect(editorRoot.locator('pre code').first()).toBeVisible({ timeout: 5_000 });
+-
+-    // Phase 2 screenshot — preserved.
+-    if (!existsSync(RESULTS_DIR_P2)) mkdirSync(RESULTS_DIR_P2, { recursive: true });
+-    await cdpPage.screenshot({
+-      path: join(RESULTS_DIR_P2, `toolbar-${testInfo.project.name}.png`),
+-      fullPage: false,
+-    });
+-
+-    // ── Phase 3 assertions ──────────────────────────────────────────
+-    // Reload page for a clean editor state — Phase 2 heavily mutates the
+-    // doc, and Phase 3 wants to start fresh so the link-insertion paths
+-    // are predictable.
+-    await cdpPage.goto(`${baseURL}${SMOKE_PATH}`, { waitUntil: 'domcontentloaded' });
+-    await cdpPage.waitForSelector('[data-testid="md-wysiwyg-root"]', { timeout: 15_000 });
+-    await cdpPage.waitForSelector('[data-testid="wysiwyg-toolbar"]', { timeout: 5_000 });
++    // ── Phase 3 smoke — popover opens ───────────────────────────────
++    // Full link flow is covered by unit + integration tests; this is a smoke
++    // assertion that the popover is reachable on the real surface.
+     const linkButton = cdpPage.locator('[data-testid="toolbar-link"]');
+     const linkPopover = cdpPage.locator('[data-testid="link-popover"]');
+-    const urlInput = cdpPage.locator('[data-testid="link-popover-url-input"]');
+-    const textInput = cdpPage.locator('[data-testid="link-popover-text-input"]');
+-    const submitBtn = cdpPage.locator('[data-testid="link-popover-submit"]');
+-    const unlinkBtn = cdpPage.locator('[data-testid="link-popover-unlink"]');
+-    const errorEl = cdpPage.locator('[data-testid="link-popover-error"]');
+-
+-    // Start from a clean paragraph. Place caret at end and type a fresh line.
+-    await editorRoot.click();
+-    await cdpPage.keyboard.press(`${MOD_KEY}+End`);
+-    await cdpPage.keyboard.press('Enter');
+-    await cdpPage.keyboard.type('target');
+-    await cdpPage.keyboard.press(`${MOD_KEY}+a`);
+-    // (Select-all so the link wraps the full doc; harmless for our assertion
+-    // that at least one <a> appears.)
+-
+-    // (1) click toolbar Link → popover opens
+     await linkButton.click();
+     await expect(linkPopover).toBeVisible({ timeout: 5_000 });
+     await expect(linkPopover).toHaveAttribute('role', 'dialog');
+-
+-    // (2) type URL + Enter → popover closes, anchor inserted
+-    await urlInput.fill('https://example.com');
+-    await urlInput.press('Enter');
+-    await expect(linkPopover).not.toBeVisible({ timeout: 5_000 });
+-    await expect(editorRoot.locator('a[href="https://example.com"]').first()).toBeVisible({
+-      timeout: 5_000,
+-    });
+-
+-    // (3) Caret inside the link + Mod-k → popover reopens in Edit mode, pre-fill
+-    await editorRoot.locator('a[href="https://example.com"]').first().click();
+-    await cdpPage.keyboard.press(`${MOD_KEY}+k`);
+-    await expect(linkPopover).toBeVisible({ timeout: 5_000 });
+-    await expect(cdpPage.locator('#link-popover-title')).toContainText('Edit link');
+-    await expect(urlInput).toHaveValue('https://example.com');
+-    const prefilledText = await textInput.inputValue();
+-    expect(prefilledText.length).toBeGreaterThan(0);
+-
+-    // (4) Click Update (unchanged URL) → link retained, popover closes
+-    await submitBtn.click();
+-    await expect(linkPopover).not.toBeVisible({ timeout: 5_000 });
+-    await expect(editorRoot.locator('a[href="https://example.com"]').first()).toBeVisible();
+-
+-    // (5) Caret inside link + Mod-k → click Unlink → anchor removed
+-    await editorRoot.locator('a[href="https://example.com"]').first().click();
+-    await cdpPage.keyboard.press(`${MOD_KEY}+k`);
+-    await expect(linkPopover).toBeVisible({ timeout: 5_000 });
+-    await expect(unlinkBtn).toBeVisible();
+-    await unlinkBtn.click();
+-    await expect(linkPopover).not.toBeVisible({ timeout: 5_000 });
+-    await expect(editorRoot.locator('a[href="https://example.com"]')).toHaveCount(0);
+-
+-    // (6a) Focus-return after toolbar-click open → Link button regains focus on Esc
+-    await editorRoot.click();
+-    await linkButton.click();
+-    await expect(linkPopover).toBeVisible({ timeout: 5_000 });
+-    await cdpPage.keyboard.press('Escape');
+-    await expect(linkPopover).not.toBeVisible({ timeout: 5_000 });
+-    const focusedAfterToolbarEsc = await cdpPage.evaluate(
+-      () => document.activeElement?.getAttribute('data-testid') ?? '',
+-    );
+-    expect(focusedAfterToolbarEsc).toBe('toolbar-link');
+-
+-    // (6b) Focus-return after Mod-k open → editor contenteditable regains focus
+-    await editorRoot.click();
+-    await cdpPage.keyboard.press(`${MOD_KEY}+k`);
+-    await expect(linkPopover).toBeVisible({ timeout: 5_000 });
+-    await cdpPage.keyboard.press('Escape');
+-    await expect(linkPopover).not.toBeVisible({ timeout: 5_000 });
+-    const focusedAfterModKEsc = await cdpPage.evaluate(() => {
+-      const el = document.activeElement as HTMLElement | null;
+-      return el?.getAttribute('contenteditable') ?? '';
+-    });
+-    expect(focusedAfterModKEsc).toBe('true');
+-
+-    // (7) javascript: URL → rejected, error visible, no new anchor
+-    await linkButton.click();
+-    await expect(linkPopover).toBeVisible({ timeout: 5_000 });
+-    await urlInput.fill('javascript:alert(1)');
+-    await urlInput.press('Enter');
+-    await expect(errorEl).toBeVisible({ timeout: 5_000 });
+-    // Popover stays open
+-    await expect(linkPopover).toBeVisible();
+-    await expect(editorRoot.locator('a[href^="javascript:"]')).toHaveCount(0);
+     await cdpPage.keyboard.press('Escape');
+     await expect(linkPopover).not.toBeVisible({ timeout: 5_000 });
+ 
+-    // (8a) Mod-k swallow while popover open → popover stays open, URL focused
+-    await linkButton.click();
+-    await expect(linkPopover).toBeVisible({ timeout: 5_000 });
+-    await urlInput.fill('partial-text');
+-    await cdpPage.keyboard.press(`${MOD_KEY}+k`);
+-    await expect(linkPopover).toBeVisible();
+-    await expect(urlInput).toBeFocused();
+-    await expect(urlInput).toHaveValue('partial-text');
+-    await cdpPage.keyboard.press('Escape');
+-
+-    // (8b) Parenthesized URL round-trip
+-    await editorRoot.click();
+-    await cdpPage.keyboard.press(`${MOD_KEY}+End`);
+-    await cdpPage.keyboard.press('Enter');
+-    await cdpPage.keyboard.type('paren-link-text');
+-    await cdpPage.keyboard.press(`${MOD_KEY}+a`);
+-    await linkButton.click();
+-    await expect(linkPopover).toBeVisible({ timeout: 5_000 });
+-    const parenHref = 'https://en.wikipedia.org/wiki/Foo_(bar)';
+-    await urlInput.fill(parenHref);
+-    await urlInput.press('Enter');
+-    await expect(linkPopover).not.toBeVisible({ timeout: 5_000 });
+-    await expect(editorRoot.locator(`a[href="${parenHref}"]`).first()).toBeVisible({
+-      timeout: 5_000,
+-    });
+-    // Read the dev route's window.__smokeGetMarkdown() hook → check href
+-    // is byte-preserved in the serialized markdown. tiptap-markdown
+-    // backslash-escapes balanced parens inside URLs (`\(` / `\)`) so a
+-    // downstream parser re-reads the href correctly. Normalize the escape
+-    // before comparison — that's the guarantee AC-09 actually protects
+-    // (semantic byte preservation on round-trip, not a specific escape
+-    // style).
+-    const emittedMarkdown = await cdpPage.evaluate(() => {
+-      const w = window as Window & { __smokeGetMarkdown?: () => string };
+-      return w.__smokeGetMarkdown?.() ?? '';
+-    });
+-    const unescapedMarkdown = emittedMarkdown.replace(/\\([()])/g, '$1');
+-    expect(unescapedMarkdown, emittedMarkdown).toContain(parenHref);
+-
+-    // Settle any residual hydration work before asserting the console log.
+-    await cdpPage.waitForLoadState('networkidle');
+-
+-    // Phase 3 screenshot.
+-    if (!existsSync(RESULTS_DIR_P3)) mkdirSync(RESULTS_DIR_P3, { recursive: true });
+-    const screenshot = join(RESULTS_DIR_P3, `link-popover-${testInfo.project.name}.png`);
+-    await cdpPage.screenshot({ path: screenshot, fullPage: false });
+-    expect(existsSync(screenshot)).toBe(true);
+-
+-    // ── Phase 4 assertions — front-matter round-trip ────────────────
+-    // Reload for a clean doc. Phase 3 mutations leave the editor in an
+-    // unpredictable state; Phase 4's assertion is about byte-identity of
+-    // the fm prefix and needs a deterministic starting point.
++    // ── Phase 4 front-matter round-trip ─────────────────────────────
++    // Reload for a clean doc (Phase 2 mutations muddy the state).
+     await cdpPage.goto(`${baseURL}${SMOKE_PATH}`, { waitUntil: 'domcontentloaded' });
+     await cdpPage.waitForSelector('[data-testid="md-wysiwyg-root"]', { timeout: 15_000 });
+ 
+-    // Click the fm-fixture toggle → editor's value prop swaps to an
+-    // fm-bearing markdown string ('---\ntitle: Test Doc\n…\n---\n\n# Body\n…').
+-    const fmToggle = cdpPage.locator('[data-testid="fixture-toggle-frontmatter"]');
+-    await fmToggle.click();
+-
+-    // (P4-1) Body renders: <h1>Body</h1> replaces <h1>Hello</h1>.
+-    await expect(editorRoot.locator('h1', { hasText: 'Body' }).first()).toBeVisible({
++    await expect(editorRoot.locator('h1', { hasText: 'Hello' }).first()).toBeVisible({
+       timeout: 5_000,
+     });
+ 
+-    // (P4-2) Front-matter markers are STRIPPED from the rendered DOM — the
+-    // `---` fences and the YAML keys must not appear as visible text in
+-    // the editor (they live only in frontMatterRef, invisible to the user).
+-    const renderedText = (await editorRoot.textContent()) ?? '';
+-    expect(renderedText).not.toContain('---');
+-    expect(renderedText).not.toContain('title: Test Doc');
+-    expect(renderedText).toContain('Body');
+-    expect(renderedText).toContain('paragraph.');
+-
+-    // (P4-3) Trigger a real edit so onChange fires and captures the
+-    // assembled (fm + body) markdown into the dev route's ref.
++    // Trigger a real edit so onChange fires and the mount wrapper's data-attr updates.
+     await editorRoot.click();
+     await cdpPage.keyboard.press(`${MOD_KEY}+End`);
+     await cdpPage.keyboard.type(' edited');
+ 
+-    // (P4-4) Read the captured onChange argument — this is the authoritative
+-    // end-to-end assertion. It proves the full pipeline works in a real
+-    // browser: split() parsed the fm prefix into frontMatterRef on mount,
+-    // the user edit fired onUpdate with docChanged=true, the editor called
+-    // join(frontMatterRef, bodyMd), and the emitted string retained the
+-    // fm prefix byte-for-byte. This is the browser-level mirror of the
+-    // unit test `markdown-wysiwyg-editor.test.tsx › preserves front-matter
+-    // on a real edit`.
+-    const emittedMarkdownP4 = await cdpPage.evaluate(() => {
+-      const w = window as Window & { __smokeGetLastEmittedMarkdown?: () => string };
+-      return w.__smokeGetLastEmittedMarkdown?.() ?? '';
+-    });
+-    expect(emittedMarkdownP4.length, 'onChange should have fired at least once').toBeGreaterThan(0);
++    // Read the captured markdown from the mount wrapper's data-attr.
++    const emittedMarkdown = await mountWrapper.getAttribute('data-emitted-markdown');
++    expect(emittedMarkdown).not.toBeNull();
++    expect((emittedMarkdown ?? '').length, 'onChange should have fired').toBeGreaterThan(0);
+     expect(
+-      emittedMarkdownP4.startsWith('---\ntitle: Test Doc\n'),
+-      `expected emitted markdown to start with the fm prefix; got: ${JSON.stringify(
+-        emittedMarkdownP4.slice(0, 60),
+-      )}`,
++      (emittedMarkdown ?? '').startsWith('---\ntitle: Smoke Fixture\n'),
++      `expected emitted markdown to start with fm prefix; got: ${JSON.stringify((emittedMarkdown ?? '').slice(0, 60))}`,
+     ).toBe(true);
+-    // And the body's edit marker is preserved too — proves we're not just
+-    // echoing the original value.
+-    expect(emittedMarkdownP4).toContain('edited');
++    expect(emittedMarkdown).toContain('edited');
++
++    // ── Phase 5 (T007) — language pill ──────────────────────────────
++    // Fixture body contains ```python — the pill must render.
++    const languagePill = editorRoot.locator('[data-testid="code-block-language-pill"]').first();
++    await expect(languagePill).toBeVisible({ timeout: 5_000 });
++    await expect(languagePill).toHaveText('python');
+ 
+-    // Phase 4 screenshot.
+-    if (!existsSync(RESULTS_DIR_P4)) mkdirSync(RESULTS_DIR_P4, { recursive: true });
+-    const screenshotP4 = join(RESULTS_DIR_P4, `frontmatter-roundtrip-${testInfo.project.name}.png`);
+-    await cdpPage.screenshot({ path: screenshotP4, fullPage: false });
+-    expect(existsSync(screenshotP4)).toBe(true);
++    if (!existsSync(RESULTS_DIR_P5)) mkdirSync(RESULTS_DIR_P5, { recursive: true });
++    const screenshot = join(RESULTS_DIR_P5, `rich-mode-${testInfo.project.name}.png`);
++    await cdpPage.screenshot({ path: screenshot, fullPage: false });
++    expect(existsSync(screenshot)).toBe(true);
+ 
+     expect(hydrationWarnings, hydrationWarnings.join('\n')).toEqual([]);
+   });
+diff --git a/test/unit/web/features/041-file-browser/file-viewer-panel.test.tsx b/test/unit/web/features/041-file-browser/file-viewer-panel.test.tsx
+index 7f8472e8..9678275f 100644
+--- a/test/unit/web/features/041-file-browser/file-viewer-panel.test.tsx
++++ b/test/unit/web/features/041-file-browser/file-viewer-panel.test.tsx
+@@ -56,27 +56,54 @@ describe('FileViewerPanel', () => {
+   };
+ 
+   describe('mode toggle', () => {
+-    it('renders Edit, Preview, and Diff mode buttons', () => {
++    it('renders Source, Preview, and Diff mode buttons for non-markdown files', () => {
+       render(<FileViewerPanel {...baseProps} />);
+ 
+-      expect(screen.getByRole('button', { name: /edit/i })).toBeInTheDocument();
++      expect(screen.getByRole('button', { name: /source/i })).toBeInTheDocument();
+       expect(screen.getByRole('button', { name: /preview/i })).toBeInTheDocument();
+       expect(screen.getByRole('button', { name: /diff/i })).toBeInTheDocument();
++      // Rich mode is markdown-only (plan 083 Phase 5 T004 / AC-01).
++      expect(screen.queryByRole('button', { name: /^rich$/i })).not.toBeInTheDocument();
+     });
+ 
+-    it('fires onModeChange when mode button clicked', async () => {
++    it('renders Source, Rich, Preview, and Diff mode buttons for markdown files', () => {
++      render(<FileViewerPanel {...baseProps} language="markdown" content="# hi" />);
++
++      expect(screen.getByRole('button', { name: /source/i })).toBeInTheDocument();
++      expect(screen.getByRole('button', { name: /^rich$/i })).toBeInTheDocument();
++      expect(screen.getByRole('button', { name: /preview/i })).toBeInTheDocument();
++      expect(screen.getByRole('button', { name: /diff/i })).toBeInTheDocument();
++    });
++
++    it('fires onModeChange when Source button clicked', async () => {
+       const user = userEvent.setup();
+       const onModeChange = vi.fn();
+       render(<FileViewerPanel {...baseProps} onModeChange={onModeChange} />);
+ 
+-      await user.click(screen.getByRole('button', { name: /edit/i }));
+-      expect(onModeChange).toHaveBeenCalledWith('edit');
++      await user.click(screen.getByRole('button', { name: /source/i }));
++      expect(onModeChange).toHaveBeenCalledWith('source');
++    });
++
++    it('fires onModeChange with "rich" when Rich button clicked for markdown', async () => {
++      const user = userEvent.setup();
++      const onModeChange = vi.fn();
++      render(
++        <FileViewerPanel
++          {...baseProps}
++          language="markdown"
++          content="# hi"
++          onModeChange={onModeChange}
++        />,
++      );
++
++      await user.click(screen.getByRole('button', { name: /^rich$/i }));
++      expect(onModeChange).toHaveBeenCalledWith('rich');
+     });
+   });
+ 
+   describe('save', () => {
+-    it('shows save button in edit mode', () => {
+-      render(<FileViewerPanel {...baseProps} mode="edit" />);
++    it('shows save button in source mode', () => {
++      render(<FileViewerPanel {...baseProps} mode="source" />);
+ 
+       expect(screen.getByRole('button', { name: /save/i })).toBeInTheDocument();
+     });
+@@ -88,15 +115,15 @@ describe('FileViewerPanel', () => {
+     });
+ 
+     it('shows conflict error when provided', () => {
+-      render(<FileViewerPanel {...baseProps} mode="edit" conflictError="File changed on disk" />);
++      render(<FileViewerPanel {...baseProps} mode="source" conflictError="File changed on disk" />);
+ 
+       expect(screen.getByText(/conflict/i)).toBeInTheDocument();
+     });
+ 
+-    it('saves current content on Cmd+S in edit mode', async () => {
++    it('saves current content on Cmd+S in source mode', async () => {
+       const onSave = vi.fn();
+       render(
+-        <FileViewerPanel {...baseProps} mode="edit" editContent="edited content" onSave={onSave} />
++        <FileViewerPanel {...baseProps} mode="source" editContent="edited content" onSave={onSave} />
+       );
+ 
+       const editor = await screen.findByTestId('code-editor');
+@@ -110,10 +137,10 @@ describe('FileViewerPanel', () => {
+       expect(onSave).toHaveBeenCalledWith('edited content');
+     });
+ 
+-    it('saves current content on Ctrl+S in edit mode', async () => {
++    it('saves current content on Ctrl+S in source mode', async () => {
+       const onSave = vi.fn();
+       render(
+-        <FileViewerPanel {...baseProps} mode="edit" editContent="edited content" onSave={onSave} />
++        <FileViewerPanel {...baseProps} mode="source" editContent="edited content" onSave={onSave} />
+       );
+ 
+       const editor = await screen.findByTestId('code-editor');
+@@ -127,7 +154,7 @@ describe('FileViewerPanel', () => {
+       expect(onSave).toHaveBeenCalledWith('edited content');
+     });
+ 
+-    it('does not save on Cmd+S outside edit mode', () => {
++    it('does not save on Cmd+S outside editable modes', () => {
+       const onSave = vi.fn();
+       render(<FileViewerPanel {...baseProps} mode="preview" onSave={onSave} />);
+ 
+@@ -184,9 +211,9 @@ describe('FileViewerPanel', () => {
+     });
+   });
+ 
+-  describe('edit mode', () => {
++  describe('source mode', () => {
+     it('renders CodeEditor with file content', async () => {
+-      render(<FileViewerPanel {...baseProps} mode="edit" editContent="edited" />);
++      render(<FileViewerPanel {...baseProps} mode="source" editContent="edited" />);
+ 
+       const editor = await screen.findByTestId('code-editor');
+       expect(editor).toBeInTheDocument();
+@@ -231,7 +258,7 @@ describe('FileViewerPanel', () => {
+       render(
+         <FileViewerPanel
+           {...baseProps}
+-          mode="edit"
++          mode="source"
+           editContent="some content"
+           externallyChanged={true}
+         />
+@@ -259,7 +286,7 @@ describe('FileViewerPanel', () => {
+       render(
+         <FileViewerPanel
+           {...baseProps}
+-          mode="edit"
++          mode="source"
+           editContent="some content"
+           externallyChanged={true}
+           onRefresh={onRefresh}
+diff --git a/test/unit/web/features/_platform/viewer/markdown-wysiwyg-editor.test.tsx b/test/unit/web/features/_platform/viewer/markdown-wysiwyg-editor.test.tsx
+index f36f1900..8a919c50 100644
+--- a/test/unit/web/features/_platform/viewer/markdown-wysiwyg-editor.test.tsx
++++ b/test/unit/web/features/_platform/viewer/markdown-wysiwyg-editor.test.tsx
+@@ -486,4 +486,64 @@ describe('MarkdownWysiwygEditor', () => {
+     // If jsdom's ProseMirror render is async, tolerate a slight delay.
+     expect(img?.getAttribute('src')).toBe('/resolved/foo.png');
+   });
++
++  it('renders a read-only language pill inside code blocks with a language attr', async () => {
++    /*
++    Test Doc:
++    - Why: AC-12 — code blocks with a language attr must display a read-only pill.
++    - Contract:
++      (a) value=```python\nprint(1)\n``` renders a `<span data-testid="code-block-language-pill">`
++      whose textContent is "python" AND whose closest `<pre>` ancestor exists — proves
++      the widget sits as a DESCENDANT of the code block (required for CSS positioning).
++      (b) The serialized markdown (via tiptap-markdown storage) starts with ```python and
++      contains NO literal `</span>` or pill artifact — proves widget decorations don't
++      leak into serialization (Phase 6.2 / Finding round-trip contract).
++    */
++    let capturedGetMarkdown: (() => string) | null = null;
++    const { container } = render(
++      <MarkdownWysiwygEditor
++        value={'```python\nprint(1)\n```\n'}
++        onChange={() => {}}
++        onEditorReady={(editor) => {
++          if (editor) {
++            const storage = (editor.storage as { markdown?: { getMarkdown: () => string } })
++              .markdown;
++            capturedGetMarkdown = storage ? () => storage.getMarkdown() : null;
++          }
++        }}
++      />,
++    );
++    await waitForEditorReady(container);
++    await new Promise((r) => setTimeout(r, 50));
++
++    const pill = container.querySelector<HTMLElement>('[data-testid="code-block-language-pill"]');
++    expect(pill).not.toBeNull();
++    expect(pill?.textContent).toBe('python');
++    expect(pill?.getAttribute('contenteditable')).toBe('false');
++    // Pill must be a descendant of the <pre> for CSS positioning to resolve correctly.
++    expect(pill?.closest('pre')).not.toBeNull();
++
++    // Serialization check: the pill's DOM must not leak into emitted markdown.
++    expect(capturedGetMarkdown).not.toBeNull();
++    const serialized = capturedGetMarkdown!();
++    expect(serialized.startsWith('```python')).toBe(true);
++    expect(serialized).not.toContain('</span>');
++    expect(serialized).not.toContain('data-testid');
++  });
++
++  it('does NOT render a language pill for code blocks without a language', async () => {
++    /*
++    Test Doc:
++    - Why: A pill with no language label would be visual noise and hint at broken state.
++    - Contract: value='```\nnote\n```' — no `data-testid=code-block-language-pill` in the DOM.
++    */
++    const { container } = render(
++      <MarkdownWysiwygEditor value={'```\nnote\n```\n'} onChange={() => {}} />,
++    );
++    await waitForEditorReady(container);
++    await new Promise((r) => setTimeout(r, 50));
++    expect(
++      container.querySelector('[data-testid="code-block-language-pill"]'),
++    ).toBeNull();
++  });
+ });

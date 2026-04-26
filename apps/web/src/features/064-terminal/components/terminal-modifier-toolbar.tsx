@@ -285,18 +285,20 @@ export function TerminalModifierToolbar({
             value={pasteText}
             onChange={(e) => setPasteText(e.target.value)}
             placeholder="Long-press here to paste..."
-            style={{
-              flex: 1,
-              height: '32px',
-              fontSize: '16px',
-              padding: '0 8px',
-              border: '1px solid var(--border, #27272a)',
-              borderRadius: '6px',
-              background: 'var(--muted, #27272a)',
-              color: 'var(--foreground, #fafafa)',
-              outline: 'none',
-              WebkitUserSelect: 'text',
-            } as React.CSSProperties}
+            style={
+              {
+                flex: 1,
+                height: '32px',
+                fontSize: '16px',
+                padding: '0 8px',
+                border: '1px solid var(--border, #27272a)',
+                borderRadius: '6px',
+                background: 'var(--muted, #27272a)',
+                color: 'var(--foreground, #fafafa)',
+                outline: 'none',
+                WebkitUserSelect: 'text',
+              } as React.CSSProperties
+            }
             autoComplete="off"
             autoCorrect="off"
             spellCheck={false}
