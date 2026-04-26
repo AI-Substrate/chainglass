@@ -63,7 +63,6 @@ export function useFlowspaceSearch(worktreePath: string): UseFlowspaceSearchRetu
   const [mode, setMode] = useState<CodeSearchMode>('grep');
   const [debouncedQuery, setDebouncedQuery] = useState('');
 
-  const fetchInProgressRef = useRef(false);
   const availabilityCheckedRef = useRef(false);
   // Bumps every time the query/mode changes — used to invalidate in-flight polls.
   const queryEpochRef = useRef(0);
@@ -97,12 +96,18 @@ export function useFlowspaceSearch(worktreePath: string): UseFlowspaceSearchRetu
 
   // Execute search on debounced query change. If the server reports `spawning`,
   // poll every SPAWN_POLL_MS until results, error, or ceiling.
+  //
+  // FX002-1: dropped the `fetchInProgressRef` early-out. The hook-side epoch
+  // counter (`queryEpochRef`) plus the per-effect `cancelled` flag together
+  // ensure stale polls don't update state when a new query supersedes them;
+  // server-side dedup of overlapping `flowspaceSearch` calls is handled by
+  // `getOrSpawn`'s synchronous `pool.get → pool.set` prefix in
+  // `flowspace-mcp-client.ts`. The early-out had become redundant and could
+  // drop the user's *next* query while the prior loop was still settling.
   useEffect(() => {
     if (!debouncedQuery || availability !== 'available') return;
-    if (fetchInProgressRef.current) return;
 
     const epoch = ++queryEpochRef.current;
-    fetchInProgressRef.current = true;
     setLoading(true);
     setError(null);
 
@@ -155,7 +160,6 @@ export function useFlowspaceSearch(worktreePath: string): UseFlowspaceSearchRetu
       .finally(() => {
         if (epoch === queryEpochRef.current) {
           setLoading(false);
-          fetchInProgressRef.current = false;
         }
       });
 

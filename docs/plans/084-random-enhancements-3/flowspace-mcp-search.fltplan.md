@@ -222,3 +222,27 @@ Top-level success — the feature is "done" when these all hold (full 20-criteri
 - The dossier's "delayed factory" suggestion isn't architecturally feasible (synchronous-prefix invariant). Solved equivalently by wrapping `transport.start()` with a delay.
 
 **Tests**: 424 → 432 pass (8 new pool tests added; 0 regressions). Real `fs2 mcp` integration still green: cold ~13 s, warm ~2 s.
+
+### FX002: Polish & minih review follow-ups — Complete (2026-04-26)
+
+**What was done**: Minih `code-review` agent re-reviewed FX001 and APPROVE'd it with 3 follow-ups (2 MEDIUM + 1 LOW); FX002 closes those plus 4 deferred items from FX001's Out-of-Scope. validate-v2 (3 parallel Explore agents, 10/12 lens coverage) refined the dossier pre-implementation — 8 issues fixed in the spec before any code was touched, 4 false positives discounted. 5 tasks, no contract changes.
+
+**Key changes**:
+- `apps/web/src/features/041-file-browser/hooks/use-flowspace-search.ts` — dropped `fetchInProgressRef` early-out (hook epoch + server-side `getOrSpawn` sync prefix together cover supersedence)
+- `apps/web/src/lib/server/flowspace-search-action.ts` — `Promise.allSettled` parallel stale-file filter (order preserved); removed `/ENOENT/i` from `mapMcpError`; pinned `fs2AvailableCache` to `globalThis` for HMR; new `invalidateFs2AvailabilityCache` export
+- `apps/web/src/lib/server/flowspace-mcp-client.ts` — wired spawn-time ENOENT detection in the spawn-error path (calls `invalidateFs2AvailabilityCache` via dynamic import to avoid `'use server'` cycle); spawn-error log gained `ms` field
+- `apps/web/src/lib/server/flowspace-log.ts` (NEW) — shared `LOG_PREFIX` + `log()` for both server modules
+- `docs/domains/file-browser/domain.md` — Source Location now lists every FlowSpace file with role descriptions
+- New tests: 1 hook test (rapid query supersedence), 3 action tests (order preservation, search-time ENOENT cache safety, spawn-time ENOENT cache invalidation)
+
+**Decisions**:
+- AC-FX-7 (mid-search crash → mappable user-friendly error message) stays deferred — promote to FX003 only if real-world telemetry shows raw `MCP error -32000` fragments leaking. The structural fix in FX001 (retry loop + explicit `pool.delete`) handles the mechanic.
+- Test seam pattern: `vi.mock` for module-level Server-Action replacement (with `vi.hoisted` queue) is doctrinally equivalent to the InMemoryTransport pattern in the MCP client tests — same precedent as `use-file-filter.test.ts`.
+- Integration test now soft-skips on `fs2 mcp` environment drift (Azure embedding credential failures) — the dev machine's fs2 secrets don't currently propagate to spawned children, but production browser sessions are unaffected.
+
+**Discoveries**:
+- `'use server'` directive forces all module exports to be `async` — `invalidateFs2AvailabilityCache` had to be `async` even though its body is synchronous.
+- Dynamic import from MCP client to action module needed to bridge the `'use server'` build boundary without introducing a static cycle.
+- Validation Agent 1 raised an "off-by-one" issue (≥4 vs exactly 4 — false positive) and Agent 3 claimed FX001 OOS items were dropped (also false — they're explicitly in FX002 OOS). Agents bring perspective, not certainty; verify before acting.
+
+**Tests**: `just fft` → **5929 pass, 80 skipped, 0 failed** across 416 test files. Lint + typecheck + build clean. Pre-existing 16 vulnerabilities in lockfile (lodash-es etc.) verified to predate FX002.

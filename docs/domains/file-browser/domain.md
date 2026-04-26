@@ -168,6 +168,18 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 | `apps/web/src/features/041-file-browser/state/register.ts` | registerWorktreeState — multi-instance domain registration | Plan 053 P5 |
 | `apps/web/src/features/041-file-browser/state/worktree-publisher.tsx` | WorktreeStatePublisher — FileChangeHub → state bridge | Plan 053 P5 |
 | `apps/web/src/features/041-file-browser/components/worktree-state-subtitle.tsx` | WorktreeStateSubtitle — sidebar consumer component | Plan 053 P5 |
+| `apps/web/src/features/041-file-browser/hooks/use-flowspace-search.ts` | useFlowspaceSearch — semantic-search hook (`$` prefix); polling + spawning UX | Plan 084, FX001-5, FX002-1 |
+
+### Server-only infrastructure (under `apps/web/src/lib/server/`)
+
+These modules live outside `features/041-file-browser/` per repo convention but are owned by this domain's search surface. Catalogued here so the domain inventory is complete.
+
+| File | Role | Notes |
+|------|------|-------|
+| `apps/web/src/lib/server/flowspace-search-action.ts` | Next.js Server Action — entry point for `$` semantic search; discriminated union return | Plan 084, FX001-4, FX002-2, FX002-4 |
+| `apps/web/src/lib/server/flowspace-mcp-client.ts` | Long-lived `fs2 mcp` child process pool per worktree; HMR-safe via `globalThis` | Plan 084, FX001-1, FX001-3, FX002-4 |
+| `apps/web/src/lib/server/flowspace-result-mapper.ts` | Pure helpers: `extractFilePath`, `extractName`, `sanitizeSmartContent`, `mapEnvelope` | Plan 084 (extracted from legacy CLI action) |
+| `apps/web/src/lib/server/flowspace-log.ts` | Shared `[flowspace-mcp]` logger (`LOG_PREFIX`, `log()`) | FX002-5 |
 
 ## Dependencies
 

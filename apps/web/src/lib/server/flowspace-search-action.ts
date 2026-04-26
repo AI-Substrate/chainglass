@@ -24,6 +24,7 @@ import type {
   FlowSpaceSearchResult,
 } from '@/features/_platform/panel-layout/types';
 
+import { log } from './flowspace-log';
 import {
   flowspaceMcpSearch,
   getFlowspaceStatus,
@@ -33,13 +34,19 @@ import {
 
 const execAsync = promisify(exec);
 
-const LOG_PREFIX = '[flowspace-mcp]';
-function log(...args: unknown[]): void {
-  console.log(LOG_PREFIX, ...args);
+// FX002-4b: pin to globalThis so the cache survives Next.js HMR. Same idiom
+// as flowspace-mcp-client.ts's __FLOWSPACE_MCP_POOL__ — production runs single
+// process; dev mode reloads modules but globalThis is preserved.
+declare global {
+  // eslint-disable-next-line no-var
+  var __FLOWSPACE_AVAIL_CACHE__:
+    | { available: boolean | null; resolvedPath: string | null }
+    | undefined;
 }
-
-let fs2AvailableCache: boolean | null = null;
-let fs2ResolvedPath: string | null = null;
+if (!globalThis.__FLOWSPACE_AVAIL_CACHE__) {
+  globalThis.__FLOWSPACE_AVAIL_CACHE__ = { available: null, resolvedPath: null };
+}
+const availCache = globalThis.__FLOWSPACE_AVAIL_CACHE__;
 
 /**
  * Check if fs2 CLI is installed and the codebase graph exists.
@@ -48,19 +55,19 @@ let fs2ResolvedPath: string | null = null;
 export async function checkFlowspaceAvailability(
   cwd: string
 ): Promise<{ availability: CodeSearchAvailability; graphMtime?: number }> {
-  if (fs2AvailableCache === null) {
+  if (availCache.available === null) {
     try {
       const { stdout } = await execAsync('command -v fs2', { timeout: 3000 });
-      fs2ResolvedPath = stdout.trim();
-      fs2AvailableCache = true;
-      log('fs2 found at:', fs2ResolvedPath);
+      availCache.resolvedPath = stdout.trim();
+      availCache.available = true;
+      log('fs2 found at:', availCache.resolvedPath);
     } catch (err) {
-      fs2AvailableCache = false;
+      availCache.available = false;
       log('fs2 not found:', (err as Error).message);
     }
   }
 
-  if (!fs2AvailableCache) {
+  if (!availCache.available) {
     return { availability: 'not-installed' };
   }
 
@@ -91,10 +98,12 @@ function mapMcpError(message: string): string {
   if (/timeout|timed out|aborted/i.test(message)) {
     return 'Search timed out. Try a simpler query.';
   }
-  if (/ENOENT/i.test(message)) {
-    fs2AvailableCache = null;
-    return 'FlowSpace (fs2) is not installed';
-  }
+  // FX002-4a: do NOT match ENOENT here. A search-time error message that
+  // happens to contain "ENOENT" (e.g., the indexed graph references a deleted
+  // file and fs2 surfaces that as an error) must not poison the availability
+  // cache. Spawn-time ENOENT — the binary truly missing from PATH — is now
+  // detected in flowspace-mcp-client's spawn error path, where it correctly
+  // invalidates the cache.
   return message.split('\n').find((l) => l.trim()) ?? 'Search failed';
 }
 
@@ -142,16 +151,17 @@ export async function flowspaceSearch(
   try {
     const env = await flowspaceMcpSearch(cwd, query, mode);
 
-    // Filter stale results — graph may reference deleted files.
-    const results: FlowSpaceSearchResult[] = [];
-    for (const r of env.results) {
-      try {
-        await access(join(cwd, r.filePath));
-        results.push(r);
-      } catch {
-        // skip deleted files
-      }
-    }
+    // FX002-2: parallelise stale-file filtering. Previously this was a
+    // sequential `for await access(...)` loop — response time scaled with
+    // the sum of N stat() calls. With Promise.allSettled we only wait for
+    // the slowest. Order is preserved: allSettled returns results in input
+    // order, and the filter+map below keeps the score-sorted ordering.
+    const settled = await Promise.allSettled(
+      env.results.map((r) => access(join(cwd, r.filePath)).then(() => r))
+    );
+    const results: FlowSpaceSearchResult[] = settled
+      .filter((s): s is PromiseFulfilledResult<FlowSpaceSearchResult> => s.status === 'fulfilled')
+      .map((s) => s.value);
 
     return { kind: 'ok', results, folders: env.folders };
   } catch (err) {
@@ -169,4 +179,19 @@ export async function restartFlowspaceAction(cwd: string): Promise<{ ok: true }>
   log('restart requested', { cwd });
   await shutdownFlowspace(cwd);
   return { ok: true };
+}
+
+/**
+ * FX002-4a: invalidate the availability cache. Called from the MCP client's
+ * spawn-error path when an ENOENT is detected — this is the legitimate
+ * "fs2 binary really is missing from PATH" signal. Search-time ENOENTs do
+ * NOT call this (mapMcpError no longer matches them).
+ *
+ * `async` only because this file has `'use server'` at the top — Next.js
+ * Server Action exports must be async. The body itself is purely synchronous.
+ */
+export async function invalidateFs2AvailabilityCache(): Promise<void> {
+  availCache.available = null;
+  availCache.resolvedPath = null;
+  log('availability cache invalidated');
 }

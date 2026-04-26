@@ -128,6 +128,7 @@ Mirrors the spec — the plan is "done" when these all observably hold:
 | ID | Created | Summary | Domain(s) | Status | Source |
 |----|---------|---------|-----------|--------|--------|
 | [FX001](fixes/FX001-flowspace-mcp-review-fixes.md) | 2026-04-26 | Pool lifecycle races + error-state recovery + Restart FlowSpace wiring + drop polling round-trip + tighten pool tests | `_platform/panel-layout`-adjacent (modify), `file-browser` (modify), tests | Complete | Mini code review on Phase 1 implementation |
+| [FX002](fixes/FX002-flowspace-mcp-polish.md) | 2026-04-26 | 5 tasks: hook query-drop + parallel stale-file filter + domain doc Source Location + cache scope/HMR pin + shared logger/elapsed-ms | `file-browser` (modify), `_platform/panel-layout`-adjacent (modify), tests | Complete | Minih `code-review` agent verdict on FX001 + deferred items from FX001 Out-of-Scope; refined by validate-v2 (3 parallel agents) |
 
 ### Constitution & Architecture Gate Notes
 

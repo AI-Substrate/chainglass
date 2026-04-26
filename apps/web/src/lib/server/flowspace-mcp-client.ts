@@ -30,16 +30,12 @@ import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 
 import type { CodeSearchMode } from '@/features/_platform/panel-layout/types';
 
+import { log } from './flowspace-log';
 import {
   type MappedEnvelope,
   type RawFlowspaceEnvelope,
   mapEnvelope,
 } from './flowspace-result-mapper';
-
-const LOG_PREFIX = '[flowspace-mcp]';
-function log(...args: unknown[]): void {
-  console.log(LOG_PREFIX, ...args);
-}
 
 const DEFAULT_IDLE_MS = 10 * 60 * 1000;
 const REAPER_INTERVAL_MS = 60 * 1000;
@@ -204,7 +200,18 @@ async function getOrSpawn(cwd: string): Promise<FlowspaceProcess> {
       } catch (err) {
         proc.state = 'error';
         proc.error = (err as Error).message;
-        log('spawn error', { cwd, error: proc.error });
+        log('spawn error', { cwd, ms: Date.now() - started, error: proc.error });
+        // FX002-4a: spawn-time ENOENT means the fs2 binary genuinely isn't on
+        // PATH — the right time to invalidate the availability cache. (Search-
+        // time ENOENT no longer triggers cache invalidation; see
+        // flowspace-search-action.ts mapMcpError.)
+        if (/ENOENT/i.test(proc.error)) {
+          // Dynamic import to avoid a static cycle through the action's
+          // 'use server' boundary.
+          import('./flowspace-search-action')
+            .then((m) => m.invalidateFs2AvailabilityCache())
+            .catch(() => {});
+        }
         throw err;
       }
     })(),
