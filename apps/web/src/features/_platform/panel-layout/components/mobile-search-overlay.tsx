@@ -31,6 +31,8 @@ interface MobileSearchOverlayProps {
   onSearchQueryChange: (query: string) => void;
   codeSearchResults?: CodeSearchResult[] | null;
   codeSearchLoading?: boolean;
+  /** Plan 084: cold-start state for the long-lived fs2 mcp child. */
+  codeSearchSpawning?: boolean;
   codeSearchError?: string | null;
   codeSearchAvailability?: CodeSearchAvailability;
   codeSearchGraphAge?: string | null;
@@ -75,6 +77,7 @@ export function MobileSearchOverlay({
   onSearchQueryChange,
   codeSearchResults,
   codeSearchLoading,
+  codeSearchSpawning,
   codeSearchError,
   codeSearchAvailability,
   codeSearchGraphAge,
@@ -331,9 +334,16 @@ export function MobileSearchOverlay({
         {/* Code search results (# grep / $ semantic) */}
         {(isSymbolMode || isSemanticMode) && (
           <>
-            {codeSearchLoading && (
+            {codeSearchSpawning ? (
+              <div className="px-4 py-3 text-sm text-muted-foreground">
+                Loading FlowSpace, please wait…
+                <div className="text-xs text-muted-foreground/70 mt-0.5">
+                  first search loads the code graph
+                </div>
+              </div>
+            ) : codeSearchLoading ? (
               <div className="px-4 py-3 text-sm text-muted-foreground">Searching…</div>
-            )}
+            ) : null}
             {codeSearchError && (
               <div className="px-4 py-3 text-sm text-red-500">{codeSearchError}</div>
             )}

@@ -89,6 +89,8 @@ export interface ExplorerPanelProps {
   /** FlowSpace search results (Plan 051) */
   codeSearchResults?: CodeSearchResult[] | null;
   codeSearchLoading?: boolean;
+  /** Plan 084: cold-start state for the long-lived fs2 mcp child. */
+  codeSearchSpawning?: boolean;
   codeSearchError?: string | null;
   codeSearchAvailability?: CodeSearchAvailability;
   codeSearchGraphAge?: string | null;
@@ -128,6 +130,7 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
       onSearchQueryChange,
       codeSearchResults,
       codeSearchLoading,
+      codeSearchSpawning,
       codeSearchError,
       codeSearchAvailability,
       codeSearchGraphAge,
@@ -483,6 +486,7 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
               workingChanges={workingChanges}
               codeSearchResults={codeSearchResults}
               codeSearchLoading={codeSearchLoading}
+              codeSearchSpawning={codeSearchSpawning}
               codeSearchError={codeSearchError}
               codeSearchAvailability={codeSearchAvailability}
               codeSearchGraphAge={codeSearchGraphAge}

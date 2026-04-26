@@ -3,10 +3,15 @@
 /**
  * useFlowspaceSearch — React hook for FlowSpace code search.
  *
- * Debounces queries and calls the server action to search via fs2 CLI.
- * Manages loading/error/results state. Checks availability on mount.
+ * Plan 084: the server action returns a discriminated union. When the long-
+ * lived `fs2 mcp` child for the current worktree is being spawned, the action
+ * returns `{ kind: 'spawning' }` immediately — the hook flips its `spawning`
+ * flag and re-calls every 1 s until the action returns results, errors, or the
+ * 30 s polling ceiling is hit.
  *
- * Plan 051: FlowSpace Code Search
+ * On warm hits the dropdown shows "Searching…"; on the cold first call it
+ * shows "Loading FlowSpace, please wait…" (rendered by the dropdown based on
+ * `spawning`).
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -19,8 +24,9 @@ import type {
 import { checkFlowspaceAvailability, flowspaceSearch } from '@/lib/server/flowspace-search-action';
 
 const DEBOUNCE_MS = 300;
+const SPAWN_POLL_MS = 1_000;
+const SPAWN_POLL_CEILING_MS = 30_000;
 
-/** Compute a human-friendly relative time string from a timestamp. */
 function relativeTime(mtimeMs: number): string {
   const diffMs = Date.now() - mtimeMs;
   const seconds = Math.floor(diffMs / 1000);
@@ -36,6 +42,8 @@ function relativeTime(mtimeMs: number): string {
 export interface UseFlowspaceSearchReturn {
   results: FlowSpaceSearchResult[] | null;
   loading: boolean;
+  /** True while the long-lived fs2 mcp child is being spawned (cold first call). */
+  spawning: boolean;
   error: string | null;
   availability: CodeSearchAvailability;
   graphAge: string | null;
@@ -46,6 +54,7 @@ export interface UseFlowspaceSearchReturn {
 export function useFlowspaceSearch(worktreePath: string): UseFlowspaceSearchReturn {
   const [results, setResults] = useState<FlowSpaceSearchResult[] | null>(null);
   const [loading, setLoading] = useState(false);
+  const [spawning, setSpawning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [availability, setAvailability] = useState<CodeSearchAvailability>('available');
   const [graphAge, setGraphAge] = useState<string | null>(null);
@@ -56,6 +65,8 @@ export function useFlowspaceSearch(worktreePath: string): UseFlowspaceSearchRetu
 
   const fetchInProgressRef = useRef(false);
   const availabilityCheckedRef = useRef(false);
+  // Bumps every time the query/mode changes — used to invalidate in-flight polls.
+  const queryEpochRef = useRef(0);
 
   // Check availability on mount
   useEffect(() => {
@@ -77,42 +88,80 @@ export function useFlowspaceSearch(worktreePath: string): UseFlowspaceSearchRetu
       setResults(null);
       setFolders(null);
       setError(null);
+      setSpawning(false);
       return;
     }
     const timer = setTimeout(() => setDebouncedQuery(query), DEBOUNCE_MS);
     return () => clearTimeout(timer);
   }, [query]);
 
-  // Execute search on debounced query change
+  // Execute search on debounced query change. If the server reports `spawning`,
+  // poll every SPAWN_POLL_MS until results, error, or ceiling.
   useEffect(() => {
     if (!debouncedQuery || availability !== 'available') return;
     if (fetchInProgressRef.current) return;
 
+    const epoch = ++queryEpochRef.current;
     fetchInProgressRef.current = true;
     setLoading(true);
     setError(null);
 
-    flowspaceSearch(debouncedQuery, mode, worktreePath)
-      .then((result) => {
-        if ('error' in result) {
+    const startMs = Date.now();
+    let cancelled = false;
+
+    async function run() {
+      while (!cancelled && epoch === queryEpochRef.current) {
+        const result = await flowspaceSearch(debouncedQuery, mode, worktreePath);
+        if (cancelled || epoch !== queryEpochRef.current) return;
+
+        if (result.kind === 'spawning') {
+          setSpawning(true);
+          if (Date.now() - startMs >= SPAWN_POLL_CEILING_MS) {
+            setSpawning(false);
+            setError('FlowSpace did not start in time. Try again in a moment.');
+            setResults(null);
+            setFolders(null);
+            return;
+          }
+          await new Promise((resolve) => setTimeout(resolve, SPAWN_POLL_MS));
+          continue;
+        }
+
+        if (result.kind === 'error') {
+          setSpawning(false);
           setError(result.error);
           setResults(null);
           setFolders(null);
-        } else {
-          setResults(result.results);
-          setFolders(result.folders);
-          setError(null);
+          return;
         }
-      })
+
+        // kind === 'ok'
+        setSpawning(false);
+        setResults(result.results);
+        setFolders(result.folders);
+        setError(null);
+        return;
+      }
+    }
+
+    run()
       .catch(() => {
+        if (cancelled || epoch !== queryEpochRef.current) return;
+        setSpawning(false);
         setError('Search failed');
         setResults(null);
         setFolders(null);
       })
       .finally(() => {
-        setLoading(false);
-        fetchInProgressRef.current = false;
+        if (epoch === queryEpochRef.current) {
+          setLoading(false);
+          fetchInProgressRef.current = false;
+        }
       });
+
+    return () => {
+      cancelled = true;
+    };
   }, [debouncedQuery, mode, availability, worktreePath]);
 
   const setQuery = useCallback((q: string, m: CodeSearchMode) => {
@@ -123,6 +172,7 @@ export function useFlowspaceSearch(worktreePath: string): UseFlowspaceSearchRetu
   return {
     results,
     loading,
+    spawning,
     error,
     availability,
     graphAge,

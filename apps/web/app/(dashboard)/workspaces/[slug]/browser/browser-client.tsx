@@ -48,6 +48,7 @@ import {
 } from '@/features/_platform/panel-layout';
 import type { PanelMode } from '@/features/_platform/panel-layout';
 import { useSDK, useSDKMru } from '@/lib/sdk/sdk-provider';
+import { restartFlowspaceAction } from '@/lib/server/flowspace-search-action';
 import { GlobalStateConnector } from '@/lib/state';
 import {
   FileDiff,
@@ -743,12 +744,33 @@ function BrowserClientInner({
         })
       : null;
 
+    // FX001-3: Restart FlowSpace — handler closes over the live worktreePath
+    // prop instead of URL-sniffing for `?worktree=`, which dashboard URLs
+    // don't carry. Registered here for the same reason as openFileAtLine.
+    const restartFlowspaceCmd = fileBrowserContribution.commands.find(
+      (c) => c.id === 'file-browser.restartFlowspace'
+    );
+    const restartFlowspaceReg = restartFlowspaceCmd
+      ? sdk.commands.register({
+          ...restartFlowspaceCmd,
+          handler: async () => {
+            try {
+              await restartFlowspaceAction(worktreePath);
+              sdk.toast.success('FlowSpace restarted — next search will reload the graph');
+            } catch (err) {
+              sdk.toast.error(`Failed to restart FlowSpace: ${(err as Error).message}`);
+            }
+          },
+        })
+      : null;
+
     return () => {
       paletteReg.dispose();
       goToFileReg.dispose();
       openFileAtLineReg?.dispose();
+      restartFlowspaceReg?.dispose();
     };
-  }, [sdk, setParams]);
+  }, [sdk, setParams, worktreePath]);
 
   // --- Panel refresh handler ---
 
@@ -1024,6 +1046,7 @@ function BrowserClientInner({
             codeSearchLoading={
               activeCodeSearchMode === 'grep' ? gitGrep.loading : flowspace.loading
             }
+            codeSearchSpawning={activeCodeSearchMode === 'semantic' && flowspace.spawning}
             codeSearchError={activeCodeSearchMode === 'grep' ? gitGrep.error : flowspace.error}
             codeSearchAvailability={flowspace.availability}
             codeSearchGraphAge={flowspace.graphAge}
@@ -1222,6 +1245,7 @@ function BrowserClientInner({
         onSearchQueryChange={fileFilter.setQuery}
         codeSearchResults={activeCodeSearchMode === 'grep' ? gitGrep.results : flowspace.results}
         codeSearchLoading={activeCodeSearchMode === 'grep' ? gitGrep.loading : flowspace.loading}
+        codeSearchSpawning={activeCodeSearchMode === 'semantic' && flowspace.spawning}
         codeSearchError={activeCodeSearchMode === 'grep' ? gitGrep.error : flowspace.error}
         codeSearchAvailability={flowspace.availability}
         codeSearchGraphAge={flowspace.graphAge}

@@ -45,6 +45,14 @@ export const fileBrowserContribution: SDKContribution = {
       params: z.object({}),
       icon: 'copy',
     },
+    {
+      id: 'file-browser.restartFlowspace',
+      title: 'Restart FlowSpace',
+      domain: 'file-browser',
+      category: 'Search',
+      params: z.object({}),
+      icon: 'refresh',
+    },
   ],
   settings: [
     {

@@ -366,3 +366,64 @@ describe('CommandPaletteDropdown — search mode', () => {
     expect(screen.getByText('Download')).toBeInTheDocument();
   });
 });
+
+describe('CommandPaletteDropdown — semantic-mode spawning state (Plan 084)', () => {
+  /*
+   * AC-02 / AC-03: when the long-lived fs2 mcp child for the worktree is being
+   * spawned, the dropdown shows "Loading FlowSpace, please wait…" instead of
+   * the generic "Searching…". Subsequent warm calls fall back to "Searching…".
+   */
+
+  const semanticBase = {
+    sdk: fakeSdk,
+    filter: '',
+    mru: fakeMru,
+    mode: 'semantic' as const,
+    onExecute: (() => {}) as (id: string) => void,
+    onClose: () => {},
+    inputValue: '$ command palette',
+    codeSearchAvailability: 'available' as const,
+  };
+
+  it('renders the Loading FlowSpace message when codeSearchSpawning is true', () => {
+    render(
+      <CommandPaletteDropdown
+        {...semanticBase}
+        codeSearchSpawning={true}
+        codeSearchLoading={true}
+      />
+    );
+
+    expect(screen.getByText(/Loading FlowSpace, please wait/)).toBeInTheDocument();
+    expect(screen.getByText(/first search loads the code graph/)).toBeInTheDocument();
+    // The generic "Searching…" should NOT appear during the spawn window.
+    expect(screen.queryByText(/^Searching\.\.\./)).not.toBeInTheDocument();
+  });
+
+  it('renders the Searching message when codeSearchLoading is true and not spawning', () => {
+    render(
+      <CommandPaletteDropdown
+        {...semanticBase}
+        codeSearchSpawning={false}
+        codeSearchLoading={true}
+      />
+    );
+
+    expect(screen.getByText(/Searching\.\.\./)).toBeInTheDocument();
+    expect(screen.queryByText(/Loading FlowSpace/)).not.toBeInTheDocument();
+  });
+
+  it('renders the empty hint when no query is present (no spawning UI)', () => {
+    render(
+      <CommandPaletteDropdown
+        {...semanticBase}
+        inputValue="$"
+        codeSearchSpawning={false}
+        codeSearchLoading={false}
+      />
+    );
+
+    expect(screen.getByText('FlowSpace semantic search')).toBeInTheDocument();
+    expect(screen.queryByText(/Loading FlowSpace/)).not.toBeInTheDocument();
+  });
+});

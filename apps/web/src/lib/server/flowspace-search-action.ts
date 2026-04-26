@@ -3,15 +3,18 @@
 /**
  * FlowSpace Search Server Action
  *
- * Calls the `fs2` CLI via execFile to search the codebase graph.
- * Provides availability detection and JSON result parsing.
+ * Plan 084: delegates semantic-mode searches to the long-lived `fs2 mcp` child
+ * process pool (`flowspace-mcp-client.ts`). Returns a discriminated union so
+ * the client hook can render a "Loading FlowSpace, please wait…" message
+ * during the cold-start window without blocking the request.
  *
- * Plan 051: FlowSpace Code Search
+ * Availability detection (`fs2` on PATH, `.fs2/graph.pickle` exists) is
+ * preserved from the original Plan 051 implementation — the dropdown still
+ * uses it for the install-link / no-graph branches.
  */
 
-import { exec, execFile } from 'node:child_process';
-import { access } from 'node:fs/promises';
-import { stat } from 'node:fs/promises';
+import { exec } from 'node:child_process';
+import { access, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
@@ -21,29 +24,30 @@ import type {
   FlowSpaceSearchResult,
 } from '@/features/_platform/panel-layout/types';
 
-const execAsync = promisify(exec);
-const execFileAsync = promisify(execFile);
+import {
+  flowspaceMcpSearch,
+  getFlowspaceStatus,
+  prewarmFlowspace,
+  shutdownFlowspace,
+} from './flowspace-mcp-client';
 
-const LOG_PREFIX = '[flowspace]';
-function log(...args: unknown[]) {
+const execAsync = promisify(exec);
+
+const LOG_PREFIX = '[flowspace-mcp]';
+function log(...args: unknown[]): void {
   console.log(LOG_PREFIX, ...args);
 }
-
-// Regex metacharacters that trigger regex mode upgrade
-const REGEX_METACHARS = /[*?[\]^$|+{}()]/;
 
 let fs2AvailableCache: boolean | null = null;
 let fs2ResolvedPath: string | null = null;
 
 /**
  * Check if fs2 CLI is installed and the codebase graph exists.
+ * Result drives the existing dropdown branches (install-link / run-fs2-scan).
  */
 export async function checkFlowspaceAvailability(
   cwd: string
 ): Promise<{ availability: CodeSearchAvailability; graphMtime?: number }> {
-  log('availability check', { cwd });
-
-  // Check fs2 binary
   if (fs2AvailableCache === null) {
     try {
       const { stdout } = await execAsync('command -v fs2', { timeout: 3000 });
@@ -57,204 +61,112 @@ export async function checkFlowspaceAvailability(
   }
 
   if (!fs2AvailableCache) {
-    log('availability → not-installed');
     return { availability: 'not-installed' };
   }
 
-  // Check graph exists
   const graphPath = join(cwd, '.fs2', 'graph.pickle');
   try {
     const stats = await stat(graphPath);
-    log('availability → available, graph mtime:', new Date(stats.mtimeMs).toISOString());
     return { availability: 'available', graphMtime: stats.mtimeMs };
   } catch {
-    log('availability → no-graph, path:', graphPath);
     return { availability: 'no-graph' };
   }
 }
 
-/**
- * Extract file path from a FlowSpace node_id.
- * Format: {category}:{filepath}:{qualname} or file:{filepath}
- */
-function extractFilePath(nodeId: string): string {
-  const firstColon = nodeId.indexOf(':');
-  if (firstColon === -1) return nodeId;
+export type FlowspaceSearchResponse =
+  | { kind: 'spawning' }
+  | { kind: 'ok'; results: FlowSpaceSearchResult[]; folders: Record<string, number> }
+  | { kind: 'error'; error: string };
 
-  const rest = nodeId.slice(firstColon + 1);
-  const category = nodeId.slice(0, firstColon);
-
-  if (category === 'file') return rest;
-
-  // For non-file nodes: filepath is between first and second colon
-  const secondColon = rest.indexOf(':');
-  return secondColon === -1 ? rest : rest.slice(0, secondColon);
-}
-
-/**
- * Extract a display name from a FlowSpace node_id.
- * For named nodes: uses the qualified name's last segment.
- * For anonymous nodes (@line.col): uses smart_content summary or filename.
- */
-function extractName(nodeId: string, smartContent?: string | null): string {
-  const parts = nodeId.split(':');
-  if (parts.length < 3) {
-    // file node — use filename
-    const path = parts[1] || nodeId;
-    const slash = path.lastIndexOf('/');
-    return slash === -1 ? path : path.slice(slash + 1);
+function mapMcpError(message: string): string {
+  if (/SEMANTIC search requires|embedding adapter/i.test(message)) {
+    return 'Semantic search requires embeddings. Run: fs2 scan --embed';
   }
-  // callable/type node — qualified name
-  const qualName = parts.slice(2).join(':');
-
-  // Anonymous nodes are purely positional markers like @43.10 or @37.11.@40.30
-  if (/^@[\d.@]+$/.test(qualName)) {
-    // Use first ~60 chars of smart_content as a descriptive name
-    if (smartContent && smartContent.length > 10 && !smartContent.startsWith('[')) {
-      return smartContent.slice(0, 60);
-    }
-    // Final fallback: filename
-    const filePath = parts[1] || '';
-    const slash = filePath.lastIndexOf('/');
-    return slash === -1 ? filePath : filePath.slice(slash + 1);
+  if (/No nodes have embeddings/i.test(message)) {
+    return 'No embeddings found. Run: fs2 scan --embed';
   }
-
-  // Strip anonymous suffixes like .@34.38.@36.17
-  const cleaned = qualName.replace(/\.@[\d.@]+$/g, '');
-  // Take last meaningful segment (ClassName.methodName → methodName)
-  const dot = cleaned.lastIndexOf('.');
-  return dot === -1 ? cleaned : cleaned.slice(dot + 1);
+  if (/Graph not found|No graph found/i.test(message)) {
+    return 'No graph found. Run: fs2 scan';
+  }
+  if (/timeout|timed out|aborted/i.test(message)) {
+    return 'Search timed out. Try a simpler query.';
+  }
+  if (/ENOENT/i.test(message)) {
+    fs2AvailableCache = null;
+    return 'FlowSpace (fs2) is not installed';
+  }
+  return message.split('\n').find((l) => l.trim()) ?? 'Search failed';
 }
 
 /**
- * Sanitize LLM-generated smart_content before sending to client.
- * Returns null if content is empty, placeholder, or too short to be useful.
- */
-function sanitizeSmartContent(raw: string | null | undefined): string | null {
-  if (!raw || typeof raw !== 'string') return null;
-  const trimmed = raw.trim();
-  if (trimmed.length < 10) return null;
-  if (trimmed.startsWith('[Empty content')) return null;
-  if (trimmed.startsWith('[No ')) return null;
-  if (trimmed.startsWith('[Placeholder')) return null;
-  // Truncate to a reasonable display length
-  return trimmed.length > 200 ? `${trimmed.slice(0, 200)}…` : trimmed;
-}
-
-/**
- * Search the codebase using FlowSpace (fs2 CLI).
+ * Search the codebase via the long-lived `fs2 mcp` child for `cwd`.
+ *
+ * Returns:
+ *  - `{ kind: 'spawning' }` while the child is being spawned + the graph is
+ *    loading. Caller should re-call after a short delay.
+ *  - `{ kind: 'ok', results, folders }` on success.
+ *  - `{ kind: 'error', error }` on availability or MCP errors.
  */
 export async function flowspaceSearch(
   query: string,
   mode: CodeSearchMode,
   cwd: string
-): Promise<
-  { results: FlowSpaceSearchResult[]; folders: Record<string, number> } | { error: string }
-> {
+): Promise<FlowspaceSearchResponse> {
   if (!query.trim()) {
-    return { results: [], folders: {} };
+    return { kind: 'ok', results: [], folders: {} };
   }
 
-  // Determine CLI mode flag
-  let cliMode: string;
-  if (mode === 'semantic') {
-    cliMode = 'semantic';
-  } else {
-    cliMode = REGEX_METACHARS.test(query) ? 'regex' : 'text';
+  const status = getFlowspaceStatus(cwd);
+  if (status.state === 'idle') {
+    // FX001-4: keep this short-circuit so the dropdown sees the cold-start
+    // "Loading FlowSpace, please wait…" message immediately, before the
+    // spawn-and-search round-trip blocks for ~5–15 s.
+    void prewarmFlowspace(cwd);
+    return { kind: 'spawning' };
   }
-
-  const args = ['search', query, '--mode', cliMode, '--limit', '20'];
-  log('search →', { query, mode, cliMode, cwd, args });
+  if (status.state === 'error') {
+    // FX001-2: make spawn errors self-recoverable. The previous version
+    // returned the cached error indefinitely, leaving the user with no path
+    // forward except `> Restart FlowSpace`. Now we kick a fresh spawn (which
+    // clears the dead pool entry inside getOrSpawn) and return spawning so
+    // the hook keeps polling until ready or until a new error.
+    log('previous spawn errored — retrying', { cwd, prevError: status.error });
+    void prewarmFlowspace(cwd);
+    return { kind: 'spawning' };
+  }
+  // FX001-4: status === 'spawning' falls through to flowspaceMcpSearch, whose
+  // internal `getOrSpawn` already awaits the existing `proc.ready` promise.
+  // No new spawn is started; we just block on the in-flight one and return ok
+  // directly, collapsing the prior 1 s polling round-trip on cold starts.
 
   try {
-    const startMs = Date.now();
-    const { stdout, stderr } = await execFileAsync(fs2ResolvedPath ?? 'fs2', args, {
-      cwd,
-      timeout: 5000,
-      maxBuffer: 5 * 1024 * 1024,
-    });
+    const env = await flowspaceMcpSearch(cwd, query, mode);
 
-    if (stderr) {
-      log('search stderr:', stderr.trim());
-    }
-
-    const envelope = JSON.parse(stdout);
-    const rawResults = envelope.results || [];
-    const folders: Record<string, number> = envelope.meta?.folders || {};
-
-    // Map and filter results
+    // Filter stale results — graph may reference deleted files.
     const results: FlowSpaceSearchResult[] = [];
-    for (const r of rawResults) {
-      const filePath = extractFilePath(r.node_id);
-
-      // Verify file still exists (graph may be stale)
+    for (const r of env.results) {
       try {
-        await access(join(cwd, filePath));
+        await access(join(cwd, r.filePath));
+        results.push(r);
       } catch {
-        continue; // Skip deleted files
+        // skip deleted files
       }
-
-      const category = r.node_id.split(':')[0] || 'other';
-
-      results.push({
-        kind: 'flowspace',
-        nodeId: r.node_id,
-        name: extractName(r.node_id, r.smart_content),
-        category,
-        filePath,
-        startLine: r.start_line,
-        endLine: r.end_line,
-        smartContent: sanitizeSmartContent(r.smart_content),
-        snippet: r.snippet || '',
-        score: r.score,
-        matchField: r.match_field || 'content',
-      });
     }
 
-    const elapsedMs = Date.now() - startMs;
-    log(`search ← ${results.length}/${rawResults.length} results in ${elapsedMs}ms`, {
-      folders: Object.keys(folders),
-    });
-
-    return { results, folders };
-  } catch (err: unknown) {
-    const error = err as { code?: string; stderr?: string; message?: string; killed?: boolean };
-
-    log('search ERROR:', {
-      code: error.code,
-      killed: error.killed,
-      message: error.message?.slice(0, 200),
-      stderr: error.stderr?.slice(0, 500),
-    });
-
-    if (error.code === 'ENOENT') {
-      fs2AvailableCache = null;
-      return { error: 'FlowSpace (fs2) is not installed' };
-    }
-
-    const stderr = error.stderr || '';
-
-    if (stderr.includes('SEMANTIC search requires') || stderr.includes('embedding adapter')) {
-      return { error: 'Semantic search requires embeddings. Run: fs2 scan --embed' };
-    }
-
-    if (stderr.includes('No nodes have embeddings')) {
-      return { error: 'No embeddings found. Run: fs2 scan --embed' };
-    }
-
-    if (stderr.includes('Graph not found') || stderr.includes('No graph found')) {
-      return { error: 'No graph found. Run: fs2 scan' };
-    }
-
-    if (error.killed || error.code === 'ETIMEDOUT') {
-      return { error: 'Search timed out. Try a simpler query.' };
-    }
-
-    // User-friendly: show first line of stderr, or a generic message
-    const firstStderrLine = stderr
-      .split('\n')
-      .find((l) => l.trim())
-      ?.trim();
-    return { error: firstStderrLine || 'Search failed. Check fs2 configuration.' };
+    return { kind: 'ok', results, folders: env.folders };
+  } catch (err) {
+    const message = (err as Error).message ?? 'Search failed';
+    log('search error', { cwd, query, mode, message });
+    return { kind: 'error', error: mapMcpError(message) };
   }
+}
+
+/**
+ * Server action exposed to the SDK command "Restart FlowSpace".
+ * Tears down the long-lived child for `cwd`; the next search respawns.
+ */
+export async function restartFlowspaceAction(cwd: string): Promise<{ ok: true }> {
+  log('restart requested', { cwd });
+  await shutdownFlowspace(cwd);
+  return { ok: true };
 }
