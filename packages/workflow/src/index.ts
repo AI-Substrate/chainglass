@@ -365,7 +365,7 @@ export type {
   CreateWorktreeGitResult,
 } from './interfaces/index.js';
 
-// Workspace service interface (Plan 014 Phase 4, extended Plan 069 Phase 1)
+// Workspace service interface (Plan 014 Phase 4, extended Plan 069 Phase 1, Plan 084 live-monitoring-rescan)
 export type {
   IWorkspaceService,
   WorkspaceOperationResult,
@@ -377,6 +377,7 @@ export type {
   CreateWorktreeRequest,
   CreateWorktreeResult,
   BootstrapStatus,
+  WorkspaceMutationEvent,
 } from './interfaces/index.js';
 
 // Sample service interface (Plan 014 Phase 4)

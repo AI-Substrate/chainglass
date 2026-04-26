@@ -130,7 +130,8 @@ if (status.status === 'clean') {
 
 | Contract | Type | Consumers | Description |
 |----------|------|-----------|-------------|
-| `IWorkspaceService` | Interface | Web pages, server actions, API routes, CLI commands, workflow/workunit/file actions | Primary lifecycle facade for register/list/remove/info/context/preferences/create-worktree |
+| `IWorkspaceService` | Interface | Web pages, server actions, API routes, CLI commands, workflow/workunit/file actions, `_platform/events` (mutation listener) | Primary lifecycle facade for register/list/remove/info/context/preferences/create-worktree, plus `onMutation(listener)` event channel for live-monitoring rescans (Plan 084) |
+| `WorkspaceMutationEvent` | Type (discriminated union) | `_platform/events` central watcher subscription | Event payload for `onMutation` — variants: `workspace:added` / `workspace:updated` / `workspace:removed` / `worktree:created` / `worktree:removed` (Plan 084) |
 | `IWorkspaceContextResolver` | Interface | DI containers, contract tests, future workspace orchestration flows | Resolves workspace/worktree scope from filesystem paths or slugs |
 | `IGitWorktreeResolver` | Interface | `WorkspaceService`, `WorkspaceContextResolver`, DI containers, contract tests | Detects worktree topology and canonical main repository path |
 | `IGitWorktreeManager` | Interface | `WorkspaceService` (Phase 2), DI containers, contract tests | Preflight-checks, syncs, and creates git worktrees — write-side counterpart to resolver |
@@ -144,7 +145,7 @@ if (status.status === 'clean') {
 
 | Component | Role | Depends On |
 |-----------|------|------------|
-| `WorkspaceService` | Lifecycle facade for register/list/remove/info/context/preferences/create-worktree | `IWorkspaceRegistryAdapter`, `IWorkspaceContextResolver`, `IGitWorktreeResolver`, `IGitWorktreeManager`, `WorktreeBootstrapRunner` |
+| `WorkspaceService` | Lifecycle facade for register/list/remove/info/context/preferences/create-worktree, plus mutation event channel (`onMutation`, Plan 084) | `IWorkspaceRegistryAdapter`, `IWorkspaceContextResolver`, `IGitWorktreeResolver`, `IGitWorktreeManager`, `WorktreeBootstrapRunner`, Node `EventEmitter` |
 | `WorkspaceContextResolver` | Maps paths to workspace/worktree context with longest-match behavior | `IWorkspaceRegistryAdapter`, `IGitWorktreeResolver`, `IFileSystem` |
 | `GitWorktreeResolver` | Runs git commands and parses worktree porcelain output | `IProcessManager` |
 | `GitWorktreeManagerAdapter` | Runs git write commands for preflight, sync, worktree creation, and branch/plan listing | `IProcessManager` |
@@ -192,6 +193,7 @@ Primary: `packages/workflow/src/` + `apps/web/app/(dashboard)/workspaces/` + `ap
 | `apps/web/src/components/workspaces/workspace-remove-button.tsx` | Removal UI | Client mutation surface for remove |
 | `apps/web/src/features/041-file-browser/hooks/use-workspace-context.tsx` | Client provider + hook | Workspace/worktree identity bridge |
 | `apps/cli/src/commands/workspace.command.ts` | CLI controller | `cg workspace add/list/info/remove` |
+| `test/unit/workflow/workspace-service-mutation-emitter.test.ts` | Unit test | Plan 084: emits on add/remove/updatePreferences/createWorktree success, no-emit on blocked, listener-error isolation, idempotent unsubscribe, setImmediate ordering |
 
 ## Dependencies
 
@@ -218,3 +220,4 @@ Primary: `packages/workflow/src/` + `apps/web/app/(dashboard)/workspaces/` + `ap
 | Plan 069 Phase 2 | Implemented naming allocator, GitWorktreeManagerAdapter, WorktreeBootstrapRunner, full create-worktree orchestration in WorkspaceService, DI wiring in all containers | 2026-03-07 |
 | Plan 069 Phase 3 | Added full-page new-worktree route, create-worktree page-state/server-action adapter, and client live-preview form surface. Exported pure naming functions for client-side use. | 2026-03-08 |
 | Plan 069 Phase 4 | Added sidebar plus button for worktree creation, bootstrap hook authoring guide, web-UI route docs, README pointer. | 2026-03-09 |
+| Plan 084 (live-monitoring-rescan) | Added internal mutation event channel to `WorkspaceService`: `WorkspaceMutationEvent` discriminated union + `IWorkspaceService.onMutation(listener)`. Emits on `add`/`remove`/`updatePreferences`/`createWorktree` success exits via `setImmediate` so caller's `await` resolves before listener fires. Consumer: `_platform/events` central watcher (rescan trigger). | 2026-04-26 |

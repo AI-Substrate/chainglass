@@ -36,6 +36,9 @@ async function flushMicrotasks(): Promise<void> {
 // ═══════════════════════════════════════════════════════════════
 
 const REGISTRY_PATH = '/test/.config/chainglass/workspaces.json';
+// Plan 084: registry watcher now watches the PARENT DIR (atomic-rename safe);
+// path filter inside the handler matches by absolute equality with REGISTRY_PATH.
+const REGISTRY_DIR = '/test/.config/chainglass';
 
 function createTestWorkspace(slug: string, path: string): ReturnType<typeof Workspace.create> {
   return Workspace.create({ name: slug, path, slug });
@@ -169,9 +172,11 @@ describe('CentralWatcherService', () => {
 
       await service.start();
 
-      // Registry watcher is the last one created
+      // Registry watcher is the last one created. Plan 084: the watcher now
+      // watches the PARENT directory (atomic-rename safe); the path filter
+      // inside the handler keeps events scoped to REGISTRY_PATH.
       const registryWatcher = factory.getWatcher(factory.getWatcherCount() - 1) as FakeFileWatcher;
-      expect(registryWatcher.getWatchedPaths()).toContain(REGISTRY_PATH);
+      expect(registryWatcher.getWatchedPaths()).toContain(REGISTRY_DIR);
     });
 
     it('should set isWatching() to true after start', async () => {
@@ -295,7 +300,8 @@ describe('CentralWatcherService', () => {
 
       expect(factory.getWatcherCount()).toBe(1);
       const registryWatcher = factory.getWatcher(0) as FakeFileWatcher;
-      expect(registryWatcher.getWatchedPaths()).toContain(REGISTRY_PATH);
+      // Plan 084: parent-dir watch (atomic-rename safe), filtered to REGISTRY_PATH inside the handler.
+      expect(registryWatcher.getWatchedPaths()).toContain(REGISTRY_DIR);
     });
 
     it('should skip data watchers for worktrees without .chainglass/data/ but still create source watchers', async () => {

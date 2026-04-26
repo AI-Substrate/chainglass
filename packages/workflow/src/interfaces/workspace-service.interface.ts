@@ -153,6 +153,35 @@ export type CreateWorktreeResult =
       refreshedPreview?: PreviewCreateWorktreeResult;
     };
 
+// ==================== Mutation Events (Plan 084 — live-monitoring-rescan) ====================
+
+/**
+ * Event emitted by `IWorkspaceService.onMutation` after a successful mutation.
+ *
+ * Discriminated union on `kind`. Subscribers react to workspace/worktree state
+ * changes — primarily the central watcher service which uses these to trigger
+ * rescans without waiting for filesystem-watcher signals (which are unreliable
+ * across atomic-rename writes to the registry file).
+ *
+ * Variants:
+ * - `workspace:added` — a new workspace was registered (after `add()` success)
+ * - `workspace:updated` — workspace preferences changed (after `updatePreferences()` success)
+ * - `workspace:removed` — a workspace was unregistered (after `remove()` success)
+ * - `worktree:created` — a new worktree was created (after `createWorktree()` returns `status: 'created'`)
+ * - `worktree:removed` — a worktree was deleted. **Reserved for future use** —
+ *   no `removeWorktree()` mutation method exists today, so this kind is never
+ *   emitted by the current implementation. Defined now so future subscribers
+ *   can register handlers without a breaking change.
+ *
+ * Per Plan 084 Workshop 003 § Interface Contract.
+ */
+export type WorkspaceMutationEvent =
+  | { kind: 'workspace:added'; slug: string; path: string }
+  | { kind: 'workspace:updated'; slug: string; path: string }
+  | { kind: 'workspace:removed'; slug: string; path: string }
+  | { kind: 'worktree:created'; workspaceSlug: string; worktreePath: string }
+  | { kind: 'worktree:removed'; workspaceSlug: string; worktreePath: string };
+
 // ==================== Service Interface ====================
 
 /**
@@ -288,4 +317,35 @@ export interface IWorkspaceService {
    * @returns CreateWorktreeResult discriminated on `status`
    */
   createWorktree(request: CreateWorktreeRequest): Promise<CreateWorktreeResult>;
+
+  // ==================== Mutation Events (Plan 084 — live-monitoring-rescan) ====================
+
+  /**
+   * Subscribe to workspace mutation events.
+   *
+   * The listener is invoked AFTER the mutation has been persisted, on a
+   * deferred microtask via `setImmediate` so that:
+   * - the caller's `await mutation()` resolves BEFORE the listener fires
+   * - listener errors cannot break the mutation result
+   *
+   * Multiple subscribers are supported (Node `EventEmitter` semantics).
+   *
+   * @param listener - Function to invoke with each mutation event
+   * @returns Unsubscribe function. **Idempotent** — calling it multiple
+   *   times is safe; subsequent calls are no-ops.
+   *
+   * @example
+   * ```typescript
+   * const unsubscribe = workspaceService.onMutation((event) => {
+   *   if (event.kind === 'worktree:created') {
+   *     console.log('new worktree:', event.worktreePath);
+   *   }
+   * });
+   * // Later:
+   * unsubscribe();
+   * ```
+   *
+   * Per Plan 084 — live-monitoring-rescan, Workshop 003 § Interface Contract.
+   */
+  onMutation(listener: (event: WorkspaceMutationEvent) => void): () => void;
 }
