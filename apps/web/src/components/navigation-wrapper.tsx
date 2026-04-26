@@ -37,7 +37,7 @@ export function NavigationWrapper({ children }: { children: ReactNode }) {
         paddingBottom: 'env(safe-area-inset-bottom)',
       }}
     >
-      <main className="flex-1 min-h-0 overflow-hidden">{children}</main>
+      <main className="flex-1 min-h-0 overflow-auto">{children}</main>
       <BottomTabBar />
     </div>
   );
