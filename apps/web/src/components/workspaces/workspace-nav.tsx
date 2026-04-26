@@ -87,24 +87,33 @@ export function WorkspaceNav() {
     return map;
   }, [activities]);
 
-  // Load workspaces on mount
+  // Load workspaces on mount, and refetch when the URL changes so a newly
+  // created worktree appears as soon as the post-create redirect lands.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: pathname and currentWorktree are intentional triggers, not values used in the effect body.
   useEffect(() => {
+    let cancelled = false;
     async function fetchWorkspaces() {
       try {
-        const response = await fetch('/api/workspaces?include=worktrees');
+        const response = await fetch('/api/workspaces?include=worktrees', {
+          cache: 'no-store',
+        });
+        if (cancelled) return;
         if (response.ok) {
           const data = await response.json();
           setWorkspaces(data.workspaces || []);
         }
       } catch (error) {
-        console.error('Failed to load workspaces:', error);
+        if (!cancelled) console.error('Failed to load workspaces:', error);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
 
     fetchWorkspaces();
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname, currentWorktree]);
 
   // Toggle workspace expansion
   const toggleExpand = useCallback((slug: string) => {

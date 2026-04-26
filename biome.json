@@ -44,7 +44,8 @@
       "packages/*/src/**/*.d.ts",
       "packages/*/src/**/*.d.ts.map",
       "packages/*/src/**/*.js",
-      "packages/*/src/**/*.js.map"
+      "packages/*/src/**/*.js.map",
+      "apps/web/public/icons/**"
     ]
   }
 }
