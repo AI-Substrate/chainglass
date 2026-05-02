@@ -156,6 +156,10 @@ scratch/*
 # Plan 018: Workspace-scoped agent data (events, sessions)
 .chainglass/workspaces/
 .chainglass/data/
+# Plan 067: server.json sidecar (port discovery) — never committed
+.chainglass/server.json
+# Plan 084: bootstrap-code sidecar (always-on auth) — never committed
+.chainglass/bootstrap-code.json
 # Ignore .chainglass in app workspaces (local dev/test data)
 apps/**/.chainglass/
 

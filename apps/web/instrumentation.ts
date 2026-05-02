@@ -2,11 +2,14 @@
  * Plan 027: Central Domain Event Notification System
  * Plan 067: Event Popper — server.json port discovery
  * Plan 074: Workflow Execution Manager bootstrap
+ * Plan 084: Bootstrap-code auth — boot-time misconfig assertion + file write
  *
  * Next.js instrumentation hook — called once at server startup.
  * Starts the central notification system (filesystem watcher → SSE events).
  * Writes .chainglass/server.json so CLI tools can discover the server port.
  * Bootstraps WorkflowExecutionManager singleton for workflow execution from web UI.
+ * Bootstrap-code: asserts AUTH_SECRET / GitHub-OAuth wiring, ensures
+ * .chainglass/bootstrap-code.json exists for cookie HMAC + terminal-WS HKDF.
  *
  * See: https://nextjs.org/docs/app/building-your-application/optimizing/instrumentation
  */
@@ -19,11 +22,36 @@ const globalForExec = globalThis as typeof globalThis & {
   __workflowExecutionManagerInitialized?: boolean;
 };
 
+const globalForBootstrap = globalThis as typeof globalThis & {
+  __bootstrapCodeWritten?: boolean;
+};
+
 export async function register() {
   // CentralWatcherService uses Node.js APIs (chokidar, fs) — skip on Edge runtime.
   // console.log is intentional: this runs at process startup before the DI container
   // or ILogger are available. It's a one-time breadcrumb in the host process logs.
   if (process.env.NEXT_RUNTIME === 'nodejs') {
+    // Plan 084 Phase 2 — bootstrap-code: assert wiring + ensure file exists.
+    // process.exit() is Node-only; this branch already guards against Edge runtime.
+    const { checkBootstrapMisconfiguration, writeBootstrapCodeOnBoot } = await import(
+      './src/auth-bootstrap/boot'
+    );
+    const misconfig = checkBootstrapMisconfiguration(process.env);
+    if (!misconfig.ok) {
+      console.error('[bootstrap-code] FATAL:', misconfig.reason);
+      process.exit(1);
+    }
+    if (!globalForBootstrap.__bootstrapCodeWritten) {
+      globalForBootstrap.__bootstrapCodeWritten = true;
+      if (process.env.CHAINGLASS_CONTAINER === 'true') {
+        console.warn(
+          '[bootstrap-code] CHAINGLASS_CONTAINER=true: skipping boot-time file write; expecting .chainglass/bootstrap-code.json on a mounted volume.'
+        );
+      } else {
+        await writeBootstrapCodeOnBoot(process.cwd());
+      }
+    }
+
     console.log('[central-notifications] instrumentation.register() called');
     const { startCentralNotificationSystem } = await import(
       './src/features/027-central-notify-events/start-central-notifications'

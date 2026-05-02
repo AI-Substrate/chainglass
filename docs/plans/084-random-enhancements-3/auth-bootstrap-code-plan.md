@@ -226,7 +226,7 @@ The harness is sufficient as-is. We do not need to extend it.
 | 2.3 | Update `.gitignore`: explicit lines for `.chainglass/bootstrap-code.json` and `.chainglass/server.json` | infra | `git status` after first boot does not list either file | — |
 | 2.4 | Unit tests: instrumentation idempotence (HMR safety); assertion fires under misconfiguration; passes when configured | `_platform/auth` | Tests pass with real fs in temp dir | Constitution P4 |
 
-**Acceptance criteria covered**: AC-9 (file persists, regen on missing/corrupt), AC-17 (HMR safety), AC-20 (boot fails fast on misconfig), AC-22 (no code in logs).
+**Acceptance criteria covered**: AC-9 (file persists, regen on missing/corrupt), AC-17 (HMR safety), AC-20 (boot fails fast on misconfig), AC-22 (no code in logs), AC-23 (file gitignored — covered by T003).
 
 ---
 

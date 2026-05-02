@@ -412,6 +412,10 @@ smoke-test-agent:
 code-review-agent file_path:
     GH_TOKEN=$(XDG_CONFIG_HOME=~/.config gh auth token) minih run code-review --agents-dir harness/agents --model gpt-5.4 --reasoning xhigh --timeout 1200 --param file_path={{file_path}}
 
+# Run code-review-companion (long-running, coordination-enabled, with live human-view TUI). Send tasks via `minih outside inbox send code-review-companion ...`.
+companion:
+    GH_TOKEN=$(XDG_CONFIG_HOME=~/.config gh auth token) minih run code-review-companion --agents-dir harness/agents --model gpt-5.5 --timeout 7200 --human
+
 # Tail an agent's live event stream
 agent-tail slug:
     minih tail {{slug}} --agents-dir harness/agents

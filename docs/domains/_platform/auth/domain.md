@@ -190,3 +190,5 @@ function UserMenu() {
 | 063-login Phase 2 | Added animated ASCII art login screen (matrix rain, glitch logo, CRT overlay, terminal button), moved SessionProvider to layout-level, build fixes | 2026-03-02 |
 | 063-login Phase 3 | Added logout button + username display in sidebar, requireAuth() guard for 52 server actions, auth() guard for 12 API routes, useAuth() hook | 2026-03-03 |
 | 063-login Phase 4 | Finalized setup guide, added README auth section, E2E verification, domain artifact updates | 2026-03-03 |
+| 084-auth-bootstrap-code Phase 1 | Phase 1 ships shared primitives at @chainglass/shared/auth-bootstrap-code (generator, persistence, cookie HMAC, signing-key with cwd-keyed cache + HKDF fallback) — 46 tests | 2026-04-30 |
+| 084-auth-bootstrap-code Phase 2 | Phase 2 wires bootstrap-code into apps/web boot: instrumentation.ts asserts AUTH_SECRET / GitHub-OAuth wiring (process.exit(1) on misconfig under nodejs runtime only); HMR-safe ensureBootstrapCode write under .chainglass/; container-mode warn-skip; .gitignore covers server.json + bootstrap-code.json at repo root | 2026-05-02 |
