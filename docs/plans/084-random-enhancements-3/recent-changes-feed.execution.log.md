@@ -84,4 +84,19 @@ In `browser-client.tsx`:
 
 **Evidence**: `tsc --noEmit` shows zero new errors. The two errors at lines 516-517 are pre-existing (`fileNav.fileData?.content` against `ReadFileResult` type) — exact same errors flagged before T003 at lines 492-493 (shifted by 24 because of the dynamic import + close handler addition).
 
+### T004 — Lightweight test for view-branch routing invariant
+
+Plan path was `test/unit/web/041-file-browser/...` but existing convention is `test/unit/web/features/041-file-browser/...`. Corrected the path; updated plan task row to record the correction.
+
+Wrote `browser-client-view-branch.test.tsx` with 7 tests across two suites:
+
+- **RecentFeedView stub** (2 tests): renders placeholder copy; does not invoke onClose during render.
+- **browser-client.tsx routing — Finding 07 ordering invariant** (5 tests): asserts the `next/dynamic` import shape (with `ssr:false`); reads `view` from params destructure; defines `handleCloseRecentFeed` setting only `view: null` (preserving other params); `view === 'recent-feed'` precedes `selectedFile ? (` in the **mobile** contentView block; same ordering in the **desktop** main slot block.
+
+**Decision** — testing strategy: BrowserClient composes ~25 hooks/contexts. Mocking those would either (a) violate Constitution P4 (no `vi.mock` of own-domain internals) or (b) drown the test in 150 lines of mock plumbing. Instead, this lightweight test verifies the two specific properties Finding 07 binds — the prop shape (smoke) and the source-level ordering (regex on the file). The actual end-to-end behavior is covered later by T013 (real git seed integration test) and T035 (harness visual smoke).
+
+**Decision** — source-regex tests are normally fragile, but the ordering invariant *is* the test: if a future refactor swaps the cascade so `selectedFile ?` comes before `view ===`, the user's prior file/dir state is wiped on feed close. The regex is the cheapest enforcement mechanism for that invariant.
+
+**Evidence**: `npx vitest run` passes 7/7 in 13ms.
+
 
