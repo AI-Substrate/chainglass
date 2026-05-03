@@ -55,4 +55,12 @@ Created two files:
 
 **Evidence**: `tsc --noEmit` shows zero errors in `recent-feed/` (pre-existing errors in unrelated `browser-client.tsx`, `useAgentInstance.ts`, `mobile-search-overlay.tsx`, `flowspace-mcp-client.ts`, `workflow-execution-manager.ts` — not mine).
 
+### T002 — Add view enum to fileBrowserParams
+
+Added `view: parseAsStringLiteral(['recent-feed'] as const)` to `fileBrowserParams`. Result type is `'recent-feed' | null` — nuqs's literal parser cannot accept `null` as a withDefault argument (the default must be one of the literal values), so the plan's `.withDefault(null)` shorthand was implemented as "no withDefault" to get the same nullable behavior. Existing 5 params (dir, file, mode, panel, line) unchanged.
+
+**Plan note**: Updated plan task row to document the API correction.
+
+**Evidence**: typecheck clean for `file-browser.params.ts`; the param flows through `fileBrowserPageParamsCache` automatically (spread).
+
 
