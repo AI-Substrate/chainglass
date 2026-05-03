@@ -147,4 +147,21 @@ Three new optional props added to `CardActionsProps`:
 
 **Evidence**: `tsc --noEmit` clean for `feed-card.tsx`. Tests for the formatters + render assertions land at T035 (full-suite verification) — not gated here per plan's Done When ("Card renders with mock `FeedItem`" — render path verified by typecheck + visual harness in T035).
 
+### T008 — Image / Video / Audio / Binary preview cards
+
+Four sibling components under `recent-feed/previews/`. All slot into `<FeedCard>` as children:
+
+- **ImagePreview**: `useLazyLoad` (no fork — Finding 14) + raw-file-API URL passed in by the orchestrator. Bounded `max-h-[60vh]`. Loaded/error fade-in.
+- **VideoPreview**: native `<video controls preload="metadata">` with optional `posterUrl`. Workshop §6 NO autoplay-loop binding honored. `preload="metadata"` keeps memory bounded until user interacts (Finding 05). `useLazyLoad` defers element insertion until card scrolls into viewport.
+- **AudioPreview**: native `<audio controls preload="metadata">`. No virtualization needed (audio elements are cheap until played).
+- **BinaryPreview**: file icon + formatted size + the binding "Binary file — preview not available." copy (AC D3).
+
+**Decision** — preview components take `rawFileUrl` directly (string) rather than computing it themselves. Centralizes URL construction in the orchestrator (T012) and keeps previews dumb. Same pattern as Plan 077 image-card.
+
+**Decision** — biome `useMediaCaption` ignored on `<video>` and `<audio>` with rationale comment ("workspace-local user content; captions cannot be auto-derived"). Same call existing video-card and audio-card make — consistent with the codebase's a11y posture.
+
+**Decision** — ImagePreview reserves a 32-row placeholder (`h-32`) before lazy-load fires, BinaryPreview is intrinsically sized. Video reserves 48-row placeholder. Keeps virtualization pre-fetch heights stable.
+
+**Evidence**: `tsc --noEmit` clean for all 4 previews. Visual smoke at T035.
+
 
