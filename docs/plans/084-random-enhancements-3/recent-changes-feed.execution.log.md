@@ -62,6 +62,26 @@ Replaced **`recent-feed-view.tsx`** stub body with the seeded orchestrator:
 
 **Evidence**: `tsc --noEmit` clean for `recent-feed-view.tsx`, `recent-feed-items.ts`, and the updated `file-actions.ts`.
 
+### T013 — Real-git integration test for seed
+
+`test/integration/web/recent-feed-seed.integration.test.ts` — 17 tests across 2 suites (4 + 13 parameterized extension cases). All pass in 530ms.
+
+**Real-git scenarios** (4 tests):
+1. AC B1 — newest-first ordering: 3 commits in known order; assert `result.items[0..2]` paths match the reverse-chronological commit sequence; verify `kind`, `size`, `changedAt`, `eventType='changed'`, `absolutePath`, `name` are all populated.
+2. AC B2 — limit honored: 8 commits with `limit=3` returns the 3 newest only.
+3. AC B3 — non-git workspace: bare temp dir (no `git init`) → `{ ok: false, error: 'not-git' }`.
+4. Stat-failure resilience: commit `survivor.ts` and `doomed.ts`, then `rmSync` doomed.ts post-commit. Result: survivor returns, doomed silently dropped (validates `Promise.allSettled` resilience design).
+
+**Extension dispatch matrix** (13 parameterized cases via `it.each`): photo.png→image, screencast.mp4→video, voice.mp3→audio, notes.md→markdown, notes.MARKDOWN→markdown (case-insensitive), module.ts→code, component.tsx→code, script.py→code, Dockerfile→code (no extension), Makefile→code, archive.tar→binary, data.bin→binary, somefile-no-ext→generic.
+
+**Decision** — used `execFileSync` for git ops in test harness (vs `simple-git` or any other library). No new test deps; same approach the codebase uses elsewhere.
+
+**Decision** — `GIT_AUTHOR_NAME` etc set via env per call to keep tests hermetic (no dependence on host's git config). `commit.gpgsign=false` prevents the test from hanging on a signing key prompt if the host is configured for signed commits.
+
+**Constitution P4 honored**: zero `vi.mock` calls, zero own-domain mocks. Real binary, real fs, real return path.
+
+**Evidence**: `npx vitest run test/integration/web/recent-feed-seed.integration.test.ts` → 17/17 pass in 1.03s total (529ms test execution).
+
 
 
 ---
