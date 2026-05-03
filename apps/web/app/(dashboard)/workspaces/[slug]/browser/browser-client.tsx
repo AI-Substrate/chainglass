@@ -59,6 +59,7 @@ import {
   StickyNote,
   TerminalSquare,
 } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import { useQueryStates } from 'nuqs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -80,6 +81,23 @@ import {
   saveFile,
 } from '../../../../actions/file-actions';
 import { fetchFilesWithNotes } from '../../../../actions/notes-actions';
+
+// Plan recent-changes-feed T003: lazy-load the feed view so its primitives
+// (Shiki excerpts, virtualized list) only ship when the user opens the feed.
+const RecentFeedView = dynamic(
+  () =>
+    import('@/features/041-file-browser/components/recent-feed/recent-feed-view').then(
+      (m) => m.RecentFeedView
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground">
+        Recent changes feed — loading…
+      </div>
+    ),
+  }
+);
 
 export interface BrowserClientProps {
   slug: string;
@@ -160,6 +178,12 @@ function BrowserClientInner({
   const currentDir = params.dir || '';
   const panelMode = (params.panel as PanelMode) || 'tree';
   const scrollToLine = params.line ?? null;
+  // Plan recent-changes-feed T003: main-panel view selector (Finding 07 — branch BEFORE
+  // selectedFile/currentDir so closing the feed restores the user's prior state).
+  const view = params.view; // 'recent-feed' | null
+  const handleCloseRecentFeed = useCallback(() => {
+    setParams({ view: null }, { history: 'push' });
+  }, [setParams]);
 
   // Plan 083 Phase 5 T002: legacy mode alias coercion. Runs BEFORE the scrollToLine effect so
   // `?mode=edit&line=42` first normalizes to `?mode=source`, then scrollToLine sees `source`
@@ -891,7 +915,14 @@ function BrowserClientInner({
 
   const contentView = (
     <MainPanel>
-      {selectedFile ? (
+      {view === 'recent-feed' ? (
+        <RecentFeedView
+          slug={slug}
+          worktreePath={worktreePath}
+          isGit={isGit}
+          onClose={handleCloseRecentFeed}
+        />
+      ) : selectedFile ? (
         <FileViewerPanel
           filePath={selectedFile}
           content={
@@ -1140,7 +1171,14 @@ function BrowserClientInner({
         }
         main={
           <MainPanel>
-            {selectedFile ? (
+            {view === 'recent-feed' ? (
+              <RecentFeedView
+                slug={slug}
+                worktreePath={worktreePath}
+                isGit={isGit}
+                onClose={handleCloseRecentFeed}
+              />
+            ) : selectedFile ? (
               <FileViewerPanel
                 filePath={selectedFile}
                 content={

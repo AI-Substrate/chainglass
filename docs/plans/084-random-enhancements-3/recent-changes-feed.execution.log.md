@@ -63,4 +63,25 @@ Added `view: parseAsStringLiteral(['recent-feed'] as const)` to `fileBrowserPara
 
 **Evidence**: typecheck clean for `file-browser.params.ts`; the param flows through `fileBrowserPageParamsCache` automatically (spread).
 
+### T003 — Add view branch in browser-client.tsx
+
+Created stub `recent-feed-view.tsx` with `RecentFeedView({ slug, worktreePath, isGit, onClose })` exporting a placeholder loading message. T012 will replace the body with the seeded orchestrator. Stub keeps the import path resolved during incremental landing.
+
+In `browser-client.tsx`:
+- Added `import dynamic from 'next/dynamic'`.
+- Added module-scope `const RecentFeedView = dynamic(() => import(...).then(m => m.RecentFeedView), { ssr: false, loading: ... })` for code-splitting.
+- Pulled `view` from `params` (alongside `mode`, `selectedFile`, `currentDir`, `panelMode`, `scrollToLine`).
+- Added `handleCloseRecentFeed` callback that sets `view: null` via `setParams` (history: 'push'), restoring prior `selectedFile`/`currentDir` state per Finding 07.
+- Added `view === 'recent-feed' ?` branch BEFORE `selectedFile ?` in TWO render locations:
+  - `contentView` (mobile Content tab, line 892)
+  - `main={...}` (desktop main slot, line 1141)
+
+**Decision**: Did NOT extract the cascade into a helper component despite duplication — pre-existing code smell; refactoring it falls outside T003's scope (CLAUDE.md: "no premature abstraction; bug fix doesn't need surrounding cleanup"). The two locations differ in their `FolderPreviewPanel.onFileClick` handler (mobile sets `mobileActiveIndex(1)`), so the duplication is not 100% — extraction would need to thread that callback.
+
+**Decision**: Stub component exports both default and named — keeps `next/dynamic` happy regardless of import style. T012 may consolidate to one when the orchestrator lands.
+
+**Plan-spec deviation**: T012 normally builds `RecentFeedView` from scratch. This task creates a minimal stub now so the import resolves; T012 will replace the body in-place (no path change). Recorded here so the companion sees this as intentional.
+
+**Evidence**: `tsc --noEmit` shows zero new errors. The two errors at lines 516-517 are pre-existing (`fileNav.fileData?.content` against `ReadFileResult` type) — exact same errors flagged before T003 at lines 492-493 (shifted by 24 because of the dynamic import + close handler addition).
+
 
