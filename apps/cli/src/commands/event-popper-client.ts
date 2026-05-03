@@ -15,6 +15,7 @@
 
 import { join } from 'node:path';
 
+import { findWorkspaceRoot } from '@chainglass/shared/auth-bootstrap-code';
 import { readServerInfo } from '@chainglass/shared/event-popper';
 import type { AlertOut, QuestionOut } from '@chainglass/shared/question-popper';
 
@@ -82,13 +83,42 @@ export interface IEventPopperClient {
 
 // ── Real Client ──
 
-export function createEventPopperClient(baseUrl: string): IEventPopperClient {
+export function createEventPopperClient(
+  baseUrl: string,
+  opts: { worktreePath?: string } = {},
+): IEventPopperClient {
+  // Plan 084 Phase 5: read `localToken` from `.chainglass/server.json` once at
+  // client construction (file is process-stable for the lifetime of this CLI
+  // invocation). Sent as `X-Local-Token` on every request so the server-side
+  // `requireLocalAuth` accepts the call. AC-17 (CLI keeps working).
+  // F002 fix: search workspace root too — Phase 5 instrumentation writes the
+  // file there (paired with bootstrap-code.json per FX003). Order: explicit
+  // `cwd` first (back-compat for in-tree callers), then workspace root, then
+  // legacy `apps/web` location.
+  const cwd = opts.worktreePath ?? process.cwd();
+  let workspaceRoot: string | undefined;
+  try {
+    workspaceRoot = findWorkspaceRoot(cwd);
+  } catch {
+    workspaceRoot = undefined;
+  }
+  const info =
+    readServerInfo(cwd) ??
+    (workspaceRoot !== undefined && workspaceRoot !== cwd
+      ? readServerInfo(workspaceRoot)
+      : null) ??
+    readServerInfo(join(cwd, 'apps', 'web'));
+  const localToken = info?.localToken;
+
   async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
     let response: Response;
+    const headers: Record<string, string> = {};
+    if (body) headers['Content-Type'] = 'application/json';
+    if (localToken !== undefined) headers['X-Local-Token'] = localToken;
     try {
       response = await fetch(`${baseUrl}${path}`, {
         method,
-        headers: body ? { 'Content-Type': 'application/json' } : undefined,
+        headers: Object.keys(headers).length > 0 ? headers : undefined,
         body: body ? JSON.stringify(body) : undefined,
       });
     } catch (error) {
@@ -141,8 +171,21 @@ export function createEventPopperClient(baseUrl: string): IEventPopperClient {
 
 export function discoverServerUrl(worktreePath?: string): string {
   const cwd = worktreePath ?? process.cwd();
-  // Try cwd first, then apps/web (Next.js cwd differs from repo root)
-  const info = readServerInfo(cwd) ?? readServerInfo(join(cwd, 'apps', 'web'));
+  // Plan 084 Phase 5 F002: try cwd first (back-compat), then workspace root
+  // (where instrumentation writes the file post-Phase-5), then the legacy
+  // `apps/web` location for forward-compat with old server processes.
+  let workspaceRoot: string | undefined;
+  try {
+    workspaceRoot = findWorkspaceRoot(cwd);
+  } catch {
+    workspaceRoot = undefined;
+  }
+  const info =
+    readServerInfo(cwd) ??
+    (workspaceRoot !== undefined && workspaceRoot !== cwd
+      ? readServerInfo(workspaceRoot)
+      : null) ??
+    readServerInfo(join(cwd, 'apps', 'web'));
   if (!info) {
     throw new Error('Chainglass server not running. Start with: just dev');
   }

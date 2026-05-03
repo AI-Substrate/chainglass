@@ -85,8 +85,18 @@ export async function register() {
       globalForEventPopper.__eventPopperServerInfoWritten = true;
 
       const { writeServerInfo, removeServerInfo } = await import('@chainglass/shared/event-popper');
+      const { findWorkspaceRoot } = await import('@chainglass/shared/auth-bootstrap-code');
       const { randomUUID } = await import('node:crypto');
-      const worktreePath = process.cwd();
+      // Plan 084 Phase 5 F002 fix — write at workspace root (paired with
+      // bootstrap-code.json per FX003), so `requireLocalAuth` and the CLI
+      // both find a single canonical `.chainglass/server.json`. Falls back
+      // to `process.cwd()` if walk-up fails (matches FX003 boot block).
+      let worktreePath: string;
+      try {
+        worktreePath = findWorkspaceRoot(process.cwd());
+      } catch {
+        worktreePath = process.cwd();
+      }
       const port = Number.parseInt(process.env.PORT ?? '3000', 10);
       const localToken = randomUUID();
 

@@ -5,10 +5,10 @@
  * Returns updated QuestionOut on success. 404/409 on errors.
  */
 
-import { auth } from '@/auth';
+// REQUIRED: requireLocalAuth(req) at top before business logic. (Plan 084 Phase 5)
 import { handleAnswerQuestion } from '@/features/067-question-popper/lib/route-helpers';
 import { getContainer } from '@/lib/bootstrap-singleton';
-import { localhostGuard } from '@/lib/localhost-guard';
+import { requireLocalAuth } from '@/lib/local-auth';
 import { WORKSPACE_DI_TOKENS } from '@chainglass/shared';
 import type { IQuestionPopperService } from '@chainglass/shared/interfaces';
 import { NextResponse } from 'next/server';
@@ -20,10 +20,11 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<Response> {
-  const guard = localhostGuard(request);
-  if (guard) {
-    const session = await auth();
-    if (!session) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const auth = await requireLocalAuth(request);
+  if (!auth.ok) {
+    const status =
+      auth.reason === 'not-localhost' ? 403 : auth.reason === 'bootstrap-unavailable' ? 503 : 401;
+    return NextResponse.json({ error: auth.reason }, { status });
   }
 
   const { id } = await params;

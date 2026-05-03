@@ -236,6 +236,7 @@ The harness tests three viewport tiers:
 | Plan 070 FX002 | Console-logs + screenshot-all CLI commands, pnpm workspace docs — from smoke-test retrospective | 2026-03-08 |
 | Plan 076 P1-P3 | Workflow execution: ODS error queue, SSE fix, CLI telemetry (--detailed, --json-events), harness workflow commands (reset/run/status/logs), auto-completion runner | 2026-03-20 |
 | Plan 076 P4 | REST API + SDK at @chainglass/shared/sdk/workflow, CG CLI --server mode (fire-and-forget run), harness-cg recipe, container CG commands, localToken auth, drive lock in engine | 2026-03-23 |
+| Plan 084 Phase 7 (T008) | Used L3 harness for end-to-end auth-bootstrap-code system-level evidence (AC-1/2/16). Recovery procedure recorded: `just harness stop && just harness dev` cold rebuild fixes long-uptime Turbopack cache staleness (observed at 27h container uptime — Turbopack reported parse errors against pre-Phase-5 line numbers despite the host file being correct). Discovery: Docker-bridge gateway IP appears in XFF for host-side curl requests, so `isLocalhostRequest` rejects — limits direct curl-from-host validation of localhost-gated routes. Recommendation: future T008-style exercises should `docker exec` curl from inside the container, or expose a same-network curl helper in the harness CLI. | 2026-05-03 |
 
 ## Prompt Templates
 

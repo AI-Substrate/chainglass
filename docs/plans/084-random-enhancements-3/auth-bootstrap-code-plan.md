@@ -177,7 +177,7 @@ The harness is sufficient as-is. We do not need to extend it.
 | 2 | Boot integration | `_platform/auth` | `instrumentation.ts` writes the file; misconfiguration assertion; gitignore | 1 | ✅ Landed 2026-05-02 |
 | 3 | Server-side gate (verify/forget + proxy + RootLayout stub) | `_platform/auth` | Cookie machinery wired end-to-end; popup stub renders when cookie missing | 1, 2 | ✅ Landed 2026-05-02 |
 | 4 | Terminal sidecar hardening | `terminal` | Close silent-bypass; HKDF fallback; JWT iss/aud/cwd | 1, 2 | ✅ Landed 2026-05-03 |
-| 5 | Sidecar HTTP-sink hardening + env-var rename | `_platform/events` (+ `_platform/auth`) | `requireLocalAuth`; apply to event-popper / tmux events; `DISABLE_GITHUB_OAUTH` alias | 1, 2 |
+| 5 | Sidecar HTTP-sink hardening + env-var rename | `_platform/events` (+ `_platform/auth`) | `requireLocalAuth`; apply to event-popper / tmux events; `DISABLE_GITHUB_OAUTH` alias | 1, 2 | ✅ Landed 2026-05-03 |
 | 6 | Popup component | `_platform/auth` | Replace stub with real BootstrapGate + popup UI; accessibility; mobile rendering | 3 |
 | 7 | Operator docs, migration, e2e | `_platform/auth` (+ docs) | `docs/how/auth/bootstrap-code.md`; domain.md updates; full env-var matrix e2e tests; harness exercise | 1–6 |
 
@@ -424,6 +424,7 @@ Every AC has at least one phase. Every phase delivers at least two ACs (or domai
 | ID | Created | Summary | Domain(s) | Status | Source |
 |----|---------|---------|-----------|--------|--------|
 | FX003 | 2026-05-03 | Bootstrap-code primitives walk up to workspace root via new `findWorkspaceRoot()` helper — fixes the Phase 6 dev-smoke gotcha where `pnpm dev` at `cwd=apps/web/` wrote a different `.chainglass/` file than the popup mentioned | `@chainglass/shared` (additive contract); `_platform/auth` (call-site swap) | Proposed | User-reported during Phase 6 dev smoke (2026-05-02); documented in 4 places at the time, this FX is the proper fix |
+| FX004 | 2026-05-03 | `requireLocalAuth` rejects non-loopback before checking the bootstrap cookie, so 6 browser-shared `/api/event-popper/*` routes break for LAN/proxied/remote workspace browsers (the QuestionPopperProvider UI). Add `requireLocalOrSessionAuth` that falls through to cookie validation when not on localhost; keep strict `requireLocalAuth` on CLI-only sinks (`ask-question`, `send-alert`, `tmux/events`) | `_platform/auth` (additive contract); `event-popper` (6 route call-site swaps) | Proposed | minih code-review run `2026-05-03T15-04-...` F001 HIGH (Phase 7 round 4 review) |
 
 ---
 

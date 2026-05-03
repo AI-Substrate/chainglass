@@ -15,16 +15,37 @@ import {
 import type { BootstrapCodeAndKey } from './bootstrap-code';
 
 /**
- * The 4 explicit bypass routes — locked contract, no extras allowed.
- * Phase 5 must NOT add `/api/event-popper/*`, `/api/tmux/events`,
- * `/api/events/*`, or `/api/terminal/token` here. Those go through the cookie
- * gate first, then their own composite checks.
+ * Bypass routes — locked contract.
+ *
+ * **Always-public** (Phase 3):
+ *   - `/api/health` — load-balancer probes
+ *   - `/api/auth` — NextAuth subroutes (callback/signin/signout)
+ *   - `/api/bootstrap/verify` — accepts the typed code
+ *   - `/api/bootstrap/forget` — clears the cookie
+ *
+ * **Localhost-gated by their own composite check** (Phase 7 F001 fix —
+ * minih review on Phase 7 surfaced that `bootstrapCookieStage` was rejecting
+ * token-only CLI requests with 401 before the route handler's
+ * `requireLocalAuth` could ever run, breaking AC-17 at the system level for
+ * the sink routes):
+ *   - `/api/event-popper` — 8 sinks, gated by `requireLocalAuth` in handlers
+ *   - `/api/tmux/events` — gated by `requireLocalAuth` in handler
+ *
+ * `/api/events/*` (SSE) and `/api/terminal/token` are NOT bypassed — they
+ * legitimately need the cookie gate (browser flows; session-bearing).
+ *
+ * The intent of layering for sinks is "localhost + (cookie OR X-Local-Token)";
+ * the proxy gate enforced "cookie OR reject", which collapsed the OR to AND
+ * for token-only callers. Bypassing here lets the composite gate live in one
+ * place (the route handler).
  */
 export const AUTH_BYPASS_ROUTES = [
   '/api/health',
   '/api/auth',
   '/api/bootstrap/verify',
   '/api/bootstrap/forget',
+  '/api/event-popper',
+  '/api/tmux/events',
 ] as const;
 
 export type GateDecision =

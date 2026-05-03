@@ -105,6 +105,7 @@ Central event platform for the entire application. Owns the full pipeline from f
 | useFileChanges hook | Pattern subscription with debounce | FileChangeHub (via context) |
 | Toaster wrapper | Theme-aware sonner `<Toaster />` | sonner, next-themes |
 | SSE event schemas | Zod validation for SSE payloads | zod |
+| `requireLocalAuth(req)` | Composite localhost + bootstrap-credential gate for HTTP sinks (event-popper, tmux/events). Returns discriminated union with 4 reasons (`not-localhost` 403 \| `bootstrap-unavailable` 503 \| `no-credential` 401 \| `bad-credential` 401). Replaces `localhostGuard`-only protection. (Plan 084 Phase 5) | `localhostGuard`, `getBootstrapCodeAndKey()` (Phase 3), `verifyCookieValue` (Phase 1), `readServerInfo().localToken` (Plan 067) |
 
 ## Source Location
 
@@ -179,7 +180,7 @@ Primary: scattered across `packages/shared`, `packages/workflow`, `apps/web` (Pl
 ## Dependencies
 
 ### This Domain Depends On
-- `_platform/auth` — session check in SSE route handlers (auth() call)
+- `_platform/auth` — session check in SSE route handlers (auth() call); also `getBootstrapCodeAndKey()` (Phase 3 accessor) + `verifyCookieValue()` + `BOOTSTRAP_COOKIE_NAME` consumed by `requireLocalAuth` for sidecar HTTP sinks (Plan 084 Phase 5)
 - `_platform/sdk` — IUSDK for publishing toast commands to SDK surface
 - `workspace` — `IWorkspaceService.onMutation` event channel (Plan 084) — central watcher subscribes to drive rescans on workspace/worktree mutations
 - Node.js `fs.watch` — native filesystem watching (built-in, replaces chokidar per Plan 060)
@@ -218,3 +219,5 @@ Primary: scattered across `packages/shared`, `packages/workflow`, `apps/web` (Pl
 | Plan 072 Phase 5 | Remaining migrations: useWorkflowSSE and useWorkunitCatalogChanges migrated to `useChannelEvents`. Added `workflows` and `unit-catalog` to mux channel list (5 total). Deleted legacy `useSSE` hook (zero consumers) and dead `KanbanContent`. Made `MultiplexedSSEMessage.type` and `channel` optional in consumer types. SSE docs rewritten. | 2026-03-08 |
 | 074-P3 | Added `WorkflowExecution: 'workflow-execution'` to WorkspaceDomain const (SSE channel for execution-level status). Added to WORKSPACE_SSE_CHANNELS (7 total). | 2026-03-15 |
 | Plan 084 (live-monitoring-rescan) | Mutation-driven rescan signaling: `start-central-notifications.ts` subscribes to `IWorkspaceService.onMutation` via an unconditional `attachMutationListener()` helper (HMR-safe via `globalThis.__watcherMutationUnsubscribe__` detach-then-resubscribe). `CentralWatcherService.start()` now watches the parent directory of the registry file (with absolute-path filter) so atomic-rename writes survive — closes the post-FX001 stale-inode silent failure on second-and-later workspace registrations. | 2026-04-26 |
+| Plan 084 Phase 5 | Added `requireLocalAuth(req)` composite gate (`apps/web/src/lib/local-auth.ts`) replacing `localhostGuard`-only on all 9 sink routes (8 `/api/event-popper/*` + `/api/tmux/events`). Closes Finding 02 — local processes can no longer post events on bare loopback; must present either bootstrap cookie OR `X-Local-Token` (Plan 067 contract). 4-reason discriminated `LocalAuthResult` union with locked status-code mapping (403/503/401). Browser fetch (same-origin cookie) and CLI (`apps/cli/src/commands/event-popper-client.ts` now sends `X-Local-Token` from `readServerInfo`) both keep working. AC-16, AC-17. | 2026-05-03 |
+| Plan 084 Phase 7 | Documentation alignment for the Phase 5 `requireLocalAuth` dependency. `docs/how/auth/bootstrap-code.md` § 1 enumerates the 9 sinks as gated routes; § 5.1/8.3 document the composite-gate threat model. The `events → _platform/auth` edge in `docs/domains/domain-map.md` is verified + carries Plan-084 attribution comments. No code changes in this domain — documentation/audit only. | 2026-05-03 |

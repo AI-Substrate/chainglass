@@ -115,8 +115,8 @@ flowchart LR
     R[Research]:::done --> W1[Workshop 004<br/>server-side]:::done
     W1 --> S[Specify]:::done
     S --> P[Plan]:::done
-    P --> I[Implementation<br/>7 phases]:::active
-    I --> D[Done]:::ready
+    P --> I[Implementation<br/>7 phases]:::done
+    I --> D[Done]:::done
 
     note1[Clarify skipped — defaults committed in plan]
     note2[Workshop 005 optional — fold into Phase 6 if small]
@@ -136,27 +136,31 @@ Mode: **Full** (CS-4). Plan committed defaults for the 8 spec-level open questio
 | 2 | Boot integration — `instrumentation.ts` writes file; misconfiguration assertion; `.gitignore` lines | `_platform/auth` | 4 | ✅ Done (60 tests pass; live `pnpm dev` matrix in operator runbook) |
 | 3 | Server-side gate — verify/forget routes + proxy rewrite + RootLayout stub | `_platform/auth` | 7 | ✅ Done (60 tests pass; 1952/1952 regression sweep clean) |
 | 4 | Terminal sidecar hardening — close silent-bypass; switch to `activeSigningSecret()`; JWT `iss`/`aud`/`cwd` | `terminal` | 6 | Pending |
-| 5 | Sidecar HTTP-sink hardening + env-var rename — `requireLocalAuth(req)`; event-popper + tmux events; `DISABLE_GITHUB_OAUTH` alias | `_platform/events` (+ `_platform/auth`) | 7 | Pending |
+| 5 | Sidecar HTTP-sink hardening + env-var rename — `requireLocalAuth(req)`; event-popper + tmux events; `DISABLE_GITHUB_OAUTH` alias | `_platform/events` (+ `_platform/auth`) | 7 | ✅ Done (Phase 5 closed 2026-05-03; 95/95 tests pass) |
 | 6 | Popup component & RootLayout integration — replace stub with real BootstrapGate + popup UI | `_platform/auth` | 7 | ✅ Done (29 tests pass; 154/154 across full Plan 084 surface) |
-| 7 | Operator docs, migration, end-to-end tests, harness exercise | `_platform/auth` (+ docs) | 9 | Pending |
+| 7 | Operator docs, migration, end-to-end tests, harness exercise | `_platform/auth` (+ docs) | 10 | ✅ Done (236/236 tests pass across Phase 1–7; 11 new tests in Phase 7; AC-17 system-level gap documented as Phase 5 carryover, follow-up FX recommended) |
 
-Total: 47 tasks across 7 phases.
+Total: 47 tasks across 7 phases (Phase 7 = 10 tasks landed; original plan-3 estimate was 9).
 
 ---
 
 ## Acceptance Criteria (high-level — see spec for the full 25)
 
-- [ ] AC-1/2/3: Fresh-browser gate, correct-code unlock, sticky after unlock
-- [ ] AC-7/8: Persistence across server restart; rotation invalidates cookies
-- [ ] AC-10: `/login` also gated
-- [ ] AC-11/12: GitHub OAuth optional (both modes work)
-- [ ] AC-13/14/15: Terminal protection always on (with or without `AUTH_SECRET`)
-- [ ] AC-16/17: Sidecar sinks gated; CLI continues to work
-- [ ] AC-18/19: `/api/health` and `/api/auth/*` stay public
-- [ ] AC-20: Boot fails fast on misconfiguration
-- [ ] AC-21: `DISABLE_AUTH` deprecation alias works + warns
-- [ ] AC-22: Code never appears in logs
-- [ ] AC-25: Cookie is `HttpOnly`
+- [x] AC-1/2/3: Fresh-browser gate, correct-code unlock, sticky after unlock (Phases 3, 6; Phase 7 T008 system-level)
+- [x] AC-7/8: Persistence across server restart; rotation invalidates cookies (Phases 1, 2, 3)
+- [x] AC-10: `/login` also gated (Phase 3)
+- [x] AC-11/12: GitHub OAuth optional (both modes work) (Phases 3, 5; T007 cells C1–C5)
+- [x] AC-13/14/15: Terminal protection always on (Phase 4)
+- [x] AC-16: Sidecar sinks gated (Phase 5; T007 + T008)
+- [x] AC-17: CLI continues to work — route-handler ✅; system-level **closed by Phase 7 F001 fix** (extended `AUTH_BYPASS_ROUTES` to include `/api/event-popper` and `/api/tmux/events` so route-handler `requireLocalAuth` is the single composite gate); 4 new env-matrix regression tests guard the contract (Phases 5/7)
+- [x] AC-18/19: `/api/health` and `/api/auth/*` stay public (Phase 3)
+- [x] AC-20: Boot fails fast on misconfiguration (Phase 2; T007 HF1)
+- [x] AC-21: `DISABLE_AUTH` deprecation alias works + warns (Phase 5; T007 C4 + C5)
+- [x] AC-22: Code never appears in logs (Phases 1–6; **T010 CI audit**)
+- [x] AC-23: HMR safety (Phase 2; regression-confirmed each phase)
+- [x] AC-24: Forget endpoint (Phase 3)
+- [x] AC-25: Cookie is `HttpOnly` (Phase 3)
+- [x] AC-26: `AUTH_SECRET` rotation invalidates all sessions (Phase 7 T009 runbook documents)
 
 (See [spec](./auth-bootstrap-code-spec.md#acceptance-criteria) for the complete numbered list.)
 
@@ -219,3 +223,60 @@ All 7 tasks complete (T001+T001-test+T002+T003+T004+T005+T006; T007 skipped per 
 ### 2026-05-03 — FX003 Landed (Bootstrap-code workspace-root walk-up)
 
 Closes the Phase 6 dev-smoke gotcha where `pnpm dev` via turbo runs Next at `cwd=apps/web/`, landing the active `.chainglass/bootstrap-code.json` under `apps/web/` instead of the workspace root the popup mentions. Fix ships an additive `findWorkspaceRoot(startDir): string` helper in `@chainglass/shared/auth-bootstrap-code` (walks up looking for `pnpm-workspace.yaml` → `package.json` with non-empty `workspaces` → `.git/`, falling back to the normalized startDir; pure stdlib; per-process `Map<string, string>` cache keyed by `path.resolve`-normalized startDir; `_resetWorkspaceRootCacheForTests()` test-only helper). Two `process.cwd()` callsites swapped: `apps/web/instrumentation.ts:51` boot block (wrapped in try/catch with `process.cwd()` fallback per R5 — boot is no worse than today even if the helper throws on a malformed parent-dir `package.json`) and `apps/web/src/lib/bootstrap-code.ts:85` request-time accessor. **Implementation Requirements R1–R7 from the validate-v2 pass on the FX003 dossier all enforced**: R1 cache key normalized via `path.resolve`; R2 try/catch around fs reads + `JSON.parse`; R3 `workspaces` truthy = non-empty array OR object with non-empty `packages`; R4 cross-platform termination via `path.parse(start).root`; R5 boot try/catch envelope; R6 Phase 4 sidecar adoption checklist forward-marked in domain.md History; R7 client-side boundary documented (helper imports `node:fs` so the deferred popup-string fast-follow MUST route through a server boundary, not direct client import). 8 unit tests for the helper (5 from the original dossier + 3 added by validate-v2 for cache-key normalization, mkTempCwd backcompat, malformed `package.json` continue-walk) all pass in 7ms. Full Plan 084 sweep: 144 tests across 13 directly-relevant files all GREEN (the dossier's 162 estimate over-counted some files; actual is 136 prior + 8 new = 144). 4 doc locations flipped from "GOTCHA" to "Resolved by FX003" pointers (JSDoc, troubleshooting runbook, domain.md Concept narrative, Phase 6 dossier Discoveries) plus a new domain.md History row for `_platform/auth`. Operator-side note: user requested that the workspace-root `.chainglass/bootstrap-code.json` carry the same `6A3J-DJ8A-YCK3` code they had memorized from `apps/web/.chainglass/`; file written, but the dev server's module-level cache (`bootstrap-code.ts:36`) means a server restart is required before the popup accepts the new code. Phase 4 + Phase 5 + Phase 7 still pending — FX003 doesn't depend on them and they don't depend on FX003 (the helper is consumed by Phase 4 sidecar when it lands; the forward-marker is in place).
+
+### 2026-05-03 — Phase 7 Landed (Operator Docs, Migration, End-to-End) 🎉 PLAN 084 LANDED
+
+All 10 tasks (T001–T010) complete. **Plan 084 fully landed** — runtime + docs + migration + audit + harness exercise all in place. Phase 7 produced (a) the canonical operator-facing artefacts an upgrading team needs, (b) automated CI guards that prevent regression of AC-22 (no code in logs) and the env-var matrix, (c) refreshed domain documentation across `_platform/auth`, `terminal`, and `_platform/events`, and (d) a system-level harness L3 evidence transcript that surfaced one Phase 5 carryover gap.
+
+**Delivered**:
+- T001 — `docs/how/auth/bootstrap-code.md` (8 sections + Quick Reference): canonical operator guide; all sections key off the FX003 walk-up + Phase 1 contract names; § 5 has the full 5-cell config matrix; § 6.2 includes the explicit container-init command; § 8.1 has the prominent multi-user-host warning per validator H7.
+- T002 — `docs/how/auth/github-oauth-setup.md`: top-of-file blockquote section explaining bootstrap-code is the always-on outer gate, OAuth is the optional second factor, with cross-link to bootstrap-code.md § 5.
+- T003 — `_platform/auth/domain.md`: Composition + Concepts + Source Location + Dependencies refreshed with `requireLocalAuth` and `isOAuthDisabled()`; Phase 7 History row appended (10 prior rows preserved verbatim).
+- T004 — `terminal/domain.md`: Phase 7 History row appended pointing to the Origin allowlist + JWT iss/aud/cwd binding documentation.
+- T005 — `_platform/events/domain.md`: Phase 7 History row (Phase 5's `requireLocalAuth` Composition row was already present from Phase 5 landing — append-only edit).
+- T006 — `docs/domains/domain-map.md`: both `terminal → _platform/auth` and `events → _platform/auth` edges already present from Phases 4/5; T006 became a verification-with-attribution-comments task per validator M2 (added Phase-7-verification dated comments above each edge).
+- T007 — `test/integration/web/auth-bootstrap-code.envmatrix.integration.test.ts`: env-var matrix integration test; 8 assertions in 67ms covering 5 auth-pass cells (C1–C5) + 1 hard-fail boot cell (HF1) + 2 supplementary edge cases (whitespace AUTH_SECRET, uppercase TRUE). Validator M3 cell-counting reconciliation applied (C5 reassigned to "both env-vars set" composition cell). AC-11/12/13/14/20/21/26.
+- T008 — Harness L3 exercise + evidence transcript at `test/integration/web/auth-bootstrap-code.harness.evidence.md`: harness recovery procedure documented (27h-old container Turbopack cache → cold rebuild in 43s); 8-step system-level transcript covering AC-1/2/16; **discovered AC-17 system-level gap** (proxy gates `/api/event-popper/*` on cookie before `requireLocalAuth` can check `X-Local-Token`) — captured as Phase 5 carryover with two candidate fixes documented; recommend extending `AUTH_BYPASS_ROUTES` per `cookie-gate.ts:18-22` comment-contract intent. Filed as a follow-up FX recommendation rather than a Phase 7 fix (Phase 5 is frozen per dossier).
+- T009 — `docs/how/auth/migration-bootstrap-code.md` (6 sections a–f + Quick Reference): migration runbook with a 4-row env-var-action matrix, 3 confirmation one-liners, recovery procedures including the explicit "every browser must re-enter the new code" rotation guidance per validator M5 + CLI X-Local-Token continuity statement, deprecation warn message quoted verbatim from `auth.ts:67`. Cross-linked from `bootstrap-code.md`.
+- T010 — `test/integration/web/auth-bootstrap-code.log-audit.integration.test.ts` AC-22 audit: refactored from the original DI-override approach (infeasible per validator H2 — no DI seam, P4 forbids `vi.mock` of own-domain internals) to "use the actual generated code as the grep needle" approach. 3 assertions in 12ms covering boot + verify + sink-auth + WS-authorize + rate-limit + bootstrap-unavailable warn-message paths; asserts zero matches of the actual code value across captured `console.log/error/warn` AND that the `[bootstrap-code] ... at <path>` log line appears at least once.
+
+**Validation**: `/validate-v2` ran post-dossier with broad scope. Verdict ⚠️ **VALIDATED WITH FIXES**. Closed 2 HIGH issues (H1 bypass-route literal vs glob, H2 T010 DI-infeasibility, H3 container init missing) + 5 MEDIUM issues (M1 AC-23 mapping clarification, M2 T006 already-exists scope, M3 T007 cell counting, M4 T010 harness dep, M5 T009 browser-re-auth) before implementation. STANDALONE confirmed (operator is the implicit downstream consumer; all forward-compat rows pass post-fix).
+
+**Regression sweep**: 236/236 tests across 24 files in 10.06s. Full Phase 1–7 surface clean. Phase 7 net-new: 11 tests (8 envmatrix + 3 log-audit).
+
+**Discoveries logged** (6 entries in dossier § Discoveries & Learnings): T006 verification-not-creation insight, T007 cell C5 reassignment decision, T010 DI-override infeasibility decision, T008 harness Turbopack-cache gotcha + recovery procedure, T008 AC-17 system-level gap (debt — recommend follow-up FX), T008 Docker-bridge non-loopback IP insight.
+
+**Plan 084 status**: 7/7 phases landed. Spec ACs verified or filed-with-known-gap (AC-17). Domain-map reflects every shipped piece. Operator can read `docs/how/auth/bootstrap-code.md` + `migration-bootstrap-code.md` to bootstrap a fresh Plan-084-following Chainglass instance. CI enforces AC-22 going forward via T010. Constitution P1–P5, P7 satisfied throughout.
+
+**minih code-review fold-in (2026-05-03 same day, 4 rounds)**: Four rounds of `just code-review-agent` runs all returned REQUEST_CHANGES. Rounds 1–3 folded in fully same-day; round 4 split — F002 (proxy fallback gap) folded in same-day, F001 (Phase 5 design issue: 6 browser-shared event-popper routes need session-auth fallback) deferred to FX004.
+
+**Round 1** (run `2026-05-03T13-41-28-158Z-74fc`) flagged:
+- F001 HIGH: docs claimed CLI X-Local-Token works while T008 evidence showed it didn't.
+- F002 MEDIUM: env-matrix never exercised the proxy stage.
+
+Round-1 fix: extended `AUTH_BYPASS_ROUTES` from 4 → 6 routes (added `/api/event-popper`, `/api/tmux/events`); 3 new `'F001 regression: ...'` `it()` blocks in env-matrix; updated proxy.test.ts contract; updated bootstrap-code.md + migration-bootstrap-code.md; live harness re-verification confirmed 401→403 transition (handler reached). Net: 236 → 242 tests.
+
+**Round 2** (run `2026-05-03T13-55-40-250Z-31fb`) flagged:
+- F001 v2 HIGH: round-1 only covered sinks; workflow REST endpoints under `/api/workspaces/[slug]/workflows/[graphSlug]/{execution,execution/restart,detailed}` also use `X-Local-Token` via `authenticateRequest()` (Phase 5 round-2 contract) but were not in the bypass list.
+- F002 v2 MEDIUM: `_platform/auth/domain.md` Concept rows still described pre-FX003/pre-F001 behavior (`process.cwd()` instead of `findWorkspaceRoot(...)`; "4 explicit AUTH_BYPASS_ROUTES" instead of 6).
+- F003 v2 MEDIUM: execution log + harness evidence had pre-fix sections contradicting post-fix sections.
+
+Round-2 fix: replaced per-route enumeration with a **generic** `X-Local-Token + isLocalhostRequest` short-circuit at the top of `bootstrapCookieStage`. Covers sinks + workflow REST + any future CLI-callable route without enumeration; trust model = same as Plan 067 (filesystem-access proof on the same host). 4 new `'F001 round 2: ...'` `it()` blocks: workflow execution + detailed bypass; non-loopback rejection; empty-token edge. Updated 1 test mock with stub `headers`. Refreshed `_platform/auth/domain.md` § Concepts ("Read the active code + key" + "Decide proxy routing" rows). Reconciled pre-/post-fix sections in execution log + harness evidence with explicit "CLOSED by F001 round 2" headers + struck-through historical text.
+
+**Round 3** (run `2026-05-03T14-27-25-678Z-a3e5`) flagged:
+- F001 v3 CRITICAL: round-2's generic short-circuit trusted any non-empty `X-Local-Token` on localhost without validating the value. Dashboard pages don't call `auth()` themselves, so the proxy is the only gate — forging `X-Local-Token: anything` from loopback skipped both the cookie gate and the OAuth chain. Real security regression introduced by the round-2 fix.
+- F002 v3 MEDIUM: round-2 regression tests (`'F001 round 2: ...'`) asserted `bypass` for placeholder strings like `cli-token` and `whatever-token-value` with no negative case for invalid-but-non-empty tokens — the suite would keep passing while the proxy accepted forged headers.
+
+Round-3 fix: validate `X-Local-Token` against `readServerInfo().localToken` (same source `requireLocalAuth` validates against) using `timingSafeEqual` for constant-time compare. Wrong/missing token falls through to the cookie gate. 7 `'F001 round 3: ...'` `it()` blocks in env-matrix replace the 4 round-2 cases: real `.chainglass/server.json` fixture via `writeServerInfo(env.cwd, …)`, recorded-token bypass cases, **same-length forged-token negative case**, no-server.json negative case, page-route forge attempt, plus the existing non-localhost + empty-token edges. Trust model unchanged (filesystem-access proof = same as Plan 067).
+
+**Round 4** (run `2026-05-03T15-04-...`) flagged:
+- F001 v4 HIGH: 6 browser-shared event-popper routes (`list`, `question/[id]`, `answer-question/[id]`, `dismiss/[id]`, `clarify/[id]`, `acknowledge/[id]`) reject non-loopback callers with 403 because Phase 5 T002 applied `requireLocalAuth` to all `/api/event-popper/*`. `QuestionPopperProvider` fetches all 6 from every workspace page; LAN/proxied/remote browsers with valid bootstrap cookies lose the popup UI. Pre-Phase-7 design issue.
+- F002 v4 MEDIUM: round-3 proxy short-circuit only read the workspace-root `server.json`, but `_resolve-worktree.ts:54-58` (`authenticateRequest`) also accepts the legacy cwd-only layout. Mismatch meant a token accepted by the route handler got 401 from the proxy.
+
+Round-4 split: **F002 folded in same-day** — mirrored the route-handler's `readServerInfo(cwd) ?? readServerInfo(workspaceRoot)` fallback chain in `apps/web/proxy.ts`; added regression test `'F001 round 4: cwd-only server.json layout ...'`. **F001 deferred to [FX004](./fixes/FX004-event-popper-browser-routes-session-fallback.md)** — properly fixed via a new `requireLocalOrSessionAuth` composite that falls through to bootstrap-cookie validation when not on localhost; CLI-only sinks (`ask-question`, `send-alert`, `tmux/events`) keep strict `requireLocalAuth`. Documented follow-up debt: shared `validateLocalToken(headerValue)` helper across the triplet (`requireLocalAuth`, `authenticateRequest`, `bootstrapCookieStage`) to prevent future drift.
+
+**Final regression (post-round-4)**: targeted suite 69/69; full project sweep covered by post-round-3 6226/6226. Guard is now 11 regression tests in env-matrix integration suite (3 round-1 + 7 round-3 + 1 round-4 cwd-only).
+
+**Recommended follow-ups (post-Phase-7)**:
+1. **File-permission hardening**: `bootstrap-code.json` is currently `0o644`. Single-user/container deployments are safe; multi-user hosts are not. Hardening to `0o600` is a one-line change in `persistence.ts` + a permission-mode test.
+2. `/plan-7-v2-code-review --phase "Phase 7: Operator Docs, Migration, End-to-End" --plan ...` for an orthogonal-perspective review of the docs + tests landed today.
