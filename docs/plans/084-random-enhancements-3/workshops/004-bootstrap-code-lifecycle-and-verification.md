@@ -889,7 +889,7 @@ The dossier's PL-03 noted: a victim already on the workspace origin with a malic
 - `packages/shared/src/auth/bootstrap-code/cookie.ts`
 - `packages/shared/src/auth/bootstrap-code/signing-key.ts`
 - `packages/shared/src/auth/bootstrap-code/index.ts` (barrel)
-- `apps/web/src/lib/bootstrap.ts` (thin web-side accessor)
+- `apps/web/src/lib/bootstrap-code.ts` (thin web-side accessor; renamed from `bootstrap.ts` during Phase 3 dossier validation 2026-05-02 — that path was already taken by DI/config bootstrap)
 - `apps/web/src/lib/local-auth.ts` (`requireLocalAuth(req)`)
 - `apps/web/app/api/bootstrap/verify/route.ts`
 - `apps/web/app/api/bootstrap/forget/route.ts`

@@ -63,9 +63,15 @@ Cross-cutting authentication and session management for the Chainglass web app. 
 | `require-auth.ts` | guard | Server action auth guard — validates session, redirects if unauthenticated |
 | `use-auth.ts` | hook | Client-side auth state — wraps useSession() |
 | `auth-provider.tsx` | provider | SessionProvider wrapper for layouts |
-| `proxy.ts` | Next.js proxy | Auth.js `auth` wrapper with negative lookahead matcher |
+| `proxy.ts` | Next.js proxy | Cookie-gate (Plan 084) → DISABLE_AUTH → Auth.js `auth` chain; explicit AUTH_BYPASS_ROUTES |
 | Login page | route | `/login` with sign-in button and error states |
 | Login screen | client component | ASCII art animated login UI (matrix rain, glitch logo, CRT overlay) |
+| `lib/bootstrap-code.ts` | accessor | (Plan 084) `getBootstrapCodeAndKey()` async + module-cached; canonical web-side entry to Phase 1 primitives |
+| `lib/cookie-gate.ts` | helper | (Plan 084) Pure `evaluateCookieGate()` returning `bypass`/`cookie-valid`/`cookie-missing-api`/`cookie-missing-page`; `AUTH_BYPASS_ROUTES` const |
+| `app/api/bootstrap/verify/route.ts` | route | (Plan 084) `POST /api/bootstrap/verify` — 5 status codes, leaky-bucket rate limit |
+| `app/api/bootstrap/forget/route.ts` | route | (Plan 084) `POST /api/bootstrap/forget` — always 200 + Max-Age=0 |
+| `bootstrap-gate.tsx` | server component | (Plan 084) Reads `chainglass-bootstrap` cookie, renders `<BootstrapPopup>` with verified-state |
+| `bootstrap-popup.tsx` | client component | (Plan 084 P6) Real popup UX — Radix DialogPrimitive, paste-safe Crockford autoformat, 6 error states (incl. live ticking countdown), success-path `router.refresh()`, focus-trapped non-dismissable, mobile-safe Tailwind, console-log-discipline. Named export `BootstrapPopupProps` is the locked contract; 4 stable `data-testid` selectors committed forward to Phase 7 |
 
 ---
 
@@ -98,12 +104,23 @@ apps/web/src/features/063-login/lib/require-auth.ts     # Server action auth gua
 apps/web/src/features/063-login/hooks/use-auth.ts       # Client auth hook
 apps/web/src/features/063-login/components/             # Login screen components
 apps/web/src/features/063-login/components/auth-provider.tsx  # SessionProvider wrapper
+apps/web/src/features/063-login/components/bootstrap-gate.tsx    # (Plan 084) BootstrapGate server component
+apps/web/src/features/063-login/components/bootstrap-popup.tsx   # (Plan 084) BootstrapPopup client stub
+apps/web/src/lib/bootstrap-code.ts                      # (Plan 084) getBootstrapCodeAndKey accessor
+apps/web/src/lib/cookie-gate.ts                         # (Plan 084) evaluateCookieGate + AUTH_BYPASS_ROUTES
+apps/web/src/auth-bootstrap/boot.ts                     # (Plan 084 P2) instrumentation helpers
+apps/web/instrumentation.ts                              # (Plan 084 P2) bootstrap-code boot write
 apps/web/app/api/auth/[...nextauth]/route.ts            # Auth.js route handler
+apps/web/app/api/bootstrap/verify/route.ts              # (Plan 084) POST verify
+apps/web/app/api/bootstrap/forget/route.ts              # (Plan 084) POST forget
 apps/web/app/login/page.tsx                             # Login page
 apps/web/app/login/layout.tsx                           # Login layout
-apps/web/proxy.ts                                       # Route protection (Next.js 16 proxy)
+apps/web/app/layout.tsx                                  # RootLayout (Plan 084: wraps children in <BootstrapGate>)
+apps/web/proxy.ts                                       # Route protection — bootstrap cookie gate → DISABLE_AUTH → Auth.js
 .chainglass/auth.yaml                                    # Allowed users config
+.chainglass/bootstrap-code.json                          # (Plan 084) Active bootstrap code (gitignored)
 docs/how/auth/github-oauth-setup.md                     # Setup guide
+test/helpers/auth-bootstrap-code.ts                     # (Plan 084) setupBootstrapTestEnv cross-phase helper
 ```
 
 ---
@@ -120,6 +137,11 @@ docs/how/auth/github-oauth-setup.md                     # Setup guide
 | End session | `signOut()` | Destroys the JWT session cookie and redirects to `/login`. |
 | Client auth state | `useAuth()` | Returns `{ user, isLoading, isAuthenticated }` for client components. Wraps `useSession()`. |
 | Provide session context | `SessionProvider` | Wraps layouts so client components can access session via `useSession()`. Added to dashboard and login layouts (not root — breaks SSG). |
+| Verify the bootstrap code | `POST /api/bootstrap/verify` | (Plan 084) Accepts `{ code }`, format-checks, constant-time HMAC-compares against active code, sets `chainglass-bootstrap` HttpOnly cookie. 5 status codes (200/400/401/429/503) with locked body shapes; per-IP leaky-bucket rate limit (5/60s). |
+| Forget the verification | `POST /api/bootstrap/forget` | (Plan 084) Always 200; clears `chainglass-bootstrap` cookie with `Max-Age=0`. Idempotent. |
+| Gate the application shell | `<BootstrapGate>` (server component in RootLayout) | (Plan 084) Reads cookie via `cookies()`, calls `getBootstrapCodeAndKey()`, computes `bootstrapVerified`, renders `<BootstrapPopup>`. Phase 6 ships the real popup UX: Crockford-base32 input with paste-safe autoformat (`XXXX-XXXX-XXXX`), 6 visually-distinct error states (incl. live ticking countdown for 429 rate-limited), `credentials='same-origin'` fetch to `/api/bootstrap/verify`, success-path `router.refresh()`, focus-trapped non-dismissable Radix dialog (no ESC/click-outside escape, no close button), mobile-safe (44×44 touch target, safe-area padding, 100dvh overlay), input retained on errors, zero `console.*` logging of typed code. Stable `data-testid` selectors (`bootstrap-popup`, `bootstrap-code-input`, `bootstrap-code-submit`, `bootstrap-code-error`). |
+| Read the active code + key | `getBootstrapCodeAndKey()` | (Plan 084) Async; module-cached. Returns `{ code, key }` from `ensureBootstrapCode(process.cwd())` + `activeSigningSecret(process.cwd())`. JSDoc documents cwd contract for sidecars. **⚠️ Gotcha**: `pnpm dev` via turbo runs Next with `cwd=apps/web/`, so the active file is `apps/web/.chainglass/bootstrap-code.json` — NOT the workspace-root file the popup mentions. See `docs/how/auth/bootstrap-code-troubleshooting.md`. |
+| Decide proxy routing | `evaluateCookieGate(req, codeAndKey)` | (Plan 084) Pure helper used by `proxy.ts`. Returns `bypass` for the 4 explicit `AUTH_BYPASS_ROUTES`, `cookie-valid` to fall through to Auth.js chain, `cookie-missing-api` for 401, `cookie-missing-page` for `next()` (popup paints inside layout). |
 
 ### Authenticate with GitHub
 
@@ -192,3 +214,6 @@ function UserMenu() {
 | 063-login Phase 4 | Finalized setup guide, added README auth section, E2E verification, domain artifact updates | 2026-03-03 |
 | 084-auth-bootstrap-code Phase 1 | Phase 1 ships shared primitives at @chainglass/shared/auth-bootstrap-code (generator, persistence, cookie HMAC, signing-key with cwd-keyed cache + HKDF fallback) — 46 tests | 2026-04-30 |
 | 084-auth-bootstrap-code Phase 2 | Phase 2 wires bootstrap-code into apps/web boot: instrumentation.ts asserts AUTH_SECRET / GitHub-OAuth wiring (process.exit(1) on misconfig under nodejs runtime only); HMR-safe ensureBootstrapCode write under .chainglass/; container-mode warn-skip; .gitignore covers server.json + bootstrap-code.json at repo root | 2026-05-02 |
+| 084-auth-bootstrap-code Phase 3 | Phase 3 wires the server-side gate end-to-end: web-side accessor (apps/web/src/lib/bootstrap-code.ts, async + module-cached); POST /api/bootstrap/verify (5 status codes, leaky-bucket rate limit 5/60s, locked 429 body shape `{error,retryAfterMs}`, cookie HttpOnly+SameSite=Lax+Path=/+Secure-prod, no Max-Age); POST /api/bootstrap/forget (always 200 + Max-Age=0); proxy.ts rewritten with explicit AUTH_BYPASS_ROUTES (4 routes) + cookie-gate-before-auth + page-fall-through (no redirect); BootstrapGate server component + BootstrapPopup client stub (named-export BootstrapPopupProps locked for Phase 6); RootLayout wires <BootstrapGate>; setupBootstrapTestEnv helper at test/helpers/auth-bootstrap-code.ts for cross-phase reuse — 60 tests across unit + integration | 2026-05-02 |
+| 084-auth-bootstrap-code Phase 6 | Phase 6 replaces Phase 3's text-only stub with the real popup UX: `<BootstrapPopup>` body now ships paste-safe Crockford autoformat (XXXX-XXXX-XXXX), 6 visually-distinct error states (invalid-format, wrong-code, rate-limited with live ticking countdown derived from 429 body's `retryAfterMs`, unavailable, network, idle), credentials='same-origin' fetch, success-path `router.refresh()` with submit-disabled-across-refresh-window, focus trap + ARIA via Radix DialogPrimitive (Title/Description for screen readers), non-dismissable (ESC + click-outside + tab-outside preventDefault), mobile-safe Tailwind (min-h-[100dvh], safe-area padding, 44×44 touch target), input retained on errors, console-log discipline (zero matches of typed code in any console.* — closes Phase 7 AC-22 audit obligation for the popup side); 4 stable `data-testid` selectors committed forward (bootstrap-popup, bootstrap-code-input, bootstrap-code-submit, bootstrap-code-error) for Phase 7 task 7.8 harness e2e — 18 unit + 7 integration = 25 new tests, 154/154 across full auth-bootstrap-code regression sweep | 2026-05-02 |
+| 084-auth-bootstrap-code FX003 | Bootstrap-code primitives now resolve workspace root via new `findWorkspaceRoot()` helper (walks up looking for `pnpm-workspace.yaml` → `package.json` workspaces → `.git/`, falling back to normalized `cwd`). Two `process.cwd()` callsites swapped: `apps/web/instrumentation.ts:51` boot block (wrapped in try/catch with `process.cwd()` fallback) and `apps/web/src/lib/bootstrap-code.ts:85` accessor. Implementation Requirements R1–R7 from validate-v2 pass enforced (path.resolve normalization, JSON.parse safety, workspaces truthiness, cross-platform termination, boot error envelope, Phase 4 adoption checklist, client-side boundary documented). 4 GOTCHA doc locations flipped to "Resolved by FX003" pointers. Closes the Phase 6 dev-smoke gotcha where `pnpm dev` at `cwd=apps/web/` wrote a different `.chainglass/` file than the popup mentioned. Phase 4 sidecar adopts the same helper when it lands. 8 new unit tests (3 added by validate-v2 for cache-key normalization, mkTempCwd backcompat, malformed package.json) → 162 across regression sweep | 2026-05-03 |

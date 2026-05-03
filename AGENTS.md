@@ -391,6 +391,21 @@ This is operational, not aspirational. FX002 (`console-logs` + `screenshot-all` 
 
 See `harness/README.md` for the full philosophy and agent creation guide.
 
+#### Always Run `/validate-v2` After Phase Authoring
+
+**Mandatory step in every plan-5/plan-6 cycle**: after `/plan-5-v2-phase-tasks-and-brief` (dossier authoring) AND after `/plan-6-v2-implement-phase` lands a phase, **run `/validate-v2` against the produced artifact** before declaring the phase done or moving to the next phase. This is non-negotiable — `/validate-v2` is a multi-agent forward-compatibility + cross-reference + completeness sweep that catches drift the authoring step won't see (line-number staleness, locked-contract violations, vitest-glob misses, AC-coverage omissions, downstream-consumer breakage, etc.).
+
+Cadence:
+
+| Step landed | Run next | Why |
+|-------------|----------|-----|
+| `/plan-5-v2-phase-tasks-and-brief` (or `--fix`) | `/validate-v2` against `tasks.md` (or fix dossier) | Catch line-number/contract drift before implementation starts |
+| `/plan-6-v2-implement-phase` lands a task or phase | `/validate-v2` against the changed source files (or the execution log) | Catch regression risk + forward-compat issues before code review |
+
+Skipping `/validate-v2` is allowed only for **trivial single-line fixes** (e.g., a typo in a doc comment). Anything bigger — including FX dossiers — runs through the validator. The 4-agent cost is small compared to a missed locked contract surfacing 2 phases later as rework.
+
+If `/validate-v2` reports CRITICAL or HIGH issues, fix them in the same session. MEDIUM/LOW issues can be acknowledged + deferred but must be logged in the artifact's Validation Record.
+
 #### Auto Code Review After Implementation
 
 After completing a `/plan-6-v2-implement-phase` run, **automatically trigger a code review** using the harness code-review agent:

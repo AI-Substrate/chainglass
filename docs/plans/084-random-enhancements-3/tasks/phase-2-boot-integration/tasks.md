@@ -181,7 +181,7 @@ flowchart TD
 
 From `@chainglass/shared/auth-bootstrap-code` (Phase 1 deliverable):
 - `ensureBootstrapCode(cwd: string): EnsureResult` — wrapped by `writeBootstrapCodeOnBoot` (T001).
-- `EnsureResult` — return type re-exposed from the helper. **Phase 3 consumes the same shape from `lib/bootstrap.ts`'s async wrapper.**
+- `EnsureResult` — return type re-exposed from the helper. **Phase 3 consumes the same shape from `lib/bootstrap-code.ts`'s async wrapper.**
 - `BOOTSTRAP_CODE_FILE_PATH_REL` — constant used in the boot log line for operator clarity.
 
 From `node:` built-ins:
@@ -346,7 +346,7 @@ After this phase lands, Phase 3 dossier folder will be `tasks/phase-3-server-sid
 
 | Consumer | Requirement | Failure Mode | Pre-fix | Post-fix | Evidence |
 |----------|-------------|--------------|---------|----------|----------|
-| **C1** (Phase 3 lib/bootstrap.ts) | File on disk before first HTTP request; cache valid for `process.cwd()` | shape-mismatch / lifecycle-ownership | ⚠️ | ✅ | `register()` is async; Next.js semantics guarantee it completes before server listens (documented in T002 task notes); cwd parity guaranteed by `process.cwd()` call site |
+| **C1** (Phase 3 lib/bootstrap-code.ts) | File on disk before first HTTP request; cache valid for `process.cwd()` | shape-mismatch / lifecycle-ownership | ⚠️ | ✅ | `register()` is async; Next.js semantics guarantee it completes before server listens (documented in T002 task notes); cwd parity guaranteed by `process.cwd()` call site |
 | **C2** (Phase 4 sidecar) | Cwd parity visible in logs for operator-debugging | contract-drift | ✅ | ✅ | T002 logs absolute path `[bootstrap-code] (generated new\|active) code at <abs path>` — cwd is the parent of `.chainglass/`. Phase 4 sidecar can grep this line. |
 | **C3** (Phase 5 env rename) | Predicate handles `DISABLE_AUTH=true && DISABLE_GITHUB_OAUTH=false` cleanly; hands off to deprecation warning without re-touch | contract-drift | ✅ | ✅ | T001 case (i) explicitly tests the transitioning case; TSDoc commits to "either env var equal to literal `'true'` disables GitHub OAuth"; Phase 5 reads `process.env` directly in `auth.ts` (no boot-predicate reuse) |
 | **C4** (Phase 7 docs/e2e) | Boot log lines are stable contract for docs + grep | contract-drift | ⚠️ | ✅ | T002 elevated "Sample formats" → "CONTRACT": four canonical log lines specified verbatim; Phase 7 docs and AC-22 audits can quote them directly |

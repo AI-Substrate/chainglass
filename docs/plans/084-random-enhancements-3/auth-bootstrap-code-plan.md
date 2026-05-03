@@ -65,7 +65,7 @@ Every file this plan introduces or modifies, mapped to its owning domain. Absolu
 | `/Users/jordanknight/substrate/084-random-enhancements-3/packages/shared/src/auth/bootstrap-code/cookie.ts` | `@chainglass/shared` (auth) | **contract** | `buildCookieValue`, `verifyCookieValue` (HMAC-SHA256, timing-safe) |
 | `/Users/jordanknight/substrate/084-random-enhancements-3/packages/shared/src/auth/bootstrap-code/signing-key.ts` | `@chainglass/shared` (auth) | **contract** | `activeSigningSecret(cwd)` — `AUTH_SECRET` if set else HKDF from code; cache + test-reset |
 | `/Users/jordanknight/substrate/084-random-enhancements-3/packages/shared/src/auth/bootstrap-code/index.ts` | `@chainglass/shared` (auth) | **contract** | Barrel export |
-| `/Users/jordanknight/substrate/084-random-enhancements-3/apps/web/src/lib/bootstrap.ts` | `_platform/auth` | internal | Web-side `getBootstrapCodeAndKey()` accessor used by proxy + routes |
+| `/Users/jordanknight/substrate/084-random-enhancements-3/apps/web/src/lib/bootstrap-code.ts` | `_platform/auth` | internal | Web-side `getBootstrapCodeAndKey()` accessor used by proxy + routes. **Renamed from `bootstrap.ts`** (Phase 3 dossier validation 2026-05-02): that path already exists for DI/config bootstrap (`apps/web/src/lib/bootstrap.ts:1-3` — "Application Bootstrap — Config Loading and DI Container Setup"). |
 | `/Users/jordanknight/substrate/084-random-enhancements-3/apps/web/src/lib/local-auth.ts` | `_platform/events` | internal | `requireLocalAuth(req)` — composite cookie-or-X-Local-Token check |
 | `/Users/jordanknight/substrate/084-random-enhancements-3/apps/web/app/api/bootstrap/verify/route.ts` | `_platform/auth` | internal | `POST /api/bootstrap/verify` with rate limit |
 | `/Users/jordanknight/substrate/084-random-enhancements-3/apps/web/app/api/bootstrap/forget/route.ts` | `_platform/auth` | internal | `POST /api/bootstrap/forget` |
@@ -151,7 +151,7 @@ No layer-boundary violations.
 ### ADR alignment
 
 - **ADR-0003 (Configuration System)**: Bootstrap code is *not* a secret-format collision; the chosen Crockford alphabet is distinct from the detected `sk-`, `ghp_`, etc. patterns. The code file is gitignored.
-- **ADR-0004 (DI Container)**: Shared primitives are pure functions — they don't enter the DI container. Web-side accessor (`apps/web/src/lib/bootstrap.ts`) is a thin module-level singleton; if it gains state, it'd graduate to a DI service.
+- **ADR-0004 (DI Container)**: Shared primitives are pure functions — they don't enter the DI container. Web-side accessor (`apps/web/src/lib/bootstrap-code.ts`) is a thin module-level singleton; if it gains state, it'd graduate to a DI service.
 
 ---
 
@@ -237,7 +237,7 @@ The harness is sufficient as-is. We do not need to extend it.
 **Delivers**:
 - `POST /api/bootstrap/verify` (with rate limit) and `POST /api/bootstrap/forget`
 - Rewritten `proxy.ts` with broadened matcher and `AUTH_BYPASS_ROUTES` list
-- `apps/web/src/lib/bootstrap.ts` web-side accessor
+- `apps/web/src/lib/bootstrap-code.ts` web-side accessor
 - RootLayout integration: server component reads cookie, passes `bootstrapVerified: boolean` to a `<BootstrapGate>` client stub
 - Stub `<BootstrapGate>` component (Phase 6 replaces with real popup)
 **Depends on**: Phase 1 (cookie helper, signing key), Phase 2 (file on disk)
@@ -245,7 +245,7 @@ The harness is sufficient as-is. We do not need to extend it.
 
 | # | Task | Domain | Success Criteria | Notes |
 |---|------|--------|-----------------|-------|
-| 3.1 | Implement `apps/web/src/lib/bootstrap.ts` — **async** `getBootstrapCodeAndKey()` returning `Promise<{ code: string, key: Buffer }>` from shared helpers. **Cache the result** in a module-level `let` after first read; only recompute via explicit `_resetForTests()`. Caller cost on every request is then constant-time after first call. | `_platform/auth` | Returns same instance on repeated calls; throws if file missing on first call | Wraps `ensureBootstrapCode` + `activeSigningSecret`; **validation fix H6** — async signature + cache committed |
+| 3.1 | Implement `apps/web/src/lib/bootstrap-code.ts` — **async** `getBootstrapCodeAndKey()` returning `Promise<{ code: string, key: Buffer }>` from shared helpers. **Cache the result** in a module-level `let` after first read; only recompute via explicit `_resetForTests()`. Caller cost on every request is then constant-time after first call. | `_platform/auth` | Returns same instance on repeated calls; throws if file missing on first call | Wraps `ensureBootstrapCode` + `activeSigningSecret`; **validation fix H6** — async signature + cache committed. **Phase 3 dossier validation 2026-05-02**: filename changed from `bootstrap.ts` (existing DI/config file) to `bootstrap-code.ts`. |
 | 3.2 | Implement `POST /api/bootstrap/verify` route — JSON body `{ code }`, format check, constant-time compare, set HMAC cookie, in-memory per-IP token-bucket rate limit (5/60s). 429 response body MUST include `{ error: 'rate-limited', retryAfterMs: number }` (referenced by Phase 6 popup error UI). | `_platform/auth` | 200 + cookie on correct; 400 on format-invalid with body `{ error: 'invalid-format' }`; 401 on wrong with body `{ error: 'wrong-code' }`; 429 + `Retry-After` header + `retryAfterMs` body after 5 wrong | Default 2 |
 | 3.3 | Implement `POST /api/bootstrap/forget` — clears cookie unconditionally, returns 200 | `_platform/auth` | `Set-Cookie: ...; Max-Age=0` on every call | AC-24 |
 | 3.4 | Rewrite `apps/web/proxy.ts` — broaden matcher to `/((?!_next/static\|_next/image\|favicon\\.ico\|manifest\\.webmanifest).*)`; explicit final `AUTH_BYPASS_ROUTES = ['/api/health', '/api/auth', '/api/bootstrap/verify', '/api/bootstrap/forget']` and **nothing else**; cookie check before auth chain; page request → `next()` (popup paints), API request → 401. **Routes that go through proxy cookie-gate (NOT in bypass list)**: `/api/events/*` (then inline `auth()` as defence-in-depth), `/api/event-popper/*` (then `requireLocalAuth` in Phase 5), `/api/tmux/events` (same), `/api/terminal/token` (then `auth()` for session). **Validation fix H7** — exact bypass list and non-bypass disposition committed; resolves workshop-vs-plan ambiguity. | `_platform/auth` | Every excluded path reachable without cookie; every other path requires cookie or is gated by its own composite check downstream | Per findings 03, 04 |
@@ -415,7 +415,15 @@ Every AC has at least one phase. Every phase delivers at least two ACs (or domai
 | Domain.md drift after a phase | Medium | Low | Phase 7 explicit audit; plan-7 code review per phase catches | 7 |
 | **CSWSH on terminal WS** (cross-site WebSocket hijacking from a victim already on the workspace origin) | Low | Medium | Phase 4 task 4.2 adds `Origin` header allowlist check (default: same-origin localhost); JWT `iss`/`aud`/`cwd` binding prevents token re-use across services. For `0.0.0.0` deployments operators must whitelist origins via `TERMINAL_WS_ALLOWED_ORIGINS`. WSS mandate not enforced in v1 — documented as future hardening. | 4 |
 | **`AUTH_SECRET` rotation invalidates all sessions simultaneously** | Low | Medium | Documented in spec AC-26 and operator runbook (Phase 7 task 7.9) as expected behaviour, not a foot-gun. Rotation = maintenance-window event. | 7 |
-| **WS sidecar `cwd` divergence from main process** (would cause HKDF key drift, breaks token validation) | Low | High | Phase 4 task 4.1 adds startup assertion + comment documenting the cwd contract; sidecar exits with clear error if it cannot read `bootstrap-code.json` from its `cwd`/`.chainglass/` | 4 |
+| **WS sidecar `cwd` divergence from main process** (would cause HKDF key drift, breaks token validation) | Low | High | Phase 4 task 4.1 adds startup assertion + comment documenting the cwd contract; sidecar exits with clear error if it cannot read `bootstrap-code.json` from its `cwd`/`.chainglass/`. **Update 2026-05-03**: FX003 adds a `findWorkspaceRoot()` helper that resolves the cwd consistently across the main process and (when Phase 4 lands) the WS sidecar, eliminating the divergence at the substrate level. | 4 |
+
+---
+
+## Fixes
+
+| ID | Created | Summary | Domain(s) | Status | Source |
+|----|---------|---------|-----------|--------|--------|
+| FX003 | 2026-05-03 | Bootstrap-code primitives walk up to workspace root via new `findWorkspaceRoot()` helper — fixes the Phase 6 dev-smoke gotcha where `pnpm dev` at `cwd=apps/web/` wrote a different `.chainglass/` file than the popup mentioned | `@chainglass/shared` (additive contract); `_platform/auth` (call-site swap) | Proposed | User-reported during Phase 6 dev smoke (2026-05-02); documented in 4 places at the time, this FX is the proper fix |
 
 ---
 

@@ -29,8 +29,14 @@ export {
 } from './persistence.js';
 export { buildCookieValue, verifyCookieValue } from './cookie.js';
 export { activeSigningSecret } from './signing-key.js';
+export { findWorkspaceRoot } from './workspace-root.js';
 /**
  * @internal For tests only — clears the cwd-keyed signing-key cache between
  * test cases. Production code MUST NOT import.
  */
 export { _resetSigningSecretCacheForTests } from './signing-key.js';
+/**
+ * @internal For tests only — clears the workspace-root cache between test
+ * cases. Production code MUST NOT import.
+ */
+export { _resetWorkspaceRootCacheForTests } from './workspace-root.js';

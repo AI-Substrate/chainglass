@@ -1,3 +1,8 @@
+# Local agent harness state (Claude Code, scheduled tasks, session DB)
+.claude/
+session-state/
+session-store.db
+
 # Logs
 logs
 *.log

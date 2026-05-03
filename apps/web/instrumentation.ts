@@ -48,7 +48,25 @@ export async function register() {
           '[bootstrap-code] CHAINGLASS_CONTAINER=true: skipping boot-time file write; expecting .chainglass/bootstrap-code.json on a mounted volume.'
         );
       } else {
-        await writeBootstrapCodeOnBoot(process.cwd());
+        // Plan 084 FX003: walk up to the workspace root so `pnpm dev` (which
+        // runs Next at cwd=apps/web/) lands the file at
+        // <workspace-root>/.chainglass/bootstrap-code.json — the same path
+        // the popup tells operators to read. Wrapped in try/catch so a
+        // malformed parent-dir package.json or fs error during walk-up
+        // cannot crash boot; we fall back to raw process.cwd() (the
+        // pre-FX003 behavior) on any failure.
+        const { findWorkspaceRoot } = await import('@chainglass/shared/auth-bootstrap-code');
+        let cwd: string;
+        try {
+          cwd = findWorkspaceRoot(process.cwd());
+        } catch (err) {
+          console.warn(
+            '[bootstrap-code] FX003 findWorkspaceRoot failed; falling back to process.cwd():',
+            err,
+          );
+          cwd = process.cwd();
+        }
+        await writeBootstrapCodeOnBoot(cwd);
       }
     }
 
