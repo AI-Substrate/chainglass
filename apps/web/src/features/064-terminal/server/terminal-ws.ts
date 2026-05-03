@@ -14,14 +14,43 @@
 
 import fs from 'node:fs';
 import https from 'node:https';
-import { jwtVerify } from 'jose';
+import { activeSigningSecret, findWorkspaceRoot } from '@chainglass/shared/auth-bootstrap-code';
 import { type WebSocket, WebSocketServer } from 'ws';
 import { appendActivityLogEntry } from '../../065-activity-log/lib/activity-log-writer.js';
 import { shouldIgnorePaneTitle } from '../../065-activity-log/lib/ignore-patterns.js';
 import type { CommandExecutor, PtyProcess, PtySpawner } from '../types';
+import {
+  assertBootstrapReadable,
+  authorizeUpgrade,
+  buildDefaultAllowedOrigins,
+  discoverNextPort,
+  getLocalNetworkHosts,
+  parseAllowedOrigins,
+  validateTerminalJwt,
+} from './terminal-auth';
 import { TmuxSessionManager } from './tmux-session-manager';
 
 const ACTIVITY_LOG_POLL_MS = Number(process.env.ACTIVITY_LOG_POLL_MS ?? '10000');
+
+// Plan 084 Phase 4 — re-export the auth contract so existing tests that
+// imported these names from `terminal-ws` keep working. New consumers
+// (route handlers, etc.) should import directly from `./terminal-auth` to
+// avoid pulling the sidecar-only `ws` / `node-pty` / activity-log deps into
+// the Next.js bundle.
+export {
+  TERMINAL_JWT_AUDIENCE,
+  TERMINAL_JWT_ISSUER,
+  type UpgradeAuthOpts,
+  type UpgradeAuthResult,
+  type ValidateTerminalJwtOpts,
+  assertBootstrapReadable,
+  authorizeUpgrade,
+  buildDefaultAllowedOrigins,
+  discoverNextPort,
+  getLocalNetworkHosts,
+  parseAllowedOrigins,
+  validateTerminalJwt,
+} from './terminal-auth';
 
 export interface TerminalServerDeps {
   execCommand: CommandExecutor;
@@ -41,20 +70,22 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
   const activityLogIntervals = new Set<ReturnType<typeof setInterval>>();
   let wss: WebSocketServer | null = null;
 
-  // Auth config — hoisted to factory scope so handleConnection can access
-  const authSecret = process.env.AUTH_SECRET;
-  const authEnabled = !!authSecret;
-  const authKey = authSecret ? new TextEncoder().encode(authSecret) : null;
+  // Plan 084 Phase 4 — Always-on auth.
+  // Signing-key derivation requires sidecar cwd === main Next.js process cwd;
+  // if forking the sidecar, inherit cwd or pass it explicitly via spawn options.
+  // FX003 (2026-05-03) — `findWorkspaceRoot()` walks up to the same workspace
+  // root the main Next.js process resolves, so HKDF keys converge.
+  const cwd = findWorkspaceRoot(process.cwd());
 
+  /**
+   * Periodic-refresh validator used by the in-band `msg.type === 'auth'`
+   * message handler. Looks up the cached `activeSigningSecret(cwd)` on each
+   * call (Map lookup, not file IO) and runs the strict claim-checking path.
+   */
   async function validateToken(token: string): Promise<string | null> {
-    if (!authKey) return null;
-    try {
-      const { payload } = await jwtVerify(token, authKey);
-      return typeof payload.sub === 'string' ? payload.sub : null;
-    } catch (err) {
-      console.error('[terminal] Token validation failed:', (err as Error).message);
-      return null;
-    }
+    const key = activeSigningSecret(cwd);
+    const result = await validateTerminalJwt(token, { key, expectedCwd: cwd });
+    return result.ok ? result.username : null;
   }
 
   function handleConnection(ws: WebSocket, sessionName: string, cwd: string): void {
@@ -158,7 +189,8 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
       // Try to parse as JSON for control messages
       try {
         const msg = JSON.parse(data);
-        if (msg.type === 'auth' && authEnabled) {
+        if (msg.type === 'auth') {
+          // Phase 4: always-on. Periodic-refresh path; close on rejection.
           const username = await validateToken(msg.token);
           if (!username) {
             ws.close(4403, 'Token refresh failed');
@@ -212,6 +244,18 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
   }
 
   function start(port: number): void {
+    // Plan 084 Phase 4 — Startup assertion: bootstrap-code.json must be readable
+    // at the sidecar's resolved cwd. On failure, log FATAL and exit; never
+    // continue with a degraded auth posture (silent-bypass is closed permanently
+    // — there is no escape-hatch env var, by design).
+    try {
+      assertBootstrapReadable(cwd);
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      console.error(`[terminal] FATAL: ${detail}`);
+      process.exit(1);
+    }
+
     // Bind to env-configurable host (default localhost; set TERMINAL_WS_HOST=0.0.0.0 for remote)
     const host = process.env.TERMINAL_WS_HOST ?? '127.0.0.1';
 
@@ -219,6 +263,7 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
     const certPath = process.env.TERMINAL_WS_CERT;
     const keyPath = process.env.TERMINAL_WS_KEY;
     let server: https.Server | undefined;
+    const httpsEnabled = Boolean(certPath && keyPath);
 
     if (certPath && keyPath) {
       server = https.createServer({
@@ -231,40 +276,39 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
       wss = new WebSocketServer({ port, host });
     }
 
-    // DYK-03: Warn if AUTH_SECRET missing
-    if (!authEnabled) {
-      console.warn(
-        '[terminal] WARNING: AUTH_SECRET not set — WebSocket connections are UNAUTHENTICATED. ' +
-          'Set AUTH_SECRET in .env.local to enable terminal auth.'
-      );
-    }
+    // Plan 084 Phase 4 — Origin allowlist + signing key.
+    // Allowlist precedence: TERMINAL_WS_ALLOWED_ORIGINS env (comma-separated)
+    //   → fallback: localhost + 127.0.0.1 variants for the active Next port.
+    // Signing key: cached `activeSigningSecret(cwd)`; identical to the key
+    // used by `/api/terminal/token` to sign JWTs (cwd parity via FX003).
+    // Default allowlist enumerates every non-internal IPv4 interface for the
+    // active Next port, so LAN-IP browsing works without operator action.
+    // CSWSH is still gated by the JWT (no IP-based trust).
+    const allowedOrigins =
+      parseAllowedOrigins(process.env.TERMINAL_WS_ALLOWED_ORIGINS) ??
+      buildDefaultAllowedOrigins(discoverNextPort(cwd), httpsEnabled, getLocalNetworkHosts());
+    const signingKey = activeSigningSecret(cwd);
 
     wss.on('connection', async (ws: WebSocket, req) => {
       const url = new URL(req.url ?? '/', `http://${req.headers.host}`);
       const sessionName = url.searchParams.get('session');
-      const cwd = url.searchParams.get('cwd') ?? process.cwd();
+      const sessionCwd = url.searchParams.get('cwd') ?? process.cwd();
 
       // DYK-04: Log session info without token
       const logId = `session=${sessionName ?? 'none'}`;
 
-      // Auth check — skip if AUTH_SECRET not configured (graceful fallback)
-      if (authEnabled) {
-        const token = url.searchParams.get('token');
-        if (!token) {
-          ws.send(JSON.stringify({ type: 'error', message: 'Missing auth token' }));
-          ws.close(4401, 'Missing auth token');
-          console.log(`[terminal] Rejected connection (${logId}): missing token`);
-          return;
-        }
-        const username = await validateToken(token);
-        if (!username) {
-          ws.send(JSON.stringify({ type: 'error', message: 'Invalid or expired token' }));
-          ws.close(4403, 'Invalid or expired token');
-          console.log(`[terminal] Rejected connection (${logId}): invalid token`);
-          return;
-        }
-        console.log(`[terminal] Authenticated connection (${logId}): user=${username}`);
+      // Always-on auth: Origin → token → claims.
+      const auth = await authorizeUpgrade(req, { cwd, allowedOrigins, signingKey });
+      if (!auth.ok) {
+        ws.send(JSON.stringify({ type: 'error', message: auth.reason }));
+        // F001: ws.close() reason is bounded to ≤123 UTF-8 bytes (RFC 6455);
+        // use the short closeReason — never the verbose reason that may echo
+        // attacker-controlled user input.
+        ws.close(auth.code, auth.closeReason);
+        console.log(`[terminal] Rejected connection (${logId}): ${auth.reason}`);
+        return;
       }
+      console.log(`[terminal] Authenticated connection (${logId}): user=${auth.username}`);
 
       if (!sessionName || !manager.validateSessionName(sessionName)) {
         ws.send(JSON.stringify({ type: 'error', message: 'Invalid or missing session name' }));
@@ -272,7 +316,7 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
         return;
       }
 
-      handleConnection(ws, sessionName, cwd);
+      handleConnection(ws, sessionName, sessionCwd);
     });
 
     wss.on('error', (error: NodeJS.ErrnoException) => {

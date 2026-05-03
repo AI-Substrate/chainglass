@@ -139,6 +139,12 @@ flowchart LR
     activityLog -->|"PanelShell<br/>overlay anchor"| panels
     terminal -->|"appendActivityLogEntry()<br/>shouldIgnorePaneTitle()"| activityLog
 
+    %% Plan 084 Phase 4 — terminal consumes _platform/auth for unified signing-key
+    %% derivation (HKDF-from-bootstrap-code or AUTH_SECRET) and bootstrap-cookie verify.
+    terminal -->|"activeSigningSecret(cwd)<br/>findWorkspaceRoot()<br/>verifyCookieValue()<br/>BOOTSTRAP_COOKIE_NAME"| auth
+    %% Plan 084 Phase 4 — terminal-WS sidecar reads server.json for active Next port (Origin allowlist).
+    terminal -->|"readServerInfo() — Next port discovery"| externalEvents
+
     %% External Events dependencies (Plan 067)
     externalEvents -->|"WorkspaceDomain.EventPopper"| events
 

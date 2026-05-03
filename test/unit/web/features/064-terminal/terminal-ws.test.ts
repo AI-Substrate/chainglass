@@ -1,8 +1,26 @@
+// @vitest-environment node
+// Server-side code (node:fs, node:crypto, jose); jsdom env breaks jose's
+// `payload instanceof Uint8Array` check via cross-realm Uint8Array.
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
+  TERMINAL_JWT_AUDIENCE,
+  TERMINAL_JWT_ISSUER,
   type TerminalServerDeps,
+  assertBootstrapReadable,
+  authorizeUpgrade,
+  buildDefaultAllowedOrigins,
   createTerminalServer,
+  parseAllowedOrigins,
+  validateTerminalJwt,
 } from '@/features/064-terminal/server/terminal-ws';
-import { beforeEach, describe, expect, it } from 'vitest';
+import {
+  _resetSigningSecretCacheForTests,
+  activeSigningSecret,
+} from '@chainglass/shared/auth-bootstrap-code';
+import { SignJWT } from 'jose';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { type FakePty, createFakePtySpawner } from '../../../../fakes/fake-pty';
 import { FakeTmuxExecutor } from '../../../../fakes/fake-tmux-executor';
 
@@ -274,6 +292,378 @@ describe('Terminal WebSocket Server', () => {
       const server = createTerminalServer(deps);
       expect(server.derivePort(3000)).toBe(4500);
       expect(server.derivePort(3004)).toBe(4504);
+    });
+  });
+
+  // ───────────────────────────────────────────────────────────────────────
+  // Plan 084 Phase 4 — Terminal sidecar hardening
+  // T001 RED tests for: always-on auth (HKDF path), iss/aud/cwd claim
+  // presence + equality, Origin allowlist, AC-22 log discipline,
+  // startup cwd assertion, periodic auth-refresh handler.
+  // ───────────────────────────────────────────────────────────────────────
+
+  describe('Phase 4 — auth surface', () => {
+    let tempCwd: string;
+    const origAuthSecret = process.env.AUTH_SECRET;
+
+    beforeEach(() => {
+      tempCwd = mkdtempSync(join(tmpdir(), 'p4-terminal-ws-'));
+      mkdirSync(join(tempCwd, '.chainglass'), { recursive: true });
+      // Pre-write a bootstrap-code file so HKDF derivation works deterministically.
+      writeFileSync(
+        join(tempCwd, '.chainglass', 'bootstrap-code.json'),
+        JSON.stringify({
+          version: 1,
+          code: 'TEST-PHS4-AAAA',
+          createdAt: '2026-05-03T00:00:00.000Z',
+          rotatedAt: '2026-05-03T00:00:00.000Z',
+        })
+      );
+      delete process.env.AUTH_SECRET;
+      _resetSigningSecretCacheForTests();
+    });
+
+    afterEach(() => {
+      if (origAuthSecret === undefined) delete process.env.AUTH_SECRET;
+      else process.env.AUTH_SECRET = origAuthSecret;
+      _resetSigningSecretCacheForTests();
+      rmSync(tempCwd, { recursive: true, force: true });
+    });
+
+    describe('JWT shape constants', () => {
+      it('exposes the issuer and audience as exported constants', () => {
+        // Why: Phase 7 docs and external consumers need to reference the
+        // exact strings; constants prevent drift.
+        expect(TERMINAL_JWT_ISSUER).toBe('chainglass');
+        expect(TERMINAL_JWT_AUDIENCE).toBe('terminal-ws');
+      });
+    });
+
+    describe('validateTerminalJwt (always-on, HKDF path)', () => {
+      async function signJwt(claims: Record<string, unknown>, key: Buffer): Promise<string> {
+        const builder = new SignJWT(claims).setProtectedHeader({ alg: 'HS256' });
+        if (claims.iat === undefined) builder.setIssuedAt();
+        if (claims.exp === undefined) builder.setExpirationTime('5m');
+        return builder.sign(key);
+      }
+
+      it('accepts a JWT signed via HKDF when AUTH_SECRET is unset (silent-bypass closed)', async () => {
+        // Why: Finding 01 — terminal-WS must NOT silently degrade to no-auth
+        // when AUTH_SECRET is unset. HKDF-derived key takes over.
+        const key = activeSigningSecret(tempCwd);
+        const token = await signJwt(
+          {
+            sub: 'alice',
+            iss: TERMINAL_JWT_ISSUER,
+            aud: TERMINAL_JWT_AUDIENCE,
+            cwd: tempCwd,
+          },
+          key
+        );
+
+        const result = await validateTerminalJwt(token, { key, expectedCwd: tempCwd });
+        expect(result).toEqual({ ok: true, username: 'alice' });
+      });
+
+      it('rejects a JWT with wrong iss with 4403', async () => {
+        const key = activeSigningSecret(tempCwd);
+        const token = await signJwt(
+          { sub: 'alice', iss: 'evil', aud: TERMINAL_JWT_AUDIENCE, cwd: tempCwd },
+          key
+        );
+        const result = await validateTerminalJwt(token, { key, expectedCwd: tempCwd });
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.code).toBe(4403);
+      });
+
+      it('rejects a JWT with wrong aud with 4403', async () => {
+        const key = activeSigningSecret(tempCwd);
+        const token = await signJwt(
+          { sub: 'alice', iss: TERMINAL_JWT_ISSUER, aud: 'other-service', cwd: tempCwd },
+          key
+        );
+        const result = await validateTerminalJwt(token, { key, expectedCwd: tempCwd });
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.code).toBe(4403);
+      });
+
+      it('rejects a JWT with wrong cwd with 4403', async () => {
+        const key = activeSigningSecret(tempCwd);
+        const token = await signJwt(
+          {
+            sub: 'alice',
+            iss: TERMINAL_JWT_ISSUER,
+            aud: TERMINAL_JWT_AUDIENCE,
+            cwd: '/some/other/cwd',
+          },
+          key
+        );
+        const result = await validateTerminalJwt(token, { key, expectedCwd: tempCwd });
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.code).toBe(4403);
+      });
+
+      it('rejects a JWT with MISSING iss claim with 4403 (no silent undefined === undefined)', async () => {
+        // Why: validate-v2 fix — typeof !== 'string' presence check before equality.
+        const key = activeSigningSecret(tempCwd);
+        const token = await signJwt(
+          { sub: 'alice', aud: TERMINAL_JWT_AUDIENCE, cwd: tempCwd },
+          key
+        );
+        const result = await validateTerminalJwt(token, { key, expectedCwd: tempCwd });
+        expect(result.ok).toBe(false);
+      });
+
+      it('rejects a JWT with MISSING aud claim with 4403', async () => {
+        const key = activeSigningSecret(tempCwd);
+        const token = await signJwt(
+          { sub: 'alice', iss: TERMINAL_JWT_ISSUER, cwd: tempCwd },
+          key
+        );
+        const result = await validateTerminalJwt(token, { key, expectedCwd: tempCwd });
+        expect(result.ok).toBe(false);
+      });
+
+      it('rejects a JWT with MISSING cwd claim with 4403', async () => {
+        const key = activeSigningSecret(tempCwd);
+        const token = await signJwt(
+          { sub: 'alice', iss: TERMINAL_JWT_ISSUER, aud: TERMINAL_JWT_AUDIENCE },
+          key
+        );
+        const result = await validateTerminalJwt(token, { key, expectedCwd: tempCwd });
+        expect(result.ok).toBe(false);
+      });
+
+      it('rejects a JWT signed with the wrong key (forgery attempt) with 4403', async () => {
+        const wrongKey = Buffer.from('not-the-real-key-not-the-real-key', 'utf-8');
+        const token = await signJwt(
+          {
+            sub: 'alice',
+            iss: TERMINAL_JWT_ISSUER,
+            aud: TERMINAL_JWT_AUDIENCE,
+            cwd: tempCwd,
+          },
+          wrongKey
+        );
+        const realKey = activeSigningSecret(tempCwd);
+        const result = await validateTerminalJwt(token, { key: realKey, expectedCwd: tempCwd });
+        expect(result.ok).toBe(false);
+      });
+
+      it('rejects a malformed token with 4403 (no plaintext fallback)', async () => {
+        const key = activeSigningSecret(tempCwd);
+        const result = await validateTerminalJwt('not-a-jwt-at-all', {
+          key,
+          expectedCwd: tempCwd,
+        });
+        expect(result.ok).toBe(false);
+      });
+
+      it('honours AUTH_SECRET when set (parity path)', async () => {
+        process.env.AUTH_SECRET = 'parity-test-secret-32-bytes-long';
+        _resetSigningSecretCacheForTests();
+        const key = activeSigningSecret(tempCwd);
+        // Buffer key passed directly to jose — no TextEncoder re-wrap.
+        const token = await signJwt(
+          {
+            sub: 'bob',
+            iss: TERMINAL_JWT_ISSUER,
+            aud: TERMINAL_JWT_AUDIENCE,
+            cwd: tempCwd,
+          },
+          key
+        );
+        const result = await validateTerminalJwt(token, { key, expectedCwd: tempCwd });
+        expect(result).toEqual({ ok: true, username: 'bob' });
+      });
+    });
+
+    describe('parseAllowedOrigins', () => {
+      it('parses a comma-separated list with trim', () => {
+        const set = parseAllowedOrigins('http://a.example, http://b.example,http://c.example');
+        expect(set).toEqual(new Set(['http://a.example', 'http://b.example', 'http://c.example']));
+      });
+      it('returns null when env var is undefined or empty', () => {
+        expect(parseAllowedOrigins(undefined)).toBeNull();
+        expect(parseAllowedOrigins('')).toBeNull();
+        expect(parseAllowedOrigins('   ')).toBeNull();
+      });
+    });
+
+    describe('buildDefaultAllowedOrigins', () => {
+      it('enumerates BOTH localhost and 127.0.0.1 variants for the given port', () => {
+        // Why: Browsers send Origin as either named or numeric loopback.
+        // Default allowlist must accept both.
+        const origins = buildDefaultAllowedOrigins('3000', false);
+        expect(origins.has('http://localhost:3000')).toBe(true);
+        expect(origins.has('http://127.0.0.1:3000')).toBe(true);
+      });
+      it('adds https:// variants when httpsEnabled is true', () => {
+        const origins = buildDefaultAllowedOrigins('3000', true);
+        expect(origins.has('https://localhost:3000')).toBe(true);
+        expect(origins.has('https://127.0.0.1:3000')).toBe(true);
+      });
+      it('does NOT include IPv6 [::1] in the default (operator opt-in only)', () => {
+        const origins = buildDefaultAllowedOrigins('3000', false);
+        expect(origins.has('http://[::1]:3000')).toBe(false);
+      });
+    });
+
+    describe('authorizeUpgrade', () => {
+      it('rejects with 4403 when Origin header is missing', async () => {
+        const key = activeSigningSecret(tempCwd);
+        const allowedOrigins = buildDefaultAllowedOrigins('3000', false);
+        const result = await authorizeUpgrade(
+          { headers: {}, url: '/?token=anything' },
+          { cwd: tempCwd, allowedOrigins, signingKey: key }
+        );
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.code).toBe(4403);
+      });
+
+      it('rejects with 4403 when Origin is the literal string "null"', async () => {
+        const key = activeSigningSecret(tempCwd);
+        const allowedOrigins = buildDefaultAllowedOrigins('3000', false);
+        const result = await authorizeUpgrade(
+          { headers: { origin: 'null' }, url: '/?token=anything' },
+          { cwd: tempCwd, allowedOrigins, signingKey: key }
+        );
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.code).toBe(4403);
+      });
+
+      it('rejects with 4403 when Origin is cross-origin', async () => {
+        const key = activeSigningSecret(tempCwd);
+        const allowedOrigins = buildDefaultAllowedOrigins('3000', false);
+        const result = await authorizeUpgrade(
+          { headers: { origin: 'http://evil.example' }, url: '/?token=anything' },
+          { cwd: tempCwd, allowedOrigins, signingKey: key }
+        );
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.code).toBe(4403);
+      });
+
+      it('rejects with 4401 when token query param is missing (Origin allowed)', async () => {
+        const key = activeSigningSecret(tempCwd);
+        const allowedOrigins = buildDefaultAllowedOrigins('3000', false);
+        const result = await authorizeUpgrade(
+          { headers: { origin: 'http://localhost:3000' }, url: '/' },
+          { cwd: tempCwd, allowedOrigins, signingKey: key }
+        );
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.code).toBe(4401);
+      });
+
+      it('accepts when Origin is http://localhost:<port> and JWT is valid', async () => {
+        const key = activeSigningSecret(tempCwd);
+        const allowedOrigins = buildDefaultAllowedOrigins('3000', false);
+        const builder = new SignJWT({
+          sub: 'alice',
+          iss: TERMINAL_JWT_ISSUER,
+          aud: TERMINAL_JWT_AUDIENCE,
+          cwd: tempCwd,
+        }).setProtectedHeader({ alg: 'HS256' });
+        builder.setIssuedAt();
+        builder.setExpirationTime('5m');
+        const token = await builder.sign(key);
+        const result = await authorizeUpgrade(
+          {
+            headers: { origin: 'http://localhost:3000' },
+            url: `/?token=${encodeURIComponent(token)}`,
+          },
+          { cwd: tempCwd, allowedOrigins, signingKey: key }
+        );
+        expect(result).toEqual({ ok: true, username: 'alice' });
+      });
+
+      it('accepts when Origin is http://127.0.0.1:<port> and JWT is valid', async () => {
+        const key = activeSigningSecret(tempCwd);
+        const allowedOrigins = buildDefaultAllowedOrigins('3000', false);
+        const builder = new SignJWT({
+          sub: 'alice',
+          iss: TERMINAL_JWT_ISSUER,
+          aud: TERMINAL_JWT_AUDIENCE,
+          cwd: tempCwd,
+        }).setProtectedHeader({ alg: 'HS256' });
+        builder.setIssuedAt();
+        builder.setExpirationTime('5m');
+        const token = await builder.sign(key);
+        const result = await authorizeUpgrade(
+          {
+            headers: { origin: 'http://127.0.0.1:3000' },
+            url: `/?token=${encodeURIComponent(token)}`,
+          },
+          { cwd: tempCwd, allowedOrigins, signingKey: key }
+        );
+        expect(result).toEqual({ ok: true, username: 'alice' });
+      });
+    });
+
+    describe('F001 regression — close-frame reason is bounded (no user input)', () => {
+      it('a 200-byte attacker-controlled Origin produces a short closeReason and no exception', async () => {
+        // Why: the WebSocket library's close() throws if reason exceeds 123
+        // UTF-8 bytes (RFC 6455). Echoing the offending Origin into the close
+        // reason would let a long cross-site probe crash the sidecar.
+        const key = activeSigningSecret(tempCwd);
+        const allowedOrigins = buildDefaultAllowedOrigins('3000', false);
+        const longOrigin = 'http://' + 'a'.repeat(200) + '.example';
+        expect(longOrigin.length).toBeGreaterThan(123);
+
+        let result: Awaited<ReturnType<typeof authorizeUpgrade>>;
+        await expect(
+          (async () => {
+            result = await authorizeUpgrade(
+              { headers: { origin: longOrigin }, url: '/?token=anything' },
+              { cwd: tempCwd, allowedOrigins, signingKey: key },
+            );
+          })(),
+        ).resolves.toBeUndefined();
+
+        // biome-ignore lint/style/noNonNullAssertion: assigned in the IIFE above
+        const r = result!;
+        expect(r.ok).toBe(false);
+        if (!r.ok) {
+          expect(r.code).toBe(4403);
+          // Close reason MUST stay short (≤123 bytes) and MUST NOT echo the origin.
+          expect(Buffer.byteLength(r.closeReason, 'utf-8')).toBeLessThanOrEqual(123);
+          expect(r.closeReason).not.toContain(longOrigin);
+          // Verbose reason is allowed to include the origin (for log + JSON payload).
+          expect(r.reason).toContain(longOrigin);
+        }
+      });
+    });
+
+    describe('assertBootstrapReadable (startup assertion)', () => {
+      it('returns silently when bootstrap-code.json is readable at cwd', () => {
+        expect(() => assertBootstrapReadable(tempCwd)).not.toThrow();
+      });
+
+      it('throws an Error containing the cwd path but NOT the bootstrap code (AC-22)', () => {
+        // Why: Sidecar must fail-fast with operator-actionable error, but
+        // must never log the bootstrap CODE itself (audit trail).
+        const missingCwd = mkdtempSync(join(tmpdir(), 'p4-no-bootstrap-'));
+        try {
+          // Force a permission/file failure: chmod the .chainglass dir to be read-only
+          // and create the file as a directory so persistence.ts cannot read it.
+          // Simpler: create an EMPTY .chainglass with a bootstrap-code.json that is a directory.
+          mkdirSync(join(missingCwd, '.chainglass'), { recursive: true });
+          mkdirSync(join(missingCwd, '.chainglass', 'bootstrap-code.json'), { recursive: true });
+          // Now reading the file will fail — EISDIR.
+          _resetSigningSecretCacheForTests();
+          expect(() => assertBootstrapReadable(missingCwd)).toThrow();
+          try {
+            assertBootstrapReadable(missingCwd);
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            expect(msg).toContain(missingCwd);
+            // AC-22: code value must NEVER appear in error messages.
+            expect(msg).not.toMatch(/[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}/);
+          }
+        } finally {
+          rmSync(missingCwd, { recursive: true, force: true });
+          _resetSigningSecretCacheForTests();
+        }
+      });
     });
   });
 

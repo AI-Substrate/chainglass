@@ -32,6 +32,8 @@ Workspace-scoped terminal access via tmux. Users open terminal sessions for work
 | _platform/sdk | registerCommand, registerKeybinding |
 | _platform/workspace-url | workspaceHref() |
 | activity-log | appendActivityLogEntry(), shouldIgnorePaneTitle() |
+| _platform/auth | activeSigningSecret(cwd), findWorkspaceRoot(), verifyCookieValue(), BOOTSTRAP_COOKIE_NAME (Plan 084 Phase 4) |
+| _platform/external-events | readServerInfo() — port discovery for the WS sidecar's default Origin allowlist (Plan 084 Phase 4) |
 
 activity-log depends on terminal as an event source (terminal sidecar polls tmux and writes activity entries).
 
@@ -51,3 +53,4 @@ activity-log depends on terminal as an event source (terminal sidecar polls tmux
 | Plan 079 | TerminalPageClient sets worktreeIdentity with pageTitle 'Terminal' for tab title | 2026-04-08 |
 | Plan 080 | tmux eventing: monitor polls all sessions, POSTs events to API route; bell hook plays sound + flashes title | 2026-04-09 |
 | Plan 081 | 25 terminal color themes via SDK setting + Palette popover picker in header | 2026-04-10 |
+| 084 Phase 4 | Closed silent-bypass (`authEnabled = true` always); switched to `activeSigningSecret(findWorkspaceRoot)`; JWT now carries `iss=chainglass` / `aud=terminal-ws` / `cwd` claims; Origin allowlist (with TERMINAL_WS_ALLOWED_ORIGINS opt-in for remote dev); startup assertion on missing `bootstrap-code.json`; new pure module `terminal-auth.ts` to keep route handlers free of sidecar deps. | 2026-05-03 |

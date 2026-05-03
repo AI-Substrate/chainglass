@@ -171,12 +171,12 @@ The harness is sufficient as-is. We do not need to extend it.
 
 ## Phase Index
 
-| Phase | Title | Primary Domain | Objective | Depends On |
-|-------|-------|---------------|-----------|------------|
-| 1 | Shared primitives | `@chainglass/shared` | Pure functions: generator, persistence, cookie HMAC, signing-key helper | None |
-| 2 | Boot integration | `_platform/auth` | `instrumentation.ts` writes the file; misconfiguration assertion; gitignore | 1 |
-| 3 | Server-side gate (verify/forget + proxy + RootLayout stub) | `_platform/auth` | Cookie machinery wired end-to-end; popup stub renders when cookie missing | 1, 2 |
-| 4 | Terminal sidecar hardening | `terminal` | Close silent-bypass; HKDF fallback; JWT iss/aud/cwd | 1, 2 |
+| Phase | Title | Primary Domain | Objective | Depends On | Status |
+|-------|-------|---------------|-----------|------------|--------|
+| 1 | Shared primitives | `@chainglass/shared` | Pure functions: generator, persistence, cookie HMAC, signing-key helper | None | ✅ Landed 2026-04-30 |
+| 2 | Boot integration | `_platform/auth` | `instrumentation.ts` writes the file; misconfiguration assertion; gitignore | 1 | ✅ Landed 2026-05-02 |
+| 3 | Server-side gate (verify/forget + proxy + RootLayout stub) | `_platform/auth` | Cookie machinery wired end-to-end; popup stub renders when cookie missing | 1, 2 | ✅ Landed 2026-05-02 |
+| 4 | Terminal sidecar hardening | `terminal` | Close silent-bypass; HKDF fallback; JWT iss/aud/cwd | 1, 2 | ✅ Landed 2026-05-03 |
 | 5 | Sidecar HTTP-sink hardening + env-var rename | `_platform/events` (+ `_platform/auth`) | `requireLocalAuth`; apply to event-popper / tmux events; `DISABLE_GITHUB_OAUTH` alias | 1, 2 |
 | 6 | Popup component | `_platform/auth` | Replace stub with real BootstrapGate + popup UI; accessibility; mobile rendering | 3 |
 | 7 | Operator docs, migration, e2e | `_platform/auth` (+ docs) | `docs/how/auth/bootstrap-code.md`; domain.md updates; full env-var matrix e2e tests; harness exercise | 1–6 |
