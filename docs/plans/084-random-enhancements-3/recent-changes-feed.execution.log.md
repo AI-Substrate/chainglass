@@ -164,4 +164,25 @@ Four sibling components under `recent-feed/previews/`. All slot into `<FeedCard>
 
 **Evidence**: `tsc --noEmit` clean for all 4 previews. Visual smoke at T035.
 
+### T009-T011 — Static UI primitives (single commit, three plan rows)
+
+Bundled as one logical commit because they're sibling primitives that together constitute "the static feed shell" — none stands alone usefully and they will land into the orchestrator (T012) as a unit.
+
+**T009 — `recent-feed-list.tsx`** (virtualized vertical list):
+- Strategy: `content-visibility: auto` + `contain-intrinsic-size: auto 480px` per item. Native browser virtualization, zero JS overhead.
+- Decision: did NOT use `react-window` or measure row heights. Variable-height media cards make explicit virtualization more complex than `content-visibility:auto` + a one-time intrinsic-size hint. Idle entries release decoded media via the preview-level `useLazyLoad` (Finding 14). Covers AC G1, G2.
+- Decision: `role="feed"` is set at the orchestrator (T012/T027), not the list itself. Keeps list a pure container.
+
+**T010 — `recent-feed-header.tsx` + `recent-feed-filters.tsx`** (chrome strip + chip row):
+- Header: title · live indicator (green pulsing dot when live + not paused; muted otherwise) · counter · pause/resume button · refresh · settings cog. `aria-live="polite"` on the live indicator so SR users hear pause/resume transitions. Workshop §5 chrome.
+- Filters: 7 chips (All, Images, Videos, Audio, Markdown, Code, Other). Multi-select via `aria-pressed`. Component is a dumb chip strip — set-management semantics (auto-snap-to-all when last chip removed) live in T015 reducer + T024 predicate test.
+- Decision: `FilterCategory` exported as a discriminated string union for downstream use in T015's reducer. `FILTER_CATEGORIES` is the canonical ordered list — keeps the chip order deterministic for snapshot tests.
+
+**T011 — `feed-empty-state.tsx` + `feed-error-state.tsx` + `feed-skeleton.tsx`** (state placeholders):
+- `FeedSkeleton`: stacks 5 `<CardSkeleton>` (Plan 077 — Finding 13 anti-reinvention). Vertical with stagger animation; matches the feed's actual layout.
+- `FeedEmptyState`: two copy variants based on `filtered` prop — generic "no recent changes" vs filter-specific "no matches; try All".
+- `FeedErrorState`: amber AlertCircle + main message + optional detail (e.g., "not a git workspace") + invariant clarification "Live file changes will still appear here as they happen" (per AC B3 — live updates still functional during seed failure). Optional `onRetry`.
+
+**Evidence**: `tsc --noEmit` clean across all 5 new files (recent-feed-list, recent-feed-header, recent-feed-filters, feed-empty-state, feed-error-state, feed-skeleton).
+
 
