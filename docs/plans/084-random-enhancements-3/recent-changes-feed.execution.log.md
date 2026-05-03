@@ -116,4 +116,17 @@ Three new optional props added to `CardActionsProps`:
 
 **Evidence**: `tsc --noEmit` clean for `card-actions.tsx` and all preview-cards consumers.
 
+### T006 — CardActions extension contract test
+
+10 tests across 2 suites:
+
+- **Plan 077 baseline (gallery cards)** — 4 tests: only Copy + Download render with the original prop set; Open / Copy abs / Copy relative path tooltips absent; onCopyPath fires with the exact path; onDownload fires with the exact path.
+- **Plan recent-changes-feed T005 extensions** — 6 tests: Open button renders + fires onOpen; Copy abs button renders + fires onCopyAbsolutePath; tooltip on first copy switches to "Copy relative path" exactly when both copy actions are present (and original "Copy path" tooltip disappears); overflow ReactNode renders inline; full prop set produces all 5 buttons in correct order; Open click does not leak into other handlers.
+
+**Decision** — used `toHaveBeenCalledExactlyOnceWith` which catches double-fire bugs that would slip past `toHaveBeenCalledWith`. The `e.stopPropagation()` calls in CardActions are critical (the cards are inside clickable feed-card shells in T007); these tests don't directly assert stopPropagation but the call-once assertions catch any regression that re-bubbles.
+
+**Plan path correction** noted in plan task row.
+
+**Evidence**: `npx vitest run` passes 10/10 in 92ms.
+
 
