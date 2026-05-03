@@ -129,4 +129,22 @@ Three new optional props added to `CardActionsProps`:
 
 **Evidence**: `npx vitest run` passes 10/10 in 92ms.
 
+### T007 — feed-card.tsx shell
+
+`<FeedCard>` shell renders:
+- Header strip: `<FileIcon>` (from `_platform/themes` per Finding) · clickable filename (semibold, truncates) · path (muted, left-truncated via `dir="rtl"` + nested `<bdo dir="ltr">` so trailing segments stay visible) · meta line (relative time · size · event-type colored badge) · actions slot (top-right, hover-revealed via group-hover).
+- Preview slot — `children` rendered below the header strip with subtle muted background.
+
+**Decision** — left-truncation: used `dir="rtl"` + `<bdo dir="ltr">` to flip the truncation anchor without reversing reading order. Cleaner than CSS `direction: rtl` hacks that affect the entire layout subtree. Workshop §2 D1 specified "truncated from the left so trailing path segments stay visible".
+
+**Decision** — `formatRelativeTime` and `formatFileSize` exported from feed-card.tsx (not split into a util file). Two reasons: (1) they have no other consumers yet, so a util file would be premature; (2) they're tested via the rendered card output. If T010 (header/filters) or T023 (deleted preview) needs the relative-time formatter, we promote it then. Avoids speculative abstraction (CLAUDE.md).
+
+**Decision** — `role="article"` is set explicitly here (with biome `useSemanticElements` ignored for the `<article>` element rationale comment) so T027 (a11y pass) can wire `role="feed"` at the list level without re-traversing card markup. AC H1 satisfied at the shell level.
+
+**Decision** — clickable title is a `<button>` not an anchor: the open action will dispatch a state transition (set `?file=...&view=null`) via `onActivate`, not navigate to an external URL. Matches the existing `image-card.tsx` `role="button"` pattern but uses a real button for proper keyboard semantics.
+
+**Decision** — event badge uses semantic colors (green/blue/red) that work in both light and dark themes (T027 will verify contrast).
+
+**Evidence**: `tsc --noEmit` clean for `feed-card.tsx`. Tests for the formatters + render assertions land at T035 (full-suite verification) — not gated here per plan's Done When ("Card renders with mock `FeedItem`" — render path verified by typecheck + visual harness in T035).
+
 
