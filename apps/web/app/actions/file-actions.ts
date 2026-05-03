@@ -135,6 +135,15 @@ export async function fetchRecentFiles(worktreePath: string, limit = 20) {
   return getRecentFiles(worktreePath, limit);
 }
 
+// Recent feed items — git log + fs.stat enrichment (Plan recent-changes-feed T012)
+export async function fetchRecentFeedItems(worktreePath: string, limit = 50) {
+  await requireAuth();
+  const { getRecentFeedItems } = await import(
+    '../../src/features/041-file-browser/services/recent-feed-items'
+  );
+  return getRecentFeedItems(worktreePath, limit);
+}
+
 // File list — git ls-files + fs.stat for file search cache (Plan 049 Feature 2)
 export async function fetchFileList(
   worktreePath: string,

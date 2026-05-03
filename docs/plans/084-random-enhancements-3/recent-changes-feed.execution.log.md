@@ -35,6 +35,35 @@
 
 **Companion run 1 farewell** — `2026-05-03T17-52-52-872Z-c76e` (`exitReason: idle_budget`, 9 tasks reviewed, 3 findings sent, 0 unresolved). Run 2 boots after these fixes for T012+.
 
+**Companion run 2** — `2026-05-04T09-48-40-912Z-0b20` (active). Re-briefed with T001-T011 + F001-F003 fix context. First ping: FX-companion-findings (976487d1) for verification.
+
+### T012 — Seed orchestrator + getRecentFeedItems service
+
+Created **`services/recent-feed-items.ts`** (new — outside original Domain Manifest, added post-implementation):
+- `getRecentFeedItems(worktreePath, limit)` wraps `getRecentFiles` + parallel `fs.stat` (`Promise.allSettled` so a stat failure on one path doesn't blank the seed) + extension → `FeedItemKind` mapping.
+- Returns `{ ok: true; items: FeedItem[] } | { ok: false; error: 'not-git' }`.
+- Exports `detectFeedItemKind(filename)` so T024's filter predicate (and any future caller) can reuse the same mapping.
+
+Added **`fetchRecentFeedItems` server action** in `app/actions/file-actions.ts` mirroring the `fetchRecentFiles` pattern (`requireAuth` + dynamic import).
+
+Replaced **`recent-feed-view.tsx`** stub body with the seeded orchestrator:
+- State: `items`, `isLoading`, `seedError`, `isPaused`, `activeFilters` (`ReadonlySet<FilterCategory>` initialised to all 7 categories).
+- `loadSeed` calls the server action; surfaces seed errors to `<FeedErrorState>` (with retry).
+- `handleToggleFilter` implements workshop §5 semantics: clicking 'all' snaps back to all; clicking any other chip drops 'all' from the set; emptying the subset auto-snaps back to 'all' (so users always see content).
+- Render dispatch by `item.kind` → ImagePreview / VideoPreview / AudioPreview / BinaryPreview. Markdown + Code currently fall through to BinaryPreview — replaced at T021/T022.
+- Header / filters / states wired from the static UI primitives (T009-T011).
+- `role="feed"` + `aria-busy={isLoading}` on the root container — AC H1 baseline.
+- Bridge events `recent-feed:open-file` and `recent-feed:open-settings` dispatched as placeholders for T025 (action hook) and T028 (settings sheet) — keeps T012 self-contained.
+- Close button absolutely-positioned top-right (opacity-0 default) for AC A1 hover-to-dismiss; primary close path is the entrypoint button toggling the URL param (T029).
+
+**Decision — relative import path**: `'../../../../../app/actions/file-actions'` (5 `../`s). The `@/` alias maps only to `apps/web/src/`, but the actions file lives in `apps/web/app/`. Same pattern browser-client.tsx uses (4 `../`s from its location).
+
+**Decision — bridge events vs prop drilling**: T025 will replace the `window.dispatchEvent` calls with `useFeedActions()` hook. For T012 the events keep the orchestrator decoupled from the URL-param logic that lives one level up in browser-client.tsx — T025 lifts that into a proper hook.
+
+**Evidence**: `tsc --noEmit` clean for `recent-feed-view.tsx`, `recent-feed-items.ts`, and the updated `file-actions.ts`.
+
+
+
 ---
 
 ## Discoveries & Learnings
