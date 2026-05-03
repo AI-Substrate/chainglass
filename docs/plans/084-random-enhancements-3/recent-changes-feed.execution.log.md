@@ -82,6 +82,34 @@ Replaced **`recent-feed-view.tsx`** stub body with the seeded orchestrator:
 
 **Evidence**: `npx vitest run test/integration/web/recent-feed-seed.integration.test.ts` → 17/17 pass in 1.03s total (529ms test execution).
 
+### T014 — TDD truncateMarkdown utility
+
+`apps/web/src/features/041-file-browser/lib/truncate-markdown.ts` + `test/unit/web/features/041-file-browser/lib/truncate-markdown.test.ts`. 10/10 tests pass in 2ms.
+
+**Algorithm**:
+1. Empty / whitespace-only input → `''`.
+2. Strip leading YAML front matter (handles CRLF; trims leading whitespace after closing `---`).
+3. If body is now empty (front-matter-only doc) → `''`.
+4. Single overlong line case (lines.length===1 OR all-but-first are blank) → truncate at maxChars + `…`.
+5. Walk lines counting non-empty-lines + total chars; track fence parity (`insideFence`); break when either limit fires.
+6. **Case 3 fix-up** — if stopped inside a fence, extend to closing fence (or EOF if unterminated; doesn't loop).
+7. **Case 4 fix-up** — if stopped on a list-item line OR an indented continuation of one, extend through subsequent indented/marker lines until blank line or top-level prose.
+8. Return joined output trimmed.
+
+**Tests** (10):
+- 6 binding cases per Finding 06 (front-matter-only / FM+prose / mid-fence / mid-list / overlong line / empty input).
+- 4 invariants: maxLines counts non-empty only; full-body short docs return without ellipsis; CRLF normalises; unterminated fence does not throw or loop.
+
+**Decision** — `maxLines` counts non-empty lines (matches typical "show me 8 lines of content" UX, not "8 lines including blank separators"). Documented in JSDoc.
+
+**Decision** — character cap is "rough" — fence/list extension can blow past it. Trade-off: never split a fenced code block (broken markdown render). The feed's settings (T028) cap excerpt size with a hard ceiling separately if needed.
+
+**Decision** — front-matter regex `/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/` is intentionally narrow (must start at byte 0, must be paired with closing `---` on its own line). Avoids matching `---` separators mid-document.
+
+**Plan path correction**: existing convention is `test/unit/web/features/041-file-browser/lib/...` (with `features/` segment), not `test/unit/web/041-file-browser/lib/...`. Plan task row updated.
+
+**Evidence**: `npx vitest run` 10/10 green, 2ms test execution.
+
 
 
 ---
