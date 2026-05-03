@@ -29,7 +29,11 @@
 
 | Finding ID | ackOf (review-request task) | Severity | Disposition | Notes |
 |---|---|---|---|---|
-| _none yet_ | | | | |
+| F001 | T004 (01KQPDR5EP9VDWAJ696Z7F3QSK) | MEDIUM | **fixed** | Test only locked `view===` before `selectedFile?` — added `currentDir?` ordering assertion in BOTH render points. A future refactor putting `currentDir?` ahead of the feed branch would now fail the test. Re-ran 7/7. |
+| F002 | T007 (01KQPE21WEFZ0SXC54PMSB8V75) | MEDIUM | **fixed** | `id="feed-card-title-${item.path}"` broke `aria-labelledby` IDREF tokenization for paths with whitespace (e.g. `output/my render.png`). Replaced with React `useId()` — stable, valid, path-independent. |
+| F003 | T008 (01KQPE56A5JA0HYQW68ZQC7A67) | MEDIUM | **fixed** | `AudioPreview` rendered `<audio preload="metadata">` eagerly — N audio cards triggered N simultaneous metadata fetches at mount. Wrapped in `useLazyLoad` mirroring `VideoPreview` pattern; placeholder until visible. Keeps AC G2 in-flight-media bound consistent. |
+
+**Companion run 1 farewell** — `2026-05-03T17-52-52-872Z-c76e` (`exitReason: idle_budget`, 9 tasks reviewed, 3 findings sent, 0 unresolved). Run 2 boots after these fixes for T012+.
 
 ---
 

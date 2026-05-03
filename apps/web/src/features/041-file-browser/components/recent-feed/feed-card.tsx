@@ -12,7 +12,7 @@
 
 import { FileIcon } from '@/features/_platform/themes';
 import { cn } from '@/lib/utils';
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 import type { FeedEventType, FeedItem } from './types';
 
 export interface FeedCardProps {
@@ -90,6 +90,12 @@ export function FeedCard({
   children,
   className,
 }: FeedCardProps) {
+  // F002 fix: file paths can contain spaces and other characters that are
+  // illegal in an HTML id (and break aria-labelledby IDREF tokenization, which
+  // is space-separated). React's useId returns a stable, valid id token —
+  // path-independent — that we use as the title's id and as the article's
+  // aria-labelledby reference.
+  const titleId = `feed-card-title-${useId()}`;
   const dirPart = (() => {
     const idx = item.path.lastIndexOf('/');
     return idx === -1 ? '' : item.path.slice(0, idx);
@@ -101,7 +107,7 @@ export function FeedCard({
     <article
       // biome-ignore lint/a11y/useSemanticElements: complex card surface; <article> + role="article" set explicitly for the feed-level a11y contract (T027 — H1).
       role="article"
-      aria-labelledby={`feed-card-title-${item.path}`}
+      aria-labelledby={titleId}
       className={cn(
         'group relative rounded-xl border border-border bg-card overflow-hidden',
         'shadow-sm transition-all duration-200',
@@ -118,7 +124,7 @@ export function FeedCard({
           <div className="flex items-baseline gap-2 min-w-0">
             <button
               type="button"
-              id={`feed-card-title-${item.path}`}
+              id={titleId}
               onClick={onActivate}
               className={cn(
                 'text-sm font-semibold truncate text-card-foreground text-left',

@@ -79,7 +79,7 @@ describe('browser-client.tsx routing — Finding 07 ordering invariant', () => {
     expect(source).toMatch(/setParams\(\s*\{\s*view:\s*null\s*\}/);
   });
 
-  it('places `view === \'recent-feed\'` branch BEFORE `selectedFile ?` in the mobile contentView render point', () => {
+  it('places `view === \'recent-feed\'` branch BEFORE BOTH `selectedFile ?` AND `currentDir ?` in the mobile contentView render point', () => {
     // The mobile contentView declaration block; we slice from its start to
     // the closing `</MainPanel>` of that block to isolate that render point
     // from the desktop one.
@@ -94,11 +94,17 @@ describe('browser-client.tsx routing — Finding 07 ordering invariant', () => {
 
     const viewIdx = mobileBlock.indexOf("view === 'recent-feed'");
     const fileIdx = mobileBlock.indexOf('selectedFile ? (');
+    const dirIdx = mobileBlock.indexOf('currentDir ? (');
     expect(viewIdx).toBeGreaterThan(0);
+    // F001 fix: also assert `currentDir ?` comes after the view branch — a
+    // refactor could otherwise put folder-preview ahead of the feed and these
+    // tests would still pass even though `?view=recent-feed&dir=…` would now
+    // render the folder preview, breaking AC A1's preservation contract.
     expect(fileIdx).toBeGreaterThan(viewIdx);
+    expect(dirIdx).toBeGreaterThan(viewIdx);
   });
 
-  it('places `view === \'recent-feed\'` branch BEFORE `selectedFile ?` in the desktop main slot render point', () => {
+  it('places `view === \'recent-feed\'` branch BEFORE BOTH `selectedFile ?` AND `currentDir ?` in the desktop main slot render point', () => {
     // The desktop block sits inside `main={` ... `}`. We search from the
     // first `main={` and assert ordering inside.
     const desktopBlockStart = source.indexOf('main={');
@@ -109,7 +115,9 @@ describe('browser-client.tsx routing — Finding 07 ordering invariant', () => {
 
     const viewIdx = desktopBlock.indexOf("view === 'recent-feed'");
     const fileIdx = desktopBlock.indexOf('selectedFile ? (');
+    const dirIdx = desktopBlock.indexOf('currentDir ? (');
     expect(viewIdx).toBeGreaterThan(0);
     expect(fileIdx).toBeGreaterThan(viewIdx);
+    expect(dirIdx).toBeGreaterThan(viewIdx);
   });
 });
