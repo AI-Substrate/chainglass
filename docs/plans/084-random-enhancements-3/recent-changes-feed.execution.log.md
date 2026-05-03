@@ -99,4 +99,21 @@ Wrote `browser-client-view-branch.test.tsx` with 7 tests across two suites:
 
 **Evidence**: `npx vitest run` passes 7/7 in 13ms.
 
+### T005 — Extend CardActions with onCopyAbsolutePath, onOpen, overflowMenu
+
+Three new optional props added to `CardActionsProps`:
+- `onCopyAbsolutePath?: (path: string) => void` — renders a second copy button (FileText icon) when supplied. Tooltip on the existing copy button switches from "Copy path" → "Copy relative path" to disambiguate.
+- `onOpen?: (path: string) => void` — renders a left-most "Open" button (ExternalLink icon) when supplied.
+- `overflowMenu?: ReactNode` — caller-supplied overflow slot appended at the right (CardActions does not own the menu's content).
+
+**Decision** — internal state shape: replaced the `copied: boolean` flag with `copiedKind: 'rel' | 'abs' | null` so both copy buttons can independently flash a confirmation tick. Keeps a single state variable instead of two.
+
+**Decision** — button order: Open · Copy rel · Copy abs · Download · Overflow. Matches workshop §3's pinned action order for media cards.
+
+**Decision** — tooltip relabel only when both copy buttons render. Existing 5 callers (image-card, video-card, audio-card, generic-card, folder-card) all supply only `onCopyPath` + `onDownload`, so they continue to show "Copy path" — zero UX change for the gallery.
+
+5 existing callers verified via grep: `image-card.tsx:75`, `generic-card.tsx:62`, `video-card.tsx:117`, `audio-card.tsx:56`, `folder-card.tsx:47`. None pass `onCopyAbsolutePath`, `onOpen`, or `overflowMenu`, so all continue to render exactly the same 2-button strip.
+
+**Evidence**: `tsc --noEmit` clean for `card-actions.tsx` and all preview-cards consumers.
+
 
