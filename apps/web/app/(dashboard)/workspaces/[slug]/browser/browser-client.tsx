@@ -55,6 +55,7 @@ import {
   FileText,
   FolderOpen,
   GitBranch,
+  History,
   Search,
   StickyNote,
   TerminalSquare,
@@ -768,6 +769,21 @@ function BrowserClientInner({
         })
       : null;
 
+    // Plan recent-changes-feed T030: openRecentFeed handler — sets ?view=recent-feed
+    // via the live setParams closure. Default keybinding registered in the
+    // file-browser contribution: $mod+Shift+KeyU.
+    const openRecentFeedCmd = fileBrowserContribution.commands.find(
+      (c) => c.id === 'file-browser.openRecentFeed'
+    );
+    const openRecentFeedReg = openRecentFeedCmd
+      ? sdk.commands.register({
+          ...openRecentFeedCmd,
+          handler: async () => {
+            setParams({ view: 'recent-feed' }, { history: 'push' });
+          },
+        })
+      : null;
+
     // FX001-3: Restart FlowSpace — handler closes over the live worktreePath
     // prop instead of URL-sniffing for `?worktree=`, which dashboard URLs
     // don't carry. Registered here for the same reason as openFileAtLine.
@@ -792,9 +808,30 @@ function BrowserClientInner({
       paletteReg.dispose();
       goToFileReg.dispose();
       openFileAtLineReg?.dispose();
+      openRecentFeedReg?.dispose();
       restartFlowspaceReg?.dispose();
     };
   }, [sdk, setParams, worktreePath]);
+
+  // Plan recent-changes-feed T031: open-on-launch — when the user lands on a
+  // workspace browser without a specific file or directory and the
+  // `fileBrowser.recentFeed.openOnLaunch` setting is true, show the feed.
+  // Uses sdk.settings.get to read the persisted value once on mount; not
+  // reactive (the user already opted in — toggling the setting only takes
+  // effect on the next workspace load).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional —
+  // first-mount-only effect keyed on (slug, worktreePath); see comment above.
+  useEffect(() => {
+    if (params.view) return; // already on a view
+    if (params.file || params.dir) return; // user already navigated somewhere
+    const openOnLaunch = sdk.settings.get(
+      'fileBrowser.recentFeed.openOnLaunch'
+    ) as boolean | undefined;
+    if (openOnLaunch) {
+      setParams({ view: 'recent-feed' }, { history: 'replace' });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, worktreePath]);
 
   // --- Panel refresh handler ---
 
@@ -1101,7 +1138,24 @@ function BrowserClientInner({
                 flowspace.setQuery(query, mode);
               }
             }}
-            rightActions={<QuestionPopperIndicator />}
+            rightActions={
+              <>
+                {/* Plan recent-changes-feed T029 — entrypoint button via the
+                    existing rightActions slot (no ExplorerPanel modification). */}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setParams({ view: 'recent-feed' }, { history: 'push' })
+                  }
+                  className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                  title="Recent Changes Feed (Cmd/Ctrl+Shift+U)"
+                  aria-label="Open Recent Changes Feed"
+                >
+                  <History className="h-4 w-4" />
+                </button>
+                <QuestionPopperIndicator />
+              </>
+            }
           />
         }
         left={

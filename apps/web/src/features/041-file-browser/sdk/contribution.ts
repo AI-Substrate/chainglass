@@ -42,6 +42,16 @@ export const fileBrowserContribution: SDKContribution = {
       icon: 'file-text',
     },
     {
+      // Plan recent-changes-feed T030 — LOCKED command name per Constitution Gate.
+      // Handler is registered in browser-client.tsx (where setParams lives).
+      id: 'file-browser.openRecentFeed',
+      title: 'Open Recent Changes Feed',
+      domain: 'file-browser',
+      category: 'Navigation',
+      params: z.object({}),
+      icon: 'history',
+    },
+    {
       id: 'file-browser.copyPath',
       title: 'Copy Current File Path',
       domain: 'file-browser',
@@ -206,5 +216,10 @@ export const fileBrowserContribution: SDKContribution = {
     // orchestrator reads the default. T028 documents this gap; v1.x can
     // surface multi-select if user demand emerges.
   ],
-  keybindings: [],
+  keybindings: [
+    // Plan recent-changes-feed T030 — Cmd/Ctrl+Shift+U ("Updates"). Verified
+    // not in conflict with existing keybindings (only pr-view's KeyR and
+    // notes's KeyL use $mod+Shift+...).
+    { key: '$mod+Shift+KeyU', command: 'file-browser.openRecentFeed' },
+  ],
 };

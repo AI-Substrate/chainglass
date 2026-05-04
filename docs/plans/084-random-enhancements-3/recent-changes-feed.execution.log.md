@@ -378,6 +378,28 @@ UI types: `number` for numeric settings (feedSize, feedCeiling, excerpt limits, 
 
 **Evidence**: tsc clean for both files. The settings appear in the existing settings page under section "Recent Changes Feed" the next time the SettingsPage is rendered (no extra wiring needed — `sdk.settings.list()` returns the new entries via the contribution registration).
 
+### T029-T031 — Entrypoints (button + USDK + open-on-launch)
+
+Three concurrent entrypoints (AC A2 binding) wired in browser-client.tsx + sdk/contribution.ts:
+
+**T029 — top-bar button**: rendered via the existing `rightActions` slot ExplorerPanel publishes (currently used by `QuestionPopperIndicator`). History icon, `aria-label="Open Recent Changes Feed"`, click sets `?view=recent-feed` via `setParams`. **Plan deviation**: avoided modifying `_platform/panel-layout/components/explorer-panel.tsx` — the slot was already there. Net: ZERO cross-domain modifications for this task. Plan task row updated.
+
+**T030 — USDK command + keybinding**:
+- Manifest entry in `sdk/contribution.ts`: `{ id: 'file-browser.openRecentFeed', title: 'Open Recent Changes Feed', icon: 'history', params: z.object({}) }`. Constitution Gate command-name LOCK satisfied.
+- Keybinding `$mod+Shift+KeyU` (Updates) — Finding 09 conflict check: only existing `$mod+Shift+...` keybindings are pr-view's `KeyR` and notes' `KeyL`. `KeyU` is conflict-free; `KeyR`/`KeyF` would have collided with browser reload/find.
+- Handler registered in `browser-client.tsx` alongside the existing palette/goToFile/openFileAtLine/restartFlowspace handlers, with a closure over the live `setParams`. Disposed on unmount.
+
+**T031 — open-on-launch routing**: one-shot `useEffect` keyed on `(slug, worktreePath)`:
+- Skips if `params.view` is already set (user just navigated in).
+- Skips if `params.file` or `params.dir` is set (user wanted a specific file/dir).
+- Reads `sdk.settings.get('fileBrowser.recentFeed.openOnLaunch')`; if `true`, sets `?view=recent-feed` with `history: 'replace'` (so back-button takes the user out of the workspace, not back to the implicit landing without the feed).
+
+**Decision** — open-on-launch is non-reactive on purpose. Toggling the setting from inside an active workspace doesn't immediately open the feed (the user explicitly didn't open it). The setting takes effect on next workspace landing. Less surprising behavior, smaller blast radius.
+
+**Decision** — `sdk.settings.get` doesn't accept a generic; cast at the call site to `boolean | undefined`. Same pattern `useSDKSetting` uses internally (`as T`).
+
+**Evidence**: tsc clean (only pre-existing TS2339 at lines 517-518 — `fileNav.fileData?.content` — same as before).
+
 
 
 ---
