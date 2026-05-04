@@ -202,3 +202,139 @@ describe('useTerminalSessions — FX005 selection persistence', () => {
     expect(last?.searchParams?.get('session')).toBeNull();
   });
 });
+
+describe('useTerminalSessions — FX006 worktree-folder auto-pick', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('hook.worktree-beats-branch: worktree-folder match wins when both candidates exist', async () => {
+    // Both `higgs-jordo` (worktree-folder) and `older-session` exist; the
+    // branch happens to also be `higgs-jordo` (so branch-match would
+    // resolve to the same session) but we assert the resolution order
+    // by verifying the older-session does NOT win even though it has a
+    // lower `created` than `higgs-jordo`.
+    mockFetchOnce([
+      { name: 'older-session', attached: 0, windows: 1, created: 100 },
+      { name: 'higgs-jordo', attached: 0, windows: 1, created: 200 },
+    ]);
+    const onUrlUpdate = vi.fn();
+    const { result } = renderHook(
+      () =>
+        useTerminalSessions({
+          currentBranch: 'higgs-jordo',
+          worktreePath: '/Users/jordanknight/github/higgs-jordo',
+        }),
+      { wrapper: makeWrapper('', onUrlUpdate) }
+    );
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.selectedSession).toBe('higgs-jordo');
+  });
+
+  it('hook.branch-fallback: worktree-folder has no match → branch-match wins over enriched[0]', async () => {
+    mockFetchOnce([
+      { name: 'apple', attached: 0, windows: 1, created: 100 },
+      { name: 'main', attached: 0, windows: 1, created: 200 },
+    ]);
+    const onUrlUpdate = vi.fn();
+    const { result } = renderHook(
+      () =>
+        useTerminalSessions({
+          currentBranch: 'main',
+          // The worktree folder is `no-match-folder` — no session named that.
+          worktreePath: '/path/to/no-match-folder',
+        }),
+      { wrapper: makeWrapper('', onUrlUpdate) }
+    );
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.selectedSession).toBe('main');
+  });
+
+  it('hook.no-worktree: worktreePath omitted → folder-match candidate skipped, branch-match still resolves', async () => {
+    mockFetchOnce([
+      { name: 'apple', attached: 0, windows: 1, created: 100 },
+      { name: 'main', attached: 0, windows: 1, created: 200 },
+    ]);
+    const onUrlUpdate = vi.fn();
+    const { result } = renderHook(
+      // Intentionally not passing `worktreePath` — the optional-arg
+      // back-compat path. Helper returns `''`, no session matches that,
+      // folder-match candidate is inert, falls through to branch-match.
+      () => useTerminalSessions({ currentBranch: 'main' }),
+      { wrapper: makeWrapper('', onUrlUpdate) }
+    );
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.selectedSession).toBe('main');
+  });
+
+  it('hook.user-higgs-bug: the exact higgs-jordo regression — picks higgs-jordo, not osk-data', async () => {
+    // Fixture matches the user's actual environment: branch is `main`
+    // (no session named `main`), worktree is higgs-jordo, sessions
+    // sorted FX005-1 ascending by `created`. Pre-FX006 the auto-pick
+    // would land on `osk-data` (enriched[0]). Post-FX006 it lands on
+    // `higgs-jordo` via the worktree-folder match.
+    mockFetchOnce([
+      { name: 'osk-data', attached: 0, windows: 1, created: 100 },
+      { name: '084-random-enhancements-3', attached: 0, windows: 1, created: 200 },
+      { name: 'higgs-jordo', attached: 0, windows: 1, created: 300 },
+    ]);
+    const onUrlUpdate = vi.fn();
+    const { result } = renderHook(
+      () =>
+        useTerminalSessions({
+          currentBranch: 'main',
+          worktreePath: '/Users/jordanknight/github/higgs-jordo',
+        }),
+      { wrapper: makeWrapper('', onUrlUpdate) }
+    );
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.selectedSession).toBe('higgs-jordo');
+    // Negative assertions — ensures the bug is actually fixed, not just
+    // accidentally passing because both candidates point to the same
+    // session.
+    expect(result.current.selectedSession).not.toBe('osk-data');
+    expect(result.current.selectedSession).not.toBe('084-random-enhancements-3');
+  });
+
+  it('hook.worktree-and-branch-both-match: same session — no double URL write', async () => {
+    // Rare case: `foo` is the worktree folder AND the branch name AND a
+    // live session. Both candidates resolve to the same name; the
+    // resolution order is irrelevant for the final value. Verify the
+    // URL is written exactly once for the auto-pick (no double-write).
+    mockFetchOnce([
+      { name: 'other', attached: 0, windows: 1, created: 100 },
+      { name: 'foo', attached: 0, windows: 1, created: 200 },
+    ]);
+    const onUrlUpdate = vi.fn();
+    const { result } = renderHook(
+      () =>
+        useTerminalSessions({
+          currentBranch: 'foo',
+          worktreePath: '/path/foo',
+        }),
+      { wrapper: makeWrapper('', onUrlUpdate) }
+    );
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.selectedSession).toBe('foo');
+    // Auto-pick writes once. (The hook also reads the URL on mount,
+    // which the adapter does not count as an `onUrlUpdate` call.)
+    const fooWrites = onUrlUpdate.mock.calls.filter(
+      (call) => call[0]?.searchParams?.get('session') === 'foo'
+    );
+    expect(fooWrites.length).toBe(1);
+  });
+});

@@ -2,10 +2,21 @@
 
 import { parseAsString, useQueryState } from 'nuqs';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { sessionNameFromWorktreePath } from '../lib/session-name-from-worktree-path';
 import type { TerminalSession } from '../types';
 
 interface UseTerminalSessionsOptions {
   currentBranch: string;
+  /**
+   * Absolute filesystem path of the active worktree (e.g.
+   * `/Users/x/github/higgs-jordo`). Used by FX006's auto-pick to match
+   * sessions against the worktree-folder basename — the convention used
+   * by `tmux new-session -A -s <basename>` elsewhere in the domain.
+   * Optional for back-compat with callers that haven't been wired yet;
+   * when omitted, the auto-pick falls back to the pre-FX006 branch-name
+   * match.
+   */
+  worktreePath?: string;
 }
 
 interface UseTerminalSessionsReturn {
@@ -43,15 +54,27 @@ interface UseTerminalSessionsReturn {
 /**
  * tmux session list + current selection.
  *
+ * Auto-pick resolution order (whichever matches first wins):
+ * 1. URL `?session=<name>` — if stored and the named session still exists
+ *    (FX005-2; URL persistence). Stored phantoms are cleared.
+ * 2. **Worktree-folder match** — `s.name === sessionNameFromWorktreePath(worktreePath)`.
+ *    Aligns with the convention used by `tmux new-session -A -s <basename>`
+ *    elsewhere in the domain (FX006). Skipped when no `worktreePath` is
+ *    provided (helper returns empty string, which can't equal any session
+ *    name).
+ * 3. Branch-name match — `s.name === currentBranch`. Fallback for users who
+ *    manually maintain branch-named sessions, or for callers that haven't
+ *    yet been wired to pass `worktreePath`.
+ * 4. `enriched[0]` — first stable-sorted session (FX005-1: created asc with
+ *    name as tiebreaker). Last resort.
+ *
  * History (FX005): `selectedSession` was previously local component state
  * which meant on mobile — where the Terminal tab is `lazy: true` and the
  * browser may reclaim the page during sleep — the rehydrated mount lost
  * the user's choice and re-ran the auto-pick fallback. The fallback fell
  * through to `enriched[0]` against an unstably-ordered `tmux list-sessions`
  * response, so the user landed in a different session each wake. The
- * fallback is now stable-sorted (FX005-1) and the selection is URL-backed
- * via the dormant `terminalParams.session` entry that already existed in
- * `terminal.params.ts`.
+ * fallback is now stable-sorted (FX005-1) and the selection is URL-backed.
  *
  * The auto-pick logic also captured `selectedSession` in the
  * `fetchSessions` callback's closure (via the deps array), which on
@@ -59,9 +82,18 @@ interface UseTerminalSessionsReturn {
  * value. The stored name is now mirrored through a `useRef` that's
  * synced during render, so async fetch callbacks always read the
  * current selection regardless of when the callback was bound.
+ *
+ * History (FX006): pre-FX006 the auto-pick was a single branch-match
+ * candidate via a misnamed `isCurrentWorktree` boolean — "current
+ * worktree" was actually computed as `s.name === currentBranch`, so on
+ * any worktree where the branch name doesn't match a session the
+ * auto-pick fell through to `enriched[0]`. The flag is now split into
+ * `isWorktreeFolderMatch` + `isBranchMatch` and the auto-pick prefers
+ * the worktree-folder convention.
  */
 export function useTerminalSessions({
   currentBranch,
+  worktreePath,
 }: UseTerminalSessionsOptions): UseTerminalSessionsReturn {
   const [sessions, setSessions] = useState<TerminalSession[]>([]);
   const [loading, setLoading] = useState(true);
@@ -99,10 +131,16 @@ export function useTerminalSessions({
 
       setTmuxAvailable(data.tmux !== false);
 
+      // FX006: derive both match flags up-front. `worktreeFolderName` is
+      // empty when no path was provided, which makes the folder-match
+      // candidate naturally inert in that case.
+      const worktreeFolderName = sessionNameFromWorktreePath(worktreePath);
+
       const enriched: TerminalSession[] = (data.sessions ?? []).map(
         (s: { name: string; attached: number; windows: number; created: number }) => ({
           ...s,
-          isCurrentWorktree: s.name === currentBranch,
+          isWorktreeFolderMatch: worktreeFolderName !== '' && s.name === worktreeFolderName,
+          isBranchMatch: s.name === currentBranch,
         })
       );
 
@@ -129,11 +167,15 @@ export function useTerminalSessions({
         return;
       }
 
-      // Auto-pick: prefer the worktree-name match; otherwise fall through
-      // to the first stable-sorted session (sort applied server-side per
-      // FX005-1).
-      const matchWorktree = enriched.find((s) => s.isCurrentWorktree);
-      const next = matchWorktree?.name ?? enriched[0]?.name;
+      // FX006 auto-pick order: worktree-folder match → branch-name match
+      // → first stable-sorted (FX005-1). Worktree-folder wins because it
+      // aligns with the `tmux new-session -A -s <basename>` convention
+      // the WS sidecar uses to create sessions. Branch-match is kept as
+      // a fallback for users who manually name sessions after their
+      // branch.
+      const matchFolder = enriched.find((s) => s.isWorktreeFolderMatch);
+      const matchBranch = enriched.find((s) => s.isBranchMatch);
+      const next = matchFolder?.name ?? matchBranch?.name ?? enriched[0]?.name;
       if (next) {
         setStoredName(next);
       }
@@ -147,7 +189,7 @@ export function useTerminalSessions({
     // it would re-create the callback on every URL change, which (a) re-runs
     // the focus-listener wiring for no benefit and (b) was the source of the
     // wake-from-sleep stale-closure bug we're fixing.
-  }, [currentBranch, setStoredName]);
+  }, [currentBranch, worktreePath, setStoredName]);
 
   useEffect(() => {
     mountedRef.current = true;

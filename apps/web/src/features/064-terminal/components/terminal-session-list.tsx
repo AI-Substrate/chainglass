@@ -59,7 +59,7 @@ export function TerminalSessionList({
             aria-label={session.attached > 0 ? 'attached' : 'detached'}
           />
           <span className="min-w-0 truncate">{session.name}</span>
-          {session.isCurrentWorktree && (
+          {(session.isWorktreeFolderMatch || session.isBranchMatch) && (
             <span className="ml-auto shrink-0 rounded bg-blue-500/10 px-1 text-[10px] text-blue-600 dark:text-blue-400">
               current
             </span>
