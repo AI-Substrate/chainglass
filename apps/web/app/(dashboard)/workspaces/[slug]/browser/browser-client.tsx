@@ -771,7 +771,9 @@ function BrowserClientInner({
 
     // Plan recent-changes-feed T030: openRecentFeed handler — sets ?view=recent-feed
     // via the live setParams closure. Default keybinding registered in the
-    // file-browser contribution: $mod+Shift+KeyU.
+    // file-browser contribution: $mod+Shift+KeyU. Also closes the terminal
+    // overlay if it's currently popped (the feed and the terminal both want
+    // the main panel; closing prevents a stacking order surprise).
     const openRecentFeedCmd = fileBrowserContribution.commands.find(
       (c) => c.id === 'file-browser.openRecentFeed'
     );
@@ -779,6 +781,7 @@ function BrowserClientInner({
       ? sdk.commands.register({
           ...openRecentFeedCmd,
           handler: async () => {
+            window.dispatchEvent(new CustomEvent('terminal:close'));
             setParams({ view: 'recent-feed' }, { history: 'push' });
           },
         })
@@ -1141,12 +1144,14 @@ function BrowserClientInner({
             rightActions={
               <>
                 {/* Plan recent-changes-feed T029 — entrypoint button via the
-                    existing rightActions slot (no ExplorerPanel modification). */}
+                    existing rightActions slot (no ExplorerPanel modification).
+                    Closes the terminal overlay if popped — same panel. */}
                 <button
                   type="button"
-                  onClick={() =>
-                    setParams({ view: 'recent-feed' }, { history: 'push' })
-                  }
+                  onClick={() => {
+                    window.dispatchEvent(new CustomEvent('terminal:close'));
+                    setParams({ view: 'recent-feed' }, { history: 'push' });
+                  }}
                   className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
                   title="Recent Changes Feed (Cmd/Ctrl+Shift+U)"
                   aria-label="Open Recent Changes Feed"

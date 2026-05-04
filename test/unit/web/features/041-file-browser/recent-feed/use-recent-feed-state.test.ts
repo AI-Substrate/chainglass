@@ -84,6 +84,12 @@ describe('isFilteredPath', () => {
     ['models/graph.pickle', true],
     ['cache/state.pkl', true],
     ['__pycache__/foo.pyc', true],
+    // .tmp.* and trailing .tmp filtered.
+    ['state.tmp.json', true],
+    ['cache/data.tmp.yaml', true],
+    ['draft.tmp', true],
+    // …but '.tmp' as a segment substring elsewhere is fine.
+    ['attempt-1/file.txt', false],
     // Paths that must NOT be filtered.
     ['src/components/foo.tsx', false],
     ['docs/recent-changes-feed.md', false],

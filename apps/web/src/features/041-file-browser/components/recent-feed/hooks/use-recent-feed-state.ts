@@ -78,6 +78,9 @@ const FILTERED_EXTENSIONS: ReadonlySet<string> = new Set([
   'pyo',
 ]);
 
+/** Matches `.tmp.<ext>` or trailing `.tmp` in a single path segment. */
+const TMP_FILE_RE = /\.tmp\.|\.tmp$/i;
+
 /**
  * Returns true when the path should be ignored entirely.
  *
@@ -88,6 +91,8 @@ const FILTERED_EXTENSIONS: ReadonlySet<string> = new Set([
  *      whether at root or nested (`apps/web/node_modules/foo`).
  *   3. Generated cache extensions (.pickle / .pkl / .pyc / .pyo) since the
  *      feed is for human-readable change review, not bytecode noise.
+ *   4. Temp files: any segment containing `.tmp.` or ending in `.tmp`
+ *      (e.g., `state.tmp.json`, `data.tmp`).
  */
 export function isFilteredPath(path: string): boolean {
   // Rule 1 — any dot-prefixed segment.
@@ -106,6 +111,9 @@ export function isFilteredPath(path: string): boolean {
     const ext = path.slice(dotIdx + 1).toLowerCase();
     if (FILTERED_EXTENSIONS.has(ext)) return true;
   }
+
+  // Rule 4 — temp files (.tmp.<ext> or trailing .tmp).
+  if (path.split('/').some((seg) => TMP_FILE_RE.test(seg))) return true;
 
   return false;
 }
