@@ -110,6 +110,44 @@ Replaced **`recent-feed-view.tsx`** stub body with the seeded orchestrator:
 
 **Evidence**: `npx vitest run` 10/10 green, 2ms test execution.
 
+### T015 — TDD live-merge reducer (`useRecentFeedState`)
+
+`apps/web/src/features/041-file-browser/components/recent-feed/hooks/use-recent-feed-state.ts` + `test/unit/web/features/041-file-browser/recent-feed/use-recent-feed-state.test.ts`. **34/34 tests pass in 3ms.**
+
+**Reducer actions** (8 types — `FeedAction`):
+- `INIT` — seed items, drop dismissed + filtered, cap at ceiling.
+- `EVENT_BATCH` — process N events: filter at intake (addDir/unlinkDir + build-artifact paths), then merge each event with promote/insert/delete semantics; ceiling enforcement at the end. Single dispatch per burst.
+- `PAUSE` / `RESUME` — RESUME drains buffer in arrival order (oldest-first iteration over buffer reversed) so the newest buffered event lands at items[0].
+- `CLEAR_DELETED` — auto-removal timer fires; only removes a path that's in the deleted state (idempotent).
+- `SET_CEILING` — re-trim items if exceeded.
+- `SET_DISCONNECTED` — UI banner toggle (T019).
+- `DISMISS` — adds to dismissed set, removes from items + buffer, blocks future events for that path.
+
+**Filtering** (Findings 06 + 10):
+- `isIntakeFiltered`: `addDir`/`unlinkDir` events dropped (Finding 10); build-artifact paths dropped (Finding 06 — Risk M2 in validation).
+- `isFilteredPath` matches `node_modules/`, `.next/`, `.turbo/`, `.cache/`, `dist/`, `build/`, `coverage/` as path PREFIX or after `/` separator. Substring matches (`build-tools/`, `notes-distinct/`) intentionally do NOT trigger — verified in 13 parameterized cases.
+
+**Buffer coalescence during PAUSE**: multiple events for the same path collapse to one entry — newest wins. So `add` → `change` → `unlink` for a single file during a pause buffers as a single deleted entry, not three.
+
+**Burst coalescing (AC G3)**: the reducer guarantees one dispatch per `EVENT_BATCH`. The hook layer (`useRecentFeedState`) batches raw `pushEvent(...)` calls onto the next animation frame (or microtask in jsdom), so 50 raw events fired synchronously result in one rAF, one EVENT_BATCH, one render. Pure reducer is deterministic: `events.length === 50` ⇒ exactly one state transition.
+
+**Decision** — exported `isFilteredPath` and `isIntakeFiltered` so T017's integration test can lock the same predicate without re-deriving it. Future `.gitignore`-aware filter swap-in (workshop §11 Q6 follow-up) lands in this single function.
+
+**Decision** — `pushEvent` always queues on rAF/microtask, never dispatches synchronously. Even a single event pays the 16ms latency cost in exchange for guaranteed coalescing of any concurrent events. Trade-off: visible promotion is slightly delayed (16ms) but burst behavior is deterministic.
+
+**Decision** — `eventToFeedItem` reuses `detectFeedItemKind` from `services/recent-feed-items.ts` (extension dispatch). Single source of truth for kind classification across seed + live merge.
+
+**Test coverage** (34):
+- `isFilteredPath`: 13 cases (positive matches, nested matches, substring negatives).
+- `isIntakeFiltered`: 3 cases (addDir/unlinkDir/file).
+- `INIT`: 2 cases (seed with dismissed/filtered drop, ceiling cap).
+- `EVENT_BATCH`: 7 cases (promote/insert/unlink/dir-filter/artifact-filter/50-event-burst/ceiling-eviction).
+- Dismissed-path block.
+- `PAUSE`/`RESUME`: drain order, intra-buffer coalescence.
+- `CLEAR_DELETED`/`SET_CEILING`/`DISMISS`: 3 cases.
+
+**Evidence**: `npx vitest run` 34/34 in 3ms.
+
 
 
 ---
