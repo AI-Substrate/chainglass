@@ -27,14 +27,21 @@ export function ImagePreview({ item, rawFileUrl }: ImagePreviewProps) {
   const [error, setError] = useState(false);
 
   return (
-    <div className="flex items-center justify-center bg-muted/30 max-h-[60vh] overflow-hidden">
+    // No flexbox on the wrapper — `min-width: auto` on flex items defaults
+    // to the intrinsic content size, which fights max-w/max-h when the
+    // image is taller than wide and produces visible letterboxing or
+    // stretching. A plain block wrapper with `text-align: center` (Tailwind
+    // `text-center`) lets the inline image size itself by `max-w-full`/
+    // `max-h-[60vh]` cleanly while preserving aspect ratio.
+    <div className="bg-muted/30 max-h-[60vh] overflow-hidden text-center">
       {!error && (
         // biome-ignore lint/a11y/useAltText: alt is set dynamically below; pattern matches the rest of the codebase
         <img
           src={rawFileUrl}
           alt={item.name}
           className={cn(
-            'max-w-full max-h-[60vh] object-contain transition-opacity duration-200',
+            'inline-block w-auto h-auto max-w-full max-h-[60vh] object-contain align-middle',
+            'transition-opacity duration-200',
             loaded ? 'opacity-100' : 'opacity-0'
           )}
           loading="lazy"
