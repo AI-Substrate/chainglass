@@ -248,6 +248,30 @@ Server action `fetchFileExcerpt(worktreePath, filePath, mode)` registered in `ap
 
 **Evidence**: `npx vitest run` 32/32 in 11ms.
 
+### T021-T023 — Markdown / code / deleted preview cards
+
+Three new files under `previews/`. RecentFeedView updated to dispatch on `kind` AND `eventType==='deleted'`:
+
+- **`markdown-excerpt-card.tsx`** — useLazyLoad + fetchFileExcerpt('excerpt'). Renders truncated markdown as `<pre>` whitespace-pre-wrap with fade-out gradient. Loading / error / ready states. Full markdown rendering (Mermaid + Shiki + tables) deferred to v1.x — workshop §2 binding visual treatment honored (excerpt + gradient).
+- **`code-excerpt-card.tsx`** — symmetric to markdown but with `whitespace-pre overflow-x-auto` and `data-language={lang}`. Shiki HTML rendering deferred — server returns raw text bounded by codeLines (default 12).
+- **`deleted-preview.tsx`** — strikethrough mini-card with Trash2 icon. `useEffect` timer fires `onClearDeleted(path)` after `deletedWindowMs` (default 5000ms). `Infinity` disables the timer ("Until dismissed" setting per workshop §9). Orchestrator dispatches `CLEAR_DELETED` to the reducer (T015) which removes the deleted entry.
+
+RecentFeedView dispatch updated:
+- `eventType === 'deleted'` short-circuits to DeletedPreview regardless of kind.
+- `kind === 'markdown'` → MarkdownExcerptCard.
+- `kind === 'code'` → CodeExcerptCard.
+- Other kinds unchanged (image/video/audio/binary).
+
+**Decision** — Mermaid/Shiki rendering deferred. Reasons: (1) v1 ships excerpts as text — workshop §2 says "fade-out gradient hinting more content"; users click-to-open for full rendering. (2) Adding Mermaid+Shiki to every excerpt card would re-trigger the cold-start latency Finding 12 already flagged. (3) FileViewerPanel already does full rendering — single place to maintain.
+
+**Decision** — fetchFileExcerpt called from inside the card (per-card fetch on viewport entry) rather than batched at the orchestrator level. Trade-off: more server round-trips but each fires only when the card scrolls into view. content-visibility:auto + useLazyLoad keep this bounded.
+
+**Decision** — DeletedPreview takes `onClearDeleted` callback rather than `dispatch` directly, so it stays a dumb component. Orchestrator wires the dispatch.
+
+**Plan path note** — relative-import depth from `previews/` to `app/actions/` is 6 `../`s (one deeper than from `recent-feed/`). Verified via `realpath`.
+
+**Evidence**: tsc clean across all 4 modified files.
+
 
 
 ---

@@ -43,7 +43,10 @@ import { RecentFeedHeader } from './recent-feed-header';
 import { RecentFeedList } from './recent-feed-list';
 import { AudioPreview } from './previews/audio-preview';
 import { BinaryPreview } from './previews/binary-preview';
+import { CodeExcerptCard } from './previews/code-excerpt-card';
+import { DeletedPreview } from './previews/deleted-preview';
 import { ImagePreview } from './previews/image-preview';
+import { MarkdownExcerptCard } from './previews/markdown-excerpt-card';
 import { VideoPreview } from './previews/video-preview';
 import type { FeedItem } from './types';
 
@@ -281,6 +284,16 @@ export function RecentFeedView({
             renderItem={(item) => {
               const url = rawFileUrlFor(item.path);
               const preview = (() => {
+                if (item.eventType === 'deleted') {
+                  return (
+                    <DeletedPreview
+                      item={item}
+                      onClearDeleted={(path) =>
+                        dispatch({ type: 'CLEAR_DELETED', path })
+                      }
+                    />
+                  );
+                }
                 switch (item.kind) {
                   case 'image':
                     return <ImagePreview item={item} rawFileUrl={url} />;
@@ -289,8 +302,9 @@ export function RecentFeedView({
                   case 'audio':
                     return <AudioPreview item={item} rawFileUrl={url} />;
                   case 'markdown':
+                    return <MarkdownExcerptCard item={item} worktreePath={worktreePath} />;
                   case 'code':
-                    return <BinaryPreview item={item} />;
+                    return <CodeExcerptCard item={item} worktreePath={worktreePath} />;
                   default:
                     return <BinaryPreview item={item} />;
                 }
