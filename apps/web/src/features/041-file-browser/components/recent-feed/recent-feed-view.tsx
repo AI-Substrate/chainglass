@@ -40,6 +40,7 @@ import { FeedEmptyState } from './feed-empty-state';
 import { FeedErrorState } from './feed-error-state';
 import { FeedSkeleton } from './feed-skeleton';
 import { useFeedActions } from './hooks/use-feed-actions';
+import { useFeedKeyboard } from './hooks/use-feed-keyboard';
 import { useRecentFeedState } from './hooks/use-recent-feed-state';
 import {
   type FilterCategory,
@@ -181,8 +182,24 @@ export function RecentFeedView({
         window.dispatchEvent(new CustomEvent('recent-feed:reveal-in-tree', { detail: { path } }))),
   });
 
+  // T026: feed-root keyboard handler. Roving focus + per-card letter shortcuts.
+  const handleKeyDown = useFeedKeyboard({ visibleItems, actions });
+
   return (
-    <div role="feed" aria-busy={state.isLoading} className="flex flex-col h-full overflow-hidden">
+    <div
+      role="feed"
+      aria-busy={state.isLoading}
+      aria-label="Recent changes"
+      className="flex flex-col h-full overflow-hidden"
+      onKeyDown={handleKeyDown}
+    >
+      {/* T027 — polite live region announcing new items as they arrive.
+          Visually hidden but exposed to screen readers. */}
+      <div className="sr-only" role="status" aria-live="polite" aria-atomic="false">
+        {state.items.length > 0 && state.items[0]?.eventType === 'added'
+          ? `New file added: ${state.items[0].name}`
+          : ''}
+      </div>
       <RecentFeedHeader
         itemCount={visibleItems.length}
         isLive={isGit && !state.isDisconnected}
@@ -299,3 +316,6 @@ export function RecentFeedView({
 }
 
 export default RecentFeedView;
+// Re-export so the orchestrator's neighbouring code can also reach the hook.
+export { useFeedActions } from './hooks/use-feed-actions';
+export { useFeedKeyboard } from './hooks/use-feed-keyboard';

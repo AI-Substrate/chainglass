@@ -108,11 +108,17 @@ export function FeedCard({
       // biome-ignore lint/a11y/useSemanticElements: complex card surface; <article> + role="article" set explicitly for the feed-level a11y contract (T027 — H1).
       role="article"
       aria-labelledby={titleId}
+      // T026: tabIndex + data-feed-card-path enable roving-focus keyboard nav.
+      tabIndex={0}
+      data-feed-card-path={item.path}
       className={cn(
         'group relative rounded-xl border border-border bg-card overflow-hidden',
         'shadow-sm transition-all duration-200',
         'hover:shadow-md hover:border-ring',
+        'focus:outline-2 focus:outline-ring focus:outline-offset-2',
         'focus-within:outline-2 focus-within:outline-ring focus-within:outline-offset-2',
+        // T027: prefers-reduced-motion disables hover lift/scale; only opacity flash remains.
+        'motion-reduce:transition-none',
         isDeleted && 'opacity-70',
         className
       )}

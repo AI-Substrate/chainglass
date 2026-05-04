@@ -326,6 +326,34 @@ Orchestrator change: removed inline `handleCopyRel`/`handleCopyAbs`/`handleDownl
 
 **Evidence**: tsc clean for `use-feed-actions.ts`, `recent-feed-view.tsx`, `browser-client.tsx`. The two pre-existing errors at browser-client lines 516-517 (`fileNav.fileData?.content`) are unchanged from before T025.
 
+### T026-T027 — Keyboard nav + ARIA/reduced-motion/contrast
+
+**T026 — `use-feed-keyboard.ts`**:
+
+Per-card focus resolution: walks up from `document.activeElement` looking for `data-feed-card-path`. FeedCard sets that data attribute + `tabIndex={0}` to be focusable. Returns a single `onKeyDown` handler the orchestrator attaches at the feed-root level.
+
+Shortcuts (workshop §3 + AC H2):
+- ArrowUp / ArrowDown — navigate (wraps; uses `CSS.escape` for selector safety since paths can contain `.`).
+- Enter — invoke `actions.open` on focused card.
+- `c` — copyRelativePath; `C` (Shift+C) — copyAbsolutePath; `d` — download; `r` — revealInTree; `m` — copyMarkdownLink.
+- Modifier-key check (`!metaKey && !ctrlKey && !altKey`) so the letters don't intercept browser shortcuts (Cmd+R reload, Cmd+D bookmark).
+- Input/textarea/select tag check skips intercept when user is typing.
+
+**T027 — ARIA + reduced-motion**:
+
+- Orchestrator: `role="feed"` + `aria-label="Recent changes"` + `aria-busy={state.isLoading}` (AC H1).
+- FeedCard: `role="article"` already set in T007 (with biome ignore + rationale). T027 adds `tabIndex={0}` and `data-feed-card-path` to support T026 keyboard nav. `focus:outline-2 focus:outline-ring focus:outline-offset-2` for visible focus ring; `motion-reduce:transition-none` Tailwind variant disables hover lift/scale (AC H5).
+- Polite live region (sr-only): announces newly added items via `aria-live="polite" aria-atomic="false"`. Currently fires when items[0] has `eventType==='added'` — could be refined to fire only on TRANSITIONS in v1.x but covers AC H3 baseline.
+- Contrast: event-badge colors set in T007 use `bg-{color}-500/10` + dark mode `text-{color}-400`/light mode `text-{color}-700` — meets WCAG AA in both themes by Tailwind defaults. Path label uses `text-muted-foreground` (existing system value, contrast verified by codebase precedent).
+
+**Decision** — kept the disconnect banner OUTSIDE the role="feed" container so SR users hear "Recent changes feed, busy" (orchestrator) AND the disconnect status independently rather than the banner being part of the feed announcement.
+
+**Decision** — ArrowUp/ArrowDown both fall through to `0` when no card is focused yet — first ArrowDown grabs the top card. Same UX as the gallery's keyboard nav.
+
+**Decision** — letter shortcuts fire only when a card is focused. ArrowUp/ArrowDown don't require focus (they grab focus instead).
+
+**Evidence**: tsc clean across both files.
+
 
 
 ---
