@@ -49,7 +49,7 @@ stateDiagram-v2
 ## Stages
 
 - [x] **Stage 1: Stable-sort API response** — sort `tmux list-sessions` output by `created` ascending in the `/api/terminal` route handler (`app/api/terminal/route.ts`). Add unit test for ordering.
-- [x] **Stage 2: Persist selection + drop stale closure** — back `selectedSession` with `nuqs` `?term=<name>`, mirror it through a ref so `fetchSessions` doesn't depend on it, validate on every refetch, only fall back when the stored session is gone (`hooks/use-terminal-sessions.ts`). Add 4 regression tests.
+- [x] **Stage 2: Persist selection + drop stale closure** — back `selectedSession` with `nuqs` `?session=<name>`, mirror it through a ref so `fetchSessions` doesn't depend on it, validate on every refetch, only fall back when the stored session is gone (`hooks/use-terminal-sessions.ts`). Add 4 regression tests.
 - [x] **Stage 3: Verify both call sites + harness** — confirm mobile + desktop inherit selection without extra wiring; add a "wake-from-sleep persists session" assertion to `harness/agents/mobile-ux-audit/prompt.md` Section 5.
 
 ---
@@ -75,8 +75,8 @@ flowchart LR
     subgraph After["After FX005"]
         BC2["browser-client.tsx<br/>(mobile, lazy)"]:::existing
         TPC2["terminal-page-client.tsx<br/>(desktop)"]:::existing
-        H2["useTerminalSessions<br/>nuqs ?term= +<br/>ref-stabilised callback"]:::changed
-        URL["URL ?term=&lt;name&gt;"]:::new
+        H2["useTerminalSessions<br/>nuqs ?session= +<br/>ref-stabilised callback"]:::changed
+        URL["URL ?session=&lt;name&gt;<br/>(via existing terminalParams)"]:::new
         API2["/api/terminal<br/>sorted by created asc"]:::changed
         BC2 --> H2
         TPC2 --> H2
@@ -94,7 +94,7 @@ flowchart LR
 - [ ] Mobile sleep/wake preserves the selected session.
 - [ ] Mobile selection survives a hard refresh (URL-backed).
 - [ ] If the stored session is killed externally, hook falls back gracefully and updates the URL.
-- [ ] Desktop deep-link `/workspaces/<slug>/terminal?term=foo` mounts with `foo` selected.
+- [ ] Desktop deep-link `/workspaces/<slug>/terminal?session=foo` mounts with `foo` selected.
 - [ ] `/api/terminal` ordering is deterministic across consecutive calls.
 - [ ] 4 new hook regression tests + 1 API ordering test pass.
 

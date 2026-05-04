@@ -85,3 +85,29 @@ Cases covered:
 | review-request: FX005-1 2865ebb1 | 2026-05-04T06:00:03Z | — | — | no reply (pending drain) | Will surface in farewell |
 | review-request: FX005-2 f35fd264 | 2026-05-04T06:07:23Z | — | — | no reply (pending drain) | Will surface in farewell |
 | review-request: FX005-3 (post-commit) | (TBD) | — | — | (TBD) | Final ping post-commit |
+
+### Companion run 1 (2026-05-04T15-57-06-931Z-0a24): DEAD-AT-BOOT
+
+First companion run died ~4s into boot — Copilot CLI provider stream truncated mid-token at 05:57:10.535 ("...idle for"). Last events are 159 `text_delta` lines all from the same first-turn message; no `assistant.streaming_complete`, no `tool_use`, no inbox poll. PID (55547) was not in `ps`. `run.json` still claimed `status: active` because nothing transitioned it to dead — the `minih status` liveness check is config-only, not pid-aware.
+
+Likely contention with another concurrent `--resume=minih` Copilot CLI session (pid 93588) on the same machine. **minih bug #1 to file**: `minih status` should pid-probe before reporting `verdict: 'active'`, otherwise dead runs look healthy.
+
+Fallback per skill: log deviation, retry boot.
+
+### Companion run 2 (2026-05-04T16-16-02-885Z-9355): healthy review, 2 findings
+
+Fresh boot at 06:16:02 (pid 19589, 575 events streamed). Companion oriented (file-view tools — shell denied), published idle, polled inbox. Briefing arrived at 06:17:33; companion ack'd at 06:17:36 (msg `01KQRT58AENP46TWXHCZQAX39Z`, ackOf `01KQRT51XQV3HYP7Q9YFN7CC5A`). Review delivered at 06:18:48 with verdict **REQUEST_CHANGES**:
+
+| Finding | Severity | File | Issue |
+|---|---|---|---|
+| F001 (`01KQRT7B0NJNEYY78Q5Z6N2BXQ`) | HIGH | `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx:460-467, 1088-1103` | Mobile browser-client only destructures the read fields from `useTerminalSessions` and never wires `setSelectedSession` to a picker. The mobile Terminal tab has no UI affordance to choose a non-default session. The harness Section 4a "tap a non-default session" assertion targets UI that doesn't exist. |
+| F002 (`01KQRT7B0NJNEYY78Q5Z6N2BXR`) | MEDIUM | dossier + fltplan | Pivot from `?term=` → `?session=` not propagated through the dossier and flight plan; non-historical sections still referenced `?term=`. |
+
+Companion farewell at 06:25:09 (`stopping: idle budget`). Companion attempted to write report.json at `$MINIH_OUTPUT_PATH` but was blocked by run permission preset (`write: deny`). Findings + summary + retro are intact in the inbox; no disk-side `report.json`. **minih bug #2 to file**: the default `restricted` permission preset blocks the canonical companion-mode farewell envelope write — design contradiction.
+
+### Disposition
+
+| Finding | Action | Status |
+|---|---|---|
+| F002 (doc drift) | Replace `?term=` with `?session=` in non-historical sections of dossier + flight plan; add post-pivot implementation note above the Validation Record | ✅ done |
+| F001 (mobile picker) | Awaiting user decision — (A) scope-honest dossier/audit-prompt rewording (drop "tap session" assertions, keep auto-pick + URL-persist + deep-link), or (B) feature-expand by adding a mobile session picker UI | ⏸️ pending |
