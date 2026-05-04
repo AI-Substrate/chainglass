@@ -10,7 +10,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FeedItem } from '../types';
 
 export interface ImagePreviewProps {
@@ -25,6 +25,16 @@ export function ImagePreview({ item, rawFileUrl }: ImagePreviewProps) {
   // when the observer never fired through the content-visibility boundary.
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
+
+  // Reset load/error state whenever the URL changes — covers the in-place
+  // replace case (same path, new \`?v=<mtime>\`). Without this, \`loaded\` stays
+  // true from the prior image and the placeholder skeleton wouldn't show
+  // during the new fetch (visually OK but inconsistent), and a previous
+  // \`error\` state would mask a now-recovered file.
+  useEffect(() => {
+    setLoaded(false);
+    setError(false);
+  }, [rawFileUrl]);
 
   return (
     // No flexbox on the wrapper — `min-width: auto` on flex items defaults

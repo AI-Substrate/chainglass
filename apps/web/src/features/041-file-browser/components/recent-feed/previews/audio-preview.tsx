@@ -27,7 +27,9 @@ export function AudioPreview({ item, rawFileUrl }: AudioPreviewProps) {
   return (
     <div className="px-3 py-3 bg-muted/30 min-h-[60px]">
       {/* biome-ignore lint/a11y/useMediaCaption: workspace-local user content; captions cannot be auto-derived */}
+      {/* key={rawFileUrl} forces a remount when the cache-busted URL flips (in-place replace) so the audio element actually reloads. */}
       <audio
+        key={rawFileUrl}
         controls
         preload="metadata"
         className="w-full"

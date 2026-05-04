@@ -55,7 +55,11 @@ export function CodeExcerptCard({ item, worktreePath }: CodeExcerptCardProps) {
     return () => {
       cancelled = true;
     };
-  }, [worktreePath, item.path]);
+    // `item.changedAt` (mtime) is in the dep list so an in-place replace
+    // of the same file (same path, new bytes) refetches the excerpt. Without
+    // it, the effect is keyed only on path and the user sees the old
+    // content until they refresh the browser.
+  }, [worktreePath, item.path, item.changedAt]);
 
   return (
     <div className="relative bg-muted/30 max-h-[60vh] overflow-hidden">

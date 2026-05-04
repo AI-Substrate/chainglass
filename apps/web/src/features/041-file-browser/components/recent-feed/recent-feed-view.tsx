@@ -187,8 +187,13 @@ export function RecentFeedView({
   const showAll = activeFilters.has('all');
   const visibleItems = state.items.filter((item) => itemMatchesFilter(item, activeFilters));
 
-  const rawFileUrlFor = (path: string) =>
-    `/api/workspaces/${slug}/files/raw?worktree=${encodeURIComponent(worktreePath)}&file=${encodeURIComponent(path)}`;
+  // Cache-bust on mtime so an in-place file replacement (same path, new
+  // bytes) actually forces the browser to refetch image/video/audio
+  // payloads. Without `&v=`, the URL is identical and the browser serves
+  // the stale cached response — the user has to hard-refresh to see the
+  // update.
+  const rawFileUrlFor = (item: FeedItem) =>
+    `/api/workspaces/${slug}/files/raw?worktree=${encodeURIComponent(worktreePath)}&file=${encodeURIComponent(item.path)}&v=${item.changedAt}`;
 
   // T025: useFeedActions hook lifts the 9 catalog actions out of the orchestrator.
   // Bridge events used pre-T025 for navigation are replaced with caller-supplied
@@ -296,7 +301,7 @@ export function RecentFeedView({
           <RecentFeedList
             items={visibleItems}
             renderItem={(item) => {
-              const url = rawFileUrlFor(item.path);
+              const url = rawFileUrlFor(item);
               const preview = (() => {
                 if (item.eventType === 'deleted') {
                   return (

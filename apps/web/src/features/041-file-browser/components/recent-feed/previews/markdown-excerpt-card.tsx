@@ -55,7 +55,10 @@ export function MarkdownExcerptCard({ item, worktreePath }: MarkdownExcerptCardP
     return () => {
       cancelled = true;
     };
-  }, [worktreePath, item.path]);
+    // `item.changedAt` (mtime) is in the dep list so an in-place replace
+    // refetches the excerpt — same path + new bytes would otherwise show
+    // the stale render until the browser is refreshed.
+  }, [worktreePath, item.path, item.changedAt]);
 
   return (
     <div className="relative bg-muted/30 max-h-[60vh] overflow-hidden">
