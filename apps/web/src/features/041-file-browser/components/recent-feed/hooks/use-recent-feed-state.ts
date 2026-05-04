@@ -20,7 +20,7 @@
  */
 
 import { useCallback, useEffect, useReducer, useRef } from 'react';
-import { detectFeedItemKind } from '../../../services/recent-feed-items';
+import { detectFeedItemKind } from '../../../lib/feed-item-kind';
 import type { FeedEventType, FeedItem, FeedState } from '../types';
 
 export type RawFileChangeEventKind =

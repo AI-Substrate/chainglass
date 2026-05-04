@@ -14,101 +14,19 @@
 
 import { stat } from 'node:fs/promises';
 import { resolve as resolvePath } from 'node:path';
+import { detectFeedItemKind } from '../lib/feed-item-kind';
 import { getRecentFiles } from './recent-files';
 import type {
   FeedEventType,
   FeedItem,
-  FeedItemKind,
 } from '../components/recent-feed/types';
 
 export type RecentFeedItemsResult =
   | { ok: true; items: FeedItem[] }
   | { ok: false; error: 'not-git' };
 
-const IMAGE_EXTS = new Set([
-  'png',
-  'jpg',
-  'jpeg',
-  'gif',
-  'webp',
-  'svg',
-  'avif',
-  'bmp',
-  'ico',
-]);
-const VIDEO_EXTS = new Set(['mp4', 'webm', 'mov', 'avi', 'mkv']);
-const AUDIO_EXTS = new Set(['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a']);
-const MARKDOWN_EXTS = new Set(['md', 'markdown', 'mdx']);
-const CODE_EXTS = new Set([
-  'ts',
-  'tsx',
-  'js',
-  'jsx',
-  'mjs',
-  'cjs',
-  'py',
-  'rs',
-  'go',
-  'rb',
-  'java',
-  'kt',
-  'swift',
-  'c',
-  'cpp',
-  'cc',
-  'h',
-  'hpp',
-  'cs',
-  'php',
-  'sh',
-  'bash',
-  'zsh',
-  'fish',
-  'lua',
-  'sql',
-  'r',
-  'pl',
-  'yaml',
-  'yml',
-  'toml',
-  'json',
-  'jsonc',
-  'html',
-  'htm',
-  'css',
-  'scss',
-  'sass',
-  'less',
-  'xml',
-  'svg',
-  'gradle',
-  'cmake',
-  'dockerfile',
-  'makefile',
-  'tf',
-  'dart',
-  'vue',
-  'svelte',
-]);
-
-export function detectFeedItemKind(filename: string): FeedItemKind {
-  const dotIdx = filename.lastIndexOf('.');
-  // No extension → could be a Dockerfile / Makefile / etc.
-  if (dotIdx === -1) {
-    const lc = filename.toLowerCase();
-    if (lc === 'dockerfile' || lc === 'makefile' || lc === 'rakefile') {
-      return 'code';
-    }
-    return 'generic';
-  }
-  const ext = filename.slice(dotIdx + 1).toLowerCase();
-  if (IMAGE_EXTS.has(ext)) return 'image';
-  if (VIDEO_EXTS.has(ext)) return 'video';
-  if (AUDIO_EXTS.has(ext)) return 'audio';
-  if (MARKDOWN_EXTS.has(ext)) return 'markdown';
-  if (CODE_EXTS.has(ext)) return 'code';
-  return 'binary';
-}
+// Re-export so existing test imports continue to work without churn.
+export { detectFeedItemKind };
 
 export async function getRecentFeedItems(
   worktreePath: string,
