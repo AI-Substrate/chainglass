@@ -116,11 +116,13 @@ export function RecentFeedView({
     setActiveFilters((prev) => {
       // 'all' chip: snap back to every category (workshop §5).
       if (cat === 'all') return ALL_CATEGORIES;
-      const next = new Set<FilterCategory>(
-        // Toggling a non-all chip drops 'all' from the active set so the
-        // chip strip visually reflects the subset selection.
-        Array.from(prev).filter((c) => c !== 'all')
-      );
+      // F001 fix: clicking a non-All chip while in the all-inclusive state is
+      // a fresh single-category selection (NOT a toggle that removes the
+      // clicked category from the otherwise-all set). The previous logic
+      // dropped 'all', saw the clicked category was still present, then
+      // deleted it — leaving every category EXCEPT the clicked one active.
+      if (prev.has('all')) return new Set<FilterCategory>([cat]);
+      const next = new Set<FilterCategory>(prev);
       if (next.has(cat)) {
         next.delete(cat);
       } else {

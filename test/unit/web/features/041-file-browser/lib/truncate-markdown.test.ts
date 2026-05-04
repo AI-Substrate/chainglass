@@ -42,14 +42,32 @@ describe('truncateMarkdown — Finding 06 binding cases', () => {
     expect(out).not.toContain('Trailing prose');
   });
 
-  it('Case 4 — boundary inside a list item preserves the item end', () => {
-    // maxLines=2 lands the boundary inside the second list item, mid-continuation.
+  it('Case 4 — boundary on a list marker extends to the item end (F002 lock)', () => {
+    // F002 fix: previous test used maxLines=2, which stopped on the first
+    // item's continuation that was already pushed. A broken impl would
+    // still pass. With maxLines=3 the boundary lands ON `- Second item line`
+    // (the marker itself); the list-extension MUST then include
+    // `  also wraps here.` AND MUST NOT include the sibling `- Third item.`.
+    const input =
+      '- First item with a continuation\n  that wraps to two lines.\n- Second item line\n  also wraps here.\n- Third item.\n';
+    const out = truncateMarkdown(input, { maxLines: 3, maxChars: 9999 });
+    expect(out).toContain('Second item line');
+    // List-extension carries the continuation in.
+    expect(out).toContain('also wraps here.');
+    // …but stops at the next sibling marker (preserves item integrity).
+    expect(out).not.toContain('Third item.');
+  });
+
+  it('Case 4 (continuation boundary) — does not chop the continuation, stops at sibling marker', () => {
+    // Boundary on the continuation `  that wraps to two lines.` (maxLines=2).
+    // List-extension must NOT advance past the next top-level marker
+    // `- Second item line`.
     const input =
       '- First item with a continuation\n  that wraps to two lines.\n- Second item line\n  also wraps here.\n- Third item.\n';
     const out = truncateMarkdown(input, { maxLines: 2, maxChars: 9999 });
-    // The continuation line of the first item should still be present
-    // (we did not chop "  that wraps to two lines.").
     expect(out).toContain('that wraps to two lines.');
+    expect(out).not.toContain('Second item line');
+    expect(out).not.toContain('also wraps here.');
   });
 
   it('Case 5 — single overlong line truncates at maxChars with ellipsis', () => {

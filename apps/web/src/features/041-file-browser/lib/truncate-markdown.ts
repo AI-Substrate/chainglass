@@ -22,6 +22,8 @@
 const FRONT_MATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
 const FENCE_RE = /^\s*```/;
 const LIST_MARKER_RE = /^(\s*)([-*+]\s|\d+\.\s)/;
+/** Sibling list marker — same nesting level (zero indent). Hitting one ends the current item. */
+const TOP_LEVEL_LIST_MARKER_RE = /^([-*+]\s|\d+\.\s)/;
 const LIST_CONTINUATION_RE = /^\s+/;
 
 export interface TruncateMarkdownOptions {
@@ -114,9 +116,14 @@ export function truncateMarkdown(
     for (let i = stopIdx + 1; i < lines.length; i++) {
       const next = lines[i] ?? '';
       if (next.trim() === '') break;
-      // Stop when we leave the list (a non-indented line that isn't itself a
-      // list marker means we've reentered top-level prose).
-      if (!LIST_CONTINUATION_RE.test(next) && !LIST_MARKER_RE.test(next)) break;
+      // F002 fix: a sibling top-level list marker ENDS the current item — we
+      // preserve the boundary item's integrity, not the whole list. A nested
+      // marker (indented) is part of the current item; an unindented one is
+      // a sibling.
+      if (TOP_LEVEL_LIST_MARKER_RE.test(next)) break;
+      // Anything else that isn't an indented continuation means we've left
+      // the list entirely (top-level prose).
+      if (!LIST_CONTINUATION_RE.test(next)) break;
       out.push(next);
     }
   }
