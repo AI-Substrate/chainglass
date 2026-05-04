@@ -21,7 +21,7 @@
  * `fetchFileExcerpt` server action wrapper.
  */
 
-import { detectContentType, isBinaryExtension } from '@/lib/content-type-detection';
+import { detectContentType } from '@/lib/content-type-detection';
 import { detectLanguage } from '@/lib/language-detection';
 import type { IFileSystem, IPathResolver } from '@chainglass/shared';
 import { PathSecurityError } from '@chainglass/shared';
@@ -119,10 +119,8 @@ export async function getFileExcerpt(
   }
   // Belt-and-braces: even if our kind detector said 'code' for an unknown
   // ext, double-check via the content-type detector that we're not handing
-  // back a binary the kind table missed.
-  if (isBinaryExtension(filename)) {
-    return { ok: false, error: 'forbidden' };
-  }
+  // back media the kind table missed. (Step 7's null-byte sniff catches
+  // binary fonts/images with text-y extensions.)
   const ct = detectContentType(filename);
   if (
     ct.category === 'image' ||

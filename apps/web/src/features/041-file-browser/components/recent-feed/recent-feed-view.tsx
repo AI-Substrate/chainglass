@@ -89,7 +89,27 @@ export function RecentFeedView({
   const loadSeed = useCallback(async () => {
     setSeedError(null);
     try {
-      const result = await fetchRecentFeedItems(worktreePath, 50);
+      // Seed with the full ceiling, not the visible feedSize. The reducer
+      // already caps at ceiling=200; the chip filter ('All' / 'Video' /
+      // 'Image' / …) needs a generous underlying pool so users on
+      // doc-heavy repos can still find media buried a few hundred commits
+      // back. With a 50-item seed, repos like higgs-jordo (where the most
+      // recent ~200 unique paths are 100 % docs/code) showed empty
+      // Video/Image filters even though committed media existed.
+      //
+      // When the filter is narrowed to specific categories, hint the
+      // server so it guarantees a per-category quota (default 20). That
+      // way "Video" surfaces real videos buried deeper in history rather
+      // than just whatever videos happened to fall in the newest 200
+      // paths.
+      const seedCategories: ReadonlyArray<
+        'image' | 'video' | 'audio' | 'markdown' | 'code' | 'other'
+      > | undefined = activeFilters.has('all')
+        ? undefined
+        : (Array.from(activeFilters).filter((c) => c !== 'all') as ReadonlyArray<
+            'image' | 'video' | 'audio' | 'markdown' | 'code' | 'other'
+          >);
+      const result = await fetchRecentFeedItems(worktreePath, 200, seedCategories);
       if (result.ok) {
         dispatch({ type: 'INIT', items: result.items });
       } else {
@@ -106,7 +126,7 @@ export function RecentFeedView({
       });
       dispatch({ type: 'INIT', items: [] });
     }
-  }, [worktreePath, dispatch]);
+  }, [worktreePath, dispatch, activeFilters]);
 
   useEffect(() => {
     void loadSeed();

@@ -424,6 +424,25 @@ cat $(just agent-report code-review) | jq .  # Read the full report
 
 If the verdict is `REQUEST_CHANGES`, address the findings before committing.
 
+#### Companion Mode — long-running review session (`code-review-companion`)
+
+For a multi-commit phase (vs. one-shot per file), use the **`code-review-companion`** agent installed at `agents/code-review-companion/`. It boots once, long-polls its inbox, reviews each commit ping inline (silent if fine), and writes a single farewell envelope at session end.
+
+The full operational protocol — Boot → Brief → Review-per-commit → Drain → Stop, plus inbox/state/retrospective semantics — is documented in the bundled minih README:
+
+```bash
+minih agent-readme            # Full doc (Companion mode + Power-On-Mode + coordination)
+minih agent info code-review-companion   # Agent-specific manifest, files, provenance
+```
+
+Key rules (do not skip):
+- **Brief once at session start** with plan path, hazards, and the subject pattern you'll use for review-requests.
+- **Fire-and-forget** at each `git commit` — ping `--type task` with `subject: "review-request: <task> <sha>"`. Don't block on a reply; the companion only replies if it finds issues.
+- **Always send `control:stop`** before declaring "done" so the farewell envelope writes (auto-harvest into `docs/retros/<slug>.md` only fires on stop; without it the companion idles up to 30min).
+- Use `--ack-of <id>` to thread replies (see `minih agent-readme` § Reply chains).
+
+Re-run `minih agent install /Users/jordanknight/substrate/minih/agents/code-review-companion` any time you edit the canonical source — minih tracks the local clone in `.minih-source.json` and upgrades in place.
+
 ```bash
 # Port allocation (unique per worktree)
 just harness ports          # Show this worktree's port allocation

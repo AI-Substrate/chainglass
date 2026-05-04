@@ -111,13 +111,16 @@ describe('getRecentFeedItems — real-git integration', () => {
     expect(result.items[2]?.path).toBe('f5.txt');
   });
 
-  it('returns `not-git` error for non-git workspaces (AC B3)', async () => {
-    // tmp is a fresh dir with no `.git` (no initRepo call).
+  it('surfaces files in non-git workspaces (AC B3 — relaxed: walker is git-agnostic)', async () => {
+    // tmp is a fresh dir with no `.git` (no initRepo call). The seed walks
+    // the filesystem directly so untracked / non-git workspaces still
+    // produce a feed — committed-vs-untracked is intentionally not a
+    // gating concern; the user wants any file with recent on-disk activity.
     writeFileSync(join(tmp, 'orphan.txt'), 'no git here');
     const result = await getRecentFeedItems(tmp, 10);
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.error).toBe('not-git');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.items.map((i) => i.path)).toContain('orphan.txt');
   });
 
   it('drops entries whose stat fails (file deleted between log + stat)', async () => {
