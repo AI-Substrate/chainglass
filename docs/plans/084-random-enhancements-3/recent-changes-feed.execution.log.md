@@ -190,6 +190,24 @@ Pause/refresh wiring: header buttons dispatch `PAUSE`/`RESUME` to the reducer; r
 
 **Evidence**: `npx vitest run test/integration/web/recent-feed-live-updates.integration.test.ts` → 5/5 pass in 901ms total.
 
+### T018-T019 — Pause buffer pill + SSE-disconnect banner
+
+Both UI affordances landed in `recent-feed-view.tsx` as small additions:
+
+**T018 buffer pill** — sticky button rendered when `state.paused && state.buffer.length > 0`:
+- "N new {change|changes} — click to show"
+- Click dispatches `RESUME` → reducer drains buffer in arrival order (T015 logic).
+- Sticky `top-0 z-20` so it stays visible while scrolling. Workshop §5.
+- Header pause/resume button already wired to PAUSE/RESUME at T016.
+
+**T019 disconnect banner** — `state.isDisconnected` driven by `useSSEConnectionState()` from `_platform/events` (Plan 045 — existing primitive, no new code needed). When `connectionState !== 'connected'` we dispatch `SET_DISCONNECTED: true`; reverts when reconnected. Banner uses amber accent with `role="status"` and `aria-live="polite"` for SR users; copy: "Live updates disconnected — existing items preserved; reconnecting…" Reducer never blanks `items` on disconnect (AC C5 binding).
+
+**Decision** — pill placement is INSIDE the scroll container so it doesn't overlap the header. The header itself already shows "Paused (3)" in the live indicator (T016) — the pill is the action affordance, the header is the status read-out.
+
+**Decision** — disconnect banner is OUTSIDE the scroll container (above the filter chips) so it stays visible regardless of scroll position. Workshop §7.
+
+**Evidence**: tsc clean. Live behavior verifiable via T035 harness exercise (visual smoke at default + mobile).
+
 
 
 ---

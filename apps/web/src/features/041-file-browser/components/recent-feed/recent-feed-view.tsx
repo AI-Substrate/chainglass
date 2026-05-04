@@ -13,7 +13,7 @@
  * fall through to the binary preview.
  */
 
-import { useFileChanges } from '@/features/045-live-file-events';
+import { useFileChanges, useSSEConnectionState } from '@/features/045-live-file-events';
 import { cn } from '@/lib/utils';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchRecentFeedItems } from '../../../../../app/actions/file-actions';
@@ -129,6 +129,17 @@ export function RecentFeedView({
   // or watcher pipeline. We pipe each FileChange into the reducer's
   // pushEvent (which batches via rAF for AC G3 burst coalescing).
   const { changes, clearChanges } = useFileChanges('*', { debounce: 50 });
+
+  // T019: SSE connection state — drives the disconnect banner. Existing items
+  // are preserved (the reducer never blanks on disconnect); only new events
+  // arriving after reconnection are merged. Covers AC C5.
+  const sseConnectionState = useSSEConnectionState();
+  useEffect(() => {
+    dispatch({
+      type: 'SET_DISCONNECTED',
+      disconnected: sseConnectionState !== 'connected',
+    });
+  }, [sseConnectionState, dispatch]);
   // Track changes we've already forwarded to avoid double-counting on
   // re-render. The hook in 'replace' mode emits the most recent batch each
   // time, so we only forward changes whose timestamp is newer than the last
@@ -231,6 +242,26 @@ export function RecentFeedView({
       >
         Close
       </button>
+
+      {state.isDisconnected && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-300/50 text-[11px] text-amber-800 dark:text-amber-300"
+        >
+          <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" aria-hidden="true" />
+          Live updates disconnected — existing items preserved; reconnecting…
+        </div>
+      )}
+      {state.paused && state.buffer.length > 0 && (
+        <button
+          type="button"
+          onClick={() => dispatch({ type: 'RESUME' })}
+          className="sticky top-0 z-20 mx-auto block rounded-full bg-primary px-3 py-1 text-[11px] font-medium text-primary-foreground shadow-md hover:bg-primary/90 transition-colors my-2"
+        >
+          {state.buffer.length} new {state.buffer.length === 1 ? 'change' : 'changes'} — click to show
+        </button>
+      )}
 
       <div className="flex-1 overflow-y-auto">
         {state.isLoading && <FeedSkeleton count={5} />}
