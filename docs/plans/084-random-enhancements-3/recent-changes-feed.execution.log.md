@@ -208,6 +208,46 @@ Both UI affordances landed in `recent-feed-view.tsx` as small additions:
 
 **Evidence**: tsc clean. Live behavior verifiable via T035 harness exercise (visual smoke at default + mobile).
 
+### T020 — file-excerpt server action with security gating
+
+`apps/web/src/features/041-file-browser/services/file-excerpt.ts` + `test/unit/web/features/041-file-browser/services/file-excerpt.test.ts`. **32/32 tests pass in 11ms.**
+
+Server action `fetchFileExcerpt(worktreePath, filePath, mode)` registered in `app/actions/file-actions.ts` (resolves `IFileSystem` + `IPathResolver` from the DI container; same pattern as readFile/saveFile).
+
+**Security gating** (per validation Risk M1, ordered):
+1. **Secrets-pattern reject** (BEFORE path resolution): `.env*`, `credentials`, `*.secret*`, `*.key`, `*.pem`, `id_rsa*`, `**/.git/**`. Returns `'forbidden'`.
+2. **Path-traversal guard**: `pathResolver.resolvePath(worktreePath, filePath)` throws `PathSecurityError`. Returns `'security'`.
+3. **Existence + directory guard**: not-found.
+4. **Content-type gate**: only `markdown` and `code` (via `detectFeedItemKind`); also a belt-and-braces check via `detectContentType` to reject `image`/`video`/`audio`/`pdf`. Returns `'forbidden'`.
+5. **Size guard for full mode**: 256KB hard cap. Excerpt mode unbounded (output capped by `truncateMarkdown` / first-N-lines truncation regardless of input size).
+6. **Read** then **null-byte sniff** (first 8KB): catches binary content with text-y extension. Returns `'forbidden'`.
+
+**Tests** (32):
+- `isSecretsPath` parameterized: 19 cases (14 reject + 5 pass-through). Distinguishes `credentials.json` (reject) from `credentials-overview.md` (pass) — basename-anchored regex.
+- Service: 13 tests using real `NodeFileSystemAdapter` + `PathResolverAdapter` against `mkdtempSync` temp dirs:
+  - markdown excerpt + truncation applied
+  - code excerpt + detected language + first-N-lines cap
+  - full mode returns full content
+  - `.env` rejected
+  - `config/credentials` rejected
+  - `../../etc/passwd` path-traversal rejected
+  - PNG / MP4 / MP3 binary types rejected
+  - null-byte content rejected even with `.ts` extension
+  - missing file → not-found
+  - directory → not-found
+  - 257KB file in full mode → too-large
+  - 300KB markdown in excerpt mode → succeeds (output truncated)
+
+**Decision** — JSDoc near the top initially used `**/credentials*` literal, which closed the JSDoc block prematurely (TS1160). Replaced with prose description; SECRETS_PATTERNS regex remains the single source of truth. Future readers should not edit the JSDoc to use raw `*/` sequences.
+
+**Decision** — secrets-pattern check is the FIRST gate (before path-resolution). A clever attacker could pass `worktreePath/../.env` — the path-resolver catches the traversal but the pattern check catches the suspicious filename first regardless. Defense in depth.
+
+**Decision** — null-byte sniff after read uses the same 8KB window as `readFileAction` for consistency.
+
+**Constitution P4 honored**: zero `vi.mock`. Real Node adapters; real fs against temp dirs.
+
+**Evidence**: `npx vitest run` 32/32 in 11ms.
+
 
 
 ---

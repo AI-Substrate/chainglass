@@ -144,6 +144,22 @@ export async function fetchRecentFeedItems(worktreePath: string, limit = 50) {
   return getRecentFeedItems(worktreePath, limit);
 }
 
+// File excerpt — server-truncated markdown/code or full file (Plan recent-changes-feed T020)
+export async function fetchFileExcerpt(
+  worktreePath: string,
+  filePath: string,
+  mode: 'excerpt' | 'full' = 'excerpt'
+) {
+  await requireAuth();
+  const container = getContainer();
+  const fileSystem = container.resolve<IFileSystem>(SHARED_DI_TOKENS.FILE_SYSTEM);
+  const pathResolver = container.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
+  const { getFileExcerpt } = await import(
+    '../../src/features/041-file-browser/services/file-excerpt'
+  );
+  return getFileExcerpt({ worktreePath, filePath, fileSystem, pathResolver, mode });
+}
+
 // File list — git ls-files + fs.stat for file search cache (Plan 049 Feature 2)
 export async function fetchFileList(
   worktreePath: string,
