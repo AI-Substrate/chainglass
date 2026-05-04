@@ -94,9 +94,12 @@ async function walkWorktreeForFeedItems(
   worktreePath: string,
   cap: number = WORKTREE_WALK_CAP
 ): Promise<FeedItem[]> {
-  const items: FeedItem[] = [];
+  // Phase 1 — walk readdir BFS, collect candidate paths. Cheap: one
+  // syscall per directory, no per-file work.
+  type Candidate = { rel: string; abs: string; name: string };
+  const candidates: Candidate[] = [];
   const queue: string[] = ['']; // relative paths; '' = worktree root
-  while (queue.length > 0 && items.length < cap) {
+  while (queue.length > 0 && candidates.length < cap) {
     const relDir = queue.shift() as string;
     const absDir = relDir === '' ? worktreePath : resolvePath(worktreePath, relDir);
     let entries: import('node:fs').Dirent[];
@@ -106,34 +109,48 @@ async function walkWorktreeForFeedItems(
       continue; // permission denied / vanished — skip this directory.
     }
     for (const entry of entries) {
-      if (items.length >= cap) break;
+      if (candidates.length >= cap) break;
       const childRel = relDir === '' ? entry.name : `${relDir}/${entry.name}`;
-      // Skip dot-folders, build artifacts, generated cache extensions, tmp
-      // files — same rules as everywhere else in the feed.
       if (isFilteredPath(childRel)) continue;
       if (entry.isDirectory()) {
         queue.push(childRel);
         continue;
       }
       if (!entry.isFile()) continue;
-      const absPath = resolvePath(worktreePath, childRel);
-      try {
-        const s = await stat(absPath);
-        items.push({
-          path: childRel,
-          absolutePath: absPath,
-          name: entry.name,
-          changedAt: s.mtimeMs,
-          size: s.size,
-          kind: detectFeedItemKind(entry.name),
-          eventType: 'changed',
-        });
-      } catch {
-        // file vanished between readdir and stat — drop silently.
-      }
+      candidates.push({
+        rel: childRel,
+        abs: resolvePath(worktreePath, childRel),
+        name: entry.name,
+      });
     }
   }
-  return items;
+
+  // Phase 2 — fan out the stat() calls. Sequential awaiting (the previous
+  // implementation) was the dominant cost: at ~1 ms per stat × 5000 files
+  // ≈ 5 s wall time for a single feed seed. Promise.allSettled() pushes
+  // all stats through the libuv pool concurrently, dropping wall time
+  // by an order of magnitude on warm caches.
+  const results = await Promise.allSettled(
+    candidates.map(async (c) => {
+      const s = await stat(c.abs);
+      const item: FeedItem = {
+        path: c.rel,
+        absolutePath: c.abs,
+        name: c.name,
+        changedAt: s.mtimeMs,
+        size: s.size,
+        kind: detectFeedItemKind(c.name),
+        eventType: 'changed',
+      };
+      return item;
+    })
+  );
+
+  return results
+    .filter(
+      (r): r is PromiseFulfilledResult<FeedItem> => r.status === 'fulfilled'
+    )
+    .map((r) => r.value);
 }
 
 export async function getRecentFeedItems(

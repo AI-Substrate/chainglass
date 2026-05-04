@@ -109,7 +109,13 @@ export function RecentFeedView({
         : (Array.from(activeFilters).filter((c) => c !== 'all') as ReadonlyArray<
             'image' | 'video' | 'audio' | 'markdown' | 'code' | 'other'
           >);
-      const result = await fetchRecentFeedItems(worktreePath, 200, seedCategories);
+      // Default seed size is small (20) for fast first paint. When a
+      // category filter is active we ask for a generous per-category
+      // quota (handled server-side via the `seedCategories` hint), so
+      // narrowing to "Videos" still returns up to 20 videos even if the
+      // unfiltered seed would only have surfaced a handful.
+      const seedLimit = seedCategories ? 200 : 20;
+      const result = await fetchRecentFeedItems(worktreePath, seedLimit, seedCategories);
       if (result.ok) {
         dispatch({ type: 'INIT', items: result.items });
       } else {

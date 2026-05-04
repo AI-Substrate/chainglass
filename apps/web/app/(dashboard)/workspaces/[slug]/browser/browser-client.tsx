@@ -961,13 +961,20 @@ function BrowserClientInner({
           worktreePath={worktreePath}
           isGit={isGit}
           onClose={handleCloseRecentFeed}
-          onOpenFile={(path) =>
-            setParams({ file: path, view: null, line: null }, { history: 'push' })
-          }
+          onOpenFile={(path) => {
+            // Use the same handler the explorer / search uses so the user
+            // gets the full canonical flow: mobile tab switch, overlay
+            // close, fileNav.handleSelect (loads the file into the
+            // viewer panel). `view: null` clears `?view=recent-feed` so
+            // the feed pane swaps out for the file viewer.
+            setParams({ view: null, line: null }, { history: 'replace' });
+            void handleFileSelect(path);
+          }}
           onRevealInTree={(path) => {
             const idx = path.lastIndexOf('/');
             const dir = idx === -1 ? '' : path.slice(0, idx);
-            setParams({ dir, file: path, view: null }, { history: 'push' });
+            setParams({ dir, view: null }, { history: 'push' });
+            void handleFileSelect(path);
           }}
         />
       ) : selectedFile ? (
@@ -1244,6 +1251,16 @@ function BrowserClientInner({
                 worktreePath={worktreePath}
                 isGit={isGit}
                 onClose={handleCloseRecentFeed}
+                onOpenFile={(path) => {
+                  setParams({ view: null, line: null }, { history: 'replace' });
+                  void handleFileSelect(path);
+                }}
+                onRevealInTree={(path) => {
+                  const idx = path.lastIndexOf('/');
+                  const dir = idx === -1 ? '' : path.slice(0, idx);
+                  setParams({ dir, view: null }, { history: 'push' });
+                  void handleFileSelect(path);
+                }}
               />
             ) : selectedFile ? (
               <FileViewerPanel
