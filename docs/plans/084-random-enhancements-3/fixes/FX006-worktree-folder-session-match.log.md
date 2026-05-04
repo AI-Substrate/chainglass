@@ -94,6 +94,37 @@ This adds ~4 small touch points beyond the dossier's listed files but stays in-d
 
 **Aggregate**: 13 new tests, 186/186 terminal-domain tests passing, typecheck clean across 4 commits.
 
+## Companion findings reconciliation
+
+| Ping | Sent at | Companion reply | Disposition |
+|---|---|---|---|
+| review-request: FX006-1 11b204f1 | 07:41:57Z | **APPROVE — no findings** (07:42:38Z, msg=summary). Companion noted: helper returns plain string, preserves trailing-slash empty-string, keeps null conversion out of helper, kebab-case test enumeration, chainglass tmux basename convention documented. | Closed. |
+| review-request: FX006-2 02d227f5 | 07:44:41Z | No reply — companion went silent at 07:43:47Z (~1 min before this ping). | Open / unreviewed by companion. |
+| review-request: FX006-3 03f3123c | 07:45:52Z | No reply (companion stale). | Open / unreviewed by companion. |
+| review-request: FX006-4 c2096adb | 07:47:35Z | No reply (companion stale). | Open / unreviewed by companion. |
+| FX006 drain ping | 07:48:34Z | No reply (companion stale). | Open. |
+
+### Companion run 1 (2026-05-04T17-38-34-103Z-9115): partial review then silent
+
+Companion booted healthy (~12s). Acked briefing at 07:39:20, posted briefing-loaded progress, idle-polled, picked up FX006-1 review at 07:42:04, completed APPROVE summary at 07:42:38, transitioned back to idle at 07:42:41. Last events at 07:43:47Z were inbox poll calls; no events after that. `minih status` reports `verdict: stale`. Same failure mode as the FX005 companion run #1 — same as **minih issue #24** (`minih status` should pid-probe before reporting active).
+
+The companion's pre-fix self-report at 07:39:27 acknowledged the permission-bug workaround: *"Shell/report writes are unavailable under this restricted preset, so I will review via file/diff read tools and send findings/summaries through the inbox."* The workaround functioned for FX006-1 — review content reached the inbox correctly. The silence on FX006-2/3/4 is unrelated to the permission preset; it's the silent-death bug.
+
+### Verdict reconciliation (no companion to defer to for stages 2-4)
+
+Falling back to the skill's documented escape hatch: companion died mid-phase → log deviation, no `/plan-7-v2-code-review` recovery (skill explicitly says "Do not run /plan-7 after this skill" — running it would re-litigate FX006-1's APPROVE and add latency). For FX006-2/3/4, evidence in lieu of companion review:
+
+- **FX006-2**: 12/12 hook tests pass (5 new + 7 existing untouched); 184/184 full terminal suite; typecheck clean. The dossier-discovered scope expansion (replacing `isCurrentWorktree` with two flags; updating badge component) is documented in this log and called out in the FX006-2 commit message. Validation Record's Forward-Compatibility Matrix C5 ("FX005 existing tests no regression") satisfied — the 7 FX005-2 tests are byte-identical.
+- **FX006-3**: 2-line wiring; both call sites checked via grep; no other `useTerminalSessions` callers in the codebase. Test gate (`hook.user-higgs-bug` from FX006-2) verifies the call shape.
+- **FX006-4**: byte-identity guard explicit — the trailing-slash test (`overlay.toggle-from-worktree-trailing-slash`) is the assertion the dossier's CRITICAL hazard wanted. 186/186 tests pass; typecheck clean.
+
+No findings deferred or pending fix. The dossier's risk and rollback sections cover the pre-existing concerns (sanitize asymmetry, F001 mobile picker UI) that remain explicitly out-of-scope for FX006.
+
+### Companion magicWand
+
+None — companion never sent a magicWand or farewell. (Possible candidate based on observed pattern: a minih companion-reliability fix dossier paired with issues #24/#25 — but that's an *internal* minih concern, not a chainglass concern, and not a magicWand emitted by the agent itself.)
+
+
 **Acceptance criteria** (from dossier):
 - ✅ Mobile cold-load on higgs-jordo → `higgs-jordo` session (verified via `hook.user-higgs-bug` automated gate).
 - ✅ Desktop terminal page on higgs-jordo → `higgs-jordo` session (same gate; both call sites pass `worktreePath`).
