@@ -64,7 +64,33 @@ Screenshot and evaluate:
 - Can you scroll or interact with the terminal area?
 - Is there a way to collapse or resize the terminal?
 
-### 5. Cross-Page Mobile Assessment
+### 5. Recent Changes / History Tab
+
+The browser page has a 4-tab mobile strip: **Files · Content · Terminal · History**.
+The 4th tab (History) hosts the Recent Changes Feed. Verify:
+
+- The 4-icon tab strip renders without overflow at 390px width — all four
+  icons + labels visible, none clipped or wrapped to a second line.
+- Tapping the History tab loads the feed and sets `?view=recent-feed`
+  in the URL.
+- Tapping a feed card switches to the Content tab and loads the file in
+  the viewer panel (URL: `view` cleared, `file` set).
+- Tapping back to History from Content reopens the feed in the same
+  scroll/filter state (lazy mount preserved across tab switches).
+- Filter chip strip (All / Images / Videos / Audio / Markdown / Code /
+  Other) fits on one line — chips may horizontally scroll if needed,
+  but should not wrap or get cut off by tab strip / right action.
+- The header row (title · live indicator · count · pause/refresh/
+  settings icons) doesn't overlap the close button or right-side
+  page actions.
+- Feed-card preview content (image / video / audio / excerpt) honors
+  the 60vh max-height ceiling on a phone-tall viewport — cards don't
+  consume the entire viewport in a single item.
+
+Screenshot the tab strip in each of: Files / Content / Terminal /
+History active states. Save as `mobile-tabs-{label}.png`.
+
+### 6. Cross-Page Mobile Assessment
 
 Also quickly check these pages at mobile viewport:
 - Workflows page
@@ -72,11 +98,11 @@ Also quickly check these pages at mobile viewport:
 
 Screenshot each and note any obvious mobile UX issues.
 
-### 6. Console Errors
+### 7. Console Errors
 
 Check for mobile-specific JavaScript errors via Playwright console event listener, or `just harness console-logs --filter errors --wait 3` if harness is running.
 
-### 7. Write the Report
+### 8. Write the Report
 
 Write `output/report.json` to the path specified in the output hint above. The report must conform to the output schema. Include:
 - Per-area findings with severity ratings
@@ -84,7 +110,7 @@ Write `output/report.json` to the path specified in the output hint above. The r
 - Concrete improvement proposals (specific CSS/layout/component changes, not vague suggestions)
 - A prioritized list of the top 3 fixes that would most improve mobile UX
 
-### 8. Retrospective
+### 9. Retrospective
 
 As with all harness agents, provide honest feedback:
 - How well did the tools support mobile UX auditing?
