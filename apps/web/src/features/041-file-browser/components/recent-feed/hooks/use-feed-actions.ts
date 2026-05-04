@@ -59,13 +59,45 @@ function rawFileUrl(slug: string, worktreePath: string, path: string): string {
 }
 
 async function copyToClipboard(text: string): Promise<boolean> {
-  if (typeof navigator === 'undefined' || !navigator.clipboard) return false;
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    return false;
+  // Modern path — only works in secure contexts (HTTPS / localhost).
+  if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // fall through to the legacy fallback — chainglass is often
+      // accessed over a LAN IP (e.g. http://192.168.1.x:3000) which is
+      // a non-secure context where navigator.clipboard rejects.
+    }
   }
+
+  // Legacy fallback — works without a secure context. Builds a hidden
+  // off-screen textarea, selects its content, runs `document.execCommand
+  // ('copy')`, and removes it. Deprecated on the spec but still
+  // implemented in every shipping browser.
+  if (typeof document === 'undefined') return false;
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.setAttribute('readonly', '');
+  ta.style.position = 'fixed';
+  ta.style.top = '0';
+  ta.style.left = '0';
+  ta.style.width = '1px';
+  ta.style.height = '1px';
+  ta.style.opacity = '0';
+  ta.style.pointerEvents = 'none';
+  document.body.appendChild(ta);
+  let succeeded = false;
+  try {
+    ta.focus();
+    ta.select();
+    succeeded = document.execCommand('copy');
+  } catch {
+    succeeded = false;
+  } finally {
+    document.body.removeChild(ta);
+  }
+  return succeeded;
 }
 
 export function useFeedActions({
