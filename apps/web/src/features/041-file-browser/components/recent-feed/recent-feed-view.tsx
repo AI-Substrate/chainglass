@@ -246,7 +246,14 @@ export function RecentFeedView({
         className={cn(
           'absolute top-2 right-2 text-xs text-muted-foreground hover:text-foreground',
           'rounded-md border border-border bg-background/80 backdrop-blur-sm px-2 py-1',
-          'opacity-0 hover:opacity-100 focus-visible:opacity-100 transition-opacity'
+          // `opacity-0` alone does NOT disable pointer events, so the
+          // invisible Close button was eating clicks on the Refresh /
+          // Settings icons in the header (same top-right area).
+          // Pair the opacity transition with pointer-events so the button
+          // only intercepts clicks once it's visible.
+          'opacity-0 pointer-events-none transition-opacity',
+          'hover:opacity-100 hover:pointer-events-auto',
+          'focus-visible:opacity-100 focus-visible:pointer-events-auto'
         )}
         aria-label="Close recent changes feed"
       >
