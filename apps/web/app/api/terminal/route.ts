@@ -1,5 +1,6 @@
 import { execSync } from 'node:child_process';
 import { auth } from '@/auth';
+import { sortTerminalSessions } from '@/features/064-terminal/lib/sort-terminal-sessions';
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
@@ -43,7 +44,7 @@ export async function GET(): Promise<NextResponse> {
         };
       });
 
-    return NextResponse.json({ sessions, tmux: true });
+    return NextResponse.json({ sessions: sortTerminalSessions(sessions), tmux: true });
   } catch (error) {
     const msg = error instanceof Error ? error.message : '';
     if (msg.includes('no server running') || msg.includes('not found')) {
