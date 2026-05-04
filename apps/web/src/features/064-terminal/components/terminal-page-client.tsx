@@ -51,6 +51,7 @@ export function TerminalMobileGate(props: TerminalPageClientProps) {
 function TerminalPageClient({ slug, worktreePath, worktreeBranch }: TerminalPageClientProps) {
   const { sessions, loading, selectedSession, setSelectedSession, refresh } = useTerminalSessions({
     currentBranch: worktreeBranch,
+    worktreePath,
   });
 
   const wsCtx = useWorkspaceContext();

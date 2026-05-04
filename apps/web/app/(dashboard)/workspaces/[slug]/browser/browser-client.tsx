@@ -458,12 +458,15 @@ function BrowserClientInner({
   const terminalTheme = wsCtx?.worktreeIdentity?.terminalTheme || 'dark';
 
   // FX002: Terminal sessions for 3rd mobile view
+  // FX006: pass worktreePath so the auto-pick prefers the worktree-folder
+  // session (e.g. higgs-jordo) over the branch-name fallback (e.g. main).
   const {
     sessions: termSessions,
     loading: termLoading,
     selectedSession: termSelectedSession,
   } = useTerminalSessions({
     currentBranch: sanitizeSessionName(worktreeBranch ?? ''),
+    worktreePath,
   });
 
   // Set worktree identity for tab title (Subtask 001)
