@@ -617,6 +617,13 @@ function BrowserClientInner({
 
       window.dispatchEvent(new CustomEvent('overlay:close-all'));
 
+      // Picking a file from the tree means "show me this file's content";
+      // if the recent-changes feed (`view=recent-feed`) is the active main
+      // pane, swap it out for the file viewer. Same intent as the
+      // overlay:close-all dispatch above (terminal), just for the
+      // history view.
+      setParams({ view: null }, { history: 'replace' });
+
       const wasSelected = selectedFile === filePath;
       const now = Date.now();
       const isDoubleSelect =
@@ -639,7 +646,7 @@ function BrowserClientInner({
 
       await fileNav.handleSelect(filePath);
     },
-    [selectedFile, fileNav.handleSelect, handleFileDoubleSelect]
+    [selectedFile, fileNav.handleSelect, handleFileDoubleSelect, setParams]
   );
 
   // --- ExplorerPanel handler chain ---
