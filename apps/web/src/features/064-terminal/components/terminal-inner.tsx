@@ -202,6 +202,12 @@ export default function TerminalInner({
       if (ctrl && (event.key === 'v' || event.key === 'V')) return false;
       if (ctrl && event.shiftKey && (event.key === 'c' || event.key === 'C')) return false;
       if (event.shiftKey && event.key === 'Escape') return false;
+      // Backtick (`) closes the overlay — same UX as Shift+Esc. Returning
+      // false stops xterm from forwarding the keystroke to the PTY, so the
+      // bubbled keydown reaches the document-level overlay listener.
+      if (event.key === '`' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        return false;
+      }
       return true;
     });
 
