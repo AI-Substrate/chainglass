@@ -138,3 +138,4 @@ test/fakes/
 | 064-tmux Post-P4 | Copy buffer (deferred clipboard), HTTPS/WSS, ESM fix | 2026-03-03 |
 | 064-tmux Phase 5 | tmux fallback toast, domain docs, dev setup guide | 2026-03-03 |
 | Plan 081 | 25 terminal color themes (Dracula, Nord, Catppuccin, etc.) via SDK setting + Palette popover picker in header | 2026-04-10 |
+| FX005 | Mobile terminal session selection: stable-sort `/api/terminal` response (created asc, name tiebreaker); URL-persist `selectedSession` via the dormant `terminalParams.session` entry (`?session=<name>`, `history: 'replace'`); ref-stabilise `fetchSessions` so the focus listener no longer captures a stale selection on wake-from-sleep; phantom URL params self-cleanse when the named session is gone. Hook return shape unchanged. | 2026-05-04 |

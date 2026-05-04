@@ -1,7 +1,7 @@
 # Flight Plan: Fix FX005 — Mobile terminal picks wrong tmux session after sleep/wake
 
 **Fix**: [FX005-mobile-terminal-session-selection.md](./FX005-mobile-terminal-session-selection.md)
-**Status**: Ready for takeoff
+**Status**: Landed (companion debrief pending)
 
 ---
 
@@ -39,8 +39,7 @@ stateDiagram-v2
     S2 --> S3
     S3 --> [*]
 
-    class S1,S2 done
-    class S3 pending
+    class S1,S2,S3 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -51,7 +50,7 @@ stateDiagram-v2
 
 - [x] **Stage 1: Stable-sort API response** — sort `tmux list-sessions` output by `created` ascending in the `/api/terminal` route handler (`app/api/terminal/route.ts`). Add unit test for ordering.
 - [x] **Stage 2: Persist selection + drop stale closure** — back `selectedSession` with `nuqs` `?term=<name>`, mirror it through a ref so `fetchSessions` doesn't depend on it, validate on every refetch, only fall back when the stored session is gone (`hooks/use-terminal-sessions.ts`). Add 4 regression tests.
-- [ ] **Stage 3: Verify both call sites + harness** — confirm mobile + desktop inherit selection without extra wiring; add a "wake-from-sleep persists session" assertion to `harness/agents/mobile-ux-audit/prompt.md` Section 5.
+- [x] **Stage 3: Verify both call sites + harness** — confirm mobile + desktop inherit selection without extra wiring; add a "wake-from-sleep persists session" assertion to `harness/agents/mobile-ux-audit/prompt.md` Section 5.
 
 ---
 
@@ -117,4 +116,4 @@ flowchart LR
 
 - [x] FX005-1: Stable-sort `/api/terminal` response by `created` ascending.
 - [x] FX005-2: URL-persist `selectedSession` via `nuqs`, validate on refetch, stabilise callback.
-- [ ] FX005-3: Verify both call sites inherit; update mobile-ux-audit prompt.
+- [x] FX005-3: Verify both call sites inherit; update mobile-ux-audit prompt.

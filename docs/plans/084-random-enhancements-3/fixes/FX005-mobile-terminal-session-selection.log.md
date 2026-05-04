@@ -60,7 +60,28 @@ Cases covered:
 6. `setSelectedSession('bar')` → URL updates to `?session=bar` with `history: 'replace'`.
 7. `setSelectedSession('')` → URL `session` param removed.
 
+## FX005-3: Verify call sites + add harness section
+
+**Approach**:
+- Verified both call sites inherit URL persistence with zero changes:
+  - `apps/web/src/features/064-terminal/components/terminal-page-client.tsx:52` destructures `{ sessions, loading, selectedSession, setSelectedSession, refresh }` from the hook; line 80 already guards `selectedSession ? <TerminalView…> : <fallback>`.
+  - `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx:464` destructures `{ sessions: termSessions, loading: termLoading, selectedSession: termSelectedSession }`; line 1091 already guards `termSelectedSession ? <TerminalView…> : <empty-state>`.
+  - The hook owns `?session=` internally via `nuqs`; both pages roundtrip URL state without further wiring. browser-client's separate `useQueryStates(fileBrowserParams)` (which manages `view`/`dir`/`file`/`mobileView`) coexists with the terminal hook's `useQueryState('session', …)` — independent params, no collision.
+- Added Section 4a "Terminal Session Persistence (FX005)" to `harness/agents/mobile-ux-audit/prompt.md` (NOT Section 6 as the dossier originally said — Section 6 already exists as "Cross-Page Mobile Assessment", and Section 4 "Terminal View Deep Dive" is the natural parent for terminal-specific assertions). Section preserves all surrounding sections including the existing Section 5 "Recent Changes / History Tab".
+- Section 4a contains a 7-step Playwright assertion sequence: navigate to mobile Terminal tab, pick a non-default session, verify URL update, swipe to Files tab, simulate sleep/wake via `visibilitychange` + `focus` events in the correct order (matches real Safari mobile resume sequence), swipe back, assert same session selected and URL persisted. Plus phantom-link cleanup test (cold-load with `?session=ghost-…`) and hard-refresh test. Includes a manual fallback path via `just dev` + Chrome DevTools for when the harness is unhealthy.
+
+**Files touched**:
+- `harness/agents/mobile-ux-audit/prompt.md` — added Section 4a (subsection of existing Section 4).
+- `apps/web/src/features/064-terminal/domain.md` — appended FX005 row to History.
+
+**Tests**: typecheck clean, biome format clean (auto-fixed one renderHook formatting), all 173 terminal tests pass.
+
+**Verdict**: All three FX005 tasks landed. Hook + API + tests + harness assertion + domain history all updated.
+
 ## Companion findings disposition
 
 | Ping (subject) | Sent at | Finding ID | Severity | Disposition | Notes |
 |---|---|---|---|---|---|
+| review-request: FX005-1 2865ebb1 | 2026-05-04T06:00:03Z | — | — | no reply (pending drain) | Will surface in farewell |
+| review-request: FX005-2 f35fd264 | 2026-05-04T06:07:23Z | — | — | no reply (pending drain) | Will surface in farewell |
+| review-request: FX005-3 (post-commit) | (TBD) | — | — | (TBD) | Final ping post-commit |

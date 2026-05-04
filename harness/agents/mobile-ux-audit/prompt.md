@@ -64,6 +64,53 @@ Screenshot and evaluate:
 - Can you scroll or interact with the terminal area?
 - Is there a way to collapse or resize the terminal?
 
+#### 4a. Terminal Session Persistence (FX005)
+
+Verify that the selected tmux session survives a mobile sleep/wake
+cycle and survives a hard refresh — this is the regression FX005
+addresses (mobile browser used to "quite often pick the wrong tmux
+session" after the page came back from background).
+
+1. Navigate to `/workspaces/<slug>/browser?mobileView=2` (Terminal tab)
+   at the mobile viewport.
+2. From the session strip, tap a session that is **not** the worktree
+   default (i.e., not the one that would be auto-picked on a fresh
+   mount). Verify the URL bar updates to include `?session=<name>`.
+3. Swipe to the Files tab (mobileView=0).
+4. Simulate a sleep/wake cycle in Playwright by firing the events the
+   real mobile browser would fire on resume — order matters:
+   ```js
+   await page.evaluate(() => {
+     Object.defineProperty(document, 'hidden', { value: true, configurable: true });
+     document.dispatchEvent(new Event('visibilitychange'));
+   });
+   await page.waitForTimeout(50);
+   await page.evaluate(() => {
+     Object.defineProperty(document, 'hidden', { value: false, configurable: true });
+     document.dispatchEvent(new Event('visibilitychange'));
+     window.dispatchEvent(new Event('focus'));
+   });
+   ```
+5. Swipe back to the Terminal tab. Assert:
+   - The previously-selected session is still selected (the one with
+     `?session=<name>` in the URL — not whatever tmux happens to list
+     first).
+   - The URL still contains `?session=<name>`.
+   - The terminal pane is wired to the named session (no flicker to a
+     different session and back).
+6. Phantom-link cleanup check: navigate cold to
+   `/workspaces/<slug>/browser?mobileView=2&session=ghost-nonexistent-${Date.now()}`.
+   The hook should fall back (auto-pick) AND remove the phantom name
+   from the URL — the address bar should NOT still show `session=ghost-...`
+   after the page settles. Save the post-load URL.
+7. Hard-refresh test: with a non-default session selected, hit
+   browser refresh. After reload, assert the same session is still
+   selected (URL persisted across reload).
+
+If the harness is unhealthy at audit time, the operator can verify
+manually via `just dev` + Chrome DevTools: same flow, but fire the
+visibilitychange / focus events from the Console panel.
+
 ### 5. Recent Changes / History Tab
 
 The browser page has a 4-tab mobile strip: **Files · Content · Terminal · History**.

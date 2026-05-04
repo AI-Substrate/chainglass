@@ -65,10 +65,9 @@ describe('useTerminalSessions — FX005 selection persistence', () => {
       { name: 'bar', attached: 1, windows: 2, created: 200 },
     ]);
     const onUrlUpdate = vi.fn();
-    const { result } = renderHook(
-      () => useTerminalSessions({ currentBranch: 'unrelated' }),
-      { wrapper: makeWrapper('?session=bar', onUrlUpdate) }
-    );
+    const { result } = renderHook(() => useTerminalSessions({ currentBranch: 'unrelated' }), {
+      wrapper: makeWrapper('?session=bar', onUrlUpdate),
+    });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
@@ -112,10 +111,9 @@ describe('useTerminalSessions — FX005 selection persistence', () => {
       { name: 'newer', attached: 0, windows: 1, created: 300 },
     ]);
     const onUrlUpdate = vi.fn();
-    const { result } = renderHook(
-      () => useTerminalSessions({ currentBranch: 'mybranch' }),
-      { wrapper: makeWrapper('', onUrlUpdate) }
-    );
+    const { result } = renderHook(() => useTerminalSessions({ currentBranch: 'mybranch' }), {
+      wrapper: makeWrapper('', onUrlUpdate),
+    });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
@@ -133,10 +131,9 @@ describe('useTerminalSessions — FX005 selection persistence', () => {
       { name: 'banana', attached: 0, windows: 1, created: 200 },
     ]);
     const onUrlUpdate = vi.fn();
-    const { result } = renderHook(
-      () => useTerminalSessions({ currentBranch: 'no-such-branch' }),
-      { wrapper: makeWrapper('', onUrlUpdate) }
-    );
+    const { result } = renderHook(() => useTerminalSessions({ currentBranch: 'no-such-branch' }), {
+      wrapper: makeWrapper('', onUrlUpdate),
+    });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
@@ -146,10 +143,9 @@ describe('useTerminalSessions — FX005 selection persistence', () => {
   it('does not write a URL and reports null selection when zero sessions exist', async () => {
     mockFetchOnce([]);
     const onUrlUpdate = vi.fn();
-    const { result } = renderHook(
-      () => useTerminalSessions({ currentBranch: 'whatever' }),
-      { wrapper: makeWrapper('', onUrlUpdate) }
-    );
+    const { result } = renderHook(() => useTerminalSessions({ currentBranch: 'whatever' }), {
+      wrapper: makeWrapper('', onUrlUpdate),
+    });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
@@ -164,10 +160,9 @@ describe('useTerminalSessions — FX005 selection persistence', () => {
       { name: 'bar', attached: 0, windows: 1, created: 200 },
     ]);
     const onUrlUpdate = vi.fn();
-    const { result } = renderHook(
-      () => useTerminalSessions({ currentBranch: 'unrelated' }),
-      { wrapper: makeWrapper('?session=foo', onUrlUpdate) }
-    );
+    const { result } = renderHook(() => useTerminalSessions({ currentBranch: 'unrelated' }), {
+      wrapper: makeWrapper('?session=foo', onUrlUpdate),
+    });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.selectedSession).toBe('foo');
@@ -188,10 +183,9 @@ describe('useTerminalSessions — FX005 selection persistence', () => {
   it('treats setSelectedSession("") as clearing the URL param', async () => {
     mockFetchOnce([{ name: 'foo', attached: 0, windows: 1, created: 100 }]);
     const onUrlUpdate = vi.fn();
-    const { result } = renderHook(
-      () => useTerminalSessions({ currentBranch: 'unrelated' }),
-      { wrapper: makeWrapper('?session=foo', onUrlUpdate) }
-    );
+    const { result } = renderHook(() => useTerminalSessions({ currentBranch: 'unrelated' }), {
+      wrapper: makeWrapper('?session=foo', onUrlUpdate),
+    });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
     onUrlUpdate.mockClear();
