@@ -39,6 +39,7 @@ import { FeedCard } from './feed-card';
 import { FeedEmptyState } from './feed-empty-state';
 import { FeedErrorState } from './feed-error-state';
 import { FeedSkeleton } from './feed-skeleton';
+import { useFeedActions } from './hooks/use-feed-actions';
 import { useRecentFeedState } from './hooks/use-recent-feed-state';
 import {
   type FilterCategory,
@@ -60,6 +61,10 @@ export interface RecentFeedViewProps {
   worktreePath: string;
   isGit: boolean;
   onClose: () => void;
+  /** T025 — caller-supplied: opens a file in FileViewerPanel (clears `view`). */
+  onOpenFile?: (path: string) => void;
+  /** T025 — caller-supplied: reveals path's parent directory in the file tree (sets `dir` + `file`, clears `view`). */
+  onRevealInTree?: (path: string) => void;
 }
 
 export function RecentFeedView({
@@ -67,6 +72,8 @@ export function RecentFeedView({
   worktreePath,
   isGit,
   onClose,
+  onOpenFile,
+  onRevealInTree,
 }: RecentFeedViewProps) {
   const { state, dispatch, pushEvent } = useRecentFeedState({
     isLoading: true,
@@ -156,28 +163,23 @@ export function RecentFeedView({
   const rawFileUrlFor = (path: string) =>
     `/api/workspaces/${slug}/files/raw?worktree=${encodeURIComponent(worktreePath)}&file=${encodeURIComponent(path)}`;
 
-  const handleCopyRel = useCallback((path: string) => {
-    void navigator.clipboard?.writeText(path);
-  }, []);
-  const handleCopyAbs = useCallback(
-    (path: string) => {
-      const item = state.items.find((i) => i.path === path);
-      if (item) void navigator.clipboard?.writeText(item.absolutePath);
-    },
-    [state.items]
-  );
-  const handleDownload = useCallback(
-    (path: string) => {
-      window.open(`${rawFileUrlFor(path)}&download=true`, '_blank', 'noopener,noreferrer');
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [slug, worktreePath]
-  );
-  const handleOpenItem = useCallback((path: string) => {
-    window.dispatchEvent(
-      new CustomEvent('recent-feed:open-file', { detail: { path } })
-    );
-  }, []);
+  // T025: useFeedActions hook lifts the 9 catalog actions out of the orchestrator.
+  // Bridge events used pre-T025 for navigation are replaced with caller-supplied
+  // handlers (browser-client.tsx wires them with setParams).
+  const actions = useFeedActions({
+    slug,
+    worktreePath,
+    items: state.items,
+    dispatch,
+    onOpenFile:
+      onOpenFile ??
+      ((path) =>
+        window.dispatchEvent(new CustomEvent('recent-feed:open-file', { detail: { path } }))),
+    onRevealInTree:
+      onRevealInTree ??
+      ((path) =>
+        window.dispatchEvent(new CustomEvent('recent-feed:reveal-in-tree', { detail: { path } }))),
+  });
 
   return (
     <div role="feed" aria-busy={state.isLoading} className="flex flex-col h-full overflow-hidden">
@@ -274,14 +276,14 @@ export function RecentFeedView({
               return (
                 <FeedCard
                   item={item}
-                  onActivate={() => handleOpenItem(item.path)}
+                  onActivate={() => actions.open(item.path)}
                   actions={
                     <CardActions
                       filePath={item.path}
-                      onCopyPath={handleCopyRel}
-                      onCopyAbsolutePath={handleCopyAbs}
-                      onDownload={handleDownload}
-                      onOpen={handleOpenItem}
+                      onCopyPath={actions.copyRelativePath}
+                      onCopyAbsolutePath={actions.copyAbsolutePath}
+                      onDownload={actions.download}
+                      onOpen={actions.open}
                     />
                   }
                 >

@@ -300,6 +300,32 @@ The F001 fix is now locked — a regression to the previous broken implementatio
 
 **Evidence**: `npx vitest run` 18/18 in 2ms.
 
+### T025 — useFeedActions hook (9 catalog actions)
+
+`apps/web/src/features/041-file-browser/components/recent-feed/hooks/use-feed-actions.ts` — implements every workshop §3 catalog action:
+
+1. **`open(path)`** — calls caller-supplied `onOpenFile` (browser-client wires `setParams({ file, view: null, line: null })`).
+2. **`copyRelativePath(path)`** — `navigator.clipboard.writeText(path)` + toast.success.
+3. **`copyAbsolutePath(path)`** — looks up the FeedItem in `items` for its absolutePath, writes to clipboard.
+4. **`download(path)`** — `window.open(rawFileUrl + '&download=true')`.
+5. **`copyFilename(path)`** — basename only.
+6. **`copyMarkdownLink(path)`** — `![name](url)` for image/video/audio kinds; `[name](url)` for everything else. Uses raw-file URL.
+7. **`revealInTree(path)`** — calls caller-supplied `onRevealInTree` (browser-client wires `setParams({ dir, file, view: null })`).
+8. **`copyFileContents(path)`** — async; fetches via `fetchFileExcerpt(worktreePath, path, 'full')` (T020 server action — same security gating + 256KB cap). Falls back to toast.error on `forbidden`/`security`/`not-found`/`too-large`.
+9. **`dismiss(path)`** — dispatches `{ type: 'DISMISS', path }` to the T015 reducer (adds to dismissed set, removes from items + buffer, blocks future events).
+
+Orchestrator change: removed inline `handleCopyRel`/`handleCopyAbs`/`handleDownload`/`handleOpenItem` and replaced with `useFeedActions({ slug, worktreePath, items, dispatch, onOpenFile, onRevealInTree })`. CardActions now consumes the hook directly.
+
+`browser-client.tsx` wires the navigation handlers:
+- `onOpenFile={(path) => setParams({ file: path, view: null, line: null }, { history: 'push' })}` — clears `view` AND `line` (so the file opens fresh, not at a previously-set scroll line).
+- `onRevealInTree={(path) => { const idx = path.lastIndexOf('/'); const dir = idx === -1 ? '' : path.slice(0, idx); setParams({ dir, file: path, view: null }, { history: 'push' }); }}` — sets dir + file + clears view.
+
+**Decision** — `onOpenFile` and `onRevealInTree` are OPTIONAL props on `RecentFeedView`. When not provided (e.g., a future popout/standalone usage), the orchestrator falls back to the bridge events (`recent-feed:open-file`, `recent-feed:reveal-in-tree`) so it remains operable in non-browser-client contexts. Browser-client always supplies them — bridge events are never fired in production.
+
+**Decision** — `copyFileContents` returns `Promise<void>`; the caller `await`s for error handling. The other 8 actions are sync (clipboard.writeText returns a promise but we don't await it for those — fire-and-forget with toast feedback).
+
+**Evidence**: tsc clean for `use-feed-actions.ts`, `recent-feed-view.tsx`, `browser-client.tsx`. The two pre-existing errors at browser-client lines 516-517 (`fileNav.fileData?.content`) are unchanged from before T025.
+
 
 
 ---

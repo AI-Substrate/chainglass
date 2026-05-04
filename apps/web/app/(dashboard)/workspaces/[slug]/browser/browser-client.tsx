@@ -921,6 +921,14 @@ function BrowserClientInner({
           worktreePath={worktreePath}
           isGit={isGit}
           onClose={handleCloseRecentFeed}
+          onOpenFile={(path) =>
+            setParams({ file: path, view: null, line: null }, { history: 'push' })
+          }
+          onRevealInTree={(path) => {
+            const idx = path.lastIndexOf('/');
+            const dir = idx === -1 ? '' : path.slice(0, idx);
+            setParams({ dir, file: path, view: null }, { history: 'push' });
+          }}
         />
       ) : selectedFile ? (
         <FileViewerPanel
