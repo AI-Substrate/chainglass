@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { sanitizeSessionName } from '../lib/sanitize-session-name';
+import { sessionNameFromWorktreePath } from '../lib/session-name-from-worktree-path';
 
 interface TerminalOverlayState {
   isOpen: boolean;
@@ -68,8 +68,11 @@ export function TerminalOverlayProvider({
 
     if (worktree) {
       resolvedCwd = resolvedCwd ?? worktree;
-      resolvedSession =
-        resolvedSession ?? (sanitizeSessionName(worktree.split('/').pop() ?? '') || null);
+      // FX006: shared helper. The `|| null` is preserved at the call site
+      // because the helper returns plain `string` — downstream
+      // `?? prev.sessionName` and `if (!resolvedSession)` checks rely on
+      // the null-vs-empty-string distinction.
+      resolvedSession = resolvedSession ?? (sessionNameFromWorktreePath(worktree) || null);
     }
 
     // Fall back to prev state (which holds server-side defaults)
