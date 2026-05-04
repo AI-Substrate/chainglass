@@ -503,7 +503,17 @@ function BrowserClientInner({
   );
 
   // Mobile: folder tap sets dir param (for FolderPreviewPanel in Content view)
-  // but does NOT auto-switch — user stays in Files view to continue browsing
+  // but does NOT auto-switch — user stays in Files view to continue browsing.
+  //
+  // We must NOT fire `?dir=<ancestor>&file=''` when the newly-expanded dir
+  // is just an ancestor of the currently-selected file (e.g., the
+  // auto-expand effect at use-file-navigation.ts ran because a recent-feed
+  // card click navigated into a deep directory). Two stacked guards:
+  //   1. `isProgrammaticExpansionRef` (instant, but the rAF reset can lose
+  //      the flag before the tree's onExpandedDirsChange callback fires).
+  //   2. Ancestor check against `selectedFile` — robust against the timing
+  //      race; if the dir is on the file's ancestor path, the expansion
+  //      came from the auto-expand effect and isn't a user gesture.
   const handleMobileExpandedDirsChange = useCallback(
     (dirs: string[]) => {
       const oldSet = new Set(trackedExpandedDirsRef.current);
@@ -511,11 +521,18 @@ function BrowserClientInner({
       trackedExpandedDirsRef.current = dirs;
       setTrackedExpandedDirs(dirs);
 
-      if (newlyExpanded) {
-        setParams({ dir: newlyExpanded, file: '' }, { history: 'push' });
+      if (!newlyExpanded) return;
+      if (isProgrammaticExpansionRef.current) return;
+      if (selectedFile) {
+        const ancestorPrefix = `${newlyExpanded}/`;
+        if (selectedFile === newlyExpanded || selectedFile.startsWith(ancestorPrefix)) {
+          // Auto-expand for selected file — don't republish dir or wipe file.
+          return;
+        }
       }
+      setParams({ dir: newlyExpanded, file: '' }, { history: 'push' });
     },
-    [setParams]
+    [setParams, selectedFile]
   );
 
   // T004: Watch current open file for external changes
