@@ -32,6 +32,34 @@ Dossier originally proposed `?term=<name>` URL param. Discovered during pre-impl
 
 **Companion ping**: pending — sent post-commit with sha.
 
+## FX005-2: URL-persist selectedSession
+
+**Approach**:
+- Activated the dormant `terminalParams.session` entry — `useQueryState('session', parseAsString.withDefault('').withOptions({ history: 'replace' }))`. Replaces the original dossier proposal of inventing `?term=<name>`. Naturally satisfies the dossier's "param namespace check" Done When (g).
+- Mirrored the URL value through a `useRef` *synced during render* (not in a `useEffect`), so async fetch callbacks always see the latest selection without `storedName` in `fetchSessions` deps. This is the fix for defect (3) — the focus listener no longer captures a stale selection.
+- Validate-or-fallback: on every fetch, check whether `storedNameRef.current` matches a live session. If yes → keep. If no → `setStoredName(null)` (phantom cleanup) then auto-pick (worktree match → `enriched[0]`).
+- `setSelectedSession('')` maps to URL-removed (matches the `withDefault('')` semantic). Tests cover this.
+- `selectedSession` returned to consumers is `null` when stored is `''` — preserves the pre-FX005 `string | null` shape.
+
+**Hidden assumption confirmed**: hydration-window guard at both call sites (`browser-client.tsx:1091`, `terminal-page-client.tsx:80`) renders a fallback when `selectedSession` is null, so the brief SSR-null window is invisible to users.
+
+**Test infrastructure first**: First nuqs adapter test in the apps/web suite. `NuqsTestingAdapter` from `nuqs/adapters/testing` requires `hasMemory` to persist URL writes back to the hook (default `false` makes writes fire-and-forget, which made the phantom-cleanup test fail on the first run — fixed by adding `hasMemory`).
+
+**Files touched**:
+- `apps/web/src/features/064-terminal/hooks/use-terminal-sessions.ts` — refactored.
+- `test/unit/web/features/064-terminal/use-terminal-sessions.test.tsx` — new (7 tests).
+
+**Tests**: 7/7 pass. Full terminal suite 173/173 pass. Typecheck clean.
+
+Cases covered:
+1. Stored name still exists → kept; no URL update.
+2. Stored name is gone → URL cleared then auto-picked → final URL has new selection with `history: 'replace'`.
+3. No stored name + worktree match → picks worktree session.
+4. No stored name + no worktree match → picks first stable-sorted.
+5. Zero sessions → `selectedSession = null`, no URL written.
+6. `setSelectedSession('bar')` → URL updates to `?session=bar` with `history: 'replace'`.
+7. `setSelectedSession('')` → URL `session` param removed.
+
 ## Companion findings disposition
 
 | Ping (subject) | Sent at | Finding ID | Severity | Disposition | Notes |
