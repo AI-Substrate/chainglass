@@ -15,7 +15,6 @@
 
 'use client';
 
-import { useLazyLoad } from '@/features/041-file-browser/hooks/use-lazy-load';
 import { useEffect, useState } from 'react';
 import { fetchFileExcerpt } from '../../../../../../app/actions/file-actions';
 import type { FeedItem } from '../types';
@@ -32,11 +31,14 @@ type FetchState =
   | { status: 'error'; reason: string };
 
 export function MarkdownExcerptCard({ item, worktreePath }: MarkdownExcerptCardProps) {
-  const { ref, isVisible } = useLazyLoad();
   const [state, setState] = useState<FetchState>({ status: 'idle' });
 
   useEffect(() => {
-    if (!isVisible || state.status !== 'idle') return;
+    // Fetch on mount — content-visibility:auto on the list wrapper already
+    // skips render for off-screen cards. An IntersectionObserver inner
+    // gate doesn't fire reliably through content-visibility containers,
+    // so the previous lazy-gate kept excerpts stuck on "Loading…" forever.
+    if (state.status !== 'idle') return;
     let cancelled = false;
     setState({ status: 'loading' });
     fetchFileExcerpt(worktreePath, item.path, 'excerpt')
@@ -58,10 +60,10 @@ export function MarkdownExcerptCard({ item, worktreePath }: MarkdownExcerptCardP
     return () => {
       cancelled = true;
     };
-  }, [isVisible, state.status, worktreePath, item.path]);
+  }, [state.status, worktreePath, item.path]);
 
   return (
-    <div ref={ref} className="relative bg-muted/30 max-h-[60vh] overflow-hidden">
+    <div className="relative bg-muted/30 max-h-[60vh] overflow-hidden">
       {state.status === 'idle' || state.status === 'loading' ? (
         <div className="px-4 py-6 text-xs text-muted-foreground">Loading excerpt…</div>
       ) : state.status === 'error' ? (

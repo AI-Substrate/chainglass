@@ -9,7 +9,6 @@
 
 'use client';
 
-import { useLazyLoad } from '@/features/041-file-browser/hooks/use-lazy-load';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import type { FeedItem } from '../types';
@@ -20,16 +19,16 @@ export interface ImagePreviewProps {
 }
 
 export function ImagePreview({ item, rawFileUrl }: ImagePreviewProps) {
-  const { ref, isVisible } = useLazyLoad();
+  // Browser-native `loading="lazy"` + the parent's `content-visibility:auto`
+  // wrapper already defer off-screen image cost. A custom IntersectionObserver
+  // gate on top of that was redundant and stuck cards on a gray placeholder
+  // when the observer never fired through the content-visibility boundary.
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
 
   return (
-    <div
-      ref={ref}
-      className="flex items-center justify-center bg-muted/30 max-h-[60vh] overflow-hidden"
-    >
-      {isVisible && !error && (
+    <div className="flex items-center justify-center bg-muted/30 max-h-[60vh] overflow-hidden">
+      {!error && (
         // biome-ignore lint/a11y/useAltText: alt is set dynamically below; pattern matches the rest of the codebase
         <img
           src={rawFileUrl}
@@ -43,10 +42,7 @@ export function ImagePreview({ item, rawFileUrl }: ImagePreviewProps) {
           onError={() => setError(true)}
         />
       )}
-      {isVisible && !loaded && !error && (
-        <div className="h-32 w-full animate-pulse bg-muted" />
-      )}
-      {!isVisible && <div className="h-32 w-full bg-muted/30" />}
+      {!loaded && !error && <div className="h-32 w-full animate-pulse bg-muted" />}
       {error && (
         <div className="px-3 py-6 text-xs text-muted-foreground">Failed to load image</div>
       )}

@@ -10,7 +10,6 @@
 
 'use client';
 
-import { useLazyLoad } from '@/features/041-file-browser/hooks/use-lazy-load';
 import type { FeedItem } from '../types';
 
 export interface VideoPreviewProps {
@@ -21,24 +20,23 @@ export interface VideoPreviewProps {
 }
 
 export function VideoPreview({ item, rawFileUrl, posterUrl }: VideoPreviewProps) {
-  const { ref, isVisible } = useLazyLoad();
-
+  // `preload="metadata"` keeps memory bounded until the user actually plays
+  // the video; the parent `content-visibility:auto` wrapper skips render
+  // entirely for off-screen cards. An IntersectionObserver gate on top of
+  // those two doesn't add value and was actively breaking playback (the
+  // observer never fired through the content-visibility boundary).
   return (
-    <div ref={ref} className="bg-black max-h-[60vh] overflow-hidden flex items-center justify-center">
-      {isVisible ? (
-        <video
-          // biome-ignore lint/a11y/useMediaCaption: workspace-local user content; captions cannot be auto-derived
-          className="max-w-full max-h-[60vh] object-contain"
-          controls
-          preload="metadata"
-          poster={posterUrl}
-          aria-label={`Video preview: ${item.name}`}
-        >
-          <source src={rawFileUrl} />
-        </video>
-      ) : (
-        <div className="h-48 w-full bg-muted/30" />
-      )}
+    <div className="bg-black max-h-[60vh] overflow-hidden flex items-center justify-center">
+      <video
+        // biome-ignore lint/a11y/useMediaCaption: workspace-local user content; captions cannot be auto-derived
+        className="max-w-full max-h-[60vh] object-contain"
+        controls
+        preload="metadata"
+        poster={posterUrl}
+        aria-label={`Video preview: ${item.name}`}
+      >
+        <source src={rawFileUrl} />
+      </video>
     </div>
   );
 }
