@@ -23,8 +23,39 @@ const IMAGE_EXTS = new Set([
   'bmp',
   'ico',
 ]);
-const VIDEO_EXTS = new Set(['mp4', 'webm', 'mov', 'avi', 'mkv']);
-const AUDIO_EXTS = new Set(['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a']);
+const VIDEO_EXTS = new Set([
+  'mp4',
+  'm4v', // Apple H.264 / iTunes container — same MIME family as mp4
+  'webm',
+  'mov',
+  'avi',
+  'mkv',
+  'mpg',
+  'mpeg',
+  'ogv',
+  '3gp',
+  '3g2',
+  'wmv',
+  'flv',
+  // Note: NOT including 'ts' (MPEG-TS) — it conflicts with TypeScript
+  // sources, which heavily dominate the population. Users with raw
+  // transport streams in their feed are vanishingly rare; we'd rather
+  // surface .ts files as code excerpts than break the common case.
+]);
+const AUDIO_EXTS = new Set([
+  'mp3',
+  'wav',
+  'ogg',
+  'oga',
+  'opus',
+  'flac',
+  'aac',
+  'm4a',
+  'm4b',
+  'wma',
+  'aiff',
+  'aif',
+]);
 const MARKDOWN_EXTS = new Set(['md', 'markdown', 'mdx']);
 const CODE_EXTS = new Set([
   'ts',
