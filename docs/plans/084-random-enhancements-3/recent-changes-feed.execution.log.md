@@ -354,6 +354,30 @@ Shortcuts (workshop §3 + AC H2):
 
 **Evidence**: tsc clean across both files.
 
+### T028 — Settings registration via SDK contribution manifest
+
+**Plan deviation**: original plan said "cross-domain drop-in at `_platform/settings/sections/recent-feed-settings.tsx`". The actual codebase uses Plan 047's USDK contribution-manifest pattern — settings are declared in each domain's `sdk/contribution.ts` and the SettingsPage queries `sdk.settings.list()` to render them. There is no `_platform/settings/sections/` directory. NO cross-domain modification needed; settings are added to file-browser's own contribution.
+
+Two files:
+
+**`recent-feed-settings.defaults.ts`** (NEW) — single source of truth:
+- `RECENT_FEED_SETTING_KEYS` const map (10 entries, all under `fileBrowser.recentFeed.*` namespace — Constitution Gate locked).
+- `RecentFeedSettings` interface.
+- `RECENT_FEED_DEFAULTS` typed constant: feedSize=50, feedCeiling=200, defaultFilters=['all'], mdExcerptLines=8, mdExcerptChars=600, codeExcerptLines=12, autoplayPolicy='off', deletedWindow=5000, inFlightMediaBound=5, openOnLaunch=false. Workshop §9 binding.
+- AutoplayPolicy + FilterDefault types.
+
+**`sdk/contribution.ts`** — appended 8 entries to `settings: [...]` array under section `Recent Changes Feed`. Each entry sources its default from `RECENT_FEED_DEFAULTS.<key>` so defaults can NEVER drift between contribution + orchestrator. Schema uses Zod ranges (e.g., `z.number().int().min(5).max(200).default(...)`) — bounds are sanity guards, not policy.
+
+UI types: `number` for numeric settings (feedSize, feedCeiling, excerpt limits, deletedWindow, inFlightMediaBound), `select` for autoplayPolicy (off / on-hover / on with loop), `toggle` for openOnLaunch. SettingsPage's `SettingControl` renders each.
+
+**Decision** — `defaultFilters` (string-array shape) has no UI control yet — Plan 047 USDK's SettingControl renders number/toggle/select/string but not multi-select. Documented as a v1.x candidate in the contribution comment. Orchestrator reads the default for first-render.
+
+**Decision** — schema bounds are sanity guards only. e.g., feedSize min=5 max=200 — going below 5 makes the seed pointless; going above 200 OOMs the browser per Finding 05. T028 sets those bounds in a single place.
+
+**Decision** — Constitution Gate row `fileBrowser.recentFeed.*` LOCKED is now load-bearing: future renames require a migration step in this commit's lineage. The defaults file is the canonical key registry.
+
+**Evidence**: tsc clean for both files. The settings appear in the existing settings page under section "Recent Changes Feed" the next time the SettingsPage is rendered (no extra wiring needed — `sdk.settings.list()` returns the new entries via the contribution registration).
+
 
 
 ---
