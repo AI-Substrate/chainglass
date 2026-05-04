@@ -31,16 +31,9 @@ type FetchState =
   | { status: 'error'; reason: string };
 
 export function CodeExcerptCard({ item, worktreePath }: CodeExcerptCardProps) {
-  const [state, setState] = useState<FetchState>({ status: 'idle' });
+  const [state, setState] = useState<FetchState>({ status: 'loading' });
 
   useEffect(() => {
-    // Fetch on mount. Off-screen cost is already deferred by the
-    // `content-visibility: auto` wrapper in RecentFeedList — the browser
-    // skips render entirely for cards far from the viewport. An inner
-    // IntersectionObserver doesn't add value here and was actively
-    // breaking the fetch (the observer never fired through the
-    // content-visibility container, so `isVisible` stayed false forever).
-    if (state.status !== 'idle') return;
     let cancelled = false;
     setState({ status: 'loading' });
     fetchFileExcerpt(worktreePath, item.path, 'excerpt')
@@ -62,7 +55,7 @@ export function CodeExcerptCard({ item, worktreePath }: CodeExcerptCardProps) {
     return () => {
       cancelled = true;
     };
-  }, [state.status, worktreePath, item.path]);
+  }, [worktreePath, item.path]);
 
   return (
     <div className="relative bg-muted/30 max-h-[60vh] overflow-hidden">

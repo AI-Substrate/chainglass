@@ -31,14 +31,9 @@ type FetchState =
   | { status: 'error'; reason: string };
 
 export function MarkdownExcerptCard({ item, worktreePath }: MarkdownExcerptCardProps) {
-  const [state, setState] = useState<FetchState>({ status: 'idle' });
+  const [state, setState] = useState<FetchState>({ status: 'loading' });
 
   useEffect(() => {
-    // Fetch on mount — content-visibility:auto on the list wrapper already
-    // skips render for off-screen cards. An IntersectionObserver inner
-    // gate doesn't fire reliably through content-visibility containers,
-    // so the previous lazy-gate kept excerpts stuck on "Loading…" forever.
-    if (state.status !== 'idle') return;
     let cancelled = false;
     setState({ status: 'loading' });
     fetchFileExcerpt(worktreePath, item.path, 'excerpt')
@@ -60,7 +55,7 @@ export function MarkdownExcerptCard({ item, worktreePath }: MarkdownExcerptCardP
     return () => {
       cancelled = true;
     };
-  }, [state.status, worktreePath, item.path]);
+  }, [worktreePath, item.path]);
 
   return (
     <div className="relative bg-muted/30 max-h-[60vh] overflow-hidden">
