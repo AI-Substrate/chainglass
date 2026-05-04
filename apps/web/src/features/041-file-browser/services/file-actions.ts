@@ -10,12 +10,36 @@
  */
 
 import * as path from 'node:path';
-import { detectContentType, isBinaryExtension } from '@/lib/content-type-detection';
+import { detectContentType } from '@/lib/content-type-detection';
 import { detectLanguage } from '@/lib/language-detection';
 import type { IFileSystem, IPathResolver } from '@chainglass/shared';
 import { PathSecurityError } from '@chainglass/shared';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+
+/**
+ * Genuinely-binary file extensions — image / video / audio / pdf / font.
+ * For these we short-circuit with `isBinary: true` and never read the file
+ * as UTF-8.
+ *
+ * Critically excludes \`json / css / js / mjs / html / htm\`. Those live in
+ * the content-type EXTENSION_MAP (so the raw-file route can serve them
+ * with a correct MIME for HTML sub-resources), but they're text on disk
+ * and the viewer should pretty-print / syntax-highlight them. Treating
+ * them as binary downloaded the file instead of showing the editor —
+ * which is wrong for, e.g., looking at a \`package.json\`.
+ *
+ * Real binaries with text-y extensions (e.g. a .json that's somehow a
+ * blob) are still caught by the null-byte sniff further down.
+ */
+const FONT_EXTENSIONS = new Set(['woff', 'woff2', 'ttf', 'otf']);
+function isGenuinelyBinaryExtension(filename: string): boolean {
+  const ext = filename.split('.').pop()?.toLowerCase();
+  if (!ext) return false;
+  if (FONT_EXTENSIONS.has(ext)) return true;
+  const { category } = detectContentType(filename);
+  return category === 'image' || category === 'video' || category === 'audio' || category === 'pdf';
+}
 
 // ==================== Read File ====================
 
@@ -83,9 +107,12 @@ export async function readFileAction(options: ReadFileOptions): Promise<ReadFile
   }
 
   // Binary detection: extension-first (avoids reading binary content as UTF-8)
-  // Must be BEFORE size check — binary files bypass the 5MB text limit
+  // Must be BEFORE size check — binary files bypass the 5MB text limit.
+  // `isGenuinelyBinaryExtension` is narrower than the legacy
+  // `isBinaryExtension` — it skips json/css/js/html/etc. so those open in
+  // the editor / preview pane instead of being downloaded.
   const filename = path.basename(filePath);
-  if (isBinaryExtension(filename)) {
+  if (isGenuinelyBinaryExtension(filename)) {
     const { mimeType } = detectContentType(filename);
     return {
       ok: true,

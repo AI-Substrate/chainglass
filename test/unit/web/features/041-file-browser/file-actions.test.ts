@@ -99,6 +99,34 @@ describe('readFileAction', () => {
     }
   });
 
+  it.each([
+    ['package.json', '{ "name": "x" }', 'json'],
+    ['config.yaml', 'name: x\n', 'yaml'],
+    ['config.toml', 'name = "x"\n', 'toml'],
+    ['data.xml', '<root>x</root>', 'xml'],
+    ['style.css', '.x { color: red; }', 'css'],
+    ['module.mjs', 'export const x = 1;', 'javascript'],
+    ['index.html', '<!doctype html><p>hi</p>', 'html'],
+  ])(
+    'returns text content (not binary) for structured-text format %s',
+    async (filename, content, expectedLang) => {
+      fs.setFile(`/workspace/${filename}`, content);
+      const result = await readFileAction({
+        worktreePath: '/workspace',
+        filePath: filename,
+        fileSystem: fs,
+        pathResolver,
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.isBinary).toBe(false);
+      if (!result.isBinary) {
+        expect(result.content).toBe(content);
+        expect(result.language).toBe(expectedLang);
+      }
+    }
+  );
+
   it('returns not-found error for missing files', async () => {
     const result = await readFileAction({
       worktreePath: '/workspace',
