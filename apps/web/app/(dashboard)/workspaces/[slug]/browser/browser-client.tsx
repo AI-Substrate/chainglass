@@ -182,6 +182,33 @@ function BrowserClientInner({
   // Plan recent-changes-feed T003: main-panel view selector (Finding 07 — branch BEFORE
   // selectedFile/currentDir so closing the feed restores the user's prior state).
   const view = params.view; // 'recent-feed' | null
+
+  // Mobile tab index ↔ view sync. The History tab (index 3) is bound to
+  // `view=recent-feed` so deep-links and entrypoints (Cmd-palette command,
+  // explorer-bar History button, openOnLaunch setting) flip the active
+  // tab on mobile. Conversely, swiping/tapping into the History tab
+  // sets the URL param so the desktop main pane mirrors the choice.
+  useEffect(() => {
+    if (view === 'recent-feed' && mobileActiveIndex !== 3) {
+      setMobileActiveIndex(3);
+    }
+  }, [view, mobileActiveIndex]);
+
+  const handleMobileViewChange = useCallback(
+    (idx: number) => {
+      setMobileActiveIndex(idx);
+      // Activating History tab → publish `view=recent-feed` to the URL.
+      // Leaving History → clear the param (unless we're still on the
+      // recent-feed view via desktop URL, which only happens if the
+      // user explicitly typed it — in which case the next click clears).
+      if (idx === 3 && view !== 'recent-feed') {
+        setParams({ view: 'recent-feed' }, { history: 'replace' });
+      } else if (idx !== 3 && view === 'recent-feed') {
+        setParams({ view: null }, { history: 'replace' });
+      }
+    },
+    [view, setParams]
+  );
   const handleCloseRecentFeed = useCallback(() => {
     setParams({ view: null }, { history: 'push' });
   }, [setParams]);
@@ -962,29 +989,7 @@ function BrowserClientInner({
 
   const contentView = (
     <MainPanel>
-      {view === 'recent-feed' ? (
-        <RecentFeedView
-          slug={slug}
-          worktreePath={worktreePath}
-          isGit={isGit}
-          onClose={handleCloseRecentFeed}
-          onOpenFile={(path) => {
-            // Use the same handler the explorer / search uses so the user
-            // gets the full canonical flow: mobile tab switch, overlay
-            // close, fileNav.handleSelect (loads the file into the
-            // viewer panel). `view: null` clears `?view=recent-feed` so
-            // the feed pane swaps out for the file viewer.
-            setParams({ view: null, line: null }, { history: 'replace' });
-            void handleFileSelect(path);
-          }}
-          onRevealInTree={(path) => {
-            const idx = path.lastIndexOf('/');
-            const dir = idx === -1 ? '' : path.slice(0, idx);
-            setParams({ dir, view: null }, { history: 'push' });
-            void handleFileSelect(path);
-          }}
-        />
-      ) : selectedFile ? (
+      {selectedFile ? (
         <FileViewerPanel
           filePath={selectedFile}
           content={
@@ -1081,6 +1086,27 @@ function BrowserClientInner({
     </div>
   );
 
+  // History as 4th mobile view (Recent Changes Feed). Lazy — only mounts
+  // when the user activates the History tab, mirroring the Terminal slot.
+  const historyView = (
+    <RecentFeedView
+      slug={slug}
+      worktreePath={worktreePath}
+      isGit={isGit}
+      onClose={handleCloseRecentFeed}
+      onOpenFile={(path) => {
+        setParams({ view: null, line: null }, { history: 'replace' });
+        void handleFileSelect(path);
+      }}
+      onRevealInTree={(path) => {
+        const idx = path.lastIndexOf('/');
+        const dir = idx === -1 ? '' : path.slice(0, idx);
+        setParams({ dir, view: null }, { history: 'push' });
+        void handleFileSelect(path);
+      }}
+    />
+  );
+
   return (
     <div className="h-full overflow-hidden">
       <PanelShell
@@ -1094,10 +1120,16 @@ function BrowserClientInner({
             isTerminal: true,
             lazy: true,
           },
+          {
+            label: 'History',
+            icon: <History className="h-4 w-4" />,
+            content: historyView,
+            lazy: true,
+          },
         ]}
         initialMobileActiveIndex={mobileActiveIndex}
         mobileActiveIndex={mobileActiveIndex}
-        onMobileViewChange={setMobileActiveIndex}
+        onMobileViewChange={handleMobileViewChange}
         mobileRightAction={
           <button
             type="button"

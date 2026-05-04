@@ -54,29 +54,32 @@ describe('browser-client.tsx routing — Finding 07 ordering invariant', () => {
     expect(source).toMatch(/setParams\(\s*\{\s*view:\s*null\s*\}/);
   });
 
-  it('places `view === \'recent-feed\'` branch BEFORE BOTH `selectedFile ?` AND `currentDir ?` in the mobile contentView render point', () => {
-    // The mobile contentView declaration block; we slice from its start to
-    // the closing `</MainPanel>` of that block to isolate that render point
-    // from the desktop one.
+  it('mobile contentView has NO `view === \'recent-feed\'` branch — feed lives in its own History tab', () => {
+    // After Phase mobile-history-tab: the recent-feed view is no longer
+    // inlined into contentView. It now occupies its own 4th mobile tab
+    // ("History"), built from the standalone `historyView` local. The
+    // Content tab (index 1) only renders the file viewer / folder
+    // preview / empty state — opening the feed swaps the active tab,
+    // not the Content slot's render branch.
     const mobileBlockStart = source.indexOf('const contentView = (');
     expect(mobileBlockStart).toBeGreaterThan(0);
-    // Find the next `</MainPanel>)` after that — the closing of contentView's
-    // MainPanel. The desktop block uses `<MainPanel>` inside `main={`, so a
-    // single forward search from the mobile start ends at contentView's close.
     const mobileBlockEnd = source.indexOf('</MainPanel>', mobileBlockStart);
     expect(mobileBlockEnd).toBeGreaterThan(mobileBlockStart);
     const mobileBlock = source.slice(mobileBlockStart, mobileBlockEnd);
 
-    const viewIdx = mobileBlock.indexOf("view === 'recent-feed'");
-    const fileIdx = mobileBlock.indexOf('selectedFile ? (');
-    const dirIdx = mobileBlock.indexOf('currentDir ? (');
-    expect(viewIdx).toBeGreaterThan(0);
-    // F001 fix: also assert `currentDir ?` comes after the view branch — a
-    // refactor could otherwise put folder-preview ahead of the feed and these
-    // tests would still pass even though `?view=recent-feed&dir=…` would now
-    // render the folder preview, breaking AC A1's preservation contract.
-    expect(fileIdx).toBeGreaterThan(viewIdx);
-    expect(dirIdx).toBeGreaterThan(viewIdx);
+    expect(mobileBlock.indexOf("view === 'recent-feed'")).toBe(-1);
+    // The `selectedFile ?` / `currentDir ?` cascade is still the
+    // canonical Content-tab render order.
+    expect(mobileBlock.indexOf('selectedFile ? (')).toBeGreaterThan(0);
+    expect(mobileBlock.indexOf('currentDir ? (')).toBeGreaterThan(0);
+  });
+
+  it('declares a `historyView` local that mounts RecentFeedView for the History mobile tab', () => {
+    expect(source).toContain('const historyView = (');
+    // History tab entry in mobileViews must reference historyView.
+    const mobileViewsBlock = source.slice(source.indexOf('mobileViews={['));
+    expect(mobileViewsBlock).toContain("label: 'History'");
+    expect(mobileViewsBlock).toContain('content: historyView');
   });
 
   it('places `view === \'recent-feed\'` branch BEFORE BOTH `selectedFile ?` AND `currentDir ?` in the desktop main slot render point', () => {
