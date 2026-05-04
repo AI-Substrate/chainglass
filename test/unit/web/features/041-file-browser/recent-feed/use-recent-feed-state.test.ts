@@ -73,10 +73,20 @@ describe('isFilteredPath', () => {
     ['apps/web/node_modules/foo', true],
     ['packages/shared/.next/build.json', true],
     ['apps/web/dist/index.js', true],
+    // Dot-prefixed paths/folders are now ALWAYS filtered (any segment that
+    // starts with a `.` — covers .git, .next, .turbo, .cache, .fs2,
+    // .chainglass, .env, .eslintrc.json, .DS_Store, etc.).
+    ['.eslintrc.json', true],
+    ['.fs2/cache.bin', true],
+    ['.chainglass/workspaces.json', true],
+    ['apps/web/.eslintrc.json', true],
+    // Generated cache extensions filtered.
+    ['models/graph.pickle', true],
+    ['cache/state.pkl', true],
+    ['__pycache__/foo.pyc', true],
     // Paths that must NOT be filtered.
     ['src/components/foo.tsx', false],
     ['docs/recent-changes-feed.md', false],
-    ['.eslintrc.json', false],
     ['notes-distinct/file.txt', false], // 'dist' as substring, not segment
     ['build-tools/script.sh', false], // 'build' as substring, not segment
   ])('isFilteredPath(%s) === %s', (path, expected) => {

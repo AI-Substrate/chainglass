@@ -55,29 +55,58 @@ export type FeedAction =
 export const DEFAULT_FEED_CEILING = 200;
 
 /**
- * Build-artifact paths the feed never wants to surface. Mirrors common
- * `.gitignore` entries; checked at reducer intake so the noise never
- * reaches React state. Keep this list narrow — gitignore-aware filtering
- * (real `.gitignore` parsing) is a future enhancement.
+ * Build-artifact non-dot folders the feed never wants to surface. Dot-files
+ * and dot-folders (anything starting with `.`) are filtered separately by
+ * `isFilteredPath` — that catches `.next`, `.turbo`, `.cache`, `.git`,
+ * `.fs2`, `.chainglass`, `.env*`, etc. without needing an exhaustive list.
+ *
+ * Keep this list narrow — gitignore-aware filtering (real `.gitignore`
+ * parsing) is a future enhancement.
  */
 const BUILD_ARTIFACT_PREFIXES: readonly string[] = [
   'node_modules/',
-  '.next/',
-  '.turbo/',
-  '.cache/',
   'dist/',
   'build/',
   'coverage/',
 ];
 
-/** Returns true when the path should be ignored entirely. */
+/** Generated artifacts identified by extension only. Useful for cache files. */
+const FILTERED_EXTENSIONS: ReadonlySet<string> = new Set([
+  'pickle',
+  'pkl',
+  'pyc',
+  'pyo',
+]);
+
+/**
+ * Returns true when the path should be ignored entirely.
+ *
+ * Filters:
+ *   1. Any segment beginning with `.` — covers `.git`, `.next`, `.turbo`,
+ *      `.cache`, `.fs2`, `.chainglass`, `.env`, `.DS_Store`, etc.
+ *   2. Build-artifact prefixes (node_modules / dist / build / coverage)
+ *      whether at root or nested (`apps/web/node_modules/foo`).
+ *   3. Generated cache extensions (.pickle / .pkl / .pyc / .pyo) since the
+ *      feed is for human-readable change review, not bytecode noise.
+ */
 export function isFilteredPath(path: string): boolean {
+  // Rule 1 — any dot-prefixed segment.
+  if (path.split('/').some((seg) => seg.startsWith('.'))) return true;
+
+  // Rule 2 — build-artifact non-dot folders.
   for (const prefix of BUILD_ARTIFACT_PREFIXES) {
     if (path === prefix.slice(0, -1)) return true;
     if (path.startsWith(prefix)) return true;
-    // Also catch nested matches: `apps/web/node_modules/foo`
     if (path.includes(`/${prefix}`)) return true;
   }
+
+  // Rule 3 — generated extensions.
+  const dotIdx = path.lastIndexOf('.');
+  if (dotIdx > -1) {
+    const ext = path.slice(dotIdx + 1).toLowerCase();
+    if (FILTERED_EXTENSIONS.has(ext)) return true;
+  }
+
   return false;
 }
 

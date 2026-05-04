@@ -15,6 +15,7 @@
 import { stat } from 'node:fs/promises';
 import { resolve as resolvePath } from 'node:path';
 import { detectFeedItemKind } from '../lib/feed-item-kind';
+import { isFilteredPath } from '../components/recent-feed/hooks/use-recent-feed-state';
 import { getRecentFiles } from './recent-files';
 import type {
   FeedEventType,
@@ -28,15 +29,32 @@ export type RecentFeedItemsResult =
 // Re-export so existing test imports continue to work without churn.
 export { detectFeedItemKind };
 
+/**
+ * Multiplier on the requested limit when scanning git history. The feed user
+ * wants `limit` interesting files, but git history typically has lots of
+ * noise (docs, configs, test files, dot-folders). Scanning N× ensures the
+ * post-filter result has a fighting chance of including media even if the
+ * most-recent commits were all docs. 4× is a sweet spot: enough headroom for
+ * busy repos without making the scan dominate response time.
+ */
+const SEED_SCAN_MULTIPLIER = 4;
+
 export async function getRecentFeedItems(
   worktreePath: string,
   limit = 50
 ): Promise<RecentFeedItemsResult> {
-  const seed = await getRecentFiles(worktreePath, limit);
+  // Scan a wider window so that after dropping dot-files / build artifacts /
+  // generated cache extensions, we still have a chance of returning `limit`
+  // interesting paths.
+  const seed = await getRecentFiles(worktreePath, limit * SEED_SCAN_MULTIPLIER);
   if (!seed.ok) return { ok: false, error: 'not-git' };
 
+  // Drop noise BEFORE the stat round-trip — saves N stat calls per ignored
+  // path. Same rules the live-merge reducer applies at intake.
+  const filteredPaths = seed.files.filter((p) => !isFilteredPath(p));
+
   const stats = await Promise.allSettled(
-    seed.files.map(async (relPath) => {
+    filteredPaths.map(async (relPath) => {
       const absPath = resolvePath(worktreePath, relPath);
       const s = await stat(absPath);
       const segs = relPath.split('/');
@@ -64,7 +82,9 @@ export async function getRecentFeedItems(
     .filter(
       (r): r is PromiseFulfilledResult<FeedItem> => r.status === 'fulfilled'
     )
-    .map((r) => r.value);
+    .map((r) => r.value)
+    // Truncate post-filter to the user-requested limit.
+    .slice(0, limit);
 
   return { ok: true, items };
 }

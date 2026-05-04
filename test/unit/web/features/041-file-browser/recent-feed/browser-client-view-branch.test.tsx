@@ -20,46 +20,21 @@
  * integration test).
  */
 
-import { RecentFeedView } from '@/features/041-file-browser/components/recent-feed/recent-feed-view';
-import { render, screen } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 const BROWSER_CLIENT_PATH = resolve(
   __dirname,
   '../../../../../../apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx'
 );
 
-describe('RecentFeedView stub', () => {
-  it('renders the placeholder loading message', () => {
-    const onClose = vi.fn();
-    render(
-      <RecentFeedView
-        slug="test-slug"
-        worktreePath="/tmp/wt"
-        isGit={true}
-        onClose={onClose}
-      />
-    );
-    // The stub copy is part of the public T003→T012 handoff; T012 replaces
-    // the body but keeps the props.
-    expect(screen.getByText(/recent changes feed/i)).toBeDefined();
-  });
-
-  it('does not invoke onClose during render', () => {
-    const onClose = vi.fn();
-    render(
-      <RecentFeedView
-        slug="test-slug"
-        worktreePath="/tmp/wt"
-        isGit={false}
-        onClose={onClose}
-      />
-    );
-    expect(onClose).not.toHaveBeenCalled();
-  });
-});
+// Note: T003's "RecentFeedView stub" rendering tests were removed at T012
+// when the stub became the real orchestrator (now requires
+// FileChangeProvider context to render). Routing-invariant tests below
+// still lock the Finding 07 contract via static source analysis — that's
+// the part this file uniquely covers. Live render verification lives in
+// integration tests + the harness exercise.
 
 describe('browser-client.tsx routing — Finding 07 ordering invariant', () => {
   const source = readFileSync(BROWSER_CLIENT_PATH, 'utf8');
