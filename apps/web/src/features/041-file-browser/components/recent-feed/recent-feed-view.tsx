@@ -3,23 +3,38 @@
 /**
  * RecentFeedView — top-level orchestrator for the Recent Changes Feed.
  *
- * T012 wiring: seeds via `fetchRecentFeedItems` (git log + fs.stat) on mount;
- * renders the static UI primitives (header, filters, list, empty/error/skeleton)
- * and dispatches per-card preview based on `FeedItem.kind`.
+ * T012 wired the seed (git log + fs.stat → FeedItem[]).
+ * T015 added the live-merge reducer (`useRecentFeedState`).
+ * T016 (this commit) wires the reducer to the existing
+ * `_platform/events` `file-changes` SSE channel via `useFileChanges('*')`
+ * — Finding 01 binds: NO new SSE channel, broadcaster, or watcher pipeline.
  *
- * Live merge (SSE-driven promotions) lands at T015/T016. Markdown / code
- * excerpt cards land at T021/T022 — until then those kinds fall through to
- * the binary preview.
+ * Markdown / code excerpt cards land at T021/T022 — until then those kinds
+ * fall through to the binary preview.
  */
 
-import { fetchRecentFeedItems } from '../../../../../app/actions/file-actions';
+import { useFileChanges } from '@/features/045-live-file-events';
 import { cn } from '@/lib/utils';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { fetchRecentFeedItems } from '../../../../../app/actions/file-actions';
+
+/**
+ * Tiny browser-safe absolute-path joiner. The Node `path.resolve` isn't
+ * usable in client bundles; for our needs we just need `<worktree>/<rel>`
+ * with no intermediate `..` resolution (server already gave us a normalised
+ * relative path). This is good enough for the clipboard / display use case.
+ */
+function joinPath(worktreePath: string, relPath: string): string {
+  const trimmed = worktreePath.replace(/\/+$/, '');
+  const cleaned = relPath.replace(/^\/+/, '');
+  return `${trimmed}/${cleaned}`;
+}
 import { CardActions } from '../preview-cards/card-actions';
 import { FeedCard } from './feed-card';
 import { FeedEmptyState } from './feed-empty-state';
 import { FeedErrorState } from './feed-error-state';
 import { FeedSkeleton } from './feed-skeleton';
+import { useRecentFeedState } from './hooks/use-recent-feed-state';
 import {
   type FilterCategory,
   RecentFeedFilters,
@@ -73,54 +88,78 @@ export function RecentFeedView({
   isGit,
   onClose,
 }: RecentFeedViewProps) {
-  const [items, setItems] = useState<FeedItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { state, dispatch, pushEvent } = useRecentFeedState({
+    isLoading: true,
+  });
   const [seedError, setSeedError] = useState<{ message: string; detail?: string } | null>(
     null
   );
-  const [isPaused, setIsPaused] = useState(false);
   const [activeFilters, setActiveFilters] = useState<ReadonlySet<FilterCategory>>(
     ALL_CATEGORIES
   );
 
   const loadSeed = useCallback(async () => {
-    setIsLoading(true);
     setSeedError(null);
     try {
       const result = await fetchRecentFeedItems(worktreePath, 50);
       if (result.ok) {
-        setItems(result.items);
+        dispatch({ type: 'INIT', items: result.items });
       } else {
         setSeedError({
           message: 'Cannot seed from git history',
           detail: 'This workspace is not a git repository — no historical change order is available.',
         });
-        setItems([]);
+        dispatch({ type: 'INIT', items: [] });
       }
     } catch (err) {
       setSeedError({
         message: 'Failed to load recent changes',
         detail: err instanceof Error ? err.message : undefined,
       });
-      setItems([]);
-    } finally {
-      setIsLoading(false);
+      dispatch({ type: 'INIT', items: [] });
     }
-  }, [worktreePath]);
+  }, [worktreePath, dispatch]);
 
   useEffect(() => {
     void loadSeed();
   }, [loadSeed]);
 
+  // T016: subscribe to the EXISTING `file-changes` SSE channel via
+  // useFileChanges('*'). Finding 01 binds: NO new SSE channel, broadcaster,
+  // or watcher pipeline. We pipe each FileChange into the reducer's
+  // pushEvent (which batches via rAF for AC G3 burst coalescing).
+  const { changes, clearChanges } = useFileChanges('*', { debounce: 50 });
+  // Track changes we've already forwarded to avoid double-counting on
+  // re-render. The hook in 'replace' mode emits the most recent batch each
+  // time, so we only forward changes whose timestamp is newer than the last
+  // seen one.
+  const lastSeenTsRef = useRef<number>(0);
+  useEffect(() => {
+    if (changes.length === 0) return;
+    let maxTs = lastSeenTsRef.current;
+    for (const change of changes) {
+      if (change.timestamp <= lastSeenTsRef.current) continue;
+      if (change.timestamp > maxTs) maxTs = change.timestamp;
+      // Map FileChange → RawFileChangeEvent. Size + mtimeMs unknown on the
+      // client; mtimeMs falls back to the SSE timestamp; size = 0 (the next
+      // seed refresh will repopulate).
+      pushEvent({
+        kind: change.eventType,
+        path: change.path,
+        absolutePath: joinPath(worktreePath, change.path),
+        mtimeMs: change.timestamp,
+        size: 0,
+      });
+    }
+    lastSeenTsRef.current = maxTs;
+    clearChanges();
+  }, [changes, pushEvent, worktreePath, clearChanges]);
+
   const handleToggleFilter = useCallback((cat: FilterCategory) => {
     setActiveFilters((prev) => {
-      // 'all' chip: snap back to every category (workshop §5).
       if (cat === 'all') return ALL_CATEGORIES;
-      // F001 fix: clicking a non-All chip while in the all-inclusive state is
-      // a fresh single-category selection (NOT a toggle that removes the
-      // clicked category from the otherwise-all set). The previous logic
-      // dropped 'all', saw the clicked category was still present, then
-      // deleted it — leaving every category EXCEPT the clicked one active.
+      // F001 fix: transition from All → subset is a fresh single-category
+      // selection, not a delete from the all-set.
       if (prev.has('all')) return new Set<FilterCategory>([cat]);
       const next = new Set<FilterCategory>(prev);
       if (next.has(cat)) {
@@ -128,7 +167,6 @@ export function RecentFeedView({
       } else {
         next.add(cat);
       }
-      // Empty subset auto-snaps back to 'all' so the user always sees content.
       if (next.size === 0) return ALL_CATEGORIES;
       return next;
     });
@@ -136,8 +174,8 @@ export function RecentFeedView({
 
   const showAll = activeFilters.has('all');
   const visibleItems = showAll
-    ? items
-    : items.filter((item) => activeFilters.has(itemCategory(item)));
+    ? state.items
+    : state.items.filter((item) => activeFilters.has(itemCategory(item)));
 
   const rawFileUrlFor = (path: string) =>
     `/api/workspaces/${slug}/files/raw?worktree=${encodeURIComponent(worktreePath)}&file=${encodeURIComponent(path)}`;
@@ -145,42 +183,38 @@ export function RecentFeedView({
   const handleCopyRel = useCallback((path: string) => {
     void navigator.clipboard?.writeText(path);
   }, []);
-  const handleCopyAbs = useCallback((path: string) => {
-    const item = items.find((i) => i.path === path);
-    if (item) void navigator.clipboard?.writeText(item.absolutePath);
-  }, [items]);
+  const handleCopyAbs = useCallback(
+    (path: string) => {
+      const item = state.items.find((i) => i.path === path);
+      if (item) void navigator.clipboard?.writeText(item.absolutePath);
+    },
+    [state.items]
+  );
   const handleDownload = useCallback(
     (path: string) => {
       window.open(`${rawFileUrlFor(path)}&download=true`, '_blank', 'noopener,noreferrer');
     },
-    // rawFileUrlFor is stable per (slug, worktreePath); both are props
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [slug, worktreePath]
   );
-  const handleOpenItem = useCallback(
-    (path: string) => {
-      // Opening from the feed: defer to the URL params handler. The
-      // browser-client view branch closes the feed when `view` clears.
-      // T025 will wire this through useFeedActions; for T012 we emit
-      // a bridge event the orchestrator's parent can listen for.
-      window.dispatchEvent(
-        new CustomEvent('recent-feed:open-file', { detail: { path } })
-      );
-    },
-    []
-  );
+  const handleOpenItem = useCallback((path: string) => {
+    window.dispatchEvent(
+      new CustomEvent('recent-feed:open-file', { detail: { path } })
+    );
+  }, []);
 
   return (
-    <div role="feed" aria-busy={isLoading} className="flex flex-col h-full overflow-hidden">
+    <div role="feed" aria-busy={state.isLoading} className="flex flex-col h-full overflow-hidden">
       <RecentFeedHeader
         itemCount={visibleItems.length}
-        isLive={isGit}
-        isPaused={isPaused}
-        onTogglePause={() => setIsPaused((p) => !p)}
+        isLive={isGit && !state.isDisconnected}
+        isPaused={state.paused}
+        bufferedChanges={state.buffer.length}
+        onTogglePause={() =>
+          dispatch({ type: state.paused ? 'RESUME' : 'PAUSE' })
+        }
         onRefresh={loadSeed}
         onOpenSettings={() => {
-          // T028 wires the settings sheet/dialog open. For T012 we just
-          // dispatch a bridge event so the entrypoint logic can land later.
           window.dispatchEvent(new CustomEvent('recent-feed:open-settings'));
         }}
       />
@@ -199,18 +233,18 @@ export function RecentFeedView({
       </button>
 
       <div className="flex-1 overflow-y-auto">
-        {isLoading && <FeedSkeleton count={5} />}
-        {!isLoading && seedError && (
+        {state.isLoading && <FeedSkeleton count={5} />}
+        {!state.isLoading && seedError && (
           <FeedErrorState
             message={seedError.message}
             detail={seedError.detail}
             onRetry={loadSeed}
           />
         )}
-        {!isLoading && !seedError && visibleItems.length === 0 && (
+        {!state.isLoading && !seedError && visibleItems.length === 0 && (
           <FeedEmptyState filtered={!showAll && activeFilters.size > 0} />
         )}
-        {!isLoading && !seedError && visibleItems.length > 0 && (
+        {!state.isLoading && !seedError && visibleItems.length > 0 && (
           <RecentFeedList
             items={visibleItems}
             renderItem={(item) => {
@@ -225,8 +259,6 @@ export function RecentFeedView({
                     return <AudioPreview item={item} rawFileUrl={url} />;
                   case 'markdown':
                   case 'code':
-                    // T021/T022 will replace these with the real excerpt cards.
-                    // For T012 we render the binary placeholder so cards still appear.
                     return <BinaryPreview item={item} />;
                   default:
                     return <BinaryPreview item={item} />;

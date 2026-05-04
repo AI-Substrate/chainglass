@@ -150,6 +150,24 @@ Replaced **`recent-feed-view.tsx`** stub body with the seeded orchestrator:
 
 **Evidence**: `npx vitest run` 34/34 in 3ms.
 
+### T016 — Wire useRecentFeedState to useFileChanges('*')
+
+Replaced the orchestrator's `useState<FeedItem[]>` with `useRecentFeedState` (T015 reducer + rAF-batched pushEvent). Subscribed to `useFileChanges('*', { debounce: 50 })` from `_platform/events/045-live-file-events` — Finding 01 binding: NO new SSE channel/broadcaster/route added.
+
+Effect: when `changes` array updates, walk it and push only events whose timestamp exceeds `lastSeenTsRef.current` to avoid double-counting on re-render. Each FileChange → RawFileChangeEvent shape (path, kind=eventType, absolutePath via `joinPath`, mtimeMs from SSE timestamp, size=0 — next seed refresh repopulates).
+
+Pause/refresh wiring: header buttons dispatch `PAUSE`/`RESUME` to the reducer; refresh re-runs `loadSeed`. The `bufferedChanges` count surfaces in the header live-indicator copy ("Paused (3)") — workshop §5.
+
+**Decision** — pattern is `'*'` not `'**'`. The plan task said `useFileChanges('**')` but the existing hub's JSDoc + path-matcher use `'*'` as the watch-everything wildcard ("Watch everything (for changes sidebar)"). Plan task row updated.
+
+**Decision** — `path-browserify` not in deps; replaced with inline `joinPath(worktreePath, relPath)` helper. Browser-safe, sufficient for clipboard/display use case (no `..` resolution needed since server gives normalised relative paths).
+
+**Decision** — `lastSeenTsRef` deduplication: `useFileChanges` 'replace' mode emits the same batch on each render until a newer batch arrives. Tracking the max-seen timestamp per render pass keeps each event from being pushed twice. The reducer's intake filter (`isIntakeFiltered`) is a second-line guard, but timestamp tracking is cheaper than re-running the dedup at the merge layer.
+
+**Decision** — debounce 50ms on the SSE hook. Aggregates micro-bursts into one batch handed to the rAF queue. Total time-to-render: ≤ 50ms (debounce) + ≤ 16ms (rAF) ≈ 66ms worst-case. Acceptable per AC G3 (50 events → ≤ 3 renders) and well under the workshop's 200ms perceived-latency budget.
+
+**Evidence**: tsc clean. AC C1/C2 covered. Live integration verification lands at T017 (real fs.watch + real SSE).
+
 
 
 ---
