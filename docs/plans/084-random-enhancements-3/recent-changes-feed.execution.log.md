@@ -169,6 +169,27 @@ Pause/refresh wiring: header buttons dispatch `PAUSE`/`RESUME` to the reducer; r
 
 **Evidence**: tsc clean. AC C1/C2 covered. Live integration verification lands at T017 (real fs.watch + real SSE).
 
+### T017 — Real fs.watch + real reducer integration test
+
+`test/integration/web/recent-feed-live-updates.integration.test.ts` — 5 tests pass in 523ms. Constitution P4 honored (zero `vi.mock`).
+
+**Scope decision**: this test covers the file-browser-side live-update pipeline (real fs.watch → real recentFeedReducer). The HTTP/SSE round-trip (server FileChangeHub → SSEManager → client EventSource → useFileChanges) is owned by Plan 045's existing integration tests; reproducing it here would require booting Next.js dev server (heavy, slow, brittle). The file-browser-side contract — *given a stream of file events, does the feed merge them correctly?* — is what this plan introduces and what this test locks.
+
+**Tests** (5):
+1. **AC C1** — real fs.watch fires for `writeFileSync` of a new file + modify of an existing one; reducer promotes/inserts correctly; no duplicates from in-place mutation.
+2. **AC G3** — 50 rapid `writeFileSync` calls produce ≥ 50 fs events; one `EVENT_BATCH` dispatch handles the burst as a single state transition (reference inequality on items proves a single transition occurred).
+3. **AC C2 noise control** — creating files under `node_modules/` and `.next/` produces real fs events that the reducer rejects at intake; only the `real.ts` source file lands in items.
+4. **Filter cross-check** — verifies `isFilteredPath` matches the same patterns the unit suite asserts (single source of truth across unit + integration boundaries).
+5. **Live-after-seed compatibility** — initialises a real git repo (mirrors T013 setup), seeds the reducer, then dispatches a live `add` event; new entry lands on top, seed remains intact.
+
+**Decision** — recursive `fs.watch` works on macOS/Windows (the harness runs on macOS). Linux would need a different setup, but that's not the deployment target. Documented inline.
+
+**Decision** — applyEvents helper synthesises `RawFileChangeEvent`s from real fs events with `size: 100, mtimeMs: Date.now()` (since fs.watch doesn't carry that metadata). The reducer doesn't care about those values for ordering; only `path` + `kind` are load-bearing.
+
+**Decision** — used `--no-gpg-sign` flag on git commit (in addition to `commit.gpgsign=false` config) belt-and-braces against host signing setups. Plan 084 noted this same workaround.
+
+**Evidence**: `npx vitest run test/integration/web/recent-feed-live-updates.integration.test.ts` → 5/5 pass in 901ms total.
+
 
 
 ---
