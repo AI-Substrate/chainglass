@@ -400,6 +400,30 @@ Three concurrent entrypoints (AC A2 binding) wired in browser-client.tsx + sdk/c
 
 **Evidence**: tsc clean (only pre-existing TS2339 at lines 517-518 — `fileNav.fileData?.content` — same as before).
 
+### T032-T034 — Documentation
+
+**T032 — `docs/domains/file-browser/domain.md`**:
+- New `Recent changes feed` Concept row added under § Concepts. Entry points listed: `RecentFeedView`, `useRecentFeedState`, `getRecentFeedItems`, `getFileExcerpt`. Description captures workshop-binding details (workshop §1-§9, Findings 01/04/05/14).
+- History row appended summarising all T001-T031 deliverables: orchestrator + reducer + service + 9-action hook + virtualization + 10 LOCKED settings + 3 entrypoints + USDK cmd + keybinding + 90+ tests + Constitution P4 honor.
+
+**T033 — `docs/how/recent-changes-feed.md`** (NEW):
+- 4 entrypoints (button / keybinding / palette / open-on-launch)
+- Card anatomy ASCII + per-type preview matrix
+- Action shortcuts table + full 9-action catalog reference
+- Filter chip semantics (workshop §5)
+- Pause + buffer pill behavior
+- All 10 settings with defaults + purpose
+- USDK command reference
+- 5 troubleshooting scenarios: non-git seed, SSE disconnect, mass-rename burst, build-artifact noise, forbidden excerpt, Shiki cold-start
+- v2 out-of-scope catalog
+
+**T034 — top-level `README.md`**:
+- Added a `## File Browser Features` section between `## Project Structure` and `## Agent System`. One paragraph describing the feed + link to `docs/how/recent-changes-feed.md`.
+
+**Decision** — README pointer placement: chose between `apps/web/README.md` (doesn't exist) and top-level `README.md`. Top-level is the user-facing entry; that's where discovery happens.
+
+**Evidence**: documentation files only — no code changes; tsc unaffected.
+
 
 
 ---

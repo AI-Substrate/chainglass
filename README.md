@@ -216,6 +216,10 @@ chainglass/
 └── docs/                 # Documentation
 ```
 
+## File Browser Features
+
+The workspace browser at `/workspaces/[slug]/browser` includes the **Recent Changes Feed** — a media-rich main-panel view that scrolls a vertical stack of the most-recently-changed files repo-wide, with type-specific previews (images inline, videos with native controls, markdown / code excerpts, deleted markers). Useful for reviewing batches of generated images / screenshots / outputs without click-back-click-back through the file tree. Open with `Cmd/Ctrl+Shift+U` or the History icon in the explorer top bar. See [docs/how/recent-changes-feed.md](docs/how/recent-changes-feed.md) for the full guide (action shortcuts, settings, troubleshooting).
+
 ## Agent System
 
 The agent system provides a domain-agnostic wrapper around AI coding agents (Claude Code CLI, GitHub Copilot SDK). See [Agent System Guide](docs/how/agent-system/1-overview.md) for full documentation.
