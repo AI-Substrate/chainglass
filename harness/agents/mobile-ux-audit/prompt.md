@@ -64,21 +64,30 @@ Screenshot and evaluate:
 - Can you scroll or interact with the terminal area?
 - Is there a way to collapse or resize the terminal?
 
-#### 4a. Terminal Session Persistence (FX005)
+#### 4a. Terminal Session Persistence (FX005 + FX006)
 
-Verify that the selected tmux session survives a mobile sleep/wake
-cycle and survives a hard refresh — this is the regression FX005
-addresses (mobile browser used to "quite often pick the wrong tmux
-session" after the page came back from background).
+Verify that the auto-picked tmux session lands on the worktree-folder
+session, survives a mobile sleep/wake cycle, and survives a hard
+refresh. The mobile Terminal tab is **auto-pick only by design** —
+there is no in-tab session picker UI; the auto-pick must be correct
+on its own (resolution order: URL `?session=` → worktree-folder match
+→ branch-name match → first stable-sorted). FX005 covers the URL
+persistence + phantom cleanup; FX006 covers the worktree-folder
+match that fixed the original "wrong tmux session" regression on
+non-branch-named worktrees.
 
-1. Navigate to `/workspaces/<slug>/browser?mobileView=2` (Terminal tab)
-   at the mobile viewport.
-2. From the session strip, tap a session that is **not** the worktree
-   default (i.e., not the one that would be auto-picked on a fresh
-   mount). Verify the URL bar updates to include `?session=<name>`.
-3. Swipe to the Files tab (mobileView=0).
-4. Simulate a sleep/wake cycle in Playwright by firing the events the
-   real mobile browser would fire on resume — order matters:
+1. **Auto-pick on cold load (FX006 regression)**: cold-load
+   `/workspaces/<slug>/browser?mobileView=2&worktree=<abs-path>`
+   without `?session=` in the URL, choosing a worktree where the
+   branch name does **not** match a session name (e.g.
+   `/Users/.../higgs-jordo` while on branch `main`). After the page
+   settles, assert the URL now contains
+   `?session=<worktree-folder-basename>` — i.e. `?session=higgs-jordo`,
+   not `?session=osk-data` or any other older session.
+2. **URL persistence across sleep/wake**: with the auto-picked session
+   loaded, swipe to the Files tab (mobileView=0). Simulate a
+   sleep/wake cycle in Playwright by firing the events the real
+   mobile browser would fire on resume — order matters:
    ```js
    await page.evaluate(() => {
      Object.defineProperty(document, 'hidden', { value: true, configurable: true });
@@ -91,21 +100,28 @@ session" after the page came back from background).
      window.dispatchEvent(new Event('focus'));
    });
    ```
-5. Swipe back to the Terminal tab. Assert:
-   - The previously-selected session is still selected (the one with
-     `?session=<name>` in the URL — not whatever tmux happens to list
-     first).
+3. Swipe back to the Terminal tab. Assert:
+   - The previously-auto-picked session is still selected.
    - The URL still contains `?session=<name>`.
    - The terminal pane is wired to the named session (no flicker to a
      different session and back).
-6. Phantom-link cleanup check: navigate cold to
-   `/workspaces/<slug>/browser?mobileView=2&session=ghost-nonexistent-${Date.now()}`.
+4. **Deep-link**: navigate cold to
+   `/workspaces/<slug>/browser?mobileView=2&session=<known-good-name>&worktree=<path>`.
+   The hook should keep the URL-supplied name (URL is canonical
+   override). Assert the named session is the one shown.
+5. **Phantom-link cleanup**: navigate cold to
+   `/workspaces/<slug>/browser?mobileView=2&session=ghost-nonexistent-${Date.now()}&worktree=<path>`.
    The hook should fall back (auto-pick) AND remove the phantom name
-   from the URL — the address bar should NOT still show `session=ghost-...`
-   after the page settles. Save the post-load URL.
-7. Hard-refresh test: with a non-default session selected, hit
+   from the URL — the address bar should NOT still show
+   `session=ghost-...` after the page settles. Save the post-load URL.
+6. **Hard-refresh test**: with the auto-picked session loaded, hit
    browser refresh. After reload, assert the same session is still
    selected (URL persisted across reload).
+
+**Out of scope**: the mobile Terminal tab does not (and should not)
+have a session-picker UI. Auto-pick is the contract. If the auto-pick
+lands on the wrong session, the bug is in the resolution order, not
+in a missing picker.
 
 If the harness is unhealthy at audit time, the operator can verify
 manually via `just dev` + Chrome DevTools: same flow, but fire the
