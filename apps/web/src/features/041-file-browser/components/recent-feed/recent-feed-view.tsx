@@ -17,6 +17,11 @@ import { useFileChanges, useSSEConnectionState } from '@/features/045-live-file-
 import { cn } from '@/lib/utils';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchRecentFeedItems } from '../../../../../app/actions/file-actions';
+import {
+  ALL_FILTER_CATEGORIES,
+  itemMatchesFilter,
+  toggleFilterCategory,
+} from '../../lib/feed-filter';
 
 /**
  * Tiny browser-safe absolute-path joiner. The Node `path.resolve` isn't
@@ -50,34 +55,6 @@ import { MarkdownExcerptCard } from './previews/markdown-excerpt-card';
 import { VideoPreview } from './previews/video-preview';
 import type { FeedItem } from './types';
 
-const ALL_CATEGORIES: ReadonlySet<FilterCategory> = new Set<FilterCategory>([
-  'all',
-  'image',
-  'video',
-  'audio',
-  'markdown',
-  'code',
-  'other',
-]);
-
-/** Map a FeedItemKind to a filter category. T024 will own the canonical predicate. */
-function itemCategory(item: FeedItem): FilterCategory {
-  switch (item.kind) {
-    case 'image':
-      return 'image';
-    case 'video':
-      return 'video';
-    case 'audio':
-      return 'audio';
-    case 'markdown':
-      return 'markdown';
-    case 'code':
-      return 'code';
-    default:
-      return 'other';
-  }
-}
-
 export interface RecentFeedViewProps {
   slug: string;
   worktreePath: string;
@@ -98,7 +75,7 @@ export function RecentFeedView({
     null
   );
   const [activeFilters, setActiveFilters] = useState<ReadonlySet<FilterCategory>>(
-    ALL_CATEGORIES
+    ALL_FILTER_CATEGORIES
   );
 
   const loadSeed = useCallback(async () => {
@@ -170,26 +147,11 @@ export function RecentFeedView({
   }, [changes, pushEvent, worktreePath, clearChanges]);
 
   const handleToggleFilter = useCallback((cat: FilterCategory) => {
-    setActiveFilters((prev) => {
-      if (cat === 'all') return ALL_CATEGORIES;
-      // F001 fix: transition from All → subset is a fresh single-category
-      // selection, not a delete from the all-set.
-      if (prev.has('all')) return new Set<FilterCategory>([cat]);
-      const next = new Set<FilterCategory>(prev);
-      if (next.has(cat)) {
-        next.delete(cat);
-      } else {
-        next.add(cat);
-      }
-      if (next.size === 0) return ALL_CATEGORIES;
-      return next;
-    });
+    setActiveFilters((prev) => toggleFilterCategory(prev, cat));
   }, []);
 
   const showAll = activeFilters.has('all');
-  const visibleItems = showAll
-    ? state.items
-    : state.items.filter((item) => activeFilters.has(itemCategory(item)));
+  const visibleItems = state.items.filter((item) => itemMatchesFilter(item, activeFilters));
 
   const rawFileUrlFor = (path: string) =>
     `/api/workspaces/${slug}/files/raw?worktree=${encodeURIComponent(worktreePath)}&file=${encodeURIComponent(path)}`;

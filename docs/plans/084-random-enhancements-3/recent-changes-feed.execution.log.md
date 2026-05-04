@@ -272,6 +272,34 @@ RecentFeedView dispatch updated:
 
 **Evidence**: tsc clean across all 4 modified files.
 
+### T024 — Filter predicate + toggle extraction + tests
+
+Extracted the inline filter logic from `recent-feed-view.tsx` into a testable lib module `apps/web/src/features/041-file-browser/lib/feed-filter.ts`:
+
+- `ALL_FILTER_CATEGORIES` — canonical all-inclusive set, exported by reference identity (so `=== ALL_FILTER_CATEGORIES` is a meaningful state check).
+- `feedItemCategory(item)` — `FeedItemKind` → `FilterCategory` mapping. `binary` + `generic` both bucket under `'other'`.
+- `itemMatchesFilter(item, active)` — predicate.
+- `toggleFilterCategory(prev, cat)` — pure state-machine transition function.
+
+`recent-feed-view.tsx` now imports and delegates — orchestrator no longer carries the filter logic in body.
+
+**Tests** (18, 2ms total):
+- 7 cases for `feedItemCategory` mapping (all 7 kinds → their categories; binary/generic → 'other').
+- 3 cases for `itemMatchesFilter` (all-pass, subset-restrict, other-bucket).
+- 8 cases for `toggleFilterCategory` covering workshop §5 + F001 fix:
+  - 'All' click from any state → snap to all-inclusive.
+  - **F001 LOCK**: from all-inclusive, click non-All → fresh single-chip subset (NOT delete-from-all).
+  - Subset add when chip not active.
+  - Subset remove when chip active.
+  - Empty subset auto-snaps to all-inclusive.
+  - Input set never mutated.
+  - Multi-step "All → Image → Video" → {image, video}.
+  - Multi-step "Image → empty → All" → all-inclusive.
+
+The F001 fix is now locked — a regression to the previous broken implementation would fail the explicit "fresh single-chip subset" assertion that calls out the 'NOT every-category-except-image' invariant.
+
+**Evidence**: `npx vitest run` 18/18 in 2ms.
+
 
 
 ---
