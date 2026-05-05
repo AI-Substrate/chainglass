@@ -100,6 +100,36 @@ describe('readFileAction', () => {
   });
 
   it.each([
+    ['fy25-2026-05-05.zip'],
+    ['archive.tar'],
+    ['data.tar.gz'],
+    ['logs.tgz'],
+    ['legacy.7z'],
+    ['oldfiles.rar'],
+    ['payload.xz'],
+  ])(
+    'short-circuits archive %s as binary so > 5MB downloads bypass the text-size check',
+    async (filename) => {
+      // 6MB content — would trigger file-too-large if we fell through to the
+      // text-size branch. Archive short-circuit must come BEFORE the size
+      // check (this is the FX007 regression).
+      fs.setFile(`/workspace/${filename}`, 'x'.repeat(6 * 1024 * 1024));
+
+      const result = await readFileAction({
+        worktreePath: '/workspace',
+        filePath: filename,
+        fileSystem: fs,
+        pathResolver,
+      });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.isBinary).toBe(true);
+      }
+    }
+  );
+
+  it.each([
     ['package.json', '{ "name": "x" }', 'json'],
     ['config.yaml', 'name: x\n', 'yaml'],
     ['config.toml', 'name = "x"\n', 'toml'],

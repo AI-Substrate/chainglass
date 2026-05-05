@@ -33,10 +33,29 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
  * blob) are still caught by the null-byte sniff further down.
  */
 const FONT_EXTENSIONS = new Set(['woff', 'woff2', 'ttf', 'otf']);
+/**
+ * Archive extensions — short-circuit before the 5MB text-file size check
+ * so right-click → Download routes them through the raw-file API instead
+ * of returning `file-too-large`. Tax bundles, dataset zips, etc. are
+ * routinely > 5MB and should download cleanly.
+ */
+const ARCHIVE_EXTENSIONS = new Set([
+  'zip',
+  'tar',
+  'gz',
+  'tgz',
+  'bz2',
+  'tbz2',
+  '7z',
+  'rar',
+  'xz',
+  'txz',
+]);
 function isGenuinelyBinaryExtension(filename: string): boolean {
   const ext = filename.split('.').pop()?.toLowerCase();
   if (!ext) return false;
   if (FONT_EXTENSIONS.has(ext)) return true;
+  if (ARCHIVE_EXTENSIONS.has(ext)) return true;
   const { category } = detectContentType(filename);
   return category === 'image' || category === 'video' || category === 'audio' || category === 'pdf';
 }
