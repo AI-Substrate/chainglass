@@ -190,6 +190,11 @@ harness/results/
 # Harness agent run folders — generated per agent execution (Plan 070)
 harness/agents/*/runs/
 
+# Top-level agents/ run folders — minih FX008 install location
+agents/*/runs/
+# Install metadata — contains machine-local source paths
+agents/*/.minih-source.json
+
 # Harness workflow run cache — ephemeral event data (Plan 076)
 harness/.cache/
 .pnpm-store/
