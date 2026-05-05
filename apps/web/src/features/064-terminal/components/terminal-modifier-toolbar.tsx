@@ -232,6 +232,7 @@ export function TerminalModifierToolbar({
             type="text"
             value={voiceText}
             onChange={(e) => setVoiceText(e.target.value)}
+            onFocus={(e) => e.currentTarget.select()}
             placeholder="Dictate or type..."
             style={{
               flex: 1,
@@ -286,6 +287,7 @@ export function TerminalModifierToolbar({
             type="text"
             value={pasteText}
             onChange={(e) => setPasteText(e.target.value)}
+            onFocus={(e) => e.currentTarget.select()}
             placeholder="Long-press here to paste..."
             style={
               {
