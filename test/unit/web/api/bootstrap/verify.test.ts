@@ -72,7 +72,7 @@ describe('POST /api/bootstrap/verify', () => {
   });
 
   // (1) 200 happy path
-  it('200: correct code → ok + Set-Cookie (HttpOnly + SameSite=Lax + Path=/, no Max-Age)', async () => {
+  it('200: correct code → ok + Set-Cookie (HttpOnly + SameSite=Lax + Path=/ + Max-Age=30d)', async () => {
     const res = await POST(reqWithBody({ code: activeCode }));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true });
@@ -81,8 +81,8 @@ describe('POST /api/bootstrap/verify', () => {
     expect(setCookie.toLowerCase()).toContain('httponly');
     expect(setCookie.toLowerCase()).toContain('samesite=lax');
     expect(setCookie.toLowerCase()).toContain('path=/');
-    expect(setCookie.toLowerCase()).not.toContain('max-age');
-    expect(setCookie.toLowerCase()).not.toContain('expires=');
+    // 30 days — survives iOS Safari/Edge session-cookie eviction.
+    expect(setCookie.toLowerCase()).toContain('max-age=2592000');
   });
 
   // (2) 401 wrong code (correct format)

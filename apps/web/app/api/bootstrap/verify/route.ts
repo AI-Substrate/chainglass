@@ -11,9 +11,12 @@
  *   429 → `{ error: 'rate-limited', retryAfterMs: number }` + `Retry-After` header
  *   503 → `{ error: 'unavailable' }` (file missing / unreadable)
  *
- * Cookie attributes (locked):
+ * Cookie attributes:
  *   HttpOnly + SameSite=Lax + Path=/ + (Secure when NODE_ENV=production) +
- *   NO Max-Age, NO Expires (session cookie; rotation is the only expiry).
+ *   Max-Age=2592000 (30 days). iOS Safari / Edge aggressively evict
+ *   session cookies when tabs are backgrounded; mobile users were being
+ *   re-prompted next-day. Server-side rotation still invalidates the
+ *   cookie via HMAC mismatch — Max-Age is complementary, not conflicting.
  *
  * Rate limit: 5 attempts per IP per 60s leaky-bucket. In-memory `Map`,
  * cleared on process restart. Defence-in-depth — primary defence is 60-bit
@@ -81,6 +84,8 @@ function checkRateLimit(ip: string, now: number): RateCheckResult {
   return { ok: true, retryAfterMs: 0 };
 }
 
+const COOKIE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60; // 30 days
+
 function buildSetCookie(value: string): string {
   const isProd = process.env.NODE_ENV === 'production';
   const parts = [
@@ -88,6 +93,7 @@ function buildSetCookie(value: string): string {
     'HttpOnly',
     'SameSite=Lax',
     'Path=/',
+    `Max-Age=${COOKIE_MAX_AGE_SECONDS}`,
   ];
   if (isProd) parts.push('Secure');
   return parts.join('; ');
