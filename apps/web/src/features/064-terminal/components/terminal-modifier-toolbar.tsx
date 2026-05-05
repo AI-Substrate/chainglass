@@ -232,7 +232,15 @@ export function TerminalModifierToolbar({
             type="text"
             value={voiceText}
             onChange={(e) => setVoiceText(e.target.value)}
-            onFocus={(e) => e.currentTarget.select()}
+            onFocus={(e) => {
+              // iOS Safari/Edge: el.select() is unreliable. Defer to next
+              // frame and use setSelectionRange so selection survives iOS's
+              // async focus reset. (Perplexity: 2026-validated recipe.)
+              const el = e.currentTarget;
+              requestAnimationFrame(() => {
+                el.setSelectionRange(0, el.value.length || 9999);
+              });
+            }}
             placeholder="Dictate or type..."
             style={{
               flex: 1,
@@ -287,7 +295,16 @@ export function TerminalModifierToolbar({
             type="text"
             value={pasteText}
             onChange={(e) => setPasteText(e.target.value)}
-            onFocus={(e) => e.currentTarget.select()}
+            onFocus={(e) => {
+              // iOS Safari/Edge: el.select() is unreliable. Defer to next
+              // frame and use setSelectionRange so selection survives iOS's
+              // async focus reset. The rAF gap also lets the native
+              // long-press paste callout settle without us racing it.
+              const el = e.currentTarget;
+              requestAnimationFrame(() => {
+                el.setSelectionRange(0, el.value.length || 9999);
+              });
+            }}
             placeholder="Long-press here to paste..."
             style={
               {
@@ -301,6 +318,8 @@ export function TerminalModifierToolbar({
                 color: 'var(--foreground, #fafafa)',
                 outline: 'none',
                 WebkitUserSelect: 'text',
+                // iOS: re-enable native paste callout on long-press.
+                WebkitTouchCallout: 'default',
               } as React.CSSProperties
             }
             autoComplete="off"
