@@ -1,6 +1,8 @@
 'use client';
 
+import { ClipboardCopy } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { copyTmuxBuffer } from '../lib/copy-tmux-buffer';
 
 export interface ModifierState {
   ctrl: boolean;
@@ -350,6 +352,15 @@ export function TerminalModifierToolbar({
             aria-label="Paste"
           >
             📋
+          </button>
+          <button
+            type="button"
+            style={{ ...buttonBase, ...modifierSize }}
+            onClick={() => handleToolAction(copyTmuxBuffer)}
+            aria-label="Copy tmux buffer"
+            title="Copy tmux buffer"
+          >
+            <ClipboardCopy size={16} />
           </button>
           <button
             type="button"
