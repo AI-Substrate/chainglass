@@ -22,9 +22,13 @@
  *  - Uses `@radix-ui/react-dialog` primitives directly (not the shadcn
  *    `<DialogContent>` wrapper which ships a close button — the popup is
  *    deliberately non-dismissable until the user submits a correct code).
- *  - Modal renders inside a Portal so the underlying page tree is left in
- *    place (children remain mounted but inert behind the overlay; Radix
- *    handles focus-trapping).
+ *  - Modal renders inside a Portal. When unverified we do NOT render
+ *    `{children}` at all — the bootstrap gate is the outermost auth
+ *    boundary and rendering the page tree behind the popup would leak
+ *    server-rendered HTML / Server Component data through the overlay
+ *    (which is also visually translucent on some devices). The page
+ *    tree only mounts after `router.refresh()` re-runs the gate with a
+ *    valid cookie. (FX010 — user-reported see-through bypass.)
  *  - Cookie is HttpOnly — no client-side cookie reads. The success path
  *    calls `router.refresh()` so the RSC tree re-reads the cookie via
  *    `<BootstrapGate>` and the popup unmounts on the next render.
@@ -58,12 +62,8 @@ export function BootstrapPopup({
   if (bootstrapVerified) {
     return <>{children}</>;
   }
-  return (
-    <>
-      {children}
-      <BootstrapPopupDialog />
-    </>
-  );
+  // SECURITY: do NOT render children when unverified. See header comment.
+  return <BootstrapPopupDialog />;
 }
 
 type ErrorKind =
@@ -163,7 +163,7 @@ function BootstrapPopupDialog() {
     <DialogPrimitive.Root open>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay
-          className="fixed inset-0 z-[9999] min-h-[100dvh] bg-black/85 backdrop-blur-sm"
+          className="fixed inset-0 z-[9999] min-h-[100dvh] bg-black backdrop-blur-sm"
         />
         <DialogPrimitive.Content
           data-testid="bootstrap-popup"

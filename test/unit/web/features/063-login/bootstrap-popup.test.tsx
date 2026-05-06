@@ -81,6 +81,17 @@ describe('<BootstrapPopup>', () => {
       );
     }
 
+    // (0) FX010 SECURITY regression — unverified MUST NOT render children.
+    // The bootstrap gate is the outermost auth boundary: rendering the
+    // page tree behind the popup leaks server-rendered HTML / Server
+    // Component data through any translucent or bypassed overlay.
+    it('0: SECURITY — does not render children when unverified', () => {
+      renderPopup();
+      expect(screen.queryByTestId('protected')).toBeNull();
+      // Dialog itself still renders.
+      expect(screen.getByTestId('bootstrap-popup')).toBeInTheDocument();
+    });
+
     // (1) ARIA + roles
     it('1: dialog renders with role=dialog + aria-modal + labelledby', () => {
       renderPopup();
