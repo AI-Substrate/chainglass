@@ -1,22 +1,15 @@
 /**
- * Public contract for `_platform/git` sub-domain.
+ * **Browser-safe** public contract for `_platform/git` sub-domain.
  *
- * Plan 084 FX007 — cross-cutting git helpers + pure URL builder.
+ * Plan 084 FX007. This barrel intentionally re-exports ONLY the pure
+ * `repo-url.ts` module — no value-imports of `lib/git-cli.ts`, which would
+ * pull `node:child_process` into the client bundle and fail Turbopack
+ * chunking.
  *
- * - `repo-url.ts` is pure (browser-safe, no Node imports).
- * - `git-cli.ts` is server-only (uses `child_process.execFile`).
- *
- * Populated by T002 (`parseRemote`, `buildFileUrl`, types) and T003 (CLI
- * wrappers + `RepoInfo`).
+ * - Client code (hooks / components / browser-client) imports from here.
+ * - Server code (API routes / server actions) imports from `./index.server`
+ *   (which re-exports both pure helpers and the CLI wrappers).
  */
 
-export type { RepoHost, Remote, BuildOptions } from './lib/repo-url';
+export type { RepoHost, Remote, BuildOptions, RepoInfo } from './lib/repo-url';
 export { parseRemote, buildFileUrl } from './lib/repo-url';
-
-export type { RepoInfo } from './lib/git-cli';
-export {
-  getRemoteUrl,
-  getCurrentBranch,
-  getDefaultBaseBranch,
-  getCurrentCommitSha,
-} from './lib/git-cli';

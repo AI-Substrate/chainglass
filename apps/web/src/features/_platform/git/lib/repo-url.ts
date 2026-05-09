@@ -24,6 +24,26 @@ export interface BuildOptions {
   relativePath: string;
 }
 
+/**
+ * Composite payload returned by `/api/workspaces/[slug]/repo-info`.
+ *
+ * Defined here (in the pure / browser-safe module) rather than alongside the
+ * git CLI wrappers because client code (`use-clipboard.ts`,
+ * `browser-client.tsx`, `file-tree.tsx`, `changes-view.tsx`) needs this type.
+ * If it lived in `git-cli.ts` (server-only — `node:child_process`), the
+ * Turbopack browser chunker would refuse to bundle the barrel.
+ */
+export interface RepoInfo {
+  host: RepoHost;
+  org: string | null;
+  project: string | null;
+  repo: string | null;
+  currentBranch: string;
+  defaultBranch: string;
+  currentSha: string | null;
+  isDetached: boolean;
+}
+
 const GITHUB_HTTPS = /^https?:\/\/github\.com\/([^/]+)\/([^/]+?)(?:\.git)?\/?$/;
 const GITHUB_SSH = /^git@github\.com:([^/]+)\/([^/]+?)(?:\.git)?$/;
 const ADO_HTTPS =

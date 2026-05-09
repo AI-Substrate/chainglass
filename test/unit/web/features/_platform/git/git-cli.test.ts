@@ -29,7 +29,7 @@ import {
   getCurrentCommitSha,
   getDefaultBaseBranch,
   getRemoteUrl,
-} from '@/features/_platform/git';
+} from '@/features/_platform/git/index.server';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 let tmp: string;

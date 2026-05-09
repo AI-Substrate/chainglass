@@ -26,7 +26,7 @@ import {
   getRemoteUrl,
   parseRemote,
   type RepoInfo,
-} from '@/features/_platform/git';
+} from '@/features/_platform/git/index.server';
 import { getBootstrapCodeAndKey } from '@/lib/bootstrap-code';
 import {
   BOOTSTRAP_COOKIE_NAME,

@@ -21,7 +21,7 @@ import type {
 import {
   getCurrentBranch,
   getDefaultBaseBranch,
-} from '@/features/_platform/git';
+} from '@/features/_platform/git/index.server';
 import { computeContentHash } from './content-hash';
 import { getAllDiffs } from './get-all-diffs';
 import {

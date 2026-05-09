@@ -12,20 +12,13 @@
 
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import type { RepoHost } from './repo-url';
 
 const execFileAsync = promisify(execFile);
 
-export interface RepoInfo {
-  host: RepoHost;
-  org: string | null;
-  project: string | null;
-  repo: string | null;
-  currentBranch: string;
-  defaultBranch: string;
-  currentSha: string | null;
-  isDetached: boolean;
-}
+// `RepoInfo` lives in `./repo-url` (pure / browser-safe) so client code can
+// import it without dragging this server-only module through the bundler.
+// Server-side consumers should `import { RepoInfo } from './repo-url'` (or
+// from the server barrel `../index.server`) directly.
 
 /**
  * Read the `origin` remote URL.

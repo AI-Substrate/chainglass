@@ -73,7 +73,7 @@ vi.mock('@/lib/bootstrap-singleton', () => ({
   getContainer: getContainerMock,
 }));
 
-vi.mock('@/features/_platform/git', () => ({
+vi.mock('@/features/_platform/git/index.server', () => ({
   getRemoteUrl: getRemoteUrlMock,
   getCurrentBranch: getCurrentBranchMock,
   getDefaultBaseBranch: getDefaultBaseBranchMock,
