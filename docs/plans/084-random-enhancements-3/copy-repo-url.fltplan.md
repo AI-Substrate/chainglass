@@ -4,7 +4,7 @@
 **Research**: [copy-repo-url-research.md](./copy-repo-url-research.md)
 **Plan**: [copy-repo-url-plan.md](./copy-repo-url-plan.md)
 **Generated**: 2026-05-09
-**Status**: VALIDATED WITH FIXES (Mode: Simple, FX007, CS-3, 8 tasks, 21 ACs) — ready for `/plan-6-v2-implement-phase`
+**Status**: LANDED (Mode: Simple, FX007, CS-3, 8 tasks, 21 ACs, all tests green) — implementation complete 2026-05-09
 
 ---
 
@@ -101,9 +101,7 @@ stateDiagram-v2
     S4 --> S5
     S5 --> [*]
 
-    class S1,S2,S3 done
-    class S4 active
-    class S5 pending
+    class S1,S2,S3,S4,S5 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -115,8 +113,8 @@ stateDiagram-v2
 - [x] **Stage 1: Spec** — `copy-repo-url-spec.md` written.
 - [x] **Stage 2: Clarify** — 8 questions resolved 2026-05-09. Key decision: lift git utils to `_platform/git` sub-domain (scope expanded to CS-3, adds PR-view import refactor).
 - [x] **Stage 3: Architect** — `/plan-3-v2-architect` produces fix dossier with 5 task groups (per § Phases in spec). Validated 2026-05-09 (CRITICAL+HIGH fixes applied).
-- [~] **Stage 4: Implement (FX007)** — `_platform/git` sub-domain + URL builder (TDD) + `getRemoteUrl` util + PR-view import refactor + repo-info API route + `useClipboard` extension + menu items at 3 render sites.
-- [ ] **Stage 5: Land** — domain.md history updated for `_platform/git`, `file-browser`, `pr-view`; registry + domain-map updated; commit + PR.
+- [x] **Stage 4: Implement (FX007)** — `_platform/git` sub-domain + URL builder (TDD) + `getRemoteUrl` util + PR-view import refactor + repo-info API route + `useClipboard` extension + menu items at 3 render sites. 8/8 tasks complete.
+- [x] **Stage 5: Land** — domain.md history updated for `_platform/git`, `file-browser`, `pr-view`; registry + domain-map updated. 8 commits on branch.
 
 ---
 

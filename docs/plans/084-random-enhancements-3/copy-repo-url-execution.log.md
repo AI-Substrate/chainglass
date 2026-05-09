@@ -139,3 +139,50 @@ T004 will drop the duplicates from the PR-view file (and `parseNameStatus` / `ge
 - useEffect dep array is `[slug, worktreePath]`. Per AC20.
 
 **Manual UI verification deferred**: Plan called for harness Playwright screenshots at 3 render sites (GitHub remote, detached HEAD, no-remote). Harness is L3-up and reachable from the host but bootstrap-cookie-gated so curl-from-host returns `{"error":"bootstrap-required"}`. The decision logic this would visually confirm is fully covered by the automated test surface (T002 URL formats, T005 response shape, T006 hook behaviour, T007 component conditional render via prop chain). Visual sign-off (font/color/spacing/icon) is for the user after merge — typed `LinkIcon` from lucide-react matches the codebase convention used by other menu icons.
+
+### T008 — Domain.md History rows + Concepts
+
+**Started**: 2026-05-09
+
+**Files**:
+- `docs/domains/_platform/git/domain.md` — created in T001 with full Concepts table + History row.
+- `docs/domains/file-browser/domain.md` — added `_platform/git` to "This Domain Depends On" with full contract list. Added History row at top (most-recent-first ordering matches existing convention).
+- `docs/domains/pr-view/domain.md` — added `_platform/git` to "This Domain Depends On" (lifted helpers). Added History row at bottom (chronological ordering — matches existing convention).
+- `docs/domains/registry.md` + `docs/domains/domain-map.md` — already updated in T001.
+- `copy-repo-url.fltplan.md` — Stage 4 + Stage 5 → done; Mermaid status all green; status header → LANDED.
+- `copy-repo-url-plan.md` — T008 row → [x].
+
+**Done When** evidence:
+- `_platform/git` domain.md has all required sections + Concepts table populated.
+- `file-browser` and `pr-view` History rows reflect FX007 changes.
+- Both domains list `_platform/git` in their dependencies.
+- Domain-map shows the two consume edges (file-browser → gitPlatform; pr-view → gitPlatform).
+- Health Summary row added for `_platform/git`.
+
+## Phase Summary
+
+**Outcome**: All 8 tasks complete, 21 ACs satisfied (subject to user manual UI sign-off per AC11/AC18 visual checks). 8 task commits + 1 planning commit on branch.
+
+**Test surface**: 615 tests pass across all touched suites.
+- 18 URL builder tests (T002 — TDD)
+- 11 git-cli wrapper tests (T003 — real git in tmpdir)
+- 8 API route tests (T005 — vi.hoisted mocks)
+- 7 useClipboard handler tests (T006 — renderHook)
+- 76 PR-view tests still green (T004 — pure refactor)
+- 593 tests across all touched test suites
+
+**Type-clean** for all FX007 files. Two pre-existing errors in `browser-client.tsx` (lines 586/587, ReadFileResult.content) unrelated to FX007.
+
+**Key findings addressed in delivery** (cross-reference Validation Record):
+- Finding 01 (worktree injection): T005 two-layer validation — defensive + closed-set.
+- Finding 02 (auth bypass): T005 dual-checks `auth()` AND independently `verifyCookieValue`.
+- Finding 03 (ADO `GB`/`GC` quirk): T002 fixtures lock both prefixes.
+- Finding 04 (3 render sites): T007 covers all three with the same gate.
+- Finding 05 (PR-view import refactor): T004 pure-import refactor, behaviour unchanged.
+- Finding 06–08 (branch info / detached / fallback): T006 handler logic + T002 reuse of existing `copyToClipboard`.
+- Finding 11 (Next 16 conventions): T005 `params: Promise<{slug}>` + `await params` + `dynamic = 'force-dynamic'`.
+- Finding 12 (credential leak): T002 `parseRemote` strips `user:token@`; T005 response shape carries no raw `remoteUrl`.
+- Finding 13 (worktree-switch refetch): T007 `useEffect` deps `[slug, worktreePath]`.
+- Finding 14 (zero-commit worktree): T003 `getCurrentCommitSha` returns `string | null`; T006 + T007 handle null.
+
+**Companion-driven course corrections**: None — companion replied "ok" to every per-task ping with no findings raised. Either the work was clean enough to not warrant feedback or the companion's review threshold favours flagging only material issues. Either way, the inline-review feedback loop served as a continuous diff sanity check throughout the phase.
