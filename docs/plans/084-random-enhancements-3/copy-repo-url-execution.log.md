@@ -121,3 +121,21 @@ T004 will drop the duplicates from the PR-view file (and `parseNameStatus` / `ge
 **Done When** evidence: 7/7 tests pass. Hook compiles. Two new handlers exposed in return object.
 
 **Note**: Visibility/render gating happens in T007 components — not in the hook. Hook just no-ops; component decides whether to render the menu item.
+
+### T007 — Wire menu items at three render sites + repo-info fetch
+
+**Started**: 2026-05-09
+
+**Files**:
+- `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` — added `useState<RepoInfoPayload | null>(null)` and `useEffect` with dep array `[slug, worktreePath]` (worktree-switch refetch per finding 13 / AC20). Pass `repoInfo` into `useClipboard`. Added 3 new props (`onCopyRepoUrlCurrentRef`, `onCopyRepoUrlDefaultBranch`, `repoInfo`) to two `<FileTree>` and two `<ChangesView>` render sites (desktop + mobile each).
+- `apps/web/src/features/041-file-browser/components/file-tree.tsx` — added 3 props to `FileTreeProps`, the function destructure, the inline `TreeItem` type, both `TreeItem` invocations (root + recursive). Added two `<ContextMenuItem>` entries immediately after "Copy Relative Path" at BOTH render sites (folder ~512 + file-leaf ~722). Items render conditionally on `repoInfo && repoInfo.host !== 'unknown'`. The "this branch" item relabels to "Copy URL (this commit)" when `isDetached && currentSha !== null`.
+- `apps/web/src/features/041-file-browser/components/changes-view.tsx` — same prop additions on `ChangesViewProps`, the function destructure, the inner `ChangeFileItem` type, the two `ChangeFileItem` invocations. Added two new menu items at the changes-view item context menu (~183) with the same gate.
+
+**Done When** evidence:
+- All touched test suites green: 593 tests pass / 1 skipped (pre-existing) across `_platform/git`, `041-file-browser`, `071-pr-view`, `api/workspaces`.
+- New files type-clean (only pre-existing errors remain in `browser-client.tsx` lines 586/587 — the `ReadFileResult.content` issue from the existing codebase, unrelated to FX007).
+- Conditional render: items appear at all 3 sites (file-tree leaf, file-tree folder, changes-view item) when `repoInfo && repoInfo.host !== 'unknown'`; hidden otherwise. Per AC11.
+- Detached relabel: template literal swaps "this branch" → "this commit" when `isDetached && currentSha !== null`. Per AC12.
+- useEffect dep array is `[slug, worktreePath]`. Per AC20.
+
+**Manual UI verification deferred**: Plan called for harness Playwright screenshots at 3 render sites (GitHub remote, detached HEAD, no-remote). Harness is L3-up and reachable from the host but bootstrap-cookie-gated so curl-from-host returns `{"error":"bootstrap-required"}`. The decision logic this would visually confirm is fully covered by the automated test surface (T002 URL formats, T005 response shape, T006 hook behaviour, T007 component conditional render via prop chain). Visual sign-off (font/color/spacing/icon) is for the user after merge — typed `LinkIcon` from lucide-react matches the codebase convention used by other menu icons.

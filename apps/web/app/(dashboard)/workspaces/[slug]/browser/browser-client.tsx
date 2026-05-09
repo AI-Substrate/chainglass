@@ -9,6 +9,7 @@
  * Phase 3: Wire Into BrowserClient — Plan 043
  */
 
+import type { RepoInfo as RepoInfoPayload } from '@/features/_platform/git';
 import { ChangesView } from '@/features/041-file-browser/components/changes-view';
 import { ContentEmptyState } from '@/features/041-file-browser/components/content-empty-state';
 import { FileTree, type FileTreeHandle } from '@/features/041-file-browser/components/file-tree';
@@ -167,6 +168,27 @@ function BrowserClientInner({
   // T006: Local new paths for immediate green animation before SSE fires
   const [localNewPaths, setLocalNewPaths] = useState<Set<string>>(new Set());
 
+  // Plan 084 FX007 — repo-info for "Copy URL" right-click menu items.
+  // null = either still loading or no remote / unknown host (item hides).
+  // Refetched on every [slug, worktreePath] change (worktree-switch refetch
+  // per finding 13 / AC20).
+  const [repoInfo, setRepoInfo] = useState<RepoInfoPayload | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const url = `/api/workspaces/${encodeURIComponent(slug)}/repo-info?worktree=${encodeURIComponent(worktreePath)}`;
+    fetch(url)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: RepoInfoPayload | null) => {
+        if (!cancelled) setRepoInfo(data ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setRepoInfo(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [slug, worktreePath]);
+
   // FT-003: Re-sync root state when worktree changes (e.g. ?worktree= switch)
   useEffect(() => {
     setRootEntries(initialEntries);
@@ -252,7 +274,7 @@ function BrowserClientInner({
     fetchDiffStats,
   });
 
-  const clipboard = useClipboard({ slug, worktreePath, readFile });
+  const clipboard = useClipboard({ slug, worktreePath, readFile, repoInfo });
 
   // Phase 7 T003: Note file paths for tree indicators (DYK-01, DYK-02)
   const { openModal } = useNotesOverlay();
@@ -980,6 +1002,9 @@ function BrowserClientInner({
               onExpandedDirsChange={handleMobileExpandedDirsChange}
               onCopyFullPath={clipboard.handleCopyFullPath}
               onCopyRelativePath={clipboard.handleCopyRelativePath}
+              onCopyRepoUrlCurrentRef={clipboard.handleCopyRepoUrlCurrentRef}
+              onCopyRepoUrlDefaultBranch={clipboard.handleCopyRepoUrlDefaultBranch}
+              repoInfo={repoInfo}
               onCopyContent={clipboard.handleCopyContent}
               onCopyTree={clipboard.handleCopyTree}
               onDownload={clipboard.handleDownload}
@@ -999,6 +1024,9 @@ function BrowserClientInner({
             onSelect={handleFileSelect}
             onCopyFullPath={clipboard.handleCopyFullPath}
             onCopyRelativePath={clipboard.handleCopyRelativePath}
+            onCopyRepoUrlCurrentRef={clipboard.handleCopyRepoUrlCurrentRef}
+            onCopyRepoUrlDefaultBranch={clipboard.handleCopyRepoUrlDefaultBranch}
+            repoInfo={repoInfo}
             onCopyContent={clipboard.handleCopyContent}
             onDownload={clipboard.handleDownload}
           />
@@ -1276,6 +1304,9 @@ function BrowserClientInner({
                     onExpandedDirsChange={handleExpandedDirsChange}
                     onCopyFullPath={clipboard.handleCopyFullPath}
                     onCopyRelativePath={clipboard.handleCopyRelativePath}
+                    onCopyRepoUrlCurrentRef={clipboard.handleCopyRepoUrlCurrentRef}
+                    onCopyRepoUrlDefaultBranch={clipboard.handleCopyRepoUrlDefaultBranch}
+                    repoInfo={repoInfo}
                     onCopyContent={clipboard.handleCopyContent}
                     onCopyTree={clipboard.handleCopyTree}
                     onDownload={clipboard.handleDownload}
@@ -1295,6 +1326,9 @@ function BrowserClientInner({
                   onSelect={handleFileSelect}
                   onCopyFullPath={clipboard.handleCopyFullPath}
                   onCopyRelativePath={clipboard.handleCopyRelativePath}
+                  onCopyRepoUrlCurrentRef={clipboard.handleCopyRepoUrlCurrentRef}
+                  onCopyRepoUrlDefaultBranch={clipboard.handleCopyRepoUrlDefaultBranch}
+                  repoInfo={repoInfo}
                   onCopyContent={clipboard.handleCopyContent}
                   onDownload={clipboard.handleDownload}
                 />
