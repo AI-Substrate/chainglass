@@ -101,9 +101,9 @@ stateDiagram-v2
     S4 --> S5
     S5 --> [*]
 
-    class S1,S2 done
-    class S3 active
-    class S4,S5 pending
+    class S1,S2,S3 done
+    class S4 active
+    class S5 pending
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -114,8 +114,8 @@ stateDiagram-v2
 
 - [x] **Stage 1: Spec** — `copy-repo-url-spec.md` written.
 - [x] **Stage 2: Clarify** — 8 questions resolved 2026-05-09. Key decision: lift git utils to `_platform/git` sub-domain (scope expanded to CS-3, adds PR-view import refactor).
-- [~] **Stage 3: Architect** — `/plan-3-v2-architect` produces fix dossier with 5 task groups (per § Phases in spec).
-- [ ] **Stage 4: Implement (FX007)** — `_platform/git` sub-domain + URL builder (TDD) + `getRemoteUrl` util + PR-view import refactor + repo-info API route + `useClipboard` extension + menu items at 3 render sites.
+- [x] **Stage 3: Architect** — `/plan-3-v2-architect` produces fix dossier with 5 task groups (per § Phases in spec). Validated 2026-05-09 (CRITICAL+HIGH fixes applied).
+- [~] **Stage 4: Implement (FX007)** — `_platform/git` sub-domain + URL builder (TDD) + `getRemoteUrl` util + PR-view import refactor + repo-info API route + `useClipboard` extension + menu items at 3 render sites.
 - [ ] **Stage 5: Land** — domain.md history updated for `_platform/git`, `file-browser`, `pr-view`; registry + domain-map updated; commit + PR.
 
 ---
