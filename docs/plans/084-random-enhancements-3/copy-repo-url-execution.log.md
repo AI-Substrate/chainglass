@@ -109,3 +109,15 @@ T004 will drop the duplicates from the PR-view file (and `parseNameStatus` / `ge
 - Response shape: 8 fields per plan T005 — no `remoteUrl`.
 
 **Discovery — gotcha (vi.hoisted)**: First attempt declared `const authMock = vi.fn()` at top level then referenced it from `vi.mock` factory. `vi.mock` is hoisted above all imports/declarations, so the factory ran when `authMock` was still in TDZ. Wrapped all mock declarations in `vi.hoisted(() => ({ ... }))` so they're available at hoist-time. This is the documented vitest pattern for mock factories that need test-controlled mocks.
+
+### T006 — Extend useClipboard hook
+
+**Started**: 2026-05-09
+
+**Files**:
+- `apps/web/src/features/041-file-browser/hooks/use-clipboard.ts` — `UseClipboardOptions` gains `repoInfo?: RepoInfo | null`. Two new handlers: `handleCopyRepoUrlCurrentRef`, `handleCopyRepoUrlDefaultBranch`. Both reuse existing `copyToClipboard` (no new fallback code per finding 08). Universal no-op guard: `!repoInfo || repoInfo.host === 'unknown'`. Detached-HEAD logic in current-ref handler: when `isDetached && currentSha !== null` → `{ refType: 'commit', ref: currentSha }`; when `isDetached && currentSha === null` → silent no-op (finding 14).
+- `test/unit/web/features/041-file-browser/use-clipboard-repo-url.test.tsx` — 7 tests via `renderHook`. Mocks `sonner.toast` + `navigator.clipboard.writeText`. Real `buildFileUrl` (no mock) so URLs asserted are production output.
+
+**Done When** evidence: 7/7 tests pass. Hook compiles. Two new handlers exposed in return object.
+
+**Note**: Visibility/render gating happens in T007 components — not in the hook. Hook just no-ops; component decides whether to render the menu item.
