@@ -91,3 +91,21 @@ T004 will drop the duplicates from the PR-view file (and `parseNameStatus` / `ge
 - `pnpm vitest run test/unit/web/features/071-pr-view/` → 76 passed (9 files), down from previous count by exactly the 4 removed test cases.
 - `pnpm exec tsc --noEmit` (apps/web) → no errors on touched files.
 - `grep -rn` for old import path returned only this domain's own files (no orphan consumers).
+
+### T005 — /api/workspaces/[slug]/repo-info route
+
+**Started**: 2026-05-09
+
+**Files**:
+- `apps/web/app/api/workspaces/[slug]/repo-info/route.ts` — new GET handler. Order of checks: (a) `auth()` 401, (b) bootstrap-cookie verify (independent), (c) `await params`, (d) defensive worktree (`startsWith('/')` + `!includes('..')`), (e) closed-set vs `workspaceService.getInfo(slug).worktrees[].path`, (f) `Promise.all` of 4 git wrappers, (g) `parseRemote` → `RepoInfo` payload. **Response shape never carries raw `remoteUrl`** (finding 12).
+- `test/unit/web/api/workspaces/repo-info.test.ts` — 8 tests (the plan's 7 + the explicit `getInfo === null` 400 case I split out for clarity). `vi.hoisted` used to declare mocks before `vi.mock` factories evaluate.
+
+**Done When** evidence:
+- 8/8 tests pass: `pnpm vitest run test/unit/web/api/workspaces/repo-info.test.ts`.
+- Route compiles clean (project-wide `tsc --noEmit` has pre-existing errors elsewhere — none in this route).
+- Boilerplate present: `export const dynamic = 'force-dynamic'`; `params: Promise<{slug}>`; `await params`.
+- Auth: `auth()` AND `verifyCookieValue(cookieValue, code, key)` both independently checked.
+- Validation: defensive (start-with-slash + no-`..`) AND closed-set match against workspace's known worktrees.
+- Response shape: 8 fields per plan T005 — no `remoteUrl`.
+
+**Discovery — gotcha (vi.hoisted)**: First attempt declared `const authMock = vi.fn()` at top level then referenced it from `vi.mock` factory. `vi.mock` is hoisted above all imports/declarations, so the factory ran when `authMock` was still in TDZ. Wrapped all mock declarations in `vi.hoisted(() => ({ ... }))` so they're available at hoist-time. This is the documented vitest pattern for mock factories that need test-controlled mocks.
