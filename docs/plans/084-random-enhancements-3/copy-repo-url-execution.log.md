@@ -42,3 +42,21 @@ L3 harness available; will boot and capture screenshots in T007.
 - `index.ts` exists (placeholder) — ✅ (broken imports until T002/T003 — expected)
 - `registry.md` has new row — ✅
 - `domain-map.md` shows `_platform/git` infrastructure node + both consumer edges — ✅
+
+### T002 — TDD URL builder (parseRemote + buildFileUrl)
+
+**Started**: 2026-05-09
+
+**TDD log**:
+- RED: `pnpm vitest run test/unit/web/features/_platform/git/repo-url.test.ts` failed with module-not-found (`./lib/repo-url` missing).
+- GREEN: created `apps/web/src/features/_platform/git/lib/repo-url.ts` with `parseRemote` + `buildFileUrl` + types. Re-ran: 18/18 tests pass.
+- Stub `git-cli.ts` (T003 placeholder with throw-not-implemented bodies + `RepoInfo` type definition) added so the public surface (`index.ts`) compiles.
+
+**Files**:
+- `apps/web/src/features/_platform/git/lib/repo-url.ts` — pure URL builder. Strips embedded credentials in `parseRemote`. Per-segment encoding in `buildFileUrl` preserves slashes.
+- `apps/web/src/features/_platform/git/lib/git-cli.ts` — stub. T003 fills bodies.
+- `test/unit/web/features/_platform/git/repo-url.test.ts` — 18 tests across `parseRemote` (9), `buildFileUrl GitHub` (5), `buildFileUrl ADO` (4). Includes credential-strip case (Plan 084 finding 12).
+
+**Done When** evidence: All listed plan fixtures covered. `pnpm vitest run test/unit/web/features/_platform/git/repo-url.test.ts` → 18 passed.
+
+**Discovery**: Public surface coupling — when the test imports through `@/features/_platform/git`, the `index.ts` re-exports require BOTH `lib/repo-url.ts` and `lib/git-cli.ts` to compile. Stub for `git-cli.ts` added with `RepoInfo` type + throw-not-implemented bodies. T003 will fill the bodies.
