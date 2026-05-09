@@ -114,6 +114,27 @@ Check for console errors
 
 If you skip browser verification on UI work, visual regressions ship unnoticed.
 
+#### Compile-time verification: `just harness-verify <path>` (Plan 084 FX007)
+
+`tsc --noEmit` and `pnpm vitest run` are insufficient gates. They are happy with code that the Turbopack dev bundler refuses — e.g., a barrel `index.ts` that value-re-exports a server-only module (`node:child_process`, `node:fs`, native bindings) into a client chunk. That class of bug only surfaces when an actual page loads.
+
+After any task that touches:
+- A barrel / `index.ts` crossing the client / server line
+- An `app/` route file (page, layout, route handler)
+- A new module that imports `node:*` or other server-only dependencies
+
+…run the recipe against the affected page:
+
+```bash
+just harness-verify "/workspaces/<slug>/<page>"
+```
+
+The recipe HTTP-pings the page, captures console errors (filtered for HMR / favicon / GCM noise), and greps the dev-server's docker logs for Turbopack `⨯` markers within the recipe's window. Returns non-zero on failure, with the server-side error tail printed.
+
+Catches: chunking errors, parse errors, "Failed to compile", HTTP 5xx, real (non-noise) console errors. Generic — not specific to one feature.
+
+The wishlist entry that captures the lesson: `docs/plans/076-harness-workflow-runner/harness-wishlist.md` § W011.
+
 ### Harness Wishlist
 
 When you encounter friction — commands that fail, output that's unreadable, flows that are confusing — **add it to the wishlist**:

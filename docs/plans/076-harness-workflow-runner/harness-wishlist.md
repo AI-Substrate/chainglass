@@ -82,6 +82,25 @@
 **Impact**: Can't do the natural "start in background, poll status in foreground" pattern.
 **Fix**: Moot — `run --server` returns immediately. Natural flow is now: `just wf-run slug` then `just wf-status slug`.
 
+### W011 — No automated post-task harness verification step (Plan 084 FX007)
+**Severity**: 🟠 Painful
+**Status**: ✅ FIXED (this commit) — added `just harness-verify <path>` recipe
+**Problem**: `tsc --noEmit` and `pnpm vitest run` are both happy with code that the Turbopack dev bundler refuses. Plan 084 FX007 shipped a barrel index.ts that value-re-exported a server-only module (`node:child_process`) — types resolved fine, vitest mocked the imports, every gate I checked passed. The bug surfaced only when the user manually loaded the affected page and got `Code generation for chunk item errored ... the chunking context (unknown) does not support external modules`.
+**Impact**: Phase claimed complete; user had to surface the bug. The companion review didn't catch it either — companions review git diffs, not bundler output. The plan-6 skill's "Pre-Phase Harness Validation" step only validates the harness boots; it doesn't verify the new code compiles in it.
+**Fix**: New `just harness-verify <path>` recipe that:
+1. Calls `harness check-route` for HTTP status + console capture.
+2. Filters console messages to drop pre-existing harness noise (HMR / favicon / GCM).
+3. Greps `docker logs --since <recipe-start>` for Turbopack `⨯` markers, "Failed to compile", "chunking context", "Parsing ecmascript".
+4. Returns non-zero on any failure, with the actual server-side error tail printed.
+
+**Convention**: After every plan-6 task that touches a barrel/`index.ts` crossing the client/server line, an `app/` route, or a new module that imports `node:*`, run:
+```bash
+just harness-verify "/workspaces/<slug>/<page>"
+```
+Add this to the per-task progress checklist alongside test + commit. Captured in AGENTS.md § Browser Verification.
+
+**Open follow-up**: `harness check-route` itself flags pre-existing HMR/favicon noise as failure when `--console-errors` is set. Filtering lives in the new recipe — could move into `check-route` core (or become a `--ignore-pattern <regex>` flag) so other consumers get the benefit. New wishlist item if this lands as a real friction elsewhere.
+
 ---
 
 ## Meta-Observations
