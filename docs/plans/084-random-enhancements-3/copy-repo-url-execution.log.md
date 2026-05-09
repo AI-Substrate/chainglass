@@ -60,3 +60,20 @@ L3 harness available; will boot and capture screenshots in T007.
 **Done When** evidence: All listed plan fixtures covered. `pnpm vitest run test/unit/web/features/_platform/git/repo-url.test.ts` → 18 passed.
 
 **Discovery**: Public surface coupling — when the test imports through `@/features/_platform/git`, the `index.ts` re-exports require BOTH `lib/repo-url.ts` and `lib/git-cli.ts` to compile. Stub for `git-cli.ts` added with `RepoInfo` type + throw-not-implemented bodies. T003 will fill the bodies.
+
+### T003 — Implement git-cli.ts (4 wrappers + RepoInfo type)
+
+**Started**: 2026-05-09
+
+**Files**:
+- `apps/web/src/features/_platform/git/lib/git-cli.ts` — production implementation. `getCurrentBranch` + `getDefaultBaseBranch` lifted verbatim from `apps/web/src/features/071-pr-view/lib/git-branch-service.ts` (contracts preserved: `'HEAD'` for detached, `'main'` fallback). `getRemoteUrl` reads `git config --get remote.origin.url` (returns `null` on failure). `getCurrentCommitSha` returns full 40-char SHA (validated by regex), `null` on failure / zero-commit worktree (Plan 084 finding 14).
+- `test/unit/web/features/_platform/git/git-cli.test.ts` — 11 tests across 4 functions, real git in tmpdir per project convention (matches PR-view tests).
+
+**Done When** evidence: `pnpm vitest run test/unit/web/features/_platform/git/` → 29 passed (18 repo-url + 11 git-cli).
+
+**Discovery — gotcha (mock failure)**: Initial attempt mocked `node:child_process.execFile` via `vi.mock`. Production code uses `promisify(execFile)`, which on real Node uses the `[util.promisify.custom]` symbol on `execFile` to return `{stdout, stderr}`. My replacement function lacked that symbol → `promisify` fell back to standard "first cb arg" wrapping → returned just `stdout` as string, broke `const { stdout } = await execFileAsync(...)` destructuring. Added the symbol to the mock — still didn't trigger (4 success-path tests stayed in the catch fallback even with correct shape). Switched to **real `git` in tmpdir** matching the existing PR-view test pattern. Equally lightweight in spirit, more robust, no mock fragility.
+
+**Test merge (T004 prep)**: PR-view's `getCurrentBranch` and `getDefaultBaseBranch` test cases now have equivalent coverage in `git-cli.test.ts`:
+- `getCurrentBranch`: branch-name happy path, detached HEAD, non-repo failure
+- `getDefaultBaseBranch`: 'main' fallback, actual ref when origin/HEAD set
+T004 will drop the duplicates from the PR-view file (and `parseNameStatus` / `getMergeBase` / `getChangedFilesBranch` tests stay there since those functions stay in pr-view).
