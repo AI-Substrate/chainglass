@@ -18,12 +18,14 @@ import type {
   PRViewData,
   PRViewFile,
 } from '../types';
+import {
+  getCurrentBranch,
+  getDefaultBaseBranch,
+} from '@/features/_platform/git';
 import { computeContentHash } from './content-hash';
 import { getAllDiffs } from './get-all-diffs';
 import {
   getChangedFilesBranch,
-  getCurrentBranch,
-  getDefaultBaseBranch,
   getMergeBase,
 } from './git-branch-service';
 import { getPerFileDiffStats } from './per-file-diff-stats';

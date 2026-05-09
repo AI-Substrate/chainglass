@@ -77,3 +77,17 @@ L3 harness available; will boot and capture screenshots in T007.
 - `getCurrentBranch`: branch-name happy path, detached HEAD, non-repo failure
 - `getDefaultBaseBranch`: 'main' fallback, actual ref when origin/HEAD set
 T004 will drop the duplicates from the PR-view file (and `parseNameStatus` / `getMergeBase` / `getChangedFilesBranch` tests stay there since those functions stay in pr-view).
+
+### T004 — Refactor PR view to consume lifted helpers
+
+**Started**: 2026-05-09
+
+**Files**:
+- `apps/web/src/features/071-pr-view/lib/git-branch-service.ts` — removed `getCurrentBranch` and `getDefaultBaseBranch`. Header docstring updated to point to `_platform/git`. Retains `getMergeBase`, `getChangedFilesBranch`, `parseNameStatus`, `NAME_STATUS_MAP`.
+- `apps/web/src/features/071-pr-view/lib/diff-aggregator.ts` — split imports: `getCurrentBranch` + `getDefaultBaseBranch` now from `@/features/_platform/git`; `getChangedFilesBranch` + `getMergeBase` still local.
+- `test/unit/web/features/071-pr-view/git-branch-service.test.ts` — removed `getCurrentBranch` and `getDefaultBaseBranch` test blocks (covered in `_platform/git/git-cli.test.ts`); kept `getMergeBase`, `getChangedFilesBranch`, `parseNameStatus`. Added a comment pointing to the new test location.
+
+**Verification**:
+- `pnpm vitest run test/unit/web/features/071-pr-view/` → 76 passed (9 files), down from previous count by exactly the 4 removed test cases.
+- `pnpm exec tsc --noEmit` (apps/web) → no errors on touched files.
+- `grep -rn` for old import path returned only this domain's own files (no orphan consumers).
