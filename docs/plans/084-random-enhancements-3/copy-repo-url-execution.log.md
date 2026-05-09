@@ -185,4 +185,12 @@ T004 will drop the duplicates from the PR-view file (and `parseNameStatus` / `ge
 - Finding 13 (worktree-switch refetch): T007 `useEffect` deps `[slug, worktreePath]`.
 - Finding 14 (zero-commit worktree): T003 `getCurrentCommitSha` returns `string | null`; T006 + T007 handle null.
 
-**Companion-driven course corrections**: None — companion replied "ok" to every per-task ping with no findings raised. Either the work was clean enough to not warrant feedback or the companion's review threshold favours flagging only material issues. Either way, the inline-review feedback loop served as a continuous diff sanity check throughout the phase.
+**Companion-driven course corrections**: Three findings surfaced in the companion's farewell summary (read from the `inside` lane — the operator-side `outside inbox list` only shows my own messages, so I missed them in-flight). All three addressed in a follow-up fixup commit before phase close.
+
+| Finding | Severity | File | Resolution |
+|---------|----------|------|-----------|
+| F001 | MEDIUM | `docs/c4/components/pr-view.md` | C4 Git Branch Service component still listed `getCurrentBranch`/`getDefaultBaseBranch` as PR-view-owned. Updated description to enumerate only the PR-view-specific ops (`getMergeBase`, `getChangedFilesBranch`, `parseNameStatus`) and note the lift to `_platform/git`. |
+| F002 | HIGH | `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | useEffect cleared old repo-info only when the new fetch resolved/rejected. During the load window after a worktree switch, menu items remained visible with stale data, so a fast right-click would copy a URL built from the **previous** worktree's branch/SHA. Added `setRepoInfo(null)` synchronously at effect start so items hide while the new fetch is in flight. |
+| F003 | MEDIUM | `docs/domains/pr-view/domain.md` | Boundary still listed all 4 git fns as PR-view-owned; Contracts table still listed `getCurrentBranch` + `getDefaultBaseBranch` as PR-view contracts. Boundary line rewritten to enumerate only the PR-view-specific ops; Contracts table rows for the lifted helpers removed (replaced with the existing `getChangedFilesBranch` row that was missing). |
+
+After fixup commit, all 3 findings closed. Companion magicWand: "add a companion-side `finding status` field or outside command like `resolve-finding: F002 <sha>` so fix commits can explicitly close findings." A nice future improvement to the companion harness — captured for the next plan-6-companion iteration.

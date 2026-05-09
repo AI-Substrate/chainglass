@@ -16,7 +16,7 @@ GitHub-style change review overlay showing all worktree changes with collapsible
 - PR View types (PRViewFile, PRViewFileState, ComparisonMode, PRViewData)
 - Reviewed state JSONL persistence in `.chainglass/data/pr-view-state.jsonl`
 - Content hash computation via `git hash-object` for change detection
-- Git branch service (getCurrentBranch, getDefaultBaseBranch, getMergeBase, getChangedFilesBranch)
+- PR-view-specific git operations (`getMergeBase`, `getChangedFilesBranch`, `parseNameStatus`, `NAME_STATUS_MAP`). Cross-cutting `getCurrentBranch` / `getDefaultBaseBranch` were lifted to `_platform/git` in Plan 084 FX007 — see Dependencies.
 - Per-file diff stats via `git diff --numstat`
 - All-diffs fetcher (single git diff split by file header)
 - Diff aggregator assembling PRViewFile[] from all sources
@@ -38,9 +38,8 @@ GitHub-style change review overlay showing all worktree changes with collapsible
 | `markFileReviewed` | Function | Server actions | Persists reviewed state with content hash |
 | `computeContentHash` | Function | Server actions, aggregator | git hash-object wrapper |
 | `getAllDiffs` | Function | Aggregator | Single git diff split by file header |
-| `getCurrentBranch` | Function | Aggregator | git rev-parse --abbrev-ref HEAD |
-| `getDefaultBaseBranch` | Function | Aggregator | Auto-detect from origin/HEAD, fallback 'main' |
 | `getMergeBase` | Function | Aggregator | git merge-base for Branch mode |
+| `getChangedFilesBranch` | Function | Aggregator | `git diff <base>...HEAD --name-status` parser |
 | `getPerFileDiffStats` | Function | Aggregator | git diff --numstat parser |
 | `PRViewOverlayProvider` | Component | Layout wrapper | Context provider for overlay state |
 | `usePRViewOverlay` | Hook | Components | Access overlay open/close/toggle |

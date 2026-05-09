@@ -14,7 +14,7 @@ C4Component
         Component(types, "PR View Types", "TypeScript Types", "PRViewFile, PRViewFileState,<br/>ComparisonMode, PRViewData,<br/>DiffFileStatus, BranchChangedFile")
         Component(contentHash, "Content Hash", "Server Service", "computeContentHash via<br/>git hash-object for<br/>reviewed-state invalidation")
         Component(state, "PR View State", "Server Service", "JSONL read/write for<br/>reviewed file tracking with<br/>atomic rename + stale pruning")
-        Component(branch, "Git Branch Service", "Server Service", "getCurrentBranch, getMergeBase,<br/>getDefaultBaseBranch,<br/>getChangedFilesBranch")
+        Component(branch, "Git Branch Service", "Server Service", "PR-view-specific git ops:<br/>getMergeBase, getChangedFilesBranch,<br/>parseNameStatus.<br/>getCurrentBranch + getDefaultBaseBranch<br/>lifted to _platform/git in Plan 084 FX007.")
         Component(stats, "Per-File Diff Stats", "Server Service", "parseNumstat from<br/>git diff --numstat for<br/>per-file insertions/deletions")
         Component(allDiffs, "All Diffs Fetcher", "Server Service", "Single git diff command<br/>split by file header<br/>O(1) not O(N) processes")
         Component(aggregator, "Diff Aggregator", "Orchestrator", "Parallel fetch of files,<br/>diffs, stats, reviewed state<br/>with hash invalidation")

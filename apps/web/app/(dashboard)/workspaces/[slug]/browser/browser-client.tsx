@@ -171,10 +171,14 @@ function BrowserClientInner({
   // Plan 084 FX007 — repo-info for "Copy URL" right-click menu items.
   // null = either still loading or no remote / unknown host (item hides).
   // Refetched on every [slug, worktreePath] change (worktree-switch refetch
-  // per finding 13 / AC20).
+  // per finding 13 / AC20). Companion review F002: clear synchronously at
+  // effect start so menu items hide during the switch — otherwise a fast
+  // right-click after switching worktrees would copy URLs built from the
+  // *previous* worktree's branch/SHA.
   const [repoInfo, setRepoInfo] = useState<RepoInfoPayload | null>(null);
   useEffect(() => {
     let cancelled = false;
+    setRepoInfo(null);
     const url = `/api/workspaces/${encodeURIComponent(slug)}/repo-info?worktree=${encodeURIComponent(worktreePath)}`;
     fetch(url)
       .then((res) => (res.ok ? res.json() : null))
