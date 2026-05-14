@@ -14,8 +14,8 @@
  * Plan recent-changes-feed T024.
  */
 
-import type { FeedItem } from '../components/recent-feed/types';
 import type { FilterCategory } from '../components/recent-feed/recent-feed-filters';
+import type { FeedItem } from '../components/recent-feed/types';
 
 export const ALL_FILTER_CATEGORIES: ReadonlySet<FilterCategory> = new Set<FilterCategory>([
   'all',
@@ -51,10 +51,7 @@ export function feedItemCategory(item: FeedItem): FilterCategory {
  * If 'all' is in the active set the item passes regardless. Otherwise
  * the item's category must be present.
  */
-export function itemMatchesFilter(
-  item: FeedItem,
-  active: ReadonlySet<FilterCategory>
-): boolean {
+export function itemMatchesFilter(item: FeedItem, active: ReadonlySet<FilterCategory>): boolean {
   if (active.has('all')) return true;
   return active.has(feedItemCategory(item));
 }

@@ -18,14 +18,14 @@ import { join } from 'node:path';
 import {
   BOOTSTRAP_CODE_FILE_PATH_REL,
   BOOTSTRAP_COOKIE_NAME,
+  _resetSigningSecretCacheForTests,
   buildCookieValue,
   ensureBootstrapCode,
-  _resetSigningSecretCacheForTests,
 } from '@chainglass/shared/auth-bootstrap-code';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { _resetForTests as _resetBootstrapCache } from '../../../apps/web/src/lib/bootstrap-code';
 import { bootstrapCookieStage } from '../../../apps/web/proxy';
+import { _resetForTests as _resetBootstrapCache } from '../../../apps/web/src/lib/bootstrap-code';
 import {
   AUTH_BYPASS_ROUTES,
   evaluateCookieGate,
@@ -105,23 +105,21 @@ describe('evaluateCookieGate', () => {
 
   // (b) /api/auth/signin reachable without cookie (Auth.js catch-all)
   it('(b) /api/auth/signin → bypass', () => {
-    expect(
-      evaluateCookieGate(reqLike('/api/auth/signin'), codeAndKey),
-    ).toEqual({ kind: 'bypass' });
+    expect(evaluateCookieGate(reqLike('/api/auth/signin'), codeAndKey)).toEqual({ kind: 'bypass' });
   });
 
   // (c) /api/bootstrap/verify reachable without cookie
   it('(c) /api/bootstrap/verify → bypass', () => {
-    expect(
-      evaluateCookieGate(reqLike('/api/bootstrap/verify'), codeAndKey),
-    ).toEqual({ kind: 'bypass' });
+    expect(evaluateCookieGate(reqLike('/api/bootstrap/verify'), codeAndKey)).toEqual({
+      kind: 'bypass',
+    });
   });
 
   // (d) /api/bootstrap/forget reachable without cookie
   it('(d) /api/bootstrap/forget → bypass', () => {
-    expect(
-      evaluateCookieGate(reqLike('/api/bootstrap/forget'), codeAndKey),
-    ).toEqual({ kind: 'bypass' });
+    expect(evaluateCookieGate(reqLike('/api/bootstrap/forget'), codeAndKey)).toEqual({
+      kind: 'bypass',
+    });
   });
 
   // (e) /api/events without cookie → 401-equivalent
@@ -133,9 +131,9 @@ describe('evaluateCookieGate', () => {
 
   // (e1) /api/events with valid cookie → falls through (proxy hands off to auth() chain)
   it('(e1) /api/events with valid cookie → cookie-valid (proves layering)', () => {
-    expect(
-      evaluateCookieGate(reqLike('/api/events', VALID_COOKIE), codeAndKey),
-    ).toEqual({ kind: 'cookie-valid' });
+    expect(evaluateCookieGate(reqLike('/api/events', VALID_COOKIE), codeAndKey)).toEqual({
+      kind: 'cookie-valid',
+    });
   });
 
   // (f) Phase 7 F001 fix: /api/event-popper/* now bypasses at the proxy
@@ -143,23 +141,21 @@ describe('evaluateCookieGate', () => {
   //     gate (localhost + cookie OR X-Local-Token). This unblocks the AC-17
   //     CLI flow that was system-level-broken under the original contract.
   it('(f) /api/event-popper/list → bypass (Phase 7 F001 — sole gate is requireLocalAuth)', () => {
-    expect(
-      evaluateCookieGate(reqLike('/api/event-popper/list'), codeAndKey),
-    ).toEqual({ kind: 'bypass' });
+    expect(evaluateCookieGate(reqLike('/api/event-popper/list'), codeAndKey)).toEqual({
+      kind: 'bypass',
+    });
   });
 
   // (f1) /api/tmux/events → bypass (same Phase 7 F001 reasoning)
   it('(f1) /api/tmux/events → bypass (Phase 7 F001 — sole gate is requireLocalAuth)', () => {
-    expect(
-      evaluateCookieGate(reqLike('/api/tmux/events'), codeAndKey),
-    ).toEqual({ kind: 'bypass' });
+    expect(evaluateCookieGate(reqLike('/api/tmux/events'), codeAndKey)).toEqual({ kind: 'bypass' });
   });
 
   // (f2) /api/terminal/token without cookie → 401 (Phase 4 will defence-in-depth check)
   it('(f2) /api/terminal/token without cookie → cookie-missing-api', () => {
-    expect(
-      evaluateCookieGate(reqLike('/api/terminal/token'), codeAndKey),
-    ).toEqual({ kind: 'cookie-missing-api' });
+    expect(evaluateCookieGate(reqLike('/api/terminal/token'), codeAndKey)).toEqual({
+      kind: 'cookie-missing-api',
+    });
   });
 
   // (g) /dashboard without cookie → next() (NOT redirect — popup paints in RootLayout)
@@ -171,16 +167,16 @@ describe('evaluateCookieGate', () => {
 
   // (h) /dashboard with valid cookie → falls through to auth() chain
   it('(h) /dashboard with valid cookie → cookie-valid', () => {
-    expect(
-      evaluateCookieGate(reqLike('/dashboard', VALID_COOKIE), codeAndKey),
-    ).toEqual({ kind: 'cookie-valid' });
+    expect(evaluateCookieGate(reqLike('/dashboard', VALID_COOKIE), codeAndKey)).toEqual({
+      kind: 'cookie-valid',
+    });
   });
 
   // (i) /dashboard with invalid cookie value (rotation case) → cookie-missing-page
   it('(i) /dashboard with invalid cookie value → cookie-missing-page', () => {
-    expect(
-      evaluateCookieGate(reqLike('/dashboard', 'tampered-value'), codeAndKey),
-    ).toEqual({ kind: 'cookie-missing-page' });
+    expect(evaluateCookieGate(reqLike('/dashboard', 'tampered-value'), codeAndKey)).toEqual({
+      kind: 'cookie-missing-page',
+    });
   });
 
   // (j) Root page without cookie → cookie-missing-page
@@ -249,7 +245,7 @@ describe('bootstrapCookieStage — bypass-before-accessor (F004)', () => {
       // No file written; accessor would throw if reached.
       const result = await bootstrapCookieStage(bypassReq(path) as never);
       expect(result).toBe('bypass');
-    },
+    }
   );
 
   it('non-bypass /api/events with unreadable .chainglass → 503 NextResponse', async () => {
@@ -285,9 +281,7 @@ describe('bootstrapCookieStage — bypass-before-accessor (F004)', () => {
   });
 
   it('bypass /api/auth/callback/github with NO bootstrap-code.json → "bypass" (Auth.js can callback even during bootstrap-file outage)', async () => {
-    const result = await bootstrapCookieStage(
-      bypassReq('/api/auth/callback/github') as never,
-    );
+    const result = await bootstrapCookieStage(bypassReq('/api/auth/callback/github') as never);
     expect(result).toBe('bypass');
   });
 
@@ -315,7 +309,7 @@ describe('bootstrapCookieStage — bypass-before-accessor (F004)', () => {
     const key = activeSigningSecret(cwdLocal);
     const cookieValue = (await import('@chainglass/shared/auth-bootstrap-code')).buildCookieValue(
       code,
-      key,
+      key
     );
     const req = {
       nextUrl: { pathname: '/api/events' },
@@ -387,9 +381,9 @@ describe('Phase 5 T005 — proxy.ts env-var alias via isOAuthDisabled()', () => 
     expect(evaluateCookieGate(reqLike('/api/events'), codeAndKey)).toEqual({
       kind: 'cookie-missing-api',
     });
-    expect(
-      evaluateCookieGate(reqLike('/api/events', VALID_COOKIE), codeAndKey),
-    ).toEqual({ kind: 'cookie-valid' });
+    expect(evaluateCookieGate(reqLike('/api/events', VALID_COOKIE), codeAndKey)).toEqual({
+      kind: 'cookie-valid',
+    });
   });
 });
 

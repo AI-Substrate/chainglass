@@ -19,8 +19,8 @@
  */
 
 import { useCallback } from 'react';
-import type { FeedActions } from './use-feed-actions';
 import type { FeedItem } from '../types';
+import type { FeedActions } from './use-feed-actions';
 
 export interface UseFeedKeyboardOptions {
   visibleItems: FeedItem[];
@@ -65,9 +65,7 @@ export function useFeedKeyboard({ visibleItems, actions }: UseFeedKeyboardOption
       if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
 
       const focusedPath = focusedCardPath();
-      const focusedIdx = focusedPath
-        ? visibleItems.findIndex((i) => i.path === focusedPath)
-        : -1;
+      const focusedIdx = focusedPath ? visibleItems.findIndex((i) => i.path === focusedPath) : -1;
 
       switch (e.key) {
         case 'ArrowDown': {

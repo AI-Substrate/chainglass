@@ -9,7 +9,6 @@
  * Phase 3: Wire Into BrowserClient — Plan 043
  */
 
-import type { RepoInfo as RepoInfoPayload } from '@/features/_platform/git';
 import { ChangesView } from '@/features/041-file-browser/components/changes-view';
 import { ContentEmptyState } from '@/features/041-file-browser/components/content-empty-state';
 import { FileTree, type FileTreeHandle } from '@/features/041-file-browser/components/file-tree';
@@ -38,6 +37,7 @@ import { TerminalView } from '@/features/064-terminal/components/terminal-view';
 import { useTerminalSessions } from '@/features/064-terminal/hooks/use-terminal-sessions';
 import { QuestionPopperIndicator } from '@/features/067-question-popper/components/question-popper-indicator';
 import { useNotesOverlay } from '@/features/071-file-notes/hooks/use-notes-overlay';
+import type { RepoInfo as RepoInfoPayload } from '@/features/_platform/git';
 import {
   type BarContext,
   ExplorerPanel,
@@ -902,18 +902,16 @@ function BrowserClientInner({
   // Uses sdk.settings.get to read the persisted value once on mount; not
   // reactive (the user already opted in — toggling the setting only takes
   // effect on the next workspace load).
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional —
-  // first-mount-only effect keyed on (slug, worktreePath); see comment above.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional first-mount-only effect keyed on (slug, worktreePath); params/setParams/sdk are checked imperatively at effect time, not declaratively as deps. See block comment above.
   useEffect(() => {
     if (params.view) return; // already on a view
     if (params.file || params.dir) return; // user already navigated somewhere
-    const openOnLaunch = sdk.settings.get(
-      'fileBrowser.recentFeed.openOnLaunch'
-    ) as boolean | undefined;
+    const openOnLaunch = sdk.settings.get('fileBrowser.recentFeed.openOnLaunch') as
+      | boolean
+      | undefined;
     if (openOnLaunch) {
       setParams({ view: 'recent-feed' }, { history: 'replace' });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug, worktreePath]);
 
   // --- Panel refresh handler ---

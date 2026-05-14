@@ -20,24 +20,17 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import {
-  mkdirSync,
-  mkdtempSync,
-  rmSync,
-  watch,
-  writeFileSync,
-  type FSWatcher,
-} from 'node:fs';
+import { type FSWatcher, mkdirSync, mkdtempSync, rmSync, watch, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
+  type FeedAction,
+  type RawFileChangeEvent,
   initialFeedState,
   isFilteredPath,
   recentFeedReducer,
-  type FeedAction,
-  type RawFileChangeEvent,
 } from '../../../apps/web/src/features/041-file-browser/components/recent-feed/hooks/use-recent-feed-state';
 import type {
   FeedItem,
@@ -54,23 +47,19 @@ function watchRoot(root: string): WatchedEvents {
   const events: WatchedEvents['events'] = [];
   // recursive watch is supported on macOS / Windows; on Linux we'd need a
   // different setup, but the harness runs on macOS here.
-  const watcher = watch(
-    root,
-    { recursive: true },
-    (eventType, filename) => {
-      if (!filename) return;
-      const relPath = filename;
-      const fullPath = join(root, relPath);
-      // fs.watch reports both 'rename' (add/unlink) and 'change'; we
-      // collapse to just our merge semantics — the reducer doesn't care
-      // which fs event fired, it only cares about kind=add|change|unlink.
-      events.push({
-        type: eventType === 'change' ? 'change' : 'add',
-        relPath,
-        fullPath,
-      });
-    }
-  );
+  const watcher = watch(root, { recursive: true }, (eventType, filename) => {
+    if (!filename) return;
+    const relPath = filename;
+    const fullPath = join(root, relPath);
+    // fs.watch reports both 'rename' (add/unlink) and 'change'; we
+    // collapse to just our merge semantics — the reducer doesn't care
+    // which fs event fired, it only cares about kind=add|change|unlink.
+    events.push({
+      type: eventType === 'change' ? 'change' : 'add',
+      relPath,
+      fullPath,
+    });
+  });
   return { events, watcher };
 }
 
@@ -230,20 +219,16 @@ describe('Recent-feed live updates — git-history seed compatibility', () => {
     execFileSync('git', ['config', 'commit.gpgsign', 'false'], { cwd: tmp });
     writeFileSync(join(tmp, 'seeded.ts'), 'export const seeded = true;');
     execFileSync('git', ['add', 'seeded.ts'], { cwd: tmp });
-    execFileSync(
-      'git',
-      ['commit', '-q', '-m', 'seed', '--no-gpg-sign'],
-      {
-        cwd: tmp,
-        env: {
-          ...process.env,
-          GIT_AUTHOR_NAME: 'Test',
-          GIT_AUTHOR_EMAIL: 'test@example.com',
-          GIT_COMMITTER_NAME: 'Test',
-          GIT_COMMITTER_EMAIL: 'test@example.com',
-        },
-      }
-    );
+    execFileSync('git', ['commit', '-q', '-m', 'seed', '--no-gpg-sign'], {
+      cwd: tmp,
+      env: {
+        ...process.env,
+        GIT_AUTHOR_NAME: 'Test',
+        GIT_AUTHOR_EMAIL: 'test@example.com',
+        GIT_COMMITTER_NAME: 'Test',
+        GIT_COMMITTER_EMAIL: 'test@example.com',
+      },
+    });
 
     // INIT with the seeded file (cheaper than re-importing getRecentFeedItems
     // here; T013 already locks the git-log path).

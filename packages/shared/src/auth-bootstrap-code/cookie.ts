@@ -19,11 +19,7 @@ export function buildCookieValue(code: string, key: Buffer): string {
  * inputs. Uses `timingSafeEqual` over equal-length Buffers — length pre-check
  * avoids `timingSafeEqual` throwing on size mismatch.
  */
-export function verifyCookieValue(
-  value: string | undefined,
-  code: string,
-  key: Buffer,
-): boolean {
+export function verifyCookieValue(value: string | undefined, code: string, key: Buffer): boolean {
   if (value === undefined || value.length === 0) return false;
   const expected = buildCookieValue(code, key);
   if (value.length !== expected.length) return false;

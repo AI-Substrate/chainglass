@@ -25,9 +25,12 @@ await context.addCookies([
 ]);
 const page = await context.newPage();
 page.on('console', (m) => {
-  if (m.type() === 'error') findings.push({ severity: 'minor', kind: 'console', text: m.text().slice(0, 200) });
+  if (m.type() === 'error')
+    findings.push({ severity: 'minor', kind: 'console', text: m.text().slice(0, 200) });
 });
-page.on('pageerror', (e) => findings.push({ severity: 'major', kind: 'pageerror', text: String(e).slice(0, 300) }));
+page.on('pageerror', (e) =>
+  findings.push({ severity: 'major', kind: 'pageerror', text: String(e).slice(0, 300) })
+);
 
 // Step 1 — open workspaces, find first workspace
 await page.goto(`${BASE}/workspaces`, { waitUntil: 'domcontentloaded', timeout: 30000 });
@@ -44,23 +47,28 @@ const slug = await page.evaluate(() => {
   return slugs.find((s) => s === 'higgs-jordo') ?? slugs[0] ?? null;
 });
 if (!slug) {
-  console.error('NO WORKSPACE FOUND'); 
+  console.error('NO WORKSPACE FOUND');
   console.log(JSON.stringify({ findings, fatal: 'no-workspace' }, null, 2));
   await browser.close();
   process.exit(2);
 }
 console.log('slug=', slug);
 
-await page.goto(`${BASE}/workspaces/${slug}/browser`, { waitUntil: 'domcontentloaded', timeout: 45000 });
+await page.goto(`${BASE}/workspaces/${slug}/browser`, {
+  waitUntil: 'domcontentloaded',
+  timeout: 45000,
+});
 await page.waitForTimeout(5000);
 await page.screenshot({ path: `${OUT}/02-browser-default.png`, fullPage: true });
 
 // Step 2 — find the mobile tab strip
 const tabs = await page.$$eval('button, [role="tab"]', (els) =>
-  els.filter((e) => /^(Files|Content|Terminal|History)$/.test(e.textContent?.trim() ?? '')).map((e) => ({
-    label: e.textContent.trim(),
-    rect: e.getBoundingClientRect(),
-  }))
+  els
+    .filter((e) => /^(Files|Content|Terminal|History)$/.test(e.textContent?.trim() ?? ''))
+    .map((e) => ({
+      label: e.textContent.trim(),
+      rect: e.getBoundingClientRect(),
+    }))
 );
 console.log('tabs found:', JSON.stringify(tabs, null, 2));
 if (tabs.length !== 4) {
@@ -80,28 +88,45 @@ for (const want of ['Files', 'Content', 'Terminal', 'History']) {
 // Check tabs do not overflow
 for (const t of tabs) {
   if (t.rect.right > VIEWPORT.width) {
-    findings.push({ severity: 'major', kind: 'tab-overflow', text: `Tab "${t.label}" overflows: right=${t.rect.right}, viewport=${VIEWPORT.width}` });
+    findings.push({
+      severity: 'major',
+      kind: 'tab-overflow',
+      text: `Tab "${t.label}" overflows: right=${t.rect.right}, viewport=${VIEWPORT.width}`,
+    });
   }
 }
 
 // Step 3 — tap History tab (last one)
 const historyTab = tabs.find((t) => t.label === 'History');
 if (historyTab) {
-  await page.mouse.click(historyTab.rect.x + historyTab.rect.width / 2, historyTab.rect.y + historyTab.rect.height / 2);
+  await page.mouse.click(
+    historyTab.rect.x + historyTab.rect.width / 2,
+    historyTab.rect.y + historyTab.rect.height / 2
+  );
   await page.waitForTimeout(1500);
   await page.screenshot({ path: `${OUT}/03-history-tab.png`, fullPage: true });
 
   const url = page.url();
   if (!url.includes('view=recent-feed')) {
-    findings.push({ severity: 'major', kind: 'history-tab-url', text: `Tapping History did not set view=recent-feed; URL=${url}` });
+    findings.push({
+      severity: 'major',
+      kind: 'history-tab-url',
+      text: `Tapping History did not set view=recent-feed; URL=${url}`,
+    });
   }
 
   // Verify "Recent changes" header rendered
   const hasFeedHeader = await page.evaluate(() => {
-    return Array.from(document.querySelectorAll('h2')).some((h) => /recent changes/i.test(h.textContent ?? ''));
+    return Array.from(document.querySelectorAll('h2')).some((h) =>
+      /recent changes/i.test(h.textContent ?? '')
+    );
   });
   if (!hasFeedHeader) {
-    findings.push({ severity: 'critical', kind: 'feed-render', text: 'Tapped History tab but "Recent changes" header not visible' });
+    findings.push({
+      severity: 'critical',
+      kind: 'feed-render',
+      text: 'Tapped History tab but "Recent changes" header not visible',
+    });
   }
 
   // Capture filter chip strip overflow status
@@ -110,16 +135,27 @@ if (historyTab) {
       /^(All|Images|Videos|Audio|Markdown|Code|Other)$/.test(b.textContent?.trim() ?? '')
     );
     if (chips.length === 0) return null;
-    const rects = chips.map((c) => ({ label: c.textContent.trim(), rect: c.getBoundingClientRect() }));
+    const rects = chips.map((c) => ({
+      label: c.textContent.trim(),
+      rect: c.getBoundingClientRect(),
+    }));
     const minTop = Math.min(...rects.map((r) => r.rect.top));
     const maxTop = Math.max(...rects.map((r) => r.rect.top));
     return { count: chips.length, wrapped: maxTop - minTop > 4, rects };
   });
   if (chipStrip && chipStrip.wrapped) {
-    findings.push({ severity: 'minor', kind: 'chip-wrap', text: `Filter chip strip wrapped to multiple lines (count=${chipStrip.count})` });
+    findings.push({
+      severity: 'minor',
+      kind: 'chip-wrap',
+      text: `Filter chip strip wrapped to multiple lines (count=${chipStrip.count})`,
+    });
   }
 } else {
-  findings.push({ severity: 'critical', kind: 'history-missing', text: 'No History tab found in tab strip — cannot verify behavior' });
+  findings.push({
+    severity: 'critical',
+    kind: 'history-missing',
+    text: 'No History tab found in tab strip — cannot verify behavior',
+  });
 }
 
 // Step 4 — tap a feed card and verify it returns to Content tab
@@ -127,7 +163,12 @@ const firstFeedCardTitle = await page.evaluate(() => {
   const articles = Array.from(document.querySelectorAll('article'));
   for (const a of articles) {
     const btn = a.querySelector('button[id^="feed-card-title-"]');
-    if (btn) return { name: btn.textContent.trim(), x: btn.getBoundingClientRect().x + 5, y: btn.getBoundingClientRect().y + 5 };
+    if (btn)
+      return {
+        name: btn.textContent.trim(),
+        x: btn.getBoundingClientRect().x + 5,
+        y: btn.getBoundingClientRect().y + 5,
+      };
   }
   return null;
 });
@@ -166,10 +207,18 @@ if (firstFeedCardTitle) {
 
   const url2 = page.url();
   if (url2.includes('view=recent-feed')) {
-    findings.push({ severity: 'major', kind: 'card-click-stays-on-history', text: `Card click did not clear view; URL=${url2}` });
+    findings.push({
+      severity: 'major',
+      kind: 'card-click-stays-on-history',
+      text: `Card click did not clear view; URL=${url2}`,
+    });
   }
   if (!url2.match(/[?&]file=/)) {
-    findings.push({ severity: 'major', kind: 'card-click-no-file', text: `Card click did not set ?file=…; URL=${url2}` });
+    findings.push({
+      severity: 'major',
+      kind: 'card-click-no-file',
+      text: `Card click did not set ?file=…; URL=${url2}`,
+    });
   }
 
   // Confirm the active tab is Content (label active styling)
@@ -177,15 +226,38 @@ if (firstFeedCardTitle) {
     const tabs = Array.from(document.querySelectorAll('button, [role="tab"]')).filter((e) =>
       /^(Files|Content|Terminal|History)$/.test(e.textContent?.trim() ?? '')
     );
-    const active = tabs.find((t) => t.getAttribute('aria-selected') === 'true' || /(?:bg-(accent|primary)|text-(?:foreground|primary)|font-semibold)/.test(t.className));
+    const active = tabs.find(
+      (t) =>
+        t.getAttribute('aria-selected') === 'true' ||
+        /(?:bg-(accent|primary)|text-(?:foreground|primary)|font-semibold)/.test(t.className)
+    );
     return active ? active.textContent.trim() : null;
   });
   if (activeTabLabel && activeTabLabel !== 'Content') {
-    findings.push({ severity: 'minor', kind: 'card-click-active-tab', text: `Active tab after card click is "${activeTabLabel}", expected Content` });
+    findings.push({
+      severity: 'minor',
+      kind: 'card-click-active-tab',
+      text: `Active tab after card click is "${activeTabLabel}", expected Content`,
+    });
   }
 }
 
 // Output
 console.log('\n=== FINDINGS ===');
-console.log(JSON.stringify({ slug, findings, screenshots: ['01-workspaces.png','02-browser-default.png','03-history-tab.png','04-after-card-click.png'] }, null, 2));
+console.log(
+  JSON.stringify(
+    {
+      slug,
+      findings,
+      screenshots: [
+        '01-workspaces.png',
+        '02-browser-default.png',
+        '03-history-tab.png',
+        '04-after-card-click.png',
+      ],
+    },
+    null,
+    2
+  )
+);
 await browser.close();

@@ -18,21 +18,21 @@
 import { rmSync } from 'node:fs';
 
 import {
-  ensureBootstrapCode,
   _resetSigningSecretCacheForTests,
+  ensureBootstrapCode,
 } from '@chainglass/shared/auth-bootstrap-code';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { NextRequest } from 'next/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { _resetForTests as _resetBootstrapCache } from '../../../apps/web/src/lib/bootstrap-code';
-import {
-  POST as verifyPOST,
-  _resetRateLimitForTests,
-} from '../../../apps/web/app/api/bootstrap/verify/route';
 import { BootstrapPopup } from '@/features/063-login/components/bootstrap-popup';
-import { INVALID_FORMAT_SAMPLES } from '../../unit/shared/auth-bootstrap-code/test-fixtures';
+import {
+  _resetRateLimitForTests,
+  POST as verifyPOST,
+} from '../../../apps/web/app/api/bootstrap/verify/route';
+import { _resetForTests as _resetBootstrapCache } from '../../../apps/web/src/lib/bootstrap-code';
 import { setupBootstrapTestEnv } from '../../helpers/auth-bootstrap-code';
+import { INVALID_FORMAT_SAMPLES } from '../../unit/shared/auth-bootstrap-code/test-fixtures';
 
 const refresh = vi.fn();
 
@@ -67,9 +67,7 @@ describe('Phase 6 popup integration', () => {
         // pass a stable IP per scenario so the rate-limit bucket is isolated.
         const headers = new Headers(init?.headers);
         if (!headers.has('x-forwarded-for')) headers.set('x-forwarded-for', '7.7.7.7');
-        return verifyPOST(
-          new NextRequest(VERIFY_URL, { ...init, headers, method: 'POST' }),
-        );
+        return verifyPOST(new NextRequest(VERIFY_URL, { ...init, headers, method: 'POST' }));
       }
       throw new Error(`unexpected fetch: ${url}`);
     }) as typeof globalThis.fetch;
@@ -85,7 +83,7 @@ describe('Phase 6 popup integration', () => {
     render(
       <BootstrapPopup bootstrapVerified={false}>
         <div data-testid="protected">protected</div>
-      </BootstrapPopup>,
+      </BootstrapPopup>
     );
     const input = screen.getByTestId<HTMLInputElement>('bootstrap-code-input');
     fireEvent.change(input, { target: { value: env.code } });
@@ -98,7 +96,7 @@ describe('Phase 6 popup integration', () => {
     render(
       <BootstrapPopup bootstrapVerified={false}>
         <div>x</div>
-      </BootstrapPopup>,
+      </BootstrapPopup>
     );
     const wrong = '7K2P-9XQM-3T8R'; // valid format, vanishingly unlikely match
     if (wrong === env.code) throw new Error('test fixture collision; rerun');
@@ -106,7 +104,7 @@ describe('Phase 6 popup integration', () => {
     fireEvent.change(input, { target: { value: wrong } });
     fireEvent.click(screen.getByTestId('bootstrap-code-submit'));
     await waitFor(() =>
-      expect(screen.getByTestId('bootstrap-code-error')).toHaveTextContent(/wrong code/i),
+      expect(screen.getByTestId('bootstrap-code-error')).toHaveTextContent(/wrong code/i)
     );
     expect(input.value).toBe(wrong);
     expect(screen.getByTestId('bootstrap-popup')).toBeInTheDocument();
@@ -117,7 +115,7 @@ describe('Phase 6 popup integration', () => {
     render(
       <BootstrapPopup bootstrapVerified={false}>
         <div>x</div>
-      </BootstrapPopup>,
+      </BootstrapPopup>
     );
     const input = screen.getByTestId<HTMLInputElement>('bootstrap-code-input');
     // Use a sample that's < 14 chars after autoformat (ensures submit stays disabled)
@@ -132,7 +130,7 @@ describe('Phase 6 popup integration', () => {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-forwarded-for': '7.8.8.8' },
         body: JSON.stringify({ code: 'NOTVALIDFORMAT' }),
-      }),
+      })
     );
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ error: 'invalid-format' });
@@ -143,7 +141,7 @@ describe('Phase 6 popup integration', () => {
     render(
       <BootstrapPopup bootstrapVerified={false}>
         <div>x</div>
-      </BootstrapPopup>,
+      </BootstrapPopup>
     );
     const wrong = '7K2P-9XQM-3T8R';
     const input = screen.getByTestId<HTMLInputElement>('bootstrap-code-input');
@@ -162,9 +160,9 @@ describe('Phase 6 popup integration', () => {
     await waitFor(
       () =>
         expect(screen.getByTestId('bootstrap-code-error')).toHaveTextContent(
-          /rate limited.*\d+ seconds/i,
+          /rate limited.*\d+ seconds/i
         ),
-      { timeout: 2000 },
+      { timeout: 2000 }
     );
     expect(submit.disabled).toBe(true);
   });
@@ -184,7 +182,7 @@ describe('Phase 6 popup integration', () => {
       render(
         <BootstrapPopup bootstrapVerified={false}>
           <div>x</div>
-        </BootstrapPopup>,
+        </BootstrapPopup>
       );
       const input = screen.getByTestId<HTMLInputElement>('bootstrap-code-input');
       fireEvent.change(input, { target: { value: env.code } }); // any 14-char string
@@ -192,9 +190,9 @@ describe('Phase 6 popup integration', () => {
       await waitFor(
         () =>
           expect(screen.getByTestId('bootstrap-code-error')).toHaveTextContent(
-            /server unavailable/i,
+            /server unavailable/i
           ),
-        { timeout: 2000 },
+        { timeout: 2000 }
       );
       expect(input.value).toBe(env.code);
     } finally {
@@ -211,7 +209,7 @@ describe('Phase 6 popup integration', () => {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-forwarded-for': '7.9.9.9' },
         body: JSON.stringify({ code: env.code }),
-      }),
+      })
     );
     expect(res.status).toBe(200);
     expect(res.headers.get('set-cookie')).toContain('chainglass-bootstrap=');

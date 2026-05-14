@@ -37,9 +37,7 @@ describe('POST /api/bootstrap/forget', () => {
   });
 
   it('does not require a body', async () => {
-    const res = await POST(
-      new NextRequest(URL, { method: 'POST', body: '' }),
-    );
+    const res = await POST(new NextRequest(URL, { method: 'POST', body: '' }));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true });
   });

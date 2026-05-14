@@ -1,11 +1,4 @@
-export type FeedItemKind =
-  | 'image'
-  | 'video'
-  | 'audio'
-  | 'markdown'
-  | 'code'
-  | 'binary'
-  | 'generic';
+export type FeedItemKind = 'image' | 'video' | 'audio' | 'markdown' | 'code' | 'binary' | 'generic';
 
 export type FeedEventType = 'added' | 'changed' | 'deleted';
 

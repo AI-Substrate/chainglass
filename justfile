@@ -344,6 +344,26 @@ clean-next:
 clean:
     rm -rf packages/*/dist apps/*/dist apps/*/.next node_modules/.cache apps/web/public/icons
 
+# Prune turbo cache across all worktrees under ~/substrate (keeps last 7 days by default)
+# Override age with: just turbo-prune 14   (days) — or 0 to wipe everything
+turbo-prune days="7":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    DAYS={{days}}
+    ROOT="$HOME/substrate"
+    echo "Scanning turbo caches under ${ROOT}..."
+    TOTAL_BEFORE=$(find "${ROOT}" -type d -path '*/.turbo/cache' -prune -exec du -sk {} + 2>/dev/null | awk '{s+=$1} END {printf "%.1f GB", s/1024/1024}')
+    echo "Current total: ${TOTAL_BEFORE}"
+    if [ "${DAYS}" = "0" ]; then
+      echo "Wiping ALL turbo cache entries..."
+      while IFS= read -r d; do rm -rf "$d"/*; done < <(find "${ROOT}" -type d -path '*/.turbo/cache')
+    else
+      echo "Deleting cache entries older than ${DAYS} days..."
+      find "${ROOT}" -type f -path '*/.turbo/cache/*' \( -name '*.tar.zst' -o -name '*-meta.json' \) -mtime +${DAYS} -delete
+    fi
+    TOTAL_AFTER=$(find "${ROOT}" -type d -path '*/.turbo/cache' -prune -exec du -sk {} + 2>/dev/null | awk '{s+=$1} END {printf "%.1f GB", s/1024/1024}')
+    echo "New total: ${TOTAL_AFTER}"
+
 # Reset everything (clean + reinstall)
 reset: clean
     rm -rf node_modules packages/*/node_modules apps/*/node_modules pnpm-lock.yaml

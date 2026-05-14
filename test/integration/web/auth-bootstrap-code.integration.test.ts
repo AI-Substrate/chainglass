@@ -12,25 +12,22 @@ import { join } from 'node:path';
 import {
   BOOTSTRAP_CODE_FILE_PATH_REL,
   BOOTSTRAP_COOKIE_NAME,
+  _resetSigningSecretCacheForTests,
+  activeSigningSecret,
   buildCookieValue,
   ensureBootstrapCode,
   generateBootstrapCode,
-  _resetSigningSecretCacheForTests,
-  activeSigningSecret,
 } from '@chainglass/shared/auth-bootstrap-code';
 import { NextRequest } from 'next/server';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { _resetForTests as _resetBootstrapCache } from '../../../apps/web/src/lib/bootstrap-code';
 import { POST as forgetPOST } from '../../../apps/web/app/api/bootstrap/forget/route';
 import {
-  POST as verifyPOST,
   _resetRateLimitForTests,
+  POST as verifyPOST,
 } from '../../../apps/web/app/api/bootstrap/verify/route';
-import {
-  evaluateCookieGate,
-  type RequestLike,
-} from '../../../apps/web/src/lib/cookie-gate';
+import { _resetForTests as _resetBootstrapCache } from '../../../apps/web/src/lib/bootstrap-code';
+import { type RequestLike, evaluateCookieGate } from '../../../apps/web/src/lib/cookie-gate';
 import { INVALID_FORMAT_SAMPLES } from '../../unit/shared/auth-bootstrap-code/test-fixtures';
 
 import { setupBootstrapTestEnv } from '../../helpers/auth-bootstrap-code';
@@ -98,10 +95,10 @@ describe('auth-bootstrap-code integration', () => {
 
     // Now the proxy cookie-gate should accept this cookie for /dashboard
     const key = activeSigningSecret(env.cwd);
-    const decision = evaluateCookieGate(
-      gateReq('/dashboard', cookieValue),
-      { code: env.code, key },
-    );
+    const decision = evaluateCookieGate(gateReq('/dashboard', cookieValue), {
+      code: env.code,
+      key,
+    });
     expect(decision.kind).toBe('cookie-valid');
   });
 
@@ -109,12 +106,8 @@ describe('auth-bootstrap-code integration', () => {
   it('(4) no cookie: /dashboard → cookie-missing-page; /api/events → cookie-missing-api', async () => {
     const key = activeSigningSecret(env.cwd);
     const codeAndKey = { code: env.code, key };
-    expect(evaluateCookieGate(gateReq('/dashboard'), codeAndKey).kind).toBe(
-      'cookie-missing-page',
-    );
-    expect(evaluateCookieGate(gateReq('/api/events'), codeAndKey).kind).toBe(
-      'cookie-missing-api',
-    );
+    expect(evaluateCookieGate(gateReq('/dashboard'), codeAndKey).kind).toBe('cookie-missing-page');
+    expect(evaluateCookieGate(gateReq('/api/events'), codeAndKey).kind).toBe('cookie-missing-api');
   });
 
   // (5) Forget clears the cookie
@@ -128,9 +121,7 @@ describe('auth-bootstrap-code integration', () => {
   // (6) Format-invalid covers all 6 INVALID_FORMAT_SAMPLES
   it('(6) all 6 INVALID_FORMAT_SAMPLES → 400 invalid-format', async () => {
     for (const [idx, sample] of INVALID_FORMAT_SAMPLES.entries()) {
-      const res = await verifyPOST(
-        postJson(VERIFY_URL, { code: sample }, `10.7.0.${idx + 1}`),
-      );
+      const res = await verifyPOST(postJson(VERIFY_URL, { code: sample }, `10.7.0.${idx + 1}`));
       expect(res.status).toBe(400);
       expect(await res.json()).toEqual({ error: 'invalid-format' });
     }
@@ -163,7 +154,7 @@ describe('auth-bootstrap-code integration', () => {
       evaluateCookieGate(gateReq('/dashboard', oldCookieValue), {
         code: env.code,
         key: oldKey,
-      }).kind,
+      }).kind
     ).toBe('cookie-valid');
 
     // Rotate: write a new bootstrap-code.json with a different code
@@ -173,12 +164,8 @@ describe('auth-bootstrap-code integration', () => {
     const now = new Date().toISOString();
     writeFileSync(
       filePath,
-      JSON.stringify(
-        { version: 1, code: newCode, createdAt: now, rotatedAt: now },
-        null,
-        2,
-      ),
-      'utf-8',
+      JSON.stringify({ version: 1, code: newCode, createdAt: now, rotatedAt: now }, null, 2),
+      'utf-8'
     );
 
     // Caches must be reset to simulate the operator restart-after-rotate
@@ -191,7 +178,7 @@ describe('auth-bootstrap-code integration', () => {
       evaluateCookieGate(gateReq('/dashboard', oldCookieValue), {
         code: newCode,
         key: newKey,
-      }).kind,
+      }).kind
     ).toBe('cookie-missing-page');
 
     // Building a new cookie with the new code+key validates
@@ -200,7 +187,7 @@ describe('auth-bootstrap-code integration', () => {
       evaluateCookieGate(gateReq('/dashboard', newCookie), {
         code: newCode,
         key: newKey,
-      }).kind,
+      }).kind
     ).toBe('cookie-valid');
   });
 

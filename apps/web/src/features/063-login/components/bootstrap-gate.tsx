@@ -9,10 +9,7 @@
  * Lives in RootLayout (apps/web/app/layout.tsx) — wraps every route
  * including `/login`.
  */
-import {
-  BOOTSTRAP_COOKIE_NAME,
-  verifyCookieValue,
-} from '@chainglass/shared/auth-bootstrap-code';
+import { BOOTSTRAP_COOKIE_NAME, verifyCookieValue } from '@chainglass/shared/auth-bootstrap-code';
 import { cookies } from 'next/headers';
 import type { ReactNode } from 'react';
 
@@ -27,7 +24,7 @@ import { BootstrapPopup } from './bootstrap-popup';
 export function computeBootstrapVerified(
   cookieValue: string | undefined,
   code: string,
-  key: Buffer,
+  key: Buffer
 ): boolean {
   return verifyCookieValue(cookieValue, code, key);
 }
@@ -49,9 +46,5 @@ export async function BootstrapGate({
     // crashed layout.
     bootstrapVerified = false;
   }
-  return (
-    <BootstrapPopup bootstrapVerified={bootstrapVerified}>
-      {children}
-    </BootstrapPopup>
-  );
+  return <BootstrapPopup bootstrapVerified={bootstrapVerified}>{children}</BootstrapPopup>;
 }

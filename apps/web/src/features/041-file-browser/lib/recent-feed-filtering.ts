@@ -26,12 +26,7 @@ const BUILD_ARTIFACT_PREFIXES: readonly string[] = [
 ];
 
 /** Generated artifacts identified by extension only. Useful for cache files. */
-const FILTERED_EXTENSIONS: ReadonlySet<string> = new Set([
-  'pickle',
-  'pkl',
-  'pyc',
-  'pyo',
-]);
+const FILTERED_EXTENSIONS: ReadonlySet<string> = new Set(['pickle', 'pkl', 'pyc', 'pyo']);
 
 /** Matches `.tmp.<ext>` or trailing `.tmp` in a single path segment. */
 const TMP_FILE_RE = /\.tmp\.|\.tmp$/i;

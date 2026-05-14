@@ -22,9 +22,7 @@ describe('computeBootstrapVerified', () => {
   });
 
   it('(tampered cookie value) → false', () => {
-    expect(computeBootstrapVerified('not-the-real-hmac', CODE, KEY)).toBe(
-      false,
-    );
+    expect(computeBootstrapVerified('not-the-real-hmac', CODE, KEY)).toBe(false);
   });
 
   it('(empty cookie value) → false', () => {

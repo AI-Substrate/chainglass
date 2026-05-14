@@ -1,7 +1,7 @@
 // @vitest-environment node
 // Server-side code (node:fs, node:crypto, jose); jsdom env breaks jose's
 // `payload instanceof Uint8Array` check via cross-realm Uint8Array.
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -416,10 +416,7 @@ describe('Terminal WebSocket Server', () => {
 
       it('rejects a JWT with MISSING aud claim with 4403', async () => {
         const key = activeSigningSecret(tempCwd);
-        const token = await signJwt(
-          { sub: 'alice', iss: TERMINAL_JWT_ISSUER, cwd: tempCwd },
-          key
-        );
+        const token = await signJwt({ sub: 'alice', iss: TERMINAL_JWT_ISSUER, cwd: tempCwd }, key);
         const result = await validateTerminalJwt(token, { key, expectedCwd: tempCwd });
         expect(result.ok).toBe(false);
       });
@@ -614,9 +611,9 @@ describe('Terminal WebSocket Server', () => {
           (async () => {
             result = await authorizeUpgrade(
               { headers: { origin: longOrigin }, url: '/?token=anything' },
-              { cwd: tempCwd, allowedOrigins, signingKey: key },
+              { cwd: tempCwd, allowedOrigins, signingKey: key }
             );
-          })(),
+          })()
         ).resolves.toBeUndefined();
 
         // biome-ignore lint/style/noNonNullAssertion: assigned in the IIFE above
@@ -657,7 +654,9 @@ describe('Terminal WebSocket Server', () => {
             const msg = err instanceof Error ? err.message : String(err);
             expect(msg).toContain(missingCwd);
             // AC-22: code value must NEVER appear in error messages.
-            expect(msg).not.toMatch(/[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}/);
+            expect(msg).not.toMatch(
+              /[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}/
+            );
           }
         } finally {
           rmSync(missingCwd, { recursive: true, force: true });

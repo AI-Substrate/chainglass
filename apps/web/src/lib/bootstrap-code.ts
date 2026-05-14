@@ -79,7 +79,7 @@ export async function getBootstrapCodeAndKey(): Promise<BootstrapCodeAndKey> {
   } catch (err) {
     const original = err instanceof Error ? err.message : String(err);
     throw new Error(
-      `[bootstrap-code] failed to read or generate ${BOOTSTRAP_CODE_FILE_PATH_REL} at cwd=${cwd}: ${original}`,
+      `[bootstrap-code] failed to read or generate ${BOOTSTRAP_CODE_FILE_PATH_REL} at cwd=${cwd}: ${original}`
     );
   }
   const key = activeSigningSecret(cwd);

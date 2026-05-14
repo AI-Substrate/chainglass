@@ -102,7 +102,7 @@ function buildSetCookie(value: string): string {
 function jsonError(
   status: number,
   body: Record<string, unknown>,
-  headers?: Record<string, string>,
+  headers?: Record<string, string>
 ): NextResponse {
   return NextResponse.json(body, { status, headers });
 }
@@ -117,7 +117,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return jsonError(
       429,
       { error: 'rate-limited', retryAfterMs: rate.retryAfterMs },
-      { 'Retry-After': String(Math.ceil(rate.retryAfterMs / 1000)) },
+      { 'Retry-After': String(Math.ceil(rate.retryAfterMs / 1000)) }
     );
   }
 
@@ -152,10 +152,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // matching the active code's length, so timingSafeEqual is safe without padding.
   const submittedBuf = Buffer.from(submitted, 'utf-8');
   const activeBuf = Buffer.from(codeAndKey.code, 'utf-8');
-  if (
-    submittedBuf.length !== activeBuf.length ||
-    !timingSafeEqual(submittedBuf, activeBuf)
-  ) {
+  if (submittedBuf.length !== activeBuf.length || !timingSafeEqual(submittedBuf, activeBuf)) {
     return jsonError(401, { error: 'wrong-code' });
   }
 
@@ -163,7 +160,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const cookieValue = buildCookieValue(codeAndKey.code, codeAndKey.key);
   return NextResponse.json(
     { ok: true },
-    { status: 200, headers: { 'Set-Cookie': buildSetCookie(cookieValue) } },
+    { status: 200, headers: { 'Set-Cookie': buildSetCookie(cookieValue) } }
   );
 }
 

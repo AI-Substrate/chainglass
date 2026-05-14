@@ -62,7 +62,7 @@ export async function register() {
         } catch (err) {
           console.warn(
             '[bootstrap-code] FX003 findWorkspaceRoot failed; falling back to process.cwd():',
-            err,
+            err
           );
           cwd = process.cwd();
         }

@@ -9,9 +9,9 @@
  * Phase 3: Wire Into BrowserClient — Plan 043
  */
 
-import { buildFileUrl, type RepoInfo } from '@/features/_platform/git';
 import type { ReadFileResult } from '@/features/041-file-browser/services/file-actions';
 import { type TreeEntry, formatTree } from '@/features/041-file-browser/services/format-tree';
+import { type RepoInfo, buildFileUrl } from '@/features/_platform/git';
 import { useCallback } from 'react';
 import { toast } from 'sonner';
 
@@ -159,12 +159,12 @@ export function useClipboard(options: UseClipboardOptions) {
           project: repoInfo.project,
           repo: repoInfo.repo,
         },
-        { ref, refType, relativePath },
+        { ref, refType, relativePath }
       );
       copyToClipboard(url);
       toast.success('URL copied');
     },
-    [repoInfo, copyToClipboard],
+    [repoInfo, copyToClipboard]
   );
 
   /**
@@ -182,12 +182,12 @@ export function useClipboard(options: UseClipboardOptions) {
           project: repoInfo.project,
           repo: repoInfo.repo,
         },
-        { ref: repoInfo.defaultBranch, refType: 'branch', relativePath },
+        { ref: repoInfo.defaultBranch, refType: 'branch', relativePath }
       );
       copyToClipboard(url);
       toast.success('URL copied');
     },
-    [repoInfo, copyToClipboard],
+    [repoInfo, copyToClipboard]
   );
 
   return {

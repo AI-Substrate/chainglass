@@ -21,10 +21,10 @@
  */
 
 import {
-  buildFileUrl,
-  parseRemote,
   type BuildOptions,
   type Remote,
+  buildFileUrl,
+  parseRemote,
 } from '@/features/_platform/git';
 import { describe, expect, it } from 'vitest';
 
@@ -57,9 +57,7 @@ describe('parseRemote', () => {
   });
 
   it('parses Azure DevOps HTTPS remote', () => {
-    expect(
-      parseRemote('https://dev.azure.com/org/project/_git/repo'),
-    ).toEqual({
+    expect(parseRemote('https://dev.azure.com/org/project/_git/repo')).toEqual({
       host: 'azure-devops',
       org: 'org',
       project: 'project',
@@ -68,9 +66,7 @@ describe('parseRemote', () => {
   });
 
   it('parses Azure DevOps SSH remote', () => {
-    expect(
-      parseRemote('git@ssh.dev.azure.com:v3/org/project/repo'),
-    ).toEqual({
+    expect(parseRemote('git@ssh.dev.azure.com:v3/org/project/repo')).toEqual({
       host: 'azure-devops',
       org: 'org',
       project: 'project',
@@ -94,17 +90,13 @@ describe('parseRemote', () => {
 
   it('returns host:unknown for legacy visualstudio.com tenants', () => {
     // Spec § Acceptance Criteria 6: legacy ADO out of scope.
-    const remote = parseRemote(
-      'https://myorg.visualstudio.com/myproject/_git/myrepo',
-    );
+    const remote = parseRemote('https://myorg.visualstudio.com/myproject/_git/myrepo');
     expect(remote?.host).toBe('unknown');
   });
 
   it('returns host:unknown for GitLab and other unrecognized hosts', () => {
     expect(parseRemote('git@gitlab.com:org/repo.git')?.host).toBe('unknown');
-    expect(parseRemote('https://bitbucket.org/org/repo.git')?.host).toBe(
-      'unknown',
-    );
+    expect(parseRemote('https://bitbucket.org/org/repo.git')?.host).toBe('unknown');
   });
 
   it('returns null for empty / malformed input', () => {
@@ -129,7 +121,7 @@ describe('buildFileUrl — GitHub', () => {
       relativePath: 'apps/web/src/foo.ts',
     };
     expect(buildFileUrl(githubRemote, opts)).toBe(
-      'https://github.com/org/repo/blob/main/apps/web/src/foo.ts',
+      'https://github.com/org/repo/blob/main/apps/web/src/foo.ts'
     );
   });
 
@@ -163,7 +155,7 @@ describe('buildFileUrl — GitHub', () => {
         ref: 'master',
         refType: 'branch',
         relativePath: 'README.md',
-      }),
+      })
     ).toBe('https://github.com/org/repo/blob/master/README.md');
   });
 
@@ -174,7 +166,7 @@ describe('buildFileUrl — GitHub', () => {
         ref: sha,
         refType: 'commit',
         relativePath: 'src/lib/util.ts',
-      }),
+      })
     ).toBe(`https://github.com/org/repo/blob/${sha}/src/lib/util.ts`);
   });
 });
@@ -193,9 +185,9 @@ describe('buildFileUrl — Azure DevOps', () => {
         ref: 'main',
         refType: 'branch',
         relativePath: 'src/lib/util.ts',
-      }),
+      })
     ).toBe(
-      'https://dev.azure.com/myorg/myproject/_git/myrepo?path=/src/lib/util.ts&version=GBmain',
+      'https://dev.azure.com/myorg/myproject/_git/myrepo?path=/src/lib/util.ts&version=GBmain'
     );
   });
 
@@ -206,9 +198,9 @@ describe('buildFileUrl — Azure DevOps', () => {
         ref: sha,
         refType: 'commit',
         relativePath: 'src/lib/util.ts',
-      }),
+      })
     ).toBe(
-      `https://dev.azure.com/myorg/myproject/_git/myrepo?path=/src/lib/util.ts&version=GC${sha}`,
+      `https://dev.azure.com/myorg/myproject/_git/myrepo?path=/src/lib/util.ts&version=GC${sha}`
     );
   });
 

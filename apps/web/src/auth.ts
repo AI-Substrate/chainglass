@@ -64,7 +64,7 @@ export function isOAuthDisabled(): boolean {
     _globalAuthFlags.__CHAINGLASS_DISABLE_AUTH_WARNED = true;
     // SECRET-FREE warn message (AC-22): no bootstrap code or secret values.
     console.warn(
-      '[auth] DISABLE_AUTH is deprecated; use DISABLE_GITHUB_OAUTH instead. Will be removed in next release.',
+      '[auth] DISABLE_AUTH is deprecated; use DISABLE_GITHUB_OAUTH instead. Will be removed in next release.'
     );
   }
   return newName || legacyName;

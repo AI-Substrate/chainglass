@@ -22,18 +22,18 @@ import { join } from 'node:path';
 
 import {
   BOOTSTRAP_COOKIE_NAME,
-  buildCookieValue,
-  ensureBootstrapCode,
   _resetSigningSecretCacheForTests,
   _resetWorkspaceRootCacheForTests,
   activeSigningSecret,
+  buildCookieValue,
+  ensureBootstrapCode,
 } from '@chainglass/shared/auth-bootstrap-code';
 import { writeServerInfo } from '@chainglass/shared/event-popper';
 import { NextRequest } from 'next/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { mkTempCwd } from '../../../shared/auth-bootstrap-code/test-fixtures';
 import { _resetForTests as _resetBootstrapCache } from '../../../../../apps/web/src/lib/bootstrap-code';
+import { mkTempCwd } from '../../../shared/auth-bootstrap-code/test-fixtures';
 
 interface AuthHeaders {
   remote?: boolean;
@@ -117,27 +117,21 @@ describe('Sink-route auth parity (T003)', () => {
 
   describe('UI route — GET /api/event-popper/list', () => {
     it('403 not-localhost', async () => {
-      const { GET } = await import(
-        '../../../../../apps/web/app/api/event-popper/list/route'
-      );
+      const { GET } = await import('../../../../../apps/web/app/api/event-popper/list/route');
       const res = await GET(listReq({ remote: true }));
       expect(res.status).toBe(403);
       expect(await res.json()).toEqual({ error: 'not-localhost' });
     });
 
     it('401 no-credential', async () => {
-      const { GET } = await import(
-        '../../../../../apps/web/app/api/event-popper/list/route'
-      );
+      const { GET } = await import('../../../../../apps/web/app/api/event-popper/list/route');
       const res = await GET(listReq({}));
       expect(res.status).toBe(401);
       expect(await res.json()).toEqual({ error: 'no-credential' });
     });
 
     it('401 bad-credential (malformed cookie)', async () => {
-      const { GET } = await import(
-        '../../../../../apps/web/app/api/event-popper/list/route'
-      );
+      const { GET } = await import('../../../../../apps/web/app/api/event-popper/list/route');
       const res = await GET(listReq({ cookieValue: 'not-a-real-hmac' }));
       expect(res.status).toBe(401);
       expect(await res.json()).toEqual({ error: 'bad-credential' });
@@ -150,9 +144,7 @@ describe('Sink-route auth parity (T003)', () => {
       writeFileSync(join(cwd, '.chainglass'), 'sentinel');
       _resetBootstrapCache();
       _resetSigningSecretCacheForTests();
-      const { GET } = await import(
-        '../../../../../apps/web/app/api/event-popper/list/route'
-      );
+      const { GET } = await import('../../../../../apps/web/app/api/event-popper/list/route');
       const res = await GET(listReq({}));
       expect(res.status).toBe(503);
       expect(await res.json()).toEqual({ error: 'bootstrap-unavailable' });
@@ -209,9 +201,7 @@ describe('Sink-route auth parity (T003)', () => {
       // requireLocalAuth returned ok.
       const key = activeSigningSecret(cwd);
       const cookie = buildCookieValue(activeCode, key);
-      const { GET } = await import(
-        '../../../../../apps/web/app/api/event-popper/list/route'
-      );
+      const { GET } = await import('../../../../../apps/web/app/api/event-popper/list/route');
       let res: Response | undefined;
       try {
         res = await GET(listReq({ cookieValue: cookie }));

@@ -57,7 +57,7 @@ describe('findWorkspaceRoot', () => {
     writeFileSync(join(root, 'pnpm-workspace.yaml'), 'packages:\n  - apps/*\n');
     writeFileSync(
       join(root, 'package.json'),
-      JSON.stringify({ name: 'root', workspaces: ['apps/*'] }),
+      JSON.stringify({ name: 'root', workspaces: ['apps/*'] })
     );
     const sub = join(root, 'apps', 'web');
     mkdirSync(sub, { recursive: true });
@@ -69,7 +69,7 @@ describe('findWorkspaceRoot', () => {
     const root = track(mkTempCwd('fwsr-2-'));
     writeFileSync(
       join(root, 'package.json'),
-      JSON.stringify({ name: 'root', workspaces: ['packages/*'] }),
+      JSON.stringify({ name: 'root', workspaces: ['packages/*'] })
     );
     const sub = join(root, 'packages', 'core');
     mkdirSync(sub, { recursive: true });

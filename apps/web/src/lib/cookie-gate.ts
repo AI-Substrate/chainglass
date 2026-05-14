@@ -7,10 +7,7 @@
  * `cookie-missing-api` it returns 401; on `cookie-missing-page` it returns
  * `next()` so RootLayout's `<BootstrapGate>` can paint the popup.
  */
-import {
-  BOOTSTRAP_COOKIE_NAME,
-  verifyCookieValue,
-} from '@chainglass/shared/auth-bootstrap-code';
+import { BOOTSTRAP_COOKIE_NAME, verifyCookieValue } from '@chainglass/shared/auth-bootstrap-code';
 
 import type { BootstrapCodeAndKey } from './bootstrap-code';
 
@@ -68,7 +65,7 @@ export function isBypassPath(pathname: string): boolean {
 
 export function evaluateCookieGate(
   req: RequestLike,
-  codeAndKey: BootstrapCodeAndKey,
+  codeAndKey: BootstrapCodeAndKey
 ): GateDecision {
   const pathname = req.nextUrl.pathname;
   if (isBypassPath(pathname)) return { kind: 'bypass' };

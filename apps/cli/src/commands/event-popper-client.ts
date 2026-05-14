@@ -85,7 +85,7 @@ export interface IEventPopperClient {
 
 export function createEventPopperClient(
   baseUrl: string,
-  opts: { worktreePath?: string } = {},
+  opts: { worktreePath?: string } = {}
 ): IEventPopperClient {
   // Plan 084 Phase 5: read `localToken` from `.chainglass/server.json` once at
   // client construction (file is process-stable for the lifetime of this CLI
@@ -104,9 +104,7 @@ export function createEventPopperClient(
   }
   const info =
     readServerInfo(cwd) ??
-    (workspaceRoot !== undefined && workspaceRoot !== cwd
-      ? readServerInfo(workspaceRoot)
-      : null) ??
+    (workspaceRoot !== undefined && workspaceRoot !== cwd ? readServerInfo(workspaceRoot) : null) ??
     readServerInfo(join(cwd, 'apps', 'web'));
   const localToken = info?.localToken;
 
@@ -182,9 +180,7 @@ export function discoverServerUrl(worktreePath?: string): string {
   }
   const info =
     readServerInfo(cwd) ??
-    (workspaceRoot !== undefined && workspaceRoot !== cwd
-      ? readServerInfo(workspaceRoot)
-      : null) ??
+    (workspaceRoot !== undefined && workspaceRoot !== cwd ? readServerInfo(workspaceRoot) : null) ??
     readServerInfo(join(cwd, 'apps', 'web'));
   if (!info) {
     throw new Error('Chainglass server not running. Start with: just dev');

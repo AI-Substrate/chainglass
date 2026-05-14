@@ -10,8 +10,8 @@ import { rmSync } from 'node:fs';
 
 import {
   BOOTSTRAP_COOKIE_NAME,
-  ensureBootstrapCode,
   _resetSigningSecretCacheForTests,
+  ensureBootstrapCode,
 } from '@chainglass/shared/auth-bootstrap-code';
 import { NextRequest } from 'next/server';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -21,11 +21,11 @@ import {
   mkTempCwd,
 } from '../../../shared/auth-bootstrap-code/test-fixtures';
 
-import { _resetForTests as _resetBootstrapCache } from '../../../../../apps/web/src/lib/bootstrap-code';
 import {
   POST,
   _resetRateLimitForTests,
 } from '../../../../../apps/web/app/api/bootstrap/verify/route';
+import { _resetForTests as _resetBootstrapCache } from '../../../../../apps/web/src/lib/bootstrap-code';
 
 const URL = 'http://localhost:3000/api/bootstrap/verify';
 

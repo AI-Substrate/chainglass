@@ -4,8 +4,8 @@ import { findWorkspaceRoot } from '@chainglass/shared/auth-bootstrap-code';
 import { readServerInfo } from '@chainglass/shared/event-popper';
 
 import { auth, isOAuthDisabled } from '@/auth';
-import { evaluateCookieGate, isBypassPath } from '@/lib/cookie-gate';
 import { getBootstrapCodeAndKey } from '@/lib/bootstrap-code';
+import { evaluateCookieGate, isBypassPath } from '@/lib/cookie-gate';
 import { isLocalhostRequest } from '@/lib/localhost-guard';
 import { type NextRequest, NextResponse } from 'next/server';
 
@@ -33,9 +33,7 @@ import { type NextRequest, NextResponse } from 'next/server';
  */
 export type BootstrapStageResult = 'bypass' | 'proceed' | NextResponse;
 
-export async function bootstrapCookieStage(
-  req: NextRequest,
-): Promise<BootstrapStageResult> {
+export async function bootstrapCookieStage(req: NextRequest): Promise<BootstrapStageResult> {
   if (isBypassPath(req.nextUrl.pathname)) {
     return 'bypass';
   }
@@ -81,10 +79,7 @@ export async function bootstrapCookieStage(
         typeof expected === 'string' &&
         expected.length > 0 &&
         expected.length === tokenHeader.length &&
-        timingSafeEqual(
-          Buffer.from(tokenHeader, 'utf-8'),
-          Buffer.from(expected, 'utf-8'),
-        )
+        timingSafeEqual(Buffer.from(tokenHeader, 'utf-8'), Buffer.from(expected, 'utf-8'))
       ) {
         return 'bypass';
       }
@@ -98,10 +93,7 @@ export async function bootstrapCookieStage(
     codeAndKey = await getBootstrapCodeAndKey();
   } catch {
     if (req.nextUrl.pathname.startsWith('/api/')) {
-      return NextResponse.json(
-        { error: 'bootstrap-unavailable' },
-        { status: 503 },
-      );
+      return NextResponse.json({ error: 'bootstrap-unavailable' }, { status: 503 });
     }
     return NextResponse.next();
   }
@@ -109,10 +101,7 @@ export async function bootstrapCookieStage(
   const decision = evaluateCookieGate(req, codeAndKey);
   switch (decision.kind) {
     case 'cookie-missing-api':
-      return NextResponse.json(
-        { error: 'bootstrap-required' },
-        { status: 401 },
-      );
+      return NextResponse.json({ error: 'bootstrap-required' }, { status: 401 });
     case 'cookie-missing-page':
       return NextResponse.next();
     case 'bypass':
@@ -175,7 +164,5 @@ const proxyMiddleware: ProxyMiddleware = async (req: NextRequest) => {
 export default proxyMiddleware;
 
 export const config = {
-  matcher: [
-    '/((?!_next/static|_next/image|favicon\\.ico|manifest\\.webmanifest).*)',
-  ],
+  matcher: ['/((?!_next/static|_next/image|favicon\\.ico|manifest\\.webmanifest).*)'],
 };

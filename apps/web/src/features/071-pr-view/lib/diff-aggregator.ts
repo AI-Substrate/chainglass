@@ -11,6 +11,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { ChangedFile } from '@/features/041-file-browser/services/working-changes';
 import { getWorkingChanges } from '@/features/041-file-browser/services/working-changes';
+import { getCurrentBranch, getDefaultBaseBranch } from '@/features/_platform/git/index.server';
 import type {
   BranchChangedFile,
   ComparisonMode,
@@ -18,16 +19,9 @@ import type {
   PRViewData,
   PRViewFile,
 } from '../types';
-import {
-  getCurrentBranch,
-  getDefaultBaseBranch,
-} from '@/features/_platform/git/index.server';
 import { computeContentHash } from './content-hash';
 import { getAllDiffs } from './get-all-diffs';
-import {
-  getChangedFilesBranch,
-  getMergeBase,
-} from './git-branch-service';
+import { getChangedFilesBranch, getMergeBase } from './git-branch-service';
 import { getPerFileDiffStats } from './per-file-diff-stats';
 import { loadReviewedState } from './pr-view-state';
 

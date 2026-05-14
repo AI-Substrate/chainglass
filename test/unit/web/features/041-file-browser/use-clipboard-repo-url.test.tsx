@@ -19,9 +19,9 @@
  * Plan 084 FX007. Findings: 07, 08, 14.
  */
 
-import { renderHook } from '@testing-library/react';
-import type { RepoInfo } from '@/features/_platform/git';
 import { useClipboard } from '@/features/041-file-browser/hooks/use-clipboard';
+import type { RepoInfo } from '@/features/_platform/git';
+import { renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const toastSuccess = vi.fn();
@@ -63,12 +63,10 @@ const githubRepoInfo: RepoInfo = {
 
 describe('handleCopyRepoUrlCurrentRef', () => {
   it('builds a branch URL with the current branch', () => {
-    const { result } = renderHook(() =>
-      useClipboard({ ...baseOptions, repoInfo: githubRepoInfo }),
-    );
+    const { result } = renderHook(() => useClipboard({ ...baseOptions, repoInfo: githubRepoInfo }));
     result.current.handleCopyRepoUrlCurrentRef('apps/web/src/foo.ts');
     expect(writeText).toHaveBeenCalledWith(
-      'https://github.com/o/r/blob/feature/foo/apps/web/src/foo.ts',
+      'https://github.com/o/r/blob/feature/foo/apps/web/src/foo.ts'
     );
     expect(toastSuccess).toHaveBeenCalledWith('URL copied');
   });
@@ -79,13 +77,9 @@ describe('handleCopyRepoUrlCurrentRef', () => {
       isDetached: true,
       currentBranch: 'HEAD',
     };
-    const { result } = renderHook(() =>
-      useClipboard({ ...baseOptions, repoInfo: detached }),
-    );
+    const { result } = renderHook(() => useClipboard({ ...baseOptions, repoInfo: detached }));
     result.current.handleCopyRepoUrlCurrentRef('a.ts');
-    expect(writeText).toHaveBeenCalledWith(
-      `https://github.com/o/r/blob/${'a'.repeat(40)}/a.ts`,
-    );
+    expect(writeText).toHaveBeenCalledWith(`https://github.com/o/r/blob/${'a'.repeat(40)}/a.ts`);
   });
 
   it('no-ops on detached + null SHA (zero-commit worktree)', () => {
@@ -95,18 +89,14 @@ describe('handleCopyRepoUrlCurrentRef', () => {
       currentBranch: 'HEAD',
       currentSha: null,
     };
-    const { result } = renderHook(() =>
-      useClipboard({ ...baseOptions, repoInfo: broken }),
-    );
+    const { result } = renderHook(() => useClipboard({ ...baseOptions, repoInfo: broken }));
     result.current.handleCopyRepoUrlCurrentRef('a.ts');
     expect(writeText).not.toHaveBeenCalled();
     expect(toastSuccess).not.toHaveBeenCalled();
   });
 
   it('no-ops when repoInfo is null', () => {
-    const { result } = renderHook(() =>
-      useClipboard({ ...baseOptions, repoInfo: null }),
-    );
+    const { result } = renderHook(() => useClipboard({ ...baseOptions, repoInfo: null }));
     result.current.handleCopyRepoUrlCurrentRef('a.ts');
     expect(writeText).not.toHaveBeenCalled();
   });
@@ -122,9 +112,7 @@ describe('handleCopyRepoUrlCurrentRef', () => {
       currentSha: null,
       isDetached: false,
     };
-    const { result } = renderHook(() =>
-      useClipboard({ ...baseOptions, repoInfo: unknown }),
-    );
+    const { result } = renderHook(() => useClipboard({ ...baseOptions, repoInfo: unknown }));
     result.current.handleCopyRepoUrlCurrentRef('a.ts');
     expect(writeText).not.toHaveBeenCalled();
   });
@@ -132,20 +120,14 @@ describe('handleCopyRepoUrlCurrentRef', () => {
 
 describe('handleCopyRepoUrlDefaultBranch', () => {
   it('always uses defaultBranch regardless of detached state', () => {
-    const { result } = renderHook(() =>
-      useClipboard({ ...baseOptions, repoInfo: githubRepoInfo }),
-    );
+    const { result } = renderHook(() => useClipboard({ ...baseOptions, repoInfo: githubRepoInfo }));
     result.current.handleCopyRepoUrlDefaultBranch('a.ts');
-    expect(writeText).toHaveBeenCalledWith(
-      'https://github.com/o/r/blob/main/a.ts',
-    );
+    expect(writeText).toHaveBeenCalledWith('https://github.com/o/r/blob/main/a.ts');
     expect(toastSuccess).toHaveBeenCalledWith('URL copied');
   });
 
   it('no-ops when repoInfo is null', () => {
-    const { result } = renderHook(() =>
-      useClipboard({ ...baseOptions, repoInfo: null }),
-    );
+    const { result } = renderHook(() => useClipboard({ ...baseOptions, repoInfo: null }));
     result.current.handleCopyRepoUrlDefaultBranch('a.ts');
     expect(writeText).not.toHaveBeenCalled();
   });

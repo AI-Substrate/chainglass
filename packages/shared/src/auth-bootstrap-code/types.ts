@@ -44,7 +44,8 @@ export interface EnsureResult {
  * Class breakdown: `0-9` (10), `A-H` (8), `JKMN` (4 — note no `L`),
  * `P-T` (5), `V-Z` (5) → 32 chars; excludes `I`, `L`, `O`, `U`.
  */
-export const BOOTSTRAP_CODE_PATTERN = /^[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/;
+export const BOOTSTRAP_CODE_PATTERN =
+  /^[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/;
 
 /** Name of the HttpOnly cookie that proves bootstrap-code possession. */
 export const BOOTSTRAP_COOKIE_NAME = 'chainglass-bootstrap';

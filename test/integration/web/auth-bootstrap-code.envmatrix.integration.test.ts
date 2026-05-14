@@ -31,15 +31,15 @@
  */
 import {
   BOOTSTRAP_COOKIE_NAME,
-  buildCookieValue,
   activeSigningSecret,
+  buildCookieValue,
 } from '@chainglass/shared/auth-bootstrap-code';
 import { writeServerInfo } from '@chainglass/shared/event-popper';
 import { NextRequest } from 'next/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { checkBootstrapMisconfiguration } from '../../../apps/web/src/auth-bootstrap/boot';
 import { bootstrapCookieStage } from '../../../apps/web/proxy';
+import { checkBootstrapMisconfiguration } from '../../../apps/web/src/auth-bootstrap/boot';
 import { requireLocalAuth } from '../../../apps/web/src/lib/local-auth';
 
 import { setupBootstrapTestEnv } from '../../helpers/auth-bootstrap-code';
@@ -198,7 +198,7 @@ describe('Plan 084 env-var matrix (Phase 7 T007)', () => {
 
     expect(warnSpy).toHaveBeenCalledTimes(1);
     expect(warnSpy).toHaveBeenCalledWith(
-      '[auth] DISABLE_AUTH is deprecated; use DISABLE_GITHUB_OAUTH instead. Will be removed in next release.',
+      '[auth] DISABLE_AUTH is deprecated; use DISABLE_GITHUB_OAUTH instead. Will be removed in next release.'
     );
 
     // Bootstrap gate still ON
@@ -222,7 +222,7 @@ describe('Plan 084 env-var matrix (Phase 7 T007)', () => {
     // legacyName observed → warn-once still fires (alias was seen)
     expect(warnSpy).toHaveBeenCalledTimes(1);
     expect(warnSpy).toHaveBeenCalledWith(
-      '[auth] DISABLE_AUTH is deprecated; use DISABLE_GITHUB_OAUTH instead. Will be removed in next release.',
+      '[auth] DISABLE_AUTH is deprecated; use DISABLE_GITHUB_OAUTH instead. Will be removed in next release.'
     );
 
     // Bootstrap gate still ON
@@ -372,7 +372,7 @@ describe('Plan 084 env-var matrix (Phase 7 T007)', () => {
           host: 'localhost:3000',
           'x-local-token': recordedToken,
         },
-      },
+      }
     );
     expect(await bootstrapCookieStage(req)).toBe('bypass');
   });
@@ -390,7 +390,7 @@ describe('Plan 084 env-var matrix (Phase 7 T007)', () => {
           host: 'localhost:3000',
           'x-local-token': recordedToken,
         },
-      },
+      }
     );
     expect(await bootstrapCookieStage(req)).toBe('bypass');
   });
@@ -411,7 +411,7 @@ describe('Plan 084 env-var matrix (Phase 7 T007)', () => {
           host: 'localhost:3000',
           'x-local-token': forgedToken,
         },
-      },
+      }
     );
     const decision = await bootstrapCookieStage(req);
     expect(decision).not.toBe('bypass');
@@ -433,7 +433,7 @@ describe('Plan 084 env-var matrix (Phase 7 T007)', () => {
           host: 'localhost:3000',
           'x-local-token': 'whatever-token-value',
         },
-      },
+      }
     );
     const decision = await bootstrapCookieStage(req);
     expect(decision).not.toBe('bypass');
@@ -454,7 +454,7 @@ describe('Plan 084 env-var matrix (Phase 7 T007)', () => {
           host: 'example.com',
           'x-local-token': recordedToken,
         },
-      },
+      }
     );
     const decision = await bootstrapCookieStage(req);
     expect(decision).not.toBe('bypass');
@@ -466,14 +466,17 @@ describe('Plan 084 env-var matrix (Phase 7 T007)', () => {
   it('F001 round 3: empty X-Local-Token is treated as no token (cookie path runs)', async () => {
     process.env.AUTH_SECRET = 'test-secret-f001-r3f-1234567890123456';
     writeTestServerInfo('any-recorded-token-ffffffffffffffff');
-    const req = new NextRequest('http://localhost:3000/api/workspaces/my-ws/workflows/g1/detailed', {
-      method: 'GET',
-      headers: {
-        'x-forwarded-for': '127.0.0.1',
-        host: 'localhost:3000',
-        'x-local-token': '',
-      },
-    });
+    const req = new NextRequest(
+      'http://localhost:3000/api/workspaces/my-ws/workflows/g1/detailed',
+      {
+        method: 'GET',
+        headers: {
+          'x-forwarded-for': '127.0.0.1',
+          host: 'localhost:3000',
+          'x-local-token': '',
+        },
+      }
+    );
     // Empty token → falsy → short-circuit skipped → cookie gate runs → 401
     const decision = await bootstrapCookieStage(req);
     expect(decision).not.toBe('bypass');
@@ -504,7 +507,7 @@ describe('Plan 084 env-var matrix (Phase 7 T007)', () => {
           host: 'localhost:3000',
           'x-local-token': recordedToken,
         },
-      },
+      }
     );
     expect(await bootstrapCookieStage(req)).toBe('bypass');
   });

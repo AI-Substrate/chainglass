@@ -139,9 +139,7 @@ export async function fetchRecentFiles(worktreePath: string, limit = 20) {
 export async function fetchRecentFeedItems(
   worktreePath: string,
   limit = 50,
-  categories?: ReadonlyArray<
-    'image' | 'video' | 'audio' | 'markdown' | 'code' | 'other'
-  >
+  categories?: ReadonlyArray<'image' | 'video' | 'audio' | 'markdown' | 'code' | 'other'>
 ) {
   await requireAuth();
   const { getRecentFeedItems } = await import(

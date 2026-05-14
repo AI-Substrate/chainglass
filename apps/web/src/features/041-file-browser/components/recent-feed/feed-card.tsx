@@ -12,7 +12,7 @@
 
 import { FileIcon } from '@/features/_platform/themes';
 import { cn } from '@/lib/utils';
-import { useId, type ReactNode } from 'react';
+import { type ReactNode, useId } from 'react';
 import type { FeedEventType, FeedItem } from './types';
 
 export interface FeedCardProps {

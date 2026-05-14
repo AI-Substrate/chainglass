@@ -12,17 +12,7 @@
 
 import type { FeedItemKind } from '../components/recent-feed/types';
 
-const IMAGE_EXTS = new Set([
-  'png',
-  'jpg',
-  'jpeg',
-  'gif',
-  'webp',
-  'svg',
-  'avif',
-  'bmp',
-  'ico',
-]);
+const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'avif', 'bmp', 'ico']);
 const VIDEO_EXTS = new Set([
   'mp4',
   'm4v', // Apple H.264 / iTunes container — same MIME family as mp4

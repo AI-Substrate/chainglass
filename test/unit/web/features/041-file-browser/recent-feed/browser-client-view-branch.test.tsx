@@ -41,7 +41,9 @@ describe('browser-client.tsx routing — Finding 07 ordering invariant', () => {
 
   it('imports RecentFeedView via next/dynamic with ssr:false', () => {
     expect(source).toMatch(/dynamic\s*\(\s*\(\)\s*=>\s*import\(/);
-    expect(source).toContain("'@/features/041-file-browser/components/recent-feed/recent-feed-view'");
+    expect(source).toContain(
+      "'@/features/041-file-browser/components/recent-feed/recent-feed-view'"
+    );
     expect(source).toMatch(/ssr:\s*false/);
   });
 
@@ -54,7 +56,7 @@ describe('browser-client.tsx routing — Finding 07 ordering invariant', () => {
     expect(source).toMatch(/setParams\(\s*\{\s*view:\s*null\s*\}/);
   });
 
-  it('mobile contentView has NO `view === \'recent-feed\'` branch — feed lives in its own History tab', () => {
+  it("mobile contentView has NO `view === 'recent-feed'` branch — feed lives in its own History tab", () => {
     // After Phase mobile-history-tab: the recent-feed view is no longer
     // inlined into contentView. It now occupies its own 4th mobile tab
     // ("History"), built from the standalone `historyView` local. The
@@ -82,7 +84,7 @@ describe('browser-client.tsx routing — Finding 07 ordering invariant', () => {
     expect(mobileViewsBlock).toContain('content: historyView');
   });
 
-  it('places `view === \'recent-feed\'` branch BEFORE BOTH `selectedFile ?` AND `currentDir ?` in the desktop main slot render point', () => {
+  it("places `view === 'recent-feed'` branch BEFORE BOTH `selectedFile ?` AND `currentDir ?` in the desktop main slot render point", () => {
     // The desktop block sits inside `main={` ... `}`. We search from the
     // first `main={` and assert ordering inside.
     const desktopBlockStart = source.indexOf('main={');

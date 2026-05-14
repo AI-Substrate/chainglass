@@ -20,8 +20,8 @@
 import { useCallback } from 'react';
 import { toast } from 'sonner';
 import { fetchFileExcerpt } from '../../../../../../app/actions/file-actions';
-import type { FeedAction } from './use-recent-feed-state';
 import type { FeedItem } from '../types';
+import type { FeedAction } from './use-recent-feed-state';
 
 export interface UseFeedActionsOptions {
   slug: string;
@@ -156,8 +156,7 @@ export function useFeedActions({
       const item = findItem(path);
       const name = basenameOf(path);
       const url = rawFileUrl(slug, worktreePath, path);
-      const isMedia =
-        item?.kind === 'image' || item?.kind === 'video' || item?.kind === 'audio';
+      const isMedia = item?.kind === 'image' || item?.kind === 'video' || item?.kind === 'audio';
       const md = isMedia ? `![${name}](${url})` : `[${name}](${url})`;
       const ok = await copyToClipboard(md);
       if (ok) toast.success('Markdown link copied');

@@ -95,7 +95,7 @@ const validParams = Promise.resolve({ slug: 'ws' });
 
 function reqWithCookie(
   url = `${URL_BASE}?worktree=${encodeURIComponent(WT_PATH)}`,
-  cookie = 'cg.bootstrap=ok',
+  cookie = 'cg.bootstrap=ok'
 ): NextRequest {
   return new NextRequest(url, { headers: { cookie } });
 }

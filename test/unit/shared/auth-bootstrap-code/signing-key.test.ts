@@ -73,9 +73,12 @@ describe('activeSigningSecret', () => {
     });
 
     it('is deterministic for the same code under the same cwd', () => {
-      writeBootstrapCode(`${cwd}/.chainglass/bootstrap-code.json`, mkBootstrapCodeFile({
-        code: 'STAB-LECO-DESS',
-      }));
+      writeBootstrapCode(
+        `${cwd}/.chainglass/bootstrap-code.json`,
+        mkBootstrapCodeFile({
+          code: 'STAB-LECO-DESS',
+        })
+      );
       const k1 = activeSigningSecret(cwd);
       _resetSigningSecretCacheForTests();
       const k2 = activeSigningSecret(cwd);
@@ -83,14 +86,20 @@ describe('activeSigningSecret', () => {
     });
 
     it('produces a different key for a different code (rotation invariant)', () => {
-      writeBootstrapCode(`${cwd}/.chainglass/bootstrap-code.json`, mkBootstrapCodeFile({
-        code: 'AAAA-AAAA-AAAA',
-      }));
+      writeBootstrapCode(
+        `${cwd}/.chainglass/bootstrap-code.json`,
+        mkBootstrapCodeFile({
+          code: 'AAAA-AAAA-AAAA',
+        })
+      );
       const k1 = activeSigningSecret(cwd);
       _resetSigningSecretCacheForTests();
-      writeBootstrapCode(`${cwd}/.chainglass/bootstrap-code.json`, mkBootstrapCodeFile({
-        code: 'BBBB-BBBB-BBBB',
-      }));
+      writeBootstrapCode(
+        `${cwd}/.chainglass/bootstrap-code.json`,
+        mkBootstrapCodeFile({
+          code: 'BBBB-BBBB-BBBB',
+        })
+      );
       const k2 = activeSigningSecret(cwd);
       expect(k1.equals(k2)).toBe(false);
     });

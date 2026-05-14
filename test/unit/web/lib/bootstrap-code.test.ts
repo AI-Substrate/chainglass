@@ -9,8 +9,8 @@ import { join } from 'node:path';
 
 import {
   BOOTSTRAP_CODE_FILE_PATH_REL,
-  ensureBootstrapCode,
   _resetSigningSecretCacheForTests,
+  ensureBootstrapCode,
 } from '@chainglass/shared/auth-bootstrap-code';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 

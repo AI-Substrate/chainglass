@@ -13,12 +13,12 @@ import { join } from 'node:path';
 
 import {
   type BootstrapCodeFile,
-  ensureBootstrapCode,
   _resetSigningSecretCacheForTests,
+  ensureBootstrapCode,
 } from '@chainglass/shared/auth-bootstrap-code';
 
-import { _resetForTests as _resetBootstrapCache } from '../../apps/web/src/lib/bootstrap-code';
 import { _resetRateLimitForTests } from '../../apps/web/app/api/bootstrap/verify/route';
+import { _resetForTests as _resetBootstrapCache } from '../../apps/web/src/lib/bootstrap-code';
 
 export interface BootstrapTestEnv {
   /** Absolute path to the temp project root used by the test. */

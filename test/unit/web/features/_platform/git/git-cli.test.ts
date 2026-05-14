@@ -106,7 +106,7 @@ describe('getDefaultBaseBranch', () => {
     });
     fs.writeFileSync(
       path.join(tmp, '.git', 'refs', 'remotes', 'origin', 'master'),
-      `${execSync('git rev-parse HEAD', { cwd: tmp }).toString().trim()}\n`,
+      `${execSync('git rev-parse HEAD', { cwd: tmp }).toString().trim()}\n`
     );
     git('symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/master');
     expect(await getDefaultBaseBranch(tmp)).toBe('master');

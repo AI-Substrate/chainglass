@@ -18,7 +18,7 @@
  * Constitution P4 — real fs, no `vi.mock`. Real server.json, real cwd, real
  * timing-safe compare via Node crypto.
  */
-import { mkdirSync, rmSync, writeFileSync, mkdtempSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 

@@ -25,8 +25,8 @@ import { detectContentType } from '@/lib/content-type-detection';
 import { detectLanguage } from '@/lib/language-detection';
 import type { IFileSystem, IPathResolver } from '@chainglass/shared';
 import { PathSecurityError } from '@chainglass/shared';
-import { truncateMarkdown } from '../lib/truncate-markdown';
 import { detectFeedItemKind } from '../lib/feed-item-kind';
+import { truncateMarkdown } from '../lib/truncate-markdown';
 
 export type FileExcerptMode = 'excerpt' | 'full';
 
@@ -70,9 +70,7 @@ export function isSecretsPath(relativePath: string): boolean {
   return SECRETS_PATTERNS.some((re) => re.test(relativePath));
 }
 
-export async function getFileExcerpt(
-  options: FileExcerptOptions
-): Promise<FileExcerptResult> {
+export async function getFileExcerpt(options: FileExcerptOptions): Promise<FileExcerptResult> {
   const {
     worktreePath,
     filePath,
@@ -153,7 +151,6 @@ export async function getFileExcerpt(
 
   // Code: first-N-lines truncation in excerpt mode; full content in full mode.
   const lang = detectLanguage(filename);
-  const content =
-    mode === 'full' ? raw : raw.split('\n').slice(0, codeLines).join('\n');
+  const content = mode === 'full' ? raw : raw.split('\n').slice(0, codeLines).join('\n');
   return { ok: true, kind: 'code', content, lang, mode };
 }

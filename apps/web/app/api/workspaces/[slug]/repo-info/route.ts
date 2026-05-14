@@ -20,22 +20,19 @@
 
 import { auth } from '@/auth';
 import {
+  type RepoInfo,
   getCurrentBranch,
   getCurrentCommitSha,
   getDefaultBaseBranch,
   getRemoteUrl,
   parseRemote,
-  type RepoInfo,
 } from '@/features/_platform/git/index.server';
 import { getBootstrapCodeAndKey } from '@/lib/bootstrap-code';
-import {
-  BOOTSTRAP_COOKIE_NAME,
-  verifyCookieValue,
-} from '@chainglass/shared/auth-bootstrap-code';
+import { getContainer } from '@/lib/bootstrap-singleton';
 import { WORKSPACE_DI_TOKENS } from '@chainglass/shared';
+import { BOOTSTRAP_COOKIE_NAME, verifyCookieValue } from '@chainglass/shared/auth-bootstrap-code';
 import type { IWorkspaceService } from '@chainglass/workflow';
 import { type NextRequest, NextResponse } from 'next/server';
-import { getContainer } from '@/lib/bootstrap-singleton';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,10 +40,7 @@ interface RouteParams {
   params: Promise<{ slug: string }>;
 }
 
-export async function GET(
-  req: NextRequest,
-  { params }: RouteParams,
-): Promise<Response> {
+export async function GET(req: NextRequest, { params }: RouteParams): Promise<Response> {
   // (a) NextAuth session check.
   const session = await auth();
   if (!session) {
@@ -59,16 +53,10 @@ export async function GET(
   try {
     codeAndKey = await getBootstrapCodeAndKey();
   } catch {
-    return NextResponse.json(
-      { error: 'bootstrap-unavailable' },
-      { status: 503 },
-    );
+    return NextResponse.json({ error: 'bootstrap-unavailable' }, { status: 503 });
   }
   if (!verifyCookieValue(cookieValue, codeAndKey.code, codeAndKey.key)) {
-    return NextResponse.json(
-      { error: 'bootstrap-cookie-required' },
-      { status: 401 },
-    );
+    return NextResponse.json({ error: 'bootstrap-cookie-required' }, { status: 401 });
   }
 
   const { slug } = await params;
@@ -77,48 +65,35 @@ export async function GET(
   const { searchParams } = new URL(req.url);
   const worktree = searchParams.get('worktree');
   if (!worktree) {
-    return NextResponse.json(
-      { error: 'Missing worktree parameter' },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: 'Missing worktree parameter' }, { status: 400 });
   }
   if (!worktree.startsWith('/') || worktree.includes('..')) {
-    return NextResponse.json(
-      { error: 'Invalid worktree path' },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: 'Invalid worktree path' }, { status: 400 });
   }
 
   // (d) Closed-set worktree validation against the workspace's known
   //     worktrees (finding 01b). `getInfo(slug) === null` → 400.
   const container = getContainer();
   const workspaceService = container.resolve<IWorkspaceService>(
-    WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE,
+    WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
   );
   const info = await workspaceService.getInfo(slug);
   if (!info) {
-    return NextResponse.json(
-      { error: 'Workspace not found' },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: 'Workspace not found' }, { status: 400 });
   }
   const isKnownWorktree = info.worktrees.some((w) => w.path === worktree);
   if (!isKnownWorktree) {
-    return NextResponse.json(
-      { error: 'Worktree not in workspace' },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: 'Worktree not in workspace' }, { status: 400 });
   }
 
   // (e) Read git state. All four reads run in parallel; each gracefully
   //     degrades to its own null/fallback on failure.
-  const [remoteUrl, currentBranch, defaultBranch, currentSha] =
-    await Promise.all([
-      getRemoteUrl(worktree),
-      getCurrentBranch(worktree),
-      getDefaultBaseBranch(worktree),
-      getCurrentCommitSha(worktree),
-    ]);
+  const [remoteUrl, currentBranch, defaultBranch, currentSha] = await Promise.all([
+    getRemoteUrl(worktree),
+    getCurrentBranch(worktree),
+    getDefaultBaseBranch(worktree),
+    getCurrentCommitSha(worktree),
+  ]);
 
   const remote = remoteUrl ? parseRemote(remoteUrl) : null;
   const isDetached = currentBranch === 'HEAD';

@@ -60,9 +60,7 @@ export function ImagePreview({ item, rawFileUrl }: ImagePreviewProps) {
         />
       )}
       {!loaded && !error && <div className="h-32 w-full animate-pulse bg-muted" />}
-      {error && (
-        <div className="px-3 py-6 text-xs text-muted-foreground">Failed to load image</div>
-      )}
+      {error && <div className="px-3 py-6 text-xs text-muted-foreground">Failed to load image</div>}
     </div>
   );
 }

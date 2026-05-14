@@ -76,7 +76,7 @@ describe('readBootstrapCode', () => {
     mkdirSync(dirname(filePath), { recursive: true });
     writeFileSync(
       filePath,
-      JSON.stringify({ version: 1, code: 'TEST-TEST-TEST' }), // no createdAt/rotatedAt
+      JSON.stringify({ version: 1, code: 'TEST-TEST-TEST' }) // no createdAt/rotatedAt
     );
     expect(readBootstrapCode(filePath)).toBeNull();
   });
@@ -91,7 +91,7 @@ describe('readBootstrapCode', () => {
         code: 'lowercase-bad', // fails the regex
         createdAt: now,
         rotatedAt: now,
-      }),
+      })
     );
     expect(readBootstrapCode(filePath)).toBeNull();
   });
@@ -144,7 +144,7 @@ describe('ensureBootstrapCode', () => {
     expect(result.generated).toBe(true);
     expect(result.data.version).toBe(1);
     expect(result.data.code).toMatch(
-      /^[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/,
+      /^[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/
     );
     // Persisted on disk
     expect(readBootstrapCode(filePath)).toEqual(result.data);
@@ -166,7 +166,7 @@ describe('ensureBootstrapCode', () => {
     const result = ensureBootstrapCode(cwd);
     expect(result.generated).toBe(true);
     expect(result.data.code).toMatch(
-      /^[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/,
+      /^[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/
     );
   });
 
@@ -194,7 +194,7 @@ describe('ensureBootstrapCode', () => {
         code: 'invalid-format',
         createdAt: now,
         rotatedAt: now,
-      }),
+      })
     );
     const result = ensureBootstrapCode(cwd);
     expect(result.generated).toBe(true);

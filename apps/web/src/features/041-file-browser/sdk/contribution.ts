@@ -173,10 +173,9 @@ export const fileBrowserContribution: SDKContribution = {
       key: RECENT_FEED_SETTING_KEYS.autoplayPolicy,
       domain: 'file-browser',
       label: 'Video autoplay',
-      description: 'When videos in the feed should auto-play. "Off" (default) shows native controls only.',
-      schema: z
-        .enum(['off', 'on-hover', 'on'])
-        .default(RECENT_FEED_DEFAULTS.autoplayPolicy),
+      description:
+        'When videos in the feed should auto-play. "Off" (default) shows native controls only.',
+      schema: z.enum(['off', 'on-hover', 'on']).default(RECENT_FEED_DEFAULTS.autoplayPolicy),
       ui: 'select',
       options: [
         { value: 'off', label: 'Off' },
@@ -189,7 +188,8 @@ export const fileBrowserContribution: SDKContribution = {
       key: RECENT_FEED_SETTING_KEYS.deletedWindow,
       domain: 'file-browser',
       label: 'Deleted-card visibility (ms)',
-      description: 'How long a deleted-file card stays visible before auto-removal. Set to 0 to dismiss immediately, or a very large value to keep until manually dismissed.',
+      description:
+        'How long a deleted-file card stays visible before auto-removal. Set to 0 to dismiss immediately, or a very large value to keep until manually dismissed.',
       schema: z.number().int().min(0).max(60_000).default(RECENT_FEED_DEFAULTS.deletedWindow),
       ui: 'number',
       section: 'Recent Changes Feed',
@@ -198,7 +198,8 @@ export const fileBrowserContribution: SDKContribution = {
       key: RECENT_FEED_SETTING_KEYS.inFlightMediaBound,
       domain: 'file-browser',
       label: 'In-flight media bound',
-      description: 'Maximum number of media elements (image/video/audio) the feed will keep decoded simultaneously.',
+      description:
+        'Maximum number of media elements (image/video/audio) the feed will keep decoded simultaneously.',
       schema: z.number().int().min(1).max(20).default(RECENT_FEED_DEFAULTS.inFlightMediaBound),
       ui: 'number',
       section: 'Recent Changes Feed',
@@ -207,7 +208,8 @@ export const fileBrowserContribution: SDKContribution = {
       key: RECENT_FEED_SETTING_KEYS.openOnLaunch,
       domain: 'file-browser',
       label: 'Open feed on workspace launch',
-      description: 'Show the Recent Changes Feed automatically when entering a workspace browser without a specific file or directory.',
+      description:
+        'Show the Recent Changes Feed automatically when entering a workspace browser without a specific file or directory.',
       schema: z.boolean().default(RECENT_FEED_DEFAULTS.openOnLaunch),
       ui: 'toggle',
       section: 'Recent Changes Feed',

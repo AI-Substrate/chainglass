@@ -49,11 +49,7 @@ export function RecentFeedHeader({
         )}
         aria-live="polite"
         aria-label={
-          isPaused
-            ? `Paused — ${bufferedChanges} buffered`
-            : isLive
-              ? 'Live'
-              : 'Disconnected'
+          isPaused ? `Paused — ${bufferedChanges} buffered` : isLive ? 'Live' : 'Disconnected'
         }
       >
         <span

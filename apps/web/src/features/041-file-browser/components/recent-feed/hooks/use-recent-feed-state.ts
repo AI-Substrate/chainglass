@@ -27,12 +27,7 @@ import type { FeedEventType, FeedItem, FeedState } from '../types';
 // Re-export for tests and existing consumers that imported from this module.
 export { isFilteredPath };
 
-export type RawFileChangeEventKind =
-  | 'add'
-  | 'change'
-  | 'unlink'
-  | 'addDir'
-  | 'unlinkDir';
+export type RawFileChangeEventKind = 'add' | 'change' | 'unlink' | 'addDir' | 'unlinkDir';
 
 export interface RawFileChangeEvent {
   kind: RawFileChangeEventKind;
@@ -105,10 +100,7 @@ export const initialFeedState: FeedState = {
 };
 
 /** Pure reducer — easily testable, no side effects. */
-export function recentFeedReducer(
-  state: FeedState,
-  action: FeedAction
-): FeedState {
+export function recentFeedReducer(state: FeedState, action: FeedAction): FeedState {
   switch (action.type) {
     case 'INIT': {
       // Drop dismissed + filtered entries from the seed too.
@@ -200,8 +192,7 @@ export function recentFeedReducer(
 
     case 'SET_CEILING': {
       const ceiling = Math.max(1, Math.floor(action.ceiling));
-      const items =
-        state.items.length > ceiling ? state.items.slice(0, ceiling) : state.items;
+      const items = state.items.length > ceiling ? state.items.slice(0, ceiling) : state.items;
       return { ...state, ceiling, items };
     }
 

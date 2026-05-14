@@ -18,10 +18,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import {
-  buildCookieValue,
-  verifyCookieValue,
-} from '@chainglass/shared/auth-bootstrap-code';
+import { buildCookieValue, verifyCookieValue } from '@chainglass/shared/auth-bootstrap-code';
 
 const KEY_A = Buffer.from('test-key-aaaaaaaaaaaaaaaaaaaaaaa', 'utf-8');
 const KEY_B = Buffer.from('test-key-bbbbbbbbbbbbbbbbbbbbbbb', 'utf-8');
@@ -44,9 +41,7 @@ describe('buildCookieValue', () => {
   });
 
   it('produces different values for different codes', () => {
-    expect(buildCookieValue(CODE, KEY_A)).not.toBe(
-      buildCookieValue(ROTATED_CODE, KEY_A),
-    );
+    expect(buildCookieValue(CODE, KEY_A)).not.toBe(buildCookieValue(ROTATED_CODE, KEY_A));
   });
 });
 

@@ -82,7 +82,7 @@ export async function requireLocalAuth(req: NextRequest): Promise<LocalAuthResul
     // SECRET-FREE warn message (AC-22): never interpolate `code` or any other
     // value that could leak the bootstrap secret into log capture.
     console.warn(
-      '[requireLocalAuth] bootstrap-code.json unreadable; rejecting all requests until restored',
+      '[requireLocalAuth] bootstrap-code.json unreadable; rejecting all requests until restored'
     );
     return { ok: false, reason: 'bootstrap-unavailable' };
   }

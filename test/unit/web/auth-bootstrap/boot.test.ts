@@ -10,10 +10,7 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import {
-  checkBootstrapMisconfiguration,
-  writeBootstrapCodeOnBoot,
-} from '@/auth-bootstrap/boot';
+import { checkBootstrapMisconfiguration, writeBootstrapCodeOnBoot } from '@/auth-bootstrap/boot';
 import { BOOTSTRAP_CODE_FILE_PATH_REL } from '@chainglass/shared/auth-bootstrap-code';
 
 import { mkTempCwd } from '../../shared/auth-bootstrap-code/test-fixtures';

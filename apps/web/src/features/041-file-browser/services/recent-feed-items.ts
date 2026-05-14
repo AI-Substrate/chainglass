@@ -14,12 +14,9 @@
 
 import { readdir, stat } from 'node:fs/promises';
 import { resolve as resolvePath } from 'node:path';
+import type { FeedItem, FeedItemKind } from '../components/recent-feed/types';
 import { detectFeedItemKind } from '../lib/feed-item-kind';
 import { isFilteredPath } from '../lib/recent-feed-filtering';
-import type {
-  FeedItem,
-  FeedItemKind,
-} from '../components/recent-feed/types';
 
 /**
  * Filter category — same enum the chip filter uses on the client. Server
@@ -28,13 +25,7 @@ import type {
  * "Video" surfaces actual videos even on a doc-heavy repo where the most
  * recent N paths are all markdown/code.
  */
-export type SeedCategory =
-  | 'image'
-  | 'video'
-  | 'audio'
-  | 'markdown'
-  | 'code'
-  | 'other';
+export type SeedCategory = 'image' | 'video' | 'audio' | 'markdown' | 'code' | 'other';
 
 export interface RecentFeedItemsOptions {
   /** When set, ensure at least `minPerCategory` items per category in the result. */
@@ -147,9 +138,7 @@ async function walkWorktreeForFeedItems(
   );
 
   return results
-    .filter(
-      (r): r is PromiseFulfilledResult<FeedItem> => r.status === 'fulfilled'
-    )
+    .filter((r): r is PromiseFulfilledResult<FeedItem> => r.status === 'fulfilled')
     .map((r) => r.value);
 }
 
@@ -222,9 +211,7 @@ export async function getRecentFeedItems(
   // category but a quota-driven pick may have skipped over newer items in
   // unrequested categories. Final ordering uses the original recency.
   const recencyIndex = new Map(allItems.map((it, i) => [it.path, i]));
-  result.sort(
-    (a, b) => (recencyIndex.get(a.path) ?? 0) - (recencyIndex.get(b.path) ?? 0)
-  );
+  result.sort((a, b) => (recencyIndex.get(a.path) ?? 0) - (recencyIndex.get(b.path) ?? 0));
 
   return { ok: true, items: result };
 }

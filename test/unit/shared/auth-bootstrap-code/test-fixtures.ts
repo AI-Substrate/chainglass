@@ -28,9 +28,7 @@ export function mkTempCwd(prefix = 'bootstrap-code-'): string {
  * Build a syntactically valid `BootstrapCodeFile` with sensible defaults.
  * Override any field via the partial argument.
  */
-export function mkBootstrapCodeFile(
-  overrides: Partial<BootstrapCodeFile> = {},
-): BootstrapCodeFile {
+export function mkBootstrapCodeFile(overrides: Partial<BootstrapCodeFile> = {}): BootstrapCodeFile {
   const now = new Date().toISOString();
   return {
     version: 1,

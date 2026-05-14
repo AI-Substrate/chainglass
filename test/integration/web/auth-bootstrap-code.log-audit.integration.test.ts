@@ -40,17 +40,17 @@
  */
 import {
   BOOTSTRAP_COOKIE_NAME,
-  buildCookieValue,
   activeSigningSecret,
+  buildCookieValue,
 } from '@chainglass/shared/auth-bootstrap-code';
 import { NextRequest } from 'next/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { POST as verifyPOST } from '../../../apps/web/app/api/bootstrap/verify/route';
 import { writeBootstrapCodeOnBoot } from '../../../apps/web/src/auth-bootstrap/boot';
 import { authorizeUpgrade } from '../../../apps/web/src/features/064-terminal/server/terminal-auth';
 import { getBootstrapCodeAndKey } from '../../../apps/web/src/lib/bootstrap-code';
 import { requireLocalAuth } from '../../../apps/web/src/lib/local-auth';
-import { POST as verifyPOST } from '../../../apps/web/app/api/bootstrap/verify/route';
 
 import { setupBootstrapTestEnv } from '../../helpers/auth-bootstrap-code';
 
@@ -167,9 +167,10 @@ describe('AC-22 log-discipline audit (Phase 7 T010)', () => {
       ok: false,
       reason: 'no-credential',
     });
-    expect(
-      await requireLocalAuth(makeSinkReq({ cookieValue: 'totally-bogus-cookie' })),
-    ).toEqual({ ok: false, reason: 'bad-credential' });
+    expect(await requireLocalAuth(makeSinkReq({ cookieValue: 'totally-bogus-cookie' }))).toEqual({
+      ok: false,
+      reason: 'bad-credential',
+    });
 
     // (5) authorizeUpgrade — allow + deny paths
     const allowReq = {
@@ -249,7 +250,7 @@ describe('AC-22 log-discipline audit (Phase 7 T010)', () => {
 
     // The warn message must be the fixed secret-free string from local-auth.ts:84
     expect(warnSpy).toHaveBeenCalledWith(
-      '[requireLocalAuth] bootstrap-code.json unreadable; rejecting all requests until restored',
+      '[requireLocalAuth] bootstrap-code.json unreadable; rejecting all requests until restored'
     );
 
     // Once again — no code value anywhere in captured output

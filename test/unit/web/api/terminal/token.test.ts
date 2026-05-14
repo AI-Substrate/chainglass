@@ -16,7 +16,10 @@
  */
 import { rmSync } from 'node:fs';
 
-import { TERMINAL_JWT_AUDIENCE, TERMINAL_JWT_ISSUER } from '@/features/064-terminal/server/terminal-ws';
+import {
+  TERMINAL_JWT_AUDIENCE,
+  TERMINAL_JWT_ISSUER,
+} from '@/features/064-terminal/server/terminal-ws';
 import {
   BOOTSTRAP_COOKIE_NAME,
   _resetSigningSecretCacheForTests,
@@ -29,8 +32,8 @@ import { jwtVerify } from 'jose';
 import { NextRequest } from 'next/server';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { _resetForTests as _resetBootstrapCache } from '../../../../../apps/web/src/lib/bootstrap-code';
 import { GET } from '../../../../../apps/web/app/api/terminal/token/route';
+import { _resetForTests as _resetBootstrapCache } from '../../../../../apps/web/src/lib/bootstrap-code';
 import { mkTempCwd } from '../../../shared/auth-bootstrap-code/test-fixtures';
 
 const URL = 'http://localhost:3000/api/terminal/token';

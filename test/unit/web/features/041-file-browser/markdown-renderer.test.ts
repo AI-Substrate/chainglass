@@ -77,13 +77,7 @@ describe('renderMarkdownToHtml', () => {
   });
 
   it('escapes HTML in frontmatter values to prevent injection', async () => {
-    const md = [
-      '---',
-      'title: "<script>alert(1)</script>"',
-      '---',
-      '',
-      'body',
-    ].join('\n');
+    const md = ['---', 'title: "<script>alert(1)</script>"', '---', '', 'body'].join('\n');
     const html = await renderMarkdownToHtml(md);
     expect(html).not.toContain('<script>alert(1)</script>');
     expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');

@@ -19,24 +19,24 @@
  *   (h)  bootstrap-code.json unreadable → reason: 'bootstrap-unavailable' + console.warn (no code in log) — Completeness fix #2 + AC-22
  *   (i)  cookie wins when both valid → returns via: 'cookie'
  */
-import { rmSync, writeFileSync, mkdirSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
   BOOTSTRAP_COOKIE_NAME,
-  buildCookieValue,
-  ensureBootstrapCode,
   _resetSigningSecretCacheForTests,
   _resetWorkspaceRootCacheForTests,
   activeSigningSecret,
+  buildCookieValue,
+  ensureBootstrapCode,
 } from '@chainglass/shared/auth-bootstrap-code';
 import { writeServerInfo } from '@chainglass/shared/event-popper';
 import { NextRequest } from 'next/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { mkTempCwd } from '../../shared/auth-bootstrap-code/test-fixtures';
 import { _resetForTests as _resetBootstrapCache } from '../../../../apps/web/src/lib/bootstrap-code';
 import { requireLocalAuth } from '../../../../apps/web/src/lib/local-auth';
+import { mkTempCwd } from '../../shared/auth-bootstrap-code/test-fixtures';
 
 const URL = 'http://localhost:3000/api/event-popper/list';
 
@@ -126,7 +126,7 @@ describe('requireLocalAuth (Phase 5 T001 RED)', () => {
   // (c) localhost + valid X-Local-Token → token path
   it("(c) localhost + valid X-Local-Token → ok via 'local-token'", async () => {
     const result = await requireLocalAuth(
-      makeReq({ localToken: 'tok-shared-secret-1234567890abcdef' }),
+      makeReq({ localToken: 'tok-shared-secret-1234567890abcdef' })
     );
     expect(result).toEqual({ ok: true, via: 'local-token' });
   });
@@ -139,9 +139,7 @@ describe('requireLocalAuth (Phase 5 T001 RED)', () => {
 
   // (e) localhost, malformed cookie
   it("(e) localhost, malformed cookie → 'bad-credential'", async () => {
-    const result = await requireLocalAuth(
-      makeReq({ cookieValue: 'totally-not-a-real-hmac' }),
-    );
+    const result = await requireLocalAuth(makeReq({ cookieValue: 'totally-not-a-real-hmac' }));
     expect(result).toEqual({ ok: false, reason: 'bad-credential' });
   });
 
@@ -168,9 +166,7 @@ describe('requireLocalAuth (Phase 5 T001 RED)', () => {
       startedAt: new Date().toISOString(),
       // no localToken
     });
-    const result = await requireLocalAuth(
-      makeReq({ localToken: 'whatever-the-cli-might-send' }),
-    );
+    const result = await requireLocalAuth(makeReq({ localToken: 'whatever-the-cli-might-send' }));
     expect(result).toEqual({ ok: false, reason: 'bad-credential' });
   });
 
@@ -180,7 +176,7 @@ describe('requireLocalAuth (Phase 5 T001 RED)', () => {
       makeReq({
         cookieValue: 'totally-not-a-real-hmac',
         localToken: 'tok-shared-secret-1234567890abcdef',
-      }),
+      })
     );
     expect(result).toEqual({ ok: false, reason: 'bad-credential' });
   });
@@ -212,7 +208,7 @@ describe('requireLocalAuth (Phase 5 T001 RED)', () => {
       makeReq({
         cookieValue: cookie,
         localToken: 'tok-shared-secret-1234567890abcdef',
-      }),
+      })
     );
     expect(result).toEqual({ ok: true, via: 'cookie' });
   });

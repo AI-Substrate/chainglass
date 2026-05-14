@@ -21,14 +21,9 @@
  *   - `[bootstrap-code] active code at <abs-path>`
  *   - `[bootstrap-code] FATAL: <reason>` (emitted from instrumentation.ts, not here)
  */
-import {
-  type EnsureResult,
-  ensureBootstrapCode,
-} from '@chainglass/shared/auth-bootstrap-code';
+import { type EnsureResult, ensureBootstrapCode } from '@chainglass/shared/auth-bootstrap-code';
 
-export type MisconfigurationResult =
-  | { ok: true }
-  | { ok: false; reason: string };
+export type MisconfigurationResult = { ok: true } | { ok: false; reason: string };
 
 /**
  * Returns `{ ok: true }` when boot can proceed safely, otherwise
@@ -47,11 +42,8 @@ export type MisconfigurationResult =
  * `AUTH_SECRET` is optional. Phase 5 owns formalizing the rename and the
  * deprecation warning.
  */
-export function checkBootstrapMisconfiguration(
-  env: NodeJS.ProcessEnv,
-): MisconfigurationResult {
-  const githubOauthOn =
-    env.DISABLE_AUTH !== 'true' && env.DISABLE_GITHUB_OAUTH !== 'true';
+export function checkBootstrapMisconfiguration(env: NodeJS.ProcessEnv): MisconfigurationResult {
+  const githubOauthOn = env.DISABLE_AUTH !== 'true' && env.DISABLE_GITHUB_OAUTH !== 'true';
   const authSecretSet = (env.AUTH_SECRET ?? '').trim().length > 0;
 
   if (githubOauthOn && !authSecretSet) {
@@ -72,7 +64,7 @@ export function checkBootstrapMisconfiguration(
  */
 export async function writeBootstrapCodeOnBoot(
   cwd: string,
-  log: (message: string) => void = console.log,
+  log: (message: string) => void = console.log
 ): Promise<EnsureResult> {
   const result = ensureBootstrapCode(cwd);
   const verb = result.generated ? 'generated new code' : 'active code';

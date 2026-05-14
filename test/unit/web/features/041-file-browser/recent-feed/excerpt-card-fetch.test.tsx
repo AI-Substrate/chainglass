@@ -16,7 +16,13 @@ vi.mock('../../../../../../apps/web/app/actions/file-actions', () => ({
     if (p.endsWith('.md')) {
       return { ok: true, kind: 'markdown', content: '# Hello md', mode: 'excerpt' };
     }
-    return { ok: true, kind: 'code', content: 'console.log(1)', lang: 'javascript', mode: 'excerpt' };
+    return {
+      ok: true,
+      kind: 'code',
+      content: 'console.log(1)',
+      lang: 'javascript',
+      mode: 'excerpt',
+    };
   }),
 }));
 

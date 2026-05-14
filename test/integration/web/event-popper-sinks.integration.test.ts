@@ -26,17 +26,17 @@ import { join } from 'node:path';
 
 import {
   BOOTSTRAP_COOKIE_NAME,
-  buildCookieValue,
-  activeSigningSecret,
   _resetSigningSecretCacheForTests,
   _resetWorkspaceRootCacheForTests,
+  activeSigningSecret,
+  buildCookieValue,
 } from '@chainglass/shared/auth-bootstrap-code';
 import { writeServerInfo } from '@chainglass/shared/event-popper';
 import { NextRequest } from 'next/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { setupBootstrapTestEnv, type BootstrapTestEnv } from '../../helpers/auth-bootstrap-code';
 import { _resetForTests as _resetBootstrapCache } from '../../../apps/web/src/lib/bootstrap-code';
+import { type BootstrapTestEnv, setupBootstrapTestEnv } from '../../helpers/auth-bootstrap-code';
 
 const LOCAL_TOKEN = 'integration-tok-1234567890abcdef-stable';
 
@@ -190,7 +190,7 @@ describe('Event-popper sinks integration (T006)', () => {
         makeReq(rc, {
           cookieValue: 'tampered',
           localToken: LOCAL_TOKEN, // present but ignored when cookie tried first
-        }),
+        })
       );
       expect(res.status, `${rc.name}`).toBe(401);
       expect(await res.json(), `${rc.name}`).toEqual({ error: 'bad-credential' });

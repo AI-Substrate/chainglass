@@ -12,14 +12,14 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import type { FilterCategory } from '../../../../../../apps/web/src/features/041-file-browser/components/recent-feed/recent-feed-filters';
+import type { FeedItem } from '../../../../../../apps/web/src/features/041-file-browser/components/recent-feed/types';
 import {
   ALL_FILTER_CATEGORIES,
   feedItemCategory,
   itemMatchesFilter,
   toggleFilterCategory,
 } from '../../../../../../apps/web/src/features/041-file-browser/lib/feed-filter';
-import type { FilterCategory } from '../../../../../../apps/web/src/features/041-file-browser/components/recent-feed/recent-feed-filters';
-import type { FeedItem } from '../../../../../../apps/web/src/features/041-file-browser/components/recent-feed/types';
 
 function mkItem(kind: FeedItem['kind'], path = `f.${kind}`): FeedItem {
   return {
@@ -73,9 +73,7 @@ describe('toggleFilterCategory — workshop §5 + F001 fix', () => {
   it('"All" click from any state snaps back to ALL_FILTER_CATEGORIES', () => {
     const subset: ReadonlySet<FilterCategory> = new Set(['image', 'video']);
     expect(toggleFilterCategory(subset, 'all')).toBe(ALL_FILTER_CATEGORIES);
-    expect(toggleFilterCategory(ALL_FILTER_CATEGORIES, 'all')).toBe(
-      ALL_FILTER_CATEGORIES
-    );
+    expect(toggleFilterCategory(ALL_FILTER_CATEGORIES, 'all')).toBe(ALL_FILTER_CATEGORIES);
   });
 
   it('F001 fix: clicking a non-All chip from the all-inclusive state yields a fresh single-chip subset', () => {

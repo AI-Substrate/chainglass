@@ -116,7 +116,11 @@ describe('CardActions — Plan recent-changes-feed T005 extensions', () => {
         onDownload={vi.fn()}
         onCopyAbsolutePath={vi.fn()}
         onOpen={vi.fn()}
-        overflowMenu={<button type="button" title="More">⋯</button>}
+        overflowMenu={
+          <button type="button" title="More">
+            ⋯
+          </button>
+        }
       />
     );
     const buttons = screen.getAllByRole('button');

@@ -20,8 +20,8 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
-import type { RepoInfo } from '@/features/_platform/git';
 import { NoteIndicatorDot } from '@/features/071-file-notes/components/note-indicator-dot';
+import type { RepoInfo } from '@/features/_platform/git';
 import { FileIcon, FolderIcon } from '@/features/_platform/themes';
 import { useResponsive } from '@/hooks/useResponsive';
 import {
@@ -539,17 +539,13 @@ function TreeItem({
                   </ContextMenuItem>
                   {repoInfo && repoInfo.host !== 'unknown' && (
                     <>
-                      <ContextMenuItem
-                        onSelect={() => onCopyRepoUrlCurrentRef?.(entry.path)}
-                      >
+                      <ContextMenuItem onSelect={() => onCopyRepoUrlCurrentRef?.(entry.path)}>
                         <LinkIcon className="h-3.5 w-3.5 mr-2" />
                         {repoInfo.isDetached && repoInfo.currentSha !== null
                           ? 'Copy URL (this commit)'
                           : 'Copy URL (this branch)'}
                       </ContextMenuItem>
-                      <ContextMenuItem
-                        onSelect={() => onCopyRepoUrlDefaultBranch?.(entry.path)}
-                      >
+                      <ContextMenuItem onSelect={() => onCopyRepoUrlDefaultBranch?.(entry.path)}>
                         <LinkIcon className="h-3.5 w-3.5 mr-2" />
                         Copy URL (default branch)
                       </ContextMenuItem>
@@ -770,17 +766,13 @@ function TreeItem({
           </ContextMenuItem>
           {repoInfo && repoInfo.host !== 'unknown' && (
             <>
-              <ContextMenuItem
-                onSelect={() => onCopyRepoUrlCurrentRef?.(entry.path)}
-              >
+              <ContextMenuItem onSelect={() => onCopyRepoUrlCurrentRef?.(entry.path)}>
                 <LinkIcon className="h-3.5 w-3.5 mr-2" />
                 {repoInfo.isDetached && repoInfo.currentSha !== null
                   ? 'Copy URL (this commit)'
                   : 'Copy URL (this branch)'}
               </ContextMenuItem>
-              <ContextMenuItem
-                onSelect={() => onCopyRepoUrlDefaultBranch?.(entry.path)}
-              >
+              <ContextMenuItem onSelect={() => onCopyRepoUrlDefaultBranch?.(entry.path)}>
                 <LinkIcon className="h-3.5 w-3.5 mr-2" />
                 Copy URL (default branch)
               </ContextMenuItem>

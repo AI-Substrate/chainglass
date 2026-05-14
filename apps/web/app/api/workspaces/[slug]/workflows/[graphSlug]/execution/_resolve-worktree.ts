@@ -5,11 +5,11 @@
  * - Local token auth (DYK #5 — filesystem-based CLI auth)
  */
 
+import { timingSafeEqual } from 'node:crypto';
 import { WORKSPACE_DI_TOKENS } from '@chainglass/shared';
 import { findWorkspaceRoot } from '@chainglass/shared/auth-bootstrap-code';
 import { readServerInfo } from '@chainglass/shared/event-popper';
 import type { IWorkspaceService } from '@chainglass/workflow';
-import { timingSafeEqual } from 'node:crypto';
 
 import { auth } from '@/auth';
 

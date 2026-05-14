@@ -46,10 +46,8 @@ export interface RepoInfo {
 
 const GITHUB_HTTPS = /^https?:\/\/github\.com\/([^/]+)\/([^/]+?)(?:\.git)?\/?$/;
 const GITHUB_SSH = /^git@github\.com:([^/]+)\/([^/]+?)(?:\.git)?$/;
-const ADO_HTTPS =
-  /^https?:\/\/dev\.azure\.com\/([^/]+)\/([^/]+)\/_git\/([^/]+?)(?:\.git)?\/?$/;
-const ADO_SSH =
-  /^git@ssh\.dev\.azure\.com:v3\/([^/]+)\/([^/]+)\/([^/]+?)(?:\.git)?$/;
+const ADO_HTTPS = /^https?:\/\/dev\.azure\.com\/([^/]+)\/([^/]+)\/_git\/([^/]+?)(?:\.git)?\/?$/;
+const ADO_SSH = /^git@ssh\.dev\.azure\.com:v3\/([^/]+)\/([^/]+)\/([^/]+?)(?:\.git)?$/;
 const VISUALSTUDIO_LEGACY = /(^|\.)visualstudio\.com/;
 const ANY_HTTPS_OR_SSH = /^(https?:\/\/[^/]+\/.|git@[^:]+:.)/;
 
@@ -127,7 +125,5 @@ export function buildFileUrl(remote: Remote, options: BuildOptions): string {
     const versionPrefix = refType === 'branch' ? 'GB' : 'GC';
     return `https://dev.azure.com/${remote.org}/${remote.project}/_git/${remote.repo}?path=/${encodedPath}&version=${versionPrefix}${encodedRef}`;
   }
-  throw new Error(
-    `buildFileUrl: cannot build URL for host '${remote.host}'`,
-  );
+  throw new Error(`buildFileUrl: cannot build URL for host '${remote.host}'`);
 }

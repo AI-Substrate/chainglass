@@ -63,7 +63,7 @@ export type UpgradeAuthResult =
  */
 export async function validateTerminalJwt(
   token: string,
-  opts: ValidateTerminalJwtOpts,
+  opts: ValidateTerminalJwtOpts
 ): Promise<UpgradeAuthResult> {
   try {
     const { payload } = await jwtVerify(token, opts.key);
@@ -81,7 +81,12 @@ export async function validateTerminalJwt(
     }
     return { ok: true, username: payload.sub };
   } catch {
-    return { ok: false, code: 4403, reason: 'Invalid or expired token', closeReason: 'Invalid or expired token' };
+    return {
+      ok: false,
+      code: 4403,
+      reason: 'Invalid or expired token',
+      closeReason: 'Invalid or expired token',
+    };
   }
 }
 
@@ -153,7 +158,7 @@ export function getLocalNetworkHosts(): string[] {
 export function buildDefaultAllowedOrigins(
   port: string,
   httpsEnabled: boolean,
-  hosts: readonly string[] = ['localhost', '127.0.0.1'],
+  hosts: readonly string[] = ['localhost', '127.0.0.1']
 ): Set<string> {
   const out = new Set<string>();
   for (const h of hosts) {
@@ -176,13 +181,13 @@ export function discoverNextPort(cwd: string): string {
   if (envPort && envPort.length > 0) {
     console.warn(
       `[terminal] .chainglass/server.json not found at cwd=${cwd}; falling back to PORT=${envPort} for Origin allowlist. ` +
-        `Set TERMINAL_WS_ALLOWED_ORIGINS to override.`,
+        `Set TERMINAL_WS_ALLOWED_ORIGINS to override.`
     );
     return envPort;
   }
   console.warn(
     `[terminal] .chainglass/server.json not found and PORT env var unset; falling back to port 3000 for Origin allowlist. ` +
-      `Set TERMINAL_WS_ALLOWED_ORIGINS to override.`,
+      `Set TERMINAL_WS_ALLOWED_ORIGINS to override.`
   );
   return '3000';
 }
@@ -203,7 +208,7 @@ export interface UpgradeAuthOpts {
  */
 export async function authorizeUpgrade(
   req: { headers: { origin?: string; host?: string }; url?: string },
-  opts: UpgradeAuthOpts,
+  opts: UpgradeAuthOpts
 ): Promise<UpgradeAuthResult> {
   const origin = req.headers.origin;
   if (typeof origin !== 'string' || origin.length === 0) {
@@ -267,7 +272,7 @@ export function assertBootstrapReadable(cwd: string): void {
       `[terminal] startup-assertion: cannot read .chainglass/bootstrap-code.json at cwd=${cwd}. ` +
         `Sidecar cwd must match main Next.js process cwd. In container deployments, mount ` +
         `.chainglass/ as a host volume containing a pre-generated bootstrap-code.json (see ` +
-        `CHAINGLASS_CONTAINER docs, Plan 067). Detail: ${detail}`,
+        `CHAINGLASS_CONTAINER docs, Plan 067). Detail: ${detail}`
     );
   }
 }

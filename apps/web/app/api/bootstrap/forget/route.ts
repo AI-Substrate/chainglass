@@ -10,13 +10,7 @@ export const dynamic = 'force-dynamic';
 
 function buildClearCookie(): string {
   const isProd = process.env.NODE_ENV === 'production';
-  const parts = [
-    `${BOOTSTRAP_COOKIE_NAME}=`,
-    'HttpOnly',
-    'SameSite=Lax',
-    'Path=/',
-    'Max-Age=0',
-  ];
+  const parts = [`${BOOTSTRAP_COOKIE_NAME}=`, 'HttpOnly', 'SameSite=Lax', 'Path=/', 'Max-Age=0'];
   if (isProd) parts.push('Secure');
   return parts.join('; ');
 }
@@ -24,6 +18,6 @@ function buildClearCookie(): string {
 export async function POST(_request: NextRequest): Promise<NextResponse> {
   return NextResponse.json(
     { ok: true },
-    { status: 200, headers: { 'Set-Cookie': buildClearCookie() } },
+    { status: 200, headers: { 'Set-Cookie': buildClearCookie() } }
   );
 }

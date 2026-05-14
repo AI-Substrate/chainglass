@@ -21,12 +21,12 @@
 
 import { describe, expect, it } from 'vitest';
 import {
-  isFilteredPath,
-  isIntakeFiltered,
-  initialFeedState,
-  recentFeedReducer,
   type FeedAction,
   type RawFileChangeEvent,
+  initialFeedState,
+  isFilteredPath,
+  isIntakeFiltered,
+  recentFeedReducer,
 } from '../../../../../../apps/web/src/features/041-file-browser/components/recent-feed/hooks/use-recent-feed-state';
 import type { FeedItem } from '../../../../../../apps/web/src/features/041-file-browser/components/recent-feed/types';
 
@@ -182,10 +182,7 @@ describe('recentFeedReducer — EVENT_BATCH live merge', () => {
   it('drops addDir / unlinkDir events at intake (Finding 10)', () => {
     const next = recentFeedReducer(seeded, {
       type: 'EVENT_BATCH',
-      events: [
-        mkEvent('addDir', 'src/new-folder'),
-        mkEvent('unlinkDir', 'src/old-folder'),
-      ],
+      events: [mkEvent('addDir', 'src/new-folder'), mkEvent('unlinkDir', 'src/old-folder')],
     });
     // No items added or removed — state unchanged.
     expect(next).toBe(seeded);
@@ -209,9 +206,7 @@ describe('recentFeedReducer — EVENT_BATCH live merge', () => {
   });
 
   it('processes a burst of 50 events in a single reducer call (AC G3)', () => {
-    const events = Array.from({ length: 50 }, (_, i) =>
-      mkEvent('add', `src/burst-${i}.ts`)
-    );
+    const events = Array.from({ length: 50 }, (_, i) => mkEvent('add', `src/burst-${i}.ts`));
     // The whole burst is one EVENT_BATCH dispatch — that's the contract.
     const next = recentFeedReducer(seeded, { type: 'EVENT_BATCH', events });
     // 3 seeded + 50 new = 53.
@@ -232,9 +227,7 @@ describe('recentFeedReducer — EVENT_BATCH live merge', () => {
     // Burst of 10 new files — only the newest 5 survive.
     state = recentFeedReducer(state, {
       type: 'EVENT_BATCH',
-      events: Array.from({ length: 10 }, (_, i) =>
-        mkEvent('add', `new${i}.ts`)
-      ),
+      events: Array.from({ length: 10 }, (_, i) => mkEvent('add', `new${i}.ts`)),
     });
     expect(state.items.length).toBe(5);
     expect(state.items[0]?.path).toBe('new9.ts');
@@ -275,11 +268,7 @@ describe('recentFeedReducer — PAUSE / RESUME', () => {
     });
     // Items are unchanged; buffer holds the 3 events.
     expect(state.items.map((i) => i.path)).toEqual(['src/a.ts', 'src/b.ts']);
-    expect(state.buffer.map((i) => i.path)).toEqual([
-      'src/d.ts',
-      'src/a.ts',
-      'src/c.ts',
-    ]);
+    expect(state.buffer.map((i) => i.path)).toEqual(['src/d.ts', 'src/a.ts', 'src/c.ts']);
 
     // RESUME drains in chronological arrival order: c, then a (promoted),
     // then d ends up on top.

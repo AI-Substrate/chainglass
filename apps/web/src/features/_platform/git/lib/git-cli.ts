@@ -27,11 +27,9 @@ const execFileAsync = promisify(execFile);
  */
 export async function getRemoteUrl(cwd: string): Promise<string | null> {
   try {
-    const { stdout } = await execFileAsync(
-      'git',
-      ['config', '--get', 'remote.origin.url'],
-      { cwd },
-    );
+    const { stdout } = await execFileAsync('git', ['config', '--get', 'remote.origin.url'], {
+      cwd,
+    });
     return stdout.trim() || null;
   } catch {
     return null;
@@ -44,11 +42,7 @@ export async function getRemoteUrl(cwd: string): Promise<string | null> {
  */
 export async function getCurrentBranch(cwd: string): Promise<string> {
   try {
-    const { stdout } = await execFileAsync(
-      'git',
-      ['rev-parse', '--abbrev-ref', 'HEAD'],
-      { cwd },
-    );
+    const { stdout } = await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd });
     return stdout.trim() || 'HEAD';
   } catch {
     return 'HEAD';
@@ -63,11 +57,9 @@ export async function getCurrentBranch(cwd: string): Promise<string> {
  */
 export async function getDefaultBaseBranch(cwd: string): Promise<string> {
   try {
-    const { stdout } = await execFileAsync(
-      'git',
-      ['symbolic-ref', 'refs/remotes/origin/HEAD'],
-      { cwd },
-    );
+    const { stdout } = await execFileAsync('git', ['symbolic-ref', 'refs/remotes/origin/HEAD'], {
+      cwd,
+    });
     const ref = stdout.trim();
     const parts = ref.split('/');
     return parts[parts.length - 1] || 'main';
@@ -81,9 +73,7 @@ export async function getDefaultBaseBranch(cwd: string): Promise<string> {
  * Returns `null` on failure — zero-commit worktree, broken HEAD, git not
  * installed (Plan 084 finding 14).
  */
-export async function getCurrentCommitSha(
-  cwd: string,
-): Promise<string | null> {
+export async function getCurrentCommitSha(cwd: string): Promise<string | null> {
   try {
     const { stdout } = await execFileAsync('git', ['rev-parse', 'HEAD'], {
       cwd,

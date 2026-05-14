@@ -37,8 +37,8 @@ import { SignJWT } from 'jose';
 import { NextRequest } from 'next/server';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { _resetForTests as _resetBootstrapCache } from '../../../../../apps/web/src/lib/bootstrap-code';
 import { GET as TOKEN_GET } from '../../../../../apps/web/app/api/terminal/token/route';
+import { _resetForTests as _resetBootstrapCache } from '../../../../../apps/web/src/lib/bootstrap-code';
 import { mkTempCwd } from '../../../../unit/shared/auth-bootstrap-code/test-fixtures';
 
 const TOKEN_URL = 'http://localhost:3000/api/terminal/token';
@@ -114,7 +114,7 @@ describe('Phase 4 integration — terminal bootstrap auth (AC-13 + AC-14)', () =
       const allowedOrigins = buildDefaultAllowedOrigins('3000', false);
       const result = await authorizeUpgrade(
         upgradeRequest({ origin: 'http://localhost:3000', token }),
-        { cwd: resolvedCwd, allowedOrigins, signingKey: key },
+        { cwd: resolvedCwd, allowedOrigins, signingKey: key }
       );
       expect(result.ok).toBe(true);
       if (result.ok) expect(result.username).toBe('debug');
@@ -143,7 +143,7 @@ describe('Phase 4 integration — terminal bootstrap auth (AC-13 + AC-14)', () =
         .sign(wrongKey);
       const result = await authorizeUpgrade(
         upgradeRequest({ origin: 'http://localhost:3000', token: forgedToken }),
-        { cwd: resolvedCwd, allowedOrigins, signingKey: realKey },
+        { cwd: resolvedCwd, allowedOrigins, signingKey: realKey }
       );
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.code).toBe(4403);
@@ -166,7 +166,7 @@ describe('Phase 4 integration — terminal bootstrap auth (AC-13 + AC-14)', () =
       const allowedOrigins = buildDefaultAllowedOrigins('3000', false);
       const result = await authorizeUpgrade(
         upgradeRequest({ origin: 'http://localhost:3000', token }),
-        { cwd: resolvedCwd, allowedOrigins, signingKey: key },
+        { cwd: resolvedCwd, allowedOrigins, signingKey: key }
       );
       expect(result.ok).toBe(true);
       if (result.ok) expect(result.username).toBe('debug');

@@ -42,12 +42,6 @@ import { FeedSkeleton } from './feed-skeleton';
 import { useFeedActions } from './hooks/use-feed-actions';
 import { useFeedKeyboard } from './hooks/use-feed-keyboard';
 import { useRecentFeedState } from './hooks/use-recent-feed-state';
-import {
-  type FilterCategory,
-  RecentFeedFilters,
-} from './recent-feed-filters';
-import { RecentFeedHeader } from './recent-feed-header';
-import { RecentFeedList } from './recent-feed-list';
 import { AudioPreview } from './previews/audio-preview';
 import { BinaryPreview } from './previews/binary-preview';
 import { CodeExcerptCard } from './previews/code-excerpt-card';
@@ -55,6 +49,9 @@ import { DeletedPreview } from './previews/deleted-preview';
 import { ImagePreview } from './previews/image-preview';
 import { MarkdownExcerptCard } from './previews/markdown-excerpt-card';
 import { VideoPreview } from './previews/video-preview';
+import { type FilterCategory, RecentFeedFilters } from './recent-feed-filters';
+import { RecentFeedHeader } from './recent-feed-header';
+import { RecentFeedList } from './recent-feed-list';
 import type { FeedItem } from './types';
 
 export interface RecentFeedViewProps {
@@ -79,12 +76,9 @@ export function RecentFeedView({
   const { state, dispatch, pushEvent } = useRecentFeedState({
     isLoading: true,
   });
-  const [seedError, setSeedError] = useState<{ message: string; detail?: string } | null>(
-    null
-  );
-  const [activeFilters, setActiveFilters] = useState<ReadonlySet<FilterCategory>>(
-    ALL_FILTER_CATEGORIES
-  );
+  const [seedError, setSeedError] = useState<{ message: string; detail?: string } | null>(null);
+  const [activeFilters, setActiveFilters] =
+    useState<ReadonlySet<FilterCategory>>(ALL_FILTER_CATEGORIES);
 
   const loadSeed = useCallback(async () => {
     setSeedError(null);
@@ -102,9 +96,9 @@ export function RecentFeedView({
       // way "Video" surfaces real videos buried deeper in history rather
       // than just whatever videos happened to fall in the newest 200
       // paths.
-      const seedCategories: ReadonlyArray<
-        'image' | 'video' | 'audio' | 'markdown' | 'code' | 'other'
-      > | undefined = activeFilters.has('all')
+      const seedCategories:
+        | ReadonlyArray<'image' | 'video' | 'audio' | 'markdown' | 'code' | 'other'>
+        | undefined = activeFilters.has('all')
         ? undefined
         : (Array.from(activeFilters).filter((c) => c !== 'all') as ReadonlyArray<
             'image' | 'video' | 'audio' | 'markdown' | 'code' | 'other'
@@ -121,7 +115,8 @@ export function RecentFeedView({
       } else {
         setSeedError({
           message: 'Cannot seed from git history',
-          detail: 'This workspace is not a git repository — no historical change order is available.',
+          detail:
+            'This workspace is not a git repository — no historical change order is available.',
         });
         dispatch({ type: 'INIT', items: [] });
       }
@@ -236,9 +231,7 @@ export function RecentFeedView({
         isLive={isGit && !state.isDisconnected}
         isPaused={state.paused}
         bufferedChanges={state.buffer.length}
-        onTogglePause={() =>
-          dispatch({ type: state.paused ? 'RESUME' : 'PAUSE' })
-        }
+        onTogglePause={() => dispatch({ type: state.paused ? 'RESUME' : 'PAUSE' })}
         onRefresh={loadSeed}
         onOpenSettings={() => {
           window.dispatchEvent(new CustomEvent('recent-feed:open-settings'));
@@ -271,7 +264,10 @@ export function RecentFeedView({
           aria-live="polite"
           className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-300/50 text-[11px] text-amber-800 dark:text-amber-300"
         >
-          <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" aria-hidden="true" />
+          <span
+            className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse"
+            aria-hidden="true"
+          />
           Live updates disconnected — existing items preserved; reconnecting…
         </div>
       )}
@@ -281,7 +277,8 @@ export function RecentFeedView({
           onClick={() => dispatch({ type: 'RESUME' })}
           className="sticky top-0 z-20 mx-auto block rounded-full bg-primary px-3 py-1 text-[11px] font-medium text-primary-foreground shadow-md hover:bg-primary/90 transition-colors my-2"
         >
-          {state.buffer.length} new {state.buffer.length === 1 ? 'change' : 'changes'} — click to show
+          {state.buffer.length} new {state.buffer.length === 1 ? 'change' : 'changes'} — click to
+          show
         </button>
       )}
 
@@ -307,9 +304,7 @@ export function RecentFeedView({
                   return (
                     <DeletedPreview
                       item={item}
-                      onClearDeleted={(path) =>
-                        dispatch({ type: 'CLEAR_DELETED', path })
-                      }
+                      onClearDeleted={(path) => dispatch({ type: 'CLEAR_DELETED', path })}
                     />
                   );
                 }

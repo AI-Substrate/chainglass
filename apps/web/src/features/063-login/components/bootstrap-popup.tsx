@@ -38,13 +38,7 @@
  */
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { useRouter } from 'next/navigation';
-import {
-  type ChangeEvent,
-  type FormEvent,
-  type ReactNode,
-  useEffect,
-  useState,
-} from 'react';
+import { type ChangeEvent, type FormEvent, type ReactNode, useEffect, useState } from 'react';
 
 const CROCKFORD_CHAR = /[0-9A-HJKMNP-TV-Z]/;
 
@@ -55,10 +49,7 @@ export interface BootstrapPopupProps {
   children: ReactNode;
 }
 
-export function BootstrapPopup({
-  bootstrapVerified,
-  children,
-}: BootstrapPopupProps) {
+export function BootstrapPopup({ bootstrapVerified, children }: BootstrapPopupProps) {
   if (bootstrapVerified) {
     return <>{children}</>;
   }
@@ -66,18 +57,12 @@ export function BootstrapPopup({
   return <BootstrapPopupDialog />;
 }
 
-type ErrorKind =
-  | 'invalid-format'
-  | 'wrong-code'
-  | 'rate-limited'
-  | 'unavailable'
-  | 'network';
+type ErrorKind = 'invalid-format' | 'wrong-code' | 'rate-limited' | 'unavailable' | 'network';
 
 const ERROR_MESSAGES = {
   'invalid-format': 'Invalid format — must be XXXX-XXXX-XXXX',
   'wrong-code': 'Wrong code — try again',
-  unavailable:
-    'Server unavailable — see operator runbook at .chainglass/bootstrap-code.json',
+  unavailable: 'Server unavailable — see operator runbook at .chainglass/bootstrap-code.json',
   network: 'Network error — try again',
 } as const;
 
@@ -162,9 +147,7 @@ function BootstrapPopupDialog() {
   return (
     <DialogPrimitive.Root open>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay
-          className="fixed inset-0 z-[9999] min-h-[100dvh] bg-black backdrop-blur-sm"
-        />
+        <DialogPrimitive.Overlay className="fixed inset-0 z-[9999] min-h-[100dvh] bg-black backdrop-blur-sm" />
         <DialogPrimitive.Content
           data-testid="bootstrap-popup"
           role="dialog"

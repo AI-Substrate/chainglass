@@ -66,7 +66,7 @@ describe('<BootstrapPopup>', () => {
     render(
       <BootstrapPopup bootstrapVerified={true}>
         <div data-testid="protected">protected</div>
-      </BootstrapPopup>,
+      </BootstrapPopup>
     );
     expect(screen.getByTestId('protected')).toBeInTheDocument();
     expect(screen.queryByTestId('bootstrap-popup')).not.toBeInTheDocument();
@@ -77,7 +77,7 @@ describe('<BootstrapPopup>', () => {
       return render(
         <BootstrapPopup bootstrapVerified={false}>
           <div data-testid="protected">protected</div>
-        </BootstrapPopup>,
+        </BootstrapPopup>
       );
     }
 
@@ -186,10 +186,14 @@ describe('<BootstrapPopup>', () => {
       const input = screen.getByTestId<HTMLInputElement>('bootstrap-code-input');
       fireEvent.change(input, { target: { value: VALID_CODE } });
       fireEvent.click(screen.getByTestId('bootstrap-code-submit'));
-      await waitFor(() => expect(screen.getByTestId('bootstrap-code-error')).toHaveTextContent(/wrong code/i));
+      await waitFor(() =>
+        expect(screen.getByTestId('bootstrap-code-error')).toHaveTextContent(/wrong code/i)
+      );
       expect(input.value).toBe(VALID_CODE);
       // aria-describedby toggled on while error present
-      expect(screen.getByTestId('bootstrap-popup').getAttribute('aria-describedby')).toBe('bootstrap-error');
+      expect(screen.getByTestId('bootstrap-popup').getAttribute('aria-describedby')).toBe(
+        'bootstrap-error'
+      );
       // Error region is role=alert
       expect(screen.getByTestId('bootstrap-code-error').getAttribute('role')).toBe('alert');
     });
@@ -201,7 +205,9 @@ describe('<BootstrapPopup>', () => {
       const input = screen.getByTestId<HTMLInputElement>('bootstrap-code-input');
       fireEvent.change(input, { target: { value: VALID_CODE } });
       fireEvent.click(screen.getByTestId('bootstrap-code-submit'));
-      await waitFor(() => expect(screen.getByTestId('bootstrap-code-error')).toHaveTextContent(/invalid format/i));
+      await waitFor(() =>
+        expect(screen.getByTestId('bootstrap-code-error')).toHaveTextContent(/invalid format/i)
+      );
       expect(input.value).toBe(VALID_CODE);
     });
 
@@ -217,11 +223,13 @@ describe('<BootstrapPopup>', () => {
       fireEvent.click(screen.getByTestId('bootstrap-code-submit'));
       const errEl = await screen.findByTestId('bootstrap-code-error');
       expect(errEl).toHaveTextContent(/rate limited.*2 seconds/i);
-      expect((screen.getByTestId('bootstrap-code-submit') as HTMLButtonElement).disabled).toBe(true);
+      expect((screen.getByTestId('bootstrap-code-submit') as HTMLButtonElement).disabled).toBe(
+        true
+      );
       // Wait for countdown tick — real timer, ~1s
       await waitFor(
         () => expect(screen.getByTestId('bootstrap-code-error')).toHaveTextContent(/1 seconds/),
-        { timeout: 2500, interval: 100 },
+        { timeout: 2500, interval: 100 }
       );
       // Input retained
       expect(input.value).toBe(VALID_CODE);
@@ -234,7 +242,9 @@ describe('<BootstrapPopup>', () => {
       const input = screen.getByTestId<HTMLInputElement>('bootstrap-code-input');
       fireEvent.change(input, { target: { value: VALID_CODE } });
       fireEvent.click(screen.getByTestId('bootstrap-code-submit'));
-      await waitFor(() => expect(screen.getByTestId('bootstrap-code-error')).toHaveTextContent(/server unavailable/i));
+      await waitFor(() =>
+        expect(screen.getByTestId('bootstrap-code-error')).toHaveTextContent(/server unavailable/i)
+      );
       expect(input.value).toBe(VALID_CODE);
     });
 
@@ -245,7 +255,9 @@ describe('<BootstrapPopup>', () => {
       const input = screen.getByTestId<HTMLInputElement>('bootstrap-code-input');
       fireEvent.change(input, { target: { value: VALID_CODE } });
       fireEvent.click(screen.getByTestId('bootstrap-code-submit'));
-      await waitFor(() => expect(screen.getByTestId('bootstrap-code-error')).toHaveTextContent(/network error/i));
+      await waitFor(() =>
+        expect(screen.getByTestId('bootstrap-code-error')).toHaveTextContent(/network error/i)
+      );
       expect(input.value).toBe(VALID_CODE);
     });
 
@@ -278,11 +290,13 @@ describe('<BootstrapPopup>', () => {
       // Spy on setInterval BEFORE render so we capture the handle the effect creates.
       const setSpy = vi.spyOn(globalThis, 'setInterval');
       const clearSpy = vi.spyOn(globalThis, 'clearInterval');
-      fetchSpy.mockResolvedValue(jsonResponse(429, { error: 'rate-limited', retryAfterMs: 30_000 }));
+      fetchSpy.mockResolvedValue(
+        jsonResponse(429, { error: 'rate-limited', retryAfterMs: 30_000 })
+      );
       const view = render(
         <BootstrapPopup bootstrapVerified={false}>
           <div>x</div>
-        </BootstrapPopup>,
+        </BootstrapPopup>
       );
       const input = screen.getByTestId<HTMLInputElement>('bootstrap-code-input');
       fireEvent.change(input, { target: { value: VALID_CODE } });
@@ -318,7 +332,7 @@ describe('<BootstrapPopup>', () => {
         const view = render(
           <BootstrapPopup bootstrapVerified={false}>
             <div>x</div>
-          </BootstrapPopup>,
+          </BootstrapPopup>
         );
         const input = screen.getByTestId<HTMLInputElement>('bootstrap-code-input');
         fireEvent.change(input, { target: { value: VALID_CODE } });
