@@ -185,6 +185,14 @@ describe('flowspace-mcp-client — spawn-time ENOENT invalidates availability ca
 });
 
 describe('flowspaceSearch — search-time ENOENT does not poison availability cache (FX002-4a, AC-FX02-4a)', () => {
+  // Same globalThis-pinned cache as the middle describe block.
+  type AvailCache = { available: boolean | null; resolvedPath: string | null };
+  const getCache = (): AvailCache => {
+    const c = (globalThis as { __FLOWSPACE_AVAIL_CACHE__?: AvailCache }).__FLOWSPACE_AVAIL_CACHE__;
+    if (!c) throw new Error('availability cache not initialised');
+    return c;
+  };
+
   let cwd: string;
   let serverHandle: ServerHandle | undefined;
 
@@ -192,6 +200,15 @@ describe('flowspaceSearch — search-time ENOENT does not poison availability ca
     cwd = await mkdtemp(join(tmpdir(), 'fx002-enoent-'));
     await mkdir(join(cwd, '.fs2'), { recursive: true });
     await writeFile(join(cwd, '.fs2', 'graph.pickle'), '');
+
+    // Force availability to true so the assertion at line 220 passes in CI
+    // runners that don't have `fs2` on PATH. This test is about whether a
+    // search-time ENOENT *flips* the cache to not-installed — the precondition
+    // is that the cache starts in the `available` state. The middle describe
+    // block in this file uses the same pre-population idiom (see line ~141).
+    const c = getCache();
+    c.available = true;
+    c.resolvedPath = '/fake/path/fs2';
 
     const setup = await makeServerWithEnvelope({});
     serverHandle = setup.handle;

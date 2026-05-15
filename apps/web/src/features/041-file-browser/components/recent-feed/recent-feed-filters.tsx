@@ -33,6 +33,7 @@ export interface RecentFeedFiltersProps {
 
 export function RecentFeedFilters({ active, onToggle, className }: RecentFeedFiltersProps) {
   return (
+    // biome-ignore lint/a11y/useSemanticElements: <fieldset> would force a default <legend>-driven layout that fights the horizontal scroll + custom button row. role="group" + aria-label is the canonical equivalent for toolbar-style filter groups.
     <div
       role="group"
       aria-label="Filter recent changes by type"

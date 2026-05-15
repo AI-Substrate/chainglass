@@ -36,12 +36,14 @@ describe('activeSigningSecret', () => {
   beforeEach(() => {
     // (validation fix C2) Reset cache + AUTH_SECRET on every test.
     _resetSigningSecretCacheForTests();
+    // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
     delete process.env.AUTH_SECRET;
     cwd = mkTempCwd();
   });
 
   afterEach(() => {
     rmSync(cwd, { recursive: true, force: true });
+    // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
     delete process.env.AUTH_SECRET;
     _resetSigningSecretCacheForTests();
   });

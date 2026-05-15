@@ -49,6 +49,7 @@ describe('POST /api/bootstrap/verify', () => {
   beforeEach(() => {
     originalCwd = process.cwd();
     originalAuthSecret = process.env.AUTH_SECRET;
+    // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
     delete process.env.AUTH_SECRET;
     cwd = mkTempCwd('verify-route-');
     process.chdir(cwd);
@@ -61,6 +62,7 @@ describe('POST /api/bootstrap/verify', () => {
   afterEach(() => {
     process.chdir(originalCwd);
     if (originalAuthSecret === undefined) {
+      // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
       delete process.env.AUTH_SECRET;
     } else {
       process.env.AUTH_SECRET = originalAuthSecret;
@@ -175,6 +177,7 @@ describe('POST /api/bootstrap/verify', () => {
       expect(setCookie).toContain('secure');
     } finally {
       if (originalNodeEnv === undefined) {
+        // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
         delete process.env.NODE_ENV;
       } else {
         process.env.NODE_ENV = originalNodeEnv;

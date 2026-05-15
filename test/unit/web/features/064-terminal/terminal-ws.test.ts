@@ -319,11 +319,13 @@ describe('Terminal WebSocket Server', () => {
           rotatedAt: '2026-05-03T00:00:00.000Z',
         })
       );
+      // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
       delete process.env.AUTH_SECRET;
       _resetSigningSecretCacheForTests();
     });
 
     afterEach(() => {
+      // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
       if (origAuthSecret === undefined) delete process.env.AUTH_SECRET;
       else process.env.AUTH_SECRET = origAuthSecret;
       _resetSigningSecretCacheForTests();
@@ -603,7 +605,7 @@ describe('Terminal WebSocket Server', () => {
         // reason would let a long cross-site probe crash the sidecar.
         const key = activeSigningSecret(tempCwd);
         const allowedOrigins = buildDefaultAllowedOrigins('3000', false);
-        const longOrigin = 'http://' + 'a'.repeat(200) + '.example';
+        const longOrigin = `http://${'a'.repeat(200)}.example`;
         expect(longOrigin.length).toBeGreaterThan(123);
 
         let result: Awaited<ReturnType<typeof authorizeUpgrade>>;

@@ -57,6 +57,7 @@ describe('GET /api/terminal/token', () => {
     originalCwd = process.cwd();
     originalAuthSecret = process.env.AUTH_SECRET;
     originalDisableAuth = process.env.DISABLE_AUTH;
+    // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
     delete process.env.AUTH_SECRET;
     process.env.DISABLE_AUTH = 'true'; // Fake session via the auth.ts wrapper.
     cwd = mkTempCwd('terminal-token-route-');
@@ -68,8 +69,10 @@ describe('GET /api/terminal/token', () => {
 
   afterEach(() => {
     process.chdir(originalCwd);
+    // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
     if (originalAuthSecret === undefined) delete process.env.AUTH_SECRET;
     else process.env.AUTH_SECRET = originalAuthSecret;
+    // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
     if (originalDisableAuth === undefined) delete process.env.DISABLE_AUTH;
     else process.env.DISABLE_AUTH = originalDisableAuth;
     _resetBootstrapCache();
@@ -122,6 +125,7 @@ describe('GET /api/terminal/token', () => {
     expect(verifyResult.payload.sub).toBe('debug'); // From DISABLE_AUTH fake session.
     expect(typeof verifyResult.payload.iat).toBe('number');
     expect(typeof verifyResult.payload.exp).toBe('number');
+    // biome-ignore lint/style/noNonNullAssertion: exp/iat are number-typed in JWTPayload but optional; the two `typeof === 'number'` assertions on lines above prove they're present.
     expect(verifyResult.payload.exp! - verifyResult.payload.iat!).toBeGreaterThan(60); // > 1min
   });
 

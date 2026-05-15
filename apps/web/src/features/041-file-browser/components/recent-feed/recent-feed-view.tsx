@@ -221,6 +221,7 @@ export function RecentFeedView({
     >
       {/* T027 — polite live region announcing new items as they arrive.
           Visually hidden but exposed to screen readers. */}
+      {/* biome-ignore lint/a11y/useSemanticElements: <output> is for form-output values; this is a live-region announcing arbitrary state changes. role="status" on a generic <div> is the canonical ARIA pattern. */}
       <div className="sr-only" role="status" aria-live="polite" aria-atomic="false">
         {state.items.length > 0 && state.items[0]?.eventType === 'added'
           ? `New file added: ${state.items[0].name}`
@@ -259,6 +260,7 @@ export function RecentFeedView({
       </button>
 
       {state.isDisconnected && (
+        // biome-ignore lint/a11y/useSemanticElements: <output> is for form-output values; this is a connection-status banner. role="status" on <div> is the canonical ARIA pattern for status banners.
         <div
           role="status"
           aria-live="polite"

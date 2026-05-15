@@ -24,10 +24,10 @@ export function AudioPreview({ item, rawFileUrl }: AudioPreviewProps) {
   // `content-visibility:auto` already skips off-screen render. The previous
   // IntersectionObserver gate stuck audio cards on a placeholder forever
   // because the observer never fired through the content-visibility boundary.
+  // key={rawFileUrl} forces a remount when the cache-busted URL flips (in-place replace) so the audio element actually reloads.
   return (
     <div className="px-3 py-3 bg-muted/30 min-h-[60px]">
       {/* biome-ignore lint/a11y/useMediaCaption: workspace-local user content; captions cannot be auto-derived */}
-      {/* key={rawFileUrl} forces a remount when the cache-busted URL flips (in-place replace) so the audio element actually reloads. */}
       <audio
         key={rawFileUrl}
         controls

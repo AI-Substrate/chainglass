@@ -103,6 +103,7 @@ describe('AC-22 log-discipline audit (Phase 7 T010)', () => {
 
   beforeEach(() => {
     originalAuthSecret = process.env.AUTH_SECRET;
+    // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
     delete process.env.AUTH_SECRET; // exercise the HKDF path (worst case for AC-22)
     env = setupBootstrapTestEnv();
     // Spies installed AFTER setupBootstrapTestEnv so its internal log lines
@@ -118,6 +119,7 @@ describe('AC-22 log-discipline audit (Phase 7 T010)', () => {
     warnSpy.mockRestore();
     errorSpy.mockRestore();
     env.cleanup();
+    // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
     if (originalAuthSecret === undefined) delete process.env.AUTH_SECRET;
     else process.env.AUTH_SECRET = originalAuthSecret;
   });

@@ -31,6 +31,7 @@ export function ImagePreview({ item, rawFileUrl }: ImagePreviewProps) {
   // true from the prior image and the placeholder skeleton wouldn't show
   // during the new fetch (visually OK but inconsistent), and a previous
   // \`error\` state would mask a now-recovered file.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: rawFileUrl is the prop the effect re-fires on; biome incorrectly classifies it as outer-scope.
   useEffect(() => {
     setLoaded(false);
     setError(false);
@@ -45,7 +46,6 @@ export function ImagePreview({ item, rawFileUrl }: ImagePreviewProps) {
     // `max-h-[60vh]` cleanly while preserving aspect ratio.
     <div className="bg-muted/30 max-h-[60vh] overflow-hidden text-center">
       {!error && (
-        // biome-ignore lint/a11y/useAltText: alt is set dynamically below; pattern matches the rest of the codebase
         <img
           src={rawFileUrl}
           alt={item.name}

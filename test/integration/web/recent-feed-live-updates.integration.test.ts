@@ -140,14 +140,26 @@ describe('Recent-feed live updates — real fs.watch integration', () => {
     let state: FeedState = initialFeedState;
     watched = watchRoot(tmp);
 
+    // macOS fs.watch has a documented indeterminate startup delay before
+    // FSEvents fully attaches (see external-research/cloudstorage-watching.md).
+    // Without a warm-up tick the 50-file burst can fully complete before
+    // FSEvents starts firing, leaving `watched.events` empty in CI.
+    await tick(100);
+
     for (let i = 0; i < 50; i++) {
       writeFileSync(join(tmp, `burst-${i}.txt`), `content ${i}`);
     }
-    await tick(150);
+    // Poll-until-any-event with a generous ceiling. fs.watch coalesces some
+    // events on macOS (rename + add are merged), so we don't strictly need
+    // 50 raw events — what matters is that a SINGLE EVENT_BATCH dispatch
+    // handles whatever fs delivered.
+    const POLL_DEADLINE_MS = 2000;
+    const POLL_INTERVAL_MS = 50;
+    const startedAt = Date.now();
+    while (watched.events.length === 0 && Date.now() - startedAt < POLL_DEADLINE_MS) {
+      await tick(POLL_INTERVAL_MS);
+    }
 
-    // fs.watch coalesces some events on macOS (rename + add are merged), so
-    // we don't strictly need 50 raw events — what matters is that a SINGLE
-    // EVENT_BATCH dispatch handles whatever fs delivered.
     expect(watched.events.length).toBeGreaterThan(0);
 
     // Burst is one EVENT_BATCH dispatch — that's the contract the orchestrator

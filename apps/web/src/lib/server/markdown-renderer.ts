@@ -70,20 +70,10 @@ function renderFrontmatterBlock(meta: Record<string, unknown>): string {
   const rows = Object.entries(meta)
     .map(
       ([k, v]) =>
-        `<tr class="border-b border-border/40 last:border-0">` +
-        `<th class="text-left align-top py-1 pr-4 font-medium text-muted-foreground whitespace-nowrap">${escapeHtml(k)}</th>` +
-        `<td class="align-top py-1">${renderFrontmatterValue(v)}</td>` +
-        `</tr>`
+        `<tr class="border-b border-border/40 last:border-0"><th class="text-left align-top py-1 pr-4 font-medium text-muted-foreground whitespace-nowrap">${escapeHtml(k)}</th><td class="align-top py-1">${renderFrontmatterValue(v)}</td></tr>`
     )
     .join('');
-  return (
-    `<aside class="not-prose mb-4 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm" data-frontmatter="true">` +
-    `<details open>` +
-    `<summary class="cursor-pointer select-none text-xs uppercase tracking-wide text-muted-foreground">Front matter</summary>` +
-    `<table class="w-full mt-2 text-sm"><tbody>${rows}</tbody></table>` +
-    `</details>` +
-    `</aside>`
-  );
+  return `<aside class="not-prose mb-4 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm" data-frontmatter="true"><details open><summary class="cursor-pointer select-none text-xs uppercase tracking-wide text-muted-foreground">Front matter</summary><table class="w-full mt-2 text-sm"><tbody>${rows}</tbody></table></details></aside>`;
 }
 
 /**

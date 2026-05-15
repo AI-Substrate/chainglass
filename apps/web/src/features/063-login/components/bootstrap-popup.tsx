@@ -150,6 +150,7 @@ function BootstrapPopupDialog() {
         <DialogPrimitive.Overlay className="fixed inset-0 z-[9999] min-h-[100dvh] bg-black backdrop-blur-sm" />
         <DialogPrimitive.Content
           data-testid="bootstrap-popup"
+          // biome-ignore lint/a11y/useSemanticElements: DialogPrimitive.Content is a Radix portal-mounted div; <dialog> would lose Radix's focus-trap + overlay coordination. role="dialog" + aria-modal is the canonical pattern Radix recommends.
           role="dialog"
           aria-modal="true"
           aria-describedby={hasError ? 'bootstrap-error' : undefined}
@@ -178,6 +179,7 @@ function BootstrapPopupDialog() {
               autoCapitalize="characters"
               autoCorrect="off"
               spellCheck={false}
+              // biome-ignore lint/a11y/noAutofocus: bootstrap popup is the *only* interactive surface visible; auto-focusing the input is required UX so the user can type the code immediately. Without it the user must click before typing.
               autoFocus
               aria-label="Bootstrap code"
               placeholder="XXXX-XXXX-XXXX"

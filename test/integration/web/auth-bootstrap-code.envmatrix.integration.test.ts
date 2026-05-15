@@ -72,8 +72,11 @@ function makeReq(opts: ReqOptions = {}): NextRequest {
  * known state. Mirrors the Phase 5 `auth.test.ts` setup pattern.
  */
 function resetEnvAndFlags(): void {
+  // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
   delete process.env.AUTH_SECRET;
+  // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
   delete process.env.DISABLE_AUTH;
+  // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
   delete process.env.DISABLE_GITHUB_OAUTH;
   delete (globalThis as Record<string, unknown>)[FLAG_KEY];
 }
@@ -98,10 +101,13 @@ describe('Plan 084 env-var matrix (Phase 7 T007)', () => {
   afterEach(() => {
     env.cleanup();
     warnSpy.mockRestore();
+    // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
     if (originalAuthSecret === undefined) delete process.env.AUTH_SECRET;
     else process.env.AUTH_SECRET = originalAuthSecret;
+    // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
     if (originalDisableAuth === undefined) delete process.env.DISABLE_AUTH;
     else process.env.DISABLE_AUTH = originalDisableAuth;
+    // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
     if (originalDisableGithub === undefined) delete process.env.DISABLE_GITHUB_OAUTH;
     else process.env.DISABLE_GITHUB_OAUTH = originalDisableGithub;
     delete (globalThis as Record<string, unknown>)[FLAG_KEY];

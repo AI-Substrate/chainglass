@@ -27,7 +27,9 @@ describe('auth.ts env-var alias + warn-once (T004)', () => {
   beforeEach(async () => {
     originalDisableAuth = process.env.DISABLE_AUTH;
     originalDisableGithub = process.env.DISABLE_GITHUB_OAUTH;
+    // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
     delete process.env.DISABLE_AUTH;
+    // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
     delete process.env.DISABLE_GITHUB_OAUTH;
     delete (globalThis as Record<string, unknown>)[FLAG_KEY];
     warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -37,11 +39,13 @@ describe('auth.ts env-var alias + warn-once (T004)', () => {
 
   afterEach(() => {
     if (originalDisableAuth === undefined) {
+      // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
       delete process.env.DISABLE_AUTH;
     } else {
       process.env.DISABLE_AUTH = originalDisableAuth;
     }
     if (originalDisableGithub === undefined) {
+      // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
       delete process.env.DISABLE_GITHUB_OAUTH;
     } else {
       process.env.DISABLE_GITHUB_OAUTH = originalDisableGithub;

@@ -53,6 +53,7 @@ describe('POST /api/bootstrap/forget', () => {
       expect(setCookie).toContain('max-age=0');
     } finally {
       if (originalNodeEnv === undefined) {
+        // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
         delete process.env.NODE_ENV;
       } else {
         process.env.NODE_ENV = originalNodeEnv;

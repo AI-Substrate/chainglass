@@ -70,7 +70,7 @@ describe('getFileExcerpt — real fs + real path resolver', () => {
   });
 
   it('returns markdown excerpt with truncation applied', async () => {
-    const md = `# Heading\n\nFirst paragraph.\n\nSecond paragraph.\n\nThird paragraph.\n`;
+    const md = '# Heading\n\nFirst paragraph.\n\nSecond paragraph.\n\nThird paragraph.\n';
     writeFileSync(join(tmp, 'doc.md'), md);
     const result = await getFileExcerpt({
       worktreePath: tmp,
@@ -106,7 +106,7 @@ describe('getFileExcerpt — real fs + real path resolver', () => {
   });
 
   it('returns full file in mode: full', async () => {
-    const ts = `export const a = 1;\nexport const b = 2;\nexport const c = 3;\n`;
+    const ts = 'export const a = 1;\nexport const b = 2;\nexport const c = 3;\n';
     writeFileSync(join(tmp, 'full.ts'), ts);
     const result = await getFileExcerpt({
       worktreePath: tmp,
@@ -247,7 +247,7 @@ describe('getFileExcerpt — real fs + real path resolver', () => {
 
   it('does NOT reject 256KB-exceeding files in excerpt mode (excerpt is bounded by truncate caps anyway)', async () => {
     // 300KB markdown, excerpt mode should still succeed with truncated output.
-    const big = '# Heading\n\n' + 'long line\n'.repeat(40_000);
+    const big = `# Heading\n\n${'long line\n'.repeat(40_000)}`;
     writeFileSync(join(tmp, 'big.md'), big);
     const result = await getFileExcerpt({
       worktreePath: tmp,

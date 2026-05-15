@@ -105,10 +105,8 @@ export function FeedCard({
 
   return (
     <article
-      // biome-ignore lint/a11y/useSemanticElements: complex card surface; <article> + role="article" set explicitly for the feed-level a11y contract (T027 — H1).
-      role="article"
       aria-labelledby={titleId}
-      // T026: tabIndex + data-feed-card-path enable roving-focus keyboard nav.
+      // biome-ignore lint/a11y/noNoninteractiveTabindex: T026 requires roving-focus keyboard nav on the card surface; this is an interactive card pattern (Enter/Space → open file) even though <article> isn't natively interactive. data-feed-card-path is the focus-target marker.
       tabIndex={0}
       data-feed-card-path={item.path}
       className={cn(

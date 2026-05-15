@@ -11,6 +11,10 @@
  * bypass routes short-circuit BEFORE `getBootstrapCodeAndKey()` so a
  * missing bootstrap file cannot block `/api/health` or
  * `/api/bootstrap/verify` (the recovery path itself).
+ *
+ * NOTE: this file uses `delete process.env.X` (with per-line biome-ignore)
+ * to truly unset env vars; assigning undefined leaves the key with string
+ * value "undefined".
  */
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -205,6 +209,7 @@ describe('bootstrapCookieStage — bypass-before-accessor (F004)', () => {
   beforeEach(() => {
     originalCwd = process.cwd();
     originalAuthSecret = process.env.AUTH_SECRET;
+    // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
     delete process.env.AUTH_SECRET;
     cwd = mkTempCwd('proxy-bypass-');
     process.chdir(cwd);
@@ -215,6 +220,7 @@ describe('bootstrapCookieStage — bypass-before-accessor (F004)', () => {
   afterEach(() => {
     process.chdir(originalCwd);
     if (originalAuthSecret === undefined) {
+      // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
       delete process.env.AUTH_SECRET;
     } else {
       process.env.AUTH_SECRET = originalAuthSecret;
@@ -344,14 +350,18 @@ describe('Phase 5 T005 — proxy.ts env-var alias via isOAuthDisabled()', () => 
   beforeEach(() => {
     originalDisableAuth = process.env.DISABLE_AUTH;
     originalDisableGithub = process.env.DISABLE_GITHUB_OAUTH;
+    // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
     delete process.env.DISABLE_AUTH;
+    // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
     delete process.env.DISABLE_GITHUB_OAUTH;
     delete (globalThis as Record<string, unknown>)[FLAG_KEY];
   });
 
   afterEach(() => {
+    // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
     if (originalDisableAuth === undefined) delete process.env.DISABLE_AUTH;
     else process.env.DISABLE_AUTH = originalDisableAuth;
+    // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
     if (originalDisableGithub === undefined) delete process.env.DISABLE_GITHUB_OAUTH;
     else process.env.DISABLE_GITHUB_OAUTH = originalDisableGithub;
     delete (globalThis as Record<string, unknown>)[FLAG_KEY];
@@ -408,8 +418,11 @@ describe('Phase 5 F001 — bootstrap gate enforced even when DISABLE_GITHUB_OAUT
     originalAuthSecret = process.env.AUTH_SECRET;
     originalDisableAuth = process.env.DISABLE_AUTH;
     originalDisableGithub = process.env.DISABLE_GITHUB_OAUTH;
+    // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
     delete process.env.AUTH_SECRET;
+    // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
     delete process.env.DISABLE_AUTH;
+    // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
     delete process.env.DISABLE_GITHUB_OAUTH;
     delete (globalThis as Record<string, unknown>)[FLAG_KEY];
     cwd = mkTempCwd('proxy-f001-');
@@ -420,10 +433,13 @@ describe('Phase 5 F001 — bootstrap gate enforced even when DISABLE_GITHUB_OAUT
 
   afterEach(() => {
     process.chdir(originalCwd);
+    // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
     if (originalAuthSecret === undefined) delete process.env.AUTH_SECRET;
     else process.env.AUTH_SECRET = originalAuthSecret;
+    // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
     if (originalDisableAuth === undefined) delete process.env.DISABLE_AUTH;
     else process.env.DISABLE_AUTH = originalDisableAuth;
+    // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
     if (originalDisableGithub === undefined) delete process.env.DISABLE_GITHUB_OAUTH;
     else process.env.DISABLE_GITHUB_OAUTH = originalDisableGithub;
     delete (globalThis as Record<string, unknown>)[FLAG_KEY];

@@ -33,6 +33,7 @@ type FetchState =
 export function CodeExcerptCard({ item, worktreePath }: CodeExcerptCardProps) {
   const [state, setState] = useState<FetchState>({ status: 'loading' });
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `item.changedAt` (mtime) is intentionally in the dep list so an in-place replace of the same file (same path, new bytes) refetches the excerpt. Without it, the effect would key only on path and the user would see stale content.
   useEffect(() => {
     let cancelled = false;
     setState({ status: 'loading' });

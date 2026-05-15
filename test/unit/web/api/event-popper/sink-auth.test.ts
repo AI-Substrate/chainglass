@@ -85,6 +85,7 @@ describe('Sink-route auth parity (T003)', () => {
   beforeEach(() => {
     originalCwd = process.cwd();
     originalAuthSecret = process.env.AUTH_SECRET;
+    // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
     delete process.env.AUTH_SECRET;
     cwd = mkTempCwd('sink-auth-');
     process.chdir(cwd);
@@ -104,6 +105,7 @@ describe('Sink-route auth parity (T003)', () => {
   afterEach(() => {
     process.chdir(originalCwd);
     if (originalAuthSecret === undefined) {
+      // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
       delete process.env.AUTH_SECRET;
     } else {
       process.env.AUTH_SECRET = originalAuthSecret;

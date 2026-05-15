@@ -141,7 +141,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   // Resolve active code + key. Failure → 503.
-  let codeAndKey;
+  let codeAndKey: Awaited<ReturnType<typeof getBootstrapCodeAndKey>> | undefined;
   try {
     codeAndKey = await getBootstrapCodeAndKey();
   } catch {

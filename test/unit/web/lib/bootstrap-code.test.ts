@@ -31,6 +31,7 @@ describe('getBootstrapCodeAndKey', () => {
     originalAuthSecret = process.env.AUTH_SECRET;
     // Default each test to HKDF path; tests that exercise the env-derived
     // branch set AUTH_SECRET explicitly.
+    // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
     delete process.env.AUTH_SECRET;
     cwd = mkTempCwd('bootstrap-code-web-');
     process.chdir(cwd);
@@ -41,6 +42,7 @@ describe('getBootstrapCodeAndKey', () => {
   afterEach(() => {
     process.chdir(originalCwd);
     if (originalAuthSecret === undefined) {
+      // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
       delete process.env.AUTH_SECRET;
     } else {
       process.env.AUTH_SECRET = originalAuthSecret;

@@ -180,14 +180,13 @@ export function discoverNextPort(cwd: string): string {
   const envPort = process.env.PORT;
   if (envPort && envPort.length > 0) {
     console.warn(
-      `[terminal] .chainglass/server.json not found at cwd=${cwd}; falling back to PORT=${envPort} for Origin allowlist. ` +
-        `Set TERMINAL_WS_ALLOWED_ORIGINS to override.`
+      `[terminal] .chainglass/server.json not found at cwd=${cwd}; falling back to PORT=${envPort} for Origin allowlist. Set TERMINAL_WS_ALLOWED_ORIGINS to override.`
     );
     return envPort;
   }
   console.warn(
-    `[terminal] .chainglass/server.json not found and PORT env var unset; falling back to port 3000 for Origin allowlist. ` +
-      `Set TERMINAL_WS_ALLOWED_ORIGINS to override.`
+    '[terminal] .chainglass/server.json not found and PORT env var unset; falling back to port 3000 for Origin allowlist. ' +
+      'Set TERMINAL_WS_ALLOWED_ORIGINS to override.'
   );
   return '3000';
 }
@@ -269,10 +268,7 @@ export function assertBootstrapReadable(cwd: string): void {
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
     throw new Error(
-      `[terminal] startup-assertion: cannot read .chainglass/bootstrap-code.json at cwd=${cwd}. ` +
-        `Sidecar cwd must match main Next.js process cwd. In container deployments, mount ` +
-        `.chainglass/ as a host volume containing a pre-generated bootstrap-code.json (see ` +
-        `CHAINGLASS_CONTAINER docs, Plan 067). Detail: ${detail}`
+      `[terminal] startup-assertion: cannot read .chainglass/bootstrap-code.json at cwd=${cwd}. Sidecar cwd must match main Next.js process cwd. In container deployments, mount .chainglass/ as a host volume containing a pre-generated bootstrap-code.json (see CHAINGLASS_CONTAINER docs, Plan 067). Detail: ${detail}`
     );
   }
 }

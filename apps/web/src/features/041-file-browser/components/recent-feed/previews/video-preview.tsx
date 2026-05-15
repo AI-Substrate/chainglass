@@ -25,18 +25,16 @@ export function VideoPreview({ item, rawFileUrl, posterUrl }: VideoPreviewProps)
   // entirely for off-screen cards. An IntersectionObserver gate on top of
   // those two doesn't add value and was actively breaking playback (the
   // observer never fired through the content-visibility boundary).
+  // `key={rawFileUrl}` forces a remount when the cache-busted URL changes
+  // (in-place file replacement → new `?v=<mtime>`). Without it, React keeps
+  // the same DOM node and `<source src>` mutation alone doesn't tell the
+  // media element to reload — the user sees the old video until a manual
+  // page refresh.
   return (
     <div className="bg-black max-h-[60vh] overflow-hidden flex items-center justify-center">
-      {/*
-       * `key={rawFileUrl}` forces a remount when the cache-busted URL
-       * changes (in-place file replacement → new \`?v=<mtime>\`).
-       * Without it, React keeps the same DOM node and \`<source src>\`
-       * mutation alone doesn't tell the media element to reload — the
-       * user sees the old video until a manual page refresh.
-       */}
+      {/* biome-ignore lint/a11y/useMediaCaption: workspace-local user content; captions cannot be auto-derived */}
       <video
         key={rawFileUrl}
-        // biome-ignore lint/a11y/useMediaCaption: workspace-local user content; captions cannot be auto-derived
         className="max-w-full max-h-[60vh] object-contain"
         controls
         preload="metadata"

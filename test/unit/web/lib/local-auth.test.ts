@@ -77,6 +77,7 @@ describe('requireLocalAuth (Phase 5 T001 RED)', () => {
   beforeEach(() => {
     originalCwd = process.cwd();
     originalAuthSecret = process.env.AUTH_SECRET;
+    // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
     delete process.env.AUTH_SECRET;
     cwd = mkTempCwd('local-auth-');
     process.chdir(cwd);
@@ -98,6 +99,7 @@ describe('requireLocalAuth (Phase 5 T001 RED)', () => {
   afterEach(() => {
     process.chdir(originalCwd);
     if (originalAuthSecret === undefined) {
+      // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
       delete process.env.AUTH_SECRET;
     } else {
       process.env.AUTH_SECRET = originalAuthSecret;

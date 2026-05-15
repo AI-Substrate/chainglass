@@ -73,7 +73,7 @@ let cached: BootstrapCodeAndKey | null = null;
 export async function getBootstrapCodeAndKey(): Promise<BootstrapCodeAndKey> {
   if (cached !== null) return cached;
   const cwd = findWorkspaceRoot(process.cwd());
-  let ensured;
+  let ensured: ReturnType<typeof ensureBootstrapCode> | undefined;
   try {
     ensured = ensureBootstrapCode(cwd);
   } catch (err) {

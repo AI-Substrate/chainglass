@@ -88,7 +88,7 @@ export async function bootstrapCookieStage(req: NextRequest): Promise<BootstrapS
     }
   }
 
-  let codeAndKey;
+  let codeAndKey: Awaited<ReturnType<typeof getBootstrapCodeAndKey>> | undefined;
   try {
     codeAndKey = await getBootstrapCodeAndKey();
   } catch {

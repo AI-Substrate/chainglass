@@ -72,6 +72,7 @@ describe('auth-bootstrap-code integration', () => {
 
   beforeEach(() => {
     originalAuthSecret = process.env.AUTH_SECRET;
+    // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
     delete process.env.AUTH_SECRET;
     env = setupBootstrapTestEnv();
   });
@@ -79,6 +80,7 @@ describe('auth-bootstrap-code integration', () => {
   afterEach(() => {
     env.cleanup();
     if (originalAuthSecret === undefined) {
+      // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
       delete process.env.AUTH_SECRET;
     } else {
       process.env.AUTH_SECRET = originalAuthSecret;

@@ -33,6 +33,7 @@ type FetchState =
 export function MarkdownExcerptCard({ item, worktreePath }: MarkdownExcerptCardProps) {
   const [state, setState] = useState<FetchState>({ status: 'loading' });
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `item.changedAt` (mtime) is intentionally in the dep list so an in-place replace refetches the excerpt — same path + new bytes would otherwise show the stale render until refresh.
   useEffect(() => {
     let cancelled = false;
     setState({ status: 'loading' });

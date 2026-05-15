@@ -78,6 +78,7 @@ describe('Phase 4 integration — terminal bootstrap auth (AC-13 + AC-14)', () =
     originalCwd = process.cwd();
     originalAuthSecret = process.env.AUTH_SECRET;
     originalDisableAuth = process.env.DISABLE_AUTH;
+    // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
     delete process.env.AUTH_SECRET;
     process.env.DISABLE_AUTH = 'true';
     cwd = mkTempCwd('p4-integration-');
@@ -91,8 +92,10 @@ describe('Phase 4 integration — terminal bootstrap auth (AC-13 + AC-14)', () =
 
   afterEach(() => {
     process.chdir(originalCwd);
+    // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
     if (originalAuthSecret === undefined) delete process.env.AUTH_SECRET;
     else process.env.AUTH_SECRET = originalAuthSecret;
+    // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
     if (originalDisableAuth === undefined) delete process.env.DISABLE_AUTH;
     else process.env.DISABLE_AUTH = originalDisableAuth;
     _resetBootstrapCache();

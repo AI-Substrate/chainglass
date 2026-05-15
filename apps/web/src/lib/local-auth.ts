@@ -75,7 +75,7 @@ export async function requireLocalAuth(req: NextRequest): Promise<LocalAuthResul
     return { ok: false, reason: 'not-localhost' };
   }
 
-  let codeAndKey;
+  let codeAndKey: Awaited<ReturnType<typeof getBootstrapCodeAndKey>> | undefined;
   try {
     codeAndKey = await getBootstrapCodeAndKey();
   } catch {

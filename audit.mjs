@@ -143,7 +143,7 @@ if (historyTab) {
     const maxTop = Math.max(...rects.map((r) => r.rect.top));
     return { count: chips.length, wrapped: maxTop - minTop > 4, rects };
   });
-  if (chipStrip && chipStrip.wrapped) {
+  if (chipStrip?.wrapped) {
     findings.push({
       severity: 'minor',
       kind: 'chip-wrap',
