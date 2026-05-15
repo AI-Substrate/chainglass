@@ -1,3 +1,8 @@
+# Local agent harness state (Claude Code, scheduled tasks, session DB)
+.claude/
+session-state/
+session-store.db
+
 # Logs
 logs
 *.log
@@ -156,6 +161,10 @@ scratch/*
 # Plan 018: Workspace-scoped agent data (events, sessions)
 .chainglass/workspaces/
 .chainglass/data/
+# Plan 067: server.json sidecar (port discovery) — never committed
+.chainglass/server.json
+# Plan 084: bootstrap-code sidecar (always-on auth) — never committed
+.chainglass/bootstrap-code.json
 # Ignore .chainglass in app workspaces (local dev/test data)
 apps/**/.chainglass/
 
@@ -180,6 +189,11 @@ harness/results/
 
 # Harness agent run folders — generated per agent execution (Plan 070)
 harness/agents/*/runs/
+
+# Top-level agents/ run folders — minih FX008 install location
+agents/*/runs/
+# Install metadata — contains machine-local source paths
+agents/*/.minih-source.json
 
 # Harness workflow run cache — ephemeral event data (Plan 076)
 harness/.cache/

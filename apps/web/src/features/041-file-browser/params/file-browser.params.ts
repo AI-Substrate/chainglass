@@ -26,6 +26,8 @@ export const fileBrowserParams = {
   panel: parseAsStringLiteral(['tree', 'changes'] as const).withDefault('tree'),
   /** Line number to scroll to (Plan 047 Phase 6) */
   line: parseAsInteger,
+  /** Main-panel view selector. `null` = default (file/dir-driven); `'recent-feed'` swaps in the Recent Changes Feed. */
+  view: parseAsStringLiteral(['recent-feed'] as const),
 };
 
 /** Combined server cache for workspace + file browser params */

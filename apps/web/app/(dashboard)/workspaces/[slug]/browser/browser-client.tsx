@@ -37,6 +37,7 @@ import { TerminalView } from '@/features/064-terminal/components/terminal-view';
 import { useTerminalSessions } from '@/features/064-terminal/hooks/use-terminal-sessions';
 import { QuestionPopperIndicator } from '@/features/067-question-popper/components/question-popper-indicator';
 import { useNotesOverlay } from '@/features/071-file-notes/hooks/use-notes-overlay';
+import type { RepoInfo as RepoInfoPayload } from '@/features/_platform/git';
 import {
   type BarContext,
   ExplorerPanel,
@@ -48,16 +49,19 @@ import {
 } from '@/features/_platform/panel-layout';
 import type { PanelMode } from '@/features/_platform/panel-layout';
 import { useSDK, useSDKMru } from '@/lib/sdk/sdk-provider';
+import { restartFlowspaceAction } from '@/lib/server/flowspace-search-action';
 import { GlobalStateConnector } from '@/lib/state';
 import {
   FileDiff,
   FileText,
   FolderOpen,
   GitBranch,
+  History,
   Search,
   StickyNote,
   TerminalSquare,
 } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import { useQueryStates } from 'nuqs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -79,6 +83,23 @@ import {
   saveFile,
 } from '../../../../actions/file-actions';
 import { fetchFilesWithNotes } from '../../../../actions/notes-actions';
+
+// Plan recent-changes-feed T003: lazy-load the feed view so its primitives
+// (Shiki excerpts, virtualized list) only ship when the user opens the feed.
+const RecentFeedView = dynamic(
+  () =>
+    import('@/features/041-file-browser/components/recent-feed/recent-feed-view').then(
+      (m) => m.RecentFeedView
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground">
+        Recent changes feed — loading…
+      </div>
+    ),
+  }
+);
 
 export interface BrowserClientProps {
   slug: string;
@@ -147,6 +168,31 @@ function BrowserClientInner({
   // T006: Local new paths for immediate green animation before SSE fires
   const [localNewPaths, setLocalNewPaths] = useState<Set<string>>(new Set());
 
+  // Plan 084 FX007 — repo-info for "Copy URL" right-click menu items.
+  // null = either still loading or no remote / unknown host (item hides).
+  // Refetched on every [slug, worktreePath] change (worktree-switch refetch
+  // per finding 13 / AC20). Companion review F002: clear synchronously at
+  // effect start so menu items hide during the switch — otherwise a fast
+  // right-click after switching worktrees would copy URLs built from the
+  // *previous* worktree's branch/SHA.
+  const [repoInfo, setRepoInfo] = useState<RepoInfoPayload | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    setRepoInfo(null);
+    const url = `/api/workspaces/${encodeURIComponent(slug)}/repo-info?worktree=${encodeURIComponent(worktreePath)}`;
+    fetch(url)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: RepoInfoPayload | null) => {
+        if (!cancelled) setRepoInfo(data ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setRepoInfo(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [slug, worktreePath]);
+
   // FT-003: Re-sync root state when worktree changes (e.g. ?worktree= switch)
   useEffect(() => {
     setRootEntries(initialEntries);
@@ -159,6 +205,39 @@ function BrowserClientInner({
   const currentDir = params.dir || '';
   const panelMode = (params.panel as PanelMode) || 'tree';
   const scrollToLine = params.line ?? null;
+  // Plan recent-changes-feed T003: main-panel view selector (Finding 07 — branch BEFORE
+  // selectedFile/currentDir so closing the feed restores the user's prior state).
+  const view = params.view; // 'recent-feed' | null
+
+  // Mobile tab index ↔ view sync. The History tab (index 3) is bound to
+  // `view=recent-feed` so deep-links and entrypoints (Cmd-palette command,
+  // explorer-bar History button, openOnLaunch setting) flip the active
+  // tab on mobile. Conversely, swiping/tapping into the History tab
+  // sets the URL param so the desktop main pane mirrors the choice.
+  useEffect(() => {
+    if (view === 'recent-feed' && mobileActiveIndex !== 3) {
+      setMobileActiveIndex(3);
+    }
+  }, [view, mobileActiveIndex]);
+
+  const handleMobileViewChange = useCallback(
+    (idx: number) => {
+      setMobileActiveIndex(idx);
+      // Activating History tab → publish `view=recent-feed` to the URL.
+      // Leaving History → clear the param (unless we're still on the
+      // recent-feed view via desktop URL, which only happens if the
+      // user explicitly typed it — in which case the next click clears).
+      if (idx === 3 && view !== 'recent-feed') {
+        setParams({ view: 'recent-feed' }, { history: 'replace' });
+      } else if (idx !== 3 && view === 'recent-feed') {
+        setParams({ view: null }, { history: 'replace' });
+      }
+    },
+    [view, setParams]
+  );
+  const handleCloseRecentFeed = useCallback(() => {
+    setParams({ view: null }, { history: 'push' });
+  }, [setParams]);
 
   // Plan 083 Phase 5 T002: legacy mode alias coercion. Runs BEFORE the scrollToLine effect so
   // `?mode=edit&line=42` first normalizes to `?mode=source`, then scrollToLine sees `source`
@@ -199,7 +278,7 @@ function BrowserClientInner({
     fetchDiffStats,
   });
 
-  const clipboard = useClipboard({ slug, worktreePath, readFile });
+  const clipboard = useClipboard({ slug, worktreePath, readFile, repoInfo });
 
   // Phase 7 T003: Note file paths for tree indicators (DYK-01, DYK-02)
   const { openModal } = useNotesOverlay();
@@ -405,12 +484,15 @@ function BrowserClientInner({
   const terminalTheme = wsCtx?.worktreeIdentity?.terminalTheme || 'dark';
 
   // FX002: Terminal sessions for 3rd mobile view
+  // FX006: pass worktreePath so the auto-pick prefers the worktree-folder
+  // session (e.g. higgs-jordo) over the branch-name fallback (e.g. main).
   const {
     sessions: termSessions,
     loading: termLoading,
     selectedSession: termSelectedSession,
   } = useTerminalSessions({
     currentBranch: sanitizeSessionName(worktreeBranch ?? ''),
+    worktreePath,
   });
 
   // Set worktree identity for tab title (Subtask 001)
@@ -450,7 +532,17 @@ function BrowserClientInner({
   );
 
   // Mobile: folder tap sets dir param (for FolderPreviewPanel in Content view)
-  // but does NOT auto-switch — user stays in Files view to continue browsing
+  // but does NOT auto-switch — user stays in Files view to continue browsing.
+  //
+  // We must NOT fire `?dir=<ancestor>&file=''` when the newly-expanded dir
+  // is just an ancestor of the currently-selected file (e.g., the
+  // auto-expand effect at use-file-navigation.ts ran because a recent-feed
+  // card click navigated into a deep directory). Two stacked guards:
+  //   1. `isProgrammaticExpansionRef` (instant, but the rAF reset can lose
+  //      the flag before the tree's onExpandedDirsChange callback fires).
+  //   2. Ancestor check against `selectedFile` — robust against the timing
+  //      race; if the dir is on the file's ancestor path, the expansion
+  //      came from the auto-expand effect and isn't a user gesture.
   const handleMobileExpandedDirsChange = useCallback(
     (dirs: string[]) => {
       const oldSet = new Set(trackedExpandedDirsRef.current);
@@ -458,11 +550,18 @@ function BrowserClientInner({
       trackedExpandedDirsRef.current = dirs;
       setTrackedExpandedDirs(dirs);
 
-      if (newlyExpanded) {
-        setParams({ dir: newlyExpanded, file: '' }, { history: 'push' });
+      if (!newlyExpanded) return;
+      if (isProgrammaticExpansionRef.current) return;
+      if (selectedFile) {
+        const ancestorPrefix = `${newlyExpanded}/`;
+        if (selectedFile === newlyExpanded || selectedFile.startsWith(ancestorPrefix)) {
+          // Auto-expand for selected file — don't republish dir or wipe file.
+          return;
+        }
       }
+      setParams({ dir: newlyExpanded, file: '' }, { history: 'push' });
     },
-    [setParams]
+    [setParams, selectedFile]
   );
 
   // T004: Watch current open file for external changes
@@ -591,6 +690,13 @@ function BrowserClientInner({
 
       window.dispatchEvent(new CustomEvent('overlay:close-all'));
 
+      // Picking a file from the tree means "show me this file's content";
+      // if the recent-changes feed (`view=recent-feed`) is the active main
+      // pane, swap it out for the file viewer. Same intent as the
+      // overlay:close-all dispatch above (terminal), just for the
+      // history view.
+      setParams({ view: null }, { history: 'replace' });
+
       const wasSelected = selectedFile === filePath;
       const now = Date.now();
       const isDoubleSelect =
@@ -613,7 +719,7 @@ function BrowserClientInner({
 
       await fileNav.handleSelect(filePath);
     },
-    [selectedFile, fileNav.handleSelect, handleFileDoubleSelect]
+    [selectedFile, fileNav.handleSelect, handleFileDoubleSelect, setParams]
   );
 
   // --- ExplorerPanel handler chain ---
@@ -743,12 +849,70 @@ function BrowserClientInner({
         })
       : null;
 
+    // Plan recent-changes-feed T030: openRecentFeed handler — sets ?view=recent-feed
+    // via the live setParams closure. Default keybinding registered in the
+    // file-browser contribution: $mod+Shift+KeyU. Also closes the terminal
+    // overlay if it's currently popped (the feed and the terminal both want
+    // the main panel; closing prevents a stacking order surprise).
+    const openRecentFeedCmd = fileBrowserContribution.commands.find(
+      (c) => c.id === 'file-browser.openRecentFeed'
+    );
+    const openRecentFeedReg = openRecentFeedCmd
+      ? sdk.commands.register({
+          ...openRecentFeedCmd,
+          handler: async () => {
+            window.dispatchEvent(new CustomEvent('terminal:close'));
+            setParams({ view: 'recent-feed' }, { history: 'push' });
+          },
+        })
+      : null;
+
+    // FX001-3: Restart FlowSpace — handler closes over the live worktreePath
+    // prop instead of URL-sniffing for `?worktree=`, which dashboard URLs
+    // don't carry. Registered here for the same reason as openFileAtLine.
+    const restartFlowspaceCmd = fileBrowserContribution.commands.find(
+      (c) => c.id === 'file-browser.restartFlowspace'
+    );
+    const restartFlowspaceReg = restartFlowspaceCmd
+      ? sdk.commands.register({
+          ...restartFlowspaceCmd,
+          handler: async () => {
+            try {
+              await restartFlowspaceAction(worktreePath);
+              sdk.toast.success('FlowSpace restarted — next search will reload the graph');
+            } catch (err) {
+              sdk.toast.error(`Failed to restart FlowSpace: ${(err as Error).message}`);
+            }
+          },
+        })
+      : null;
+
     return () => {
       paletteReg.dispose();
       goToFileReg.dispose();
       openFileAtLineReg?.dispose();
+      openRecentFeedReg?.dispose();
+      restartFlowspaceReg?.dispose();
     };
-  }, [sdk, setParams]);
+  }, [sdk, setParams, worktreePath]);
+
+  // Plan recent-changes-feed T031: open-on-launch — when the user lands on a
+  // workspace browser without a specific file or directory and the
+  // `fileBrowser.recentFeed.openOnLaunch` setting is true, show the feed.
+  // Uses sdk.settings.get to read the persisted value once on mount; not
+  // reactive (the user already opted in — toggling the setting only takes
+  // effect on the next workspace load).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional first-mount-only effect keyed on (slug, worktreePath); params/setParams/sdk are checked imperatively at effect time, not declaratively as deps. See block comment above.
+  useEffect(() => {
+    if (params.view) return; // already on a view
+    if (params.file || params.dir) return; // user already navigated somewhere
+    const openOnLaunch = sdk.settings.get('fileBrowser.recentFeed.openOnLaunch') as
+      | boolean
+      | undefined;
+    if (openOnLaunch) {
+      setParams({ view: 'recent-feed' }, { history: 'replace' });
+    }
+  }, [slug, worktreePath]);
 
   // --- Panel refresh handler ---
 
@@ -840,6 +1004,9 @@ function BrowserClientInner({
               onExpandedDirsChange={handleMobileExpandedDirsChange}
               onCopyFullPath={clipboard.handleCopyFullPath}
               onCopyRelativePath={clipboard.handleCopyRelativePath}
+              onCopyRepoUrlCurrentRef={clipboard.handleCopyRepoUrlCurrentRef}
+              onCopyRepoUrlDefaultBranch={clipboard.handleCopyRepoUrlDefaultBranch}
+              repoInfo={repoInfo}
               onCopyContent={clipboard.handleCopyContent}
               onCopyTree={clipboard.handleCopyTree}
               onDownload={clipboard.handleDownload}
@@ -859,6 +1026,9 @@ function BrowserClientInner({
             onSelect={handleFileSelect}
             onCopyFullPath={clipboard.handleCopyFullPath}
             onCopyRelativePath={clipboard.handleCopyRelativePath}
+            onCopyRepoUrlCurrentRef={clipboard.handleCopyRepoUrlCurrentRef}
+            onCopyRepoUrlDefaultBranch={clipboard.handleCopyRepoUrlDefaultBranch}
+            repoInfo={repoInfo}
             onCopyContent={clipboard.handleCopyContent}
             onDownload={clipboard.handleDownload}
           />
@@ -966,6 +1136,27 @@ function BrowserClientInner({
     </div>
   );
 
+  // History as 4th mobile view (Recent Changes Feed). Lazy — only mounts
+  // when the user activates the History tab, mirroring the Terminal slot.
+  const historyView = (
+    <RecentFeedView
+      slug={slug}
+      worktreePath={worktreePath}
+      isGit={isGit}
+      onClose={handleCloseRecentFeed}
+      onOpenFile={(path) => {
+        setParams({ view: null, line: null }, { history: 'replace' });
+        void handleFileSelect(path);
+      }}
+      onRevealInTree={(path) => {
+        const idx = path.lastIndexOf('/');
+        const dir = idx === -1 ? '' : path.slice(0, idx);
+        setParams({ dir, view: null }, { history: 'push' });
+        void handleFileSelect(path);
+      }}
+    />
+  );
+
   return (
     <div className="h-full overflow-hidden">
       <PanelShell
@@ -979,10 +1170,16 @@ function BrowserClientInner({
             isTerminal: true,
             lazy: true,
           },
+          {
+            label: 'History',
+            icon: <History className="h-4 w-4" />,
+            content: historyView,
+            lazy: true,
+          },
         ]}
         initialMobileActiveIndex={mobileActiveIndex}
         mobileActiveIndex={mobileActiveIndex}
-        onMobileViewChange={setMobileActiveIndex}
+        onMobileViewChange={handleMobileViewChange}
         mobileRightAction={
           <button
             type="button"
@@ -1024,6 +1221,7 @@ function BrowserClientInner({
             codeSearchLoading={
               activeCodeSearchMode === 'grep' ? gitGrep.loading : flowspace.loading
             }
+            codeSearchSpawning={activeCodeSearchMode === 'semantic' && flowspace.spawning}
             codeSearchError={activeCodeSearchMode === 'grep' ? gitGrep.error : flowspace.error}
             codeSearchAvailability={flowspace.availability}
             codeSearchGraphAge={flowspace.graphAge}
@@ -1039,7 +1237,26 @@ function BrowserClientInner({
                 flowspace.setQuery(query, mode);
               }
             }}
-            rightActions={<QuestionPopperIndicator />}
+            rightActions={
+              <>
+                {/* Plan recent-changes-feed T029 — entrypoint button via the
+                    existing rightActions slot (no ExplorerPanel modification).
+                    Closes the terminal overlay if popped — same panel. */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.dispatchEvent(new CustomEvent('terminal:close'));
+                    setParams({ view: 'recent-feed' }, { history: 'push' });
+                  }}
+                  className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                  title="Recent Changes Feed (Cmd/Ctrl+Shift+U)"
+                  aria-label="Open Recent Changes Feed"
+                >
+                  <History className="h-4 w-4" />
+                </button>
+                <QuestionPopperIndicator />
+              </>
+            }
           />
         }
         left={
@@ -1089,6 +1306,9 @@ function BrowserClientInner({
                     onExpandedDirsChange={handleExpandedDirsChange}
                     onCopyFullPath={clipboard.handleCopyFullPath}
                     onCopyRelativePath={clipboard.handleCopyRelativePath}
+                    onCopyRepoUrlCurrentRef={clipboard.handleCopyRepoUrlCurrentRef}
+                    onCopyRepoUrlDefaultBranch={clipboard.handleCopyRepoUrlDefaultBranch}
+                    repoInfo={repoInfo}
                     onCopyContent={clipboard.handleCopyContent}
                     onCopyTree={clipboard.handleCopyTree}
                     onDownload={clipboard.handleDownload}
@@ -1108,6 +1328,9 @@ function BrowserClientInner({
                   onSelect={handleFileSelect}
                   onCopyFullPath={clipboard.handleCopyFullPath}
                   onCopyRelativePath={clipboard.handleCopyRelativePath}
+                  onCopyRepoUrlCurrentRef={clipboard.handleCopyRepoUrlCurrentRef}
+                  onCopyRepoUrlDefaultBranch={clipboard.handleCopyRepoUrlDefaultBranch}
+                  repoInfo={repoInfo}
                   onCopyContent={clipboard.handleCopyContent}
                   onDownload={clipboard.handleDownload}
                 />
@@ -1117,7 +1340,24 @@ function BrowserClientInner({
         }
         main={
           <MainPanel>
-            {selectedFile ? (
+            {view === 'recent-feed' ? (
+              <RecentFeedView
+                slug={slug}
+                worktreePath={worktreePath}
+                isGit={isGit}
+                onClose={handleCloseRecentFeed}
+                onOpenFile={(path) => {
+                  setParams({ view: null, line: null }, { history: 'replace' });
+                  void handleFileSelect(path);
+                }}
+                onRevealInTree={(path) => {
+                  const idx = path.lastIndexOf('/');
+                  const dir = idx === -1 ? '' : path.slice(0, idx);
+                  setParams({ dir, view: null }, { history: 'push' });
+                  void handleFileSelect(path);
+                }}
+              />
+            ) : selectedFile ? (
               <FileViewerPanel
                 filePath={selectedFile}
                 content={
@@ -1222,6 +1462,7 @@ function BrowserClientInner({
         onSearchQueryChange={fileFilter.setQuery}
         codeSearchResults={activeCodeSearchMode === 'grep' ? gitGrep.results : flowspace.results}
         codeSearchLoading={activeCodeSearchMode === 'grep' ? gitGrep.loading : flowspace.loading}
+        codeSearchSpawning={activeCodeSearchMode === 'semantic' && flowspace.spawning}
         codeSearchError={activeCodeSearchMode === 'grep' ? gitGrep.error : flowspace.error}
         codeSearchAvailability={flowspace.availability}
         codeSearchGraphAge={flowspace.graphAge}

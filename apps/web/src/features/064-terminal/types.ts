@@ -15,8 +15,21 @@ export interface TerminalSession {
   windows: number;
   /** Unix timestamp when session was created */
   created: number;
-  /** Whether this session matches the current worktree's branch name */
-  isCurrentWorktree: boolean;
+  /**
+   * True when the session name matches the current worktree-folder basename
+   * (e.g. worktree `/Users/x/github/higgs-jordo` → session `higgs-jordo`).
+   * Aligns with the convention used by `tmux new-session -A -s <basename>`.
+   * Plan FX006.
+   */
+  isWorktreeFolderMatch: boolean;
+  /**
+   * True when the session name matches the current worktree's branch name.
+   * Pre-FX006 this was the only "current worktree" signal (under the
+   * misleading name `isCurrentWorktree`). Now demoted to a fallback —
+   * primarily useful when a user manually maintains branch-named sessions.
+   * Plan FX006.
+   */
+  isBranchMatch: boolean;
 }
 
 /** Messages exchanged over the terminal WebSocket */

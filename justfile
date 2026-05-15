@@ -122,6 +122,63 @@ harness *ARGS:
 harness-cg *ARGS:
     cd harness && just cg {{ARGS}}
 
+# Verify a page renders cleanly in the harness — Plan 084 FX007 lesson.
+#
+# Catches the class of bug where `tsc --noEmit` + vitest are both happy but
+# the Turbopack dev bundler fails (e.g., a barrel value-re-exports a
+# server-only module into a client chunk → "chunking context does not support
+# external modules"). Such failures only surface when an actual page loads.
+#
+# Checks:
+#   1. HTTP status of the page (must be 2xx)
+#   2. Console errors (filtered: HMR / favicon / GCM noise stripped)
+#   3. Container dev-server logs since the recipe started — fails on any
+#      Turbopack `⨯` markers (parse / chunking / runtime errors)
+#
+# Example:
+#   just harness-verify "/workspaces/harness-test-workspace/browser"
+harness-verify path:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    START_ISO="$(date -u +%Y-%m-%dT%H:%M:%S)"
+    cd harness
+    OUT=$(pnpm exec tsx src/cli/index.ts check-route "{{path}}" --wait-until networkidle 2>&1 || true)
+    STATUS=$(echo "$OUT" | jq -r '.data.httpStatus // empty')
+    CONSOLE=$(echo "$OUT" | jq -r '.data.checks.consoleErrors.messages[]? | "\(.level): \(.text)"' \
+        | grep -vE 'webpack-hmr|favicon\.ico|DEPRECATED_ENDPOINT|google_apis/gcm' || true)
+    cd ..
+    CONTAINER="chainglass-$(basename "$(git rev-parse --show-toplevel)")"
+    DEV_ERRORS=$(docker logs --since "${START_ISO}Z" "$CONTAINER" 2>&1 \
+        | grep -E '⨯|Failed to compile|chunking context|Parsing ecmascript' \
+        | head -20 || true)
+    PASS=true
+    if [[ -z "$STATUS" || "$STATUS" -lt 200 || "$STATUS" -ge 400 ]]; then
+        echo "❌ HTTP $STATUS for {{path}}"
+        PASS=false
+    else
+        echo "✓ HTTP $STATUS for {{path}}"
+    fi
+    if [[ -n "$CONSOLE" ]]; then
+        echo "❌ Console errors (filtered):"
+        echo "$CONSOLE" | head -10
+        PASS=false
+    else
+        echo "✓ Console clean (filtered)"
+    fi
+    if [[ -n "$DEV_ERRORS" ]]; then
+        echo "❌ Dev-server compile errors since recipe started:"
+        echo "$DEV_ERRORS"
+        PASS=false
+    else
+        echo "✓ Dev-server clean"
+    fi
+    if $PASS; then
+        echo "✅ harness-verify {{path}} — PASS"
+    else
+        echo "🔴 harness-verify {{path}} — FAIL"
+        exit 1
+    fi
+
 # Workflow shortcuts (Plan 076 FX001)
 # Default: host dev server via local CLI (auto-discovers server.json)
 # Add --container to target the harness Docker container instead
@@ -287,6 +344,26 @@ clean-next:
 clean:
     rm -rf packages/*/dist apps/*/dist apps/*/.next node_modules/.cache apps/web/public/icons
 
+# Prune turbo cache across all worktrees under ~/substrate (keeps last 7 days by default)
+# Override age with: just turbo-prune 14   (days) — or 0 to wipe everything
+turbo-prune days="7":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    DAYS={{days}}
+    ROOT="$HOME/substrate"
+    echo "Scanning turbo caches under ${ROOT}..."
+    TOTAL_BEFORE=$(find "${ROOT}" -type d -path '*/.turbo/cache' -prune -exec du -sk {} + 2>/dev/null | awk '{s+=$1} END {printf "%.1f GB", s/1024/1024}')
+    echo "Current total: ${TOTAL_BEFORE}"
+    if [ "${DAYS}" = "0" ]; then
+      echo "Wiping ALL turbo cache entries..."
+      while IFS= read -r d; do rm -rf "$d"/*; done < <(find "${ROOT}" -type d -path '*/.turbo/cache')
+    else
+      echo "Deleting cache entries older than ${DAYS} days..."
+      find "${ROOT}" -type f -path '*/.turbo/cache/*' \( -name '*.tar.zst' -o -name '*-meta.json' \) -mtime +${DAYS} -delete
+    fi
+    TOTAL_AFTER=$(find "${ROOT}" -type d -path '*/.turbo/cache' -prune -exec du -sk {} + 2>/dev/null | awk '{s+=$1} END {printf "%.1f GB", s/1024/1024}')
+    echo "New total: ${TOTAL_AFTER}"
+
 # Reset everything (clean + reinstall)
 reset: clean
     rm -rf node_modules packages/*/node_modules apps/*/node_modules pnpm-lock.yaml
@@ -411,6 +488,10 @@ smoke-test-agent:
 # Run code-review agent with GPT-5.4 xhigh reasoning and 20-minute timeout
 code-review-agent file_path:
     GH_TOKEN=$(XDG_CONFIG_HOME=~/.config gh auth token) minih run code-review --agents-dir harness/agents --model gpt-5.4 --reasoning xhigh --timeout 1200 --param file_path={{file_path}}
+
+# Run code-review-companion (long-running, coordination-enabled, with live human-view TUI). Send tasks via `minih outside inbox send code-review-companion ...`.
+companion:
+    GH_TOKEN=$(XDG_CONFIG_HOME=~/.config gh auth token) minih run code-review-companion --agents-dir harness/agents --model gpt-5.5 --timeout 7200 --human
 
 # Tail an agent's live event stream
 agent-tail slug:

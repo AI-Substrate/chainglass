@@ -91,7 +91,8 @@ Central event platform for the entire application. Owns the full pipeline from f
 | CentralWatcherService | Native fs.watch filesystem watcher, dispatches to adapters | IFileWatcherFactory, IWatcherAdapter[] |
 | FileChangeWatcherAdapter | Filters source file events, batches with debounce | IWatcherAdapter (self-filter pattern) |
 | FileChangeDomainEventAdapter | Transforms batched file events → SSE payload | DomainEventAdapter, ICentralEventNotifier |
-| startCentralNotificationSystem | Bootstrap — resolves DI, wires adapters, starts watcher | DI container |
+| startCentralNotificationSystem | Bootstrap — resolves DI, wires adapters, attaches workspace mutation listener (HMR-safe), starts watcher | DI container, `IWorkspaceService.onMutation` (Plan 084) |
+| Workspace mutation listener (in `start-central-notifications.ts`) | Wires `IWorkspaceService.onMutation` → `ICentralWatcherService.rescan()`. Detach-then-resubscribe runs unconditionally on every call so HMR refreshes the listener even when the rest of the wire-up is skipped. | `IWorkspaceService` (workspace domain), `ICentralWatcherService`, `globalThis.__watcherMutationUnsubscribe__` (Plan 084) |
 | SSE API route (`[channel]`) | HTTP endpoint for single-channel EventSource connections | SSEManager |
 | SSE API route (`mux`) | Multiplexed HTTP endpoint — registers one controller on multiple channels | SSEManager (Plan 072) |
 | useSSE hook | Client SSE connection management | EventSource API |
@@ -104,6 +105,7 @@ Central event platform for the entire application. Owns the full pipeline from f
 | useFileChanges hook | Pattern subscription with debounce | FileChangeHub (via context) |
 | Toaster wrapper | Theme-aware sonner `<Toaster />` | sonner, next-themes |
 | SSE event schemas | Zod validation for SSE payloads | zod |
+| `requireLocalAuth(req)` | Composite localhost + bootstrap-credential gate for HTTP sinks (event-popper, tmux/events). Returns discriminated union with 4 reasons (`not-localhost` 403 \| `bootstrap-unavailable` 503 \| `no-credential` 401 \| `bad-credential` 401). Replaces `localhostGuard`-only protection. (Plan 084 Phase 5) | `localhostGuard`, `getBootstrapCodeAndKey()` (Phase 3), `verifyCookieValue` (Phase 1), `readServerInfo().localToken` (Plan 067) |
 
 ## Source Location
 
@@ -140,6 +142,8 @@ Primary: scattered across `packages/shared`, `packages/workflow`, `apps/web` (Pl
 | `apps/web/src/components/ui/toaster.tsx` | Toaster wrapper | Plan 042 — theme-aware sonner wrapper |
 | `apps/web/src/features/027-central-notify-events/sdk/contribution.ts` | SDK contribution manifest | 047-usdk Phase 6 |
 | `apps/web/src/features/027-central-notify-events/sdk/register.ts` | SDK registration entry point | 047-usdk Phase 6 |
+| `test/unit/web/027-central-notify-events/start-central-notifications-mutation-listener.test.ts` | Plan 084 unit test | Verifies attachMutationListener wires onMutation→rescan; HMR-safe (no listener leak across re-calls) |
+| `test/integration/workflow/features/023/rescan-on-workspace-mutation.integration.test.ts` | Plan 084 integration test | End-to-end with real fs.watch + temp dir: AC-1/2/3/4/6 + coalescing |
 
 **Plan 045 additions (to be created):**
 
@@ -163,6 +167,7 @@ Primary: scattered across `packages/shared`, `packages/workflow`, `apps/web` (Pl
 | Channel Subscription (Accumulation) | `useChannelEvents('event-popper')` | Hook subscribes to a channel via MultiplexedSSEProvider context. Returns `{messages, isConnected, clearMessages}`. Each hook gets its own independent array — compatible with index cursor patterns (ServerEventRoute). Supports `maxMessages` pruning. (Plan 072) |
 | Channel Subscription (Callback) | `useChannelCallback('event-popper', cb)` | Hook subscribes to a channel, fires callback per event. No accumulation. Stable ref pattern — callback can change without re-subscription. Ideal for notification-fetch consumers (QuestionPopper, FileChange). (Plan 072) |
 | File Change Fan-Out | `useFileChanges('src/**')` | FileChangeProvider receives SSE events → FileChangeHub dispatches to pattern-matched subscribers. Consumers get filtered changes without knowing about SSE. |
+| React to Workspace Mutations | `attachMutationListener()` (in `start-central-notifications.ts`) | Subscribes to `IWorkspaceService.onMutation` and calls `ICentralWatcherService.rescan()` on every successful workspace/worktree mutation. Detach-then-resubscribe runs unconditionally (not gated by the `__centralNotificationsStarted` flag) so HMR re-evaluations refresh the listener. Plus a parent-directory `fs.watch` on `~/.config/chainglass/` (with path filter on `workspaces.json`) as defense-in-depth for out-of-band registry edits — atomic-rename writes don't break this watcher because the directory inode is stable. (Plan 084) |
 | Toast Notification | `toast.success('Saved')` | Client-side only (sonner). Server returns results; client reads and toasts. Silent no-op in Server Components. |
 
 ## Gotchas
@@ -175,8 +180,9 @@ Primary: scattered across `packages/shared`, `packages/workflow`, `apps/web` (Pl
 ## Dependencies
 
 ### This Domain Depends On
-- `_platform/auth` — session check in SSE route handlers (auth() call)
+- `_platform/auth` — session check in SSE route handlers (auth() call); also `getBootstrapCodeAndKey()` (Phase 3 accessor) + `verifyCookieValue()` + `BOOTSTRAP_COOKIE_NAME` consumed by `requireLocalAuth` for sidecar HTTP sinks (Plan 084 Phase 5)
 - `_platform/sdk` — IUSDK for publishing toast commands to SDK surface
+- `workspace` — `IWorkspaceService.onMutation` event channel (Plan 084) — central watcher subscribes to drive rescans on workspace/worktree mutations
 - Node.js `fs.watch` — native filesystem watching (built-in, replaces chokidar per Plan 060)
 - `sonner` — toast UI (npm)
 - `next-themes` — theme detection for toast (npm)
@@ -212,3 +218,6 @@ Primary: scattered across `packages/shared`, `packages/workflow`, `apps/web` (Pl
 | Plan 072 Phase 4 | GlobalState re-enablement: ServerEventRoute migrated from `useSSE` to `useChannelEvents('work-unit-state')`. GlobalStateConnector re-enabled in browser-client.tsx. Work-unit-state events now flow through multiplexed SSE → GlobalStateSystem. | 2026-03-08 |
 | Plan 072 Phase 5 | Remaining migrations: useWorkflowSSE and useWorkunitCatalogChanges migrated to `useChannelEvents`. Added `workflows` and `unit-catalog` to mux channel list (5 total). Deleted legacy `useSSE` hook (zero consumers) and dead `KanbanContent`. Made `MultiplexedSSEMessage.type` and `channel` optional in consumer types. SSE docs rewritten. | 2026-03-08 |
 | 074-P3 | Added `WorkflowExecution: 'workflow-execution'` to WorkspaceDomain const (SSE channel for execution-level status). Added to WORKSPACE_SSE_CHANNELS (7 total). | 2026-03-15 |
+| Plan 084 (live-monitoring-rescan) | Mutation-driven rescan signaling: `start-central-notifications.ts` subscribes to `IWorkspaceService.onMutation` via an unconditional `attachMutationListener()` helper (HMR-safe via `globalThis.__watcherMutationUnsubscribe__` detach-then-resubscribe). `CentralWatcherService.start()` now watches the parent directory of the registry file (with absolute-path filter) so atomic-rename writes survive — closes the post-FX001 stale-inode silent failure on second-and-later workspace registrations. | 2026-04-26 |
+| Plan 084 Phase 5 | Added `requireLocalAuth(req)` composite gate (`apps/web/src/lib/local-auth.ts`) replacing `localhostGuard`-only on all 9 sink routes (8 `/api/event-popper/*` + `/api/tmux/events`). Closes Finding 02 — local processes can no longer post events on bare loopback; must present either bootstrap cookie OR `X-Local-Token` (Plan 067 contract). 4-reason discriminated `LocalAuthResult` union with locked status-code mapping (403/503/401). Browser fetch (same-origin cookie) and CLI (`apps/cli/src/commands/event-popper-client.ts` now sends `X-Local-Token` from `readServerInfo`) both keep working. AC-16, AC-17. | 2026-05-03 |
+| Plan 084 Phase 7 | Documentation alignment for the Phase 5 `requireLocalAuth` dependency. `docs/how/auth/bootstrap-code.md` § 1 enumerates the 9 sinks as gated routes; § 5.1/8.3 document the composite-gate threat model. The `events → _platform/auth` edge in `docs/domains/domain-map.md` is verified + carries Plan-084 attribution comments. No code changes in this domain — documentation/audit only. | 2026-05-03 |

@@ -1,8 +1,8 @@
 /**
- * Git Branch Service — branch info and merge-base resolution
+ * Git Branch Service — PR-view-specific git ops (merge-base, branch diff).
  *
- * Provides getCurrentBranch, getDefaultBaseBranch, getMergeBase,
- * and getChangedFilesBranch for PR View's Branch comparison mode.
+ * `getCurrentBranch` and `getDefaultBaseBranch` were lifted to
+ * `_platform/git` in Plan 084 FX007 — import them from there.
  *
  * Plan 071: PR View & File Notes — Phase 4
  */
@@ -19,38 +19,6 @@ const NAME_STATUS_MAP: Record<string, DiffFileStatus> = {
   D: 'deleted',
   R: 'renamed',
 };
-
-/**
- * Get the current branch name.
- * Returns 'HEAD' if in detached HEAD state.
- */
-export async function getCurrentBranch(cwd: string): Promise<string> {
-  try {
-    const { stdout } = await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd });
-    return stdout.trim() || 'HEAD';
-  } catch {
-    return 'HEAD';
-  }
-}
-
-/**
- * Auto-detect the default base branch from remote origin.
- * Parses `git symbolic-ref refs/remotes/origin/HEAD` to extract the branch name.
- * Falls back to 'main' if no remote is configured or detection fails (DYK-P4-04).
- */
-export async function getDefaultBaseBranch(cwd: string): Promise<string> {
-  try {
-    const { stdout } = await execFileAsync('git', ['symbolic-ref', 'refs/remotes/origin/HEAD'], {
-      cwd,
-    });
-    // Output: refs/remotes/origin/main → extract "main"
-    const ref = stdout.trim();
-    const parts = ref.split('/');
-    return parts[parts.length - 1] || 'main';
-  } catch {
-    return 'main';
-  }
-}
 
 /**
  * Get the merge-base SHA between the current branch and a base branch.

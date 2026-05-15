@@ -1,0 +1,138 @@
+# Fix FX006: Worktree-folder session match — Execution Log
+
+## Companion
+
+- Slug: `code-review-companion`
+- Run ID: `2026-05-04T17-38-34-103Z-9115`
+- Verdict at boot: active
+- Briefing sent: `01KQRYTJ74SE9VMRQ6WMG8HJ7H` (one-shot, type=briefing)
+- Permission-bug workaround: companion was instructed to write reviews into chat output (write: deny on report.json — minih issue #25 not yet fixed).
+
+## Discovery — `isCurrentWorktree` is part of the public type
+
+Pre-implementation check revealed that `isCurrentWorktree` is part of `TerminalSession` in `apps/web/src/features/064-terminal/types.ts:19` AND is consumed by `apps/web/src/features/064-terminal/components/terminal-session-list.tsx:62` to render a "current" badge. The dossier had said "verify by checking types.ts — flag if it is" — verified, it is.
+
+**Adapted scope**: The dossier's spirit ("replace the misnamed flag with two well-named ones") is preserved. Implementation:
+- Replace `isCurrentWorktree: boolean` with `isWorktreeFolderMatch: boolean` AND `isBranchMatch: boolean` in `types.ts`.
+- Update `terminal-session-list.tsx:62` to render the badge when `(session.isWorktreeFolderMatch || session.isBranchMatch)` — preserves user-visible behavior across both pre-FX006-3 wiring (branch flag is the active path) and post-FX006-3 wiring (worktree-folder flag is the active path).
+- Update `terminal-session-list.test.tsx` fixtures from `isCurrentWorktree: bool` to the two new fields.
+- Hook auto-pick uses `enriched.find(s => s.isWorktreeFolderMatch) ?? enriched.find(s => s.isBranchMatch) ?? enriched[0]`.
+
+This adds ~4 small touch points beyond the dossier's listed files but stays in-domain and is the minimal change that keeps the badge semantic correct.
+
+## FX006-1: Extract `sessionNameFromWorktreePath` helper
+
+**Files**:
+- `apps/web/src/features/064-terminal/lib/session-name-from-worktree-path.ts` — new (pure helper)
+- `test/unit/web/features/064-terminal/session-name-from-worktree-path.test.ts` — new (6 tests)
+
+**Tests**: 6/6 pass.
+1. `helper.higgs-path` — `/Users/jordanknight/github/higgs-jordo` → `'higgs-jordo'`.
+2. `helper.trailing-slash` — `/path/foo/` → `''` (split.pop quirk; documented in JSDoc).
+3. `helper.empty` — `''`, `'/'`, whitespace, null, undefined → `''`.
+4. `helper.sanitize-dots` — `'/path/with.dots'` → `'with-dots'`; spaces and colons same treatment.
+5. `helper.single-segment` — `'just-a-name'` (no slashes) → `'just-a-name'`.
+6. `helper.absolute-vs-relative` — leading slash makes no difference to basename.
+
+**Commit**: `11b204f1`
+
+**Companion ping**: sent post-commit (review-request type=task).
+
+## FX006-2: Hook auto-pick by worktree-folder + isCurrentWorktree rename
+
+**Files**:
+- `apps/web/src/features/064-terminal/types.ts` — replace `isCurrentWorktree: boolean` with `isWorktreeFolderMatch: boolean` + `isBranchMatch: boolean`.
+- `apps/web/src/features/064-terminal/hooks/use-terminal-sessions.ts` — accept optional `worktreePath`; compute both flags during enrichment; auto-pick chain `folder → branch → enriched[0]`; updated JSDoc with enumerated resolution order.
+- `apps/web/src/features/064-terminal/components/terminal-session-list.tsx:62` — badge renders when `(isWorktreeFolderMatch || isBranchMatch)` so user-visible "current" indication is preserved across FX006-3 wiring boundary.
+- `test/unit/web/features/064-terminal/terminal-session-list.test.tsx` — fixture migration to two flags.
+- `test/unit/web/features/064-terminal/use-terminal-sessions.test.tsx` — 5 new tests (`hook.worktree-beats-branch`, `hook.branch-fallback`, `hook.no-worktree`, `hook.user-higgs-bug`, `hook.worktree-and-branch-both-match`); existing 7 untouched.
+
+**Tests**: 12/12 hook tests pass. Full terminal suite: 184/184 pass. Typecheck: clean.
+
+**Deviation from dossier**: dossier proposed "verify by checking types.ts — flag if it is" then suggested removal "entirely". Verification revealed `isCurrentWorktree` is in the public type AND consumed by the badge component. Adapted: kept the dossier's spirit (replace misnamed flag with two well-named ones) but expanded scope to update the badge component + its test fixture. Documented in execution log so the companion sees the wider blast radius.
+
+**Commit**: `02d227f5`
+
+**Companion ping**: sent post-commit.
+
+## FX006-3: Wire `worktreePath` into both call sites
+
+**Files**:
+- `apps/web/src/features/064-terminal/components/terminal-page-client.tsx:52-55` — desktop now passes `worktreePath`.
+- `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx:461-470` — mobile Terminal tab now passes `worktreePath`. Comment notes the FX006 motivation inline.
+
+**Tests**: full terminal suite 184/184 pass; typecheck clean. The `hook.user-higgs-bug` test from FX006-2 already validated the call-shape contract; this is the second half of the wiring (the call sites supply the value).
+
+**Pre-existing sanitize-asymmetry**: mobile sanitizes `currentBranch` via `sanitizeSessionName(worktreeBranch ?? '')`, desktop passes raw `worktreeBranch`. Documented in dossier Notes column for FX006-3 + Forward-Compat row C2; out-of-scope for FX006 because the folder-match path doesn't depend on `currentBranch` shape. Future fix candidate (call it FX007 if it lands).
+
+**Commit**: `03f3123c`
+
+**Companion ping**: sent post-commit.
+
+## FX006-4: Refactor useTerminalOverlay to use shared helper
+
+**Files**:
+- `apps/web/src/features/064-terminal/hooks/use-terminal-overlay.tsx` — replaced inline `sanitizeSessionName(worktree.split('/').pop() ?? '') || null` with `sessionNameFromWorktreePath(worktree) || null`. Import swapped from `sanitizeSessionName` (now unused in this file) to `sessionNameFromWorktreePath`. Inline comment documents why the `|| null` lives at the call site.
+- `test/unit/web/features/064-terminal/use-terminal-overlay.test.tsx` — new (2 tests):
+  - `overlay.toggle-from-worktree`: `?worktree=/Users/.../higgs-jordo` → opens with `sessionName='higgs-jordo'`, `cwd=/Users/.../higgs-jordo`.
+  - `overlay.toggle-from-worktree-trailing-slash`: trailing-slash basename → empty → `|| null` → toggleTerminal early-returns; the byte-identity guard.
+
+**Tests**: 186/186 terminal-domain tests pass (was 173 pre-FX006 = +13: 6 helper, 5 hook, 2 overlay). Typecheck clean.
+
+**Commit**: `c2096adb`
+
+**Companion ping**: sent post-commit.
+
+## Summary
+
+| Stage | Commit | Files (net) | Tests added | Verdict |
+|---|---|---|---|---|
+| FX006-1: Helper | 11b204f1 | +2 (1 src, 1 test) | 6 | ✅ |
+| FX006-2: Hook + flag rename | 02d227f5 | 5 modified (incl. dossier-discovered scope) | 5 | ✅ |
+| FX006-3: Wire call sites | 03f3123c | 2 modified (1-line each) | 0 (covered by hook.user-higgs-bug from FX006-2) | ✅ |
+| FX006-4: Overlay refactor | c2096adb | 2 (1 src modified, 1 test new) | 2 | ✅ |
+
+**Aggregate**: 13 new tests, 186/186 terminal-domain tests passing, typecheck clean across 4 commits.
+
+## Companion findings reconciliation
+
+| Ping | Sent at | Companion reply | Disposition |
+|---|---|---|---|
+| review-request: FX006-1 11b204f1 | 07:41:57Z | **APPROVE — no findings** (07:42:38Z, msg=summary). Companion noted: helper returns plain string, preserves trailing-slash empty-string, keeps null conversion out of helper, kebab-case test enumeration, chainglass tmux basename convention documented. | Closed. |
+| review-request: FX006-2 02d227f5 | 07:44:41Z | No reply — companion went silent at 07:43:47Z (~1 min before this ping). | Open / unreviewed by companion. |
+| review-request: FX006-3 03f3123c | 07:45:52Z | No reply (companion stale). | Open / unreviewed by companion. |
+| review-request: FX006-4 c2096adb | 07:47:35Z | No reply (companion stale). | Open / unreviewed by companion. |
+| FX006 drain ping | 07:48:34Z | No reply (companion stale). | Open. |
+
+### Companion run 1 (2026-05-04T17-38-34-103Z-9115): partial review then silent
+
+Companion booted healthy (~12s). Acked briefing at 07:39:20, posted briefing-loaded progress, idle-polled, picked up FX006-1 review at 07:42:04, completed APPROVE summary at 07:42:38, transitioned back to idle at 07:42:41. Last events at 07:43:47Z were inbox poll calls; no events after that. `minih status` reports `verdict: stale`. Same failure mode as the FX005 companion run #1 — same as **minih issue #24** (`minih status` should pid-probe before reporting active).
+
+The companion's pre-fix self-report at 07:39:27 acknowledged the permission-bug workaround: *"Shell/report writes are unavailable under this restricted preset, so I will review via file/diff read tools and send findings/summaries through the inbox."* The workaround functioned for FX006-1 — review content reached the inbox correctly. The silence on FX006-2/3/4 is unrelated to the permission preset; it's the silent-death bug.
+
+### Verdict reconciliation (no companion to defer to for stages 2-4)
+
+Falling back to the skill's documented escape hatch: companion died mid-phase → log deviation, no `/plan-7-v2-code-review` recovery (skill explicitly says "Do not run /plan-7 after this skill" — running it would re-litigate FX006-1's APPROVE and add latency). For FX006-2/3/4, evidence in lieu of companion review:
+
+- **FX006-2**: 12/12 hook tests pass (5 new + 7 existing untouched); 184/184 full terminal suite; typecheck clean. The dossier-discovered scope expansion (replacing `isCurrentWorktree` with two flags; updating badge component) is documented in this log and called out in the FX006-2 commit message. Validation Record's Forward-Compatibility Matrix C5 ("FX005 existing tests no regression") satisfied — the 7 FX005-2 tests are byte-identical.
+- **FX006-3**: 2-line wiring; both call sites checked via grep; no other `useTerminalSessions` callers in the codebase. Test gate (`hook.user-higgs-bug` from FX006-2) verifies the call shape.
+- **FX006-4**: byte-identity guard explicit — the trailing-slash test (`overlay.toggle-from-worktree-trailing-slash`) is the assertion the dossier's CRITICAL hazard wanted. 186/186 tests pass; typecheck clean.
+
+No findings deferred or pending fix. The dossier's risk and rollback sections cover the pre-existing concerns (sanitize asymmetry, F001 mobile picker UI) that remain explicitly out-of-scope for FX006.
+
+### Companion magicWand
+
+None — companion never sent a magicWand or farewell. (Possible candidate based on observed pattern: a minih companion-reliability fix dossier paired with issues #24/#25 — but that's an *internal* minih concern, not a chainglass concern, and not a magicWand emitted by the agent itself.)
+
+
+**Acceptance criteria** (from dossier):
+- ✅ Mobile cold-load on higgs-jordo → `higgs-jordo` session (verified via `hook.user-higgs-bug` automated gate).
+- ✅ Desktop terminal page on higgs-jordo → `higgs-jordo` session (same gate; both call sites pass `worktreePath`).
+- ✅ Desktop backtick overlay → `higgs-jordo` (overlay refactor preserves byte-identity; `overlay.toggle-from-worktree` test).
+- ✅ Branch=worktree-folder workspaces (e.g. `084-random-enhancements-3`): no behavior change (folder-match resolves to same session as branch-match would).
+- ✅ Branch-only-named sessions: branch-match fallback kicks in (verified by `hook.branch-fallback`).
+- ✅ Phantom-URL `?session=osk-data` is preserved per FX005-2 (URL = canonical override; FX006 doesn't auto-correct).
+- ✅ All 7 FX005-2 tests pass unchanged.
+- ✅ All 6 FX005-1 sort tests pass unchanged.
+- ✅ ≥185 terminal-domain tests passing — actual: 186.
+

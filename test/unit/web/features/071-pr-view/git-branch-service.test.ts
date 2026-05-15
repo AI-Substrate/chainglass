@@ -16,8 +16,6 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import {
   getChangedFilesBranch,
-  getCurrentBranch,
-  getDefaultBaseBranch,
   getMergeBase,
   parseNameStatus,
 } from '@/features/071-pr-view/lib/git-branch-service';
@@ -47,48 +45,9 @@ afterEach(() => {
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
-describe('getCurrentBranch', () => {
-  /**
-   * Why: Header needs branch name display.
-   * Contract: Returns current branch name.
-   */
-  it('returns current branch name', async () => {
-    const branch = await getCurrentBranch(tmpDir);
-    expect(branch).toBe('main');
-  });
-
-  /**
-   * Why: Feature branches need correct names.
-   * Contract: Returns name after checkout.
-   */
-  it('returns feature branch name after checkout', async () => {
-    git('checkout -b feature/test');
-    const branch = await getCurrentBranch(tmpDir);
-    expect(branch).toBe('feature/test');
-  });
-
-  /**
-   * Why: Detached HEAD is a valid state.
-   * Contract: Returns 'HEAD' for detached state.
-   */
-  it('returns HEAD for detached state', async () => {
-    const sha = gitOutput('rev-parse HEAD');
-    git(`checkout ${sha}`);
-    const branch = await getCurrentBranch(tmpDir);
-    expect(branch).toBe('HEAD');
-  });
-});
-
-describe('getDefaultBaseBranch', () => {
-  /**
-   * Why: No remote configured — should fall back.
-   * Contract: Returns 'main' when no origin/HEAD.
-   */
-  it('falls back to main when no remote', async () => {
-    const base = await getDefaultBaseBranch(tmpDir);
-    expect(base).toBe('main');
-  });
-});
+// Plan 084 FX007 — getCurrentBranch + getDefaultBaseBranch lifted to
+// `_platform/git`. Their tests live in
+// `test/unit/web/features/_platform/git/git-cli.test.ts`.
 
 describe('getMergeBase', () => {
   /**

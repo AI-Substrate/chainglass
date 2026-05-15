@@ -202,6 +202,12 @@ export default function TerminalInner({
       if (ctrl && (event.key === 'v' || event.key === 'V')) return false;
       if (ctrl && event.shiftKey && (event.key === 'c' || event.key === 'C')) return false;
       if (event.shiftKey && event.key === 'Escape') return false;
+      // Backtick (`) closes the overlay — same UX as Shift+Esc. Returning
+      // false stops xterm from forwarding the keystroke to the PTY, so the
+      // bubbled keydown reaches the document-level overlay listener.
+      if (event.key === '`' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        return false;
+      }
       return true;
     });
 
@@ -499,12 +505,12 @@ export default function TerminalInner({
         </div>
       )}
       {copyModalText !== null && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/90">
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/90 p-3">
           <div
-            className="flex flex-col gap-3 rounded-lg border bg-background p-4 shadow-xl"
-            style={{ width: '100%', maxWidth: '95vw', maxHeight: '80vh' }}
+            className="flex flex-col gap-3 rounded-lg border bg-background p-4 shadow-xl w-full"
+            style={{ maxWidth: '720px', height: '80vh', maxHeight: '80vh' }}
           >
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between shrink-0">
               <span className="text-sm font-medium">Select and copy text below</span>
               <button
                 type="button"
@@ -515,15 +521,33 @@ export default function TerminalInner({
               </button>
             </div>
             <textarea
-              readOnly
               value={copyModalText}
-              className="flex-1 w-full rounded border bg-muted p-3 font-mono text-sm resize-none"
+              onChange={() => {
+                /* readOnly via onChange noop — `readOnly` attr triggers iOS
+                   to suppress the long-press Copy callout on some WebKit
+                   versions, so we keep the input editable-shaped but ignore
+                   edits. */
+              }}
+              className="flex-1 min-h-0 w-full rounded border bg-muted p-3 font-mono text-sm resize-none"
+              style={{
+                // iOS: ensure the textarea is selectable and shows the
+                // long-press Copy/Select-All callout.
+                WebkitUserSelect: 'text',
+                userSelect: 'text',
+                WebkitTouchCallout: 'default',
+              }}
               onFocus={(e) => {
-                e.target.select();
-                e.target.setSelectionRange(0, e.target.value.length);
+                // iOS Safari/Edge: select() is unreliable; defer to next
+                // frame and use setSelectionRange.
+                const el = e.currentTarget;
+                requestAnimationFrame(() => {
+                  el.setSelectionRange(0, el.value.length);
+                });
               }}
             />
-            <span className="text-xs text-muted-foreground">Long-press or Ctrl+A then copy</span>
+            <span className="text-xs text-muted-foreground shrink-0">
+              Long-press to Copy, or tap and Ctrl/⌘+A then copy
+            </span>
           </div>
         </div>
       )}

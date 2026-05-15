@@ -1,0 +1,38 @@
+
+## 2026-05-03T08:48:32.508Z — code-review-companion / 2026-05-03T17-52-52-872Z-c76e
+
+- runId: 2026-05-03T17-52-52-872Z-c76e
+- runDir: /Users/jordanknight/substrate/084-random-enhancements-3/agents/code-review-companion/runs/2026-05-03T17-52-52-872Z-c76e
+- summary: Companion oriented on Plan 084, then reviewed the Recent Changes Feed briefing and task commits T001 through bundled T009-T011. T001, T002, T003, T005, T006, and T009-T011 had no actionable findings. T004, T007, and T008 each produced one MEDIUM finding, all sent through the coordination inbox with summaries. The run stopped after the idle budget expired with no unresolved peer requests.
+- **magicWand** (target: coordination): Expose a `minih state doctor` or richer MCP validation error that shows the expected inside state schema and the rejected payload path when `state_set` or `state_transition` fails.
+- difficulties:
+  - [degrading] coordination: Both state_transition and state_set rejected simple valid status values such as reading and stopping with `state does not match inside state schema`. (workaround: Continued coordination through inbox messages and recorded statePublished=false in the final retrospective.)
+  - [annoying] config: The shell did not resolve MINIH_PROJECT_ROOT during initial orientation, so `cd "$MINIH_PROJECT_ROOT"` stayed in the run directory instead of the project root. (workaround: Used the repository root provided by the runtime environment context: /Users/jordanknight/substrate/084-random-enhancements-3.)
+
+## 2026-05-04T01:12:20.588Z — code-review-companion / 2026-05-04T09-48-40-912Z-0b20
+
+- runId: 2026-05-04T09-48-40-912Z-0b20
+- runDir: /Users/jordanknight/substrate/084-random-enhancements-3/agents/code-review-companion/runs/2026-05-04T09-48-40-912Z-0b20
+- summary: Reviewed the recent-changes-feed implementation stream across seed, live merge, previews, actions, keyboard/a11y, settings, entrypoints, documentation, and user-smoke fixes. Sent 15 findings total: several high-severity blockers were identified around filter toggling, server-action DI/content gates, spec drift for markdown/code previews, mobile action wiring, keyboard event hijacking, and a server-to-client module boundary violation; later clean reviews and approve-with-notes summaries were sent where fixes or limited-scope changes were acceptable.
+- **magicWand** (target: coordination): Add a minih companion command that writes the final report skeleton from the inbox transcript automatically, including task counts, finding IDs, ackOf values, and validation status.
+- difficulties:
+  - [degrading] coordination: state_transition consistently failed with a state-schema error, and state_set also rejected the final stopping status. (workaround: Used state_set for statuses it accepted and sent explicit inbox progress/farewell messages when final state publication failed.)
+  - [annoying] workflow: The final report had to be assembled manually from memory/transcript rather than from a structured finding log. (workaround: Maintained cumulative finding IDs in the conversation and mirrored them manually into report.json before validation.)
+
+> ⚠️ ## 2026-05-04T06:25:52.914Z — code-review-companion / 2026-05-04T16-16-02-885Z-9355
+>
+> - runId: 2026-05-04T16-16-02-885Z-9355
+> - runDir: /Users/jordanknight/substrate/084-random-enhancements-3/agents/code-review-companion/runs/2026-05-04T16-16-02-885Z-9355
+> - result: failed
+> - magicWand: (unavailable — run terminated as failed)
+> - stderr (last line): permission denied: kind=shell blocked by preset/overrides
+
+## 2026-05-09T03:41:38.151Z — code-review-companion / 2026-05-09T13-11-12-883Z-35ae
+
+- runId: 2026-05-09T13-11-12-883Z-35ae
+- runDir: /Users/jordanknight/substrate/084-random-enhancements-3/agents/code-review-companion/runs/2026-05-09T13-11-12-883Z-35ae
+- summary: Reviewed Plan 084 FX007 copy-repo-url across T001-T008 plus the final fixup commit. T001-T006 were approved cleanly after focused checks of domain scaffolding, pure URL building, git CLI wrappers, PR-view import lift, the security-critical repo-info API route, and clipboard handlers. T007 exposed a HIGH stale repoInfo bug during worktree switching, and T008 exposed PR-view documentation drift plus the earlier C4 drift; the final fixup commit 8fba56e5 closed all three findings before stop.
+- **magicWand** (target: coordination): Add a first-class finding lifecycle command such as resolve-finding: F002 <sha>, or a structured finding status field, so the outside actor can explicitly declare which fix commit closes which prior companion finding.
+- difficulties:
+  - [degrading] coordination: Publishing state transitions or some non-idle states returned 'state does not match inside state schema', even though idle state_set calls succeeded. (workaround: Used inbox progress, finding, and summary messages for observable status, and published idle when accepted.)
+  - [annoying] test: Every scoped Vitest run emitted tsconfig-paths warnings from generated .next/standalone and apps/cli/dist/web/standalone tsconfig files before reporting pass/fail. (workaround: Treated the warnings as pre-existing noise after confirming the targeted test files passed.)

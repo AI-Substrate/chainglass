@@ -4,9 +4,30 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 const MOCK_SESSIONS: TerminalSession[] = [
-  { name: '064-tmux', attached: 1, windows: 2, created: 1700000000, isCurrentWorktree: true },
-  { name: '063-login', attached: 0, windows: 1, created: 1699999000, isCurrentWorktree: false },
-  { name: '065-new', attached: 2, windows: 3, created: 1700001000, isCurrentWorktree: false },
+  {
+    name: '064-tmux',
+    attached: 1,
+    windows: 2,
+    created: 1700000000,
+    isWorktreeFolderMatch: true,
+    isBranchMatch: true,
+  },
+  {
+    name: '063-login',
+    attached: 0,
+    windows: 1,
+    created: 1699999000,
+    isWorktreeFolderMatch: false,
+    isBranchMatch: false,
+  },
+  {
+    name: '065-new',
+    attached: 2,
+    windows: 3,
+    created: 1700001000,
+    isWorktreeFolderMatch: false,
+    isBranchMatch: false,
+  },
 ];
 
 describe('TerminalSessionList', () => {
@@ -37,10 +58,10 @@ describe('TerminalSessionList', () => {
     /*
     Test Doc:
     - Why: Current worktree must be visually distinct for quick identification
-    - Contract: Session with isCurrentWorktree=true shows "current" badge
-    - Usage Notes: Badge only appears for the session matching the active worktree branch
+    - Contract: Session with isWorktreeFolderMatch || isBranchMatch shows "current" badge (FX006)
+    - Usage Notes: Badge appears when either the worktree-folder name OR branch name matches
     - Quality Contribution: Guards worktree-identification UX (AC-09)
-    - Worked Example: '064-tmux' with isCurrentWorktree=true => 'current' badge visible
+    - Worked Example: '064-tmux' with isWorktreeFolderMatch=true => 'current' badge visible
     */
     render(
       <TerminalSessionList

@@ -99,6 +99,64 @@ describe('readFileAction', () => {
     }
   });
 
+  it.each([
+    ['fy25-2026-05-05.zip'],
+    ['archive.tar'],
+    ['data.tar.gz'],
+    ['logs.tgz'],
+    ['legacy.7z'],
+    ['oldfiles.rar'],
+    ['payload.xz'],
+  ])(
+    'short-circuits archive %s as binary so > 5MB downloads bypass the text-size check',
+    async (filename) => {
+      // 6MB content — would trigger file-too-large if we fell through to the
+      // text-size branch. Archive short-circuit must come BEFORE the size
+      // check (this is the FX007 regression).
+      fs.setFile(`/workspace/${filename}`, 'x'.repeat(6 * 1024 * 1024));
+
+      const result = await readFileAction({
+        worktreePath: '/workspace',
+        filePath: filename,
+        fileSystem: fs,
+        pathResolver,
+      });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.isBinary).toBe(true);
+      }
+    }
+  );
+
+  it.each([
+    ['package.json', '{ "name": "x" }', 'json'],
+    ['config.yaml', 'name: x\n', 'yaml'],
+    ['config.toml', 'name = "x"\n', 'toml'],
+    ['data.xml', '<root>x</root>', 'xml'],
+    ['style.css', '.x { color: red; }', 'css'],
+    ['module.mjs', 'export const x = 1;', 'javascript'],
+    ['index.html', '<!doctype html><p>hi</p>', 'html'],
+  ])(
+    'returns text content (not binary) for structured-text format %s',
+    async (filename, content, expectedLang) => {
+      fs.setFile(`/workspace/${filename}`, content);
+      const result = await readFileAction({
+        worktreePath: '/workspace',
+        filePath: filename,
+        fileSystem: fs,
+        pathResolver,
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.isBinary).toBe(false);
+      if (!result.isBinary) {
+        expect(result.content).toBe(content);
+        expect(result.language).toBe(expectedLang);
+      }
+    }
+  );
+
   it('returns not-found error for missing files', async () => {
     const result = await readFileAction({
       worktreePath: '/workspace',

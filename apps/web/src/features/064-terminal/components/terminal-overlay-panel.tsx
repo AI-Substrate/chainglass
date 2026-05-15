@@ -64,12 +64,19 @@ export function TerminalOverlayPanel() {
     if (isOpen) measureRef.current?.();
   }, [isOpen]);
 
-  // Close on Escape or Shift+Escape
+  // Close on Escape, Shift+Escape, or backtick. Backtick closes only when
+  // pressed without modifiers — Ctrl+` / Cmd+` / Alt+` are reserved for
+  // OS / browser shortcuts and shouldn't trigger an overlay close.
   useEffect(() => {
     if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        e.preventDefault();
+        closeTerminal();
+        return;
+      }
+      if (e.key === '`' && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault();
         closeTerminal();
       }

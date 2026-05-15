@@ -21,6 +21,7 @@ import {
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
 import { NoteIndicatorDot } from '@/features/071-file-notes/components/note-indicator-dot';
+import type { RepoInfo } from '@/features/_platform/git';
 import { FileIcon, FolderIcon } from '@/features/_platform/themes';
 import { useResponsive } from '@/hooks/useResponsive';
 import {
@@ -32,6 +33,7 @@ import {
   FileText,
   FolderPlus,
   FolderTree,
+  Link as LinkIcon,
   Pencil,
   RefreshCw,
   StickyNote,
@@ -97,6 +99,12 @@ export interface FileTreeProps {
   onExpandedDirsChange?: (dirs: string[]) => void;
   onCopyFullPath?: (path: string) => void;
   onCopyRelativePath?: (path: string) => void;
+  /** Plan 084 FX007 — Copy host-aware web URL for the current branch (or commit when detached). */
+  onCopyRepoUrlCurrentRef?: (path: string) => void;
+  /** Plan 084 FX007 — Copy host-aware web URL for the workspace's default branch. */
+  onCopyRepoUrlDefaultBranch?: (path: string) => void;
+  /** Plan 084 FX007 — repo-info payload; menu items hide when null or `host === 'unknown'`. */
+  repoInfo?: RepoInfo | null;
   onCopyContent?: (filePath: string) => void;
   onCopyTree?: (dirPath: string) => void;
   onDownload?: (filePath: string) => void;
@@ -126,6 +134,9 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
     onExpandedDirsChange,
     onCopyFullPath,
     onCopyRelativePath,
+    onCopyRepoUrlCurrentRef,
+    onCopyRepoUrlDefaultBranch,
+    repoInfo,
     onCopyContent,
     onCopyTree,
     onDownload,
@@ -338,6 +349,9 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
           onExpand={onExpand}
           onCopyFullPath={onCopyFullPath}
           onCopyRelativePath={onCopyRelativePath}
+          onCopyRepoUrlCurrentRef={onCopyRepoUrlCurrentRef}
+          onCopyRepoUrlDefaultBranch={onCopyRepoUrlDefaultBranch}
+          repoInfo={repoInfo}
           onCopyContent={onCopyContent}
           onCopyTree={onCopyTree}
           onDownload={onDownload}
@@ -381,6 +395,9 @@ function TreeItem({
   onExpand,
   onCopyFullPath,
   onCopyRelativePath,
+  onCopyRepoUrlCurrentRef,
+  onCopyRepoUrlDefaultBranch,
+  repoInfo,
   onCopyContent,
   onCopyTree,
   onDownload,
@@ -401,6 +418,9 @@ function TreeItem({
   onExpand: (path: string) => void;
   onCopyFullPath?: (path: string) => void;
   onCopyRelativePath?: (path: string) => void;
+  onCopyRepoUrlCurrentRef?: (path: string) => void;
+  onCopyRepoUrlDefaultBranch?: (path: string) => void;
+  repoInfo?: RepoInfo | null;
   onCopyContent?: (filePath: string) => void;
   onCopyTree?: (dirPath: string) => void;
   onDownload?: (filePath: string) => void;
@@ -517,6 +537,20 @@ function TreeItem({
                     <FileText className="h-3.5 w-3.5 mr-2" />
                     Copy Relative Path
                   </ContextMenuItem>
+                  {repoInfo && repoInfo.host !== 'unknown' && (
+                    <>
+                      <ContextMenuItem onSelect={() => onCopyRepoUrlCurrentRef?.(entry.path)}>
+                        <LinkIcon className="h-3.5 w-3.5 mr-2" />
+                        {repoInfo.isDetached && repoInfo.currentSha !== null
+                          ? 'Copy URL (this commit)'
+                          : 'Copy URL (this branch)'}
+                      </ContextMenuItem>
+                      <ContextMenuItem onSelect={() => onCopyRepoUrlDefaultBranch?.(entry.path)}>
+                        <LinkIcon className="h-3.5 w-3.5 mr-2" />
+                        Copy URL (default branch)
+                      </ContextMenuItem>
+                    </>
+                  )}
                   <ContextMenuSeparator />
                   <ContextMenuItem onSelect={() => onCopyTree?.(entry.path)}>
                     <FolderTree className="h-3.5 w-3.5 mr-2" />
@@ -626,6 +660,9 @@ function TreeItem({
                 onExpand={onExpand}
                 onCopyFullPath={onCopyFullPath}
                 onCopyRelativePath={onCopyRelativePath}
+                onCopyRepoUrlCurrentRef={onCopyRepoUrlCurrentRef}
+                onCopyRepoUrlDefaultBranch={onCopyRepoUrlDefaultBranch}
+                repoInfo={repoInfo}
                 onCopyContent={onCopyContent}
                 onCopyTree={onCopyTree}
                 onDownload={onDownload}
@@ -727,6 +764,20 @@ function TreeItem({
             <FileText className="h-3.5 w-3.5 mr-2" />
             Copy Relative Path
           </ContextMenuItem>
+          {repoInfo && repoInfo.host !== 'unknown' && (
+            <>
+              <ContextMenuItem onSelect={() => onCopyRepoUrlCurrentRef?.(entry.path)}>
+                <LinkIcon className="h-3.5 w-3.5 mr-2" />
+                {repoInfo.isDetached && repoInfo.currentSha !== null
+                  ? 'Copy URL (this commit)'
+                  : 'Copy URL (this branch)'}
+              </ContextMenuItem>
+              <ContextMenuItem onSelect={() => onCopyRepoUrlDefaultBranch?.(entry.path)}>
+                <LinkIcon className="h-3.5 w-3.5 mr-2" />
+                Copy URL (default branch)
+              </ContextMenuItem>
+            </>
+          )}
           <ContextMenuSeparator />
           <ContextMenuItem onSelect={() => onCopyContent?.(entry.path)}>
             <ClipboardCopy className="h-3.5 w-3.5 mr-2" />

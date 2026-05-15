@@ -114,6 +114,27 @@ Check for console errors
 
 If you skip browser verification on UI work, visual regressions ship unnoticed.
 
+#### Compile-time verification: `just harness-verify <path>` (Plan 084 FX007)
+
+`tsc --noEmit` and `pnpm vitest run` are insufficient gates. They are happy with code that the Turbopack dev bundler refuses — e.g., a barrel `index.ts` that value-re-exports a server-only module (`node:child_process`, `node:fs`, native bindings) into a client chunk. That class of bug only surfaces when an actual page loads.
+
+After any task that touches:
+- A barrel / `index.ts` crossing the client / server line
+- An `app/` route file (page, layout, route handler)
+- A new module that imports `node:*` or other server-only dependencies
+
+…run the recipe against the affected page:
+
+```bash
+just harness-verify "/workspaces/<slug>/<page>"
+```
+
+The recipe HTTP-pings the page, captures console errors (filtered for HMR / favicon / GCM noise), and greps the dev-server's docker logs for Turbopack `⨯` markers within the recipe's window. Returns non-zero on failure, with the server-side error tail printed.
+
+Catches: chunking errors, parse errors, "Failed to compile", HTTP 5xx, real (non-noise) console errors. Generic — not specific to one feature.
+
+The wishlist entry that captures the lesson: `docs/plans/076-harness-workflow-runner/harness-wishlist.md` § W011.
+
 ### Harness Wishlist
 
 When you encounter friction — commands that fail, output that's unreadable, flows that are confusing — **add it to the wishlist**:
@@ -391,6 +412,21 @@ This is operational, not aspirational. FX002 (`console-logs` + `screenshot-all` 
 
 See `harness/README.md` for the full philosophy and agent creation guide.
 
+#### Always Run `/validate-v2` After Phase Authoring
+
+**Mandatory step in every plan-5/plan-6 cycle**: after `/plan-5-v2-phase-tasks-and-brief` (dossier authoring) AND after `/plan-6-v2-implement-phase` lands a phase, **run `/validate-v2` against the produced artifact** before declaring the phase done or moving to the next phase. This is non-negotiable — `/validate-v2` is a multi-agent forward-compatibility + cross-reference + completeness sweep that catches drift the authoring step won't see (line-number staleness, locked-contract violations, vitest-glob misses, AC-coverage omissions, downstream-consumer breakage, etc.).
+
+Cadence:
+
+| Step landed | Run next | Why |
+|-------------|----------|-----|
+| `/plan-5-v2-phase-tasks-and-brief` (or `--fix`) | `/validate-v2` against `tasks.md` (or fix dossier) | Catch line-number/contract drift before implementation starts |
+| `/plan-6-v2-implement-phase` lands a task or phase | `/validate-v2` against the changed source files (or the execution log) | Catch regression risk + forward-compat issues before code review |
+
+Skipping `/validate-v2` is allowed only for **trivial single-line fixes** (e.g., a typo in a doc comment). Anything bigger — including FX dossiers — runs through the validator. The 4-agent cost is small compared to a missed locked contract surfacing 2 phases later as rework.
+
+If `/validate-v2` reports CRITICAL or HIGH issues, fix them in the same session. MEDIUM/LOW issues can be acknowledged + deferred but must be logged in the artifact's Validation Record.
+
 #### Auto Code Review After Implementation
 
 After completing a `/plan-6-v2-implement-phase` run, **automatically trigger a code review** using the harness code-review agent:
@@ -408,6 +444,25 @@ cat $(just agent-report code-review) | jq .  # Read the full report
 ```
 
 If the verdict is `REQUEST_CHANGES`, address the findings before committing.
+
+#### Companion Mode — long-running review session (`code-review-companion`)
+
+For a multi-commit phase (vs. one-shot per file), use the **`code-review-companion`** agent installed at `agents/code-review-companion/`. It boots once, long-polls its inbox, reviews each commit ping inline (silent if fine), and writes a single farewell envelope at session end.
+
+The full operational protocol — Boot → Brief → Review-per-commit → Drain → Stop, plus inbox/state/retrospective semantics — is documented in the bundled minih README:
+
+```bash
+minih agent-readme            # Full doc (Companion mode + Power-On-Mode + coordination)
+minih agent info code-review-companion   # Agent-specific manifest, files, provenance
+```
+
+Key rules (do not skip):
+- **Brief once at session start** with plan path, hazards, and the subject pattern you'll use for review-requests.
+- **Fire-and-forget** at each `git commit` — ping `--type task` with `subject: "review-request: <task> <sha>"`. Don't block on a reply; the companion only replies if it finds issues.
+- **Always send `control:stop`** before declaring "done" so the farewell envelope writes (auto-harvest into `docs/retros/<slug>.md` only fires on stop; without it the companion idles up to 30min).
+- Use `--ack-of <id>` to thread replies (see `minih agent-readme` § Reply chains).
+
+Re-run `minih agent install /Users/jordanknight/substrate/minih/agents/code-review-companion` any time you edit the canonical source — minih tracks the local clone in `.minih-source.json` and upgrades in place.
 
 ```bash
 # Port allocation (unique per worktree)

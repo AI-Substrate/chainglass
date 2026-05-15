@@ -2,11 +2,14 @@
  * Plan 027: Central Domain Event Notification System
  * Plan 067: Event Popper — server.json port discovery
  * Plan 074: Workflow Execution Manager bootstrap
+ * Plan 084: Bootstrap-code auth — boot-time misconfig assertion + file write
  *
  * Next.js instrumentation hook — called once at server startup.
  * Starts the central notification system (filesystem watcher → SSE events).
  * Writes .chainglass/server.json so CLI tools can discover the server port.
  * Bootstraps WorkflowExecutionManager singleton for workflow execution from web UI.
+ * Bootstrap-code: asserts AUTH_SECRET / GitHub-OAuth wiring, ensures
+ * .chainglass/bootstrap-code.json exists for cookie HMAC + terminal-WS HKDF.
  *
  * See: https://nextjs.org/docs/app/building-your-application/optimizing/instrumentation
  */
@@ -19,11 +22,54 @@ const globalForExec = globalThis as typeof globalThis & {
   __workflowExecutionManagerInitialized?: boolean;
 };
 
+const globalForBootstrap = globalThis as typeof globalThis & {
+  __bootstrapCodeWritten?: boolean;
+};
+
 export async function register() {
   // CentralWatcherService uses Node.js APIs (chokidar, fs) — skip on Edge runtime.
   // console.log is intentional: this runs at process startup before the DI container
   // or ILogger are available. It's a one-time breadcrumb in the host process logs.
   if (process.env.NEXT_RUNTIME === 'nodejs') {
+    // Plan 084 Phase 2 — bootstrap-code: assert wiring + ensure file exists.
+    // process.exit() is Node-only; this branch already guards against Edge runtime.
+    const { checkBootstrapMisconfiguration, writeBootstrapCodeOnBoot } = await import(
+      './src/auth-bootstrap/boot'
+    );
+    const misconfig = checkBootstrapMisconfiguration(process.env);
+    if (!misconfig.ok) {
+      console.error('[bootstrap-code] FATAL:', misconfig.reason);
+      process.exit(1);
+    }
+    if (!globalForBootstrap.__bootstrapCodeWritten) {
+      globalForBootstrap.__bootstrapCodeWritten = true;
+      if (process.env.CHAINGLASS_CONTAINER === 'true') {
+        console.warn(
+          '[bootstrap-code] CHAINGLASS_CONTAINER=true: skipping boot-time file write; expecting .chainglass/bootstrap-code.json on a mounted volume.'
+        );
+      } else {
+        // Plan 084 FX003: walk up to the workspace root so `pnpm dev` (which
+        // runs Next at cwd=apps/web/) lands the file at
+        // <workspace-root>/.chainglass/bootstrap-code.json — the same path
+        // the popup tells operators to read. Wrapped in try/catch so a
+        // malformed parent-dir package.json or fs error during walk-up
+        // cannot crash boot; we fall back to raw process.cwd() (the
+        // pre-FX003 behavior) on any failure.
+        const { findWorkspaceRoot } = await import('@chainglass/shared/auth-bootstrap-code');
+        let cwd: string;
+        try {
+          cwd = findWorkspaceRoot(process.cwd());
+        } catch (err) {
+          console.warn(
+            '[bootstrap-code] FX003 findWorkspaceRoot failed; falling back to process.cwd():',
+            err
+          );
+          cwd = process.cwd();
+        }
+        await writeBootstrapCodeOnBoot(cwd);
+      }
+    }
+
     console.log('[central-notifications] instrumentation.register() called');
     const { startCentralNotificationSystem } = await import(
       './src/features/027-central-notify-events/start-central-notifications'
@@ -39,8 +85,18 @@ export async function register() {
       globalForEventPopper.__eventPopperServerInfoWritten = true;
 
       const { writeServerInfo, removeServerInfo } = await import('@chainglass/shared/event-popper');
+      const { findWorkspaceRoot } = await import('@chainglass/shared/auth-bootstrap-code');
       const { randomUUID } = await import('node:crypto');
-      const worktreePath = process.cwd();
+      // Plan 084 Phase 5 F002 fix — write at workspace root (paired with
+      // bootstrap-code.json per FX003), so `requireLocalAuth` and the CLI
+      // both find a single canonical `.chainglass/server.json`. Falls back
+      // to `process.cwd()` if walk-up fails (matches FX003 boot block).
+      let worktreePath: string;
+      try {
+        worktreePath = findWorkspaceRoot(process.cwd());
+      } catch {
+        worktreePath = process.cwd();
+      }
       const port = Number.parseInt(process.env.PORT ?? '3000', 10);
       const localToken = randomUUID();
 

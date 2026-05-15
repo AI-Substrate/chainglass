@@ -11,6 +11,7 @@
 
 import type { ReadFileResult } from '@/features/041-file-browser/services/file-actions';
 import { type TreeEntry, formatTree } from '@/features/041-file-browser/services/format-tree';
+import { type RepoInfo, buildFileUrl } from '@/features/_platform/git';
 import { useCallback } from 'react';
 import { toast } from 'sonner';
 
@@ -18,10 +19,17 @@ interface UseClipboardOptions {
   slug: string;
   worktreePath: string;
   readFile: (slug: string, worktreePath: string, filePath: string) => Promise<ReadFileResult>;
+  /**
+   * Plan 084 FX007 — repo-info payload from `/api/workspaces/[slug]/repo-info`.
+   * Optional: when null/undefined or `host === 'unknown'`, the two
+   * `handleCopyRepoUrl*` handlers no-op silently. (Render-time visibility
+   * gating lives in file-tree / changes-view per T007.)
+   */
+  repoInfo?: RepoInfo | null;
 }
 
 export function useClipboard(options: UseClipboardOptions) {
-  const { slug, worktreePath, readFile: readFileFn } = options;
+  const { slug, worktreePath, readFile: readFileFn, repoInfo } = options;
 
   const copyToClipboard = useCallback((text: string): void => {
     if (globalThis.isSecureContext && navigator.clipboard?.writeText) {
@@ -130,6 +138,58 @@ export function useClipboard(options: UseClipboardOptions) {
     [slug, worktreePath, readFileFn]
   );
 
+  /**
+   * Plan 084 FX007 — copy a host-aware web URL pinned to whatever ref the
+   * worktree currently has checked out.
+   *  - Branch: builds `/blob/<branch>/...` (GitHub) or `?path=...&version=GB<branch>` (ADO).
+   *  - Detached HEAD with non-null SHA: builds the commit-pinned variant.
+   *  - Detached HEAD with null SHA (zero-commit worktree): no-op (finding 14).
+   *  - Missing/unknown repoInfo: no-op (visibility gate lives in T007).
+   */
+  const handleCopyRepoUrlCurrentRef = useCallback(
+    (relativePath: string) => {
+      if (!repoInfo || repoInfo.host === 'unknown') return;
+      const ref = repoInfo.isDetached ? repoInfo.currentSha : repoInfo.currentBranch;
+      if (!ref) return; // detached + null SHA → silent no-op
+      const refType = repoInfo.isDetached ? ('commit' as const) : ('branch' as const);
+      const url = buildFileUrl(
+        {
+          host: repoInfo.host,
+          org: repoInfo.org,
+          project: repoInfo.project,
+          repo: repoInfo.repo,
+        },
+        { ref, refType, relativePath }
+      );
+      copyToClipboard(url);
+      toast.success('URL copied');
+    },
+    [repoInfo, copyToClipboard]
+  );
+
+  /**
+   * Plan 084 FX007 — copy a URL pinned to the workspace's default branch
+   * (e.g. `main` / `master`). Always uses the actual ref name returned by
+   * `getDefaultBaseBranch` server-side (per AC7).
+   */
+  const handleCopyRepoUrlDefaultBranch = useCallback(
+    (relativePath: string) => {
+      if (!repoInfo || repoInfo.host === 'unknown') return;
+      const url = buildFileUrl(
+        {
+          host: repoInfo.host,
+          org: repoInfo.org,
+          project: repoInfo.project,
+          repo: repoInfo.repo,
+        },
+        { ref: repoInfo.defaultBranch, refType: 'branch', relativePath }
+      );
+      copyToClipboard(url);
+      toast.success('URL copied');
+    },
+    [repoInfo, copyToClipboard]
+  );
+
   return {
     copyToClipboard,
     handleCopyFullPath,
@@ -137,5 +197,7 @@ export function useClipboard(options: UseClipboardOptions) {
     handleCopyContent,
     handleCopyTree,
     handleDownload,
+    handleCopyRepoUrlCurrentRef,
+    handleCopyRepoUrlDefaultBranch,
   };
 }

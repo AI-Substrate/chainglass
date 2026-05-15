@@ -16,7 +16,7 @@ GitHub-style change review overlay showing all worktree changes with collapsible
 - PR View types (PRViewFile, PRViewFileState, ComparisonMode, PRViewData)
 - Reviewed state JSONL persistence in `.chainglass/data/pr-view-state.jsonl`
 - Content hash computation via `git hash-object` for change detection
-- Git branch service (getCurrentBranch, getDefaultBaseBranch, getMergeBase, getChangedFilesBranch)
+- PR-view-specific git operations (`getMergeBase`, `getChangedFilesBranch`, `parseNameStatus`, `NAME_STATUS_MAP`). Cross-cutting `getCurrentBranch` / `getDefaultBaseBranch` were lifted to `_platform/git` in Plan 084 FX007 — see Dependencies.
 - Per-file diff stats via `git diff --numstat`
 - All-diffs fetcher (single git diff split by file header)
 - Diff aggregator assembling PRViewFile[] from all sources
@@ -38,9 +38,8 @@ GitHub-style change review overlay showing all worktree changes with collapsible
 | `markFileReviewed` | Function | Server actions | Persists reviewed state with content hash |
 | `computeContentHash` | Function | Server actions, aggregator | git hash-object wrapper |
 | `getAllDiffs` | Function | Aggregator | Single git diff split by file header |
-| `getCurrentBranch` | Function | Aggregator | git rev-parse --abbrev-ref HEAD |
-| `getDefaultBaseBranch` | Function | Aggregator | Auto-detect from origin/HEAD, fallback 'main' |
 | `getMergeBase` | Function | Aggregator | git merge-base for Branch mode |
+| `getChangedFilesBranch` | Function | Aggregator | `git diff <base>...HEAD --name-status` parser |
 | `getPerFileDiffStats` | Function | Aggregator | git diff --numstat parser |
 | `PRViewOverlayProvider` | Component | Layout wrapper | Context provider for overlay state |
 | `usePRViewOverlay` | Hook | Components | Access overlay open/close/toggle |
@@ -121,6 +120,7 @@ Primary: `apps/web/src/features/071-pr-view/`
 - `_platform/panel-layout` — `[data-terminal-overlay-anchor]` for overlay positioning (Phase 5)
 - `_platform/sdk` — `IUSDK`, `SDKContribution` for command registration (Phase 5)
 - `_platform/events` — `FileChangeProvider`, `useFileChanges` for SSE-driven live updates (Phase 6)
+- `_platform/git` — `getCurrentBranch`, `getDefaultBaseBranch` (lifted from local `git-branch-service.ts` in Plan 084 FX007 — pure import-path refactor, zero behaviour change)
 - `file-notes` — `NoteIndicatorDot`, `fetchFilesWithNotes`, `notes:changed` event for note indicators in file list (Phase 7)
 - Node.js `fs` — JSONL persistence
 
@@ -135,3 +135,4 @@ Primary: `apps/web/src/features/071-pr-view/`
 | 071 Phase 5 | Overlay UI. Provider, data hook, panel, header, file list, diff sections, diff area with scroll sync, SDK command, sidebar button, layout wrapper. | 2026-03-10 |
 | 071 Phase 6 | Live updates + branch mode. Mode toggle, switchMode, split loading, fetch generation counter, FileChangeProvider SSE subscription, smart refresh, "on default branch" message. Fixed pre-existing Biome errors. | 2026-03-10 |
 | 071 Phase 7 | Cross-domain integration: PR View file list shows NoteIndicatorDot via noteFilePaths prop, overlay fetches note file paths and listens for `notes:changed` event. | 2026-03-10 |
+| Plan 084 FX007 | Lifted `getCurrentBranch` + `getDefaultBaseBranch` from local `git-branch-service.ts` to new `_platform/git` sub-domain. Updated `diff-aggregator.ts` import path. Pure import-path refactor — PR-view-specific git ops (`getMergeBase`, `getChangedFilesBranch`, `parseNameStatus`, `NAME_STATUS_MAP`) remain local. PR-view test suite still green: 76 passed (4-case drop into `_platform/git/git-cli.test.ts`). | 2026-05-09 |

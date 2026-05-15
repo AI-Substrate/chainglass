@@ -14,6 +14,7 @@
  * Per ADR-0004: Uses constructor injection for testability.
  */
 
+import { EventEmitter } from 'node:events';
 import { WORKSPACE_COLOR_NAMES, WORKSPACE_EMOJI_SET } from '../constants/workspace-palettes.js';
 import { Workspace } from '../entities/workspace.js';
 import type { WorkspacePreferences } from '../entities/workspace.js';
@@ -37,6 +38,7 @@ import type {
   PreviewCreateWorktreeRequest,
   PreviewCreateWorktreeResult,
   RemoveWorkspaceResult,
+  WorkspaceMutationEvent,
   WorkspaceOperationResult,
 } from '../interfaces/workspace-service.interface.js';
 import type { WorktreeBootstrapRunner } from './worktree-bootstrap-runner.js';
@@ -51,6 +53,15 @@ import type { OrdinalSources } from './worktree-name.js';
 export class WorkspaceService implements IWorkspaceService {
   private readonly locks = new Map<string, Promise<void>>();
 
+  /**
+   * Mutation event emitter (Plan 084 — live-monitoring-rescan).
+   * Subscribers via `onMutation()` receive events after successful mutations.
+   * Emits are deferred via `setImmediate` so the caller's `await` resolves
+   * before any listener fires — prevents listener errors from breaking the
+   * mutation result.
+   */
+  private readonly mutationEmitter = new EventEmitter();
+
   constructor(
     private readonly registryAdapter: IWorkspaceRegistryAdapter,
     private readonly contextResolver: IWorkspaceContextResolver,
@@ -58,6 +69,36 @@ export class WorkspaceService implements IWorkspaceService {
     private readonly gitManager: IGitWorktreeManager,
     private readonly bootstrapRunner: WorktreeBootstrapRunner
   ) {}
+
+  /**
+   * Subscribe to workspace mutation events.
+   * @see IWorkspaceService.onMutation
+   */
+  onMutation(listener: (event: WorkspaceMutationEvent) => void): () => void {
+    this.mutationEmitter.on('mutation', listener);
+    let detached = false;
+    return () => {
+      if (detached) return;
+      detached = true;
+      this.mutationEmitter.off('mutation', listener);
+    };
+  }
+
+  /**
+   * Emit a mutation event to all subscribers (deferred via `setImmediate`).
+   *
+   * Wrapped in try/catch inside the deferred callback so a throwing listener
+   * cannot reach the original mutation's promise chain. (Plan 084 — AC-7)
+   */
+  private emitMutation(event: WorkspaceMutationEvent): void {
+    setImmediate(() => {
+      try {
+        this.mutationEmitter.emit('mutation', event);
+      } catch (err) {
+        console.error('[WorkspaceService] mutation listener threw', err);
+      }
+    });
+  }
 
   /**
    * Register a new workspace.
@@ -107,6 +148,11 @@ export class WorkspaceService implements IWorkspaceService {
       };
     }
 
+    this.emitMutation({
+      kind: 'workspace:added',
+      slug: workspace.slug,
+      path: workspace.path,
+    });
     return { success: true, workspace, errors: [] };
   }
 
@@ -121,6 +167,17 @@ export class WorkspaceService implements IWorkspaceService {
    * Remove a workspace from the registry.
    */
   async remove(slug: string): Promise<RemoveWorkspaceResult> {
+    // Capture the workspace path before removal so we can include it in the event.
+    // Best-effort: if the load fails (workspace already gone or registry corrupt),
+    // the path is omitted from the event but the mutation still proceeds.
+    let removedPath = '';
+    try {
+      const workspace = await this.registryAdapter.load(slug);
+      removedPath = workspace.path;
+    } catch {
+      // ignore — the remove() call below will report the not-found error
+    }
+
     const result = await this.registryAdapter.remove(slug);
 
     if (!result.ok) {
@@ -130,6 +187,7 @@ export class WorkspaceService implements IWorkspaceService {
       };
     }
 
+    this.emitMutation({ kind: 'workspace:removed', slug, path: removedPath });
     return { success: true, removedSlug: slug, errors: [] };
   }
 
@@ -307,6 +365,11 @@ export class WorkspaceService implements IWorkspaceService {
       };
     }
 
+    this.emitMutation({
+      kind: 'workspace:updated',
+      slug: updated.slug,
+      path: updated.path,
+    });
     return { success: true, errors: [] };
   }
 
@@ -517,6 +580,11 @@ export class WorkspaceService implements IWorkspaceService {
       worktreePath,
     });
 
+    this.emitMutation({
+      kind: 'worktree:created',
+      workspaceSlug: request.workspaceSlug,
+      worktreePath,
+    });
     return {
       status: 'created',
       branchName,

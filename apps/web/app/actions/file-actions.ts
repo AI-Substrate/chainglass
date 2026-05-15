@@ -135,6 +135,35 @@ export async function fetchRecentFiles(worktreePath: string, limit = 20) {
   return getRecentFiles(worktreePath, limit);
 }
 
+// Recent feed items — git log + fs.stat enrichment (Plan recent-changes-feed T012)
+export async function fetchRecentFeedItems(
+  worktreePath: string,
+  limit = 50,
+  categories?: ReadonlyArray<'image' | 'video' | 'audio' | 'markdown' | 'code' | 'other'>
+) {
+  await requireAuth();
+  const { getRecentFeedItems } = await import(
+    '../../src/features/041-file-browser/services/recent-feed-items'
+  );
+  return getRecentFeedItems(worktreePath, limit, { categories });
+}
+
+// File excerpt — server-truncated markdown/code or full file (Plan recent-changes-feed T020)
+export async function fetchFileExcerpt(
+  worktreePath: string,
+  filePath: string,
+  mode: 'excerpt' | 'full' = 'excerpt'
+) {
+  await requireAuth();
+  const container = getContainer();
+  const fileSystem = container.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
+  const pathResolver = container.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
+  const { getFileExcerpt } = await import(
+    '../../src/features/041-file-browser/services/file-excerpt'
+  );
+  return getFileExcerpt({ worktreePath, filePath, fileSystem, pathResolver, mode });
+}
+
 // File list — git ls-files + fs.stat for file search cache (Plan 049 Feature 2)
 export async function fetchFileList(
   worktreePath: string,

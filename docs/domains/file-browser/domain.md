@@ -168,6 +168,18 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 | `apps/web/src/features/041-file-browser/state/register.ts` | registerWorktreeState — multi-instance domain registration | Plan 053 P5 |
 | `apps/web/src/features/041-file-browser/state/worktree-publisher.tsx` | WorktreeStatePublisher — FileChangeHub → state bridge | Plan 053 P5 |
 | `apps/web/src/features/041-file-browser/components/worktree-state-subtitle.tsx` | WorktreeStateSubtitle — sidebar consumer component | Plan 053 P5 |
+| `apps/web/src/features/041-file-browser/hooks/use-flowspace-search.ts` | useFlowspaceSearch — semantic-search hook (`$` prefix); polling + spawning UX | Plan 084, FX001-5, FX002-1 |
+
+### Server-only infrastructure (under `apps/web/src/lib/server/`)
+
+These modules live outside `features/041-file-browser/` per repo convention but are owned by this domain's search surface. Catalogued here so the domain inventory is complete.
+
+| File | Role | Notes |
+|------|------|-------|
+| `apps/web/src/lib/server/flowspace-search-action.ts` | Next.js Server Action — entry point for `$` semantic search; discriminated union return | Plan 084, FX001-4, FX002-2, FX002-4 |
+| `apps/web/src/lib/server/flowspace-mcp-client.ts` | Long-lived `fs2 mcp` child process pool per worktree; HMR-safe via `globalThis` | Plan 084, FX001-1, FX001-3, FX002-4 |
+| `apps/web/src/lib/server/flowspace-result-mapper.ts` | Pure helpers: `extractFilePath`, `extractName`, `sanitizeSmartContent`, `mapEnvelope` | Plan 084 (extracted from legacy CLI action) |
+| `apps/web/src/lib/server/flowspace-log.ts` | Shared `[flowspace-mcp]` logger (`LOG_PREFIX`, `log()`) | FX002-5 |
 
 ## Dependencies
 
@@ -183,6 +195,7 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 | File CRUD services | `createFileService`, `createFolderService`, `deleteItemService`, `renameItemService` | Server-side file mutation with path security, duplicate detection, filename validation, and safety limits |
 | Search files | `useFileFilter`, `useFlowspaceSearch` | Client-side file search (substring/glob) and FlowSpace semantic code search |
 | Track changes | `ChangesView`, working changes service | Git status display with file badges and recent files |
+| Recent changes feed | `RecentFeedView`, `useRecentFeedState`, `getRecentFeedItems`, `getFileExcerpt` | Repo-wide media-rich main-panel view: vertical scrolling stack of most-recently-changed files with type-specific previews (images, videos with native controls, audio, markdown excerpts, code excerpts, deleted markers). Seeds from `git log` then live-merges via the existing `_platform/events` `file-changes` SSE channel (no new broadcaster). 9-action card affordances + roving-focus keyboard nav + `content-visibility:auto` virtualization. NOT a git history viewer; NOT a notification center |
 | Workspace identity | `WorkspaceProvider`, `useWorkspaceContext` | React context for workspace preferences, worktree identity, emoji/color, tab title |
 
 - `_platform/sdk` — IUSDK for publishing commands and settings to SDK surface
@@ -193,6 +206,7 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 - `_platform/themes` — `FileIcon`, `FolderIcon` for themed file-type icons in FileTree, ChangesView, BinaryPlaceholder, AudioViewer (Plan 073)
 - `_platform/workspace-url` — workspaceHref, param caches, NuqsAdapter
 - `_platform/panel-layout` — PanelShell, ExplorerPanel, LeftPanel, MainPanel for page layout
+- `_platform/git` — `parseRemote`, `buildFileUrl`, `getRemoteUrl`, `getCurrentBranch`, `getDefaultBaseBranch`, `getCurrentCommitSha`, `RepoInfo` for the right-click "Copy URL" menu items + `/api/workspaces/[slug]/repo-info` route (Plan 084 FX007)
 - `@chainglass/workflow` — IWorkspaceService, workspace entity, preferences
 - `@uiw/react-codemirror` — CodeMirror 6 editor (npm)
 - `nuqs` — URL state management (npm)
@@ -205,6 +219,8 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 
 | Plan | What Changed | Date |
 |------|-------------|------|
+| Plan 084 FX007 | Added "Copy URL (this branch)" + "Copy URL (default branch)" right-click menu items at all 3 render sites (file-tree leaf, file-tree folder, changes-view item). Host-aware: GitHub `/blob/<branch>/<path>`, Azure DevOps `?path=/<path>&version=GB<branch>`. Detached HEAD relabels "this branch" → "this commit" with SHA-pinned URL. Backed by new `_platform/git` sub-domain (lifted git CLI helpers + pure URL builder + new `getRemoteUrl` + `getCurrentCommitSha`). New `/api/workspaces/[slug]/repo-info` route returns parsed `RepoInfo` (no raw `remoteUrl` — credential-leak prevention). `useClipboard` extended with `repoInfo?` option + `handleCopyRepoUrlCurrentRef` / `handleCopyRepoUrlDefaultBranch` handlers. Worktree-switch refetch via `useEffect` deps `[slug, worktreePath]`. Two-layer route hardening: defensive (`startsWith('/')` + `!includes('..')`) + closed-set worktree check; independent bootstrap-cookie verify on top of `auth()`. | 2026-05-09 |
+| Plan 084 / recent-changes-feed | Added `Recent changes feed` Concept: repo-wide media-rich main-panel view via new `RecentFeedView` orchestrator + `useRecentFeedState` reducer (live merge with burst coalescing + pause buffer + filtering) + `getRecentFeedItems` service (git-log seed + fs.stat enrichment) + `getFileExcerpt` action (server-truncated markdown/code excerpt with secrets-pattern + path-traversal + content-type gating; 256KB hard cap on full mode). Extended `CardActions` additively (Open · Copy abs · overflow). 9-action `useFeedActions` hook (open/copyRel/copyAbs/download/copyFilename/copyMarkdownLink/revealInTree/copyFileContents/dismiss). Roving-focus keyboard nav. New `view: 'recent-feed'` URL param + branch in `browser-client.tsx`. 10 user settings under `fileBrowser.recentFeed.*` (LOCKED namespace per Constitution Gate). USDK command `file-browser.openRecentFeed` + keybinding `$mod+Shift+KeyU`. Three concurrent entrypoints (button + cmd + open-on-launch setting). Strictly consumes existing `_platform/events` `file-changes` SSE channel — NO new broadcaster, route, or watcher pipeline (spec § I1 binding). 90+ tests across reducer (34) + filter (18) + truncateMarkdown (11) + file-excerpt (32) + integration (17 seed + 5 fs.watch) + view-branch (7) + CardActions (10). Constitution P4 honored throughout: zero `vi.mock` of own-domain internals or `_platform/events`. | 2026-05-04 |
 | Plan 083-md-editor / Phase 5 | `FileViewerPanel` Rich-mode integration: `ViewerMode` union renamed `edit → source`, added `rich` member; `parseAsStringLiteral` extended with `'edit'` legacy alias + `useEffect` coercion in `browser-client.tsx`; 8 `'edit'` call sites migrated (4 literal renames, 4 conditional/type widenings); scrollToLine auto-switch guard widened to `!== 'source' && !== 'rich'`. Rich branch composes `MarkdownWysiwygEditorLazy` + `WysiwygToolbar` + `LinkPopover` inside a single `.md-wysiwyg-editor-mount` wrapper (Phase 6.6 error-boundary target + Phase 6.2 `data-emitted-markdown` test affordance). `ModeButton` extended with optional `disabled?` + `title?` props. Rich button gated on `language === 'markdown'` + `!exceedsRichSizeCap(content)` (200 KB decimal soft cap) with tooltip. Dismissible table warn banner (sessionStorage-per-file; quota/security/parse try/catch). `handleEditModeKeyDownCapture` extended to cover both `source` + `rich`; Save button + Cmd+S dispatch through unified `performSave` helper with optional `saveFileImpl?` DI prop (backward-compat for existing callers; used by `FakeSaveFile` integration tests per Constitution §4/§7). 22 unit tests green + 5 new integration tests (zero `vi.mock` on business logic). | 2026-04-19 |
 | Plan 041 Phase 1 | Feature folder scaffold, params infrastructure | 2026-02-22 |
 | Plan 041 Phase 2 | fileBrowserParams + cache, workspaceHref | 2026-02-22 |
@@ -231,3 +247,4 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 | Plan 073 Phase 4 | Replaced Lucide File/Folder/FolderOpen icons with themed FileIcon/FolderIcon from _platform/themes in FileTree, ChangesView, BinaryPlaceholder, AudioViewer. Badge+icon now coexist in ChangesView. | 2026-03-10 |
 | Plan 077 | Folder content preview gallery: FolderPreviewPanel with responsive grid, ImageCard (lazy-load thumbnails), VideoCard (hover-to-play), AudioCard (waveform), FolderCard (navigation), GenericCard (fallback). Breadcrumb nav, skeleton loading, empty/large-folder states. Extended FileEntry with size. Wired dir URL param into BrowserClient. | 2026-04-08 |
 | Plan 079 | Fix window titles reverting to "Chainglass": metadata template in root layout, generateMetadata in workspace layout, WorkspaceProvider default identity + setPageTitle API, usePageTitle hook, BrowserClient cleanup removal, 2-char prefix fallback | 2026-04-08 |
+| Plan 084 (flowspace-mcp-search) | `useFlowspaceSearch` hook: added `spawning: boolean` state with 1 s polling against the rewritten server action's `{ kind: 'spawning' \| 'ok' \| 'error' }` union (30 s ceiling). browser-client wires `flowspace.spawning` only for semantic mode. New SDK command `file-browser.restartFlowspace` ("Restart FlowSpace") added to contribution + register. Two new server-only modules under `apps/web/src/lib/server/`: `flowspace-mcp-client.ts` (long-lived per-worktree fs2 mcp child via `@modelcontextprotocol/sdk`; pool pinned to `globalThis` for HMR; idle reaper; mtime recycle) and `flowspace-result-mapper.ts` (extracted pure helpers). `flowspace-search-action.ts` rewritten to delegate to the MCP client. | 2026-04-26 |

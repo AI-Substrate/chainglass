@@ -2,11 +2,18 @@
  * File-browser SDK registration.
  *
  * Binds handlers to the static contribution manifest and registers
- * bootstrap-safe commands (copyPath). Commands needing React refs
- * (openFileAtLine) are registered via useEffect in browser-client.tsx.
+ * bootstrap-safe commands (copyPath). Commands needing React refs or
+ * page-level props (openFileAtLine, restartFlowspace) are registered via
+ * useEffect in browser-client.tsx.
  *
  * Per ADR-0009: registerXxxSDK(sdk) pattern.
  * Per Plan 047, Phase 6, Task T001.
+ *
+ * FX001-3: restartFlowspace was previously registered here with a handler
+ * that read `?worktree=` from window.location — but the dashboard URL pattern
+ * is `/workspaces/[slug]/browser?file=…`, no `worktree` query param. The
+ * command was a silent no-op. It now lives in browser-client.tsx where the
+ * live worktreePath prop is in scope.
  */
 
 import type { IUSDK } from '@chainglass/shared/sdk';

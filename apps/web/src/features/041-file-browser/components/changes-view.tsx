@@ -17,8 +17,9 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
+import type { RepoInfo } from '@/features/_platform/git';
 import { FileIcon } from '@/features/_platform/themes';
-import { Check, ClipboardCopy, Download, FileText } from 'lucide-react';
+import { Check, ClipboardCopy, Download, FileText, Link as LinkIcon } from 'lucide-react';
 import { useCallback, useRef } from 'react';
 import type { ChangedFile } from '../services/working-changes';
 
@@ -30,6 +31,12 @@ export interface ChangesViewProps {
   onDoubleSelect?: (filePath: string, wasSelected: boolean) => void;
   onCopyFullPath?: (path: string) => void;
   onCopyRelativePath?: (path: string) => void;
+  /** Plan 084 FX007 — Copy host-aware web URL for the current branch (or commit when detached). */
+  onCopyRepoUrlCurrentRef?: (path: string) => void;
+  /** Plan 084 FX007 — Copy host-aware web URL for the workspace's default branch. */
+  onCopyRepoUrlDefaultBranch?: (path: string) => void;
+  /** Plan 084 FX007 — repo-info payload; menu items hide when null or `host === 'unknown'`. */
+  repoInfo?: RepoInfo | null;
   onCopyContent?: (filePath: string) => void;
   onDownload?: (filePath: string) => void;
 }
@@ -50,6 +57,9 @@ export function ChangesView({
   onDoubleSelect,
   onCopyFullPath,
   onCopyRelativePath,
+  onCopyRepoUrlCurrentRef,
+  onCopyRepoUrlDefaultBranch,
+  repoInfo,
   onCopyContent,
   onDownload,
 }: ChangesViewProps) {
@@ -79,6 +89,9 @@ export function ChangesView({
             onDoubleSelect={onDoubleSelect}
             onCopyFullPath={onCopyFullPath}
             onCopyRelativePath={onCopyRelativePath}
+            onCopyRepoUrlCurrentRef={onCopyRepoUrlCurrentRef}
+            onCopyRepoUrlDefaultBranch={onCopyRepoUrlDefaultBranch}
+            repoInfo={repoInfo}
             onCopyContent={onCopyContent}
             onDownload={onDownload}
           />
@@ -101,6 +114,9 @@ export function ChangesView({
               onDoubleSelect={onDoubleSelect}
               onCopyFullPath={onCopyFullPath}
               onCopyRelativePath={onCopyRelativePath}
+              onCopyRepoUrlCurrentRef={onCopyRepoUrlCurrentRef}
+              onCopyRepoUrlDefaultBranch={onCopyRepoUrlDefaultBranch}
+              repoInfo={repoInfo}
               onCopyContent={onCopyContent}
               onDownload={onDownload}
               muted
@@ -120,6 +136,9 @@ function ChangeFileItem({
   onDoubleSelect,
   onCopyFullPath,
   onCopyRelativePath,
+  onCopyRepoUrlCurrentRef,
+  onCopyRepoUrlDefaultBranch,
+  repoInfo,
   onCopyContent,
   onDownload,
   muted,
@@ -131,6 +150,9 @@ function ChangeFileItem({
   onDoubleSelect?: (path: string, wasSelected: boolean) => void;
   onCopyFullPath?: (path: string) => void;
   onCopyRelativePath?: (path: string) => void;
+  onCopyRepoUrlCurrentRef?: (path: string) => void;
+  onCopyRepoUrlDefaultBranch?: (path: string) => void;
+  repoInfo?: RepoInfo | null;
   onCopyContent?: (filePath: string) => void;
   onDownload?: (filePath: string) => void;
   muted?: boolean;
@@ -188,6 +210,20 @@ function ChangeFileItem({
           <FileText className="h-3.5 w-3.5 mr-2" />
           Copy Relative Path
         </ContextMenuItem>
+        {repoInfo && repoInfo.host !== 'unknown' && (
+          <>
+            <ContextMenuItem onSelect={() => onCopyRepoUrlCurrentRef?.(filePath)}>
+              <LinkIcon className="h-3.5 w-3.5 mr-2" />
+              {repoInfo.isDetached && repoInfo.currentSha !== null
+                ? 'Copy URL (this commit)'
+                : 'Copy URL (this branch)'}
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={() => onCopyRepoUrlDefaultBranch?.(filePath)}>
+              <LinkIcon className="h-3.5 w-3.5 mr-2" />
+              Copy URL (default branch)
+            </ContextMenuItem>
+          </>
+        )}
         <ContextMenuSeparator />
         <ContextMenuItem onSelect={() => onCopyContent?.(filePath)}>
           <ClipboardCopy className="h-3.5 w-3.5 mr-2" />

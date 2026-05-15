@@ -60,6 +60,10 @@
     "./question-popper": {
       "import": "./dist/question-popper/index.js",
       "types": "./dist/question-popper/index.d.ts"
+    },
+    "./auth-bootstrap-code": {
+      "import": "./dist/auth-bootstrap-code/index.js",
+      "types": "./dist/auth-bootstrap-code/index.d.ts"
     }
   },
   "scripts": {

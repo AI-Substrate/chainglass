@@ -11,6 +11,7 @@
  * to registered adapters. Domain knowledge lives entirely in adapters.
  */
 
+import { dirname } from 'node:path';
 import type { IFileSystem, ILogger } from '@chainglass/shared';
 import type {
   FileWatcherEvent,
@@ -101,18 +102,37 @@ export class CentralWatcherService implements ICentralWatcherService {
       sourceWatcherCount: this.sourceWatchers.size,
     });
 
-    // Create registry watcher
+    // Create registry watcher (Plan 084 — live-monitoring-rescan).
+    //
+    // We watch the PARENT DIRECTORY of the registry file rather than the file
+    // itself. The registry adapter writes via atomic rename (`writeFile(.tmp)` +
+    // `rename(.tmp, target)`) which unlinks the original inode. `fs.watch` on a
+    // single file is bound to the inode and goes stale after the first rename;
+    // watching the parent directory survives atomic-rename writes because the
+    // directory's inode is stable.
+    //
+    // Both `change` and `add` events are wired: depending on the platform and
+    // whether the file existed at watcher start, an atomic rename can land as
+    // either event. The path filter keeps us scoped to just the registry file.
+    const registryDir = dirname(this.registryPath);
     this.registryWatcher = this.fileWatcherFactory.create({
       ignoreInitial: true,
       atomic: true,
       awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 100 },
     });
-    this.registryWatcher.add(this.registryPath);
-    this.registryWatcher.on('change', () => {
-      this.rescan().catch((err) => {
-        this.logError('Rescan triggered by registry watcher failed', err);
-      });
-    });
+    this.registryWatcher.add(registryDir);
+    const onRegistryEvent = (pathOrError: string | Error): void => {
+      // Path filter: NativeFileWatcherAdapter emits absolute paths (via resolve()
+      // in its add()), so direct equality is sufficient. Stale `.tmp` files left
+      // behind by a failed rename are rejected by exact match.
+      if (typeof pathOrError === 'string' && pathOrError === this.registryPath) {
+        this.rescan().catch((err) => {
+          this.logError('Rescan triggered by registry watcher failed', err);
+        });
+      }
+    };
+    this.registryWatcher.on('change', onRegistryEvent);
+    this.registryWatcher.on('add', onRegistryEvent);
     this.registryWatcher.on('error', (pathOrError) => {
       this.logError(
         'Registry watcher error',

@@ -31,18 +31,32 @@ const EXTENSION_MAP: Record<string, ContentTypeInfo> = {
 
   // Video
   mp4: { category: 'video', mimeType: 'video/mp4' },
+  m4v: { category: 'video', mimeType: 'video/mp4' },
   webm: { category: 'video', mimeType: 'video/webm' },
   mov: { category: 'video', mimeType: 'video/quicktime' },
   avi: { category: 'video', mimeType: 'video/x-msvideo' },
   mkv: { category: 'video', mimeType: 'video/x-matroska' },
+  mpg: { category: 'video', mimeType: 'video/mpeg' },
+  mpeg: { category: 'video', mimeType: 'video/mpeg' },
+  ogv: { category: 'video', mimeType: 'video/ogg' },
+  '3gp': { category: 'video', mimeType: 'video/3gpp' },
+  '3g2': { category: 'video', mimeType: 'video/3gpp2' },
+  wmv: { category: 'video', mimeType: 'video/x-ms-wmv' },
+  flv: { category: 'video', mimeType: 'video/x-flv' },
 
   // Audio
   mp3: { category: 'audio', mimeType: 'audio/mpeg' },
   wav: { category: 'audio', mimeType: 'audio/wav' },
   ogg: { category: 'audio', mimeType: 'audio/ogg' },
+  oga: { category: 'audio', mimeType: 'audio/ogg' },
+  opus: { category: 'audio', mimeType: 'audio/ogg' },
   flac: { category: 'audio', mimeType: 'audio/flac' },
   aac: { category: 'audio', mimeType: 'audio/aac' },
   m4a: { category: 'audio', mimeType: 'audio/mp4' },
+  m4b: { category: 'audio', mimeType: 'audio/mp4' },
+  wma: { category: 'audio', mimeType: 'audio/x-ms-wma' },
+  aiff: { category: 'audio', mimeType: 'audio/aiff' },
+  aif: { category: 'audio', mimeType: 'audio/aiff' },
 
   // HTML (rendered in sandboxed iframe)
   html: { category: 'html', mimeType: 'text/html' },

@@ -23,6 +23,7 @@ flowchart LR
     devTools["🛠️ _platform/dev-tools<br/>StateInspector<br/>useStateInspector<br/>useStateChangeLog"]:::infra
     auth["🔐 _platform/auth<br/>auth() · signIn() · signOut()<br/>requireAuth() · useAuth()<br/>middleware protection<br/>isUserAllowed()<br/>SessionProvider"]:::infra
     themes["🎨 _platform/themes<br/>resolveFileIcon · resolveFolderIcon<br/>FileIcon · FolderIcon<br/>themes.iconTheme setting"]:::infra
+    gitPlatform["🪪 _platform/git<br/>parseRemote · buildFileUrl<br/>getRemoteUrl · getCurrentBranch<br/>getDefaultBaseBranch · getCurrentCommitSha<br/>RepoHost · Remote · BuildOptions · RepoInfo"]:::new
 
     %% Business domains
     fileBrowser["📁 file-browser<br/>Browser page · FileTree<br/>CodeEditor re-export<br/>FileViewerPanel<br/>WorkspaceContext · Settings"]:::business
@@ -139,6 +140,18 @@ flowchart LR
     activityLog -->|"PanelShell<br/>overlay anchor"| panels
     terminal -->|"appendActivityLogEntry()<br/>shouldIgnorePaneTitle()"| activityLog
 
+    %% Plan 084 Phase 4 — terminal consumes _platform/auth for unified signing-key
+    %% derivation (HKDF-from-bootstrap-code or AUTH_SECRET) and bootstrap-cookie verify.
+    %% Verified Phase 7 (2026-05-03): edge present, contracts accurate, Plan 084 attribution preserved.
+    terminal -->|"activeSigningSecret(cwd)<br/>findWorkspaceRoot()<br/>verifyCookieValue()<br/>BOOTSTRAP_COOKIE_NAME"| auth
+    %% Plan 084 Phase 4 — terminal-WS sidecar reads server.json for active Next port (Origin allowlist).
+    terminal -->|"readServerInfo() — Next port discovery"| externalEvents
+
+    %% Plan 084 Phase 5 — _platform/events sink routes (event-popper/*, tmux/events) consume
+    %% _platform/auth for the requireLocalAuth() composite cookie + X-Local-Token check.
+    %% Verified Phase 7 (2026-05-03): edge present, contracts accurate, Plan 084 attribution preserved.
+    events -->|"getBootstrapCodeAndKey()<br/>verifyCookieValue()<br/>BOOTSTRAP_COOKIE_NAME<br/>findWorkspaceRoot()"| auth
+
     %% External Events dependencies (Plan 067)
     externalEvents -->|"WorkspaceDomain.EventPopper"| events
 
@@ -167,6 +180,11 @@ flowchart LR
     fileBrowser -->|"NoteIndicatorDot<br/>useNotesOverlay<br/>fetchFilesWithNotes<br/>notes:changed"| fileNotes
     prView -->|"NoteIndicatorDot<br/>fetchFilesWithNotes"| fileNotes
     workspace -->|"requireAuth()<br/>middleware protection"| auth
+
+    %% Plan 084 FX007 — _platform/git infrastructure consumed by file-browser (api/repo-info,
+    %% useClipboard) and pr-view (diff-aggregator imports lifted helpers).
+    fileBrowser -->|"parseRemote · buildFileUrl<br/>getRemoteUrl · getCurrentBranch<br/>getDefaultBaseBranch · getCurrentCommitSha<br/>RepoInfo"| gitPlatform
+    prView -->|"getCurrentBranch<br/>getDefaultBaseBranch"| gitPlatform
 ```
 
 ## Legend
@@ -205,4 +223,5 @@ flowchart LR
 | file-notes | INoteService, NoteLinkType, NoteFilter, FakeNoteService, JsonlNoteService, NotesOverlayPanel, NoteModal, NoteIndicatorDot, BulkDeleteDialog, useNotes, useNotesOverlay, registerFileNotesSDK, registerNotesCommands, GET/POST/PATCH/DELETE /api/file-notes | file-browser, CLI, pr-view | requireAuth(), auth(), overlay anchor, workspaceHref(), toast(), registerFileNotesSDK | auth, panel-layout, workspace-url, events, sdk | 🟠 New |
 | pr-view | PRViewFile, PRViewData, ComparisonMode, PRViewFileState, PRViewOverlayProvider, usePRViewOverlay, usePRViewData, registerPRViewSDK, aggregatePRViewData, getAllDiffs, GET/POST/DELETE /api/pr-view | file-browser (future) | getWorkingChanges(), requireAuth(), auth(), DiffViewer, overlay anchor, registerPRViewSDK, FileChangeProvider, useFileChanges, NoteIndicatorDot, fetchFilesWithNotes | file-browser, auth, viewer, panel-layout, sdk, events, file-notes | 🟠 New |
 | _platform/external-events | EventPopperRequest, EventPopperResponse, generateEventId, readServerInfo, writeServerInfo, localhostGuard, detectTmuxContext, WorkspaceDomain.EventPopper | question-popper | WorkspaceDomain | events | 🟠 New |
+| _platform/git | parseRemote, buildFileUrl, getRemoteUrl, getCurrentBranch, getDefaultBaseBranch, getCurrentCommitSha, RepoHost, Remote, BuildOptions, RepoInfo | file-browser, pr-view | — (zero deps; pure helpers + Node child_process) | — | 🟠 New |
 | question-popper | IQuestionPopperService, QuestionPayloadSchema, AnswerPayloadSchema, AlertPayloadSchema, FakeQuestionPopperService, QuestionIn, QuestionOut, AlertIn | (Phase 3: API routes) | EventPopperRequest, generateEventId, ICentralEventNotifier | external-events, events | 🟠 New |

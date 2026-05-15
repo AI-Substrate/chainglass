@@ -2,6 +2,22 @@
 
 This guide walks you through creating a GitHub OAuth App for Chainglass authentication.
 
+> **Composition with bootstrap-code** (Plan 084):
+> GitHub OAuth is **not** the first auth layer. The
+> [bootstrap-code popup](./bootstrap-code.md) is the always-on outer gate; every
+> fresh browser must enter the bootstrap code before the UI renders, regardless
+> of whether GitHub OAuth is configured. GitHub OAuth, when enabled, layers
+> behind that as an optional second factor.
+>
+> If you don't want to set up GitHub OAuth (e.g. personal/dev use), set
+> `DISABLE_GITHUB_OAUTH=true` in `apps/web/.env.local` — the bootstrap gate
+> stays on by itself and `AUTH_SECRET` becomes optional (the cookie HMAC key
+> is HKDF-derived from the bootstrap code in that mode). See
+> [bootstrap-code.md § 5 — Composition with GitHub OAuth](./bootstrap-code.md#5--composition-with-github-oauth)
+> for the full configuration matrix.
+>
+> Continue reading **only if you want GitHub OAuth on top of the bootstrap gate.**
+
 ## Prerequisites
 
 - A GitHub account

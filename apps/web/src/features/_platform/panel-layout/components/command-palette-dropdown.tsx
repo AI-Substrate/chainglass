@@ -114,6 +114,8 @@ interface CommandPaletteDropdownProps {
   /** FlowSpace search results (Plan 051) */
   codeSearchResults?: CodeSearchResult[] | null;
   codeSearchLoading?: boolean;
+  /** Plan 084: cold-start of the long-lived fs2 mcp child for this worktree. */
+  codeSearchSpawning?: boolean;
   codeSearchError?: string | null;
   codeSearchAvailability?: CodeSearchAvailability;
   codeSearchGraphAge?: string | null;
@@ -349,6 +351,7 @@ export const CommandPaletteDropdown = forwardRef<
     workingChanges,
     codeSearchResults,
     codeSearchLoading,
+    codeSearchSpawning,
     codeSearchError,
     codeSearchAvailability,
     codeSearchGraphAge,
@@ -511,6 +514,13 @@ export const CommandPaletteDropdown = forwardRef<
           <div className="px-3 py-4 text-center text-sm text-muted-foreground">
             <Hash className="inline h-4 w-4 mr-1 -mt-0.5" />
             FlowSpace semantic search
+          </div>
+        ) : codeSearchSpawning ? (
+          <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+            <AsciiSpinner active /> Loading FlowSpace, please wait…
+            <div className="mt-1 text-xs text-muted-foreground/70">
+              first search loads the code graph
+            </div>
           </div>
         ) : codeSearchLoading ? (
           <div className="px-3 py-4 text-center text-sm text-muted-foreground">

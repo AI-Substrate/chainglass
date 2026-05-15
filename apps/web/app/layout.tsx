@@ -6,6 +6,7 @@ import '@xyflow/react/dist/style.css';
 import './globals.css';
 
 import { Providers } from '@/components/providers';
+import { BootstrapGate } from '@/features/063-login/components/bootstrap-gate';
 import { ThemeProvider } from 'next-themes';
 
 import type { Metadata, Viewport } from 'next';
@@ -46,7 +47,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           enableSystem
           disableTransitionOnChange
         >
-          <Providers>{children}</Providers>
+          <Providers>
+            <BootstrapGate>{children}</BootstrapGate>
+          </Providers>
         </ThemeProvider>
       </body>
     </html>
