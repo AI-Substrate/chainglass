@@ -3,7 +3,7 @@
 **Fix**: [FX011-html-viewer-asset-token.md](./FX011-html-viewer-asset-token.md)
 **Plan**: [auth-bootstrap-code-plan.md](../auth-bootstrap-code-plan.md)
 **Generated**: 2026-05-16
-**Status**: Ready
+**Status**: Landed
 
 ---
 
@@ -46,8 +46,7 @@ stateDiagram-v2
     S3 --> S4
     S4 --> [*]
 
-    class S1,S2,S3 done
-    class S4 active
+    class S1,S2,S3,S4 done
 ```
 
 **Legend**: grey = pending | yellow = active | red = blocked/needs input | green = done
@@ -61,7 +60,7 @@ stateDiagram-v2
 - [x] **Stage 1: Token primitives** — Add `buildAssetToken` / `verifyAssetToken` HMAC helpers in `@chainglass/shared/auth-bootstrap-code` mirroring the existing cookie sign/verify pattern, with full unit-test coverage. (`packages/shared/src/auth-bootstrap-code/asset-token.ts` — new file)
 - [x] **Stage 2: Mint endpoint** — Add `POST /api/bootstrap/asset-token` that reads worktree from the request body and returns a 10-min token bound to it. Cookie-gated (not in `AUTH_BYPASS_ROUTES`). (`apps/web/app/api/bootstrap/asset-token/route.ts` — new file)
 - [x] **Stage 3: Proxy + route accept token** — Teach `bootstrapCookieStage` to `'bypass'` for `/api/workspaces/<slug>/files/raw` when `?_at=<token>` and `?worktree=` match; teach the raw-route handler to skip `auth()` when the same token is valid. (`apps/web/proxy.ts`, `apps/web/app/api/workspaces/[slug]/files/raw/route.ts`)
-- [ ] **Stage 4: HtmlViewer fetches + splices** — On mount, parent fetches a token via the mint endpoint and HtmlViewer's URL rewriter appends `&_at=<token>` to each rewritten asset URL. Iframe sandbox stays strict (`allow-scripts` only). (`apps/web/src/features/041-file-browser/components/html-viewer.tsx`)
+- [x] **Stage 4: HtmlViewer fetches + splices** — On mount, parent fetches a token via the mint endpoint and HtmlViewer's URL rewriter appends `&_at=<token>` to each rewritten asset URL. Iframe sandbox stays strict (`allow-scripts` only). (`apps/web/src/features/041-file-browser/components/html-viewer.tsx`)
 
 ---
 
@@ -131,4 +130,4 @@ flowchart LR
 - [x] FX011-1: Add `buildAssetToken` / `verifyAssetToken` primitives + unit tests
 - [x] FX011-2: Add `POST /api/bootstrap/asset-token` mint route + unit/envmatrix tests
 - [x] FX011-3: Wire token recognition into proxy + raw-file route handler + tests
-- [ ] FX011-4: Modify HtmlViewer to fetch token and splice into rewritten URLs + manual verification
+- [x] FX011-4: Modify HtmlViewer to fetch token and splice into rewritten URLs + manual verification

@@ -7,9 +7,18 @@
  * (img src, link href, script src) to use the raw file API, then
  * renders the rewritten HTML as a blob URL in a sandboxed iframe.
  *
- * This mirrors the approach in MarkdownPreview for resolving relative
- * image paths — without rewriting, blob: URLs have no path context
- * so relative references fail.
+ * FX011: every rewritten URL also carries `&_at=<token>` — a short-
+ * lived HMAC asset token minted via `/api/bootstrap/asset-token`. The
+ * sandbox's opaque origin strips the HttpOnly bootstrap cookie from
+ * sub-resource requests, so the iframe needs an alternate credential
+ * to authenticate `<img>` / `<link>` / `<script>` loads against the
+ * raw-file route. Sandbox stays strict (`allow-scripts` only — DO NOT
+ * add `allow-same-origin`; that would let HTML drive the app API as
+ * the authenticated user).
+ *
+ * Fetch ordering is sequential: token FIRST, HTML second. If token
+ * mint fails we render the existing error UI rather than an iframe
+ * with broken images.
  */
 
 import { AsciiSpinner } from '@/features/_platform/panel-layout';
@@ -42,15 +51,21 @@ function resolveRelativePath(currentDir: string, relativePath: string): string {
  * Rewrite relative asset URLs in HTML string to use the raw file API.
  * URLs are made fully absolute (including origin) so they work inside
  * sandboxed blob: iframes which have an opaque origin.
+ *
+ * Exported for unit testing. Each rewritten URL receives `&_at=<token>`
+ * so the sandboxed iframe's sub-resource requests authenticate without
+ * the HttpOnly bootstrap cookie.
  */
-function rewriteRelativeUrls(
+export function rewriteRelativeUrls(
   html: string,
   currentFilePath: string,
   rawFileBaseUrl: string,
-  origin: string
+  origin: string,
+  token: string
 ): string {
   const currentDir = currentFilePath.substring(0, currentFilePath.lastIndexOf('/'));
   const absoluteBase = `${origin}${rawFileBaseUrl}`;
+  const tokenParam = `&_at=${encodeURIComponent(token)}`;
 
   // Match src="..." or href="..." (not starting with http, //, data:, #, or /)
   return html.replace(
@@ -66,9 +81,22 @@ function rewriteRelativeUrls(
         return match;
       }
       const resolved = resolveRelativePath(currentDir, url);
-      return `${prefix}${absoluteBase}&file=${encodeURIComponent(resolved)}${suffix}`;
+      return `${prefix}${absoluteBase}&file=${encodeURIComponent(resolved)}${tokenParam}${suffix}`;
     }
   );
+}
+
+/** Extract `worktree` query param from the raw-file URL. */
+function extractWorktree(src: string): string | null {
+  try {
+    const url = new URL(
+      src,
+      typeof window !== 'undefined' ? window.location.origin : 'http://localhost'
+    );
+    return url.searchParams.get('worktree');
+  } catch {
+    return null;
+  }
 }
 
 export function HtmlViewer({ src, currentFilePath, rawFileBaseUrl }: HtmlViewerProps) {
@@ -79,28 +107,64 @@ export function HtmlViewer({ src, currentFilePath, rawFileBaseUrl }: HtmlViewerP
     const controller = new AbortController();
     let revoke: string | null = null;
 
-    fetch(src, { signal: controller.signal })
-      .then((res) => res.text())
-      .then((html) => {
-        if (controller.signal.aborted) return;
+    async function loadAndRewrite(): Promise<void> {
+      // FX011: token mint MUST happen before HTML fetch so the rewriter
+      // has the token when it splices URLs. Race-free sequential flow.
+      // No-token path falls back to no-rewrite (used when context lacks
+      // currentFilePath/rawFileBaseUrl, e.g., tests).
+      let token: string | null = null;
+      const worktree = extractWorktree(src);
 
-        // Rewrite relative URLs if we have the context to do so
-        // Must use absolute URLs (with origin) because the sandboxed blob:
-        // iframe has an opaque origin and can't resolve root-relative paths
-        const rewritten =
-          currentFilePath && rawFileBaseUrl
-            ? rewriteRelativeUrls(html, currentFilePath, rawFileBaseUrl, window.location.origin)
-            : html;
+      if (currentFilePath && rawFileBaseUrl && worktree) {
+        const mintRes = await fetch('/api/bootstrap/asset-token', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ worktree }),
+          signal: controller.signal,
+        });
+        if (!mintRes.ok) {
+          if (!controller.signal.aborted) setError(true);
+          return;
+        }
+        const minted = (await mintRes.json()) as { token?: string };
+        if (!minted.token) {
+          if (!controller.signal.aborted) setError(true);
+          return;
+        }
+        token = minted.token;
+        // TODO(FX011 v2): proactive token refresh when expiry < 60s,
+        // e.g., on visibility-change. For v1 the 10-min TTL covers
+        // typical viewing sessions; expired tokens surface as the
+        // browser's broken-image icon.
+      }
 
-        const blob = new Blob([rewritten], { type: 'text/html' });
-        const url = URL.createObjectURL(blob);
-        revoke = url;
-        setBlobUrl(url);
-      })
-      .catch((e) => {
-        if (e instanceof DOMException && e.name === 'AbortError') return;
-        setError(true);
-      });
+      const bodyRes = await fetch(src, { signal: controller.signal });
+      const html = await bodyRes.text();
+      if (controller.signal.aborted) return;
+
+      const rewritten =
+        currentFilePath && rawFileBaseUrl && token
+          ? rewriteRelativeUrls(
+              html,
+              currentFilePath,
+              rawFileBaseUrl,
+              window.location.origin,
+              token
+            )
+          : html;
+
+      const blob = new Blob([rewritten], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      revoke = url;
+      setBlobUrl(url);
+    }
+
+    loadAndRewrite().catch((e: unknown) => {
+      if (e instanceof DOMException && e.name === 'AbortError') return;
+      setError(true);
+    });
+
     return () => {
       controller.abort();
       if (revoke) URL.revokeObjectURL(revoke);
