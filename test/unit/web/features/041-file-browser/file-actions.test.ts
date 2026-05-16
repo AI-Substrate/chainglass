@@ -129,6 +129,23 @@ describe('readFileAction', () => {
     }
   );
 
+  it.each([['index.html'], ['page.htm']])(
+    'short-circuits %s as binary so BinaryFileView dispatches it to HtmlViewer (sandboxed iframe)',
+    async (filename) => {
+      fs.setFile(`/workspace/${filename}`, '<!doctype html><p>hi</p>');
+      const result = await readFileAction({
+        worktreePath: '/workspace',
+        filePath: filename,
+        fileSystem: fs,
+        pathResolver,
+      });
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.isBinary).toBe(true);
+      }
+    }
+  );
+
   it.each([
     ['package.json', '{ "name": "x" }', 'json'],
     ['config.yaml', 'name: x\n', 'yaml'],
@@ -136,7 +153,6 @@ describe('readFileAction', () => {
     ['data.xml', '<root>x</root>', 'xml'],
     ['style.css', '.x { color: red; }', 'css'],
     ['module.mjs', 'export const x = 1;', 'javascript'],
-    ['index.html', '<!doctype html><p>hi</p>', 'html'],
   ])(
     'returns text content (not binary) for structured-text format %s',
     async (filename, content, expectedLang) => {

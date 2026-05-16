@@ -36,3 +36,12 @@
 - difficulties:
   - [degrading] coordination: Publishing state transitions or some non-idle states returned 'state does not match inside state schema', even though idle state_set calls succeeded. (workaround: Used inbox progress, finding, and summary messages for observable status, and published idle when accepted.)
   - [annoying] test: Every scoped Vitest run emitted tsconfig-paths warnings from generated .next/standalone and apps/cli/dist/web/standalone tsconfig files before reporting pass/fail. (workaround: Treated the warnings as pre-existing noise after confirming the targeted test files passed.)
+
+## 2026-05-16T04:21:32.270Z — code-review-companion / 2026-05-16T13-56-40-619Z-3f9f
+
+- runId: 2026-05-16T13-56-40-619Z-3f9f
+- runDir: /Users/jordanknight/substrate/084-random-enhancements-3/agents/code-review-companion/runs/2026-05-16T13-56-40-619Z-3f9f
+- summary: Reviewed the FX011 HtmlViewer asset-token phase in companion mode across four implementation commits plus the phase drain. The session found four issues total: two LOW implementation/type-safety issues and two MEDIUM testing/contract-drift issues. No HIGH or CRITICAL findings were found; the load-bearing security posture remained intact, including sandbox='allow-scripts', no AUTH_BYPASS_ROUTES widening, explicit invalid-token rejection before auth(), and type-tagged HMAC asset tokens.
+- **magicWand** (target: coordination): Make the coordination state schema and prompt vocabulary share one generated source so state_transition({to:'reviewing'}) either validates or the prompt never asks for that status.
+- difficulties:
+  - [degrading] coordination: state_transition/state_set calls for documented companion statuses such as reading failed with 'state does not match inside state schema'. (workaround: Used inbox progress, finding, summary, and farewell messages as the observable coordination trail instead of relying on state transitions.)
