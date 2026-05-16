@@ -1,9 +1,10 @@
 import { timingSafeEqual } from 'node:crypto';
 
-import { findWorkspaceRoot } from '@chainglass/shared/auth-bootstrap-code';
+import { findWorkspaceRoot, verifyAssetToken } from '@chainglass/shared/auth-bootstrap-code';
 import { readServerInfo } from '@chainglass/shared/event-popper';
 
 import { auth, isOAuthDisabled } from '@/auth';
+import { isAssetTokenEligiblePath } from '@/lib/asset-token-gate';
 import { getBootstrapCodeAndKey } from '@/lib/bootstrap-code';
 import { evaluateCookieGate, isBypassPath } from '@/lib/cookie-gate';
 import { isLocalhostRequest } from '@/lib/localhost-guard';
@@ -36,6 +37,40 @@ export type BootstrapStageResult = 'bypass' | 'proceed' | NextResponse;
 export async function bootstrapCookieStage(req: NextRequest): Promise<BootstrapStageResult> {
   if (isBypassPath(req.nextUrl.pathname)) {
     return 'bypass';
+  }
+
+  // Plan 084 FX011: asset-token short-circuit for HtmlViewer sub-resource
+  // requests from sandboxed iframes.
+  //
+  // The HtmlViewer renders HTML inside `sandbox="allow-scripts"`, which gives
+  // the iframe an opaque origin — the browser strips the HttpOnly bootstrap
+  // cookie from every sub-resource fetch. To still authenticate `<img>` /
+  // `<link>` / `<script>` requests, the parent (cookie-authenticated) React
+  // mints a short-lived HMAC-signed token via /api/bootstrap/asset-token and
+  // splices it into rewritten asset URLs as `?_at=<token>`.
+  //
+  // Scope discipline: this check is intentionally regex-narrow (raw-file
+  // route only via `isAssetTokenEligiblePath`). Broadening would let any
+  // caller bypass the cookie gate for any route by carrying a valid asset
+  // token, defeating the always-on local gate.
+  //
+  // Silent fallthrough on invalid/missing token (mirrors the X-Local-Token
+  // shape below) — cookie-bearing requests still pass the next stage.
+  if (isAssetTokenEligiblePath(req.nextUrl.pathname)) {
+    const at = req.nextUrl.searchParams.get('_at');
+    const wt = req.nextUrl.searchParams.get('worktree');
+    if (at && wt) {
+      try {
+        const codeAndKey = await getBootstrapCodeAndKey();
+        const nowS = Math.floor(Date.now() / 1000);
+        if (verifyAssetToken(at, wt, codeAndKey.key, nowS)) {
+          return 'bypass';
+        }
+      } catch {
+        // Bootstrap-code read failure → fall through to existing handling
+        // (which will produce 503 for /api/* below).
+      }
+    }
   }
 
   // Plan 084 Phase 7 F001 round 4 (minih review): CLI-token short-circuit
