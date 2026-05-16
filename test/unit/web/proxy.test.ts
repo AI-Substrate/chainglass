@@ -82,6 +82,10 @@ describe('isBypassPath', () => {
     ['/api/auth/callback/github', true],
     ['/api/bootstrap/verify', true],
     ['/api/bootstrap/forget', true],
+    // FX011: asset-token mint endpoint is INTENTIONALLY cookie-gated (NOT
+    // in AUTH_BYPASS_ROUTES) — only cookie-authenticated callers can mint
+    // tokens. Locks the contract from being mistakenly broadened.
+    ['/api/bootstrap/asset-token', false],
     ['/api/events', false], // SSE — needs session auth, NOT a sink
     // Phase 7 F001: sink prefixes bypass at proxy; route handler enforces
     // requireLocalAuth. AC-17 system-level CLI flow now passes.
@@ -129,6 +133,13 @@ describe('evaluateCookieGate', () => {
   // (e) /api/events without cookie → 401-equivalent
   it('(e) /api/events without cookie → cookie-missing-api', () => {
     expect(evaluateCookieGate(reqLike('/api/events'), codeAndKey)).toEqual({
+      kind: 'cookie-missing-api',
+    });
+  });
+
+  // FX011: asset-token mint endpoint is cookie-gated — cookie-missing → 401
+  it('(e-fx011) /api/bootstrap/asset-token without cookie → cookie-missing-api', () => {
+    expect(evaluateCookieGate(reqLike('/api/bootstrap/asset-token'), codeAndKey)).toEqual({
       kind: 'cookie-missing-api',
     });
   });

@@ -27,4 +27,27 @@
 - `packages/shared/src/auth-bootstrap-code/index.ts` (MODIFY — line 31 added)
 - `test/unit/shared/auth-bootstrap-code/asset-token.test.ts` (NEW)
 
+**Companion ping**: sent (sha 56eae005, msgId 01KRQF1Y28AT51W7FTNQ0PCB07). No findings as of FX011-2 start.
+
+---
+
+### FX011-2 — Mint endpoint (TDD)
+
+**Status**: completed
+
+**Approach**: TDD red → green. **Deviation from dossier**: dossier called for Zod validation, but apps/web doesn't depend on Zod and sibling `bootstrap/verify` route uses manual `typeof` validation. Adopted manual validation for consistency with siblings, avoiding a new dependency.
+
+1. Wrote `test/unit/web/api/bootstrap/asset-token.test.ts` — 8 tests: 200 happy-path with round-trip verification under the same `activeSigningSecret(cwd)` key, 400 cases (missing field / empty / relative / dot-relative / non-string / malformed JSON), and 200 on path that does not exist on disk (mint validates shape only, not existence). Mirrors verify.test.ts fixture style with `mkTempCwd` + cache resets.
+2. Ran vitest — failed (no route file). Expected red.
+3. Wrote `apps/web/app/api/bootstrap/asset-token/route.ts` — POST handler, manual body validation (`typeof body.worktree === 'string'` + non-empty + `startsWith('/')`), 400 on shape failure, 503 on bootstrap-code failure, 200 with `buildAssetToken(worktree, key, 600)`.
+4. Added regression-lock rows to `test/unit/web/proxy.test.ts`: `isBypassPath('/api/bootstrap/asset-token')` is `false`, and `evaluateCookieGate(...)` returns `cookie-missing-api` for cookie-less requests. Locks the contract that this route is intentionally cookie-gated.
+5. Re-ran both test files: 60/60 pass.
+
+**Evidence**: `pnpm vitest run test/unit/web/proxy.test.ts test/unit/web/api/bootstrap/asset-token.test.ts` → Tests 60 passed (60).
+
+**Files**:
+- `apps/web/app/api/bootstrap/asset-token/route.ts` (NEW)
+- `test/unit/web/api/bootstrap/asset-token.test.ts` (NEW)
+- `test/unit/web/proxy.test.ts` (MODIFY — added 2 regression-lock rows)
+
 **Companion ping**: pending — sent after commit.
