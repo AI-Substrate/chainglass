@@ -113,4 +113,24 @@ describe('POST /api/bootstrap/asset-token', () => {
     const res = await POST(reqWithBody({ worktree }));
     expect(res.status).toBe(200);
   });
+
+  it('returns 503 { error: "unavailable" } when getBootstrapCodeAndKey() fails (FX011 companion F002)', async () => {
+    // Force the bootstrap-code accessor to fail by corrupting the on-disk
+    // file and chmod-ing the directory to read-only — same pattern as
+    // test/unit/web/proxy.test.ts (bypass-before-accessor F004 block).
+    const { writeFileSync, chmodSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const { BOOTSTRAP_CODE_FILE_PATH_REL } = await import('@chainglass/shared/auth-bootstrap-code');
+    writeFileSync(join(cwd, BOOTSTRAP_CODE_FILE_PATH_REL), '{', 'utf-8');
+    chmodSync(join(cwd, '.chainglass'), 0o555);
+    _resetBootstrapCache();
+    _resetSigningSecretCacheForTests();
+    try {
+      const res = await POST(reqWithBody({ worktree: '/Users/test/workspace' }));
+      expect(res.status).toBe(503);
+      expect(await res.json()).toEqual({ error: 'unavailable' });
+    } finally {
+      chmodSync(join(cwd, '.chainglass'), 0o755); // restore so afterEach can rm
+    }
+  });
 });

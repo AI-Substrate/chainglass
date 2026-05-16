@@ -32,7 +32,18 @@ The asset token reuses the bootstrap signing key but with a **distinct HMAC inpu
 
 ### Authoritative Validation Layer
 
-Two layers (proxy + raw-route handler) both check the token. The **proxy is authoritative** for unauthenticated callers — its short-circuit returns `'bypass'` (which skips Auth.js) on valid token, or falls through to the cookie gate on invalid token. The **handler check is defense-in-depth** for the edge case where a request reaches the handler because cookie was valid but bears an `_at` query param: the handler must distinguish "token present and valid → skip auth", "token present and INVALID → reject (don't fall back)", and "token absent → call auth()". This explicit three-branch shape closes a subtle gap under `DISABLE_GITHUB_OAUTH=true` where `auth()` returns a fake session — invalid tokens must reject explicitly rather than fall through.
+Two layers (proxy + raw-route handler) both inspect the `_at` query param, but **they behave differently and the distinction is load-bearing** — F003 from the FX011 companion review flagged that the original wording could mislead future maintainers.
+
+**Proxy layer (`bootstrapCookieStage`)** — silent fallthrough on invalid token:
+- Valid `_at` matching `worktree` → return `'bypass'` (skip both cookie gate AND Auth.js).
+- Invalid/missing `_at` → silently fall through to the cookie gate. **A cookie-bearing request still passes the cookie gate even if it ALSO carries a bogus `_at`** (this is the proxy-level "fallthrough" behavior; it mirrors the X-Local-Token short-circuit's shape so other auth paths still get a shot).
+
+**Raw-route handler** — explicit three-branch precedence:
+- `_at` present + valid → proceed (skip `auth()`).
+- `_at` present + INVALID → return 401 EXPLICITLY. **This rejects even cookie-bearing requests** — once a caller chooses to present an asset token, an invalid one is unambiguously wrong; we don't silently fall back to cookie-based `auth()`. This branch closes the `DISABLE_GITHUB_OAUTH=true` fake-session bypass at `apps/web/src/auth.ts:75-83` where `auth()` returns a passing session and would let a bad token through.
+- `_at` absent → call `auth()` as before (normal cookie/Auth.js flow).
+
+End-to-end consequence: a request with `valid cookie + invalid _at` passes the proxy (cookie gate accepts it) but is rejected by the handler (401). This is intentional — if you sent a token, you committed to token auth for this request.
 
 ### Critical Assumptions (verify during FX011-1 first)
 

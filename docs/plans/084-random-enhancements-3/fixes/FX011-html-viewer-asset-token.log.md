@@ -107,4 +107,47 @@
 
 **Companion ping**: pending — sent after commit.
 
-**Harness manual verification**: pending — Playwright via L3 harness, generating a test HTML with relative `<img>` refs, navigating to file-browser preview, capturing screenshot, eyeballing image render.
+**Harness manual verification**: ✅ completed. `harness/tests/features/fx011-html-asset-token.spec.ts` — Playwright via L3 harness CDP at `:3107`. Test HTML with relative `./images/red.png` ref, mounted at `/app/scratch/harness-test-workspace/fx011/test.html` via `just harness seed`. Test PASSED (7.0s) with screenshot at `harness/results/fx011-html-rendered.png` showing red 64×64 square rendered + iframe-internal JS reporting `IMAGE LOADED (64x64)`. Network-layer assertions: mint endpoint 200, every tokened raw-file request 200, `red.png` specifically fetched via token path 200, `sandbox="allow-scripts"` regression-lock verified.
+
+---
+
+### Companion review (run `2026-05-16T13-56-40-619Z-3f9f`) — farewell envelope reconciliation
+
+**Companion verdict**: completed cleanly. 1491s duration, 125 tool calls, 7524 events. 5 tasks received (1 briefing + 4 review-requests + 1 drain ping). **No HIGH/CRITICAL findings.** Load-bearing security posture verified intact (sandbox=`allow-scripts`, AUTH_BYPASS_ROUTES unchanged, three-branch auth, type-tagged HMAC).
+
+**Findings reconciliation table** (ackOf → main commit → resolution):
+
+| ID | Severity | ackOf | Main commit | Disposition |
+|---|---|---|---|---|
+| F001 | LOW | `01KRQF1Y28...` (FX011-1) | `56eae00` | **Deferred / declined**. The type signature mismatch (`string \| undefined` vs `URLSearchParams.get()` returns `string \| null`) is cosmetic — runtime narrowing handles `null` correctly. Cost > value; documented here for posterity. |
+| F002 | MEDIUM | `01KRQF7J...` (FX011-2) | `d73ce31` | **Fixed in follow-up** — added 503-on-bootstrap-failure unit test (file corruption + chmod, same pattern as proxy F004 block). Envmatrix-vs-proxy.test.ts placement preserved (regression IS locked, just in a different file — documented in dossier task notes). |
+| F003 | MEDIUM | `01KRQFJF...` (FX011-3) | `c48757a` | **Fixed in follow-up** — rewrote § Authoritative Validation Layer in the dossier to distinguish proxy-layer fallthrough from raw-route handler precedence; added explicit integration test `handler precedence: invalid _at rejects 401 even with a bootstrap cookie attached` that locks the behaviour. |
+| F004 | LOW | `01KRQFQD...` (FX011-4) | `a4fe60e` | **Fixed in follow-up** — added `if (controller.signal.aborted) return;` guard before the `setError(true)` call in HtmlViewer's `loadAndRewrite().catch(...)` tail. |
+
+**Companion magicWand** (target: `coordination` — minih harness itself, NOT this codebase):
+> "Make the coordination state schema and prompt vocabulary share one generated source so `state_transition({to:'reviewing'})` either validates or the prompt never asks for that status."
+
+Filed as upstream issue: **https://github.com/AI-Substrate/minih/issues/31**
+
+**Companion retrospective notes**:
+- Worked well: per-commit pings with explicit hazards made each layer reviewable independently
+- Confusing: minih's coordination MCP rejected documented status values; companion fell back to inbox-only progress (still functional, hence the upstream issue rather than a session-blocker)
+- Severity of MH-001: `degrading` (not failing)
+
+**Local lesson captured for future companion runs**: `minih outside inbox list` shows messages keyed by `sender: 'outside'` (from us) and `sender: 'inside'` (from the companion's *live* responses). **Findings sent via the SDK's structured output land in the run's `output/report.json` farewell envelope, NOT the inbox.** When skimming the inbox between tasks, also peek at the latest farewell-shaped output OR wait for `control:stop` → farewell to surface findings. (Earlier `select(.sender == "inside")` filter returned 0 messages and gave a false "no findings" signal.)
+
+---
+
+### Follow-up commit: companion F002 + F003 + F004
+
+**Status**: completed
+
+Three of the four companion findings addressed; F001 declined as cosmetic. Total: ~30 LoC code + ~50 LoC tests + dossier doc rewrite.
+
+**Files**:
+- `test/unit/web/api/bootstrap/asset-token.test.ts` (MODIFY — +1 test for 503 branch)
+- `apps/web/src/features/041-file-browser/components/html-viewer.tsx` (MODIFY — abort guard in catch tail)
+- `test/integration/web/raw-file-asset-token.integration.test.ts` (MODIFY — +1 test for handler precedence with cookie)
+- `docs/plans/084-random-enhancements-3/fixes/FX011-html-viewer-asset-token.md` (MODIFY — § Authoritative Validation Layer rewrite)
+
+**Evidence**: Full FX011 sweep → **121 tests passing** (up from 119). No regressions.

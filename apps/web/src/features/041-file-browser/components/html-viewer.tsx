@@ -162,6 +162,11 @@ export function HtmlViewer({ src, currentFilePath, rawFileBaseUrl }: HtmlViewerP
 
     loadAndRewrite().catch((e: unknown) => {
       if (e instanceof DOMException && e.name === 'AbortError') return;
+      // FX011 companion F004: guard against setState-after-unmount when a
+      // non-Abort error races with cleanup (e.g., user navigates away during
+      // a slow mint/HTML fetch and the network layer reports a generic error
+      // before AbortController fires).
+      if (controller.signal.aborted) return;
       setError(true);
     });
 

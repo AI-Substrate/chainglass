@@ -210,4 +210,37 @@ describe('FX011 raw-file route asset-token integration', () => {
   // returns `cookie-missing-api` 401 BEFORE the handler runs). Defense-in-
   // depth is the only thing this would prove, and Next.js makes it
   // structurally untestable here.
+
+  it('handler precedence: invalid _at rejects 401 even with a bootstrap cookie attached (FX011 companion F003)', async () => {
+    // Locks the documented handler-precedence behavior: once a caller
+    // chooses to present _at, an invalid token is rejected explicitly —
+    // we do NOT silently fall back to cookie/auth() even if cookie auth
+    // would otherwise succeed. The proxy fallthrough behavior is separate
+    // (cookie still passes the proxy gate); the handler's three-branch
+    // logic is what locks 401 at this layer.
+    const { buildCookieValue, activeSigningSecret, BOOTSTRAP_COOKIE_NAME, ensureBootstrapCode } =
+      await import('@chainglass/shared/auth-bootstrap-code');
+    const key = activeSigningSecret(cwd);
+    // ensureBootstrapCode is idempotent — returns the already-seeded code.
+    const code = ensureBootstrapCode(cwd).data.code;
+    const cookieValue = buildCookieValue(code, key);
+
+    // Mint a real token then mangle it.
+    const mintRes = await mintPOST(mintReq(workspaceRoot));
+    const { token } = (await mintRes.json()) as { token: string };
+    const mangled = `${token.slice(0, -1)}${token.slice(-1) === 'A' ? 'B' : 'A'}`;
+
+    const url = new URL('http://localhost:3000/api/workspaces/test-ws/files/raw');
+    url.searchParams.set('worktree', workspaceRoot);
+    url.searchParams.set('file', 'hello.txt');
+    url.searchParams.set('_at', mangled);
+    const req = new NextRequest(url.toString(), {
+      method: 'GET',
+      headers: { cookie: `${BOOTSTRAP_COOKIE_NAME}=${cookieValue}` },
+    });
+    const res = await rawGET(req, rawCtx());
+    // Even though the cookie would pass auth() on its own, the handler's
+    // _at branch fires first and rejects the invalid token explicitly.
+    expect(res.status).toBe(401);
+  });
 });
