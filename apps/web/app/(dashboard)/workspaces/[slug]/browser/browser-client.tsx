@@ -515,24 +515,12 @@ function BrowserClientInner({
   // Plan 077: Guard against programmatic expansion updating dir param
   const isProgrammaticExpansionRef = useRef(false);
 
-  // Plan 077: Track last-expanded folder to show gallery in viewer panel.
-  // Only updates dir on user-initiated folder clicks, not programmatic expansion.
-  const handleExpandedDirsChange = useCallback(
-    (dirs: string[]) => {
-      const oldSet = new Set(trackedExpandedDirsRef.current);
-      const newlyExpanded = dirs.find((d) => !oldSet.has(d));
-      trackedExpandedDirsRef.current = dirs;
-      setTrackedExpandedDirs(dirs);
-
-      if (newlyExpanded && !isProgrammaticExpansionRef.current) {
-        setParams({ dir: newlyExpanded }, { history: 'push' });
-      }
-    },
-    [setParams]
-  );
-
-  // Mobile: folder tap sets dir param (for FolderPreviewPanel in Content view)
-  // but does NOT auto-switch — user stays in Files view to continue browsing.
+  // Plan 077: track last-expanded folder to show gallery in viewer panel.
+  // A user-initiated folder click publishes `?dir=` AND clears `?file=` so the
+  // main panel's precedence (selectedFile → FileViewer, else currentDir →
+  // FolderPreview) falls through to FolderPreviewPanel. Without clearing the
+  // file param a leftover `?file=` would keep the previous file viewer
+  // mounted and the folder gallery would never appear.
   //
   // We must NOT fire `?dir=<ancestor>&file=''` when the newly-expanded dir
   // is just an ancestor of the currently-selected file (e.g., the
@@ -543,7 +531,11 @@ function BrowserClientInner({
   //   2. Ancestor check against `selectedFile` — robust against the timing
   //      race; if the dir is on the file's ancestor path, the expansion
   //      came from the auto-expand effect and isn't a user gesture.
-  const handleMobileExpandedDirsChange = useCallback(
+  //
+  // Single handler used by both desktop and mobile trees. Prior to this fix
+  // the desktop variant omitted `file: ''`, which (per Plan 077 e5f945cf)
+  // broke folder-view rendering whenever a file was already selected.
+  const handleExpandedDirsChange = useCallback(
     (dirs: string[]) => {
       const oldSet = new Set(trackedExpandedDirsRef.current);
       const newlyExpanded = dirs.find((d) => !oldSet.has(d));
@@ -1001,7 +993,7 @@ function BrowserClientInner({
               onExpand={fileNav.handleExpand}
               childEntries={filteredChildEntries}
               expandPaths={expandPaths}
-              onExpandedDirsChange={handleMobileExpandedDirsChange}
+              onExpandedDirsChange={handleExpandedDirsChange}
               onCopyFullPath={clipboard.handleCopyFullPath}
               onCopyRelativePath={clipboard.handleCopyRelativePath}
               onCopyRepoUrlCurrentRef={clipboard.handleCopyRepoUrlCurrentRef}
