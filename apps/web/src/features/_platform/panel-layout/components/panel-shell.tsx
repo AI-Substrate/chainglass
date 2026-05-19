@@ -23,6 +23,12 @@ export interface PanelShellProps {
   left: ReactNode;
   /** Main content area (MainPanel) — fills remaining space */
   main: ReactNode;
+  /**
+   * Optional right-docked pane. When set (desktop only), the layout wraps
+   * `left + main` and `rightPane` in a horizontal `ResizablePanelGroup`.
+   * Generic — not reserved for terminal use. Plan 084 split-terminal-view.
+   */
+  rightPane?: ReactNode;
   /** Unique ID for persisting panel sizes */
   autoSaveId?: string;
   /** Mobile view configuration. When provided + phone viewport, renders MobilePanelShell. */
