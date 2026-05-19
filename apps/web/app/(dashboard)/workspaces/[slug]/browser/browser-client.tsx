@@ -29,6 +29,7 @@ import { useTreeDirectoryChanges } from '@/features/041-file-browser/hooks/use-t
 import { useWorkspaceContext } from '@/features/041-file-browser/hooks/use-workspace-context';
 import { fileBrowserParams } from '@/features/041-file-browser/params/file-browser.params';
 import { fileBrowserContribution } from '@/features/041-file-browser/sdk/contribution';
+import { SplitTerminalToggleButton } from '@/features/041-file-browser/components/split-terminal-toggle-button';
 import type { FileEntry } from '@/features/041-file-browser/services/directory-listing';
 import { createFilePathHandler } from '@/features/041-file-browser/services/file-path-handler';
 import { FileChangeProvider, useFileChanges } from '@/features/045-live-file-events';
@@ -161,6 +162,9 @@ function BrowserClientInner({
 
   // Phase 3 T005: Explorer Sheet state (controlled open/close)
   const [explorerSheetOpen, setExplorerSheetOpen] = useState(false);
+  // Plan 084 split-terminal-view T006: session-only toggle for the inline
+  // terminal split. Reset on reload (C-07). No SDK setting, no URL mirror.
+  const [splitTerminalEnabled, setSplitTerminalEnabled] = useState(false);
 
   // DYK-P3-01: Wrap server prop in state for client-side root refresh
   const [rootEntries, setRootEntries] = useState(initialEntries);
@@ -1149,9 +1153,24 @@ function BrowserClientInner({
     />
   );
 
+  // Plan 084 split-terminal-view T006: inline split content. Reuses the same
+  // session-name resolution as the mobile path (termSelectedSession) and the
+  // same `cwd={worktreePath}`. Attaches to the shared tmux session, so the
+  // shell history follows the user across overlay / /terminal page / inline.
+  const inlineTerminalPane =
+    splitTerminalEnabled && termSelectedSession ? (
+      <TerminalView
+        sessionName={termSelectedSession}
+        cwd={worktreePath}
+        themeOverride={terminalTheme}
+        isActive
+      />
+    ) : null;
+
   return (
     <div className="h-full overflow-hidden">
       <PanelShell
+        rightPane={inlineTerminalPane ?? undefined}
         mobileViews={[
           { label: 'Files', icon: <FolderOpen className="h-4 w-4" />, content: filesContent },
           { label: 'Content', icon: <FileText className="h-4 w-4" />, content: contentView },
@@ -1246,6 +1265,13 @@ function BrowserClientInner({
                 >
                   <History className="h-4 w-4" />
                 </button>
+                {/* Plan 084 split-terminal-view T006: inline terminal toggle.
+                    Lives in ExplorerPanel.rightActions, which is mobile-skipped
+                    by the parent PanelShell branch — no extra gate needed. */}
+                <SplitTerminalToggleButton
+                  value={splitTerminalEnabled}
+                  onChange={setSplitTerminalEnabled}
+                />
                 <QuestionPopperIndicator />
               </>
             }
