@@ -60,6 +60,8 @@ flowchart LR
     fileBrowser -->|"FileViewer<br/>MarkdownViewer<br/>DiffViewer<br/>detectContentType"| viewer
     fileBrowser -->|"toast()<br/>useFileChanges<br/>FileChangeProvider"| events
     fileBrowser -->|"PanelShell<br/>ExplorerPanel<br/>LeftPanel · MainPanel<br/>AsciiSpinner"| panels
+    %% Plan 084 split-terminal-view — file-browser consumes terminal for the inline split slot.
+    fileBrowser -->|"TerminalView<br/>cwd<br/>sessionName"| terminal
     fileBrowser -->|"IWorkspaceService<br/>useWorkspaceContext<br/>WorktreeVisualPreferences"| workspace
     panels -->|"panel URL param"| wsUrl
     viewer -->|"IFileSystem (Shiki reads)"| fileOps

@@ -34,6 +34,7 @@ Reusable three-panel layout system for workspace detail pages. Provides the stru
 | Contract | Type | Consumers | Description |
 |----------|------|-----------|-------------|
 | `PanelShell` | Component | file-browser, future workspace pages | Root compositor: Explorer + Left + Main |
+| `PanelShell.rightPane` | Prop (optional `ReactNode`) | file-browser (browse-page inline terminal split) | Optional slot for content docked to the right of `main`. When present (desktop branch), wraps `left + main` and `rightPane` in a horizontal `ResizablePanelGroup`. Generic — not reserved for terminal use. |
 | `ExplorerPanel` | Component | file-browser | Top utility bar with composable input handlers |
 | `LeftPanel` | Component | file-browser | Mode-switching left sidebar |
 | `MainPanel` | Component | file-browser | Flexible content area |
@@ -53,6 +54,7 @@ Reusable three-panel layout system for workspace detail pages. Provides the stru
 | Component | Role | Depends On |
 |-----------|------|------------|
 | PanelShell | Arranges three panels in flex layout | ExplorerPanel, LeftPanel, MainPanel |
+| ResizablePanelGroup | Wraps `left + main` and `rightPane` in a horizontal split when `rightPane` is set; absent otherwise (Plan 084) | ResizablePanel, ResizableHandle, react-resizable-panels@^4 |
 | ExplorerPanel | Top bar with input + handler chain + command palette | BarHandler, BarContext, CommandPaletteDropdown, IUSDK, MruTracker |
 | CommandPaletteDropdown | Multi-mode dropdown below explorer bar | IUSDK (commands.list), MruTracker |
 | LeftPanel | Mode header + content slot | PanelHeader, PanelMode, URL state |
@@ -108,3 +110,4 @@ Primary: `apps/web/src/features/_platform/panel-layout/`
 | Plan 051 | FlowSpace code search: removed createSymbolSearchStub, added `#` (text) and `$` (semantic) search modes to CommandPaletteDropdown, added FlowSpace types (FlowSpaceSearchResult, FlowSpaceAvailability, FlowSpaceSearchMode), ExplorerPanel `$` mode detection + keyboard delegation for FlowSpace result modes, Quick Access hints updated | 2026-02-26 |
 | Plan 073 Phase 4 | Replaced Lucide File icon with FileIcon from _platform/themes in CommandPaletteDropdown search results. Badge+icon now coexist for working changes. | 2026-03-10 |
 | Plan 084 (flowspace-mcp-search) | CommandPaletteDropdown + ExplorerPanel + MobileSearchOverlay gain `codeSearchSpawning` prop. New "Loading FlowSpace, please wait…" UX state above the existing "Searching…" branch in semantic mode — first-call cold-start indicator while the per-worktree fs2 mcp child loads its graph. | 2026-04-26 |
+| Plan 084 split-terminal-view | Added optional `rightPane` slot to `PanelShellProps`; desktop branch switches to horizontal `ResizablePanelGroup` (defaultLayout 66.66/33.33) when set; `data-terminal-overlay-anchor` placement on `main` preserved. Discovery: react-resizable-panels v4 ignores per-panel `defaultSize` — `defaultLayout` on the group is the v4 contract. | 2026-05-19 |
