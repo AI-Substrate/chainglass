@@ -45,3 +45,13 @@
 - **magicWand** (target: coordination): Make the coordination state schema and prompt vocabulary share one generated source so state_transition({to:'reviewing'}) either validates or the prompt never asks for that status.
 - difficulties:
   - [degrading] coordination: state_transition/state_set calls for documented companion statuses such as reading failed with 'state does not match inside state schema'. (workaround: Used inbox progress, finding, summary, and farewell messages as the observable coordination trail instead of relying on state transitions.)
+
+## 2026-05-19T05:38:14.873Z — code-review-companion / 2026-05-19T14-51-17-196Z-0917
+
+- runId: 2026-05-19T14-51-17-196Z-0917
+- runDir: /Users/jordanknight/substrate/084-random-enhancements-3/agents/code-review-companion/runs/2026-05-19T14-51-17-196Z-0917
+- summary: Reviewed the Plan 084 split-terminal-view sequence through T013. The phase has useful structure and most PanelShell/toggle wiring is directionally sound, but I sent REQUEST_CHANGES findings for two HIGH resync implementation blockers, several MEDIUM evidence/contract-drift issues, and recurring commit-message policy violations across the stack.
+- **magicWand** (target: coordination): Generate the coordination state vocabulary from one schema shared by the prompt, MCP validator, and workbench, and provide a report-builder command that can materialize findings already sent through the inbox.
+- difficulties:
+  - [degrading] coordination: Documented state_transition/status values such as reading/reviewing/stopping were rejected by the coordination MCP schema even though the prompt requires them. (workaround: Used state_set with status=idle and placed the real phase/mode in state.data so the peer still had observable progress.)
+  - [annoying] coordination: The final report had to manually duplicate every finding already sent via inbox, which is error-prone for a long companion run with many per-commit findings. (workaround: Maintained the finding IDs in conversation state and wrote the JSON envelope manually.)
