@@ -102,12 +102,23 @@ export function PanelShell({
 
       {rightPane ? (
         // KF-08: deliberately no autoSaveId — toggle/ratio is session-only React state (C-07).
-        <ResizablePanelGroup orientation="horizontal" className="flex-1 overflow-hidden">
-          <ResizablePanel defaultSize={66.66} minSize={30}>
+        // Explicit panel ids pin identity across remounts so the library
+        // applies defaultSize on every fresh mount instead of attempting to
+        // restore from a stale layout.
+        <ResizablePanelGroup
+          id="panel-shell-split"
+          orientation="horizontal"
+          defaultLayout={{
+            'panel-shell-split-left': 66.66,
+            'panel-shell-split-right': 33.33,
+          }}
+          className="flex-1 overflow-hidden"
+        >
+          <ResizablePanel id="panel-shell-split-left" minSize={30}>
             {leftMainColumns('flex h-full w-full overflow-hidden')}
           </ResizablePanel>
           <ResizableHandle withHandle />
-          <ResizablePanel defaultSize={33.33} minSize={15} maxSize={70}>
+          <ResizablePanel id="panel-shell-split-right" minSize={15} maxSize={70}>
             {rightPane}
           </ResizablePanel>
         </ResizablePanelGroup>

@@ -34,6 +34,7 @@ import type { FileEntry } from '@/features/041-file-browser/services/directory-l
 import { createFilePathHandler } from '@/features/041-file-browser/services/file-path-handler';
 import { FileChangeProvider, useFileChanges } from '@/features/045-live-file-events';
 import { sanitizeSessionName } from '@/features/064-terminal';
+import { sessionNameFromWorktreePath } from '@/features/064-terminal/lib/session-name-from-worktree-path';
 import { TerminalView } from '@/features/064-terminal/components/terminal-view';
 import { useTerminalSessions } from '@/features/064-terminal/hooks/use-terminal-sessions';
 import { QuestionPopperIndicator } from '@/features/067-question-popper/components/question-popper-indicator';
@@ -1154,13 +1155,17 @@ function BrowserClientInner({
   );
 
   // Plan 084 split-terminal-view T006: inline split content. Reuses the same
-  // session-name resolution as the mobile path (termSelectedSession) and the
-  // same `cwd={worktreePath}`. Attaches to the shared tmux session, so the
-  // shell history follows the user across overlay / /terminal page / inline.
+  // session-name resolution as the mobile path (termSelectedSession) with a
+  // canonical worktree-folder-basename fallback so the inline pane always has
+  // a name to attach with — the sidecar runs `tmux new-session -A -s <name>`
+  // on first connect, creating the session if it doesn't already exist (same
+  // contract as /terminal and the right-edge overlay). Same `cwd={worktreePath}`.
+  // Shared session = shell history follows user across overlay / /terminal / inline.
+  const inlineSessionName = termSelectedSession ?? sessionNameFromWorktreePath(worktreePath);
   const inlineTerminalPane =
-    splitTerminalEnabled && termSelectedSession ? (
+    splitTerminalEnabled && inlineSessionName ? (
       <TerminalView
-        sessionName={termSelectedSession}
+        sessionName={inlineSessionName}
         cwd={worktreePath}
         themeOverride={terminalTheme}
         isActive
