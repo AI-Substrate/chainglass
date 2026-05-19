@@ -13,6 +13,7 @@ import { useResponsive } from '@/hooks/useResponsive';
 import { useSDKSetting } from '@/lib/sdk/use-sdk-setting';
 import { useKeyboardOpen } from '../hooks/use-keyboard-open';
 import { useTerminalSocket } from '../hooks/use-terminal-socket';
+import { applyResyncOnStatus } from '../lib/resync-on-connect';
 import { resolveTerminalTheme } from '../lib/terminal-themes';
 import type { ConnectionStatus } from '../types';
 import { TerminalModifierToolbar } from './terminal-modifier-toolbar';
@@ -45,6 +46,12 @@ export default function TerminalInner({
   const [copyModalText, setCopyModalText] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const tmuxWarningShownRef = useRef(false);
+  // Plan 084 T007: send {type:'resync'} once per WS lifecycle on first
+  // 'connected' event. Re-armed when status leaves 'connected' (so reconnect
+  // fires another resync). Mitigates tmux smallest-client geometry clamp
+  // (PL-03 / KF-04) — without this, a newly-attached client can show stale
+  // geometry from a previously-smaller client.
+  const resyncSentRef = useRef(false);
   const toolbarRef = useRef<{ resetModifiers: () => void } | null>(null);
   const { resolvedTheme } = useTheme();
   const { useMobilePatterns } = useResponsive();
@@ -118,6 +125,8 @@ export default function TerminalInner({
           terminalRef.current?.focus();
         });
       }
+      // T007: one-shot resync per WS lifecycle on first 'connected' event.
+      applyResyncOnStatus(_status, resyncSentRef, sendRef.current);
     },
     onConnectionChange,
   });
