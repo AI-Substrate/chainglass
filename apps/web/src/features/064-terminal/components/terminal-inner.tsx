@@ -135,6 +135,19 @@ export default function TerminalInner({
   const sendRef = useRef(send);
   sendRef.current = send;
 
+  // T007 re-arm: useTerminalSocket fires the user's `onStatus` callback only
+  // when the server sends a `{type:'status'}` control message — NOT when the
+  // socket closes (onclose updates the hook's internal `status` directly).
+  // Watch the hook's `status` return so that a disconnect followed by a
+  // reconnect re-arms `resyncSentRef` and the next 'connected' event resends
+  // resync. Without this, the ref stays true across reconnects and only the
+  // very first WS lifecycle ever gets a resync.
+  useEffect(() => {
+    if (status !== 'connected') {
+      resyncSentRef.current = false;
+    }
+  }, [status]);
+
   // Listen for copy-buffer requests from header buttons (triggers WS request)
   const copyBufferRef = useRef(copyBuffer);
   copyBufferRef.current = copyBuffer;
