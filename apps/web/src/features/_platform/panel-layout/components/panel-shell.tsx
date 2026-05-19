@@ -9,10 +9,20 @@
  *
  * Phase 1: Panel Infrastructure — Plan 043
  * Phase 1: Mobile Panel Shell — Plan 078
+ * Plan 084 split-terminal-view: optional rightPane slot. When present
+ *   (desktop only), wraps left+main and rightPane in a horizontal
+ *   ResizablePanelGroup. `data-terminal-overlay-anchor` stays on the
+ *   `main` slot wrapper in both branches so the right-edge terminal
+ *   overlay continues to size to the file-viewer column.
  */
 
 import { useResponsive } from '@/hooks/useResponsive';
 import type { ReactNode } from 'react';
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from '@/components/ui/resizable';
 import { MobilePanelShell } from './mobile-panel-shell';
 import type { MobilePanelShellView } from './mobile-panel-shell';
 
@@ -47,6 +57,7 @@ export function PanelShell({
   explorer,
   left,
   main,
+  rightPane,
   mobileViews,
   initialMobileActiveIndex,
   mobileActiveIndex,
@@ -67,23 +78,42 @@ export function PanelShell({
     );
   }
 
+  // Inner left+main composition. The wrapper className differs by branch:
+  // - no-slot: `flex flex-1 overflow-hidden` (today's exact DOM, preserves AC-01/AC-15)
+  // - with-slot: `flex h-full w-full overflow-hidden` (fills the parent ResizablePanel)
+  const leftMainColumns = (wrapperClass: string) => (
+    <div className={wrapperClass}>
+      <div
+        className="shrink-0 overflow-hidden border-r"
+        style={{ width: 280, minWidth: 150, maxWidth: '50%', resize: 'horizontal' }}
+      >
+        {left}
+      </div>
+      <div className="flex-1 flex flex-col overflow-hidden" data-terminal-overlay-anchor>
+        {main}
+      </div>
+    </div>
+  );
+
   return (
     <div className="flex flex-col h-full w-full overflow-hidden">
-      {/* Explorer bar — fixed height */}
+      {/* Explorer bar — fixed height, spans full width above any split */}
       <div className="shrink-0">{explorer}</div>
 
-      {/* Left + Main split */}
-      <div className="flex flex-1 overflow-hidden">
-        <div
-          className="shrink-0 overflow-hidden border-r"
-          style={{ width: 280, minWidth: 150, maxWidth: '50%', resize: 'horizontal' }}
-        >
-          {left}
-        </div>
-        <div className="flex-1 flex flex-col overflow-hidden" data-terminal-overlay-anchor>
-          {main}
-        </div>
-      </div>
+      {rightPane ? (
+        // KF-08: deliberately no autoSaveId — toggle/ratio is session-only React state (C-07).
+        <ResizablePanelGroup orientation="horizontal" className="flex-1 overflow-hidden">
+          <ResizablePanel defaultSize={66.66} minSize={30}>
+            {leftMainColumns('flex h-full w-full overflow-hidden')}
+          </ResizablePanel>
+          <ResizableHandle withHandle />
+          <ResizablePanel defaultSize={33.33} minSize={15} maxSize={70}>
+            {rightPane}
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      ) : (
+        leftMainColumns('flex flex-1 overflow-hidden')
+      )}
     </div>
   );
 }
