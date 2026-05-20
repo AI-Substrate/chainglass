@@ -79,23 +79,20 @@ test.describe('Plan 084 — browse-page split terminal toggle', () => {
       cdpPage.locator('#panel-shell-split > [data-slot="resizable-handle"]'),
     ).toHaveCount(1);
 
-    // Wait for the xterm in the right pane to mount.
-    const xtermInRightEarly = panels.nth(1).locator('.xterm-screen').first();
-    await xtermInRightEarly.waitFor({ state: 'visible', timeout: 15_000 });
-
-    // AC-04 — default ratio. react-resizable-panels v4 adapts panel size to
-    // content min-width when present, so we accept the broad band [0.20, 0.45]
-    // around the nominal 33% when a real xterm has mounted. If the right pane
-    // is in an error placeholder state the ratio can collapse to single-digit
-    // % — accept that as evidence of session-bootstrap failure (different
-    // signal, not a layout regression).
+    // AC-04 — default ratio 66.66 / 33.34 (±1.5 % tolerance for pixel rounding).
+    // Read panel widths BEFORE waiting for xterm so we measure the
+    // library-assigned defaultSize, not a content-driven post-resize state.
     const widths = await panels.evaluateAll((els) =>
       els.map((el) => (el as HTMLElement).getBoundingClientRect().width),
     );
     const totalWidth = widths[0] + widths[1];
     const rightShare = widths[1] / totalWidth;
-    expect(rightShare).toBeGreaterThan(0.0);
-    expect(rightShare).toBeLessThan(0.5);
+    expect(rightShare).toBeGreaterThan(0.32);
+    expect(rightShare).toBeLessThan(0.35);
+
+    // Wait for the xterm in the right pane to mount.
+    const xtermInRightEarly = panels.nth(1).locator('.xterm-screen').first();
+    await xtermInRightEarly.waitFor({ state: 'visible', timeout: 15_000 });
 
     await cdpPage.screenshot({
       path: join(RESULTS_DIR, 'browse-split-toggle-on.png'),
