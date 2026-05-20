@@ -105,20 +105,31 @@ export function PanelShell({
         // Explicit panel ids pin identity across remounts so the library
         // applies defaultSize on every fresh mount instead of attempting to
         // restore from a stale layout.
+        // v4 unit quirk (verified against react-resizable-panels@4.6.5
+        // dist `dt()` parser at line 18): numeric `defaultSize` / `minSize` /
+        // `maxSize` values are interpreted as **pixels**, not percentages.
+        // String values with `"%"` suffix are required for percent-of-group
+        // semantics. Without this, `maxSize={70}` clamped the right panel
+        // to 70px (≈ 6% of a 1183px group) instead of 70%.
         <ResizablePanelGroup
           id="panel-shell-split"
           orientation="horizontal"
-          defaultLayout={{
-            'panel-shell-split-left': 66.66,
-            'panel-shell-split-right': 33.33,
-          }}
           className="flex-1 overflow-hidden"
         >
-          <ResizablePanel id="panel-shell-split-left" minSize={30}>
+          <ResizablePanel
+            id="panel-shell-split-left"
+            defaultSize="66.66%"
+            minSize="30%"
+          >
             {leftMainColumns('flex h-full w-full overflow-hidden')}
           </ResizablePanel>
           <ResizableHandle withHandle />
-          <ResizablePanel id="panel-shell-split-right" minSize={15} maxSize={70}>
+          <ResizablePanel
+            id="panel-shell-split-right"
+            defaultSize="33.34%"
+            minSize="15%"
+            maxSize="70%"
+          >
             {rightPane}
           </ResizablePanel>
         </ResizablePanelGroup>
