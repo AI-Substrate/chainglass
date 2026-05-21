@@ -23,15 +23,7 @@
 
 import { act, render } from '@testing-library/react';
 import React, { useEffect, useState } from 'react';
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-  type MockInstance,
-} from 'vitest';
+import { type MockInstance, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FakeMatchMedia } from '../../../fakes/fake-match-media';
 
@@ -99,8 +91,7 @@ describe('Split terminal toggle — T009 stress test', () => {
   });
 
   afterEach(() => {
-    (window as unknown as { matchMedia: typeof window.matchMedia }).matchMedia =
-      originalMatchMedia;
+    (window as unknown as { matchMedia: typeof window.matchMedia }).matchMedia = originalMatchMedia;
     Object.defineProperty(window, 'innerWidth', {
       value: originalInnerWidth,
       writable: true,
@@ -113,20 +104,19 @@ describe('Split terminal toggle — T009 stress test', () => {
     const toggleRef: HarnessProps['toggleRef'] = { current: null };
     const { container } = render(<StressHarness toggleRef={toggleRef} />);
 
-    expect(toggleRef.current).not.toBeNull();
+    const toggle = toggleRef.current;
+    if (!toggle) throw new Error('toggleRef not set after render');
     expect(container.querySelector('[data-slot="resizable-panel-group"]')).toBeNull();
     expect(mountEvents).toEqual([]);
 
     for (let i = 0; i < 10; i += 1) {
       act(() => {
-        toggleRef.current!(true);
+        toggle(true);
       });
-      expect(
-        container.querySelector('[data-slot="resizable-panel-group"]'),
-      ).not.toBeNull();
+      expect(container.querySelector('[data-slot="resizable-panel-group"]')).not.toBeNull();
 
       act(() => {
-        toggleRef.current!(false);
+        toggle(false);
       });
       expect(container.querySelector('[data-slot="resizable-panel-group"]')).toBeNull();
     }
@@ -149,12 +139,14 @@ describe('Split terminal toggle — T009 stress test', () => {
     const toggleRef: HarnessProps['toggleRef'] = { current: null };
     const { container } = render(<StressHarness toggleRef={toggleRef} />);
 
+    const toggle = toggleRef.current;
+    if (!toggle) throw new Error('toggleRef not set after render');
     for (let i = 0; i < 5; i += 1) {
-      act(() => toggleRef.current!(true));
+      act(() => toggle(true));
       const anchorOn = container.querySelectorAll('[data-terminal-overlay-anchor]');
       expect(anchorOn.length).toBe(1);
 
-      act(() => toggleRef.current!(false));
+      act(() => toggle(false));
       const anchorOff = container.querySelectorAll('[data-terminal-overlay-anchor]');
       expect(anchorOff.length).toBe(1);
     }

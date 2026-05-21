@@ -17,6 +17,7 @@ import {
   type ViewerMode,
 } from '@/features/041-file-browser/components/file-viewer-panel';
 import { FolderPreviewPanel } from '@/features/041-file-browser/components/folder-preview-panel';
+import { SplitTerminalToggleButton } from '@/features/041-file-browser/components/split-terminal-toggle-button';
 import { useClipboard } from '@/features/041-file-browser/hooks/use-clipboard';
 import { useFileFilter } from '@/features/041-file-browser/hooks/use-file-filter';
 import { useFileMutations } from '@/features/041-file-browser/hooks/use-file-mutations';
@@ -29,16 +30,15 @@ import { useTreeDirectoryChanges } from '@/features/041-file-browser/hooks/use-t
 import { useWorkspaceContext } from '@/features/041-file-browser/hooks/use-workspace-context';
 import { fileBrowserParams } from '@/features/041-file-browser/params/file-browser.params';
 import { fileBrowserContribution } from '@/features/041-file-browser/sdk/contribution';
-import { SplitTerminalToggleButton } from '@/features/041-file-browser/components/split-terminal-toggle-button';
 import type { FileEntry } from '@/features/041-file-browser/services/directory-listing';
 import { createFilePathHandler } from '@/features/041-file-browser/services/file-path-handler';
 import { FileChangeProvider, useFileChanges } from '@/features/045-live-file-events';
 import { sanitizeSessionName } from '@/features/064-terminal';
-import { sessionNameFromWorktreePath } from '@/features/064-terminal/lib/session-name-from-worktree-path';
 import { TerminalView } from '@/features/064-terminal/components/terminal-view';
 import { TerminalViewport } from '@/features/064-terminal/components/terminal-viewport';
 import { useTerminalOverlay } from '@/features/064-terminal/hooks/use-terminal-overlay';
 import { useTerminalSessions } from '@/features/064-terminal/hooks/use-terminal-sessions';
+import { sessionNameFromWorktreePath } from '@/features/064-terminal/lib/session-name-from-worktree-path';
 import { QuestionPopperIndicator } from '@/features/067-question-popper/components/question-popper-indicator';
 import { useNotesOverlay } from '@/features/071-file-notes/hooks/use-notes-overlay';
 import type { RepoInfo as RepoInfoPayload } from '@/features/_platform/git';
@@ -1194,7 +1194,7 @@ function BrowserClientInner({
         }
       }
     },
-    [overlay, inlineSessionName, worktreePath],
+    [overlay, inlineSessionName, worktreePath]
   );
 
   // FX012 capture-phase backtick interceptor (Mode B only). When `splitOn` is
@@ -1325,10 +1325,7 @@ function BrowserClientInner({
                 {/* Plan 084 split-terminal-view T006: inline terminal toggle.
                     Lives in ExplorerPanel.rightActions, which is mobile-skipped
                     by the parent PanelShell branch — no extra gate needed. */}
-                <SplitTerminalToggleButton
-                  value={splitOn}
-                  onChange={handleSplitToggleChange}
-                />
+                <SplitTerminalToggleButton value={splitOn} onChange={handleSplitToggleChange} />
                 <QuestionPopperIndicator />
               </>
             }

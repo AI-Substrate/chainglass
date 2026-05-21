@@ -81,8 +81,10 @@ describe('rewriteRelativeUrls', () => {
     expect(out).toContain(`_at=${encodeURIComponent(weirdToken)}`);
     // Verify the token is decodable back to its original
     const match = out.match(/_at=([^"'&]+)/);
-    expect(match).not.toBeNull();
-    expect(decodeURIComponent(match![1]!)).toBe(weirdToken);
+    if (!match) throw new Error('expected _at= query param in rewritten HTML');
+    const captured = match[1];
+    if (!captured) throw new Error('expected capture group 1 in _at= regex match');
+    expect(decodeURIComponent(captured)).toBe(weirdToken);
   });
 
   it('produces absolute URLs (with origin) so the sandboxed iframe can fetch them', () => {

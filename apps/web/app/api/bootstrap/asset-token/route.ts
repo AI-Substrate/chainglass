@@ -62,10 +62,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'unavailable' }, { status: 503 });
   }
 
-  const { token, expiresAt } = buildAssetToken(
-    worktree,
-    codeAndKey.key,
-    ASSET_TOKEN_TTL_SECONDS
-  );
+  const { token, expiresAt } = buildAssetToken(worktree, codeAndKey.key, ASSET_TOKEN_TTL_SECONDS);
   return NextResponse.json({ token, expiresAt }, { status: 200 });
 }

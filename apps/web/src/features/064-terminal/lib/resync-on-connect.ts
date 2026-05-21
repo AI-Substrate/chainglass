@@ -29,7 +29,7 @@ export interface ResyncStateRef {
 export function applyResyncOnStatus(
   status: string,
   ref: ResyncStateRef,
-  send: (msg: string) => void,
+  send: (msg: string) => void
 ): void {
   if (status !== 'connected') {
     ref.current = false;

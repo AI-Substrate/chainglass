@@ -127,14 +127,12 @@ export function TerminalSingletonProvider({
     // directly; reparenting changes the container's bounding rect, which the
     // observer should pick up on the next frame. If KF-03 fails in-impl, add
     // an explicit fit() call here via a ref forwarded from TerminalInner.
-    window.dispatchEvent(
-      new CustomEvent('terminal:viewport-changed', { detail: { activeId } }),
-    );
+    window.dispatchEvent(new CustomEvent('terminal:viewport-changed', { detail: { activeId } }));
   }, [activeId]);
 
   const ctxValue = useMemo<TerminalSingletonContextValue>(
     () => ({ activate, deactivate, registerSlot, activeId, connectionStatus }),
-    [activate, deactivate, registerSlot, activeId, connectionStatus],
+    [activate, deactivate, registerSlot, activeId, connectionStatus]
   );
 
   const ready = Boolean(sessionName && cwd) && hasActivated;

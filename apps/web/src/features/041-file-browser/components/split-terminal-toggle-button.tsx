@@ -23,10 +23,7 @@ export interface SplitTerminalToggleButtonProps {
   onChange: (next: boolean) => void;
 }
 
-export function SplitTerminalToggleButton({
-  value,
-  onChange,
-}: SplitTerminalToggleButtonProps) {
+export function SplitTerminalToggleButton({ value, onChange }: SplitTerminalToggleButtonProps) {
   const handleClick = () => {
     onChange(!value);
   };

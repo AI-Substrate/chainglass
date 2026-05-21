@@ -2,7 +2,6 @@
 
 import dynamic from 'next/dynamic';
 import { Component, type ReactNode } from 'react';
-import { TerminalOverlayProvider } from '../../../../src/features/064-terminal/hooks/use-terminal-overlay';
 // FX012 (Plan 084): one xterm singleton, multiple viewports. Mounted here so
 // it lives above /browser and /terminal and survives client-side nav.
 // IMPORTANT: imported statically (NOT via dynamic+ssr:false). The provider
@@ -12,6 +11,7 @@ import { TerminalOverlayProvider } from '../../../../src/features/064-terminal/h
 // `dynamic(() => import('./terminal-inner'), { ssr: false })` so SSR never
 // reaches xterm code.
 import { TerminalSingletonProvider } from '../../../../src/features/064-terminal/components/terminal-singleton-provider';
+import { TerminalOverlayProvider } from '../../../../src/features/064-terminal/hooks/use-terminal-overlay';
 
 // Dynamic import — TerminalOverlayPanel imports TerminalInner which uses xterm.js (needs browser)
 const TerminalOverlayPanel = dynamic(

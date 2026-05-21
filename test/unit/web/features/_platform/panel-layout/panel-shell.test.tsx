@@ -38,9 +38,8 @@ describe('PanelShell — rightPane slot branch', () => {
     originalMatchMedia = window.matchMedia;
     originalInnerWidth = window.innerWidth;
     fakeMatchMedia = new FakeMatchMedia(1440);
-    (window as unknown as { matchMedia: typeof window.matchMedia }).matchMedia = (
-      query: string,
-    ) => fakeMatchMedia.matchMedia(query);
+    (window as unknown as { matchMedia: typeof window.matchMedia }).matchMedia = (query: string) =>
+      fakeMatchMedia.matchMedia(query);
     const mod = await import(
       '../../../../../../apps/web/src/features/_platform/panel-layout/components/panel-shell'
     );
@@ -49,8 +48,7 @@ describe('PanelShell — rightPane slot branch', () => {
   });
 
   afterEach(() => {
-    (window as unknown as { matchMedia: typeof window.matchMedia }).matchMedia =
-      originalMatchMedia;
+    (window as unknown as { matchMedia: typeof window.matchMedia }).matchMedia = originalMatchMedia;
     Object.defineProperty(window, 'innerWidth', {
       value: originalInnerWidth,
       writable: true,
@@ -66,7 +64,7 @@ describe('PanelShell — rightPane slot branch', () => {
         explorer={<div data-testid="explorer">Explorer</div>}
         left={<div data-testid="left">Left</div>}
         main={<div data-testid="main">Main</div>}
-      />,
+      />
     );
     expect(container.querySelector('[data-slot="resizable-panel-group"]')).toBeNull();
     expect(container.querySelector('[data-slot="resizable-panel"]')).toBeNull();
@@ -79,7 +77,7 @@ describe('PanelShell — rightPane slot branch', () => {
         explorer={<div data-testid="explorer">Explorer</div>}
         left={<div data-testid="left">Left</div>}
         main={<div data-testid="main">Main</div>}
-      />,
+      />
     );
     expect(screen.getByTestId('explorer')).toBeInTheDocument();
     expect(screen.getByTestId('left')).toBeInTheDocument();
@@ -95,7 +93,7 @@ describe('PanelShell — rightPane slot branch', () => {
         left={<div data-testid="left">Left</div>}
         main={<div data-testid="main">Main</div>}
         rightPane={<div data-testid="right-pane">Right</div>}
-      />,
+      />
     );
     const group = container.querySelector('[data-slot="resizable-panel-group"]');
     expect(group).not.toBeNull();
@@ -113,7 +111,7 @@ describe('PanelShell — rightPane slot branch', () => {
         left={<div>Left</div>}
         main={<div>Main</div>}
         rightPane={<div data-testid="right-pane">Right</div>}
-      />,
+      />
     );
     const panels = container.querySelectorAll('[data-slot="resizable-panel"]');
     const rightPaneContent = screen.getByTestId('right-pane');
@@ -127,7 +125,7 @@ describe('PanelShell — rightPane slot branch', () => {
         left={<div data-testid="left">Left</div>}
         main={<div data-testid="main">Main</div>}
         rightPane={<div>Right</div>}
-      />,
+      />
     );
     const panels = container.querySelectorAll('[data-slot="resizable-panel"]');
     expect(panels[0].contains(screen.getByTestId('left'))).toBe(true);
@@ -142,12 +140,12 @@ describe('PanelShell — rightPane slot branch', () => {
         explorer={<div>Explorer</div>}
         left={<div data-testid="left">Left</div>}
         main={<div data-testid="main">Main</div>}
-      />,
+      />
     );
     const anchor = container.querySelector('[data-terminal-overlay-anchor]');
-    expect(anchor).not.toBeNull();
-    expect(anchor!.contains(screen.getByTestId('main'))).toBe(true);
-    expect(anchor!.contains(screen.getByTestId('left'))).toBe(false);
+    if (!anchor) throw new Error('expected data-terminal-overlay-anchor in PanelShell render');
+    expect(anchor.contains(screen.getByTestId('main'))).toBe(true);
+    expect(anchor.contains(screen.getByTestId('left'))).toBe(false);
   });
 
   it('T011: data-terminal-overlay-anchor is on the main slot wrapper when slot is PRESENT', () => {
@@ -157,22 +155,18 @@ describe('PanelShell — rightPane slot branch', () => {
         left={<div data-testid="left">Left</div>}
         main={<div data-testid="main">Main</div>}
         rightPane={<div data-testid="right-pane">Right</div>}
-      />,
+      />
     );
     const anchor = container.querySelector('[data-terminal-overlay-anchor]');
-    expect(anchor).not.toBeNull();
-    expect(anchor!.contains(screen.getByTestId('main'))).toBe(true);
-    expect(anchor!.contains(screen.getByTestId('left'))).toBe(false);
-    expect(anchor!.contains(screen.getByTestId('right-pane'))).toBe(false);
+    if (!anchor) throw new Error('expected data-terminal-overlay-anchor in PanelShell render');
+    expect(anchor.contains(screen.getByTestId('main'))).toBe(true);
+    expect(anchor.contains(screen.getByTestId('left'))).toBe(false);
+    expect(anchor.contains(screen.getByTestId('right-pane'))).toBe(false);
   });
 
   it('T011: data-terminal-overlay-anchor exists exactly once in both branches', () => {
     const noSlot = render(
-      <PanelShell
-        explorer={<div>Explorer</div>}
-        left={<div>Left</div>}
-        main={<div>Main</div>}
-      />,
+      <PanelShell explorer={<div>Explorer</div>} left={<div>Left</div>} main={<div>Main</div>} />
     );
     expect(noSlot.container.querySelectorAll('[data-terminal-overlay-anchor]').length).toBe(1);
     noSlot.unmount();
@@ -183,7 +177,7 @@ describe('PanelShell — rightPane slot branch', () => {
         left={<div>Left</div>}
         main={<div>Main</div>}
         rightPane={<div>Right</div>}
-      />,
+      />
     );
     expect(withSlot.container.querySelectorAll('[data-terminal-overlay-anchor]').length).toBe(1);
   });

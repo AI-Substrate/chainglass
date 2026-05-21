@@ -14,10 +14,10 @@
  *   6. KF-02: stub DOM node identity survives parent re-renders
  */
 
-import { StrictMode, type ReactNode, useEffect, useState } from 'react';
-import { act, render, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TerminalOverlayProvider } from '@/features/064-terminal/hooks/use-terminal-overlay';
+import { act, render, waitFor } from '@testing-library/react';
+import { type ReactNode, StrictMode, useEffect, useState } from 'react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // FX012 follow-up: singleton now reads sessionName/cwd from overlay state.
 // Tests must wrap with TerminalOverlayProvider so those values resolve.
@@ -104,8 +104,8 @@ describe('TerminalSingletonProvider', () => {
       withOverlay(
         <TerminalSingletonProvider>
           <div data-testid="children" />
-        </TerminalSingletonProvider>,
-      ),
+        </TerminalSingletonProvider>
+      )
     );
     await flush();
     const park = document.querySelector('[data-terminal-park]');
@@ -132,8 +132,8 @@ describe('TerminalSingletonProvider', () => {
       withOverlay(
         <TerminalSingletonProvider>
           <TerminalViewport id="probe-slot" active />
-        </TerminalSingletonProvider>,
-      ),
+        </TerminalSingletonProvider>
+      )
     );
     await flush();
     const slot = document.querySelector('[data-viewport-id="probe-slot"]');
@@ -162,16 +162,16 @@ describe('TerminalSingletonProvider', () => {
       withOverlay(
         <TerminalSingletonProvider>
           <TerminalViewport id="probe-slot" active />
-        </TerminalSingletonProvider>,
-      ),
+        </TerminalSingletonProvider>
+      )
     );
     await flush();
     rerender(
       withOverlay(
         <TerminalSingletonProvider>
           <div data-testid="children" />
-        </TerminalSingletonProvider>,
-      ),
+        </TerminalSingletonProvider>
+      )
     );
     await flush();
     const park = document.querySelector('[data-terminal-park]');
@@ -198,8 +198,8 @@ describe('TerminalSingletonProvider', () => {
         <TerminalSingletonProvider>
           <TerminalViewport id="first" active />
           <TerminalViewport id="second" active />
-        </TerminalSingletonProvider>,
-      ),
+        </TerminalSingletonProvider>
+      )
     );
     await flush();
     const second = document.querySelector('[data-viewport-id="second"]');
@@ -229,9 +229,9 @@ describe('TerminalSingletonProvider', () => {
           <TerminalSingletonProvider>
             {/* viewport activates the lazy-mount gate */}
             <TerminalViewport id="probe" active />
-          </TerminalSingletonProvider>,
+          </TerminalSingletonProvider>
         )}
-      </StrictMode>,
+      </StrictMode>
     );
     await waitFor(() => {
       expect(document.querySelector('[data-testid="mock-terminal-inner"]')).not.toBeNull();
@@ -259,13 +259,13 @@ describe('TerminalSingletonProvider', () => {
         <TerminalSingletonProvider>
           <TerminalViewport id="probe-slot" active />
           <span data-testid="tick">{tick}</span>
-        </TerminalSingletonProvider>,
+        </TerminalSingletonProvider>
       );
     }
     const { rerender } = render(<Wrapper tick={0} />);
     await flush();
     const initial = document.querySelector(
-      '[data-viewport-id="probe-slot"] [data-testid="mock-terminal-inner"]',
+      '[data-viewport-id="probe-slot"] [data-testid="mock-terminal-inner"]'
     );
     expect(initial).not.toBeNull();
     rerender(<Wrapper tick={1} />);
@@ -273,7 +273,7 @@ describe('TerminalSingletonProvider', () => {
     rerender(<Wrapper tick={3} />);
     await flush();
     const after = document.querySelector(
-      '[data-viewport-id="probe-slot"] [data-testid="mock-terminal-inner"]',
+      '[data-viewport-id="probe-slot"] [data-testid="mock-terminal-inner"]'
     );
     expect(after).toBe(initial);
   });

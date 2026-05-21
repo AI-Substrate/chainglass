@@ -162,7 +162,8 @@ describe('verifyAssetToken — length-mismatch / tampering', () => {
   it('rejects a token with HMAC half truncated (length mismatch, no throw)', () => {
     const { token } = buildAssetToken(WORKTREE_A, KEY_A, TTL);
     const [exp, hmac] = token.split('.');
-    const truncated = `${exp}.${hmac!.slice(0, 4)}`;
+    if (!hmac) throw new Error('buildAssetToken must return a token with an HMAC half');
+    const truncated = `${exp}.${hmac.slice(0, 4)}`;
     const now = Math.floor(Date.now() / 1000);
     expect(verifyAssetToken(truncated, WORKTREE_A, KEY_A, now)).toBe(false);
   });
@@ -176,7 +177,8 @@ describe('verifyAssetToken — length-mismatch / tampering', () => {
   it('rejects a token with 1-char HMAC flip (timing-safe compare miss)', () => {
     const { token } = buildAssetToken(WORKTREE_A, KEY_A, TTL);
     const [exp, hmac] = token.split('.');
-    const flipped = `${exp}.${hmac!.slice(0, -1)}${hmac!.slice(-1) === 'A' ? 'B' : 'A'}`;
+    if (!hmac) throw new Error('buildAssetToken must return a token with an HMAC half');
+    const flipped = `${exp}.${hmac.slice(0, -1)}${hmac.slice(-1) === 'A' ? 'B' : 'A'}`;
     const now = Math.floor(Date.now() / 1000);
     expect(verifyAssetToken(flipped, WORKTREE_A, KEY_A, now)).toBe(false);
   });

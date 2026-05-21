@@ -62,9 +62,7 @@ export function TerminalOverlayProvider({
 
   const setSessionContext = useCallback((sessionName: string, cwd: string) => {
     setState((prev) =>
-      prev.sessionName === sessionName && prev.cwd === cwd
-        ? prev
-        : { ...prev, sessionName, cwd },
+      prev.sessionName === sessionName && prev.cwd === cwd ? prev : { ...prev, sessionName, cwd }
     );
   }, []);
 

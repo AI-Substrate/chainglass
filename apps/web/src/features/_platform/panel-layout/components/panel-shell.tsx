@@ -16,13 +16,9 @@
  *   overlay continues to size to the file-viewer column.
  */
 
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { useResponsive } from '@/hooks/useResponsive';
 import type { ReactNode } from 'react';
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from '@/components/ui/resizable';
 import { MobilePanelShell } from './mobile-panel-shell';
 import type { MobilePanelShellView } from './mobile-panel-shell';
 
@@ -116,11 +112,7 @@ export function PanelShell({
           orientation="horizontal"
           className="flex-1 overflow-hidden"
         >
-          <ResizablePanel
-            id="panel-shell-split-left"
-            defaultSize="66.66%"
-            minSize="30%"
-          >
+          <ResizablePanel id="panel-shell-split-left" defaultSize="66.66%" minSize="30%">
             {leftMainColumns('flex h-full w-full overflow-hidden')}
           </ResizablePanel>
           <ResizableHandle withHandle />
