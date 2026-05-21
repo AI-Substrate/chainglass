@@ -3,13 +3,13 @@
 /**
  * SplitTerminalToggleButton — toggles the browse-page inline terminal split.
  *
- * Plan 084 split-terminal-view T004.
+ * Plan 084 split-terminal-view T004 (FX012-updated): thin presentation
+ * primitive. State-transition side-effects (closing the float on A→B,
+ * opening it on B→A) live in the caller (`BrowserClient.handleSplitToggleChange`).
+ * The button is purely `value: boolean` + `onChange: (next: boolean) => void`.
  *
- * On false→true: dispatches `overlay:close-all` BEFORE calling `onChange(true)`
- * so any open right-edge overlay (terminal, activity-log, PR view, notes, agent)
- * closes — leaving exactly one terminal client attached in steady state. The
- * component does NOT subscribe to `overlay:close-all`; it is layout, not overlay
- * (KF-05).
+ * The component does NOT subscribe to `overlay:close-all`; it is layout, not
+ * overlay (KF-05).
  *
  * Styling matches the existing buttons in ExplorerPanel.rightActions (History,
  * QuestionPopperIndicator). PanelRight icon is the established dock-affordance
@@ -28,9 +28,6 @@ export function SplitTerminalToggleButton({
   onChange,
 }: SplitTerminalToggleButtonProps) {
   const handleClick = () => {
-    if (!value) {
-      window.dispatchEvent(new CustomEvent('overlay:close-all'));
-    }
     onChange(!value);
   };
 

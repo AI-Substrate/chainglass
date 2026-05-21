@@ -331,3 +331,11 @@ T007 modifies `apps/web/src/features/064-terminal/components/terminal-inner.tsx`
 **Standalone?**: No — at least 7 named consumers exist (plan-6 implementor, 4 domain doc files, 2 source file implementors).
 
 **Overall**: ⚠️ **VALIDATED WITH FIXES**
+
+---
+
+## Fixes
+
+| ID | Created | Summary | Domain(s) | Status | Source |
+|----|---------|---------|-----------|--------|--------|
+| [FX012](./fixes/FX012-single-xterm-singleton.md) | 2026-05-20 | Single xterm instance across overlay / split / `/terminal` page — singleton + viewport portals + A↔B state machine | `terminal`, `file-browser` | Complete (2026-05-21) | User-reported during harness testing: backtick in split spawns second terminal; "same instance" expectation across surfaces |

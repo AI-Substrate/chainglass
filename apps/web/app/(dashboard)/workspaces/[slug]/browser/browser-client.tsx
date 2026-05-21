@@ -36,6 +36,8 @@ import { FileChangeProvider, useFileChanges } from '@/features/045-live-file-eve
 import { sanitizeSessionName } from '@/features/064-terminal';
 import { sessionNameFromWorktreePath } from '@/features/064-terminal/lib/session-name-from-worktree-path';
 import { TerminalView } from '@/features/064-terminal/components/terminal-view';
+import { TerminalViewport } from '@/features/064-terminal/components/terminal-viewport';
+import { useTerminalOverlay } from '@/features/064-terminal/hooks/use-terminal-overlay';
 import { useTerminalSessions } from '@/features/064-terminal/hooks/use-terminal-sessions';
 import { QuestionPopperIndicator } from '@/features/067-question-popper/components/question-popper-indicator';
 import { useNotesOverlay } from '@/features/071-file-notes/hooks/use-notes-overlay';
@@ -163,9 +165,16 @@ function BrowserClientInner({
 
   // Phase 3 T005: Explorer Sheet state (controlled open/close)
   const [explorerSheetOpen, setExplorerSheetOpen] = useState(false);
-  // Plan 084 split-terminal-view T006: session-only toggle for the inline
-  // terminal split. Reset on reload (C-07). No SDK setting, no URL mirror.
-  const [splitTerminalEnabled, setSplitTerminalEnabled] = useState(false);
+  // Plan 084 split-terminal-view T006 / FX012: session-only toggle for the
+  // inline terminal split. Reset on reload (C-07). No SDK setting, no URL
+  // mirror. FX012 renames the boolean to `splitOn` and threads the floating
+  // overlay's open/close API through the toggle handler so transitions
+  // between Mode A (today: float + viewer share the main slot) and Mode B
+  // (inline split: viewer ⅔ + terminal ⅓) are coherent. Backtick in Mode B
+  // exits to Mode A with the float open — see the capture-phase listener
+  // below.
+  const [splitOn, setSplitOn] = useState(false);
+  const overlay = useTerminalOverlay();
 
   // DYK-P3-01: Wrap server prop in state for client-side root refresh
   const [rootEntries, setRootEntries] = useState(initialEntries);
@@ -1162,15 +1171,58 @@ function BrowserClientInner({
   // contract as /terminal and the right-edge overlay). Same `cwd={worktreePath}`.
   // Shared session = shell history follows user across overlay / /terminal / inline.
   const inlineSessionName = termSelectedSession ?? sessionNameFromWorktreePath(worktreePath);
+
+  // FX012 state-machine transitions for the split-toggle button (Mode A↔B).
+  // - A → B: close any open float, sync the singleton's session context to
+  //   the inline worktree, then enter B. setSessionContext is required because
+  //   the singleton reads sessionName/cwd from the overlay state; without it
+  //   the inline pane would attach to the workspace-default session (often
+  //   the main repo) instead of the current worktree.
+  // - B → A: leave B, open the float so the terminal stays visible.
+  const handleSplitToggleChange = useCallback(
+    (next: boolean) => {
+      if (next) {
+        overlay.closeTerminal();
+        if (inlineSessionName) {
+          overlay.setSessionContext(inlineSessionName, worktreePath);
+        }
+        setSplitOn(true);
+      } else {
+        setSplitOn(false);
+        if (inlineSessionName) {
+          overlay.openTerminal(inlineSessionName, worktreePath);
+        }
+      }
+    },
+    [overlay, inlineSessionName, worktreePath],
+  );
+
+  // FX012 capture-phase backtick interceptor (Mode B only). When `splitOn` is
+  // true and any caller dispatches `terminal:toggle` (SDK command via
+  // backtick, sidebar button, explorer panel), we preempt the
+  // TerminalOverlayProvider's bubble-phase listener and exit to Mode A with
+  // the float open. When `splitOn` is false we don't register the listener at
+  // all, so backtick in Mode A behaves exactly as today (AC-04).
+  useEffect(() => {
+    if (!splitOn) return;
+    const handler = (e: Event) => {
+      e.stopImmediatePropagation();
+      setSplitOn(false);
+      if (inlineSessionName) {
+        overlay.openTerminal(inlineSessionName, worktreePath);
+      }
+    };
+    window.addEventListener('terminal:toggle', handler, { capture: true });
+    return () => {
+      window.removeEventListener('terminal:toggle', handler, { capture: true });
+    };
+  }, [splitOn, overlay, inlineSessionName, worktreePath]);
+
+  // FX012: inline pane now drives the singleton via a viewport. When `splitOn`
+  // is true, the singleton's xterm DOM moves into this slot — same instance
+  // as the floating overlay and the /terminal page.
   const inlineTerminalPane =
-    splitTerminalEnabled && inlineSessionName ? (
-      <TerminalView
-        sessionName={inlineSessionName}
-        cwd={worktreePath}
-        themeOverride={terminalTheme}
-        isActive
-      />
-    ) : null;
+    splitOn && inlineSessionName ? <TerminalViewport id="inline-3rd" active /> : null;
 
   return (
     <div className="h-full overflow-hidden">
@@ -1274,8 +1326,8 @@ function BrowserClientInner({
                     Lives in ExplorerPanel.rightActions, which is mobile-skipped
                     by the parent PanelShell branch — no extra gate needed. */}
                 <SplitTerminalToggleButton
-                  value={splitTerminalEnabled}
-                  onChange={setSplitTerminalEnabled}
+                  value={splitOn}
+                  onChange={handleSplitToggleChange}
                 />
                 <QuestionPopperIndicator />
               </>

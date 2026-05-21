@@ -1,54 +1,68 @@
 # Split Terminal View
 
-A persistent inline split on the browse page (`/workspaces/[slug]/browser`) that docks a `TerminalView` to the right ⅓ of the content area below the workspace top strip and explorer bar.
+A two-mode terminal UX on the browse page (`/workspaces/[slug]/browser`):
+
+- **Mode A** — the original: file viewer fills the main slot, the floating right-edge terminal overlay drives terminal-visible / terminal-hidden via backtick. The viewer and the float share the same main slot conceptually.
+- **Mode B** — the inline split: file viewer ⅔ + terminal ⅓ side-by-side, with a draggable divider.
+
+Behind both modes is **one xterm** (FX012). The floating overlay, the inline split's right ⅓, and the `/terminal` page are all viewports onto the same singleton xterm DOM node. Scrollback persists across every transition; tmux only ever sees one client per browser tab.
 
 ## Where the toggle lives
 
-The toggle is a `<PanelRight>` icon button in **ExplorerPanel.rightActions** on the browse page top bar — alongside the History (recent changes feed) button and the Question Popper indicator. Its accessible label is `Toggle inline terminal` and it carries `role="switch"` so screen readers announce on/off state correctly.
+The Mode A↔B toggle is a `<PanelRight>` icon button in **ExplorerPanel.rightActions** on the browse page top bar — alongside History and the Question Popper indicator. Its accessible label is `Toggle inline terminal` and it carries `role="switch"`.
 
 The toggle is **browse-page only** — it does not appear on `/terminal`, `/workflows/*`, `/settings`, the dashboard home, or any other route.
 
-## What it does
+## State machine
 
-Toggling on:
+| From | Action | To | Side effect |
+|------|--------|----|-------------|
+| A (float closed) | backtick | A (float open) | overlay provider's bubble-phase listener fires `toggleTerminal` |
+| A (float open) | backtick | A (float closed) | overlay provider's bubble-phase listener closes the float |
+| A (any) | split-toggle | B | `BrowserClient.handleSplitToggleChange` calls `overlay.closeTerminal()` then `setSplitOn(true)` |
+| B | backtick | A (float open) | `BrowserClient`'s capture-phase listener intercepts `terminal:toggle` (preempts the overlay provider via `stopImmediatePropagation`), sets `splitOn=false`, calls `overlay.openTerminal(...)` |
+| B | split-toggle | A (float open) | `setSplitOn(false)` then `overlay.openTerminal(...)` |
+| B | `overlay:close-all` dispatched | B (unchanged) | the inline-3rd viewport is **layout, not overlay** — it does NOT subscribe to `overlay:close-all`, so opening a sibling overlay (activity log, notes, PR view, etc.) does NOT close the split |
+| A (any) | `overlay:close-all` dispatched | A (float closed) | float closes via the existing `TerminalOverlayProvider` listener (unchanged behavior) |
 
-- Splits the content area below the explorer bar into a horizontal `ResizablePanelGroup` with two panels: left ⅔ (existing browse UI — file tree column + main viewer) and right ⅓ (a `TerminalView`).
-- Dispatches `overlay:close-all` before the state flip. This closes any open right-edge overlay (terminal, activity-log, PR view, notes, agent), so only one terminal client is attached to the shared tmux session in steady state.
-- Sends `{type:'resync'}` once on first WS connect so tmux refreshes window dimensions to the newly-attached client's pane (Plan-064 / PL-03 mitigation).
+Workspace navigation (`/browser` ↔ `/terminal` within the same workspace) does NOT preserve `splitOn` (BrowserClient page remounts so its `useState` resets). But the **singleton xterm** survives — scrollback persists — so the user returns to Mode A; clicking the split-toggle again restores Mode B with the full prior scrollback intact. Cross-workspace nav (slug change) tears the singleton down and reconnects WS to the new workspace.
 
-Toggling off:
+## Same xterm everywhere
 
-- Cleanly unmounts the inline `TerminalView` (xterm canvas + WS connection torn down).
-- Layout returns to the pre-split single-column shape.
+The workspace `[slug]` layout mounts a `TerminalSingletonProvider` that owns exactly one `TerminalInner` instance. Three surfaces consume it via `<TerminalViewport id="..." active={...} />`:
 
-The outer divider is draggable; the inner left-column native CSS resize handle is preserved so the file tree column remains independently resizable inside the left ⅔.
+| Surface | Viewport id | When `active` |
+|---------|-------------|---------------|
+| Floating overlay (Mode A) | `overlay` | `useTerminalOverlay().isOpen` |
+| Inline split (Mode B) | `inline-3rd` | `splitOn` |
+| `/terminal` page main panel | `terminal-page` | `selectedSession != null` |
 
-## Shared tmux session across surfaces
+When a viewport becomes active, the singleton's `useLayoutEffect` does an `appendChild` to move the xterm DOM node into that viewport's slot. When it deactivates, the node returns to the offscreen park (`[data-terminal-park]`) — still mounted, WebSocket still alive, scrollback intact.
 
-The inline `TerminalView` attaches to the **same tmux session** as the right-edge terminal overlay and the `/terminal` page. You'll see continuous shell history regardless of which surface you opened the terminal from — open the inline split, run `cd src && ls`, toggle off, click the right-edge overlay button, and the overlay shows the same shell with `cd src && ls` already in scrollback.
+The singleton is **lazy-mount**: `TerminalInner` doesn't mount (and the WS doesn't connect) until the first viewport activates. Workspaces the user never opens a terminal on stay disconnected.
 
-When no session is selected via `?session=` URL param, the inline pane falls back to the worktree-folder basename. The sidecar runs `tmux new-session -A -s <name>` on first connect — creating the session if absent, attaching if present.
+Mobile (`MobilePanelShell`) is single-surface and keeps its own `<TerminalView>` — no singleton sharing. The workspace ends up with at most two `TerminalInner` instances total app-wide (one for mobile, one for the desktop singleton), and they're never simultaneously on screen because mobile-vs-desktop is a responsive switch.
+
+## Why backtick in Mode B uses capture-phase
+
+`BrowserClient` registers a capture-phase listener on `window.addEventListener('terminal:toggle', handler, { capture: true })` that fires before the `TerminalOverlayProvider`'s bubble-phase listener and calls `stopImmediatePropagation()`. The capture-phase + immediate-stop pattern preempts the bubble-phase listener regardless of registration order, so we don't have to worry about the order in which providers mount.
+
+When `splitOn` is `false`, the capture-phase listener is **not registered at all** (early-bail in the `useEffect`). That means backtick in Mode A passes straight through to the overlay provider — its today-behavior is fully preserved.
 
 ## Known limitations
 
 | # | Limitation | Why |
 |---|---|---|
-| L-01 | **Multi-tab tmux geometry war** — if the same workspace is open in tab A (inline split) and tab B (overlay), tmux clamps geometry to the smaller pane (inline ⅓). The overlay in tab B may render crushed until one disconnects. | Cross-tab coordination is out of scope. The single-tab case is handled by mutual-exclusion (`overlay:close-all`). |
-| L-02 | **Toggle resets on reload** — state is session-only React `useState`. A user who reloads the browse page mid-flow has to re-click. | Aligns with the "same terminal, just smaller" mental model. Avoids hydration flash (Plan-041 / PL-04). Persistence can be added in a follow-up. |
-| L-03 | **One-frame layout shift on toggle** — first activation per session shows a Suspense skeleton while `TerminalInner` is dynamically imported. | Same first-mount cost as the terminal page + right-edge overlay. Cached after first load. |
-
-## How to disable
-
-Click the toggle again. The right pane unmounts, the layout returns to single-column.
-
-## Why there's no keybinding (v1)
-
-The backtick (`` ` ``) and `Ctrl+\`` shortcuts are already claimed by the right-edge terminal overlay (Plan 064 / Plan 081). Reusing them would create ambiguity — does the user mean "show inline" or "show overlay"? In v1 the inline split is click-only, and the overlay keeps its keybindings.
+| L-01 | **Multi-tab tmux geometry war** — if the same workspace is open in tab A and tab B, tmux clamps geometry to the smaller pane. | Cross-tab coordination is out of scope. The single-tab case is fully solved by the singleton: tmux sees exactly one client per tab. |
+| L-02 | **`splitOn` resets on reload** — state is session-only React `useState`. | Aligns with the "same terminal, just different mode" mental model. The singleton xterm scrollback DOES survive workspace nav within the tab. |
+| L-03 | **First-mount cost** — first activation per session shows a Suspense skeleton while `TerminalInner` is dynamically imported. | Same one-time cost as before; subsequent transitions are free DOM moves. |
 
 ## References
 
+- FX012 dossier: [`docs/plans/084-random-enhancements-3/fixes/FX012-single-xterm-singleton.md`](../plans/084-random-enhancements-3/fixes/FX012-single-xterm-singleton.md)
 - Plan: [`docs/plans/084-random-enhancements-3/split-terminal-view-plan.md`](../plans/084-random-enhancements-3/split-terminal-view-plan.md)
 - Spec: [`docs/plans/084-random-enhancements-3/split-terminal-view-spec.md`](../plans/084-random-enhancements-3/split-terminal-view-spec.md)
 - Terminal domain: [`docs/domains/terminal/domain.md`](../domains/terminal/domain.md)
 - File-browser domain: [`docs/domains/file-browser/domain.md`](../domains/file-browser/domain.md)
 - Panel-layout domain: [`docs/domains/_platform/panel-layout/domain.md`](../domains/_platform/panel-layout/domain.md)
+- Harness spec: [`harness/tests/features/single-xterm-state-machine.spec.ts`](../../harness/tests/features/single-xterm-state-machine.spec.ts)

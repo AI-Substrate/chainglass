@@ -14,6 +14,14 @@ interface TerminalOverlayContextValue extends TerminalOverlayState {
   openTerminal: (sessionName: string, cwd: string) => void;
   closeTerminal: () => void;
   toggleTerminal: (sessionName?: string, cwd?: string) => void;
+  /**
+   * Update the resolved sessionName/cwd without opening or closing the float.
+   * FX012 follow-up: the xterm singleton reads sessionName/cwd from this state
+   * so surfaces that drive the singleton without opening the float (inline
+   * split entering Mode B, /terminal page session-selector) must update it.
+   * No-op if name and cwd match prev state, to avoid spurious re-renders.
+   */
+  setSessionContext: (sessionName: string, cwd: string) => void;
 }
 
 const TerminalOverlayContext = createContext<TerminalOverlayContextValue | null>(null);
@@ -50,6 +58,14 @@ export function TerminalOverlayProvider({
 
   const closeTerminal = useCallback(() => {
     setState((prev) => ({ ...prev, isOpen: false }));
+  }, []);
+
+  const setSessionContext = useCallback((sessionName: string, cwd: string) => {
+    setState((prev) =>
+      prev.sessionName === sessionName && prev.cwd === cwd
+        ? prev
+        : { ...prev, sessionName, cwd },
+    );
   }, []);
 
   const toggleTerminal = useCallback((sessionName?: string, cwd?: string) => {
@@ -145,7 +161,7 @@ export function TerminalOverlayProvider({
 
   return (
     <TerminalOverlayContext.Provider
-      value={{ ...state, openTerminal, closeTerminal, toggleTerminal }}
+      value={{ ...state, openTerminal, closeTerminal, toggleTerminal, setSessionContext }}
     >
       {children}
     </TerminalOverlayContext.Provider>
