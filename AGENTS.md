@@ -170,6 +170,24 @@ This is not aspirational — wishlist items become real fix tasks. W001 (`harnes
 - **NEVER use `git stash`, `git stash pop`, `git checkout -- .`, `git reset`, or any command that discards/undoes work** unless the user gives express permission. If you need a clean state, ask first.
 - **XDG_CONFIG_HOME override**: This agent is launched with `XDG_CONFIG_HOME=~/.copilot-alt`, which means `gh` CLI commands inherit the wrong config and show "not logged in". For any `gh` or `git push` commands that need GitHub auth, prefix with `XDG_CONFIG_HOME=~/.config` to use the real credentials at `~/.config/gh/hosts.yml`.
 
+## No Pre-Existing Errors
+
+**There is no such thing as a "pre-existing error." There is one developer on this codebase; if an error is there, we put it there.** Every error you can see is ours to fix — full stop.
+
+This applies absolutely to:
+- `tsc --noEmit` output (any project / any tsconfig)
+- `just fft` / `just check` / `just lint` / `just typecheck` output
+- Test failures (vitest, playwright, harness specs)
+- Runtime console errors observed in the dev server or harness page-load logs
+
+Rules:
+- **Never wave off errors as "unrelated"** or "pre-existing." If you see them, you own them. Fix in the current session, or stop and ask the user before deferring.
+- **Never trim, filter, or `| head`-truncate error output to hide noise.** Read the full list and address every entry.
+- If fixing every error would balloon the scope of the task, surface that to the user *before* committing — never silently leave broken state and never report a task as "done" while errors are visible.
+- A clean type-check / lint / test run is part of "done." A partially clean run is "not done."
+
+This rule exists because deferred errors compound: one ignored `tsc` error today is ten tomorrow, and the build slides from "trustworthy" to "noisy" to "useless." We do not let that happen.
+
 ## Communication Style
 
 - **Always end with next steps** — after completing any task, reporting status, or answering a question, tell the user what you think should happen next. The user works on many things and won't always remember the current plan state.
