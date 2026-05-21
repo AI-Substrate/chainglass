@@ -271,7 +271,7 @@ describeIfServer('WorkflowApiClient (real server)', () => {
         return async (...args: unknown[]) => {
           if (!clientPromise) clientPromise = makeRealClient();
           const client = await clientPromise;
-          return (client as Record<string, Function>)[prop](...args);
+          return (client as unknown as Record<string, Function>)[prop](...args);
         };
       },
     });

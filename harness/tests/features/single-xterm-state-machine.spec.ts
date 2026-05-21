@@ -54,6 +54,7 @@ test.describe('FX012 — singleton + A↔B state machine', () => {
   });
 
   test('S1–S10 — every transition + singleton invariants', async ({ cdpPage, baseURL }) => {
+    if (!baseURL) throw new Error('Playwright must supply baseURL via the test fixture');
     // Boot the page.
     await cdpPage.goto(browserUrl(baseURL), { waitUntil: 'domcontentloaded' });
     await cdpPage.evaluate(() => {

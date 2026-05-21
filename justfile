@@ -325,9 +325,22 @@ format:
 # Fix, format, and test (fft) - full quality check sequence
 fft: lint format build typecheck test security-audit
 
-# Run TypeScript type checking
+# Run TypeScript type checking across EVERY workspace tsconfig.
+# Per AGENTS § "No Pre-Existing Errors": the canonical typecheck must
+# cover apps/, packages/, harness/, and test/ — not just packages/ via
+# the root tsconfig. We loop explicitly because each workspace owns its
+# own tsconfig with workspace-specific paths and includes.
 typecheck:
-    pnpm tsc --noEmit
+    #!/usr/bin/env bash
+    set -euo pipefail
+    failed=0
+    for cfg in apps/web/tsconfig.json apps/cli/tsconfig.json packages/*/tsconfig.json harness/tsconfig.json test/tsconfig.json; do
+      echo "===> $cfg"
+      if ! pnpm exec tsc --noEmit -p "$cfg"; then
+        failed=1
+      fi
+    done
+    exit $failed
 
 # Audit dependencies for known security vulnerabilities (high/critical only)
 security-audit:
