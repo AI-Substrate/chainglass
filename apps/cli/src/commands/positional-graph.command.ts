@@ -40,7 +40,7 @@ import {
   formatInspectNode,
   formatInspectOutputs,
 } from '@chainglass/positional-graph';
-import type { IWorkflowEvents } from '@chainglass/shared';
+import type { IOutputAdapter, IWorkflowEvents } from '@chainglass/shared';
 import { ORCHESTRATION_DI_TOKENS, POSITIONAL_GRAPH_DI_TOKENS } from '@chainglass/shared';
 import { WorkflowEventError, WorkflowEventType } from '@chainglass/shared/workflow-events';
 import type { WorkspaceContext } from '@chainglass/workflow';
@@ -1281,7 +1281,7 @@ async function handleNodeAsk(
     console.log(adapter.format('wf.node.ask', { questionId: result.questionId, errors: [] }));
   } catch (error) {
     if (error instanceof WorkflowEventError) {
-      console.log(adapter.format('wf.node.ask', { errors: error.errors }));
+      console.log(adapter.format('wf.node.ask', { errors: [...error.errors] }));
     } else {
       console.log(
         adapter.format('wf.node.ask', {
@@ -1325,7 +1325,7 @@ async function handleNodeAnswer(
     console.log(adapter.format('wf.node.answer', { errors: [] }));
   } catch (error) {
     if (error instanceof WorkflowEventError) {
-      console.log(adapter.format('wf.node.answer', { errors: error.errors }));
+      console.log(adapter.format('wf.node.answer', { errors: [...error.errors] }));
     } else {
       console.log(
         adapter.format('wf.node.answer', {
@@ -1364,7 +1364,9 @@ async function handleNodeGetAnswer(
     }
   } catch (error) {
     if (error instanceof WorkflowEventError) {
-      console.log(adapter.format('wf.node.get-answer', { answered: false, errors: error.errors }));
+      console.log(
+        adapter.format('wf.node.get-answer', { answered: false, errors: [...error.errors] }),
+      );
     } else {
       console.log(
         adapter.format('wf.node.get-answer', {
@@ -1406,7 +1408,7 @@ async function handleNodeGetInputData(
 
     // First, get the node to determine its unit slug
     const nodeResult = await pgService.showNode(ctx, graphSlug, nodeId);
-    if (nodeResult.errors.length > 0) {
+    if (nodeResult.errors.length > 0 || !nodeResult.unitSlug) {
       console.log(adapter.format('wf.node.get-input-data', nodeResult));
       process.exit(1);
     }
@@ -1660,7 +1662,7 @@ function getWorkspacePath(cmd: Command): string | undefined {
 
 function parseJsonPayload(
   jsonStr: string,
-  adapter: { format: (cmd: string, result: unknown) => string },
+  adapter: IOutputAdapter,
   command: string
 ): Record<string, unknown> | null {
   try {

@@ -243,7 +243,7 @@ async function handleDelete(slug: string, options: BaseOptions): Promise<void> {
     console.log(
       adapter.format('template.delete', {
         deleted: false,
-        errors: [noContextError(options.workspacePath)],
+        errors: noContextError(options.workspacePath),
       })
     );
     process.exit(1);

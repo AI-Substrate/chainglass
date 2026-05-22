@@ -333,7 +333,7 @@ async function handleUnitUpdate(slug: string, options: UpdateOptions): Promise<v
   const ctx = await resolveOrOverrideContext(options.workspacePath);
   if (!ctx) {
     console.log(
-      adapter.format('unit.update', { slug, errors: [noContextError(options.workspacePath)] })
+      adapter.format('unit.update', { slug, errors: noContextError(options.workspacePath) })
     );
     process.exit(1);
   }
@@ -451,7 +451,7 @@ async function handleUnitDelete(slug: string, options: DeleteOptions): Promise<v
     console.log(
       adapter.format('unit.delete', {
         deleted: false,
-        errors: [noContextError(options.workspacePath)],
+        errors: noContextError(options.workspacePath),
       })
     );
     process.exit(1);
