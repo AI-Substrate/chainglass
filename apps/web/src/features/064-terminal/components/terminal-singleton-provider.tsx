@@ -65,12 +65,15 @@ interface TerminalSingletonProviderProps {
   children: ReactNode;
 }
 
+// Park is sized like a viewport (not 1×1) so xterm's ResizeObserver doesn't
+// shrink cols/rows to the minimum while idle — otherwise the first paint after
+// reparenting shows a tiny xterm inside a full-size slot until the next fit().
 const PARK_STYLE: CSSProperties = {
   position: 'absolute',
   left: -99999,
   top: -99999,
-  width: 1,
-  height: 1,
+  width: '100vw',
+  height: '100vh',
   overflow: 'hidden',
   pointerEvents: 'none',
 };
