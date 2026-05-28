@@ -55,3 +55,13 @@
 - difficulties:
   - [degrading] coordination: Documented state_transition/status values such as reading/reviewing/stopping were rejected by the coordination MCP schema even though the prompt requires them. (workaround: Used state_set with status=idle and placed the real phase/mode in state.data so the peer still had observable progress.)
   - [annoying] coordination: The final report had to manually duplicate every finding already sent via inbox, which is error-prone for a long companion run with many per-commit findings. (workaround: Maintained the finding IDs in conversation state and wrote the JSON envelope manually.)
+
+## 2026-05-28T06:28:38.409Z — code-review-companion / 2026-05-28T15-38-18-477Z-9bcb
+
+- runId: 2026-05-28T15-38-18-477Z-9bcb
+- runDir: /Users/jordanknight/substrate/084-random-enhancements-3/agents/code-review-companion/runs/2026-05-28T15-38-18-477Z-9bcb
+- summary: Reviewed the preview-pdf-download phase in companion mode across dependency, generator, hook, markdown UI, HTML UI, component-test, fix, and final-drain commits. Sent four findings: F001 dependency range hygiene, F002 unsafe untrusted CSS staging, F003 contract drift after the sanitizer fix, and F004 stale HTML export state across file switches. The final drain verified all four findings were addressed; T007/T008 remain honestly documented as partial/manual for live download and visual-fidelity evidence rather than silently claimed as automated proof.
+- **magicWand** (target: coordination): Add a minih companion helper command that writes validated state transitions with the allowed schema and prints the exact allowed statuses when validation fails.
+- difficulties:
+  - [degrading] coordination: state_transition/state_set rejected non-idle statuses such as reading and stopping with a generic 'state does not match inside state schema' error. (workaround: Published idle state updates where accepted and used inbox progress/finding/summary messages for observable lifecycle evidence.)
+  - [annoying] config: The shell did not expose MINIH_PROJECT_ROOT, so the required initial cd landed in the run directory rather than the project root. (workaround: Used the known repository root from the environment context: /Users/jordanknight/substrate/084-random-enhancements-3.)
