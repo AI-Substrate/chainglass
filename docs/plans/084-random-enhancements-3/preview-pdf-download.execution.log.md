@@ -79,3 +79,32 @@ made `ADD_TAGS: readonly ['style']`, which is not assignable to `Config.ADD_TAGS
 **Evidence**: 15/15 tests green; `pdf-generator.ts` + test typecheck clean under both
 `apps/web/tsconfig.json` and `test/tsconfig.json` (pre-existing unrelated carry-over
 errors elsewhere left untouched — not introduced by this change); biome clean.
+
+---
+
+## T003 — use-pdf-export hook (RED→GREEN)
+
+**Files**: `apps/web/src/features/041-file-browser/hooks/use-pdf-export.ts`,
+`test/unit/web/features/041-file-browser/use-pdf-export.test.ts`.
+
+**RED→GREEN** (14 tests). Surface: `usePdfExport(generator?)` → `{ isExporting,
+exportElement(el, filePath), exportHtml(html, filePath) }`, plus pure `deriveFilename`.
+- `'use client'`; default generator is a stable module-level `Html2PdfGenerator`
+  (no eager html2pdf import — constructor is inert) so callback identities are stable.
+- Single-flight: a `inFlightRef` (sync) blocks a double-click within the same tick
+  (state lags a render); `isExporting` drives the spinner.
+- Unmount guard: `mountedRef` gates `setIsExporting` AND the toasts, so a late-resolving
+  export after the viewer unmounts neither warns nor toasts (mirrors FX011).
+- `exportElement` applies the ~300ms mermaid pre-capture delay; `exportHtml` is immediate.
+- Filename derivation: basename, last ext → `.pdf`, empty/dir-only → `document.pdf`.
+
+**Discovery D-PDF-4 (jsdom lacks object URLs)**: `URL.createObjectURL` is undefined in
+jsdom, so the blob → `<a download>` path threw and the happy-path *success* toast never
+fired (it fell into the error branch — `fake.lastCall` was still set, which is why the
+filename assertions passed but the toast assertion failed). Fix: the test stubs
+`URL.createObjectURL`/`revokeObjectURL` + `HTMLAnchorElement.prototype.click` (jsdom
+gaps, not own code) and restores them in `afterEach`. The fake-timer delay test uses
+`vi.advanceTimersByTimeAsync(300)`; the single-flight + unmount tests use a gated
+`DeferredPdfGenerator` so generation can be held open across the assertion.
+
+**Evidence**: 14/14 green; hook + test typecheck clean; biome clean.
