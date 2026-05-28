@@ -127,15 +127,41 @@ function resolveBackgroundColor(el: HTMLElement): string {
 }
 
 type JsPDFCtor = typeof import('jspdf').jsPDF;
+type CloneHook = (doc: Document, root: HTMLElement) => void;
+
+/**
+ * Concrete, cross-platform font stacks for the rasterized PDF. The markdown preview inherits
+ * its font from `<body>` (Tailwind Typography sets none on `.prose`); html2canvas clones only
+ * the preview sub-tree, loses that inheritance, and falls back to the UA serif. We pin GitHub's
+ * system stack so the PDF reads as a clean, business-like sans on macOS (San Francisco) and
+ * Windows (Segoe UI), with monospace code blocks.
+ */
+const PDF_SANS_STACK =
+  '-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", "Helvetica Neue", Helvetica, Arial, sans-serif';
+const PDF_MONO_STACK =
+  'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", "Courier New", monospace';
+
+/** onclone hook: pin the sans stack on the cloned markdown root, keep code/pre monospace. */
+function applyMarkdownPdfFont(doc: Document, root: HTMLElement): void {
+  root.style.setProperty('font-family', PDF_SANS_STACK, 'important');
+  const style = doc.createElement('style');
+  style.textContent = `code,kbd,samp,pre,pre *,code *{font-family:${PDF_MONO_STACK} !important}`;
+  (doc.head ?? root).appendChild(style);
+}
 
 /**
  * Render a node with html2canvas-pro (CSS Color 4 aware) and paginate the resulting
  * canvas into an A4 PDF. Both heavy deps are imported lazily here, never at module load.
+ * `onclone` runs against the rasterization clone only (never the on-screen DOM).
  */
-async function captureNodeToPdf(node: HTMLElement, backgroundColor: string): Promise<Blob> {
+async function captureNodeToPdf(
+  node: HTMLElement,
+  backgroundColor: string,
+  onclone?: CloneHook
+): Promise<Blob> {
   const { default: html2canvas } = await import('html2canvas-pro');
   const { jsPDF } = await import('jspdf');
-  const canvas = await html2canvas(node, { scale: 2, useCORS: true, backgroundColor });
+  const canvas = await html2canvas(node, { scale: 2, useCORS: true, backgroundColor, onclone });
   return canvasToA4Pdf(canvas, jsPDF);
 }
 
@@ -174,8 +200,13 @@ export class Html2PdfGenerator implements IPdfGenerator {
   async generate(req: PdfExportRequest): Promise<Blob> {
     if (req.source.kind === 'element') {
       // Capture the live node — theme + mermaid already resolved. Match the on-screen
-      // background so dark theme stays readable (AC-4).
-      return captureNodeToPdf(req.source.element, resolveBackgroundColor(req.source.element));
+      // background so dark theme stays readable (AC-4); pin a clean sans font (the cloned
+      // sub-tree would otherwise serif-fall-back, see applyMarkdownPdfFont).
+      return captureNodeToPdf(
+        req.source.element,
+        resolveBackgroundColor(req.source.element),
+        applyMarkdownPdfFont
+      );
     }
     // Untrusted HTML: sanitize THEN stage off-screen, capture, and always clean up.
     const clean = await sanitizeHtmlForPdf(req.source.html);
