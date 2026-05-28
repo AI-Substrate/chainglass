@@ -168,3 +168,25 @@ contradicts the sanitizer. **Resolution**: updated the `pdf-generator.ts` header
 `pdf-generator.test.ts` header, and plan Key Finding 10 + the AC-4 line to state that
 `<style>` blocks are stripped and only inline `style=` survives in V1. The execution-log
 F002 entry above is kept as historical context.
+
+---
+
+## T005 — HTML PDF button in HtmlViewer
+
+**File**: `apps/web/src/features/041-file-browser/components/html-viewer.tsx`.
+
+- New `sourceHtml` state stores the **ORIGINAL pre-rewrite** `bodyRes.text()` value
+  (set right after the abort check, before `rewriteRelativeUrls`) — so the exported PDF
+  is built from token-free HTML (Finding 11). The token-rewritten string is used only for
+  the iframe blob, never for export.
+- Added `usePdfExport(pdfGenerator)` + a raw PDF button to the HtmlViewer toolbar (left of
+  "Open in new tab"), gated on `sourceHtml`: `aria-label`/`title="Download as PDF"`,
+  `data-testid="html-viewer-download-pdf"`, `Loader2` while exporting else `FileDown`.
+  Filename source = `currentFilePath ?? extractFileParam(src) ?? ''` (new helper reads the
+  `&file=` param; `deriveFilename` handles basename + fallback).
+- Added optional `pdfGenerator?: IPdfGenerator` prop (test DI, mirrors FileViewerPanel's
+  `saveFileImpl` precedent — no DI container per ADR-0013) so T006 can assert the exported
+  source has no `&_at=` token via an injected `FakePdfGenerator`.
+
+**Evidence**: html-viewer typechecks clean; biome clean; 10/10 existing rewrite tests pass.
+No-token + gating + onClick-wiring assertions land in T006.

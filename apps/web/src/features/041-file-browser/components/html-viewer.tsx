@@ -21,8 +21,10 @@
  * with broken images.
  */
 
+import { usePdfExport } from '@/features/041-file-browser/hooks/use-pdf-export';
+import type { IPdfGenerator } from '@/features/041-file-browser/lib/pdf-generator';
 import { AsciiSpinner } from '@/features/_platform/panel-layout';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, FileDown, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 export interface HtmlViewerProps {
@@ -31,6 +33,21 @@ export interface HtmlViewerProps {
   currentFilePath?: string;
   /** Base URL for raw file API (without &file= param) */
   rawFileBaseUrl?: string;
+  /** Optional generator injection for unit tests (no DI container — ADR-0013). */
+  pdfGenerator?: IPdfGenerator;
+}
+
+/** Extract the `file` query param (the relative path) from a raw-file URL, for PDF naming. */
+function extractFileParam(src: string): string | null {
+  try {
+    const url = new URL(
+      src,
+      typeof window !== 'undefined' ? window.location.origin : 'http://localhost'
+    );
+    return url.searchParams.get('file');
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -99,9 +116,19 @@ function extractWorktree(src: string): string | null {
   }
 }
 
-export function HtmlViewer({ src, currentFilePath, rawFileBaseUrl }: HtmlViewerProps) {
+export function HtmlViewer({
+  src,
+  currentFilePath,
+  rawFileBaseUrl,
+  pdfGenerator,
+}: HtmlViewerProps) {
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [error, setError] = useState(false);
+  // The ORIGINAL pre-rewrite HTML (Finding 11). The PDF must NOT be generated from the
+  // token-rewritten string — that would bake the short-lived `&_at=` asset token into a
+  // shareable file. We capture the raw `bodyRes.text()` value before any rewrite.
+  const [sourceHtml, setSourceHtml] = useState<string | null>(null);
+  const { isExporting, exportHtml } = usePdfExport(pdfGenerator);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -143,6 +170,10 @@ export function HtmlViewer({ src, currentFilePath, rawFileBaseUrl }: HtmlViewerP
       const html = await bodyRes.text();
       if (controller.signal.aborted) return;
 
+      // Store the ORIGINAL (pre-rewrite) source for PDF export — never the token-
+      // rewritten string (Finding 11).
+      setSourceHtml(html);
+
       const rewritten =
         currentFilePath && rawFileBaseUrl && token
           ? rewriteRelativeUrls(
@@ -178,7 +209,25 @@ export function HtmlViewer({ src, currentFilePath, rawFileBaseUrl }: HtmlViewerP
 
   return (
     <div className="flex flex-col h-full w-full">
-      <div className="flex items-center justify-end px-2 py-1 border-b shrink-0">
+      <div className="flex items-center justify-end gap-1 px-2 py-1 border-b shrink-0">
+        {sourceHtml && (
+          <button
+            type="button"
+            onClick={() => exportHtml(sourceHtml, currentFilePath ?? extractFileParam(src) ?? '')}
+            disabled={isExporting}
+            className="flex items-center gap-1 rounded px-2 py-0.5 text-xs text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label="Download as PDF"
+            title="Download as PDF"
+            data-testid="html-viewer-download-pdf"
+          >
+            {isExporting ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <FileDown className="h-3 w-3" />
+            )}
+            PDF
+          </button>
+        )}
         <a
           href={src}
           target="_blank"
