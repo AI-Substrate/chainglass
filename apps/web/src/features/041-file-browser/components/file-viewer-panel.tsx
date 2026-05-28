@@ -17,6 +17,7 @@ import {
   Edit,
   ExternalLink,
   Eye,
+  FileDown,
   GitCompare,
   Loader2,
   RefreshCw,
@@ -27,6 +28,7 @@ import {
 } from 'lucide-react';
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { usePdfExport } from '@/features/041-file-browser/hooks/use-pdf-export';
 import {
   LinkPopover,
   MarkdownWysiwygEditorLazy,
@@ -159,6 +161,11 @@ export function FileViewerPanel({
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrolledDown, setScrolledDown] = useState(false);
   const [wordWrap, setWordWrap] = useState(true);
+
+  // Preview "Download as PDF" — captures the live rendered markdown preview node
+  // (theme + mermaid already resolved). Only wired for markdown preview (T004).
+  const previewRef = useRef<HTMLDivElement>(null);
+  const { isExporting: isPdfExporting, exportElement: exportPreviewPdf } = usePdfExport();
 
   // Rich-mode composition state — shared open/close across the toolbar Link button and the
   // editor's Mod-k shortcut. Ref to the toolbar Link button so the LinkPopover anchors to it.
@@ -373,6 +380,23 @@ export function FileViewerPanel({
                 <ArrowUp className="h-3.5 w-3.5" />
               </button>
             )}
+            {mode === 'preview' && isMarkdown && markdownHtml && (
+              <button
+                type="button"
+                onClick={() => exportPreviewPdf(previewRef.current, filePath)}
+                disabled={isPdfExporting}
+                className="rounded p-1 text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label="Download as PDF"
+                title="Download as PDF"
+                data-testid="file-viewer-download-pdf"
+              >
+                {isPdfExporting ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <FileDown className="h-3.5 w-3.5" />
+                )}
+              </button>
+            )}
             <button
               type="button"
               onClick={onRefresh}
@@ -499,7 +523,7 @@ export function FileViewerPanel({
             </>
           )}
           {mode === 'preview' && (
-            <div className="p-4">
+            <div className="p-4" ref={previewRef}>
               {isMarkdown && markdownHtml ? (
                 <MarkdownPreview
                   html={markdownHtml}

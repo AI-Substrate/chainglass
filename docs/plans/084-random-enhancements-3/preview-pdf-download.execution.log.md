@@ -140,3 +140,21 @@ Inline `style=` attributes are still preserved, so HTML PDFs keep inline styling
 sanitizer rejecting `@import`/`url(...)`, or an isolated capture document) is a deferred
 follow-up. This reverses discoveries D-PDF-1/D-PDF-2 — the companion caught a real
 security regression before it shipped.
+
+---
+
+## T004 — Markdown PDF button in FileViewerPanel
+
+**File**: `apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx`.
+
+Added `usePdfExport()` + a `previewRef` to the top-level hooks (before the early
+returns — Rules of Hooks). Put the `previewRef` on the `mode==='preview'` `<div className="p-4">`
+wrapper (live-DOM capture). Added a raw `<button>` to the main toolbar's right-side group
+(before Refresh), gated `mode==='preview' && isMarkdown && markdownHtml`:
+`aria-label`/`title="Download as PDF"`, `data-testid="file-viewer-download-pdf"`,
+`Loader2 animate-spin` + `disabled` while exporting else `FileDown`. onClick →
+`exportPreviewPdf(previewRef.current, filePath)`. Matches the local raw-button idiom
+(Finding 05); no shadcn Button.
+
+**Evidence**: file-viewer-panel typechecks clean; 22/22 existing FileViewerPanel tests
+still pass (no regression); biome clean. DOM-gating + onClick-wiring assertions are T006.
