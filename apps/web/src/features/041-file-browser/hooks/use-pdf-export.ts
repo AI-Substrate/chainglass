@@ -11,8 +11,9 @@
  *
  * The generator is injected via `IPdfGenerator` (no tsyringe DI — ADR-0013 / Finding 09);
  * the default is a stable module-level `Html2PdfGenerator` so callback identities stay
- * stable across renders. The default instance does NOT import `html2pdf.js` until
- * `generate` runs, so the eager bundle is untouched (Finding 06 / AC-8).
+ * stable across renders. The default instance does NOT import the render engine
+ * (html2canvas-pro / jsPDF) until `generate` runs, so the eager bundle is untouched
+ * (Finding 06 / AC-8).
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -78,7 +79,8 @@ export function usePdfExport(generator: IPdfGenerator = defaultGenerator): UsePd
         const blob = await generator.generate(req);
         downloadBlob(blob, req.filename);
         if (mountedRef.current) toast.success('PDF downloaded');
-      } catch {
+      } catch (err) {
+        console.error('[pdf-export] generation failed', err);
         if (mountedRef.current) toast.error('Could not generate PDF');
       } finally {
         inFlightRef.current = false;

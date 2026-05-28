@@ -291,3 +291,49 @@ an authenticated workspace + real files; jsdom/unit tests cannot judge visual fi
    previews.
 8. (L3 harness, T007) drive items 1 + 5 via Playwright asserting `page.on('download')` fires
    with the expected `<basename>.pdf` filename.
+
+---
+
+## FX-PDF-1 — Post-ship runtime fix: PDF generation engine swap (2026-05-28)
+
+**Reported**: User opened a markdown doc in the live app, clicked "Download as PDF", got the
+"Could not generate PDF" toast. Nothing in logs.
+
+**Why nothing was logged**: `use-pdf-export.ts` swallowed the error in a bare `catch {}`.
+Added `console.error('[pdf-export] generation failed', err)` so failures are now diagnosable.
+
+**Root cause (captured live via the next-devtools `browser_eval` MCP — the L3 verification
+that was deferred at T007)**:
+- `html2pdf.js@0.14` externalizes **stock `html2canvas@1.4.1`**, which throws
+  `Attempting to parse an unsupported color function "lab"` at `parseColor`. Chrome's
+  `getComputedStyle` serializes the **Tailwind v4** theme's colors as **CSS Color 4**
+  functions (`lab()` / `oklab()` / `oklch()`); html2canvas 1.x (2021) predates them. This is
+  document-wide — `color`, `background-color`, and `border-color` across the preview all
+  serialize to `lab()`/`oklab()` (9 offenders in the first 40 nodes), so it is **not** fixable
+  by sanitizing the single `backgroundColor` option.
+- Aliasing html2pdf's internal `require('html2canvas')` to the maintained
+  **`html2canvas-pro`** fork via a Turbopack/webpack `resolveAlias` cleared the color error but
+  surfaced a second failure: `html2canvas__WEBPACK_..._default(...) is not a function`.
+  html2pdf.js's **prebuilt webpack bundle** has a baked-in default-interop helper that does not
+  compose with Turbopack's module system (bare-package alias → an ESM namespace it treats as
+  non-callable; sub-path alias → not applied at all, fell back to stock html2canvas).
+
+**Fix (Option C — drop html2pdf.js)**: render with **`html2canvas-pro` + `jsPDF` directly**
+from our own code (`lib/pdf-generator.ts`), where a clean modern `await import(...)` resolves
+the module shapes correctly. Added `captureNodeToPdf` (lazy-imports both deps, renders the node
+to a canvas) and `canvasToA4Pdf` (slices the canvas across A4 portrait pages — the pagination
+html2pdf used to provide). Removed `html2pdf.js`; added `jspdf` as a direct dep;
+`html2canvas-pro` added. Removed the now-unneeded next.config `resolveAlias`. Both heavy deps
+remain **dynamic-import-only** (AC-8 intact). Element path matches the live node's computed
+background (AC-4); HTML path unchanged (sanitize → off-screen stage → same canvas→PDF).
+
+**Verified live (browser_eval, same workspace/file the user hit)**: markdown preview →
+"Download as PDF" → a real **2.2 MB `application/pdf`** blob downloads as
+`1-extending-events.pdf`, **0 console errors**. This closes the markdown half of T007 item 8
+(L3 download) and checklist item 1. The 39 unit/component tests still pass; touched files
+typecheck + biome clean.
+
+**Decision note**: the plan's library choice (`html2pdf.js`) did not survive contact with the
+Tailwind v4 theme + Turbopack. `html2canvas-pro` + `jsPDF` is the durable replacement; the
+historical spec/research docs that justify the original `html2pdf.js` pick are left intact as
+the decision record of that point in time.

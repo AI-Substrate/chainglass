@@ -9,7 +9,7 @@
 
 ## The Mission
 
-**What we're building**: A single button in the file-viewer toolbar that, while you're previewing a markdown file or an HTML page, turns that rendered view into a PDF and downloads it — one click, no print dialog. Generation happens entirely in the browser via `html2pdf.js`, loaded only on the first click so the page's initial bundle is untouched.
+**What we're building**: A single button in the file-viewer toolbar that, while you're previewing a markdown file or an HTML page, turns that rendered view into a PDF and downloads it — one click, no print dialog. Generation happens entirely in the browser via `html2canvas-pro` + `jsPDF`, loaded only on the first click so the page's initial bundle is untouched.
 
 **Why it matters**: Today there is no way to get a shareable, portable copy of a rendered doc out of the app. This closes that gap with the lightest possible footprint.
 
@@ -52,7 +52,7 @@ flowchart LR
         BTN[Download-PDF button]:::new
         HOOK[usePdfExport hook]:::new
         GEN[IPdfGenerator + Html2PdfGenerator]:::new
-        LIB[html2pdf.js lazy]:::new
+        LIB[html2canvas-pro + jsPDF lazy]:::new
         FVP2 --> MP2
         FVP2 --> HV2
         FVP2 --> BTN
@@ -176,3 +176,14 @@ original pre-rewrite HTML exported so the `&_at=` token never leaks (Finding 11)
 
 **Remaining (manual / live env)**: visual-fidelity pass (light/dark, wide tables, mermaid)
 + the L3 `page.on('download')` harness assertion — checklist in `preview-pdf-download.execution.log.md`.
+
+### FX-PDF-1 — Post-ship runtime fix: engine swap (2026-05-28)
+
+The shipped `html2pdf.js` engine could not generate a PDF in the live app: it bundles stock
+`html2canvas@1.4.1`, which throws on the Tailwind v4 theme's CSS Color 4 values
+(`lab()`/`oklch()` from `getComputedStyle`), and its prebuilt webpack interop does not compose
+with Turbopack. Replaced it with **`html2canvas-pro` + `jsPDF` called directly** (own A4
+pagination in `canvasToA4Pdf`); deps stay dynamic-import-only (AC-8). Added error logging to the
+previously-silent `catch`. **Verified live via browser_eval**: markdown export downloads a real
+2.2 MB PDF with 0 console errors (closes the markdown L3-download item). Full detail + root-cause
+trace in `preview-pdf-download.execution.log.md` § FX-PDF-1.

@@ -1,8 +1,8 @@
 /**
  * pdf-generator — client-side PDF generation seam for the file-browser preview.
  *
- * `IPdfGenerator` decouples the viewer/hook from `html2pdf.js` so unit tests inject
- * a `FakePdfGenerator` (the real adapter pulls in jspdf + html2canvas, which cannot
+ * `IPdfGenerator` decouples the viewer/hook from the render engine so unit tests inject
+ * a `FakePdfGenerator` (the real adapter pulls in html2canvas-pro + jsPDF, which cannot
  * run in jsdom — R-TEST-007). No tsyringe DI registration: per ADR-0013 the DI
  * container is server-side and React hooks can't resolve from it, so the hook takes
  * an optional generator param defaulting to `new Html2PdfGenerator()` (Finding 09).
@@ -19,8 +19,14 @@
  *    CSS in V1. The JS-execution vectors (`<script>`, `on*`, `<svg onload>`,
  *    `javascript:`/`data:text/html`, framing tags) are stripped too.
  *
- * Both `html2pdf.js` and `dompurify` are dynamically imported at call time so the
- * eager route bundle is untouched (Finding 06 / AC-8).
+ * `html2canvas-pro`, `jspdf`, and `dompurify` are all dynamically imported at call time
+ * so the eager route bundle is untouched (Finding 06 / AC-8).
+ *
+ * We render with `html2canvas-pro` + `jsPDF` directly rather than via `html2pdf.js`:
+ * html2pdf bundles stock html2canvas@1.x, which THROWS on the CSS Color 4 values
+ * (`lab()` / `oklch()`) that the Tailwind v4 theme emits via getComputedStyle, and its
+ * prebuilt webpack interop does not compose with Turbopack (the default export resolves
+ * to a non-callable namespace). html2canvas-pro parses modern colors natively.
  */
 
 export type PdfSource = { kind: 'element'; element: HTMLElement } | { kind: 'html'; html: string };
@@ -120,43 +126,60 @@ function resolveBackgroundColor(el: HTMLElement): string {
   return '#ffffff';
 }
 
-/** Real adapter — wraps `html2pdf.js`. Never imported until `generate` runs. */
+type JsPDFCtor = typeof import('jspdf').jsPDF;
+
+/**
+ * Render a node with html2canvas-pro (CSS Color 4 aware) and paginate the resulting
+ * canvas into an A4 PDF. Both heavy deps are imported lazily here, never at module load.
+ */
+async function captureNodeToPdf(node: HTMLElement, backgroundColor: string): Promise<Blob> {
+  const { default: html2canvas } = await import('html2canvas-pro');
+  const { jsPDF } = await import('jspdf');
+  const canvas = await html2canvas(node, { scale: 2, useCORS: true, backgroundColor });
+  return canvasToA4Pdf(canvas, jsPDF);
+}
+
+/**
+ * Slice a (potentially tall) canvas across A4 portrait pages. The image keeps a
+ * left/right margin and is shifted up one page-height at a time; content is rasterized
+ * and may break across a page boundary (accepted V1 limitation, same as html2pdf).
+ */
+function canvasToA4Pdf(canvas: HTMLCanvasElement, JsPDF: JsPDFCtor): Blob {
+  const pdf = new JsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  const margin = 10;
+  const imgW = pageW - margin * 2;
+  const imgH = (canvas.height * imgW) / canvas.width;
+  const imgData = canvas.toDataURL('image/jpeg', 0.98);
+
+  let heightLeft = imgH;
+  let position = 0;
+  pdf.addImage(imgData, 'JPEG', margin, position, imgW, imgH);
+  heightLeft -= pageH;
+  while (heightLeft > 0) {
+    position = heightLeft - imgH; // negative offset: shift the image up by one page
+    pdf.addPage();
+    pdf.addImage(imgData, 'JPEG', margin, position, imgW, imgH);
+    heightLeft -= pageH;
+  }
+  return pdf.output('blob') as Blob;
+}
+
+/**
+ * Real adapter — renders a DOM node to a canvas (html2canvas-pro) and paginates it into
+ * a PDF (jsPDF). Neither dep is imported until `generate` runs.
+ */
 export class Html2PdfGenerator implements IPdfGenerator {
   async generate(req: PdfExportRequest): Promise<Blob> {
-    const { default: html2pdf } = await import('html2pdf.js');
-
-    const baseOpts = {
-      margin: 10,
-      filename: req.filename,
-      image: { type: 'jpeg' as const, quality: 0.98 },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const },
-    };
-
     if (req.source.kind === 'element') {
       // Capture the live node — theme + mermaid already resolved. Match the on-screen
       // background so dark theme stays readable (AC-4).
-      const opts = {
-        ...baseOpts,
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: resolveBackgroundColor(req.source.element),
-        },
-      };
-      const blob = await html2pdf().set(opts).from(req.source.element).outputPdf('blob');
-      return blob as Blob;
+      return captureNodeToPdf(req.source.element, resolveBackgroundColor(req.source.element));
     }
-
     // Untrusted HTML: sanitize THEN stage off-screen, capture, and always clean up.
     const clean = await sanitizeHtmlForPdf(req.source.html);
-    const opts = {
-      ...baseOpts,
-      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
-    };
-    return captureHtmlOffscreen(clean, async (node) => {
-      const blob = await html2pdf().set(opts).from(node).outputPdf('blob');
-      return blob as Blob;
-    });
+    return captureHtmlOffscreen(clean, (node) => captureNodeToPdf(node, '#ffffff'));
   }
 }
 
