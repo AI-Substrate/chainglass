@@ -13,10 +13,11 @@
  *    CSS bake-in is needed (Finding 02).
  *  - `html`: an UNTRUSTED HTML-file string. It is DOMPurify-sanitized BEFORE being
  *    staged into an off-screen in-document node for capture (sanitize-then-stage,
- *    Finding 03), then the node is removed. `<style>` + inline `style=` are preserved
- *    so the file's own CSS survives (Finding 10 / AC-4 note); the JS-execution vectors
- *    (`<script>`, `on*`, `<svg onload>`, `javascript:`/`data:text/html`, framing tags)
- *    are stripped.
+ *    Finding 03), then the node is removed. `<style>` blocks are STRIPPED (companion
+ *    F002: a staged `<style>` would apply CSS globally to the app document); only inline
+ *    `style=` attributes survive, so HTML PDFs keep inline styling but lose `<style>`-block
+ *    CSS in V1. The JS-execution vectors (`<script>`, `on*`, `<svg onload>`,
+ *    `javascript:`/`data:text/html`, framing tags) are stripped too.
  *
  * Both `html2pdf.js` and `dompurify` are dynamically imported at call time so the
  * eager route bundle is untouched (Finding 06 / AC-8).

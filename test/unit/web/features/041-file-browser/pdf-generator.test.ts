@@ -15,8 +15,9 @@
  * Contract:
  *   - `sanitizeHtmlForPdf(html)` strips every JS-execution vector (`<script>`,
  *     `on*` handlers, `<svg onload>`, `javascript:`/`data:text/html` URLs, framing
- *     tags `<iframe>/<object>/<embed>`) while PRESERVING `<style>` + inline `style=`
- *     so the HTML file's own CSS survives to the PDF (Finding 10 / AC-4 note).
+ *     tags `<iframe>/<object>/<embed>`) AND `<style>` blocks (companion F002 — a staged
+ *     `<style>` would apply CSS globally to the app document). Only inline `style=`
+ *     attributes survive to the PDF in V1.
  *   - `captureHtmlOffscreen(clean, capture)` appends an off-screen in-document node,
  *     hands it to `capture`, returns the capture's Blob, and ALWAYS removes the node
  *     (success or throw) — html2canvas needs the node attached to resolve styles.

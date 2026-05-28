@@ -158,3 +158,13 @@ wrapper (live-DOM capture). Added a raw `<button>` to the main toolbar's right-s
 
 **Evidence**: file-viewer-panel typechecks clean; 22/22 existing FileViewerPanel tests
 still pass (no regression); biome clean. DOM-gating + onClick-wiring assertions are T006.
+
+---
+
+## Companion review — F003 (MEDIUM) contract-drift wording
+
+After the F002 fix, the companion flagged stale "`<style>` preserved" wording that now
+contradicts the sanitizer. **Resolution**: updated the `pdf-generator.ts` header, the
+`pdf-generator.test.ts` header, and plan Key Finding 10 + the AC-4 line to state that
+`<style>` blocks are stripped and only inline `style=` survives in V1. The execution-log
+F002 entry above is kept as historical context.
