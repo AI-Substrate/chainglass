@@ -258,3 +258,36 @@ warnings.
 - Empirical `next build` chunk inspection — superseded by the static guarantee above (and
   a full build risks tripping pre-existing unrelated app typecheck errors that are not part
   of this feature).
+
+---
+
+## T008 — Manual fidelity pass + domain.md update
+
+**Done (in this session)**: Updated `docs/domains/file-browser/domain.md`:
+- **Composition**: `usePdfExport` + `IPdfGenerator`/`Html2PdfGenerator`/`FakePdfGenerator`.
+- **Source Location**: `lib/pdf-generator.ts`, `hooks/use-pdf-export.ts`.
+- **Concepts**: new "Export preview to PDF" row (with the rasterized + `<style>`-dropped V1
+  limitations noted).
+- **History**: new 2026-05-28 row summarizing the feature + the F002/F004/Finding-11 calls.
+
+**NOT run in this session — manual fidelity checklist for the user** (needs the live app +
+an authenticated workspace + real files; jsdom/unit tests cannot judge visual fidelity):
+1. Markdown preview, **light theme**: open a `.md` with headings, lists, a GFM table, and a
+   fenced code block → click "Download as PDF" → confirm the PDF matches on-screen and code
+   colors are correct.
+2. Markdown preview, **dark theme**: repeat → confirm the dark background + light text render
+   (the generator resolves the live element's computed background for AC-4).
+3. **Wide GFM table**: confirm it isn't badly clipped (portrait); note if landscape/auto-fit
+   is wanted as a follow-up.
+4. **Mermaid** `.md`: open, let the diagram render, then export → confirm it's captured;
+   export immediately (before render) → confirm it may appear as an empty box (documented V1
+   limitation), not a crash.
+5. **HTML preview**: open an `.html` file → click "Download as PDF" → confirm a PDF downloads;
+   confirm inline-styled content renders and `<style>`-block styling is absent (V1 security
+   tradeoff); open the PDF and confirm there is no `&_at=` token anywhere in it.
+6. **Spinner/toast**: confirm the button shows a spinner + disables while generating and a
+   success toast appears (error toast on a forced failure).
+7. **Gating**: confirm the button is absent in `[Source]`/`[Diff]` modes and for non-markdown
+   previews.
+8. (L3 harness, T007) drive items 1 + 5 via Playwright asserting `page.on('download')` fires
+   with the expected `<basename>.pdf` filename.
