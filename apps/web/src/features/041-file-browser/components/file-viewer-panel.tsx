@@ -29,6 +29,7 @@ import {
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { usePdfExport } from '@/features/041-file-browser/hooks/use-pdf-export';
+import type { IPdfGenerator } from '@/features/041-file-browser/lib/pdf-generator';
 import {
   LinkPopover,
   MarkdownWysiwygEditorLazy,
@@ -124,6 +125,8 @@ export interface FileViewerPanelProps {
    * resolved Promise.
    */
   saveFileImpl?: (content: string) => Promise<void>;
+  /** Optional generator injection for unit tests (no DI container — ADR-0013). */
+  pdfGenerator?: IPdfGenerator;
 }
 
 export function FileViewerPanel({
@@ -153,6 +156,7 @@ export function FileViewerPanel({
   scrollToLine,
   onNavigateToFile,
   saveFileImpl,
+  pdfGenerator,
 }: FileViewerPanelProps) {
   // All hooks must be called before any early returns (Rules of Hooks)
   const isMarkdown = language === 'markdown';
@@ -165,7 +169,8 @@ export function FileViewerPanel({
   // Preview "Download as PDF" — captures the live rendered markdown preview node
   // (theme + mermaid already resolved). Only wired for markdown preview (T004).
   const previewRef = useRef<HTMLDivElement>(null);
-  const { isExporting: isPdfExporting, exportElement: exportPreviewPdf } = usePdfExport();
+  const { isExporting: isPdfExporting, exportElement: exportPreviewPdf } =
+    usePdfExport(pdfGenerator);
 
   // Rich-mode composition state — shared open/close across the toolbar Link button and the
   // editor's Mod-k shortcut. Ref to the toolbar Link button so the LinkPopover anchors to it.

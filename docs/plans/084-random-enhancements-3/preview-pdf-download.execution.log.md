@@ -190,3 +190,27 @@ F002 entry above is kept as historical context.
 
 **Evidence**: html-viewer typechecks clean; biome clean; 10/10 existing rewrite tests pass.
 No-token + gating + onClick-wiring assertions land in T006.
+
+---
+
+## T006 — Component DOM-gating + wiring tests
+
+**Files**: `test/unit/web/features/041-file-browser/pdf-export-buttons.test.tsx` (new, 9
+tests); added optional `pdfGenerator?: IPdfGenerator` test-DI prop to `FileViewerPanel`
+(HtmlViewer got it in T005).
+
+Coverage: FileViewerPanel button present (a11y attrs) in markdown preview; absent in
+source/diff/non-markdown-preview/no-markdownHtml. onClick → `{kind:'element'}` + derived
+filename. Disabled + spinner while exporting (gated fake). HtmlViewer button appears after
+load; onClick → `{kind:'html'}`. **Finding 11**: with the token rewrite active (mocked
+asset-token mint + relative-asset HTML), the exported source is the ORIGINAL
+`<img src="./pic.png">` — asserts no `&_at=` and no token string leak into the PDF source.
+
+**Discovery D-PDF-5 (test-env teardown)**: jsdom has no `URL.createObjectURL`/`revokeObjectURL`;
+restoring them to the (undefined) originals made HtmlViewer's effect-cleanup `revokeObjectURL`
+throw post-test. Fix: install the object-URL stubs file-wide and don't restore (jsdom env is
+per-file). Also `await`-settled each click test (re-enable) and the lazy `<Suspense>` content
+in source/diff renders to silence `act()`/suspended-resource warnings.
+
+**Evidence**: 9/9 new tests green; full `041-file-browser` subset 533 passed / 1 skipped
+across 48 files (no regressions); typecheck + biome clean; no act/console warnings.
