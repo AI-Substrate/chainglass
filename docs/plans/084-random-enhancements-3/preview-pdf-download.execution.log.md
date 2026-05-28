@@ -214,3 +214,20 @@ in source/diff renders to silence `act()`/suspended-resource warnings.
 
 **Evidence**: 9/9 new tests green; full `041-file-browser` subset 533 passed / 1 skipped
 across 48 files (no regressions); typecheck + biome clean; no act/console warnings.
+
+---
+
+## Companion review — F004 (HIGH) stale-source export after src change
+
+The companion flagged a data-correctness bug I introduced: `HtmlViewer` is keyed by
+`refreshKey` (not `src`), so switching HTML file A→B reuses the component; `sourceHtml`
+kept A's content during B's pending fetch (and after a failed B load, since error paths
+don't clear it), so clicking PDF would export A's HTML under B's filename.
+**Resolution**: store `loadedSource = { src, html }` and derive
+`sourceHtml = loadedSource?.src === src ? loadedSource.html : null`. The button gates on the
+derived value, so during any non-matching state (reload in flight, failed load) the button
+hides and cannot export stale content. Added a test: load file A → rerender to file B with
+B's fetch pending → assert the button disappears and the generator is never called.
+
+**Evidence**: html-viewer typecheck + biome clean; +1 test (10 in pdf-export-buttons); no
+warnings.

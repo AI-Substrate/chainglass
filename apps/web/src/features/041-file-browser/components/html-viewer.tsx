@@ -124,11 +124,15 @@ export function HtmlViewer({
 }: HtmlViewerProps) {
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [error, setError] = useState(false);
-  // The ORIGINAL pre-rewrite HTML (Finding 11). The PDF must NOT be generated from the
-  // token-rewritten string — that would bake the short-lived `&_at=` asset token into a
-  // shareable file. We capture the raw `bodyRes.text()` value before any rewrite.
-  const [sourceHtml, setSourceHtml] = useState<string | null>(null);
+  // The ORIGINAL pre-rewrite HTML (Finding 11), tagged with the `src` it came from. The
+  // PDF must NOT be built from the token-rewritten string (that would bake the short-lived
+  // `&_at=` token into a shareable file), and it must belong to the CURRENT file — the
+  // component is reused across file switches (keyed by refreshKey, not src), so storing
+  // `{ src, html }` and exposing it only when it matches the live `src` prevents exporting
+  // a previous file's HTML during a reload or after a failed load (companion F004).
+  const [loadedSource, setLoadedSource] = useState<{ src: string; html: string } | null>(null);
   const { isExporting, exportHtml } = usePdfExport(pdfGenerator);
+  const sourceHtml = loadedSource?.src === src ? loadedSource.html : null;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -170,9 +174,9 @@ export function HtmlViewer({
       const html = await bodyRes.text();
       if (controller.signal.aborted) return;
 
-      // Store the ORIGINAL (pre-rewrite) source for PDF export — never the token-
-      // rewritten string (Finding 11).
-      setSourceHtml(html);
+      // Store the ORIGINAL (pre-rewrite) source for PDF export, tagged with this `src`
+      // so a later file switch can't export it (Finding 11 + F004).
+      setLoadedSource({ src, html });
 
       const rewritten =
         currentFilePath && rawFileBaseUrl && token

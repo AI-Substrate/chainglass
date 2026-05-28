@@ -222,4 +222,27 @@ describe('HtmlViewer — PDF button', () => {
     expect(exported).not.toContain('SECRET-TOKEN');
     await waitFor(() => expect(btn).not.toBeDisabled());
   });
+
+  it("does not expose a previous file's source after src changes (F004)", async () => {
+    // File A loads; file B's fetch is left pending. The component is reused across the
+    // switch, so the button must hide rather than export A under B's name.
+    global.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('file=a.html')) return { ok: true, text: async () => '<h1>A</h1>' };
+      return new Promise(() => {}); // b.html never resolves
+    }) as unknown as typeof fetch;
+    const fake = new FakePdfGenerator();
+
+    const { rerender } = render(
+      <HtmlViewer src="/api/raw?worktree=/wt&file=a.html" pdfGenerator={fake} />
+    );
+    await screen.findByTestId('html-viewer-download-pdf'); // A loaded
+
+    rerender(<HtmlViewer src="/api/raw?worktree=/wt&file=b.html" pdfGenerator={fake} />);
+
+    await waitFor(() =>
+      expect(screen.queryByTestId('html-viewer-download-pdf')).not.toBeInTheDocument()
+    );
+    expect(fake.calls).toHaveLength(0);
+  });
 });
