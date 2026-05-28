@@ -3,7 +3,7 @@
 **Spec**: [preview-pdf-download-spec.md](./preview-pdf-download-spec.md)
 **Plan**: [preview-pdf-download-plan.md](./preview-pdf-download-plan.md)
 **Generated**: 2026-05-28
-**Status**: In Progress
+**Status**: Implementation complete — manual fidelity + L3 download verification pending
 
 ---
 
@@ -95,8 +95,8 @@ flowchart LR
     classDef ready fill:#9E9E9E,stroke:#757575,color:#fff
 
     S[Specify]:::done --> P[Plan]:::done
-    P --> I[Implement single phase]:::active
-    I --> D[Done]:::ready
+    P --> I[Implement single phase]:::done
+    I --> D[Done: manual fidelity + L3 download]:::active
 ```
 
 **Legend**: green = done | yellow = active | grey = not started
@@ -151,4 +151,28 @@ flowchart LR
 
 <!-- Updated by /plan-6 and /plan-6a after each phase completes -->
 
-_No phases completed yet._
+### Single phase (T001–T008) — Implementation complete (2026-05-28)
+
+**What was delivered**: Single-click "Download as PDF" on both preview surfaces, fully
+client-side via lazy-loaded `html2pdf.js`. Implemented with a `code-review-companion`
+running in parallel (Power-On-Mode) reviewing every commit.
+
+**Key changes**:
+- `lib/pdf-generator.ts` (NEW) — `IPdfGenerator` seam + `Html2PdfGenerator` (live-element
+  capture for markdown; DOMPurify-sanitized off-screen staging for untrusted HTML) +
+  `FakePdfGenerator`. Both heavy deps dynamic-import-only.
+- `hooks/use-pdf-export.ts` (NEW) — filename, async/spinner state, toast, ~300ms mermaid
+  delay, single-flight + unmount guards.
+- `file-viewer-panel.tsx` / `html-viewer.tsx` — PDF buttons in each toolbar.
+- 39 unit/component tests (no `vi.mock` of own code; no DI container per ADR-0013).
+
+**Companion findings (all resolved)**: F001 (dompurify range → `^3.3.2`), **F002 HIGH**
+(forbid `<style>` so untrusted CSS can't leak into the app document), F003 (doc wording),
+**F004 HIGH** (no stale-source export on file switch). The companion caught two real HIGH
+issues before release.
+
+**Decisions**: `<style>` blocks stripped from untrusted HTML (security > fidelity in V1);
+original pre-rewrite HTML exported so the `&_at=` token never leaks (Finding 11).
+
+**Remaining (manual / live env)**: visual-fidelity pass (light/dark, wide tables, mermaid)
++ the L3 `page.on('download')` harness assertion — checklist in `preview-pdf-download.execution.log.md`.
