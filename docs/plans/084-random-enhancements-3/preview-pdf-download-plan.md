@@ -91,7 +91,7 @@ Add a single toolbar button that converts the current rendered preview into a do
 - [ ] "Download as PDF" button visible in markdown **preview** mode with `aria-label` + tooltip; absent in `[Source]`/`[Diff]`.
 - [ ] Clicking it (markdown) downloads `<basename>.pdf` with rendered headings, lists, GFM tables, highlighted code — no print dialog.
 - [ ] "Download as PDF" button visible in the HTML preview; clicking downloads a sanitized `<basename>.pdf` of the HTML, and the captured HTML contains no `&_at=` asset token (Finding 11).
-- [ ] **Markdown** PDF reflects the active light/dark theme; code-block colors match the visible preview. (HTML files render their own embedded styles — the app theme does not apply to them; Finding 10.)
+- [ ] **Markdown** PDF reflects the active light/dark theme; code-block colors match the visible preview. (HTML files: the app theme does not apply. Per **companion finding F002 (HIGH)**, `<style>` blocks are **stripped** from untrusted HTML during sanitization — appending them to `document.body` for capture would leak CSS globally into the app (`@import`/`url(...)` network calls + selectors targeting app DOM). **Inline `style=` attributes are preserved**, so HTML PDFs retain inline styling but lose `<style>`-block CSS — an accepted V1 limitation; richer HTML-CSS fidelity is a deferred follow-up.)
 - [ ] Spinner + disabled button while generating; success/error toast on completion.
 - [ ] Filename = source basename with extension replaced by `.pdf`; empty → `document.pdf`.
 - [ ] Eager bundle for the browser route does not grow — `html2pdf.js` fetched only on first click.

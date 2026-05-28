@@ -93,15 +93,19 @@ describe('sanitizeHtmlForPdf — attack vectors stripped', () => {
   });
 });
 
-describe('sanitizeHtmlForPdf — fidelity preserved', () => {
-  it('keeps <style> blocks so the HTML file CSS survives (Finding 10 / AC-4)', async () => {
-    const out = await sanitizeHtmlForPdf('<style>body{color:red}</style><h1>Title</h1>');
-    expect(out.toLowerCase()).toContain('<style');
-    expect(out).toContain('color:red');
+describe('sanitizeHtmlForPdf — fidelity vs security', () => {
+  it('DROPS <style> blocks (companion F002): untrusted CSS must not reach the app document', async () => {
+    const out = await sanitizeHtmlForPdf(
+      '<style>@import url(http://evil.test/x.css);body{background:url(http://evil.test/p.png)}</style><h1>Title</h1>'
+    );
+    expect(out.toLowerCase()).not.toContain('<style');
+    expect(out).not.toContain('@import');
+    expect(out).not.toContain('evil.test');
+    // safe content survives
     expect(out).toContain('<h1>Title</h1>');
   });
 
-  it('keeps inline style= attributes', async () => {
+  it('keeps inline style= attributes (preserved fidelity)', async () => {
     const out = await sanitizeHtmlForPdf('<p style="font-weight:bold">x</p>');
     expect(out).toContain('style="font-weight:bold"');
   });

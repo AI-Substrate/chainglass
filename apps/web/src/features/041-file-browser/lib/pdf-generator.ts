@@ -38,17 +38,20 @@ export interface IPdfGenerator {
  * DOMPurify config for the untrusted HTML path. DOMPurify already strips `<script>`,
  * all `on*` handlers, and `javascript:` URLs by default; this config makes that intent
  * explicit and adds defense-in-depth (no framing tags, no unknown protocols, no
- * data-* attributes). `<style>` is explicitly re-allowed via `ADD_TAGS` (DOMPurify
- * drops it by default) so the HTML file's own CSS reaches the PDF (Finding 10 / AC-4
- * note) — a style element cannot execute JS, and DOMPurify still sanitizes its CSS.
+ * data-* attributes).
+ *
+ * `<style>` is deliberately FORBIDDEN (companion review F002, HIGH): the staging node is
+ * appended to `document.body`, so a `<style>` element from an untrusted HTML file would
+ * apply CSS GLOBALLY to the live app document during capture — `@import` / `url(...)`
+ * can fire network requests (exfiltration / tracking) and selectors can target real app
+ * DOM, none of which DOMPurify's HTML sanitization neutralizes. This restores the
+ * original validated-plan stance. V1 tradeoff: HTML-file PDFs lose `<style>`-block CSS
+ * (inline `style=` attributes are still preserved). Richer HTML-CSS fidelity (CSS
+ * sanitization that rejects `@import`/`url(...)`, or an isolated capture document) is a
+ * deferred follow-up.
  */
 export const PDF_SANITIZE_CONFIG = {
-  // FORCE_BODY keeps a leading/`<head>` `<style>` from being hoisted away and dropped
-  // (DOMPurify default returns body-only) — real HTML files are full documents whose
-  // CSS lives in `<head>`. ADD_TAGS re-allows the `<style>` element itself.
-  ADD_TAGS: ['style'],
-  FORCE_BODY: true,
-  FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'base', 'form'],
+  FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'base', 'form'],
   FORBID_ATTR: [
     'onerror',
     'onload',

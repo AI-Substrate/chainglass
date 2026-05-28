@@ -108,3 +108,35 @@ gaps, not own code) and restores them in `afterEach`. The fake-timer delay test 
 `DeferredPdfGenerator` so generation can be held open across the assertion.
 
 **Evidence**: 14/14 green; hook + test typecheck clean; biome clean.
+
+---
+
+## Companion review — findings resolved (after T001–T003 pings)
+
+The `code-review-companion` returned two findings; both addressed before T004.
+
+**F001 (MEDIUM) — open-ended `dompurify` range on the sanitize boundary**
+`apps/web` declared `dompurify: ">=3.3.2"` (pnpm wrote it to match the root override).
+Companion: an open-ended range on the security-critical sanitize dep could accept a
+future major on a lockfile refresh without an explicit decision.
+**Resolution**: direct dep → `^3.3.2` (major-bounded). The root `pnpm.overrides.dompurify
+">=3.3.2"` stays as the repo-wide transitive security floor (out of scope to change — it's
+a maintained, monorepo-wide policy; it currently supersedes the direct specifier in the
+lockfile, which is expected pnpm behaviour and frozen-lockfile-consistent). Resolved
+version unchanged (3.3.3).
+
+**F002 (HIGH) — untrusted `<style>` would become GLOBAL app CSS during staging**
+My T002 deviation re-allowed `<style>` (`ADD_TAGS`) for HTML fidelity. But the staging
+node is appended to `document.body`, so an untrusted file's `<style>` would apply CSS
+document-wide during capture — `@import`/`url(...)` can fire network requests
+(exfiltration/tracking) and selectors can target the real app DOM. DOMPurify's HTML
+sanitization does not neutralize CSS URL/import vectors. This is exactly the boundary the
+validated plan avoided by forbidding `style`.
+**Resolution**: **reverted to forbidding `<style>`** (Option A — the conservative,
+plan-aligned choice). Removed `ADD_TAGS`/`FORCE_BODY`; `'style'` is back in `FORBID_TAGS`.
+Inline `style=` attributes are still preserved, so HTML PDFs keep inline styling but lose
+`<style>`-block CSS — an accepted V1 limitation. The attack-vector test now asserts
+`<style>` (incl. `@import`/`url(...)`) is stripped. Richer HTML-CSS fidelity (a CSS
+sanitizer rejecting `@import`/`url(...)`, or an isolated capture document) is a deferred
+follow-up. This reverses discoveries D-PDF-1/D-PDF-2 — the companion caught a real
+security regression before it shipped.
