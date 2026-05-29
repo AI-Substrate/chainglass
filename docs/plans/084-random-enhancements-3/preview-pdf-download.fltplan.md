@@ -187,3 +187,16 @@ pagination in `canvasToA4Pdf`); deps stay dynamic-import-only (AC-8). Added erro
 previously-silent `catch`. **Verified live via browser_eval**: markdown export downloads a real
 2.2 MB PDF with 0 console errors (closes the markdown L3-download item). Full detail + root-cause
 trace in `preview-pdf-download.execution.log.md` § FX-PDF-1.
+
+### FX-PDF-2 — Post-ship fidelity fix: HTML-file PDF restores full CSS (2026-05-29)
+
+HTML-file PDFs exported as bare, unstyled text — the page's CSS lives in `<style>`/`<head>`,
+but the HTML path stripped `<style>` (companion F002) and staged the bare markup into the app
+document with no styling. Fixed by rendering the sanitized HTML in an **isolated, same-origin,
+scripts-disabled iframe** (`captureHtmlInIframe`) and capturing its body: the file's `<style>`
+now styles the PDF without ever touching the live app document — the "isolated capture
+document" F002 named as the proper mitigation. `<style>` re-allowed (`WHOLE_DOCUMENT` +
+`ADD_TAGS`), `@import` stripped as the one network vector, scripts doubly blocked. **Verified
+live via browser_eval**: a styled page (gradient/cards/badges/serif heading/grid) exports a
+435 KB PDF matching the on-screen layout, 0 errors. Markdown path unchanged. Detail in
+`preview-pdf-download.execution.log.md` § FX-PDF-2.

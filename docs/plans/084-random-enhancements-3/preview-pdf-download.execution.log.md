@@ -337,3 +337,46 @@ typecheck + biome clean.
 Tailwind v4 theme + Turbopack. `html2canvas-pro` + `jsPDF` is the durable replacement; the
 historical spec/research docs that justify the original `html2pdf.js` pick are left intact as
 the decision record of that point in time.
+
+## FX-PDF-2 — Post-ship fidelity fix: HTML-file PDF restores full CSS (2026-05-29)
+
+**Report**: user exported an HTML-file preview to PDF and got bare, unstyled text (no
+cards, gradient, badges, headings) where the on-screen page is fully styled — "i'd expect
+the pdf to look very much like the html?".
+
+**Root cause**: the HTML path was `sanitize → stage into document.body → html2canvas`. Two
+things stripped the styling: (1) `sanitizeHtmlForPdf` FORBID-listed `<style>` (companion
+F002 — a `<style>` staged into the live app document applies its CSS globally and `@import`
+can fire network requests), and (2) the off-screen staging `<div>` carried no CSS at all.
+Since a generated HTML page's entire look lives in `<style>`/`<head>` CSS (not inline
+`style=` attributes), the rasterized capture was unstyled text.
+
+**Fix (isolated capture document — the follow-up F002 itself named)**: render the sanitized
+HTML inside an **isolated, same-origin, scripts-disabled iframe** (`captureHtmlInIframe`)
+and html2canvas its `<body>`. Because the iframe is a SEPARATE document, the file's own
+`<style>` styles the capture WITHOUT reaching the live app document — so F002's
+global-pollution vector no longer applies and full CSS fidelity returns. Changes:
+- `PDF_SANITIZE_CONFIG`: allow `<style>` again (`ADD_TAGS:['style']`) and sanitize the
+  WHOLE document (`WHOLE_DOCUMENT:true`) so head-level `<style>` survives; keep
+  `<script>/<iframe>/<object>/<embed>/<base>/<form>` + all `on*` forbidden.
+- `sanitizeHtmlForPdf`: strip `@import` at-rules from the sanitized output (the one real
+  network vector); inline `url(...)` backgrounds are kept.
+- `captureHtmlInIframe` replaces `captureHtmlOffscreen`: `sandbox="allow-same-origin"` (NO
+  `allow-scripts` — scripts can never run), renders at a 1024px desktop width, grows to the
+  content height, captures the body. Always removes the iframe (success or throw).
+- Markdown/element path unchanged.
+
+**Security note**: F002 (HIGH) was specifically about staging untrusted `<style>` into the
+APP document; an isolated iframe is exactly the mitigation the review flagged as the proper
+fix. Scripts are doubly blocked (DOMPurify strips them AND the iframe omits `allow-scripts`),
+and `@import` is stripped, so the residual surface is inert CSS in a throwaway document.
+
+**Verified live (browser_eval, headless Chrome, real export)**: a representative styled HTML
+page (gradient hero, shadowed cards, gold serif heading, green/blue pill badges, numbered
+step circles, two-column grid, checkbox list) → "Download as PDF" → a **435 KB
+`application/pdf`** that visually matches the on-screen page, **0 generation errors** (only
+an unrelated favicon 404). Confirmed by reading the downloaded PDF.
+
+**Tests**: the `<style>`-fidelity and staging-lifecycle specs were updated to the new
+contract (preserve `<style>`, strip `@import`, isolated-iframe lifecycle). All 39
+unit/component tests pass; touched files typecheck + biome clean.

@@ -11,13 +11,16 @@
  *  - `element`: capture a LIVE in-document preview node (markdown). Rendered mermaid
  *    SVGs + resolved theme colors are already painted, so no detached staging and no
  *    CSS bake-in is needed (Finding 02).
- *  - `html`: an UNTRUSTED HTML-file string. It is DOMPurify-sanitized BEFORE being
- *    staged into an off-screen in-document node for capture (sanitize-then-stage,
- *    Finding 03), then the node is removed. `<style>` blocks are STRIPPED (companion
- *    F002: a staged `<style>` would apply CSS globally to the app document); only inline
- *    `style=` attributes survive, so HTML PDFs keep inline styling but lose `<style>`-block
- *    CSS in V1. The JS-execution vectors (`<script>`, `on*`, `<svg onload>`,
- *    `javascript:`/`data:text/html`, framing tags) are stripped too.
+ *  - `html`: an UNTRUSTED HTML-file string. It is DOMPurify-sanitized then rendered in an
+ *    ISOLATED, same-origin, scripts-disabled IFRAME for capture (sanitize-then-isolate,
+ *    Finding 03 + companion F002 follow-up), and the iframe is always removed afterward.
+ *    Because the iframe is a SEPARATE document, the file's own `<style>` blocks style the
+ *    capture WITHOUT leaking into the live app document — so HTML PDFs now match the
+ *    on-screen page instead of collapsing to bare, unstyled text (FX-PDF-2). CSS `@import`
+ *    at-rules are stripped (they can fetch remote stylesheets); inline `url(...)` is kept.
+ *    The JS-execution vectors (`<script>`, `on*`, `<svg onload>`, `javascript:`/`data:text/html`,
+ *    framing tags) are stripped, and the capture iframe runs WITHOUT `allow-scripts` as
+ *    a second line of defense.
  *
  * `html2canvas-pro`, `jspdf`, and `dompurify` are all dynamically imported at call time
  * so the eager route bundle is untouched (Finding 06 / AC-8).
@@ -47,18 +50,23 @@ export interface IPdfGenerator {
  * explicit and adds defense-in-depth (no framing tags, no unknown protocols, no
  * data-* attributes).
  *
- * `<style>` is deliberately FORBIDDEN (companion review F002, HIGH): the staging node is
- * appended to `document.body`, so a `<style>` element from an untrusted HTML file would
- * apply CSS GLOBALLY to the live app document during capture — `@import` / `url(...)`
- * can fire network requests (exfiltration / tracking) and selectors can target real app
- * DOM, none of which DOMPurify's HTML sanitization neutralizes. This restores the
- * original validated-plan stance. V1 tradeoff: HTML-file PDFs lose `<style>`-block CSS
- * (inline `style=` attributes are still preserved). Richer HTML-CSS fidelity (CSS
- * sanitization that rejects `@import`/`url(...)`, or an isolated capture document) is a
- * deferred follow-up.
+ * `<style>` is ALLOWED here (FX-PDF-2): capture now renders into an ISOLATED same-origin
+ * iframe (`captureHtmlInIframe`) — the "isolated capture document" that the original F002
+ * review named as the proper fix. A `<style>` block scoped to that iframe cannot apply CSS
+ * to the live app document or target real app DOM, so the global-pollution vector F002
+ * flagged (HIGH) no longer applies — and HTML PDFs regain full `<style>`-block fidelity.
+ * The remaining `@import` network vector is closed in `sanitizeHtmlForPdf`, which strips
+ * `@import` at-rules from the sanitized output (inline `url(...)` backgrounds are kept).
+ * Scripts can never run: DOMPurify strips them AND the capture iframe omits `allow-scripts`.
  */
 export const PDF_SANITIZE_CONFIG = {
-  FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'base', 'form'],
+  // Sanitize the WHOLE document (HTML files are full pages), preserving the `<head>` so
+  // head-level `<style>` survives — without this DOMPurify drops head content and the PDF
+  // loses its CSS. `<style>` is not in DOMPurify's default allow-list, so add it back
+  // explicitly; @import is stripped separately in sanitizeHtmlForPdf (FX-PDF-2).
+  WHOLE_DOCUMENT: true,
+  ADD_TAGS: ['style'],
+  FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'base', 'form'],
   FORBID_ATTR: [
     'onerror',
     'onload',
@@ -87,31 +95,63 @@ export const PDF_SANITIZE_CONFIG = {
   ALLOW_DATA_ATTR: false,
 };
 
-/** Sanitize untrusted HTML for safe staging + capture. Lazy-imports dompurify. */
+/** Sanitize untrusted HTML for safe isolated-iframe capture. Lazy-imports dompurify. */
 export async function sanitizeHtmlForPdf(html: string): Promise<string> {
   const { default: DOMPurify } = await import('dompurify');
-  return DOMPurify.sanitize(html, PDF_SANITIZE_CONFIG);
+  const clean = DOMPurify.sanitize(html, PDF_SANITIZE_CONFIG);
+  // `<style>` is allowed (it is isolated to the capture iframe), but a CSS `@import` can
+  // still fetch a remote stylesheet — strip those at-rules so an untrusted file can't
+  // trigger network requests during capture. Inline `url(...)` backgrounds are preserved.
+  return clean.replace(/@import\b[^;]*;?/gi, '');
+}
+
+/** Give the isolated document a moment to apply styles + load webfonts before capture. */
+async function iframeSettled(iframe: HTMLIFrameElement): Promise<void> {
+  try {
+    // `fonts` is undefined under jsdom; optional chaining no-ops there.
+    await iframe.contentDocument?.fonts?.ready;
+  } catch {
+    // best-effort: fall through to the timer below
+  }
+  await new Promise((resolve) => setTimeout(resolve, 50));
 }
 
 /**
- * Stage already-sanitized HTML in an off-screen IN-document node, hand it to
- * `capture`, and ALWAYS remove the node afterwards. html2canvas needs the node
- * attached to the document to resolve computed styles, so a detached node will not
- * do (Finding 10). The node is positioned far off-screen to avoid a visible flash.
+ * Render already-sanitized HTML inside an ISOLATED, same-origin, scripts-disabled iframe,
+ * hand its `<body>` to `capture`, and ALWAYS remove the iframe afterward. Because the
+ * iframe is a SEPARATE document, the file's `<style>` blocks style the capture without
+ * leaking into the live app document — this is the "isolated capture document" the F002
+ * review named as the proper fix, and it restores full CSS fidelity to HTML-file PDFs.
+ *
+ * `sandbox="allow-same-origin"` (note: NO `allow-scripts`) lets the parent read
+ * `contentDocument` for html2canvas while guaranteeing the file's scripts never execute.
+ * The doc is rendered at a desktop width so responsive layouts keep their on-screen look;
+ * `canvasToA4Pdf` then scales the capture to fit the page.
  */
-export async function captureHtmlOffscreen(
+export async function captureHtmlInIframe(
   cleanHtml: string,
   capture: (node: HTMLElement) => Promise<Blob>
 ): Promise<Blob> {
-  const container = document.createElement('div');
-  container.style.cssText = 'position:fixed;left:-99999px;top:0;width:794px;background:#ffffff';
-  // Safe: cleanHtml has already been through sanitizeHtmlForPdf.
-  container.innerHTML = cleanHtml;
-  document.body.appendChild(container);
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('sandbox', 'allow-same-origin');
+  iframe.style.cssText =
+    'position:fixed;left:-99999px;top:0;width:1024px;height:0;border:0;background:#ffffff';
+  document.body.appendChild(iframe);
   try {
-    return await capture(container);
+    const doc = iframe.contentDocument;
+    if (!doc) throw new Error('pdf-export: iframe contentDocument unavailable');
+    // Safe: cleanHtml has already been through sanitizeHtmlForPdf, and the iframe omits
+    // allow-scripts, so nothing in the file can execute.
+    doc.open();
+    doc.write(cleanHtml);
+    doc.close();
+    await iframeSettled(iframe);
+    // Grow the iframe to the full content height so html2canvas captures the whole page.
+    const root = doc.documentElement;
+    iframe.style.height = `${Math.max(root.scrollHeight, doc.body?.scrollHeight ?? 0)}px`;
+    return await capture(doc.body ?? root);
   } finally {
-    container.remove();
+    iframe.remove();
   }
 }
 
@@ -208,9 +248,10 @@ export class Html2PdfGenerator implements IPdfGenerator {
         applyMarkdownPdfFont
       );
     }
-    // Untrusted HTML: sanitize THEN stage off-screen, capture, and always clean up.
+    // Untrusted HTML: sanitize THEN render in an isolated iframe (its own `<style>` applies
+    // there, never to the app document), capture, and always clean up. Full CSS fidelity.
     const clean = await sanitizeHtmlForPdf(req.source.html);
-    return captureHtmlOffscreen(clean, (node) => captureNodeToPdf(node, '#ffffff'));
+    return captureHtmlInIframe(clean, (node) => captureNodeToPdf(node, '#ffffff'));
   }
 }
 

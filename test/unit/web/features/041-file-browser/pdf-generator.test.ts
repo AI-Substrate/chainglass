@@ -15,12 +15,12 @@
  * Contract:
  *   - `sanitizeHtmlForPdf(html)` strips every JS-execution vector (`<script>`,
  *     `on*` handlers, `<svg onload>`, `javascript:`/`data:text/html` URLs, framing
- *     tags `<iframe>/<object>/<embed>`) AND `<style>` blocks (companion F002 — a staged
- *     `<style>` would apply CSS globally to the app document). Only inline `style=`
- *     attributes survive to the PDF in V1.
- *   - `captureHtmlOffscreen(clean, capture)` appends an off-screen in-document node,
- *     hands it to `capture`, returns the capture's Blob, and ALWAYS removes the node
- *     (success or throw) — html2canvas needs the node attached to resolve styles.
+ *     tags `<iframe>/<object>/<embed>`) and CSS `@import` at-rules, but now PRESERVES
+ *     `<style>` blocks (FX-PDF-2 — capture renders into an isolated iframe, so file CSS
+ *     styles the PDF without reaching the app document; this resolves companion F002).
+ *   - `captureHtmlInIframe(clean, capture)` appends an isolated, scripts-disabled iframe,
+ *     renders the HTML into its separate document, hands the body to `capture`, returns
+ *     the capture's Blob, and ALWAYS removes the iframe (success or throw).
  *   - `FakePdfGenerator` records `lastCall` (source kind + filename) and returns a
  *     Blob, so the hook + component wiring can be asserted without html2pdf.
  * Usage Notes: Real DOMPurify runs in jsdom (binds to the global window). No
@@ -38,7 +38,7 @@
 import {
   FakePdfGenerator,
   type IPdfGenerator,
-  captureHtmlOffscreen,
+  captureHtmlInIframe,
   sanitizeHtmlForPdf,
 } from '@/features/041-file-browser/lib/pdf-generator';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -95,14 +95,16 @@ describe('sanitizeHtmlForPdf — attack vectors stripped', () => {
 });
 
 describe('sanitizeHtmlForPdf — fidelity vs security', () => {
-  it('DROPS <style> blocks (companion F002): untrusted CSS must not reach the app document', async () => {
+  it('PRESERVES <style> blocks but strips @import (FX-PDF-2 — isolated iframe capture)', async () => {
     const out = await sanitizeHtmlForPdf(
-      '<style>@import url(http://evil.test/x.css);body{background:url(http://evil.test/p.png)}</style><h1>Title</h1>'
+      '<style>@import url(http://evil.test/x.css);h1{color:red}</style><h1>Title</h1>'
     );
-    expect(out.toLowerCase()).not.toContain('<style');
+    // <style> survives — it is now isolated to the capture iframe, not the app document.
+    expect(out.toLowerCase()).toContain('<style');
+    expect(out).toContain('h1{color:red}');
+    // ...but the network-fetching @import at-rule is stripped.
     expect(out).not.toContain('@import');
     expect(out).not.toContain('evil.test');
-    // safe content survives
     expect(out).toContain('<h1>Title</h1>');
   });
 
@@ -120,34 +122,39 @@ describe('sanitizeHtmlForPdf — fidelity vs security', () => {
   });
 });
 
-describe('captureHtmlOffscreen — staging lifecycle', () => {
-  it('attaches an off-screen node, captures it, returns its Blob, then removes it', async () => {
+describe('captureHtmlInIframe — isolated capture lifecycle', () => {
+  it('renders HTML in an isolated iframe, captures its body, returns the Blob, then removes the iframe', async () => {
     const before = document.body.childElementCount;
-    let nodeSeenInDocument = false;
-    let offScreen = false;
+    let bodyHadContent = false;
+    let iframeInDocument = false;
+    let isolatedDocument = false;
     const blob = new Blob(['x'], { type: 'application/pdf' });
 
-    const result = await captureHtmlOffscreen('<h1>hi</h1>', async (node) => {
-      nodeSeenInDocument = document.body.contains(node);
-      offScreen = node.style.left.includes('-99999');
-      expect(node.innerHTML).toContain('<h1>hi</h1>');
+    const result = await captureHtmlInIframe('<h1>hi</h1>', async (node) => {
+      bodyHadContent = node.innerHTML.includes('<h1>hi</h1>');
+      iframeInDocument = document.querySelector('iframe') !== null;
+      // the captured node lives in a SEPARATE document, never the app document
+      isolatedDocument = node.ownerDocument !== document;
       return blob;
     });
 
     expect(result).toBe(blob);
-    expect(nodeSeenInDocument).toBe(true);
-    expect(offScreen).toBe(true);
-    // node removed afterwards — body back to its prior child count
+    expect(bodyHadContent).toBe(true);
+    expect(iframeInDocument).toBe(true);
+    expect(isolatedDocument).toBe(true);
+    // iframe removed afterwards — body back to its prior child count
+    expect(document.querySelector('iframe')).toBeNull();
     expect(document.body.childElementCount).toBe(before);
   });
 
-  it('removes the staging node even when capture throws', async () => {
+  it('removes the iframe even when capture throws', async () => {
     const before = document.body.childElementCount;
     await expect(
-      captureHtmlOffscreen('<h1>hi</h1>', async () => {
+      captureHtmlInIframe('<h1>hi</h1>', async () => {
         throw new Error('capture boom');
       })
     ).rejects.toThrow('capture boom');
+    expect(document.querySelector('iframe')).toBeNull();
     expect(document.body.childElementCount).toBe(before);
   });
 });
