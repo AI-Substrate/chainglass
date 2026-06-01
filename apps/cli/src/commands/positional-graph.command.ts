@@ -1365,7 +1365,7 @@ async function handleNodeGetAnswer(
   } catch (error) {
     if (error instanceof WorkflowEventError) {
       console.log(
-        adapter.format('wf.node.get-answer', { answered: false, errors: [...error.errors] }),
+        adapter.format('wf.node.get-answer', { answered: false, errors: [...error.errors] })
       );
     } else {
       console.log(
