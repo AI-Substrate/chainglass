@@ -243,3 +243,9 @@ No critical deviations from constitution principles. Two documented variances:
 - **ADR-0002** (Exemplar-Driven Development): ✅ Fakes before implementations
 - **ADR-0004** (DI Container): ✅ TmuxSessionManager uses injectable executor functions via constructor; tests use child containers for isolation. Sidecar server is standalone Node.js (no DI container needed — simple function composition).
 - **ADR-0007** (SSE Single-Channel Routing): ✅ No conflict — WebSocket for terminal I/O is separate from SSE for agent/workflow events. SSE infrastructure unchanged.
+
+## Fixes
+
+| ID | Created | Summary | Domain(s) | Status | Source |
+|----|---------|---------|-----------|--------|--------|
+| [FX001](./fixes/FX001-pty-teardown-leak.md) | 2026-06-03 | Deterministic PTY teardown — stop `/dev/ttys*` leak that exhausts the macOS PTY ceiling | terminal | Proposed | Live incident (PTY exhaustion; sidecar pinned 513 nodes) |
