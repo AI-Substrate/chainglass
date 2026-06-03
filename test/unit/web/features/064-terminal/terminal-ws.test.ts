@@ -20,7 +20,7 @@ import {
   activeSigningSecret,
 } from '@chainglass/shared/auth-bootstrap-code';
 import { SignJWT } from 'jose';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { type FakePty, createFakePtySpawner } from '../../../../fakes/fake-pty';
 import { FakeTmuxExecutor } from '../../../../fakes/fake-tmux-executor';
 
@@ -267,8 +267,36 @@ describe('Terminal WebSocket Server', () => {
         expect(c.closeCode).toBe(4429);
         expect(JSON.parse(c.sent[0]).type).toBe('error');
       } finally {
-        if (prev === undefined) delete process.env.TERMINAL_MAX_ACTIVE_PTYS;
+        if (prev === undefined) Reflect.deleteProperty(process.env, 'TERMINAL_MAX_ACTIVE_PTYS');
         else process.env.TERMINAL_MAX_ACTIVE_PTYS = prev;
+      }
+    });
+
+    // FX001-1/5: the activity-log poll interval must stop after disconnect.
+    // Previously a nested ws 'close' cleared it; an error/pty-exit leaked it.
+    // disposePty now clears the per-PTY interval on every exit path.
+    it('stops the activity-log poll after disconnect (interval cleared) — FX001-1', () => {
+      vi.useFakeTimers();
+      try {
+        exec.whenCommand('tmux', ['-V']).returns('tmux 3.4');
+        let listPanesCalls = 0;
+        const countingExec = ((command: string, args: string[], options?: unknown) => {
+          if (command === 'tmux' && args[0] === 'list-panes') listPanesCalls++;
+          return exec.exec(command, args, options as never);
+        }) as typeof exec.exec;
+        const server = createTerminalServer({ ...deps, execCommand: countingExec });
+        const ws = createFakeWs();
+        server.handleConnection(ws as unknown as import('ws').WebSocket, '064-tmux', process.cwd());
+
+        vi.advanceTimersByTime(10_000); // one ACTIVITY_LOG_POLL_MS tick
+        const afterFirstPoll = listPanesCalls;
+        expect(afterFirstPoll).toBeGreaterThan(0);
+
+        ws.simulateClose(); // disposePty clears the interval
+        vi.advanceTimersByTime(30_000); // would be 3 more polls if it leaked
+        expect(listPanesCalls).toBe(afterFirstPoll);
+      } finally {
+        vi.useRealTimers();
       }
     });
 

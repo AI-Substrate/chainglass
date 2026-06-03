@@ -248,4 +248,4 @@ No critical deviations from constitution principles. Two documented variances:
 
 | ID | Created | Summary | Domain(s) | Status | Source |
 |----|---------|---------|-----------|--------|--------|
-| [FX001](./fixes/FX001-pty-teardown-leak.md) | 2026-06-03 | Deterministic PTY teardown — stop `/dev/ttys*` leak that exhausts the macOS PTY ceiling | terminal | Proposed | Live incident (PTY exhaustion; sidecar pinned 513 nodes) |
+| [FX001](./fixes/FX001-pty-teardown-leak.md) | 2026-06-03 | Deterministic PTY teardown — stop `/dev/ttys*` leak that exhausts the macOS PTY ceiling | terminal | Complete | Live incident (PTY exhaustion; sidecar pinned 513 nodes) |

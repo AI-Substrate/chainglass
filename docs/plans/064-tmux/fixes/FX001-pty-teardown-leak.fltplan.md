@@ -1,7 +1,7 @@
 # Flight Plan: Fix FX001 — Deterministic PTY teardown (terminal sidecar leak)
 
 **Fix**: [FX001-pty-teardown-leak.md](./FX001-pty-teardown-leak.md)
-**Status**: Ready
+**Status**: Landed
 
 ## What → Why
 
@@ -21,15 +21,15 @@
 - [x] **Stage 2: Harden process cleanup** — force-kill children, add `SIGHUP`/`beforeExit` handlers (`terminal-ws.ts`).
 - [x] **Stage 3: Startup reaper** — track PTY PIDs to a per-port state file; kill prior-run survivors on boot with a liveness + `ps`-is-tmux guard, never the session (`terminal-ws.ts` + `pty-registry.ts`).
 - [x] **Stage 4: Max-PTY ceiling + idle reaper** — reject over-cap upgrades; never exhaust the host (`terminal-ws.ts`).
-- [ ] **Stage 5: Tests** — assert kill-on-close, kill-on-error, cleanup-kills-all, reaper, over-cap rejection via `FakePty` (`terminal-ws.test.ts`).
+- [x] **Stage 5: Tests** — assert kill-on-close, kill-on-error, idempotency, interval-stop, cleanup-kills-all, reaper safety/isolation, over-cap rejection (`terminal-ws.test.ts` + `pty-registry.test.ts`; 49 tests).
 
 ## Acceptance
 
 _Unit-testable (FakePty):_
-- [ ] Socket `error` no longer leaks a PTY; `disposePty` is idempotent and clears the activity-log interval.
-- [ ] Graceful shutdown (`SIGTERM`/`SIGINT`/`SIGHUP`/`beforeExit`) force-kills all active PTYs.
-- [ ] Startup reaper kills exactly the recorded per-port PIDs (guard mocked), never others.
-- [ ] Over-cap connections rejected with a typed close code; no PTY spawned.
+- [x] Socket `error` no longer leaks a PTY; `disposePty` is idempotent and clears the activity-log interval.
+- [x] Graceful shutdown (`SIGTERM`/`SIGINT`/`SIGHUP`/`beforeExit`) force-kills all active PTYs.
+- [x] Startup reaper kills exactly the recorded per-port PIDs (guard mocked), never others.
+- [x] Over-cap connections rejected with a typed close code; no PTY spawned.
 
 _Manual / integration (host-level):_
 - [ ] After a hard kill, the next same-port start reaps orphaned attach-clients; `/dev/ttys*` returns to baseline without manual `pkill`.

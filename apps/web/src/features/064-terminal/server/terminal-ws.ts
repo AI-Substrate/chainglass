@@ -19,6 +19,7 @@ import { type WebSocket, WebSocketServer } from 'ws';
 import { appendActivityLogEntry } from '../../065-activity-log/lib/activity-log-writer.js';
 import { shouldIgnorePaneTitle } from '../../065-activity-log/lib/ignore-patterns.js';
 import type { CommandExecutor, PtyProcess, PtySpawner } from '../types';
+import { reapStalePtys, recordPid, removePid } from './pty-registry';
 import {
   assertBootstrapReadable,
   authorizeUpgrade,
@@ -28,7 +29,6 @@ import {
   parseAllowedOrigins,
   validateTerminalJwt,
 } from './terminal-auth';
-import { reapStalePtys, recordPid, removePid } from './pty-registry';
 import { TmuxSessionManager } from './tmux-session-manager';
 
 const ACTIVITY_LOG_POLL_MS = Number(process.env.ACTIVITY_LOG_POLL_MS ?? '10000');

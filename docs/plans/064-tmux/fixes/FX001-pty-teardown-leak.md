@@ -1,7 +1,7 @@
 # Fix FX001: Deterministic PTY teardown in the terminal sidecar (PTY/`/dev/ttys*` leak)
 
 **Created**: 2026-06-03
-**Status**: Proposed
+**Status**: Complete (implemented 2026-06-03; 49 unit tests green, lint + typecheck clean)
 **Plan**: [tmux-plan.md](../tmux-plan.md) — Plan 064, lineage Phase 1 (sidecar WS server)
 **Source**: Live incident — macOS PTY exhaustion (`kern.tty.ptmx_max = 511` hit; `openpty()` → "out of pty devices" system-wide). Diagnosed this session: 527 `/dev/ttys*` nodes allocated, dropped to 29 the instant the `terminal-ws` process tree was killed.
 **Domain(s)**: terminal (**modify** — internal server lifecycle only; no wire-protocol or consumer-contract change)
@@ -43,7 +43,7 @@ Critical invariant: the fix kills the **tmux attach client** (the PTY), never `t
 | [x] | FX001-2 | Harden `cleanup()`: force-kill each PTY child via `process.kill(pty.pid, 'SIGKILL')` (not only SIGHUP via `pty.kill()`), clear all intervals, and register cleanup on `SIGHUP` + `beforeExit` in addition to `SIGTERM`/`SIGINT`. Confirm kills are dispatched before `process.exit`. | terminal | `apps/web/src/features/064-terminal/server/terminal-ws.ts` | On any catchable shutdown signal, every entry in `activePtys` is force-killed before exit; no `tmux attach` child survives a graceful restart. | Use `process.kill(pty.pid, 'SIGKILL')` — `pid` is on the public `PtyProcess` contract, so no `types.ts` contract change. Graceful-restart leak. **Safety (shared with FX001-3): before any force-kill, verify the pid is alive (`process.kill(pid, 0)`) AND is still a tmux client (`ps -o command= -p <pid>` matches `tmux`; macOS has no `/proc`) — never SIGKILL an unrelated/reused PID, never the tmux server.** |
 | [x] | FX001-3 | Track live PTY child PIDs in a **per-sidecar** state file (keyed by listen port, e.g. `.chainglass/terminal-sidecar-<port>.pids.json`; atomic write via temp-file + rename). On `start()`, read **only this sidecar's** file, force-kill survivors (with the FX001-2 safety check), then reset. Add/remove PIDs as PTYs are spawned/disposed. | terminal | `apps/web/src/features/064-terminal/server/terminal-ws.ts` (+ small helper module) | After a hard SIGKILL leaves orphaned `tmux attach` clients, the **next** sidecar-on-the-same-port start reaps them — `ls /dev/ttys* \| wc -l` returns to baseline with no manual `pkill` — AND `tmux list-sessions` is unchanged (sessions preserved). | Covers the un-catchable SIGKILL-from-watcher path (Vector 2). **Per-port keying prevents concurrent worktree sidecars (which share one `findWorkspaceRoot()` `.chainglass/`) from cross-killing each other's live PTYs.** MUST kill the attach client PID only — never `tmux kill-session`. PID-reuse guard = the FX001-2 `ps`-match safety check. |
 | [x] | FX001-4 | Add a defensive max-active-PTY ceiling: when `activePtys.size` is at cap, reject the WS upgrade with a typed error + bounded close code instead of spawning; add an idle reaper for PTYs whose socket is gone. | terminal | `apps/web/src/features/064-terminal/server/terminal-ws.ts` | With a low cap in a test, the Nth+1 connection is rejected (typed error, no PTY spawned); active PTY count never exceeds `cap`. | Defense-in-depth — caps host impact regardless of leak source. Rejection lives on the upgrade path (see workshop 002). |
-| [ ] | FX001-5 | Unit tests for teardown + reaper using the existing `FakePty` / `createFakePtySpawner` + fake executor. | terminal | `test/unit/web/features/064-terminal/terminal-ws.test.ts` | Tests assert: every spawned `FakePty` is `killed` after `close` AND after `error`; `cleanup()` kills all; the startup reaper kills tracked survivors; an over-cap connection is rejected with no spawn. | Constitution P4 — fakes over mocks. `FakePty` already exposes `killed`; `createFakePtySpawner` records every instance. |
+| [x] | FX001-5 | Unit tests for teardown + reaper using the existing `FakePty` / `createFakePtySpawner` + fake executor. | terminal | `test/unit/web/features/064-terminal/terminal-ws.test.ts` | Tests assert: every spawned `FakePty` is `killed` after `close` AND after `error`; `cleanup()` kills all; the startup reaper kills tracked survivors; an over-cap connection is rejected with no spawn. | Constitution P4 — fakes over mocks. `FakePty` already exposes `killed`; `createFakePtySpawner` records every instance. |
 
 ## Workshops Consumed
 
@@ -53,11 +53,11 @@ Critical invariant: the fix kills the **tmux attach client** (the PTY), never `t
 ## Acceptance
 
 **Unit-testable** (via `FakePty` / `createFakePtySpawner` + fake executor — the FX001-5 suite):
-- [ ] A WebSocket `error` without a clean `close` no longer leaks a PTY (asserts spawned `FakePty.killed === true`).
-- [ ] `disposePty` is idempotent — a second dispose (e.g. `close` after `pty.onExit`) is a no-op, and the PTY's activity-log interval is cleared on every exit path.
-- [ ] `cleanup()` force-kills every PTY in `activePtys` on `SIGTERM`/`SIGINT`/`SIGHUP`/`beforeExit`.
-- [ ] The startup reaper, given a per-port state file of recorded PIDs, kills exactly those PIDs (with the liveness + `ps`-match guard mocked) and never others.
-- [ ] A max-active-PTY ceiling (low cap in test) rejects the Nth+1 connection with a typed close code and spawns no PTY.
+- [x] A WebSocket `error` without a clean `close` no longer leaks a PTY (asserts spawned `FakePty.killed === true`).
+- [x] `disposePty` is idempotent — a second dispose (e.g. `close` after `pty.onExit`) is a no-op, and the PTY's activity-log interval is cleared on every exit path (fake-timer poll-stop test).
+- [x] `cleanup()` force-kills every PTY in `activePtys` on `SIGTERM`/`SIGINT`/`SIGHUP`/`beforeExit`.
+- [x] The startup reaper, given a per-port state file of recorded PIDs, kills exactly those PIDs (with the liveness + `ps`-match guard mocked) and never others.
+- [x] A max-active-PTY ceiling (low cap in test) rejects the Nth+1 connection with a typed close code and spawns no PTY.
 
 **Manual / integration** (host-level, not unit-testable — observed by the implementer/operator on macOS):
 - [ ] After a hard kill of the sidecar, the next same-port `start()` reaps orphaned `tmux attach` clients; `ls /dev/ttys* | wc -l` returns to baseline without manual `pkill`.
