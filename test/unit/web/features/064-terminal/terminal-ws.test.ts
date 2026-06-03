@@ -224,6 +224,30 @@ describe('Terminal WebSocket Server', () => {
       expect(killCount).toBe(1);
     });
 
+    // FX001-2: graceful shutdown must force-kill every tracked PTY (SIGHUP detach
+    // via disposePty + SIGKILL backstop via the injected killer), so no attach
+    // client survives a clean sidecar restart.
+    it('cleanup() force-kills every active PTY on shutdown — FX001-2', () => {
+      exec.whenCommand('tmux', ['-V']).returns('tmux 3.4');
+      const sigkills: Array<{ pid: number; signal: NodeJS.Signals | number }> = [];
+      const server = createTerminalServer({
+        ...deps,
+        killProcess: (pid, signal) => sigkills.push({ pid, signal }),
+      });
+      const ws1 = createFakeWs();
+      const ws2 = createFakeWs();
+      server.handleConnection(ws1 as unknown as import('ws').WebSocket, 's1', process.cwd());
+      server.handleConnection(ws2 as unknown as import('ws').WebSocket, 's2', process.cwd());
+
+      server.close(); // runs cleanup()
+
+      const [p1, p2] = spawner.instances as FakePty[];
+      expect(p1.killed).toBe(true);
+      expect(p2.killed).toBe(true);
+      expect(sigkills.length).toBe(2);
+      expect(sigkills.every((k) => k.signal === 'SIGKILL')).toBe(true);
+    });
+
     it('should support multiple clients for the same session', () => {
       /*
       Test Doc:

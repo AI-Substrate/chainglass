@@ -55,6 +55,12 @@ export {
 export interface TerminalServerDeps {
   execCommand: CommandExecutor;
   spawnPty: PtySpawner;
+  /**
+   * FX001-2: injectable process killer (defaults to `process.kill`). Lets tests
+   * assert force-kills without signalling real OS PIDs (FakePty.pid is a fake
+   * constant, so a real `process.kill` could hit an unrelated process).
+   */
+  killProcess?: (pid: number, signal: NodeJS.Signals | number) => void;
 }
 
 export interface TerminalServer {
@@ -73,6 +79,11 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
   // ties each PTY to its activity-log interval so disposePty clears both together.
   const disposedPtys = new WeakSet<PtyProcess>();
   const ptyIntervals = new Map<PtyProcess, ReturnType<typeof setInterval>>();
+  // FX001-2: injectable killer (default real `process.kill`) + once-only guard.
+  const killProcess =
+    deps.killProcess ??
+    ((pid: number, signal: NodeJS.Signals | number) => process.kill(pid, signal));
+  let cleanedUp = false;
   let wss: WebSocketServer | null = null;
 
   // Plan 084 Phase 4 — Always-on auth.
@@ -263,13 +274,28 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
   }
 
   function cleanup(): void {
-    for (const interval of activityLogIntervals) {
-      clearInterval(interval);
+    // FX001-2: idempotent — a signal handler AND `beforeExit` can both fire.
+    if (cleanedUp) return;
+    cleanedUp = true;
+
+    // Snapshot: disposePty mutates activePtys while we iterate.
+    for (const pty of [...activePtys]) {
+      disposePty(pty); // SIGHUP detach + interval clear (idempotent)
+      // Force-kill backstop: a wedged attach client may ignore SIGHUP. SIGKILL
+      // its pid so no tmux CLIENT survives the sidecar. Safe here — these are
+      // PIDs we are currently tracking as our own live children (no reuse risk;
+      // that risk is handled with the ps-guard in the startup reaper, FX001-3).
+      try {
+        killProcess(pty.pid, 'SIGKILL');
+      } catch {
+        // Process already exited.
+      }
     }
+
+    // Clear any interval not tied to a live PTY (defensive).
+    for (const interval of activityLogIntervals) clearInterval(interval);
     activityLogIntervals.clear();
-    for (const pty of activePtys) {
-      pty.kill();
-    }
+    ptyIntervals.clear();
     activePtys.clear();
   }
 
@@ -361,19 +387,20 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
 
     console.log(`Terminal WS server listening on ws://${host}:${port}/terminal`);
 
-    process.on('SIGTERM', () => {
-      console.log('Terminal WS server: SIGTERM received, cleaning up...');
+    // FX001-2: reap PTYs on every catchable shutdown path, not just SIGTERM/SIGINT.
+    // SIGHUP fires on terminal hangup / parent death; `beforeExit` catches a clean
+    // drain. (SIGKILL can't be caught — that orphan case is covered by FX001-3's
+    // startup reaper.)
+    const shutdown = (signal: string) => {
+      console.log(`Terminal WS server: ${signal} received, cleaning up...`);
       cleanup();
       wss?.close();
       process.exit(0);
-    });
-
-    process.on('SIGINT', () => {
-      console.log('Terminal WS server: SIGINT received, cleaning up...');
-      cleanup();
-      wss?.close();
-      process.exit(0);
-    });
+    };
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
+    process.on('SIGHUP', () => shutdown('SIGHUP'));
+    process.on('beforeExit', () => cleanup());
   }
 
   function close(): void {
