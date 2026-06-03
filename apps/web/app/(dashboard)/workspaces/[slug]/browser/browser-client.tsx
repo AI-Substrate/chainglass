@@ -38,6 +38,7 @@ import { TerminalView } from '@/features/064-terminal/components/terminal-view';
 import { TerminalViewport } from '@/features/064-terminal/components/terminal-viewport';
 import { useTerminalOverlay } from '@/features/064-terminal/hooks/use-terminal-overlay';
 import { useTerminalSessions } from '@/features/064-terminal/hooks/use-terminal-sessions';
+import { resolveSplitSession } from '@/features/064-terminal/lib/resolve-split-session';
 import { sessionNameFromWorktreePath } from '@/features/064-terminal/lib/session-name-from-worktree-path';
 import { QuestionPopperIndicator } from '@/features/067-question-popper/components/question-popper-indicator';
 import { useNotesOverlay } from '@/features/071-file-notes/hooks/use-notes-overlay';
@@ -1179,18 +1180,30 @@ function BrowserClientInner({
   //   the inline pane would attach to the workspace-default session (often
   //   the main repo) instead of the current worktree.
   // - B → A: leave B, open the float so the terminal stays visible.
+  //
+  // FX013: when the float is OPEN, the user is looking at `overlay.sessionName`
+  // — carry THAT live session into split. The earlier code re-derived the
+  // session from `inlineSessionName` (termSelectedSession → auto-pick), which
+  // falls through to the FIRST session when unset, so split landed on the
+  // wrong session. `resolveSplitSession` prefers the live float session and
+  // only falls back to the worktree-derived name when the float is closed.
   const handleSplitToggleChange = useCallback(
     (next: boolean) => {
       if (next) {
+        const { sessionName, cwd } = resolveSplitSession(overlay, inlineSessionName, worktreePath);
         overlay.closeTerminal();
-        if (inlineSessionName) {
-          overlay.setSessionContext(inlineSessionName, worktreePath);
+        if (sessionName) {
+          overlay.setSessionContext(sessionName, cwd);
         }
         setSplitOn(true);
       } else {
         setSplitOn(false);
-        if (inlineSessionName) {
-          overlay.openTerminal(inlineSessionName, worktreePath);
+        // FX013: reopen the float on the session the split pane was showing
+        // (held in overlay state since enter), not a re-derived fallback —
+        // otherwise exiting split could jump to a different session.
+        const exitName = overlay.sessionName ?? inlineSessionName;
+        if (exitName) {
+          overlay.openTerminal(exitName, overlay.cwd ?? worktreePath);
         }
       }
     },
@@ -1208,8 +1221,10 @@ function BrowserClientInner({
     const handler = (e: Event) => {
       e.stopImmediatePropagation();
       setSplitOn(false);
-      if (inlineSessionName) {
-        overlay.openTerminal(inlineSessionName, worktreePath);
+      // FX013: reopen on the split pane's live session (see B→A above).
+      const exitName = overlay.sessionName ?? inlineSessionName;
+      if (exitName) {
+        overlay.openTerminal(exitName, overlay.cwd ?? worktreePath);
       }
     };
     window.addEventListener('terminal:toggle', handler, { capture: true });
