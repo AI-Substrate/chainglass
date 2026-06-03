@@ -68,6 +68,11 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
   const manager = new TmuxSessionManager(deps.execCommand, deps.spawnPty);
   const activePtys = new Set<PtyProcess>();
   const activityLogIntervals = new Set<ReturnType<typeof setInterval>>();
+  // FX001-1: idempotent-teardown bookkeeping. `disposedPtys` guards double-dispose
+  // (ws 'close', ws 'error', and pty.onExit can all fire for one PTY); `ptyIntervals`
+  // ties each PTY to its activity-log interval so disposePty clears both together.
+  const disposedPtys = new WeakSet<PtyProcess>();
+  const ptyIntervals = new Map<PtyProcess, ReturnType<typeof setInterval>>();
   let wss: WebSocketServer | null = null;
 
   // Plan 084 Phase 4 — Always-on auth.
@@ -86,6 +91,31 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
     const key = activeSigningSecret(cwd);
     const result = await validateTerminalJwt(token, { key, expectedCwd: cwd });
     return result.ok ? result.username : null;
+  }
+
+  /**
+   * FX001-1: the single, idempotent teardown path for a PTY. Safe to call from
+   * ws 'close', ws 'error', and pty.onExit — a second call is a no-op. Clears the
+   * PTY's activity-log interval and kills the tmux ATTACH CLIENT via `pty.kill()`
+   * (SIGHUP detach — never `tmux kill-session`, so the persistent session survives).
+   */
+  function disposePty(pty: PtyProcess): void {
+    if (disposedPtys.has(pty)) return;
+    disposedPtys.add(pty);
+
+    const interval = ptyIntervals.get(pty);
+    if (interval) {
+      clearInterval(interval);
+      activityLogIntervals.delete(interval);
+      ptyIntervals.delete(pty);
+    }
+
+    activePtys.delete(pty);
+    try {
+      pty.kill();
+    } catch {
+      // PTY already exited — nothing to detach.
+    }
   }
 
   function handleConnection(ws: WebSocket, sessionName: string, cwd: string): void {
@@ -162,11 +192,10 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
         }
       }, ACTIVITY_LOG_POLL_MS);
       activityLogIntervals.add(logInterval);
-
-      ws.on('close', () => {
-        clearInterval(logInterval);
-        activityLogIntervals.delete(logInterval);
-      });
+      // FX001-1: tie the interval to this PTY so disposePty clears it on EVERY
+      // exit path (close, error, onExit). Previously only a nested ws 'close'
+      // cleared it — an error-without-close or a pty-exit leaked the interval.
+      ptyIntervals.set(pty, logInterval);
     }
 
     pty.onData((data: string) => {
@@ -176,7 +205,7 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
     });
 
     pty.onExit(() => {
-      activePtys.delete(pty);
+      disposePty(pty);
       if ((ws as unknown as { readyState: number }).readyState === 1) {
         ws.send(JSON.stringify({ type: 'status', status: 'exited' }));
         ws.close(1000, 'PTY exited');
@@ -222,10 +251,11 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
       pty.write(data);
     });
 
-    ws.on('close', () => {
-      activePtys.delete(pty);
-      pty.kill();
-    });
+    // FX001-1: funnel close AND error through the single idempotent teardown.
+    // The missing 'error' handler was the in-session leak — a socket that errored
+    // without a following clean 'close' orphaned its PTY for the process lifetime.
+    ws.on('close', () => disposePty(pty));
+    ws.on('error', () => disposePty(pty));
   }
 
   function derivePort(nextPort: number): number {

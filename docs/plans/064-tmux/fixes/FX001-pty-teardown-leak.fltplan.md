@@ -17,7 +17,7 @@
 
 ## Stages
 
-- [ ] **Stage 1: Idempotent teardown + `ws.on('error')`** — funnel close/error/exit through one `disposePty()` so abnormal drops can't orphan a PTY (`terminal-ws.ts`).
+- [x] **Stage 1: Idempotent teardown + `ws.on('error')`** — funnel close/error/exit through one `disposePty()` so abnormal drops can't orphan a PTY (`terminal-ws.ts`).
 - [ ] **Stage 2: Harden process cleanup** — force-kill children, add `SIGHUP`/`beforeExit` handlers (`terminal-ws.ts`).
 - [ ] **Stage 3: Startup reaper** — track PTY PIDs to a per-port state file; kill prior-run survivors on boot with a liveness + `ps`-is-tmux guard, never the session (`terminal-ws.ts` + helper).
 - [ ] **Stage 4: Max-PTY ceiling + idle reaper** — reject over-cap upgrades; never exhaust the host (`terminal-ws.ts`).

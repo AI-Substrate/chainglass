@@ -30,6 +30,7 @@ function createFakeWs() {
   let closeReason: string | undefined;
   let messageHandler: ((data: Buffer | string) => void) | null = null;
   let closeHandler: (() => void) | null = null;
+  let errorHandler: ((err: Error) => void) | null = null;
   let closed = false;
 
   return {
@@ -45,6 +46,7 @@ function createFakeWs() {
     on: (event: string, handler: (...args: unknown[]) => void) => {
       if (event === 'message') messageHandler = handler as (data: Buffer | string) => void;
       if (event === 'close') closeHandler = handler as () => void;
+      if (event === 'error') errorHandler = handler as (err: Error) => void;
     },
     get sent() {
       return sent;
@@ -60,6 +62,7 @@ function createFakeWs() {
     },
     simulateMessage: (data: string) => messageHandler?.(data),
     simulateClose: () => closeHandler?.(),
+    simulateError: () => errorHandler?.(new Error('socket error')),
     readyState: 1,
     OPEN: 1,
   };
@@ -180,6 +183,45 @@ describe('Terminal WebSocket Server', () => {
 
       ws.simulateClose();
       expect(pty.killed).toBe(true);
+    });
+
+    // FX001-1: the in-session leak — a socket 'error' without a clean 'close'
+    // previously orphaned the PTY (no ws.on('error') handler existed).
+    it('should kill PTY on socket error (no clean close) — FX001-1', () => {
+      exec.whenCommand('tmux', ['-V']).returns('tmux 3.4');
+      const server = createTerminalServer(deps);
+      const ws = createFakeWs();
+
+      server.handleConnection(ws as unknown as import('ws').WebSocket, '064-tmux', process.cwd());
+      const pty = spawner.lastInstance as FakePty;
+      expect(pty.killed).toBe(false);
+
+      ws.simulateError();
+      expect(pty.killed).toBe(true);
+    });
+
+    // FX001-1: disposePty must be idempotent — onExit, then close, then error can
+    // all fire for one PTY; the second+ disposal is a no-op (no double-kill throw).
+    it('should dispose a PTY at most once across exit/close/error — FX001-1', () => {
+      exec.whenCommand('tmux', ['-V']).returns('tmux 3.4');
+      const server = createTerminalServer(deps);
+      const ws = createFakeWs();
+
+      server.handleConnection(ws as unknown as import('ws').WebSocket, '064-tmux', process.cwd());
+      const pty = spawner.lastInstance as FakePty;
+      let killCount = 0;
+      const realKill = pty.kill.bind(pty);
+      pty.kill = () => {
+        killCount++;
+        realKill();
+      };
+
+      pty.simulateExit(0);
+      ws.simulateClose();
+      ws.simulateError();
+
+      expect(pty.killed).toBe(true);
+      expect(killCount).toBe(1);
     });
 
     it('should support multiple clients for the same session', () => {
