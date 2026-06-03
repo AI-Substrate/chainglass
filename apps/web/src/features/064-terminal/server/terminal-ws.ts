@@ -28,6 +28,7 @@ import {
   parseAllowedOrigins,
   validateTerminalJwt,
 } from './terminal-auth';
+import { reapStalePtys, recordPid, removePid } from './pty-registry';
 import { TmuxSessionManager } from './tmux-session-manager';
 
 const ACTIVITY_LOG_POLL_MS = Number(process.env.ACTIVITY_LOG_POLL_MS ?? '10000');
@@ -84,6 +85,9 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
     deps.killProcess ??
     ((pid: number, signal: NodeJS.Signals | number) => process.kill(pid, signal));
   let cleanedUp = false;
+  // FX001-3: listen port keys the PID registry (0 until start() binds — so
+  // handleConnection-only unit tests touch no filesystem).
+  let listenPort = 0;
   let wss: WebSocketServer | null = null;
 
   // Plan 084 Phase 4 — Always-on auth.
@@ -92,6 +96,10 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
   // FX003 (2026-05-03) — `findWorkspaceRoot()` walks up to the same workspace
   // root the main Next.js process resolves, so HKDF keys converge.
   const cwd = findWorkspaceRoot(process.cwd());
+  // FX001-3: stable per-sidecar root for the PID registry. handleConnection has
+  // its own `cwd` PARAM (the connection's working dir) that shadows this one, so
+  // capture the workspace root here under a distinct name.
+  const sidecarRoot = cwd;
 
   /**
    * Periodic-refresh validator used by the in-band `msg.type === 'auth'`
@@ -122,6 +130,9 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
     }
 
     activePtys.delete(pty);
+    // FX001-3: drop from the per-port registry so the next start() won't try to
+    // reap a pid that has already been cleanly disposed.
+    if (listenPort > 0) removePid(sidecarRoot, listenPort, pty.pid);
     try {
       pty.kill();
     } catch {
@@ -170,6 +181,10 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
     }
 
     activePtys.add(pty);
+    // FX001-3: register the live attach-client pid for the startup reaper. Only
+    // when the server is actually listening — handleConnection-only unit tests
+    // (listenPort 0) touch no filesystem.
+    if (listenPort > 0) recordPid(sidecarRoot, listenPort, pty.pid);
 
     // Resolve worktree root from CWD (CWD may be a subdirectory)
     let worktreeRoot = cwd;
@@ -310,6 +325,22 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
       const detail = err instanceof Error ? err.message : String(err);
       console.error(`[terminal] FATAL: ${detail}`);
       process.exit(1);
+    }
+
+    listenPort = port;
+    // FX001-3: reap attach clients orphaned by a prior CRASHED sidecar on THIS
+    // port (the un-catchable SIGKILL case that cleanup() can't reach) before we
+    // accept new connections. Per-port keying isolates concurrent worktree
+    // sidecars; the ps-guard inside reapStalePtys prevents killing reused PIDs.
+    try {
+      const reaped = reapStalePtys(sidecarRoot, port, deps.execCommand, killProcess);
+      if (reaped.length > 0) {
+        console.log(
+          `[terminal] Reaped ${reaped.length} orphaned PTY client(s) from a prior run: ${reaped.join(', ')}`
+        );
+      }
+    } catch (err) {
+      console.error('[terminal] Startup PTY reap failed (continuing):', err);
     }
 
     // Bind to env-configurable host (default localhost; set TERMINAL_WS_HOST=0.0.0.0 for remote)
