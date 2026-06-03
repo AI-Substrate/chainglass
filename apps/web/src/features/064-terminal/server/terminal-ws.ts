@@ -19,7 +19,7 @@ import { type WebSocket, WebSocketServer } from 'ws';
 import { appendActivityLogEntry } from '../../065-activity-log/lib/activity-log-writer.js';
 import { shouldIgnorePaneTitle } from '../../065-activity-log/lib/ignore-patterns.js';
 import type { CommandExecutor, PtyProcess, PtySpawner } from '../types';
-import { reapStalePtys, recordPid, removePid } from './pty-registry';
+import { isProcessAlive, isTmuxClient, reapStalePtys, recordPid, removePid } from './pty-registry';
 import {
   assertBootstrapReadable,
   authorizeUpgrade,
@@ -320,13 +320,15 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
 
     // Snapshot: disposePty mutates activePtys while we iterate.
     for (const pty of [...activePtys]) {
-      disposePty(pty); // SIGHUP detach + interval clear (idempotent)
-      // Force-kill backstop: a wedged attach client may ignore SIGHUP. SIGKILL
-      // its pid so no tmux CLIENT survives the sidecar. Safe here — these are
-      // PIDs we are currently tracking as our own live children (no reuse risk;
-      // that risk is handled with the ps-guard in the startup reaper, FX001-3).
+      disposePty(pty); // node-pty kills the real child (SIGHUP detach) + clears interval
+      // Force-kill backstop for a wedged attach client. Guard with the SAME
+      // liveness + is-tmux-CLIENT check as the reaper (companion review F001): a
+      // pid the OS may have recycled — or the tmux SERVER — must never be
+      // SIGKILLed. Only a still-live tmux attach client is force-killed.
       try {
-        killProcess(pty.pid, 'SIGKILL');
+        if (isProcessAlive(pty.pid, killProcess) && isTmuxClient(pty.pid, deps.execCommand)) {
+          killProcess(pty.pid, 'SIGKILL');
+        }
       } catch {
         // Process already exited.
       }

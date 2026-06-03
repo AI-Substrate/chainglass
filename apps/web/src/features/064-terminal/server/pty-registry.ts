@@ -83,10 +83,17 @@ export function isProcessAlive(pid: number, killer: ProcessKiller): boolean {
   }
 }
 
-/** True only if `ps` reports this pid's command as a tmux process. Fails closed. */
+/**
+ * True only if `ps` reports this pid as a tmux ATTACH CLIENT (`tmux new-session …`
+ * / `tmux attach …`) — NOT the tmux SERVER (`tmux: server`) and not an unrelated
+ * process. Killing the server would tear down EVERY session, so the predicate
+ * must require a client subcommand, not merely the word "tmux". Fails closed.
+ * (Companion review FX001 F002.)
+ */
 export function isTmuxClient(pid: number, exec: CommandExecutor): boolean {
   try {
-    return /\btmux\b/.test(exec('ps', ['-o', 'command=', '-p', String(pid)]));
+    const cmd = exec('ps', ['-o', 'command=', '-p', String(pid)]);
+    return /\btmux\b/.test(cmd) && /\b(new-session|attach(-session)?)\b/.test(cmd);
   } catch {
     return false;
   }

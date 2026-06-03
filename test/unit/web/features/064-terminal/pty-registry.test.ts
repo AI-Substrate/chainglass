@@ -109,12 +109,25 @@ describe('pty-registry (FX001-3)', () => {
     expect(isProcessAlive(43, killer)).toBe(false);
   });
 
-  it('isTmuxClient: matches tmux command, fails closed on error', () => {
+  it('isTmuxClient: matches an attach client, fails closed on error', () => {
     expect(isTmuxClient(100, makeExec(new Set([100])))).toBe(true);
     expect(isTmuxClient(100, makeExec(new Set()))).toBe(false);
     const throwing: CommandExecutor = () => {
       throw new Error('no such process');
     };
     expect(isTmuxClient(100, throwing)).toBe(false);
+  });
+
+  // Companion review F002: the tmux SERVER must NOT match — killing it would tear
+  // down every session. Only a client subcommand (new-session/attach) qualifies.
+  it('isTmuxClient: does NOT match the tmux server or a bare tmux binary', () => {
+    const server: CommandExecutor = () => 'tmux: server';
+    const bareBinary: CommandExecutor = () => '/opt/homebrew/bin/tmux';
+    const client: CommandExecutor = () => 'tmux new-session -A -s sess';
+    const attach: CommandExecutor = () => 'tmux attach -t sess';
+    expect(isTmuxClient(1, server)).toBe(false);
+    expect(isTmuxClient(1, bareBinary)).toBe(false);
+    expect(isTmuxClient(1, client)).toBe(true);
+    expect(isTmuxClient(1, attach)).toBe(true);
   });
 });

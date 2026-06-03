@@ -1,7 +1,7 @@
 # Fix FX001: Deterministic PTY teardown in the terminal sidecar (PTY/`/dev/ttys*` leak)
 
 **Created**: 2026-06-03
-**Status**: Complete (implemented 2026-06-03; 49 unit tests green, lint + typecheck clean)
+**Status**: Complete (implemented 2026-06-03; 51 unit tests green, lint + typecheck clean; companion review F001/F002/F003 resolved)
 **Plan**: [tmux-plan.md](../tmux-plan.md) — Plan 064, lineage Phase 1 (sidecar WS server)
 **Source**: Live incident — macOS PTY exhaustion (`kern.tty.ptmx_max = 511` hit; `openpty()` → "out of pty devices" system-wide). Diagnosed this session: 527 `/dev/ttys*` nodes allocated, dropped to 29 the instant the `terminal-ws` process tree was killed.
 **Domain(s)**: terminal (**modify** — internal server lifecycle only; no wire-protocol or consumer-contract change)
@@ -69,10 +69,12 @@ Critical invariant: the fix kills the **tmux attach client** (the PTY), never `t
 
 ## Discoveries & Learnings
 
-_Populated during implementation._
-
 | Date | Task | Type | Discovery | Resolution |
 |------|------|------|-----------|------------|
+| 2026-06-03 | FX001-3 | gotcha | **Companion F002 (critical)**: `isTmuxClient` used `/\btmux\b/`, which also matches the tmux **server** (`tmux: server`). A recycled PID that became the server would be SIGKILLed → destroys every session — the exact invariant FX001 must protect. | Tightened predicate to require a client subcommand: `/\btmux\b/ && /\b(new-session\|attach(-session)?)\b/`. Added registry test asserting the server / bare binary are NOT matched. |
+| 2026-06-03 | FX001-2 | gotcha | **Companion F001**: `cleanup()`'s `process.kill(pid,'SIGKILL')` backstop was unguarded — same PID-reuse risk class (a recycled pid or the server could be killed on shutdown). | Guarded the backstop with `isProcessAlive(pid) && isTmuxClient(pid)` (same guard as the reaper); node-pty's `pty.kill()` remains the primary, real-child kill. Added test: no SIGKILL when ps reports a non-tmux pid. |
+| 2026-06-03 | FX001-5 | decision | **Companion F003**: dossier marked Complete while F001/F002 were open (acceptance over-claim). | Fixed F001/F002 first; completion re-affirmed only after 51 tests green incl. the two new safety tests. Companion verdict was REQUEST_CHANGES → resolved. |
+| 2026-06-03 | setup | insight | The `code-review-companion` agent's `restricted` preset denies BOTH write and shell, so it crashed twice (E205 write-deny, then E200 shell-deny on `git show`). Live companion review needs shell+write. | Booted with `--permissions trusted` (ephemeral). Future companion runs on this repo should use a preset/override that allows shell+write, or the agent frontmatter should set `permissions.overrides`. |
 
 ---
 

@@ -229,11 +229,17 @@ describe('Terminal WebSocket Server', () => {
     // client survives a clean sidecar restart.
     it('cleanup() force-kills every active PTY on shutdown — FX001-2', () => {
       exec.whenCommand('tmux', ['-V']).returns('tmux 3.4');
-      const sigkills: Array<{ pid: number; signal: NodeJS.Signals | number }> = [];
-      const server = createTerminalServer({
-        ...deps,
-        killProcess: (pid, signal) => sigkills.push({ pid, signal }),
-      });
+      const sigkills: number[] = [];
+      // killer: signal 0 = liveness probe (alive); a real signal = record it.
+      const killProcess = (pid: number, signal: NodeJS.Signals | number) => {
+        if (signal !== 0) sigkills.push(pid);
+      };
+      // ps reports a tmux ATTACH CLIENT so the F001 guard permits the backstop.
+      const execCommand = ((command: string, args: string[], options?: unknown) =>
+        command === 'ps'
+          ? 'tmux new-session -A -s s'
+          : exec.exec(command, args, options as never)) as typeof exec.exec;
+      const server = createTerminalServer({ ...deps, execCommand, killProcess });
       const ws1 = createFakeWs();
       const ws2 = createFakeWs();
       server.handleConnection(ws1 as unknown as import('ws').WebSocket, 's1', process.cwd());
@@ -242,10 +248,34 @@ describe('Terminal WebSocket Server', () => {
       server.close(); // runs cleanup()
 
       const [p1, p2] = spawner.instances as FakePty[];
-      expect(p1.killed).toBe(true);
+      expect(p1.killed).toBe(true); // disposePty → node-pty real-child kill
       expect(p2.killed).toBe(true);
-      expect(sigkills.length).toBe(2);
-      expect(sigkills.every((k) => k.signal === 'SIGKILL')).toBe(true);
+      expect(sigkills.length).toBe(2); // guarded SIGKILL backstop fired for both
+    });
+
+    // Companion review F001: the SIGKILL backstop must NOT fire when the pid is no
+    // longer a tmux client (recycled PID / the tmux server) — only node-pty's
+    // real-child kill happens.
+    it('cleanup() skips the SIGKILL backstop for a non-tmux pid — FX001-2/F001', () => {
+      exec.whenCommand('tmux', ['-V']).returns('tmux 3.4');
+      const sigkills: number[] = [];
+      const killProcess = (pid: number, signal: NodeJS.Signals | number) => {
+        if (signal !== 0) sigkills.push(pid);
+      };
+      // ps reports an UNRELATED process (pid recycled) → backstop must not fire.
+      const execCommand = ((command: string, args: string[], options?: unknown) =>
+        command === 'ps'
+          ? 'node unrelated-worker.js'
+          : exec.exec(command, args, options as never)) as typeof exec.exec;
+      const server = createTerminalServer({ ...deps, execCommand, killProcess });
+      const ws = createFakeWs();
+      server.handleConnection(ws as unknown as import('ws').WebSocket, 's', process.cwd());
+
+      server.close();
+
+      const pty = spawner.lastInstance as FakePty;
+      expect(pty.killed).toBe(true); // node-pty real-child kill still happens
+      expect(sigkills).toEqual([]); // but NO unguarded SIGKILL of a recycled pid
     });
 
     // FX001-4: a reconnect storm must not exhaust host PTYs — at the ceiling the
