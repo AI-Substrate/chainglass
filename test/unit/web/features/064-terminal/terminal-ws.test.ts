@@ -248,6 +248,30 @@ describe('Terminal WebSocket Server', () => {
       expect(sigkills.every((k) => k.signal === 'SIGKILL')).toBe(true);
     });
 
+    // FX001-4: a reconnect storm must not exhaust host PTYs — at the ceiling the
+    // connection is rejected with a typed error + close code 4429, no PTY spawned.
+    it('rejects connections once the max-PTY ceiling is reached — FX001-4', () => {
+      exec.whenCommand('tmux', ['-V']).returns('tmux 3.4');
+      const prev = process.env.TERMINAL_MAX_ACTIVE_PTYS;
+      process.env.TERMINAL_MAX_ACTIVE_PTYS = '2';
+      try {
+        const server = createTerminalServer(deps);
+        const a = createFakeWs();
+        const b = createFakeWs();
+        const c = createFakeWs();
+        server.handleConnection(a as unknown as import('ws').WebSocket, 's', process.cwd());
+        server.handleConnection(b as unknown as import('ws').WebSocket, 's', process.cwd());
+        server.handleConnection(c as unknown as import('ws').WebSocket, 's', process.cwd());
+
+        expect(spawner.spawnCount).toBe(2); // 3rd never spawned
+        expect(c.closeCode).toBe(4429);
+        expect(JSON.parse(c.sent[0]).type).toBe('error');
+      } finally {
+        if (prev === undefined) delete process.env.TERMINAL_MAX_ACTIVE_PTYS;
+        else process.env.TERMINAL_MAX_ACTIVE_PTYS = prev;
+      }
+    });
+
     it('should support multiple clients for the same session', () => {
       /*
       Test Doc:

@@ -88,6 +88,15 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
   // FX001-3: listen port keys the PID registry (0 until start() binds — so
   // handleConnection-only unit tests touch no filesystem).
   let listenPort = 0;
+  // FX001-4: cap concurrent PTYs so a reconnect storm (or any leak) can't exhaust
+  // the host's PTY table. Configurable via TERMINAL_MAX_ACTIVE_PTYS (default 100).
+  const MAX_ACTIVE_PTYS = (() => {
+    const n = Number(process.env.TERMINAL_MAX_ACTIVE_PTYS ?? '100');
+    return Number.isInteger(n) && n > 0 ? n : 100;
+  })();
+  // Socket per PTY, for the idle backstop sweep.
+  const ptyWs = new Map<PtyProcess, WebSocket>();
+  let idleSweep: ReturnType<typeof setInterval> | null = null;
   let wss: WebSocketServer | null = null;
 
   // Plan 084 Phase 4 — Always-on auth.
@@ -130,6 +139,7 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
     }
 
     activePtys.delete(pty);
+    ptyWs.delete(pty);
     // FX001-3: drop from the per-port registry so the next start() won't try to
     // reap a pid that has already been cleanly disposed.
     if (listenPort > 0) removePid(sidecarRoot, listenPort, pty.pid);
@@ -148,6 +158,15 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
       console.error(`[terminal] Rejected connection (session=${sessionName}): ${msg}`);
       ws.send(JSON.stringify({ type: 'error', message: msg }));
       ws.close(4400, 'Invalid cwd');
+      return;
+    }
+
+    // FX001-4: refuse new PTYs at the ceiling rather than exhausting host PTYs.
+    if (activePtys.size >= MAX_ACTIVE_PTYS) {
+      const msg = `Terminal capacity reached (${MAX_ACTIVE_PTYS} active sessions). Close one and retry.`;
+      console.warn(`[terminal] Rejected connection (session=${sessionName}): ${msg}`);
+      ws.send(JSON.stringify({ type: 'error', message: msg }));
+      ws.close(4429, 'Max PTY limit');
       return;
     }
 
@@ -185,6 +204,7 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
     // when the server is actually listening — handleConnection-only unit tests
     // (listenPort 0) touch no filesystem.
     if (listenPort > 0) recordPid(sidecarRoot, listenPort, pty.pid);
+    ptyWs.set(pty, ws); // FX001-4: track socket for the idle backstop sweep
 
     // Resolve worktree root from CWD (CWD may be a subdirectory)
     let worktreeRoot = cwd;
@@ -293,6 +313,11 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
     if (cleanedUp) return;
     cleanedUp = true;
 
+    if (idleSweep) {
+      clearInterval(idleSweep);
+      idleSweep = null;
+    }
+
     // Snapshot: disposePty mutates activePtys while we iterate.
     for (const pty of [...activePtys]) {
       disposePty(pty); // SIGHUP detach + interval clear (idempotent)
@@ -342,6 +367,15 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
     } catch (err) {
       console.error('[terminal] Startup PTY reap failed (continuing):', err);
     }
+
+    // FX001-4: backstop sweep — dispose any PTY whose socket is already CLOSED
+    // but whose 'close'/'error' somehow never fired (disposePty is idempotent).
+    idleSweep = setInterval(() => {
+      for (const [pty, sock] of ptyWs) {
+        if ((sock as unknown as { readyState: number }).readyState === 3) disposePty(pty);
+      }
+    }, 30000);
+    if (typeof idleSweep.unref === 'function') idleSweep.unref();
 
     // Bind to env-configurable host (default localhost; set TERMINAL_WS_HOST=0.0.0.0 for remote)
     const host = process.env.TERMINAL_WS_HOST ?? '127.0.0.1';
