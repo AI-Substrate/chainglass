@@ -13,13 +13,10 @@
  * explorer panel callers continue to work without modification (AC-09).
  */
 
-import { ClipboardCopy, TerminalSquare, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useTerminalOverlay } from '../hooks/use-terminal-overlay';
-import { copyTmuxBuffer } from '../lib/copy-tmux-buffer';
-import { ConnectionStatusBadge } from './connection-status-badge';
+import { TerminalPaneHeader } from './terminal-pane-header';
 import { useTerminalSingleton } from './terminal-singleton-provider';
-import { TerminalThemeSelect } from './terminal-theme-select';
 import { TerminalViewport } from './terminal-viewport';
 
 export function TerminalOverlayPanel() {
@@ -106,34 +103,12 @@ export function TerminalOverlayPanel() {
       }}
       data-testid="terminal-overlay-panel"
     >
-      {/* Header */}
-      <div className="flex items-center justify-between border-b px-3 py-2 shrink-0">
-        <div className="flex items-center gap-2 min-w-0">
-          <TerminalSquare className="h-4 w-4 text-muted-foreground shrink-0" />
-          <span className="text-sm font-medium shrink-0">{sessionName}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <TerminalThemeSelect />
-          <button
-            type="button"
-            onClick={() => copyTmuxBuffer()}
-            className="rounded-sm p-1 text-muted-foreground hover:text-foreground hover:bg-accent"
-            aria-label="Copy tmux buffer"
-            title="Copy tmux buffer"
-          >
-            <ClipboardCopy className="h-3.5 w-3.5" />
-          </button>
-          <ConnectionStatusBadge status={connectionStatus} showLabel={false} />
-          <button
-            type="button"
-            onClick={closeTerminal}
-            className="rounded-sm p-1 hover:bg-accent"
-            aria-label="Close terminal overlay"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
+      {/* Header — shared control strip (FX014). */}
+      <TerminalPaneHeader
+        sessionName={sessionName}
+        connectionStatus={connectionStatus}
+        onClose={closeTerminal}
+      />
 
       {/* Viewport — the singleton's xterm DOM moves in here when isOpen flips true. */}
       <div className="flex-1 overflow-hidden min-h-0">

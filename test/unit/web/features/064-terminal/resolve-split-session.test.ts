@@ -1,59 +1,70 @@
 /**
  * Pure-helper tests for `resolveSplitSession`.
  *
- * FX013: the split toggle must attach the inline pane to the session the
- * floating overlay is *live on*, not a re-derived `termSelectedSession`
- * (which auto-picks `enriched[0]` — the first session — when unset). The
- * regression was "split shows the FIRST tmux session, not this one".
+ * The split toggle must attach the inline pane to the session the singleton is
+ * currently showing — whether the floating overlay is open OR was opened on
+ * this worktree and since closed (overlay state + the parked xterm persist).
+ * It must never inherit an auto-picked "first" session or the provider's
+ * cross-worktree workspace-default. The original regression was "split shows
+ * the FIRST tmux session, not this one".
+ *
+ * Sessions are named by worktree-folder basename
+ * (`sessionNameFromWorktreePath`), so a session "belongs to" a worktree when
+ * its cwd derives to the same basename.
  */
 
 import { resolveSplitSession } from '@/features/064-terminal/lib/resolve-split-session';
 import { describe, expect, it } from 'vitest';
 
-describe('resolveSplitSession — FX013', () => {
-  it('open-float.carries-live-session: prefers the open overlay session over the fallback', () => {
-    // The core regression: float is open on "my-session"; the fallback
-    // (auto-picked first session) is "alpha-first". Split must carry the
-    // live session, NOT the fallback.
-    expect(
-      resolveSplitSession(
-        { isOpen: true, sessionName: 'my-session', cwd: '/wt/my' },
-        'alpha-first',
-        '/wt/derived'
-      )
-    ).toEqual({ sessionName: 'my-session', cwd: '/wt/my' });
+const WT = '/Users/x/github/higgs-jordo';
+const MAIN_REPO = '/Users/x/github/chainglass';
+
+describe('resolveSplitSession — FX015', () => {
+  it('float-open.preserves-live-session: keeps the session the user is viewing', () => {
+    expect(resolveSplitSession({ isOpen: true, sessionName: 'higgs-jordo', cwd: WT }, WT)).toEqual({
+      sessionName: 'higgs-jordo',
+      cwd: WT,
+    });
   });
 
-  it('open-float.null-cwd: pairs the live session with the fallback cwd when overlay cwd is unset', () => {
-    expect(
-      resolveSplitSession(
-        { isOpen: true, sessionName: 'my-session', cwd: null },
-        'alpha-first',
-        '/wt/derived'
-      )
-    ).toEqual({ sessionName: 'my-session', cwd: '/wt/derived' });
+  it('float-closed-same-worktree.preserves: keeps a session opened here earlier even after close', () => {
+    // The core regression: float was opened on this worktree, then closed.
+    // overlay still holds the session + cwd; isOpen is false. Split must NOT
+    // fall through to a first-session pick — it preserves the worktree session.
+    expect(resolveSplitSession({ isOpen: false, sessionName: 'higgs-jordo', cwd: WT }, WT)).toEqual(
+      { sessionName: 'higgs-jordo', cwd: WT }
+    );
   });
 
-  it('closed-float.uses-fallback: falls back to the worktree-derived name when the float is closed', () => {
-    // Split toggled from a cold state — the float was never opened, so
-    // `overlay.sessionName` may hold the provider's workspace-default
-    // (often the main repo). We must NOT carry that; use the worktree name.
-    expect(
-      resolveSplitSession(
-        { isOpen: false, sessionName: 'workspace-default', cwd: '/main/repo' },
-        'derived-name',
-        '/wt/derived'
-      )
-    ).toEqual({ sessionName: 'derived-name', cwd: '/wt/derived' });
+  it('float-closed-same-worktree.preserves-user-switched-session: honours a non-canonical session in this worktree', () => {
+    // User opened the float on this worktree but switched to another session
+    // sharing the worktree cwd. cwd derives to this worktree → preserve.
+    expect(resolveSplitSession({ isOpen: false, sessionName: 'feature-x', cwd: WT }, WT)).toEqual({
+      sessionName: 'feature-x',
+      cwd: WT,
+    });
   });
 
-  it('open-float.empty-session: falls back when the overlay has no session despite being open', () => {
+  it('cold-default.uses-worktree-canonical: ignores the provider workspace-default (main repo)', () => {
+    // Never opened a terminal: overlay still holds the provider defaults, which
+    // point at the MAIN REPO (a different cwd), not this worktree. Split must
+    // attach to THIS worktree's canonical session, not the main-repo default.
     expect(
-      resolveSplitSession(
-        { isOpen: true, sessionName: null, cwd: '/wt/my' },
-        'derived-name',
-        '/wt/derived'
-      )
-    ).toEqual({ sessionName: 'derived-name', cwd: '/wt/derived' });
+      resolveSplitSession({ isOpen: false, sessionName: 'chainglass', cwd: MAIN_REPO }, WT)
+    ).toEqual({ sessionName: 'higgs-jordo', cwd: WT });
+  });
+
+  it('float-open-other-worktree.preserves-viewed: when open, honours what the user sees even cross-cwd', () => {
+    expect(
+      resolveSplitSession({ isOpen: true, sessionName: 'other', cwd: '/some/other' }, WT)
+    ).toEqual({ sessionName: 'other', cwd: '/some/other' });
+  });
+
+  it('no-worktree-path.keeps-overlay: degrades to the overlay session when no name can be derived', () => {
+    // Empty/odd worktree path yields no canonical name; don't blank the session.
+    expect(resolveSplitSession({ isOpen: false, sessionName: 'fallback', cwd: null }, '')).toEqual({
+      sessionName: 'fallback',
+      cwd: '',
+    });
   });
 });

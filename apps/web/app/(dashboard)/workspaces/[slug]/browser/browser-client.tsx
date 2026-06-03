@@ -34,8 +34,8 @@ import type { FileEntry } from '@/features/041-file-browser/services/directory-l
 import { createFilePathHandler } from '@/features/041-file-browser/services/file-path-handler';
 import { FileChangeProvider, useFileChanges } from '@/features/045-live-file-events';
 import { sanitizeSessionName } from '@/features/064-terminal';
+import { TerminalSplitPane } from '@/features/064-terminal/components/terminal-split-pane';
 import { TerminalView } from '@/features/064-terminal/components/terminal-view';
-import { TerminalViewport } from '@/features/064-terminal/components/terminal-viewport';
 import { useTerminalOverlay } from '@/features/064-terminal/hooks/use-terminal-overlay';
 import { useTerminalSessions } from '@/features/064-terminal/hooks/use-terminal-sessions';
 import { resolveSplitSession } from '@/features/064-terminal/lib/resolve-split-session';
@@ -1181,16 +1181,17 @@ function BrowserClientInner({
   //   the main repo) instead of the current worktree.
   // - B → A: leave B, open the float so the terminal stays visible.
   //
-  // FX013: when the float is OPEN, the user is looking at `overlay.sessionName`
-  // — carry THAT live session into split. The earlier code re-derived the
-  // session from `inlineSessionName` (termSelectedSession → auto-pick), which
-  // falls through to the FIRST session when unset, so split landed on the
-  // wrong session. `resolveSplitSession` prefers the live float session and
-  // only falls back to the worktree-derived name when the float is closed.
+  // FX015: split must attach to the session the singleton is currently showing
+  // — whether the float is open OR was opened on this worktree and since
+  // closed (overlay state + the parked xterm persist). The earlier code fell
+  // back to `termSelectedSession` when the float was closed, which auto-picks
+  // the FIRST session, so split reconnected to the wrong one. resolveSplitSession
+  // preserves the live worktree session and otherwise uses this worktree's
+  // canonical name — never an auto-picked first / cross-worktree default.
   const handleSplitToggleChange = useCallback(
     (next: boolean) => {
       if (next) {
-        const { sessionName, cwd } = resolveSplitSession(overlay, inlineSessionName, worktreePath);
+        const { sessionName, cwd } = resolveSplitSession(overlay, worktreePath);
         overlay.closeTerminal();
         if (sessionName) {
           overlay.setSessionContext(sessionName, cwd);
@@ -1236,8 +1237,13 @@ function BrowserClientInner({
   // FX012: inline pane now drives the singleton via a viewport. When `splitOn`
   // is true, the singleton's xterm DOM moves into this slot — same instance
   // as the floating overlay and the /terminal page.
+  // FX014: render TerminalSplitPane (header + viewport) so split mode keeps the
+  // theme picker + copy-buffer control, matching the floating overlay. Display
+  // the live carried session (FX013) so the header label tracks the pane.
   const inlineTerminalPane =
-    splitOn && inlineSessionName ? <TerminalViewport id="inline-3rd" active /> : null;
+    splitOn && inlineSessionName ? (
+      <TerminalSplitPane sessionName={overlay.sessionName ?? inlineSessionName} />
+    ) : null;
 
   return (
     <div className="h-full overflow-hidden">

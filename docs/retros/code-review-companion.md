@@ -65,3 +65,11 @@
 - difficulties:
   - [degrading] coordination: state_transition/state_set rejected non-idle statuses such as reading and stopping with a generic 'state does not match inside state schema' error. (workaround: Published idle state updates where accepted and used inbox progress/finding/summary messages for observable lifecycle evidence.)
   - [annoying] config: The shell did not expose MINIH_PROJECT_ROOT, so the required initial cd landed in the run directory rather than the project root. (workaround: Used the known repository root from the environment context: /Users/jordanknight/substrate/084-random-enhancements-3.)
+
+> ⚠️ ## 2026-06-03T00:22:01.696Z — code-review-companion / 2026-06-03T09-59-51-241Z-266e
+>
+> - runId: 2026-06-03T09-59-51-241Z-266e
+> - runDir: /Users/jordanknight/substrate/084-random-enhancements-3/harness/agents/code-review-companion/runs/2026-06-03T09-59-51-241Z-266e
+> - result: failed
+> - magicWand: (unavailable — run terminated as failed)
+> - stderr (last line): permission denied: kind=shell blocked by preset/overrides
