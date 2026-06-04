@@ -73,10 +73,16 @@ macOS, inotify on Linux), which is instant and cheap. There is one edge case whe
 does not work: **WSL2 with the workspace on a Windows drive mount** (e.g. `/mnt/c/...`,
 drvfs/9P). inotify events do not cross that boundary, so file changes are silently missed.
 
-If you hit this, force a polling watcher instead:
+If you hit this, force a polling watcher instead — either a one-off command:
 
 ```bash
-# In apps/web/.env (see .env.example)
+just dev-poll          # dev server with polling forced on (default 1000ms)
+just dev-poll 500      # ...with a custom interval in ms
+```
+
+or persistently via env (in `apps/web/.env`, see `.env.example`):
+
+```bash
 CHAINGLASS_WATCH_POLLING=true          # force recursive polling for every watcher
 CHAINGLASS_WATCH_POLL_INTERVAL=1000    # optional; ms between scans (default 1000)
 ```

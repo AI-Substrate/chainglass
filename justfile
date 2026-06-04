@@ -39,6 +39,15 @@ dev:
         "pnpm turbo dev -- --port $NEXT_PORT" \
         "pnpm tsx watch --env-file=apps/web/.env.local apps/web/src/features/064-terminal/server/terminal-ws.ts"
 
+# Start dev server with file-watch POLLING forced on (WSL / Windows-mount fallback).
+# Native fs.watch (inotify) is silently dead when the workspace lives on a Windows
+# drive mounted into WSL2 (/mnt/c/..., drvfs/9P), so file changes go undetected. This
+# forces a recursive polling watcher instead. Optional arg = poll interval ms (default 1000).
+# Equivalent to setting CHAINGLASS_WATCH_POLLING=true in apps/web/.env then `just dev`.
+dev-poll interval="1000":
+    @echo "🐢 file-watch polling ON — CHAINGLASS_WATCH_POLLING=true, interval={{interval}}ms (use plain 'just dev' for native watching)"
+    CHAINGLASS_WATCH_POLLING=true CHAINGLASS_WATCH_POLL_INTERVAL={{interval}} just dev
+
 # Start terminal WebSocket server only
 dev-terminal:
     PORT=${PORT:-3000} pnpm tsx watch --env-file=apps/web/.env.local apps/web/src/features/064-terminal/server/terminal-ws.ts

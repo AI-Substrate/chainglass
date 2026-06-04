@@ -7,7 +7,7 @@
   "pending_command": "/plan-8-v2-merge --plan \"docs/plans/085-watch-polling-fallback/watch-polling-fallback-plan.md\"",
   "intent": "Env-forced file-watch polling fallback for WSL/Windows-mount workspaces (simplest version, no auto-detection)",
   "milestones_total": 6,
-  "milestones_done": 6,
+  "milestones_done": 5,
   "last_checkpoint_at": "2026-06-04T02:05:00Z",
   "compacted_seams": [],
   "status": "active"
