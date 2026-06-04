@@ -97,6 +97,7 @@ import {
   FakeSampleAdapter,
   FakeWorkspaceContextResolver,
   FakeWorkspaceRegistryAdapter,
+  FileWatcherFactory,
   GitWorktreeManagerAdapter,
   GitWorktreeResolver,
   type IAgentEventAdapter,
@@ -111,7 +112,6 @@ import {
   type IWorkspaceContextResolver,
   type IWorkspaceRegistryAdapter,
   type IWorkspaceService,
-  NativeFileWatcherFactory,
   SampleAdapter,
   SampleService as WorkflowSampleService,
   WorkspaceContextResolver,
@@ -589,9 +589,10 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
 
   // ==================== Plan 027: Central Notification System ====================
 
-  // Register IFileWatcherFactory → NativeFileWatcherFactory (Plan 060: replaces chokidar)
+  // Register IFileWatcherFactory → FileWatcherFactory (Plan 085: selecting factory —
+  // env-forced polling fallback for WSL/Windows mounts; native by default)
   childContainer.register<IFileWatcherFactory>(WORKSPACE_DI_TOKENS.FILE_WATCHER_FACTORY, {
-    useFactory: () => new NativeFileWatcherFactory(),
+    useFactory: () => new FileWatcherFactory(),
   });
 
   // Register CentralWatcherService with all 6 constructor dependencies
