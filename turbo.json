@@ -7,6 +7,7 @@
       "cache": true
     },
     "dev": {
+      "dependsOn": ["^build"],
       "cache": false,
       "persistent": true,
       "passThroughEnv": ["CHAINGLASS_WATCH_POLLING", "CHAINGLASS_WATCH_POLL_INTERVAL"]
