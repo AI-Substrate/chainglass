@@ -66,6 +66,25 @@ See [GitHub OAuth App Setup](docs/how/auth/github-oauth-setup.md) for the full w
 | `just clean` | Clean build artifacts |
 | `just reset` | Full reset (clean + install) |
 
+## File Watching on WSL / Network Filesystems
+
+Chainglass watches the workspace with native OS file events (`fs.watch` — FSEvents on
+macOS, inotify on Linux), which is instant and cheap. There is one edge case where this
+does not work: **WSL2 with the workspace on a Windows drive mount** (e.g. `/mnt/c/...`,
+drvfs/9P). inotify events do not cross that boundary, so file changes are silently missed.
+
+If you hit this, force a polling watcher instead:
+
+```bash
+# In apps/web/.env (see .env.example)
+CHAINGLASS_WATCH_POLLING=true          # force recursive polling for every watcher
+CHAINGLASS_WATCH_POLL_INTERVAL=1000    # optional; ms between scans (default 1000)
+```
+
+Polling walks the tree on an interval, so it costs more CPU/IO than native watching —
+leave it **unset** anywhere native watching works. An invalid/unset interval falls back
+to 1000ms.
+
 ## Dashboard Demo
 
 The web application includes interactive demo pages showcasing the dashboard components:
