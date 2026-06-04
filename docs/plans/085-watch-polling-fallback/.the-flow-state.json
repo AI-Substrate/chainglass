@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "slug": "watch-polling-fallback",
+  "plan_dir": "docs/plans/085-watch-polling-fallback",
+  "mode": "Simple",
+  "current_stage": "awaiting-8",
+  "pending_command": "/plan-8-v2-merge --plan \"docs/plans/085-watch-polling-fallback/watch-polling-fallback-plan.md\"",
+  "intent": "Env-forced file-watch polling fallback for WSL/Windows-mount workspaces (simplest version, no auto-detection)",
+  "milestones_total": 6,
+  "milestones_done": 5,
+  "last_checkpoint_at": "2026-06-04T01:48:00Z",
+  "compacted_seams": [],
+  "status": "active"
+}
