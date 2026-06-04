@@ -92,6 +92,11 @@ export class PollingFileWatcherAdapter implements IFileWatcher {
     }
   }
 
+  /** Effective poll interval in ms after option/env defaulting. Exposed for introspection/tests (AC5). */
+  get intervalMs(): number {
+    return this.interval;
+  }
+
   add(paths: string | string[]): void {
     if (this.closed) return;
     const pathList = Array.isArray(paths) ? paths : [paths];
@@ -103,6 +108,10 @@ export class PollingFileWatcherAdapter implements IFileWatcher {
       this.watched.add(root);
 
       // Seed the baseline snapshot. Emit add/addDir only when !ignoreInitial (E1/E2).
+      // NOTE (v1 limitation): baseline seeding is NOT gated by the `scanning` guard, so
+      // adding many roots at once launches that many concurrent walks. Acceptable for the
+      // edge-case modality this targets (a handful of worktrees); revisit if startup stat
+      // cost on a cold 9P mount proves painful.
       void this.walk(root)
         .then((snap) => {
           // Bail if closed or unwatched while the baseline scan was in flight.
@@ -113,8 +122,10 @@ export class PollingFileWatcherAdapter implements IFileWatcher {
             }
           }
           this.snapshots.set(root, snap);
-          // AC6: visible startup line naming each watched root + interval.
-          console.log(
+          // AC6: visible startup line naming each watched root + interval. Use stderr
+          // (console.warn) to match sibling watcher adapters and avoid writing to stdout,
+          // which would corrupt an MCP STDIO JSON-RPC stream if the poller runs under it.
+          console.warn(
             `[file-watcher] polling ${root} every ${this.interval}ms (CHAINGLASS_WATCH_POLLING)`
           );
         })
@@ -125,6 +136,7 @@ export class PollingFileWatcherAdapter implements IFileWatcher {
   }
 
   unwatch(paths: string | string[]): void {
+    if (this.closed) return;
     const pathList = Array.isArray(paths) ? paths : [paths];
     for (const watchPath of pathList) {
       const root = resolve(watchPath);
@@ -264,6 +276,7 @@ export class PollingFileWatcherAdapter implements IFileWatcher {
   }
 
   private emit(event: FileWatcherEvent, pathOrError: string | Error): void {
+    if (this.closed) return; // no events after close() — covers debounced 'change' timers too
     const set = this.listeners.get(event);
     if (!set) return;
     for (const callback of set) {

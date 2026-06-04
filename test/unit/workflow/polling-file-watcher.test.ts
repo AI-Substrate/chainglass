@@ -22,7 +22,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 const INTERVAL = 80; // fast polling for tests
-const SETTLE = 320; // ~4 ticks — enough for a scan to capture a change
+const SETTLE = 400; // ~5 ticks — margin for a scan to capture a change on a loaded box
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -67,23 +67,40 @@ describe('FileWatcherFactory selection', () => {
     }
   });
 
-  it('falls back cleanly when CHAINGLASS_WATCH_POLL_INTERVAL is invalid (AC5)', () => {
-    // Invalid interval must not throw — the adapter uses its 1000ms default.
+  it('falls back to the 1000ms default when CHAINGLASS_WATCH_POLL_INTERVAL is invalid (AC5)', () => {
+    // Invalid interval must not throw AND must use the 1000ms default (assert the value, not just the type).
     for (const bad of ['not-a-number', '0', '-5', '']) {
       const factory = new FileWatcherFactory({
         CHAINGLASS_WATCH_POLLING: 'true',
         CHAINGLASS_WATCH_POLL_INTERVAL: bad,
       } as NodeJS.ProcessEnv);
-      expect(factory.create()).toBeInstanceOf(PollingFileWatcherAdapter);
+      const adapter = factory.create();
+      expect(adapter).toBeInstanceOf(PollingFileWatcherAdapter);
+      expect((adapter as PollingFileWatcherAdapter).intervalMs).toBe(1000);
     }
   });
 
-  it('still returns a poller when a valid interval is provided', () => {
+  it('uses the 1000ms default when the interval env var is unset', () => {
+    const factory = new FileWatcherFactory({
+      CHAINGLASS_WATCH_POLLING: 'true',
+    } as NodeJS.ProcessEnv);
+    expect((factory.create() as PollingFileWatcherAdapter).intervalMs).toBe(1000);
+  });
+
+  it('applies a valid CHAINGLASS_WATCH_POLL_INTERVAL', () => {
     const factory = new FileWatcherFactory({
       CHAINGLASS_WATCH_POLLING: 'true',
       CHAINGLASS_WATCH_POLL_INTERVAL: '250',
     } as NodeJS.ProcessEnv);
-    expect(factory.create()).toBeInstanceOf(PollingFileWatcherAdapter);
+    expect((factory.create() as PollingFileWatcherAdapter).intervalMs).toBe(250);
+  });
+
+  it('lets an explicit options.interval win over the env interval', () => {
+    const factory = new FileWatcherFactory({
+      CHAINGLASS_WATCH_POLLING: 'true',
+      CHAINGLASS_WATCH_POLL_INTERVAL: '250',
+    } as NodeJS.ProcessEnv);
+    expect((factory.create({ interval: 77 }) as PollingFileWatcherAdapter).intervalMs).toBe(77);
   });
 });
 
@@ -204,5 +221,44 @@ describe('PollingFileWatcherAdapter diff→event parity', () => {
     watcher.unwatch(tempDir); // synchronous — before the baseline walk resolves
     await sleep(SETTLE);
     expect(captured).toHaveLength(0);
+  });
+
+  it('E5: a path reused as a different type emits unlink then addDir (never change)', async () => {
+    const p = join(tempDir, 'swap');
+    await writeFile(p, 'i am a file');
+    const events = await startWatcher(); // file is in the baseline
+    await unlink(p);
+    await mkdir(p); // same path, now a directory
+    await sleep(SETTLE);
+    const idxUnlink = events.findIndex((e) => e.event === 'unlink' && e.path === p);
+    const idxAddDir = events.findIndex((e) => e.event === 'addDir' && e.path === p);
+    expect(idxUnlink).toBeGreaterThanOrEqual(0);
+    expect(idxAddDir).toBeGreaterThanOrEqual(0);
+    expect(idxUnlink).toBeLessThan(idxAddDir); // parity order: unlink BEFORE the re-add
+    expect(events.some((e) => e.event === 'change' && e.path === p)).toBe(false);
+  });
+
+  it('AC6: logs a startup line naming the watched root and interval', async () => {
+    // Capture console.warn via plain reassignment (restored in finally) — no vitest mock.
+    const lines: string[] = [];
+    const original = console.warn;
+    console.warn = ((...args: unknown[]) => {
+      lines.push(args.map(String).join(' '));
+    }) as typeof console.warn;
+    try {
+      watcher = new PollingFileWatcherAdapter({ ignoreInitial: true, interval: INTERVAL });
+      watcher.add(tempDir);
+      await sleep(SETTLE);
+    } finally {
+      console.warn = original;
+    }
+    expect(
+      lines.some(
+        (l) =>
+          l.includes(tempDir) &&
+          l.includes(`${INTERVAL}ms`) &&
+          l.includes('CHAINGLASS_WATCH_POLLING')
+      )
+    ).toBe(true);
   });
 });
