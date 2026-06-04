@@ -96,6 +96,21 @@ available if deeper review of the test+fix commits is wanted.
 
 - See disposition table. `watched` Set tracks intended roots; baseline `.then()` bails if unwatched/closed mid-scan. Regression test green.
 
+### Review (/plan-7) — APPROVE WITH NOTES ✅ `b72ad1ce`
+
+Full review at [reviews/review.md](./reviews/review.md). 4 parallel lenses (implementation, domain/doctrine/reinvention, testing/evidence, live harness). **Zero HIGH/CRITICAL.** Live harness validation passed (HTTP 200, clean) on the production-DI route. High-value findings fixed (`b72ad1ce`):
+
+- **F006** — `emit()` + `unwatch()` now guard `closed` (no events after `close()`, incl. debounced `change`).
+- **F002** — startup `console.log` → `console.warn` (stderr; MCP STDIO safety + sibling-adapter consistency).
+- **F003** — readonly `intervalMs` getter; AC5 now asserts the *value* (bad/unset → 1000, valid → 250, explicit → 77), not just "no throw".
+- **F004** — added E5 file↔dir-reuse parity test (the only previously-untested two-event branch).
+- **F005** — added AC6 startup-log capture test (console.warn reassignment, no mock).
+- **F008** — widened unit timing margin (SETTLE 320→400).
+- **F001** (concurrent baseline seeding at startup) — **documented** as a known v1 limit; re-architecting is out of scope for this edge-case feature.
+- **F010** — the plan's literal T006 wording ("run feature-023 with the env set") is unsatisfiable (023 hardcodes the native factory); the substituted real-`CentralWatcherService`-under-polling test in features/085 is the sound equivalent.
+
+Post-fix gate: tsc 0 · biome clean · **45 tests** (unit 19 + integration 5 + regression 060/023 21) · dist rebuilt · `just harness-verify` PASS.
+
 ## Discoveries & Learnings
 
 | # | Type | Discovery | Resolution |
