@@ -191,4 +191,18 @@ describe('PollingFileWatcherAdapter diff→event parity', () => {
     expect(changes.length).toBeGreaterThanOrEqual(1);
     expect(changes.length).toBeLessThanOrEqual(3);
   });
+
+  it('unwatch during the pending baseline scan does not resurrect the watch', async () => {
+    // ignoreInitial:false → a resurrected baseline would emit "add" for the pre-existing file.
+    await writeFile(join(tempDir, 'pre.txt'), 'x');
+    const captured: Captured[] = [];
+    watcher = new PollingFileWatcherAdapter({ ignoreInitial: false, interval: INTERVAL });
+    for (const event of ['add', 'addDir'] as const) {
+      watcher.on(event, (p) => captured.push({ event, path: p as string }));
+    }
+    watcher.add(tempDir);
+    watcher.unwatch(tempDir); // synchronous — before the baseline walk resolves
+    await sleep(SETTLE);
+    expect(captured).toHaveLength(0);
+  });
 });

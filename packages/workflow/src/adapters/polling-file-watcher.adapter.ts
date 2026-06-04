@@ -62,7 +62,8 @@ export class PollingFileWatcherAdapter implements IFileWatcher {
     FileWatcherEvent,
     Set<(pathOrError: string | Error) => void>
   >();
-  private readonly snapshots = new Map<string, Snapshot>(); // root → snapshot
+  private readonly snapshots = new Map<string, Snapshot>(); // root → snapshot (seeded only)
+  private readonly watched = new Set<string>(); // intended roots, set synchronously in add()
   private readonly ignored: ((absolutePath: string) => boolean)[];
   private readonly ignoreInitial: boolean;
   private readonly interval: number;
@@ -97,12 +98,15 @@ export class PollingFileWatcherAdapter implements IFileWatcher {
 
     for (const watchPath of pathList) {
       const root = resolve(watchPath);
-      if (this.snapshots.has(root)) continue;
+      // Dedup on `watched` (not `snapshots`) so a still-pending baseline isn't re-added.
+      if (this.watched.has(root)) continue;
+      this.watched.add(root);
 
       // Seed the baseline snapshot. Emit add/addDir only when !ignoreInitial (E1/E2).
       void this.walk(root)
         .then((snap) => {
-          if (this.closed) return;
+          // Bail if closed or unwatched while the baseline scan was in flight.
+          if (this.closed || !this.watched.has(root)) return;
           if (!this.ignoreInitial) {
             for (const [abs, entry] of snap) {
               this.emit(entry.isDir ? 'addDir' : 'add', abs);
@@ -123,7 +127,9 @@ export class PollingFileWatcherAdapter implements IFileWatcher {
   unwatch(paths: string | string[]): void {
     const pathList = Array.isArray(paths) ? paths : [paths];
     for (const watchPath of pathList) {
-      this.snapshots.delete(resolve(watchPath));
+      const root = resolve(watchPath);
+      this.watched.delete(root); // cancels a still-pending baseline scan too
+      this.snapshots.delete(root);
     }
     if (this.snapshots.size === 0 && this.timer) {
       clearInterval(this.timer);
@@ -142,6 +148,7 @@ export class PollingFileWatcherAdapter implements IFileWatcher {
     }
     this.stabilizationTimers.clear();
     this.snapshots.clear();
+    this.watched.clear();
     this.listeners.clear();
   }
 
