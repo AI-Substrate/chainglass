@@ -64,7 +64,16 @@ Governance: `docs/project-rules/harness.md` (browser-capable; Playwright + CDP�
 - **Decision**: binary payload crosses the action boundary as **base64 string** (decoded to Buffer server-side) — universally serializable, testable. Naming derivation lives server-side (single source of truth); client sends original `filePath` + `mode`.
 - **T006**: `perfect-freehand@^1.2.3` added to `@chainglass/web` deps (lazy-chunk only).
 - **Evidence**: `tsc --noEmit -p apps/web` → no errors in new files; dep present in `package.json`.
-- **Commit**: `d3e53bda` · 📡 companion pinged. **Task group "Save backend" complete.**
+- **Commit**: `58b9f21c` · 📡 companion pinged. **Task group "Save backend" complete.**
+
+### T007 + T008 — `canvas-coords` + `image-export` pure helpers (TDD) ✅
+
+- **RED**: `canvas-coords.test.ts` (4) + `image-export.test.ts` (7) — failed on missing modules.
+- **GREEN**: `viewer/lib/canvas-coords.ts` (`cssToImagePoint` — object-contain scale+offset+clamp) and `viewer/lib/image-export.ts` (`canvasExportFormat`, `exceedsCanvasLimit`, `MAX_CANVAS_DIMENSION=4096`, `MAX_CANVAS_AREA=16_777_216`).
+- **Boundary decision**: viewer's `canvasExportFormat` (encoding) is deliberately separate from file-browser's `outputFormatForImage` (naming) so the viewer never imports file-browser (T019/G3). Shared GIF→PNG fact duplicated by design; documented in both files.
+- **Evidence**: 11 passed.
+- **Commit**: `5c6917b6` · 📡 companion pinged.
+
 
 
 
