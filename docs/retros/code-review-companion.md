@@ -73,3 +73,13 @@
 > - result: failed
 > - magicWand: (unavailable — run terminated as failed)
 > - stderr (last line): permission denied: kind=shell blocked by preset/overrides
+
+## 2026-06-04T01:46:36.366Z — code-review-companion / 2026-06-04T11-32-00-664Z-1fcb
+
+- runId: 2026-06-04T11-32-00-664Z-1fcb
+- runDir: /Users/jordanknight/substrate/084-random-enhancements-3/agents/code-review-companion/runs/2026-06-04T11-32-00-664Z-1fcb
+- summary: Oriented on plan 085 and reviewed T001 through T005 commit pings for the env-forced polling file watcher fallback. T001, T003, and T005 had no issues; T002 produced one MEDIUM lifecycle finding around unwatch during the initial pending baseline scan, and T004 produced one HIGH build-breaking finding because FileWatcherFactory was imported from the workflow package root without being exported there.
+- **magicWand** (target: coordination): Expose a small 'companion runtime config' message or env dump that includes projectRoot, idleBudgetMs, and the accepted state status enum before boot orientation starts.
+- difficulties:
+  - [degrading] config: MINIH_PROJECT_ROOT resolved to the run folder, so the required initial cd did not reach the repository root and docs/plans appeared missing. (workaround: Used the repository root supplied in the session environment context.)
+  - [degrading] coordination: state_transition and state_set for non-idle statuses failed with 'state does not match inside state schema', despite the companion prompt requiring reading/reviewing/reporting/stopping statuses. (workaround: Published idle states with detailed data and continued using inbox progress/finding/summary messages for observable status.)
