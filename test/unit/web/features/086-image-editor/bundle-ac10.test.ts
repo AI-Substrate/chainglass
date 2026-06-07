@@ -40,7 +40,13 @@ function allChunkFiles(dir: string): string[] {
 }
 
 describe('AC-10: image editor is lazy-loaded (not in the initial bundle)', () => {
-  it('the browser route initial chunks exclude the heavy editor, but a lazy chunk includes it', () => {
+  // Scope note (per companion F011): Next 16's turbopack build does not emit a
+  // parseable per-route eager-chunk manifest, so this guard proves the editor is
+  // (a) isolated in its own lazy chunk and (b) absent from the GLOBAL shared
+  // bundle (rootMainFiles/polyfills/_app). The complementary proof that it is
+  // not eagerly loaded for the browser route is the T016 browser smoke: the
+  // canvas only mounts AFTER the user clicks Edit, never on initial render.
+  it('the heavy editor is isolated in a lazy chunk and absent from the global shared bundle', () => {
     /*
     Test Doc:
     - Why: perfect-freehand + canvas editor must not weigh down the initial load — AC-10

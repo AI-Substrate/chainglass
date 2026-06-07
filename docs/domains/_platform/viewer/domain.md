@@ -123,6 +123,11 @@ Primary: `apps/web/src/components/viewers/` + `apps/web/src/lib/server/` + `apps
 | `apps/web/src/features/_platform/viewer/lib/rich-size-cap.ts` | Size threshold | Pure function |
 | `apps/web/src/features/_platform/viewer/lib/image-url.ts` | Image URL resolver | Pure function |
 | `apps/web/src/features/_platform/viewer/lib/code-block-language-pill.ts` | Language pill decoration | Internal (not exported from barrel) |
+| `apps/web/src/features/_platform/viewer/components/image-editor.tsx` | ImageEditor (canvas + pen + undo + error/load states) | Client; heavy lazy chunk |
+| `apps/web/src/features/_platform/viewer/components/image-editor-lazy.tsx` | ImageEditorLazy wrapper | `dynamic(ssr:false)` boundary |
+| `apps/web/src/features/_platform/viewer/components/image-editor-toolbar.tsx` | Pen/color/width + Save over/Save as new/Cancel | Client |
+| `apps/web/src/features/_platform/viewer/lib/canvas-coords.ts` | CSS-px→image-px (object-contain) | Pure |
+| `apps/web/src/features/_platform/viewer/lib/image-export.ts` | toBlob format/quality + iOS large-image guard | Pure |
 
 ## Concepts
 
@@ -131,6 +136,7 @@ Primary: `apps/web/src/components/viewers/` + `apps/web/src/lib/server/` + `apps
 | **WYSIWYG Markdown Editing** | `MarkdownWysiwygEditorLazy` | Tiptap-backed editor that parses markdown in, emits markdown out. Split front-matter before parse, rejoin after serialize. `onChange` only fires on user edits (AC-08). Lazy-loaded via `dynamic(...)` to keep the 125 KB Tiptap bundle out of the eager path. |
 | **Formatting Toolbar** | `WysiwygToolbar` | 16-button toolbar driven by a Tiptap `Editor` instance. Each button maps to a `ToolbarAction` with `isActive`/`isDisabled` predicates. `aria-pressed` + `role="toolbar"` for accessibility. Config in `wysiwyg-toolbar-config.ts`. |
 | **Link Insertion** | `LinkPopover` | Desktop popover + mobile bottom-sheet for insert/edit/unlink. URL validated by `sanitize-link-href.ts` (allow-list: http/https/mailto). Anchored to the toolbar Link button via Radix `PopoverAnchor virtualRef`. |
+| **Image Annotation** | `ImageEditorLazy` | Lazy (`ssr:false`) freehand pen editor: a single canvas at the image's intrinsic resolution (perfect-freehand + Pointer Events + coalesced events), image-space stroke array + undo, captures `imageMtime` for the overwrite conflict guard. Save flows UP via `onSaveOver`/`onSaveAsNew`/`onCancel`/`onReload` callbacks — the viewer never imports file-browser. `canvasExportFormat` selects the `toBlob` MIME/quality (GIF→PNG); `exceedsCanvasLimit` blocks iOS-oversized images. Pen only (no text/shapes/eraser). |
 
 ## Dependencies
 

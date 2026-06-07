@@ -316,6 +316,7 @@ export function FileViewerPanel({
   if (isBinary && rawFileUrl) {
     return (
       <BinaryFileView
+        key={filePath}
         filePath={filePath}
         contentType={binaryContentType ?? 'application/octet-stream'}
         size={binarySize ?? 0}
@@ -659,6 +660,9 @@ function BinaryFileView({
   const [refreshKey, setRefreshKey] = useState(0);
   const [editing, setEditing] = useState(false);
   const [tooLarge, setTooLarge] = useState(false);
+  // Edit stays disabled until the natural size is measured (avoids a flash of
+  // an enabled Edit button on an oversized image before the probe resolves).
+  const [probed, setProbed] = useState(false);
 
   // Edit is offered only for raster images (AC-16) when a save handler is wired.
   const canEdit = category === 'image' && isRasterImageFilename(filename) && !!onSaveImage;
@@ -668,13 +672,16 @@ function BinaryFileView({
   useEffect(() => {
     if (!canEdit) return;
     let cancelled = false;
+    setProbed(false);
     const probe = new Image();
     probe.onload = () => {
-      if (!cancelled) {
-        setTooLarge(
-          exceedsCanvasLimit({ width: probe.naturalWidth, height: probe.naturalHeight })
-        );
-      }
+      if (cancelled) return;
+      setTooLarge(exceedsCanvasLimit({ width: probe.naturalWidth, height: probe.naturalHeight }));
+      setProbed(true);
+    };
+    probe.onerror = () => {
+      // Let the editor surface the load failure; don't leave Edit stuck disabled.
+      if (!cancelled) setProbed(true);
     };
     probe.src = rawFileUrl;
     return () => {
@@ -705,16 +712,22 @@ function BinaryFileView({
   };
 
   // Edit mode swaps the image-view area for the lazy canvas editor, in place.
-  if (category === 'image' && editing && onSaveImage) {
+  // Requires `canEdit` (raster + save handler) — never opens for SVG/unsupported.
+  if (canEdit && editing) {
     return (
       <div className="flex h-full flex-col" data-testid="image-edit-mode">
         <ImageEditorLazy
-          imageSrc={rawFileUrl}
+          // Cache-bust by refreshKey so the conflict "reload" path refetches.
+          imageSrc={`${rawFileUrl}&_v=${refreshKey}`}
           filename={filename}
           imageMtime={mtime}
           onSaveOver={handleSaveOver}
           onSaveAsNew={handleSaveAsNew}
           onCancel={() => setEditing(false)}
+          onReload={() => {
+            setRefreshKey((k) => k + 1); // new imageSrc → editor reloads + clears strokes
+            onRefresh();
+          }}
         />
       </div>
     );
@@ -730,7 +743,7 @@ function BinaryFileView({
               <button
                 type="button"
                 onClick={() => setEditing(true)}
-                disabled={tooLarge}
+                disabled={!probed || tooLarge}
                 className="flex items-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
                 aria-label="Edit image"
                 title={

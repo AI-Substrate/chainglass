@@ -3,7 +3,7 @@
 **Spec**: [image-editor-spec.md](./image-editor-spec.md)
 **Plan**: [image-editor-plan.md](./image-editor-plan.md)
 **Generated**: 2026-06-07
-**Status**: Ready
+**Status**: Complete (landed 2026-06-08)
 
 ---
 
@@ -87,8 +87,8 @@ flowchart LR
 
     S[Specify]:::done --> BP[Backpressure survey]:::done
     BP --> P[Plan]:::done
-    P --> PH[Implement — single phase]:::ready
-    PH --> D[Done]:::ready
+    P --> PH[Implement — single phase]:::done
+    PH --> D[Done]:::done
 ```
 
 **Legend**: green = done | yellow = active | grey = not started
@@ -99,7 +99,7 @@ flowchart LR
 
 | Phase | Title | Tasks | CS | Status |
 |-------|-------|-------|----|--------|
-| 1 | Implementation (Simple — single phase) | 19 | CS-4 | Pending |
+| 1 | Implementation (Simple — single phase) | 19 | CS-4 | ✅ Complete |
 
 _Plan is **READY** (all 7 gates pass). Simple mode → one phase with a 19-task table grouped as: save backend (T001–T006, TDD), canvas editor (T007–T012), integration (T013–T015), browser smoke + bundle verify (T016–T017), docs + domain refresh (T018), optional dep-direction guard (T019). Next: `/plan-6` (no `/plan-5` expansion needed in Simple mode)._
 
@@ -107,14 +107,14 @@ _Plan is **READY** (all 7 gates pass). Simple mode → one phase with a 19-task 
 
 ## Acceptance Criteria
 
-- [ ] Edit control appears for raster images; toggles inline into the canvas editor with the image as background.
-- [ ] Freehand pen drawing with color picker + stroke widths; smooth pointer/touch input.
-- [ ] Save over writes back to the original (with mtime-conflict detection).
-- [ ] Save as new writes `<name>-edited.<ext>`, replacing any existing `-edited` (no `-edited-edited`).
-- [ ] Edited image preserves the original format/extension and native pixel dimensions.
-- [ ] Save paths validated via `IPathResolver`; traversal → `PathSecurityError`, no write.
-- [ ] Saved bytes are valid image bytes (Buffer write, not string `saveFile`).
-- [ ] Editor + canvas lib are lazy-loaded (`ssr:false`); production build succeeds.
+- [x] Edit control appears for raster images; toggles inline into the canvas editor with the image as background.
+- [x] Freehand pen drawing with color picker + stroke widths; smooth pointer/touch input.
+- [x] Save over writes back to the original (with mtime-conflict detection).
+- [x] Save as new writes `<name>-edited.<ext>`, replacing any existing `-edited` (no `-edited-edited`).
+- [x] Edited image preserves the original format/extension and native pixel dimensions.
+- [x] Save paths validated via `IPathResolver`; traversal → `PathSecurityError`, no write.
+- [x] Saved bytes are valid image bytes (Buffer write, not string `saveFile`).
+- [x] Editor + canvas lib are lazy-loaded (`ssr:false`); production build succeeds.
 
 ---
 
@@ -134,4 +134,17 @@ _Plan is **READY** (all 7 gates pass). Simple mode → one phase with a 19-task 
 
 <!-- Updated by /plan-6 and /plan-6a after each phase completes -->
 
-_No phases completed yet._
+### Phase 1: Implementation — Complete (2026-06-08)
+
+**What was done**: Shipped the inline pen-annotation image editor end-to-end across all 19 tasks. Raster images gain an **Edit** affordance that swaps the view into a lazy canvas editor (`perfect-freehand` + Canvas 2D); **Save over** (mtime-guarded) and **Save as new** (`<name>-edited.<ext>`, GIF→PNG) persist via a Buffer-safe atomic `saveImageService` + `saveEditedImage` server action.
+
+**Key changes**:
+- `_platform/viewer` — `ImageEditor`, `ImageEditorLazy`, `ImageEditorToolbar`, `lib/canvas-coords.ts`, `lib/image-export.ts`; barrel exports.
+- `file-browser` — `saveImageService`, `image-filename`, `saveEditedImage` action; `BinaryFileView` Edit toggle; route `browser-client` save relay.
+- `apps/web` — `perfect-freehand` dep.
+- Tests — 34 vitest (units + integration + AC-10 bundle guard + dep-direction guard) + Playwright+CDP browser smoke (desktop+tablet).
+- Docs — `docs/how/image-editor.md` + viewer & file-browser `domain.md` refresh.
+
+**Decisions made**: Conflict dialog placed in the editor (owns bytes+strokes) rather than browser-client, keeping the viewer↛file-browser boundary clean; binary payload crosses the action boundary as base64; GIF exports as PNG (canvas has no GIF encoder). Wired into the **route** `browser-client.tsx` (the plan's `features/.../browser-client.tsx` path doesn't exist).
+
+**Verification**: All 17 ACs met; production build succeeds; browser smoke proved the full stack live (save-as-new wrote `-edited.png`, no `SecurityError`).

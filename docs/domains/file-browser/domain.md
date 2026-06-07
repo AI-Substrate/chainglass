@@ -123,6 +123,9 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 | `apps/web/src/features/041-file-browser/components/fleet-status-bar.tsx` | FleetStatusBar | Phase 3 |
 | `apps/web/src/features/041-file-browser/components/worktree-picker.tsx` | WorktreePicker | Phase 3 |
 | `apps/web/src/features/041-file-browser/hooks/use-attention-title.ts` | useAttentionTitle | Phase 3 |
+| `apps/web/src/features/041-file-browser/services/save-image.ts` | saveImageService (Buffer atomic write + mtime guard) | Plan 086 |
+| `apps/web/src/features/041-file-browser/services/image-filename.ts` | image-filename helpers (`-edited`, GIF→PNG, raster gate) | Plan 086; pure |
+| `apps/web/app/actions/image-actions.ts` | saveEditedImage server action | Plan 086; `'use server'` |
 | `apps/web/src/features/041-file-browser/params/file-browser.params.ts` | fileBrowserParams | Phase 2 |
 | `apps/web/src/features/041-file-browser/services/directory-listing.ts` | Directory listing | Phase 4 |
 | `apps/web/src/features/041-file-browser/services/changed-files.ts` | Changed files filter | Phase 4 |
@@ -210,6 +213,7 @@ These modules live outside `features/041-file-browser/` per repo convention but 
 | Recent changes feed | `RecentFeedView`, `useRecentFeedState`, `getRecentFeedItems`, `getFileExcerpt` | Repo-wide media-rich main-panel view: vertical scrolling stack of most-recently-changed files with type-specific previews (images, videos with native controls, audio, markdown excerpts, code excerpts, deleted markers). Seeds from `git log` then live-merges via the existing `_platform/events` `file-changes` SSE channel (no new broadcaster). 9-action card affordances + roving-focus keyboard nav + `content-visibility:auto` virtualization. NOT a git history viewer; NOT a notification center |
 | Workspace identity | `WorkspaceProvider`, `useWorkspaceContext` | React context for workspace preferences, worktree identity, emoji/color, tab title |
 | Export preview to PDF | `usePdfExport`, PDF buttons in `FileViewerPanel` + `HtmlViewer` | Single-click client-side "Download as PDF" of the rendered markdown preview (live-DOM capture — theme + mermaid already resolved) or HTML preview (DOMPurify-sanitized original source, no `&_at=` token). `html2canvas-pro` + `jspdf` + `dompurify` are lazy-loaded on first click (zero eager-bundle cost). Rasterized (no selectable text) + `<style>`-block CSS dropped from untrusted HTML are accepted V1 limitations |
+| Image annotation save | `saveEditedImage`, `saveImageService`, `image-filename`, `BinaryFileView` Edit toggle | Inline pen annotation for raster images: `BinaryFileView` shows a raster-only, oversize-guarded **Edit** affordance → `ImageEditorLazy` (viewer domain). Save via the `saveEditedImage` action (DI + slug→trusted-root, fail-closed; runtime mode + raster validation) → Buffer-safe atomic `saveImageService`. `deriveEditedFilename` does idempotent `-edited` naming (GIF→PNG). Save over is mtime-guarded (conflict → Reload/Save-as-new/Overwrite-anyway); save-as-new is unconditional. NOT a full raster editor (pen only) |
 
 - `_platform/sdk` — IUSDK for publishing commands and settings to SDK surface
 - `_platform/file-ops` — IFileSystem, IPathResolver for all file operations

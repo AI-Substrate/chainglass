@@ -23,13 +23,6 @@ import { expect, test } from '../fixtures/base-test.js';
 const WORKSPACE_SLUG = 'harness-test-workspace';
 const WORKTREE_PATH = '/app/scratch/harness-test-workspace';
 const HOST_WORKSPACE = join(import.meta.dirname, '../../../scratch/harness-test-workspace');
-const FIXTURE_FILE = 'sample-image.png';
-const EDITED_FILE = 'sample-image-edited.png';
-
-const SMOKE_PATH =
-  `/workspaces/${WORKSPACE_SLUG}/browser?worktree=${encodeURIComponent(WORKTREE_PATH)}` +
-  `&file=${encodeURIComponent(FIXTURE_FILE)}`;
-
 // Harness workspaces are gated behind a bootstrap code (see single-xterm smoke).
 const BOOTSTRAP_CODE = '6A3J-DJ8A-YCK3';
 
@@ -72,14 +65,6 @@ function makeRealPng(width: number, height: number): Buffer {
   return Buffer.concat([sig, chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
 }
 
-test.beforeAll(() => {
-  mkdirSync(HOST_WORKSPACE, { recursive: true });
-  writeFileSync(join(HOST_WORKSPACE, FIXTURE_FILE), makeRealPng(160, 120));
-  // Start clean so "the -edited file appears" is a meaningful assertion.
-  rmSync(join(HOST_WORKSPACE, EDITED_FILE), { force: true });
-  if (!existsSync(RESULTS_DIR)) mkdirSync(RESULTS_DIR, { recursive: true });
-});
-
 test.describe('Plan 086: image editor smoke', () => {
   test('open → edit → draw → save-as-new produces an -edited file with no SecurityError', async ({
     cdpPage,
@@ -90,6 +75,18 @@ test.describe('Plan 086: image editor smoke', () => {
       'Mobile image-edit layout is out of scope for this smoke',
     );
 
+    // Per-project fixtures so parallel projects never race on a shared file.
+    const project = testInfo.project.name;
+    const fixtureFile = `sample-image-${project}.png`;
+    const editedFile = `sample-image-${project}-edited.png`;
+    mkdirSync(HOST_WORKSPACE, { recursive: true });
+    writeFileSync(join(HOST_WORKSPACE, fixtureFile), makeRealPng(160, 120));
+    rmSync(join(HOST_WORKSPACE, editedFile), { force: true }); // start clean
+    if (!existsSync(RESULTS_DIR)) mkdirSync(RESULTS_DIR, { recursive: true });
+    const smokePath =
+      `/workspaces/${WORKSPACE_SLUG}/browser?worktree=${encodeURIComponent(WORKTREE_PATH)}` +
+      `&file=${encodeURIComponent(fixtureFile)}`;
+
     const securityErrors: string[] = [];
     cdpPage.on('console', (msg) => {
       if (msg.type() === 'error' && /security/i.test(msg.text())) securityErrors.push(msg.text());
@@ -98,7 +95,7 @@ test.describe('Plan 086: image editor smoke', () => {
       if (/security/i.test(String(err))) securityErrors.push(String(err));
     });
 
-    const response = await cdpPage.goto(`${baseURL}${SMOKE_PATH}`, {
+    const response = await cdpPage.goto(`${baseURL}${smokePath}`, {
       waitUntil: 'domcontentloaded',
     });
     expect(response?.status()).toBe(200);
@@ -142,7 +139,7 @@ test.describe('Plan 086: image editor smoke', () => {
     await cdpPage.locator('[data-testid="image-editor-save-as-new"]').click();
 
     await expect
-      .poll(() => existsSync(join(HOST_WORKSPACE, EDITED_FILE)), { timeout: 15_000 })
+      .poll(() => existsSync(join(HOST_WORKSPACE, editedFile)), { timeout: 15_000 })
       .toBe(true);
 
     // On success the editor exits back to the preview (Edit button returns).

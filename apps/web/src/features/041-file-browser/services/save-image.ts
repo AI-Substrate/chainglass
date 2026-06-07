@@ -19,7 +19,7 @@
  */
 
 import type { IFileSystem, IPathResolver } from '@chainglass/shared';
-import { PathSecurityError } from '@chainglass/shared';
+import { FileSystemError, PathSecurityError } from '@chainglass/shared';
 
 export interface SaveImageOptions {
   worktreePath: string;
@@ -59,8 +59,13 @@ export async function saveImageService(options: SaveImageOptions): Promise<SaveI
       if (stats.mtime !== expectedMtime) {
         return { ok: false, error: 'conflict', serverMtime: stats.mtime };
       }
-    } catch {
-      // File doesn't exist yet — nothing to conflict with; allow creation.
+    } catch (e) {
+      // ONLY a missing file is safe to ignore (first write / creation). Any
+      // other stat error (permission, transient I/O) must not silently bypass
+      // the conflict guard — surface it as a typed failure (AC-13).
+      if (!(e instanceof FileSystemError && e.code === 'ENOENT')) {
+        return { ok: false, error: 'write-failed' };
+      }
     }
   }
 
@@ -74,6 +79,13 @@ export async function saveImageService(options: SaveImageOptions): Promise<SaveI
     return { ok: false, error: 'write-failed' };
   }
 
-  const newStats = await fileSystem.stat(absolutePath);
-  return { ok: true, savedPath: filePath, newMtime: newStats.mtime };
+  // The bytes are written; read back the new mtime. If even that fails we
+  // still succeeded — return an empty baseline rather than throwing out of the
+  // typed result (AC-13).
+  try {
+    const newStats = await fileSystem.stat(absolutePath);
+    return { ok: true, savedPath: filePath, newMtime: newStats.mtime };
+  } catch {
+    return { ok: true, savedPath: filePath, newMtime: '' };
+  }
 }

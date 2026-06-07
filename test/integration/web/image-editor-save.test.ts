@@ -10,6 +10,8 @@
  * AC-7 (native dimensions), AC-9 (valid image bytes), AC-4 (unconditional replace)
  */
 
+import { deflateSync } from 'node:zlib';
+
 import { FakeFileSystem, FakePathResolver } from '@chainglass/shared';
 import { beforeEach, describe, expect, it } from 'vitest';
 
@@ -43,13 +45,34 @@ function makePng(width: number, height: number): Buffer {
   ihdr.writeUInt32BE(height, 4);
   ihdr[8] = 8; // bit depth
   ihdr[9] = 6; // color type RGBA
-  return Buffer.concat([sig, chunk('IHDR', ihdr), chunk('IEND', Buffer.alloc(0))]);
+  // Real, decodable image data: each scanline is filter byte 0 + RGBA pixels,
+  // zlib-compressed into an IDAT chunk (a PNG without IDAT is not decodable).
+  const row = Buffer.alloc(1 + width * 4);
+  for (let x = 0; x < width; x++) {
+    const o = 1 + x * 4;
+    row[o] = 200;
+    row[o + 1] = 220;
+    row[o + 2] = 255;
+    row[o + 3] = 255;
+  }
+  const raw = Buffer.concat(Array.from({ length: height }, () => Buffer.from(row)));
+  return Buffer.concat([
+    sig,
+    chunk('IHDR', ihdr),
+    chunk('IDAT', deflateSync(raw)),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
 }
 
 function isPng(buf: Buffer): boolean {
   return (
     buf.length > 8 && buf[0] === 137 && buf[1] === 80 && buf[2] === 78 && buf[3] === 71
   );
+}
+
+/** Confirm the byte stream contains an IDAT chunk (required for a decodable PNG). */
+function hasIdat(buf: Buffer): boolean {
+  return buf.includes(Buffer.from('IDAT', 'ascii'));
 }
 
 function parsePngSize(buf: Buffer): { width: number; height: number } {
@@ -96,7 +119,8 @@ describe('image editor save — binary round-trip', () => {
     const readBack = fs.getFile('/w/pics/shot-edited.png');
     expect(Buffer.isBuffer(readBack)).toBe(true);
     expect(readBack).toEqual(png); // byte-identical — no corruption
-    expect(isPng(readBack as Buffer)).toBe(true); // valid image bytes
+    expect(isPng(readBack as Buffer)).toBe(true); // valid signature
+    expect(hasIdat(readBack as Buffer)).toBe(true); // decodable — has image data
     expect(parsePngSize(readBack as Buffer)).toEqual({ width: 120, height: 80 });
   });
 

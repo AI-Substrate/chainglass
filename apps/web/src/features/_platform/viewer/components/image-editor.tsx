@@ -63,6 +63,10 @@ export interface ImageEditorProps {
   onSaveAsNew?: (payloadBase64: string) => Promise<ImageSaveOutcome>;
   /** Leave edit mode (parent confirms discard of unsaved strokes). */
   onCancel?: () => void;
+  /** Reload the background image in place (refetch + discard strokes) — used by
+   * the conflict dialog's Reload branch. The parent should change `imageSrc`
+   * (e.g. cache-bust) so the editor reloads. Falls back to onCancel if absent. */
+  onReload?: () => void;
   /** Test seam: override canvas → base64 export (jsdom lacks a real toBlob). */
   saveImpl?: (canvas: HTMLCanvasElement, format: CanvasExportFormat) => Promise<string>;
 }
@@ -199,6 +203,7 @@ function ImageEditorInner({
   onSaveOver,
   onSaveAsNew,
   onCancel,
+  onReload,
   saveImpl,
 }: ImageEditorProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -229,9 +234,18 @@ function ImageEditorInner({
     if (currentRef.current) drawStroke(ctx, currentRef.current);
   }, []);
 
-  // Load the background image.
+  // Load the background image. Resets ALL editor state first so a change of
+  // image (the file browser stays visible; a new file can be selected while
+  // edit mode is mounted) never carries strokes/save/error state across images.
   useEffect(() => {
     let cancelled = false;
+    strokesRef.current = [];
+    currentRef.current = null;
+    setStrokeCount(0);
+    setSaveError(null);
+    setConflictPayload(null);
+    setLoadError(null);
+    setLoaded(false);
     const image = new Image();
     const handleLoad = () => {
       if (cancelled) return;
@@ -404,8 +418,11 @@ function ImageEditorInner({
 
   const resolveDiscard = useCallback(() => {
     setConflictPayload(null);
-    onCancel?.();
-  }, [onCancel]);
+    // Real reload (refetch + discard strokes) if the parent supports it;
+    // otherwise just exit (AC-3 reload branch).
+    if (onReload) onReload();
+    else onCancel?.();
+  }, [onReload, onCancel]);
 
   const handleCancel = useCallback(() => {
     if (strokeCount > 0 && typeof window !== 'undefined') {

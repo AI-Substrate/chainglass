@@ -48,6 +48,13 @@ export async function saveEditedImage(
 ): Promise<SaveEditedImageResult> {
   await requireAuth();
 
+  // Runtime guard: `mode` is only a compile-time union, but this is a public
+  // server-action boundary. An invalid value must not fall through as an
+  // unconditional overwrite (which would bypass the AC-3 mtime guard).
+  if (mode !== 'overwrite' && mode !== 'edited-copy') {
+    return { ok: false, error: 'unsupported-type' };
+  }
+
   // Defense in depth: only raster images are editable/savable (AC-16).
   // For edited-copy the derived target is always raster (GIF→PNG), but the
   // source gate is the authoritative check.
@@ -67,7 +74,14 @@ export async function saveEditedImage(
   if (!info) {
     return { ok: false, error: 'security' };
   }
-  const trustedRoot = info.worktrees.find((w) => w.path === worktreePath)?.path ?? info.path;
+  // Fail CLOSED: a write must target a worktree we can verify against the slug.
+  // Never silently fall back to the main root for an unknown/tampered path
+  // (that could mutate the wrong checkout). The main root itself is valid.
+  const knownWorktree = info.worktrees.find((w) => w.path === worktreePath)?.path;
+  const trustedRoot = knownWorktree ?? (worktreePath === info.path ? info.path : null);
+  if (!trustedRoot) {
+    return { ok: false, error: 'security' };
+  }
 
   // Server owns the destination naming.
   const targetPath = mode === 'edited-copy' ? deriveEditedFilename(filePath) : filePath;

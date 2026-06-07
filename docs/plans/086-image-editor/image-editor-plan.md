@@ -109,23 +109,23 @@ Flow is one-directional: `file-browser → viewer`, `file-browser → file-ops`.
 
 ### Acceptance Criteria
 
-- [ ] AC-1 — Raster image shows an inline Edit control; activating it toggles the view area into the canvas editor; non-raster/binary show none.
-- [ ] AC-2 — Freehand pen draws (pointer/mouse/touch), pressure-aware with ≈0.5 fallback; color presets + 2–3 stroke widths.
-- [ ] AC-3 — Save over prompts destructive confirm, writes to original, refreshes; external mtime change halts with Reload/Save-as-new/Overwrite-anyway.
-- [ ] AC-4 — Save as new writes `<name>-edited.<ext>`; existing `-edited` replaced unconditionally (no mtime prompt).
-- [ ] AC-5 — Editing a `<base>-edited.<ext>` saves back to the same file (idempotent suffix; never `-edited-edited`).
-- [ ] AC-6 — Output preserves original format/extension; JPEG flattens alpha→white at quality ≈0.92; PNG/WebP-lossless keep transparency.
-- [ ] AC-7 — Saved image preserves native pixel dimensions.
-- [ ] AC-8 — Save paths validated via `IPathResolver`; traversal → `PathSecurityError`, no write.
-- [ ] AC-9 — Saved bytes are valid image bytes (Buffer write, not string `saveFile`).
-- [ ] AC-10 — Editor + canvas lib lazy-loaded (`ssr:false`); not in initial bundle; production build succeeds.
-- [ ] AC-11 — Cancel/discard exits to plain image view; unsaved strokes discarded with confirmation.
-- [ ] AC-12 — Toolbar exposes two explicit actions: Save over + Save as new.
-- [ ] AC-13 — Save failure surfaces an error, retains strokes, allows retry; typed result incl. `write-failed`.
-- [ ] AC-14 — Images >~16.7M px or dim >4096 cannot be edited; Edit disabled with explanatory message.
-- [ ] AC-15 — Image-load failure shows an error state; Save disabled; canvas not initialized.
-- [ ] AC-16 — Edit shown only for raster (png/jpg/jpeg/gif/webp); SVG + non-image rejected gracefully.
-- [ ] AC-17 — Background loaded same-origin so `toBlob` succeeds (no CORS taint); export failure surfaces an error.
+- [x] AC-1 — Raster image shows an inline Edit control; activating it toggles the view area into the canvas editor; non-raster/binary show none.
+- [x] AC-2 — Freehand pen draws (pointer/mouse/touch), pressure-aware with ≈0.5 fallback; color presets + 2–3 stroke widths.
+- [x] AC-3 — Save over prompts destructive confirm, writes to original, refreshes; external mtime change halts with Reload/Save-as-new/Overwrite-anyway.
+- [x] AC-4 — Save as new writes `<name>-edited.<ext>`; existing `-edited` replaced unconditionally (no mtime prompt).
+- [x] AC-5 — Editing a `<base>-edited.<ext>` saves back to the same file (idempotent suffix; never `-edited-edited`).
+- [x] AC-6 — Output preserves original format/extension; JPEG flattens alpha→white at quality ≈0.92; PNG/WebP-lossless keep transparency.
+- [x] AC-7 — Saved image preserves native pixel dimensions.
+- [x] AC-8 — Save paths validated via `IPathResolver`; traversal → `PathSecurityError`, no write.
+- [x] AC-9 — Saved bytes are valid image bytes (Buffer write, not string `saveFile`).
+- [x] AC-10 — Editor + canvas lib lazy-loaded (`ssr:false`); not in initial bundle; production build succeeds.
+- [x] AC-11 — Cancel/discard exits to plain image view; unsaved strokes discarded with confirmation.
+- [x] AC-12 — Toolbar exposes two explicit actions: Save over + Save as new.
+- [x] AC-13 — Save failure surfaces an error, retains strokes, allows retry; typed result incl. `write-failed`.
+- [x] AC-14 — Images >~16.7M px or dim >4096 cannot be edited; Edit disabled with explanatory message.
+- [x] AC-15 — Image-load failure shows an error state; Save disabled; canvas not initialized.
+- [x] AC-16 — Edit shown only for raster (png/jpg/jpeg/gif/webp); SVG + non-image rejected gracefully.
+- [x] AC-17 — Background loaded same-origin so `toBlob` succeeds (no CORS taint); export failure surfaces an error.
 
 ### Risks
 

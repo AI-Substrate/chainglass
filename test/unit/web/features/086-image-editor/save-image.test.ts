@@ -184,4 +184,47 @@ describe('saveImageService — failure modes', () => {
     if (result.ok) return;
     expect(result.error).toBe('write-failed');
   });
+
+  it('does not silently bypass the mtime guard when the stat check fails (F002)', async () => {
+    /*
+    Test Doc:
+    - Why: a non-missing stat error during conflict detection must not be treated
+      as "file absent" and allowed to overwrite (companion F002)
+    - Contract: stat throws (not ENOENT) + expectedMtime → write-failed, no write
+    - Usage Notes: only a FileSystemError 'ENOENT' is the safe creation case
+    - Quality Contribution: AC-13, F002
+    - Worked Example: EACCES on stat → write-failed; original bytes untouched
+    */
+    fs.setFile(ABS, PNG_BYTES);
+    fs.simulateError(ABS, new Error('EACCES: permission denied'));
+    const result = await saveImageService({
+      worktreePath: WORKTREE,
+      filePath: REL,
+      content: Buffer.from([0xaa]),
+      mode: 'overwrite',
+      expectedMtime: 'irrelevant',
+      fileSystem: fs,
+      pathResolver: resolver,
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toBe('write-failed');
+    fs.clearErrors();
+    expect(fs.getFile(ABS)).toEqual(PNG_BYTES); // not overwritten
+  });
+
+  it('allows creation (no conflict) when the target file does not exist yet', async () => {
+    // No setFile → ABS absent; a stale expectedMtime must not block first write.
+    const result = await saveImageService({
+      worktreePath: WORKTREE,
+      filePath: REL,
+      content: PNG_BYTES,
+      mode: 'overwrite',
+      expectedMtime: '2020-01-01T00:00:00.000Z',
+      fileSystem: fs,
+      pathResolver: resolver,
+    });
+    expect(result.ok).toBe(true);
+    expect(fs.getFile(ABS)).toEqual(PNG_BYTES);
+  });
 });
