@@ -31,13 +31,17 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import { usePdfExport } from '@/features/041-file-browser/hooks/use-pdf-export';
 import type { IPdfGenerator } from '@/features/041-file-browser/lib/pdf-generator';
 import {
+  ImageEditorLazy,
+  type ImageSaveOutcome,
   LinkPopover,
   MarkdownWysiwygEditorLazy,
   WysiwygToolbar,
+  exceedsCanvasLimit,
   exceedsRichSizeCap,
   hasTables,
   resolveImageUrl,
 } from '@/features/_platform/viewer';
+import { isRasterImageFilename } from '@/features/041-file-browser/services/image-filename';
 import { detectContentType } from '@/lib/content-type-detection';
 import { AudioViewer } from './audio-viewer';
 import { BinaryPlaceholder } from './binary-placeholder';
@@ -112,6 +116,13 @@ export interface FileViewerPanelProps {
   rawFileUrl?: string;
   /** Base URL for raw file API (without &file= param), for resolving relative images in markdown */
   rawFileBaseUrl?: string;
+  /** Persist edited image bytes (raster images only). Provided by the route; when
+   * present, raster images gain an inline Edit affordance (Plan 086). */
+  onSaveImage?: (
+    payloadBase64: string,
+    mode: 'overwrite' | 'edited-copy',
+    expectedMtime?: string
+  ) => Promise<ImageSaveOutcome>;
   /** URL for pop-out button — opens file in new tab (Phase 5) */
   popOutUrl?: string;
   /** Line number to scroll to in code editor (Plan 047 Phase 6) */
@@ -133,6 +144,7 @@ export function FileViewerPanel({
   filePath,
   content,
   language,
+  mtime,
   mode,
   onModeChange,
   onSave,
@@ -152,6 +164,7 @@ export function FileViewerPanel({
   binarySize,
   rawFileUrl,
   rawFileBaseUrl,
+  onSaveImage,
   popOutUrl,
   scrollToLine,
   onNavigateToFile,
@@ -308,6 +321,8 @@ export function FileViewerPanel({
         size={binarySize ?? 0}
         rawFileUrl={rawFileUrl}
         rawFileBaseUrl={rawFileBaseUrl}
+        mtime={mtime}
+        onSaveImage={onSaveImage}
         onRefresh={onRefresh}
       />
     );
@@ -622,6 +637,8 @@ function BinaryFileView({
   size,
   rawFileUrl,
   rawFileBaseUrl,
+  mtime,
+  onSaveImage,
   onRefresh,
 }: {
   filePath: string;
@@ -629,30 +646,113 @@ function BinaryFileView({
   size: number;
   rawFileUrl: string;
   rawFileBaseUrl?: string;
+  mtime?: string;
+  onSaveImage?: (
+    payloadBase64: string,
+    mode: 'overwrite' | 'edited-copy',
+    expectedMtime?: string
+  ) => Promise<ImageSaveOutcome>;
   onRefresh: () => void;
 }) {
   const filename = filePath.split('/').pop() ?? filePath;
   const { category } = detectContentType(filename);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [editing, setEditing] = useState(false);
+  const [tooLarge, setTooLarge] = useState(false);
+
+  // Edit is offered only for raster images (AC-16) when a save handler is wired.
+  const canEdit = category === 'image' && isRasterImageFilename(filename) && !!onSaveImage;
+
+  // Pre-measure the natural size so the Edit control can be disabled with a
+  // message for iOS-oversized images (AC-14) rather than failing on entry.
+  useEffect(() => {
+    if (!canEdit) return;
+    let cancelled = false;
+    const probe = new Image();
+    probe.onload = () => {
+      if (!cancelled) {
+        setTooLarge(
+          exceedsCanvasLimit({ width: probe.naturalWidth, height: probe.naturalHeight })
+        );
+      }
+    };
+    probe.src = rawFileUrl;
+    return () => {
+      cancelled = true;
+    };
+  }, [canEdit, rawFileUrl, refreshKey]);
 
   const handleRefresh = () => {
     setRefreshKey((k) => k + 1);
     onRefresh();
   };
 
+  const handleSaveOver = async (payloadBase64: string, expectedMtime?: string) => {
+    const result = await onSaveImage!(payloadBase64, 'overwrite', expectedMtime);
+    if (result.ok) {
+      setEditing(false);
+      setRefreshKey((k) => k + 1); // bust the <img> cache to show the saved result
+    }
+    return result;
+  };
+  const handleSaveAsNew = async (payloadBase64: string) => {
+    const result = await onSaveImage!(payloadBase64, 'edited-copy');
+    if (result.ok) {
+      setEditing(false);
+      setRefreshKey((k) => k + 1);
+    }
+    return result;
+  };
+
+  // Edit mode swaps the image-view area for the lazy canvas editor, in place.
+  if (category === 'image' && editing && onSaveImage) {
+    return (
+      <div className="flex h-full flex-col" data-testid="image-edit-mode">
+        <ImageEditorLazy
+          imageSrc={rawFileUrl}
+          filename={filename}
+          imageMtime={mtime}
+          onSaveOver={handleSaveOver}
+          onSaveAsNew={handleSaveAsNew}
+          onCancel={() => setEditing(false)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full">
       <div className="border-b shrink-0">
         <div className="flex items-center justify-between px-3 py-1.5">
           <span className="text-xs text-muted-foreground">Preview</span>
-          <button
-            type="button"
-            onClick={handleRefresh}
-            className="rounded p-1 text-muted-foreground hover:text-foreground"
-            aria-label="Refresh file"
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-          </button>
+          <div className="flex items-center gap-0.5">
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                disabled={tooLarge}
+                className="flex items-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label="Edit image"
+                title={
+                  tooLarge
+                    ? 'This image is too large to edit on this device'
+                    : 'Edit (annotate) image'
+                }
+                data-testid="image-edit-button"
+              >
+                <Edit className="h-3.5 w-3.5" />
+                Edit
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleRefresh}
+              className="rounded p-1 text-muted-foreground hover:text-foreground"
+              aria-label="Refresh file"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
       </div>
       <div className="flex-1 flex flex-col min-h-0">

@@ -87,6 +87,7 @@ import {
   renameItem,
   saveFile,
 } from '../../../../actions/file-actions';
+import { saveEditedImage } from '../../../../actions/image-actions';
 import { fetchFilesWithNotes } from '../../../../actions/notes-actions';
 
 // Plan recent-changes-feed T003: lazy-load the feed view so its primitives
@@ -946,6 +947,30 @@ function BrowserClientInner({
     }
   }, [panelMode, fileNav.handleRefresh, panelState.handleRefreshChanges]);
 
+  // Persist edited image bytes (Plan 086). Delegates to the saveEditedImage
+  // server action; on success refreshes the file so its metadata (incl. mtime)
+  // updates. The editor owns the conflict dialog — we just relay the typed
+  // outcome (incl. 'conflict') back to it.
+  const handleSaveImage = useCallback(
+    async (payloadBase64: string, mode: 'overwrite' | 'edited-copy', expectedMtime?: string) => {
+      if (!selectedFile) return { ok: false as const, error: 'not-found' };
+      const result = await saveEditedImage(
+        slug,
+        worktreePath,
+        selectedFile,
+        payloadBase64,
+        mode,
+        expectedMtime
+      );
+      if (result.ok) {
+        fileNav.handleRefreshFile();
+        return { ok: true as const };
+      }
+      return { ok: false as const, error: result.error };
+    },
+    [slug, worktreePath, selectedFile, fileNav.handleRefreshFile]
+  );
+
   // --- Current diff ---
 
   const currentDiff = selectedFile ? fileNav.diffCache[selectedFile] : undefined;
@@ -1107,6 +1132,7 @@ function BrowserClientInner({
               : undefined
           }
           rawFileBaseUrl={`/api/workspaces/${slug}/files/raw?worktree=${encodeURIComponent(worktreePath)}`}
+          onSaveImage={handleSaveImage}
           popOutUrl={
             selectedFile
               ? `/workspaces/${slug}/browser?worktree=${encodeURIComponent(worktreePath)}&file=${encodeURIComponent(selectedFile)}&mode=${mode}`
@@ -1518,6 +1544,7 @@ function BrowserClientInner({
                     : undefined
                 }
                 rawFileBaseUrl={`/api/workspaces/${slug}/files/raw?worktree=${encodeURIComponent(worktreePath)}`}
+                onSaveImage={handleSaveImage}
                 popOutUrl={
                   selectedFile
                     ? `/workspaces/${slug}/browser?worktree=${encodeURIComponent(worktreePath)}&file=${encodeURIComponent(selectedFile)}&mode=${mode}`

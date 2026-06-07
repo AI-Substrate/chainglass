@@ -213,6 +213,8 @@ function ImageEditorInner({
   const [width, setWidth] = useState<number>(WIDTH_PRESETS[1]);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // Holds the exported bytes while the user resolves an mtime conflict.
+  const [conflictPayload, setConflictPayload] = useState<string | null>(null);
 
   // Redraw the image + all strokes (completed + in-progress) at native res.
   const redraw = useCallback(() => {
@@ -327,40 +329,90 @@ function ImageEditorInner({
     return exporter(canvas, format);
   }, [filename, saveImpl]);
 
-  const runSave = useCallback(
-    async (mode: 'over' | 'new') => {
+  const reportFailure = useCallback((error?: string) => {
+    // Retain strokes; surface a retryable error (AC-13).
+    setSaveError(`Save failed (${error ?? 'unknown'}). Your drawing is preserved — try again.`);
+  }, []);
+
+  const handleExportError = useCallback((err: unknown) => {
+    // toBlob SecurityError (CORS taint) or export failure (AC-17).
+    setSaveError(
+      err instanceof Error && /secur/i.test(err.message)
+        ? 'Could not export the image (the canvas is cross-origin tainted).'
+        : 'Could not export the image. Your drawing is preserved — try again.'
+    );
+  }, []);
+
+  // Save over the original. On an mtime conflict, stash the exported payload and
+  // raise the 3-way conflict dialog (the bytes + strokes live here, so the
+  // dialog does too — the viewer never reaches into file-browser).
+  const handleSaveOver = useCallback(async () => {
+    setSaveError(null);
+    setSaving(true);
+    try {
+      const payload = await exportBase64();
+      const outcome = await onSaveOver?.(payload, imageMtime);
+      if (outcome && !outcome.ok) {
+        if (outcome.error === 'conflict') setConflictPayload(payload);
+        else reportFailure(outcome.error);
+      }
+    } catch (err) {
+      handleExportError(err);
+    } finally {
+      setSaving(false);
+    }
+  }, [exportBase64, onSaveOver, imageMtime, reportFailure, handleExportError]);
+
+  const handleSaveAsNew = useCallback(
+    async (existingPayload?: string) => {
       setSaveError(null);
       setSaving(true);
       try {
-        const payload = await exportBase64();
-        const outcome =
-          mode === 'over'
-            ? await onSaveOver?.(payload, imageMtime)
-            : await onSaveAsNew?.(payload);
-        // No handler wired → nothing to do.
-        if (outcome && !outcome.ok) {
-          // Retain strokes; surface a retryable error (AC-13). Conflicts are
-          // resolved by the parent's dialog before the promise resolves, so a
-          // non-ok 'conflict' here means the user cancelled.
-          setSaveError(
-            outcome.error === 'conflict'
-              ? 'The file changed on disk and the save was cancelled. Your drawing is preserved.'
-              : `Save failed (${outcome.error ?? 'unknown'}). Your drawing is preserved — try again.`
-          );
-        }
+        const payload = existingPayload ?? (await exportBase64());
+        const outcome = await onSaveAsNew?.(payload);
+        if (outcome && !outcome.ok) reportFailure(outcome.error);
       } catch (err) {
-        // toBlob SecurityError (CORS taint) or export failure (AC-17).
-        setSaveError(
-          err instanceof Error && /secur/i.test(err.message)
-            ? 'Could not export the image (the canvas is cross-origin tainted).'
-            : 'Could not export the image. Your drawing is preserved — try again.'
-        );
+        handleExportError(err);
       } finally {
         setSaving(false);
       }
     },
-    [exportBase64, onSaveOver, onSaveAsNew, imageMtime]
+    [exportBase64, onSaveAsNew, reportFailure, handleExportError]
   );
+
+  // Conflict dialog choices (reuse the already-exported payload).
+  const resolveOverwriteAnyway = useCallback(async () => {
+    const payload = conflictPayload;
+    setConflictPayload(null);
+    if (!payload) return;
+    setSaving(true);
+    try {
+      const outcome = await onSaveOver?.(payload); // no expectedMtime → unconditional
+      if (outcome && !outcome.ok) reportFailure(outcome.error);
+    } catch (err) {
+      handleExportError(err);
+    } finally {
+      setSaving(false);
+    }
+  }, [conflictPayload, onSaveOver, reportFailure, handleExportError]);
+
+  const resolveSaveAsNew = useCallback(async () => {
+    const payload = conflictPayload;
+    setConflictPayload(null);
+    if (payload) await handleSaveAsNew(payload);
+  }, [conflictPayload, handleSaveAsNew]);
+
+  const resolveDiscard = useCallback(() => {
+    setConflictPayload(null);
+    onCancel?.();
+  }, [onCancel]);
+
+  const handleCancel = useCallback(() => {
+    if (strokeCount > 0 && typeof window !== 'undefined') {
+      if (!window.confirm('Discard your annotations?')) return;
+    }
+    onCancel?.();
+  }, [strokeCount, onCancel]);
 
   if (loadError) {
     return (
@@ -390,9 +442,9 @@ function ImageEditorInner({
         onWidthChange={setWidth}
         onUndo={handleUndo}
         canUndo={strokeCount > 0 && !saving}
-        onSaveOver={() => runSave('over')}
-        onSaveAsNew={() => runSave('new')}
-        onCancel={() => onCancel?.()}
+        onSaveOver={handleSaveOver}
+        onSaveAsNew={() => handleSaveAsNew()}
+        onCancel={handleCancel}
         canSave={loaded && !loadError}
         saving={saving}
       />
@@ -403,6 +455,45 @@ function ImageEditorInner({
           data-testid="image-editor-save-error"
         >
           {saveError}
+        </div>
+      )}
+      {conflictPayload !== null && (
+        <div
+          className="flex flex-wrap items-center gap-2 border-b bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-200"
+          role="alertdialog"
+          aria-label="Save conflict"
+          data-testid="image-editor-conflict"
+        >
+          <span className="mr-auto">
+            This image changed on disk since you opened it. What would you like to do?
+          </span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={resolveSaveAsNew}
+            data-testid="image-editor-conflict-save-as-new"
+          >
+            Save as new
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={resolveOverwriteAnyway}
+            data-testid="image-editor-conflict-overwrite"
+          >
+            Overwrite anyway
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={resolveDiscard}
+            data-testid="image-editor-conflict-discard"
+          >
+            Discard &amp; reload
+          </Button>
         </div>
       )}
       <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-muted/20 p-2">
