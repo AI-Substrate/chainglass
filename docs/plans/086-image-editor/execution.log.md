@@ -175,3 +175,17 @@ The live companion raised **13 findings** across the phase. Reconciliation:
 **Final tally**: 16 findings (8 HIGH, 8 MEDIUM). Code-fixed: F002,F003,F004,F005,F006,F008,F009,F010 (8). Addressed by honest scoping/ordering: F011,F015. Mitigated-by-gate: F001. Process/handoff acknowledged for the merge step: F007,F012(done),F013,F014,F016. The companion's farewell envelope is at `agents/code-review-companion/runs/2026-06-08T07-32-46-663Z-5da5/output/report.json`.
 
 > **Companion coordination note**: the companion stopped on `idle_budget` (its poll budget elapsed) just before my `control:stop` arrived — it had already completed its drain sweep and written the farewell, so nothing was lost. It also reported minih-runtime friction (state_transition schema errors, MINIH_* env vars absent in its shell) — captured as its magicWand for the harness.
+
+---
+
+## Post-acceptance fix (manual testing) — stale image after save
+
+**Reported**: after **Save over**, the editor closes but the viewer shows the *old* image; should show the saved result (user pointed at the explorer's built-in navigation).
+
+**Root cause**: Save over writes the same path, so the `<img src>` URL is identical — `BinaryFileView` remounted the `<img>` (key bump) but the browser served the **cached** pre-edit bytes. Save as new created the new file but the view stayed on the original.
+
+**Fix**:
+- **Save over** — cache-bust the `ImageViewer` src (`${rawFileUrl}&_v=${refreshKey}`) so the refreshed view refetches the updated bytes (same-path navigation is a no-op, so the URL must change).
+- **Save as new** — `handleSaveImage` now navigates to `result.savedPath` via the existing `handleFileSelect` (the explorer's navigation), so the user lands on the freshly-created `-edited` file.
+
+**Verified**: typecheck clean (no new errors); Playwright smoke (save-as-new path, now with navigation) green on desktop. Save-over display to be confirmed in manual re-test.

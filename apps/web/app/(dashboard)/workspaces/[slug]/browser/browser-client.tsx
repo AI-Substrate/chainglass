@@ -963,12 +963,20 @@ function BrowserClientInner({
         expectedMtime
       );
       if (result.ok) {
-        fileNav.handleRefreshFile();
+        if (mode === 'edited-copy' && result.savedPath && result.savedPath !== selectedFile) {
+          // Save as new → navigate to the freshly-created file using the same
+          // explorer navigation the file tree uses, so the user lands on it.
+          void handleFileSelect(result.savedPath);
+        } else {
+          // Save over → same path; refresh the file data (the displayed image is
+          // cache-busted in BinaryFileView since the URL is otherwise identical).
+          fileNav.handleRefreshFile();
+        }
         return { ok: true as const };
       }
       return { ok: false as const, error: result.error };
     },
-    [slug, worktreePath, selectedFile, fileNav.handleRefreshFile]
+    [slug, worktreePath, selectedFile, fileNav.handleRefreshFile, handleFileSelect]
   );
 
   // --- Current diff ---

@@ -769,7 +769,15 @@ function BinaryFileView({
         </div>
       </div>
       <div className="flex-1 flex flex-col min-h-0">
-        {category === 'image' && <ImageViewer key={refreshKey} src={rawFileUrl} alt={filename} />}
+        {category === 'image' && (
+          <ImageViewer
+            key={refreshKey}
+            // Cache-bust after a save-over — the URL is otherwise identical and
+            // the browser would serve the cached pre-edit image.
+            src={refreshKey > 0 ? `${rawFileUrl}&_v=${refreshKey}` : rawFileUrl}
+            alt={filename}
+          />
+        )}
         {category === 'pdf' && <PdfViewer key={refreshKey} src={rawFileUrl} />}
         {category === 'html' && (
           <HtmlViewer
