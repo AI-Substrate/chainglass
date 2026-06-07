@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "slug": "image-editor",
+  "plan_dir": "docs/plans/086-image-editor",
+  "mode": "Simple",
+  "current_stage": "awaiting-6",
+  "pending_command": "/plan-6-v2-implement-phase-companion --phase \"Implementation\" --plan \"docs/plans/086-image-editor/image-editor-plan.md\"",
+  "intent": "Enable in-browser image editing with basic pen annotation tools; save-over or save-as-new (-edited suffix)",
+  "milestones_total": 5,
+  "milestones_done": 3,
+  "last_checkpoint_at": "2026-06-07T02:30:00Z",
+  "compacted_seams": [],
+  "status": "active"
+}

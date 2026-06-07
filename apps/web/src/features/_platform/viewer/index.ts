@@ -1,4 +1,6 @@
 export { CodeEditor, type CodeEditorProps } from './components/code-editor';
+export { ImageEditorLazy, type ImageEditorProps } from './components/image-editor-lazy';
+export type { ImageSaveOutcome } from './components/image-editor';
 export { LinkPopover } from './components/link-popover';
 export { MarkdownWysiwygEditorLazy } from './components/markdown-wysiwyg-editor-lazy';
 export { WysiwygToolbar } from './components/wysiwyg-toolbar';
