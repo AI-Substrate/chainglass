@@ -91,3 +91,9 @@ Governance: `docs/project-rules/harness.md` (browser-capable; Playwright + CDP�
 
 
 
+
+### T012 — Binary round-trip integration test ✅
+
+- `test/integration/web/image-editor-save.test.ts` (3 tests): builds a real PNG (signature + IHDR + IEND with valid CRC32), saves via `deriveEditedFilename`→`saveImageService` (the action's composition), reads back → **byte-identical** Buffer, valid PNG signature, IHDR dims preserved (120×80). Plus: edited-copy replaces existing sibling despite stale mtime; overwrite vs edited-copy path selection.
+- **Note**: "decodable" = PNG signature + parseable IHDR (no pixel-decoder lib in the unit env; honest scope). Byte-equality is the real binary-fidelity proof. Covers AC-7, AC-9, AC-4.
+- **Commit**: `002475ca` · 📡 companion pinged.
