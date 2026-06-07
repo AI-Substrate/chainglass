@@ -163,3 +163,15 @@ The live companion raised **13 findings** across the phase. Reconciliation:
 **Net**: 9 fixed in code (+ tests), 1 addressed by honest scoping, 3 acknowledged (2 are process/scope notes for the merge step). Post-fix: 36 vitest tests + Playwright smoke (desktop+tablet) green; 0 new tsc errors.
 
 > **Note on commits**: per F007 + AGENTS.md, the `Co-Authored-By` trailer is dropped from this commit forward. The earlier commits carry it (harness default) — recommend normalizing at the squash-merge.
+
+### Farewell-envelope findings (F014-F016, raised in the companion's final drain sweep)
+
+| ID | Sev | Finding | Disposition |
+|----|-----|---------|-------------|
+| F014 | MED | ALL Plan 086 commits carry the AI-attribution trailer (extends F007) | **Acknowledged** — same as F007. The fix commit `c9c2acdf` onward drops it; earlier commits squash-normalize at `/plan-8`. |
+| F015 | HIGH | completion docs marked phase/ACs complete while HIGH findings were still open | **Resolved (ordering lesson)** — valid critique: the fltplan/ACs were flipped to complete *before* the HIGH fixes landed. The HIGHs are now fixed (`c9c2acdf`) + re-verified (36 vitest + smoke green), so the completion markers are now accurate. Lesson logged in the retro: don't flip completion before the review loop closes. |
+| F016 | MED | worktree dirty (generated `next-env.d.ts`, ephemeral `.chainglass` pids) | **Acknowledged** — those are build-generated / runtime-ephemeral, not Plan 086 artifacts (and predate this work); intentionally not committed. Recommend gitignoring them (separate housekeeping). |
+
+**Final tally**: 16 findings (8 HIGH, 8 MEDIUM). Code-fixed: F002,F003,F004,F005,F006,F008,F009,F010 (8). Addressed by honest scoping/ordering: F011,F015. Mitigated-by-gate: F001. Process/handoff acknowledged for the merge step: F007,F012(done),F013,F014,F016. The companion's farewell envelope is at `agents/code-review-companion/runs/2026-06-08T07-32-46-663Z-5da5/output/report.json`.
+
+> **Companion coordination note**: the companion stopped on `idle_budget` (its poll budget elapsed) just before my `control:stop` arrived — it had already completed its drain sweep and written the farewell, so nothing was lost. It also reported minih-runtime friction (state_transition schema errors, MINIH_* env vars absent in its shell) — captured as its magicWand for the harness.
