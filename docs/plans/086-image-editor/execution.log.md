@@ -50,3 +50,12 @@ Governance: `docs/project-rules/harness.md` (browser-capable; Playwright + CDP�
 - **Decision**: explicit raster allow-list (not just `category==='image'`) so `ico/avif/bmp` are excluded per AC-16. Covers AC-5, AC-6 (incl. finding 09 GIF→PNG).
 - **Commit**: `665ab108` · 📡 companion pinged.
 
+### T003 + T004 — `saveImageService` (TDD) ✅
+
+- **RED**: `test/unit/web/features/086-image-editor/save-image.test.ts` (7 tests) — failed on missing module.
+- **GREEN**: `apps/web/src/features/041-file-browser/services/save-image.ts` — Buffer write, atomic tmp→rename, mtime-conflict (overwrite + `expectedMtime` only → `serverMtime`), edited-copy unconditional, `security`/`write-failed` typed results. Modelled on `upload-file.ts` + `saveFileAction`.
+- **Evidence**: 7 passed. Buffer round-trip verified (`getFile(ABS)` deep-equals input bytes); `.tmp` cleaned via rename; conflict leaves original bytes untouched.
+- **Decision**: dropped the `force` flag from the contract — "overwrite anyway" is simply omitting `expectedMtime` (simpler than `saveFileAction`'s `force`). Covers AC-3, AC-4, AC-8, AC-9, AC-13.
+- **Commit**: `fba32535` · 📡 companion pinged.
+
+
