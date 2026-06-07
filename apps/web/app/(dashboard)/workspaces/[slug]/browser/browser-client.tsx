@@ -529,6 +529,14 @@ function BrowserClientInner({
   const trackedExpandedDirsRef = useRef<string[]>([]);
   // Plan 077: Guard against programmatic expansion updating dir param
   const isProgrammaticExpansionRef = useRef(false);
+  // Set synchronously when starting a "New File/Folder" auto-expands a collapsed
+  // folder. The matching onExpandedDirsChange then skips publishing ?dir= so the
+  // create doesn't hijack the main panel into folder-preview / close the open file.
+  // Race-free: consumed by path match, not by timing.
+  const pendingCreateExpandRef = useRef<string | null>(null);
+  const handleTreeCreateAutoExpand = useCallback((parentDir: string) => {
+    pendingCreateExpandRef.current = parentDir;
+  }, []);
 
   // Plan 077: track last-expanded folder to show gallery in viewer panel.
   // A user-initiated folder click publishes `?dir=` AND clears `?file=` so the
@@ -558,6 +566,13 @@ function BrowserClientInner({
       setTrackedExpandedDirs(dirs);
 
       if (!newlyExpanded) return;
+      // Create-driven auto-expand: keep the current view, don't open the folder
+      // gallery or wipe the open file. Consume the marker so a later genuine
+      // click on the same folder still publishes ?dir=.
+      if (pendingCreateExpandRef.current === newlyExpanded) {
+        pendingCreateExpandRef.current = null;
+        return;
+      }
       if (isProgrammaticExpansionRef.current) return;
       if (selectedFile) {
         const ancestorPrefix = `${newlyExpanded}/`;
@@ -1009,6 +1024,7 @@ function BrowserClientInner({
               childEntries={filteredChildEntries}
               expandPaths={expandPaths}
               onExpandedDirsChange={handleExpandedDirsChange}
+              onCreateAutoExpand={handleTreeCreateAutoExpand}
               onCopyFullPath={clipboard.handleCopyFullPath}
               onCopyRelativePath={clipboard.handleCopyRelativePath}
               onCopyRepoUrlCurrentRef={clipboard.handleCopyRepoUrlCurrentRef}
@@ -1397,6 +1413,7 @@ function BrowserClientInner({
                     childEntries={filteredChildEntries}
                     expandPaths={expandPaths}
                     onExpandedDirsChange={handleExpandedDirsChange}
+                    onCreateAutoExpand={handleTreeCreateAutoExpand}
                     onCopyFullPath={clipboard.handleCopyFullPath}
                     onCopyRelativePath={clipboard.handleCopyRelativePath}
                     onCopyRepoUrlCurrentRef={clipboard.handleCopyRepoUrlCurrentRef}
