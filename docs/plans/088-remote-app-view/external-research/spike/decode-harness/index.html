@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<!-- T004 — browser WebCodecs decode harness (Plan 088 Phase 1, throwaway evidence code).
+     Serve via: node spike/decode-harness/serve.mjs  (from external-research/)
+     Then open: http://localhost:8088/spike/decode-harness/index.html?autorun=1
+     The page fetches /fixtures/manifest.json + frames, decodes via VideoDecoder,
+     renders to canvas, and POSTs a results JSON to /report. -->
+<html>
+<head>
+<meta charset="utf-8">
+<title>chainglass remote-view decode harness</title>
+<style>
+  body { font: 13px/1.5 monospace; background: #111; color: #ddd; margin: 16px; }
+  canvas { border: 1px solid #444; max-width: 100%; }
+  #log { white-space: pre-wrap; background: #000; padding: 8px; max-height: 320px; overflow-y: auto; }
+  .ok { color: #6dd26d; } .bad { color: #e06c6c; }
+</style>
+</head>
+<body>
+<h3>remote-view decode harness (T004)</h3>
+<div>
+  <button id="run">run decode</button>
+  <span id="status">idle</span>
+</div>
+<canvas id="canvas"></canvas>
+<div id="log"></div>
+<script>
+const logEl = document.getElementById('log');
+const statusEl = document.getElementById('status');
+const results = {
+  userAgent: navigator.userAgent,
+  hasVideoDecoder: typeof VideoDecoder !== 'undefined',
+  config: null,
+  isConfigSupported: null,
+  framesSubmitted: 0,
+  framesDecoded: 0,
+  decodeErrors: [],
+  firstFrameLatencyMs: null,
+  avgOutputIntervalMs: null,
+  totalWallMs: null,
+  done: false,
+};
+
+function log(msg, cls) {
+  const line = document.createElement('div');
+  if (cls) line.className = cls;
+  line.textContent = msg;
+  logEl.appendChild(line);
+  console.log('[harness]', msg);
+}
+
+async function report() {
+  try {
+    await fetch('/report', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(results, null, 2) });
+    log('results POSTed to /report', 'ok');
+  } catch (e) {
+    log('report POST failed: ' + e.message, 'bad');
+  }
+}
+
+function b64ToBytes(b64) {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+async function run() {
+  statusEl.textContent = 'running…';
+  const t0 = performance.now();
+  try {
+    if (!results.hasVideoDecoder) {
+      log('VideoDecoder is not available in this browser', 'bad');
+      results.done = true;
+      await report();
+      return;
+    }
+    const fixturesBase = new URLSearchParams(location.search).get('fixtures') || '/fixtures';
+    const manifest = await (await fetch(`${fixturesBase}/manifest.json`)).json();
+    log(`manifest: codec=${manifest.codec} ${manifest.width}x${manifest.height} @${manifest.fps}fps, ${manifest.frames.length} frames`);
+
+    const config = {
+      codec: manifest.codec,
+      codedWidth: manifest.width,
+      codedHeight: manifest.height,
+      description: b64ToBytes(manifest.description),
+      optimizeForLatency: true,
+    };
+    results.config = { codec: manifest.codec, codedWidth: manifest.width, codedHeight: manifest.height, optimizeForLatency: true, descriptionBytes: manifest.description.length };
+
+    const support = await VideoDecoder.isConfigSupported(config);
+    results.isConfigSupported = support.supported;
+    log(`isConfigSupported: ${support.supported}`, support.supported ? 'ok' : 'bad');
+    if (!support.supported) { results.done = true; await report(); return; }
+
+    const canvas = document.getElementById('canvas');
+    canvas.width = manifest.width;
+    canvas.height = manifest.height;
+    const ctx = canvas.getContext('2d');
+
+    const outputTimes = [];
+    let firstOutputAt = null;
+    const decoder = new VideoDecoder({
+      output(frame) {
+        if (firstOutputAt === null) firstOutputAt = performance.now();
+        outputTimes.push(performance.now());
+        results.framesDecoded++;
+        ctx.drawImage(frame, 0, 0, canvas.width, canvas.height);
+        frame.close();
+      },
+      error(e) {
+        results.decodeErrors.push(String(e));
+        log('decode error: ' + e, 'bad');
+      },
+    });
+    decoder.configure(config);
+
+    // Fetch all frames first, then feed paced at manifest fps (closer to the
+    // production WS arrival pattern than a burst).
+    const buffers = [];
+    for (const f of manifest.frames) {
+      buffers.push(new Uint8Array(await (await fetch(`${fixturesBase}/${f.file}`)).arrayBuffer()));
+    }
+    log(`fetched ${buffers.length} frame files`);
+
+    const frameIntervalMs = 1000 / manifest.fps;
+    const feedStart = performance.now();
+    for (let i = 0; i < manifest.frames.length; i++) {
+      const meta = manifest.frames[i];
+      const chunk = new EncodedVideoChunk({
+        type: meta.keyframe ? 'key' : 'delta',
+        timestamp: meta.ptsMicros,
+        data: buffers[i],
+      });
+      decoder.decode(chunk);
+      results.framesSubmitted++;
+      const target = feedStart + (i + 1) * frameIntervalMs;
+      const wait = target - performance.now();
+      if (wait > 0) await new Promise(r => setTimeout(r, wait));
+    }
+    await decoder.flush();
+
+    results.firstFrameLatencyMs = firstOutputAt !== null ? +(firstOutputAt - feedStart).toFixed(2) : null;
+    if (outputTimes.length > 1) {
+      const deltas = outputTimes.slice(1).map((t, i) => t - outputTimes[i]);
+      results.avgOutputIntervalMs = +(deltas.reduce((a, b) => a + b, 0) / deltas.length).toFixed(2);
+    }
+    results.totalWallMs = +(performance.now() - t0).toFixed(2);
+    results.done = true;
+    log(`decoded ${results.framesDecoded}/${results.framesSubmitted} frames, first-frame ${results.firstFrameLatencyMs}ms, avg output interval ${results.avgOutputIntervalMs}ms`, 'ok');
+    statusEl.textContent = 'done';
+    await report();
+  } catch (e) {
+    results.decodeErrors.push(String(e));
+    results.done = true;
+    log('harness error: ' + e.message, 'bad');
+    statusEl.textContent = 'error';
+    await report();
+  }
+}
+
+document.getElementById('run').addEventListener('click', run);
+if (new URLSearchParams(location.search).get('autorun') === '1') run();
+</script>
+</body>
+</html>

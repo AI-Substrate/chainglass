@@ -1,0 +1,19 @@
+{
+  "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/149.0.0.0 Safari/537.36",
+  "hasVideoDecoder": true,
+  "config": {
+    "codec": "avc1.64001e",
+    "codedWidth": 640,
+    "codedHeight": 480,
+    "optimizeForLatency": true,
+    "descriptionBytes": 52
+  },
+  "isConfigSupported": true,
+  "framesSubmitted": 120,
+  "framesDecoded": 120,
+  "decodeErrors": [],
+  "firstFrameLatencyMs": 21.2,
+  "avgOutputIntervalMs": 33.18,
+  "totalWallMs": 4133.7,
+  "done": true
+}
