@@ -37,3 +37,9 @@ _Per-task entries appended below as each task completes._
 - **Evidence**: biome clean (2 files); web typecheck = 12 (baseline, **0 net-new** — the pre-existing `ReadFileResult.content` errors shifted 614→631 from the added import block, same 2 errors). `rv` inert rule holds: the branch only renders when `view==='remote'`.
 - **Containment (Finding 01)**: file-browser touch is exactly the two sanctioned files (params + browser-client.tsx); PanelShell/FileViewerPanel untouched.
 
+## Companion findings reconciliation
+
+| ID | Sev | Task | Finding | Disposition |
+|----|-----|------|---------|-------------|
+| F001 | MEDIUM | T001 | URL param contract (`view='remote'` + `rv`) lacked regression coverage — protected only by typecheck | **Fixed inline** — added a focused assertion to `test/unit/web/features/041-file-browser/params.test.ts` (`view=remote`+`rv` parse, recent-feed preserved, unknown→null, rv standalone, rv absent→null) with a 5-field Test Doc. 9 tests green. Re-pinged for verification. Companion T001 verdict: APPROVE_WITH_NOTES (1 MEDIUM, 0 HIGH). |
+
