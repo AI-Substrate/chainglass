@@ -107,4 +107,14 @@ Pre-existing env wart (non-fatal): tsconfck `EXTENDS_RESOLVE` warning from the s
 
 **Deliberate deviation (logged)**: the dossier suggested `vi.useFakeTimers()`. The hook owns a REAL socket against the fake, and faked timers + un-faked network I/O deadlock (faked `setTimeout` can't co-advance with real socket callbacks). I used **real timers with injected short durations** (`stallMs`, `backoffMs`) instead — same speed outcome (full suite ~1.7s, no 30s waits), no flakiness. The hook exposes both as options so prod keeps 2000ms / [250,1000,3000].
 
+## T008 — Token route + auth vectors ✅ (TDD)
+
+`app/api/remote-view/token/route.ts` — a near-verbatim copy of `app/api/terminal/token/route.ts` (Finding 03, frozen HKDF mint). **Only** changes: `aud='remote-view-ws'` and **no `cwd` claim** (claims = `sub/iss/aud/iat/exp`). Raw HKDF Buffer key passed directly to `jose.SignJWT.sign` (no TextEncoder rewrap, FX003). Consts in new `server/remote-view-auth.ts` (`REMOTE_VIEW_JWT_ISSUER='chainglass'`, `REMOTE_VIEW_JWT_AUDIENCE='remote-view-ws'`). **5 tests green.**
+
+Test pattern copied from `token.test.ts` (no `vi.mock`; `DISABLE_AUTH=true` fake session; `mkTempCwd` + `ensureBootstrapCode` + `buildCookieValue`): 401 no-cookie, 401 tampered, 200 mint with sub/iss/aud + **payload.cwd undefined**, exp−iat>60, Buffer-direct verify.
+
+**Pinned auth vectors**: `test/contracts/remote-view-auth-vectors.json` (generated via jose with a fixed 32-byte HKDF key `signingKeyHex`) — `good` + `expired` + `wrong-aud` + `wrong-key`. The test verifies `jwtVerify(token, pinnedKey, {issuer, audience})` accepts `good` and rejects the rest. **Task 4.4 imports the same file + key** so the Swift verifier proves byte-identical HKDF verification (not the live cwd-derived bootstrap key).
+
+Origin allowlist (`buildDefaultAllowedOrigins`/`parseAllowedOrigins`) is consumed by the daemon (Task 4.4), not this route (per dossier). DISABLE_AUTH deprecation notice is the same benign one the terminal token test emits — kept for parity with that precedent.
+
 <!-- next-entry: append new task entries above this line -->

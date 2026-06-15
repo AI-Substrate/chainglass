@@ -1,0 +1,38 @@
+{
+  "$comment": "Cross-language auth vectors for the remote-view stream socket (Plan 088 T008). The token route mints the same claim shape (sub/iss/aud/iat/exp — NO cwd). signingKeyHex is a PINNED fixed test HKDF key so the Phase 4 Swift verifier (Task 4.4) reproduces verification byte-identically (NOT the live cwd-derived bootstrap key). jwtVerify(token, key, {issuer, audience}) must accept `good` and reject every other vector.",
+  "alg": "HS256",
+  "issuer": "chainglass",
+  "audience": "remote-view-ws",
+  "signingKeyHex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+  "claims": {
+    "sub": "remote-user",
+    "iat": 1700000000,
+    "expFuture": 4102444800,
+    "expPast": 1700000300
+  },
+  "vectors": [
+    {
+      "name": "good",
+      "valid": true,
+      "token": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJyZW1vdGUtdXNlciIsImlzcyI6ImNoYWluZ2xhc3MiLCJhdWQiOiJyZW1vdGUtdmlldy13cyIsImlhdCI6MTcwMDAwMDAwMCwiZXhwIjo0MTAyNDQ0ODAwfQ.nBsOhEYASHqjt0NglrXFbbdB6-PapWN8OR96hgPBcLk"
+    },
+    {
+      "name": "expired",
+      "valid": false,
+      "reason": "exp in the past",
+      "token": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJyZW1vdGUtdXNlciIsImlzcyI6ImNoYWluZ2xhc3MiLCJhdWQiOiJyZW1vdGUtdmlldy13cyIsImlhdCI6MTcwMDAwMDAwMCwiZXhwIjoxNzAwMDAwMzAwfQ.LDAYM8BYhgYPWAcz0AjyDq_wvl-dArPdkEE-IqeOiRQ"
+    },
+    {
+      "name": "wrong-aud",
+      "valid": false,
+      "reason": "aud=terminal-ws (not remote-view-ws)",
+      "token": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJyZW1vdGUtdXNlciIsImlzcyI6ImNoYWluZ2xhc3MiLCJhdWQiOiJ0ZXJtaW5hbC13cyIsImlhdCI6MTcwMDAwMDAwMCwiZXhwIjo0MTAyNDQ0ODAwfQ.LDLhKkgxE6QV71I_2ijb_NGXZYyqrSmquINarITbif0"
+    },
+    {
+      "name": "wrong-key",
+      "valid": false,
+      "reason": "signed with a different HKDF key",
+      "token": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJyZW1vdGUtdXNlciIsImlzcyI6ImNoYWluZ2xhc3MiLCJhdWQiOiJyZW1vdGUtdmlldy13cyIsImlhdCI6MTcwMDAwMDAwMCwiZXhwIjo0MTAyNDQ0ODAwfQ.vdrkROorZCZXzJaoXB2BWRXQxqkZo7JFGnd760xWykg"
+    }
+  ]
+}
