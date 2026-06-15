@@ -101,10 +101,15 @@ async function main(): Promise<void> {
       `[smoke] webcodecs=${hasWebCodecs} configured=${configured} decoded=${frames} err=${err ?? 'none'}`
     );
 
-    if (frames >= TARGET_FRAMES) {
+    // PASS requires a clean run, not just the frame count (F012): WebCodecs present, the
+    // decoder configured, NO error reported, AND enough frames decoded.
+    const ok = frames >= TARGET_FRAMES && hasWebCodecs && configured && err == null;
+    if (ok) {
       console.log(`[smoke] PASS — ${frames} H.264 frames decoded to canvas on real Chrome`);
     } else {
-      console.log(`[smoke] FAIL — only ${frames}/${TARGET_FRAMES} frames decoded`);
+      console.log(
+        `[smoke] FAIL — frames=${frames}/${TARGET_FRAMES} webcodecs=${hasWebCodecs} configured=${configured} err=${err ?? 'none'}`
+      );
       process.exitCode = 1;
     }
   } finally {
