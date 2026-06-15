@@ -72,6 +72,50 @@ do {
 
 print("streamd up — port=\(config.port) origins=\(allowedOrigins.sorted().joined(separator: ",")) registry=\(config.registryPath ?? "<none>")")
 
-// Keep the process alive on the dispatch main queue (T008 installs the registry +
-// SIGTERM/vanish lifecycle around this).
+// MARK: - Registry + lifecycle (T008)
+
+var shuttingDown = false
+func gracefulShutdown(_ reason: ByeReason) {
+    if shuttingDown { return }
+    shuttingDown = true
+    server.broadcastByeAndClose(reason: reason)            // bye{reason} → viewer, then close
+    if let rp = config.registryPath { Registry.remove(at: rp) }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { exit(0) }   // let the bye frame flush
+}
+
+var lifecycleTimer: DispatchSourceTimer?
+var sigtermSource: DispatchSourceSignal?
+
+// On listen, publish the discovery registry; poll it and self-exit when it vanishes (Phase 5
+// owns the reaper that deletes it). The registry PATH is the `--registry` arg — never derived.
+if let registryPath = config.registryPath {
+    let file = RegistryFile(
+        pid: Int(ProcessInfo.processInfo.processIdentifier),
+        port: config.port,
+        protocolVersion: WireProtocol.version,
+        daemonVersion: Registry.daemonVersion,
+        bundleId: RegistryFile.bundleIdentifier,
+        bundlePath: Bundle.main.bundlePath,
+        startedAt: ISO8601DateFormatter().string(from: Date()))
+    do { try Registry.write(file, to: registryPath) }
+    catch { fail("cannot write registry at \(registryPath): \(error)") }
+
+    let pollSeconds = Double(env["CG_REMOTE_VIEW__VANISH_POLL_SECONDS"] ?? "") ?? 30.0
+    let timer = DispatchSource.makeTimerSource(queue: .main)
+    timer.schedule(deadline: .now() + pollSeconds, repeating: pollSeconds)
+    timer.setEventHandler { if !Registry.exists(at: registryPath) { gracefulShutdown(.shutdown) } }
+    lifecycleTimer = timer
+    timer.resume()
+}
+
+// POST /shutdown (JWT-gated) and SIGTERM both run the graceful path. Hop to the main queue so
+// `broadcastByeAndClose` (which `queue.sync`s onto the WS queue) can't deadlock the WS queue.
+server.onShutdownRequest = { DispatchQueue.main.async { gracefulShutdown(.shutdown) } }
+signal(SIGTERM, SIG_IGN)
+let sigterm = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
+sigterm.setEventHandler { gracefulShutdown(.shutdown) }
+sigtermSource = sigterm
+sigterm.resume()
+
+// Keep the process alive on the dispatch main queue.
 dispatchMain()

@@ -131,13 +131,18 @@ The composition root: wires T004 auth + T005 sessions + T003 frame source into o
 
 **Deferred to the host-Mac visit (T009, Accessibility TCC):** live click/drag/scroll/type landing in Godot, focus-follows correctness, AC-10 auto-restore. The injector code is written + compiles; only the live posting needs the grant.
 
-## T008 — Registry + lifecycle (CS-2, automatable half) — [~] (file I/O ✅; live self-exit/SIGTERM → daemon loop)
+## T008 — Registry + lifecycle (CS-2) ✅ — verified headless (6/6)
 
 **Landed:** `Sources/streamd/Registry.swift` — `RegistryFile{pid,port,protocolVersion,daemonVersion,bundleId,bundlePath,startedAt}` (field is **`port`**, never `daemonPort`); atomic write (temp+rename via `.atomic`, creates parent `.chainglass/`); `read` → nil on missing/garbage; `exists` (the self-exit-on-vanish predicate); `remove`. `Tests/streamdTests/RegistryTests.swift`.
 
 **Evidence (`swift test`): 53/53 green** (+4). Write→read round-trips all fields + auto-creates parent dir; JSON writes `port` and NOT `daemonPort`; vanish detection (remove → exists=false); read of missing/garbage → nil.
 
-**Deferred to the daemon run loop (lands with T006):** the ~30s vanish poll → self-exit and SIGTERM → `bye{shutdown}` (needs the live listen loop; path comes from `--registry`).
+**Live lifecycle wired in `main.swift` (T008) + verified headless (`node lifecycle-headless.mjs`, 6/6):**
+- On listen, `Registry.write` publishes `.chainglass/streamd-<port>.json` from the `--registry` arg (pid/port/protocolVersion/daemonVersion/bundleId/bundlePath/startedAt). Smoke confirmed **pid matches the daemon, port=6098, `bundleId=com.chainglass.streamd`, no `daemonPort`**.
+- A `DispatchSource` timer polls the registry (`CG_REMOTE_VIEW__VANISH_POLL_SECONDS`, default 30s) and **self-exits when it vanishes** — smoke: deleted file → daemon exited 0.
+- `SIGTERM` (and JWT-gated `POST /shutdown`) run a graceful path: `broadcastByeAndClose(.shutdown)` → viewer gets **`bye{shutdown}`** then close, the registry is removed, exit 0 (200ms flush window). The shutdown hop is dispatched to `.main` so `broadcastByeAndClose`'s `queue.sync` onto the WS queue can't deadlock. Smoke confirmed all three.
+
+Phase 5 **reads** this registry (spawn/reaper) — out of scope here. `just streamd-smoke` now runs the wire smoke **and** this lifecycle smoke.
 
 ---
 

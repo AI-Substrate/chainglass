@@ -127,6 +127,7 @@ streamd-smoke:
     trap 'kill $DAEMON_PID 2>/dev/null || true' EXIT
     curl -s --retry 30 --retry-delay 1 --retry-connrefused http://127.0.0.1:6099/health >/dev/null
     node native/streamd/scripts/smoke-headless.mjs --port 6099 --secret smoke-secret --origin http://localhost:3000
+    node native/streamd/scripts/lifecycle-headless.mjs --bin native/streamd/.build/debug/streamd --fixtures "$FIX"
 
 streamd-install: streamd-build
     native/streamd/scripts/make-bundle.sh
