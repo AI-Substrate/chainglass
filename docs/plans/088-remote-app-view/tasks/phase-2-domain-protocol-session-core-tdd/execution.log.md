@@ -55,4 +55,20 @@ Per-task entries are appended in order, above the footer marker.
 
 **Cross-language**: `frame-header.json` is the **binary** drift guard (Swift Task 4.2 matches byte-for-byte); folded into the T003 drift rule (any protocol change regenerates `messages.json` + `frame-header.json` and re-runs T003 + T004 + Task 4.2).
 
+## T006 — Session machine (pure transitions) ✅ (TDD)
+
+Done **before** T005 (depends only on T003; pure → no fake needed). `server/session-machine.ts` — pure `transition(state, event)` reducer, no I/O. **11 tests green.**
+
+**All 10 viewport states** modelled + proven reachable: `picker · attaching · live · degraded · reconnecting · displaced · windowGone · sessionLost · daemonDown · error` (the validation-flagged 10th, `daemonDown`, included).
+
+**Race rules encoded + tested**:
+- **R3** — `displaced` NEVER auto-reconnects: every socket/timer/reconnect event leaves it `displaced`; only explicit `RECLAIM`/`PICK_WINDOW`/`DETACH` move it (grep-checkable: the only paths out of `displaced` are those three cases).
+- **R7** — attach-while-attaching = last-click-wins (`PICK_WINDOW` from any state → `attaching`, new windowId, attempts reset).
+- **R9** — CLEAN `SOCKET_CLOSED` does NOT enter `reconnecting` (intentional teardown); only UNEXPECTED close does; `DETACH` → `picker`.
+- **reconnecting fork** — `RECONNECT_EXHAUSTED{daemonHealthy:true}` → `sessionLost`; `{false}` → `daemonDown` (R6 health fork).
+- **error mapping** — `errorCodeToState`: `E_SESSION_UNKNOWN`→`sessionLost`, `E_WINDOW_GONE`→`windowGone`, others→`error` (carrying the code for the AC-14 card).
+- keyframe-first: `attaching`→`live` only on a keyframe (delta keeps waiting); backoff `[250,1000,3000]`, MAX 3.
+
+Exports `MAX_RECONNECT_ATTEMPTS`, `RECONNECT_BACKOFF_MS`, `initialState`, `transition`, `errorCodeToState` for T007.
+
 <!-- next-entry: append new task entries above this line -->
