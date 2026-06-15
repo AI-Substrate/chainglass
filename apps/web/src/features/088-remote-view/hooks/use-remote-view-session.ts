@@ -21,7 +21,11 @@
  */
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 import { type DecodedFrame, decodeFrame } from '../protocol/binary';
-import { type VideoConfigMessage, parseServerMessage } from '../protocol/messages';
+import {
+  type StatsMessage,
+  type VideoConfigMessage,
+  parseServerMessage,
+} from '../protocol/messages';
 import {
   MAX_RECONNECT_ATTEMPTS,
   RECONNECT_BACKOFF_MS,
@@ -68,6 +72,10 @@ export interface UseRemoteViewSessionOptions {
   onVideoConfig?: (config: VideoConfigMessage) => void;
   /** Video plane (Phase 3): each decoded binary frame (header + AVCC payload). */
   onFrame?: (frame: DecodedFrame) => void;
+  /** Telemetry plane (Phase 3): daemon-measured `stats` for the HUD. */
+  onStats?: (stats: StatsMessage) => void;
+  /** Telemetry plane (Phase 3): ping/pong round-trip latency in ms (HUD). */
+  onPong?: (rttMs: number) => void;
 }
 
 export interface UseRemoteViewSessionResult {
@@ -80,6 +88,8 @@ export interface UseRemoteViewSessionResult {
   returnToPicker: () => void;
   /** Ask the daemon for an IDR (decoder drop-to-keyframe recovery — Workshop 003). */
   requestKeyframe: () => void;
+  /** Send an app-level ping; the pong's round-trip is delivered via `onPong` (HUD latency). */
+  ping: () => void;
 }
 
 export function useRemoteViewSession(
@@ -97,6 +107,8 @@ export function useRemoteViewSession(
     backoffMs = RECONNECT_BACKOFF_MS,
     onVideoConfig,
     onFrame,
+    onStats,
+    onPong,
   } = opts;
 
   const [state, dispatch] = useReducer(transition, undefined, () =>
@@ -128,6 +140,8 @@ export function useRemoteViewSession(
     backoffMs,
     onVideoConfig,
     onFrame,
+    onStats,
+    onPong,
   });
   cbRef.current = {
     getToken,
@@ -137,6 +151,8 @@ export function useRemoteViewSession(
     backoffMs,
     onVideoConfig,
     onFrame,
+    onStats,
+    onPong,
   };
 
   useEffect(() => {
@@ -201,8 +217,14 @@ export function useRemoteViewSession(
         case 'video-config':
           cbRef.current.onVideoConfig?.(msg); // (re)configure the decoder (video plane)
           break;
+        case 'pong':
+          cbRef.current.onPong?.(Date.now() - msg.sentAt); // RTT for the HUD (telemetry plane)
+          break;
+        case 'stats':
+          cbRef.current.onStats?.(msg); // daemon-measured telemetry (HUD)
+          break;
         default:
-          break; // pong/stats/bye — no state change here
+          break; // bye — no state change here
       }
     }
 
@@ -354,5 +376,16 @@ export function useRemoteViewSession(
     }
   }, []);
 
-  return { state, reclaim, detach, returnToPicker, requestKeyframe };
+  const ping = useCallback(() => {
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      try {
+        ws.send(JSON.stringify({ t: 'ping', sentAt: Date.now() }));
+      } catch {
+        /* noop */
+      }
+    }
+  }, []);
+
+  return { state, reclaim, detach, returnToPicker, requestKeyframe, ping };
 }

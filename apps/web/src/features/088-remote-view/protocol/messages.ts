@@ -146,6 +146,9 @@ export type ServerMessage = z.infer<typeof ServerMessageSchema>;
 /** The `video-config` server message — feeds the WebCodecs VideoDecoder (Phase 3 viewport). */
 export type VideoConfigMessage = Extract<ServerMessage, { t: 'video-config' }>;
 
+/** The `stats` server message — daemon-measured telemetry for the HUD (Phase 3 viewport). */
+export type StatsMessage = Extract<ServerMessage, { t: 'stats' }>;
+
 // ───────────────────────── parse / encode helpers ─────────────────────────
 
 /** Accept a JSON string or a pre-parsed object; bad JSON → undefined. */

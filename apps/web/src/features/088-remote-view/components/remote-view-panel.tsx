@@ -8,10 +8,10 @@
  *   - no `rv` session yet  → the window picker (T003)
  *   - `rv` session active   → the streaming viewport (T004/T005)
  *
- * All data flows through the Phase 2 surface (IRemoteViewService via DI, the
- * useRemoteViewSession hook, the frame-replay fake) — no daemon (AC-12). The panel
- * is daemon-agnostic so Phase 5 can swap the fake-backed service for the real one
- * without touching this component.
+ * Data flows through the Phase 2 surface — the `useRemoteViewSession` WS hook (video +
+ * telemetry planes) and the `useRemoteViewWindows` loader — against the frame-replay
+ * fake, no daemon (AC-12). There is NO client DI; `IRemoteViewService` is server-side,
+ * so Phase 5 swaps the fake-backed loader/routes for the real ones without touching this.
  *
  * F007: `rv` arrives from the URL; when re-entering a session by deep link we do NOT
  * synthesise a windowId — the hook learns it from `hello-ok`. The picker is the only
@@ -33,6 +33,8 @@ export interface RemoteViewPanelProps {
   rv: string | null;
   /** Picker attached a window → carries the new session id up to set `rv`. */
   onPickWindow: (sessionId: string) => void;
+  /** Return to the window picker (clears `rv`, keeps `view=remote`). */
+  onReturnToPicker: () => void;
   /** Close the mode (clears `view` + `rv`, returns to file/dir view). */
   onClose: () => void;
 }
@@ -46,7 +48,12 @@ function mintSessionId(windowId: number): string {
   return `ses_w${windowId.toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export function RemoteViewPanel({ rv, onPickWindow, onClose }: RemoteViewPanelProps) {
+export function RemoteViewPanel({
+  rv,
+  onPickWindow,
+  onReturnToPicker,
+  onClose,
+}: RemoteViewPanelProps) {
   // slug/worktreePath are consumed by the viewport/service in T004/T005 + Phase 5.
   // F007: the picker is the only place a windowId originates; on a deep-link re-enter
   // (rv from URL, no pick) pickedWindowId stays null and the hook learns it from hello-ok.
@@ -89,7 +96,7 @@ export function RemoteViewPanel({ rv, onPickWindow, onClose }: RemoteViewPanelPr
             onRefresh={refresh}
           />
         ) : (
-          <Viewport url={wsUrl} session={rv} windowId={pickedWindowId} />
+          <Viewport url={wsUrl} session={rv} windowId={pickedWindowId} onExit={onReturnToPicker} />
         )}
       </div>
     </div>

@@ -1509,6 +1509,7 @@ function BrowserClientInner({
                 worktreePath={worktreePath}
                 rv={params.rv}
                 onPickWindow={(sessionId) => setParams({ rv: sessionId }, { history: 'push' })}
+                onReturnToPicker={() => setParams({ rv: null }, { history: 'push' })}
                 onClose={() => setParams({ view: null, rv: null }, { history: 'replace' })}
               />
             ) : view === 'recent-feed' ? (

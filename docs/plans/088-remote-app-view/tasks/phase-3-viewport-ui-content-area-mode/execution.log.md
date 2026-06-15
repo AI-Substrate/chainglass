@@ -64,3 +64,13 @@ _Per-task entries appended below as each task completes._
 - **Tests**: added a node/jsdom hook video-plane test (onVideoConfig dims 800×656 avc1, onFrame keyframe, requestKeyframe → `fake.received`) → hook suite **10/10**. The viewport *component* is smoke-only (no WebCodecs in jsdom) per the Hybrid deviation.
 - **Evidence**: web typecheck = 12 (**0 net-new** — WebCodecs types incl. `optimizeForLatency` resolve via lib.dom); remote-view unit suite **57** + hook **10** green. Biome clean on my code; `messages.ts` carries one **pre-existing** `InputEventSchema` format deviation (confirmed on HEAD via `git stash` — Phase 2 F003 baseline, not T004).
 
+### T005 — HUD + Workshop 002 state chrome
+
+**Done.** The viewport now renders a live HUD and every viewport state.
+- **Mod** `components/viewport.tsx` — stats **HUD** (fps + latency + bitrate + dropped, sampled 1s); **per-state chrome** for all 10 states: `displaced` → reclaim card that **always shows Reclaim and never self-resolves** (F004 — the FSM traps it); `windowGone`/`daemonDown`/`error` → blocking cards + "Back to windows"; `attaching`/`reconnecting`/`degraded`/`sessionLost` → transient badges (canvas last-frame stays). The `error` card maps **every** `E_*` code (`E_PERMISSION` names the Screen Recording grant; the System-Settings fix-path + how-to are Phase 6 = AC-14). testids: `remote-view-hud`, `remote-view-reclaim`, `remote-view-state-<name>`.
+- **Mod (additive)** `hooks/use-remote-view-session.ts` — telemetry plane: `onStats`/`onPong` callbacks + `ping()` (sends `{t:'ping',sentAt}`; pong → `onPong(RTT)`); `+StatsMessage` type. The viewport drives a 2s ping loop.
+- **Latency** = the ping/pong **RTT measurement path** (proven vs the fake, which answers `ping→pong`); true capture→display glass-to-glass needs the real daemon's wall-clock frame stamps (Phase 6, AC-2). fps/bitrate/dropped are client-measured; daemon `stats` are forwarded for Phase 6.
+- **onExit chain**: viewport "Back to windows" → `onExit` → panel `onReturnToPicker` → browser-client `setParams({rv:null})` (keeps `view=remote` → picker); Reclaim → `hook.reclaim()`. Added `onReturnToPicker` to the panel + browser-client (still the two Finding-01 files).
+- Also corrected the panel doc comment's stale "IRemoteViewService via DI" (same drift as F002).
+- **Evidence**: biome clean (after format wrap of viewport/panel — no pragmas); web typecheck = 12 (**0 net-new**; structural callback subtypes OK); hook **10/10**, all 56 Phase 2 tests green. Viewport remains smoke-only (no WebCodecs in jsdom) — T007.
+
