@@ -89,6 +89,10 @@ export function Viewport({ url, session, windowId, onExit }: ViewportProps) {
   const droppedRef = useRef(0);
   const latencyRef = useRef<number | null>(null);
   const [hud, setHud] = useState<HudStats>({ fps: 0, latencyMs: null, dropped: 0, bitrateKbps: 0 });
+  // null = unknown (no config yet); false = WebCodecs/this config unsupported → fallback overlay (F003).
+  const [supported, setSupported] = useState<boolean | null>(() =>
+    typeof VideoDecoder === 'undefined' || typeof EncodedVideoChunk === 'undefined' ? false : null
+  );
 
   const drawFrame = useCallback((frame: VideoFrame) => {
     const canvas = canvasRef.current;
@@ -106,9 +110,33 @@ export function Viewport({ url, session, windowId, onExit }: ViewportProps) {
   }, []);
 
   const handleVideoConfig = useCallback(
-    (config: { codec: string; description: string; width: number; height: number }) => {
-      const sig = `${config.codec}:${config.width}x${config.height}`;
+    async (config: { codec: string; description: string; width: number; height: number }) => {
+      if (typeof VideoDecoder === 'undefined' || typeof EncodedVideoChunk === 'undefined') {
+        setSupported(false); // WebCodecs missing (older Safari, no GPU) → fallback, not a crash (F003)
+        return;
+      }
+      // Signature includes the avcC `description`: a real daemon may resend changed SPS/PPS at the
+      // same codec+dims, which MUST trigger a reconfigure (F004).
+      const sig = `${config.codec}:${config.width}x${config.height}:${config.description}`;
       if (configSigRef.current === sig && decoderRef.current?.state === 'configured') return;
+      const decoderConfig: VideoDecoderConfig = {
+        codec: config.codec,
+        codedWidth: config.width,
+        codedHeight: config.height,
+        description: base64ToBytes(config.description),
+        optimizeForLatency: true,
+      };
+      // Verify before constructing — an unsupported codec/avcC renders the fallback, never throws (F003).
+      try {
+        const probe = await VideoDecoder.isConfigSupported(decoderConfig);
+        if (!probe.supported) {
+          setSupported(false);
+          return;
+        }
+      } catch {
+        setSupported(false);
+        return;
+      }
       try {
         decoderRef.current?.close();
       } catch {
@@ -121,16 +149,16 @@ export function Viewport({ url, session, windowId, onExit }: ViewportProps) {
           requestKeyframeRef.current();
         },
       });
-      decoder.configure({
-        codec: config.codec,
-        codedWidth: config.width,
-        codedHeight: config.height,
-        description: base64ToBytes(config.description),
-        optimizeForLatency: true,
-      });
+      try {
+        decoder.configure(decoderConfig);
+      } catch {
+        setSupported(false);
+        return;
+      }
       decoderRef.current = decoder;
       configSigRef.current = sig;
       awaitingKeyframeRef.current = true; // need an IDR after (re)config
+      setSupported(true);
       requestKeyframeRef.current();
     },
     [drawFrame]
@@ -224,22 +252,32 @@ export function Viewport({ url, session, windowId, onExit }: ViewportProps) {
         className="h-full w-full object-contain"
       />
 
-      {(state.name === 'live' || state.name === 'degraded') && (
+      {supported === false ? (
         <div
-          data-testid="remote-view-hud"
-          className="absolute right-2 top-2 rounded bg-black/60 px-2 py-1 font-mono text-[11px] text-white/80"
+          data-testid="remote-view-unsupported"
+          className="absolute inset-0 flex items-center justify-center bg-black/80 p-6 text-center text-sm text-white/80"
         >
-          {hud.fps} fps · {hud.latencyMs == null ? '—' : `${hud.latencyMs}ms`} · {hud.bitrateKbps}{' '}
-          kbps · {hud.dropped} dropped
+          Video playback isn’t supported in this browser. Use a recent Chromium-based browser.
         </div>
+      ) : (
+        <>
+          {(state.name === 'live' || state.name === 'degraded') && (
+            <div
+              data-testid="remote-view-hud"
+              className="absolute right-2 top-2 rounded bg-black/60 px-2 py-1 font-mono text-[11px] text-white/80"
+            >
+              {hud.fps} fps · {hud.latencyMs == null ? '—' : `${hud.latencyMs}ms`} ·{' '}
+              {hud.bitrateKbps} kbps · {hud.dropped} dropped
+            </div>
+          )}
+          <ViewportChrome
+            name={state.name}
+            errorCode={state.errorCode}
+            onReclaim={reclaim}
+            onExit={onExit}
+          />
+        </>
       )}
-
-      <ViewportChrome
-        name={state.name}
-        errorCode={state.errorCode}
-        onReclaim={reclaim}
-        onExit={onExit}
-      />
     </div>
   );
 }
