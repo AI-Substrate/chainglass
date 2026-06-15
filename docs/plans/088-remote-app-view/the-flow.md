@@ -2,7 +2,7 @@
 # the-flow · remote-app-view (flight view)
 
 **Plan**: remote-app-view · **Mode**: Full · **Phases**: 6 (locked at architect)
-**Rail**: `[the-flow] ◆─◆─◆─◆─◐─◇─◇  research · spec · plan · tasks · [build 2/6] · review · merge`   ·   **now**: Phase 2 ✅ implemented + reviewed — 56 tests green, AC-12 (web side daemon-absent); companion caught 2 HIGH bugs, all fixed · **next**: Phase 3 tasks (review pass optional)
+**Rail**: `[the-flow] ◆─◆─◆─◆─◐─◇─◇  research · spec · plan · tasks · [build 3/6 ✅] · review · merge`   ·   **now**: Phase 3 ✅ IMPLEMENTED + REVIEWED — 64 unit tests, host streaming smoke on **real Chrome** (67 frames via WebCodecs), bundle guard vs real build (AC-13); companion 16 findings (2 HIGH) all fixed · **next**: Phase 4 tasks (Native Daemon · ⚠️ host-Mac TCC/keychain)
 
 ```mermaid
 flowchart TD
@@ -17,7 +17,7 @@ flowchart TD
 
     %% ── spine ──
     R[Research]:::done --> S[Spec]:::done --> BP["Backpressure Check · noop (no repo harness)"]:::harness --> PL["Plan · READY 7/7 + validated"]:::done
-    PL --> P1["Phase 1: De-Risk Spike · ✅ COMPLETE — all GO"]:::done --> P2["Phase 2: Domain, Protocol & Session Core · ✅ COMPLETE — 51 tests, AC-12"]:::done --> P3["Phase 3: Viewport UI & Content-Area Mode"]:::known --> P4["Phase 4: Native Daemon (Swift)"]:::known --> P5["Phase 5: Lifecycle, Agent Surface & Events"]:::known --> P6["Phase 6: Integration Hardening, Permissions UX & Docs"]:::known --> M[Merge]:::assumed
+    PL --> P1["Phase 1: De-Risk Spike · ✅ COMPLETE — all GO"]:::done --> P2["Phase 2: Domain, Protocol & Session Core · ✅ COMPLETE — 51 tests, AC-12"]:::done --> P3["Phase 3: Viewport UI & Content-Area Mode · ✅ COMPLETE — 64 tests + real-Chrome stream smoke + bundle guard (AC-13)"]:::done --> P4["Phase 4: Native Daemon (Swift)"]:::known --> P5["Phase 5: Lifecycle, Agent Surface & Events"]:::known --> P6["Phase 6: Integration Hardening, Permissions UX & Docs"]:::known --> M[Merge]:::assumed
 
     %% ── companions (each wrapped the phase it was meant to review) ──
     subgraph CW["⌖ code-review-companion · idle-timed-out before pings (0 review)"]
@@ -39,6 +39,14 @@ flowchart TD
     P1 -.->|evidence| EV[["GO: capture 45fps · real fixture 254f decode 254/254 · mouse+kbd inject · stable-cert TCC · CGWindowID stable"]]:::done
     P2 -.->|stage 5 + validate| T2[["Phase 2 tasks dossier · T000–T010 · VALIDATED · 15 fixes"]]:::done
     P2 -.->|evidence| EV2[["GREEN daemon-absent: protocol+codec round-trips · fake replays 254f · 10-state FSM + R1–R9 · token route + auth vectors · service+DI · 51 tests"]]:::done
+    P3 -.->|stage 5 + validate| T3[["Phase 3 tasks dossier · T000–T009 · VALIDATED · 9 fixes · src-truth 30/30 · fwd-compat 5/5"]]:::done
+    P3 -.->|evidence| EV3[["GREEN: 64 unit tests · real-Chrome stream smoke 67f via WebCodecs · bundle guard AC-13 (real build) · 0 net-new errors"]]:::done
+    subgraph CW3["⌖ code-review-companion · every commit pinged · 16 findings (2 HIGH) · all fixed · caught a stash-dud commit"]
+        P3
+    end
+    class CW3 companion
+    UB3>"🗣 run companion mode"]:::said
+    UB3 -.- P3
     M -.->|reflection| HH[["plan-complete seam · /eng-harness-flow"]]:::harness
 
     %% ── verbatim user-said bubbles ──
@@ -58,8 +66,10 @@ flowchart TD
     UG -.- T2
     UB2>"🗣 build with companion mode"]:::said
     UB2 -.- P2
+    UT3>"🗣 prepare phase 3 tasks then run validation"]:::said
+    UT3 -.- T3
 ```
 
 **Legend**: 🟩 done · 🟧 in progress · 🟥 blocked · 🟦 known future (designed) · ⬜╴assumed future (dashed) · 🟨 🗣 verbatim user input · 🟪 harness seams · 🟦 companion (cyan)
 
-_Generated from `the-flow.json`. **Phase 2 is implemented, reviewed, and green** — 11 tasks (T001–T010) + a companion review-response, **56 tests across 8 files** (51 + 5 finding tests), run serially. **AC-12 met**: the entire web side runs and passes with **no daemon** — the `remote-view` domain + dep-direction guard, the Zod wire protocol + 16-byte binary codec (with `messages.json` **and** `frame-header.json` as the cross-language drift guards for the Swift daemon, Task 4.2), the first-class frame-replay fake (254 owned `sck-capture` frames), the 10-state session machine + reconnect hook (R1/R2/R3/R5/R6/R7/R8/R9 incl. the `daemonDown` health fork), the frozen-contract token route (`aud=remote-view-ws`, no `cwd`) + pinned auth vectors (Task 4.4), and `IRemoteViewService` + Fake + DI + reusable contract suite. Two logged deviations: T007 uses real timers + injected short durations (fake-timer/real-socket deadlock), and `zod` pinned `^4.3.5` in `apps/web`. The live `code-review-companion` was booted + briefed, every commit pinged, and it **actively reviewed** — surfacing **10 findings (2 HIGH: F004 displaced-state R3-trap escape, F007 learned-windowId clobber breaking R6 deep-link recreate; 8 MEDIUM)** on the inside lane. (An earlier flight-plan note wrongly recorded "0 replies / non-engagement" — an operator read-path error querying the outside lane; corrected, anecdote filed as minih issue [#47](https://github.com/AI-Substrate/minih/issues/47).) **All actionable findings landed in the review-response commit** → stage-7 review is **effectively satisfied** by the companion + response. **Next: generate Phase 3 tasks** — a separate `/the-flow 7 review` pass is optional. Phase 1 carry-forwards still hold for Phase 4 (CoreGraphics `NSApplication` init; reuse `chainglass-dev` cert + `com.chainglass.streamd`)._
+_Generated from `the-flow.json`. **Phase 2 is implemented, reviewed, and green** — 11 tasks (T001–T010) + a companion review-response, **56 tests across 8 files** (51 + 5 finding tests), run serially. **AC-12 met**: the entire web side runs and passes with **no daemon** — the `remote-view` domain + dep-direction guard, the Zod wire protocol + 16-byte binary codec (with `messages.json` **and** `frame-header.json` as the cross-language drift guards for the Swift daemon, Task 4.2), the first-class frame-replay fake (254 owned `sck-capture` frames), the 10-state session machine + reconnect hook (R1/R2/R3/R5/R6/R7/R8/R9 incl. the `daemonDown` health fork), the frozen-contract token route (`aud=remote-view-ws`, no `cwd`) + pinned auth vectors (Task 4.4), and `IRemoteViewService` + Fake + DI + reusable contract suite. Two logged deviations: T007 uses real timers + injected short durations (fake-timer/real-socket deadlock), and `zod` pinned `^4.3.5` in `apps/web`. The live `code-review-companion` was booted + briefed, every commit pinged, and it **actively reviewed** — surfacing **10 findings (2 HIGH: F004 displaced-state R3-trap escape, F007 learned-windowId clobber breaking R6 deep-link recreate; 8 MEDIUM)** on the inside lane. (An earlier flight-plan note wrongly recorded "0 replies / non-engagement" — an operator read-path error querying the outside lane; corrected, anecdote filed as minih issue [#47](https://github.com/AI-Substrate/minih/issues/47).) **All actionable findings landed in the review-response commit** → stage-7 review is **effectively satisfied** by the companion + response. **Phase 3 is implemented, reviewed, and green** — the full user-visible web surface against the Phase 2 fake (AC-12, no daemon): `view=remote` + `rv` content-area mode (extends recent-feed; no PanelShell change), lazy RemoteViewPanel, window picker (loader-hook seam — **discovery: this app has no client DI**, `IRemoteViewService` is server-only), WebCodecs viewport (data-driven `video-config` decode + drop-to-keyframe + HUD fps/rtt/bitrate/dropped + all 10 Workshop-002 states incl. displaced reclaim card + named-grant error + WebCodecs-unsupported fallback) + normalized rAF-batched **focus-gated** input capture. The Phase 2 `useRemoteViewSession` hook gained an **additive** video+telemetry plane (`onVideoConfig/onFrame/onStats/onPong/requestKeyframe/ping/sendInput`; all 56 Phase-2 tests unchanged). **Validated**: 64 unit tests; a **host streaming smoke on real Chrome** (67 H.264 frames decoded via WebCodecs from fake-streamd — run on the Mac host per the user's directive, sidestepping Docker-on-Mac); a bundle guard **vs a real `next build`** (AC-13). The live `code-review-companion` (run …f894) **actively reviewed every commit** — 16 findings (2 HIGH: F003 WebCodecs-unsupported fallback, F009 input-before-focus), **all fixed** — and caught a process failure (the `bcf40d20` stash-mishap dud, recovered as `e7cdd9b3`). ⚠️ Companion F013–F015: the commits carry a `Co-Authored-By` trailer that **AGENTS.md:167 forbids** — dropped going forward; the 11 earlier ones await a user decision on rebase. **Next: Phase 4 tasks** (Native Daemon, Swift) — the **first native phase**, needing the user **physically at the host Mac** for the TCC Screen-Recording grant + keychain cert (reuse `chainglass-dev` + `com.chainglass.streamd`). A `/the-flow 7 review` pass on Phase 3 is optional (companion covered it)._

@@ -105,7 +105,7 @@ flowchart TD
         T006["T006: Input capture (normalized, batched)"]:::done
         T007["T007: Host streaming smoke (real Chrome + WebCodecs)"]:::done
         T008["T008: Bundle guard (lazy-chunk sentinel)"]:::done
-        T009["T009: harness phase-end"]:::seam
+        T009["T009: harness phase-end"]:::done
         T000 --> T001 --> T002 --> T003 --> T004 --> T005 --> T006 --> T007 --> T008 --> T009
     end
 
@@ -139,7 +139,7 @@ flowchart TD
 | [x] | T006 | **Input capture**: focus/capture rules (Workshop 001 §Focus — inlined in §Validation clarifications: focusable canvas, capture only while focused, `Meta+Shift+Escape` release chord, plain `Escape` passes through, visible "keys captured" indicator); **normalized `[0,1]` coords** (divide by canvas client rect, clamp — F003); rAF-batch mousemove; serialize as protocol `input` events and send over the socket. | remote-view | `…/088-remote-view/components/viewport.tsx` (input layer) and/or `hooks/use-input-capture.ts` (new) | AC-3 serialize half — `fake.inputLog` matches expected serialization for a click/drag/scroll/type script; all coords in `[0,1]`; out-of-range never sent | **F003** normalized coords (schema rejects <0/>1); wheel `dx/dy` unbounded; Workshop 003 input model |
 | [x] | T007 | **Host streaming smoke** (scope pivot — see note): `harness/host/remote-view-stream-smoke.mts` drives **real system Google Chrome on the Mac** against a real `fake-streamd` and decodes its H.264 stream to a `<canvas>` via WebCodecs — the genuine "Mac streaming works" proof. **GREEN: 67 frames decoded, webcodecs=true, err=none.** | remote-view | `harness/host/remote-view-stream-smoke.mts` (new) | `npx tsx harness/host/remote-view-stream-smoke.mts` → PASS (≥30 frames decoded on real Chrome) | **Scope pivot (user directive): test on the Mac host directly, not the Docker harness** — Docker-on-Mac is painful + the 12-day container predates Phase 3; the fake binds `127.0.0.1` (host-reachable). Proves AC-12 streaming pipeline (real browser decode of the real protocol/codec/fixture). The full-app UI smoke (picker→attach→viewport in the running Next app) + container CI spec are deferred to Phase 6 live / a harness rebuild; component logic is covered by the unit suites (hook R1–R9 vs the fake, picker, capture). |
 | [x] | T008 | **Bundle guard**: add sentinel `data-testid="remote-view-viewport"` to the heavy viewport; `bundle-guard.test.ts` copying `086-image-editor/bundle-ac10.test.ts` (sentinel in lazy chunk, absent from initial/root/polyfill chunks; skip if `.next` absent). | remote-view / (tests) | `test/unit/web/features/088-remote-view/bundle-guard.test.ts` (new); `…/components/viewport.tsx` (sentinel) | AC-13 — guard green after `pnpm turbo build`; viewport absent from base bundle | Finding 06; copies `test/unit/web/features/086-image-editor/bundle-ac10.test.ts` |
-| [ ] | T009 | **Harness phase-end** — `/eng-harness-flow --event phase-end --plan-dir docs/plans/088-remote-app-view` | — | — | Router envelope handled at phase end | Harness seam; advisory, never gates |
+| [x] | T009 | **Harness phase-end** — `/eng-harness-flow --event phase-end --plan-dir docs/plans/088-remote-app-view` | — | — | Router envelope handled at phase end | Harness seam — envelope `noop` (repo unadopted, S2 owed), same as pre-implement; proceed |
 
 **Status legend**: `[ ]` pending · `[~]` in progress · `[x]` complete · `[!]` blocked
 
@@ -161,12 +161,12 @@ flowchart TD
 | AC-1 | T003 | picker renders + attach (fake) | Phase 6 live |
 | AC-2 | T005 | measurement *path* vs fake timestamps | Phase 6 (≥30fps, ≤150ms live) |
 | AC-3 | T006 | input *serialization* (`fake.inputLog`) | Phase 4/6 live fidelity |
-| AC-5 | T002/T007 | terminal over/beside + switch-back | — |
-| AC-6 | T007 | refresh reattach (fake) | Phase 6 live |
-| AC-7 | T005/T007 | displace/reclaim, **no auto-recover** | Phase 6 live |
+| AC-5 | T002 + params test | switch-back logic (clears `rv`); terminal anchor inherited (no PanelShell change) | full-app UI smoke deferred (F011 → Phase 6) |
+| AC-6 | hook R1/R6 (11 tests) | reattach **state logic** vs the fake | full-app refresh smoke deferred (F011 → Phase 6) |
+| AC-7 | T005 + hook R2/R3 | displace/reclaim **state + reclaim card** (no auto-recover) | full-app two-tab smoke deferred (F011 → Phase 6) |
 | AC-8 | T001/T002 | URL deep-link half | Phase 5 (CLI/MCP/SSE push) |
 | AC-10 | T005 | `windowGone` state | Phase 4/6 live |
-| AC-12 | T007 | full web side, daemon-absent | — |
+| AC-12 | T007 host smoke + unit suite | **codec pipeline on real Chrome** (67 frames) + daemon-absent unit suite (64) | full-app daemon-absent run deferred (F011 → Phase 6) |
 | AC-13 | T008 | viewport lazy-loaded | — |
 | AC-14 | T005 | error-state render (named grant) | Phase 6 (fix-path + docs) |
 
