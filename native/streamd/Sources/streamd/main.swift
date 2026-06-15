@@ -42,7 +42,9 @@ let allowedOrigins = RemoteViewAuth.parseAllowedOrigins(env["CG_REMOTE_VIEW__ALL
     ?? RemoteViewAuth.buildDefaultAllowedOrigins(port: webPort, httpsEnabled: false)
 
 // Frame source (T003): fixtures dir → headless replay (no TCC); else live window capture.
+// The live path also wires the CGEvent input injector (T007) to the target window.
 let frameSource: FrameSource
+var inputInjector: CGEventInputInjector?
 if let fixturesDir = env["CG_REMOTE_VIEW__FIXTURES_DIR"] {
     do {
         frameSource = try FixtureFrameSource(fixturesDir: fixturesDir)
@@ -53,10 +55,14 @@ if let fixturesDir = env["CG_REMOTE_VIEW__FIXTURES_DIR"] {
 } else {
     let windowId: CGWindowID = env["CG_REMOTE_VIEW__WINDOW_ID"].flatMap { UInt32($0) } ?? 0
     frameSource = CaptureFrameSource(windowId: windowId)
+    inputInjector = CGEventInputInjector(windowId: windowId)
 }
 
 let server = WSServer(port: UInt16(config.port), signingKey: signingKey,
                       allowedOrigins: allowedOrigins, frameSource: frameSource)
+if let injector = inputInjector {
+    server.onInput = { events in injector.inject(events) }
+}
 
 do {
     try server.start()

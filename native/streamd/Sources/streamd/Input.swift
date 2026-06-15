@@ -1,10 +1,13 @@
 import Foundation
+import CoreGraphics
+import AppKit
 
-/// Input injection (dossier T007). This file owns the **pure, unit-testable** half:
-/// the DOM `KeyboardEvent.code` → macOS virtual-keycode table. The live CGEvent
-/// injection (mouse de-normalization via `kCGWindowBounds`, `CGEventKeyboardSetUnicodeString`
-/// for `text`, focus-follows-stream, AC-10 auto-restore) lands in Batch B — it needs the
-/// Accessibility TCC grant and `CGEvent`, which require CG-init (`CoreGraphicsInit.ensure`).
+/// Input injection (dossier T007). This file owns the **pure, unit-testable** half (the DOM
+/// `KeyboardEvent.code` → macOS virtual-keycode table + the modifier-flag mapping) **and**
+/// the live `CGEventInputInjector` (mouse de-normalization via `kCGWindowBounds`,
+/// `CGEventKeyboardSetUnicodeString` for `text`, focus-follows-stream, AC-10 auto-restore).
+/// The live half compiles on-host but is exercised only at the host-Mac visit — posting
+/// `CGEvent`s needs the Accessibility TCC grant and CG-init (`CoreGraphicsInit.ensure`).
 ///
 /// Keycodes are the Carbon `kVK_ANSI_*` / `kVK_*` constants (HIToolbox `Events.h`); kept as
 /// raw `UInt16` so the map has no CoreGraphics dependency and runs in CI. Unknown codes return
@@ -52,5 +55,139 @@ enum Input {
     /// `scale` is the Retina backing-scale; result is in backing pixels from the window origin.
     static func denormalize(_ value: Double, span: Int, scale: Double) -> Double {
         value * Double(span) * scale
+    }
+
+    /// Compose `CGEventFlags` from the DOM modifier state. Pure (no event posting) → unit-tested.
+    static func cgEventFlags(for mods: Mods) -> CGEventFlags {
+        var flags: CGEventFlags = []
+        if mods.shift { flags.insert(.maskShift) }
+        if mods.ctrl { flags.insert(.maskControl) }
+        if mods.alt { flags.insert(.maskAlternate) }
+        if mods.meta { flags.insert(.maskCommand) }
+        return flags
+    }
+
+    /// Map the protocol mouse button (0/1/2) to a `CGMouseButton`.
+    static func cgMouseButton(_ button: MouseButton) -> CGMouseButton {
+        switch button {
+        case .left: return .left
+        case .middle: return .center
+        case .right: return .right
+        }
+    }
+}
+
+// MARK: - Live injection (Batch B — needs the Accessibility grant + CG-init)
+
+/// Translates parsed `input.events[]` into `CGEvent`s posted at the target window's app.
+///
+/// Coordinates arrive normalized `[0,1]` of the video frame; this de-normalizes to screen
+/// points using the live window bounds (`kCGWindowBounds`, refreshed ~30Hz). Input is posted
+/// only to the streamed window's app (the security boundary — no general desktop automation):
+/// the window is raised + made key first (the spike's focus trap — keyboard silently drops if
+/// focus changes between events), and a minimized window is auto-restored (AC-10).
+///
+/// Compile-verified on-host; live posting is exercised at the host-Mac visit (T009) — it needs
+/// the Accessibility TCC grant.
+final class CGEventInputInjector {
+    private let targetWindowId: CGWindowID
+    private let source = CGEventSource(stateID: .hidSystemState)
+    private var cachedBounds: CGRect?
+    private var cachedAtHostTime: TimeInterval = 0
+    private var ownerPID: pid_t = 0
+
+    init(windowId: CGWindowID) {
+        self.targetWindowId = windowId
+    }
+
+    /// Inject a batch of events in order (called on the WS queue).
+    func inject(_ events: [InputEvent]) {
+        guard let bounds = windowBounds() else { return }
+        for event in events { inject(event, in: bounds) }
+    }
+
+    private func inject(_ event: InputEvent, in bounds: CGRect) {
+        switch event {
+        case let .mousemove(x, y):
+            post(mouse: .mouseMoved, at: screenPoint(x, y, bounds), button: .left)
+        case let .mousedown(x, y, button):
+            ensureFocused()
+            post(mouse: downType(button), at: screenPoint(x, y, bounds), button: Input.cgMouseButton(button))
+        case let .mouseup(x, y, button):
+            post(mouse: upType(button), at: screenPoint(x, y, bounds), button: Input.cgMouseButton(button))
+        case let .wheel(_, _, dx, dy):
+            if let e = CGEvent(scrollWheelEvent2Source: source, units: .pixel, wheelCount: 2,
+                               wheel1: Int32(-dy), wheel2: Int32(-dx), wheel3: 0) {
+                e.post(tap: .cgSessionEventTap)
+            }
+        case let .keydown(code, mods):
+            ensureFocused()
+            postKey(code: code, down: true, mods: mods)
+        case let .keyup(code, mods):
+            postKey(code: code, down: false, mods: mods)
+        case let .text(text):
+            ensureFocused()
+            postText(text)
+        }
+    }
+
+    // MARK: geometry
+
+    /// De-normalize `[0,1]` → screen points within the window's bounds.
+    private func screenPoint(_ x: Double, _ y: Double, _ bounds: CGRect) -> CGPoint {
+        CGPoint(x: bounds.origin.x + x * bounds.width, y: bounds.origin.y + y * bounds.height)
+    }
+
+    /// Window bounds + owner PID from `kCGWindowBounds`, cached ~30Hz.
+    private func windowBounds() -> CGRect? {
+        let now = Date().timeIntervalSince1970
+        if let b = cachedBounds, now - cachedAtHostTime < 0.033 { return b }
+        guard let infoList = CGWindowListCopyWindowInfo([.optionIncludingWindow], targetWindowId) as? [[String: Any]],
+              let info = infoList.first,
+              let boundsDict = info[kCGWindowBounds as String] as? [String: Any],
+              let rect = CGRect(dictionaryRepresentation: boundsDict as CFDictionary) else { return nil }
+        if let pid = info[kCGWindowOwnerPID as String] as? pid_t { ownerPID = pid }
+        cachedBounds = rect
+        cachedAtHostTime = now
+        return rect
+    }
+
+    // MARK: focus (spike 1.3 trap) + AC-10 restore
+
+    private func ensureFocused() {
+        guard ownerPID != 0, let app = NSRunningApplication(processIdentifier: ownerPID) else { return }
+        if app.isHidden { app.unhide() }
+        app.activate(options: [.activateIgnoringOtherApps])
+    }
+
+    // MARK: posting
+
+    private func post(mouse type: CGEventType, at point: CGPoint, button: CGMouseButton) {
+        guard let e = CGEvent(mouseEventSource: source, mouseType: type, mouseCursorPosition: point, mouseButton: button) else { return }
+        e.post(tap: .cgSessionEventTap)
+    }
+
+    private func downType(_ b: MouseButton) -> CGEventType {
+        switch b { case .left: return .leftMouseDown; case .right: return .rightMouseDown; case .middle: return .otherMouseDown }
+    }
+    private func upType(_ b: MouseButton) -> CGEventType {
+        switch b { case .left: return .leftMouseUp; case .right: return .rightMouseUp; case .middle: return .otherMouseUp }
+    }
+
+    private func postKey(code: String, down: Bool, mods: Mods) {
+        guard let keyCode = Input.keyCode(for: code) else {
+            if down { postText(code) }   // unmapped → best-effort unicode fallback
+            return
+        }
+        guard let e = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: down) else { return }
+        e.flags = Input.cgEventFlags(for: mods)
+        e.post(tap: .cgSessionEventTap)
+    }
+
+    private func postText(_ text: String) {
+        var utf16 = Array(text.utf16)
+        guard let e = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true) else { return }
+        e.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: &utf16)
+        e.post(tap: .cgSessionEventTap)
     }
 }

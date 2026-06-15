@@ -69,7 +69,7 @@ Cross-language drift guard GREEN on both sides (vitest + `swift test`). Determin
 
 > **Companion note:** from T003 onward this phase runs in **no-companion mode** — the `code-review-companion` boot didn't register a targetable run this session (minih coordination-state schema error; `minih runs list` → 0). Batch A was already companion-reviewed (run …69f6). Per the implement-verb fallback, a post-hoc `/the-flow 7 review` is the recovery path for T003/T006.
 
-## T004 — WS auth + upgrade gate: JWT + Origin (CS-3, partly automated) — [~] (vector suite ✅; live WS wiring → T006/Batch B)
+## T004 — WS auth + upgrade gate: JWT + Origin (CS-3) ✅ (vector suite + live WS wiring verified headless)
 
 **Landed (automatable, no permissions):**
 - `Sources/streamd/Auth.swift` — the frozen auth contract (Finding 03):
@@ -83,7 +83,7 @@ Cross-language drift guard GREEN on both sides (vitest + `swift test`). Determin
 - HKDF matches the Node oracle byte-for-byte (`test-bootstrap-code-123` → `23b5e58b…690273`); AUTH_SECRET + bootstrap-file key paths derive correctly.
 - Origin gate: allowlist build/parse + `authorizeUpgrade` (happy / bad-origin / null-origin / missing-token / expired-token → correct 4401/4402 + error code).
 
-**Deferred to T006/Batch B:** wiring `authorizeUpgrade` into the live NWListener `/stream` upgrade + the manual bad-token/bad-origin close-code observation (needs the running daemon; no TCC grant required for this slice).
+**Live wiring DONE (T006, verified headless):** `authorizeUpgrade` is now wired into the live NWListener `/stream` upgrade. The `just streamd-smoke` run against the real daemon confirmed **bad token → `error{E_AUTH}` + close 4401**, **bad origin → `error{E_ORIGIN}` + close 4402**, and **`hello{v:2}` → `error{E_VERSION,fatal}`** — the AC-9 close-code observations, now automated (no TCC grant needed for this slice).
 
 ## T005 — Session table: Workshop-002 FSM (CS-3) ✅
 
@@ -121,13 +121,15 @@ The composition root: wires T004 auth + T005 sessions + T003 frame source into o
 
 **Deferred to the host-Mac visit (Batch B / T009):** swapping the fixture source for live `CaptureFrameSource` (real frames), live input (T007), and the named-grant `E_PERMISSION` path when Screen-Recording is actually denied. The wire path itself is now proven.
 
-## T007 — Input injection: keycode map (CS-4, automatable half) — [~] (keycode map ✅; live CGEvent → Batch B)
+## T007 — Input injection (CS-4) ✅ (keycode map + live injector code; live posting → host-Mac T009)
 
-**Landed:** `Sources/streamd/Input.swift` — DOM `code` → macOS virtual-keycode table (Carbon `kVK_*`, raw `UInt16`, no CoreGraphics dep): 26 letters + 10 digits + punctuation + control/whitespace + arrows + modifiers + F1–F12; `keyCode(for:)` → nil on unknown (→ unicode fallback); `denormalize(_:span:scale:)` pure mouse-coord helper. `Tests/streamdTests/KeycodeMapTests.swift`.
+**Landed:** `Sources/streamd/Input.swift` —
+- Pure half (unit-tested): DOM `code` → macOS virtual-keycode table (Carbon `kVK_*`, raw `UInt16`): 26 letters + 10 digits + punctuation + control/whitespace + arrows + modifiers + F1–F12; `keyCode(for:)` → nil on unknown (→ unicode fallback); `denormalize(_:span:scale:)`; **`cgEventFlags(for:)`** (Mods → `CGEventFlags`) + **`cgMouseButton(_:)`** (0/1/2 → `CGMouseButton`).
+- Live half (`CGEventInputInjector`, compiles; posting needs the Accessibility grant): parse `input.events[]` → `CGEvent`; mouse de-normalize `[0,1]`→screen points via ~30Hz `kCGWindowBounds`; buttons 0/1/2; `scrollWheelEvent2`; `keyboardEvent` with mapped keycode + flags; `keyboardSetUnicodeString` for `text` and the unmapped-code fallback; **focus-follows-stream** (raise + `activate` the window's app — the spike's focus trap) + **AC-10** `unhide` of a minimized app. Wired in `main.swift` to `WSServer.onInput` on the live capture path only (headless = events accepted + dropped).
 
-**Evidence (`swift test`): 53/53 green** (+5). Representative mappings (KeyA=0, KeyW=0x0D, Enter=0x24, arrows, modifiers); all 26 letters + 10 digits present; unknown → nil; no unintended keycode collisions (Return/Enter alias allowed); `denormalize` applies span×scale.
+**Evidence (`swift test`): 62/62 green** (+2: `cgEventFlags` composes the 4 modifier masks; `cgMouseButton` maps left/middle→center/right). Plus the prior keycode/denormalize tests.
 
-**Deferred to Batch B (Accessibility TCC):** live `CGEvent` injection — mouse de-normalize via ~30Hz `kCGWindowBounds`, `CGEventKeyboardSetUnicodeString` for `text`, focus-follows-stream, AC-10 auto-restore. Requires CG-init + the Accessibility grant.
+**Deferred to the host-Mac visit (T009, Accessibility TCC):** live click/drag/scroll/type landing in Godot, focus-follows correctness, AC-10 auto-restore. The injector code is written + compiles; only the live posting needs the grant.
 
 ## T008 — Registry + lifecycle (CS-2, automatable half) — [~] (file I/O ✅; live self-exit/SIGTERM → daemon loop)
 

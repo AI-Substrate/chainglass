@@ -1,4 +1,5 @@
 import XCTest
+import CoreGraphics
 @testable import streamd
 
 /// Test: streamd DOM-code → virtual-keycode map (dossier T007, keycode-map unit).
@@ -56,5 +57,19 @@ final class KeycodeMapTests: XCTestCase {
         XCTAssertEqual(Input.denormalize(0.5, span: 800, scale: 2), 800, accuracy: 0.0001)
         XCTAssertEqual(Input.denormalize(0, span: 800, scale: 2), 0, accuracy: 0.0001)
         XCTAssertEqual(Input.denormalize(1, span: 656, scale: 1), 656, accuracy: 0.0001)
+    }
+
+    func testCgEventFlagsComposeFromMods() {
+        XCTAssertEqual(Input.cgEventFlags(for: Mods(shift: false, ctrl: false, alt: false, meta: false)), [])
+        XCTAssertEqual(Input.cgEventFlags(for: Mods(shift: true, ctrl: false, alt: false, meta: false)), .maskShift)
+        XCTAssertEqual(Input.cgEventFlags(for: Mods(shift: false, ctrl: false, alt: false, meta: true)), .maskCommand)
+        let all = Input.cgEventFlags(for: Mods(shift: true, ctrl: true, alt: true, meta: true))
+        XCTAssertTrue(all.contains(.maskShift) && all.contains(.maskControl) && all.contains(.maskAlternate) && all.contains(.maskCommand))
+    }
+
+    func testCgMouseButtonMapping() {
+        XCTAssertEqual(Input.cgMouseButton(.left), .left)
+        XCTAssertEqual(Input.cgMouseButton(.middle), .center)
+        XCTAssertEqual(Input.cgMouseButton(.right), .right)
     }
 }
