@@ -29,3 +29,11 @@ _Per-task entries appended below as each task completes._
 - **Evidence**: biome clean on all 3 files; web typecheck = baseline 12 (0 net-new). `rv` is inert until T002 adds the render branch (nothing reads it yet).
 - **Domain note**: file-browser→remote-view is the sanctioned business→business-via-contract direction; the dep guard only forbids `_platform`→remote-view (still green).
 
+### T002 — RemoteViewPanel branch + switch-back
+
+**Done.** The content-area mode now mounts and unmounts.
+- **New** `apps/web/src/features/088-remote-view/components/remote-view-panel.tsx` — orchestrator shell: header + close button; body branches on `rv` (picker slot when `null` → T003; viewport slot when set → T004/T005). `data-testid="remote-view-panel"` + slot test-ids. F007 documented in-file (no windowId synthesis on deep-link; picker is the only windowId origin).
+- **Mod** `browser-client.tsx` — lazy `dynamic()` `RemoteViewPanel` (ssr:false, copies the RecentFeedView shape — keeps WebCodecs out of the base bundle, AC-13); added `view === 'remote'` render branch ahead of the recent-feed branch (`onPickWindow` → `setParams({ rv })`, `onClose` → `setParams({ view:null, rv:null })`); extended `handleFileSelect` switch-back to clear `rv` too (AC-5).
+- **Evidence**: biome clean (2 files); web typecheck = 12 (baseline, **0 net-new** — the pre-existing `ReadFileResult.content` errors shifted 614→631 from the added import block, same 2 errors). `rv` inert rule holds: the branch only renders when `view==='remote'`.
+- **Containment (Finding 01)**: file-browser touch is exactly the two sanctioned files (params + browser-client.tsx); PanelShell/FileViewerPanel untouched.
+

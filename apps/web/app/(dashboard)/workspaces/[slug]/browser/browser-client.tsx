@@ -108,6 +108,23 @@ const RecentFeedView = dynamic(
   }
 );
 
+// Plan 088 Phase 3: lazy-load the remote-view panel so the WebCodecs/canvas
+// primitives only ship when the user opens `view=remote` (AC-13 bundle guard).
+const RemoteViewPanel = dynamic(
+  () =>
+    import('@/features/088-remote-view/components/remote-view-panel').then(
+      (m) => m.RemoteViewPanel
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground">
+        Remote view — loading…
+      </div>
+    ),
+  }
+);
+
 export interface BrowserClientProps {
   slug: string;
   worktreePath: string;
@@ -718,8 +735,9 @@ function BrowserClientInner({
       // if the recent-changes feed (`view=recent-feed`) is the active main
       // pane, swap it out for the file viewer. Same intent as the
       // overlay:close-all dispatch above (terminal), just for the
-      // history view.
-      setParams({ view: null }, { history: 'replace' });
+      // history view. Also clear `rv` so leaving remote-view mode by picking a file
+      // doesn't strand a session param (AC-5 switch-back restores file state).
+      setParams({ view: null, rv: null }, { history: 'replace' });
 
       const wasSelected = selectedFile === filePath;
       const now = Date.now();
@@ -1485,7 +1503,15 @@ function BrowserClientInner({
         }
         main={
           <MainPanel>
-            {view === 'recent-feed' ? (
+            {view === 'remote' ? (
+              <RemoteViewPanel
+                slug={slug}
+                worktreePath={worktreePath}
+                rv={params.rv}
+                onPickWindow={(sessionId) => setParams({ rv: sessionId }, { history: 'push' })}
+                onClose={() => setParams({ view: null, rv: null }, { history: 'replace' })}
+              />
+            ) : view === 'recent-feed' ? (
               <RecentFeedView
                 slug={slug}
                 worktreePath={worktreePath}
