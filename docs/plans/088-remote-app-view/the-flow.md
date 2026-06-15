@@ -2,7 +2,7 @@
 # the-flow · remote-app-view (flight view)
 
 **Plan**: remote-app-view · **Mode**: Full · **Phases**: 6 (locked at architect)
-**Rail**: `[the-flow] ◆─◆─◆─◆─◐─◇─◇  research · spec · plan · tasks · [build 3✅/6 · p4 🔨] · review · merge`   ·   **now**: Phase 4 IMPLEMENT IN PROGRESS (companion …69f6) — T000 seam UNAVAILABLE→Hybrid; **T001 scaffold ✅** (native/streamd SwiftPM, headless CG-init, `--port/--registry/--bootstrap`, ported cert/bundle scripts, justfile `streamd-*` recipes; `swift build`+`swift test` green, ConfigTests 6/6; commit `e5fd0fb0`) · **next**: Batch A automatable on-host — T002 Protocol mirror, T004 auth vectors, T005 session table — then ⚠️ **ONE host-Mac visit** (cert + Screen-Recording + Accessibility + live smoke)
+**Rail**: `[the-flow] ◆─◆─◆─◆─◐─◇─◇  research · spec · plan · tasks · [build 3✅/6 · p4 🔨] · review · merge`   ·   **now**: Phase 4 IMPLEMENT IN PROGRESS (companion …69f6) — **Batch A complete, 53 swift tests green**: T001 scaffold · T002 protocol+16-byte codec · T004 auth (HKDF+HS256 JWT+Origin, 4 vectors, 4401/4402) · T005 session FSM (R1-R9 + 300s grace + 15s×2 heartbeat) · T007 keycode map · T008 registry I/O — every commit companion-reviewed · **next**: Batch A.2 (no Mac) — T003 SCK→VTB capture/encode + T006 NWListener WS server/control; then ⚠️ **ONE host-Mac visit** — cert + install + Screen-Recording + Accessibility + live smoke (T009)
 
 ```mermaid
 flowchart TD
@@ -17,7 +17,7 @@ flowchart TD
 
     %% ── spine ──
     R[Research]:::done --> S[Spec]:::done --> BP["Backpressure Check · noop (no repo harness)"]:::harness --> PL["Plan · READY 7/7 + validated"]:::done
-    PL --> P1["Phase 1: De-Risk Spike · ✅ COMPLETE — all GO"]:::done --> P2["Phase 2: Domain, Protocol & Session Core · ✅ COMPLETE — 51 tests, AC-12"]:::done --> P3["Phase 3: Viewport UI & Content-Area Mode · ✅ COMPLETE — 64 tests + real-Chrome stream smoke + bundle guard (AC-13)"]:::done --> P4["Phase 4: Native Daemon (Swift) · 🔨 T001 scaffold ✅ (build+test green)"]:::wip --> P5["Phase 5: Lifecycle, Agent Surface & Events"]:::known --> P6["Phase 6: Integration Hardening, Permissions UX & Docs"]:::known --> M[Merge]:::assumed
+    PL --> P1["Phase 1: De-Risk Spike · ✅ COMPLETE — all GO"]:::done --> P2["Phase 2: Domain, Protocol & Session Core · ✅ COMPLETE — 51 tests, AC-12"]:::done --> P3["Phase 3: Viewport UI & Content-Area Mode · ✅ COMPLETE — 64 tests + real-Chrome stream smoke + bundle guard (AC-13)"]:::done --> P4["Phase 4: Native Daemon (Swift) · 🔨 Batch A ✅ 53 tests (scaffold/protocol/auth/session/keycode/registry)"]:::wip --> P5["Phase 5: Lifecycle, Agent Surface & Events"]:::known --> P6["Phase 6: Integration Hardening, Permissions UX & Docs"]:::known --> M[Merge]:::assumed
 
     %% ── companions (each wrapped the phase it was meant to review) ──
     subgraph CW["⌖ code-review-companion · idle-timed-out before pings (0 review)"]
