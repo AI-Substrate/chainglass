@@ -20,8 +20,8 @@
  * Plan 088 Phase 2 — T007.
  */
 import { useCallback, useEffect, useReducer, useRef } from 'react';
-import { decodeFrameHeader } from '../protocol/binary';
-import { parseServerMessage } from '../protocol/messages';
+import { type DecodedFrame, decodeFrame } from '../protocol/binary';
+import { type VideoConfigMessage, parseServerMessage } from '../protocol/messages';
 import {
   MAX_RECONNECT_ATTEMPTS,
   RECONNECT_BACKOFF_MS,
@@ -64,6 +64,10 @@ export interface UseRemoteViewSessionOptions {
   stallMs?: number;
   /** Reconnect backoff schedule in ms (default 250/1000/3000). */
   backoffMs?: readonly number[];
+  /** Video plane (Phase 3): the daemon's `video-config` → (re)configure the decoder. */
+  onVideoConfig?: (config: VideoConfigMessage) => void;
+  /** Video plane (Phase 3): each decoded binary frame (header + AVCC payload). */
+  onFrame?: (frame: DecodedFrame) => void;
 }
 
 export interface UseRemoteViewSessionResult {
@@ -74,6 +78,8 @@ export interface UseRemoteViewSessionResult {
   detach: () => void;
   /** From a terminal state (windowGone/daemonDown/error/sessionLost) back to picker. */
   returnToPicker: () => void;
+  /** Ask the daemon for an IDR (decoder drop-to-keyframe recovery — Workshop 003). */
+  requestKeyframe: () => void;
 }
 
 export function useRemoteViewSession(
@@ -89,6 +95,8 @@ export function useRemoteViewSession(
     createSession = defaultCreateSession,
     stallMs = 2000,
     backoffMs = RECONNECT_BACKOFF_MS,
+    onVideoConfig,
+    onFrame,
   } = opts;
 
   const [state, dispatch] = useReducer(transition, undefined, () =>
@@ -112,8 +120,24 @@ export function useRemoteViewSession(
 
   // Keep the latest callbacks/options in refs so the long-lived socket closures
   // never go stale without re-subscribing the socket on every render.
-  const cbRef = useRef({ getToken, healthCheck, createSession, stallMs, backoffMs });
-  cbRef.current = { getToken, healthCheck, createSession, stallMs, backoffMs };
+  const cbRef = useRef({
+    getToken,
+    healthCheck,
+    createSession,
+    stallMs,
+    backoffMs,
+    onVideoConfig,
+    onFrame,
+  });
+  cbRef.current = {
+    getToken,
+    healthCheck,
+    createSession,
+    stallMs,
+    backoffMs,
+    onVideoConfig,
+    onFrame,
+  };
 
   useEffect(() => {
     // Per-effect-generation guard: stale async continuations (getToken/healthCheck/
@@ -146,9 +170,10 @@ export function useRemoteViewSession(
       const data = ev.data;
       if (typeof data !== 'string') {
         const bytes = data instanceof ArrayBuffer ? new Uint8Array(data) : (data as Uint8Array);
-        const header = decodeFrameHeader(bytes);
-        if (header) {
-          dispatch({ type: 'FRAME', keyframe: header.keyframe });
+        const frame = decodeFrame(bytes);
+        if (frame) {
+          dispatch({ type: 'FRAME', keyframe: frame.header.keyframe });
+          cbRef.current.onFrame?.(frame); // forward to the viewport decoder (video plane)
           armStall();
         }
         return;
@@ -173,8 +198,11 @@ export function useRemoteViewSession(
           intentionalRef.current = msg.fatal; // a fatal error close shouldn't trigger reconnect
           dispatch({ type: 'ERROR', code: msg.code });
           break;
+        case 'video-config':
+          cbRef.current.onVideoConfig?.(msg); // (re)configure the decoder (video plane)
+          break;
         default:
-          break; // pong/stats/video-config/bye — no state change here
+          break; // pong/stats/bye — no state change here
       }
     }
 
@@ -315,5 +343,16 @@ export function useRemoteViewSession(
 
   const returnToPicker = useCallback(() => dispatch({ type: 'RETURN_TO_PICKER' }), []);
 
-  return { state, reclaim, detach, returnToPicker };
+  const requestKeyframe = useCallback(() => {
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      try {
+        ws.send(JSON.stringify({ t: 'request-keyframe' }));
+      } catch {
+        /* noop */
+      }
+    }
+  }, []);
+
+  return { state, reclaim, detach, returnToPicker, requestKeyframe };
 }

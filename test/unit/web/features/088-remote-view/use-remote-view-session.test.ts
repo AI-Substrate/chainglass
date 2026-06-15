@@ -12,7 +12,12 @@
  * client for the duration of the suite.
  */
 import { useRemoteViewSession } from '@/features/088-remote-view/hooks/use-remote-view-session';
-import { type FakeStreamd, startFakeStreamd } from '@/features/088-remote-view/testing/fake-streamd';
+import type { DecodedFrame } from '@/features/088-remote-view/protocol/binary';
+import type { VideoConfigMessage } from '@/features/088-remote-view/protocol/messages';
+import {
+  type FakeStreamd,
+  startFakeStreamd,
+} from '@/features/088-remote-view/testing/fake-streamd';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { WebSocket as NodeWebSocket } from 'ws';
@@ -275,5 +280,37 @@ describe('useRemoteViewSession', () => {
     });
     await waitFor(() => expect(err.result.current.state.name).toBe('error'));
     expect(err.result.current.state.errorCode).toBe('E_PERMISSION');
+  });
+
+  it('forwards video-config + frames to the video plane; requestKeyframe asks for an IDR [T004]', async () => {
+    /*
+    Test Doc:
+    - Why: Phase 3's viewport decodes off the hook's video plane — the hook must forward the daemon's `video-config` and each binary frame, and let the decoder request an IDR on drop-recovery (Workshop 003). Untested forwarding = a silent black canvas.
+    - Contract: on attach the fake sends video-config (manifest 800×656, avc1.*) then a keyframe → onVideoConfig fires with those dims, onFrame fires with header.keyframe true; requestKeyframe() puts a {t:'request-keyframe'} on the wire (fake.received).
+    - Usage Notes: data-driven — decoder dims come from the message, never hardcoded (Phase 4 forward-compat). The viewport component is smoke-tested (no WebCodecs in jsdom); this covers the hook seam it relies on.
+    - Quality Contribution: regression guard for the T004 hook extension (onVideoConfig/onFrame/requestKeyframe).
+    - Worked Example: attach → onVideoConfig({codec:'avc1.640020', width:800, height:656}); requestKeyframe() → fake.received has t:'request-keyframe'.
+    */
+    const configs: VideoConfigMessage[] = [];
+    const frames: DecodedFrame[] = [];
+    const { result } = render({
+      onVideoConfig: (c) => configs.push(c),
+      onFrame: (f) => frames.push(f),
+    });
+    await waitFor(() => expect(result.current.state.name).toBe('live'));
+
+    expect(configs.length).toBeGreaterThanOrEqual(1);
+    expect(configs[0].codec).toMatch(/^avc1\./);
+    expect(configs[0].width).toBe(800);
+    expect(configs[0].height).toBe(656);
+    expect(frames.length).toBeGreaterThanOrEqual(1);
+    expect(frames[0].header.keyframe).toBe(true);
+
+    act(() => {
+      result.current.requestKeyframe();
+    });
+    await waitFor(() => {
+      expect(fake.received.some((m) => m.t === 'request-keyframe')).toBe(true);
+    });
   });
 });

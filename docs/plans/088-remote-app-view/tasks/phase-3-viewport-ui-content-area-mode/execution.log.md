@@ -53,3 +53,13 @@ _Per-task entries appended below as each task completes._
 - **Tests**: `test/unit/web/features/088-remote-view/window-picker.test.tsx` (RTL, **2 tests green** — grid + onAttach(windowId); loading/empty/error + Retry). The picker is pure (no canvas/WebCodecs) so it's unit-tested despite the Hybrid mode; the live attach→viewport path is still T007's smoke.
 - **Evidence**: biome clean (4 files); web typecheck = 12 (**0 net-new**); picker test 2/2; params test still 9/9.
 
+### T004 — Viewport decode core
+
+**Done.** WebCodecs decode → canvas, fully data-driven from `video-config`.
+- **New** `components/viewport.tsx` — `VideoDecoder` configured from the `video-config` message (codec / base64 avcC `description` / dims — **never hardcoded**, so Phase 4's real encoder params flow through, forward-compat); `toChunkInit` → `EncodedVideoChunk` → canvas `drawImage`; resync-on-keyframe after (re)config; **browser-side backpressure** (`decodeQueueSize > 10` → drop-to-keyframe + `requestKeyframe()`, Workshop 003); decoder torn down on unmount. `data-testid="remote-view-viewport"` is the **T008 bundle sentinel**.
+- **Mod (additive)** `hooks/use-remote-view-session.ts` — forwards the video plane off the single socket: `onVideoConfig` / `onFrame` callbacks + `requestKeyframe()` (sends `{t:'request-keyframe'}`); binary branch now uses `decodeFrame` (full payload) vs `decodeFrameHeader`. **All 56 Phase 2 tests still green** (additive, optional).
+- **Mod (additive)** `protocol/messages.ts` — `VideoConfigMessage` type export (no schema change).
+- **Mod** `components/remote-view-panel.tsx` — renders `<Viewport url session windowId>`; `wsUrl` from `window.__REMOTE_VIEW_WS_URL__` (smoke-injected, Finding 06) / `NEXT_PUBLIC_*` (Phase 5 → daemon url from registry).
+- **Tests**: added a node/jsdom hook video-plane test (onVideoConfig dims 800×656 avc1, onFrame keyframe, requestKeyframe → `fake.received`) → hook suite **10/10**. The viewport *component* is smoke-only (no WebCodecs in jsdom) per the Hybrid deviation.
+- **Evidence**: web typecheck = 12 (**0 net-new** — WebCodecs types incl. `optimizeForLatency` resolve via lib.dom); remote-view unit suite **57** + hook **10** green. Biome clean on my code; `messages.ts` carries one **pre-existing** `InputEventSchema` format deviation (confirmed on HEAD via `git stash` — Phase 2 F003 baseline, not T004).
+

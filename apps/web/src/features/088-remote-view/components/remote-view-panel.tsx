@@ -21,6 +21,7 @@
 import { X } from 'lucide-react';
 import { useState } from 'react';
 import { useRemoteViewWindows } from '../hooks/use-remote-view-windows';
+import { Viewport } from './viewport';
 import { WindowPicker } from './window-picker';
 
 export interface RemoteViewPanelProps {
@@ -52,6 +53,14 @@ export function RemoteViewPanel({ rv, onPickWindow, onClose }: RemoteViewPanelPr
   const [pickedWindowId, setPickedWindowId] = useState<number | null>(null);
   const { windows, loading, error, refresh } = useRemoteViewWindows({ enabled: rv == null });
 
+  // Phase 3 WS-url resolution: the smoke injects `window.__REMOTE_VIEW_WS_URL__` (the fake's
+  // url, Finding 06). Phase 5 replaces this with the daemon url from the registry/token route.
+  const wsUrl =
+    (typeof window !== 'undefined' &&
+      (window as unknown as { __REMOTE_VIEW_WS_URL__?: string }).__REMOTE_VIEW_WS_URL__) ||
+    process.env.NEXT_PUBLIC_REMOTE_VIEW_WS_URL ||
+    '';
+
   const handleAttach = (windowId: number) => {
     setPickedWindowId(windowId);
     onPickWindow(mintSessionId(windowId));
@@ -80,14 +89,7 @@ export function RemoteViewPanel({ rv, onPickWindow, onClose }: RemoteViewPanelPr
             onRefresh={refresh}
           />
         ) : (
-          // T004/T005 replace this with <Viewport session={rv} windowId={pickedWindowId} … />
-          <div
-            data-testid="remote-view-viewport-slot"
-            className="flex h-full w-full items-center justify-center text-sm text-muted-foreground"
-          >
-            Viewport — coming up (T004/T005) · session {rv}
-            {pickedWindowId != null ? ` · window ${pickedWindowId}` : ' · (deep-link)'}
-          </div>
+          <Viewport url={wsUrl} session={rv} windowId={pickedWindowId} />
         )}
       </div>
     </div>

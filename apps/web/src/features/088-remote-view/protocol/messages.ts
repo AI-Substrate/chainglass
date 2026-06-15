@@ -143,6 +143,9 @@ export const ServerMessageSchema = z.discriminatedUnion('t', [
 ]);
 export type ServerMessage = z.infer<typeof ServerMessageSchema>;
 
+/** The `video-config` server message — feeds the WebCodecs VideoDecoder (Phase 3 viewport). */
+export type VideoConfigMessage = Extract<ServerMessage, { t: 'video-config' }>;
+
 // ───────────────────────── parse / encode helpers ─────────────────────────
 
 /** Accept a JSON string or a pre-parsed object; bad JSON → undefined. */
