@@ -77,6 +77,22 @@ Cross-language drift guard GREEN on both sides (vitest + `swift test`). Determin
 
 Matches `fake-streamd.ts` for displacement + terminal-closed; heartbeat/grace implemented from Workshop 002 directly (not in the fake). Deterministic. **Live two-client displacement re-confirmation rolls into the T009 smoke (Batch B).**
 
+## T007 — Input injection: keycode map (CS-4, automatable half) — [~] (keycode map ✅; live CGEvent → Batch B)
+
+**Landed:** `Sources/streamd/Input.swift` — DOM `code` → macOS virtual-keycode table (Carbon `kVK_*`, raw `UInt16`, no CoreGraphics dep): 26 letters + 10 digits + punctuation + control/whitespace + arrows + modifiers + F1–F12; `keyCode(for:)` → nil on unknown (→ unicode fallback); `denormalize(_:span:scale:)` pure mouse-coord helper. `Tests/streamdTests/KeycodeMapTests.swift`.
+
+**Evidence (`swift test`): 53/53 green** (+5). Representative mappings (KeyA=0, KeyW=0x0D, Enter=0x24, arrows, modifiers); all 26 letters + 10 digits present; unknown → nil; no unintended keycode collisions (Return/Enter alias allowed); `denormalize` applies span×scale.
+
+**Deferred to Batch B (Accessibility TCC):** live `CGEvent` injection — mouse de-normalize via ~30Hz `kCGWindowBounds`, `CGEventKeyboardSetUnicodeString` for `text`, focus-follows-stream, AC-10 auto-restore. Requires CG-init + the Accessibility grant.
+
+## T008 — Registry + lifecycle (CS-2, automatable half) — [~] (file I/O ✅; live self-exit/SIGTERM → daemon loop)
+
+**Landed:** `Sources/streamd/Registry.swift` — `RegistryFile{pid,port,protocolVersion,daemonVersion,bundleId,bundlePath,startedAt}` (field is **`port`**, never `daemonPort`); atomic write (temp+rename via `.atomic`, creates parent `.chainglass/`); `read` → nil on missing/garbage; `exists` (the self-exit-on-vanish predicate); `remove`. `Tests/streamdTests/RegistryTests.swift`.
+
+**Evidence (`swift test`): 53/53 green** (+4). Write→read round-trips all fields + auto-creates parent dir; JSON writes `port` and NOT `daemonPort`; vanish detection (remove → exists=false); read of missing/garbage → nil.
+
+**Deferred to the daemon run loop (lands with T006):** the ~30s vanish poll → self-exit and SIGTERM → `bye{shutdown}` (needs the live listen loop; path comes from `--registry`).
+
 ---
 
 ## Companion findings reconciliation
