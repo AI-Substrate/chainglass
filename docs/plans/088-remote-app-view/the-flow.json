@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "kind": "flight-plan",
+  "slug": "remote-app-view",
+  "plan_dir": "docs/plans/088-remote-app-view",
+  "mode": "Full",
+  "cursor": "tasks",
+  "recommended_next": "tasks",
+  "now": "Phase 1 de-risk spike COMPLETE — all 7 verdicts GO. Real capture→encode→decode→input pipeline proven (Godot 45fps occluded, real fixture 254 frames decode 254/254 Chromium, mouse+keyboard inject, stable-cert TCC persistence, CGWindowID stable). Committed 7dbd35cf",
+  "next": "Phase 2: Domain, Protocol & Session Core (TDD) — expand tasks (folds Phase 1 fixtures in)",
+  "agents": [
+    { "id": "companion-1", "kind": "companion", "slug": "code-review-companion", "render": "wrap",
+      "run_id": "2026-06-13T11-15-18-099Z-03a5", "covers": ["ph1"], "status": "completed",
+      "note": "Booted + briefed at phase start, but idle-timed-out during the multi-day human-blocked TCC-grant wait BEFORE review pings arrived (0 findings = did not review, not a clean pass). Spike code is throwaway evidence; post-hoc review optional. magicWand was minih-infra, surfaced not actioned." }
+  ],
+  "nodes": [
+    { "id": "research", "type": "research", "label": "Research", "status": "done",
+      "command": "/the-flow 1a explore \"Remote view mode for chainglass: stream a single desktop app window (Godot game, iOS Simulator) from the host Mac into the content area with mouse/keyboard input; terminal over/beside it; agent-controllable via CLI/URL endpoints\"",
+      "ran_at": "2026-06-12T23:30:21Z",
+      "user_input": "lets get a plan started for it please. set up flow and straight in to explore",
+      "note": "8-subagent dossier: all web-side surfaces precedented (sidecar lifecycle, auth, view modes, SDK); the Swift capture daemon is the only novel artifact; remote view must be a content-area mode, not a ViewerMode; 4 critical discoveries.",
+      "artifacts": ["research-dossier.md"], "next": ["spec"] },
+
+    { "id": "dr", "type": "deep-research", "label": "Deep research (Perplexity, pre-flow)", "status": "done",
+      "branch_of": "research", "tool": "perplexity",
+      "user_input": "use perplexity if you like.. what is best way to do this",
+      "note": "ScreenCaptureKit desktopIndependentWindow + VideoToolbox H.264 + WebCodecs-over-WebSocket (v1) / WebRTC (v2); CGEvent input injection; no off-the-shelf OSS does per-window macOS → browser with input.",
+      "artifacts": ["external-research/streaming-stack.md", "external-research/perplexity-deep-research-raw.txt"], "next": ["spec"] },
+
+    { "id": "spec", "type": "spec", "label": "Spec", "status": "done",
+      "command": "/the-flow 1b specify \"Remote view mode for chainglass: stream a single desktop app window (Godot game, iOS Simulator) from the host Mac into the content area with mouse/keyboard input; terminal over/beside it; agent-controllable via CLI/URL endpoints\"",
+      "ran_at": "2026-06-12T23:42:00Z",
+      "user_input": "yes",
+      "note": "CS-5 (low end) -> Full Mode. 8/8 clarifications resolved in two rounds: Full/Hybrid testing/fakes-no-mocks/hybrid docs; domain remote-view approved as new business domain; latest-attach-wins sessions; auto-restore minimized; Chromium-gating. 14 ACs. 4 workshop opportunities flagged.",
+      "artifacts": ["remote-app-view-spec.md"], "next": ["bp"] },
+
+    { "id": "ws", "type": "workshop", "label": "Workshops (4/4)", "status": "done",
+      "command": "/the-flow 2c workshop \"all four flagged topics\"",
+      "ran_at": "2026-06-13T00:13:40Z",
+      "branch_of": "spec",
+      "user_input": "do the workshops please",
+      "note": "001 mode mechanics: view param precedent found (recent-feed) — PanelShell needs NO changes, panel-layout modify softens to consume; rv param for session. 002 sessions: daemon-authoritative in-memory table, capture pauses unwatched, 300s grace, 9-row race matrix = TDD list. 003 protocol: JSON control (t-discriminated) + 16-byte-header binary video, AVCC, normalized coords, drop-never-queue backpressure; fake = third implementation. 004 daemon: SwiftPM in native/streamd, stable self-signed cert (TCC trap), open -g spawn, port-keyed registry, localhost control API proxied via Next routes.",
+      "artifacts": ["workshops/001-content-area-mode-mechanics.md", "workshops/002-session-reattach-state-machine.md", "workshops/003-stream-ws-protocol.md", "workshops/004-daemon-packaging-discovery.md"],
+      "next": ["plan"] },
+
+    { "id": "bp", "type": "backpressure", "label": "Backpressure Check (post-spec seam)", "status": "done",
+      "command": "/eng-harness-flow --event post-spec --spec docs/plans/088-remote-app-view/remote-app-view-spec.md",
+      "note": "Noop — repo has not adopted a harness; the seam routes to adoption, suppressed per --prompt-optional=false. Standard testing applies; no Recommended Phase 0.",
+      "next": ["plan"] },
+
+    { "id": "plan", "type": "plan", "label": "Plan", "status": "done",
+      "command": "/the-flow 3 architect",
+      "ran_at": "2026-06-13T00:35:00Z",
+      "user_input": "run it then validate",
+      "note": "READY — 7/7 gates PASS. 6 phases, ~36 core tasks, 8 target domains (1 new). Auto-ran /validate-v2: 4 agents (coherence, source-truth, thesis, forward-compat) → VALIDATED WITH FIXES; 11 fixes applied (version-mismatch handshake tasked into 5.1/6.2, CG_REMOTE_VIEW__DAEMON_PORT per ADR-0003, AC-2 latency measurement path into 3.4, deviation-ledger scope, Phase Index dependency honesty, auth test vectors, fixture-regeneration rule, Docker networking note). Validation Record appended to plan.",
+      "artifacts": ["remote-app-view-plan.md"], "next": ["ph1"] },
+
+    { "id": "ph1", "type": "phase", "phase": 1, "label": "Phase 1: De-Risk Spike", "status": "done",
+      "command": "/the-flow 6 implement --companion --phase \"Phase 1: De-Risk Spike\" --plan \"docs/plans/088-remote-app-view/remote-app-view-plan.md\"",
+      "ran_at": "2026-06-15T00:40:00Z",
+      "user_input": "build with companion mode",
+      "note": "COMPLETE — all 7 verdicts GO (commits 0b8fc8da, 7dbd35cf). T000/T007 harness noop. T001 capture Godot 45fps occluded/60s + Simulator deliver-on-change. T002 real fixture 254 frames avc1.640020. T003 mouse+keyboard inject (focus-sensitive). T004 Chromium decode 254/254 real. T005a stable-cert grant persists across rebuild (ad-hoc re-prompts=Finding 02 live); 5b bundle TCC by id+cert; 5c CGWindowID stable. Cross-cutting: SCStream needs NSApplication/CGS init (→4.3); reuse chainglass-dev cert+com.chainglass.streamd (→4.1). Workshops W004-Q1/W002-R6 resolved, W003-Q1/W002-grace deferred. Human-in-the-loop: grants attributed to Ghostty; stable bundle 'Chainglass Streamer' grant carries to Phase 4.",
+      "artifacts": ["tasks/phase-1-de-risk-spike/tasks.md", "tasks/phase-1-de-risk-spike/execution.log.md", "external-research/spike-findings.md", "external-research/spike/streamd-spike/", "external-research/spike/decode-harness/", "external-research/fixtures/", "external-research/spike/captures/"], "next": ["ph2"] },
+    { "id": "ph2", "type": "phase", "phase": 2, "label": "Phase 2: Domain, Protocol & Session Core (TDD)", "status": "known",
+      "note": "Domain setup; protocol schemas; frame-replay fake; session FSM (R1–R9); token route.", "next": ["ph3"] },
+    { "id": "ph3", "type": "phase", "phase": 3, "label": "Phase 3: Viewport UI & Content-Area Mode", "status": "known",
+      "note": "view/rv params; lazy RemoteViewPanel; picker; viewport+HUD; smoke + bundle guard.", "next": ["ph4"] },
+    { "id": "ph4", "type": "phase", "phase": 4, "label": "Phase 4: Native Daemon (Swift)", "status": "known",
+      "note": "native/streamd: SCK+VTB pipeline; WS+control API; input injection; signed bundle.", "next": ["ph5"] },
+    { "id": "ph5", "type": "phase", "phase": 5, "label": "Phase 5: Lifecycle, Agent Surface & Events", "status": "known",
+      "note": "Daemon manager+reaper+version handshake; routes; SDK/CLI/MCP; SSE+GlobalState.", "next": ["ph6"] },
+    { "id": "ph6", "type": "phase", "phase": 6, "label": "Phase 6: Integration Hardening, Permissions UX & Docs", "status": "known",
+      "note": "Live AC sweep with measurements; permissions UX; how-to docs; reconciliation.", "next": ["merge"] },
+
+    { "id": "merge", "type": "merge", "label": "Merge", "status": "assumed",
+      "next": ["hh"] },
+
+    { "id": "hh", "type": "harness-retro", "label": "Harness plan-complete (seam)", "status": "assumed",
+      "command": "/eng-harness-flow --event plan-complete", "branch_of": "merge",
+      "note": "Fired by the merge verb after execution; router owns the reflection.", "next": [] }
+  ]
+}

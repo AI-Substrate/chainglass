@@ -75,4 +75,11 @@ Grants were given to **Ghostty** (the controlling terminal — that's what TCC a
 
 **Phase 1 complete — GO.** Outstanding for later phases (carried forward, not blockers): CG-init in the daemon (Task 4.3), reuse `chainglass-dev`+`com.chainglass.streamd` (Task 4.1), keyboard-focus handling (Task 4.5), Safari decode re-test (backlog).
 
+## Companion reconciliation (honest)
+
+`--companion` ran `code-review-companion` (run `2026-06-13T11-15-18-099Z-03a5`). It was booted + briefed at phase start, but the phase took an unusually long wall-clock time (multi-day, human-blocked on TCC grants at the remote Mac). The companion **idle-timed-out and shut down before the review-request pings arrived** — farewell summary: *"…found no incoming review requests before the idle shutdown."* So **0 findings = it did not review the commits** (not a clean-review verdict). The spike code is throwaway evidence (not production), so the missed live review is low-impact, but stated plainly rather than implied as a pass.
+- Findings to reconcile: none (no review performed).
+- magicWand (surfaced, not actioned — minih infra, unrelated to this plan): *"Expose a minih project-root helper / guarantee MINIH_PROJECT_ROOT in shell tool sessions; include expected schema/status in state_transition validation errors."*
+- Follow-up option: a fresh post-hoc review pass over the spike code is available if desired (stage 7 review), though throwaway spike scratch is a low-value review target.
+
 ---
