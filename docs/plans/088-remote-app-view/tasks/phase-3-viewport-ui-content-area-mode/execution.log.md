@@ -41,7 +41,8 @@ _Per-task entries appended below as each task completes._
 
 | ID | Sev | Task | Finding | Disposition |
 |----|-----|------|---------|-------------|
-| F001 | MEDIUM | T001 | URL param contract (`view='remote'` + `rv`) lacked regression coverage — protected only by typecheck | **Fixed inline** — added a focused assertion to `test/unit/web/features/041-file-browser/params.test.ts` (`view=remote`+`rv` parse, recent-feed preserved, unknown→null, rv standalone, rv absent→null) with a 5-field Test Doc. 9 tests green. Re-pinged for verification. Companion T001 verdict: APPROVE_WITH_NOTES (1 MEDIUM, 0 HIGH). |
+| F001 | MEDIUM | T001 | URL param contract (`view='remote'` + `rv`) lacked regression coverage — protected only by typecheck | **Fixed inline** — added a focused assertion to `test/unit/web/features/041-file-browser/params.test.ts` (`view=remote`+`rv` parse, recent-feed preserved, unknown→null, rv standalone, rv absent→null) with a 5-field Test Doc. 9 tests green. Re-pinged → companion **F001 fix verified**. T001 verdict: APPROVE_WITH_NOTES. |
+| F002 | MEDIUM | T003 | The dossier (`tasks.md`) still instructed `useInjection(DI_TOKENS.REMOTE_VIEW_SERVICE)` at 5 spots, contradicting the no-client-DI discovery and risking steering T004/T005/T007 wrong | **Fixed inline** — rewrote all 5 stale refs (Phase-2-deps service note, patterns-to-follow, pre-impl check, arch-map SVC node, T003 row, domain deps/constraints) to name the `useRemoteViewWindows` loader seam + server-only frozen `IRemoteViewService`; kept the Discovery rows. Re-pinged for verification. T003 verdict: APPROVE_WITH_NOTES (1 MEDIUM, 0 HIGH). |
 
 ### T003 — Window picker
 
