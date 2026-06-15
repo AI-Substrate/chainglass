@@ -53,6 +53,12 @@ _Per-task entries appended below as each task completes._
 
 | F009 | **HIGH** | T006 | Pointer/wheel events serialized regardless of canvas focus — hovering/scrolling an unfocused viewport drove the remote app while the UI said keys weren't captured | **Fixed inline** — gate pointermove/up/wheel + keyboard on a synchronous focus flag (set by focus/blur listeners + the pointerdown capture-entry); pointerdown focuses then sends. Added an F009 regression test (unfocused→nothing; pointerdown→capture; blur→stops). Capture test 3/3. Re-pinged. |
 
+### T008 — Bundle guard
+
+**Done — GREEN against a real build.**
+- **New** `test/unit/web/features/088-remote-view/bundle-guard.test.ts` — copies the Plan 086 `bundle-ac10` mechanism: the sentinel `remote-view-viewport` (which lives only in the lazy `viewport.tsx`) must appear in a lazy chunk and be **absent** from the always-loaded shared bundle (`rootMainFiles`/`polyfills`/`lowPriority`/`/_app`); skips when `.next` is absent so the normal unit run stays green.
+- **Validated for real**: ran `pnpm --filter @chainglass/web build` (`next.config` has `typescript.ignoreBuildErrors:true`, so it survives the 12 pre-existing type errors) → fresh build; then the guard → **PASS**. AC-13 proven: the WebCodecs viewport is code-split, base bundle unchanged.
+
 > **⚠️ Recovery note (process failure caught by the companion):** commit `bcf40d20` (labelled "F006/F007/F008 fix") was a **dud** — a `git stash` + silently-failed `git stash pop` during a baseline check (the recurring `index.lock` issue) swept the F006/F007/F008 viewport+hook+test edits into `stash@{0}`, so `bcf40d20` committed only a stray biome format reflow + this log. The companion caught it (summary "F006-F008 fix incomplete" — it diffed `bcf40d20` and saw the viewport still rendered bare `${ms}` etc.). **Recovered** via `git stash apply`; the real F006/F007/F008 code **plus** the F009 fix landed in the recovery commit below. Lesson: never use bare `git stash` in this worktree (the lock makes `pop` unreliable); verify each fix is actually in `HEAD` (`git show HEAD:<file> | grep`) before claiming it.
 
 > **Pre-existing baseline:** `testing/fake-streamd.ts` carries one tolerated `useOptionalChain` lint (confirmed on HEAD via `git stash`) — Phase 2 baseline, unrelated to the `sendStats` cue.
