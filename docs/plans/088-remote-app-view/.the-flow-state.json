@@ -8,7 +8,7 @@
   "intent": "Remote view mode for chainglass: stream a single desktop app window (Godot game, iOS Simulator) from the host Mac into the content area with mouse/keyboard input; terminal over/beside it; agent-controllable via CLI/URL endpoints",
   "milestones_total": 7,
   "milestones_done": 6,
-  "last_checkpoint_at": "2026-06-15T08:29:10Z",
+  "last_checkpoint_at": "2026-06-15T17:50:00Z",
   "compacted_seams": [],
   "harness_seam_outcome": "router installed; repo has no harness (S2/S4 owed) — proceeding without; --prompt-optional=false on later seam calls",
   "status": "active"
