@@ -71,4 +71,22 @@ Done **before** T005 (depends only on T003; pure → no fake needed). `server/se
 
 Exports `MAX_RECONNECT_ATTEMPTS`, `RECONNECT_BACKOFF_MS`, `initialState`, `transition`, `errorCodeToState` for T007.
 
+## T005 — Frame-replay fake (AC-12) ✅
+
+`testing/fake-streamd.ts` — a Node `ws` server, a third implementation of the Workshop-003 protocol. **7 tests green.** Copied the Phase 1 video set (254 real `sck-capture` frames + manifest) into `protocol/fixtures/video/` and **owns it from here** (never mutates the `external-research/` seed). Fixture reader is dependency-free (fs + manifest) so it runs in the Phase 3 Docker container (Finding 06). Binds ephemeral `:0`, full teardown in `afterEach`.
+
+**Pinned window descriptor** lives in `testing/fixtures.ts` (`FAKE_WINDOW` = `{id:34202, app:'Godot', title:'spike-target', pixelWidth:800, pixelHeight:656, scale:2}`) — the one source the fake, the T009 service, and the Phase 3 picker share (manifest has no window fields).
+
+**Proven behaviours (all the Done-When obligations):**
+- hello → hello-ok (pinned window) → video-config (from manifest) → binary keyframe (seq 0) → deltas via `pushFrames` (seq 1,2,3…).
+- **Reattach**: R2 — a 2nd hello on a live session displaces the old viewer (`displaced` + close 4002), new viewer gets a keyframe; R1 — after a clean close the session is `unwatched`, a fresh hello resumes `streaming` with a keyframe.
+- **ping→pong** (echoes `sentAt`, adds `daemonAt`); **WS heartbeat ping** (`sendHeartbeatPing`); **socket-death** → session `unwatched` (R5 substrate; displaced old socket's close does NOT reset the new slot).
+- `request-keyframe` and `resume` each yield a fresh keyframe.
+- Cue API: `sendDisplaced` / `sendWindowState` / `sendError` deliver the matching frames.
+- **Drop-simulation**: `dropFrames(n)` makes the next sequence jump by n (observable gap 2→8) — the HUD/degraded substrate.
+- **Input log**: received `input` events captured in order (AC-3 serialization half).
+- Shape-only auth: a tokenless upgrade → `error E_AUTH` + close.
+
+Pre-existing env wart (non-fatal): tsconfck `EXTENDS_RESOLVE` warning from the stale `apps/cli/dist` tsconfig; tests pass.
+
 <!-- next-entry: append new task entries above this line -->
