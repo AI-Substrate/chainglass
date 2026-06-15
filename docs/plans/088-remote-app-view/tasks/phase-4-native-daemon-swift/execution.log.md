@@ -20,7 +20,7 @@ Fired `/eng-harness-flow --event pre-implement --phase "Phase 4: Native Daemon (
 
 Derived signals: S0 CLI present (`~/.npm-global/bin/harness`); **S2 governance absent** (no `.harness/engineering-harness.md`). Decision `redirect` → adoption (governance owed). **Boot verdict: `UNAVAILABLE`** — repo never adopted the harness (same as Phases 1–3). Per procedure, `UNAVAILABLE` is not an error → fall back to the plan's Hybrid testing. No re-offer (`--prompt-optional=false`).
 
-## T001 — Scaffold + signing + bundle + recipes (CS-4) — [~] in progress (host-Mac install deferred to Batch B)
+## T001 — Scaffold + signing + bundle + recipes (CS-4) ✅ (scaffold Batch A; host-Mac install Batch B — see the T001 install entry at the end of this log)
 
 **Landed (automatable, no permissions):**
 - `native/streamd/Package.swift` — SwiftPM, `swift-tools-version:5.9`, macOS 14 floor, executable `streamd` + test target `streamdTests`. Zero external deps (system frameworks only → builds offline/deterministically).
@@ -161,3 +161,58 @@ The Batch A companion (run `…69f6`) **did** review every commit and emitted **
 | F007 heartbeat uses `>` not `>=` (exact-30s deadline missed) | MEDIUM | `SessionTable.swift` | **Fixed** — `>=`; a sweep at exactly 30s reaps the viewer. Test `testHeartbeatTimeoutExactDeadline_R5`. |
 
 Evidence: `swift test` **66/66** (+4 regression tests) · `just streamd-smoke` **24/24** (wire 18 + lifecycle 6) still green after the fixes.
+
+---
+
+## T001 — host-Mac install half ✅ (2026-06-16, at the Mac)
+
+- `just streamd-setup` → **no-op** (`setup-cert.sh` is idempotent; `chainglass-dev` already in the login keychain from the Phase-1 spike — `security find-identity` confirms `C658F138…` "chainglass-dev"). No GUI auth prompt.
+- `just streamd-install` → release build (7.24s; one harmless `activateIgnoringOtherApps` macOS-14 deprecation warning) → `make-bundle.sh` assembled + **signed** `ChainglassStreamd.app` at the Workshop-004 install path `~/Library/Application Support/chainglass/streamd/ChainglassStreamd.app`.
+  - `codesign --verify` → **"valid on disk"** + **"satisfies its Designated Requirement"**.
+  - `Identifier=com.chainglass.streamd` · `Authority=chainglass-dev` — bundle id + cert-leaf reused **verbatim** (Finding 02), so the spike's TCC grant carries.
+
+**Done-When**: `just --list` shows all four recipes ✓; `just streamd-install` produces a signed bundle at the install path ✓. The "rebuild keeps the Screen-Recording grant" clause was proven in spike 1.5 (stable cert + bundle id ⇒ designated-requirement grant, not cdhash) and is re-confirmed during T009 (rebuild-after-grant → no re-prompt).
+
+**Host-Mac runner**: launch the bundle's signed inner binary directly (`…/ChainglassStreamd.app/Contents/MacOS/streamd`) with env vars — it carries the `com.chainglass.streamd` signature, so TCC attributes the grant to the bundle (Finding 02, path/binary-independent). `open --args` can't pass the env the live path needs (`AUTH_SECRET`, `CG_REMOTE_VIEW__WINDOW_ID`, allowed origins), so the inner-binary path is the chosen launcher for T009.
+
+**Companion (this sliver)**: proceeding **without** a live companion and logging it as a deviation. All substantial daemon code (T002–T008, 66 tests) was already written + companion-reviewed (Batch A by `…69f6` → 7 findings all fixed; Phases 2/3 by their companions). What remains — finishing T001 (install) + T009 (a *recorded manual smoke checklist*) — has no net-new reviewable logic, and a freshly-booted companion would idle-timeout through the interactive grant-dialog waits (the exact failure that bit Batch A.2 / earlier runs, minih #47/#50). **Caveat (raised to the user):** the live smoke DID surface non-trivial code — **4 input fixes in `Input.swift`** (below) — so a focused post-hoc `/the-flow 7 review` of those changes is warranted.
+
+---
+
+## T009 — Manual smoke checklist (recorded) ✅ + 4 input fixes (2026-06-16, at the Mac)
+
+**Setup**: host macOS 26.5; real iOS Simulator (iPhone 16e, CGWindowID **649**) on the left display (origin (-973,121)). Daemon = the signed bundle's inner binary, env-launched (`CG_REMOTE_VIEW__WINDOW_ID=649`, `AUTH_SECRET`, abs `--registry`). Client = `scripts/live-smoke.mjs` (wire+capture, **12/12 green**) + `xcrun simctl io booted screenshot` (an independent framebuffer oracle for visual input fidelity).
+
+### Permissions — Finding 02 validated LIVE
+`/health` → `screenRecording: granted` **and** `accessibility: granted` with **no prompt at all**. The Phase-1 spike's grants carried over verbatim because T001 reused the exact cert (`chainglass-dev`) + bundle id (`com.chainglass.streamd`) → designated requirement unchanged. Rebuild+reinstall (~6× this session) kept both grants — **T001's "rebuild keeps the grant" done-when confirmed live**.
+
+### Wire + capture (`live-smoke.mjs`, 12/12)
+- hello-ok live descriptor: **id=649, app=Simulator, title="iPhone 16e", 904×1900**.
+- video-config **avc1.640020 904×1900@60**, real avcC (44 B) before any frame; first frame **keyframe seq0** (100–300 KB); sequence **monotonic** per attach.
+- capture fps **20–51 fps** observed — deliver-on-change, so it tracks the app's own animation (≥30 fps seen under Maps motion; ~0 fps on a truly static screen is expected-correct per the spike).
+- ping→pong; request-keyframe→forced keyframe.
+- latest-attach-wins displacement: 2nd attach → 1st gets `displaced` + **close 4002**; displacing viewer gets keyframe seq0.
+- auth gate live: bad token → **E_AUTH + 4401**; bad origin → **E_ORIGIN + 4402**.
+
+### Lifecycle (live + `lifecycle-headless`)
+- registry written on listen (pid/port/`bundleId=com.chainglass.streamd`/daemonVersion/protocolVersion; field **`port`**, never `daemonPort`).
+- **SIGTERM → registry removed → exit 0** (verified ~6× across restarts); vanished registry → self-exit 0.
+- **F001 validated LIVE**: a relative `--registry` path was rejected at boot (`--registry must be an absolute path`) — the Batch-A companion fix works in production.
+
+### Input fidelity (`simctl` screenshot oracle) — 4 real bugs found + FIXED in `Input.swift`
+The injector compiled but had never run live. Live testing surfaced four product-affecting bugs; all fixed and re-verified (each test started with the Simulator **backgrounded behind TextEdit**):
+
+1. **Focus-follows-stream was a no-op (HIGH).** `app.activate(options:[.activateIgnoringOtherApps])` — the flag is "no effect" on macOS 14+. macOS only delivers synthetic input to the **frontmost** app, so input silently dropped unless the app was already on top. **Fix:** raise via the Accessibility API (`kAXFrontmost`; the daemon holds that grant). Verified: daemon-injected tap pulled Simulator front (TextEdit→Simulator) and landed.
+2. **Drags degraded to taps.** Motion during a held button posted `.mouseMoved` not `.leftMouseDragged`, so pans/swipes became a down→up tap. **Fix:** track the held button; post `.leftMouseDragged` mid-drag.
+3. **Keyboard `text` stuck-key.** `postText` posted key-down only (no up) → iOS showed the accent/repeat popover, text never committed. **Fix:** post down **and** up carrying the unicode string.
+4. **Multi-key drops.** `ensureFocused()` ran on every keystroke; `NSWorkspace.frontmostApplication` lags, so it re-raised mid-burst and churned focus → dropped following keys. **Fix:** debounce — raise once per interaction burst (1.5 s), not per event.
+
+Validated after the fixes: tap → search field focuses + keyboard opens; tap → place card dismisses; drag → Maps detail card opens; **type "tacos" via keydown/keyup (the browser's primary path) → "Tacos" appears in full** while the daemon pulled Simulator front from TextEdit. **Known minor:** the *first* click after a raise can miss (AX-raise races the immediate click) — a second click lands; acceptable, could be smoothed by raising on the preceding mousemove.
+
+### Capture-at-spawn constraint (discovery)
+`WSServer.start()` calls `frameSource.start()` **once at boot**, enumerating via `SCShareableContent(onScreenWindowsOnly: true)` — so the target window must be on the **active Space** when the daemon spawns, or capture never starts (→ windowGone + fallback descriptor). Fine for Phase-5 spawn-on-demand (the user is viewing the window when they request remote-view), recorded as a constraint. Workaround here: bring the Simulator to the active Space before launching.
+
+### Architectural note (raised to the user)
+Input injection **requires the streamed app to be frontmost** (OS rule), so the daemon fronts it on each input burst. For the canonical remote case (browser on the viewer's machine, app on a host Mac) this is invisible; for same-machine use it would steal focus from the browser. **Capture is unaffected** (works fully in the background). User input flows browser (Phase-3 capture) → WS → this injector; the agent/CLI is an additional surface (Phase 5).
+
+**T009 done** — every checklist item has an observed result; failures (the 4 input bugs) were fixed and re-verified, not just logged. Regression after the `Input.swift` changes: `swift test` **66/66**, `just streamd-smoke` **24/24**, `live-smoke.mjs` **12/12**.

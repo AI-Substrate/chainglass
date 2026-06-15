@@ -1,6 +1,7 @@
 import Foundation
 import CoreGraphics
 import AppKit
+import ApplicationServices   // AXUIElement — focus-follows-stream via the Accessibility grant
 
 /// Input injection (dossier T007). This file owns the **pure, unit-testable** half (the DOM
 /// `KeyboardEvent.code` → macOS virtual-keycode table + the modifier-flag mapping) **and**
@@ -95,6 +96,9 @@ final class CGEventInputInjector {
     private var cachedBounds: CGRect?
     private var cachedAtHostTime: TimeInterval = 0
     private var ownerPID: pid_t = 0
+    private var heldButton: MouseButton?   // tracks a held button across event batches → drag vs move
+    private var lastFocusAt: TimeInterval = 0
+    private let focusDebounceSeconds: TimeInterval = 1.5   // raise once per burst, not per keystroke
 
     init(windowId: CGWindowID) {
         self.targetWindowId = windowId
@@ -109,12 +113,20 @@ final class CGEventInputInjector {
     private func inject(_ event: InputEvent, in bounds: CGRect) {
         switch event {
         case let .mousemove(x, y):
-            post(mouse: .mouseMoved, at: screenPoint(x, y, bounds), button: .left)
+            // While a button is held, motion MUST post as a drag (not .mouseMoved) or the target
+            // sees only down→up and never the path — pans/swipes degrade to a tap (T009 finding).
+            if let b = heldButton {
+                post(mouse: dragType(b), at: screenPoint(x, y, bounds), button: Input.cgMouseButton(b))
+            } else {
+                post(mouse: .mouseMoved, at: screenPoint(x, y, bounds), button: .left)
+            }
         case let .mousedown(x, y, button):
             ensureFocused()
+            heldButton = button
             post(mouse: downType(button), at: screenPoint(x, y, bounds), button: Input.cgMouseButton(button))
         case let .mouseup(x, y, button):
             post(mouse: upType(button), at: screenPoint(x, y, bounds), button: Input.cgMouseButton(button))
+            if heldButton == button { heldButton = nil }
         case let .wheel(_, _, dx, dy):
             if let e = CGEvent(scrollWheelEvent2Source: source, units: .pixel, wheelCount: 2,
                                wheel1: Int32(-dy), wheel2: Int32(-dx), wheel3: 0) {
@@ -155,9 +167,23 @@ final class CGEventInputInjector {
     // MARK: focus (spike 1.3 trap) + AC-10 restore
 
     private func ensureFocused() {
-        guard ownerPID != 0, let app = NSRunningApplication(processIdentifier: ownerPID) else { return }
-        if app.isHidden { app.unhide() }
-        app.activate(options: [.activateIgnoringOtherApps])
+        guard ownerPID != 0 else { return }
+        let now = Date().timeIntervalSince1970
+        // Focus ONCE per interaction burst. Re-raising on every keystroke churns focus and drops
+        // the following keys (the spike's keyboard trap — `NSWorkspace.frontmostApplication` also
+        // lags, so a per-event "is it front?" check mis-fires mid-burst). The debounce raises on
+        // the first event of a burst, then leaves focus alone for rapid follow-ups (T009 finding).
+        if now - lastFocusAt < focusDebounceSeconds { return }
+        lastFocusAt = now
+        if let app = NSRunningApplication(processIdentifier: ownerPID), app.isHidden { app.unhide() }
+        // Bring the streamed app to the front via the Accessibility API — the daemon holds that
+        // grant. `activate(options: [.activateIgnoringOtherApps])` is a no-op on macOS 14+
+        // (deprecated flag), and plain `activate()` is unreliable from a `.prohibited` background
+        // daemon (async cooperative activation), so input lands on whatever overlaps the target.
+        // Setting kAXFrontmost is synchronous-effective and is what assistive tools use (T009).
+        let axApp = AXUIElementCreateApplication(ownerPID)
+        AXUIElementSetAttributeValue(axApp, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
+        NSRunningApplication(processIdentifier: ownerPID)?.activate()
     }
 
     // MARK: posting
@@ -173,6 +199,9 @@ final class CGEventInputInjector {
     private func upType(_ b: MouseButton) -> CGEventType {
         switch b { case .left: return .leftMouseUp; case .right: return .rightMouseUp; case .middle: return .otherMouseUp }
     }
+    private func dragType(_ b: MouseButton) -> CGEventType {
+        switch b { case .left: return .leftMouseDragged; case .right: return .rightMouseDragged; case .middle: return .otherMouseDragged }
+    }
 
     private func postKey(code: String, down: Bool, mods: Mods) {
         guard let keyCode = Input.keyCode(for: code) else {
@@ -186,8 +215,13 @@ final class CGEventInputInjector {
 
     private func postText(_ text: String) {
         var utf16 = Array(text.utf16)
-        guard let e = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true) else { return }
-        e.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: &utf16)
-        e.post(tap: .cgSessionEventTap)
+        // Post BOTH down and up carrying the unicode string. A down-only event leaves the key
+        // "held" — iOS shows the accent/repeat popover and the text doesn't commit (T009 finding).
+        guard let down = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true),
+              let up = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false) else { return }
+        down.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: &utf16)
+        up.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: &utf16)
+        down.post(tap: .cgSessionEventTap)
+        up.post(tap: .cgSessionEventTap)
     }
 }
