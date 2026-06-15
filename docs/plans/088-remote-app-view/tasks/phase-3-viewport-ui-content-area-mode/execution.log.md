@@ -47,6 +47,12 @@ _Per-task entries appended below as each task completes._
 | F004 | MEDIUM | T004 | Decoder reconfigure signature keyed only on `codec:WxH` — a real daemon resending changed avcC/SPS-PPS at the same dims would be skipped → stale decoder, breaking the data-driven contract | **Fixed inline** — signature now includes `config.description`; any decoder-config field change reconfigures + re-waits for a keyframe. Re-pinged. |
 | F005 | MEDIUM | T004 | Dossier's Phase-2 hook-API bullet still listed only `{state,reclaim,detach,returnToPicker}` + options ending at `backoffMs`, omitting the T004/T005 video+telemetry plane | **Fixed inline** — bullet now lists `requestKeyframe()`/`ping()` + `onVideoConfig/onFrame/onStats/onPong`, noted additive/optional (Phase 2 unchanged). Re-pinged. |
 
+| F006 | MEDIUM | T005 | HUD rendered a bare `${ms}` read as stream latency, but it's ping/pong **RTT**, not capture→display glass-to-glass (Phase 6) | **Fixed inline** — HUD now labels it `rtt {n}ms`. Re-pinged. |
+| F007 | MEDIUM | T005 | Error chrome showed only the mapped `ERROR_TEXT`; the daemon's `error.message` was discarded by the hook and the `E_*` code wasn't shown | **Fixed inline** — hook preserves `msg.message` and exposes `errorMessage` in its result; the error card renders a `remote-view-error-code` badge + the daemon message (falling back to `ERROR_TEXT`, which always names the E_PERMISSION grant). Re-pinged. |
+| F008 | MEDIUM | T005 | The T005 telemetry hook surface (`onStats`/`onPong`/`ping`) had no regression test (the 10/10 was T004's count) | **Fixed inline** — added a hook test (`ping()` → `onPong(rtt≥0)`; `fake.sendStats(...)` → `onStats`); added an additive `sendStats` cue to the fake. Hook suite now **11/11**. Re-pinged. |
+
+> **Pre-existing baseline:** `testing/fake-streamd.ts` carries one tolerated `useOptionalChain` lint (confirmed on HEAD via `git stash`) — Phase 2 baseline, unrelated to the `sendStats` cue.
+
 > **Finding-ID note:** this companion run numbers its findings F001… afresh, so **F003/F004/F005 here are Phase-3 findings** and collide numerically with the **Phase-2** companion findings referenced in code comments (P2-F003 normalized coords, P2-F004 displaced trap, P2-F005 fixture dims). Code comments tagged `F003`/`F004`/`F007` refer to the **Phase-2** invariants; this table's F003–F005 are **this run's** T004 findings.
 
 ### T006 — Input capture

@@ -299,7 +299,9 @@ export async function startFakeStreamd(opts: FakeStreamdOptions = {}): Promise<F
       })),
     getSession: (id) => {
       const e = sessions.get(id);
-      return e ? { id: e.id, state: e.state, sequence: e.sequence, frameIndex: e.frameIndex } : null;
+      return e
+        ? { id: e.id, state: e.state, sequence: e.sequence, frameIndex: e.frameIndex }
+        : null;
     },
     pushFrames: (count, session) => {
       const entry = resolveTarget(session);
