@@ -1,7 +1,7 @@
 # Phase 2: Domain, Protocol & Session Core (TDD) — Tasks & Context Brief
 
 **Plan**: [remote-app-view-plan.md](../../remote-app-view-plan.md) · **Phase**: 2 of 6 · **Spec**: [remote-app-view-spec.md](../../remote-app-view-spec.md)
-**Status**: ⏳ NOT STARTED — VALIDATED WITH FIXES (2026-06-15); awaiting human GO
+**Status**: ✅ COMPLETE (2026-06-15) — all 11 tasks done; **51 tests green** across 8 files (serial). AC-12 foundation built daemon-absent. Built with the `code-review-companion` live reviewer.
 **Phase CS**: 4 (large — new domain, two state machines from the race matrix, a wire protocol with codec round-trips, a first-class fake, and the frozen-contract token route; all strictly TDD)
 
 ---
@@ -98,19 +98,20 @@ flowchart TD
     classDef pending fill:#9E9E9E,stroke:#757575,color:#fff
     classDef harness fill:#EDE7F6,stroke:#673AB7,color:#000
     classDef contract fill:#1565C0,stroke:#0D47A1,color:#fff
+    classDef done fill:#4CAF50,stroke:#388E3C,color:#fff
 
     subgraph Phase["Phase 2: Domain, Protocol & Session Core (TDD)"]
-        T000["T000: Harness pre-flight"]:::harness
-        T001["T001: Domain setup + feature dir"]:::pending
-        T002["T002: Dep-direction guard (test-first)"]:::pending
-        T003["T003: Protocol messages (Zod) + JSON fixtures"]:::contract
-        T004["T004: Binary 16-byte header codec"]:::contract
-        T005["T005: Frame-replay fake (AC-12)"]:::contract
-        T006["T006: Session machine — pure transitions"]:::pending
-        T007["T007: use-remote-view-session hook (reconnect)"]:::pending
-        T008["T008: Token route + auth vectors"]:::pending
-        T009["T009: IRemoteViewService + Fake + DI + contract"]:::pending
-        T010["T010: Harness phase-end"]:::harness
+        T000["T000: Harness pre-flight"]:::done
+        T001["T001: Domain setup + feature dir"]:::done
+        T002["T002: Dep-direction guard (test-first)"]:::done
+        T003["T003: Protocol messages (Zod) + JSON fixtures"]:::done
+        T004["T004: Binary 16-byte header codec"]:::done
+        T005["T005: Frame-replay fake (AC-12)"]:::done
+        T006["T006: Session machine — pure transitions"]:::done
+        T007["T007: use-remote-view-session hook (reconnect)"]:::done
+        T008["T008: Token route + auth vectors"]:::done
+        T009["T009: IRemoteViewService + Fake + DI + contract"]:::done
+        T010["T010: Harness phase-end"]:::done
 
         T000 --> T001 --> T002
         T001 --> T003 --> T004
@@ -126,13 +127,13 @@ flowchart TD
     end
 
     subgraph Files["Key files (under apps/web/src/features/088-remote-view/ unless noted)"]
-        F1["protocol/messages.ts · binary.ts · fixtures/"]:::pending
-        F2["testing/fake-streamd.ts"]:::pending
-        F3["server/session-machine.ts · IRemoteViewService"]:::pending
-        F4["hooks/use-remote-view-session.ts"]:::pending
-        F5["app/api/remote-view/token/route.ts"]:::pending
-        F6["test/contracts/remote-view-*.{ts,json}"]:::pending
-        F7["docs/domains/{remote-view/domain.md,registry.md,domain-map.md}"]:::pending
+        F1["protocol/messages.ts · binary.ts · fixtures/"]:::done
+        F2["testing/fake-streamd.ts"]:::done
+        F3["server/session-machine.ts · IRemoteViewService"]:::done
+        F4["hooks/use-remote-view-session.ts"]:::done
+        F5["app/api/remote-view/token/route.ts"]:::done
+        F6["test/contracts/remote-view-*.{ts,json}"]:::done
+        F7["docs/domains/{remote-view/domain.md,registry.md,domain-map.md}"]:::done
     end
 
     T001 -.-> F7
@@ -161,7 +162,7 @@ flowchart TD
 | [x] | T007 | **Reconnect hook (test-first, against the fake)**: encode the *socket-dependent* races as failing tests against the T005 fake → **then** implement `hooks/use-remote-view-session.ts` wiring the T006 reducer to a real WS. Cover R1 (refresh → reattach same session ≤3s, first frame keyframe), R2 (second tab → `displaced` + reclaim), R5 (crashed tab → heartbeat → `unwatched`), R6 (daemon restart → `reconnecting` exhausted → health healthy ⇒ `E_SESSION_UNKNOWN` → `sessionLost` → auto re-create once by `windowId`; health **fails** ⇒ `daemonDown`), degraded/reconnecting backoff (250ms/1s/3s). Reconnect uses the `wsRef.current !== ws` stale-socket guard idiom from `use-terminal-socket.ts:111` (PL-03) | remote-view (internal) | `apps/web/src/features/088-remote-view/hooks/use-remote-view-session.ts`, `test/unit/web/features/088-remote-view/use-remote-view-session.test.ts` | R1/R2/R3/R5/R6/R7/R8/R9 green against the fake (R3/R7/R9 via T006; R1/R2/R5/R6/R8 via live fake socket); **R4 (agent-attach push) is Phase 5 (SSE) — its client half reduces to R2 (latest handshake wins), so it is not separately tested here**; backoff capped at 3 attempts; stale-socket guard prevents cross-attach races | Plan 2.5 · CS 4 · The "client reducer + reconnect" half; depends on T005 fake + T006 reducer. **Drive backoff/heartbeat/degraded timers with `vi.useFakeTimers()`** (advance virtual time — keeps the serial `fileParallelism:false` suite fast, avoids 30s heartbeat waits). R8 (minimize) is a daemon concern → client just blips `degraded`, assert no special handling needed |
 | [x] | T008 | **Token route TDD**: write tests — 401 without NextAuth session, 401 without bootstrap-cookie, 503 if bootstrap-unavailable, correct mint-shape (claims `sub/iss=chainglass/aud=remote-view-ws/iat/exp` 5-min, `{token, expiresIn:300}`) → **then** `app/api/remote-view/token/route.ts` **copying `app/api/terminal/token/route.ts`** with `aud: 'remote-view-ws'` (define `REMOTE_VIEW_JWT_AUDIENCE`) **and dropping the terminal-only `cwd` claim** (remote-view JWTs carry only `sub/iss/aud/iat/exp`), raw HKDF Buffer key to `SignJWT.sign` (no TextEncoder rewrap). Commit auth test vectors (signed JWTs + expected claims, good + bad: expired, wrong-aud, wrong-key) to `test/contracts/remote-view-auth-vectors.json`, **pinning the fixed test HKDF key bytes used to sign** so Task 4.4's Swift verifier reproduces them deterministically (not the live cwd-derived bootstrap key) | remote-view (internal) | `apps/web/app/api/remote-view/token/route.ts`, `test/contracts/remote-view-auth-vectors.json`, `test/unit/web/features/088-remote-view/token-route.test.ts` | Route tests green; vectors file committed **with its pinned signing key**; **Task 4.4 imports the same vectors + key** so the Swift verifier proves byte-identical HKDF | Plan 2.6 · CS 3 · **Finding 03 — frozen contract**: copy, don't redesign. Origin allowlist helpers (`buildDefaultAllowedOrigins`) are consumed by the daemon (Task 4.4), not this route. Cross-origin (the other half of AC-9) is the daemon's job (Task 4.4), not this route |
 | [x] | T009 | **Service interface + DI + contract suite**: define `IRemoteViewService` with a **pinned** session shape `SessionSummary = { sessionId, windowId, app, title, state }` (from `hello-ok.window` + R4/R6 needs) and methods `list(): SessionSummary[]`, `attach(windowId: number): Promise<SessionSummary>`, `detach(sessionId: string): Promise<void>`, `getSession(sessionId: string): SessionSummary \| null` + `FakeRemoteViewService` (backed by the fake's session model, same window descriptor as T005) + register `DI_TOKENS.REMOTE_VIEW_SERVICE` in `di-container.ts` via `useFactory` (prod + test containers; decorators banned, ADR-0004) + write `test/contracts/remote-view-service.contract.ts` running against the fake | remote-view | `apps/web/src/features/088-remote-view/server/remote-view-service.ts` (interface + fake), `apps/web/src/lib/di-container.ts`, `test/contracts/remote-view-service.contract.ts` | Contract suite passes for `FakeRemoteViewService`; DI resolves the token in both containers; the `SessionSummary` shape carries `windowId`+`title` (R4 SSE push + R6 auto-recreate both need them); real adapter slot reserved for Phase 5 | Plan 2.7 · CS 3 · Constitution P2 sequence (interface + fake now, real adapter Phase 5). The contract test is reused **verbatim** against the real adapter in Phase 5 — so the field set is frozen here |
-| [ ] | T010 | **Harness phase-end** — `/eng-harness-flow --event phase-end --plan-dir docs/plans/088-remote-app-view --prompt-optional=false` | — | — | Router envelope handled at phase end → noop (repo has no `.harness/`) | Plan 2.z · Harness seam |
+| [x] | T010 | **Harness phase-end** — `/eng-harness-flow --event phase-end --plan-dir docs/plans/088-remote-app-view --prompt-optional=false` | — | — | Router envelope handled at phase end → noop (repo has no `.harness/`) | Plan 2.z · Harness seam |
 
 > **Testing conventions (apply to every task above)**: each `*.test.ts` carries the **5-field Test Doc comment** (Why / Contract / Usage Notes / Quality Contribution / Worked Example) per Finding 06; contract tests live in `test/contracts/`; the suite runs **serially** (`fileParallelism:false`), so any task standing up a server (T005) binds an **ephemeral port (`:0`)** and fully closes it in `afterEach`/`afterAll` to avoid listener leaks across serial files; T007 drives all timers with `vi.useFakeTimers()`.
 

@@ -125,4 +125,26 @@ Origin allowlist (`buildDefaultAllowedOrigins`/`parseAllowedOrigins`) is consume
 
 **Contract suite** (`test/contracts/remote-view-service.contract.ts`) reused **verbatim** by the Phase 5 real adapter → the field set is frozen here. Asserts: empty list; attach shape; getSession round-trip + listing; idempotent-per-window; detach→closed; unknown→null; `windowId`+`title` present (R4 SSE push + R6 auto-recreate). DI test resolves the working fake in the test container + exercises the prod placeholder directly (createProductionContainer eagerly builds the CopilotClient SDK — too heavy to instantiate in a unit test; the prod factory is wired identically and tested in isolation).
 
+## T010 — Phase-end harness seam ✅
+
+**Event**: `/eng-harness-flow --event phase-end --plan-dir docs/plans/088-remote-app-view --prompt-optional=false`
+**Outcome**: repo has no `.harness/` → seam noops (adoption-track), no drain/harvest. Standard testing applied throughout. No blocker.
+
+---
+
+## Phase 2 complete ✅ (2026-06-15)
+
+**All 11 tasks done. 51 tests green across 8 files** (serial, `fileParallelism:false`), run together:
+`protocol-messages` 6 · `protocol-binary` 5 · `fake-streamd` 7 · `session-machine` 11 · `use-remote-view-session` 7 · `token-route` (+auth vectors) 5 · `platform-no-remote-view` 1 · `remote-view-service.contract` 9.
+
+**AC-12 met**: the entire web side — Zod protocol + binary codec, the frame-replay fake, the 10-state session machine + reconnect hook, the token route, and `IRemoteViewService`+DI — runs and passes **with no daemon present**.
+
+**Cross-phase contracts pinned**: `protocol/fixtures/messages.json` + `frame-header.json` (Swift Task 4.2 mirror), `test/contracts/remote-view-auth-vectors.json` + pinned key (Swift Task 4.4), the frozen `SessionSummary` shape + reused contract suite (Phase 5 real adapter), the shared `FAKE_WINDOW` descriptor (Phase 3 picker).
+
+**Commits**: `ba724686` T001 · `b1646565` T002 · `4802a13c` T003 · `1fac161e` T004 · `573f9620` T006 · `6ad01637` T005 · `759ef3fb` T007 · `b366e601` T008 · `a0cec497` T009 · (wrap commit follows).
+
+**Deviations logged**: (1) T007 uses real timers + injected short durations instead of `vi.useFakeTimers()` (fake-timer + real-socket deadlock) — speed intent preserved. (2) zod pinned `^4.3.5` in `apps/web` (hoist-drift guard). No scope creep: zero UI, zero Swift, zero daemon lifecycle (Phases 3/4/5).
+
+**Companion**: built with the live `code-review-companion`; debrief reconciliation below.
+
 <!-- next-entry: append new task entries above this line -->
