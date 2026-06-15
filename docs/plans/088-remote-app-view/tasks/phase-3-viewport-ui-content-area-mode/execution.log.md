@@ -43,3 +43,13 @@ _Per-task entries appended below as each task completes._
 |----|-----|------|---------|-------------|
 | F001 | MEDIUM | T001 | URL param contract (`view='remote'` + `rv`) lacked regression coverage — protected only by typecheck | **Fixed inline** — added a focused assertion to `test/unit/web/features/041-file-browser/params.test.ts` (`view=remote`+`rv` parse, recent-feed preserved, unknown→null, rv standalone, rv absent→null) with a 5-field Test Doc. 9 tests green. Re-pinged for verification. Companion T001 verdict: APPROVE_WITH_NOTES (1 MEDIUM, 0 HIGH). |
 
+### T003 — Window picker
+
+**Done.** The picker renders against the fake (AC-1) and attaching transitions to the viewport slot.
+- **New** `components/window-picker.tsx` — pure/presentational: loading / error (with Retry) / empty / grid states; one attach-able card per window (app, title, dims, placeholder thumbnail); `onAttach(windowId)`. `data-testid`s for each state + per-window.
+- **New** `hooks/use-remote-view-windows.ts` — the window-list **loader** and single Phase-5 swap point. Phase 3 returns `[FAKE_WINDOW]` (the one the frame-replay fake can stream); Phase 5 replaces the body with `fetch('/api/remote-view/windows')`. `enabled` flag skips loading while a session is active.
+- **Mod** `components/remote-view-panel.tsx` — wired the picker (rv==null); `handleAttach` mints a client-side session id, remembers the picked `windowId` (F007 — only origin of a windowId; deep-link re-enter stays null so the hook learns from hello-ok), and sets `rv` via `onPickWindow`.
+- **Discovery (load-bearing)**: this app has **no client-side DI / `useInjection`** — `IRemoteViewService` is server-only. The dossier's "consume via `useInjection(DI_TOKENS.REMOTE_VIEW_SERVICE)`" was a recon inference; corrected to the loader-hook abstraction (see Discoveries table). `IRemoteViewService` left FROZEN (not extended with a window-list method).
+- **Tests**: `test/unit/web/features/088-remote-view/window-picker.test.tsx` (RTL, **2 tests green** — grid + onAttach(windowId); loading/empty/error + Retry). The picker is pure (no canvas/WebCodecs) so it's unit-tested despite the Hybrid mode; the live attach→viewport path is still T007's smoke.
+- **Evidence**: biome clean (4 files); web typecheck = 12 (**0 net-new**); picker test 2/2; params test still 9/9.
+

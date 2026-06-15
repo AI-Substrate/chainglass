@@ -19,6 +19,9 @@
  */
 
 import { X } from 'lucide-react';
+import { useState } from 'react';
+import { useRemoteViewWindows } from '../hooks/use-remote-view-windows';
+import { WindowPicker } from './window-picker';
 
 export interface RemoteViewPanelProps {
   /** Workspace slug (for scoping routes/service calls). */
@@ -33,8 +36,27 @@ export interface RemoteViewPanelProps {
   onClose: () => void;
 }
 
-export function RemoteViewPanel({ rv, onClose }: RemoteViewPanelProps) {
-  // slug/worktreePath/onPickWindow are consumed in T003 (picker) and T004/T005 (viewport).
+/**
+ * Phase 3 mints the session id client-side (no daemon/route yet); Phase 5 moves
+ * session creation server-side via the attach route. The id persists in the `rv`
+ * URL param so a browser refresh re-attaches the same session (AC-6).
+ */
+function mintSessionId(windowId: number): string {
+  return `ses_w${windowId.toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export function RemoteViewPanel({ rv, onPickWindow, onClose }: RemoteViewPanelProps) {
+  // slug/worktreePath are consumed by the viewport/service in T004/T005 + Phase 5.
+  // F007: the picker is the only place a windowId originates; on a deep-link re-enter
+  // (rv from URL, no pick) pickedWindowId stays null and the hook learns it from hello-ok.
+  const [pickedWindowId, setPickedWindowId] = useState<number | null>(null);
+  const { windows, loading, error, refresh } = useRemoteViewWindows({ enabled: rv == null });
+
+  const handleAttach = (windowId: number) => {
+    setPickedWindowId(windowId);
+    onPickWindow(mintSessionId(windowId));
+  };
+
   return (
     <div className="flex h-full w-full flex-col" data-testid="remote-view-panel">
       <header className="flex items-center justify-between border-b px-3 py-2">
@@ -50,20 +72,21 @@ export function RemoteViewPanel({ rv, onClose }: RemoteViewPanelProps) {
       </header>
       <div className="min-h-0 flex-1">
         {rv == null ? (
-          // T003 replaces this with <WindowPicker slug … onAttach={onPickWindow} />
-          <div
-            data-testid="remote-view-picker-slot"
-            className="flex h-full w-full items-center justify-center text-sm text-muted-foreground"
-          >
-            Window picker — coming up (T003)
-          </div>
+          <WindowPicker
+            windows={windows}
+            loading={loading}
+            error={error}
+            onAttach={handleAttach}
+            onRefresh={refresh}
+          />
         ) : (
-          // T004/T005 replace this with <Viewport session={rv} … />
+          // T004/T005 replace this with <Viewport session={rv} windowId={pickedWindowId} … />
           <div
             data-testid="remote-view-viewport-slot"
             className="flex h-full w-full items-center justify-center text-sm text-muted-foreground"
           >
             Viewport — coming up (T004/T005) · session {rv}
+            {pickedWindowId != null ? ` · window ${pickedWindowId}` : ' · (deep-link)'}
           </div>
         )}
       </div>
