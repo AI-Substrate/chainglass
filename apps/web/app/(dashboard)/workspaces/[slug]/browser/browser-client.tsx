@@ -42,6 +42,7 @@ import { resolveSplitSession } from '@/features/064-terminal/lib/resolve-split-s
 import { sessionNameFromWorktreePath } from '@/features/064-terminal/lib/session-name-from-worktree-path';
 import { QuestionPopperIndicator } from '@/features/067-question-popper/components/question-popper-indicator';
 import { useNotesOverlay } from '@/features/071-file-notes/hooks/use-notes-overlay';
+import { remoteViewParams } from '@/features/088-remote-view/params/remote-view.params';
 import type { RepoInfo as RepoInfoPayload } from '@/features/_platform/git';
 import {
   type BarContext,
@@ -143,7 +144,7 @@ function BrowserClientInner({
   isGit,
   initialEntries,
 }: BrowserClientProps) {
-  const [params, setParams] = useQueryStates(fileBrowserParams);
+  const [params, setParams] = useQueryStates({ ...fileBrowserParams, ...remoteViewParams });
   const explorerRef = useRef<ExplorerPanelHandle>(null);
   const [expandPaths, setExpandPaths] = useState<string[]>([]);
   const lastFileSelectionRef = useRef<{ filePath: string; at: number } | null>(null);

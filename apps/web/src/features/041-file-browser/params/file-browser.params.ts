@@ -8,6 +8,7 @@
  * /workspaces/my-proj/browser?worktree=/path&dir=src/lib&file=utils.ts&mode=source
  */
 
+import { remoteViewParams } from '@/features/088-remote-view/params/remote-view.params';
 import { workspaceParams } from '@/lib/params/workspace.params';
 import { parseAsInteger, parseAsString, parseAsStringLiteral } from 'nuqs';
 import { createSearchParamsCache } from 'nuqs/server';
@@ -26,12 +27,20 @@ export const fileBrowserParams = {
   panel: parseAsStringLiteral(['tree', 'changes'] as const).withDefault('tree'),
   /** Line number to scroll to (Plan 047 Phase 6) */
   line: parseAsInteger,
-  /** Main-panel view selector. `null` = default (file/dir-driven); `'recent-feed'` swaps in the Recent Changes Feed. */
-  view: parseAsStringLiteral(['recent-feed'] as const),
+  /**
+   * Main-panel view selector. `null` = default (file/dir-driven); `'recent-feed'` swaps in
+   * the Recent Changes Feed; `'remote'` swaps in the Remote View panel (Plan 088, Workshop 001).
+   */
+  view: parseAsStringLiteral(['recent-feed', 'remote'] as const),
 };
 
-/** Combined server cache for workspace + file browser params */
+/**
+ * Combined server cache for workspace + file browser params.
+ * Composes the remote-view `rv` param (business→business via the remote-view contract) so the
+ * documented page-params set is complete; the client mirrors this in `useQueryStates` (browser-client).
+ */
 export const fileBrowserPageParamsCache = createSearchParamsCache({
   ...workspaceParams,
   ...fileBrowserParams,
+  ...remoteViewParams,
 });
