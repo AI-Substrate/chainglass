@@ -66,6 +66,17 @@ Cross-language drift guard GREEN on both sides (vitest + `swift test`). Determin
 
 **Deferred to T006/Batch B:** wiring `authorizeUpgrade` into the live NWListener `/stream` upgrade + the manual bad-token/bad-origin close-code observation (needs the running daemon; no TCC grant required for this slice).
 
+## T005 — Session table: Workshop-002 FSM (CS-3) ✅
+
+**Landed:**
+- `Sources/streamd/SessionTable.swift` — pure, time-injected daemon session machine. States `idle|streaming|unwatched|closed`; `create` (→idle, grace), `attach` (idle/unwatched→streaming; **R2** displace prior viewer; **R6** unknown/closed → `unknownSession`), `viewerClosed` (clean close → unwatched, **R1/R9**; displaced old socket = no-op), `close` (detach/window-gone/shutdown → closed terminal, **R9**), `recordHeartbeat`, `takeSequence` (**resets to 0 on each attach**), `sweep(now:)` → `heartbeatTimeout` (**R5**, 15s×2-miss → unwatched) + `graceExpired` (300s → closed).
+- `Tests/streamdTests/SessionTableTests.swift` — 12 cases driving the FSM with injected `now` (no sockets, no wall clock).
+
+**Evidence (`swift test`): 44/44 green** (+12 SessionTable).
+- R1 reattach resumes; R2 second attach displaces prior viewer; displaced old socket close is a no-op; clean close → unwatched; detach/close → closed terminal; attach-to-closed/unknown → unknownSession (R6); sequence resets to 0 on reattach; R5 heartbeat timeout (29s ok, 31s → unwatched); heartbeat refresh keeps streaming; grace GC (290s ok, 301s → closed) for both idle and unwatched.
+
+Matches `fake-streamd.ts` for displacement + terminal-closed; heartbeat/grace implemented from Workshop 002 directly (not in the fake). Deterministic. **Live two-client displacement re-confirmation rolls into the T009 smoke (Batch B).**
+
 ---
 
 ## Companion findings reconciliation
