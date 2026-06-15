@@ -111,6 +111,23 @@ streamd-build:
 streamd-test:
     cd native/streamd && swift test
 
+# Headless wire-protocol smoke: the REAL daemon binary streaming the recorded fixtures over a
+# real authenticated WebSocket to a `ws` client — NO TCC grant, no window. Proves the full
+# Workshop-003 path (auth gate, handshake, frames, displacement, detach, REST). Daemon-side
+# analogue of the Phase-3 browser stream smoke.
+streamd-smoke:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    (cd native/streamd && swift build)
+    FIX="$(cd apps/web/src/features/088-remote-view/protocol/fixtures/video && pwd)"
+    AUTH_SECRET=smoke-secret CG_REMOTE_VIEW__FIXTURES_DIR="$FIX" \
+      CG_REMOTE_VIEW__ALLOWED_ORIGINS="http://localhost:3000" \
+      native/streamd/.build/debug/streamd --port 6099 >/tmp/streamd-smoke.log 2>&1 &
+    DAEMON_PID=$!
+    trap 'kill $DAEMON_PID 2>/dev/null || true' EXIT
+    curl -s --retry 30 --retry-delay 1 --retry-connrefused http://127.0.0.1:6099/health >/dev/null
+    node native/streamd/scripts/smoke-headless.mjs --port 6099 --secret smoke-secret --origin http://localhost:3000
+
 streamd-install: streamd-build
     native/streamd/scripts/make-bundle.sh
 

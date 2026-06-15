@@ -96,6 +96,31 @@ Cross-language drift guard GREEN on both sides (vitest + `swift test`). Determin
 
 Matches `fake-streamd.ts` for displacement + terminal-closed; heartbeat/grace implemented from Workshop 002 directly (not in the fake). Deterministic. **Live two-client displacement re-confirmation rolls into the T009 smoke (Batch B).**
 
+## T006 — Control endpoints + /stream WS server (CS-5) ✅ — verified headless (18/18)
+
+The composition root: wires T004 auth + T005 sessions + T003 frame source into one `NWListener`. **Verified headless against a real `ws` client — no TCC grant, no window.**
+
+**Landed:**
+- `Sources/streamd/WebSocket.swift` — hand-rolled RFC 6455 codec (accept-key, frame encode/decode, mask/unmask, close codes 1000/1011/4002/4401/4402/4404). Hand-rolled because Network.framework's `NWProtocolWebSocket` server can't expose the upgrade path/query/`Origin` the auth gate needs, nor emit app-defined close codes precisely. Pure → unit-tested.
+- `Sources/streamd/Endpoints.swift` — HTTP request parse + JSON response builders; `/health`/`/windows`/`/sessions`/`/shutdown` shapes; `SessionSummary` (flat, frozen Phase-2 contract); `Permissions` (named TCC grants for `/health` AC-14 + `E_PERMISSION`, via non-prompting `CGPreflightScreenCaptureAccess`/`AXIsProcessTrusted`).
+- `Sources/streamd/WSServer.swift` — `NWListener`; HTTP-vs-WS routing; the upgrade gate (complete handshake → `authorizeUpgrade` → reject = `error` frame + close 4401/4402); the full control surface (`hello`/version-gate/create-or-attach/displace, `input`, `request-keyframe`, `pause`/`resume`, `client-stats` ignore, `ping`→`pong`, `detach`→`bye{detached}`+1000, **unknown `t` ignored**); the frame-forward loop (keyframe-gated first frame seq 0, backpressure drop-deltas + keyframe-on-drain); 1Hz `stats`; 5s session `sweep` (heartbeat/grace). All state serialized on one queue (the `SessionTable` is unlocked by design).
+- `Sources/streamd/main.swift` — listen/serve wiring: config → CG-init → signing key (T004) → Origin allowlist → frame source (fixtures env → headless replay; else live capture) → `WSServer.start()` → `dispatchMain()`.
+- `Tests/streamdTests/WebSocketTests.swift` — RFC 6455 accept-key worked example + framing (7 tests).
+- `scripts/smoke-headless.mjs` + `just streamd-smoke` — the reproducible headless wire smoke.
+
+**Evidence:**
+- `swift test` → **60/60** (53 + 7 WebSocket).
+- `just streamd-smoke` → **18/18** against the live daemon binary (fixture replay over a real authenticated WS):
+  - `/health` ok + `daemonVersion=0.1.0` + `protocolVersion=1` + **named grants** `{screenRecording, accessibility}`.
+  - Handshake: `hello-ok{window.id=34202}` → `video-config{avc1.640020, 800×656@60, avcC present}` → **first frame keyframe seq 0** → **monotonic** deltas seq 0..9, avcC payloads non-empty.
+  - `ping`→`pong{sentAt,daemonAt}`; `request-keyframe`→keyframe; **unknown `t` ignored** (socket stays alive).
+  - **latest-attach-wins**: 2nd attach → 1st gets `displaced` + close **4002**; displacing viewer streams keyframe seq 0.
+  - `detach`→`bye{detached}` + close **1000**; `hello{v:2}`→`error{E_VERSION,fatal}`.
+  - bad token → `error{E_AUTH}` + close **4401**; bad origin → `error{E_ORIGIN}` + close **4402**.
+  - `/sessions` → flat `SessionSummary[]` with `state` projected from T005 (`unwatched`/`closed`).
+
+**Deferred to the host-Mac visit (Batch B / T009):** swapping the fixture source for live `CaptureFrameSource` (real frames), live input (T007), and the named-grant `E_PERMISSION` path when Screen-Recording is actually denied. The wire path itself is now proven.
+
 ## T007 — Input injection: keycode map (CS-4, automatable half) — [~] (keycode map ✅; live CGEvent → Batch B)
 
 **Landed:** `Sources/streamd/Input.swift` — DOM `code` → macOS virtual-keycode table (Carbon `kVK_*`, raw `UInt16`, no CoreGraphics dep): 26 letters + 10 digits + punctuation + control/whitespace + arrows + modifiers + F1–F12; `keyCode(for:)` → nil on unknown (→ unicode fallback); `denormalize(_:span:scale:)` pure mouse-coord helper. `Tests/streamdTests/KeycodeMapTests.swift`.
