@@ -117,4 +117,12 @@ Test pattern copied from `token.test.ts` (no `vi.mock`; `DISABLE_AUTH=true` fake
 
 Origin allowlist (`buildDefaultAllowedOrigins`/`parseAllowedOrigins`) is consumed by the daemon (Task 4.4), not this route (per dossier). DISABLE_AUTH deprecation notice is the same benign one the terminal token test emits — kept for parity with that precedent.
 
+## T009 — IRemoteViewService + Fake + DI + contract suite ✅
+
+`server/remote-view-service.ts` — `IRemoteViewService` (`list/attach/detach/getSession`) with the **frozen** `SessionSummary = {sessionId, windowId, app, title, state}` (state = daemon-side `idle|streaming|unwatched|closed`); `FakeRemoteViewService` (in-memory, one-session-per-window, backed by the shared `FAKE_WINDOW`); `createUnimplementedRemoteViewService` (prod placeholder, throws Phase-5). **9 tests green** (7 contract + 2 DI).
+
+**DI** (`di-container.ts`, additive): `DI_TOKENS.REMOTE_VIEW_SERVICE`; **test** container → `FakeRemoteViewService`; **prod** container → the Phase-5 placeholder — both via `useFactory` (decorators banned, ADR-0004).
+
+**Contract suite** (`test/contracts/remote-view-service.contract.ts`) reused **verbatim** by the Phase 5 real adapter → the field set is frozen here. Asserts: empty list; attach shape; getSession round-trip + listing; idempotent-per-window; detach→closed; unknown→null; `windowId`+`title` present (R4 SSE push + R6 auto-recreate). DI test resolves the working fake in the test container + exercises the prod placeholder directly (createProductionContainer eagerly builds the CopilotClient SDK — too heavy to instantiate in a unit test; the prod factory is wired identically and tested in isolation).
+
 <!-- next-entry: append new task entries above this line -->

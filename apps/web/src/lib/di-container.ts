@@ -137,6 +137,12 @@ import { CentralEventNotifierService } from '../features/027-central-notify-even
 import { AgentWorkUnitBridge } from '../features/059-fix-agents/agent-work-unit-bridge';
 // Plan 067: QuestionPopperService (real implementation)
 import { QuestionPopperService } from '../features/067-question-popper/lib/question-popper.service';
+// Plan 088 Phase 2: RemoteViewService interface + fake + Phase-5 placeholder
+import {
+  FakeRemoteViewService,
+  type IRemoteViewService,
+  createUnimplementedRemoteViewService,
+} from '../features/088-remote-view/server/remote-view-service';
 import { SampleService } from '../services/sample.service';
 import { sseManager } from './sse-manager';
 // Plan 059: WorkUnitStateService (real implementation)
@@ -153,6 +159,8 @@ export const DI_TOKENS = {
   COPILOT_CLIENT: 'CopilotClient', // Singleton SDK client
   COPILOT_ADAPTER: 'CopilotAdapter',
   AGENT_SERVICE: 'AgentService',
+  // Plan 088: Remote-view session service (interface + fake now; real adapter Phase 5)
+  REMOTE_VIEW_SERVICE: 'IRemoteViewService',
   // Plan 018: Event storage moved to workspace-scoped AgentEventAdapter in @chainglass/workflow
   // Consumers should use WORKSPACE_DI_TOKENS.AGENT_EVENT_ADAPTER instead
 } as const;
@@ -705,6 +713,13 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
     },
   });
 
+  // ==================== Plan 088: Remote View Service ====================
+  // Real daemon-backed adapter lands in Phase 5; until then a resolvable
+  // placeholder whose methods throw (decorator-free useFactory, ADR-0004).
+  childContainer.register<IRemoteViewService>(DI_TOKENS.REMOTE_VIEW_SERVICE, {
+    useFactory: () => createUnimplementedRemoteViewService(),
+  });
+
   // FIX-010: Performance metrics for container creation
   const durationMs = performance.now() - startTime;
   console.debug(`[createProductionContainer] Container created in ${durationMs.toFixed(2)}ms`);
@@ -932,6 +947,11 @@ export function createTestContainer(): DependencyContainer {
 
   childContainer.register<IQuestionPopperService>(WORKSPACE_DI_TOKENS.QUESTION_POPPER_SERVICE, {
     useValue: new FakeQuestionPopperService(),
+  });
+
+  // ==================== Plan 088: Remote View Service (Fake) ====================
+  childContainer.register<IRemoteViewService>(DI_TOKENS.REMOTE_VIEW_SERVICE, {
+    useFactory: () => new FakeRemoteViewService(),
   });
 
   return childContainer;
