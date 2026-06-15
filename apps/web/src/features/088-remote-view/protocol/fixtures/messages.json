@@ -28,7 +28,7 @@
       "t": "hello-ok",
       "v": 1,
       "session": "ses_abc123def456",
-      "window": { "id": 34202, "app": "Godot", "title": "spike-target", "pixelWidth": 1600, "pixelHeight": 1312, "scale": 2 }
+      "window": { "id": 34202, "app": "Godot", "title": "spike-target", "pixelWidth": 800, "pixelHeight": 656, "scale": 2 }
     },
     {
       "t": "video-config",

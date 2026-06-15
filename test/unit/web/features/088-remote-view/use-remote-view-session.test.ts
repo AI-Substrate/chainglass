@@ -162,6 +162,74 @@ describe('useRemoteViewSession', () => {
     expect(createCalls).toBe(1);
   });
 
+  it('R6 deep-link: windowId learned from hello-ok survives rerender → auto-recreate uses it [F007]', async () => {
+    /*
+    Test Doc:
+    - Why: a deep link may carry only rv/session (windowId optional). The hook learns the target id from hello-ok; if a rerender clobbered it back to the null prop, R6 auto-recreate would fire SESSION_RECREATE_FAIL instead of recreating by the remembered window (companion F007).
+    - Contract: with windowId:null, reach live (which dispatches a rerender), then exhaust reconnects with a healthy daemon → createSession is called with the id learned from hello-ok (34202), not null → live on the new session.
+    - Usage Notes: windowIdRef is only overwritten from a non-null prop; hello-ok sets it from msg.window.id.
+    - Quality Contribution: pins the deep-link R6 path so the learned window id is never lost to a null prop.
+    - Worked Example: rv=ses_h (no windowId) → live → daemon-down 3× → createSession(34202) → ses_new → live.
+    */
+    let recreatedWith: number | null = null;
+    const { result } = render({
+      windowId: null,
+      backoffMs: [5, 10, 20],
+      healthCheck: async () => true,
+      createSession: async (windowId) => {
+        recreatedWith = windowId;
+        fake.failConnections(false);
+        return 'ses_new';
+      },
+    });
+    await waitFor(() => expect(result.current.state.name).toBe('live'));
+    act(() => {
+      fake.failConnections(true);
+      fake.dropViewer('ses_h');
+    });
+    await waitFor(
+      () => {
+        expect(result.current.state.name).toBe('live');
+        expect(result.current.state.sessionId).toBe('ses_new');
+      },
+      { timeout: 3000 }
+    );
+    expect(recreatedWith).toBe(34202); // learned from hello-ok, not the null prop
+  });
+
+  it('two independent drop/recover cycles both reach live — reconnect budget resets after recovery [F008]', async () => {
+    /*
+    Test Doc:
+    - Why: the hook's attemptsRef drives the reconnect budget; if it is never reset after a successful reconnect, a second independent drop starts mid-budget and can exhaust after fewer than 3 tries (companion F008).
+    - Contract: live → unexpected drop → reconnecting → live (cycle 1), then a second unexpected drop → reconnecting → live (cycle 2); each recovery lands at reconnectAttempts 0.
+    - Usage Notes: hello-ok resets attemptsRef to 0 on every confirmed (re)attach; this test exercises that reset path twice without faulting the daemon.
+    - Quality Contribution: regression guard that repeated transient drops keep recovering rather than degrading toward a premature sessionLost/daemonDown.
+    - Worked Example: live → drop → live(attempts0) → drop → live(attempts0).
+    */
+    // Slow-ish backoff (matching the single-drop test) so the transient
+    // `reconnecting` window is observable by the poll-based waitFor on BOTH cycles
+    // — a fast backoff recovers between polls and the assertion races the already-
+    // recovered `live`.
+    const { result } = render({ backoffMs: [150, 300, 600] });
+    await waitFor(() => expect(result.current.state.name).toBe('live'));
+
+    // cycle 1
+    act(() => {
+      fake.dropViewer('ses_h');
+    });
+    await waitFor(() => expect(result.current.state.name).toBe('reconnecting'));
+    await waitFor(() => expect(result.current.state.name).toBe('live'), { timeout: 2000 });
+    expect(result.current.state.reconnectAttempts).toBe(0);
+
+    // cycle 2 — must get the full budget again and recover
+    act(() => {
+      fake.dropViewer('ses_h');
+    });
+    await waitFor(() => expect(result.current.state.name).toBe('reconnecting'));
+    await waitFor(() => expect(result.current.state.name).toBe('live'), { timeout: 2000 });
+    expect(result.current.state.reconnectAttempts).toBe(0);
+  });
+
   it('R6: exhausted reconnects + unhealthy daemon → daemonDown', async () => {
     /*
     Test Doc:

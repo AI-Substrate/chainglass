@@ -100,13 +100,15 @@ export function useRemoteViewSession(
   const windowIdRef = useRef<number | null>(windowId);
   const attemptsRef = useRef(0);
   const recreatedRef = useRef(false);
-  const disposedRef = useRef(false);
   const intentionalRef = useRef(false);
   const stallTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const connectRef = useRef<() => void>(() => {});
 
-  windowIdRef.current = windowId;
+  // Only sync the target window id from a NON-null prop — never clobber an id
+  // learned from hello-ok with a null prop (deep-link case), or R6 auto-recreate
+  // loses the window to recreate. [F007]
+  if (windowId != null) windowIdRef.current = windowId;
 
   // Keep the latest callbacks/options in refs so the long-lived socket closures
   // never go stale without re-subscribing the socket on every render.
@@ -114,7 +116,10 @@ export function useRemoteViewSession(
   cbRef.current = { getToken, healthCheck, createSession, stallMs, backoffMs };
 
   useEffect(() => {
-    disposedRef.current = false;
+    // Per-effect-generation guard: stale async continuations (getToken/healthCheck/
+    // createSession) from a superseded session/url must not open sockets or dispatch.
+    // A shared ref would be flipped back to false by the next generation. [F009]
+    let cancelled = false;
     if (!enabled || !session) return;
     sessionRef.current = session;
     attemptsRef.current = 0;
@@ -153,6 +158,7 @@ export function useRemoteViewSession(
       switch (msg.t) {
         case 'hello-ok':
           windowIdRef.current = msg.window.id;
+          attemptsRef.current = 0; // confirmed (re)attach → restore the full reconnect budget [F008]
           dispatch({ type: 'HELLO_OK', sessionId: msg.session, windowId: msg.window.id });
           break;
         case 'displaced':
@@ -173,7 +179,7 @@ export function useRemoteViewSession(
     }
 
     function scheduleReconnect() {
-      if (disposedRef.current) return;
+      if (cancelled) return;
       const backoff = cbRef.current.backoffMs;
       if (attemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
         const delay = backoff[Math.min(attemptsRef.current, backoff.length - 1)];
@@ -184,7 +190,7 @@ export function useRemoteViewSession(
         }, delay);
       } else {
         Promise.resolve(cbRef.current.healthCheck()).then((healthy) => {
-          if (disposedRef.current) return;
+          if (cancelled) return;
           dispatch({ type: 'RECONNECT_EXHAUSTED', daemonHealthy: healthy });
           if (healthy) recreateOnce();
         });
@@ -198,7 +204,7 @@ export function useRemoteViewSession(
       }
       recreatedRef.current = true;
       Promise.resolve(cbRef.current.createSession(windowIdRef.current)).then((newSid) => {
-        if (disposedRef.current) return;
+        if (cancelled) return;
         if (newSid) {
           sessionRef.current = newSid;
           attemptsRef.current = 0;
@@ -211,7 +217,7 @@ export function useRemoteViewSession(
     }
 
     function connect() {
-      if (disposedRef.current || !sessionRef.current) return;
+      if (cancelled || !sessionRef.current) return;
       clearReconnect();
       if (wsRef.current) {
         intentionalRef.current = true;
@@ -224,7 +230,7 @@ export function useRemoteViewSession(
       }
       Promise.resolve(cbRef.current.getToken())
         .then((token) => {
-          if (disposedRef.current || !sessionRef.current) return;
+          if (cancelled || !sessionRef.current) return;
           const sid = sessionRef.current;
           const ws = new WebSocket(
             `${url}/stream?session=${encodeURIComponent(sid)}&token=${encodeURIComponent(token)}`
@@ -233,7 +239,7 @@ export function useRemoteViewSession(
           wsRef.current = ws;
           intentionalRef.current = false;
           ws.onopen = () => {
-            if (disposedRef.current || wsRef.current !== ws) {
+            if (cancelled || wsRef.current !== ws) {
               try {
                 ws.close();
               } catch {
@@ -261,7 +267,7 @@ export function useRemoteViewSession(
           };
         })
         .catch(() => {
-          if (disposedRef.current) return;
+          if (cancelled) return;
           dispatch({ type: 'SOCKET_CLOSED', clean: false });
           scheduleReconnect();
         });
@@ -271,7 +277,7 @@ export function useRemoteViewSession(
     connect();
 
     return () => {
-      disposedRef.current = true;
+      cancelled = true;
       intentionalRef.current = true;
       clearStall();
       clearReconnect();

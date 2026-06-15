@@ -148,6 +148,13 @@ describe('remote-view viewport state machine', () => {
       { type: 'RECONNECT_EXHAUSTED', daemonHealthy: true },
       { type: 'FRAME', keyframe: true },
       { type: 'DISPLACED' },
+      // [F004] RV_PRESENT (stale/duplicate rv-param dispatch) and ERROR (a late
+      // socket error) are handled generically from any state and would otherwise
+      // auto-leave displaced without a reclaim click — the exact R3 trap escape.
+      { type: 'RV_PRESENT', sessionId: 'ses_stale', windowId: 7 },
+      { type: 'ERROR', code: 'E_INTERNAL' },
+      { type: 'ERROR', code: 'E_SESSION_UNKNOWN' },
+      { type: 'ERROR', code: 'E_WINDOW_GONE' },
     ];
     for (const ev of inertEvents) {
       expect(transition(displaced, ev).name).toBe('displaced');

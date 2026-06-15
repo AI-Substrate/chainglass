@@ -5,16 +5,16 @@
   "plan_dir": "docs/plans/088-remote-app-view",
   "mode": "Full",
   "cursor": "build",
-  "recommended_next": "review",
-  "now": "Phase 2 IMPLEMENTED (build, companion mode) — T001–T010, 51 tests green across 8 files, AC-12 (web side runs daemon-absent vs the frame-replay fake). 9 task commits + wrap.",
-  "next": "Review Phase 2 (recommended — the live companion did not actually engage), or generate Phase 3 tasks (Viewport UI & Content-Area Mode).",
+  "recommended_next": "tasks",
+  "now": "Phase 2 IMPLEMENTED + REVIEWED (build, companion mode) — T001–T010 then a companion review-response: 56 tests green across 8 files (51 + 5 finding tests), AC-12 (web side runs daemon-absent vs the frame-replay fake). The live code-review-companion actively reviewed all 9 commits and caught 2 HIGH latent bugs (F004 displaced R3-trap, F007 windowId clobber) + 8 MEDIUM — all landed.",
+  "next": "Generate Phase 3 tasks (Viewport UI & Content-Area Mode). A separate /the-flow 7 review pass is OPTIONAL — the companion + review-response already covered Phase 2.",
   "agents": [
     { "id": "companion-1", "kind": "companion", "slug": "code-review-companion", "render": "wrap",
       "run_id": "2026-06-13T11-15-18-099Z-03a5", "covers": ["ph1"], "status": "completed",
       "note": "Booted + briefed at phase start, but idle-timed-out during the multi-day human-blocked TCC-grant wait BEFORE review pings arrived (0 findings = did not review, not a clean pass). Spike code is throwaway evidence; post-hoc review optional. magicWand was minih-infra, surfaced not actioned." },
     { "id": "companion-2", "kind": "companion", "slug": "code-review-companion", "render": "wrap",
       "run_id": "2026-06-15T11-25-24-146Z-ef34", "covers": ["ph2"], "status": "completed",
-      "note": "Booted + briefed; all 9 task commits pinged (T001–T009) + drain + control:stop; host stopped (pid-vanished) + reconciled. 0 review replies the whole phase (212 internal tool calls were its own poll loop) → did NOT actively review (non-engagement, same as companion-1), NOT a clean pass. ⇒ stage-7 review NOT superseded; recommended next." }
+      "note": "Booted + briefed; all 9 task commits pinged (T001–T009) + drain + control:stop; host stopped (pid-vanished) + reconciled. ACTIVELY REVIEWED — produced 10 findings on the inside lane (2 HIGH: F004 displaced R3-trap escape on RV_PRESENT/ERROR, F007 learned windowId clobbered breaking R6 deep-link recreate; 8 MEDIUM) + per-task summaries + farewell. (Earlier note claimed non-engagement — that was an operator read-path error: queried the OUTSIDE lane filtered for inside-sender msgs = empty by construction; findings were in inbox/inside/messages.ndjson. Anecdote → minih issue #47.) All actionable findings landed in a review-response commit, 56 tests green. ⇒ stage-7 review effectively satisfied by companion + response; a separate /the-flow 7 review pass is OPTIONAL." }
   ],
   "nodes": [
     { "id": "research", "type": "research", "label": "Research", "status": "done",
@@ -68,7 +68,7 @@
       "command": "/the-flow 6 implement --companion --phase \"Phase 2: Domain, Protocol & Session Core (TDD)\" --plan \"docs/plans/088-remote-app-view/remote-app-view-plan.md\"",
       "ran_at": "2026-06-15T02:13:10Z",
       "user_input": "build with companion mode",
-      "note": "COMPLETE — T001–T010, 51 tests green across 8 files (serial). AC-12: full web side runs daemon-absent vs the frame-replay fake. Built: remote-view domain + dep guard; Zod protocol + 16-byte binary codec + cross-language fixtures (messages.json/frame-header.json for Swift 4.2); frame-replay fake (254 owned sck-capture frames); 10-state session machine + reconnect hook (R1/R2/R3/R5/R6/R7/R8/R9); frozen token route (aud=remote-view-ws, no cwd) + pinned auth vectors (Swift 4.4); IRemoteViewService+Fake+DI+contract. Deviations: T007 real-timers+injected-durations (fake-timer/real-socket deadlock); zod pinned ^4.3.5. Companion non-engagement → review not superseded (see companion-2).",
+      "note": "COMPLETE + REVIEWED — T001–T010 then companion review-response, 56 tests green across 8 files (serial). AC-12: full web side runs daemon-absent vs the frame-replay fake. Built: remote-view domain + dep guard; Zod protocol + 16-byte binary codec + cross-language fixtures (messages.json/frame-header.json for Swift 4.2); frame-replay fake (254 owned sck-capture frames); 10-state session machine + reconnect hook (R1/R2/R3/R5/R6/R7/R8/R9); frozen token route (aud=remote-view-ws, no cwd) + pinned auth vectors (Swift 4.4); IRemoteViewService+Fake+DI+contract. Deviations: T007 real-timers+injected-durations (fake-timer/real-socket deadlock); zod pinned ^4.3.5. Companion ACTIVELY REVIEWED → 10 findings (2 HIGH F004/F007), all landed in the review-response (see companion-2); stage-7 review effectively satisfied.",
       "artifacts": ["tasks/phase-2-domain-protocol-session-core-tdd/tasks.md", "tasks/phase-2-domain-protocol-session-core-tdd/execution.log.md", "apps/web/src/features/088-remote-view/", "apps/web/app/api/remote-view/token/route.ts", "test/contracts/remote-view-service.contract.ts", "test/contracts/remote-view-auth-vectors.json"], "next": ["ph3"] },
     { "id": "t1", "type": "tasks", "label": "Phase 1 tasks dossier · T000–T007", "status": "done", "branch_of": "ph1",
       "note": "Stage 5 + validate (7 fixes).", "artifacts": ["tasks/phase-1-de-risk-spike/tasks.md"], "next": [] },

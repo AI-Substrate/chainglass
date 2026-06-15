@@ -149,15 +149,31 @@ Origin allowlist (`buildDefaultAllowedOrigins`/`parseAllowedOrigins`) is consume
 
 ## Companion debrief — code-review-companion (run 2026-06-15T11-25-24-146Z-ef34)
 
+> ⚠️ **Correction (2026-06-15)**: an earlier version of this debrief recorded the companion as **non-engaged / 0 findings**. That was **wrong** — an operator read-path error (I queried the *outside* lane `minih outside inbox list` filtered for inside-sender messages, a zero-possible-match filter, and treated the empty result as "no findings"). The companion's findings were on the **inside** lane the whole time (`runs/<id>/inbox/inside/messages.ndjson`). It actually produced **10 findings (2 HIGH, 8 MEDIUM)** + per-task summaries + a farewell. The table below is the corrected record. Root-cause anecdote + tooling suggestions filed as minih issue [#47](https://github.com/AI-Substrate/minih/issues/47) and `docs/retros/minih-inside-outside-lane-confusion.md`.
+
 | Item | Outcome |
 |------|---------|
 | Boot | ✅ booted + briefed at phase start (hazards: Finding 03 frozen auth, Finding 06 test infra, Finding 07 in-feature types; domain dep-direction) |
 | Per-commit pings | ✅ all 9 task commits pinged (T001–T009) as `review-request: T### <sha>`, fire-and-forget |
 | Drain + stop | drain ping sent; `control:stop` sent; host stopped (`verdict: dead`, `pid-vanished`); `minih reconcile` healed the record |
-| **Findings surfaced** | **0** — the companion sent **no** review replies the entire phase (212 internal tool calls / 10066 events were its own coordination poll loop, not review responses) |
-| Verdict | **Did NOT actively review** — 0 findings here is *non-engagement*, NOT a verified clean pass (same pattern as the Phase 1 companion run). |
-| magicWand | none returned |
+| **Findings surfaced** | **10** on the inside lane — **F004 (HIGH)** displaced auto-leaves R3 trap on `RV_PRESENT`/`ERROR`; **F007 (HIGH)** learned `windowId` clobbered on rerender → R6 deep-link auto-recreate fails; **F003/F005/F006/F008/F009 (MEDIUM)** + F001/F002/F010 |
+| Verdict | **Actively reviewed** — real, correct findings (the 2 HIGH were genuine latent bugs in T006/T007), not a poll-loop. The 212 tool calls / 10066 events were the review work, which I had mis-attributed. |
+| magicWand | minih-infra (surfaced, not actioned) |
 
-**Reconciliation**: because the live companion did not produce findings, a post-hoc **code review (stage 7)** of this phase is **still warranted** — it is NOT superseded. This is the first phase with real production code, so a review pass before building on it (Phase 3) is the recommended next step. (The companion affordance was honoured exactly per protocol; the non-engagement is a minih/Copilot-CLI runtime behaviour, not a coverage claim.)
+**Resolution (review-response commit, 2026-06-15)**: all actionable findings landed, **56 tests green** (51 → 56; +F003/F005/F006/F007/F008 behavioural tests, F004 R3 test extended, F010 documented):
+
+| Finding | Sev | Fix |
+|---|---|---|
+| F003 | MED | `NormalizedCoordinateSchema = z.number().min(0).max(1)` on input x/y (`messages.ts`); reject-out-of-range + boundary test |
+| F004 | **HIGH** | `displaced` trap-guard at top of `transition()` returns state for all non-user events (`session-machine.ts`); R3 inert-list extended with `RV_PRESENT`/`ERROR` |
+| F005 | MED | canonical `messages.json` `hello-ok.window` aligned to 800×656 (= `FAKE_WINDOW`, manifest, video-config); fixture↔FAKE_WINDOW + fake-handshake dim/scale assertions |
+| F006 | MED | fake `attach()` treats `state==='closed'` as terminal → `E_SESSION_UNKNOWN` (no resurrection); detach-then-reattach test |
+| F007 | **HIGH** | `windowIdRef` only synced from a non-null prop (`use-remote-view-session.ts`); R6 deep-link `windowId:null` test asserts recreate uses the hello-ok–learned id |
+| F008 | MED | `attemptsRef` reset on every confirmed `hello-ok`; two-cycle drop/recover test |
+| F009 | MED | per-effect-generation `cancelled` flag replaces shared `disposedRef`; stale async continuations can't open sockets (structurally covered) |
+| F010 | MED | no-NextAuth-session gate documented as e2e-covered (matches terminal route precedent; unit-isolating needs real NextAuth env) |
+| F001/F002 | MED | T001-boundary scaffold/doc-history nits — moot: all dirs + files now exist and the domain doc reflects landed work |
+
+**Reconciliation**: the live companion **did** review this phase and caught 2 HIGH latent bugs that the per-task tests had not — so the companion-as-reviewer delivered real value here. Stage-7 review is **effectively satisfied** by the companion + this response (a separate `/the-flow 7 review` pass remains optional, not required, before Phase 3).
 
 <!-- next-entry: append new task entries above this line -->

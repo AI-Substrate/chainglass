@@ -10,6 +10,7 @@
 import { decodeFrameHeader } from '@/features/088-remote-view/protocol/binary';
 import type { ServerMessage } from '@/features/088-remote-view/protocol/messages';
 import { type FakeStreamd, startFakeStreamd } from '@/features/088-remote-view/testing/fake-streamd';
+import { FAKE_WINDOW } from '@/features/088-remote-view/testing/fixtures';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
 
@@ -80,8 +81,9 @@ describe('fake-streamd', () => {
     c.hello('ses_a');
     await waitFor(() => c.textsOf('hello-ok').length > 0 && c.textsOf('video-config').length > 0 && c.bins.length >= 1);
     const helloOk = c.textsOf('hello-ok')[0] as Extract<ServerMessage, { t: 'hello-ok' }>;
-    expect(helloOk.window.id).toBe(34202);
-    expect(helloOk.window.app).toBe('Godot');
+    // [F005] full descriptor — dims+scale, not just id/app — so a drift from the
+    // single source of truth (FAKE_WINDOW) fails before Swift/Phase 3 mirror it.
+    expect(helloOk.window).toEqual(FAKE_WINDOW);
     const config = c.textsOf('video-config')[0] as Extract<ServerMessage, { t: 'video-config' }>;
     expect(config.codec).toBe('avc1.640020');
     expect(config.width).toBe(800);
@@ -257,5 +259,33 @@ describe('fake-streamd', () => {
     await c.opened;
     await waitFor(() => c.textsOf('error').length > 0);
     expect((c.textsOf('error')[0] as Extract<ServerMessage, { t: 'error' }>).code).toBe('E_AUTH');
+  });
+
+  it('detach is terminal: a hello with the closed session id is rejected, not resurrected [F006]', async () => {
+    /*
+    Test Doc:
+    - Why: Workshop 003 says `detach` is an explicit close → the session is closed (not unwatched/reusable). If the fake let a later `hello` flip a closed entry back to streaming, it would mask a T007/Phase-3 bug that accidentally reattaches a deleted session (companion F006).
+    - Contract: after detach (state→closed), a fresh connection sending `hello` for the same id receives {t:'error',code:'E_SESSION_UNKNOWN'} and no keyframe; the session stays closed.
+    - Usage Notes: detach marks the entry closed; attach() now treats closed as terminal and rejects with E_SESSION_UNKNOWN + close(4404).
+    - Quality Contribution: pins detach as terminal so the daemon-absent substrate can't hide a resurrect-a-dead-session bug.
+    - Worked Example: A hello ses_z → live → A detach → B hello ses_z → error E_SESSION_UNKNOWN, B.bins empty.
+    */
+    const a = new Client(fake.url, 'ses_z', 'tok');
+    await a.opened;
+    a.hello('ses_z');
+    await waitFor(() => a.bins.length >= 1);
+
+    a.send({ t: 'detach' });
+    await waitFor(() => fake.getSession('ses_z')?.state === 'closed');
+
+    const b = new Client(fake.url, 'ses_z', 'tok');
+    await b.opened;
+    b.hello('ses_z');
+    await waitFor(() => b.textsOf('error').length > 0);
+    expect((b.textsOf('error')[0] as Extract<ServerMessage, { t: 'error' }>).code).toBe(
+      'E_SESSION_UNKNOWN'
+    );
+    expect(b.bins.length).toBe(0); // no keyframe — the dead session was not resumed
+    expect(fake.getSession('ses_z')?.state).toBe('closed');
   });
 });

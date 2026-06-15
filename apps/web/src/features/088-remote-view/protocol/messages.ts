@@ -36,15 +36,22 @@ export type Mods = z.infer<typeof ModsSchema>;
 const ButtonSchema = z.union([z.literal(0), z.literal(1), z.literal(2)]);
 
 /**
+ * A normalized `[0,1]` frame coordinate (Workshop 003). Bounded at the boundary
+ * so the canonical protocol rejects out-of-frame `x:-1`/`y:2` — field-name
+ * compatibility is not contract compatibility for the Swift mirror + fake. [F003]
+ */
+const NormalizedCoordinateSchema = z.number().min(0).max(1);
+
+/**
  * One input event. Coordinates `x`,`y` are normalized `[0,1]` of the video
  * frame — the client never knows window points; the daemon owns the mapping.
  * Keyboard uses DOM `code` (physical position); `text` covers IME/unicode.
  */
 export const InputEventSchema = z.discriminatedUnion('k', [
-  z.object({ k: z.literal('mousemove'), x: z.number(), y: z.number() }),
-  z.object({ k: z.literal('mousedown'), x: z.number(), y: z.number(), button: ButtonSchema }),
-  z.object({ k: z.literal('mouseup'), x: z.number(), y: z.number(), button: ButtonSchema }),
-  z.object({ k: z.literal('wheel'), x: z.number(), y: z.number(), dx: z.number(), dy: z.number() }),
+  z.object({ k: z.literal('mousemove'), x: NormalizedCoordinateSchema, y: NormalizedCoordinateSchema }),
+  z.object({ k: z.literal('mousedown'), x: NormalizedCoordinateSchema, y: NormalizedCoordinateSchema, button: ButtonSchema }),
+  z.object({ k: z.literal('mouseup'), x: NormalizedCoordinateSchema, y: NormalizedCoordinateSchema, button: ButtonSchema }),
+  z.object({ k: z.literal('wheel'), x: NormalizedCoordinateSchema, y: NormalizedCoordinateSchema, dx: z.number(), dy: z.number() }),
   z.object({ k: z.literal('keydown'), code: z.string(), modifiers: ModsSchema }),
   z.object({ k: z.literal('keyup'), code: z.string(), modifiers: ModsSchema }),
   z.object({ k: z.literal('text'), text: z.string() }),

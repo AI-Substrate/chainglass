@@ -10,6 +10,16 @@
  * The auth-vectors block verifies the committed cross-language fixture
  * (test/contracts/remote-view-auth-vectors.json) the Swift verifier (Task 4.4)
  * re-checks byte-identically against the same pinned key.
+ *
+ * Gate coverage (companion F010): this suite forces DISABLE_AUTH=true to isolate
+ * the SECOND gate (the bootstrap cookie). The FIRST gate — `auth()` returns no
+ * NextAuth session → 401 — is intentionally NOT unit-tested here, mirroring the
+ * terminal token route test (test/unit/web/api/terminal/token.test.ts): exercising
+ * the real NextAuth `auth()` requires NextAuth env vars + AUTH_SECRET (which the
+ * beforeEach deliberately unsets), so a unit attempt throws rather than yielding a
+ * clean 401. That branch is covered by the Phase 7 e2e sweep. The gate itself is
+ * the frozen verbatim copy of the terminal route's gate (Finding 03), so its
+ * behaviour is shared, not re-implemented.
  */
 import { rmSync } from 'node:fs';
 

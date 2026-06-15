@@ -104,6 +104,19 @@ function picker(): ViewportState {
  * this is load-bearing for R3 (`displaced` ignores socket/timer events).
  */
 export function transition(state: ViewportState, event: ViewportEvent): ViewportState {
+  // R3: `displaced` is a trap — ONLY explicit user actions move it. Guard here,
+  // before the generic per-event handlers (RV_PRESENT and ERROR otherwise transition
+  // from any state and would let a stale rv-dispatch or a late socket error
+  // auto-leave displaced without a reclaim click). [F004]
+  if (
+    state.name === 'displaced' &&
+    event.type !== 'RECLAIM' &&
+    event.type !== 'PICK_WINDOW' &&
+    event.type !== 'DETACH'
+  ) {
+    return state;
+  }
+
   switch (event.type) {
     // ── explicit user actions — allowed from any state ──
     case 'PICK_WINDOW': // R7: last-click-wins (also the picker → attaching entry)

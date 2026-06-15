@@ -168,6 +168,15 @@ export async function startFakeStreamd(opts: FakeStreamdOptions = {}): Promise<F
 
   function attach(ws: WebSocket, sessionId: string): void {
     const existing = sessions.get(sessionId);
+    if (existing && existing.state === 'closed') {
+      // Workshop 003: `detach` is an explicit close → the session is terminal.
+      // A `hello` carrying a closed session id must NOT resurrect it, or the fake
+      // would mask a T007/Phase-3 bug that accidentally reattaches a deleted
+      // session. Reject with E_SESSION_UNKNOWN (→ sessionLost client-side). [F006]
+      send(ws, { t: 'error', code: 'E_SESSION_UNKNOWN', message: 'session closed', fatal: true });
+      ws.close(4404, 'session-unknown');
+      return;
+    }
     if (existing && existing.ws && existing.ws !== ws && isOpen(existing.ws)) {
       // R2: latest-attach-wins — displace the prior viewer.
       send(existing.ws, { t: 'displaced' });

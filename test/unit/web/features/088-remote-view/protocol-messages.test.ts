@@ -6,6 +6,9 @@
  * are authored first; protocol/messages.ts implements them. The fixture file is
  * the cross-language source of truth — the Swift daemon (Task 4.2) round-trips
  * the same objects, so this suite is half of the drift guard.
+ *
+ * NOTE: imports are intentionally NOT biome-organized — the `@vitest-environment`
+ * pragma must stay the file's first line, so an import cannot be hoisted above it.
  */
 import {
   ClientMessageSchema,
@@ -17,6 +20,7 @@ import {
   parseServerMessage,
 } from '@/features/088-remote-view/protocol/messages';
 import fixtures from '@/features/088-remote-view/protocol/fixtures/messages.json';
+import { FAKE_WINDOW } from '@/features/088-remote-view/testing/fixtures';
 import { describe, expect, it } from 'vitest';
 
 const CLIENT_TYPES = [
@@ -124,6 +128,37 @@ describe('remote-view wire protocol — control messages', () => {
     expect(() => parseClientMessage(undefined)).not.toThrow();
   });
 
+  it('rejects out-of-frame input coordinates (normalized [0,1] is a contract, not a hint) [F003]', () => {
+    /*
+    Test Doc:
+    - Why: Workshop 003 defines mouse/wheel x/y as normalized [0,1] of the frame; the daemon owns the point mapping, so an out-of-range coord is a contract violation, not a field-name match (companion F003).
+    - Contract: mousemove/mousedown/mouseup/wheel with x or y < 0 or > 1 → parseClientMessage null; in-range (incl. the 0 and 1 boundaries) parses; wheel dx/dy stay unbounded (they are scroll deltas, not coordinates).
+    - Usage Notes: bound via NormalizedCoordinateSchema = z.number().min(0).max(1) on x/y only.
+    - Quality Contribution: pins the normalized-coordinate contract the Swift mirror + fake depend on so it can't silently accept x:-1/y:2.
+    - Worked Example: {k:'mousemove',x:1.5,y:0.5} inside an input message → null.
+    */
+    const bad: unknown[] = [
+      { t: 'input', events: [{ k: 'mousemove', x: -0.01, y: 0.5 }] },
+      { t: 'input', events: [{ k: 'mousemove', x: 0.5, y: 1.01 }] },
+      { t: 'input', events: [{ k: 'mousedown', x: 2, y: 0.5, button: 0 }] },
+      { t: 'input', events: [{ k: 'mouseup', x: 0.5, y: -1, button: 2 }] },
+      { t: 'input', events: [{ k: 'wheel', x: 1.5, y: 0.5, dx: 0, dy: -120 }] },
+    ];
+    for (const b of bad) {
+      expect(parseClientMessage(b)).toBeNull();
+    }
+    // boundaries are valid; wheel deltas remain unbounded
+    expect(
+      parseClientMessage({ t: 'input', events: [{ k: 'mousemove', x: 0, y: 1 }] })
+    ).not.toBeNull();
+    expect(
+      parseClientMessage({
+        t: 'input',
+        events: [{ k: 'wheel', x: 0.5, y: 0.5, dx: -9999, dy: 9999 }],
+      })
+    ).not.toBeNull();
+  });
+
   it('ignores an unknown discriminator `t` (forward-compat — returns null, not a throw)', () => {
     /*
     Test Doc:
@@ -154,6 +189,21 @@ describe('remote-view wire protocol — control messages', () => {
       newField: 'ignored',
     }) as ServerMessage | null;
     expect(parsed).toEqual({ t: 'pong', sentAt: 1, daemonAt: 2 });
+  });
+
+  it('canonical hello-ok window is the single source of truth shared with FAKE_WINDOW [F005]', () => {
+    /*
+    Test Doc:
+    - Why: the hello-ok window descriptor has two consumers — this canonical fixture (mirrored by Swift, Task 4.2) and FAKE_WINDOW (the fake + service + Phase 3 picker). If they drift, Swift/Phase 3 could mirror the wrong shape and the T005 test (which only checked id/app) wouldn't catch it (companion F005).
+    - Contract: the messages.json hello-ok.window deep-equals FAKE_WINDOW (id/app/title/pixelWidth/pixelHeight/scale).
+    - Usage Notes: the captured manifest + video-config are 800×656, so that is the intended pixel contract; both fixtures must carry it.
+    - Quality Contribution: collapses the descriptor to one source of truth and fails any future dimension/scale drift.
+    - Worked Example: changing FAKE_WINDOW.pixelWidth to 1600 without updating the fixture fails here.
+    */
+    const helloOk = fixtures.server.find((m) => m.t === 'hello-ok') as
+      | { window: typeof FAKE_WINDOW }
+      | undefined;
+    expect(helloOk?.window).toEqual(FAKE_WINDOW);
   });
 
   it('exposes Zod schemas usable directly by the fake and the hook', () => {
