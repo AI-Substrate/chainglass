@@ -37,6 +37,19 @@ Derived signals: S0 CLI present (`~/.npm-global/bin/harness`); **S2 governance a
 
 **Deferred to the single host-Mac visit (Batch B):** `just streamd-setup` (keychain cert — GUI auth), `just streamd-install` (signed bundle at the install path), and the rebuild-keeps-Screen-Recording-grant verification (spike 1.5). These cannot run remotely.
 
+## T002 — Protocol.swift mirror + 16-byte binary codec (CS-3, automated) ✅
+
+**Landed:**
+- `Sources/streamd/BinaryFrame.swift` — 16-byte big-endian frame header (frameType / flags / reserved / u32 sequence / u64 captureTimestampMicros) encode+decode + hex helpers; unknown frameType / short buffer → `nil` (never throws); `UInt64` timestamps (handles 2^53+1, the JS-unsafe row).
+- `Sources/streamd/Protocol.swift` — Codable mirror of every Workshop-003 control message: `ClientMessage` (8 cases) + `ServerMessage` (8 cases) discriminated on `t`, `InputEvent` (7 cases) on `k`, shared `WindowDescriptor`/`Mods`/`MouseButton`/`ErrorCode`/`WindowStateName`/`ByeReason`. `parse()` returns `nil` on unknown `t` / invalid JSON (forward-compat, never throws); coords bounded to `[0,1]` at decode (parity with the TS `NormalizedCoordinateSchema`); `client-stats.e2eLatencyMs` explicit-null preserved.
+- `Tests/streamdTests/{TestSupport,BinaryFrameTests,ProtocolTests}.swift` — resolve the **same** repo-root fixtures via `#filePath` (no copy → no drift, cwd-independent).
+
+**Evidence (`swift test`): 23/23 green** (6 Config + 11 Protocol + 6 BinaryFrame).
+- Binary: every `frame-header.json` row encodes **byte-identical** to the fixture `hex`; decode round-trips; **u64 2^53+1 (9007199254740993) preserved**; unknown frame type + short buffer → nil.
+- Control: all **9 client + 20 server** canonical messages decode into the Swift model and round-trip (encode→decode identity); all 7 error codes / 5 window-states / 3 bye reasons present; `client-stats` null latency preserved; `café` unicode preserved; unknown `t` → nil; out-of-[0,1] coord rejected.
+
+Cross-language drift guard GREEN on both sides (vitest + `swift test`). Deterministic — no host-Mac dependency.
+
 ---
 
 ## Companion findings reconciliation
