@@ -98,6 +98,25 @@ test-harness:
 remote-view-stream-smoke:
     npx tsx harness/host/remote-view-stream-smoke.mts
 
+# Plan 088 Phase 4 — streamd native daemon (Swift; outside the pnpm graph). Sources in native/streamd/.
+# ⚠️ streamd-setup creates a keychain cert (GUI auth) and the first install/run triggers TCC
+# Screen-Recording (and Accessibility for input) grants — run these AT THE HOST MAC.
+streamd-setup:
+    native/streamd/scripts/setup-cert.sh
+
+streamd-build:
+    cd native/streamd && swift build -c release
+
+# Swift-side fixture/auth/session conformance (the automated half of the Hybrid strategy)
+streamd-test:
+    cd native/streamd && swift test
+
+streamd-install: streamd-build
+    native/streamd/scripts/make-bundle.sh
+
+streamd-kill:
+    @pkill -f 'ChainglassStreamd.app/Contents/MacOS/streamd' && echo "streamd killed" || echo "no streamd running"
+
 # Start harness dev container
 harness-dev:
     cd harness && just dev
