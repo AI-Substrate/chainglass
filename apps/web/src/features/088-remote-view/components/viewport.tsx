@@ -28,6 +28,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useInputCapture } from '../hooks/use-input-capture';
 import { useRemoteViewSession } from '../hooks/use-remote-view-session';
 import { type DecodedFrame, toChunkInit } from '../protocol/binary';
 import type { ErrorCode } from '../protocol/messages';
@@ -202,7 +203,7 @@ export function Viewport({ url, session, windowId, onExit }: ViewportProps) {
     droppedRef.current = stats.droppedFrames;
   }, []);
 
-  const { state, reclaim, requestKeyframe, ping } = useRemoteViewSession({
+  const { state, reclaim, requestKeyframe, ping, sendInput } = useRemoteViewSession({
     url,
     session,
     windowId,
@@ -212,6 +213,12 @@ export function Viewport({ url, session, windowId, onExit }: ViewportProps) {
     onStats: handleStats,
   });
   requestKeyframeRef.current = requestKeyframe;
+
+  const { capturing } = useInputCapture({
+    canvasRef,
+    send: sendInput,
+    enabled: state.name === 'live' || state.name === 'degraded',
+  });
 
   // HUD sampler: once a second, snapshot fps/bitrate from the accumulators.
   useEffect(() => {
@@ -246,10 +253,13 @@ export function Viewport({ url, session, windowId, onExit }: ViewportProps) {
 
   return (
     <div className="relative h-full w-full bg-black" data-testid="remote-view-viewport">
+      {/* The canvas is the input surface — focusable (tabIndex) so it can capture keyboard
+          for the streamed app (Workshop 001 §Focus). */}
       <canvas
         ref={canvasRef}
         data-testid="remote-view-viewport-canvas"
-        className="h-full w-full object-contain"
+        tabIndex={0}
+        className="h-full w-full object-contain outline-none"
       />
 
       {supported === false ? (
@@ -268,6 +278,14 @@ export function Viewport({ url, session, windowId, onExit }: ViewportProps) {
             >
               {hud.fps} fps · {hud.latencyMs == null ? '—' : `${hud.latencyMs}ms`} ·{' '}
               {hud.bitrateKbps} kbps · {hud.dropped} dropped
+            </div>
+          )}
+          {capturing && (
+            <div
+              data-testid="remote-view-capturing"
+              className="absolute bottom-2 left-2 rounded bg-primary/80 px-2 py-1 text-[11px] text-primary-foreground"
+            >
+              ⌨ keys captured · ⌘⇧Esc to release
             </div>
           )}
           <ViewportChrome

@@ -22,6 +22,7 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 import { type DecodedFrame, decodeFrame } from '../protocol/binary';
 import {
+  type InputEvent,
   type StatsMessage,
   type VideoConfigMessage,
   parseServerMessage,
@@ -90,6 +91,8 @@ export interface UseRemoteViewSessionResult {
   requestKeyframe: () => void;
   /** Send an app-level ping; the pong's round-trip is delivered via `onPong` (HUD latency). */
   ping: () => void;
+  /** Forward a batch of captured input events to the daemon (`{t:'input', events}`). */
+  sendInput: (events: InputEvent[]) => void;
 }
 
 export function useRemoteViewSession(
@@ -387,5 +390,16 @@ export function useRemoteViewSession(
     }
   }, []);
 
-  return { state, reclaim, detach, returnToPicker, requestKeyframe, ping };
+  const sendInput = useCallback((events: InputEvent[]) => {
+    const ws = wsRef.current;
+    if (events.length > 0 && ws && ws.readyState === WebSocket.OPEN) {
+      try {
+        ws.send(JSON.stringify({ t: 'input', events }));
+      } catch {
+        /* noop */
+      }
+    }
+  }, []);
+
+  return { state, reclaim, detach, returnToPicker, requestKeyframe, ping, sendInput };
 }

@@ -49,6 +49,15 @@ _Per-task entries appended below as each task completes._
 
 > **Finding-ID note:** this companion run numbers its findings F001… afresh, so **F003/F004/F005 here are Phase-3 findings** and collide numerically with the **Phase-2** companion findings referenced in code comments (P2-F003 normalized coords, P2-F004 displaced trap, P2-F005 fixture dims). Code comments tagged `F003`/`F004`/`F007` refer to the **Phase-2** invariants; this table's F003–F005 are **this run's** T004 findings.
 
+### T006 — Input capture
+
+**Done.** Pointer/keyboard/wheel captured on the focusable canvas → normalized protocol `input`.
+- **New** `hooks/use-input-capture.ts` — focusable-canvas capture (Workshop 001 §Focus); coords normalized `[0,1]` + clamped (P2-F003, daemon owns the pixel map); **rAF-batched** into one `{t:'input', events}` per frame with `mousemove` runs coalesced; buttons 0/1/2 (ButtonSchema); keydown/keyup with modifiers; **`Meta+Shift+Escape` release chord** (keyed on `e.code`, not forwarded) while plain `Escape` IS forwarded; returns `{capturing}`.
+- **Mod (additive)** `hooks/use-remote-view-session.ts` — `sendInput(events)` → `{t:'input', events}` on the socket.
+- **Mod** `components/viewport.tsx` — canvas `tabIndex=0`/`outline-none`; `useInputCapture` wired to `sendInput` (enabled when live/degraded); "keys captured" indicator (`remote-view-capturing`).
+- **Tests**: `use-input-capture.test.tsx` (RTL/jsdom, **2 green** — normalize+clamp+coalesce+button serialize; keydown modifiers + chord-not-forwarded). Pure DOM→protocol, no WebCodecs.
+- **Evidence**: biome clean; web typecheck = 12 (**0 net-new**); remote-view dir **51/51** (hook 10, picker 2, capture 2, Phase 2). Live land-at-coordinates fidelity is Phase 4/6; in-browser capture is T007's smoke.
+
 ### T003 — Window picker
 
 **Done.** The picker renders against the fake (AC-1) and attaching transitions to the viewport slot.
