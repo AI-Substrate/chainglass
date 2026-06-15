@@ -177,6 +177,10 @@ extension ClientMessage: Codable {
         let t = try c.decode(String.self, forKey: .t)
         switch t {
         case "hello":
+            // Unlike the TS schema (`z.literal(1)`), the codec accepts any `v` ON PURPOSE: the
+            // daemon must *decode* a wrong-version hello to answer `error{E_VERSION}` before
+            // `hello-ok` (dossier T006). Version enforcement lives at the WSServer gate, not the
+            // codec (F003) — verified by the headless smoke (`hello{v:2}` → E_VERSION).
             self = .hello(v: try c.decode(Int.self, forKey: .v),
                           session: try c.decode(String.self, forKey: .session))
         case "input":
@@ -188,6 +192,14 @@ extension ClientMessage: Codable {
         case "resume":
             self = .resume
         case "client-stats":
+            // TS pins `e2eLatencyMs` as required-but-nullable (`z.number().nullable()`): the key
+            // must be present, the value may be `null`. Enforce presence so an omitted field is
+            // rejected like Zod would (F004); explicit `null` still decodes to `nil`.
+            guard c.contains(.e2eLatencyMs) else {
+                throw DecodingError.keyNotFound(CodingKeys.e2eLatencyMs, .init(
+                    codingPath: c.codingPath,
+                    debugDescription: "client-stats requires e2eLatencyMs (nullable)"))
+            }
             self = .clientStats(decodeFps: try c.decode(Double.self, forKey: .decodeFps),
                                 queueDepth: try c.decode(Double.self, forKey: .queueDepth),
                                 e2eLatencyMs: try c.decodeIfPresent(Double.self, forKey: .e2eLatencyMs))

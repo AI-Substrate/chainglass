@@ -148,8 +148,16 @@ Phase 5 **reads** this registry (spawn/reaper) — out of scope here. `just stre
 
 ## Companion findings reconciliation
 
-_Populated as the companion replies (ackOf → review-request)._
+The Batch A companion (run `…69f6`) **did** review every commit and emitted **7 findings + 5 verdicts on the inside lane** — but the orchestrator read the outside lane and recorded "no findings" (minih inside/outside read-path bug, [#47](https://github.com/AI-Substrate/minih/issues/47), escalated as [#50](https://github.com/AI-Substrate/minih/issues/50)). They were recovered post-hoc by reading `inbox/inside/messages.ndjson` directly, then **all fixed** (commit below). Batch A.2 ran in no-companion mode (boot didn't register a targetable run — #50).
 
-| Finding | Severity | Task | Disposition |
+| Finding | Severity | File | Disposition |
 |---------|----------|------|-------------|
-| _(none yet)_ | | | |
+| **F005** verifyJWT accepts tokens with **no `exp`** | **HIGH** | `Auth.swift` | **Fixed** — require `exp` (new `.missingExpiry`); a no-exp token is rejected. Test `testMissingExpiryRejected`. |
+| F001 `--registry`/`--bootstrap` abs-path not enforced | MEDIUM | `Config.swift` | **Fixed** — `.notAbsolutePath` thrown for non-`/` values. Test `testRejectsRelativePaths`. |
+| F002 `streamd-kill` broad `pkill` (shared install path) | MEDIUM | `justfile` | **Fixed** — kill via discovery-registry pids; `pkill` only as fallback. |
+| F003 codec accepts arbitrary `hello.v` (TS pins `v:1`) | MEDIUM | `Protocol.swift` | **Documented as intentional** — the daemon must decode a wrong-version hello to emit `E_VERSION`; enforcement is the WSServer gate (smoke-verified). Comment added. |
+| F004 `client-stats.e2eLatencyMs` key may be omitted | MEDIUM | `Protocol.swift` | **Fixed** — key presence required (value still nullable), parity with `z.number().nullable()`. Test `testClientStatsRequiresLatencyKey`. |
+| F006 rejection reason echoes attacker-controlled Origin | MEDIUM | `Auth.swift` | **Fixed** — generic `"origin not allowed"` reason. |
+| F007 heartbeat uses `>` not `>=` (exact-30s deadline missed) | MEDIUM | `SessionTable.swift` | **Fixed** — `>=`; a sweep at exactly 30s reaps the viewer. Test `testHeartbeatTimeoutExactDeadline_R5`. |
+
+Evidence: `swift test` **66/66** (+4 regression tests) · `just streamd-smoke` **24/24** (wire 18 + lifecycle 6) still green after the fixes.

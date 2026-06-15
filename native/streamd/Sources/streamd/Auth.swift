@@ -70,6 +70,7 @@ enum RemoteViewAuth {
         case badSignature
         case wrongIssuer
         case wrongAudience
+        case missingExpiry
         case expired
         case missingSubject
         case bootstrapMissing
@@ -105,7 +106,10 @@ enum RemoteViewAuth {
         }
         guard claims.iss == jwtIssuer else { return .failure(.wrongIssuer) }
         guard claims.aud == jwtAudience else { return .failure(.wrongAudience) }
-        if let exp = claims.exp, exp <= now { return .failure(.expired) }
+        // The frozen token route always mints `exp` (+300s). A token *without* `exp` would
+        // never expire — require it, or the 5-minute contract is silently defeated (F005).
+        guard let exp = claims.exp else { return .failure(.missingExpiry) }
+        guard exp > now else { return .failure(.expired) }
         guard !claims.sub.isEmpty else { return .failure(.missingSubject) }
         return .success(claims)
     }
@@ -167,7 +171,8 @@ enum RemoteViewAuth {
             return .rejected(code: 4402, errorCode: .eOrigin, reason: "origin null rejected")
         }
         guard allowedOrigins.contains(origin) else {
-            return .rejected(code: 4402, errorCode: .eOrigin, reason: "origin not allowed: \(origin)")
+            // Don't echo the attacker-controlled Origin back into the close reason / logs (F006).
+            return .rejected(code: 4402, errorCode: .eOrigin, reason: "origin not allowed")
         }
         guard let token, !token.isEmpty else {
             return .rejected(code: 4401, errorCode: .eAuth, reason: "missing auth token")

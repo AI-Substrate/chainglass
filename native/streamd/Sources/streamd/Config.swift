@@ -24,12 +24,14 @@ struct DaemonConfig: Equatable {
         case missingValue(flag: String)
         case invalidPort(String)
         case unknownFlag(String)
+        case notAbsolutePath(flag: String, value: String)
 
         var description: String {
             switch self {
             case .missingValue(let flag): return "missing value for \(flag)"
             case .invalidPort(let v): return "invalid --port value: \(v)"
             case .unknownFlag(let f): return "unknown flag: \(f)"
+            case .notAbsolutePath(let flag, let v): return "\(flag) must be an absolute path: \(v)"
             }
         }
     }
@@ -46,6 +48,12 @@ struct DaemonConfig: Equatable {
             guard i < args.count else { throw ParseError.missingValue(flag: flag) }
             return args[i]
         }
+        // T001 documents `--registry`/`--bootstrap` as `<abs path>`; enforce it (F001) — Phase 5
+        // always passes absolute paths via `open --args`, and the daemon never derives them.
+        func absolutePath(_ value: String, flag: String) throws -> String {
+            guard value.hasPrefix("/") else { throw ParseError.notAbsolutePath(flag: flag, value: value) }
+            return value
+        }
 
         while i < args.count {
             let arg = args[i]
@@ -57,9 +65,9 @@ struct DaemonConfig: Equatable {
                 }
                 port = p
             case "--registry":
-                registry = try nextValue(for: "--registry")
+                registry = try absolutePath(try nextValue(for: "--registry"), flag: "--registry")
             case "--bootstrap":
-                bootstrap = try nextValue(for: "--bootstrap")
+                bootstrap = try absolutePath(try nextValue(for: "--bootstrap"), flag: "--bootstrap")
             default:
                 throw ParseError.unknownFlag(arg)
             }

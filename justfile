@@ -132,8 +132,20 @@ streamd-smoke:
 streamd-install: streamd-build
     native/streamd/scripts/make-bundle.sh
 
+# Kill streamd precisely via the discovery-registry pids (the install path is shared across
+# worktrees, so a broad `pkill` would take down unrelated instances — F002). Falls back to the
+# bundle path only when no registry file is present.
 streamd-kill:
-    @pkill -f 'ChainglassStreamd.app/Contents/MacOS/streamd' && echo "streamd killed" || echo "no streamd running"
+    #!/usr/bin/env bash
+    killed=0
+    shopt -s nullglob
+    for f in .chainglass/streamd-*.json; do
+      pid=$(jq -r '.pid // empty' "$f" 2>/dev/null)
+      if [ -n "$pid" ] && kill "$pid" 2>/dev/null; then echo "killed streamd pid $pid (from $f)"; killed=1; fi
+    done
+    if [ "$killed" = 0 ]; then
+      pkill -f 'ChainglassStreamd.app/Contents/MacOS/streamd' && echo "streamd killed (by bundle path)" || echo "no streamd running"
+    fi
 
 # Start harness dev container
 harness-dev:

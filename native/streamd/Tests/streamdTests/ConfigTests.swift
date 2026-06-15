@@ -43,4 +43,11 @@ final class ConfigTests: XCTestCase {
         XCTAssertThrowsError(try DaemonConfig.parse(["--port"]))
         XCTAssertThrowsError(try DaemonConfig.parse(["--registry"]))
     }
+
+    func testRejectsRelativePaths() {
+        // T001 documents `--registry`/`--bootstrap` as `<abs path>`; enforce it (F001).
+        XCTAssertThrowsError(try DaemonConfig.parse(["--registry", "rel/r.json"]))
+        XCTAssertThrowsError(try DaemonConfig.parse(["--bootstrap", "b.json"]))
+        XCTAssertNoThrow(try DaemonConfig.parse(["--registry", "/tmp/r.json", "--bootstrap", "/tmp/b.json"]))
+    }
 }

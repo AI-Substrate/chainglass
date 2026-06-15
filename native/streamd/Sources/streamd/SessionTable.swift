@@ -162,7 +162,9 @@ final class SessionTable {
         for (id, var session) in store {
             switch session.state {
             case .streaming:
-                if now - session.lastHeartbeatAt > heartbeatDeadlineSeconds, let viewer = session.viewer {
+                // R5: dead after 2 missed heartbeats (15s × 2 = 30s). Use `>=` so a sweep at the
+                // exact 30s deadline reaps the zombie viewer rather than deferring a cycle (F007).
+                if now - session.lastHeartbeatAt >= heartbeatDeadlineSeconds, let viewer = session.viewer {
                     viewerIndex[viewer] = nil
                     session.viewer = nil
                     session.state = .unwatched

@@ -64,6 +64,15 @@ final class ProtocolTests: XCTestCase {
         XCTAssertTrue(latencies.contains { $0 == 42 })
     }
 
+    func testClientStatsRequiresLatencyKey() {
+        // F004 — TS pins e2eLatencyMs as required-but-nullable. Explicit null parses (→ nil);
+        // an omitted key is rejected (whole message → nil), matching z.number().nullable().
+        let withNull = ClientMessage.parse(#"{"t":"client-stats","decodeFps":30,"queueDepth":1,"e2eLatencyMs":null}"#)
+        guard case .clientStats(_, _, let e2e)? = withNull else { return XCTFail("explicit-null client-stats should parse") }
+        XCTAssertNil(e2e)
+        XCTAssertNil(ClientMessage.parse(#"{"t":"client-stats","decodeFps":30,"queueDepth":1}"#))
+    }
+
     func testAllErrorCodesStatesAndByeReasonsPresent() throws {
         var codes = Set<ErrorCode>(), reasons = Set<ByeReason>(), states = Set<WindowStateName>()
         for msg in try loadFixture().server {

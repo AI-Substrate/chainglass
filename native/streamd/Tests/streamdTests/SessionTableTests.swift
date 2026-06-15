@@ -102,6 +102,15 @@ final class SessionTableTests: XCTestCase {
         XCTAssertEqual(t.state("s1"), .unwatched)
     }
 
+    func testHeartbeatTimeoutExactDeadline_R5() {
+        // F007 — a sweep at exactly the 30s deadline must reap the zombie viewer (`>=`, not `>`).
+        let t = table()
+        t.create(sessionId: "s1", windowId: 1, now: 0)
+        _ = t.attach(sessionId: "s1", viewer: "A", now: 0)
+        XCTAssertEqual(t.sweep(now: 30), [.heartbeatTimeout(sessionId: "s1", viewer: "A")])
+        XCTAssertEqual(t.state("s1"), .unwatched)
+    }
+
     func testHeartbeatRefreshKeepsStreaming() {
         let t = table()
         t.create(sessionId: "s1", windowId: 1, now: 0)
