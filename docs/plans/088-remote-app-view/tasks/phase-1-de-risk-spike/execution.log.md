@@ -57,8 +57,22 @@ The Screen Recording + Accessibility TCC prompts were triggered (`preflight --re
 - **Result**: `synth` produced `external-research/fixtures/` — 120 frames @30fps, 2 keyframes, 42 KiB, `codec=avc1.64001e`, 38-byte avcC. Decoded clean by T004 (round-trip = the manifest's acceptance test, per dossier).
 - **Manifest** gained an additive `source` field (`synthetic-vt` | `sck-capture`) for honest provenance; shapes are identical so Task 2.4/3.4 consume either. The committed seed is `synthetic-vt`; a real captured-Godot set overwrites it when T001 unblocks.
 
-## T001 / T003 / T005 — 🔴 BLOCKED on host-Mac grants
+## T001 / T003 / T005 — ✅ COMPLETE (2026-06-15, after grants landed)
 
-All code written + built; cannot execute without the TCC grants above. Resume steps are in [spike-findings.md](../../external-research/spike-findings.md) §§ 1.1, 1.3, 1.5.
+Grants were given to **Ghostty** (the controlling terminal — that's what TCC attributes CLI runs to, not "tmux") for Screen Recording + Accessibility, plus the **`chainglass-dev` cert** + **`Chainglass Streamer.app`** (`com.chainglass.streamd`) grant for the T005 stable-identity test.
+
+**The unlock (cross-cutting):** SCStream needs CoreGraphics initialized. A bare CLI aborts `CGS_REQUIRE_INIT` even via `open`/`launchctl asuser`; `screencapture` works because it inits CG. Fix = headless `NSApplication` before SCStream/CGEvent. Diagnosis path: `launchctl managername` = `Background`; `screencapture` succeeded from the same context → isolated it to CG-init, not session/permission.
+
+- **T001 ✅** Godot (occluded) **45.0 fps avg / 60s** (≥30 AC-2 floor); Simulator deliver-on-change (drops when static). Stills + fps logs in `spike/captures/`.
+- **T002 ✅** real captured fixture (254 frames, `avc1.640020`, 800×656, `source: sck-capture`) → `external-research/fixtures/`.
+- **T003 ✅** mouse click/drag + keyboard text both land in Godot (keyboard needs focus — click-first).
+- **T004 ✅** real fixture decoded **254/254** on Chromium (`decode-report-real-capture.json`).
+- **T005 ✅** (a) stable-cert grant persisted across rebuild+resign; ad-hoc re-prompted (Finding 02 live). (b) bundle TCC attribution by id+cert. (c) CGWindowID `34202` stable across ~30min + dozens of restarts.
+
+## T006 — ✅ findings written; workshops updated
+
+`spike-findings.md` = **GO** on all 7 questions (no hard "no" → Phase 2+ may proceed). Workshop dispositions: W004 Q1 RESOLVED-YES, W002 R6 CONFIRMED, W003 Q1 + W002 grace DEFERRED.
+
+**Phase 1 complete — GO.** Outstanding for later phases (carried forward, not blockers): CG-init in the daemon (Task 4.3), reuse `chainglass-dev`+`com.chainglass.streamd` (Task 4.1), keyboard-focus handling (Task 4.5), Safari decode re-test (backlog).
 
 ---

@@ -48,9 +48,18 @@ final class CaptureOutput: NSObject, SCStreamOutput, SCStreamDelegate {
 /// Starts a per-window SCK stream. Dimensions are window points × screen scale,
 /// rounded down to even (VideoToolbox requirement when the buffers feed encode).
 func startStream(window: SCWindow, fps: Int, output: CaptureOutput) -> (SCStream, Int, Int) {
+    // Initialize the Cocoa/WindowServer (CGS) connection SCStream requires. A bare
+    // CLI skips this and SCStream aborts with CGS_REQUIRE_INIT; `screencapture`
+    // works precisely because it brings CoreGraphics up. Accessing NSApplication
+    // .shared on the main thread establishes the connection (headless, no dock).
+    _ = NSApplication.shared
+    NSApplication.shared.setActivationPolicy(.prohibited)
     let filter = SCContentFilter(desktopIndependentWindow: window)
     let cfg = SCStreamConfiguration()
-    let scale = NSScreen.main?.backingScaleFactor ?? 2.0
+    // Fixed scale (Retina default) instead of NSScreen.main — AppKit's NSScreen
+    // needs a full GUI-app (NSApplication) context and asserts when this runs as
+    // a bare tool injected into the Aqua session via launchctl asuser.
+    let scale = Double(flagValue("--scale") ?? "2.0") ?? 2.0
     var width = max(16, Int(window.frame.width * scale))
     var height = max(16, Int(window.frame.height * scale))
     width -= width % 2

@@ -61,6 +61,10 @@ func doTypeKeycodes() {
 }
 
 func runInject() {
+    // Same CGS/WindowServer init the capture path needs (CGEvent/CGWindow calls
+    // touch CoreGraphics); a bare CLI otherwise risks the CGS_REQUIRE_INIT abort.
+    _ = NSApplication.shared
+    NSApplication.shared.setActivationPolicy(.prohibited)
     guard AXIsProcessTrusted() else {
         let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
         _ = AXIsProcessTrustedWithOptions(opts)

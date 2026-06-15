@@ -31,7 +31,11 @@ EOF
 
 openssl req -x509 -newkey rsa:2048 -keyout "$TMP/key.pem" -out "$TMP/cert.pem" \
   -days 3650 -nodes -config "$TMP/ext.cnf"
-openssl pkcs12 -export -inkey "$TMP/key.pem" -in "$TMP/cert.pem" \
+# -legacy + SHA1 PBE/MAC: Apple's Security framework can't read OpenSSL-3's
+# default (SHA-256) PKCS12 MAC — `security import` fails "MAC verification failed".
+openssl pkcs12 -export -legacy -macalg sha1 \
+  -keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES \
+  -inkey "$TMP/key.pem" -in "$TMP/cert.pem" \
   -out "$TMP/cert.p12" -passout pass:spike
 
 security import "$TMP/cert.p12" -k "$KEYCHAIN" -P spike -T /usr/bin/codesign

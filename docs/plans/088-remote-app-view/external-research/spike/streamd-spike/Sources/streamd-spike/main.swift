@@ -27,6 +27,7 @@ guard let cmd = args.first else {
 
     subcommands:
       preflight [--request]                  print (and optionally request) Screen Recording + Accessibility grants
+      provoke   [--seconds N=300] [--log F]   request both grants + stay alive while a human grants (run from a signed .app via `open`)
       list                                   list shareable windows (app, title, id, frame)
       capture   --app S|--title S|--window-id N [--duration N=60] [--stills-every N=10] [--out DIR] [--label S]
       encode    --app S|--title S|--window-id N [--duration N=8] [--bitrate N=3000000] [--out DIR]
@@ -39,6 +40,7 @@ guard let cmd = args.first else {
 
 switch cmd {
 case "preflight": runPreflight()
+case "provoke": runProvoke()
 case "list": runList()
 case "capture": runCapture()
 case "encode": runEncode()
