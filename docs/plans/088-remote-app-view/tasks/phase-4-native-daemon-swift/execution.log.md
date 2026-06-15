@@ -50,6 +50,22 @@ Derived signals: S0 CLI present (`~/.npm-global/bin/harness`); **S2 governance a
 
 Cross-language drift guard GREEN on both sides (vitest + `swift test`). Deterministic — no host-Mac dependency.
 
+## T004 — WS auth + upgrade gate: JWT + Origin (CS-3, partly automated) — [~] (vector suite ✅; live WS wiring → T006/Batch B)
+
+**Landed (automatable, no permissions):**
+- `Sources/streamd/Auth.swift` — the frozen auth contract (Finding 03):
+  - `deriveSigningKey(fromCode:)` HKDF-SHA256 (salt `chainglass.signing.salt.v1`, info `chainglass.signing.info.v1`, 32 bytes) — byte-identical to Node `hkdfSync`; `signingKey(bootstrapPath:env:)` mirrors `activeSigningSecret` (AUTH_SECRET UTF-8 path, else HKDF over `.chainglass/bootstrap-code.json` `code`).
+  - `verifyJWT(_:key:now:)` HS256 via CryptoKit HMAC (constant-time `isValidAuthenticationCode`); base64url decode; asserts `iss=chainglass`, `aud=remote-view-ws`, `exp`, non-empty `sub`; **no `cwd`**. Never throws (typed `AuthError`).
+  - Origin allowlist mirror of `terminal-auth.ts`: `parseAllowedOrigins`, `buildDefaultAllowedOrigins`, `authorizeUpgrade` — bad origin → close **4402 E_ORIGIN**, bad/missing token → close **4401 E_AUTH** (remote-view close codes, AC-9).
+- `Tests/streamdTests/AuthVectorsTests.swift` — loads the SAME `test/contracts/remote-view-auth-vectors.json` (via `#filePath`).
+
+**Evidence (`swift test`): 32/32 green** (+9 AuthVectorsTests).
+- All 4 vectors verify byte-for-byte: `good` accepts (sub=remote-user); `expired`→`.expired`; `wrong-aud`→`.wrongAudience`; `wrong-key`→`.badSignature`.
+- HKDF matches the Node oracle byte-for-byte (`test-bootstrap-code-123` → `23b5e58b…690273`); AUTH_SECRET + bootstrap-file key paths derive correctly.
+- Origin gate: allowlist build/parse + `authorizeUpgrade` (happy / bad-origin / null-origin / missing-token / expired-token → correct 4401/4402 + error code).
+
+**Deferred to T006/Batch B:** wiring `authorizeUpgrade` into the live NWListener `/stream` upgrade + the manual bad-token/bad-origin close-code observation (needs the running daemon; no TCC grant required for this slice).
+
 ---
 
 ## Companion findings reconciliation
