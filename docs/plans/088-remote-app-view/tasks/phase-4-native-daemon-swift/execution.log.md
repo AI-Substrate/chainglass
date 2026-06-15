@@ -50,6 +50,25 @@ Derived signals: S0 CLI present (`~/.npm-global/bin/harness`); **S2 governance a
 
 Cross-language drift guard GREEN on both sides (vitest + `swift test`). Deterministic — no host-Mac dependency.
 
+## T003 — Capture + encode pipeline + FrameSource seam (CS-5) ✅ (code; live capture → Batch B)
+
+**Design pivot (the key Batch-A.2 enabler):** introduced a `FrameSource` seam so the WS server (T006) can be verified **headless, no TCC grant**.
+
+**Landed:**
+- `Sources/streamd/FrameSource.swift` — the seam:
+  - `VideoFrame{isKeyframe, captureTimestampMicros, avcc}` + `VideoConfig{codec, description, width, height, fps}` value types; `FrameSourceEvent` (`.config`/`.frame`/`.windowState`/`.windowGone`) — the event stream a source emits.
+  - `protocol FrameSource` — `window`, `config` (nil for live until first keyframe), `start(on:onEvent:)`, `requestKeyframe`/`pause`/`resume`/`stop`.
+  - `FixtureFrameSource` — replays the recorded Phase-1 H.264 fixtures (`protocol/fixtures/video/manifest.json` + `frames/*.bin`) at the manifest fps via a `DispatchSourceTimer`, loops, forces a keyframe on start/resume/`requestKeyframe` (jump to nearest keyframe). Foundation-only (no SCK/VTB) → runs on any host. The **daemon-side analogue of `fake-streamd.ts`**; this is what makes the T006 smoke real without a window.
+- `Sources/streamd/Encoder.swift` — `H264Encoder`: a `VTCompressionSession` wrapper. Recorded encode contract: H.264 High (AutoLevel; target High@3.2 = `avc1.640020`), `AllowFrameReordering=false` (P-frames only), `MaxKeyFrameInterval=60`, `ExpectedFrameRate`, force-keyframe on demand + frame 0. Emits one **AVCC** access unit per frame; lifts the base64 avcC (SPS/PPS) from the first keyframe's format-description atom for `video-config.description`; keyframe detected via `kCMSampleAttachmentKey_NotSync`.
+- `Sources/streamd/Capture.swift` — `CaptureFrameSource` (live): `SCStream` + `SCContentFilter(desktopIndependentWindow:)` per target window → `H264Encoder`; `SCStreamOutput` feeds pixel buffers; `SCStreamDelegate.didStopWithError` → `.windowGone`; pause/resume (resume → keyframe). CG-init precedes it (main.swift).
+
+**Evidence:**
+- `swift build` → **Build complete!** (Encoder.swift + Capture.swift compile against VideoToolbox + ScreenCaptureKit on Swift 6.2.4); `swift test` → still **53/53** (no behavioural change to the tested core; FixtureFrameSource is exercised live by the T006 headless smoke, not a unit test).
+
+**Deferred to the host-Mac visit (Batch B / T009):** live SCK capture (Screen-Recording grant), real VideoToolbox encode of a Godot window ≥30fps, resize→config+keyframe, window-gone. These need a GPU + a real window + the grant; the code is written and compiles.
+
+> **Companion note:** from T003 onward this phase runs in **no-companion mode** — the `code-review-companion` boot didn't register a targetable run this session (minih coordination-state schema error; `minih runs list` → 0). Batch A was already companion-reviewed (run …69f6). Per the implement-verb fallback, a post-hoc `/the-flow 7 review` is the recovery path for T003/T006.
+
 ## T004 — WS auth + upgrade gate: JWT + Origin (CS-3, partly automated) — [~] (vector suite ✅; live WS wiring → T006/Batch B)
 
 **Landed (automatable, no permissions):**
