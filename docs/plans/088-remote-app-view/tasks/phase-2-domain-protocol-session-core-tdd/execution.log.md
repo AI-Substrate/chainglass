@@ -46,4 +46,13 @@ Per-task entries are appended in order, above the footer marker.
 
 **Dep pin (Finding/validation)**: added `"zod": "^4.3.5"` to `apps/web/package.json` + synced `pnpm-lock.yaml` (offline; resolves to the already-hoisted `4.3.6`) — guards the v4 `discriminatedUnion` semantics against monorepo hoist drift (v3 deps coexist). Pre-existing unrelated peer warning (`@xterm/addon-canvas`) unchanged.
 
+## T004 — Binary 16-byte header codec ✅ (TDD: RED→GREEN)
+
+**Fixture ground truth**: generated `protocol/fixtures/frame-header.json` hex via an **independent** DataView reference (not `binary.ts`), so the committed bytes are trustworthy ground truth, not circular. Row 4 = `2^53+1` (9007199254740993) to force the BigInt u64 path.
+**RED→GREEN**: wrote `protocol-binary.test.ts` (5 cases, 5-field Test Docs) → implemented `protocol/binary.ts` (`encodeFrameHeader`/`decodeFrameHeader`/`encodeFrame`/`decodeFrame`/`toChunkInit`; DataView big-endian; `getBigUint64`/`setBigUint64` for u64). → **5 passed**.
+
+**Proven**: each fixture row encodes to its exact committed hex; decodes back (incl. u64 > 2^53 without precision loss); header+payload round-trip; `toChunkInit` yields `{type:'key'|'delta', timestamp:number, data}` (EncodedVideoChunk bridge, node-safe — no WebCodecs constructed); unknown frame type (0x02) + too-short buffers → `null` (drop silently).
+
+**Cross-language**: `frame-header.json` is the **binary** drift guard (Swift Task 4.2 matches byte-for-byte); folded into the T003 drift rule (any protocol change regenerates `messages.json` + `frame-header.json` and re-runs T003 + T004 + Task 4.2).
+
 <!-- next-entry: append new task entries above this line -->
