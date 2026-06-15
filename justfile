@@ -94,6 +94,10 @@ test-pipeline:
 test-harness:
     cd harness && pnpm vitest run
 
+# Plan 088 Phase 3 — host streaming smoke: real Chrome + fake-streamd + WebCodecs on the Mac
+remote-view-stream-smoke:
+    npx tsx harness/host/remote-view-stream-smoke.mts
+
 # Start harness dev container
 harness-dev:
     cd harness && just dev

@@ -64,6 +64,15 @@ _Per-task entries appended below as each task completes._
 - **Tests**: `use-input-capture.test.tsx` (RTL/jsdom, **2 green** — normalize+clamp+coalesce+button serialize; keydown modifiers + chord-not-forwarded). Pure DOM→protocol, no WebCodecs.
 - **Evidence**: biome clean; web typecheck = 12 (**0 net-new**); remote-view dir **51/51** (hook 10, picker 2, capture 2, Phase 2). Live land-at-coordinates fidelity is Phase 4/6; in-browser capture is T007's smoke.
 
+### T007 — Host streaming smoke (scope pivot per user directive)
+
+**Done — GREEN.** The browser smoke was pivoted from the Docker harness to a **Mac-host** run, per the user's directive ("docker is hard on a mac… ok to test on the mac directly to ensure the mac streaming works"). The running container is 12 days stale (pre-Phase-3) and would need a full image rebuild to test this code; on the host, the fake's `127.0.0.1` bind is directly reachable.
+- **New** `harness/host/remote-view-stream-smoke.mts` — launches **real system Google Chrome** (`channel:'chrome'`), serves a minimal harness over `http://127.0.0.1` (secure context), and runs the real pipeline: `fake-streamd` (real `ws` + protocol + 16-byte codec + 254 real sck-capture frames) → WebSocket → WebCodecs `VideoDecoder` (avc1, avcC from `video-config`) → `<canvas>`. The decode loop mirrors the viewport (data-driven config, keyframe resync, header parse).
+- **Result**: `webcodecs=true configured=true decoded=67 err=none → PASS`. A real Mac browser decodes the real H.264 stream end-to-end.
+- **Run**: `npx tsx harness/host/remote-view-stream-smoke.mts` (also `just remote-view-stream-smoke`).
+- **Gotchas hit + fixed**: WebCodecs needs a **secure context** (was 0 frames on `about:blank`/`setContent` → served over `http://127.0.0.1`); H.264 needs **`channel:'chrome'`** (Playwright's bundled chromium has no proprietary codecs); **tsx/esbuild `keepNames`** injected a `__name` helper into `page.evaluate(fn)` that doesn't exist in the page (`__name is not defined`) → browser code passed as **strings**.
+- **Scope**: this proves the **streaming pipeline** (AC-12, the core "does it stream on a Mac" question). The full-app UI smoke (picker→attach→viewport inside the running Next app, terminal-over/beside, switch-back, two-context displace/reclaim) + the container CI spec are deferred to **Phase 6 live** / a harness rebuild; the component/state logic is already covered by the unit suites (hook R1–R9 vs the fake = 11 tests, picker 2, capture 2) and the guards (T002 dep, T008 bundle).
+
 ### T003 — Window picker
 
 **Done.** The picker renders against the fake (AC-1) and attaching transitions to the viewport slot.
