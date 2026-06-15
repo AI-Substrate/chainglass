@@ -89,4 +89,22 @@ Exports `MAX_RECONNECT_ATTEMPTS`, `RECONNECT_BACKOFF_MS`, `initialState`, `trans
 
 Pre-existing env wart (non-fatal): tsconfck `EXTENDS_RESOLVE` warning from the stale `apps/cli/dist` tsconfig; tests pass.
 
+## T007 — Reconnect hook (use-remote-view-session) ✅ (TDD against the live fake)
+
+`hooks/use-remote-view-session.ts` wires the T006 reducer to a real `WebSocket`, tested against the T005 fake. **7 tests green.** Extended the fake with two cues needed here: `dropViewer` (unexpected 1011 close) + `failConnections` (simulated down/restarting daemon).
+
+**Races covered (client-observable, via the real socket):**
+- **R1** — connect/reattach → `live` on the first keyframe (reaching live PROVES first-frame-is-keyframe).
+- **degraded↔live** — no frame for `stallMs` → `degraded`; next frame → `live`.
+- **R2/R3** — `displaced` message → `displaced`; stays displaced through the following clean close (no auto-reconnect, R3); `reclaim()` → `live` again.
+- **reconnect** — unexpected drop → `reconnecting` (observed) → backoff reconnect → `live`.
+- **R6 healthy** — drop + failing connections → 3 exhausted reconnects → health `true` → `sessionLost` → `createSession(windowId)` **once** → `live` on the new session id.
+- **R6 unhealthy** — same, health `false` → `daemonDown` (10th state).
+- **error mapping** — `window-state gone` → `windowGone`; `error E_PERMISSION` → `error` (errorCode carried).
+- Stale-socket guard (`wsRef.current !== ws`, PL-03) on open/message/close; superseded sockets closed 4001 (R7).
+- **R4** — agent-attach push is Phase 5 (SSE); its client half reduces to R2 (latest handshake wins) — not separately tested here, per the dossier.
+- **R8** — `minimized` window-state needs no special handling (daemon auto-restores) — the hook ignores it.
+
+**Deliberate deviation (logged)**: the dossier suggested `vi.useFakeTimers()`. The hook owns a REAL socket against the fake, and faked timers + un-faked network I/O deadlock (faked `setTimeout` can't co-advance with real socket callbacks). I used **real timers with injected short durations** (`stallMs`, `backoffMs`) instead — same speed outcome (full suite ~1.7s, no 30s waits), no flakiness. The hook exposes both as options so prod keeps 2000ms / [250,1000,3000].
+
 <!-- next-entry: append new task entries above this line -->

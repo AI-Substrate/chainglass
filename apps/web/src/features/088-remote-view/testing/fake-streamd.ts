@@ -100,6 +100,10 @@ export interface FakeStreamd {
   sendError(code: ErrorCode, message: string, fatal: boolean, session?: string): void;
   /** Emit a WS-level heartbeat ping to the viewer. */
   sendHeartbeatPing(session?: string): void;
+  /** Abruptly drop the viewer socket (code 1011) — an UNEXPECTED close (R5/reconnect substrate). */
+  dropViewer(session?: string): void;
+  /** Simulate a down/restarting daemon: immediately close every new connection (R6 substrate). */
+  failConnections(on: boolean): void;
   close(): Promise<void>;
 }
 
@@ -119,6 +123,7 @@ export async function startFakeStreamd(opts: FakeStreamdOptions = {}): Promise<F
   const inputLog: InputEvent[] = [];
   const received: ClientMessage[] = [];
   let latestSession: string | null = null;
+  let failNewConnections = false;
 
   const wss = new WebSocketServer({ host: '127.0.0.1', port: 0 });
   await new Promise<void>((resolve, reject) => {
@@ -201,6 +206,11 @@ export async function startFakeStreamd(opts: FakeStreamdOptions = {}): Promise<F
   }
 
   wss.on('connection', (ws: WebSocket, req) => {
+    if (failNewConnections) {
+      // Simulated down/restarting daemon — drop immediately (unexpected close).
+      ws.close(1011, 'daemon-down');
+      return;
+    }
     // Shape-only auth check (the real verify is the daemon's job, Task 4.4).
     const url = new URL(req.url ?? '/', 'http://localhost');
     if (!url.searchParams.get('session') || !url.searchParams.get('token')) {
@@ -319,6 +329,13 @@ export async function startFakeStreamd(opts: FakeStreamdOptions = {}): Promise<F
     sendHeartbeatPing: (session) => {
       const entry = resolveTarget(session);
       if (isOpen(entry?.ws ?? null)) entry?.ws?.ping();
+    },
+    dropViewer: (session) => {
+      const entry = resolveTarget(session);
+      if (entry && isOpen(entry.ws)) entry.ws.close(1011, 'drop'); // unexpected (code ≠ 1000)
+    },
+    failConnections: (on) => {
+      failNewConnections = on;
     },
     close: () =>
       new Promise<void>((resolve) => {
