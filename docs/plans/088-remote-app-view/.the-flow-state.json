@@ -3,13 +3,13 @@
   "slug": "remote-app-view",
   "plan_dir": "docs/plans/088-remote-app-view",
   "mode": "Full",
-  "current_stage": "awaiting-5",
-  "pending_command": "/the-flow 5 tasks --phase \"Phase 2: Domain, Protocol & Session Core (TDD)\" --plan \"docs/plans/088-remote-app-view/remote-app-view-plan.md\"",
+  "current_stage": "awaiting-7",
+  "pending_command": "/the-flow 7 review --plan \"docs/plans/088-remote-app-view/remote-app-view-plan.md\" --phase \"Phase 2: Domain, Protocol & Session Core (TDD)\"",
   "intent": "Remote view mode for chainglass: stream a single desktop app window (Godot game, iOS Simulator) from the host Mac into the content area with mouse/keyboard input; terminal over/beside it; agent-controllable via CLI/URL endpoints",
   "milestones_total": 7,
   "milestones_done": 5,
-  "last_checkpoint_at": "2026-06-15T00:44:55Z",
+  "last_checkpoint_at": "2026-06-15T02:13:10Z",
   "compacted_seams": [],
-  "harness_seam_outcome": "router installed; repo has no harness (S2/S4 owed) \u2014 proceeding without; --prompt-optional=false on later seam calls",
+  "harness_seam_outcome": "router installed; repo has no harness (S2/S4 owed) — proceeding without; --prompt-optional=false on later seam calls",
   "status": "active"
 }

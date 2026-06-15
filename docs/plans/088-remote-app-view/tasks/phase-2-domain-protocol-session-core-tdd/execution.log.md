@@ -147,4 +147,17 @@ Origin allowlist (`buildDefaultAllowedOrigins`/`parseAllowedOrigins`) is consume
 
 **Companion**: built with the live `code-review-companion`; debrief reconciliation below.
 
+## Companion debrief — code-review-companion (run 2026-06-15T11-25-24-146Z-ef34)
+
+| Item | Outcome |
+|------|---------|
+| Boot | ✅ booted + briefed at phase start (hazards: Finding 03 frozen auth, Finding 06 test infra, Finding 07 in-feature types; domain dep-direction) |
+| Per-commit pings | ✅ all 9 task commits pinged (T001–T009) as `review-request: T### <sha>`, fire-and-forget |
+| Drain + stop | drain ping sent; `control:stop` sent; host stopped (`verdict: dead`, `pid-vanished`); `minih reconcile` healed the record |
+| **Findings surfaced** | **0** — the companion sent **no** review replies the entire phase (212 internal tool calls / 10066 events were its own coordination poll loop, not review responses) |
+| Verdict | **Did NOT actively review** — 0 findings here is *non-engagement*, NOT a verified clean pass (same pattern as the Phase 1 companion run). |
+| magicWand | none returned |
+
+**Reconciliation**: because the live companion did not produce findings, a post-hoc **code review (stage 7)** of this phase is **still warranted** — it is NOT superseded. This is the first phase with real production code, so a review pass before building on it (Phase 3) is the recommended next step. (The companion affordance was honoured exactly per protocol; the non-engagement is a minih/Copilot-CLI runtime behaviour, not a coverage claim.)
+
 <!-- next-entry: append new task entries above this line -->

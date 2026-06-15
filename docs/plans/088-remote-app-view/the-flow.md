@@ -2,7 +2,7 @@
 # the-flow · remote-app-view (flight view)
 
 **Plan**: remote-app-view · **Mode**: Full · **Phases**: 6 (locked at architect)
-**Rail**: `[the-flow] ◆─◆─◆─◆─◐─◇─◇  research · spec · plan · tasks · [build 1/6] · review · merge`   ·   **now**: Phase 1 de-risk spike ✅ COMPLETE — all 7 verdicts GO · **next**: Phase 2 tasks (Domain, Protocol & Session Core)
+**Rail**: `[the-flow] ◆─◆─◆─◆─◐─◇─◇  research · spec · plan · tasks · [build 2/6] · review · merge`   ·   **now**: Phase 2 ✅ implemented — 51 tests green, AC-12 (web side daemon-absent) · **next**: review Phase 2 (recommended) · or Phase 3 tasks
 
 ```mermaid
 flowchart TD
@@ -17,13 +17,17 @@ flowchart TD
 
     %% ── spine ──
     R[Research]:::done --> S[Spec]:::done --> BP["Backpressure Check · noop (no repo harness)"]:::harness --> PL["Plan · READY 7/7 + validated"]:::done
-    PL --> P1["Phase 1: De-Risk Spike · ✅ COMPLETE — all GO"]:::done --> P2["Phase 2: Domain, Protocol & Session Core (TDD)"]:::known --> P3["Phase 3: Viewport UI & Content-Area Mode"]:::known --> P4["Phase 4: Native Daemon (Swift)"]:::known --> P5["Phase 5: Lifecycle, Agent Surface & Events"]:::known --> P6["Phase 6: Integration Hardening, Permissions UX & Docs"]:::known --> M[Merge]:::assumed
+    PL --> P1["Phase 1: De-Risk Spike · ✅ COMPLETE — all GO"]:::done --> P2["Phase 2: Domain, Protocol & Session Core · ✅ COMPLETE — 51 tests, AC-12"]:::done --> P3["Phase 3: Viewport UI & Content-Area Mode"]:::known --> P4["Phase 4: Native Daemon (Swift)"]:::known --> P5["Phase 5: Lifecycle, Agent Surface & Events"]:::known --> P6["Phase 6: Integration Hardening, Permissions UX & Docs"]:::known --> M[Merge]:::assumed
 
-    %% ── companion (wrapped the phase it was meant to review) ──
+    %% ── companions (each wrapped the phase it was meant to review) ──
     subgraph CW["⌖ code-review-companion · idle-timed-out before pings (0 review)"]
         P1
     end
     class CW companion
+    subgraph CW2["⌖ code-review-companion · 9 commits pinged · 0 review replies (non-engagement)"]
+        P2
+    end
+    class CW2 companion
 
     %% ── excursions ──
     R -.->|pre-flow| DR[["deep research · Perplexity"]]:::done
@@ -33,6 +37,8 @@ flowchart TD
     PL -.->|auto| V[["validate-v2 · 4 agents · VALIDATED WITH FIXES (11)"]]:::done
     P1 -.->|stage 5 + validate| T1[["Phase 1 tasks dossier · T000–T007 · 7 fixes"]]:::done
     P1 -.->|evidence| EV[["GO: capture 45fps · real fixture 254f decode 254/254 · mouse+kbd inject · stable-cert TCC · CGWindowID stable"]]:::done
+    P2 -.->|stage 5 + validate| T2[["Phase 2 tasks dossier · T000–T010 · VALIDATED · 15 fixes"]]:::done
+    P2 -.->|evidence| EV2[["GREEN daemon-absent: protocol+codec round-trips · fake replays 254f · 10-state FSM + R1–R9 · token route + auth vectors · service+DI · 51 tests"]]:::done
     M -.->|reflection| HH[["plan-complete seam · /eng-harness-flow"]]:::harness
 
     %% ── verbatim user-said bubbles ──
@@ -48,8 +54,12 @@ flowchart TD
     UT -.- T1
     UB>"🗣 build with companion mode"]:::said
     UB -.- P1
+    UG>"🗣 generate phase 2 then validatie"]:::said
+    UG -.- T2
+    UB2>"🗣 build with companion mode"]:::said
+    UB2 -.- P2
 ```
 
 **Legend**: 🟩 done · 🟧 in progress · 🟥 blocked · 🟦 known future (designed) · ⬜╴assumed future (dashed) · 🟨 🗣 verbatim user input · 🟪 harness seams · 🟦 companion (cyan)
 
-_Generated from `the-flow.json`. **Phase 1 de-risk spike is COMPLETE — every verdict GO**, so the riskiest native unknowns (SCK capture, VideoToolbox encode, WebCodecs decode, CGEvent input, stable-cert TCC persistence, CGWindowID stability) are retired before web code commits. Key carry-forwards to Phase 4: the daemon must init CoreGraphics (`NSApplication`) and reuse the `chainglass-dev` cert + `com.chainglass.streamd` identity (the grant given during the spike carries over). The companion idle-timed-out during the multi-day human-blocked grant wait before its review pings landed (recorded honestly; throwaway spike code, post-hoc review optional)._
+_Generated from `the-flow.json`. **Phase 2 is implemented and green** — 11 tasks (T001–T010), **51 tests across 8 files**, run serially. **AC-12 met**: the entire web side runs and passes with **no daemon** — the `remote-view` domain + dep-direction guard, the Zod wire protocol + 16-byte binary codec (with `messages.json` **and** `frame-header.json` as the cross-language drift guards for the Swift daemon, Task 4.2), the first-class frame-replay fake (254 owned `sck-capture` frames), the 10-state session machine + reconnect hook (R1/R2/R3/R5/R6/R7/R8/R9 incl. the `daemonDown` health fork), the frozen-contract token route (`aud=remote-view-ws`, no `cwd`) + pinned auth vectors (Task 4.4), and `IRemoteViewService` + Fake + DI + reusable contract suite. Two logged deviations: T007 uses real timers + injected short durations (fake-timer/real-socket deadlock), and `zod` pinned `^4.3.5` in `apps/web`. The live `code-review-companion` was booted + briefed and every commit was pinged, but it produced **0 review replies** (sat in its poll loop — same non-engagement as Phase 1) — so a **stage-7 review is NOT superseded**. **Next: review Phase 2** (recommended, since the companion didn't engage) — or generate Phase 3 tasks. Phase 1 carry-forwards still hold for Phase 4 (CoreGraphics `NSApplication` init; reuse `chainglass-dev` cert + `com.chainglass.streamd`)._
