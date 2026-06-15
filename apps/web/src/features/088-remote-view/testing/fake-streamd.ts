@@ -98,6 +98,17 @@ export interface FakeStreamd {
     session?: string
   ): void;
   sendError(code: ErrorCode, message: string, fatal: boolean, session?: string): void;
+  /** Emit a daemon `stats` frame (HUD telemetry). */
+  sendStats(
+    stats: Partial<{
+      captureFps: number;
+      encodeFps: number;
+      bitrateKbps: number;
+      droppedFrames: number;
+      bufferedAmount: number;
+    }>,
+    session?: string
+  ): void;
   /** Emit a WS-level heartbeat ping to the viewer. */
   sendHeartbeatPing(session?: string): void;
   /** Abruptly drop the viewer socket (code 1011) — an UNEXPECTED close (R5/reconnect substrate). */
@@ -336,6 +347,18 @@ export async function startFakeStreamd(opts: FakeStreamdOptions = {}): Promise<F
     sendError: (code, message, fatal, session) => {
       const entry = resolveTarget(session);
       if (entry) send(entry.ws, { t: 'error', code, message, fatal });
+    },
+    sendStats: (stats, session) => {
+      const entry = resolveTarget(session);
+      if (entry)
+        send(entry.ws, {
+          t: 'stats',
+          captureFps: stats.captureFps ?? 60,
+          encodeFps: stats.encodeFps ?? 60,
+          bitrateKbps: stats.bitrateKbps ?? 4000,
+          droppedFrames: stats.droppedFrames ?? 0,
+          bufferedAmount: stats.bufferedAmount ?? 0,
+        });
     },
     sendHeartbeatPing: (session) => {
       const entry = resolveTarget(session);

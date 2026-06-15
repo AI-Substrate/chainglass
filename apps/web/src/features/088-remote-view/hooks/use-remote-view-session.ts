@@ -81,6 +81,8 @@ export interface UseRemoteViewSessionOptions {
 
 export interface UseRemoteViewSessionResult {
   state: ViewportState;
+  /** The daemon-provided message from the last `error` frame (for the error card + support). */
+  errorMessage: string | null;
   /** Explicit reclaim from `displaced` (R3 — the only auto-free path back). */
   reclaim: () => void;
   /** Explicit detach → picker (daemon closes the session). */
@@ -127,6 +129,7 @@ export function useRemoteViewSession(
   const stallTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const connectRef = useRef<() => void>(() => {});
+  const lastErrorMessageRef = useRef<string | null>(null);
 
   // Only sync the target window id from a NON-null prop — never clobber an id
   // learned from hello-ok with a null prop (deep-link case), or R6 auto-recreate
@@ -215,6 +218,7 @@ export function useRemoteViewSession(
           break;
         case 'error':
           intentionalRef.current = msg.fatal; // a fatal error close shouldn't trigger reconnect
+          lastErrorMessageRef.current = msg.message; // preserve the daemon text for the error card (F007)
           dispatch({ type: 'ERROR', code: msg.code });
           break;
         case 'video-config':
@@ -401,5 +405,14 @@ export function useRemoteViewSession(
     }
   }, []);
 
-  return { state, reclaim, detach, returnToPicker, requestKeyframe, ping, sendInput };
+  return {
+    state,
+    errorMessage: lastErrorMessageRef.current,
+    reclaim,
+    detach,
+    returnToPicker,
+    requestKeyframe,
+    ping,
+    sendInput,
+  };
 }

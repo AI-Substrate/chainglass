@@ -13,7 +13,10 @@
  */
 import { useRemoteViewSession } from '@/features/088-remote-view/hooks/use-remote-view-session';
 import type { DecodedFrame } from '@/features/088-remote-view/protocol/binary';
-import type { VideoConfigMessage } from '@/features/088-remote-view/protocol/messages';
+import type {
+  StatsMessage,
+  VideoConfigMessage,
+} from '@/features/088-remote-view/protocol/messages';
 import {
   type FakeStreamd,
   startFakeStreamd,
@@ -312,5 +315,38 @@ describe('useRemoteViewSession', () => {
     await waitFor(() => {
       expect(fake.received.some((m) => m.t === 'request-keyframe')).toBe(true);
     });
+  });
+
+  it('telemetry plane: ping() → onPong RTT; sendStats → onStats [T005]', async () => {
+    /*
+    Test Doc:
+    - Why: the HUD reads latency from ping/pong RTT and (Phase 6) daemon stats; without coverage the telemetry plane added in T005 can regress silently until the browser smoke (companion F008).
+    - Contract: ping() puts {t:'ping',sentAt} on the wire and the pong's round-trip is delivered to onPong as a non-negative number; a daemon `stats` frame is delivered verbatim to onStats.
+    - Usage Notes: the fake answers ping→pong{sentAt,daemonAt}; sendStats is a fake cue added for this test. The viewport (WebCodecs) stays smoke-only; this covers the non-GPU hook contract.
+    - Quality Contribution: regression guard for the T005 hook extension (onPong/onStats/ping).
+    - Worked Example: ping() → onPong(rtt≥0); fake.sendStats({bitrateKbps:1234}) → onStats({…bitrateKbps:1234}).
+    */
+    let rtt: number | null = null;
+    const stats: StatsMessage[] = [];
+    const { result } = render({
+      onPong: (ms) => {
+        rtt = ms;
+      },
+      onStats: (s) => stats.push(s),
+    });
+    await waitFor(() => expect(result.current.state.name).toBe('live'));
+
+    act(() => {
+      result.current.ping();
+    });
+    await waitFor(() => expect(rtt).not.toBeNull());
+    expect(rtt ?? -1).toBeGreaterThanOrEqual(0);
+
+    act(() => {
+      fake.sendStats({ bitrateKbps: 1234, droppedFrames: 2 });
+    });
+    await waitFor(() => expect(stats.length).toBeGreaterThanOrEqual(1));
+    expect(stats[0].bitrateKbps).toBe(1234);
+    expect(stats[0].droppedFrames).toBe(2);
   });
 });

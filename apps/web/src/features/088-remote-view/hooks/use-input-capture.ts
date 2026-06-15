@@ -80,31 +80,44 @@ export function useInputCapture({
       schedule();
     };
 
+    // Capture only while the canvas is focused (Workshop 001 §Focus, F009). `pointerdown`
+    // is the entry — it focuses first, then sends; everything else is gated on focus, so
+    // hovering or scrolling an UNfocused viewport sends nothing to the remote app.
+    // Tracked via a synchronous local flag (set by focus/blur + the pointerdown entry)
+    // rather than document.activeElement, which is unreliable for <canvas> across engines.
+    let focused = false;
+    const isFocused = () => focused;
+
     const onPointerMove = (e: PointerEvent) => {
+      if (!isFocused()) return;
       const { x, y } = norm(e.clientX, e.clientY);
       push({ k: 'mousemove', x, y }, true);
     };
     const onPointerDown = (e: PointerEvent) => {
+      focused = true; // capture entry
       canvas.focus();
       if (e.button > 2) return; // ButtonSchema is 0/1/2 only
       const { x, y } = norm(e.clientX, e.clientY);
       push({ k: 'mousedown', x, y, button: e.button as 0 | 1 | 2 });
     };
     const onPointerUp = (e: PointerEvent) => {
-      if (e.button > 2) return;
+      if (!isFocused() || e.button > 2) return;
       const { x, y } = norm(e.clientX, e.clientY);
       push({ k: 'mouseup', x, y, button: e.button as 0 | 1 | 2 });
     };
     const onWheel = (e: WheelEvent) => {
+      if (!isFocused()) return; // let the page scroll when the viewport isn't focused
       e.preventDefault();
       const { x, y } = norm(e.clientX, e.clientY);
       push({ k: 'wheel', x, y, dx: e.deltaX, dy: e.deltaY });
     };
     const onKeyDown = (e: KeyboardEvent) => {
+      if (!isFocused()) return; // defensive: keyboard only while focused
       // Release chord: Meta+Shift+Escape drops capture and is NOT forwarded.
       // Keyed on `code` (layout-independent physical key, always present) not `key`.
       if (e.code === 'Escape' && e.metaKey && e.shiftKey) {
         e.preventDefault();
+        focused = false;
         canvas.blur();
         return;
       }
@@ -112,10 +125,17 @@ export function useInputCapture({
       push({ k: 'keydown', code: e.code, modifiers: modsOf(e) });
     };
     const onKeyUp = (e: KeyboardEvent) => {
+      if (!isFocused()) return;
       push({ k: 'keyup', code: e.code, modifiers: modsOf(e) });
     };
-    const onFocus = () => setCapturing(true);
-    const onBlur = () => setCapturing(false);
+    const onFocus = () => {
+      focused = true;
+      setCapturing(true);
+    };
+    const onBlur = () => {
+      focused = false;
+      setCapturing(false);
+    };
 
     canvas.addEventListener('pointermove', onPointerMove);
     canvas.addEventListener('pointerdown', onPointerDown);

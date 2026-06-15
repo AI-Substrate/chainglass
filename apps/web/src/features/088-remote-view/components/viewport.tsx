@@ -203,7 +203,7 @@ export function Viewport({ url, session, windowId, onExit }: ViewportProps) {
     droppedRef.current = stats.droppedFrames;
   }, []);
 
-  const { state, reclaim, requestKeyframe, ping, sendInput } = useRemoteViewSession({
+  const { state, errorMessage, reclaim, requestKeyframe, ping, sendInput } = useRemoteViewSession({
     url,
     session,
     windowId,
@@ -276,7 +276,7 @@ export function Viewport({ url, session, windowId, onExit }: ViewportProps) {
               data-testid="remote-view-hud"
               className="absolute right-2 top-2 rounded bg-black/60 px-2 py-1 font-mono text-[11px] text-white/80"
             >
-              {hud.fps} fps · {hud.latencyMs == null ? '—' : `${hud.latencyMs}ms`} ·{' '}
+              {hud.fps} fps · rtt {hud.latencyMs == null ? '—' : `${hud.latencyMs}ms`} ·{' '}
               {hud.bitrateKbps} kbps · {hud.dropped} dropped
             </div>
           )}
@@ -291,6 +291,7 @@ export function Viewport({ url, session, windowId, onExit }: ViewportProps) {
           <ViewportChrome
             name={state.name}
             errorCode={state.errorCode}
+            errorMessage={errorMessage}
             onReclaim={reclaim}
             onExit={onExit}
           />
@@ -303,11 +304,13 @@ export function Viewport({ url, session, windowId, onExit }: ViewportProps) {
 function ViewportChrome({
   name,
   errorCode,
+  errorMessage,
   onReclaim,
   onExit,
 }: {
   name: ViewportStateName;
   errorCode: ErrorCode | null;
+  errorMessage: string | null;
   onReclaim: () => void;
   onExit: () => void;
 }) {
@@ -362,7 +365,9 @@ function ViewportChrome({
     body = 'Could not reach the streamer on the host Mac.';
   } else {
     title = 'Stream error';
-    body = errorCode ? ERROR_TEXT[errorCode] : 'The stream stopped unexpectedly.';
+    // Prefer the daemon's message (F007); ERROR_TEXT is the fallback and always names the
+    // E_PERMISSION grant (AC-14). The stable code is shown as a badge for support/agents.
+    body = errorMessage ?? (errorCode ? ERROR_TEXT[errorCode] : 'The stream stopped unexpectedly.');
   }
 
   return (
@@ -372,6 +377,14 @@ function ViewportChrome({
     >
       <div className="flex max-w-sm flex-col items-center gap-3 rounded-lg border border-white/15 bg-background p-6 text-center">
         <div className="text-sm font-medium">{title}</div>
+        {name === 'error' && errorCode && (
+          <code
+            data-testid="remote-view-error-code"
+            className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px]"
+          >
+            {errorCode}
+          </code>
+        )}
         <div className="text-xs text-muted-foreground">{body}</div>
         <div className="flex gap-2">
           {name === 'displaced' && (

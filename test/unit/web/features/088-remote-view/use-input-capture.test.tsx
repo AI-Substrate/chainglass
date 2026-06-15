@@ -21,6 +21,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 function makeCanvas(): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
+  canvas.tabIndex = 0; // focusable so the capture focus-gate (F009) can engage in jsdom
   canvas.getBoundingClientRect = () =>
     ({
       left: 0,
@@ -47,12 +48,17 @@ describe('useInputCapture', () => {
   });
 
   function mount(send: (e: InputEvent[]) => void) {
-    return renderHook(() => useInputCapture({ canvasRef: { current: canvas }, send }));
+    // Stable ref object (created once per mount, not per render) — mirrors the viewport's
+    // useRef. An inline `{ current }` would change identity each render and re-run the
+    // capture effect (resetting the focus flag) when setCapturing fires.
+    const ref = { current: canvas };
+    return renderHook(() => useInputCapture({ canvasRef: ref, send }));
   }
 
   it('normalizes + clamps coords, coalesces moves, serializes click buttons (AC-3)', async () => {
     const batches: InputEvent[][] = [];
     mount((e) => batches.push(e));
+    canvas.dispatchEvent(new Event('focus')); // capture is focus-gated (F009)
 
     canvas.dispatchEvent(new MouseEvent('pointermove', { clientX: 400, clientY: 300 }));
     canvas.dispatchEvent(new MouseEvent('pointermove', { clientX: 1200, clientY: -50 })); // out of frame
@@ -71,6 +77,7 @@ describe('useInputCapture', () => {
   it('serializes keydown with modifiers; Meta+Shift+Escape releases (not forwarded)', async () => {
     const batches: InputEvent[][] = [];
     mount((e) => batches.push(e));
+    canvas.dispatchEvent(new Event('focus')); // capture is focus-gated (F009)
 
     canvas.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW', shiftKey: true }));
     canvas.dispatchEvent(
@@ -86,5 +93,41 @@ describe('useInputCapture', () => {
     });
     // the release chord is swallowed — never serialized to the app
     expect(flat.some((e) => e.k === 'keydown' && e.code === 'Escape')).toBe(false);
+  });
+
+  it('sends nothing before focus; pointerdown enables capture; blur stops it [F009]', async () => {
+    /*
+    Test Doc:
+    - Why: Workshop 001 §Focus requires capture ONLY while focused — hovering/scrolling an unfocused
+      viewport must not drive the remote app (companion F009, HIGH). Before the fix, pointermove/up/wheel
+      serialized regardless of focus.
+    - Contract: with the canvas unfocused, pointermove + wheel send nothing; a pointerdown focuses (the
+      capture entry) and then a pointermove serializes; after blur, subsequent moves are dropped.
+    - Usage Notes: gate is `document.activeElement === canvas` (synchronous); pointerdown calls focus()
+      before sending. jsdom canvas has tabIndex so focus()/blur() move activeElement.
+    - Quality Contribution: regression guard for the focus-capture safety contract.
+    - Worked Example: unfocused pointermove → 0 events; pointerdown→focus→pointermove → mousedown+mousemove.
+    */
+    const batches: InputEvent[][] = [];
+    mount((e) => batches.push(e));
+
+    // Unfocused: hovering + scrolling send nothing.
+    canvas.dispatchEvent(new MouseEvent('pointermove', { clientX: 100, clientY: 100 }));
+    canvas.dispatchEvent(new Event('wheel'));
+    await new Promise((r) => setTimeout(r, 60));
+    expect(batches.flat()).toHaveLength(0);
+
+    // pointerdown is the capture entry: it focuses, then a move serializes.
+    canvas.dispatchEvent(new MouseEvent('pointerdown', { clientX: 400, clientY: 300, button: 0 }));
+    canvas.dispatchEvent(new MouseEvent('pointermove', { clientX: 80, clientY: 60 }));
+    await waitFor(() => expect(batches.flat().some((e) => e.k === 'mousemove')).toBe(true));
+    expect(batches.flat().some((e) => e.k === 'mousedown')).toBe(true);
+
+    // blur stops capture → later moves are dropped.
+    const before = batches.flat().length;
+    canvas.dispatchEvent(new Event('blur'));
+    canvas.dispatchEvent(new MouseEvent('pointermove', { clientX: 10, clientY: 10 }));
+    await new Promise((r) => setTimeout(r, 60));
+    expect(batches.flat().length).toBe(before);
   });
 });
