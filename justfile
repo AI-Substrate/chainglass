@@ -132,9 +132,10 @@ streamd-smoke:
 streamd-install: streamd-build
     native/streamd/scripts/make-bundle.sh
 
-# Kill streamd precisely via the discovery-registry pids (the install path is shared across
-# worktrees, so a broad `pkill` would take down unrelated instances — F002). Falls back to the
-# bundle path only when no registry file is present.
+# Kill streamd precisely via the discovery-registry pids. The signed bundle install path is shared
+# across worktrees, so a broad `pkill -f <bundle path>` would take down another worktree's daemon
+# (F002/F014). We therefore ONLY kill registry-backed pids; with no registry file we refuse to
+# broad-pkill and tell you how to target a specific instance explicitly.
 streamd-kill:
     #!/usr/bin/env bash
     killed=0
@@ -144,7 +145,9 @@ streamd-kill:
       if [ -n "$pid" ] && kill "$pid" 2>/dev/null; then echo "killed streamd pid $pid (from $f)"; killed=1; fi
     done
     if [ "$killed" = 0 ]; then
-      pkill -f 'ChainglassStreamd.app/Contents/MacOS/streamd' && echo "streamd killed (by bundle path)" || echo "no streamd running"
+      echo "no registry-backed streamd pid found (.chainglass/streamd-*.json)."
+      echo "refusing to broad-pkill the shared bundle path; target one explicitly, e.g.:"
+      echo "  kill \$(lsof -ti tcp:<port>)        # the daemon serving a known port"
     fi
 
 # Start harness dev container

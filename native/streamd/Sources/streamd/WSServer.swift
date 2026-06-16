@@ -37,6 +37,12 @@ final class WSServer {
     private var nextViewerSeq = 0
 
     private let backpressureLimit = 512 * 1024
+    private let maxHeadBytes = 64 * 1024          // cap buffered request head (F004)
+    private let maxBodyBytes = 1 * 1024 * 1024    // cap buffered REST body (F004)
+
+    /// Set when the frame source reports a fatal startup failure (e.g. a missing TCC grant) with
+    /// no viewer yet attached. Surfaced to the next client that completes `hello` (F007).
+    private var pendingFatalError: (code: ErrorCode, message: String)?
 
     init(port: UInt16, signingKey: [UInt8], allowedOrigins: Set<String>,
          frameSource: FrameSource, sessions: SessionTable = SessionTable()) {
@@ -53,7 +59,12 @@ final class WSServer {
     func start() throws {
         let params = NWParameters.tcp
         params.allowLocalEndpointReuse = true
-        let listener = try NWListener(using: params, on: NWEndpoint.Port(rawValue: port)!)
+        // Bind to loopback ONLY — the control surface is host-local and proxied by Next (Phase 5).
+        // `NWListener(using:on:)` binds every interface, exposing the daemon on the LAN even though
+        // paths are token-gated; pinning `requiredLocalEndpoint` to 127.0.0.1 restricts at the
+        // socket so non-loopback peers can't connect at all (F001).
+        params.requiredLocalEndpoint = .hostPort(host: "127.0.0.1", port: NWEndpoint.Port(rawValue: port)!)
+        let listener = try NWListener(using: params)
         listener.newConnectionHandler = { [weak self] conn in self?.accept(conn) }
         listener.stateUpdateHandler = { state in
             if case let .failed(error) = state {
@@ -125,14 +136,31 @@ final class WSServer {
     // MARK: HTTP head → REST or upgrade
 
     private func tryHandshake(_ client: ClientConnection) {
-        guard let (req, headEnd) = HTTPParse.parseHead(client.inBuffer) else { return }   // wait for more
+        guard let (req, headEnd) = HTTPParse.parseHead(client.inBuffer) else {
+            // Head not yet complete — but cap how much we'll buffer waiting for the terminator so a
+            // client can't make us grow an unbounded request head (F004).
+            if client.inBuffer.count > maxHeadBytes {
+                respondAndClose(client, HTTPResponse.json(status: 431, "Request Header Fields Too Large", ["error": "head too large"]))
+            }
+            return
+        }
         if req.isWebSocketUpgrade && req.path == "/stream" {
             client.inBuffer.removeAll()
             upgrade(client, req)
             return
         }
-        // REST: ensure the body is fully buffered before handling.
-        let needed = headEnd + req.contentLength
+        // REST: validate Content-Length BEFORE slicing. A missing header is length 0; a malformed or
+        // negative value yields `nil` → 400 (a negative length would make the body slice trap, F004).
+        guard let contentLength = req.contentLength else {
+            respondAndClose(client, HTTPResponse.json(status: 400, "Bad Request", ["error": "invalid content-length"]))
+            return
+        }
+        guard contentLength <= maxBodyBytes else {
+            respondAndClose(client, HTTPResponse.json(status: 413, "Payload Too Large", ["error": "body too large"]))
+            return
+        }
+        // Ensure the body is fully buffered before handling.
+        let needed = headEnd + contentLength
         guard client.inBuffer.count >= needed else { return }
         let body = Array(client.inBuffer[headEnd..<needed])
         client.inBuffer.removeAll()
@@ -163,6 +191,16 @@ final class WSServer {
     // MARK: REST
 
     private func handleREST(_ client: ClientConnection, _ req: HTTPRequest, body: [UInt8]) {
+        // Every control endpoint requires a daemon JWT; only `/health` is public (F002). The token
+        // rides the query string (?token=…) exactly like the WS upgrade — the Next proxy injects it.
+        // Without this guard any local page/process could enumerate the target window and
+        // create/close stream sessions.
+        if req.path != "/health" {
+            guard case .success = RemoteViewAuth.verifyJWT(req.query["token"] ?? "", key: signingKey) else {
+                respondAndClose(client, HTTPResponse.json(status: 401, "Unauthorized", ["error": "E_AUTH"]))
+                return
+            }
+        }
         switch (req.method, req.path) {
         case ("GET", "/health"):
             respondAndClose(client, HTTPResponse.json(status: 200, "OK", [
@@ -175,8 +213,15 @@ final class WSServer {
                 ],
             ]))
         case ("GET", "/windows"):
+            // Narrowed contract (F005 / Workshop 004): a daemon instance is spawned for ONE
+            // selected window, so `/windows` reports just THAT attached window's descriptor — it
+            // is not a picker catalog and intentionally carries no thumbnail. Enumerating all
+            // capturable windows (with thumbnails) is the web-side daemon manager's job in Phase 5,
+            // before a daemon is spawned. `count`/`single` make the narrowing explicit to consumers.
             let w = frameSource.window
             respondAndClose(client, HTTPResponse.json(status: 200, "OK", [
+                "single": true,
+                "count": 1,
                 "windows": [[
                     "id": w.id, "app": w.app, "title": w.title,
                     "pixelWidth": w.pixelWidth, "pixelHeight": w.pixelHeight, "scale": w.scale,
@@ -202,11 +247,8 @@ final class WSServer {
             sessions.close(sessionId: sid, now: nowSeconds())
             respondAndClose(client, HTTPResponse.json(status: 200, "OK", ["ok": true]))
         case ("POST", "/shutdown"):
-            // JWT-gated graceful shutdown (Phase 6 version-mismatch respawn reaches this).
-            guard case .success = RemoteViewAuth.verifyJWT(req.query["token"] ?? "", key: signingKey) else {
-                respondAndClose(client, HTTPResponse.json(status: 401, "Unauthorized", ["error": "E_AUTH"]))
-                return
-            }
+            // JWT-gated graceful shutdown (Phase 6 version-mismatch respawn reaches this). Auth is
+            // enforced by the REST guard above; only `/health` bypasses it.
             respondAndClose(client, HTTPResponse.json(status: 200, "OK", ["ok": true]))
             onShutdownRequest?()
         default:
@@ -258,20 +300,34 @@ final class WSServer {
         }
     }
 
+    /// True only for the client that currently owns the streaming session (post-`hello`, not
+    /// displaced). Session-affecting controls require this: a valid-token socket must NOT be able
+    /// to drive `input`/`pause`/`resume`/`request-keyframe` before it has attached, nor after it
+    /// has been displaced by a later viewer (latest-attach-wins). Pre-attach/stale controls are
+    /// silently ignored — consistent with the protocol's "drop, don't error" posture (F003).
+    private func isCurrentViewer(_ client: ClientConnection) -> Bool {
+        guard let sid = client.sessionId, let viewer = client.viewerId else { return false }
+        return currentStreamSession == sid && sessions.session(sid)?.viewer == viewer
+    }
+
     private func handleText(_ client: ClientConnection, _ payload: [UInt8]) {
         guard let msg = ClientMessage.parse(Data(payload)) else { return }   // unknown/garbage → ignore (fwd-compat)
         switch msg {
         case let .hello(v, session):
             handleHello(client, version: v, session: session)
         case let .input(events):
+            guard isCurrentViewer(client) else { return }
             onInput?(events)
         case .requestKeyframe:
+            guard isCurrentViewer(client) else { return }
             client.needsKeyframe = true
             frameSource.requestKeyframe()
         case .pause:
+            guard isCurrentViewer(client) else { return }
             client.paused = true
             frameSource.pause()
         case .resume:
+            guard isCurrentViewer(client) else { return }
             client.paused = false
             client.needsKeyframe = true
             frameSource.resume()
@@ -292,6 +348,13 @@ final class WSServer {
         guard version == WireProtocol.version else {
             sendMessage(client, .error(code: .eVersion, message: "unsupported protocol version \(version)", fatal: true))
             close(client, code: WebSocket.Close.normal, reason: "version")
+            return
+        }
+        // If capture already failed fatally (e.g. a missing TCC grant), surface that to this viewer
+        // instead of attaching to a stream that will never produce frames (F007).
+        if let err = pendingFatalError {
+            sendMessage(client, .error(code: err.code, message: err.message, fatal: true))
+            close(client, code: WebSocket.Close.normal, reason: err.code.rawValue)
             return
         }
         // Auto-create an unknown session (matches fake-streamd's `existing ?? new`); a *closed*
@@ -352,6 +415,15 @@ final class WSServer {
                 close(c, code: WebSocket.Close.normal, reason: "window-gone")
             }
             if let sid = currentStreamSession { sessions.close(sessionId: sid, now: nowSeconds()); currentStreamSession = nil }
+        case let .permissionDenied(grant):
+            // Capture couldn't start because a TCC grant is missing. Record it so a *late*-attaching
+            // viewer still learns the precise reason (capture starts at boot, before any hello), and
+            // tell the current viewer if one is already attached. Named grant → actionable UX (F007).
+            pendingFatalError = (.ePermission, grant)
+            if let c = currentViewerConn() {
+                sendMessage(c, .error(code: .ePermission, message: grant, fatal: true))
+                close(c, code: WebSocket.Close.normal, reason: "permission")
+            }
         }
     }
 

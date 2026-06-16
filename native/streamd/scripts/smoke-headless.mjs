@@ -156,13 +156,79 @@ async function main() {
   const evilClose = await evil.waitClose();
   ok('bad origin → E_ORIGIN + 4402', !!oerr && oerr.code === 'E_ORIGIN' && evilClose === 4402, `code=${evilClose}`);
 
-  // 11. /sessions flat SessionSummary
+  // 11. /sessions flat SessionSummary (now JWT-gated — token required)
   {
-    const r = await fetch(`http://${BASE}/sessions`).then((x) => x.json()).catch(() => null);
+    const r = await fetch(`http://${BASE}/sessions?token=${token}`).then((x) => x.json()).catch(() => null);
     const list = r?.sessions ?? [];
     const shapeOk = Array.isArray(list) && list.length > 0 &&
       list.every((s) => 'sessionId' in s && 'windowId' in s && 'state' in s && 'app' in s && 'title' in s);
     ok('/sessions flat SessionSummary', shapeOk, `${list.length} sessions, states=[${list.map((s) => s.state).join(',')}]`);
+  }
+
+  // 12. REST auth — only /health is public; every other endpoint needs a daemon JWT (F002)
+  {
+    const status = (path, opts) => fetch(`http://${BASE}${path}`, opts).then((r) => r.status).catch(() => 0);
+    ok('GET /windows  no token → 401', (await status('/windows')) === 401);
+    ok('GET /sessions no token → 401', (await status('/sessions')) === 401);
+    ok('POST /sessions no token → 401', (await status('/sessions', { method: 'POST', body: '{}' })) === 401);
+    ok('DELETE /sessions/:id no token → 401', (await status('/sessions/smoke-1', { method: 'DELETE' })) === 401);
+    ok('GET /health stays public (200)', (await status('/health')) === 200);
+    // With a valid token, /windows is the narrowed single-window contract (F005)
+    const w = await fetch(`http://${BASE}/windows?token=${token}`).then((r) => r.json()).catch(() => null);
+    ok('GET /windows token → narrowed single window', !!w && w.single === true && w.count === 1 &&
+       Array.isArray(w.windows) && w.windows.length === 1, w ? `id=${w.windows?.[0]?.id}` : 'no response');
+  }
+
+  // 13. listener bound to loopback only — a non-loopback interface must NOT be reachable (F001)
+  {
+    const os = await import('node:os');
+    const nonLoopback = Object.values(os.networkInterfaces()).flat()
+      .find((n) => n && n.family === 'IPv4' && !n.internal)?.address;
+    if (!nonLoopback) {
+      ok('non-loopback unreachable (skipped: no external IPv4)', true, 'no non-loopback IPv4 on this host');
+    } else {
+      let reachable = false;
+      try { reachable = (await fetch(`http://${nonLoopback}:${PORT}/health`, { signal: AbortSignal.timeout(800) })).ok; }
+      catch { reachable = false; }
+      ok('daemon not reachable on non-loopback iface', reachable === false, `tried ${nonLoopback}:${PORT}`);
+    }
+  }
+
+  // 14. pre-hello controls are no-ops — a valid-token socket cannot drive input/pause/keyframe
+  //     before it attaches (F003). The (ignored) pause must NOT freeze the stream after hello.
+  {
+    const p = open('PRE', { token, session: 'smoke-prehello' });
+    await waitFor(() => p.opened, 1500);
+    p.send({ t: 'pause' });               // would freeze the stream if the gate were missing
+    p.send({ t: 'request-keyframe' });
+    p.send({ t: 'input', events: [{ type: 'mousedown', x: 0.5, y: 0.5, button: 0 }] });
+    await sleep(150);
+    ok('pre-hello controls do not close the socket', p.closeCode == null);
+    p.send({ t: 'hello', v: 1, session: 'smoke-prehello' });
+    const helloOkP = await p.waitText('hello-ok');
+    const framesP = await p.waitFrames(5);
+    ok('stream healthy after ignored pre-hello controls',
+       !!helloOkP && !!framesP && framesP.length >= 5 && framesP[0].keyframe === true);
+    p.ws.close();
+  }
+
+  // 15. malformed Content-Length is rejected (400) and does NOT crash the daemon (F004)
+  {
+    const net = await import('node:net');
+    const rawStatus = await new Promise((resolve) => {
+      let buf = '';
+      const code = () => { const m = buf.match(/^HTTP\/1\.1 (\d+)/); return m ? Number(m[1]) : 0; };
+      const sock = net.connect(Number(PORT), '127.0.0.1', () => {
+        sock.write('POST /sessions HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: -1\r\n\r\n');
+      });
+      sock.on('data', (d) => { buf += d.toString(); });
+      sock.on('close', () => resolve(code()));
+      sock.on('error', () => resolve(code()));
+      setTimeout(() => { try { sock.destroy(); } catch {} resolve(code()); }, 1000);
+    });
+    ok('negative Content-Length → 400', rawStatus === 400, `status=${rawStatus}`);
+    const alive = await fetch(`http://${BASE}/health`).then((r) => r.ok).catch(() => false);
+    ok('daemon alive after malformed request', alive === true);
   }
 
   a.ws.close();

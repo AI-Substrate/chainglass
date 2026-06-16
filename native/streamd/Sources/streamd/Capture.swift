@@ -2,6 +2,8 @@ import Foundation
 import ScreenCaptureKit
 import CoreMedia
 import CoreVideo
+import CoreGraphics   // CGPreflightScreenCaptureAccess (TCC preflight → E_PERMISSION)
+import AppKit         // NSScreen.backingScaleFactor (runtime display scale)
 
 /// Live window capture (dossier T003) — one `SCStream` per target window feeding the
 /// `H264Encoder`, surfaced as a `FrameSource`.
@@ -48,10 +50,22 @@ final class CaptureFrameSource: NSObject, FrameSource, SCStreamOutput, SCStreamD
         self.onEvent = onEvent
         self.paused = false
         lock.unlock()
+        // Preflight the Screen-Recording grant (non-prompting) so a *missing* grant reports as a
+        // named E_PERMISSION rather than collapsing to the generic `windowGone` — capture failures
+        // and "window doesn't exist" are different problems for the operator (F007).
+        guard CGPreflightScreenCaptureAccess() else {
+            emit(.permissionDenied(grant: "screen-recording"))
+            return
+        }
         SCShareableContent.getExcludingDesktopWindows(false, onScreenWindowsOnly: true) { [weak self] content, error in
             guard let self else { return }
-            guard let content, error == nil,
-                  let scWindow = content.windows.first(where: { $0.windowID == self.targetWindowId }) else {
+            guard let content, error == nil else {
+                // A content-enumeration error after the preflight passed is most likely a revoked or
+                // partial grant — still surface it as a permission problem, not a missing window.
+                self.emit(.permissionDenied(grant: "screen-recording"))
+                return
+            }
+            guard let scWindow = content.windows.first(where: { $0.windowID == self.targetWindowId }) else {
                 self.emit(.windowGone)
                 return
             }
@@ -60,13 +74,16 @@ final class CaptureFrameSource: NSObject, FrameSource, SCStreamOutput, SCStreamD
     }
 
     private func beginCapture(_ scWindow: SCWindow, on queue: DispatchQueue) {
-        let pixelWidth = Int(scWindow.frame.width * 2)   // backing scale resolved from the display at run time
-        let pixelHeight = Int(scWindow.frame.height * 2)
+        // Resolve the backing scale from the display the window actually sits on — a hardcoded 2
+        // doubled dimensions on a 1x external display and broke the normalized-coordinate math (F010).
+        let scale = backingScale(forWindow: scWindow.frame)
+        let pixelWidth = Int((scWindow.frame.width * scale).rounded())
+        let pixelHeight = Int((scWindow.frame.height * scale).rounded())
         let descriptor = WindowDescriptor(
             id: Int(scWindow.windowID),
             app: scWindow.owningApplication?.applicationName ?? "",
             title: scWindow.title ?? "",
-            pixelWidth: pixelWidth, pixelHeight: pixelHeight, scale: 2)
+            pixelWidth: pixelWidth, pixelHeight: pixelHeight, scale: scale)
 
         let filter = SCContentFilter(desktopIndependentWindow: scWindow)
         let cfg = SCStreamConfiguration()
@@ -93,6 +110,16 @@ final class CaptureFrameSource: NSObject, FrameSource, SCStreamOutput, SCStreamD
         } catch {
             emit(.windowGone)
         }
+    }
+
+    /// Backing scale of the display the window sits on. `x` is NOT flipped between CG window coords
+    /// and AppKit screen coords, so the screen with the most horizontal overlap identifies the
+    /// display reliably enough for scale; falls back to the main screen, then 2.0 (F010).
+    private func backingScale(forWindow frame: CGRect) -> Double {
+        func xOverlap(_ a: CGRect, _ b: CGRect) -> CGFloat { max(0, min(a.maxX, b.maxX) - max(a.minX, b.minX)) }
+        let best = NSScreen.screens.max { xOverlap(frame, $0.frame) < xOverlap(frame, $1.frame) }
+        let screen = (xOverlap(frame, best?.frame ?? .zero) > 0 ? best : nil) ?? NSScreen.main
+        return Double(screen?.backingScaleFactor ?? 2.0)
     }
 
     // MARK: SCStreamOutput

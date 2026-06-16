@@ -18,7 +18,14 @@ struct HTTPRequest {
     let headers: [String: String]     // header names lowercased
 
     var origin: String? { headers["origin"] }
-    var contentLength: Int { headers["content-length"].flatMap(Int.init) ?? 0 }
+    /// Validated body length: absent header → `0`; a malformed or **negative** value → `nil`
+    /// (the caller rejects with 400). A negative length previously flowed into a body slice and
+    /// could trap the daemon on unauthenticated input (F004).
+    var contentLength: Int? {
+        guard let raw = headers["content-length"] else { return 0 }
+        guard let value = Int(raw), value >= 0 else { return nil }
+        return value
+    }
     var isWebSocketUpgrade: Bool { (headers["upgrade"]?.lowercased()).map { $0.contains("websocket") } ?? false }
     var secWebSocketKey: String? { headers["sec-websocket-key"] }
 }

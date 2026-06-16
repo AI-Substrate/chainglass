@@ -46,6 +46,10 @@ enum FrameSourceEvent: Equatable {
     case frame(VideoFrame)
     case windowState(WindowStateName, pixelWidth: Int?, pixelHeight: Int?)
     case windowGone
+    /// Capture could not start because a TCC grant is missing. `grant` names the denied grant
+    /// (e.g. `"screen-recording"`) so the WS layer can send `error{E_PERMISSION, message:<grant>}`
+    /// instead of the generic `windowGone` (F007).
+    case permissionDenied(grant: String)
 }
 
 /// Source of encoded frames for the one captured window.

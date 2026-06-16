@@ -96,6 +96,7 @@ final class CGEventInputInjector {
     private var cachedBounds: CGRect?
     private var cachedAtHostTime: TimeInterval = 0
     private var ownerPID: pid_t = 0
+    private var cachedWindowName: String?  // kCGWindowName of the target → match the AX window for restore
     private var heldButton: MouseButton?   // tracks a held button across event batches → drag vs move
     private var lastFocusAt: TimeInterval = 0
     private let focusDebounceSeconds: TimeInterval = 1.5   // raise once per burst, not per keystroke
@@ -127,9 +128,14 @@ final class CGEventInputInjector {
         case let .mouseup(x, y, button):
             post(mouse: upType(button), at: screenPoint(x, y, bounds), button: Input.cgMouseButton(button))
             if heldButton == button { heldButton = nil }
-        case let .wheel(_, _, dx, dy):
+        case let .wheel(x, y, dx, dy):
+            // Focus the target and aim the scroll at the cursor position. Posting a scroll with no
+            // location lets it land on whatever is under the system cursor, not the streamed window,
+            // and an unfocused target swallows it entirely (F008).
+            ensureFocused()
             if let e = CGEvent(scrollWheelEvent2Source: source, units: .pixel, wheelCount: 2,
                                wheel1: Int32(-dy), wheel2: Int32(-dx), wheel3: 0) {
+                e.location = screenPoint(x, y, bounds)
                 e.post(tap: .cgSessionEventTap)
             }
         case let .keydown(code, mods):
@@ -159,6 +165,7 @@ final class CGEventInputInjector {
               let boundsDict = info[kCGWindowBounds as String] as? [String: Any],
               let rect = CGRect(dictionaryRepresentation: boundsDict as CFDictionary) else { return nil }
         if let pid = info[kCGWindowOwnerPID as String] as? pid_t { ownerPID = pid }
+        if let name = info[kCGWindowName as String] as? String, !name.isEmpty { cachedWindowName = name }
         cachedBounds = rect
         cachedAtHostTime = now
         return rect
@@ -176,14 +183,38 @@ final class CGEventInputInjector {
         if now - lastFocusAt < focusDebounceSeconds { return }
         lastFocusAt = now
         if let app = NSRunningApplication(processIdentifier: ownerPID), app.isHidden { app.unhide() }
+        let axApp = AXUIElementCreateApplication(ownerPID)
+        // Un-minimize the target before raising it — a minimized window can't receive input, and
+        // `kAXFrontmost` alone won't restore it from the Dock (AC-10 auto-restore, F009).
+        restoreIfMinimized(axApp)
         // Bring the streamed app to the front via the Accessibility API — the daemon holds that
         // grant. `activate(options: [.activateIgnoringOtherApps])` is a no-op on macOS 14+
         // (deprecated flag), and plain `activate()` is unreliable from a `.prohibited` background
         // daemon (async cooperative activation), so input lands on whatever overlaps the target.
         // Setting kAXFrontmost is synchronous-effective and is what assistive tools use (T009).
-        let axApp = AXUIElementCreateApplication(ownerPID)
         AXUIElementSetAttributeValue(axApp, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
         NSRunningApplication(processIdentifier: ownerPID)?.activate()
+    }
+
+    /// Clear `kAXMinimized` on the target window so input can land (AC-10). Matches the target by
+    /// `kCGWindowName` when known; for a single-window app (the Simulator/Godot target) the title
+    /// match is unnecessary, so an empty/unknown name restores the first minimized window. Every AX
+    /// call is guarded — a partial Accessibility grant degrades to a no-op, never a crash (F009).
+    private func restoreIfMinimized(_ axApp: AXUIElement) {
+        var windowsRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &windowsRef) == .success,
+              let windows = windowsRef as? [AXUIElement] else { return }
+        for w in windows {
+            var minRef: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(w, kAXMinimizedAttribute as CFString, &minRef) == .success,
+                  (minRef as? Bool) == true else { continue }
+            if let target = cachedWindowName, !target.isEmpty {
+                var titleRef: CFTypeRef?
+                AXUIElementCopyAttributeValue(w, kAXTitleAttribute as CFString, &titleRef)
+                if (titleRef as? String) != target { continue }
+            }
+            AXUIElementSetAttributeValue(w, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
+        }
     }
 
     // MARK: posting

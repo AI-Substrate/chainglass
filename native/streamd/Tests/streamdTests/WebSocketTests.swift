@@ -66,6 +66,32 @@ final class WebSocketTests: XCTestCase {
         XCTAssertEqual(consumed, 0)
     }
 
+    // MARK: - HTTP Content-Length validation (F004)
+    // A negative/malformed length previously flowed into a body slice and could trap the daemon on
+    // unauthenticated input. `contentLength` is now a validated Optional: nil → the caller 400s.
+
+    func testNegativeContentLengthIsRejected() {
+        let head = "POST /sessions HTTP/1.1\r\nHost: x\r\nContent-Length: -1\r\n\r\n"
+        let parsed = HTTPParse.parseHead(Array(head.utf8))
+        XCTAssertNotNil(parsed)
+        XCTAssertNil(parsed?.request.contentLength)   // -1 → nil → 400
+    }
+
+    func testMalformedContentLengthIsRejected() {
+        let head = "POST /sessions HTTP/1.1\r\nContent-Length: not-a-number\r\n\r\n"
+        XCTAssertNil(HTTPParse.parseHead(Array(head.utf8))?.request.contentLength)
+    }
+
+    func testValidContentLengthParses() {
+        let head = "POST /sessions HTTP/1.1\r\nContent-Length: 12\r\n\r\n"
+        XCTAssertEqual(HTTPParse.parseHead(Array(head.utf8))?.request.contentLength, 12)
+    }
+
+    func testAbsentContentLengthIsZero() {
+        let head = "GET /health HTTP/1.1\r\nHost: x\r\n\r\n"
+        XCTAssertEqual(HTTPParse.parseHead(Array(head.utf8))?.request.contentLength, 0)
+    }
+
     // Build a masked client→server text frame (browsers always mask).
     private func maskedTextFrame(_ s: String, mask: [UInt8]) -> [UInt8] {
         let payload = Array(s.utf8)
