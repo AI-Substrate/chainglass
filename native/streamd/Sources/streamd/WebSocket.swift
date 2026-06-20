@@ -74,49 +74,66 @@ enum WebSocket {
 
     // MARK: decode (client → server, masked)
 
-    /// Parse as many whole frames as `buffer` holds; returns the frames and how many bytes
-    /// were consumed (the caller keeps the unconsumed tail for the next read). An incomplete
-    /// trailing frame is left unconsumed (returned in neither). Never throws.
-    static func parse(_ buffer: [UInt8]) -> (frames: [Frame], consumed: Int) {
+    /// Largest client→server frame we accept. Inbound frames are small control messages (input /
+    /// pause / resume / ping); video flows the other way. A declared 64-bit length above this (or
+    /// above `Int.max`) is rejected as a protocol error *before* any `Int` conversion — an unchecked
+    /// `Int(len)` could trap, and an honest-but-huge length could buffer unbounded (F003/FT-003).
+    static let maxFrameLen = 1 << 20   // 1 MiB
+
+    /// One decode step: the buffer doesn't yet hold a whole frame (`incomplete`), the next frame
+    /// declares an illegal/oversized length so the caller must close (`oversize`), or a complete
+    /// frame ending at a new offset (`frame`).
+    private enum ParseStep { case incomplete; case oversize; case frame(Frame, Int) }
+
+    /// Parse as many whole frames as `buffer` holds; returns the frames, how many bytes were
+    /// consumed (the caller keeps the unconsumed tail), and whether an oversized/illegal frame was
+    /// seen — in which case the caller drops the connection. An incomplete trailing frame is left
+    /// unconsumed. Never throws.
+    static func parse(_ buffer: [UInt8]) -> (frames: [Frame], consumed: Int, oversize: Bool) {
         var frames: [Frame] = []
         var offset = 0
         while true {
-            guard let (frame, next) = parseOne(buffer, at: offset) else { break }
-            frames.append(frame)
-            offset = next
+            switch parseOne(buffer, at: offset) {
+            case .incomplete: return (frames, offset, false)
+            case .oversize:   return (frames, offset, true)
+            case let .frame(frame, next): frames.append(frame); offset = next
+            }
         }
-        return (frames, offset)
     }
 
-    /// Parse a single frame starting at `offset`; `nil` if the buffer doesn't yet hold it all.
-    private static func parseOne(_ b: [UInt8], at offset: Int) -> (Frame, Int)? {
+    /// Parse a single frame starting at `offset`. `.incomplete` if the buffer doesn't yet hold it
+    /// all; `.oversize` if the declared length exceeds `maxFrameLen`/`Int.max` (checked BEFORE the
+    /// `Int` conversion so it can never trap).
+    private static func parseOne(_ b: [UInt8], at offset: Int) -> ParseStep {
         var i = offset
-        guard b.count - i >= 2 else { return nil }
+        guard b.count - i >= 2 else { return .incomplete }
         let b0 = b[i]; let b1 = b[i + 1]; i += 2
         let fin = (b0 & 0x80) != 0
         let opcode = b0 & 0x0f
         let masked = (b1 & 0x80) != 0
         var len = Int(b1 & 0x7f)
         if len == 126 {
-            guard b.count - i >= 2 else { return nil }
+            guard b.count - i >= 2 else { return .incomplete }
             len = (Int(b[i]) << 8) | Int(b[i + 1]); i += 2
         } else if len == 127 {
-            guard b.count - i >= 8 else { return nil }
+            guard b.count - i >= 8 else { return .incomplete }
             var l: UInt64 = 0
             for k in 0..<8 { l = (l << 8) | UInt64(b[i + k]) }
             i += 8
+            guard l <= UInt64(maxFrameLen) else { return .oversize }   // also keeps Int(l) from trapping
             len = Int(l)
         }
+        guard len <= maxFrameLen else { return .oversize }
         var maskKey: [UInt8] = []
         if masked {
-            guard b.count - i >= 4 else { return nil }
+            guard b.count - i >= 4 else { return .incomplete }
             maskKey = Array(b[i..<i + 4]); i += 4
         }
-        guard b.count - i >= len else { return nil }
+        guard b.count - i >= len else { return .incomplete }
         var payload = Array(b[i..<i + len]); i += len
         if masked {
             for k in 0..<payload.count { payload[k] ^= maskKey[k % 4] }
         }
-        return (Frame(fin: fin, rawOpcode: opcode, payload: payload), i)
+        return .frame(Frame(fin: fin, rawOpcode: opcode, payload: payload), i)
     }
 }

@@ -14,6 +14,16 @@ import ApplicationServices   // AXUIElement — focus-follows-stream via the Acc
 /// raw `UInt16` so the map has no CoreGraphics dependency and runs in CI. Unknown codes return
 /// `nil` — the caller falls back to unicode `text` injection.
 enum Input {
+    /// Saturate an unbounded protocol wheel delta into the CGEvent `Int32` domain; non-finite → 0.
+    /// The wire leaves `dx/dy` unbounded, so a direct `Int32(dy)` could trap on a huge or NaN value
+    /// (F004/FT-004).
+    static func clampWheel(_ v: Double) -> Int32 {
+        guard v.isFinite else { return 0 }
+        if v >= Double(Int32.max) { return Int32.max }
+        if v <= Double(Int32.min) { return Int32.min }
+        return Int32(v)
+    }
+
     /// DOM `code` → macOS virtual keycode (`CGKeyCode` is a `UInt16`).
     static let domCodeToKeyCode: [String: UInt16] = [
         // letters (ANSI)
@@ -134,7 +144,7 @@ final class CGEventInputInjector {
             // and an unfocused target swallows it entirely (F008).
             ensureFocused()
             if let e = CGEvent(scrollWheelEvent2Source: source, units: .pixel, wheelCount: 2,
-                               wheel1: Int32(-dy), wheel2: Int32(-dx), wheel3: 0) {
+                               wheel1: Input.clampWheel(-dy), wheel2: Input.clampWheel(-dx), wheel3: 0) {
                 e.location = screenPoint(x, y, bounds)
                 e.post(tap: .cgSessionEventTap)
             }

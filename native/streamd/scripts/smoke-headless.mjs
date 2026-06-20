@@ -231,6 +231,40 @@ async function main() {
     ok('daemon alive after malformed request', alive === true);
   }
 
+  // 16. POST /sessions body validation — a non-empty body MUST be a JSON object; empty/valid → 200,
+  //     malformed/non-object → 400 (no silent default-create on garbage) (F009/FT-009)
+  {
+    const post = (body) => fetch(`http://${BASE}/sessions?token=${token}`, { method: 'POST', body })
+      .then((r) => r.status).catch(() => 0);
+    ok('POST /sessions malformed body → 400', (await post('not json at all')) === 400);
+    ok('POST /sessions non-object (array) → 400', (await post('[1,2,3]')) === 400);
+    ok('POST /sessions empty body → 200', (await post('')) === 200);
+    ok('POST /sessions valid {} → 200', (await post('{}')) === 200);
+  }
+
+  // 17. pause lifecycle — a viewer that pauses the global frame source then disconnects without
+  //     resuming must NOT wedge the next viewer; attach resumes the source (F002/FT-002).
+  {
+    const p1 = open('PAUSE1', { token, session: 'smoke-pause' });
+    await waitFor(() => p1.opened, 1500);
+    p1.send({ t: 'hello', v: 1, session: 'smoke-pause' });
+    await p1.waitText('hello-ok');
+    await p1.waitFrames(3);          // confirm it is streaming first
+    p1.send({ t: 'pause' });         // pause the GLOBAL source…
+    await sleep(150);
+    p1.ws.close();                   // …and leave without resuming
+    await sleep(200);
+
+    const p2 = open('PAUSE2', { token, session: 'smoke-pause2' });
+    await waitFor(() => p2.opened, 1500);
+    p2.send({ t: 'hello', v: 1, session: 'smoke-pause2' });
+    const okP2 = await p2.waitText('hello-ok');
+    const framesP2 = await p2.waitFrames(5, 3000);
+    ok('attach after orphaned pause still streams', !!okP2 && !!framesP2 && framesP2.length >= 5,
+       framesP2 ? `${framesP2.length} frames` : 'no frames — source wedged paused');
+    p2.ws.close();
+  }
+
   a.ws.close();
   console.log(`\n ${pass} passed, ${fail} failed\n`);
   process.exit(fail === 0 ? 0 : 1);

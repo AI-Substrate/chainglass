@@ -250,3 +250,36 @@ After the HIGH fixes: **`swift test` 70/70** (was 66 — +4 FT-004 cases), **`ju
 **Deferred (documented decision): FT-006 — live resize re-config.** The *plumbing* exists (Capture emits `.windowState`/`.config`; `WSServer` resends `video-config` + forces a keyframe on `.config`). What's not implemented is Capture **detecting** a window resize at runtime and **reconfiguring the `SCStream` + `H264Encoder`** — that requires a live window to exercise and risks shipping unverifiable encoder-reconfigure code. Deferred to **Phase 6 (Integration Hardening)** where the live AC sweep exercises it, rather than land blind code that the re-review would re-flag as an overclaim.
 
 **Companion**: this fix batch ran **no-companion** (continuation of the host-Mac no-companion fallback). The HIGH fixes carry their own headless negative tests/smoke as the proof; the re-review (`/the-flow 7 review`) is the second pair of eyes.
+
+---
+
+## Re-review fix batch 2 (2026-06-20)
+
+The re-review (`/the-flow 7 review`, 2026-06-20) confirmed the prior 5 HIGH **closed**, but flagged **1 new HIGH + 9 MEDIUM + 2 LOW**. All addressed below — every HIGH/MEDIUM carries a headless test or smoke; no blind code shipped.
+
+### HIGH — verified headless
+
+| FT | Finding | Fix | Verification |
+|----|---------|-----|--------------|
+| FT-001 | F001 — `streamd-kill` trusts registry `.pid` → `kill` can hit a process group / option-shaped value / foreign pid | Recipe validates `^[1-9][0-9]*$` **and** confirms `ps -o command= -p <pid>` contains `streamd` before `kill -- "$pid"` | **manual proof**: crafted registry files with pid `0` / `-1` / `"; rm -rf /"` / `1` (launchd) → all skipped, nothing killed, launchd alive |
+
+### MEDIUM — code + automated test
+
+| FT | Finding | Fix | Verification |
+|----|---------|-----|--------------|
+| FT-002 | F002 — global pause wedges the next viewer | `frameSource.resume()` on every successful attach (before keyframe) | smoke §17 `attach after orphaned pause still streams` (pause→disconnect→reattach→6 frames) |
+| FT-003 | F003 — 64-bit WS payload length → `Int` (trap / unbounded buffer) | `WebSocket.parse` checks `maxFrameLen` (1 MiB) **before** `Int(l)`, returns `oversize` → server closes; `fragPayload` capped | unit: `testOversizedFrameLengthIsFlaggedNotTrapped` + `testInRangeExtendedLengthStillParses` |
+| FT-004 | F004 — wheel `dx/dy` → `Int32` trap | `Input.clampWheel(_:)` saturates to `Int32`, non-finite → 0 | unit: `testWheelClampSaturatesAndRejectsNonFinite` |
+| FT-005 | F005 — codec string false for big windows | `CaptureFrameSource.avcCodecString(fromAvcCBase64:)` derives `avc1.PPCCLL` from avcC bytes 1–3 | unit: `testAvcCodecStringFromRecord` (High@3.2 → `avc1.640020`, High@4.0 → `avc1.640028`) |
+| FT-007 | F007 — invalid `CG_REMOTE_VIEW__DAEMON_PORT` silently defaults | env present → validate + `throw invalidPort`; default only when absent | unit: `testRejectsInvalidEnvPort` |
+| FT-008 | F008 — live mode defaults window id `0` | non-fixture path requires a valid nonzero `CG_REMOTE_VIEW__WINDOW_ID`, else `fail()` at startup | compile-verified (startup guard; fixture path unaffected) |
+| FT-009 | F009 — malformed `POST /sessions` defaults to create | non-empty body must parse to a JSON object, else `400 E_BAD_BODY`; empty → default create | smoke §16 (malformed→400, array→400, empty→200, `{}`→200) |
+
+### MEDIUM/LOW — docs/contract
+
+- **FT-006** — daemon `/windows` single-window contract aligned in `remote-app-view-plan.md` (4.4 + 5.2) and `remote-app-view-spec.md` AC-1; the picker catalog + thumbnails are explicitly the **web-side daemon manager's** job (Phase 5).
+- **FT-010** — Phase-4 task done-whens (T003 capture, T007 input) split **code/headless-complete** from the **Phase-6 live** halves (Godot ≥30fps sustained, scroll fidelity, minimize auto-restore).
+- **FT-011** — `domain.md` Discovery Registry concept completed: full `RegistryFile{pid,port,protocolVersion,daemonVersion,bundleId,bundlePath,startedAt}` + filename(`<webPort>`)-vs-`port`(daemon) clarification.
+- **FT-012** — added `docs/c4/components/remote-view.md` (L3 component diagram: daemon + web side) and linked it from `docs/c4/README.md`.
+
+After batch 2: **`swift test` 75/75** (was 70 — +5: 2 WS-bounds, 1 config-env, 2 wheel/codec), **`just streamd-smoke` 40** (34 wire incl. 5 new oversize/session-body/pause-lifecycle checks + 6 lifecycle; was 35). **Companion**: no-companion; the re-review is the second pair of eyes.

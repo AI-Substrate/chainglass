@@ -42,7 +42,7 @@ final class WebSocketTests: XCTestCase {
     func testParseMaskedClientTextRoundTrips() {
         let json = #"{"t":"ping","sentAt":123}"#
         let buffer = maskedTextFrame(json, mask: [0x37, 0xfa, 0x21, 0x3d])
-        let (frames, consumed) = WebSocket.parse(buffer)
+        let (frames, consumed, _) = WebSocket.parse(buffer)
         XCTAssertEqual(consumed, buffer.count)
         XCTAssertEqual(frames.count, 1)
         XCTAssertEqual(frames[0].opcode, .text)
@@ -54,16 +54,44 @@ final class WebSocketTests: XCTestCase {
         let a = maskedTextFrame("aa", mask: [1, 2, 3, 4])
         let b = maskedTextFrame("bb", mask: [9, 8, 7, 6])
         let partial = Array(maskedTextFrame("ccc", mask: [5, 5, 5, 5]).prefix(3))   // header only
-        let (frames, consumed) = WebSocket.parse(a + b + partial)
+        let (frames, consumed, _) = WebSocket.parse(a + b + partial)
         XCTAssertEqual(frames.count, 2)
         XCTAssertEqual(consumed, a.count + b.count)   // partial third frame untouched
         XCTAssertEqual(String(bytes: frames[1].payload, encoding: .utf8), "bb")
     }
 
     func testParseEmptyBufferConsumesNothing() {
-        let (frames, consumed) = WebSocket.parse([])
+        let (frames, consumed, oversize) = WebSocket.parse([])
         XCTAssertTrue(frames.isEmpty)
         XCTAssertEqual(consumed, 0)
+        XCTAssertFalse(oversize)
+    }
+
+    // MARK: - Frame length bounds (F003/FT-003)
+    // A 64-bit length is checked against `maxFrameLen` BEFORE the `Int` conversion, so a malformed
+    // client frame can neither trap nor buffer unbounded — `parse` flags `oversize` and the server
+    // drops the connection.
+
+    func testOversizedFrameLengthIsFlaggedNotTrapped() {
+        // FIN+binary, 64-bit length marker, declaring 0x1_0000_0000 (4 GiB) ≫ maxFrameLen.
+        var frame: [UInt8] = [0x82, 127]
+        frame.append(contentsOf: [0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00])
+        let (frames, _, oversize) = WebSocket.parse(frame)
+        XCTAssertTrue(oversize)
+        XCTAssertTrue(frames.isEmpty)
+    }
+
+    func testInRangeExtendedLengthStillParses() {
+        // A 127-marker length within the cap parses normally once the payload bytes are present.
+        let n = 200
+        var frame: [UInt8] = [0x82, 127]
+        for shift in stride(from: 56, through: 0, by: -8) { frame.append(UInt8((UInt64(n) >> UInt64(shift)) & 0xff)) }
+        frame.append(contentsOf: [UInt8](repeating: 0x41, count: n))
+        let (frames, consumed, oversize) = WebSocket.parse(frame)
+        XCTAssertFalse(oversize)
+        XCTAssertEqual(frames.count, 1)
+        XCTAssertEqual(consumed, frame.count)
+        XCTAssertEqual(frames[0].payload.count, n)
     }
 
     // MARK: - HTTP Content-Length validation (F004)

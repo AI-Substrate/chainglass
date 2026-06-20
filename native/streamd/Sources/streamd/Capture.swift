@@ -122,6 +122,16 @@ final class CaptureFrameSource: NSObject, FrameSource, SCStreamOutput, SCStreamD
         return Double(screen?.backingScaleFactor ?? 2.0)
     }
 
+    /// Derive the MIME `avc1.PPCCLL` codec string from the base64 avcC record VideoToolbox produced
+    /// (bytes 1–3 of the AVCDecoderConfigurationRecord = profile / compatibility / level). The live
+    /// encoder uses AutoLevel over arbitrary window sizes, so the advertised string must reflect the
+    /// *actual* stream rather than the fixture's High@3.2 (F005/FT-005). Falls back to `avc1.640020`
+    /// only if the record is too short to read.
+    static func avcCodecString(fromAvcCBase64 desc: String) -> String {
+        guard let data = Data(base64Encoded: desc), data.count >= 4 else { return "avc1.640020" }
+        return String(format: "avc1.%02X%02X%02X", data[1], data[2], data[3])
+    }
+
     // MARK: SCStreamOutput
 
     func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
@@ -141,7 +151,8 @@ final class CaptureFrameSource: NSObject, FrameSource, SCStreamOutput, SCStreamD
                                 guard let self else { return }
                                 self.lock.lock()
                                 let w = self._window
-                                let c = VideoConfig(codec: "avc1.640020", description: desc,
+                                let c = VideoConfig(codec: CaptureFrameSource.avcCodecString(fromAvcCBase64: desc),
+                                                    description: desc,
                                                     width: w?.pixelWidth ?? 0, height: w?.pixelHeight ?? 0, fps: 60)
                                 self._config = c
                                 self.lock.unlock()

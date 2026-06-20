@@ -53,7 +53,11 @@ if let fixturesDir = env["CG_REMOTE_VIEW__FIXTURES_DIR"] {
         fail("cannot load fixtures at \(fixturesDir): \(error)")
     }
 } else {
-    let windowId: CGWindowID = env["CG_REMOTE_VIEW__WINDOW_ID"].flatMap { UInt32($0) } ?? 0
+    // Live capture needs a real target window; a missing/non-numeric/zero id must fail loudly at
+    // startup rather than surface later as a confusing capture/window error (F008/FT-008).
+    guard let rawWindowId = env["CG_REMOTE_VIEW__WINDOW_ID"], let windowId = UInt32(rawWindowId), windowId != 0 else {
+        fail("live mode requires a valid nonzero CG_REMOTE_VIEW__WINDOW_ID (or set CG_REMOTE_VIEW__FIXTURES_DIR for headless replay)")
+    }
     frameSource = CaptureFrameSource(windowId: windowId)
     inputInjector = CGEventInputInjector(windowId: windowId)
 }

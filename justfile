@@ -135,14 +135,27 @@ streamd-install: streamd-build
 # Kill streamd precisely via the discovery-registry pids. The signed bundle install path is shared
 # across worktrees, so a broad `pkill -f <bundle path>` would take down another worktree's daemon
 # (F002/F014). We therefore ONLY kill registry-backed pids; with no registry file we refuse to
-# broad-pkill and tell you how to target a specific instance explicitly.
+# broad-pkill and tell you how to target a specific instance explicitly. Each `.pid` is validated as
+# a positive nonzero integer AND confirmed to be a live `streamd` process before we signal it, so a
+# malformed/stale/recycled registry value can never target a process group or an unrelated pid (F001).
 streamd-kill:
     #!/usr/bin/env bash
     killed=0
     shopt -s nullglob
     for f in .chainglass/streamd-*.json; do
       pid=$(jq -r '.pid // empty' "$f" 2>/dev/null)
-      if [ -n "$pid" ] && kill "$pid" 2>/dev/null; then echo "killed streamd pid $pid (from $f)"; killed=1; fi
+      # Only a positive nonzero decimal pid is safe — `0`/negatives/option-shaped strings would let
+      # `kill` hit a process group or be parsed as a signal flag (F001/FT-001).
+      if [[ ! "$pid" =~ ^[1-9][0-9]*$ ]]; then
+        echo "skipping invalid streamd pid in $f: ${pid:-<empty>}" >&2
+        continue
+      fi
+      # Identity gate: the live process must actually be a streamd before we signal it.
+      if [[ "$(ps -o command= -p "$pid" 2>/dev/null)" != *streamd* ]]; then
+        echo "skipping pid $pid in $f — not a live streamd process" >&2
+        continue
+      fi
+      if kill -- "$pid" 2>/dev/null; then echo "killed streamd pid $pid (from $f)"; killed=1; fi
     done
     if [ "$killed" = 0 ]; then
       echo "no registry-backed streamd pid found (.chainglass/streamd-*.json)."

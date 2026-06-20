@@ -77,7 +77,12 @@ struct DaemonConfig: Equatable {
         let resolvedPort: Int
         if let port {
             resolvedPort = port
-        } else if let envValue = env[portEnvKey], let p = Int(envValue), (1..<65536).contains(p) {
+        } else if let envValue = env[portEnvKey] {
+            // An explicit env port must be valid; a bad value is a configuration error, not a silent
+            // fall-through to the dev default (F007/FT-007).
+            guard let p = Int(envValue), (1..<65536).contains(p) else {
+                throw ParseError.invalidPort(envValue)
+            }
             resolvedPort = p
         } else {
             resolvedPort = defaultDevPort

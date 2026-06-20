@@ -35,6 +35,15 @@ final class ConfigTests: XCTestCase {
         XCTAssertThrowsError(try DaemonConfig.parse(["--port", "0"]))
     }
 
+    func testRejectsInvalidEnvPort() {
+        // An explicit but invalid env port is a configuration error, not a silent dev-default (FT-007).
+        XCTAssertThrowsError(try DaemonConfig.parse([], env: [DaemonConfig.portEnvKey: "not-a-port"]))
+        XCTAssertThrowsError(try DaemonConfig.parse([], env: [DaemonConfig.portEnvKey: "99999"]))
+        XCTAssertThrowsError(try DaemonConfig.parse([], env: [DaemonConfig.portEnvKey: "0"]))
+        // Absent env still falls back to the dev default (no throw).
+        XCTAssertEqual(try DaemonConfig.parse([]).port, DaemonConfig.defaultDevPort)
+    }
+
     func testRejectsUnknownFlag() {
         XCTAssertThrowsError(try DaemonConfig.parse(["--frobnicate"]))
     }

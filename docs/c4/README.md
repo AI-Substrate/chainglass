@@ -42,6 +42,7 @@ Start at L1 and zoom in to the level of detail you need:
 - [PR View](components/pr-view.md) — Diff aggregation, reviewed state, git branch service
 - [Workflow UI](components/workflow-ui.md) — Visual workflow editor with drag-drop
 - [Work Unit Editor](components/workunit-editor.md) — CRUD interface for work unit definitions
+- [Remote View](components/remote-view.md) — `streamd` native daemon (capture/encode/WS), loopback JWT-gated control API, session FSM, discovery registry
 
 ## Design Principles
 

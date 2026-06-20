@@ -234,9 +234,18 @@ final class WSServer {
             }
             respondAndClose(client, HTTPResponse.json(status: 200, "OK", ["sessions": summaries]))
         case ("POST", "/sessions"):
-            let obj = (try? JSONSerialization.jsonObject(with: Data(body))) as? [String: Any]
-            let windowId = (obj?["windowId"] as? Int) ?? frameSource.window.id
-            let sessionId = (obj?["sessionId"] as? String) ?? newSessionId(forWindow: windowId)
+            // Empty body → default create; a non-empty body MUST be a JSON object. Malformed/non-object
+            // input is a client error, not a silent default-create (F009/FT-009).
+            var obj: [String: Any] = [:]
+            if !body.isEmpty {
+                guard let parsed = (try? JSONSerialization.jsonObject(with: Data(body))) as? [String: Any] else {
+                    respondAndClose(client, HTTPResponse.json(status: 400, "Bad Request", ["error": "E_BAD_BODY"]))
+                    return
+                }
+                obj = parsed
+            }
+            let windowId = (obj["windowId"] as? Int) ?? frameSource.window.id
+            let sessionId = (obj["sessionId"] as? String) ?? newSessionId(forWindow: windowId)
             let s = sessions.create(sessionId: sessionId, windowId: windowId, now: nowSeconds())
             let w = frameSource.window
             respondAndClose(client, HTTPResponse.json(status: 200, "OK", [
@@ -268,9 +277,14 @@ final class WSServer {
     // MARK: WebSocket frames
 
     private func drainFrames(_ client: ClientConnection) {
-        let (frames, consumed) = WebSocket.parse(client.inBuffer)
+        let (frames, consumed, oversize) = WebSocket.parse(client.inBuffer)
         if consumed > 0 { client.inBuffer.removeFirst(consumed) }
         for frame in frames { handleFrame(client, frame) }
+        if oversize {
+            // A client frame declared an illegal/oversized length — drop the connection rather than
+            // buffer or convert it (F003/FT-003).
+            close(client, code: WebSocket.Close.unexpected, reason: "frame too large")
+        }
     }
 
     private func handleFrame(_ client: ClientConnection, _ frame: WebSocket.Frame) {
@@ -279,6 +293,13 @@ final class WSServer {
             // Reassemble fragments; control messages are text, video upload is unused.
             if frame.rawOpcode != WebSocket.Opcode.continuation.rawValue { client.fragOpcode = frame.rawOpcode }
             client.fragPayload.append(contentsOf: frame.payload)
+            if client.fragPayload.count > WebSocket.maxFrameLen {
+                // A reassembled (fragmented) control message exceeds the inbound cap — close rather
+                // than grow it without bound (F003/FT-003).
+                client.fragOpcode = nil; client.fragPayload = []
+                close(client, code: WebSocket.Close.unexpected, reason: "message too large")
+                return
+            }
             if frame.fin {
                 let opcode = client.fragOpcode
                 let payload = client.fragPayload
@@ -379,6 +400,9 @@ final class WSServer {
             connByViewer[viewer] = client
             currentStreamSession = sessionId
 
+            // A prior viewer may have paused the global frame source then disconnected/detached/timed
+            // out without resuming; the new owner must start from a running source (F002/FT-002).
+            frameSource.resume()
             sendMessage(client, .helloOk(v: WireProtocol.version, session: sessionId, window: frameSource.window))
             if let cfg = latestConfig { sendMessage(client, .videoConfig(codec: cfg.codec, description: cfg.description, width: cfg.width, height: cfg.height, fps: cfg.fps)) }
             frameSource.requestKeyframe()   // next emitted frame is the seq-0 keyframe
