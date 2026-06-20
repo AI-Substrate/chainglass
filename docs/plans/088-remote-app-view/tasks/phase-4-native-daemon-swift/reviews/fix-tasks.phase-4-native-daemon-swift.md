@@ -4,131 +4,106 @@ Apply in order. Re-run review after fixes.
 
 ## Critical / High Fixes
 
-### FT-001: Bind streamd to localhost only
+### FT-001: Validate `streamd-kill` registry PIDs before signaling
 - **Severity**: HIGH
-- **File(s)**: `/Users/jordanknight/substrate/084-random-enhancements-3/native/streamd/Sources/streamd/WSServer.swift`, `/Users/jordanknight/substrate/084-random-enhancements-3/native/streamd/scripts/smoke-headless.mjs`
-- **Issue**: `NWListener(using:on:)` binds the daemon control surface without an explicit loopback restriction.
-- **Fix**: Bind explicitly to loopback and add a smoke assertion that non-loopback interfaces are not reachable.
+- **File(s)**: `/Users/jordanknight/substrate/084-random-enhancements-3/justfile`
+- **Issue**: `streamd-kill` reads `.pid` from workspace-local registry JSON and passes it directly to `kill`. Values such as `0`, negative numbers, or option-shaped strings can signal process groups/all accessible processes or be parsed as signal options.
+- **Fix**: Accept only positive nonzero decimal PIDs, verify the PID still belongs to the expected `streamd` instance from the registry (at minimum process exists and command/bundle/port matches), then call `kill -- "$pid"`. Refuse invalid registry files.
 - **Patch hint**:
   ```diff
-  - let listener = try NWListener(using: params, on: NWEndpoint.Port(rawValue: port)!)
-  + // Bind only to loopback; Phase 5 proxies daemon access through Next routes.
-  + let listener = try makeLoopbackListener(params: params, port: port)
-  ```
-
-### FT-002: Require JWT for every REST endpoint except `/health`
-- **Severity**: HIGH
-- **File(s)**: `/Users/jordanknight/substrate/084-random-enhancements-3/native/streamd/Sources/streamd/WSServer.swift`, `/Users/jordanknight/substrate/084-random-enhancements-3/native/streamd/scripts/smoke-headless.mjs`
-- **Issue**: `/windows` and `/sessions` can be read/mutated without a daemon JWT.
-- **Fix**: Add a REST auth guard before the route switch. Keep `GET /health` public. Add negative checks for unauthenticated `/windows`, `/sessions`, `POST /sessions`, and `DELETE /sessions/:id`.
-- **Patch hint**:
-  ```diff
-  + if req.path != "/health" {
-  +   guard case .success = RemoteViewAuth.verifyJWT(req.query["token"] ?? "", key: signingKey) else {
-  +     respondAndClose(client, HTTPResponse.json(status: 401, "Unauthorized", ["error": "E_AUTH"]))
-  +     return
-  +   }
-  + }
-    switch (req.method, req.path) {
-  ```
-
-### FT-003: Gate WebSocket controls on attached viewer ownership
-- **Severity**: HIGH
-- **File(s)**: `/Users/jordanknight/substrate/084-random-enhancements-3/native/streamd/Sources/streamd/WSServer.swift`, `/Users/jordanknight/substrate/084-random-enhancements-3/native/streamd/scripts/smoke-headless.mjs`
-- **Issue**: A valid-token client can send `input`, `pause`, `resume`, or `request-keyframe` before `hello`/attach or after displacement.
-- **Fix**: Add an ownership helper and require it for session-affecting controls; send `E_SESSION_UNKNOWN` or ignore consistently with the protocol.
-- **Patch hint**:
-  ```diff
-  + private func isCurrentViewer(_ client: ClientConnection) -> Bool {
-  +   guard let sid = client.sessionId, let viewer = client.viewerId else { return false }
-  +   return currentStreamSession == sid && sessions.session(sid)?.viewer == viewer
-  + }
-  +
-    case let .input(events):
-  +   guard isCurrentViewer(client) else { return }
-      onInput?(events)
-  ```
-
-### FT-004: Reject malformed or negative `Content-Length` before slicing
-- **Severity**: HIGH
-- **File(s)**: `/Users/jordanknight/substrate/084-random-enhancements-3/native/streamd/Sources/streamd/Endpoints.swift`, `/Users/jordanknight/substrate/084-random-enhancements-3/native/streamd/Sources/streamd/WSServer.swift`, `/Users/jordanknight/substrate/084-random-enhancements-3/native/streamd/Tests/streamdTests/WebSocketTests.swift`
-- **Issue**: `Content-Length: -1` can create an invalid body slice and trap.
-- **Fix**: Parse content length as a validated non-negative value, reject malformed/negative values with `400`, and cap maximum buffered body size.
-- **Patch hint**:
-  ```diff
-  - var contentLength: Int { headers["content-length"].flatMap(Int.init) ?? 0 }
-  + var contentLength: Int? {
-  +   guard let raw = headers["content-length"] else { return 0 }
-  +   guard let value = Int(raw), value >= 0 else { return nil }
-  +   return value
-  + }
-  ```
-
-### FT-005: Complete or formally narrow the `/windows` contract
-- **Severity**: HIGH
-- **File(s)**: `/Users/jordanknight/substrate/084-random-enhancements-3/native/streamd/Sources/streamd/WSServer.swift`, `/Users/jordanknight/substrate/084-random-enhancements-3/native/streamd/Sources/streamd/Endpoints.swift`, `/Users/jordanknight/substrate/084-random-enhancements-3/docs/plans/088-remote-app-view/tasks/phase-4-native-daemon-swift/tasks.md`
-- **Issue**: `/windows` returns only `frameSource.window` and no thumbnail, but Phase 4 T006 says `/windows` lists capturable windows with thumbnails.
-- **Fix**: Prefer implementing a ScreenCaptureKit shareable-content catalog with thumbnails. If the daemon is intentionally spawned for one selected window only, update the plan/spec/contracts before Phase 5 and move the picker catalog to the web-side daemon manager.
-- **Patch hint**:
-  ```diff
-  - "windows": [[ "id": w.id, "app": w.app, "title": w.title, ... ]]
-  + "windows": windows.map { descriptorWithThumbnail($0) }
+  - pid=$(jq -r '.pid // empty' "$f" 2>/dev/null)
+  - if [ -n "$pid" ] && kill "$pid" 2>/dev/null; then echo "killed streamd pid $pid (from $f)"; killed=1; fi
+  + pid=$(jq -r '.pid // empty' "$f" 2>/dev/null)
+  + if [[ ! "$pid" =~ ^[1-9][0-9]*$ ]]; then
+  +   echo "skipping invalid streamd pid in $f: ${pid:-<empty>}" >&2
+  +   continue
+  + fi
+  + # Also verify command/port identity before killing.
+  + if kill -- "$pid" 2>/dev/null; then echo "killed streamd pid $pid (from $f)"; killed=1; fi
   ```
 
 ## Medium / Low Fixes
 
-### FT-006: Emit resize/state/config events from live capture
+### FT-002: Resume or reset `FrameSource` on viewer lifecycle transitions
 - **Severity**: MEDIUM
-- **File(s)**: `/Users/jordanknight/substrate/084-random-enhancements-3/native/streamd/Sources/streamd/Capture.swift`
-- **Issue**: Live capture snapshots initial size and does not emit resize/minimize/restore updates.
-- **Fix**: Detect size/state changes, reconfigure capture/encoder when needed, emit `window-state{resized}` and a fresh `video-config`, then force a keyframe.
+- **File(s)**: `/Users/jordanknight/substrate/084-random-enhancements-3/native/streamd/Sources/streamd/WSServer.swift`
+- **Issue**: A viewer can pause the global frame source, then disconnect/detach without resuming. A later viewer attaches but only requests a keyframe; the source can remain paused.
+- **Fix**: Resume the frame source on every successful attach before requesting the keyframe, and make close/detach/timeout transitions explicit about source pause/resume state.
+- **Patch hint**:
+  ```diff
+      currentStreamSession = sessionId
++     frameSource.resume()
+      sendMessage(client, .helloOk(...))
+      frameSource.requestKeyframe()
+  ```
 
-### FT-007: Route missing Screen Recording/Accessibility to `E_PERMISSION`
+### FT-003: Cap WebSocket frame lengths and fragment buffers
 - **Severity**: MEDIUM
-- **File(s)**: `/Users/jordanknight/substrate/084-random-enhancements-3/native/streamd/Sources/streamd/Capture.swift`, `/Users/jordanknight/substrate/084-random-enhancements-3/native/streamd/Sources/streamd/WSServer.swift`
-- **Issue**: Capture startup/TCC failures currently become `windowGone`.
-- **Fix**: Preflight named grants and send `error{code:E_PERMISSION,message:<grant>,fatal:true}`.
+- **File(s)**: `/Users/jordanknight/substrate/084-random-enhancements-3/native/streamd/Sources/streamd/WebSocket.swift`, `/Users/jordanknight/substrate/084-random-enhancements-3/native/streamd/Sources/streamd/WSServer.swift`
+- **Issue**: 64-bit payload lengths are converted to `Int` before bounds checks, and fragment buffers can grow without a protocol-level cap.
+- **Fix**: Reject lengths above `Int.max` and above a small control-frame limit before conversion; close malformed/oversized frames.
 
-### FT-008: Fix wheel event targeting
+### FT-004: Clamp wheel deltas before `Int32` conversion
 - **Severity**: MEDIUM
 - **File(s)**: `/Users/jordanknight/substrate/084-random-enhancements-3/native/streamd/Sources/streamd/Input.swift`
-- **Issue**: Wheel events ignore normalized `x/y` and do not focus the target first.
-- **Fix**: Focus before posting and set the scroll event location to `screenPoint(x, y, bounds)`.
+- **Issue**: Protocol-unbounded `dx/dy` values are converted directly to `Int32`.
+- **Fix**: Reject non-finite values and clamp/saturate to `Int32.min...Int32.max` before constructing the scroll event.
 
-### FT-009: Implement real minimized-window auto-restore
+### FT-005: Make live H.264 codec metadata truthful
 - **Severity**: MEDIUM
-- **File(s)**: `/Users/jordanknight/substrate/084-random-enhancements-3/native/streamd/Sources/streamd/Input.swift`
-- **Issue**: `inject()` returns before focus/restore when bounds are unavailable, and `ensureFocused()` does not unminimize the target AX window.
-- **Fix**: Use Accessibility to locate the target window, clear `kAXMinimized`, refresh bounds, then raise/focus.
+- **File(s)**: `/Users/jordanknight/substrate/084-random-enhancements-3/native/streamd/Sources/streamd/Capture.swift`, `/Users/jordanknight/substrate/084-random-enhancements-3/native/streamd/Sources/streamd/Encoder.swift`
+- **Issue**: Live capture always advertises `avc1.640020`, but AutoLevel and arbitrary window dimensions can produce a different H.264 level.
+- **Fix**: Derive the `avc1.*` codec string from the actual SPS/format description, or constrain encoder dimensions/level so High Profile Level 3.2 is guaranteed.
 
-### FT-010: Use runtime display scale instead of hardcoded `2`
+### FT-006: Align `/windows` contract text after narrowing
 - **Severity**: MEDIUM
-- **File(s)**: `/Users/jordanknight/substrate/084-random-enhancements-3/native/streamd/Sources/streamd/Capture.swift`
-- **Issue**: Non-2x displays can get wrong dimensions and coordinate assumptions.
-- **Fix**: Resolve the target display backing scale at runtime and carry it into `WindowDescriptor`.
+- **File(s)**: `/Users/jordanknight/substrate/084-random-enhancements-3/docs/plans/088-remote-app-view/remote-app-view-plan.md`, `/Users/jordanknight/substrate/084-random-enhancements-3/docs/plans/088-remote-app-view/remote-app-view-spec.md`
+- **Issue**: Phase 4 artifacts narrow daemon `/windows` to one selected window, but the authoritative plan still says Phase 4 daemon `/windows` lists capturable windows with thumbnails and Phase 5 routes proxy it.
+- **Fix**: Update the plan/spec so the picker catalog and thumbnails are explicitly web-side daemon-manager responsibilities, while daemon `/windows` is single-window-only.
 
-### FT-011: Correct Phase 4 evidence overclaims
+### FT-007: Fail invalid `CG_REMOTE_VIEW__DAEMON_PORT`
+- **Severity**: MEDIUM
+- **File(s)**: `/Users/jordanknight/substrate/084-random-enhancements-3/native/streamd/Sources/streamd/Config.swift`, `/Users/jordanknight/substrate/084-random-enhancements-3/native/streamd/Tests/streamdTests/ConfigTests.swift`
+- **Issue**: An invalid explicit env port silently falls back to `6001`.
+- **Fix**: If `CG_REMOTE_VIEW__DAEMON_PORT` is present, validate it and throw on invalid values; default only when absent.
+
+### FT-008: Require a valid live window id
+- **Severity**: MEDIUM
+- **File(s)**: `/Users/jordanknight/substrate/084-random-enhancements-3/native/streamd/Sources/streamd/main.swift`
+- **Issue**: Missing/non-numeric `CG_REMOTE_VIEW__WINDOW_ID` becomes `0` in live mode.
+- **Fix**: In non-fixture mode, require a valid nonzero `CG_REMOTE_VIEW__WINDOW_ID` and fail startup with a clear error if absent/invalid.
+
+### FT-009: Reject malformed `POST /sessions` bodies
+- **Severity**: MEDIUM
+- **File(s)**: `/Users/jordanknight/substrate/084-random-enhancements-3/native/streamd/Sources/streamd/WSServer.swift`, `/Users/jordanknight/substrate/084-random-enhancements-3/native/streamd/scripts/smoke-headless.mjs`
+- **Issue**: Malformed non-empty session-create bodies default to a successful session create.
+- **Fix**: Return `400` for non-empty malformed or non-object JSON; keep default fields only for empty body or valid object body.
+
+### FT-010: Align Phase 4 task rows with recorded evidence
 - **Severity**: MEDIUM
 - **File(s)**: `/Users/jordanknight/substrate/084-random-enhancements-3/docs/plans/088-remote-app-view/tasks/phase-4-native-daemon-swift/tasks.md`, `/Users/jordanknight/substrate/084-random-enhancements-3/docs/plans/088-remote-app-view/tasks/phase-4-native-daemon-swift/execution.log.md`
-- **Issue**: The dossier/log mark sustained Godot >=30fps, minimized restore, closed-window, and missing-grant evidence as done without matching recorded output.
-- **Fix**: Add the missing smoke transcripts/artifacts or explicitly defer those checks to Phase 6.
+- **Issue**: Some checked task rows still require live evidence that the execution log now honestly defers to Phase 6.
+- **Fix**: Split each row into Phase 4 code/headless completion vs Phase 6 live verification, or add the missing host-Mac evidence.
 
-### FT-012: Update remote-view domain docs
-- **Severity**: MEDIUM
-- **File(s)**: `/Users/jordanknight/substrate/084-random-enhancements-3/docs/domains/remote-view/domain.md`, `/Users/jordanknight/substrate/084-random-enhancements-3/docs/domains/domain-map.md`
-- **Issue**: Concepts/map omit Phase 4 streamd control API and registry contracts.
-- **Fix**: Add streamd daemon/control API/registry Concepts rows; update the domain-map node, auth edge, and health row.
+### FT-011: Complete the Discovery Registry concept docs
+- **Severity**: LOW
+- **File(s)**: `/Users/jordanknight/substrate/084-random-enhancements-3/docs/domains/remote-view/domain.md`
+- **Issue**: The registry concept omits `bundlePath` and `startedAt`, and is ambiguous about filename key vs JSON `port`.
+- **Fix**: Document `RegistryFile{pid,port,protocolVersion,daemonVersion,bundleId,bundlePath,startedAt}` and clarify `streamd-<webPort>.json`.
 
-### FT-013: Remove broad `streamd-kill` fallback
-- **Severity**: MEDIUM
-- **File(s)**: `/Users/jordanknight/substrate/084-random-enhancements-3/justfile`
-- **Issue**: Fallback `pkill -f` can kill another worktree's daemon because the signed bundle path is shared.
-- **Fix**: Only kill registry-backed PIDs, or require explicit PID/registry path for manual cleanup.
+### FT-012: Add/update Remote View C4 component docs
+- **Severity**: LOW
+- **File(s)**: `/Users/jordanknight/substrate/084-random-enhancements-3/docs/c4/README.md`, `/Users/jordanknight/substrate/084-random-enhancements-3/docs/c4/components/remote-view.md`
+- **Issue**: C4 docs do not include Remote View or the new `streamd`/control API/registry components.
+- **Fix**: Add a Remote View L3 component diagram and link it from the C4 README.
 
 ## Re-Review Checklist
 
 - [ ] All critical/high fixes applied
-- [ ] Negative tests/smoke cover listener binding, REST auth, pre-hello controls, and malformed content length
-- [ ] `swift test` passes
-- [ ] `just streamd-smoke` passes
-- [ ] Review re-run achieves zero HIGH/CRITICAL findings
+- [ ] `streamd-kill` refuses invalid PID values and validates expected streamd identity
+- [ ] FrameSource pause/resume lifecycle covered
+- [ ] Oversized WebSocket/control inputs rejected without traps
+- [ ] Config invalid-env and missing-window-id cases fail clearly
+- [ ] Plan/task/domain/C4 docs aligned with final Phase 4 contract
+- [ ] Relevant Swift tests/smoke updated and passing
+- [ ] Re-run this review verb and achieve zero HIGH/CRITICAL
