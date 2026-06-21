@@ -33,6 +33,7 @@
       "scripts",
       ".vsc-bridge",
       ".chainglass",
+      ".harness",
       "apps/web/src/components/ui",
       "apps/web/src/hooks/use-mobile.ts",
       "**/next-env.d.ts",
