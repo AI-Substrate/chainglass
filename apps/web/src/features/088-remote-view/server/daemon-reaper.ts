@@ -15,6 +15,7 @@
  * servers run independent daemons and never reap each other (Workshop 004 Q2).
  */
 import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
 import { type RegistryEntry, streamdRegistryPath } from './daemon-manager';
 
 export type ProcessKiller = (pid: number, signal: NodeJS.Signals | number) => void;
@@ -53,14 +54,17 @@ export function isProcessAlive(pid: number, killer: ProcessKiller): boolean {
 }
 
 /**
- * True only if `ps` reports this pid running OUR signed streamd binary (its
- * command contains the registry `bundlePath` and a `streamd` token). Fails closed:
+ * True only if `ps` reports this pid's EXECUTABLE as our signed streamd inner
+ * binary (`<bundlePath>/Contents/MacOS/streamd`), matched against the first argv
+ * token — NOT anywhere in the command line. A recycled pid whose arguments merely
+ * mention the path (e.g. `python3 …/streamd`) must never pass (F004). Fails closed:
  * any probe error ⇒ false, so an unverifiable pid is never trusted.
  */
 export function isStreamdProcess(pid: number, bundlePath: string, exec: CommandExecutor): boolean {
   try {
-    const cmd = exec('ps', ['-o', 'command=', '-p', String(pid)]);
-    return cmd.includes(bundlePath) && /\bstreamd\b/.test(cmd);
+    const cmd = exec('ps', ['-o', 'command=', '-p', String(pid)]).trim();
+    const innerBinary = join(bundlePath, 'Contents/MacOS/streamd');
+    return cmd === innerBinary || cmd.startsWith(`${innerBinary} `);
   } catch {
     return false;
   }

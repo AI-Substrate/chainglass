@@ -194,12 +194,34 @@ describe('remote-view daemon reaper (fail-closed)', () => {
     - Quality Contribution: the matching half of the fail-closed kill gate.
     - Worked Example: our inner binary ⇒ true; an unrelated cmd ⇒ false.
     */
+    expect(isStreamdProcess(1, BUNDLE_PATH, () => INNER)).toBe(true); // exact path, no args
     expect(isStreamdProcess(1, BUNDLE_PATH, () => `${INNER} --port 6108`)).toBe(true);
     expect(isStreamdProcess(1, BUNDLE_PATH, () => '/usr/bin/python3 x')).toBe(false);
+    expect(isStreamdProcess(1, BUNDLE_PATH, () => `/usr/bin/python3 ${INNER}`)).toBe(false); // F004: argv-only mention
     expect(
       isStreamdProcess(1, BUNDLE_PATH, () => {
         throw new Error('nope');
       })
     ).toBe(false);
+  });
+
+  it('NEVER kills a recycled pid whose ARGV merely mentions our binary path (F004)', () => {
+    /*
+    Test Doc:
+    - Why: identity must be the executable, not any argv token, or a recycled pid can be falsely matched.
+    - Contract: ps shows `/usr/bin/python3 <innerBinary> …` (exec is python) → no kill; registry left.
+    - Usage Notes: regression for F004 — the prior `includes()` predicate matched this argv.
+    - Quality Contribution: closes the headline false-positive hole in the fail-closed gate.
+    - Worked Example: alive pid, argv mentions our path but exec is python → killed empty, file kept.
+    */
+    write(regEntry({ pid: 90005 }));
+    const killed: Array<[number, NodeJS.Signals | number]> = [];
+    const res = reapStreamdDaemon(root, WEB_PORT, {
+      exec: () => `/usr/bin/python3 ${INNER} --watch`,
+      killer: aliveKiller(killed),
+    });
+    expect(killed).toEqual([]);
+    expect(res.reaped).toBe(false);
+    expect(existsSync(registryPath)).toBe(true);
   });
 });

@@ -44,7 +44,7 @@ function health(over: Partial<DaemonHealth> = {}): DaemonHealth {
     ok: true,
     daemonVersion: '0.1.0',
     protocolVersion: EXPECTED_PROTOCOL,
-    permissions: { screenRecording: true, accessibility: 'granted' },
+    permissions: { screenRecording: 'granted', accessibility: 'granted' },
     ...over,
   };
 }
@@ -220,9 +220,45 @@ describe('remote-view daemon manager', () => {
     const { manager } = build({
       healthByPort: () => health({ protocolVersion: 99 }),
       onSpawn: () => writeRegistry(entry({ port: DEFAULT_DAEMON_PORT })),
+      nowSeq: [0, 100, 5000], // let the readiness window expire with no version match
     });
 
     await expect(manager.ensureDaemon()).rejects.toThrow(/streamd-install/);
+  });
+
+  it('waits for a version-matched daemon during respawn — no false stale-install while the old one lingers (F001)', async () => {
+    /*
+    Test Doc:
+    - Why: during a graceful /shutdown the old daemon can stay briefly reachable with the stale protocol.
+    - Contract: the respawn poll must wait for a version-MATCHED health, not throw on the first stale-protocol reply.
+    - Usage Notes: only after the full readiness window with no match does the stale-install error fire.
+    - Quality Contribution: regression for F001 — the prior code threw stale-install on the lingering old daemon.
+    - Worked Example: post-spawn health stays v99 for one poll, then v1 → ensureDaemon succeeds with v1.
+    */
+    writeRegistry(entry({ port: DEFAULT_DAEMON_PORT, protocolVersion: EXPECTED_PROTOCOL }));
+    let respawned = false;
+    let postSpawnHealthCalls = 0;
+    const { manager, spawns, shutdowns } = build({
+      healthByPort: () => {
+        if (!respawned) return health({ protocolVersion: 99 }); // initial: mismatch → respawn
+        postSpawnHealthCalls += 1;
+        // old daemon lingers with the stale protocol for the first poll, then the new one wins.
+        return postSpawnHealthCalls >= 2
+          ? health({ protocolVersion: EXPECTED_PROTOCOL })
+          : health({ protocolVersion: 99 });
+      },
+      onSpawn: () => {
+        respawned = true;
+        writeRegistry(entry({ port: DEFAULT_DAEMON_PORT }));
+      },
+      nowSeq: [0, 10, 20, 30], // advances but stays < deadline so polling continues
+    });
+
+    const info = await manager.ensureDaemon();
+
+    expect(shutdowns).toEqual([DEFAULT_DAEMON_PORT]);
+    expect(spawns).toHaveLength(1);
+    expect(info.protocolVersion).toBe(EXPECTED_PROTOCOL);
   });
 
   it('throws a readiness-timeout error when the daemon never becomes healthy', async () => {

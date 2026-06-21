@@ -40,3 +40,18 @@ TDD. `reapStreamdDaemon(root, webPort, deps)` mirrors `pty-registry.ts` semantic
 **Decision logged** (Discoveries): corrected Workshop 004's "alive-but-mismatched → kill" to the fail-closed dossier/pty-registry rule (never kill a pid we can't prove is ours).
 
 **Deferred** (Discoveries): the reaper isn't yet *called* at web-server boot — wire `reapStreamdDaemon` into the startup path at the first integration point (Phase-end rollup will surface this).
+
+---
+
+## Companion review loop — T001 + T002 (REQUEST_CHANGES → fixed)
+
+`code-review-companion` returned **REQUEST_CHANGES** on both commits; all four findings fixed in one loop before T003:
+
+| ID | Sev | Finding | Resolution |
+|----|-----|---------|------------|
+| F001 | HIGH | Respawn `pollUntilHealthy` returned the first `/health`-ok daemon regardless of protocol → the old daemon still gracefully exiting with the stale version could trigger a false `stale-install` error. | Respawn now polls for a **version-matched** health (`pollUntilHealthy(accept = versionOk)`); only after the full readiness window with no match does it diagnose stale-install vs readiness-timeout. Regression added (health lingers v99 then → v1). |
+| F004 | HIGH | Reaper `isStreamdProcess` used `cmd.includes(bundlePath)` → a recycled pid whose **argv** merely mentioned the path (e.g. `python3 …/streamd`) could be SIGTERM'd — a fail-closed hole. | Now matches the **executable** (first argv token): `cmd === innerBinary || cmd.startsWith(innerBinary + ' ')`. Regression rejects `/usr/bin/python3 <innerBinary>`. |
+| F002 | MED | `DaemonHealth.permissions.screenRecording` was `boolean`; the Phase 4 daemon returns the grant-string union for **both** permissions. | Changed to `PermissionGrant = 'granted' \| 'denied' \| 'not-determined'` for both; test fake updated — locks the frozen `/health` shape before T004 proxies it. |
+| F003 | MED | Active Phase 5 task row + diagrams + plan row still said `open -g`, contradicting the inner-binary spawn decision. | Updated the T001 row, spawn-lifecycle + sequence diagrams, and plan 5.1 to "detached signed inner binary"; spike/Workshop refs left as superseded history. |
+
+Tests after fixes: **16/16 green** (8 manager + 8 reaper).

@@ -40,14 +40,17 @@ export interface RegistryEntry {
   startedAt: string;
 }
 
+/** macOS TCC grant state — mirrors the Phase 4 daemon's /health (no boolean drift, F002). */
+export type PermissionGrant = 'granted' | 'denied' | 'not-determined';
+
 /** `GET /health` payload (no auth) — Workshop 004 control API. */
 export interface DaemonHealth {
   ok: boolean;
   daemonVersion: string;
   protocolVersion: number;
   permissions: {
-    screenRecording: boolean;
-    accessibility: 'granted' | 'denied' | 'not-determined';
+    screenRecording: PermissionGrant;
+    accessibility: PermissionGrant;
   };
 }
 
@@ -151,14 +154,13 @@ export function createDaemonManager(
     ]);
   }
 
-  async function pollUntilHealthy(): Promise<{
-    entry: RegistryEntry;
-    health: DaemonHealth;
-  } | null> {
+  async function pollUntilHealthy(
+    accept: (health: DaemonHealth) => boolean
+  ): Promise<{ entry: RegistryEntry; health: DaemonHealth } | null> {
     const deadline = deps.now() + timeoutMs;
     while (deps.now() < deadline) {
       const resolved = await resolveHealthy();
-      if (resolved) return resolved;
+      if (resolved && accept(resolved.health)) return resolved;
       await deps.sleep(pollMs);
     }
     return null;
@@ -185,21 +187,24 @@ export function createDaemonManager(
     }
 
     spawn();
-    const spawned = await pollUntilHealthy();
-    if (!spawned) {
+    // Poll for a daemon that is healthy AND version-matched — never latch onto the
+    // old daemon still gracefully exiting with the stale protocol (F001).
+    const spawned = await pollUntilHealthy((h) => versionOk(h));
+    if (spawned) return toInfo(spawned);
+
+    // No version-matched daemon within the readiness window — diagnose why.
+    const last = await resolveHealthy();
+    if (last && !versionOk(last.health)) {
       throw new Error(
-        `remote-view: streamd did not become healthy within ${timeoutMs}ms (registry ${registryPath}). ` +
-          'Check Screen Recording permission and that the bundle is installed (`just streamd-install`).'
-      );
-    }
-    if (!versionOk(spawned.health)) {
-      throw new Error(
-        `remote-view: streamd protocol ${spawned.health.protocolVersion} still != expected ` +
+        `remote-view: streamd protocol ${last.health.protocolVersion} still != expected ` +
           `${config.expectedProtocolVersion} after respawn — the installed bundle is stale. ` +
           'Run `just streamd-install`.'
       );
     }
-    return toInfo(spawned);
+    throw new Error(
+      `remote-view: streamd did not become healthy within ${timeoutMs}ms (registry ${registryPath}). ` +
+        'Check Screen Recording permission and that the bundle is installed (`just streamd-install`).'
+    );
   }
 
   return { ensureDaemon };
