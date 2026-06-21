@@ -539,6 +539,41 @@
         "from": "rv4c",
         "to": "ph5"
       }
+    },
+    {
+      "id": "STA-005",
+      "kind": "status-changed",
+      "origin": "engine",
+      "fired_at": "2026-06-21T07:00:39.999Z",
+      "details": {
+        "node": "ph5",
+        "from": "known",
+        "to": "in_progress"
+      }
+    },
+    {
+      "id": "UPD-019",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-21T07:00:40.059Z",
+      "details": {
+        "node": "ph5",
+        "fields": [
+          "note"
+        ]
+      }
+    },
+    {
+      "id": "UPD-020",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-21T07:00:40.129Z",
+      "details": {
+        "node": "ph5",
+        "fields": [
+          "comments"
+        ]
+      }
     }
   ],
   "nodes": [
@@ -570,13 +605,20 @@
       "id": "ph5",
       "type": "phase",
       "label": "Phase 5: Lifecycle, Agent Surface & Events",
-      "status": "known",
+      "status": "in_progress",
       "next": [
         "ph6"
       ],
       "created_at": "2026-06-19T23:23:46.659Z",
-      "modified_at": "2026-06-19T23:23:48.221Z",
-      "note": "Lifecycle, Agent Surface & Events (Mac-free) — daemon manager + reaper + version handshake; Next routes proxying the control API; SDK/CLI/MCP agent verbs (remote-view.list/attach/detach); SSE envelopes + GlobalState publishing. Designed in Workshops 001/002/003/004."
+      "modified_at": "2026-06-21T07:00:40.129Z",
+      "note": "Phase 5 tasks dossier tabled: 10 tasks (T001-T010) + 2 harness seams. Validated via /validate-v2 (4 agents) -> VALIDATED WITH FIXES: Source Truth 0 issues; 8 grounded fixes applied (route shapes, R6 session-create wiring, port HTTP-rename, reaper Phase-6 seam, publish sites, assumptions). 1 OPEN DECISION on T004: picker-catalog enumeration source (native streamd --list-windows vs helper).",
+      "comments": [
+        {
+          "at": "2026-06-21T07:00:40.129Z",
+          "text": "validate-v2 VALIDATED WITH FIXES (2026-06-21): thesis advanced @ Implementation; FC matrix all green except T004 enumeration-source (flagged open).",
+          "kind": "validation"
+        }
+      ]
     },
     {
       "id": "ph4",
