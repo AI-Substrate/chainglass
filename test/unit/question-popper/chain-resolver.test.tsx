@@ -36,6 +36,7 @@ function makeQ(
       description: null,
       options: null,
       default: null,
+      timeout: 600,
       previousQuestionId: previousId,
     },
     source: 'test-agent',

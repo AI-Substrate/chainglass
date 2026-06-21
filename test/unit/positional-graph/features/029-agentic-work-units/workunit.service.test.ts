@@ -8,6 +8,7 @@
  * @packageDocumentation
  */
 
+import { YamlParseError } from '@chainglass/shared';
 import { FakeFileSystem, FakePathResolver, FakeYamlParser } from '@chainglass/shared/fakes';
 import type { WorkspaceContext } from '@chainglass/workflow';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -69,16 +70,16 @@ describe('WorkUnitService', () => {
     fakeYamlParser = new FakeYamlParser();
 
     adapter = new WorkUnitAdapter(fakeFs, fakePathResolver);
-    service = new WorkUnitService(adapter, fakeFs, fakeYamlParser);
+    service = new WorkUnitService(adapter, fakeFs, fakeYamlParser, fakePathResolver);
 
     ctx = {
       workspaceSlug: 'test-workspace',
       workspaceName: 'Test Workspace',
       workspacePath: '/home/user/project',
       worktreePath: '/home/user/project',
-      worktreeSlug: 'main',
-      worktreeName: 'main',
+      worktreeBranch: 'main',
       isMainWorktree: true,
+      hasGit: true,
     };
   });
 
@@ -200,10 +201,10 @@ describe('WorkUnitService', () => {
       fakeYamlParser.setPresetParseResult(agentYaml, validAgentUnit);
 
       const badYaml = 'invalid: yaml: content: [';
-      fakeYamlParser.setPresetParseError(badYaml, {
-        name: 'YamlParseError',
-        message: 'YAML syntax error',
-      });
+      fakeYamlParser.setPresetParseError(
+        badYaml,
+        new YamlParseError('YAML syntax error', 1, 1, 'unit.yaml')
+      );
 
       fakeFs.setFile('/home/user/project/.chainglass/units/test-agent/unit.yaml', agentYaml);
       fakeFs.setFile('/home/user/project/.chainglass/units/bad-yaml/unit.yaml', badYaml);
@@ -316,10 +317,10 @@ describe('WorkUnitService', () => {
      */
     it('should return E181 for YAML parse error', async () => {
       const badYaml = 'invalid: yaml: [';
-      fakeYamlParser.setPresetParseError(badYaml, {
-        name: 'YamlParseError',
-        message: 'Unexpected token at line 1',
-      });
+      fakeYamlParser.setPresetParseError(
+        badYaml,
+        new YamlParseError('Unexpected token at line 1', 1, 1, 'unit.yaml')
+      );
       fakeFs.setFile('/home/user/project/.chainglass/units/bad-unit/unit.yaml', badYaml);
 
       const result = await service.load(ctx, 'bad-unit');

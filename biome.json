@@ -47,7 +47,11 @@
       "packages/*/src/**/*.js",
       "packages/*/src/**/*.js.map",
       "apps/web/public/icons/**",
-      "agents/*/runs/**"
+      "agents/*/runs/**",
+      "**/.build",
+      "docs/plans/**/the-flow*.json",
+      "docs/plans/**/external-research/**",
+      "apps/web/src/features/*/protocol/fixtures/**"
     ]
   }
 }

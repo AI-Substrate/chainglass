@@ -6,7 +6,7 @@
  */
 
 import { act, renderHook } from '@testing-library/react';
-import React from 'react';
+import type React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useTreeDirectoryChanges } from '../../../../../apps/web/src/features/041-file-browser/hooks/use-tree-directory-changes';
 import { FileChangeProvider } from '../../../../../apps/web/src/features/045-live-file-events/file-change-provider';
@@ -27,10 +27,10 @@ describe('useTreeDirectoryChanges', () => {
 
   function createWrapper(worktreePath = '/repo') {
     return function Wrapper({ children }: { children: React.ReactNode }) {
-      return React.createElement(
-        MultiplexedSSEProvider,
-        { channels: ['file-changes'], eventSourceFactory: fakeMux.factory },
-        React.createElement(FileChangeProvider, { worktreePath }, children)
+      return (
+        <MultiplexedSSEProvider channels={['file-changes']} eventSourceFactory={fakeMux.factory}>
+          <FileChangeProvider worktreePath={worktreePath}>{children}</FileChangeProvider>
+        </MultiplexedSSEProvider>
       );
     };
   }

@@ -78,10 +78,19 @@ agentAdapterContractTests('SdkCopilotAdapter', () => {
   const fakeClient = new FakeCopilotClient({
     events: [
       {
+        id: 'contract-evt-001',
+        timestamp: '2026-01-28T10:00:00.000Z',
+        parentId: null,
         type: 'assistant.message',
         data: { content: 'Contract test output', messageId: 'contract-msg-001' },
       },
-      { type: 'session.idle', data: {} },
+      {
+        id: 'contract-evt-002',
+        timestamp: '2026-01-28T10:00:01.000Z',
+        parentId: null,
+        type: 'session.idle',
+        data: {},
+      },
     ],
   });
 

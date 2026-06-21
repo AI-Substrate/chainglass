@@ -628,7 +628,8 @@ function BrowserClientInner({
   const isSuppressed = selectedFile ? suppressedTimersRef.current.has(selectedFile) : false;
   const isDirty =
     fileNav.editContent != null &&
-    fileNav.fileData?.content != null &&
+    fileNav.fileData?.ok === true &&
+    !fileNav.fileData.isBinary &&
     fileNav.editContent !== fileNav.fileData.content;
 
   // Determine if we should show banner vs auto-refresh (DYK #3)

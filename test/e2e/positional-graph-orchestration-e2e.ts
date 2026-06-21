@@ -25,6 +25,7 @@ import * as path from 'node:path';
 import type { IPositionalGraphService } from '@chainglass/positional-graph/interfaces';
 import type { State } from '@chainglass/positional-graph/schemas';
 import { FakeAgentManagerService, NodeFileSystemAdapter } from '@chainglass/shared';
+import type { WorkspaceContext } from '@chainglass/workflow';
 
 import {
   AgentContextService,
@@ -65,18 +66,7 @@ const GRAPH_SLUG = 'orchestration-e2e';
 // Orchestrator Stack Builder
 // ============================================
 
-function createOrchestrationStack(
-  service: IPositionalGraphService,
-  ctx: {
-    workspaceSlug: string;
-    workspaceName: string;
-    workspacePath: string;
-    worktreePath: string;
-    worktreeBranch: null;
-    isMainWorktree: true;
-    hasGit: false;
-  }
-) {
+function createOrchestrationStack(service: IPositionalGraphService, ctx: WorkspaceContext) {
   // Event system (same pattern as Plan 032 E2E)
   const eventRegistry = new FakeNodeEventRegistry();
   registerCoreEventTypes(eventRegistry);

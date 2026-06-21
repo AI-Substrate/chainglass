@@ -260,23 +260,20 @@ describe('Agent Persistence Integration Tests', () => {
       // Append events directly to storage
       await storage.appendEvent('agent-1', {
         eventId: 'evt-1',
-        type: 'text',
-        role: 'user',
-        content: 'Hello',
+        type: 'user_prompt',
+        data: { content: 'Hello' },
         timestamp: new Date().toISOString(),
       });
       await storage.appendEvent('agent-1', {
         eventId: 'evt-2',
-        type: 'text',
-        role: 'assistant',
-        content: 'Hi!',
+        type: 'message',
+        data: { content: 'Hi!' },
         timestamp: new Date().toISOString(),
       });
       await storage.appendEvent('agent-1', {
         eventId: 'evt-3',
-        type: 'text',
-        role: 'user',
-        content: 'Goodbye',
+        type: 'user_prompt',
+        data: { content: 'Goodbye' },
         timestamp: new Date().toISOString(),
       });
 
@@ -286,8 +283,9 @@ describe('Agent Persistence Integration Tests', () => {
 
       const agent = manager.getAgent('agent-1');
       expect(agent).not.toBeNull();
+      if (!agent) throw new Error('expected agent-1');
 
-      const events = agent?.getEvents();
+      const events = agent.getEvents();
       expect(events).toHaveLength(3);
       expect(events[0].eventId).toBe('evt-1');
       expect(events[1].eventId).toBe('evt-2');
@@ -322,23 +320,20 @@ describe('Agent Persistence Integration Tests', () => {
 
       await storage.appendEvent('agent-1', {
         eventId: 'evt-1',
-        type: 'text',
-        role: 'user',
-        content: 'First',
+        type: 'user_prompt',
+        data: { content: 'First' },
         timestamp: new Date().toISOString(),
       });
       await storage.appendEvent('agent-1', {
         eventId: 'evt-2',
-        type: 'text',
-        role: 'assistant',
-        content: 'Second',
+        type: 'message',
+        data: { content: 'Second' },
         timestamp: new Date().toISOString(),
       });
       await storage.appendEvent('agent-1', {
         eventId: 'evt-3',
-        type: 'text',
-        role: 'user',
-        content: 'Third',
+        type: 'user_prompt',
+        data: { content: 'Third' },
         timestamp: new Date().toISOString(),
       });
 
@@ -346,7 +341,9 @@ describe('Agent Persistence Integration Tests', () => {
       await manager.initialize();
 
       const agent = manager.getAgent('agent-1');
-      const sinceEvents = agent?.getEvents({ sinceId: 'evt-1' });
+      expect(agent).not.toBeNull();
+      if (!agent) throw new Error('expected agent for sinceId query');
+      const sinceEvents = agent.getEvents({ sinceId: 'evt-1' });
 
       expect(sinceEvents).toHaveLength(2);
       expect(sinceEvents[0].eventId).toBe('evt-2');
@@ -382,25 +379,24 @@ describe('Agent Persistence Integration Tests', () => {
       // Add events with the format "agent-id-evt-N"
       await storage.appendEvent('agent-1', {
         eventId: 'agent-1-evt-1',
-        type: 'text',
-        role: 'user',
-        content: 'First',
+        type: 'user_prompt',
+        data: { content: 'First' },
         timestamp: new Date().toISOString(),
       });
       await storage.appendEvent('agent-1', {
         eventId: 'agent-1-evt-2',
-        type: 'text',
-        role: 'assistant',
-        content: 'Second',
+        type: 'message',
+        data: { content: 'Second' },
         timestamp: new Date().toISOString(),
       });
 
       // Hydrate via static factory directly to test counter
       const instance = await AgentInstance.hydrate('agent-1', storage, adapterFactory, notifier);
       expect(instance).not.toBeNull();
+      if (!instance) throw new Error('expected restored instance');
 
       // Get events - the instance should have loaded them
-      const events = instance?.getEvents();
+      const events = instance.getEvents();
       expect(events).toHaveLength(2);
 
       // The instance's internal counter should be set to 2

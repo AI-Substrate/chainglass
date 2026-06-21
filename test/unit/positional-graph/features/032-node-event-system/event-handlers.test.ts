@@ -15,12 +15,28 @@ import {
   createEventHandlerRegistry,
   registerCoreEventTypes,
 } from '@chainglass/positional-graph/features/032-node-event-system';
-import type { NodeEvent } from '@chainglass/positional-graph/features/032-node-event-system';
+import type {
+  EventSource,
+  NodeEvent,
+} from '@chainglass/positional-graph/features/032-node-event-system';
 import { raiseEvent } from '@chainglass/positional-graph/features/032-node-event-system/raise-event';
 import type { RaiseEventDeps } from '@chainglass/positional-graph/features/032-node-event-system/raise-event';
 import type { State } from '@chainglass/positional-graph/schemas/state.schema';
 
 // ── Test Infrastructure ──────────────────────────────────
+
+/**
+ * Returns the element at `index`, throwing if the optional array (or slot) is
+ * empty. Keeps event assertions strong without a non-null assertion operator
+ * (biome lint/style/noNonNullAssertion).
+ */
+function requireAt<T>(arr: readonly T[] | undefined, index: number): T {
+  const item = arr?.[index];
+  if (item === undefined) {
+    throw new Error(`expected an element at index ${index}`);
+  }
+  return item;
+}
 
 function makeState(
   nodeId: string,
@@ -64,7 +80,10 @@ function createTestService() {
   return new NodeEventService(
     {
       registry: eventRegistry,
-      loadState: async () => ({ graph_slug: 'g', version: '1', created_at: '', updated_at: '' }),
+      loadState: async () => ({
+        graph_status: 'in_progress' as const,
+        updated_at: new Date().toISOString(),
+      }),
       persistState: async () => {},
     },
     handlerRegistry
@@ -507,7 +526,7 @@ async function raiseAndHandle(
   nodeId: string,
   eventType: string,
   payload: unknown,
-  source: 'agent' | 'human' | 'system'
+  source: EventSource
 ) {
   const result = await raiseEvent(deps, graphSlug, nodeId, eventType, payload, source);
   if (result.ok) {
@@ -550,10 +569,10 @@ describe('Workshop #02 Walkthrough 1: Happy Path (accept → complete)', () => {
     expect(acceptResult.ok).toBe(true);
 
     let state = stateStore.getState('my-graph') as State;
-    let nodes = state.nodes as State['nodes'];
+    let nodes = state.nodes as NonNullable<State['nodes']>;
     expect(nodes['node-1'].status).toBe('agent-accepted');
     expect(nodes['node-1'].events).toHaveLength(1);
-    const acceptEvent = nodes['node-1'].events?.[0];
+    const acceptEvent = requireAt(nodes['node-1'].events, 0);
     expect(acceptEvent.event_type).toBe('node:accepted');
     expect(acceptEvent.stamps?.e2e?.action).toBe('state-transition');
 
@@ -571,11 +590,11 @@ describe('Workshop #02 Walkthrough 1: Happy Path (accept → complete)', () => {
     expect(completeResult.ok).toBe(true);
 
     state = stateStore.getState('my-graph') as State;
-    nodes = state.nodes as State['nodes'];
+    nodes = state.nodes as NonNullable<State['nodes']>;
     expect(nodes['node-1'].status).toBe('complete');
     expect(nodes['node-1'].completed_at).toBeDefined();
     expect(nodes['node-1'].events).toHaveLength(2);
-    const completedEvent = nodes['node-1'].events?.[1];
+    const completedEvent = requireAt(nodes['node-1'].events, 1);
     expect(completedEvent.event_type).toBe('node:completed');
     expect(completedEvent.stamps?.e2e?.action).toBe('state-transition');
   });
@@ -629,12 +648,12 @@ describe('Workshop #02 Walkthrough 2: Q&A Lifecycle', () => {
     expect(askResult.ok).toBe(true);
 
     let state = stateStore.getState('my-graph') as State;
-    let nodes = state.nodes as State['nodes'];
+    let nodes = state.nodes as NonNullable<State['nodes']>;
     expect(nodes['node-1'].status).toBe('waiting-question');
     expect(nodes['node-1'].pending_question_id).toBe('q-framework');
     expect(nodes['node-1'].events).toHaveLength(2);
 
-    const askEvent = nodes['node-1'].events?.[1];
+    const askEvent = requireAt(nodes['node-1'].events, 1);
     expect(askEvent.event_type).toBe('question:ask');
     expect(askEvent.stamps?.e2e?.action).toBe('state-transition');
     const askEventId = askEvent.event_id;
@@ -653,7 +672,7 @@ describe('Workshop #02 Walkthrough 2: Q&A Lifecycle', () => {
     expect(answerResult.ok).toBe(true);
 
     state = stateStore.getState('my-graph') as State;
-    nodes = state.nodes as State['nodes'];
+    nodes = state.nodes as NonNullable<State['nodes']>;
 
     // Record-only: Node stays waiting-question, pending preserved
     expect(nodes['node-1'].status).toBe('waiting-question');
@@ -661,11 +680,11 @@ describe('Workshop #02 Walkthrough 2: Q&A Lifecycle', () => {
     expect(nodes['node-1'].events).toHaveLength(3);
 
     // Ask event cross-stamped with answer-linked
-    const persistedAskEvent = nodes['node-1'].events?.[1];
+    const persistedAskEvent = requireAt(nodes['node-1'].events, 1);
     expect(persistedAskEvent.stamps?.e2e?.action).toBe('answer-linked');
 
     // Answer event stamped with answer-recorded
-    const answerEvent = nodes['node-1'].events?.[2];
+    const answerEvent = requireAt(nodes['node-1'].events, 2);
     expect(answerEvent.event_type).toBe('question:answer');
     expect(answerEvent.stamps?.e2e?.action).toBe('answer-recorded');
   });
@@ -718,7 +737,7 @@ describe('Workshop #02 Walkthrough 3: Error Path', () => {
     expect(errorResult.ok).toBe(true);
 
     const state = stateStore.getState('my-graph') as State;
-    const nodes = state.nodes as State['nodes'];
+    const nodes = state.nodes as NonNullable<State['nodes']>;
     expect(nodes['node-1'].status).toBe('blocked-error');
     expect(nodes['node-1'].events).toHaveLength(2);
 
@@ -728,7 +747,7 @@ describe('Workshop #02 Walkthrough 3: Error Path', () => {
     expect(error?.message).toBe('Failed to generate spec within time limit');
     expect(error?.details).toEqual({ elapsed_seconds: 300 });
 
-    const errorEvent = nodes['node-1'].events?.[1];
+    const errorEvent = requireAt(nodes['node-1'].events, 1);
     expect(errorEvent.event_type).toBe('node:error');
     expect(errorEvent.stamps?.e2e?.action).toBe('state-transition');
   });
@@ -787,7 +806,7 @@ describe('Workshop #02 Walkthrough 4: Progress Updates', () => {
     expect(p2.ok).toBe(true);
 
     const state = stateStore.getState('my-graph') as State;
-    const nodes = state.nodes as State['nodes'];
+    const nodes = state.nodes as NonNullable<State['nodes']>;
     expect(nodes['node-1'].status).toBe('agent-accepted');
     expect(nodes['node-1'].events).toHaveLength(3);
 

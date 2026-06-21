@@ -45,6 +45,7 @@ import {
 import type { IPositionalGraphService } from '@chainglass/positional-graph/interfaces';
 import { NodeFileSystemAdapter } from '@chainglass/shared';
 import type { IAgentManagerService } from '@chainglass/shared';
+import type { ICopilotClient } from '@chainglass/shared/interfaces/copilot-sdk.interface';
 import type { WorkspaceContext } from '@chainglass/workflow';
 
 /** Drive options tuned for real agents (10-60s per node). */
@@ -70,9 +71,8 @@ function buildOrchestrationStack(
   const nes = new NodeEventService(
     {
       registry: eventRegistry,
-      loadState: async (slug: string) => service.loadGraphState(ctx, slug),
-      persistState: async (slug: string, state: unknown) =>
-        service.persistGraphState(ctx, slug, state),
+      loadState: async (slug) => service.loadGraphState(ctx, slug),
+      persistState: async (slug, state) => service.persistGraphState(ctx, slug, state),
     },
     handlerRegistry
   );
@@ -185,12 +185,12 @@ describe.skip('Real Agent Orchestration', () => {
 
       const client = new CopilotClient();
       const agentManager = new AgentManagerService(
-        () => new SdkCopilotAdapter(client)
+        () => new SdkCopilotAdapter(client as unknown as ICopilotClient)
       ) as unknown as IAgentManagerService;
 
       await withTestGraph('real-agent-serial', async (tgc) => {
         const workUnitService = buildDiskWorkUnitService(tgc.workspacePath);
-        const { orchestrationService, podManager } = buildOrchestrationStack(
+        const { orchestrationService, getLastPerHandleDeps } = buildOrchestrationStack(
           tgc.service,
           tgc.ctx,
           agentManager,
@@ -252,6 +252,10 @@ describe.skip('Real Agent Orchestration', () => {
         await assertOutputExists(tgc.service, tgc.ctx, SLUG, reviewer.nodeId as string, 'decision');
 
         // Session inheritance: both have sessions (AC-36)
+        const perHandleDeps = getLastPerHandleDeps();
+        expect(perHandleDeps).toBeDefined();
+        if (!perHandleDeps) throw new Error('expected per-handle deps');
+        const podManager = perHandleDeps.podManager;
         const writerSession = podManager.getSessionId(specWriter.nodeId as string);
         const reviewerSession = podManager.getSessionId(reviewer.nodeId as string);
         console.log(`  [sessions] writer=${writerSession}, reviewer=${reviewerSession}`);
@@ -269,12 +273,12 @@ describe.skip('Real Agent Orchestration', () => {
 
       const client = new CopilotClient();
       const agentManager = new AgentManagerService(
-        () => new SdkCopilotAdapter(client)
+        () => new SdkCopilotAdapter(client as unknown as ICopilotClient)
       ) as unknown as IAgentManagerService;
 
       await withTestGraph('real-agent-parallel', async (tgc) => {
         const workUnitService = buildDiskWorkUnitService(tgc.workspacePath);
-        const { orchestrationService, podManager } = buildOrchestrationStack(
+        const { orchestrationService, getLastPerHandleDeps } = buildOrchestrationStack(
           tgc.service,
           tgc.ctx,
           agentManager,
@@ -328,6 +332,10 @@ describe.skip('Real Agent Orchestration', () => {
         await assertNodeComplete(tgc.service, tgc.ctx, SLUG, workerB.nodeId as string);
 
         // Parallel = independent sessions (AC-37)
+        const perHandleDeps = getLastPerHandleDeps();
+        expect(perHandleDeps).toBeDefined();
+        if (!perHandleDeps) throw new Error('expected per-handle deps');
+        const podManager = perHandleDeps.podManager;
         const sessionA = podManager.getSessionId(workerA.nodeId as string);
         const sessionB = podManager.getSessionId(workerB.nodeId as string);
         console.log(`  [sessions] A=${sessionA}, B=${sessionB}`);
@@ -353,7 +361,7 @@ describe.skip('Real Agent Orchestration', () => {
 
       await withTestGraph('real-agent-serial', async (tgc) => {
         const workUnitService = buildDiskWorkUnitService(tgc.workspacePath);
-        const { orchestrationService, podManager } = buildOrchestrationStack(
+        const { orchestrationService, getLastPerHandleDeps } = buildOrchestrationStack(
           tgc.service,
           tgc.ctx,
           agentManager,
@@ -406,6 +414,10 @@ describe.skip('Real Agent Orchestration', () => {
         await assertNodeComplete(tgc.service, tgc.ctx, SLUG, specWriter.nodeId as string);
         await assertNodeComplete(tgc.service, tgc.ctx, SLUG, reviewer.nodeId as string);
 
+        const perHandleDeps = getLastPerHandleDeps();
+        expect(perHandleDeps).toBeDefined();
+        if (!perHandleDeps) throw new Error('expected per-handle deps');
+        const podManager = perHandleDeps.podManager;
         const writerSession = podManager.getSessionId(specWriter.nodeId as string);
         const reviewerSession = podManager.getSessionId(reviewer.nodeId as string);
         console.log(`  [sessions] writer=${writerSession}, reviewer=${reviewerSession}`);

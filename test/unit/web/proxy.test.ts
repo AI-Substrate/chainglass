@@ -484,9 +484,10 @@ describe('Phase 5 F001 — bootstrap gate enforced even when DISABLE_GITHUB_OAUT
     _resetSigningSecretCacheForTests();
     // Re-import proxy default with env-var set so auth.ts wrapper short-circuits.
     const { default: middleware } = await import('../../../apps/web/proxy');
-    const res = await middleware(makeReq('/api/events') as never);
-    expect(res.status).toBe(401);
-    expect(await res.json()).toEqual({ error: 'bootstrap-required' });
+    const res = await middleware(makeReq('/api/events') as never, undefined as never);
+    expect(res).toBeDefined();
+    expect(res?.status).toBe(401);
+    expect(await res?.json()).toEqual({ error: 'bootstrap-required' });
   });
 
   it('DISABLE_AUTH=true (legacy) + non-bypass /api/events without cookie → 401 (gate enforced)', async () => {
@@ -495,17 +496,19 @@ describe('Phase 5 F001 — bootstrap gate enforced even when DISABLE_GITHUB_OAUT
     _resetBootstrapCache();
     _resetSigningSecretCacheForTests();
     const { default: middleware } = await import('../../../apps/web/proxy');
-    const res = await middleware(makeReq('/api/events') as never);
-    expect(res.status).toBe(401);
+    const res = await middleware(makeReq('/api/events') as never, undefined as never);
+    expect(res).toBeDefined();
+    expect(res?.status).toBe(401);
   });
 
   it('DISABLE_GITHUB_OAUTH=true + bypass route /api/health → next() (no cookie required)', async () => {
     process.env.DISABLE_GITHUB_OAUTH = 'true';
     const { default: middleware } = await import('../../../apps/web/proxy');
-    const res = await middleware(makeReq('/api/health') as never);
+    const res = await middleware(makeReq('/api/health') as never, undefined as never);
     // Bypass paths short-circuit before bootstrap accessor — no file needed.
     // NextResponse.next() ≡ status 200 (proxy doesn't transform).
-    expect([200, 204]).toContain(res.status);
+    expect(res).toBeDefined();
+    expect([200, 204]).toContain(res?.status);
   });
 
   it('DISABLE_GITHUB_OAUTH=true + valid bootstrap cookie + non-bypass /api/events → next() (OAuth bypassed)', async () => {
@@ -518,8 +521,9 @@ describe('Phase 5 F001 — bootstrap gate enforced even when DISABLE_GITHUB_OAUT
     );
     const cookie = buildCookieValue(ensured.data.code, activeSigningSecret(cwd));
     const { default: middleware } = await import('../../../apps/web/proxy');
-    const res = await middleware(makeReq('/api/events', cookie) as never);
-    expect([200, 204]).toContain(res.status);
+    const res = await middleware(makeReq('/api/events', cookie) as never, undefined as never);
+    expect(res).toBeDefined();
+    expect([200, 204]).toContain(res?.status);
   });
 });
 

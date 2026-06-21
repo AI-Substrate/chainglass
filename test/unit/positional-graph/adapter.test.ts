@@ -12,6 +12,7 @@ function createTestContext(worktreePath = '/workspace/my-project'): WorkspaceCon
     worktreePath,
     worktreeBranch: 'main',
     isMainWorktree: true,
+    hasGit: true,
   };
 }
 

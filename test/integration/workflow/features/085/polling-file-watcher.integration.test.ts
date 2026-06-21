@@ -35,10 +35,11 @@ function sleep(ms: number): Promise<void> {
 }
 
 /** Env that forces polling with a fast interval for tests. */
-const POLLING_ENV = {
+const POLLING_ENV: NodeJS.ProcessEnv = {
+  ...process.env,
   CHAINGLASS_WATCH_POLLING: 'true',
   CHAINGLASS_WATCH_POLL_INTERVAL: '120',
-} as NodeJS.ProcessEnv;
+};
 
 const SETTLE = 420; // a few poll intervals + margin
 

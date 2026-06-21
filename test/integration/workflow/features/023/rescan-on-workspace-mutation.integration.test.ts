@@ -450,7 +450,8 @@ describe('integration: mutation events drive watcher rescans (Plan 084)', () => 
 
     // Wait for the parent-dir watcher to fire → filter → rescan.
     // awaitWriteFinish has stabilityThreshold: 200ms; allow generous headroom.
-    await waitFor(() => h.rescanCallCount() > beforeRescans, {
+    const harness = h;
+    await waitFor(() => harness.rescanCallCount() > beforeRescans, {
       timeoutMs: 3000,
       intervalMs: 100,
       label: 'rescan triggered by out-of-band registry write',

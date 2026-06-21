@@ -25,6 +25,7 @@ function createTestContext(worktreePath = '/workspace/my-project'): WorkspaceCon
     worktreePath,
     worktreeBranch: 'main',
     isMainWorktree: true,
+    hasGit: true,
   };
 }
 
@@ -50,7 +51,7 @@ async function simulateAgentAccept(
   const statePath = `${worktreePath}/.chainglass/data/workflows/${graphSlug}/state.json`;
   const content = fs.getFile(statePath);
   if (!content) throw new Error(`state.json not found at ${statePath}`);
-  const state = JSON.parse(content);
+  const state = JSON.parse(content.toString());
   if (!state.nodes?.[nodeId]) throw new Error(`Node ${nodeId} not found in state.json`);
   state.nodes[nodeId].status = 'agent-accepted';
   fs.setFile(statePath, JSON.stringify(state, null, 2));
@@ -60,7 +61,7 @@ function readState(fs: FakeFileSystem, graphSlug: string, worktreePath = '/works
   const statePath = `${worktreePath}/.chainglass/data/workflows/${graphSlug}/state.json`;
   const content = fs.getFile(statePath);
   if (!content) throw new Error('state.json not found');
-  return JSON.parse(content);
+  return JSON.parse(content.toString());
 }
 
 // ── T008: endNode service wrapper contract ───────────────

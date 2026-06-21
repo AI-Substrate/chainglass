@@ -17,17 +17,17 @@
  * AC-2 (pen), AC-7 (native res), AC-11/12/13 (save UX), AC-15 (load failure), AC-17 (export/CORS)
  */
 
+import { getStroke } from 'perfect-freehand';
 import {
   Component,
   type ErrorInfo,
-  type PointerEvent as ReactPointerEvent,
   type ReactNode,
+  type PointerEvent as ReactPointerEvent,
   useCallback,
   useEffect,
   useRef,
   useState,
 } from 'react';
-import { getStroke } from 'perfect-freehand';
 
 import { Button } from '@/components/ui/button';
 
@@ -127,7 +127,10 @@ async function blobToBase64(blob: Blob): Promise<string> {
 }
 
 /** Default canvas → base64 exporter. Throws on a CORS-tainted canvas (AC-17). */
-async function defaultExport(canvas: HTMLCanvasElement, format: CanvasExportFormat): Promise<string> {
+async function defaultExport(
+  canvas: HTMLCanvasElement,
+  format: CanvasExportFormat
+): Promise<string> {
   let target = canvas;
   if (format.flattenAlpha) {
     const flat = document.createElement('canvas');
@@ -278,16 +281,19 @@ function ImageEditorInner({
     };
   }, [imageSrc, redraw]);
 
-  const toImagePoint = useCallback((clientX: number, clientY: number, pressure: number): number[] => {
-    const canvas = canvasRef.current;
-    if (!canvas) return [0, 0, pressure];
-    const rect = canvas.getBoundingClientRect();
-    const element: Size = { width: rect.width, height: rect.height };
-    const image: Size = { width: canvas.width, height: canvas.height };
-    const css: Point = { x: clientX - rect.left, y: clientY - rect.top };
-    const p = cssToImagePoint(css, element, image);
-    return [p.x, p.y, pressure];
-  }, []);
+  const toImagePoint = useCallback(
+    (clientX: number, clientY: number, pressure: number): number[] => {
+      const canvas = canvasRef.current;
+      if (!canvas) return [0, 0, pressure];
+      const rect = canvas.getBoundingClientRect();
+      const element: Size = { width: rect.width, height: rect.height };
+      const image: Size = { width: canvas.width, height: canvas.height };
+      const css: Point = { x: clientX - rect.left, y: clientY - rect.top };
+      const p = cssToImagePoint(css, element, image);
+      return [p.x, p.y, pressure];
+    },
+    []
+  );
 
   const handlePointerDown = useCallback(
     (e: ReactPointerEvent<HTMLCanvasElement>) => {

@@ -7,12 +7,16 @@
  * Part of Plan 019: Agent Manager Refactor
  */
 
-import { AgentStatusIndicator } from '@/components/agents/agent-status-indicator';
+import {
+  AgentStatusIndicator,
+  type AgentStatusIndicatorProps,
+} from '@/components/agents/agent-status-indicator';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-// SessionStatus is inlined in the component
-type SessionStatus = 'idle' | 'working' | 'error' | 'complete';
+// SessionStatus is inlined in the component; derive it from the public props
+// so the test stays in sync with the component's accepted status values.
+type SessionStatus = AgentStatusIndicatorProps['status'];
 
 // ============ T009: AgentStatusIndicator Tests ============
 

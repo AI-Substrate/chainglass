@@ -274,16 +274,14 @@ export function agentStorageContractTests(name: string, createAdapter: () => IAg
         const adapter = createAdapter();
         const event1: AgentStoredEvent = {
           eventId: 'evt-1',
-          type: 'text',
-          role: 'user',
-          content: 'Hello',
+          type: 'user_prompt',
+          data: { content: 'Hello' },
           timestamp: '2026-01-29T00:00:00.000Z',
         };
         const event2: AgentStoredEvent = {
           eventId: 'evt-2',
-          type: 'text',
-          role: 'assistant',
-          content: 'Hi there!',
+          type: 'message',
+          data: { content: 'Hi there!' },
           timestamp: '2026-01-29T00:00:01.000Z',
         };
 
@@ -324,23 +322,20 @@ export function agentStorageContractTests(name: string, createAdapter: () => IAg
         const adapter = createAdapter();
         await adapter.appendEvent('agent-1', {
           eventId: 'evt-1',
-          type: 'text',
-          role: 'user',
-          content: 'First',
+          type: 'user_prompt',
+          data: { content: 'First' },
           timestamp: '2026-01-29T00:00:00.000Z',
         });
         await adapter.appendEvent('agent-1', {
           eventId: 'evt-2',
-          type: 'text',
-          role: 'assistant',
-          content: 'Second',
+          type: 'message',
+          data: { content: 'Second' },
           timestamp: '2026-01-29T00:00:01.000Z',
         });
         await adapter.appendEvent('agent-1', {
           eventId: 'evt-3',
-          type: 'text',
-          role: 'user',
-          content: 'Third',
+          type: 'user_prompt',
+          data: { content: 'Third' },
           timestamp: '2026-01-29T00:00:02.000Z',
         });
 
@@ -363,16 +358,14 @@ export function agentStorageContractTests(name: string, createAdapter: () => IAg
         const adapter = createAdapter();
         await adapter.appendEvent('agent-1', {
           eventId: 'evt-1',
-          type: 'text',
-          role: 'user',
-          content: 'First',
+          type: 'user_prompt',
+          data: { content: 'First' },
           timestamp: '2026-01-29T00:00:00.000Z',
         });
         await adapter.appendEvent('agent-1', {
           eventId: 'evt-2',
-          type: 'text',
-          role: 'assistant',
-          content: 'Second',
+          type: 'message',
+          data: { content: 'Second' },
           timestamp: '2026-01-29T00:00:01.000Z',
         });
 
@@ -393,9 +386,8 @@ export function agentStorageContractTests(name: string, createAdapter: () => IAg
         const adapter = createAdapter();
         await adapter.appendEvent('agent-1', {
           eventId: 'evt-1',
-          type: 'text',
-          role: 'user',
-          content: 'For agent 1',
+          type: 'user_prompt',
+          data: { content: 'For agent 1' },
           timestamp: '2026-01-29T00:00:00.000Z',
         });
 
@@ -437,9 +429,8 @@ export function agentStorageContractTests(name: string, createAdapter: () => IAg
         });
         await adapter.appendEvent('agent-1', {
           eventId: 'evt-1',
-          type: 'text',
-          role: 'user',
-          content: 'Hello',
+          type: 'user_prompt',
+          data: { content: 'Hello' },
           timestamp: '2026-01-29T00:00:00.000Z',
         });
 

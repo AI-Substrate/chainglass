@@ -40,8 +40,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { GET } from '../../../../../apps/web/app/api/remote-view/token/route';
 import { _resetForTests as _resetBootstrapCache } from '../../../../../apps/web/src/lib/bootstrap-code';
-import { mkTempCwd } from '../../../shared/auth-bootstrap-code/test-fixtures';
 import authVectors from '../../../../contracts/remote-view-auth-vectors.json';
+import { mkTempCwd } from '../../../shared/auth-bootstrap-code/test-fixtures';
 
 const URL_ = 'http://localhost:3000/api/remote-view/token';
 

@@ -350,7 +350,9 @@ describe('AgentEventAdapter', () => {
       const r3 = await adapter.append(ctx, 'session-1', TEST_EVENT_3);
 
       // Get events after the first event
-      const events = await adapter.getSince(ctx, 'session-1', r1.event?.id);
+      const r1Id = r1.event?.id;
+      if (r1Id === undefined) throw new Error('append did not return an event id');
+      const events = await adapter.getSince(ctx, 'session-1', r1Id);
 
       expect(events).toHaveLength(2);
       expect(events[0].id).toBe(r2.event?.id);
@@ -367,7 +369,9 @@ describe('AgentEventAdapter', () => {
       const r1 = await adapter.append(ctx, 'session-1', TEST_EVENT_1);
       const r2 = await adapter.append(ctx, 'session-1', TEST_EVENT_2);
 
-      const events = await adapter.getSince(ctx, 'session-1', r2.event?.id);
+      const r2Id = r2.event?.id;
+      if (r2Id === undefined) throw new Error('append did not return an event id');
+      const events = await adapter.getSince(ctx, 'session-1', r2Id);
 
       expect(events).toEqual([]);
     });

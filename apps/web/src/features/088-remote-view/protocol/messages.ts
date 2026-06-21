@@ -48,10 +48,30 @@ const NormalizedCoordinateSchema = z.number().min(0).max(1);
  * Keyboard uses DOM `code` (physical position); `text` covers IME/unicode.
  */
 export const InputEventSchema = z.discriminatedUnion('k', [
-  z.object({ k: z.literal('mousemove'), x: NormalizedCoordinateSchema, y: NormalizedCoordinateSchema }),
-  z.object({ k: z.literal('mousedown'), x: NormalizedCoordinateSchema, y: NormalizedCoordinateSchema, button: ButtonSchema }),
-  z.object({ k: z.literal('mouseup'), x: NormalizedCoordinateSchema, y: NormalizedCoordinateSchema, button: ButtonSchema }),
-  z.object({ k: z.literal('wheel'), x: NormalizedCoordinateSchema, y: NormalizedCoordinateSchema, dx: z.number(), dy: z.number() }),
+  z.object({
+    k: z.literal('mousemove'),
+    x: NormalizedCoordinateSchema,
+    y: NormalizedCoordinateSchema,
+  }),
+  z.object({
+    k: z.literal('mousedown'),
+    x: NormalizedCoordinateSchema,
+    y: NormalizedCoordinateSchema,
+    button: ButtonSchema,
+  }),
+  z.object({
+    k: z.literal('mouseup'),
+    x: NormalizedCoordinateSchema,
+    y: NormalizedCoordinateSchema,
+    button: ButtonSchema,
+  }),
+  z.object({
+    k: z.literal('wheel'),
+    x: NormalizedCoordinateSchema,
+    y: NormalizedCoordinateSchema,
+    dx: z.number(),
+    dy: z.number(),
+  }),
   z.object({ k: z.literal('keydown'), code: z.string(), modifiers: ModsSchema }),
   z.object({ k: z.literal('keyup'), code: z.string(), modifiers: ModsSchema }),
   z.object({ k: z.literal('text'), text: z.string() }),
@@ -138,7 +158,12 @@ export const ServerMessageSchema = z.discriminatedUnion('t', [
     bufferedAmount: z.number(),
   }),
   z.object({ t: z.literal('pong'), sentAt: z.number(), daemonAt: z.number() }),
-  z.object({ t: z.literal('error'), code: ErrorCodeSchema, message: z.string(), fatal: z.boolean() }),
+  z.object({
+    t: z.literal('error'),
+    code: ErrorCodeSchema,
+    message: z.string(),
+    fatal: z.boolean(),
+  }),
   z.object({ t: z.literal('bye'), reason: z.enum(['detached', 'window-gone', 'shutdown']) }),
 ]);
 export type ServerMessage = z.infer<typeof ServerMessageSchema>;

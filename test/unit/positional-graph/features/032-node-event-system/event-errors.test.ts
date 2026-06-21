@@ -8,7 +8,6 @@ Test Doc:
 */
 
 import { describe, expect, it } from 'vitest';
-import type { z } from 'zod';
 
 import {
   eventAlreadyAnsweredError,
@@ -59,6 +58,9 @@ describe('Event error factories', () => {
     - Quality Contribution: Catches missing field paths or broken action command format
     - Worked Example: eventPayloadValidationError('question:ask', [{path:['text'],...}]) → code='E191', message contains 'question:ask' and 'text'
     */
+    // The factory's zod version (resolved by the source package) may differ from
+    // the test's zod resolution, so cast to the function's own parameter type.
+    type IssueArg = Parameters<typeof eventPayloadValidationError>[1][number];
     const err = eventPayloadValidationError('question:ask', [
       {
         code: 'invalid_type',
@@ -66,7 +68,7 @@ describe('Event error factories', () => {
         message: 'Required',
         expected: 'string',
         received: 'undefined',
-      } as z.ZodIssue,
+      } as IssueArg,
     ]);
     expect(err.code).toBe('E191');
     expect(err.message).toContain('question:ask');

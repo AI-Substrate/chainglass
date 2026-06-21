@@ -39,7 +39,12 @@ function makeCtx(): WorkspaceContext {
 }
 
 function makeState(): State {
-  return { graph_slug: 'test-graph', version: '1.0.0', nodes: {}, questions: [] };
+  return {
+    graph_status: 'in_progress',
+    updated_at: new Date().toISOString(),
+    nodes: {},
+    questions: [],
+  };
 }
 
 function makeStatusResult(overrides: Partial<GraphStatusResult> = {}): GraphStatusResult {
@@ -222,7 +227,12 @@ describe('drive() failure paths', () => {
     const handle = makeDriveHandle({ ...deps, graphService: throwingService });
 
     const events: DriveEvent[] = [];
-    const result = await handle.drive({ ...FAST_OPTS, onEvent: async (e) => events.push(e) });
+    const result = await handle.drive({
+      ...FAST_OPTS,
+      onEvent: async (e) => {
+        events.push(e);
+      },
+    });
 
     expect(result.exitReason).toBe('failed');
     expect(events.some((e) => e.type === 'error')).toBe(true);
@@ -238,7 +248,12 @@ describe('drive() delay strategy', () => {
     const handle = makeDriveHandle(deps);
 
     const events: DriveEvent[] = [];
-    await handle.drive({ ...FAST_OPTS, onEvent: async (e) => events.push(e) });
+    await handle.drive({
+      ...FAST_OPTS,
+      onEvent: async (e) => {
+        events.push(e);
+      },
+    });
 
     expect(events.some((e) => e.type === 'iteration')).toBe(true);
   });
@@ -249,7 +264,12 @@ describe('drive() delay strategy', () => {
     const handle = makeDriveHandle(deps);
 
     const events: DriveEvent[] = [];
-    await handle.drive({ ...FAST_OPTS, onEvent: async (e) => events.push(e) });
+    await handle.drive({
+      ...FAST_OPTS,
+      onEvent: async (e) => {
+        events.push(e);
+      },
+    });
 
     expect(events.some((e) => e.type === 'idle')).toBe(true);
   });
@@ -264,7 +284,12 @@ describe('drive() event emission', () => {
     const handle = makeDriveHandle(deps);
 
     const events: DriveEvent[] = [];
-    await handle.drive({ ...FAST_OPTS, onEvent: async (e) => events.push(e) });
+    await handle.drive({
+      ...FAST_OPTS,
+      onEvent: async (e) => {
+        events.push(e);
+      },
+    });
 
     const statusEvents = events.filter((e) => e.type === 'status');
     expect(statusEvents.length).toBeGreaterThanOrEqual(1);
@@ -277,7 +302,12 @@ describe('drive() event emission', () => {
     const handle = makeDriveHandle(deps);
 
     const events: DriveEvent[] = [];
-    await handle.drive({ ...FAST_OPTS, onEvent: async (e) => events.push(e) });
+    await handle.drive({
+      ...FAST_OPTS,
+      onEvent: async (e) => {
+        events.push(e);
+      },
+    });
 
     const statusEvents = events.filter((e) => e.type === 'status');
     expect(statusEvents).toHaveLength(1);
@@ -289,7 +319,12 @@ describe('drive() event emission', () => {
     const handle = makeDriveHandle(deps);
 
     const events: DriveEvent[] = [];
-    await handle.drive({ ...FAST_OPTS, onEvent: async (e) => events.push(e) });
+    await handle.drive({
+      ...FAST_OPTS,
+      onEvent: async (e) => {
+        events.push(e);
+      },
+    });
 
     const iterEvent = events.find((e) => e.type === 'iteration');
     expect(iterEvent).toBeDefined();
@@ -322,7 +357,12 @@ describe('drive() event emission', () => {
     const handle = makeDriveHandle(deps);
 
     const events: DriveEvent[] = [];
-    await handle.drive({ ...FAST_OPTS, onEvent: async (e) => events.push(e) });
+    await handle.drive({
+      ...FAST_OPTS,
+      onEvent: async (e) => {
+        events.push(e);
+      },
+    });
 
     const types = new Set(events.map((e) => e.type));
     // Only orchestration event types — no agent/pod types
@@ -445,7 +485,9 @@ describe('drive() abort signal', () => {
     await handle.drive({
       ...FAST_OPTS,
       signal: controller.signal,
-      onEvent: async (e) => events.push(e),
+      onEvent: async (e) => {
+        events.push(e);
+      },
     });
 
     const statusEvents = events.filter((e) => e.type === 'status');

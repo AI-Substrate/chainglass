@@ -21,12 +21,13 @@ function createTestContext(worktreePath = '/workspace/my-project'): WorkspaceCon
     worktreePath,
     worktreeBranch: 'main',
     isMainWorktree: true,
+    hasGit: true,
   };
 }
 
 const stubWorkUnitLoader: IWorkUnitLoader = {
   async load() {
-    return { unit: { slug: 'stub', inputs: [], outputs: [] }, errors: [] };
+    return { unit: { slug: 'stub', type: 'agent', inputs: [], outputs: [] }, errors: [] };
   },
 };
 

@@ -1,4 +1,5 @@
 import { execSync } from 'node:child_process';
+import type { ICopilotClient } from '@chainglass/shared/interfaces/copilot-sdk.interface';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 /**
@@ -86,7 +87,7 @@ describe.skipIf(!process.env.COPILOT_SDK_TESTS || isCI())('SdkCopilotAdapter Int
     const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
 
     const realClient = new CopilotClient();
-    const adapter = new SdkCopilotAdapter(realClient);
+    const adapter = new SdkCopilotAdapter(realClient as unknown as ICopilotClient);
 
     const translatedEvents: Array<{ type: string; seq: number; contentPreview: string }> = [];
     let seq = 0;
@@ -149,7 +150,7 @@ describe.skipIf(!process.env.COPILOT_SDK_TESTS || isCI())('SdkCopilotAdapter Int
     const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
 
     const realClient = new CopilotClient();
-    const adapter = new SdkCopilotAdapter(realClient);
+    const adapter = new SdkCopilotAdapter(realClient as unknown as ICopilotClient);
 
     try {
       const result = await adapter.run({ prompt: 'Say "hello" in one word' });
@@ -176,7 +177,7 @@ describe.skipIf(!process.env.COPILOT_SDK_TESTS || isCI())('SdkCopilotAdapter Int
     const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
 
     const realClient = new CopilotClient();
-    const adapter = new SdkCopilotAdapter(realClient);
+    const adapter = new SdkCopilotAdapter(realClient as unknown as ICopilotClient);
 
     try {
       // First create a session
@@ -206,7 +207,7 @@ describe.skipIf(!process.env.COPILOT_SDK_TESTS || isCI())('SdkCopilotAdapter Int
     const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
 
     const realClient = new CopilotClient();
-    const adapter = new SdkCopilotAdapter(realClient);
+    const adapter = new SdkCopilotAdapter(realClient as unknown as ICopilotClient);
 
     try {
       // First create a session
@@ -237,7 +238,7 @@ describe.skipIf(!process.env.COPILOT_SDK_TESTS || isCI())('SdkCopilotAdapter Int
     const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
 
     const realClient = new CopilotClient();
-    const adapter = new SdkCopilotAdapter(realClient);
+    const adapter = new SdkCopilotAdapter(realClient as unknown as ICopilotClient);
 
     try {
       // First turn

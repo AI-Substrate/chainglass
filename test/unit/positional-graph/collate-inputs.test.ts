@@ -22,6 +22,7 @@ function createTestContext(worktreePath = '/workspace/my-project'): WorkspaceCon
     worktreePath,
     worktreeBranch: 'main',
     isMainWorktree: true,
+    hasGit: true,
   };
 }
 
@@ -82,6 +83,11 @@ const sampleInput: NarrowWorkUnit = {
     { name: 'spec', type: 'data', required: true },
     { name: 'notes', type: 'data', required: false },
   ],
+  userInput: {
+    prompt: 'Enter the spec:',
+    inputType: 'text',
+    outputName: 'spec',
+  },
 };
 
 const sampleCoder: NarrowWorkUnit = {

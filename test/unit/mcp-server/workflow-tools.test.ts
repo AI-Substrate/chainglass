@@ -178,10 +178,11 @@ describe('wf_compose tool - ADR-0001 Compliance', () => {
         arguments: { template_slug: 'nonexistent-template' },
       });
 
-      expect(result.content).toBeDefined();
-      expect(result.content[0].type).toBe('text');
+      const content = result.content as Array<{ type: string; text: string }>;
+      expect(content).toBeDefined();
+      expect(content[0].type).toBe('text');
 
-      const response = JSON.parse((result.content[0] as { type: 'text'; text: string }).text);
+      const response = JSON.parse(content[0].text);
       // Either success or error envelope
       expect(response).toHaveProperty('success');
       expect(response).toHaveProperty('command');
@@ -210,8 +211,9 @@ describe('wf_compose tool - ADR-0001 Compliance', () => {
         arguments: { template_slug: 'nonexistent-template' },
       });
 
-      expect(result.content).toBeDefined();
-      const response = JSON.parse((result.content[0] as { type: 'text'; text: string }).text);
+      const content = result.content as Array<{ type: string; text: string }>;
+      expect(content).toBeDefined();
+      const response = JSON.parse(content[0].text);
 
       expect(response.success).toBe(false);
       expect(response.error.code).toBe('E030'); // E030 = workflow not found in registry

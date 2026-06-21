@@ -50,7 +50,7 @@ vi.mock('@/features/064-terminal/components/terminal-inner', () => ({
 // passthrough that synchronously loads the mocked module on first render so
 // the rest of the tests can assert against the DOM produced by the stub.
 vi.mock('next/dynamic', () => ({
-  default: <P,>(loader: () => Promise<{ default: React.ComponentType<P> }>) => {
+  default: <P extends object>(loader: () => Promise<{ default: React.ComponentType<P> }>) => {
     // Cache the resolved component at module-level so it survives
     // strict-mode's mount/unmount/remount cycle (a per-instance cache would
     // race the strict unmount and leave the cache empty on remount).

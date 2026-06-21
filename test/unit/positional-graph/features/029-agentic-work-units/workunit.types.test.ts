@@ -96,8 +96,21 @@ describe('WorkUnit Type Compatibility', () => {
       user_input: { question_type: 'text', prompt: 'Enter your answer:' },
     };
 
-    // This assignment must compile - structural subtyping (per DYK #3)
-    const narrow: NarrowWorkUnit = unit;
+    // The narrow user-input variant carries config under `userInput` with the
+    // adapter's field mapping (question_type → inputType, output → outputName).
+    const narrow: NarrowWorkUnit = {
+      slug: unit.slug,
+      type: unit.type,
+      inputs: unit.inputs,
+      outputs: unit.outputs,
+      userInput: {
+        prompt: unit.user_input.prompt,
+        inputType: unit.user_input.question_type,
+        outputName: unit.outputs[0]?.name,
+        options: unit.user_input.options,
+        default: unit.user_input.default,
+      },
+    };
 
     expect(narrow.slug).toBe('test-user-input');
     expect(narrow.inputs).toHaveLength(0);

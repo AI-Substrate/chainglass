@@ -1,3 +1,4 @@
+import type { RequestInit as NextRequestInit } from 'next/dist/server/web/spec-extension/request';
 import { NextRequest } from 'next/server';
 /**
  * Mux Route Contract Tests — Plan 072 Phase 1
@@ -31,7 +32,7 @@ function makeDeps(overrides: Partial<MuxDeps> = {}): MuxDeps {
   };
 }
 
-function makeRequest(url: string, options?: RequestInit): NextRequest {
+function makeRequest(url: string, options?: NextRequestInit): NextRequest {
   return new NextRequest(`http://localhost${url}`, options);
 }
 

@@ -87,7 +87,7 @@ const createTestWorkflowRun = (slug = 'hello-workflow', runId = 'run-2026-01-26-
         description: 'Process the data',
         order: 2,
         status: 'pending',
-        facilitator: undefined,
+        facilitator: 'agent',
         state: 'pending',
         inputFiles: [],
         inputParameters: [],
@@ -177,7 +177,7 @@ describe('WorkflowService with IWorkflowAdapter injection', () => {
           version: 'v001-abc12345',
           hash: 'abc12345',
           ordinal: 1,
-          createdAt: new Date('2026-01-25T10:00:00Z'),
+          createdAt: new Date('2026-01-25T10:00:00Z').toISOString(),
         },
       ]);
 
@@ -266,7 +266,7 @@ describe('WorkflowService with IWorkflowAdapter injection', () => {
           version: 'v001-abc12345',
           hash: 'abc12345',
           ordinal: 1,
-          createdAt: new Date('2026-01-25T10:00:00Z'),
+          createdAt: new Date('2026-01-25T10:00:00Z').toISOString(),
         },
       ]);
       fakeFileSystem.setFile(

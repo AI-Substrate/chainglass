@@ -22,6 +22,7 @@ function createTestContext(worktreePath = '/workspace/my-project'): WorkspaceCon
     worktreePath,
     worktreeBranch: 'main',
     isMainWorktree: true,
+    hasGit: true,
   };
 }
 
@@ -100,7 +101,7 @@ describe('PositionalGraphService — Status API', () => {
       const { lineId } = await service.create(ctx, 'test-graph');
       const node0 = await service.addNode(ctx, 'test-graph', lineId, 'simple-task');
       const node1 = await service.addNode(ctx, 'test-graph', lineId, 'simple-task', {
-        execution: 'parallel',
+        orchestratorSettings: { execution: 'parallel' },
       });
 
       // node0 complete, node1 ready

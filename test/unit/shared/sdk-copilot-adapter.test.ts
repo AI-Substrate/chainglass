@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { randomUUID } from 'node:crypto';
 import type {
   AgentEvent,
   AgentThinkingEvent,
@@ -10,8 +11,25 @@ import type {
   ILogger,
 } from '@chainglass/shared';
 import { FakeCopilotClient, FakeLogger } from '@chainglass/shared/fakes';
+import type { CopilotSessionEvent, CopilotSessionEventLike } from '@chainglass/shared/interfaces';
 // Note: SdkCopilotAdapter will be imported once T009 creates it
 // For now, we reference the interface to ensure tests are ready for implementation
+
+/** Build a fully-formed Copilot session event for the FakeCopilotClient `events` option.
+ *  Mirrors the base-field shape the SDK emits (id/timestamp/parentId). Extended event
+ *  types (tool.*, assistant.reasoning*) are valid CopilotSessionEventLike values the
+ *  adapter handles at runtime via its permissive event handler. */
+function evt(type: string, data: Record<string, unknown> = {}): CopilotSessionEvent {
+  const like: CopilotSessionEventLike = {
+    id: randomUUID(),
+    timestamp: new Date().toISOString(),
+    parentId: null,
+    ephemeral: true,
+    type,
+    data,
+  };
+  return like as CopilotSessionEvent;
+}
 
 describe('SdkCopilotAdapter', () => {
   /**
@@ -20,14 +38,14 @@ describe('SdkCopilotAdapter', () => {
    * Acceptance Criteria: Constructor accepts client and options, skeleton methods exist
    */
 
-  let fakeClient: ICopilotClient;
+  let fakeClient: FakeCopilotClient;
   let fakeLogger: ILogger;
 
   beforeEach(() => {
     fakeClient = new FakeCopilotClient({
       events: [
-        { type: 'assistant.message', data: { content: 'Test response', messageId: 'msg-001' } },
-        { type: 'session.idle', data: {} },
+        evt('assistant.message', { content: 'Test response', messageId: 'msg-001' }),
+        evt('session.idle', {}),
       ],
     });
     fakeLogger = new FakeLogger();
@@ -237,11 +255,8 @@ describe('SdkCopilotAdapter', () => {
       const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
       const client = new FakeCopilotClient({
         events: [
-          {
-            type: 'assistant.message',
-            data: { content: 'Hello from Copilot!', messageId: 'msg-001' },
-          },
-          { type: 'session.idle', data: {} },
+          evt('assistant.message', { content: 'Hello from Copilot!', messageId: 'msg-001' }),
+          evt('session.idle', {}),
         ],
       });
       const adapter = new SdkCopilotAdapter(client);
@@ -282,9 +297,9 @@ describe('SdkCopilotAdapter', () => {
       const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
       const client = new FakeCopilotClient({
         events: [
-          { type: 'assistant.message', data: { content: 'Response 1', messageId: 'msg-001' } },
-          { type: 'assistant.message', data: { content: 'Response 2', messageId: 'msg-002' } },
-          { type: 'session.idle', data: {} },
+          evt('assistant.message', { content: 'Response 1', messageId: 'msg-001' }),
+          evt('assistant.message', { content: 'Response 2', messageId: 'msg-002' }),
+          evt('session.idle', {}),
         ],
       });
       const adapter = new SdkCopilotAdapter(client);
@@ -309,8 +324,8 @@ describe('SdkCopilotAdapter', () => {
       const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
       const client = new FakeCopilotClient({
         events: [
-          { type: 'assistant.message', data: { content: 'Resumed!', messageId: 'msg-001' } },
-          { type: 'session.idle', data: {} },
+          evt('assistant.message', { content: 'Resumed!', messageId: 'msg-001' }),
+          evt('session.idle', {}),
         ],
       });
       const adapter = new SdkCopilotAdapter(client);
@@ -358,12 +373,7 @@ describe('SdkCopilotAdapter', () => {
     it('should catch sendAndWait exception and return failed status (DYK-01)', async () => {
       const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
       const client = new FakeCopilotClient({
-        events: [
-          {
-            type: 'session.error',
-            data: { errorType: 'API_ERROR', message: 'Something went wrong' },
-          },
-        ],
+        events: [evt('session.error', { errorType: 'API_ERROR', message: 'Something went wrong' })],
       });
       const adapter = new SdkCopilotAdapter(client);
 
@@ -375,9 +385,7 @@ describe('SdkCopilotAdapter', () => {
     it('should return exitCode=1 when sendAndWait throws', async () => {
       const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
       const client = new FakeCopilotClient({
-        events: [
-          { type: 'session.error', data: { errorType: 'API_ERROR', message: 'Error occurred' } },
-        ],
+        events: [evt('session.error', { errorType: 'API_ERROR', message: 'Error occurred' })],
       });
       const adapter = new SdkCopilotAdapter(client);
 
@@ -389,9 +397,7 @@ describe('SdkCopilotAdapter', () => {
     it('should include error message in output from caught exception', async () => {
       const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
       const client = new FakeCopilotClient({
-        events: [
-          { type: 'session.error', data: { errorType: 'API_ERROR', message: 'Session crashed' } },
-        ],
+        events: [evt('session.error', { errorType: 'API_ERROR', message: 'Session crashed' })],
       });
       const adapter = new SdkCopilotAdapter(client);
 
@@ -403,12 +409,7 @@ describe('SdkCopilotAdapter', () => {
     it('should include errorType in output when available', async () => {
       const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
       const client = new FakeCopilotClient({
-        events: [
-          {
-            type: 'session.error',
-            data: { errorType: 'RATE_LIMIT', message: 'Too many requests' },
-          },
-        ],
+        events: [evt('session.error', { errorType: 'RATE_LIMIT', message: 'Too many requests' })],
       });
       const adapter = new SdkCopilotAdapter(client);
 
@@ -516,16 +517,10 @@ describe('SdkCopilotAdapter', () => {
       const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
       const client = new FakeCopilotClient({
         events: [
-          {
-            type: 'assistant.message_delta',
-            data: { deltaContent: 'Hello', messageId: 'msg-001' },
-          },
-          {
-            type: 'assistant.message_delta',
-            data: { deltaContent: ' World', messageId: 'msg-001' },
-          },
-          { type: 'assistant.message', data: { content: 'Hello World', messageId: 'msg-001' } },
-          { type: 'session.idle', data: {} },
+          evt('assistant.message_delta', { deltaContent: 'Hello', messageId: 'msg-001' }),
+          evt('assistant.message_delta', { deltaContent: ' World', messageId: 'msg-001' }),
+          evt('assistant.message', { content: 'Hello World', messageId: 'msg-001' }),
+          evt('session.idle', {}),
         ],
       });
       const adapter = new SdkCopilotAdapter(client);
@@ -549,8 +544,8 @@ describe('SdkCopilotAdapter', () => {
       const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
       const client = new FakeCopilotClient({
         events: [
-          { type: 'assistant.message', data: { content: 'Final response', messageId: 'msg-001' } },
-          { type: 'session.idle', data: {} },
+          evt('assistant.message', { content: 'Final response', messageId: 'msg-001' }),
+          evt('session.idle', {}),
         ],
       });
       const adapter = new SdkCopilotAdapter(client);
@@ -573,9 +568,9 @@ describe('SdkCopilotAdapter', () => {
       const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
       const client = new FakeCopilotClient({
         events: [
-          { type: 'assistant.message', data: { content: 'Response', messageId: 'msg-001' } },
-          { type: 'assistant.usage', data: { inputTokens: 10, outputTokens: 20 } },
-          { type: 'session.idle', data: {} },
+          evt('assistant.message', { content: 'Response', messageId: 'msg-001' }),
+          evt('assistant.usage', { inputTokens: 10, outputTokens: 20 }),
+          evt('session.idle', {}),
         ],
       });
       const adapter = new SdkCopilotAdapter(client);
@@ -603,8 +598,8 @@ describe('SdkCopilotAdapter', () => {
       const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
       const client = new FakeCopilotClient({
         events: [
-          { type: 'assistant.message', data: { content: 'Done', messageId: 'msg-001' } },
-          { type: 'session.idle', data: {} },
+          evt('assistant.message', { content: 'Done', messageId: 'msg-001' }),
+          evt('session.idle', {}),
         ],
       });
       const adapter = new SdkCopilotAdapter(client);
@@ -626,9 +621,7 @@ describe('SdkCopilotAdapter', () => {
     it('should call onEvent with session_error when error occurs', async () => {
       const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
       const client = new FakeCopilotClient({
-        events: [
-          { type: 'session.error', data: { errorType: 'API_ERROR', message: 'Test error' } },
-        ],
+        events: [evt('session.error', { errorType: 'API_ERROR', message: 'Test error' })],
       });
       const adapter = new SdkCopilotAdapter(client);
 
@@ -669,9 +662,9 @@ describe('SdkCopilotAdapter', () => {
       const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
       const client = new FakeCopilotClient({
         events: [
-          { type: 'assistant.message_delta', data: { deltaContent: 'Hi', messageId: 'msg-001' } },
-          { type: 'assistant.message', data: { content: 'Hi', messageId: 'msg-001' } },
-          { type: 'session.idle', data: {} },
+          evt('assistant.message_delta', { deltaContent: 'Hi', messageId: 'msg-001' }),
+          evt('assistant.message', { content: 'Hi', messageId: 'msg-001' }),
+          evt('session.idle', {}),
         ],
       });
       const adapter = new SdkCopilotAdapter(client);
@@ -694,12 +687,9 @@ describe('SdkCopilotAdapter', () => {
       const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
       const client = new FakeCopilotClient({
         events: [
-          {
-            type: 'assistant.message_delta',
-            data: { deltaContent: 'Stream', messageId: 'msg-001' },
-          },
-          { type: 'assistant.message', data: { content: 'Complete', messageId: 'msg-001' } },
-          { type: 'session.idle', data: {} },
+          evt('assistant.message_delta', { deltaContent: 'Stream', messageId: 'msg-001' }),
+          evt('assistant.message', { content: 'Complete', messageId: 'msg-001' }),
+          evt('session.idle', {}),
         ],
       });
       const adapter = new SdkCopilotAdapter(client);
@@ -745,11 +735,8 @@ describe('SdkCopilotAdapter', () => {
       const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
       const client = new FakeCopilotClient({
         events: [
-          {
-            type: 'assistant.message',
-            data: { content: '/compact executed', messageId: 'msg-001' },
-          },
-          { type: 'session.idle', data: {} },
+          evt('assistant.message', { content: '/compact executed', messageId: 'msg-001' }),
+          evt('session.idle', {}),
         ],
       });
       const adapter = new SdkCopilotAdapter(client);
@@ -764,7 +751,8 @@ describe('SdkCopilotAdapter', () => {
       // Verify /compact was sent (check session's send history)
       const lastSession = client.getLastSession();
       expect(lastSession).toBeDefined();
-      const sendHistory = lastSession?.getSendHistory();
+      if (!lastSession) throw new Error('expected a last session');
+      const sendHistory = lastSession.getSendHistory();
       expect(sendHistory.some((msg) => msg.prompt === '/compact')).toBe(true);
     });
 
@@ -780,8 +768,8 @@ describe('SdkCopilotAdapter', () => {
       const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
       const client = new FakeCopilotClient({
         events: [
-          { type: 'assistant.message', data: { content: 'Compacted', messageId: 'msg-001' } },
-          { type: 'session.idle', data: {} },
+          evt('assistant.message', { content: 'Compacted', messageId: 'msg-001' }),
+          evt('session.idle', {}),
         ],
       });
       const adapter = new SdkCopilotAdapter(client);
@@ -809,8 +797,8 @@ describe('SdkCopilotAdapter', () => {
       const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
       const client = new FakeCopilotClient({
         events: [
-          { type: 'assistant.message', data: { content: 'OK', messageId: 'msg-001' } },
-          { type: 'session.idle', data: {} },
+          evt('assistant.message', { content: 'OK', messageId: 'msg-001' }),
+          evt('session.idle', {}),
         ],
       });
       const adapter = new SdkCopilotAdapter(client);
@@ -855,12 +843,7 @@ describe('SdkCopilotAdapter', () => {
       */
       const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
       const client = new FakeCopilotClient({
-        events: [
-          {
-            type: 'session.error',
-            data: { errorType: 'COMPACT_ERROR', message: 'Compact failed' },
-          },
-        ],
+        events: [evt('session.error', { errorType: 'COMPACT_ERROR', message: 'Compact failed' })],
       });
       const adapter = new SdkCopilotAdapter(client);
 
@@ -892,8 +875,8 @@ describe('SdkCopilotAdapter', () => {
       const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
       const client = new FakeCopilotClient({
         events: [
-          { type: 'assistant.message', data: { content: 'Done', messageId: 'msg-001' } },
-          { type: 'session.idle', data: {} },
+          evt('assistant.message', { content: 'Done', messageId: 'msg-001' }),
+          evt('session.idle', {}),
         ],
       });
       const adapter = new SdkCopilotAdapter(client);
@@ -1100,16 +1083,13 @@ describe('SdkCopilotAdapter', () => {
       const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
       const client = new FakeCopilotClient({
         events: [
-          {
-            type: 'tool.execution_start',
-            data: {
-              toolName: 'bash',
-              arguments: { command: 'ls -la' },
-              toolCallId: 'tool_abc123',
-            },
-          },
-          { type: 'assistant.message', data: { content: 'Done', messageId: 'msg-001' } },
-          { type: 'session.idle', data: {} },
+          evt('tool.execution_start', {
+            toolName: 'bash',
+            arguments: { command: 'ls -la' },
+            toolCallId: 'tool_abc123',
+          }),
+          evt('assistant.message', { content: 'Done', messageId: 'msg-001' }),
+          evt('session.idle', {}),
         ],
       });
       const adapter = new SdkCopilotAdapter(client);
@@ -1141,16 +1121,13 @@ describe('SdkCopilotAdapter', () => {
       const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
       const client = new FakeCopilotClient({
         events: [
-          {
-            type: 'tool.execution_start',
-            data: {
-              toolName: 'read',
-              arguments: { file_path: '/etc/hosts' },
-              toolCallId: 'tool_read123',
-            },
-          },
-          { type: 'assistant.message', data: { content: 'File contents', messageId: 'msg-001' } },
-          { type: 'session.idle', data: {} },
+          evt('tool.execution_start', {
+            toolName: 'read',
+            arguments: { file_path: '/etc/hosts' },
+            toolCallId: 'tool_read123',
+          }),
+          evt('assistant.message', { content: 'File contents', messageId: 'msg-001' }),
+          evt('session.idle', {}),
         ],
       });
       const adapter = new SdkCopilotAdapter(client);
@@ -1181,16 +1158,13 @@ describe('SdkCopilotAdapter', () => {
       const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
       const client = new FakeCopilotClient({
         events: [
-          {
-            type: 'tool.execution_start',
-            data: {
-              toolName: 'write',
-              arguments: { file_path: '/tmp/out.txt', content: 'hello' },
-              toolCallId: 'tool_write123',
-            },
-          },
-          { type: 'assistant.message', data: { content: 'Wrote file', messageId: 'msg-001' } },
-          { type: 'session.idle', data: {} },
+          evt('tool.execution_start', {
+            toolName: 'write',
+            arguments: { file_path: '/tmp/out.txt', content: 'hello' },
+            toolCallId: 'tool_write123',
+          }),
+          evt('assistant.message', { content: 'Wrote file', messageId: 'msg-001' }),
+          evt('session.idle', {}),
         ],
       });
       const adapter = new SdkCopilotAdapter(client);
@@ -1228,16 +1202,13 @@ describe('SdkCopilotAdapter', () => {
       const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
       const client = new FakeCopilotClient({
         events: [
-          {
-            type: 'tool.execution_complete',
-            data: {
-              toolCallId: 'tool_abc123',
-              result: { content: 'total 48\ndrwxr-xr-x...' },
-              success: true,
-            },
-          },
-          { type: 'assistant.message', data: { content: 'Done', messageId: 'msg-001' } },
-          { type: 'session.idle', data: {} },
+          evt('tool.execution_complete', {
+            toolCallId: 'tool_abc123',
+            result: { content: 'total 48\ndrwxr-xr-x...' },
+            success: true,
+          }),
+          evt('assistant.message', { content: 'Done', messageId: 'msg-001' }),
+          evt('session.idle', {}),
         ],
       });
       const adapter = new SdkCopilotAdapter(client);
@@ -1269,16 +1240,13 @@ describe('SdkCopilotAdapter', () => {
       const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
       const client = new FakeCopilotClient({
         events: [
-          {
-            type: 'tool.execution_complete',
-            data: {
-              toolCallId: 'tool_error123',
-              result: { content: 'Error: ENOENT: no such file' },
-              success: false,
-            },
-          },
-          { type: 'assistant.message', data: { content: 'Failed', messageId: 'msg-001' } },
-          { type: 'session.idle', data: {} },
+          evt('tool.execution_complete', {
+            toolCallId: 'tool_error123',
+            result: { content: 'Error: ENOENT: no such file' },
+            success: false,
+          }),
+          evt('assistant.message', { content: 'Failed', messageId: 'msg-001' }),
+          evt('session.idle', {}),
         ],
       });
       const adapter = new SdkCopilotAdapter(client);
@@ -1310,16 +1278,13 @@ describe('SdkCopilotAdapter', () => {
       const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
       const client = new FakeCopilotClient({
         events: [
-          {
-            type: 'tool.execution_complete',
-            data: {
-              toolCallId: 'tool_empty123',
-              result: { content: '' },
-              success: true,
-            },
-          },
-          { type: 'assistant.message', data: { content: 'Done', messageId: 'msg-001' } },
-          { type: 'session.idle', data: {} },
+          evt('tool.execution_complete', {
+            toolCallId: 'tool_empty123',
+            result: { content: '' },
+            success: true,
+          }),
+          evt('assistant.message', { content: 'Done', messageId: 'msg-001' }),
+          evt('session.idle', {}),
         ],
       });
       const adapter = new SdkCopilotAdapter(client);
@@ -1361,18 +1326,12 @@ describe('SdkCopilotAdapter', () => {
       const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
       const client = new FakeCopilotClient({
         events: [
-          {
-            type: 'assistant.reasoning',
-            data: {
-              content: 'Let me think through this step by step...',
-              reasoningId: 'reason_123',
-            },
-          },
-          {
-            type: 'assistant.message',
-            data: { content: 'Here is my answer', messageId: 'msg-001' },
-          },
-          { type: 'session.idle', data: {} },
+          evt('assistant.reasoning', {
+            content: 'Let me think through this step by step...',
+            reasoningId: 'reason_123',
+          }),
+          evt('assistant.message', { content: 'Here is my answer', messageId: 'msg-001' }),
+          evt('session.idle', {}),
         ],
       });
       const adapter = new SdkCopilotAdapter(client);
@@ -1402,15 +1361,12 @@ describe('SdkCopilotAdapter', () => {
       const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
       const client = new FakeCopilotClient({
         events: [
-          {
-            type: 'assistant.reasoning_delta',
-            data: {
-              deltaContent: 'Analyzing the request...',
-              reasoningId: 'reason_delta_123',
-            },
-          },
-          { type: 'assistant.message', data: { content: 'Done', messageId: 'msg-001' } },
-          { type: 'session.idle', data: {} },
+          evt('assistant.reasoning_delta', {
+            deltaContent: 'Analyzing the request...',
+            reasoningId: 'reason_delta_123',
+          }),
+          evt('assistant.message', { content: 'Done', messageId: 'msg-001' }),
+          evt('session.idle', {}),
         ],
       });
       const adapter = new SdkCopilotAdapter(client);
@@ -1440,15 +1396,12 @@ describe('SdkCopilotAdapter', () => {
       const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
       const client = new FakeCopilotClient({
         events: [
-          {
-            type: 'assistant.reasoning',
-            data: {
-              content: 'Thinking...',
-              reasoningId: 'reason_ts_123',
-            },
-          },
-          { type: 'assistant.message', data: { content: 'Done', messageId: 'msg-001' } },
-          { type: 'session.idle', data: {} },
+          evt('assistant.reasoning', {
+            content: 'Thinking...',
+            reasoningId: 'reason_ts_123',
+          }),
+          evt('assistant.message', { content: 'Done', messageId: 'msg-001' }),
+          evt('session.idle', {}),
         ],
       });
       const adapter = new SdkCopilotAdapter(client);
@@ -1476,16 +1429,16 @@ describe('SdkCopilotAdapter', () => {
       const { SdkCopilotAdapter } = await import('@chainglass/shared/adapters');
       const client = new FakeCopilotClient({
         events: [
-          {
-            type: 'assistant.reasoning_delta',
-            data: { deltaContent: 'First thought...', reasoningId: 'reason_multi' },
-          },
-          {
-            type: 'assistant.reasoning_delta',
-            data: { deltaContent: 'Second thought...', reasoningId: 'reason_multi' },
-          },
-          { type: 'assistant.message', data: { content: 'Done', messageId: 'msg-001' } },
-          { type: 'session.idle', data: {} },
+          evt('assistant.reasoning_delta', {
+            deltaContent: 'First thought...',
+            reasoningId: 'reason_multi',
+          }),
+          evt('assistant.reasoning_delta', {
+            deltaContent: 'Second thought...',
+            reasoningId: 'reason_multi',
+          }),
+          evt('assistant.message', { content: 'Done', messageId: 'msg-001' }),
+          evt('session.idle', {}),
         ],
       });
       const adapter = new SdkCopilotAdapter(client);

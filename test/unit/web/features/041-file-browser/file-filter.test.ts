@@ -66,7 +66,7 @@ describe('filterFiles — substring', () => {
     makeFile('README.md'),
   ];
 
-  it('filters by case-insensitive substring', () => {
+  it('filters by case-insensitive substring', async () => {
     /*
     Test Doc:
     - Why: Core search contract — case-insensitive substring matching
@@ -75,7 +75,7 @@ describe('filterFiles — substring', () => {
     - Quality Contribution: AC-14
     - Worked Example: filterFiles([...], 'app') → ['src/app.tsx', '.../AppHeader.tsx', '.../appUtils.ts', '.../app.config.ts']
     */
-    const result = filterFiles(files, 'app');
+    const result = await filterFiles(files, 'app');
     expect(result.map((f) => f.path)).toEqual([
       'src/app.tsx',
       'src/components/AppHeader.tsx',
@@ -94,8 +94,8 @@ describe('filterFiles — substring', () => {
     expect(result).toHaveLength(0);
   });
 
-  it('matches path separators', () => {
-    const result = filterFiles(files, 'src/lib');
+  it('matches path separators', async () => {
+    const result = await filterFiles(files, 'src/lib');
     expect(result.map((f) => f.path)).toEqual(['src/lib/appUtils.ts']);
   });
 });

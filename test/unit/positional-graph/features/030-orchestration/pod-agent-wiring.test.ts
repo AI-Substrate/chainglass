@@ -57,7 +57,7 @@ describe('AgentPod Wiring', () => {
         sessionId: 'sess-1',
         status: 'completed',
         exitCode: 0,
-        tokens: { input: 10, output: 20, cacheRead: 0 },
+        tokens: { used: 30, total: 30, limit: 200000 },
       });
       const pod = new AgentPod('n1', instance, 'spec-builder');
 
@@ -102,7 +102,7 @@ describe('AgentPod Wiring', () => {
         sessionId: 'sess-new',
         status: 'completed',
         exitCode: 0,
-        tokens: { input: 10, output: 20, cacheRead: 0 },
+        tokens: { used: 30, total: 30, limit: 200000 },
       });
       const pod = new AgentPod('n1', instance, 'spec-builder');
 

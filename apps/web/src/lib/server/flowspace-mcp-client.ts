@@ -179,8 +179,11 @@ async function getOrSpawn(cwd: string): Promise<FlowspaceProcess> {
   const client = new Client({ name: 'chainglass-web', version: '0.1.0' }, { capabilities: {} });
 
   // Hoist via a let so the ready closure can mutate the same object the pool holds.
+  // Definite-assignment (`!`): the `ready` IIFE only dereferences `proc` AFTER its
+  // first `await`, by which point the synchronous `proc = { ... }` below has run —
+  // so `proc` is provably assigned before any use (see the in-IIFE note).
   // biome-ignore lint/style/useConst: assigned via object literal that references itself
-  let proc: FlowspaceProcess;
+  let proc!: FlowspaceProcess;
   const started = Date.now();
 
   proc = {

@@ -1,6 +1,5 @@
 import { type AcceptResult, FakeFileSystem } from '@chainglass/shared';
 import {
-  type AcceptOptions,
   FakeSchemaValidator,
   FakeYamlParser,
   type IPhaseService,

@@ -9,7 +9,10 @@
  */
 import { decodeFrameHeader } from '@/features/088-remote-view/protocol/binary';
 import type { ServerMessage } from '@/features/088-remote-view/protocol/messages';
-import { type FakeStreamd, startFakeStreamd } from '@/features/088-remote-view/testing/fake-streamd';
+import {
+  type FakeStreamd,
+  startFakeStreamd,
+} from '@/features/088-remote-view/testing/fake-streamd';
 import { FAKE_WINDOW } from '@/features/088-remote-view/testing/fixtures';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
@@ -79,7 +82,12 @@ describe('fake-streamd', () => {
     const c = new Client(fake.url, 'ses_a', 'tok');
     await c.opened;
     c.hello('ses_a');
-    await waitFor(() => c.textsOf('hello-ok').length > 0 && c.textsOf('video-config').length > 0 && c.bins.length >= 1);
+    await waitFor(
+      () =>
+        c.textsOf('hello-ok').length > 0 &&
+        c.textsOf('video-config').length > 0 &&
+        c.bins.length >= 1
+    );
     const helloOk = c.textsOf('hello-ok')[0] as Extract<ServerMessage, { t: 'hello-ok' }>;
     // [F005] full descriptor — dims+scale, not just id/app — so a drift from the
     // single source of truth (FAKE_WINDOW) fails before Swift/Phase 3 mirror it.
@@ -238,7 +246,11 @@ describe('fake-streamd', () => {
       t: 'input',
       events: [
         { k: 'mousemove', x: 0.5, y: 0.5 },
-        { k: 'keydown', code: 'KeyW', modifiers: { shift: false, ctrl: false, alt: false, meta: false } },
+        {
+          k: 'keydown',
+          code: 'KeyW',
+          modifiers: { shift: false, ctrl: false, alt: false, meta: false },
+        },
       ],
     });
     await waitFor(() => fake.inputLog.length >= 2);

@@ -23,16 +23,16 @@ describe('AgentSession entity', () => {
       - Why: These are required fields that must be preserved
       - Contract: AgentSession.create() preserves input id, type, status
       - Quality Contribution: Ensures data integrity
-      - Worked Example: create({ id: "abc", type: "claude", status: "active" }) → same values
+      - Worked Example: create({ id: "abc", type: "claude-code", status: "active" }) → same values
       */
       const session = AgentSession.create({
         id: 'session-abc-123',
-        type: 'claude',
+        type: 'claude-code',
         status: 'active',
       });
 
       expect(session.id).toBe('session-abc-123');
-      expect(session.type).toBe('claude');
+      expect(session.type).toBe('claude-code');
       expect(session.status).toBe('active');
     });
 
@@ -59,9 +59,13 @@ describe('AgentSession entity', () => {
       - Contract: AgentSession.create() accepts active, completed, terminated
       - Quality Contribution: Full lifecycle support
       */
-      const active = AgentSession.create({ id: '1', type: 'claude', status: 'active' });
-      const completed = AgentSession.create({ id: '2', type: 'claude', status: 'completed' });
-      const terminated = AgentSession.create({ id: '3', type: 'claude', status: 'terminated' });
+      const active = AgentSession.create({ id: '1', type: 'claude-code', status: 'active' });
+      const completed = AgentSession.create({ id: '2', type: 'claude-code', status: 'completed' });
+      const terminated = AgentSession.create({
+        id: '3',
+        type: 'claude-code',
+        status: 'terminated',
+      });
 
       expect(active.status).toBe('active');
       expect(completed.status).toBe('completed');
@@ -74,12 +78,12 @@ describe('AgentSession entity', () => {
       - Why: Track when session was created
       - Contract: AgentSession.create() defaults createdAt to current time
       - Quality Contribution: Ensures timestamp is always present
-      - Worked Example: create({ id: "x", type: "claude", status: "active" }) → createdAt within last second
+      - Worked Example: create({ id: "x", type: "claude-code", status: "active" }) → createdAt within last second
       */
       const before = new Date();
       const session = AgentSession.create({
         id: 'test-session',
-        type: 'claude',
+        type: 'claude-code',
         status: 'active',
       });
       const after = new Date();
@@ -98,7 +102,7 @@ describe('AgentSession entity', () => {
       */
       const session = AgentSession.create({
         id: 'test-session',
-        type: 'claude',
+        type: 'claude-code',
         status: 'active',
       });
 
@@ -116,7 +120,7 @@ describe('AgentSession entity', () => {
       const pastDate = new Date('2025-06-15T10:30:00Z');
       const session = AgentSession.create({
         id: 'loaded-session',
-        type: 'claude',
+        type: 'claude-code',
         status: 'completed',
         createdAt: pastDate,
       });
@@ -136,7 +140,7 @@ describe('AgentSession entity', () => {
       const updatedDate = new Date('2025-06-16T14:00:00Z');
       const session = AgentSession.create({
         id: 'updated-session',
-        type: 'claude',
+        type: 'claude-code',
         status: 'active',
         createdAt: createdDate,
         updatedAt: updatedDate,
@@ -158,7 +162,7 @@ describe('AgentSession entity', () => {
       */
       const session = AgentSession.create({
         id: 'test-session',
-        type: 'claude',
+        type: 'claude-code',
         status: 'active',
       });
       const json = session.toJSON();
@@ -182,7 +186,7 @@ describe('AgentSession entity', () => {
       const updatedDate = new Date('2026-01-28T14:30:00.000Z');
       const session = AgentSession.create({
         id: 'test-session',
-        type: 'claude',
+        type: 'claude-code',
         status: 'active',
         createdAt: createdDate,
         updatedAt: updatedDate,
@@ -228,7 +232,7 @@ describe('AgentSession entity', () => {
       */
       const original = AgentSession.create({
         id: 'roundtrip-session',
-        type: 'claude',
+        type: 'claude-code',
         status: 'active',
       });
 
@@ -263,14 +267,14 @@ describe('AgentSession entity', () => {
       */
       const session = AgentSession.create({
         id: 'immutable-session',
-        type: 'claude',
+        type: 'claude-code',
         status: 'active',
       });
 
       // TypeScript should prevent assignment, but we verify at runtime
       // that the values cannot be changed via Object.isFrozen or checking types
       expect(session.id).toBe('immutable-session');
-      expect(session.type).toBe('claude');
+      expect(session.type).toBe('claude-code');
       expect(session.status).toBe('active');
     });
 
@@ -283,7 +287,7 @@ describe('AgentSession entity', () => {
       */
       const session = AgentSession.create({
         id: 'instance-test',
-        type: 'claude',
+        type: 'claude-code',
         status: 'active',
       });
 

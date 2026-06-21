@@ -25,6 +25,7 @@ function createTestContext(worktreePath = '/workspace/my-project'): WorkspaceCon
     worktreePath,
     worktreeBranch: 'main',
     isMainWorktree: true,
+    hasGit: true,
   };
 }
 
@@ -45,7 +46,7 @@ function readState(fs: FakeFileSystem, graphSlug: string, worktreePath = '/works
   const statePath = `${worktreePath}/.chainglass/data/workflows/${graphSlug}/state.json`;
   const content = fs.getFile(statePath);
   if (!content) throw new Error('state.json not found');
-  return JSON.parse(content);
+  return JSON.parse(content.toString());
 }
 
 // ── raiseNodeEvent ───────────────────────────────────────
@@ -230,14 +231,15 @@ describe('getNodeEvents', () => {
   it('returns single event by id', async () => {
     const allResult = await service.getNodeEvents(ctx, 'test-graph', nodeId);
     const firstEvent = allResult.events?.[0];
+    expect(firstEvent).toBeDefined();
 
     const result = await service.getNodeEvents(ctx, 'test-graph', nodeId, {
-      eventId: firstEvent.event_id,
+      eventId: firstEvent?.event_id,
     });
 
     expect(result.errors).toEqual([]);
     expect(result.events?.length).toBe(1);
-    expect(result.events?.[0].event_id).toBe(firstEvent.event_id);
+    expect(result.events?.[0].event_id).toBe(firstEvent?.event_id);
   });
 
   it('returns E196 for unknown event id', async () => {

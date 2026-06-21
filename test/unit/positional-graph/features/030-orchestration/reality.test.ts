@@ -17,6 +17,7 @@ import type {
   GraphStatusResult,
   LineStatusResult,
   NodeStatusResult,
+  NodeStatusResultBase,
 } from '@chainglass/positional-graph/interfaces';
 import { describe, expect, it } from 'vitest';
 import { buildPositionalGraphReality } from '../../../../../packages/positional-graph/src/features/030-orchestration/reality.builder.js';
@@ -29,8 +30,9 @@ import { PositionalGraphRealityView } from '../../../../../packages/positional-g
 function makeNodeStatus(
   overrides: Partial<NodeStatusResult> & { nodeId: string; unitSlug: string }
 ): NodeStatusResult {
-  return {
-    unitType: 'agent',
+  const base: NodeStatusResultBase = {
+    nodeId: overrides.nodeId,
+    unitSlug: overrides.unitSlug,
     execution: 'serial',
     lineId: 'line-000',
     position: 0,
@@ -44,8 +46,20 @@ function makeNodeStatus(
       unitFound: true,
     },
     inputPack: { inputs: {}, ok: true },
-    ...overrides,
   };
+  if (overrides.unitType === 'user-input') {
+    return {
+      ...base,
+      ...overrides,
+      unitType: 'user-input',
+      userInput: overrides.userInput ?? {
+        prompt: 'Enter a value',
+        inputType: 'text',
+        outputName: 'value',
+      },
+    };
+  }
+  return { ...base, unitType: 'agent', ...overrides } as NodeStatusResult;
 }
 
 function makeLineStatus(
@@ -185,7 +199,7 @@ describe('buildPositionalGraphReality', () => {
         unitType: 'agent',
         lineId: 'line-001',
         position: 0,
-        status: 'running',
+        status: 'agent-accepted',
         ready: false,
         startedAt: '2026-02-06T10:05:00Z',
       });
@@ -231,7 +245,7 @@ describe('buildPositionalGraphReality', () => {
       expect(result.lines).toHaveLength(2);
       expect(result.nodes.size).toBe(3);
       expect(result.nodes.get('node-001')?.status).toBe('complete');
-      expect(result.nodes.get('node-002')?.status).toBe('running');
+      expect(result.nodes.get('node-002')?.status).toBe('agent-accepted');
       expect(result.nodes.get('node-003')?.status).toBe('pending');
       expect(result.totalNodes).toBe(3);
       expect(result.completedCount).toBe(1);
@@ -642,7 +656,7 @@ describe('buildPositionalGraphReality', () => {
         unitType: 'agent',
         lineId: 'line-000',
         position: 2,
-        status: 'running',
+        status: 'agent-accepted',
         execution: 'parallel',
       });
       const line = makeLineStatus({

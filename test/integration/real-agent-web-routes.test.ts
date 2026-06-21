@@ -25,7 +25,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 // This test is SKIPPED by default (per DYK-18)
 // Remove .skip to run manually during debugging
 describe.skip('Real Agent Web Routes E2E', () => {
-  let server: Server;
+  let server: Server | undefined;
   let baseUrl: string;
 
   beforeAll(async () => {

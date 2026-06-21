@@ -35,7 +35,7 @@ export function createDefaultContext(overrides?: Partial<WorkspaceContext>): Wor
 
 const SESSION_1 = AgentSession.create({
   id: 'test-session-1',
-  type: 'claude',
+  type: 'claude-code',
   status: 'active',
   createdAt: new Date('2026-01-27T10:00:00Z'),
   updatedAt: new Date('2026-01-27T10:00:00Z'),
@@ -51,7 +51,7 @@ const SESSION_2 = AgentSession.create({
 
 const SESSION_3 = AgentSession.create({
   id: 'test-session-3',
-  type: 'claude',
+  type: 'claude-code',
   status: 'terminated',
   createdAt: new Date('2026-01-27T09:00:00Z'),
   updatedAt: new Date('2026-01-27T12:00:00Z'),
@@ -149,7 +149,7 @@ export function agentSessionAdapterContractTests(
         const oldTimestamp = new Date('2020-01-01T00:00:00Z');
         const session = AgentSession.create({
           id: 'old-session',
-          type: 'claude',
+          type: 'claude-code',
           status: 'active',
           createdAt: oldTimestamp,
           updatedAt: oldTimestamp,

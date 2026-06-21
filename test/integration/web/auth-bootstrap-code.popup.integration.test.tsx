@@ -22,6 +22,7 @@ import {
   ensureBootstrapCode,
 } from '@chainglass/shared/auth-bootstrap-code';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import type { RequestInit as NextRequestInit } from 'next/dist/server/web/spec-extension/request';
 import { NextRequest } from 'next/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -67,7 +68,9 @@ describe('Phase 6 popup integration', () => {
         // pass a stable IP per scenario so the rate-limit bucket is isolated.
         const headers = new Headers(init?.headers);
         if (!headers.has('x-forwarded-for')) headers.set('x-forwarded-for', '7.7.7.7');
-        return verifyPOST(new NextRequest(VERIFY_URL, { ...init, headers, method: 'POST' }));
+        return verifyPOST(
+          new NextRequest(VERIFY_URL, { ...init, headers, method: 'POST' } as NextRequestInit)
+        );
       }
       throw new Error(`unexpected fetch: ${url}`);
     }) as typeof globalThis.fetch;

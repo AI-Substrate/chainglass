@@ -110,10 +110,11 @@ describe('MCP Workflow Integration - E2E', () => {
         },
       });
 
-      expect(result.content).toBeDefined();
-      expect(result.content[0].type).toBe('text');
+      const content = result.content as Array<{ type: string; text: string }>;
+      expect(content).toBeDefined();
+      expect(content[0].type).toBe('text');
 
-      const response = JSON.parse((result.content[0] as { type: 'text'; text: string }).text);
+      const response = JSON.parse(content[0].text);
       expect(response.success).toBe(true);
       expect(response.command).toBe('wf.compose');
       expect(response.timestamp).toBeDefined();
@@ -142,8 +143,9 @@ describe('MCP Workflow Integration - E2E', () => {
         },
       });
 
-      expect(result.content).toBeDefined();
-      const response = JSON.parse((result.content[0] as { type: 'text'; text: string }).text);
+      const content = result.content as Array<{ type: string; text: string }>;
+      expect(content).toBeDefined();
+      const response = JSON.parse(content[0].text);
 
       expect(response.success).toBe(false);
       expect(response.command).toBe('wf.compose');
@@ -170,7 +172,8 @@ describe('MCP Workflow Integration - E2E', () => {
             runs_dir: runsDir,
           },
         });
-        const response = JSON.parse((result.content[0] as { type: 'text'; text: string }).text);
+        const content = result.content as Array<{ type: string; text: string }>;
+        const response = JSON.parse(content[0].text);
         runDir = response.data.runDir;
       } finally {
         await tempClient.close();
@@ -196,8 +199,9 @@ describe('MCP Workflow Integration - E2E', () => {
         },
       });
 
-      expect(result.content).toBeDefined();
-      const response = JSON.parse((result.content[0] as { type: 'text'; text: string }).text);
+      const content = result.content as Array<{ type: string; text: string }>;
+      expect(content).toBeDefined();
+      const response = JSON.parse(content[0].text);
 
       expect(response.success).toBe(true);
       expect(response.command).toBe('phase.prepare');
@@ -225,8 +229,9 @@ describe('MCP Workflow Integration - E2E', () => {
         },
       });
 
-      expect(result.content).toBeDefined();
-      const response = JSON.parse((result.content[0] as { type: 'text'; text: string }).text);
+      const content = result.content as Array<{ type: string; text: string }>;
+      expect(content).toBeDefined();
+      const response = JSON.parse(content[0].text);
 
       expect(response.success).toBe(false);
       expect(response.error.code).toBe('E020');

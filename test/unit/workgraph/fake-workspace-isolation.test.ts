@@ -159,11 +159,11 @@ describe('Fake workspace isolation', () => {
       const ctxB = createTestWorkspaceContext('/workspace-b');
 
       fake.setPresetLoadResult(ctxA, 'my-unit', {
-        unit: { slug: 'my-unit', type: 'agent', path: '/a/units/my-unit' },
+        unit: { slug: 'my-unit', type: 'agent', version: '0.1.0', inputs: [], outputs: [] },
         errors: [],
       });
       fake.setPresetLoadResult(ctxB, 'my-unit', {
-        unit: { slug: 'my-unit', type: 'code', path: '/b/units/my-unit' },
+        unit: { slug: 'my-unit', type: 'code', version: '0.1.0', inputs: [], outputs: [] },
         errors: [],
       });
 
@@ -179,11 +179,11 @@ describe('Fake workspace isolation', () => {
       const ctxB = createTestWorkspaceContext('/workspace-b');
 
       fake.setPresetListResult(ctxA, {
-        units: [{ slug: 'unit-a', type: 'agent', path: '/a' }],
+        units: [{ slug: 'unit-a', type: 'agent', version: '0.1.0' }],
         errors: [],
       });
       fake.setPresetListResult(ctxB, {
-        units: [{ slug: 'unit-b', type: 'code', path: '/b' }],
+        units: [{ slug: 'unit-b', type: 'code', version: '0.1.0' }],
         errors: [],
       });
 
@@ -209,7 +209,7 @@ describe('Fake workspace isolation', () => {
     test('reset() clears all state', async () => {
       const ctx = createTestWorkspaceContext('/workspace');
 
-      fake.setDefaultUnits([{ slug: 'default', type: 'agent', path: '/default' }]);
+      fake.setDefaultUnits([{ slug: 'default', type: 'agent', version: '0.1.0' }]);
       fake.setPresetListResult(ctx, { units: [], errors: [] });
       await fake.list(ctx);
 

@@ -20,7 +20,6 @@
  */
 
 import {
-  FakeAgentAdapter,
   FakeAgentManagerService,
   FakeAgentNotifierService,
   FakeAgentStorageAdapter,
@@ -62,17 +61,9 @@ describe('Agent API Integration - Business Logic', () => {
     notifier = new FakeAgentNotifierService();
     storage = new FakeAgentStorageAdapter();
 
-    // Create adapter factory for FakeAgentAdapter
-    // Note: FakeAgentManagerService generates sessionId based on agent ID,
-    // not from adapter sessionId option
-    const adapterFactory = () =>
-      new FakeAgentAdapter({
-        sessionId: 'test-session-123',
-        output: 'Test response from agent',
-        tokens: { used: 100, total: 500, limit: 200000 },
-      });
-
-    agentManager = new FakeAgentManagerService(adapterFactory, notifier, storage);
+    // FakeAgentManagerService (019) manages its own FakeAgentInstance internally
+    // and takes no constructor dependencies; notifier/storage are exercised directly.
+    agentManager = new FakeAgentManagerService();
   });
 
   describe('GET /api/agents - List Agents', () => {
@@ -226,7 +217,7 @@ describe('Agent API Integration - Business Logic', () => {
       expect(Array.isArray(events)).toBe(true);
 
       // If events exist, verify structure
-      if (events.length > 0) {
+      if (events && events.length > 0) {
         expect(events[0]).toHaveProperty('eventId');
       }
     });

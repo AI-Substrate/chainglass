@@ -166,9 +166,30 @@ This is not aspirational — wishlist items become real fix tasks. W001 (`harnes
 - **No emojis** in commit messages, PR titles, or PR descriptions
 - **No AI attribution** in commit messages or PR descriptions — do not mention Claude, AI, Co-Authored-By, or any AI tool
 - Keep commit messages and PR descriptions factual and concise
-- **MANDATORY: Run `just fft` before every commit** — this runs lint, format, and tests. Do not commit if it fails. If lint fails due to unrelated issues (e.g., broken symlinks from other plans), you may proceed after verifying tests pass with `pnpm test`.
+- **MANDATORY: Run `just fft` before every commit** — lint, format, build, typecheck, test, security-audit. Do not commit if **any** step fails. There is **no "unrelated failure" exception**: a red check is red, and the work is not done (see "Definition of Done" and "No Pre-Existing Errors" below). If fixing it would balloon scope, **STOP and ask the user before committing** — never commit over a red check, never wave one off as "unrelated" or "pre-existing".
 - **NEVER use `git stash`, `git stash pop`, `git checkout -- .`, `git reset`, or any command that discards/undoes work** unless the user gives express permission. If you need a clean state, ask first.
 - **XDG_CONFIG_HOME override**: This agent is launched with `XDG_CONFIG_HOME=~/.copilot-alt`, which means `gh` CLI commands inherit the wrong config and show "not logged in". For any `gh` or `git push` commands that need GitHub auth, prefix with `XDG_CONFIG_HOME=~/.config` to use the real credentials at `~/.config/gh/hosts.yml`.
+
+## Definition of Done — run these BEFORE you say "done" (non-negotiable)
+
+A task is **NOT done** — do not say "done", "complete", "ready", "green", or "verified", and do not commit — until **every** check below has run **to completion** and passed **green**, with its **full output read**:
+
+| Check | Command | Notes |
+|---|---|---|
+| Types | `just typecheck` | Loops **every** workspace tsconfig (apps, packages, harness, **and `test/`**). The CI `tsc --noEmit` is **narrower** — passing CI is **not** "done". |
+| Lint/format | `just lint` | biome across the repo. |
+| Tests | `just test` | vitest. |
+
+`just check` (= lint + typecheck + test) or `just fft` (adds build + security-audit) compose these. The harness gate is the same: `harness boot` wraps the typecheck gate — **a red boot means not done.**
+
+**Hard rules — no exceptions without the user's explicit sign-off in this session:**
+
+- **Run each check to completion and read the ENTIRE output. NEVER pipe through `| head`, `| tail`, `grep -c`, `2>/dev/null`, or any filter/limit that can hide or undercount errors.** If the output is long, that *is* the signal — read all of it. (A truncated check has caught nothing; reporting "only N errors" from a truncated run is a false "done".)
+- **No "pre-existing" / "unrelated" / "not my code" escape.** If a check is red, you own it (see below). If the real fix balloons scope, **STOP and ask the user before committing or claiming done** — never silently leave it, never quietly narrow the check to make it pass.
+- **"Done" = a fully green run you actually reproduced.** A partially-green run, a single-workspace run, or "it should pass now" is **not done**. If you only ran a subset, say so explicitly — never imply full coverage you didn't run.
+- **Suppression is not fixing.** `@ts-ignore`, `as any`, `eslint-disable`, deleting/`.skip`-ing a test, or weakening an assertion to get green is **not** "done" — it's hiding a red check. Fix the real contract or ask.
+
+This section exists because checks that aren't gated rot silently: this repo accumulated **600+ `tsc` errors in `test/`** that local `just typecheck` shows but CI never ran — invisible precisely because "done" was claimed without running the full gate. The harness `boot` now makes that gate a session-start signal so it can't hide again.
 
 ## No Pre-Existing Errors
 

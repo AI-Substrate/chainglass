@@ -41,8 +41,9 @@ describe('FileWatcherFactory selection', () => {
 
   it('returns PollingFileWatcherAdapter when CHAINGLASS_WATCH_POLLING=true', () => {
     const factory = new FileWatcherFactory({
+      ...process.env,
       CHAINGLASS_WATCH_POLLING: 'true',
-    } as NodeJS.ProcessEnv);
+    } satisfies NodeJS.ProcessEnv);
     expect(factory.create()).toBeInstanceOf(PollingFileWatcherAdapter);
   });
 
@@ -53,16 +54,18 @@ describe('FileWatcherFactory selection', () => {
 
   it('lets an explicit usePolling:false override the flag', () => {
     const factory = new FileWatcherFactory({
+      ...process.env,
       CHAINGLASS_WATCH_POLLING: 'true',
-    } as NodeJS.ProcessEnv);
+    } satisfies NodeJS.ProcessEnv);
     expect(factory.create({ usePolling: false })).toBeInstanceOf(NativeFileWatcherAdapter);
   });
 
   it('treats any non-"true" flag value as native (e.g. "1", "yes")', () => {
     for (const value of ['1', 'yes', 'TRUE', '']) {
       const factory = new FileWatcherFactory({
+        ...process.env,
         CHAINGLASS_WATCH_POLLING: value,
-      } as NodeJS.ProcessEnv);
+      } satisfies NodeJS.ProcessEnv);
       expect(factory.create()).toBeInstanceOf(NativeFileWatcherAdapter);
     }
   });
@@ -71,9 +74,10 @@ describe('FileWatcherFactory selection', () => {
     // Invalid interval must not throw AND must use the 1000ms default (assert the value, not just the type).
     for (const bad of ['not-a-number', '0', '-5', '']) {
       const factory = new FileWatcherFactory({
+        ...process.env,
         CHAINGLASS_WATCH_POLLING: 'true',
         CHAINGLASS_WATCH_POLL_INTERVAL: bad,
-      } as NodeJS.ProcessEnv);
+      } satisfies NodeJS.ProcessEnv);
       const adapter = factory.create();
       expect(adapter).toBeInstanceOf(PollingFileWatcherAdapter);
       expect((adapter as PollingFileWatcherAdapter).intervalMs).toBe(1000);
@@ -82,24 +86,27 @@ describe('FileWatcherFactory selection', () => {
 
   it('uses the 1000ms default when the interval env var is unset', () => {
     const factory = new FileWatcherFactory({
+      ...process.env,
       CHAINGLASS_WATCH_POLLING: 'true',
-    } as NodeJS.ProcessEnv);
+    } satisfies NodeJS.ProcessEnv);
     expect((factory.create() as PollingFileWatcherAdapter).intervalMs).toBe(1000);
   });
 
   it('applies a valid CHAINGLASS_WATCH_POLL_INTERVAL', () => {
     const factory = new FileWatcherFactory({
+      ...process.env,
       CHAINGLASS_WATCH_POLLING: 'true',
       CHAINGLASS_WATCH_POLL_INTERVAL: '250',
-    } as NodeJS.ProcessEnv);
+    } satisfies NodeJS.ProcessEnv);
     expect((factory.create() as PollingFileWatcherAdapter).intervalMs).toBe(250);
   });
 
   it('lets an explicit options.interval win over the env interval', () => {
     const factory = new FileWatcherFactory({
+      ...process.env,
       CHAINGLASS_WATCH_POLLING: 'true',
       CHAINGLASS_WATCH_POLL_INTERVAL: '250',
-    } as NodeJS.ProcessEnv);
+    } satisfies NodeJS.ProcessEnv);
     expect((factory.create({ interval: 77 }) as PollingFileWatcherAdapter).intervalMs).toBe(77);
   });
 });

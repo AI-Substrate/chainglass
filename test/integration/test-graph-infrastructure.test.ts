@@ -94,7 +94,8 @@ describe('Test Graph Infrastructure', () => {
 
     // Verify cleanup happened
     expect(capturedWorkspacePath).not.toBeNull();
-    await expect(fs.stat(capturedWorkspacePath as string)).rejects.toThrow();
+    if (capturedWorkspacePath === null) throw new Error('expected captured workspace path');
+    await expect(fs.stat(capturedWorkspacePath)).rejects.toThrow();
   }, 30_000);
 
   it('makeScriptsExecutable sets +x on .sh files', async () => {

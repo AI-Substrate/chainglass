@@ -19,6 +19,8 @@
  */
 
 import type { AgentEvent, IAgentAdapter } from '@chainglass/shared';
+import type { ICopilotClient } from '@chainglass/shared/interfaces/copilot-sdk.interface';
+import { WorkflowEventType } from '@chainglass/shared/workflow-events';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import {
@@ -96,7 +98,7 @@ async function createRealOrchestrationStack(
     const { CopilotClient } = await import('@github/copilot-sdk');
     const { SdkCopilotAdapter } = copilotModule;
     const client = new CopilotClient();
-    adapterFactory = () => new SdkCopilotAdapter(client);
+    adapterFactory = () => new SdkCopilotAdapter(client as unknown as ICopilotClient);
   }
 
   const agentManager = new AgentManagerService(adapterFactory);
@@ -104,9 +106,10 @@ async function createRealOrchestrationStack(
   // Event system
   const eventRegistry = new FakeNodeEventRegistry();
   registerCoreEventTypes(eventRegistry);
-  const handlerRegistry = createEventHandlerRegistry(service, ctx);
+  const handlerRegistry = createEventHandlerRegistry();
   const nes = new NodeEventService(
     {
+      registry: eventRegistry,
       loadState: async (slug) => service.loadGraphState(ctx, slug),
       persistState: async (slug, state) => service.persistGraphState(ctx, slug, state),
     },
@@ -218,8 +221,17 @@ describe.skip('Claude Code orchestration wiring', { timeout: 180_000 }, () => {
     assertDefined(podA.sessionId, 'podA.sessionId');
     const sessionA = podA.sessionId;
 
-    // Manually complete node-a (agent doesn't know WF protocol yet)
-    await service.completeNode(ctx, graphSlug, nodeAId, {});
+    // Manually complete node-a (agent doesn't know WF protocol yet):
+    // accept then end (starting → agent-accepted → complete).
+    await service.raiseNodeEvent(
+      ctx,
+      graphSlug,
+      nodeAId,
+      WorkflowEventType.NodeAccepted,
+      {},
+      'agent'
+    );
+    await service.endNode(ctx, graphSlug, nodeAId);
 
     // Run again — node-b should inherit node-a's session
     {
@@ -326,7 +338,16 @@ describe.skip('Copilot SDK orchestration wiring', { timeout: 180_000 }, () => {
     assertDefined(podA.sessionId, 'podA.sessionId');
     const sessionA = podA.sessionId;
 
-    await service.completeNode(ctx, graphSlug, nodeAId, {});
+    // Manually complete node-a: accept then end (starting → agent-accepted → complete).
+    await service.raiseNodeEvent(
+      ctx,
+      graphSlug,
+      nodeAId,
+      WorkflowEventType.NodeAccepted,
+      {},
+      'agent'
+    );
+    await service.endNode(ctx, graphSlug, nodeAId);
     {
       const h = await stack.orchestrationService.get(ctx, graphSlug);
       await h.run();

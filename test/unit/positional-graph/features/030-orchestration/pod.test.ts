@@ -58,7 +58,7 @@ function makeFakeInstance(runResult?: {
       sessionId: runResult.sessionId ?? 'sess-default',
       output: runResult.output ?? '',
       exitCode: runResult.exitCode ?? 0,
-      tokens: { input: 0, output: 0, cacheRead: 0 },
+      tokens: { used: 0, total: 0, limit: 200000 },
       stderr: runResult.stderr,
     });
   }
@@ -186,7 +186,7 @@ describe('AgentPod', () => {
         sessionId: 'sess-resume',
         output: '',
         exitCode: 0,
-        tokens: { input: 0, output: 0, cacheRead: 0 },
+        tokens: { used: 0, total: 0, limit: 200000 },
       });
 
       const result = await pod.resumeWithAnswer('q-1', 'Yes', makeOptions());
@@ -347,7 +347,7 @@ describe('CodePod', () => {
       const runner = new FakeScriptRunner({ exitCode: 0 });
       const pod = new CodePod('code-1', runner, '/test/script.sh', 'test-unit');
 
-      const result = await pod.resumeWithAnswer('q-1', 'answer', makeOptions());
+      const result = await pod.resumeWithAnswer();
 
       expect(result.outcome).toBe('error');
       expect(result.error?.code).toBe('POD_NOT_SUPPORTED');

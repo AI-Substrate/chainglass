@@ -7,7 +7,7 @@
  */
 
 import { POSITIONAL_GRAPH_DI_TOKENS } from '@chainglass/shared';
-import type { ITemplateService } from '@chainglass/workflow';
+import type { ITemplateService, InstanceUnitEntry, TemplateUnitEntry } from '@chainglass/workflow';
 import type { Command } from 'commander';
 
 import { createCliProductionContainer } from '../lib/container.js';
@@ -49,7 +49,9 @@ async function handleSaveFrom(
   } else if (result.data) {
     console.log(`Template saved: ${result.data.slug}`);
     console.log(`  Graph: ${result.data.lineCount} lines, ${result.data.nodes.length} nodes`);
-    console.log(`  Units bundled: ${result.data.units.map((u) => u.slug).join(', ')}`);
+    console.log(
+      `  Units bundled: ${result.data.units.map((u: TemplateUnitEntry) => u.slug).join(', ')}`
+    );
   }
 
   if (result.errors.length > 0) {
@@ -143,7 +145,9 @@ async function handleInstantiate(
     console.log(JSON.stringify(result, null, 2));
   } else if (result.data) {
     console.log(`Instance created: ${result.data.template_source}/${result.data.slug}`);
-    console.log(`  Units copied: ${result.data.units.map((u) => u.slug).join(', ')}`);
+    console.log(
+      `  Units copied: ${result.data.units.map((u: InstanceUnitEntry) => u.slug).join(', ')}`
+    );
     console.log('  Graph status: pending');
   }
 

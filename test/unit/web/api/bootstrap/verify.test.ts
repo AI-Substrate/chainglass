@@ -14,7 +14,7 @@ import {
   ensureBootstrapCode,
 } from '@chainglass/shared/auth-bootstrap-code';
 import { NextRequest } from 'next/server';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   INVALID_FORMAT_SAMPLES,
@@ -168,20 +168,14 @@ describe('POST /api/bootstrap/verify', () => {
 
   // (10) production-only Secure cookie attribute (F002)
   it('200 in production: Set-Cookie includes Secure', async () => {
-    const originalNodeEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = 'production';
+    vi.stubEnv('NODE_ENV', 'production');
     try {
       const res = await POST(reqWithBody({ code: activeCode }));
       expect(res.status).toBe(200);
       const setCookie = (res.headers.get('set-cookie') ?? '').toLowerCase();
       expect(setCookie).toContain('secure');
     } finally {
-      if (originalNodeEnv === undefined) {
-        // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
-        delete process.env.NODE_ENV;
-      } else {
-        process.env.NODE_ENV = originalNodeEnv;
-      }
+      vi.unstubAllEnvs();
     }
   });
 

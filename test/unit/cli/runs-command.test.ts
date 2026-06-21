@@ -20,11 +20,14 @@ import {
   Phase,
   Workflow,
 } from '@chainglass/workflow';
-import type { Command } from 'commander';
 import type { DependencyContainer } from 'tsyringe';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createProgram } from '../../../apps/cli/src/bin/cg.js';
 import { createCliTestContainer } from '../../../apps/cli/src/lib/container.js';
+
+// Use the Command type produced by the CLI (commander@13) so it matches
+// createProgram()'s return type rather than the root-resolved commander@11.
+type Command = ReturnType<typeof createProgram>;
 
 describe('registerRunsCommands', () => {
   let program: Command;
@@ -138,7 +141,7 @@ describe('cg runs list', () => {
       run: {
         runId: 'run-001',
         runDir: '.chainglass/runs/hello-wf/v001-abc123/run-001',
-        status: 'completed',
+        status: 'complete',
         createdAt: new Date('2026-01-25T10:00:00Z'),
       },
     });
@@ -156,7 +159,7 @@ describe('cg runs list', () => {
       run: {
         runId: 'run-002',
         runDir: '.chainglass/runs/data-wf/v001-def456/run-002',
-        status: 'running',
+        status: 'active',
         createdAt: new Date('2026-01-25T11:00:00Z'),
       },
     });
@@ -198,7 +201,7 @@ describe('cg runs list', () => {
       run: {
         runId: 'run-001',
         runDir: '.chainglass/runs/hello-wf/v001-abc123/run-001',
-        status: 'completed',
+        status: 'complete',
         createdAt: new Date('2026-01-25T10:00:00Z'),
       },
     });
@@ -252,7 +255,7 @@ describe('cg runs list', () => {
       run: {
         runId: 'run-001',
         runDir: '.chainglass/runs/hello-wf/v001-abc123/run-001',
-        status: 'completed',
+        status: 'complete',
         createdAt: new Date('2026-01-25T10:00:00Z'),
       },
     });
@@ -270,7 +273,7 @@ describe('cg runs list', () => {
       run: {
         runId: 'run-002',
         runDir: '.chainglass/runs/hello-wf/v001-abc123/run-002',
-        status: 'running',
+        status: 'active',
         createdAt: new Date('2026-01-25T11:00:00Z'),
       },
     });
@@ -278,12 +281,12 @@ describe('cg runs list', () => {
     fakeWorkflowAdapter.listRunsResult = [completedRun, runningRun];
 
     // Call with status filter
-    const runs = await fakeWorkflowAdapter.listRuns('hello-wf', { status: 'completed' });
+    const runs = await fakeWorkflowAdapter.listRuns('hello-wf', { status: 'complete' });
 
-    expect(fakeWorkflowAdapter.listRunsCalls[0].filter?.status).toBe('completed');
+    expect(fakeWorkflowAdapter.listRunsCalls[0].filter?.status).toBe('complete');
     // FakeWorkflowAdapter applies status filter
     expect(runs).toHaveLength(1);
-    expect(runs[0].run?.status).toBe('completed');
+    expect(runs[0].run?.status).toBe('complete');
   });
 
   it('should return empty list when no runs exist', async () => {
@@ -339,7 +342,7 @@ describe('cg runs get', () => {
       run: {
         runId: 'run-001',
         runDir: '.chainglass/runs/hello-wf/v001-abc123/run-001',
-        status: 'completed',
+        status: 'complete',
         createdAt: new Date('2026-01-25T10:00:00Z'),
       },
     });
@@ -463,7 +466,7 @@ describe('runs output formatting', () => {
       run: {
         runId: 'run-001',
         runDir: '.chainglass/runs/hello-wf/v001-abc123/run-001',
-        status: 'completed',
+        status: 'complete',
         createdAt: new Date('2026-01-25T10:00:00Z'),
       },
     });
@@ -473,7 +476,7 @@ describe('runs output formatting', () => {
     expect(json.slug).toBe('hello-wf');
     expect(json.isRun).toBe(true);
     expect(json.run?.runId).toBe('run-001');
-    expect(json.run?.status).toBe('completed');
+    expect(json.run?.status).toBe('complete');
   });
 
   it('should format run details with phases', () => {

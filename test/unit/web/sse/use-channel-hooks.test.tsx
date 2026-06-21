@@ -159,9 +159,12 @@ describe('useChannelCallback', () => {
   it('fires callback per event (AC-18)', () => {
     const received: string[] = [];
 
-    renderHook(() => useChannelCallback('event-popper', (event) => received.push(event.type)), {
-      wrapper,
-    });
+    renderHook(
+      () => useChannelCallback('event-popper', (event) => received.push(event.type ?? '')),
+      {
+        wrapper,
+      }
+    );
 
     act(() => fake.simulateOpen());
     act(() => fake.simulateChannelMessage('event-popper', 'question-asked'));
@@ -173,9 +176,12 @@ describe('useChannelCallback', () => {
   it('ignores events from other channels (AC-19)', () => {
     const received: string[] = [];
 
-    renderHook(() => useChannelCallback('event-popper', (event) => received.push(event.type)), {
-      wrapper,
-    });
+    renderHook(
+      () => useChannelCallback('event-popper', (event) => received.push(event.type ?? '')),
+      {
+        wrapper,
+      }
+    );
 
     act(() => fake.simulateOpen());
     act(() => fake.simulateChannelMessage('file-changes', 'file-changed'));

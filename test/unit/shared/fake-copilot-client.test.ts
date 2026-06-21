@@ -1,8 +1,28 @@
+import { randomUUID } from 'node:crypto';
+
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { ICopilotClient, ICopilotSession } from '@chainglass/shared';
+import type { CopilotSessionEvent } from '@chainglass/shared/interfaces';
 // Note: FakeCopilotClient will be imported once T006 creates it
 // For now, we reference the interface to ensure tests are ready for implementation
+
+/**
+ * Fixture builder for CopilotSessionEvent test literals.
+ * Mirrors the source's createDefaultIdleEvent() pattern: supplies the required
+ * base fields (id/timestamp/parentId) so test event literals stay focused on
+ * the type-specific data. The single cast is the fixture-builder boundary.
+ */
+function evt(type: string, data: Record<string, unknown> = {}): CopilotSessionEvent {
+  return {
+    id: randomUUID(),
+    timestamp: new Date().toISOString(),
+    parentId: null,
+    ephemeral: true,
+    type,
+    data,
+  } as CopilotSessionEvent;
+}
 
 describe('FakeCopilotClient', () => {
   /**
@@ -210,8 +230,8 @@ describe('FakeCopilotClient', () => {
       const { FakeCopilotClient } = await import('@chainglass/shared/fakes');
       const configuredFake = new FakeCopilotClient({
         events: [
-          { type: 'assistant.message', data: { content: 'Test response' } },
-          { type: 'session.idle', data: {} },
+          evt('assistant.message', { content: 'Test response', messageId: 'msg-1' }),
+          evt('session.idle', {}),
         ],
       });
 
