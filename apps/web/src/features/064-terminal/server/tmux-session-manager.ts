@@ -97,6 +97,32 @@ export class TmuxSessionManager {
   }
 
   /**
+   * Ensure clipboard integration is enabled on the tmux server (idempotent).
+   *
+   * `set-clipboard on` makes tmux emit an OSC 52 sequence when text is copied
+   * (mouse-drag / copy-mode), and `allow-passthrough on` lets that sequence
+   * reach the outer terminal — here, xterm.js's ClipboardAddon, which writes it
+   * to the browser clipboard. Without these, a drag-select inside tmux never
+   * reaches the browser and `tmux show-buffer` is the only (fragile) copy path.
+   *
+   * Set globally (`-g`) so it applies to every session on the shared server.
+   * Failures are swallowed: clipboard sync is a best-effort enhancement and must
+   * never block spawning the terminal.
+   */
+  ensureClipboardOptions(): void {
+    try {
+      // `set-option -g` needs a running server; on the very first spawn none
+      // exists yet. start-server is a no-op when one is already up, so this
+      // guarantees the options apply even to the first session created.
+      this.exec('tmux', ['start-server']);
+      this.exec('tmux', ['set-option', '-g', 'set-clipboard', 'on']);
+      this.exec('tmux', ['set-option', '-g', 'allow-passthrough', 'on']);
+    } catch {
+      // best-effort — never block terminal spawn on clipboard config
+    }
+  }
+
+  /**
    * Spawn a PTY attached to a tmux session (create-or-attach atomically).
    * Uses `tmux new-session -A` which attaches if session exists, creates if not.
    */

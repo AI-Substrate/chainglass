@@ -317,4 +317,45 @@ describe('TmuxSessionManager', () => {
       expect(shell.length).toBeGreaterThan(0);
     });
   });
+
+  describe('ensureClipboardOptions', () => {
+    it('should start the server then enable set-clipboard and allow-passthrough globally', () => {
+      /*
+      Test Doc:
+      - Why: Drag-select must auto-copy to the browser clipboard via OSC 52; that
+        requires set-clipboard on + allow-passthrough on, set on the tmux server
+        rather than relying on a personal ~/.tmux.conf.
+      - Contract: ensureClipboardOptions() runs `tmux start-server` (so options
+        apply even to the first session) then two global `set-option -g` calls.
+      - Usage Notes: start-server first because `set-option -g` needs a live server.
+      - Quality Contribution: Makes clipboard sync work for every user/session.
+      - Worked Example: drag-select in xterm → tmux emits OSC 52 → ClipboardAddon writes clipboard.
+      */
+      const { manager, exec } = createManager();
+      exec.whenCommand('tmux', ['start-server']).returns('');
+      exec.whenCommand('tmux', ['set-option', '-g', 'set-clipboard', 'on']).returns('');
+      exec.whenCommand('tmux', ['set-option', '-g', 'allow-passthrough', 'on']).returns('');
+
+      manager.ensureClipboardOptions();
+
+      exec.assertExecuted('tmux', ['start-server']);
+      exec.assertExecuted('tmux', ['set-option', '-g', 'set-clipboard', 'on']);
+      exec.assertExecuted('tmux', ['set-option', '-g', 'allow-passthrough', 'on']);
+    });
+
+    it('should swallow errors so a clipboard-config failure never blocks the terminal', () => {
+      /*
+      Test Doc:
+      - Why: Clipboard sync is a best-effort enhancement; a failing set-option must
+        not prevent the terminal from spawning.
+      - Contract: ensureClipboardOptions() never throws even when tmux commands fail.
+      - Usage Notes: Default FakeTmuxExecutor throws on unmatched commands.
+      - Quality Contribution: Terminal stays usable on tmux builds lacking these options.
+      - Worked Example: start-server throws → method returns without throwing.
+      */
+      const { manager } = createManager();
+      // No commands configured → executor throws → method must absorb it.
+      expect(() => manager.ensureClipboardOptions()).not.toThrow();
+    });
+  });
 });

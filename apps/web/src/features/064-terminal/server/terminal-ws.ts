@@ -176,6 +176,9 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
     // FT-002: Guard PTY spawn failures
     try {
       if (tmuxAvailable) {
+        // Enable OSC 52 clipboard passthrough so drag-select auto-copies to the
+        // browser clipboard (idempotent, best-effort) before attaching.
+        manager.ensureClipboardOptions();
         pty = manager.spawnAttachedPty(sessionName, cwd, 80, 24);
         ws.send(JSON.stringify({ type: 'status', status: 'connected', tmux: true }));
       } else {
@@ -285,8 +288,15 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
             const buffer = deps.execCommand('tmux', ['show-buffer']);
             ws.send(JSON.stringify({ type: 'clipboard', data: buffer.trim() }));
           } catch (err) {
-            const errMsg = err instanceof Error ? err.message : 'Unknown error';
-            ws.send(JSON.stringify({ type: 'clipboard', data: '', error: errMsg }));
+            // `tmux show-buffer` throws "no buffers" when nothing has been
+            // yanked into tmux's paste buffer. This is reached only when the
+            // browser also has no xterm selection (see terminal-inner.tsx), so
+            // surface actionable guidance instead of the raw tmux error.
+            const raw = err instanceof Error ? err.message : 'Unknown error';
+            const friendly = /no buffers/i.test(raw)
+              ? 'Nothing to copy — drag-select text in the terminal, then click copy.'
+              : raw;
+            ws.send(JSON.stringify({ type: 'clipboard', data: '', error: friendly }));
           }
           return;
         }

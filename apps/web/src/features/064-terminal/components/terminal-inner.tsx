@@ -148,11 +148,29 @@ export default function TerminalInner({
     }
   }, [status]);
 
-  // Listen for copy-buffer requests from header buttons (triggers WS request)
+  // Listen for copy-buffer requests from header buttons.
+  // Prefer the live xterm.js selection: a plain drag-select in the terminal
+  // works whether or not tmux mouse mode is on, and never depends on the tmux
+  // paste buffer being populated. Only fall back to the server-side
+  // `tmux show-buffer` round-trip when nothing is selected in the browser —
+  // that path requires the user to have yanked text into tmux's paste buffer
+  // (copy-mode / mouse-drag), which is empty after a plain Ctrl+C and yields
+  // the "no buffers" error.
   const copyBufferRef = useRef(copyBuffer);
   copyBufferRef.current = copyBuffer;
   useEffect(() => {
-    const handler = () => copyBufferRef.current();
+    const handler = () => {
+      const selection = terminalRef.current?.getSelection()?.trim();
+      if (selection) {
+        // Resolve the deferred clipboard write directly with the xterm selection.
+        lastClipboardDataRef.current = selection;
+        window.dispatchEvent(
+          new CustomEvent('terminal:clipboard-data', { detail: { data: selection } })
+        );
+        return;
+      }
+      copyBufferRef.current();
+    };
     window.addEventListener('terminal:copy-buffer', handler);
     return () => window.removeEventListener('terminal:copy-buffer', handler);
   }, []);
