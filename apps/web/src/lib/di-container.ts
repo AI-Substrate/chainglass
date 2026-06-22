@@ -137,12 +137,12 @@ import { CentralEventNotifierService } from '../features/027-central-notify-even
 import { AgentWorkUnitBridge } from '../features/059-fix-agents/agent-work-unit-bridge';
 // Plan 067: QuestionPopperService (real implementation)
 import { QuestionPopperService } from '../features/067-question-popper/lib/question-popper.service';
-// Plan 088 Phase 2: RemoteViewService interface + fake + Phase-5 placeholder
+// Plan 088 Phase 2/5: RemoteViewService interface + fake (test) + real adapter (prod)
 import {
   FakeRemoteViewService,
   type IRemoteViewService,
-  createUnimplementedRemoteViewService,
 } from '../features/088-remote-view/server/remote-view-service';
+import { createProductionRemoteViewService } from '../features/088-remote-view/server/remote-view-service.production';
 import { SampleService } from '../services/sample.service';
 import { sseManager } from './sse-manager';
 // Plan 059: WorkUnitStateService (real implementation)
@@ -714,10 +714,11 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
   });
 
   // ==================== Plan 088: Remote View Service ====================
-  // Real daemon-backed adapter lands in Phase 5; until then a resolvable
-  // placeholder whose methods throw (decorator-free useFactory, ADR-0004).
+  // Phase 5 (T003): the real daemon-backed adapter (decorator-free useFactory,
+  // ADR-0004). Construction does no I/O — the daemon spawns lazily on the first
+  // attach (Phase-6 live). The test container keeps the fake (below).
   childContainer.register<IRemoteViewService>(DI_TOKENS.REMOTE_VIEW_SERVICE, {
-    useFactory: () => createUnimplementedRemoteViewService(),
+    useFactory: () => createProductionRemoteViewService({ logger: console }),
   });
 
   // FIX-010: Performance metrics for container creation

@@ -58,3 +58,22 @@ TDD. `reapStreamdDaemon(root, webPort, deps)` mirrors `pty-registry.ts` semantic
 **Re-review verdict (commit `f90104a6`)**: `code-review-companion` → **APPROVE_WITH_NOTES** — F001/F002/F004 closed in code+tests, F003 mostly closed; only F005 (doc drift) remained, now fixed. Tests after fixes: **16/16 green** (8 manager + 8 reaper).
 
 **Companion lifecycle note**: the run idle-timed-out ("session idle / stopped for idle budget") during the post-checkpoint wait — the known structural gap (a companion booted for a phase with human-in-the-loop gaps dies in the gaps). Its findings + magicWand (state-vocabulary schema mismatch) are preserved under `agents/code-review-companion/runs/2026-06-21T08-27-24-946Z-f514/`. Remaining tasks (T003+) need a fresh `minih run` or a post-hoc review pass.
+
+---
+
+## T003 — real `RemoteViewService` adapter + prod DI swap ✅
+
+**Tests**: `test/unit/web/features/088-remote-view/real-remote-view-service.test.ts` — **16/16 green** (12 adapter + 4 transport); full 088 suite **95/95**; web typecheck clean; biome clean.
+**Files**: `server/remote-view-service.ts` (+`RealRemoteViewService`, `DaemonSessionsClient`, `createHttpDaemonSessionsClient`), `server/remote-view-service.production.ts` (new), `apps/web/src/lib/di-container.ts` (prod factory swap), + test.
+
+TDD RED→GREEN. The adapter implements the **frozen** `IRemoteViewService` and passes the **same** Phase-2 contract suite the fake passes (`remoteViewServiceContractTests(makeRealService, 'RealRemoteViewService')`) — driven against a **daemon-double** so the whole adapter is unit-tested with no live daemon.
+
+- **sync-read mirror** — `IRemoteViewService.list()`/`getSession()` are synchronous but the daemon is async HTTP; the adapter holds a **local session mirror** (sync source of truth) updated by the async `attach()`/`detach()` daemon round-trips (one session per window, single-viewer v1).
+- **ensure-before-proxy** — `attach()` calls the T001 manager's `ensureDaemon()` (spawn/poll/version-handshake) **then** `POST /sessions` via the transport; local fast-path returns an existing live session with **no** second round-trip (idempotent per window).
+- **fail-safe mirror** — the mirror is written only **after** a successful daemon create (a failure propagates and leaves no phantom session); `detach(unknown)` is a no-op (no spawn).
+- **injectable transport** — `DaemonSessionsClient` (`create`/`remove`); `createHttpDaemonSessionsClient` is the live HTTP impl (JWT Bearer, 404-tolerant DELETE) tested over a `fetch` double.
+- **DI swap** — prod factory (`di-container.ts` ~L719) now builds `createProductionRemoteViewService({ logger })` (real adapter) instead of `createUnimplementedRemoteViewService()`; **test factory stays the fake**. Decorator-free `useFactory` (ADR-0004). The placeholder fn is retained (Phase-2 contract test's negative case) but no longer used in prod.
+
+**Decision/Debt logged** (Discoveries): the production daemon wiring (webPort/bundle-path/bootstrap-path resolution + manager spawn/fetch deps + JWT mint) is isolated in `remote-view-service.production.ts`, assembled but **not** unit-tested — construction does no I/O; the live spawn/proxy path is **Phase-6-verified** and **T004** finalizes the route integration that calls `ensureDaemon`. SSE (T006) + GlobalState (T007) attach at the marked `attach()`/`detach()` seams.
+
+**Unblocks** T004 (routes `/health`+`/windows`) and T006 (SSE) — both keyed on the real adapter.
