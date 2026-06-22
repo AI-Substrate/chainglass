@@ -77,3 +77,18 @@ TDD RED→GREEN. The adapter implements the **frozen** `IRemoteViewService` and 
 **Decision/Debt logged** (Discoveries): the production daemon wiring (webPort/bundle-path/bootstrap-path resolution + manager spawn/fetch deps + JWT mint) is isolated in `remote-view-service.production.ts`, assembled but **not** unit-tested — construction does no I/O; the live spawn/proxy path is **Phase-6-verified** and **T004** finalizes the route integration that calls `ensureDaemon`. SSE (T006) + GlobalState (T007) attach at the marked `attach()`/`detach()` seams.
 
 **Unblocks** T004 (routes `/health`+`/windows`) and T006 (SSE) — both keyed on the real adapter.
+
+---
+
+## Companion review loop — T003 (2 HIGH → fixed before T004)
+
+`code-review-companion` run `2026-06-22T06-37-22-817Z-b7a1` reviewed the T003 commit (`1d032a89`) and returned **2 HIGH** findings — both fixed in one loop before T004 builds on the adapter (TDD RED→GREEN; the two F002 behavioural tests RED against the fast-path, F001 seam GREEN, then GREEN after the fix):
+
+| ID | Sev | Finding | Resolution |
+|----|-----|---------|------------|
+| F001 | HIGH | `remote-view-service.production.ts` set `workspaceRoot = process.cwd()` for **both** the daemon `--bootstrap`/`--registry` paths and the manager root. Under `just dev`/Turbo, Next runs from `apps/web/` while `getBootstrapCodeAndKey()` mints from `findWorkspaceRoot(process.cwd())` (repo root) — the **Plan 084 FX003 cwd split**: the daemon would verify tokens against `apps/web/.chainglass/` while the server signs against `<repo>/.chainglass/`, so live `/sessions` auth/registry discovery fails on the first production attach. | Extracted `resolveProductionDaemonConfig({cwd,findRoot,env})` — resolves `workspaceRoot = findWorkspaceRoot(process.cwd())` (auth's canonical root) before building `bootstrapPath` + the manager. Injectable seam → 2 unit tests prove `cwd=<repo>/apps/web` ⇒ `<repo>/.chainglass/bootstrap-code.json` (no real FS walk). |
+| F002 | HIGH | `RealRemoteViewService.attach()` returned an existing **mirror** entry with **no** `ensureDaemon()`/`POST /sessions`. If `streamd` crashes/restarts while Next keeps its mirror, a later attach hands back a **dead `sessionId`**, never triggers the T001 crashed-daemon respawn/handshake, and never creates the daemon-side session R6 expects (Workshop 002: the daemon table is authoritative; sessions don't survive restart). The test locked in the unsafe behaviour. | Dropped the local fast-path: every `attach()` now re-runs `ensureDaemon()` and lets the daemon's **idempotent** `POST /sessions` be the source of truth; the mirror is a **read-cache** reconciled after each create (evict any prior same-window entry, then record the authoritative summary). Daemon-double made idempotent-per-window + a `restart()` model; rewrote the fast-path test (asserts no **duplicate** session + ensureDaemon re-verified, not no-round-trip) and added a restart regression (stale entry evicted, fresh session returned). |
+
+**Evidence after fixes**: target file **19/19** (was 16; +1 restart regression, +2 F001 seam, 1 rewritten); full 088 suite **98/98**; web typecheck **0 errors**; biome clean. Files: `server/remote-view-service.ts` (attach), `server/remote-view-service.production.ts` (`resolveProductionDaemonConfig` + `ProductionDaemonConfig`), `real-remote-view-service.test.ts`.
+
+**Companion-mode footnote (dogfood)**: booting the companion on 0.2.3 took two fresh workarounds — `E205 COORDINATION_WRITE_DENIED` → `--permissions trusted`; `E170 multiple-active-runs` → `--run <id>` (stale runs never cleaned). Findings land on the **inside** lane (`runs/<id>/inbox/inside/messages.ndjson`), invisible to the documented read-path — recorded in memory [[minih-companion-discovery-workaround]].

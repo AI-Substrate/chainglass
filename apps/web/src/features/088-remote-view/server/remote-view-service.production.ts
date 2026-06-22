@@ -14,6 +14,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 import { getBootstrapCodeAndKey } from '@/lib/bootstrap-code';
+import { findWorkspaceRoot } from '@chainglass/shared/auth-bootstrap-code';
 import { SignJWT } from 'jose';
 
 import { type DaemonHealth, createDaemonManager } from './daemon-manager';
@@ -55,6 +56,48 @@ async function mintDaemonToken(): Promise<string> {
     .sign(key);
 }
 
+/** Resolved daemon config — every path keyed off the CANONICAL workspace root. */
+export interface ProductionDaemonConfig {
+  webPort: number;
+  workspaceRoot: string;
+  innerBinaryPath: string;
+  bootstrapPath: string;
+  daemonPortOverride?: number;
+}
+
+/**
+ * Resolve the daemon config from the canonical workspace root — NOT raw
+ * `process.cwd()` (F001 / Plan 084 FX003). Under `just dev`/Turbo, Next runs from
+ * `apps/web/`, but `getBootstrapCodeAndKey()` mints/verifies the bootstrap code
+ * from `findWorkspaceRoot(process.cwd())` (the repo root holding `.chainglass/`).
+ * The daemon's `--bootstrap`/`--registry` paths MUST point at that same root, or
+ * the daemon verifies tokens against `apps/web/.chainglass/` while the web process
+ * signs against `<repo>/.chainglass/` and live `/sessions` auth fails on the first
+ * attach. `cwd`/`findRoot`/`env` are injectable so the seam is unit-testable with
+ * no real filesystem walk (construction still does no I/O on the real path).
+ */
+export function resolveProductionDaemonConfig(
+  deps: {
+    cwd?: string;
+    findRoot?: (startDir: string) => string;
+    env?: NodeJS.ProcessEnv;
+  } = {}
+): ProductionDaemonConfig {
+  const cwd = deps.cwd ?? process.cwd();
+  const findRoot = deps.findRoot ?? findWorkspaceRoot;
+  const env = deps.env ?? process.env;
+  const workspaceRoot = findRoot(cwd);
+  return {
+    webPort: Number(env.PORT ?? 3000),
+    workspaceRoot,
+    innerBinaryPath: resolveInnerBinaryPath(),
+    bootstrapPath: resolveBootstrapPath(workspaceRoot),
+    daemonPortOverride: env.CG_REMOTE_VIEW__DAEMON_PORT
+      ? Number(env.CG_REMOTE_VIEW__DAEMON_PORT)
+      : undefined,
+  };
+}
+
 /**
  * Build the production daemon-backed RemoteViewService. Called by the prod DI
  * factory (di-container). The web port defaults to `process.env.PORT` (Next's own
@@ -63,18 +106,15 @@ async function mintDaemonToken(): Promise<string> {
 export function createProductionRemoteViewService(
   opts: { logger?: Pick<Console, 'info' | 'warn' | 'error'> } = {}
 ): IRemoteViewService {
-  const webPort = Number(process.env.PORT ?? 3000);
-  const workspaceRoot = process.cwd();
-  const daemonPortOverride = process.env.CG_REMOTE_VIEW__DAEMON_PORT
-    ? Number(process.env.CG_REMOTE_VIEW__DAEMON_PORT)
-    : undefined;
+  const { webPort, workspaceRoot, innerBinaryPath, bootstrapPath, daemonPortOverride } =
+    resolveProductionDaemonConfig();
 
   const manager = createDaemonManager(
     {
       webPort,
       workspaceRoot,
-      innerBinaryPath: resolveInnerBinaryPath(),
-      bootstrapPath: resolveBootstrapPath(workspaceRoot),
+      innerBinaryPath,
+      bootstrapPath,
       expectedProtocolVersion: PROTOCOL_VERSION,
       daemonPortOverride,
     },

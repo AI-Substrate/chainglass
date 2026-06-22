@@ -142,17 +142,22 @@ export class RealRemoteViewService implements IRemoteViewService {
   }
 
   async attach(windowId: number): Promise<SessionSummary> {
-    // Local fast-path: one live session per window — re-attach reuses it, no daemon round-trip.
-    const existing = [...this.sessions.values()].find(
-      (s) => s.windowId === windowId && s.state !== 'closed'
-    );
-    if (existing) {
-      existing.state = 'streaming';
-      return { ...existing };
-    }
+    // The daemon's session table is the AUTHORITY (Workshop 002); the local mirror
+    // is only a sync read-cache for list()/getSession(). So every attach re-runs
+    // ensureDaemon() (crash respawn + version handshake) and lets the daemon's
+    // idempotent POST /sessions decide the session — never a stale-mirror
+    // short-circuit, which would hand back a dead sessionId after a daemon restart
+    // and skip the respawn path (F002 / Workshop 002 R6: sessions don't survive a
+    // restart).
     const { daemonPort } = await this.deps.ensureDaemon();
     // Mirror only AFTER a successful daemon create — a failure leaves no phantom session.
     const summary = await this.deps.sessions.create(daemonPort, windowId);
+    // Reconcile the read-cache: evict any prior entry for this window (e.g. a stale
+    // session from a since-restarted daemon) so one window never shows two
+    // sessions, then record the authoritative summary.
+    for (const [id, s] of this.sessions) {
+      if (s.windowId === windowId && id !== summary.sessionId) this.sessions.delete(id);
+    }
     this.sessions.set(summary.sessionId, { ...summary });
     // ← T006 seam: emit('remote-view','attached',summary). T007 seam: publish status.
     return { ...summary };

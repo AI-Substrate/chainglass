@@ -4,9 +4,11 @@
  *
  * Runs the FROZEN Phase-2 contract suite (the same 7 tests the fake passes)
  * against the real adapter wired to a daemon-double transport, plus
- * adapter-specific orchestration tests (ensureDaemon-before-proxy, idempotent
- * local fast-path, detach teardown, failure propagation). No live daemon — the
- * `DaemonSessionsClient` transport is injected, so the whole adapter is unit-tested.
+ * adapter-specific orchestration tests (ensureDaemon-before-proxy, daemon-as-
+ * authority on every attach, stale-mirror eviction after a daemon restart, detach
+ * teardown, failure propagation). No live daemon — the `DaemonSessionsClient`
+ * transport is injected, so the whole adapter is unit-tested. Also covers the
+ * production config seam (F001 — canonical workspace root, not raw cwd).
  */
 import type { DaemonInfo } from '@/features/088-remote-view/server/daemon-manager';
 import {
@@ -16,31 +18,50 @@ import {
   type SessionSummary,
   createHttpDaemonSessionsClient,
 } from '@/features/088-remote-view/server/remote-view-service';
+import { resolveProductionDaemonConfig } from '@/features/088-remote-view/server/remote-view-service.production';
 import { FAKE_WINDOW } from '@/features/088-remote-view/testing/fixtures';
 import { describe, expect, it, vi } from 'vitest';
 import { remoteViewServiceContractTests } from '../../../../contracts/remote-view-service.contract';
 
-/** A daemon-double: mimics `POST/DELETE /sessions` without a live daemon. */
+/**
+ * A daemon-double: mimics the daemon's AUTHORITATIVE `/sessions` table without a
+ * live daemon. `create` is idempotent per window (single-viewer v1 — the real
+ * daemon returns the existing session, never a duplicate); `restart()` models a
+ * streamd crash/restart that loses the in-memory table (the F002 hazard).
+ */
 class FakeDaemonSessionsClient implements DaemonSessionsClient {
   public creates = 0;
   public removes: string[] = [];
   private counter = 0;
+  private byWindow = new Map<number, SessionSummary>();
 
   async create(_daemonPort: number, windowId: number): Promise<SessionSummary> {
     this.creates += 1;
+    const existing = this.byWindow.get(windowId);
+    if (existing) return { ...existing };
     this.counter += 1;
     const known = windowId === FAKE_WINDOW.id ? FAKE_WINDOW : null;
-    return {
+    const summary: SessionSummary = {
       sessionId: `ses_real${String(this.counter).padStart(8, '0')}`,
       windowId,
       app: known?.app ?? 'Unknown',
       title: known?.title ?? `window-${windowId}`,
       state: 'streaming',
     };
+    this.byWindow.set(windowId, summary);
+    return { ...summary };
   }
 
   async remove(_daemonPort: number, sessionId: string): Promise<void> {
     this.removes.push(sessionId);
+    for (const [w, s] of this.byWindow) {
+      if (s.sessionId === sessionId) this.byWindow.delete(w);
+    }
+  }
+
+  /** Model a daemon crash/restart — the authoritative session table is lost. */
+  restart(): void {
+    this.byWindow.clear();
   }
 }
 
@@ -76,14 +97,14 @@ describe('RealRemoteViewService daemon orchestration', () => {
     expect(s.sessionId).toMatch(/^ses_real/);
   });
 
-  it('attach() is idempotent without a second daemon round-trip (local fast-path)', async () => {
+  it('attach() re-verifies the daemon every time and reconciles to one session per window', async () => {
     /*
     Test Doc:
-    - Why: re-attaching a live window must reuse the mirror, not re-spawn/re-proxy (single-viewer v1).
-    - Contract: 2× attach(same window) → transport.create called once; ensureDaemon called once.
-    - Usage Notes: the local session mirror is the sync source of truth for list()/getSession().
-    - Quality Contribution: encodes one-session-per-window + avoids a redundant spawn/proxy.
-    - Worked Example: attach(34202)×2 → creates === 1, same sessionId.
+    - Why: the daemon's session table is authoritative (Workshop 002) — the mirror is a sync read-cache, not the source of truth; every attach must re-run ensureDaemon (crash respawn/version handshake) rather than short-circuit on a cached entry (F002).
+    - Contract: 2× attach(same window) → ensureDaemon called twice, daemon create called twice; same sessionId (daemon is idempotent); list() length 1 (no duplicate).
+    - Usage Notes: idempotency now comes from the daemon, not a local no-round-trip fast-path.
+    - Quality Contribution: removes the stale-mirror short-circuit while keeping one-session-per-window.
+    - Worked Example: attach(34202)×2 → same sessionId, list length 1, ensureDaemon×2.
     */
     const transport = new FakeDaemonSessionsClient();
     const ensureDaemon = vi.fn(async () => FAKE_INFO);
@@ -91,8 +112,30 @@ describe('RealRemoteViewService daemon orchestration', () => {
     const a = await svc.attach(FAKE_WINDOW.id);
     const b = await svc.attach(FAKE_WINDOW.id);
     expect(b.sessionId).toBe(a.sessionId);
-    expect(transport.creates).toBe(1);
-    expect(ensureDaemon).toHaveBeenCalledTimes(1);
+    expect(svc.list()).toHaveLength(1);
+    expect(ensureDaemon).toHaveBeenCalledTimes(2);
+    expect(transport.creates).toBe(2);
+  });
+
+  it('attach() after a daemon restart returns a fresh session and evicts the stale mirror entry (F002)', async () => {
+    /*
+    Test Doc:
+    - Why: if streamd crashes/restarts, a cached mirror session must NOT be handed back — the daemon's NEW table is authoritative, and the old sessionId is dead (Workshop 002 R6: sessions don't survive restart).
+    - Contract: attach(w) → [daemon restart] → attach(w) → a new sessionId; list() shows only the fresh session, never the stale one.
+    - Usage Notes: ensureDaemon + the daemon's idempotent POST /sessions reconcile the read-cache; this is the hole the old local fast-path created.
+    - Quality Contribution: closes the stale-session correctness gap a restarted daemon would otherwise expose to CLI/MCP/UI re-attach.
+    - Worked Example: attach(34202)=ses_real…1, restart, attach(34202)=ses_real…2, list()===[ses_real…2].
+    */
+    const transport = new FakeDaemonSessionsClient();
+    const svc = new RealRemoteViewService({
+      ensureDaemon: async () => FAKE_INFO,
+      sessions: transport,
+    });
+    const first = await svc.attach(FAKE_WINDOW.id);
+    transport.restart(); // streamd crashed → its authoritative session table is gone
+    const second = await svc.attach(FAKE_WINDOW.id);
+    expect(second.sessionId).not.toBe(first.sessionId);
+    expect(svc.list()).toEqual([second]);
   });
 
   it('detach() proxies a DELETE to the daemon transport and closes the mirror', async () => {
@@ -236,5 +279,46 @@ describe('createHttpDaemonSessionsClient (live transport)', () => {
     const fetchFn: typeof fetch = async () => fakeResponse(500);
     const client = createHttpDaemonSessionsClient({ mintToken: async () => 't', fetchFn });
     await expect(client.remove(7099, 'ses_x')).rejects.toThrow(/500/);
+  });
+});
+
+// 4) Production config assembly — the daemon root must be the CANONICAL workspace
+//    root (auth's source of truth), NOT raw process.cwd() (F001 / Plan 084 FX003).
+describe('resolveProductionDaemonConfig (canonical workspace root, F001)', () => {
+  it('resolves bootstrap + daemon root from findWorkspaceRoot, not raw cwd', () => {
+    /*
+    Test Doc:
+    - Why: under `just dev`/Turbo, Next runs from apps/web/, but auth mints/verifies the bootstrap code from findWorkspaceRoot(process.cwd()) (the repo root holding .chainglass/). The daemon must be spawned against that SAME root, or its --bootstrap/--registry paths diverge from where the web process signs tokens and live /sessions auth fails on the first attach.
+    - Contract: cwd=<repo>/apps/web + findRoot→<repo> ⇒ workspaceRoot=<repo>, bootstrapPath=<repo>/.chainglass/bootstrap-code.json.
+    - Usage Notes: cwd/findRoot/env are injected so the seam is deterministic — no real filesystem walk.
+    - Quality Contribution: pins the cwd-split fix the daemon registry + token verification both depend on.
+    - Worked Example: cwd '/r/apps/web' → workspaceRoot '/r', bootstrapPath '/r/.chainglass/bootstrap-code.json'.
+    */
+    const cfg = resolveProductionDaemonConfig({
+      cwd: '/r/apps/web',
+      findRoot: () => '/r',
+      env: { PORT: '4123' },
+    });
+    expect(cfg.workspaceRoot).toBe('/r');
+    expect(cfg.bootstrapPath).toBe('/r/.chainglass/bootstrap-code.json');
+    expect(cfg.webPort).toBe(4123);
+  });
+
+  it('honors CG_REMOTE_VIEW__DAEMON_PORT override and defaults the web port to 3000', () => {
+    /*
+    Test Doc:
+    - Why: the daemon-port override (ADR-0003) and the default web port must survive the config seam.
+    - Contract: env CG_REMOTE_VIEW__DAEMON_PORT set → daemonPortOverride parsed; no PORT → webPort 3000.
+    - Usage Notes: both are read from the injected env, numbers parsed from strings.
+    - Quality Contribution: guards the override/default wiring through the seam.
+    - Worked Example: {CG_REMOTE_VIEW__DAEMON_PORT:'9000'} → daemonPortOverride 9000, webPort 3000.
+    */
+    const cfg = resolveProductionDaemonConfig({
+      cwd: '/r/apps/web',
+      findRoot: () => '/r',
+      env: { CG_REMOTE_VIEW__DAEMON_PORT: '9000' },
+    });
+    expect(cfg.daemonPortOverride).toBe(9000);
+    expect(cfg.webPort).toBe(3000);
   });
 });
