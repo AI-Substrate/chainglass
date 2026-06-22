@@ -34,9 +34,15 @@ dev:
     done
     cd apps/web && node -e "require('node-pty').spawn('/bin/echo',['ok'],{name:'x',cols:1,rows:1,cwd:'/tmp',env:{}})" 2>/dev/null || (echo "Error: node-pty can't spawn. Run: chmod +x apps/web/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper" && exit 1)
     cd "$OLDPWD"
+    # --filter=@chainglass/web is required: without it, turbo schedules a no-op
+    # `dev` task for apps/cli (which depends on @chainglass/web), and that task's
+    # `^build` dependency pulls @chainglass/web#build into the dev graph. On a build
+    # cache HIT, turbo restores the cached `.next/**` over the running dev server's
+    # `.next/dev`, killing `next dev` so `turbo dev` exits 0. Filtering keeps only
+    # web#dev plus its real workspace `^build` deps.
     PORT=$NEXT_PORT TERMINAL_WS_HOST=${TERMINAL_WS_HOST:-0.0.0.0} \
       pnpm concurrently --names "next,terminal" --prefix-colors "blue,green" \
-        "pnpm turbo dev -- --port $NEXT_PORT" \
+        "pnpm turbo dev --filter=@chainglass/web -- --port $NEXT_PORT" \
         "pnpm tsx watch --env-file=apps/web/.env.local apps/web/src/features/064-terminal/server/terminal-ws.ts"
 
 # Start dev server with file-watch POLLING forced on (WSL / Windows-mount fallback).
@@ -71,7 +77,7 @@ dev-https:
     cd "$OLDPWD"
     PORT=$NEXT_PORT TERMINAL_WS_HOST=${TERMINAL_WS_HOST:-0.0.0.0} TERMINAL_WS_CERT=apps/web/certificates/localhost.pem TERMINAL_WS_KEY=apps/web/certificates/localhost-key.pem \
       pnpm concurrently --names "next,terminal" --prefix-colors "blue,green" \
-        "pnpm turbo dev -- --port $NEXT_PORT --experimental-https" \
+        "pnpm turbo dev --filter=@chainglass/web -- --port $NEXT_PORT --experimental-https" \
         "pnpm tsx watch --env-file=apps/web/.env.local apps/web/src/features/064-terminal/server/terminal-ws.ts"
 
 # Build all packages
