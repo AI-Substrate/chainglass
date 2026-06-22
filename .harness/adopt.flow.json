@@ -5,10 +5,10 @@
   "nav": {
     "now": "bridge",
     "next": null,
-    "intent": "Adopt engineering-harness in chainglass (dogfood). Gate flipped: install+governance+boot all hold -> loop LIVE. Boot's first verdict UNHEALTHY (pre-existing repo debt, not adoption). At the bridge: coexist-vs-supplant decision + commit the adoption nucleus.",
+    "intent": "Bridge crossed: SUPPLANT decided — old Docker harness -> 'harness-tools' (recipe rename + back-compat alias; dir stays, no hard-coded paths broken). Loop LIVE; the-flow self-fires hooks (no chores). First loop work: KISS command-rename de-conflation.",
     "bag": {
-      "flow": "adopt",
-      "status": "active"
+      "flow": "loop",
+      "status": "bridged"
     }
   },
   "created_at": "2026-06-20T00:56:20.058Z",
@@ -245,6 +245,17 @@
         "from": "assumed",
         "to": "done"
       }
+    },
+    {
+      "id": "STA-010",
+      "kind": "status-changed",
+      "origin": "engine",
+      "fired_at": "2026-06-22T01:33:31.355Z",
+      "details": {
+        "node": "bridge",
+        "from": "done",
+        "to": "done"
+      }
     }
   ],
   "nodes": [
@@ -300,8 +311,8 @@
       "next": [],
       "zone": "postflight",
       "note": "Decision: COEXIST + de-collide the name (not supplant). The Docker 'just harness dev' (L3 dev environment) and the engineering-harness (prove/observe/improve loop) are different layers — the loop WRAPS commands like the Docker env, it doesn't replace it. Keep both; resolve the 5-way 'harness' name collision later. Loop is LIVE: future /the-flow sessions fire pre-flight -> boot. Nucleus committed; next = fix boot (clear the pre-existing typecheck debt so boot goes green).",
-      "modified_at": "2026-06-21T00:08:06.523Z",
-      "ran_at": "2026-06-21T00:08:06.523Z"
+      "modified_at": "2026-06-22T01:33:31.355Z",
+      "ran_at": "2026-06-22T01:33:31.355Z"
     },
     {
       "id": "scout",

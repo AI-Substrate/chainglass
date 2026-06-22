@@ -189,9 +189,13 @@ kill-cache:
 harness-health:
     cd harness && just health
 
-# Run harness CLI command (e.g., just harness health, just harness screenshot home)
-# Workflow commands (Plan 076): just harness workflow {reset|run|status|logs}
-harness *ARGS:
+# Run the harness-tools CLI — the OLD Docker dev-container toolset (browser automation,
+# screenshots, workflow runner). This is NOT the new AI-Substrate `harness` proof-loop CLI
+# (that one is the bare `harness` command + `.harness/`; see .harness/engineering-harness.md).
+# Canonical:  just harness-tools <cmd>   (e.g. dev, doctor, health, screenshot, workflow ...)
+# `just harness <cmd>` still works as a back-compat alias (below) so existing docs keep resolving.
+alias harness := harness-tools
+harness-tools *ARGS:
     cd harness && pnpm exec tsx src/cli/index.ts {{ARGS}}
 
 # Run cg CLI commands inside the harness container (Plan 076)

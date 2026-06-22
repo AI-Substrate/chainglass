@@ -19,16 +19,18 @@ just wf-stop <slug>             # Stop a running workflow
 just wf-restart <slug>          # Reset + start fresh
 ```
 
-### Harness Container (`just harness dev`)
+### Harness Container — `harness-tools` (`just harness-tools dev`)
 
 A **Docker sandbox** with seeded test data, browser automation, and structured CLI. Use for isolated testing, creating workflows from scratch, and CI-like validation.
 
+> ⚠️ **Not the new `harness` CLI.** This Docker toolset is **`harness-tools`** (canonical `just harness-tools <cmd>`; `just harness <cmd>` still works as a back-compat alias). The bare **`harness`** command + `.harness/` is the separate AI-Substrate proof-loop harness (boot / backpressure / retro) — see `.harness/engineering-harness.md`.
+
 ```bash
-just harness dev                # Boot container (~2 min cold boot)
-just harness doctor --wait      # Wait until healthy
-just wf-run <slug> --container  # Same shortcuts, targeting the container
-just harness-cg wf create test  # Ad-hoc CG CLI inside the container
-just harness seed               # Seed test workspace + worktrees
+just harness-tools dev           # Boot container (~2 min cold boot)
+just harness-tools doctor --wait # Wait until healthy
+just wf-run <slug> --container   # Same shortcuts, targeting the container
+just harness-cg wf create test   # Ad-hoc CG CLI inside the container
+just harness-tools seed          # Seed test workspace + worktrees
 ```
 
 ### When to Use Which
