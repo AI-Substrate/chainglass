@@ -36,6 +36,8 @@ Mode: Full · Companion: `code-review-companion` (run `…-34f7`)
 
 **Status:** code-complete + live-wiring-verified. Committed `30c1b040d`.
 
+**Companion (run …-34f7) — T001 review: APPROVE_WITH_NOTES.** 0 HIGH/CRITICAL. Confirmed: `/token` additive/back-compat, `daemonPort()` correctly on the daemon-control host surface (not the frozen `IRemoteViewService`), stub gone from runtime+tests, `ws://127.0.0.1` correctly scoped to localhost pending T003. **F001 (MEDIUM, evidence gap):** T001's own Done-When wants a decoded browser frame, but that's deferred to T009 and no test backstopped the panel's `/token`→url composition (keystone stub-regression risk). **Resolved:** added `remote-view-panel.test.tsx` (4) — asserts the panel builds `ws://127.0.0.1:<daemonPort>` from `/token` and passes it to the Viewport (stubbed, jsdom has no WebCodecs), plus the daemon-unreachable + picker-no-fetch branches; frame-decode ownership explicitly = T009. Re-pinged for verification.
+
 ---
 
 ## T002 — Secure-context-aware gate + honest copy (DL-004)
