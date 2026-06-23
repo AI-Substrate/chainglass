@@ -10,6 +10,7 @@
  * route integration that calls `ensureDaemon` lands in T004.
  */
 import { execFile, spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -212,6 +213,10 @@ export function createProductionDaemonControl(
     ensureDaemon: manager.ensureDaemon,
     runWindowList: () => runListWindowsOneShot(config.innerBinaryPath),
     fetchHealth: fetchDaemonHealth,
+    // T008: the bundle's inner binary is the install signal — its absence is the single root cause
+    // behind both a `--list-windows` non-zero exit and a `/health` readiness timeout, so we name it
+    // up front (`E_BUNDLE_MISSING` → `just streamd-install`) instead of letting each route guess.
+    bundleInstalled: () => existsSync(config.innerBinaryPath),
     logger: opts.logger,
   });
 }

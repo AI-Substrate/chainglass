@@ -738,8 +738,16 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
   });
   // Phase 5 (T004): daemon-control surface behind /windows + /health (real one-shot
   // `streamd --list-windows` + daemon /health proxy). Construction does no I/O.
+  // T008: memoize so /windows and /health resolve the SAME control instance (one config, one
+  // manager) — not a fresh transient per route. tsyringe ignores `lifecycle` for `useFactory`
+  // providers, so a closure-scoped memo is the singleton; the cell is per-container (scoped to
+  // this `createProductionContainer` call), so distinct containers stay isolated.
+  let productionDaemonControl: RemoteViewDaemonControl | undefined;
   childContainer.register<RemoteViewDaemonControl>(REMOTE_VIEW_DAEMON_CONTROL_TOKEN, {
-    useFactory: () => createProductionDaemonControl({ logger: console }),
+    useFactory: () => {
+      productionDaemonControl ??= createProductionDaemonControl({ logger: console });
+      return productionDaemonControl;
+    },
   });
 
   // FIX-010: Performance metrics for container creation
@@ -976,8 +984,14 @@ export function createTestContainer(): DependencyContainer {
     useFactory: () => new FakeRemoteViewService(),
   });
   // Phase 5 (T004): daemon-control fake — deterministic catalog + healthy verdict, no daemon.
+  // T008: memoized for the same single-instance guarantee the production container makes, so a
+  // test that resolves the control twice sees one fake (matches the route reconciliation).
+  let fakeDaemonControl: RemoteViewDaemonControl | undefined;
   childContainer.register<RemoteViewDaemonControl>(REMOTE_VIEW_DAEMON_CONTROL_TOKEN, {
-    useFactory: () => createFakeDaemonControl(),
+    useFactory: () => {
+      fakeDaemonControl ??= createFakeDaemonControl();
+      return fakeDaemonControl;
+    },
   });
 
   return childContainer;

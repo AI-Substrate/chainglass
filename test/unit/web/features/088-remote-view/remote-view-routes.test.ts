@@ -83,6 +83,21 @@ describe('GET /api/remote-view/windows', () => {
     expect(res.status).toBe(500);
     expect((await res.json()) as { error: string }).toMatchObject({ error: 'E_INTERNAL' });
   });
+
+  it('returns 503 E_BUNDLE_MISSING (named, not opaque E_INTERNAL) when the bundle is absent (T008)', async () => {
+    useControl(
+      createFakeDaemonControl({
+        listWindows: async () => {
+          throw new DaemonControlError('E_BUNDLE_MISSING', 'run `just streamd-install`');
+        },
+      })
+    );
+
+    const res = await windowsGET();
+
+    expect(res.status).toBe(503);
+    expect((await res.json()) as { error: string }).toMatchObject({ error: 'E_BUNDLE_MISSING' });
+  });
 });
 
 describe('GET /api/remote-view/health', () => {
@@ -115,5 +130,48 @@ describe('GET /api/remote-view/health', () => {
 
     expect(res.status).toBe(503);
     expect((await res.json()) as { ok: boolean }).toMatchObject({ ok: false });
+  });
+
+  it('returns 503 { ok:false, error:E_BUNDLE_MISSING } — agreeing with /windows on bundle state (T008)', async () => {
+    useControl(
+      createFakeDaemonControl({
+        health: async () => {
+          throw new DaemonControlError('E_BUNDLE_MISSING', 'run `just streamd-install`');
+        },
+      })
+    );
+
+    const res = await healthGET();
+
+    expect(res.status).toBe(503);
+    expect((await res.json()) as { ok: boolean; error: string }).toMatchObject({
+      ok: false,
+      error: 'E_BUNDLE_MISSING',
+    });
+  });
+});
+
+/**
+ * T008 — the session-only gate, proven structurally. The live probe once saw `/health` answer to
+ * an `X-Local-Token` alone; that was `DISABLE_AUTH=true` faking a NextAuth session in dev, NOT the
+ * route accepting the token. The routes are NextAuth-only by construction: both export `GET()` with
+ * ZERO parameters, so they never receive a `NextRequest` and literally cannot read a token header —
+ * unlike `/sessions`, which takes `(req)` and runs `requireRemoteViewAccess` (token OR session).
+ * This pins that property so a refactor can't quietly thread a request in and open a token path.
+ */
+describe('session-only auth gate on /health + /windows (T008, security-relevant)', () => {
+  it('both route handlers take no request arg — cannot read X-Local-Token, so they are session-only', () => {
+    expect(healthGET).toHaveLength(0);
+    expect(windowsGET).toHaveLength(0);
+  });
+
+  it('an unauthenticated caller (no NextAuth session) is rejected 401 before the daemon is touched', async () => {
+    authMock.mockResolvedValue(null); // no session; the routes can't fall back to a token
+
+    const [h, w] = await Promise.all([healthGET(), windowsGET()]);
+
+    expect(h.status).toBe(401);
+    expect(w.status).toBe(401);
+    expect(resolveMock).not.toHaveBeenCalled();
   });
 });

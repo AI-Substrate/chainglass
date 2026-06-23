@@ -8,6 +8,7 @@
  * rather than an opaque crash.
  */
 import {
+  DaemonControlError,
   REMOTE_VIEW_DAEMON_CONTROL_TOKEN,
   type RemoteViewDaemonControl,
 } from '@/features/088-remote-view/server/daemon-control';
@@ -26,6 +27,14 @@ export async function GET(): Promise<NextResponse> {
     const verdict = await control.health();
     return NextResponse.json(verdict);
   } catch (err) {
+    // T008: a missing bundle is the same root cause `/windows` names — surface it identically here
+    // (still `{ ok: false }` 503 the picker reads) so the two routes agree on bundle-installed state.
+    if (err instanceof DaemonControlError && err.code === 'E_BUNDLE_MISSING') {
+      return NextResponse.json(
+        { ok: false, error: 'E_BUNDLE_MISSING', message: err.message },
+        { status: 503 }
+      );
+    }
     const message = err instanceof Error ? err.message : 'daemon health unavailable';
     return NextResponse.json({ ok: false, error: 'E_INTERNAL', message }, { status: 503 });
   }

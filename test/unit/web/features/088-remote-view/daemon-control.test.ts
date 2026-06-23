@@ -142,6 +142,39 @@ describe('createRealDaemonControl — daemonPort() (T001, Phase 6)', () => {
   });
 });
 
+describe('createRealDaemonControl — bundle-installed guard (T008)', () => {
+  it('listWindows() fails fast with E_BUNDLE_MISSING when the bundle is absent — before any spawn', async () => {
+    const runWindowList = vi.fn(async () => ({ stdout: GOOD_CATALOG, exitCode: 0 }));
+    const control = createRealDaemonControl(deps({ runWindowList, bundleInstalled: () => false }));
+    await expect(control.listWindows()).rejects.toMatchObject({ code: 'E_BUNDLE_MISSING' });
+    expect(runWindowList).not.toHaveBeenCalled(); // named up front, never a guessed non-zero exit
+  });
+
+  it('health() fails fast with E_BUNDLE_MISSING when the bundle is absent — before ensureDaemon()', async () => {
+    const ensureDaemon = vi.fn(async () => INFO);
+    const control = createRealDaemonControl(deps({ ensureDaemon, bundleInstalled: () => false }));
+    await expect(control.health()).rejects.toMatchObject({ code: 'E_BUNDLE_MISSING' });
+    expect(ensureDaemon).not.toHaveBeenCalled(); // /health agrees with /windows, no readiness timeout
+  });
+
+  it('daemonPort() fails fast with E_BUNDLE_MISSING when the bundle is absent', async () => {
+    const control = createRealDaemonControl(deps({ bundleInstalled: () => false }));
+    await expect(control.daemonPort()).rejects.toMatchObject({ code: 'E_BUNDLE_MISSING' });
+  });
+
+  it('runs normally when the bundle IS installed (predicate true)', async () => {
+    const control = createRealDaemonControl(deps({ bundleInstalled: () => true }));
+    await expect(control.listWindows()).resolves.toHaveLength(2);
+    await expect(control.health()).resolves.toMatchObject({ ok: true });
+  });
+
+  it('omitting the predicate skips the bundle check entirely (pre-T008 back-compat)', async () => {
+    const control = createRealDaemonControl(deps()); // no bundleInstalled
+    await expect(control.listWindows()).resolves.toHaveLength(2);
+    await expect(control.daemonPort()).resolves.toBe(6001);
+  });
+});
+
 describe('createFakeDaemonControl — daemonPort()', () => {
   it('returns the pinned fake port', async () => {
     await expect(createFakeDaemonControl().daemonPort()).resolves.toBe(FAKE_DAEMON_PORT);

@@ -40,8 +40,11 @@ export interface RemoteViewDaemonControl {
 const WindowCatalogSchema = z.array(WindowDescriptorSchema);
 
 /** Stable failure codes the routes translate to HTTP (AC-14: name the missing grant, never a
- *  silent empty list). `E_PERMISSION` ⇐ the daemon's exit-3 (Screen-Recording grant missing). */
-export type DaemonControlErrorCode = 'E_PERMISSION' | 'E_INTERNAL';
+ *  silent empty list). `E_PERMISSION` ⇐ the daemon's exit-3 (Screen-Recording grant missing);
+ *  `E_BUNDLE_MISSING` ⇐ the signed bundle was never installed (`just streamd-install`) — caught
+ *  up front so `/health` + `/windows` both name it instead of an opaque non-zero exit / readiness
+ *  timeout (T008). */
+export type DaemonControlErrorCode = 'E_PERMISSION' | 'E_BUNDLE_MISSING' | 'E_INTERNAL';
 
 export class DaemonControlError extends Error {
   constructor(
@@ -60,6 +63,15 @@ export interface RealDaemonControlDeps {
   runWindowList: () => Promise<{ stdout: string; exitCode: number }>;
   /** `GET /health` at a daemon port; null when unreachable. */
   fetchHealth: (daemonPort: number) => Promise<DaemonHealth | null>;
+  /**
+   * True iff the signed `streamd` bundle is installed (its inner binary exists). Injected so the
+   * control stays pure over deps — production wires `() => existsSync(config.innerBinaryPath)`.
+   * When supplied and `false`, every method fails fast with `E_BUNDLE_MISSING` BEFORE any spawn /
+   * ensureDaemon work, so `/health` + `/windows` give one named, actionable error instead of a
+   * non-zero exit (windows) or a readiness-timeout (health) for the same root cause (T008). Omit
+   * it (the pre-T008 default) and no bundle check runs — back-compat for the existing call sites.
+   */
+  bundleInstalled?: () => boolean;
   logger?: Pick<Console, 'info' | 'warn' | 'error'>;
 }
 
@@ -68,8 +80,22 @@ export interface RealDaemonControlDeps {
  * exit-code → error-code mapping and the schema-validated parse are deterministically unit-tested.
  */
 export function createRealDaemonControl(deps: RealDaemonControlDeps): RemoteViewDaemonControl {
+  /**
+   * T008: fail fast with a named, actionable error when the bundle was never installed — BEFORE
+   * any spawn / `streamd --list-windows` / ensureDaemon, so `/health` and `/windows` agree on the
+   * bundle-installed state and both prescribe `just streamd-install` instead of an opaque failure.
+   */
+  function assertBundleInstalled(): void {
+    if (deps.bundleInstalled && !deps.bundleInstalled()) {
+      throw new DaemonControlError(
+        'E_BUNDLE_MISSING',
+        'the signed streamd bundle is not installed — run `just streamd-install`'
+      );
+    }
+  }
   return {
     async listWindows(): Promise<WindowDescriptor[]> {
+      assertBundleInstalled();
       const { stdout, exitCode } = await deps.runWindowList();
       if (exitCode === 3) {
         throw new DaemonControlError(
@@ -103,6 +129,7 @@ export function createRealDaemonControl(deps: RealDaemonControlDeps): RemoteView
     },
 
     async health(): Promise<DaemonHealth> {
+      assertBundleInstalled();
       // ensureDaemon() runs the spawn/crash-respawn/version handshake (T001) BEFORE we read
       // health, so `/health` reflects a live, version-matched daemon — never a stale registry.
       const info = await deps.ensureDaemon();
@@ -117,6 +144,7 @@ export function createRealDaemonControl(deps: RealDaemonControlDeps): RemoteView
     },
 
     async daemonPort(): Promise<number> {
+      assertBundleInstalled();
       // Same ensureDaemon() the session adapter uses — idempotent (resolves the running
       // daemon via the registry), so a `/token` fetch never double-spawns; it reads `port`.
       const info = await deps.ensureDaemon();

@@ -16,6 +16,10 @@ import 'reflect-metadata';
 import { container } from 'tsyringe';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
+  REMOTE_VIEW_DAEMON_CONTROL_TOKEN,
+  type RemoteViewDaemonControl,
+} from '../../../apps/web/src/features/088-remote-view/server/daemon-control';
+import {
   DI_TOKENS,
   createProductionContainer,
   createTestContainer,
@@ -218,6 +222,37 @@ describe('DI Container', () => {
       // Intentionally NOT calling config.load()
 
       expect(() => createProductionContainer(config)).toThrow('CONFIG_NOT_LOADED');
+    });
+  });
+
+  describe('Remote-view daemon-control registration (Plan 088 T008)', () => {
+    it('resolves the SAME control instance twice — /windows and /health reconcile on one daemon', () => {
+      /*
+      Test Doc:
+      - Why: T008 requires /windows + /health to reflect the SAME daemon. tsyringe ignores
+        `lifecycle` for `useFactory`, so the registration memoizes the instance in a closure;
+        this proves two resolves return one object (not a fresh transient control per route).
+      - Contract: container.resolve(REMOTE_VIEW_DAEMON_CONTROL_TOKEN) === itself across calls.
+      - Worked Example: two route handlers each resolve()-ing the token share one control.
+      */
+      const c = createTestContainer();
+      const first = c.resolve<RemoteViewDaemonControl>(REMOTE_VIEW_DAEMON_CONTROL_TOKEN);
+      const second = c.resolve<RemoteViewDaemonControl>(REMOTE_VIEW_DAEMON_CONTROL_TOKEN);
+
+      expect(second).toBe(first);
+    });
+
+    it('keeps the memo per-container — distinct containers get distinct instances (no global leak)', () => {
+      // Mirrors the ILogger isolation contract: the closure-scoped memo cell must not bleed across
+      // independent createTestContainer() calls (a module-level memo would fail this).
+      const a = createTestContainer().resolve<RemoteViewDaemonControl>(
+        REMOTE_VIEW_DAEMON_CONTROL_TOKEN
+      );
+      const b = createTestContainer().resolve<RemoteViewDaemonControl>(
+        REMOTE_VIEW_DAEMON_CONTROL_TOKEN
+      );
+
+      expect(a).not.toBe(b);
     });
   });
 });
