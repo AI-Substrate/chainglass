@@ -151,3 +151,7 @@ TDD RED→GREEN (RED: route modules absent + `defaultCreateSession` not a functi
 5. **Env friction (observation `DL-002`)** — vitest cold-start hung for minutes: `vite-tsconfig-paths` scanned stale `.next/standalone` + `apps/cli/dist/web/standalone` artifacts with broken `extends` (TSConfckParseError). Pruned the two untracked/gitignored standalone dirs → run dropped to ~1s.
 
 **Unblocks** T007 (GlobalState publish rides the same `attach`/`detach`/stats seams).
+
+## Companion review loop — T006 (deviation: companion died mid-phase)
+
+The `code-review-companion` run `2026-06-23T04-41-19-536Z-8ec5` (booted last session) **self-terminated** (`run.json status: completed`, idle ~60 min) *during* the long T006 implementation. The per-task `review-request: T006 5a1d06f3` was delivered to the inside lane but **no live agent was alive to read it** — confirmed not the mid-tool false-positive (`currentlyRunningTool`/`selfReportedState` both null). Per companion-mode policy this is **best-effort and never blocks**: T006 is verified independently (9 new tests, full 088 **133/133**, web tsc **0**, biome clean). Recovery for T007+ is a fresh companion boot at the next per-task seam (C0). Captured as harness observation `DL-003` (companion longevity vs long tasks).
