@@ -121,3 +121,36 @@ export function reapStreamdDaemon(
   rmSync(path, { force: true });
   return { reaped: true, killedPid: entry.pid, reason: 'reaped' };
 }
+
+/**
+ * Boot wrapper (Plan 088 Phase 6 — T006, AC-11). Resolves the workspace root + THIS web port and
+ * reaps this port's orphaned daemon at server startup — the call site the reaper lacked since T002.
+ * NON-THROWING: a reaper failure must never crash `instrumentation.register()`, so any error is
+ * logged and swallowed (returns null). Deps are injected (the production wiring passes
+ * `findWorkspaceRoot` + `execFileSync` + `process.kill`) so this boot glue is unit-testable.
+ */
+export function reapStreamdDaemonAtBoot(deps: {
+  /** Only `PORT` is read — narrowed from the full ProcessEnv so the boot glue stays test-literal-friendly. */
+  env: { PORT?: string };
+  findRoot: (cwd: string) => string;
+  exec: CommandExecutor;
+  killer: ProcessKiller;
+  logger?: Pick<Console, 'info' | 'warn' | 'error'>;
+  /** Injectable for tests; defaults to the real `reapStreamdDaemon`. */
+  reap?: (root: string, webPort: number, d: ReapDeps) => ReapResult;
+}): ReapResult | null {
+  const reap = deps.reap ?? reapStreamdDaemon;
+  let root: string;
+  try {
+    root = deps.findRoot(process.cwd());
+  } catch {
+    root = process.cwd(); // walk-up failed → fall back to cwd (matches the bootstrap-code boot block)
+  }
+  const webPort = Number.parseInt(deps.env.PORT ?? '3000', 10);
+  try {
+    return reap(root, webPort, { exec: deps.exec, killer: deps.killer, logger: deps.logger });
+  } catch (err) {
+    deps.logger?.warn?.(`remote-view reaper-at-boot failed (non-fatal): ${String(err)}`);
+    return null;
+  }
+}

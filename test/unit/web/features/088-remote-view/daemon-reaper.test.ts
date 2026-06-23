@@ -12,13 +12,16 @@
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { streamdRegistryPath } from '@/features/088-remote-view/server/daemon-manager';
 import {
+  type ReapDeps,
+  type ReapResult,
   isProcessAlive,
   isStreamdProcess,
   reapStreamdDaemon,
+  reapStreamdDaemonAtBoot,
 } from '@/features/088-remote-view/server/daemon-reaper';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 const WEB_PORT = 4607;
 const BUNDLE_PATH = '/Apps/ChainglassStreamd.app';
@@ -223,5 +226,86 @@ describe('remote-view daemon reaper (fail-closed)', () => {
     expect(killed).toEqual([]);
     expect(res.reaped).toBe(false);
     expect(existsSync(registryPath)).toBe(true);
+  });
+});
+
+describe('reapStreamdDaemonAtBoot — boot wiring (T006, AC-11)', () => {
+  const OK: ReapResult = { reaped: true, killedPid: 90001, reason: 'reaped' };
+
+  it('resolves the workspace root + webPort from env and calls reap with the passed deps', () => {
+    /*
+    Test Doc:
+    - Why: T006 — the reaper existed since T002 but was NEVER invoked; this is the boot call site.
+    - Contract: findRoot(cwd) → root, env.PORT → webPort, and exec/killer flow through to reapStreamdDaemon.
+    - Usage Notes: reap is injected so we assert the wiring without touching a real registry/process.
+    - Quality Contribution: backstops the "claimed-wired but never called" regression class (INS-001).
+    - Worked Example: PORT=4607 + root '/ws/root' → reap('/ws/root', 4607, {exec,killer}).
+    */
+    const calls: Array<{ root: string; webPort: number; deps: ReapDeps }> = [];
+    const exec = () => '';
+    const killer = () => {};
+    const res = reapStreamdDaemonAtBoot({
+      env: { PORT: '4607' },
+      findRoot: () => '/ws/root',
+      exec,
+      killer,
+      reap: (root, webPort, deps) => {
+        calls.push({ root, webPort, deps });
+        return OK;
+      },
+    });
+    expect(res).toEqual(OK);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({ root: '/ws/root', webPort: 4607 });
+    expect(calls[0].deps.exec).toBe(exec);
+    expect(calls[0].deps.killer).toBe(killer);
+  });
+
+  it('defaults webPort to 3000 when env.PORT is unset', () => {
+    let seen = -1;
+    reapStreamdDaemonAtBoot({
+      env: {},
+      findRoot: () => '/ws',
+      exec: () => '',
+      killer: () => {},
+      reap: (_root, webPort) => {
+        seen = webPort;
+        return OK;
+      },
+    });
+    expect(seen).toBe(3000);
+  });
+
+  it('falls back to process.cwd() when findRoot throws (walk-up failure never crashes boot)', () => {
+    let seenRoot = '';
+    reapStreamdDaemonAtBoot({
+      env: { PORT: '3000' },
+      findRoot: () => {
+        throw new Error('no package.json up-tree');
+      },
+      exec: () => '',
+      killer: () => {},
+      reap: (root) => {
+        seenRoot = root;
+        return OK;
+      },
+    });
+    expect(seenRoot).toBe(process.cwd());
+  });
+
+  it('returns null and never throws when the reaper itself throws (boot must not crash)', () => {
+    const warned: string[] = [];
+    const res = reapStreamdDaemonAtBoot({
+      env: { PORT: '3000' },
+      findRoot: () => '/ws',
+      exec: () => '',
+      killer: () => {},
+      logger: { info() {}, warn: (m: string) => warned.push(m), error() {} },
+      reap: () => {
+        throw new Error('boom');
+      },
+    });
+    expect(res).toBeNull();
+    expect(warned.some((m) => m.includes('reaper-at-boot failed'))).toBe(true);
   });
 });

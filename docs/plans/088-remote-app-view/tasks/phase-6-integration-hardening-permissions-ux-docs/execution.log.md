@@ -77,4 +77,21 @@ Mode: Full · Companion: `code-review-companion` (run `…-34f7`)
 
 **Verification:** biome clean; `just typecheck` no new errors (same 3 pre-existing files). The Caddy reverse-proxy recipe + the live HTTPS frame are owned by T010 (docs) / T009 (live sweep). No Next route, no new sidecar — the frozen loopback daemon contract is untouched.
 
+**Status:** code-complete. Committed `3bddc5a0e` (companion review pending).
+
+---
+
+## T006 — Wire the reaper at web boot (AC-11)
+
+**The debt:** `reapStreamdDaemon()` has existed + been unit-tested since T002 but was **never invoked** — orphaned daemons from a SIGKILL'd `just dev` cycle survived. T006 adds the boot call site.
+
+**What changed**
+
+- `apps/web/src/features/088-remote-view/server/daemon-reaper.ts`: new `reapStreamdDaemonAtBoot({env, findRoot, exec, killer, logger, reap?})` — resolves the workspace root (`findWorkspaceRoot`, falls back to `cwd`) + THIS web port (`env.PORT ?? 3000`) and calls the reaper. **Non-throwing** (a reaper error returns null + logs, never crashes boot). Deps injected so the boot glue is unit-testable; `env` narrowed to `{PORT?}` (only field read).
+- `apps/web/instrumentation.ts` `register()`: new HMR-safe guarded block (`__remoteViewReaperRan`, server-runtime + non-container only) that wires production deps (`findWorkspaceRoot`, `execFileSync`, `process.kill`, `console`) and logs the decision (`[remote-view] streamd reaper at boot: <reason>`).
+
+**Tests** — `daemon-reaper.test.ts` (+4): the boot wrapper resolves root + webPort and calls reap with the passed exec/killer; defaults webPort 3000; `findRoot` throw → falls back to `process.cwd()`; reap throw → returns null + warns (boot never crashes). **12/12.** Directly backstops the "claimed-wired but never called" class (INS-001).
+
+**Verification:** biome clean; `just typecheck` no new errors (after narrowing `env` to `{PORT?}` — the full `ProcessEnv` literal tripped the repo's required-`NODE_ENV` augmentation, the same class as the pre-existing test errors). The live AC-11 cross-cycle orphan check (kill web mid-stream → restart → no orphan) is owned by the T009 sweep; the boot log line is the live breadcrumb.
+
 **Status:** code-complete. Commit below.
