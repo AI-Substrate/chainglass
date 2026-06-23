@@ -574,6 +574,63 @@
           "comments"
         ]
       }
+    },
+    {
+      "id": "UPD-021",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-22T07:40:06.013Z",
+      "details": {
+        "node": "ph5",
+        "fields": [
+          "comments"
+        ]
+      }
+    },
+    {
+      "id": "UPD-022",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-23T04:57:25.891Z",
+      "details": {
+        "node": "ph5",
+        "fields": [
+          "comments"
+        ]
+      }
+    },
+    {
+      "id": "UPD-023",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-23T06:28:58.205Z",
+      "details": {
+        "node": "ph5",
+        "fields": [
+          "comments"
+        ]
+      }
+    },
+    {
+      "id": "STA-006",
+      "kind": "status-changed",
+      "origin": "engine",
+      "fired_at": "2026-06-23T08:41:46.086Z",
+      "details": {
+        "node": "ph5",
+        "from": "in_progress",
+        "to": "done"
+      }
+    },
+    {
+      "id": "CUR-006",
+      "kind": "cursor-moved",
+      "origin": "engine",
+      "fired_at": "2026-06-23T08:41:46.150Z",
+      "details": {
+        "from": "ph5",
+        "to": "ph6"
+      }
     }
   ],
   "nodes": [
@@ -605,20 +662,44 @@
       "id": "ph5",
       "type": "phase",
       "label": "Phase 5: Lifecycle, Agent Surface & Events",
-      "status": "in_progress",
+      "status": "done",
       "next": [
         "ph6"
       ],
       "created_at": "2026-06-19T23:23:46.659Z",
-      "modified_at": "2026-06-21T07:00:40.129Z",
+      "modified_at": "2026-06-23T08:41:46.086Z",
       "note": "Phase 5 tasks dossier tabled: 10 tasks (T001-T010) + 2 harness seams. Validated via /validate-v2 (4 agents) -> VALIDATED WITH FIXES: Source Truth 0 issues; 8 grounded fixes applied (route shapes, R6 session-create wiring, port HTTP-rename, reaper Phase-6 seam, publish sites, assumptions). 1 OPEN DECISION on T004: picker-catalog enumeration source (native streamd --list-windows vs helper).",
       "comments": [
         {
           "at": "2026-06-21T07:00:40.129Z",
           "text": "validate-v2 VALIDATED WITH FIXES (2026-06-21): thesis advanced @ Implementation; FC matrix all green except T004 enumeration-source (flagged open).",
           "kind": "validation"
+        },
+        {
+          "at": "2026-06-22T07:40:06.013Z",
+          "text": "T004 enumeration source resolved: web-side picker catalog enumerates via a new 'streamd --list-windows' native daemon subcommand (Phase-1 spike 'windowid' precedent). Daemon /windows HTTP stays single-window (F005/F006 preserved). Route maps the native list -> WindowDescriptor[].",
+          "kind": "decision"
+        },
+        {
+          "at": "2026-06-23T04:57:25.891Z",
+          "text": "T005 /sessions CRUD + R6 createSession wiring done (TDD). Companion (run …8ec5) returned 1 HIGH F001 (overpromised daemonDown wording vs the correct picker transition) → fixed (resolution B + new R6 picker hook test) → re-review APPROVE. 088 suite 124/124, tsc 0, biome clean.",
+          "source": "agent",
+          "kind": "validation",
+          "refs": [
+            "11d7361a",
+            "2ffd4af3"
+          ]
+        },
+        {
+          "at": "2026-06-23T06:28:58.205Z",
+          "text": "T006 SSE envelopes done — adapter attached/detached + daemon-manager daemon-state(ready/down) + useRemoteViewEvents push (AC-8). 9 new tests; 088 suite 133/133; tsc 0; biome clean. Companion run …-8ec5 self-terminated mid-phase (no live T006 review — best-effort deviation logged).",
+          "kind": "validation",
+          "refs": [
+            "5a1d06f3"
+          ]
         }
-      ]
+      ],
+      "ran_at": "2026-06-23T08:41:46.086Z"
     },
     {
       "id": "ph4",
@@ -890,8 +971,8 @@
     }
   ],
   "nav": {
-    "now": "ph5",
-    "next": "ph6",
+    "now": "ph6",
+    "next": "ship",
     "intent": "Remote view mode for chainglass: stream a single desktop app window (Godot game, iOS Simulator) from the host Mac into the content area with mouse/keyboard input; terminal over/beside it; agent-controllable via CLI/URL endpoints",
     "bag": {
       "mode": "Full",
