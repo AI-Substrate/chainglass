@@ -193,3 +193,19 @@ The `code-review-companion` run `2026-06-23T04-41-19-536Z-8ec5` (booted last ses
 **Decision logged** (Discoveries): `attach` is page-level (setParams) → registered in browser-client; `list`/`detach` bootstrap-safe → register.ts, mirroring file-browser's split. All 3 declared in the manifest so they surface in the palette.
 
 **Unblocks** T009 (CLI verbs) + T010 (MCP tools) — both mirror these verbs against the same `/sessions` proxy.
+
+---
+
+## T009 — CLI verbs (`cg remote-view list|attach|detach`) ✅
+
+**Tests**: `test/unit/cli/remote-view-command.test.ts` (4: verb tree; `list`→GET; `attach`→POST `{windowId}`; `detach`→DELETE) — **4/4 green**; full CLI unit suite **133/133** (cg.ts registration still parses — cli-parser + cg-binary-linkage green); CLI tsc **0**; biome clean. Handlers take an **injectable `request` seam** (typed fake in tests) — no live server. TDD RED→GREEN.
+
+**Files**:
+- `apps/cli/src/commands/remote-view.command.ts` (new) — `registerRemoteViewCommands(program)` + `handleRemoteView{List,Attach,Detach}` + `createRemoteViewRequest`. Server discovery via `readServerInfo` (cwd → workspace root → legacy `apps/web`) + `X-Local-Token` auth (Plan 084); `baseUrl = http://localhost:<port>`. DELETE tolerates a 204 (reads text, JSON.parse only if non-empty). Pattern: `agent.command.ts` (Commander group) + `event-popper-client.ts` (auth).
+- `apps/cli/src/bin/cg.ts` — import + one-line `registerRemoteViewCommands(program)` (Finding 04).
+
+**Verbs**: `cg remote-view list` (GET `/sessions`, prints rows) · `cg remote-view attach <windowId>` (POST `/sessions {windowId}`) · `cg remote-view detach <sessionId>` (DELETE `/sessions/<id>`). All accept `--workspace-path`.
+
+**Decision logged** (Discoveries): injectable request seam + 204-tolerant DELETE.
+
+**Unblocks** T010 (MCP tools) — mirrors these exact verbs (ADR-0001 annotations) against the same proxy.
