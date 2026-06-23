@@ -10,7 +10,7 @@
  * server-side; the client only reads `{ permissions }` from the verdict.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RemoteViewPermissions } from '../components/permissions-ux';
 
 export interface UseRemoteViewHealthOptions {
@@ -32,10 +32,16 @@ export function useRemoteViewHealth(
   const [permissions, setPermissions] = useState<RemoteViewPermissions | null>(null);
   const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState<string | null>(null);
+  // Monotonic request id: only the LATEST refresh commits state. The manual Re-check path
+  // (PermissionPreflightCard → refresh()) ignores the cleanup, so a slow initial /health could
+  // otherwise resolve AFTER a fast Re-check and overwrite the fresh grant state with stale denied
+  // data — making the card reappear after the user fixed the grant (companion F001). Bumping the
+  // ref on every refresh (and on unmount) invalidates any superseded in-flight request.
+  const reqSeqRef = useRef(0);
 
   const refresh = useCallback(() => {
     if (!enabled) return;
-    let cancelled = false;
+    const myReq = ++reqSeqRef.current;
     setLoading(true);
     setError(null);
     void (async () => {
@@ -45,29 +51,28 @@ export function useRemoteViewHealth(
           permissions?: RemoteViewPermissions;
           message?: string;
         } | null;
-        if (cancelled) return;
+        if (myReq !== reqSeqRef.current) return; // a newer refresh (or unmount) superseded this one
         // Permissions are present on a healthy daemon even when a grant is denied (that IS the
         // preflight case). A non-ok verdict (e.g. bundle missing) carries no permissions → no card.
         setPermissions(body?.permissions ?? null);
-        if (!res.ok) setError(body?.message ?? `health request failed (${res.status})`);
+        setError(res.ok ? null : (body?.message ?? `health request failed (${res.status})`));
+        setLoading(false);
       } catch (err) {
-        if (!cancelled) {
-          setPermissions(null);
-          setError(err instanceof Error ? err.message : 'failed to load health');
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
+        if (myReq !== reqSeqRef.current) return;
+        setPermissions(null);
+        setError(err instanceof Error ? err.message : 'failed to load health');
+        setLoading(false);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
   }, [enabled]);
 
   useEffect(() => {
     if (enabled) {
-      const cleanup = refresh();
-      return cleanup;
+      refresh();
+      // Invalidate any in-flight request on unmount / enabled-change so a late resolve can't commit.
+      return () => {
+        reqSeqRef.current++;
+      };
     }
     setPermissions(null);
     setLoading(false);
