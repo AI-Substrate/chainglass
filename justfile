@@ -80,25 +80,27 @@ dev-https:
         "pnpm turbo dev --filter=@chainglass/web -- --port $NEXT_PORT --experimental-https" \
         "pnpm tsx watch --env-file=apps/web/.env.local apps/web/src/features/064-terminal/server/terminal-ws.ts"
 
-# Open a VS Code dev tunnel exposing the web (PORT) + terminal (PORT+1500) ports.
-# Use this when the host is NOT reachable from your client over the LAN/SSH (e.g.
-# a Mac connecting to a NAT'd WSL2 box): the tunnel relays through a public URL,
-# no inbound access needed — the client just opens the URL and signs in once.
-# Idempotent: reuses the `chainglass` tunnel so the URL stays stable. Requires the
-# `devtunnel` CLI (https://aka.ms/devtunnel) + `devtunnel user login`.
+# Expose `just dev` to a remote client (e.g. a Mac) via a VS Code dev tunnel.
 #
-# After it prints the URLs, set these in apps/web/.env.local (and restart `just
-# dev`) so the in-app terminal connects through the tunnel. The override only
-# engages on the tunnel host, so localhost/LAN keep the default derivation, and
-# TERMINAL_WS_ALLOWED_ORIGINS is MERGED with the local defaults (localhost still
-# works). Use the same URL form (`-PORT.` subdomain) you actually open:
-#   NEXT_PUBLIC_TERMINAL_WS_URL=wss://<id>-<WS_PORT>.<region>.devtunnels.ms/terminal
-#   TERMINAL_WS_ALLOWED_ORIGINS=https://<id>-<PORT>.<region>.devtunnels.ms
-# See docs/how/dev/terminal-setup.md § Remote Access (VS Code Dev Tunnels).
+# `devtunnel connect` on the client forwards each tunnel port to the SAME local
+# port. So run this host's chainglass on a port your client ISN'T already using:
+# default here is 3001 (terminal 4501), so it won't clash with a local client
+# chainglass on 3000. No SSH, no ssh -L, no env vars — the client just runs
+# `devtunnel connect` and opens http://localhost:3001.
+#
+# Workflow:
+#   Host:   PORT=3001 just dev      # (terminal sidecar auto = 4501)
+#           PORT=3001 just tunnel
+#   Client: devtunnel user login    # once, opens a browser; sign in as tunnel owner
+#           devtunnel connect chainglass   # keep running
+#           open http://localhost:3001
+#
+# Requires the `devtunnel` CLI (https://aka.ms/devtunnel). Idempotent: reuses the
+# `chainglass` tunnel and prunes stale ports so `connect` only forwards 3001/4501.
 tunnel:
     #!/usr/bin/env bash
     set -euo pipefail
-    NEXT_PORT=${PORT:-3000}
+    NEXT_PORT=${PORT:-3001}
     WS_PORT=$((NEXT_PORT + 1500))
     TUNNEL_ID=${TUNNEL_ID:-chainglass}
     export PATH="$PATH:$HOME/bin"
@@ -116,44 +118,36 @@ tunnel:
     fi
     # Re-assert owner-only access on every run (strip any stray anonymous rule).
     devtunnel access reset "$TUNNEL_ID" >/dev/null 2>&1 || true
-    # App ports (http) — browser + terminal WS.
+    # Deconflict: prune any registered port that isn't one of our two app ports,
+    # so `devtunnel connect` on the client forwards ONLY $NEXT_PORT and $WS_PORT
+    # (stale 3000/4500/22 from earlier runs would re-introduce the local clash).
+    EXISTING=$(devtunnel port list "$TUNNEL_ID" 2>/dev/null | grep -oE '^[0-9]+' || true)
+    for p in $EXISTING; do
+      if [ "$p" != "$NEXT_PORT" ] && [ "$p" != "$WS_PORT" ]; then
+        echo "Removing stale tunnel port $p..."
+        devtunnel port delete "$TUNNEL_ID" -p "$p" >/dev/null 2>&1 || true
+      fi
+    done
+    # Ensure our two app ports are registered (http).
     for p in "$NEXT_PORT" "$WS_PORT"; do
       if ! devtunnel port show "$TUNNEL_ID" -p "$p" >/dev/null 2>&1; then
         echo "Adding port $p..."
         devtunnel port create "$TUNNEL_ID" -p "$p" --protocol http
       fi
     done
-    # SSH port (22, auto) — optional shell access over the tunnel. Ensure the SSH
-    # server is up so `ssh` to the forwarded port actually lands somewhere.
-    if ! devtunnel port show "$TUNNEL_ID" -p 22 >/dev/null 2>&1; then
-      echo "Adding port 22 (ssh)..."
-      devtunnel port create "$TUNNEL_ID" -p 22 || true
-    fi
-    if ! dpkg -s openssh-server >/dev/null 2>&1; then
-      echo "Installing openssh-server for shell access (sudo)..."
-      sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq openssh-server || true
-    fi
-    sudo systemctl enable --now ssh >/dev/null 2>&1 || true
-    sudo systemctl start ssh.socket >/dev/null 2>&1 || true
-    # Client-side local ports. Default to PORT+1 so they don't clash with a
-    # chainglass already running on the Mac at 3000. The terminal WS port MUST be
-    # CLIENT_PORT+1500 (the client derives ws://localhost:<page-port+1500>), so a
-    # client page on 3001 looks for 4501 — we forward that to the host's 4500.
-    CLIENT_PORT=${CLIENT_PORT:-$((NEXT_PORT + 1))}
-    CLIENT_WS_PORT=$((CLIENT_PORT + 1500))
-    USER_NAME=$(whoami)
-    echo "Hosting tunnel '$TUNNEL_ID' (web $NEXT_PORT + terminal $WS_PORT + ssh 22). Ctrl-C to stop."
+    echo "Hosting tunnel '$TUNNEL_ID' (web $NEXT_PORT + terminal $WS_PORT). Ctrl-C to stop."
     echo ""
-    echo "▶ ON THE MAC (run once to authenticate, then two terminals):"
-    echo "    devtunnel user login              # opens a browser; sign in as the tunnel owner"
+    echo "▶ ON THE CLIENT (Mac):"
+    echo "    devtunnel user login            # once, opens a browser; sign in as the tunnel owner"
+    echo "    devtunnel connect $TUNNEL_ID    # forwards $NEXT_PORT + $WS_PORT to the client's localhost (keep running)"
+    echo "    open http://localhost:$NEXT_PORT"
     echo ""
-    echo "  Terminal A — pull port 22 down so you can SSH through the tunnel:"
-    echo "    devtunnel connect $TUNNEL_ID      # forwards the tunnel ports to Mac localhost (keep running)"
-    echo ""
-    echo "  Terminal B — SSH in and map the app to NON-conflicting local ports"
-    echo "  ($CLIENT_PORT/$CLIENT_WS_PORT, so your local :$NEXT_PORT chainglass is untouched):"
-    echo "    ssh -L $CLIENT_PORT:localhost:$NEXT_PORT -L $CLIENT_WS_PORT:localhost:$WS_PORT $USER_NAME@localhost"
-    echo ""
+    echo "  No ssh, no env vars: the client sees plain localhost:$NEXT_PORT, the terminal"
+    echo "  derives ws://localhost:$WS_PORT, and both are forwarded by 'devtunnel connect'."
+    echo "  (Make sure this host's dev server is running on the same port: PORT=$NEXT_PORT just dev)"
+    exec devtunnel host "$TUNNEL_ID" --host-header unchanged --origin-header unchanged
+
+
     echo "  Then open  http://localhost:$CLIENT_PORT  on the Mac."
     echo "  Terminal + Server Actions just work (Host==Origin==localhost:$CLIENT_PORT, and the"
     echo "  terminal derives ws://localhost:$CLIENT_WS_PORT → forwarded to the host's $WS_PORT)."
