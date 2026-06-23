@@ -80,50 +80,54 @@ dev-https:
         "pnpm turbo dev --filter=@chainglass/web -- --port $NEXT_PORT --experimental-https" \
         "pnpm tsx watch --env-file=apps/web/.env.local apps/web/src/features/064-terminal/server/terminal-ws.ts"
 
-# Set up SSH access on this host and print the SSH tunnel command to run on your
-# Mac (or any client) to reach `just dev` over plain localhost — no app config,
-# no Server-Actions/Origin/terminal-WS tweaks needed, because to both the browser
-# AND the server everything looks like localhost. Ensures openssh-server is
-# installed + running, then prints a copy-paste `ssh -L ...` command forwarding
-# the web (PORT) and terminal (PORT+1500) ports.
+# Open a VS Code dev tunnel exposing the web (PORT) + terminal (PORT+1500) ports.
+# Use this when the host is NOT reachable from your client over the LAN/SSH (e.g.
+# a Mac connecting to a NAT'd WSL2 box): the tunnel relays through a public URL,
+# no inbound access needed — the client just opens the URL and signs in once.
+# Idempotent: reuses the `chainglass` tunnel so the URL stays stable. Requires the
+# `devtunnel` CLI (https://aka.ms/devtunnel) + `devtunnel user login`.
+#
+# After it prints the URLs, set these in apps/web/.env.local (and restart `just
+# dev`) so the in-app terminal connects through the tunnel. The override only
+# engages on the tunnel host, so localhost/LAN keep the default derivation, and
+# TERMINAL_WS_ALLOWED_ORIGINS is MERGED with the local defaults (localhost still
+# works). Use the same URL form (`-PORT.` subdomain) you actually open:
+#   NEXT_PUBLIC_TERMINAL_WS_URL=wss://<id>-<WS_PORT>.<region>.devtunnels.ms/terminal
+#   TERMINAL_WS_ALLOWED_ORIGINS=https://<id>-<PORT>.<region>.devtunnels.ms
+# See docs/how/dev/terminal-setup.md § Remote Access (VS Code Dev Tunnels).
 tunnel:
     #!/usr/bin/env bash
     set -euo pipefail
     NEXT_PORT=${PORT:-3000}
     WS_PORT=$((NEXT_PORT + 1500))
-    USER_NAME=$(whoami)
-    # 1. Ensure the SSH server is installed.
-    if ! dpkg -s openssh-server >/dev/null 2>&1; then
-      echo "Installing openssh-server (sudo)..."
-      sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq openssh-server
+    TUNNEL_ID=${TUNNEL_ID:-chainglass}
+    export PATH="$PATH:$HOME/bin"
+    if ! command -v devtunnel >/dev/null 2>&1; then
+      echo "error: devtunnel CLI not found. Install: https://aka.ms/devtunnel" >&2
+      exit 1
     fi
-    # 2. Ensure it's enabled + listening (socket-activated on Ubuntu 24.04).
-    sudo systemctl enable --now ssh >/dev/null 2>&1 || true
-    sudo systemctl start ssh.socket >/dev/null 2>&1 || true
-    if ss -tlnp 2>/dev/null | grep -q ':22 '; then
-      echo "✅ sshd listening on :22"
-    else
-      echo "⚠️  sshd not listening on :22 — check: sudo systemctl status ssh ssh.socket" >&2
+    if ! devtunnel user show >/dev/null 2>&1; then
+      echo "error: not logged in. Run: devtunnel user login" >&2
+      exit 1
     fi
-    # 3. Best-effort detect the address the Mac should target. On WSL2 the Mac must
-    #    reach the WINDOWS host, not the NAT'd WSL IP — try Windows' LAN IPv4 via
-    #    interop, else fall back to this host's first IP.
-    HOST_ADDR=$(powershell.exe -NoProfile -Command "Get-NetIPAddress -AddressFamily IPv4 | Where-Object { \$_.InterfaceAlias -notmatch 'Loopback|WSL|vEthernet' -and \$_.IPAddress -notlike '169.254*' } | Select-Object -First 1 -ExpandProperty IPAddress" 2>/dev/null | tr -d '\r' || true)
-    WSL_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
-    [ -z "$HOST_ADDR" ] && HOST_ADDR="$WSL_IP"
-    echo ""
-    echo "▶ Run this on your Mac to forward web ($NEXT_PORT) + terminal ($WS_PORT):"
-    echo ""
-    echo "    ssh -L $NEXT_PORT:localhost:$NEXT_PORT -L $WS_PORT:localhost:$WS_PORT $USER_NAME@$HOST_ADDR"
-    echo ""
-    echo "  Then open http://localhost:$NEXT_PORT on the Mac. Terminal + Server Actions"
-    echo "  just work — no .env changes needed."
-    echo ""
-    echo "  WSL2 note: if the Mac can't reach :22 on $HOST_ADDR, either enable WSL"
-    echo "  mirrored networking (.wslconfig → [wsl2] networkingMode=mirrored), or on"
-    echo "  Windows (admin PowerShell) add a portproxy to this WSL instance:"
-    echo "    netsh interface portproxy add v4tov4 listenport=22 connectport=22 connectaddress=$WSL_IP"
-    echo "    New-NetFirewallRule -DisplayName 'WSL SSH' -Direction Inbound -LocalPort 22 -Protocol TCP -Action Allow"
+    if ! devtunnel show "$TUNNEL_ID" >/dev/null 2>&1; then
+      echo "Creating tunnel '$TUNNEL_ID' (owner-only access)..."
+      devtunnel create "$TUNNEL_ID" --description "Chainglass dev (web $NEXT_PORT + terminal $WS_PORT)"
+    fi
+    # Re-assert owner-only access on every run (strip any stray anonymous rule).
+    devtunnel access reset "$TUNNEL_ID" >/dev/null 2>&1 || true
+    for p in "$NEXT_PORT" "$WS_PORT"; do
+      if ! devtunnel port show "$TUNNEL_ID" -p "$p" >/dev/null 2>&1; then
+        echo "Adding port $p..."
+        devtunnel port create "$TUNNEL_ID" -p "$p" --protocol http
+      fi
+    done
+    echo "Hosting tunnel '$TUNNEL_ID' (web $NEXT_PORT + terminal $WS_PORT). Ctrl-C to stop."
+    echo "Open the app at the '-$NEXT_PORT.' URL below; sign in once at the '-$WS_PORT.' URL"
+    echo "(a harmless 'Upgrade Required' page) so the terminal WebSocket is authorized."
+    # --host-header/--origin-header unchanged keeps the real tunnel host so Next.js
+    # Server Actions accept the request (Host must match Origin).
+    exec devtunnel host "$TUNNEL_ID" --host-header unchanged --origin-header unchanged
 
 
 # Build all packages
