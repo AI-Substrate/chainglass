@@ -80,6 +80,52 @@ dev-https:
         "pnpm turbo dev --filter=@chainglass/web -- --port $NEXT_PORT --experimental-https" \
         "pnpm tsx watch --env-file=apps/web/.env.local apps/web/src/features/064-terminal/server/terminal-ws.ts"
 
+# Set up SSH access on this host and print the SSH tunnel command to run on your
+# Mac (or any client) to reach `just dev` over plain localhost — no app config,
+# no Server-Actions/Origin/terminal-WS tweaks needed, because to both the browser
+# AND the server everything looks like localhost. Ensures openssh-server is
+# installed + running, then prints a copy-paste `ssh -L ...` command forwarding
+# the web (PORT) and terminal (PORT+1500) ports.
+tunnel:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    NEXT_PORT=${PORT:-3000}
+    WS_PORT=$((NEXT_PORT + 1500))
+    USER_NAME=$(whoami)
+    # 1. Ensure the SSH server is installed.
+    if ! dpkg -s openssh-server >/dev/null 2>&1; then
+      echo "Installing openssh-server (sudo)..."
+      sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq openssh-server
+    fi
+    # 2. Ensure it's enabled + listening (socket-activated on Ubuntu 24.04).
+    sudo systemctl enable --now ssh >/dev/null 2>&1 || true
+    sudo systemctl start ssh.socket >/dev/null 2>&1 || true
+    if ss -tlnp 2>/dev/null | grep -q ':22 '; then
+      echo "✅ sshd listening on :22"
+    else
+      echo "⚠️  sshd not listening on :22 — check: sudo systemctl status ssh ssh.socket" >&2
+    fi
+    # 3. Best-effort detect the address the Mac should target. On WSL2 the Mac must
+    #    reach the WINDOWS host, not the NAT'd WSL IP — try Windows' LAN IPv4 via
+    #    interop, else fall back to this host's first IP.
+    HOST_ADDR=$(powershell.exe -NoProfile -Command "Get-NetIPAddress -AddressFamily IPv4 | Where-Object { \$_.InterfaceAlias -notmatch 'Loopback|WSL|vEthernet' -and \$_.IPAddress -notlike '169.254*' } | Select-Object -First 1 -ExpandProperty IPAddress" 2>/dev/null | tr -d '\r' || true)
+    WSL_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+    [ -z "$HOST_ADDR" ] && HOST_ADDR="$WSL_IP"
+    echo ""
+    echo "▶ Run this on your Mac to forward web ($NEXT_PORT) + terminal ($WS_PORT):"
+    echo ""
+    echo "    ssh -L $NEXT_PORT:localhost:$NEXT_PORT -L $WS_PORT:localhost:$WS_PORT $USER_NAME@$HOST_ADDR"
+    echo ""
+    echo "  Then open http://localhost:$NEXT_PORT on the Mac. Terminal + Server Actions"
+    echo "  just work — no .env changes needed."
+    echo ""
+    echo "  WSL2 note: if the Mac can't reach :22 on $HOST_ADDR, either enable WSL"
+    echo "  mirrored networking (.wslconfig → [wsl2] networkingMode=mirrored), or on"
+    echo "  Windows (admin PowerShell) add a portproxy to this WSL instance:"
+    echo "    netsh interface portproxy add v4tov4 listenport=22 connectport=22 connectaddress=$WSL_IP"
+    echo "    New-NetFirewallRule -DisplayName 'WSL SSH' -Direction Inbound -LocalPort 22 -Protocol TCP -Action Allow"
+
+
 # Build all packages
 build:
     pnpm turbo build
