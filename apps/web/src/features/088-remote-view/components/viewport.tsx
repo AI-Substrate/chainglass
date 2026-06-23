@@ -33,6 +33,7 @@ import { useRemoteViewSession } from '../hooks/use-remote-view-session';
 import { type DecodedFrame, toChunkInit } from '../protocol/binary';
 import type { ErrorCode } from '../protocol/messages';
 import type { ViewportStateName } from '../server/session-machine';
+import { useRemoteViewStatsPublisher } from '../state/use-remote-view-stats-publisher';
 
 export interface ViewportProps {
   /** WS base url of the daemon/fake, e.g. `ws://127.0.0.1:<port>`. */
@@ -220,6 +221,9 @@ export function Viewport({ url, session, windowId, onExit }: ViewportProps) {
     enabled: state.name === 'live' || state.name === 'degraded',
   });
 
+  // GlobalState quality publisher (T007) — additive to the HUD; throttled to 5s internally.
+  const statsPublisher = useRemoteViewStatsPublisher();
+
   // HUD sampler: once a second, snapshot fps/bitrate from the accumulators.
   useEffect(() => {
     const id = setInterval(() => {
@@ -228,9 +232,12 @@ export function Viewport({ url, session, windowId, onExit }: ViewportProps) {
       frameCountRef.current = 0;
       byteCountRef.current = 0;
       setHud({ fps, bitrateKbps, dropped: droppedRef.current, latencyMs: latencyRef.current });
+      // Publish a 5s-throttled copy for agents (Workshop 003 Q2) — the HUD path above is unchanged.
+      statsPublisher.publishFps(session, fps);
+      if (latencyRef.current != null) statsPublisher.publishLatencyMs(session, latencyRef.current);
     }, HUD_SAMPLE_MS);
     return () => clearInterval(id);
-  }, []);
+  }, [session, statsPublisher]);
 
   // App-level ping loop for HUD latency (the daemon answers with pong → onPong RTT).
   useEffect(() => {

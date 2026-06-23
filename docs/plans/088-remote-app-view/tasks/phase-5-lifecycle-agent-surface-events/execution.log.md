@@ -155,3 +155,25 @@ TDD RED→GREEN (RED: route modules absent + `defaultCreateSession` not a functi
 ## Companion review loop — T006 (deviation: companion died mid-phase)
 
 The `code-review-companion` run `2026-06-23T04-41-19-536Z-8ec5` (booted last session) **self-terminated** (`run.json status: completed`, idle ~60 min) *during* the long T006 implementation. The per-task `review-request: T006 5a1d06f3` was delivered to the inside lane but **no live agent was alive to read it** — confirmed not the mid-tool false-positive (`currentlyRunningTool`/`selfReportedState` both null). Per companion-mode policy this is **best-effort and never blocks**: T006 is verified independently (9 new tests, full 088 **133/133**, web tsc **0**, biome clean). Recovery for T007+ is a fresh companion boot at the next per-task seam (C0). Captured as harness observation `DL-003` (companion longevity vs long tasks).
+
+---
+
+## T007 — GlobalState publish (`status` + 5s-throttled `latency-ms`/`fps`) ✅
+
+**Tests**: `remote-view-state.test.ts` (7: domain reg + idempotency; stats-publisher publish/enumerate, 5s throttle, per-path independence; SSE status route channel + mapEvent) — **7/7 green**; full 088 suite **140/140**; web typecheck **0 errors**; biome clean. TDD RED→GREEN (the test referenced `registerRemoteViewState`, `createRemoteViewStatsPublisher`, `remoteViewStateRoute` — all absent → module-resolution RED, then GREEN).
+
+**Architecture correction (key)**: the tasks-table named "publish sites in the real adapter" (server), but GlobalState is a **client** runtime store — `new GlobalStateSystem()` exists only in `state-provider.tsx`. The server reaches client state via **SSE → `ServerEventRoute` → client GlobalState**, never directly. T007 therefore publishes **client-side**, matching the canonical worktree/work-unit/workflow pattern. Captured as harness observation `INS-003`.
+
+**Files** (all new under `features/088-remote-view/state/` unless noted):
+- `register.ts` — `registerRemoteViewState(state)`: registers the `remote-view` **multiInstance** domain (`status`/`latency-ms`/`fps`), idempotent via `listDomains().some` (Strict Mode / HMR-safe). Pattern: `041-file-browser/state/register.ts`.
+- `remote-view-stats-publisher.ts` — `createRemoteViewStatsPublisher(state,{now,throttleMs})`: leading-edge **per-path 5s throttle** (injectable clock, timer-free → unit-verifiable) publishing `remote-view:<ses>:latency-ms` + `:fps`. The two metrics throttle **independently** (different beats: onPong vs onStats).
+- `remote-view-state-route.ts` — `remoteViewStateRoute` `ServerEventRouteDescriptor`: bridges the `remote-view` SSE channel → `remote-view:<ses>:status` (`attached`→`state`, `detached`→`closed`, `daemon-state`/unknown→ignored). Pattern: `lib/state/workflow-execution-route.ts`. domain name = channel id (`WorkspaceDomain.RemoteView`).
+- `use-remote-view-stats-publisher.ts` — thin hook binding the publisher to the client GlobalState (`useStateSystem` + `useMemo`).
+- `lib/state/state-connector.tsx` — `registerRemoteViewState(state)` in the init initializer + `remoteViewStateRoute` added to `SERVER_EVENT_ROUTES` (the loop's `registered.has` guard skips re-registering the now-registered domain).
+- `components/viewport.tsx` — the HUD sampler now ALSO calls `publishFps`/`publishLatencyMs` (additive; the existing `setHud` path is unchanged → "HUD callback-driven unaffected").
+
+**Decision/Deferred logged** (Discoveries):
+1. **Client-side publish (Noteworthy)** — corrected the build-sheet's server-adapter wording; `INS-003`.
+2. **Viewport stats tap verified in Phase 6 (Deferred)** — the throttle is unit-verified; the viewport call-site (`fps`/`latency-ms`) rides the Phase 6 browser smoke (viewport is jsdom-untestable; stats real only against the live daemon). `status` is live now via the SSE route. `INS-004`.
+
+**Unblocks** T008 (SDK contribution) + T009/T010 (CLI/MCP) — independent of state; they ride the `/sessions` proxy.
