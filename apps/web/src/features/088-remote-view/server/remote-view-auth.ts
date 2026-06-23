@@ -14,7 +14,8 @@
  */
 
 import { auth } from '@/auth';
-import { NextResponse } from 'next/server';
+import { type LocalAuthResult, requireLocalAuth } from '@/lib/local-auth';
+import { type NextRequest, NextResponse } from 'next/server';
 
 /** JWT `iss` claim — same issuer as the terminal socket. */
 export const REMOTE_VIEW_JWT_ISSUER = 'chainglass';
@@ -56,7 +57,7 @@ export type RequireSessionResult =
  *   // …proxy with gate.session…
  */
 export async function requireRemoteViewSession(
-  getSession: SessionGetter = () => auth(),
+  getSession: SessionGetter = () => auth()
 ): Promise<RequireSessionResult> {
   const session = await getSession();
   if (!session?.user?.name) {
@@ -66,4 +67,45 @@ export async function requireRemoteViewSession(
     };
   }
   return { ok: true, session: { userName: session.user.name } };
+}
+
+/** Inject the Plan-084 local-auth check (CLI/MCP `X-Local-Token` over loopback). */
+export type LocalAuthGetter = (req: NextRequest) => Promise<LocalAuthResult>;
+
+/**
+ * The access gate for the remote-view routes the **CLI/MCP** hit (`/sessions`).
+ *
+ * F004 fix (companion HIGH on T009): the CLI sends `X-Local-Token`, but
+ * `requireRemoteViewSession` is NextAuth-only — a CLI process has no browser
+ * cookie, so `cg remote-view *` would 401 even with a valid `localToken`. This
+ * gate accepts EITHER a NextAuth session (browser flow — short-circuits, so a
+ * cookieless CLI never pays the session cost twice) OR a valid Plan-084 local
+ * credential (`X-Local-Token` / bootstrap cookie over loopback). Neither → 401,
+ * preserving the "401 for unauthenticated" DoD. Both auth sources are injectable
+ * so the branches are unit-testable without env/filesystem.
+ *
+ * `/windows` + `/health` stay on `requireRemoteViewSession` — only the browser
+ * picker hits them, and the CLI/MCP verbs never do.
+ */
+export async function requireRemoteViewAccess(
+  req: NextRequest,
+  deps: { getSession?: SessionGetter; localAuth?: LocalAuthGetter } = {}
+): Promise<RequireSessionResult> {
+  const getSession = deps.getSession ?? (() => auth());
+  const session = await getSession();
+  if (session?.user?.name) {
+    return { ok: true, session: { userName: session.user.name } };
+  }
+
+  const localAuth = deps.localAuth ?? requireLocalAuth;
+  const local = await localAuth(req);
+  if (local.ok) {
+    // Synthetic audit identity — the routes only branch on `ok`, never the name.
+    return { ok: true, session: { userName: `local:${local.via}` } };
+  }
+
+  return {
+    ok: false,
+    response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+  };
 }

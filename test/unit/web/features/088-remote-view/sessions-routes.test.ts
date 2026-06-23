@@ -21,8 +21,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // vi.mock is hoisted above all top-level code, so the mock fns it references must come from
 // vi.hoisted (which runs before the mocks) — the same pattern as remote-view-routes.test.ts.
-const { authMock, resolveMock } = vi.hoisted(() => ({ authMock: vi.fn(), resolveMock: vi.fn() }));
+const { authMock, resolveMock, localAuthMock } = vi.hoisted(() => ({
+  authMock: vi.fn(),
+  resolveMock: vi.fn(),
+  localAuthMock: vi.fn(),
+}));
 vi.mock('@/auth', () => ({ auth: authMock }));
+// F004: the routes gate via requireRemoteViewAccess (NextAuth OR Plan-084 local token).
+vi.mock('@/lib/local-auth', () => ({ requireLocalAuth: localAuthMock }));
 vi.mock('@/lib/bootstrap-singleton', () => ({ getContainer: () => ({ resolve: resolveMock }) }));
 
 import { DELETE as sessionDELETE } from '@/../app/api/remote-view/sessions/[sessionId]/route';
@@ -31,6 +37,10 @@ import { GET as sessionsGET, POST as sessionsPOST } from '@/../app/api/remote-vi
 /** Make the DI container resolve to a specific service for one test. */
 function useService(service: IRemoteViewService): void {
   resolveMock.mockReturnValue(service);
+}
+
+function getReq(headers: Record<string, string> = {}): NextRequest {
+  return new NextRequest('http://localhost/api/remote-view/sessions', { headers });
 }
 
 function postReq(body: unknown): NextRequest {
@@ -51,6 +61,7 @@ function deleteReq(sessionId: string): [NextRequest, { params: Promise<{ session
 beforeEach(() => {
   vi.clearAllMocks();
   authMock.mockResolvedValue({ user: { name: 'alice' } }); // authenticated by default
+  localAuthMock.mockResolvedValue({ ok: false, reason: 'no-credential' }); // no local cred by default
   useService(new FakeRemoteViewService());
 });
 
@@ -58,10 +69,24 @@ describe('GET /api/remote-view/sessions', () => {
   it('returns 401 for an unauthenticated caller — before touching the service', async () => {
     authMock.mockResolvedValue(null);
 
-    const res = await sessionsGET();
+    const res = await sessionsGET(getReq());
 
     expect(res.status).toBe(401);
     expect(resolveMock).not.toHaveBeenCalled(); // gate runs first; service never resolved
+  });
+
+  it('accepts a valid X-Local-Token (CLI/MCP flow) with no NextAuth session — F004', async () => {
+    authMock.mockResolvedValue(null);
+    localAuthMock.mockResolvedValue({ ok: true, via: 'local-token' });
+    const service = new FakeRemoteViewService();
+    await service.attach(34202);
+    useService(service);
+
+    const res = await sessionsGET(getReq({ 'x-local-token': 'a-valid-token' }));
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { sessions: unknown[] };
+    expect(body.sessions).toHaveLength(1); // local-token caller reached the service
   });
 
   it('returns 200 with the active session list', async () => {
@@ -69,7 +94,7 @@ describe('GET /api/remote-view/sessions', () => {
     await service.attach(34202);
     useService(service);
 
-    const res = await sessionsGET();
+    const res = await sessionsGET(getReq());
 
     expect(res.status).toBe(200);
     const body = (await res.json()) as { sessions: Array<{ windowId: number; app: string }> };

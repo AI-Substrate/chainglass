@@ -209,3 +209,20 @@ The `code-review-companion` run `2026-06-23T04-41-19-536Z-8ec5` (booted last ses
 **Decision logged** (Discoveries): injectable request seam + 204-tolerant DELETE.
 
 **Unblocks** T010 (MCP tools) — mirrors these exact verbs (ADR-0001 annotations) against the same proxy.
+
+---
+
+## Companion findings reconciliation — run `…-81f7` (T006–T009 batch debrief)
+
+The fresh companion (`2026-06-23T06-42-47-993Z-81f7`) reviewed T006–T009 and emitted a **full structured debrief on run-exit** (not live per-commit — it batched all reviews and surfaced them when the run process ended; logged as `DL-004`). Verdicts: T006 (no message captured), **T007 APPROVE_WITH_NOTES**, **T008 REQUEST_CHANGES**, **T009 REQUEST_CHANGES**. 4 findings; dispositions below.
+
+| ID | Sev | Task | Finding | Disposition |
+|----|-----|------|---------|-------------|
+| F004 | HIGH | T009 | CLI sends `X-Local-Token` but routes gate NextAuth-only (`requireRemoteViewSession`) → `cg remote-view *` 401s in prod. T009 tests inject the request seam, so they never hit the real auth path. | **FIXED** — added `requireRemoteViewAccess(req)` (NextAuth **or** Plan-084 local-token); switched `/sessions` GET/POST + `/sessions/[id]` DELETE to it. New `remote-view-access-gate.test.ts` (3) + a route test proving a valid `X-Local-Token` reaches the service with no session. `/windows`+`/health` stay session-only (CLI/MCP never hit them). |
+| F003 | HIGH | T008 | `remote-view.attach` windowId path ignored `res.ok` → a failed attach looked successful, no feedback (unlike list/detach). | **FIXED** — extracted `attachRemoteViewWindow(windowId, {toast, fetchFn})` with `res.ok`/throw handling + error toast; `browser-client.tsx` uses it. New `attach-remote-view-window.test.ts` (3: silent success, non-OK toast, thrown-fetch toast). |
+| F002 | MED | T007 | tasks.md T007 row still said "publish sites in the real adapter" (the server-side drift T007 corrected). | **FIXED** — row now names the client-side sites (`remote-view-state-route.ts` for status; `use-remote-view-stats-publisher.ts`+`viewport.tsx` for latency/fps) and notes the adapter only emits SSE. |
+| F001 | MED | T007 | `lib/state/state-connector.tsx` imports remote-view; the guard scans only `features/_platform`, so it's green but the remote-view domain contract says `_platform ↛ remote-view`. | **DOCUMENTED DECISION (no refactor)** — `state-connector.tsx` is the app-level state-composition hub: it already imports `@/features/041-file-browser/state/register` (worktree) and the workflow/work-unit routes identically. Importing remote-view there is the *established* wiring precedent, analogous to `sdk-domain-registrations.ts` ("app level … imports from business domains; infrastructure must not depend on business — wired by the caller"). The companion's "invert composition" alternative is cross-cutting (3 domains), out of scope for one task. Noted gap: the `platform-no-remote-view` guard does not cover `lib/state` — extending it (or codifying the connector as the sanctioned composition exception) is a candidate follow-up. |
+
+**Evidence after fixes**: full 088 suite **152/152** (was 145: +3 gate, +3 attach-helper, +1 sessions local-token); web tsc **0**; biome clean. The two HIGH fixes close real production gaps that 9 green test files + tsc + biome all missed — the dogfood payoff (harness `WIN-002`).
+
+**Companion magicWand** (filed for follow-up): "Expose the allowed coordination states directly in the companion prompt, or auto-map prompt-level states to schema states, so the agent doesn't discover state-vocabulary mismatches at runtime" (target: coordination). **Difficulties** reported: MH-001 coordination-state vocab mismatch (prompt used reading/reporting/blocked/stopping; runtime allowed only idle/in-progress/paused/reviewing/complete/error), MH-002 large tool outputs saved to temp files (extra reads), MH-003 `MINIH_PROJECT_ROOT` empty in the shell. The run finished `degraded` — findings failed minih schema validation (each needed property `id` in a different shape). All captured as harness observations `WIN-002` / `DL-004`.

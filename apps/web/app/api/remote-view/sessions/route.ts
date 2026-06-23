@@ -1,7 +1,8 @@
 /**
  * /api/remote-view/sessions — session CRUD proxy (Plan 088 Phase 5, T005).
  *
- * NextAuth-gated through the shared `requireRemoteViewSession` gate — the 401 is returned
+ * Gated through the shared `requireRemoteViewAccess` gate — NextAuth session (browser) OR a
+ * Plan-084 local credential (`X-Local-Token`, the CLI/MCP flow — F004). The 401 is returned
  * BEFORE any service work (a route that skipped the gate could not reach the session table).
  * GET lists the active sessions; POST `{ windowId }` attaches/creates one. Attach is **idempotent
  * per window** (the frozen `IRemoteViewService` contract — single-viewer v1), and POST is the
@@ -9,7 +10,7 @@
  * `IRemoteViewService` (the daemon-backed adapter in prod, `FakeRemoteViewService` in tests); a
  * malformed body is a named 400 `E_BAD_BODY` (mirrors the daemon), a daemon failure a named 500.
  */
-import { requireRemoteViewSession } from '@/features/088-remote-view/server/remote-view-auth';
+import { requireRemoteViewAccess } from '@/features/088-remote-view/server/remote-view-auth';
 import {
   type IRemoteViewService,
   REMOTE_VIEW_SERVICE_TOKEN,
@@ -23,8 +24,8 @@ export const dynamic = 'force-dynamic';
 /** `POST /sessions` body — `{ windowId }` is the only field (mirrors the daemon's create contract). */
 const AttachBodySchema = z.object({ windowId: z.number().int() });
 
-export async function GET(): Promise<NextResponse> {
-  const gate = await requireRemoteViewSession();
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  const gate = await requireRemoteViewAccess(request);
   if (!gate.ok) return gate.response;
 
   try {
@@ -37,7 +38,7 @@ export async function GET(): Promise<NextResponse> {
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const gate = await requireRemoteViewSession();
+  const gate = await requireRemoteViewAccess(request);
   if (!gate.ok) return gate.response;
 
   const parsed = AttachBodySchema.safeParse(await request.json().catch(() => null));

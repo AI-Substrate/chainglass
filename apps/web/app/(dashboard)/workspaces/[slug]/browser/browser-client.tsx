@@ -44,6 +44,7 @@ import { QuestionPopperIndicator } from '@/features/067-question-popper/componen
 import { useNotesOverlay } from '@/features/071-file-notes/hooks/use-notes-overlay';
 import { useRemoteViewEvents } from '@/features/088-remote-view/hooks/use-remote-view-events';
 import { remoteViewParams } from '@/features/088-remote-view/params/remote-view.params';
+import { attachRemoteViewWindow } from '@/features/088-remote-view/sdk/attach-remote-view-window';
 import { remoteViewContribution } from '@/features/088-remote-view/sdk/contribution';
 import type { RepoInfo as RepoInfoPayload } from '@/features/_platform/git';
 import {
@@ -957,11 +958,8 @@ function BrowserClientInner({
           handler: async (params: unknown) => {
             const { windowId } = (params ?? {}) as { windowId?: number };
             if (typeof windowId === 'number') {
-              await fetch('/api/remote-view/sessions', {
-                method: 'POST',
-                headers: { 'content-type': 'application/json' },
-                body: JSON.stringify({ windowId }),
-              });
+              // F003: surface failures (the SSE 'attached' envelope drives the push on success).
+              await attachRemoteViewWindow(windowId, { toast: sdk.toast });
               return;
             }
             setParams({ view: 'remote', rv: null }, { history: 'push' });

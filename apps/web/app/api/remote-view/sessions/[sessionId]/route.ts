@@ -1,11 +1,12 @@
 /**
  * DELETE /api/remote-view/sessions/[sessionId] — detach (close) a session (Plan 088 Phase 5, T005).
  *
- * NextAuth-gated through the shared `requireRemoteViewSession` gate (401 before any service work).
- * Detach is terminal + idempotent (the frozen `IRemoteViewService` contract: an unknown/closed id
- * is a no-op), so a successful call always 204s; a daemon failure surfaces as a named 500.
+ * Gated through `requireRemoteViewAccess` (NextAuth session OR Plan-084 `X-Local-Token` for the
+ * CLI/MCP flow — F004; 401 before any service work). Detach is terminal + idempotent (the frozen
+ * `IRemoteViewService` contract: an unknown/closed id is a no-op), so a successful call always 204s;
+ * a daemon failure surfaces as a named 500.
  */
-import { requireRemoteViewSession } from '@/features/088-remote-view/server/remote-view-auth';
+import { requireRemoteViewAccess } from '@/features/088-remote-view/server/remote-view-auth';
 import {
   type IRemoteViewService,
   REMOTE_VIEW_SERVICE_TOKEN,
@@ -20,10 +21,10 @@ interface RouteContext {
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: RouteContext
 ): Promise<NextResponse> {
-  const gate = await requireRemoteViewSession();
+  const gate = await requireRemoteViewAccess(request);
   if (!gate.ok) return gate.response;
 
   const { sessionId } = await params;
