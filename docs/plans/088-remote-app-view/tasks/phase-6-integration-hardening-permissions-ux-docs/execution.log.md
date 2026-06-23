@@ -111,4 +111,4 @@ Mode: Full · Companion: `code-review-companion` (run `…-34f7`)
 
 **Verification:** biome clean; `just typecheck` — no new errors (same pre-existing DL-006 set in untouched files). The button placement + the picker-open round-trip in a real browser are confirmed in the T009 live sweep; the unit test backstops the contract.
 
-**Status:** code-complete. Committed `d895912d9`. **Companion (run …-0ccc):** review-request sent — verdict pending.
+**Status:** code-complete. Committed `d895912d9`. **Companion (run …-0ccc): APPROVE** (0 findings) — "a real accessible button with a clear label/title, wired into the same ExplorerPanel rightActions slot as the recent-feed precedent, closes the terminal overlay before opening `view=remote`, and leaves the existing `remote-view.attach` palette path intact."
