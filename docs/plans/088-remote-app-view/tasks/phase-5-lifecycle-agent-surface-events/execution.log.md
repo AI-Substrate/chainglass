@@ -247,4 +247,22 @@ The fresh companion (`2026-06-23T06-42-47-993Z-81f7`) reviewed T006–T009 and e
 
 **Decisions logged** (Discoveries): `openWorldHint:true` for all three (live host-window daemon = open world, unlike the filesystem-only workflow/phase tools — flagged to the companion `INS-005`); the request seam is a deliberate, pattern-consistent near-duplicate of the CLI (`workflow.tools.ts` inline-wiring precedent; shared-helper extraction deferred); annotation-as-`const` test strategy (registry Map can't expose annotations without a built `cli.cjs`).
 
-**Phase 5 status**: T001–T010 all `[x]`. Agent surfaces complete across **SDK (T008) / CLI (T009) / MCP (T010)** — AC-8 CLI/MCP half delivered. Remaining: Tzz harness phase-end seam (retro drain) + the companion debrief.
+**Phase 5 status**: T001–T010 all `[x]`. Agent surfaces complete across **SDK (T008) / CLI (T009) / MCP (T010)** — AC-8 CLI/MCP half delivered. Remaining: Tzz harness phase-end seam (retro drain).
+
+---
+
+## Companion debrief — run `…-368b` (T010 LIVE per-commit review) ✅
+
+The fresh companion (`2026-06-23T08-22-18-748Z-368b`) reviewed T010 **live at the commit boundary** — not batched at run-exit like `…-81f7`. State history is the receipt:
+
+- `08:30:09` preparing review for `b2f55f4ca`
+- `08:31:01` reviewing — "analyzing T010 implementation quality and contract parity"
+- `08:31:12` **review complete; no findings**
+
+**Verdict: APPROVE — 0 findings** (`findingsSent: 0`). Farewell envelope at `agents/code-review-companion/runs/…-368b/output/report.json` (the minih 0.2.0 quirk parks the structured farewell there, not the outside lane — same `WIN-002`/discovery-workaround as before). Summary verbatim: _"…reviewed commit b2f55f4ca for remote_view_list/attach/detach, and found no issues. The MCP implementation is aligned with the CLI/SDK agent-surface trio, the /api/remote-view/sessions + X-Local-Token access contract, ADR-0001 annotations, and the frozen SessionSummary shape."_ — independently confirms all four briefing-flagged concerns (annotation correctness, the F004 X-Local-Token gate, CLI/MCP parity, frozen SessionSummary).
+
+**magicWand** (target: `project`) — filed as follow-up: _"Add a shared `@chainglass/shared/remote-view-client` helper for server discovery, X-Local-Token, JSON/204 handling, and error shaping, plus an ADR-0001 annotation test helper so CLI/MCP parity work avoids duplicated request seams and boilerplate."_ → **independently confirms the T010 request-seam decision** (the deliberate CLI↔MCP duplication); the shared-helper extraction is now the sanctioned next cleanup, not just my own note.
+
+**Difficulties** (process, not code): **MH-001** companion-state vocab mismatch (prompt vocabulary `reading/reporting/stopping` vs the live coordination schema's `idle/in-progress/paused/reviewing/complete/error`) — **recurs from run `…-81f7`** (degrading); **MH-002** `MINIH_PROJECT_ROOT` resolved to the run dir, not the repo root (annoying). Both captured as harness observations; MH-001's recurrence across two consecutive runs makes it a real candidate for a companion-prompt fix.
+
+**Cadence contrast**: `…-81f7` batch-reviewed T006–T009 at exit and caught 2 real HIGH bugs; `…-368b` reviewed the single final commit **live** and cleanly approved. The live per-commit cadence (the `DL-004` friction from last run) did **not** recur — the companion was alive for the commit boundary and reviewed it in ~60s.
