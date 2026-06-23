@@ -177,3 +177,22 @@ Three reconciliations across the two browser-picker routes.
 **Verification:** `tsc` + biome clean on touched files; `just cli-build-check` → ✓ up-to-date after the rebuild. The fix is **unit-proven** (the cross-request test passes with the memo, fails without). The *live* confirmation that `list` shows the session needs a **server restart** — the running dev server (pid 18250) built its DI container at boot (pre-fix), and the container is a boot-time singleton HMR won't rebuild → folds into the **T009** live sweep / the user's next `just dev`.
 
 **Status:** code-complete. Committed `b5b64f4f3`. **Companion (run …-4b08): review requested** — see verdict below.
+
+---
+
+## T010 — Docs: how-to + domain.md + README (plan 6.3, AC-14)
+
+**New `docs/how/remote-view.md`** — the fresh-reader setup + ops guide:
+- **One-time setup** (`just streamd-setup` cert → `just streamd-install` bundle; why the stable cert+id keep TCC grants across rebuilds; `just streamd-kill`).
+- **Secure-context story** — a table of the three origins (localhost = secure → direct `ws://`; HTTPS = secure → same-origin `wss://host/remote-view-ws` proxy; plain-http LAN = **not** secure → WebCodecs off, the overlay names it).
+- **HTTPS / LAN access** — the **Caddy + Porkbun DNS-01** recipe with the load-bearing `handle_path /remote-view-ws/*` **prefix-strip** (the daemon upgrades ONLY `/stream`; a bare `reverse_proxy /remote-view-ws/*` → daemon 404s) + the env block (`CG_REMOTE_VIEW__ALLOWED_ORIGINS`, `AUTH_TRUST_HOST`, `AUTH_URL`, `CG_REMOTE_VIEW__DAEMON_PORT`).
+- **Using it** (launch button / palette / `cg remote-view` + MCP) and **Permissions (AC-14)** — the three surfaces (preflight card / viewport deep-link / CLI message).
+- **Troubleshooting table keyed by error code** — every user-facing code has a row: secure-context overlay, `E_BUNDLE_MISSING`, `E_PERMISSION`, `E_ORIGIN` (4402), `E_AUTH` (4401), `E_VERSION`, `E_WINDOW_GONE`, `E_SESSION_UNKNOWN`, `E_INTERNAL` — each with its fix; plus the "connects-but-black over HTTPS → check the prefix-strip" pointer.
+
+**`docs/domains/remote-view/domain.md`** — § Concepts finalized: added the Phase-5 **Agent Surface + Lifecycle** row (routes/manager/reaper/SDK/CLI/MCP/SSE + the per-container singleton service) and the Phase-6 **Connection & Secure-Context Transport** + **Permissions UX** rows; updated the trailing note; added a Phase-6 History row.
+
+**`README.md`** — new **## Remote View** section (what it is, the launch affordance, the one-time setup, a link to the how-to).
+
+**Verification:** the how-to's internal anchors (`#https--lan-access`, `#permissions-ac-14`) resolve to real headers; referenced files (`domain.md`, `.env.example`) exist. AC-14 docs half complete (T004 = the in-app half).
+
+**Status:** docs-complete. (No code; not sent for companion review — docs task.)

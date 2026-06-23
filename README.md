@@ -245,6 +245,10 @@ chainglass/
 
 The workspace browser at `/workspaces/[slug]/browser` includes the **Recent Changes Feed** — a media-rich main-panel view that scrolls a vertical stack of the most-recently-changed files repo-wide, with type-specific previews (images inline, videos with native controls, markdown / code excerpts, deleted markers). Useful for reviewing batches of generated images / screenshots / outputs without click-back-click-back through the file tree. Open with `Cmd/Ctrl+Shift+U` or the History icon in the explorer top bar. See [docs/how/recent-changes-feed.md](docs/how/recent-changes-feed.md) for the full guide (action shortcuts, settings, troubleshooting).
 
+## Remote View
+
+**Remote View** streams a single host-Mac app window (a Godot game, the iOS Simulator, any capturable window) into the content area with live mouse/keyboard input — agent-controllable via `cg remote-view`, MCP, or the palette. A signed native daemon (`streamd`) captures the window over loopback; the browser decodes H.264 with WebCodecs. Open it from the monitor icon in the browser toolbar. One-time setup is `just streamd-setup` + `just streamd-install` (macOS Screen Recording + Accessibility grants). See [docs/how/remote-view.md](docs/how/remote-view.md) for setup, the HTTPS/LAN (Caddy + Porkbun) recipe, and an error-code troubleshooting table.
+
 ## Agent System
 
 The agent system provides a domain-agnostic wrapper around AI coding agents (Claude Code CLI, GitHub Copilot SDK). See [Agent System Guide](docs/how/agent-system/1-overview.md) for full documentation.
