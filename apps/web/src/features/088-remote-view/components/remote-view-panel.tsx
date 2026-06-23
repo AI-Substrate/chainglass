@@ -21,6 +21,7 @@
 import { X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useRemoteViewWindows } from '../hooks/use-remote-view-windows';
+import { buildStreamUrl } from './stream-url';
 import { Viewport } from './viewport';
 import { WindowPicker } from './window-picker';
 
@@ -60,10 +61,13 @@ export function RemoteViewPanel({
   const [pickedWindowId, setPickedWindowId] = useState<number | null>(null);
   const { windows, loading, error, refresh } = useRemoteViewWindows({ enabled: rv == null });
 
-  // T001 (Phase 6, DL-005): the daemon's loopback port comes from `/token` (which reads it from
-  // the registry via ensureDaemon). The browser builds the real `ws://127.0.0.1:<port>` base url
-  // from it; the Viewport hook appends `/stream?session=…&token=…` and fetches a fresh JWT per
-  // connect. `null` = still resolving; `''`-error → the daemon couldn't be reached.
+  // The Viewport hook appends `/stream?session=…&token=…` and re-mints a fresh JWT per connect;
+  // here we resolve the BASE url for the context (T001 + T003):
+  //   - HTTPS page → same-origin `wss://host/<path>` bridged to the loopback daemon by a reverse
+  //     proxy (Caddy) — no daemon port needed client-side (T003, INS-003).
+  //   - http://localhost → the daemon's loopback port from `/token` (registry, via ensureDaemon)
+  //     → `ws://127.0.0.1:<port>` direct (T001, DL-005).
+  // `null` = still resolving; `daemonUnreachable` → the daemon couldn't be reached on localhost.
   const [wsUrl, setWsUrl] = useState<string | null>(null);
   const [daemonUnreachable, setDaemonUnreachable] = useState(false);
 
@@ -72,13 +76,23 @@ export function RemoteViewPanel({
     let cancelled = false;
     setWsUrl(null);
     setDaemonUnreachable(false);
+    const { protocol, host } = window.location;
+
+    // HTTPS: the reverse proxy bridges same-origin wss → loopback daemon; no `/token` port needed.
+    if (protocol === 'https:') {
+      setWsUrl(buildStreamUrl({ protocol, host }));
+      return;
+    }
+
+    // http://localhost: connect directly to the loopback daemon, whose port comes from `/token`.
     void (async () => {
       try {
         const res = await fetch('/api/remote-view/token');
         if (!res.ok) throw new Error(`token ${res.status}`);
         const { daemonPort } = (await res.json()) as { daemonPort?: number };
         if (cancelled) return;
-        if (typeof daemonPort === 'number') setWsUrl(`ws://127.0.0.1:${daemonPort}`);
+        const url = buildStreamUrl({ protocol, host, daemonPort });
+        if (url) setWsUrl(url);
         else setDaemonUnreachable(true); // token issued but daemon couldn't be brought up
       } catch {
         if (!cancelled) setDaemonUnreachable(true);

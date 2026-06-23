@@ -94,4 +94,24 @@ describe('RemoteViewPanel — daemon WS url composition (T001 keystone)', () => 
     expect(screen.queryByTestId('vp-stub')).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it('on HTTPS builds same-origin wss://host/<path> and does NOT fetch /token (T003)', async () => {
+    // The reverse proxy bridges the path to the loopback daemon, so the client needs no daemon
+    // port — and must NEVER open a mixed-content ws:// from an https page.
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('location', {
+      protocol: 'https:',
+      host: 'remote.jordo.xyz',
+      href: 'https://remote.jordo.xyz/',
+    });
+
+    render(<RemoteViewPanel {...baseProps} rv="ses_abc" />);
+
+    await waitFor(() => expect(screen.queryByTestId('vp-stub')).not.toBeNull());
+    expect(screen.getByTestId('vp-stub').getAttribute('data-url')).toBe(
+      'wss://remote.jordo.xyz/remote-view-ws'
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });

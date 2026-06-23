@@ -57,4 +57,24 @@ Mode: Full · Companion: `code-review-companion` (run `…-34f7`)
 
 **Verification:** biome clean; `just typecheck` — no new errors (same 4 pre-existing). Viewport stays not-unit-rendered (jsdom has no WebCodecs) — the branch logic is fully covered by the extracted pure module. Visual overlay on a real LAN http:// origin is confirmed in the T009 sweep.
 
+**Status:** code-complete. Committed `8b60f2641` (+ companion `APPROVE`, 0 issues).
+
+---
+
+## T003 — Same-origin wss client url for LAN/HTTPS (INS-003, research-backed pivot)
+
+**Why re-scoped:** the dossier specified *"add `app/api/remote-view/stream/route.ts` that upgrades the WS"* — **infeasible**. Next App-Router route handlers can't upgrade a WebSocket (no raw-socket/101 surface; Next's own server closes upgrade requests), and chainglass serves every socket via **sidecars** (`064-terminal/server/terminal-ws.ts`). Perplexity deep-research confirmed the canonical pattern: *"terminate TLS at a reverse proxy and forward the upgraded WebSocket to the internal `ws://127.0.0.1:<port>` service using same-origin, path-based routing … the de facto industry standard,"* with custom-server/sidecar as *secondary* fallbacks. This is exactly the user's existing Caddy + Porkbun DNS-01 pattern.
+
+**What changed (the only product code — a client url builder):**
+
+- New `apps/web/src/features/088-remote-view/components/stream-url.ts`:
+  - `REMOTE_VIEW_WSS_PROXY_PATH = '/remote-view-ws'` (distinct from `/api/remote-view/*` so a proxy can route it to the daemon without shadowing the Next routes).
+  - `buildStreamUrl({protocol, host, daemonPort})` — **HTTPS → same-origin `wss://${host}/remote-view-ws`** (the reverse proxy bridges it; no port needed, never a mixed-content `ws://`); **`http://localhost` → `ws://127.0.0.1:<daemonPort>`** direct (T001). A non-localhost http origin is already blocked by the T002 secure-context gate.
+- `remote-view-panel.tsx`: the resolver effect branches on `window.location.protocol` — HTTPS sets the same-origin wss url immediately (no `/token` fetch); localhost keeps the T001 `/token`→daemonPort path.
+- `apps/web/.env.example`: documented `CG_REMOTE_VIEW__ALLOWED_ORIGINS` (the daemon's WS origin allowlist — **inherited by the spawned daemon via `process.env`**, since `spawn(...)` passes no `env` override), `AUTH_TRUST_HOST`/`AUTH_URL` (NextAuth behind the proxy), and a pointer to the Caddy recipe (→ T010).
+
+**Tests** — new `stream-url.test.ts` (5): HTTPS → same-origin wss (ignores daemonPort, never `ws://`); localhost → loopback; no-port → null; proxy path not under `/api/remote-view`. Panel test (+1): HTTPS branch builds `wss://host/remote-view-ws` and does **not** fetch `/token`. **Full feature suite 173/173 (28 files).**
+
+**Verification:** biome clean; `just typecheck` no new errors (same 3 pre-existing files). The Caddy reverse-proxy recipe + the live HTTPS frame are owned by T010 (docs) / T009 (live sweep). No Next route, no new sidecar — the frozen loopback daemon contract is untouched.
+
 **Status:** code-complete. Commit below.
