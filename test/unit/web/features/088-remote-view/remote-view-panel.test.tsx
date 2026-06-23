@@ -21,6 +21,11 @@ vi.mock('@/features/088-remote-view/components/viewport', () => ({
 vi.mock('@/features/088-remote-view/hooks/use-remote-view-windows', () => ({
   useRemoteViewWindows: () => ({ windows: [], loading: false, error: null, refresh: vi.fn() }),
 }));
+// The T004 preflight health hook isn't under test here (it has its own spec); stub it so the
+// picker-mode render stays network-free and the url-composition assertions below are unaffected.
+vi.mock('@/features/088-remote-view/hooks/use-remote-view-health', () => ({
+  useRemoteViewHealth: () => ({ permissions: null, loading: false, error: null, refresh: vi.fn() }),
+}));
 
 const baseProps = {
   slug: 'ws',

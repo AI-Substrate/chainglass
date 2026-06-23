@@ -32,6 +32,31 @@ export interface RemoteViewSession {
 export type RemoteViewRequest = (method: string, path: string, body?: unknown) => Promise<unknown>;
 
 /**
+ * Render an actionable CLI message for a failed remote-view request (Plan 088 Phase 6, T004 —
+ * AC-14 CLI half). Named error codes from the route (`E_PERMISSION`, `E_BUNDLE_MISSING`) become a
+ * message that names the exact host-Mac fix path instead of a bare HTTP status. Pure → unit-tested.
+ */
+export function formatRemoteViewError(
+  status: number,
+  body: { error?: string; message?: string } | null
+): string {
+  if (body?.error === 'E_PERMISSION') {
+    return [
+      `remote-view: ${body.message ?? 'a host-Mac permission is missing.'}`,
+      'Grant it on the host Mac — System Settings → Privacy & Security → Screen Recording (and',
+      'Accessibility for mouse/keyboard input) — then re-run. See docs/how/remote-view.md § Permissions.',
+    ].join('\n');
+  }
+  if (body?.error === 'E_BUNDLE_MISSING') {
+    return [
+      `remote-view: ${body.message ?? 'the streamer bundle is not installed.'}`,
+      'Install it on the host Mac with `just streamd-install`, then re-run. See docs/how/remote-view.md § Setup.',
+    ].join('\n');
+  }
+  return `remote-view: request failed (HTTP ${status})${body?.message ? ` — ${body.message}` : ''}`;
+}
+
+/**
  * Build the production request — discover the dev server (cwd → workspace root →
  * legacy `apps/web`), then send `X-Local-Token` on every call. Throws an actionable
  * error if no running server is found.
@@ -66,7 +91,13 @@ export function createRemoteViewRequest(opts: { worktreePath?: string } = {}): R
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
     if (!res.ok) {
-      throw new Error(`remote-view: ${method} ${path} failed (HTTP ${res.status})`);
+      // Surface the route's named error code (E_PERMISSION / E_BUNDLE_MISSING) + fix path (AC-14),
+      // not a bare HTTP status — the route body carries `{ error, message }`.
+      const body = (await res.json().catch(() => null)) as {
+        error?: string;
+        message?: string;
+      } | null;
+      throw new Error(formatRemoteViewError(res.status, body));
     }
     // DELETE proxies a 204 (no content) — tolerate an empty body.
     const text = await res.text();

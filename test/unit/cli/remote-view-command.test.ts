@@ -10,6 +10,7 @@ import { Command } from 'commander';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   type RemoteViewRequest,
+  formatRemoteViewError,
   handleRemoteViewAttach,
   handleRemoteViewDetach,
   handleRemoteViewList,
@@ -125,5 +126,40 @@ describe('cg remote-view (T009)', () => {
       body: undefined,
     });
     expect(cap.text()).toContain('ses_9');
+  });
+});
+
+describe('formatRemoteViewError (Phase 6 T004 — AC-14 CLI half)', () => {
+  /*
+  Test Doc:
+  - Why: AC-14 requires the CLI (not just the UI) to name the exact missing grant + fix path, so an
+    agent driving `cg remote-view` from the terminal isn't left with a bare "HTTP 403".
+  - Contract: formatRemoteViewError(status, body) maps the route's named code → an actionable message.
+  - Quality Contribution: pins that E_PERMISSION/E_BUNDLE_MISSING surface their fix path, and that an
+    unnamed failure still reports the HTTP status (never a silent swallow).
+  */
+  it('E_PERMISSION → names Screen Recording, Accessibility, and the docs fix path', () => {
+    const msg = formatRemoteViewError(403, {
+      error: 'E_PERMISSION',
+      message: 'Screen Recording permission is required.',
+    });
+    expect(msg).toContain('Screen Recording permission is required.');
+    expect(msg).toMatch(/Privacy & Security/);
+    expect(msg).toMatch(/Accessibility/);
+    expect(msg).toContain('docs/how/remote-view.md');
+  });
+
+  it('E_BUNDLE_MISSING → prescribes `just streamd-install`', () => {
+    const msg = formatRemoteViewError(503, {
+      error: 'E_BUNDLE_MISSING',
+      message: 'the signed streamd bundle is not installed',
+    });
+    expect(msg).toContain('just streamd-install');
+    expect(msg).toContain('docs/how/remote-view.md');
+  });
+
+  it('an unnamed failure still reports the HTTP status (no silent swallow)', () => {
+    expect(formatRemoteViewError(500, null)).toContain('HTTP 500');
+    expect(formatRemoteViewError(500, { message: 'boom' })).toContain('boom');
   });
 });

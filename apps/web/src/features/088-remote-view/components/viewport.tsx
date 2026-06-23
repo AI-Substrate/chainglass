@@ -34,6 +34,7 @@ import { type DecodedFrame, toChunkInit } from '../protocol/binary';
 import type { ErrorCode } from '../protocol/messages';
 import type { ViewportStateName } from '../server/session-machine';
 import { useRemoteViewStatsPublisher } from '../state/use-remote-view-stats-publisher';
+import { SETTINGS_URL } from './permissions-ux';
 import {
   type UnsupportedReason,
   classifyEnvSupport,
@@ -425,6 +426,17 @@ function ViewportChrome({
             >
               Reclaim
             </button>
+          )}
+          {/* AC-14: a missing Screen-Recording grant gets a one-click deep-link to its System
+              Settings pane (the daemon's E_PERMISSION close = the capture grant). */}
+          {name === 'error' && errorCode === 'E_PERMISSION' && (
+            <a
+              href={SETTINGS_URL.screenRecording}
+              data-testid="remote-view-open-screen-recording"
+              className="rounded bg-primary px-3 py-1 text-sm text-primary-foreground hover:opacity-90"
+            >
+              Open Screen Recording settings
+            </a>
           )}
           {backButton}
         </div>

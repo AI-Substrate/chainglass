@@ -20,7 +20,10 @@
 
 import { X } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useRemoteViewHealth } from '../hooks/use-remote-view-health';
 import { useRemoteViewWindows } from '../hooks/use-remote-view-windows';
+import { PermissionPreflightCard } from './permission-preflight-card';
+import { missingGrants } from './permissions-ux';
 import { buildStreamUrl } from './stream-url';
 import { Viewport } from './viewport';
 import { WindowPicker } from './window-picker';
@@ -60,6 +63,10 @@ export function RemoteViewPanel({
   // (rv from URL, no pick) pickedWindowId stays null and the hook learns it from hello-ok.
   const [pickedWindowId, setPickedWindowId] = useState<number | null>(null);
   const { windows, loading, error, refresh } = useRemoteViewWindows({ enabled: rv == null });
+  // AC-14 preflight: read the daemon's TCC grants while the picker is shown so a missing grant is
+  // named up front (a card), not discovered as a black frame. Non-blocking — the picker loads either way.
+  const health = useRemoteViewHealth({ enabled: rv == null });
+  const missing = health.permissions ? missingGrants(health.permissions) : [];
 
   // The Viewport hook appends `/stream?session=…&token=…` and re-mints a fresh JWT per connect;
   // here we resolve the BASE url for the context (T001 + T003):
@@ -123,13 +130,24 @@ export function RemoteViewPanel({
       </header>
       <div className="min-h-0 flex-1">
         {rv == null ? (
-          <WindowPicker
-            windows={windows}
-            loading={loading}
-            error={error}
-            onAttach={handleAttach}
-            onRefresh={refresh}
-          />
+          <div className="flex h-full w-full flex-col">
+            <PermissionPreflightCard
+              missing={missing}
+              onRecheck={() => {
+                health.refresh();
+                refresh();
+              }}
+            />
+            <div className="min-h-0 flex-1">
+              <WindowPicker
+                windows={windows}
+                loading={loading}
+                error={error}
+                onAttach={handleAttach}
+                onRefresh={refresh}
+              />
+            </div>
+          </div>
         ) : daemonUnreachable ? (
           <div
             data-testid="remote-view-daemon-unreachable"
