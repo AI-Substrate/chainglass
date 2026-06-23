@@ -22,6 +22,10 @@
 
 import { auth } from '@/auth';
 import {
+  REMOTE_VIEW_DAEMON_CONTROL_TOKEN,
+  type RemoteViewDaemonControl,
+} from '@/features/088-remote-view/server/daemon-control';
+import {
   REMOTE_VIEW_JWT_AUDIENCE,
   REMOTE_VIEW_JWT_ISSUER,
 } from '@/features/088-remote-view/server/remote-view-auth';
@@ -30,6 +34,7 @@ import { SignJWT } from 'jose';
 import { type NextRequest, NextResponse } from 'next/server';
 
 import { getBootstrapCodeAndKey } from '@/lib/bootstrap-code';
+import { getContainer } from '@/lib/bootstrap-singleton';
 
 export const dynamic = 'force-dynamic';
 
@@ -67,5 +72,20 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     .setExpirationTime(TOKEN_EXPIRY)
     .sign(codeAndKey.key);
 
-  return NextResponse.json({ token, expiresIn: TOKEN_EXPIRY_SECONDS });
+  // (d) Surface the daemon's loopback port so the browser can build the real
+  // `ws://127.0.0.1:<port>/stream` url (Phase 6, T001 — DL-005, kills the Phase-3 stub).
+  // ADDITIVE + back-compat: existing readers keep using `.token`. The port is best-effort —
+  // a daemon that won't come up MUST NOT block token issuance (the client surfaces daemonDown
+  // through the normal reconnect/health path), so resolution failure just omits `daemonPort`.
+  let daemonPort: number | undefined;
+  try {
+    const control = getContainer().resolve<RemoteViewDaemonControl>(
+      REMOTE_VIEW_DAEMON_CONTROL_TOKEN
+    );
+    daemonPort = await control.daemonPort();
+  } catch {
+    daemonPort = undefined;
+  }
+
+  return NextResponse.json({ token, expiresIn: TOKEN_EXPIRY_SECONDS, daemonPort });
 }

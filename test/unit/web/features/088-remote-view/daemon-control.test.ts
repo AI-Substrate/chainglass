@@ -8,7 +8,9 @@
  */
 import {
   type DaemonControlError,
+  FAKE_DAEMON_PORT,
   type RealDaemonControlDeps,
+  createFakeDaemonControl,
   createRealDaemonControl,
 } from '@/features/088-remote-view/server/daemon-control';
 import type { DaemonHealth, DaemonInfo } from '@/features/088-remote-view/server/daemon-manager';
@@ -53,30 +55,42 @@ describe('createRealDaemonControl — listWindows()', () => {
   });
 
   it('maps exit code 3 → E_PERMISSION (missing Screen Recording grant, AC-14)', async () => {
-    const control = createRealDaemonControl(deps({ runWindowList: async () => ({ stdout: '', exitCode: 3 }) }));
+    const control = createRealDaemonControl(
+      deps({ runWindowList: async () => ({ stdout: '', exitCode: 3 }) })
+    );
     await expect(control.listWindows()).rejects.toMatchObject({ code: 'E_PERMISSION' });
   });
 
   it('maps any other non-zero exit → E_INTERNAL', async () => {
-    const control = createRealDaemonControl(deps({ runWindowList: async () => ({ stdout: '', exitCode: 127 }) }));
+    const control = createRealDaemonControl(
+      deps({ runWindowList: async () => ({ stdout: '', exitCode: 127 }) })
+    );
     await expect(control.listWindows()).rejects.toMatchObject({ code: 'E_INTERNAL' });
   });
 
   it('rejects non-JSON stdout with E_INTERNAL (never a silent empty list)', async () => {
-    const control = createRealDaemonControl(deps({ runWindowList: async () => ({ stdout: 'not json', exitCode: 0 }) }));
+    const control = createRealDaemonControl(
+      deps({ runWindowList: async () => ({ stdout: 'not json', exitCode: 0 }) })
+    );
     await expect(control.listWindows()).rejects.toMatchObject({ code: 'E_INTERNAL' });
   });
 
   it('rejects a catalog that violates WindowDescriptor schema with E_INTERNAL', async () => {
     // `id` as a string is the kind of drift a daemon-version skew could produce — must not
     // surface as a half-typed window the picker then renders.
-    const bad = JSON.stringify([{ id: 'nope', app: 'X', title: 't', pixelWidth: 1, pixelHeight: 1, scale: 1 }]);
-    const control = createRealDaemonControl(deps({ runWindowList: async () => ({ stdout: bad, exitCode: 0 }) }));
+    const bad = JSON.stringify([
+      { id: 'nope', app: 'X', title: 't', pixelWidth: 1, pixelHeight: 1, scale: 1 },
+    ]);
+    const control = createRealDaemonControl(
+      deps({ runWindowList: async () => ({ stdout: bad, exitCode: 0 }) })
+    );
     await expect(control.listWindows()).rejects.toMatchObject({ code: 'E_INTERNAL' });
   });
 
   it('returns an empty catalog as [] (no windows is not an error)', async () => {
-    const control = createRealDaemonControl(deps({ runWindowList: async () => ({ stdout: '[]', exitCode: 0 }) }));
+    const control = createRealDaemonControl(
+      deps({ runWindowList: async () => ({ stdout: '[]', exitCode: 0 }) })
+    );
     await expect(control.listWindows()).resolves.toEqual([]);
   });
 });
@@ -103,5 +117,38 @@ describe('createRealDaemonControl — health()', () => {
   it('throws E_INTERNAL when /health is unreachable after a successful ensureDaemon()', async () => {
     const control = createRealDaemonControl(deps({ fetchHealth: async () => null }));
     await expect(control.health()).rejects.toMatchObject({ code: 'E_INTERNAL' });
+  });
+});
+
+describe('createRealDaemonControl — daemonPort() (T001, Phase 6)', () => {
+  it('returns the loopback port read from ensureDaemon() (registry `port`, never recomputed)', async () => {
+    // The `/token` route surfaces this so the browser builds `ws://127.0.0.1:<port>/stream`
+    // (DL-005, kills the Phase-3 stub). The port is whatever ensureDaemon() resolved — 6001 here.
+    const control = createRealDaemonControl(deps());
+    await expect(control.daemonPort()).resolves.toBe(6001);
+  });
+
+  it('propagates an ensureDaemon() failure — a daemon that will not come up has no port', async () => {
+    const control = createRealDaemonControl(
+      deps({
+        ensureDaemon: vi.fn(async () => {
+          throw new Error('spawn failed');
+        }),
+      })
+    );
+    // The route swallows this into an omitted `daemonPort` (token still issued); the control
+    // itself must surface the failure honestly, never a fabricated port.
+    await expect(control.daemonPort()).rejects.toThrow('spawn failed');
+  });
+});
+
+describe('createFakeDaemonControl — daemonPort()', () => {
+  it('returns the pinned fake port', async () => {
+    await expect(createFakeDaemonControl().daemonPort()).resolves.toBe(FAKE_DAEMON_PORT);
+  });
+
+  it('honours a per-test override', async () => {
+    const control = createFakeDaemonControl({ daemonPort: async () => 9999 });
+    await expect(control.daemonPort()).resolves.toBe(9999);
   });
 });

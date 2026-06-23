@@ -19,7 +19,7 @@
  */
 
 import { X } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRemoteViewWindows } from '../hooks/use-remote-view-windows';
 import { Viewport } from './viewport';
 import { WindowPicker } from './window-picker';
@@ -60,13 +60,34 @@ export function RemoteViewPanel({
   const [pickedWindowId, setPickedWindowId] = useState<number | null>(null);
   const { windows, loading, error, refresh } = useRemoteViewWindows({ enabled: rv == null });
 
-  // Phase 3 WS-url resolution: the smoke injects `window.__REMOTE_VIEW_WS_URL__` (the fake's
-  // url, Finding 06). Phase 5 replaces this with the daemon url from the registry/token route.
-  const wsUrl =
-    (typeof window !== 'undefined' &&
-      (window as unknown as { __REMOTE_VIEW_WS_URL__?: string }).__REMOTE_VIEW_WS_URL__) ||
-    process.env.NEXT_PUBLIC_REMOTE_VIEW_WS_URL ||
-    '';
+  // T001 (Phase 6, DL-005): the daemon's loopback port comes from `/token` (which reads it from
+  // the registry via ensureDaemon). The browser builds the real `ws://127.0.0.1:<port>` base url
+  // from it; the Viewport hook appends `/stream?session=…&token=…` and fetches a fresh JWT per
+  // connect. `null` = still resolving; `''`-error → the daemon couldn't be reached.
+  const [wsUrl, setWsUrl] = useState<string | null>(null);
+  const [daemonUnreachable, setDaemonUnreachable] = useState(false);
+
+  useEffect(() => {
+    if (rv == null) return; // picker mode — no socket, no port needed yet
+    let cancelled = false;
+    setWsUrl(null);
+    setDaemonUnreachable(false);
+    void (async () => {
+      try {
+        const res = await fetch('/api/remote-view/token');
+        if (!res.ok) throw new Error(`token ${res.status}`);
+        const { daemonPort } = (await res.json()) as { daemonPort?: number };
+        if (cancelled) return;
+        if (typeof daemonPort === 'number') setWsUrl(`ws://127.0.0.1:${daemonPort}`);
+        else setDaemonUnreachable(true); // token issued but daemon couldn't be brought up
+      } catch {
+        if (!cancelled) setDaemonUnreachable(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [rv]);
 
   const handleAttach = (windowId: number) => {
     setPickedWindowId(windowId);
@@ -95,6 +116,31 @@ export function RemoteViewPanel({
             onAttach={handleAttach}
             onRefresh={refresh}
           />
+        ) : daemonUnreachable ? (
+          <div
+            data-testid="remote-view-daemon-unreachable"
+            className="flex h-full w-full flex-col items-center justify-center gap-3 bg-black p-6 text-center text-sm text-white/80"
+          >
+            <div className="font-medium">Streamer not reachable</div>
+            <div className="text-xs text-white/60">
+              The host streamer (streamd) could not be started. Check that the bundle is installed (
+              <code>just streamd-install</code>) and Screen Recording is granted.
+            </div>
+            <button
+              type="button"
+              onClick={onReturnToPicker}
+              className="rounded border border-white/30 px-3 py-1 text-white hover:bg-white/10"
+            >
+              Back to windows
+            </button>
+          </div>
+        ) : wsUrl == null ? (
+          <div
+            data-testid="remote-view-connecting"
+            className="flex h-full w-full items-center justify-center bg-black text-sm text-white/70"
+          >
+            Connecting to streamer…
+          </div>
         ) : (
           <Viewport url={wsUrl} session={rv} windowId={pickedWindowId} onExit={onReturnToPicker} />
         )}

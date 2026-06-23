@@ -1,3 +1,4 @@
+import { z } from 'zod';
 /**
  * Remote-view daemon-control surface — the host/daemon concerns the `/windows` and
  * `/health` routes proxy (Plan 088 Phase 5, T004).
@@ -12,7 +13,6 @@
  * wiring that binds the real node primitives lives in `remote-view-service.production.ts`.
  */
 import { type WindowDescriptor, WindowDescriptorSchema } from '../protocol/messages';
-import { z } from 'zod';
 import type { DaemonHealth, DaemonInfo } from './daemon-manager';
 
 /** Leaf-light DI token (a bare string) so routes resolve the control WITHOUT importing the
@@ -26,6 +26,14 @@ export interface RemoteViewDaemonControl {
   listWindows(): Promise<WindowDescriptor[]>;
   /** Ensure a healthy, version-matched daemon, then return its `/health` verdict. */
   health(): Promise<DaemonHealth>;
+  /**
+   * Ensure a healthy, version-matched daemon, then return its loopback listen port
+   * (T001 — Phase 6). The `/token` route surfaces this so the browser can build the
+   * real `ws://127.0.0.1:<port>/stream` url instead of the Phase-3 stub (DL-005). The
+   * port is READ from the registry via `ensureDaemon()` — never recomputed (frozen
+   * `port`-not-`webPort+offset` contract).
+   */
+  daemonPort(): Promise<number>;
 }
 
 /** The `streamd --list-windows` stdout contract — the same `WindowDescriptor` the streamer reports. */
@@ -79,7 +87,10 @@ export function createRealDaemonControl(deps: RealDaemonControlDeps): RemoteView
       try {
         parsed = JSON.parse(stdout);
       } catch {
-        throw new DaemonControlError('E_INTERNAL', 'streamd --list-windows returned non-JSON output');
+        throw new DaemonControlError(
+          'E_INTERNAL',
+          'streamd --list-windows returned non-JSON output'
+        );
       }
       const result = WindowCatalogSchema.safeParse(parsed);
       if (!result.success) {
@@ -104,8 +115,18 @@ export function createRealDaemonControl(deps: RealDaemonControlDeps): RemoteView
       }
       return verdict;
     },
+
+    async daemonPort(): Promise<number> {
+      // Same ensureDaemon() the session adapter uses — idempotent (resolves the running
+      // daemon via the registry), so a `/token` fetch never double-spawns; it reads `port`.
+      const info = await deps.ensureDaemon();
+      return info.daemonPort;
+    },
   };
 }
+
+/** Pinned loopback port the fake control reports (overridable per test via the spread below). */
+export const FAKE_DAEMON_PORT = 47820;
 
 /**
  * Deterministic fake the route tests inject (the `/windows`+`/health` analogue of
@@ -118,7 +139,14 @@ export function createFakeDaemonControl(
   return {
     async listWindows(): Promise<WindowDescriptor[]> {
       return [
-        { id: 34202, app: 'Godot', title: 'spike-target', pixelWidth: 800, pixelHeight: 656, scale: 2 },
+        {
+          id: 34202,
+          app: 'Godot',
+          title: 'spike-target',
+          pixelWidth: 800,
+          pixelHeight: 656,
+          scale: 2,
+        },
       ];
     },
     async health(): Promise<DaemonHealth> {
@@ -128,6 +156,9 @@ export function createFakeDaemonControl(
         protocolVersion: 1,
         permissions: { screenRecording: 'granted', accessibility: 'granted' },
       };
+    },
+    async daemonPort(): Promise<number> {
+      return FAKE_DAEMON_PORT;
     },
     ...overrides,
   };
