@@ -32,7 +32,10 @@ const SESSION_ONLY_ROUTES = [
  */
 const FORBIDDEN: Array<{ name: string; re: RegExp }> = [
   { name: 'requireRemoteViewAccess (local-token gate)', re: /\brequireRemoteViewAccess\b/ },
-  { name: 'next/headers import', re: /from\s+['"]next\/headers['"]/ },
+  // Match the quoted module string in ANY reference shape — static `from 'next/headers'`, dynamic
+  // `import('next/headers')`, or `require('next/headers')` — so the guard matches its stated contract
+  // (companion F002). The route files quote no module in prose, so there is no comment false-positive.
+  { name: 'next/headers reference', re: /['"]next\/headers['"]/ },
 ];
 
 describe('session-only remote-view routes stay NextAuth-only (T008 architecture guard)', () => {
