@@ -34,4 +34,25 @@ Mode: Full · Companion: `code-review-companion` (run `…-34f7`)
 - **Live wiring confirmed** against the running `:3000` dev server: registry daemon `port=4501` (v0.1.0, protocol 1); `/health` → `ok:true`, screenRecording + accessibility `granted`; `/windows` lists the iOS Simulator (id 649, iPhone 16e). So `/token` now surfaces `daemonPort:4501` and the panel builds `ws://127.0.0.1:4501`.
 - **Deferred to T009 (honest):** the in-browser ≥1-frame **decode** (the visual Done-When) is the measured live sweep AC-1/AC-2 — it needs the user's authenticated browser session and is gated on T001–T008.
 
-**Status:** code-complete + live-wiring-verified. Commit below.
+**Status:** code-complete + live-wiring-verified. Committed `30c1b040d`.
+
+---
+
+## T002 — Secure-context-aware gate + honest copy (DL-004)
+
+**What changed**
+
+- New `apps/web/src/features/088-remote-view/components/viewport-support.ts` (pure, jsdom-free):
+  - `UnsupportedReason = 'insecure-context' | 'no-webcodecs' | 'codec'`.
+  - `classifyEnvSupport({isSecureContext, hasWebCodecs})` — checks **secure-context FIRST** (an insecure context also makes `VideoDecoder` undefined, so it must win over the missing-API signal — the exact DL-004 false negative).
+  - `unsupportedOverlayText(reason)` — distinct title + body per reason; "use a recent Chromium-based browser" copy is kept **only** for `no-webcodecs`.
+- `apps/web/src/features/088-remote-view/components/viewport.tsx`:
+  - Replaced the `supported: boolean|null` state with `unsupported: UnsupportedReason|null`, seeded from a new `detectEnvUnsupported()` (SSR-safe).
+  - `handleVideoConfig`: env-missing → the classified reason; `isConfigSupported`/`configure` failures → `'codec'`; success → clears to `null`.
+  - Overlay renders `{title}` + `{body}` from `unsupportedOverlayText`, with `data-reason={unsupported}` (kept the `remote-view-unsupported` testid).
+
+**Tests** — new `viewport-support.test.ts` (6): secure-context wins over missing-API; missing-API only on secure context; capable → null; insecure copy names secure-context + https/localhost and does NOT say "chromium"; no-webcodecs keeps the Chromium copy; all three reasons render distinct title+body. **6/6.**
+
+**Verification:** biome clean; `just typecheck` — no new errors (same 4 pre-existing). Viewport stays not-unit-rendered (jsdom has no WebCodecs) — the branch logic is fully covered by the extracted pure module. Visual overlay on a real LAN http:// origin is confirmed in the T009 sweep.
+
+**Status:** code-complete. Commit below.
