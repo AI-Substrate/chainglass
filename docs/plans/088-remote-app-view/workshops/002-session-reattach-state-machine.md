@@ -168,4 +168,4 @@ This workshop reaches Validated when:
 **RESOLVED**: No. Picker thumbnails are one-shot captures via the control API (Workshop 004); keeping encoders warm for unwatched sessions spends GPU for a marginal UX gain.
 
 ### Q2: Grace period configurable per session (agent attach might want longer)?
-**OPEN**: default 300s constant for v1; revisit only if agent workflows demonstrably outlive it. Not AC-gating.
+**RESOLVED (v1 = constant) · DEFERRED-v1.1 (per-session configurability)** (Phase-6 reconciliation, T011): v1 shipped the **300s constant** (the `/token` JWT TTL + reconnect grace; kept by T001). Making it configurable per session is the v1.1 addition — revisit only if agent workflows demonstrably outlive 300s. Not AC-gating.

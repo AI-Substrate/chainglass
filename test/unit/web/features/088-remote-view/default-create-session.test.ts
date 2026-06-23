@@ -25,7 +25,9 @@ afterEach(() => {
 
 describe('defaultCreateSession (R6 auto-recreate)', () => {
   it('POSTs the windowId and returns the new sessionId', async () => {
-    const fetchSpy = vi.fn(async () =>
+    // Type the spy with the fetch signature so `mock.calls[0][1]` is `RequestInit | undefined`
+    // (a bare `vi.fn(async () => …)` types calls as `[]`, so index 1 + the cast were errors).
+    const fetchSpy = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
       jsonResponse({ sessionId: 'ses_new', windowId: 34202, state: 'streaming' }, 200)
     );
     vi.stubGlobal('fetch', fetchSpy);

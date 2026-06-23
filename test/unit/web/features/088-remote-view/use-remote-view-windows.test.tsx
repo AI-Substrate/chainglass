@@ -27,7 +27,10 @@ afterEach(() => {
 
 describe('useRemoteViewWindows', () => {
   it('loads the catalog from GET /api/remote-view/windows', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ windows: CATALOG }, 200)));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse({ windows: CATALOG }, 200))
+    );
 
     const { result } = renderHook(() => useRemoteViewWindows());
 
@@ -40,7 +43,10 @@ describe('useRemoteViewWindows', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () =>
-        jsonResponse({ error: 'E_PERMISSION', message: 'Screen Recording permission is required.' }, 403)
+        jsonResponse(
+          { error: 'E_PERMISSION', message: 'Screen Recording permission is required.' },
+          403
+        )
       )
     );
 

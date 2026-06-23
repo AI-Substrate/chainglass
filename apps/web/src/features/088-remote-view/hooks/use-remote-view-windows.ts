@@ -13,8 +13,8 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { type WindowDescriptor, WindowDescriptorSchema } from '../protocol/messages';
 import { z } from 'zod';
+import { type WindowDescriptor, WindowDescriptorSchema } from '../protocol/messages';
 
 export interface UseRemoteViewWindowsOptions {
   /** Skip loading when the picker isn't shown (a session is active). Default true. */

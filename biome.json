@@ -34,6 +34,7 @@
       ".vsc-bridge",
       ".chainglass",
       ".harness",
+      ".minih",
       "apps/web/src/components/ui",
       "apps/web/src/hooks/use-mobile.ts",
       "**/next-env.d.ts",

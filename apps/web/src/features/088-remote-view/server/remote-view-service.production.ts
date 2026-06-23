@@ -83,7 +83,9 @@ export function resolveProductionDaemonConfig(
   deps: {
     cwd?: string;
     findRoot?: (startDir: string) => string;
-    env?: NodeJS.ProcessEnv;
+    // Only PORT / CG_REMOTE_VIEW__DAEMON_PORT are read — accept a partial env so callers (and tests)
+    // need not supply the repo-required NODE_ENV. `process.env` (a full ProcessEnv) still satisfies it.
+    env?: Partial<NodeJS.ProcessEnv>;
   } = {}
 ): ProductionDaemonConfig {
   const cwd = deps.cwd ?? process.cwd();

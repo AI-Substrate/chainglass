@@ -1,3 +1,4 @@
+import { afterEach, describe, expect, it, vi } from 'vitest';
 /**
  * Plan 088 Phase 5 — T009: `cg remote-view list|attach|detach` CLI verbs.
  *
@@ -6,8 +7,10 @@
  * tests inject a typed fake, so no live dev server is needed. Mirrors the
  * agent.command/event-popper-client CLI patterns.
  */
-import { Command } from 'commander';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+// Import Command from the SAME commander copy apps/cli's source resolves (v13) — the repo hoists a
+// v11 copy to the root that `test/` would otherwise pick up, making `new Command()` (v11) incompatible
+// with `registerRemoteViewCommands`'s v13 `Command` param (a type-identity mismatch, not a real bug).
+import { Command } from '../../../apps/cli/node_modules/commander';
 import {
   type RemoteViewRequest,
   formatRemoteViewError,

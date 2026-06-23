@@ -11,13 +11,13 @@
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
-  createDaemonManager,
   type DaemonHealth,
   type RegistryEntry,
+  createDaemonManager,
   streamdRegistryPath,
 } from '@/features/088-remote-view/server/daemon-manager';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 const WEB_PORT = 4607;
 const EXPECTED_PROTOCOL = 1;
@@ -193,7 +193,9 @@ describe('remote-view daemon manager', () => {
     let respawned = false;
     const { manager, spawns, shutdowns } = build({
       healthByPort: () =>
-        respawned ? health({ protocolVersion: EXPECTED_PROTOCOL }) : health({ protocolVersion: 99 }),
+        respawned
+          ? health({ protocolVersion: EXPECTED_PROTOCOL })
+          : health({ protocolVersion: 99 }),
       onSpawn: () => {
         respawned = true;
         writeRegistry(entry({ port: DEFAULT_DAEMON_PORT }));
