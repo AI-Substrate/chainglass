@@ -92,3 +92,27 @@ TDD RED→GREEN. The adapter implements the **frozen** `IRemoteViewService` and 
 **Evidence after fixes**: target file **19/19** (was 16; +1 restart regression, +2 F001 seam, 1 rewritten); full 088 suite **98/98**; web typecheck **0 errors**; biome clean. Files: `server/remote-view-service.ts` (attach), `server/remote-view-service.production.ts` (`resolveProductionDaemonConfig` + `ProductionDaemonConfig`), `real-remote-view-service.test.ts`.
 
 **Companion-mode footnote (dogfood)**: booting the companion on 0.2.3 took two fresh workarounds — `E205 COORDINATION_WRITE_DENIED` → `--permissions trusted`; `E170 multiple-active-runs` → `--run <id>` (stale runs never cleaned). Findings land on the **inside** lane (`runs/<id>/inbox/inside/messages.ndjson`), invisible to the documented read-path — recorded in memory [[minih-companion-discovery-workaround]].
+
+---
+
+## T004 — routes `/health` + `/windows` + native `--list-windows` ✅
+
+Committed `c217a833` last session; this exec-log entry was **missed at the time** (friction: the per-task progress checklist's "append execution log" step was skipped for T004). Recorded here so the log isn't misleadingly absent. Summary: NextAuth-gated `/health` + `/windows` routes, a separate `RemoteViewDaemonControl` surface (windows/health kept off the frozen `IRemoteViewService`), native `streamd --list-windows` one-shot catalog (live-smoked: 34 real windows after a `layer==0` menubar-chrome fix), `use-remote-view-windows.ts` swapped fake→real. Deterministic NextAuth gate (`requireRemoteViewSession`) extracted with a negative-control test.
+
+---
+
+## T005 — routes `/sessions` CRUD + R6 createSession wiring ✅
+
+**Tests**: `sessions-routes.test.ts` (9) + `default-create-session.test.ts` (3) — **12/12 green**; full 088 suite **123/123**; web typecheck **0 errors**.
+**Files**: `app/api/remote-view/sessions/route.ts` (GET/POST, new), `app/api/remote-view/sessions/[sessionId]/route.ts` (DELETE, new), `server/remote-view-service.ts` (+`REMOTE_VIEW_SERVICE_TOKEN`), `hooks/use-remote-view-session.ts` (`defaultCreateSession` null→POST, exported), `lib/di-container.ts` (token single-source), + 2 tests.
+
+TDD RED→GREEN (RED: route modules absent + `defaultCreateSession` not a function → GREEN). The routes proxy the **frozen** `IRemoteViewService` (DI-resolved; `FakeRemoteViewService` in tests, daemon-backed adapter in prod) behind the **shared `requireRemoteViewSession` gate** reused from T004.
+
+- **gate-before-service ordering** — every handler returns 401 **before** resolving the container; a `resolveMock` not-called assertion locks the order (a route that skipped the gate fails the test).
+- **idempotent attach per window** — POST `{ windowId }` delegates to the service's contract idempotency (same windowId → same `sessionId`); proven against the fake.
+- **named errors, not opaque** — malformed body → 400 `E_BAD_BODY` (mirrors the daemon), attach/daemon failure → 500 `E_INTERNAL`; DELETE is terminal + idempotent → 204.
+- **R6 wiring** — `defaultCreateSession` swapped from the Phase-2 `null` stub to `POST /api/remote-view/sessions`, returning the new `sessionId`; null-on-failure + never-throws (so reconnect-exhaustion falls through to `daemonDown`, not an unhandled rejection in the reducer). Exported for a direct fetch-stub test.
+
+**Decision/Noteworthy logged** (Discoveries): (1) **bare DI token** — added `REMOTE_VIEW_SERVICE_TOKEN` to the service leaf and re-pointed `DI_TOKENS.REMOTE_VIEW_SERVICE` at it (single-source), so the routes resolve the service without importing the `di-container` module graph — same leaf-light pattern as `REMOTE_VIEW_DAEMON_CONTROL_TOKEN` (T004). (2) **response shapes** — GET wraps the list as `{ sessions }` (web convention, matches `/windows` `{ windows }`); POST returns the **flat** `SessionSummary` so `createSession` reads `.sessionId`; the T009/T010 agent surfaces will consume these shapes.
+
+**Unblocks** T008 (SDK), T009 (CLI) — both hit these routes.

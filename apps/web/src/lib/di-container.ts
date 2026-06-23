@@ -137,17 +137,18 @@ import { CentralEventNotifierService } from '../features/027-central-notify-even
 import { AgentWorkUnitBridge } from '../features/059-fix-agents/agent-work-unit-bridge';
 // Plan 067: QuestionPopperService (real implementation)
 import { QuestionPopperService } from '../features/067-question-popper/lib/question-popper.service';
-// Plan 088 Phase 2/5: RemoteViewService interface + fake (test) + real adapter (prod)
-import {
-  FakeRemoteViewService,
-  type IRemoteViewService,
-} from '../features/088-remote-view/server/remote-view-service';
 // Plan 088 Phase 5 (T004): daemon-control surface behind /windows + /health
 import {
   REMOTE_VIEW_DAEMON_CONTROL_TOKEN,
   type RemoteViewDaemonControl,
   createFakeDaemonControl,
 } from '../features/088-remote-view/server/daemon-control';
+// Plan 088 Phase 2/5: RemoteViewService interface + fake (test) + real adapter (prod)
+import {
+  FakeRemoteViewService,
+  type IRemoteViewService,
+  REMOTE_VIEW_SERVICE_TOKEN,
+} from '../features/088-remote-view/server/remote-view-service';
 import {
   createProductionDaemonControl,
   createProductionRemoteViewService,
@@ -168,8 +169,9 @@ export const DI_TOKENS = {
   COPILOT_CLIENT: 'CopilotClient', // Singleton SDK client
   COPILOT_ADAPTER: 'CopilotAdapter',
   AGENT_SERVICE: 'AgentService',
-  // Plan 088: Remote-view session service (interface + fake now; real adapter Phase 5)
-  REMOTE_VIEW_SERVICE: 'IRemoteViewService',
+  // Plan 088: Remote-view session service (interface + fake now; real adapter Phase 5).
+  // Value single-sourced from the leaf token so the /sessions routes resolve the same key.
+  REMOTE_VIEW_SERVICE: REMOTE_VIEW_SERVICE_TOKEN,
   // Plan 018: Event storage moved to workspace-scoped AgentEventAdapter in @chainglass/workflow
   // Consumers should use WORKSPACE_DI_TOKENS.AGENT_EVENT_ADAPTER instead
 } as const;

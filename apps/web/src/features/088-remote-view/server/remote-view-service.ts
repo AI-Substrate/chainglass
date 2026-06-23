@@ -26,6 +26,14 @@ export interface SessionSummary {
   state: SessionState;
 }
 
+/**
+ * DI token for `IRemoteViewService`. Defined as a bare string in the leaf (not pulled from
+ * `di-container`'s `DI_TOKENS`) so the `/sessions` routes can resolve the service without
+ * importing the whole container module graph — the same leaf-light pattern as
+ * `REMOTE_VIEW_DAEMON_CONTROL_TOKEN`. `DI_TOKENS.REMOTE_VIEW_SERVICE` re-exports this value.
+ */
+export const REMOTE_VIEW_SERVICE_TOKEN = 'IRemoteViewService' as const;
+
 export interface IRemoteViewService {
   /** Active (non-closed) sessions. */
   list(): SessionSummary[];
