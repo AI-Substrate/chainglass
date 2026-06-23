@@ -151,3 +151,29 @@ Three reconciliations across the two browser-picker routes.
 **Verification:** biome clean; `tsc` — no new errors on any touched file (same pre-existing DL-006 set elsewhere). The viewport `E_PERMISSION` deep-link render + the live revoke→card→re-grant→recover round-trip are owned by the T009 live sweep (the viewport itself is jsdom-untestable — WebCodecs); the pure helper + card + hook + CLI formatter unit-tests backstop the contract on this side.
 
 **Status:** code-complete. Committed `1c5a38b93`. **Companion (run …-p6batch): review requested** — see verdict appended below.
+
+**Companion (run …-4b08): T004 → APPROVE_WITH_NOTES** (0 CRITICAL / 0 HIGH / 1 MEDIUM / 0 LOW). Verified: `missingGrants()` correctly treats both `denied` and `not-determined` as actionable; the System-Settings pane IDs match the macOS Privacy panes; the CLI formatter preserves named route errors without double-reading the success body; the untested viewport `E_PERMISSION` link is acceptable (shared `SETTINGS_URL` is unit-tested, component is browser-smoke validated). **F001 (MEDIUM) — stale health refresh can override Re-check:** the manual Re-check path ignores `refresh()`'s cleanup, so a slow initial `/health` could resolve *after* a fast Re-check and overwrite the fresh grant state with stale denied data (the card reappearing after the user fixed the grant). **Fixed** (`239453d0e`): a monotonic `reqSeqRef` — only the latest refresh commits state (bumped on every refresh + on unmount); +1 test (two deferred fetches, the Re-check resolves first, the stale initial is dropped).
+
+---
+
+## T007 — Rebuild + smoke the CLI (AC-8 live, DL-001)
+
+**The gap:** `apps/cli/dist/cli.cjs` was stale (21 Jun, pre-`remote-view` verbs), and the live CLI round-trip was never run.
+
+**What changed**
+
+- **Rebuilt** `apps/cli/dist/cli.cjs` (`pnpm -F build` → 24 Jun); `cg remote-view {list,attach,detach}` now ship (verified in the bundle + `remote-view --help`).
+- New `just cli-build-check` (DL-001 **suggested encoding**): flags `dist/cli.cjs` older than any `apps/cli/src/**/*.ts` and exits non-zero (an agent/CI guard against shipping stale verbs) + a `just cli-build` convenience recipe.
+
+**Live smoke vs the running `:3000` dev server** (real daemon, Screen Recording granted — `/windows` enumerated a live catalog):
+- `cg remote-view list` → `[]` (authenticated via `X-Local-Token`, AC-8 read path round-trips). ✓
+- `cg remote-view attach 26520` → POST `/sessions` → created `sess-26520-2` (a SessionSummary, state `idle`). ✓
+- `cg remote-view detach <id>` → DELETE → idempotent (returns `{detached}`; route 204s). ✓
+
+**The smoke caught a real production bug — DL-008 (the dogfood paying off again).** `list` returned `[]` *immediately after* a successful `attach`. Root cause: `REMOTE_VIEW_SERVICE` was registered as a **transient `useFactory`** (`di-container.ts:731`) — so every HTTP request built a *fresh* service with an empty in-memory session `Map`. `attach()` set instance A's map; the next request's `list()` read instance B's empty map → **GET /sessions is structurally always empty in production**. This is the *same* transient-`useFactory` class T008 fixed for the daemon-control but missed for the service; it breaks AC-8 ("list shows the active session") and undermines AC-7 session tracking.
+
+**Fix:** memoize `REMOTE_VIEW_SERVICE` per-container (production + test) with a closure cell — the T008 pattern. `di-container.test.ts` (+3): two resolves → same instance; **cross-request `attach→list` visible** (the actual regression, would fail on a transient registration); per-container isolation. **222/222 (34 files).**
+
+**Verification:** `tsc` + biome clean on touched files; `just cli-build-check` → ✓ up-to-date after the rebuild. The fix is **unit-proven** (the cross-request test passes with the memo, fails without). The *live* confirmation that `list` shows the session needs a **server restart** — the running dev server (pid 18250) built its DI container at boot (pre-fix), and the container is a boot-time singleton HMR won't rebuild → folds into the **T009** live sweep / the user's next `just dev`.
+
+**Status:** code-complete. Committed `b5b64f4f3`. **Companion (run …-4b08): review requested** — see verdict below.
