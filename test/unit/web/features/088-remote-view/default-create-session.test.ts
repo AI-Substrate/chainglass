@@ -4,8 +4,10 @@
  * Phase 2 stubbed `defaultCreateSession` to `null` ("real daemon recreate lands in Phase 5").
  * Phase 5 wires it to `POST /api/remote-view/sessions { windowId }`. This proves the swap:
  *   - on 200 it returns the new sessionId (so R6 reconnects the recreated session);
- *   - on failure it returns null and never throws (R6 then falls through to `daemonDown`,
- *     not an unhandled rejection inside the reducer).
+ *   - on failure it returns null and never throws — the reducer then maps SESSION_RECREATE_FAIL to
+ *     `picker` (the healthy-daemon re-pick path; see the hook suite's R6 picker test), never an
+ *     unhandled rejection. (This unit only pins the null/never-throw contract; the picker landing
+ *     is proven end-to-end in use-remote-view-session.test.ts.)
  */
 import { defaultCreateSession } from '@/features/088-remote-view/hooks/use-remote-view-session';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -39,7 +41,7 @@ describe('defaultCreateSession (R6 auto-recreate)', () => {
     expect(sent).toEqual({ windowId: 34202 });
   });
 
-  it('returns null when the route fails (R6 → daemonDown, never throws)', async () => {
+  it('returns null when the route fails (R6 recreate-fail → picker; never throws)', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => jsonResponse({ error: 'E_INTERNAL' }, 500))

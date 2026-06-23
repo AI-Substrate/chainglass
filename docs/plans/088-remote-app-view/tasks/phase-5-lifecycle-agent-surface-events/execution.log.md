@@ -111,8 +111,20 @@ TDD RED→GREEN (RED: route modules absent + `defaultCreateSession` not a functi
 - **gate-before-service ordering** — every handler returns 401 **before** resolving the container; a `resolveMock` not-called assertion locks the order (a route that skipped the gate fails the test).
 - **idempotent attach per window** — POST `{ windowId }` delegates to the service's contract idempotency (same windowId → same `sessionId`); proven against the fake.
 - **named errors, not opaque** — malformed body → 400 `E_BAD_BODY` (mirrors the daemon), attach/daemon failure → 500 `E_INTERNAL`; DELETE is terminal + idempotent → 204.
-- **R6 wiring** — `defaultCreateSession` swapped from the Phase-2 `null` stub to `POST /api/remote-view/sessions`, returning the new `sessionId`; null-on-failure + never-throws (so reconnect-exhaustion falls through to `daemonDown`, not an unhandled rejection in the reducer). Exported for a direct fetch-stub test.
+- **R6 wiring** — `defaultCreateSession` swapped from the Phase-2 `null` stub to `POST /api/remote-view/sessions`, returning the new `sessionId`; null-on-failure + never-throws. On failure the reducer maps `SESSION_RECREATE_FAIL` → **`picker`** (the daemon was just health-checked healthy, so the user re-picks; `daemonDown` is reserved for a dead daemon), never an unhandled rejection. Exported for a direct fetch-stub test; the healthy-daemon recreate-fail→picker path is also pinned end-to-end in the hook suite.
 
 **Decision/Noteworthy logged** (Discoveries): (1) **bare DI token** — added `REMOTE_VIEW_SERVICE_TOKEN` to the service leaf and re-pointed `DI_TOKENS.REMOTE_VIEW_SERVICE` at it (single-source), so the routes resolve the service without importing the `di-container` module graph — same leaf-light pattern as `REMOTE_VIEW_DAEMON_CONTROL_TOKEN` (T004). (2) **response shapes** — GET wraps the list as `{ sessions }` (web convention, matches `/windows` `{ windows }`); POST returns the **flat** `SessionSummary` so `createSession` reads `.sessionId`; the T009/T010 agent surfaces will consume these shapes.
 
 **Unblocks** T008 (SDK), T009 (CLI) — both hit these routes.
+
+---
+
+## Companion review loop — T005 (1 HIGH → fixed before phase continues)
+
+`code-review-companion` run `2026-06-23T04-41-19-536Z-8ec5` reviewed the T005 commit (`11d7361a`) and returned **REQUEST_CHANGES** with **1 HIGH** — a genuine doc/contract drift I introduced (not a code-behaviour bug). Fixed in one loop:
+
+| ID | Sev | Finding | Resolution |
+|----|-----|---------|------------|
+| F001 | HIGH | T005's `defaultCreateSession` doc + test wording (and the briefing) claimed a route failure falls through to **`daemonDown`**. But the reducer maps `SESSION_RECREATE_FAIL` (`sessionLost` →) to **`picker`** (`session-machine.ts:217`), and that is the *correct* UX: `recreateOnce` only runs after `healthCheck` returned **true**, so the daemon is healthy → re-pick a window; `daemonDown` is reserved for a dead daemon. My wording **overpromised**. There was also no hook-level test for "healthy daemon + createSession null → picker". | Kept the (correct) reducer transition; **corrected the wording** to `picker` in `use-remote-view-session.ts` (`defaultCreateSession` doc), `default-create-session.test.ts` (doc + the "never throws" test name), and this log. **Added the missing end-to-end test** in `use-remote-view-session.test.ts`: healthy daemon + `createSession→null` → asserts `picker`, `createSession` called exactly once, no unhandled rejection. |
+
+**Evidence after fix**: hook suite green incl. the new R6 picker test; T005 units **12/12**; full 088 suite **124/124**; web typecheck **0 errors**; biome clean. The route CRUD shape, 401-before-service ordering, idempotent attach, DELETE 204, `E_BAD_BODY`/`E_INTERNAL` naming, and bare-token DI wiring all passed companion review unchanged.

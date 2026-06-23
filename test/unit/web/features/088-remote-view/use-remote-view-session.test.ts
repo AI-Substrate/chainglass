@@ -170,6 +170,33 @@ describe('useRemoteViewSession', () => {
     expect(createCalls).toBe(1);
   });
 
+  it('R6: exhausted reconnects + healthy daemon + createSession fails (null) → picker, not daemonDown [T005]', async () => {
+    /*
+    Test Doc:
+    - Why: T005 wires the real createSession to POST /sessions; a route failure (e.g. 500) returns null. The daemon was just health-checked HEALTHY, so a recreate failure must land in `picker` (re-pick a window) — NOT daemonDown (which means the daemon is dead) — and never as an unhandled rejection. Closes the companion's T005 F001 gap (the healthy-daemon recreate-failure path had no end-to-end hook test).
+    - Contract: failing connections → 3 reconnects → health true → sessionLost → createSession→null → SESSION_RECREATE_FAIL → picker.
+    - Usage Notes: createSession returns null (the route failed) and is called exactly once; failConnections stays true so no live race masks the picker landing.
+    - Quality Contribution: pins the R6 recreate-failure UX so it can never silently regress to daemonDown or throw.
+    - Worked Example: live → daemon-down 3× → sessionLost → createSession null → picker.
+    */
+    let createCalls = 0;
+    const { result } = render({
+      backoffMs: [5, 10, 20],
+      healthCheck: async () => true,
+      createSession: async () => {
+        createCalls += 1;
+        return null; // route failure → null, never throws (matches defaultCreateSession)
+      },
+    });
+    await waitFor(() => expect(result.current.state.name).toBe('live'));
+    act(() => {
+      fake.failConnections(true);
+      fake.dropViewer('ses_h');
+    });
+    await waitFor(() => expect(result.current.state.name).toBe('picker'), { timeout: 3000 });
+    expect(createCalls).toBe(1);
+  });
+
   it('R6 deep-link: windowId learned from hello-ok survives rerender → auto-recreate uses it [F007]', async () => {
     /*
     Test Doc:

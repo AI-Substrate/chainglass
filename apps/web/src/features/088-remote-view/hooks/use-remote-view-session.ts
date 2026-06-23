@@ -49,9 +49,10 @@ async function defaultHealthCheck(): Promise<boolean> {
 }
 /**
  * R6 auto-recreate (Phase 5, T005): POST the target window to the session-create route and
- * return the new session id. Returns null on any failure and never throws — a failed recreate
- * must fall through to `daemonDown` in the reducer, not surface as an unhandled rejection.
- * Exported so the swap from the Phase-2 `null` stub is directly unit-tested.
+ * return the new session id. Returns null on any failure and never throws — the reducer maps the
+ * resulting `SESSION_RECREATE_FAIL` to `picker` (the daemon was just health-checked healthy, so
+ * the user re-picks a window; this is NOT `daemonDown`, which is reserved for a dead daemon), and
+ * never an unhandled rejection. Exported so the swap from the Phase-2 `null` stub is directly tested.
  */
 export async function defaultCreateSession(windowId: number): Promise<string | null> {
   try {
