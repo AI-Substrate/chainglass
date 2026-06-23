@@ -1,17 +1,43 @@
 /**
+ * True when `hostname` is a loopback or private-LAN address — the cases where
+ * the page and the terminal sidecar share a host and the `port + 1500`
+ * derivation reaches the sidecar directly (localhost dev, iPad-on-LAN browsing).
+ *
+ * For these hosts we ALWAYS derive and ignore NEXT_PUBLIC_TERMINAL_WS_URL, so a
+ * tunnel override left in `.env.local` never breaks plain local/LAN use.
+ */
+export function isLocalOrLanHostname(hostname: string): boolean {
+  const h = hostname.toLowerCase();
+  if (h === 'localhost' || h.endsWith('.localhost')) return true;
+  if (h === '::1' || h === '[::1]') return true;
+  // 127.0.0.0/8 loopback
+  if (/^127\./.test(h)) return true;
+  // RFC 1918 private ranges + link-local (iPad/phone on the same Wi-Fi)
+  if (/^10\./.test(h)) return true;
+  if (/^192\.168\./.test(h)) return true;
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(h)) return true;
+  if (/^169\.254\./.test(h)) return true;
+  return false;
+}
+
+/**
  * Resolve the terminal WebSocket base URL (scheme + host[:port], no path/query).
  *
- * Two modes:
+ * Resolution order:
  *
- * 1. Override (`NEXT_PUBLIC_TERMINAL_WS_URL`): used verbatim after normalization.
- *    Required for dev tunnels / Codespaces, where each forwarded port lives on
- *    its OWN subdomain (e.g. `https://<id>-4500.<region>.devtunnels.ms`) — the
- *    page-port+1500 maths can never reach the sidecar through such a proxy.
- *    We normalize http(s) → ws(s) and strip any trailing slash and `/terminal`
- *    so callers can pass either `wss://host`, `https://host`, or `.../terminal`.
+ * 1. Override (`NEXT_PUBLIC_TERMINAL_WS_URL`), but ONLY when the page is served
+ *    from a remote/proxy host (NOT loopback/LAN — see isLocalOrLanHostname).
+ *    Dev tunnels / Codespaces expose each forwarded port on its OWN subdomain
+ *    (e.g. `https://<id>-4500.<region>.devtunnels.ms`), so the page-port+1500
+ *    maths can never reach the sidecar through such a proxy. Gating on host
+ *    means the override can live permanently in `.env.local` without breaking
+ *    `localhost:3000` or LAN-IP browsing. We normalize http(s) → ws(s) and strip
+ *    any trailing slash and `/terminal` so callers may pass `wss://host`,
+ *    `https://host`, or `.../terminal`.
  *
- * 2. Derived (default): `wss?://<page-host>:<page-port + 1500>`. The sidecar
- *    binds PORT+1500 (3000 → 4500). Works for localhost and LAN browsing.
+ * 2. Derived (default, and always used for local/LAN):
+ *    `wss?://<page-host>:<page-port + 1500>`. The sidecar binds PORT+1500
+ *    (3000 → 4500).
  *
  * Returns a base WITHOUT a trailing slash; callers append `/terminal?...`.
  */
@@ -21,7 +47,7 @@ export function resolveTerminalWsBaseUrl(loc: {
   protocol: string;
 }): string {
   const override = process.env.NEXT_PUBLIC_TERMINAL_WS_URL?.trim();
-  if (override) {
+  if (override && !isLocalOrLanHostname(loc.hostname)) {
     return override
       .replace(/^http:/i, 'ws:')
       .replace(/^https:/i, 'wss:')

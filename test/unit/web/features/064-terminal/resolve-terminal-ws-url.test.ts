@@ -98,5 +98,43 @@ describe('resolveTerminalWsBaseUrl', () => {
       });
       expect(base).toBe('ws://localhost:9999');
     });
+
+    it('IGNORES the override on a localhost page (local mode unbroken)', () => {
+      /*
+      Test Doc:
+      - Why: A tunnel override left in .env.local must NOT hijack the WS URL when
+        developing on localhost — that previously broke local mode.
+      - Contract: localhost page derives wss://localhost:4500 even with override set.
+      - Usage Notes: isLocalOrLanHostname('localhost') === true short-circuits override.
+      - Quality Contribution: Lets the override live permanently in .env.local.
+      - Worked Example: override set + {hostname:'localhost',port:'3000'} → 'wss://localhost:4500'.
+      */
+      vi.stubEnv('NEXT_PUBLIC_TERMINAL_WS_URL', 'wss://abc-4500.aue.devtunnels.ms/terminal');
+      const base = resolveTerminalWsBaseUrl({
+        hostname: 'localhost',
+        port: '3000',
+        protocol: 'https:',
+      });
+      expect(base).toBe('wss://localhost:4500');
+    });
+
+    it('IGNORES the override on a LAN-IP page (iPad/phone path unbroken)', () => {
+      /*
+      Test Doc:
+      - Why: LAN-IP browsing (iPad on the same Wi-Fi) shares the host with the
+        sidecar and relies on the +1500 derivation; the override must not engage.
+      - Contract: a 192.168.x page derives ws(s)://<ip>:4500 even with override set.
+      - Usage Notes: RFC 1918 ranges are treated as local.
+      - Quality Contribution: Protects the documented remote-LAN access flow.
+      - Worked Example: override set + {hostname:'192.168.1.32',port:'3002'} → 'wss://192.168.1.32:4502'.
+      */
+      vi.stubEnv('NEXT_PUBLIC_TERMINAL_WS_URL', 'wss://abc-4500.aue.devtunnels.ms/terminal');
+      const base = resolveTerminalWsBaseUrl({
+        hostname: '192.168.1.32',
+        port: '3002',
+        protocol: 'https:',
+      });
+      expect(base).toBe('wss://192.168.1.32:4502');
+    });
   });
 });

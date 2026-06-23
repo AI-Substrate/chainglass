@@ -47,7 +47,7 @@ The sidecar watches for file changes and auto-restarts via `tsx watch`.
 | `PORT` | 3000 | Next.js port. WS port derives from this |
 | `TERMINAL_WS_PORT` | PORT + 1500 | Override WS port explicitly |
 | `TERMINAL_WS_HOST` | 127.0.0.1 | Bind address. Justfile sets `0.0.0.0` for remote |
-| `NEXT_PUBLIC_TERMINAL_WS_URL` | _(derived)_ | Client override for the WS URL. Set for dev tunnels / Codespaces where the sidecar lives on its own subdomain (see below) |
+| `NEXT_PUBLIC_TERMINAL_WS_URL` | _(derived)_ | Client override for the WS URL, applied **only on remote/proxy hosts** (not localhost/LAN). Set for dev tunnels / Codespaces (see below) — safe to leave in `.env.local` permanently |
 | `TERMINAL_WS_ALLOWED_ORIGINS` | local + LAN | Comma-separated exact origins allowed to open the WS. Add the tunnel page origin here |
 
 ### How it works
@@ -138,6 +138,9 @@ terminal won't connect unless you point it at the sidecar's tunnel URL.
    # The page origin the WS sidecar must accept (the 3000 subdomain)
    TERMINAL_WS_ALLOWED_ORIGINS=https://<id>-3000.<region>.devtunnels.ms
    ```
+   The override only engages on remote/proxy hosts, so it is **safe to leave in
+   `.env.local` permanently** — `localhost:3000` and LAN-IP browsing keep using
+   the default `port + 1500` derivation and are unaffected.
 
 3. **Authenticate the tunnel in the browser.** For an owner-only tunnel (no
    `--allow-anonymous`), visit the **4500** URL once
