@@ -94,4 +94,21 @@ Mode: Full · Companion: `code-review-companion` (run `…-34f7`)
 
 **Verification:** biome clean; `just typecheck` no new errors (after narrowing `env` to `{PORT?}` — the full `ProcessEnv` literal tripped the repo's required-`NODE_ENV` augmentation, the same class as the pre-existing test errors). The live AC-11 cross-cycle orphan check (kill web mid-stream → restart → no orphan) is owned by the T009 sweep; the boot log line is the live breadcrumb.
 
-**Status:** code-complete. Commit below.
+**Status:** code-complete. Committed `7e470a485`. **Companion (run …-e3c4): APPROVE** (0 findings) — boot wrapper non-throwing at both layers, `__remoteViewReaperRan` matches the existing HMR-safe pattern, fail-closed identity/kill logic stays delegated to the already-tested `reapStreamdDaemon()`, `env:{PORT?}` narrowing appropriate.
+
+---
+
+## T005 — Discoverable launch affordance (DL-003)
+
+**The gap:** remote-view was reachable only via the command palette (`remote-view.attach`) or a hand-typed `?view=remote` URL — invisible to a first-time user (the "no button in UI" flag). The wiring already existed (the palette command does `setParams({view:'remote', rv:null})` at `browser-client.tsx:965`); T005 adds the **visible control**.
+
+**What changed**
+
+- New `apps/web/src/features/088-remote-view/components/remote-view-launch-button.tsx` — a small presentational `RemoteViewLaunchButton` (Monitor icon), extracted in the `SplitTerminalToggleButton` style so the discoverable+clickable contract is unit-testable. Accessible name "Open Remote View", a hover title, `data-testid="remote-view-launch"`. Purely presentational — the parent owns the action via `onLaunch`.
+- `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` — import + render the button in the ExplorerPanel `rightActions` slot **beside the recent-feed `History` button** (`:1454`), mirroring that precedent: `onLaunch` dispatches `terminal:close` (same panel) then `setParams({view:'remote', rv:null}, {history:'push'})` → opens the window picker. The palette command stays registered (`:965`) — both paths reach the same place.
+
+**Tests** — new `remote-view-launch-button.test.tsx` (3): renders a visible control with an accessible name + title (no palette/URL knowledge needed); fires `onLaunch` exactly once on click (parent → `setParams view=remote, rv=null`); is a real focusable `<button>` (keyboard-reachable). **Full 088 suite 181/181 (29 files).**
+
+**Verification:** biome clean; `just typecheck` — no new errors (same pre-existing DL-006 set in untouched files). The button placement + the picker-open round-trip in a real browser are confirmed in the T009 live sweep; the unit test backstops the contract.
+
+**Status:** code-complete. Committed `d895912d9`. **Companion (run …-0ccc):** review-request sent — verdict pending.
