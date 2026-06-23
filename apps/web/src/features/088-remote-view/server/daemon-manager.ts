@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 /**
  * Web-side daemon manager — spawn-on-demand, readiness poll, version handshake.
  *
@@ -25,8 +27,8 @@
  *
  * Plan 088 Phase 5 — T001.
  */
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import type { ICentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events/central-event-notifier.interface';
+import { WorkspaceDomain } from '@chainglass/shared/features/027-central-notify-events/workspace-domain';
 
 /** The FROZEN registry-file shape the daemon writes (Phase 4). */
 export interface RegistryEntry {
@@ -90,6 +92,13 @@ export interface DaemonManagerDeps {
   shutdownDaemon: (daemonPort: number) => Promise<void>;
   sleep: (ms: number) => Promise<void>;
   now: () => number;
+  /**
+   * Central event notifier (T006) — emits `remote-view` `daemon-state` envelopes
+   * (`ready` on a healthy handshake, `down` on a failed one) so open clients can
+   * reflect the daemon lifecycle. OPTIONAL: the T001 manager tests construct the
+   * manager without one, so a missing notifier is a silent no-op.
+   */
+  notifier?: ICentralEventNotifier;
   logger?: Pick<Console, 'info' | 'warn' | 'error'>;
 }
 
@@ -174,10 +183,31 @@ export function createDaemonManager(
     };
   }
 
+  /** T006: push the daemon's lifecycle onto the `remote-view` SSE channel. */
+  function emitDaemonState(state: 'ready' | 'down', extra: Record<string, unknown> = {}): void {
+    deps.notifier?.emit(WorkspaceDomain.RemoteView, 'daemon-state', { state, ...extra });
+  }
+
+  /** Emit `ready` for a resolved daemon, then hand back its reach info. */
+  function ready(r: { entry: RegistryEntry; health: DaemonHealth }): DaemonInfo {
+    const info = toInfo(r);
+    emitDaemonState('ready', {
+      daemonVersion: info.daemonVersion,
+      protocolVersion: info.protocolVersion,
+    });
+    return info;
+  }
+
+  /** Emit `down` (with the actionable reason), then throw it. */
+  function down(reason: string): never {
+    emitDaemonState('down', { reason });
+    throw new Error(reason);
+  }
+
   async function ensureDaemon(): Promise<DaemonInfo> {
     const current = await resolveHealthy();
     if (current) {
-      if (versionOk(current.health)) return toInfo(current);
+      if (versionOk(current.health)) return ready(current);
       // Healthy but wrong protocol → graceful shutdown for upgrade, then respawn.
       deps.logger?.warn(
         `remote-view: daemon protocol ${current.health.protocolVersion} != expected ` +
@@ -190,20 +220,17 @@ export function createDaemonManager(
     // Poll for a daemon that is healthy AND version-matched — never latch onto the
     // old daemon still gracefully exiting with the stale protocol (F001).
     const spawned = await pollUntilHealthy((h) => versionOk(h));
-    if (spawned) return toInfo(spawned);
+    if (spawned) return ready(spawned);
 
     // No version-matched daemon within the readiness window — diagnose why.
     const last = await resolveHealthy();
     if (last && !versionOk(last.health)) {
-      throw new Error(
-        `remote-view: streamd protocol ${last.health.protocolVersion} still != expected ` +
-          `${config.expectedProtocolVersion} after respawn — the installed bundle is stale. ` +
-          'Run `just streamd-install`.'
+      return down(
+        `remote-view: streamd protocol ${last.health.protocolVersion} still != expected ${config.expectedProtocolVersion} after respawn — the installed bundle is stale. Run \`just streamd-install\`.`
       );
     }
-    throw new Error(
-      `remote-view: streamd did not become healthy within ${timeoutMs}ms (registry ${registryPath}). ` +
-        'Check Screen Recording permission and that the bundle is installed (`just streamd-install`).'
+    return down(
+      `remote-view: streamd did not become healthy within ${timeoutMs}ms (registry ${registryPath}). Check Screen Recording permission and that the bundle is installed (\`just streamd-install\`).`
     );
   }
 

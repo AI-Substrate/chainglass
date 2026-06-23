@@ -729,7 +729,12 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
   // ADR-0004). Construction does no I/O — the daemon spawns lazily on the first
   // attach (Phase-6 live). The test container keeps the fake (below).
   childContainer.register<IRemoteViewService>(DI_TOKENS.REMOTE_VIEW_SERVICE, {
-    useFactory: () => createProductionRemoteViewService({ logger: console }),
+    useFactory: (c) =>
+      createProductionRemoteViewService({
+        logger: console,
+        // T006: the real adapter + daemon manager emit `remote-view` SSE envelopes.
+        notifier: c.resolve<ICentralEventNotifier>(WORKSPACE_DI_TOKENS.CENTRAL_EVENT_NOTIFIER),
+      }),
   });
   // Phase 5 (T004): daemon-control surface behind /windows + /health (real one-shot
   // `streamd --list-windows` + daemon /health proxy). Construction does no I/O.

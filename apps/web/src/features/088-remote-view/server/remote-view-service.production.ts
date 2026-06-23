@@ -15,12 +15,10 @@ import { join } from 'node:path';
 
 import { getBootstrapCodeAndKey } from '@/lib/bootstrap-code';
 import { findWorkspaceRoot } from '@chainglass/shared/auth-bootstrap-code';
+import type { ICentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events/central-event-notifier.interface';
 import { SignJWT } from 'jose';
 
-import {
-  type RemoteViewDaemonControl,
-  createRealDaemonControl,
-} from './daemon-control';
+import { type RemoteViewDaemonControl, createRealDaemonControl } from './daemon-control';
 import { type DaemonHealth, createDaemonManager } from './daemon-manager';
 import { REMOTE_VIEW_JWT_AUDIENCE, REMOTE_VIEW_JWT_ISSUER } from './remote-view-auth';
 import {
@@ -142,7 +140,8 @@ function runListWindowsOneShot(
  *  daemon spawns lazily on the first ensureDaemon). Shared by the session service + the control. */
 function buildProductionManager(
   config: ProductionDaemonConfig,
-  logger?: Pick<Console, 'info' | 'warn' | 'error'>
+  logger?: Pick<Console, 'info' | 'warn' | 'error'>,
+  notifier?: ICentralEventNotifier
 ): ReturnType<typeof createDaemonManager> {
   return createDaemonManager(
     {
@@ -168,6 +167,7 @@ function buildProductionManager(
       },
       sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
       now: () => Date.now(),
+      notifier,
       logger,
     }
   );
@@ -179,14 +179,21 @@ function buildProductionManager(
  * port) — Phase-6 live verification confirms the registry-filename match.
  */
 export function createProductionRemoteViewService(
-  opts: { logger?: Pick<Console, 'info' | 'warn' | 'error'> } = {}
+  opts: {
+    logger?: Pick<Console, 'info' | 'warn' | 'error'>;
+    /** Central notifier (T006) — drives the `remote-view` attached/detached/daemon-state SSE. */
+    notifier?: ICentralEventNotifier;
+  } = {}
 ): IRemoteViewService {
   const config = resolveProductionDaemonConfig();
-  const manager = buildProductionManager(config, opts.logger);
+  // Wire the notifier into the manager too, so daemon-state envelopes ride the same
+  // ensureDaemon the adapter calls (single emit source — the control's manager stays quiet).
+  const manager = buildProductionManager(config, opts.logger, opts.notifier);
   const sessions = createHttpDaemonSessionsClient({ mintToken: mintDaemonToken });
   return createRealRemoteViewService({
     ensureDaemon: manager.ensureDaemon,
     sessions,
+    notifier: opts.notifier,
     logger: opts.logger,
   });
 }

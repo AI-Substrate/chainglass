@@ -42,6 +42,7 @@ import { resolveSplitSession } from '@/features/064-terminal/lib/resolve-split-s
 import { sessionNameFromWorktreePath } from '@/features/064-terminal/lib/session-name-from-worktree-path';
 import { QuestionPopperIndicator } from '@/features/067-question-popper/components/question-popper-indicator';
 import { useNotesOverlay } from '@/features/071-file-notes/hooks/use-notes-overlay';
+import { useRemoteViewEvents } from '@/features/088-remote-view/hooks/use-remote-view-events';
 import { remoteViewParams } from '@/features/088-remote-view/params/remote-view.params';
 import type { RepoInfo as RepoInfoPayload } from '@/features/_platform/git';
 import {
@@ -162,6 +163,18 @@ function BrowserClientInner({
   initialEntries,
 }: BrowserClientProps) {
   const [params, setParams] = useQueryStates({ ...fileBrowserParams, ...remoteViewParams });
+
+  // T006 (AC-8 push half): when an agent attaches a window (via CLI/MCP/SDK), the
+  // `remote-view` SSE `attached` envelope pushes this open client onto the live
+  // session. A user-initiated attach is idempotent (already on view=remote with the
+  // same rv). `history:'push'` keeps a back-entry so the user can return.
+  useRemoteViewEvents({
+    onAttached: useCallback(
+      (sessionId: string) => setParams({ view: 'remote', rv: sessionId }, { history: 'push' }),
+      [setParams]
+    ),
+  });
+
   const explorerRef = useRef<ExplorerPanelHandle>(null);
   const [expandPaths, setExpandPaths] = useState<string[]>([]);
   const lastFileSelectionRef = useRef<{ filePath: string; at: number } | null>(null);

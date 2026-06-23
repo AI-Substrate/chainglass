@@ -11,6 +11,8 @@
  *
  * Plan 088 Phase 2 — T009.
  */
+import type { ICentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events/central-event-notifier.interface';
+import { WorkspaceDomain } from '@chainglass/shared/features/027-central-notify-events/workspace-domain';
 import { FAKE_WINDOW } from '../testing/fixtures';
 import type { DaemonInfo } from './daemon-manager';
 
@@ -125,6 +127,14 @@ export interface RealRemoteViewServiceDeps {
   ensureDaemon: () => Promise<DaemonInfo>;
   /** Daemon `/sessions` transport — HTTP in prod, a double in tests. */
   sessions: DaemonSessionsClient;
+  /**
+   * Central event notifier (T006) — emits `remote-view` `attached`/`detached`
+   * envelopes at the attach/detach seams so open clients can push their content
+   * area onto the live session (AC-8). OPTIONAL: the frozen contract suite + the
+   * T003 orchestration tests construct the adapter without one, so a missing
+   * notifier is a silent no-op (never a throw), exactly like `logger`.
+   */
+  notifier?: ICentralEventNotifier;
   logger?: Pick<Console, 'info' | 'warn' | 'error'>;
 }
 
@@ -167,7 +177,16 @@ export class RealRemoteViewService implements IRemoteViewService {
       if (s.windowId === windowId && id !== summary.sessionId) this.sessions.delete(id);
     }
     this.sessions.set(summary.sessionId, { ...summary });
-    // ← T006 seam: emit('remote-view','attached',summary). T007 seam: publish status.
+    // T006: push the attach onto the `remote-view` SSE channel — carries the full
+    // (small) SessionSummary so the client push can name the window (R4). T007 seam:
+    // publish status.
+    this.deps.notifier?.emit(WorkspaceDomain.RemoteView, 'attached', {
+      sessionId: summary.sessionId,
+      windowId: summary.windowId,
+      app: summary.app,
+      title: summary.title,
+      state: summary.state,
+    });
     return { ...summary };
   }
 
@@ -177,7 +196,9 @@ export class RealRemoteViewService implements IRemoteViewService {
     const { daemonPort } = await this.deps.ensureDaemon();
     await this.deps.sessions.remove(daemonPort, sessionId);
     s.state = 'closed';
-    // ← T006 seam: emit('remote-view','detached',{sessionId}). T007 seam: publish status:closed.
+    // T006: tell open clients the session is gone (minimal id payload per ADR-0007).
+    // T007 seam: publish status:closed.
+    this.deps.notifier?.emit(WorkspaceDomain.RemoteView, 'detached', { sessionId });
   }
 
   getSession(sessionId: string): SessionSummary | null {
