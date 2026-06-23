@@ -29,8 +29,8 @@ A **Docker sandbox** with seeded test data, browser automation, and structured C
 just harness-tools dev           # Boot container (~2 min cold boot)
 just harness-tools doctor --wait # Wait until healthy
 just wf-run <slug> --container   # Same shortcuts, targeting the container
-just harness-cg wf create test   # Ad-hoc CG CLI inside the container
-just harness-tools seed          # Seed test workspace + worktrees
+just harness-tools-cg wf create test   # Ad-hoc CG CLI inside the container
+just harness-tools seed                # Seed test workspace + worktrees
 ```
 
 ### When to Use Which
@@ -116,7 +116,7 @@ Check for console errors
 
 If you skip browser verification on UI work, visual regressions ship unnoticed.
 
-#### Compile-time verification: `just harness-verify <path>` (Plan 084 FX007)
+#### Compile-time verification: `just harness-tools-verify <path>` (Plan 084 FX007)
 
 `tsc --noEmit` and `pnpm vitest run` are insufficient gates. They are happy with code that the Turbopack dev bundler refuses — e.g., a barrel `index.ts` that value-re-exports a server-only module (`node:child_process`, `node:fs`, native bindings) into a client chunk. That class of bug only surfaces when an actual page loads.
 
@@ -128,7 +128,7 @@ After any task that touches:
 …run the recipe against the affected page:
 
 ```bash
-just harness-verify "/workspaces/<slug>/<page>"
+just harness-tools-verify "/workspaces/<slug>/<page>"
 ```
 
 The recipe HTTP-pings the page, captures console errors (filtered for HMR / favicon / GCM noise), and greps the dev-server's docker logs for Turbopack `⨯` markers within the recipe's window. Returns non-zero on failure, with the server-side error tail printed.
@@ -436,7 +436,7 @@ See `docs/how/dev/fast-feedback-loops.md` for the full testing strategy and feed
 
 The harness provides a Docker-containerized dev environment with browser automation. Each worktree gets unique ports derived from its name. See `docs/project-rules/harness.md` for full documentation and `harness/README.md` for architecture, troubleshooting, and the agent lifecycle guide.
 
-**Before using harness commands**, the container must be running. Start with `just harness dev` (2-3 min cold boot). If the container shows `(unhealthy)` in `docker ps`, stop and restart it: `just harness stop && just harness dev`. See `harness/README.md § Troubleshooting` for common issues (stale cache, hanging health checks, GH_TOKEN).
+**Before using harness-tools commands**, the container must be running. Start with `just harness-tools dev` (2-3 min cold boot). If the container shows `(unhealthy)` in `docker ps`, stop and restart it: `just harness-tools stop && just harness-tools dev`. See `harness/README.md § Troubleshooting` for common issues (stale cache, hanging health checks, GH_TOKEN). (`just harness <cmd>` still works as a back-compat alias; `harness-tools` is canonical — the bare `harness` command is the separate proof-loop CLI.)
 
 #### Harness Feedback Loop
 
@@ -506,27 +506,31 @@ Key rules (do not skip):
 Re-run `minih agent install /Users/jordanknight/substrate/minih/agents/code-review-companion` any time you edit the canonical source — minih tracks the local clone in `.minih-source.json` and upgrades in place.
 
 ```bash
+# NOTE: `harness-tools` is the OLD Docker toolset (canonical). `just harness <cmd>` still
+# works as a back-compat alias. The bare `harness` command is the separate AI-Substrate
+# proof-loop CLI (boot / backpressure / retro) — see .harness/engineering-harness.md.
+
 # Port allocation (unique per worktree)
-just harness ports          # Show this worktree's port allocation
+just harness-tools ports          # Show this worktree's port allocation
 
 # Diagnostics (start here when something's wrong)
-just harness doctor         # Run diagnostic checks with actionable fixes
-just harness doctor --wait  # Wait for harness to become healthy (cold boot ~2-3 min)
+just harness-tools doctor         # Run diagnostic checks with actionable fixes
+just harness-tools doctor --wait  # Wait for harness to become healthy (cold boot ~2-3 min)
 
 # Lifecycle
-just harness dev            # Start container (auto-computes ports)
-just harness stop           # Stop container
-just harness health         # Probe all endpoints (JSON)
-just harness build          # Rebuild Docker image
+just harness-tools dev            # Start container (auto-computes ports)
+just harness-tools stop           # Stop container
+just harness-tools health         # Probe all endpoints (JSON)
+just harness-tools build          # Rebuild Docker image
 
 # Testing & Evidence
-just harness test --suite smoke              # Run smoke tests
-just harness test --viewport mobile          # Test at mobile viewport
-just harness screenshot home                 # Capture screenshot via CDP
-just harness results                         # Read latest test results
+just harness-tools test --suite smoke        # Run smoke tests
+just harness-tools test --viewport mobile    # Test at mobile viewport
+just harness-tools screenshot home           # Capture screenshot via CDP
+just harness-tools results                   # Read latest test results
 
 # Seed Data
-just harness seed           # Create test workspace + worktrees
+just harness-tools seed           # Create test workspace + worktrees
 
 # Workflow Shortcuts (Plan 076 FX001)
 # Default: host dev server. Add --container for harness Docker.
@@ -543,9 +547,9 @@ just wf-reset --container                          # Clean + recreate test data 
 just preflight                                     # Check CLI fresh, dev server up, workspace OK
 
 # CG CLI Inside Container (for ad-hoc exploration beyond the shortcuts)
-just harness-cg wf create my-test                  # Create workflow inside container
-just harness-cg wf show my-test --detailed         # Per-node status (auto-adds --json)
-just harness-cg unit list                          # List work units inside container
+just harness-tools-cg wf create my-test            # Create workflow inside container
+just harness-tools-cg wf show my-test --detailed   # Per-node status (auto-adds --json)
+just harness-tools-cg unit list                    # List work units inside container
 
 # Agent Runner (minih)
 just agent-list                            # List available agents
@@ -587,7 +591,7 @@ just agent-resume <slug> "message"         # Follow up on a completed session
 
 # Code Review Agent — auto-run after /plan-6-v2-implement-phase
 just code-review-agent <file_path>         # Shorthand for code-review with GPT-5.4 xhigh, 20min timeout
-just harness-install        # Install harness node_modules
+just harness-tools-install  # Install harness node_modules
 ```
 
 ### pnpm Commands (Alternative)

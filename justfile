@@ -163,20 +163,24 @@ streamd-kill:
       echo "  kill \$(lsof -ti tcp:<port>)        # the daemon serving a known port"
     fi
 
-# Start harness dev container
-harness-dev:
+# Start harness dev container (harness-tools — OLD Docker toolset)
+alias harness-dev := harness-tools-dev
+harness-tools-dev:
     cd harness && just dev
 
-# Install standalone harness dependencies
-harness-install:
+# Install standalone harness dependencies (harness-tools — OLD Docker toolset)
+alias harness-install := harness-tools-install
+harness-tools-install:
     cd harness && just install
 
-# Type-check standalone harness sources
-harness-typecheck:
+# Type-check standalone harness sources (harness-tools — OLD Docker toolset)
+alias harness-typecheck := harness-tools-typecheck
+harness-tools-typecheck:
     cd harness && just typecheck
 
-# Stop harness container
-harness-stop:
+# Stop harness container (harness-tools — OLD Docker toolset)
+alias harness-stop := harness-tools-stop
+harness-tools-stop:
     cd harness && just stop
 
 # Kill Next.js cache and restart dev server
@@ -185,8 +189,9 @@ kill-cache:
     rm -rf apps/web/public/icons
     @echo "Next.js cache and generated icons cleared"
 
-# Show harness health
-harness-health:
+# Show harness health (harness-tools — OLD Docker toolset)
+alias harness-health := harness-tools-health
+harness-tools-health:
     cd harness && just health
 
 # Run the harness-tools CLI — the OLD Docker dev-container toolset (browser automation,
@@ -198,10 +203,27 @@ alias harness := harness-tools
 harness-tools *ARGS:
     cd harness && pnpm exec tsx src/cli/index.ts {{ARGS}}
 
+# The bare `harness` command is the AI-Substrate proof-loop CLI (.harness/engineering-harness.md);
+# fails if any un-namespaced `harness-<x>:` recipe reappears (back-compat ALIASES are fine — they
+# are `alias` lines, not recipe definitions).
+# Guard: OLD Docker toolset stays namespaced under `harness-tools` (SUPPLANT de-conflation, Plan 088)
+check-harness-deconflation:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    leaked=$(grep -nE '^harness-[a-z]' justfile | grep -vE ':harness-tools' || true)
+    if [ -n "$leaked" ]; then
+      echo "❌ de-conflation regressed — un-namespaced Docker recipe(s) found:"
+      echo "$leaked"
+      echo "→ rename to harness-tools-<x> and add: alias <old-name> := harness-tools-<x>"
+      exit 1
+    fi
+    echo "✓ harness ⇄ harness-tools de-conflated (Docker toolset fully namespaced)"
+
 # Run cg CLI commands inside the harness container (Plan 076)
 # Auto-adds --json, --workspace-path, and --server-url when --server is present.
 # Example: just harness-cg wf show test-workflow --detailed --server
-harness-cg *ARGS:
+alias harness-cg := harness-tools-cg
+harness-tools-cg *ARGS:
     cd harness && just cg {{ARGS}}
 
 # Verify a page renders cleanly in the harness — Plan 084 FX007 lesson.
@@ -219,7 +241,8 @@ harness-cg *ARGS:
 #
 # Example:
 #   just harness-verify "/workspaces/harness-test-workspace/browser"
-harness-verify path:
+alias harness-verify := harness-tools-verify
+harness-tools-verify path:
     #!/usr/bin/env bash
     set -euo pipefail
     START_ISO="$(date -u +%Y-%m-%dT%H:%M:%S)"
@@ -559,8 +582,9 @@ preflight:
         exit 1
     fi
 
-# Quick preflight: fail immediately if harness isn't running
-harness-require:
+# Quick preflight: fail immediately if harness isn't running (harness-tools — OLD Docker toolset)
+alias harness-require := harness-tools-require
+harness-tools-require:
     #!/usr/bin/env bash
     PORT=$(cd harness && pnpm exec tsx -e "import{computePorts}from'./src/ports/allocator.js';console.log(computePorts().app)" 2>/dev/null)
     if [ -z "$PORT" ]; then PORT=3181; fi
