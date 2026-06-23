@@ -42,6 +42,7 @@ import { resolveSplitSession } from '@/features/064-terminal/lib/resolve-split-s
 import { sessionNameFromWorktreePath } from '@/features/064-terminal/lib/session-name-from-worktree-path';
 import { QuestionPopperIndicator } from '@/features/067-question-popper/components/question-popper-indicator';
 import { useNotesOverlay } from '@/features/071-file-notes/hooks/use-notes-overlay';
+import { RemoteViewLaunchButton } from '@/features/088-remote-view/components/remote-view-launch-button';
 import { useRemoteViewEvents } from '@/features/088-remote-view/hooks/use-remote-view-events';
 import { remoteViewParams } from '@/features/088-remote-view/params/remote-view.params';
 import { attachRemoteViewWindow } from '@/features/088-remote-view/sdk/attach-remote-view-window';
@@ -1451,6 +1452,16 @@ function BrowserClientInner({
                 >
                   <History className="h-4 w-4" />
                 </button>
+                {/* Plan 088 T005: discoverable remote-view launch (DL-003). Mirrors the
+                    recent-feed button above; closes the terminal overlay (same panel) then
+                    opens the window picker via `view=remote`. The palette command
+                    (`remote-view.attach`) still reaches the same place. */}
+                <RemoteViewLaunchButton
+                  onLaunch={() => {
+                    window.dispatchEvent(new CustomEvent('terminal:close'));
+                    setParams({ view: 'remote', rv: null }, { history: 'push' });
+                  }}
+                />
                 {/* Plan 084 split-terminal-view T006: inline terminal toggle.
                     Lives in ExplorerPanel.rightActions, which is mobile-skipped
                     by the parent PanelShell branch — no extra gate needed. */}
