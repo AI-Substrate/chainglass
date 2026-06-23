@@ -12,6 +12,7 @@ import {
   authorizeUpgrade,
   buildDefaultAllowedOrigins,
   createTerminalServer,
+  mergeAllowedOrigins,
   parseAllowedOrigins,
   validateTerminalJwt,
 } from '@/features/064-terminal/server/terminal-ws';
@@ -634,6 +635,26 @@ describe('Terminal WebSocket Server', () => {
         expect(parseAllowedOrigins(undefined)).toBeNull();
         expect(parseAllowedOrigins('')).toBeNull();
         expect(parseAllowedOrigins('   ')).toBeNull();
+      });
+    });
+
+    describe('mergeAllowedOrigins', () => {
+      it('keeps the local/LAN defaults and ADDS env origins (does not replace)', () => {
+        // Why: setting TERMINAL_WS_ALLOWED_ORIGINS used to REPLACE the defaults,
+        // rejecting http://localhost:3000 the moment a tunnel origin was added.
+        // Merge must preserve localhost AND include the tunnel origin.
+        const defaults = buildDefaultAllowedOrigins('3000', false);
+        const merged = mergeAllowedOrigins(defaults, 'https://abc-3000.aue.devtunnels.ms');
+        expect(merged.has('http://localhost:3000')).toBe(true);
+        expect(merged.has('http://127.0.0.1:3000')).toBe(true);
+        expect(merged.has('https://abc-3000.aue.devtunnels.ms')).toBe(true);
+      });
+
+      it('returns just the defaults when env var is unset/blank', () => {
+        // Why: no env override → behavior is identical to the default allowlist.
+        const defaults = buildDefaultAllowedOrigins('3000', false);
+        expect(mergeAllowedOrigins(defaults, undefined)).toEqual(defaults);
+        expect(mergeAllowedOrigins(defaults, '   ')).toEqual(defaults);
       });
     });
 

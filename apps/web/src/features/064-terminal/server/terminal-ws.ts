@@ -26,6 +26,7 @@ import {
   buildDefaultAllowedOrigins,
   discoverNextPort,
   getLocalNetworkHosts,
+  mergeAllowedOrigins,
   parseAllowedOrigins,
   validateTerminalJwt,
 } from './terminal-auth';
@@ -49,6 +50,7 @@ export {
   buildDefaultAllowedOrigins,
   discoverNextPort,
   getLocalNetworkHosts,
+  mergeAllowedOrigins,
   parseAllowedOrigins,
   validateTerminalJwt,
 } from './terminal-auth';
@@ -412,14 +414,14 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
     // Plan 084 Phase 4 — Origin allowlist + signing key.
     // Allowlist precedence: TERMINAL_WS_ALLOWED_ORIGINS env (comma-separated)
     //   → fallback: localhost + 127.0.0.1 variants for the active Next port.
-    // Signing key: cached `activeSigningSecret(cwd)`; identical to the key
-    // used by `/api/terminal/token` to sign JWTs (cwd parity via FX003).
-    // Default allowlist enumerates every non-internal IPv4 interface for the
-    // active Next port, so LAN-IP browsing works without operator action.
+    // Origin allowlist = default local/LAN origins ALWAYS, merged with any
+    // operator additions from TERMINAL_WS_ALLOWED_ORIGINS (see mergeAllowedOrigins).
+    // This lets a dev-tunnel origin be added without rejecting localhost/LAN.
     // CSWSH is still gated by the JWT (no IP-based trust).
-    const allowedOrigins =
-      parseAllowedOrigins(process.env.TERMINAL_WS_ALLOWED_ORIGINS) ??
-      buildDefaultAllowedOrigins(discoverNextPort(cwd), httpsEnabled, getLocalNetworkHosts());
+    const allowedOrigins = mergeAllowedOrigins(
+      buildDefaultAllowedOrigins(discoverNextPort(cwd), httpsEnabled, getLocalNetworkHosts()),
+      process.env.TERMINAL_WS_ALLOWED_ORIGINS
+    );
     const signingKey = activeSigningSecret(cwd);
 
     wss.on('connection', async (ws: WebSocket, req) => {

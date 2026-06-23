@@ -110,6 +110,26 @@ export function parseAllowedOrigins(envValue: string | undefined): Set<string> |
 }
 
 /**
+ * Build the effective Origin allowlist = default local/LAN origins ALWAYS, plus
+ * any operator additions from `TERMINAL_WS_ALLOWED_ORIGINS` (merged, NOT
+ * replaced). Setting the env var used to replace the defaults, which rejected
+ * `http://localhost:3000` the moment a dev-tunnel origin was added. Merging lets
+ * you add a tunnel origin without breaking localhost/LAN access. CSWSH stays
+ * gated by the JWT, so widening the Origin set does not weaken the threat model.
+ */
+export function mergeAllowedOrigins(
+  defaults: ReadonlySet<string>,
+  envValue: string | undefined
+): Set<string> {
+  const merged = new Set<string>(defaults);
+  const extra = parseAllowedOrigins(envValue);
+  if (extra) {
+    for (const o of extra) merged.add(o);
+  }
+  return merged;
+}
+
+/**
  * Enumerate the host strings to include in the default Origin allowlist.
  *
  * Always includes `localhost` and `127.0.0.1`. When the sidecar runs in a
