@@ -77,7 +77,7 @@ Mode: Full · Companion: `code-review-companion` (run `…-34f7`)
 
 **Verification:** biome clean; `just typecheck` no new errors (same 3 pre-existing files). The Caddy reverse-proxy recipe + the live HTTPS frame are owned by T010 (docs) / T009 (live sweep). No Next route, no new sidecar — the frozen loopback daemon contract is untouched.
 
-**Status:** code-complete. Committed `3bddc5a0e` (companion review pending).
+**Status:** code-complete. Committed `3bddc5a0e`. **Companion: APPROVE_WITH_NOTES** (0 HIGH/CRITICAL) — core code correct (HTTPS never `ws://`, same-origin, daemon untouched, env-inherit sound). **F001 (MEDIUM):** the hook appends `/stream` → `wss://host/remote-view-ws/stream`, but the daemon upgrades only **exact** `/stream`; my Caddy example `reverse_proxy /remote-view-ws/*` forwards the URI unstripped → daemon 404. **Resolved:** corrected the recipe to `handle_path /remote-view-ws/* { reverse_proxy 127.0.0.1:<port> }` (strips the prefix → daemon sees `/stream`) in `stream-url.ts` + pinned the contract with a `stream-url.test.ts` assertion (browser `/remote-view-ws/stream` → daemon `/stream`). The strip requirement carries into the T010 Caddy recipe.
 
 ---
 

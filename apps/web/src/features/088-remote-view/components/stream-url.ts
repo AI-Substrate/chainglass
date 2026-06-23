@@ -16,9 +16,19 @@
  * The session hook appends `/stream?session=…&token=…`, so this returns the BASE (no `/stream`).
  */
 
-/** Same-origin path a reverse proxy maps to the loopback daemon (Caddy: `reverse_proxy
- *  /remote-view-ws/* 127.0.0.1:<daemonPort>`). Distinct from the Next `/api/remote-view/*` routes
- *  so the proxy can route it to the daemon without shadowing the real token/sessions/health routes. */
+/**
+ * Same-origin path a reverse proxy maps to the loopback daemon. The session hook appends `/stream`,
+ * so the browser opens `wss://host/remote-view-ws/stream` — but the daemon upgrades ONLY the exact
+ * path `/stream` (`native/streamd/.../WSServer.swift`), so the proxy MUST **strip this prefix**
+ * before forwarding. In Caddy use `handle_path` (which strips the matched prefix), NOT a bare
+ * `reverse_proxy /remote-view-ws/*` (which forwards the URI unstripped → daemon 404s):
+ *
+ *     handle_path /remote-view-ws/* {
+ *         reverse_proxy 127.0.0.1:<daemonPort>      # daemon then sees GET /stream
+ *     }
+ *
+ * Distinct from the Next `/api/remote-view/*` routes so the proxy never shadows token/sessions/health.
+ */
 export const REMOTE_VIEW_WSS_PROXY_PATH = '/remote-view-ws';
 
 export function buildStreamUrl(env: {

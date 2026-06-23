@@ -41,4 +41,16 @@ describe('buildStreamUrl', () => {
   it('the proxy path is distinct from the Next /api/remote-view/* routes (no shadowing)', () => {
     expect(REMOTE_VIEW_WSS_PROXY_PATH.startsWith('/api/remote-view')).toBe(false);
   });
+
+  it('hook-appended HTTPS path is /remote-view-ws/stream; the proxy MUST strip → daemon /stream', () => {
+    // companion F001 (T003): the session hook appends `/stream` to the base, and the daemon upgrades
+    // ONLY exact `/stream`. This pins the browser-side path AND the strip contract so the Caddy
+    // recipe (handle_path, which strips) can't drift out of sync and silently 404 the live sweep.
+    const base = buildStreamUrl({ protocol: 'https:', host: 'remote.jordo.xyz' });
+    expect(`${base}/stream`).toBe('wss://remote.jordo.xyz/remote-view-ws/stream');
+    // After the proxy strips REMOTE_VIEW_WSS_PROXY_PATH, the daemon must receive exactly `/stream`:
+    expect(`${REMOTE_VIEW_WSS_PROXY_PATH}/stream`.slice(REMOTE_VIEW_WSS_PROXY_PATH.length)).toBe(
+      '/stream'
+    );
+  });
 });
