@@ -142,7 +142,16 @@ import {
   FakeRemoteViewService,
   type IRemoteViewService,
 } from '../features/088-remote-view/server/remote-view-service';
-import { createProductionRemoteViewService } from '../features/088-remote-view/server/remote-view-service.production';
+// Plan 088 Phase 5 (T004): daemon-control surface behind /windows + /health
+import {
+  REMOTE_VIEW_DAEMON_CONTROL_TOKEN,
+  type RemoteViewDaemonControl,
+  createFakeDaemonControl,
+} from '../features/088-remote-view/server/daemon-control';
+import {
+  createProductionDaemonControl,
+  createProductionRemoteViewService,
+} from '../features/088-remote-view/server/remote-view-service.production';
 import { SampleService } from '../services/sample.service';
 import { sseManager } from './sse-manager';
 // Plan 059: WorkUnitStateService (real implementation)
@@ -720,6 +729,11 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
   childContainer.register<IRemoteViewService>(DI_TOKENS.REMOTE_VIEW_SERVICE, {
     useFactory: () => createProductionRemoteViewService({ logger: console }),
   });
+  // Phase 5 (T004): daemon-control surface behind /windows + /health (real one-shot
+  // `streamd --list-windows` + daemon /health proxy). Construction does no I/O.
+  childContainer.register<RemoteViewDaemonControl>(REMOTE_VIEW_DAEMON_CONTROL_TOKEN, {
+    useFactory: () => createProductionDaemonControl({ logger: console }),
+  });
 
   // FIX-010: Performance metrics for container creation
   const durationMs = performance.now() - startTime;
@@ -953,6 +967,10 @@ export function createTestContainer(): DependencyContainer {
   // ==================== Plan 088: Remote View Service (Fake) ====================
   childContainer.register<IRemoteViewService>(DI_TOKENS.REMOTE_VIEW_SERVICE, {
     useFactory: () => new FakeRemoteViewService(),
+  });
+  // Phase 5 (T004): daemon-control fake — deterministic catalog + healthy verdict, no daemon.
+  childContainer.register<RemoteViewDaemonControl>(REMOTE_VIEW_DAEMON_CONTROL_TOKEN, {
+    useFactory: () => createFakeDaemonControl(),
   });
 
   return childContainer;

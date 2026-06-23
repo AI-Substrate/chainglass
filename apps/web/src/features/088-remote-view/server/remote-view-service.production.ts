@@ -9,7 +9,7 @@
  * the first `attach()`. The live spawn/proxy path is verified in Phase 6, and the
  * route integration that calls `ensureDaemon` lands in T004.
  */
-import { spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -17,6 +17,10 @@ import { getBootstrapCodeAndKey } from '@/lib/bootstrap-code';
 import { findWorkspaceRoot } from '@chainglass/shared/auth-bootstrap-code';
 import { SignJWT } from 'jose';
 
+import {
+  type RemoteViewDaemonControl,
+  createRealDaemonControl,
+} from './daemon-control';
 import { type DaemonHealth, createDaemonManager } from './daemon-manager';
 import { REMOTE_VIEW_JWT_AUDIENCE, REMOTE_VIEW_JWT_ISSUER } from './remote-view-auth';
 import {
@@ -98,40 +102,63 @@ export function resolveProductionDaemonConfig(
   };
 }
 
-/**
- * Build the production daemon-backed RemoteViewService. Called by the prod DI
- * factory (di-container). The web port defaults to `process.env.PORT` (Next's own
- * port) — Phase-6 live verification confirms the registry-filename match.
- */
-export function createProductionRemoteViewService(
-  opts: { logger?: Pick<Console, 'info' | 'warn' | 'error'> } = {}
-): IRemoteViewService {
-  const { webPort, workspaceRoot, innerBinaryPath, bootstrapPath, daemonPortOverride } =
-    resolveProductionDaemonConfig();
+/** `GET /health` on the daemon (loopback); null when unreachable. Shared by the manager's
+ *  readiness handshake and the `/health` route's verdict read. */
+async function fetchDaemonHealth(daemonPort: number): Promise<DaemonHealth | null> {
+  try {
+    const res = await fetch(`http://127.0.0.1:${daemonPort}/health`);
+    if (!res.ok) return null;
+    return (await res.json()) as DaemonHealth;
+  } catch {
+    return null;
+  }
+}
 
-  const manager = createDaemonManager(
-    {
-      webPort,
-      workspaceRoot,
+/**
+ * Run the signed bundle's inner binary one-shot in `--list-windows` mode → its stdout + exit
+ * code (T004 catalog source). TCC grants key on the bundle identity, so this one-shot inherits
+ * the Screen-Recording grant exactly like the detached streaming spawn (spike §1.5b). Exit 3 =
+ * missing grant (the control maps it to E_PERMISSION); a spawn failure (e.g. ENOENT) surfaces as
+ * a non-numeric `code` → reported as 127.
+ */
+function runListWindowsOneShot(
+  innerBinaryPath: string
+): Promise<{ stdout: string; exitCode: number }> {
+  return new Promise((resolve) => {
+    execFile(
       innerBinaryPath,
-      bootstrapPath,
+      ['--list-windows'],
+      { timeout: 15_000, maxBuffer: 8 * 1024 * 1024 },
+      (err, stdout) => {
+        const code = (err as { code?: number | string } | null)?.code;
+        const exitCode = typeof code === 'number' ? code : err ? 127 : 0;
+        resolve({ stdout: stdout ?? '', exitCode });
+      }
+    );
+  });
+}
+
+/** Construct the production daemon manager from resolved config (no I/O at construction — the
+ *  daemon spawns lazily on the first ensureDaemon). Shared by the session service + the control. */
+function buildProductionManager(
+  config: ProductionDaemonConfig,
+  logger?: Pick<Console, 'info' | 'warn' | 'error'>
+): ReturnType<typeof createDaemonManager> {
+  return createDaemonManager(
+    {
+      webPort: config.webPort,
+      workspaceRoot: config.workspaceRoot,
+      innerBinaryPath: config.innerBinaryPath,
+      bootstrapPath: config.bootstrapPath,
       expectedProtocolVersion: PROTOCOL_VERSION,
-      daemonPortOverride,
+      daemonPortOverride: config.daemonPortOverride,
     },
     {
       spawnDaemon: (binaryPath, args) => {
         const child = spawn(binaryPath, args, { detached: true, stdio: 'ignore' });
         child.unref();
       },
-      fetchHealth: async (daemonPort): Promise<DaemonHealth | null> => {
-        try {
-          const res = await fetch(`http://127.0.0.1:${daemonPort}/health`);
-          if (!res.ok) return null;
-          return (await res.json()) as DaemonHealth;
-        } catch {
-          return null;
-        }
-      },
+      fetchHealth: fetchDaemonHealth,
       shutdownDaemon: async (daemonPort) => {
         try {
           await fetch(`http://127.0.0.1:${daemonPort}/shutdown`, { method: 'POST' });
@@ -141,14 +168,43 @@ export function createProductionRemoteViewService(
       },
       sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
       now: () => Date.now(),
-      logger: opts.logger,
+      logger,
     }
   );
+}
 
+/**
+ * Build the production daemon-backed RemoteViewService. Called by the prod DI
+ * factory (di-container). The web port defaults to `process.env.PORT` (Next's own
+ * port) — Phase-6 live verification confirms the registry-filename match.
+ */
+export function createProductionRemoteViewService(
+  opts: { logger?: Pick<Console, 'info' | 'warn' | 'error'> } = {}
+): IRemoteViewService {
+  const config = resolveProductionDaemonConfig();
+  const manager = buildProductionManager(config, opts.logger);
   const sessions = createHttpDaemonSessionsClient({ mintToken: mintDaemonToken });
   return createRealRemoteViewService({
     ensureDaemon: manager.ensureDaemon,
     sessions,
+    logger: opts.logger,
+  });
+}
+
+/**
+ * Build the production daemon-control surface (the `/windows` + `/health` route deps, T004).
+ * Reuses the same resolved config + manager as the session service; `listWindows` shells the
+ * signed bundle one-shot, `health` runs the manager handshake then reads the daemon verdict.
+ */
+export function createProductionDaemonControl(
+  opts: { logger?: Pick<Console, 'info' | 'warn' | 'error'> } = {}
+): RemoteViewDaemonControl {
+  const config = resolveProductionDaemonConfig();
+  const manager = buildProductionManager(config, opts.logger);
+  return createRealDaemonControl({
+    ensureDaemon: manager.ensureDaemon,
+    runWindowList: () => runListWindowsOneShot(config.innerBinaryPath),
+    fetchHealth: fetchDaemonHealth,
     logger: opts.logger,
   });
 }

@@ -11,6 +11,15 @@ import CoreGraphics
 let env = ProcessInfo.processInfo.environment
 let argv = Array(CommandLine.arguments.dropFirst())
 
+// `--list-windows` (Plan 088 Phase 5, T004): one-shot host-window catalog for the web picker,
+// then exit. Handled BEFORE config parse — this mode ignores --port/--registry/--bootstrap and
+// never starts the server. The web `/windows` route spawns the bundle this way and parses the
+// JSON catalog on stdout. Requires CoreGraphics init (SCK) just like the capture path.
+if argv.contains("--list-windows") {
+    CoreGraphicsInit.ensure()
+    WindowList.runAndExit()
+}
+
 let config: DaemonConfig
 do {
     config = try DaemonConfig.parse(argv, env: env)
