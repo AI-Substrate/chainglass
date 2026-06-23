@@ -116,18 +116,35 @@ tunnel:
     fi
     # Re-assert owner-only access on every run (strip any stray anonymous rule).
     devtunnel access reset "$TUNNEL_ID" >/dev/null 2>&1 || true
+    # App ports (http) — browser + terminal WS.
     for p in "$NEXT_PORT" "$WS_PORT"; do
       if ! devtunnel port show "$TUNNEL_ID" -p "$p" >/dev/null 2>&1; then
         echo "Adding port $p..."
         devtunnel port create "$TUNNEL_ID" -p "$p" --protocol http
       fi
     done
-    echo "Hosting tunnel '$TUNNEL_ID' (web $NEXT_PORT + terminal $WS_PORT). Ctrl-C to stop."
+    # SSH port (22, auto) — optional shell access over the tunnel. Ensure the SSH
+    # server is up so `ssh` to the forwarded port actually lands somewhere.
+    if ! devtunnel port show "$TUNNEL_ID" -p 22 >/dev/null 2>&1; then
+      echo "Adding port 22 (ssh)..."
+      devtunnel port create "$TUNNEL_ID" -p 22 || true
+    fi
+    if ! dpkg -s openssh-server >/dev/null 2>&1; then
+      echo "Installing openssh-server for shell access (sudo)..."
+      sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq openssh-server || true
+    fi
+    sudo systemctl enable --now ssh >/dev/null 2>&1 || true
+    sudo systemctl start ssh.socket >/dev/null 2>&1 || true
+    echo "Hosting tunnel '$TUNNEL_ID' (web $NEXT_PORT + terminal $WS_PORT + ssh 22). Ctrl-C to stop."
     echo ""
-    echo "▶ RECOMMENDED — on the Mac, forward the ports to localhost (cleanest, no app config):"
+    echo "▶ RECOMMENDED — on the Mac, pull ALL tunnel ports down to localhost:"
+    echo "    devtunnel user login        # once, opens a browser (sign in as the tunnel owner)"
     echo "    devtunnel connect $TUNNEL_ID"
-    echo "  then open http://localhost:$NEXT_PORT — terminal + Server Actions just work,"
-    echo "  because the Mac sees plain localhost (no env vars needed)."
+    echo "  This forwards the tunnel's ports to the Mac's localhost (it prints the"
+    echo "  local addresses). Then, in another Mac terminal:"
+    echo "    • open http://localhost:$NEXT_PORT      → the app (terminal + Server Actions just work)"
+    echo "    • ssh $(whoami)@localhost                 → a shell on this host (uses the forwarded :22)"
+    echo "  No ssh -L needed — 'devtunnel connect' already did the port forwarding."
     echo ""
     echo "▶ ALT — open the public URL directly (needs the NEXT_PUBLIC_TERMINAL_WS_URL +"
     echo "  TERMINAL_WS_ALLOWED_ORIGINS vars in .env.local; see the comment above this recipe):"
