@@ -154,9 +154,10 @@ entries:
       Companion-prompt state vocabulary drift RECURS across two consecutive code-review-companion runs (…-81f7 and …-368b, both MH-001): the prompt instructs states like reading/reporting/stopping, but the live minih coordination schema only accepts idle/in-progress/paused/reviewing/complete/error — the first state_transition fails until the agent inspects coordination_status. A recurring, deterministic mismatch is worth encoding: align the companion agent prompt's state vocabulary to the live schema (or have minih auto-map prompt states), so each run doesn't rediscover it at runtime.
     target: "code-review-companion agent prompt / minih coordination schema"
     severity: degrading
+    resolved_by: "https://github.com/AI-Substrate/minih/issues/63"
     system:
       compound:
-        status: open
+        status: escalated
         source: agent-self
         first_seen_at: "2026-06-23T08:40:33.796Z"
 ---
