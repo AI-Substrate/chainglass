@@ -47,6 +47,8 @@ The sidecar watches for file changes and auto-restarts via `tsx watch`.
 | `PORT` | 3000 | Next.js port. WS port derives from this |
 | `TERMINAL_WS_PORT` | PORT + 1500 | Override WS port explicitly |
 | `TERMINAL_WS_HOST` | 127.0.0.1 | Bind address. Justfile sets `0.0.0.0` for remote |
+| `NEXT_PUBLIC_TERMINAL_WS_URL` | _(derived)_ | Client override for the WS URL. Set for dev tunnels / Codespaces where the sidecar lives on its own subdomain (see below) |
+| `TERMINAL_WS_ALLOWED_ORIGINS` | local + LAN | Comma-separated exact origins allowed to open the WS. Add the tunnel page origin here |
 
 ### How it works
 
@@ -112,6 +114,41 @@ Open `https://192.168.1.32:3002` in Safari or Edge on your iPad.
 | `http://192.168.1.32:3002` | ❌ Not available | Modal with selectable text |
 
 The copy button uses a **deferred ClipboardItem Promise** pattern — `clipboard.write()` is called during the click gesture (preserving user activation), and the data promise resolves when the WebSocket response arrives from `tmux show-buffer`.
+
+## Remote Access (VS Code Dev Tunnels / Codespaces)
+
+Dev tunnels forward each port to its **own subdomain** (e.g. the web app at
+`https://<id>-3000.<region>.devtunnels.ms` and the terminal sidecar at
+`https://<id>-4500.<region>.devtunnels.ms`). The client's default WS-URL maths
+(`location.host` + `port + 1500`) can't reach a separate subdomain, so the
+terminal won't connect unless you point it at the sidecar's tunnel URL.
+
+**Setup** (forward BOTH ports, then set two env vars):
+
+1. Forward both the web and terminal ports through the tunnel:
+   ```bash
+   devtunnel host <tunnel-id> -p 3000 -p 4500
+   ```
+
+2. In `apps/web/.env.local`, point the client at the sidecar's tunnel URL and
+   allow the page origin on the WS sidecar, then restart `just dev`:
+   ```bash
+   # Where the browser should open the terminal WebSocket (the 4500 subdomain)
+   NEXT_PUBLIC_TERMINAL_WS_URL=wss://<id>-4500.<region>.devtunnels.ms/terminal
+   # The page origin the WS sidecar must accept (the 3000 subdomain)
+   TERMINAL_WS_ALLOWED_ORIGINS=https://<id>-3000.<region>.devtunnels.ms
+   ```
+
+3. **Authenticate the tunnel in the browser.** For an owner-only tunnel (no
+   `--allow-anonymous`), visit the **4500** URL once
+   (`https://<id>-4500.<region>.devtunnels.ms`) and sign in. You'll see
+   `Upgrade Required` (HTTP 426) — that's expected: a plain GET hit the
+   WebSocket server, which only speaks the WS upgrade handshake. The visit's
+   purpose is to set the tunnel's auth cookie for that subdomain so the
+   subsequent WebSocket connection from the page is authorized.
+
+> The `NEXT_PUBLIC_` prefix means the override is inlined into the client bundle
+> at compile time — change it and **restart** the dev server.
 
 ## Troubleshooting
 

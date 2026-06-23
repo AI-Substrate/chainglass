@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { resolveTerminalWsBaseUrl } from '../lib/resolve-terminal-ws-url';
 import type { ConnectionStatus } from '../types';
 
 /** Known control message types from the sidecar server (DYK-02 whitelist) */
@@ -93,10 +94,12 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
       wsRef.current = null;
     }
 
-    const port = Number(window.location.port || '3000') + 1500;
-    const host = window.location.hostname;
-    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    let url = `${protocol}://${host}:${port}/terminal?session=${encodeURIComponent(currentSession)}&cwd=${encodeURIComponent(currentCwd)}`;
+    // Terminal WS URL resolution. Default derives `wss://<host>:<port+1500>`
+    // from the page; NEXT_PUBLIC_TERMINAL_WS_URL overrides for dev tunnels /
+    // Codespaces where each port lives on its own subdomain. See
+    // resolveTerminalWsBaseUrl for the full rationale.
+    const base = resolveTerminalWsBaseUrl(window.location);
+    let url = `${base}/terminal?session=${encodeURIComponent(currentSession)}&cwd=${encodeURIComponent(currentCwd)}`;
     // Append auth token if available (fetched by effect before connect)
     if (tokenRef.current) {
       url += `&token=${encodeURIComponent(tokenRef.current)}`;
