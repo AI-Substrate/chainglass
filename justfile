@@ -135,16 +135,32 @@ tunnel:
     fi
     sudo systemctl enable --now ssh >/dev/null 2>&1 || true
     sudo systemctl start ssh.socket >/dev/null 2>&1 || true
+    # Client-side local ports. Default to PORT+1 so they don't clash with a
+    # chainglass already running on the Mac at 3000. The terminal WS port MUST be
+    # CLIENT_PORT+1500 (the client derives ws://localhost:<page-port+1500>), so a
+    # client page on 3001 looks for 4501 — we forward that to the host's 4500.
+    CLIENT_PORT=${CLIENT_PORT:-$((NEXT_PORT + 1))}
+    CLIENT_WS_PORT=$((CLIENT_PORT + 1500))
+    USER_NAME=$(whoami)
     echo "Hosting tunnel '$TUNNEL_ID' (web $NEXT_PORT + terminal $WS_PORT + ssh 22). Ctrl-C to stop."
     echo ""
-    echo "▶ RECOMMENDED — on the Mac, pull ALL tunnel ports down to localhost:"
-    echo "    devtunnel user login        # once, opens a browser (sign in as the tunnel owner)"
-    echo "    devtunnel connect $TUNNEL_ID"
-    echo "  This forwards the tunnel's ports to the Mac's localhost (it prints the"
-    echo "  local addresses). Then, in another Mac terminal:"
-    echo "    • open http://localhost:$NEXT_PORT      → the app (terminal + Server Actions just work)"
-    echo "    • ssh $(whoami)@localhost                 → a shell on this host (uses the forwarded :22)"
-    echo "  No ssh -L needed — 'devtunnel connect' already did the port forwarding."
+    echo "▶ ON THE MAC (run once to authenticate, then two terminals):"
+    echo "    devtunnel user login              # opens a browser; sign in as the tunnel owner"
+    echo ""
+    echo "  Terminal A — pull port 22 down so you can SSH through the tunnel:"
+    echo "    devtunnel connect $TUNNEL_ID      # forwards the tunnel ports to Mac localhost (keep running)"
+    echo ""
+    echo "  Terminal B — SSH in and map the app to NON-conflicting local ports"
+    echo "  ($CLIENT_PORT/$CLIENT_WS_PORT, so your local :$NEXT_PORT chainglass is untouched):"
+    echo "    ssh -L $CLIENT_PORT:localhost:$NEXT_PORT -L $CLIENT_WS_PORT:localhost:$WS_PORT $USER_NAME@localhost"
+    echo ""
+    echo "  Then open  http://localhost:$CLIENT_PORT  on the Mac."
+    echo "  Terminal + Server Actions just work (Host==Origin==localhost:$CLIENT_PORT, and the"
+    echo "  terminal derives ws://localhost:$CLIENT_WS_PORT → forwarded to the host's $WS_PORT)."
+    echo "  No .env changes needed on this host."
+    echo ""
+    echo "  Note: 'devtunnel connect' maps remote :22 to a local port — if it isn't 22,"
+    echo "  read its output and add '-p <that-port>' to the ssh command above."
     echo ""
     echo "▶ ALT — open the public URL directly (needs the NEXT_PUBLIC_TERMINAL_WS_URL +"
     echo "  TERMINAL_WS_ALLOWED_ORIGINS vars in .env.local; see the comment above this recipe):"
