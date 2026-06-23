@@ -130,3 +130,24 @@ Three reconciliations across the two browser-picker routes.
 **Verification:** biome clean; `just typecheck` — no new errors (same pre-existing DL-006 set). Live auth-gate behaviour with `DISABLE_AUTH` off + the real `E_BUNDLE_MISSING` path (uninstall the bundle → 503 on both) are recorded in the T009 sweep.
 
 **Status:** code-complete. Committed `3f38ce12a`. **Companion (run …-0ccc): APPROVE** (0 findings) — "both gate through `requireRemoteViewSession()` before container resolution, no `NextRequest`/`next/headers`/local-auth path for those routes, null-session test proves 401 before daemon work … bundle fail-fast is guarded before `runWindowList()`, `ensureDaemon()`, and `daemonPort()` … the per-container memo closes the `/health`↔`/windows` same-control gap without global leakage." **Noted caveat (accepted residual):** the zero-arg structural assertion is not a *universal* future-proof — a future edit could read headers via `next/headers` `headers()` without a `req` param. It is sufficient for *this* change (the routes have no local-auth import and gate session-only); a deeper guard would be an architecture test asserting `/health`+`/windows` never import `requireRemoteViewAccess`/`headers` — deferred to T011 if pursued.
+
+---
+
+## T004 — Permissions UX (AC-14, plan 6.1)
+
+**The gap:** a missing macOS TCC grant surfaced as a *silent black frame* or an opaque failure — the daemon's `/health.permissions` state and the WS `E_PERMISSION` close were never turned into an in-app fix path (the "no silent failure" requirement of AC-14). AC-14 is split: **T004 = the in-app UX** (this), **T010 = the how-to docs** the fix-path links point at.
+
+**What changed**
+
+- New `components/permissions-ux.ts` — **pure, jsdom-free** mapping (the `viewport-support.ts` pattern): `missingGrants(permissions)` returns the named grants the host Mac still owes, where **both `denied` AND `not-determined`** count as missing (a regression treating not-determined as "fine" would black-frame). `SETTINGS_URL` deep-links each grant to its exact System Settings → Privacy & Security pane via the macOS `x-apple.systempreferences:` scheme (`Privacy_ScreenCapture` / `Privacy_Accessibility`).
+- New `components/permission-preflight-card.tsx` — presentational `PermissionPreflightCard`: renders **nothing** on the happy path (no nagging), else a named card per missing grant (label + why + a one-click "Open System Settings" deep-link) + a **Re-check** button so re-granting recovers without a reload.
+- New `hooks/use-remote-view-health.ts` — `useRemoteViewHealth` reads `GET /api/remote-view/health` for the grant state while the picker is shown. **Permission-only + non-blocking**: a health failure leaves `permissions` null (the picker still loads), mirrors the `useRemoteViewWindows` fetch shape.
+- `components/remote-view-panel.tsx` — wires the hook (enabled in picker mode) and renders the card **above** the picker; Re-check refreshes both health and the window list.
+- `components/viewport.tsx` — the `E_PERMISSION` error card gains a one-click **Open Screen Recording settings** deep-link (the daemon's E_PERMISSION close = the capture grant), using the shared `SETTINGS_URL`.
+- `apps/cli/.../remote-view.command.ts` — new pure `formatRemoteViewError(status, body)` maps the route's named code → an actionable message: **E_PERMISSION** names Screen Recording + Accessibility + the System-Settings path + `docs/how/remote-view.md`; **E_BUNDLE_MISSING** prescribes `just streamd-install`; an unnamed failure still reports the HTTP status (no silent swallow). Wired into `createRemoteViewRequest`'s `!res.ok` branch (which previously discarded the route body).
+
+**Tests** — `permissions-ux.test.ts` (5: granted→[], denied/not-determined→named entry with the right deep-link, stable order, distinct panes); `permission-preflight-card.test.tsx` (3: renders nothing when empty, names each grant + correct href, fires Re-check once); `use-remote-view-health.test.tsx` (3: reads `/health` + surfaces grants when enabled, never fetches when disabled, non-blocking on failure); CLI `remote-view-command.test.ts` (+3: the three `formatRemoteViewError` branches); `remote-view-panel.test.tsx` (+ health-hook mock so the keystone url-composition assertions stay network-free). **Full 088 + CLI suite 208/208 (33 files).**
+
+**Verification:** biome clean; `tsc` — no new errors on any touched file (same pre-existing DL-006 set elsewhere). The viewport `E_PERMISSION` deep-link render + the live revoke→card→re-grant→recover round-trip are owned by the T009 live sweep (the viewport itself is jsdom-untestable — WebCodecs); the pure helper + card + hook + CLI formatter unit-tests backstop the contract on this side.
+
+**Status:** code-complete. Committed `1c5a38b93`. **Companion (run …-p6batch): review requested** — see verdict appended below.
