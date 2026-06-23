@@ -228,3 +228,13 @@ Three reconciliations across the two browser-picker routes.
 **To complete the live rows** (host-Mac session, authenticated browser): start `just dev`, ensure `just streamd-install` is current, open `http://localhost:3000`, and walk the sheet — recording each measured value + PASS/FAIL here. Any AC-2 miss: apply the Workshop-003 knob (frame-request rate first, then encode bitrate). **NOTE:** the `list`-shows-session live confirm (DL-008 fix) rides along — after this server restart the running web server will hold the post-fix DI container, so `cg remote-view list` will show a browser-attached session.
 
 **Status:** headless-measurable rows recorded (AC-11 snapshot PASS; AC-8/daemon substrate green); the visual/measured rows are **PENDING the host-Mac live session** — the one genuinely un-headless-able part of Phase 6. Not code-blocking: T001–T008, T010, T011 are complete + green.
+
+---
+
+## Companion verdicts — T007 + T011 (run …-4b08)
+
+**T007 + F001 → APPROVE** (0 findings). The companion confirmed: the per-container service memo closes the DL-008 `list`-always-empty gap without a global leak (distinct containers stay isolated), sharing one service instance across requests is correct (the session `Map` is the intended source of truth, synced by attach/detach), and the `reqSeqRef` latest-wins guard + the unmount bump fully close the F001 stale-overwrite race.
+
+**T011 → APPROVE_WITH_NOTES** (0 CRITICAL / 0 HIGH / 0 MEDIUM / 1 LOW). Confirmed the 5 typecheck fixes weaken nothing: `Partial<NodeJS.ProcessEnv>` matches the fields actually read; the fetch-spy still asserts method + JSON body; the commander import from the CLI's own dependency is the right call for the monorepo type-identity mismatch; `.minih` belongs in the runtime ignore set alongside `.chainglass`/`.harness`/`agents/*/runs/**`; the arch guard correctly skips `requireRemoteViewSession` while catching `requireRemoteViewAccess`. **F002 (LOW) — the `next/headers` regex only caught static imports** (narrower than the guard's prose). **Fixed** (`0acb43925`): broadened to `/['"]next\/headers['"]/` so a dynamic `import()`/`require()` can't false-pass; whole-word `requireRemoteViewAccess` kept.
+
+**Phase-6 companion tally:** every code task live-reviewed; verdicts T001/T002/T003/T005/T006/T008 APPROVE, T004 APPROVE_WITH_NOTES (F001 fixed), T007 APPROVE, T011 APPROVE_WITH_NOTES (F002 fixed). 2 real findings caught + fixed (F001 fetch-race, F002 guard-narrowness); 1 real defect caught by the live dogfood smoke (DL-008 service-transient).
