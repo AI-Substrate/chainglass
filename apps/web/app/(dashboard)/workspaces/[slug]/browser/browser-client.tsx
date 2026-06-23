@@ -44,6 +44,7 @@ import { QuestionPopperIndicator } from '@/features/067-question-popper/componen
 import { useNotesOverlay } from '@/features/071-file-notes/hooks/use-notes-overlay';
 import { useRemoteViewEvents } from '@/features/088-remote-view/hooks/use-remote-view-events';
 import { remoteViewParams } from '@/features/088-remote-view/params/remote-view.params';
+import { remoteViewContribution } from '@/features/088-remote-view/sdk/contribution';
 import type { RepoInfo as RepoInfoPayload } from '@/features/_platform/git';
 import {
   type BarContext,
@@ -943,12 +944,38 @@ function BrowserClientInner({
         })
       : null;
 
+    // Plan 088 T008: remote-view.attach — no args opens the window picker (Workshop 001
+    // entry) via the live setParams closure; a windowId attaches that window directly
+    // (the SSE 'attached' envelope then pushes the content area, T006). Registered here
+    // for the same reason as openRecentFeed — setParams lives on this page.
+    const remoteViewAttachCmd = remoteViewContribution.commands.find(
+      (c) => c.id === 'remote-view.attach'
+    );
+    const remoteViewAttachReg = remoteViewAttachCmd
+      ? sdk.commands.register({
+          ...remoteViewAttachCmd,
+          handler: async (params: unknown) => {
+            const { windowId } = (params ?? {}) as { windowId?: number };
+            if (typeof windowId === 'number') {
+              await fetch('/api/remote-view/sessions', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ windowId }),
+              });
+              return;
+            }
+            setParams({ view: 'remote', rv: null }, { history: 'push' });
+          },
+        })
+      : null;
+
     return () => {
       paletteReg.dispose();
       goToFileReg.dispose();
       openFileAtLineReg?.dispose();
       openRecentFeedReg?.dispose();
       restartFlowspaceReg?.dispose();
+      remoteViewAttachReg?.dispose();
     };
   }, [sdk, setParams, worktreePath]);
 

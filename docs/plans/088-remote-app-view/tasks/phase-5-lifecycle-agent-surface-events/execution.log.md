@@ -177,3 +177,19 @@ The `code-review-companion` run `2026-06-23T04-41-19-536Z-8ec5` (booted last ses
 2. **Viewport stats tap verified in Phase 6 (Deferred)** — the throttle is unit-verified; the viewport call-site (`fps`/`latency-ms`) rides the Phase 6 browser smoke (viewport is jsdom-untestable; stats real only against the live daemon). `status` is live now via the SSE route. `INS-004`.
 
 **Unblocks** T008 (SDK contribution) + T009/T010 (CLI/MCP) — independent of state; they ride the `/sessions` proxy.
+
+---
+
+## T008 — SDK contribution (`remote-view.list/attach/detach` palette verbs) ✅
+
+**Tests**: `remote-view-sdk.test.ts` (5: manifest verb set + Zod params; `register.ts` binds list/detach; `list`→GET `/sessions` toast; `detach`→DELETE toast) — **5/5 green**; full 088 suite **145/145**; web tsc **0**; biome clean. Built against a **real `IUSDK`** assembled from the actual SDK services (`CommandRegistry`/`SettingsStore`/`KeybindingService`/`ContextKeyService`) + a spy toast — **no cast**, so `commands.list`/`execute` exercise the real registry. TDD RED→GREEN.
+
+**Files**:
+- `sdk/contribution.ts` (new) — `remoteViewContribution`: `remote-view.{attach,list,detach}` with Zod params (`attach {windowId?}`, `detach {sessionId}`), category 'Remote View'. Pattern: `041-file-browser/sdk/contribution.ts`. ADR-0013 / ADR-0009.
+- `sdk/register.ts` (new) — `registerRemoteViewSDK(sdk)`: binds the **bootstrap-safe** `list` (GET `/api/remote-view/sessions` → toast; reads the `{sessions}` wrapper from T005) + `detach` (DELETE `/sessions/<id>` → toast) handlers; contributes settings/keybindings (none).
+- `app-composition/sdk-domain-registrations.ts` — one line `registerRemoteViewSDK(sdk)` in `registerAllDomains` (Finding 04).
+- `browser/browser-client.tsx` — `remote-view.attach` handler registered in the page useEffect (Workshop 001: no args → `setParams({view:'remote', rv:null})` opens the picker; a `windowId` POSTs `/sessions` and the T006 SSE pushes the view). Disposed in the effect cleanup.
+
+**Decision logged** (Discoveries): `attach` is page-level (setParams) → registered in browser-client; `list`/`detach` bootstrap-safe → register.ts, mirroring file-browser's split. All 3 declared in the manifest so they surface in the palette.
+
+**Unblocks** T009 (CLI verbs) + T010 (MCP tools) — both mirror these verbs against the same `/sessions` proxy.
