@@ -196,3 +196,35 @@ Three reconciliations across the two browser-picker routes.
 **Verification:** the how-to's internal anchors (`#https--lan-access`, `#permissions-ac-14`) resolve to real headers; referenced files (`domain.md`, `.env.example`) exist. AC-14 docs half complete (T004 = the in-app half).
 
 **Status:** docs-complete. (No code; not sent for companion review — docs task.)
+
+---
+
+## T009 — LIVE AC sweep, measured (plan 6.2)
+
+**Nature of this task:** the integration moment — it requires a **real browser on the host Mac** (authenticated NextAuth session) attaching real Godot / iOS-Simulator windows and **visually observing frame decode** + reading the HUD for fps/latency + exercising input fidelity. Those rows cannot be produced headless and must not be fabricated (harness invariant: never invent a measurement). Below: every row that IS verifiable from this (headless) session is recorded with its evidence; the visual/measured rows are scaffolded **PENDING-LIVE** with the exact step to run.
+
+### Already-green substrate (gating tasks T001–T008, this session)
+
+- **Daemon live + registered**: 1 `streamd` (pid 19367) ↔ exactly 1 registry file `.chainglass/streamd-3000.json` (web-port-keyed to the running :3000 server) — no unregistered process.
+- **`/windows` enumerates a live catalog** (Screen Recording granted) — verified via the T007 smoke.
+- **AC-8 CLI round-trip** (list/attach/detach) against :3000 — verified (T007), incl. the DL-008 fix.
+- **Phase-4 host-Mac live smoke** (already on record, domain.md History): live Simulator capture id=649 904×1900 `avc1.640020@60`, displacement 4002, auth 4401/4402, the 4 live input bugs fixed — i.e. the daemon's capture/encode/input path is live-proven; T009 is the **browser-side** decode + end-to-end integration on top of the now-wired connection (T001).
+
+### Measurement Sheet — `| AC | Measured value | Pass threshold | Verdict | Notes |`
+
+| AC | Measured value | Pass threshold | Verdict | Notes |
+|----|----------------|----------------|---------|-------|
+| AC-1 (attach→frame) | _pending-live_ | ≥1 frame visible | **PENDING-LIVE** | Needs host-Mac browser. Substrate green: T001 wired the real `ws://` url; daemon decodes live (Phase-4). Run: open `http://localhost:3000` → Remote View → pick Simulator/Godot → expect canvas frames. |
+| AC-2 fps | _pending-live_ | ≥30 fps sustained | **PENDING-LIVE** | Read HUD fps over ~30s of motion. |
+| AC-2 latency | _pending-live_ | ≤150 ms | **PENDING-LIVE** | HUD rtt over ~30s; budget 35–65ms typical. |
+| AC-3 (Godot click/drag/scroll/type) | _pending-live_ | lands at correct coord | **PENDING-LIVE** | Closes FT-008/009; daemon input live-fixed in Phase 4. |
+| AC-4 (Simulator tap/type) | _pending-live_ | correct | **PENDING-LIVE** | |
+| AC-6 (refresh reattach) | _pending-live_ | ≤3 s | **PENDING-LIVE** | `rv` persists in the URL; T001 rebuilds the url on reload. |
+| AC-7 (two-tab displace/reclaim) | _pending-live_ | latest wins; reclaim; no wedge | **PENDING-LIVE** | FSM displacement is unit + daemon-smoke proven (4002); this is the browser pairing. |
+| AC-10 (minimize/close) | _pending-live_ | auto-restore; "window gone" not black | **PENDING-LIVE** | |
+| AC-11 (orphans) | **0 orphans (snapshot)** | 0 stale | **PARTIAL-PASS** | Current state: 1 daemon, registered to the live web server, no orphan. Cross-`just dev`-cycle (kill web mid-stream → restart → 0 orphan) is **PENDING-LIVE**; the reaper (T006, wired at boot) is the mechanism (unit-tested + boot breadcrumb). |
+| Workshop-004 (version-mismatch respawn) | _pending-live_ | graceful shutdown + respawn | **PENDING-LIVE** | Run old daemon + new web build → attach. |
+
+**To complete the live rows** (host-Mac session, authenticated browser): start `just dev`, ensure `just streamd-install` is current, open `http://localhost:3000`, and walk the sheet — recording each measured value + PASS/FAIL here. Any AC-2 miss: apply the Workshop-003 knob (frame-request rate first, then encode bitrate). **NOTE:** the `list`-shows-session live confirm (DL-008 fix) rides along — after this server restart the running web server will hold the post-fix DI container, so `cg remote-view list` will show a browser-attached session.
+
+**Status:** headless-measurable rows recorded (AC-11 snapshot PASS; AC-8/daemon substrate green); the visual/measured rows are **PENDING the host-Mac live session** — the one genuinely un-headless-able part of Phase 6. Not code-blocking: T001–T008, T010, T011 are complete + green.
