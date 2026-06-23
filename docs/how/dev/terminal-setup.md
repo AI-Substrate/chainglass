@@ -117,6 +117,32 @@ The copy button uses a **deferred ClipboardItem Promise** pattern — `clipboard
 
 ## Remote Access (VS Code Dev Tunnels / Codespaces)
 
+Use a dev tunnel when the host isn't reachable from your client over the LAN/SSH
+(e.g. a Mac connecting to a NAT'd WSL2 box). On the host, run `just tunnel`
+(forwards the web + terminal ports through the public relay). There are then two
+ways to consume it on the client — the first is strongly preferred.
+
+### Recommended: `devtunnel connect` (localhost on the client — zero app config)
+
+`devtunnel connect` forwards the tunnel's ports to the **client's localhost**, so
+to the browser AND the server everything looks like plain localhost. None of the
+env vars below are needed.
+
+```bash
+# Host:
+just tunnel
+# Client (Mac):
+devtunnel connect <tunnel-id>     # maps host:3000→localhost:3000, host:4500→localhost:4500
+# then open http://localhost:3000
+```
+
+Server Actions work (Host == Origin == localhost), the terminal derives
+`ws://localhost:4500` which is also forwarded, and `http://localhost:3000` is
+already in the WS Origin allowlist. (You can also add port 22 to the tunnel and
+`ssh <user>@localhost` through the same forward if you want a shell.)
+
+### Alternative: open the public tunnel URL directly
+
 Dev tunnels forward each port to its **own subdomain** (e.g. the web app at
 `https://<id>-3000.<region>.devtunnels.ms` and the terminal sidecar at
 `https://<id>-4500.<region>.devtunnels.ms`). The client's default WS-URL maths

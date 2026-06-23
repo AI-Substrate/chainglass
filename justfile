@@ -123,10 +123,18 @@ tunnel:
       fi
     done
     echo "Hosting tunnel '$TUNNEL_ID' (web $NEXT_PORT + terminal $WS_PORT). Ctrl-C to stop."
-    echo "Open the app at the '-$NEXT_PORT.' URL below; sign in once at the '-$WS_PORT.' URL"
-    echo "(a harmless 'Upgrade Required' page) so the terminal WebSocket is authorized."
+    echo ""
+    echo "▶ RECOMMENDED — on the Mac, forward the ports to localhost (cleanest, no app config):"
+    echo "    devtunnel connect $TUNNEL_ID"
+    echo "  then open http://localhost:$NEXT_PORT — terminal + Server Actions just work,"
+    echo "  because the Mac sees plain localhost (no env vars needed)."
+    echo ""
+    echo "▶ ALT — open the public URL directly (needs the NEXT_PUBLIC_TERMINAL_WS_URL +"
+    echo "  TERMINAL_WS_ALLOWED_ORIGINS vars in .env.local; see the comment above this recipe):"
+    echo "    open the '-$NEXT_PORT.' URL below; sign in once at the '-$WS_PORT.' URL"
+    echo "    (a harmless 'Upgrade Required' page) to authorize the terminal WebSocket."
     # --host-header/--origin-header unchanged keeps the real tunnel host so Next.js
-    # Server Actions accept the request (Host must match Origin).
+    # Server Actions accept the request (Host must match Origin) on the ALT path.
     exec devtunnel host "$TUNNEL_ID" --host-header unchanged --origin-header unchanged
 
 
