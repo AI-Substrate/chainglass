@@ -112,3 +112,21 @@ Mode: Full · Companion: `code-review-companion` (run `…-34f7`)
 **Verification:** biome clean; `just typecheck` — no new errors (same pre-existing DL-006 set in untouched files). The button placement + the picker-open round-trip in a real browser are confirmed in the T009 live sweep; the unit test backstops the contract.
 
 **Status:** code-complete. Committed `d895912d9`. **Companion (run …-0ccc): APPROVE** (0 findings) — "a real accessible button with a clear label/title, wired into the same ExplorerPanel rightActions slot as the recent-feed precedent, closes the terminal overlay before opening `view=remote`, and leaves the existing `remote-view.attach` palette path intact."
+
+---
+
+## T008 — Reconcile `/health` ↔ `/windows` + verify auth gate (INS-001 + DL-002, security-relevant)
+
+Three reconciliations across the two browser-picker routes.
+
+**1. `E_BUNDLE_MISSING` — name the root cause, don't guess it.** A never-installed bundle surfaced two *different* opaque failures for one cause: `/windows` → 500 `E_INTERNAL` (non-zero `--list-windows` exit), `/health` → 503 readiness-timeout. Added the `E_BUNDLE_MISSING` code + an **injectable `bundleInstalled()` predicate** on `createRealDaemonControl` (kept pure over deps — production wires `() => existsSync(config.innerBinaryPath)`). `listWindows()`/`health()`/`daemonPort()` now `assertBundleInstalled()` **before any spawn/ensureDaemon**, so both routes return a named 503 prescribing `just streamd-install`. Omitting the predicate skips the check (pre-T008 back-compat).
+
+**2. Same daemon-control instance.** The control was registered `useFactory: () => createProductionDaemonControl(...)` — **transient** in tsyringe (which *ignores `lifecycle` for factory providers*), so `/health` and `/windows` each built a fresh control + config + manager. Fix: a **closure-scoped memo cell** per `createProductionContainer` call (mirrored in `createTestContainer`), so both routes resolve **one** instance; the per-container scope keeps distinct containers isolated (no module-level global leak).
+
+**3. Session-only auth gate — the "gap" was a false alarm.** The flagged concern (the live probe saw `/health` accept `X-Local-Token` alone) is **not a code gap**: `/health` + `/windows` export `GET()` with **zero parameters**, so they never receive a `NextRequest` and *cannot read a token header* — they are NextAuth-only **by construction** (unlike `/sessions`, which takes `(req)` and runs `requireRemoteViewAccess` = token OR session). The live-probe acceptance was `DISABLE_AUTH=true` faking a NextAuth session in dev. Pinned structurally (`expect(healthGET).toHaveLength(0)`) + the existing null-session 401-before-daemon assertion.
+
+**Tests** — `daemon-control.test.ts` (+5: bundle guard fails fast on all three methods before spawn/ensureDaemon; runs normally when installed; omitting the predicate = back-compat); `remote-view-routes.test.ts` (+3: `E_BUNDLE_MISSING` → 503 named on both routes + a `session-only auth gate` describe with the zero-arg structural proof); `di-container.test.ts` (+2: two resolves → same instance; two containers → distinct). **Full 088 + di suite 201/201 (30 files).**
+
+**Verification:** biome clean; `just typecheck` — no new errors (same pre-existing DL-006 set). Live auth-gate behaviour with `DISABLE_AUTH` off + the real `E_BUNDLE_MISSING` path (uninstall the bundle → 503 on both) are recorded in the T009 sweep.
+
+**Status:** code-complete. Committed `3f38ce12a`. **Companion (run …-0ccc):** review-request sent (auth reasoning + fail-fast flagged for scrutiny) — verdict pending.
