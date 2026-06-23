@@ -728,13 +728,21 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
   // Phase 5 (T003): the real daemon-backed adapter (decorator-free useFactory,
   // ADR-0004). Construction does no I/O — the daemon spawns lazily on the first
   // attach (Phase-6 live). The test container keeps the fake (below).
+  // T007 (DL-008): memoize the service per-container — it holds the active-session `Map` that
+  // `list()` reads, kept in step by `attach()`/`detach()`. A transient `useFactory` built a fresh
+  // empty Map on every request, so an attach's session was invisible to the next request's `list`
+  // (GET /sessions structurally always empty). Same transient-useFactory class T008 fixed for the
+  // daemon-control; the cell is per-container so distinct containers stay isolated.
+  let productionRemoteViewService: IRemoteViewService | undefined;
   childContainer.register<IRemoteViewService>(DI_TOKENS.REMOTE_VIEW_SERVICE, {
-    useFactory: (c) =>
-      createProductionRemoteViewService({
+    useFactory: (c) => {
+      productionRemoteViewService ??= createProductionRemoteViewService({
         logger: console,
         // T006: the real adapter + daemon manager emit `remote-view` SSE envelopes.
         notifier: c.resolve<ICentralEventNotifier>(WORKSPACE_DI_TOKENS.CENTRAL_EVENT_NOTIFIER),
-      }),
+      });
+      return productionRemoteViewService;
+    },
   });
   // Phase 5 (T004): daemon-control surface behind /windows + /health (real one-shot
   // `streamd --list-windows` + daemon /health proxy). Construction does no I/O.
@@ -980,8 +988,14 @@ export function createTestContainer(): DependencyContainer {
   });
 
   // ==================== Plan 088: Remote View Service (Fake) ====================
+  // T007 (DL-008): memoized for the same single-instance guarantee the production container makes —
+  // the fake's session Map must survive across resolves so attach→list reflects the session.
+  let fakeRemoteViewService: IRemoteViewService | undefined;
   childContainer.register<IRemoteViewService>(DI_TOKENS.REMOTE_VIEW_SERVICE, {
-    useFactory: () => new FakeRemoteViewService(),
+    useFactory: () => {
+      fakeRemoteViewService ??= new FakeRemoteViewService();
+      return fakeRemoteViewService;
+    },
   });
   // Phase 5 (T004): daemon-control fake — deterministic catalog + healthy verdict, no daemon.
   // T008: memoized for the same single-instance guarantee the production container makes, so a

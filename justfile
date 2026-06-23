@@ -78,6 +78,27 @@ dev-https:
 build:
     pnpm turbo build
 
+# Plan 088 (DL-001): flag a stale CLI bundle — dist/cli.cjs older than any apps/cli/src file means
+# `cg remote-view` (and other verbs) may be missing/outdated. Advisory guard; run before a live CLI
+# smoke. Exits non-zero when stale so CI/agents can gate on it; `just cli-build` rebuilds.
+cli-build-check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    dist="apps/cli/dist/cli.cjs"
+    if [ ! -f "$dist" ]; then
+      echo "❌ $dist missing — run \`just cli-build\`"; exit 1
+    fi
+    newer=$(find apps/cli/src -type f -name '*.ts' -newer "$dist" | head -5 || true)
+    if [ -n "$newer" ]; then
+      echo "❌ $dist is STALE — newer source(s) since last build:"; echo "$newer"
+      echo "→ run \`just cli-build\` so cg ships the current verbs (Plan 088 DL-001)"; exit 1
+    fi
+    echo "✓ $dist is up to date with apps/cli/src"
+
+# Rebuild just the CLI bundle (dist/cli.cjs) so `cg` ships the current commands.
+cli-build:
+    cd apps/cli && pnpm build
+
 # Run tests
 test:
     pnpm vitest run

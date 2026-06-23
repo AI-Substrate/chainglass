@@ -19,6 +19,7 @@ import {
   REMOTE_VIEW_DAEMON_CONTROL_TOKEN,
   type RemoteViewDaemonControl,
 } from '../../../apps/web/src/features/088-remote-view/server/daemon-control';
+import type { IRemoteViewService } from '../../../apps/web/src/features/088-remote-view/server/remote-view-service';
 import {
   DI_TOKENS,
   createProductionContainer,
@@ -251,6 +252,43 @@ describe('DI Container', () => {
       const b = createTestContainer().resolve<RemoteViewDaemonControl>(
         REMOTE_VIEW_DAEMON_CONTROL_TOKEN
       );
+
+      expect(a).not.toBe(b);
+    });
+  });
+
+  describe('Remote-view SERVICE registration (Plan 088 T007 — DL-008)', () => {
+    it('resolves the SAME service instance twice — the session Map survives across requests', () => {
+      /*
+      Test Doc:
+      - Why: the service holds the active-session `Map` that `list()` reads, synced by attach/detach.
+        A transient `useFactory` built a fresh empty Map per request, so an attach was invisible to
+        the next request's `list` (GET /sessions structurally always empty) — the live CLI smoke
+        (attach→list) caught it. This pins the memoized single-instance fix (the T008 control class).
+      - Contract: container.resolve(REMOTE_VIEW_SERVICE) === itself across calls.
+      - Worked Example: POST /sessions attach + GET /sessions list (two requests) share one service.
+      */
+      const c = createTestContainer();
+      const first = c.resolve<IRemoteViewService>(DI_TOKENS.REMOTE_VIEW_SERVICE);
+      const second = c.resolve<IRemoteViewService>(DI_TOKENS.REMOTE_VIEW_SERVICE);
+
+      expect(second).toBe(first);
+    });
+
+    it('attach() on one resolve is visible to list() on a later resolve (cross-request state)', async () => {
+      // The actual regression: prove the session set by one resolve is read by the next — not just
+      // referential identity. A transient registration would lose the session here.
+      const c = createTestContainer();
+      const attachVia = c.resolve<IRemoteViewService>(DI_TOKENS.REMOTE_VIEW_SERVICE);
+      const summary = await attachVia.attach(4242);
+
+      const listVia = c.resolve<IRemoteViewService>(DI_TOKENS.REMOTE_VIEW_SERVICE);
+      expect(listVia.list().map((s) => s.sessionId)).toContain(summary.sessionId);
+    });
+
+    it('keeps the memo per-container — distinct containers get distinct services (no global leak)', () => {
+      const a = createTestContainer().resolve<IRemoteViewService>(DI_TOKENS.REMOTE_VIEW_SERVICE);
+      const b = createTestContainer().resolve<IRemoteViewService>(DI_TOKENS.REMOTE_VIEW_SERVICE);
 
       expect(a).not.toBe(b);
     });
