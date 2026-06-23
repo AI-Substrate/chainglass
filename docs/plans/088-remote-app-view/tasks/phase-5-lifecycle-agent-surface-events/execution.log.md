@@ -226,3 +226,25 @@ The fresh companion (`2026-06-23T06-42-47-993Z-81f7`) reviewed T006–T009 and e
 **Evidence after fixes**: full 088 suite **152/152** (was 145: +3 gate, +3 attach-helper, +1 sessions local-token); web tsc **0**; biome clean. The two HIGH fixes close real production gaps that 9 green test files + tsc + biome all missed — the dogfood payoff (harness `WIN-002`).
 
 **Companion magicWand** (filed for follow-up): "Expose the allowed coordination states directly in the companion prompt, or auto-map prompt-level states to schema states, so the agent doesn't discover state-vocabulary mismatches at runtime" (target: coordination). **Difficulties** reported: MH-001 coordination-state vocab mismatch (prompt used reading/reporting/blocked/stopping; runtime allowed only idle/in-progress/paused/reviewing/complete/error), MH-002 large tool outputs saved to temp files (extra reads), MH-003 `MINIH_PROJECT_ROOT` empty in the shell. The run finished `degraded` — findings failed minih schema validation (each needed property `id` in a different shape). All captured as harness observations `WIN-002` / `DL-004`.
+
+---
+
+## T010 — MCP tools (`remote_view_list/attach/detach`) ✅ — FINAL Phase 5 task
+
+**Tests**: `test/unit/mcp-server/remote-view-tools.test.ts` (6: snake_case verb_object names registered + not camelCase; 3–4 sentence descriptions; the four ADR-0001 annotation hints per verb; `list`→GET, `attach`→POST `{windowId}`, `detach`→DELETE `<encoded>`, each with its `summary`) — **6/6 green**; MCP-package tsc **0**; biome clean. Handlers take the same **injectable `request` seam** as the CLI (typed fake in tests) — no live server needed. RED→GREEN.
+
+**Files**:
+- `packages/mcp-server/src/tools/remote-view.tools.ts` (new) — `registerRemoteViewTools(server, registry, logger)` registers the three tools; exported handlers `handleRemoteView{List,Attach,Detach}` + `createRemoteViewRequest` (`readServerInfo` cwd→workspace-root→`apps/web` + `X-Local-Token`, baseUrl `http://localhost:<port>`, 204-tolerant DELETE — mirrors the CLI exactly). Annotation objects exported as `const`s. `summary` in every response; catch path returns `{content[], isError:true}` carrying the message + a `summary`.
+- `packages/mcp-server/src/tools/index.ts` — `export { registerRemoteViewTools }`.
+- `packages/mcp-server/src/server.ts` — import + one-line `registerRemoteViewTools(mcpServer, toolRegistry, logger)` in `createMcpServer` (Finding 04).
+
+**Tools** (mirror the `cg remote-view` verbs, AC-8 MCP half):
+- `remote_view_list` — GET `/sessions`; readOnly+idempotent, openWorld.
+- `remote_view_attach { window_id, workspace_path? }` — POST `/sessions {windowId}`; create+idempotent-per-windowId, openWorld.
+- `remote_view_detach { session_id, workspace_path? }` — DELETE `/sessions/<id>`; destructive+idempotent, openWorld.
+
+**Tsc fix during build**: `ILogger.error(message, error?: Error, data?)` — the second arg is an `Error`, not a metadata object; the first draft passed `{error: …}` and tsc flagged TS2353. Switched to `logger.error('… failed', error instanceof Error ? error : undefined)`.
+
+**Decisions logged** (Discoveries): `openWorldHint:true` for all three (live host-window daemon = open world, unlike the filesystem-only workflow/phase tools — flagged to the companion `INS-005`); the request seam is a deliberate, pattern-consistent near-duplicate of the CLI (`workflow.tools.ts` inline-wiring precedent; shared-helper extraction deferred); annotation-as-`const` test strategy (registry Map can't expose annotations without a built `cli.cjs`).
+
+**Phase 5 status**: T001–T010 all `[x]`. Agent surfaces complete across **SDK (T008) / CLI (T009) / MCP (T010)** — AC-8 CLI/MCP half delivered. Remaining: Tzz harness phase-end seam (retro drain) + the companion debrief.
