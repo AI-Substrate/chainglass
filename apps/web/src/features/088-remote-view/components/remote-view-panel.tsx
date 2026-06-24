@@ -20,6 +20,7 @@
 
 import { X } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useRemoteViewDisplays } from '../hooks/use-remote-view-displays';
 import { useRemoteViewHealth } from '../hooks/use-remote-view-health';
 import { useRemoteViewWindows } from '../hooks/use-remote-view-windows';
 import { PermissionPreflightCard } from './permission-preflight-card';
@@ -43,13 +44,19 @@ export interface RemoteViewPanelProps {
   onClose: () => void;
 }
 
+/** A picked capture target — a window OR a whole display (multi-target capture). The numeric `id`
+ *  is the CGWindowID or CGDirectDisplayID; `kind` decides the `/token` param + the daemon env. */
+type PickedTarget = { kind: 'window'; id: number } | { kind: 'display'; id: number };
+
 /**
  * Phase 3 mints the session id client-side (no daemon/route yet); Phase 5 moves
  * session creation server-side via the attach route. The id persists in the `rv`
- * URL param so a browser refresh re-attaches the same session (AC-6).
+ * URL param so a browser refresh re-attaches the same session (AC-6). The `w`/`d`
+ * prefix records the target kind so the id is human-distinguishable in the URL.
  */
-function mintSessionId(windowId: number): string {
-  return `ses_w${windowId.toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+function mintSessionId(target: PickedTarget): string {
+  const prefix = target.kind === 'display' ? 'd' : 'w';
+  return `ses_${prefix}${target.id.toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 }
 
 export function RemoteViewPanel({
@@ -59,10 +66,16 @@ export function RemoteViewPanel({
   onClose,
 }: RemoteViewPanelProps) {
   // slug/worktreePath are consumed by the viewport/service in T004/T005 + Phase 5.
-  // F007: the picker is the only place a windowId originates; on a deep-link re-enter
-  // (rv from URL, no pick) pickedWindowId stays null and the hook learns it from hello-ok.
-  const [pickedWindowId, setPickedWindowId] = useState<number | null>(null);
+  // F007: the picker is the only place a target originates; on a deep-link re-enter
+  // (rv from URL, no pick) pickedTarget stays null and the hook learns it from hello-ok.
+  const [pickedTarget, setPickedTarget] = useState<PickedTarget | null>(null);
   const { windows, loading, error, refresh } = useRemoteViewWindows({ enabled: rv == null });
+  // Multi-target capture: the picker's "Whole Desktop" section. Loads alongside the windows.
+  const {
+    displays,
+    error: displaysError,
+    refresh: refreshDisplays,
+  } = useRemoteViewDisplays({ enabled: rv == null });
   // AC-14 preflight: read the daemon's TCC grants while the picker is shown so a missing grant is
   // named up front (a card), not discovered as a black frame. Non-blocking — the picker loads either way.
   const health = useRemoteViewHealth({ enabled: rv == null });
@@ -78,6 +91,11 @@ export function RemoteViewPanel({
   const [wsUrl, setWsUrl] = useState<string | null>(null);
   const [daemonUnreachable, setDaemonUnreachable] = useState(false);
 
+  // This effect resolves the WS url ONCE per session transition — it must fire on `rv` only.
+  // `pickedTarget` is set synchronously in the same click that flips `rv` (handleAttach*), so it is
+  // already current when the effect runs; adding it would re-fetch `/token` on unrelated target
+  // churn and defeat the deep-link reuse path.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: fire on `rv` only (see note above)
   useEffect(() => {
     if (rv == null) return; // picker mode — no socket, no port needed yet
     let cancelled = false;
@@ -92,14 +110,17 @@ export function RemoteViewPanel({
     }
 
     // http://localhost: connect directly to the loopback daemon, whose port comes from `/token`.
-    // Pass the picked window so the daemon is spawned CAPTURING it (one-window-per-spawn). On a
-    // deep-link re-enter (rv from URL, no pick yet) we omit it and reuse a running daemon.
+    // Pass the picked target so the daemon is spawned CAPTURING it (one-target-per-spawn) — a window
+    // via `?windowId=` or a whole display via `?displayId=`. On a deep-link re-enter (rv from URL, no
+    // pick yet) we omit both and reuse a running daemon.
     void (async () => {
       try {
         const tokenUrl =
-          pickedWindowId != null
-            ? `/api/remote-view/token?windowId=${pickedWindowId}`
-            : '/api/remote-view/token';
+          pickedTarget == null
+            ? '/api/remote-view/token'
+            : pickedTarget.kind === 'display'
+              ? `/api/remote-view/token?displayId=${pickedTarget.id}`
+              : `/api/remote-view/token?windowId=${pickedTarget.id}`;
         const res = await fetch(tokenUrl);
         if (!res.ok) throw new Error(`token ${res.status}`);
         const { daemonPort } = (await res.json()) as { daemonPort?: number };
@@ -117,8 +138,15 @@ export function RemoteViewPanel({
   }, [rv]);
 
   const handleAttach = (windowId: number) => {
-    setPickedWindowId(windowId);
-    onPickWindow(mintSessionId(windowId));
+    const target: PickedTarget = { kind: 'window', id: windowId };
+    setPickedTarget(target);
+    onPickWindow(mintSessionId(target));
+  };
+
+  const handleAttachDisplay = (displayId: number) => {
+    const target: PickedTarget = { kind: 'display', id: displayId };
+    setPickedTarget(target);
+    onPickWindow(mintSessionId(target));
   };
 
   return (
@@ -142,15 +170,21 @@ export function RemoteViewPanel({
               onRecheck={() => {
                 health.refresh();
                 refresh();
+                refreshDisplays();
               }}
             />
             <div className="min-h-0 flex-1">
               <WindowPicker
                 windows={windows}
                 loading={loading}
-                error={error}
+                error={error ?? displaysError}
                 onAttach={handleAttach}
-                onRefresh={refresh}
+                onRefresh={() => {
+                  refresh();
+                  refreshDisplays();
+                }}
+                displays={displays}
+                onAttachDisplay={handleAttachDisplay}
               />
             </div>
           </div>
@@ -180,7 +214,12 @@ export function RemoteViewPanel({
             Connecting to streamer…
           </div>
         ) : (
-          <Viewport url={wsUrl} session={rv} windowId={pickedWindowId} onExit={onReturnToPicker} />
+          <Viewport
+            url={wsUrl}
+            session={rv}
+            windowId={pickedTarget?.id ?? null}
+            onExit={onReturnToPicker}
+          />
         )}
       </div>
     </div>

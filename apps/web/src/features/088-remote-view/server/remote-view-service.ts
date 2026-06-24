@@ -14,7 +14,7 @@
 import type { ICentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events/central-event-notifier.interface';
 import { WorkspaceDomain } from '@chainglass/shared/features/027-central-notify-events/workspace-domain';
 import { FAKE_WINDOW } from '../testing/fixtures';
-import type { DaemonInfo } from './daemon-manager';
+import type { DaemonInfo, EnsureDaemonOptions } from './daemon-manager';
 
 /** Daemon-side session lifecycle state (Workshop 002 ownership model). */
 export type SessionState = 'idle' | 'streaming' | 'unwatched' | 'closed';
@@ -128,7 +128,7 @@ export interface RealRemoteViewServiceDeps {
    * is REQUIRED here — the daemon captures one window fixed at spawn, so attach/detach must pass the
    * session's window so the manager (re)spawns the right daemon (it cannot re-target).
    */
-  ensureDaemon: (opts?: { windowId?: number }) => Promise<DaemonInfo>;
+  ensureDaemon: (opts?: EnsureDaemonOptions) => Promise<DaemonInfo>;
   /** Daemon `/sessions` transport — HTTP in prod, a double in tests. */
   sessions: DaemonSessionsClient;
   /**

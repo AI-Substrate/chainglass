@@ -195,11 +195,11 @@ describe('GET /api/remote-view/token', () => {
     - Quality Contribution: pins the window threading from the route through to the daemon spawn.
     - Worked Example: ?windowId=649 → daemonPort called with 649 → body.daemonPort is that port.
     */
-    let received: number | undefined = -1;
+    let received: { windowId?: number; displayId?: number } | undefined = { windowId: -1 };
     useControl(
       createFakeDaemonControl({
-        daemonPort: async (windowId?: number) => {
-          received = windowId;
+        daemonPort: async (target?: { windowId?: number; displayId?: number }) => {
+          received = target;
           return FAKE_DAEMON_PORT;
         },
       })
@@ -214,7 +214,39 @@ describe('GET /api/remote-view/token', () => {
     const res = await GET(req);
 
     expect(res.status).toBe(200);
-    expect(received).toBe(649);
+    expect(received).toEqual({ windowId: 649 });
+    expect((await res.json()).daemonPort).toBe(FAKE_DAEMON_PORT);
+  });
+
+  it('forwards ?displayId= to control.daemonPort so the daemon spawns capturing the WHOLE screen (multi-target)', async () => {
+    /*
+    Test Doc:
+    - Why: "stream the whole desktop" picks a display, not a window; the panel fetches
+      `/token?displayId=<picked>` and the daemon must spawn with CG_REMOTE_VIEW__DISPLAY_ID.
+    - Contract: GET /token?displayId=5 → control.daemonPort({displayId:5}); the resolved port rides in the body.
+    - Quality Contribution: pins the display threading from the route through to the daemon spawn.
+    - Worked Example: ?displayId=5 → daemonPort called with {displayId:5} → body.daemonPort is that port.
+    */
+    let received: { windowId?: number; displayId?: number } | undefined = { displayId: -1 };
+    useControl(
+      createFakeDaemonControl({
+        daemonPort: async (target?: { windowId?: number; displayId?: number }) => {
+          received = target;
+          return FAKE_DAEMON_PORT;
+        },
+      })
+    );
+    const key = activeSigningSecret(cwd);
+    const cookie = buildCookieValue(activeCode, key);
+    const req = new NextRequest(`${URL_}?displayId=5`, {
+      method: 'GET',
+      headers: { cookie: `${BOOTSTRAP_COOKIE_NAME}=${cookie}` },
+    });
+
+    const res = await GET(req);
+
+    expect(res.status).toBe(200);
+    expect(received).toEqual({ displayId: 5 });
     expect((await res.json()).daemonPort).toBe(FAKE_DAEMON_PORT);
   });
 

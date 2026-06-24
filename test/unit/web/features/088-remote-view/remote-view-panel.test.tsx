@@ -17,9 +17,12 @@ vi.mock('@/features/088-remote-view/components/viewport', () => ({
     <div data-testid="vp-stub" data-url={url} data-session={session} />
   ),
 }));
-// The picker/loader isn't under test; stub it so rv==null renders without any network.
+// The picker/loaders aren't under test; stub them so rv==null renders without any network.
 vi.mock('@/features/088-remote-view/hooks/use-remote-view-windows', () => ({
   useRemoteViewWindows: () => ({ windows: [], loading: false, error: null, refresh: vi.fn() }),
+}));
+vi.mock('@/features/088-remote-view/hooks/use-remote-view-displays', () => ({
+  useRemoteViewDisplays: () => ({ displays: [], loading: false, error: null, refresh: vi.fn() }),
 }));
 // The T004 preflight health hook isn't under test here (it has its own spec); stub it so the
 // picker-mode render stays network-free and the url-composition assertions below are unaffected.

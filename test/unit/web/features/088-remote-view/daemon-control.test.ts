@@ -21,6 +21,18 @@ const GOOD_CATALOG = JSON.stringify([
   { id: 2, app: 'Simulator', title: 'iPhone 15', pixelWidth: 1170, pixelHeight: 2532, scale: 3 },
 ]);
 
+const GOOD_DISPLAY_CATALOG = JSON.stringify([
+  {
+    id: 1,
+    label: 'Built-in Retina Display',
+    pixelWidth: 3024,
+    pixelHeight: 1964,
+    scale: 2,
+    isPrimary: true,
+  },
+  { id: 2, label: 'DELL U2720Q', pixelWidth: 3840, pixelHeight: 2160, scale: 1, isPrimary: false },
+]);
+
 const HEALTHY: DaemonHealth = {
   ok: true,
   daemonVersion: '1.2.3',
@@ -34,6 +46,7 @@ function deps(over: Partial<RealDaemonControlDeps> = {}): RealDaemonControlDeps 
   return {
     ensureDaemon: vi.fn(async () => INFO),
     runWindowList: vi.fn(async () => ({ stdout: GOOD_CATALOG, exitCode: 0 })),
+    runDisplayList: vi.fn(async () => ({ stdout: GOOD_DISPLAY_CATALOG, exitCode: 0 })),
     fetchHealth: vi.fn(async () => HEALTHY),
     ...over,
   };
@@ -150,6 +163,13 @@ describe('createRealDaemonControl — bundle-installed guard (T008)', () => {
     expect(runWindowList).not.toHaveBeenCalled(); // named up front, never a guessed non-zero exit
   });
 
+  it('listDisplays() fails fast with E_BUNDLE_MISSING when the bundle is absent — before any spawn', async () => {
+    const runDisplayList = vi.fn(async () => ({ stdout: GOOD_DISPLAY_CATALOG, exitCode: 0 }));
+    const control = createRealDaemonControl(deps({ runDisplayList, bundleInstalled: () => false }));
+    await expect(control.listDisplays()).rejects.toMatchObject({ code: 'E_BUNDLE_MISSING' });
+    expect(runDisplayList).not.toHaveBeenCalled();
+  });
+
   it('health() fails fast with E_BUNDLE_MISSING when the bundle is absent — before ensureDaemon()', async () => {
     const ensureDaemon = vi.fn(async () => INFO);
     const control = createRealDaemonControl(deps({ ensureDaemon, bundleInstalled: () => false }));
@@ -175,26 +195,80 @@ describe('createRealDaemonControl — bundle-installed guard (T008)', () => {
   });
 });
 
-describe('createRealDaemonControl — daemonPort(windowId) (live-capture spawn)', () => {
+describe('createRealDaemonControl — daemonPort(target) (live-capture spawn)', () => {
   it('passes the window through to ensureDaemon so the daemon spawns CAPTURING it', async () => {
-    // The daemon is one-window-per-spawn; `/token?windowId=` must reach the spawn or the daemon
-    // comes up windowless and dies (the live-attach bug). This pins the window threading.
+    // The daemon is one-target-per-spawn; `/token?windowId=` must reach the spawn or the daemon
+    // comes up targetless and dies (the live-attach bug). This pins the window threading.
     const ensureDaemon = vi.fn(async () => INFO);
     const control = createRealDaemonControl(deps({ ensureDaemon }));
 
-    const port = await control.daemonPort(649);
+    const port = await control.daemonPort({ windowId: 649 });
 
     expect(ensureDaemon).toHaveBeenCalledWith({ windowId: 649 });
     expect(port).toBe(INFO.daemonPort);
   });
 
-  it('with no window reuses a running daemon (the deep-link /token re-fetch path)', async () => {
+  it('passes a display through to ensureDaemon so the daemon spawns capturing the WHOLE screen', async () => {
+    // Multi-target capture: `/token?displayId=` brings up a daemon streaming a display (whole
+    // desktop), the screen-picker path. The target must reach the spawn exactly like a window.
+    const ensureDaemon = vi.fn(async () => INFO);
+    const control = createRealDaemonControl(deps({ ensureDaemon }));
+
+    const port = await control.daemonPort({ displayId: 5 });
+
+    expect(ensureDaemon).toHaveBeenCalledWith({ displayId: 5 });
+    expect(port).toBe(INFO.daemonPort);
+  });
+
+  it('with no target reuses a running daemon (the deep-link /token re-fetch path)', async () => {
     const ensureDaemon = vi.fn(async () => INFO);
     const control = createRealDaemonControl(deps({ ensureDaemon }));
 
     await control.daemonPort();
 
-    expect(ensureDaemon).toHaveBeenCalledWith(undefined); // reuse-only, never a windowed spawn
+    expect(ensureDaemon).toHaveBeenCalledWith(undefined); // reuse-only, never a targeted spawn
+  });
+});
+
+describe('createRealDaemonControl — listDisplays()', () => {
+  it('parses a valid catalog into DisplayDescriptor[]', async () => {
+    const control = createRealDaemonControl(deps());
+    const displays = await control.listDisplays();
+    expect(displays).toHaveLength(2);
+    expect(displays[0]).toEqual({
+      id: 1,
+      label: 'Built-in Retina Display',
+      pixelWidth: 3024,
+      pixelHeight: 1964,
+      scale: 2,
+      isPrimary: true,
+    });
+  });
+
+  it('maps exit code 3 → E_PERMISSION (missing Screen Recording grant, AC-14)', async () => {
+    const control = createRealDaemonControl(
+      deps({ runDisplayList: async () => ({ stdout: '', exitCode: 3 }) })
+    );
+    await expect(control.listDisplays()).rejects.toMatchObject({ code: 'E_PERMISSION' });
+  });
+
+  it('rejects a catalog that violates DisplayDescriptor schema with E_INTERNAL', async () => {
+    // `isPrimary` as a string is the kind of drift a daemon-version skew could produce — must not
+    // surface as a half-typed display the picker then renders.
+    const bad = JSON.stringify([
+      { id: 1, label: 'X', pixelWidth: 1, pixelHeight: 1, scale: 1, isPrimary: 'yes' },
+    ]);
+    const control = createRealDaemonControl(
+      deps({ runDisplayList: async () => ({ stdout: bad, exitCode: 0 }) })
+    );
+    await expect(control.listDisplays()).rejects.toMatchObject({ code: 'E_INTERNAL' });
+  });
+
+  it('returns an empty catalog as [] (no displays is not an error)', async () => {
+    const control = createRealDaemonControl(
+      deps({ runDisplayList: async () => ({ stdout: '[]', exitCode: 0 }) })
+    );
+    await expect(control.listDisplays()).resolves.toEqual([]);
   });
 });
 

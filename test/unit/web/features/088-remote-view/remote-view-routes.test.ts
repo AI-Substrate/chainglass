@@ -21,6 +21,7 @@ const { authMock, resolveMock } = vi.hoisted(() => ({ authMock: vi.fn(), resolve
 vi.mock('@/auth', () => ({ auth: authMock }));
 vi.mock('@/lib/bootstrap-singleton', () => ({ getContainer: () => ({ resolve: resolveMock }) }));
 
+import { GET as displaysGET } from '@/../app/api/remote-view/displays/route';
 import { GET as healthGET } from '@/../app/api/remote-view/health/route';
 import { GET as windowsGET } from '@/../app/api/remote-view/windows/route';
 
@@ -100,6 +101,58 @@ describe('GET /api/remote-view/windows', () => {
   });
 });
 
+describe('GET /api/remote-view/displays (multi-target capture — the screen picker)', () => {
+  it('returns 401 for an unauthenticated caller — before touching the daemon', async () => {
+    authMock.mockResolvedValue(null);
+
+    const res = await displaysGET();
+
+    expect(res.status).toBe(401);
+    expect(resolveMock).not.toHaveBeenCalled();
+  });
+
+  it('returns 200 with the display catalog when authenticated', async () => {
+    const res = await displaysGET();
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      displays: Array<{ id: number; label: string; isPrimary: boolean }>;
+    };
+    expect(Array.isArray(body.displays)).toBe(true);
+    expect(body.displays[0]).toMatchObject({ label: 'Built-in Retina Display', isPrimary: true });
+  });
+
+  it('returns 403 E_PERMISSION when the Screen-Recording grant is missing', async () => {
+    useControl(
+      createFakeDaemonControl({
+        listDisplays: async () => {
+          throw new DaemonControlError('E_PERMISSION', 'Screen Recording permission is required.');
+        },
+      })
+    );
+
+    const res = await displaysGET();
+
+    expect(res.status).toBe(403);
+    expect((await res.json()) as { error: string }).toMatchObject({ error: 'E_PERMISSION' });
+  });
+
+  it('returns 503 E_BUNDLE_MISSING when the bundle is absent (T008)', async () => {
+    useControl(
+      createFakeDaemonControl({
+        listDisplays: async () => {
+          throw new DaemonControlError('E_BUNDLE_MISSING', 'run `just streamd-install`');
+        },
+      })
+    );
+
+    const res = await displaysGET();
+
+    expect(res.status).toBe(503);
+    expect((await res.json()) as { error: string }).toMatchObject({ error: 'E_BUNDLE_MISSING' });
+  });
+});
+
 describe('GET /api/remote-view/health', () => {
   it('returns 401 for an unauthenticated caller — before touching the daemon', async () => {
     authMock.mockResolvedValue(null);
@@ -160,18 +213,20 @@ describe('GET /api/remote-view/health', () => {
  * This pins that property so a refactor can't quietly thread a request in and open a token path.
  */
 describe('session-only auth gate on /health + /windows (T008, security-relevant)', () => {
-  it('both route handlers take no request arg — cannot read X-Local-Token, so they are session-only', () => {
+  it('all route handlers take no request arg — cannot read X-Local-Token, so they are session-only', () => {
     expect(healthGET).toHaveLength(0);
     expect(windowsGET).toHaveLength(0);
+    expect(displaysGET).toHaveLength(0);
   });
 
   it('an unauthenticated caller (no NextAuth session) is rejected 401 before the daemon is touched', async () => {
     authMock.mockResolvedValue(null); // no session; the routes can't fall back to a token
 
-    const [h, w] = await Promise.all([healthGET(), windowsGET()]);
+    const [h, w, d] = await Promise.all([healthGET(), windowsGET(), displaysGET()]);
 
     expect(h.status).toBe(401);
     expect(w.status).toBe(401);
+    expect(d.status).toBe(401);
     expect(resolveMock).not.toHaveBeenCalled();
   });
 });

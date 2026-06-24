@@ -25,8 +25,9 @@ const BUNDLE_PATH = '/Apps/ChainglassStreamd.app';
 const INNER_BINARY = `${BUNDLE_PATH}/Contents/MacOS/streamd`;
 const BOOTSTRAP = '/abs/.chainglass/bootstrap-code.json';
 const DEFAULT_DAEMON_PORT = WEB_PORT + 1501; // 6108
-const WINDOW_ID = 26516; // a window to capture — the daemon is one-window-per-spawn (Capture.swift)
+const WINDOW_ID = 26516; // a window to capture — the daemon is one-target-per-spawn (Capture.swift)
 const OTHER_WINDOW_ID = 34202;
+const DISPLAY_ID = 5; // a whole display (screen) to capture — multi-target capture (DisplayCapture.swift)
 
 function entry(over: Partial<RegistryEntry> = {}): RegistryEntry {
   return {
@@ -331,6 +332,52 @@ describe('remote-view daemon manager', () => {
     expect(spawns[0].env?.CG_REMOTE_VIEW__WINDOW_ID).toBe(String(WINDOW_ID));
     expect(spawns[1].env?.CG_REMOTE_VIEW__WINDOW_ID).toBe(String(OTHER_WINDOW_ID));
     expect(shutdowns).toEqual([DEFAULT_DAEMON_PORT]); // the WINDOW_ID daemon shut down for the switch
+  });
+
+  it('spawns with CG_REMOTE_VIEW__DISPLAY_ID (not WINDOW_ID) for a whole-display target', async () => {
+    /*
+    Test Doc:
+    - Why: "stream the whole desktop" captures a display, not a window; the daemon reads
+      CG_REMOTE_VIEW__DISPLAY_ID and runs DisplayCaptureFrameSource (multi-target capture).
+    - Contract: ensureDaemon({displayId:D}) spawns with CG_REMOTE_VIEW__DISPLAY_ID=D and NO WINDOW_ID.
+    - Quality Contribution: pins the display-target env threading the picker's screen choice depends on.
+    - Worked Example: ensureDaemon({displayId:5}) → spawn env has DISPLAY_ID=5, WINDOW_ID undefined.
+    */
+    const { manager, spawns } = build({
+      healthByPort: () => (existsSync(registryPath) ? health() : null),
+      onSpawn: () => writeRegistry(entry({ port: DEFAULT_DAEMON_PORT })),
+    });
+
+    await manager.ensureDaemon({ displayId: DISPLAY_ID });
+
+    expect(spawns).toHaveLength(1);
+    expect(spawns[0].env?.CG_REMOTE_VIEW__DISPLAY_ID).toBe(String(DISPLAY_ID));
+    expect(spawns[0].env?.CG_REMOTE_VIEW__WINDOW_ID).toBeUndefined();
+  });
+
+  it('respawns when switching between a window and a display target (capture is fixed at spawn)', async () => {
+    /*
+    Test Doc:
+    - Why: a window daemon and a display daemon are different captures; switching target kinds must
+      shut the old daemon down and respawn, exactly like switching between two windows.
+    - Contract: ensureDaemon({windowId:A}) then ensureDaemon({displayId:D}) → 2 spawns, 1 shutdown,
+      and the second spawn carries DISPLAY_ID (not WINDOW_ID).
+    - Quality Contribution: the regression guard for the target-kind switch (w:/d: key change → respawn).
+    - Worked Example: attach window A, then display D → spawns [WINDOW_ID, DISPLAY_ID], 1 shutdown.
+    */
+    const { manager, spawns, shutdowns } = build({
+      healthByPort: () => (existsSync(registryPath) ? health() : null),
+      onSpawn: () => writeRegistry(entry({ port: DEFAULT_DAEMON_PORT })),
+    });
+
+    await manager.ensureDaemon({ windowId: WINDOW_ID }); // window target
+    await manager.ensureDaemon({ displayId: DISPLAY_ID }); // switch to a display: shutdown + respawn
+
+    expect(spawns).toHaveLength(2);
+    expect(spawns[0].env?.CG_REMOTE_VIEW__WINDOW_ID).toBe(String(WINDOW_ID));
+    expect(spawns[1].env?.CG_REMOTE_VIEW__DISPLAY_ID).toBe(String(DISPLAY_ID));
+    expect(spawns[1].env?.CG_REMOTE_VIEW__WINDOW_ID).toBeUndefined();
+    expect(shutdowns).toEqual([DEFAULT_DAEMON_PORT]);
   });
 
   it('throws (never cold-spawns a windowless daemon) when no window is given and none is running', async () => {

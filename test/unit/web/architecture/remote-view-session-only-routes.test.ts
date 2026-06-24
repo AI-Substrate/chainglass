@@ -1,6 +1,6 @@
 /**
- * Architecture guard — the session-only remote-view routes (`/health`, `/windows`) must stay
- * NextAuth-session-only (Plan 088 Phase 6, T008 — the companion's accepted caveat).
+ * Architecture guard — the session-only remote-view routes (`/health`, `/windows`, `/displays`)
+ * must stay NextAuth-session-only (Plan 088 Phase 6, T008 — the companion's accepted caveat).
  *
  * Why this exists: T008 proved these routes are session-only *structurally* — they export `GET()` with
  * ZERO parameters, so they never receive a `NextRequest` and cannot read an `X-Local-Token`. The
@@ -22,6 +22,7 @@ import { describe, expect, it } from 'vitest';
 const SESSION_ONLY_ROUTES = [
   'apps/web/app/api/remote-view/health/route.ts',
   'apps/web/app/api/remote-view/windows/route.ts',
+  'apps/web/app/api/remote-view/displays/route.ts',
 ];
 
 /**

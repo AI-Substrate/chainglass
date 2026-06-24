@@ -125,10 +125,28 @@ async function fetchDaemonHealth(daemonPort: number): Promise<DaemonHealth | nul
 function runListWindowsOneShot(
   innerBinaryPath: string
 ): Promise<{ stdout: string; exitCode: number }> {
+  return runListOneShot(innerBinaryPath, '--list-windows');
+}
+
+/** `--list-displays` sibling of the window one-shot (multi-target capture) — same TCC inheritance,
+ *  same exit-code semantics (3 = missing grant → E_PERMISSION at the control). */
+function runListDisplaysOneShot(
+  innerBinaryPath: string
+): Promise<{ stdout: string; exitCode: number }> {
+  return runListOneShot(innerBinaryPath, '--list-displays');
+}
+
+/** Shared one-shot runner for the `--list-*` catalog modes — TCC grants key on the bundle
+ *  identity, so this inherits the Screen-Recording grant exactly like the detached streaming
+ *  spawn (spike §1.5b). A spawn failure (e.g. ENOENT) surfaces as a non-numeric `code` → 127. */
+function runListOneShot(
+  innerBinaryPath: string,
+  mode: '--list-windows' | '--list-displays'
+): Promise<{ stdout: string; exitCode: number }> {
   return new Promise((resolve) => {
     execFile(
       innerBinaryPath,
-      ['--list-windows'],
+      [mode],
       { timeout: 15_000, maxBuffer: 8 * 1024 * 1024 },
       (err, stdout) => {
         const code = (err as { code?: number | string } | null)?.code;
@@ -220,6 +238,7 @@ export function createProductionDaemonControl(
   return createRealDaemonControl({
     ensureDaemon: manager.ensureDaemon,
     runWindowList: () => runListWindowsOneShot(config.innerBinaryPath),
+    runDisplayList: () => runListDisplaysOneShot(config.innerBinaryPath),
     fetchHealth: fetchDaemonHealth,
     // T008: the bundle's inner binary is the install signal — its absence is the single root cause
     // behind both a `--list-windows` non-zero exit and a `/health` readiness timeout, so we name it

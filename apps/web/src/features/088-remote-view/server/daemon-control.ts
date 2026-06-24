@@ -12,8 +12,13 @@ import { z } from 'zod';
  * health fetch) so it is unit-testable with no child process or daemon; the production
  * wiring that binds the real node primitives lives in `remote-view-service.production.ts`.
  */
-import { type WindowDescriptor, WindowDescriptorSchema } from '../protocol/messages';
-import type { DaemonHealth, DaemonInfo } from './daemon-manager';
+import {
+  type DisplayDescriptor,
+  DisplayDescriptorSchema,
+  type WindowDescriptor,
+  WindowDescriptorSchema,
+} from '../protocol/messages';
+import type { DaemonHealth, DaemonInfo, EnsureDaemonOptions } from './daemon-manager';
 
 /** Leaf-light DI token (a bare string) so routes resolve the control WITHOUT importing the
  *  whole `di-container` module graph — the container registers against this same constant. */
@@ -24,6 +29,9 @@ export interface RemoteViewDaemonControl {
   /** Enumerate capturable host windows for the picker catalog (real impl spawns
    *  `streamd --list-windows`; the daemon's own surface stays single-window, F005/F006). */
   listWindows(): Promise<WindowDescriptor[]>;
+  /** Enumerate capturable host displays (screens) for the picker's "Whole Desktop" / pick-a-screen
+   *  section (real impl spawns `streamd --list-displays`). Multi-target capture. */
+  listDisplays(): Promise<DisplayDescriptor[]>;
   /** Ensure a healthy, version-matched daemon, then return its `/health` verdict. */
   health(): Promise<DaemonHealth>;
   /**
@@ -33,16 +41,18 @@ export interface RemoteViewDaemonControl {
    * port is READ from the registry via `ensureDaemon()` — never recomputed (frozen
    * `port`-not-`webPort+offset` contract).
    *
-   * `windowId` is the window the browser is about to stream. The daemon is one-window-per-spawn
-   * (it captures a fixed window at startup), so the picked window must reach the spawn — `/token`
-   * passes it here so a real attach brings up a daemon CAPTURING that window. Omitted = reuse a
-   * running daemon (a deep-link re-fetch where one already exists).
+   * `target` is what the browser is about to stream — a window (`{windowId}`) OR a whole display
+   * (`{displayId}`). The daemon is one-target-per-spawn (it captures a fixed target at startup), so
+   * the picked target must reach the spawn — `/token` passes it here so a real attach brings up a
+   * daemon CAPTURING it. Omitted = reuse a running daemon (a deep-link re-fetch where one exists).
    */
-  daemonPort(windowId?: number): Promise<number>;
+  daemonPort(target?: EnsureDaemonOptions): Promise<number>;
 }
 
 /** The `streamd --list-windows` stdout contract — the same `WindowDescriptor` the streamer reports. */
 const WindowCatalogSchema = z.array(WindowDescriptorSchema);
+/** The `streamd --list-displays` stdout contract — the `DisplayDescriptor` catalog. */
+const DisplayCatalogSchema = z.array(DisplayDescriptorSchema);
 
 /** Stable failure codes the routes translate to HTTP (AC-14: name the missing grant, never a
  *  silent empty list). `E_PERMISSION` ⇐ the daemon's exit-3 (Screen-Recording grant missing);
@@ -62,10 +72,13 @@ export class DaemonControlError extends Error {
 }
 
 export interface RealDaemonControlDeps {
-  /** Spawn/poll/version-handshake the daemon for an optional window, returning how to reach it. */
-  ensureDaemon: (opts?: { windowId?: number }) => Promise<DaemonInfo>;
+  /** Spawn/poll/version-handshake the daemon for an optional capture target (window OR display),
+   *  returning how to reach it. */
+  ensureDaemon: (opts?: EnsureDaemonOptions) => Promise<DaemonInfo>;
   /** Run `streamd --list-windows` one-shot → its stdout + exit code. Injected for tests. */
   runWindowList: () => Promise<{ stdout: string; exitCode: number }>;
+  /** Run `streamd --list-displays` one-shot → its stdout + exit code. Injected for tests. */
+  runDisplayList: () => Promise<{ stdout: string; exitCode: number }>;
   /** `GET /health` at a daemon port; null when unreachable. */
   fetchHealth: (daemonPort: number) => Promise<DaemonHealth | null>;
   /**
@@ -98,39 +111,54 @@ export function createRealDaemonControl(deps: RealDaemonControlDeps): RemoteView
       );
     }
   }
+  /**
+   * Shared one-shot catalog enumeration for `--list-windows` / `--list-displays` — identical
+   * exit-code → error-code mapping (exit 3 = missing Screen-Recording grant → E_PERMISSION; any
+   * other non-zero → E_INTERNAL; non-JSON / schema drift → E_INTERNAL, never a silent empty list).
+   * `kind` only colours the messages so the operator knows which catalog failed.
+   */
+  async function enumerateCatalog<T>(
+    run: () => Promise<{ stdout: string; exitCode: number }>,
+    schema: z.ZodType<T[]>,
+    kind: 'windows' | 'displays'
+  ): Promise<T[]> {
+    assertBundleInstalled();
+    const { stdout, exitCode } = await run();
+    if (exitCode === 3) {
+      throw new DaemonControlError(
+        'E_PERMISSION',
+        `Screen Recording permission is required to enumerate ${kind}. Grant it in System Settings → Privacy & Security → Screen Recording.`
+      );
+    }
+    if (exitCode !== 0) {
+      throw new DaemonControlError(
+        'E_INTERNAL',
+        `streamd --list-${kind} exited ${exitCode} (is the bundle installed? run \`just streamd-install\`)`
+      );
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(stdout);
+    } catch {
+      throw new DaemonControlError('E_INTERNAL', `streamd --list-${kind} returned non-JSON output`);
+    }
+    const result = schema.safeParse(parsed);
+    if (!result.success) {
+      throw new DaemonControlError(
+        'E_INTERNAL',
+        `${kind} catalog failed schema validation: ${result.error.issues[0]?.message ?? 'unknown'}`
+      );
+    }
+    return result.data;
+  }
+
   return {
     async listWindows(): Promise<WindowDescriptor[]> {
-      assertBundleInstalled();
-      const { stdout, exitCode } = await deps.runWindowList();
-      if (exitCode === 3) {
-        throw new DaemonControlError(
-          'E_PERMISSION',
-          'Screen Recording permission is required to enumerate windows. Grant it in System Settings → Privacy & Security → Screen Recording.'
-        );
-      }
-      if (exitCode !== 0) {
-        throw new DaemonControlError(
-          'E_INTERNAL',
-          `streamd --list-windows exited ${exitCode} (is the bundle installed? run \`just streamd-install\`)`
-        );
-      }
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(stdout);
-      } catch {
-        throw new DaemonControlError(
-          'E_INTERNAL',
-          'streamd --list-windows returned non-JSON output'
-        );
-      }
-      const result = WindowCatalogSchema.safeParse(parsed);
-      if (!result.success) {
-        throw new DaemonControlError(
-          'E_INTERNAL',
-          `window catalog failed schema validation: ${result.error.issues[0]?.message ?? 'unknown'}`
-        );
-      }
-      return result.data;
+      return enumerateCatalog(deps.runWindowList, WindowCatalogSchema, 'windows');
+    },
+
+    async listDisplays(): Promise<DisplayDescriptor[]> {
+      return enumerateCatalog(deps.runDisplayList, DisplayCatalogSchema, 'displays');
     },
 
     async health(): Promise<DaemonHealth> {
@@ -148,12 +176,12 @@ export function createRealDaemonControl(deps: RealDaemonControlDeps): RemoteView
       return verdict;
     },
 
-    async daemonPort(windowId?: number): Promise<number> {
+    async daemonPort(target?: EnsureDaemonOptions): Promise<number> {
       assertBundleInstalled();
-      // Same ensureDaemon() the session adapter uses — idempotent (a running daemon for this window
-      // is reused, never double-spawned). Passing the window makes a cold `/token` bring up a daemon
-      // CAPTURING it (the daemon is one-window-per-spawn); omitting it reuses whatever's running.
-      const info = await deps.ensureDaemon(windowId !== undefined ? { windowId } : undefined);
+      // Same ensureDaemon() the session adapter uses — idempotent (a running daemon for this target
+      // is reused, never double-spawned). Passing a target (window OR display) makes a cold `/token`
+      // bring up a daemon CAPTURING it (one-target-per-spawn); omitting it reuses whatever's running.
+      const info = await deps.ensureDaemon(target);
       return info.daemonPort;
     },
   };
@@ -180,6 +208,18 @@ export function createFakeDaemonControl(
           pixelWidth: 800,
           pixelHeight: 656,
           scale: 2,
+        },
+      ];
+    },
+    async listDisplays(): Promise<DisplayDescriptor[]> {
+      return [
+        {
+          id: 1,
+          label: 'Built-in Retina Display',
+          pixelWidth: 3024,
+          pixelHeight: 1964,
+          scale: 2,
+          isPrimary: true,
         },
       ];
     },

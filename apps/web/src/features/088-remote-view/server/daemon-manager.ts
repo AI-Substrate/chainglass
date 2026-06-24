@@ -86,8 +86,10 @@ export interface DaemonManagerConfig {
 export interface DaemonManagerDeps {
   /**
    * Spawn the daemon binary detached (fire-and-forget). `extraEnv` is merged OVER `process.env`
-   * by the implementation — it carries `CG_REMOTE_VIEW__WINDOW_ID` (the daemon captures ONE window,
-   * fixed at spawn — `Capture.swift`/`main.swift`; without it the binary aborts) + the daemon port.
+   * by the implementation — it carries the capture target (`CG_REMOTE_VIEW__WINDOW_ID` for a window
+   * OR `CG_REMOTE_VIEW__DISPLAY_ID` for a whole display — the daemon captures ONE fixed target set at
+   * spawn, `Capture.swift`/`DisplayCapture.swift`/`main.swift`; without one the binary aborts) + the
+   * daemon port.
    */
   spawnDaemon: (binaryPath: string, args: string[], extraEnv?: Record<string, string>) => void;
   /** `GET /health` for a daemon port; resolves null when unreachable. */
@@ -108,17 +110,32 @@ export interface DaemonManagerDeps {
 
 export interface EnsureDaemonOptions {
   /**
-   * The window to capture. The daemon is ONE-window-per-spawn (capture is fixed at startup and
+   * The window to capture. The daemon is ONE-target-per-spawn (capture is fixed at startup and
    * cannot re-target), so attach/detach pass the session's window and the manager (re)spawns a
-   * daemon for it. `/health` + `/token` omit it: they only REUSE a running daemon (they have no
-   * window) and must never cold-spawn a windowless one (which the binary refuses to start).
+   * daemon for it. `/health` + a bare `/token` omit BOTH ids: they only REUSE a running daemon (they
+   * have no target) and must never cold-spawn a targetless one (which the binary refuses to start).
    */
   windowId?: number;
+  /**
+   * The whole display (screen) to capture — the "stream the whole desktop" target (multi-target
+   * capture). Mutually exclusive with `windowId`; when both are somehow set, `windowId` wins (the
+   * manager only ever sets one). Drives `CG_REMOTE_VIEW__DISPLAY_ID` at spawn.
+   */
+  displayId?: number;
 }
 
 export interface DaemonManager {
-  /** Ensure a healthy, version-matched daemon for `windowId` is running; return how to reach it. */
+  /** Ensure a healthy, version-matched daemon for the requested target is running; return how to
+   *  reach it. The target is a window (`windowId`) OR a whole display (`displayId`). */
   ensureDaemon: (opts?: EnsureDaemonOptions) => Promise<DaemonInfo>;
+}
+
+/** Stable in-memory key for the live daemon's capture target (`w:<id>` / `d:<id>`), so a request
+ *  for a DIFFERENT target respawns and the SAME one reuses. `null` = no target (reuse-only). */
+function captureTargetKey(opts: EnsureDaemonOptions): string | null {
+  if (opts.windowId !== undefined) return `w:${opts.windowId}`;
+  if (opts.displayId !== undefined) return `d:${opts.displayId}`;
+  return null;
 }
 
 /** Terminal sidecar owns `webPort + 1500`; remote view takes `+1501` (Workshop 004). */
@@ -165,13 +182,19 @@ export function createDaemonManager(
     return { entry, health };
   }
 
-  // The window the live daemon was last spawned to capture (in-memory). The registry/health don't
-  // carry it, so the manager remembers what it spawned: a request for a DIFFERENT window must respawn.
-  let spawnedWindowId: number | undefined;
+  // The target the live daemon was last spawned to capture (in-memory `w:<id>`/`d:<id>`). The
+  // registry/health don't carry it, so the manager remembers what it spawned: a request for a
+  // DIFFERENT target must respawn (capture is fixed at spawn and cannot re-target).
+  let spawnedTargetKey: string | null = null;
 
-  function spawn(windowId: number): void {
-    // Absolute paths only — the daemon never computes the port offset (Phase 4 export). The window
-    // id + port ride as env (the daemon reads `CG_REMOTE_VIEW__WINDOW_ID`/`_DAEMON_PORT`).
+  function spawn(opts: EnsureDaemonOptions): void {
+    // Absolute paths only — the daemon never computes the port offset (Phase 4 export). The capture
+    // target + port ride as env: a window via `CG_REMOTE_VIEW__WINDOW_ID`, a whole display via
+    // `CG_REMOTE_VIEW__DISPLAY_ID` (the daemon reads exactly one, plus `_DAEMON_PORT`).
+    const targetEnv: Record<string, string> =
+      opts.windowId !== undefined
+        ? { CG_REMOTE_VIEW__WINDOW_ID: String(opts.windowId) }
+        : { CG_REMOTE_VIEW__DISPLAY_ID: String(opts.displayId) };
     deps.spawnDaemon(
       config.innerBinaryPath,
       [
@@ -183,7 +206,7 @@ export function createDaemonManager(
         config.bootstrapPath,
       ],
       {
-        CG_REMOTE_VIEW__WINDOW_ID: String(windowId),
+        ...targetEnv,
         CG_REMOTE_VIEW__DAEMON_PORT: String(spawnPort),
       }
     );
@@ -231,14 +254,14 @@ export function createDaemonManager(
   }
 
   async function ensureDaemon(opts: EnsureDaemonOptions = {}): Promise<DaemonInfo> {
-    const { windowId } = opts;
+    const requestedKey = captureTargetKey(opts); // null = reuse-only (no target)
     const current = await resolveHealthy();
     if (current) {
       const versionMatches = versionOk(current.health);
-      // No window requested (/health, /token) → reuse whatever's running. A window requested →
-      // reuse only if the live daemon was spawned for THAT window (capture can't re-target).
-      const windowMatches = windowId === undefined || spawnedWindowId === windowId;
-      if (versionMatches && windowMatches) return ready(current);
+      // No target requested (/health, bare /token) → reuse whatever's running. A target requested →
+      // reuse only if the live daemon was spawned for THAT target (capture can't re-target).
+      const targetMatches = requestedKey === null || spawnedTargetKey === requestedKey;
+      if (versionMatches && targetMatches) return ready(current);
       if (!versionMatches) {
         // Healthy but wrong protocol → graceful shutdown for upgrade, then respawn.
         deps.logger?.warn(
@@ -246,29 +269,29 @@ export function createDaemonManager(
             `${config.expectedProtocolVersion}; gracefully respawning`
         );
       }
-      // Either a protocol upgrade or a window switch — shut the current daemon down before respawn.
+      // Either a protocol upgrade or a target switch — shut the current daemon down before respawn.
       await deps.shutdownDaemon(current.entry.port);
     }
 
-    if (windowId === undefined) {
-      // No reusable daemon and no window to capture: the daemon is one-window-per-spawn, so a bare
+    if (requestedKey === null) {
+      // No reusable daemon and no target to capture: the daemon is one-target-per-spawn, so a bare
       // /health or /token (pre-attach) cannot bring one up. Fail honestly — the picker preflight is
       // non-blocking and /token is only fetched after an attach (when a daemon already exists).
-      spawnedWindowId = undefined;
+      spawnedTargetKey = null;
       return down(
-        'remote-view: the streamer is not running and no window was given to capture — attach a window first.'
+        'remote-view: the streamer is not running and no window or display was given to capture — attach a window or screen first.'
       );
     }
 
-    spawn(windowId);
+    spawn(opts);
     // Poll for a daemon that is healthy AND version-matched — never latch onto the
     // old daemon still gracefully exiting with the stale protocol (F001).
     const spawned = await pollUntilHealthy((h) => versionOk(h));
     if (spawned) {
-      spawnedWindowId = windowId;
+      spawnedTargetKey = requestedKey;
       return ready(spawned);
     }
-    spawnedWindowId = undefined;
+    spawnedTargetKey = null;
 
     // No version-matched daemon within the readiness window — diagnose why.
     const last = await resolveHealthy();

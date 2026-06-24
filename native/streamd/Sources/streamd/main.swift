@@ -20,6 +20,14 @@ if argv.contains("--list-windows") {
     WindowList.runAndExit()
 }
 
+// `--list-displays` (Plan 088 multi-target capture): the display sibling of `--list-windows` —
+// one-shot whole-desktop catalog for the picker's "Whole Desktop" / pick-a-screen section, then
+// exit. Same SCK + TCC constraints; never starts the server.
+if argv.contains("--list-displays") {
+    CoreGraphicsInit.ensure()
+    DisplayList.runAndExit()
+}
+
 let config: DaemonConfig
 do {
     config = try DaemonConfig.parse(argv, env: env)
@@ -50,10 +58,13 @@ let webPort = env["CG_REMOTE_VIEW__WEB_PORT"] ?? "3000"
 let allowedOrigins = RemoteViewAuth.parseAllowedOrigins(env["CG_REMOTE_VIEW__ALLOWED_ORIGINS"])
     ?? RemoteViewAuth.buildDefaultAllowedOrigins(port: webPort, httpsEnabled: false)
 
-// Frame source (T003): fixtures dir → headless replay (no TCC); else live window capture.
-// The live path also wires the CGEvent input injector (T007) to the target window.
+// Frame source (T003): fixtures dir → headless replay (no TCC); else one of two live capture
+// targets — a single window (CG_REMOTE_VIEW__WINDOW_ID) or a whole display
+// (CG_REMOTE_VIEW__DISPLAY_ID, multi-target capture). Window takes precedence if both are set
+// (the manager only ever sets one). The live path also wires the matching CGEvent input injector
+// (T007): window-relative + focus-follows for a window, global desktop coords for a display.
 let frameSource: FrameSource
-var inputInjector: CGEventInputInjector?
+var onInputEvents: (([InputEvent]) -> Void)?
 if let fixturesDir = env["CG_REMOTE_VIEW__FIXTURES_DIR"] {
     do {
         frameSource = try FixtureFrameSource(fixturesDir: fixturesDir)
@@ -61,20 +72,30 @@ if let fixturesDir = env["CG_REMOTE_VIEW__FIXTURES_DIR"] {
     } catch {
         fail("cannot load fixtures at \(fixturesDir): \(error)")
     }
-} else {
-    // Live capture needs a real target window; a missing/non-numeric/zero id must fail loudly at
-    // startup rather than surface later as a confusing capture/window error (F008/FT-008).
-    guard let rawWindowId = env["CG_REMOTE_VIEW__WINDOW_ID"], let windowId = UInt32(rawWindowId), windowId != 0 else {
-        fail("live mode requires a valid nonzero CG_REMOTE_VIEW__WINDOW_ID (or set CG_REMOTE_VIEW__FIXTURES_DIR for headless replay)")
+} else if let rawWindowId = env["CG_REMOTE_VIEW__WINDOW_ID"], !rawWindowId.isEmpty {
+    // A set-but-invalid id must fail loudly at startup rather than surface later as a confusing
+    // capture/window error (F008/FT-008).
+    guard let windowId = UInt32(rawWindowId), windowId != 0 else {
+        fail("CG_REMOTE_VIEW__WINDOW_ID must be a valid nonzero CGWindowID (got \(rawWindowId))")
     }
     frameSource = CaptureFrameSource(windowId: windowId)
-    inputInjector = CGEventInputInjector(windowId: windowId)
+    let injector = CGEventInputInjector(windowId: windowId)
+    onInputEvents = { events in injector.inject(events) }
+} else if let rawDisplayId = env["CG_REMOTE_VIEW__DISPLAY_ID"], !rawDisplayId.isEmpty {
+    guard let displayId = UInt32(rawDisplayId), displayId != 0 else {
+        fail("CG_REMOTE_VIEW__DISPLAY_ID must be a valid nonzero CGDirectDisplayID (got \(rawDisplayId))")
+    }
+    frameSource = DisplayCaptureFrameSource(displayId: displayId)
+    let injector = DisplayInputInjector(displayID: displayId)
+    onInputEvents = { events in injector.inject(events) }
+} else {
+    fail("live mode requires a valid nonzero CG_REMOTE_VIEW__WINDOW_ID or CG_REMOTE_VIEW__DISPLAY_ID (or set CG_REMOTE_VIEW__FIXTURES_DIR for headless replay)")
 }
 
 let server = WSServer(port: UInt16(config.port), signingKey: signingKey,
                       allowedOrigins: allowedOrigins, frameSource: frameSource)
-if let injector = inputInjector {
-    server.onInput = { events in injector.inject(events) }
+if let onInputEvents {
+    server.onInput = onInputEvents
 }
 
 do {

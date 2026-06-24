@@ -89,6 +89,28 @@ export const WindowDescriptorSchema = z.object({
 });
 export type WindowDescriptor = z.infer<typeof WindowDescriptorSchema>;
 
+/**
+ * Display (whole-desktop) descriptor — the picker's *second* capturable-target kind, alongside
+ * windows (multi-target capture). Enumerated by `streamd --list-displays`; the picker offers each
+ * screen as a "Whole Desktop" tile so a multi-monitor host can choose WHICH screen before
+ * attaching. A chosen display rides the existing streaming wire AS a `WindowDescriptor`
+ * (`id`=CGDirectDisplayID, `app`="Desktop", `title`=label) — so `hello-ok`, the viewport, and the
+ * normalized `[0,1]` input plane are all unchanged; only enumeration + the spawn target branch.
+ */
+export const DisplayDescriptorSchema = z.object({
+  /** `CGDirectDisplayID`. Numerically a `UInt32` like a window id, so the token route keys the
+   *  target KIND by param name (`?displayId=` vs `?windowId=`), never by the id value alone. */
+  id: z.number(),
+  /** Human label for the screen, e.g. "Built-in Retina Display" / "DELL U2720Q". */
+  label: z.string(),
+  pixelWidth: z.number(),
+  pixelHeight: z.number(),
+  scale: z.number(),
+  /** True for the primary display (the one with the menu bar) — the picker sorts/marks it first. */
+  isPrimary: z.boolean(),
+});
+export type DisplayDescriptor = z.infer<typeof DisplayDescriptorSchema>;
+
 /** Protocol error codes (Workshop 003 §Error codes). Stable strings agents switch on. */
 export const ERROR_CODES = [
   'E_AUTH',
