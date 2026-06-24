@@ -57,13 +57,12 @@ export function resolveTerminalWsBaseUrl(loc: {
 
   const port = Number(loc.port || '3000') + 1500;
   const protocol = loc.protocol === 'https:' ? 'wss' : 'ws';
-  // Force IPv4 loopback for `localhost` pages. `localhost` resolves to IPv6 `::1`
-  // first in modern browsers, but the sidecar (and `devtunnel connect`'s port
-  // forward) are reliably reachable on IPv4 127.0.0.1 — and `::1:<port>` can be
-  // squatted by an unrelated process (e.g. an orphaned sidecar from another
-  // worktree), which silently routes the WS to the wrong server. Using
-  // 127.0.0.1 dodges that. The Origin header still carries the page origin
-  // (http://localhost:<port>), so the sidecar's allowlist is unaffected.
-  const host = loc.hostname === 'localhost' ? '127.0.0.1' : loc.hostname;
-  return `${protocol}://${host}:${port}`;
+  // Use the page's own hostname for the WS target. This stays consistent with
+  // how the user reached the app (localhost, 127.0.0.1, a LAN IP, or a tunnel
+  // host forwarded to localhost), and the sidecar binds dual-stack ('::' when
+  // TERMINAL_WS_HOST=0.0.0.0) so both IPv4 and IPv6 loopback resolve. Do NOT
+  // hard-rewrite to 127.0.0.1: that broke WSL/Windows localhost browsing, and
+  // the IPv6-squatter case it papered over is avoided by giving each running
+  // instance a distinct port (so ::1:<port> is never already taken).
+  return `${protocol}://${loc.hostname}:${port}`;
 }
