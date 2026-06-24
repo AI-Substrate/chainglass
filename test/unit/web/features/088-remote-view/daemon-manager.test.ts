@@ -25,6 +25,8 @@ const BUNDLE_PATH = '/Apps/ChainglassStreamd.app';
 const INNER_BINARY = `${BUNDLE_PATH}/Contents/MacOS/streamd`;
 const BOOTSTRAP = '/abs/.chainglass/bootstrap-code.json';
 const DEFAULT_DAEMON_PORT = WEB_PORT + 1501; // 6108
+const WINDOW_ID = 26516; // a window to capture — the daemon is one-window-per-spawn (Capture.swift)
+const OTHER_WINDOW_ID = 34202;
 
 function entry(over: Partial<RegistryEntry> = {}): RegistryEntry {
   return {
@@ -75,7 +77,7 @@ describe('remote-view daemon manager', () => {
       nowSeq?: number[];
     } = {}
   ) {
-    const spawns: { binary: string; args: string[] }[] = [];
+    const spawns: { binary: string; args: string[]; env?: Record<string, string> }[] = [];
     const shutdowns: number[] = [];
     let nowi = 0;
     const nowSeq = opts.nowSeq;
@@ -91,8 +93,8 @@ describe('remote-view daemon manager', () => {
         pollIntervalMs: 10,
       },
       {
-        spawnDaemon: (binary, args) => {
-          spawns.push({ binary, args });
+        spawnDaemon: (binary, args, env) => {
+          spawns.push({ binary, args, env });
           opts.onSpawn?.(binary, args);
         },
         fetchHealth: async (port) => (opts.healthByPort ? opts.healthByPort(port) : health()),
@@ -121,7 +123,7 @@ describe('remote-view daemon manager', () => {
       onSpawn: () => writeRegistry(entry({ port: REG_PORT })),
     });
 
-    const info = await manager.ensureDaemon();
+    const info = await manager.ensureDaemon({ windowId: WINDOW_ID });
 
     expect(spawns).toHaveLength(1);
     expect(spawns[0].binary).toBe(INNER_BINARY);
@@ -133,6 +135,8 @@ describe('remote-view daemon manager', () => {
       '--bootstrap',
       BOOTSTRAP,
     ]);
+    // The window the daemon must capture rides as env (the binary requires it; capture-at-spawn).
+    expect(spawns[0].env?.CG_REMOTE_VIEW__WINDOW_ID).toBe(String(WINDOW_ID));
     expect(info.daemonPort).toBe(REG_PORT);
   });
 
@@ -173,7 +177,7 @@ describe('remote-view daemon manager', () => {
       },
     });
 
-    const info = await manager.ensureDaemon();
+    const info = await manager.ensureDaemon({ windowId: WINDOW_ID });
 
     expect(spawns).toHaveLength(1);
     expect(shutdowns).toHaveLength(0);
@@ -202,7 +206,7 @@ describe('remote-view daemon manager', () => {
       },
     });
 
-    const info = await manager.ensureDaemon();
+    const info = await manager.ensureDaemon({ windowId: WINDOW_ID });
 
     expect(shutdowns).toEqual([DEFAULT_DAEMON_PORT]);
     expect(spawns).toHaveLength(1);
@@ -225,7 +229,7 @@ describe('remote-view daemon manager', () => {
       nowSeq: [0, 100, 5000], // let the readiness window expire with no version match
     });
 
-    await expect(manager.ensureDaemon()).rejects.toThrow(/streamd-install/);
+    await expect(manager.ensureDaemon({ windowId: WINDOW_ID })).rejects.toThrow(/streamd-install/);
   });
 
   it('waits for a version-matched daemon during respawn — no false stale-install while the old one lingers (F001)', async () => {
@@ -256,7 +260,7 @@ describe('remote-view daemon manager', () => {
       nowSeq: [0, 10, 20, 30], // advances but stays < deadline so polling continues
     });
 
-    const info = await manager.ensureDaemon();
+    const info = await manager.ensureDaemon({ windowId: WINDOW_ID });
 
     expect(shutdowns).toEqual([DEFAULT_DAEMON_PORT]);
     expect(spawns).toHaveLength(1);
@@ -278,7 +282,9 @@ describe('remote-view daemon manager', () => {
       nowSeq: [0, 100, 500, 5000],
     });
 
-    await expect(manager.ensureDaemon()).rejects.toThrow(/become healthy|timed out|readiness/i);
+    await expect(manager.ensureDaemon({ windowId: WINDOW_ID })).rejects.toThrow(
+      /become healthy|timed out|readiness/i
+    );
     expect(spawns).toHaveLength(1);
   });
 
@@ -297,8 +303,48 @@ describe('remote-view daemon manager', () => {
       onSpawn: () => writeRegistry(entry({ port: 7777 })),
     });
 
-    await manager.ensureDaemon();
+    await manager.ensureDaemon({ windowId: WINDOW_ID });
 
     expect(spawns[0].args).toContain('7777');
+  });
+
+  it('reuses the daemon for the SAME window, respawns for a DIFFERENT one (capture is fixed at spawn)', async () => {
+    /*
+    Test Doc:
+    - Why: the daemon captures ONE window set at spawn (Capture.swift/main.swift) and cannot re-target;
+      so a re-attach of the same window must reuse the live daemon, but switching windows must respawn.
+    - Contract: ensureDaemon({windowId:A}) spawns for A; a second {windowId:A} reuses (no spawn); {windowId:B}
+      shuts the A-daemon down and spawns for B with CG_REMOTE_VIEW__WINDOW_ID=B.
+    - Quality Contribution: the regression guard for the live-attach bug (manager never told the daemon its window).
+    - Worked Example: attach A, attach A, attach B → 2 spawns (A then B), 1 shutdown.
+    */
+    const { manager, spawns, shutdowns } = build({
+      healthByPort: () => (existsSync(registryPath) ? health() : null),
+      onSpawn: () => writeRegistry(entry({ port: DEFAULT_DAEMON_PORT })),
+    });
+
+    await manager.ensureDaemon({ windowId: WINDOW_ID }); // cold: spawn for WINDOW_ID
+    await manager.ensureDaemon({ windowId: WINDOW_ID }); // same window: reuse
+    await manager.ensureDaemon({ windowId: OTHER_WINDOW_ID }); // switch: shutdown + respawn
+
+    expect(spawns).toHaveLength(2);
+    expect(spawns[0].env?.CG_REMOTE_VIEW__WINDOW_ID).toBe(String(WINDOW_ID));
+    expect(spawns[1].env?.CG_REMOTE_VIEW__WINDOW_ID).toBe(String(OTHER_WINDOW_ID));
+    expect(shutdowns).toEqual([DEFAULT_DAEMON_PORT]); // the WINDOW_ID daemon shut down for the switch
+  });
+
+  it('throws (never cold-spawns a windowless daemon) when no window is given and none is running', async () => {
+    /*
+    Test Doc:
+    - Why: pre-attach /health + /token have no window; the binary refuses to start windowless, so the
+      manager must NOT spawn a doomed daemon (the bug: it did, and every call left a dying process + 503).
+    - Contract: ensureDaemon() with no running daemon → rejects, 0 spawns.
+    - Quality Contribution: pins that the no-window path is reuse-only, never a cold windowless spawn.
+    - Worked Example: no registry, ensureDaemon() → throws "attach a window first", spawns 0.
+    */
+    const { manager, spawns } = build({ healthByPort: () => null, onSpawn: () => {} });
+
+    await expect(manager.ensureDaemon()).rejects.toThrow(/attach a window first|not running/i);
+    expect(spawns).toHaveLength(0);
   });
 });

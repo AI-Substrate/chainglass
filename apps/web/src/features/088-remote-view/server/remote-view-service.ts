@@ -123,8 +123,12 @@ export interface DaemonSessionsClient {
 }
 
 export interface RealRemoteViewServiceDeps {
-  /** Spawn/poll/version-handshake the daemon, returning how to reach it (T001 manager). */
-  ensureDaemon: () => Promise<DaemonInfo>;
+  /**
+   * Spawn/poll/version-handshake the daemon, returning how to reach it (T001 manager). The window id
+   * is REQUIRED here — the daemon captures one window fixed at spawn, so attach/detach must pass the
+   * session's window so the manager (re)spawns the right daemon (it cannot re-target).
+   */
+  ensureDaemon: (opts?: { windowId?: number }) => Promise<DaemonInfo>;
   /** Daemon `/sessions` transport — HTTP in prod, a double in tests. */
   sessions: DaemonSessionsClient;
   /**
@@ -167,7 +171,7 @@ export class RealRemoteViewService implements IRemoteViewService {
     // short-circuit, which would hand back a dead sessionId after a daemon restart
     // and skip the respawn path (F002 / Workshop 002 R6: sessions don't survive a
     // restart).
-    const { daemonPort } = await this.deps.ensureDaemon();
+    const { daemonPort } = await this.deps.ensureDaemon({ windowId });
     // Mirror only AFTER a successful daemon create — a failure leaves no phantom session.
     const summary = await this.deps.sessions.create(daemonPort, windowId);
     // Reconcile the read-cache: evict any prior entry for this window (e.g. a stale
@@ -193,7 +197,8 @@ export class RealRemoteViewService implements IRemoteViewService {
   async detach(sessionId: string): Promise<void> {
     const s = this.sessions.get(sessionId);
     if (!s || s.state === 'closed') return; // unknown/closed → no daemon round-trip.
-    const { daemonPort } = await this.deps.ensureDaemon();
+    // Reuse the daemon already capturing this session's window (no respawn for a detach).
+    const { daemonPort } = await this.deps.ensureDaemon({ windowId: s.windowId });
     await this.deps.sessions.remove(daemonPort, sessionId);
     s.state = 'closed';
     // T006: tell open clients the session is gone (minimal id payload per ADR-0007).

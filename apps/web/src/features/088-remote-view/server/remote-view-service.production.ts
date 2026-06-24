@@ -156,8 +156,14 @@ function buildProductionManager(
       daemonPortOverride: config.daemonPortOverride,
     },
     {
-      spawnDaemon: (binaryPath, args) => {
-        const child = spawn(binaryPath, args, { detached: true, stdio: 'ignore' });
+      spawnDaemon: (binaryPath, args, extraEnv) => {
+        // Merge the window id / port env OVER the inherited process.env so the daemon captures the
+        // attached window (it aborts at startup without CG_REMOTE_VIEW__WINDOW_ID — Capture.swift).
+        const child = spawn(binaryPath, args, {
+          detached: true,
+          stdio: 'ignore',
+          env: extraEnv ? { ...process.env, ...extraEnv } : process.env,
+        });
         child.unref();
       },
       fetchHealth: fetchDaemonHealth,
