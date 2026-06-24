@@ -238,3 +238,30 @@ Three reconciliations across the two browser-picker routes.
 **T011 → APPROVE_WITH_NOTES** (0 CRITICAL / 0 HIGH / 0 MEDIUM / 1 LOW). Confirmed the 5 typecheck fixes weaken nothing: `Partial<NodeJS.ProcessEnv>` matches the fields actually read; the fetch-spy still asserts method + JSON body; the commander import from the CLI's own dependency is the right call for the monorepo type-identity mismatch; `.minih` belongs in the runtime ignore set alongside `.chainglass`/`.harness`/`agents/*/runs/**`; the arch guard correctly skips `requireRemoteViewSession` while catching `requireRemoteViewAccess`. **F002 (LOW) — the `next/headers` regex only caught static imports** (narrower than the guard's prose). **Fixed** (`0acb43925`): broadened to `/['"]next\/headers['"]/` so a dynamic `import()`/`require()` can't false-pass; whole-word `requireRemoteViewAccess` kept.
 
 **Phase-6 companion tally:** every code task live-reviewed; verdicts T001/T002/T003/T005/T006/T008 APPROVE, T004 APPROVE_WITH_NOTES (F001 fixed), T007 APPROVE, T011 APPROVE_WITH_NOTES (F002 fixed). 2 real findings caught + fixed (F001 fetch-race, F002 guard-narrowness); 1 real defect caught by the live dogfood smoke (DL-008 service-transient).
+
+---
+
+## Post-phase live-integration fix — daemon window-id spawn (DL-001, the T009 moment)
+
+Running the live attach in a real browser (effectively T009, driven by the user) exposed a **blocking**
+pre-existing bug the headless suites couldn't: the daemon is **one window per spawn** (`Capture.swift`
+fixes `targetWindowId`; `main.swift` aborts without `CG_REMOTE_VIEW__WINDOW_ID`), but the web
+daemon-manager spawned it **windowless** (`production.ts` set no env; the args carried no window). So
+every `ensureDaemon()` produced a daemon that died → `/health` + `/token` + attach all `503 "streamd did
+not become healthy"`. Proven by spawning the same binary with `CG_REMOTE_VIEW__WINDOW_ID=<id>` (comes up
+healthy) vs without (aborts). Masked through Phase 4 (daemon tested directly with the env), Phase 5
+(manager tested with fakes), Phase 6 (T009 couldn't run headless).
+
+**Fix (`a2b5afb2b`) — window-aware `ensureDaemon`:**
+- `ensureDaemon(opts?: { windowId })` spawns with `CG_REMOTE_VIEW__WINDOW_ID` + port in the env
+  (production `spawnDaemon` merges `extraEnv` over `process.env`).
+- The manager tracks the spawned window; a **different** window shuts down + respawns (capture can't
+  re-target); `/health` + `/token` (no window) are **reuse-only** and never cold-spawn windowless
+  (they fail honestly pre-attach → 503 is non-blocking, picker still loads via the `--list-windows` one-shot).
+- The service threads the session's `windowId` through attach + detach.
+- `daemon-manager.test` +2 (window-switch respawn; no-window/no-daemon guard); the existing 8 updated to
+  assert the window env. **218/218 (33 files); tsc + biome clean.**
+
+**Replay unblock** (`.env.local` `CG_REMOTE_VIEW__FIXTURES_DIR`) validated the browser→daemon→decode
+pipeline (incl. over an SSH tunnel) while this landed. **To go live:** remove the `FIXTURES_DIR` line +
+restart `just dev` — the manager now hands the daemon the picked window.
