@@ -7,21 +7,24 @@ describe('resolveTerminalWsBaseUrl', () => {
   });
 
   describe('derived (no override)', () => {
-    it('derives wss://host:port+1500 from an https page', () => {
+    it('maps a localhost page to IPv4 127.0.0.1 (dodges ::1 squatters)', () => {
       /*
       Test Doc:
-      - Why: Default localhost/LAN path — sidecar binds PORT+1500 (3000 → 4500).
-      - Contract: https page on :3000 → wss://host:4500 (no trailing slash).
-      - Usage Notes: protocol 'https:' maps to wss.
-      - Quality Contribution: Locks the +1500 maths the client depends on.
-      - Worked Example: {hostname:'localhost',port:'3000',protocol:'https:'} → 'wss://localhost:4500'.
+      - Why: `localhost` resolves to IPv6 ::1 first; the sidecar + devtunnel
+        forward are reliable on IPv4, and ::1:<port> can be squatted by an
+        orphaned sidecar from another worktree. Force 127.0.0.1.
+      - Contract: hostname 'localhost' → 127.0.0.1 in the WS host.
+      - Usage Notes: Origin header still carries the page origin, so the
+        sidecar allowlist is unaffected.
+      - Quality Contribution: Makes the WS immune to the ::1 collision.
+      - Worked Example: {hostname:'localhost',port:'3000',protocol:'https:'} → 'wss://127.0.0.1:4500'.
       */
       const base = resolveTerminalWsBaseUrl({
         hostname: 'localhost',
         port: '3000',
         protocol: 'https:',
       });
-      expect(base).toBe('wss://localhost:4500');
+      expect(base).toBe('wss://127.0.0.1:4500');
     });
 
     it('uses ws for an http page and defaults empty port to 3000', () => {
@@ -104,10 +107,10 @@ describe('resolveTerminalWsBaseUrl', () => {
       Test Doc:
       - Why: A tunnel override left in .env.local must NOT hijack the WS URL when
         developing on localhost — that previously broke local mode.
-      - Contract: localhost page derives wss://localhost:4500 even with override set.
+      - Contract: localhost page derives wss://127.0.0.1:4500 even with override set.
       - Usage Notes: isLocalOrLanHostname('localhost') === true short-circuits override.
       - Quality Contribution: Lets the override live permanently in .env.local.
-      - Worked Example: override set + {hostname:'localhost',port:'3000'} → 'wss://localhost:4500'.
+      - Worked Example: override set + {hostname:'localhost',port:'3000'} → 'wss://127.0.0.1:4500'.
       */
       vi.stubEnv('NEXT_PUBLIC_TERMINAL_WS_URL', 'wss://abc-4500.aue.devtunnels.ms/terminal');
       const base = resolveTerminalWsBaseUrl({
@@ -115,7 +118,7 @@ describe('resolveTerminalWsBaseUrl', () => {
         port: '3000',
         protocol: 'https:',
       });
-      expect(base).toBe('wss://localhost:4500');
+      expect(base).toBe('wss://127.0.0.1:4500');
     });
 
     it('IGNORES the override on a LAN-IP page (iPad/phone path unbroken)', () => {
