@@ -7,7 +7,8 @@
  *
  * Architecture: Sidecar (DR-02) — preserves Turbopack HMR.
  * tmux integration: atomic create-or-attach via `new-session -A` (DR-03).
- * DYK-04: Binds 0.0.0.0 for remote access.
+ * DYK-04: Binds dual-stack (`::`) for remote access when TERMINAL_WS_HOST=0.0.0.0,
+ *   so browsers that resolve `localhost` to IPv6 `::1` can reach the sidecar.
  *
  * Plan 064: Terminal Integration via tmux
  */
@@ -391,8 +392,13 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
     }, 30000);
     if (typeof idleSweep.unref === 'function') idleSweep.unref();
 
-    // Bind to env-configurable host (default localhost; set TERMINAL_WS_HOST=0.0.0.0 for remote)
-    const host = process.env.TERMINAL_WS_HOST ?? '127.0.0.1';
+    // Bind to env-configurable host (default localhost; set TERMINAL_WS_HOST=0.0.0.0 for remote).
+    // Node binds 0.0.0.0 as IPv4-ONLY, but browsers resolve `localhost` to IPv6
+    // `::1` first — so an IPv4-only sidecar refuses the WS while Next (dual-stack
+    // `*`) serves the page, and the terminal fails with no close code. Bind `::`
+    // (IPv6 any) for dual-stack so both `::1` and `127.0.0.1` reach the sidecar.
+    let host = process.env.TERMINAL_WS_HOST ?? '127.0.0.1';
+    if (host === '0.0.0.0') host = '::';
 
     // Support WSS when HTTPS certs are available
     const certPath = process.env.TERMINAL_WS_CERT;
