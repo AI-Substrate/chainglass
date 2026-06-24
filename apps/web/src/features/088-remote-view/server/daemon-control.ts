@@ -32,8 +32,13 @@ export interface RemoteViewDaemonControl {
    * real `ws://127.0.0.1:<port>/stream` url instead of the Phase-3 stub (DL-005). The
    * port is READ from the registry via `ensureDaemon()` — never recomputed (frozen
    * `port`-not-`webPort+offset` contract).
+   *
+   * `windowId` is the window the browser is about to stream. The daemon is one-window-per-spawn
+   * (it captures a fixed window at startup), so the picked window must reach the spawn — `/token`
+   * passes it here so a real attach brings up a daemon CAPTURING that window. Omitted = reuse a
+   * running daemon (a deep-link re-fetch where one already exists).
    */
-  daemonPort(): Promise<number>;
+  daemonPort(windowId?: number): Promise<number>;
 }
 
 /** The `streamd --list-windows` stdout contract — the same `WindowDescriptor` the streamer reports. */
@@ -57,8 +62,8 @@ export class DaemonControlError extends Error {
 }
 
 export interface RealDaemonControlDeps {
-  /** Spawn/poll/version-handshake the daemon, returning how to reach it (T001 manager). */
-  ensureDaemon: () => Promise<DaemonInfo>;
+  /** Spawn/poll/version-handshake the daemon for an optional window, returning how to reach it. */
+  ensureDaemon: (opts?: { windowId?: number }) => Promise<DaemonInfo>;
   /** Run `streamd --list-windows` one-shot → its stdout + exit code. Injected for tests. */
   runWindowList: () => Promise<{ stdout: string; exitCode: number }>;
   /** `GET /health` at a daemon port; null when unreachable. */
@@ -143,11 +148,12 @@ export function createRealDaemonControl(deps: RealDaemonControlDeps): RemoteView
       return verdict;
     },
 
-    async daemonPort(): Promise<number> {
+    async daemonPort(windowId?: number): Promise<number> {
       assertBundleInstalled();
-      // Same ensureDaemon() the session adapter uses — idempotent (resolves the running
-      // daemon via the registry), so a `/token` fetch never double-spawns; it reads `port`.
-      const info = await deps.ensureDaemon();
+      // Same ensureDaemon() the session adapter uses — idempotent (a running daemon for this window
+      // is reused, never double-spawned). Passing the window makes a cold `/token` bring up a daemon
+      // CAPTURING it (the daemon is one-window-per-spawn); omitting it reuses whatever's running.
+      const info = await deps.ensureDaemon(windowId !== undefined ? { windowId } : undefined);
       return info.daemonPort;
     },
   };

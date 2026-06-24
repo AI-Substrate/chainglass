@@ -92,9 +92,15 @@ export function RemoteViewPanel({
     }
 
     // http://localhost: connect directly to the loopback daemon, whose port comes from `/token`.
+    // Pass the picked window so the daemon is spawned CAPTURING it (one-window-per-spawn). On a
+    // deep-link re-enter (rv from URL, no pick yet) we omit it and reuse a running daemon.
     void (async () => {
       try {
-        const res = await fetch('/api/remote-view/token');
+        const tokenUrl =
+          pickedWindowId != null
+            ? `/api/remote-view/token?windowId=${pickedWindowId}`
+            : '/api/remote-view/token';
+        const res = await fetch(tokenUrl);
         if (!res.ok) throw new Error(`token ${res.status}`);
         const { daemonPort } = (await res.json()) as { daemonPort?: number };
         if (cancelled) return;

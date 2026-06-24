@@ -175,6 +175,29 @@ describe('createRealDaemonControl — bundle-installed guard (T008)', () => {
   });
 });
 
+describe('createRealDaemonControl — daemonPort(windowId) (live-capture spawn)', () => {
+  it('passes the window through to ensureDaemon so the daemon spawns CAPTURING it', async () => {
+    // The daemon is one-window-per-spawn; `/token?windowId=` must reach the spawn or the daemon
+    // comes up windowless and dies (the live-attach bug). This pins the window threading.
+    const ensureDaemon = vi.fn(async () => INFO);
+    const control = createRealDaemonControl(deps({ ensureDaemon }));
+
+    const port = await control.daemonPort(649);
+
+    expect(ensureDaemon).toHaveBeenCalledWith({ windowId: 649 });
+    expect(port).toBe(INFO.daemonPort);
+  });
+
+  it('with no window reuses a running daemon (the deep-link /token re-fetch path)', async () => {
+    const ensureDaemon = vi.fn(async () => INFO);
+    const control = createRealDaemonControl(deps({ ensureDaemon }));
+
+    await control.daemonPort();
+
+    expect(ensureDaemon).toHaveBeenCalledWith(undefined); // reuse-only, never a windowed spawn
+  });
+});
+
 describe('createFakeDaemonControl — daemonPort()', () => {
   it('returns the pinned fake port', async () => {
     await expect(createFakeDaemonControl().daemonPort()).resolves.toBe(FAKE_DAEMON_PORT);

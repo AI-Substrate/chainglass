@@ -77,12 +77,20 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   // ADDITIVE + back-compat: existing readers keep using `.token`. The port is best-effort —
   // a daemon that won't come up MUST NOT block token issuance (the client surfaces daemonDown
   // through the normal reconnect/health path), so resolution failure just omits `daemonPort`.
+  // The window the browser is about to stream (the picker passes `?windowId=`). The daemon captures
+  // one window fixed at spawn, so it must reach the spawn — pass it to the control so a cold fetch
+  // brings up a daemon CAPTURING this window. A bare fetch (deep-link re-enter) omits it → reuse.
+  const windowIdParam = req.nextUrl.searchParams.get('windowId');
+  const windowId = windowIdParam !== null ? Number(windowIdParam) : undefined;
   let daemonPort: number | undefined;
   try {
     const control = getContainer().resolve<RemoteViewDaemonControl>(
       REMOTE_VIEW_DAEMON_CONTROL_TOKEN
     );
-    daemonPort = await control.daemonPort();
+    daemonPort =
+      windowId !== undefined && Number.isInteger(windowId) && windowId > 0
+        ? await control.daemonPort(windowId)
+        : await control.daemonPort();
   } catch {
     daemonPort = undefined;
   }

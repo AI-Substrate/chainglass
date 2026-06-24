@@ -186,6 +186,38 @@ describe('GET /api/remote-view/token', () => {
     expect(body.daemonPort).toBeUndefined(); // omitted, not a fabricated/zero port
   });
 
+  it('forwards ?windowId= to control.daemonPort so the daemon spawns capturing THAT window (live-attach)', async () => {
+    /*
+    Test Doc:
+    - Why: the daemon is one-window-per-spawn; the picker's window must reach the spawn or the daemon
+      comes up windowless and dies (the live-attach 503). The panel fetches `/token?windowId=<picked>`.
+    - Contract: GET /token?windowId=649 → control.daemonPort(649); the resolved port rides in the body.
+    - Quality Contribution: pins the window threading from the route through to the daemon spawn.
+    - Worked Example: ?windowId=649 → daemonPort called with 649 → body.daemonPort is that port.
+    */
+    let received: number | undefined = -1;
+    useControl(
+      createFakeDaemonControl({
+        daemonPort: async (windowId?: number) => {
+          received = windowId;
+          return FAKE_DAEMON_PORT;
+        },
+      })
+    );
+    const key = activeSigningSecret(cwd);
+    const cookie = buildCookieValue(activeCode, key);
+    const req = new NextRequest(`${URL_}?windowId=649`, {
+      method: 'GET',
+      headers: { cookie: `${BOOTSTRAP_COOKIE_NAME}=${cookie}` },
+    });
+
+    const res = await GET(req);
+
+    expect(res.status).toBe(200);
+    expect(received).toBe(649);
+    expect((await res.json()).daemonPort).toBe(FAKE_DAEMON_PORT);
+  });
+
   it('signs Buffer-direct so the raw HKDF key verifies byte-identically (FX003)', async () => {
     /*
     Test Doc:
