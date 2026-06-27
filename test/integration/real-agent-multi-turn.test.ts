@@ -26,6 +26,7 @@ import type {
   AgentToolCallEvent,
   AgentToolResultEvent,
 } from '@chainglass/shared';
+import type { ICopilotClient } from '@chainglass/shared/interfaces/copilot-sdk.interface';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 // ============================================================================
@@ -279,7 +280,7 @@ describe.skip('Copilot Real Multi-Turn Tests', { timeout: 120_000 }, () => {
      * - Usage Notes: Requires Copilot SDK authenticated
      */
     const client = new CopilotClient();
-    const adapter = new SdkCopilotAdapter(client);
+    const adapter = new SdkCopilotAdapter(client as unknown as ICopilotClient);
 
     try {
       const subject = randomSubject();

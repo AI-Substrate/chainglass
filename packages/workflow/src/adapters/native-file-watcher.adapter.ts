@@ -29,6 +29,7 @@ import type {
   IFileWatcher,
   IFileWatcherFactory,
 } from '../interfaces/file-watcher.interface.js';
+import { compileIgnorePatterns } from './ignore-patterns.js';
 
 /** Internal watcher entry — one per add() call */
 interface WatcherEntry {
@@ -55,7 +56,7 @@ export class NativeFileWatcherAdapter implements IFileWatcher {
   private closed = false;
 
   constructor(options: FileWatcherOptions = {}) {
-    this.ignored = this.compileIgnorePatterns(options.ignored ?? []);
+    this.ignored = compileIgnorePatterns(options.ignored ?? []);
     this.ignoreInitial = options.ignoreInitial ?? false;
 
     // DYK#3: Write stabilization only applies to 'change' events
@@ -216,18 +217,6 @@ export class NativeFileWatcherAdapter implements IFileWatcher {
 
   private isIgnored(absolutePath: string): boolean {
     return this.ignored.some((fn) => fn(absolutePath));
-  }
-
-  /** Compile mixed ignore patterns (string, RegExp, function) into uniform predicates */
-  private compileIgnorePatterns(
-    patterns: (string | RegExp | ((path: string) => boolean))[]
-  ): ((absolutePath: string) => boolean)[] {
-    return patterns.map((pattern) => {
-      if (typeof pattern === 'function') return pattern;
-      if (pattern instanceof RegExp) return (p: string) => pattern.test(p);
-      // String pattern: match as substring in path
-      return (p: string) => p.includes(pattern);
-    });
   }
 }
 

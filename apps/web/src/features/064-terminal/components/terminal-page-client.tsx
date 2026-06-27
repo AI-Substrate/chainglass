@@ -7,13 +7,15 @@ import type { LeftPanelMode } from '@/features/_platform/panel-layout';
 import { useResponsive } from '@/hooks/useResponsive';
 import { List, TerminalSquare } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
+import { useTerminalOverlay } from '../hooks/use-terminal-overlay';
 import { useTerminalSessions } from '../hooks/use-terminal-sessions';
-import type { ConnectionStatus } from '../types';
 import { TerminalPageHeader } from './terminal-page-header';
 import { TerminalSessionList } from './terminal-session-list';
+import { useTerminalSingleton } from './terminal-singleton-provider';
 import { TerminalSkeleton } from './terminal-skeleton';
 import { TerminalView } from './terminal-view';
+import { TerminalViewport } from './terminal-viewport';
 
 const TERMINAL_MODES: LeftPanelMode[] = [
   { key: 'sessions' as PanelMode, icon: <List className="h-3.5 w-3.5" />, label: 'Sessions' },
@@ -56,7 +58,20 @@ function TerminalPageClient({ slug, worktreePath, worktreeBranch }: TerminalPage
 
   const wsCtx = useWorkspaceContext();
   const terminalTheme = wsCtx?.worktreeIdentity?.terminalTheme || 'dark';
-  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
+  // FX012: Connection status is owned by the singleton (one WS app-wide).
+  const { connectionStatus } = useTerminalSingleton();
+
+  // FX012 follow-up: singleton reads sessionName/cwd from the overlay state,
+  // so the /terminal page must sync its session-selector into that state
+  // before the viewport activates. Otherwise the singleton attaches to the
+  // workspace-default session (often the main repo) instead of the worktree
+  // session the user picked.
+  const { setSessionContext } = useTerminalOverlay();
+  useEffect(() => {
+    if (selectedSession) {
+      setSessionContext(selectedSession, worktreePath);
+    }
+  }, [selectedSession, worktreePath, setSessionContext]);
 
   // Set worktree identity for tab title (Plan 079)
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — only re-run on worktree change, not context ref
@@ -79,10 +94,14 @@ function TerminalPageClient({ slug, worktreePath, worktreeBranch }: TerminalPage
           content: (
             <MainPanel>
               {selectedSession ? (
+                // Mobile keeps its own TerminalView per FX012 KF-09 — mobile
+                // is single-surface, no overlay, no split, singleton sharing
+                // has no benefit. TerminalMobileGate also redirects phone
+                // users to /browser, so this branch is mostly dead for the
+                // /terminal route, but kept for parity with the desktop main.
                 <TerminalView
                   sessionName={selectedSession}
                   cwd={worktreePath}
-                  onConnectionChange={setConnectionStatus}
                   themeOverride={terminalTheme}
                 />
               ) : (
@@ -126,12 +145,11 @@ function TerminalPageClient({ slug, worktreePath, worktreeBranch }: TerminalPage
       main={
         <MainPanel>
           {selectedSession ? (
-            <TerminalView
-              sessionName={selectedSession}
-              cwd={worktreePath}
-              onConnectionChange={setConnectionStatus}
-              themeOverride={terminalTheme}
-            />
+            // FX012: desktop /terminal consumes the singleton via the
+            // terminal-page viewport. The singleton's xterm DOM moves into
+            // this slot, scrollback persists across A↔B and /browser↔/terminal
+            // nav, tmux only sees one client.
+            <TerminalViewport id="terminal-page" active />
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
               {loading ? 'Loading sessions…' : 'Select a session to connect'}

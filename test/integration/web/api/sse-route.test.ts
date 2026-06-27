@@ -7,6 +7,7 @@
  * Tests for the /api/events/[channel] SSE endpoint.
  * DYK-03: Reduced to 3 tests (skip heartbeat timing - covered by unit tests).
  */
+import { NextRequest } from 'next/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock auth before importing route
@@ -36,7 +37,7 @@ describe('SSE Route Handler /api/events/[channel]', () => {
     - Quality Contribution: HTTP protocol correctness
     - Worked Example: GET /api/events/test → 200 OK, Content-Type: text/event-stream
     */
-    const request = new Request('http://localhost:3000/api/events/test-channel', {
+    const request = new NextRequest('http://localhost:3000/api/events/test-channel', {
       method: 'GET',
     });
 
@@ -57,7 +58,7 @@ describe('SSE Route Handler /api/events/[channel]', () => {
     - Quality Contribution: SSE protocol compliance
     - Worked Example: reader.read() → chunk contains valid SSE format
     */
-    const request = new Request('http://localhost:3000/api/events/test-channel', {
+    const request = new NextRequest('http://localhost:3000/api/events/test-channel', {
       method: 'GET',
     });
 
@@ -92,7 +93,7 @@ describe('SSE Route Handler /api/events/[channel]', () => {
     - Worked Example: Request aborted → SSEManager.removeConnection called
     */
     const abortController = new AbortController();
-    const request = new Request('http://localhost:3000/api/events/test-channel', {
+    const request = new NextRequest('http://localhost:3000/api/events/test-channel', {
       method: 'GET',
       signal: abortController.signal,
     });
@@ -127,7 +128,7 @@ describe('SSE Route Handler /api/events/[channel]', () => {
     - Quality Contribution: Security boundary validation
     - Worked Example: channel '../admin' → 400 Bad Request
     */
-    const request = new Request('http://localhost:3000/api/events/../admin');
+    const request = new NextRequest('http://localhost:3000/api/events/../admin');
     const response = await GET(request, { params: Promise.resolve({ channel: '../admin' }) });
     expect(response.status).toBe(400);
   });

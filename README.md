@@ -66,6 +66,31 @@ See [GitHub OAuth App Setup](docs/how/auth/github-oauth-setup.md) for the full w
 | `just clean` | Clean build artifacts |
 | `just reset` | Full reset (clean + install) |
 
+## File Watching on WSL / Network Filesystems
+
+Chainglass watches the workspace with native OS file events (`fs.watch` — FSEvents on
+macOS, inotify on Linux), which is instant and cheap. There is one edge case where this
+does not work: **WSL2 with the workspace on a Windows drive mount** (e.g. `/mnt/c/...`,
+drvfs/9P). inotify events do not cross that boundary, so file changes are silently missed.
+
+If you hit this, force a polling watcher instead — either a one-off command:
+
+```bash
+just dev-poll          # dev server with polling forced on (default 1000ms)
+just dev-poll 500      # ...with a custom interval in ms
+```
+
+or persistently via env (in `apps/web/.env`, see `.env.example`):
+
+```bash
+CHAINGLASS_WATCH_POLLING=true          # force recursive polling for every watcher
+CHAINGLASS_WATCH_POLL_INTERVAL=1000    # optional; ms between scans (default 1000)
+```
+
+Polling walks the tree on an interval, so it costs more CPU/IO than native watching —
+leave it **unset** anywhere native watching works. An invalid/unset interval falls back
+to 1000ms.
+
 ## Dashboard Demo
 
 The web application includes interactive demo pages showcasing the dashboard components:
@@ -219,6 +244,10 @@ chainglass/
 ## File Browser Features
 
 The workspace browser at `/workspaces/[slug]/browser` includes the **Recent Changes Feed** — a media-rich main-panel view that scrolls a vertical stack of the most-recently-changed files repo-wide, with type-specific previews (images inline, videos with native controls, markdown / code excerpts, deleted markers). Useful for reviewing batches of generated images / screenshots / outputs without click-back-click-back through the file tree. Open with `Cmd/Ctrl+Shift+U` or the History icon in the explorer top bar. See [docs/how/recent-changes-feed.md](docs/how/recent-changes-feed.md) for the full guide (action shortcuts, settings, troubleshooting).
+
+## Remote View
+
+**Remote View** streams a single host-Mac app window (a Godot game, the iOS Simulator, any capturable window) into the content area with live mouse/keyboard input — agent-controllable via `cg remote-view`, MCP, or the palette. A signed native daemon (`streamd`) captures the window over loopback; the browser decodes H.264 with WebCodecs. Open it from the monitor icon in the browser toolbar. One-time setup is `just streamd-setup` + `just streamd-install` (macOS Screen Recording + Accessibility grants). See [docs/how/remote-view.md](docs/how/remote-view.md) for setup, the HTTPS/LAN (Caddy + Porkbun) recipe, and an error-code troubleshooting table.
 
 ## Agent System
 

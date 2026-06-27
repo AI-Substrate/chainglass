@@ -4,7 +4,7 @@
  */
 import { BOOTSTRAP_COOKIE_NAME } from '@chainglass/shared/auth-bootstrap-code';
 import { NextRequest } from 'next/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { POST } from '../../../../../apps/web/app/api/bootstrap/forget/route';
 
@@ -43,8 +43,7 @@ describe('POST /api/bootstrap/forget', () => {
   });
 
   it('production: clearing Set-Cookie includes Secure (F003)', async () => {
-    const originalNodeEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = 'production';
+    vi.stubEnv('NODE_ENV', 'production');
     try {
       const res = await POST(req());
       expect(res.status).toBe(200);
@@ -52,12 +51,7 @@ describe('POST /api/bootstrap/forget', () => {
       expect(setCookie).toContain('secure');
       expect(setCookie).toContain('max-age=0');
     } finally {
-      if (originalNodeEnv === undefined) {
-        // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
-        delete process.env.NODE_ENV;
-      } else {
-        process.env.NODE_ENV = originalNodeEnv;
-      }
+      vi.unstubAllEnvs();
     }
   });
 });

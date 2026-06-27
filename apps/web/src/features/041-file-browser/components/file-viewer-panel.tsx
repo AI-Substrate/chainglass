@@ -17,6 +17,7 @@ import {
   Edit,
   ExternalLink,
   Eye,
+  FileDown,
   GitCompare,
   Loader2,
   RefreshCw,
@@ -27,10 +28,16 @@ import {
 } from 'lucide-react';
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { usePdfExport } from '@/features/041-file-browser/hooks/use-pdf-export';
+import type { IPdfGenerator } from '@/features/041-file-browser/lib/pdf-generator';
+import { isRasterImageFilename } from '@/features/041-file-browser/services/image-filename';
 import {
+  ImageEditorLazy,
+  type ImageSaveOutcome,
   LinkPopover,
   MarkdownWysiwygEditorLazy,
   WysiwygToolbar,
+  exceedsCanvasLimit,
   exceedsRichSizeCap,
   hasTables,
   resolveImageUrl,
@@ -109,6 +116,13 @@ export interface FileViewerPanelProps {
   rawFileUrl?: string;
   /** Base URL for raw file API (without &file= param), for resolving relative images in markdown */
   rawFileBaseUrl?: string;
+  /** Persist edited image bytes (raster images only). Provided by the route; when
+   * present, raster images gain an inline Edit affordance (Plan 086). */
+  onSaveImage?: (
+    payloadBase64: string,
+    mode: 'overwrite' | 'edited-copy',
+    expectedMtime?: string
+  ) => Promise<ImageSaveOutcome>;
   /** URL for pop-out button — opens file in new tab (Phase 5) */
   popOutUrl?: string;
   /** Line number to scroll to in code editor (Plan 047 Phase 6) */
@@ -122,12 +136,15 @@ export interface FileViewerPanelProps {
    * resolved Promise.
    */
   saveFileImpl?: (content: string) => Promise<void>;
+  /** Optional generator injection for unit tests (no DI container — ADR-0013). */
+  pdfGenerator?: IPdfGenerator;
 }
 
 export function FileViewerPanel({
   filePath,
   content,
   language,
+  mtime,
   mode,
   onModeChange,
   onSave,
@@ -147,10 +164,12 @@ export function FileViewerPanel({
   binarySize,
   rawFileUrl,
   rawFileBaseUrl,
+  onSaveImage,
   popOutUrl,
   scrollToLine,
   onNavigateToFile,
   saveFileImpl,
+  pdfGenerator,
 }: FileViewerPanelProps) {
   // All hooks must be called before any early returns (Rules of Hooks)
   const isMarkdown = language === 'markdown';
@@ -159,6 +178,12 @@ export function FileViewerPanel({
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrolledDown, setScrolledDown] = useState(false);
   const [wordWrap, setWordWrap] = useState(true);
+
+  // Preview "Download as PDF" — captures the live rendered markdown preview node
+  // (theme + mermaid already resolved). Only wired for markdown preview (T004).
+  const previewRef = useRef<HTMLDivElement>(null);
+  const { isExporting: isPdfExporting, exportElement: exportPreviewPdf } =
+    usePdfExport(pdfGenerator);
 
   // Rich-mode composition state — shared open/close across the toolbar Link button and the
   // editor's Mod-k shortcut. Ref to the toolbar Link button so the LinkPopover anchors to it.
@@ -291,11 +316,14 @@ export function FileViewerPanel({
   if (isBinary && rawFileUrl) {
     return (
       <BinaryFileView
+        key={filePath}
         filePath={filePath}
         contentType={binaryContentType ?? 'application/octet-stream'}
         size={binarySize ?? 0}
         rawFileUrl={rawFileUrl}
         rawFileBaseUrl={rawFileBaseUrl}
+        mtime={mtime}
+        onSaveImage={onSaveImage}
         onRefresh={onRefresh}
       />
     );
@@ -371,6 +399,23 @@ export function FileViewerPanel({
                 aria-label="Scroll to top"
               >
                 <ArrowUp className="h-3.5 w-3.5" />
+              </button>
+            )}
+            {mode === 'preview' && isMarkdown && markdownHtml && (
+              <button
+                type="button"
+                onClick={() => exportPreviewPdf(previewRef.current, filePath)}
+                disabled={isPdfExporting}
+                className="rounded p-1 text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label="Download as PDF"
+                title="Download as PDF"
+                data-testid="file-viewer-download-pdf"
+              >
+                {isPdfExporting ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <FileDown className="h-3.5 w-3.5" />
+                )}
               </button>
             )}
             <button
@@ -499,7 +544,7 @@ export function FileViewerPanel({
             </>
           )}
           {mode === 'preview' && (
-            <div className="p-4">
+            <div className="p-4" ref={previewRef}>
               {isMarkdown && markdownHtml ? (
                 <MarkdownPreview
                   html={markdownHtml}
@@ -593,6 +638,8 @@ function BinaryFileView({
   size,
   rawFileUrl,
   rawFileBaseUrl,
+  mtime,
+  onSaveImage,
   onRefresh,
 }: {
   filePath: string;
@@ -600,34 +647,142 @@ function BinaryFileView({
   size: number;
   rawFileUrl: string;
   rawFileBaseUrl?: string;
+  mtime?: string;
+  onSaveImage?: (
+    payloadBase64: string,
+    mode: 'overwrite' | 'edited-copy',
+    expectedMtime?: string
+  ) => Promise<ImageSaveOutcome>;
   onRefresh: () => void;
 }) {
   const filename = filePath.split('/').pop() ?? filePath;
   const { category } = detectContentType(filename);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [editing, setEditing] = useState(false);
+  const [tooLarge, setTooLarge] = useState(false);
+  // Edit stays disabled until the natural size is measured (avoids a flash of
+  // an enabled Edit button on an oversized image before the probe resolves).
+  const [probed, setProbed] = useState(false);
+
+  // Edit is offered only for raster images (AC-16) when a save handler is wired.
+  const canEdit = category === 'image' && isRasterImageFilename(filename) && !!onSaveImage;
+
+  // Pre-measure the natural size so the Edit control can be disabled with a
+  // message for iOS-oversized images (AC-14) rather than failing on entry.
+  // refreshKey is an intentional re-probe trigger — a refresh (which bumps it to
+  // bust the <img> cache) must also re-measure the natural size if the file changed.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional refreshKey re-probe trigger
+  useEffect(() => {
+    if (!canEdit) return;
+    let cancelled = false;
+    setProbed(false);
+    const probe = new Image();
+    probe.onload = () => {
+      if (cancelled) return;
+      setTooLarge(exceedsCanvasLimit({ width: probe.naturalWidth, height: probe.naturalHeight }));
+      setProbed(true);
+    };
+    probe.onerror = () => {
+      // Let the editor surface the load failure; don't leave Edit stuck disabled.
+      if (!cancelled) setProbed(true);
+    };
+    probe.src = rawFileUrl;
+    return () => {
+      cancelled = true;
+    };
+  }, [canEdit, rawFileUrl, refreshKey]);
 
   const handleRefresh = () => {
     setRefreshKey((k) => k + 1);
     onRefresh();
   };
 
+  const handleSaveOver = async (payloadBase64: string, expectedMtime?: string) => {
+    if (!onSaveImage) throw new Error('handleSaveOver invoked without an onSaveImage handler');
+    const result = await onSaveImage(payloadBase64, 'overwrite', expectedMtime);
+    if (result.ok) {
+      setEditing(false);
+      setRefreshKey((k) => k + 1); // bust the <img> cache to show the saved result
+    }
+    return result;
+  };
+  const handleSaveAsNew = async (payloadBase64: string) => {
+    if (!onSaveImage) throw new Error('handleSaveAsNew invoked without an onSaveImage handler');
+    const result = await onSaveImage(payloadBase64, 'edited-copy');
+    if (result.ok) {
+      setEditing(false);
+      setRefreshKey((k) => k + 1);
+    }
+    return result;
+  };
+
+  // Edit mode swaps the image-view area for the lazy canvas editor, in place.
+  // Requires `canEdit` (raster + save handler) — never opens for SVG/unsupported.
+  if (canEdit && editing) {
+    return (
+      <div className="flex h-full flex-col" data-testid="image-edit-mode">
+        <ImageEditorLazy
+          // Cache-bust by refreshKey so the conflict "reload" path refetches.
+          imageSrc={`${rawFileUrl}&_v=${refreshKey}`}
+          filename={filename}
+          imageMtime={mtime}
+          onSaveOver={handleSaveOver}
+          onSaveAsNew={handleSaveAsNew}
+          onCancel={() => setEditing(false)}
+          onReload={() => {
+            setRefreshKey((k) => k + 1); // new imageSrc → editor reloads + clears strokes
+            onRefresh();
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full">
       <div className="border-b shrink-0">
         <div className="flex items-center justify-between px-3 py-1.5">
           <span className="text-xs text-muted-foreground">Preview</span>
-          <button
-            type="button"
-            onClick={handleRefresh}
-            className="rounded p-1 text-muted-foreground hover:text-foreground"
-            aria-label="Refresh file"
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-          </button>
+          <div className="flex items-center gap-0.5">
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                disabled={!probed || tooLarge}
+                className="flex items-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label="Edit image"
+                title={
+                  tooLarge
+                    ? 'This image is too large to edit on this device'
+                    : 'Edit (annotate) image'
+                }
+                data-testid="image-edit-button"
+              >
+                <Edit className="h-3.5 w-3.5" />
+                Edit
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleRefresh}
+              className="rounded p-1 text-muted-foreground hover:text-foreground"
+              aria-label="Refresh file"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
       </div>
       <div className="flex-1 flex flex-col min-h-0">
-        {category === 'image' && <ImageViewer key={refreshKey} src={rawFileUrl} alt={filename} />}
+        {category === 'image' && (
+          <ImageViewer
+            key={refreshKey}
+            // Cache-bust after a save-over — the URL is otherwise identical and
+            // the browser would serve the cached pre-edit image.
+            src={refreshKey > 0 ? `${rawFileUrl}&_v=${refreshKey}` : rawFileUrl}
+            alt={filename}
+          />
+        )}
         {category === 'pdf' && <PdfViewer key={refreshKey} src={rawFileUrl} />}
         {category === 'html' && (
           <HtmlViewer

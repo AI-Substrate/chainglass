@@ -29,6 +29,7 @@
 | Question Popper | question-popper | business | — | Plan 067 — Event Popper | active |
 | Themes | _platform/themes | infrastructure | _platform | Plan 073 — File Type Icons | active |
 | Git | _platform/git | infrastructure | _platform | Plan 084 FX007 | active |
+| Remote View | remote-view | business | — | Plan 088 | active |
 
 ## Domain Types
 

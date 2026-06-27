@@ -1,0 +1,313 @@
+{
+  "schema_version": "harnessability-assessment.v0.2",
+  "run": {
+    "timestamp_utc": "20260620T230641Z",
+    "repo_root": "/Users/jordanknight/substrate/084-random-enhancements-3",
+    "repo_name": "chainglass",
+    "branch": "084-random-enhancements-3",
+    "commit": "5b37e7c8",
+    "mode": "static",
+    "commands_executed": [
+      "git rev-parse / status (read-only)",
+      "ls / find / wc -l (read-only inventory)",
+      "grep / read of justfile, package.json, turbo.json, .github/workflows/ci.yml, biome.json, vitest.config.ts, vitest.e2e.config.ts, AGENTS.md, README.md, docs/**",
+      "git log --name-only -200 (read-only co-change mining)"
+    ],
+    "commands_skipped": [
+      "pnpm install / build / test (not executed — read-only pass)",
+      "just dev / just harness dev / just preflight (not booted)",
+      "just streamd-smoke / streamd-test / remote-view-stream-smoke (not executed)",
+      "minih run / agent execution (not executed)",
+      "secret value reads (env names only)"
+    ],
+    "safety_notes": [
+      "Read-only static assessment. No services booted, no deps installed, no state mutated, no external calls, no secret values read.",
+      "Six read-only inspector subagents fanned out over disjoint subsystems; this orchestrator merged + scored.",
+      "Sensors marked configured_unverified were evidenced by file/recipe inspection + prior recorded runs (e.g. swift test 75/75, streamd-smoke 40/40 in Plan 088 logs), not executed in this run."
+    ]
+  },
+  "verdict": {
+    "operate_today_percent": 93,
+    "operate_today_grade": "A",
+    "adaptability_percent": 70,
+    "adaptability_grade": "B",
+    "harnessability_index_percent": 82,
+    "harnessability_index_grade": "B",
+    "final_grade": "B",
+    "weaker_axis": "Adaptability (B, 70%) trails Operate-Today (A, 93%) — final_grade does not hide it; the single weakest area is Architecture enforcement & complexity (E).",
+    "readiness_level": "H4",
+    "highest_proof_level": "L4",
+    "target_proof_level": "L5",
+    "confidence": "high"
+  },
+  "harness_surfaces": [
+    {"surface": "justfile (root)", "role": "canonical command front door", "status": "present", "evidence": "justfile:6-7 default→just --list; check/fft/preflight/streamd-*/wf-*/agent-*/harness-*"},
+    {"surface": "harness/ workspace pkg + harness CLI (Docker dev container)", "role": "existing 'harness' #1 (L3 per docs/project-rules/harness.md)", "status": "present", "evidence": "justfile:167-256; harness/src/cli/index.ts; harness/docker-compose.yml; ADR-0014"},
+    {"surface": "minih agent runner", "role": "existing 'harness' #3 — agent-execution + retros", "status": "present", "evidence": "justfile:576-620; agents/code-review-companion/runs/*/output/report.json"},
+    {"surface": ".harness/engineering-harness.md", "role": "NEW engineering-harness governance (this adoption)", "status": "L0 — boot/health/interact/observe/signal-inventory all TODO", "evidence": ".harness/engineering-harness.md"},
+    {"surface": ".harness/adopt.flow.json", "role": "adopt flight plan (now=scout→inject→build-boot→bridge)", "status": "in_progress", "evidence": ".harness/adopt.flow.json"},
+    {"surface": "docs/c4 + docs/domains/registry.md + docs/adr (14) + docs/plans (86, the-flow flight plans)", "role": "architecture + SDD substrate", "status": "present", "evidence": "docs/c4/README.md; docs/domains/registry.md; docs/adr/; docs/plans/"}
+  ],
+  "topology": {
+    "languages": ["TypeScript", "Swift", "Shell/just"],
+    "runtimes": ["Node 20.19.0 (.nvmrc, engines pinned)", "Swift toolchain (native/streamd)"],
+    "package_manager": "pnpm@9.15.4 + turbo",
+    "monorepo_layout": "apps/{web,cli} + packages/{mcp-server,positional-graph,shared,workflow,workgraph} + harness/ (pnpm workspaces) + native/streamd (Swift SwiftPM, OUTSIDE pnpm graph)",
+    "service_types": ["Next.js 16 web app (React 19)", "Node CLI (cg)", "MCP server (stdio)", "workflow engine", "node-pty terminal WS sidecar", "streamd native macOS capture/encode/WS daemon"],
+    "ci_topology": ".github/workflows/ci.yml — lint(biome) / build(turbo) / typecheck(tsc) / test(vitest --coverage) → gate(alls-green)",
+    "local_dev_topology": "two environments: host dev server (just dev) AND Docker dev container (just harness dev); per-worktree port allocation",
+    "persistence": "file-based JSON (~/.config/chainglass/*.json, repo .chainglass/) + driverless single-file SQLite (session-store.db) — NO server DB/cache/queue/search driver in any package.json"
+  },
+  "axis_a_operate_today": [
+    {"id": "A1", "name": "Cold-start orientation & repo map", "band": "Partial", "points": 2, "evidence": "README.md + AGENTS.md maintained (run/validate/current-work/traps); docs/c4 L1-L3 + docs/domains/registry.md (29 domains) + 14 ADRs.", "notes": "Dragged down by ~14 STALE root *.md scratch docs (START_HERE.md, INDEX.md, INTERFACE_*x5, HARNESS_INDEX/INTERFACES/SUMMARY, QUESTION_POPPER_*, etc., last touched 2026-03-10). START_HERE.md is a FALSE front door pointing at Question-Popper feature docs. Real front door (README+AGENTS) is not named to stand out."},
+    {"id": "A2", "name": "Setup & environment contract", "band": "Strong", "points": 3, "evidence": ".nvmrc=20.19.0 + engines + engine-strict; pnpm-lock + workspace + turbo.json; apps/web/.env.example documents every secret w/ generation cmds + safe defaults; Docker image pins toolchain; flutter-doctor-style `harness doctor` + host `just preflight`.", "notes": "Minor: no devcontainer.json; HARNESS_*/CG_REMOTE_VIEW__*/TERMINAL_WS_* env vars documented only in Dockerfile/source comments."},
+    {"id": "A3", "name": "Locality of infra & external-dependency exposure", "band": "Strong", "points": 3, "evidence": "No remote infra to stand up (no DB/cache/queue/search driver); auth bypassable (DISABLE_GITHUB_OAUTH→fake session); every external/model dep has a Fake in createTestContainer; services are loopback (MCP stdio, terminal WS, streamd JWT localhost). streamd headless smoke proves daemon without TCC.", "notes": "Two real pressure points: CLI agent-exec path hard-requires GH_TOKEN; streamd LIVE capture needs macOS TCC grants (host-Mac-only)."},
+    {"id": "A4", "name": "Harness front door & command discoverability", "band": "Strong", "points": 3, "evidence": "Single justfile front door; default recipe = `just --list`; stable verbs (check/fft/build/test/lint/typecheck); wf-*/harness-cg are --json-first; CI mirrors core verbs.", "notes": "Inspector graded above-scale (4); capped at 3. The word 'harness' is overloaded 5 ways (see existing_harness_concepts) — a discoverability tax flagged HIGH, but the command surface itself is singular and discoverable."},
+    {"id": "A5", "name": "Boot & health/readiness path", "band": "Partial", "points": 2, "evidence": "Strong primitives that exit non-zero: just preflight (CLI freshness, dev PID, .chainglass), harness-require (curl app port), harness doctor --wait, container health-poll, streamd /health gate, GET /api/health.", "notes": "Fragmented across host/harness/streamd; NO single root `just boot`/`just up`/`just doctor` aggregator. just dev is persistent with no built-in readiness assertion."},
+    {"id": "A6", "name": "Seed, fixture, reset, cleanup state", "band": "Strong", "points": 3, "evidence": "harness test-data create/clean/status (idempotent, deterministic slugs, envelope output); harness seed; cross-language fixtures shared TS↔Swift; fake-streamd owns/never-mutates seed w/ full teardown; just reset/clean.", "notes": "Only gap: no single 'reset all runtime state' across session-store.db + .chainglass + session-state."},
+    {"id": "A7", "name": "Supported interaction surfaces", "band": "Strong", "points": 3, "evidence": "32 Next.js API routes; ~25 cg CLI command groups (--json envelope); MCP tools (check_health, wf_compose, phase_*); workflow engine wf-* recipes; minih runner; streamd/fake-streamd WS; Playwright/CDP drive; DOCUMENTED auth bypass (first-class, not a hidden shortcut).", "notes": "No OpenAPI/GraphQL schema doc, but routes are conventionally discoverable + Next MCP get_routes exists."},
+    {"id": "A8", "name": "Existing deterministic back-pressure sensors", "band": "Strong", "points": 3, "evidence": "biome lint + multi-workspace tsc + vitest(+coverage) + turbo build run locally AND in CI with an alls-green gate; plus security-audit, swift test, headless streamd-smoke (auth/handshake/frames/lifecycle), remote-view-stream-smoke, harness-verify (Turbopack chunking catcher).", "notes": "Inspector graded above-scale (4); capped at 3. Deductions: NO pre-commit gate; CI typecheck narrower than local (root tsc only); security-audit/swift-test/e2e/streamd-smoke are local-only (not enforced per change)."},
+    {"id": "A9", "name": "Observability & evidence artifacts", "band": "Strong", "points": 3, "evidence": "minih run artifacts (report.json findings+exitReason+retrospective.magicWand, events.ndjson ~3MB, schemas); CLI --json/--pretty/--stream(NDJSON); pino structured logging; harness-verify JSON httpStatus+consoleErrors; Playwright screenshots + console-*.log; streamd stats/client-stats telemetry; 313 execution.log.md.", "notes": "No central metrics/trace backend (OTel), but per-run artifacts are excellent."},
+    {"id": "A10", "name": "Compounding harness loop", "band": "Strong", "points": 3, "evidence": "Friction ledger (harness-wishlist W001-W011 → real fix tasks; W001/W003/W008 fixed same session); docs/retros/; per-run magicWand + retrospective.difficulties mirrored to retros; 20+ run history; the-flow.json flight plans; 14 ADRs; 86 plans.", "notes": "Repo's strongest axis — loop is real and exercised. Minor: retros are agent-runner-centric; broader dev-friction retros thinner."}
+  ],
+  "axis_b_adaptability": [
+    {"id": "B1", "name": "Structural coupling & blast radius", "band": "Partial", "points": 2, "evidence": "405 importers of @chainglass/shared, 133 of workflow, 60 of positional-graph; cross-feature hub 041-file-browser (30 inbound); di-container.ts 958L. No real package cycles (shared is a leaf; apparent cycle was doc-comments only); tsconfig path aliases gate access.", "notes": "Acyclic + layered, but very high fan-in hubs give large blast radius; boundaries enforced by aliases+prose, not sensors."},
+    {"id": "B2", "name": "Temporal / change coupling", "band": "Weak", "points": 1, "evidence": "git log --name-only(-200): TS protocol (088-remote-view) co-changes with native/streamd/*.swift + fixtures (dual-language mirror); browser-client.tsx with 084 plan docs.", "notes": "Real cross-language co-change coupling is the main hidden link. Confidence medium — mined breadth only, not per-pair statistics."},
+    {"id": "B3", "name": "Cohesion & locality of change", "band": "Partial", "points": 2, "evidence": "Clear feature-folder layout (apps/web/src/features/NNN-name) + docs/domains. BUT 508 tests centralized in /test, 0 co-located. God files: positional-graph.command.ts 3348L, positional-graph.service.ts 2602L, console-output.adapter.ts 2376L, worknode.service.ts 1979L, browser-client.tsx 1657L.", "notes": "Strong domain ownership undermined by far-from-code tests + several >2000-line catch-all files."},
+    {"id": "B4", "name": "Seams, substitution & dependency inversion", "band": "Strong", "points": 3, "evidence": "Textbook ports-and-adapters: createTestContainer mirrors createProductionContainer over ~30 DI tokens; 22 I*-interfaces + 18 fakes in packages/shared; 42 *.contract.test.ts run the SAME suite vs fake AND real adapter (proves fakes are behaviour-faithful, not stubs).", "notes": "The seams the tests inject at (every DI token) are directly reusable as harness substitution points."},
+    {"id": "B5", "name": "Hermetic, offline & isolated testability", "band": "Strong", "points": 3, "evidence": "vitest.config.ts unit lane (offline, fakes, no creds/DB, 444 tests) physically separated from vitest.e2e.config.ts (real agent CLIs, excluded from default); per-test isolated containers; fake-streamd binds 127.0.0.1:0 + tears down.", "notes": "High hermeticity; minor erosion: a couple production-container factories shell out to git/tmux (prod path only)."},
+    {"id": "B6", "name": "Side-effect isolation & external-effect sinks", "band": "Strong", "points": 3, "evidence": "FakeCentralEventNotifier.emittedEvents (SSE sink); fake-streamd.inputLog + .received (injected input/control sink); video-frame fixture cassette; FakeProcessManager/FakeTmuxExecutor/FakePty; production CopilotClient(--allow-all-tools) built ONLY in production container → accidental prod calls structurally prevented.", "notes": "Fakes/sinks (real substitutes + recorded effects), not brittle mocks (13 vi.mock files vs 266 Fake importers)."},
+    {"id": "B7", "name": "State evolution & consequence verification", "band": "Partial", "points": 2, "evidence": "PROTOCOL_VERSION=1 (Zod literal) mirrored Swift WireProtocol.version=1 + E_VERSION gate; additive-evolution doc; Zod-validated control messages. But NO DB migration tooling, no schemaVersion on persisted JSON/sqlite, no migrations/ dir.", "notes": "Wire-protocol versioning strong + dual-language verified; persisted-state/file-format evolution unguarded."},
+    {"id": "B8", "name": "Architecture boundary enforceability", "band": "Weak", "points": 1, "evidence": "biome.json = recommended rules only; NO dependency-cruiser/eslint-boundaries/semgrep/ArchUnit. Arch rules are PROSE: AGENTS.md 'Search Before Creating — Mandatory Concept Check' (human/agent-enforced), DEPENDENCY_MAP.md, DESIGN_PATTERNS.md. Package access limited only by tsconfig aliases.", "notes": "Intent well-documented but NOT encoded as a sensor; nothing fails CI on a forbidden cross-boundary import or duplicated concept. Single weakest area."},
+    {"id": "B9", "name": "Complexity, size & navigability thresholds", "band": "Weak", "points": 1, "evidence": "biome recommended-only — no cognitive-complexity/max-lines rule; no knip/jscpd/ts-prune; tsconfig lacks noUnusedLocals/noUnusedParameters. Largest files 3348/2602/2376L unguarded.", "notes": "No size/complexity/duplication/dead-code sensors; navigability rests on conventions + docs."},
+    {"id": "B10", "name": "Inner-loop speed & repeatability", "band": "Strong", "points": 3, "evidence": "turbo caches build/test/lint/typecheck (output globs, ^build deps); split lanes (unit/e2e/harness/per-feature watch); coverage thresholds enforced (50%); 65 files use fake-timers/deterministic IDs; preflight kills stale port PIDs; registry-backed streamd-kill avoids cross-worktree kills.", "notes": "Fast, cacheable, repeatable. Minor: dev ports derived (NEXT+1500) not per-worktree allocated → concurrent worktrees on default PORT collide."}
+  ],
+  "assessment_matrix": [
+    {"area": "Cold-start & documentation", "grade": "C", "score_percent": 67, "rationale": "README+AGENTS strong, but ~14 stale root *.md + a false START_HERE.md actively mislead a fresh agent."},
+    {"area": "Setup & environment", "grade": "A", "score_percent": 100, "rationale": "Pinned runtimes, documented secrets w/ defaults, two reproducible dev envs, layered doctor/preflight."},
+    {"area": "Command front door & sensors", "grade": "A", "score_percent": 89, "rationale": "Singular justfile front door + rich CI-gated deterministic sensors; dings: no pre-commit gate, CI typecheck narrower than local."},
+    {"area": "State, interaction & observability", "grade": "A", "score_percent": 100, "rationale": "Broad interaction surfaces, idempotent seed/reset, excellent machine-readable run artifacts."},
+    {"area": "Compounding loop", "grade": "A", "score_percent": 100, "rationale": "Real wishlist→fix-task + magicWand→retro loop, run history, SDD flight plans, ADRs."},
+    {"area": "Seams & test substitution", "grade": "A", "score_percent": 100, "rationale": "Ports-and-adapters with fake+real contract parity; fakes/sinks over mocks; hermetic unit lane."},
+    {"area": "Structure & coupling", "grade": "C", "score_percent": 56, "rationale": "Clear features but high fan-in hubs, mega-files, far-from-code tests, TS↔Swift co-change."},
+    {"area": "Architecture enforcement & complexity", "grade": "E", "score_percent": 33, "rationale": "Boundaries + complexity are prose only — no executable sensor; the single weakest area."},
+    {"area": "State evolution", "grade": "C", "score_percent": 67, "rationale": "Strong wire-protocol versioning; no migration/schemaVersion for persisted JSON/sqlite."},
+    {"area": "Inner-loop speed", "grade": "A", "score_percent": 100, "rationale": "Cached turbo, split lanes, deterministic clocks, idempotent cleanup."}
+  ],
+  "backpressure_surfaces": [
+    {"command_or_check": "biome check . (lint)", "category": "static", "local_available": "yes", "ci_available": "yes", "proof_level": "L2", "status": "verified", "evidence": "justfile:396-397; ci.yml:25"},
+    {"command_or_check": "tsc --noEmit (typecheck)", "category": "static", "local_available": "yes", "ci_available": "yes (narrower — root only)", "proof_level": "L2", "status": "verified", "evidence": "justfile:411-421 (per-workspace); ci.yml:71 (root only)"},
+    {"command_or_check": "turbo build", "category": "static", "local_available": "yes", "ci_available": "yes", "proof_level": "L2", "status": "verified", "evidence": "justfile:78-79; ci.yml:47,70,97"},
+    {"command_or_check": "vitest run (+ --coverage in CI, 50% thresholds)", "category": "static", "local_available": "yes", "ci_available": "yes", "proof_level": "L2", "status": "verified", "evidence": "justfile:82-83; ci.yml:99; vitest.config.ts:65"},
+    {"command_or_check": "pnpm audit --audit-level=high (security-audit)", "category": "static", "local_available": "yes", "ci_available": "no", "proof_level": "L2", "status": "configured_unverified", "evidence": "justfile:424-425 (one-sided — absent from CI)"},
+    {"command_or_check": "swift test (native/streamd)", "category": "static", "local_available": "yes", "ci_available": "no", "proof_level": "L4", "status": "configured_unverified", "evidence": "justfile:111-112; cross-language fixture oracle; outside pnpm graph + absent from CI"},
+    {"command_or_check": "just harness-verify <path>", "category": "consequence", "local_available": "yes", "ci_available": "no", "proof_level": "L4", "status": "verified", "evidence": "justfile:218-266 — real render: HTTP 2xx + filtered console + Turbopack ⨯ grep; exit 1"},
+    {"command_or_check": "just streamd-smoke (headless real daemon over WS)", "category": "runtime", "local_available": "yes", "ci_available": "no", "proof_level": "L5", "status": "configured_unverified", "evidence": "justfile:114-130 — auth gate/handshake/frames/displacement/detach/REST/lifecycle, no TCC"},
+    {"command_or_check": "just remote-view-stream-smoke (fake-streamd replay)", "category": "runtime", "local_available": "yes", "ci_available": "no", "proof_level": "L4", "status": "verified", "evidence": "justfile:98-100; fake-streamd.ts (3rd protocol impl, no daemon needed)"},
+    {"command_or_check": "*.contract.test.ts (fake AND real adapter parity)", "category": "consequence", "local_available": "yes", "ci_available": "yes", "proof_level": "L4", "status": "verified", "evidence": "test/contracts/*.contract.test.ts (42 suites)"},
+    {"command_or_check": "minih run report.json (findings + retrospective.magicWand)", "category": "observability", "local_available": "yes", "ci_available": "no", "proof_level": "L4", "status": "verified", "evidence": "justfile:576-620; agents/code-review-companion/runs/*/output/report.json"},
+    {"command_or_check": "cg CLI --json/--stream envelopes", "category": "observability", "local_available": "yes", "ci_available": "no", "proof_level": "L3", "status": "verified", "evidence": "apps/cli/src/commands/command-helpers.ts:26-29"},
+    {"command_or_check": "GET /api/health", "category": "observability", "local_available": "yes", "ci_available": "no", "proof_level": "L2", "status": "verified", "evidence": "apps/web/app/api/health/route.ts:1-12 (in AUTH_BYPASS_ROUTES)"},
+    {"command_or_check": "Architecture-boundary rule", "category": "static", "local_available": "no", "ci_available": "no", "proof_level": "L0", "status": "absent", "evidence": "biome recommended-only; arch rules are prose (AGENTS.md:292-324, DEPENDENCY_MAP.md) — NO sensor"}
+  ],
+  "scenario_probes": [
+    {"name": "UI / user-flow loop (Next.js web)", "relevant_surfaces": "feature component → dev server → render", "likely_edit_target": "apps/web/src/features/NNN-name/*.tsx", "required_setup": "just dev (or harness dev) + DISABLE_GITHUB_OAUTH", "supported_interaction": "harness-verify <route> / Playwright / browser_eval", "expected_consequence": "HTTP 2xx + rendered DOM + screenshot + console clean (catches Turbopack chunking)", "verdict_command": "just harness-verify \"/workspaces/<slug>/<page>\"", "reset_path": "just clean-next", "local_substitute": "fakes via createTestContainer", "remote_blockers": "none", "highest_proof_today": "L4", "still_inferred": "visual correctness beyond console/HTTP", "highest_leverage_missing": "screenshot diff / visual-regression sensor"},
+    {"name": "Remote-view streaming loop (streamd)", "relevant_surfaces": "Swift daemon + TS protocol + WS", "likely_edit_target": "native/streamd/Sources/streamd/*.swift + apps/web/src/features/088-remote-view/protocol/*", "required_setup": "swift toolchain", "supported_interaction": "headless WS client (smoke) or fake-streamd", "expected_consequence": "auth gate, handshake, H.264 frames, displacement, detach, lifecycle", "verdict_command": "just streamd-smoke && just streamd-test", "reset_path": "just streamd-kill", "local_substitute": "fake-streamd (no daemon) + cross-language fixtures", "remote_blockers": "LIVE window capture needs macOS TCC (host-Mac-only)", "highest_proof_today": "L5 (headless) / L4 (live, host-Mac)", "still_inferred": "real on-screen capture fidelity", "highest_leverage_missing": "CI macOS runner for swift test + headless smoke"},
+    {"name": "CLI behavior loop (cg)", "relevant_surfaces": "Node CLI command + workspace state", "likely_edit_target": "apps/cli/src/commands/*.command.ts", "required_setup": "built CLI artifact", "supported_interaction": "node apps/cli/dist/cli.cjs <cmd> --json", "expected_consequence": "structured success/error envelope + state/file change", "verdict_command": "<cmd> --json then assert envelope", "reset_path": "just reset / test-data clean", "local_substitute": "FakeProcessManager / test-data fixtures", "remote_blockers": "agent-exec path hard-requires GH_TOKEN", "highest_proof_today": "L4", "still_inferred": "none for non-agent paths", "highest_leverage_missing": "GH_TOKEN-free fake/dry-run for agent-exec"},
+    {"name": "Contract / seam loop", "relevant_surfaces": "interface + fake + real adapter", "likely_edit_target": "packages/shared/src/interfaces + /fakes + test/contracts/*.contract.ts", "required_setup": "none (hermetic)", "supported_interaction": "run shared contract suite vs fake AND real", "expected_consequence": "fake/real behavioural parity proven", "verdict_command": "vitest run test/contracts", "reset_path": "n/a (pure)", "local_substitute": "n/a", "remote_blockers": "none", "highest_proof_today": "L5", "still_inferred": "none", "highest_leverage_missing": "run remote-view-service contract vs the real Phase-5 adapter once it lands"},
+    {"name": "Architecture-rule loop", "relevant_surfaces": "import graph + module boundaries", "likely_edit_target": "any cross-boundary import", "required_setup": "n/a", "supported_interaction": "none today — only human/agent 'Search Before Creating'", "expected_consequence": "(none — no sensor)", "verdict_command": "(absent)", "reset_path": "n/a", "local_substitute": "n/a", "remote_blockers": "none", "highest_proof_today": "L0 (prose)", "still_inferred": "whether a change violates a boundary or duplicates a concept", "highest_leverage_missing": "dependency-cruiser / boundary lint wired into `just check` + CI"}
+  ],
+  "command_tiers": [
+    {"command": "pnpm install / just install", "tier": "bootstrap", "status": "configured_unverified", "evidence": "justfile:9-15"},
+    {"command": "just dev (host) / just harness dev (Docker)", "tier": "boot", "status": "configured_unverified", "evidence": "justfile:20-40,167; harness/justfile:24-39"},
+    {"command": "just harness doctor --wait", "tier": "doctor", "status": "configured_unverified", "evidence": "justfile:567; harness/src/cli/index.ts:73"},
+    {"command": "just preflight / just harness-require / GET /api/health", "tier": "health", "status": "configured_unverified", "evidence": "justfile:497-571; apps/web/app/api/health/route.ts"},
+    {"command": "just check (lint typecheck test)", "tier": "fast", "status": "configured_unverified", "evidence": "justfile:428"},
+    {"command": "just fft (lint format build typecheck test security-audit)", "tier": "ci_equivalent", "status": "configured_unverified", "evidence": "justfile:404"},
+    {"command": "just streamd-smoke / remote-view-stream-smoke / harness-verify", "tier": "smoke", "status": "configured_unverified", "evidence": "justfile:98-130,218-266"},
+    {"command": "just test-data create|clean / harness seed", "tier": "seed_or_reset", "status": "configured_unverified", "evidence": "justfile:392; harness/src/cli/commands/{test-data,seed}.ts"},
+    {"command": "just wf-watch / wf-logs / agent-report / agent-tail", "tier": "observe", "status": "configured_unverified", "evidence": "justfile:332-389,588-620"},
+    {"command": "just clean / clean-next / streamd-kill / harness-stop", "tier": "cleanup", "status": "configured_unverified", "evidence": "justfile:135-186,431-462"},
+    {"command": "minih run (companion / code-review-agent)", "tier": "retro_or_improve", "status": "candidate_unverified", "evidence": "justfile:576-585"}
+  ],
+  "environment_variables": [
+    {"name": "AUTH_SECRET", "required": "optional", "purpose_inferred": "next-auth JWT key; also reused for remote-view WS JWT signing", "example_present": "yes", "safe_default_present": "yes", "secret_like": "yes"},
+    {"name": "AUTH_GITHUB_ID / AUTH_GITHUB_SECRET", "required": "optional", "purpose_inferred": "GitHub OAuth app (login)", "example_present": "yes", "safe_default_present": "no", "secret_like": "yes"},
+    {"name": "DISABLE_GITHUB_OAUTH (legacy DISABLE_AUTH)", "required": "optional", "purpose_inferred": "canonical local auth bypass → fake session", "example_present": "yes", "safe_default_present": "yes", "secret_like": "no"},
+    {"name": "GH_TOKEN / GITHUB_TOKEN", "required": "optional", "purpose_inferred": "hard pre-flight for CLI agent/positional-graph execution path", "example_present": "no", "safe_default_present": "no", "secret_like": "yes"},
+    {"name": "CG_REMOTE_VIEW__DAEMON_PORT", "required": "optional", "purpose_inferred": "streamd daemon port (ADR-0003 CG_* convention)", "example_present": "no", "safe_default_present": "yes", "secret_like": "no"},
+    {"name": "TERMINAL_WS_HOST/PORT/ALLOWED_ORIGINS/TERMINAL_ALLOWED_BASE", "required": "optional", "purpose_inferred": "node-pty terminal WS sidecar bind + origin/cwd guards", "example_present": "partial", "safe_default_present": "yes", "secret_like": "no"},
+    {"name": "HARNESS_APP_PORT/TERMINAL_PORT/CDP_PORT/WORKTREE", "required": "optional", "purpose_inferred": "per-worktree port allocation auto-generated by harness CLI", "example_present": "no", "safe_default_present": "yes", "secret_like": "no"},
+    {"name": "NEXT_PUBLIC_ENABLE_WORKFLOW/KANBAN/SSE", "required": "optional", "purpose_inferred": "client feature flags (default off)", "example_present": "no", "safe_default_present": "yes", "secret_like": "no"}
+  ],
+  "external_dependencies": [
+    {"name": "GitHub OAuth (next-auth)", "type": "auth", "local_option": "fake", "remote_required": "optional", "secret_required": "optional", "mutation_risk": "none", "proof_blocked_by_dependency": "no", "recommended_affordance": "DISABLE_GITHUB_OAUTH→fake session; Docker env sets it by default"},
+    {"name": "GitHub Copilot SDK / Claude Code / Copilot CLI (model providers)", "type": "model_provider", "local_option": "fake", "remote_required": "optional", "secret_required": "optional", "mutation_risk": "local_only", "proof_blocked_by_dependency": "partial", "recommended_affordance": "FakeAgentAdapter/FakeCopilotClient in test container; real runs spawn local CLIs w/ own auth"},
+    {"name": "GH token (CLI agent-execution path)", "type": "external_api", "local_option": "none", "remote_required": "yes", "secret_required": "yes", "mutation_risk": "remote_shared", "proof_blocked_by_dependency": "partial", "recommended_affordance": "only the cg agent-run path hard-requires it; web UI + tests do not. Add a fake/dry-run mode."},
+    {"name": "streamd remote-view daemon (ScreenCaptureKit/CGEvent)", "type": "internal_service", "local_option": "native", "remote_required": "no", "secret_required": "optional", "mutation_risk": "local_only", "proof_blocked_by_dependency": "partial", "recommended_affordance": "headless smoke proves protocol/auth w/o TCC; LIVE capture needs macOS TCC (host-Mac-only)"},
+    {"name": "node-pty terminal WS / MCP servers / fs2 / session-store.db", "type": "internal_service", "local_option": "native", "remote_required": "no", "secret_required": "no", "mutation_risk": "local_only", "proof_blocked_by_dependency": "no", "recommended_affordance": "all loopback/stdio/local-file; sqlite is driverless w/ no app coupling"},
+    {"name": "Docker dev container + Chromium/CDP (Playwright)", "type": "internal_service", "local_option": "container", "remote_required": "no", "secret_required": "no", "mutation_risk": "local_only", "proof_blocked_by_dependency": "no", "recommended_affordance": "host `just dev` is a Docker-free alternative; doctor emits orbctl-start fix"}
+  ],
+  "external_dependency_pressure": [
+    {"dependency": "GitHub OAuth", "pressure": "none", "local_substitute": "yes"},
+    {"dependency": "Model/agent providers", "pressure": "low", "local_substitute": "yes"},
+    {"dependency": "GH_TOKEN (CLI agent-exec)", "pressure": "medium", "local_substitute": "no"},
+    {"dependency": "streamd TCC live capture", "pressure": "medium", "local_substitute": "partial"},
+    {"dependency": "Docker dev container", "pressure": "low", "local_substitute": "partial (host just dev)"}
+  ],
+  "engineering_flows": [
+    {"flow": "host dev loop", "commands": "just install; just dev; just preflight; just wf-*", "canonical": "yes"},
+    {"flow": "pre-commit quality gate", "commands": "just fft (mandatory) / just check", "canonical": "yes"},
+    {"flow": "CI gate", "commands": "lint/build/typecheck/test→gate (ci.yml)", "canonical": "yes"},
+    {"flow": "SDD pipeline (the-flow)", "commands": "/the-flow 1a explore→1b plan→5 tasks→6 implement→7 review→8 ship; the-flow.json flight plans + 14 ADRs", "canonical": "yes"},
+    {"flow": "compile-time page verify", "commands": "just harness-verify <path>", "canonical": "yes"},
+    {"flow": "Docker harness dev loop", "commands": "just harness dev; harness doctor/seed; harness-cg; test-harness", "canonical": "yes"},
+    {"flow": "minih agent runner", "commands": "just companion / code-review-agent; agent-report/agent-tail", "canonical": "yes"},
+    {"flow": "native streamd build/test/smoke", "commands": "just streamd-setup/build/test/smoke/install", "canonical": "yes"},
+    {"flow": "engineering-harness adoption (NEW, in progress)", "commands": "harness instructions; eng-harness-flow; .harness/adopt.flow.json", "canonical": "no"}
+  ],
+  "pre_commit_gates": [
+    {"mechanism": "none (no husky/lefthook/pre-commit/lint-staged)", "checks": "none client-side", "runs_locally": "no", "ci_enforces_same": "no", "evidence": "no .husky/lefthook/.pre-commit-config; .git/hooks only *.sample; core.hooksPath unset; AGENTS.md:182 makes `just fft` a manual MANDATORY step"}
+  ],
+  "ci_local_equivalence": [
+    {"check": "lint", "relation": "identical", "evidence": "justfile:397 ≡ ci.yml:25"},
+    {"check": "build", "relation": "identical", "evidence": "justfile:79 ≡ ci.yml:47"},
+    {"check": "typecheck", "relation": "divergent", "evidence": "local per-workspace loop (justfile:411-421) vs CI root tsc --noEmit only (ci.yml:71)"},
+    {"check": "test", "relation": "equivalent", "evidence": "CI adds --coverage (ci.yml:99)"},
+    {"check": "security-audit", "relation": "one_sided", "evidence": "local-only; absent from CI"},
+    {"check": "swift test / streamd-smoke / e2e / harness-integration", "relation": "one_sided", "evidence": "all local/host-only; no CI job"}
+  ],
+  "existing_harness_concepts": [
+    {"concept": "Docker dev container (just harness dev)", "kind": "docker_dev_container", "canonical_or_diffuse": "canonical", "front_door": "just harness dev / just harness <ARGS>", "naming_collision_note": "Historically-dominant meaning of 'harness' (L3 per docs/project-rules/harness.md, ADR-0014). The thing the adoption intends to coexist-with/supplant."},
+    {"concept": "just harness-verify (page compile smoke)", "kind": "verify_recipe", "canonical_or_diffuse": "canonical", "front_door": "just harness-verify <path>", "naming_collision_note": "Unrelated to 'harness dev' despite the shared word."},
+    {"concept": "minih agent runner", "kind": "agent_runner", "canonical_or_diffuse": "canonical", "front_door": "minih run --agents-dir harness/agents", "naming_collision_note": "'harness' here = the agent-running subsystem."},
+    {"concept": "docs/project-rules/harness.md (L3 governance)", "kind": "other", "canonical_or_diffuse": "canonical", "front_door": "docs/project-rules/harness.md", "naming_collision_note": "Documents the Docker harness (#1), NOT .harness/ (#5) — two governance docs claim 'harness' at L3 vs L0."},
+    {"concept": ".harness/engineering-harness.md (NEW eng-harness)", "kind": "engineering_harness", "canonical_or_diffuse": "diffuse", "front_door": "harness instructions / eng-harness-flow / .harness/adopt.flow.json", "naming_collision_note": "CRITICAL: 5th 'harness' just stamped L0, intending to supplant the L3 Docker harness. Boot contract empty. Nothing disambiguates the 5 meanings at the front door."}
+  ],
+  "test_mechanisms": [
+    {"mechanism": "fake", "what": "createTestContainer — tsyringe child container wired with Fake* for every DI token; per-test isolation; mirrors createProductionContainer", "reusable_as_harness_affordance": "yes", "evidence": "apps/web/src/lib/di-container.ts:738"},
+    {"mechanism": "contract", "what": "42 *.contract.test.ts run the SAME parameterized suite vs fake AND real adapter (parity proof)", "reusable_as_harness_affordance": "yes", "evidence": "test/contracts/process-manager.contract.test.ts:5"},
+    {"mechanism": "contract", "what": "cross-language fixture oracle — Swift tests read the SAME repo-root JSON the TS suite uses (auth vectors, frame-header, messages)", "reusable_as_harness_affordance": "yes", "evidence": "native/streamd/Tests/streamdTests/AuthVectorsTests.swift:9"},
+    {"mechanism": "sink", "what": "fake-streamd — 3rd protocol impl replaying H.264 fixtures on ephemeral port; records inputLog + received; scriptable race cues; no daemon", "reusable_as_harness_affordance": "yes", "evidence": "apps/web/src/features/088-remote-view/testing/fake-streamd.ts:84"},
+    {"mechanism": "in_memory", "what": "FakeCentralEventNotifier records every domain event to emittedEvents[] (SSE/notification sink)", "reusable_as_harness_affordance": "yes", "evidence": "packages/shared/src/features/027-central-notify-events/fake-central-event-notifier.ts:19"},
+    {"mechanism": "mock", "what": "vi.mock is the minority (13 files vs 266 Fake importers)", "reusable_as_harness_affordance": "no", "evidence": "grep vi.mock test = 13"}
+  ],
+  "code_composition": [
+    {"area": "packages/shared", "boundary": "package", "test_substitutable": "yes", "notes": "leaf package; 22 interfaces + 18 fakes + DI tokens; fan-in 405 (largest blast radius)"},
+    {"area": "packages/workflow", "boundary": "package", "test_substitutable": "yes", "notes": "ships fakes; depends only on shared; fan-in 133"},
+    {"area": "apps/web features/NNN-name", "boundary": "module", "test_substitutable": "partial", "notes": "clear ownership; tests centralized in /test; 041-file-browser a 30-ref hub"},
+    {"area": "native/streamd", "boundary": "service", "test_substitutable": "yes", "notes": "swift test + headless smoke + fake-streamd double; FrameSource/Input seams"},
+    {"area": "di-container.ts", "boundary": "module", "test_substitutable": "yes", "notes": "958L composition root — enables fakes but is itself a coupling hub"}
+  ],
+  "manual_operation_signals": [
+    {"signal": "streamd TCC grants (Screen Recording + Accessibility)", "only_via": "host_mac", "penalize": "no", "reason": "intrinsic to macOS native capture topology; headless smoke covers everything else", "dimensions_touched": "A7", "evidence": "justfile:101-106"},
+    {"signal": "streamd keychain cert creation (GUI auth)", "only_via": "gui", "penalize": "no", "reason": "OS keychain gate intrinsic to signing a native bundle", "dimensions_touched": "A7", "evidence": "justfile:101-103"},
+    {"signal": "host-Mac-only live window capture", "only_via": "host_mac", "penalize": "no", "reason": "desktop/native by nature; headless path provided", "dimensions_touched": "A7,A9", "evidence": "Plan 088 the-flow intent"},
+    {"signal": "workspace registration via web UI (no CLI path)", "only_via": "gui", "penalize": "yes", "reason": "preflight check 3 has no scriptable fix — a click-op blocking wf-* flows", "dimensions_touched": "A4,A5", "evidence": "justfile preflight ~545"},
+    {"signal": "GitHub OAuth app + allowlist setup", "only_via": "hand", "penalize": "yes", "reason": "hand-create OAuth app + edit .chainglass/auth.yaml before authenticated surfaces work (mitigated by DISABLE_GITHUB_OAUTH for dev)", "dimensions_touched": "A4,A5", "evidence": "README.md:31-49"}
+  ],
+  "deterministic_encoding_opportunities": [
+    {"behaviour": "'Search Before Creating — Mandatory Concept Check' (prose, agent-enforced)", "currently": "AGENTS.md:292-324 prose", "proposed_encoding": "dependency-cruiser boundary rules + a duplicate-concept/dead-export lint (knip) wired into `just check`", "evidence": "AGENTS.md:292-324"},
+    {"behaviour": "Architecture boundaries (shared=leaf, no cross-feature internals)", "currently": "DEPENDENCY_MAP.md + tsconfig aliases", "proposed_encoding": ".dependency-cruiser.cjs in `just check`+CI", "evidence": "DEPENDENCY_MAP.md; B8"},
+    {"behaviour": "'No Pre-Existing Errors' per-workspace typecheck", "currently": "justfile typecheck loop but CI runs root tsc only", "proposed_encoding": "CI runs `just typecheck` (close the divergence)", "evidence": "ci.yml:71 vs justfile:411-421"},
+    {"behaviour": "Pre-commit discipline (`just fft` MANDATORY)", "currently": "manual prose instruction", "proposed_encoding": "lefthook/husky + lint-staged running biome (+ staged typecheck)", "evidence": "AGENTS.md:182; no hook mechanism present"},
+    {"behaviour": "Mega-file / complexity discipline", "currently": "implicit", "proposed_encoding": "biome noExcessiveCognitiveComplexity + max-lines rule", "evidence": "B9; 5 files >1900L"},
+    {"behaviour": "'harness' terminology (5 meanings, tribal)", "currently": "scattered docs", "proposed_encoding": "a terminology table in AGENTS.md/README + an explicit coexist-vs-rename decision", "evidence": "existing_harness_concepts"}
+  ],
+  "candidate_first_harness_surfaces": [
+    {"verb": "boot", "wrap": "just dev (or just harness dev) + just preflight / just harness doctor --wait", "why": "existing canonical readiness path; reuse, don't invent", "proof_level": "L2"},
+    {"verb": "health", "wrap": "just preflight / GET /api/health / just harness-require", "why": "deterministic, exits non-zero", "proof_level": "L2"},
+    {"verb": "backpressure/proof", "wrap": "just check (lint+typecheck+test) + just harness-verify <path> + just streamd-smoke", "why": "CI-gated sensors + render proof + daemon proof already exist", "proof_level": "L4"},
+    {"verb": "observe", "wrap": "minih report.json + cg --json envelopes + .playwright-mcp console logs + streamd stats", "why": "rich machine-readable artifacts already emitted", "proof_level": "L3"},
+    {"verb": "interact", "wrap": "DISABLE_GITHUB_OAUTH + cg --json + fake-streamd / createTestContainer", "why": "documented bypass + hermetic substitution seams", "proof_level": "L3"}
+  ],
+  "gaps": [
+    {"id": "G01", "title": "CI typecheck narrower than local (root tsc only vs per-workspace loop)", "axis": "operate_today", "subsystem": "feedback", "loop_stage": "validate", "backpressure_category": "static", "severity": "high", "status": "partial", "provenance": "evidence", "confidence": "high", "recommended_next_action": "Replace ci.yml:71 `pnpm tsc --noEmit` with `just typecheck` (or the same per-workspace loop).", "proof_level_unblocked": "L2", "estimated_effort": "XS", "risk_tier": "low"},
+    {"id": "G02", "title": "Architecture boundaries are prose, not an executable sensor", "axis": "adaptability", "subsystem": "architecture", "loop_stage": "validate", "backpressure_category": "static", "severity": "high", "status": "absent", "provenance": "evidence", "confidence": "high", "recommended_next_action": "Add dependency-cruiser/eslint-boundaries encoding shared=leaf + no cross-feature internals; wire into `just check`+CI.", "proof_level_unblocked": "L2", "estimated_effort": "M", "risk_tier": "low"},
+    {"id": "G03", "title": "Root *.md sprawl drowns the real front door; START_HERE.md is a false front door", "axis": "operate_today", "subsystem": "instructions", "loop_stage": "boot", "backpressure_category": "human_inferential", "severity": "high", "status": "weak", "provenance": "evidence", "confidence": "high", "recommended_next_action": "Archive ~14 stale root scratch docs under docs/; leave README.md+AGENTS.md (+1 index); delete/rewrite START_HERE.md to redirect.", "proof_level_unblocked": "L0", "estimated_effort": "S", "risk_tier": "low"},
+    {"id": "G04", "title": "'harness' overloaded across 5 concepts with no front-door disambiguation", "axis": "operate_today", "subsystem": "instructions", "loop_stage": "boot", "backpressure_category": "human_inferential", "severity": "high", "status": "partial", "provenance": "evidence", "confidence": "high", "recommended_next_action": "Add a 'Harness terminology' table to AGENTS.md/README; record the coexist-vs-supplant decision at the adopt bridge.", "proof_level_unblocked": "L0", "estimated_effort": "S", "risk_tier": "low"},
+    {"id": "G05", "title": "native/streamd (Swift) has zero CI coverage — swift test + smokes are local/host-only", "axis": "operate_today", "subsystem": "feedback", "loop_stage": "validate", "backpressure_category": "runtime", "severity": "high", "status": "partial", "provenance": "evidence", "confidence": "high", "recommended_next_action": "Add a macOS CI job running swift test + headless `just streamd-smoke` (no TCC needed).", "proof_level_unblocked": "L4", "estimated_effort": "M", "risk_tier": "low"},
+    {"id": "G06", "title": "No pre-commit / client-side gate — enforcement deferred to CI or manual just fft", "axis": "operate_today", "subsystem": "feedback", "loop_stage": "validate", "backpressure_category": "static", "severity": "medium", "status": "absent", "provenance": "evidence", "confidence": "high", "recommended_next_action": "Add lefthook/husky + lint-staged running biome (+ optional staged tsc).", "proof_level_unblocked": "L2", "estimated_effort": "S", "risk_tier": "low"},
+    {"id": "G07", "title": "No size/complexity/duplication/dead-code sensors; several >2000-line mega-files", "axis": "adaptability", "subsystem": "architecture", "loop_stage": "validate", "backpressure_category": "static", "severity": "medium", "status": "absent", "provenance": "evidence", "confidence": "high", "recommended_next_action": "Enable biome cognitive-complexity + max-lines; add knip+jscpd to the check lane; target the 5 files >1900L.", "proof_level_unblocked": "L2", "estimated_effort": "M", "risk_tier": "low"},
+    {"id": "G08", "title": "No single root boot/doctor aggregator", "axis": "operate_today", "subsystem": "tools", "loop_stage": "boot", "backpressure_category": "runtime", "severity": "medium", "status": "partial", "provenance": "evidence", "confidence": "medium", "recommended_next_action": "Add a root `just doctor`/`just up` composing preflight + harness-require + harness doctor into one verdict.", "proof_level_unblocked": "L2", "estimated_effort": "S", "risk_tier": "low"},
+    {"id": "G09", "title": "security-audit local-only — not enforced in CI", "axis": "operate_today", "subsystem": "feedback", "loop_stage": "validate", "backpressure_category": "static", "severity": "medium", "status": "partial", "provenance": "evidence", "confidence": "high", "recommended_next_action": "Add `pnpm audit --audit-level=high` as a CI step.", "proof_level_unblocked": "L2", "estimated_effort": "XS", "risk_tier": "low"},
+    {"id": "G10", "title": "Tests centralized in /test, none co-located with source", "axis": "adaptability", "subsystem": "tests", "loop_stage": "improve", "backpressure_category": "static", "severity": "medium", "status": "weak", "provenance": "evidence", "confidence": "high", "recommended_next_action": "Adopt co-located *.test.ts for new features, or document the centralized mirror-path convention as intentional.", "proof_level_unblocked": "L2", "estimated_effort": "L", "risk_tier": "low"},
+    {"id": "G11", "title": "No migration/schemaVersion for persisted JSON + sqlite state", "axis": "adaptability", "subsystem": "architecture", "loop_stage": "validate", "backpressure_category": "consequence", "severity": "medium", "status": "absent", "provenance": "evidence", "confidence": "medium", "recommended_next_action": "Add schemaVersion + a forward-migration/compat test for persisted workspace/session JSON, mirroring the wire-protocol versioning.", "proof_level_unblocked": "L2", "estimated_effort": "M", "risk_tier": "medium"},
+    {"id": "G12", "title": "High fan-in hubs (shared 405, workflow 133) create large blast radius", "axis": "adaptability", "subsystem": "architecture", "loop_stage": "improve", "backpressure_category": "static", "severity": "medium", "status": "partial", "provenance": "evidence", "confidence": "medium", "recommended_next_action": "Split @chainglass/shared barrel into narrower entrypoints (interfaces vs adapters vs state); track fan-in as a sensor.", "proof_level_unblocked": "L2", "estimated_effort": "L", "risk_tier": "medium"},
+    {"id": "G13", "title": "New engineering-harness boot contract entirely TODO (L0)", "axis": "operate_today", "subsystem": "human_process", "loop_stage": "boot", "backpressure_category": "runtime", "severity": "medium", "status": "absent", "provenance": "evidence", "confidence": "high", "recommended_next_action": "Fill .harness/engineering-harness.md Boot/Health/Interact/Observe by WRAPPING existing canonical commands (see candidate_first_harness_surfaces) — adoption build-boot step.", "proof_level_unblocked": "L1", "estimated_effort": "M", "risk_tier": "low"},
+    {"id": "G14", "title": "Workspace registration + GitHub OAuth are click/hand-ops with no scripted path", "axis": "operate_today", "subsystem": "human_process", "loop_stage": "boot", "backpressure_category": "runtime", "severity": "medium", "status": "weak", "provenance": "evidence", "confidence": "high", "recommended_next_action": "Expose `harness seed` at root as the scripted workspace-register path; document DISABLE_GITHUB_OAUTH for fresh agents.", "proof_level_unblocked": "L1", "estimated_effort": "M", "risk_tier": "low"},
+    {"id": "G15", "title": "CLI agent-execution path hard-requires GH_TOKEN with no fake/offline mode", "axis": "operate_today", "subsystem": "external_dependency", "loop_stage": "boot", "backpressure_category": "external_effect", "severity": "medium", "status": "partial", "provenance": "evidence", "confidence": "high", "recommended_next_action": "Add a documented fake/dry-run mode for cg agent-exec (reuse FakeAgentAdapter).", "proof_level_unblocked": "L3", "estimated_effort": "M", "risk_tier": "low"},
+    {"id": "G16", "title": "Two competing harness governance docs at different maturities (L3 vs L0)", "axis": "operate_today", "subsystem": "instructions", "loop_stage": "improve", "backpressure_category": "human_inferential", "severity": "medium", "status": "partial", "provenance": "evidence", "confidence": "high", "recommended_next_action": "Cross-link docs/project-rules/harness.md and .harness/engineering-harness.md; state which is authoritative for which concern (record at the bridge).", "proof_level_unblocked": "L0", "estimated_effort": "S", "risk_tier": "low"},
+    {"id": "G17", "title": "Dev ports derived (NEXT+1500), not per-worktree allocated", "axis": "adaptability", "subsystem": "tests", "loop_stage": "improve", "backpressure_category": "runtime", "severity": "low", "status": "partial", "provenance": "evidence", "confidence": "medium", "recommended_next_action": "Allocate a deterministic per-worktree port offset so concurrent worktrees don't collide on default PORT.", "proof_level_unblocked": "L2", "estimated_effort": "S", "risk_tier": "low"},
+    {"id": "G18", "title": "Stale runtime files leak in .chainglass (orphaned .pids.json + 0-byte .tmp)", "axis": "operate_today", "subsystem": "state", "loop_stage": "observe", "backpressure_category": "consequence", "severity": "low", "status": "weak", "provenance": "evidence", "confidence": "high", "recommended_next_action": "Have the terminal sidecar / streamd lifecycle atomically clean its own pids/tmp on exit.", "proof_level_unblocked": "L2", "estimated_effort": "XS", "risk_tier": "low"}
+  ],
+  "remediations": [
+    {"rank": 1, "gap": "G01", "action": "CI runs `just typecheck` instead of root-only tsc", "effort": "XS", "unblocks": "L2", "why": "near-zero cost, closes a real local/CI proof divergence"},
+    {"rank": 2, "gap": "G09", "action": "Add security-audit step to CI", "effort": "XS", "unblocks": "L2", "why": "one line; makes dependency vulns gate PRs"},
+    {"rank": 3, "gap": "G03/G04/G16", "action": "Doc hygiene: archive root sprawl, fix START_HERE, add harness-terminology table, cross-link governance docs", "effort": "S", "unblocks": "L0", "why": "biggest cold-start friction for a fresh agent; cheap"},
+    {"rank": 4, "gap": "G13", "action": "Fill the engineering-harness boot contract by wrapping existing commands", "effort": "M", "unblocks": "L1", "why": "the adoption's own next step (build-boot); turns L0→operable"},
+    {"rank": 5, "gap": "G02", "action": "dependency-cruiser boundary sensor in check+CI", "effort": "M", "unblocks": "L2", "why": "encodes the prose 'Search Before Creating' rule as backpressure; the single weakest area"},
+    {"rank": 6, "gap": "G05", "action": "macOS CI job: swift test + headless streamd-smoke", "effort": "M", "unblocks": "L4", "why": "the daemon's only proof is currently host-Mac-local"},
+    {"rank": 7, "gap": "G07", "action": "biome complexity + max-lines, knip, jscpd in check lane", "effort": "M", "unblocks": "L2", "why": "guards the mega-file hotspots from regrowth"}
+  ],
+  "product_code_affordances": [
+    {"status": "proposed", "title": "GH_TOKEN-free fake/dry-run mode for cg agent-execution", "risk_tier": "low", "target_layer": "product_code", "environment_scope": "local/dev", "environments_where_it_must_not_apply": "production agent runs", "safety_requirements": "must not silently fake in prod; explicit flag", "human_or_security_review_required": "no", "which_gap_it_addresses": "G15", "which_harness_command_or_proof_level_it_unblocks": "L3 local agent-path proof", "why_it_is_better_than_more_documentation": "the FakeAgentAdapter already exists for tests; exposing it removes the lone token-blocked surface from local proof"},
+    {"status": "proposed", "title": "Scriptable workspace registration (expose harness seed at root)", "risk_tier": "low", "target_layer": "harness", "environment_scope": "local/dev", "environments_where_it_must_not_apply": "n/a", "safety_requirements": "idempotent", "human_or_security_review_required": "no", "which_gap_it_addresses": "G14", "which_harness_command_or_proof_level_it_unblocks": "boot/L1", "why_it_is_better_than_more_documentation": "removes a click-op that blocks every wf-* flow for a fresh agent"},
+    {"status": "proposed", "title": "schemaVersion + forward-migration for persisted JSON/sqlite state", "risk_tier": "medium", "target_layer": "product_code", "environment_scope": "all", "environments_where_it_must_not_apply": "n/a", "safety_requirements": "backward-compat test before write", "human_or_security_review_required": "no", "which_gap_it_addresses": "G11", "which_harness_command_or_proof_level_it_unblocks": "L2 state-evolution proof", "why_it_is_better_than_more_documentation": "file-format drift currently fails silently; a version+migration makes it a deterministic check"}
+  ],
+  "harness_recommendations": [
+    {"recommendation": "Boot harness scenarios under createTestContainer() — one call yields a fully-faked, network-free, per-run-isolated app", "reuses_existing_mechanism": "createTestContainer (di-container.ts:738)", "unblocks_proof_level": "L3"},
+    {"recommendation": "Drive remote-view scenarios against startFakeStreamd; assert on inputLog/received + scriptable cues — no Mac daemon, Docker-safe", "reuses_existing_mechanism": "fake-streamd.ts:84", "unblocks_proof_level": "L4"},
+    {"recommendation": "Extend any new external seam via interface + fake + *.contract.ts then register both in create*Container (proven pattern, guarantees fake/real parity)", "reuses_existing_mechanism": "test/contracts/*.contract.test.ts", "unblocks_proof_level": "L5"},
+    {"recommendation": "Use the shared JSON/fixture oracle (remote-view-auth-vectors.json, protocol/fixtures/*) as the harness cross-language golden source", "reuses_existing_mechanism": "cross-language fixture oracle (Swift reads TS JSON)", "unblocks_proof_level": "L5"},
+    {"recommendation": "Wire the engineering-harness boot/health/observe verbs to WRAP just dev/preflight/harness-verify/streamd-smoke + minih artifacts rather than inventing new commands", "reuses_existing_mechanism": "justfile front door + minih report.json", "unblocks_proof_level": "L4"}
+  ],
+  "applied_patches": [],
+  "onboarding_consolidation": [
+    {"existing": "START_HERE.md / INDEX.md / DOCUMENTATION_INDEX.md (stale feature scratch)", "action": "redirect to README.md+AGENTS.md or archive under docs/", "evidence": "git log START_HERE.md=2026-03-10"},
+    {"existing": "HARNESS_INDEX.md / HARNESS_INTERFACES.md / HARNESS_SUMMARY.md (root)", "action": "fold the still-true parts into the engineering-harness governance doc; archive the rest", "evidence": "root *.md inventory"},
+    {"existing": "docs/project-rules/harness.md (L3) vs .harness/engineering-harness.md (L0)", "action": "cross-link + state authority boundary", "evidence": "G16"}
+  ],
+  "first_safe_session_plan": [
+    {"step": "Orient on the real front door", "command": "read README.md then AGENTS.md (NOT START_HERE.md/INDEX.md — stale)", "why": "the only maintained orientation files"},
+    {"step": "Map the system read-only", "command": "read docs/c4/README.md (L1→L3) + docs/domains/registry.md + docs/adr/README.md", "why": "architecture, 29 domains, 14 decisions — no install"},
+    {"step": "Disambiguate 'harness' before running anything", "command": "read docs/project-rules/harness.md (L3) + .harness/engineering-harness.md (L0); grep '^harness|^streamd' justfile", "why": "5 meanings; pick the right one per task"},
+    {"step": "Read the compounding-loop ledgers", "command": "read docs/plans/076-harness-workflow-runner/harness-wishlist.md + docs/retros/", "why": "avoid re-discovering solved traps"},
+    {"step": "Prove liveness read-only (if a dev server exists)", "command": "just preflight", "why": "non-destructive readiness check"}
+  ],
+  "human_questions": [
+    {"question": "At the adopt bridge: coexist with the L3 Docker 'just harness dev' harness, or rename one of them so 'harness' stops meaning 5 things?", "why": "the adoption intent says 'supplant/coexist'; the naming-collision remediation (G04/G16) depends on this decision"},
+    {"question": "Should the engineering-harness boot wrap the host `just dev` path or the Docker `just harness dev` path as its primary?", "why": "both are canonical; build-boot needs one chosen as the default boot"}
+  ],
+  "report_paths": {
+    "report_md": ".harness/reports/harnessability/001-chainglass/report.md",
+    "report_json": ".harness/reports/harnessability/001-chainglass/report.json",
+    "summary_md": ".harness/reports/harnessability/001-chainglass/summary.md",
+    "evidence_jsonl": ".harness/reports/harnessability/001-chainglass/evidence.jsonl",
+    "latest_md": ".harness/reports/harnessability/latest.md",
+    "latest_json": ".harness/reports/harnessability/latest.json",
+    "schema_json": ".harness/reports/harnessability/schema.json"
+  },
+  "evidence_log": [
+    {"finding": "Single justfile front door; default recipe = `just --list`; check/fft compose the quality verbs", "provenance": "evidence", "source": "justfile:6-7,404,428"},
+    {"finding": "CI = lint/build/typecheck/test→gate(alls-green); typecheck is root-tsc only (narrower than local per-workspace loop)", "provenance": "evidence", "source": ".github/workflows/ci.yml:14-116 vs justfile:411-421"},
+    {"finding": "No pre-commit gate of any kind (no husky/lefthook/pre-commit); .git/hooks only *.sample", "provenance": "evidence", "source": "git rev-parse --git-common-dir; find .git/hooks"},
+    {"finding": "Node 20.19.0 pinned 3 ways; pnpm@9.15.4; committed lockfile; Docker image pins toolchain", "provenance": "evidence", "source": ".nvmrc; package.json:41-44; harness/Dockerfile:24,38,48"},
+    {"finding": "Auth fully bypassable for local/headless (DISABLE_GITHUB_OAUTH→fake session); Docker sets DISABLE_AUTH=true", "provenance": "evidence", "source": "apps/web/src/auth.ts:60-86; harness/docker-compose.yml:30"},
+    {"finding": "Every external/agent dep has a Fake in createTestContainer; production CopilotClient(--allow-all-tools) only in production container", "provenance": "evidence", "source": "apps/web/src/lib/di-container.ts:266,738"},
+    {"finding": "No server-DB driver anywhere; session-store.db is driverless sqlite w/ no app coupling; persistence is file-based JSON", "provenance": "evidence", "source": "pnpm-lock.yaml grep; file session-store.db"},
+    {"finding": "streamd: loopback JWT(HS256)-gated WS; headless smoke proves protocol/auth without TCC; LIVE capture needs macOS TCC (host-Mac)", "provenance": "evidence", "source": "native/streamd/Sources/streamd/Auth.swift; scripts/setup-cert.sh; justfile:101-130"},
+    {"finding": "harness-verify catches Turbopack chunking/render errors tsc+vitest miss (Plan 084 FX007)", "provenance": "evidence", "source": "justfile:218-266"},
+    {"finding": "Ports-and-adapters: 22 interfaces + 18 fakes; 42 contract suites run fake AND real; 13 vi.mock vs 266 Fake importers", "provenance": "evidence", "source": "packages/shared/src/{interfaces,fakes}; test/contracts/*.contract.test.ts"},
+    {"finding": "Cross-language fixture oracle: Swift tests read the SAME TS-authored JSON (auth vectors, frame-header)", "provenance": "evidence", "source": "native/streamd/Tests/streamdTests/AuthVectorsTests.swift:9"},
+    {"finding": "Two test lanes: hermetic unit (vitest.config.ts, 444 tests, fakes, no net) vs e2e (vitest.e2e.config.ts, real CLIs, excluded from default)", "provenance": "evidence", "source": "vitest.config.ts; vitest.e2e.config.ts"},
+    {"finding": "Architecture rules are PROSE only — no dependency-cruiser/eslint-boundaries/semgrep; biome recommended-only", "provenance": "evidence", "source": "biome.json:6-11; AGENTS.md:292-324; DEPENDENCY_MAP.md"},
+    {"finding": "No complexity/size/dup/dead-code sensors; god files 3348/2602/2376/1979/1657L", "provenance": "evidence", "source": "wc -l over apps/packages/native"},
+    {"finding": "High fan-in: shared 405 importers, workflow 133, positional-graph 60; no real package cycles (shared is a leaf)", "provenance": "evidence", "source": "grep -rl @chainglass/<pkg>"},
+    {"finding": "Compounding loop: wishlist W001-W011→fix tasks; per-run magicWand+difficulties mirrored to docs/retros; 20+ run history; 86 plans; 14 ADRs", "provenance": "evidence", "source": "docs/plans/076-harness-workflow-runner/harness-wishlist.md; agents/code-review-companion/runs/*/output/report.json; docs/retros/"},
+    {"finding": "5 distinct 'harness' meanings; new .harness/ stamped L0 with empty boot contract; intent to supplant the L3 Docker harness", "provenance": "evidence", "source": ".harness/engineering-harness.md; docs/project-rules/harness.md:2; .harness/adopt.flow.json"},
+    {"finding": "Root *.md sprawl (23 files); ~14 stale (2026-03-10); START_HERE.md points at Question-Popper feature docs not the system", "provenance": "evidence", "source": "ls *.md; git log START_HERE.md=2026-03-10"},
+    {"finding": "TS↔Swift dual-language co-change coupling (088-remote-view + native/streamd + fixtures move together)", "provenance": "inference", "source": "git log --name-only -200"},
+    {"finding": "Workspace registration only via web UI; GitHub OAuth hand-configured (mitigated by DISABLE_GITHUB_OAUTH)", "provenance": "evidence", "source": "justfile preflight ~545; README.md:31-49"}
+  ]
+}

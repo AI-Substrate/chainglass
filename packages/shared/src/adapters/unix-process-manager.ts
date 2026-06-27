@@ -1,4 +1,8 @@
-import { type ChildProcess, spawn } from 'node:child_process';
+import {
+  type ChildProcess,
+  type SpawnOptions as NodeSpawnOptions,
+  spawn,
+} from 'node:child_process';
 import * as readline from 'node:readline';
 
 import type { ILogger } from '../interfaces/logger.interface.js';
@@ -80,11 +84,15 @@ export class UnixProcessManager implements IProcessManager {
       const defaultStdio: [StdioOption, StdioOption, StdioOption] = ['ignore', 'pipe', 'pipe'];
       const stdioConfig = stdio ?? defaultStdio;
 
-      const child = spawn(command, args, {
+      // SpawnOptions.env is Record<string, string>; coerce to NodeJS.ProcessEnv
+      // (a string map is a valid env object) so spawn's overload resolves.
+      const resolvedEnv: NodeJS.ProcessEnv = (env ?? process.env) as NodeJS.ProcessEnv;
+      const spawnOptions: NodeSpawnOptions = {
         cwd,
-        env: env ?? process.env,
+        env: resolvedEnv,
         stdio: stdioConfig,
-      });
+      };
+      const child = spawn(command, args, spawnOptions);
 
       // Handle spawn error (e.g., command not found)
       child.on('error', (err) => {

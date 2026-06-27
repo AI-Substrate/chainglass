@@ -1,0 +1,982 @@
+{
+  "schema_version": 1,
+  "kind": "flight-plan",
+  "slug": "remote-app-view",
+  "created_at": "2026-06-19T23:23:46.416Z",
+  "provenance": {
+    "record_kind": "flow",
+    "harness_version": "0.5.0",
+    "branch": "084-random-enhancements-3",
+    "repo": "git@github.com:AI-Substrate/chainglass.git",
+    "created_at": "2026-06-19T23:23:46.416Z",
+    "agent": "the-flow",
+    "plan_id": "088"
+  },
+  "events": [
+    {
+      "id": "CRT-001",
+      "kind": "created",
+      "origin": "engine",
+      "fired_at": "2026-06-19T23:23:46.428Z",
+      "details": {
+        "kind": "flight-plan",
+        "slug": "remote-app-view"
+      }
+    },
+    {
+      "id": "NOD-001",
+      "kind": "node-created",
+      "origin": "engine",
+      "fired_at": "2026-06-19T23:23:46.512Z",
+      "details": {
+        "node": "ship",
+        "type": "ship"
+      }
+    },
+    {
+      "id": "NOD-002",
+      "kind": "node-created",
+      "origin": "engine",
+      "fired_at": "2026-06-19T23:23:46.585Z",
+      "details": {
+        "node": "ph6",
+        "type": "phase"
+      }
+    },
+    {
+      "id": "NOD-003",
+      "kind": "node-created",
+      "origin": "engine",
+      "fired_at": "2026-06-19T23:23:46.660Z",
+      "details": {
+        "node": "ph5",
+        "type": "phase"
+      }
+    },
+    {
+      "id": "NOD-004",
+      "kind": "node-created",
+      "origin": "engine",
+      "fired_at": "2026-06-19T23:23:46.739Z",
+      "details": {
+        "node": "ph4",
+        "type": "phase"
+      }
+    },
+    {
+      "id": "NOD-005",
+      "kind": "node-created",
+      "origin": "engine",
+      "fired_at": "2026-06-19T23:23:46.815Z",
+      "details": {
+        "node": "ph3",
+        "type": "phase"
+      }
+    },
+    {
+      "id": "NOD-006",
+      "kind": "node-created",
+      "origin": "engine",
+      "fired_at": "2026-06-19T23:23:46.895Z",
+      "details": {
+        "node": "ph2",
+        "type": "phase"
+      }
+    },
+    {
+      "id": "NOD-007",
+      "kind": "node-created",
+      "origin": "engine",
+      "fired_at": "2026-06-19T23:23:46.972Z",
+      "details": {
+        "node": "ph1",
+        "type": "phase"
+      }
+    },
+    {
+      "id": "NOD-008",
+      "kind": "node-created",
+      "origin": "engine",
+      "fired_at": "2026-06-19T23:23:47.046Z",
+      "details": {
+        "node": "plan",
+        "type": "plan"
+      }
+    },
+    {
+      "id": "NOD-009",
+      "kind": "node-created",
+      "origin": "engine",
+      "fired_at": "2026-06-19T23:23:47.112Z",
+      "details": {
+        "node": "research",
+        "type": "research"
+      }
+    },
+    {
+      "id": "NOD-010",
+      "kind": "node-created",
+      "origin": "engine",
+      "fired_at": "2026-06-19T23:23:47.175Z",
+      "details": {
+        "node": "dr",
+        "type": "deep-research"
+      }
+    },
+    {
+      "id": "NOD-011",
+      "kind": "node-created",
+      "origin": "engine",
+      "fired_at": "2026-06-19T23:23:47.238Z",
+      "details": {
+        "node": "ws",
+        "type": "workshop"
+      }
+    },
+    {
+      "id": "NOD-012",
+      "kind": "node-created",
+      "origin": "engine",
+      "fired_at": "2026-06-19T23:23:47.302Z",
+      "details": {
+        "node": "bp",
+        "type": "backpressure"
+      }
+    },
+    {
+      "id": "NOD-013",
+      "kind": "node-created",
+      "origin": "engine",
+      "fired_at": "2026-06-19T23:23:47.367Z",
+      "details": {
+        "node": "rv4",
+        "type": "review"
+      }
+    },
+    {
+      "id": "NOD-014",
+      "kind": "node-created",
+      "origin": "engine",
+      "fired_at": "2026-06-19T23:23:47.437Z",
+      "details": {
+        "node": "fx4",
+        "type": "fix-loop"
+      }
+    },
+    {
+      "id": "NOD-015",
+      "kind": "node-created",
+      "origin": "engine",
+      "fired_at": "2026-06-19T23:23:47.508Z",
+      "details": {
+        "node": "rv4b",
+        "type": "review"
+      }
+    },
+    {
+      "id": "UPD-001",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-19T23:23:47.575Z",
+      "details": {
+        "node": "research",
+        "fields": [
+          "note",
+          "user_input",
+          "artifacts",
+          "command"
+        ]
+      }
+    },
+    {
+      "id": "UPD-002",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-19T23:23:47.646Z",
+      "details": {
+        "node": "dr",
+        "fields": [
+          "note",
+          "user_input",
+          "artifacts"
+        ]
+      }
+    },
+    {
+      "id": "UPD-003",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-19T23:23:47.717Z",
+      "details": {
+        "node": "plan",
+        "fields": [
+          "note",
+          "user_input",
+          "artifacts",
+          "command"
+        ]
+      }
+    },
+    {
+      "id": "UPD-004",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-19T23:23:47.785Z",
+      "details": {
+        "node": "ws",
+        "fields": [
+          "note",
+          "user_input",
+          "artifacts",
+          "command"
+        ]
+      }
+    },
+    {
+      "id": "UPD-005",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-19T23:23:47.859Z",
+      "details": {
+        "node": "bp",
+        "fields": [
+          "note",
+          "command"
+        ]
+      }
+    },
+    {
+      "id": "UPD-006",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-19T23:23:47.929Z",
+      "details": {
+        "node": "ph1",
+        "fields": [
+          "note",
+          "user_input",
+          "artifacts",
+          "command"
+        ]
+      }
+    },
+    {
+      "id": "UPD-007",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-19T23:23:47.999Z",
+      "details": {
+        "node": "ph2",
+        "fields": [
+          "note",
+          "user_input",
+          "artifacts",
+          "command"
+        ]
+      }
+    },
+    {
+      "id": "UPD-008",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-19T23:23:48.073Z",
+      "details": {
+        "node": "ph3",
+        "fields": [
+          "note",
+          "user_input",
+          "artifacts",
+          "command"
+        ]
+      }
+    },
+    {
+      "id": "UPD-009",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-19T23:23:48.149Z",
+      "details": {
+        "node": "ph4",
+        "fields": [
+          "note",
+          "user_input",
+          "artifacts",
+          "command"
+        ]
+      }
+    },
+    {
+      "id": "UPD-010",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-19T23:23:48.222Z",
+      "details": {
+        "node": "ph5",
+        "fields": [
+          "note"
+        ]
+      }
+    },
+    {
+      "id": "UPD-011",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-19T23:23:48.298Z",
+      "details": {
+        "node": "ph6",
+        "fields": [
+          "note"
+        ]
+      }
+    },
+    {
+      "id": "UPD-012",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-19T23:23:48.374Z",
+      "details": {
+        "node": "ship",
+        "fields": [
+          "note",
+          "command"
+        ]
+      }
+    },
+    {
+      "id": "UPD-013",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-19T23:23:48.452Z",
+      "details": {
+        "node": "rv4",
+        "fields": [
+          "note",
+          "user_input",
+          "artifacts",
+          "command"
+        ]
+      }
+    },
+    {
+      "id": "UPD-014",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-19T23:23:48.524Z",
+      "details": {
+        "node": "fx4",
+        "fields": [
+          "note",
+          "user_input",
+          "artifacts",
+          "command"
+        ]
+      }
+    },
+    {
+      "id": "UPD-015",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-19T23:23:48.603Z",
+      "details": {
+        "node": "rv4b",
+        "fields": [
+          "note",
+          "command"
+        ]
+      }
+    },
+    {
+      "id": "CUR-001",
+      "kind": "cursor-moved",
+      "origin": "engine",
+      "fired_at": "2026-06-19T23:23:48.679Z",
+      "details": {
+        "from": "",
+        "to": "ph4"
+      }
+    },
+    {
+      "id": "STA-001",
+      "kind": "status-changed",
+      "origin": "engine",
+      "fired_at": "2026-06-19T23:44:18.012Z",
+      "details": {
+        "node": "rv4b",
+        "from": "assumed",
+        "to": "done"
+      }
+    },
+    {
+      "id": "UPD-016",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-19T23:44:18.077Z",
+      "details": {
+        "node": "rv4b",
+        "fields": [
+          "note",
+          "artifacts"
+        ]
+      }
+    },
+    {
+      "id": "NOD-016",
+      "kind": "node-created",
+      "origin": "engine",
+      "fired_at": "2026-06-19T23:44:18.146Z",
+      "details": {
+        "node": "fx4b",
+        "type": "fix-loop"
+      }
+    },
+    {
+      "id": "NOD-017",
+      "kind": "node-created",
+      "origin": "engine",
+      "fired_at": "2026-06-19T23:44:18.217Z",
+      "details": {
+        "node": "rv4c",
+        "type": "review"
+      }
+    },
+    {
+      "id": "CUR-002",
+      "kind": "cursor-moved",
+      "origin": "engine",
+      "fired_at": "2026-06-19T23:44:18.283Z",
+      "details": {
+        "from": "ph4",
+        "to": "ph4"
+      }
+    },
+    {
+      "id": "STA-002",
+      "kind": "status-changed",
+      "origin": "engine",
+      "fired_at": "2026-06-20T00:02:05.513Z",
+      "details": {
+        "node": "fx4b",
+        "from": "in_progress",
+        "to": "done"
+      }
+    },
+    {
+      "id": "UPD-017",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-20T00:02:05.588Z",
+      "details": {
+        "node": "fx4b",
+        "fields": [
+          "note",
+          "artifacts",
+          "command"
+        ]
+      }
+    },
+    {
+      "id": "CUR-003",
+      "kind": "cursor-moved",
+      "origin": "engine",
+      "fired_at": "2026-06-20T00:02:05.657Z",
+      "details": {
+        "from": "ph4",
+        "to": "ph4"
+      }
+    },
+    {
+      "id": "STA-003",
+      "kind": "status-changed",
+      "origin": "engine",
+      "fired_at": "2026-06-20T00:32:57.355Z",
+      "details": {
+        "node": "rv4c",
+        "from": "assumed",
+        "to": "in_progress"
+      }
+    },
+    {
+      "id": "CUR-004",
+      "kind": "cursor-moved",
+      "origin": "engine",
+      "fired_at": "2026-06-20T00:32:57.419Z",
+      "details": {
+        "from": "ph4",
+        "to": "rv4c"
+      }
+    },
+    {
+      "id": "STA-004",
+      "kind": "status-changed",
+      "origin": "engine",
+      "fired_at": "2026-06-20T00:40:37.869Z",
+      "details": {
+        "node": "rv4c",
+        "from": "in_progress",
+        "to": "done"
+      }
+    },
+    {
+      "id": "UPD-018",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-20T00:40:37.934Z",
+      "details": {
+        "node": "rv4c",
+        "fields": [
+          "label",
+          "note",
+          "artifacts"
+        ]
+      }
+    },
+    {
+      "id": "CUR-005",
+      "kind": "cursor-moved",
+      "origin": "engine",
+      "fired_at": "2026-06-20T00:40:38.002Z",
+      "details": {
+        "from": "rv4c",
+        "to": "ph5"
+      }
+    },
+    {
+      "id": "STA-005",
+      "kind": "status-changed",
+      "origin": "engine",
+      "fired_at": "2026-06-21T07:00:39.999Z",
+      "details": {
+        "node": "ph5",
+        "from": "known",
+        "to": "in_progress"
+      }
+    },
+    {
+      "id": "UPD-019",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-21T07:00:40.059Z",
+      "details": {
+        "node": "ph5",
+        "fields": [
+          "note"
+        ]
+      }
+    },
+    {
+      "id": "UPD-020",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-21T07:00:40.129Z",
+      "details": {
+        "node": "ph5",
+        "fields": [
+          "comments"
+        ]
+      }
+    },
+    {
+      "id": "UPD-021",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-22T07:40:06.013Z",
+      "details": {
+        "node": "ph5",
+        "fields": [
+          "comments"
+        ]
+      }
+    },
+    {
+      "id": "UPD-022",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-23T04:57:25.891Z",
+      "details": {
+        "node": "ph5",
+        "fields": [
+          "comments"
+        ]
+      }
+    },
+    {
+      "id": "UPD-023",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-23T06:28:58.205Z",
+      "details": {
+        "node": "ph5",
+        "fields": [
+          "comments"
+        ]
+      }
+    },
+    {
+      "id": "STA-006",
+      "kind": "status-changed",
+      "origin": "engine",
+      "fired_at": "2026-06-23T08:41:46.086Z",
+      "details": {
+        "node": "ph5",
+        "from": "in_progress",
+        "to": "done"
+      }
+    },
+    {
+      "id": "CUR-006",
+      "kind": "cursor-moved",
+      "origin": "engine",
+      "fired_at": "2026-06-23T08:41:46.150Z",
+      "details": {
+        "from": "ph5",
+        "to": "ph6"
+      }
+    }
+  ],
+  "nodes": [
+    {
+      "id": "ship",
+      "type": "ship",
+      "label": "Ship (push + PR + watch CI)",
+      "status": "assumed",
+      "next": [],
+      "created_at": "2026-06-19T23:23:46.512Z",
+      "modified_at": "2026-06-19T23:23:48.373Z",
+      "zone": "postflight",
+      "note": "Push + open PR (each behind its own confirm) + watch CI checks. AGENTS.md:167 — NO AI attribution in commits/PRs.",
+      "command": "/the-flow 8 ship --plan \"docs/plans/088-remote-app-view/remote-app-view-plan.md\""
+    },
+    {
+      "id": "ph6",
+      "type": "phase",
+      "label": "Phase 6: Integration Hardening, Permissions UX & Docs",
+      "status": "known",
+      "next": [
+        "ship"
+      ],
+      "created_at": "2026-06-19T23:23:46.585Z",
+      "modified_at": "2026-06-19T23:23:48.298Z",
+      "note": "Integration Hardening, Permissions UX & Docs — live AC sweep with real measurements; permissions UX; how-to docs; reconciliation. Carries the deferred FT-006 (live resize encoder re-config, needs a live window) and the Phase-4 code-complete-but-live-unverified MEDIUMs (wheel, E_PERMISSION, backing-scale, AX minimize-restore)."
+    },
+    {
+      "id": "ph5",
+      "type": "phase",
+      "label": "Phase 5: Lifecycle, Agent Surface & Events",
+      "status": "done",
+      "next": [
+        "ph6"
+      ],
+      "created_at": "2026-06-19T23:23:46.659Z",
+      "modified_at": "2026-06-23T08:41:46.086Z",
+      "note": "Phase 5 tasks dossier tabled: 10 tasks (T001-T010) + 2 harness seams. Validated via /validate-v2 (4 agents) -> VALIDATED WITH FIXES: Source Truth 0 issues; 8 grounded fixes applied (route shapes, R6 session-create wiring, port HTTP-rename, reaper Phase-6 seam, publish sites, assumptions). 1 OPEN DECISION on T004: picker-catalog enumeration source (native streamd --list-windows vs helper).",
+      "comments": [
+        {
+          "at": "2026-06-21T07:00:40.129Z",
+          "text": "validate-v2 VALIDATED WITH FIXES (2026-06-21): thesis advanced @ Implementation; FC matrix all green except T004 enumeration-source (flagged open).",
+          "kind": "validation"
+        },
+        {
+          "at": "2026-06-22T07:40:06.013Z",
+          "text": "T004 enumeration source resolved: web-side picker catalog enumerates via a new 'streamd --list-windows' native daemon subcommand (Phase-1 spike 'windowid' precedent). Daemon /windows HTTP stays single-window (F005/F006 preserved). Route maps the native list -> WindowDescriptor[].",
+          "kind": "decision"
+        },
+        {
+          "at": "2026-06-23T04:57:25.891Z",
+          "text": "T005 /sessions CRUD + R6 createSession wiring done (TDD). Companion (run …8ec5) returned 1 HIGH F001 (overpromised daemonDown wording vs the correct picker transition) → fixed (resolution B + new R6 picker hook test) → re-review APPROVE. 088 suite 124/124, tsc 0, biome clean.",
+          "source": "agent",
+          "kind": "validation",
+          "refs": [
+            "11d7361a",
+            "2ffd4af3"
+          ]
+        },
+        {
+          "at": "2026-06-23T06:28:58.205Z",
+          "text": "T006 SSE envelopes done — adapter attached/detached + daemon-manager daemon-state(ready/down) + useRemoteViewEvents push (AC-8). 9 new tests; 088 suite 133/133; tsc 0; biome clean. Companion run …-8ec5 self-terminated mid-phase (no live T006 review — best-effort deviation logged).",
+          "kind": "validation",
+          "refs": [
+            "5a1d06f3"
+          ]
+        }
+      ],
+      "ran_at": "2026-06-23T08:41:46.086Z"
+    },
+    {
+      "id": "ph4",
+      "type": "phase",
+      "label": "Phase 4: Native Daemon (Swift)",
+      "status": "done",
+      "next": [
+        "ph5"
+      ],
+      "created_at": "2026-06-19T23:23:46.739Z",
+      "modified_at": "2026-06-19T23:23:48.149Z",
+      "note": "Native Daemon (streamd, Swift) — 12/12. swift test 66, streamd-smoke 24, live-smoke 12/12. Codable protocol mirror + 16-byte binary codec (byte-identical to Phase-2 fixtures); HKDF+HS256 JWT verify + Origin gate; Workshop-002 session FSM; SCK->VideoToolbox capture/encode behind a FrameSource seam; hand-rolled RFC6455 WS + REST; CGEvent input injector; discovery registry + SIGTERM/vanish lifecycle. Cert/bundle-id reused VERBATIM. Host-Mac visit DONE (real iOS Simulator stream id=649 904x1900 avc1.640020@60; both TCC grants carried, no prompt; 4 live Input.swift bugs found+fixed). Batch A.2 + host visit ran no-companion -> drove the post-hoc review (rv4).",
+      "user_input": "with companion please / keep building until we can do no more",
+      "artifacts": [
+        "tasks/phase-4-native-daemon-swift/tasks.md",
+        "tasks/phase-4-native-daemon-swift/execution.log.md",
+        "native/streamd/"
+      ],
+      "command": "/the-flow 6 implement --companion --phase \"Phase 4: Native Daemon (Swift)\" --plan \"docs/plans/088-remote-app-view/remote-app-view-plan.md\""
+    },
+    {
+      "id": "ph3",
+      "type": "phase",
+      "label": "Phase 3: Viewport UI & Content-Area Mode",
+      "status": "done",
+      "next": [
+        "ph4"
+      ],
+      "created_at": "2026-06-19T23:23:46.815Z",
+      "modified_at": "2026-06-19T23:23:48.073Z",
+      "note": "Viewport UI & Content-Area Mode — 64 unit tests + host Chrome streaming smoke (67 frames via WebCodecs) + bundle guard (AC-13). view=remote + rv params (no PanelShell change, Finding 01); lazy RemoteViewPanel; window picker (DISCOVERY: this app has NO client DI, service is server-only); WebCodecs viewport + HUD + all 10 states + normalized rAF-batched focus-gated input. Companion 16 findings (2 HIGH) all resolved.",
+      "user_input": "run companion mode",
+      "artifacts": [
+        "tasks/phase-3-viewport-ui-content-area-mode/tasks.md",
+        "tasks/phase-3-viewport-ui-content-area-mode/execution.log.md",
+        "apps/web/src/features/088-remote-view/components/",
+        "harness/host/remote-view-stream-smoke.mts"
+      ],
+      "command": "/the-flow 6 implement --companion --phase \"Phase 3: Viewport UI & Content-Area Mode\" --plan \"docs/plans/088-remote-app-view/remote-app-view-plan.md\""
+    },
+    {
+      "id": "ph2",
+      "type": "phase",
+      "label": "Phase 2: Domain, Protocol & Session Core (TDD)",
+      "status": "done",
+      "next": [
+        "ph3"
+      ],
+      "created_at": "2026-06-19T23:23:46.895Z",
+      "modified_at": "2026-06-19T23:23:47.999Z",
+      "note": "Domain, Protocol & Session Core (TDD) — 56 tests green, daemon-absent vs the frame-replay fake (AC-12). remote-view domain + dep guard; Zod protocol + 16-byte binary codec + cross-language fixtures; frame-replay fake (254 real frames); 10-state session machine + reconnect hook; frozen token route (aud=remote-view-ws, no cwd) + pinned auth vectors. Companion ACTIVELY REVIEWED -> 10 findings (2 HIGH F004/F007) all landed in review-response; stage-7 effectively satisfied.",
+      "user_input": "build with companion mode",
+      "artifacts": [
+        "tasks/phase-2-domain-protocol-session-core-tdd/tasks.md",
+        "tasks/phase-2-domain-protocol-session-core-tdd/execution.log.md",
+        "apps/web/src/features/088-remote-view/",
+        "apps/web/app/api/remote-view/token/route.ts"
+      ],
+      "command": "/the-flow 6 implement --companion --phase \"Phase 2: Domain, Protocol & Session Core (TDD)\" --plan \"docs/plans/088-remote-app-view/remote-app-view-plan.md\""
+    },
+    {
+      "id": "ph1",
+      "type": "phase",
+      "label": "Phase 1: De-Risk Spike",
+      "status": "done",
+      "next": [
+        "ph2"
+      ],
+      "created_at": "2026-06-19T23:23:46.972Z",
+      "modified_at": "2026-06-19T23:23:47.929Z",
+      "note": "De-Risk Spike — all 7 verdicts GO. Capture/encode/inject/decode proven on real Godot + iOS Simulator (avc1.640020, 254-frame fixture); stable-cert TCC grant persists across rebuild; reuse chainglass-dev cert + com.chainglass.streamd; SCStream needs NSApplication/CGS init. Throwaway spike evidence. Companion idle-timed-out through the multi-day TCC-grant wait (0 findings = did not review).",
+      "user_input": "build with companion mode",
+      "artifacts": [
+        "tasks/phase-1-de-risk-spike/tasks.md",
+        "tasks/phase-1-de-risk-spike/execution.log.md",
+        "external-research/spike-findings.md"
+      ],
+      "command": "/the-flow 6 implement --companion --phase \"Phase 1: De-Risk Spike\" --plan \"docs/plans/088-remote-app-view/remote-app-view-plan.md\""
+    },
+    {
+      "id": "plan",
+      "type": "plan",
+      "label": "Plan (spec + implementation)",
+      "status": "done",
+      "next": [
+        "ph1"
+      ],
+      "created_at": "2026-06-19T23:23:47.046Z",
+      "modified_at": "2026-06-19T23:23:47.717Z",
+      "note": "Legacy split (separate spec + architect plan), both halves complete. CS-5 -> Full. Spec: 8/8 clarifications, 14 ACs, domain remote-view approved (new), latest-attach-wins, auto-restore minimized, Chromium-gating. Plan: READY 7/7 gates, 6 phases ~36 tasks, 8 target domains (1 new). validate-v2 (4 agents) -> VALIDATED WITH FIXES, 11 applied. Per-phase tasks dossiers (T-tables) live under tasks/phase-*/ and were each validate-v2'd.",
+      "user_input": "run it then validate",
+      "artifacts": [
+        "remote-app-view-spec.md",
+        "remote-app-view-plan.md"
+      ],
+      "command": "/the-flow 1b plan \"<intent>\""
+    },
+    {
+      "id": "research",
+      "type": "research",
+      "label": "Research",
+      "status": "done",
+      "next": [
+        "plan"
+      ],
+      "created_at": "2026-06-19T23:23:47.112Z",
+      "modified_at": "2026-06-19T23:23:47.575Z",
+      "note": "8-subagent dossier: web-side surfaces all precedented (sidecar lifecycle, auth, view modes, SDK); the Swift capture daemon is the only novel artifact; remote view must be a content-area mode, not a ViewerMode. 4 critical discoveries.",
+      "user_input": "lets get a plan started for it please. set up flow and straight in to explore",
+      "artifacts": [
+        "research-dossier.md"
+      ],
+      "command": "/the-flow 1a explore \"<intent>\""
+    },
+    {
+      "id": "dr",
+      "type": "deep-research",
+      "label": "Deep research (Perplexity, pre-flow)",
+      "status": "done",
+      "next": [
+        "research"
+      ],
+      "created_at": "2026-06-19T23:23:47.175Z",
+      "modified_at": "2026-06-19T23:23:47.646Z",
+      "branch_of": "research",
+      "note": "Perplexity pre-flow: ScreenCaptureKit desktopIndependentWindow + VideoToolbox H.264 + WebCodecs-over-WS (v1) / WebRTC (v2); CGEvent input injection; no OSS does per-window macOS->browser with input.",
+      "user_input": "use perplexity if you like.. what is best way to do this",
+      "artifacts": [
+        "external-research/streaming-stack.md"
+      ]
+    },
+    {
+      "id": "ws",
+      "type": "workshop",
+      "label": "Workshops (4/4)",
+      "status": "done",
+      "next": [
+        "plan"
+      ],
+      "created_at": "2026-06-19T23:23:47.238Z",
+      "modified_at": "2026-06-19T23:23:47.785Z",
+      "branch_of": "plan",
+      "note": "4/4 workshops authoritative. 001: view-param precedent (recent-feed) -> NO PanelShell change; rv param for session. 002: daemon-authoritative in-memory session table, capture pauses unwatched, 300s grace, 9-row race matrix = TDD list. 003: JSON control (t-discriminated) + 16-byte-header binary video, AVCC, normalized coords, drop-never-queue; fake = 3rd impl. 004: SwiftPM native/streamd, stable self-signed cert (TCC trap), port-keyed registry, localhost control API proxied via Next.",
+      "user_input": "do the workshops please",
+      "artifacts": [
+        "workshops/001-content-area-mode-mechanics.md",
+        "workshops/002-session-reattach-state-machine.md",
+        "workshops/003-stream-ws-protocol.md",
+        "workshops/004-daemon-packaging-discovery.md"
+      ],
+      "command": "/the-flow 2c workshop \"all four flagged topics\""
+    },
+    {
+      "id": "bp",
+      "type": "backpressure",
+      "label": "Backpressure check (post-plan seam)",
+      "status": "done",
+      "next": [
+        "plan"
+      ],
+      "created_at": "2026-06-19T23:23:47.302Z",
+      "modified_at": "2026-06-19T23:23:47.859Z",
+      "branch_of": "plan",
+      "note": "Noop record — repo has not adopted a harness; the seam routes to adoption, suppressed (--prompt-optional=false). Standard testing applies; no Recommended Phase 0.",
+      "command": "/eng-harness-flow --hook pre-coding --spec docs/plans/088-remote-app-view/remote-app-view-spec.md"
+    },
+    {
+      "id": "rv4",
+      "type": "review",
+      "label": "Phase 4 review — REQUEST_CHANGES (5 HIGH + 9 MEDIUM)",
+      "status": "done",
+      "next": [
+        "ph4"
+      ],
+      "created_at": "2026-06-19T23:23:47.367Z",
+      "modified_at": "2026-06-19T23:23:48.452Z",
+      "branch_of": "ph4",
+      "note": "Direct-jump review of the no-companion Phase-4 code. REQUEST_CHANGES: 5 HIGH in the control surface (non-loopback listener, unauth REST, pre-hello WS controls, negative Content-Length trap, /windows gap) + 9 MEDIUM (capture/input live behaviours + evidence overclaims + domain-doc currency + streamd-kill).",
+      "user_input": "keep building until we can do no more",
+      "artifacts": [
+        "tasks/phase-4-native-daemon-swift/reviews/review.phase-4-native-daemon-swift.md",
+        "tasks/phase-4-native-daemon-swift/reviews/fix-tasks.phase-4-native-daemon-swift.md"
+      ],
+      "command": "/the-flow 7 review --plan \"docs/plans/088-remote-app-view/remote-app-view-plan.md\" --phase \"Phase 4: Native Daemon (Swift)\""
+    },
+    {
+      "id": "fx4",
+      "type": "fix-loop",
+      "label": "Phase 4 review-fix batch (commit 6a2c41b3)",
+      "status": "done",
+      "next": [
+        "ph4"
+      ],
+      "created_at": "2026-06-19T23:23:47.436Z",
+      "modified_at": "2026-06-19T23:23:48.524Z",
+      "branch_of": "ph4",
+      "note": "Fix loop (no-companion), commit 6a2c41b3. HIGH (verified headless): F001 loopback-only listener; F002 JWT on every REST except /health; F003 WS controls gated on attached viewer; F004 Content-Length validated (neg/malformed->400) + head/body caps; F005 /windows narrowed to the single attached window. MEDIUM (code-complete, live deferred to Phase 6): F008 wheel, F007 E_PERMISSION preflight, F010 runtime backing scale, F009 AX minimize-restore. Docs: F011 overclaims, F013 domain docs, F014 streamd-kill. DEFERRED: F006 live resize re-config -> Phase 6. swift test 70/70 (+4), streamd-smoke 35/35 (+11 negatives incl. a real non-loopback-unreachable assertion).",
+      "user_input": "keep building until we can do no more",
+      "artifacts": [
+        "native/streamd/Sources/streamd/WSServer.swift",
+        "native/streamd/Sources/streamd/Endpoints.swift",
+        "native/streamd/Sources/streamd/Capture.swift",
+        "native/streamd/Sources/streamd/Input.swift",
+        "native/streamd/scripts/smoke-headless.mjs"
+      ],
+      "command": "/the-flow 6 implement --phase \"Phase 4: Native Daemon (Swift)\" --plan \"docs/plans/088-remote-app-view/remote-app-view-plan.md\""
+    },
+    {
+      "id": "rv4b",
+      "type": "review",
+      "label": "Phase 4 re-review (pending) — confirm 0 HIGH/CRITICAL",
+      "status": "done",
+      "next": [
+        "ph4"
+      ],
+      "created_at": "2026-06-19T23:23:47.508Z",
+      "modified_at": "2026-06-19T23:44:18.077Z",
+      "branch_of": "ph4",
+      "note": "Re-review of the fix batch. REQUEST_CHANGES — prior 5 HIGH confirmed CLOSED, but 1 NEW HIGH (F001 streamd-kill trusts registry .pid -> kill can signal process groups/all procs) + 9 MEDIUM (F002 global pause wedges later viewers, F003 unbounded WS payload len, F004 wheel dx/dy Int32 trap, F005 codec string false for big windows, F006 plan /windows stale, F007 invalid DAEMON_PORT silent fallback, F008 live window-id 0 default, F009 malformed POST /sessions defaults to create, F010 tasks done-whens overstate live) + 2 LOW (F011 registry fields, F012 C4 docs).",
+      "command": "/the-flow 7 review --plan \"docs/plans/088-remote-app-view/remote-app-view-plan.md\" --phase \"Phase 4: Native Daemon (Swift)\"",
+      "ran_at": "2026-06-19T23:44:18.012Z",
+      "artifacts": [
+        "tasks/phase-4-native-daemon-swift/reviews/review.phase-4-native-daemon-swift.md",
+        "tasks/phase-4-native-daemon-swift/reviews/fix-tasks.phase-4-native-daemon-swift.md",
+        "tasks/phase-4-native-daemon-swift/reviews/_computed.diff"
+      ]
+    },
+    {
+      "id": "fx4b",
+      "type": "fix-loop",
+      "label": "Phase 4 review-fix batch 2 (1 HIGH + 9 MEDIUM + 2 LOW)",
+      "status": "done",
+      "next": [
+        "ph4"
+      ],
+      "created_at": "2026-06-19T23:44:18.146Z",
+      "modified_at": "2026-06-20T00:02:05.588Z",
+      "branch_of": "ph4",
+      "ran_at": "2026-06-20T00:02:05.513Z",
+      "note": "Fix loop batch 2, no-companion, commit 1f033d23. HIGH closed+verified: streamd-kill PID validation + streamd-identity gate (manual proof: pid 0/-1/injection/foreign all skipped, launchd untouched). MEDIUM (code+test): resume-on-attach (orphaned-pause wedge), WS frame/fragment caps before Int conv, wheel Int32 clamp, truthful avc1.PPCCLL from avcC, DAEMON_PORT fail-fast, live WINDOW_ID required, malformed POST /sessions->400. Docs: /windows single-window contract (plan/spec), task done-when code-vs-Phase6 honesty, registry concept, C4 component. swift test 75/75 (+5), streamd-smoke 40 (34 wire + 6 lifecycle, +5).",
+      "artifacts": [
+        "justfile",
+        "native/streamd/Sources/streamd/WebSocket.swift",
+        "native/streamd/Sources/streamd/WSServer.swift",
+        "native/streamd/Sources/streamd/Input.swift",
+        "native/streamd/Sources/streamd/Capture.swift",
+        "native/streamd/Tests/streamdTests/BoundsAndCodecTests.swift",
+        "docs/c4/components/remote-view.md"
+      ],
+      "command": "/the-flow 6 implement --phase \"Phase 4: Native Daemon (Swift)\" --plan \"docs/plans/088-remote-app-view/remote-app-view-plan.md\""
+    },
+    {
+      "id": "rv4c",
+      "type": "review",
+      "label": "Phase 4 re-review #2 — APPROVE (0 HIGH/CRITICAL; 6 LOW)",
+      "status": "done",
+      "next": [
+        "ph4"
+      ],
+      "created_at": "2026-06-19T23:44:18.216Z",
+      "modified_at": "2026-06-20T00:40:37.934Z",
+      "branch_of": "ph4",
+      "ran_at": "2026-06-20T00:40:37.869Z",
+      "note": "Re-review #2 (3rd pass): 5 parallel reviewers over b8e65d12..HEAD. APPROVE. All round-1 (5 HIGH) + round-2 (1 HIGH + 9 MEDIUM) findings verified CLOSED at exact lines; swift test 75/75 + streamd-smoke 40/40 re-run live (Swift 6.2.4); no AI attribution in any commit. 6 LOW remain (RFC6455 client-mask/RSV conformance, Endpoints head-scan O(n*m), backpressure keyframe gate, dead pendingSession, stale-verdict re-stamped to APPROVE, F008 compile-verified). Closes the Phase-4 fix-loop.",
+      "artifacts": [
+        "tasks/phase-4-native-daemon-swift/reviews/review.phase-4-native-daemon-swift.md",
+        "tasks/phase-4-native-daemon-swift/reviews/_computed.diff"
+      ]
+    }
+  ],
+  "nav": {
+    "now": "ph6",
+    "next": "ship",
+    "intent": "Remote view mode for chainglass: stream a single desktop app window (Godot game, iOS Simulator) from the host Mac into the content area with mouse/keyboard input; terminal over/beside it; agent-controllable via CLI/URL endpoints",
+    "bag": {
+      "mode": "Full",
+      "status": "active"
+    }
+  }
+}

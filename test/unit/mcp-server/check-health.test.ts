@@ -56,9 +56,10 @@ describe('check_health tool - ADR-0001 Exemplar', () => {
       const tool = server.tools.get('check_health');
 
       expect(tool).toBeDefined();
+      if (!tool) throw new Error('check_health tool not registered');
 
       // Description should have multiple sentences
-      const sentences = tool?.description.split('. ').filter(Boolean);
+      const sentences = tool.description.split('. ').filter(Boolean);
       expect(sentences.length).toBeGreaterThanOrEqual(3);
     });
 
@@ -105,10 +106,11 @@ describe('check_health tool - ADR-0001 Exemplar', () => {
         arguments: {},
       });
 
-      expect(result.content).toBeDefined();
-      expect(result.content[0].type).toBe('text');
+      const content = result.content as Array<{ type: string; text: string }>;
+      expect(content).toBeDefined();
+      expect(content[0].type).toBe('text');
 
-      const toolResponse = JSON.parse((result.content[0] as { type: 'text'; text: string }).text);
+      const toolResponse = JSON.parse(content[0].text);
       expect(toolResponse.status).toBeDefined();
       expect(toolResponse.summary).toBeDefined();
       expect(toolResponse.components).toBeDefined();

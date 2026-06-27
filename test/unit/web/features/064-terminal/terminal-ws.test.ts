@@ -20,7 +20,7 @@ import {
   activeSigningSecret,
 } from '@chainglass/shared/auth-bootstrap-code';
 import { SignJWT } from 'jose';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { type FakePty, createFakePtySpawner } from '../../../../fakes/fake-pty';
 import { FakeTmuxExecutor } from '../../../../fakes/fake-tmux-executor';
 
@@ -30,6 +30,7 @@ function createFakeWs() {
   let closeReason: string | undefined;
   let messageHandler: ((data: Buffer | string) => void) | null = null;
   let closeHandler: (() => void) | null = null;
+  let errorHandler: ((err: Error) => void) | null = null;
   let closed = false;
 
   return {
@@ -45,6 +46,7 @@ function createFakeWs() {
     on: (event: string, handler: (...args: unknown[]) => void) => {
       if (event === 'message') messageHandler = handler as (data: Buffer | string) => void;
       if (event === 'close') closeHandler = handler as () => void;
+      if (event === 'error') errorHandler = handler as (err: Error) => void;
     },
     get sent() {
       return sent;
@@ -60,6 +62,7 @@ function createFakeWs() {
     },
     simulateMessage: (data: string) => messageHandler?.(data),
     simulateClose: () => closeHandler?.(),
+    simulateError: () => errorHandler?.(new Error('socket error')),
     readyState: 1,
     OPEN: 1,
   };
@@ -180,6 +183,151 @@ describe('Terminal WebSocket Server', () => {
 
       ws.simulateClose();
       expect(pty.killed).toBe(true);
+    });
+
+    // FX001-1: the in-session leak — a socket 'error' without a clean 'close'
+    // previously orphaned the PTY (no ws.on('error') handler existed).
+    it('should kill PTY on socket error (no clean close) — FX001-1', () => {
+      exec.whenCommand('tmux', ['-V']).returns('tmux 3.4');
+      const server = createTerminalServer(deps);
+      const ws = createFakeWs();
+
+      server.handleConnection(ws as unknown as import('ws').WebSocket, '064-tmux', process.cwd());
+      const pty = spawner.lastInstance as FakePty;
+      expect(pty.killed).toBe(false);
+
+      ws.simulateError();
+      expect(pty.killed).toBe(true);
+    });
+
+    // FX001-1: disposePty must be idempotent — onExit, then close, then error can
+    // all fire for one PTY; the second+ disposal is a no-op (no double-kill throw).
+    it('should dispose a PTY at most once across exit/close/error — FX001-1', () => {
+      exec.whenCommand('tmux', ['-V']).returns('tmux 3.4');
+      const server = createTerminalServer(deps);
+      const ws = createFakeWs();
+
+      server.handleConnection(ws as unknown as import('ws').WebSocket, '064-tmux', process.cwd());
+      const pty = spawner.lastInstance as FakePty;
+      let killCount = 0;
+      const realKill = pty.kill.bind(pty);
+      pty.kill = () => {
+        killCount++;
+        realKill();
+      };
+
+      pty.simulateExit(0);
+      ws.simulateClose();
+      ws.simulateError();
+
+      expect(pty.killed).toBe(true);
+      expect(killCount).toBe(1);
+    });
+
+    // FX001-2: graceful shutdown must force-kill every tracked PTY (SIGHUP detach
+    // via disposePty + SIGKILL backstop via the injected killer), so no attach
+    // client survives a clean sidecar restart.
+    it('cleanup() force-kills every active PTY on shutdown — FX001-2', () => {
+      exec.whenCommand('tmux', ['-V']).returns('tmux 3.4');
+      const sigkills: number[] = [];
+      // killer: signal 0 = liveness probe (alive); a real signal = record it.
+      const killProcess = (pid: number, signal: NodeJS.Signals | number) => {
+        if (signal !== 0) sigkills.push(pid);
+      };
+      // ps reports a tmux ATTACH CLIENT so the F001 guard permits the backstop.
+      const execCommand = ((command: string, args: string[], options?: unknown) =>
+        command === 'ps'
+          ? 'tmux new-session -A -s s'
+          : exec.exec(command, args, options as never)) as typeof exec.exec;
+      const server = createTerminalServer({ ...deps, execCommand, killProcess });
+      const ws1 = createFakeWs();
+      const ws2 = createFakeWs();
+      server.handleConnection(ws1 as unknown as import('ws').WebSocket, 's1', process.cwd());
+      server.handleConnection(ws2 as unknown as import('ws').WebSocket, 's2', process.cwd());
+
+      server.close(); // runs cleanup()
+
+      const [p1, p2] = spawner.instances as FakePty[];
+      expect(p1.killed).toBe(true); // disposePty → node-pty real-child kill
+      expect(p2.killed).toBe(true);
+      expect(sigkills.length).toBe(2); // guarded SIGKILL backstop fired for both
+    });
+
+    // Companion review F001: the SIGKILL backstop must NOT fire when the pid is no
+    // longer a tmux client (recycled PID / the tmux server) — only node-pty's
+    // real-child kill happens.
+    it('cleanup() skips the SIGKILL backstop for a non-tmux pid — FX001-2/F001', () => {
+      exec.whenCommand('tmux', ['-V']).returns('tmux 3.4');
+      const sigkills: number[] = [];
+      const killProcess = (pid: number, signal: NodeJS.Signals | number) => {
+        if (signal !== 0) sigkills.push(pid);
+      };
+      // ps reports an UNRELATED process (pid recycled) → backstop must not fire.
+      const execCommand = ((command: string, args: string[], options?: unknown) =>
+        command === 'ps'
+          ? 'node unrelated-worker.js'
+          : exec.exec(command, args, options as never)) as typeof exec.exec;
+      const server = createTerminalServer({ ...deps, execCommand, killProcess });
+      const ws = createFakeWs();
+      server.handleConnection(ws as unknown as import('ws').WebSocket, 's', process.cwd());
+
+      server.close();
+
+      const pty = spawner.lastInstance as FakePty;
+      expect(pty.killed).toBe(true); // node-pty real-child kill still happens
+      expect(sigkills).toEqual([]); // but NO unguarded SIGKILL of a recycled pid
+    });
+
+    // FX001-4: a reconnect storm must not exhaust host PTYs — at the ceiling the
+    // connection is rejected with a typed error + close code 4429, no PTY spawned.
+    it('rejects connections once the max-PTY ceiling is reached — FX001-4', () => {
+      exec.whenCommand('tmux', ['-V']).returns('tmux 3.4');
+      const prev = process.env.TERMINAL_MAX_ACTIVE_PTYS;
+      process.env.TERMINAL_MAX_ACTIVE_PTYS = '2';
+      try {
+        const server = createTerminalServer(deps);
+        const a = createFakeWs();
+        const b = createFakeWs();
+        const c = createFakeWs();
+        server.handleConnection(a as unknown as import('ws').WebSocket, 's', process.cwd());
+        server.handleConnection(b as unknown as import('ws').WebSocket, 's', process.cwd());
+        server.handleConnection(c as unknown as import('ws').WebSocket, 's', process.cwd());
+
+        expect(spawner.spawnCount).toBe(2); // 3rd never spawned
+        expect(c.closeCode).toBe(4429);
+        expect(JSON.parse(c.sent[0]).type).toBe('error');
+      } finally {
+        if (prev === undefined) Reflect.deleteProperty(process.env, 'TERMINAL_MAX_ACTIVE_PTYS');
+        else process.env.TERMINAL_MAX_ACTIVE_PTYS = prev;
+      }
+    });
+
+    // FX001-1/5: the activity-log poll interval must stop after disconnect.
+    // Previously a nested ws 'close' cleared it; an error/pty-exit leaked it.
+    // disposePty now clears the per-PTY interval on every exit path.
+    it('stops the activity-log poll after disconnect (interval cleared) — FX001-1', () => {
+      vi.useFakeTimers();
+      try {
+        exec.whenCommand('tmux', ['-V']).returns('tmux 3.4');
+        let listPanesCalls = 0;
+        const countingExec = ((command: string, args: string[], options?: unknown) => {
+          if (command === 'tmux' && args[0] === 'list-panes') listPanesCalls++;
+          return exec.exec(command, args, options as never);
+        }) as typeof exec.exec;
+        const server = createTerminalServer({ ...deps, execCommand: countingExec });
+        const ws = createFakeWs();
+        server.handleConnection(ws as unknown as import('ws').WebSocket, '064-tmux', process.cwd());
+
+        vi.advanceTimersByTime(10_000); // one ACTIVITY_LOG_POLL_MS tick
+        const afterFirstPoll = listPanesCalls;
+        expect(afterFirstPoll).toBeGreaterThan(0);
+
+        ws.simulateClose(); // disposePty clears the interval
+        vi.advanceTimersByTime(30_000); // would be 3 more polls if it leaked
+        expect(listPanesCalls).toBe(afterFirstPoll);
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('should support multiple clients for the same session', () => {

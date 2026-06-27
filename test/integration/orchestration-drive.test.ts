@@ -82,14 +82,20 @@ describe.skipIf(!CLI_EXISTS || !RUN_INTEGRATION)('Orchestration Drive Integratio
         const worker = await tgc.service.addNode(tgc.ctx, 'simple-serial', lineId, 'worker');
         expect(worker.errors).toEqual([]);
 
+        const setupNodeId = setup.nodeId;
+        const workerNodeId = worker.nodeId;
+        if (setupNodeId === undefined || workerNodeId === undefined) {
+          throw new Error('addNode did not return node ids');
+        }
+
         // Wire input: worker.task ← setup.instructions
-        await tgc.service.setInput(tgc.ctx, 'simple-serial', worker.nodeId, 'task', {
-          from_node: setup.nodeId,
+        await tgc.service.setInput(tgc.ctx, 'simple-serial', workerNodeId, 'task', {
+          from_node: setupNodeId,
           from_output: 'instructions',
         });
 
         // Complete user-input node programmatically
-        await completeUserInputNode(tgc.service, tgc.ctx, 'simple-serial', setup.nodeId, {
+        await completeUserInputNode(tgc.service, tgc.ctx, 'simple-serial', setupNodeId, {
           instructions: 'Build the widget',
         });
 
@@ -104,8 +110,8 @@ describe.skipIf(!CLI_EXISTS || !RUN_INTEGRATION)('Orchestration Drive Integratio
         // Assert complete
         expect(result.exitReason).toBe('complete');
         await assertGraphComplete(tgc.service, tgc.ctx, 'simple-serial');
-        await assertNodeComplete(tgc.service, tgc.ctx, 'simple-serial', setup.nodeId);
-        await assertNodeComplete(tgc.service, tgc.ctx, 'simple-serial', worker.nodeId);
+        await assertNodeComplete(tgc.service, tgc.ctx, 'simple-serial', setupNodeId);
+        await assertNodeComplete(tgc.service, tgc.ctx, 'simple-serial', workerNodeId);
       });
     }, 60_000);
   });

@@ -31,7 +31,7 @@ export class FakeEventSource implements Partial<EventSource> {
   onerror: ((event: Event) => void) | null = null;
 
   // Store registered event listeners
-  private eventListeners: Map<string, Set<EventListener>> = new Map();
+  private eventListeners: Map<string, Set<EventListenerOrEventListenerObject>> = new Map();
 
   constructor(url: string, options?: EventSourceInit) {
     this.url = url;
@@ -40,22 +40,56 @@ export class FakeEventSource implements Partial<EventSource> {
 
   /**
    * Add an event listener for a specific event type.
+   *
+   * Overloads mirror the DOM EventSource contract so the class satisfies
+   * Partial<EventSource>.
    */
-  addEventListener(type: string, listener: EventListener): void {
+  addEventListener<K extends keyof EventSourceEventMap>(
+    type: K,
+    listener: (this: EventSource, ev: EventSourceEventMap[K]) => unknown,
+    options?: boolean | AddEventListenerOptions
+  ): void;
+  addEventListener(
+    type: string,
+    listener: EventListenerOrEventListenerObject,
+    options?: boolean | AddEventListenerOptions
+  ): void;
+  addEventListener(
+    type: string,
+    listener: EventListenerOrEventListenerObject | ((ev: Event) => unknown),
+    _options?: boolean | AddEventListenerOptions
+  ): void {
     if (!this.eventListeners.has(type)) {
       this.eventListeners.set(type, new Set());
     }
     const listeners = this.eventListeners.get(type);
     if (listeners) {
-      listeners.add(listener);
+      listeners.add(listener as EventListenerOrEventListenerObject);
     }
   }
 
   /**
    * Remove an event listener.
+   *
+   * Overloads mirror the DOM EventSource contract so the class satisfies
+   * Partial<EventSource>.
    */
-  removeEventListener(type: string, listener: EventListener): void {
-    this.eventListeners.get(type)?.delete(listener);
+  removeEventListener<K extends keyof EventSourceEventMap>(
+    type: K,
+    listener: (this: EventSource, ev: EventSourceEventMap[K]) => unknown,
+    options?: boolean | EventListenerOptions
+  ): void;
+  removeEventListener(
+    type: string,
+    listener: EventListenerOrEventListenerObject,
+    options?: boolean | EventListenerOptions
+  ): void;
+  removeEventListener(
+    type: string,
+    listener: EventListenerOrEventListenerObject | ((ev: Event) => unknown),
+    _options?: boolean | EventListenerOptions
+  ): void {
+    this.eventListeners.get(type)?.delete(listener as EventListenerOrEventListenerObject);
   }
 
   /**
@@ -112,7 +146,11 @@ export class FakeEventSource implements Partial<EventSource> {
     const listeners = this.eventListeners.get(type);
     if (listeners) {
       for (const listener of listeners) {
-        listener(event);
+        if (typeof listener === 'function') {
+          listener(event);
+        } else {
+          listener.handleEvent(event);
+        }
       }
     }
   }

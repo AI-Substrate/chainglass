@@ -54,12 +54,17 @@ flowchart LR
     %% NEW business domains (Plan 067)
     questionPopper["❓ question-popper<br/>IQuestionPopperService<br/>QuestionPayloadSchema<br/>AnswerPayloadSchema<br/>AlertPayloadSchema<br/>FakeQuestionPopperService"]:::new
 
+    %% NEW business domains (Plan 088)
+    remoteView["📺 remote-view<br/>IRemoteViewService · SessionSummary<br/>ClientMessage · ServerMessage<br/>encode/decodeFrameHeader<br/>FakeStreamd (frame-replay)<br/>session-machine · useRemoteViewSession<br/>GET /api/remote-view/token<br/>streamd daemon (Swift, Phase 4)<br/>Control API: loopback + JWT (≠/health)<br/>/health /windows[single] /sessions /stream /shutdown<br/>discovery registry (.chainglass/streamd-*.json)"]:::new
+
     %% Contract dependencies (consumer → provider)
     fileBrowser -->|"IFileSystem<br/>IPathResolver"| fileOps
     fileBrowser -->|"workspaceHref<br/>fileBrowserParams"| wsUrl
     fileBrowser -->|"FileViewer<br/>MarkdownViewer<br/>DiffViewer<br/>detectContentType"| viewer
     fileBrowser -->|"toast()<br/>useFileChanges<br/>FileChangeProvider"| events
     fileBrowser -->|"PanelShell<br/>ExplorerPanel<br/>LeftPanel · MainPanel<br/>AsciiSpinner"| panels
+    %% Plan 084 split-terminal-view — file-browser consumes terminal for the inline split slot.
+    fileBrowser -->|"TerminalView<br/>cwd<br/>sessionName"| terminal
     fileBrowser -->|"IWorkspaceService<br/>useWorkspaceContext<br/>WorktreeVisualPreferences"| workspace
     panels -->|"panel URL param"| wsUrl
     viewer -->|"IFileSystem (Shiki reads)"| fileOps
@@ -185,6 +190,14 @@ flowchart LR
     %% useClipboard) and pr-view (diff-aggregator imports lifted helpers).
     fileBrowser -->|"parseRemote · buildFileUrl<br/>getRemoteUrl · getCurrentBranch<br/>getDefaultBaseBranch · getCurrentCommitSha<br/>RepoInfo"| gitPlatform
     prView -->|"getCurrentBranch<br/>getDefaultBaseBranch"| gitPlatform
+
+    %% NEW: remote-view dependencies (Plan 088). Phase 2 wires only auth (the token route);
+    %% events/state/sdk/panel-layout are designed edges that land in Phases 3–5.
+    remoteView -->|"getBootstrapCodeAndKey()<br/>verifyCookieValue()<br/>findWorkspaceRoot()<br/>BOOTSTRAP_COOKIE_NAME<br/>SignJWT (web mint)<br/>buildDefaultAllowedOrigins<br/>parseAllowedOrigins (Swift mirror, Phase 4)<br/>HKDF+HS256 verify (daemon)"| auth
+    remoteView -->|"ISSEBroadcaster<br/>remote-view.* envelope (Phase 5)"| events
+    remoteView -->|"useGlobalState<br/>remote-view:session:* (Phase 5)"| state
+    remoteView -->|"IUSDK<br/>list/attach/detach (Phase 5)"| sdk
+    remoteView -->|"content-area mode switch (Phase 3)"| panels
 ```
 
 ## Legend
@@ -225,3 +238,4 @@ flowchart LR
 | _platform/external-events | EventPopperRequest, EventPopperResponse, generateEventId, readServerInfo, writeServerInfo, localhostGuard, detectTmuxContext, WorkspaceDomain.EventPopper | question-popper | WorkspaceDomain | events | 🟠 New |
 | _platform/git | parseRemote, buildFileUrl, getRemoteUrl, getCurrentBranch, getDefaultBaseBranch, getCurrentCommitSha, RepoHost, Remote, BuildOptions, RepoInfo | file-browser, pr-view | — (zero deps; pure helpers + Node child_process) | — | 🟠 New |
 | question-popper | IQuestionPopperService, QuestionPayloadSchema, AnswerPayloadSchema, AlertPayloadSchema, FakeQuestionPopperService, QuestionIn, QuestionOut, AlertIn | (Phase 3: API routes) | EventPopperRequest, generateEventId, ICentralEventNotifier | external-events, events | 🟠 New |
+| remote-view | IRemoteViewService, SessionSummary, ClientMessage, ServerMessage, encode/decodeFrameHeader, FakeStreamd, session-machine, useRemoteViewSession, GET /api/remote-view/token; **streamd daemon (Swift) + loopback JWT-gated Control API (`/health` public; `/windows`[single-window], `/sessions`, `/stream`, `/shutdown`) + discovery registry** | Phase 3 viewport, Phase 4 Swift daemon (protocol mirror + live capture/input/lifecycle), Phase 5 routes/agents | getBootstrapCodeAndKey(), verifyCookieValue(), findWorkspaceRoot(), SignJWT (auth); buildDefaultAllowedOrigins/parseAllowedOrigins (Origin allowlist, Swift mirror); events/state/sdk/panel-layout (designed) | auth (Phase 2 + 4); events, state, sdk, panel-layout (Phases 3–5) | 🟠 New |

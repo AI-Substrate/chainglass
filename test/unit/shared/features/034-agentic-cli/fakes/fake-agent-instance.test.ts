@@ -26,18 +26,18 @@ const makeConfig = (id = 'test-1'): AgentInstanceConfig => ({
 
 describe('FakeAgentInstance onRun callback', () => {
   it('calls onRun with AgentRunOptions during run()', async () => {
-    let receivedOptions: AgentRunOptions | null = null;
+    const captured: { options: AgentRunOptions | null } = { options: null };
     const options: FakeAgentInstanceOptions = {
       onRun: async (opts) => {
-        receivedOptions = opts;
+        captured.options = opts;
       },
     };
 
     const agent = new FakeAgentInstance(makeConfig(), options);
     await agent.run({ prompt: 'do something' });
 
-    expect(receivedOptions).not.toBeNull();
-    expect(receivedOptions?.prompt).toBe('do something');
+    expect(captured.options).not.toBeNull();
+    expect(captured.options?.prompt).toBe('do something');
   });
 
   it('awaits onRun before returning result', async () => {

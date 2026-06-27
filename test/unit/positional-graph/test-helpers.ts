@@ -14,11 +14,15 @@ import type {
   UserInputUnit,
   WorkUnit,
 } from '@chainglass/positional-graph';
-import { unitNoTemplateError, unitNotFoundError } from '@chainglass/positional-graph/errors';
+import { unitNotFoundError } from '@chainglass/positional-graph/errors';
 import type {
+  CreateUnitResult,
+  DeleteUnitResult,
   IWorkUnitService,
   ListUnitsResult,
   LoadUnitResult,
+  RenameUnitResult,
+  UpdateUnitResult,
   ValidateUnitResult,
   WorkUnitSummary,
 } from '@chainglass/positional-graph/features/029-agentic-work-units';
@@ -84,9 +88,25 @@ export function createWorkUnit(config: WorkUnitConfig): NarrowWorkUnit {
     description: output.description,
   }));
 
+  const unitType = config.unitType ?? 'agent';
+
+  if (unitType === 'user-input') {
+    return {
+      slug: config.slug,
+      type: 'user-input',
+      inputs,
+      outputs,
+      userInput: {
+        prompt: 'Enter value:',
+        inputType: 'text',
+        outputName: outputs[0]?.name ?? 'output',
+      },
+    };
+  }
+
   return {
     slug: config.slug,
-    type: config.unitType ?? 'agent',
+    type: unitType,
     inputs,
     outputs,
   };
@@ -744,6 +764,28 @@ export function stubWorkUnitService(options: StubWorkUnitServiceOptions): IWorkU
       }
       return { valid: exists, errors: [] };
     },
+
+    async create(_ctx, spec): Promise<CreateUnitResult> {
+      return { slug: spec.slug, type: spec.type, errors: [] };
+    },
+
+    async update(_ctx, slug): Promise<UpdateUnitResult> {
+      if (!unitMap.has(slug) && strictMode) {
+        return { slug, errors: [unitNotFoundError(slug)] };
+      }
+      return { slug, errors: [] };
+    },
+
+    async delete(_ctx, _slug): Promise<DeleteUnitResult> {
+      return { deleted: true, errors: [] };
+    },
+
+    async rename(_ctx, oldSlug, newSlug): Promise<RenameUnitResult> {
+      if (!unitMap.has(oldSlug) && strictMode) {
+        return { newSlug, updatedFiles: [], errors: [unitNotFoundError(oldSlug)] };
+      }
+      return { newSlug, updatedFiles: [], errors: [] };
+    },
   };
 }
 
@@ -817,6 +859,13 @@ function createFakeWorkUnitInstance(
         inputs: unit.inputs,
         outputs: unit.outputs,
         user_input: unit.user_input,
+        userInput: {
+          prompt: unit.user_input.prompt,
+          inputType: unit.user_input.question_type,
+          outputName: unit.outputs[0]?.name ?? 'output',
+          options: unit.user_input.options,
+          default: unit.user_input.default,
+        },
       };
   }
 }

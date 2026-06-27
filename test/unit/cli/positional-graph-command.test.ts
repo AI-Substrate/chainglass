@@ -299,9 +299,11 @@ describe('Type Mismatch Error E186', () => {
       slug: 'user-requirements',
       version: '1.0.0',
       user_input: {
+        question_type: 'single',
+        prompt: 'Choose an option',
         options: [
-          { value: 'option1', label: 'Option 1' },
-          { value: 'option2', label: 'Option 2' },
+          { key: 'option1', label: 'Option 1' },
+          { key: 'option2', label: 'Option 2' },
         ],
       },
     });
@@ -463,7 +465,9 @@ describe('Unit Subcommand: cg wf unit list', () => {
       slug: 'user-requirements',
       version: '1.0.0',
       user_input: {
-        options: [{ value: 'option1', label: 'Option 1' }],
+        question_type: 'text',
+        prompt: 'Enter requirements',
+        options: [{ key: 'option1', label: 'Option 1' }],
       },
     });
   });
@@ -634,7 +638,9 @@ describe('Unit Subcommand: cg wf unit get-template', () => {
       slug: 'user-requirements',
       version: '1.0.0',
       user_input: {
-        options: [{ value: 'option1', label: 'Option 1' }],
+        question_type: 'text',
+        prompt: 'Enter requirements',
+        options: [{ key: 'option1', label: 'Option 1' }],
       },
     });
   });
@@ -650,8 +656,11 @@ describe('Unit Subcommand: cg wf unit get-template', () => {
     */
     const result = await fakeService.load(ctx, 'spec-generator');
     expect(result.unit).toBeDefined();
+    if (result.unit?.type !== 'agent') {
+      throw new Error('expected spec-generator to load as an agent unit');
+    }
 
-    const content = await result.unit?.getPrompt(ctx);
+    const content = await result.unit.getPrompt(ctx);
 
     expect(content).toContain('You are a specification writer');
     expect(content).toContain('{{input}}');
@@ -668,8 +677,11 @@ describe('Unit Subcommand: cg wf unit get-template', () => {
     */
     const result = await fakeService.load(ctx, 'pr-creator');
     expect(result.unit).toBeDefined();
+    if (result.unit?.type !== 'code') {
+      throw new Error('expected pr-creator to load as a code unit');
+    }
 
-    const content = await result.unit?.getScript(ctx);
+    const content = await result.unit.getScript(ctx);
 
     expect(content).toContain('#!/bin/bash');
     expect(content).toContain('gh pr create');

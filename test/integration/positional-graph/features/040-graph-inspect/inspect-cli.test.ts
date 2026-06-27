@@ -25,9 +25,9 @@ async function buildFixtureGraph(
   ctx: WorkspaceContext,
   slug: string
 ) {
-  await service.create(ctx, slug, { description: 'inspect test graph' });
-  const line0 = await service.addLine(ctx, slug, { position: 0 });
-  const line1 = await service.addLine(ctx, slug, { position: 1 });
+  await service.create(ctx, slug);
+  const line0 = await service.addLine(ctx, slug, { atIndex: 0 });
+  const line1 = await service.addLine(ctx, slug, { atIndex: 1 });
 
   const nodeA = await service.addNode(ctx, slug, line0.lineId as string, 'setup');
   const nodeB = await service.addNode(ctx, slug, line1.lineId as string, 'worker');

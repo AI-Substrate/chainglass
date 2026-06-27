@@ -452,6 +452,8 @@ export {
   NativeFileWatcherAdapter,
   NativeFileWatcherFactory,
 } from './adapters/index.js';
+// Plan 085: env-forced polling fallback (WSL/Windows mounts)
+export { FileWatcherFactory, PollingFileWatcherAdapter } from './adapters/index.js';
 export { FakeFileWatcher, FakeFileWatcherFactory } from './fakes/index.js';
 
 // Template/Instance schemas (Plan 048)

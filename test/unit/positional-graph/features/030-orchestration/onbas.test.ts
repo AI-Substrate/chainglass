@@ -160,15 +160,24 @@ describe('walkForNextAction — basic walk', () => {
   });
 
   it('passes custom inputs through to start-node', () => {
+    const customInputPack = {
+      ok: true,
+      inputs: {
+        name: {
+          status: 'available' as const,
+          detail: { inputName: 'name', required: true, sources: [] },
+        },
+      },
+    };
     const reality = buildFakeReality({
-      nodes: [{ nodeId: 'A', status: 'ready', inputPack: { ok: true, inputs: { name: 'test' } } }],
+      nodes: [{ nodeId: 'A', status: 'ready', inputPack: customInputPack }],
     });
 
     const result = walkForNextAction(reality);
 
     expect(result).toMatchObject({
       type: 'start-node',
-      inputs: { ok: true, inputs: { name: 'test' } },
+      inputs: customInputPack,
     });
   });
 });
@@ -276,7 +285,7 @@ describe('walkForNextAction — multi-line walk order', () => {
   it('parallel node on same line is actionable even when serial neighbor is running', () => {
     const reality = buildFakeReality({
       nodes: [
-        { nodeId: 'A', status: 'running', positionInLine: 0, execution: 'serial' },
+        { nodeId: 'A', status: 'agent-accepted', positionInLine: 0, execution: 'serial' },
         { nodeId: 'B', status: 'ready', positionInLine: 1, execution: 'parallel' },
       ],
       lines: [{ nodeIds: ['A', 'B'] }],
@@ -361,8 +370,8 @@ describe('walkForNextAction — no-action scenarios', () => {
   it('all-running on a line → no-action with all-waiting', () => {
     const reality = buildFakeReality({
       nodes: [
-        { nodeId: 'A', status: 'running' },
-        { nodeId: 'B', status: 'running' },
+        { nodeId: 'A', status: 'agent-accepted' },
+        { nodeId: 'B', status: 'agent-accepted' },
       ],
       lines: [{ nodeIds: ['A', 'B'], isComplete: false }],
     });
@@ -424,7 +433,7 @@ describe('walkForNextAction — no-action scenarios', () => {
   it('diagnoseStuckLine with running+waiting → all-waiting', () => {
     const reality = buildFakeReality({
       nodes: [
-        { nodeId: 'A', status: 'running', positionInLine: 0 },
+        { nodeId: 'A', status: 'agent-accepted', positionInLine: 0 },
         { nodeId: 'B', status: 'waiting-question', pendingQuestionId: 'q1', positionInLine: 1 },
       ],
       questions: [{ questionId: 'q1', nodeId: 'B', isSurfaced: true, isAnswered: false }],
@@ -484,7 +493,7 @@ describe('walkForNextAction — no-action scenarios', () => {
 
     // all-waiting does NOT have lineId
     const waitingReality = buildFakeReality({
-      nodes: [{ nodeId: 'A', status: 'running' }],
+      nodes: [{ nodeId: 'A', status: 'agent-accepted' }],
       lines: [{ nodeIds: ['A'], isComplete: false }],
     });
     const waitingResult = walkForNextAction(waitingReality);
@@ -507,7 +516,7 @@ describe('walkForNextAction — no-action scenarios', () => {
 // ═══════════════════════════════════════════════════════
 
 describe('walkForNextAction — skip logic', () => {
-  const skipStatuses = ['complete', 'running', 'pending', 'blocked-error'] as const;
+  const skipStatuses = ['complete', 'agent-accepted', 'pending', 'blocked-error'] as const;
 
   it.each(skipStatuses)('skips %s node and continues walk', (status) => {
     const reality = buildFakeReality({

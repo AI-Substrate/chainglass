@@ -39,7 +39,7 @@ describe('extractIntent', () => {
       const event: AgentEvent = {
         type: 'tool_call',
         timestamp: '',
-        data: { toolName: 'Bash', input: 'git status' },
+        data: { toolName: 'Bash', input: 'git status', toolCallId: 'tc-1' },
       };
       expect(extractIntent(event)).toBe('Running: git status');
     });
@@ -48,7 +48,7 @@ describe('extractIntent', () => {
       const event: AgentEvent = {
         type: 'tool_call',
         timestamp: '',
-        data: { toolName: 'Bash', input: { command: 'npm test' } },
+        data: { toolName: 'Bash', input: { command: 'npm test' }, toolCallId: 'tc-2' },
       };
       expect(extractIntent(event)).toBe('Running: npm test');
     });
@@ -57,7 +57,7 @@ describe('extractIntent', () => {
       const event: AgentEvent = {
         type: 'tool_call',
         timestamp: '',
-        data: { toolName: 'Read', input: 'src/auth.ts' },
+        data: { toolName: 'Read', input: 'src/auth.ts', toolCallId: 'tc-3' },
       };
       expect(extractIntent(event)).toBe('Reading auth.ts');
     });
@@ -66,7 +66,11 @@ describe('extractIntent', () => {
       const event: AgentEvent = {
         type: 'tool_call',
         timestamp: '',
-        data: { toolName: 'read_file', input: { path: '/Users/me/project/lib/utils.ts' } },
+        data: {
+          toolName: 'read_file',
+          input: { path: '/Users/me/project/lib/utils.ts' },
+          toolCallId: 'tc-4',
+        },
       };
       expect(extractIntent(event)).toBe('Reading utils.ts');
     });
@@ -75,7 +79,7 @@ describe('extractIntent', () => {
       const event: AgentEvent = {
         type: 'tool_call',
         timestamp: '',
-        data: { toolName: 'Write', input: { file_path: 'src/index.ts' } },
+        data: { toolName: 'Write', input: { file_path: 'src/index.ts' }, toolCallId: 'tc-5' },
       };
       expect(extractIntent(event)).toBe('Editing index.ts');
     });
@@ -84,7 +88,7 @@ describe('extractIntent', () => {
       const event: AgentEvent = {
         type: 'tool_call',
         timestamp: '',
-        data: { toolName: 'Edit', input: 'src/components/app.tsx' },
+        data: { toolName: 'Edit', input: 'src/components/app.tsx', toolCallId: 'tc-6' },
       };
       expect(extractIntent(event)).toBe('Editing app.tsx');
     });
@@ -93,7 +97,7 @@ describe('extractIntent', () => {
       const event: AgentEvent = {
         type: 'tool_call',
         timestamp: '',
-        data: { toolName: 'Grep', input: 'useAuth' },
+        data: { toolName: 'Grep', input: 'useAuth', toolCallId: 'tc-7' },
       };
       expect(extractIntent(event)).toBe('Searching: useAuth');
     });
@@ -102,7 +106,7 @@ describe('extractIntent', () => {
       const event: AgentEvent = {
         type: 'tool_call',
         timestamp: '',
-        data: { toolName: 'CustomTool', input: 'some input' },
+        data: { toolName: 'CustomTool', input: 'some input', toolCallId: 'tc-8' },
       };
       expect(extractIntent(event)).toBe('CustomTool: some input');
     });
@@ -111,7 +115,7 @@ describe('extractIntent', () => {
       const event: AgentEvent = {
         type: 'tool_call',
         timestamp: '',
-        data: { toolName: 'CustomTool', input: {} },
+        data: { toolName: 'CustomTool', input: {}, toolCallId: 'tc-9' },
       };
       expect(extractIntent(event)).toBe('Using CustomTool');
     });
@@ -121,7 +125,7 @@ describe('extractIntent', () => {
       const event: AgentEvent = {
         type: 'tool_call',
         timestamp: '',
-        data: { toolName: 'Bash', input: longCmd },
+        data: { toolName: 'Bash', input: longCmd, toolCallId: 'tc-10' },
       };
       const result = extractIntent(event);
       expect(result).not.toBeNull();

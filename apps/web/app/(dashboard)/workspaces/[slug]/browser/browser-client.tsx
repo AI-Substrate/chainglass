@@ -17,6 +17,7 @@ import {
   type ViewerMode,
 } from '@/features/041-file-browser/components/file-viewer-panel';
 import { FolderPreviewPanel } from '@/features/041-file-browser/components/folder-preview-panel';
+import { SplitTerminalToggleButton } from '@/features/041-file-browser/components/split-terminal-toggle-button';
 import { useClipboard } from '@/features/041-file-browser/hooks/use-clipboard';
 import { useFileFilter } from '@/features/041-file-browser/hooks/use-file-filter';
 import { useFileMutations } from '@/features/041-file-browser/hooks/use-file-mutations';
@@ -33,10 +34,19 @@ import type { FileEntry } from '@/features/041-file-browser/services/directory-l
 import { createFilePathHandler } from '@/features/041-file-browser/services/file-path-handler';
 import { FileChangeProvider, useFileChanges } from '@/features/045-live-file-events';
 import { sanitizeSessionName } from '@/features/064-terminal';
+import { TerminalSplitPane } from '@/features/064-terminal/components/terminal-split-pane';
 import { TerminalView } from '@/features/064-terminal/components/terminal-view';
+import { useTerminalOverlay } from '@/features/064-terminal/hooks/use-terminal-overlay';
 import { useTerminalSessions } from '@/features/064-terminal/hooks/use-terminal-sessions';
+import { resolveSplitSession } from '@/features/064-terminal/lib/resolve-split-session';
+import { sessionNameFromWorktreePath } from '@/features/064-terminal/lib/session-name-from-worktree-path';
 import { QuestionPopperIndicator } from '@/features/067-question-popper/components/question-popper-indicator';
 import { useNotesOverlay } from '@/features/071-file-notes/hooks/use-notes-overlay';
+import { RemoteViewLaunchButton } from '@/features/088-remote-view/components/remote-view-launch-button';
+import { useRemoteViewEvents } from '@/features/088-remote-view/hooks/use-remote-view-events';
+import { remoteViewParams } from '@/features/088-remote-view/params/remote-view.params';
+import { attachRemoteViewWindow } from '@/features/088-remote-view/sdk/attach-remote-view-window';
+import { remoteViewContribution } from '@/features/088-remote-view/sdk/contribution';
 import type { RepoInfo as RepoInfoPayload } from '@/features/_platform/git';
 import {
   type BarContext,
@@ -82,6 +92,7 @@ import {
   renameItem,
   saveFile,
 } from '../../../../actions/file-actions';
+import { saveEditedImage } from '../../../../actions/image-actions';
 import { fetchFilesWithNotes } from '../../../../actions/notes-actions';
 
 // Plan recent-changes-feed T003: lazy-load the feed view so its primitives
@@ -96,6 +107,23 @@ const RecentFeedView = dynamic(
     loading: () => (
       <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground">
         Recent changes feed — loading…
+      </div>
+    ),
+  }
+);
+
+// Plan 088 Phase 3: lazy-load the remote-view panel so the WebCodecs/canvas
+// primitives only ship when the user opens `view=remote` (AC-13 bundle guard).
+const RemoteViewPanel = dynamic(
+  () =>
+    import('@/features/088-remote-view/components/remote-view-panel').then(
+      (m) => m.RemoteViewPanel
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground">
+        Remote view — loading…
       </div>
     ),
   }
@@ -137,7 +165,19 @@ function BrowserClientInner({
   isGit,
   initialEntries,
 }: BrowserClientProps) {
-  const [params, setParams] = useQueryStates(fileBrowserParams);
+  const [params, setParams] = useQueryStates({ ...fileBrowserParams, ...remoteViewParams });
+
+  // T006 (AC-8 push half): when an agent attaches a window (via CLI/MCP/SDK), the
+  // `remote-view` SSE `attached` envelope pushes this open client onto the live
+  // session. A user-initiated attach is idempotent (already on view=remote with the
+  // same rv). `history:'push'` keeps a back-entry so the user can return.
+  useRemoteViewEvents({
+    onAttached: useCallback(
+      (sessionId: string) => setParams({ view: 'remote', rv: sessionId }, { history: 'push' }),
+      [setParams]
+    ),
+  });
+
   const explorerRef = useRef<ExplorerPanelHandle>(null);
   const [expandPaths, setExpandPaths] = useState<string[]>([]);
   const lastFileSelectionRef = useRef<{ filePath: string; at: number } | null>(null);
@@ -161,6 +201,16 @@ function BrowserClientInner({
 
   // Phase 3 T005: Explorer Sheet state (controlled open/close)
   const [explorerSheetOpen, setExplorerSheetOpen] = useState(false);
+  // Plan 084 split-terminal-view T006 / FX012: session-only toggle for the
+  // inline terminal split. Reset on reload (C-07). No SDK setting, no URL
+  // mirror. FX012 renames the boolean to `splitOn` and threads the floating
+  // overlay's open/close API through the toggle handler so transitions
+  // between Mode A (today: float + viewer share the main slot) and Mode B
+  // (inline split: viewer ⅔ + terminal ⅓) are coherent. Backtick in Mode B
+  // exits to Mode A with the float open — see the capture-phase listener
+  // below.
+  const [splitOn, setSplitOn] = useState(false);
+  const overlay = useTerminalOverlay();
 
   // DYK-P3-01: Wrap server prop in state for client-side root refresh
   const [rootEntries, setRootEntries] = useState(initialEntries);
@@ -514,25 +564,21 @@ function BrowserClientInner({
   const trackedExpandedDirsRef = useRef<string[]>([]);
   // Plan 077: Guard against programmatic expansion updating dir param
   const isProgrammaticExpansionRef = useRef(false);
+  // Set synchronously when starting a "New File/Folder" auto-expands a collapsed
+  // folder. The matching onExpandedDirsChange then skips publishing ?dir= so the
+  // create doesn't hijack the main panel into folder-preview / close the open file.
+  // Race-free: consumed by path match, not by timing.
+  const pendingCreateExpandRef = useRef<string | null>(null);
+  const handleTreeCreateAutoExpand = useCallback((parentDir: string) => {
+    pendingCreateExpandRef.current = parentDir;
+  }, []);
 
-  // Plan 077: Track last-expanded folder to show gallery in viewer panel.
-  // Only updates dir on user-initiated folder clicks, not programmatic expansion.
-  const handleExpandedDirsChange = useCallback(
-    (dirs: string[]) => {
-      const oldSet = new Set(trackedExpandedDirsRef.current);
-      const newlyExpanded = dirs.find((d) => !oldSet.has(d));
-      trackedExpandedDirsRef.current = dirs;
-      setTrackedExpandedDirs(dirs);
-
-      if (newlyExpanded && !isProgrammaticExpansionRef.current) {
-        setParams({ dir: newlyExpanded }, { history: 'push' });
-      }
-    },
-    [setParams]
-  );
-
-  // Mobile: folder tap sets dir param (for FolderPreviewPanel in Content view)
-  // but does NOT auto-switch — user stays in Files view to continue browsing.
+  // Plan 077: track last-expanded folder to show gallery in viewer panel.
+  // A user-initiated folder click publishes `?dir=` AND clears `?file=` so the
+  // main panel's precedence (selectedFile → FileViewer, else currentDir →
+  // FolderPreview) falls through to FolderPreviewPanel. Without clearing the
+  // file param a leftover `?file=` would keep the previous file viewer
+  // mounted and the folder gallery would never appear.
   //
   // We must NOT fire `?dir=<ancestor>&file=''` when the newly-expanded dir
   // is just an ancestor of the currently-selected file (e.g., the
@@ -543,7 +589,11 @@ function BrowserClientInner({
   //   2. Ancestor check against `selectedFile` — robust against the timing
   //      race; if the dir is on the file's ancestor path, the expansion
   //      came from the auto-expand effect and isn't a user gesture.
-  const handleMobileExpandedDirsChange = useCallback(
+  //
+  // Single handler used by both desktop and mobile trees. Prior to this fix
+  // the desktop variant omitted `file: ''`, which (per Plan 077 e5f945cf)
+  // broke folder-view rendering whenever a file was already selected.
+  const handleExpandedDirsChange = useCallback(
     (dirs: string[]) => {
       const oldSet = new Set(trackedExpandedDirsRef.current);
       const newlyExpanded = dirs.find((d) => !oldSet.has(d));
@@ -551,6 +601,13 @@ function BrowserClientInner({
       setTrackedExpandedDirs(dirs);
 
       if (!newlyExpanded) return;
+      // Create-driven auto-expand: keep the current view, don't open the folder
+      // gallery or wipe the open file. Consume the marker so a later genuine
+      // click on the same folder still publishes ?dir=.
+      if (pendingCreateExpandRef.current === newlyExpanded) {
+        pendingCreateExpandRef.current = null;
+        return;
+      }
       if (isProgrammaticExpansionRef.current) return;
       if (selectedFile) {
         const ancestorPrefix = `${newlyExpanded}/`;
@@ -587,7 +644,8 @@ function BrowserClientInner({
   const isSuppressed = selectedFile ? suppressedTimersRef.current.has(selectedFile) : false;
   const isDirty =
     fileNav.editContent != null &&
-    fileNav.fileData?.content != null &&
+    fileNav.fileData?.ok === true &&
+    !fileNav.fileData.isBinary &&
     fileNav.editContent !== fileNav.fileData.content;
 
   // Determine if we should show banner vs auto-refresh (DYK #3)
@@ -694,8 +752,9 @@ function BrowserClientInner({
       // if the recent-changes feed (`view=recent-feed`) is the active main
       // pane, swap it out for the file viewer. Same intent as the
       // overlay:close-all dispatch above (terminal), just for the
-      // history view.
-      setParams({ view: null }, { history: 'replace' });
+      // history view. Also clear `rv` so leaving remote-view mode by picking a file
+      // doesn't strand a session param (AC-5 switch-back restores file state).
+      setParams({ view: null, rv: null }, { history: 'replace' });
 
       const wasSelected = selectedFile === filePath;
       const now = Date.now();
@@ -887,12 +946,35 @@ function BrowserClientInner({
         })
       : null;
 
+    // Plan 088 T008: remote-view.attach — no args opens the window picker (Workshop 001
+    // entry) via the live setParams closure; a windowId attaches that window directly
+    // (the SSE 'attached' envelope then pushes the content area, T006). Registered here
+    // for the same reason as openRecentFeed — setParams lives on this page.
+    const remoteViewAttachCmd = remoteViewContribution.commands.find(
+      (c) => c.id === 'remote-view.attach'
+    );
+    const remoteViewAttachReg = remoteViewAttachCmd
+      ? sdk.commands.register({
+          ...remoteViewAttachCmd,
+          handler: async (params: unknown) => {
+            const { windowId } = (params ?? {}) as { windowId?: number };
+            if (typeof windowId === 'number') {
+              // F003: surface failures (the SSE 'attached' envelope drives the push on success).
+              await attachRemoteViewWindow(windowId, { toast: sdk.toast });
+              return;
+            }
+            setParams({ view: 'remote', rv: null }, { history: 'push' });
+          },
+        })
+      : null;
+
     return () => {
       paletteReg.dispose();
       goToFileReg.dispose();
       openFileAtLineReg?.dispose();
       openRecentFeedReg?.dispose();
       restartFlowspaceReg?.dispose();
+      remoteViewAttachReg?.dispose();
     };
   }, [sdk, setParams, worktreePath]);
 
@@ -923,6 +1005,38 @@ function BrowserClientInner({
       panelState.handleRefreshChanges();
     }
   }, [panelMode, fileNav.handleRefresh, panelState.handleRefreshChanges]);
+
+  // Persist edited image bytes (Plan 086). Delegates to the saveEditedImage
+  // server action; on success refreshes the file so its metadata (incl. mtime)
+  // updates. The editor owns the conflict dialog — we just relay the typed
+  // outcome (incl. 'conflict') back to it.
+  const handleSaveImage = useCallback(
+    async (payloadBase64: string, mode: 'overwrite' | 'edited-copy', expectedMtime?: string) => {
+      if (!selectedFile) return { ok: false as const, error: 'not-found' };
+      const result = await saveEditedImage(
+        slug,
+        worktreePath,
+        selectedFile,
+        payloadBase64,
+        mode,
+        expectedMtime
+      );
+      if (result.ok) {
+        if (mode === 'edited-copy' && result.savedPath && result.savedPath !== selectedFile) {
+          // Save as new → navigate to the freshly-created file using the same
+          // explorer navigation the file tree uses, so the user lands on it.
+          void handleFileSelect(result.savedPath);
+        } else {
+          // Save over → same path; refresh the file data (the displayed image is
+          // cache-busted in BinaryFileView since the URL is otherwise identical).
+          fileNav.handleRefreshFile();
+        }
+        return { ok: true as const };
+      }
+      return { ok: false as const, error: result.error };
+    },
+    [slug, worktreePath, selectedFile, fileNav.handleRefreshFile, handleFileSelect]
+  );
 
   // --- Current diff ---
 
@@ -1001,7 +1115,8 @@ function BrowserClientInner({
               onExpand={fileNav.handleExpand}
               childEntries={filteredChildEntries}
               expandPaths={expandPaths}
-              onExpandedDirsChange={handleMobileExpandedDirsChange}
+              onExpandedDirsChange={handleExpandedDirsChange}
+              onCreateAutoExpand={handleTreeCreateAutoExpand}
               onCopyFullPath={clipboard.handleCopyFullPath}
               onCopyRelativePath={clipboard.handleCopyRelativePath}
               onCopyRepoUrlCurrentRef={clipboard.handleCopyRepoUrlCurrentRef}
@@ -1084,6 +1199,7 @@ function BrowserClientInner({
               : undefined
           }
           rawFileBaseUrl={`/api/workspaces/${slug}/files/raw?worktree=${encodeURIComponent(worktreePath)}`}
+          onSaveImage={handleSaveImage}
           popOutUrl={
             selectedFile
               ? `/workspaces/${slug}/browser?worktree=${encodeURIComponent(worktreePath)}&file=${encodeURIComponent(selectedFile)}&mode=${mode}`
@@ -1157,9 +1273,91 @@ function BrowserClientInner({
     />
   );
 
+  // Plan 084 split-terminal-view T006: inline split content. Reuses the same
+  // session-name resolution as the mobile path (termSelectedSession) with a
+  // canonical worktree-folder-basename fallback so the inline pane always has
+  // a name to attach with — the sidecar runs `tmux new-session -A -s <name>`
+  // on first connect, creating the session if it doesn't already exist (same
+  // contract as /terminal and the right-edge overlay). Same `cwd={worktreePath}`.
+  // Shared session = shell history follows user across overlay / /terminal / inline.
+  const inlineSessionName = termSelectedSession ?? sessionNameFromWorktreePath(worktreePath);
+
+  // FX012 state-machine transitions for the split-toggle button (Mode A↔B).
+  // - A → B: close any open float, sync the singleton's session context to
+  //   the inline worktree, then enter B. setSessionContext is required because
+  //   the singleton reads sessionName/cwd from the overlay state; without it
+  //   the inline pane would attach to the workspace-default session (often
+  //   the main repo) instead of the current worktree.
+  // - B → A: leave B, open the float so the terminal stays visible.
+  //
+  // FX015: split must attach to the session the singleton is currently showing
+  // — whether the float is open OR was opened on this worktree and since
+  // closed (overlay state + the parked xterm persist). The earlier code fell
+  // back to `termSelectedSession` when the float was closed, which auto-picks
+  // the FIRST session, so split reconnected to the wrong one. resolveSplitSession
+  // preserves the live worktree session and otherwise uses this worktree's
+  // canonical name — never an auto-picked first / cross-worktree default.
+  const handleSplitToggleChange = useCallback(
+    (next: boolean) => {
+      if (next) {
+        const { sessionName, cwd } = resolveSplitSession(overlay, worktreePath);
+        overlay.closeTerminal();
+        if (sessionName) {
+          overlay.setSessionContext(sessionName, cwd);
+        }
+        setSplitOn(true);
+      } else {
+        setSplitOn(false);
+        // FX013: reopen the float on the session the split pane was showing
+        // (held in overlay state since enter), not a re-derived fallback —
+        // otherwise exiting split could jump to a different session.
+        const exitName = overlay.sessionName ?? inlineSessionName;
+        if (exitName) {
+          overlay.openTerminal(exitName, overlay.cwd ?? worktreePath);
+        }
+      }
+    },
+    [overlay, inlineSessionName, worktreePath]
+  );
+
+  // FX012 capture-phase backtick interceptor (Mode B only). When `splitOn` is
+  // true and any caller dispatches `terminal:toggle` (SDK command via
+  // backtick, sidebar button, explorer panel), we preempt the
+  // TerminalOverlayProvider's bubble-phase listener and exit to Mode A with
+  // the float open. When `splitOn` is false we don't register the listener at
+  // all, so backtick in Mode A behaves exactly as today (AC-04).
+  useEffect(() => {
+    if (!splitOn) return;
+    const handler = (e: Event) => {
+      e.stopImmediatePropagation();
+      setSplitOn(false);
+      // FX013: reopen on the split pane's live session (see B→A above).
+      const exitName = overlay.sessionName ?? inlineSessionName;
+      if (exitName) {
+        overlay.openTerminal(exitName, overlay.cwd ?? worktreePath);
+      }
+    };
+    window.addEventListener('terminal:toggle', handler, { capture: true });
+    return () => {
+      window.removeEventListener('terminal:toggle', handler, { capture: true });
+    };
+  }, [splitOn, overlay, inlineSessionName, worktreePath]);
+
+  // FX012: inline pane now drives the singleton via a viewport. When `splitOn`
+  // is true, the singleton's xterm DOM moves into this slot — same instance
+  // as the floating overlay and the /terminal page.
+  // FX014: render TerminalSplitPane (header + viewport) so split mode keeps the
+  // theme picker + copy-buffer control, matching the floating overlay. Display
+  // the live carried session (FX013) so the header label tracks the pane.
+  const inlineTerminalPane =
+    splitOn && inlineSessionName ? (
+      <TerminalSplitPane sessionName={overlay.sessionName ?? inlineSessionName} />
+    ) : null;
+
   return (
     <div className="h-full overflow-hidden">
       <PanelShell
+        rightPane={inlineTerminalPane ?? undefined}
         mobileViews={[
           { label: 'Files', icon: <FolderOpen className="h-4 w-4" />, content: filesContent },
           { label: 'Content', icon: <FileText className="h-4 w-4" />, content: contentView },
@@ -1254,6 +1452,20 @@ function BrowserClientInner({
                 >
                   <History className="h-4 w-4" />
                 </button>
+                {/* Plan 088 T005: discoverable remote-view launch (DL-003). Mirrors the
+                    recent-feed button above; closes the terminal overlay (same panel) then
+                    opens the window picker via `view=remote`. The palette command
+                    (`remote-view.attach`) still reaches the same place. */}
+                <RemoteViewLaunchButton
+                  onLaunch={() => {
+                    window.dispatchEvent(new CustomEvent('terminal:close'));
+                    setParams({ view: 'remote', rv: null }, { history: 'push' });
+                  }}
+                />
+                {/* Plan 084 split-terminal-view T006: inline terminal toggle.
+                    Lives in ExplorerPanel.rightActions, which is mobile-skipped
+                    by the parent PanelShell branch — no extra gate needed. */}
+                <SplitTerminalToggleButton value={splitOn} onChange={handleSplitToggleChange} />
                 <QuestionPopperIndicator />
               </>
             }
@@ -1304,6 +1516,7 @@ function BrowserClientInner({
                     childEntries={filteredChildEntries}
                     expandPaths={expandPaths}
                     onExpandedDirsChange={handleExpandedDirsChange}
+                    onCreateAutoExpand={handleTreeCreateAutoExpand}
                     onCopyFullPath={clipboard.handleCopyFullPath}
                     onCopyRelativePath={clipboard.handleCopyRelativePath}
                     onCopyRepoUrlCurrentRef={clipboard.handleCopyRepoUrlCurrentRef}
@@ -1340,7 +1553,16 @@ function BrowserClientInner({
         }
         main={
           <MainPanel>
-            {view === 'recent-feed' ? (
+            {view === 'remote' ? (
+              <RemoteViewPanel
+                slug={slug}
+                worktreePath={worktreePath}
+                rv={params.rv}
+                onPickWindow={(sessionId) => setParams({ rv: sessionId }, { history: 'push' })}
+                onReturnToPicker={() => setParams({ rv: null }, { history: 'push' })}
+                onClose={() => setParams({ view: null, rv: null }, { history: 'replace' })}
+              />
+            ) : view === 'recent-feed' ? (
               <RecentFeedView
                 slug={slug}
                 worktreePath={worktreePath}
@@ -1408,6 +1630,7 @@ function BrowserClientInner({
                     : undefined
                 }
                 rawFileBaseUrl={`/api/workspaces/${slug}/files/raw?worktree=${encodeURIComponent(worktreePath)}`}
+                onSaveImage={handleSaveImage}
                 popOutUrl={
                   selectedFile
                     ? `/workspaces/${slug}/browser?worktree=${encodeURIComponent(worktreePath)}&file=${encodeURIComponent(selectedFile)}&mode=${mode}`

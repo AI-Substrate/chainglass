@@ -114,7 +114,7 @@ export function useAgentInstance(
     if (!subscribeToSSE) return;
 
     const data = msg as unknown as AgentSSEEvent;
-    const eventType = data.type ?? 'unknown';
+    const eventType = msg.type ?? 'unknown';
 
     // Filter events for this specific agent (client-side per ADR-0007)
     if (data.agentId !== agentId) return;

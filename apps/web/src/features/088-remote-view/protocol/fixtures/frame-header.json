@@ -1,0 +1,10 @@
+{
+  "$comment": "Cross-language BINARY video-frame-header fixture (Workshop 003 §Binary). 16-byte big-endian header: [u8 frameType=0x01][u8 flags(bit0=keyframe)][u16 reserved=0][u32 sequence][u64 captureTimestampMicros]. Both the TS codec (protocol-binary.test.ts) and the Swift daemon (Plan 088 Task 4.2) encode/decode these exact byte strings — this file is the binary drift guard. `captureTimestampMicros` is a decimal STRING because the u64 range exceeds JS Number safe integers (row 4 = 2^53+1, which proves the BigInt path). `hex` is the full 16-byte header, lowercase, no payload.",
+  "version": 1,
+  "frames": [
+    { "sequence": 0, "keyframe": true, "captureTimestampMicros": "0", "hex": "01010000000000000000000000000000" },
+    { "sequence": 1, "keyframe": false, "captureTimestampMicros": "18150", "hex": "010000000000000100000000000046e6" },
+    { "sequence": 254, "keyframe": false, "captureTimestampMicros": "4500000", "hex": "01000000000000fe000000000044aa20" },
+    { "sequence": 1000, "keyframe": true, "captureTimestampMicros": "9007199254740993", "hex": "01010000000003e80020000000000001" }
+  ]
+}

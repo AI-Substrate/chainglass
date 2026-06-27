@@ -20,9 +20,8 @@ import { PasteUploadButton } from '@/features/041-file-browser/components/paste-
 import { WorktreeIdentityPopover } from '@/features/041-file-browser/components/worktree-identity-popover';
 import { WorktreeStateSubtitle } from '@/features/041-file-browser/components/worktree-state-subtitle';
 import { useWorkspaceContext } from '@/features/041-file-browser/hooks/use-workspace-context';
-import { DEV_NAV_ITEMS, WORKSPACE_NAV_ITEMS } from '@/lib/navigation-utils';
+import { DEV_NAV_ITEMS } from '@/lib/navigation-utils';
 import { cn } from '@/lib/utils';
-import { workspaceHref } from '@/lib/workspace-url';
 import {
   ChevronLeft,
   ExternalLink,
@@ -45,12 +44,14 @@ import { signOut, useAuth } from '@/features/063-login/hooks/use-auth';
  *
  * Context-aware sidebar with three levels:
  * - Home (/): workspace list + Dev section
- * - Workspace (/workspaces/[slug]): worktree list, no tools yet
- * - Worktree (/workspaces/[slug]/*?worktree=): tools first, worktree list below
+ * - Workspace (/workspaces/[slug]): worktree list
+ * - Worktree (/workspaces/[slug]/*?worktree=): worktree list
  *
  * Workshop: workspace-context-session-binding.md
- * Tools (Browser/Agents/Workflows) are top-level, scoped to active worktree.
- * Worktree list is for switching context — NOT parent of tools.
+ * Selecting a worktree always lands on the Browser (the /worktree landing page
+ * and the worktree nav links both route to /browser). The old Tools switcher
+ * (Browser/Agents/Work Units/Workflows/Terminal) was removed — Browser is the
+ * single default surface; Terminal is reachable via the footer toggle (Ctrl+`).
  */
 export function DashboardSidebar() {
   const pathname = usePathname();
@@ -93,24 +94,51 @@ export function DashboardSidebar() {
             </div>
           </div>
         )}
-        <div className={cn('flex items-center', isCollapsed ? 'justify-center' : 'mt-1 gap-1')}>
-          {!isCollapsed && currentWorktree && workspaceSlug && (
+        <div className={cn('flex items-center', isCollapsed ? 'flex-col gap-1' : 'mt-1 gap-1')}>
+          {isCollapsed ? (
+            // Compact rail: show/hide menu, then upload, theme, pop-out — stacked.
             <>
-              <WorktreeIdentityPopover slug={workspaceSlug} worktreePath={currentWorktree} />
-              <PasteUploadButton slug={workspaceSlug} worktreePath={currentWorktree} />
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleSidebar}
+                aria-label="Toggle sidebar"
+                className="h-7 w-7"
+              >
+                <PanelLeft className="h-3.5 w-3.5" />
+              </Button>
+              <div className="my-0.5 h-px w-6 bg-border" />
+              {currentWorktree && workspaceSlug && (
+                <PasteUploadButton slug={workspaceSlug} worktreePath={currentWorktree} />
+              )}
+              <ThemeToggle />
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => window.open(window.location.href, '_blank')}
+                aria-label="Open in new tab"
+                className="h-7 w-7"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+              </Button>
             </>
-          )}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggleSidebar}
-            aria-label="Toggle sidebar"
-            className="h-7 w-7"
-          >
-            <PanelLeft className="h-3.5 w-3.5" />
-          </Button>
-          {!isCollapsed && (
+          ) : (
             <>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleSidebar}
+                aria-label="Toggle sidebar"
+                className="h-7 w-7"
+              >
+                <PanelLeft className="h-3.5 w-3.5" />
+              </Button>
+              {currentWorktree && workspaceSlug && (
+                <>
+                  <WorktreeIdentityPopover slug={workspaceSlug} worktreePath={currentWorktree} />
+                  <PasteUploadButton slug={workspaceSlug} worktreePath={currentWorktree} />
+                </>
+              )}
               <ThemeToggle />
               <Button
                 variant="ghost"
@@ -129,44 +157,7 @@ export function DashboardSidebar() {
       <SidebarContent>
         {isInWorkspace ? (
           <>
-            {/* 1. Tools — scoped to active worktree (only shown when worktree selected) */}
-            {currentWorktree && (
-              <SidebarGroup>
-                {!isCollapsed && <SidebarGroupLabel>Tools</SidebarGroupLabel>}
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    {WORKSPACE_NAV_ITEMS.map((item) => {
-                      const href = workspaceHref(workspaceSlug, item.href, {
-                        worktree: currentWorktree ?? undefined,
-                      });
-                      const isActive = pathname.startsWith(
-                        `/workspaces/${workspaceSlug}${item.href}`
-                      );
-                      const Icon = item.icon;
-
-                      return (
-                        <SidebarMenuItem key={item.id}>
-                          <SidebarMenuButton asChild isActive={isActive}>
-                            <Link
-                              href={href}
-                              className={cn(
-                                'flex items-center gap-3',
-                                isActive && 'bg-accent text-accent-foreground'
-                              )}
-                            >
-                              <Icon className="h-5 w-5" />
-                              {!isCollapsed && <span>{item.label}</span>}
-                            </Link>
-                          </SidebarMenuButton>
-                        </SidebarMenuItem>
-                      );
-                    })}
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              </SidebarGroup>
-            )}
-
-            {/* 2. Back to all workspaces */}
+            {/* 1. Back to all workspaces */}
             <SidebarGroup>
               <SidebarGroupContent>
                 <SidebarMenu>
@@ -182,7 +173,7 @@ export function DashboardSidebar() {
               </SidebarGroupContent>
             </SidebarGroup>
 
-            {/* 3. Worktree list — collapsible, expanded by default */}
+            {/* 2. Worktree list — collapsible, expanded by default */}
             <SidebarGroup>
               {!isCollapsed && (
                 <div className="flex items-center justify-between pr-1">
@@ -246,44 +237,44 @@ export function DashboardSidebar() {
           </>
         )}
 
-        {/* Dev section — collapsed by default */}
-        <SidebarGroup>
-          {!isCollapsed && (
+        {/* Dev section — collapsed by default, hidden entirely in the compact rail */}
+        {!isCollapsed && (
+          <SidebarGroup>
             <SidebarGroupLabel
               className="cursor-pointer select-none"
               onClick={() => setDevOpen((p) => !p)}
             >
               Dev {devOpen ? '▾' : '▸'}
             </SidebarGroupLabel>
-          )}
-          {(devOpen || isCollapsed) && (
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {DEV_NAV_ITEMS.map((item) => {
-                  const isActive = pathname === item.href;
-                  const Icon = item.icon;
+            {devOpen && (
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {DEV_NAV_ITEMS.map((item) => {
+                    const isActive = pathname === item.href;
+                    const Icon = item.icon;
 
-                  return (
-                    <SidebarMenuItem key={item.id}>
-                      <SidebarMenuButton asChild isActive={isActive}>
-                        <Link
-                          href={item.href}
-                          className={cn(
-                            'flex items-center gap-3',
-                            isActive && 'bg-accent text-accent-foreground'
-                          )}
-                        >
-                          <Icon className="h-5 w-5" />
-                          {!isCollapsed && <span>{item.label}</span>}
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          )}
-        </SidebarGroup>
+                    return (
+                      <SidebarMenuItem key={item.id}>
+                        <SidebarMenuButton asChild isActive={isActive}>
+                          <Link
+                            href={item.href}
+                            className={cn(
+                              'flex items-center gap-3',
+                              isActive && 'bg-accent text-accent-foreground'
+                            )}
+                          >
+                            <Icon className="h-5 w-5" />
+                            <span>{item.label}</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  })}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            )}
+          </SidebarGroup>
+        )}
       </SidebarContent>
 
       <SidebarFooter className="border-t p-2">

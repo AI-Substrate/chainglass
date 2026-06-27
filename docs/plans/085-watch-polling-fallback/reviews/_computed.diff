@@ -1,0 +1,996 @@
+diff --git a/README.md b/README.md
+index 3f37e959..65c4500e 100644
+--- a/README.md
++++ b/README.md
+@@ -66,6 +66,25 @@ See [GitHub OAuth App Setup](docs/how/auth/github-oauth-setup.md) for the full w
+ | `just clean` | Clean build artifacts |
+ | `just reset` | Full reset (clean + install) |
+ 
++## File Watching on WSL / Network Filesystems
++
++Chainglass watches the workspace with native OS file events (`fs.watch` — FSEvents on
++macOS, inotify on Linux), which is instant and cheap. There is one edge case where this
++does not work: **WSL2 with the workspace on a Windows drive mount** (e.g. `/mnt/c/...`,
++drvfs/9P). inotify events do not cross that boundary, so file changes are silently missed.
++
++If you hit this, force a polling watcher instead:
++
++```bash
++# In apps/web/.env (see .env.example)
++CHAINGLASS_WATCH_POLLING=true          # force recursive polling for every watcher
++CHAINGLASS_WATCH_POLL_INTERVAL=1000    # optional; ms between scans (default 1000)
++```
++
++Polling walks the tree on an interval, so it costs more CPU/IO than native watching —
++leave it **unset** anywhere native watching works. An invalid/unset interval falls back
++to 1000ms.
++
+ ## Dashboard Demo
+ 
+ The web application includes interactive demo pages showcasing the dashboard components:
+diff --git a/apps/web/.env.example b/apps/web/.env.example
+index fcaf1e16..372da6d4 100644
+--- a/apps/web/.env.example
++++ b/apps/web/.env.example
+@@ -14,3 +14,15 @@ AUTH_SECRET=your_random_secret_here
+ # Terminal sidecar: base directory for allowed CWD paths
+ # All worktree paths must be under this directory
+ # TERMINAL_ALLOWED_BASE=/Users/yourname
++
++# File-watch polling fallback (edge case — WSL with the workspace on a Windows mount)
++# Native fs.watch (inotify) silently delivers NO events when the workspace lives on a
++# Windows drive mounted into WSL2 (e.g. /mnt/c/..., drvfs/9P), so file changes go undetected.
++# Set this to 'true' to force a recursive polling watcher instead. Leave unset everywhere else
++# (native watching is cheaper and instant). Polling walks the tree on an interval, so it costs
++# more CPU/IO — reuse the default interval unless you need faster detection.
++# CHAINGLASS_WATCH_POLLING=true
++#
++# Poll interval in milliseconds (only used when polling is active). Default: 1000.
++# Invalid or unset values fall back to 1000ms.
++# CHAINGLASS_WATCH_POLL_INTERVAL=1000
+diff --git a/apps/web/src/lib/di-container.ts b/apps/web/src/lib/di-container.ts
+index 6481c1c6..fb4974d1 100644
+--- a/apps/web/src/lib/di-container.ts
++++ b/apps/web/src/lib/di-container.ts
+@@ -97,6 +97,7 @@ import {
+   FakeSampleAdapter,
+   FakeWorkspaceContextResolver,
+   FakeWorkspaceRegistryAdapter,
++  FileWatcherFactory,
+   GitWorktreeManagerAdapter,
+   GitWorktreeResolver,
+   type IAgentEventAdapter,
+@@ -111,7 +112,6 @@ import {
+   type IWorkspaceContextResolver,
+   type IWorkspaceRegistryAdapter,
+   type IWorkspaceService,
+-  NativeFileWatcherFactory,
+   SampleAdapter,
+   SampleService as WorkflowSampleService,
+   WorkspaceContextResolver,
+@@ -589,9 +589,10 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
+ 
+   // ==================== Plan 027: Central Notification System ====================
+ 
+-  // Register IFileWatcherFactory → NativeFileWatcherFactory (Plan 060: replaces chokidar)
++  // Register IFileWatcherFactory → FileWatcherFactory (Plan 085: selecting factory —
++  // env-forced polling fallback for WSL/Windows mounts; native by default)
+   childContainer.register<IFileWatcherFactory>(WORKSPACE_DI_TOKENS.FILE_WATCHER_FACTORY, {
+-    useFactory: () => new NativeFileWatcherFactory(),
++    useFactory: () => new FileWatcherFactory(),
+   });
+ 
+   // Register CentralWatcherService with all 6 constructor dependencies
+diff --git a/packages/workflow/src/adapters/file-watcher.factory.ts b/packages/workflow/src/adapters/file-watcher.factory.ts
+new file mode 100644
+index 00000000..d544a049
+--- /dev/null
++++ b/packages/workflow/src/adapters/file-watcher.factory.ts
+@@ -0,0 +1,54 @@
++/**
++ * Selecting File Watcher Factory — env-forced polling fallback (Plan 085).
++ *
++ * A thin factory that returns either the native or the polling adapter:
++ * - `CHAINGLASS_WATCH_POLLING=true`  → force the PollingFileWatcherAdapter for
++ *   every watcher (the WSL/Windows-mount escape hatch).
++ * - otherwise                         → NativeFileWatcherAdapter (default, unchanged).
++ *
++ * `CHAINGLASS_WATCH_POLL_INTERVAL` (ms) tunes the poll interval; an invalid or
++ * unset value falls back to the adapter default (1000ms).
++ *
++ * The env is read ONCE at construction. An explicit `options.usePolling` always
++ * wins over the env flag, so callers can opt a single watcher in/out regardless.
++ * `NativeFileWatcherFactory` is deliberately left untouched (Workshop D10) — this
++ * keeps each adapter single-responsibility and makes the DI swap one line.
++ */
++
++import type {
++  FileWatcherOptions,
++  IFileWatcher,
++  IFileWatcherFactory,
++} from '../interfaces/file-watcher.interface.js';
++import { NativeFileWatcherAdapter } from './native-file-watcher.adapter.js';
++import { PollingFileWatcherAdapter } from './polling-file-watcher.adapter.js';
++
++/** Fallback poll interval (ms) when neither option nor env supplies a valid value. */
++const DEFAULT_INTERVAL_MS = 1000;
++
++/**
++ * Factory that selects between native and polling file watchers based on the
++ * `CHAINGLASS_WATCH_POLLING` environment flag (or an explicit `usePolling` option).
++ */
++export class FileWatcherFactory implements IFileWatcherFactory {
++  private readonly forcePolling: boolean;
++  private readonly envInterval?: number;
++
++  constructor(env: NodeJS.ProcessEnv = process.env) {
++    this.forcePolling = env.CHAINGLASS_WATCH_POLLING === 'true';
++    const raw = Number(env.CHAINGLASS_WATCH_POLL_INTERVAL);
++    // AC5: invalid / unset (NaN, <= 0) → undefined, so the adapter default applies.
++    this.envInterval = Number.isFinite(raw) && raw > 0 ? raw : undefined;
++  }
++
++  create(options: FileWatcherOptions = {}): IFileWatcher {
++    const usePolling = options.usePolling ?? this.forcePolling; // explicit option wins
++    if (usePolling) {
++      return new PollingFileWatcherAdapter({
++        ...options,
++        interval: options.interval ?? this.envInterval ?? DEFAULT_INTERVAL_MS,
++      });
++    }
++    return new NativeFileWatcherAdapter(options);
++  }
++}
+diff --git a/packages/workflow/src/adapters/ignore-patterns.ts b/packages/workflow/src/adapters/ignore-patterns.ts
+new file mode 100644
+index 00000000..7de31726
+--- /dev/null
++++ b/packages/workflow/src/adapters/ignore-patterns.ts
+@@ -0,0 +1,27 @@
++/**
++ * Shared ignore-pattern compilation for file watchers.
++ *
++ * Per Plan 085: extracted verbatim from NativeFileWatcherAdapter so the native
++ * and polling adapters share *identical* ignore semantics — preventing drift
++ * between the two watchers (Finding 06).
++ *
++ * Patterns may be:
++ * - string  → substring match against the absolute path
++ * - RegExp  → tested against the absolute path
++ * - function → used as-is (predicate over the absolute path)
++ */
++
++/** An ignore pattern accepted by file watchers (mirrors `FileWatcherOptions.ignored`). */
++export type IgnorePattern = string | RegExp | ((path: string) => boolean);
++
++/** Compile mixed ignore patterns (string, RegExp, function) into uniform predicates. */
++export function compileIgnorePatterns(
++  patterns: IgnorePattern[]
++): ((absolutePath: string) => boolean)[] {
++  return patterns.map((pattern) => {
++    if (typeof pattern === 'function') return pattern;
++    if (pattern instanceof RegExp) return (p: string) => pattern.test(p);
++    // String pattern: match as substring in path
++    return (p: string) => p.includes(pattern);
++  });
++}
+diff --git a/packages/workflow/src/adapters/index.ts b/packages/workflow/src/adapters/index.ts
+index b7f1e9d1..c49e3f6a 100644
+--- a/packages/workflow/src/adapters/index.ts
++++ b/packages/workflow/src/adapters/index.ts
+@@ -35,6 +35,10 @@ export {
+   NativeFileWatcherFactory,
+ } from './native-file-watcher.adapter.js';
+ 
++// Polling file watcher adapter + selecting factory (Plan 085) — WSL/Windows-mount fallback
++export { PollingFileWatcherAdapter } from './polling-file-watcher.adapter.js';
++export { FileWatcherFactory } from './file-watcher.factory.js';
++
+ // Template and instance adapters (Plan 048 Phase 2)
+ export { TemplateAdapter } from './template.adapter.js';
+ export { InstanceAdapter } from './instance.adapter.js';
+diff --git a/packages/workflow/src/adapters/native-file-watcher.adapter.ts b/packages/workflow/src/adapters/native-file-watcher.adapter.ts
+index a81cd8e4..41906072 100644
+--- a/packages/workflow/src/adapters/native-file-watcher.adapter.ts
++++ b/packages/workflow/src/adapters/native-file-watcher.adapter.ts
+@@ -29,6 +29,7 @@ import type {
+   IFileWatcher,
+   IFileWatcherFactory,
+ } from '../interfaces/file-watcher.interface.js';
++import { compileIgnorePatterns } from './ignore-patterns.js';
+ 
+ /** Internal watcher entry — one per add() call */
+ interface WatcherEntry {
+@@ -55,7 +56,7 @@ export class NativeFileWatcherAdapter implements IFileWatcher {
+   private closed = false;
+ 
+   constructor(options: FileWatcherOptions = {}) {
+-    this.ignored = this.compileIgnorePatterns(options.ignored ?? []);
++    this.ignored = compileIgnorePatterns(options.ignored ?? []);
+     this.ignoreInitial = options.ignoreInitial ?? false;
+ 
+     // DYK#3: Write stabilization only applies to 'change' events
+@@ -217,18 +218,6 @@ export class NativeFileWatcherAdapter implements IFileWatcher {
+   private isIgnored(absolutePath: string): boolean {
+     return this.ignored.some((fn) => fn(absolutePath));
+   }
+-
+-  /** Compile mixed ignore patterns (string, RegExp, function) into uniform predicates */
+-  private compileIgnorePatterns(
+-    patterns: (string | RegExp | ((path: string) => boolean))[]
+-  ): ((absolutePath: string) => boolean)[] {
+-    return patterns.map((pattern) => {
+-      if (typeof pattern === 'function') return pattern;
+-      if (pattern instanceof RegExp) return (p: string) => pattern.test(p);
+-      // String pattern: match as substring in path
+-      return (p: string) => p.includes(pattern);
+-    });
+-  }
+ }
+ 
+ /**
+diff --git a/packages/workflow/src/adapters/polling-file-watcher.adapter.ts b/packages/workflow/src/adapters/polling-file-watcher.adapter.ts
+new file mode 100644
+index 00000000..de003088
+--- /dev/null
++++ b/packages/workflow/src/adapters/polling-file-watcher.adapter.ts
+@@ -0,0 +1,277 @@
++/**
++ * Polling File Watcher Adapter — fixed-interval recursive stat-walk fallback.
++ *
++ * Per Plan 085: env-forced polling fallback for WSL workspaces on Windows mounts.
++ * On WSL with the workspace on a Windows mount (`/mnt/c/...`, drvfs/9P), Node's
++ * native `fs.watch` (inotify) silently delivers NO events — Chain Glass goes blind
++ * to file changes. This adapter reaches the SAME normalized IFileWatcher events as
++ * the native adapter by a different mechanism: it walks each watched root on a fixed
++ * interval, builds a `(path -> {size, mtimeMs, isDir})` snapshot, and diffs
++ * consecutive snapshots.
++ *
++ * Design is fully specified in the workshop (authoritative):
++ *   docs/plans/085-watch-polling-fallback/workshops/001-polling-file-watcher-adapter.md
++ *
++ * Event parity with NativeFileWatcherAdapter (the whole point — the swap must be
++ * invisible to consumers):
++ * - new file        → 'add'
++ * - new directory   → 'addDir'
++ * - modified file   → 'change'  (size/mtime diff; debounced per awaitWriteFinish)
++ * - removed path    → 'unlink'  (file OR dir — native never emits 'unlinkDir')
++ * - file<->dir reuse → 'unlink' then 'add'/'addDir'
++ *
++ * Cost control on 9P (Findings 03/04):
++ * - ignore list prunes ignored directories BEFORE descending (never stat node_modules)
++ * - `scanning` guard makes a tick a no-op while a scan is in progress (self-throttles)
++ * - (size, mtimeMs) short-circuit avoids reading file contents
++ */
++
++import { lstat, readdir, stat } from 'node:fs/promises';
++import { join, resolve } from 'node:path';
++import type {
++  FileWatcherEvent,
++  FileWatcherOptions,
++  IFileWatcher,
++} from '../interfaces/file-watcher.interface.js';
++import { compileIgnorePatterns } from './ignore-patterns.js';
++
++/** One filesystem entry captured in a snapshot. */
++interface Entry {
++  mtimeMs: number;
++  size: number;
++  isDir: boolean;
++}
++
++/** One snapshot per watched root: absolutePath → Entry. */
++type Snapshot = Map<string, Entry>;
++
++/** Default poll interval (ms) — balances responsiveness vs 9P stat cost (Workshop Q1). */
++const DEFAULT_INTERVAL_MS = 1000;
++
++/** Default write-stabilization window (ms) when `awaitWriteFinish` is enabled (native parity). */
++const DEFAULT_STABILITY_THRESHOLD_MS = 200;
++
++/**
++ * File watcher adapter using fixed-interval recursive polling.
++ *
++ * Emits the identical normalized event shape as NativeFileWatcherAdapter, so the
++ * DI factory can swap one for the other transparently.
++ */
++export class PollingFileWatcherAdapter implements IFileWatcher {
++  private readonly listeners = new Map<
++    FileWatcherEvent,
++    Set<(pathOrError: string | Error) => void>
++  >();
++  private readonly snapshots = new Map<string, Snapshot>(); // root → snapshot (seeded only)
++  private readonly watched = new Set<string>(); // intended roots, set synchronously in add()
++  private readonly ignored: ((absolutePath: string) => boolean)[];
++  private readonly ignoreInitial: boolean;
++  private readonly interval: number;
++  private readonly persistent: boolean;
++  private readonly stabilityThreshold: number;
++  private readonly stabilizationTimers = new Map<string, ReturnType<typeof setTimeout>>();
++  private timer?: ReturnType<typeof setInterval>;
++  private scanning = false;
++  private closed = false;
++
++  constructor(options: FileWatcherOptions = {}) {
++    this.ignored = compileIgnorePatterns(options.ignored ?? []);
++    this.ignoreInitial = options.ignoreInitial ?? false;
++    this.interval =
++      options.interval && options.interval > 0 ? options.interval : DEFAULT_INTERVAL_MS;
++    this.persistent = options.persistent ?? true;
++
++    // DYK#3 (native parity): write stabilization only applies to 'change' events.
++    if (options.awaitWriteFinish && typeof options.awaitWriteFinish === 'object') {
++      this.stabilityThreshold =
++        options.awaitWriteFinish.stabilityThreshold ?? DEFAULT_STABILITY_THRESHOLD_MS;
++    } else if (options.awaitWriteFinish === true) {
++      this.stabilityThreshold = DEFAULT_STABILITY_THRESHOLD_MS;
++    } else {
++      this.stabilityThreshold = 0;
++    }
++  }
++
++  add(paths: string | string[]): void {
++    if (this.closed) return;
++    const pathList = Array.isArray(paths) ? paths : [paths];
++
++    for (const watchPath of pathList) {
++      const root = resolve(watchPath);
++      // Dedup on `watched` (not `snapshots`) so a still-pending baseline isn't re-added.
++      if (this.watched.has(root)) continue;
++      this.watched.add(root);
++
++      // Seed the baseline snapshot. Emit add/addDir only when !ignoreInitial (E1/E2).
++      void this.walk(root)
++        .then((snap) => {
++          // Bail if closed or unwatched while the baseline scan was in flight.
++          if (this.closed || !this.watched.has(root)) return;
++          if (!this.ignoreInitial) {
++            for (const [abs, entry] of snap) {
++              this.emit(entry.isDir ? 'addDir' : 'add', abs);
++            }
++          }
++          this.snapshots.set(root, snap);
++          // AC6: visible startup line naming each watched root + interval.
++          console.log(
++            `[file-watcher] polling ${root} every ${this.interval}ms (CHAINGLASS_WATCH_POLLING)`
++          );
++        })
++        .catch((err) => this.emit('error', err instanceof Error ? err : new Error(String(err))));
++    }
++
++    this.ensureTimer();
++  }
++
++  unwatch(paths: string | string[]): void {
++    const pathList = Array.isArray(paths) ? paths : [paths];
++    for (const watchPath of pathList) {
++      const root = resolve(watchPath);
++      this.watched.delete(root); // cancels a still-pending baseline scan too
++      this.snapshots.delete(root);
++    }
++    if (this.snapshots.size === 0 && this.timer) {
++      clearInterval(this.timer);
++      this.timer = undefined;
++    }
++  }
++
++  async close(): Promise<void> {
++    this.closed = true;
++    if (this.timer) {
++      clearInterval(this.timer);
++      this.timer = undefined;
++    }
++    for (const t of this.stabilizationTimers.values()) {
++      clearTimeout(t);
++    }
++    this.stabilizationTimers.clear();
++    this.snapshots.clear();
++    this.watched.clear();
++    this.listeners.clear();
++  }
++
++  on(event: FileWatcherEvent, callback: (pathOrError: string | Error) => void): this {
++    let set = this.listeners.get(event);
++    if (!set) {
++      set = new Set();
++      this.listeners.set(event, set);
++    }
++    set.add(callback);
++    return this;
++  }
++
++  // --- Private ---
++
++  private ensureTimer(): void {
++    if (this.timer || this.closed) return;
++    this.timer = setInterval(() => void this.tick(), this.interval);
++    // E11: don't hold the process open when persistent:false.
++    if (!this.persistent && typeof this.timer.unref === 'function') {
++      this.timer.unref();
++    }
++  }
++
++  private async tick(): Promise<void> {
++    if (this.scanning || this.closed) return; // D3: never run overlapping scans.
++    this.scanning = true;
++    try {
++      for (const root of [...this.snapshots.keys()]) {
++        const next = await this.walk(root);
++        if (this.closed) return;
++        this.diff(this.snapshots.get(root) ?? new Map(), next);
++        this.snapshots.set(root, next);
++      }
++    } finally {
++      this.scanning = false;
++    }
++  }
++
++  private async walk(root: string): Promise<Snapshot> {
++    const out: Snapshot = new Map();
++
++    const visit = async (dir: string): Promise<void> => {
++      // EACCES/ENOENT on a dir → skip the subtree (E7).
++      const entries = await readdir(dir, { withFileTypes: true }).catch(() => null);
++      if (entries === null) return;
++      for (const dirent of entries) {
++        const abs = join(dir, dirent.name);
++        if (this.isIgnored(abs)) continue; // D7: prune BEFORE descending.
++        try {
++          if (dirent.isSymbolicLink()) {
++            // D8: don't follow symlinks — record as a leaf to avoid cycles.
++            const s = await lstat(abs);
++            out.set(abs, { mtimeMs: s.mtimeMs, size: s.size, isDir: false });
++          } else if (dirent.isDirectory()) {
++            const s = await stat(abs);
++            out.set(abs, { mtimeMs: s.mtimeMs, size: s.size, isDir: true });
++            await visit(abs);
++          } else {
++            const s = await stat(abs);
++            out.set(abs, { mtimeMs: s.mtimeMs, size: s.size, isDir: false });
++          }
++        } catch {
++          // Vanished mid-walk → treat as absent (no entry recorded).
++        }
++      }
++    };
++
++    await visit(root);
++    return out;
++  }
++
++  private diff(prev: Snapshot, next: Snapshot): void {
++    for (const [abs, entry] of next) {
++      const before = prev.get(abs);
++      if (!before) {
++        this.emit(entry.isDir ? 'addDir' : 'add', abs);
++        continue;
++      }
++      if (before.isDir !== entry.isDir) {
++        // E5: path reused as a different type.
++        this.emit('unlink', abs);
++        this.emit(entry.isDir ? 'addDir' : 'add', abs);
++      } else if (!entry.isDir && (before.mtimeMs !== entry.mtimeMs || before.size !== entry.size)) {
++        this.emitChange(abs);
++      }
++    }
++    // Removed paths — file OR dir (native parity: 'unlink', never 'unlinkDir'). E6.
++    for (const abs of prev.keys()) {
++      if (!next.has(abs)) this.emit('unlink', abs);
++    }
++  }
++
++  /** Mirror the native adapter's awaitWriteFinish debounce for 'change' events. */
++  private emitChange(abs: string): void {
++    if (this.stabilityThreshold <= 0) {
++      this.emit('change', abs);
++      return;
++    }
++    const existing = this.stabilizationTimers.get(abs);
++    if (existing) clearTimeout(existing);
++    this.stabilizationTimers.set(
++      abs,
++      setTimeout(() => {
++        this.stabilizationTimers.delete(abs);
++        this.emit('change', abs);
++      }, this.stabilityThreshold)
++    );
++  }
++
++  private isIgnored(absolutePath: string): boolean {
++    return this.ignored.some((fn) => fn(absolutePath));
++  }
++
++  private emit(event: FileWatcherEvent, pathOrError: string | Error): void {
++    const set = this.listeners.get(event);
++    if (!set) return;
++    for (const callback of set) {
++      try {
++        callback(pathOrError);
++      } catch {
++        // Error isolation: one failing listener doesn't block others.
++      }
++    }
++  }
++}
+diff --git a/packages/workflow/src/index.ts b/packages/workflow/src/index.ts
+index dbf1edbd..353e61e0 100644
+--- a/packages/workflow/src/index.ts
++++ b/packages/workflow/src/index.ts
+@@ -452,6 +452,8 @@ export {
+   NativeFileWatcherAdapter,
+   NativeFileWatcherFactory,
+ } from './adapters/index.js';
++// Plan 085: env-forced polling fallback (WSL/Windows mounts)
++export { FileWatcherFactory, PollingFileWatcherAdapter } from './adapters/index.js';
+ export { FakeFileWatcher, FakeFileWatcherFactory } from './fakes/index.js';
+ 
+ // Template/Instance schemas (Plan 048)
+diff --git a/test/integration/workflow/features/085/polling-file-watcher.integration.test.ts b/test/integration/workflow/features/085/polling-file-watcher.integration.test.ts
+new file mode 100644
+index 00000000..3fe7951f
+--- /dev/null
++++ b/test/integration/workflow/features/085/polling-file-watcher.integration.test.ts
+@@ -0,0 +1,249 @@
++/**
++ * Polling file-watcher integration tests (Plan 085).
++ *
++ * Two layers, both driven through the env-selecting FileWatcherFactory with
++ * CHAINGLASS_WATCH_POLLING forced on — real filesystem, no mocks:
++ *
++ * 1. End-to-end lifecycle: env → FileWatcherFactory → PollingFileWatcherAdapter
++ *    emits add/change/unlink/addDir within the interval; ignored dirs (node_modules)
++ *    are never walked (no events surface from inside them).
++ * 2. Consumer ripple: the real CentralWatcherService, given the selecting factory
++ *    forced to polling, still delivers the same notifications to its adapters.
++ *    (Re-running the feature-023 suite with the env set proves nothing — that test
++ *    hardcodes `new NativeFileWatcherFactory()` and bypasses the env/selecting
++ *    factory — so we wire the consumer to the polling factory directly here.)
++ */
++
++import { mkdir, rm, unlink, writeFile } from 'node:fs/promises';
++import { tmpdir } from 'node:os';
++import { join } from 'node:path';
++import { NodeFileSystemAdapter } from '@chainglass/shared';
++import {
++  CentralWatcherService,
++  FakeGitWorktreeResolver,
++  FakeWatcherAdapter,
++  FakeWorkspaceRegistryAdapter,
++  FileWatcherFactory,
++  type IFileWatcher,
++  PollingFileWatcherAdapter,
++  Workspace,
++} from '@chainglass/workflow';
++import { afterEach, beforeEach, describe, expect, it } from 'vitest';
++
++function sleep(ms: number): Promise<void> {
++  return new Promise((resolve) => setTimeout(resolve, ms));
++}
++
++/** Env that forces polling with a fast interval for tests. */
++const POLLING_ENV = {
++  CHAINGLASS_WATCH_POLLING: 'true',
++  CHAINGLASS_WATCH_POLL_INTERVAL: '120',
++} as NodeJS.ProcessEnv;
++
++const SETTLE = 420; // a few poll intervals + margin
++
++interface Captured {
++  event: string;
++  path: string;
++}
++
++describe('Plan 085: env-forced polling via FileWatcherFactory', () => {
++  let tempDir: string;
++  let watcher: IFileWatcher | undefined;
++
++  beforeEach(async () => {
++    tempDir = join(tmpdir(), `polling-int-${Date.now()}-${Math.random().toString(36).slice(2)}`);
++    await mkdir(tempDir, { recursive: true });
++  });
++
++  afterEach(async () => {
++    if (watcher) {
++      await watcher.close();
++      watcher = undefined;
++    }
++    try {
++      await rm(tempDir, { recursive: true, force: true });
++    } catch {
++      // Ignore cleanup errors
++    }
++  });
++
++  function startForcedPolling(options: Record<string, unknown> = {}): Captured[] {
++    const factory = new FileWatcherFactory(POLLING_ENV);
++    watcher = factory.create({ ignoreInitial: true, ...options });
++    // The whole point: the env selects the polling adapter.
++    expect(watcher).toBeInstanceOf(PollingFileWatcherAdapter);
++    const captured: Captured[] = [];
++    for (const event of ['add', 'change', 'unlink', 'addDir'] as const) {
++      watcher.on(event, (p) => captured.push({ event, path: p as string }));
++    }
++    watcher.add(tempDir);
++    return captured;
++  }
++
++  it('AC2/AC3: detects add, change, and unlink within the interval', async () => {
++    const events = startForcedPolling();
++    await sleep(SETTLE); // seed baseline (ignoreInitial → silent)
++
++    const file = join(tempDir, 'live.txt');
++    await writeFile(file, 'one');
++    await sleep(SETTLE);
++    expect(events.some((e) => e.event === 'add' && e.path === file)).toBe(true);
++
++    await writeFile(file, 'one + two (longer)');
++    await sleep(SETTLE);
++    expect(events.some((e) => e.event === 'change' && e.path === file)).toBe(true);
++
++    await unlink(file);
++    await sleep(SETTLE);
++    expect(events.some((e) => e.event === 'unlink' && e.path === file)).toBe(true);
++  });
++
++  it('AC3: detects a new directory as addDir', async () => {
++    const events = startForcedPolling();
++    await sleep(SETTLE);
++
++    const dir = join(tempDir, 'fresh-dir');
++    await mkdir(dir);
++    await sleep(SETTLE);
++    expect(events.some((e) => e.event === 'addDir' && e.path === dir)).toBe(true);
++  });
++
++  it('AC4: never walks or emits events from an ignored dir (node_modules)', async () => {
++    const events = startForcedPolling({
++      ignored: [(p: string) => p.split('/').includes('node_modules')],
++    });
++    await sleep(SETTLE);
++
++    // A whole subtree under an ignored dir — none of it should surface.
++    await mkdir(join(tempDir, 'node_modules', 'pkg', 'deep'), { recursive: true });
++    await writeFile(join(tempDir, 'node_modules', 'pkg', 'deep', 'index.js'), 'ignored');
++    // A sibling that IS visible, to prove the watcher is otherwise live.
++    await writeFile(join(tempDir, 'visible.txt'), 'seen');
++    await sleep(SETTLE);
++
++    expect(events.some((e) => e.path.includes('node_modules'))).toBe(false);
++    expect(events.some((e) => e.event === 'add' && e.path.endsWith('visible.txt'))).toBe(true);
++  });
++});
++
++describe('Plan 085: consumer ripple — CentralWatcherService under polling', () => {
++  let tempDir: string;
++  let registryPath: string;
++  let workspacePath: string;
++  let service: CentralWatcherService;
++
++  let realFilesystem: NodeFileSystemAdapter;
++  let pollingFactory: FileWatcherFactory;
++  let fakeRegistry: FakeWorkspaceRegistryAdapter;
++  let fakeWorktreeResolver: FakeGitWorktreeResolver;
++
++  beforeEach(async () => {
++    tempDir = join(tmpdir(), `cws-polling-${Date.now()}-${Math.random().toString(36).slice(2)}`);
++    registryPath = join(tempDir, 'config', 'workspaces.json');
++    workspacePath = join(tempDir, 'workspace1');
++
++    await mkdir(join(tempDir, 'config'), { recursive: true });
++    await mkdir(join(workspacePath, '.chainglass', 'data', 'work-graphs', 'demo-graph'), {
++      recursive: true,
++    });
++    await writeFile(
++      join(workspacePath, '.chainglass', 'data', 'work-graphs', 'demo-graph', 'state.json'),
++      JSON.stringify({ nodes: [] })
++    );
++
++    realFilesystem = new NodeFileSystemAdapter();
++    // The only difference vs the feature-023 native test: the selecting factory,
++    // env-forced to polling. Everything downstream is identical.
++    pollingFactory = new FileWatcherFactory(POLLING_ENV);
++
++    fakeRegistry = new FakeWorkspaceRegistryAdapter();
++    fakeWorktreeResolver = new FakeGitWorktreeResolver();
++
++    const workspace = Workspace.create({
++      slug: 'ws1',
++      name: 'Test Workspace',
++      path: workspacePath,
++    });
++    fakeRegistry.addWorkspace(workspace);
++    fakeWorktreeResolver.setWorktrees(workspacePath, [
++      {
++        path: workspacePath,
++        head: 'abc123def456abc123def456abc123def456abc1',
++        branch: 'main',
++        isDetached: false,
++        isBare: false,
++        isPrunable: false,
++      },
++    ]);
++
++    service = new CentralWatcherService(
++      fakeRegistry,
++      fakeWorktreeResolver,
++      realFilesystem,
++      pollingFactory,
++      registryPath
++    );
++  });
++
++  afterEach(async () => {
++    if (service?.isWatching()) {
++      await service.stop();
++    }
++    try {
++      await rm(tempDir, { recursive: true, force: true });
++    } catch {
++      // Ignore cleanup errors
++    }
++  });
++
++  it('delivers a file change to registered adapters when driven by the polling watcher', async () => {
++    const fakeAdapter = new FakeWatcherAdapter('test-adapter');
++    service.registerAdapter(fakeAdapter);
++    await service.start();
++    await sleep(300); // let the polling baseline seed
++
++    const stateFile = join(
++      workspacePath,
++      '.chainglass',
++      'data',
++      'work-graphs',
++      'demo-graph',
++      'state.json'
++    );
++    await writeFile(stateFile, JSON.stringify({ nodes: [{ id: 'new' }] }));
++
++    // poll interval (120) + awaitWriteFinish stabilization + margin
++    await sleep(1000);
++
++    expect(fakeAdapter.calls.length).toBeGreaterThanOrEqual(1);
++    expect(fakeAdapter.calls[0].path).toBe(stateFile);
++    expect(['add', 'change']).toContain(fakeAdapter.calls[0].eventType);
++    expect(fakeAdapter.calls[0].worktreePath).toBe(workspacePath);
++    expect(fakeAdapter.calls[0].workspaceSlug).toBe('ws1');
++  });
++
++  it('stops delivering events after stop()', async () => {
++    const fakeAdapter = new FakeWatcherAdapter('test-adapter');
++    service.registerAdapter(fakeAdapter);
++    await service.start();
++    await sleep(300);
++
++    await service.stop();
++    await sleep(200); // let any in-flight scan drain
++    fakeAdapter.calls.length = 0;
++
++    const stateFile = join(
++      workspacePath,
++      '.chainglass',
++      'data',
++      'work-graphs',
++      'demo-graph',
++      'state.json'
++    );
++    await writeFile(stateFile, JSON.stringify({ nodes: [{ id: 'after-stop' }] }));
++    await sleep(500);
++
++    expect(fakeAdapter.calls).toHaveLength(0);
++  });
++});
+diff --git a/test/unit/workflow/polling-file-watcher.test.ts b/test/unit/workflow/polling-file-watcher.test.ts
+new file mode 100644
+index 00000000..5dd54327
+--- /dev/null
++++ b/test/unit/workflow/polling-file-watcher.test.ts
+@@ -0,0 +1,208 @@
++/**
++ * PollingFileWatcherAdapter + FileWatcherFactory unit tests.
++ *
++ * Per Plan 085: env-forced polling fallback for WSL/Windows mounts.
++ *
++ * Two concerns:
++ * 1. FileWatcherFactory selection logic (pure — env flag / explicit option).
++ * 2. PollingFileWatcherAdapter diff→event parity with the native adapter
++ *    (real temp-dir filesystem, no mocks — the poller IS the impl).
++ *
++ * Uses a short poll interval so the suite stays fast and deterministic.
++ */
++
++import { mkdir, rm, rmdir, unlink, writeFile } from 'node:fs/promises';
++import { tmpdir } from 'node:os';
++import { join } from 'node:path';
++import {
++  FileWatcherFactory,
++  NativeFileWatcherAdapter,
++  PollingFileWatcherAdapter,
++} from '@chainglass/workflow';
++import { afterEach, beforeEach, describe, expect, it } from 'vitest';
++
++const INTERVAL = 80; // fast polling for tests
++const SETTLE = 320; // ~4 ticks — enough for a scan to capture a change
++
++function sleep(ms: number): Promise<void> {
++  return new Promise((resolve) => setTimeout(resolve, ms));
++}
++
++interface Captured {
++  event: string;
++  path: string;
++}
++
++describe('FileWatcherFactory selection', () => {
++  it('returns NativeFileWatcherAdapter when the flag is unset', () => {
++    const factory = new FileWatcherFactory({} as NodeJS.ProcessEnv);
++    expect(factory.create()).toBeInstanceOf(NativeFileWatcherAdapter);
++  });
++
++  it('returns PollingFileWatcherAdapter when CHAINGLASS_WATCH_POLLING=true', () => {
++    const factory = new FileWatcherFactory({
++      CHAINGLASS_WATCH_POLLING: 'true',
++    } as NodeJS.ProcessEnv);
++    expect(factory.create()).toBeInstanceOf(PollingFileWatcherAdapter);
++  });
++
++  it('lets an explicit usePolling:true override an unset flag', () => {
++    const factory = new FileWatcherFactory({} as NodeJS.ProcessEnv);
++    expect(factory.create({ usePolling: true })).toBeInstanceOf(PollingFileWatcherAdapter);
++  });
++
++  it('lets an explicit usePolling:false override the flag', () => {
++    const factory = new FileWatcherFactory({
++      CHAINGLASS_WATCH_POLLING: 'true',
++    } as NodeJS.ProcessEnv);
++    expect(factory.create({ usePolling: false })).toBeInstanceOf(NativeFileWatcherAdapter);
++  });
++
++  it('treats any non-"true" flag value as native (e.g. "1", "yes")', () => {
++    for (const value of ['1', 'yes', 'TRUE', '']) {
++      const factory = new FileWatcherFactory({
++        CHAINGLASS_WATCH_POLLING: value,
++      } as NodeJS.ProcessEnv);
++      expect(factory.create()).toBeInstanceOf(NativeFileWatcherAdapter);
++    }
++  });
++
++  it('falls back cleanly when CHAINGLASS_WATCH_POLL_INTERVAL is invalid (AC5)', () => {
++    // Invalid interval must not throw — the adapter uses its 1000ms default.
++    for (const bad of ['not-a-number', '0', '-5', '']) {
++      const factory = new FileWatcherFactory({
++        CHAINGLASS_WATCH_POLLING: 'true',
++        CHAINGLASS_WATCH_POLL_INTERVAL: bad,
++      } as NodeJS.ProcessEnv);
++      expect(factory.create()).toBeInstanceOf(PollingFileWatcherAdapter);
++    }
++  });
++
++  it('still returns a poller when a valid interval is provided', () => {
++    const factory = new FileWatcherFactory({
++      CHAINGLASS_WATCH_POLLING: 'true',
++      CHAINGLASS_WATCH_POLL_INTERVAL: '250',
++    } as NodeJS.ProcessEnv);
++    expect(factory.create()).toBeInstanceOf(PollingFileWatcherAdapter);
++  });
++});
++
++describe('PollingFileWatcherAdapter diff→event parity', () => {
++  let tempDir: string;
++  let watcher: PollingFileWatcherAdapter;
++
++  beforeEach(async () => {
++    tempDir = join(
++      tmpdir(),
++      `polling-watcher-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
++    );
++    await mkdir(tempDir, { recursive: true });
++  });
++
++  afterEach(async () => {
++    if (watcher) await watcher.close();
++    try {
++      await rm(tempDir, { recursive: true, force: true });
++    } catch {
++      // Ignore cleanup errors
++    }
++  });
++
++  /** Start a watcher with ignoreInitial:true and let the baseline snapshot seed. */
++  async function startWatcher(options: Record<string, unknown> = {}): Promise<Captured[]> {
++    const captured: Captured[] = [];
++    watcher = new PollingFileWatcherAdapter({
++      ignoreInitial: true,
++      interval: INTERVAL,
++      ...options,
++    });
++    for (const event of ['add', 'change', 'unlink', 'addDir', 'unlinkDir'] as const) {
++      watcher.on(event, (p) => captured.push({ event, path: p as string }));
++    }
++    watcher.add(tempDir);
++    await sleep(SETTLE); // let the baseline walk + a tick settle
++    captured.length = 0; // drop anything from the seeding window
++    return captured;
++  }
++
++  it('T-add: emits "add" for a new file', async () => {
++    const events = await startWatcher();
++    const file = join(tempDir, 'new.txt');
++    await writeFile(file, 'hello');
++    await sleep(SETTLE);
++    expect(events.some((e) => e.event === 'add' && e.path === file)).toBe(true);
++  });
++
++  it('T-change: emits "change" for a modified file', async () => {
++    const file = join(tempDir, 'edit.txt');
++    await writeFile(file, 'initial');
++    const events = await startWatcher();
++    await writeFile(file, 'initial + more content'); // size + mtime differ
++    await sleep(SETTLE);
++    expect(events.some((e) => e.event === 'change' && e.path === file)).toBe(true);
++  });
++
++  it('T-unlink: emits "unlink" for a deleted file', async () => {
++    const file = join(tempDir, 'doomed.txt');
++    await writeFile(file, 'bye');
++    const events = await startWatcher();
++    await unlink(file);
++    await sleep(SETTLE);
++    expect(events.some((e) => e.event === 'unlink' && e.path === file)).toBe(true);
++  });
++
++  it('T-addDir: emits "addDir" for a new directory', async () => {
++    const events = await startWatcher();
++    const dir = join(tempDir, 'subdir');
++    await mkdir(dir);
++    await sleep(SETTLE);
++    expect(events.some((e) => e.event === 'addDir' && e.path === dir)).toBe(true);
++  });
++
++  it('parity: a removed directory emits "unlink" (never "unlinkDir")', async () => {
++    const dir = join(tempDir, 'gone');
++    await mkdir(dir);
++    const events = await startWatcher(); // dir is in the baseline
++    await rmdir(dir);
++    await sleep(SETTLE);
++    expect(events.some((e) => e.event === 'unlink' && e.path === dir)).toBe(true);
++    expect(events.some((e) => e.event === 'unlinkDir')).toBe(false);
++  });
++
++  it('T-initial: ignoreInitial suppresses events for pre-existing entries', async () => {
++    await writeFile(join(tempDir, 'pre1.txt'), 'a');
++    await mkdir(join(tempDir, 'predir'));
++    const events = await startWatcher(); // baseline seeded silently, captured cleared
++    // Give it a couple more ticks with no filesystem activity.
++    await sleep(SETTLE);
++    expect(events).toHaveLength(0);
++  });
++
++  it('debounces "change" when awaitWriteFinish is set (native parity)', async () => {
++    const file = join(tempDir, 'rapid.txt');
++    await writeFile(file, 'v0');
++    const events = await startWatcher({ awaitWriteFinish: { stabilityThreshold: 150 } });
++    for (let i = 0; i < 4; i++) {
++      await writeFile(file, `v0-write-${i}-padding`);
++      await sleep(40);
++    }
++    await sleep(400);
++    const changes = events.filter((e) => e.event === 'change' && e.path === file);
++    expect(changes.length).toBeGreaterThanOrEqual(1);
++    expect(changes.length).toBeLessThanOrEqual(3);
++  });
++
++  it('unwatch during the pending baseline scan does not resurrect the watch', async () => {
++    // ignoreInitial:false → a resurrected baseline would emit "add" for the pre-existing file.
++    await writeFile(join(tempDir, 'pre.txt'), 'x');
++    const captured: Captured[] = [];
++    watcher = new PollingFileWatcherAdapter({ ignoreInitial: false, interval: INTERVAL });
++    for (const event of ['add', 'addDir'] as const) {
++      watcher.on(event, (p) => captured.push({ event, path: p as string }));
++    }
++    watcher.add(tempDir);
++    watcher.unwatch(tempDir); // synchronous — before the baseline walk resolves
++    await sleep(SETTLE);
++    expect(captured).toHaveLength(0);
++  });
++});

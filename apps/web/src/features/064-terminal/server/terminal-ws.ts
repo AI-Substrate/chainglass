@@ -19,6 +19,7 @@ import { type WebSocket, WebSocketServer } from 'ws';
 import { appendActivityLogEntry } from '../../065-activity-log/lib/activity-log-writer.js';
 import { shouldIgnorePaneTitle } from '../../065-activity-log/lib/ignore-patterns.js';
 import type { CommandExecutor, PtyProcess, PtySpawner } from '../types';
+import { isProcessAlive, isTmuxClient, reapStalePtys, recordPid, removePid } from './pty-registry';
 import {
   assertBootstrapReadable,
   authorizeUpgrade,
@@ -55,6 +56,12 @@ export {
 export interface TerminalServerDeps {
   execCommand: CommandExecutor;
   spawnPty: PtySpawner;
+  /**
+   * FX001-2: injectable process killer (defaults to `process.kill`). Lets tests
+   * assert force-kills without signalling real OS PIDs (FakePty.pid is a fake
+   * constant, so a real `process.kill` could hit an unrelated process).
+   */
+  killProcess?: (pid: number, signal: NodeJS.Signals | number) => void;
 }
 
 export interface TerminalServer {
@@ -68,6 +75,28 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
   const manager = new TmuxSessionManager(deps.execCommand, deps.spawnPty);
   const activePtys = new Set<PtyProcess>();
   const activityLogIntervals = new Set<ReturnType<typeof setInterval>>();
+  // FX001-1: idempotent-teardown bookkeeping. `disposedPtys` guards double-dispose
+  // (ws 'close', ws 'error', and pty.onExit can all fire for one PTY); `ptyIntervals`
+  // ties each PTY to its activity-log interval so disposePty clears both together.
+  const disposedPtys = new WeakSet<PtyProcess>();
+  const ptyIntervals = new Map<PtyProcess, ReturnType<typeof setInterval>>();
+  // FX001-2: injectable killer (default real `process.kill`) + once-only guard.
+  const killProcess =
+    deps.killProcess ??
+    ((pid: number, signal: NodeJS.Signals | number) => process.kill(pid, signal));
+  let cleanedUp = false;
+  // FX001-3: listen port keys the PID registry (0 until start() binds — so
+  // handleConnection-only unit tests touch no filesystem).
+  let listenPort = 0;
+  // FX001-4: cap concurrent PTYs so a reconnect storm (or any leak) can't exhaust
+  // the host's PTY table. Configurable via TERMINAL_MAX_ACTIVE_PTYS (default 100).
+  const MAX_ACTIVE_PTYS = (() => {
+    const n = Number(process.env.TERMINAL_MAX_ACTIVE_PTYS ?? '100');
+    return Number.isInteger(n) && n > 0 ? n : 100;
+  })();
+  // Socket per PTY, for the idle backstop sweep.
+  const ptyWs = new Map<PtyProcess, WebSocket>();
+  let idleSweep: ReturnType<typeof setInterval> | null = null;
   let wss: WebSocketServer | null = null;
 
   // Plan 084 Phase 4 — Always-on auth.
@@ -76,6 +105,10 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
   // FX003 (2026-05-03) — `findWorkspaceRoot()` walks up to the same workspace
   // root the main Next.js process resolves, so HKDF keys converge.
   const cwd = findWorkspaceRoot(process.cwd());
+  // FX001-3: stable per-sidecar root for the PID registry. handleConnection has
+  // its own `cwd` PARAM (the connection's working dir) that shadows this one, so
+  // capture the workspace root here under a distinct name.
+  const sidecarRoot = cwd;
 
   /**
    * Periodic-refresh validator used by the in-band `msg.type === 'auth'`
@@ -88,6 +121,35 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
     return result.ok ? result.username : null;
   }
 
+  /**
+   * FX001-1: the single, idempotent teardown path for a PTY. Safe to call from
+   * ws 'close', ws 'error', and pty.onExit — a second call is a no-op. Clears the
+   * PTY's activity-log interval and kills the tmux ATTACH CLIENT via `pty.kill()`
+   * (SIGHUP detach — never `tmux kill-session`, so the persistent session survives).
+   */
+  function disposePty(pty: PtyProcess): void {
+    if (disposedPtys.has(pty)) return;
+    disposedPtys.add(pty);
+
+    const interval = ptyIntervals.get(pty);
+    if (interval) {
+      clearInterval(interval);
+      activityLogIntervals.delete(interval);
+      ptyIntervals.delete(pty);
+    }
+
+    activePtys.delete(pty);
+    ptyWs.delete(pty);
+    // FX001-3: drop from the per-port registry so the next start() won't try to
+    // reap a pid that has already been cleanly disposed.
+    if (listenPort > 0) removePid(sidecarRoot, listenPort, pty.pid);
+    try {
+      pty.kill();
+    } catch {
+      // PTY already exited — nothing to detach.
+    }
+  }
+
   function handleConnection(ws: WebSocket, sessionName: string, cwd: string): void {
     // FT-001: Validate CWD before PTY spawn
     const allowedBase = process.env.TERMINAL_ALLOWED_BASE ?? process.cwd();
@@ -96,6 +158,15 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
       console.error(`[terminal] Rejected connection (session=${sessionName}): ${msg}`);
       ws.send(JSON.stringify({ type: 'error', message: msg }));
       ws.close(4400, 'Invalid cwd');
+      return;
+    }
+
+    // FX001-4: refuse new PTYs at the ceiling rather than exhausting host PTYs.
+    if (activePtys.size >= MAX_ACTIVE_PTYS) {
+      const msg = `Terminal capacity reached (${MAX_ACTIVE_PTYS} active sessions). Close one and retry.`;
+      console.warn(`[terminal] Rejected connection (session=${sessionName}): ${msg}`);
+      ws.send(JSON.stringify({ type: 'error', message: msg }));
+      ws.close(4429, 'Max PTY limit');
       return;
     }
 
@@ -129,6 +200,11 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
     }
 
     activePtys.add(pty);
+    // FX001-3: register the live attach-client pid for the startup reaper. Only
+    // when the server is actually listening — handleConnection-only unit tests
+    // (listenPort 0) touch no filesystem.
+    if (listenPort > 0) recordPid(sidecarRoot, listenPort, pty.pid);
+    ptyWs.set(pty, ws); // FX001-4: track socket for the idle backstop sweep
 
     // Resolve worktree root from CWD (CWD may be a subdirectory)
     let worktreeRoot = cwd;
@@ -162,11 +238,10 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
         }
       }, ACTIVITY_LOG_POLL_MS);
       activityLogIntervals.add(logInterval);
-
-      ws.on('close', () => {
-        clearInterval(logInterval);
-        activityLogIntervals.delete(logInterval);
-      });
+      // FX001-1: tie the interval to this PTY so disposePty clears it on EVERY
+      // exit path (close, error, onExit). Previously only a nested ws 'close'
+      // cleared it — an error-without-close or a pty-exit leaked the interval.
+      ptyIntervals.set(pty, logInterval);
     }
 
     pty.onData((data: string) => {
@@ -176,7 +251,7 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
     });
 
     pty.onExit(() => {
-      activePtys.delete(pty);
+      disposePty(pty);
       if ((ws as unknown as { readyState: number }).readyState === 1) {
         ws.send(JSON.stringify({ type: 'status', status: 'exited' }));
         ws.close(1000, 'PTY exited');
@@ -222,10 +297,11 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
       pty.write(data);
     });
 
-    ws.on('close', () => {
-      activePtys.delete(pty);
-      pty.kill();
-    });
+    // FX001-1: funnel close AND error through the single idempotent teardown.
+    // The missing 'error' handler was the in-session leak — a socket that errored
+    // without a following clean 'close' orphaned its PTY for the process lifetime.
+    ws.on('close', () => disposePty(pty));
+    ws.on('error', () => disposePty(pty));
   }
 
   function derivePort(nextPort: number): number {
@@ -233,13 +309,35 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
   }
 
   function cleanup(): void {
-    for (const interval of activityLogIntervals) {
-      clearInterval(interval);
+    // FX001-2: idempotent — a signal handler AND `beforeExit` can both fire.
+    if (cleanedUp) return;
+    cleanedUp = true;
+
+    if (idleSweep) {
+      clearInterval(idleSweep);
+      idleSweep = null;
     }
+
+    // Snapshot: disposePty mutates activePtys while we iterate.
+    for (const pty of [...activePtys]) {
+      disposePty(pty); // node-pty kills the real child (SIGHUP detach) + clears interval
+      // Force-kill backstop for a wedged attach client. Guard with the SAME
+      // liveness + is-tmux-CLIENT check as the reaper (companion review F001): a
+      // pid the OS may have recycled — or the tmux SERVER — must never be
+      // SIGKILLed. Only a still-live tmux attach client is force-killed.
+      try {
+        if (isProcessAlive(pty.pid, killProcess) && isTmuxClient(pty.pid, deps.execCommand)) {
+          killProcess(pty.pid, 'SIGKILL');
+        }
+      } catch {
+        // Process already exited.
+      }
+    }
+
+    // Clear any interval not tied to a live PTY (defensive).
+    for (const interval of activityLogIntervals) clearInterval(interval);
     activityLogIntervals.clear();
-    for (const pty of activePtys) {
-      pty.kill();
-    }
+    ptyIntervals.clear();
     activePtys.clear();
   }
 
@@ -255,6 +353,31 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
       console.error(`[terminal] FATAL: ${detail}`);
       process.exit(1);
     }
+
+    listenPort = port;
+    // FX001-3: reap attach clients orphaned by a prior CRASHED sidecar on THIS
+    // port (the un-catchable SIGKILL case that cleanup() can't reach) before we
+    // accept new connections. Per-port keying isolates concurrent worktree
+    // sidecars; the ps-guard inside reapStalePtys prevents killing reused PIDs.
+    try {
+      const reaped = reapStalePtys(sidecarRoot, port, deps.execCommand, killProcess);
+      if (reaped.length > 0) {
+        console.log(
+          `[terminal] Reaped ${reaped.length} orphaned PTY client(s) from a prior run: ${reaped.join(', ')}`
+        );
+      }
+    } catch (err) {
+      console.error('[terminal] Startup PTY reap failed (continuing):', err);
+    }
+
+    // FX001-4: backstop sweep — dispose any PTY whose socket is already CLOSED
+    // but whose 'close'/'error' somehow never fired (disposePty is idempotent).
+    idleSweep = setInterval(() => {
+      for (const [pty, sock] of ptyWs) {
+        if ((sock as unknown as { readyState: number }).readyState === 3) disposePty(pty);
+      }
+    }, 30000);
+    if (typeof idleSweep.unref === 'function') idleSweep.unref();
 
     // Bind to env-configurable host (default localhost; set TERMINAL_WS_HOST=0.0.0.0 for remote)
     const host = process.env.TERMINAL_WS_HOST ?? '127.0.0.1';
@@ -331,19 +454,20 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
 
     console.log(`Terminal WS server listening on ws://${host}:${port}/terminal`);
 
-    process.on('SIGTERM', () => {
-      console.log('Terminal WS server: SIGTERM received, cleaning up...');
+    // FX001-2: reap PTYs on every catchable shutdown path, not just SIGTERM/SIGINT.
+    // SIGHUP fires on terminal hangup / parent death; `beforeExit` catches a clean
+    // drain. (SIGKILL can't be caught — that orphan case is covered by FX001-3's
+    // startup reaper.)
+    const shutdown = (signal: string) => {
+      console.log(`Terminal WS server: ${signal} received, cleaning up...`);
       cleanup();
       wss?.close();
       process.exit(0);
-    });
-
-    process.on('SIGINT', () => {
-      console.log('Terminal WS server: SIGINT received, cleaning up...');
-      cleanup();
-      wss?.close();
-      process.exit(0);
-    });
+    };
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
+    process.on('SIGHUP', () => shutdown('SIGHUP'));
+    process.on('beforeExit', () => cleanup());
   }
 
   function close(): void {

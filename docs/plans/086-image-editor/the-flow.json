@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "slug": "image-editor",
+  "cursor": "phase-1",
+  "recommended_next": "phase-1",
+  "mode": "Simple",
+  "milestones_total": 5,
+  "nodes": [
+    {
+      "id": "research",
+      "type": "research",
+      "title": "Research — explore image viewer & save paths",
+      "status": "done",
+      "ran_at": "2026-06-07T01:49:56Z",
+      "user_input": "Newflow ... enable image editing ... full in the browser ... click a button and edit it ... save as new or save over ... dash edited ... very basic drawing tools, pen ... mainly for annotation",
+      "note": "4 parallel subagents. Display: BinaryFileView->ImageViewer (raw-file route). Save: must use Buffer-based uploadFileService precedent, NOT string saveFile. No canvas lib exists -> perfect-freehand + Canvas2D. Domain: ImageEditor in _platform/viewer, save action in file-browser.",
+      "artifacts": ["research-dossier.md"],
+      "next": ["spec"]
+    },
+    {
+      "id": "deep-research-canvas",
+      "type": "research",
+      "title": "Deep research — canvas pen approach (Perplexity)",
+      "status": "done",
+      "ran_at": "2026-06-07T01:49:56Z",
+      "branch_of": "research",
+      "user_input": "deep research please, use perplexity",
+      "note": "Perplexity Sonar Deep Research. Confirms perfect-freehand + raw Canvas 2D. Master decision: single canvas sized to image intrinsic resolution, CSS-scale for display, ignore DPR for backing store. Pointer Events + setPointerCapture + getCoalescedEvents. getStroke->Path2D->fill, simulatePressure:false. Strokes as image-space array, snapshots+index undo. CORS taint + iOS 4096/16M px limit + touch-action:none are the big pitfalls.",
+      "artifacts": ["external-research/canvas-pen-annotation.md"],
+      "next": ["spec"]
+    },
+    {
+      "id": "spec",
+      "type": "spec",
+      "title": "Spec (Simple) + validate + backpressure",
+      "status": "done",
+      "ran_at": "2026-06-07T01:49:56Z",
+      "user_input": "yeah run spec then validate then back pressure survery please",
+      "note": "Mode=Simple (CS-4, user choice). R1: Simple/Hybrid/avoid-mocks/docs-how. R2: inline toggle, re-edit-in-place (-edited idempotent), preserve original format, pen+color+width. validate-v2: VALIDATED WITH FIXES (added AC-12..17 edge cases + contract sketch). plan-2d: Certainty=Partial, Phase 0 recommended (vitest save/derivation/guard suites; arch-rule + CORS export are ABSENT/manual gaps).",
+      "artifacts": ["image-editor-spec.md", "image-editor.fltplan.md", "backpressure-coverage.md"],
+      "next": ["plan"]
+    },
+    {
+      "id": "backpressure",
+      "type": "research",
+      "title": "Backpressure survey (Partial → Phase 0 recommended)",
+      "status": "done",
+      "ran_at": "2026-06-07T01:49:56Z",
+      "branch_of": "spec",
+      "note": "Most behaviour BUILDABLE as vitest units. CORRECTED 2026-06-07 (user caught it): repo HAS a Playwright+CDP browser harness (harness/playwright.config.ts; markdown-wysiwyg-smoke.spec.ts precedent) + harness CLI (check-route/screenshot/console-logs). So canvas/CORS export (AC-17) + DOM rows (AC-1/16, AC-11/12, AC-15) are browser-BUILDABLE, NOT absent. Only genuine ABSENT now: arch dependency-direction rule. Phase 0 gains an image-editor browser smoke spec.",
+      "artifacts": ["backpressure-coverage.md"],
+      "next": ["plan"]
+    },
+    {
+      "id": "plan",
+      "type": "plan",
+      "title": "Architect plan (READY) + validate",
+      "status": "done",
+      "ran_at": "2026-06-07T02:30:00Z",
+      "user_input": "yes /3 please",
+      "note": "plan-3-v3-architect: Simple mode, single phase, 19 tasks, all 7 gates PASS → Status READY. 2 scout subagents verified exact reuse anchors (uploadFileService Buffer/atomic, saveFileAction mtime-conflict precedent, markdown-wysiwyg lazy/error-boundary, detectContentType, FileViewerPanel ViewerMode toggle, SHARED_DI_TOKENS). validate-v2 (4 agents): VALIDATED WITH FIXES — all 17 ACs mapped, TDD ordering correct, anchors source-verified; fixed Next15→16 drift, added GIF→PNG (canvas can't encode GIF), server-side SVG rejection, deterministic AC-10 bundle check, promoted dep-direction guard to required, surfaced raw-route same-origin assumption.",
+      "artifacts": ["image-editor-plan.md", "image-editor.fltplan.md (Ready)"],
+      "next": ["phase-1"]
+    },
+    { "id": "phase-1", "type": "phase", "title": "Implement (Simple — single phase, 19 tasks)", "status": "known", "next": ["merge"] },
+    { "id": "merge", "type": "merge", "title": "Merge", "status": "assumed", "next": [] }
+  ],
+  "agents": []
+}

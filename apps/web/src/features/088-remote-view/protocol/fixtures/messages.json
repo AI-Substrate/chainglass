@@ -1,0 +1,60 @@
+{
+  "$comment": "Canonical wire-protocol CONTROL-message fixtures (Workshop 003). Cross-language source of truth: the TS suite (protocol-messages.test.ts) and the Swift daemon (Plan 088 Task 4.2) both round-trip these exact objects. Binary video frames are covered separately by frame-header.json (T004) + fixtures/video/ (T005). Any protocol change regenerates this file AND frame-header.json, then re-runs T003 + T004 + Task 4.2.",
+  "version": 1,
+  "client": [
+    { "t": "hello", "v": 1, "session": "ses_abc123def456" },
+    {
+      "t": "input",
+      "events": [
+        { "k": "mousemove", "x": 0.5, "y": 0.25 },
+        { "k": "mousedown", "x": 0.5, "y": 0.25, "button": 0 },
+        { "k": "mouseup", "x": 0.5, "y": 0.25, "button": 2 },
+        { "k": "wheel", "x": 0.5, "y": 0.25, "dx": 0, "dy": -120 },
+        { "k": "keydown", "code": "KeyW", "modifiers": { "shift": false, "ctrl": false, "alt": false, "meta": true } },
+        { "k": "keyup", "code": "KeyW", "modifiers": { "shift": false, "ctrl": false, "alt": false, "meta": false } },
+        { "k": "text", "text": "café" }
+      ]
+    },
+    { "t": "request-keyframe" },
+    { "t": "pause" },
+    { "t": "resume" },
+    { "t": "client-stats", "decodeFps": 59.9, "queueDepth": 2, "e2eLatencyMs": 42 },
+    { "t": "client-stats", "decodeFps": 0, "queueDepth": 0, "e2eLatencyMs": null },
+    { "t": "ping", "sentAt": 1718412345678 },
+    { "t": "detach" }
+  ],
+  "server": [
+    {
+      "t": "hello-ok",
+      "v": 1,
+      "session": "ses_abc123def456",
+      "window": { "id": 34202, "app": "Godot", "title": "spike-target", "pixelWidth": 800, "pixelHeight": 656, "scale": 2 }
+    },
+    {
+      "t": "video-config",
+      "codec": "avc1.640020",
+      "description": "AWQAIP/hABQnZAAgrBMUKAyBTpqBAQEDwgEIqAEABCjuPLD9+PgA",
+      "width": 800,
+      "height": 656,
+      "fps": 60
+    },
+    { "t": "window-state", "state": "minimized" },
+    { "t": "window-state", "state": "restored" },
+    { "t": "window-state", "state": "resized", "pixelWidth": 1280, "pixelHeight": 1024 },
+    { "t": "window-state", "state": "moved" },
+    { "t": "window-state", "state": "gone" },
+    { "t": "displaced" },
+    { "t": "stats", "captureFps": 60, "encodeFps": 59, "bitrateKbps": 4200, "droppedFrames": 3, "bufferedAmount": 0 },
+    { "t": "pong", "sentAt": 1718412345678, "daemonAt": 9876543 },
+    { "t": "error", "code": "E_AUTH", "message": "bad or expired token", "fatal": true },
+    { "t": "error", "code": "E_ORIGIN", "message": "origin not allowed", "fatal": true },
+    { "t": "error", "code": "E_VERSION", "message": "unsupported protocol major", "fatal": true },
+    { "t": "error", "code": "E_SESSION_UNKNOWN", "message": "session not found", "fatal": true },
+    { "t": "error", "code": "E_WINDOW_GONE", "message": "window disappeared during attach", "fatal": true },
+    { "t": "error", "code": "E_PERMISSION", "message": "Screen Recording permission not granted", "fatal": true },
+    { "t": "error", "code": "E_INTERNAL", "message": "daemon failure", "fatal": false },
+    { "t": "bye", "reason": "detached" },
+    { "t": "bye", "reason": "window-gone" },
+    { "t": "bye", "reason": "shutdown" }
+  ]
+}

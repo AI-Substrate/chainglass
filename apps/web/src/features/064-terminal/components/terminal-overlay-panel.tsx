@@ -1,28 +1,29 @@
 'use client';
 
-import { useWorkspaceContext } from '@/features/041-file-browser/hooks/use-workspace-context';
-import { ClipboardCopy, TerminalSquare, X } from 'lucide-react';
+/**
+ * TerminalOverlayPanel — the floating right-edge terminal overlay (Mode A).
+ *
+ * FX012 (Plan 084): the panel no longer mounts its own `<TerminalInner>`.
+ * Instead it renders `<TerminalViewport id="overlay" active={isOpen} />` so
+ * the singleton's single xterm DOM node moves into this panel when the float
+ * opens and returns to the park when it closes. Scrollback survives every
+ * open/close, the WS stays connected, and tmux only ever sees one client.
+ *
+ * The `useTerminalOverlay` public API is unchanged — sidebar / SDK command /
+ * explorer panel callers continue to work without modification (AC-09).
+ */
+
 import { useEffect, useRef, useState } from 'react';
 import { useTerminalOverlay } from '../hooks/use-terminal-overlay';
-import { copyTmuxBuffer } from '../lib/copy-tmux-buffer';
-import type { ConnectionStatus } from '../types';
-import { ConnectionStatusBadge } from './connection-status-badge';
-import TerminalInner from './terminal-inner';
-import { TerminalThemeSelect } from './terminal-theme-select';
+import { TerminalPaneHeader } from './terminal-pane-header';
+import { useTerminalSingleton } from './terminal-singleton-provider';
+import { TerminalViewport } from './terminal-viewport';
 
 export function TerminalOverlayPanel() {
   const { isOpen, sessionName, cwd, closeTerminal } = useTerminalOverlay();
-  const wsCtx = useWorkspaceContext();
-  const terminalTheme = wsCtx?.worktreeIdentity?.terminalTheme || 'dark';
-  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
+  const { connectionStatus } = useTerminalSingleton();
   const panelRef = useRef<HTMLDivElement>(null);
   const [anchorRect, setAnchorRect] = useState({ top: 0, left: 0, width: 0, height: 0 });
-  // Only mount TerminalInner once the overlay has been opened at least once
-  // This prevents WebSocket connections on every workspace page load
-  const [hasOpened, setHasOpened] = useState(false);
-  useEffect(() => {
-    if (isOpen) setHasOpened(true);
-  }, [isOpen]);
 
   // Measure the content area to align overlay over it.
   // Primary: [data-terminal-overlay-anchor] (panel-layout pages like browser).
@@ -86,7 +87,7 @@ export function TerminalOverlayPanel() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, closeTerminal]);
 
-  if (!sessionName || !cwd || !hasOpened) return null;
+  if (!sessionName || !cwd) return null;
 
   return (
     <div
@@ -102,44 +103,16 @@ export function TerminalOverlayPanel() {
       }}
       data-testid="terminal-overlay-panel"
     >
-      {/* Header */}
-      <div className="flex items-center justify-between border-b px-3 py-2 shrink-0">
-        <div className="flex items-center gap-2 min-w-0">
-          <TerminalSquare className="h-4 w-4 text-muted-foreground shrink-0" />
-          <span className="text-sm font-medium shrink-0">{sessionName}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <TerminalThemeSelect />
-          <button
-            type="button"
-            onClick={() => copyTmuxBuffer()}
-            className="rounded-sm p-1 text-muted-foreground hover:text-foreground hover:bg-accent"
-            aria-label="Copy tmux buffer"
-            title="Copy tmux buffer"
-          >
-            <ClipboardCopy className="h-3.5 w-3.5" />
-          </button>
-          <ConnectionStatusBadge status={connectionStatus} showLabel={false} />
-          <button
-            type="button"
-            onClick={closeTerminal}
-            className="rounded-sm p-1 hover:bg-accent"
-            aria-label="Close terminal overlay"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
+      {/* Header — shared control strip (FX014). */}
+      <TerminalPaneHeader
+        sessionName={sessionName}
+        connectionStatus={connectionStatus}
+        onClose={closeTerminal}
+      />
 
-      {/* Terminal — direct import, no next/dynamic wrapper */}
+      {/* Viewport — the singleton's xterm DOM moves in here when isOpen flips true. */}
       <div className="flex-1 overflow-hidden min-h-0">
-        <TerminalInner
-          sessionName={sessionName}
-          cwd={cwd}
-          onConnectionChange={setConnectionStatus}
-          themeOverride={terminalTheme}
-          isVisible={isOpen}
-        />
+        <TerminalViewport id="overlay" active={isOpen} />
       </div>
     </div>
   );

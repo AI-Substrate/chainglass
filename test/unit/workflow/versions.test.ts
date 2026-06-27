@@ -48,7 +48,6 @@ describe('WorkflowRegistryService.versions()', () => {
       fs.setDir(`${WORKFLOWS_DIR}/test-wf/checkpoints`);
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/current/wf.yaml`, 'name: Test');
 
-      // @ts-expect-error - Method doesn't exist yet (TDD RED phase)
       const result = await service.versions(WORKFLOWS_DIR, 'test-wf');
 
       expect(result.errors).toHaveLength(0);
@@ -87,7 +86,6 @@ describe('WorkflowRegistryService.versions()', () => {
       );
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/current/wf.yaml`, 'name: Test');
 
-      // @ts-expect-error - Method doesn't exist yet (TDD RED phase)
       const result = await service.versions(WORKFLOWS_DIR, 'test-wf');
 
       expect(result.errors).toHaveLength(0);
@@ -127,7 +125,6 @@ describe('WorkflowRegistryService.versions()', () => {
       );
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/current/wf.yaml`, 'name: Test');
 
-      // @ts-expect-error - Method doesn't exist yet (TDD RED phase)
       const result = await service.versions(WORKFLOWS_DIR, 'test-wf');
 
       expect(result.errors).toHaveLength(0);
@@ -163,7 +160,6 @@ describe('WorkflowRegistryService.versions()', () => {
       );
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/current/wf.yaml`, 'name: Test');
 
-      // @ts-expect-error - Method doesn't exist yet (TDD RED phase)
       const result = await service.versions(WORKFLOWS_DIR, 'test-wf');
 
       expect(result.errors).toHaveLength(0);
@@ -182,7 +178,6 @@ describe('WorkflowRegistryService.versions()', () => {
       */
       // No workflow directory
 
-      // @ts-expect-error - Method doesn't exist yet (TDD RED phase)
       const result = await service.versions(WORKFLOWS_DIR, 'nonexistent-wf');
 
       expect(result.errors).toHaveLength(1);
@@ -207,7 +202,6 @@ describe('WorkflowRegistryService.versions()', () => {
       fs.setDir(`${WORKFLOWS_DIR}/test-wf/checkpoints`);
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/current/wf.yaml`, 'name: Test');
 
-      // @ts-expect-error - Method doesn't exist yet (TDD RED phase)
       const result = await service.versions(WORKFLOWS_DIR, 'test-wf');
 
       expect(result.errors).toHaveLength(0);

@@ -51,9 +51,7 @@ function createFakeStateStore(initial: Record<string, State> = {}): {
 
 function makeState(nodeId: string, status: string, events: NodeEvent[] = []): State {
   return {
-    graph_slug: 'test-graph',
-    version: '1.0.0',
-    created_at: new Date().toISOString(),
+    graph_status: 'in_progress',
     updated_at: new Date().toISOString(),
     nodes: {
       [nodeId]: {
@@ -198,9 +196,7 @@ describe('NodeEventService', () => {
     it('is a no-op for missing node', () => {
       const registry = new EventHandlerRegistry();
       const state: State = {
-        graph_slug: 'g',
-        version: '1.0.0',
-        created_at: new Date().toISOString(),
+        graph_status: 'in_progress',
         updated_at: new Date().toISOString(),
       };
       const stateStore = createFakeStateStore({ g: state });

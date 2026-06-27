@@ -23,6 +23,8 @@ import { useState } from 'react';
 
 import { registerWorktreeState } from '@/features/041-file-browser/state/register';
 import { WorktreeStatePublisher } from '@/features/041-file-browser/state/worktree-publisher';
+import { registerRemoteViewState } from '@/features/088-remote-view/state/register';
+import { remoteViewStateRoute } from '@/features/088-remote-view/state/remote-view-state-route';
 
 import { ServerEventRoute } from './server-event-route';
 import type { ServerEventRouteDescriptor } from './server-event-router';
@@ -39,6 +41,7 @@ import { workflowExecutionRoute } from './workflow-execution-route';
 const SERVER_EVENT_ROUTES: ServerEventRouteDescriptor[] = [
   workUnitStateRoute,
   workflowExecutionRoute,
+  remoteViewStateRoute,
 ];
 
 interface GlobalStateConnectorProps {
@@ -56,6 +59,7 @@ export function GlobalStateConnector({
   // Must complete before children's useEffect calls publish().
   useState(() => {
     registerWorktreeState(state);
+    registerRemoteViewState(state);
     const registered = new Set(state.listDomains().map((d) => d.domain));
     for (const route of SERVER_EVENT_ROUTES) {
       if (registered.has(route.stateDomain)) continue;

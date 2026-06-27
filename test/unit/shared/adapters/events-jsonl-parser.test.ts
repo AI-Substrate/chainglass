@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import type { AgentSessionEvent } from '@chainglass/shared';
 import { parseEventsJsonlLine } from '@chainglass/shared';
 
 /**
@@ -278,7 +279,7 @@ describe('parseEventsJsonlLine', () => {
       id: 'original-event-id',
     });
 
-    const event = parseEventsJsonlLine(line);
+    const event = parseEventsJsonlLine(line) as AgentSessionEvent | null;
 
     expect(event).not.toBeNull();
     expect(event?.eventId).toBe('original-event-id');

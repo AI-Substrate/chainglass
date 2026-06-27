@@ -97,6 +97,13 @@ export interface FileTreeProps {
   expandPaths?: string[];
   /** Called when expanded dirs change (for external tracking) */
   onExpandedDirsChange?: (dirs: string[]) => void;
+  /**
+   * Called when starting a create auto-expands a collapsed folder. Lets the
+   * parent mark the imminent `onExpandedDirsChange` as create-driven so it
+   * doesn't republish `?dir=` and hijack the main panel into folder-preview.
+   * Only fires when an expansion will actually occur (folder was collapsed).
+   */
+  onCreateAutoExpand?: (parentDir: string) => void;
   onCopyFullPath?: (path: string) => void;
   onCopyRelativePath?: (path: string) => void;
   /** Plan 084 FX007 — Copy host-aware web URL for the current branch (or commit when detached). */
@@ -132,6 +139,7 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
     childEntries = {},
     expandPaths,
     onExpandedDirsChange,
+    onCreateAutoExpand,
     onCopyFullPath,
     onCopyRelativePath,
     onCopyRepoUrlCurrentRef,
@@ -164,6 +172,13 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
   const [editState, setEditState] = useState<EditState>(null);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
 
+  // Radix ContextMenuTrigger fires a spurious onClick on the folder row when the
+  // menu closes after picking "New File/Folder" — which would toggle the folder
+  // collapsed right after the create starts (hiding its children). onStartCreate
+  // stamps this ref so the immediately-following handleDirClick on the same path
+  // is swallowed once. Time-boxed so a later genuine click still toggles.
+  const suppressDirClickRef = useRef<{ path: string; at: number } | null>(null);
+
   // Expose expanded dirs to parent via ref (DYK #4)
   useImperativeHandle(
     ref,
@@ -195,6 +210,13 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
   }, [expanded, onExpandedDirsChange]);
 
   const handleDirClick = (dirPath: string) => {
+    // Swallow the spurious toggle Radix fires on the trigger when a context-menu
+    // "New File/Folder" closes (would otherwise collapse the folder mid-create).
+    const sup = suppressDirClickRef.current;
+    if (sup && sup.path === dirPath && Date.now() - sup.at < 500) {
+      suppressDirClickRef.current = null;
+      return;
+    }
     const next = new Set(expanded);
     if (next.has(dirPath)) {
       next.delete(dirPath);
@@ -218,9 +240,15 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
         hasRename: !!onRename,
         hasDelete: !!onDelete,
         onStartCreate: (parentDir, mode) => {
+          // Arm the guard so the spurious context-menu-close toggle on this
+          // folder doesn't collapse it (see handleDirClick / suppressDirClickRef).
+          if (parentDir) suppressDirClickRef.current = { path: parentDir, at: Date.now() };
           setEditState({ mode, parentDir });
           // Auto-expand folder if collapsed
           if (parentDir && !expanded.has(parentDir)) {
+            // Tell the parent this expansion is create-driven so it won't
+            // republish ?dir= and swap the main panel to folder-preview.
+            onCreateAutoExpand?.(parentDir);
             const next = new Set(expanded);
             next.add(parentDir);
             if (!childEntries[parentDir]) {
@@ -509,7 +537,12 @@ function TreeItem({
                     <span className="truncate">{entry.name}</span>
                   </button>
                 </ContextMenuTrigger>
-                <ContextMenuContent>
+                {/* preventDefault on close-autofocus: stop Radix from restoring
+                    focus to the trigger button when "New File/Folder" or "Rename"
+                    closes the menu — that focus-restore would steal focus from the
+                    freshly-mounted InlineEditInput and immediately blur-cancel it
+                    (create mode cancels on blur), making the input vanish. */}
+                <ContextMenuContent onCloseAutoFocus={(e) => e.preventDefault()}>
                   {mutations?.hasCreateFile && (
                     <ContextMenuItem
                       onSelect={() => mutations.onStartCreate(entry.path, 'create-file')}
@@ -746,7 +779,9 @@ function TreeItem({
             <span className={`truncate ${isSelected ? 'text-base' : ''}`}>{entry.name}</span>
           </button>
         </ContextMenuTrigger>
-        <ContextMenuContent>
+        {/* preventDefault on close-autofocus — see folder menu above: keeps the
+            inline rename input from being blur-cancelled by Radix focus-restore. */}
+        <ContextMenuContent onCloseAutoFocus={(e) => e.preventDefault()}>
           {onAddNote && (
             <>
               <ContextMenuItem onSelect={() => onAddNote(entry.path)}>

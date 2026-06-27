@@ -28,6 +28,7 @@ export {
   ensureBootstrapCode,
 } from './persistence.js';
 export { buildCookieValue, verifyCookieValue } from './cookie.js';
+export { buildAssetToken, verifyAssetToken } from './asset-token.js';
 export { activeSigningSecret } from './signing-key.js';
 export { findWorkspaceRoot } from './workspace-root.js';
 /**

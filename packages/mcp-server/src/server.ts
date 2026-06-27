@@ -13,7 +13,11 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { z } from 'zod';
-import { registerPhaseTools, registerWorkflowTools } from './tools/index.js';
+import {
+  registerPhaseTools,
+  registerRemoteViewTools,
+  registerWorkflowTools,
+} from './tools/index.js';
 
 // Default server info - can be overridden via options
 const DEFAULT_SERVER_NAME = 'chainglass';
@@ -95,6 +99,9 @@ export function createMcpServer(options: McpServerOptions): ChainglassMcpServer 
   // Register workflow and phase tools (Phase 5: MCP Integration)
   registerWorkflowTools(mcpServer, toolRegistry, logger);
   registerPhaseTools(mcpServer, toolRegistry, logger);
+
+  // Register remote-view tools (Plan 088 Phase 5 — T010; mirrors the `cg remote-view` verbs)
+  registerRemoteViewTools(mcpServer, toolRegistry, logger);
 
   // Log server creation
   logger.info('MCP server created', { serverName: name, version });

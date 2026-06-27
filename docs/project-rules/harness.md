@@ -4,6 +4,8 @@
 **Plan**: [067-harness](../plans/067-harness/harness-plan.md)
 **ADR**: [ADR-0014](../adr/adr-0014-first-class-agentic-development-harness.md)
 
+> ⚠️ **Naming:** this Docker toolset is **`harness-tools`** (canonical `just harness-tools <cmd>`; `just harness …` remains a back-compat alias). It is **distinct from** the new AI-Substrate **`harness`** proof-loop CLI (the bare `harness` command + `.harness/`, see `.harness/engineering-harness.md`). Same word, different tools — this file documents `harness-tools`.
+
 > **Harness Docs**: [Agent Rules](../../AGENTS.md#the-harness-is-non-negotiable) |
 > [Architecture](../../harness/README.md) |
 > **This file** |

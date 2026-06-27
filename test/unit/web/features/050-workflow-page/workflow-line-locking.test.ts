@@ -34,7 +34,7 @@ const emptyLine = makeLine({ nodes: [], complete: true });
 const pendingLine = makeLine({ complete: false, runningNodes: [] });
 const runningLine = makeLine({
   complete: false,
-  runningNodes: [{ nodeId: 'n1' }] as LineStatusResult['runningNodes'],
+  runningNodes: ['n1'],
 });
 const completeLine = makeLine({ complete: true, runningNodes: [] });
 

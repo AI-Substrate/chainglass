@@ -36,12 +36,12 @@ describe('readFileAction', () => {
     });
 
     expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.content).toBe('export const x = 1;');
-      expect(result.size).toBeGreaterThan(0);
-      expect(result.language).toBe('typescript');
-      expect(result.highlightedHtml).toBe('');
-    }
+    expect(result.ok && result.isBinary === false).toBe(true);
+    if (!result.ok || result.isBinary) throw new Error('expected non-binary ok result');
+    expect(result.content).toBe('export const x = 1;');
+    expect(result.size).toBeGreaterThan(0);
+    expect(result.language).toBe('typescript');
+    expect(result.highlightedHtml).toBe('');
   });
 
   it('returns file-too-large error for files over 5MB', async () => {
@@ -129,6 +129,23 @@ describe('readFileAction', () => {
     }
   );
 
+  it.each([['index.html'], ['page.htm']])(
+    'short-circuits %s as binary so BinaryFileView dispatches it to HtmlViewer (sandboxed iframe)',
+    async (filename) => {
+      fs.setFile(`/workspace/${filename}`, '<!doctype html><p>hi</p>');
+      const result = await readFileAction({
+        worktreePath: '/workspace',
+        filePath: filename,
+        fileSystem: fs,
+        pathResolver,
+      });
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.isBinary).toBe(true);
+      }
+    }
+  );
+
   it.each([
     ['package.json', '{ "name": "x" }', 'json'],
     ['config.yaml', 'name: x\n', 'yaml'],
@@ -136,7 +153,6 @@ describe('readFileAction', () => {
     ['data.xml', '<root>x</root>', 'xml'],
     ['style.css', '.x { color: red; }', 'css'],
     ['module.mjs', 'export const x = 1;', 'javascript'],
-    ['index.html', '<!doctype html><p>hi</p>', 'html'],
   ])(
     'returns text content (not binary) for structured-text format %s',
     async (filename, content, expectedLang) => {
@@ -214,9 +230,9 @@ describe('readFileAction', () => {
     });
 
     expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.highlightedHtml).toBe('<pre class="shiki">const y = 2;</pre>');
-    }
+    expect(result.ok && result.isBinary === false).toBe(true);
+    if (!result.ok || result.isBinary) throw new Error('expected non-binary ok result');
+    expect(result.highlightedHtml).toBe('<pre class="shiki">const y = 2;</pre>');
   });
 
   it('calls renderMarkdownFn for markdown files', async () => {
@@ -231,10 +247,10 @@ describe('readFileAction', () => {
     });
 
     expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.markdownHtml).toBe('<h1>Hello</h1>');
-      expect(result.language).toBe('markdown');
-    }
+    expect(result.ok && result.isBinary === false).toBe(true);
+    if (!result.ok || result.isBinary) throw new Error('expected non-binary ok result');
+    expect(result.markdownHtml).toBe('<h1>Hello</h1>');
+    expect(result.language).toBe('markdown');
   });
 
   it('does not call renderMarkdownFn for non-markdown files', async () => {
@@ -253,9 +269,9 @@ describe('readFileAction', () => {
     });
 
     expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.markdownHtml).toBeUndefined();
-    }
+    expect(result.ok && result.isBinary === false).toBe(true);
+    if (!result.ok || result.isBinary) throw new Error('expected non-binary ok result');
+    expect(result.markdownHtml).toBeUndefined();
     expect(called).toBe(false);
   });
 });

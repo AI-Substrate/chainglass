@@ -56,6 +56,9 @@ Reusable rendering primitives for displaying code, markdown, and git diffs. Prov
 | `DiffError` | Type | DiffViewer consumers | `'not-git' \| 'no-changes' \| 'git-not-available' \| null` |
 | `detectContentType()` | Function | file-browser | `(filename) → { category, mimeType }` |
 | `isBinaryExtension()` | Function | file-browser | `(filename) → boolean` |
+| `ImageEditorLazy` | Component | file-browser | `<ImageEditorLazy imageSrc filename onSaveOver onSaveAsNew onCancel />` — lazy (`ssr:false`) pen-annotation canvas editor for raster images |
+| `ImageEditorProps` / `ImageSaveOutcome` | Types | file-browser | Editor props; `{ ok; error? }` save-result shape returned from the save callbacks |
+| `canvasExportFormat` / `exceedsCanvasLimit` | Functions | file-browser | Canvas export MIME/quality/flatten policy + iOS large-image guard (>4096px or >16.7M px) |
 | `MarkdownWysiwygEditor` | Component | file-browser | `<MarkdownWysiwygEditorLazy value={string} onChange={fn} />` — Tiptap WYSIWYG editor for `.md` files, lazy-loaded |
 | `splitFrontMatter` | Function | file-browser, roundtrip tests | `(md) → { frontMatter, body }` — YAML front-matter codec |
 | `joinFrontMatter` | Function | file-browser, roundtrip tests | `(fm, body) → string` — YAML front-matter rejoin |
@@ -120,6 +123,11 @@ Primary: `apps/web/src/components/viewers/` + `apps/web/src/lib/server/` + `apps
 | `apps/web/src/features/_platform/viewer/lib/rich-size-cap.ts` | Size threshold | Pure function |
 | `apps/web/src/features/_platform/viewer/lib/image-url.ts` | Image URL resolver | Pure function |
 | `apps/web/src/features/_platform/viewer/lib/code-block-language-pill.ts` | Language pill decoration | Internal (not exported from barrel) |
+| `apps/web/src/features/_platform/viewer/components/image-editor.tsx` | ImageEditor (canvas + pen + undo + error/load states) | Client; heavy lazy chunk |
+| `apps/web/src/features/_platform/viewer/components/image-editor-lazy.tsx` | ImageEditorLazy wrapper | `dynamic(ssr:false)` boundary |
+| `apps/web/src/features/_platform/viewer/components/image-editor-toolbar.tsx` | Pen/color/width + Save over/Save as new/Cancel | Client |
+| `apps/web/src/features/_platform/viewer/lib/canvas-coords.ts` | CSS-px→image-px (object-contain) | Pure |
+| `apps/web/src/features/_platform/viewer/lib/image-export.ts` | toBlob format/quality + iOS large-image guard | Pure |
 
 ## Concepts
 
@@ -128,6 +136,7 @@ Primary: `apps/web/src/components/viewers/` + `apps/web/src/lib/server/` + `apps
 | **WYSIWYG Markdown Editing** | `MarkdownWysiwygEditorLazy` | Tiptap-backed editor that parses markdown in, emits markdown out. Split front-matter before parse, rejoin after serialize. `onChange` only fires on user edits (AC-08). Lazy-loaded via `dynamic(...)` to keep the 125 KB Tiptap bundle out of the eager path. |
 | **Formatting Toolbar** | `WysiwygToolbar` | 16-button toolbar driven by a Tiptap `Editor` instance. Each button maps to a `ToolbarAction` with `isActive`/`isDisabled` predicates. `aria-pressed` + `role="toolbar"` for accessibility. Config in `wysiwyg-toolbar-config.ts`. |
 | **Link Insertion** | `LinkPopover` | Desktop popover + mobile bottom-sheet for insert/edit/unlink. URL validated by `sanitize-link-href.ts` (allow-list: http/https/mailto). Anchored to the toolbar Link button via Radix `PopoverAnchor virtualRef`. |
+| **Image Annotation** | `ImageEditorLazy` | Lazy (`ssr:false`) freehand pen editor: a single canvas at the image's intrinsic resolution (perfect-freehand + Pointer Events + coalesced events), image-space stroke array + undo, captures `imageMtime` for the overwrite conflict guard. Save flows UP via `onSaveOver`/`onSaveAsNew`/`onCancel`/`onReload` callbacks — the viewer never imports file-browser. `canvasExportFormat` selects the `toBlob` MIME/quality (GIF→PNG); `exceedsCanvasLimit` blocks iOS-oversized images. Pen only (no text/shapes/eraser). |
 
 ## Dependencies
 
@@ -155,5 +164,6 @@ Primary: `apps/web/src/components/viewers/` + `apps/web/src/lib/server/` + `apps
 | Plan 083-md-editor / Phase 5 | Added internal `lib/code-block-language-pill.ts` Tiptap extension (ProseMirror `DecorationSet` plugin; widget decoration with `side:-1` placed as descendant of `<pre>`); wired into `markdown-wysiwyg-editor.tsx` via direct relative import; `.md-wysiwyg-code-lang-pill` CSS positioning in `globals.css`; `.md-wysiwyg pre { position: relative }` parent anchor. Extension intentionally NOT exported from the barrel — private dependency of the Rich editor so Phase 6.7 bundle analysis can confirm lazy-chunk inclusion. Consumer-side changes live in `file-browser` (`FileViewerPanel` Rich branch). | 2026-04-19 |
 | Plan 083-md-editor / Phase 4 | Added three pure-utility modules — `lib/markdown-frontmatter.ts` (`splitFrontMatter`/`joinFrontMatter` — BOM + CRLF tolerant, 500-line scan cap, setext-`---`-in-body safe, forward + reverse round-trip invariant documented in JSDoc); `lib/markdown-has-tables.ts` (`hasTables` — GFM detector with fence-type pairing so ``` inside ~~~ correctly stays fenced, rejects 4-space-indented tables as CommonMark code blocks, accepts alignment colons); `lib/rich-size-cap.ts` (`RICH_MODE_SIZE_CAP_BYTES = 200_000` with decimal-KB-not-KiB disambiguation JSDoc + `exceedsRichSizeCap` via `TextEncoder`). Wired the fm codec into `markdown-wysiwyg-editor.tsx`, replacing the Phase 1 passthrough stubs; added a lifecycle-safety test that mounts fm-bearing content, triggers a real edit via `editor.commands.insertContent`, and asserts the emitted onChange starts with the original front-matter — closes the silent-data-loss path that pure unit tests cannot detect (Finding 03, FC-validator Issue 4). Extended barrel with 5 new exports consumed by Phase 5. 148/148 unit tests green (59 new: 34 frontmatter + 18 has-tables + 7 rich-size-cap). Harness smoke: desktop + tablet green with new fm-round-trip assertions proving end-to-end fm preservation through a real edit. | 2026-04-19 |
 | Plan 041 Phase 4 | Extracts `detectLanguage()` as shared utility (DYK-P4-05), integrates viewers in file browser | 2026-02-24 |
+| Plan 086-image-editor | Added `ImageEditor` (perfect-freehand + raw Canvas 2D, Pointer Events + coalesced + undo) + `ImageEditorLazy` (`ssr:false` lazy chunk) + `ImageEditorToolbar` + `lib/canvas-coords.ts` (object-contain CSS→image-px map) + `lib/image-export.ts` (`canvasExportFormat`/`exceedsCanvasLimit`, GIF→PNG, iOS guard). Barrel adds `ImageEditorLazy`/`ImageEditorProps`/`ImageSaveOutcome`/`canvasExportFormat`/`exceedsCanvasLimit`. Save flows DOWN as callbacks — viewer still never imports file-browser (guard test). User guide: `docs/how/image-editor.md`. | 2026-06-08 |
 | Plan 046 | Added detectContentType() and isBinaryExtension() content type utilities | 2026-02-24 |
 | Plan 083-md-editor / Phase 6 | Extracted `buildMarkdownExtensions()` runtime factory from inline extensions (T002); added `EditorErrorBoundary` + fallback panel with "Switch to Source mode" button (T006, AC-18); wired `onFallback` prop through lazy wrapper to `FileViewerPanel`; reconciled domain.md — added Owns/Contracts/Composition/Source/Concepts entries for all WYSIWYG components, removed stale "Does NOT Own: CodeMirror" line (Finding 02, F005); published user guide at `docs/how/markdown-wysiwyg.md`. | 2026-04-20 |

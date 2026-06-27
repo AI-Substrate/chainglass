@@ -32,9 +32,9 @@ describe('WorkUnitAdapter', () => {
       workspaceName: 'Test Workspace',
       workspacePath: '/home/user/project',
       worktreePath: '/home/user/project',
-      worktreeSlug: 'main',
-      worktreeName: 'main',
+      worktreeBranch: 'main',
       isMainWorktree: true,
+      hasGit: true,
     };
   });
 

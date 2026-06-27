@@ -82,6 +82,10 @@ describe('isBypassPath', () => {
     ['/api/auth/callback/github', true],
     ['/api/bootstrap/verify', true],
     ['/api/bootstrap/forget', true],
+    // FX011: asset-token mint endpoint is INTENTIONALLY cookie-gated (NOT
+    // in AUTH_BYPASS_ROUTES) — only cookie-authenticated callers can mint
+    // tokens. Locks the contract from being mistakenly broadened.
+    ['/api/bootstrap/asset-token', false],
     ['/api/events', false], // SSE — needs session auth, NOT a sink
     // Phase 7 F001: sink prefixes bypass at proxy; route handler enforces
     // requireLocalAuth. AC-17 system-level CLI flow now passes.
@@ -129,6 +133,13 @@ describe('evaluateCookieGate', () => {
   // (e) /api/events without cookie → 401-equivalent
   it('(e) /api/events without cookie → cookie-missing-api', () => {
     expect(evaluateCookieGate(reqLike('/api/events'), codeAndKey)).toEqual({
+      kind: 'cookie-missing-api',
+    });
+  });
+
+  // FX011: asset-token mint endpoint is cookie-gated — cookie-missing → 401
+  it('(e-fx011) /api/bootstrap/asset-token without cookie → cookie-missing-api', () => {
+    expect(evaluateCookieGate(reqLike('/api/bootstrap/asset-token'), codeAndKey)).toEqual({
       kind: 'cookie-missing-api',
     });
   });
@@ -473,9 +484,10 @@ describe('Phase 5 F001 — bootstrap gate enforced even when DISABLE_GITHUB_OAUT
     _resetSigningSecretCacheForTests();
     // Re-import proxy default with env-var set so auth.ts wrapper short-circuits.
     const { default: middleware } = await import('../../../apps/web/proxy');
-    const res = await middleware(makeReq('/api/events') as never);
-    expect(res.status).toBe(401);
-    expect(await res.json()).toEqual({ error: 'bootstrap-required' });
+    const res = await middleware(makeReq('/api/events') as never, undefined as never);
+    expect(res).toBeDefined();
+    expect(res?.status).toBe(401);
+    expect(await res?.json()).toEqual({ error: 'bootstrap-required' });
   });
 
   it('DISABLE_AUTH=true (legacy) + non-bypass /api/events without cookie → 401 (gate enforced)', async () => {
@@ -484,17 +496,19 @@ describe('Phase 5 F001 — bootstrap gate enforced even when DISABLE_GITHUB_OAUT
     _resetBootstrapCache();
     _resetSigningSecretCacheForTests();
     const { default: middleware } = await import('../../../apps/web/proxy');
-    const res = await middleware(makeReq('/api/events') as never);
-    expect(res.status).toBe(401);
+    const res = await middleware(makeReq('/api/events') as never, undefined as never);
+    expect(res).toBeDefined();
+    expect(res?.status).toBe(401);
   });
 
   it('DISABLE_GITHUB_OAUTH=true + bypass route /api/health → next() (no cookie required)', async () => {
     process.env.DISABLE_GITHUB_OAUTH = 'true';
     const { default: middleware } = await import('../../../apps/web/proxy');
-    const res = await middleware(makeReq('/api/health') as never);
+    const res = await middleware(makeReq('/api/health') as never, undefined as never);
     // Bypass paths short-circuit before bootstrap accessor — no file needed.
     // NextResponse.next() ≡ status 200 (proxy doesn't transform).
-    expect([200, 204]).toContain(res.status);
+    expect(res).toBeDefined();
+    expect([200, 204]).toContain(res?.status);
   });
 
   it('DISABLE_GITHUB_OAUTH=true + valid bootstrap cookie + non-bypass /api/events → next() (OAuth bypassed)', async () => {
@@ -507,7 +521,169 @@ describe('Phase 5 F001 — bootstrap gate enforced even when DISABLE_GITHUB_OAUT
     );
     const cookie = buildCookieValue(ensured.data.code, activeSigningSecret(cwd));
     const { default: middleware } = await import('../../../apps/web/proxy');
-    const res = await middleware(makeReq('/api/events', cookie) as never);
-    expect([200, 204]).toContain(res.status);
+    const res = await middleware(makeReq('/api/events', cookie) as never, undefined as never);
+    expect(res).toBeDefined();
+    expect([200, 204]).toContain(res?.status);
+  });
+});
+
+// FX011 — asset-token short-circuit on the raw-file route.
+//
+// The HtmlViewer renders HTML inside a sandboxed iframe (opaque origin).
+// The iframe's sub-resource requests carry NO cookie, so the parent React
+// mints a worktree-bound HMAC token via /api/bootstrap/asset-token and
+// splices it onto rewritten URLs as ?_at=<token>. The proxy short-circuits
+// to 'bypass' (skips Auth.js too) when the token verifies. Silent fall-
+// through on invalid token so cookie-bearing requests still pass.
+describe('bootstrapCookieStage — FX011 asset-token short-circuit', () => {
+  let cwd: string;
+  let originalCwd: string;
+  let originalAuthSecret: string | undefined;
+  let activeCode: string;
+
+  beforeEach(() => {
+    originalCwd = process.cwd();
+    originalAuthSecret = process.env.AUTH_SECRET;
+    // biome-ignore lint/performance/noDelete: tests need to truly unset
+    delete process.env.AUTH_SECRET;
+    cwd = mkTempCwd('proxy-fx011-');
+    process.chdir(cwd);
+    _resetBootstrapCache();
+    _resetSigningSecretCacheForTests();
+    activeCode = ensureBootstrapCode(cwd).data.code;
+  });
+
+  afterEach(() => {
+    process.chdir(originalCwd);
+    if (originalAuthSecret === undefined) {
+      // biome-ignore lint/performance/noDelete: tests need to truly unset
+      delete process.env.AUTH_SECRET;
+    } else {
+      process.env.AUTH_SECRET = originalAuthSecret;
+    }
+    _resetBootstrapCache();
+    _resetSigningSecretCacheForTests();
+    rmSync(cwd, { recursive: true, force: true });
+  });
+
+  function reqWithQuery(
+    pathname: string,
+    query: Record<string, string>,
+    opts: { cookieValue?: string } = {}
+  ) {
+    const sp = new Map<string, string>(Object.entries(query));
+    return {
+      nextUrl: {
+        pathname,
+        searchParams: { get: (k: string) => sp.get(k) ?? null },
+      },
+      cookies: {
+        get(name: string) {
+          if (name === BOOTSTRAP_COOKIE_NAME && opts.cookieValue !== undefined) {
+            return { value: opts.cookieValue };
+          }
+          return undefined;
+        },
+      },
+      headers: { get: () => null },
+    };
+  }
+
+  it('valid token + matching worktree on eligible path → "bypass" (no cookie needed)', async () => {
+    const { activeSigningSecret, buildAssetToken } = await import(
+      '@chainglass/shared/auth-bootstrap-code'
+    );
+    const key = activeSigningSecret(cwd);
+    const worktree = '/Users/test/some-workspace';
+    const { token } = buildAssetToken(worktree, key, 600);
+    const result = await bootstrapCookieStage(
+      reqWithQuery('/api/workspaces/my-slug/files/raw', {
+        _at: token,
+        worktree,
+        file: 'foo.png',
+      }) as never
+    );
+    expect(result).toBe('bypass');
+  });
+
+  it('expired token → silent fallthrough → cookie-missing → 401 (cookie still gates)', async () => {
+    const { activeSigningSecret } = await import('@chainglass/shared/auth-bootstrap-code');
+    const key = activeSigningSecret(cwd);
+    const worktree = '/Users/test/some-workspace';
+    // Build a manually-expired token (exp in the past)
+    const { createHmac } = await import('node:crypto');
+    const expSecs = Math.floor(Date.now() / 1000) - 60;
+    const hmac = createHmac('sha256', key)
+      .update(`asset:${worktree}:${expSecs}`, 'utf-8')
+      .digest('base64url');
+    const expiredToken = `${expSecs}.${hmac}`;
+    const result = await bootstrapCookieStage(
+      reqWithQuery('/api/workspaces/my-slug/files/raw', {
+        _at: expiredToken,
+        worktree,
+      }) as never
+    );
+    // No cookie → after fallthrough, expect 401 NextResponse
+    expect(typeof result).toBe('object');
+    const res = result as Exclude<typeof result, 'bypass' | 'proceed'>;
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: 'bootstrap-required' });
+  });
+
+  it('wrong-worktree token → silent fallthrough → 401', async () => {
+    const { activeSigningSecret, buildAssetToken } = await import(
+      '@chainglass/shared/auth-bootstrap-code'
+    );
+    const key = activeSigningSecret(cwd);
+    const { token } = buildAssetToken('/Users/test/wt-A', key, 600);
+    const result = await bootstrapCookieStage(
+      reqWithQuery('/api/workspaces/my-slug/files/raw', {
+        _at: token,
+        worktree: '/Users/test/wt-B',
+      }) as never
+    );
+    const res = result as Exclude<typeof result, 'bypass' | 'proceed'>;
+    expect(res.status).toBe(401);
+  });
+
+  it('eligible path + valid token + valid cookie → "bypass" (token wins; cookie path not reached)', async () => {
+    const { activeSigningSecret, buildAssetToken, buildCookieValue } = await import(
+      '@chainglass/shared/auth-bootstrap-code'
+    );
+    const key = activeSigningSecret(cwd);
+    const worktree = '/Users/test/some-workspace';
+    const { token } = buildAssetToken(worktree, key, 600);
+    const cookie = buildCookieValue(activeCode, key);
+    const result = await bootstrapCookieStage(
+      reqWithQuery(
+        '/api/workspaces/my-slug/files/raw',
+        { _at: token, worktree },
+        { cookieValue: cookie }
+      ) as never
+    );
+    expect(result).toBe('bypass');
+  });
+
+  it('ineligible path + valid token → token IGNORED → cookie path 401', async () => {
+    // A token cannot bypass any route other than the raw-file route.
+    const { activeSigningSecret, buildAssetToken } = await import(
+      '@chainglass/shared/auth-bootstrap-code'
+    );
+    const key = activeSigningSecret(cwd);
+    const worktree = '/Users/test/some-workspace';
+    const { token } = buildAssetToken(worktree, key, 600);
+    const result = await bootstrapCookieStage(
+      reqWithQuery('/api/events', { _at: token, worktree }) as never
+    );
+    const res = result as Exclude<typeof result, 'bypass' | 'proceed'>;
+    expect(res.status).toBe(401);
+  });
+
+  it('eligible path + no token + no cookie → 401 (preserves existing behaviour)', async () => {
+    const result = await bootstrapCookieStage(
+      reqWithQuery('/api/workspaces/my-slug/files/raw', {}) as never
+    );
+    const res = result as Exclude<typeof result, 'bypass' | 'proceed'>;
+    expect(res.status).toBe(401);
   });
 });

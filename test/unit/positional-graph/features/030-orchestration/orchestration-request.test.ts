@@ -24,6 +24,7 @@ import {
   isStartNodeRequest,
 } from '../../../../../packages/positional-graph/src/features/030-orchestration/orchestration-request.guards.js';
 import {
+  type ErrorNodeRequest,
   NoActionReasonSchema,
   type NoActionRequest,
   NoActionRequestSchema,
@@ -73,11 +74,20 @@ const validNoAction: NoActionRequest = {
   reason: 'graph-complete',
 };
 
+const validErrorNode: ErrorNodeRequest = {
+  type: 'error-node',
+  graphSlug: 'my-pipeline',
+  nodeId: 'node-004',
+  inputs: { ok: false, inputs: {} },
+  error: { code: 'NODE_ERROR', message: 'something went wrong' },
+};
+
 const allRequests: OrchestrationRequest[] = [
   validStartNode,
   validResumeNode,
   validQuestionPending,
   validNoAction,
+  validErrorNode,
 ];
 
 // ============================================
@@ -197,7 +207,7 @@ describe('OrchestrationRequest Schemas', () => {
   });
 
   describe('OrchestrationRequestSchema (discriminated union)', () => {
-    it('parses all 4 variant types', () => {
+    it('parses all 5 variant types', () => {
       for (const request of allRequests) {
         const result = OrchestrationRequestSchema.parse(request);
         expect(result.type).toBe(request.type);
@@ -302,7 +312,7 @@ describe('OrchestrationRequest Type Guards', () => {
 // ============================================
 
 describe('Exhaustive type checking', () => {
-  it('switch covers all 4 types with never in default', () => {
+  it('switch covers all 5 types with never in default', () => {
     function handleRequest(request: OrchestrationRequest): string {
       switch (request.type) {
         case 'start-node':
@@ -313,6 +323,8 @@ describe('Exhaustive type checking', () => {
           return 'question';
         case 'no-action':
           return 'none';
+        case 'error-node':
+          return 'error';
         default: {
           const _exhaustive: never = request;
           throw new Error(`Unhandled type: ${JSON.stringify(_exhaustive)}`);
@@ -324,6 +336,7 @@ describe('Exhaustive type checking', () => {
     expect(handleRequest(validResumeNode)).toBe('resume');
     expect(handleRequest(validQuestionPending)).toBe('question');
     expect(handleRequest(validNoAction)).toBe('none');
+    expect(handleRequest(validErrorNode)).toBe('error');
   });
 });
 

@@ -84,4 +84,33 @@ describe('fileBrowserPageParamsCache', () => {
     const result = fileBrowserPageParamsCache.parse({ mode: 'edit' });
     expect(result.mode).toBe('edit');
   });
+
+  // ─── Plan 088 Phase 3 — remote-view content-area mode URL contract ───────
+  it('parses view="remote" and the rv session param, preserving recent-feed (Plan 088 Phase 3)', () => {
+    /*
+    Test Doc:
+    - Why: T001 extended the `view` literal with `'remote'` and composed remote-view's `rv` into this cache; without a guard a later edit could silently drop `'remote'` or stop parsing `rv`, breaking the deep-link contract — caught only by typecheck today (companion F001).
+    - Contract: parse({view:'remote', rv:'ses_abc123'}) → view==='remote' & rv==='ses_abc123'; legacy 'recent-feed' still parses; unknown view → null; rv parses standalone (the inert-without-view rule is render-time, not a parse coupling); rv absent → null.
+    - Usage Notes: rv is `parseAsString` (nullable) from remoteViewParams, composed business→business via the remote-view contract; this is the params-layer half of AC-8 that T007's smoke exercises end-to-end.
+    - Quality Contribution: locks the cross-domain URL contract the deep-link + browser smoke depend on, so a regression fails here in milliseconds instead of in the browser.
+    - Worked Example: ?view=remote&rv=ses_abc123 → { view:'remote', rv:'ses_abc123' }.
+    */
+    const remote = fileBrowserPageParamsCache.parse({ view: 'remote', rv: 'ses_abc123' });
+    expect(remote.view).toBe('remote');
+    expect(remote.rv).toBe('ses_abc123');
+
+    // recent-feed preserved (the change is additive)
+    expect(fileBrowserPageParamsCache.parse({ view: 'recent-feed' }).view).toBe('recent-feed');
+
+    // unknown view → null (no default on the literal)
+    expect(fileBrowserPageParamsCache.parse({ view: 'bogus' }).view).toBeNull();
+
+    // rv parses standalone — inert-without-view is enforced at render (browser-client), not here
+    const rvOnly = fileBrowserPageParamsCache.parse({ rv: 'ses_solo' });
+    expect(rvOnly.rv).toBe('ses_solo');
+    expect(rvOnly.view).toBeNull();
+
+    // rv absent → null
+    expect(fileBrowserPageParamsCache.parse({}).rv).toBeNull();
+  });
 });

@@ -39,6 +39,15 @@ dev:
         "pnpm turbo dev -- --port $NEXT_PORT" \
         "pnpm tsx watch --env-file=apps/web/.env.local apps/web/src/features/064-terminal/server/terminal-ws.ts"
 
+# Start dev server with file-watch POLLING forced on (WSL / Windows-mount fallback).
+# Native fs.watch (inotify) is silently dead when the workspace lives on a Windows
+# drive mounted into WSL2 (/mnt/c/..., drvfs/9P), so file changes go undetected. This
+# forces a recursive polling watcher instead. Optional arg = poll interval ms (default 1000).
+# Equivalent to setting CHAINGLASS_WATCH_POLLING=true in apps/web/.env then `just dev`.
+dev-poll interval="1000":
+    @echo "🐢 file-watch polling ON — CHAINGLASS_WATCH_POLLING=true, interval={{interval}}ms (use plain 'just dev' for native watching)"
+    CHAINGLASS_WATCH_POLLING=true CHAINGLASS_WATCH_POLL_INTERVAL={{interval}} just dev
+
 # Start terminal WebSocket server only
 dev-terminal:
     PORT=${PORT:-3000} pnpm tsx watch --env-file=apps/web/.env.local apps/web/src/features/064-terminal/server/terminal-ws.ts
@@ -69,6 +78,27 @@ dev-https:
 build:
     pnpm turbo build
 
+# Plan 088 (DL-001): flag a stale CLI bundle — dist/cli.cjs older than any apps/cli/src file means
+# `cg remote-view` (and other verbs) may be missing/outdated. Advisory guard; run before a live CLI
+# smoke. Exits non-zero when stale so CI/agents can gate on it; `just cli-build` rebuilds.
+cli-build-check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    dist="apps/cli/dist/cli.cjs"
+    if [ ! -f "$dist" ]; then
+      echo "❌ $dist missing — run \`just cli-build\`"; exit 1
+    fi
+    newer=$(find apps/cli/src -type f -name '*.ts' -newer "$dist" | head -5 || true)
+    if [ -n "$newer" ]; then
+      echo "❌ $dist is STALE — newer source(s) since last build:"; echo "$newer"
+      echo "→ run \`just cli-build\` so cg ships the current verbs (Plan 088 DL-001)"; exit 1
+    fi
+    echo "✓ $dist is up to date with apps/cli/src"
+
+# Rebuild just the CLI bundle (dist/cli.cjs) so `cg` ships the current commands.
+cli-build:
+    cd apps/cli && pnpm build
+
 # Run tests
 test:
     pnpm vitest run
@@ -85,20 +115,93 @@ test-pipeline:
 test-harness:
     cd harness && pnpm vitest run
 
-# Start harness dev container
-harness-dev:
+# Plan 088 Phase 3 — host streaming smoke: real Chrome + fake-streamd + WebCodecs on the Mac
+remote-view-stream-smoke:
+    npx tsx harness/host/remote-view-stream-smoke.mts
+
+# Plan 088 Phase 4 — streamd native daemon (Swift; outside the pnpm graph). Sources in native/streamd/.
+# ⚠️ streamd-setup creates a keychain cert (GUI auth) and the first install/run triggers TCC
+# Screen-Recording (and Accessibility for input) grants — run these AT THE HOST MAC.
+streamd-setup:
+    native/streamd/scripts/setup-cert.sh
+
+streamd-build:
+    cd native/streamd && swift build -c release
+
+# Swift-side fixture/auth/session conformance (the automated half of the Hybrid strategy)
+streamd-test:
+    cd native/streamd && swift test
+
+# Headless wire-protocol smoke: the REAL daemon binary streaming the recorded fixtures over a
+# real authenticated WebSocket to a `ws` client — NO TCC grant, no window. Proves the full
+# Workshop-003 path (auth gate, handshake, frames, displacement, detach, REST). Daemon-side
+# analogue of the Phase-3 browser stream smoke.
+streamd-smoke:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    (cd native/streamd && swift build)
+    FIX="$(cd apps/web/src/features/088-remote-view/protocol/fixtures/video && pwd)"
+    AUTH_SECRET=smoke-secret CG_REMOTE_VIEW__FIXTURES_DIR="$FIX" \
+      CG_REMOTE_VIEW__ALLOWED_ORIGINS="http://localhost:3000" \
+      native/streamd/.build/debug/streamd --port 6099 >/tmp/streamd-smoke.log 2>&1 &
+    DAEMON_PID=$!
+    trap 'kill $DAEMON_PID 2>/dev/null || true' EXIT
+    curl -s --retry 30 --retry-delay 1 --retry-connrefused http://127.0.0.1:6099/health >/dev/null
+    node native/streamd/scripts/smoke-headless.mjs --port 6099 --secret smoke-secret --origin http://localhost:3000
+    node native/streamd/scripts/lifecycle-headless.mjs --bin native/streamd/.build/debug/streamd --fixtures "$FIX"
+
+streamd-install: streamd-build
+    native/streamd/scripts/make-bundle.sh
+
+# Kill streamd precisely via the discovery-registry pids. The signed bundle install path is shared
+# across worktrees, so a broad `pkill -f <bundle path>` would take down another worktree's daemon
+# (F002/F014). We therefore ONLY kill registry-backed pids; with no registry file we refuse to
+# broad-pkill and tell you how to target a specific instance explicitly. Each `.pid` is validated as
+# a positive nonzero integer AND confirmed to be a live `streamd` process before we signal it, so a
+# malformed/stale/recycled registry value can never target a process group or an unrelated pid (F001).
+streamd-kill:
+    #!/usr/bin/env bash
+    killed=0
+    shopt -s nullglob
+    for f in .chainglass/streamd-*.json; do
+      pid=$(jq -r '.pid // empty' "$f" 2>/dev/null)
+      # Only a positive nonzero decimal pid is safe — `0`/negatives/option-shaped strings would let
+      # `kill` hit a process group or be parsed as a signal flag (F001/FT-001).
+      if [[ ! "$pid" =~ ^[1-9][0-9]*$ ]]; then
+        echo "skipping invalid streamd pid in $f: ${pid:-<empty>}" >&2
+        continue
+      fi
+      # Identity gate: the live process must actually be a streamd before we signal it.
+      if [[ "$(ps -o command= -p "$pid" 2>/dev/null)" != *streamd* ]]; then
+        echo "skipping pid $pid in $f — not a live streamd process" >&2
+        continue
+      fi
+      if kill -- "$pid" 2>/dev/null; then echo "killed streamd pid $pid (from $f)"; killed=1; fi
+    done
+    if [ "$killed" = 0 ]; then
+      echo "no registry-backed streamd pid found (.chainglass/streamd-*.json)."
+      echo "refusing to broad-pkill the shared bundle path; target one explicitly, e.g.:"
+      echo "  kill \$(lsof -ti tcp:<port>)        # the daemon serving a known port"
+    fi
+
+# Start harness dev container (harness-tools — OLD Docker toolset)
+alias harness-dev := harness-tools-dev
+harness-tools-dev:
     cd harness && just dev
 
-# Install standalone harness dependencies
-harness-install:
+# Install standalone harness dependencies (harness-tools — OLD Docker toolset)
+alias harness-install := harness-tools-install
+harness-tools-install:
     cd harness && just install
 
-# Type-check standalone harness sources
-harness-typecheck:
+# Type-check standalone harness sources (harness-tools — OLD Docker toolset)
+alias harness-typecheck := harness-tools-typecheck
+harness-tools-typecheck:
     cd harness && just typecheck
 
-# Stop harness container
-harness-stop:
+# Stop harness container (harness-tools — OLD Docker toolset)
+alias harness-stop := harness-tools-stop
+harness-tools-stop:
     cd harness && just stop
 
 # Kill Next.js cache and restart dev server
@@ -107,19 +210,41 @@ kill-cache:
     rm -rf apps/web/public/icons
     @echo "Next.js cache and generated icons cleared"
 
-# Show harness health
-harness-health:
+# Show harness health (harness-tools — OLD Docker toolset)
+alias harness-health := harness-tools-health
+harness-tools-health:
     cd harness && just health
 
-# Run harness CLI command (e.g., just harness health, just harness screenshot home)
-# Workflow commands (Plan 076): just harness workflow {reset|run|status|logs}
-harness *ARGS:
+# Run the harness-tools CLI — the OLD Docker dev-container toolset (browser automation,
+# screenshots, workflow runner). This is NOT the new AI-Substrate `harness` proof-loop CLI
+# (that one is the bare `harness` command + `.harness/`; see .harness/engineering-harness.md).
+# Canonical:  just harness-tools <cmd>   (e.g. dev, doctor, health, screenshot, workflow ...)
+# `just harness <cmd>` still works as a back-compat alias (below) so existing docs keep resolving.
+alias harness := harness-tools
+harness-tools *ARGS:
     cd harness && pnpm exec tsx src/cli/index.ts {{ARGS}}
+
+# The bare `harness` command is the AI-Substrate proof-loop CLI (.harness/engineering-harness.md);
+# fails if any un-namespaced `harness-<x>:` recipe reappears (back-compat ALIASES are fine — they
+# are `alias` lines, not recipe definitions).
+# Guard: OLD Docker toolset stays namespaced under `harness-tools` (SUPPLANT de-conflation, Plan 088)
+check-harness-deconflation:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    leaked=$(grep -nE '^harness-[a-z]' justfile | grep -vE ':harness-tools' || true)
+    if [ -n "$leaked" ]; then
+      echo "❌ de-conflation regressed — un-namespaced Docker recipe(s) found:"
+      echo "$leaked"
+      echo "→ rename to harness-tools-<x> and add: alias <old-name> := harness-tools-<x>"
+      exit 1
+    fi
+    echo "✓ harness ⇄ harness-tools de-conflated (Docker toolset fully namespaced)"
 
 # Run cg CLI commands inside the harness container (Plan 076)
 # Auto-adds --json, --workspace-path, and --server-url when --server is present.
 # Example: just harness-cg wf show test-workflow --detailed --server
-harness-cg *ARGS:
+alias harness-cg := harness-tools-cg
+harness-tools-cg *ARGS:
     cd harness && just cg {{ARGS}}
 
 # Verify a page renders cleanly in the harness — Plan 084 FX007 lesson.
@@ -137,7 +262,8 @@ harness-cg *ARGS:
 #
 # Example:
 #   just harness-verify "/workspaces/harness-test-workspace/browser"
-harness-verify path:
+alias harness-verify := harness-tools-verify
+harness-tools-verify path:
     #!/usr/bin/env bash
     set -euo pipefail
     START_ISO="$(date -u +%Y-%m-%dT%H:%M:%S)"
@@ -325,9 +451,22 @@ format:
 # Fix, format, and test (fft) - full quality check sequence
 fft: lint format build typecheck test security-audit
 
-# Run TypeScript type checking
+# Run TypeScript type checking across EVERY workspace tsconfig.
+# Per AGENTS § "No Pre-Existing Errors": the canonical typecheck must
+# cover apps/, packages/, harness/, and test/ — not just packages/ via
+# the root tsconfig. We loop explicitly because each workspace owns its
+# own tsconfig with workspace-specific paths and includes.
 typecheck:
-    pnpm tsc --noEmit
+    #!/usr/bin/env bash
+    set -euo pipefail
+    failed=0
+    for cfg in apps/web/tsconfig.json apps/cli/tsconfig.json packages/*/tsconfig.json harness/tsconfig.json test/tsconfig.json; do
+      echo "===> $cfg"
+      if ! pnpm exec tsc --noEmit -p "$cfg"; then
+        failed=1
+      fi
+    done
+    exit $failed
 
 # Audit dependencies for known security vulnerabilities (high/critical only)
 security-audit:
@@ -464,8 +603,9 @@ preflight:
         exit 1
     fi
 
-# Quick preflight: fail immediately if harness isn't running
-harness-require:
+# Quick preflight: fail immediately if harness isn't running (harness-tools — OLD Docker toolset)
+alias harness-require := harness-tools-require
+harness-tools-require:
     #!/usr/bin/env bash
     PORT=$(cd harness && pnpm exec tsx -e "import{computePorts}from'./src/ports/allocator.js';console.log(computePorts().app)" 2>/dev/null)
     if [ -z "$PORT" ]; then PORT=3181; fi

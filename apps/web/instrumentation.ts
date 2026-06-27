@@ -26,6 +26,10 @@ const globalForBootstrap = globalThis as typeof globalThis & {
   __bootstrapCodeWritten?: boolean;
 };
 
+const globalForRemoteViewReaper = globalThis as typeof globalThis & {
+  __remoteViewReaperRan?: boolean;
+};
+
 export async function register() {
   // CentralWatcherService uses Node.js APIs (chokidar, fs) — skip on Edge runtime.
   // console.log is intentional: this runs at process startup before the DI container
@@ -67,6 +71,37 @@ export async function register() {
           cwd = process.cwd();
         }
         await writeBootstrapCodeOnBoot(cwd);
+      }
+    }
+
+    // Plan 088 T006 (AC-11): reap THIS web port's orphaned `streamd` daemon at boot, so a prior
+    // dev cycle that SIGKILL'd the web server leaves zero orphans. Fail-closed (only signals a
+    // verified-ours, alive orphan) + non-throwing. HMR-safe via the global flag; skip in container.
+    if (
+      !globalForRemoteViewReaper.__remoteViewReaperRan &&
+      process.env.CHAINGLASS_CONTAINER !== 'true'
+    ) {
+      globalForRemoteViewReaper.__remoteViewReaperRan = true;
+      try {
+        const { reapStreamdDaemonAtBoot } = await import(
+          './src/features/088-remote-view/server/daemon-reaper'
+        );
+        const { findWorkspaceRoot } = await import('@chainglass/shared/auth-bootstrap-code');
+        const { execFileSync } = await import('node:child_process');
+        const result = reapStreamdDaemonAtBoot({
+          env: process.env,
+          findRoot: findWorkspaceRoot,
+          exec: (cmd, args) => execFileSync(cmd, args, { encoding: 'utf8' }),
+          killer: (pid, signal) => process.kill(pid, signal),
+          logger: console,
+        });
+        console.log(
+          `[remote-view] streamd reaper at boot: ${result?.reason ?? 'skipped'}${
+            result?.killedPid ? ` (SIGTERM ${result.killedPid})` : ''
+          }`
+        );
+      } catch (error) {
+        console.warn('[remote-view] streamd reaper at boot failed (non-fatal):', error);
       }
     }
 

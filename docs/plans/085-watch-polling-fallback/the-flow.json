@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "slug": "watch-polling-fallback",
+  "plan_dir": "docs/plans/085-watch-polling-fallback",
+  "cursor": "merge",
+  "recommended_next": "merge",
+  "mode": "Simple",
+  "milestones_total": 6,
+  "milestones_done": 5,
+  "nodes": [
+    {
+      "id": "research",
+      "type": "research",
+      "title": "Research",
+      "status": "done",
+      "ran_at": "2026-06-04T00:47:46Z",
+      "note": "Survey done in-conversation, then written up via /plan-1a (arg: 'for posterity'). Native fs.watch is inotify-backed and silently dead on drvfs/9P mounts; usePolling declared but unwired; clean per-worktree factory seam; SOURCE_WATCHER_IGNORED reusable.",
+      "artifacts": ["original-ask.md", "research-dossier.md"],
+      "next": ["spec"],
+      "reconstructed": true
+    },
+    {
+      "id": "spec",
+      "type": "spec",
+      "title": "Spec (Simple, CS-3)",
+      "status": "done",
+      "ran_at": "2026-06-04T01:05:00Z",
+      "note": "Simple mode. Round 1: Simple / Lightweight / avoid-mocks / README+env-example. No Round 2 (no NEW domains, harness exists, no critical clarifications). Scope locked: env-forced only, no auto-detection, no adaptive interval.",
+      "artifacts": ["watch-polling-fallback-spec.md", "watch-polling-fallback.fltplan.md"],
+      "user_input": "Simplest version of this where we just force it on with env otherwise its not detected etc. This is super edge case, i rarely use in this modality",
+      "next": ["plan"]
+    },
+    {
+      "id": "workshop-001",
+      "type": "workshop",
+      "title": "Workshop: PollingFileWatcherAdapter design",
+      "status": "done",
+      "branch_of": "spec",
+      "ran_at": "2026-06-04T01:20:00Z",
+      "user_input": "do workshops",
+      "note": "Implementation-Ready design: snapshot (size,mtime) diff -> add/change/unlink/addDir parity with native; ignore-list prune-before-descend; skip-if-busy scan guard; selecting FileWatcherFactory reads env; no unlinkDir (native parity). Authoritative for /plan-3.",
+      "artifacts": ["workshops/001-polling-file-watcher-adapter.md"],
+      "next": ["plan"]
+    },
+    {
+      "id": "plan",
+      "type": "plan",
+      "title": "Plan (Simple, READY, validated)",
+      "status": "done",
+      "ran_at": "2026-06-04T01:35:00Z",
+      "user_input": "architect please",
+      "note": "Simple-mode plan, all 7 gates PASS -> READY. validate-v2 (narrow, 2 agents) VALIDATED WITH FIXES: source-verified di-container.ts:593-595 / interface usePolling / compileIgnorePatterns:222-231 / unlink-no-unlinkDir parity; applied 5 fixes (T001 extraction source, flat unit-test path, export FileWatcherFactory, consumer-verification in T006, AC1 pinned to features/060 test).",
+      "artifacts": ["watch-polling-fallback-plan.md"],
+      "next": ["phase-1"]
+    },
+    {
+      "id": "phase-1",
+      "type": "phase",
+      "title": "Implementation (single phase, T001-T006 + FX)",
+      "status": "done",
+      "ran_at": "2026-06-04T01:48:00Z",
+      "user_input": "use compaion /6 command to implement please",
+      "note": "Companion build complete. T001 extract ignore helper; T002 PollingFileWatcherAdapter; T003 selecting FileWatcherFactory + barrel; T004 DI swap; T005 env docs; T006 unit(15)+integration(5)+consumer-ripple. Companion (reviewed T001-T005) flagged T004 HIGH (root barrel export gap — independently caught + fixed) and T002 MEDIUM (unwatch-during-pending-baseline — fixed via 'watched' set + regression test). Gate: tsc 0 errors, biome clean, 41 watcher tests green.",
+      "artifacts": [
+        "packages/workflow/src/adapters/ignore-patterns.ts",
+        "packages/workflow/src/adapters/polling-file-watcher.adapter.ts",
+        "packages/workflow/src/adapters/file-watcher.factory.ts",
+        "apps/web/src/lib/di-container.ts",
+        "test/unit/workflow/polling-file-watcher.test.ts",
+        "test/integration/workflow/features/085/polling-file-watcher.integration.test.ts",
+        "execution.log.md"
+      ],
+      "next": ["merge"]
+    },
+    {
+      "id": "merge",
+      "type": "merge",
+      "title": "Merge",
+      "status": "known",
+      "next": []
+    }
+  ],
+  "agents": [
+    {
+      "id": "code-review-companion",
+      "kind": "companion",
+      "render": "wrap",
+      "covers": ["phase-1"],
+      "ran_at": "2026-06-04T01:46:36Z",
+      "note": "Reviewed T001-T005 then self-terminated on idle budget (run completed). 2 findings, both resolved: T004 HIGH (barrel export), T002 MEDIUM (unwatch lifecycle). T006+FX not companion-reviewed (test/tsc/biome-validated instead). Supersedes /plan-7 for the reviewed commits."
+    }
+  ]
+}

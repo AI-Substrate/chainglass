@@ -39,7 +39,7 @@ function runAgentCli(args: string[], options: ExecSyncOptions = {}): string {
     timeout: 120_000,
     cwd: process.cwd(),
     ...options,
-  });
+  }).toString();
 }
 
 /**

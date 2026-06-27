@@ -13,6 +13,7 @@
  */
 
 import { WorkspaceCard } from '@/features/041-file-browser/components/workspace-card';
+import { DEFAULT_PREFERENCES } from '@chainglass/workflow';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
@@ -23,7 +24,13 @@ describe('WorkspaceCard', () => {
     slug: 'substrate',
     name: 'substrate',
     path: '/home/user/substrate',
-    preferences: { emoji: '🔮', color: 'violet', starred: false, sortOrder: 0 },
+    preferences: {
+      ...DEFAULT_PREFERENCES,
+      emoji: '🔮',
+      color: 'violet',
+      starred: false,
+      sortOrder: 0,
+    },
     worktreeCount: 23,
   };
 

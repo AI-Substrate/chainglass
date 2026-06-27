@@ -12,7 +12,7 @@
 
 import { SHARED_DI_TOKENS } from '@chainglass/shared';
 import { FakeNoteService } from '@chainglass/shared/fakes';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { type MockInstance, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockContext = { worktreePath: '/tmp/test-worktree', slug: 'test', name: 'Test' };
 let fakeService: FakeNoteService;
@@ -67,10 +67,16 @@ function captureOutput() {
   };
 }
 
-import { Command } from 'commander';
+import { createProgram } from '../../../apps/cli/src/bin/cg.js';
 import { registerNotesCommands } from '../../../apps/cli/src/commands/notes.command.js';
 
-function createTestProgram() {
+// The CLI resolves commander@13 while this test workspace resolves commander@11.
+// Derive the Command type and constructor from the CLI's createProgram() so the
+// instance passed to registerNotesCommands matches its commander@13 parameter.
+type Command = ReturnType<typeof createProgram>;
+const Command = createProgram().constructor as new () => Command;
+
+function createTestProgram(): Command {
   const program = new Command();
   program.exitOverride();
   program.configureOutput({ writeOut: () => {}, writeErr: () => {} });
@@ -79,7 +85,7 @@ function createTestProgram() {
 }
 
 describe('cg notes', () => {
-  let exitSpy: ReturnType<typeof vi.spyOn>;
+  let exitSpy: MockInstance<typeof process.exit>;
 
   beforeEach(() => {
     fakeService = new FakeNoteService();

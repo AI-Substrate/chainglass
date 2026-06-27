@@ -32,6 +32,13 @@ export const WorkspaceDomain = {
    * subscription path (Plan 074)
    */
   WorkflowExecution: 'workflow-execution',
+  /**
+   * SSE channel: `'remote-view'` — push-only domain (no filesystem watcher); the
+   * remote-view adapter + daemon manager emit `attached`/`detached`/`daemon-state`
+   * imperatively (Plan 088 Phase 5, T006). Domain value IS the channel id —
+   * `useChannelEvents('remote-view', …)` subscribes it (no mapping table).
+   */
+  RemoteView: 'remote-view',
 } as const;
 
 /**

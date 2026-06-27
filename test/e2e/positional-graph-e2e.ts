@@ -51,7 +51,7 @@ function createTestUnit(
   inputs: Array<{ name: string; type: 'data' | 'file'; required: boolean }>,
   outputs: Array<{ name: string; type: 'data' | 'file'; required: boolean }>
 ): NarrowWorkUnit {
-  return { slug, inputs, outputs };
+  return { type: 'agent', slug, inputs, outputs };
 }
 
 function createFakeUnitLoader(units: NarrowWorkUnit[]): IWorkUnitLoader {

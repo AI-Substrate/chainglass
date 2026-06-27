@@ -57,7 +57,16 @@ function isGenuinelyBinaryExtension(filename: string): boolean {
   if (FONT_EXTENSIONS.has(ext)) return true;
   if (ARCHIVE_EXTENSIONS.has(ext)) return true;
   const { category } = detectContentType(filename);
-  return category === 'image' || category === 'video' || category === 'audio' || category === 'pdf';
+  // 'html' is routed through the binary path so BinaryFileView dispatches
+  // to HtmlViewer (sandboxed iframe). The file is text on disk but its
+  // preview is rendered, not syntax-highlighted.
+  return (
+    category === 'image' ||
+    category === 'video' ||
+    category === 'audio' ||
+    category === 'pdf' ||
+    category === 'html'
+  );
 }
 
 // ==================== Read File ====================

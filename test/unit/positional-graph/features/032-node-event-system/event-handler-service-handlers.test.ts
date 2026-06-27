@@ -64,9 +64,7 @@ function makeEvent(eventType: string, overrides: Partial<NodeEvent> = {}): NodeE
 
 function makeState(nodes: Record<string, { status: string; events?: NodeEvent[] }>): State {
   return {
-    graph_slug: 'test-graph',
-    version: '1.0.0',
-    created_at: new Date().toISOString(),
+    graph_status: 'in_progress',
     updated_at: new Date().toISOString(),
     nodes: Object.fromEntries(
       Object.entries(nodes).map(([id, entry]) => [

@@ -65,7 +65,8 @@ async function main() {
     console.log('4. Calling check_health tool...');
     const result = await client.callTool({ name: 'check_health', arguments: {} });
     console.log('   Result:');
-    for (const content of result.content) {
+    const contentBlocks = result.content as Array<{ type: string; text: string }>;
+    for (const content of contentBlocks) {
       if (content.type === 'text') {
         const parsed = JSON.parse(content.text);
         console.log(`   - status: ${parsed.status}`);

@@ -53,7 +53,6 @@ describe('WorkflowRegistryService.restore()', () => {
       );
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/current/wf.yaml`, 'name: Current Version');
 
-      // @ts-expect-error - Method doesn't exist yet (TDD RED phase)
       const result = await service.restore(WORKFLOWS_DIR, 'test-wf', 'v001');
 
       expect(result.errors).toHaveLength(0);
@@ -90,7 +89,6 @@ describe('WorkflowRegistryService.restore()', () => {
       );
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/current/wf.yaml`, 'name: Old');
 
-      // @ts-expect-error - Method doesn't exist yet (TDD RED phase)
       const result = await service.restore(WORKFLOWS_DIR, 'test-wf', 'v001');
 
       expect(result.errors).toHaveLength(0);
@@ -124,7 +122,6 @@ describe('WorkflowRegistryService.restore()', () => {
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/current/extra-file.yaml`, 'extra: content');
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/current/phases/old-phase.yaml`, 'old: phase');
 
-      // @ts-expect-error - Method doesn't exist yet (TDD RED phase)
       await service.restore(WORKFLOWS_DIR, 'test-wf', 'v001');
 
       // Extra files should be gone
@@ -157,7 +154,6 @@ describe('WorkflowRegistryService.restore()', () => {
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/current/wf.yaml`, 'name: Current');
 
       // Using just ordinal
-      // @ts-expect-error - Method doesn't exist yet (TDD RED phase)
       const result = await service.restore(WORKFLOWS_DIR, 'test-wf', 'v001');
 
       expect(result.errors).toHaveLength(0);
@@ -175,7 +171,6 @@ describe('WorkflowRegistryService.restore()', () => {
       */
       // No workflow directory
 
-      // @ts-expect-error - Method doesn't exist yet (TDD RED phase)
       const result = await service.restore(WORKFLOWS_DIR, 'nonexistent-wf', 'v001');
 
       expect(result.errors).toHaveLength(1);
@@ -200,7 +195,6 @@ describe('WorkflowRegistryService.restore()', () => {
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/checkpoints/v001-abc12345/wf.yaml`, 'name: Version 1');
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/current/wf.yaml`, 'name: Current');
 
-      // @ts-expect-error - Method doesn't exist yet (TDD RED phase)
       const result = await service.restore(WORKFLOWS_DIR, 'test-wf', 'v999');
 
       expect(result.errors).toHaveLength(1);
@@ -225,7 +219,6 @@ describe('WorkflowRegistryService.restore()', () => {
       fs.setDir(`${WORKFLOWS_DIR}/test-wf/checkpoints`); // Empty
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/current/wf.yaml`, 'name: Current');
 
-      // @ts-expect-error - Method doesn't exist yet (TDD RED phase)
       const result = await service.restore(WORKFLOWS_DIR, 'test-wf', 'v001');
 
       expect(result.errors).toHaveLength(1);

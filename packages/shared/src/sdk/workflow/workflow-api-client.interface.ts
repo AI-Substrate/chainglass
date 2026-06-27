@@ -10,6 +10,8 @@
  * Importable from both SDK and test code without pulling in fetch or server deps.
  */
 
+import type { ResultError } from '../../interfaces/results/base.types.js';
+
 // ── Response DTOs ───────────────────────────────────────
 
 /** Result of POST /execution (start) and POST /execution/restart */
@@ -81,7 +83,7 @@ export interface WorkflowDetailedStatus {
   readonly lines: DetailedLine[];
   readonly questions: unknown[];
   readonly sessions: Record<string, string>;
-  readonly errors: unknown[];
+  readonly errors: ResultError[];
 }
 
 // ── SDK Error ───────────────────────────────────────────

@@ -15,7 +15,7 @@ describe('uploadFileService', () => {
   beforeEach(() => {
     fakeFs = new FakeFileSystem();
     fakeFs.setFile('/home/user/project/.gitignore', 'scratch/*');
-    fakePathResolver = new FakePathResolver(worktreePath);
+    fakePathResolver = new FakePathResolver();
   });
 
   function makeOptions(overrides: Partial<UploadFileOptions> = {}): UploadFileOptions {

@@ -35,6 +35,10 @@ export {
   NativeFileWatcherFactory,
 } from './native-file-watcher.adapter.js';
 
+// Polling file watcher adapter + selecting factory (Plan 085) — WSL/Windows-mount fallback
+export { PollingFileWatcherAdapter } from './polling-file-watcher.adapter.js';
+export { FileWatcherFactory } from './file-watcher.factory.js';
+
 // Template and instance adapters (Plan 048 Phase 2)
 export { TemplateAdapter } from './template.adapter.js';
 export { InstanceAdapter } from './instance.adapter.js';

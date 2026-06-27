@@ -97,6 +97,7 @@ import {
   FakeSampleAdapter,
   FakeWorkspaceContextResolver,
   FakeWorkspaceRegistryAdapter,
+  FileWatcherFactory,
   GitWorktreeManagerAdapter,
   GitWorktreeResolver,
   type IAgentEventAdapter,
@@ -111,7 +112,6 @@ import {
   type IWorkspaceContextResolver,
   type IWorkspaceRegistryAdapter,
   type IWorkspaceService,
-  NativeFileWatcherFactory,
   SampleAdapter,
   SampleService as WorkflowSampleService,
   WorkspaceContextResolver,
@@ -137,6 +137,22 @@ import { CentralEventNotifierService } from '../features/027-central-notify-even
 import { AgentWorkUnitBridge } from '../features/059-fix-agents/agent-work-unit-bridge';
 // Plan 067: QuestionPopperService (real implementation)
 import { QuestionPopperService } from '../features/067-question-popper/lib/question-popper.service';
+// Plan 088 Phase 5 (T004): daemon-control surface behind /windows + /health
+import {
+  REMOTE_VIEW_DAEMON_CONTROL_TOKEN,
+  type RemoteViewDaemonControl,
+  createFakeDaemonControl,
+} from '../features/088-remote-view/server/daemon-control';
+// Plan 088 Phase 2/5: RemoteViewService interface + fake (test) + real adapter (prod)
+import {
+  FakeRemoteViewService,
+  type IRemoteViewService,
+  REMOTE_VIEW_SERVICE_TOKEN,
+} from '../features/088-remote-view/server/remote-view-service';
+import {
+  createProductionDaemonControl,
+  createProductionRemoteViewService,
+} from '../features/088-remote-view/server/remote-view-service.production';
 import { SampleService } from '../services/sample.service';
 import { sseManager } from './sse-manager';
 // Plan 059: WorkUnitStateService (real implementation)
@@ -153,6 +169,9 @@ export const DI_TOKENS = {
   COPILOT_CLIENT: 'CopilotClient', // Singleton SDK client
   COPILOT_ADAPTER: 'CopilotAdapter',
   AGENT_SERVICE: 'AgentService',
+  // Plan 088: Remote-view session service (interface + fake now; real adapter Phase 5).
+  // Value single-sourced from the leaf token so the /sessions routes resolve the same key.
+  REMOTE_VIEW_SERVICE: REMOTE_VIEW_SERVICE_TOKEN,
   // Plan 018: Event storage moved to workspace-scoped AgentEventAdapter in @chainglass/workflow
   // Consumers should use WORKSPACE_DI_TOKENS.AGENT_EVENT_ADAPTER instead
 } as const;
@@ -589,9 +608,10 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
 
   // ==================== Plan 027: Central Notification System ====================
 
-  // Register IFileWatcherFactory → NativeFileWatcherFactory (Plan 060: replaces chokidar)
+  // Register IFileWatcherFactory → FileWatcherFactory (Plan 085: selecting factory —
+  // env-forced polling fallback for WSL/Windows mounts; native by default)
   childContainer.register<IFileWatcherFactory>(WORKSPACE_DI_TOKENS.FILE_WATCHER_FACTORY, {
-    useFactory: () => new NativeFileWatcherFactory(),
+    useFactory: () => new FileWatcherFactory(),
   });
 
   // Register CentralWatcherService with all 6 constructor dependencies
@@ -701,6 +721,40 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
         notifier
       );
       return questionPopperInstance;
+    },
+  });
+
+  // ==================== Plan 088: Remote View Service ====================
+  // Phase 5 (T003): the real daemon-backed adapter (decorator-free useFactory,
+  // ADR-0004). Construction does no I/O — the daemon spawns lazily on the first
+  // attach (Phase-6 live). The test container keeps the fake (below).
+  // T007 (DL-008): memoize the service per-container — it holds the active-session `Map` that
+  // `list()` reads, kept in step by `attach()`/`detach()`. A transient `useFactory` built a fresh
+  // empty Map on every request, so an attach's session was invisible to the next request's `list`
+  // (GET /sessions structurally always empty). Same transient-useFactory class T008 fixed for the
+  // daemon-control; the cell is per-container so distinct containers stay isolated.
+  let productionRemoteViewService: IRemoteViewService | undefined;
+  childContainer.register<IRemoteViewService>(DI_TOKENS.REMOTE_VIEW_SERVICE, {
+    useFactory: (c) => {
+      productionRemoteViewService ??= createProductionRemoteViewService({
+        logger: console,
+        // T006: the real adapter + daemon manager emit `remote-view` SSE envelopes.
+        notifier: c.resolve<ICentralEventNotifier>(WORKSPACE_DI_TOKENS.CENTRAL_EVENT_NOTIFIER),
+      });
+      return productionRemoteViewService;
+    },
+  });
+  // Phase 5 (T004): daemon-control surface behind /windows + /health (real one-shot
+  // `streamd --list-windows` + daemon /health proxy). Construction does no I/O.
+  // T008: memoize so /windows and /health resolve the SAME control instance (one config, one
+  // manager) — not a fresh transient per route. tsyringe ignores `lifecycle` for `useFactory`
+  // providers, so a closure-scoped memo is the singleton; the cell is per-container (scoped to
+  // this `createProductionContainer` call), so distinct containers stay isolated.
+  let productionDaemonControl: RemoteViewDaemonControl | undefined;
+  childContainer.register<RemoteViewDaemonControl>(REMOTE_VIEW_DAEMON_CONTROL_TOKEN, {
+    useFactory: () => {
+      productionDaemonControl ??= createProductionDaemonControl({ logger: console });
+      return productionDaemonControl;
     },
   });
 
@@ -931,6 +985,27 @@ export function createTestContainer(): DependencyContainer {
 
   childContainer.register<IQuestionPopperService>(WORKSPACE_DI_TOKENS.QUESTION_POPPER_SERVICE, {
     useValue: new FakeQuestionPopperService(),
+  });
+
+  // ==================== Plan 088: Remote View Service (Fake) ====================
+  // T007 (DL-008): memoized for the same single-instance guarantee the production container makes —
+  // the fake's session Map must survive across resolves so attach→list reflects the session.
+  let fakeRemoteViewService: IRemoteViewService | undefined;
+  childContainer.register<IRemoteViewService>(DI_TOKENS.REMOTE_VIEW_SERVICE, {
+    useFactory: () => {
+      fakeRemoteViewService ??= new FakeRemoteViewService();
+      return fakeRemoteViewService;
+    },
+  });
+  // Phase 5 (T004): daemon-control fake — deterministic catalog + healthy verdict, no daemon.
+  // T008: memoized for the same single-instance guarantee the production container makes, so a
+  // test that resolves the control twice sees one fake (matches the route reconciliation).
+  let fakeDaemonControl: RemoteViewDaemonControl | undefined;
+  childContainer.register<RemoteViewDaemonControl>(REMOTE_VIEW_DAEMON_CONTROL_TOKEN, {
+    useFactory: () => {
+      fakeDaemonControl ??= createFakeDaemonControl();
+      return fakeDaemonControl;
+    },
   });
 
   return childContainer;

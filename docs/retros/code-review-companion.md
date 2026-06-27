@@ -36,3 +36,50 @@
 - difficulties:
   - [degrading] coordination: Publishing state transitions or some non-idle states returned 'state does not match inside state schema', even though idle state_set calls succeeded. (workaround: Used inbox progress, finding, and summary messages for observable status, and published idle when accepted.)
   - [annoying] test: Every scoped Vitest run emitted tsconfig-paths warnings from generated .next/standalone and apps/cli/dist/web/standalone tsconfig files before reporting pass/fail. (workaround: Treated the warnings as pre-existing noise after confirming the targeted test files passed.)
+
+## 2026-05-16T04:21:32.270Z — code-review-companion / 2026-05-16T13-56-40-619Z-3f9f
+
+- runId: 2026-05-16T13-56-40-619Z-3f9f
+- runDir: /Users/jordanknight/substrate/084-random-enhancements-3/agents/code-review-companion/runs/2026-05-16T13-56-40-619Z-3f9f
+- summary: Reviewed the FX011 HtmlViewer asset-token phase in companion mode across four implementation commits plus the phase drain. The session found four issues total: two LOW implementation/type-safety issues and two MEDIUM testing/contract-drift issues. No HIGH or CRITICAL findings were found; the load-bearing security posture remained intact, including sandbox='allow-scripts', no AUTH_BYPASS_ROUTES widening, explicit invalid-token rejection before auth(), and type-tagged HMAC asset tokens.
+- **magicWand** (target: coordination): Make the coordination state schema and prompt vocabulary share one generated source so state_transition({to:'reviewing'}) either validates or the prompt never asks for that status.
+- difficulties:
+  - [degrading] coordination: state_transition/state_set calls for documented companion statuses such as reading failed with 'state does not match inside state schema'. (workaround: Used inbox progress, finding, summary, and farewell messages as the observable coordination trail instead of relying on state transitions.)
+
+## 2026-05-19T05:38:14.873Z — code-review-companion / 2026-05-19T14-51-17-196Z-0917
+
+- runId: 2026-05-19T14-51-17-196Z-0917
+- runDir: /Users/jordanknight/substrate/084-random-enhancements-3/agents/code-review-companion/runs/2026-05-19T14-51-17-196Z-0917
+- summary: Reviewed the Plan 084 split-terminal-view sequence through T013. The phase has useful structure and most PanelShell/toggle wiring is directionally sound, but I sent REQUEST_CHANGES findings for two HIGH resync implementation blockers, several MEDIUM evidence/contract-drift issues, and recurring commit-message policy violations across the stack.
+- **magicWand** (target: coordination): Generate the coordination state vocabulary from one schema shared by the prompt, MCP validator, and workbench, and provide a report-builder command that can materialize findings already sent through the inbox.
+- difficulties:
+  - [degrading] coordination: Documented state_transition/status values such as reading/reviewing/stopping were rejected by the coordination MCP schema even though the prompt requires them. (workaround: Used state_set with status=idle and placed the real phase/mode in state.data so the peer still had observable progress.)
+  - [annoying] coordination: The final report had to manually duplicate every finding already sent via inbox, which is error-prone for a long companion run with many per-commit findings. (workaround: Maintained the finding IDs in conversation state and wrote the JSON envelope manually.)
+
+## 2026-05-28T06:28:38.409Z — code-review-companion / 2026-05-28T15-38-18-477Z-9bcb
+
+- runId: 2026-05-28T15-38-18-477Z-9bcb
+- runDir: /Users/jordanknight/substrate/084-random-enhancements-3/agents/code-review-companion/runs/2026-05-28T15-38-18-477Z-9bcb
+- summary: Reviewed the preview-pdf-download phase in companion mode across dependency, generator, hook, markdown UI, HTML UI, component-test, fix, and final-drain commits. Sent four findings: F001 dependency range hygiene, F002 unsafe untrusted CSS staging, F003 contract drift after the sanitizer fix, and F004 stale HTML export state across file switches. The final drain verified all four findings were addressed; T007/T008 remain honestly documented as partial/manual for live download and visual-fidelity evidence rather than silently claimed as automated proof.
+- **magicWand** (target: coordination): Add a minih companion helper command that writes validated state transitions with the allowed schema and prints the exact allowed statuses when validation fails.
+- difficulties:
+  - [degrading] coordination: state_transition/state_set rejected non-idle statuses such as reading and stopping with a generic 'state does not match inside state schema' error. (workaround: Published idle state updates where accepted and used inbox progress/finding/summary messages for observable lifecycle evidence.)
+  - [annoying] config: The shell did not expose MINIH_PROJECT_ROOT, so the required initial cd landed in the run directory rather than the project root. (workaround: Used the known repository root from the environment context: /Users/jordanknight/substrate/084-random-enhancements-3.)
+
+> ⚠️ ## 2026-06-03T00:22:01.696Z — code-review-companion / 2026-06-03T09-59-51-241Z-266e
+>
+> - runId: 2026-06-03T09-59-51-241Z-266e
+> - runDir: /Users/jordanknight/substrate/084-random-enhancements-3/harness/agents/code-review-companion/runs/2026-06-03T09-59-51-241Z-266e
+> - result: failed
+> - magicWand: (unavailable — run terminated as failed)
+> - stderr (last line): permission denied: kind=shell blocked by preset/overrides
+
+## 2026-06-04T01:46:36.366Z — code-review-companion / 2026-06-04T11-32-00-664Z-1fcb
+
+- runId: 2026-06-04T11-32-00-664Z-1fcb
+- runDir: /Users/jordanknight/substrate/084-random-enhancements-3/agents/code-review-companion/runs/2026-06-04T11-32-00-664Z-1fcb
+- summary: Oriented on plan 085 and reviewed T001 through T005 commit pings for the env-forced polling file watcher fallback. T001, T003, and T005 had no issues; T002 produced one MEDIUM lifecycle finding around unwatch during the initial pending baseline scan, and T004 produced one HIGH build-breaking finding because FileWatcherFactory was imported from the workflow package root without being exported there.
+- **magicWand** (target: coordination): Expose a small 'companion runtime config' message or env dump that includes projectRoot, idleBudgetMs, and the accepted state status enum before boot orientation starts.
+- difficulties:
+  - [degrading] config: MINIH_PROJECT_ROOT resolved to the run folder, so the required initial cd did not reach the repository root and docs/plans appeared missing. (workaround: Used the repository root supplied in the session environment context.)
+  - [degrading] coordination: state_transition and state_set for non-idle statuses failed with 'state does not match inside state schema', despite the companion prompt requiring reading/reviewing/reporting/stopping statuses. (workaround: Published idle states with detailed data and continued using inbox progress/finding/summary messages for observable status.)

@@ -27,6 +27,14 @@ export { TerminalSkeleton } from './components/terminal-skeleton';
 export { TerminalOverlayPanel } from './components/terminal-overlay-panel';
 export { TerminalOverlayProvider, useTerminalOverlay } from './hooks/use-terminal-overlay';
 
+// Singleton viewport primitives (FX012 — Plan 084 random-enhancements-3)
+export {
+  TerminalSingletonProvider,
+  useTerminalSingleton,
+} from './components/terminal-singleton-provider';
+export { TerminalViewport } from './components/terminal-viewport';
+export type { TerminalViewportProps } from './components/terminal-viewport';
+
 // Utilities
 export { sanitizeSessionName } from './lib/sanitize-session-name';
 

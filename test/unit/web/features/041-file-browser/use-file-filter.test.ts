@@ -34,40 +34,48 @@ import {
 
 // --- Fake fetch ---
 
+type FakeFetch = UseFileFilterOptions['fetchFileList'] & { calls: unknown[][] };
+
 function makeFakeFetch(
   files: { path: string; mtime: number }[] = [
     { path: 'src/app.tsx', mtime: 3000 },
     { path: 'src/lib/utils.ts', mtime: 2000 },
     { path: 'README.md', mtime: 1000 },
   ]
-): UseFileFilterOptions['fetchFileList'] & { calls: unknown[][] } {
+): FakeFetch {
   const calls: unknown[][] = [];
-  const fn = async (worktreePath: string, includeHidden: boolean) => {
+  const fetchFileList: UseFileFilterOptions['fetchFileList'] = async (
+    worktreePath,
+    includeHidden
+  ) => {
     calls.push([worktreePath, includeHidden]);
     return { ok: true as const, files };
   };
-  (fn as { calls: unknown[][] }).calls = calls;
-  return fn as UseFileFilterOptions['fetchFileList'] & { calls: unknown[][] };
+  return Object.assign(fetchFileList, { calls });
 }
 
-function makeFakeFetchError(): UseFileFilterOptions['fetchFileList'] & { calls: unknown[][] } {
+function makeFakeFetchError(): FakeFetch {
   const calls: unknown[][] = [];
-  const fn = async (worktreePath: string, includeHidden: boolean) => {
+  const fetchFileList: UseFileFilterOptions['fetchFileList'] = async (
+    worktreePath,
+    includeHidden
+  ) => {
     calls.push([worktreePath, includeHidden]);
     return { ok: false as const, error: 'fail' };
   };
-  (fn as { calls: unknown[][] }).calls = calls;
-  return fn as UseFileFilterOptions['fetchFileList'] & { calls: unknown[][] };
+  return Object.assign(fetchFileList, { calls });
 }
 
-function makeFakeFetchThrows(): UseFileFilterOptions['fetchFileList'] & { calls: unknown[][] } {
+function makeFakeFetchThrows(): FakeFetch {
   const calls: unknown[][] = [];
-  const fn = async (worktreePath: string, includeHidden: boolean) => {
+  const fetchFileList: UseFileFilterOptions['fetchFileList'] = async (
+    worktreePath,
+    includeHidden
+  ) => {
     calls.push([worktreePath, includeHidden]);
     throw new Error('network');
   };
-  (fn as { calls: unknown[][] }).calls = calls;
-  return fn as UseFileFilterOptions['fetchFileList'] & { calls: unknown[][] };
+  return Object.assign(fetchFileList, { calls });
 }
 
 function makeOptions(overrides?: Partial<UseFileFilterOptions>): UseFileFilterOptions {

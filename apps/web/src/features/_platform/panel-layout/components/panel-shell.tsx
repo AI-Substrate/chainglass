@@ -9,8 +9,14 @@
  *
  * Phase 1: Panel Infrastructure — Plan 043
  * Phase 1: Mobile Panel Shell — Plan 078
+ * Plan 084 split-terminal-view: optional rightPane slot. When present
+ *   (desktop only), wraps left+main and rightPane in a horizontal
+ *   ResizablePanelGroup. `data-terminal-overlay-anchor` stays on the
+ *   `main` slot wrapper in both branches so the right-edge terminal
+ *   overlay continues to size to the file-viewer column.
  */
 
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { useResponsive } from '@/hooks/useResponsive';
 import type { ReactNode } from 'react';
 import { MobilePanelShell } from './mobile-panel-shell';
@@ -23,6 +29,12 @@ export interface PanelShellProps {
   left: ReactNode;
   /** Main content area (MainPanel) — fills remaining space */
   main: ReactNode;
+  /**
+   * Optional right-docked pane. When set (desktop only), the layout wraps
+   * `left + main` and `rightPane` in a horizontal `ResizablePanelGroup`.
+   * Generic — not reserved for terminal use. Plan 084 split-terminal-view.
+   */
+  rightPane?: ReactNode;
   /** Unique ID for persisting panel sizes */
   autoSaveId?: string;
   /** Mobile view configuration. When provided + phone viewport, renders MobilePanelShell. */
@@ -41,6 +53,7 @@ export function PanelShell({
   explorer,
   left,
   main,
+  rightPane,
   mobileViews,
   initialMobileActiveIndex,
   mobileActiveIndex,
@@ -61,23 +74,60 @@ export function PanelShell({
     );
   }
 
+  // Inner left+main composition. The wrapper className differs by branch:
+  // - no-slot: `flex flex-1 overflow-hidden` (today's exact DOM, preserves AC-01/AC-15)
+  // - with-slot: `flex h-full w-full overflow-hidden` (fills the parent ResizablePanel)
+  const leftMainColumns = (wrapperClass: string) => (
+    <div className={wrapperClass}>
+      <div
+        className="shrink-0 overflow-hidden border-r"
+        style={{ width: 280, minWidth: 150, maxWidth: '50%', resize: 'horizontal' }}
+      >
+        {left}
+      </div>
+      <div className="flex-1 flex flex-col overflow-hidden" data-terminal-overlay-anchor>
+        {main}
+      </div>
+    </div>
+  );
+
   return (
     <div className="flex flex-col h-full w-full overflow-hidden">
-      {/* Explorer bar — fixed height */}
+      {/* Explorer bar — fixed height, spans full width above any split */}
       <div className="shrink-0">{explorer}</div>
 
-      {/* Left + Main split */}
-      <div className="flex flex-1 overflow-hidden">
-        <div
-          className="shrink-0 overflow-hidden border-r"
-          style={{ width: 280, minWidth: 150, maxWidth: '50%', resize: 'horizontal' }}
+      {rightPane ? (
+        // KF-08: deliberately no autoSaveId — toggle/ratio is session-only React state (C-07).
+        // Explicit panel ids pin identity across remounts so the library
+        // applies defaultSize on every fresh mount instead of attempting to
+        // restore from a stale layout.
+        // v4 unit quirk (verified against react-resizable-panels@4.6.5
+        // dist `dt()` parser at line 18): numeric `defaultSize` / `minSize` /
+        // `maxSize` values are interpreted as **pixels**, not percentages.
+        // String values with `"%"` suffix are required for percent-of-group
+        // semantics. Without this, `maxSize={70}` clamped the right panel
+        // to 70px (≈ 6% of a 1183px group) instead of 70%.
+        <ResizablePanelGroup
+          id="panel-shell-split"
+          orientation="horizontal"
+          className="flex-1 overflow-hidden"
         >
-          {left}
-        </div>
-        <div className="flex-1 flex flex-col overflow-hidden" data-terminal-overlay-anchor>
-          {main}
-        </div>
-      </div>
+          <ResizablePanel id="panel-shell-split-left" defaultSize="66.66%" minSize="30%">
+            {leftMainColumns('flex h-full w-full overflow-hidden')}
+          </ResizablePanel>
+          <ResizableHandle withHandle />
+          <ResizablePanel
+            id="panel-shell-split-right"
+            defaultSize="33.34%"
+            minSize="15%"
+            maxSize="70%"
+          >
+            {rightPane}
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      ) : (
+        leftMainColumns('flex flex-1 overflow-hidden')
+      )}
     </div>
   );
 }

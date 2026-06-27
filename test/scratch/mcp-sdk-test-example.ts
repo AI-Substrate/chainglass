@@ -115,10 +115,11 @@ async function testCallTool() {
       arguments: {},
     });
 
-    assert(result.content.length > 0, 'Should have content');
-    assert.strictEqual(result.content[0].type, 'text');
+    const content = result.content as Array<{ type: string; text: string }>;
+    assert(content.length > 0, 'Should have content');
+    assert.strictEqual(content[0].type, 'text');
 
-    const response = JSON.parse((result.content[0] as { type: 'text'; text: string }).text);
+    const response = JSON.parse(content[0].text);
 
     // ADR-0001 Decision #5: Semantic response with summary
     assert(response.status, 'Response should have status');

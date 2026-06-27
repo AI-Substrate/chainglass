@@ -18,6 +18,7 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
+      "tinykeys": ["../../node_modules/tinykeys/dist/tinykeys"],
       "@chainglass/shared": ["../../packages/shared/dist"],
       "@chainglass/shared/*": ["../../packages/shared/dist/*"],
       "@chainglass/positional-graph": ["../../packages/positional-graph/dist"],
