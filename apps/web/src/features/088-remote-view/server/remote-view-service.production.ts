@@ -192,6 +192,12 @@ function buildProductionManager(
           /* best-effort graceful shutdown before respawn */
         }
       },
+      // Escalation when a graceful /shutdown doesn't free the daemon's fixed port within the grace
+      // window (a wedged daemon): SIGKILL the pid so the replacement can bind it instead of landing
+      // on a black screen. `process.kill` throws ESRCH if it already exited — the manager swallows it.
+      killProcess: (pid, signal) => {
+        process.kill(pid, signal);
+      },
       sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
       now: () => Date.now(),
       notifier,

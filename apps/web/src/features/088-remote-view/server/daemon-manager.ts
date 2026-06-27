@@ -81,6 +81,13 @@ export interface DaemonManagerConfig {
   readinessTimeoutMs?: number;
   /** Poll cadence while waiting for readiness (default 100ms). */
   pollIntervalMs?: number;
+  /**
+   * How long to wait for a retiring daemon to release its (fixed) port during a respawn before
+   * hard-killing it (default 3000ms). The daemon is one-target-per-spawn on a fixed port, so a
+   * target switch must fully retire the old daemon before the replacement can bind — otherwise the
+   * new bind fails and the attach lands on a black screen (the orphan-on-switch bug).
+   */
+  shutdownGraceMs?: number;
 }
 
 export interface DaemonManagerDeps {
@@ -96,6 +103,14 @@ export interface DaemonManagerDeps {
   fetchHealth: (daemonPort: number) => Promise<DaemonHealth | null>;
   /** `POST /shutdown` for a graceful upgrade exit. */
   shutdownDaemon: (daemonPort: number) => Promise<void>;
+  /**
+   * Best-effort hard kill of a daemon pid (`process.kill` in prod). Used ONLY as the escalation when
+   * a graceful `/shutdown` doesn't free the daemon's (fixed) port within `shutdownGraceMs` during a
+   * respawn — without it a wedged old daemon keeps the port and the replacement can never bind (the
+   * orphan-on-switch black screen). OPTIONAL: the T001 manager tests that never exercise the
+   * escalation omit it, so a missing killer simply skips the hard kill.
+   */
+  killProcess?: (pid: number, signal: NodeJS.Signals | number) => void;
   sleep: (ms: number) => Promise<void>;
   now: () => number;
   /**
@@ -138,10 +153,18 @@ function captureTargetKey(opts: EnsureDaemonOptions): string | null {
   return null;
 }
 
+/** Stable identity of a daemon process from its registry entry (`pid:startedAt`). A respawn is a new
+ *  process → new identity, so the post-respawn readiness poll can tell the freshly-spawned daemon
+ *  apart from the one it just retired — and never latch onto the dying old daemon (a black screen). */
+function daemonIdentity(entry: RegistryEntry): string {
+  return `${entry.pid}:${entry.startedAt}`;
+}
+
 /** Terminal sidecar owns `webPort + 1500`; remote view takes `+1501` (Workshop 004). */
 const DEFAULT_PORT_OFFSET = 1501;
 const DEFAULT_READINESS_TIMEOUT_MS = 5000;
 const DEFAULT_POLL_INTERVAL_MS = 100;
+const DEFAULT_SHUTDOWN_GRACE_MS = 3000;
 
 /** Per-web-port registry file (mirrors terminal `terminal-sidecar-<port>.pids.json`). */
 export function streamdRegistryPath(workspaceRoot: string, webPort: number): string {
@@ -166,6 +189,7 @@ export function createDaemonManager(
   const spawnPort = config.daemonPortOverride ?? config.webPort + DEFAULT_PORT_OFFSET;
   const timeoutMs = config.readinessTimeoutMs ?? DEFAULT_READINESS_TIMEOUT_MS;
   const pollMs = config.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
+  const graceMs = config.shutdownGraceMs ?? DEFAULT_SHUTDOWN_GRACE_MS;
 
   const versionOk = (h: DaemonHealth): boolean =>
     h.protocolVersion === config.expectedProtocolVersion;
@@ -213,15 +237,40 @@ export function createDaemonManager(
   }
 
   async function pollUntilHealthy(
-    accept: (health: DaemonHealth) => boolean
+    accept: (resolved: { entry: RegistryEntry; health: DaemonHealth }) => boolean
   ): Promise<{ entry: RegistryEntry; health: DaemonHealth } | null> {
     const deadline = deps.now() + timeoutMs;
     while (deps.now() < deadline) {
       const resolved = await resolveHealthy();
-      if (resolved && accept(resolved.health)) return resolved;
+      if (resolved && accept(resolved)) return resolved;
       await deps.sleep(pollMs);
     }
     return null;
+  }
+
+  /**
+   * Retire the live daemon ahead of a respawn and WAIT until its (fixed) port stops answering, so
+   * the replacement can bind it. The daemon is one-target-per-spawn on a fixed port: spawning a new
+   * one while the old still holds the port makes the new bind fail (the new process exits) and the
+   * attach lands on a black screen — the orphan-on-switch bug. Graceful `/shutdown` first (lets a
+   * connected viewer get `bye`); if the port is still answering after `graceMs`, hard-kill the pid
+   * we own (we just resolved its `/health`, so it is verifiably alive and ours) as a fail-closed
+   * escalation. Returns once the port is free, or once it has done all it can to free it.
+   */
+  async function retireDaemon(entry: RegistryEntry): Promise<void> {
+    await deps.shutdownDaemon(entry.port);
+    const deadline = deps.now() + graceMs;
+    while (deps.now() < deadline) {
+      if (!(await deps.fetchHealth(entry.port))) return; // port released — safe to respawn
+      await deps.sleep(pollMs);
+    }
+    // Graceful shutdown didn't free the fixed port within the grace window (a wedged daemon — the
+    // "not shutting down properly" symptom) → hard-kill it so the replacement can bind.
+    try {
+      deps.killProcess?.(entry.pid, 'SIGKILL');
+    } catch {
+      /* raced the daemon's own exit — nothing left to kill */
+    }
   }
 
   function toInfo(r: { entry: RegistryEntry; health: DaemonHealth }): DaemonInfo {
@@ -256,6 +305,9 @@ export function createDaemonManager(
   async function ensureDaemon(opts: EnsureDaemonOptions = {}): Promise<DaemonInfo> {
     const requestedKey = captureTargetKey(opts); // null = reuse-only (no target)
     const current = await resolveHealthy();
+    // The identity of a daemon we retire below, so the readiness poll accepts ONLY the freshly
+    // spawned replacement — never the one we just shut down (which, latched onto, is a black screen).
+    let retiredIdentity: string | null = null;
     if (current) {
       const versionMatches = versionOk(current.health);
       // No target requested (/health, bare /token) → reuse whatever's running. A target requested →
@@ -269,8 +321,10 @@ export function createDaemonManager(
             `${config.expectedProtocolVersion}; gracefully respawning`
         );
       }
-      // Either a protocol upgrade or a target switch — shut the current daemon down before respawn.
-      await deps.shutdownDaemon(current.entry.port);
+      // Either a protocol upgrade or a target switch — fully retire the current daemon and WAIT for
+      // its fixed port to free before respawning (or the replacement can't bind → black screen).
+      retiredIdentity = daemonIdentity(current.entry);
+      await retireDaemon(current.entry);
     }
 
     if (requestedKey === null) {
@@ -284,9 +338,12 @@ export function createDaemonManager(
     }
 
     spawn(opts);
-    // Poll for a daemon that is healthy AND version-matched — never latch onto the
-    // old daemon still gracefully exiting with the stale protocol (F001).
-    const spawned = await pollUntilHealthy((h) => versionOk(h));
+    // Poll for a daemon that is healthy, version-matched, AND a DIFFERENT process than the one we
+    // just retired — never latch onto the old daemon still gracefully exiting (stale protocol or the
+    // prior target, F001 / the orphan-on-switch black screen).
+    const spawned = await pollUntilHealthy(
+      (r) => versionOk(r.health) && daemonIdentity(r.entry) !== retiredIdentity
+    );
     if (spawned) {
       spawnedTargetKey = requestedKey;
       return ready(spawned);

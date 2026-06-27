@@ -7,8 +7,15 @@
  * absent, reuse when healthy, respawn on crash + protocol mismatch, the actionable
  * stale-install error, and that `daemonPort` is READ from the registry `port`
  * field (never derived from webPort + offset).
+ *
+ * The fakes model a REALISTIC daemon lifecycle on a single fixed port: a graceful
+ * `/shutdown` frees the port (its `/health` stops answering), and every spawn is a
+ * NEW process with a fresh `pid:startedAt` identity. That lets the respawn tests
+ * exercise the orphan-on-switch fix — the manager retires the old daemon and waits
+ * for its port to free before binding the replacement, and the readiness poll accepts
+ * only the freshly-spawned daemon (never the one it just retired).
  */
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -28,6 +35,7 @@ const DEFAULT_DAEMON_PORT = WEB_PORT + 1501; // 6108
 const WINDOW_ID = 26516; // a window to capture — the daemon is one-target-per-spawn (Capture.swift)
 const OTHER_WINDOW_ID = 34202;
 const DISPLAY_ID = 5; // a whole display (screen) to capture — multi-target capture (DisplayCapture.swift)
+const BASE_STARTED_MS = 1_700_000_000_000; // a fixed clock base so spawn identities are deterministic
 
 function entry(over: Partial<RegistryEntry> = {}): RegistryEntry {
   return {
@@ -65,23 +73,87 @@ describe('remote-view daemon manager', () => {
     rmSync(root, { recursive: true, force: true });
   });
 
-  function writeRegistry(e: RegistryEntry): void {
-    writeFileSync(registryPath, JSON.stringify(e), 'utf8');
+  /** The live-daemon model the fakes mutate: at most one daemon answers on `regPort` at a time. */
+  interface DaemonState {
+    live: boolean;
+    healthValue: DaemonHealth;
+    pid: number;
+    startedAtMs: number;
   }
 
-  /** Build a manager over recording fakes of the injected deps. */
+  /**
+   * Build a manager over a STATEFUL daemon-lifecycle fake. By default: a graceful `/shutdown` (and a
+   * hard kill) frees the port (`/health` → null), and every spawn brings up a new process with a
+   * fresh `pid:startedAt` identity on the same port answering `spawnHealth`. Tests override the seams
+   * (`onSpawn`/`onShutdown`/`fetchHealth`) to model crashes, wedged daemons, and lingering old ones.
+   */
   function build(
     opts: {
-      healthByPort?: (port: number) => DaemonHealth | null;
-      onSpawn?: (binary: string, args: string[]) => void;
+      /** Port written to the registry + matched by `/health` (proves READ-not-derive). */
+      registryPort?: number;
+      /** `CG_REMOTE_VIEW__DAEMON_PORT` override → the manager's `--port` arg. */
       daemonPortOverride?: number;
-      nowSeq?: number[];
+      /** Health each freshly-spawned daemon answers with (by 1-based spawn count); default v1. */
+      spawnHealth?: (spawnCount: number) => DaemonHealth;
+      /** Replace the default "bring up a fresh daemon" spawn behaviour (e.g. a spawn that never boots). */
+      onSpawn?: (state: DaemonState, spawnCount: number) => void;
+      /** Replace the default "graceful shutdown frees the port" behaviour (e.g. a wedged daemon). */
+      onShutdown?: (state: DaemonState, port: number) => void;
+      /** Replace the default `/health` probe (e.g. a lingering old daemon on the shared port). */
+      fetchHealth?: (port: number, state: DaemonState) => DaemonHealth | null;
+      /** Omit the killProcess dep — model an environment with no hard-kill escalation. */
+      noKiller?: boolean;
     } = {}
   ) {
+    const regPort = opts.registryPort ?? opts.daemonPortOverride ?? DEFAULT_DAEMON_PORT;
+    const spawnHealth = opts.spawnHealth ?? (() => health());
     const spawns: { binary: string; args: string[]; env?: Record<string, string> }[] = [];
     const shutdowns: number[] = [];
-    let nowi = 0;
-    const nowSeq = opts.nowSeq;
+    const kills: { pid: number; signal: NodeJS.Signals | number }[] = [];
+    const state: DaemonState = {
+      live: false,
+      healthValue: health(),
+      pid: 84210,
+      startedAtMs: BASE_STARTED_MS,
+    };
+    let spawnCount = 0;
+    let clock = 0;
+
+    function writeReg(): void {
+      writeFileSync(
+        registryPath,
+        JSON.stringify(
+          entry({
+            pid: state.pid,
+            port: regPort,
+            startedAt: new Date(state.startedAtMs).toISOString(),
+            protocolVersion: state.healthValue.protocolVersion,
+            daemonVersion: state.healthValue.daemonVersion,
+          })
+        ),
+        'utf8'
+      );
+    }
+    /** Bring up a daemon with a NEW process identity (pid + startedAt) on `regPort`. */
+    function newIdentity(healthValue: DaemonHealth): void {
+      state.pid += 1;
+      state.startedAtMs += 1000;
+      state.healthValue = healthValue;
+      state.live = true;
+      writeReg();
+    }
+    /** Seed a pre-existing LIVE daemon (registry + answering /health) before ensureDaemon runs. */
+    function seedLive(h: DaemonHealth = health()): void {
+      newIdentity(h);
+    }
+    /** Seed a CRASHED daemon: registry on disk but nothing answers /health (a stale entry). */
+    function seedStale(): void {
+      state.pid += 1;
+      state.startedAtMs += 1000;
+      state.live = false;
+      writeReg();
+    }
+
     const manager = createDaemonManager(
       {
         webPort: WEB_PORT,
@@ -92,21 +164,40 @@ describe('remote-view daemon manager', () => {
         expectedProtocolVersion: EXPECTED_PROTOCOL,
         readinessTimeoutMs: 1000,
         pollIntervalMs: 10,
+        shutdownGraceMs: 200,
       },
       {
         spawnDaemon: (binary, args, env) => {
           spawns.push({ binary, args, env });
-          opts.onSpawn?.(binary, args);
+          spawnCount += 1;
+          if (opts.onSpawn) opts.onSpawn(state, spawnCount);
+          else newIdentity(spawnHealth(spawnCount));
         },
-        fetchHealth: async (port) => (opts.healthByPort ? opts.healthByPort(port) : health()),
+        fetchHealth: async (port) =>
+          opts.fetchHealth
+            ? opts.fetchHealth(port, state)
+            : state.live && port === regPort
+              ? state.healthValue
+              : null,
         shutdownDaemon: async (port) => {
           shutdowns.push(port);
+          if (opts.onShutdown) opts.onShutdown(state, port);
+          else state.live = false; // graceful death frees the fixed port
         },
+        killProcess: opts.noKiller
+          ? undefined
+          : (pid, signal) => {
+              kills.push({ pid, signal });
+              state.live = false; // SIGKILL frees the port
+            },
         sleep: async () => {},
-        now: () => (nowSeq ? nowSeq[Math.min(nowi++, nowSeq.length - 1)] : 0),
+        now: () => {
+          clock += 1; // monotonic auto-clock so grace/readiness deadlines are always reachable
+          return clock;
+        },
       }
     );
-    return { manager, spawns, shutdowns };
+    return { manager, spawns, shutdowns, kills, state, seedLive, seedStale, regPort, writeReg };
   }
 
   it('spawns the inner binary on demand and returns the registry port (never derived)', async () => {
@@ -119,10 +210,7 @@ describe('remote-view daemon manager', () => {
     - Worked Example: registry writes port 6543 → info.daemonPort === 6543 even though --port was 6108.
     */
     const REG_PORT = 6543; // deliberately != webPort+1501 (6108) to prove READ-not-derive
-    const { manager, spawns } = build({
-      healthByPort: () => (existsSync(registryPath) ? health() : null),
-      onSpawn: () => writeRegistry(entry({ port: REG_PORT })),
-    });
+    const { manager, spawns } = build({ registryPort: REG_PORT });
 
     const info = await manager.ensureDaemon({ windowId: WINDOW_ID });
 
@@ -150,8 +238,8 @@ describe('remote-view daemon manager', () => {
     - Quality Contribution: prevents spawn storms / port churn on normal traffic.
     - Worked Example: registry has 6108, health ok v1 → daemonPort 6108, 0 spawns.
     */
-    writeRegistry(entry({ port: DEFAULT_DAEMON_PORT }));
-    const { manager, spawns } = build({ healthByPort: () => health() });
+    const { manager, spawns, seedLive } = build();
+    seedLive();
 
     const info = await manager.ensureDaemon();
 
@@ -168,48 +256,34 @@ describe('remote-view daemon manager', () => {
     - Quality Contribution: keeps remote view usable after a daemon crash without manual intervention.
     - Worked Example: health null → spawn → health ok → daemonPort returned, 0 shutdowns.
     */
-    writeRegistry(entry({ port: DEFAULT_DAEMON_PORT }));
-    let alive = false;
-    const { manager, spawns, shutdowns } = build({
-      healthByPort: () => (alive ? health() : null),
-      onSpawn: () => {
-        alive = true;
-        writeRegistry(entry({ port: DEFAULT_DAEMON_PORT }));
-      },
-    });
+    const { manager, spawns, shutdowns, kills, seedStale } = build();
+    seedStale();
 
     const info = await manager.ensureDaemon({ windowId: WINDOW_ID });
 
     expect(spawns).toHaveLength(1);
-    expect(shutdowns).toHaveLength(0);
+    expect(shutdowns).toHaveLength(0); // unreachable → nothing to shut down or kill
+    expect(kills).toHaveLength(0);
     expect(info.daemonPort).toBe(DEFAULT_DAEMON_PORT);
   });
 
-  it('gracefully shuts down + respawns on a protocol-version mismatch', async () => {
+  it('gracefully shuts down + respawns on a protocol-version mismatch (no hard kill)', async () => {
     /*
     Test Doc:
     - Why: a running-but-stale daemon must be upgraded, not left serving an old protocol (Workshop 004 handshake).
-    - Contract: health ok but protocol != expected → POST /shutdown, respawn, accept the matched version.
-    - Usage Notes: graceful shutdown (vs hard kill) lets the daemon send `bye` to a connected viewer first.
-    - Quality Contribution: proves the version handshake drives an orderly upgrade.
-    - Worked Example: health v99 → shutdown(6108) → respawn → health v1 → returns v1.
+    - Contract: health ok but protocol != expected → POST /shutdown, wait for the port to free, respawn, accept v1.
+    - Usage Notes: graceful shutdown (vs hard kill) lets the daemon send `bye` to a connected viewer first;
+      the hard-kill escalation only fires when graceful shutdown does NOT free the port (separate test).
+    - Quality Contribution: proves the version handshake drives an orderly upgrade with no kill.
+    - Worked Example: health v99 → shutdown(6108) → /health null → respawn → health v1 → returns v1, 0 kills.
     */
-    writeRegistry(entry({ port: DEFAULT_DAEMON_PORT }));
-    let respawned = false;
-    const { manager, spawns, shutdowns } = build({
-      healthByPort: () =>
-        respawned
-          ? health({ protocolVersion: EXPECTED_PROTOCOL })
-          : health({ protocolVersion: 99 }),
-      onSpawn: () => {
-        respawned = true;
-        writeRegistry(entry({ port: DEFAULT_DAEMON_PORT }));
-      },
-    });
+    const { manager, spawns, shutdowns, kills, seedLive } = build();
+    seedLive(health({ protocolVersion: 99 }));
 
     const info = await manager.ensureDaemon({ windowId: WINDOW_ID });
 
     expect(shutdowns).toEqual([DEFAULT_DAEMON_PORT]);
+    expect(kills).toHaveLength(0); // graceful shutdown freed the port — no escalation
     expect(spawns).toHaveLength(1);
     expect(info.protocolVersion).toBe(EXPECTED_PROTOCOL);
   });
@@ -223,49 +297,88 @@ describe('remote-view daemon manager', () => {
     - Quality Contribution: turns an infinite respawn loop into one clear, fixable message.
     - Worked Example: health always v99 → throws /streamd-install/.
     */
-    writeRegistry(entry({ port: DEFAULT_DAEMON_PORT }));
-    const { manager } = build({
-      healthByPort: () => health({ protocolVersion: 99 }),
-      onSpawn: () => writeRegistry(entry({ port: DEFAULT_DAEMON_PORT })),
-      nowSeq: [0, 100, 5000], // let the readiness window expire with no version match
-    });
+    // Seed + every respawn stay at v99 so the readiness poll never matches and the window expires.
+    const { manager, seedLive } = build({ spawnHealth: () => health({ protocolVersion: 99 }) });
+    seedLive(health({ protocolVersion: 99 }));
 
     await expect(manager.ensureDaemon({ windowId: WINDOW_ID })).rejects.toThrow(/streamd-install/);
   });
 
-  it('waits for a version-matched daemon during respawn — no false stale-install while the old one lingers (F001)', async () => {
+  it('waits for the freshly-spawned daemon during a target switch — never returns the retired (lingering) one', async () => {
     /*
     Test Doc:
-    - Why: during a graceful /shutdown the old daemon can stay briefly reachable with the stale protocol.
-    - Contract: the respawn poll must wait for a version-MATCHED health, not throw on the first stale-protocol reply.
-    - Usage Notes: only after the full readiness window with no match does the stale-install error fire.
-    - Quality Contribution: regression for F001 — the prior code threw stale-install on the lingering old daemon.
-    - Worked Example: post-spawn health stays v99 for one poll, then v1 → ensureDaemon succeeds with v1.
+    - Why: THE orphan-on-switch bug. The daemon is one-target-per-spawn on a fixed port; switching targets
+      retires the old daemon and spawns a new one on the SAME port. If the old daemon lingers (still
+      answering /health for a beat with its stale registry identity), the readiness poll must NOT latch
+      onto it — doing so hands the viewport a daemon streaming the OLD target (or mid-exit) → black screen.
+    - Contract: after retire+respawn, the poll rejects any resolved daemon whose identity == the retired
+      one (pid:startedAt), and accepts only the fresh process — observable here as the NEW daemonVersion.
+    - Usage Notes: a pre-existing daemon (an orphan from a prior dev cycle) + a target request is exactly
+      the live scenario; the retire path runs because the request's target ≠ the running daemon's.
+    - Worked Example: retired daemon answers '0.1.0-OLD' on the shared port for one poll, then the fresh
+      '0.1.0-NEW' takes over → ensureDaemon returns NEW (would return OLD if the identity guard were gone).
     */
-    writeRegistry(entry({ port: DEFAULT_DAEMON_PORT, protocolVersion: EXPECTED_PROTOCOL }));
-    let respawned = false;
-    let postSpawnHealthCalls = 0;
-    const { manager, spawns, shutdowns } = build({
-      healthByPort: () => {
-        if (!respawned) return health({ protocolVersion: 99 }); // initial: mismatch → respawn
-        postSpawnHealthCalls += 1;
-        // old daemon lingers with the stale protocol for the first poll, then the new one wins.
-        return postSpawnHealthCalls >= 2
-          ? health({ protocolVersion: EXPECTED_PROTOCOL })
-          : health({ protocolVersion: 99 });
+    let bornNew = false;
+    let lingerPolls = 1; // the retired daemon answers on the shared port for one poll post-respawn
+    const rig = build({
+      // The fresh spawn comes up but its registry is rewritten only after the lingering window closes,
+      // so the first post-spawn resolve still sees the RETIRED identity answering '0.1.0-OLD'.
+      onSpawn: (state) => {
+        bornNew = true;
+        state.live = true; // a daemon is answering on the port; registry still shows the retired identity
       },
-      onSpawn: () => {
-        respawned = true;
-        writeRegistry(entry({ port: DEFAULT_DAEMON_PORT }));
+      fetchHealth: (port, state) => {
+        if (!(state.live && port === rig.regPort)) return null;
+        if (bornNew && lingerPolls > 0) {
+          lingerPolls -= 1;
+          if (lingerPolls === 0) {
+            // The fresh process now rewrites the registry with its own identity and version.
+            state.pid += 1;
+            state.startedAtMs += 1000;
+            state.healthValue = health({ daemonVersion: '0.1.0-NEW' });
+            rig.writeReg();
+          }
+          return health({ daemonVersion: '0.1.0-OLD' }); // lingering retired daemon (version-matched)
+        }
+        return state.healthValue;
       },
-      nowSeq: [0, 10, 20, 30], // advances but stays < deadline so polling continues
     });
+    // A pre-existing version-matched daemon for a DIFFERENT target (the orphan). Its identity is what the
+    // retire path records, and what the lingering '0.1.0-OLD' replies carry until the fresh one rewrites.
+    rig.seedLive(health({ daemonVersion: '0.1.0-OLD' }));
 
-    const info = await manager.ensureDaemon({ windowId: WINDOW_ID });
+    const info = await rig.manager.ensureDaemon({ windowId: WINDOW_ID });
 
-    expect(shutdowns).toEqual([DEFAULT_DAEMON_PORT]);
-    expect(spawns).toHaveLength(1);
-    expect(info.protocolVersion).toBe(EXPECTED_PROTOCOL);
+    expect(rig.shutdowns).toEqual([DEFAULT_DAEMON_PORT]); // the orphan was retired
+    expect(info.daemonVersion).toBe('0.1.0-NEW'); // accepted the FRESH daemon, not the lingering retired one
+  });
+
+  it('hard-kills a wedged daemon that ignores graceful /shutdown, so the respawn can bind the port', async () => {
+    /*
+    Test Doc:
+    - Why: the user-reported "it's not shutting down properly" — a daemon that doesn't exit on /shutdown
+      keeps the fixed port, so the replacement can never bind and every re-attach is a black screen.
+    - Contract: when graceful /shutdown does NOT free the port within the grace window, the manager
+      SIGKILLs the retired pid (verifiably alive + ours) so the port frees and the respawn proceeds.
+    - Usage Notes: the escalation is bounded by shutdownGraceMs; the killed pid is the retired daemon's.
+    - Worked Example: /shutdown leaves the daemon answering → grace expires → kill(pid, SIGKILL) → respawn ok.
+    */
+    const retiredPidSeen: number[] = [];
+    const rig = build({
+      onShutdown: (state) => {
+        retiredPidSeen.push(state.pid); // remember whose port we're failing to free
+        /* wedged: stays live despite /shutdown */
+      },
+    });
+    rig.seedLive(); // a pre-existing daemon for a different target → the request triggers a retire
+
+    const info = await rig.manager.ensureDaemon({ windowId: WINDOW_ID });
+
+    expect(rig.shutdowns).toEqual([DEFAULT_DAEMON_PORT]); // graceful attempt first
+    expect(rig.kills).toHaveLength(1); // then the escalation
+    expect(rig.kills[0].signal).toBe('SIGKILL');
+    expect(rig.kills[0].pid).toBe(retiredPidSeen[0]); // killed the daemon we retired
+    expect(info.protocolVersion).toBe(EXPECTED_PROTOCOL); // replacement came up
   });
 
   it('throws a readiness-timeout error when the daemon never becomes healthy', async () => {
@@ -275,13 +388,9 @@ describe('remote-view daemon manager', () => {
     - Contract: registry never appears / health never ok within readinessTimeoutMs → throw.
     - Usage Notes: the 5s budget (Workshop 004) bounds the route's worst-case latency.
     - Quality Contribution: guarantees ensureDaemon terminates so routes return a 5xx instead of hanging.
-    - Worked Example: clock advances past the deadline with no healthy daemon → throws timeout.
+    - Worked Example: spawn boots nothing → clock advances past the deadline → throws timeout.
     */
-    const { manager, spawns } = build({
-      healthByPort: () => null,
-      onSpawn: () => {},
-      nowSeq: [0, 100, 500, 5000],
-    });
+    const { manager, spawns } = build({ onSpawn: () => {} /* spawn boots nothing */ });
 
     await expect(manager.ensureDaemon({ windowId: WINDOW_ID })).rejects.toThrow(
       /become healthy|timed out|readiness/i
@@ -298,11 +407,7 @@ describe('remote-view daemon manager', () => {
     - Quality Contribution: keeps the override the single knob for port placement.
     - Worked Example: override 7777 → --port 7777 in the spawn argv.
     */
-    const { manager, spawns } = build({
-      daemonPortOverride: 7777,
-      healthByPort: () => (existsSync(registryPath) ? health() : null),
-      onSpawn: () => writeRegistry(entry({ port: 7777 })),
-    });
+    const { manager, spawns } = build({ daemonPortOverride: 7777 });
 
     await manager.ensureDaemon({ windowId: WINDOW_ID });
 
@@ -315,23 +420,21 @@ describe('remote-view daemon manager', () => {
     - Why: the daemon captures ONE window set at spawn (Capture.swift/main.swift) and cannot re-target;
       so a re-attach of the same window must reuse the live daemon, but switching windows must respawn.
     - Contract: ensureDaemon({windowId:A}) spawns for A; a second {windowId:A} reuses (no spawn); {windowId:B}
-      shuts the A-daemon down and spawns for B with CG_REMOTE_VIEW__WINDOW_ID=B.
+      retires the A-daemon and spawns for B with CG_REMOTE_VIEW__WINDOW_ID=B.
     - Quality Contribution: the regression guard for the live-attach bug (manager never told the daemon its window).
-    - Worked Example: attach A, attach A, attach B → 2 spawns (A then B), 1 shutdown.
+    - Worked Example: attach A, attach A, attach B → 2 spawns (A then B), 1 shutdown, 0 kills (graceful).
     */
-    const { manager, spawns, shutdowns } = build({
-      healthByPort: () => (existsSync(registryPath) ? health() : null),
-      onSpawn: () => writeRegistry(entry({ port: DEFAULT_DAEMON_PORT })),
-    });
+    const { manager, spawns, shutdowns, kills } = build();
 
     await manager.ensureDaemon({ windowId: WINDOW_ID }); // cold: spawn for WINDOW_ID
     await manager.ensureDaemon({ windowId: WINDOW_ID }); // same window: reuse
-    await manager.ensureDaemon({ windowId: OTHER_WINDOW_ID }); // switch: shutdown + respawn
+    await manager.ensureDaemon({ windowId: OTHER_WINDOW_ID }); // switch: retire + respawn
 
     expect(spawns).toHaveLength(2);
     expect(spawns[0].env?.CG_REMOTE_VIEW__WINDOW_ID).toBe(String(WINDOW_ID));
     expect(spawns[1].env?.CG_REMOTE_VIEW__WINDOW_ID).toBe(String(OTHER_WINDOW_ID));
-    expect(shutdowns).toEqual([DEFAULT_DAEMON_PORT]); // the WINDOW_ID daemon shut down for the switch
+    expect(shutdowns).toEqual([DEFAULT_DAEMON_PORT]); // the WINDOW_ID daemon retired for the switch
+    expect(kills).toHaveLength(0); // graceful shutdown freed the port — no escalation
   });
 
   it('spawns with CG_REMOTE_VIEW__DISPLAY_ID (not WINDOW_ID) for a whole-display target', async () => {
@@ -343,10 +446,7 @@ describe('remote-view daemon manager', () => {
     - Quality Contribution: pins the display-target env threading the picker's screen choice depends on.
     - Worked Example: ensureDaemon({displayId:5}) → spawn env has DISPLAY_ID=5, WINDOW_ID undefined.
     */
-    const { manager, spawns } = build({
-      healthByPort: () => (existsSync(registryPath) ? health() : null),
-      onSpawn: () => writeRegistry(entry({ port: DEFAULT_DAEMON_PORT })),
-    });
+    const { manager, spawns } = build();
 
     await manager.ensureDaemon({ displayId: DISPLAY_ID });
 
@@ -359,19 +459,16 @@ describe('remote-view daemon manager', () => {
     /*
     Test Doc:
     - Why: a window daemon and a display daemon are different captures; switching target kinds must
-      shut the old daemon down and respawn, exactly like switching between two windows.
+      retire the old daemon and respawn, exactly like switching between two windows.
     - Contract: ensureDaemon({windowId:A}) then ensureDaemon({displayId:D}) → 2 spawns, 1 shutdown,
       and the second spawn carries DISPLAY_ID (not WINDOW_ID).
     - Quality Contribution: the regression guard for the target-kind switch (w:/d: key change → respawn).
     - Worked Example: attach window A, then display D → spawns [WINDOW_ID, DISPLAY_ID], 1 shutdown.
     */
-    const { manager, spawns, shutdowns } = build({
-      healthByPort: () => (existsSync(registryPath) ? health() : null),
-      onSpawn: () => writeRegistry(entry({ port: DEFAULT_DAEMON_PORT })),
-    });
+    const { manager, spawns, shutdowns } = build();
 
     await manager.ensureDaemon({ windowId: WINDOW_ID }); // window target
-    await manager.ensureDaemon({ displayId: DISPLAY_ID }); // switch to a display: shutdown + respawn
+    await manager.ensureDaemon({ displayId: DISPLAY_ID }); // switch to a display: retire + respawn
 
     expect(spawns).toHaveLength(2);
     expect(spawns[0].env?.CG_REMOTE_VIEW__WINDOW_ID).toBe(String(WINDOW_ID));
@@ -389,9 +486,11 @@ describe('remote-view daemon manager', () => {
     - Quality Contribution: pins that the no-window path is reuse-only, never a cold windowless spawn.
     - Worked Example: no registry, ensureDaemon() → throws "attach a window first", spawns 0.
     */
-    const { manager, spawns } = build({ healthByPort: () => null, onSpawn: () => {} });
+    const { manager, spawns } = build({ onSpawn: () => {} });
 
-    await expect(manager.ensureDaemon()).rejects.toThrow(/attach a window first|not running/i);
+    await expect(manager.ensureDaemon()).rejects.toThrow(
+      /attach a window first|not running|screen first/i
+    );
     expect(spawns).toHaveLength(0);
   });
 });
