@@ -414,6 +414,10 @@ final class WSServer {
         sessions.viewerClosed(v, now: nowSeconds())
         if let sid = client.sessionId, currentStreamSession == sid, sessions.session(sid)?.viewer == nil {
             currentStreamSession = nil
+            // No viewer left → pause capture so the encoder stops chewing CPU on an unwatched stream
+            // (a whole-desktop capture can peg VideoToolbox). The daemon lingers for fast re-attach;
+            // the hello/attach path resumes + forces a keyframe, so this is symmetric and safe.
+            frameSource.pause()
         }
     }
 
@@ -508,7 +512,10 @@ final class WSServer {
             switch effect {
             case let .heartbeatTimeout(sid, viewer):
                 if let c = connByViewer[viewer] { close(c, code: WebSocket.Close.unexpected, reason: "heartbeat-timeout") }
-                if currentStreamSession == sid { currentStreamSession = nil }
+                if currentStreamSession == sid {
+                    currentStreamSession = nil
+                    frameSource.pause()   // viewer dead → stop encoding the now-unwatched stream
+                }
             case .graceExpired:
                 break   // session GC'd to closed; nothing to send (no viewer)
             }
