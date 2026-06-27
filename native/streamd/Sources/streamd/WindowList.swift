@@ -75,6 +75,12 @@ enum WindowList {
             FileHandle.standardError.write(Data("streamd: screen-recording grant required for --list-windows\n".utf8))
             exit(3)
         }
+        // A locked host returns a stale/empty SCK content set — report it distinctly (exit 4) so the
+        // web picker can say "unlock the host" instead of "no windows" (Plan 088, host-locked guard).
+        if SessionLock.isLocked() {
+            FileHandle.standardError.write(Data("streamd: host is locked — cannot enumerate windows\n".utf8))
+            exit(SessionLock.exitCode)
+        }
         var windows: [SCWindow] = []
         var enumError: Error?
         let sem = DispatchSemaphore(value: 0)

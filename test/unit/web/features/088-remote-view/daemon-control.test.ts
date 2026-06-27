@@ -74,6 +74,15 @@ describe('createRealDaemonControl — listWindows()', () => {
     await expect(control.listWindows()).rejects.toMatchObject({ code: 'E_PERMISSION' });
   });
 
+  it('maps exit code 4 → E_LOCKED (host is locked — distinct from a missing grant)', async () => {
+    // A locked Mac returns a stale/empty SCK set; the picker must say "unlock the host", not "no
+    // windows" / "grant Screen Recording" — so the locked exit gets its own code (Plan 088).
+    const control = createRealDaemonControl(
+      deps({ runWindowList: async () => ({ stdout: '', exitCode: 4 }) })
+    );
+    await expect(control.listWindows()).rejects.toMatchObject({ code: 'E_LOCKED' });
+  });
+
   it('maps any other non-zero exit → E_INTERNAL', async () => {
     const control = createRealDaemonControl(
       deps({ runWindowList: async () => ({ stdout: '', exitCode: 127 }) })
@@ -250,6 +259,15 @@ describe('createRealDaemonControl — listDisplays()', () => {
       deps({ runDisplayList: async () => ({ stdout: '', exitCode: 3 }) })
     );
     await expect(control.listDisplays()).rejects.toMatchObject({ code: 'E_PERMISSION' });
+  });
+
+  it('maps exit code 4 → E_LOCKED (locked host returns an empty display set)', async () => {
+    // This is the exact symptom seen behind the lock screen: displays come back [] — surface it as
+    // E_LOCKED so the picker says "unlock the host", never a silent empty screen list (Plan 088).
+    const control = createRealDaemonControl(
+      deps({ runDisplayList: async () => ({ stdout: '', exitCode: 4 }) })
+    );
+    await expect(control.listDisplays()).rejects.toMatchObject({ code: 'E_LOCKED' });
   });
 
   it('rejects a catalog that violates DisplayDescriptor schema with E_INTERNAL', async () => {

@@ -73,6 +73,13 @@ enum DisplayList {
             FileHandle.standardError.write(Data("streamd: screen-recording grant required for --list-displays\n".utf8))
             exit(3)
         }
+        // A locked host returns a stale/empty SCK content set (displays come back []) — report it
+        // distinctly (exit 4) so the picker says "unlock the host", not a silent empty screen list
+        // (Plan 088, host-locked guard). This is the exact symptom seen behind the lock screen.
+        if SessionLock.isLocked() {
+            FileHandle.standardError.write(Data("streamd: host is locked — cannot enumerate displays\n".utf8))
+            exit(SessionLock.exitCode)
+        }
         var displays: [SCDisplay] = []
         var enumError: Error?
         let sem = DispatchSemaphore(value: 0)

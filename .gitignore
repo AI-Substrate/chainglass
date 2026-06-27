@@ -165,8 +165,15 @@ scratch/*
 .chainglass/server.json
 # Plan 084: bootstrap-code sidecar (always-on auth) — never committed
 .chainglass/bootstrap-code.json
+# Plan 088: streamd daemon registry + terminal-sidecar pid files — runtime only, never committed
+.chainglass/streamd-*.json
+.chainglass/*.pids.json
+.chainglass/*.pids.json.*.tmp
 # Ignore .chainglass in app workspaces (local dev/test data)
 apps/**/.chainglass/
+
+# minih companion runtime workspace (root-level) — ephemeral, never committed
+/.minih/
 
 # Manual test harness results (regenerated each test run)
 docs/plans/*/manual-test/results/

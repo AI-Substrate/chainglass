@@ -21,11 +21,24 @@ export interface RemoteViewDisplaysResult {
   displays: DisplayDescriptor[];
   loading: boolean;
   error: string | null;
+  /** The route's stable error CODE (e.g. `E_LOCKED`, `E_PERMISSION`) so callers can flip UI on the
+   *  specific cause, not parse the message. `null` when there's no error. */
+  code: string | null;
   refresh: () => void;
 }
 
 /** `GET /api/remote-view/displays` success body — the route wraps the catalog in `{ displays }`. */
 const DisplaysResponseSchema = z.object({ displays: z.array(DisplayDescriptorSchema) });
+
+/** Error carrying the route's stable error code through the try/catch so it reaches `code` state. */
+class DisplaysLoadError extends Error {
+  constructor(
+    message: string,
+    readonly code: string | null
+  ) {
+    super(message);
+  }
+}
 
 export function useRemoteViewDisplays(
   options: UseRemoteViewDisplaysOptions = {}
@@ -34,19 +47,28 @@ export function useRemoteViewDisplays(
   const [displays, setDisplays] = useState<DisplayDescriptor[]>([]);
   const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState<string | null>(null);
+  const [code, setCode] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
     if (!enabled) return;
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setCode(null);
     void (async () => {
       try {
         const res = await fetch('/api/remote-view/displays');
         if (!res.ok) {
-          // The route names the missing grant (AC-14); surface its message, not a bare status.
-          const detail = (await res.json().catch(() => null)) as { message?: string } | null;
-          throw new Error(detail?.message ?? `displays request failed (${res.status})`);
+          // The route names the cause (AC-14: missing grant, locked host, …); surface its message
+          // AND its code, not a bare status.
+          const detail = (await res.json().catch(() => null)) as {
+            message?: string;
+            error?: string;
+          } | null;
+          throw new DisplaysLoadError(
+            detail?.message ?? `displays request failed (${res.status})`,
+            detail?.error ?? null
+          );
         }
         const parsed = DisplaysResponseSchema.parse(await res.json());
         if (!cancelled) setDisplays(parsed.displays);
@@ -54,6 +76,7 @@ export function useRemoteViewDisplays(
         if (!cancelled) {
           setDisplays([]);
           setError(err instanceof Error ? err.message : 'failed to load displays');
+          setCode(err instanceof DisplaysLoadError ? err.code : null);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -73,5 +96,5 @@ export function useRemoteViewDisplays(
     setLoading(false);
   }, [enabled, refresh]);
 
-  return { displays, loading, error, refresh };
+  return { displays, loading, error, code, refresh };
 }
