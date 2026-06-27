@@ -57,6 +57,25 @@ describe('useRemoteViewWindows', () => {
     expect(result.current.error).toMatch(/Screen Recording/);
   });
 
+  it('surfaces the route error CODE (e.g. E_LOCKED) so callers can flip UI on the cause', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        jsonResponse(
+          { error: 'E_LOCKED', message: "The host Mac is locked, so its windows can't be listed." },
+          423
+        )
+      )
+    );
+
+    const { result } = renderHook(() => useRemoteViewWindows());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.windows).toEqual([]);
+    expect(result.current.code).toBe('E_LOCKED');
+    expect(result.current.error).toMatch(/locked/i);
+  });
+
   it('does not fetch when disabled (a session is active)', async () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal('fetch', fetchSpy);

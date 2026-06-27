@@ -59,7 +59,11 @@ const DisplayCatalogSchema = z.array(DisplayDescriptorSchema);
  *  `E_BUNDLE_MISSING` ⇐ the signed bundle was never installed (`just streamd-install`) — caught
  *  up front so `/health` + `/windows` both name it instead of an opaque non-zero exit / readiness
  *  timeout (T008). */
-export type DaemonControlErrorCode = 'E_PERMISSION' | 'E_BUNDLE_MISSING' | 'E_INTERNAL';
+export type DaemonControlErrorCode =
+  | 'E_PERMISSION'
+  | 'E_BUNDLE_MISSING'
+  | 'E_LOCKED'
+  | 'E_INTERNAL';
 
 export class DaemonControlError extends Error {
   constructor(
@@ -128,6 +132,14 @@ export function createRealDaemonControl(deps: RealDaemonControlDeps): RemoteView
       throw new DaemonControlError(
         'E_PERMISSION',
         `Screen Recording permission is required to enumerate ${kind}. Grant it in System Settings → Privacy & Security → Screen Recording.`
+      );
+    }
+    // Exit 4 = the host is locked (SessionLock guard) — a locked Mac returns a stale/empty SCK set,
+    // so the picker must say "unlock the host" instead of "no windows" (the symptoms are identical).
+    if (exitCode === 4) {
+      throw new DaemonControlError(
+        'E_LOCKED',
+        `The host Mac is locked, so its ${kind} can't be listed. Unlock the host, then retry.`
       );
     }
     if (exitCode !== 0) {

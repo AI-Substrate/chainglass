@@ -18,7 +18,7 @@
  * place a windowId originates (it flows out via onPickWindow → `rv`).
  */
 
-import { X } from 'lucide-react';
+import { Lock, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useRemoteViewDisplays } from '../hooks/use-remote-view-displays';
 import { useRemoteViewHealth } from '../hooks/use-remote-view-health';
@@ -69,17 +69,35 @@ export function RemoteViewPanel({
   // F007: the picker is the only place a target originates; on a deep-link re-enter
   // (rv from URL, no pick) pickedTarget stays null and the hook learns it from hello-ok.
   const [pickedTarget, setPickedTarget] = useState<PickedTarget | null>(null);
-  const { windows, loading, error, refresh } = useRemoteViewWindows({ enabled: rv == null });
+  const {
+    windows,
+    loading,
+    error,
+    code: windowsCode,
+    refresh,
+  } = useRemoteViewWindows({
+    enabled: rv == null,
+  });
   // Multi-target capture: the picker's "Whole Desktop" section. Loads alongside the windows.
   const {
     displays,
-    error: displaysError,
+    code: displaysCode,
     refresh: refreshDisplays,
   } = useRemoteViewDisplays({ enabled: rv == null });
   // AC-14 preflight: read the daemon's TCC grants while the picker is shown so a missing grant is
   // named up front (a card), not discovered as a black frame. Non-blocking — the picker loads either way.
   const health = useRemoteViewHealth({ enabled: rv == null });
   const missing = health.permissions ? missingGrants(health.permissions) : [];
+  // Host-locked guard: a locked Mac returns a stale/empty SCK set, so the catalogs come back empty
+  // and the picker would look like "no windows" with no hint why. The one-shots flag it (exit 4 →
+  // `E_LOCKED` → 423); flip to an explicit "unlock the host" card so the cause — and the fix — is
+  // obvious. Either catalog reporting it is enough (they share the same lock check).
+  const hostLocked = windowsCode === 'E_LOCKED' || displaysCode === 'E_LOCKED';
+  const recheck = () => {
+    health.refresh();
+    refresh();
+    refreshDisplays();
+  };
 
   // The Viewport hook appends `/stream?session=…&token=…` and re-mints a fresh JWT per connect;
   // here we resolve the BASE url for the context (T001 + T003):
@@ -164,30 +182,43 @@ export function RemoteViewPanel({
       </header>
       <div className="min-h-0 flex-1">
         {rv == null ? (
-          <div className="flex h-full w-full flex-col">
-            <PermissionPreflightCard
-              missing={missing}
-              onRecheck={() => {
-                health.refresh();
-                refresh();
-                refreshDisplays();
-              }}
-            />
-            <div className="min-h-0 flex-1">
-              <WindowPicker
-                windows={windows}
-                loading={loading}
-                error={error ?? displaysError}
-                onAttach={handleAttach}
-                onRefresh={() => {
-                  refresh();
-                  refreshDisplays();
-                }}
-                displays={displays}
-                onAttachDisplay={handleAttachDisplay}
-              />
+          hostLocked ? (
+            <div
+              data-testid="remote-view-host-locked"
+              className="flex h-full w-full flex-col items-center justify-center gap-3 p-6 text-center text-sm text-muted-foreground"
+            >
+              <Lock className="h-8 w-8" />
+              <div className="font-medium text-foreground">The host Mac is locked</div>
+              <div className="max-w-sm text-xs">
+                macOS won't let the streamer see the screen while the host is locked, so there are
+                no windows or displays to pick. Unlock the host Mac, then re-check.
+              </div>
+              <button
+                type="button"
+                onClick={recheck}
+                className="rounded border px-3 py-1 text-foreground hover:bg-muted"
+              >
+                Re-check
+              </button>
             </div>
-          </div>
+          ) : (
+            <div className="flex h-full w-full flex-col">
+              <PermissionPreflightCard missing={missing} onRecheck={recheck} />
+              <div className="min-h-0 flex-1">
+                <WindowPicker
+                  windows={windows}
+                  loading={loading}
+                  // Only the WINDOW load error blanks the grid — a displays-only failure must not
+                  // hide windows (displays are additive/optional; the locked case is handled above).
+                  error={error}
+                  onAttach={handleAttach}
+                  onRefresh={recheck}
+                  displays={displays}
+                  onAttachDisplay={handleAttachDisplay}
+                />
+              </div>
+            </div>
+          )
         ) : daemonUnreachable ? (
           <div
             data-testid="remote-view-daemon-unreachable"

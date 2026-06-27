@@ -32,6 +32,10 @@ export async function GET(): Promise<NextResponse> {
     if (err instanceof DaemonControlError && err.code === 'E_PERMISSION') {
       return NextResponse.json({ error: 'E_PERMISSION', message: err.message }, { status: 403 });
     }
+    if (err instanceof DaemonControlError && err.code === 'E_LOCKED') {
+      // 423 Locked: not a permission/install fault — recoverable by unlocking the host (Plan 088).
+      return NextResponse.json({ error: 'E_LOCKED', message: err.message }, { status: 423 });
+    }
     if (err instanceof DaemonControlError && err.code === 'E_BUNDLE_MISSING') {
       // 503: not the client's fault, recoverable by installing the bundle (AC-14; T008).
       return NextResponse.json(
