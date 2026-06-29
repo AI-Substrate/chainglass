@@ -188,7 +188,7 @@ export async function startFakeStreamd(opts: FakeStreamdOptions = {}): Promise<F
       ws.close(4404, 'session-unknown');
       return;
     }
-    if (existing && existing.ws && existing.ws !== ws && isOpen(existing.ws)) {
+    if (existing?.ws && existing.ws !== ws && isOpen(existing.ws)) {
       // R2: latest-attach-wins — displace the prior viewer.
       send(existing.ws, { t: 'displaced' });
       existing.ws.close(4002, 'displaced');

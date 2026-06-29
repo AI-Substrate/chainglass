@@ -11,14 +11,13 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 function makeNode(overrides: Partial<NodeStatusResult> = {}): NodeStatusResult {
-  return {
+  const base = {
     nodeId: 'n1',
     unitSlug: 'test',
-    unitType: 'agent',
-    execution: 'serial',
+    execution: 'serial' as const,
     lineId: 'line-001',
     position: 0,
-    status: 'pending',
+    status: 'pending' as const,
     ready: false,
     readyDetail: {
       precedingLinesComplete: true,
@@ -28,8 +27,23 @@ function makeNode(overrides: Partial<NodeStatusResult> = {}): NodeStatusResult {
       unitFound: true,
     },
     inputPack: { inputs: {}, ok: true },
-    ...overrides,
   };
+  if (overrides.unitType === 'user-input') {
+    return {
+      ...base,
+      ...overrides,
+      unitType: 'user-input',
+      userInput: overrides.userInput ?? {
+        prompt: 'Enter a value',
+        inputType: 'text',
+        outputName: 'value',
+      },
+    };
+  }
+  if (overrides.unitType === 'code') {
+    return { ...base, ...overrides, unitType: 'code' };
+  }
+  return { ...base, ...overrides, unitType: 'agent' };
 }
 
 describe('computeGates', () => {

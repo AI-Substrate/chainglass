@@ -22,6 +22,7 @@ import { registerNotesCommands } from '../commands/notes.command.js';
 import { registerPhaseCommands } from '../commands/phase.command.js';
 import { registerPositionalGraphCommands } from '../commands/positional-graph.command.js';
 import { registerQuestionCommands } from '../commands/question.command.js';
+import { registerRemoteViewCommands } from '../commands/remote-view.command.js';
 import { registerRunsCommands } from '../commands/runs.command.js';
 import { registerSampleCommands } from '../commands/sample.command.js';
 import { registerTemplateCommands } from '../commands/template.command.js';
@@ -247,6 +248,8 @@ export function createProgram(options: CreateProgramOptions = {}): Command {
   // Question Popper commands (Plan 067: Phase 4)
   registerQuestionCommands(program);
   registerAlertCommands(program);
+  // Remote view commands (Plan 088: Phase 5)
+  registerRemoteViewCommands(program);
 
   // Default behavior: show help when no command provided
   if (!options.testMode) {

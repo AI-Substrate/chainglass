@@ -6,16 +6,15 @@
  * NOTE on the data path: this app has **no client-side DI container** — services
  * (`IRemoteViewService`) are resolved server-side (tsyringe child containers in
  * di-container.ts, used by routes/actions). Client components therefore reach the
- * daemon through API routes, which land in Phase 5. Until then this hook is the
- * single **swap point**: Phase 3 returns the frame-replay fake's window
- * (`FAKE_WINDOW`, AC-12, no daemon); Phase 5 replaces the body with
- * `fetch('/api/remote-view/windows')` (+ one-shot thumbnails) and the picker is
- * unchanged.
+ * daemon through API routes. As of Phase 5 (T004) this hook fetches the real catalog
+ * from `GET /api/remote-view/windows` (NextAuth-gated; the web-side daemon-control
+ * enumerates host windows via `streamd --list-windows`). The picker is unchanged —
+ * same `{ windows, loading, error, refresh }` shape it consumed against the fake.
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import type { WindowDescriptor } from '../protocol/messages';
-import { FAKE_WINDOW } from '../testing/fixtures';
+import { z } from 'zod';
+import { type WindowDescriptor, WindowDescriptorSchema } from '../protocol/messages';
 
 export interface UseRemoteViewWindowsOptions {
   /** Skip loading when the picker isn't shown (a session is active). Default true. */
@@ -26,11 +25,24 @@ export interface RemoteViewWindowsResult {
   windows: WindowDescriptor[];
   loading: boolean;
   error: string | null;
+  /** The route's stable error CODE (e.g. `E_LOCKED`, `E_PERMISSION`) so callers can flip UI on the
+   *  specific cause, not parse the message. `null` when there's no error. */
+  code: string | null;
   refresh: () => void;
 }
 
-/** Phase 3 fake window set — the one window the frame-replay fake can actually stream. */
-const PHASE3_FAKE_WINDOWS: WindowDescriptor[] = [FAKE_WINDOW];
+/** `GET /api/remote-view/windows` success body — the route wraps the catalog in `{ windows }`. */
+const WindowsResponseSchema = z.object({ windows: z.array(WindowDescriptorSchema) });
+
+/** Error carrying the route's stable error code through the try/catch so it reaches `code` state. */
+class WindowsLoadError extends Error {
+  constructor(
+    message: string,
+    readonly code: string | null
+  ) {
+    super(message);
+  }
+}
 
 export function useRemoteViewWindows(
   options: UseRemoteViewWindowsOptions = {}
@@ -39,24 +51,54 @@ export function useRemoteViewWindows(
   const [windows, setWindows] = useState<WindowDescriptor[]>([]);
   const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState<string | null>(null);
+  const [code, setCode] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
     if (!enabled) return;
+    let cancelled = false;
     setLoading(true);
     setError(null);
-    // Phase 5 swap point: replace with `fetch('/api/remote-view/windows')` → setWindows(json),
-    // setError on non-2xx. Phase 3 serves the fake window so the picker + smoke run daemon-absent.
-    setWindows(PHASE3_FAKE_WINDOWS);
-    setLoading(false);
+    setCode(null);
+    void (async () => {
+      try {
+        const res = await fetch('/api/remote-view/windows');
+        if (!res.ok) {
+          // The route names the cause (AC-14: missing grant, locked host, …); surface its message
+          // AND its code, not a bare status.
+          const detail = (await res.json().catch(() => null)) as {
+            message?: string;
+            error?: string;
+          } | null;
+          throw new WindowsLoadError(
+            detail?.message ?? `windows request failed (${res.status})`,
+            detail?.error ?? null
+          );
+        }
+        const parsed = WindowsResponseSchema.parse(await res.json());
+        if (!cancelled) setWindows(parsed.windows);
+      } catch (err) {
+        if (!cancelled) {
+          setWindows([]);
+          setError(err instanceof Error ? err.message : 'failed to load windows');
+          setCode(err instanceof WindowsLoadError ? err.code : null);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [enabled]);
 
   useEffect(() => {
-    if (enabled) refresh();
-    else {
-      setWindows([]);
-      setLoading(false);
+    if (enabled) {
+      const cleanup = refresh();
+      return cleanup;
     }
+    setWindows([]);
+    setLoading(false);
   }, [enabled, refresh]);
 
-  return { windows, loading, error, refresh };
+  return { windows, loading, error, code, refresh };
 }

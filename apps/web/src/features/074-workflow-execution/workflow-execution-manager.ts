@@ -12,6 +12,7 @@
  */
 
 import type { DriveEvent, DriveResult } from '@chainglass/positional-graph';
+import type { WorkspaceContext } from '@chainglass/workflow';
 import { toRegistryEntry } from './execution-registry.types';
 import type {
   ExecutionHandle,
@@ -246,9 +247,7 @@ export class WorkflowExecutionManager implements IWorkflowExecutionManager {
 
     // 4. Reset graph state
     await this.deps.graphService.resetGraphState(
-      { worktreePath: ctx.worktreePath } as Parameters<
-        typeof this.deps.graphService.resetGraphState
-      >[0],
+      { worktreePath: ctx.worktreePath } as WorkspaceContext,
       graphSlug
     );
 

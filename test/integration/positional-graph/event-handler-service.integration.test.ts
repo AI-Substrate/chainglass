@@ -80,9 +80,7 @@ describe('EventHandlerService — Integration', () => {
 
   it('should process multi-node graph with mixed event types', () => {
     const state: State = {
-      graph_slug: 'integration-test',
-      version: '1.0.0',
-      created_at: new Date().toISOString(),
+      graph_status: 'in_progress',
       updated_at: new Date().toISOString(),
       nodes: {
         'node-1': {
@@ -123,9 +121,7 @@ describe('EventHandlerService — Integration', () => {
 
   it('should be idempotent — second call returns eventsProcessed: 0', () => {
     const state: State = {
-      graph_slug: 'idempotency-test',
-      version: '1.0.0',
-      created_at: new Date().toISOString(),
+      graph_status: 'in_progress',
       updated_at: new Date().toISOString(),
       nodes: {
         'node-1': {
@@ -172,9 +168,7 @@ describe('EventHandlerService — Integration', () => {
 
     // Insert nodes in specific order
     const state: State = {
-      graph_slug: 'order-test',
-      version: '1.0.0',
-      created_at: new Date().toISOString(),
+      graph_status: 'in_progress',
       updated_at: new Date().toISOString(),
       nodes: {
         alpha: { status: 'starting' as const, events: [makeEvent('node:accepted')] },
@@ -191,9 +185,7 @@ describe('EventHandlerService — Integration', () => {
 
   it('should handle nodes with empty events arrays', () => {
     const state: State = {
-      graph_slug: 'empty-events',
-      version: '1.0.0',
-      created_at: new Date().toISOString(),
+      graph_status: 'in_progress',
       updated_at: new Date().toISOString(),
       nodes: {
         'node-1': {
@@ -211,9 +203,7 @@ describe('EventHandlerService — Integration', () => {
 
   it('should handle state with completed node:completed handler', () => {
     const state: State = {
-      graph_slug: 'completion-test',
-      version: '1.0.0',
-      created_at: new Date().toISOString(),
+      graph_status: 'in_progress',
       updated_at: new Date().toISOString(),
       nodes: {
         'node-1': {

@@ -575,8 +575,8 @@ describe('MarkdownWysiwygEditor', () => {
 
     try {
       const { container } = render(
-        // @ts-expect-error — intentionally passing invalid value to trigger error
         <MarkdownWysiwygEditor
+          // @ts-expect-error — intentionally passing invalid value to trigger error
           value={null}
           onChange={() => {}}
           onFallback={() => fallbackCalls.push('fallback')}

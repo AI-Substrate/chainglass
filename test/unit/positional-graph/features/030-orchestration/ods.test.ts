@@ -25,6 +25,7 @@ import type { ODSDependencies } from '../../../../../packages/positional-graph/s
 import type { OrchestrationRequest } from '../../../../../packages/positional-graph/src/features/030-orchestration/orchestration-request.schema.js';
 import type {
   IPositionalGraphService,
+  InputPack,
   StartNodeResult,
 } from '../../../../../packages/positional-graph/src/interfaces/positional-graph-service.interface.js';
 
@@ -57,7 +58,7 @@ function makeGraphServiceStub(
   };
 
   return {
-    startNode: async (_ctx, _graphSlug, nodeId) => ({
+    startNode: async (_ctx: WorkspaceContext, _graphSlug: string, nodeId: string) => ({
       ...(overrides.startNodeResult ?? defaultResult),
       nodeId,
     }),
@@ -232,6 +233,7 @@ describe('ODS — start-node handler', () => {
     contextService.setContextSource('A', {
       source: 'inherit',
       fromNodeId: 'parent-node',
+      reason: 'inherits context from prior node session',
     });
 
     const reality = buildFakeReality({
@@ -268,6 +270,7 @@ describe('ODS — dispatch table', () => {
       contextService: new FakeAgentContextService(),
       agentManager: new FakeAgentManagerService(),
       scriptRunner: stubRunner,
+      workUnitService: new FakeWorkUnitService(),
     };
   });
 
@@ -339,11 +342,20 @@ describe('ODS — input wiring (AC-14)', () => {
       contextService: new FakeAgentContextService(),
       agentManager: new FakeAgentManagerService(),
       scriptRunner: stubRunner,
+      workUnitService: new FakeWorkUnitService(),
     };
   });
 
   it('request.inputs flow through to pod.execute() options', async () => {
-    const customInputs = { ok: true as const, inputs: { name: 'test', count: 42 } };
+    const customInputs: InputPack = {
+      ok: true,
+      inputs: {
+        name: {
+          status: 'available',
+          detail: { inputName: 'name', required: true, sources: [] },
+        },
+      },
+    };
 
     const reality = buildFakeReality({
       nodes: [{ nodeId: 'A', status: 'ready', unitType: 'agent', inputPack: customInputs }],

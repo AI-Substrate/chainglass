@@ -16,6 +16,7 @@ import { registerFileBrowserSDK } from '@/features/041-file-browser/sdk/register
 import { registerTerminalSDK } from '@/features/064-terminal/sdk/register';
 import { registerFileNotesSDK } from '@/features/071-file-notes/sdk/register';
 import { registerPRViewSDK } from '@/features/071-pr-view/sdk/register';
+import { registerRemoteViewSDK } from '@/features/088-remote-view/sdk/register';
 import { registerThemesSDK } from '@/features/_platform/themes/sdk/register';
 
 /**
@@ -27,6 +28,7 @@ export function registerAllDomains(sdk: IUSDK): void {
   registerEventsSDK(sdk);
   registerFileNotesSDK(sdk);
   registerPRViewSDK(sdk);
+  registerRemoteViewSDK(sdk);
   registerTerminalSDK(sdk);
   registerThemesSDK(sdk);
 }

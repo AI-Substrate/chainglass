@@ -47,8 +47,26 @@ async function defaultHealthCheck(): Promise<boolean> {
     return false;
   }
 }
-async function defaultCreateSession(): Promise<string | null> {
-  return null; // real daemon recreate lands in Phase 5
+/**
+ * R6 auto-recreate (Phase 5, T005): POST the target window to the session-create route and
+ * return the new session id. Returns null on any failure and never throws — the reducer maps the
+ * resulting `SESSION_RECREATE_FAIL` to `picker` (the daemon was just health-checked healthy, so
+ * the user re-picks a window; this is NOT `daemonDown`, which is reserved for a dead daemon), and
+ * never an unhandled rejection. Exported so the swap from the Phase-2 `null` stub is directly tested.
+ */
+export async function defaultCreateSession(windowId: number): Promise<string | null> {
+  try {
+    const res = await fetch('/api/remote-view/sessions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ windowId }),
+    });
+    if (!res.ok) return null;
+    const summary = (await res.json()) as { sessionId?: string };
+    return summary.sessionId ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export interface UseRemoteViewSessionOptions {

@@ -4,14 +4,19 @@
  */
 
 import os from 'node:os';
-import type { IExecutionRegistry } from '@/features/074-workflow-execution/execution-registry.types';
+import type {
+  ExecutionRegistry,
+  IExecutionRegistry,
+} from '@/features/074-workflow-execution/execution-registry.types';
 import { createEmptyRegistry } from '@/features/074-workflow-execution/execution-registry.types';
 import { WorkflowExecutionManager } from '@/features/074-workflow-execution/workflow-execution-manager';
 import type { ExecutionManagerDeps } from '@/features/074-workflow-execution/workflow-execution-manager.types';
+import type { OrchestrationAction } from '@chainglass/positional-graph';
 import { FakeOrchestrationService, FakePositionalGraphService } from '@chainglass/positional-graph';
 import { FakeSSEBroadcaster } from '@chainglass/shared/features/019-agent-manager-refactor/fake-sse-broadcaster';
 import type { WorkspaceContext } from '@chainglass/workflow';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { buildFakeReality } from '../../../../../packages/positional-graph/src/features/030-orchestration/fake-onbas.js';
 
 // ── Helpers ─────────────────────────────────────────────
 
@@ -34,6 +39,29 @@ const fakeWorkspaceService = {
   resolveContextFromParams: async (_slug: string, _wt?: string): Promise<WorkspaceContext | null> =>
     makeFullContext(),
 };
+
+/**
+ * Build an OrchestrationAction for a start-node request against the given node.
+ * Mirrors the shape ODS records for a successful start (request + execute result + timestamp).
+ */
+function makeStartAction(nodeId: string): OrchestrationAction {
+  const request = {
+    type: 'start-node' as const,
+    graphSlug: TEST_SLUG,
+    nodeId,
+    inputs: { inputs: {}, ok: true },
+  };
+  return {
+    request,
+    result: { ok: true, request, newStatus: 'starting' },
+    timestamp: new Date().toISOString(),
+  };
+}
+
+/** Build an array of N start-node actions (node ids n1..nN). */
+function makeActions(count: number): OrchestrationAction[] {
+  return Array.from({ length: count }, (_, i) => makeStartAction(`n${i + 1}`));
+}
 
 /** In-memory fake registry for tests. */
 function createFakeRegistry(): IExecutionRegistry & {
@@ -93,23 +121,12 @@ function configureSimpleGraph(orchService: FakeOrchestrationService) {
       {
         actions: [],
         stopReason: 'graph-complete',
-        finalReality: {
-          lines: [],
-          graphSlug: TEST_SLUG,
-          graphStatus: 'complete',
-          worktreePath: '/test/wt',
-          podSessions: {},
-        },
+        finalReality: buildFakeReality({ graphSlug: TEST_SLUG, graphStatus: 'complete' }),
         iterations: 1,
+        errors: [],
       },
     ],
-    reality: {
-      lines: [],
-      graphSlug: TEST_SLUG,
-      graphStatus: 'pending',
-      worktreePath: '/test/wt',
-      podSessions: {},
-    },
+    reality: buildFakeReality({ graphSlug: TEST_SLUG, graphStatus: 'pending' }),
   });
 }
 
@@ -171,7 +188,10 @@ describe('WorkflowExecutionManager', () => {
       configureSimpleGraph(orchService);
       const { deps, registry: ftRegistry } = createDeps({
         workspaceService: {
-          resolveContextFromParams: async () => null,
+          resolveContextFromParams: async (
+            _slug: string,
+            _wt?: string
+          ): Promise<WorkspaceContext | null> => null,
         } as ExecutionManagerDeps['workspaceService'],
       });
       const mgr = new WorkflowExecutionManager(deps);
@@ -300,25 +320,14 @@ describe('WorkflowExecutionManager', () => {
       orchService.configureGraph(TEST_SLUG, {
         runResults: [
           {
-            actions: [{ type: 'start', nodeId: 'n1' }],
+            actions: [makeStartAction('n1')],
             stopReason: 'graph-complete',
-            finalReality: {
-              lines: [],
-              graphSlug: TEST_SLUG,
-              graphStatus: 'complete',
-              worktreePath: '/test/wt',
-              podSessions: {},
-            },
+            finalReality: buildFakeReality({ graphSlug: TEST_SLUG, graphStatus: 'complete' }),
             iterations: 1,
+            errors: [],
           },
         ],
-        reality: {
-          lines: [],
-          graphSlug: TEST_SLUG,
-          graphStatus: 'pending',
-          worktreePath: '/test/wt',
-          podSessions: {},
-        },
+        reality: buildFakeReality({ graphSlug: TEST_SLUG, graphStatus: 'pending' }),
       });
 
       // Configure drive events to be emitted
@@ -334,10 +343,11 @@ describe('WorkflowExecutionManager', () => {
           type: 'iteration',
           message: '2 actions',
           data: {
-            actions: [1, 2],
-            stopReason: 'continue',
-            finalReality: {} as never,
+            actions: makeActions(2),
+            stopReason: 'no-action',
+            finalReality: buildFakeReality({ graphSlug: TEST_SLUG, graphStatus: 'in_progress' }),
             iterations: 2,
+            errors: [],
           },
         },
       ]);
@@ -500,25 +510,14 @@ describe('WorkflowExecutionManager', () => {
       orchService.configureGraph(TEST_SLUG, {
         runResults: [
           {
-            actions: [{ type: 'start', nodeId: 'n1' }],
+            actions: [makeStartAction('n1')],
             stopReason: 'graph-complete',
-            finalReality: {
-              lines: [],
-              graphSlug: TEST_SLUG,
-              graphStatus: 'complete',
-              worktreePath: '/test/wt',
-              podSessions: {},
-            },
+            finalReality: buildFakeReality({ graphSlug: TEST_SLUG, graphStatus: 'complete' }),
             iterations: 1,
+            errors: [],
           },
         ],
-        reality: {
-          lines: [],
-          graphSlug: TEST_SLUG,
-          graphStatus: 'pending',
-          worktreePath: '/test/wt',
-          podSessions: {},
-        },
+        reality: buildFakeReality({ graphSlug: TEST_SLUG, graphStatus: 'pending' }),
       });
 
       const fakeHandle = await orchService.get(makeFullContext(), TEST_SLUG);
@@ -532,10 +531,11 @@ describe('WorkflowExecutionManager', () => {
           type: 'iteration',
           message: '1 action',
           data: {
-            actions: [1],
-            stopReason: 'continue',
-            finalReality: {} as never,
+            actions: makeActions(1),
+            stopReason: 'no-action',
+            finalReality: buildFakeReality({ graphSlug: TEST_SLUG, graphStatus: 'in_progress' }),
             iterations: 1,
+            errors: [],
           },
         },
       ]);
@@ -563,9 +563,12 @@ describe('WorkflowExecutionManager', () => {
       expect(status).toBeDefined();
       expect(status?.key).toBeTruthy();
       expect(status?.status).toBeDefined();
-      expect((status as Record<string, unknown>).controller).toBeUndefined();
-      expect((status as Record<string, unknown>).drivePromise).toBeUndefined();
-      expect((status as Record<string, unknown>).orchestrationHandle).toBeUndefined();
+      // Spread the defined snapshot into a plain record so we can assert internal,
+      // non-serializable handle fields were stripped (they must not be present).
+      const statusRecord: Record<string, unknown> = { ...status };
+      expect(statusRecord.controller).toBeUndefined();
+      expect(statusRecord.drivePromise).toBeUndefined();
+      expect(statusRecord.orchestrationHandle).toBeUndefined();
 
       fakeHandle.releaseDrive({ exitReason: 'complete', iterations: 1, totalActions: 0 });
       await new Promise((r) => setTimeout(r, 10));
@@ -733,7 +736,9 @@ describe('WorkflowExecutionManager', () => {
      * Test Doc: Verifies resumeAll skips entries where worktree no longer exists (AC4).
      */
     it('skips entries where worktree no longer exists and cleans registry', async () => {
-      let writtenRegistry: ReturnType<typeof createEmptyRegistry> | null = null;
+      // Widen the initializer so control-flow analysis keeps the union type after
+      // the closure-only assignment below (matches createFakeRegistry's idiom).
+      let writtenRegistry: ExecutionRegistry | null = null as ExecutionRegistry | null;
       const stalePath = '/nonexistent/path/that/does/not/exist';
       const { deps: deps2 } = createDeps({
         registry: {

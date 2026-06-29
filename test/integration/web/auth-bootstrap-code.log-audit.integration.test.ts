@@ -48,7 +48,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { POST as verifyPOST } from '../../../apps/web/app/api/bootstrap/verify/route';
 import { writeBootstrapCodeOnBoot } from '../../../apps/web/src/auth-bootstrap/boot';
-import { authorizeUpgrade } from '../../../apps/web/src/features/064-terminal/server/terminal-auth';
+import {
+  authorizeUpgrade,
+  buildDefaultAllowedOrigins,
+} from '../../../apps/web/src/features/064-terminal/server/terminal-auth';
 import { getBootstrapCodeAndKey } from '../../../apps/web/src/lib/bootstrap-code';
 import { requireLocalAuth } from '../../../apps/web/src/lib/local-auth';
 
@@ -175,14 +178,12 @@ describe('AC-22 log-discipline audit (Phase 7 T010)', () => {
     });
 
     // (5) authorizeUpgrade — allow + deny paths
-    const allowReq = {
-      headers: { get: (n: string) => (n === 'origin' ? 'http://localhost:3000' : null) },
-    } as unknown as Parameters<typeof authorizeUpgrade>[0];
-    const denyReq = {
-      headers: { get: (n: string) => (n === 'origin' ? 'https://evil.example.com' : null) },
-    } as unknown as Parameters<typeof authorizeUpgrade>[0];
-    await authorizeUpgrade(allowReq, { workspaceRoot: env.cwd });
-    await authorizeUpgrade(denyReq, { workspaceRoot: env.cwd });
+    const allowedOrigins = buildDefaultAllowedOrigins('3000', false);
+    const upgradeOpts = { cwd: env.cwd, allowedOrigins, signingKey: key };
+    const allowReq = { headers: { origin: 'http://localhost:3000' }, url: '/?token=anything' };
+    const denyReq = { headers: { origin: 'https://evil.example.com' }, url: '/?token=anything' };
+    await authorizeUpgrade(allowReq, upgradeOpts);
+    await authorizeUpgrade(denyReq, upgradeOpts);
 
     // ── AC-22 ASSERTIONS ──
     const haystack = captureAllLogged();

@@ -1,3 +1,4 @@
+import fixtures from '@/features/088-remote-view/protocol/fixtures/messages.json';
 // @vitest-environment node
 /**
  * Plan 088 Phase 2 — T003: wire-protocol control-message schemas (Workshop 003).
@@ -19,7 +20,6 @@ import {
   parseClientMessage,
   parseServerMessage,
 } from '@/features/088-remote-view/protocol/messages';
-import fixtures from '@/features/088-remote-view/protocol/fixtures/messages.json';
 import { FAKE_WINDOW } from '@/features/088-remote-view/testing/fixtures';
 import { describe, expect, it } from 'vitest';
 

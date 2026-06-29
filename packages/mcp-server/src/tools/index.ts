@@ -8,3 +8,4 @@
 // Tool registration functions
 export { registerWorkflowTools } from './workflow.tools.js';
 export { registerPhaseTools } from './phase.tools.js';
+export { registerRemoteViewTools } from './remote-view.tools.js';

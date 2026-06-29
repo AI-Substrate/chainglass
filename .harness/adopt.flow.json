@@ -1,0 +1,355 @@
+{
+  "schema_version": 1,
+  "kind": "harness-adopt",
+  "slug": "chainglass-adopt",
+  "nav": {
+    "now": "bridge",
+    "next": null,
+    "intent": "Bridge crossed: SUPPLANT decided — old Docker harness -> 'harness-tools' (recipe rename + back-compat alias; dir stays, no hard-coded paths broken). Loop LIVE; the-flow self-fires hooks (no chores). First loop work: KISS command-rename de-conflation.",
+    "bag": {
+      "flow": "loop",
+      "status": "bridged"
+    }
+  },
+  "created_at": "2026-06-20T00:56:20.058Z",
+  "provenance": {
+    "record_kind": "flow",
+    "harness_version": "0.5.0",
+    "branch": "084-random-enhancements-3",
+    "repo": "git@github.com:AI-Substrate/chainglass.git",
+    "created_at": "2026-06-20T00:56:20.058Z",
+    "agent": null,
+    "plan_id": null
+  },
+  "events": [
+    {
+      "id": "CRT-001",
+      "kind": "created",
+      "origin": "engine",
+      "fired_at": "2026-06-20T00:56:20.068Z",
+      "details": {
+        "kind": "harness-adopt",
+        "slug": "chainglass-adopt"
+      }
+    },
+    {
+      "id": "STA-001",
+      "kind": "status-changed",
+      "origin": "engine",
+      "fired_at": "2026-06-20T00:57:08.660Z",
+      "details": {
+        "node": "install",
+        "from": "assumed",
+        "to": "done"
+      }
+    },
+    {
+      "id": "STA-002",
+      "kind": "status-changed",
+      "origin": "engine",
+      "fired_at": "2026-06-20T00:57:08.728Z",
+      "details": {
+        "node": "governance",
+        "from": "assumed",
+        "to": "done"
+      }
+    },
+    {
+      "id": "STA-003",
+      "kind": "status-changed",
+      "origin": "engine",
+      "fired_at": "2026-06-20T00:57:08.796Z",
+      "details": {
+        "node": "scout",
+        "from": "assumed",
+        "to": "known"
+      }
+    },
+    {
+      "id": "STA-004",
+      "kind": "status-changed",
+      "origin": "engine",
+      "fired_at": "2026-06-20T00:57:08.868Z",
+      "details": {
+        "node": "inject",
+        "from": "assumed",
+        "to": "known"
+      }
+    },
+    {
+      "id": "STA-005",
+      "kind": "status-changed",
+      "origin": "engine",
+      "fired_at": "2026-06-20T00:57:08.936Z",
+      "details": {
+        "node": "build-boot",
+        "from": "assumed",
+        "to": "known"
+      }
+    },
+    {
+      "id": "UPD-001",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-20T00:57:09.006Z",
+      "details": {
+        "node": "install",
+        "fields": [
+          "note"
+        ]
+      }
+    },
+    {
+      "id": "UPD-002",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-20T00:57:09.078Z",
+      "details": {
+        "node": "governance",
+        "fields": [
+          "note"
+        ]
+      }
+    },
+    {
+      "id": "CUR-001",
+      "kind": "cursor-moved",
+      "origin": "engine",
+      "fired_at": "2026-06-20T00:57:09.151Z",
+      "details": {
+        "from": "install",
+        "to": "scout"
+      }
+    },
+    {
+      "id": "UPD-003",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-20T23:14:00.330Z",
+      "details": {
+        "node": "scout",
+        "fields": [
+          "note",
+          "artifacts"
+        ]
+      }
+    },
+    {
+      "id": "STA-006",
+      "kind": "status-changed",
+      "origin": "engine",
+      "fired_at": "2026-06-20T23:14:00.401Z",
+      "details": {
+        "node": "scout",
+        "from": "known",
+        "to": "done"
+      }
+    },
+    {
+      "id": "CUR-002",
+      "kind": "cursor-moved",
+      "origin": "engine",
+      "fired_at": "2026-06-20T23:14:00.478Z",
+      "details": {
+        "from": "scout",
+        "to": "inject"
+      }
+    },
+    {
+      "id": "UPD-004",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-20T23:48:08.179Z",
+      "details": {
+        "node": "inject",
+        "fields": [
+          "note",
+          "artifacts"
+        ]
+      }
+    },
+    {
+      "id": "STA-007",
+      "kind": "status-changed",
+      "origin": "engine",
+      "fired_at": "2026-06-20T23:48:08.248Z",
+      "details": {
+        "node": "inject",
+        "from": "known",
+        "to": "done"
+      }
+    },
+    {
+      "id": "CUR-003",
+      "kind": "cursor-moved",
+      "origin": "engine",
+      "fired_at": "2026-06-20T23:48:08.320Z",
+      "details": {
+        "from": "inject",
+        "to": "build-boot"
+      }
+    },
+    {
+      "id": "UPD-005",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-20T23:57:41.165Z",
+      "details": {
+        "node": "build-boot",
+        "fields": [
+          "note",
+          "artifacts"
+        ]
+      }
+    },
+    {
+      "id": "STA-008",
+      "kind": "status-changed",
+      "origin": "engine",
+      "fired_at": "2026-06-20T23:57:41.236Z",
+      "details": {
+        "node": "build-boot",
+        "from": "known",
+        "to": "done"
+      }
+    },
+    {
+      "id": "CUR-004",
+      "kind": "cursor-moved",
+      "origin": "engine",
+      "fired_at": "2026-06-20T23:57:41.307Z",
+      "details": {
+        "from": "build-boot",
+        "to": "bridge"
+      }
+    },
+    {
+      "id": "UPD-006",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-21T00:08:06.453Z",
+      "details": {
+        "node": "bridge",
+        "fields": [
+          "note"
+        ]
+      }
+    },
+    {
+      "id": "STA-009",
+      "kind": "status-changed",
+      "origin": "engine",
+      "fired_at": "2026-06-21T00:08:06.523Z",
+      "details": {
+        "node": "bridge",
+        "from": "assumed",
+        "to": "done"
+      }
+    },
+    {
+      "id": "STA-010",
+      "kind": "status-changed",
+      "origin": "engine",
+      "fired_at": "2026-06-22T01:33:31.355Z",
+      "details": {
+        "node": "bridge",
+        "from": "done",
+        "to": "done"
+      }
+    }
+  ],
+  "nodes": [
+    {
+      "id": "install",
+      "type": "install",
+      "label": "Install harness",
+      "status": "done",
+      "next": [
+        "governance"
+      ],
+      "zone": "preflight",
+      "modified_at": "2026-06-20T00:57:09.006Z",
+      "ran_at": "2026-06-20T00:57:08.659Z",
+      "note": "harness CLI v0.5.0 (global, ambient); doctor ok"
+    },
+    {
+      "id": "governance",
+      "type": "governance",
+      "label": "Governance + boot contract",
+      "status": "done",
+      "next": [
+        "build-boot"
+      ],
+      "zone": "flight",
+      "modified_at": "2026-06-20T00:57:09.078Z",
+      "ran_at": "2026-06-20T00:57:08.728Z",
+      "note": "harness init stamped .harness/engineering-harness.md (L0, seeded empty — Boot/Health/Interact/Observe + injection map are TODO; filled at inject + build-boot)"
+    },
+    {
+      "id": "build-boot",
+      "type": "build-boot",
+      "label": "Build + run boot (last)",
+      "status": "done",
+      "next": [
+        "bridge"
+      ],
+      "zone": "postflight",
+      "modified_at": "2026-06-20T23:57:41.236Z",
+      "note": "Boot BUILT + operational (harness new boot --wrap 'just typecheck'; doctor: loaded). First verdict = UNHEALTHY: repo branch fails its own gates pre-adoption — biome 46 format violations + ~20 tsc errors (browser-client ReadFileResult.content, workflow-execution-manager.ts:250 'Cannot find name this' [real bug], flowspace-mcp-client use-before-assign x6, unix-process-manager overloads x12, tinykeys missing types, template.command implicit-any). NONE from adoption. S4 satisfied by a working boot that reports truthfully (UNHEALTHY is valid; UNAVAILABLE is not). Debt logged as loop finding; NOT fixed (out of scope). Also fixed: biome now ignores .harness/.",
+      "artifacts": [
+        ".harness/extensions/boot/extension.ts",
+        ".harness/engineering-harness.md",
+        "biome.json"
+      ],
+      "ran_at": "2026-06-20T23:57:41.236Z"
+    },
+    {
+      "id": "bridge",
+      "type": "decision",
+      "label": "Bridge → harness loop?",
+      "status": "done",
+      "next": [],
+      "zone": "postflight",
+      "note": "Decision: COEXIST + de-collide the name (not supplant). The Docker 'just harness dev' (L3 dev environment) and the engineering-harness (prove/observe/improve loop) are different layers — the loop WRAPS commands like the Docker env, it doesn't replace it. Keep both; resolve the 5-way 'harness' name collision later. Loop is LIVE: future /the-flow sessions fire pre-flight -> boot. Nucleus committed; next = fix boot (clear the pre-existing typecheck debt so boot goes green).",
+      "modified_at": "2026-06-22T01:33:31.355Z",
+      "ran_at": "2026-06-22T01:33:31.355Z"
+    },
+    {
+      "id": "scout",
+      "type": "scout",
+      "label": "Scout (harnessability)",
+      "status": "done",
+      "next": [
+        "governance"
+      ],
+      "zone": "preflight",
+      "branch_of": "install",
+      "modified_at": "2026-06-20T23:14:00.401Z",
+      "note": "Harnessability scout complete — 6 read-only inspectors fanned out, orchestrator-synthesized. Verdict: Operate-Today A (93%), Adaptability B (70%), index B (82%), readiness H4 (native loop H5), proof L4->L5, confidence high. 18 gaps; weakest area = architecture enforcement (E, prose-only). Boot recommendation: WRAP existing commands (just dev/preflight + check + harness-verify + streamd-smoke), don't invent.",
+      "artifacts": [
+        ".harness/reports/harnessability/001-chainglass/report.md",
+        ".harness/reports/harnessability/001-chainglass/summary.md",
+        ".harness/reports/harnessability/latest.json"
+      ],
+      "ran_at": "2026-06-20T23:14:00.401Z"
+    },
+    {
+      "id": "inject",
+      "type": "inject",
+      "label": "Inject (wire seams)",
+      "status": "done",
+      "next": [
+        "build-boot"
+      ],
+      "zone": "flight",
+      "branch_of": "governance",
+      "modified_at": "2026-06-20T23:48:08.248Z",
+      "note": "Inject = recording only. Host flow is /the-flow (self-fires /eng-harness-flow at its seams; adopt.md:142 'host flow self-fires'). No weave needed. Filled the ## Injection map table in .harness/engineering-harness.md (5 lifecycle hooks ← the-flow seams). Plain branch/PR work is the one uncovered path, deferred.",
+      "artifacts": [
+        ".harness/engineering-harness.md"
+      ],
+      "ran_at": "2026-06-20T23:48:08.248Z"
+    }
+  ],
+  "title": "adopt"
+}

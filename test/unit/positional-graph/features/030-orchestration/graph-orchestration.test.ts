@@ -43,8 +43,8 @@ function makeCtx(): WorkspaceContext {
 /** Minimal State for EHS processGraph. */
 function makeState(): State {
   return {
-    graph_slug: 'test-graph',
-    version: '1.0.0',
+    graph_status: 'in_progress',
+    updated_at: new Date().toISOString(),
     nodes: {},
     questions: [],
   };
@@ -134,7 +134,7 @@ describe('GraphOrchestration — run() loop', () => {
         nodeId: 'A',
         inputs: { ok: true, inputs: {} },
       },
-      { type: 'no-action', graphSlug: 'test-graph', reason: 'all-running' },
+      { type: 'no-action', graphSlug: 'test-graph', reason: 'all-waiting' },
     ]);
 
     const handle = makeHandle(deps);
@@ -160,7 +160,7 @@ describe('GraphOrchestration — run() loop', () => {
         nodeId: 'B',
         inputs: { ok: true, inputs: {} },
       },
-      { type: 'no-action', graphSlug: 'test-graph', reason: 'all-running' },
+      { type: 'no-action', graphSlug: 'test-graph', reason: 'all-waiting' },
     ]);
 
     const handle = makeHandle(deps);
@@ -203,7 +203,7 @@ describe('GraphOrchestration — run() loop', () => {
   });
 
   it('all-running maps to no-action stop reason (DYK #4)', async () => {
-    deps.onbas.setActions([{ type: 'no-action', graphSlug: 'test-graph', reason: 'all-running' }]);
+    deps.onbas.setActions([{ type: 'no-action', graphSlug: 'test-graph', reason: 'all-waiting' }]);
 
     const handle = makeHandle(deps);
     const result = await handle.run();

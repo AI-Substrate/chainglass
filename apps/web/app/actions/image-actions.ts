@@ -19,7 +19,10 @@ import { requireAuth } from '@/features/063-login/lib/require-auth';
 import { SHARED_DI_TOKENS, WORKSPACE_DI_TOKENS } from '@chainglass/shared';
 import type { IFileSystem, IPathResolver } from '@chainglass/shared';
 import type { IWorkspaceService } from '@chainglass/workflow';
-import { deriveEditedFilename, isRasterImageFilename } from '../../src/features/041-file-browser/services/image-filename';
+import {
+  deriveEditedFilename,
+  isRasterImageFilename,
+} from '../../src/features/041-file-browser/services/image-filename';
 import {
   type SaveImageResult,
   saveImageService,

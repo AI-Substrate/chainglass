@@ -82,6 +82,8 @@ describe('AC-13: remote-view viewport is lazy-loaded (not in the initial bundle)
     ]);
 
     const offenders = [...initialChunks].filter((rel) => readChunk(rel).includes(SENTINEL));
-    expect(offenders, `viewport leaked into the shared bundle: ${offenders.join(', ')}`).toEqual([]);
+    expect(offenders, `viewport leaked into the shared bundle: ${offenders.join(', ')}`).toEqual(
+      []
+    );
   });
 });

@@ -1,8 +1,28 @@
+import { randomUUID } from 'node:crypto';
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { CopilotSessionEvent, ICopilotSession } from '@chainglass/shared';
+import type { ICopilotSession } from '@chainglass/shared';
+import type { CopilotSessionEvent, CopilotSessionEventLike } from '@chainglass/shared/interfaces';
 // Note: FakeCopilotSession will be imported once T007 creates it
 // For now, we reference the interface to ensure tests are ready for implementation
+
+/**
+ * Fixture builder for CopilotSessionEvent test literals.
+ * Mirrors the source's createDefaultIdleEvent() pattern: supplies the required
+ * base fields (id/timestamp/parentId) so test event literals stay focused on
+ * the type-specific data. The single cast is the fixture-builder boundary.
+ */
+function evt(type: string, data: Record<string, unknown> = {}): CopilotSessionEvent {
+  return {
+    id: randomUUID(),
+    timestamp: new Date().toISOString(),
+    parentId: null,
+    ephemeral: true,
+    type,
+    data,
+  } as CopilotSessionEvent;
+}
 
 describe('FakeCopilotSession', () => {
   /**
@@ -69,8 +89,8 @@ describe('FakeCopilotSession', () => {
       const { FakeCopilotSession } = await import('@chainglass/shared/fakes');
       session = new FakeCopilotSession({
         events: [
-          { type: 'assistant.message', data: { content: 'Hello, how can I help?' } },
-          { type: 'session.idle', data: {} },
+          evt('assistant.message', { content: 'Hello, how can I help?', messageId: 'msg-1' }),
+          evt('session.idle', {}),
         ],
       });
 
@@ -92,7 +112,7 @@ describe('FakeCopilotSession', () => {
       */
       const { FakeCopilotSession } = await import('@chainglass/shared/fakes');
       session = new FakeCopilotSession({
-        events: [{ type: 'session.idle', data: {} }],
+        events: [evt('session.idle', {})],
       });
 
       const result = await session.sendAndWait({ prompt: 'Hello' });
@@ -112,7 +132,11 @@ describe('FakeCopilotSession', () => {
       const { FakeCopilotSession } = await import('@chainglass/shared/fakes');
       session = new FakeCopilotSession({
         events: [
-          { type: 'session.error', data: { message: 'Something went wrong', stack: 'at...' } },
+          evt('session.error', {
+            errorType: 'RUNTIME_ERROR',
+            message: 'Something went wrong',
+            stack: 'at...',
+          }),
         ],
       });
 
@@ -151,8 +175,8 @@ describe('FakeCopilotSession', () => {
       const { FakeCopilotSession } = await import('@chainglass/shared/fakes');
       const fakeWithHistory = new FakeCopilotSession({
         events: [
-          { type: 'assistant.message', data: { content: 'Response' } },
-          { type: 'session.idle', data: {} },
+          evt('assistant.message', { content: 'Response', messageId: 'msg-1' }),
+          evt('session.idle', {}),
         ],
       });
 
@@ -182,12 +206,12 @@ describe('FakeCopilotSession', () => {
       const { FakeCopilotSession } = await import('@chainglass/shared/fakes');
       session = new FakeCopilotSession({
         events: [
-          { type: 'assistant.message', data: { content: 'Hello' } },
-          { type: 'session.idle', data: {} },
+          evt('assistant.message', { content: 'Hello', messageId: 'msg-1' }),
+          evt('session.idle', {}),
         ],
       });
 
-      const receivedEvents: CopilotSessionEvent[] = [];
+      const receivedEvents: CopilotSessionEventLike[] = [];
       session.on((event) => {
         receivedEvents.push(event);
       });
@@ -211,12 +235,12 @@ describe('FakeCopilotSession', () => {
       const { FakeCopilotSession } = await import('@chainglass/shared/fakes');
       session = new FakeCopilotSession({
         events: [
-          { type: 'assistant.message', data: { content: 'Hello' } },
-          { type: 'session.idle', data: {} },
+          evt('assistant.message', { content: 'Hello', messageId: 'msg-1' }),
+          evt('session.idle', {}),
         ],
       });
 
-      const receivedEvents: CopilotSessionEvent[] = [];
+      const receivedEvents: CopilotSessionEventLike[] = [];
       const unsubscribe = session.on((event) => {
         receivedEvents.push(event);
       });
@@ -239,13 +263,13 @@ describe('FakeCopilotSession', () => {
       const { FakeCopilotSession } = await import('@chainglass/shared/fakes');
       session = new FakeCopilotSession({
         events: [
-          { type: 'assistant.message', data: { content: 'Hello' } },
-          { type: 'session.idle', data: {} },
+          evt('assistant.message', { content: 'Hello', messageId: 'msg-1' }),
+          evt('session.idle', {}),
         ],
       });
 
-      const handler1Events: CopilotSessionEvent[] = [];
-      const handler2Events: CopilotSessionEvent[] = [];
+      const handler1Events: CopilotSessionEventLike[] = [];
+      const handler2Events: CopilotSessionEventLike[] = [];
 
       session.on((event) => handler1Events.push(event));
       session.on((event) => handler2Events.push(event));
@@ -321,12 +345,12 @@ describe('FakeCopilotSession', () => {
       const { FakeCopilotSession } = await import('@chainglass/shared/fakes');
       session = new FakeCopilotSession({
         events: [
-          { type: 'assistant.message', data: { content: 'Hello' } },
-          { type: 'session.idle', data: {} },
+          evt('assistant.message', { content: 'Hello', messageId: 'msg-1' }),
+          evt('session.idle', {}),
         ],
       });
 
-      const receivedEvents: CopilotSessionEvent[] = [];
+      const receivedEvents: CopilotSessionEventLike[] = [];
       session.on((event) => receivedEvents.push(event));
 
       await session.destroy();

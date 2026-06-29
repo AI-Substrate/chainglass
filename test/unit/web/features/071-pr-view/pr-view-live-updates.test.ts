@@ -120,8 +120,8 @@ describe('split loading states (DYK-01)', () => {
     });
 
     // Simulate aggregator hash check — stored hash differs from current
-    const storedHash = 'abc123';
-    const currentHash = 'def456';
+    const storedHash: string = 'abc123';
+    const currentHash: string = 'def456';
     const hashMismatch = storedHash !== currentHash;
 
     expect(hashMismatch).toBe(true);

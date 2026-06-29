@@ -38,7 +38,8 @@ export type SaveImageResult =
   | { ok: false; error: 'conflict' | 'security' | 'write-failed'; serverMtime?: string };
 
 export async function saveImageService(options: SaveImageOptions): Promise<SaveImageResult> {
-  const { worktreePath, filePath, content, mode, expectedMtime, fileSystem, pathResolver } = options;
+  const { worktreePath, filePath, content, mode, expectedMtime, fileSystem, pathResolver } =
+    options;
 
   // Security: validate + resolve the destination path before any I/O.
   let absolutePath: string;

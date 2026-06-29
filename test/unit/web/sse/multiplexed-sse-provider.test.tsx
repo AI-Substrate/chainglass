@@ -118,8 +118,8 @@ describe('MultiplexedSSEProvider', () => {
     function MultiConsumer() {
       const { subscribe } = useMultiplexedSSE();
       useEffect(() => {
-        const unsub1 = subscribe('event-popper', (e) => sub1.push(e.type));
-        const unsub2 = subscribe('event-popper', (e) => sub2.push(e.type));
+        const unsub1 = subscribe('event-popper', (e) => sub1.push(e.type ?? ''));
+        const unsub2 = subscribe('event-popper', (e) => sub2.push(e.type ?? ''));
         return () => {
           unsub1();
           unsub2();
@@ -152,7 +152,7 @@ describe('MultiplexedSSEProvider', () => {
           throw new Error('subscriber crash');
         });
         const unsub2 = subscribe('event-popper', (e) => {
-          received.push(e.type);
+          received.push(e.type ?? '');
         });
         return () => {
           unsub1();
@@ -301,7 +301,7 @@ describe('MultiplexedSSEProvider', () => {
     function UnsubConsumer() {
       const { subscribe } = useMultiplexedSSE();
       useEffect(() => {
-        unsubFn = subscribe('event-popper', (e) => received.push(e.type));
+        unsubFn = subscribe('event-popper', (e) => received.push(e.type ?? ''));
         return unsubFn;
       }, [subscribe]);
       return null;
@@ -332,7 +332,7 @@ describe('MultiplexedSSEProvider', () => {
     function Consumer() {
       const { subscribe } = useMultiplexedSSE();
       useEffect(() => {
-        return subscribe('event-popper', (e) => received.push(e.type));
+        return subscribe('event-popper', (e) => received.push(e.type ?? ''));
       }, [subscribe]);
       return null;
     }

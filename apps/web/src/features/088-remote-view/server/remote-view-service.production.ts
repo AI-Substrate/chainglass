@@ -1,0 +1,255 @@
+/**
+ * Production wiring for the daemon-backed RemoteViewService (Plan 088 Phase 5 — T003).
+ *
+ * Assembles the real adapter from the T001 daemon manager + the live HTTP
+ * `/sessions` transport. This is the one piece intentionally NOT unit-tested in
+ * T003: it binds node primitives (child_process spawn, fetch, jose mint) and
+ * resolves the live daemon config (web port, signed-bundle inner-binary path,
+ * bootstrap-code path). Construction does **no I/O** — the daemon spawns lazily on
+ * the first `attach()`. The live spawn/proxy path is verified in Phase 6, and the
+ * route integration that calls `ensureDaemon` lands in T004.
+ */
+import { execFile, spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+
+import { getBootstrapCodeAndKey } from '@/lib/bootstrap-code';
+import { findWorkspaceRoot } from '@chainglass/shared/auth-bootstrap-code';
+import type { ICentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events/central-event-notifier.interface';
+import { SignJWT } from 'jose';
+
+import { type RemoteViewDaemonControl, createRealDaemonControl } from './daemon-control';
+import { type DaemonHealth, createDaemonManager } from './daemon-manager';
+import { REMOTE_VIEW_JWT_AUDIENCE, REMOTE_VIEW_JWT_ISSUER } from './remote-view-auth';
+import {
+  type IRemoteViewService,
+  createHttpDaemonSessionsClient,
+  createRealRemoteViewService,
+} from './remote-view-service';
+
+/** This web build's protocol version — a mismatch drives the manager's respawn. */
+const PROTOCOL_VERSION = 1;
+const TOKEN_EXPIRY = '5m';
+
+/** Phase-4 signed bundle inner binary (`just streamd-install` target). */
+function resolveInnerBinaryPath(): string {
+  return join(
+    homedir(),
+    'Library/Application Support/chainglass/streamd/ChainglassStreamd.app/Contents/MacOS/streamd'
+  );
+}
+
+/** Absolute path to the bootstrap-code JSON the daemon verifies tokens against. */
+function resolveBootstrapPath(workspaceRoot: string): string {
+  return join(workspaceRoot, '.chainglass', 'bootstrap-code.json');
+}
+
+/** Mint a short-lived daemon JWT (same HKDF key + claims as the WS token route, Finding 03). */
+async function mintDaemonToken(): Promise<string> {
+  const { key } = await getBootstrapCodeAndKey();
+  return new SignJWT({
+    iss: REMOTE_VIEW_JWT_ISSUER,
+    aud: REMOTE_VIEW_JWT_AUDIENCE,
+    sub: 'chainglass-server',
+  })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime(TOKEN_EXPIRY)
+    .sign(key);
+}
+
+/** Resolved daemon config — every path keyed off the CANONICAL workspace root. */
+export interface ProductionDaemonConfig {
+  webPort: number;
+  workspaceRoot: string;
+  innerBinaryPath: string;
+  bootstrapPath: string;
+  daemonPortOverride?: number;
+}
+
+/**
+ * Resolve the daemon config from the canonical workspace root — NOT raw
+ * `process.cwd()` (F001 / Plan 084 FX003). Under `just dev`/Turbo, Next runs from
+ * `apps/web/`, but `getBootstrapCodeAndKey()` mints/verifies the bootstrap code
+ * from `findWorkspaceRoot(process.cwd())` (the repo root holding `.chainglass/`).
+ * The daemon's `--bootstrap`/`--registry` paths MUST point at that same root, or
+ * the daemon verifies tokens against `apps/web/.chainglass/` while the web process
+ * signs against `<repo>/.chainglass/` and live `/sessions` auth fails on the first
+ * attach. `cwd`/`findRoot`/`env` are injectable so the seam is unit-testable with
+ * no real filesystem walk (construction still does no I/O on the real path).
+ */
+export function resolveProductionDaemonConfig(
+  deps: {
+    cwd?: string;
+    findRoot?: (startDir: string) => string;
+    // Only PORT / CG_REMOTE_VIEW__DAEMON_PORT are read — accept a partial env so callers (and tests)
+    // need not supply the repo-required NODE_ENV. `process.env` (a full ProcessEnv) still satisfies it.
+    env?: Partial<NodeJS.ProcessEnv>;
+  } = {}
+): ProductionDaemonConfig {
+  const cwd = deps.cwd ?? process.cwd();
+  const findRoot = deps.findRoot ?? findWorkspaceRoot;
+  const env = deps.env ?? process.env;
+  const workspaceRoot = findRoot(cwd);
+  return {
+    webPort: Number(env.PORT ?? 3000),
+    workspaceRoot,
+    innerBinaryPath: resolveInnerBinaryPath(),
+    bootstrapPath: resolveBootstrapPath(workspaceRoot),
+    daemonPortOverride: env.CG_REMOTE_VIEW__DAEMON_PORT
+      ? Number(env.CG_REMOTE_VIEW__DAEMON_PORT)
+      : undefined,
+  };
+}
+
+/** `GET /health` on the daemon (loopback); null when unreachable. Shared by the manager's
+ *  readiness handshake and the `/health` route's verdict read. */
+async function fetchDaemonHealth(daemonPort: number): Promise<DaemonHealth | null> {
+  try {
+    const res = await fetch(`http://127.0.0.1:${daemonPort}/health`);
+    if (!res.ok) return null;
+    return (await res.json()) as DaemonHealth;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Run the signed bundle's inner binary one-shot in `--list-windows` mode → its stdout + exit
+ * code (T004 catalog source). TCC grants key on the bundle identity, so this one-shot inherits
+ * the Screen-Recording grant exactly like the detached streaming spawn (spike §1.5b). Exit 3 =
+ * missing grant (the control maps it to E_PERMISSION); a spawn failure (e.g. ENOENT) surfaces as
+ * a non-numeric `code` → reported as 127.
+ */
+function runListWindowsOneShot(
+  innerBinaryPath: string
+): Promise<{ stdout: string; exitCode: number }> {
+  return runListOneShot(innerBinaryPath, '--list-windows');
+}
+
+/** `--list-displays` sibling of the window one-shot (multi-target capture) — same TCC inheritance,
+ *  same exit-code semantics (3 = missing grant → E_PERMISSION at the control). */
+function runListDisplaysOneShot(
+  innerBinaryPath: string
+): Promise<{ stdout: string; exitCode: number }> {
+  return runListOneShot(innerBinaryPath, '--list-displays');
+}
+
+/** Shared one-shot runner for the `--list-*` catalog modes — TCC grants key on the bundle
+ *  identity, so this inherits the Screen-Recording grant exactly like the detached streaming
+ *  spawn (spike §1.5b). A spawn failure (e.g. ENOENT) surfaces as a non-numeric `code` → 127. */
+function runListOneShot(
+  innerBinaryPath: string,
+  mode: '--list-windows' | '--list-displays'
+): Promise<{ stdout: string; exitCode: number }> {
+  return new Promise((resolve) => {
+    execFile(
+      innerBinaryPath,
+      [mode],
+      { timeout: 15_000, maxBuffer: 8 * 1024 * 1024 },
+      (err, stdout) => {
+        const code = (err as { code?: number | string } | null)?.code;
+        const exitCode = typeof code === 'number' ? code : err ? 127 : 0;
+        resolve({ stdout: stdout ?? '', exitCode });
+      }
+    );
+  });
+}
+
+/** Construct the production daemon manager from resolved config (no I/O at construction — the
+ *  daemon spawns lazily on the first ensureDaemon). Shared by the session service + the control. */
+function buildProductionManager(
+  config: ProductionDaemonConfig,
+  logger?: Pick<Console, 'info' | 'warn' | 'error'>,
+  notifier?: ICentralEventNotifier
+): ReturnType<typeof createDaemonManager> {
+  return createDaemonManager(
+    {
+      webPort: config.webPort,
+      workspaceRoot: config.workspaceRoot,
+      innerBinaryPath: config.innerBinaryPath,
+      bootstrapPath: config.bootstrapPath,
+      expectedProtocolVersion: PROTOCOL_VERSION,
+      daemonPortOverride: config.daemonPortOverride,
+    },
+    {
+      spawnDaemon: (binaryPath, args, extraEnv) => {
+        // Merge the window id / port env OVER the inherited process.env so the daemon captures the
+        // attached window (it aborts at startup without CG_REMOTE_VIEW__WINDOW_ID — Capture.swift).
+        const child = spawn(binaryPath, args, {
+          detached: true,
+          stdio: 'ignore',
+          env: extraEnv ? { ...process.env, ...extraEnv } : process.env,
+        });
+        child.unref();
+      },
+      fetchHealth: fetchDaemonHealth,
+      shutdownDaemon: async (daemonPort) => {
+        try {
+          await fetch(`http://127.0.0.1:${daemonPort}/shutdown`, { method: 'POST' });
+        } catch {
+          /* best-effort graceful shutdown before respawn */
+        }
+      },
+      // Escalation when a graceful /shutdown doesn't free the daemon's fixed port within the grace
+      // window (a wedged daemon): SIGKILL the pid so the replacement can bind it instead of landing
+      // on a black screen. `process.kill` throws ESRCH if it already exited — the manager swallows it.
+      killProcess: (pid, signal) => {
+        process.kill(pid, signal);
+      },
+      sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+      now: () => Date.now(),
+      notifier,
+      logger,
+    }
+  );
+}
+
+/**
+ * Build the production daemon-backed RemoteViewService. Called by the prod DI
+ * factory (di-container). The web port defaults to `process.env.PORT` (Next's own
+ * port) — Phase-6 live verification confirms the registry-filename match.
+ */
+export function createProductionRemoteViewService(
+  opts: {
+    logger?: Pick<Console, 'info' | 'warn' | 'error'>;
+    /** Central notifier (T006) — drives the `remote-view` attached/detached/daemon-state SSE. */
+    notifier?: ICentralEventNotifier;
+  } = {}
+): IRemoteViewService {
+  const config = resolveProductionDaemonConfig();
+  // Wire the notifier into the manager too, so daemon-state envelopes ride the same
+  // ensureDaemon the adapter calls (single emit source — the control's manager stays quiet).
+  const manager = buildProductionManager(config, opts.logger, opts.notifier);
+  const sessions = createHttpDaemonSessionsClient({ mintToken: mintDaemonToken });
+  return createRealRemoteViewService({
+    ensureDaemon: manager.ensureDaemon,
+    sessions,
+    notifier: opts.notifier,
+    logger: opts.logger,
+  });
+}
+
+/**
+ * Build the production daemon-control surface (the `/windows` + `/health` route deps, T004).
+ * Reuses the same resolved config + manager as the session service; `listWindows` shells the
+ * signed bundle one-shot, `health` runs the manager handshake then reads the daemon verdict.
+ */
+export function createProductionDaemonControl(
+  opts: { logger?: Pick<Console, 'info' | 'warn' | 'error'> } = {}
+): RemoteViewDaemonControl {
+  const config = resolveProductionDaemonConfig();
+  const manager = buildProductionManager(config, opts.logger);
+  return createRealDaemonControl({
+    ensureDaemon: manager.ensureDaemon,
+    runWindowList: () => runListWindowsOneShot(config.innerBinaryPath),
+    runDisplayList: () => runListDisplaysOneShot(config.innerBinaryPath),
+    fetchHealth: fetchDaemonHealth,
+    // T008: the bundle's inner binary is the install signal — its absence is the single root cause
+    // behind both a `--list-windows` non-zero exit and a `/health` readiness timeout, so we name it
+    // up front (`E_BUNDLE_MISSING` → `just streamd-install`) instead of letting each route guess.
+    bundleInstalled: () => existsSync(config.innerBinaryPath),
+    logger: opts.logger,
+  });
+}

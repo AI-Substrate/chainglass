@@ -539,6 +539,121 @@
         "from": "rv4c",
         "to": "ph5"
       }
+    },
+    {
+      "id": "STA-005",
+      "kind": "status-changed",
+      "origin": "engine",
+      "fired_at": "2026-06-21T07:00:39.999Z",
+      "details": {
+        "node": "ph5",
+        "from": "known",
+        "to": "in_progress"
+      }
+    },
+    {
+      "id": "UPD-019",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-21T07:00:40.059Z",
+      "details": {
+        "node": "ph5",
+        "fields": [
+          "note"
+        ]
+      }
+    },
+    {
+      "id": "UPD-020",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-21T07:00:40.129Z",
+      "details": {
+        "node": "ph5",
+        "fields": [
+          "comments"
+        ]
+      }
+    },
+    {
+      "id": "UPD-021",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-22T07:40:06.013Z",
+      "details": {
+        "node": "ph5",
+        "fields": [
+          "comments"
+        ]
+      }
+    },
+    {
+      "id": "UPD-022",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-23T04:57:25.891Z",
+      "details": {
+        "node": "ph5",
+        "fields": [
+          "comments"
+        ]
+      }
+    },
+    {
+      "id": "UPD-023",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-23T06:28:58.205Z",
+      "details": {
+        "node": "ph5",
+        "fields": [
+          "comments"
+        ]
+      }
+    },
+    {
+      "id": "STA-006",
+      "kind": "status-changed",
+      "origin": "engine",
+      "fired_at": "2026-06-23T08:41:46.086Z",
+      "details": {
+        "node": "ph5",
+        "from": "in_progress",
+        "to": "done"
+      }
+    },
+    {
+      "id": "CUR-006",
+      "kind": "cursor-moved",
+      "origin": "engine",
+      "fired_at": "2026-06-23T08:41:46.150Z",
+      "details": {
+        "from": "ph5",
+        "to": "ph6"
+      }
+    },
+    {
+      "id": "STA-007",
+      "kind": "status-changed",
+      "origin": "engine",
+      "fired_at": "2026-06-23T10:36:24.863Z",
+      "details": {
+        "node": "ph6",
+        "from": "known",
+        "to": "in_progress"
+      }
+    },
+    {
+      "id": "UPD-024",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-23T10:36:25.117Z",
+      "details": {
+        "node": "ph6",
+        "fields": [
+          "note"
+        ]
+      }
     }
   ],
   "nodes": [
@@ -558,25 +673,56 @@
       "id": "ph6",
       "type": "phase",
       "label": "Phase 6: Integration Hardening, Permissions UX & Docs",
-      "status": "known",
+      "status": "in_progress",
       "next": [
         "ship"
       ],
       "created_at": "2026-06-19T23:23:46.585Z",
-      "modified_at": "2026-06-19T23:23:48.298Z",
-      "note": "Integration Hardening, Permissions UX & Docs — live AC sweep with real measurements; permissions UX; how-to docs; reconciliation. Carries the deferred FT-006 (live resize encoder re-config, needs a live window) and the Phase-4 code-complete-but-live-unverified MEDIUMs (wheel, E_PERMISSION, backing-scale, AX minimize-restore)."
+      "modified_at": "2026-06-23T10:36:25.117Z",
+      "note": "Tasks dossier written (T001-T011, grounded in 9 live findings); validate-v2 → VALIDATED WITH FIXES. Keystone T001 = surface daemonPort -> real ws url, kill the Phase-3 stub; live AC sweep (T009) gated behind integration glue T001-T008."
     },
     {
       "id": "ph5",
       "type": "phase",
       "label": "Phase 5: Lifecycle, Agent Surface & Events",
-      "status": "known",
+      "status": "done",
       "next": [
         "ph6"
       ],
       "created_at": "2026-06-19T23:23:46.659Z",
-      "modified_at": "2026-06-19T23:23:48.221Z",
-      "note": "Lifecycle, Agent Surface & Events (Mac-free) — daemon manager + reaper + version handshake; Next routes proxying the control API; SDK/CLI/MCP agent verbs (remote-view.list/attach/detach); SSE envelopes + GlobalState publishing. Designed in Workshops 001/002/003/004."
+      "modified_at": "2026-06-23T08:41:46.086Z",
+      "note": "Phase 5 tasks dossier tabled: 10 tasks (T001-T010) + 2 harness seams. Validated via /validate-v2 (4 agents) -> VALIDATED WITH FIXES: Source Truth 0 issues; 8 grounded fixes applied (route shapes, R6 session-create wiring, port HTTP-rename, reaper Phase-6 seam, publish sites, assumptions). 1 OPEN DECISION on T004: picker-catalog enumeration source (native streamd --list-windows vs helper).",
+      "comments": [
+        {
+          "at": "2026-06-21T07:00:40.129Z",
+          "text": "validate-v2 VALIDATED WITH FIXES (2026-06-21): thesis advanced @ Implementation; FC matrix all green except T004 enumeration-source (flagged open).",
+          "kind": "validation"
+        },
+        {
+          "at": "2026-06-22T07:40:06.013Z",
+          "text": "T004 enumeration source resolved: web-side picker catalog enumerates via a new 'streamd --list-windows' native daemon subcommand (Phase-1 spike 'windowid' precedent). Daemon /windows HTTP stays single-window (F005/F006 preserved). Route maps the native list -> WindowDescriptor[].",
+          "kind": "decision"
+        },
+        {
+          "at": "2026-06-23T04:57:25.891Z",
+          "text": "T005 /sessions CRUD + R6 createSession wiring done (TDD). Companion (run …8ec5) returned 1 HIGH F001 (overpromised daemonDown wording vs the correct picker transition) → fixed (resolution B + new R6 picker hook test) → re-review APPROVE. 088 suite 124/124, tsc 0, biome clean.",
+          "source": "agent",
+          "kind": "validation",
+          "refs": [
+            "11d7361a",
+            "2ffd4af3"
+          ]
+        },
+        {
+          "at": "2026-06-23T06:28:58.205Z",
+          "text": "T006 SSE envelopes done — adapter attached/detached + daemon-manager daemon-state(ready/down) + useRemoteViewEvents push (AC-8). 9 new tests; 088 suite 133/133; tsc 0; biome clean. Companion run …-8ec5 self-terminated mid-phase (no live T006 review — best-effort deviation logged).",
+          "kind": "validation",
+          "refs": [
+            "5a1d06f3"
+          ]
+        }
+      ],
+      "ran_at": "2026-06-23T08:41:46.086Z"
     },
     {
       "id": "ph4",
@@ -848,8 +994,8 @@
     }
   ],
   "nav": {
-    "now": "ph5",
-    "next": "ph6",
+    "now": "ph6",
+    "next": "ship",
     "intent": "Remote view mode for chainglass: stream a single desktop app window (Godot game, iOS Simulator) from the host Mac into the content area with mouse/keyboard input; terminal over/beside it; agent-controllable via CLI/URL endpoints",
     "bag": {
       "mode": "Full",

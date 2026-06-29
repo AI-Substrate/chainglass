@@ -8,7 +8,12 @@ import { isAssetTokenEligiblePath } from '@/lib/asset-token-gate';
 import { getBootstrapCodeAndKey } from '@/lib/bootstrap-code';
 import { evaluateCookieGate, isBypassPath } from '@/lib/cookie-gate';
 import { isLocalhostRequest } from '@/lib/localhost-guard';
-import { type NextRequest, NextResponse } from 'next/server';
+import {
+  type NextFetchEvent,
+  type NextMiddleware,
+  type NextRequest,
+  NextResponse,
+} from 'next/server';
 
 /**
  * Plan 084 Phase 3 — bootstrap-cookie stage of the proxy chain. Returns:
@@ -154,6 +159,14 @@ export async function bootstrapCookieStage(req: NextRequest): Promise<BootstrapS
  * makes the bootstrap layer unconditional — runs for every non-bypass path,
  * regardless of OAuth env-var state.
  */
+// NextAuth v5 `auth(callback)` is overloaded: a 1-arg callback matches BOTH the
+// App-Router-handler overload (req, AppRouteHandlerFnContext) and the
+// NextAuthMiddleware overload (req, NextFetchEvent). Overload resolution is
+// driven by the callback's arguments, NOT the assignment target — so TS picks
+// the first (handler) overload and a `: NextMiddleware` annotation can't steer
+// it; it only produces a type mismatch. At runtime `auth(cb)` is a universal
+// handler that works as Next middleware, so we assert the result to
+// `NextMiddleware` (the form we invoke as `oauthMiddleware(req, event)` below).
 const oauthMiddleware = auth(async (req) => {
   // This callback only runs when OAuth is ENABLED (auth.ts wrapper short-
   // circuits to `(req) => NextResponse.next()` when disabled). Belt-and-
@@ -170,12 +183,9 @@ const oauthMiddleware = auth(async (req) => {
     return NextResponse.redirect(loginUrl);
   }
   return NextResponse.next();
-});
+}) as unknown as NextMiddleware;
 
-// biome-ignore lint/suspicious/noExplicitAny: NextAuth middleware shape varies between disabled/enabled paths
-type ProxyMiddleware = (req: any) => Promise<Response> | Response;
-
-const proxyMiddleware: ProxyMiddleware = async (req: NextRequest) => {
+const proxyMiddleware: NextMiddleware = async (req: NextRequest, event: NextFetchEvent) => {
   const bootstrapResult = await bootstrapCookieStage(req);
   if (bootstrapResult === 'bypass') {
     // Public route — short-circuit BOTH the cookie gate and the Auth.js chain
@@ -193,7 +203,7 @@ const proxyMiddleware: ProxyMiddleware = async (req: NextRequest) => {
   // auth.ts wrapper, so this returns next() immediately. Critically, the
   // bootstrap gate ABOVE has already enforced the cookie — the OAuth
   // short-circuit cannot bypass it (Phase 5 F001 fix).
-  return oauthMiddleware(req);
+  return oauthMiddleware(req, event);
 };
 
 export default proxyMiddleware;

@@ -16,9 +16,7 @@ Test Doc:
 
 function makeState(nodeId: string, events: NodeEvent[] = []): State {
   return {
-    graph_slug: 'test-graph',
-    version: '1.0.0',
-    created_at: new Date().toISOString(),
+    graph_status: 'in_progress',
     updated_at: new Date().toISOString(),
     nodes: {
       [nodeId]: {

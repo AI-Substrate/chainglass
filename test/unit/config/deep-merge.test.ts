@@ -27,7 +27,7 @@ describe('deepMerge', () => {
       const target = { a: { b: 1 } };
       const source = { a: { c: 2 } };
 
-      const result = deepMerge(target, source);
+      const result = deepMerge<{ a: { b?: number; c?: number } }>(target, source);
 
       expect(result).toEqual({ a: { b: 1, c: 2 } });
     });
@@ -77,7 +77,9 @@ describe('deepMerge', () => {
         },
       };
 
-      const result = deepMerge(target, source);
+      const result = deepMerge<{
+        level1: { level2: { level3: { a?: number; b?: number } } };
+      }>(target, source);
 
       expect(result).toEqual({
         level1: {
@@ -141,7 +143,10 @@ describe('deepMerge', () => {
       const target = { feature: { enabled: true, timeout: 30 } };
       const source: { feature: null | typeof target.feature } = { feature: null };
 
-      const result = deepMerge(target, source);
+      const result = deepMerge<{ feature: { enabled: boolean; timeout: number } | null }>(
+        target,
+        source
+      );
 
       expect(result).toEqual({ feature: null });
     });
@@ -202,7 +207,7 @@ describe('deepMerge', () => {
       const originalTarget = JSON.parse(JSON.stringify(target));
       const originalSource = JSON.parse(JSON.stringify(source));
 
-      deepMerge(target, source);
+      deepMerge<{ a: { b?: number; c?: number } }>(target, source);
 
       expect(target).toEqual(originalTarget);
       expect(source).toEqual(originalSource);

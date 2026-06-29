@@ -40,11 +40,11 @@ describe('AgentSessionService', () => {
       - Contract: createSession(ctx, type) → { success: true, session }
       - Quality Contribution: Core functionality verification
       */
-      const result = await service.createSession(ctx, 'claude');
+      const result = await service.createSession(ctx, 'claude-code');
 
       expect(result.success).toBe(true);
       expect(result.session).toBeDefined();
-      expect(result.session?.type).toBe('claude');
+      expect(result.session?.type).toBe('claude-code');
       expect(result.session?.status).toBe('active');
       expect(result.session?.id).toMatch(/^\d+-[a-f0-9]{8}$/); // timestamp-uuid
       expect(result.errors).toHaveLength(0);
@@ -58,7 +58,7 @@ describe('AgentSessionService', () => {
     });
 
     it('should save session to adapter', async () => {
-      await service.createSession(ctx, 'claude');
+      await service.createSession(ctx, 'claude-code');
 
       expect(adapter.saveCalls).toHaveLength(1);
       const sessions = await adapter.list(ctx);
@@ -76,7 +76,7 @@ describe('AgentSessionService', () => {
       */
       const session = AgentSession.create({
         id: 'test-session',
-        type: 'claude',
+        type: 'claude-code',
         status: 'active',
       });
       adapter.addSession(ctx, session);
@@ -102,7 +102,10 @@ describe('AgentSessionService', () => {
     });
 
     it('should return all sessions', async () => {
-      adapter.addSession(ctx, AgentSession.create({ id: 's1', type: 'claude', status: 'active' }));
+      adapter.addSession(
+        ctx,
+        AgentSession.create({ id: 's1', type: 'claude-code', status: 'active' })
+      );
       adapter.addSession(
         ctx,
         AgentSession.create({ id: 's2', type: 'copilot', status: 'completed' })
@@ -124,7 +127,7 @@ describe('AgentSessionService', () => {
       */
       const session = AgentSession.create({
         id: 'to-delete',
-        type: 'claude',
+        type: 'claude-code',
         status: 'active',
       });
       adapter.addSession(ctx, session);
@@ -155,7 +158,7 @@ describe('AgentSessionService', () => {
       */
       const session = AgentSession.create({
         id: 'to-update',
-        type: 'claude',
+        type: 'claude-code',
         status: 'active',
       });
       adapter.addSession(ctx, session);

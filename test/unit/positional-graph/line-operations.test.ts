@@ -16,12 +16,13 @@ function createTestContext(worktreePath = '/workspace/my-project'): WorkspaceCon
     worktreePath,
     worktreeBranch: 'main',
     isMainWorktree: true,
+    hasGit: true,
   };
 }
 
 const stubWorkUnitLoader: IWorkUnitLoader = {
   async load() {
-    return { unit: { slug: 'stub', inputs: [], outputs: [] }, errors: [] };
+    return { unit: { slug: 'stub', type: 'agent', inputs: [], outputs: [] }, errors: [] };
   },
 };
 
@@ -188,7 +189,8 @@ describe('PositionalGraphService — Line Operations', () => {
 
     it('returns error when removing last line (E156)', async () => {
       const loadResult = await service.load(ctx, 'test-graph');
-      const lineId = loadResult.definition?.lines[0].id;
+      const lineId = loadResult.definition?.lines[0]?.id;
+      if (lineId === undefined) throw new Error('expected default line to exist');
 
       const result = await service.removeLine(ctx, 'test-graph', lineId);
       expect(result.errors).toHaveLength(1);
@@ -210,7 +212,8 @@ describe('PositionalGraphService — Line Operations', () => {
     it('moves line to new index', async () => {
       // Create a graph with 3 lines
       const loadResult = await service.load(ctx, 'test-graph');
-      const firstLineId = loadResult.definition?.lines[0].id;
+      const firstLineId = loadResult.definition?.lines[0]?.id;
+      if (firstLineId === undefined) throw new Error('expected default line to exist');
 
       const add1 = await service.addLine(ctx, 'test-graph', { label: 'Second' });
       const add2 = await service.addLine(ctx, 'test-graph', { label: 'Third' });
@@ -227,7 +230,8 @@ describe('PositionalGraphService — Line Operations', () => {
 
     it('returns error for invalid index (E152)', async () => {
       const loadResult = await service.load(ctx, 'test-graph');
-      const lineId = loadResult.definition?.lines[0].id;
+      const lineId = loadResult.definition?.lines[0]?.id;
+      if (lineId === undefined) throw new Error('expected default line to exist');
 
       const result = await service.moveLine(ctx, 'test-graph', lineId, 5);
       expect(result.errors).toHaveLength(1);
@@ -248,7 +252,8 @@ describe('PositionalGraphService — Line Operations', () => {
   describe('updateLineOrchestratorSettings', () => {
     it('sets transition to manual', async () => {
       const loadResult = await service.load(ctx, 'test-graph');
-      const lineId = loadResult.definition?.lines[0].id;
+      const lineId = loadResult.definition?.lines[0]?.id;
+      if (lineId === undefined) throw new Error('expected default line to exist');
 
       const result = await service.updateLineOrchestratorSettings(
         ctx,
@@ -266,7 +271,8 @@ describe('PositionalGraphService — Line Operations', () => {
 
     it('sets transition to auto', async () => {
       const loadResult = await service.load(ctx, 'test-graph');
-      const lineId = loadResult.definition?.lines[0].id;
+      const lineId = loadResult.definition?.lines[0]?.id;
+      if (lineId === undefined) throw new Error('expected default line to exist');
 
       // Set to manual first, then back to auto
       await service.updateLineOrchestratorSettings(ctx, 'test-graph', lineId as string, {
@@ -305,7 +311,8 @@ describe('PositionalGraphService — Line Operations', () => {
   describe('setLineLabel', () => {
     it('sets label', async () => {
       const loadResult = await service.load(ctx, 'test-graph');
-      const lineId = loadResult.definition?.lines[0].id;
+      const lineId = loadResult.definition?.lines[0]?.id;
+      if (lineId === undefined) throw new Error('expected default line to exist');
 
       const result = await service.setLineLabel(ctx, 'test-graph', lineId, 'Research');
       expect(result.errors).toEqual([]);
@@ -328,7 +335,8 @@ describe('PositionalGraphService — Line Operations', () => {
   describe('setLineDescription', () => {
     it('sets description', async () => {
       const loadResult = await service.load(ctx, 'test-graph');
-      const lineId = loadResult.definition?.lines[0].id;
+      const lineId = loadResult.definition?.lines[0]?.id;
+      if (lineId === undefined) throw new Error('expected default line to exist');
 
       const result = await service.setLineDescription(
         ctx,

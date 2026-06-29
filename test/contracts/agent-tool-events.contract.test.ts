@@ -273,12 +273,24 @@ agentAdapterToolEventsContractTests('ClaudeCodeAdapter', async () => {
 
 import { SdkCopilotAdapter } from '@chainglass/shared/adapters';
 import { FakeCopilotClient } from '@chainglass/shared/fakes';
+import type { CopilotSessionEvent, CopilotSessionEventLike } from '@chainglass/shared/interfaces';
 
 agentAdapterToolEventsContractTests('SdkCopilotAdapter', async () => {
-  // Pre-configure event sequences for each event type
-  const eventFixtures: Record<EventType, Array<{ type: string; data: unknown }>> = {
+  // Pre-configure event sequences for each event type.
+  // These are SDK passthrough events (CopilotSessionEventLike) — the adapter
+  // translates extended SDK types (tool.execution_start, etc.) that are not in
+  // the strict CopilotSessionEvent union but flow through the event handler.
+  let eventSeq = 0;
+  const baseFields = (): { id: string; timestamp: string; parentId: null } => ({
+    id: `evt-${++eventSeq}`,
+    timestamp: '2026-01-28T10:00:00.000Z',
+    parentId: null,
+  });
+
+  const eventFixtures: Record<EventType, CopilotSessionEventLike[]> = {
     tool_call: [
       {
+        ...baseFields(),
         type: 'tool.execution_start',
         data: {
           toolName: 'bash',
@@ -286,11 +298,16 @@ agentAdapterToolEventsContractTests('SdkCopilotAdapter', async () => {
           toolCallId: 'tool_contract_456',
         },
       },
-      { type: 'assistant.message', data: { content: 'Done', messageId: 'msg-001' } },
-      { type: 'session.idle', data: {} },
+      {
+        ...baseFields(),
+        type: 'assistant.message',
+        data: { content: 'Done', messageId: 'msg-001' },
+      },
+      { ...baseFields(), type: 'session.idle', data: {} },
     ],
     tool_result: [
       {
+        ...baseFields(),
         type: 'tool.execution_complete',
         data: {
           toolCallId: 'tool_contract_456',
@@ -298,19 +315,28 @@ agentAdapterToolEventsContractTests('SdkCopilotAdapter', async () => {
           success: true,
         },
       },
-      { type: 'assistant.message', data: { content: 'Done', messageId: 'msg-001' } },
-      { type: 'session.idle', data: {} },
+      {
+        ...baseFields(),
+        type: 'assistant.message',
+        data: { content: 'Done', messageId: 'msg-001' },
+      },
+      { ...baseFields(), type: 'session.idle', data: {} },
     ],
     thinking: [
       {
+        ...baseFields(),
         type: 'assistant.reasoning',
         data: {
           content: 'I need to think about this...',
           reasoningId: 'reason_contract_789',
         },
       },
-      { type: 'assistant.message', data: { content: 'Done', messageId: 'msg-001' } },
-      { type: 'session.idle', data: {} },
+      {
+        ...baseFields(),
+        type: 'assistant.message',
+        data: { content: 'Done', messageId: 'msg-001' },
+      },
+      { ...baseFields(), type: 'session.idle', data: {} },
     ],
   };
 
@@ -320,13 +346,13 @@ agentAdapterToolEventsContractTests('SdkCopilotAdapter', async () => {
     name: 'SdkCopilotAdapter',
     emitEvents: async (eventTypes: EventType[]) => {
       // Flatten all requested event fixtures
-      const allEvents: Array<{ type: string; data: unknown }> = [];
+      const allEvents: CopilotSessionEventLike[] = [];
       for (const type of eventTypes) {
         allEvents.push(...eventFixtures[type]);
       }
 
       currentClient = new FakeCopilotClient({
-        events: allEvents,
+        events: allEvents as CopilotSessionEvent[],
       });
 
       const adapter = new SdkCopilotAdapter(currentClient);

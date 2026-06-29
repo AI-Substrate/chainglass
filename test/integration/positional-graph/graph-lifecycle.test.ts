@@ -37,6 +37,7 @@ function createTestUnit(
   } = {}
 ): NarrowWorkUnit {
   return {
+    type: 'code',
     slug,
     inputs: opts.inputs ?? [],
     outputs: opts.outputs ?? [],
@@ -143,7 +144,7 @@ describe('PositionalGraph — Full Graph Lifecycle Integration', () => {
     const showAfterCreate = await service.show(ctx, GRAPH);
     expect(showAfterCreate.errors).toHaveLength(0);
     expect(showAfterCreate.lines).toHaveLength(1);
-    expect(showAfterCreate.lines[0].nodeCount).toBe(0);
+    expect(showAfterCreate.lines?.[0].nodeCount).toBe(0);
     expect(showAfterCreate.totalNodeCount).toBe(0);
 
     // Verify graph appears in listing
@@ -167,10 +168,10 @@ describe('PositionalGraph — Full Graph Lifecycle Integration', () => {
     // Verify 3 lines in correct order
     const showAfterLines = await service.show(ctx, GRAPH);
     expect(showAfterLines.lines).toHaveLength(3);
-    expect(showAfterLines.lines[0].id).toBe(initialLineId);
-    expect(showAfterLines.lines[1].id).toBe(line1Inserted.lineId);
-    expect(showAfterLines.lines[1].label).toBe('Processing');
-    expect(showAfterLines.lines[2].id).toBe(line2.lineId);
+    expect(showAfterLines.lines?.[0].id).toBe(initialLineId);
+    expect(showAfterLines.lines?.[1].id).toBe(line1Inserted.lineId);
+    expect(showAfterLines.lines?.[1].label).toBe('Processing');
+    expect(showAfterLines.lines?.[2].id).toBe(line2.lineId);
 
     // ── Step 3: Add nodes to lines ──
 
@@ -201,9 +202,10 @@ describe('PositionalGraph — Full Graph Lifecycle Integration', () => {
     // Verify node counts
     const showAfterNodes = await service.show(ctx, GRAPH);
     expect(showAfterNodes.totalNodeCount).toBe(4);
-    expect(showAfterNodes.lines[0].nodeCount).toBe(1); // producer
-    expect(showAfterNodes.lines[1].nodeCount).toBe(1); // consumer
-    expect(showAfterNodes.lines[2].nodeCount).toBe(2); // 2 workers
+    expect(showAfterNodes.lines).toBeDefined();
+    expect(showAfterNodes.lines?.[0].nodeCount).toBe(1); // producer
+    expect(showAfterNodes.lines?.[1].nodeCount).toBe(1); // consumer
+    expect(showAfterNodes.lines?.[2].nodeCount).toBe(2); // 2 workers
 
     // ── Step 4: Move node between lines ──
 
@@ -215,8 +217,9 @@ describe('PositionalGraph — Full Graph Lifecycle Integration', () => {
 
     // Verify: line 1 now has 2 nodes, line 2 has 1
     const showAfterMove = await service.show(ctx, GRAPH);
-    expect(showAfterMove.lines[1].nodeCount).toBe(2);
-    expect(showAfterMove.lines[2].nodeCount).toBe(1);
+    expect(showAfterMove.lines).toBeDefined();
+    expect(showAfterMove.lines?.[1].nodeCount).toBe(2);
+    expect(showAfterMove.lines?.[2].nodeCount).toBe(1);
 
     // ── Step 5: Set line properties ──
 
@@ -240,8 +243,9 @@ describe('PositionalGraph — Full Graph Lifecycle Integration', () => {
 
     // Verify line properties persisted
     const showAfterProps = await service.show(ctx, GRAPH);
-    expect(showAfterProps.lines[0].label).toBe('Input');
-    expect(showAfterProps.lines[0].transition).toBe('manual');
+    expect(showAfterProps.lines).toBeDefined();
+    expect(showAfterProps.lines?.[0].label).toBe('Input');
+    expect(showAfterProps.lines?.[0].transition).toBe('manual');
 
     // ── Step 6: Set node execution mode ──
 
@@ -271,7 +275,7 @@ describe('PositionalGraph — Full Graph Lifecycle Integration', () => {
     // Verify input on node
     const consumerShow = await service.showNode(ctx, GRAPH, consumerNode.nodeId as string);
     expect(consumerShow.inputs).toBeDefined();
-    expect(consumerShow.inputs.data).toEqual({
+    expect(consumerShow.inputs?.data).toEqual({
       from_unit: 'sample-producer',
       from_output: 'result',
     });

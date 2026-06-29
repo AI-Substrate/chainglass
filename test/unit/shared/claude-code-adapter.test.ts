@@ -2,6 +2,10 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import type {
   AgentEvent,
+  AgentMessageEvent,
+  AgentRawEvent,
+  AgentSessionEvent,
+  AgentTextDeltaEvent,
   AgentThinkingEvent,
   AgentToolCallEvent,
   AgentToolResultEvent,
@@ -570,9 +574,9 @@ describe('ClaudeCodeAdapter', () => {
       await spawnPromise;
 
       expect(events.length).toBeGreaterThanOrEqual(1);
-      const textEvent = events.find((e) => e.type === 'text_delta');
+      const textEvent = events.find((e): e is AgentTextDeltaEvent => e.type === 'text_delta');
       expect(textEvent).toBeDefined();
-      expect(textEvent.data.content).toBe('Hello there!');
+      expect(textEvent?.data.content).toBe('Hello there!');
     });
 
     it('should call onEvent with session_start when receiving system.init', async () => {
@@ -599,9 +603,9 @@ describe('ClaudeCodeAdapter', () => {
 
       await spawnPromise;
 
-      const sessionEvent = events.find((e) => e.type === 'session_start');
+      const sessionEvent = events.find((e): e is AgentSessionEvent => e.type === 'session_start');
       expect(sessionEvent).toBeDefined();
-      expect(sessionEvent.data.sessionId).toBe('stream-session-123');
+      expect(sessionEvent?.data.sessionId).toBe('stream-session-123');
     });
 
     it('should call onEvent with message when receiving result', async () => {
@@ -628,9 +632,9 @@ describe('ClaudeCodeAdapter', () => {
 
       await spawnPromise;
 
-      const messageEvent = events.find((e) => e.type === 'message');
+      const messageEvent = events.find((e): e is AgentMessageEvent => e.type === 'message');
       expect(messageEvent).toBeDefined();
-      expect(messageEvent.data.content).toBe('Final output');
+      expect(messageEvent?.data.content).toBe('Final output');
     });
 
     it('should call onEvent with raw for unknown event types', async () => {
@@ -657,10 +661,10 @@ describe('ClaudeCodeAdapter', () => {
 
       await spawnPromise;
 
-      const rawEvent = events.find((e) => e.type === 'raw');
+      const rawEvent = events.find((e): e is AgentRawEvent => e.type === 'raw');
       expect(rawEvent).toBeDefined();
-      expect(rawEvent.data.provider).toBe('claude');
-      expect(rawEvent.data.originalType).toBe('unknown_event');
+      expect(rawEvent?.data.provider).toBe('claude');
+      expect(rawEvent?.data.originalType).toBe('unknown_event');
     });
 
     it('should work without onEvent (backward compatibility)', async () => {

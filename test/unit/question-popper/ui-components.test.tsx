@@ -27,7 +27,9 @@ afterEach(cleanup);
 // ── Test Fixtures ──
 
 function makeQuestion(
-  overrides: Partial<QuestionOut> & { question?: Partial<QuestionOut['question']> } = {}
+  overrides: Omit<Partial<QuestionOut>, 'question'> & {
+    question?: Partial<QuestionOut['question']>;
+  } = {}
 ): QuestionOut {
   const { question: qOverrides, ...rest } = overrides;
   return {
@@ -39,6 +41,8 @@ function makeQuestion(
       description: null,
       options: null,
       default: null,
+      timeout: 600,
+      previousQuestionId: null,
       ...qOverrides,
     },
     source: 'test-agent',

@@ -152,8 +152,9 @@ export function agentNotifierContractTests(name: string, factory: NotifierFactor
     describe('broadcastEvent', () => {
       const sampleEvent: AgentStoredEvent = {
         eventId: 'evt-123',
+        timestamp: '2026-01-28T10:00:00.000Z',
         type: 'text_delta',
-        content: 'Hello, world!',
+        data: { content: 'Hello, world!' },
       };
 
       it('should broadcast event to agents channel', () => {

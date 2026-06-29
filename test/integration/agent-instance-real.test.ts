@@ -18,6 +18,7 @@
  */
 
 import type { AgentEvent } from '@chainglass/shared';
+import type { ICopilotClient } from '@chainglass/shared/interfaces/copilot-sdk.interface';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 // ============================================================================
@@ -239,7 +240,9 @@ describe.skip('AgentInstance with SdkCopilotAdapter', { timeout: 120_000 }, () =
     CopilotClient = sdk.CopilotClient;
 
     copilotClient = new CopilotClient();
-    manager = new AgentManagerService(() => new SdkCopilotAdapter(copilotClient));
+    manager = new AgentManagerService(
+      () => new SdkCopilotAdapter(copilotClient as unknown as ICopilotClient)
+    );
 
     console.log('Copilot SDK adapter initialized for real agent tests');
   });
@@ -441,7 +444,9 @@ describe.skip('Cross-Adapter Parity', { timeout: 120_000 }, () => {
     );
 
     copilotClient = new CopilotClient();
-    copilotManager = new AgentManagerService(() => new SdkCopilotAdapter(copilotClient));
+    copilotManager = new AgentManagerService(
+      () => new SdkCopilotAdapter(copilotClient as unknown as ICopilotClient)
+    );
 
     console.log('Both adapters initialized for cross-adapter parity tests');
   });

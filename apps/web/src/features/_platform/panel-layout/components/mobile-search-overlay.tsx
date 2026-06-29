@@ -100,8 +100,8 @@ export function MobileSearchOverlay({
   const commands = useMemo(() => {
     if (!isCommandMode || !sdk) return [];
     const filter = query.slice(1).trim().toLowerCase();
-    const all = sdk.commands.getAll();
-    const mruOrder = mru?.getOrderedIds() ?? [];
+    const all = sdk.commands.list();
+    const mruOrder = mru?.getOrder() ?? [];
     const mruSet = new Set(mruOrder);
 
     const sorted = [...all].sort((a, b) => {
@@ -110,12 +110,12 @@ export function MobileSearchOverlay({
       if (aIdx >= 0 && bIdx >= 0) return aIdx - bIdx;
       if (aIdx >= 0) return -1;
       if (bIdx >= 0) return 1;
-      return a.label.localeCompare(b.label);
+      return a.title.localeCompare(b.title);
     });
 
     if (!filter) return sorted;
     return sorted.filter(
-      (cmd) => cmd.label.toLowerCase().includes(filter) || cmd.id.toLowerCase().includes(filter)
+      (cmd) => cmd.title.toLowerCase().includes(filter) || cmd.id.toLowerCase().includes(filter)
     );
   }, [isCommandMode, query, sdk, mru]);
 
@@ -321,7 +321,7 @@ export function MobileSearchOverlay({
                   className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-left hover:bg-accent active:bg-accent/70"
                 >
                   <span className="text-muted-foreground">⚡</span>
-                  <span className="flex-1 truncate">{cmd.label}</span>
+                  <span className="flex-1 truncate">{cmd.title}</span>
                 </button>
               ))}
             </div>

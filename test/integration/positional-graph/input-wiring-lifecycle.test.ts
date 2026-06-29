@@ -35,6 +35,7 @@ function createTestUnit(
   } = {}
 ): NarrowWorkUnit {
   return {
+    type: 'code',
     slug,
     inputs: opts.inputs ?? [],
     outputs: opts.outputs ?? [],

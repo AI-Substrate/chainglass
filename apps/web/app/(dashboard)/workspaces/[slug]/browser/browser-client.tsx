@@ -42,7 +42,11 @@ import { resolveSplitSession } from '@/features/064-terminal/lib/resolve-split-s
 import { sessionNameFromWorktreePath } from '@/features/064-terminal/lib/session-name-from-worktree-path';
 import { QuestionPopperIndicator } from '@/features/067-question-popper/components/question-popper-indicator';
 import { useNotesOverlay } from '@/features/071-file-notes/hooks/use-notes-overlay';
+import { RemoteViewLaunchButton } from '@/features/088-remote-view/components/remote-view-launch-button';
+import { useRemoteViewEvents } from '@/features/088-remote-view/hooks/use-remote-view-events';
 import { remoteViewParams } from '@/features/088-remote-view/params/remote-view.params';
+import { attachRemoteViewWindow } from '@/features/088-remote-view/sdk/attach-remote-view-window';
+import { remoteViewContribution } from '@/features/088-remote-view/sdk/contribution';
 import type { RepoInfo as RepoInfoPayload } from '@/features/_platform/git';
 import {
   type BarContext,
@@ -162,6 +166,18 @@ function BrowserClientInner({
   initialEntries,
 }: BrowserClientProps) {
   const [params, setParams] = useQueryStates({ ...fileBrowserParams, ...remoteViewParams });
+
+  // T006 (AC-8 push half): when an agent attaches a window (via CLI/MCP/SDK), the
+  // `remote-view` SSE `attached` envelope pushes this open client onto the live
+  // session. A user-initiated attach is idempotent (already on view=remote with the
+  // same rv). `history:'push'` keeps a back-entry so the user can return.
+  useRemoteViewEvents({
+    onAttached: useCallback(
+      (sessionId: string) => setParams({ view: 'remote', rv: sessionId }, { history: 'push' }),
+      [setParams]
+    ),
+  });
+
   const explorerRef = useRef<ExplorerPanelHandle>(null);
   const [expandPaths, setExpandPaths] = useState<string[]>([]);
   const lastFileSelectionRef = useRef<{ filePath: string; at: number } | null>(null);
@@ -628,7 +644,8 @@ function BrowserClientInner({
   const isSuppressed = selectedFile ? suppressedTimersRef.current.has(selectedFile) : false;
   const isDirty =
     fileNav.editContent != null &&
-    fileNav.fileData?.content != null &&
+    fileNav.fileData?.ok === true &&
+    !fileNav.fileData.isBinary &&
     fileNav.editContent !== fileNav.fileData.content;
 
   // Determine if we should show banner vs auto-refresh (DYK #3)
@@ -929,12 +946,35 @@ function BrowserClientInner({
         })
       : null;
 
+    // Plan 088 T008: remote-view.attach — no args opens the window picker (Workshop 001
+    // entry) via the live setParams closure; a windowId attaches that window directly
+    // (the SSE 'attached' envelope then pushes the content area, T006). Registered here
+    // for the same reason as openRecentFeed — setParams lives on this page.
+    const remoteViewAttachCmd = remoteViewContribution.commands.find(
+      (c) => c.id === 'remote-view.attach'
+    );
+    const remoteViewAttachReg = remoteViewAttachCmd
+      ? sdk.commands.register({
+          ...remoteViewAttachCmd,
+          handler: async (params: unknown) => {
+            const { windowId } = (params ?? {}) as { windowId?: number };
+            if (typeof windowId === 'number') {
+              // F003: surface failures (the SSE 'attached' envelope drives the push on success).
+              await attachRemoteViewWindow(windowId, { toast: sdk.toast });
+              return;
+            }
+            setParams({ view: 'remote', rv: null }, { history: 'push' });
+          },
+        })
+      : null;
+
     return () => {
       paletteReg.dispose();
       goToFileReg.dispose();
       openFileAtLineReg?.dispose();
       openRecentFeedReg?.dispose();
       restartFlowspaceReg?.dispose();
+      remoteViewAttachReg?.dispose();
     };
   }, [sdk, setParams, worktreePath]);
 
@@ -1412,6 +1452,16 @@ function BrowserClientInner({
                 >
                   <History className="h-4 w-4" />
                 </button>
+                {/* Plan 088 T005: discoverable remote-view launch (DL-003). Mirrors the
+                    recent-feed button above; closes the terminal overlay (same panel) then
+                    opens the window picker via `view=remote`. The palette command
+                    (`remote-view.attach`) still reaches the same place. */}
+                <RemoteViewLaunchButton
+                  onLaunch={() => {
+                    window.dispatchEvent(new CustomEvent('terminal:close'));
+                    setParams({ view: 'remote', rv: null }, { history: 'push' });
+                  }}
+                />
                 {/* Plan 084 split-terminal-view T006: inline terminal toggle.
                     Lives in ExplorerPanel.rightActions, which is mobile-skipped
                     by the parent PanelShell branch — no extra gate needed. */}

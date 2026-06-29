@@ -21,7 +21,11 @@ function makeRegistration(overrides: Partial<EventTypeRegistration> = {}): Event
     type: 'test:event',
     displayName: 'Test Event',
     description: 'A test event',
-    payloadSchema: z.object({ value: z.string() }).strict(),
+    // The registration's zod type comes from the source package's zod resolution,
+    // which may differ from the test's; cast to the field's declared type.
+    payloadSchema: z
+      .object({ value: z.string() })
+      .strict() as unknown as EventTypeRegistration['payloadSchema'],
     allowedSources: ['agent'],
     stopsExecution: false,
     domain: 'test',

@@ -20,7 +20,10 @@
 import { FakeAgentInstance, FakeFileSystem } from '@chainglass/shared';
 import { beforeEach, describe, expect, it } from 'vitest';
 // T007/T009 RED: These imports will fail until T008/T010 create the modules
-import { FakePodManager } from '../../../../../packages/positional-graph/src/features/030-orchestration/fake-pod-manager.js';
+import {
+  type FakePod,
+  FakePodManager,
+} from '../../../../../packages/positional-graph/src/features/030-orchestration/fake-pod-manager.js';
 import { PodManager } from '../../../../../packages/positional-graph/src/features/030-orchestration/pod-manager.js';
 import type {
   IPodManager,
@@ -50,6 +53,7 @@ function makeCodeParams(runner?: FakeScriptRunner): PodCreateParams {
     unitType: 'code',
     unitSlug: 'test-script',
     runner: runner ?? new FakeScriptRunner({ exitCode: 0 }),
+    scriptPath: '/workspace/scripts/test-script.sh',
   };
 }
 
@@ -113,7 +117,7 @@ describe('FakePodManager', () => {
     });
 
     const pod = fake.createPod('node-1', makeAgentParams());
-    const fakePod = pod as { wasExecuted: boolean; wasResumed: boolean; wasTerminated: boolean };
+    const fakePod = pod as FakePod;
 
     expect(fakePod.wasExecuted).toBe(false);
     expect(fakePod.wasResumed).toBe(false);
@@ -250,7 +254,7 @@ describe('PodManager', () => {
 
       const content = fs.getFile(sessionsPath);
       expect(content).toBeDefined();
-      const parsed = JSON.parse(content ?? '');
+      const parsed = JSON.parse((content ?? '').toString());
       expect(parsed.sessions['node-1']).toBe('sess-1');
       expect(parsed.sessions['node-2']).toBe('sess-2');
       expect(parsed.persisted_at).toBeDefined();

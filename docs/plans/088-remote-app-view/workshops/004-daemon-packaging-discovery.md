@@ -101,7 +101,7 @@ Install path (stable, outside the repo so worktrees share one grant):
 }
 ```
 
-**Reaper** (web-server boot, fail-closed — copied from `pty-registry.ts` semantics): for each `streamd-*.json`, the pid must be alive **and** its executable path must match `bundlePath`'s binary before being trusted; alive-but-mismatched → kill + delete entry; dead → delete entry. Daemon self-defense: it exits if its registry file disappears (poll 30s) and on `SIGTERM` sends `bye {reason:'shutdown'}` to a connected viewer first. AC-11's "no orphans after `just` dev cycles" is the acceptance hook.
+**Reaper** (web-server boot, fail-closed — copied from `pty-registry.ts` semantics): for each `streamd-*.json`, the pid must be alive **and** its executable path must match `bundlePath`'s inner binary before being trusted; alive-and-verifiably-ours → kill + delete entry; dead → delete entry. **[SUPERSEDED by T002 fail-closed decision]** the original "alive-but-mismatched → kill" was corrected: a pid that is alive but whose executable path does **not** match (a recycled pid) or is unprobeable is **left alone, never killed** — killing it could murder an unrelated process. Daemon self-defense: it exits if its registry file disappears (poll 30s) and on `SIGTERM` sends `bye {reason:'shutdown'}` to a connected viewer first. AC-11's "no orphans after `just` dev cycles" is the acceptance hook.
 
 ## Control API (localhost HTTP, same port as the stream WS)
 

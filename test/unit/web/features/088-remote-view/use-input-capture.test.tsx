@@ -74,6 +74,36 @@ describe('useInputCapture', () => {
     expect(flat).toContainEqual({ k: 'mouseup', x: 0.5, y: 0.5, button: 2 });
   });
 
+  it('maps coords against the object-contain content rect, not the full box (letterbox)', async () => {
+    /*
+    Test Doc:
+    - Why: the canvas paints the frame with CSS `object-contain`, so a frame whose aspect differs
+      from the element box is letterboxed (centered, with bars). Normalizing against the full box
+      (the pre-fix behavior) maps every click to the wrong spot — barely visible for a near-square
+      window, badly wrong for a whole-DESKTOP stream (wide frame in chainglass's tall panel). This
+      pins the content-rect mapping so a regression can't silently re-offset live input.
+    - Contract: frame 1600×400 (4:1) in an 800×600 box → content is an 800×200 strip centered with
+      200px bars top/bottom. The visual top-left of the CONTENT (box 0,200) → {x:0,y:0}; box center
+      (400,300) → {x:.5,y:.5}; a point on the bottom bar clamps to y:1.
+    - Worked Example: box(0,200) → {x:0,y:0}; pre-fix gave y=200/600≈0.333 (offset).
+    */
+    const batches: InputEvent[][] = [];
+    canvas.width = 1600; // wide frame (e.g. an ultrawide desktop) — forces vertical letterboxing
+    canvas.height = 400;
+    mount((e) => batches.push(e));
+    canvas.dispatchEvent(new Event('focus'));
+
+    canvas.dispatchEvent(new MouseEvent('pointerdown', { clientX: 0, clientY: 200, button: 0 })); // content top-left
+    canvas.dispatchEvent(new MouseEvent('pointermove', { clientX: 400, clientY: 300 })); // box+content center
+    canvas.dispatchEvent(new MouseEvent('pointerup', { clientX: 400, clientY: 590, button: 0 })); // on the bottom bar
+
+    await waitFor(() => expect(batches.flat().some((e) => e.k === 'mouseup')).toBe(true));
+    const flat = batches.flat();
+    expect(flat).toContainEqual({ k: 'mousedown', x: 0, y: 0, button: 0 });
+    expect(flat).toContainEqual({ k: 'mousemove', x: 0.5, y: 0.5 });
+    expect(flat).toContainEqual({ k: 'mouseup', x: 0.5, y: 1, button: 0 }); // bottom bar clamps to 1
+  });
+
   it('serializes keydown with modifiers; Meta+Shift+Escape releases (not forwarded)', async () => {
     const batches: InputEvent[][] = [];
     mount((e) => batches.push(e));

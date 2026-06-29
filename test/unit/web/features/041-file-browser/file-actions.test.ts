@@ -36,12 +36,12 @@ describe('readFileAction', () => {
     });
 
     expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.content).toBe('export const x = 1;');
-      expect(result.size).toBeGreaterThan(0);
-      expect(result.language).toBe('typescript');
-      expect(result.highlightedHtml).toBe('');
-    }
+    expect(result.ok && result.isBinary === false).toBe(true);
+    if (!result.ok || result.isBinary) throw new Error('expected non-binary ok result');
+    expect(result.content).toBe('export const x = 1;');
+    expect(result.size).toBeGreaterThan(0);
+    expect(result.language).toBe('typescript');
+    expect(result.highlightedHtml).toBe('');
   });
 
   it('returns file-too-large error for files over 5MB', async () => {
@@ -230,9 +230,9 @@ describe('readFileAction', () => {
     });
 
     expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.highlightedHtml).toBe('<pre class="shiki">const y = 2;</pre>');
-    }
+    expect(result.ok && result.isBinary === false).toBe(true);
+    if (!result.ok || result.isBinary) throw new Error('expected non-binary ok result');
+    expect(result.highlightedHtml).toBe('<pre class="shiki">const y = 2;</pre>');
   });
 
   it('calls renderMarkdownFn for markdown files', async () => {
@@ -247,10 +247,10 @@ describe('readFileAction', () => {
     });
 
     expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.markdownHtml).toBe('<h1>Hello</h1>');
-      expect(result.language).toBe('markdown');
-    }
+    expect(result.ok && result.isBinary === false).toBe(true);
+    if (!result.ok || result.isBinary) throw new Error('expected non-binary ok result');
+    expect(result.markdownHtml).toBe('<h1>Hello</h1>');
+    expect(result.language).toBe('markdown');
   });
 
   it('does not call renderMarkdownFn for non-markdown files', async () => {
@@ -269,9 +269,9 @@ describe('readFileAction', () => {
     });
 
     expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.markdownHtml).toBeUndefined();
-    }
+    expect(result.ok && result.isBinary === false).toBe(true);
+    if (!result.ok || result.isBinary) throw new Error('expected non-binary ok result');
+    expect(result.markdownHtml).toBeUndefined();
     expect(called).toBe(false);
   });
 });

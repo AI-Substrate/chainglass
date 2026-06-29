@@ -10,11 +10,102 @@
  * in terminal-auth.ts) are consumed by the Swift daemon's upgrade check
  * (Plan 088 Task 4.4), NOT by this route — so they are not re-exported here.
  *
- * Plan 088 Phase 2 — T008.
+ * Plan 088 Phase 2 — T008; the shared session gate added in Phase 5 (T004).
  */
+
+import { auth } from '@/auth';
+import { type LocalAuthResult, requireLocalAuth } from '@/lib/local-auth';
+import { type NextRequest, NextResponse } from 'next/server';
 
 /** JWT `iss` claim — same issuer as the terminal socket. */
 export const REMOTE_VIEW_JWT_ISSUER = 'chainglass';
 
 /** JWT `aud` claim mandated by the remote-view stream-socket auth contract. */
 export const REMOTE_VIEW_JWT_AUDIENCE = 'remote-view-ws';
+
+/** The authenticated identity a remote-view route proceeds with. */
+export interface RemoteViewAuthedSession {
+  /** `session.user.name` — the JWT `sub` and the audit identity. */
+  userName: string;
+}
+
+/**
+ * Injectable NextAuth session source. Defaults to the real `auth()`; unit tests
+ * pass a stub so the unauthenticated→401 branch is provable WITHOUT relying on
+ * `DISABLE_AUTH` (which fakes a session and would make that branch dead code).
+ */
+export type SessionGetter = () => Promise<{ user?: { name?: string | null } | null } | null>;
+
+/** Discriminated result: proceed with `session`, or return `response` verbatim. */
+export type RequireSessionResult =
+  | { ok: true; session: RemoteViewAuthedSession }
+  | { ok: false; response: NextResponse };
+
+/**
+ * The single NextAuth gate for every remote-view API route (T004 onward).
+ *
+ * One tested gate replaces the per-route hand-copied `auth()` pre-check, so a
+ * route that forgets, mis-orders, or mis-wires the check can no longer ship
+ * green. The precedent (`token/route.ts`) leaves this unproven: its suite forces
+ * `DISABLE_AUTH=true`, faking a session (companion F010; backpressure-coverage.md
+ * T004-b). `getSession` is injectable so the 401 branch is deterministic in unit
+ * tests. Routes call it with no args and must return the 401 BEFORE touching the
+ * daemon:
+ *
+ *   const gate = await requireRemoteViewSession();
+ *   if (!gate.ok) return gate.response;
+ *   // …proxy with gate.session…
+ */
+export async function requireRemoteViewSession(
+  getSession: SessionGetter = () => auth()
+): Promise<RequireSessionResult> {
+  const session = await getSession();
+  if (!session?.user?.name) {
+    return {
+      ok: false,
+      response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+    };
+  }
+  return { ok: true, session: { userName: session.user.name } };
+}
+
+/** Inject the Plan-084 local-auth check (CLI/MCP `X-Local-Token` over loopback). */
+export type LocalAuthGetter = (req: NextRequest) => Promise<LocalAuthResult>;
+
+/**
+ * The access gate for the remote-view routes the **CLI/MCP** hit (`/sessions`).
+ *
+ * F004 fix (companion HIGH on T009): the CLI sends `X-Local-Token`, but
+ * `requireRemoteViewSession` is NextAuth-only — a CLI process has no browser
+ * cookie, so `cg remote-view *` would 401 even with a valid `localToken`. This
+ * gate accepts EITHER a NextAuth session (browser flow — short-circuits, so a
+ * cookieless CLI never pays the session cost twice) OR a valid Plan-084 local
+ * credential (`X-Local-Token` / bootstrap cookie over loopback). Neither → 401,
+ * preserving the "401 for unauthenticated" DoD. Both auth sources are injectable
+ * so the branches are unit-testable without env/filesystem.
+ *
+ * `/windows` + `/health` stay on `requireRemoteViewSession` — only the browser
+ * picker hits them, and the CLI/MCP verbs never do.
+ */
+export async function requireRemoteViewAccess(
+  req: NextRequest,
+  deps: { getSession?: SessionGetter; localAuth?: LocalAuthGetter } = {}
+): Promise<RequireSessionResult> {
+  const getSession = deps.getSession ?? (() => auth());
+  const session = await getSession();
+  if (session?.user?.name) {
+    return { ok: true, session: { userName: session.user.name } };
+  }
+
+  const localAuth = deps.localAuth ?? requireLocalAuth;
+  const local = await localAuth(req);
+  if (local.ok) {
+    // Synthetic audit identity — the routes only branch on `ok`, never the name.
+    return { ok: true, session: { userName: `local:${local.via}` } };
+  }
+
+  return {
+    ok: false,
+    response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+  };
+}

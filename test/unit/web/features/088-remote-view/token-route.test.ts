@@ -24,6 +24,11 @@
 import { rmSync } from 'node:fs';
 
 import {
+  FAKE_DAEMON_PORT,
+  type RemoteViewDaemonControl,
+  createFakeDaemonControl,
+} from '@/features/088-remote-view/server/daemon-control';
+import {
   REMOTE_VIEW_JWT_AUDIENCE,
   REMOTE_VIEW_JWT_ISSUER,
 } from '@/features/088-remote-view/server/remote-view-auth';
@@ -36,14 +41,27 @@ import {
 } from '@chainglass/shared/auth-bootstrap-code';
 import { jwtVerify } from 'jose';
 import { NextRequest } from 'next/server';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+// The ONLY mock in this file (T001, Phase 6). The real-crypto/auth/fs path stays unmocked
+// (Constitution P3/P4); we mock just the DI container so the route's new daemon-port resolution
+// returns a FAKE control instead of resolving the production one — which would call ensureDaemon()
+// and spawn a real `streamd` (a non-hermetic side-effect in a unit test). vi.hoisted lets the
+// per-test `resolveMock` vary (return a port / throw) the way remote-view-routes.test.ts does.
+const { resolveMock } = vi.hoisted(() => ({ resolveMock: vi.fn() }));
+vi.mock('@/lib/bootstrap-singleton', () => ({ getContainer: () => ({ resolve: resolveMock }) }));
 
 import { GET } from '../../../../../apps/web/app/api/remote-view/token/route';
 import { _resetForTests as _resetBootstrapCache } from '../../../../../apps/web/src/lib/bootstrap-code';
-import { mkTempCwd } from '../../../shared/auth-bootstrap-code/test-fixtures';
 import authVectors from '../../../../contracts/remote-view-auth-vectors.json';
+import { mkTempCwd } from '../../../shared/auth-bootstrap-code/test-fixtures';
 
 const URL_ = 'http://localhost:3000/api/remote-view/token';
+
+/** Point the mocked container at a specific daemon-control for one test. */
+function useControl(control: RemoteViewDaemonControl): void {
+  resolveMock.mockReturnValue(control);
+}
 
 function reqWithCookie(cookieValue: string | undefined): NextRequest {
   const headers: Record<string, string> = {};
@@ -70,6 +88,7 @@ describe('GET /api/remote-view/token', () => {
     _resetBootstrapCache();
     _resetSigningSecretCacheForTests();
     activeCode = ensureBootstrapCode(cwd).data.code;
+    useControl(createFakeDaemonControl()); // default: a healthy fake daemon on FAKE_DAEMON_PORT
   });
 
   afterEach(() => {
@@ -127,6 +146,7 @@ describe('GET /api/remote-view/token', () => {
     const body = await res.json();
     expect(typeof body.token).toBe('string');
     expect(body.expiresIn).toBe(300);
+    expect(body.daemonPort).toBe(FAKE_DAEMON_PORT); // T001: additive — the WS base port for the browser
 
     const { payload } = await jwtVerify(body.token, key);
     expect(payload.iss).toBe(REMOTE_VIEW_JWT_ISSUER);
@@ -137,6 +157,97 @@ describe('GET /api/remote-view/token', () => {
     expect(typeof payload.exp).toBe('number');
     // biome-ignore lint/style/noNonNullAssertion: asserted numbers above
     expect(payload.exp! - payload.iat!).toBeGreaterThan(60);
+  });
+
+  it('still issues the token (200) but OMITS daemonPort when the daemon will not come up (T001 graceful)', async () => {
+    /*
+    Test Doc:
+    - Why: T001 — daemonPort is ADDITIVE + best-effort; a daemon that can't be brought up must NOT
+      block token issuance (the client surfaces daemonDown via its own reconnect/health path).
+    - Contract: control.daemonPort() throws → 200 + {token, expiresIn:300}, daemonPort undefined.
+    - Usage Notes: the route swallows the resolution failure; the JWT path is independent of the daemon.
+    - Quality Contribution: pins the back-compat/graceful guarantee — issuance never regresses on daemon-down.
+    - Worked Example: a control whose daemonPort() rejects → body.daemonPort === undefined, body.token a string.
+    */
+    useControl(
+      createFakeDaemonControl({
+        daemonPort: async () => {
+          throw new Error('daemon down');
+        },
+      })
+    );
+    const key = activeSigningSecret(cwd);
+    const cookie = buildCookieValue(activeCode, key);
+    const res = await GET(reqWithCookie(cookie));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(typeof body.token).toBe('string');
+    expect(body.expiresIn).toBe(300);
+    expect(body.daemonPort).toBeUndefined(); // omitted, not a fabricated/zero port
+  });
+
+  it('forwards ?windowId= to control.daemonPort so the daemon spawns capturing THAT window (live-attach)', async () => {
+    /*
+    Test Doc:
+    - Why: the daemon is one-window-per-spawn; the picker's window must reach the spawn or the daemon
+      comes up windowless and dies (the live-attach 503). The panel fetches `/token?windowId=<picked>`.
+    - Contract: GET /token?windowId=649 → control.daemonPort(649); the resolved port rides in the body.
+    - Quality Contribution: pins the window threading from the route through to the daemon spawn.
+    - Worked Example: ?windowId=649 → daemonPort called with 649 → body.daemonPort is that port.
+    */
+    let received: { windowId?: number; displayId?: number } | undefined = { windowId: -1 };
+    useControl(
+      createFakeDaemonControl({
+        daemonPort: async (target?: { windowId?: number; displayId?: number }) => {
+          received = target;
+          return FAKE_DAEMON_PORT;
+        },
+      })
+    );
+    const key = activeSigningSecret(cwd);
+    const cookie = buildCookieValue(activeCode, key);
+    const req = new NextRequest(`${URL_}?windowId=649`, {
+      method: 'GET',
+      headers: { cookie: `${BOOTSTRAP_COOKIE_NAME}=${cookie}` },
+    });
+
+    const res = await GET(req);
+
+    expect(res.status).toBe(200);
+    expect(received).toEqual({ windowId: 649 });
+    expect((await res.json()).daemonPort).toBe(FAKE_DAEMON_PORT);
+  });
+
+  it('forwards ?displayId= to control.daemonPort so the daemon spawns capturing the WHOLE screen (multi-target)', async () => {
+    /*
+    Test Doc:
+    - Why: "stream the whole desktop" picks a display, not a window; the panel fetches
+      `/token?displayId=<picked>` and the daemon must spawn with CG_REMOTE_VIEW__DISPLAY_ID.
+    - Contract: GET /token?displayId=5 → control.daemonPort({displayId:5}); the resolved port rides in the body.
+    - Quality Contribution: pins the display threading from the route through to the daemon spawn.
+    - Worked Example: ?displayId=5 → daemonPort called with {displayId:5} → body.daemonPort is that port.
+    */
+    let received: { windowId?: number; displayId?: number } | undefined = { displayId: -1 };
+    useControl(
+      createFakeDaemonControl({
+        daemonPort: async (target?: { windowId?: number; displayId?: number }) => {
+          received = target;
+          return FAKE_DAEMON_PORT;
+        },
+      })
+    );
+    const key = activeSigningSecret(cwd);
+    const cookie = buildCookieValue(activeCode, key);
+    const req = new NextRequest(`${URL_}?displayId=5`, {
+      method: 'GET',
+      headers: { cookie: `${BOOTSTRAP_COOKIE_NAME}=${cookie}` },
+    });
+
+    const res = await GET(req);
+
+    expect(res.status).toBe(200);
+    expect(received).toEqual({ displayId: 5 });
+    expect((await res.json()).daemonPort).toBe(FAKE_DAEMON_PORT);
   });
 
   it('signs Buffer-direct so the raw HKDF key verifies byte-identically (FX003)', async () => {

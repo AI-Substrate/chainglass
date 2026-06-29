@@ -204,7 +204,13 @@ export function transition(state: ViewportState, event: ViewportEvent): Viewport
 
     case 'SESSION_RECREATE_OK':
       return state.name === 'sessionLost'
-        ? { name: 'attaching', windowId: state.windowId, sessionId: event.sessionId, reconnectAttempts: 0, errorCode: null }
+        ? {
+            name: 'attaching',
+            windowId: state.windowId,
+            sessionId: event.sessionId,
+            reconnectAttempts: 0,
+            errorCode: null,
+          }
         : state;
 
     case 'SESSION_RECREATE_FAIL':

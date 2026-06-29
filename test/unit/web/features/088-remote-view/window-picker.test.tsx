@@ -15,7 +15,10 @@
  */
 
 import { WindowPicker } from '@/features/088-remote-view/components/window-picker';
-import type { WindowDescriptor } from '@/features/088-remote-view/protocol/messages';
+import type {
+  DisplayDescriptor,
+  WindowDescriptor,
+} from '@/features/088-remote-view/protocol/messages';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
@@ -23,6 +26,18 @@ import { describe, expect, it, vi } from 'vitest';
 const WINDOWS: WindowDescriptor[] = [
   { id: 34202, app: 'Godot', title: 'spike-target', pixelWidth: 800, pixelHeight: 656, scale: 2 },
   { id: 9001, app: 'Simulator', title: 'iPhone 15', pixelWidth: 1170, pixelHeight: 2532, scale: 3 },
+];
+
+const DISPLAYS: DisplayDescriptor[] = [
+  {
+    id: 1,
+    label: 'Built-in Retina Display',
+    pixelWidth: 3024,
+    pixelHeight: 1964,
+    scale: 2,
+    isPrimary: true,
+  },
+  { id: 5, label: 'DELL U2720Q', pixelWidth: 3840, pixelHeight: 2160, scale: 1, isPrimary: false },
 ];
 
 describe('WindowPicker', () => {
@@ -44,6 +59,43 @@ describe('WindowPicker', () => {
     await userEvent.click(screen.getByTestId('remote-view-window-34202'));
     expect(onAttach).toHaveBeenCalledWith(34202);
     expect(onAttach).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders a "Whole Desktop" tile per display and emits onAttachDisplay(displayId) on click', async () => {
+    // Multi-target capture: a multi-monitor host must be able to pick WHICH screen before attaching.
+    const onAttachDisplay = vi.fn();
+    render(
+      <WindowPicker
+        windows={WINDOWS}
+        loading={false}
+        error={null}
+        onAttach={vi.fn()}
+        onRefresh={vi.fn()}
+        displays={DISPLAYS}
+        onAttachDisplay={onAttachDisplay}
+      />
+    );
+    expect(screen.queryByTestId('remote-view-display-section')).not.toBeNull();
+    expect(screen.getByText('Built-in Retina Display')).not.toBeNull();
+    expect(screen.getByText('DELL U2720Q')).not.toBeNull();
+    expect(screen.getByText('Main')).not.toBeNull(); // the primary display is badged
+
+    await userEvent.click(screen.getByTestId('remote-view-display-5'));
+    expect(onAttachDisplay).toHaveBeenCalledWith(5);
+    expect(onAttachDisplay).toHaveBeenCalledTimes(1);
+  });
+
+  it('omits the display section entirely when no displays are given (AC-1 back-compat)', () => {
+    render(
+      <WindowPicker
+        windows={WINDOWS}
+        loading={false}
+        error={null}
+        onAttach={vi.fn()}
+        onRefresh={vi.fn()}
+      />
+    );
+    expect(screen.queryByTestId('remote-view-display-section')).toBeNull();
   });
 
   it('renders loading, empty, and error states (error Retry calls onRefresh)', async () => {

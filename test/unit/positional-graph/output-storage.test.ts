@@ -56,6 +56,7 @@ function createTestContext(worktreePath = '/workspace/my-project'): WorkspaceCon
     worktreePath,
     worktreeBranch: 'main',
     isMainWorktree: true,
+    hasGit: true,
   };
 }
 
@@ -64,7 +65,7 @@ function createFakeUnitLoader(knownSlugs: string[]): IWorkUnitLoader {
   return {
     async load(_ctx: WorkspaceContext, slug: string) {
       if (known.has(slug)) {
-        return { unit: { slug, inputs: [], outputs: [] }, errors: [] };
+        return { unit: { slug, type: 'agent' as const, inputs: [], outputs: [] }, errors: [] };
       }
       return { errors: [{ code: 'E159', message: `Unit '${slug}' not found` } as ResultError] };
     },

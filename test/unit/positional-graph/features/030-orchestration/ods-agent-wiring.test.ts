@@ -27,8 +27,11 @@ import type { IPositionalGraphService } from '../../../../../packages/positional
 
 function makeCtx(): WorkspaceContext {
   return {
-    worktreePath: '/test/workspace',
+    workspaceSlug: 'test-workspace',
     workspaceName: 'test-workspace',
+    workspacePath: '/test/workspace',
+    worktreePath: '/test/workspace',
+    worktreeBranch: null,
     isMainWorktree: true,
     hasGit: false,
   };
@@ -85,7 +88,7 @@ describe('ODS Agent Wiring', () => {
       const reality = buildFakeReality({
         nodes: [{ nodeId: 'n1', unitSlug: 'spec-builder', unitType: 'agent', status: 'ready' }],
       });
-      contextService.setContextSource('n1', { source: 'new' });
+      contextService.setContextSource('n1', { source: 'new', reason: 'fresh context for node' });
 
       const result = await ods.execute(
         {
@@ -116,7 +119,11 @@ describe('ODS Agent Wiring', () => {
       const reality = buildFakeReality({
         nodes: [{ nodeId: 'n2', unitSlug: 'spec-reviewer', unitType: 'agent', status: 'ready' }],
       });
-      contextService.setContextSource('n2', { source: 'inherit', fromNodeId: 'n1' });
+      contextService.setContextSource('n2', {
+        source: 'inherit',
+        fromNodeId: 'n1',
+        reason: 'inherits from n1',
+      });
       podManager.seedSession('n1', 'session-abc');
 
       const result = await ods.execute(
@@ -146,7 +153,11 @@ describe('ODS Agent Wiring', () => {
       const reality = buildFakeReality({
         nodes: [{ nodeId: 'n2', unitSlug: 'spec-reviewer', unitType: 'agent', status: 'ready' }],
       });
-      contextService.setContextSource('n2', { source: 'inherit', fromNodeId: 'n1' });
+      contextService.setContextSource('n2', {
+        source: 'inherit',
+        fromNodeId: 'n1',
+        reason: 'inherits from n1',
+      });
       // No session seeded for n1 — ODS retries up to 5s before falling back
 
       const result = await ods.execute(
@@ -179,7 +190,7 @@ describe('ODS Agent Wiring', () => {
         }),
         settings: { agentType: 'claude-code' as const },
       };
-      contextService.setContextSource('n1', { source: 'new' });
+      contextService.setContextSource('n1', { source: 'new', reason: 'fresh context for node' });
 
       await ods.execute(
         {
@@ -200,7 +211,7 @@ describe('ODS Agent Wiring', () => {
       const reality = buildFakeReality({
         nodes: [{ nodeId: 'n1', unitSlug: 'coder', unitType: 'agent', status: 'ready' }],
       });
-      contextService.setContextSource('n1', { source: 'new' });
+      contextService.setContextSource('n1', { source: 'new', reason: 'fresh context for node' });
 
       await ods.execute(
         {

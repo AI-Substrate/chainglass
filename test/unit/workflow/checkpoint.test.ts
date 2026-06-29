@@ -55,7 +55,6 @@ describe('WorkflowRegistryService checkpoint operations', () => {
       fs.setDir(`${WORKFLOWS_DIR}/test-wf/checkpoints`);
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/current/wf.yaml`, 'name: Test');
 
-      // @ts-expect-error - Method doesn't exist yet (TDD RED phase)
       const ordinal = await service.getNextCheckpointOrdinal(WORKFLOWS_DIR, 'test-wf');
 
       expect(ordinal).toBe(1);
@@ -80,7 +79,6 @@ describe('WorkflowRegistryService checkpoint operations', () => {
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/checkpoints/v001-abc12345/wf.yaml`, 'name: Test');
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/current/wf.yaml`, 'name: Test v2');
 
-      // @ts-expect-error - Method doesn't exist yet (TDD RED phase)
       const ordinal = await service.getNextCheckpointOrdinal(WORKFLOWS_DIR, 'test-wf');
 
       expect(ordinal).toBe(2);
@@ -109,7 +107,6 @@ describe('WorkflowRegistryService checkpoint operations', () => {
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/checkpoints/v003-ccc33333/wf.yaml`, 'name: v3');
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/current/wf.yaml`, 'name: Test v4');
 
-      // @ts-expect-error - Method doesn't exist yet (TDD RED phase)
       const ordinal = await service.getNextCheckpointOrdinal(WORKFLOWS_DIR, 'test-wf');
 
       expect(ordinal).toBe(4);
@@ -139,7 +136,6 @@ describe('WorkflowRegistryService checkpoint operations', () => {
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/checkpoints/v004-ddd44444/wf.yaml`, 'name: v4');
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/current/wf.yaml`, 'name: Test v5');
 
-      // @ts-expect-error - Method doesn't exist yet (TDD RED phase)
       const ordinal = await service.getNextCheckpointOrdinal(WORKFLOWS_DIR, 'test-wf');
 
       expect(ordinal).toBe(5);
@@ -164,7 +160,6 @@ describe('WorkflowRegistryService checkpoint operations', () => {
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/checkpoints/v005-eee55555/wf.yaml`, 'name: v5');
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/current/wf.yaml`, 'name: Test v6');
 
-      // @ts-expect-error - Method doesn't exist yet (TDD RED phase)
       const ordinal = await service.getNextCheckpointOrdinal(WORKFLOWS_DIR, 'test-wf');
 
       expect(ordinal).toBe(6);
@@ -192,7 +187,6 @@ describe('WorkflowRegistryService checkpoint operations', () => {
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/checkpoints/v001-abc12345/wf.yaml`, 'name: Test');
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/current/wf.yaml`, 'name: Test v2');
 
-      // @ts-expect-error - Method doesn't exist yet (TDD RED phase)
       const ordinal = await service.getNextCheckpointOrdinal(WORKFLOWS_DIR, 'test-wf');
 
       expect(ordinal).toBe(2);
@@ -219,7 +213,6 @@ describe('WorkflowRegistryService checkpoint operations', () => {
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/workflow.json`, workflowJson);
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/current/wf.yaml`, 'name: Test');
 
-      // @ts-expect-error - Method doesn't exist yet (TDD RED phase)
       const hash = await service.generateCheckpointHash(WORKFLOWS_DIR, 'test-wf');
 
       expect(hash).toHaveLength(8);
@@ -275,13 +268,11 @@ describe('WorkflowRegistryService checkpoint operations', () => {
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/workflow.json`, workflowJson);
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/current/wf.yaml`, 'name: Version A');
 
-      // @ts-expect-error - Method doesn't exist yet (TDD RED phase)
       const hashA = await service.generateCheckpointHash(WORKFLOWS_DIR, 'test-wf');
 
       // Change content
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/current/wf.yaml`, 'name: Version B');
 
-      // @ts-expect-error - Method doesn't exist yet (TDD RED phase)
       const hashB = await service.generateCheckpointHash(WORKFLOWS_DIR, 'test-wf');
 
       expect(hashA).not.toBe(hashB);
@@ -305,7 +296,6 @@ describe('WorkflowRegistryService checkpoint operations', () => {
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/current/wf.yaml`, 'name: Test');
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/current/phases/setup.yaml`, 'phase: setup');
 
-      // @ts-expect-error - Method doesn't exist yet (TDD RED phase)
       const hashWithPhases = await service.generateCheckpointHash(WORKFLOWS_DIR, 'test-wf');
 
       // Reset and create without phases
@@ -313,7 +303,6 @@ describe('WorkflowRegistryService checkpoint operations', () => {
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/workflow.json`, workflowJson);
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/current/wf.yaml`, 'name: Test');
 
-      // @ts-expect-error - Method doesn't exist yet (TDD RED phase)
       const hashWithoutPhases = await service.generateCheckpointHash(WORKFLOWS_DIR, 'test-wf');
 
       // Hash should differ because phases/ content is included
@@ -430,7 +419,6 @@ describe('WorkflowRegistryService checkpoint operations', () => {
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/current/wf.yaml`, 'name: Test');
       fs.setDir(`${WORKFLOWS_DIR}/test-wf/checkpoints`);
 
-      // @ts-expect-error - Method doesn't exist yet (TDD RED phase)
       const result = await service.checkpoint(WORKFLOWS_DIR, 'test-wf', {});
 
       expect(result.errors).toHaveLength(0);
@@ -461,7 +449,6 @@ describe('WorkflowRegistryService checkpoint operations', () => {
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/current/commands/run.md`, '# Run command');
       fs.setDir(`${WORKFLOWS_DIR}/test-wf/checkpoints`);
 
-      // @ts-expect-error - Method doesn't exist yet (TDD RED phase)
       const result = await service.checkpoint(WORKFLOWS_DIR, 'test-wf', {});
 
       expect(result.errors).toHaveLength(0);
@@ -494,7 +481,6 @@ describe('WorkflowRegistryService checkpoint operations', () => {
       fs.setDir(`${WORKFLOWS_DIR}/test-wf/checkpoints`);
       // No current/ directory
 
-      // @ts-expect-error - Method doesn't exist yet (TDD RED phase)
       const result = await service.checkpoint(WORKFLOWS_DIR, 'test-wf', {});
 
       expect(result.errors).toHaveLength(1);
@@ -520,7 +506,6 @@ describe('WorkflowRegistryService checkpoint operations', () => {
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/current/readme.md`, '# Readme');
       fs.setDir(`${WORKFLOWS_DIR}/test-wf/checkpoints`);
 
-      // @ts-expect-error - Method doesn't exist yet (TDD RED phase)
       const result = await service.checkpoint(WORKFLOWS_DIR, 'test-wf', {});
 
       expect(result.errors).toHaveLength(1);
@@ -548,7 +533,6 @@ describe('WorkflowRegistryService checkpoint operations', () => {
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/current/dist/out.js`, 'compiled');
       fs.setDir(`${WORKFLOWS_DIR}/test-wf/checkpoints`);
 
-      // @ts-expect-error - Method doesn't exist yet (TDD RED phase)
       const result = await service.checkpoint(WORKFLOWS_DIR, 'test-wf', {});
 
       expect(result.errors).toHaveLength(0);
@@ -636,7 +620,6 @@ describe('WorkflowRegistryService checkpoint operations', () => {
         'name: Same Content'
       );
 
-      // @ts-expect-error - Method doesn't exist yet (TDD RED phase)
       const result = await service.checkpoint(WORKFLOWS_DIR, 'test-wf', { force: true });
 
       expect(result.errors).toHaveLength(0);
@@ -660,7 +643,6 @@ describe('WorkflowRegistryService checkpoint operations', () => {
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/current/wf.yaml`, 'name: Test Workflow\nversion: 1.0');
       fs.setDir(`${WORKFLOWS_DIR}/test-wf/checkpoints`);
 
-      // @ts-expect-error - Method doesn't exist yet (TDD RED phase)
       const result = await service.checkpoint(WORKFLOWS_DIR, 'test-wf', {});
 
       expect(result.errors).toHaveLength(0);
@@ -693,7 +675,6 @@ describe('WorkflowRegistryService checkpoint operations', () => {
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/current/wf.yaml`, 'name: Different Name');
       fs.setDir(`${WORKFLOWS_DIR}/test-wf/checkpoints`);
 
-      // @ts-expect-error - Method doesn't exist yet (TDD RED phase)
       await service.checkpoint(WORKFLOWS_DIR, 'test-wf', {});
 
       // workflow.json should be unchanged
@@ -747,7 +728,6 @@ describe('WorkflowRegistryService checkpoint operations', () => {
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/current/wf.yaml`, 'name: Test');
       fs.setDir(`${WORKFLOWS_DIR}/test-wf/checkpoints`);
 
-      // @ts-expect-error - Method doesn't exist yet (TDD RED phase)
       const result = await service.checkpoint(WORKFLOWS_DIR, 'test-wf', {});
 
       expect(result.errors).toHaveLength(0);
@@ -779,7 +759,6 @@ describe('WorkflowRegistryService checkpoint operations', () => {
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/current/wf.yaml`, 'name: Test');
       fs.setDir(`${WORKFLOWS_DIR}/test-wf/checkpoints`);
 
-      // @ts-expect-error - Method doesn't exist yet (TDD RED phase)
       const result = await service.checkpoint(WORKFLOWS_DIR, 'test-wf', {
         comment: 'Initial release',
       });
@@ -808,7 +787,6 @@ describe('WorkflowRegistryService checkpoint operations', () => {
       fs.setFile(`${WORKFLOWS_DIR}/test-wf/current/wf.yaml`, 'name: Test');
       fs.setDir(`${WORKFLOWS_DIR}/test-wf/checkpoints`);
 
-      // @ts-expect-error - Method doesn't exist yet (TDD RED phase)
       const result = await service.checkpoint(WORKFLOWS_DIR, 'test-wf', {});
 
       const manifestPath = `${result.checkpointPath}/.checkpoint.json`;

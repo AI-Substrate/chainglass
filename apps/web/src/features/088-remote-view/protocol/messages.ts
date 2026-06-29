@@ -48,10 +48,30 @@ const NormalizedCoordinateSchema = z.number().min(0).max(1);
  * Keyboard uses DOM `code` (physical position); `text` covers IME/unicode.
  */
 export const InputEventSchema = z.discriminatedUnion('k', [
-  z.object({ k: z.literal('mousemove'), x: NormalizedCoordinateSchema, y: NormalizedCoordinateSchema }),
-  z.object({ k: z.literal('mousedown'), x: NormalizedCoordinateSchema, y: NormalizedCoordinateSchema, button: ButtonSchema }),
-  z.object({ k: z.literal('mouseup'), x: NormalizedCoordinateSchema, y: NormalizedCoordinateSchema, button: ButtonSchema }),
-  z.object({ k: z.literal('wheel'), x: NormalizedCoordinateSchema, y: NormalizedCoordinateSchema, dx: z.number(), dy: z.number() }),
+  z.object({
+    k: z.literal('mousemove'),
+    x: NormalizedCoordinateSchema,
+    y: NormalizedCoordinateSchema,
+  }),
+  z.object({
+    k: z.literal('mousedown'),
+    x: NormalizedCoordinateSchema,
+    y: NormalizedCoordinateSchema,
+    button: ButtonSchema,
+  }),
+  z.object({
+    k: z.literal('mouseup'),
+    x: NormalizedCoordinateSchema,
+    y: NormalizedCoordinateSchema,
+    button: ButtonSchema,
+  }),
+  z.object({
+    k: z.literal('wheel'),
+    x: NormalizedCoordinateSchema,
+    y: NormalizedCoordinateSchema,
+    dx: z.number(),
+    dy: z.number(),
+  }),
   z.object({ k: z.literal('keydown'), code: z.string(), modifiers: ModsSchema }),
   z.object({ k: z.literal('keyup'), code: z.string(), modifiers: ModsSchema }),
   z.object({ k: z.literal('text'), text: z.string() }),
@@ -68,6 +88,28 @@ export const WindowDescriptorSchema = z.object({
   scale: z.number(),
 });
 export type WindowDescriptor = z.infer<typeof WindowDescriptorSchema>;
+
+/**
+ * Display (whole-desktop) descriptor — the picker's *second* capturable-target kind, alongside
+ * windows (multi-target capture). Enumerated by `streamd --list-displays`; the picker offers each
+ * screen as a "Whole Desktop" tile so a multi-monitor host can choose WHICH screen before
+ * attaching. A chosen display rides the existing streaming wire AS a `WindowDescriptor`
+ * (`id`=CGDirectDisplayID, `app`="Desktop", `title`=label) — so `hello-ok`, the viewport, and the
+ * normalized `[0,1]` input plane are all unchanged; only enumeration + the spawn target branch.
+ */
+export const DisplayDescriptorSchema = z.object({
+  /** `CGDirectDisplayID`. Numerically a `UInt32` like a window id, so the token route keys the
+   *  target KIND by param name (`?displayId=` vs `?windowId=`), never by the id value alone. */
+  id: z.number(),
+  /** Human label for the screen, e.g. "Built-in Retina Display" / "DELL U2720Q". */
+  label: z.string(),
+  pixelWidth: z.number(),
+  pixelHeight: z.number(),
+  scale: z.number(),
+  /** True for the primary display (the one with the menu bar) — the picker sorts/marks it first. */
+  isPrimary: z.boolean(),
+});
+export type DisplayDescriptor = z.infer<typeof DisplayDescriptorSchema>;
 
 /** Protocol error codes (Workshop 003 §Error codes). Stable strings agents switch on. */
 export const ERROR_CODES = [
@@ -138,7 +180,12 @@ export const ServerMessageSchema = z.discriminatedUnion('t', [
     bufferedAmount: z.number(),
   }),
   z.object({ t: z.literal('pong'), sentAt: z.number(), daemonAt: z.number() }),
-  z.object({ t: z.literal('error'), code: ErrorCodeSchema, message: z.string(), fatal: z.boolean() }),
+  z.object({
+    t: z.literal('error'),
+    code: ErrorCodeSchema,
+    message: z.string(),
+    fatal: z.boolean(),
+  }),
   z.object({ t: z.literal('bye'), reason: z.enum(['detached', 'window-gone', 'shutdown']) }),
 ]);
 export type ServerMessage = z.infer<typeof ServerMessageSchema>;

@@ -48,7 +48,7 @@ async function simulateAgentAccept(
   const statePath = `${worktreePath}/.chainglass/data/workflows/${graphSlug}/state.json`;
   const content = fs.getFile(statePath);
   if (!content) throw new Error(`state.json not found at ${statePath}`);
-  const state = JSON.parse(content);
+  const state = JSON.parse(content.toString());
   if (!state.nodes?.[nodeId]) throw new Error(`Node ${nodeId} not found in state.json`);
   state.nodes[nodeId].status = 'agent-accepted';
   fs.setFile(statePath, JSON.stringify(state, null, 2));
@@ -62,6 +62,7 @@ function createTestContext(worktreePath = '/workspace/my-project'): WorkspaceCon
     worktreePath,
     worktreeBranch: 'main',
     isMainWorktree: true,
+    hasGit: true,
   };
 }
 
@@ -98,6 +99,11 @@ const sampleInput: NarrowWorkUnit = {
     { name: 'notes', type: 'data', required: false },
     { name: 'config', type: 'file', required: false },
   ],
+  userInput: {
+    prompt: 'Enter the spec:',
+    inputType: 'text',
+    outputName: 'spec',
+  },
 };
 
 const sampleCoder: NarrowWorkUnit = {
@@ -179,10 +185,11 @@ describe('PositionalGraphService — getInputData', () => {
     expect(result.errors).toEqual([]);
     expect(result.nodeId).toBe(coderNodeId);
     expect(result.inputName).toBe('spec');
-    expect(result.sources).toHaveLength(1);
-    expect(result.sources[0].sourceNodeId).toBe(inputNodeId);
-    expect(result.sources[0].sourceOutput).toBe('spec');
-    expect(result.sources[0].value).toBe('The spec content');
+    const sources = result.sources ?? [];
+    expect(sources).toHaveLength(1);
+    expect(sources[0].sourceNodeId).toBe(inputNodeId);
+    expect(sources[0].sourceOutput).toBe('spec');
+    expect(sources[0].value).toBe('The spec content');
     expect(result.complete).toBe(true);
   });
 
@@ -320,7 +327,7 @@ describe('PositionalGraphService — getInputData', () => {
     const result = await service.getInputData(ctx, 'test-graph', coderNodeId, 'spec');
 
     expect(result.errors).toEqual([]);
-    expect(result.sources[0].value).toEqual({ version: 1, data: 'test' });
+    expect((result.sources ?? [])[0].value).toEqual({ version: 1, data: 'test' });
   });
 
   it('should return multiple sources when from_unit matches multiple nodes', async () => {
@@ -362,9 +369,10 @@ describe('PositionalGraphService — getInputData', () => {
     const result = await service.getInputData(ctx, 'test-graph', coderNodeId, 'spec');
 
     expect(result.errors).toEqual([]);
-    expect(result.sources).toHaveLength(2);
-    expect(result.sources.map((s) => s.value)).toContain('from-input-1');
-    expect(result.sources.map((s) => s.value)).toContain('from-input-2');
+    const sources = result.sources ?? [];
+    expect(sources).toHaveLength(2);
+    expect(sources.map((s) => s.value)).toContain('from-input-1');
+    expect(sources.map((s) => s.value)).toContain('from-input-2');
     expect(result.complete).toBe(true);
   });
 });
@@ -425,10 +433,11 @@ describe('PositionalGraphService — getInputFile', () => {
     expect(result.errors).toEqual([]);
     expect(result.nodeId).toBe(coderNodeId);
     expect(result.inputName).toBe('config');
-    expect(result.sources).toHaveLength(1);
-    expect(result.sources[0].sourceNodeId).toBe(inputNodeId);
-    expect(result.sources[0].filePath).toContain('config.yaml'); // Absolute path
-    expect(result.sources[0].filePath).toMatch(/^\/workspace/); // Must be absolute
+    const sources = result.sources ?? [];
+    expect(sources).toHaveLength(1);
+    expect(sources[0].sourceNodeId).toBe(inputNodeId);
+    expect(sources[0].filePath).toContain('config.yaml'); // Absolute path
+    expect(sources[0].filePath).toMatch(/^\/workspace/); // Must be absolute
     expect(result.complete).toBe(true);
   });
 
@@ -584,13 +593,10 @@ describe('PositionalGraphService — getInputFile', () => {
     const result = await service.getInputFile(ctx, 'test-graph', coderNodeId, 'config');
 
     expect(result.errors).toEqual([]);
-    expect(result.sources).toHaveLength(2);
-    expect(result.sources.map((s) => s.filePath)).toContainEqual(
-      expect.stringContaining('config1.yaml')
-    );
-    expect(result.sources.map((s) => s.filePath)).toContainEqual(
-      expect.stringContaining('config2.yaml')
-    );
+    const sources = result.sources ?? [];
+    expect(sources).toHaveLength(2);
+    expect(sources.map((s) => s.filePath)).toContainEqual(expect.stringContaining('config1.yaml'));
+    expect(sources.map((s) => s.filePath)).toContainEqual(expect.stringContaining('config2.yaml'));
     expect(result.complete).toBe(true);
   });
 });

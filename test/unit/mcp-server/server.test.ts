@@ -10,9 +10,6 @@
 import { FakeLogger, LogLevel } from '@chainglass/shared';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-// These imports will fail until T003 creates them
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-expect-error - Module does not exist yet (TDD RED phase)
 import {
   type ChainglassMcpServer,
   type McpServerOptions,

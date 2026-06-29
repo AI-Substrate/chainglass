@@ -44,6 +44,19 @@ struct WindowDescriptor: Codable, Equatable {
     var scale: Double
 }
 
+/// Display (whole-desktop) descriptor — the `--list-displays` catalog element. Codable mirror of
+/// the TS `DisplayDescriptorSchema`. A chosen display streams AS a `WindowDescriptor` on the wire
+/// (`id`=displayID, `app`="Desktop"), so this shape is enumeration-only; the live `hello-ok` is
+/// unchanged.
+struct DisplayDescriptor: Codable, Equatable {
+    var id: Int            // CGDirectDisplayID
+    var label: String
+    var pixelWidth: Int
+    var pixelHeight: Int
+    var scale: Double
+    var isPrimary: Bool
+}
+
 /// Protocol error codes (Workshop 003 §Error codes). Stable strings agents switch on.
 enum ErrorCode: String, Codable, Equatable, CaseIterable {
     case eAuth = "E_AUTH"

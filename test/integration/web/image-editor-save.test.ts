@@ -26,7 +26,7 @@ function crc32(buf: Buffer): number {
     crc ^= buf[i];
     for (let j = 0; j < 8; j++) crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
   }
-  return (~crc) >>> 0;
+  return ~crc >>> 0;
 }
 
 function chunk(type: string, data: Buffer): Buffer {
@@ -65,9 +65,7 @@ function makePng(width: number, height: number): Buffer {
 }
 
 function isPng(buf: Buffer): boolean {
-  return (
-    buf.length > 8 && buf[0] === 137 && buf[1] === 80 && buf[2] === 78 && buf[3] === 71
-  );
+  return buf.length > 8 && buf[0] === 137 && buf[1] === 80 && buf[2] === 78 && buf[3] === 71;
 }
 
 /** Confirm the byte stream contains an IDAT chunk (required for a decodable PNG). */

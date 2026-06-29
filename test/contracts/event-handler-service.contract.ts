@@ -34,9 +34,7 @@ export function eventHandlerServiceContractTests(
       */
       const service = createService();
       const state: State = {
-        graph_slug: 'empty',
-        version: '1.0.0',
-        created_at: new Date().toISOString(),
+        graph_status: 'pending',
         updated_at: new Date().toISOString(),
       };
 
@@ -60,9 +58,7 @@ export function eventHandlerServiceContractTests(
       */
       const service = createService();
       const state: State = {
-        graph_slug: 'shape-test',
-        version: '1.0.0',
-        created_at: new Date().toISOString(),
+        graph_status: 'in_progress',
         updated_at: new Date().toISOString(),
         nodes: {},
       };
@@ -85,9 +81,7 @@ export function eventHandlerServiceContractTests(
       */
       const service = createService();
       const state: State = {
-        graph_slug: 'no-nodes',
-        version: '1.0.0',
-        created_at: new Date().toISOString(),
+        graph_status: 'pending',
         updated_at: new Date().toISOString(),
       };
 

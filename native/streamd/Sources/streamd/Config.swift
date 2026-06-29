@@ -91,5 +91,5 @@ struct DaemonConfig: Equatable {
         return DaemonConfig(port: resolvedPort, registryPath: registry, bootstrapPath: bootstrap)
     }
 
-    static let usage = "usage: streamd [--port <n>] [--registry <abs path>] [--bootstrap <abs path>]"
+    static let usage = "usage: streamd [--port <n>] [--registry <abs path>] [--bootstrap <abs path>]\n       streamd --list-windows    (one-shot host-window catalog as JSON, then exit)\n       streamd --list-displays   (one-shot host-display catalog as JSON, then exit)"
 }

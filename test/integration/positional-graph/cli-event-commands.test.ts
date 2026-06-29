@@ -26,6 +26,7 @@ function createTestContext(): WorkspaceContext {
     worktreePath: '/workspace/event-test',
     worktreeBranch: 'main',
     isMainWorktree: true,
+    hasGit: true,
   };
 }
 
@@ -104,7 +105,9 @@ describe('Event CLI Integration — Full Lifecycle', () => {
     expect(raiseResult.event?.event_type).toBe('node:accepted');
     expect(raiseResult.event?.source).toBe('agent');
     expect(raiseResult.stopsExecution).toBe(false);
+    expect(raiseResult.event).toBeDefined();
     const eventId = raiseResult.event?.event_id;
+    if (eventId === undefined) throw new Error('expected raised event id');
 
     // ── Step 2: events (list all) ──
     const listResult = await service.getNodeEvents(ctx, GRAPH, nodeId);
@@ -157,9 +160,10 @@ describe('Event CLI Integration — Full Lifecycle', () => {
     // ── Step 7: Verify stamp persisted ──
     const afterStamp = await service.getNodeEvents(ctx, GRAPH, nodeId, { eventId });
     const stampedEvent = afterStamp.events?.[0];
-    expect(stampedEvent.stamps).toBeDefined();
-    expect(stampedEvent.stamps['my-agent']).toBeDefined();
-    expect(stampedEvent.stamps['my-agent'].action).toBe('forwarded');
+    expect(stampedEvent).toBeDefined();
+    expect(stampedEvent?.stamps).toBeDefined();
+    expect(stampedEvent?.stamps?.['my-agent']).toBeDefined();
+    expect(stampedEvent?.stamps?.['my-agent'].action).toBe('forwarded');
   });
 });
 
@@ -402,7 +406,9 @@ describe('Event CLI Integration — Multi-Event Sequence', () => {
     expect(questionEvents.events?.[0].event_type).toBe('question:ask');
 
     // Stamp the question event
+    expect(questionResult.event).toBeDefined();
     const questionEventId = questionResult.event?.event_id;
+    if (questionEventId === undefined) throw new Error('expected question event id');
     await service.stampNodeEvent(
       ctx,
       GRAPH,
@@ -416,8 +422,11 @@ describe('Event CLI Integration — Multi-Event Sequence', () => {
     const stampedEvents = await service.getNodeEvents(ctx, GRAPH, nodeId, {
       eventId: questionEventId,
     });
-    expect(stampedEvents.events?.[0].stamps.orchestrator).toBeDefined();
-    expect(stampedEvents.events?.[0].stamps.orchestrator.action).toBe('acknowledged');
+    const stampedEvent = stampedEvents.events?.[0];
+    expect(stampedEvent).toBeDefined();
+    expect(stampedEvent?.stamps).toBeDefined();
+    expect(stampedEvent?.stamps?.orchestrator).toBeDefined();
+    expect(stampedEvent?.stamps?.orchestrator.action).toBe('acknowledged');
   });
 });
 

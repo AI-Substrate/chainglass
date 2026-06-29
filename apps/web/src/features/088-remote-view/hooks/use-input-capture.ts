@@ -57,9 +57,23 @@ export function useInputCapture({
 
     const norm = (clientX: number, clientY: number) => {
       const rect = canvas.getBoundingClientRect();
+      // The canvas paints the frame with CSS `object-contain` (viewport.tsx): the frame's
+      // intrinsic size (canvas.width × canvas.height) is scaled to FIT the element box while
+      // preserving aspect, then centered — so there are letterbox bars whenever the box and the
+      // frame differ in aspect. Normalize against the actual CONTENT rectangle, never the full
+      // box, or a wide frame in a tall panel (a whole-desktop stream) maps every click to the
+      // wrong spot. Frame ≈ box aspect (most windows) → bars are ~0 and this is a no-op.
+      const frameW = canvas.width;
+      const frameH = canvas.height;
+      if (!rect.width || !rect.height || !frameW || !frameH) return { x: 0, y: 0 };
+      const scale = Math.min(rect.width / frameW, rect.height / frameH);
+      const contentW = frameW * scale;
+      const contentH = frameH * scale;
+      const offsetX = (rect.width - contentW) / 2;
+      const offsetY = (rect.height - contentH) / 2;
       return {
-        x: clamp01(rect.width ? (clientX - rect.left) / rect.width : 0),
-        y: clamp01(rect.height ? (clientY - rect.top) / rect.height : 0),
+        x: clamp01((clientX - rect.left - offsetX) / contentW),
+        y: clamp01((clientY - rect.top - offsetY) / contentH),
       };
     };
     const flush = () => {

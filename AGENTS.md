@@ -19,16 +19,18 @@ just wf-stop <slug>             # Stop a running workflow
 just wf-restart <slug>          # Reset + start fresh
 ```
 
-### Harness Container (`just harness dev`)
+### Harness Container — `harness-tools` (`just harness-tools dev`)
 
 A **Docker sandbox** with seeded test data, browser automation, and structured CLI. Use for isolated testing, creating workflows from scratch, and CI-like validation.
 
+> ⚠️ **Not the new `harness` CLI.** This Docker toolset is **`harness-tools`** (canonical `just harness-tools <cmd>`; `just harness <cmd>` still works as a back-compat alias). The bare **`harness`** command + `.harness/` is the separate AI-Substrate proof-loop harness (boot / backpressure / retro) — see `.harness/engineering-harness.md`.
+
 ```bash
-just harness dev                # Boot container (~2 min cold boot)
-just harness doctor --wait      # Wait until healthy
-just wf-run <slug> --container  # Same shortcuts, targeting the container
-just harness-cg wf create test  # Ad-hoc CG CLI inside the container
-just harness seed               # Seed test workspace + worktrees
+just harness-tools dev           # Boot container (~2 min cold boot)
+just harness-tools doctor --wait # Wait until healthy
+just wf-run <slug> --container   # Same shortcuts, targeting the container
+just harness-tools-cg wf create test   # Ad-hoc CG CLI inside the container
+just harness-tools seed                # Seed test workspace + worktrees
 ```
 
 ### When to Use Which
@@ -114,7 +116,7 @@ Check for console errors
 
 If you skip browser verification on UI work, visual regressions ship unnoticed.
 
-#### Compile-time verification: `just harness-verify <path>` (Plan 084 FX007)
+#### Compile-time verification: `just harness-tools-verify <path>` (Plan 084 FX007)
 
 `tsc --noEmit` and `pnpm vitest run` are insufficient gates. They are happy with code that the Turbopack dev bundler refuses — e.g., a barrel `index.ts` that value-re-exports a server-only module (`node:child_process`, `node:fs`, native bindings) into a client chunk. That class of bug only surfaces when an actual page loads.
 
@@ -126,7 +128,7 @@ After any task that touches:
 …run the recipe against the affected page:
 
 ```bash
-just harness-verify "/workspaces/<slug>/<page>"
+just harness-tools-verify "/workspaces/<slug>/<page>"
 ```
 
 The recipe HTTP-pings the page, captures console errors (filtered for HMR / favicon / GCM noise), and greps the dev-server's docker logs for Turbopack `⨯` markers within the recipe's window. Returns non-zero on failure, with the server-side error tail printed.
@@ -166,9 +168,30 @@ This is not aspirational — wishlist items become real fix tasks. W001 (`harnes
 - **No emojis** in commit messages, PR titles, or PR descriptions
 - **No AI attribution** in commit messages or PR descriptions — do not mention Claude, AI, Co-Authored-By, or any AI tool
 - Keep commit messages and PR descriptions factual and concise
-- **MANDATORY: Run `just fft` before every commit** — this runs lint, format, and tests. Do not commit if it fails. If lint fails due to unrelated issues (e.g., broken symlinks from other plans), you may proceed after verifying tests pass with `pnpm test`.
+- **MANDATORY: Run `just fft` before every commit** — lint, format, build, typecheck, test, security-audit. Do not commit if **any** step fails. There is **no "unrelated failure" exception**: a red check is red, and the work is not done (see "Definition of Done" and "No Pre-Existing Errors" below). If fixing it would balloon scope, **STOP and ask the user before committing** — never commit over a red check, never wave one off as "unrelated" or "pre-existing".
 - **NEVER use `git stash`, `git stash pop`, `git checkout -- .`, `git reset`, or any command that discards/undoes work** unless the user gives express permission. If you need a clean state, ask first.
 - **XDG_CONFIG_HOME override**: This agent is launched with `XDG_CONFIG_HOME=~/.copilot-alt`, which means `gh` CLI commands inherit the wrong config and show "not logged in". For any `gh` or `git push` commands that need GitHub auth, prefix with `XDG_CONFIG_HOME=~/.config` to use the real credentials at `~/.config/gh/hosts.yml`.
+
+## Definition of Done — run these BEFORE you say "done" (non-negotiable)
+
+A task is **NOT done** — do not say "done", "complete", "ready", "green", or "verified", and do not commit — until **every** check below has run **to completion** and passed **green**, with its **full output read**:
+
+| Check | Command | Notes |
+|---|---|---|
+| Types | `just typecheck` | Loops **every** workspace tsconfig (apps, packages, harness, **and `test/`**). The CI `tsc --noEmit` is **narrower** — passing CI is **not** "done". |
+| Lint/format | `just lint` | biome across the repo. |
+| Tests | `just test` | vitest. |
+
+`just check` (= lint + typecheck + test) or `just fft` (adds build + security-audit) compose these. The harness gate is the same: `harness boot` wraps the typecheck gate — **a red boot means not done.**
+
+**Hard rules — no exceptions without the user's explicit sign-off in this session:**
+
+- **Run each check to completion and read the ENTIRE output. NEVER pipe through `| head`, `| tail`, `grep -c`, `2>/dev/null`, or any filter/limit that can hide or undercount errors.** If the output is long, that *is* the signal — read all of it. (A truncated check has caught nothing; reporting "only N errors" from a truncated run is a false "done".)
+- **No "pre-existing" / "unrelated" / "not my code" escape.** If a check is red, you own it (see below). If the real fix balloons scope, **STOP and ask the user before committing or claiming done** — never silently leave it, never quietly narrow the check to make it pass.
+- **"Done" = a fully green run you actually reproduced.** A partially-green run, a single-workspace run, or "it should pass now" is **not done**. If you only ran a subset, say so explicitly — never imply full coverage you didn't run.
+- **Suppression is not fixing.** `@ts-ignore`, `as any`, `eslint-disable`, deleting/`.skip`-ing a test, or weakening an assertion to get green is **not** "done" — it's hiding a red check. Fix the real contract or ask.
+
+This section exists because checks that aren't gated rot silently: this repo accumulated **600+ `tsc` errors in `test/`** that local `just typecheck` shows but CI never ran — invisible precisely because "done" was claimed without running the full gate. The harness `boot` now makes that gate a session-start signal so it can't hide again.
 
 ## No Pre-Existing Errors
 
@@ -413,7 +436,7 @@ See `docs/how/dev/fast-feedback-loops.md` for the full testing strategy and feed
 
 The harness provides a Docker-containerized dev environment with browser automation. Each worktree gets unique ports derived from its name. See `docs/project-rules/harness.md` for full documentation and `harness/README.md` for architecture, troubleshooting, and the agent lifecycle guide.
 
-**Before using harness commands**, the container must be running. Start with `just harness dev` (2-3 min cold boot). If the container shows `(unhealthy)` in `docker ps`, stop and restart it: `just harness stop && just harness dev`. See `harness/README.md § Troubleshooting` for common issues (stale cache, hanging health checks, GH_TOKEN).
+**Before using harness-tools commands**, the container must be running. Start with `just harness-tools dev` (2-3 min cold boot). If the container shows `(unhealthy)` in `docker ps`, stop and restart it: `just harness-tools stop && just harness-tools dev`. See `harness/README.md § Troubleshooting` for common issues (stale cache, hanging health checks, GH_TOKEN). (`just harness <cmd>` still works as a back-compat alias; `harness-tools` is canonical — the bare `harness` command is the separate proof-loop CLI.)
 
 #### Harness Feedback Loop
 
@@ -483,27 +506,31 @@ Key rules (do not skip):
 Re-run `minih agent install /Users/jordanknight/substrate/minih/agents/code-review-companion` any time you edit the canonical source — minih tracks the local clone in `.minih-source.json` and upgrades in place.
 
 ```bash
+# NOTE: `harness-tools` is the OLD Docker toolset (canonical). `just harness <cmd>` still
+# works as a back-compat alias. The bare `harness` command is the separate AI-Substrate
+# proof-loop CLI (boot / backpressure / retro) — see .harness/engineering-harness.md.
+
 # Port allocation (unique per worktree)
-just harness ports          # Show this worktree's port allocation
+just harness-tools ports          # Show this worktree's port allocation
 
 # Diagnostics (start here when something's wrong)
-just harness doctor         # Run diagnostic checks with actionable fixes
-just harness doctor --wait  # Wait for harness to become healthy (cold boot ~2-3 min)
+just harness-tools doctor         # Run diagnostic checks with actionable fixes
+just harness-tools doctor --wait  # Wait for harness to become healthy (cold boot ~2-3 min)
 
 # Lifecycle
-just harness dev            # Start container (auto-computes ports)
-just harness stop           # Stop container
-just harness health         # Probe all endpoints (JSON)
-just harness build          # Rebuild Docker image
+just harness-tools dev            # Start container (auto-computes ports)
+just harness-tools stop           # Stop container
+just harness-tools health         # Probe all endpoints (JSON)
+just harness-tools build          # Rebuild Docker image
 
 # Testing & Evidence
-just harness test --suite smoke              # Run smoke tests
-just harness test --viewport mobile          # Test at mobile viewport
-just harness screenshot home                 # Capture screenshot via CDP
-just harness results                         # Read latest test results
+just harness-tools test --suite smoke        # Run smoke tests
+just harness-tools test --viewport mobile    # Test at mobile viewport
+just harness-tools screenshot home           # Capture screenshot via CDP
+just harness-tools results                   # Read latest test results
 
 # Seed Data
-just harness seed           # Create test workspace + worktrees
+just harness-tools seed           # Create test workspace + worktrees
 
 # Workflow Shortcuts (Plan 076 FX001)
 # Default: host dev server. Add --container for harness Docker.
@@ -520,9 +547,9 @@ just wf-reset --container                          # Clean + recreate test data 
 just preflight                                     # Check CLI fresh, dev server up, workspace OK
 
 # CG CLI Inside Container (for ad-hoc exploration beyond the shortcuts)
-just harness-cg wf create my-test                  # Create workflow inside container
-just harness-cg wf show my-test --detailed         # Per-node status (auto-adds --json)
-just harness-cg unit list                          # List work units inside container
+just harness-tools-cg wf create my-test            # Create workflow inside container
+just harness-tools-cg wf show my-test --detailed   # Per-node status (auto-adds --json)
+just harness-tools-cg unit list                    # List work units inside container
 
 # Agent Runner (minih)
 just agent-list                            # List available agents
@@ -564,7 +591,7 @@ just agent-resume <slug> "message"         # Follow up on a completed session
 
 # Code Review Agent — auto-run after /plan-6-v2-implement-phase
 just code-review-agent <file_path>         # Shorthand for code-review with GPT-5.4 xhigh, 20min timeout
-just harness-install        # Install harness node_modules
+just harness-tools-install  # Install harness node_modules
 ```
 
 ### pnpm Commands (Alternative)

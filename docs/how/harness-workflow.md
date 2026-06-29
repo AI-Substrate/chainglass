@@ -1,6 +1,8 @@
 # Running Workflows via the Harness
 
-This guide covers how to execute, monitor, and debug workflow pipelines using the Chainglass harness — the Docker-containerized dev environment for agentic development.
+This guide covers how to execute, monitor, and debug workflow pipelines using the Chainglass **harness-tools** toolset — the Docker-containerized dev environment for agentic development.
+
+> **Naming:** `harness-tools` is canonical for this OLD Docker toolset; `just harness <cmd>` still works as a back-compat alias. The bare `harness` command (no `just`) is the separate AI-Substrate proof-loop CLI — see `.harness/engineering-harness.md`.
 
 > **Harness Docs**: [Agent Rules](../../AGENTS.md#the-harness-is-non-negotiable) |
 > [Architecture](../../harness/README.md) |
@@ -11,32 +13,32 @@ This guide covers how to execute, monitor, and debug workflow pipelines using th
 
 ```bash
 # 1. Install harness deps (first time only)
-just harness-install
+just harness-tools-install
 
 # 2. Boot the container (~2 min cold boot)
-just harness dev
+just harness-tools dev
 
 # 3. Verify healthy
-just harness doctor --wait
+just harness-tools doctor --wait
 
 # 4. Seed test data (creates workspace + worktrees + test workflow)
-just harness seed
+just harness-tools seed
 ```
 
 ## Quick Start: Run a Workflow
 
 ```bash
 # Start workflow (returns immediately)
-just harness-cg wf run test-workflow --server
+just harness-tools-cg wf run test-workflow --server
 
 # Poll status (repeat until completed/failed/stopped)
-just harness-cg wf show test-workflow --detailed --server
+just harness-tools-cg wf show test-workflow --detailed --server
 
 # Stop it
-just harness-cg wf stop test-workflow
+just harness-tools-cg wf stop test-workflow
 
 # Restart (reset + start fresh)
-just harness-cg wf restart test-workflow
+just harness-tools-cg wf restart test-workflow
 ```
 
 The `run --server` command is fire-and-forget: it POSTs to start the workflow, prints the result with actionable next steps, and exits immediately. The server owns the execution lifecycle.
@@ -45,31 +47,31 @@ The `run --server` command is fire-and-forget: it POSTs to start the workflow, p
 
 | Path | Command | When to Use |
 |------|---------|-------------|
-| **Ad-hoc** | `just harness-cg wf ...` | Exploration, debugging, manual testing. Raw JSON output. |
-| **Automated** | `just harness workflow ...` | CI, agent tests, assertions. HarnessEnvelope output with `exitReason`. |
+| **Ad-hoc** | `just harness-tools-cg wf ...` | Exploration, debugging, manual testing. Raw JSON output. |
+| **Automated** | `just harness-tools workflow ...` | CI, agent tests, assertions. HarnessEnvelope output with `exitReason`. |
 
-### Ad-hoc: `harness-cg`
+### Ad-hoc: `harness-tools-cg`
 
 Runs `cg` CLI commands inside the Docker container. Auto-adds `--json`, `--workspace-path`, and `--server-url`.
 
 ```bash
-just harness-cg wf create my-test                    # Create workflow
-just harness-cg wf show my-test --detailed --server  # Per-node diagnostics
-just harness-cg wf run my-test --server              # Start (fire-and-forget)
-just harness-cg wf stop my-test                      # Stop
-just harness-cg wf restart my-test                   # Reset + restart
-just harness-cg unit list                            # List work units
+just harness-tools-cg wf create my-test                    # Create workflow
+just harness-tools-cg wf show my-test --detailed --server  # Per-node diagnostics
+just harness-tools-cg wf run my-test --server              # Start (fire-and-forget)
+just harness-tools-cg wf stop my-test                      # Stop
+just harness-tools-cg wf restart my-test                   # Reset + restart
+just harness-tools-cg unit list                            # List work units
 ```
 
-### Automated: `harness workflow`
+### Automated: `harness-tools workflow`
 
 Structured testing with assertions and HarnessEnvelope output:
 
 ```bash
-just harness workflow run --server     # Run with structured output
-just harness workflow status --server  # Node-level status
-just harness workflow reset            # Clean + recreate test data
-just harness workflow logs --errors    # Show error events only
+just harness-tools workflow run --server     # Run with structured output
+just harness-tools workflow status --server  # Node-level status
+just harness-tools workflow reset            # Clean + recreate test data
+just harness-tools workflow logs --errors    # Show error events only
 ```
 
 ## Understanding Output
@@ -176,22 +178,22 @@ await client.stop('test-workflow');
 ### "Container not running" error
 
 ```bash
-just harness dev          # Boot the container
-just harness doctor --wait  # Wait until healthy
+just harness-tools dev          # Boot the container
+just harness-tools doctor --wait  # Wait until healthy
 ```
 
 ### "Workspace not registered" error
 
 The container needs seeded test data:
 ```bash
-just harness seed
+just harness-tools seed
 ```
 
 ### Workflow stuck in "pending"
 
 If the first node is `user-input` type, the workflow is waiting for human input. This is expected behavior — the node needs external completion. Use auto-completion for testing:
 ```bash
-just harness workflow run --server  # Automated path handles auto-completion
+just harness-tools workflow run --server  # Automated path handles auto-completion
 ```
 
 ### CLI build stale
@@ -206,7 +208,7 @@ pnpm --filter @chainglass/cli build  # Rebuild CLI (container uses bind-mounted 
 The `--server-url` is auto-injected by the justfile recipe. If running outside the recipe:
 ```bash
 # Manually specify the server URL
-just harness-cg wf show my-test --detailed --server --server-url http://localhost:3101
+just harness-tools-cg wf show my-test --detailed --server --server-url http://localhost:3101
 ```
 
 ## Related Documentation

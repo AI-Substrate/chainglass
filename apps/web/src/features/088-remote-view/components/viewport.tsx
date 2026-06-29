@@ -33,6 +33,13 @@ import { useRemoteViewSession } from '../hooks/use-remote-view-session';
 import { type DecodedFrame, toChunkInit } from '../protocol/binary';
 import type { ErrorCode } from '../protocol/messages';
 import type { ViewportStateName } from '../server/session-machine';
+import { useRemoteViewStatsPublisher } from '../state/use-remote-view-stats-publisher';
+import { SETTINGS_URL } from './permissions-ux';
+import {
+  type UnsupportedReason,
+  classifyEnvSupport,
+  unsupportedOverlayText,
+} from './viewport-support';
 
 export interface ViewportProps {
   /** WS base url of the daemon/fake, e.g. `ws://127.0.0.1:<port>`. */
@@ -64,6 +71,18 @@ function base64ToBytes(b64: string): Uint8Array {
   return out;
 }
 
+/**
+ * Read the live environment and classify decode support (T002). WebCodecs is `undefined`
+ * both when the browser lacks it AND when the page isn't a secure context — `classifyEnvSupport`
+ * disambiguates so the overlay names the real cause (DL-004). SSR returns null (decide client-side).
+ */
+function detectEnvUnsupported(): UnsupportedReason | null {
+  if (typeof window === 'undefined') return null;
+  const hasWebCodecs =
+    typeof VideoDecoder !== 'undefined' && typeof EncodedVideoChunk !== 'undefined';
+  return classifyEnvSupport({ isSecureContext: window.isSecureContext, hasWebCodecs });
+}
+
 /** E_PERMISSION names the exact TCC grant; other codes get a plain label (Phase 6 adds fix paths). */
 const ERROR_TEXT: Record<ErrorCode, string> = {
   E_AUTH: 'Authentication failed for the stream.',
@@ -90,9 +109,11 @@ export function Viewport({ url, session, windowId, onExit }: ViewportProps) {
   const droppedRef = useRef(0);
   const latencyRef = useRef<number | null>(null);
   const [hud, setHud] = useState<HudStats>({ fps: 0, latencyMs: null, dropped: 0, bitrateKbps: 0 });
-  // null = unknown (no config yet); false = WebCodecs/this config unsupported → fallback overlay (F003).
-  const [supported, setSupported] = useState<boolean | null>(() =>
-    typeof VideoDecoder === 'undefined' || typeof EncodedVideoChunk === 'undefined' ? false : null
+  // null = supported/unknown (decode proceeds); a reason → show the fallback overlay with the real
+  // cause + fix (T002). Secure-context is detected up front so a non-localhost http:// origin names
+  // the secure-context fix, never "use a better browser" (DL-004 false negative).
+  const [unsupported, setUnsupported] = useState<UnsupportedReason | null>(() =>
+    detectEnvUnsupported()
   );
 
   const drawFrame = useCallback((frame: VideoFrame) => {
@@ -112,8 +133,9 @@ export function Viewport({ url, session, windowId, onExit }: ViewportProps) {
 
   const handleVideoConfig = useCallback(
     async (config: { codec: string; description: string; width: number; height: number }) => {
-      if (typeof VideoDecoder === 'undefined' || typeof EncodedVideoChunk === 'undefined') {
-        setSupported(false); // WebCodecs missing (older Safari, no GPU) → fallback, not a crash (F003)
+      const envReason = detectEnvUnsupported();
+      if (envReason) {
+        setUnsupported(envReason); // insecure context or missing WebCodecs → fallback, not a crash
         return;
       }
       // Signature includes the avcC `description`: a real daemon may resend changed SPS/PPS at the
@@ -131,11 +153,11 @@ export function Viewport({ url, session, windowId, onExit }: ViewportProps) {
       try {
         const probe = await VideoDecoder.isConfigSupported(decoderConfig);
         if (!probe.supported) {
-          setSupported(false);
+          setUnsupported('codec');
           return;
         }
       } catch {
-        setSupported(false);
+        setUnsupported('codec');
         return;
       }
       try {
@@ -153,13 +175,13 @@ export function Viewport({ url, session, windowId, onExit }: ViewportProps) {
       try {
         decoder.configure(decoderConfig);
       } catch {
-        setSupported(false);
+        setUnsupported('codec');
         return;
       }
       decoderRef.current = decoder;
       configSigRef.current = sig;
       awaitingKeyframeRef.current = true; // need an IDR after (re)config
-      setSupported(true);
+      setUnsupported(null); // config succeeded — clear any prior fallback
       requestKeyframeRef.current();
     },
     [drawFrame]
@@ -220,6 +242,9 @@ export function Viewport({ url, session, windowId, onExit }: ViewportProps) {
     enabled: state.name === 'live' || state.name === 'degraded',
   });
 
+  // GlobalState quality publisher (T007) — additive to the HUD; throttled to 5s internally.
+  const statsPublisher = useRemoteViewStatsPublisher();
+
   // HUD sampler: once a second, snapshot fps/bitrate from the accumulators.
   useEffect(() => {
     const id = setInterval(() => {
@@ -228,9 +253,12 @@ export function Viewport({ url, session, windowId, onExit }: ViewportProps) {
       frameCountRef.current = 0;
       byteCountRef.current = 0;
       setHud({ fps, bitrateKbps, dropped: droppedRef.current, latencyMs: latencyRef.current });
+      // Publish a 5s-throttled copy for agents (Workshop 003 Q2) — the HUD path above is unchanged.
+      statsPublisher.publishFps(session, fps);
+      if (latencyRef.current != null) statsPublisher.publishLatencyMs(session, latencyRef.current);
     }, HUD_SAMPLE_MS);
     return () => clearInterval(id);
-  }, []);
+  }, [session, statsPublisher]);
 
   // App-level ping loop for HUD latency (the daemon answers with pong → onPong RTT).
   useEffect(() => {
@@ -262,12 +290,14 @@ export function Viewport({ url, session, windowId, onExit }: ViewportProps) {
         className="h-full w-full object-contain outline-none"
       />
 
-      {supported === false ? (
+      {unsupported !== null ? (
         <div
           data-testid="remote-view-unsupported"
-          className="absolute inset-0 flex items-center justify-center bg-black/80 p-6 text-center text-sm text-white/80"
+          data-reason={unsupported}
+          className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/80 p-6 text-center text-sm text-white/80"
         >
-          Video playback isn’t supported in this browser. Use a recent Chromium-based browser.
+          <div className="font-medium text-white">{unsupportedOverlayText(unsupported).title}</div>
+          <div className="max-w-md text-white/70">{unsupportedOverlayText(unsupported).body}</div>
         </div>
       ) : (
         <>
@@ -396,6 +426,17 @@ function ViewportChrome({
             >
               Reclaim
             </button>
+          )}
+          {/* AC-14: a missing Screen-Recording grant gets a one-click deep-link to its System
+              Settings pane (the daemon's E_PERMISSION close = the capture grant). */}
+          {name === 'error' && errorCode === 'E_PERMISSION' && (
+            <a
+              href={SETTINGS_URL.screenRecording}
+              data-testid="remote-view-open-screen-recording"
+              className="rounded bg-primary px-3 py-1 text-sm text-primary-foreground hover:opacity-90"
+            >
+              Open Screen Recording settings
+            </a>
           )}
           {backButton}
         </div>

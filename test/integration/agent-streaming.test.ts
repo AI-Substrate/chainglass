@@ -1,6 +1,25 @@
 import { execSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import type { AgentEvent } from '@chainglass/shared';
+import type { CopilotSessionEvent } from '@chainglass/shared/interfaces';
 import { beforeAll, describe, expect, it } from 'vitest';
+
+/**
+ * Fixture builder for CopilotSessionEvent test literals.
+ * Mirrors the source's createDefaultIdleEvent() pattern: supplies the required
+ * base fields (id/timestamp/parentId) so test event literals stay focused on
+ * the type-specific data. The single cast is the fixture-builder boundary.
+ */
+function evt(type: string, data: Record<string, unknown> = {}): CopilotSessionEvent {
+  return {
+    id: randomUUID(),
+    timestamp: new Date().toISOString(),
+    parentId: null,
+    ephemeral: true,
+    type,
+    data,
+  } as CopilotSessionEvent;
+}
 
 /**
  * Check if GitHub Copilot CLI is installed and available.
@@ -85,16 +104,10 @@ describe.skip('SdkCopilotAdapter Streaming Integration', { timeout: 60_000 }, ()
      */
     const client = new FakeCopilotClient({
       events: [
-        {
-          type: 'assistant.message_delta',
-          data: { deltaContent: 'Hello ', messageId: 'msg-001' },
-        },
-        {
-          type: 'assistant.message_delta',
-          data: { deltaContent: 'World!', messageId: 'msg-001' },
-        },
-        { type: 'assistant.message', data: { content: 'Hello World!', messageId: 'msg-001' } },
-        { type: 'session.idle', data: {} },
+        evt('assistant.message_delta', { deltaContent: 'Hello ', messageId: 'msg-001' }),
+        evt('assistant.message_delta', { deltaContent: 'World!', messageId: 'msg-001' }),
+        evt('assistant.message', { content: 'Hello World!', messageId: 'msg-001' }),
+        evt('session.idle', {}),
       ],
     });
     const adapter = new SdkCopilotAdapter(client);
@@ -123,9 +136,9 @@ describe.skip('SdkCopilotAdapter Streaming Integration', { timeout: 60_000 }, ()
      */
     const client = new FakeCopilotClient({
       events: [
-        { type: 'assistant.message', data: { content: 'Done', messageId: 'msg-001' } },
-        { type: 'assistant.usage', data: { inputTokens: 15, outputTokens: 25 } },
-        { type: 'session.idle', data: {} },
+        evt('assistant.message', { content: 'Done', messageId: 'msg-001' }),
+        evt('assistant.usage', { inputTokens: 15, outputTokens: 25 }),
+        evt('session.idle', {}),
       ],
     });
     const adapter = new SdkCopilotAdapter(client);
@@ -152,12 +165,7 @@ describe.skip('SdkCopilotAdapter Streaming Integration', { timeout: 60_000 }, ()
      * - Quality Contribution: Confirms error path streams correctly
      */
     const client = new FakeCopilotClient({
-      events: [
-        {
-          type: 'session.error',
-          data: { errorType: 'AUTH_ERROR', message: 'Not authenticated' },
-        },
-      ],
+      events: [evt('session.error', { errorType: 'AUTH_ERROR', message: 'Not authenticated' })],
     });
     const adapter = new SdkCopilotAdapter(client);
 

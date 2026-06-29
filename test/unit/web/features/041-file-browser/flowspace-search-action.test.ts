@@ -16,6 +16,7 @@ import { join } from 'node:path';
 
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -32,7 +33,9 @@ import {
 
 interface ServerHandle {
   server: Server;
-  searchHandler: (req: { params: { name: string; arguments?: unknown } }) => Promise<unknown>;
+  searchHandler: (req: {
+    params: { name: string; arguments?: unknown };
+  }) => Promise<CallToolResult>;
 }
 
 async function makeServerWithEnvelope(
@@ -61,7 +64,7 @@ async function makeServerWithEnvelope(
       content: [{ type: 'text', text: JSON.stringify(envelope) }],
     }),
   };
-  server.setRequestHandler(CallToolRequestSchema, async (req) => {
+  server.setRequestHandler(CallToolRequestSchema, async (req, _extra) => {
     if (req.params.name === 'search') return handle.searchHandler(req);
     return { content: [{ type: 'text', text: '{}' }], isError: true };
   });

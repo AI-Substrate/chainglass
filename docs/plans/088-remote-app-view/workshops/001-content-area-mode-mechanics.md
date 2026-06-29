@@ -160,4 +160,4 @@ This workshop reaches Validated when:
 **RESOLVED**: No — 085 (watch-polling) and 087 (auto-save) touch file watching and editor save paths, not `file-browser.params.ts`'s `view` literal or the recent-feed branch. The one-line extension is additive; coordinate merge order as the spec already notes.
 
 ### Q2: Should the stream session pause when the tab is hidden (visibilitychange)?
-**OPEN** (owned by Workshop 003 `pause`/`resume` messages): default lean = pause encode on hidden tab to save host GPU, resume with keyframe on visible. Architect places it; not AC-gating.
+**DEFERRED-v1.1** (Phase-6 reconciliation, T011): v1 ships **browser-side backpressure** (decode-queue-depth drop → keyframe request, `viewport.tsx`) but does **not** pause encode on a hidden tab. Tab-visibility `pause`/`resume` (encode off on hidden, resume with a keyframe on visible) is an additive v1.1 optimisation — the protocol leaves room for the messages. Not AC-gating; no v1 AC depends on it.

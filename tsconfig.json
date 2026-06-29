@@ -30,7 +30,8 @@
       "@chainglass/web/*": ["./apps/web/src/*"],
       "@chainglass/positional-graph": ["./packages/positional-graph/src"],
       "@chainglass/positional-graph/*": ["./packages/positional-graph/src/*"],
-      "@test/*": ["./test/*"]
+      "@test/*": ["./test/*"],
+      "tinykeys": ["./node_modules/tinykeys/dist/tinykeys"]
     }
   },
   "exclude": [

@@ -122,9 +122,9 @@ describe('remote-view viewport state machine', () => {
     - Worked Example: 3 failed reconnects, health 200 → sessionLost (auto-recreate next); health fail → daemonDown.
     */
     const reconnecting: ViewportState = { ...live, name: 'reconnecting', reconnectAttempts: 3 };
-    expect(transition(reconnecting, { type: 'RECONNECT_EXHAUSTED', daemonHealthy: true }).name).toBe(
-      'sessionLost'
-    );
+    expect(
+      transition(reconnecting, { type: 'RECONNECT_EXHAUSTED', daemonHealthy: true }).name
+    ).toBe('sessionLost');
     expect(
       transition(reconnecting, { type: 'RECONNECT_EXHAUSTED', daemonHealthy: false }).name
     ).toBe('daemonDown');
@@ -217,9 +217,9 @@ describe('remote-view viewport state machine', () => {
     expect(ok.name).toBe('attaching');
     expect(ok.sessionId).toBe('ses_new');
     expect(transition(sessionLost, { type: 'SESSION_RECREATE_FAIL' }).name).toBe('picker');
-    expect(
-      transition({ ...live, name: 'windowGone' }, { type: 'RETURN_TO_PICKER' }).name
-    ).toBe('picker');
+    expect(transition({ ...live, name: 'windowGone' }, { type: 'RETURN_TO_PICKER' }).name).toBe(
+      'picker'
+    );
     expect(transition({ ...live, name: 'error' }, { type: 'ACK_ERROR' }).name).toBe('picker');
   });
 

@@ -15,14 +15,13 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 function makeNode(overrides: Partial<NodeStatusResult> = {}): NodeStatusResult {
-  return {
+  const base = {
     nodeId: 'node-1',
     unitSlug: 'sample-coder',
-    unitType: 'agent',
-    execution: 'serial',
+    execution: 'serial' as const,
     lineId: 'line-001',
     position: 0,
-    status: 'pending',
+    status: 'pending' as const,
     ready: false,
     readyDetail: {
       precedingLinesComplete: true,
@@ -31,9 +30,24 @@ function makeNode(overrides: Partial<NodeStatusResult> = {}): NodeStatusResult {
       inputsAvailable: true,
       unitFound: true,
     },
-    inputPack: {},
-    ...overrides,
+    inputPack: { inputs: {}, ok: true },
   };
+  if (overrides.unitType === 'user-input') {
+    return {
+      ...base,
+      ...overrides,
+      unitType: 'user-input',
+      userInput: overrides.userInput ?? {
+        prompt: 'Enter a value',
+        inputType: 'text',
+        outputName: 'value',
+      },
+    };
+  }
+  if (overrides.unitType === 'code') {
+    return { ...base, ...overrides, unitType: 'code' };
+  }
+  return { ...base, ...overrides, unitType: 'agent' };
 }
 
 function makeLine(overrides: Partial<LineStatusResult> = {}): LineStatusResult {

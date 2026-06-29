@@ -30,6 +30,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 
 import { usePdfExport } from '@/features/041-file-browser/hooks/use-pdf-export';
 import type { IPdfGenerator } from '@/features/041-file-browser/lib/pdf-generator';
+import { isRasterImageFilename } from '@/features/041-file-browser/services/image-filename';
 import {
   ImageEditorLazy,
   type ImageSaveOutcome,
@@ -41,7 +42,6 @@ import {
   hasTables,
   resolveImageUrl,
 } from '@/features/_platform/viewer';
-import { isRasterImageFilename } from '@/features/041-file-browser/services/image-filename';
 import { detectContentType } from '@/lib/content-type-detection';
 import { AudioViewer } from './audio-viewer';
 import { BinaryPlaceholder } from './binary-placeholder';
@@ -669,6 +669,9 @@ function BinaryFileView({
 
   // Pre-measure the natural size so the Edit control can be disabled with a
   // message for iOS-oversized images (AC-14) rather than failing on entry.
+  // refreshKey is an intentional re-probe trigger — a refresh (which bumps it to
+  // bust the <img> cache) must also re-measure the natural size if the file changed.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional refreshKey re-probe trigger
   useEffect(() => {
     if (!canEdit) return;
     let cancelled = false;
@@ -695,7 +698,8 @@ function BinaryFileView({
   };
 
   const handleSaveOver = async (payloadBase64: string, expectedMtime?: string) => {
-    const result = await onSaveImage!(payloadBase64, 'overwrite', expectedMtime);
+    if (!onSaveImage) throw new Error('handleSaveOver invoked without an onSaveImage handler');
+    const result = await onSaveImage(payloadBase64, 'overwrite', expectedMtime);
     if (result.ok) {
       setEditing(false);
       setRefreshKey((k) => k + 1); // bust the <img> cache to show the saved result
@@ -703,7 +707,8 @@ function BinaryFileView({
     return result;
   };
   const handleSaveAsNew = async (payloadBase64: string) => {
-    const result = await onSaveImage!(payloadBase64, 'edited-copy');
+    if (!onSaveImage) throw new Error('handleSaveAsNew invoked without an onSaveImage handler');
+    const result = await onSaveImage(payloadBase64, 'edited-copy');
     if (result.ok) {
       setEditing(false);
       setRefreshKey((k) => k + 1);

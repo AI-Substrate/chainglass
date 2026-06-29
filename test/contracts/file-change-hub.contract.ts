@@ -5,8 +5,8 @@
  */
 
 import { beforeEach, describe, expect, it } from 'vitest';
-import type { IFileChangeHub } from '../../../apps/web/src/features/045-live-file-events/file-change.types';
-import type { FileChange } from '../../../apps/web/src/features/045-live-file-events/file-change.types';
+import type { IFileChangeHub } from '../../apps/web/src/features/045-live-file-events/file-change.types';
+import type { FileChange } from '../../apps/web/src/features/045-live-file-events/file-change.types';
 
 export type HubUnderTest = IFileChangeHub;
 

@@ -141,9 +141,10 @@ describe('YAML loading pipeline', () => {
       const projectConfig = loadYamlConfig(path.join(projectDir, 'config.yaml'));
       const merged = deepMerge(userConfig, projectConfig);
 
-      expect(merged.sample.debug).toBe(true);
-      expect(merged.sample.timeout).toBe(30);
-      expect(merged.sample.name).toBe('project');
+      const sample = merged.sample as { debug: boolean; timeout: number; name: string };
+      expect(sample.debug).toBe(true);
+      expect(sample.timeout).toBe(30);
+      expect(sample.name).toBe('project');
     });
 
     it('should add project-only sections to merged config', () => {
@@ -165,7 +166,8 @@ describe('YAML loading pipeline', () => {
       const projectConfig = loadYamlConfig(path.join(projectDir, 'config.yaml'));
       const merged = deepMerge(userConfig, projectConfig);
 
-      expect(merged.sample.timeout).toBe(60);
+      const sample = merged.sample as { timeout: number };
+      expect(sample.timeout).toBe(60);
       expect(merged.experimental).toEqual({ feature_x: true });
     });
   });
@@ -276,7 +278,8 @@ describe('YAML loading pipeline', () => {
       const projectConfig = loadYamlConfig(path.join(projectDir, 'config.yaml'));
       const merged = deepMerge(userConfig, projectConfig);
 
-      expect(merged.sample.api_key).toBe('${OPENAI_API_KEY}');
+      const sample = merged.sample as { api_key: string };
+      expect(sample.api_key).toBe('${OPENAI_API_KEY}');
     });
   });
 });
