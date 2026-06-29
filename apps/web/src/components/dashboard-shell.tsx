@@ -25,7 +25,10 @@ import type { ReactNode } from 'react';
  */
 export function DashboardShell({ children }: { children: ReactNode }) {
   return (
-    <SidebarProvider>
+    // Load the left sidebar compacted (icon rail) by default; users expand it
+    // via the PanelLeft toggle. SidebarProvider initializes from defaultOpen
+    // (it doesn't read the sidebar_state cookie on mount), so false = compact.
+    <SidebarProvider defaultOpen={false}>
       <div className="flex h-screen w-full">
         <DashboardSidebar />
         <SidebarInset>
