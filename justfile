@@ -78,6 +78,47 @@ dev-https:
 build:
     pnpm turbo build
 
+# Production run: build, then serve the optimized build (Next prod server + terminal sidecar).
+# Slower to start (one-time build) but far lighter at runtime than `just dev` — no on-demand
+# compilation, minified bundles, React production mode. Best for slow machines that only run
+# the app (no code editing — there's no hot reload; rebuild with `just prod` to pick up changes).
+# Terminal works exactly as in dev. PORT controls both: Next on PORT, sidecar on PORT+1500.
+prod: build prod-serve
+
+# Serve an existing production build without rebuilding (fast relaunch). Run `just build`
+# (or `just prod`) first. Same Next prod server + terminal sidecar as `just prod`.
+prod-serve:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    NEXT_PORT=${PORT:-3000}
+    WS_PORT=$((NEXT_PORT + 1500))
+    # Guard: a production build must exist
+    if [ ! -f apps/web/.next/BUILD_ID ]; then
+      echo "❌ No production build found (apps/web/.next/BUILD_ID missing)."
+      echo "   Run \`just prod\` (build + serve) or \`just build\` first."
+      exit 1
+    fi
+    # Pre-flight: detect stale processes on our ports
+    for p in $NEXT_PORT $WS_PORT; do
+      PID=$(lsof -ti TCP:$p -sTCP:LISTEN 2>/dev/null || true)
+      if [ -n "$PID" ]; then
+        CMD=$(ps -p $PID -o command= 2>/dev/null || echo "unknown")
+        echo "⚠️  Port $p already in use by PID $PID ($CMD)"
+        echo "   Killing stale process..."
+        kill $PID 2>/dev/null && sleep 1 || true
+      fi
+    done
+    cd apps/web && node -e "require('node-pty').spawn('/bin/echo',['ok'],{name:'x',cols:1,rows:1,cwd:'/tmp',env:{}})" 2>/dev/null || (echo "Error: node-pty can't spawn. Run: chmod +x apps/web/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper" && exit 1)
+    cd "$OLDPWD"
+    # `next start` serves the precompiled build from apps/web/.next (minified, no on-demand
+    # compile) — the optimized prod runtime. Next prints an "output: standalone" advisory
+    # warning here; it's harmless (standalone output is only for `cg`/CLI packaging).
+    # Terminal sidecar runs via tsx WITHOUT `watch` (no file-watching overhead in prod).
+    PORT=$NEXT_PORT TERMINAL_WS_HOST=${TERMINAL_WS_HOST:-0.0.0.0} \
+      pnpm concurrently --names "next,terminal" --prefix-colors "blue,green" \
+        "cd apps/web && pnpm exec next start --port $NEXT_PORT" \
+        "pnpm tsx --env-file=apps/web/.env.local apps/web/src/features/064-terminal/server/terminal-ws.ts"
+
 # Plan 088 (DL-001): flag a stale CLI bundle — dist/cli.cjs older than any apps/cli/src file means
 # `cg remote-view` (and other verbs) may be missing/outdated. Advisory guard; run before a live CLI
 # smoke. Exits non-zero when stale so CI/agents can gate on it; `just cli-build` rebuilds.
