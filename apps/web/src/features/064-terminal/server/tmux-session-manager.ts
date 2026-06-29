@@ -101,7 +101,23 @@ export class TmuxSessionManager {
    * Uses `tmux new-session -A` which attaches if session exists, creates if not.
    */
   spawnAttachedPty(name: string, cwd: string, cols: number, rows: number): PtyProcess {
-    return this.spawnPty('tmux', ['new-session', '-A', '-s', name, '-c', cwd], {
+    // Run tmux attach-or-create THROUGH the user's shell, then `exec` that shell
+    // when tmux exits. Without the wrapper the PTY's top process IS the tmux
+    // client, so Ctrl-D collapsing the last pane kills the PTY and leaves an
+    // empty screen. Falling back to an interactive shell mirrors launching tmux
+    // from a normal terminal (exit tmux → back at a prompt).
+    //
+    // Persistence is preserved: on disconnect disposePty() SIGHUPs the wrapper
+    // (and its tmux client) before the fallback `exec` runs, so the detached
+    // session survives. The PID registry's isTmuxClient() still matches because
+    // the wrapper's `ps` command line contains `tmux new-session`.
+    //
+    // `name` is validated to [A-Za-z0-9_-]+ upstream (validateSessionName); cwd
+    // and the shell path are single-quoted for the `-c` string.
+    const shell = this.getShellFallback();
+    const q = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`;
+    const launch = `tmux new-session -A -s ${name} -c ${q(cwd)}; exec ${q(shell)}`;
+    return this.spawnPty(shell, ['-c', launch], {
       name: 'xterm-256color',
       cols,
       rows,
@@ -175,8 +191,16 @@ export class TmuxSessionManager {
     }
   }
 
-  /** Get the user's default shell or /bin/bash as fallback */
+  /**
+   * Get the user's default interactive shell. On Windows this is PowerShell
+   * (cmd.exe via COMSPEC is deliberately skipped); on unix it's $SHELL, falling
+   * back to /bin/bash. Used both as the raw-shell fallback (when tmux is absent)
+   * and as the wrapper/fallback shell in spawnAttachedPty.
+   */
   getShellFallback(): string {
+    if (process.platform === 'win32') {
+      return 'powershell.exe';
+    }
     return process.env.SHELL || '/bin/bash';
   }
 }
