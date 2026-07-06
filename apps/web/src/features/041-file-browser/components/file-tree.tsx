@@ -209,6 +209,41 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
     onExpandedDirsChange?.([...expanded]);
   }, [expanded, onExpandedDirsChange]);
 
+  // Center the tree on the SELECTED FILE — and ONLY when the selection changes,
+  // never on folder expand/collapse. Previously each file row carried a callback
+  // ref that scroll-centered on mount, so expanding a folder remounted the
+  // selected row and yanked the tree back to it. Driving the scroll from this
+  // effect — keyed solely on `selectedFile` — fixes that: expanding/clicking a
+  // folder only toggles `expanded` (handleDirClick never touches `selectedFile`),
+  // so this effect doesn't re-run and the tree stays put. The rAF retry handles
+  // the lazy case where the target row isn't mounted yet (its directory's
+  // children are still loading) without depending on `expanded`/`childEntries`.
+  const containerRef = useRef<HTMLDivElement>(null);
+  const lastCenteredRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!selectedFile) {
+      lastCenteredRef.current = null;
+      return;
+    }
+    if (lastCenteredRef.current === selectedFile) return;
+    let raf = 0;
+    let tries = 0;
+    const attempt = () => {
+      const el = containerRef.current?.querySelector(
+        `[data-tree-path="${CSS.escape(selectedFile)}"]`
+      );
+      if (el) {
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        lastCenteredRef.current = selectedFile;
+        return;
+      }
+      // Row not mounted yet (lazy-loaded directory) — retry for ~1s, then give up.
+      if (tries++ < 60) raf = requestAnimationFrame(attempt);
+    };
+    attempt();
+    return () => cancelAnimationFrame(raf);
+  }, [selectedFile]);
+
   const handleDirClick = (dirPath: string) => {
     // Swallow the spurious toggle Radix fires on the trigger when a context-menu
     // "New File/Folder" closes (would otherwise collapse the folder mid-create).
@@ -331,7 +366,11 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
     ) : null;
 
   return (
-    <div className="text-sm" onKeyDown={hasMutations ? handleTreeKeyDown : undefined}>
+    <div
+      ref={containerRef}
+      className="text-sm"
+      onKeyDown={hasMutations ? handleTreeKeyDown : undefined}
+    >
       {/* Root row for root-level creation (DYK-P2-02) */}
       {mutations && (
         <div className="group flex items-center gap-1 px-2 py-0.5 hover:bg-accent">
@@ -710,23 +749,16 @@ function TreeItem({
   }
 
   // --- File Item ---
+  // Scroll-to-center on selection lives in the FileTree container (keyed on
+  // `selectedFile`), NOT here — a mount-time ref re-centered on every folder
+  // expand. See the comment on lastCenteredRef above.
 
-  // Scroll selected file into view on mount — center so it's not at the edge
-  const scrollRef = useCallback(
-    (el: HTMLElement | null) => {
-      if (el && isSelected) {
-        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      }
-    },
-    [isSelected]
-  );
   const selectedOnMouseDownRef = useRef(isSelected);
 
   // Rename mode for file: keep icon, replace name with inline input (DYK-P2-04)
   if (isRenaming) {
     return (
       <div
-        ref={scrollRef}
         data-tree-path={entry.path}
         className={`relative flex w-full items-center gap-1 px-2 py-1 text-left hover:bg-accent ${
           isSelected ? 'bg-accent font-medium' : ''
@@ -755,7 +787,6 @@ function TreeItem({
       <ContextMenu>
         <ContextMenuTrigger asChild>
           <button
-            ref={scrollRef as React.Ref<HTMLButtonElement>}
             type="button"
             onMouseDown={() => {
               selectedOnMouseDownRef.current = isSelected;
