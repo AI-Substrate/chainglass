@@ -29,7 +29,7 @@ export function useAttentionTitle({
   needsAttention,
 }: UseAttentionTitleOptions) {
   useEffect(() => {
-    const prefix = emoji || (workspaceName ? workspaceName.substring(0, 2).toUpperCase() : '');
+    const prefix = emoji || workspaceName || '';
     const base = `${prefix} ${pageName}`.trim();
     if (base) setTitleBase(base);
 

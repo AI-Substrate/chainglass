@@ -15,7 +15,8 @@
  *   title.setPrefix('notification', '❓');     // adds ❓ prefix
  *   title.clearPrefix('notification');          // removes it
  *
- * All updates go through one place — no MutationObserver fights.
+ * All updates go through one place. A single observer re-asserts our composed
+ * title if Next.js metadata (or anything else) overwrites it externally.
  */
 
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
@@ -34,12 +35,32 @@ const state: TitleState = {
 
 const listeners = new Set<() => void>();
 
+// Next.js re-asserts the head <title> from route metadata on every RSC commit
+// (generateMetadata in the workspace layout), silently overwriting our composed
+// title moments after we set it. Observe the head and re-assert — the equality
+// guard prevents observer/write loops.
+let titleObserver: MutationObserver | null = null;
+
+function ensureTitleOwnership() {
+  if (titleObserver || typeof document === 'undefined' || typeof MutationObserver === 'undefined') {
+    return;
+  }
+  titleObserver = new MutationObserver(() => {
+    const composed = getSnapshot();
+    if (composed && document.title !== composed) {
+      document.title = composed;
+    }
+  });
+  titleObserver.observe(document.head, { subtree: true, childList: true, characterData: true });
+}
+
 function notify() {
   // Compose and apply title
   const prefixStr = Array.from(state.prefixes.values()).join(' ');
   const title = prefixStr ? `${prefixStr} ${state.base}` : state.base;
   if (title && typeof document !== 'undefined') {
     document.title = title;
+    ensureTitleOwnership();
   }
   for (const fn of listeners) fn();
 }
@@ -81,6 +102,8 @@ export function clearTitlePrefix(slot: string): void {
 export function resetTitleManager(): void {
   state.base = '';
   state.prefixes.clear();
+  titleObserver?.disconnect();
+  titleObserver = null;
 }
 
 // ── Hook ──
@@ -124,7 +147,7 @@ export function useManagedTitle(options: {
   const { emoji, pageName, workspaceName, needsAttention } = options;
 
   useEffect(() => {
-    const prefix = emoji || (workspaceName ? workspaceName.substring(0, 2).toUpperCase() : '');
+    const prefix = emoji || workspaceName || '';
     const base = `${prefix} ${pageName}`.trim();
     if (base) setTitleBase(base);
 

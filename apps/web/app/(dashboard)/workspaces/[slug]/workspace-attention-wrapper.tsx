@@ -18,13 +18,14 @@ export function WorkspaceAttentionWrapper({ children }: { children: React.ReactN
   const wt = ctx?.worktreeIdentity;
 
   const resolvedEmoji = wt?.emoji || ctx?.emoji || '';
-  const location = wt?.branch || ctx?.name || '';
+  // Full name, not an abbreviation: "chainglass-main", falling back to whichever half exists.
+  const location =
+    ctx?.name && wt?.branch ? `${ctx.name}-${wt.branch}` : wt?.branch || ctx?.name || '';
   const pageName = wt?.pageTitle ? `${location} — ${wt.pageTitle}` : location;
 
   useAttentionTitle({
     emoji: resolvedEmoji,
     pageName,
-    workspaceName: ctx?.name,
     needsAttention: ctx?.hasChanges ?? false,
   });
 
