@@ -29,10 +29,16 @@ export interface UseTreeDirectoryChangesReturn {
 }
 
 /**
- * Watch file changes in expanded directories.
+ * Watch file changes in expanded directories, plus the worktree root.
+ *
+ * The root ('') is ALWAYS included. It is not an expandable node — the tree
+ * renders it unconditionally — which is exactly why it never appears in the
+ * FileTree `expanded` set (file-tree.tsx seeds that set with ancestors of the
+ * selected file only). Without this, root-level adds matched no directory and
+ * the tree never refreshed for them, while nested dirs updated live.
  *
  * @param expandedDirs - Currently expanded directory paths
- * @returns Changes filtered to expanded dirs with derived sets
+ * @returns Changes filtered to visible dirs with derived sets
  */
 export function useTreeDirectoryChanges(expandedDirs: string[]): UseTreeDirectoryChangesReturn {
   // Single subscription for all file changes (DYK #1)
@@ -48,8 +54,13 @@ export function useTreeDirectoryChanges(expandedDirs: string[]): UseTreeDirector
     const removed = new Set<string>();
     const matching: FileChange[] = [];
 
+    // '' is the worktree root — always visible, never in the expanded set.
+    // A Set also keeps a duplicate entry from matching the same change twice.
+    const visibleDirs = new Set<string>(expandedDirs);
+    visibleDirs.add('');
+
     for (const change of changes) {
-      for (const dir of expandedDirs) {
+      for (const dir of visibleDirs) {
         const prefix = dir === '' ? '' : `${dir}/`;
         if (change.path.startsWith(prefix)) {
           const rest = change.path.slice(prefix.length);

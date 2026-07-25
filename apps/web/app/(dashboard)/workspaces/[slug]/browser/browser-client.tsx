@@ -670,11 +670,20 @@ function BrowserClientInner({
   }, [allChanges.hasChanges]);
 
   // T001: Re-fetch directories that changed in tree
+  // The root ('') has its own store — rootEntries feeds the tree's `entries` prop,
+  // while handleRefreshDir writes childEntries, which is only read for nested rows.
+  // Routing root through handleRefreshDir would fetch correctly and then write into
+  // a bucket nothing renders, so an externally-created root file would never appear.
+  // Same split useFileMutations already makes for the mutation path.
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — only trigger on hasChanges flip
   useEffect(() => {
     if (!treeChanges.hasChanges) return;
     for (const dir of treeChanges.changedDirs) {
-      fileNav.handleRefreshDir(dir);
+      if (dir === '') {
+        handleRefreshRoot();
+      } else {
+        fileNav.handleRefreshDir(dir);
+      }
     }
     treeChanges.clearAll();
   }, [treeChanges.hasChanges]);

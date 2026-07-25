@@ -176,6 +176,83 @@ describe('useTreeDirectoryChanges', () => {
     expect(result.current.removedPaths.has('src/old.ts')).toBe(true);
   });
 
+  it('should match changes in the worktree root even when nothing is expanded', () => {
+    /**
+     * Why: Files created in the worktree root never appeared in the tree, while files in
+     *   expanded subdirectories appeared live. The root is always visible but is not an
+     *   expandable node, so it is never in the FileTree expanded set — the hook has to
+     *   supply it itself.
+     * Contract: A root-level change is matched with expandedDirs = [], and reports the
+     *   root as '' in changedDirs.
+     * Usage Notes: [] is the real production initial value (browser-client.tsx's
+     *   trackedExpandedDirs starts empty), so this is the state the bug actually shipped in.
+     * Quality Contribution: Locks the root as a first-class watched directory.
+     * Worked Example: expanded=[], file added at 'README.md' → changedDirs has ''.
+     */
+    const { result } = renderHook(() => useTreeDirectoryChanges([]), {
+      wrapper: createWrapper(),
+    });
+
+    act(() => {
+      fakeMux.simulateOpen();
+      simulateSSE([
+        { path: 'README.md', eventType: 'add', worktreePath: '/repo', timestamp: 1000 },
+      ]);
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(result.current.hasChanges).toBe(true);
+    expect(result.current.changedDirs.has('')).toBe(true);
+    expect(result.current.glowPaths.has('README.md')).toBe(true);
+  });
+
+  it('should populate removedPaths for root-level unlink events', () => {
+    /**
+     * Why: Deletions in the root must vanish from the tree as promptly as nested ones.
+     * Contract: 'unlink' at a root-level path → removedPaths contains it, changedDirs has ''.
+     * Worked Example: expanded=[], 'unlink' for 'notes.md' → removedPaths has 'notes.md'.
+     */
+    const { result } = renderHook(() => useTreeDirectoryChanges([]), {
+      wrapper: createWrapper(),
+    });
+
+    act(() => {
+      fakeMux.simulateOpen();
+      simulateSSE([
+        { path: 'notes.md', eventType: 'unlink', worktreePath: '/repo', timestamp: 1000 },
+      ]);
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(result.current.removedPaths.has('notes.md')).toBe(true);
+    expect(result.current.changedDirs.has('')).toBe(true);
+  });
+
+  it('should not match nested paths as children of the root', () => {
+    /**
+     * Why: Including the root must not turn the hook into a match-everything filter —
+     *   that would re-fetch the root for changes anywhere in the repo and would defeat
+     *   the collapsed-directory behavior the other tests lock.
+     * Contract: The direct-child rule holds at depth 0 exactly as it does deeper.
+     * Quality Contribution: This is the guard against an over-broad root fix.
+     * Worked Example: expanded=[], change at 'docs/deep/file.md' → no match at all.
+     */
+    const { result } = renderHook(() => useTreeDirectoryChanges([]), {
+      wrapper: createWrapper(),
+    });
+
+    act(() => {
+      fakeMux.simulateOpen();
+      simulateSSE([
+        { path: 'docs/deep/file.md', eventType: 'add', worktreePath: '/repo', timestamp: 1000 },
+      ]);
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(result.current.hasChanges).toBe(false);
+    expect(result.current.changedDirs.size).toBe(0);
+  });
+
   it('should reset on clearAll', () => {
     /**
      * Why: After handling changes, state must be reset to detect next batch.
