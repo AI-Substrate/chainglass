@@ -57,19 +57,17 @@ function reqLike(pathname: string, cookieValue?: string) {
 }
 
 describe('AUTH_BYPASS_ROUTES (locked contract)', () => {
-  it('contains exactly 6 routes — 4 always-public + 2 sink prefixes (Phase 7 F001 fix)', () => {
-    // Plan 084 Phase 7 (minih review F001): /api/event-popper and
-    // /api/tmux/events bypass at the proxy layer because their route handlers
-    // run requireLocalAuth (composite localhost + cookie OR X-Local-Token).
-    // Keeping the cookie gate in front blocked CLI X-Local-Token flows, which
-    // broke AC-17 at the system level.
+  it('contains exactly 5 routes — 4 always-public + 1 sink prefix (Phase 7 F001 fix)', () => {
+    // Plan 084 Phase 7 (minih review F001): /api/event-popper bypasses at the
+    // proxy layer because its route handlers run requireLocalAuth (composite
+    // localhost + cookie OR X-Local-Token). Keeping the cookie gate in front
+    // blocked CLI X-Local-Token flows, which broke AC-17 at the system level.
     expect(AUTH_BYPASS_ROUTES).toEqual([
       '/api/health',
       '/api/auth',
       '/api/bootstrap/verify',
       '/api/bootstrap/forget',
       '/api/event-popper',
-      '/api/tmux/events',
     ]);
   });
 });
@@ -92,7 +90,6 @@ describe('isBypassPath', () => {
     ['/api/event-popper', true],
     ['/api/event-popper/list', true],
     ['/api/event-popper/ask-question', true],
-    ['/api/tmux/events', true],
     ['/api/terminal/token', false], // Phase 4 defence-in-depth — proxy + handler
     ['/dashboard', false],
     ['/login', false],
@@ -159,11 +156,6 @@ describe('evaluateCookieGate', () => {
     expect(evaluateCookieGate(reqLike('/api/event-popper/list'), codeAndKey)).toEqual({
       kind: 'bypass',
     });
-  });
-
-  // (f1) /api/tmux/events → bypass (same Phase 7 F001 reasoning)
-  it('(f1) /api/tmux/events → bypass (Phase 7 F001 — sole gate is requireLocalAuth)', () => {
-    expect(evaluateCookieGate(reqLike('/api/tmux/events'), codeAndKey)).toEqual({ kind: 'bypass' });
   });
 
   // (f2) /api/terminal/token without cookie → 401 (Phase 4 will defence-in-depth check)

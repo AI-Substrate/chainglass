@@ -22,7 +22,7 @@ import {
  *    `cookie-gate.ts` for the locked contract): always-public routes
  *    (`/api/health`, `/api/auth/*`, `/api/bootstrap/verify`,
  *    `/api/bootstrap/forget`) AND localhost-gated-by-their-own-check sink
- *    routes (`/api/event-popper`, `/api/tmux/events` — Phase 7 F001 fix
+ *    routes (`/api/event-popper` — Phase 7 F001 fix
  *    after minih flagged that the proxy was blocking token-only CLI flows
  *    before the route handlers' composite `requireLocalAuth` could run).
  *  - `'proceed'` — request passes the cookie gate and should fall

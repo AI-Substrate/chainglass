@@ -16,8 +16,6 @@ import fs from 'node:fs';
 import https from 'node:https';
 import { activeSigningSecret, findWorkspaceRoot } from '@chainglass/shared/auth-bootstrap-code';
 import { type WebSocket, WebSocketServer } from 'ws';
-import { appendActivityLogEntry } from '../../065-activity-log/lib/activity-log-writer.js';
-import { shouldIgnorePaneTitle } from '../../065-activity-log/lib/ignore-patterns.js';
 import type { CommandExecutor, PtyProcess, PtySpawner } from '../types';
 import { isProcessAlive, isTmuxClient, reapStalePtys, recordPid, removePid } from './pty-registry';
 import {
@@ -31,13 +29,11 @@ import {
 } from './terminal-auth';
 import { TmuxSessionManager } from './tmux-session-manager';
 
-const ACTIVITY_LOG_POLL_MS = Number(process.env.ACTIVITY_LOG_POLL_MS ?? '10000');
-
 // Plan 084 Phase 4 — re-export the auth contract so existing tests that
 // imported these names from `terminal-ws` keep working. New consumers
 // (route handlers, etc.) should import directly from `./terminal-auth` to
-// avoid pulling the sidecar-only `ws` / `node-pty` / activity-log deps into
-// the Next.js bundle.
+// avoid pulling the sidecar-only `ws` / `node-pty` deps into the Next.js
+// bundle.
 export {
   TERMINAL_JWT_AUDIENCE,
   TERMINAL_JWT_ISSUER,
@@ -74,12 +70,9 @@ export interface TerminalServer {
 export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
   const manager = new TmuxSessionManager(deps.execCommand, deps.spawnPty);
   const activePtys = new Set<PtyProcess>();
-  const activityLogIntervals = new Set<ReturnType<typeof setInterval>>();
   // FX001-1: idempotent-teardown bookkeeping. `disposedPtys` guards double-dispose
-  // (ws 'close', ws 'error', and pty.onExit can all fire for one PTY); `ptyIntervals`
-  // ties each PTY to its activity-log interval so disposePty clears both together.
+  // (ws 'close', ws 'error', and pty.onExit can all fire for one PTY).
   const disposedPtys = new WeakSet<PtyProcess>();
-  const ptyIntervals = new Map<PtyProcess, ReturnType<typeof setInterval>>();
   // FX001-2: injectable killer (default real `process.kill`) + once-only guard.
   const killProcess =
     deps.killProcess ??
@@ -123,20 +116,13 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
 
   /**
    * FX001-1: the single, idempotent teardown path for a PTY. Safe to call from
-   * ws 'close', ws 'error', and pty.onExit — a second call is a no-op. Clears the
-   * PTY's activity-log interval and kills the tmux ATTACH CLIENT via `pty.kill()`
-   * (SIGHUP detach — never `tmux kill-session`, so the persistent session survives).
+   * ws 'close', ws 'error', and pty.onExit — a second call is a no-op. Kills the
+   * tmux ATTACH CLIENT via `pty.kill()` (SIGHUP detach — never `tmux kill-session`,
+   * so the persistent session survives).
    */
   function disposePty(pty: PtyProcess): void {
     if (disposedPtys.has(pty)) return;
     disposedPtys.add(pty);
-
-    const interval = ptyIntervals.get(pty);
-    if (interval) {
-      clearInterval(interval);
-      activityLogIntervals.delete(interval);
-      ptyIntervals.delete(pty);
-    }
 
     activePtys.delete(pty);
     ptyWs.delete(pty);
@@ -205,44 +191,6 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
     // (listenPort 0) touch no filesystem.
     if (listenPort > 0) recordPid(sidecarRoot, listenPort, pty.pid);
     ptyWs.set(pty, ws); // FX001-4: track socket for the idle backstop sweep
-
-    // Resolve worktree root from CWD (CWD may be a subdirectory)
-    let worktreeRoot = cwd;
-    try {
-      worktreeRoot = deps.execCommand('git', ['-C', cwd, 'rev-parse', '--show-toplevel']).trim();
-    } catch {
-      // Non-git directory, bare repo, or git not installed — fall back to CWD
-    }
-
-    // Poll all panes and write activity log entries (configurable via ACTIVITY_LOG_POLL_MS)
-    if (tmuxAvailable && ACTIVITY_LOG_POLL_MS > 0) {
-      const logInterval = setInterval(() => {
-        const paneTitles = manager.getPaneTitles(sessionName);
-        for (const { pane, windowName, title } of paneTitles) {
-          if (shouldIgnorePaneTitle(title)) continue;
-          try {
-            appendActivityLogEntry(worktreeRoot, {
-              id: `tmux:${pane}`,
-              source: 'tmux',
-              label: title,
-              timestamp: new Date().toISOString(),
-              meta: { pane, windowName, session: sessionName },
-            });
-          } catch (error) {
-            console.error('[terminal] Failed to append activity log entry', {
-              sessionName,
-              pane,
-              error,
-            });
-          }
-        }
-      }, ACTIVITY_LOG_POLL_MS);
-      activityLogIntervals.add(logInterval);
-      // FX001-1: tie the interval to this PTY so disposePty clears it on EVERY
-      // exit path (close, error, onExit). Previously only a nested ws 'close'
-      // cleared it — an error-without-close or a pty-exit leaked the interval.
-      ptyIntervals.set(pty, logInterval);
-    }
 
     pty.onData((data: string) => {
       if ((ws as unknown as { readyState: number }).readyState === 1) {
@@ -334,10 +282,6 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
       }
     }
 
-    // Clear any interval not tied to a live PTY (defensive).
-    for (const interval of activityLogIntervals) clearInterval(interval);
-    activityLogIntervals.clear();
-    ptyIntervals.clear();
     activePtys.clear();
   }
 
@@ -507,12 +451,4 @@ if (isDirectRun) {
     : server.derivePort(nextPort);
 
   server.start(wsPort);
-
-  // Start tmux monitor — separate from activity log polling (PL-10)
-  try {
-    const { startTmuxMonitor } = await import('./tmux-monitor');
-    startTmuxMonitor(nextPort);
-  } catch (error) {
-    console.error('[terminal] Failed to start tmux monitor (continuing without it):', error);
-  }
 }

@@ -1,6 +1,6 @@
 /**
  * Plan 084 Phase 5 T002 — composite localhost + bootstrap-credential check for
- * sidecar HTTP sinks (`/api/event-popper/*`, `/api/tmux/events`).
+ * sidecar HTTP sinks (`/api/event-popper/*`).
  *
  * Closes Finding 02 (sinks formerly relied on `localhostGuard` alone — any
  * loopback process could post). Now requires localhost AND either:

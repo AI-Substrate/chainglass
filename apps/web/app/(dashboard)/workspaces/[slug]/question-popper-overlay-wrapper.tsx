@@ -5,7 +5,7 @@
  *
  * Mounts provider + indicator + panel + notification bridge in workspace layout.
  *
- * Follows ActivityLogOverlayWrapper pattern:
+ * Follows TerminalOverlayWrapper pattern:
  * - Provider always mounted (pure context)
  * - Panel wrapped in error boundary + dynamic import (SSR: false)
  * - Toast/desktop bridge as invisible component inside provider

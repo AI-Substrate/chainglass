@@ -4,7 +4,7 @@
  * Plan 084 Phase 4 (2026-05-03). Lives in its own module so the
  * Next.js route handlers (`apps/web/app/api/terminal/token/route.ts`) can
  * import the JWT shape contract + validators without dragging in the
- * sidecar-only dependencies (`ws`, `node-pty`, activity-log writer) that
+ * sidecar-only dependencies (`ws`, `node-pty`) that
  * `terminal-ws.ts` carries. Server-only — uses `node:crypto`-backed
  * primitives via `@chainglass/shared`.
  *

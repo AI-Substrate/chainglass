@@ -3,7 +3,7 @@
 /**
  * Notes Overlay Wrapper — mounts provider + panel in workspace layout.
  *
- * Mirrors terminal-overlay-wrapper.tsx / activity-log-overlay-wrapper.tsx:
+ * Mirrors terminal-overlay-wrapper.tsx:
  * - Dynamic import for panel (SSR: false — requires DOM for anchor measurement)
  * - Error boundary wraps panel only (not provider)
  * - Provider is pure context — safe to always mount

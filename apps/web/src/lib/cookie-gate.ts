@@ -26,7 +26,6 @@ import type { BootstrapCodeAndKey } from './bootstrap-code';
  * `requireLocalAuth` could ever run, breaking AC-17 at the system level for
  * the sink routes):
  *   - `/api/event-popper` — 8 sinks, gated by `requireLocalAuth` in handlers
- *   - `/api/tmux/events` — gated by `requireLocalAuth` in handler
  *
  * `/api/events/*` (SSE) and `/api/terminal/token` are NOT bypassed — they
  * legitimately need the cookie gate (browser flows; session-bearing).
@@ -42,7 +41,6 @@ export const AUTH_BYPASS_ROUTES = [
   '/api/bootstrap/verify',
   '/api/bootstrap/forget',
   '/api/event-popper',
-  '/api/tmux/events',
 ] as const;
 
 export type GateDecision =

@@ -3,15 +3,14 @@
  *
  * Plan 084 Phase 5 T006 — end-to-end sink-route integration test.
  *
- * Exercises real Next.js route handlers in-process across 3 representative
- * sink routes × 4 auth modes = 12 scenarios. Uses Phase 3's
+ * Exercises real Next.js route handlers in-process across 2 representative
+ * sink routes × 4 auth modes = 8 scenarios. Uses Phase 3's
  * `setupBootstrapTestEnv()` helper for shared cwd + cache reset, plus
  * `writeServerInfo()` for the X-Local-Token path.
  *
  * Routes:
  *   - GET  /api/event-popper/list       (UI route — both cookie and token paths)
  *   - POST /api/event-popper/ask-question (CLI-only sink)
- *   - POST /api/tmux/events              (CLI-only sink, separate API tree)
  *
  * Modes:
  *   (a) no credential        → 401 + {error:'no-credential'}
@@ -51,7 +50,6 @@ interface RouteCase {
 async function loadRoutes(): Promise<RouteCase[]> {
   const list = await import('../../../apps/web/app/api/event-popper/list/route');
   const ask = await import('../../../apps/web/app/api/event-popper/ask-question/route');
-  const tmux = await import('../../../apps/web/app/api/tmux/events/route');
   return [
     {
       name: 'GET /api/event-popper/list',
@@ -65,13 +63,6 @@ async function loadRoutes(): Promise<RouteCase[]> {
       method: 'POST',
       body: {},
       invoke: (req) => ask.POST(req),
-    },
-    {
-      name: 'POST /api/tmux/events',
-      url: 'http://localhost:3000/api/tmux/events',
-      method: 'POST',
-      body: {},
-      invoke: (req) => tmux.POST(req),
     },
   ];
 }

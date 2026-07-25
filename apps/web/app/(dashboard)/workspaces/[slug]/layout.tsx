@@ -20,12 +20,10 @@ import { getContainer } from '../../../../src/lib/bootstrap-singleton';
 import { SDKWorkspaceConnector } from '../../../../src/lib/sdk/sdk-workspace-connector';
 import { MultiplexedSSEProvider } from '../../../../src/lib/sse';
 import { updateSDKMru, updateSDKSettings } from '../../../actions/sdk-settings-actions';
-import { ActivityLogOverlayWrapper } from './activity-log-overlay-wrapper';
 import { NotesOverlayWrapper } from './notes-overlay-wrapper';
 import { PRViewOverlayWrapper } from './pr-view-overlay-wrapper';
 import { QuestionPopperOverlayWrapper } from './question-popper-overlay-wrapper';
 import { TerminalOverlayWrapper } from './terminal-overlay-wrapper';
-import { TmuxBellWrapper } from './tmux-bell-wrapper';
 import { WorkspaceAttentionWrapper } from './workspace-attention-wrapper';
 
 export const dynamic = 'force-dynamic';
@@ -42,7 +40,6 @@ const WORKSPACE_SSE_CHANNELS = [
   'unit-catalog',
   'agents',
   'workflow-execution',
-  'tmux-events',
 ] as const;
 
 interface LayoutProps {
@@ -102,19 +99,15 @@ export default async function WorkspaceLayout({ children, params }: LayoutProps)
       <WorkspaceAttentionWrapper>
         <TerminalOverlayWrapper defaultSessionName={defaultBranch} defaultCwd={defaultWorktreePath}>
           <MultiplexedSSEProvider channels={[...WORKSPACE_SSE_CHANNELS]}>
-            <TmuxBellWrapper>
-              <ActivityLogOverlayWrapper defaultWorktreePath={defaultWorktreePath}>
-                <NotesOverlayWrapper defaultWorktreePath={defaultWorktreePath}>
-                  <PRViewOverlayWrapper defaultWorktreePath={defaultWorktreePath}>
-                    <QuestionPopperOverlayWrapper>
-                      <WorkspaceAgentChrome slug={slug} workspacePath={ws?.path}>
-                        {children}
-                      </WorkspaceAgentChrome>
-                    </QuestionPopperOverlayWrapper>
-                  </PRViewOverlayWrapper>
-                </NotesOverlayWrapper>
-              </ActivityLogOverlayWrapper>
-            </TmuxBellWrapper>
+            <NotesOverlayWrapper defaultWorktreePath={defaultWorktreePath}>
+              <PRViewOverlayWrapper defaultWorktreePath={defaultWorktreePath}>
+                <QuestionPopperOverlayWrapper>
+                  <WorkspaceAgentChrome slug={slug} workspacePath={ws?.path}>
+                    {children}
+                  </WorkspaceAgentChrome>
+                </QuestionPopperOverlayWrapper>
+              </PRViewOverlayWrapper>
+            </NotesOverlayWrapper>
           </MultiplexedSSEProvider>
         </TerminalOverlayWrapper>
       </WorkspaceAttentionWrapper>
