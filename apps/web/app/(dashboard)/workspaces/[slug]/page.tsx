@@ -9,7 +9,9 @@
 import { WORKSPACE_DI_TOKENS } from '@chainglass/shared';
 import type { IWorkspaceService } from '@chainglass/workflow';
 import {
+  ArrowDown,
   ArrowRight,
+  ArrowUp,
   Bot,
   FileText,
   FolderOpen,
@@ -21,7 +23,14 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { WorkspaceRemoveButton } from '../../../../src/components/workspaces/workspace-remove-button';
 import { getContainer } from '../../../../src/lib/bootstrap-singleton';
-import { sortWorktrees } from '../../../../src/lib/sort-worktrees';
+import {
+  type WorktreeSortKey,
+  defaultDirForKey,
+  parseSortDir,
+  parseSortKey,
+  sortWorktreesBy,
+} from '../../../../src/lib/sort-worktrees';
+import { getWorktreeTimestamps } from '../../../../src/lib/worktree-timestamps';
 import { toggleWorktreeStar } from '../../../actions/workspace-actions';
 
 export const dynamic = 'force-dynamic';
@@ -30,10 +39,14 @@ interface PageProps {
   params: Promise<{
     slug: string;
   }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
-export default async function WorkspaceDetailPage({ params }: PageProps) {
+export default async function WorkspaceDetailPage({ params, searchParams }: PageProps) {
   const { slug } = await params;
+  const sp = await searchParams;
+  const sortKey = parseSortKey(sp.sort);
+  const sortDir = parseSortDir(sp.dir);
 
   const container = getContainer();
   const workspaceService = container.resolve<IWorkspaceService>(
@@ -51,8 +64,33 @@ export default async function WorkspaceDetailPage({ params }: PageProps) {
   const ws = workspaces.find((w) => w.slug === slug);
   const starredWorktrees = new Set(ws?.toJSON().preferences.starredWorktrees ?? []);
 
-  // Sort: starred first, then by descending numeric prefix
-  const sortedWorktrees = sortWorktrees(info.worktrees, starredWorktrees);
+  // Enrich worktrees with created/updated timestamps for sorting.
+  const timestamps = await getWorktreeTimestamps(info.worktrees.map((w) => w.path));
+  const enrichedWorktrees = info.worktrees.map((w) => ({
+    ...w,
+    createdAt: timestamps.get(w.path)?.createdAt ?? null,
+    updatedAt: timestamps.get(w.path)?.updatedAt ?? null,
+  }));
+
+  // Sort: starred first, then by the selected field/direction (default: most
+  // recently updated).
+  const sortedWorktrees = sortWorktreesBy(enrichedWorktrees, starredWorktrees, sortKey, sortDir);
+
+  // Build a sort-control href: toggle direction if the field is already active,
+  // otherwise select it with its natural default direction.
+  const sortHref = (key: WorktreeSortKey): string => {
+    const dir = key === sortKey ? (sortDir === 'asc' ? 'desc' : 'asc') : defaultDirForKey(key);
+    return `/workspaces/${slug}?sort=${key}&dir=${dir}`;
+  };
+
+  const sortOptions: { key: WorktreeSortKey; label: string }[] = [
+    { key: 'updated', label: 'Updated' },
+    { key: 'created', label: 'Created' },
+    { key: 'name', label: 'Name' },
+  ];
+
+  const fmtWhen = (ms: number | null): string =>
+    ms === null ? '—' : new Date(ms).toLocaleDateString();
 
   return (
     <div className="container mx-auto py-6">
@@ -94,11 +132,40 @@ export default async function WorkspaceDetailPage({ params }: PageProps) {
 
       {/* Worktrees */}
       <div className="rounded-lg border">
-        <div className="border-b bg-muted/50 px-4 py-3">
+        <div className="flex items-center justify-between gap-3 border-b bg-muted/50 px-4 py-3">
           <h2 className="flex items-center gap-2 font-semibold">
             <GitBranch className="h-5 w-5" />
             Worktrees
           </h2>
+          {info.worktrees.length > 1 && (
+            <div className="flex items-center gap-1 text-sm">
+              <span className="mr-1 text-muted-foreground">Sort</span>
+              {sortOptions.map(({ key, label }) => {
+                const isActive = key === sortKey;
+                const arrowDir = isActive ? sortDir : defaultDirForKey(key);
+                return (
+                  <Link
+                    key={key}
+                    href={sortHref(key)}
+                    aria-label={`Sort by ${label} ${
+                      isActive ? (sortDir === 'asc' ? 'descending' : 'ascending') : arrowDir
+                    }`}
+                    aria-pressed={isActive}
+                    className={`flex items-center gap-1 rounded px-2 py-1 hover:bg-muted ${
+                      isActive ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground'
+                    }`}
+                  >
+                    {label}
+                    {arrowDir === 'asc' ? (
+                      <ArrowUp className={`h-3.5 w-3.5 ${isActive ? '' : 'opacity-40'}`} />
+                    ) : (
+                      <ArrowDown className={`h-3.5 w-3.5 ${isActive ? '' : 'opacity-40'}`} />
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {info.worktrees.length === 0 ? (
@@ -144,6 +211,13 @@ export default async function WorkspaceDetailPage({ params }: PageProps) {
                     </Link>
                   </div>
                   <div className="flex items-center gap-4">
+                    <span
+                      className="hidden text-xs text-muted-foreground sm:inline"
+                      title={`Created ${fmtWhen(worktree.createdAt)} · Updated ${fmtWhen(worktree.updatedAt)}`}
+                    >
+                      {sortKey === 'created' ? 'Created' : 'Updated'}{' '}
+                      {fmtWhen(sortKey === 'created' ? worktree.createdAt : worktree.updatedAt)}
+                    </span>
                     <Link
                       href={landingUrl}
                       className="flex items-center gap-1 text-sm text-primary hover:underline"

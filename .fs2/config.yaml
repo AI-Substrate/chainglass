@@ -15,9 +15,3 @@ scan:
   # Follow symbolic links
   follow_symlinks: false
 
-other_graphs:
-  graphs:
-    - name: fastcode
-      path: ~/github/fastcode/.fs2/graph.pickle
-      description: FastCode codebase
-

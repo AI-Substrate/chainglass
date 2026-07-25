@@ -28,7 +28,6 @@ import {
   LogOut,
   PanelLeft,
   Plus,
-  ScrollText,
   Settings,
   StickyNote,
   TerminalSquare,
@@ -115,8 +114,8 @@ export function DashboardSidebar() {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => window.open(window.location.href, '_blank')}
-                aria-label="Open in new tab"
+                onClick={() => window.open('/', '_blank')}
+                aria-label="Open workspaces in new tab"
                 className="h-7 w-7"
               >
                 <ExternalLink className="h-3.5 w-3.5" />
@@ -143,8 +142,8 @@ export function DashboardSidebar() {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => window.open(window.location.href, '_blank')}
-                aria-label="Open in new tab"
+                onClick={() => window.open('/', '_blank')}
+                aria-label="Open workspaces in new tab"
                 className="h-7 w-7"
               >
                 <ExternalLink className="h-3.5 w-3.5" />
@@ -300,17 +299,6 @@ export function DashboardSidebar() {
               {!isCollapsed && <span>Terminal</span>}
             </SidebarMenuButton>
           </SidebarMenuItem>
-          {currentWorktree && (
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                onClick={() => window.dispatchEvent(new CustomEvent('activity-log:toggle'))}
-                tooltip="Toggle Activity Log"
-              >
-                <ScrollText className="h-5 w-5" />
-                {!isCollapsed && <span>Activity</span>}
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          )}
           {currentWorktree && (
             <SidebarMenuItem>
               <SidebarMenuButton
