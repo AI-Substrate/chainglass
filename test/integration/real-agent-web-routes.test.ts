@@ -172,53 +172,6 @@ describe.skip('Real Agent Web Routes E2E', () => {
     expect(result.success).toBe(true);
   });
 
-  it('should receive SSE events from /api/agents/events', async () => {
-    /*
-    Test Doc:
-    - Why: Verify SSE stream works with real server
-    - Contract: GET /api/agents/events returns SSE stream
-    - Usage Notes: Listen for agent_created, agent_status events
-    - Quality Contribution: Real-time event broadcast verification
-    - Worked Example: EventSource(/api/agents/events) → heartbeat + events
-    */
-    const eventSource = new EventSource(`${baseUrl}/api/agents/events`);
-
-    const eventsReceived: string[] = [];
-
-    await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        eventSource.close();
-        reject(new Error('SSE connection timeout'));
-      }, 10000); // 10s timeout
-
-      eventSource.onopen = () => {
-        console.log('[Real E2E] SSE connection opened');
-        clearTimeout(timeout);
-        eventSource.close();
-        resolve();
-      };
-
-      eventSource.onerror = (error) => {
-        console.error('[Real E2E] SSE connection error:', error);
-        clearTimeout(timeout);
-        eventSource.close();
-        reject(error);
-      };
-
-      // Listen for agent events
-      const eventTypes = ['agent_created', 'agent_status', 'agent_text_delta'];
-      for (const eventType of eventTypes) {
-        eventSource.addEventListener(eventType, (event) => {
-          console.log(`[Real E2E] Received ${eventType}:`, event.data);
-          eventsReceived.push(eventType);
-        });
-      }
-    });
-
-    // Verify connection was successful (onopen fired)
-    expect(true).toBe(true);
-  });
-
   it('should handle double-run with 409 Conflict', async () => {
     /*
     Test Doc:

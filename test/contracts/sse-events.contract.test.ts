@@ -2,7 +2,7 @@
  * SSE Events Contract Test
  *
  * Verifies all SSE event types still parse correctly.
- * Plan 019 removed agent events (they use separate /api/agents/events endpoint).
+ * Plan 019 removed agent events; the multiplexed SSE pipe carries them now.
  *
  * Per Critical Finding CF-03: This test serves as a backward compatibility gate.
  * If this test fails, it means the SSE schema broke existing consumers.

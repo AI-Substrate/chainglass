@@ -57,7 +57,7 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
   cwdRef.current = cwd;
   enabledRef.current = enabled;
 
-  // Callback refs — always fresh, never stale closure (useWorkspaceSSE pattern)
+  // Callback refs — always fresh, never stale closure
   const onDataRef = useRef(options.onData);
   const onStatusRef = useRef(options.onStatus);
   const onErrorRef = useRef(options.onError);

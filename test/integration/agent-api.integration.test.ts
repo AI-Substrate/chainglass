@@ -10,7 +10,6 @@
  * - POST /api/agents - create agent
  * - GET /api/agents/[id] - get single agent with events
  * - POST /api/agents/[id]/run - run prompt on agent
- * - GET /api/agents/events - SSE stream (connection test only)
  *
  * Note: Testing actual SSE event flow requires either:
  * 1. Real server with SSEManager (T010 real E2E)

@@ -4,7 +4,9 @@
  * useAgentManager - React hook for agent list and global SSE subscription
  *
  * Per Plan 019 AC-08, AC-09, AC-24: Web can list agents and subscribe to all agent events.
- * Per ADR-0007: Single SSE channel at /api/agents/events with client-side agentId filtering.
+ * Agent events arrive on the multiplexed 'agents' channel (/api/events/mux), with
+ * client-side agentId filtering. Supersedes ADR-0007's dedicated /api/agents/events
+ * endpoint, which was removed once the mux carried every channel.
  * Per DYK-17: New hook for Plan 019; replaces legacy useAgentSSE pattern.
  *
  * Features:
