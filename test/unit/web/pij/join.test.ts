@@ -18,6 +18,7 @@ import {
   indexFleetById,
   joinFlowToProject,
   joinSeatsToWorkspace,
+  joinTeamToFlow,
   toFleetRow,
 } from '../../../../apps/web/src/features/089-first-class-pij/server/join';
 import type { PijListRow } from '../../../../apps/web/src/features/089-first-class-pij/server/pij-records.interface';
@@ -312,5 +313,152 @@ describe('joinFlowToProject — data first, convention second, provenance record
     });
 
     expect(Object.keys(result).sort()).toEqual(['confident', 'planId', 'via']);
+  });
+});
+
+describe('joinTeamToFlow (Phase 2, T003)', () => {
+  const WORKSPACE = '/Users/fixture/substrate/chainglass';
+  const PROJECTS = [
+    {
+      slug: 'p063-systemic-telemetry-repair',
+      planPath: 'docs/plans/063-telemetry/telemetry-plan.md',
+    },
+    { slug: 's061-team-scaffold', planPath: 'docs/plans/061-team-scaffold/' },
+    { slug: 'first-class-pij-support-in-the-chainglass-ui', planPath: null },
+  ];
+  const FLOWS = [
+    { planDir: `${WORKSPACE}/docs/plans/063-telemetry`, planFolder: '063-telemetry' },
+    { planDir: `${WORKSPACE}/docs/plans/088-remote-app-view`, planFolder: '088-remote-app-view' },
+  ];
+
+  it('reaches the plan folder through the project record — rung 1, and it is confident', async () => {
+    /*
+    Test Doc:
+    - Why: `pij project set --plan <path>` is the ONE place a plan is attached to work by data. When a
+      seat's project carries it, the join is a lookup, not a guess, and the UI may say so.
+    - Contract: T003 rung 1; doctrine "inference stays labelled".
+    - Usage Notes: `planPath` may name a FILE inside the plan folder — the join takes its directory.
+    - Quality Contribution: pins the only rung that is allowed to be confident.
+    - Worked Example: project → docs/plans/063-telemetry/telemetry-plan.md → 063-telemetry.
+    */
+    const result = joinTeamToFlow({
+      projectSlug: 'p063-systemic-telemetry-repair',
+      projects: PROJECTS,
+      flows: FLOWS,
+      workspacePath: WORKSPACE,
+    });
+
+    expect(result).toEqual({
+      planDir: `${WORKSPACE}/docs/plans/063-telemetry`,
+      planFolder: '063-telemetry',
+      via: 'assignment.project.planPath',
+      confident: true,
+    });
+  });
+
+  it('accepts a planPath that names the folder itself', async () => {
+    /*
+    Test Doc:
+    - Why: both forms are in the live store — one project points at a plan file, another at a folder.
+    - Contract: T003 rung 1.
+    - Usage Notes: a trailing slash must not produce an empty basename.
+    - Quality Contribution: covers the second observed shape of a single field.
+    - Worked Example: docs/plans/061-team-scaffold/ → 061-team-scaffold.
+    */
+    const result = joinTeamToFlow({
+      projectSlug: 's061-team-scaffold',
+      projects: PROJECTS,
+      flows: FLOWS,
+      workspacePath: WORKSPACE,
+    });
+
+    expect(result.planFolder).toBe('061-team-scaffold');
+    expect(result.confident).toBe(true);
+  });
+
+  it('returns `none` when the project carries no plan — the live case for this stream', async () => {
+    /*
+    Test Doc:
+    - Why: measured 2026-07-26, only 3 of 17 projects carry `planPath`, and this stream's own project
+      is not one of them. `none` is therefore the NORMAL answer, not an error path.
+    - Contract: T003 rung 2.
+    - Usage Notes: the view renders the ratified "no flow" fallback on exactly this result.
+    - Quality Contribution: the honest-absence case is pinned as a first-class outcome.
+    - Worked Example: first-class-pij-support-… has planPath null → none.
+    */
+    const result = joinTeamToFlow({
+      projectSlug: 'first-class-pij-support-in-the-chainglass-ui',
+      projects: PROJECTS,
+      flows: FLOWS,
+      workspacePath: WORKSPACE,
+    });
+
+    expect(result).toEqual({ planDir: null, planFolder: null, via: 'none', confident: false });
+  });
+
+  it('returns `none` when the seat carries no project at all', async () => {
+    /*
+    Test Doc:
+    - Why: `pij list` rows carry no project field whatsoever, so this is what every team resolves to
+      today. It must be a value, never a throw or an empty chip.
+    - Contract: T003 rung 2.
+    - Usage Notes: —
+    - Quality Contribution: guards the default path the whole fleet takes.
+    - Worked Example: no projectSlug → none.
+    */
+    expect(joinTeamToFlow({ projects: PROJECTS, flows: FLOWS, workspacePath: WORKSPACE })).toEqual({
+      planDir: null,
+      planFolder: null,
+      via: 'none',
+      confident: false,
+    });
+  });
+
+  it('never joins on the resemblance between an assignment title and a plan folder', async () => {
+    /*
+    Test Doc:
+    - Why: THE forbidden rung. A resemblance join is wrong exactly when it is confident — two seats on
+      adjacent plans get silently swapped and the UI reports somebody else's phase.
+    - Contract: T003 "Never join by name similarity".
+    - Usage Notes: the input below is maximally tempting: the slug all but names the plan folder.
+    - Quality Contribution: makes the absence of the fuzzy rung executable rather than promised.
+    - Worked Example: slug 'first-class-pij-support-…' does NOT reach '089-first-class-pij'.
+    */
+    const result = joinTeamToFlow({
+      projectSlug: 'first-class-pij-support-in-the-chainglass-ui',
+      projects: PROJECTS,
+      flows: [
+        ...FLOWS,
+        {
+          planDir: `${WORKSPACE}/docs/plans/089-first-class-pij`,
+          planFolder: '089-first-class-pij',
+        },
+      ],
+      workspacePath: WORKSPACE,
+    });
+
+    expect(result.planFolder).toBeNull();
+    expect(result.via).toBe('none');
+  });
+
+  it('is confident about a plan folder that has no flow file yet', async () => {
+    /*
+    Test Doc:
+    - Why: the join answers "which plan folder", not "is there a flow in it". A folder with no
+      the-flow.json is one of the five ruled absence states, not a failed join.
+    - Contract: T003; flow-reader's FlowState vocabulary.
+    - Usage Notes: the view still shows no chip — it requires a join AND a flow.
+    - Quality Contribution: keeps the two questions separate so neither is answered by the other.
+    - Worked Example: planPath resolves, flows[] does not contain it → confident, planFolder set.
+    */
+    const result = joinTeamToFlow({
+      projectSlug: 'p063-systemic-telemetry-repair',
+      projects: PROJECTS,
+      flows: [],
+      workspacePath: WORKSPACE,
+    });
+
+    expect(result.confident).toBe(true);
+    expect(result.planFolder).toBe('063-telemetry');
   });
 });

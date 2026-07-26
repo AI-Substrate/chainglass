@@ -87,6 +87,34 @@ export interface FlowProjectJoin {
   confident: boolean;
 }
 
+/**
+ * How a team (a section's lead seat) was joined to a plan folder — Phase 2.
+ *
+ * There are deliberately only two rungs. Unlike {@link FlowJoinVia} this join has no convention
+ * fallback available to it: the only other signal is the resemblance between an assignment title and
+ * a plan folder name, and a resemblance join is wrong precisely when it is confident. See
+ * `server/join.ts`'s `joinTeamToFlow` for what the live records do and do not expose.
+ */
+export type TeamFlowVia = 'assignment.project.planPath' | 'none';
+
+export interface TeamFlowJoin {
+  /** Absolute plan folder, when one was reached by DATA. */
+  planDir: string | null;
+  /** Its basename — `089-first-class-pij`. */
+  planFolder: string | null;
+  via: TeamFlowVia;
+  /** True only when a record carried the link. The flow chip renders on nothing less. */
+  confident: boolean;
+}
+
+/** The join that means "no plan folder was reached". The default everywhere, today. */
+export const NO_TEAM_FLOW: TeamFlowJoin = {
+  planDir: null,
+  planFolder: null,
+  via: 'none',
+  confident: false,
+};
+
 /** What AC-08's empty-state trichotomy renders. Every field here answers "why is this view empty?". */
 export interface PollerStatus {
   /** Is the poller loop running at all? */

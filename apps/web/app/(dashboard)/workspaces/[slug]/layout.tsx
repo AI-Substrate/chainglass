@@ -38,6 +38,9 @@ const WORKSPACE_SSE_CHANNELS = [
   'workflows',
   'unit-catalog',
   'workflow-execution',
+  // Plan 089 Phase 2: the pij observatory. Load-bearing — `useChannelEvents('pij', …)` receives
+  // nothing at all unless the channel is subscribed here, and the failure is silent.
+  'pij',
 ] as const;
 
 interface LayoutProps {

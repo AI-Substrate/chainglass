@@ -10,8 +10,8 @@
  *   records *which rule fired*. meadowlark's first answer was "plan_id is null in every real flight
  *   plan"; reading this repo corrected it (088 carries `"088"`). So: opportunistic, never assumed.
  */
-import { relative, resolve, sep } from 'node:path';
-import type { FleetRow, FlowProjectJoin, PijId } from '../types';
+import { basename, dirname, relative, resolve, sep } from 'node:path';
+import type { FleetRow, FlowProjectJoin, PijId, TeamFlowJoin } from '../types';
 import { asPijId } from '../types';
 
 // Re-exported here because this module is where raw ids become keys: a reader following the join
@@ -122,6 +122,78 @@ export function indexFleetById(rows: FleetRow[]): Map<PijId, FleetRow> {
 
 /** A plan folder is `<ordinal>-<slug>`; the ordinal is the conventional project id. */
 const PLAN_FOLDER_ORDINAL = /^(\d{3,})-/;
+
+// The join's result type is part of the public contract (the UI branches on `confident`), so it lives
+// in `types.ts` with the rest of it and is re-exported here beside the function that produces it.
+export type { TeamFlowJoin, TeamFlowVia } from '../types';
+export { NO_TEAM_FLOW } from '../types';
+
+/** A pij project record, reduced to the one field that carries a plan. */
+export interface ProjectPlanLink {
+  slug: string;
+  /** `pij project set <slug> --plan <path>`. Relative to the repo, or absolute. Usually absent. */
+  planPath?: string | null;
+}
+
+/**
+ * Join a team (a section's lead seat) to a plan folder.
+ *
+ * ## Why there is no second rung
+ *
+ * `joinFlowToProject` above can fall back to a folder-ordinal convention because both sides of that
+ * join are minted by the same tooling. This join has no such fallback and must not grow one: the only
+ * other available signal is the resemblance between an assignment title and a plan folder name, and
+ * a resemblance join is wrong precisely when it is confident — two seats working adjacent plans get
+ * silently swapped, and the UI reports a phase belonging to somebody else's work. Rung 2 is `none`,
+ * and `none` renders as the POC-ratified "no flow", which is an honest thing for a UI to say.
+ *
+ * ## What the live records actually expose (measured 2026-07-26, recorded in the execution log)
+ *
+ * - `pij list --json` (179 rows — the fleet's own source): carries **no** plan, flow, project,
+ *   assignment or task field at all.
+ * - `pij tree --json`: carries `currentAssignment` (an assignment ID) and `currentTask` — but no
+ *   project slug, so the chain stops one hop short.
+ * - `pij node show <id> --json`: carries `assignments[].projectSlug` — a *project* link, per seat, at
+ *   one process spawn each (179 per slow loop against the design's ONE).
+ * - `pij project list --json`: carries `planPath`, populated for 3 of 17 projects — and **null for
+ *   this very stream's project**.
+ * - the spine: 302 of 19,380 events carry a `project`, and **zero of those also carry a peer or
+ *   `node:` ref**, so the fast loop cannot attribute one to a seat either.
+ *
+ * So the join is implemented and rung 1 is real — it lights up the moment a seat-side `projectSlug`
+ * reaches a row — but against today's store every team resolves to `via: 'none'`.
+ */
+export function joinTeamToFlow(input: {
+  /** The lead seat's project, when a record carries one. */
+  projectSlug?: string | null;
+  projects?: readonly ProjectPlanLink[];
+  /** Flow summaries for this workspace, as the fleet page already holds them. */
+  flows?: readonly { planDir: string; planFolder: string }[];
+  /** Absolute workspace path, for resolving a repo-relative `planPath`. */
+  workspacePath: string;
+}): TeamFlowJoin {
+  const none: TeamFlowJoin = { planDir: null, planFolder: null, via: 'none', confident: false };
+  if (!input.projectSlug) return none;
+
+  const project = input.projects?.find((candidate) => candidate.slug === input.projectSlug);
+  const planPath = project?.planPath;
+  if (!planPath) return none;
+
+  const absolute = resolve(input.workspacePath, planPath);
+  // `--plan` accepts either the plan folder or a file inside it; a basename with a dot is the file
+  // case (`…/089-first-class-pij/first-class-pij-plan.md`).
+  const planDir = basename(absolute).includes('.') ? dirname(absolute) : absolute;
+
+  // Prefer the flow the page already holds, so the folder name comes from the reader rather than from
+  // string surgery — but a plan folder with no flow file is still a confident join.
+  const flow = input.flows?.find((candidate) => resolve(candidate.planDir) === planDir);
+  return {
+    planDir,
+    planFolder: flow?.planFolder ?? basename(planDir),
+    via: 'assignment.project.planPath',
+    confident: true,
+  };
+}
 
 /**
  * Join a flow to a project id.

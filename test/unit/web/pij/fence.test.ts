@@ -360,3 +360,94 @@ describe('C-02 fence — the feature writes to nothing (AC-11)', () => {
     expect(offenders).toEqual([]);
   });
 });
+
+describe('C-02 fence — the browser half (Phase 2, additive)', () => {
+  /** Everything Phase 2 ships into the browser bundle. */
+  const CLIENT_DIRS = [
+    'apps/web/src/features/089-first-class-pij/components/',
+    'apps/web/src/features/089-first-class-pij/hooks/',
+    'apps/web/src/features/089-first-class-pij/lib/',
+  ];
+
+  async function collectClientSources(): Promise<SourceFile[]> {
+    const files: SourceFile[] = [];
+    for (const dir of CLIENT_DIRS) {
+      const root = join(REPO_ROOT, dir);
+      let entries: string[];
+      try {
+        entries = await readdir(root);
+      } catch {
+        continue;
+      }
+      for (const name of entries) {
+        if (!['.ts', '.tsx'].includes(extname(name))) continue;
+        const raw = await readFile(join(root, name), 'utf8');
+        files.push({ path: `${dir}${name}`, code: raw });
+      }
+    }
+    return files;
+  }
+
+  it('ships a non-empty client surface (the check must not silently cover zero)', async () => {
+    /*
+    Test Doc:
+    - Why: same anti-"green that lies" guard as the server half — a directory rename would make the
+      assertions below vacuously true.
+    - Contract: components/, hooks/ and lib/ all contribute files.
+    - Usage Notes: renaming a client directory fails HERE first.
+    - Quality Contribution: measurement before conclusion.
+    - Worked Example: >= 6 client files, including the page shell and the hook.
+    */
+    const files = await collectClientSources();
+
+    expect(files.length).toBeGreaterThanOrEqual(6);
+    expect(files.map((f) => f.path)).toEqual(
+      expect.arrayContaining([
+        'apps/web/src/features/089-first-class-pij/components/pij-page-client.tsx',
+        'apps/web/src/features/089-first-class-pij/hooks/use-pij-fleet.ts',
+      ])
+    );
+  });
+
+  it('never reaches the pij CLI or the store from the browser', async () => {
+    /*
+    Test Doc:
+    - Why: the browser has no business spawning a process or reading `~/.pij`, and the ONE way it
+      could try is by importing a server module. Data reaches the client through the Phase 1 routes
+      and the `pij` channel, or it does not reach it at all.
+    - Contract: C-02; dossier § Domain constraints ("client components never call the pij CLI or read
+      the store").
+    - Usage Notes: `import type` is exempt — types erase at build time and carry no runtime reach.
+    - Quality Contribution: closes the one import away from a server-only module ending up in the
+      browser bundle, which webpack would resolve happily until it did not.
+    - Worked Example: zero value-imports of pij-records / node:child_process / node:fs.
+    */
+    const files = await collectClientSources();
+    const offenders = files.filter((file) =>
+      /^\s*import\s+(?!type\b)[^;]*from\s+'[^']*(pij-records|child_process|node:fs|node:path)'/m.test(
+        file.code
+      )
+    );
+
+    expect(offenders.map((f) => f.path)).toEqual([]);
+  });
+
+  it('names no pij verb at all in client code', async () => {
+    /*
+    Test Doc:
+    - Why: read verbs are safe on the server and meaningless in the browser; a `pij ` string in client
+      code is either dead prose or an attempt to shell out, and both are worth failing on.
+    - Contract: C-02, C-06.
+    - Usage Notes: matches a command-shaped string literal, not the word in prose.
+    - Quality Contribution: keeps the one-reader property (AC-02) from being undone by a client fetch.
+    - Worked Example: no `'pij list'`, `'pij spawn'`, `execFile('pij'` anywhere.
+    */
+    const files = await collectClientSources();
+    const offenders = findAll(
+      files.map((f) => ({ path: f.path, code: toCode(f.code) })),
+      /['"`]pij\s+[a-z-]+/m
+    );
+
+    expect(offenders).toEqual([]);
+  });
+});
