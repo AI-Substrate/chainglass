@@ -21,7 +21,7 @@
 | Work Unit State | work-unit-state | business | — | Plan 059 — Fix Agents (new) | active |
 | Workflow Events | workflow-events | business | — | Plan 061 — WorkflowEvents (new) | active |
 | Terminal | terminal | business | — | Plan 064 | active |
-| Activity Log | activity-log | business | — | Plan 065 | active |
+| Activity Log | activity-log | business | — | Plan 065 | **retired** (2026-07-26, `f89ae7ccf`) |
 | Auth | _platform/auth | infrastructure | _platform | Plan 063-login | active |
 | File Notes | file-notes | business | — | Plan 071 Phase 1 | active |
 | PR View | pr-view | business | — | Plan 071 Phase 4 | active |

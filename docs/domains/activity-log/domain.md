@@ -1,12 +1,27 @@
 # Activity Log
 
+> ## ⚠️ RETIRED — 2026-07-26
+>
+> **This domain no longer exists in the codebase.** The Activity Log was removed in the `sse-one-pipe`
+> tmux tidy (commit `f89ae7ccf`): the `065-activity-log` feature, `/api/activity-log`, the overlay
+> wrapper, the SDK toggle command, the sidebar entry, and the pane-title poll that fed it were all
+> deleted. All eight source paths referenced below are gone; `/api/activity-log` returns **404**.
+>
+> **The document is preserved, not deleted, because its History is a record.** This does not contradict
+> the "delete, don't deprecate" rule for dead SSE domains — that rule governs **code**, which still
+> ships, still gets imported, and still misleads by running. A retired doc runs nothing; its changelog
+> is history, and history is not rewritten (cf. the ADR-0007 → ADR-0015 supersession).
+>
+> **Do not read anything below as a description of current behaviour.**
+
+
 | Field | Value |
 |-------|-------|
 | **Slug** | `activity-log` |
 | **Type** | business |
 | **Parent** | — |
 | **Created By** | Plan 065 |
-| **Status** | active |
+| **Status** | **retired** (2026-07-26) |
 
 ## Purpose
 

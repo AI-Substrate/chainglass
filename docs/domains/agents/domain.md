@@ -180,13 +180,17 @@ Agent session and event persistence infrastructure that lives in the workflow pa
 
 ## Source Location
 
+> **2026-07-26 — the web agent-manager consumer was removed** (commit `11f257984`). The rows below list
+> only surviving code. This domain **lost a consumer, it did not narrow in scope**: the runtime layer
+> (adapters, schemas, interfaces) and the workflow session/event subdomain are unchanged and live.
+> See History.
+
 Primary: scattered across `packages/shared/src/`, `packages/workflow/src/`, `apps/web/src/`, `apps/web/app/`
 
 | File | Role | Notes |
 |------|------|-------|
 | `packages/shared/src/interfaces/agent-adapter.interface.ts` | IAgentAdapter interface | Core adapter contract |
 | `packages/shared/src/interfaces/agent-types.ts` | Agent type definitions | AgentEvent, AgentResult, AgentStatus |
-| `packages/shared/src/features/019-agent-manager-refactor/` | Core agent management | Interfaces, services, fakes (14 files) |
 | `packages/shared/src/features/034-agentic-cli/` | CLI agent management | CLI-specific interfaces + service (9 files) |
 | `packages/shared/src/adapters/claude-code.adapter.ts` | ClaudeCodeAdapter | CLI spawn adapter |
 | `packages/shared/src/adapters/sdk-copilot-adapter.ts` | SdkCopilotAdapter | SDK wrapper adapter |
@@ -204,18 +208,6 @@ Primary: scattered across `packages/shared/src/`, `packages/workflow/src/`, `app
 | `packages/workflow/src/services/agent-session.service.ts` | AgentSessionService | Session service (subdomain) |
 | `packages/workflow/src/entities/agent-session.ts` | AgentSession entity | Domain entity (subdomain) |
 | `packages/workflow/src/errors/agent-errors.ts` | Agent error types | (subdomain) |
-| `apps/web/src/features/019-agent-manager-refactor/agent-notifier.service.ts` | AgentNotifierService | SSE broadcast |
-| `apps/web/src/features/019-agent-manager-refactor/sse-manager-broadcaster.ts` | SSEManagerBroadcaster | SSE adapter |
-| `apps/web/src/features/019-agent-manager-refactor/useAgentManager.ts` | useAgentManager hook | React Query + SSE |
-| `apps/web/src/features/019-agent-manager-refactor/useAgentInstance.ts` | useAgentInstance hook | React Query + SSE |
-| `apps/web/src/features/019-agent-manager-refactor/transformers/` | Event transformers | AgentEvent → LogEntry |
-| `apps/web/src/components/agents/` | Agent UI components | 12+ components |
-| `apps/web/app/api/agents/route.ts` | GET/POST /api/agents | List + create |
-| `apps/web/app/api/agents/[id]/route.ts` | Single agent CRUD | GET/PUT/DELETE |
-| `apps/web/app/api/agents/[id]/run/route.ts` | Execute agent | POST with 409 guard |
-| `apps/web/app/api/agents/events/route.ts` | SSE stream | Agent events |
-| `apps/web/app/(dashboard)/workspaces/[slug]/agents/page.tsx` | Agent list page | Server component |
-| `apps/web/app/(dashboard)/workspaces/[slug]/agents/[id]/page.tsx` | Agent detail page | Server component |
 | `apps/web/src/data/fixtures/agent-sessions.fixture.ts` | Fixture data | Test fixtures |
 | `test/contracts/agent-*.contract.ts` | Contract tests | 8 contract test files |
 | `test/unit/shared/claude-code-adapter.test.ts` | Adapter unit test | |
@@ -266,3 +258,4 @@ Primary: scattered across `packages/shared/src/`, `packages/workflow/src/`, `app
 | Plan 059 FX006 | Copilot SDK permissions (cliArgs + approveAll), report_intent first-class intent source, thinking block ordering, Enter-to-submit chat input, defensive JSON parsing | 2026-03-05 |
 | Plan 070 P1 | SdkCopilotAdapter: model/reasoningEffort on AgentRunOptions, CopilotModelInfo/CopilotReasoningEffort types, listModels(), setModel(), expanded session configs, fakes updated | 2026-03-07 |
 | Plan 070 P3 | AgentRunOptions.timeout exposed for harness smoke-test execution; SdkCopilotAdapter forwards wait timeout to sendAndWait | 2026-03-08 |
+| agent-teardown | **Web agent-manager surface removed** — `/api/agents` routes, agent pages, `components/agents/`, both `019-agent-manager-refactor` features, `use-recent-agents`, `AgentWorkUnitBridge`, the `agents` SSE channel and `WorkspaceDomain.Agents`. Runtime adapters, schemas, and the workflow agent-session subdomain **retained**. Superseding SSE decision: ADR-0015. | 2026-07-26 |
