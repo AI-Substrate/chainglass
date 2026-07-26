@@ -37,8 +37,8 @@ export interface ICentralEventNotifier {
   /**
    * Emit a domain event. Direct passthrough to the underlying broadcaster.
    *
-   * @param domain - The workspace domain (e.g., `WorkspaceDomain.Workgraphs`)
-   * @param eventType - The event type string (e.g., `'graph-updated'`)
+   * @param domain - The workspace domain (e.g., `WorkspaceDomain.Workflows`)
+   * @param eventType - The event type string (e.g., `'workflow-changed'`)
    * @param data - Minimal payload per ADR-0007 (e.g., `{ graphSlug: 'my-graph' }`)
    */
   emit(domain: WorkspaceDomainType, eventType: string, data: Record<string, unknown>): void;

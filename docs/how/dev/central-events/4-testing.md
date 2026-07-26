@@ -1,5 +1,24 @@
 # Central Domain Event Notification System — Testing Guide
 
+> ## ⚠️ STALE — DO NOT COPY FROM THIS GUIDE (2026-07-26)
+>
+> This guide teaches a **per-domain SSE route** model (`/api/events/<domain>`) that **no longer exists**.
+> `apps/web/app/api/events/` now contains exactly one entry: `mux`. Specifically, as of 2026-07-26:
+>
+> - It cites files that were deleted in Plan 050 Phase 7 — `workgraph-watcher.adapter.ts`,
+>   `workgraph-domain-event-adapter.ts` — and the `/api/events/workgraphs` route.
+> - Its code examples use `WorkspaceDomain.Agents`, **removed** in the agent teardown (`11f257984`).
+>   Copying them will not typecheck.
+> - Its `WorkspaceDomain` listings show 2 members; the real const has 7 (verified 2026-07-26 after the Workgraphs removal).
+> - The current architecture is **one leader-elected multiplexed connection per browser** — see
+>   [ADR-0015](../../../adr/adr-0015-leader-elected-multiplexed-sse.md), which supersedes ADR-0007.
+>
+> **This banner is deliberately not a fix.** The guide needs a new reference implementation, not a
+> find-and-replace: substituting a live domain into examples that point at deleted files would make it
+> *look* current while staying wrong, which is worse than visibly stale. Rewriting it is tracked as
+> separate work.
+
+
 Patterns for testing domain event adapters and services that depend on the central event notification system. All tests use fakes — no `vi.mock()`.
 
 ## Core Principle: Fakes Over Mocks

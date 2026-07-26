@@ -40,16 +40,20 @@ export function centralEventNotifierContractTests(name: string, factory: Notifie
 
     // === Domain Value Assertions (DYK-03) ===
 
-    it('C10: WorkspaceDomain.Workgraphs should equal "workgraphs"', () => {
+    it('C10: WorkspaceDomain.WorkUnitState should equal "work-unit-state"', () => {
       /*
       Test Doc:
       - Why: SSE channel name invariant — value must match hardcoded channel in sse-broadcast.ts
-      - Contract: WorkspaceDomain.Workgraphs === 'workgraphs'
+      - Contract: WorkspaceDomain.WorkUnitState === 'work-unit-state'
       - Usage Notes: Any mismatch causes silent SSE failure (events go to wrong channel)
-      - Quality Contribution: Catches domain const typos that would break SSE routing
-      - Worked Example: WorkspaceDomain.Workgraphs → 'workgraphs' (exact match)
+      - Quality Contribution: Catches domain const typos that would break SSE routing. This is the
+        ONLY domain-value assertion in the suite — the whole DYK-03 section is this one case, so it
+        carries the invariant for every domain, not just the one it names. A multi-word hyphenated
+        member is used deliberately: a single lowercase value cannot catch the likeliest real drift,
+        a casing/convention slip (workUnitState vs work-unit-state).
+      - Worked Example: WorkspaceDomain.WorkUnitState → 'work-unit-state' (exact match)
       */
-      expect(WorkspaceDomain.Workgraphs).toBe('workgraphs');
+      expect(WorkspaceDomain.WorkUnitState).toBe('work-unit-state');
     });
 
     // === Core Emission Contract ===
@@ -61,9 +65,9 @@ export function centralEventNotifierContractTests(name: string, factory: Notifie
       - Contract: emit(domain, eventType, data) records the event for inspection (fake) or broadcasts (real)
       - Usage Notes: Data is Record<string, unknown>, kept minimal per ADR-0007
       - Quality Contribution: Catches broken emission pipeline
-      - Worked Example: emit('workgraphs', 'graph-updated', {graphSlug:'g1'}) → emittedEvents[0] matches
+      - Worked Example: emit('workflows', 'workflow-changed', {graphSlug:'g1'}) → emittedEvents[0] matches
       */
-      notifier.emit(WorkspaceDomain.Workgraphs, 'graph-updated', {
+      notifier.emit(WorkspaceDomain.Workflows, 'workflow-changed', {
         graphSlug: 'my-graph',
       });
 
@@ -71,8 +75,8 @@ export function centralEventNotifierContractTests(name: string, factory: Notifie
       if (notifier instanceof FakeCentralEventNotifier) {
         expect(notifier.emittedEvents).toHaveLength(1);
         expect(notifier.emittedEvents[0]).toEqual({
-          domain: 'workgraphs',
-          eventType: 'graph-updated',
+          domain: 'workflows',
+          eventType: 'workflow-changed',
           data: { graphSlug: 'my-graph' },
         });
       }
@@ -88,9 +92,9 @@ export function centralEventNotifierContractTests(name: string, factory: Notifie
       - Contract: emit() succeeds with {} as data
       - Usage Notes: Some event types may not need data
       - Quality Contribution: Catches data validation that rejects empty objects
-      - Worked Example: emit('workgraphs', 'sync', {}) → emittedEvents[0].data is {}
+      - Worked Example: emit('workflows', 'sync', {}) → emittedEvents[0].data is {}
       */
-      notifier.emit(WorkspaceDomain.Workgraphs, 'sync', {});
+      notifier.emit(WorkspaceDomain.Workflows, 'sync', {});
 
       if (notifier instanceof FakeCentralEventNotifier) {
         expect(notifier.emittedEvents).toHaveLength(1);
@@ -108,20 +112,26 @@ export function centralEventNotifierContractTests(name: string, factory: Notifie
       - Usage Notes: Important for UI consistency (events arrive in order)
       - Quality Contribution: Catches reordering bugs in event storage
       - Worked Example: emit A, emit B → emittedEvents[0] is A, emittedEvents[1] is B
+      - KEEP TWO DISTINCT DOMAINS HERE. The domains are interchangeable but their being
+        DIFFERENT is not: routing assertions that only ever see one domain prove nothing
+        about routing, and a notifier hardcoded to a single channel would pass. One
+        single-word and one hyphenated value are used so either kind of hardcoding fails.
+        If a future domain removal touches this case, retarget it — do not collapse it
+        onto the surviving domain.
       */
-      notifier.emit(WorkspaceDomain.Workgraphs, 'graph-updated', {
+      notifier.emit(WorkspaceDomain.Workflows, 'workflow-changed', {
         graphSlug: 'g1',
       });
       notifier.emit(WorkspaceDomain.WorkUnitState, 'status-changed', {
         id: 'u1',
       });
-      notifier.emit(WorkspaceDomain.Workgraphs, 'graph-updated', {
+      notifier.emit(WorkspaceDomain.Workflows, 'workflow-changed', {
         graphSlug: 'g2',
       });
 
       if (notifier instanceof FakeCentralEventNotifier) {
         expect(notifier.emittedEvents).toHaveLength(3);
-        expect(notifier.emittedEvents[0]?.domain).toBe('workgraphs');
+        expect(notifier.emittedEvents[0]?.domain).toBe('workflows');
         expect(notifier.emittedEvents[0]?.data).toEqual({ graphSlug: 'g1' });
         expect(notifier.emittedEvents[1]?.domain).toBe('work-unit-state');
         expect(notifier.emittedEvents[2]?.data).toEqual({ graphSlug: 'g2' });

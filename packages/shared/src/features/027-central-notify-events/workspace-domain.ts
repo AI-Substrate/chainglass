@@ -8,10 +8,20 @@
  * Any mismatch causes silent failure (events go to wrong channel).
  *
  * This is the canonical single source of truth for domain/channel identity.
+ *
+ * RULE FOR REMOVING A DOMAIN: when a domain goes dead, DELETE the member — do not
+ * mark it `@deprecated` and leave it. A deprecated member still typechecks, so it
+ * stays emittable and the next reader cannot tell a live domain from a dead one.
+ * Deleting turns every stale call site into a compile error, which is the point.
+ * Applied to `Agents` (agent teardown) and to `Workgraphs`, whose UI was removed in
+ * Plan 050 Phase 7 and which was kept `@deprecated` here until that inconsistency
+ * was resolved in favour of deletion. There are no deprecated domains by design.
+ *
+ * Note there is no `Workgraphs` domain, but `packages/workgraph`, the `cg workgraph`
+ * CLI command group and `<worktree>/.chainglass/data/work-graphs/` are all LIVE and
+ * unrelated to this file. Only the SSE domain was removed.
  */
 export const WorkspaceDomain = {
-  /** @deprecated Workgraph UI removed in Plan 050 Phase 7. Kept for backward compatibility. */
-  Workgraphs: 'workgraphs',
   /** SSE channel: `'file-changes'` — matches `/api/events/file-changes` subscription path */
   FileChanges: 'file-changes',
   /** SSE channel: `'workflows'` — matches `/api/events/workflows` subscription path (Plan 050) */

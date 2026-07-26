@@ -49,14 +49,14 @@ describe('CentralEventNotifierService — Broadcaster Assertions', () => {
     - Contract: emit(domain, eventType, data) → broadcast(domain, eventType, data)
     - Usage Notes: C01 is vacuous for real service; this test makes the assertion
     - Quality Contribution: Catches broadcast delegation failures
-    - Worked Example: emit('workgraphs', 'graph-updated', {graphSlug:'g1'}) → broadcast channel 'workgraphs', eventType 'graph-updated'
+    - Worked Example: emit('workflows', 'workflow-changed', {graphSlug:'g1'}) → broadcast channel 'workflows', eventType 'workflow-changed'
     */
-    service.emit(WorkspaceDomain.Workgraphs, 'graph-updated', { graphSlug: 'g1' });
+    service.emit(WorkspaceDomain.Workflows, 'workflow-changed', { graphSlug: 'g1' });
 
     const broadcasts = broadcaster.getBroadcasts();
     expect(broadcasts).toHaveLength(1);
-    expect(broadcasts[0]?.channel).toBe('workgraphs');
-    expect(broadcasts[0]?.eventType).toBe('graph-updated');
+    expect(broadcasts[0]?.channel).toBe('workflows');
+    expect(broadcasts[0]?.eventType).toBe('workflow-changed');
     expect(broadcasts[0]?.data).toEqual({ graphSlug: 'g1' });
   });
 
@@ -67,15 +67,18 @@ describe('CentralEventNotifierService — Broadcaster Assertions', () => {
     - Contract: emit A then emit B → broadcasts[0] is A, broadcasts[1] is B
     - Usage Notes: C09 is vacuous for real service; this test makes the assertion
     - Quality Contribution: Catches broadcast reordering bugs
-    - Worked Example: emit workgraphs, emit work-unit-state, emit workgraphs → 3 broadcasts in order
+    - Worked Example: emit workflows, emit work-unit-state, emit workflows → 3 broadcasts in order
+    - KEEP TWO DISTINCT DOMAINS HERE, as in C09: this is also the case that catches a
+      channel hardcoded on the real service, which it can only do while the channels
+      differ. Retarget on a future domain removal; do not collapse onto one domain.
     */
-    service.emit(WorkspaceDomain.Workgraphs, 'graph-updated', { graphSlug: 'g1' });
+    service.emit(WorkspaceDomain.Workflows, 'workflow-changed', { graphSlug: 'g1' });
     service.emit(WorkspaceDomain.WorkUnitState, 'status-changed', { id: 'u1' });
-    service.emit(WorkspaceDomain.Workgraphs, 'graph-updated', { graphSlug: 'g2' });
+    service.emit(WorkspaceDomain.Workflows, 'workflow-changed', { graphSlug: 'g2' });
 
     const broadcasts = broadcaster.getBroadcasts();
     expect(broadcasts).toHaveLength(3);
-    expect(broadcasts[0]?.channel).toBe('workgraphs');
+    expect(broadcasts[0]?.channel).toBe('workflows');
     expect(broadcasts[0]?.data).toEqual({ graphSlug: 'g1' });
     expect(broadcasts[1]?.channel).toBe('work-unit-state');
     expect(broadcasts[1]?.data).toEqual({ id: 'u1' });
