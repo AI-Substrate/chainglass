@@ -57,6 +57,9 @@ flowchart LR
     %% NEW business domains (Plan 088)
     remoteView["📺 remote-view<br/>IRemoteViewService · SessionSummary<br/>ClientMessage · ServerMessage<br/>encode/decodeFrameHeader<br/>FakeStreamd (frame-replay)<br/>session-machine · useRemoteViewSession<br/>GET /api/remote-view/token<br/>streamd daemon (Swift, Phase 4)<br/>Control API: loopback + JWT (≠/health)<br/>/health /windows[single] /sessions /stream /shutdown<br/>discovery registry (.chainglass/streamd-*.json)"]:::new
 
+    %% NEW business domains (Plan 089)
+    firstClassPij["🛰️ 089-first-class-pij<br/>ISpineCursor · IPijRecords · IFlowReader<br/>PijChannelEvent · FleetRow · FlowSummary<br/>PollerStatus · PijPollerService<br/>join: seat↔workspace · flow↔project<br/>FakePijExecutor<br/>GET /api/pij/{fleet,tree,flow,status}<br/>READ-ONLY: zero writes to ~/.pij or the-flow.*"]:::new
+
     %% Contract dependencies (consumer → provider)
     fileBrowser -->|"IFileSystem<br/>IPathResolver"| fileOps
     fileBrowser -->|"workspaceHref<br/>fileBrowserParams"| wsUrl
@@ -198,6 +201,11 @@ flowchart LR
     remoteView -->|"useGlobalState<br/>remote-view:session:* (Phase 5)"| state
     remoteView -->|"IUSDK<br/>list/attach/detach (Phase 5)"| sdk
     remoteView -->|"content-area mode switch (Phase 3)"| panels
+
+    %% NEW: 089-first-class-pij dependencies (Plan 089). Phase 1 wires auth (snapshot routes) and
+    %% events (the `pij` channel via sseManager.broadcast); panel-layout/sdk land in Phases 2–4.
+    firstClassPij -->|"auth() session gate<br/>(exactly the mux-route pattern)"| auth
+    firstClassPij -->|"sseManager.broadcast('pij', …)<br/>useChannelEvents (Phase 2)"| events
 ```
 
 ## Legend
@@ -239,3 +247,4 @@ flowchart LR
 | _platform/git | parseRemote, buildFileUrl, getRemoteUrl, getCurrentBranch, getDefaultBaseBranch, getCurrentCommitSha, RepoHost, Remote, BuildOptions, RepoInfo | file-browser, pr-view | — (zero deps; pure helpers + Node child_process) | — | 🟠 New |
 | question-popper | IQuestionPopperService, QuestionPayloadSchema, AnswerPayloadSchema, AlertPayloadSchema, FakeQuestionPopperService, QuestionIn, QuestionOut, AlertIn | (Phase 3: API routes) | EventPopperRequest, generateEventId, ICentralEventNotifier | external-events, events | 🟠 New |
 | remote-view | IRemoteViewService, SessionSummary, ClientMessage, ServerMessage, encode/decodeFrameHeader, FakeStreamd, session-machine, useRemoteViewSession, GET /api/remote-view/token; **streamd daemon (Swift) + loopback JWT-gated Control API (`/health` public; `/windows`[single-window], `/sessions`, `/stream`, `/shutdown`) + discovery registry** | Phase 3 viewport, Phase 4 Swift daemon (protocol mirror + live capture/input/lifecycle), Phase 5 routes/agents | getBootstrapCodeAndKey(), verifyCookieValue(), findWorkspaceRoot(), SignJWT (auth); buildDefaultAllowedOrigins/parseAllowedOrigins (Origin allowlist, Swift mirror); events/state/sdk/panel-layout (designed) | auth (Phase 2 + 4); events, state, sdk, panel-layout (Phases 3–5) | 🟠 New |
+| 089-first-class-pij | ISpineCursor + createFileSpineCursor, IPijRecords + createPijRecords, IFlowReader + createFlowReader, PijChannelEvent, FleetRow, FlowSummary, PollerStatus, PijPollerService, startPijPoller, joinSeatsToWorkspace/joinFlowToProject, FakePijExecutor, GET /api/pij/{fleet,tree,flow,status} | Phase 2 fleet page, Phase 3 flow view, Phase 4 global tree + overlay panel | auth() (route gate); sseManager.broadcast(`pij` channel); instrumentation.register() bootstrap slot | auth, events, app shell | 🟠 New |

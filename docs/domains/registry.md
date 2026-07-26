@@ -30,6 +30,7 @@
 | Themes | _platform/themes | infrastructure | _platform | Plan 073 — File Type Icons | active |
 | Git | _platform/git | infrastructure | _platform | Plan 084 FX007 | active |
 | Remote View | remote-view | business | — | Plan 088 | active |
+| First-Class pij | 089-first-class-pij | business | — | Plan 089 | active |
 
 ## Domain Types
 
