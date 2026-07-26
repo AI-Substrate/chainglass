@@ -1,0 +1,3 @@
+An empty plan folder. No flow, no artifacts — genuinely "not started", which is a designed state and
+not an error. This placeholder exists only because git cannot track an empty directory; the flow
+reader's artifact probe must not count it as an artifact.

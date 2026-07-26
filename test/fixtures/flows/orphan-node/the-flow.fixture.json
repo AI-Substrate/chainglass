@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "kind": "flight-plan",
+  "slug": "orphan-node",
+  "created_at": "2026-07-02T00:00:00.000Z",
+  "provenance": {
+    "record_kind": "flow",
+    "harness_version": "0.12.0",
+    "branch": "main",
+    "repo": "git@github.com:AI-Substrate/chainglass.git",
+    "created_at": "2026-07-02T00:00:00.000Z",
+    "agent": "the-flow",
+    "plan_id": "orphan"
+  },
+  "nav": {
+    "now": "phase-1",
+    "next": "phase-2",
+    "bag": { "mode": "Full", "status": "active" }
+  },
+  "events": [
+    {
+      "id": "CRT-001",
+      "kind": "created",
+      "origin": "engine",
+      "fired_at": "2026-07-02T00:00:00.000Z",
+      "details": { "kind": "flight-plan", "slug": "orphan-node" }
+    }
+  ],
+  "nodes": [
+    {
+      "id": "research",
+      "type": "research",
+      "label": "Research",
+      "status": "done",
+      "next": ["phase-1"]
+    },
+    {
+      "id": "z1",
+      "type": "phase",
+      "label": "Orphan phase — created with no edges; rail/render place it here by ARRAY ORDER, an edge that does not exist",
+      "status": "todo",
+      "next": []
+    },
+    {
+      "id": "phase-1",
+      "type": "phase",
+      "label": "Phase 1",
+      "status": "in_progress",
+      "next": ["phase-2"]
+    },
+    { "id": "phase-2", "type": "phase", "label": "Phase 2", "status": "known", "next": ["ship"] },
+    { "id": "ship", "type": "ship", "label": "Ship", "status": "assumed", "next": [] }
+  ]
+}

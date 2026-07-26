@@ -1,0 +1,12 @@
+{
+  "cursor": "awaiting-8",
+  "recommended_next": "/plan-8-v2-merge",
+  "milestones_done": 5,
+  "milestones_total": 6,
+  "mode": "Full",
+  "plan_dir": "docs/plans/085-watch-polling-fallback",
+  "nodes": [
+    { "id": "phase-1", "type": "phase", "label": "Phase 1", "status": "done", "next": ["phase-2"] },
+    { "id": "phase-2", "type": "phase", "label": "Phase 2", "status": "done", "next": [] }
+  ]
+}

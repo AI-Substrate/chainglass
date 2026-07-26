@@ -1,0 +1,6 @@
+{"schema_version":1,"seq":101,"ts":"2026-07-26T01:00:00.000Z","actor":"daemon","kind":"system-state","refs":["node:pij-normal-seat"],"peer":"pij-normal-seat","prev":"idle","next":"working","actorProvenance":"resolved"}
+{"schema_version":1,"seq":102,"ts":"2026-07-26T01:00:01.000Z","actor":"jordan","kind":"task-set","refs":["node:shipname","assignment:asg-general-shipname"],"peer":"shipname","project":"first-class-pij","actorProvenance":"resolved"}
+{"schema_version":1,"seq":103,"ts":"2026-07-26T01:00:02.000Z","actor":"daemon","kind":"system-sta
+{"schema_version":1,"seq":104,"ts":"2026-07-26T01:00:03.000Z","actor":"daemon","kind":"system-state","refs":["node:shipname"],"peer":"shipname","prev":"working","next":"idle","actorProvenance":"resolved"}
+{"schema_version":1,"seq":105,"ts":"2026-07-26T01:00:04.000Z","actor":"shipname","kind":"state-set","refs":["node:shipname","assignment:asg-general-shipname","state:ready"],"peer":"shipname","project":"first-class-pij","prev":"waiting","next":"ready","actorProvenance":"resolved"}
+{"schema_version":1,"seq":106,"ts":"2026-07-26T01:00:05.000Z","actor":"daemon","kind":"system-state","refs":["node:pij-normal-seat"],"peer":"pij-normal-seat","prev":"working","next":"idle","actorProvenance":"resolved"}

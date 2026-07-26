@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "id": "pij-archived-seat",
+  "role": "worker",
+  "folder": "/Users/fixture/substrate/chainglass",
+  "paneId": "%8999",
+  "harness": "codex",
+  "boundModel": "gpt-5",
+  "effort": "medium",
+  "parentId": "pij-normal-seat",
+  "spawnedBy": "pij-normal-seat",
+  "semanticState": "done",
+  "systemState": "stopped",
+  "terminal": {
+    "at": "2026-07-24T01:00:00.000Z",
+    "reason": "done"
+  }
+}

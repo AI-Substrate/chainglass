@@ -1,0 +1,2 @@
+{"schema_version":1,"seq":9001,"ts":"2999-01-01T00:00:00.000Z","actor":"nobody","kind":"phantom","refs":[],"peer":"pij-should-never-be-read","prev":"idle","next":"working"}
+{"schema_version":1,"seq":9002,"ts":"2999-01-01T00:00:01.000Z","actor":"nobody","kind":"phantom","refs":[],"peer":"pij-should-never-be-read","prev":"working","next":"idle"}

@@ -1,0 +1,236 @@
+{
+  "schema_version": 1,
+  "kind": "flight-plan",
+  "slug": "remote-app-view",
+  "created_at": "2026-06-19T23:23:46.416Z",
+  "provenance": {
+    "record_kind": "flow",
+    "harness_version": "0.5.0",
+    "branch": "084-random-enhancements-3",
+    "repo": "git@github.com:AI-Substrate/chainglass.git",
+    "created_at": "2026-06-19T23:23:46.416Z",
+    "agent": "the-flow",
+    "plan_id": "088"
+  },
+  "nav": {
+    "now": "ph6",
+    "next": "ship",
+    "intent": "Remote view mode for chainglass",
+    "bag": { "mode": "Full", "status": "active" }
+  },
+  "events": [
+    {
+      "id": "CRT-001",
+      "kind": "created",
+      "origin": "engine",
+      "fired_at": "2026-06-19T23:23:46.428Z",
+      "details": { "kind": "flight-plan", "slug": "remote-app-view" }
+    },
+    {
+      "id": "NOD-001",
+      "kind": "node-created",
+      "origin": "engine",
+      "fired_at": "2026-06-19T23:23:46.512Z",
+      "details": { "node": "ship", "type": "ship" }
+    },
+    {
+      "id": "CUR-001",
+      "kind": "cursor-moved",
+      "origin": "engine",
+      "fired_at": "2026-06-20T01:00:00.000Z",
+      "details": { "from": "research", "to": "plan" }
+    },
+    {
+      "id": "CUR-002",
+      "kind": "cursor-moved",
+      "origin": "engine",
+      "fired_at": "2026-06-20T09:00:00.000Z",
+      "details": { "from": "plan", "to": "ph1" }
+    },
+    {
+      "id": "CUR-003",
+      "kind": "cursor-moved",
+      "origin": "engine",
+      "fired_at": "2026-06-21T09:00:00.000Z",
+      "details": { "from": "ph1", "to": "ph2" }
+    },
+    {
+      "id": "CUR-004",
+      "kind": "cursor-moved",
+      "origin": "engine",
+      "fired_at": "2026-06-22T09:00:00.000Z",
+      "details": { "from": "ph2", "to": "ph4" }
+    },
+    {
+      "id": "CUR-005",
+      "kind": "cursor-moved",
+      "origin": "engine",
+      "fired_at": "2026-06-22T18:00:00.000Z",
+      "details": { "from": "ph4", "to": "ph5" }
+    },
+    {
+      "id": "CUR-005b",
+      "kind": "cursor-moved",
+      "origin": "engine",
+      "fired_at": "2026-06-22T20:00:00.000Z",
+      "details": { "from": "ph5", "to": "ph4" }
+    },
+    {
+      "id": "CUR-005c",
+      "kind": "cursor-moved",
+      "origin": "engine",
+      "fired_at": "2026-06-23T06:00:00.000Z",
+      "details": { "from": "ph4", "to": "ph5" }
+    },
+    {
+      "id": "CUR-006",
+      "kind": "cursor-moved",
+      "origin": "engine",
+      "fired_at": "2026-06-23T08:41:46.150Z",
+      "details": { "from": "ph5", "to": "ph6" }
+    },
+    {
+      "id": "STA-007",
+      "kind": "status-changed",
+      "origin": "engine",
+      "fired_at": "2026-06-23T10:36:24.863Z",
+      "details": { "node": "ph6", "from": "known", "to": "in_progress" }
+    },
+    {
+      "id": "UPD-024",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-06-23T10:36:25.117Z",
+      "details": { "node": "ph6", "fields": ["note"] }
+    }
+  ],
+  "nodes": [
+    {
+      "id": "ship",
+      "type": "ship",
+      "status": "assumed",
+      "next": [],
+      "label": "Ship (push + PR + watch CI)"
+    },
+    {
+      "id": "ph6",
+      "type": "phase",
+      "status": "in_progress",
+      "next": ["ship"],
+      "label": "Phase 6: Integration Hardening, Permissions UX & Docs"
+    },
+    {
+      "id": "ph5",
+      "type": "phase",
+      "status": "done",
+      "next": ["ph6"],
+      "label": "Phase 5: Lifecycle, Agent Surface & Events"
+    },
+    {
+      "id": "ph4",
+      "type": "phase",
+      "status": "done",
+      "next": ["ph5"],
+      "label": "Phase 4: Native Daemon (Swift)"
+    },
+    {
+      "id": "ph3",
+      "type": "phase",
+      "status": "done",
+      "next": ["ph4"],
+      "label": "Phase 3: Viewport UI & Content-Area Mode"
+    },
+    {
+      "id": "ph2",
+      "type": "phase",
+      "status": "done",
+      "next": ["ph3"],
+      "label": "Phase 2: Domain, Protocol & Session Core (TDD)"
+    },
+    {
+      "id": "ph1",
+      "type": "phase",
+      "status": "done",
+      "next": ["ph2"],
+      "label": "Phase 1: De-Risk Spike"
+    },
+    {
+      "id": "plan",
+      "type": "plan",
+      "status": "done",
+      "next": ["ph1"],
+      "label": "Plan (spec + implementation)"
+    },
+    {
+      "id": "research",
+      "type": "research",
+      "status": "done",
+      "next": ["plan"],
+      "label": "Research"
+    },
+    {
+      "id": "dr",
+      "type": "deep-research",
+      "status": "done",
+      "next": ["research"],
+      "branch_of": "research",
+      "label": "Deep research (Perplexity, pre-flow)"
+    },
+    {
+      "id": "ws",
+      "type": "workshop",
+      "status": "done",
+      "next": ["plan"],
+      "branch_of": "plan",
+      "label": "Workshops (4/4)"
+    },
+    {
+      "id": "bp",
+      "type": "backpressure",
+      "status": "done",
+      "next": ["plan"],
+      "branch_of": "plan",
+      "label": "Backpressure check (post-plan seam)"
+    },
+    {
+      "id": "rv4",
+      "type": "review",
+      "status": "done",
+      "next": ["ph4"],
+      "branch_of": "ph4",
+      "label": "Phase 4 review — REQUEST_CHANGES (5 HIGH + 9 MEDIUM)"
+    },
+    {
+      "id": "fx4",
+      "type": "fix-loop",
+      "status": "done",
+      "next": ["ph4"],
+      "branch_of": "ph4",
+      "label": "Phase 4 review-fix batch (commit 6a2c41b3)"
+    },
+    {
+      "id": "rv4b",
+      "type": "review",
+      "status": "done",
+      "next": ["ph4"],
+      "branch_of": "ph4",
+      "label": "Phase 4 re-review (pending) — confirm 0 HIGH/CRITICAL"
+    },
+    {
+      "id": "fx4b",
+      "type": "fix-loop",
+      "status": "done",
+      "next": ["ph4"],
+      "branch_of": "ph4",
+      "label": "Phase 4 review-fix batch 2 (1 HIGH + 9 MEDIUM + 2 LOW)"
+    },
+    {
+      "id": "rv4c",
+      "type": "review",
+      "status": "done",
+      "next": ["ph4"],
+      "branch_of": "ph4",
+      "label": "Phase 4 re-review #2 — APPROVE (0 HIGH/CRITICAL; 6 LOW)"
+    }
+  ]
+}

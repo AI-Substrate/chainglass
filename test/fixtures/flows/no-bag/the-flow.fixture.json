@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "kind": "flight-plan",
+  "slug": "no-bag",
+  "created_at": "2026-05-01T00:00:00.000Z",
+  "provenance": {
+    "record_kind": "flow",
+    "harness_version": "0.4.0",
+    "branch": "main",
+    "repo": "git@github.com:AI-Substrate/chainglass.git",
+    "created_at": "2026-05-01T00:00:00.000Z",
+    "agent": "the-flow",
+    "plan_id": null
+  },
+  "nav": {
+    "now": "ship",
+    "next": null
+  },
+  "events": [
+    {
+      "id": "CRT-001",
+      "kind": "created",
+      "origin": "engine",
+      "fired_at": "2026-05-01T00:00:00.000Z",
+      "details": { "kind": "flight-plan", "slug": "no-bag" }
+    },
+    {
+      "id": "CUR-001",
+      "kind": "cursor-moved",
+      "origin": "engine",
+      "fired_at": "2026-05-02T00:00:00.000Z",
+      "details": { "from": "phase-1", "to": "ship" }
+    }
+  ],
+  "nodes": [
+    {
+      "id": "research",
+      "type": "research",
+      "label": "Research",
+      "status": "done",
+      "next": ["phase-1"]
+    },
+    { "id": "phase-1", "type": "phase", "label": "Phase 1", "status": "done", "next": ["ship"] },
+    { "id": "ship", "type": "ship", "label": "Ship", "status": "done", "next": [] }
+  ]
+}

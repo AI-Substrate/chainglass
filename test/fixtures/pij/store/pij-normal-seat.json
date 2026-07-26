@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "id": "pij-normal-seat",
+  "role": "prime",
+  "folder": "/Users/fixture/substrate/chainglass",
+  "paneId": "%9000",
+  "windowId": "@9000",
+  "harness": "claude",
+  "boundModel": "claude-opus-5",
+  "effort": "high",
+  "prime": true,
+  "parentId": null,
+  "currentAssignment": "asg-general-pij-normal-seat",
+  "currentTask": "Baseline control seat — no hazard",
+  "semanticState": "ready",
+  "systemState": "idle",
+  "contextMax": 1000000,
+  "contextCurrent": {
+    "value": "unknown",
+    "asOf": "2026-07-26T01:00:00.000Z",
+    "provenance": "copilot-none"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "cursor": "awaiting-6",
+  "milestones_done": 21,
+  "milestones_total": 21,
+  "nodes": [
+    {
+      "id": "old-1",
+      "type": "phase",
+      "label": "TOMBSTONE — 21 pre-024 nodes. A reader that counts these has counted a dead flow.",
+      "status": "done",
+      "next": ["old-2"]
+    },
+    { "id": "old-2", "type": "phase", "label": "Tombstone phase 2", "status": "done", "next": [] }
+  ]
+}

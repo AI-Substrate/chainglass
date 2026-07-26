@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "id": "shipname",
+  "role": "worker",
+  "folder": "/Users/fixture/substrate/chainglass",
+  "paneId": "%9001",
+  "windowId": "@9001",
+  "harness": "claude",
+  "boundModel": "claude-opus-5",
+  "effort": "high",
+  "parentId": "pij-normal-seat",
+  "spawnedBy": "pij-normal-seat",
+  "currentAssignment": "asg-general-shipname",
+  "currentTask": "Prove a single-segment pij id survives every join and key path",
+  "semanticState": "ready",
+  "systemState": "working",
+  "contextMax": 1000000,
+  "contextCurrent": {
+    "value": 42317,
+    "asOf": "2026-07-26T01:00:04.000Z",
+    "provenance": "claude-transcript"
+  }
+}

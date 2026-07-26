@@ -30,6 +30,10 @@ const globalForRemoteViewReaper = globalThis as typeof globalThis & {
   __remoteViewReaperRan?: boolean;
 };
 
+const globalForPijObservatory = globalThis as typeof globalThis & {
+  __pijObservatoryBootstrapped?: boolean;
+};
+
 export async function register() {
   // CentralWatcherService uses Node.js APIs (chokidar, fs) — skip on Edge runtime.
   // console.log is intentional: this runs at process startup before the DI container
@@ -195,6 +199,42 @@ export async function register() {
       } catch (error) {
         globalForExec.__workflowExecutionManagerInitialized = false;
         console.error('[workflow-execution] Failed to initialize:', error);
+      }
+    }
+
+    // Plan 089 Phase 1 T009: the pij observatory's read layer — ONE server-side poller over
+    // ~/.pij and the builder flow spine, broadcasting on the `pij` mux channel (HMR-safe).
+    //
+    // AC-02 hinges on this being a genuine singleton: N open tabs must produce exactly one poller
+    // and one spine cursor server-side, so the pij store sees a single well-behaved reader no
+    // matter how many browsers are watching.
+    //
+    // READ ONLY (C-02): a file read of ~/.pij/spine plus `pij` READ verbs via execFile. Nothing in
+    // this feature opens a write handle under ~/.pij or touches any the-flow.* file, and
+    // test/unit/web/pij/fence.test.ts proves it statically on every test run.
+    if (!globalForPijObservatory.__pijObservatoryBootstrapped) {
+      globalForPijObservatory.__pijObservatoryBootstrapped = true;
+
+      try {
+        const { startPijPoller, stopPijPoller } = await import(
+          './src/features/089-first-class-pij/server/start-pij-poller'
+        );
+        // startPijPoller never throws: a host with no pij store, no `pij` binary or an unreadable
+        // spine degrades to an honest `poller-status` (AC-08/AC-09), never to a failed boot.
+        await startPijPoller();
+
+        const stopPij = () => {
+          stopPijPoller();
+          console.log('[pij] poller stopped (shutdown)');
+        };
+        process.on('SIGTERM', stopPij);
+        process.on('SIGINT', stopPij);
+
+        console.log('[pij] observatory poller started (spine 2s / records 8s, channel "pij")');
+      } catch (error) {
+        // Reset the flag so a later boot can retry rather than being locked out by one bad start.
+        globalForPijObservatory.__pijObservatoryBootstrapped = false;
+        console.warn('[pij] observatory bootstrap failed (non-fatal):', error);
       }
     }
   }
