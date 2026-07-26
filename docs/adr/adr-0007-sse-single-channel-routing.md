@@ -1,18 +1,24 @@
 ---
 title: "ADR-0007: SSE Single-Channel Event Routing Pattern"
-status: "Accepted"
+status: "Superseded"
 date: "2026-01-26"
 authors: "Development Team"
 tags: ["architecture", "decision", "sse", "real-time", "events", "streaming"]
 supersedes: ""
-superseded_by: ""
+superseded_by: "ADR-0015"
 ---
 
 # ADR-0007: SSE Single-Channel Event Routing Pattern
 
 ## Status
 
-Accepted
+**Superseded by [ADR-0015: Leader-Elected Multiplexed SSE Connection](./adr-0015-leader-elected-multiplexed-sse.md)** (2026-07-26).
+
+The decision below is preserved as written. Two facts invalidated it: the browser connection cap is
+**per-origin across all tabs**, not per-page, so one connection *per tab* exhausts the pool at the
+sixth tab; and the agent surface this ADR was written for — including `/api/events/agents` and the
+Exemplar Implementation named below — was removed in `11f257984`. **Do not use this ADR as a pattern
+for new work; see ADR-0015.**
 
 ## Context
 

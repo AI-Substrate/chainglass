@@ -12,7 +12,7 @@ Architecture Decision Records (ADRs) document significant architectural decision
 | 0004 | [Dependency Injection Container Architecture](./adr-0004-dependency-injection-container-architecture.md) | 2026-01-23 | Accepted | - | - |
 | 0005 | [Next.js MCP Developer Experience Loop](./adr-0005-nextjs-mcp-developer-experience-loop.md) | 2026-01-25 | Accepted | - | - |
 | 0006 | [CLI-Based Workflow Agent Orchestration Pattern](./adr-0006-cli-based-workflow-agent-orchestration.md) | 2026-01-26 | Accepted | - | - | **Exemplar for web system** |
-| 0007 | [SSE Single-Channel Event Routing Pattern](./adr-0007-sse-single-channel-routing.md) | 2026-01-26 | Accepted | - | - | **Exemplar for multi-session SSE** |
+| 0007 | [SSE Single-Channel Event Routing Pattern](./adr-0007-sse-single-channel-routing.md) | 2026-01-26 | Superseded | - | [0015](./adr-0015-leader-elected-multiplexed-sse.md) | Superseded — agent surface removed; see ADR-0015 |
 | 0008 | [Workspace Split Storage Data Model](./adr-0008-workspace-split-storage-data-model.md) | 2026-01-27 | Accepted | - | - | Git-native per-worktree data architecture |
 | 0009 | [Module Registration Function Pattern](./adr-0009-module-registration-function-pattern.md) | 2026-01-28 | Accepted | - | - | Extends ADR-0004 for module composition |
 | 0010 | [Central Domain Event Notification Architecture](./adr-0010-central-domain-event-notification-architecture.md) | 2026-02-03 | Accepted | - | - | Core signpost for domain event system (Plan 027) |
@@ -20,6 +20,7 @@ Architecture Decision Records (ADRs) document significant architectural decision
 | 0012 | [Workflow System Domain Boundaries](./adr-0012-workflow-domain-boundaries.md) | 2026-02-17 | Accepted | - | - | Six domains, dependency rules, litmus test. **Read before any WF plan.** |
 | 0013 | [USDK Internal SDK Architecture](./adr-0013-usdk-internal-sdk-architecture.md) | 2026-02-25 | Accepted | - | - | SDK vs DI boundary, command palette, keyboard shortcuts, settings. **Read before extending SDK.** |
 | 0014 | [First-Class Agentic Development Harness](./adr-0014-first-class-agentic-development-harness.md) | 2026-03-07 | Accepted | - | - | Harness-first development, Docker + Playwright, SDK control plane. **Read before any UI feature.** |
+| 0015 | [Leader-Elected Multiplexed SSE Connection](./adr-0015-leader-elected-multiplexed-sse.md) | 2026-07-26 | Accepted | [0007](./adr-0007-sse-single-channel-routing.md) | - | **Exemplar for browser-wide SSE** |
 
 ## ADR Format
 
