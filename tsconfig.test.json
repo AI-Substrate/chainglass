@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "jsx": "preserve",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "types": ["vitest/globals", "node"]
+  },
+  "include": ["test/**/*.ts", "test/**/*.tsx"],
+  "exclude": ["node_modules", "dist", ".next", ".turbo"]
+}
