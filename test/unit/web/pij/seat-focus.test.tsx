@@ -65,10 +65,22 @@ function fakeFetch(response: { status: number; body: unknown }) {
  * client can read the field the test author put there. Everything server-side is a fake (constitution
  * P4): the pij CLI, the scheduler, the cursor, the broadcast.
  */
-function routeBackedFetch(overrides: { nodeShowFails: Error }): typeof fetch {
+function routeBackedFetch(overrides: { nodeShowFails?: Error; focusFails?: Error }): typeof fetch {
   return (async (input: RequestInfo | URL, init?: RequestInit) => {
     const exec = new FakePijExecutor().whenJson(['list', '--json', '--badge'], []);
-    exec.when(['node', 'show', UI_PRIME_ID, '--json']).fails(overrides.nodeShowFails);
+    if (overrides.nodeShowFails) {
+      exec.when(['node', 'show', UI_PRIME_ID, '--json']).fails(overrides.nodeShowFails);
+    } else {
+      // A perfectly focusable seat: in this workspace, active, with a window. Everything before the
+      // tmux call has to SUCCEED for the tmux branch to be reachable at all.
+      exec.whenJson(['node', 'show', UI_PRIME_ID, '--json'], {
+        id: UI_PRIME_ID,
+        cwd: UI_WORKSPACE_PATH,
+        liveness: 'active',
+        lastEventAt: '2026-07-26T11:59:00.000Z',
+        windowId: '@220',
+      });
+    }
 
     const poller = createPijPoller({
       cursor: new FakeSpineCursor(1),
@@ -84,10 +96,12 @@ function routeBackedFetch(overrides: { nodeShowFails: Error }): typeof fetch {
       body: String(init?.body ?? '{}'),
       headers: { 'content-type': 'application/json' },
     });
+    const focus = new FakeFocusExecutor();
+    if (overrides.focusFails) focus.fails(overrides.focusFails);
     return handlePijFocusRequest(request, {
       authFn: async () => ({ user: { name: 'jordan' } }),
       poller,
-      focusExecutor: new FakeFocusExecutor().exec,
+      focusExecutor: focus.exec,
     });
   }) as typeof fetch;
 }
@@ -279,6 +293,38 @@ describe('the focus button — what a click does, and what it reports', () => {
       expect(result.getAttribute('data-reason')).not.toBe('failed');
       expect(result.textContent).toContain('E-EXIT');
       expect(result.textContent).toContain('store on fire');
+    });
+  });
+
+  it('renders the DESIGNED tmux-refused state, distinct from a store failure', async () => {
+    /*
+    Test Doc:
+    - Why: `data-reason` is what a client keys off, and it is the only part of the response a reader
+      cannot check against the sentence beside it. When tmux refused, the route said
+      'store-unreadable' — the union had no member for a tmux refusal, so the nearest one was reused —
+      while the observation honestly named tmux. The two halves of the same response disagreed, and
+      the machine-readable half was the one that lied: anything styling or branching on the reason
+      would treat a live tmux problem as a broken pij store.
+    - Contract: a tmux failure renders `data-reason="tmux-refused"`, never 'store-unreadable' and
+      never the 'failed' fallback, with the route's observation verbatim.
+    - Usage Notes: route-backed, with the focus executor rejecting — the pij read SUCCEEDS here, which
+      is what makes the old wording so obviously wrong: nothing was unreadable.
+    - Quality Contribution: pins the client end of the new union member, so a regression that folds it
+      back into 'store-unreadable' fails on both sides of the seam.
+    - Worked Example: tmux rejects → data-reason 'tmux-refused', text naming '@220'.
+    */
+    const impl = routeBackedFetch({ focusFails: new Error('no server running on /tmp/tmux-501') });
+    renderFleet({ focusFetchImpl: impl });
+
+    await userEvent.click(screen.getByTestId(`focus-seat-${UI_PRIME_ID}`));
+
+    await waitFor(() => {
+      const result = screen.getByTestId(`focus-result-${UI_PRIME_ID}`);
+      expect(result.getAttribute('data-reason')).toBe('tmux-refused');
+      expect(result.getAttribute('data-reason')).not.toBe('store-unreadable');
+      expect(result.getAttribute('data-reason')).not.toBe('failed');
+      expect(result.textContent).toContain('@220');
+      expect(result.textContent).toContain('no server running');
     });
   });
 

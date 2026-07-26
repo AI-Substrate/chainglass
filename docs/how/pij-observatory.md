@@ -193,7 +193,7 @@ click time. A client-supplied id is an instruction to focus an arbitrary window,
 ids, so even an honest stale one points somewhere real and wrong. (`pij list` rows carry no
 `windowId` at all — 0 of 181 — so there is nothing cached to be tempted by.)
 
-Five refusals, each with a fixed wording the button renders verbatim:
+Six refusals, each with a fixed wording the button renders verbatim:
 
 | Reason | Status | What the human reads |
 |--------|--------|----------------------|
@@ -203,12 +203,20 @@ Five refusals, each with a fixed wording the button renders verbatim:
 | `not-live`, liveness absent | 409 | `liveness not observable for <id>` |
 | `no-window` | 409 | `seat <id> has no tmux window on record` |
 | `store-unreadable` | 503 | `the pij store could not be read: <E-code> <what pij said>` |
+| `tmux-refused` | 503 | `tmux refused to focus <windowId>: <what tmux said>` |
 
 **Every refusal carries its machine `reason`, including the 503.** The button's `data-reason` has
 exactly one value that is not a designed state — `failed`, the fallback for a body with no `reason`
-at all — and a store failure is the likeliest of the five, so it is the last one that should land
+at all — and a store failure is the likeliest of them all, so it is the last one that should land
 there. The generic `storeUnreadable()` helper the read routes share cannot express this: its body
 predates the reason union. Focus builds its own.
+
+**Every distinct cause gets its own member, or the nearest one gets borrowed.** The two 503s are
+different failures of different subsystems, and for a while they shared a reason: a tmux refusal
+answered `store-unreadable` because the union had no member for it. The observation was honest and
+the machine field was not, which is the worse way round — a reader can catch the mismatch, a client
+branching on `reason` cannot, and a human debugging it is sent to the wrong subsystem. `FocusReason`
+is closed, and the cost of closing it is that adding a cause means adding a member.
 
 **Which of pij's fields carries "what pij said" depends on the code.** Every coded failure (`E-ARG:…`
 at the head of the stream, or the `--json` envelope) puts pij's own message in `message`. `E-EXIT`

@@ -359,54 +359,65 @@ describe('POST /api/pij/focus — every refusal reason, one test each', () => {
       checkable. Each leg above asserts its own reason in isolation; nothing asserted that the set of
       reasons the route can EMIT equals the set the union declares. That gap is exactly how
       'store-unreadable' came to be declared, typed, documented and never sent.
-    - Contract: driving each of the five refusal conditions yields five distinct `reason` values, and
-      together they are the whole `FocusReason` union.
-    - Usage Notes: exercises the real handler five times rather than reading the type — a union member
-      with no producer is invisible to the type checker but fatal to the client.
-    - Quality Contribution: turns "the union is fully implemented" from a claim into a count.
-    - Worked Example: the five emitted reasons sort-equal the five declared ones.
+    - Contract: every member of `FocusReason` has a condition here, driving it yields exactly that
+      reason, and together they are the whole union.
+    - Usage Notes: the cases are a `Record<FocusReason, …>`, NOT an array. That is the load-bearing
+      detail. In its first form this test held a hand-written array of conditions beside a hand-written
+      array of expected reasons, and both were maintained by the author: when 'tmux-refused' was added
+      to the union and emitted by the route, this test stayed GREEN — no condition drove the tmux path,
+      and TypeScript does not require an array literal to cover a union. It reproduced, one level up,
+      the very blindness it was written to close. Keyed by the union, a new member is a COMPILE error
+      until someone gives it a condition, and the expected set derives from the keys rather than being
+      restated.
+    - Quality Contribution: turns "the union is fully implemented" from a claim into a count the type
+      checker keeps honest.
+    - Worked Example: six keys, six refusals, each emitting the reason it is keyed by.
     */
-    const emitted: string[] = [];
-
-    const conditions: Array<Parameters<typeof makeDeps>[0]> = [
-      {
+    const conditions: Record<FocusReason, Parameters<typeof makeDeps>[0]> = {
+      'unknown-seat': {
         nodeShowFails: execFileFailure({
           code: 2,
           stderr: JSON.stringify({ error: 'E-NOID', message: 'gone' }),
         }),
       },
-      { detail: { cwd: SIBLING } },
-      { detail: { liveness: 'dead' } },
-      { detail: { windowId: undefined } },
-      { nodeShowFails: execFileFailure({ stderr: 'store on fire' }) },
-    ];
+      'out-of-workspace': { detail: { cwd: SIBLING } },
+      'not-live': { detail: { liveness: 'dead' } },
+      'no-window': { detail: { windowId: undefined } },
+      'store-unreadable': { nodeShowFails: execFileFailure({ stderr: 'store on fire' }) },
+      'tmux-refused': { focus: new FakeFocusExecutor().fails(new Error('no server running')) },
+    };
 
-    for (const condition of conditions) {
+    const emitted: string[] = [];
+    for (const [expected, condition] of Object.entries(conditions)) {
       const response = await handlePijFocusRequest(focusRequest(), await makeDeps(condition));
-      expect(response.status).not.toBe(200);
-      emitted.push((await response.json()).reason);
+      const body = await response.json();
+
+      expect(response.status, `${expected} must not answer 200`).not.toBe(200);
+      expect(body.reason, `the ${expected} condition must emit its own reason`).toBe(expected);
+      emitted.push(body.reason);
     }
 
-    const declared: FocusReason[] = [
-      'unknown-seat',
-      'out-of-workspace',
-      'not-live',
-      'no-window',
-      'store-unreadable',
-    ];
-    expect([...emitted].sort()).toEqual([...declared].sort());
+    expect([...emitted].sort()).toEqual(Object.keys(conditions).sort());
   });
 
-  it('reports a tmux failure as a failure, not as a silent success', async () => {
+  it('tmux-refused: 503 whose machine reason names TMUX, not the store', async () => {
     /*
     Test Doc:
-    - Why: the command can fail after every check passes — a dead tmux server, a window closed between
-      the read and the call. Returning 200 there would tell the human their click worked when nothing
-      moved.
-    - Contract: executor rejects → 503 whose observation names the window and the underlying message.
-    - Usage Notes: the fake is told to reject.
-    - Quality Contribution: closes the gap between "we ran it" and "it worked".
-    - Worked Example: 'no server running' → 503 mentioning '@220'.
+    - Why: two claims, and the second is the one that was wrong. First, the command can fail after
+      every check passes — a dead tmux server, a window closed between the read and the call — and
+      returning 200 there would tell the human their click worked when nothing moved. Second, and
+      subtler: this branch used to answer `reason: 'store-unreadable'` because the union had no member
+      for a tmux refusal, so the nearest one got reused. The human-readable observation was honest
+      ("tmux refused to focus @220: …") while the machine field said the pij store was unreadable —
+      a client keying off `data-reason` gets a false cause, and a human debugging it is sent to the
+      store. Only the observation was asserted here, so nothing pinned the lie either way.
+    - Contract: executor rejects → 503, reason 'tmux-refused', observation naming the window and the
+      underlying message.
+    - Usage Notes: the fake is told to reject; everything before tmux succeeds, so this is the only
+      refusal on the far side of the ladder.
+    - Quality Contribution: closes the gap between "we ran it" and "it worked", and makes the machine
+      field agree with the sentence beside it.
+    - Worked Example: 'no server running' → 503 reason 'tmux-refused', observation mentioning '@220'.
     */
     const focus = new FakeFocusExecutor().fails(new Error('no server running on /tmp/tmux-501'));
     const deps = await makeDeps({ focus });
@@ -415,6 +426,10 @@ describe('POST /api/pij/focus — every refusal reason, one test each', () => {
     const body = await response.json();
 
     expect(response.status).toBe(503);
+    expect(body.reason).toBe('tmux-refused' satisfies FocusReason);
+    // Named explicitly: this is the value it used to carry, and it was a statement about the wrong
+    // subsystem entirely.
+    expect(body.reason).not.toBe('store-unreadable');
     expect(body.observation).toContain('@220');
     expect(body.observation).toContain('no server running');
   });

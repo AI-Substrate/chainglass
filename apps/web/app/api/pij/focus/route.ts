@@ -43,16 +43,22 @@ export const dynamic = 'force-dynamic';
 /**
  * Why a focus request did not focus anything.
  *
- * A closed union rather than a message string, because the client renders five materially different
+ * A closed union rather than a message string, because the client renders six materially different
  * situations and "it didn't work" is the one answer that helps nobody. Each has exactly one wording,
  * fixed here so the route and the button cannot drift apart.
+ *
+ * **Every distinct CAUSE needs its own member, or the nearest one gets borrowed.** `tmux-refused`
+ * was added because it had to be: a tmux failure used to answer `store-unreadable`, which named the
+ * wrong subsystem entirely — the observation beside it said tmux, and the machine field said the pij
+ * store. A reader can catch that; a client branching on `reason` cannot.
  */
 export type FocusReason =
   | 'unknown-seat'
   | 'out-of-workspace'
   | 'not-live'
   | 'no-window'
-  | 'store-unreadable';
+  | 'store-unreadable'
+  | 'tmux-refused';
 
 /** The tmux verb. The only one this feature may ever name — see the module docs and `fence.test.ts`. */
 const SELECT_WINDOW = 'select-window';
@@ -69,9 +75,14 @@ interface FocusRefusal {
   observation: string;
 }
 
-/** The refusal wordings. Observations — what was seen — never verdicts about the human. */
+/**
+ * The refusal wordings. Observations — what was seen — never verdicts about the human.
+ *
+ * The two 503s are excluded because neither is expressible here: they carry information this
+ * signature has no room for (a pij `E-` code; tmux's own message) and are built at their call sites.
+ */
 export function focusRefusal(
-  reason: Exclude<FocusReason, 'store-unreadable'>,
+  reason: Exclude<FocusReason, 'store-unreadable' | 'tmux-refused'>,
   detail: { seatId: string; cwd?: string; liveness?: string; lastEventAt?: string | null }
 ): FocusRefusal {
   switch (reason) {
@@ -110,7 +121,7 @@ export function focusRefusal(
  * `{ error, code, verb }`. That body is right for the read routes and WRONG here: with no `reason`
  * field the client falls through to `data-reason="failed"`, the single value in that attribute that
  * is not a designed state — and it does so on the failure path a broken pij store makes the most
- * common of the five. So this route builds its own, keeping the `E-` code verbatim (the dossier's
+ * common of them all. So this route builds its own, keeping the `E-` code verbatim (the dossier's
  * requirement, and the only thing that makes the state diagnosable rather than merely red) and
  * keeping `error`/`verb` too, so the body stays a superset of the shared shape.
  */
@@ -200,11 +211,12 @@ export async function handlePijFocusRequest(
       timeoutMs: FOCUS_TIMEOUT_MS,
     });
   } catch (error) {
-    // A tmux failure is not a pij store failure, but it reaches the caller the same way: with the
-    // real reason attached rather than a generic 500.
+    // A tmux failure is not a pij store failure. It reaches the caller the same way — 503, with the
+    // real reason attached rather than a generic 500 — but it gets its OWN reason, because the
+    // machine field is the half of this response nobody can sanity-check against the words beside it.
     return NextResponse.json(
       {
-        reason: 'store-unreadable' satisfies FocusReason,
+        reason: 'tmux-refused' satisfies FocusReason,
         observation: `tmux refused to focus ${detail.windowId}: ${(error as Error).message}`,
       },
       { status: 503, headers: NO_STORE_HEADERS }

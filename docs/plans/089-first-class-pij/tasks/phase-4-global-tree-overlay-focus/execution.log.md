@@ -604,3 +604,117 @@ npx biome check <3 touched files>        Checked 3 files in 28ms. No fixes appli
 | 2026-07-26 | Fix 1 | Discovery | "N states, N tests" was satisfied per-state and still left a hole — each reason had a test, but nothing asserted the emitted SET equals the declared set | Added the enumeration test. Per-state coverage cannot detect a state that is never produced; only the set comparison can | `test/unit/web/pij/focus-route.test.ts` |
 | 2026-07-26 | Fix 1 | Discovery | A client test with a hand-written response body cannot fail on a server contract break — it asserts the author's fixture, not the seam | The client-render test drives the real route handler. This is the general lesson for every "does the client render the designed state" test in this feature | `test/unit/web/pij/seat-focus.test.tsx` |
 | 2026-07-26 | Fix 1 | Discovery | On `E-EXIT`, `PijCliError.message` is node's `Command failed: pij …` and pij's actual complaint is in `stderr`; on every coded path the reverse holds | An observation built from the wrong field is diagnostically empty while looking complete — the exact failure mode this plan is written against | `apps/web/app/api/pij/focus/route.ts` |
+
+## Fix 2 (post-landing) — the machine reason lied about which subsystem failed
+
+Found by roadrunner in a day of trying to break the landed build; the only thing that broke. Packet:
+`scratch/pij-firstclass-packets/p4-fix-2.md`. Against `fd469f95b`.
+
+The tmux-failure catch (`route.ts:207`) answered `reason: 'store-unreadable'` while its observation
+said `tmux refused to focus @220: …`. The two halves of one response disagreed, and the half that
+lied was the machine-readable one — a reader spots the mismatch, a client branching on `data-reason`
+cannot, and a human debugging it is sent to the pij store when tmux is what refused. The union simply
+had no member for the cause, so the nearest one was borrowed. The comment above it said as much.
+
+Worth naming as its own failure mode: **a closed union invites nearest-member reuse the moment a new
+cause appears.** Adding a member is a visible edit; borrowing one is a single word and reads fine.
+
+### RED
+
+Tests first, against the unchanged route.
+
+```
+npx vitest run test/unit/web/pij/focus-route.test.ts test/unit/web/pij/seat-focus.test.tsx
+ Test Files  2 failed (2)
+      Tests  2 failed | 23 passed (25)
+
+FAIL  focus-route.test.ts > tmux-refused: 503 whose machine reason names TMUX, not the store
+AssertionError: expected 'store-unreadable' to be 'tmux-refused' // Object.is equality
+
+FAIL  seat-focus.test.tsx > renders the DESIGNED tmux-refused state, distinct from a store failure
+AssertionError: expected 'store-unreadable' to be 'tmux-refused' // Object.is equality
+```
+
+The client failure printed the bug in one line of DOM — `data-reason="store-unreadable"` sitting
+directly above the text `tmux refused to focus @220: no server running on /tmp/tmux-501`.
+
+Both are route-backed: the client test drives the real handler with the focus executor rejecting and
+the pij read SUCCEEDING, which is what makes the old wording so plainly wrong — nothing was unreadable.
+
+### The set-equality test did NOT go red — a finding on the test itself
+
+The packet asked me to check this and say so if it held. It held.
+
+After the route change, `gives every reason in the union a response that actually carries it` stayed
+GREEN with the route emitting a sixth reason it did not know about. Two independent reasons, and both
+matter:
+
+1. It drove five hand-listed conditions. The tmux path was not among them, so `tmux-refused` never
+   entered the emitted set.
+2. Its expected set was a hand-written `FocusReason[]` literal. **TypeScript does not require an array
+   literal to cover a union**, so adding a member produced no error there either.
+
+That test was added in Fix 1 to close exactly this class of hole — a union member with no producer —
+and it reproduced the hole one level up, in its own maintenance. Per-state coverage cannot see an
+unproduced state; a hand-maintained enumeration cannot see an unenumerated one.
+
+Fixed by keying the cases as `Record<FocusReason, …>` instead of an array, and deriving the expected
+set from `Object.keys`. A new union member is now a **compile** error until it has a condition. Each
+case also asserts the reason it is keyed by, so a mis-wired condition fails by name.
+
+Revert-check, because a green never seen fail proves nothing — `:207` put back to `store-unreadable`
+with the strengthened test in place:
+
+```
+npx vitest run test/unit/web/pij/focus-route.test.ts -t 'gives every reason'
+AssertionError: the tmux-refused condition must emit its own reason:
+  expected 'store-unreadable' to be 'tmux-refused'
+ Test Files  1 failed (1)
+```
+
+It catches it now. Line restored immediately after.
+
+### GREEN
+
+```
+npx vitest run test/unit/web/pij/focus-route.test.ts test/unit/web/pij/seat-focus.test.tsx
+ Test Files  2 passed (2)
+      Tests  25 passed (25)
+```
+
+### The fix
+
+Three lines of behaviour: `'tmux-refused'` joins `FocusReason`, `:207` returns it, and
+`focusRefusal()`'s parameter excludes it alongside `store-unreadable` (both 503s are built at their
+call sites — neither carries information that signature has room for). Status stays 503 and the
+observation wording is untouched: it was the honest half all along.
+
+**No client change was needed, and that is a fact worth recording rather than a gap.** `use-seat-focus`
+passes `body.reason` straight through and `SeatRow` renders it as `data-reason`, so the client is
+reason-agnostic by construction — a new designed state costs nothing there. Only the fallback
+(`'failed'`, for a body with no `reason` at all) is hard-coded, which is the one value that should be.
+
+### Close gates
+
+```
+npx vitest run test/unit/web/pij/       Test Files  23 passed (23)
+                                              Tests  357 passed (357)   ← was 356; +1
+
+npx tsc -p tsconfig.test.json --noEmit       TYPECHECK-TEST EXIT 0
+npx tsc --noEmit -p apps/web/tsconfig.json   TYPECHECK-WEB EXIT 0
+npx biome check <3 touched files>            Checked 3 files in 27ms. No fixes applied.
+git status --porcelain                       5 entries; pnpm-lock + sse-manager untouched
+```
+
+Test count is +1, not +2: the tmux path already had a test (`reports a tmux failure as a failure, not
+as a silent success`) which asserted status and observation but not `reason` — precisely how the lie
+survived. It was extended and renamed rather than duplicated, keeping "one reason, one test" intact.
+
+### Discoveries
+
+| Date | Task | Kind | What | Why it matters | Files |
+|------|------|------|------|----------------|-------|
+| 2026-07-26 | Fix 2 | Discovery | A closed union invites **nearest-member reuse** when a new cause appears: tmux refusal borrowed `store-unreadable` because no member fit | Borrowing is one word and reads fine; adding a member is a visible edit. The result is a machine field that contradicts the human sentence next to it, and only the machine field is load-bearing for clients | `apps/web/app/api/pij/focus/route.ts` |
+| 2026-07-26 | Fix 2 | Discovery | The Fix-1 set-equality test could not see this — its cases were an array and its expected set a hand-written literal, and **TS does not require an array literal to cover a union** | The test written to close "a union member with no producer" reproduced the hole in its own maintenance. `Record<Union, …>` makes the gap a compile error; an array can never do that | `test/unit/web/pij/focus-route.test.ts` |
+| 2026-07-26 | Fix 2 | Discovery | An honest `observation` beside a false `reason` is worse than both being wrong — the response looks correct to every human who reads it | Reviews read the words. The field nobody reads by eye is the field that needs the test, and this one had a test asserting only status and observation | `test/unit/web/pij/focus-route.test.ts` |
+| 2026-07-26 | Fix 2 | Discovery | Adding a designed state cost zero client changes: the hook passes `reason` through and the row renders it, so only the `'failed'` fallback is hard-coded | The pattern's payoff, and the reason a route-side union can be extended safely. It also means the client can never be the thing that catches a wrong reason — the route tests must | `apps/web/src/features/089-first-class-pij/hooks/use-seat-focus.tsx` |
