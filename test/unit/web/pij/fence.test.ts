@@ -310,17 +310,70 @@ describe('C-02 fence — the feature writes to nothing (AC-11)', () => {
     Test Doc:
     - Why: T4 — descriptors are rewritten every daemon tick × ~180 seats, so chokidar over that
       directory is the naive client-side design relocated server-side. We poll on OUR clock. (Flow
-      files are the opposite and Phase 3 will watch them — hence this checks the pij side by naming
-      the watcher APIs, which the flow watcher will need to be allowed past explicitly.)
+      files are the opposite and Phase 3 watches them — hence this checks the pij side by naming
+      the watcher APIs, which the flow watcher would have needed to be allowed past explicitly.)
     - Contract: No chokidar import, no fs.watch, no watchFile.
-    - Usage Notes: —
+    - Usage Notes: Phase 3 shipped `server/flow-watcher.ts` and this assertion still covers it with
+      NO exclusion — it reaches the filesystem through `IFileWatcherFactory` from
+      `@chainglass/workflow`, so it names no watcher API at all. The exclusion this Test Doc
+      anticipated turned out to be unnecessary, and an unnecessary exclusion is a hole. The companion
+      assertion below covers what the general check cannot see: WHAT that file watches.
     - Quality Contribution: Keeps the ruled-out design ruled out.
-    - Worked Example: zero matches.
+    - Worked Example: zero matches, flow-watcher.ts included.
     */
     const files = await collectSources();
     const offenders = findAll(files, /\b(chokidar|fs\.watch|watchFile|watch\s*\()/m);
 
     expect(offenders).toEqual([]);
+    // The check must be looking AT the watcher, or its silence proves nothing about it.
+    expect(files.map((file) => file.path)).toEqual(
+      expect.arrayContaining(['apps/web/src/features/089-first-class-pij/server/flow-watcher.ts'])
+    );
+  });
+
+  it('the flow watcher watches plan folders and nothing else (C-04, companion)', async () => {
+    /*
+    Test Doc:
+    - Why: the general assertion above bans the watcher APIs, and the one file that legitimately
+      watches never names them — it goes through an injected factory. So the general check passes over
+      it while saying nothing about its TARGETS, which is the half of C-04 that actually matters:
+      "never watch ~/.pij" is a statement about paths, not about API names.
+    - Contract: C-04 (narrowed for the flow side only, never deleted); T006.
+    - Usage Notes: mirrors the `pij-records.ts` denylist precedent — the file's only `.pij` mention is
+      inside the function whose job is to REFUSE such a path, and this splits the source at the end of
+      that function to prove nothing after it names one.
+    - Quality Contribution: turns "we watch the right thing" from a code-review opinion into a check.
+    - Worked Example: every `.add(...)` argument is `plansRoot`; the sole `.pij` literal sits inside
+      `assertNotPijShaped`.
+    */
+    const path = 'apps/web/src/features/089-first-class-pij/server/flow-watcher.ts';
+    const code = toCode(await readFile(join(REPO_ROOT, path), 'utf8'));
+
+    // 1. The watch root is always the derived plans root — never a path from anywhere else.
+    const addArgs = [...code.matchAll(/\.add\s*\(([^)]*)\)/g)].map((match) => match[1].trim());
+    expect(addArgs.length).toBeGreaterThan(0);
+    for (const arg of addArgs) {
+      expect(arg, 'the watcher may only ever be handed a derived plans root').toBe('plansRoot');
+    }
+
+    // 2. That root is built from the plans subdir, and the document it reacts to is the flow file.
+    expect(code).toMatch(/PLANS_SUBDIR\s*=\s*join\('docs',\s*'plans'\)/);
+    expect(code).toMatch(/FLOW_DOCUMENT\s*=\s*'the-flow\.json'/);
+    expect(code).toMatch(/join\(workspacePath,\s*PLANS_SUBDIR\)/);
+
+    // 3. `.pij` appears only inside the refusal, exactly as mutating verbs appear only inside the
+    //    record adapter's denylist. Anything after that function naming it would be a watch target.
+    const refusalEnd = code.indexOf('function assertNotPijShaped');
+    expect(refusalEnd).toBeGreaterThan(0);
+    const beforeRefusal = code.slice(0, refusalEnd);
+    const afterRefusal = code.slice(code.indexOf('}', code.indexOf('throw new Error', refusalEnd)));
+    expect(beforeRefusal).not.toMatch(/['"`]\.pij['"`]/);
+    expect(afterRefusal, '`.pij` must appear only inside the refusal').not.toMatch(
+      /['"`]\.pij['"`]/
+    );
+
+    // 4. And the refusal is reached before any registration, on every path into it.
+    expect(code).toMatch(/watchWorkspace\(workspacePath: string\): void \{\s*assertNotPijShaped\(/);
   });
 
   it('never shells out through a shell (fixed argv only)', async () => {

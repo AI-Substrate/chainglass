@@ -91,6 +91,66 @@ describe('useChannelEvents', () => {
     expect(result.current.messages).toHaveLength(10);
   });
 
+  it('counts every message received, including the ones pruning has since dropped', () => {
+    /*
+    Test Doc:
+    - Why: pruning happens INSIDE this hook's state updater, so from the outside "5 arrived and 3 were
+      trimmed" and "2 arrived" are the same observation — an array of length 2. A consumer holding an
+      index cursor into that array is therefore permanently wrong once the cap is reached, with no way
+      to detect it. `receivedCount` is the missing half: an absolute total that survives trimming, so a
+      cursor can be expressed as "how many have I applied" rather than "how far into the array am I".
+    - Contract: Plan 089 Phase 3 T002 (the retention-cursor fix); additive to AC-17.
+    - Usage Notes: monotonic per subscriber, from mount. It counts arrivals, never survivors.
+    - Quality Contribution: makes the trimming observable, which is what makes a durable cursor
+      possible for any consumer, not only pij.
+    - Worked Example: maxMessages 2, five events → messages.length 2, receivedCount 5.
+    */
+    const { result } = renderHook(() => useChannelEvents('event-popper', { maxMessages: 2 }), {
+      wrapper,
+    });
+
+    act(() => fake.simulateOpen());
+    for (let i = 1; i <= 5; i++) {
+      act(() => fake.simulateChannelMessage('event-popper', `msg${i}`));
+    }
+
+    expect(result.current.messages).toHaveLength(2);
+    expect(result.current.receivedCount).toBe(5);
+  });
+
+  it('counts only the subscribed channel, and starts at zero', () => {
+    const { result } = renderHook(() => useChannelEvents('event-popper'), { wrapper });
+
+    expect(result.current.receivedCount).toBe(0);
+    act(() => fake.simulateOpen());
+    act(() => fake.simulateChannelMessage('file-changes', 'file-changed', { path: 'a.txt' }));
+
+    expect(result.current.receivedCount).toBe(0);
+  });
+
+  it('keeps the count monotonic across clearMessages — it counts arrivals, not survivors', () => {
+    /*
+    Test Doc:
+    - Why: a counter that rewound on `clearMessages()` would be a second length, not a cursor basis. A
+      consumer that clears deliberately wants everything before the clear to be behind it, and a
+      monotonic count expresses exactly that ("applied = received") without a special case.
+    - Contract: Plan 089 Phase 3 T002.
+    - Usage Notes: the array empties; the count does not.
+    - Quality Contribution: pins the one interaction between the two return values that could surprise.
+    - Worked Example: 2 events, clear, 1 event → messages.length 1, receivedCount 3.
+    */
+    const { result } = renderHook(() => useChannelEvents('event-popper'), { wrapper });
+
+    act(() => fake.simulateOpen());
+    act(() => fake.simulateChannelMessage('event-popper', 'msg1'));
+    act(() => fake.simulateChannelMessage('event-popper', 'msg2'));
+    act(() => result.current.clearMessages());
+    act(() => fake.simulateChannelMessage('event-popper', 'msg3'));
+
+    expect(result.current.messages).toHaveLength(1);
+    expect(result.current.receivedCount).toBe(3);
+  });
+
   it('clearMessages resets to empty', () => {
     const { result } = renderHook(() => useChannelEvents('event-popper'), { wrapper });
 

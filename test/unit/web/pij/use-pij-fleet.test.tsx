@@ -18,7 +18,10 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { usePijFleet } from '../../../../apps/web/src/features/089-first-class-pij/hooks/use-pij-fleet';
+import {
+  PIJ_CHANNEL_RETENTION,
+  usePijFleet,
+} from '../../../../apps/web/src/features/089-first-class-pij/hooks/use-pij-fleet';
 import type {
   FleetRow,
   FleetSnapshotData,
@@ -37,6 +40,7 @@ import {
   fleetRow,
   pollerStatus,
 } from '../../../fixtures/pij/fleet-ui';
+import { flowSummary, foreignFlowSummary, siblingFlowSummary } from '../../../fixtures/pij/flow-ui';
 
 let sse: ReturnType<typeof createFakeMultiplexedSSEFactory>;
 let api: FakePijApi;
@@ -365,19 +369,10 @@ describe('usePijFleet — tree freshness', () => {
 });
 
 describe('usePijFleet — retention', () => {
-  it('keeps applying deltas past the channel’s default 1000-message retention cap', async () => {
-    // `useChannelEvents` retains 1000 messages by default and then SLIDES: the array length stops
-    // growing while this hook's applied-index cursor sits at the same number, so the cursor is never
-    // behind again and every subsequent delta is skipped. The page keeps its "live" badge and silently
-    // stops updating — a freeze with no error, which is the worst shape this bug could take.
-    const { result } = renderPijFleet();
-    await waitFor(() => expect(result.current.phase).toBe('live'));
-
-    // Delivered in ONE act so the cursor reaches exactly the cap before the next event arrives.
-    // Delivering all 1001 in a single batch would hide the fault: the slide keeps the LAST 1000, so
-    // the final delta would still be inside the window on the first pass.
+  /** Deliver a run of `fleet-delta`s in ONE act, so the cursor lands exactly where the run ends. */
+  function deliverRun(from: number, to: number): void {
     act(() => {
-      for (let index = 1; index <= 1000; index += 1) {
+      for (let index = from; index <= to; index += 1) {
         sse.simulateChannelMessage('pij', 'fleet-delta', {
           seq: 40,
           at: '2026-07-26T12:00:14.000Z',
@@ -386,25 +381,218 @@ describe('usePijFleet — retention', () => {
         });
       }
     });
-    expect(result.current.rows.find((row) => row.id === UI_PM_ID)?.state).toBe('delta-1000');
+  }
 
+  it('caps retention rather than accumulating a page-lifetime array', async () => {
+    // Phase 2 bought its way out of the freeze with `maxMessages: 0`, which trades a silent stall for
+    // an unbounded array — acceptable at one delta per slow loop, not at flow-delta rates. The cap is
+    // back, so this asserts it IS a cap: a test that proved a cursor survives trimming while nothing
+    // was ever trimmed would be the green that lies.
+    expect(PIJ_CHANNEL_RETENTION).toBeGreaterThan(0);
+  });
+
+  it('keeps applying deltas once retention has begun trimming the buffer', async () => {
+    // An index into a SLIDING array is a broken cursor by construction: past the cap the array stops
+    // growing while the index sits at the same number, so "have I fallen behind?" is false forever and
+    // every subsequent delta is skipped. The page keeps its "live" badge and silently stops updating.
+    // The fix is an absolute count of messages received, which trimming cannot move.
+    const { result } = renderPijFleet();
+    await waitFor(() => expect(result.current.phase).toBe('live'));
+
+    // Delivered as a run so the cursor reaches exactly the cap before the next event arrives.
+    // Delivering cap+1 in a single batch would hide the fault: the slide keeps the LAST `cap`, so the
+    // final delta would still be inside the window on the first pass.
+    deliverRun(1, PIJ_CHANNEL_RETENTION);
+    expect(result.current.rows.find((row) => row.id === UI_PM_ID)?.state).toBe(
+      `delta-${PIJ_CHANNEL_RETENTION}`
+    );
+
+    // The first message past the cap — the exact event Phase 2's review caught being dropped.
     deliver('fleet-delta', {
       seq: 40,
       at: '2026-07-26T12:00:15.000Z',
-      rows: [fleetRow(UI_PM_ID, { state: 'delta-1001' })],
+      rows: [fleetRow(UI_PM_ID, { state: 'delta-past-cap' })],
       removed: [],
     });
-    expect(result.current.rows.find((row) => row.id === UI_PM_ID)?.state).toBe('delta-1001');
+    expect(result.current.rows.find((row) => row.id === UI_PM_ID)?.state).toBe('delta-past-cap');
 
-    // And the freeze is permanent, not a one-event stutter — so a second event past the cap proves the
-    // cursor is still tracking rather than parked.
+    // And the freeze is permanent when it happens, not a one-event stutter — so a second event, well
+    // past the cap and after a further run of trimming, proves the cursor is tracking, not parked.
+    deliverRun(PIJ_CHANNEL_RETENTION + 2, PIJ_CHANNEL_RETENTION + 500);
     deliver('fleet-delta', {
       seq: 40,
       at: '2026-07-26T12:00:16.000Z',
-      rows: [fleetRow(UI_PM_ID, { state: 'delta-1002' })],
+      rows: [fleetRow(UI_PM_ID, { state: 'delta-long-past-cap' })],
       removed: [],
     });
-    expect(result.current.rows.find((row) => row.id === UI_PM_ID)?.state).toBe('delta-1002');
+    expect(result.current.rows.find((row) => row.id === UI_PM_ID)?.state).toBe(
+      'delta-long-past-cap'
+    );
+  });
+
+  it('replays a delta that raced the fetch even when the buffer has been trimmed since', async () => {
+    // The replay window is a pair of positions in the message stream, and the rewind on snapshot-apply
+    // moves the cursor BACKWARDS. Expressed as array indices both ends drift as the array slides; as
+    // absolute counts neither does. This is the same race the ordering test covers, run on the far
+    // side of the cap so the two representations disagree.
+    const { result } = renderPijFleet();
+    await waitFor(() => expect(result.current.phase).toBe('live'));
+    deliverRun(1, PIJ_CHANNEL_RETENTION + 10);
+
+    const release = api.deferFleet();
+    api.setFleet(fleetSnapshot(40, UI_FLEET_ROWS));
+    await act(async () => {
+      result.current.refresh();
+    });
+
+    const raced = fleetRow(UI_PM_ID, { state: 'raced-past-the-cap' });
+    deliver('fleet-delta', {
+      seq: 41,
+      at: '2026-07-26T12:00:17.000Z',
+      rows: [raced],
+      removed: [],
+    });
+
+    await act(async () => {
+      release();
+    });
+
+    await waitFor(() =>
+      expect(result.current.rows.find((row) => row.id === UI_PM_ID)?.state).toBe(
+        'raced-past-the-cap'
+      )
+    );
+  });
+});
+
+describe('usePijFleet — flow deltas', () => {
+  /** The flow snapshot the tab starts from: two plan folders in this workspace. */
+  function seedFlows() {
+    api.setFlows({
+      seq: 40,
+      at: '2026-07-26T12:00:00.000Z',
+      data: {
+        workspace: UI_WORKSPACE_PATH,
+        flows: [flowSummary('088-remote-app-view'), flowSummary('089-first-class-pij')],
+      },
+    });
+  }
+
+  it('merges changed-only summaries by planDir, leaving the untouched ones alone', async () => {
+    // `refreshFlows` broadcasts only what its signature diff found changed, so a delta is a PATCH over
+    // the plan set, keyed by absolute path. A plan the delta does not mention has not gone anywhere.
+    seedFlows();
+    const { result } = renderPijFleet();
+    await waitFor(() => expect(result.current.flows).toHaveLength(2));
+
+    deliver('flow-delta', {
+      seq: 40,
+      at: '2026-07-26T12:00:20.000Z',
+      flows: [flowSummary('089-first-class-pij', { state: 'live', nowPhaseId: 'ph3' })],
+    });
+
+    const byFolder = new Map(result.current.flows.map((flow) => [flow.planFolder, flow]));
+    expect(byFolder.get('089-first-class-pij')?.state).toBe('live');
+    expect(byFolder.get('089-first-class-pij')?.nowPhaseId).toBe('ph3');
+    expect(byFolder.get('088-remote-app-view')?.state).toBe('untracked');
+    expect(result.current.flows).toHaveLength(2);
+  });
+
+  it('applies two flow-deltas carrying the SAME seq — both, in order', async () => {
+    // `refreshFlows` stamps its deltas with the current cursor seq, and a flow file changing moves no
+    // spine cursor: consecutive flow refreshes REPEAT a seq as a matter of course. A "must be newer"
+    // guard would drop every flow update after the first and freeze the tab while it looked live.
+    seedFlows();
+    const { result } = renderPijFleet();
+    await waitFor(() => expect(result.current.flows).toHaveLength(2));
+
+    deliver('flow-delta', {
+      seq: 40,
+      at: '2026-07-26T12:00:21.000Z',
+      flows: [flowSummary('089-first-class-pij', { nowPhaseId: 'ph2' })],
+    });
+    deliver('flow-delta', {
+      seq: 40,
+      at: '2026-07-26T12:00:22.000Z',
+      flows: [flowSummary('089-first-class-pij', { nowPhaseId: 'ph3' })],
+    });
+
+    expect(
+      result.current.flows.find((f) => f.planFolder === '089-first-class-pij')?.nowPhaseId
+    ).toBe('ph3');
+  });
+
+  it('counts a foreign plan folder into flowsFilteredOut — never into the fleet counter', async () => {
+    // Two counters because they are two claims. The Fleet tab renders `filteredOut` as "N updates
+    // filtered out (other workspaces)" ABOUT SEATS; folding a rejected plan folder into it would make
+    // that sentence false, and it is a sentence a human reads while wondering where a seat went.
+    api.setFleet(fleetSnapshot(40, []));
+    seedFlows();
+    const { result } = renderPijFleet();
+    await waitFor(() => expect(result.current.flows).toHaveLength(2));
+
+    deliver('flow-delta', {
+      seq: 40,
+      at: '2026-07-26T12:00:23.000Z',
+      flows: [
+        foreignFlowSummary('091-somebody-elses-plan'),
+        siblingFlowSummary('092-shared-prefix-plan'),
+        flowSummary('089-first-class-pij', { state: 'live' }),
+      ],
+    });
+
+    expect(result.current.flowsFilteredOut).toBe(2);
+    expect(result.current.filteredOut).toBe(0);
+    expect(result.current.flows.map((f) => f.planFolder).sort()).toEqual([
+      '088-remote-app-view',
+      '089-first-class-pij',
+    ]);
+  });
+
+  it('keeps a vanished plan until a snapshot says otherwise — there is no removal signal', async () => {
+    // A deleted plan folder emits nothing at all: `refreshFlows` broadcasts what it FOUND, so absence
+    // is not carried by any delta. Refetching the snapshot is the deletion path, and it is the only
+    // one — inventing a removal from "not mentioned lately" would delete a plan nobody touched.
+    seedFlows();
+    const { result } = renderPijFleet();
+    await waitFor(() => expect(result.current.flows).toHaveLength(2));
+
+    api.setFlows({
+      seq: 41,
+      at: '2026-07-26T12:00:24.000Z',
+      data: { workspace: UI_WORKSPACE_PATH, flows: [flowSummary('088-remote-app-view')] },
+    });
+    deliver('flow-delta', {
+      seq: 40,
+      at: '2026-07-26T12:00:25.000Z',
+      flows: [flowSummary('088-remote-app-view', { state: 'live' })],
+    });
+
+    expect(result.current.flows).toHaveLength(2);
+
+    await act(async () => {
+      result.current.refresh();
+    });
+    await waitFor(() => expect(result.current.flows).toHaveLength(1));
+    expect(result.current.flows[0].planFolder).toBe('088-remote-app-view');
+  });
+
+  it('contains flows by workspace even in global scope — the flow route is workspace-scoped', async () => {
+    // The fleet's containment follows the scope toggle because the fleet route itself widens. The flow
+    // route does not: `/api/pij/flow` REQUIRES a workspace, so a global-scope tab is still holding one
+    // workspace's plans, and accepting another's would put plans on screen the snapshot never had.
+    seedFlows();
+    const { result } = renderPijFleet({ scope: 'global' });
+    await waitFor(() => expect(result.current.flows).toHaveLength(2));
+
+    deliver('flow-delta', {
+      seq: 40,
+      at: '2026-07-26T12:00:26.000Z',
+      flows: [foreignFlowSummary('091-somebody-elses-plan')],
+    });
+
+    expect(result.current.flows).toHaveLength(2);
+    expect(result.current.flowsFilteredOut).toBe(1);
   });
 });
 

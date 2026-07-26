@@ -1,7 +1,7 @@
 /**
- * The pij observatory page — Plan 089 Phase 2 (T001).
+ * The pij observatory page — Plan 089 Phase 2 (T001), Phase 3 (T001: the Flows tab).
  *
- * Two tabs, one data path. Everything both tabs render comes from `usePijFleet`, which is the only
+ * Three tabs, one data path. Everything all three render comes from `usePijFleet`, which is the only
  * thing in the browser that talks to `/api/pij/*` — the client never reaches the CLI or the store,
  * and there is no mutating call anywhere on this page (C-02, C-06).
  *
@@ -15,8 +15,9 @@
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useCallback, useEffect, useState } from 'react';
-import { usePijFleet } from '../hooks/use-pij-fleet';
+import { type FetchLike, usePijFleet } from '../hooks/use-pij-fleet';
 import { type FleetScope, FleetView } from './fleet-view';
+import { FlowsTab } from './flows-tab';
 import { RepoTree } from './repo-tree';
 
 export interface PijPageClientProps {
@@ -24,12 +25,18 @@ export interface PijPageClientProps {
   workspacePath: string;
   /** Display name for the header. Cosmetic — never a scoping key. */
   workspaceName: string;
+  /**
+   * Test seam, passed straight through to the hook's own `fetchImpl`. The server component never
+   * sets it, so production uses the global `fetch` exactly as before — but the tab mechanism (which
+   * lives here, not in the hook) is only assertable by driving the real shell.
+   */
+  fetchImpl?: FetchLike;
 }
 
-export function PijPageClient({ workspacePath, workspaceName }: PijPageClientProps) {
+export function PijPageClient({ workspacePath, workspaceName, fetchImpl }: PijPageClientProps) {
   const [scope, setScope] = useState<FleetScope>('workspace');
   const [tab, setTab] = useState('fleet');
-  const fleet = usePijFleet({ workspacePath, scope });
+  const fleet = usePijFleet({ workspacePath, scope, fetchImpl });
 
   /**
    * "Now" as state rather than `Date.now()` inline: every relative time on the page is derived from
@@ -77,6 +84,7 @@ export function PijPageClient({ workspacePath, workspaceName }: PijPageClientPro
         <TabsList variant="line">
           <TabsTrigger value="fleet">Fleet</TabsTrigger>
           <TabsTrigger value="tree">Repo tree</TabsTrigger>
+          <TabsTrigger value="flows">Flows</TabsTrigger>
         </TabsList>
 
         <TabsContent value="fleet">
@@ -95,6 +103,18 @@ export function PijPageClient({ workspacePath, workspaceName }: PijPageClientPro
 
         <TabsContent value="tree">
           <RepoTree roots={fleet.tree} error={fleet.errors.tree} workspacePath={workspacePath} />
+        </TabsContent>
+
+        <TabsContent value="flows">
+          {/* `flowsFilteredOut`, not `filteredOut`: the two counters answer different questions and
+              the Fleet tab's is a sentence about seats. */}
+          <FlowsTab
+            flows={fleet.flows}
+            error={fleet.errors.flows}
+            scope={scope}
+            workspacePath={workspacePath}
+            filteredOut={fleet.flowsFilteredOut}
+          />
         </TabsContent>
       </Tabs>
     </div>

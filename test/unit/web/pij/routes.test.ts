@@ -386,6 +386,44 @@ describe('/api/pij/flow', () => {
     expect(response.status).toBe(200);
     expect((await response.json()).data.flows).toEqual([]);
   });
+
+  it('tells the flow watcher about the workspace it was asked for (Phase 3, T005)', async () => {
+    /*
+    Test Doc:
+    - Why: the watcher enumerates workspaces from the container at bootstrap, and a `?worktree=` root
+      is not in that list — it is only knowable when somebody asks for it. This request IS that
+      moment, and without this hand-off a worktree page is snapshot-only forever while looking live.
+    - Contract: T005 (lazy watch registration); watch-once lives in the watcher, so the route may call
+      it on every request.
+    - Usage Notes: `noteWorkspace` is optional on the deps, so the tree and fleet routes and every
+      pre-Phase-3 caller construct these deps unchanged.
+    - Quality Contribution: pins the one wire between a page load and a live flow view.
+    - Worked Example: a flow request for /repo → noteWorkspace('/repo') exactly once.
+    */
+    const noted: string[] = [];
+    const deps = await makeDeps({ flows: new FakeFlowReader([]) });
+
+    await handlePijFlowRequest(request(`/api/pij/flow?workspace=${WORKSPACE}`), {
+      ...deps,
+      noteWorkspace: (path) => noted.push(path),
+    });
+
+    expect(noted).toEqual([WORKSPACE]);
+  });
+
+  it('never hands the watcher a workspace it has not been given', async () => {
+    // A 400 request must not register anything: there is no path to watch, and calling with an empty
+    // string would resolve to the server's own cwd.
+    const noted: string[] = [];
+    const deps = await makeDeps({ flows: new FakeFlowReader([]) });
+
+    await handlePijFlowRequest(request('/api/pij/flow'), {
+      ...deps,
+      noteWorkspace: (path) => noted.push(path),
+    });
+
+    expect(noted).toEqual([]);
+  });
 });
 
 describe('/api/pij/status — what AC-08 renders', () => {

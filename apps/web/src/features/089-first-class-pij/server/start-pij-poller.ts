@@ -11,8 +11,12 @@
  */
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { WORKSPACE_DI_TOKENS } from '@chainglass/shared';
+import { FileWatcherFactory, type IWorkspaceService } from '@chainglass/workflow';
+import { getContainer } from '../../../lib/bootstrap-singleton';
 import { sseManager } from '../../../lib/sse-manager';
 import { createFlowReader } from './flow-reader';
+import { type FlowWatcherService, createFlowWatcher } from './flow-watcher';
 import { type PijPollerService, createPijPoller } from './pij-poller.service';
 import { createPijRecords } from './pij-records';
 import { createFileSpineCursor } from './spine-cursor';
@@ -20,6 +24,7 @@ import { createFileSpineCursor } from './spine-cursor';
 const globalForPijPoller = globalThis as typeof globalThis & {
   __pijPoller?: PijPollerService;
   __pijPollerStarted?: boolean;
+  __pijFlowWatcher?: FlowWatcherService;
 };
 
 /**
@@ -56,6 +61,50 @@ export function getPijPoller(): PijPollerService {
 }
 
 /**
+ * The process-wide flow watcher, constructed on first use — Phase 3 (T005).
+ *
+ * Sibling of {@link getPijPoller} and deliberately shaped the same way, including the "construction
+ * does not start it" property: a route that arrives before the bootstrap gets a real object that
+ * watches nothing, rather than a crash or an accidental watcher created out of band by a page load.
+ *
+ * Its `refreshFlows` is bound to the singleton poller, which is what makes this the first production
+ * caller of a method Phase 1 built and nobody has yet invoked.
+ */
+export function getPijFlowWatcher(): FlowWatcherService {
+  if (!globalForPijPoller.__pijFlowWatcher) {
+    globalForPijPoller.__pijFlowWatcher = createFlowWatcher({
+      // The env-selecting factory, so the WSL/Windows-mount polling escape hatch applies here too.
+      watcherFactory: new FileWatcherFactory(),
+      refreshFlows: (plansRoot) => getPijPoller().refreshFlows(plansRoot),
+      listWorkspacePaths: async () => {
+        const service = getContainer().resolve<IWorkspaceService>(
+          WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
+        );
+        const workspaces = await service.list();
+        return workspaces.map((workspace) => workspace.toJSON().path).filter(Boolean);
+      },
+      // Stated once, here, and injected — so the C-04 rule has exactly one definition in the process.
+      pijHome: pijHome(),
+    });
+  }
+  return globalForPijPoller.__pijFlowWatcher;
+}
+
+/**
+ * Register a workspace for flow watching, if the watcher is running. Called by the flow route.
+ *
+ * The bootstrap enumeration cannot see a `?worktree=` root — that path is only knowable when someone
+ * asks for it — so the first flow request for an unwatched workspace is where its watch comes from.
+ * Watch-once is the watcher's own property, so calling this on every request is free.
+ *
+ * It does NOT swallow the C-04 refusal: a request naming a pij-store path has asked for something the
+ * fence forbids, and the route surfaces that rather than quietly ignoring it.
+ */
+export function notePijFlowWorkspace(workspacePath: string): void {
+  globalForPijPoller.__pijFlowWatcher?.watchWorkspace(workspacePath);
+}
+
+/**
  * Start the poller once per process. Safe to call repeatedly (HMR, a second import); the second call
  * does nothing.
  *
@@ -74,6 +123,11 @@ export async function startPijPoller(): Promise<PijPollerService> {
     globalForPijPoller.__pijPollerStarted = false;
     console.warn('[pij] poller failed to start (non-fatal):', error);
   }
+
+  // The flow watcher starts beside the poller and degrades on its own terms: `start()` never throws,
+  // and a failure leaves the page snapshot-only (still correct, no longer live) rather than unbooted.
+  await getPijFlowWatcher().start();
+
   return poller;
 }
 
@@ -81,6 +135,10 @@ export async function startPijPoller(): Promise<PijPollerService> {
 export function stopPijPoller(): void {
   globalForPijPoller.__pijPoller?.stop();
   globalForPijPoller.__pijPollerStarted = false;
+  // Fire-and-forget: shutdown must not wait on a watcher close, and a rejected close would otherwise
+  // land as an unhandled rejection during SIGTERM.
+  void globalForPijPoller.__pijFlowWatcher?.stop().catch(() => {});
+  globalForPijPoller.__pijFlowWatcher = undefined;
 }
 
 /** Test seam: forget the singleton so a fresh one is built. Never called in production code. */
@@ -88,6 +146,8 @@ export function resetPijPollerForTests(): void {
   globalForPijPoller.__pijPoller?.stop();
   globalForPijPoller.__pijPoller = undefined;
   globalForPijPoller.__pijPollerStarted = false;
+  void globalForPijPoller.__pijFlowWatcher?.stop().catch(() => {});
+  globalForPijPoller.__pijFlowWatcher = undefined;
 }
 
 /** True when the bootstrap has already run in this process. */

@@ -19,6 +19,11 @@ import { PijCliError } from './pij-records';
 export interface PijRouteDeps {
   authFn: () => Promise<unknown>;
   poller: PijPollerService;
+  /**
+   * Phase 3: tell the flow watcher about a workspace it may not have seen (the `?worktree=` case).
+   * Optional, so the other two routes and every existing test construct these deps unchanged.
+   */
+  noteWorkspace?: (workspacePath: string) => void;
 }
 
 /** Snapshots must never be cached: a cached poller status is a lie with a timestamp on it. */

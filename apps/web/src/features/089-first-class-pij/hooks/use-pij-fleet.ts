@@ -33,6 +33,12 @@
  * from "there is nothing here", or a scope-key mismatch reads as an honest empty fleet.
  * `removed` applies unconditionally — a seat leaving the global view has left this one too.
  *
+ * `flow-delta` (Phase 3) rides the same channel and the same containment rule, keyed on `planDir`, but
+ * counts its rejects separately: two counters because they are two claims, and the fleet's is rendered
+ * as a sentence about seats. Its rejects are counted unconditionally — the flow route requires a
+ * workspace, so there is no global flow set to widen to — and it faces no seq guard at all, for the
+ * reason spelled out where that decision is taken.
+ *
  * Read-only, like everything in this feature: three GETs and a subscription, no mutating verb, no
  * path to the CLI from the browser at all.
  */
@@ -66,6 +72,9 @@ export type FetchLike = (url: string) => Promise<Response>;
  */
 export const TREE_REFETCH_DEBOUNCE_MS = 1_500;
 
+/** How many `pij` channel messages the buffer retains. See the retention note at the subscription. */
+export const PIJ_CHANNEL_RETENTION = 1_000;
+
 /**
  * Which fleet to acquire.
  *
@@ -97,10 +106,16 @@ export interface UsePijFleetResult {
   tree: PijTreeNode[];
   flows: FlowSummary[];
   /**
-   * Delta rows rejected by the containment filter since mount. The discriminator between "nothing to
+   * SEAT rows rejected by the containment filter since mount. The discriminator between "nothing to
    * show" and "the filter dropped everything", which is otherwise an invisible failure.
    */
   filteredOut: number;
+  /**
+   * PLAN FOLDERS rejected by the containment filter since mount. Deliberately a second counter: the
+   * Fleet tab renders {@link filteredOut} as a sentence about seats, and folding plan folders into it
+   * would make that sentence false at the moment a human is reading it to find a missing seat.
+   */
+  flowsFilteredOut: number;
   /** Per-surface load failures, rendered as designed states rather than thrown. */
   errors: { fleet: string | null; tree: string | null; flows: string | null };
   /** Re-read all three snapshots. What a tab change calls. */
@@ -146,6 +161,7 @@ export function usePijFleet(options: UsePijFleetOptions): UsePijFleetResult {
   const [tree, setTree] = useState<PijTreeNode[]>([]);
   const [flows, setFlows] = useState<FlowSummary[]>([]);
   const [filteredOut, setFilteredOut] = useState(0);
+  const [flowsFilteredOut, setFlowsFilteredOut] = useState(0);
   const [errors, setErrors] = useState<UsePijFleetResult['errors']>({
     fleet: null,
     tree: null,
@@ -153,30 +169,34 @@ export function usePijFleet(options: UsePijFleetOptions): UsePijFleetResult {
   });
 
   /*
-   * `maxMessages: 0` — unbounded, and load-bearing rather than greedy.
+   * Retention is capped, and the cursor is an absolute COUNT rather than an index.
    *
-   * The default retention is 1000 messages and it SLIDES: past the cap the array stops growing while
-   * `appliedIndexRef` sits at the same number, so `appliedIndexRef.current >= messages.length` is true
-   * forever and every subsequent delta is skipped. The page keeps its "live" badge and silently stops
-   * updating — a freeze with no error, which is the worst shape this could take.
+   * The two go together. `maxMessages` slides: past the cap the array stops growing, so an index into
+   * it is never behind again, every subsequent delta is skipped, and the page keeps its "live" badge
+   * while silently going static — a freeze with no error, which is the worst shape this could take.
+   * Phase 2 bought its way out by disabling the cap entirely; that traded the stall for a page-lifetime
+   * array, tolerable at one delta per slow loop and not at `flow-delta` rates.
    *
-   * The cost is a page-lifetime array of applied events. Phase 2 volume is one delta per slow loop, so
-   * this is small; Phase 3's `flow-delta` raises it, and a cursor that survives trimming (an absolute
-   * message counter rather than an index into a sliding array) is the fix to make there.
+   * So the position is kept in a coordinate trimming cannot move: `receivedCount`, the total number of
+   * messages ever delivered to this subscriber. Every position below — how far we have applied, and
+   * where the replay window ends — is a count in that same coordinate, and `messages` is consulted
+   * only for the tail it still holds.
    */
-  const { messages } = useChannelEvents<PijChannelMessage>(PIJ_CHANNEL, { maxMessages: 0 });
-  const messagesRef = useRef<PijChannelMessage[]>(messages);
-  messagesRef.current = messages;
+  const { messages, receivedCount } = useChannelEvents<PijChannelMessage>(PIJ_CHANNEL, {
+    maxMessages: PIJ_CHANNEL_RETENTION,
+  });
+  const receivedCountRef = useRef(receivedCount);
+  receivedCountRef.current = receivedCount;
 
   /**
    * The replay guard. `null` until the first snapshot lands — while it is null, arriving deltas are
    * left untouched in the accumulating `messages` array, which IS the buffer.
    */
   const snapshotSeqRef = useRef<number | null>(null);
-  /** How far into `messages` we have applied. Rewound to the pre-fetch mark on every snapshot. */
-  const appliedIndexRef = useRef(0);
+  /** How many received messages we have applied. Rewound to the pre-fetch mark on every snapshot. */
+  const appliedCountRef = useRef(0);
   /**
-   * The end of the replay window: the message count at the instant the snapshot was applied. Events
+   * The end of the replay window: the received count at the instant the snapshot was applied. Events
    * before it raced the fetch and face the seq guard; events at or after it are live and do not.
    */
   const replayUntilRef = useRef(0);
@@ -237,7 +257,7 @@ export function usePijFleet(options: UsePijFleetOptions): UsePijFleetResult {
         : `/api/pij/fleet?workspace=${encodeURIComponent(workspacePath)}`;
     // The buffer mark, taken BEFORE the request leaves. Everything that arrives from here on is
     // replayable against whatever seq comes back — that is the whole of the race handling.
-    const bufferedFrom = messagesRef.current.length;
+    const bufferedFrom = receivedCountRef.current;
     try {
       const response = await fetchImpl(url);
       if (!response.ok) {
@@ -252,8 +272,8 @@ export function usePijFleet(options: UsePijFleetOptions): UsePijFleetResult {
       }
       const snapshot = (await response.json()) as PijSnapshot<FleetSnapshotData>;
       if (!mountedRef.current) return;
-      appliedIndexRef.current = bufferedFrom;
-      replayUntilRef.current = messagesRef.current.length;
+      appliedCountRef.current = bufferedFrom;
+      replayUntilRef.current = receivedCountRef.current;
       snapshotSeqRef.current = snapshot.seq;
       setRowsById(new Map(snapshot.data.rows.map((row) => [row.id, row])));
       setStatus(snapshot.data.status);
@@ -307,31 +327,68 @@ export function usePijFleet(options: UsePijFleetOptions): UsePijFleetResult {
     // here IS the buffering.
     const snapshotSeq = snapshotSeqRef.current;
     if (snapshotSeq === null) return;
-    if (appliedIndexRef.current >= messages.length) return;
+    const pendingCount = receivedCount - appliedCountRef.current;
+    if (pendingCount <= 0) return;
 
-    const firstPendingIndex = appliedIndexRef.current;
-    const pending = messages.slice(firstPendingIndex);
-    appliedIndexRef.current = messages.length;
+    /*
+     * `pendingCount` is what we are owed; `messages.length` is what the buffer still holds. They differ
+     * only when retention trimmed an event before this effect ran, which needs more than
+     * `PIJ_CHANNEL_RETENTION` messages inside a single fetch window — orders of magnitude above the
+     * observed rate. Clamping loses those events rather than reading past the start of the array; the
+     * snapshot that closes the window is what re-establishes the truth, so the loss is bounded and
+     * self-healing rather than silent and permanent, which is what the index cursor made it.
+     */
+    const available = Math.min(pendingCount, messages.length);
+    const firstPendingCount = receivedCount - available;
+    const pending = messages.slice(messages.length - available);
+    appliedCountRef.current = receivedCount;
 
     // In global scope every row belongs by definition: there is no workspace to be outside of.
     const belongsHere = (folder: string): boolean =>
       scope === 'global' || isFolderInWorkspacePath(folder, workspacePath);
 
     let rejected = 0;
+    let flowsRejected = 0;
     let highestSeq = 0;
     let unknownId = false;
     let latestStatus: PollerStatus | null = null;
     const applicable: Array<Extract<PijChannelEvent, { type: 'fleet-delta' }>> = [];
+    const applicableFlows: FlowSummary[] = [];
 
     for (const [offset, event] of pending.entries()) {
       if (event.type === 'poller-status') {
         latestStatus = event.status;
         continue;
       }
+      if (event.type === 'flow-delta') {
+        /*
+         * Flow-deltas skip the replay guard entirely, and that is a decision rather than an oversight.
+         *
+         * The guard compares against the FLEET snapshot's seq, and the fleet snapshot says nothing
+         * about which flow scans a flow-delta reflects — they are different reads on different clocks,
+         * and `refreshFlows` stamps its deltas with a cursor seq that a flow file changing never moves.
+         * Applying the guard here would drop live flow updates wholesale (the repeated-seq problem the
+         * module docs describe), so the guard is not applicable rather than merely inconvenient.
+         *
+         * What that costs: a flow-delta that raced the flow fetch can re-apply a summary the snapshot
+         * has already superseded. A merge by `planDir` is idempotent, so the cost is bounded to one
+         * plan card briefly showing a slightly older read of itself, corrected by the next delta or
+         * refresh. Losing every live update was the alternative.
+         *
+         * Containment is unconditional, unlike the fleet's. `/api/pij/flow` requires a workspace, so
+         * this hook holds ONE workspace's plans whatever the fleet scope is; a global-scope tab has no
+         * wider flow set to be widened to.
+         */
+        for (const flow of event.flows) {
+          if (isFolderInWorkspacePath(flow.planDir, workspacePath)) applicableFlows.push(flow);
+          else flowsRejected += 1;
+        }
+        continue;
+      }
       if (event.type !== 'fleet-delta') continue;
       // The replay guard, and ONLY the replay guard: asked of events that raced the fetch, never of
       // live ones — see the module docs on repeated seqs.
-      const racedTheFetch = firstPendingIndex + offset < replayUntilRef.current;
+      const racedTheFetch = firstPendingCount + offset < replayUntilRef.current;
       if (racedTheFetch && event.seq <= snapshotSeq) continue;
       applicable.push(event);
       highestSeq = Math.max(highestSeq, event.seq);
@@ -356,11 +413,22 @@ export function usePijFleet(options: UsePijFleetOptions): UsePijFleetResult {
         return next;
       });
     }
+    if (applicableFlows.length > 0) {
+      setFlows((previous) => {
+        // Merge by absolute plan folder. There is no removal signal on this channel — a deleted plan
+        // folder simply stops being scanned and emits nothing — so a plan the delta does not mention
+        // stays exactly as it was. Deletion arrives with the next snapshot, and only there.
+        const byDir = new Map(previous.map((flow) => [flow.planDir, flow]));
+        for (const flow of applicableFlows) byDir.set(flow.planDir, flow);
+        return [...byDir.values()];
+      });
+    }
     if (rejected > 0) setFilteredOut((count) => count + rejected);
+    if (flowsRejected > 0) setFlowsFilteredOut((count) => count + flowsRejected);
     if (highestSeq > 0) setSeq((current) => Math.max(current, highestSeq));
     if (latestStatus) setStatus(latestStatus);
     if (unknownId) scheduleTreeRefetch();
-  }, [messages, snapshotToken, workspacePath, scope, scheduleTreeRefetch]);
+  }, [messages, receivedCount, snapshotToken, workspacePath, scope, scheduleTreeRefetch]);
 
   const rows = useMemo(() => [...rowsById.values()], [rowsById]);
 
@@ -371,5 +439,16 @@ export function usePijFleet(options: UsePijFleetOptions): UsePijFleetResult {
         ? 'degraded'
         : 'live';
 
-  return { rows, status, seq, phase, tree, flows, filteredOut, errors, refresh };
+  return {
+    rows,
+    status,
+    seq,
+    phase,
+    tree,
+    flows,
+    filteredOut,
+    flowsFilteredOut,
+    errors,
+    refresh,
+  };
 }
