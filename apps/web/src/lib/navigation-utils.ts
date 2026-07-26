@@ -57,6 +57,19 @@ export const WORKSPACE_NAV_ITEMS: readonly NavItem[] = [
 ] as const;
 
 /**
+ * Machine-wide navigation — items that are NOT scoped to a workspace.
+ *
+ * Its own group because the sidebar had no top-level slot: `WORKSPACE_NAV_ITEMS` is rendered under a
+ * `:slug`, and the Dev group is for demos and internal tools. The global pij view is neither — it is
+ * a product surface about the whole machine, so it sits in a group above Dev rather than inside it.
+ *
+ * Plan 089 Phase 4 (T005).
+ */
+export const GLOBAL_NAV_ITEMS: readonly NavItem[] = [
+  { id: 'pij-global', label: 'Pij fleet', href: '/pij', icon: Radar },
+] as const;
+
+/**
  * Dev / prototype navigation items — collapsed section in sidebar.
  * Demos and internal tools that aren't core product.
  */

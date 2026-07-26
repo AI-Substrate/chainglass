@@ -21,7 +21,9 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
+  PIJ_FORBIDDEN_TOKENS,
   PijCliError,
+  assertReadOnlyArgv,
   createPijRecords,
 } from '../../../../apps/web/src/features/089-first-class-pij/server/pij-records';
 import {
@@ -61,23 +63,26 @@ function listRow(overrides: Record<string, unknown> = {}) {
 
 describe('createPijRecords', () => {
   describe('fixed argv, never a shell (Risks §)', () => {
-    it('calls `pij list --json` with exactly two arguments and no scoping flag', async () => {
+    it('calls `pij list --json --badge` with no scoping flag', async () => {
       /*
       Test Doc:
       - Why: F-13 rules the acquisition model — ONE global list call, with workspace scoping applied
         server-side as a filter. A stray `--here` would silently make every workspace view show only
-        the server's own repo.
-      - Contract: argv is exactly ['list', '--json'].
+        the server's own repo. Phase 4 adds `--badge`, which is a DELIBERATE contract change: every
+        `list()` call now asks for badges, because the poller (the only production caller) calls
+        `records.list()` bare and the argv lives here, not there.
+      - Contract: argv is exactly ['list', '--json', '--badge'].
       - Usage Notes: FakePijExecutor records argv verbatim.
-      - Quality Contribution: Freezes the acquisition model against well-meaning "optimisation".
-      - Worked Example: list() → argv ['list','--json'], no '--here', no '--archived'.
+      - Quality Contribution: Freezes the acquisition model against well-meaning "optimisation",
+        and pins the badge request at the one place it can be made.
+      - Worked Example: list() → ['list','--json','--badge'], no '--here', no '--archived'.
       */
-      const exec = new FakePijExecutor().whenJson(['list', '--json'], [listRow()]);
+      const exec = new FakePijExecutor().whenJson(['list', '--json', '--badge'], [listRow()]);
       const records = createPijRecords({ exec: exec.exec, defaultCwd: WORKSPACE });
 
       await records.list();
 
-      expect(exec.lastArgs).toEqual(['list', '--json']);
+      expect(exec.lastArgs).toEqual(['list', '--json', '--badge']);
       expect(exec.lastArgs).not.toContain('--here');
       expect(exec.lastArgs).not.toContain('--archived');
     });
@@ -152,6 +157,56 @@ describe('createPijRecords', () => {
       expect(exec.calls.map((c) => c.cwd)).toEqual([WORKSPACE, OTHER_WORKSPACE]);
     });
 
+    it('asks for the whole machine with `--global`, and only then', async () => {
+      /*
+      Test Doc:
+      - Why: Phase 4's global page needs the forest for every folder, not this repo's. The two
+        variants are one method with one argv-shaped difference, so the failure mode is a global page
+        quietly rendering the server's own repo — the same silent-wrong-answer this describe block
+        exists to prevent, pointing the other way.
+      - Contract: `tree({ global: true })` → ['tree','--global','--json']; `tree({ cwd })` →
+        ['tree','--json'] with NO '--global'. The two are never confusable.
+      - Usage Notes: A cwd is still handed to execFile because a child process must start somewhere;
+        `--global` makes it irrelevant to the RESULT, which is exactly why the flag has to be present
+        rather than assumed.
+      - Quality Contribution: Pins the one-token difference that separates 52 nodes from 9 folders.
+      - Worked Example: global → 30 roots; repo-scoped → 1 root.
+      */
+      const exec = new FakePijExecutor()
+        .whenJson(['tree', '--global', '--json'], { roots: [{ id: 'pij-anywhere' }] })
+        .whenJson(['tree', '--json'], { roots: [{ id: 'pij-in-a' }] }, { cwd: WORKSPACE });
+      const records = createPijRecords({ exec: exec.exec, defaultCwd: WORKSPACE });
+
+      const everywhere = await records.tree({ global: true });
+      expect(exec.lastArgs).toEqual(['tree', '--global', '--json']);
+      expect(everywhere.roots[0].id).toBe('pij-anywhere');
+
+      await records.tree({ cwd: WORKSPACE });
+      expect(exec.lastArgs).toEqual(['tree', '--json']);
+      expect(exec.lastArgs).not.toContain('--global');
+    });
+
+    it('keeps the global tree read inside the read-only allowlist', async () => {
+      /*
+      Test Doc:
+      - Why: The global variant is a new argv reaching the one process-spawning seam. `--global` must
+        be a read like every other token this feature can name (C-01/C-02) — a new flag is exactly
+        where an allowlist quietly stops covering the calls being made.
+      - Contract: The global argv passes `assertReadOnlyArgv` and names no forbidden token.
+      - Usage Notes: Asserted through the public call rather than the validator, so it covers the
+        argv the adapter actually builds.
+      - Quality Contribution: Keeps the fence ahead of the feature instead of behind it.
+      - Worked Example: tree({global:true}) executes; argv contains no mutating token.
+      */
+      const exec = new FakePijExecutor().whenJson(['tree', '--global', '--json'], { roots: [] });
+      const records = createPijRecords({ exec: exec.exec, defaultCwd: WORKSPACE });
+
+      await records.tree({ global: true });
+
+      expect(() => assertReadOnlyArgv(exec.lastArgs)).not.toThrow();
+      for (const token of PIJ_FORBIDDEN_TOKENS) expect(exec.lastArgs).not.toContain(token);
+    });
+
     it('applies a per-call timeout to every invocation', async () => {
       /*
       Test Doc:
@@ -162,7 +217,7 @@ describe('createPijRecords', () => {
       - Quality Contribution: Bounds the worst case of the one blocking thing this feature does.
       - Worked Example: timeoutMs 3000 → every recorded call has timeoutMs 3000.
       */
-      const exec = new FakePijExecutor().whenJson(['list', '--json'], []);
+      const exec = new FakePijExecutor().whenJson(['list', '--json', '--badge'], []);
       const records = createPijRecords({ exec: exec.exec, defaultCwd: WORKSPACE, timeoutMs: 3000 });
 
       await records.list();
@@ -211,7 +266,7 @@ describe('createPijRecords', () => {
       - Worked Example: row.needsHuman === true survives list().
       */
       const exec = new FakePijExecutor().whenJson(
-        ['list', '--json'],
+        ['list', '--json', '--badge'],
         [listRow({ needsHuman: true, someFutureField: { nested: 1 } })]
       );
       const records = createPijRecords({ exec: exec.exec, defaultCwd: WORKSPACE });
@@ -258,7 +313,7 @@ describe('createPijRecords', () => {
       - Worked Example: stderr 'segfault' → code 'E-EXIT', stderr retained.
       */
       const exec = new FakePijExecutor()
-        .when(['list', '--json'])
+        .when(['list', '--json', '--badge'])
         .fails(execFileFailure({ stderr: 'something exploded' }));
       const records = createPijRecords({ exec: exec.exec, defaultCwd: WORKSPACE });
 
@@ -266,6 +321,42 @@ describe('createPijRecords', () => {
         code: 'E-EXIT',
         stderr: 'something exploded',
       });
+    });
+
+    it('decodes the `--json` error envelope, so E-NOID does not collapse into E-EXIT', async () => {
+      /*
+      Test Doc:
+      - Why: pij emits its coded failures TWO ways. Bare, it writes `E-ARG: usage: …` at the head of
+        the stream; under `--json` — which is the only way this feature ever calls it — the same
+        failure arrives as `{"error":"E-NOID","message":"no session 'pij-x' in registry"}` on stderr
+        (verified live 2026-07-26, exit 2). Only the first form was decoded, so every JSON-mode
+        failure became E-EXIT, and "that seat does not exist" was indistinguishable from "the store
+        is broken". Phase 4's focus route separates those into a 404 and a 503, so the distinction has
+        to survive the reader.
+      - Contract: A JSON envelope whose `error` is E-code-shaped yields that code and its message; a
+        JSON body that is NOT an error envelope still yields E-EXIT rather than an invented code.
+      - Usage Notes: Both legs asserted together — the decoder must be strict, not merely willing.
+      - Quality Contribution: Restores the honest-unknown boundary at the one place a wrong code now
+        changes an HTTP status.
+      - Worked Example: E-NOID envelope → code 'E-NOID'; `{"oops":true}` → code 'E-EXIT'.
+      */
+      const exec = new FakePijExecutor()
+        .when(['node', 'show', 'pij-gone', '--json'])
+        .fails(
+          execFileFailure({
+            code: 2,
+            stderr: '{"error":"E-NOID","message":"no session \'pij-gone\' in registry"}',
+          })
+        )
+        .when(['node', 'show', 'pij-odd', '--json'])
+        .fails(execFileFailure({ code: 1, stderr: '{"oops":true}' }));
+      const records = createPijRecords({ exec: exec.exec, defaultCwd: WORKSPACE });
+
+      await expect(records.nodeShow('pij-gone')).rejects.toMatchObject({
+        code: 'E-NOID',
+        message: "no session 'pij-gone' in registry",
+      });
+      await expect(records.nodeShow('pij-odd')).rejects.toMatchObject({ code: 'E-EXIT' });
     });
 
     it('maps a killed-by-timeout invocation to E-TIMEOUT', async () => {
@@ -278,7 +369,9 @@ describe('createPijRecords', () => {
       - Quality Contribution: Separates "slow" from "broken" in the one place a human reads it.
       - Worked Example: killed:true → code 'E-TIMEOUT'.
       */
-      const exec = new FakePijExecutor().when(['list', '--json']).fails(execFileTimeout());
+      const exec = new FakePijExecutor()
+        .when(['list', '--json', '--badge'])
+        .fails(execFileTimeout());
       const records = createPijRecords({ exec: exec.exec, defaultCwd: WORKSPACE });
 
       await expect(records.list()).rejects.toMatchObject({ code: 'E-TIMEOUT' });
@@ -294,7 +387,7 @@ describe('createPijRecords', () => {
       - Quality Contribution: No unhandled throw can reach the poller loop from this adapter.
       - Worked Example: stdout '[{"id":' → code 'E-PARSE'.
       */
-      const exec = new FakePijExecutor().when(['list', '--json']).returns('[{"id":');
+      const exec = new FakePijExecutor().when(['list', '--json', '--badge']).returns('[{"id":');
       const records = createPijRecords({ exec: exec.exec, defaultCwd: WORKSPACE });
 
       await expect(records.list()).rejects.toMatchObject({ code: 'E-PARSE' });
@@ -310,7 +403,7 @@ describe('createPijRecords', () => {
       - Quality Contribution: Stops drift from surfacing as a plausible empty fleet.
       - Worked Example: stdout '{"rows":[]}' → code 'E-SHAPE'.
       */
-      const exec = new FakePijExecutor().when(['list', '--json']).returns('{"rows":[]}');
+      const exec = new FakePijExecutor().when(['list', '--json', '--badge']).returns('{"rows":[]}');
       const records = createPijRecords({ exec: exec.exec, defaultCwd: WORKSPACE });
 
       await expect(records.list()).rejects.toMatchObject({ code: 'E-SHAPE' });
@@ -347,7 +440,7 @@ describe('createPijRecords', () => {
       - Worked Example: ids ['pij-normal-seat','shipname'].
       */
       const exec = new FakePijExecutor().whenJson(
-        ['list', '--json'],
+        ['list', '--json', '--badge'],
         [listRow(), listRow({ id: 'shipname', prime: false, unadopted: false })]
       );
       const records = createPijRecords({ exec: exec.exec, defaultCwd: WORKSPACE });

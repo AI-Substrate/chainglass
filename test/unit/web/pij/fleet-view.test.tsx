@@ -392,6 +392,32 @@ describe('FleetView — where the assignment text comes from', () => {
     );
   });
 
+  it('renders the badge pij reported, verbatim, and renders nothing when a row has none', async () => {
+    /*
+    Test Doc:
+    - Why: Phase 4's `--badge` adoption makes this column live for the first time. Two observed
+      states exist and only two (measured on 181 live rows: with the flag every row carries a
+      string, without it the key is absent on every row) — so the view must render the string
+      exactly as given, and render nothing at all for the absent case. There is no null leg to
+      handle, and inventing a placeholder for one would be inventing a state pij does not report.
+    - Contract: `badge: 'blocked'` → the literal text 'blocked'; a row with no `badge` key → no
+      badge element at all.
+    - Usage Notes: `UI_WORKER_IDS[1]` is the fixture row deliberately kept badge-less.
+    - Quality Contribution: Pins AC-03 at the render boundary — consumed verbatim, never re-derived,
+      and absence rendered as absence.
+    - Worked Example: 'blocked' shown; the badge-less seat has no seat-badge testid.
+    */
+    renderFleet({
+      rows: [
+        fleetRow(UI_PRIME_ID, { prime: true, state: 'working', badge: 'blocked' }),
+        fleetRow(UI_WORKER_IDS[1], { state: 'idle' }),
+      ],
+    });
+
+    expect(screen.getByTestId(`seat-badge-${UI_PRIME_ID}`).textContent).toBe('blocked');
+    expect(screen.queryByTestId(`seat-badge-${UI_WORKER_IDS[1]}`)).toBeNull();
+  });
+
   it('says "(no assignment)" when neither read has one — never a guess from the id', async () => {
     render(
       <FleetView

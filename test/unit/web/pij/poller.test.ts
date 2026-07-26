@@ -87,7 +87,8 @@ function buildPoller(
 ) {
   const cursor = options.cursor ?? new FakeSpineCursor(100);
   const exec =
-    options.exec ?? new FakePijExecutor().whenJson(['list', '--json'], [listRow('pij-a')]);
+    options.exec ??
+    new FakePijExecutor().whenJson(['list', '--json', '--badge'], [listRow('pij-a')]);
   const scheduler = new FakeScheduler();
   const broadcaster = new BroadcastRecorder();
   const poller = createPijPoller({
@@ -217,7 +218,7 @@ describe('PijPollerService — the fan-out filter (Finding 03, C-08)', () => {
     );
     cursor.queueEvents(events);
     const exec = new FakePijExecutor().whenJson(
-      ['list', '--json'],
+      ['list', '--json', '--badge'],
       [listRow('pij-seat-0'), listRow('pij-seat-1'), listRow('pij-seat-2')]
     );
 
@@ -378,7 +379,7 @@ describe('PijPollerService — the slow loop (C-10)', () => {
     await scheduler.fire(SLOW_LOOP_MS);
 
     expect(exec.calls.length - afterStart).toBe(1);
-    expect(exec.lastArgs).toEqual(['list', '--json']);
+    expect(exec.lastArgs).toEqual(['list', '--json', '--badge']);
   });
 
   it('broadcasts only the rows that actually changed', async () => {
@@ -391,7 +392,7 @@ describe('PijPollerService — the slow loop (C-10)', () => {
     - Worked Example: second tick → 1 row, id 'pij-b'.
     */
     const exec = new FakePijExecutor().whenJson(
-      ['list', '--json'],
+      ['list', '--json', '--badge'],
       [listRow('pij-a'), listRow('pij-b')]
     );
     const { poller, scheduler, broadcaster } = buildPoller({ exec });
@@ -401,7 +402,10 @@ describe('PijPollerService — the slow loop (C-10)', () => {
     await scheduler.fire(SLOW_LOOP_MS);
     expect(broadcaster.sent).toHaveLength(0);
 
-    exec.whenJson(['list', '--json'], [listRow('pij-a'), listRow('pij-b', { state: 'working' })]);
+    exec.whenJson(
+      ['list', '--json', '--badge'],
+      [listRow('pij-a'), listRow('pij-b', { state: 'working' })]
+    );
     await scheduler.fire(SLOW_LOOP_MS);
 
     const [delta] = broadcaster.ofType('fleet-delta') as Array<
@@ -422,14 +426,14 @@ describe('PijPollerService — the slow loop (C-10)', () => {
     - Worked Example: pij-b disappears → removed: ['pij-b'].
     */
     const exec = new FakePijExecutor().whenJson(
-      ['list', '--json'],
+      ['list', '--json', '--badge'],
       [listRow('pij-a'), listRow('pij-b')]
     );
     const { poller, scheduler, broadcaster } = buildPoller({ exec });
     await poller.start();
     broadcaster.reset();
 
-    exec.whenJson(['list', '--json'], [listRow('pij-a')]);
+    exec.whenJson(['list', '--json', '--badge'], [listRow('pij-a')]);
     await scheduler.fire(SLOW_LOOP_MS);
 
     const [delta] = broadcaster.ofType('fleet-delta') as Array<
@@ -453,13 +457,13 @@ describe('PijPollerService — degraded mode (AC-09) and honest emptiness (AC-08
     - Quality Contribution: The behaviour AC-09 names, tested rather than intended.
     - Worked Example: after the failure, snapshot still has pij-a and status.lastError.code E-EXIT.
     */
-    const exec = new FakePijExecutor().whenJson(['list', '--json'], [listRow('pij-a')]);
+    const exec = new FakePijExecutor().whenJson(['list', '--json', '--badge'], [listRow('pij-a')]);
     const { poller, scheduler, broadcaster } = buildPoller({ exec });
     await poller.start();
     expect(poller.snapshot().rows).toHaveLength(1);
     broadcaster.reset();
 
-    exec.when(['list', '--json']).fails(execFileFailure({ stderr: 'store on fire' }));
+    exec.when(['list', '--json', '--badge']).fails(execFileFailure({ stderr: 'store on fire' }));
     await scheduler.fire(SLOW_LOOP_MS);
 
     const [status] = broadcaster.ofType('poller-status') as Array<
@@ -480,13 +484,13 @@ describe('PijPollerService — degraded mode (AC-09) and honest emptiness (AC-08
     - Worked Example: lastError null again after recovery.
     */
     const exec = new FakePijExecutor()
-      .when(['list', '--json'])
+      .when(['list', '--json', '--badge'])
       .fails(execFileFailure({ stderr: 'x' }));
     const { poller, scheduler } = buildPoller({ exec });
     await poller.start();
     expect(poller.snapshot().status.lastError).not.toBeNull();
 
-    exec.whenJson(['list', '--json'], [listRow('pij-a')]);
+    exec.whenJson(['list', '--json', '--badge'], [listRow('pij-a')]);
     await scheduler.fire(SLOW_LOOP_MS);
 
     expect(poller.snapshot().status.lastError).toBeNull();
@@ -510,7 +514,9 @@ describe('PijPollerService — degraded mode (AC-09) and honest emptiness (AC-08
       lastError: null,
     });
 
-    const empty = buildPoller({ exec: new FakePijExecutor().whenJson(['list', '--json'], []) });
+    const empty = buildPoller({
+      exec: new FakePijExecutor().whenJson(['list', '--json', '--badge'], []),
+    });
     await empty.poller.start();
     expect(empty.poller.snapshot().status).toMatchObject({
       running: true,
@@ -521,7 +527,7 @@ describe('PijPollerService — degraded mode (AC-09) and honest emptiness (AC-08
 
     const broken = buildPoller({
       exec: new FakePijExecutor()
-        .when(['list', '--json'])
+        .when(['list', '--json', '--badge'])
         .fails(execFileFailure({ stderr: 'nope' })),
     });
     await broken.poller.start();
@@ -644,7 +650,7 @@ describe('PijPollerService — workspace scoping is a server-side filter (F-13)'
     - Worked Example: workspace filter yields 1 of 2 rows, 0 extra calls.
     */
     const exec = new FakePijExecutor().whenJson(
-      ['list', '--json'],
+      ['list', '--json', '--badge'],
       [listRow('pij-here'), listRow('pij-there', { folder: '/Users/fixture/other-repo' })]
     );
     const { poller, exec: recorded } = buildPoller({ exec });

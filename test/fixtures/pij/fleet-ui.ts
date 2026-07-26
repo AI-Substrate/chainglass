@@ -144,8 +144,9 @@ export const UI_FLEET_ROWS: FleetRow[] = [
     contextMax: 1_000_000,
     contextCurrent: { value: 104_542, asOf: minutesAgo(1), provenance: 'claude-transcript' },
   }),
-  // No `badge`: `pij list` never carries one, and the view must render that absence rather than
-  // re-derive it (AC-03).
+  // No `badge`. Since Phase 4 the poller asks for badges (`pij list --json --badge`) and live rows
+  // carry one 181/181 — but the flag is a request, not a guarantee, and a row that arrives without
+  // one must render the absence rather than re-derive it (AC-03). This row keeps that leg covered.
   fleetRow(UI_WORKER_IDS[1], { state: 'idle', harness: 'codex', boundModel: 'gpt-5' }),
   fleetRow(UI_SOLO_ID, { state: 'idle', currentTask: 'Land the SSE mux teardown' }),
   fleetRow(UI_LOOSE_ID, { state: 'idle', unadopted: true, harness: 'pi' }),

@@ -18,6 +18,7 @@ import type {
   PijReadOptions,
   PijStateReport,
   PijTree,
+  PijTreeScope,
 } from './pij-records.interface';
 
 /** The binary. Resolved from PATH by execFile — never invoked through a shell. */
@@ -122,7 +123,13 @@ class CliPijRecords implements IPijRecords {
   async list(options: PijReadOptions = {}): Promise<PijListRow[]> {
     // ONE global call (F-13). Workspace scoping is a server-side filter on `folder`, never `--here`:
     // 177 rows / ~135KB is cheap, and a second CLI call per workspace is not.
-    const payload = await this.run(['list', '--json'], options);
+    //
+    // `--badge` (Phase 4): the badge is a ruled worst-first derivation across two state vocabularies
+    // and pij is the only thing entitled to compute it (AC-03). It is requested HERE rather than at
+    // the call sites because the poller — the only production caller — calls `list()` bare, so the
+    // argv is the only place the decision can be made. It costs ~0.2s of the 8s loop (measured:
+    // 0.45–0.52s without, 0.66–0.71s with, over three runs at 181 rows), which the loop absorbs.
+    const payload = await this.run(['list', '--json', '--badge'], options);
     if (!Array.isArray(payload)) {
       throw new PijCliError({
         code: 'E-SHAPE',
@@ -133,8 +140,13 @@ class CliPijRecords implements IPijRecords {
     return payload as PijListRow[];
   }
 
-  async tree(options: { cwd: string }): Promise<PijTree> {
-    const payload = await this.run(['tree', '--json'], options);
+  async tree(options: PijTreeScope): Promise<PijTree> {
+    // `--global` ignores cwd, so the global read runs on `defaultCwd` — a child process still has to
+    // start somewhere. The flag, not the directory, is what makes the answer global; that is why it
+    // is a distinct argv rather than "cwd omitted".
+    const global = 'global' in options;
+    const args = global ? ['tree', '--global', '--json'] : ['tree', '--json'];
+    const payload = await this.run(args, global ? {} : { cwd: options.cwd });
     if (
       typeof payload !== 'object' ||
       payload === null ||
@@ -215,10 +227,22 @@ function toPijCliError(error: unknown, verb: string): PijCliError {
     });
   }
 
+  const stream = stderr || (detail.stdout ?? '').trim();
+
   // pij writes its own error codes at the head of the stream: `E-ARG: usage: pij state <id>`.
-  const coded = /^(E-[A-Z0-9]+):\s*(.*)$/m.exec(stderr || (detail.stdout ?? '').trim());
+  const coded = /^(E-[A-Z0-9]+):\s*(.*)$/m.exec(stream);
   if (coded) {
     return new PijCliError({ code: coded[1], verb, message: coded[2], stderr });
+  }
+
+  // …except under `--json`, where the SAME failure arrives as a JSON envelope on stderr:
+  // `{"error":"E-NOID","message":"no session 'pij-x' in registry"}` (verified live 2026-07-26).
+  // Without this leg every such failure collapses to E-EXIT, and "that seat does not exist" becomes
+  // indistinguishable from "the store is broken" — a distinction the focus route's 404-vs-503 ladder
+  // is built on.
+  const envelope = parseJsonErrorEnvelope(stream);
+  if (envelope) {
+    return new PijCliError({ code: envelope.code, verb, message: envelope.message, stderr });
   }
 
   return new PijCliError({
@@ -227,6 +251,32 @@ function toPijCliError(error: unknown, verb: string): PijCliError {
     message: detail.message ?? `[pij] ${verb} failed`,
     stderr,
   });
+}
+
+/**
+ * Decode pij's `--json` error envelope, or return null if the stream is not one.
+ *
+ * Strict on purpose: only an object whose `error` is E-code-shaped counts. Anything looser would
+ * start inventing codes out of unrelated JSON that happens to have an `error` key.
+ */
+function parseJsonErrorEnvelope(stream: string): { code: string; message: string } | null {
+  const trimmed = stream.trim();
+  if (!trimmed.startsWith('{')) return null;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return null;
+  }
+
+  const body = parsed as { error?: unknown; message?: unknown };
+  if (typeof body.error !== 'string' || !/^E-[A-Z0-9]+$/.test(body.error)) return null;
+
+  return {
+    code: body.error,
+    message: typeof body.message === 'string' ? body.message : body.error,
+  };
 }
 
 /** The real seam. `execFile` — a fixed argv array, no shell, bounded by a timeout. */

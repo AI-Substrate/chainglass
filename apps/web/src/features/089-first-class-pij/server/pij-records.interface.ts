@@ -54,6 +54,15 @@ export interface PijListRow {
   [additive: string]: unknown;
 }
 
+/**
+ * How a tree read is scoped. Exactly one of the two, never both and never neither.
+ *
+ * Modelled as a union rather than an optional flag because the two reads answer different questions
+ * and a caller that supplies neither would silently get the *server's own repo* — the trap this
+ * module's `cwd` discipline exists to close, pointing the other way.
+ */
+export type PijTreeScope = { cwd: string } | { global: true };
+
 /** A node of `pij tree --json`. Repo-scoped from cwd — 7KB here vs ~100KB global. */
 export interface PijTreeNode {
   id: string;
@@ -95,6 +104,23 @@ export interface PijNodeDetail {
   paneId?: string;
   /** tmux window; the ONLY sanctioned focus mechanism, and only on a human click (C-06, Phase 4). */
   windowId?: string;
+  /**
+   * The seat's working directory — and the focus route's containment key.
+   *
+   * **Note the name.** `pij list` rows call this `folder`; `node show` calls it `cwd`, and carries no
+   * `folder` key at all (verified live 2026-07-26 against the full key set). The values agree; the
+   * names do not. A containment check written against `detail.folder` reads `undefined`, and
+   * `undefined` fails containment for every seat — a focus button that always refuses, for a reason
+   * that looks like a policy decision.
+   */
+  cwd?: string;
+  /**
+   * The daemon's liveness observation. Phase 4 reads it to refuse focusing a seat that is not there.
+   * ABSENT is its own case: it means not observable, and must never be inferred from `lastEventAt`.
+   */
+  liveness?: string;
+  /** The freshness axis, echoed in the not-live refusal so the human sees what was observed and when. */
+  lastEventAt?: string | null;
   boundModel?: string | null;
   effort?: string | null;
   contextMax?: number | null;
@@ -123,8 +149,12 @@ export interface IPijRecords {
    * on `folder`, not a second CLI call.
    */
   list(options?: PijReadOptions): Promise<PijListRow[]>;
-  /** Repo-scoped session forest. `cwd` is REQUIRED: the whole point of the call is its scope. */
-  tree(options: { cwd: string }): Promise<PijTree>;
+  /**
+   * The session forest, at one of two scopes. `{ cwd }` is the repo-scoped read (~7KB);
+   * `{ global: true }` is the whole machine (~63KB, 30 roots / 52 nodes measured 2026-07-26). The
+   * scope is REQUIRED either way: the whole point of the call is which forest it returns.
+   */
+  tree(options: PijTreeScope): Promise<PijTree>;
   nodeShow(id: string, options?: PijReadOptions): Promise<PijNodeDetail>;
   state(id: string, options?: PijReadOptions): Promise<PijStateReport>;
   /**

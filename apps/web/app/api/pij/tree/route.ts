@@ -14,6 +14,7 @@ import { auth } from '@/auth';
 import type { NextRequest } from 'next/server';
 import {
   type PijRouteDeps,
+  ambiguousParams,
   missingParam,
   requirePijSession,
   snapshotResponse,
@@ -32,13 +33,22 @@ export async function handlePijTreeRequest(
   const unauthorized = await requirePijSession(deps);
   if (unauthorized) return unauthorized;
 
+  // Exactly one scope, checked BEFORE anything is read: a rejected request must not cost a CLI call.
   const workspace = workspaceParam(request);
-  if (!workspace) return missingParam('workspace');
+  const global = request.nextUrl.searchParams.get('global') === '1';
+  if (workspace && global) return ambiguousParams('workspace', 'global');
+  if (!workspace && !global) return missingParam('workspace');
 
   try {
-    const tree = await deps.poller.records.tree({ cwd: workspace });
+    // Branching on `workspace` rather than on `global` lets the type narrow on its own — after the
+    // ladder above, "no workspace" can only mean global.
+    const tree = workspace
+      ? await deps.poller.records.tree({ cwd: workspace })
+      : await deps.poller.records.tree({ global: true });
     const snapshot = deps.poller.snapshot();
-    const data: TreeSnapshotData = { workspace, roots: tree.roots };
+    // `workspace: null` is the global answer's honest scope. Echoing a path here would label the
+    // whole machine as one repo, which is precisely the claim the global page must not make.
+    const data: TreeSnapshotData = { workspace: global ? null : workspace, roots: tree.roots };
     return snapshotResponse(snapshot.seq, snapshot.at, data);
   } catch (error) {
     return storeUnreadable(error);

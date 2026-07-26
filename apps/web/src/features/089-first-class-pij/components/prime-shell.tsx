@@ -15,7 +15,7 @@ import type { PrimeShell as PrimeShellModel } from '../lib/fleet-grouping';
 import type { PijId } from '../types';
 import { Freshness } from './freshness';
 import { RoleChip, seatRole } from './role-chip';
-import { ObservedState } from './seat-row';
+import { FocusButton, ObservedState } from './seat-row';
 import type { FlowContext } from './stage-strip';
 import { TeamSection, shortenHome } from './team-section';
 
@@ -49,6 +49,10 @@ export function PrimeShell({
         </span>
         <span className="flex-1" />
         <Freshness at={shell.lead.row?.lastEventAt} now={now} />
+        {/* The prime is a seat with a window like any other. It renders in this custom header rather
+            than in a SeatRow, so without this line it would be the one visible seat in the workspace
+            view with no focus affordance — a gap a reader would have to guess the meaning of. */}
+        <FocusButton placement={shell.lead} />
       </div>
 
       <div className="ml-3.5 flex flex-col border-l-[3px] border-purple-300/60 px-3.5 pb-1.5 pt-3 dark:border-purple-400/30">

@@ -7,16 +7,20 @@
  * - **No pid, no pane id.** Not hidden — absent. `FleetRow` cannot carry them (C-03), so there is no
  *   field to leak, and the tree renderer that does see them strips them explicitly.
  * - **No re-derived badge.** `badge` is a worst-first derivation across two state vocabularies that
- *   only `pij node show` computes. When it is absent the row says nothing rather than synthesising
- *   one from the fields that happen to be present — a synthetic badge drifts from pij exactly when an
- *   open assignment carries the worse state, which is exactly when it matters (AC-03).
+ *   only pij computes. Since Phase 4 the poller's `pij list --json --badge` supplies it for every row,
+ *   so in practice it is nearly always present — but the absence rendering stays, because the flag is
+ *   a request and not a guarantee, and a row that arrives without one must say nothing rather than
+ *   synthesise a badge from whatever fields are present. A synthetic badge drifts from pij exactly
+ *   when an open assignment carries the worse state, which is exactly when it matters (AC-03).
  * - **No verdicts.** The observed column shows the daemon's own word. The one exception is the POC's
  *   ratified relabel of `stalled`, which is a verdict about a human's work rather than an
  *   observation, and is shown as the observation underneath it: how long the seat has been quiet.
  */
 'use client';
 
+import { useSeatFocus } from '../hooks/use-seat-focus';
 import { type SeatPlacement, seatTask } from '../lib/fleet-grouping';
+import { isFolderInWorkspacePath } from '../lib/folder-containment';
 import { formatElapsed } from '../lib/relative-time';
 import { ContextGauge, Freshness, Provenance } from './freshness';
 import { RoleChip, seatRole } from './role-chip';
@@ -52,9 +56,12 @@ export function ObservedState({ placement, now }: { placement: SeatPlacement; no
       {row.liveness ? (
         <span className="text-[11px] text-muted-foreground">· {row.liveness}</span>
       ) : null}
-      {/* Present only when a `node show` has happened. Absence is information, so it is left blank. */}
+      {/* Rendered verbatim, never re-derived. Absence is information, so it is left blank. */}
       {row.badge ? (
-        <span className="rounded-full border border-border px-1.5 text-[10px] text-muted-foreground">
+        <span
+          data-testid={`seat-badge-${placement.id}`}
+          className="rounded-full border border-border px-1.5 text-[10px] text-muted-foreground"
+        >
           {row.badge}
         </span>
       ) : null}
@@ -79,6 +86,61 @@ function Flags({ placement }: { placement: SeatPlacement }) {
           {flag}
         </span>
       ))}
+    </span>
+  );
+}
+
+/**
+ * The focus button — the ONLY thing in this feature that can reach the mutating route (C-06).
+ *
+ * Three states, and the middle one is the interesting one:
+ *
+ * - **Absent** where there is no provider (the global fleet list), because there is no workspace to
+ *   check containment against and therefore no honest button to offer.
+ * - **Disabled** for a seat whose folder is outside this workspace. Disabled rather than hidden: the
+ *   seat is visible in the list, so silently omitting its button would read as a rendering gap. The
+ *   title says which directory it actually works in.
+ * - **Enabled** otherwise — and even then the server checks containment again, because the client's
+ *   copy of `folder` is as old as the last snapshot.
+ */
+export function FocusButton({ placement }: { placement: SeatPlacement }) {
+  const focus = useSeatFocus();
+  if (!focus) return null;
+
+  const folder = placement.row?.folder ?? placement.node?.folder ?? '';
+  const inWorkspace = isFolderInWorkspacePath(folder, focus.workspacePath);
+  const outcome = focus.outcomes[placement.id];
+  const busy = focus.pending === placement.id;
+
+  return (
+    <span className="inline-flex flex-col items-end gap-0.5">
+      <button
+        type="button"
+        data-testid={`focus-seat-${placement.id}`}
+        disabled={!inWorkspace || busy}
+        // Names what the human gets, not the mechanism that delivers it. The C-02 fence bans the
+        // window manager's name in client code and it is right to: the browser must never be the
+        // thing driving it, and a tooltip that talks about it is one refactor from code that does.
+        title={
+          inWorkspace
+            ? 'Bring this seat’s window to the front'
+            : `seat works in ${folder || '(no folder on record)'}, outside this workspace`
+        }
+        onClick={() => focus.focus(placement.id)}
+        className="rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        {busy ? 'focusing…' : 'focus'}
+      </button>
+      {/* The route's own sentence, verbatim. Never re-worded into a verdict. */}
+      {outcome ? (
+        <span
+          data-testid={`focus-result-${placement.id}`}
+          data-reason={outcome.focused ? 'focused' : (outcome.reason ?? 'failed')}
+          className={`max-w-[220px] text-right text-[10px] ${outcome.focused ? 'text-muted-foreground' : 'text-amber-700 dark:text-amber-400'}`}
+        >
+          {outcome.observation}
+        </span>
+      ) : null}
     </span>
   );
 }
@@ -145,13 +207,17 @@ export function SeatRow({ placement, now }: { placement: SeatPlacement; now: num
       <div>
         <Flags placement={placement} />
       </div>
-      <div className="flex flex-col items-end">
+      <div className="flex flex-col items-end gap-0.5">
         <Freshness at={row?.lastEventAt} now={now} />
         {row?.contextCurrent ? (
           <span className="text-[10px] text-muted-foreground">
             <ContextGauge row={row} />
           </span>
         ) : null}
+        {/* Stacked here rather than given its own column: the column headings are shared with the
+            global list, which has no focus affordance, and a "focus" heading over empty cells there
+            would advertise something the page cannot do. */}
+        <FocusButton placement={placement} />
       </div>
     </div>
   );

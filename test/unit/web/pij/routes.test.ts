@@ -85,7 +85,7 @@ async function makeDeps(
   const exec =
     overrides.exec ??
     new FakePijExecutor()
-      .whenJson(['list', '--json'], [listRow('pij-here'), listRow('pij-there', OTHER)])
+      .whenJson(['list', '--json', '--badge'], [listRow('pij-here'), listRow('pij-there', OTHER)])
       .whenJson(['tree', '--json'], { roots: [{ id: 'pij-here', unadopted: true }] });
 
   const poller = createPijPoller({
@@ -224,7 +224,9 @@ describe('/api/pij/fleet', () => {
     - Quality Contribution: Makes the trichotomy renderable from one response.
     - Worked Example: rows [] with running true, lastError null, lastRecordsPollAt set.
     */
-    const deps = await makeDeps({ exec: new FakePijExecutor().whenJson(['list', '--json'], []) });
+    const deps = await makeDeps({
+      exec: new FakePijExecutor().whenJson(['list', '--json', '--badge'], []),
+    });
 
     const body = await (await handlePijFleetRequest(request('/api/pij/fleet'), deps)).json();
 
@@ -297,6 +299,75 @@ describe('/api/pij/tree', () => {
     expect(body.data.roots[0].unadopted).toBe(true);
   });
 
+  it('serves the whole machine for `global=1`, with workspace recorded as null', async () => {
+    /*
+    Test Doc:
+    - Why: Phase 4's global page has no workspace to name. The snapshot's `workspace` field is what
+      the page renders its scope from, so a global read that echoed some path would label the whole
+      machine as one repo.
+    - Contract: `?global=1` → 200, argv carries `--global`, `data.workspace` is null, roots pass
+      through verbatim.
+    - Usage Notes: The global stub is registered against ANY cwd — `--global` makes cwd irrelevant.
+    - Quality Contribution: Keeps the global page's scope claim honest at the source.
+    - Worked Example: global=1 → { workspace: null, roots: [ 'pij-anywhere' ] }.
+    */
+    const exec = new FakePijExecutor()
+      .whenJson(['list', '--json', '--badge'], [])
+      .whenJson(['tree', '--global', '--json'], { roots: [{ id: 'pij-anywhere', prime: true }] });
+    const deps = await makeDeps({ exec });
+
+    const response = await handlePijTreeRequest(request('/api/pij/tree?global=1'), deps);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(deps.exec.lastArgs).toEqual(['tree', '--global', '--json']);
+    expect(body.data.workspace).toBeNull();
+    expect(body.data.roots[0].id).toBe('pij-anywhere');
+  });
+
+  it('refuses a request that names both a workspace and global, rather than picking one', async () => {
+    /*
+    Test Doc:
+    - Why: `?workspace=/w&global=1` is a caller that does not know what it wants. Either silent
+      resolution ships a wrong answer half the time, and the wrong half is invisible: a global page
+      showing one repo, or a workspace page showing the machine.
+    - Contract: Both params → 400; neither → 400. The 400 names the ambiguity.
+    - Usage Notes: The existing "no workspace" 400 is the `neither` leg — asserted here together so
+      the ladder is visible in one place.
+    - Quality Contribution: Makes the ambiguous request unrepresentable in the response set.
+    - Worked Example: both → 400 mentioning both parameters.
+    */
+    const deps = await makeDeps();
+
+    const both = await handlePijTreeRequest(
+      request(`/api/pij/tree?workspace=${WORKSPACE}&global=1`),
+      deps
+    );
+    const neither = await handlePijTreeRequest(request('/api/pij/tree'), deps);
+
+    expect(both.status).toBe(400);
+    expect((await both.json()).error).toMatch(/workspace.*global|global.*workspace/i);
+    expect(neither.status).toBe(400);
+  });
+
+  it('does not reach the CLI at all for an ambiguous request', async () => {
+    /*
+    Test Doc:
+    - Why: A 400 that still spawned a process would mean the validation ladder runs after the work,
+      which is how a rejected request still costs 0.5s of CLI and still scopes wrongly.
+    - Contract: No exec call is recorded for the both-params request.
+    - Usage Notes: Compares call counts across the request.
+    - Quality Contribution: Keeps validation genuinely ahead of the read.
+    - Worked Example: both-params → exec.calls unchanged.
+    */
+    const deps = await makeDeps();
+    const before = deps.exec.calls.length;
+
+    await handlePijTreeRequest(request(`/api/pij/tree?workspace=${WORKSPACE}&global=1`), deps);
+
+    expect(deps.exec.calls.length).toBe(before);
+  });
+
   it('returns 503 with the pij error code when the store cannot be read', async () => {
     /*
     Test Doc:
@@ -308,7 +379,7 @@ describe('/api/pij/tree', () => {
     - Worked Example: 503, code 'E-EXIT'.
     */
     const exec = new FakePijExecutor()
-      .whenJson(['list', '--json'], [])
+      .whenJson(['list', '--json', '--badge'], [])
       .when(['tree', '--json'])
       .fails(execFileFailure({ stderr: 'store on fire' }));
     const deps = await makeDeps({ exec });
@@ -460,7 +531,7 @@ describe('/api/pij/status — what AC-08 renders', () => {
     */
     const deps = await makeDeps({
       exec: new FakePijExecutor()
-        .when(['list', '--json'])
+        .when(['list', '--json', '--badge'])
         .fails(execFileFailure({ stderr: 'nope' })),
     });
 

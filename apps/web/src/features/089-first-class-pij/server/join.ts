@@ -76,10 +76,14 @@ export function joinSeatsToWorkspace(rows: PijListRow[], workspacePath: string):
 /**
  * Project a raw list row onto a view row.
  *
- * Note what this does NOT do: it never computes a badge. `pij list` rows carry no badge (measured
- * 2026-07-26), and the badge is a ruled worst-first derivation across two vocabularies. Synthesising
- * one from the fields we happen to have would drift from pij exactly when an open assignment carries
- * the worse state — i.e. exactly when the badge matters (AC-03).
+ * Note what this does NOT do: it never computes a badge. It only ever COPIES one.
+ *
+ * Where the badge comes from changed in Phase 4 and the rule did not. Bare `pij list` rows carry no
+ * badge at all (measured 2026-07-26: the key is absent on 181 of 181 rows); with `--badge`, which the
+ * poller's reader now always passes, every row carries a string (181 of 181, none null). Both states
+ * pass through this line unchanged, because the badge is a ruled worst-first derivation across two
+ * vocabularies and synthesising one from the fields we happen to have would drift from pij exactly
+ * when an open assignment carries the worse state — i.e. exactly when the badge matters (AC-03).
  */
 export function toFleetRow(row: PijListRow): FleetRow {
   const extra: Record<string, unknown> = {};

@@ -19,6 +19,7 @@
 'use client';
 
 import { useMemo } from 'react';
+import { SeatFocusProvider } from '../hooks/use-seat-focus';
 import { groupFleet, isWithinIdleWindow } from '../lib/fleet-grouping';
 import type { PijTreeNode } from '../server/pij-records.interface';
 import type { FleetRow, PijId, PollerStatus } from '../types';
@@ -49,6 +50,8 @@ export interface FleetViewProps {
    * measured reason — which is why "⛭ no flow" is the normal rendering rather than a fallback.
    */
   flowFor?: (id: PijId) => FlowContext | undefined;
+  /** Test seam for the focus route. Production uses the global `fetch`. */
+  focusFetchImpl?: typeof fetch;
 }
 
 export function FleetView(props: FleetViewProps) {
@@ -141,7 +144,11 @@ export function FleetView(props: FleetViewProps) {
           ))}
         </div>
       ) : (
-        <>
+        /* The focus affordance exists ONLY here (C-06, T006). The global branch above mounts no
+           provider, so every row in it renders no button — an absence by construction rather than a
+           conditional someone can forget: there is no workspace up there to check containment
+           against, and a button that cannot know whether it is allowed is a button that lies. */
+        <SeatFocusProvider workspacePath={props.workspacePath} fetchImpl={props.focusFetchImpl}>
           {grouping.primes.map((shell) => (
             <PrimeShell key={shell.lead.id} shell={shell} now={now} flowFor={props.flowFor} />
           ))}
@@ -161,7 +168,7 @@ export function FleetView(props: FleetViewProps) {
               ))}
             </>
           ) : null}
-        </>
+        </SeatFocusProvider>
       )}
     </div>
   );

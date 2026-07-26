@@ -15,6 +15,19 @@ import type { PijSnapshot } from '../types';
 import type { PijPollerService } from './pij-poller.service';
 import { PijCliError } from './pij-records';
 
+/**
+ * The process seam for the ONE mutating route (Phase 4, C-06).
+ *
+ * `execFile`-shaped like {@link PijExecutor} and for the same reason: a command plus a fixed argv
+ * array, never a shell string. Deliberately named for its ROLE rather than for the program it runs,
+ * so the tmux vocabulary stays confined to the single file the fence carves out.
+ */
+export type FocusExecutor = (
+  command: string,
+  args: readonly string[],
+  options: { timeoutMs: number }
+) => Promise<void>;
+
 /** Injectable dependencies, exactly the `MuxDeps` shape and for exactly the same reason. */
 export interface PijRouteDeps {
   authFn: () => Promise<unknown>;
@@ -24,6 +37,11 @@ export interface PijRouteDeps {
    * Optional, so the other two routes and every existing test construct these deps unchanged.
    */
   noteWorkspace?: (workspacePath: string) => void;
+  /**
+   * Phase 4: the focus route's process seam. Optional for the same reason — the four read routes
+   * never have one, and a route that cannot mutate is the correct default.
+   */
+  focusExecutor?: FocusExecutor;
 }
 
 /** Snapshots must never be cached: a cached poller status is a lie with a timestamp on it. */
@@ -54,6 +72,22 @@ export function snapshotResponse<T>(seq: number, at: string, data: T): Response 
 export function missingParam(name: string): Response {
   return NextResponse.json(
     { error: `Missing required query parameter: ${name}` },
+    { status: 400, headers: NO_STORE_HEADERS }
+  );
+}
+
+/**
+ * 400 for a request that names two mutually exclusive scopes.
+ *
+ * Separate from {@link missingParam} because the two are opposite mistakes and the fix differs:
+ * one caller said nothing, the other said two things. Resolving the ambiguity silently would ship a
+ * wrong answer half the time, and the wrong half is invisible — a global view showing one repo.
+ */
+export function ambiguousParams(...names: string[]): Response {
+  return NextResponse.json(
+    {
+      error: `Ambiguous request: pass exactly one of ${names.join(', ')} — not both`,
+    },
     { status: 400, headers: NO_STORE_HEADERS }
   );
 }

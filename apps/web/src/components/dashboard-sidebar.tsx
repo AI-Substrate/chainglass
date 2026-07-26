@@ -20,7 +20,7 @@ import { PasteUploadButton } from '@/features/041-file-browser/components/paste-
 import { WorktreeIdentityPopover } from '@/features/041-file-browser/components/worktree-identity-popover';
 import { WorktreeStateSubtitle } from '@/features/041-file-browser/components/worktree-state-subtitle';
 import { useWorkspaceContext } from '@/features/041-file-browser/hooks/use-workspace-context';
-import { DEV_NAV_ITEMS } from '@/lib/navigation-utils';
+import { DEV_NAV_ITEMS, GLOBAL_NAV_ITEMS } from '@/lib/navigation-utils';
 import { cn } from '@/lib/utils';
 import {
   ChevronLeft,
@@ -31,6 +31,7 @@ import {
   Settings,
   StickyNote,
   TerminalSquare,
+  Users,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
@@ -236,6 +237,37 @@ export function DashboardSidebar() {
           </>
         )}
 
+        {/* Machine-wide surfaces (Plan 089 Phase 4) — above Dev, because the global fleet view is a
+            product surface about the whole machine, not a demo. Its own group: the sidebar has no
+            other top-level slot, since WORKSPACE_NAV_ITEMS renders under a :slug. */}
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {GLOBAL_NAV_ITEMS.map((item) => {
+                const isActive = pathname === item.href;
+                const Icon = item.icon;
+
+                return (
+                  <SidebarMenuItem key={item.id}>
+                    <SidebarMenuButton asChild isActive={isActive} tooltip={item.label}>
+                      <Link
+                        href={item.href}
+                        className={cn(
+                          'flex items-center gap-3',
+                          isActive && 'bg-accent text-accent-foreground'
+                        )}
+                      >
+                        <Icon className="h-5 w-5" />
+                        {!isCollapsed && <span>{item.label}</span>}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
         {/* Dev section — collapsed by default, hidden entirely in the compact rail */}
         {!isCollapsed && (
           <SidebarGroup>
@@ -310,6 +342,18 @@ export function DashboardSidebar() {
               </SidebarMenuButton>
             </SidebarMenuItem>
           )}
+          {/* Plan 089 Phase 4: the established CustomEvent pattern — this sidebar sits outside the
+              overlay providers and cannot reach their context directly. */}
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              onClick={() => window.dispatchEvent(new CustomEvent('pij:toggle'))}
+              tooltip="Toggle pij fleet (Cmd+Shift+F)"
+              data-testid="sidebar-pij-toggle"
+            >
+              <Users className="h-5 w-5" />
+              {!isCollapsed && <span>pij fleet</span>}
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild

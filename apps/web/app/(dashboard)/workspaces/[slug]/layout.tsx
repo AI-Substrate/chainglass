@@ -20,6 +20,7 @@ import { SDKWorkspaceConnector } from '../../../../src/lib/sdk/sdk-workspace-con
 import { MultiplexedSSEProvider } from '../../../../src/lib/sse';
 import { updateSDKMru, updateSDKSettings } from '../../../actions/sdk-settings-actions';
 import { NotesOverlayWrapper } from './notes-overlay-wrapper';
+import { PijOverlayWrapper } from './pij-overlay-wrapper';
 import { PRViewOverlayWrapper } from './pr-view-overlay-wrapper';
 import { QuestionPopperOverlayWrapper } from './question-popper-overlay-wrapper';
 import { TerminalOverlayWrapper } from './terminal-overlay-wrapper';
@@ -102,7 +103,12 @@ export default async function WorkspaceLayout({ children, params }: LayoutProps)
           <MultiplexedSSEProvider channels={[...WORKSPACE_SSE_CHANNELS]}>
             <NotesOverlayWrapper defaultWorktreePath={defaultWorktreePath}>
               <PRViewOverlayWrapper defaultWorktreePath={defaultWorktreePath}>
-                <QuestionPopperOverlayWrapper>{children}</QuestionPopperOverlayWrapper>
+                {/* Plan 089 Phase 4: INSIDE MultiplexedSSEProvider, because the panel's fleet list
+                    is live — `useChannelEvents('pij', …)` outside that provider receives nothing at
+                    all, silently. */}
+                <PijOverlayWrapper defaultWorkspacePath={defaultWorktreePath}>
+                  <QuestionPopperOverlayWrapper>{children}</QuestionPopperOverlayWrapper>
+                </PijOverlayWrapper>
               </PRViewOverlayWrapper>
             </NotesOverlayWrapper>
           </MultiplexedSSEProvider>

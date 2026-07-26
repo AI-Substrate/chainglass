@@ -34,6 +34,14 @@ a rule written down in that contract — never guessed, never estimated.
   loop and a slow CLI loop, filtering before fan-out
 - **The `pij` SSE channel vocabulary** (`types.ts` — `PijChannelEvent`)
 - **Snapshot API routes** (`app/api/pij/{fleet,tree,flow,status}`)
+- **The observatory views** (Phase 2–3) — the Fleet / Repo tree / Flows tabs, prime shells, seat rows,
+  phase rails and the designed absence states behind each
+- **The flow watcher** (`server/flow-watcher.ts`, Phase 3) — watches `docs/plans/**` flow documents
+  ONLY, and refuses a `~/.pij`-shaped path by throwing (C-04 at runtime, not just statically)
+- **The overlay** (Phase 4) — the fifth F-14 anchored sibling plus its ADR-0009 SDK contribution
+  (`pij.toggleOverlay`, `$mod+Shift+KeyF`)
+- **`POST /api/pij/focus`** (Phase 4) — **the one and only mutation in this domain.** See the manifest
+  entry below; everything else here reads.
 
 ### Does NOT Own
 - **SSE transport** — belongs to `lib/sse` (mux route, `sseManager`, `useChannelEvents`). This domain
@@ -61,6 +69,22 @@ a rule written down in that contract — never guessed, never estimated.
 | `PijPollerService` | Class | bootstrap, routes | The single reader; `start()`/`stop()`/`snapshot()` |
 | `startPijPoller()` | Function | `instrumentation.ts` | HMR-safe bootstrap; idempotent |
 | `handlePijFleetRequest` etc. | Handlers | route files, tests | Injectable-deps route cores (`PijRouteDeps`) |
+| `usePijFleet()` | Hook | page, overlay | The browser's ONE data path: three snapshots + the `pij` channel |
+| `createFlowWatcher()` / `notePijFlowWorkspace()` | Factory / fn | bootstrap, flow route | `docs/plans` watch → `refreshFlows`; lazy watch-once registration |
+| `PijOverlayProvider` / `usePijOverlay()` | Provider / hook | workspace layout | Overlay state, held in the always-mounted provider so it survives navigation |
+| `registerPijSDK()` | Function | `registerAllDomains()` | ADR-0009 command + keybinding registration |
+| `handlePijFocusRequest` | Handler | focus route, tests | **The one mutating handler.** `FocusReason` union; `FocusExecutor` seam |
+
+### The one mutation — `POST /api/pij/focus`
+
+| Property | Value |
+|----------|-------|
+| Effect | `execFile('tmux', ['select-window', '-t', windowId])` — fixed argv, no shell, 3s timeout |
+| Trigger | A human clicking the row's focus button. **Nothing else** — no effect, timer, or self-firing handler may reach it, statically asserted at both ends |
+| Window id | Resolved server-side from a FRESH `node show` at click time; never accepted from the request |
+| Containment | `detail.cwd` (NOT `folder` — `node show` has no such key) against the `workspace` param, same relative-path rule as the fleet join |
+| Refusals | `unknown-seat` 404 · `out-of-workspace` 409 · `not-live` 409 · `no-window` 409 · `store-unreadable` 503, each with a fixed observation wording the client renders verbatim |
+| Fence | The single carve-out in the C-02 tmux assertion, replaced by a stricter companion (`fence.test.ts`) — proven with planted offenders |
 
 ## Ruled Constraints (bind every line in this domain)
 
@@ -71,7 +95,7 @@ a rule written down in that contract — never guessed, never estimated.
 | C-03 | Never key a row on `paneId` or `pid` (both recycle). pij ids may be single-segment; never pattern-match id shapes |
 | C-04 | Never file-watch `~/.pij`. Poll on our clock. (Flow files are the opposite — watching them is intended, Phase 3) |
 | C-05 | `effort`/`boundModel` render as *pinned* until observed; context gauge is a value or an honest `unknown`, never an estimate |
-| C-06 | tmux window focus only as a direct response to a deliberate human click (Phase 4) |
+| C-06 | tmux window focus only as a direct response to a deliberate human click. **Shipped Phase 4** — both halves audit-tested; `select-window` is the only tmux verb the domain may name, and only in the focus route |
 | C-07 | A vanished record path is a **tier migration**, not a deletion; filter `*.tmp-*` in every directory scan |
 | C-08 | Spine `--since` is exclusive; `system-state` events dominate ~100:1 — filter server-side *before* fan-out |
 | C-09 | Flow: filter `type == "phase"` (never id patterns); walk `next[]`/`branch_of` (never a rendered chain); tolerate unknown statuses/types; completion is `nav.bag.status`, never the file set; ignore `*.legacy.*` |
@@ -87,7 +111,11 @@ a rule written down in that contract — never guessed, never estimated.
 | app shell | `instrumentation.ts` `register()` | The bootstrap slot for the fourth singleton |
 
 ### Domains That Depend On This
-_None yet — Phases 2–4 add the views inside this domain._
+| Domain | What it takes | Why |
+|--------|---------------|-----|
+| app shell (`workspaces/[slug]/layout.tsx`) | `PijOverlayWrapper` | The overlay is the fifth F-14 sibling and must sit inside `MultiplexedSSEProvider` |
+| app shell (`dashboard-sidebar.tsx`) | nothing — a `pij:toggle` CustomEvent | The sidebar is OUTSIDE the overlay providers; the event is the only seam |
+| app shell (`sdk-domain-registrations.ts`) | `registerPijSDK` | ADR-0009 |
 
 ## External Contracts Consumed
 
@@ -104,25 +132,48 @@ apps/web/src/features/089-first-class-pij/
 ├── domain.md                       # This file
 ├── index.ts                        # Barrel exports (contracts)
 ├── types.ts                        # Channel union + view types (contract)
-└── server/
-    ├── spine-cursor.interface.ts   # ISpineCursor, SpineEvent (contract)
-    ├── spine-cursor.ts             # File-backed cursor (internal)
-    ├── pij-records.interface.ts    # IPijRecords, PijExecutor, row shapes (contract)
-    ├── pij-records.ts              # execFile adapter (internal)
-    ├── flow-reader.interface.ts    # IFlowReader, FlowSummary (contract)
-    ├── flow-reader.ts              # fs adapter (internal)
-    ├── join.ts                     # seat↔workspace, flow↔project (internal)
-    ├── pij-poller.service.ts       # Two-loop poller (internal)
-    └── start-pij-poller.ts         # HMR-safe bootstrap (contract)
+├── server/
+│   ├── spine-cursor.interface.ts   # ISpineCursor, SpineEvent (contract)
+│   ├── spine-cursor.ts             # File-backed cursor (internal)
+│   ├── pij-records.interface.ts    # IPijRecords, PijExecutor, PijTreeScope, row shapes (contract)
+│   ├── pij-records.ts              # execFile adapter; read-verb allowlist (internal)
+│   ├── flow-reader.interface.ts    # IFlowReader, FlowSummary (contract)
+│   ├── flow-reader.ts              # fs adapter — the five ruled states (internal)
+│   ├── flow-watcher.ts             # docs/plans watch → refreshFlows; C-04 refusal (Phase 3)
+│   ├── join.ts                     # seat↔workspace, flow↔project, toFleetRow (internal)
+│   ├── route-deps.ts               # PijRouteDeps, FocusExecutor, shared responses
+│   ├── pij-poller.service.ts       # Two-loop poller (internal)
+│   └── start-pij-poller.ts         # HMR-safe bootstrap + watcher singleton (contract)
+├── hooks/
+│   ├── use-pij-fleet.ts            # the browser's ONE data path (Phase 2–3)
+│   ├── use-pij-overlay.tsx         # overlay state — in the provider, survives navigation (Phase 4)
+│   └── use-seat-focus.tsx          # the ONLY client-side focus fetch (Phase 4, C-06)
+├── components/                     # page shell, fleet view, prime shells, seat rows,
+│   │                               #   flows tab, phase rail, overlay panel,
+│   │                               #   global-tree.tsx + pij-global-client.tsx (Phase 4)
+│   └── …
+├── lib/                            # folder containment, fleet grouping, relative time
+└── sdk/
+    ├── contribution.ts             # ADR-0009 static manifest (pij.toggleOverlay, $mod+Shift+KeyF)
+    └── register.ts                 # registerPijSDK — dispatches the pij:toggle CustomEvent
 
 apps/web/app/api/pij/
 ├── fleet/route.ts                  # GET snapshot: fleet rows
-├── tree/route.ts                   # GET snapshot: session tree
+├── tree/route.ts                   # GET snapshot: session tree — ?workspace= OR ?global=1
 ├── flow/route.ts                   # GET snapshot: plan-folder flow states
-└── status/route.ts                 # GET poller status (AC-08 trichotomy)
+├── status/route.ts                 # GET poller status (AC-08 trichotomy)
+└── focus/route.ts                  # POST — THE ONE MUTATION (C-06). The fence's single carve-out.
+
+apps/web/app/(dashboard)/
+├── pij/page.tsx                    # the machine-wide view — OUTSIDE the workspace layout,
+│                                   #   therefore no SSE and snapshot-only by design
+└── workspaces/[slug]/
+    └── pij-overlay-wrapper.tsx     # 5th F-14 sibling: provider + dynamic panel + ErrorBoundary
 
 test/
-├── fakes/fake-pij-executor.ts      # FakePijExecutor test double
+├── fakes/fake-pij-executor.ts      # the pij CLI double
+├── fakes/fake-focus-executor.ts    # the tmux double — records argv, and silence
+├── fakes/fake-pij-api.ts           # the three snapshot routes, scriptable + deferrable
 ├── fixtures/pij/**                 # Synthetic store (one ruled hazard per fixture)
 ├── fixtures/flows/**               # Five ruled flow states + kitchen-sink
 └── unit/web/pij/*.test.ts          # TDD suites incl. the fence proof
@@ -138,9 +189,16 @@ test/
 | Pane id / pid | Both recycle — they are not identity (C-03) |
 | Seat/agent column in flow views | The dimension does not exist in flow data; `agents[]` is unpopulated until `harness flow agent` lands |
 | Estimated context gauge | A value or an honest `unknown` — never an estimate (C-05) |
+| tmux attach / keystrokes / resize | R-01: an attached client's size clamps and reflows an agent's pane and corrupts the daemon's own liveness read. Focus changes which window is *visible* and touches none of that |
+| Auto-focus of any kind | C-06. A focus nobody asked for moves the human's screen out from under them |
+| A removal signal on `flow-delta` | The poller broadcasts what it FOUND; snapshot refetch is the deletion path |
+| A second mutating route | v1 has exactly one, by ruling, and the fence is written to make a second one fail |
 
 ## History
 
 | Plan | Change | Date |
 |------|--------|------|
 | 089 Phase 1 | Domain created: spine cursor, CLI record reader, flow reader, join, two-loop poller, `pij` channel, snapshot routes, bootstrap, fence proof | 2026-07-26 |
+| 089 Phase 2 | The fleet page: prime shells, containment, seat rows, provenance, the four empty states | 2026-07-26 |
+| 089 Phase 3 | The flow view: Flows tab, phase rails, five plan states + three tab absences, the flow watcher, additive `receivedCount` on `useChannelEvents` | 2026-07-26 |
+| 089 Phase 4 | Global tree read (`tree --global`) + `--badge` adoption; the machine-wide `/pij` page (snapshot-only by design); the overlay (5th F-14 sibling + ADR-0009); **`POST /api/pij/focus`, the one mutation**, with its fence carve-out and both-ends audit | 2026-07-26 |

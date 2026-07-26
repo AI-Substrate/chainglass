@@ -96,6 +96,40 @@ const MUTATING_FLOW_VERBS = [
 /** Filenames no code in this feature may ever construct for writing. */
 const FORBIDDEN_WRITE_TARGETS = ['the-flow.md', '.the-flow-state.json'];
 
+/**
+ * The ONE file allowed to name tmux — Phase 4's focus route (C-06). Carved out of the general
+ * assertion and checked by a stricter companion instead.
+ */
+const FOCUS_ROUTE = 'apps/web/app/api/pij/focus/route.ts';
+
+/** Files that must still be seen by the general tmux check, so the exclusion cannot swallow it. */
+const TMUX_FREE_WITNESSES = [
+  'apps/web/app/api/pij/fleet/route.ts',
+  'apps/web/src/features/089-first-class-pij/server/pij-records.ts',
+];
+
+/**
+ * tmux verbs that touch a pane rather than merely change which window is visible. R-01: an attached
+ * client's size can clamp and reflow an agent's pane and corrupt the daemon's own liveness read, so
+ * these stay forbidden even inside the file that is allowed to reach tmux at all.
+ */
+const FORBIDDEN_TMUX_VERBS = [
+  'send-keys',
+  'attach-session',
+  'attach',
+  'kill-session',
+  'kill-window',
+  'kill-pane',
+  'resize-pane',
+  'resize-window',
+  'respawn-pane',
+  'split-window',
+  'new-window',
+  'new-session',
+  'set-option',
+  'paste-buffer',
+];
+
 interface SourceFile {
   path: string;
   /** Source with comments and import lines removed — the only thing the fence assertions look at. */
@@ -400,17 +434,74 @@ describe('C-02 fence — the feature writes to nothing (AC-11)', () => {
     Test Doc:
     - Why: 064-terminal's attach is a live keyboard, and even a silent attached client's size can
       clamp/reflow an agent's pane and corrupt the daemon's own BUSY_RE liveness read. The observatory
-      never links a pij seat to that path. `tmux select-window` arrives in Phase 4 and ONLY behind a
-      deliberate human click — so its absence in Phase 1 is checkable now.
-    - Contract: No tmux invocation, no send-keys, no attach anywhere in the feature.
-    - Usage Notes: Phase 4 will add exactly one call site, in the focus route, and will amend this.
-    - Quality Contribution: Proves AC-10's "forbidden affordances" for the server half of the feature.
-    - Worked Example: zero matches.
+      never links a pij seat to that path.
+    - Contract: No tmux invocation, no send-keys, no attach anywhere in the feature — with exactly one
+      carved-out file, the focus route, which Phase 4 ships as the ONE sanctioned mutation (C-06).
+    - Usage Notes: The carve-out is a NARROWING, not a weakening: the excluded path is asserted to
+      exist and to be in the collected set (an exclusion naming a file that has moved is a silent
+      hole), and the companion assertion below checks what this one can no longer see — WHICH tmux
+      verb that file names, and how it is reached.
+    - Quality Contribution: Proves AC-10's "forbidden affordances" everywhere except the single place
+      one affordance is sanctioned, and proves that place separately rather than trusting it.
+    - Worked Example: zero matches across every file but the focus route.
     */
     const files = await collectSources();
-    const offenders = findAll(files, /\b(send-keys|select-window|tmux\b|attach-session)/m);
+    const paths = files.map((file) => file.path);
+
+    // The exclusion must name a file that is actually there, or it is hiding nothing and proving
+    // nothing. Both halves are asserted before the exclusion is applied.
+    expect(paths).toEqual(expect.arrayContaining([FOCUS_ROUTE, ...TMUX_FREE_WITNESSES]));
+
+    const offenders = findAll(
+      files.filter((file) => file.path !== FOCUS_ROUTE),
+      /\b(send-keys|select-window|tmux\b|attach-session)/m
+    );
 
     expect(offenders).toEqual([]);
+  });
+
+  it('the focus route drives tmux with `select-window` and nothing else (C-06, companion)', async () => {
+    /*
+    Test Doc:
+    - Why: the assertion above stops looking at this file, so on its own it would let `send-keys`
+      into the one place tmux is reachable. This covers exactly what the exclusion blinds: which verb,
+      what argv, and how the call is reached. R-01 is the point — changing which window is VISIBLE
+      perturbs nothing, while attaching, resizing or typing into a pane corrupts the daemon's own
+      liveness read of the agent running there.
+    - Contract: C-06, R-01, AC-10; dossier T004 ("the only `select-window` call site in app code is
+      this route handler").
+    - Usage Notes: mirrors the `pij-records.ts` denylist and `flow-watcher.ts` target precedents — the
+      narrowed check is strictly more specific than the general one it replaces.
+    - Quality Contribution: turns "we only focus" from a code-review opinion into a check that fails
+      the moment a second tmux verb appears.
+    - Worked Example: one `select-window`, argv ['select-window','-t',windowId], via execFile, from
+      the exported handler only.
+    */
+    const code = toCode(await readFile(join(REPO_ROOT, FOCUS_ROUTE), 'utf8'));
+
+    // 1. Every tmux verb this feature may never run, still never run — here least of all.
+    for (const verb of FORBIDDEN_TMUX_VERBS) {
+      expect(code, `"${verb}" must never appear in the one file allowed to reach tmux`).not.toMatch(
+        new RegExp(verb)
+      );
+    }
+
+    // 2. The sanctioned verb appears exactly once, as a named constant, and the argv is fixed.
+    const selectWindows = [...code.matchAll(/select-window/g)];
+    expect(selectWindows).toHaveLength(1);
+    expect(code).toMatch(/SELECT_WINDOW\s*=\s*'select-window'/);
+    expect(code).toMatch(/\[SELECT_WINDOW,\s*'-t',\s*detail\.windowId\]/);
+
+    // 3. Through execFile with a fixed argv array — never a shell, never a command string.
+    expect(code).toMatch(/execFile\(command,\s*\[\.\.\.args\]/);
+    expect(code).not.toMatch(/execSync|shell:\s*true/);
+
+    // 4. And nothing in this file can fire on its own: no timer, no listener, no module-level call.
+    //    The only way in is the exported handler, which only a request reaches (C-06's server half).
+    for (const trigger of ['setTimeout', 'setInterval', 'addEventListener', 'useEffect']) {
+      expect(code, `${trigger} would make focus reachable without a human`).not.toContain(trigger);
+    }
+    expect(code).toMatch(/export async function handlePijFocusRequest/);
   });
 });
 
