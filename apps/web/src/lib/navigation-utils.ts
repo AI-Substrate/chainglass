@@ -9,14 +9,12 @@
 
 import {
   Activity,
-  Bot,
   Code,
   FileText,
   FolderOpen,
   GitBranch,
   GitCompare,
   Home,
-  LayoutDashboard,
   ListChecks,
   type LucideIcon,
   Puzzle,
@@ -47,11 +45,10 @@ export type NavigationMode = 'phone' | 'desktop';
 
 /**
  * Workspace-scoped navigation items — shown inside a workspace context.
- * Browser, Agents, Workflows are the core product actions.
+ * Browser, Work Units, Workflows are the core product actions.
  */
 export const WORKSPACE_NAV_ITEMS: readonly NavItem[] = [
   { id: 'browser', label: 'Browser', href: '/browser', icon: FolderOpen },
-  { id: 'agents', label: 'Agents', href: '/agents', icon: Bot },
   { id: 'work-units', label: 'Work Units', href: '/work-units', icon: Puzzle },
   { id: 'workflows', label: 'Workflows', href: '/workflows', icon: ListChecks },
   { id: 'terminal', label: 'Terminal', href: '/terminal', icon: TerminalSquare },
@@ -64,8 +61,6 @@ export const WORKSPACE_NAV_ITEMS: readonly NavItem[] = [
 export const DEV_NAV_ITEMS: readonly NavItem[] = [
   { id: 'state-inspector', label: 'State Inspector', href: '/dev/state-inspector', icon: Activity },
   { id: 'workflow-viz', label: 'Workflow Visualization', href: '/workflow', icon: GitBranch },
-  { id: 'kanban', label: 'Kanban Board', href: '/kanban', icon: LayoutDashboard },
-  { id: 'agents-global', label: 'Agents (Global)', href: '/agents', icon: Bot },
   { id: 'file-viewer-demo', label: 'FileViewer Demo', href: '/demo/file-viewer', icon: Code },
   {
     id: 'markdown-viewer-demo',
@@ -93,8 +88,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { id: 'workflows', label: 'Workflows', href: '/workflows', icon: ListChecks },
   { id: 'workspaces', label: 'Workspaces', href: '/workspaces', icon: FolderOpen },
   { id: 'workflow', label: 'Workflow Visualization', href: '/workflow', icon: GitBranch },
-  { id: 'kanban', label: 'Kanban Board', href: '/kanban', icon: LayoutDashboard },
-  { id: 'agents', label: 'Agents', href: '/agents', icon: Bot },
   { id: 'file-viewer-demo', label: 'FileViewer Demo', href: '/demo/file-viewer', icon: Code },
   {
     id: 'markdown-viewer-demo',
@@ -116,5 +109,4 @@ export const NAV_ITEMS: readonly NavItem[] = [
 export const MOBILE_NAV_ITEMS: readonly NavItem[] = [
   { id: 'home', label: 'Home', href: '/', icon: Home },
   { id: 'workflows', label: 'Workflows', href: '/workflows', icon: ListChecks },
-  { id: 'kanban', label: 'Kanban', href: '/kanban', icon: LayoutDashboard },
 ] as const;

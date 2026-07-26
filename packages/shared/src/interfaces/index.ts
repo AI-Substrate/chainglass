@@ -155,3 +155,8 @@ export type { IQuestionPopperService } from './question-popper.interface.js';
 
 // File Notes interface (Plan 071: PR View & File Notes)
 export type { INoteService } from './note-service.interface.js';
+
+// SSE broadcasting interface (introduced by Plan 019, moved here when the agent
+// surface was removed — generic plumbing, consumed by workflow execution and
+// central notify events)
+export type { ISSEBroadcaster } from './sse-broadcaster.interface.js';

@@ -1,22 +1,22 @@
 /**
- * Plan 019: Agent Manager Refactor - FakeSSEBroadcaster
+ * FakeSSEBroadcaster - test double for ISSEBroadcaster that records broadcasts.
  *
- * Test double for ISSEBroadcaster that records all broadcasts.
- * Per DYK-08: Enables contract tests against both Fake and Real implementations.
+ * Lets a service under test be driven without a live SSEManager, then asserted
+ * against what it tried to send.
  *
  * Usage:
  * ```typescript
  * const fakeBroadcaster = new FakeSSEBroadcaster();
- * const notifier = new AgentNotifierService(fakeBroadcaster);
+ * const notifier = new CentralEventNotifierService(fakeBroadcaster);
  *
- * notifier.broadcastStatus('agent-1', 'working');
+ * notifier.emit('work-unit-state', 'unit_changed', { id: 'u-1' });
  *
  * expect(fakeBroadcaster.getBroadcasts()).toHaveLength(1);
- * expect(fakeBroadcaster.getLastBroadcast()?.eventType).toBe('agent_status');
+ * expect(fakeBroadcaster.getLastBroadcast()?.eventType).toBe('unit_changed');
  * ```
  */
 
-import type { ISSEBroadcaster } from './sse-broadcaster.interface.js';
+import type { ISSEBroadcaster } from '../interfaces/sse-broadcaster.interface.js';
 
 /**
  * Recorded broadcast call for test inspection.

@@ -8,7 +8,7 @@
  * Phase 3: Suppression tests removed — client-side isRefreshing guard is sufficient.
  */
 
-import { FakeSSEBroadcaster } from '@chainglass/shared/features/019-agent-manager-refactor';
+import { FakeSSEBroadcaster } from '@chainglass/shared/fakes';
 import { FakeCentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events/fake-central-event-notifier';
 import { WorkspaceDomain } from '@chainglass/shared/features/027-central-notify-events/workspace-domain';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -67,18 +67,18 @@ describe('CentralEventNotifierService — Broadcaster Assertions', () => {
     - Contract: emit A then emit B → broadcasts[0] is A, broadcasts[1] is B
     - Usage Notes: C09 is vacuous for real service; this test makes the assertion
     - Quality Contribution: Catches broadcast reordering bugs
-    - Worked Example: emit workgraphs, emit agents, emit workgraphs → 3 broadcasts in order
+    - Worked Example: emit workgraphs, emit work-unit-state, emit workgraphs → 3 broadcasts in order
     */
     service.emit(WorkspaceDomain.Workgraphs, 'graph-updated', { graphSlug: 'g1' });
-    service.emit(WorkspaceDomain.Agents, 'agent-status', { agentId: 'a1' });
+    service.emit(WorkspaceDomain.WorkUnitState, 'status-changed', { id: 'u1' });
     service.emit(WorkspaceDomain.Workgraphs, 'graph-updated', { graphSlug: 'g2' });
 
     const broadcasts = broadcaster.getBroadcasts();
     expect(broadcasts).toHaveLength(3);
     expect(broadcasts[0]?.channel).toBe('workgraphs');
     expect(broadcasts[0]?.data).toEqual({ graphSlug: 'g1' });
-    expect(broadcasts[1]?.channel).toBe('agents');
-    expect(broadcasts[1]?.data).toEqual({ agentId: 'a1' });
+    expect(broadcasts[1]?.channel).toBe('work-unit-state');
+    expect(broadcasts[1]?.data).toEqual({ id: 'u1' });
     expect(broadcasts[2]?.data).toEqual({ graphSlug: 'g2' });
   });
 });

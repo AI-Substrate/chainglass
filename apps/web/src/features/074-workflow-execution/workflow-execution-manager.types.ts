@@ -9,7 +9,7 @@ import type {
   IOrchestrationService,
   IPositionalGraphService,
 } from '@chainglass/positional-graph';
-import type { ISSEBroadcaster } from '@chainglass/shared/features/019-agent-manager-refactor/sse-broadcaster.interface';
+import type { ISSEBroadcaster } from '@chainglass/shared/interfaces';
 import type { IWorkspaceService } from '@chainglass/workflow';
 import type { IExecutionRegistry } from './execution-registry.types';
 

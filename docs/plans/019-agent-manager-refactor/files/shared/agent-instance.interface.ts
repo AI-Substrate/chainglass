@@ -1,1 +1,0 @@
-../../../../../packages/shared/src/features/019-agent-manager-refactor/agent-instance.interface.ts

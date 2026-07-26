@@ -13,7 +13,7 @@ import { WorkflowExecutionManager } from '@/features/074-workflow-execution/work
 import type { ExecutionManagerDeps } from '@/features/074-workflow-execution/workflow-execution-manager.types';
 import type { OrchestrationAction } from '@chainglass/positional-graph';
 import { FakeOrchestrationService, FakePositionalGraphService } from '@chainglass/positional-graph';
-import { FakeSSEBroadcaster } from '@chainglass/shared/features/019-agent-manager-refactor/fake-sse-broadcaster';
+import { FakeSSEBroadcaster } from '@chainglass/shared/fakes';
 import type { WorkspaceContext } from '@chainglass/workflow';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { buildFakeReality } from '../../../../../packages/positional-graph/src/features/030-orchestration/fake-onbas.js';

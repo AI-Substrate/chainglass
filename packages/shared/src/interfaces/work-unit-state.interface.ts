@@ -8,7 +8,7 @@
  * NOTE: This is NOT IWorkUnitService (positional-graph workflow orchestration).
  * IWorkUnitStateService is a status aggregator — it does NOT own Q&A mechanics.
  * Question lifecycle is handled by WorkflowEvents (Plan 061). This service
- * only observes status like 'waiting_input' via the AgentWorkUnitBridge.
+ * only observes status like 'waiting_input'.
  *
  * State paths: `work-unit-state:{id}:status`, `work-unit-state:{id}:intent`,
  * `work-unit-state:{id}:name`
@@ -76,9 +76,12 @@ export interface IWorkUnitStateService {
    * Look up a work unit by its source reference (graphSlug + nodeId).
    * Returns undefined if no work unit has that source ref.
    *
-   * Used by AgentWorkUnitBridge to map WorkflowEvents observer
-   * callbacks (which arrive with graphSlug + nodeId) back to
-   * work unit entries.
+   * Maps WorkflowEvents observer callbacks (which arrive with graphSlug +
+   * nodeId) back to work unit entries.
+   *
+   * NOTE: its only caller was AgentWorkUnitBridge, removed with the agent
+   * surface. Retained deliberately — work-unit-state is not agent-only — but
+   * it currently has no caller.
    */
   getUnitBySourceRef(graphSlug: string, nodeId: string): WorkUnitEntry | undefined;
 

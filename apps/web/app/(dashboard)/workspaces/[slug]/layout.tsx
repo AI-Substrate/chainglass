@@ -13,7 +13,6 @@
 import { WORKSPACE_DI_TOKENS } from '@chainglass/shared';
 import type { IWorkspaceService } from '@chainglass/workflow';
 import type { Metadata } from 'next';
-import { WorkspaceAgentChrome } from '../../../../src/components/agents/workspace-agent-chrome';
 import { WorkspaceProvider } from '../../../../src/features/041-file-browser/hooks/use-workspace-context';
 import { sanitizeSessionName } from '../../../../src/features/064-terminal/lib/sanitize-session-name';
 import { getContainer } from '../../../../src/lib/bootstrap-singleton';
@@ -38,7 +37,6 @@ const WORKSPACE_SSE_CHANNELS = [
   'work-unit-state',
   'workflows',
   'unit-catalog',
-  'agents',
   'workflow-execution',
 ] as const;
 
@@ -101,11 +99,7 @@ export default async function WorkspaceLayout({ children, params }: LayoutProps)
           <MultiplexedSSEProvider channels={[...WORKSPACE_SSE_CHANNELS]}>
             <NotesOverlayWrapper defaultWorktreePath={defaultWorktreePath}>
               <PRViewOverlayWrapper defaultWorktreePath={defaultWorktreePath}>
-                <QuestionPopperOverlayWrapper>
-                  <WorkspaceAgentChrome slug={slug} workspacePath={ws?.path}>
-                    {children}
-                  </WorkspaceAgentChrome>
-                </QuestionPopperOverlayWrapper>
+                <QuestionPopperOverlayWrapper>{children}</QuestionPopperOverlayWrapper>
               </PRViewOverlayWrapper>
             </NotesOverlayWrapper>
           </MultiplexedSSEProvider>

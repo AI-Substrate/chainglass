@@ -25,8 +25,12 @@ export interface WorkUnitCreator {
 
 /**
  * Optional reference linking a work unit back to its source in
- * a positional graph. Used by AgentWorkUnitBridge to map
- * WorkflowEvents observer callbacks back to work unit entries.
+ * a positional graph, so WorkflowEvents observer callbacks (which arrive
+ * with graphSlug + nodeId) can be mapped back to work unit entries.
+ *
+ * NOTE: its only producer was AgentWorkUnitBridge, removed with the agent
+ * surface. Retained because work-unit-state is not agent-only, but nothing
+ * currently populates it.
  */
 export interface WorkUnitSourceRef {
   /** Positional graph slug */

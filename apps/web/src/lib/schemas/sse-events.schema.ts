@@ -5,7 +5,6 @@
  * Used by SSEManager for validation and type inference.
  *
  * Extended for Plan 011 with run/phase/question event types.
- * Plan 019: Agent events are carried on the multiplexed stream's 'agents' channel.
  */
 import { z } from 'zod';
 
@@ -116,8 +115,6 @@ const answerEventSchema = baseEventSchema.extend({
 // ============ Discriminated Union ============
 
 // Discriminated union of all event types
-// Plan 019: Agent events removed from this union (the Plan 019 agent system
-// carries them on the multiplexed stream's 'agents' channel instead)
 export const sseEventSchema = z.discriminatedUnion('type', [
   // Original event types (do not modify)
   workflowStatusEventSchema,

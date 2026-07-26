@@ -44,6 +44,15 @@ export class AgentSessionAdapter extends WorkspaceDataAdapterBase implements IAg
   /**
    * Domain name for agent session storage.
    * Results in path: `<worktree>/.chainglass/data/agents/`
+   *
+   * THIS IS A FILESYSTEM PATH SEGMENT, NOT AN SSE DOMAIN. It feeds
+   * `getDomainPath()` in WorkspaceDataAdapterBase, which joins it onto
+   * `<worktree>/.chainglass/data/` to locate this adapter's storage directory.
+   * It never reaches CentralEventNotifier and is not a channel name.
+   *
+   * The SSE domain that shared this word is gone: the agent teardown deleted the
+   * `'agents'` SSE channel and `WorkspaceDomain.Agents`. That deletion does NOT
+   * extend to here. This store is LIVE — do not remove it as follow-up cleanup.
    */
   readonly domain = 'agents';
 

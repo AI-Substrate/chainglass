@@ -11,7 +11,7 @@
  * Phase 3: Suppression tests U04-U08 removed — client-side isRefreshing guard is sufficient.
  */
 
-import { FakeSSEBroadcaster } from '@chainglass/shared/features/019-agent-manager-refactor';
+import { FakeSSEBroadcaster } from '@chainglass/shared/fakes';
 import { WorkspaceDomain } from '@chainglass/shared/features/027-central-notify-events';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { CentralEventNotifierService } from '../../../../apps/web/src/features/027-central-notify-events/central-event-notifier.service';
@@ -59,18 +59,19 @@ describe('CentralEventNotifierService', () => {
     expect(broadcast?.data).toEqual({ graphSlug: 'g1' });
   });
 
-  it('U03: emit() on agents domain broadcasts to agents channel', () => {
+  it('U03: emit() on work-unit-state domain broadcasts to work-unit-state channel', () => {
     /*
     Test Doc:
-    - Why: Multi-domain routing — agents domain must route to 'agents' channel
-    - Contract: emit(WorkspaceDomain.Agents, ...) → broadcast channel is 'agents'
+    - Why: Multi-domain routing — a second domain must route to its own channel
+    - Contract: emit(WorkspaceDomain.WorkUnitState, ...) → broadcast channel is 'work-unit-state'
     - Usage Notes: Each domain routes to its own SSE channel
-    - Quality Contribution: Catches hardcoded channel bug
-    - Worked Example: emit('agents', 'agent-status', {agentId:'a1'}) → channel === 'agents'
+    - Quality Contribution: Catches hardcoded channel bug — U01 alone cannot, since a
+      channel hardcoded to 'workflows' would still pass it
+    - Worked Example: emit('work-unit-state', 'status-changed', {id:'u1'}) → channel === 'work-unit-state'
     */
-    service.emit(WorkspaceDomain.Agents, 'agent-status', { agentId: 'a1' });
+    service.emit(WorkspaceDomain.WorkUnitState, 'status-changed', { id: 'u1' });
 
-    expect(broadcaster.getBroadcasts()[0]?.channel).toBe('agents');
+    expect(broadcaster.getBroadcasts()[0]?.channel).toBe('work-unit-state');
   });
 
   // === Edge Cases ===

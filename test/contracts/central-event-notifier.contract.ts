@@ -52,18 +52,6 @@ export function centralEventNotifierContractTests(name: string, factory: Notifie
       expect(WorkspaceDomain.Workgraphs).toBe('workgraphs');
     });
 
-    it('C11: WorkspaceDomain.Agents should equal "agents"', () => {
-      /*
-      Test Doc:
-      - Why: SSE channel name invariant — value must match agent SSE channel
-      - Contract: WorkspaceDomain.Agents === 'agents'
-      - Usage Notes: Any mismatch causes silent SSE failure
-      - Quality Contribution: Catches domain const typos
-      - Worked Example: WorkspaceDomain.Agents → 'agents' (exact match)
-      */
-      expect(WorkspaceDomain.Agents).toBe('agents');
-    });
-
     // === Core Emission Contract ===
 
     it('C01: should emit domain events', () => {
@@ -124,8 +112,8 @@ export function centralEventNotifierContractTests(name: string, factory: Notifie
       notifier.emit(WorkspaceDomain.Workgraphs, 'graph-updated', {
         graphSlug: 'g1',
       });
-      notifier.emit(WorkspaceDomain.Agents, 'agent-status', {
-        agentId: 'a1',
+      notifier.emit(WorkspaceDomain.WorkUnitState, 'status-changed', {
+        id: 'u1',
       });
       notifier.emit(WorkspaceDomain.Workgraphs, 'graph-updated', {
         graphSlug: 'g2',
@@ -135,7 +123,7 @@ export function centralEventNotifierContractTests(name: string, factory: Notifie
         expect(notifier.emittedEvents).toHaveLength(3);
         expect(notifier.emittedEvents[0]?.domain).toBe('workgraphs');
         expect(notifier.emittedEvents[0]?.data).toEqual({ graphSlug: 'g1' });
-        expect(notifier.emittedEvents[1]?.domain).toBe('agents');
+        expect(notifier.emittedEvents[1]?.domain).toBe('work-unit-state');
         expect(notifier.emittedEvents[2]?.data).toEqual({ graphSlug: 'g2' });
       }
     });

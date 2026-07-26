@@ -12,8 +12,6 @@
 export const WorkspaceDomain = {
   /** @deprecated Workgraph UI removed in Plan 050 Phase 7. Kept for backward compatibility. */
   Workgraphs: 'workgraphs',
-  /** SSE channel: `'agents'` — matches `/api/events/agents` subscription path */
-  Agents: 'agents',
   /** SSE channel: `'file-changes'` — matches `/api/events/file-changes` subscription path */
   FileChanges: 'file-changes',
   /** SSE channel: `'workflows'` — matches `/api/events/workflows` subscription path (Plan 050) */

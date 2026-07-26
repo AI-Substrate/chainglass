@@ -58,22 +58,10 @@ import {
 } from '@chainglass/shared';
 // Plan 059: Import FakeWorkUnitStateService for test container
 import { FakeQuestionPopperService, FakeWorkUnitStateService } from '@chainglass/shared/fakes';
-// Plan 019: Import AgentManagerService for central agent registry
-import {
-  type AdapterFactory as AgentAdapterFactory,
-  AgentManagerService,
-  AgentStorageAdapter,
-  FakeAgentManagerService,
-  FakeAgentNotifierService,
-  FakeAgentStorageAdapter,
-  type IAgentManagerService,
-  type IAgentNotifierService,
-  type IAgentStorageAdapter,
-} from '@chainglass/shared/features/019-agent-manager-refactor';
 // Plan 027: Import CentralEventNotifier types from shared
 import type { ICentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events';
 import { FakeCentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events';
-// Plan 034: AgentManagerService for orchestration (distinct from Plan 019 web agent UI)
+// Plan 034: AgentManagerService for orchestration
 import { AgentManagerService as OrchestrationAgentManagerService } from '@chainglass/shared/features/034-agentic-cli';
 // Plan 067: QuestionPopperService for external question/answer lifecycle
 import type { IQuestionPopperService } from '@chainglass/shared/interfaces';
@@ -128,13 +116,8 @@ import {
 // Phase 4: Import CopilotClient from SDK for production adapter
 import { CopilotClient } from '@github/copilot-sdk';
 import { type DependencyContainer, container } from 'tsyringe';
-// Plan 019 Phase 2: Import notifier implementations
-import { AgentNotifierService } from '../features/019-agent-manager-refactor/agent-notifier.service';
-import { SSEManagerBroadcaster } from '../features/019-agent-manager-refactor/sse-manager-broadcaster';
 // Plan 027: CentralEventNotifierService (real implementation)
 import { CentralEventNotifierService } from '../features/027-central-notify-events/central-event-notifier.service';
-// Plan 059: AgentWorkUnitBridge (agent lifecycle → work-unit-state)
-import { AgentWorkUnitBridge } from '../features/059-fix-agents/agent-work-unit-bridge';
 // Plan 067: QuestionPopperService (real implementation)
 import { QuestionPopperService } from '../features/067-question-popper/lib/question-popper.service';
 // Plan 088 Phase 5 (T004): daemon-control surface behind /windows + /health
@@ -155,6 +138,7 @@ import {
 } from '../features/088-remote-view/server/remote-view-service.production';
 import { SampleService } from '../services/sample.service';
 import { sseManager } from './sse-manager';
+import { SSEManagerBroadcaster } from './sse-manager-broadcaster';
 // Plan 059: WorkUnitStateService (real implementation)
 import { WorkUnitStateService } from './work-unit-state/work-unit-state.service';
 
@@ -433,98 +417,13 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
       new WorkflowSampleService(c.resolve<ISampleAdapter>(WORKSPACE_DI_TOKENS.SAMPLE_ADAPTER)),
   });
 
-  // ==================== Plan 019: Agent Manager Service ====================
-
-  // Phase 2: Register AgentNotifierService with SSEManagerBroadcaster
-  // Per DYK-07: Real implementation lives in apps/web
-  // Per DYK-08: Uses SSEManagerBroadcaster adapter
-  childContainer.register<IAgentNotifierService>(SHARED_DI_TOKENS.AGENT_NOTIFIER_SERVICE, {
-    useFactory: (c) => {
-      const broadcaster = new SSEManagerBroadcaster(sseManager);
-      // FX001-4: Lazy bridge resolver avoids DI registration order issues (DYK-FX001-01).
-      // Bridge is registered later (L552) — lazy resolution defers until first broadcastStatus() call.
-      const resolveBridge = () => {
-        try {
-          return c.resolve<AgentWorkUnitBridge>(POSITIONAL_GRAPH_DI_TOKENS.AGENT_WORK_UNIT_BRIDGE);
-        } catch (error) {
-          console.warn('[DI] Failed to resolve AgentWorkUnitBridge for notifier:', error);
-          return undefined;
-        }
-      };
-      return new AgentNotifierService(broadcaster, resolveBridge);
-    },
-  });
-
-  // Phase 3: Register AgentStorageAdapter for persistent agent storage
-  // Per AC-19: Storage at ~/.config/chainglass/agents/
-  // Per DYK-11: Real adapter in packages/shared for contract test parity
-  childContainer.register<IAgentStorageAdapter>(SHARED_DI_TOKENS.AGENT_STORAGE_ADAPTER, {
-    useFactory: (c) => {
-      const fileSystem = c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM);
-      const pathResolver = c.resolve<IPathResolver>(SHARED_DI_TOKENS.PATH_RESOLVER);
-      const basePath = path.join(os.homedir(), '.config', 'chainglass', 'agents');
-      return new AgentStorageAdapter(fileSystem, pathResolver, basePath);
-    },
-  });
-
-  // Register AgentManagerService as manual singleton with adapter factory, notifier, and storage
-  // Per DYK-06: AgentManagerService receives notifier via DI
-  // Per DYK-12: Storage is optional but provided for persistence
-  // Per Phase 5 ST001: Must be singleton — multiple resolve() calls must return the same instance
-  // so in-memory agent state is shared across server components and API routes.
-  let agentManagerInstance: IAgentManagerService | null = null;
-  childContainer.register<IAgentManagerService>(SHARED_DI_TOKENS.AGENT_MANAGER_SERVICE, {
-    useFactory: (c) => {
-      if (agentManagerInstance) {
-        return agentManagerInstance;
-      }
-
-      const notifier = c.resolve<IAgentNotifierService>(SHARED_DI_TOKENS.AGENT_NOTIFIER_SERVICE);
-      const storage = c.resolve<IAgentStorageAdapter>(SHARED_DI_TOKENS.AGENT_STORAGE_ADAPTER);
-
-      // Per DYK-01: Factory function for adapter selection
-      // Resolve dependencies inside the factory (not outside) so they survive HMR reloads.
-      const agentAdapterFactory: AgentAdapterFactory = (agentType, config?) => {
-        const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
-        if (agentType === 'claude-code') {
-          const processManager = c.resolve<IProcessManager>(DI_TOKENS.PROCESS_MANAGER);
-          return new ClaudeCodeAdapter(processManager, { logger });
-        }
-        if (agentType === 'copilot') {
-          const copilotClient = c.resolve<CopilotClient>(DI_TOKENS.COPILOT_CLIENT);
-          return new SdkCopilotAdapter(copilotClient as unknown as ICopilotClient, { logger });
-        }
-        if (agentType === 'copilot-cli') {
-          const sendKeys = (target: string, text: string) => {
-            const { execSync } = require('node:child_process');
-            execSync(`tmux send-keys -t ${target} ${JSON.stringify(text)}`, { stdio: 'ignore' });
-          };
-          return new CopilotCLIAdapter({
-            sendKeys,
-            sendEnter: (target: string) => {
-              const { execSync } = require('node:child_process');
-              execSync(`tmux send-keys -t ${target} Enter`, { stdio: 'ignore' });
-            },
-            tmuxTarget: config?.tmuxTarget,
-            defaultSessionId: config?.defaultSessionId,
-          });
-        }
-        throw new Error(`Unknown agent type: ${agentType}`);
-      };
-
-      agentManagerInstance = new AgentManagerService(agentAdapterFactory, notifier, storage);
-      return agentManagerInstance;
-    },
-  });
-
   // ==================== Plan 050: Positional Graph Services ====================
 
   registerPositionalGraphServices(childContainer);
 
   // ==================== Plan 074: Orchestration Agent Manager ====================
   // Plan 034 AgentManagerService for orchestration (getNew/getWithSessionId).
-  // Distinct from Plan 019 web agent UI (createAgent) which stays under SHARED_DI_TOKENS.
-  // DYK #4: Adapter factory must be web-compatible — same adapters as Plan 019.
+  // DYK #4: Adapter factory must be web-compatible.
   childContainer.register(ORCHESTRATION_DI_TOKENS.AGENT_MANAGER, {
     useFactory: (c) => {
       const logger = c.resolve<ILogger>(DI_TOKENS.LOGGER);
@@ -650,7 +549,7 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
   // ==================== Plan 059: WorkUnit State Service ====================
 
   // Singleton via closure-captured flag (survives HMR).
-  // Dependency order: CentralEventNotifier → WorkUnitStateService → AgentWorkUnitBridge
+  // Dependency order: CentralEventNotifier → WorkUnitStateService
   // FX001: Use git worktree root (not process.cwd() which is apps/web/ in monorepo)
   let workUnitStateInstance: IWorkUnitStateService | null = null;
   let resolvedWorktreePath: string | null = null;
@@ -682,20 +581,6 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
       },
     }
   );
-
-  // Register AgentWorkUnitBridge — bridges agent lifecycle to WorkUnitStateService.
-  // Singleton: one bridge per process. WorkflowEvents optional (may not be in web DI).
-  let bridgeInstance: AgentWorkUnitBridge | null = null;
-  childContainer.register<AgentWorkUnitBridge>(POSITIONAL_GRAPH_DI_TOKENS.AGENT_WORK_UNIT_BRIDGE, {
-    useFactory: (c) => {
-      if (bridgeInstance) return bridgeInstance;
-      const workUnitState = c.resolve<IWorkUnitStateService>(
-        POSITIONAL_GRAPH_DI_TOKENS.WORK_UNIT_STATE_SERVICE
-      );
-      bridgeInstance = new AgentWorkUnitBridge(workUnitState);
-      return bridgeInstance;
-    },
-  });
 
   // ==================== Plan 067: QuestionPopperService ====================
   // Singleton: one service per process. Rehydrates from disk on construction.
@@ -924,27 +809,6 @@ export function createTestContainer(): DependencyContainer {
       new WorkflowSampleService(c.resolve<ISampleAdapter>(WORKSPACE_DI_TOKENS.SAMPLE_ADAPTER)),
   });
 
-  // ==================== Plan 019: Agent Manager Service (Fake) ====================
-
-  // Phase 2: Register FakeAgentNotifierService for test isolation
-  const fakeNotifier = new FakeAgentNotifierService();
-  childContainer.register<IAgentNotifierService>(SHARED_DI_TOKENS.AGENT_NOTIFIER_SERVICE, {
-    useValue: fakeNotifier,
-  });
-
-  // Phase 3: Register FakeAgentStorageAdapter for test isolation
-  const fakeStorage = new FakeAgentStorageAdapter();
-  childContainer.register<IAgentStorageAdapter>(SHARED_DI_TOKENS.AGENT_STORAGE_ADAPTER, {
-    useValue: fakeStorage,
-  });
-
-  // Register FakeAgentManagerService for test isolation
-  childContainer.register<IAgentManagerService>(SHARED_DI_TOKENS.AGENT_MANAGER_SERVICE, {
-    useFactory: () => {
-      return new FakeAgentManagerService();
-    },
-  });
-
   // ==================== Plan 027: Central Notification System (Fakes) ====================
 
   // Register FakeFileWatcherFactory for test isolation
@@ -970,16 +834,6 @@ export function createTestContainer(): DependencyContainer {
       useValue: new FakeWorkUnitStateService(),
     }
   );
-
-  // Register AgentWorkUnitBridge with fake dependencies
-  childContainer.register<AgentWorkUnitBridge>(POSITIONAL_GRAPH_DI_TOKENS.AGENT_WORK_UNIT_BRIDGE, {
-    useFactory: (c) => {
-      const workUnitState = c.resolve<IWorkUnitStateService>(
-        POSITIONAL_GRAPH_DI_TOKENS.WORK_UNIT_STATE_SERVICE
-      );
-      return new AgentWorkUnitBridge(workUnitState);
-    },
-  });
 
   // ==================== Plan 067: QuestionPopperService (Fake) ====================
 

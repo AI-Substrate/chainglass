@@ -14,9 +14,9 @@ import {
   WORKSPACE_DI_TOKENS,
 } from '@chainglass/shared';
 import type { IWorkspaceService } from '@chainglass/workflow';
-import { SSEManagerBroadcaster } from '../../features/019-agent-manager-refactor/sse-manager-broadcaster';
 import { getContainer } from '../../lib/bootstrap-singleton';
 import { sseManager } from '../../lib/sse-manager';
+import { SSEManagerBroadcaster } from '../../lib/sse-manager-broadcaster';
 import { createFileExecutionRegistry } from './execution-registry';
 import { WorkflowExecutionManager } from './workflow-execution-manager';
 

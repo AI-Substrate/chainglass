@@ -24,12 +24,6 @@ export const SHARED_DI_TOKENS = {
   YAML_PARSER: 'IYamlParser',
   /** IProcessManager interface (for git operations) */
   PROCESS_MANAGER: 'IProcessManager',
-  /** IAgentManagerService interface (Plan 019: Agent Manager Refactor) */
-  AGENT_MANAGER_SERVICE: 'IAgentManagerService',
-  /** IAgentNotifierService interface (Plan 019: Phase 2) */
-  AGENT_NOTIFIER_SERVICE: 'IAgentNotifierService',
-  /** IAgentStorageAdapter interface (Plan 019: Phase 3) */
-  AGENT_STORAGE_ADAPTER: 'IAgentStorageAdapter',
   /** INoteService interface (Plan 071: File Notes) */
   NOTE_SERVICE: 'INoteService',
   /** INoteService factory — (worktreePath: string) => INoteService (Plan 071: Phase 3) */
@@ -132,8 +126,6 @@ export const POSITIONAL_GRAPH_DI_TOKENS = {
   WORKFLOW_EVENTS_SERVICE: 'IWorkflowEvents',
   /** IWorkUnitStateService — centralized work unit status registry (Plan 059) */
   WORK_UNIT_STATE_SERVICE: 'IWorkUnitStateService',
-  /** AgentWorkUnitBridge — bridges agent lifecycle to work-unit-state (Plan 059) */
-  AGENT_WORK_UNIT_BRIDGE: 'AgentWorkUnitBridge',
 } as const;
 
 /**

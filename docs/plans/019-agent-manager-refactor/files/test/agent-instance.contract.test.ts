@@ -1,1 +1,0 @@
-../../../../../test/contracts/agent-instance.contract.test.ts
