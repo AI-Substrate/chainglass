@@ -10,16 +10,21 @@
  * plus the `overlay:close-all` mutual exclusion, not by a z-index race. A higher number here would
  * win the wrong argument and put pij permanently above a terminal the user is typing into.
  *
- * **The list is deliberately condensed and deliberately not the fleet page.** No grouping, no tree,
- * no prime shells: this answers "what is my fleet doing right now" at a glance. Anything more and it
- * becomes a second implementation of the page it sits over.
+ * **Structure, not a second implementation** (Jordan's ruling 2026-07-27, superseding this panel's
+ * original flat-list design). The panel shows the same prime → section → seat shape as the page,
+ * because "what is my fleet doing" is unanswerable without knowing who governs whom. The duplication
+ * the flat design was avoiding is avoided a better way: `groupFleet` is imported, not reimplemented —
+ * ONE grouping, two presentations. This one is denser, drops the meta lines, and never scrolls the
+ * page's stage strips into a space this narrow.
  */
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePijFleet } from '../hooks/use-pij-fleet';
 import { usePijOverlay } from '../hooks/use-pij-overlay';
+import { type SeatPlacement, groupFleet, seatTask } from '../lib/fleet-grouping';
 import { formatElapsed } from '../lib/relative-time';
+import { RoleChip, seatRole } from './role-chip';
 
 /** The dot vocabulary is the seat row's — the same daemon word must not look different here. */
 const STATE_DOT: Record<string, string> = {
@@ -31,6 +36,46 @@ const STATE_DOT: Record<string, string> = {
   dead: 'bg-muted-foreground/40 border border-muted-foreground',
 };
 
+/**
+ * One seat line. `depth` is the grouping's own nesting, so the indent is a record of structure
+ * rather than a guess from ids. The testid is unchanged from the flat design — a seat is still
+ * addressable by id, which is what the overlay's tests and any future focus action key on.
+ */
+function OverlaySeat({ placement, now }: { placement: SeatPlacement; now: number }) {
+  const { row, node, depth } = placement;
+  const task = seatTask(placement);
+  return (
+    <div
+      data-testid={`pij-overlay-row-${placement.id}`}
+      className="flex items-center gap-1.5 border-b border-border/40 px-3 py-1 text-[12px] last:border-b-0"
+      style={{ paddingLeft: `${12 + depth * 12}px` }}
+    >
+      <span
+        className={`inline-block size-2 shrink-0 rounded-full ${STATE_DOT[row?.state ?? ''] ?? 'bg-muted-foreground'}`}
+        aria-hidden="true"
+      />
+      <span className="shrink-0 truncate font-mono text-[11.5px]">{placement.id}</span>
+      <RoleChip role={seatRole({ node, row })} />
+      {/* Rendered verbatim, never re-derived (AC-03); absent means absent. */}
+      {row?.badge ? (
+        <span className="shrink-0 rounded-full border border-border px-1.5 text-[10px] text-muted-foreground">
+          {row.badge}
+        </span>
+      ) : null}
+      {/* What it is doing — the reason this panel gained structure. Absent stays visibly absent. */}
+      <span
+        className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground"
+        title={task ?? undefined}
+      >
+        {task ?? <span className="italic opacity-60">no assignment on record</span>}
+      </span>
+      <span className="shrink-0 text-[10.5px] text-muted-foreground">
+        {formatElapsed(row?.lastEventAt, now)}
+      </span>
+    </div>
+  );
+}
+
 function PijOverlayContent({
   workspacePath,
   fetchImpl,
@@ -38,7 +83,7 @@ function PijOverlayContent({
   workspacePath: string;
   fetchImpl?: typeof fetch;
 }) {
-  const { rows, status, phase, errors } = usePijFleet({ workspacePath, fetchImpl });
+  const { rows, tree, status, phase, errors } = usePijFleet({ workspacePath, fetchImpl });
   const [now, setNow] = useState(() => Date.now());
 
   // The freshness column is the point of this panel, so it ticks — on the same 5s cadence the page
@@ -48,7 +93,11 @@ function PijOverlayContent({
     return () => clearInterval(timer);
   }, []);
 
-  const sorted = [...rows].sort((a, b) => (b.lastEventAt ?? '').localeCompare(a.lastEventAt ?? ''));
+  // Same grouping the page draws, same idle window. Recomputed only when a read or the tick moves.
+  const grouping = useMemo(
+    () => groupFleet({ rows, tree, now, idleFilter: true }),
+    [rows, tree, now]
+  );
 
   return (
     <>
@@ -87,29 +136,56 @@ function PijOverlayContent({
         </div>
       ) : (
         <div className="flex-1 overflow-auto">
-          {sorted.map((row) => (
-            <div
-              key={row.id}
-              data-testid={`pij-overlay-row-${row.id}`}
-              className="flex items-center gap-2 border-b border-border/60 px-3 py-1.5 text-[12px] last:border-b-0"
-            >
-              <span
-                className={`inline-block size-2 shrink-0 rounded-full ${STATE_DOT[row.state ?? ''] ?? 'bg-muted-foreground'}`}
-                aria-hidden="true"
-              />
-              <span className="truncate font-mono text-[11.5px]">{row.id}</span>
-              {/* Rendered verbatim, never re-derived (AC-03); absent means absent. */}
-              {row.badge ? (
-                <span className="shrink-0 rounded-full border border-border px-1.5 text-[10px] text-muted-foreground">
-                  {row.badge}
+          {grouping.primes.map((shell) => (
+            <div key={shell.lead.id} data-testid={`pij-overlay-prime-${shell.lead.id}`}>
+              <div className="flex items-center gap-1.5 border-b border-border bg-violet-50/60 px-3 py-1 dark:bg-violet-950/20">
+                <span className="truncate font-mono text-[11.5px] font-medium">
+                  {shell.lead.id}
                 </span>
-              ) : null}
-              <span className="flex-1" />
-              <span className="shrink-0 text-[10.5px] text-muted-foreground">
-                {formatElapsed(row.lastEventAt, now)}
-              </span>
+                <RoleChip role={seatRole({ node: shell.lead.node, row: shell.lead.row })} />
+                <span className="flex-1" />
+                <span className="shrink-0 text-[10.5px] text-muted-foreground">
+                  {shell.sections.length} section{shell.sections.length === 1 ? '' : 's'} ·{' '}
+                  {shell.seatCount} seat{shell.seatCount === 1 ? '' : 's'}
+                </span>
+              </div>
+              {shell.sections.map((section) => (
+                <div key={section.lead.id} className="border-b border-border/60 last:border-b-0">
+                  <OverlaySeat placement={section.lead} now={now} />
+                  {section.members.map((member) => (
+                    <OverlaySeat key={member.id} placement={member} now={now} />
+                  ))}
+                </div>
+              ))}
             </div>
           ))}
+
+          {grouping.loose.length > 0 ? (
+            <div data-testid="pij-overlay-loose">
+              <div className="border-b border-border bg-muted/40 px-3 py-1 text-[10.5px] uppercase tracking-wide text-muted-foreground">
+                Outside any prime
+              </div>
+              {grouping.loose.map((section) => (
+                <div key={section.lead.id}>
+                  <OverlaySeat placement={section.lead} now={now} />
+                  {section.members.map((member) => (
+                    <OverlaySeat key={member.id} placement={member} now={now} />
+                  ))}
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          {/* Hidden-by-filter is reported, never silently dropped — same rule as the page. */}
+          {grouping.hiddenByIdle > 0 ? (
+            <div
+              className="px-3 py-1.5 text-[10.5px] text-muted-foreground"
+              data-testid="pij-overlay-hidden"
+            >
+              {grouping.hiddenByIdle} seat{grouping.hiddenByIdle === 1 ? '' : 's'} idle beyond 48h,
+              hidden
+            </div>
+          ) : null}
         </div>
       )}
     </>

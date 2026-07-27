@@ -16,7 +16,7 @@
  * - Worked Example: dispatch `pij:toggle` → panel visible; rerender under a new child route → still
  *   visible.
  */
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { PijOverlayPanel } from '../../../../apps/web/src/features/089-first-class-pij/components/pij-overlay-panel';
@@ -25,7 +25,15 @@ import { asPijId } from '../../../../apps/web/src/features/089-first-class-pij/t
 import { MultiplexedSSEProvider } from '../../../../apps/web/src/lib/sse/multiplexed-sse-provider';
 import { createFakeMultiplexedSSEFactory } from '../../../fakes/fake-multiplexed-sse';
 import { FakePijApi } from '../../../fakes/fake-pij-api';
-import { pollerStatus } from '../../../fixtures/pij/fleet-ui';
+import {
+  UI_FLEET_ROWS,
+  UI_NOW,
+  UI_PM_ID,
+  UI_PRIME_ID,
+  UI_TREE_ROOTS,
+  UI_WORKER_IDS,
+  pollerStatus,
+} from '../../../fixtures/pij/fleet-ui';
 
 const WORKSPACE = '/Users/fixture/substrate/chainglass';
 
@@ -293,5 +301,43 @@ describe('the pij overlay — what it shows', () => {
 
     await waitFor(() => expect(screen.getByTestId('pij-overlay-error')).toBeTruthy());
     expect(screen.queryByTestId('pij-overlay-empty')).toBeNull();
+  });
+
+  it('draws prime → section → seat structure, and says what each seat is doing', async () => {
+    /*
+    Test Doc:
+    - Why: the panel originally shipped a deliberately FLAT list, on the reasoning that structure
+      here would duplicate the page. Jordan ruled the opposite on 2026-07-27: a fleet you cannot
+      see the shape of does not answer "what is my fleet doing". This test pins the reversal, so a
+      later tidy-up that "simplifies" the panel back to a flat list fails instead of silently
+      undoing a human ruling.
+    - Contract: the prime's shell CONTAINS its PM (structure taken from the tree read via
+      `groupFleet`, never derived from ids), and each seat line carries its assignment text.
+    - Usage Notes: shared fixtures, so page and panel are proven against the same fleet shape.
+    - Quality Contribution: containment is asserted with `within`, not by co-presence on the
+      screen — two seats can both render while the nesting is wrong, and only containment can tell.
+    - Worked Example: prime owl's shell contains PM cheetah; cheetah's line shows its task text.
+    */
+    api.setFleet({
+      seq: 11,
+      at: UI_NOW,
+      data: { workspace: WORKSPACE, rows: UI_FLEET_ROWS, status: pollerStatus() },
+    });
+    api.setTree({
+      seq: 11,
+      at: UI_NOW,
+      data: { workspace: WORKSPACE, roots: UI_TREE_ROOTS },
+    });
+    render(<Harness />);
+
+    toggle();
+
+    const shell = await waitFor(() => screen.getByTestId(`pij-overlay-prime-${UI_PRIME_ID}`));
+    // The PM is INSIDE the prime it belongs to, not merely somewhere on screen.
+    const pmRow = within(shell).getByTestId(`pij-overlay-row-${UI_PM_ID}`);
+    expect(pmRow).toBeTruthy();
+    // And what it is doing is on the line — the reason the panel gained structure at all.
+    expect(pmRow.textContent).toContain('PM');
+    expect(within(shell).getByTestId(`pij-overlay-row-${UI_WORKER_IDS[0]}`)).toBeTruthy();
   });
 });

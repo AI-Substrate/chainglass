@@ -18,6 +18,7 @@ import {
   ArrowRight,
   ClipboardCopy,
   GitPullRequest,
+  Radar,
   StickyNote,
   TerminalSquare,
 } from 'lucide-react';
@@ -523,6 +524,16 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
           title="Toggle Terminal (Ctrl+`)"
         >
           <TerminalSquare className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent('pij:toggle'))}
+          className="shrink-0 rounded p-1 text-muted-foreground hover:text-foreground hover:bg-accent"
+          aria-label="Toggle pij fleet"
+          title="Toggle pij fleet (Ctrl+Shift+F)"
+          data-testid="explorer-pij-toggle"
+        >
+          <Radar className="h-4 w-4" />
         </button>
         {rightActions && (
           <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center">
