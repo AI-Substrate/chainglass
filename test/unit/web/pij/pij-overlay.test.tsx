@@ -277,10 +277,10 @@ describe('the pij overlay — what it shows', () => {
     toggle();
 
     await waitFor(() =>
-      expect(screen.getByTestId('pij-overlay-row-pij-overlay-one').textContent).toContain('blocked')
+      expect(screen.getByTestId('seat-row-pij-overlay-one').textContent).toContain('blocked')
     );
-    expect(screen.getByTestId('pij-overlay-row-pij-overlay-two')).toBeTruthy();
-    expect(screen.getByTestId('pij-overlay-count').textContent).toContain('2 seats');
+    expect(screen.getByTestId('seat-row-pij-overlay-two')).toBeTruthy();
+    expect(screen.getByTestId('fleet-count').textContent).toContain('2 seats');
   });
 
   it('renders a read failure as a failure, never as an empty fleet', async () => {
@@ -299,24 +299,29 @@ describe('the pij overlay — what it shows', () => {
 
     toggle();
 
-    await waitFor(() => expect(screen.getByTestId('pij-overlay-error')).toBeTruthy());
-    expect(screen.queryByTestId('pij-overlay-empty')).toBeNull();
+    // The unreadable-store state is the VIEW's, reached through the overlay: this asserts the error
+    // survives the delegation, not that the overlay re-renders one of its own.
+    await waitFor(() => expect(screen.getByTestId('fleet-empty-unreadable')).toBeTruthy());
   });
 
-  it('draws prime → section → seat structure, and says what each seat is doing', async () => {
+  it('renders the page fleet view itself — full fidelity, not a summary', async () => {
     /*
     Test Doc:
-    - Why: the panel originally shipped a deliberately FLAT list, on the reasoning that structure
-      here would duplicate the page. Jordan ruled the opposite on 2026-07-27: a fleet you cannot
-      see the shape of does not answer "what is my fleet doing". This test pins the reversal, so a
-      later tidy-up that "simplifies" the panel back to a flat list fails instead of silently
-      undoing a human ruling.
-    - Contract: the prime's shell CONTAINS its PM (structure taken from the tree read via
-      `groupFleet`, never derived from ids), and each seat line carries its assignment text.
-    - Usage Notes: shared fixtures, so page and panel are proven against the same fleet shape.
-    - Quality Contribution: containment is asserted with `within`, not by co-presence on the
-      screen — two seats can both render while the nesting is wrong, and only containment can tell.
-    - Worked Example: prime owl's shell contains PM cheetah; cheetah's line shows its task text.
+    - Why: this panel has now been thinned TWICE — the plan scoped it a "compact fleet list"
+      (AC-12 / 4.3) and the first build honoured that, then a structured-but-still-condensed
+      rewrite dropped observed state, model provenance, effort, flags and the section meta. Jordan
+      ruled on 2026-07-27 that the overlay must carry what the POC and page carry. The pull toward
+      "just a summary" is evidently strong, so the reversal needs a test holding it open.
+    - Contract: the overlay renders `FleetView` (`pij-fleet-view`), and the page's own structure
+      reaches it — the prime SHELL contains its PM, and the PM's row carries the model column.
+    - Usage Notes: shared fixtures, so page and overlay are proven against one fleet shape. The
+      empty/error states are the view's and are proven in `fleet-view.test.tsx`; asserting them
+      again here would pin a copy that no longer exists.
+    - Quality Contribution: containment via `within`, not co-presence — two seats can both be on
+      screen while the nesting is wrong, and only containment tells them apart. Asserting a
+      page-owned testid is the point: if someone reintroduces a bespoke overlay renderer, this
+      fails even if their version looks correct.
+    - Worked Example: prime owl's shell contains PM cheetah, whose row shows its bound model.
     */
     api.setFleet({
       seq: 11,
@@ -332,12 +337,16 @@ describe('the pij overlay — what it shows', () => {
 
     toggle();
 
-    const shell = await waitFor(() => screen.getByTestId(`pij-overlay-prime-${UI_PRIME_ID}`));
+    // The overlay's body IS the page's view — not a lookalike with its own testids.
+    await waitFor(() => expect(screen.getByTestId('pij-fleet-view')).toBeTruthy());
+
+    const shell = screen.getByTestId(`prime-shell-${UI_PRIME_ID}`);
     // The PM is INSIDE the prime it belongs to, not merely somewhere on screen.
-    const pmRow = within(shell).getByTestId(`pij-overlay-row-${UI_PM_ID}`);
-    expect(pmRow).toBeTruthy();
-    // And what it is doing is on the line — the reason the panel gained structure at all.
+    const pmRow = within(shell).getByTestId(`seat-row-${UI_PM_ID}`);
     expect(pmRow.textContent).toContain('PM');
-    expect(within(shell).getByTestId(`pij-overlay-row-${UI_WORKER_IDS[0]}`)).toBeTruthy();
+    // A column the condensed rewrites both dropped: if the panel is ever re-thinned, this is what
+    // goes missing first, so it is what the test watches.
+    expect(pmRow.textContent).toContain('claude-opus');
+    expect(within(shell).getByTestId(`seat-row-${UI_WORKER_IDS[0]}`)).toBeTruthy();
   });
 });
