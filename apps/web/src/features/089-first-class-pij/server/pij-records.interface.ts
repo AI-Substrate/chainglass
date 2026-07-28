@@ -61,7 +61,16 @@ export interface PijListRow {
  * and a caller that supplies neither would silently get the *server's own repo* — the trap this
  * module's `cwd` discipline exists to close, pointing the other way.
  */
-export type PijTreeScope = { cwd: string } | { global: true };
+/**
+ * `all: true` adds `--all`, which includes seats the default read omits — dead ones.
+ *
+ * It matters for MEMBERSHIP, not for decoration: the default tree carries only living seats, so a
+ * dead seat working in a sibling worktree is claimed by neither the tree (absent) nor path
+ * containment (outside the root) and disappears from the workspace entirely. Measured on
+ * voxel-flying-game 2026-07-28: 18 seats in the family, 4 of them dead-in-a-worktree, and those 4
+ * were invisible — not hidden with a count, invisible.
+ */
+export type PijTreeScope = ({ cwd: string } | { global: true }) & { all?: boolean };
 
 /** A node of `pij tree --json`. Repo-scoped from cwd — 7KB here vs ~100KB global. */
 export interface PijTreeNode {

@@ -233,7 +233,9 @@ export function usePijFleet(options: UsePijFleetOptions): UsePijFleetResult {
   const mountedRef = useRef(true);
 
   const loadTree = useCallback(async () => {
-    const query = `workspace=${encodeURIComponent(workspacePath)}`;
+    // `all=1`: membership needs the DEAD seats too — see the tree scope docs. Without it a dead
+    // seat in a sibling worktree is claimed by neither rung and disappears rather than being hidden.
+    const query = `workspace=${encodeURIComponent(workspacePath)}&all=1`;
     try {
       const response = await fetchImpl(`/api/pij/tree?${query}`);
       if (!response.ok) {

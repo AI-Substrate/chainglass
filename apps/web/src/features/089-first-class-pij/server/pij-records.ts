@@ -146,6 +146,8 @@ class CliPijRecords implements IPijRecords {
     // is a distinct argv rather than "cwd omitted".
     const global = 'global' in options;
     const args = global ? ['tree', '--global', '--json'] : ['tree', '--json'];
+    // Read-only, and allowlist-checked like every other argv this adapter builds.
+    if (options.all) args.push('--all');
     const payload = await this.run(args, global ? {} : { cwd: options.cwd });
     if (
       typeof payload !== 'object' ||

@@ -112,7 +112,9 @@ describe('usePijFleet — acquisition', () => {
     await waitFor(() => expect(result.current.phase).toBe('live'));
 
     const encoded = encodeURIComponent(UI_WORKSPACE_PATH);
-    expect(api.calls).toContain(`/api/pij/tree?workspace=${encoded}`);
+    // `all=1` is load-bearing, not decorative: without dead seats the tree cannot claim a dead seat
+    // working in a sibling worktree, and it vanishes instead of being hidden with a count.
+    expect(api.calls).toContain(`/api/pij/tree?workspace=${encoded}&all=1`);
     expect(api.calls).toContain(`/api/pij/flow?workspace=${encoded}`);
 
     // The FLEET read is deliberately global — see the hook's loadFleet doc. The server's workspace
@@ -649,7 +651,9 @@ describe('usePijFleet — global scope', () => {
     expect(api.calls).toContain('/api/pij/fleet');
     expect(api.calls.some((url) => url.startsWith('/api/pij/fleet?'))).toBe(false);
     // The tree is repo-scoped whatever the fleet scope is — `pij tree` needs a cwd to mean anything.
-    expect(api.calls).toContain(`/api/pij/tree?workspace=${encodeURIComponent(UI_WORKSPACE_PATH)}`);
+    expect(api.calls).toContain(
+      `/api/pij/tree?workspace=${encodeURIComponent(UI_WORKSPACE_PATH)}&all=1`
+    );
   });
 
   it('applies foreign rows instead of counting them out — there is no workspace to be outside of', async () => {

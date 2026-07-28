@@ -36,6 +36,9 @@ export async function handlePijTreeRequest(
   // Exactly one scope, checked BEFORE anything is read: a rejected request must not cost a CLI call.
   const workspace = workspaceParam(request);
   const global = request.nextUrl.searchParams.get('global') === '1';
+  // `?all=1` includes dead seats. The fleet view needs them to decide MEMBERSHIP — a dead seat in a
+  // sibling worktree is otherwise claimed by neither the tree nor path containment, and vanishes.
+  const all = request.nextUrl.searchParams.get('all') === '1';
   if (workspace && global) return ambiguousParams('workspace', 'global');
   if (!workspace && !global) return missingParam('workspace');
 
@@ -43,8 +46,8 @@ export async function handlePijTreeRequest(
     // Branching on `workspace` rather than on `global` lets the type narrow on its own — after the
     // ladder above, "no workspace" can only mean global.
     const tree = workspace
-      ? await deps.poller.records.tree({ cwd: workspace })
-      : await deps.poller.records.tree({ global: true });
+      ? await deps.poller.records.tree({ cwd: workspace, all })
+      : await deps.poller.records.tree({ global: true, all });
     const snapshot = deps.poller.snapshot();
     // `workspace: null` is the global answer's honest scope. Echoing a path here would label the
     // whole machine as one repo, which is precisely the claim the global page must not make.
