@@ -97,6 +97,7 @@ export function PijPageClient({ workspacePath, workspaceName, fetchImpl }: PijPa
             scope={scope}
             onScopeChange={setScope}
             filteredOut={fleet.filteredOut}
+            outsideRoot={fleet.outsideRoot}
             fetchError={fleet.errors.fleet}
           />
         </TabsContent>

@@ -27,10 +27,24 @@
  *
  * One shared `pij` mux channel fans the same bytes to every tab, and tabs sit in different
  * workspaces, so the broadcast cannot be pre-scoped — client-side containment is a designed
- * consequence of that ruling, not a workaround. Delta rows are therefore filtered through the same
- * segment-aware containment rule the server applies to snapshots, and the number dropped is
- * *counted*: an empty view whose cause is "the filter rejected everything" must be distinguishable
- * from "there is nothing here", or a scope-key mismatch reads as an honest empty fleet.
+ * consequence of that ruling, not a workaround.
+ *
+ * Membership is decided at RENDER, from the tree, and both halves of that are load-bearing:
+ *
+ * - **From the tree**, because `pij tree` groups by the repo family (git's common dir), while a path
+ *   rule cannot: git places a worktree BESIDE its checkout, so `<repo>-worktrees/<branch>` is outside
+ *   `<repo>` by path and inside it by repository. Consuming pij's grouping also cannot drift from
+ *   pij, and needs no `<repo>-worktrees` naming heuristic — which would reopen the sibling-prefix
+ *   leak the containment tests exist to prevent, since a sibling repo has its own git dir and is
+ *   therefore structurally absent from this tree.
+ * - **At render**, because a row discarded on arrival can never be reconsidered when the tree that
+ *   places it lands a moment later. The hook holds the machine's fleet and shows this workspace's.
+ *
+ * That ordering was the bug: filtering by path on the way in destroyed worktree rows before the only
+ * read that could place them was consulted, and the page rendered a confident "2 seats · governs 0
+ * sections" out of 18 (voxel-flying-game, 2026-07-28). Both counts are surfaced — `filteredOut` for
+ * seats held but elsewhere, `outsideRoot` for family seats outside the root — because the failure was
+ * a well-formed small answer, and no reader can notice a row that was never drawn.
  * `removed` applies unconditionally — a seat leaving the global view has left this one too.
  *
  * `flow-delta` (Phase 3) rides the same channel and the same containment rule, keyed on `planDir`, but
@@ -111,6 +125,13 @@ export interface UsePijFleetResult {
    */
   filteredOut: number;
   /**
+   * Seats shown because the repo tree places them in this workspace's family, though their folder
+   * sits outside the workspace root — worktrees, which git conventionally puts beside the checkout
+   * rather than inside it. Rendered as a visible non-zero: the reader cannot notice seats that were
+   * never drawn, and a small fleet looks exactly like a correct one.
+   */
+  outsideRoot: number;
+  /**
    * PLAN FOLDERS rejected by the containment filter since mount. Deliberately a second counter: the
    * Fleet tab renders {@link filteredOut} as a sentence about seats, and folding plan folders into it
    * would make that sentence false at the moment a human is reading it to find a missing seat.
@@ -160,7 +181,7 @@ export function usePijFleet(options: UsePijFleetOptions): UsePijFleetResult {
   const [seq, setSeq] = useState(0);
   const [tree, setTree] = useState<PijTreeNode[]>([]);
   const [flows, setFlows] = useState<FlowSummary[]>([]);
-  const [filteredOut, setFilteredOut] = useState(0);
+  const [treeIds, setTreeIds] = useState<Set<string>>(() => new Set());
   const [flowsFilteredOut, setFlowsFilteredOut] = useState(0);
   const [errors, setErrors] = useState<UsePijFleetResult['errors']>({
     fleet: null,
@@ -222,7 +243,11 @@ export function usePijFleet(options: UsePijFleetOptions): UsePijFleetResult {
       }
       const snapshot = (await response.json()) as PijSnapshot<TreeSnapshotData>;
       if (!mountedRef.current) return;
-      treeIdsRef.current = collectTreeIds(snapshot.data.roots);
+      const ids = collectTreeIds(snapshot.data.roots);
+      treeIdsRef.current = ids;
+      // The ref answers "have I seen this id" inside the delta loop without re-running it; the state
+      // is what makes membership RE-DERIVE when a tree read lands after the rows it places.
+      setTreeIds(ids);
       setTree(snapshot.data.roots);
       setErrors((prev) => ({ ...prev, tree: null }));
     } catch (error) {
@@ -251,10 +276,19 @@ export function usePijFleet(options: UsePijFleetOptions): UsePijFleetResult {
   const loadFleet = useCallback(async () => {
     // Global scope omits the parameter entirely: the route treats an absent `workspace` as "the whole
     // fleet", which is a different question, not a looser filter.
-    const url =
-      scope === 'global'
-        ? '/api/pij/fleet'
-        : `/api/pij/fleet?workspace=${encodeURIComponent(workspacePath)}`;
+    /*
+     * ALWAYS the global read, in both scopes — and the workspace filter now happens here, on the
+     * client, at render.
+     *
+     * The server's `?workspace=` filter is path containment, and path containment is the wrong
+     * question: git places a worktree as a SIBLING of its checkout, so seats working in
+     * `<repo>-worktrees/<branch>` are outside `<repo>` by path while being inside the same repo
+     * family. Asking the server to pre-filter meant those rows were destroyed before the tree — the
+     * only read that knows the family — was ever consulted. Measured 2026-07-28 on
+     * voxel-flying-game: 18 seats in the family, 4 under the workspace root, and the page rendered a
+     * confident "2 seats · governs 0 sections".
+     */
+    const url = '/api/pij/fleet';
     // The buffer mark, taken BEFORE the request leaves. Everything that arrives from here on is
     // replayable against whatever seq comes back — that is the whole of the race handling.
     const bufferedFrom = receivedCountRef.current;
@@ -343,11 +377,6 @@ export function usePijFleet(options: UsePijFleetOptions): UsePijFleetResult {
     const pending = messages.slice(messages.length - available);
     appliedCountRef.current = receivedCount;
 
-    // In global scope every row belongs by definition: there is no workspace to be outside of.
-    const belongsHere = (folder: string): boolean =>
-      scope === 'global' || isFolderInWorkspacePath(folder, workspacePath);
-
-    let rejected = 0;
     let flowsRejected = 0;
     let highestSeq = 0;
     let unknownId = false;
@@ -393,8 +422,11 @@ export function usePijFleet(options: UsePijFleetOptions): UsePijFleetResult {
       applicable.push(event);
       highestSeq = Math.max(highestSeq, event.seq);
       for (const row of event.rows) {
-        if (!belongsHere(row.folder)) rejected += 1;
-        else if (!treeIdsRef.current.has(row.id)) unknownId = true;
+        // A row the tree has not placed AND the path does not claim may still belong here — the tree
+        // read is simply older than the seat. Refetching is how it gets its chance; dropping it was
+        // the bug.
+        if (!treeIdsRef.current.has(row.id) && isFolderInWorkspacePath(row.folder, workspacePath))
+          unknownId = true;
       }
     }
 
@@ -403,9 +435,11 @@ export function usePijFleet(options: UsePijFleetOptions): UsePijFleetResult {
         const next = new Map(previous);
         for (const event of applicable) {
           for (const row of event.rows) {
-            // Whole-row replacement. There is no field-level merge anywhere in this hook, which is
-            // what makes "never re-derive a value" (AC-03) structurally true rather than promised.
-            if (belongsHere(row.folder)) next.set(row.id, row);
+            // Whole-row replacement, and UNCONDITIONAL. Storage is not the place to decide
+            // membership: a row discarded here can never be reconsidered when the tree that places
+            // it arrives a moment later. The hook holds the machine's fleet; the derivation below
+            // decides which of it this workspace is looking at.
+            next.set(row.id, row);
           }
           // Unconditional: `removed` says "gone from this view", and this view is a subset of that one.
           for (const id of event.removed) next.delete(id);
@@ -423,14 +457,41 @@ export function usePijFleet(options: UsePijFleetOptions): UsePijFleetResult {
         return [...byDir.values()];
       });
     }
-    if (rejected > 0) setFilteredOut((count) => count + rejected);
     if (flowsRejected > 0) setFlowsFilteredOut((count) => count + flowsRejected);
     if (highestSeq > 0) setSeq((current) => Math.max(current, highestSeq));
     if (latestStatus) setStatus(latestStatus);
     if (unknownId) scheduleTreeRefetch();
   }, [messages, receivedCount, snapshotToken, workspacePath, scope, scheduleTreeRefetch]);
 
-  const rows = useMemo(() => [...rowsById.values()], [rowsById]);
+  /*
+   * Membership, derived — and the TREE is the authority, not the path.
+   *
+   * `pij tree` scopes by the repo family (git's common dir, per dove 2026-07-28), so it already
+   * answers "is this seat part of this repo" for worktrees placed anywhere, under any naming
+   * convention, while a sibling repo that merely shares a prefix is structurally absent from it.
+   * Consuming that grouping beats recomputing it: a second implementation drifts, and a name-based
+   * rule reopens the sibling leak the containment tests exist to prevent.
+   *
+   * Path containment stays as the second rung, for seats too new for the current tree read.
+   */
+  const { rows, filteredOut, outsideRoot } = useMemo(() => {
+    const held = [...rowsById.values()];
+    if (scope === 'global') return { rows: held, filteredOut: 0, outsideRoot: 0 };
+
+    const family = treeIds;
+    const visible = held.filter(
+      (row) => family.has(row.id) || isFolderInWorkspacePath(row.folder, workspacePath)
+    );
+    return {
+      rows: visible,
+      filteredOut: held.length - visible.length,
+      // Shown BECAUSE the tree placed them, though they live outside the workspace root — the
+      // worktree seats. Surfaced as a positive number because their absence is what a reader cannot
+      // notice: a fleet of 2 is a perfectly plausible fleet (mastodon, 2026-07-28).
+      outsideRoot: visible.filter((row) => !isFolderInWorkspacePath(row.folder, workspacePath))
+        .length,
+    };
+  }, [rowsById, treeIds, workspacePath, scope]);
 
   const phase: UsePijFleetResult['phase'] =
     snapshotSeqRef.current === null
@@ -447,6 +508,7 @@ export function usePijFleet(options: UsePijFleetOptions): UsePijFleetResult {
     tree,
     flows,
     filteredOut,
+    outsideRoot,
     flowsFilteredOut,
     errors,
     refresh,

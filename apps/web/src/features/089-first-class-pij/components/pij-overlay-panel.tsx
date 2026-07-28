@@ -35,7 +35,7 @@ function PijOverlayContent({
   fetchImpl?: typeof fetch;
 }) {
   const [scope, setScope] = useState<FleetScope>('workspace');
-  const { rows, tree, status, phase, errors, filteredOut } = usePijFleet({
+  const { rows, tree, status, phase, errors, filteredOut, outsideRoot } = usePijFleet({
     workspacePath,
     scope,
     fetchImpl,
@@ -78,6 +78,7 @@ function PijOverlayContent({
           scope={scope}
           onScopeChange={setScope}
           filteredOut={filteredOut}
+          outsideRoot={outsideRoot}
           fetchError={errors.fleet}
           focusFetchImpl={fetchImpl}
         />

@@ -42,8 +42,10 @@ export interface FleetViewProps {
   now: number;
   scope: FleetScope;
   onScopeChange: (scope: FleetScope) => void;
-  /** Delta rows the containment filter rejected since mount. */
+  /** Rows held from the global channel that belong to other workspaces. */
   filteredOut: number;
+  /** Rows shown because the tree places them in this family, though outside the workspace root. */
+  outsideRoot: number;
   fetchError?: string | null;
   /**
    * The team→flow join for a section lead. Absent for every seat today — see `joinTeamToFlow` for the
@@ -112,10 +114,23 @@ export function FleetView(props: FleetViewProps) {
           <span
             className="text-xs text-muted-foreground"
             data-testid="fleet-filtered-out"
-            title="live updates carrying seats from other workspaces — the channel is shared by design"
+            title="seats held from the shared channel that belong to other workspaces — the channel is global by design"
           >
-            {props.filteredOut} update{props.filteredOut === 1 ? '' : 's'} filtered out (other
-            workspaces)
+            {props.filteredOut} seat{props.filteredOut === 1 ? '' : 's'} elsewhere (other workspaces)
+          </span>
+        ) : null}
+
+        {/* A visible non-zero, deliberately. These seats live outside the workspace root and are
+            here only because the repo tree places them in the family; when the membership rule was
+            path-only they silently vanished and the page rendered a confident, well-formed, wrong
+            answer. The absence of a row is not something a reader can notice — this number is. */}
+        {props.outsideRoot > 0 ? (
+          <span
+            className="text-xs text-muted-foreground"
+            data-testid="fleet-outside-root"
+            title="in this repo's family per the pij tree read, working outside the workspace root — git places worktrees beside the checkout"
+          >
+            {props.outsideRoot} in worktree{props.outsideRoot === 1 ? '' : 's'} outside the root
           </span>
         ) : null}
       </div>

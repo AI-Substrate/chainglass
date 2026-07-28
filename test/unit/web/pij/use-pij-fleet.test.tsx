@@ -112,9 +112,15 @@ describe('usePijFleet — acquisition', () => {
     await waitFor(() => expect(result.current.phase).toBe('live'));
 
     const encoded = encodeURIComponent(UI_WORKSPACE_PATH);
-    expect(api.calls).toContain(`/api/pij/fleet?workspace=${encoded}`);
     expect(api.calls).toContain(`/api/pij/tree?workspace=${encoded}`);
     expect(api.calls).toContain(`/api/pij/flow?workspace=${encoded}`);
+
+    // The FLEET read is deliberately global — see the hook's loadFleet doc. The server's workspace
+    // filter is path containment, which excludes a repo's own worktrees (git puts them beside the
+    // checkout), so pre-filtering there destroys rows before the tree can place them. Membership is
+    // decided here instead. Asserted as an absence so re-adding the parameter fails loudly.
+    expect(api.calls).toContain('/api/pij/fleet');
+    expect(api.calls.filter((url) => url.startsWith('/api/pij/fleet?'))).toEqual([]);
   });
 
   it('exposes the snapshot rows, tree and status', async () => {
@@ -312,6 +318,45 @@ describe('usePijFleet — workspace containment of global deltas', () => {
 
     expect(result.current.rows).toEqual([]);
     expect(result.current.filteredOut).toBe(1);
+  });
+
+  it('shows a worktree seat the TREE places, though its folder is outside the workspace root', async () => {
+    /*
+    Test Doc:
+    - Why: this is the bug the whole membership rule was rewritten for (2026-07-28, voxel-flying-game
+      via pij-superior-mastodon). Git places a worktree BESIDE its checkout, so a seat working in
+      `<repo>-worktrees/<branch>` fails path containment while being in the same repo family. The old
+      rule dropped those rows before the tree could place them, and the page rendered "2 seats ·
+      governs 0 sections" out of 18 — an error-free, well-formed, wrong answer that no reader could
+      be expected to doubt.
+    - Contract: membership is `tree family OR path containment`, and a seat included only by the tree
+      is counted in `outsideRoot` so its presence is visible rather than merely correct.
+    - Usage Notes: the SIBLING case directly above must keep failing containment — same directory
+      shape, opposite verdict. The discriminator is the tree, never the name: `chainglass-worktree`
+      is absent from this tree, `chainglass-worktrees/s3` is in it.
+    - Quality Contribution: pins the rule that a name-based fix would silently re-break, and pairs
+      with the sibling test so "reject siblings" cannot be satisfied by rejecting worktrees too.
+    - Worked Example: otter at `<workspace>-worktrees/s3-thing`, present in the tree → shown, and
+      `outsideRoot` is 1.
+    */
+    const worktreeRow = fleetRow('pij-worktree-otter', {
+      folder: `${UI_WORKSPACE_PATH}-worktrees/s3-thing`,
+    });
+    api.setFleet(fleetSnapshot(40, [worktreeRow])).setTree({
+      seq: 40,
+      at: '2026-07-26T12:00:00.000Z',
+      data: {
+        workspace: UI_WORKSPACE_PATH,
+        roots: [{ id: 'pij-worktree-otter', folder: worktreeRow.folder }],
+      },
+    });
+
+    const { result } = renderPijFleet();
+    await waitFor(() => expect(result.current.phase).toBe('live'));
+
+    expect(result.current.rows.map((row) => row.id)).toEqual(['pij-worktree-otter']);
+    expect(result.current.outsideRoot).toBe(1);
+    expect(result.current.filteredOut).toBe(0);
   });
 });
 

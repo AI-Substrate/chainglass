@@ -117,6 +117,7 @@ function renderFleet(overrides: Partial<Parameters<typeof FleetView>[0]> = {}) {
       scope="workspace"
       onScopeChange={() => {}}
       filteredOut={0}
+      outsideRoot={0}
       {...overrides}
     />
   );

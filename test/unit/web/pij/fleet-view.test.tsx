@@ -51,6 +51,7 @@ function renderFleet(overrides: Partial<Parameters<typeof FleetView>[0]> = {}) {
       scope="workspace"
       onScopeChange={onScopeChange}
       filteredOut={0}
+      outsideRoot={0}
       {...overrides}
     />
   );
@@ -349,10 +350,15 @@ describe('FleetView — the AC-03 columns and their absences', () => {
     expect(screen.getByTestId('seat-row-pij-quiet-seat').textContent).toContain('quiet 30m');
   });
 
-  it('reports live updates that the containment filter rejected', async () => {
-    renderFleet({ filteredOut: 3 });
+  it('reports seats held for other workspaces, and worktree seats shown from outside the root', async () => {
+    renderFleet({ filteredOut: 3, outsideRoot: 2 });
+    // The worktree count is the one that matters: when membership was path-only these seats were
+    // dropped silently and the page rendered a smaller, entirely plausible fleet.
+    expect(screen.getByTestId('fleet-outside-root').textContent).toContain(
+      '2 in worktrees outside the root'
+    );
     expect(screen.getByTestId('fleet-filtered-out').textContent).toContain(
-      '3 updates filtered out'
+      '3 seats elsewhere'
     );
   });
 
@@ -384,6 +390,7 @@ describe('FleetView — where the assignment text comes from', () => {
         scope="workspace"
         onScopeChange={() => {}}
         filteredOut={0}
+        outsideRoot={0}
       />
     );
 
@@ -429,6 +436,7 @@ describe('FleetView — where the assignment text comes from', () => {
         scope="workspace"
         onScopeChange={() => {}}
         filteredOut={0}
+        outsideRoot={0}
       />
     );
 
