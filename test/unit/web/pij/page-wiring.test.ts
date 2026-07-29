@@ -83,28 +83,22 @@ describe('pij page wiring', () => {
   });
 });
 
-describe('pij overlay wiring — Phase 4 (T003)', () => {
-  it('composes the overlay INSIDE the SSE provider, where the channel exists', async () => {
+describe('pij rail wiring — Plan 090', () => {
+  it('mounts one route-aware toggle listener and no overlay wrapper', async () => {
     /*
     Test Doc:
-    - Why: the panel's fleet list is live. Mounted outside `MultiplexedSSEProvider` it would render
-      a snapshot and then never move again — no error, no warning, the same silent staleness the
-      channel-list test above guards against, arriving by a different route.
-    - Contract: `PijOverlayWrapper` appears after `MultiplexedSSEProvider` opens and before it closes.
+    - Why: every trigger lives outside browser panel state. One workspace listener owns the route
+      decision so on-browser and off-browser commands cannot drift.
+    - Contract: exactly one `PijRailToggleListener`; no retired overlay wrapper.
     - Usage Notes: asserted over the source text; rendering the layout needs a container, a workspace
       service and a session.
-    - Quality Contribution: makes the nesting — which reads as an arbitrary choice — a checked one.
-    - Worked Example: index of the wrapper falls inside the provider's span.
+    - Quality Contribution: pins the replacement seam and overlay retirement.
+    - Worked Example: one listener mount, zero PijOverlayWrapper references.
     */
     const layout = await source('apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx');
 
-    const providerOpen = layout.indexOf('<MultiplexedSSEProvider');
-    const providerClose = layout.indexOf('</MultiplexedSSEProvider>');
-    const wrapper = layout.indexOf('<PijOverlayWrapper');
-
-    expect(providerOpen).toBeGreaterThan(-1);
-    expect(wrapper).toBeGreaterThan(providerOpen);
-    expect(wrapper).toBeLessThan(providerClose);
+    expect([...layout.matchAll(/<PijRailToggleListener/g)]).toHaveLength(1);
+    expect(layout).not.toContain('PijOverlayWrapper');
   });
 
   it('adds exactly one button to the sidebar, using the established CustomEvent seam', async () => {
@@ -113,7 +107,7 @@ describe('pij overlay wiring — Phase 4 (T003)', () => {
     - Why: `dashboard-sidebar.tsx` is shared app-shell furniture and this phase's touch is sanctioned
       for exactly one element. "Exactly one" is the kind of constraint that erodes silently.
     - Contract: one `pij:toggle` dispatch in the sidebar, and no direct import of the pij feature —
-      the sidebar sits outside the overlay providers, so the event is the only legitimate route.
+      the sidebar stays coupled only to the shared event seam.
     - Usage Notes: counts dispatch sites rather than reading the JSX shape.
     - Quality Contribution: keeps a sanctioned exception from becoming a habit.
     - Worked Example: one dispatch, zero feature imports.

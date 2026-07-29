@@ -30,12 +30,13 @@
  *
  * READ ONLY throughout: a file read of the spine, and read verbs through `IPijRecords`.
  */
-import type { FleetRow, PijChannelEvent, PijId, PollerStatus } from '../types';
+import type { FleetRow, PijChannelEvent, PijId, PijStatusRecord, PollerStatus } from '../types';
 import { PIJ_CHANNEL } from '../types';
 import type { IFlowReader } from './flow-reader.interface';
 import { indexFleetById, isFolderInWorkspace, toFleetRow } from './join';
 import { PijCliError } from './pij-records';
 import type { IPijRecords, PijListRow } from './pij-records.interface';
+import { type PijRailContractSeams, productionContractSeams } from './pij-status.contract';
 import type { ISpineCursor, SpineEvent } from './spine-cursor.interface';
 
 /** Spine cursor cadence. Inside C-10's ruled 1–2s band. */
@@ -45,8 +46,8 @@ export const FAST_LOOP_MS = 2_000;
 export const SLOW_LOOP_MS = 8_000;
 
 /**
- * The fan-out ceiling for one fast tick, whatever the event count. This is the 100:1 filter expressed
- * as a number a test can assert.
+ * The fan-out ceiling for one event type in one fast tick. A tick may emit one coalesced
+ * `fleet-delta` and one coalesced `status-delta`, never one broadcast per spine line.
  */
 export const MAX_BROADCASTS_PER_FAST_TICK = 1;
 
@@ -83,12 +84,14 @@ export interface PijPollerDeps {
   slowLoopMs?: number;
   /** Non-fatal diagnostics. Defaults to console. */
   logger?: { warn: (message: string, ...rest: unknown[]) => void };
+  contracts?: PijRailContractSeams;
 }
 
 export interface PijSnapshotResult {
   seq: number;
   at: string;
   rows: FleetRow[];
+  statuses: PijStatusRecord[];
   status: PollerStatus;
 }
 
@@ -105,12 +108,15 @@ export interface PijPollerService {
 }
 
 class Poller implements PijPollerService {
-  private readonly deps: Required<Pick<PijPollerDeps, 'scheduler' | 'now' | 'logger'>> &
+  private readonly deps: Required<
+    Pick<PijPollerDeps, 'scheduler' | 'now' | 'logger' | 'contracts'>
+  > &
     PijPollerDeps;
   private readonly fastLoopMs: number;
   private readonly slowLoopMs: number;
 
   private fleet = new Map<PijId, FleetRow>();
+  private statuses = new Map<PijId, PijStatusRecord>();
   private cancels: Array<() => void> = [];
   private running = false;
   private lastSpinePollAt: string | null = null;
@@ -126,6 +132,7 @@ class Poller implements PijPollerService {
       scheduler: deps.scheduler ?? realScheduler,
       now: deps.now ?? (() => new Date()),
       logger: deps.logger ?? console,
+      contracts: deps.contracts ?? productionContractSeams,
     };
     this.fastLoopMs = deps.fastLoopMs ?? FAST_LOOP_MS;
     this.slowLoopMs = deps.slowLoopMs ?? SLOW_LOOP_MS;
@@ -166,10 +173,12 @@ class Poller implements PijPollerService {
     const rows = options.workspace
       ? all.filter((row) => isFolderInWorkspace(row.folder, options.workspace as string))
       : all;
+    const visibleIds = new Set(rows.map((row) => row.id));
     return {
       seq: this.deps.cursor.seq,
       at: this.deps.now().toISOString(),
       rows,
+      statuses: [...this.statuses.values()].filter((status) => visibleIds.has(status.peer)),
       status: this.status(),
     };
   }
@@ -204,9 +213,22 @@ class Poller implements PijPollerService {
     // THE FILTER. Collapse every event in this tick down to the set of seats it touched, applying
     // only what a spine event honestly says about a row.
     const touched = new Map<PijId, FleetRow>();
+    const statusTouched = new Map<PijId, PijStatusRecord>();
     for (const event of result.events) {
       const peer = peerOf(event);
       if (!peer) continue;
+      if (event.kind === 'status') {
+        const status = this.deps.contracts.status.readSpineEvent(event, peer);
+        if (status) {
+          const current = statusTouched.get(peer) ?? this.statuses.get(peer);
+          const newest = this.deps.contracts.status.newestByPeer(
+            current ? [current, status] : [status]
+          );
+          const selected = newest.get(peer);
+          if (selected) statusTouched.set(peer, selected);
+        }
+        continue;
+      }
       const known = touched.get(peer) ?? this.fleet.get(peer);
       // A spine event carries a peer id and a transition — NOT a folder, harness or model. There is
       // no honest way to build a row for a seat we have never read; it arrives on the next slow loop.
@@ -214,16 +236,26 @@ class Poller implements PijPollerService {
       touched.set(peer, applyEvent(known, event));
     }
 
-    if (touched.size === 0) return;
+    if (statusTouched.size > 0) {
+      for (const [id, status] of statusTouched) this.statuses.set(id, status);
+      this.emit({
+        type: 'status-delta',
+        seq: result.seq,
+        at: this.deps.now().toISOString(),
+        statuses: [...statusTouched.values()],
+      });
+    }
 
-    for (const [id, row] of touched) this.fleet.set(id, row);
-    this.emit({
-      type: 'fleet-delta',
-      seq: result.seq,
-      at: this.deps.now().toISOString(),
-      rows: [...touched.values()],
-      removed: [],
-    });
+    if (touched.size > 0) {
+      for (const [id, row] of touched) this.fleet.set(id, row);
+      this.emit({
+        type: 'fleet-delta',
+        seq: result.seq,
+        at: this.deps.now().toISOString(),
+        rows: [...touched.values()],
+        removed: [],
+      });
+    }
   }
 
   /** Slow loop: ONE global list, diff, emit only what changed. Degrades rather than blanks. */
@@ -263,6 +295,9 @@ class Poller implements PijPollerService {
     const removed = [...this.fleet.keys()].filter((id) => !next.has(id));
 
     this.fleet = next;
+    for (const peer of this.statuses.keys()) {
+      if (!next.has(peer)) this.statuses.delete(peer);
+    }
 
     if (changed.length === 0 && removed.length === 0) return;
     this.emit({

@@ -342,16 +342,16 @@ export function DashboardSidebar() {
               </SidebarMenuButton>
             </SidebarMenuItem>
           )}
-          {/* Plan 089 Phase 4: the established CustomEvent pattern — this sidebar sits outside the
-              overlay providers and cannot reach their context directly. */}
+          {/* Plan 090: the shared event lets the workspace listener switch the browser rail from
+              every route without coupling this app-shell component to file-browser state. */}
           <SidebarMenuItem>
             <SidebarMenuButton
               onClick={() => window.dispatchEvent(new CustomEvent('pij:toggle'))}
-              tooltip="Toggle pij fleet (Cmd+Shift+F)"
+              tooltip="Open pij rail (Cmd+Shift+F)"
               data-testid="sidebar-pij-toggle"
             >
               <Users className="h-5 w-5" />
-              {!isCollapsed && <span>pij fleet</span>}
+              {!isCollapsed && <span>pij rail</span>}
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>

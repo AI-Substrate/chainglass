@@ -46,6 +46,7 @@ const PROMOTED = new Set([
   'degraded',
   'failureReason',
   'prime',
+  'orchestrationRole',
   'unadopted',
   'currentTask',
   'currentAssignment',
@@ -108,6 +109,16 @@ export function toFleetRow(row: PijListRow): FleetRow {
     degraded: row.degraded,
     failureReason: row.failureReason ?? null,
     prime: row.prime,
+    ...(Object.hasOwn(row, 'orchestrationRole')
+      ? {
+          orchestrationRole:
+            row.orchestrationRole === 'prime' ||
+            row.orchestrationRole === 'pm' ||
+            row.orchestrationRole === 'worker'
+              ? row.orchestrationRole
+              : null,
+        }
+      : {}),
     unadopted: row.unadopted,
     currentTask: typeof row.currentTask === 'string' ? row.currentTask : undefined,
     currentAssignment:

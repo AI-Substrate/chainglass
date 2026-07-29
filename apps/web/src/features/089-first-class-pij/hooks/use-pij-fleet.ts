@@ -70,6 +70,7 @@ import type {
   PijChannelEvent,
   PijId,
   PijSnapshot,
+  PijStatusRecord,
   PollerStatus,
   TreeSnapshotData,
 } from '../types';
@@ -113,6 +114,8 @@ export interface UsePijFleetOptions {
 export interface UsePijFleetResult {
   /** Seats in this workspace, snapshot-then-deltas. */
   rows: FleetRow[];
+  /** JC-1 cold-start records from the fleet snapshot; live deltas are consumed by `usePijStatus`. */
+  statuses: PijStatusRecord[];
   status: PollerStatus | null;
   /** The highest spine seq this view reflects. */
   seq: number;
@@ -178,6 +181,7 @@ export function usePijFleet(options: UsePijFleetOptions): UsePijFleetResult {
 
   const [rowsById, setRowsById] = useState<Map<PijId, FleetRow>>(() => new Map());
   const [status, setStatus] = useState<PollerStatus | null>(null);
+  const [statuses, setStatuses] = useState<PijStatusRecord[]>([]);
   const [seq, setSeq] = useState(0);
   const [tree, setTree] = useState<PijTreeNode[]>([]);
   const [flows, setFlows] = useState<FlowSummary[]>([]);
@@ -312,6 +316,7 @@ export function usePijFleet(options: UsePijFleetOptions): UsePijFleetResult {
       replayUntilRef.current = receivedCountRef.current;
       snapshotSeqRef.current = snapshot.seq;
       setRowsById(new Map(snapshot.data.rows.map((row) => [row.id, row])));
+      setStatuses(snapshot.data.statuses ?? []);
       setStatus(snapshot.data.status);
       setSeq(snapshot.seq);
       setErrors((prev) => ({ ...prev, fleet: null }));
@@ -322,7 +327,7 @@ export function usePijFleet(options: UsePijFleetOptions): UsePijFleetResult {
       snapshotSeqRef.current = snapshotSeqRef.current ?? 0;
       setSnapshotToken((token) => token + 1);
     }
-  }, [fetchImpl, workspacePath, scope]);
+  }, [fetchImpl]);
 
   const refresh = useCallback(() => {
     void loadFleet();
@@ -504,6 +509,7 @@ export function usePijFleet(options: UsePijFleetOptions): UsePijFleetResult {
 
   return {
     rows,
+    statuses,
     status,
     seq,
     phase,

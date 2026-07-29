@@ -104,43 +104,71 @@ function Flags({ placement }: { placement: SeatPlacement }) {
  *   copy of `folder` is as old as the last snapshot.
  */
 export function FocusButton({ placement }: { placement: SeatPlacement }) {
-  const focus = useSeatFocus();
-  if (!focus) return null;
-
-  const folder = placement.row?.folder ?? placement.node?.folder ?? '';
-  const inWorkspace = isFolderInWorkspacePath(folder, focus.workspacePath);
-  const outcome = focus.outcomes[placement.id];
-  const busy = focus.pending === placement.id;
+  const affordance = useSeatFocusAffordance(placement);
+  if (!affordance.available) return null;
 
   return (
     <span className="inline-flex flex-col items-end gap-0.5">
       <button
         type="button"
         data-testid={`focus-seat-${placement.id}`}
-        disabled={!inWorkspace || busy}
-        // Names what the human gets, not the mechanism that delivers it. The C-02 fence bans the
-        // window manager's name in client code and it is right to: the browser must never be the
-        // thing driving it, and a tooltip that talks about it is one refactor from code that does.
-        title={
-          inWorkspace
-            ? 'Bring this seat’s window to the front'
-            : `seat works in ${folder || '(no folder on record)'}, outside this workspace`
-        }
-        onClick={() => focus.focus(placement.id)}
+        disabled={!affordance.inWorkspace || affordance.busy}
+        title={affordance.title}
+        onClick={() => affordance.focus.focus(placement.id)}
         className="rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40"
       >
-        {busy ? 'focusing…' : 'focus'}
+        {affordance.busy ? 'focusing…' : 'focus'}
       </button>
-      {/* The route's own sentence, verbatim. Never re-worded into a verdict. */}
-      {outcome ? (
-        <span
-          data-testid={`focus-result-${placement.id}`}
-          data-reason={outcome.focused ? 'focused' : (outcome.reason ?? 'failed')}
-          className={`max-w-[220px] text-right text-[10px] ${outcome.focused ? 'text-muted-foreground' : 'text-amber-700 dark:text-amber-400'}`}
-        >
-          {outcome.observation}
-        </span>
-      ) : null}
+      <FocusResult placement={placement} />
+    </span>
+  );
+}
+
+export function useSeatFocusAffordance(placement: SeatPlacement) {
+  const focus = useSeatFocus();
+  const folder = placement.row?.folder ?? placement.node?.folder ?? '';
+  const inWorkspace = focus ? isFolderInWorkspacePath(folder, focus.workspacePath) : false;
+  const busy = focus?.pending === placement.id;
+
+  if (!focus) {
+    return {
+      available: false as const,
+      focus: null,
+      inWorkspace,
+      busy,
+      title: `seat works in ${folder || '(no folder on record)'}, outside this workspace`,
+    };
+  }
+
+  return {
+    available: true as const,
+    focus,
+    inWorkspace,
+    busy,
+    title: inWorkspace
+      ? 'Bring this seat’s window to the front'
+      : `seat works in ${folder || '(no folder on record)'}, outside this workspace`,
+  };
+}
+
+export function FocusResult({
+  placement,
+  testIdPrefix = 'focus-result',
+}: {
+  placement: SeatPlacement;
+  testIdPrefix?: string;
+}) {
+  const focus = useSeatFocus();
+  const outcome = focus?.outcomes[placement.id];
+  if (!outcome) return null;
+
+  return (
+    <span
+      data-testid={`${testIdPrefix}-${placement.id}`}
+      data-reason={outcome.focused ? 'focused' : (outcome.reason ?? 'failed')}
+      className={`max-w-[220px] text-right text-[10px] ${outcome.focused ? 'text-muted-foreground' : 'text-amber-700 dark:text-amber-400'}`}
+    >
+      {outcome.observation}
     </span>
   );
 }

@@ -11,6 +11,7 @@
  */
 import type { FlowSummary } from './server/flow-reader.interface';
 import type { PijTreeNode } from './server/pij-records.interface';
+import type { OrchestrationRole } from './server/pij-status.contract';
 
 /**
  * A pij session id.
@@ -61,6 +62,11 @@ export interface FleetRow {
   degraded?: boolean;
   failureReason?: string | null;
   prime?: boolean;
+  /**
+   * JC-2 projected role. Missing key means pre-JC-2 pij; `null` means the producer knows the field
+   * and this seat is undesignated. Consumers must preserve that distinction.
+   */
+  orchestrationRole?: OrchestrationRole | null;
   /** Ruled derivation (adoption axis), consumed not recomputed. */
   unadopted?: boolean;
   currentTask?: string | null;
@@ -138,6 +144,16 @@ export interface PollerStatus {
 /** The channel id. One channel for v1, as ruled by the stream prime. */
 export const PIJ_CHANNEL = 'pij';
 
+/** JC-1 consumed status subset. Unknown producer fields are intentionally not required. */
+export interface PijStatusRecord {
+  peer: PijId;
+  prev: string;
+  next: string;
+  ts: string;
+  seq: number;
+  project?: string;
+}
+
 /**
  * The `pij` channel vocabulary.
  *
@@ -165,6 +181,12 @@ export type PijChannelEvent =
       flows: FlowSummary[];
     }
   | {
+      type: 'status-delta';
+      seq: number;
+      at: string;
+      statuses: PijStatusRecord[];
+    }
+  | {
       type: 'poller-status';
       seq: number;
       at: string;
@@ -186,6 +208,7 @@ export interface FleetSnapshotData {
   /** The workspace this was scoped to, or `null` for the global set. */
   workspace: string | null;
   rows: FleetRow[];
+  statuses: PijStatusRecord[];
   status: PollerStatus;
 }
 

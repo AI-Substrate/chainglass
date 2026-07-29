@@ -116,7 +116,8 @@ export function FleetView(props: FleetViewProps) {
             data-testid="fleet-filtered-out"
             title="seats held from the shared channel that belong to other workspaces — the channel is global by design"
           >
-            {props.filteredOut} seat{props.filteredOut === 1 ? '' : 's'} elsewhere (other workspaces)
+            {props.filteredOut} seat{props.filteredOut === 1 ? '' : 's'} elsewhere (other
+            workspaces)
           </span>
         ) : null}
 

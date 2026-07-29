@@ -47,6 +47,7 @@ import { useRemoteViewEvents } from '@/features/088-remote-view/hooks/use-remote
 import { remoteViewParams } from '@/features/088-remote-view/params/remote-view.params';
 import { attachRemoteViewWindow } from '@/features/088-remote-view/sdk/attach-remote-view-window';
 import { remoteViewContribution } from '@/features/088-remote-view/sdk/contribution';
+import { PijRailPanel } from '@/features/089-first-class-pij/components/pij-rail-view';
 import type { RepoInfo as RepoInfoPayload } from '@/features/_platform/git';
 import {
   type BarContext,
@@ -67,6 +68,7 @@ import {
   FolderOpen,
   GitBranch,
   History,
+  Network,
   Search,
   StickyNote,
   TerminalSquare,
@@ -131,6 +133,7 @@ const RemoteViewPanel = dynamic(
 
 export interface BrowserClientProps {
   slug: string;
+  mainPath: string;
   worktreePath: string;
   worktreeBranch?: string;
   isGit: boolean;
@@ -139,6 +142,7 @@ export interface BrowserClientProps {
 
 export function BrowserClient({
   slug,
+  mainPath,
   worktreePath,
   worktreeBranch,
   isGit,
@@ -149,6 +153,7 @@ export function BrowserClient({
       <GlobalStateConnector slug={slug} worktreeBranch={worktreeBranch} />
       <BrowserClientInner
         slug={slug}
+        mainPath={mainPath}
         worktreePath={worktreePath}
         worktreeBranch={worktreeBranch}
         isGit={isGit}
@@ -160,6 +165,7 @@ export function BrowserClient({
 
 function BrowserClientInner({
   slug,
+  mainPath,
   worktreePath,
   worktreeBranch,
   isGit,
@@ -321,12 +327,13 @@ function BrowserClientInner({
     isGit,
     worktreePath,
     panel: panelMode,
-    setUrlPanel: (p) => setParams({ panel: p as 'tree' | 'changes' }),
+    setUrlPanel: (p) => setParams({ panel: p as 'tree' | 'changes' | 'pij' }),
     fetchWorkingChanges,
     fetchRecentFiles,
     fetchChangedFiles,
     fetchDiffStats,
   });
+  const [pijRefreshToken, setPijRefreshToken] = useState(0);
 
   const clipboard = useClipboard({ slug, worktreePath, readFile, repoInfo });
 
@@ -1058,6 +1065,8 @@ function BrowserClientInner({
     icon:
       m.key === 'tree' ? (
         <GitBranch className="h-3.5 w-3.5" />
+      ) : m.key === 'pij' ? (
+        <Network className="h-3.5 w-3.5" />
       ) : (
         <FileDiff className="h-3.5 w-3.5" />
       ),
@@ -1079,6 +1088,91 @@ function BrowserClientInner({
     );
   }, [panelState.diffStats]);
 
+  const leftPanelChildren = {
+    tree: (
+      <>
+        {/* Phase 7 T004: Notes filter toggle (FT-002: keep visible while active) */}
+        {(showOnlyWithNotes || noteFilePaths.size > 0) && (
+          <div className="flex items-center justify-end px-2 py-0.5 border-b">
+            <button
+              type="button"
+              onClick={() => setShowOnlyWithNotes((v) => !v)}
+              className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] ${
+                showOnlyWithNotes
+                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+              }`}
+              title={
+                showOnlyWithNotes
+                  ? 'Show all files'
+                  : `Show only files with notes (${noteFilePaths.size})`
+              }
+            >
+              <StickyNote className="h-3 w-3" />
+              <span>{noteFilePaths.size}</span>
+            </button>
+          </div>
+        )}
+        <FileTree
+          ref={treeRef}
+          entries={filteredRootEntries}
+          selectedFile={selectedFile}
+          changedFiles={panelState.changedFiles}
+          filesWithNotes={noteFilePaths}
+          newlyAddedPaths={combinedNewPaths}
+          onSelect={handleFileSelect}
+          onExpand={fileNav.handleExpand}
+          childEntries={filteredChildEntries}
+          expandPaths={expandPaths}
+          onExpandedDirsChange={handleExpandedDirsChange}
+          onCreateAutoExpand={handleTreeCreateAutoExpand}
+          onCopyFullPath={clipboard.handleCopyFullPath}
+          onCopyRelativePath={clipboard.handleCopyRelativePath}
+          onCopyRepoUrlCurrentRef={clipboard.handleCopyRepoUrlCurrentRef}
+          onCopyRepoUrlDefaultBranch={clipboard.handleCopyRepoUrlDefaultBranch}
+          repoInfo={repoInfo}
+          onCopyContent={clipboard.handleCopyContent}
+          onCopyTree={clipboard.handleCopyTree}
+          onDownload={clipboard.handleDownload}
+          onAddNote={handleAddNote}
+          onCreateFile={handleTreeCreateFile}
+          onCreateFolder={handleTreeCreateFolder}
+          onRename={handleTreeRename}
+          onDelete={handleTreeDelete}
+        />
+      </>
+    ),
+    changes: (
+      <ChangesView
+        workingChanges={panelState.workingChanges}
+        recentFiles={panelState.recentFiles}
+        selectedFile={selectedFile}
+        onSelect={handleFileSelect}
+        onCopyFullPath={clipboard.handleCopyFullPath}
+        onCopyRelativePath={clipboard.handleCopyRelativePath}
+        onCopyRepoUrlCurrentRef={clipboard.handleCopyRepoUrlCurrentRef}
+        onCopyRepoUrlDefaultBranch={clipboard.handleCopyRepoUrlDefaultBranch}
+        repoInfo={repoInfo}
+        onCopyContent={clipboard.handleCopyContent}
+        onDownload={clipboard.handleDownload}
+      />
+    ),
+    pij: (
+      <PijRailPanel
+        mainPath={mainPath}
+        worktreePath={worktreePath}
+        refreshToken={pijRefreshToken}
+      />
+    ),
+  };
+  const leftPanelModeHeaders = {
+    pij: {
+      title: 'PIJ',
+      onRefresh: () => setPijRefreshToken((token) => token + 1),
+      refreshLabel: 'Refresh PIJ',
+    },
+  };
+
   // FX001: Shared panel content — used by both mobileViews and desktop left/main slots
   const filesContent = (
     <LeftPanel
@@ -1087,77 +1181,9 @@ function BrowserClientInner({
       modes={panelModes}
       onRefresh={handlePanelRefresh}
       subtitle={diffStatsSubtitle}
+      modeHeaders={leftPanelModeHeaders}
     >
-      {{
-        tree: (
-          <>
-            {/* Phase 7 T004: Notes filter toggle (FT-002: keep visible while active) */}
-            {(showOnlyWithNotes || noteFilePaths.size > 0) && (
-              <div className="flex items-center justify-end px-2 py-0.5 border-b">
-                <button
-                  type="button"
-                  onClick={() => setShowOnlyWithNotes((v) => !v)}
-                  className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] ${
-                    showOnlyWithNotes
-                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                  }`}
-                  title={
-                    showOnlyWithNotes
-                      ? 'Show all files'
-                      : `Show only files with notes (${noteFilePaths.size})`
-                  }
-                >
-                  <StickyNote className="h-3 w-3" />
-                  <span>{noteFilePaths.size}</span>
-                </button>
-              </div>
-            )}
-            <FileTree
-              ref={treeRef}
-              entries={filteredRootEntries}
-              selectedFile={selectedFile}
-              changedFiles={panelState.changedFiles}
-              filesWithNotes={noteFilePaths}
-              newlyAddedPaths={combinedNewPaths}
-              onSelect={handleFileSelect}
-              onExpand={fileNav.handleExpand}
-              childEntries={filteredChildEntries}
-              expandPaths={expandPaths}
-              onExpandedDirsChange={handleExpandedDirsChange}
-              onCreateAutoExpand={handleTreeCreateAutoExpand}
-              onCopyFullPath={clipboard.handleCopyFullPath}
-              onCopyRelativePath={clipboard.handleCopyRelativePath}
-              onCopyRepoUrlCurrentRef={clipboard.handleCopyRepoUrlCurrentRef}
-              onCopyRepoUrlDefaultBranch={clipboard.handleCopyRepoUrlDefaultBranch}
-              repoInfo={repoInfo}
-              onCopyContent={clipboard.handleCopyContent}
-              onCopyTree={clipboard.handleCopyTree}
-              onDownload={clipboard.handleDownload}
-              onAddNote={handleAddNote}
-              onCreateFile={handleTreeCreateFile}
-              onCreateFolder={handleTreeCreateFolder}
-              onRename={handleTreeRename}
-              onDelete={handleTreeDelete}
-            />
-          </>
-        ),
-        changes: (
-          <ChangesView
-            workingChanges={panelState.workingChanges}
-            recentFiles={panelState.recentFiles}
-            selectedFile={selectedFile}
-            onSelect={handleFileSelect}
-            onCopyFullPath={clipboard.handleCopyFullPath}
-            onCopyRelativePath={clipboard.handleCopyRelativePath}
-            onCopyRepoUrlCurrentRef={clipboard.handleCopyRepoUrlCurrentRef}
-            onCopyRepoUrlDefaultBranch={clipboard.handleCopyRepoUrlDefaultBranch}
-            repoInfo={repoInfo}
-            onCopyContent={clipboard.handleCopyContent}
-            onDownload={clipboard.handleDownload}
-          />
-        ),
-      }}
+      {leftPanelChildren}
     </LeftPanel>
   );
 
@@ -1487,77 +1513,9 @@ function BrowserClientInner({
             modes={panelModes}
             onRefresh={handlePanelRefresh}
             subtitle={diffStatsSubtitle}
+            modeHeaders={leftPanelModeHeaders}
           >
-            {{
-              tree: (
-                <>
-                  {/* Phase 7 T004: Notes filter toggle (FT-002: keep visible while active) */}
-                  {(showOnlyWithNotes || noteFilePaths.size > 0) && (
-                    <div className="flex items-center justify-end px-2 py-0.5 border-b">
-                      <button
-                        type="button"
-                        onClick={() => setShowOnlyWithNotes((v) => !v)}
-                        className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] ${
-                          showOnlyWithNotes
-                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                            : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                        }`}
-                        title={
-                          showOnlyWithNotes
-                            ? 'Show all files'
-                            : `Show only files with notes (${noteFilePaths.size})`
-                        }
-                      >
-                        <StickyNote className="h-3 w-3" />
-                        <span>{noteFilePaths.size}</span>
-                      </button>
-                    </div>
-                  )}
-                  <FileTree
-                    ref={treeRef}
-                    entries={filteredRootEntries}
-                    selectedFile={selectedFile}
-                    changedFiles={panelState.changedFiles}
-                    filesWithNotes={noteFilePaths}
-                    newlyAddedPaths={combinedNewPaths}
-                    onSelect={handleFileSelect}
-                    onExpand={fileNav.handleExpand}
-                    childEntries={filteredChildEntries}
-                    expandPaths={expandPaths}
-                    onExpandedDirsChange={handleExpandedDirsChange}
-                    onCreateAutoExpand={handleTreeCreateAutoExpand}
-                    onCopyFullPath={clipboard.handleCopyFullPath}
-                    onCopyRelativePath={clipboard.handleCopyRelativePath}
-                    onCopyRepoUrlCurrentRef={clipboard.handleCopyRepoUrlCurrentRef}
-                    onCopyRepoUrlDefaultBranch={clipboard.handleCopyRepoUrlDefaultBranch}
-                    repoInfo={repoInfo}
-                    onCopyContent={clipboard.handleCopyContent}
-                    onCopyTree={clipboard.handleCopyTree}
-                    onDownload={clipboard.handleDownload}
-                    onAddNote={handleAddNote}
-                    onCreateFile={handleTreeCreateFile}
-                    onCreateFolder={handleTreeCreateFolder}
-                    onRename={handleTreeRename}
-                    onDelete={handleTreeDelete}
-                  />
-                </>
-              ),
-              changes: (
-                <ChangesView
-                  workingChanges={panelState.workingChanges}
-                  recentFiles={panelState.recentFiles}
-                  selectedFile={selectedFile}
-                  onSelect={handleFileSelect}
-                  onCopyFullPath={clipboard.handleCopyFullPath}
-                  onCopyRelativePath={clipboard.handleCopyRelativePath}
-                  onCopyRepoUrlCurrentRef={clipboard.handleCopyRepoUrlCurrentRef}
-                  onCopyRepoUrlDefaultBranch={clipboard.handleCopyRepoUrlDefaultBranch}
-                  repoInfo={repoInfo}
-                  onCopyContent={clipboard.handleCopyContent}
-                  onDownload={clipboard.handleDownload}
-                />
-              ),
-            }}
+            {leftPanelChildren}
           </LeftPanel>
         }
         main={

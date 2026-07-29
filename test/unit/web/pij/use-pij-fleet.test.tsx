@@ -64,6 +64,7 @@ function fleetSnapshot(
     data: {
       workspace: UI_WORKSPACE_PATH,
       rows,
+      statuses: [],
       status: pollerStatus({ seq, ...statusOverrides }),
     },
   };
@@ -133,6 +134,18 @@ describe('usePijFleet — acquisition', () => {
     expect(result.current.tree).toEqual(UI_TREE_ROOTS);
     expect(result.current.status?.fleetSize).toBe(178);
     expect(result.current.seq).toBe(40);
+  });
+
+  it('accepts a pre-JC-1 fleet snapshot with no statuses key', async () => {
+    const legacy = fleetSnapshot(40, UI_FLEET_ROWS);
+    (legacy.data as Partial<FleetSnapshotData>).statuses = undefined;
+    api.setFleet(legacy);
+
+    const { result } = renderPijFleet();
+    await waitFor(() => expect(result.current.phase).toBe('live'));
+
+    expect(result.current.rows).toHaveLength(UI_FLEET_ROWS.length);
+    expect(result.current.statuses).toEqual([]);
   });
 
   it('reports a failed fleet read as degraded, with the pij code kept verbatim', async () => {

@@ -15,12 +15,12 @@ import type { IWorkspaceService } from '@chainglass/workflow';
 import type { Metadata } from 'next';
 import { WorkspaceProvider } from '../../../../src/features/041-file-browser/hooks/use-workspace-context';
 import { sanitizeSessionName } from '../../../../src/features/064-terminal/lib/sanitize-session-name';
+import { PijRailToggleListener } from '../../../../src/features/089-first-class-pij/hooks/use-pij-rail-toggle';
 import { getContainer } from '../../../../src/lib/bootstrap-singleton';
 import { SDKWorkspaceConnector } from '../../../../src/lib/sdk/sdk-workspace-connector';
 import { MultiplexedSSEProvider } from '../../../../src/lib/sse';
 import { updateSDKMru, updateSDKSettings } from '../../../actions/sdk-settings-actions';
 import { NotesOverlayWrapper } from './notes-overlay-wrapper';
-import { PijOverlayWrapper } from './pij-overlay-wrapper';
 import { PRViewOverlayWrapper } from './pr-view-overlay-wrapper';
 import { QuestionPopperOverlayWrapper } from './question-popper-overlay-wrapper';
 import { TerminalOverlayWrapper } from './terminal-overlay-wrapper';
@@ -98,17 +98,13 @@ export default async function WorkspaceLayout({ children, params }: LayoutProps)
         persistSettings={updateSDKSettings}
         persistMru={updateSDKMru}
       />
+      <PijRailToggleListener workspaceSlug={slug} />
       <WorkspaceAttentionWrapper>
         <TerminalOverlayWrapper defaultSessionName={defaultBranch} defaultCwd={defaultWorktreePath}>
           <MultiplexedSSEProvider channels={[...WORKSPACE_SSE_CHANNELS]}>
             <NotesOverlayWrapper defaultWorktreePath={defaultWorktreePath}>
               <PRViewOverlayWrapper defaultWorktreePath={defaultWorktreePath}>
-                {/* Plan 089 Phase 4: INSIDE MultiplexedSSEProvider, because the panel's fleet list
-                    is live — `useChannelEvents('pij', …)` outside that provider receives nothing at
-                    all, silently. */}
-                <PijOverlayWrapper defaultWorkspacePath={defaultWorktreePath}>
-                  <QuestionPopperOverlayWrapper>{children}</QuestionPopperOverlayWrapper>
-                </PijOverlayWrapper>
+                <QuestionPopperOverlayWrapper>{children}</QuestionPopperOverlayWrapper>
               </PRViewOverlayWrapper>
             </NotesOverlayWrapper>
           </MultiplexedSSEProvider>

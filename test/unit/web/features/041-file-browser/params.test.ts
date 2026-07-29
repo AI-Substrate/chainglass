@@ -43,6 +43,10 @@ describe('fileBrowserPageParamsCache', () => {
     expect(result.panel).toBe('tree');
   });
 
+  it('parses the pij panel deep link', () => {
+    expect(fileBrowserPageParamsCache.parse({ panel: 'pij' }).panel).toBe('pij');
+  });
+
   it('handles diff mode', () => {
     const result = fileBrowserPageParamsCache.parse({ mode: 'diff' });
     expect(result.mode).toBe('diff');

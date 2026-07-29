@@ -1,5 +1,5 @@
 /**
- * pij SDK contribution manifest — Plan 089 Phase 4 (T003).
+ * pij SDK contribution manifest — Plan 089 Phase 4, repointed by Plan 090.
  *
  * Static declaration of the commands and keybindings this domain publishes to the USDK surface, per
  * ADR-0009. **Static is the requirement, not the style**: the tinykeys map is built ONCE at mount, so
@@ -19,9 +19,9 @@ export const pijContribution: SDKContribution = {
   commands: [
     {
       id: 'pij.toggleOverlay',
-      title: 'Toggle pij fleet',
+      title: 'Open pij rail',
       domain: 'pij',
-      category: 'Overlays',
+      category: 'Navigation',
       params: z.object({}),
       icon: 'users',
     },

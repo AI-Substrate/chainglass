@@ -38,8 +38,9 @@ a rule written down in that contract — never guessed, never estimated.
   phase rails and the designed absence states behind each
 - **The flow watcher** (`server/flow-watcher.ts`, Phase 3) — watches `docs/plans/**` flow documents
   ONLY, and refuses a `~/.pij`-shaped path by throwing (C-04 at runtime, not just statically)
-- **The overlay** (Phase 4) — the fifth F-14 anchored sibling plus its ADR-0009 SDK contribution
-  (`pij.toggleOverlay`, `$mod+Shift+KeyF`)
+- **The workspace PIJ rail** (Plan 090) — the file-browser left-panel mode, contract-backed
+  status/role/question rendering, and the route-aware `pij:toggle` listener used by the explorer,
+  sidebar, and ADR-0009 SDK contribution (`pij.toggleOverlay`, `$mod+Shift+KeyF`)
 - **`POST /api/pij/focus`** (Phase 4) — **the one and only mutation in this domain.** See the manifest
   entry below; everything else here reads.
 
@@ -62,16 +63,18 @@ a rule written down in that contract — never guessed, never estimated.
 | `createPijRecords()` | Factory | bootstrap | `execFile`-backed adapter; injectable `PijExecutor` |
 | `IFlowReader` | Interface | poller, routes | `read(planDir)` → `FlowSummary`; `scan(plansDir)` → all plan folders |
 | `createFlowReader()` | Factory | bootstrap | fs-backed adapter |
-| `PijChannelEvent` | Type | poller, browser | The `pij` channel union: `fleet-delta` · `flow-delta` · `poller-status` |
+| `PijChannelEvent` | Type | poller, browser | The `pij` channel union: `fleet-delta` · `flow-delta` · `status-delta` · `poller-status` |
 | `FleetRow` | Type | routes, views | One seat. Keyed by `PijId` — carries **no** `paneId` and **no** `pid` |
 | `FlowSummary` | Type | routes, views | One plan folder's ruled state |
 | `PollerStatus` | Type | routes, views | What AC-08's empty-state trichotomy renders |
 | `PijPollerService` | Class | bootstrap, routes | The single reader; `start()`/`stop()`/`snapshot()` |
 | `startPijPoller()` | Function | `instrumentation.ts` | HMR-safe bootstrap; idempotent |
 | `handlePijFleetRequest` etc. | Handlers | route files, tests | Injectable-deps route cores (`PijRouteDeps`) |
-| `usePijFleet()` | Hook | page, overlay | The browser's ONE data path: three snapshots + the `pij` channel |
+| `usePijFleet()` | Hook | page, rail | The browser's ONE data path: three snapshots + the `pij` channel |
 | `createFlowWatcher()` / `notePijFlowWorkspace()` | Factory / fn | bootstrap, flow route | `docs/plans` watch → `refreshFlows`; lazy watch-once registration |
-| `PijOverlayProvider` / `usePijOverlay()` | Provider / hook | workspace layout | Overlay state, held in the always-mounted provider so it survives navigation |
+| `PijRailContractSeams` | Interface | poller, grouping, rail hooks/views | The JC-1/2/3 adapter flip point for status, role, and question reads |
+| `PijRailView` / `PijRailPanel` | Components | file browser | Dense left-rail roster and its main-checkout-scoped data acquisition |
+| `PijRailToggleListener` | Component | workspace layout | Routes `pij:toggle` to `panel=pij`, preserving browser query state or navigating from another workspace route |
 | `registerPijSDK()` | Function | `registerAllDomains()` | ADR-0009 command + keybinding registration |
 | `handlePijFocusRequest` | Handler | focus route, tests | **The one mutating handler.** `FocusReason` union; `FocusExecutor` seam |
 
@@ -113,7 +116,7 @@ a rule written down in that contract — never guessed, never estimated.
 ### Domains That Depend On This
 | Domain | What it takes | Why |
 |--------|---------------|-----|
-| app shell (`workspaces/[slug]/layout.tsx`) | `PijOverlayWrapper` | The overlay is the fifth F-14 sibling and must sit inside `MultiplexedSSEProvider` |
+| app shell (`workspaces/[slug]/layout.tsx`) | `PijRailToggleListener` | One route-aware listener serves every `pij:toggle` trigger |
 | app shell (`dashboard-sidebar.tsx`) | nothing — a `pij:toggle` CustomEvent | The sidebar is OUTSIDE the overlay providers; the event is the only seam |
 | app shell (`sdk-domain-registrations.ts`) | `registerPijSDK` | ADR-0009 |
 
@@ -146,10 +149,11 @@ apps/web/src/features/089-first-class-pij/
 │   └── start-pij-poller.ts         # HMR-safe bootstrap + watcher singleton (contract)
 ├── hooks/
 │   ├── use-pij-fleet.ts            # the browser's ONE data path (Phase 2–3)
-│   ├── use-pij-overlay.tsx         # overlay state — in the provider, survives navigation (Phase 4)
+│   ├── use-pij-status.ts           # JC-1 snapshot + live status-delta consumer (Plan 090)
+│   ├── use-pij-rail-toggle.tsx     # route-aware pij:toggle listener (Plan 090)
 │   └── use-seat-focus.tsx          # the ONLY client-side focus fetch (Phase 4, C-06)
-├── components/                     # page shell, fleet view, prime shells, seat rows,
-│   │                               #   flows tab, phase rail, overlay panel,
+├── components/                     # page shell, fleet view, PIJ rail, prime shells, seat rows,
+│   │                               #   flows tab, phase rail,
 │   │                               #   global-tree.tsx + pij-global-client.tsx (Phase 4)
 │   └── …
 ├── lib/                            # folder containment, fleet grouping, relative time
@@ -167,8 +171,7 @@ apps/web/app/api/pij/
 apps/web/app/(dashboard)/
 ├── pij/page.tsx                    # the machine-wide view — OUTSIDE the workspace layout,
 │                                   #   therefore no SSE and snapshot-only by design
-└── workspaces/[slug]/
-    └── pij-overlay-wrapper.tsx     # 5th F-14 sibling: provider + dynamic panel + ErrorBoundary
+└── workspaces/[slug]/browser/      # left-panel PIJ mode; main checkout path is server-threaded
 
 test/
 ├── fakes/fake-pij-executor.ts      # the pij CLI double
@@ -202,3 +205,4 @@ test/
 | 089 Phase 2 | The fleet page: prime shells, containment, seat rows, provenance, the four empty states | 2026-07-26 |
 | 089 Phase 3 | The flow view: Flows tab, phase rails, five plan states + three tab absences, the flow watcher, additive `receivedCount` on `useChannelEvents` | 2026-07-26 |
 | 089 Phase 4 | Global tree read (`tree --global`) + `--badge` adoption; the machine-wide `/pij` page (snapshot-only by design); the overlay (5th F-14 sibling + ADR-0009); **`POST /api/pij/focus`, the one mutation**, with its fence carve-out and both-ends audit | 2026-07-26 |
+| 090 | Replaced the workspace overlay with the file-browser PIJ rail; added JC-1/2/3 seams, live PM status, role-aware grouping, main-checkout scoping, row focus, and route-aware toggle navigation | 2026-07-29 |

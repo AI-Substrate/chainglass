@@ -24,7 +24,7 @@ export const fileBrowserParams = {
     'preview'
   ),
   /** Left panel mode (Plan 043) */
-  panel: parseAsStringLiteral(['tree', 'changes'] as const).withDefault('tree'),
+  panel: parseAsStringLiteral(['tree', 'changes', 'pij'] as const).withDefault('tree'),
   /** Line number to scroll to (Plan 047 Phase 6) */
   line: parseAsInteger,
   /**
