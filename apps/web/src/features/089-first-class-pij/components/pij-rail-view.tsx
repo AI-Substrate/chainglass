@@ -264,6 +264,62 @@ function SeatHoverCard({
   );
 }
 
+/** How long the copy button shows its outcome before returning to the idle glyph. */
+export const COPY_FEEDBACK_MS = 1_500;
+
+/**
+ * Copy the seat id to the clipboard, reporting whether it actually landed.
+ *
+ * `navigator.clipboard` is absent on insecure origins and in jsdom, and `writeText` rejects when
+ * the document is not focused — all three are real here (the rail is often read on a LAN address).
+ * A failure must therefore be VISIBLE: silently rendering "copied" for a clipboard that never
+ * received the text is the one outcome worth engineering against.
+ */
+async function copySeatId(id: string): Promise<'copied' | 'failed'> {
+  try {
+    await navigator.clipboard.writeText(id);
+    return 'copied';
+  } catch {
+    return 'failed';
+  }
+}
+
+/**
+ * The copy-id affordance. A SIBLING of the focus button, never a child: the whole row is already a
+ * button (focus-on-click), and nesting interactive elements is invalid HTML that React will not
+ * render as two separate click targets.
+ *
+ * Revealed on row hover to keep the rail's density, but always present in the DOM and reachable by
+ * keyboard — `focus-visible:opacity-100` means tabbing to it makes it appear.
+ */
+function CopySeatIdButton({ id }: { id: string }) {
+  const [status, setStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
+
+  useEffect(() => {
+    if (status === 'idle') return;
+    const timer = setTimeout(() => setStatus('idle'), COPY_FEEDBACK_MS);
+    return () => clearTimeout(timer);
+  }, [status]);
+
+  return (
+    <button
+      type="button"
+      data-testid={`copy-seat-${id}`}
+      data-status={status}
+      aria-label={`Copy seat id ${id}`}
+      title={status === 'failed' ? 'clipboard refused' : `Copy ${id}`}
+      onClick={() => {
+        void copySeatId(id).then(setStatus);
+      }}
+      className={`shrink-0 rounded px-1 py-0.5 text-[10px] leading-none opacity-0 transition-opacity hover:bg-accent focus-visible:opacity-100 group-hover:opacity-100 ${
+        status === 'failed' ? 'text-red-600 opacity-100' : 'text-muted-foreground'
+      }`}
+    >
+      {status === 'copied' ? '✓' : status === 'failed' ? '✕' : '⧉'}
+    </button>
+  );
+}
+
 /** The seat's tmux window as tmux itself names it (`3:cheetah`), or null when unjoinable. */
 function windowLabelFor(
   placement: RailSeatPlacement,
@@ -289,30 +345,34 @@ function SeatHeader({
   return (
     <div
       data-testid={`seat-row-${placement.id}`}
+      className="group"
       onMouseEnter={hover.onMouseEnter}
       onMouseLeave={hover.onMouseLeave}
     >
-      <button
-        type="button"
-        data-testid={`focus-seat-${placement.id}`}
-        data-state={state}
-        disabled={!focus.inWorkspace || focus.busy}
-        title={focus.title}
-        onClick={() => focus.available && focus.focus.focus(placement.id)}
-        className="flex w-full min-w-0 items-center gap-1.5 px-2.5 py-1.5 text-left hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        <span aria-hidden="true" className="shrink-0 text-[9px] text-muted-foreground">
-          ▾
-        </span>
-        <SeatDot placement={placement} />
-        <span className="min-w-0 flex-1 truncate font-mono text-[11px]">{placement.id}</span>
-        {question.placement === 'strip' ? (
-          <span className="shrink-0 rounded bg-violet-100 px-1 py-0.5 text-[9px] font-bold text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">
-            ? needs you
+      <div className="flex min-w-0 items-center pr-1.5">
+        <button
+          type="button"
+          data-testid={`focus-seat-${placement.id}`}
+          data-state={state}
+          disabled={!focus.inWorkspace || focus.busy}
+          title={focus.title}
+          onClick={() => focus.available && focus.focus.focus(placement.id)}
+          className="flex min-w-0 flex-1 items-center gap-1.5 px-2.5 py-1.5 text-left hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <span aria-hidden="true" className="shrink-0 text-[9px] text-muted-foreground">
+            ▾
           </span>
-        ) : null}
-        <RoleBadge role={placement.role} />
-      </button>
+          <SeatDot placement={placement} />
+          <span className="min-w-0 flex-1 truncate font-mono text-[11px]">{placement.id}</span>
+          {question.placement === 'strip' ? (
+            <span className="shrink-0 rounded bg-violet-100 px-1 py-0.5 text-[9px] font-bold text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">
+              ? needs you
+            </span>
+          ) : null}
+          <RoleBadge role={placement.role} />
+        </button>
+        <CopySeatIdButton id={placement.id} />
+      </div>
       {windowLabel ? (
         <div
           data-testid={`pij-window-${placement.id}`}
@@ -355,7 +415,7 @@ function WorkerRow({
       data-state={state}
       onMouseEnter={hover.onMouseEnter}
       onMouseLeave={hover.onMouseLeave}
-      className={`border-t border-border/60 px-2.5 py-1 ${
+      className={`group border-t border-border/60 px-2.5 py-1 ${
         state === 'blocked'
           ? 'bg-red-50/70 dark:bg-red-950/20'
           : state === 'question'
@@ -363,33 +423,36 @@ function WorkerRow({
             : ''
       }`}
     >
-      <button
-        type="button"
-        data-testid={`focus-seat-${placement.id}`}
-        disabled={!focus.inWorkspace || focus.busy}
-        title={focus.title}
-        onClick={() => focus.available && focus.focus.focus(placement.id)}
-        className="flex w-full min-w-0 items-center gap-1.5 text-left text-[11px] disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        <SeatDot placement={placement} />
-        <span className="min-w-0 shrink truncate font-mono">{placement.id}</span>
-        <span className="min-w-0 flex-1 truncate text-muted-foreground">{task}</span>
-        {worktree ? (
-          <span className="min-w-0 shrink truncate rounded bg-muted px-1 font-mono text-[9.5px] text-muted-foreground">
-            ⑂ {worktree}
-          </span>
-        ) : null}
-        <span
-          className={`shrink-0 rounded px-1 text-[9px] font-bold uppercase ${
-            STATE_CHIP_CLASS[state] ?? 'bg-muted text-muted-foreground'
-          }`}
+      <div className="flex min-w-0 items-center">
+        <button
+          type="button"
+          data-testid={`focus-seat-${placement.id}`}
+          disabled={!focus.inWorkspace || focus.busy}
+          title={focus.title}
+          onClick={() => focus.available && focus.focus.focus(placement.id)}
+          className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-[11px] disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {state}
-        </span>
-        <span className="shrink-0 text-[9.5px] text-muted-foreground">
-          {formatElapsed(row?.lastEventAt, now)}
-        </span>
-      </button>
+          <SeatDot placement={placement} />
+          <span className="min-w-0 shrink truncate font-mono">{placement.id}</span>
+          <span className="min-w-0 flex-1 truncate text-muted-foreground">{task}</span>
+          {worktree ? (
+            <span className="min-w-0 shrink truncate rounded bg-muted px-1 font-mono text-[9.5px] text-muted-foreground">
+              ⑂ {worktree}
+            </span>
+          ) : null}
+          <span
+            className={`shrink-0 rounded px-1 text-[9px] font-bold uppercase ${
+              STATE_CHIP_CLASS[state] ?? 'bg-muted text-muted-foreground'
+            }`}
+          >
+            {state}
+          </span>
+          <span className="shrink-0 text-[9.5px] text-muted-foreground">
+            {formatElapsed(row?.lastEventAt, now)}
+          </span>
+        </button>
+        <CopySeatIdButton id={placement.id} />
+      </div>
       {inline ? (
         <div
           data-testid={`pij-blocked-note-${placement.id}`}

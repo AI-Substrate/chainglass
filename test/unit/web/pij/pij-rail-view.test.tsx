@@ -6,7 +6,7 @@ import { MultiplexedSSEProvider } from '@/lib/sse/multiplexed-sse-provider';
 import { render, screen, waitFor } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import type { ReactNode } from 'react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createFakeMultiplexedSSEFactory } from '../../../fakes/fake-multiplexed-sse';
 import { FakePijApi } from '../../../fakes/fake-pij-api';
 import { fleetRow } from '../../../fixtures/pij/fleet-ui';
@@ -274,6 +274,53 @@ describe('PijRailView', () => {
       { wrapper }
     );
     expect(screen.queryByTestId(/^pij-status-.*-pij-prime$/)).toBeNull();
+  });
+
+  it('copies the full seat id, and shows a failure rather than a false success', async () => {
+    /*
+    Test Doc:
+    - Why: the rail truncates ids, so copying one by hand means reading it off a hover card and
+      retyping. The copy button removes that — but a clipboard write can genuinely fail (insecure
+      origin, unfocused document, no clipboard API), and rendering "copied" for text that never
+      reached the clipboard is the one outcome that silently costs the user their paste.
+    - Contract: click → writeText called with the FULL id (not the truncated render); success shows
+      data-status="copied"; a rejecting clipboard shows data-status="failed", never "copied".
+    - Usage Notes: the button is a SIBLING of the row's focus button — nesting buttons is invalid
+      HTML — so this also pins that clicking copy does not fire focus.
+    - Quality Contribution: makes the silent-failure mode unreachable.
+    - Worked Example: writeText('pij-pm-current') → ✓; rejecting writeText → ✕.
+    */
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    const focusFetch = vi.fn();
+
+    render(
+      <PijRailView
+        rows={rows}
+        tree={tree}
+        snapshotStatuses={[]}
+        now={NOW}
+        workspacePath="/Users/fixture/substrate/chainglass"
+        focusFetchImpl={focusFetch as unknown as typeof fetch}
+      />,
+      { wrapper }
+    );
+
+    await user.click(screen.getByTestId('copy-seat-pij-pm-current'));
+    expect(writeText).toHaveBeenCalledWith('pij-pm-current');
+    await waitFor(() =>
+      expect(screen.getByTestId('copy-seat-pij-pm-current').dataset.status).toBe('copied')
+    );
+    // Copy is not focus: the row's tmux mutation must not fire from this click.
+    expect(focusFetch).not.toHaveBeenCalled();
+
+    // A refusing clipboard must say so.
+    writeText.mockRejectedValueOnce(new Error('not allowed'));
+    await user.click(screen.getByTestId('copy-seat-pij-worker-blocked'));
+    await waitFor(() =>
+      expect(screen.getByTestId('copy-seat-pij-worker-blocked').dataset.status).toBe('failed')
+    );
   });
 
   it('renders every status absence discriminator and keeps stale text', () => {
