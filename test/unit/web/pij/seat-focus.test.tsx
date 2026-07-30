@@ -249,14 +249,11 @@ describe('the focus button — what a click does, and what it reports', () => {
     renderFleet({ focusFetchImpl: impl });
 
     await userEvent.click(screen.getByTestId(`focus-seat-${UI_PRIME_ID}`));
-    await waitFor(() =>
-      expect(screen.queryByTestId(`focus-result-${UI_PRIME_ID}`)).not.toBeNull()
-    );
+    await waitFor(() => expect(screen.queryByTestId(`focus-result-${UI_PRIME_ID}`)).not.toBeNull());
 
-    await waitFor(
-      () => expect(screen.queryByTestId(`focus-result-${UI_PRIME_ID}`)).toBeNull(),
-      { timeout: FOCUS_SUCCESS_LINGER_MS + 2_000 }
-    );
+    await waitFor(() => expect(screen.queryByTestId(`focus-result-${UI_PRIME_ID}`)).toBeNull(), {
+      timeout: FOCUS_SUCCESS_LINGER_MS + 2_000,
+    });
   });
 
   it("renders a refusal in the route's own words, with its reason attached", async () => {
