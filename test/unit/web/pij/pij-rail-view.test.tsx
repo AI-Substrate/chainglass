@@ -199,7 +199,9 @@ describe('PijRailView', () => {
       { wrapper }
     );
 
-    expect(screen.getByTestId('pij-status-not-a-pm-pij-worker-loose')).toBeTruthy();
+    // `not-a-pm` deliberately renders NOTHING: a non-PM has no status to be missing, and the line
+    // was pure filler (Jordan, 2026-07-30). The other discriminators stay visible.
+    expect(screen.queryByTestId('pij-status-not-a-pm-pij-worker-loose')).toBeNull();
     expect(screen.getByTestId('pij-status-role-unknown-pij-role-unknown')).toBeTruthy();
     expect(screen.getByTestId('pij-status-no-status-yet-pij-pm-empty')).toBeTruthy();
     expect(screen.getByTestId('pij-status-status-stale-pij-pm-stale').textContent).toContain(

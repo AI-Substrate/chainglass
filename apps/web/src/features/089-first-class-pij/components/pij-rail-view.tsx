@@ -130,6 +130,9 @@ function StatusSummary({
   const record = status.status;
   const stale = status.reason === 'status-stale';
 
+  // A non-PM has no status to be missing — a line saying so is space spent on nothing.
+  if (!record && status.reason === 'not-a-pm') return null;
+
   return (
     <div
       data-testid={`pij-status-${status.reason}-${placement.id}`}
