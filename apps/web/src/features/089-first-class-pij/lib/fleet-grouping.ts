@@ -103,14 +103,35 @@ export interface RailFleetGrouping {
 }
 
 /**
- * The assignment text for a seat, from whichever read has it.
+ * The assignment text for a seat — from the ROW when the seat has one, else the tree.
  *
- * `pij list` rows do NOT carry `currentTask` (measured live, 2026-07-26: 179 rows, none has one) —
- * only `pij tree` nodes do. Reading the row alone would leave every section titled "(no assignment)"
- * on real data while the tree was holding the answer. Both are records; neither is inferred.
+ * The precedence is load-bearing, and the reason changed under us. The original fallback existed
+ * because `pij list` rows did not carry `currentTask` (measured 2026-07-26: 179 rows, none had
+ * one) while tree nodes did. Re-measured 2026-07-30: every list row now carries the key (6/6
+ * chainglass seats), null when there is no task, while TREE nodes omit it entirely.
+ *
+ * That inversion makes the old fallback a hazard as of pij s075, which clears these denorms on
+ * `task close`. The row is the live projection (8s poll + SSE deltas); the tree is a separately
+ * cached snapshot refetched only on mount, an explicit refresh, or an unknown-id debounce. So a
+ * row that has just been cleared, read with a tree fallback, would resurrect the discharged task
+ * from the stale snapshot and render it as current — the exact defect s075 exists to remove.
+ *
+ * Hence the rule turns on WHICH absence the row expresses, because the two are not the same
+ * observation:
+ *
+ * - `null` — the row carried the field and it is empty. Definitive: no task, or a closed one.
+ *   The tree is NOT consulted; letting it answer here is the resurrection bug.
+ * - `undefined` / key absent — the row did not carry the field at all. That says nothing about
+ *   the seat, so the tree still answers (the 2026-07-26 shape, still pinned by a FleetView test).
+ *
+ * This is why pij emitting cleared denorms as explicit `null` rather than omitting them is
+ * load-bearing rather than cosmetic: an omitted key is indistinguishable from the legacy shape,
+ * and would fall through to the tree. Registered with the s075 ratification.
  */
 export function seatTask(placement: SeatPlacement): string | undefined {
-  if (placement.row?.currentTask) return placement.row.currentTask;
+  const fromRow = placement.row?.currentTask;
+  if (typeof fromRow === 'string' && fromRow.length > 0) return fromRow;
+  if (fromRow === null) return undefined;
   const fromTree = placement.node?.currentTask;
   return typeof fromTree === 'string' && fromTree.length > 0 ? fromTree : undefined;
 }

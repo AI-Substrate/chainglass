@@ -81,9 +81,43 @@ interface QuestionEntry {
   decision: QuestionDecision;
 }
 
+/**
+ * Descriptor denorms that point at ONE assignment, and therefore clear together when it closes
+ * (pij s075, ratified 2026-07-30). Listed here because the merge below has to treat them as a
+ * unit that the row owns outright.
+ */
+const ASSIGNMENT_DENORMS = [
+  'currentAssignment',
+  'currentTask',
+  'semanticState',
+  'stateNote',
+] as const;
+
+/**
+ * Flatten a placement into one record for the contract readers.
+ *
+ * Layering is last-wins: tree node, then the row's `extra`, then the row. That is right for
+ * fields the tree alone carries — but WRONG for the assignment denorms once they can be cleared:
+ * a row that no longer carries `semanticState` would let the cached tree's stale value survive
+ * the spread, and the NEEDS-YOU strip would keep pinning a question whose assignment is closed.
+ * A plain `{...node, ...row}` cannot express "the row said nothing, and that is the answer",
+ * because an omitted key is indistinguishable from a key never sent.
+ *
+ * So for a LISTED seat the four denorms are dropped from the tree layer first: the row owns them
+ * outright, including by omission. Both reads project the same descriptor, so the tree cannot
+ * know better — and unlike {@link seatTask} there is no legacy shape to preserve here, which is
+ * why this one is unconditional and holds even if pij omits rather than nulls the cleared keys.
+ * A tree-only seat (no row at all) still reads from the tree.
+ */
 function placementRecord(placement: RailSeatPlacement): Record<string, unknown> {
+  const listed = placement.row !== undefined;
+  const node = Object.fromEntries(
+    Object.entries(placement.node ?? {}).filter(
+      ([key]) => !(listed && (ASSIGNMENT_DENORMS as readonly string[]).includes(key))
+    )
+  );
   return {
-    ...(placement.node ?? {}),
+    ...node,
     ...(placement.row?.extra ?? {}),
     ...(placement.row ?? {}),
   };

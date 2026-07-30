@@ -323,6 +323,52 @@ describe('PijRailView', () => {
     );
   });
 
+  it('does not resurrect a closed assignment question from the cached tree (s075)', () => {
+    /*
+    Test Doc:
+    - Why: `semanticState`/`stateNote` clear on `task close` (pij s075). They arrive on BOTH the
+      row and the tree node, and the rail merges node-then-row — so a row that has dropped them
+      would let the tree's stale copy survive the spread and keep a NEEDS-YOU pin alive for a
+      question whose assignment is closed. Questions never expire by ruling (JC-3), so nothing
+      downstream would ever clear it: the human would be pinned to answer a dead question.
+      The tree is refetched on its own cadence, so this is not a brief window.
+    - Contract: when a row exists it owns the four assignment denorms, including by omission —
+      no pin, and the strip reports the designed empty state.
+    - Usage Notes: the node deliberately carries a well-formed question; only the row is silent.
+    - Quality Contribution: closes the resurrection path at the merge, for every consumer of
+      placementRecord rather than just the strip.
+    - Worked Example: node question + silent row → 'no declared questions'.
+    */
+    const staleQuestionTree: PijTreeNode[] = [
+      {
+        id: 'pij-pm-current',
+        semanticState: 'question',
+        stateNote: {
+          text: 'Should the closed assignment still pin the human?',
+          state: 'question',
+          at: new Date(NOW - 60_000).toISOString(),
+        },
+        children: [],
+      },
+    ];
+    // The row exists and carries no assignment denorms — the post-close shape.
+    const clearedRow = { ...row('pij-pm-current', { orchestrationRole: 'pm' }), extra: {} };
+
+    render(
+      <PijRailView
+        rows={[clearedRow]}
+        tree={staleQuestionTree}
+        snapshotStatuses={[]}
+        now={NOW}
+        workspacePath="/Users/fixture/substrate/chainglass"
+      />,
+      { wrapper }
+    );
+
+    expect(screen.queryByTestId('pij-question-pij-pm-current')).toBeNull();
+    expect(screen.getByTestId('pij-needs-you-empty')).toBeTruthy();
+  });
+
   it('renders every status absence discriminator and keeps stale text', () => {
     render(
       <PijRailView
