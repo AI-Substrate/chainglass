@@ -127,7 +127,14 @@ export function FocusButton({ placement }: { placement: SeatPlacement }) {
 export function useSeatFocusAffordance(placement: SeatPlacement) {
   const focus = useSeatFocus();
   const folder = placement.row?.folder ?? placement.node?.folder ?? '';
-  const inWorkspace = focus ? isFolderInWorkspacePath(folder, focus.workspacePath) : false;
+  // The tree decides membership, not the path: git places a worktree BESIDE its checkout, so a
+  // family seat can be outside the workspace by path while its window is exactly the one the human
+  // is trying to reach. A placement with a tree node was placed by the workspace-scoped tree read;
+  // path containment stays as the rung for seats too new for that read. The server re-derives the
+  // same two rungs on click, so this enable is an affordance, never the authority.
+  const inWorkspace = focus
+    ? placement.node !== undefined || isFolderInWorkspacePath(folder, focus.workspacePath)
+    : false;
   const busy = focus?.pending === placement.id;
 
   if (!focus) {
