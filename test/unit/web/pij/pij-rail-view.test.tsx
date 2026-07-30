@@ -126,6 +126,61 @@ describe('PijRailView', () => {
     expect(screen.getByTestId('pij-hot-count').textContent).toContain('hot');
   });
 
+  it('names the tmux window under a seat title, only when the label joins', () => {
+    /*
+    Test Doc:
+    - Why: a seat's `windowId` (`@12`) is meaningless to the human scanning for the pane to jump to;
+      the rail names the window as tmux itself does (`3:cheetah`). The join is optional twice over —
+      a node may carry no windowId, and the map may not cover it — and both absences must cost the
+      line alone.
+    - Contract: label rendered under the seat with a windowId the map covers; no line for seats it
+      does not; nothing anywhere when `windows` is absent entirely.
+    - Usage Notes: —
+    - Quality Contribution: pins the render half of the label pipeline (route join is pinned in
+      routes.test.ts).
+    - Worked Example: windowId '@3' + { '@3': '3:cheetah' } → '⊞ 3:cheetah'.
+    */
+    const treeWithWindows: PijTreeNode[] = [
+      {
+        id: 'pij-prime',
+        prime: true,
+        windowId: '@9',
+        children: [{ id: 'pij-pm-current', windowId: '@3', children: [] }],
+      },
+      { id: 'pij-pm-empty' },
+    ];
+
+    const { unmount } = render(
+      <PijRailView
+        rows={rows}
+        tree={treeWithWindows}
+        snapshotStatuses={[]}
+        now={NOW}
+        workspacePath="/Users/fixture/substrate/chainglass"
+        windows={{ '@3': '3:cheetah' }}
+      />,
+      { wrapper }
+    );
+
+    expect(screen.getByTestId('pij-window-pij-pm-current').textContent).toContain('3:cheetah');
+    // '@9' is not in the map, and pij-pm-empty has no windowId at all — no line for either.
+    expect(screen.queryByTestId('pij-window-pij-prime')).toBeNull();
+    expect(screen.queryByTestId('pij-window-pij-pm-empty')).toBeNull();
+    unmount();
+
+    render(
+      <PijRailView
+        rows={rows}
+        tree={treeWithWindows}
+        snapshotStatuses={[]}
+        now={NOW}
+        workspacePath="/Users/fixture/substrate/chainglass"
+      />,
+      { wrapper }
+    );
+    expect(screen.queryByTestId('pij-window-pij-pm-current')).toBeNull();
+  });
+
   it('renders every status absence discriminator and keeps stale text', () => {
     render(
       <PijRailView

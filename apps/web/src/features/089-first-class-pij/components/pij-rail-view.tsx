@@ -60,6 +60,8 @@ export interface PijRailViewProps {
   snapshotStatuses: readonly PijStatusRecord[];
   now: number;
   workspacePath: string;
+  /** tmux window labels keyed by node `windowId` — see TreeSnapshotData.windows. */
+  windows?: Record<string, string>;
   focusFetchImpl?: typeof fetch;
   contracts?: PijRailContractSeams;
 }
@@ -192,12 +194,24 @@ function questionFor(
   return contracts.question.read(placementRecord(placement), now);
 }
 
+/** The seat's tmux window as tmux itself names it (`3:cheetah`), or null when unjoinable. */
+function windowLabelFor(
+  placement: RailSeatPlacement,
+  windows: Record<string, string> | undefined
+): string | null {
+  const windowId = placement.node?.windowId;
+  if (typeof windowId !== 'string') return null;
+  return windows?.[windowId] ?? null;
+}
+
 function SeatHeader({
   placement,
   question,
+  windowLabel,
 }: {
   placement: RailSeatPlacement;
   question: QuestionDecision;
+  windowLabel?: string | null;
 }) {
   const state = placement.row?.badge ?? placement.row?.state ?? 'unknown';
   const focus = useSeatFocusAffordance(placement);
@@ -226,6 +240,15 @@ function SeatHeader({
         ) : null}
         <RoleBadge role={placement.role} />
       </button>
+      {windowLabel ? (
+        <div
+          data-testid={`pij-window-${placement.id}`}
+          className="-mt-1 truncate px-2.5 pb-0.5 pl-8 font-mono text-[9.5px] text-muted-foreground"
+          title={`window ${windowLabel}`}
+        >
+          ⊞ {windowLabel}
+        </div>
+      ) : null}
       <FocusResult placement={placement} />
     </div>
   );
@@ -314,11 +337,13 @@ function TeamCard({
   now,
   status,
   contracts,
+  windows,
 }: {
   section: RailFleetSection;
   now: number;
   status: SeatStatus;
   contracts: PijRailContractSeams;
+  windows?: Record<string, string>;
 }) {
   const leadQuestion = questionFor(section.lead, contracts, now);
   const project = seatTask(section.lead) ?? 'project not read';
@@ -328,7 +353,11 @@ function TeamCard({
       data-testid={`pij-team-${section.lead.id}`}
       className="mb-1.5 overflow-hidden rounded-lg border border-border bg-card"
     >
-      <SeatHeader placement={section.lead} question={leadQuestion} />
+      <SeatHeader
+        placement={section.lead}
+        question={leadQuestion}
+        windowLabel={windowLabelFor(section.lead, windows)}
+      />
       <div className="truncate px-2.5 pb-1 pl-8 text-[10px] text-muted-foreground" title={project}>
         {project}
       </div>
@@ -439,6 +468,7 @@ export function PijRailView({
   snapshotStatuses,
   now,
   workspacePath,
+  windows,
   focusFetchImpl,
   contracts = productionContractSeams,
 }: PijRailViewProps) {
@@ -485,7 +515,11 @@ export function PijRailView({
                 data-testid={`pij-prime-${prime.lead.id}`}
                 className="mb-1.5 overflow-hidden rounded-lg border border-violet-300/70 bg-card dark:border-violet-800"
               >
-                <SeatHeader placement={prime.lead} question={question} />
+                <SeatHeader
+                  placement={prime.lead}
+                  question={question}
+                  windowLabel={windowLabelFor(prime.lead, windows)}
+                />
                 {prime.sections.map((section) => (
                   <div key={section.lead.id} className="px-1.5">
                     <TeamCard
@@ -493,6 +527,7 @@ export function PijRailView({
                       now={now}
                       status={status.resolve(section.lead.id, section.lead.role)}
                       contracts={contracts}
+                      windows={windows}
                     />
                   </div>
                 ))}
@@ -507,6 +542,7 @@ export function PijRailView({
               now={now}
               status={status.resolve(section.lead.id, section.lead.role)}
               contracts={contracts}
+              windows={windows}
             />
           ))}
         </div>
@@ -594,6 +630,7 @@ export function PijRailPanel({
         snapshotStatuses={fleet.statuses}
         now={now}
         workspacePath={mainPath}
+        windows={fleet.windows}
         focusFetchImpl={focusFetchImpl}
         contracts={contracts}
       />

@@ -102,6 +102,13 @@ const FORBIDDEN_WRITE_TARGETS = ['the-flow.md', '.the-flow-state.json'];
  */
 const FOCUS_ROUTE = 'apps/web/app/api/pij/focus/route.ts';
 
+/**
+ * The second file allowed to name tmux — the window-label reader behind the rail's `3:cheetah`
+ * line. Unlike the focus route it MUTATES nothing: its companion assertion pins it to
+ * `list-windows`, the one verb that merely observes.
+ */
+const TMUX_WINDOWS_MODULE = 'apps/web/src/features/089-first-class-pij/server/tmux-windows.ts';
+
 /** Files that must still be seen by the general tmux check, so the exclusion cannot swallow it. */
 const TMUX_FREE_WITNESSES = [
   'apps/web/app/api/pij/fleet/route.ts',
@@ -435,11 +442,12 @@ describe('C-02 fence — the feature writes to nothing (AC-11)', () => {
     - Why: 064-terminal's attach is a live keyboard, and even a silent attached client's size can
       clamp/reflow an agent's pane and corrupt the daemon's own BUSY_RE liveness read. The observatory
       never links a pij seat to that path.
-    - Contract: No tmux invocation, no send-keys, no attach anywhere in the feature — with exactly one
-      carved-out file, the focus route, which Phase 4 ships as the ONE sanctioned mutation (C-06).
-    - Usage Notes: The carve-out is a NARROWING, not a weakening: the excluded path is asserted to
+    - Contract: No tmux invocation, no send-keys, no attach anywhere in the feature — with exactly
+      two carved-out files: the focus route (the ONE sanctioned mutation, C-06) and the
+      window-label reader (the ONE sanctioned observation, `list-windows`).
+    - Usage Notes: The carve-outs are a NARROWING, not a weakening: each excluded path is asserted to
       exist and to be in the collected set (an exclusion naming a file that has moved is a silent
-      hole), and the companion assertion below checks what this one can no longer see — WHICH tmux
+      hole), and a companion assertion per file checks what this one can no longer see — WHICH tmux
       verb that file names, and how it is reached.
     - Quality Contribution: Proves AC-10's "forbidden affordances" everywhere except the single place
       one affordance is sanctioned, and proves that place separately rather than trusting it.
@@ -448,12 +456,14 @@ describe('C-02 fence — the feature writes to nothing (AC-11)', () => {
     const files = await collectSources();
     const paths = files.map((file) => file.path);
 
-    // The exclusion must name a file that is actually there, or it is hiding nothing and proving
-    // nothing. Both halves are asserted before the exclusion is applied.
-    expect(paths).toEqual(expect.arrayContaining([FOCUS_ROUTE, ...TMUX_FREE_WITNESSES]));
+    // The exclusions must name files that are actually there, or they are hiding nothing and proving
+    // nothing. All halves are asserted before the exclusions are applied.
+    expect(paths).toEqual(
+      expect.arrayContaining([FOCUS_ROUTE, TMUX_WINDOWS_MODULE, ...TMUX_FREE_WITNESSES])
+    );
 
     const offenders = findAll(
-      files.filter((file) => file.path !== FOCUS_ROUTE),
+      files.filter((file) => file.path !== FOCUS_ROUTE && file.path !== TMUX_WINDOWS_MODULE),
       /\b(send-keys|select-window|tmux\b|attach-session)/m
     );
 
@@ -502,6 +512,35 @@ describe('C-02 fence — the feature writes to nothing (AC-11)', () => {
       expect(code, `${trigger} would make focus reachable without a human`).not.toContain(trigger);
     }
     expect(code).toMatch(/export async function handlePijFocusRequest/);
+  });
+
+  it('the window-label reader observes with `list-windows` and nothing else (companion)', async () => {
+    /*
+    Test Doc:
+    - Why: the general assertion stops looking at `tmux-windows.ts`, so on its own it would let a
+      mutation into the second file that may reach tmux. This covers exactly what the exclusion
+      blinds. `list-windows` changes nothing — no pane is touched, no window selected, no client
+      attached — which is what qualifies it for a carve-out at all.
+    - Contract: C-01/C-06's spirit — observation only; execFile with fixed argv; every forbidden
+      verb (and the focus route's own `select-window`) still absent.
+    - Usage Notes: mirrors the focus-route companion above, one rung stricter: no tmux verb here may
+      mutate anything at all.
+    - Quality Contribution: fails the moment the label read grows a second verb.
+    - Worked Example: argv ['list-windows','-a','-F',…], via execFile, exported reader only.
+    */
+    const code = toCode(await readFile(join(REPO_ROOT, TMUX_WINDOWS_MODULE), 'utf8'));
+
+    // 1. No mutation verb, including the one the focus route is allowed.
+    for (const verb of [...FORBIDDEN_TMUX_VERBS, 'select-window']) {
+      expect(code, `"${verb}" must never appear in the window-label reader`).not.toMatch(
+        new RegExp(verb)
+      );
+    }
+
+    // 2. The observation verb, with a fixed argv, through execFile — never a shell.
+    expect(code).toMatch(/\['list-windows',\s*'-a',\s*'-F',\s*FORMAT\]/);
+    expect(code).toMatch(/execFile\(command,\s*\[\.\.\.args\]/);
+    expect(code).not.toMatch(/execSync|shell:\s*true/);
   });
 });
 

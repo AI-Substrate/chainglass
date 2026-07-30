@@ -216,6 +216,12 @@ export interface FleetSnapshotData {
 export interface TreeSnapshotData {
   workspace: string | null;
   roots: PijTreeNode[];
+  /**
+   * tmux window labels keyed by `windowId` (`@12` → `3:cheetah`), joined at read time so the rail
+   * can name the window a seat lives in. Absent when tmux is unreachable — the line simply doesn't
+   * render, and nothing else degrades.
+   */
+  windows?: Record<string, string>;
 }
 
 /** `/api/pij/flow` payload. */

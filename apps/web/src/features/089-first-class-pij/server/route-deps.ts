@@ -42,6 +42,11 @@ export interface PijRouteDeps {
    * never have one, and a route that cannot mutate is the correct default.
    */
   focusExecutor?: FocusExecutor;
+  /**
+   * The tree route's tmux window-label read (`tmux-windows.ts`). Optional: tests inject a fake, and
+   * every other route constructs these deps unchanged.
+   */
+  tmuxWindows?: () => Promise<Record<string, string>>;
 }
 
 /** Snapshots must never be cached: a cached poller status is a lie with a timestamp on it. */
