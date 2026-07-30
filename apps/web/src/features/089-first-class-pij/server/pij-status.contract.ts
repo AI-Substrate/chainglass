@@ -17,7 +17,14 @@ export type StatusReason =
   | 'not-a-pm'
   | 'role-unknown'
   | 'no-status-yet'
-  | 'status-stale';
+  | 'status-stale'
+  /**
+   * A prime with no status record. Distinct from `no-status-yet` because the obligations differ
+   * (Jordan's ruling, 2026-07-30, relayed by albatross): a PM owes a card, so its absence is
+   * rendered as a nag; a prime's card is OPTIONAL — written ones render, absent ones render
+   * NOTHING, and no watchdog language ever attaches.
+   */
+  | 'prime-not-written';
 
 export interface SeatStatus {
   reason: StatusReason;
@@ -133,16 +140,28 @@ export function resolveSeatStatus(
   now: number
 ): SeatStatus {
   if (role.kind === 'absent') return { reason: 'role-unknown' };
+  if (role.kind === 'known' && role.role === 'prime') {
+    // Optional-but-rendered (Jordan, 2026-07-30): a prime that writes a card gets it shown; one
+    // that doesn't is never nagged. Staleness is likewise never flagged — the stale label carries
+    // watchdog language, and no watchdog obligation exists for an optional card. The age line
+    // still renders, so an old card is visibly old without being called a defect.
+    if (!status) return { reason: 'prime-not-written' };
+    return { reason: 'current', status, ageMs: statusAgeMs(status, now) };
+  }
   if (!carriesStatus(role)) return { reason: 'not-a-pm' };
   if (!status) return { reason: 'no-status-yet' };
 
-  const producerAt = Date.parse(status.ts);
-  const ageMs = Number.isNaN(producerAt) ? 0 : Math.max(0, now - producerAt);
+  const ageMs = statusAgeMs(status, now);
   return {
     reason: ageMs > STATUS_STALE_MS ? 'status-stale' : 'current',
     status,
     ageMs,
   };
+}
+
+function statusAgeMs(status: PijStatusRecord, now: number): number {
+  const producerAt = Date.parse(status.ts);
+  return Number.isNaN(producerAt) ? 0 : Math.max(0, now - producerAt);
 }
 
 export function readStatusSpineEvent(

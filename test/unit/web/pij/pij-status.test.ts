@@ -54,7 +54,33 @@ describe('JC-1 status consumption', () => {
     ['role-unknown', { orchestrationRole: null }, status()],
     ['role-unknown', {}, status()],
     ['no-status-yet', { orchestrationRole: 'pm' }, undefined],
+    ['prime-not-written', { orchestrationRole: 'prime' }, undefined],
   ] as const)('returns the %s data-reason discriminator', (reason, record, latest) => {
     expect(resolveSeatStatus(readSeatRole(record), latest, NOW).reason).toBe(reason);
+  });
+
+  it('renders a prime card that exists, and never calls it stale (optional-but-rendered ruling)', () => {
+    /*
+    Test Doc:
+    - Why: Jordan's ruling (2026-07-30, relayed by albatross): prime cards are NOT REQUIRED but ARE
+      RENDERED. Not-required has two consequences a PM's path must not leak in: no absence nag
+      (covered by the discriminator case above) and no stale label — the stale reason carries
+      watchdog language, and no watchdog obligation exists for an optional card.
+    - Contract: prime + record → 'current' with the record and a real age, even past the PM stale
+      threshold; the age line is what makes an old card visibly old.
+    - Usage Notes: —
+    - Quality Contribution: pins that 'optional' was implemented as a distinct policy, not by
+      reusing the PM path.
+    - Worked Example: a record older than STATUS_STALE_MS resolves 'current', ageMs > threshold.
+    */
+    const role = readSeatRole({ orchestrationRole: 'prime' });
+    const old = resolveSeatStatus(
+      role,
+      status({ ts: new Date(NOW - STATUS_STALE_MS - 60_000).toISOString() }),
+      NOW
+    );
+    expect(old.reason).toBe('current');
+    expect(old.status?.prev).toBe('Finished the contract tests.');
+    expect(old.ageMs).toBeGreaterThan(STATUS_STALE_MS);
   });
 });

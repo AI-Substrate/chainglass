@@ -228,6 +228,54 @@ describe('PijRailView', () => {
     expect(screen.getByTestId('seat-hover-pij-worker-blocked').textContent).not.toContain(' · ');
   });
 
+  it('renders a prime card the prime wrote, and nothing where it wrote none', () => {
+    /*
+    Test Doc:
+    - Why: optional-but-rendered (Jordan, 2026-07-30): the rail must show a prime card that exists
+      — governance altitude is the prime's content obligation, not ours — while an absent one
+      renders NOTHING, not a nag.
+    - Contract: prime + record → NOW/NEXT under the prime header; prime + no record → no status
+      element for that seat at all.
+    - Usage Notes: —
+    - Quality Contribution: pins the render half of the ruling (the resolve half is in
+      pij-status.test.ts).
+    - Worked Example: 'Ruled the r30 fork.' under pij-prime; nothing on the second render.
+    */
+    const { unmount } = render(
+      <PijRailView
+        rows={rows}
+        tree={tree}
+        snapshotStatuses={[
+          fakeStatusRecord({
+            peer: asPijId('pij-prime'),
+            prev: 'Ruled the r30 fork.',
+            next: 'Route the s12 allocation.',
+            ts: new Date(NOW - 60_000).toISOString(),
+          }),
+        ]}
+        now={NOW}
+        workspacePath="/Users/fixture/substrate/chainglass"
+      />,
+      { wrapper }
+    );
+    expect(screen.getByTestId('pij-status-current-pij-prime').textContent).toContain(
+      'Ruled the r30 fork.'
+    );
+    unmount();
+
+    render(
+      <PijRailView
+        rows={rows}
+        tree={tree}
+        snapshotStatuses={[]}
+        now={NOW}
+        workspacePath="/Users/fixture/substrate/chainglass"
+      />,
+      { wrapper }
+    );
+    expect(screen.queryByTestId(/^pij-status-.*-pij-prime$/)).toBeNull();
+  });
+
   it('renders every status absence discriminator and keeps stale text', () => {
     render(
       <PijRailView

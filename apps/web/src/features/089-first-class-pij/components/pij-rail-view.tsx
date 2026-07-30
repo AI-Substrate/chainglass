@@ -130,8 +130,10 @@ function StatusSummary({
   const record = status.status;
   const stale = status.reason === 'status-stale';
 
-  // A non-PM has no status to be missing — a line saying so is space spent on nothing.
-  if (!record && status.reason === 'not-a-pm') return null;
+  // Silent absences: a worker has no status to be missing, and a prime's card is optional by
+  // ruling (2026-07-30) — in both cases a line saying so is space spent on nothing.
+  if (!record && (status.reason === 'not-a-pm' || status.reason === 'prime-not-written'))
+    return null;
 
   return (
     <div
@@ -177,6 +179,9 @@ function statusAbsenceCopy(reason: SeatStatus['reason']): string {
       return 'PM status is stale';
     case 'current':
       return 'PM status current';
+    case 'prime-not-written':
+      // Unreachable in render — StatusSummary returns null first — kept for union exhaustiveness.
+      return '';
   }
 }
 
@@ -595,6 +600,10 @@ export function PijRailView({
                   placement={prime.lead}
                   question={question}
                   windowLabel={windowLabelFor(prime.lead, windows)}
+                />
+                <StatusSummary
+                  placement={prime.lead}
+                  status={status.resolve(prime.lead.id, prime.lead.role)}
                 />
                 {prime.sections.map((section) => (
                   <div key={section.lead.id} className="px-1.5">
