@@ -198,11 +198,18 @@ function questionFor(
 }
 
 /**
- * The hover card, in title-attribute form: full id (rail columns truncate it), then the seat's
- * binding facts, then the focus affordance's own line. Only facts the row actually carries — an
- * unbound model is absent, never guessed.
+ * The instant hover card: full id (rail columns truncate it), the seat's binding facts, its window
+ * and folder. CSS-only (`group-hover`) rather than a `title` attribute — native tooltips need a
+ * ~1s motionless dwell and are shadowed by any inner element's own title, which made them look
+ * simply absent. Only facts the row actually carries — an unbound model is absent, never guessed.
  */
-function seatHoverTitle(placement: RailSeatPlacement, focusTitle: string): string {
+function SeatHoverCard({
+  placement,
+  windowLabel,
+}: {
+  placement: RailSeatPlacement;
+  windowLabel?: string | null;
+}) {
   const row = placement.row;
   const harness = typeof placement.node?.harness === 'string' ? placement.node.harness : undefined;
   const facts = [
@@ -210,9 +217,27 @@ function seatHoverTitle(placement: RailSeatPlacement, focusTitle: string): strin
     row?.boundModel ?? undefined,
     row?.effort ? `${row.effort} effort` : undefined,
   ].filter(Boolean);
-  return [placement.id, facts.length > 0 ? facts.join(' · ') : undefined, focusTitle]
-    .filter(Boolean)
-    .join('\n');
+  const folder = row?.folder ?? placement.node?.folder;
+  const task = seatTask(placement);
+
+  return (
+    <div
+      data-testid={`seat-hover-${placement.id}`}
+      className="pointer-events-none absolute left-2 top-full z-50 hidden max-w-72 rounded-md border border-border bg-card px-2.5 py-1.5 shadow-lg group-hover:block"
+    >
+      <div className="font-mono text-[11px] font-semibold">{placement.id}</div>
+      {facts.length > 0 ? (
+        <div className="text-[10px] text-muted-foreground">{facts.join(' · ')}</div>
+      ) : null}
+      {windowLabel ? (
+        <div className="font-mono text-[10px] text-muted-foreground">⊞ {windowLabel}</div>
+      ) : null}
+      {folder ? (
+        <div className="truncate font-mono text-[10px] text-muted-foreground">{folder}</div>
+      ) : null}
+      {task ? <div className="mt-0.5 text-[10px]">{task}</div> : null}
+    </div>
+  );
 }
 
 /** The seat's tmux window as tmux itself names it (`3:cheetah`), or null when unjoinable. */
@@ -237,13 +262,13 @@ function SeatHeader({
   const state = placement.row?.badge ?? placement.row?.state ?? 'unknown';
   const focus = useSeatFocusAffordance(placement);
   return (
-    <div>
+    <div className="group relative">
       <button
         type="button"
         data-testid={`focus-seat-${placement.id}`}
         data-state={state}
         disabled={!focus.inWorkspace || focus.busy}
-        title={seatHoverTitle(placement, focus.title)}
+        title={focus.title}
         onClick={() => focus.available && focus.focus.focus(placement.id)}
         className="flex w-full min-w-0 items-center gap-1.5 px-2.5 py-1.5 text-left hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
       >
@@ -265,12 +290,12 @@ function SeatHeader({
         <div
           data-testid={`pij-window-${placement.id}`}
           className="-mt-1 truncate px-2.5 pb-0.5 pl-8 font-mono text-[9.5px] text-muted-foreground"
-          title={`window ${windowLabel}`}
         >
           ⊞ {windowLabel}
         </div>
       ) : null}
       <FocusResult placement={placement} />
+      <SeatHoverCard placement={placement} windowLabel={windowLabel} />
     </div>
   );
 }
@@ -279,10 +304,12 @@ function WorkerRow({
   placement,
   question,
   now,
+  windows,
 }: {
   placement: RailSeatPlacement;
   question: QuestionDecision;
   now: number;
+  windows?: Record<string, string>;
 }) {
   const row = placement.row;
   const state = row?.badge ?? row?.state ?? 'unknown';
@@ -296,7 +323,7 @@ function WorkerRow({
     <div
       data-testid={`pij-worker-${placement.id}`}
       data-state={state}
-      className={`border-t border-border/60 px-2.5 py-1 ${
+      className={`group relative border-t border-border/60 px-2.5 py-1 ${
         state === 'blocked'
           ? 'bg-red-50/70 dark:bg-red-950/20'
           : state === 'question'
@@ -308,7 +335,7 @@ function WorkerRow({
         type="button"
         data-testid={`focus-seat-${placement.id}`}
         disabled={!focus.inWorkspace || focus.busy}
-        title={seatHoverTitle(placement, focus.title)}
+        title={focus.title}
         onClick={() => focus.available && focus.focus.focus(placement.id)}
         className="flex w-full min-w-0 items-center gap-1.5 text-left text-[11px] disabled:cursor-not-allowed disabled:opacity-50"
       >
@@ -349,6 +376,7 @@ function WorkerRow({
         </div>
       ) : null}
       <FocusResult placement={placement} />
+      <SeatHoverCard placement={placement} windowLabel={windowLabelFor(placement, windows)} />
     </div>
   );
 }
@@ -399,6 +427,7 @@ function TeamCard({
           placement={member}
           question={questionFor(member, contracts, now)}
           now={now}
+          windows={windows}
         />
       ))}
     </div>

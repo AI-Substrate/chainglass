@@ -117,11 +117,12 @@ describe('PijRailView', () => {
     expect(screen.getAllByText('NOW').length).toBeGreaterThan(0);
     expect(screen.getAllByText('NEXT').length).toBeGreaterThan(0);
     expect(screen.queryByText('plan-090')).toBeNull();
+    // Twice, by design: the truncating project line and the hover card's full-text copy.
     expect(
-      screen.getByText(
+      screen.getAllByText(
         'Coordinate a deliberately long project title that must truncate in the rail'
-      )
-    ).toBeTruthy();
+      ).length
+    ).toBeGreaterThan(0);
     expect(screen.getByTestId('pij-hot-count').textContent).toContain('8 seats currently hot');
     expect(screen.getByTestId('pij-hot-count').textContent).toContain('hot');
   });
@@ -181,15 +182,18 @@ describe('PijRailView', () => {
     expect(screen.queryByTestId('pij-window-pij-pm-current')).toBeNull();
   });
 
-  it('stacks full id, binding facts and the focus line into the seat hover title', () => {
+  it('carries full id and binding facts in the CSS hover card, only when the row has them', () => {
     /*
     Test Doc:
     - Why: the rail truncates seat ids and shows no model/effort at all — hover is where the full
-      identity lives. Facts must be the row's own: an unbound model line would be a guess.
-    - Contract: title carries id, provider · model · effort when bound, and the focus affordance
-      line last; an unbound seat gets no facts line, never a placeholder.
-    - Usage Notes: seat-focus.test.tsx asserts the focus line by `toContain` — this layout keeps it.
-    - Worked Example: bound PM → 'pij-pm-current\ncopilot · gpt-5.6 · high effort\nBring…'.
+      identity lives. A native `title` needs a motionless ~1s dwell and is shadowed by inner
+      elements' own titles, which read as "no hover at all" (Jordan, 2026-07-30) — so this is a
+      CSS `group-hover` card. Facts must be the row's own: an unbound model line would be a guess.
+    - Contract: every seat gets a card with its full id; provider · model · effort joins only when
+      bound — never a placeholder.
+    - Usage Notes: the card is display-toggled by CSS, so it exists in the DOM unhovered — assert
+      content, not visibility.
+    - Worked Example: bound PM → 'copilot · gpt-5.6 · high effort'.
     */
     const boundRows = rows.map((r) =>
       r.id === 'pij-pm-current'
@@ -207,12 +211,14 @@ describe('PijRailView', () => {
       { wrapper }
     );
 
-    const bound = screen.getByTestId('focus-seat-pij-pm-current');
-    expect(bound.title).toContain('pij-pm-current');
-    expect(bound.title).toContain('copilot · gpt-5.6 · high effort');
-    expect(bound.title).toContain('window to the front');
-    // No binding on record → no facts line, not a placeholder.
-    expect(screen.getByTestId('focus-seat-pij-pm-empty').title).not.toContain('·');
+    const bound = screen.getByTestId('seat-hover-pij-pm-current');
+    expect(bound.textContent).toContain('pij-pm-current');
+    expect(bound.textContent).toContain('copilot · gpt-5.6 · high effort');
+    // Worker rows get a card too; no binding on record → no facts separator, not a placeholder.
+    expect(screen.getByTestId('seat-hover-pij-worker-loose').textContent).toContain(
+      'pij-worker-loose'
+    );
+    expect(screen.getByTestId('seat-hover-pij-pm-empty').textContent).not.toContain('·');
   });
 
   it('renders every status absence discriminator and keeps stale text', () => {
