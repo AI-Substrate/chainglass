@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { type MouseEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { type FetchLike, usePijFleet } from '../hooks/use-pij-fleet';
 import { usePijStatus } from '../hooks/use-pij-status';
 import { SeatFocusProvider } from '../hooks/use-seat-focus';
@@ -198,17 +198,35 @@ function questionFor(
 }
 
 /**
+ * Hover-card anchoring. `position: fixed`, not absolute: every team card is `overflow-hidden` for
+ * its rounded corners, and the scroll container clips too — an in-flow card gets cut at the first
+ * such edge (seen live, 2026-07-30). Fixed positioning escapes them all; the coordinates come from
+ * the hovered row's own rect at enter time.
+ */
+function useSeatHover() {
+  const [anchor, setAnchor] = useState<{ left: number; top: number } | null>(null);
+  const onMouseEnter = (event: MouseEvent<HTMLElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    setAnchor({ left: rect.left + 8, top: rect.bottom + 2 });
+  };
+  const onMouseLeave = () => setAnchor(null);
+  return { anchor, onMouseEnter, onMouseLeave };
+}
+
+/**
  * The instant hover card: full id (rail columns truncate it), the seat's binding facts, its window
- * and folder. CSS-only (`group-hover`) rather than a `title` attribute — native tooltips need a
+ * and folder. Driven by hover state rather than a `title` attribute — native tooltips need a
  * ~1s motionless dwell and are shadowed by any inner element's own title, which made them look
  * simply absent. Only facts the row actually carries — an unbound model is absent, never guessed.
  */
 function SeatHoverCard({
   placement,
   windowLabel,
+  anchor,
 }: {
   placement: RailSeatPlacement;
   windowLabel?: string | null;
+  anchor: { left: number; top: number };
 }) {
   const row = placement.row;
   const harness = typeof placement.node?.harness === 'string' ? placement.node.harness : undefined;
@@ -223,7 +241,8 @@ function SeatHoverCard({
   return (
     <div
       data-testid={`seat-hover-${placement.id}`}
-      className="pointer-events-none absolute left-2 top-full z-50 hidden max-w-72 rounded-md border border-border bg-card px-2.5 py-1.5 shadow-lg group-hover:block"
+      style={{ left: anchor.left, top: anchor.top }}
+      className="pointer-events-none fixed z-50 max-w-72 rounded-md border border-border bg-card px-2.5 py-1.5 shadow-lg"
     >
       <div className="font-mono text-[11px] font-semibold">{placement.id}</div>
       {facts.length > 0 ? (
@@ -261,8 +280,13 @@ function SeatHeader({
 }) {
   const state = placement.row?.badge ?? placement.row?.state ?? 'unknown';
   const focus = useSeatFocusAffordance(placement);
+  const hover = useSeatHover();
   return (
-    <div className="group relative">
+    <div
+      data-testid={`seat-row-${placement.id}`}
+      onMouseEnter={hover.onMouseEnter}
+      onMouseLeave={hover.onMouseLeave}
+    >
       <button
         type="button"
         data-testid={`focus-seat-${placement.id}`}
@@ -276,9 +300,7 @@ function SeatHeader({
           ▾
         </span>
         <SeatDot placement={placement} />
-        <span className="min-w-0 flex-1 truncate font-mono text-[11px]" title={placement.id}>
-          {placement.id}
-        </span>
+        <span className="min-w-0 flex-1 truncate font-mono text-[11px]">{placement.id}</span>
         {question.placement === 'strip' ? (
           <span className="shrink-0 rounded bg-violet-100 px-1 py-0.5 text-[9px] font-bold text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">
             ? needs you
@@ -295,7 +317,9 @@ function SeatHeader({
         </div>
       ) : null}
       <FocusResult placement={placement} />
-      <SeatHoverCard placement={placement} windowLabel={windowLabel} />
+      {hover.anchor ? (
+        <SeatHoverCard placement={placement} windowLabel={windowLabel} anchor={hover.anchor} />
+      ) : null}
     </div>
   );
 }
@@ -318,12 +342,15 @@ function WorkerRow({
   const worktree = folder?.split('/').filter(Boolean).at(-1);
   const inline = question.reason === 'blocked-note-inline' ? question : null;
   const focus = useSeatFocusAffordance(placement);
+  const hover = useSeatHover();
 
   return (
     <div
       data-testid={`pij-worker-${placement.id}`}
       data-state={state}
-      className={`group relative border-t border-border/60 px-2.5 py-1 ${
+      onMouseEnter={hover.onMouseEnter}
+      onMouseLeave={hover.onMouseLeave}
+      className={`border-t border-border/60 px-2.5 py-1 ${
         state === 'blocked'
           ? 'bg-red-50/70 dark:bg-red-950/20'
           : state === 'question'
@@ -340,17 +367,10 @@ function WorkerRow({
         className="flex w-full min-w-0 items-center gap-1.5 text-left text-[11px] disabled:cursor-not-allowed disabled:opacity-50"
       >
         <SeatDot placement={placement} />
-        <span className="min-w-0 shrink truncate font-mono" title={placement.id}>
-          {placement.id}
-        </span>
-        <span className="min-w-0 flex-1 truncate text-muted-foreground" title={task}>
-          {task}
-        </span>
+        <span className="min-w-0 shrink truncate font-mono">{placement.id}</span>
+        <span className="min-w-0 flex-1 truncate text-muted-foreground">{task}</span>
         {worktree ? (
-          <span
-            className="min-w-0 shrink truncate rounded bg-muted px-1 font-mono text-[9.5px] text-muted-foreground"
-            title={folder}
-          >
+          <span className="min-w-0 shrink truncate rounded bg-muted px-1 font-mono text-[9.5px] text-muted-foreground">
             ⑂ {worktree}
           </span>
         ) : null}
@@ -376,7 +396,13 @@ function WorkerRow({
         </div>
       ) : null}
       <FocusResult placement={placement} />
-      <SeatHoverCard placement={placement} windowLabel={windowLabelFor(placement, windows)} />
+      {hover.anchor ? (
+        <SeatHoverCard
+          placement={placement}
+          windowLabel={windowLabelFor(placement, windows)}
+          anchor={hover.anchor}
+        />
+      ) : null}
     </div>
   );
 }

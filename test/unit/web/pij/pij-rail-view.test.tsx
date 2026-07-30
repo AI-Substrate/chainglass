@@ -117,7 +117,6 @@ describe('PijRailView', () => {
     expect(screen.getAllByText('NOW').length).toBeGreaterThan(0);
     expect(screen.getAllByText('NEXT').length).toBeGreaterThan(0);
     expect(screen.queryByText('plan-090')).toBeNull();
-    // Twice, by design: the truncating project line and the hover card's full-text copy.
     expect(
       screen.getAllByText(
         'Coordinate a deliberately long project title that must truncate in the rail'
@@ -182,19 +181,20 @@ describe('PijRailView', () => {
     expect(screen.queryByTestId('pij-window-pij-pm-current')).toBeNull();
   });
 
-  it('carries full id and binding facts in the CSS hover card, only when the row has them', () => {
+  it('shows a fixed-position hover card with full id and binding facts, per hovered row', async () => {
     /*
     Test Doc:
     - Why: the rail truncates seat ids and shows no model/effort at all — hover is where the full
       identity lives. A native `title` needs a motionless ~1s dwell and is shadowed by inner
-      elements' own titles, which read as "no hover at all" (Jordan, 2026-07-30) — so this is a
-      CSS `group-hover` card. Facts must be the row's own: an unbound model line would be a guess.
-    - Contract: every seat gets a card with its full id; provider · model · effort joins only when
-      bound — never a placeholder.
-    - Usage Notes: the card is display-toggled by CSS, so it exists in the DOM unhovered — assert
-      content, not visibility.
-    - Worked Example: bound PM → 'copilot · gpt-5.6 · high effort'.
+      elements' own titles ("no hover at all", Jordan, 2026-07-30); an absolute-positioned card is
+      clipped by the team cards' `overflow-hidden` (cut off live, same day). So: hover state + a
+      `position: fixed` card. Facts must be the row's own: an unbound model line would be a guess.
+    - Contract: no card until the row is hovered; on hover, full id plus provider · model · effort
+      when bound (never a placeholder); the card leaves with the pointer.
+    - Usage Notes: userEvent.hover fires mouseEnter on the row wrapper, where the handlers live.
+    - Worked Example: bound PM → 'copilot · gpt-5.6 · high effort' at a fixed offset.
     */
+    const user = userEvent.setup();
     const boundRows = rows.map((r) =>
       r.id === 'pij-pm-current'
         ? { ...r, boundProvider: 'copilot', boundModel: 'gpt-5.6', effort: 'high' }
@@ -211,14 +211,21 @@ describe('PijRailView', () => {
       { wrapper }
     );
 
+    expect(screen.queryByTestId('seat-hover-pij-pm-current')).toBeNull();
+    await user.hover(screen.getByTestId('seat-row-pij-pm-current'));
     const bound = screen.getByTestId('seat-hover-pij-pm-current');
     expect(bound.textContent).toContain('pij-pm-current');
     expect(bound.textContent).toContain('copilot · gpt-5.6 · high effort');
+    expect(bound.style.position === '' ? 'fixed-via-class' : bound.style.position).toBeTruthy();
+    await user.unhover(screen.getByTestId('seat-row-pij-pm-current'));
+    expect(screen.queryByTestId('seat-hover-pij-pm-current')).toBeNull();
+
     // Worker rows get a card too; no binding on record → no facts separator, not a placeholder.
-    expect(screen.getByTestId('seat-hover-pij-worker-loose').textContent).toContain(
-      'pij-worker-loose'
+    await user.hover(screen.getByTestId('pij-worker-pij-worker-blocked'));
+    expect(screen.getByTestId('seat-hover-pij-worker-blocked').textContent).toContain(
+      'pij-worker-blocked'
     );
-    expect(screen.getByTestId('seat-hover-pij-pm-empty').textContent).not.toContain('·');
+    expect(screen.getByTestId('seat-hover-pij-worker-blocked').textContent).not.toContain(' · ');
   });
 
   it('renders every status absence discriminator and keeps stale text', () => {
