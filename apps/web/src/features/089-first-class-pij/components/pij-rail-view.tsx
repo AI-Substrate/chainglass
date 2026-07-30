@@ -24,12 +24,34 @@ import type { FleetRow, PijStatusRecord } from '../types';
 import { FocusResult, useSeatFocusAffordance } from './seat-row';
 
 const DOT_CLASS: Record<string, string> = {
-  active: 'bg-emerald-600',
-  working: 'bg-emerald-600',
+  active: 'bg-emerald-600 ring-2 ring-emerald-600/15',
+  working: 'bg-emerald-600 ring-2 ring-emerald-600/15',
+  ready: 'bg-emerald-600',
+  waiting: 'bg-amber-500',
+  hold: 'bg-amber-500',
   blocked: 'bg-red-600 ring-2 ring-red-600/15',
+  failed: 'bg-red-600 ring-2 ring-red-600/15',
   question: 'bg-violet-600 ring-2 ring-violet-600/15',
   stopped: 'bg-muted-foreground/50',
+  idle: 'bg-muted-foreground/50',
+  done: 'bg-muted-foreground/50',
+  cancelled: 'bg-muted-foreground/50',
   dead: 'bg-muted-foreground/50',
+};
+
+const ROLE_CHIP_CLASS: Record<string, string> = {
+  prime: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300',
+  pm: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
+};
+
+const STATE_CHIP_CLASS: Record<string, string> = {
+  active: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
+  working: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
+  waiting: 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400',
+  hold: 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400',
+  blocked: 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-400',
+  failed: 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-400',
+  question: 'bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300',
 };
 
 export interface PijRailViewProps {
@@ -74,10 +96,12 @@ function roleLabel(role: SeatRole): string {
 
 function RoleBadge({ role }: { role: SeatRole }) {
   const reason = role.kind === 'absent' ? role.reason : 'current';
+  const chip =
+    (role.kind === 'known' && ROLE_CHIP_CLASS[role.role]) || 'bg-muted text-muted-foreground';
   return (
     <span
       data-role-reason={reason}
-      className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-muted-foreground"
+      className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${chip}`}
     >
       {roleLabel(role)}
     </span>
@@ -116,15 +140,11 @@ function StatusSummary({
             <span className="shrink-0 pt-0.5 text-[9px] font-extrabold tracking-wider text-muted-foreground">
               NOW
             </span>
-            <span className="min-w-0 truncate" title={record.prev}>
-              {record.prev}
-            </span>
+            <span className="min-w-0 break-words">{record.prev}</span>
           </div>
           <div className="flex min-w-0 gap-1.5 text-[11px] text-muted-foreground">
             <span className="shrink-0 pt-0.5 text-[9px] font-extrabold tracking-wider">NEXT</span>
-            <span className="min-w-0 truncate" title={record.next}>
-              {record.next}
-            </span>
+            <span className="min-w-0 break-words">{record.next}</span>
           </div>
           <div
             className={`mt-0.5 pl-8 text-[9.5px] ${stale ? 'text-amber-700 dark:text-amber-400' : 'text-muted-foreground'}`}
@@ -263,7 +283,11 @@ function WorkerRow({
             ⑂ {worktree}
           </span>
         ) : null}
-        <span className="shrink-0 rounded bg-muted px-1 text-[9px] font-bold uppercase text-muted-foreground">
+        <span
+          className={`shrink-0 rounded px-1 text-[9px] font-bold uppercase ${
+            STATE_CHIP_CLASS[state] ?? 'bg-muted text-muted-foreground'
+          }`}
+        >
           {state}
         </span>
         <span className="shrink-0 text-[9.5px] text-muted-foreground">
