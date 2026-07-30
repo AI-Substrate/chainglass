@@ -27,7 +27,10 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { isFolderInWorkspace } from '../../../../src/features/089-first-class-pij/server/join';
 import { PijCliError } from '../../../../src/features/089-first-class-pij/server/pij-records';
-import type { PijNodeDetail } from '../../../../src/features/089-first-class-pij/server/pij-records.interface';
+import type {
+  PijNodeDetail,
+  PijTreeNode,
+} from '../../../../src/features/089-first-class-pij/server/pij-records.interface';
 import {
   type FocusExecutor,
   NO_STORE_HEADERS,
@@ -151,6 +154,13 @@ function focusStoreUnreadable(error: unknown): Response {
   );
 }
 
+/** Whether the workspace-scoped tree places this seat, at any depth. */
+function treeHasSeat(nodes: PijTreeNode[], id: string): boolean {
+  return nodes.some(
+    (node) => node.id === id || (node.children?.length ? treeHasSeat(node.children, id) : false)
+  );
+}
+
 function refuse(refusal: FocusRefusal): Response {
   return NextResponse.json(
     { reason: refusal.reason, observation: refusal.observation },
@@ -187,8 +197,26 @@ export async function handlePijFocusRequest(
   }
 
   // `cwd`, not `folder`: `node show` has no `folder` key. See PijNodeDetail.cwd.
-  if (!detail.cwd || !isFolderInWorkspace(detail.cwd, workspace)) {
-    return refuse(focusRefusal('out-of-workspace', { seatId, cwd: detail.cwd ?? '(unrecorded)' }));
+  //
+  // Two rungs, same as the rail's membership rule: path containment first, then the tree — git
+  // places a worktree BESIDE its checkout, so a family seat fails the path test while being exactly
+  // the seat the human clicked. The tree read is fresh and workspace-scoped (`all`, because a
+  // worktree seat the fleet still shows may be idle), and an unreadable tree simply cannot place
+  // the seat — the refusal below then names the cwd it saw.
+  if (!detail.cwd) {
+    return refuse(focusRefusal('out-of-workspace', { seatId, cwd: '(unrecorded)' }));
+  }
+  if (!isFolderInWorkspace(detail.cwd, workspace)) {
+    let inFamily = false;
+    try {
+      const tree = await deps.poller.records.tree({ cwd: workspace, all: true });
+      inFamily = treeHasSeat(tree.roots, seatId);
+    } catch {
+      inFamily = false;
+    }
+    if (!inFamily) {
+      return refuse(focusRefusal('out-of-workspace', { seatId, cwd: detail.cwd }));
+    }
   }
 
   if (detail.liveness !== 'active') {

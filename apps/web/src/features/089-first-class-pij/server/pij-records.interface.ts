@@ -49,6 +49,7 @@ export interface PijListRow {
   watchdog?: unknown;
   prime?: boolean;
   oldPrime?: boolean;
+  orchestrationRole?: 'prime' | 'pm' | 'worker' | null;
   /** Ruled derivation (adoption axis) — consumed, never recomputed. */
   unadopted?: boolean;
   [additive: string]: unknown;
@@ -80,6 +81,7 @@ export interface PijTreeNode {
   /** Present-when-true on tree nodes (adoption axis). */
   unadopted?: boolean;
   prime?: boolean;
+  orchestrationRole?: 'prime' | 'pm' | 'worker' | null;
   children?: PijTreeNode[];
   [additive: string]: unknown;
 }

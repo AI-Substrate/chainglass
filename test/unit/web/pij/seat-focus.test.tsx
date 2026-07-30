@@ -22,6 +22,7 @@ import { NextRequest } from 'next/server';
 import { describe, expect, it } from 'vitest';
 import { handlePijFocusRequest } from '../../../../apps/web/app/api/pij/focus/route';
 import { FleetView } from '../../../../apps/web/src/features/089-first-class-pij/components/fleet-view';
+import { FOCUS_SUCCESS_LINGER_MS } from '../../../../apps/web/src/features/089-first-class-pij/components/seat-row';
 import { createPijPoller } from '../../../../apps/web/src/features/089-first-class-pij/server/pij-poller.service';
 import { createPijRecords } from '../../../../apps/web/src/features/089-first-class-pij/server/pij-records';
 import { FakeFocusExecutor } from '../../../fakes/fake-focus-executor';
@@ -230,6 +231,29 @@ describe('the focus button — what a click does, and what it reports', () => {
     await waitFor(() =>
       expect(screen.getByTestId(`focus-result-${UI_PRIME_ID}`).textContent).toBe('focused @220')
     );
+  });
+
+  it('clears a success receipt after the linger window', async () => {
+    /*
+    Test Doc:
+    - Why: the window already moved — a receipt that never leaves reads as a mystery label
+      ("focused @17", Jordan, 2026-07-30). Refusals persist by design (asserted implicitly: no
+      expiry path touches them), but success expires.
+    - Contract: 'focused @220' present right after the click, absent after FOCUS_SUCCESS_LINGER_MS.
+    - Usage Notes: real timers — the linger is 4s and waitFor's default timeout is shorter, so the
+      removal is awaited with an explicit generous timeout.
+    - Quality Contribution: pins that the receipt is ephemeral, not just present.
+    - Worked Example: click → receipt → gone ~4s later.
+    */
+    const { impl } = fakeFetch({ status: 200, body: { focused: '@220' } });
+    renderFleet({ focusFetchImpl: impl });
+
+    await userEvent.click(screen.getByTestId(`focus-seat-${UI_PRIME_ID}`));
+    await waitFor(() => expect(screen.queryByTestId(`focus-result-${UI_PRIME_ID}`)).not.toBeNull());
+
+    await waitFor(() => expect(screen.queryByTestId(`focus-result-${UI_PRIME_ID}`)).toBeNull(), {
+      timeout: FOCUS_SUCCESS_LINGER_MS + 2_000,
+    });
   });
 
   it("renders a refusal in the route's own words, with its reason attached", async () => {

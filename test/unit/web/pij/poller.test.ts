@@ -23,6 +23,11 @@ import {
 } from '../../../../apps/web/src/features/089-first-class-pij/server/pij-poller.service';
 import { createPijRecords } from '../../../../apps/web/src/features/089-first-class-pij/server/pij-records';
 import {
+  type PijRailContractSeams,
+  fakeStatusRecord,
+  productionContractSeams,
+} from '../../../../apps/web/src/features/089-first-class-pij/server/pij-status.contract';
+import {
   PIJ_CHANNEL,
   type PijChannelEvent,
   asPijId,
@@ -51,6 +56,8 @@ function describeEvent(event: PijChannelEvent): string {
       return `flow-delta seq=${event.seq} flows=${event.flows.length}`;
     case 'poller-status':
       return `poller-status seq=${event.seq} running=${event.status.running}`;
+    case 'status-delta':
+      return `status-delta seq=${event.seq} statuses=${event.statuses.length}`;
     default: {
       const unreachable: never = event;
       return unreachable;
@@ -83,6 +90,7 @@ function buildPoller(
     cursor?: FakeSpineCursor;
     exec?: FakePijExecutor;
     flows?: FakeFlowReader;
+    contracts?: PijRailContractSeams;
   } = {}
 ) {
   const cursor = options.cursor ?? new FakeSpineCursor(100);
@@ -98,6 +106,7 @@ function buildPoller(
     broadcast: broadcaster.broadcast,
     scheduler,
     now: () => new Date('2026-07-26T06:00:00.000Z'),
+    contracts: options.contracts,
   });
   return { poller, cursor, exec, scheduler, broadcaster };
 }
@@ -141,6 +150,20 @@ describe('PijChannelEvent — the channel contract', () => {
       },
       { type: 'flow-delta', seq: 43, at: '2026-07-26T06:00:01.000Z', flows: [] },
       {
+        type: 'status-delta',
+        seq: 43,
+        at: '2026-07-26T06:00:01.000Z',
+        statuses: [
+          {
+            peer: asPijId('pij-pm'),
+            prev: 'Finished the red poller test.',
+            next: 'Implement the fast-drain status path.',
+            ts: '2026-07-26T06:00:00.000Z',
+            seq: 43,
+          },
+        ],
+      },
+      {
         type: 'poller-status',
         seq: 44,
         at: '2026-07-26T06:00:02.000Z',
@@ -162,7 +185,7 @@ describe('PijChannelEvent — the channel contract', () => {
     }
   });
 
-  it('is exhaustively handleable — the union has exactly the three ruled variants', () => {
+  it('is exhaustively handleable — the union includes the status delta', () => {
     /*
     Test Doc:
     - Why: The channel vocabulary is a contract Phase 2–4 code and the browser both bind to. A variant
@@ -178,6 +201,9 @@ describe('PijChannelEvent — the channel contract', () => {
     expect(describeEvent({ type: 'fleet-delta', seq: 2, at: 'now', rows: [], removed: [] })).toBe(
       'fleet-delta seq=2 rows=0 removed=0'
     );
+    expect(describeEvent({ type: 'status-delta', seq: 3, at: 'now', statuses: [] })).toBe(
+      'status-delta seq=3 statuses=0'
+    );
   });
 
   it('broadcasts on the ruled channel id with the event type as the SSE event name', () => {
@@ -192,13 +218,127 @@ describe('PijChannelEvent — the channel contract', () => {
     - Worked Example: 'fleet-delta' matches; the channel is 'pij'.
     */
     expect(PIJ_CHANNEL).toBe('pij');
-    for (const type of ['fleet-delta', 'flow-delta', 'poller-status']) {
+    for (const type of ['fleet-delta', 'flow-delta', 'poller-status', 'status-delta']) {
       expect(/^[a-zA-Z0-9_-]+$/.test(type)).toBe(true);
     }
   });
 });
 
 describe('PijPollerService — the fan-out filter (Finding 03, C-08)', () => {
+  it('coalesces status events outside the known-seat guard without spawning another pij read', async () => {
+    const cursor = new FakeSpineCursor(100);
+    cursor.queueEvents([
+      {
+        schema_version: 1,
+        seq: 101,
+        ts: '2026-07-26T05:59:00.000Z',
+        actor: 'pij-pm',
+        kind: 'status',
+        refs: ['node:pij-pm'],
+        peer: 'pij-pm',
+        prev: 'older',
+        next: 'older next',
+      },
+      {
+        schema_version: 1,
+        seq: 102,
+        ts: '2026-07-26T05:59:30.000Z',
+        actor: 'pij-pm',
+        kind: 'status',
+        refs: ['node:pij-pm'],
+        peer: 'pij-pm',
+        prev: 'newest',
+        next: 'newest next',
+      },
+      systemStateEvent(103, 'pij-a', 'idle', 'working'),
+    ]);
+
+    const { poller, scheduler, broadcaster, exec } = buildPoller({ cursor });
+    await poller.start();
+    const callsAfterStart = exec.calls.length;
+    broadcaster.reset();
+
+    await scheduler.fire(FAST_LOOP_MS);
+
+    const statusDeltas = broadcaster.ofType('status-delta') as Array<
+      Extract<PijChannelEvent, { type: 'status-delta' }>
+    >;
+    expect(statusDeltas).toHaveLength(1);
+    expect(statusDeltas[0].statuses).toEqual([
+      expect.objectContaining({ peer: 'pij-pm', seq: 102, prev: 'newest' }),
+    ]);
+    expect(poller.snapshot().statuses).toEqual([]);
+    expect(broadcaster.ofType('fleet-delta')).toHaveLength(1);
+    expect(statusDeltas.length).toBeLessThanOrEqual(MAX_BROADCASTS_PER_FAST_TICK);
+    expect(broadcaster.ofType('fleet-delta').length).toBeLessThanOrEqual(
+      MAX_BROADCASTS_PER_FAST_TICK
+    );
+    expect(exec.calls.length).toBe(callsAfterStart);
+  });
+
+  it('runs the real poller against a swapped status seam', async () => {
+    const cursor = new FakeSpineCursor(100);
+    cursor.queueEvents([
+      {
+        schema_version: 1,
+        seq: 101,
+        ts: '2026-07-26T05:59:00.000Z',
+        actor: 'pij-a',
+        kind: 'status',
+        refs: ['node:pij-a'],
+        peer: 'pij-a',
+        prev: 'ignored by swapped reader',
+        next: 'ignored by swapped reader',
+      },
+    ]);
+    const swapped: PijRailContractSeams = {
+      ...productionContractSeams,
+      status: {
+        ...productionContractSeams.status,
+        readSpineEvent: (_event, peer) =>
+          fakeStatusRecord({ peer, seq: 999, prev: 'swapped poller reader' }),
+      },
+    };
+    const { poller, scheduler, broadcaster } = buildPoller({ cursor, contracts: swapped });
+    await poller.start();
+    broadcaster.reset();
+
+    await scheduler.fire(FAST_LOOP_MS);
+
+    const [delta] = broadcaster.ofType('status-delta') as Array<
+      Extract<PijChannelEvent, { type: 'status-delta' }>
+    >;
+    expect(delta.statuses).toEqual([
+      expect.objectContaining({ peer: 'pij-a', seq: 999, prev: 'swapped poller reader' }),
+    ]);
+  });
+
+  it('serves statuses for hot peers only and evicts them after the slow fleet refresh', async () => {
+    const cursor = new FakeSpineCursor(100);
+    cursor.queueEvents([
+      {
+        schema_version: 1,
+        seq: 101,
+        ts: '2026-07-26T05:59:00.000Z',
+        actor: 'pij-a',
+        kind: 'status',
+        refs: ['node:pij-a'],
+        peer: 'pij-a',
+        prev: 'hot status',
+        next: 'next',
+      },
+    ]);
+    const { poller, scheduler, exec } = buildPoller({ cursor });
+    await poller.start();
+    await scheduler.fire(FAST_LOOP_MS);
+    expect(poller.snapshot().statuses.map((status) => status.peer)).toEqual(['pij-a']);
+
+    exec.whenJson(['list', '--json', '--badge'], []);
+    await scheduler.fire(SLOW_LOOP_MS);
+
+    expect(poller.snapshot().statuses).toEqual([]);
+  });
+
   it('collapses 100 system-state events into at most one broadcast per tick', async () => {
     /*
     Test Doc:

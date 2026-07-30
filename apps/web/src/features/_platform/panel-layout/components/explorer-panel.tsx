@@ -529,8 +529,8 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
           type="button"
           onClick={() => window.dispatchEvent(new CustomEvent('pij:toggle'))}
           className="shrink-0 rounded p-1 text-muted-foreground hover:text-foreground hover:bg-accent"
-          aria-label="Toggle pij fleet"
-          title="Toggle pij fleet (Ctrl+Shift+F)"
+          aria-label="Open pij rail"
+          title="Open pij rail (Ctrl+Shift+F)"
           data-testid="explorer-pij-toggle"
         >
           <Radar className="h-4 w-4" />

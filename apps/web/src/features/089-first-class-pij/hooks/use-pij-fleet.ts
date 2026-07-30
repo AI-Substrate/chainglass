@@ -70,6 +70,7 @@ import type {
   PijChannelEvent,
   PijId,
   PijSnapshot,
+  PijStatusRecord,
   PollerStatus,
   TreeSnapshotData,
 } from '../types';
@@ -90,6 +91,13 @@ export const TREE_REFETCH_DEBOUNCE_MS = 1_500;
 export const PIJ_CHANNEL_RETENTION = 1_000;
 
 /**
+ * How often the tmux window-label map is re-read. Renames never touch the pij store, so no delta or
+ * tree refetch will ever carry one — this poll is their only path in. 30s is deliberate: a label is
+ * a wayfinding nicety, and the read behind it, while cheap, is per-tab.
+ */
+export const WINDOWS_REFRESH_MS = 30_000;
+
+/**
  * Which fleet to acquire.
  *
  * `global` drops the `workspace` parameter (the route's scoping is optional) AND the client-side
@@ -107,17 +115,23 @@ export interface UsePijFleetOptions {
   fetchImpl?: FetchLike;
   /** Test seam for the unknown-id refetch debounce. */
   treeRefetchDebounceMs?: number;
+  /** Test seam for the window-label poll. `0` disables it (the tree read still seeds the map). */
+  windowsRefreshMs?: number;
 }
 
 /** What the page reads. Deliberately flat: the view components take values, never this hook. */
 export interface UsePijFleetResult {
   /** Seats in this workspace, snapshot-then-deltas. */
   rows: FleetRow[];
+  /** JC-1 cold-start records from the fleet snapshot; live deltas are consumed by `usePijStatus`. */
+  statuses: PijStatusRecord[];
   status: PollerStatus | null;
   /** The highest spine seq this view reflects. */
   seq: number;
   phase: 'connecting' | 'live' | 'degraded';
   tree: PijTreeNode[];
+  /** tmux window labels keyed by node `windowId` (`@12` → `3:cheetah`); empty when tmux is unreachable. */
+  windows: Record<string, string>;
   flows: FlowSummary[];
   /**
    * SEAT rows rejected by the containment filter since mount. The discriminator between "nothing to
@@ -178,8 +192,10 @@ export function usePijFleet(options: UsePijFleetOptions): UsePijFleetResult {
 
   const [rowsById, setRowsById] = useState<Map<PijId, FleetRow>>(() => new Map());
   const [status, setStatus] = useState<PollerStatus | null>(null);
+  const [statuses, setStatuses] = useState<PijStatusRecord[]>([]);
   const [seq, setSeq] = useState(0);
   const [tree, setTree] = useState<PijTreeNode[]>([]);
+  const [windows, setWindows] = useState<Record<string, string>>({});
   const [flows, setFlows] = useState<FlowSummary[]>([]);
   const [treeIds, setTreeIds] = useState<Set<string>>(() => new Set());
   const [flowsFilteredOut, setFlowsFilteredOut] = useState(0);
@@ -251,11 +267,25 @@ export function usePijFleet(options: UsePijFleetOptions): UsePijFleetResult {
       // is what makes membership RE-DERIVE when a tree read lands after the rows it places.
       setTreeIds(ids);
       setTree(snapshot.data.roots);
+      setWindows(snapshot.data.windows ?? {});
       setErrors((prev) => ({ ...prev, tree: null }));
     } catch (error) {
       if (mountedRef.current) setErrors((prev) => ({ ...prev, tree: String(error) }));
     }
   }, [fetchImpl, workspacePath]);
+
+  const loadWindows = useCallback(async () => {
+    // Silent on failure, deliberately: the map we already hold beats an empty one, and a label poll
+    // must never paint an error over a healthy rail.
+    try {
+      const response = await fetchImpl('/api/pij/windows');
+      if (!response.ok) return;
+      const body = (await response.json()) as { windows?: Record<string, string> };
+      if (mountedRef.current && body.windows) setWindows(body.windows);
+    } catch {
+      // Keep the last-known labels.
+    }
+  }, [fetchImpl]);
 
   const loadFlows = useCallback(async () => {
     const query = `workspace=${encodeURIComponent(workspacePath)}`;
@@ -312,6 +342,7 @@ export function usePijFleet(options: UsePijFleetOptions): UsePijFleetResult {
       replayUntilRef.current = receivedCountRef.current;
       snapshotSeqRef.current = snapshot.seq;
       setRowsById(new Map(snapshot.data.rows.map((row) => [row.id, row])));
+      setStatuses(snapshot.data.statuses ?? []);
       setStatus(snapshot.data.status);
       setSeq(snapshot.seq);
       setErrors((prev) => ({ ...prev, fleet: null }));
@@ -322,7 +353,7 @@ export function usePijFleet(options: UsePijFleetOptions): UsePijFleetResult {
       snapshotSeqRef.current = snapshotSeqRef.current ?? 0;
       setSnapshotToken((token) => token + 1);
     }
-  }, [fetchImpl, workspacePath, scope]);
+  }, [fetchImpl]);
 
   const refresh = useCallback(() => {
     void loadFleet();
@@ -343,6 +374,14 @@ export function usePijFleet(options: UsePijFleetOptions): UsePijFleetResult {
     void loadTree();
     void loadFlows();
   }, [loadFleet, loadTree, loadFlows]);
+
+  // Renames never emit a delta (see WINDOWS_REFRESH_MS) — poll, or the label lies until a refetch.
+  const windowsRefreshMs = options.windowsRefreshMs ?? WINDOWS_REFRESH_MS;
+  useEffect(() => {
+    if (windowsRefreshMs <= 0) return;
+    const timer = setInterval(() => void loadWindows(), windowsRefreshMs);
+    return () => clearInterval(timer);
+  }, [loadWindows, windowsRefreshMs]);
 
   const scheduleTreeRefetch = useCallback(() => {
     if (treeRefetchTimerRef.current) clearTimeout(treeRefetchTimerRef.current);
@@ -504,10 +543,12 @@ export function usePijFleet(options: UsePijFleetOptions): UsePijFleetResult {
 
   return {
     rows,
+    statuses,
     status,
     seq,
     phase,
     tree,
+    windows,
     flows,
     filteredOut,
     outsideRoot,

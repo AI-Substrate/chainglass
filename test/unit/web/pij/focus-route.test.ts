@@ -77,6 +77,8 @@ async function makeDeps(
     detail?: Record<string, unknown>;
     nodeShowFails?: Error;
     focus?: FakeFocusExecutor;
+    /** The workspace-scoped tree the family rung reads when path containment fails. */
+    tree?: { roots: unknown[] };
   } = {}
 ): Promise<PijRouteDeps & { exec: FakePijExecutor; focus: FakeFocusExecutor }> {
   const exec = new FakePijExecutor().whenJson(['list', '--json', '--badge'], []);
@@ -84,6 +86,9 @@ async function makeDeps(
     exec.when(['node', 'show', SEAT, '--json']).fails(overrides.nodeShowFails);
   } else {
     exec.whenJson(['node', 'show', SEAT, '--json'], nodeDetail(overrides.detail));
+  }
+  if (overrides.tree) {
+    exec.whenJson(['tree', '--json', '--all'], overrides.tree);
   }
 
   const poller = createPijPoller({
@@ -240,6 +245,58 @@ describe('POST /api/pij/focus — every refusal reason, one test each', () => {
       reason: 'out-of-workspace',
       observation: `seat ${SEAT} works in ${SIBLING}, outside this workspace`,
     });
+    expect(deps.focus.calls).toEqual([]);
+  });
+
+  it('focuses a worktree seat the workspace tree places, though its cwd is outside by path', async () => {
+    /*
+    Test Doc:
+    - Why: git puts a worktree BESIDE its checkout, so a family seat fails path containment while
+      being exactly the seat the human clicked (pij-unknown-guan, vox-flier, 2026-07-30 — rendered
+      by the tree, refused by the path rule). Membership has two rungs everywhere else; focus must
+      use the same two.
+    - Contract: cwd outside + seat present in the workspace-scoped `tree --all` → 200 and one
+      select-window; the tree read is scoped to the REQUEST's workspace, `--all` because a family
+      seat the fleet still shows may be idle.
+    - Usage Notes: the sibling path here is the same containment-hazard shape as the refusal test
+      above — the tree, not a looser path rule, is what flips the outcome.
+    - Quality Contribution: pins the family rung server-side, where the authority lives.
+    - Worked Example: cwd '/…/chainglass-worktree', tree contains the seat → focused '@220'.
+    */
+    const deps = await makeDeps({
+      detail: { cwd: SIBLING },
+      tree: { roots: [{ id: 'pij-prime', children: [{ id: SEAT }] }] },
+    });
+
+    const response = await handlePijFocusRequest(focusRequest(), deps);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ focused: '@220' });
+    expect(deps.focus.calls).toEqual([
+      { command: 'tmux', args: ['select-window', '-t', '@220'], timeoutMs: 3_000 },
+    ]);
+  });
+
+  it('out-of-workspace: 409 stands when the workspace tree does not place the seat either', async () => {
+    /*
+    Test Doc:
+    - Why: the family rung must widen focus to worktrees, not to the machine — a seat in a genuinely
+      different repo stays refused even when a tree read succeeds.
+    - Contract: cwd outside + tree WITHOUT the seat → 409 'out-of-workspace', tmux never runs.
+    - Usage Notes: distinct from the refusal test above, where no tree is stubbed at all (an
+      unreadable tree also cannot place a seat).
+    - Quality Contribution: proves the second rung rejects, not just accepts.
+    - Worked Example: tree of one unrelated seat → refused.
+    */
+    const deps = await makeDeps({
+      detail: { cwd: SIBLING },
+      tree: { roots: [{ id: 'pij-unrelated' }] },
+    });
+
+    const response = await handlePijFocusRequest(focusRequest(), deps);
+
+    expect(response.status).toBe(409);
+    expect((await response.json()).reason).toBe('out-of-workspace');
     expect(deps.focus.calls).toEqual([]);
   });
 

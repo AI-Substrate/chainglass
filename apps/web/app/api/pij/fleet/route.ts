@@ -40,6 +40,7 @@ export async function handlePijFleetRequest(
     const data: FleetSnapshotData = {
       workspace,
       rows: snapshot.rows,
+      statuses: snapshot.statuses,
       status: snapshot.status,
     };
     return snapshotResponse(snapshot.seq, snapshot.at, data);

@@ -80,6 +80,7 @@ async function makeDeps(
     since?: number;
     flows?: FakeFlowReader;
     start?: boolean;
+    tmuxWindows?: () => Promise<Record<string, string>>;
   } = {}
 ): Promise<PijRouteDeps & { exec: FakePijExecutor }> {
   const exec =
@@ -98,7 +99,14 @@ async function makeDeps(
   });
   if (overrides.start !== false) await poller.start();
 
-  return { authFn: overrides.authFn ?? authOk, poller, exec };
+  // A fake by default: the real reader would exec tmux on the test host — slow, environment-shaped,
+  // and a real window list asserted against nothing.
+  return {
+    authFn: overrides.authFn ?? authOk,
+    poller,
+    exec,
+    tmuxWindows: overrides.tmuxWindows ?? (async () => ({})),
+  };
 }
 
 function request(path: string): NextRequest {
@@ -297,6 +305,26 @@ describe('/api/pij/tree', () => {
 
     expect(body.seq).toBe(4242);
     expect(body.data.roots[0].unadopted).toBe(true);
+  });
+
+  it('joins tmux window labels into the snapshot, keyed by window id', async () => {
+    /*
+    Test Doc:
+    - Why: tree nodes carry `windowId` (`@12`), which no human can map to a pane. The index:name
+      label lives only in tmux, so the route joins it at read time — and a tmux failure must cost
+      the label, never the tree (the reader already degrades to an empty map).
+    - Contract: `data.windows` is the injected reader's map, verbatim.
+    - Usage Notes: The default deps fake returns {} so every other tree test stays tmux-free.
+    - Quality Contribution: Pins the join point so the rail's window line has a tested source.
+    - Worked Example: { '@7': '3:cheetah' } in → identical map out.
+    */
+    const deps = await makeDeps({ tmuxWindows: async () => ({ '@7': '3:cheetah' }) });
+
+    const body = await (
+      await handlePijTreeRequest(request(`/api/pij/tree?workspace=${WORKSPACE}`), deps)
+    ).json();
+
+    expect(body.data.windows).toEqual({ '@7': '3:cheetah' });
   });
 
   it('serves the whole machine for `global=1`, with workspace recorded as null', async () => {

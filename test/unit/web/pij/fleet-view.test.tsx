@@ -357,9 +357,7 @@ describe('FleetView — the AC-03 columns and their absences', () => {
     expect(screen.getByTestId('fleet-outside-root').textContent).toContain(
       '2 in worktrees outside the root'
     );
-    expect(screen.getByTestId('fleet-filtered-out').textContent).toContain(
-      '3 seats elsewhere'
-    );
+    expect(screen.getByTestId('fleet-filtered-out').textContent).toContain('3 seats elsewhere');
   });
 
   it('puts no pid or pane id in the DOM (C-03)', async () => {

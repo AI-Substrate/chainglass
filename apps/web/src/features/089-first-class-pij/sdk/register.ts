@@ -1,14 +1,12 @@
 /**
- * pij SDK registration — Plan 089 Phase 4 (T003).
+ * pij SDK registration — Plan 089 Phase 4, repointed by Plan 090.
  *
  * Binds handlers to the static manifest and registers commands + keybindings, per ADR-0009's
  * `registerXxxSDK(sdk)` pattern.
  *
- * The handler dispatches a CustomEvent rather than calling the overlay directly, for the same reason
- * the sidebar button does: the SDK is registered at app bootstrap, outside the workspace layout's
- * provider tree, so it has no route to the context. The event is the seam, and it is the SAME seam
- * all three trigger paths use — button, command, keybinding — which is why AC-12 can test them as
- * three inputs to one behaviour.
+ * The handler dispatches the same CustomEvent as the explorer and sidebar buttons. The workspace
+ * route listener owns the navigation decision: switch to `panel=pij` in the browser, or navigate to
+ * the browser rail from another workspace route. The command id stays stable for SDK callers.
  */
 
 import type { IUSDK } from '@chainglass/shared/sdk';

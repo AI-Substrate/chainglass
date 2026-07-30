@@ -254,7 +254,12 @@ describe('the Flows tab in the page shell (T001)', () => {
       .setFleet({
         seq: 40,
         at: '2026-07-26T12:00:00.000Z',
-        data: { workspace: UI_WORKSPACE_PATH, rows: [], status: pollerStatus() },
+        data: {
+          workspace: UI_WORKSPACE_PATH,
+          rows: [],
+          statuses: [],
+          status: pollerStatus(),
+        },
       })
       .setFlows({
         seq: 40,

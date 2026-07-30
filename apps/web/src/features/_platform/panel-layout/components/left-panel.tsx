@@ -20,12 +20,20 @@ export interface LeftPanelMode {
   label: string;
 }
 
+export interface LeftPanelModeHeader {
+  title: string;
+  subtitle?: ReactNode;
+  onRefresh?: () => void;
+  refreshLabel?: string;
+}
+
 export interface LeftPanelProps {
   mode: PanelMode;
   onModeChange: (mode: PanelMode) => void;
   modes: LeftPanelMode[];
   onRefresh: () => void;
   subtitle?: ReactNode;
+  modeHeaders?: Partial<Record<PanelMode, LeftPanelModeHeader>>;
   children: Partial<Record<PanelMode, ReactNode>>;
 }
 
@@ -35,24 +43,27 @@ export function LeftPanel({
   modes,
   onRefresh,
   subtitle,
+  modeHeaders,
   children,
 }: LeftPanelProps) {
   // Hide mode buttons when only one mode available
   const showModes = modes.length > 1 ? modes : undefined;
+  const modeHeader = modeHeaders?.[mode];
+  const refresh = modeHeader?.onRefresh ?? onRefresh;
 
   return (
     <div className="flex flex-col h-full text-sm">
       <PanelHeader
-        title="Files"
-        subtitle={subtitle}
+        title={modeHeader?.title ?? 'Files'}
+        subtitle={modeHeader ? modeHeader.subtitle : subtitle}
         modes={showModes}
         activeMode={mode}
         onModeChange={onModeChange}
         actions={[
           {
             icon: <RefreshCw className="h-3.5 w-3.5" />,
-            label: 'Refresh',
-            onClick: onRefresh,
+            label: modeHeader?.refreshLabel ?? 'Refresh',
+            onClick: refresh,
           },
         ]}
       />

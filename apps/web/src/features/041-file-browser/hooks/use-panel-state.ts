@@ -82,7 +82,13 @@ export function usePanelState(options: UsePanelStateOptions) {
   const handlePanelModeChange = useCallback(
     (newMode: PanelMode) => {
       setUrlPanel(newMode);
-      toast.info(newMode === 'tree' ? 'Tree view' : 'Changes view');
+      const modeNames: Record<PanelMode, string> = {
+        tree: 'Tree view',
+        changes: 'Changes view',
+        sessions: 'Sessions',
+        pij: 'PIJ',
+      };
+      toast.info(modeNames[newMode]);
     },
     [setUrlPanel]
   );
@@ -110,12 +116,11 @@ export function usePanelState(options: UsePanelStateOptions) {
   ]);
 
   // Available modes for LeftPanel
-  const panelModes = isGit
-    ? [
-        { key: 'tree' as const, icon: null, label: 'Tree view' },
-        { key: 'changes' as const, icon: null, label: 'Changes view' },
-      ]
-    : [{ key: 'tree' as const, icon: null, label: 'Tree view' }];
+  const panelModes = [
+    { key: 'tree' as const, icon: null, label: 'Tree view' },
+    ...(isGit ? [{ key: 'changes' as const, icon: null, label: 'Changes view' }] : []),
+    { key: 'pij' as const, icon: null, label: 'PIJ' },
+  ];
 
   return {
     panel,

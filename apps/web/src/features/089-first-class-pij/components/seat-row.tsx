@@ -18,6 +18,7 @@
  */
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useSeatFocus } from '../hooks/use-seat-focus';
 import { type SeatPlacement, seatTask } from '../lib/fleet-grouping';
 import { isFolderInWorkspacePath } from '../lib/folder-containment';
@@ -104,43 +105,98 @@ function Flags({ placement }: { placement: SeatPlacement }) {
  *   copy of `folder` is as old as the last snapshot.
  */
 export function FocusButton({ placement }: { placement: SeatPlacement }) {
-  const focus = useSeatFocus();
-  if (!focus) return null;
-
-  const folder = placement.row?.folder ?? placement.node?.folder ?? '';
-  const inWorkspace = isFolderInWorkspacePath(folder, focus.workspacePath);
-  const outcome = focus.outcomes[placement.id];
-  const busy = focus.pending === placement.id;
+  const affordance = useSeatFocusAffordance(placement);
+  if (!affordance.available) return null;
 
   return (
     <span className="inline-flex flex-col items-end gap-0.5">
       <button
         type="button"
         data-testid={`focus-seat-${placement.id}`}
-        disabled={!inWorkspace || busy}
-        // Names what the human gets, not the mechanism that delivers it. The C-02 fence bans the
-        // window manager's name in client code and it is right to: the browser must never be the
-        // thing driving it, and a tooltip that talks about it is one refactor from code that does.
-        title={
-          inWorkspace
-            ? 'Bring this seat’s window to the front'
-            : `seat works in ${folder || '(no folder on record)'}, outside this workspace`
-        }
-        onClick={() => focus.focus(placement.id)}
+        disabled={!affordance.inWorkspace || affordance.busy}
+        title={affordance.title}
+        onClick={() => affordance.focus.focus(placement.id)}
         className="rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40"
       >
-        {busy ? 'focusing…' : 'focus'}
+        {affordance.busy ? 'focusing…' : 'focus'}
       </button>
-      {/* The route's own sentence, verbatim. Never re-worded into a verdict. */}
-      {outcome ? (
-        <span
-          data-testid={`focus-result-${placement.id}`}
-          data-reason={outcome.focused ? 'focused' : (outcome.reason ?? 'failed')}
-          className={`max-w-[220px] text-right text-[10px] ${outcome.focused ? 'text-muted-foreground' : 'text-amber-700 dark:text-amber-400'}`}
-        >
-          {outcome.observation}
-        </span>
-      ) : null}
+      <FocusResult placement={placement} />
+    </span>
+  );
+}
+
+export function useSeatFocusAffordance(placement: SeatPlacement) {
+  const focus = useSeatFocus();
+  const folder = placement.row?.folder ?? placement.node?.folder ?? '';
+  // The tree decides membership, not the path: git places a worktree BESIDE its checkout, so a
+  // family seat can be outside the workspace by path while its window is exactly the one the human
+  // is trying to reach. A placement with a tree node was placed by the workspace-scoped tree read;
+  // path containment stays as the rung for seats too new for that read. The server re-derives the
+  // same two rungs on click, so this enable is an affordance, never the authority.
+  const inWorkspace = focus
+    ? placement.node !== undefined || isFolderInWorkspacePath(folder, focus.workspacePath)
+    : false;
+  const busy = focus?.pending === placement.id;
+
+  if (!focus) {
+    return {
+      available: false as const,
+      focus: null,
+      inWorkspace,
+      busy,
+      title: `seat works in ${folder || '(no folder on record)'}, outside this workspace`,
+    };
+  }
+
+  return {
+    available: true as const,
+    focus,
+    inWorkspace,
+    busy,
+    title: inWorkspace
+      ? 'Bring this seat’s window to the front'
+      : `seat works in ${folder || '(no folder on record)'}, outside this workspace`,
+  };
+}
+
+/**
+ * How long a SUCCESS receipt stays on screen. The window moved — the receipt has nothing left to
+ * say, and "focused @17" lingering forever read as a mystery label (Jordan, 2026-07-30). Refusals
+ * never expire: they explain a click that did nothing, which stays true until the next click.
+ *
+ * The timer lives HERE, in the display component, and not in `use-seat-focus.tsx` — the C-06 client
+ * audit statically bans every self-firing construct from the file that owns the focus fetch, and a
+ * display expiry is not worth a hole in that fence.
+ */
+export const FOCUS_SUCCESS_LINGER_MS = 4_000;
+
+export function FocusResult({
+  placement,
+  testIdPrefix = 'focus-result',
+}: {
+  placement: SeatPlacement;
+  testIdPrefix?: string;
+}) {
+  const focus = useSeatFocus();
+  const outcome = focus?.outcomes[placement.id];
+  const [expired, setExpired] = useState(false);
+
+  useEffect(() => {
+    setExpired(false);
+    if (!outcome?.focused) return;
+    const timer = setTimeout(() => setExpired(true), FOCUS_SUCCESS_LINGER_MS);
+    return () => clearTimeout(timer);
+  }, [outcome]);
+
+  if (!outcome || (outcome.focused && expired)) return null;
+
+  return (
+    <span
+      data-testid={`${testIdPrefix}-${placement.id}`}
+      data-reason={outcome.focused ? 'focused' : (outcome.reason ?? 'failed')}
+      className={`max-w-[220px] text-right text-[10px] ${outcome.focused ? 'text-muted-foreground' : 'text-amber-700 dark:text-amber-400'}`}
+    >
+      {outcome.observation}
     </span>
   );
 }

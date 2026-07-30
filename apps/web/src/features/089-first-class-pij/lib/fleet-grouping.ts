@@ -19,6 +19,11 @@
  *   never grounds for hiding something.
  */
 import type { PijTreeNode } from '../server/pij-records.interface';
+import {
+  type PijRailContractSeams,
+  type SeatRole,
+  productionContractSeams,
+} from '../server/pij-status.contract';
 import type { FleetRow, PijId } from '../types';
 
 /** The ruled idle window: seats last heard from more than this ago are hidden by the filter. */
@@ -69,6 +74,32 @@ export interface GroupFleetOptions {
   now: number;
   /** Apply the 48h idle filter. The scope toggle turns it off for the global list. */
   idleFilter?: boolean;
+  /** JC adapter. Production defaults to the real record parser; tests may swap the seam. */
+  contracts?: PijRailContractSeams;
+}
+
+export interface RailSeatPlacement extends SeatPlacement {
+  role: SeatRole;
+}
+
+export interface RailFleetSection {
+  lead: RailSeatPlacement;
+  members: RailSeatPlacement[];
+  seatCount: number;
+  unplaced: boolean;
+}
+
+export interface RailPrimeShell {
+  lead: RailSeatPlacement;
+  sections: RailFleetSection[];
+  seatCount: number;
+}
+
+export interface RailFleetGrouping {
+  primes: RailPrimeShell[];
+  loose: RailFleetSection[];
+  seatIds: PijId[];
+  hiddenByIdle: number;
 }
 
 /**
@@ -207,4 +238,48 @@ export function groupFleet(options: GroupFleetOptions): FleetGrouping {
   ];
 
   return { primes, loose, seatIds, hiddenByIdle };
+}
+
+function railRole(placement: SeatPlacement, contracts: PijRailContractSeams): SeatRole {
+  if (placement.row && Object.hasOwn(placement.row, 'orchestrationRole')) {
+    return contracts.role.read(placement.row as unknown as Record<string, unknown>);
+  }
+  if (placement.node && Object.hasOwn(placement.node, 'orchestrationRole')) {
+    return contracts.role.read(placement.node);
+  }
+  return contracts.role.read({});
+}
+
+function railPlacement(
+  placement: SeatPlacement,
+  contracts: PijRailContractSeams
+): RailSeatPlacement {
+  return { ...placement, role: railRole(placement, contracts) };
+}
+
+function railSection(section: FleetSection, contracts: PijRailContractSeams): RailFleetSection {
+  return {
+    ...section,
+    lead: railPlacement(section.lead, contracts),
+    members: section.members.map((member) => railPlacement(member, contracts)),
+  };
+}
+
+/**
+ * Rail grouping keeps the existing tree-owned structure and annotates each placement only with the
+ * JC-2 projected field. Tree position is never consulted for role.
+ */
+export function groupRailFleet(options: GroupFleetOptions): RailFleetGrouping {
+  const grouping = groupFleet(options);
+  const contracts = options.contracts ?? productionContractSeams;
+  return {
+    primes: grouping.primes.map((prime) => ({
+      ...prime,
+      lead: railPlacement(prime.lead, contracts),
+      sections: prime.sections.map((section) => railSection(section, contracts)),
+    })),
+    loose: grouping.loose.map((section) => railSection(section, contracts)),
+    seatIds: grouping.seatIds,
+    hiddenByIdle: grouping.hiddenByIdle,
+  };
 }

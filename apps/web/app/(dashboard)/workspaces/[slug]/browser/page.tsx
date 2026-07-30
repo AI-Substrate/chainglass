@@ -65,6 +65,7 @@ export default async function BrowserPage({ params, searchParams }: PageProps) {
     <Suspense fallback={<div className="p-4">Loading browser...</div>}>
       <BrowserClient
         slug={slug}
+        mainPath={info.path}
         worktreePath={worktreePath}
         worktreeBranch={worktreeBranch}
         isGit={info.hasGit}

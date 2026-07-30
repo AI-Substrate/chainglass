@@ -22,6 +22,7 @@ import {
   workspaceParam,
 } from '../../../../src/features/089-first-class-pij/server/route-deps';
 import { getPijPoller } from '../../../../src/features/089-first-class-pij/server/start-pij-poller';
+import { readTmuxWindowLabels } from '../../../../src/features/089-first-class-pij/server/tmux-windows';
 import type { TreeSnapshotData } from '../../../../src/features/089-first-class-pij/types';
 
 export const dynamic = 'force-dynamic';
@@ -48,10 +49,17 @@ export async function handlePijTreeRequest(
     const tree = workspace
       ? await deps.poller.records.tree({ cwd: workspace, all })
       : await deps.poller.records.tree({ global: true, all });
+    // The window-label join (`3:cheetah` for a node's `windowId`). Read-only, and failure inside
+    // `readTmuxWindowLabels` is already an empty map — the tree never becomes unreadable over it.
+    const windows = await (deps.tmuxWindows ?? readTmuxWindowLabels)();
     const snapshot = deps.poller.snapshot();
     // `workspace: null` is the global answer's honest scope. Echoing a path here would label the
     // whole machine as one repo, which is precisely the claim the global page must not make.
-    const data: TreeSnapshotData = { workspace: global ? null : workspace, roots: tree.roots };
+    const data: TreeSnapshotData = {
+      workspace: global ? null : workspace,
+      roots: tree.roots,
+      windows,
+    };
     return snapshotResponse(snapshot.seq, snapshot.at, data);
   } catch (error) {
     return storeUnreadable(error);
