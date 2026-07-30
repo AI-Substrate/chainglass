@@ -111,7 +111,7 @@ Note the `state-set` leg's `prev`/`next` carry canonical assignment JSON — tha
 ### Command
 
 ```
-pij status "<what I just did>" "<what's next>" [--state <word>] [--project <slug>] [--json]
+pij report now "<what I just did>" "<what's next>" [--state <word>] [--project <slug>] [--json]
 ```
 
 - Positionals: exactly 2, both required (`MAX_POS["status"] = 2`).
@@ -170,7 +170,7 @@ Shaped after `buildWatchdogTurn` (`core/watchdog.ts:187-195`) so it reads as the
 
 ```
 [pij watchdog #7 for pij-cheap-cheetah] Your now/next is 41m old. Update it in ONE call:
-pij status "<what you just did>" "<what's next>"
+pij report now "<what you just did>" "<what's next>"
 Add --state <blocked|question|hold|waiting|ready|failed|cancelled|done> if you are also changing state.
 ```
 
@@ -341,7 +341,7 @@ Every claim about existing behaviour, with the `path:line` verified read-only on
 
 **OPEN**
 - **OQ-3 (joint, low)** — Cross-host clock skew. Producer `ts` is the sole clock (R-7) and both processes are on one host today (E-37). If CG ever reads a remote `~/.pij`, staleness becomes unreliable in a way no field currently exposes. **Recorded as a tracked gap, not designed around.**
-- **OQ-4 (Jordan)** — Verb name. THREE status nouns now counted (`watchdog status`, `daemon status`, E-26); s074's PM recommends **`pij now`** (also found a `pij state` read-vs-write inversion). CG is indifferent — the contract is the spine event, not the verb. Jordan rules.
+- **OQ-4 → RESOLVED (Jordan, in-pane, 2026-07-29): the `pij report` family.** JC-1's verb is `pij report now`; `state set/clear/verify` MOVE under the family (`report state|clear|verify`), the old spelling unships. Grammar rationale: bare-noun surface reads, imperatives act — `report` is an imperative first-person self-claim; and with the writes gone, `pij state <id>` becomes a pure-noun read, dissolving the status/state collision instead of working around it. **Records unchanged** — the spine event, denorm fields, and CG consumed subsets are untouched (spelling, not data).
 - **OQ-5 (CG, must-decide-in-T007)** — `MAX_BROADCASTS_PER_FAST_TICK = 1` (E-32) becomes "≤1 per event type". This changes the meaning of a constant an existing test asserts. Flagged here so T006/T007 land it deliberately. *(Landed in T007 with per-type assertions.)*
 - **OQ-6 (Jordan)** — The 30m threshold (D-15). Reasoned from the 20m watchdog interval, but it is a taste call and one constant to retune.
 - **A-4 (CG sizing note, from ratification)** — the cold-start `statuses` map grows without eviction: 1,429 distinct spine peers vs 237 hot seats (6:1). CG bounds the served map (see plan T007 note).

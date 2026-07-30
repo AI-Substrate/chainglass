@@ -98,6 +98,7 @@ Replace the pij overlay with a **PIJ tab in the left rail** (sharing the file-tr
 2. PM row click: focus the pane (planned, per mock) vs expand/collapse-only — chevron handles collapse separately.
 3. Daemon-detected chip copy (WS-003 D6): "stuck on a startup prompt (<tag>)" proposed over "asked a question" — the three tags are boot interstitials, not questions. Jordan signs off.
 4. Promote `oldPrime` onto `FleetRow` so retired primes render as retired rather than role-unknown (WS-002 Q-14/G-1) — one-line follow-up, Jordan's call.
+5. **Post-ship follow-up (from butterfly's integration-defect report, 2026-07-30)**: the rail's state chain `badge ?? state ?? 'unknown'` is safe today (poller always requests `--badge`; live-proven: declared `waiting` renders over daemon `working`; butterfly re-proved with `blocked` at spine 24881) — but the `?? state` middle fallback would *silently* substitute the daemon-flattened vocabulary if badge were ever absent. Change fallback to a designed `unknown`; assert a declared blocked/question renders over an active daemon view; assert `systemState` is never a fallback source either (under `--badge` it comes back null while `state` stays populated — `state` is the only remaining carrier of the flattened vocabulary); and **pin `badge` and `state` to different values in the fixture** (butterfly's live probe row is ready-made) — a fixture where they agree passes whether or not precedence works. |
 
 ### Workshop Opportunities
 

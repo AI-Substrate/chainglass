@@ -532,6 +532,30 @@
           "note"
         ]
       }
+    },
+    {
+      "id": "UPD-020",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-07-29T01:52:17.835Z",
+      "details": {
+        "node": "ship",
+        "fields": [
+          "comments"
+        ]
+      }
+    },
+    {
+      "id": "UPD-021",
+      "kind": "node-updated",
+      "origin": "engine",
+      "fired_at": "2026-07-29T04:40:32.610Z",
+      "details": {
+        "node": "plan",
+        "fields": [
+          "comments"
+        ]
+      }
     }
   ],
   "nodes": [
@@ -568,7 +592,7 @@
         "Run /builder 1b plan \"<intent>\" (add --simple for a one-phase flow); it front-loads the clarifying questions, then auto-runs /validate-v2.",
         "Done when <slug>-plan.md carries both halves and reads **Status**: READY — DRAFT means a gate FAILed, so resolve the gaps and re-run."
       ],
-      "modified_at": "2026-07-29T00:51:43.891Z",
+      "modified_at": "2026-07-29T04:40:32.610Z",
       "note": "Plan v1.1.0 READY: Simple, CS-3, 16 tasks, 10 ACs, JC-1..3 tightened post-validation. Joint contracts are now codable-against by the pij side.",
       "ran_at": "2026-07-29T00:20:55.163Z",
       "comments": [
@@ -589,6 +613,12 @@
           "text": "Albatross ack: sibling plan s074-pij-rail-v2 allocated (worktree, branch s074/pij-rail-v2, PM pij-unwilling-butterfly), ratify-before-code is their hard first gate. Material intersection: their defect #35 (adopt prints bound / writes zero bytes on dissolved seats) gates our item 4 sweep-adopt — they sequence the #35 fix first. Ratify/amend + nine answers to come from albatross's own seat after it verifies its PM's review.",
           "source": "agent",
           "kind": "note"
+        },
+        {
+          "at": "2026-07-29T04:40:32.610Z",
+          "text": "Jordan (in-pane, via s074): JC-1 verb = pij report family (report now/question/blocked/state/clear/verify); state writes move under it, old spelling unships; note text becomes positional. Records/consumed subsets unchanged. Inline markdown documented in text fields; CG verbatim render kept as injection-safety posture.",
+          "source": "user",
+          "kind": "decision"
         }
       ]
     },
@@ -664,7 +694,16 @@
         "Get the work out — push the branch, open a PR (using the repo's PR guidance), watch its CI checks, and report problems; the merge itself is optional.",
         "Run /builder 8 ship --plan \"<plan path>\"; push and PR-open each pause for a separate confirm, and any merge waits for a typed PROCEED.",
         "Done when the PR is open and its checks are green (or the failures are reported with a fix-loop offer); a diverged base hands off to 8c reconcile."
-      ]
+      ],
+      "comments": [
+        {
+          "at": "2026-07-29T01:52:17.835Z",
+          "text": "Committed on branch 090-pij-rail-v2 and pushed to origin (55 files). PR not opened — Jordan decides. Note: the flight-plan files themselves are committed one event behind this comment.",
+          "source": "agent",
+          "kind": "note"
+        }
+      ],
+      "modified_at": "2026-07-29T01:52:17.835Z"
     },
     {
       "id": "backpressure",

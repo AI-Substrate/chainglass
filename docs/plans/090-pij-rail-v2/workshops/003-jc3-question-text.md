@@ -187,6 +187,12 @@ One pure function, one row per case, one test-id per row.
 pij state set <node> <state> [--assignment <id>] [--refs a,b,…] [--note "<one line>"] [--actor <label>] [--json]
 ```
 
+> **AMENDMENT (Jordan in-pane ruling, 2026-07-29 — spelling only, records unchanged):** the surface above is superseded by the `pij report` family: `pij report question "<what I need from you>"` · `pij report blocked "<what I am waiting on>"` — the note text is a **positional**, not a `--note` flag, and the state writes move under `report` (first-person self-claims). This *structurally enforces* OPEN-4's "no note on hold": there is no `report hold <text>` form to type. `stateNote{text,state,at}`, the spine kinds, and every CG-consumed field keep their ratified shapes. Additionally documented (not a contract change): **inline markdown is permitted in the text fields** — it survives D-6-style whitespace collapsing untouched. CG's verbatim-into-clamp render shows it as literal characters, which is **deliberately kept as the safety posture**: the text is authored by any agent on the machine, so markdown-to-HTML rendering is an injection surface and is not to be added without a sanitisation design (block markdown is deferred pij-side with that requirement attached).
+
+```
+(superseded flag-spelling, kept for the line-pinned ask table below)
+```
+
 Producer-side asks, each pinned to a line:
 
 | # | Change | Location |
