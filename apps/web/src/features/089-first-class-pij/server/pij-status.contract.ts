@@ -145,6 +145,11 @@ export function resolveSeatStatus(
     // that doesn't is never nagged. Staleness is likewise never flagged — the stale label carries
     // watchdog language, and no watchdog obligation exists for an optional card. The age line
     // still renders, so an old card is visibly old without being called a defect.
+    //
+    // DELIBERATE DIVERGENCE, ratified by albatross (pij spine, 2026-07-30): `pij anomalies` DOES
+    // raise status-stale rows for a prime holding a rotten card — different consumer (the prime's
+    // own self-service sweep; it has no supervisor). An old prime card with no stale label here
+    // AND a status-stale row there is by design, not drift. Do not "fix" either side to match.
     if (!status) return { reason: 'prime-not-written' };
     return { reason: 'current', status, ageMs: statusAgeMs(status, now) };
   }
