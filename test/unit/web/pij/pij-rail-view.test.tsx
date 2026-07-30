@@ -181,6 +181,40 @@ describe('PijRailView', () => {
     expect(screen.queryByTestId('pij-window-pij-pm-current')).toBeNull();
   });
 
+  it('stacks full id, binding facts and the focus line into the seat hover title', () => {
+    /*
+    Test Doc:
+    - Why: the rail truncates seat ids and shows no model/effort at all — hover is where the full
+      identity lives. Facts must be the row's own: an unbound model line would be a guess.
+    - Contract: title carries id, provider · model · effort when bound, and the focus affordance
+      line last; an unbound seat gets no facts line, never a placeholder.
+    - Usage Notes: seat-focus.test.tsx asserts the focus line by `toContain` — this layout keeps it.
+    - Worked Example: bound PM → 'pij-pm-current\ncopilot · gpt-5.6 · high effort\nBring…'.
+    */
+    const boundRows = rows.map((r) =>
+      r.id === 'pij-pm-current'
+        ? { ...r, boundProvider: 'copilot', boundModel: 'gpt-5.6', effort: 'high' }
+        : r
+    );
+    render(
+      <PijRailView
+        rows={boundRows}
+        tree={tree}
+        snapshotStatuses={[]}
+        now={NOW}
+        workspacePath="/Users/fixture/substrate/chainglass"
+      />,
+      { wrapper }
+    );
+
+    const bound = screen.getByTestId('focus-seat-pij-pm-current');
+    expect(bound.title).toContain('pij-pm-current');
+    expect(bound.title).toContain('copilot · gpt-5.6 · high effort');
+    expect(bound.title).toContain('window to the front');
+    // No binding on record → no facts line, not a placeholder.
+    expect(screen.getByTestId('focus-seat-pij-pm-empty').title).not.toContain('·');
+  });
+
   it('renders every status absence discriminator and keeps stale text', () => {
     render(
       <PijRailView

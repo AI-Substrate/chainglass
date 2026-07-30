@@ -197,6 +197,24 @@ function questionFor(
   return contracts.question.read(placementRecord(placement), now);
 }
 
+/**
+ * The hover card, in title-attribute form: full id (rail columns truncate it), then the seat's
+ * binding facts, then the focus affordance's own line. Only facts the row actually carries — an
+ * unbound model is absent, never guessed.
+ */
+function seatHoverTitle(placement: RailSeatPlacement, focusTitle: string): string {
+  const row = placement.row;
+  const harness = typeof placement.node?.harness === 'string' ? placement.node.harness : undefined;
+  const facts = [
+    row?.boundProvider ?? harness,
+    row?.boundModel ?? undefined,
+    row?.effort ? `${row.effort} effort` : undefined,
+  ].filter(Boolean);
+  return [placement.id, facts.length > 0 ? facts.join(' · ') : undefined, focusTitle]
+    .filter(Boolean)
+    .join('\n');
+}
+
 /** The seat's tmux window as tmux itself names it (`3:cheetah`), or null when unjoinable. */
 function windowLabelFor(
   placement: RailSeatPlacement,
@@ -225,7 +243,7 @@ function SeatHeader({
         data-testid={`focus-seat-${placement.id}`}
         data-state={state}
         disabled={!focus.inWorkspace || focus.busy}
-        title={focus.title}
+        title={seatHoverTitle(placement, focus.title)}
         onClick={() => focus.available && focus.focus.focus(placement.id)}
         className="flex w-full min-w-0 items-center gap-1.5 px-2.5 py-1.5 text-left hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
       >
@@ -290,7 +308,7 @@ function WorkerRow({
         type="button"
         data-testid={`focus-seat-${placement.id}`}
         disabled={!focus.inWorkspace || focus.busy}
-        title={focus.title}
+        title={seatHoverTitle(placement, focus.title)}
         onClick={() => focus.available && focus.focus.focus(placement.id)}
         className="flex w-full min-w-0 items-center gap-1.5 text-left text-[11px] disabled:cursor-not-allowed disabled:opacity-50"
       >
