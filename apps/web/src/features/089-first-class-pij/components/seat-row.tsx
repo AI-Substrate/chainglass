@@ -18,6 +18,7 @@
  */
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useSeatFocus } from '../hooks/use-seat-focus';
 import { type SeatPlacement, seatTask } from '../lib/fleet-grouping';
 import { isFolderInWorkspacePath } from '../lib/folder-containment';
@@ -158,6 +159,17 @@ export function useSeatFocusAffordance(placement: SeatPlacement) {
   };
 }
 
+/**
+ * How long a SUCCESS receipt stays on screen. The window moved — the receipt has nothing left to
+ * say, and "focused @17" lingering forever read as a mystery label (Jordan, 2026-07-30). Refusals
+ * never expire: they explain a click that did nothing, which stays true until the next click.
+ *
+ * The timer lives HERE, in the display component, and not in `use-seat-focus.tsx` — the C-06 client
+ * audit statically bans every self-firing construct from the file that owns the focus fetch, and a
+ * display expiry is not worth a hole in that fence.
+ */
+export const FOCUS_SUCCESS_LINGER_MS = 4_000;
+
 export function FocusResult({
   placement,
   testIdPrefix = 'focus-result',
@@ -167,7 +179,16 @@ export function FocusResult({
 }) {
   const focus = useSeatFocus();
   const outcome = focus?.outcomes[placement.id];
-  if (!outcome) return null;
+  const [expired, setExpired] = useState(false);
+
+  useEffect(() => {
+    setExpired(false);
+    if (!outcome?.focused) return;
+    const timer = setTimeout(() => setExpired(true), FOCUS_SUCCESS_LINGER_MS);
+    return () => clearTimeout(timer);
+  }, [outcome]);
+
+  if (!outcome || (outcome.focused && expired)) return null;
 
   return (
     <span
