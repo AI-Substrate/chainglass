@@ -18,7 +18,9 @@ import {
   type SeatRole,
   type SeatStatus,
   productionContractSeams,
+  readWatchdogState,
   resolveQuestionStrip,
+  watchdogSummary,
 } from '../server/pij-status.contract';
 import type { FleetRow, PijStatusRecord } from '../types';
 import { FocusResult, useSeatFocusAffordance } from './seat-row';
@@ -163,6 +165,9 @@ function StatusSummary({
 }) {
   const record = status.status;
   const stale = status.reason === 'status-stale';
+  // The nudge promise is a CLAIM about the daemon's future behaviour, so it is read, never assumed:
+  // this line said "watchdog will nudge" beside a seat whose watchdog was paused (2026-07-30).
+  const watchdog = readWatchdogState(placementRecord(placement));
 
   // Silent absences: a worker has no status to be missing, and a prime's card is optional by
   // ruling (2026-07-30) — in both cases a line saying so is space spent on nothing.
@@ -191,7 +196,11 @@ function StatusSummary({
             className={`mt-0.5 pl-8 text-[9.5px] ${stale ? 'text-amber-700 dark:text-amber-400' : 'text-muted-foreground'}`}
           >
             updated {formatAge(status.ageMs)}
-            {stale ? ' — watchdog will nudge' : ''}
+            {stale && watchdog.reason !== 'unreported'
+              ? watchdog.willNudge
+                ? ' — watchdog will nudge'
+                : ` — ${watchdogSummary(watchdog)}`
+              : ''}
           </div>
         </>
       ) : (
@@ -276,6 +285,7 @@ function SeatHoverCard({
   ].filter(Boolean);
   const folder = row?.folder ?? placement.node?.folder;
   const task = seatTask(placement);
+  const watchdog = readWatchdogState(placementRecord(placement));
 
   return (
     <div
@@ -290,6 +300,15 @@ function SeatHoverCard({
       {windowLabel ? (
         <div className="font-mono text-[10px] text-muted-foreground">⊞ {windowLabel}</div>
       ) : null}
+      {watchdog.reason === 'unreported' ? null : (
+        <div
+          className={`text-[10px] ${
+            watchdog.willNudge ? 'text-muted-foreground' : 'text-amber-700 dark:text-amber-400'
+          }`}
+        >
+          {watchdogSummary(watchdog)}
+        </div>
+      )}
       {folder ? (
         <div className="truncate font-mono text-[10px] text-muted-foreground">{folder}</div>
       ) : null}
@@ -376,6 +395,7 @@ function SeatHeader({
   const state = placement.row?.badge ?? placement.row?.state ?? 'unknown';
   const focus = useSeatFocusAffordance(placement);
   const hover = useSeatHover();
+  const watchdog = readWatchdogState(placementRecord(placement));
   return (
     <div
       data-testid={`seat-row-${placement.id}`}
@@ -407,12 +427,21 @@ function SeatHeader({
         </button>
         <CopySeatIdButton id={placement.id} />
       </div>
-      {windowLabel ? (
-        <div
-          data-testid={`pij-window-${placement.id}`}
-          className="-mt-1 truncate px-2.5 pb-0.5 pl-8 font-mono text-[9.5px] text-muted-foreground"
-        >
-          ⊞ {windowLabel}
+      {windowLabel || watchdog.reason !== 'unreported' ? (
+        <div className="-mt-1 truncate px-2.5 pb-0.5 pl-8 font-mono text-[9.5px] text-muted-foreground">
+          {windowLabel ? (
+            <span data-testid={`pij-window-${placement.id}`}>⊞ {windowLabel}</span>
+          ) : null}
+          {windowLabel && watchdog.reason !== 'unreported' ? ' · ' : null}
+          {watchdog.reason !== 'unreported' ? (
+            <span
+              data-testid={`pij-watchdog-${placement.id}`}
+              data-reason={watchdog.reason}
+              className={watchdog.willNudge ? undefined : 'text-amber-700 dark:text-amber-400'}
+            >
+              {watchdogSummary(watchdog)}
+            </span>
+          ) : null}
         </div>
       ) : null}
       <FocusResult placement={placement} />
@@ -442,6 +471,7 @@ function WorkerRow({
   const inline = question.reason === 'blocked-note-inline' ? question : null;
   const focus = useSeatFocusAffordance(placement);
   const hover = useSeatHover();
+  const watchdog = readWatchdogState(placementRecord(placement));
 
   return (
     <div
@@ -474,6 +504,20 @@ function WorkerRow({
               ⑂ {worktree}
             </span>
           ) : null}
+          {watchdog.reason === 'unreported' ? null : (
+            <span
+              data-testid={`pij-watchdog-${placement.id}`}
+              data-reason={watchdog.reason}
+              title={watchdogSummary(watchdog)}
+              className={`shrink-0 rounded px-1 font-mono text-[9px] ${
+                watchdog.willNudge
+                  ? 'text-muted-foreground/70'
+                  : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400'
+              }`}
+            >
+              {watchdog.willNudge ? 'wd' : 'wd✕'}
+            </span>
+          )}
           <span
             className={`shrink-0 rounded px-1 text-[9px] font-bold uppercase ${
               STATE_CHIP_CLASS[state] ?? 'bg-muted text-muted-foreground'

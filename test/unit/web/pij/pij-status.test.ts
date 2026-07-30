@@ -4,7 +4,9 @@ import {
   fakeStatusRecord,
   newestStatusByPeer,
   readSeatRole,
+  readWatchdogState,
   resolveSeatStatus,
+  watchdogSummary,
 } from '@/features/089-first-class-pij/server/pij-status.contract';
 import { describe, expect, it } from 'vitest';
 
@@ -82,5 +84,62 @@ describe('JC-1 status consumption', () => {
     expect(old.reason).toBe('current');
     expect(old.status?.prev).toBe('Finished the contract tests.');
     expect(old.ageMs).toBeGreaterThan(STATUS_STALE_MS);
+  });
+});
+
+describe('watchdog axis — the nudge promise is read, never assumed', () => {
+  it.each([
+    ['armed', { intervalMs: 1_200_000 }, true],
+    ['paused', { pausedBy: 'self', intervalMs: 1_200_000 }, false],
+    ['exempt', { exempt: true, exemptRemainingMs: 600_000 }, false],
+    ['fleet-disabled', { globallyDisabled: true }, false],
+    ['relay', { relay: true }, false],
+    ['off', { enabled: false }, false],
+  ] as const)(
+    'reads %s and only promises a nudge when one fires',
+    (reason, watchdog, willNudge) => {
+      /*
+    Test Doc:
+    - Why: the rail told a human "watchdog will nudge" beside a card whose seat was
+      `paused (self)` — a promise about daemon behaviour that nothing had measured (caught live
+      2026-07-30). Every branch that does NOT nudge must be readable as such.
+    - Contract: each shape maps to its reason, and `willNudge` is true for `armed` alone.
+    - Usage Notes: shapes mirror `pij list --json`'s watchdog object.
+    - Quality Contribution: makes a false nudge promise unreachable from any real state.
+    - Worked Example: { pausedBy: 'self' } → reason 'paused', willNudge false.
+    */
+      const state = readWatchdogState({ watchdog });
+      expect(state.reason).toBe(reason);
+      expect(state.willNudge).toBe(willNudge);
+    }
+  );
+
+  it('applies the strongest-wins ladder and never guesses when the field is absent', () => {
+    /*
+    Test Doc:
+    - Why: C9's tiers overlap on real records — an exempt seat also carries a pausedBy, a relay
+      seat carries everything. Reading the wrong one understates why no nudge is coming. And a
+      record with NO watchdog field is not a seat with the watchdog off: claiming either way is
+      the absence-as-evidence defect.
+    - Contract: relay > fleet-disabled > off > exempt > paused > armed; a missing field reads
+      'unreported' with no nudge promise.
+    - Usage Notes: —
+    - Quality Contribution: pins precedence and the honest-absence member together.
+    - Worked Example: { relay: true, pausedBy: 'self', exempt: true } → 'relay'.
+    */
+    expect(
+      readWatchdogState({ watchdog: { relay: true, exempt: true, pausedBy: 'self' } }).reason
+    ).toBe('relay');
+    expect(readWatchdogState({ watchdog: { exempt: true, pausedBy: 'self' } }).reason).toBe(
+      'exempt'
+    );
+    expect(
+      readWatchdogState({ watchdog: { globallyDisabled: true, pausedBy: 'self' } }).reason
+    ).toBe('fleet-disabled');
+
+    const absent = readWatchdogState({});
+    expect(absent.reason).toBe('unreported');
+    expect(absent.willNudge).toBe(false);
+    expect(watchdogSummary(absent)).toBe('watchdog not reported');
   });
 });

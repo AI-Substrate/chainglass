@@ -369,6 +369,66 @@ describe('PijRailView', () => {
     expect(screen.getByTestId('pij-needs-you-empty')).toBeTruthy();
   });
 
+  it('never promises a nudge a paused watchdog will not deliver', () => {
+    /*
+    Test Doc:
+    - Why: the live rail printed "updated 16h ago — watchdog will nudge" beside a seat whose
+      watchdog was `paused (self)` (Jordan, 2026-07-30). The card was stale, nothing was coming,
+      and the line said help was on the way — the worst shape a status line can take, because it
+      tells the human to stop paying attention.
+    - Contract: stale + paused → the real reason, no nudge promise anywhere in the line; stale +
+      armed → the promise, since it is then true. Every seat also carries its watchdog state so
+      "is this one being watched" is readable without hovering.
+    - Usage Notes: watchdog rides `extra`, exactly as the poller delivers it.
+    - Quality Contribution: binds a behavioural claim to the field that decides it.
+    - Worked Example: pausedBy 'self' → "watchdog paused (self) · no nudge".
+    */
+    const staleTs = new Date(NOW - 16 * 60 * 60_000).toISOString();
+    const pausedRows = rows.map((r) =>
+      r.id === 'pij-pm-current'
+        ? { ...r, extra: { ...r.extra, watchdog: { enabled: true, pausedBy: 'self' } } }
+        : r
+    );
+
+    const { unmount } = render(
+      <PijRailView
+        rows={pausedRows}
+        tree={tree}
+        snapshotStatuses={[fakeStatusRecord({ peer: asPijId('pij-pm-current'), ts: staleTs })]}
+        now={NOW}
+        workspacePath="/Users/fixture/substrate/chainglass"
+      />,
+      { wrapper }
+    );
+
+    const paused = screen.getByTestId('pij-status-status-stale-pij-pm-current');
+    expect(paused.textContent).toContain('watchdog paused (self)');
+    expect(paused.textContent).not.toContain('will nudge');
+    expect(screen.getByTestId('pij-watchdog-pij-pm-current').dataset.reason).toBe('paused');
+    unmount();
+
+    // Armed: the promise is true, so it is made.
+    const armedRows = rows.map((r) =>
+      r.id === 'pij-pm-current'
+        ? { ...r, extra: { ...r.extra, watchdog: { enabled: true, intervalMs: 1_200_000 } } }
+        : r
+    );
+    render(
+      <PijRailView
+        rows={armedRows}
+        tree={tree}
+        snapshotStatuses={[fakeStatusRecord({ peer: asPijId('pij-pm-current'), ts: staleTs })]}
+        now={NOW}
+        workspacePath="/Users/fixture/substrate/chainglass"
+      />,
+      { wrapper }
+    );
+    expect(screen.getByTestId('pij-status-status-stale-pij-pm-current').textContent).toContain(
+      'watchdog will nudge'
+    );
+    expect(screen.getByTestId('pij-watchdog-pij-pm-current').dataset.reason).toBe('armed');
+  });
+
   it('renders every status absence discriminator and keeps stale text', () => {
     render(
       <PijRailView
