@@ -96,10 +96,13 @@ describe('Dashboard Navigation Integration', () => {
     /*
     Test Doc:
     - Why: Validate sidebar restructure maintains access to dev pages
-    - Contract: Dev section exists and contains demo links (collapsed by default)
-    - Usage Notes: Phase 3 restructure moved demos to collapsed Dev section
+    - Contract: The shell loads with the sidebar COMPACT (defaultOpen={false} — the icon rail hides
+      the Dev section entirely); expanding via the toggle reveals it.
+    - Usage Notes: The compact-by-default decision is DashboardShell's, deliberately: users expand
+      via the PanelLeft toggle. Asserting Dev on first render was the pre-compact contract and went
+      red the day the default flipped.
     - Quality Contribution: Catches navigation regression after restructure
-    - Worked Example: Dev label visible in sidebar on landing page
+    - Worked Example: no Dev label on load; visible after one toggle click
     */
     renderWithProviders(
       <DashboardShell>
@@ -107,7 +110,12 @@ describe('Dashboard Navigation Integration', () => {
       </DashboardShell>
     );
 
-    // Dev section label should exist
+    // Compact rail hides the Dev section entirely — by design.
+    expect(screen.queryByText(/dev/i)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /toggle sidebar/i }));
+
+    // Expanded: the Dev section label is reachable again.
     expect(screen.getByText(/dev/i)).toBeInTheDocument();
   });
 
@@ -116,7 +124,7 @@ describe('Dashboard Navigation Integration', () => {
     Test Doc:
     - Why: Ensures DashboardShell wraps all pages; header/sidebar present everywhere
     - Contract: Sidebar and main content area render on all routes
-    - Usage Notes: Phase 3 restructure — sidebar shows Dev section on non-workspace routes
+    - Usage Notes: Sidebar loads compact, so structure assertions expand it first.
     - Quality Contribution: Catches layout regressions when adding new pages
     - Worked Example: Navigate '/' → sidebar present with toggle and theme
     */
@@ -133,21 +141,25 @@ describe('Dashboard Navigation Integration', () => {
     // Page content should be present
     expect(screen.getByText('Page Content for /')).toBeInTheDocument();
 
-    // Dev section should be present (restructured nav)
+    // Expand the compact rail; the Dev section is hidden there by design.
+    fireEvent.click(screen.getByRole('button', { name: /toggle sidebar/i }));
     expect(screen.getByText(/dev/i)).toBeInTheDocument();
 
     // Theme toggle should be present
     expect(screen.getByRole('button', { name: /toggle theme/i })).toBeInTheDocument();
   });
 
-  it('should preserve sidebar collapsed state during navigation', () => {
+  it('should preserve sidebar expanded state during navigation', () => {
     /*
     Test Doc:
     - Why: User preference should persist during route changes
-    - Contract: Collapsed state maintained across page navigation
-    - Usage Notes: Collapse sidebar, navigate, check sidebar still collapsed
+    - Contract: The user's toggle survives navigation. The shell now loads COMPACT, so the
+      persisted preference under test is the expansion — the inverse of the pre-compact version
+      of this test, same property.
+    - Usage Notes: The Dev label is the expansion oracle: it renders only in the expanded sidebar,
+      so its persistence proves the state's without reaching into width classes.
     - Quality Contribution: Ensures UX consistency during navigation
-    - Worked Example: Collapse sidebar, navigate to /workflow, sidebar remains collapsed
+    - Worked Example: expand, navigate to /workflow, Dev label still visible
     */
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
@@ -160,13 +172,9 @@ describe('Dashboard Navigation Integration', () => {
       </QueryClientProvider>
     );
 
-    // Collapse the sidebar
-    const toggleButton = screen.getByRole('button', { name: /toggle sidebar/i });
-    fireEvent.click(toggleButton);
-
-    // Verify sidebar is collapsed
-    const sidebar = screen.getByRole('complementary');
-    expect(sidebar).toHaveClass('w-16');
+    // Expand the sidebar (loads compact by default)
+    fireEvent.click(screen.getByRole('button', { name: /toggle sidebar/i }));
+    expect(screen.getByText(/dev/i)).toBeInTheDocument();
 
     // Navigate to workflow page
     mockPathname = '/workflow';
@@ -178,8 +186,7 @@ describe('Dashboard Navigation Integration', () => {
       </QueryClientProvider>
     );
 
-    // Sidebar should still be collapsed
-    const updatedSidebar = screen.getByRole('complementary');
-    expect(updatedSidebar).toHaveClass('w-16');
+    // Sidebar should still be expanded
+    expect(screen.getByText(/dev/i)).toBeInTheDocument();
   });
 });
