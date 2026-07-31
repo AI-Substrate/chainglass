@@ -1,6 +1,7 @@
 import {
   type PijStatusRecord,
   STATUS_STALE_MS,
+  carriesStatus,
   fakeStatusRecord,
   newestStatusByPeer,
   readSeatRole,
@@ -53,6 +54,7 @@ describe('JC-1 status consumption', () => {
 
   it.each([
     ['not-a-pm', { orchestrationRole: 'worker' }, status()],
+    ['not-a-pm', { orchestrationRole: 'pa' }, status()],
     ['role-unknown', { orchestrationRole: null }, status()],
     ['role-unknown', {}, status()],
     ['no-status-yet', { orchestrationRole: 'pm' }, undefined],
@@ -84,6 +86,51 @@ describe('JC-1 status consumption', () => {
     expect(old.reason).toBe('current');
     expect(old.status?.prev).toBe('Finished the contract tests.');
     expect(old.ageMs).toBeGreaterThan(STATUS_STALE_MS);
+  });
+});
+
+describe('JC-2 role vocabulary — three absences, and `pa` (s078)', () => {
+  it('reads `pa` as a known role and gives it no status obligation', () => {
+    /*
+    Test Doc:
+    - Why: s078 widened the ratified enum to a fourth value. A Prime Assistant is a real designation,
+      so it must read as KNOWN — but it owes the human no prev/next of its own (cheetah's render
+      ruling, 2026-07-31): what it owes them is a working PRIME card.
+    - Contract: `pa` → `{kind:'known'}`; `carriesStatus` false; the status path resolves 'not-a-pm',
+      the silent-absence branch — no nag, no stale label, no watchdog promise.
+    - Usage Notes: —
+    - Quality Contribution: pins that widening the vocabulary did not widen the card obligation.
+    - Worked Example: readSeatRole({orchestrationRole:'pa'}) → known 'pa'.
+    */
+    const role = readSeatRole({ orchestrationRole: 'pa' });
+    expect(role).toEqual({ kind: 'known', role: 'pa' });
+    expect(carriesStatus(role)).toBe(false);
+  });
+
+  it('distinguishes an unrecognised role from an undesignated one and from a missing key', () => {
+    /*
+    Test Doc:
+    - Why: `null` and an unknown string used to collapse into one `role-unknown`. They are different
+      observations: `null` is pij ANSWERING "undesignated"; an unknown string is pij designating
+      something this consumer has not been taught. Reading the second as the first renders a
+      vocabulary gap in the rail as a fact about the seat — the absence defect at the value level,
+      found while ratifying s078 (2026-07-31).
+    - Contract: missing key → 'role-field-absent'; `null` → 'role-unknown'; any other unmatched
+      value → 'role-unrecognised'.
+    - Usage Notes: the render says "role not recognised" for the third, blaming the rail not the seat.
+    - Quality Contribution: makes the NEXT enum widening visible as an untaught label rather than a
+      silent mislabel.
+    - Worked Example: {orchestrationRole:'quartermaster'} → absent/'role-unrecognised'.
+    */
+    expect(readSeatRole({})).toEqual({ kind: 'absent', reason: 'role-field-absent' });
+    expect(readSeatRole({ orchestrationRole: null })).toEqual({
+      kind: 'absent',
+      reason: 'role-unknown',
+    });
+    expect(readSeatRole({ orchestrationRole: 'quartermaster' })).toEqual({
+      kind: 'absent',
+      reason: 'role-unrecognised',
+    });
   });
 });
 

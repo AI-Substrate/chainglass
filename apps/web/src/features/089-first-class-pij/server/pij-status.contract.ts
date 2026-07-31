@@ -5,8 +5,40 @@ export type { PijStatusRecord } from '../types';
 export const STATUS_STALE_MS = 30 * 60 * 1_000;
 export const QUESTION_AGED_MS = 30 * 60 * 1_000;
 
-export type OrchestrationRole = 'prime' | 'pm' | 'worker';
-export type RoleAbsenceReason = 'role-unknown' | 'role-field-absent';
+/**
+ * JC-2's projected role vocabulary. `pa` (Prime Assistant) added by s078, ratified 2026-07-31 —
+ * a sensor-and-relay seat attached to a prime, structurally denied the authority-bearing verbs.
+ *
+ * Registration note (carried from s075, same standing block): the vocabulary note belongs in the
+ * meadowlark consumed-field registry, which is parked for credits. Recorded here and at the
+ * projection site (`server/join.ts`) meanwhile.
+ */
+export type OrchestrationRole = 'prime' | 'pm' | 'worker' | 'pa';
+
+/**
+ * Three absences, not one — and the third exists because widening the enum above exposed that this
+ * consumer had been collapsing two different observations:
+ *
+ *   - `role-field-absent` — the key is missing. A SILENCE: pre-JC-2 pij, or a read that does not
+ *     carry the field. Says nothing about the seat.
+ *   - `role-unknown` — the field is present and `null`. An ANSWER: the producer knows the field and
+ *     this seat is undesignated.
+ *   - `role-unrecognised` — the field carries a value this consumer's vocabulary does not contain.
+ *     A silence about VOCABULARY, not about the seat: pij has designated it something, and the rail
+ *     has not been taught the word yet. Rendering this as `role-unknown` would convert "I do not
+ *     know this word" into the positive claim "this seat is undesignated" — the absence defect,
+ *     one level down at the value.
+ */
+export type RoleAbsenceReason = 'role-unknown' | 'role-field-absent' | 'role-unrecognised';
+
+/**
+ * The role field as it travels, projected verbatim. A member of {@link OrchestrationRole} is a role
+ * this consumer knows; any OTHER string is one pij has designated and the rail has not been taught
+ * (a vocabulary gap, never "undesignated"); `null` is undesignated; a missing key is a silence.
+ * Widen {@link OrchestrationRole}, never this — the open arm is what makes the next `pa`-shaped
+ * addition a label change rather than a break.
+ */
+export type ProjectedRole = string | null;
 
 export type SeatRole =
   | { kind: 'known'; role: OrchestrationRole }
@@ -113,12 +145,23 @@ export function readSeatRole(record: Record<string, unknown>): SeatRole {
     return { kind: 'absent', reason: 'role-field-absent' };
   }
   const role = record.orchestrationRole;
-  if (role === 'prime' || role === 'pm' || role === 'worker') {
+  if (role === 'prime' || role === 'pm' || role === 'worker' || role === 'pa') {
     return { kind: 'known', role };
   }
-  return { kind: 'absent', reason: 'role-unknown' };
+  if (role === null) return { kind: 'absent', reason: 'role-unknown' };
+  return { kind: 'absent', reason: 'role-unrecognised' };
 }
 
+/**
+ * PM-only, and a `pa` does NOT change that (s078 render ruling, cheetah): a Prime Assistant owes the
+ * human no prev/next of its own — it owes them a working PRIME card. So a PA resolves `not-a-pm` and
+ * renders nothing: no nag, no stale label, no watchdog promise.
+ *
+ * Open upstream question, raised on ratification and not yet answered: `PijStatusRecord` carries one
+ * identity field (`peer`) and no `writtenBy`, so a card a PA writes for its prime is either
+ * indistinguishable from the prime's own (identity-borrowing) or invisible. Until an author
+ * dimension lands, this consumer never fabricates attribution.
+ */
 export function carriesStatus(role: SeatRole): boolean {
   return role.kind === 'known' && role.role === 'pm';
 }

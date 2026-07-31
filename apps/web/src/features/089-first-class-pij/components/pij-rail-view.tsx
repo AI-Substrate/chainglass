@@ -44,6 +44,10 @@ const DOT_CLASS: Record<string, string> = {
 const ROLE_CHIP_CLASS: Record<string, string> = {
   prime: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300',
   pm: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
+  // Deliberately NOT the prime's indigo (s078 render ruling). A PA watches a prime; if a glance can
+  // resolve the assistant into its subject, "the prime is alive and reporting" becomes a claim read
+  // off the wrong seat.
+  pa: 'bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300',
 };
 
 const STATE_CHIP_CLASS: Record<string, string> = {
@@ -126,9 +130,14 @@ function placementRecord(placement: RailSeatPlacement): Record<string, unknown> 
 }
 
 function roleLabel(role: SeatRole): string {
-  if (role.kind === 'absent') return 'role unknown';
+  // `role-unrecognised` gets its own words: pij named a role, this rail has not been taught it. That
+  // reads as a gap in the CONSUMER, which is what it is — "role unknown" would blame the seat.
+  if (role.kind === 'absent') {
+    return role.reason === 'role-unrecognised' ? 'role not recognised' : 'role unknown';
+  }
   if (role.role === 'pm') return 'PM';
   if (role.role === 'prime') return 'Prime · main';
+  if (role.role === 'pa') return 'PA';
   return 'worker';
 }
 

@@ -109,15 +109,16 @@ export function toFleetRow(row: PijListRow): FleetRow {
     degraded: row.degraded,
     failureReason: row.failureReason ?? null,
     prime: row.prime,
-    ...(Object.hasOwn(row, 'orchestrationRole')
-      ? {
-          orchestrationRole:
-            row.orchestrationRole === 'prime' ||
-            row.orchestrationRole === 'pm' ||
-            row.orchestrationRole === 'worker'
-              ? row.orchestrationRole
-              : null,
-        }
+    // JC-2 role, projected VERBATIM. This used to whitelist the three ratified values and map
+    // anything else to `null` — which converted "a role I do not recognise" into the positive claim
+    // "this seat is undesignated". s078's `pa` made that concrete: pij would have said PA and the
+    // rail would have said unroled. Classification belongs to `readSeatRole`, which has a member for
+    // each of the three distinguishable observations; the projection's job is not to erase them.
+    // A non-string, non-null value is off-contract for a string enum — dropped to a silence (key
+    // omitted) rather than asserted as anything.
+    ...(Object.hasOwn(row, 'orchestrationRole') &&
+    (typeof row.orchestrationRole === 'string' || row.orchestrationRole === null)
+      ? { orchestrationRole: row.orchestrationRole }
       : {}),
     unadopted: row.unadopted,
     currentTask: typeof row.currentTask === 'string' ? row.currentTask : undefined,

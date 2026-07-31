@@ -49,7 +49,12 @@ export interface PijListRow {
   watchdog?: unknown;
   prime?: boolean;
   oldPrime?: boolean;
-  orchestrationRole?: 'prime' | 'pm' | 'worker' | null;
+  /**
+   * JC-2 role, as pij emits it. Deliberately open: `prime | pm | worker | pa` are the values ratified
+   * so far, and a value outside that set is a vocabulary gap this consumer must be able to SAY, not
+   * an excuse to assert `null`. Classification lives in `readSeatRole`.
+   */
+  orchestrationRole?: string | null;
   /** Ruled derivation (adoption axis) — consumed, never recomputed. */
   unadopted?: boolean;
   [additive: string]: unknown;
@@ -81,7 +86,12 @@ export interface PijTreeNode {
   /** Present-when-true on tree nodes (adoption axis). */
   unadopted?: boolean;
   prime?: boolean;
-  orchestrationRole?: 'prime' | 'pm' | 'worker' | null;
+  /**
+   * JC-2 role, as pij emits it. Deliberately open: `prime | pm | worker | pa` are the values ratified
+   * so far, and a value outside that set is a vocabulary gap this consumer must be able to SAY, not
+   * an excuse to assert `null`. Classification lives in `readSeatRole`.
+   */
+  orchestrationRole?: string | null;
   children?: PijTreeNode[];
   [additive: string]: unknown;
 }

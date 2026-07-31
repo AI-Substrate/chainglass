@@ -11,7 +11,7 @@
  */
 import type { FlowSummary } from './server/flow-reader.interface';
 import type { PijTreeNode } from './server/pij-records.interface';
-import type { OrchestrationRole } from './server/pij-status.contract';
+import type { ProjectedRole } from './server/pij-status.contract';
 
 /**
  * A pij session id.
@@ -63,10 +63,11 @@ export interface FleetRow {
   failureReason?: string | null;
   prime?: boolean;
   /**
-   * JC-2 projected role. Missing key means pre-JC-2 pij; `null` means the producer knows the field
-   * and this seat is undesignated. Consumers must preserve that distinction.
+   * JC-2 projected role, verbatim. Missing key means pre-JC-2 pij; `null` means the producer knows
+   * the field and this seat is undesignated; an unrecognised string means pij designated a role this
+   * consumer has not been taught. Three distinct observations — preserve all three.
    */
-  orchestrationRole?: OrchestrationRole | null;
+  orchestrationRole?: ProjectedRole;
   /** Ruled derivation (adoption axis), consumed not recomputed. */
   unadopted?: boolean;
   currentTask?: string | null;
