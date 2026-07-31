@@ -6,7 +6,7 @@ import { MultiplexedSSEProvider } from '@/lib/sse/multiplexed-sse-provider';
 import { render, screen, waitFor } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import type { ReactNode } from 'react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createFakeMultiplexedSSEFactory } from '../../../fakes/fake-multiplexed-sse';
 import { FakePijApi } from '../../../fakes/fake-pij-api';
 import { fleetRow } from '../../../fixtures/pij/fleet-ui';
@@ -276,6 +276,159 @@ describe('PijRailView', () => {
     expect(screen.queryByTestId(/^pij-status-.*-pij-prime$/)).toBeNull();
   });
 
+  it('copies the full seat id, and shows a failure rather than a false success', async () => {
+    /*
+    Test Doc:
+    - Why: the rail truncates ids, so copying one by hand means reading it off a hover card and
+      retyping. The copy button removes that — but a clipboard write can genuinely fail (insecure
+      origin, unfocused document, no clipboard API), and rendering "copied" for text that never
+      reached the clipboard is the one outcome that silently costs the user their paste.
+    - Contract: click → writeText called with the FULL id (not the truncated render); success shows
+      data-status="copied"; a rejecting clipboard shows data-status="failed", never "copied".
+    - Usage Notes: the button is a SIBLING of the row's focus button — nesting buttons is invalid
+      HTML — so this also pins that clicking copy does not fire focus.
+    - Quality Contribution: makes the silent-failure mode unreachable.
+    - Worked Example: writeText('pij-pm-current') → ✓; rejecting writeText → ✕.
+    */
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    const focusFetch = vi.fn();
+
+    render(
+      <PijRailView
+        rows={rows}
+        tree={tree}
+        snapshotStatuses={[]}
+        now={NOW}
+        workspacePath="/Users/fixture/substrate/chainglass"
+        focusFetchImpl={focusFetch as unknown as typeof fetch}
+      />,
+      { wrapper }
+    );
+
+    await user.click(screen.getByTestId('copy-seat-pij-pm-current'));
+    expect(writeText).toHaveBeenCalledWith('pij-pm-current');
+    await waitFor(() =>
+      expect(screen.getByTestId('copy-seat-pij-pm-current').dataset.status).toBe('copied')
+    );
+    // Copy is not focus: the row's tmux mutation must not fire from this click.
+    expect(focusFetch).not.toHaveBeenCalled();
+
+    // A refusing clipboard must say so.
+    writeText.mockRejectedValueOnce(new Error('not allowed'));
+    await user.click(screen.getByTestId('copy-seat-pij-worker-blocked'));
+    await waitFor(() =>
+      expect(screen.getByTestId('copy-seat-pij-worker-blocked').dataset.status).toBe('failed')
+    );
+  });
+
+  it('does not resurrect a closed assignment question from the cached tree (s075)', () => {
+    /*
+    Test Doc:
+    - Why: `semanticState`/`stateNote` clear on `task close` (pij s075). They arrive on BOTH the
+      row and the tree node, and the rail merges node-then-row — so a row that has dropped them
+      would let the tree's stale copy survive the spread and keep a NEEDS-YOU pin alive for a
+      question whose assignment is closed. Questions never expire by ruling (JC-3), so nothing
+      downstream would ever clear it: the human would be pinned to answer a dead question.
+      The tree is refetched on its own cadence, so this is not a brief window.
+    - Contract: when a row exists it owns the four assignment denorms, including by omission —
+      no pin, and the strip reports the designed empty state.
+    - Usage Notes: the node deliberately carries a well-formed question; only the row is silent.
+    - Quality Contribution: closes the resurrection path at the merge, for every consumer of
+      placementRecord rather than just the strip.
+    - Worked Example: node question + silent row → 'no declared questions'.
+    */
+    const staleQuestionTree: PijTreeNode[] = [
+      {
+        id: 'pij-pm-current',
+        semanticState: 'question',
+        stateNote: {
+          text: 'Should the closed assignment still pin the human?',
+          state: 'question',
+          at: new Date(NOW - 60_000).toISOString(),
+        },
+        children: [],
+      },
+    ];
+    // The row exists and carries no assignment denorms — the post-close shape.
+    const clearedRow = { ...row('pij-pm-current', { orchestrationRole: 'pm' }), extra: {} };
+
+    render(
+      <PijRailView
+        rows={[clearedRow]}
+        tree={staleQuestionTree}
+        snapshotStatuses={[]}
+        now={NOW}
+        workspacePath="/Users/fixture/substrate/chainglass"
+      />,
+      { wrapper }
+    );
+
+    expect(screen.queryByTestId('pij-question-pij-pm-current')).toBeNull();
+    expect(screen.getByTestId('pij-needs-you-empty')).toBeTruthy();
+  });
+
+  it('never promises a nudge a paused watchdog will not deliver', () => {
+    /*
+    Test Doc:
+    - Why: the live rail printed "updated 16h ago — watchdog will nudge" beside a seat whose
+      watchdog was `paused (self)` (Jordan, 2026-07-30). The card was stale, nothing was coming,
+      and the line said help was on the way — the worst shape a status line can take, because it
+      tells the human to stop paying attention.
+    - Contract: stale + paused → the real reason, no nudge promise anywhere in the line; stale +
+      armed → the promise, since it is then true. Every seat also carries its watchdog state so
+      "is this one being watched" is readable without hovering.
+    - Usage Notes: watchdog rides `extra`, exactly as the poller delivers it.
+    - Quality Contribution: binds a behavioural claim to the field that decides it.
+    - Worked Example: pausedBy 'self' → "watchdog paused (self) · no nudge".
+    */
+    const staleTs = new Date(NOW - 16 * 60 * 60_000).toISOString();
+    const pausedRows = rows.map((r) =>
+      r.id === 'pij-pm-current'
+        ? { ...r, extra: { ...r.extra, watchdog: { enabled: true, pausedBy: 'self' } } }
+        : r
+    );
+
+    const { unmount } = render(
+      <PijRailView
+        rows={pausedRows}
+        tree={tree}
+        snapshotStatuses={[fakeStatusRecord({ peer: asPijId('pij-pm-current'), ts: staleTs })]}
+        now={NOW}
+        workspacePath="/Users/fixture/substrate/chainglass"
+      />,
+      { wrapper }
+    );
+
+    const paused = screen.getByTestId('pij-status-status-stale-pij-pm-current');
+    expect(paused.textContent).toContain('watchdog paused (self)');
+    expect(paused.textContent).not.toContain('will nudge');
+    expect(screen.getByTestId('pij-watchdog-pij-pm-current').dataset.reason).toBe('paused');
+    unmount();
+
+    // Armed: the promise is true, so it is made.
+    const armedRows = rows.map((r) =>
+      r.id === 'pij-pm-current'
+        ? { ...r, extra: { ...r.extra, watchdog: { enabled: true, intervalMs: 1_200_000 } } }
+        : r
+    );
+    render(
+      <PijRailView
+        rows={armedRows}
+        tree={tree}
+        snapshotStatuses={[fakeStatusRecord({ peer: asPijId('pij-pm-current'), ts: staleTs })]}
+        now={NOW}
+        workspacePath="/Users/fixture/substrate/chainglass"
+      />,
+      { wrapper }
+    );
+    expect(screen.getByTestId('pij-status-status-stale-pij-pm-current').textContent).toContain(
+      'watchdog will nudge'
+    );
+    expect(screen.getByTestId('pij-watchdog-pij-pm-current').dataset.reason).toBe('armed');
+  });
+
   it('renders every status absence discriminator and keeps stale text', () => {
     render(
       <PijRailView
@@ -422,5 +575,61 @@ describe('PijRailView', () => {
       '/api/pij/flow?workspace=%2FUsers%2Ffixture%2Fsubstrate%2Fchainglass'
     );
     expect(screen.getByTestId('pij-rail-scope').textContent).toContain('⑂ 090-pij-rail → main');
+  });
+
+  it('shows a PA under its prime with its own chip, and never in the prime’s colour', () => {
+    /*
+    Test Doc:
+    - Why: s078 adds `pa` — a seat whose job is to WATCH a prime. An instrument the human cannot see
+      is the unfalsifiable class we spent the week cataloguing, so it renders; but if a glance can
+      resolve the assistant into its subject, "the prime is alive and reporting" gets read off the
+      wrong seat. Hence visible AND distinctly chipped (cheetah's render ruling, 2026-07-31).
+    - Contract: a PA linked under a prime renders as one of the prime's sections, labelled `PA`, with
+      a chip class that is not the prime's; it carries no status card (`not-a-pm`, the silent branch);
+      and a role value the rail has NOT been taught reads "role not recognised" — blaming the rail's
+      vocabulary, not the seat.
+    - Usage Notes: placement is tree-owned. An unlinked PA lands in the loose group — the reason
+      lineage-at-spawn was the amendment asked of pij rather than solved by role-derived placement.
+    - Quality Contribution: pins that the enum widening changed a LABEL, not the card obligations or
+      the structure rules.
+    - Worked Example: orchestrationRole 'pa' → 'PA' chip; 'quartermaster' → 'role not recognised'.
+    */
+    const paTree: PijTreeNode[] = [
+      {
+        id: 'pij-prime',
+        prime: true,
+        children: [{ id: 'pij-assistant' }, { id: 'pij-odd-role' }],
+      },
+    ];
+
+    render(
+      <PijRailView
+        rows={[
+          row('pij-prime', { prime: true, orchestrationRole: 'prime', state: 'working' }),
+          row('pij-assistant', { orchestrationRole: 'pa', state: 'working' }),
+          row('pij-odd-role', { orchestrationRole: 'quartermaster', state: 'working' }),
+        ]}
+        tree={paTree}
+        snapshotStatuses={[]}
+        now={NOW}
+        workspacePath="/Users/fixture/substrate/chainglass"
+      />,
+      { wrapper }
+    );
+
+    const pa = screen.getByTestId('pij-team-pij-assistant');
+    const chip = pa.querySelector('[data-role-reason]');
+    expect(chip?.textContent).toBe('PA');
+    expect(chip?.getAttribute('data-role-reason')).toBe('current');
+    // Distinct from the prime's chip — the misread this render exists to prevent.
+    const primeChip = screen.getByTestId('pij-prime-pij-prime').querySelector('[data-role-reason]');
+    expect(primeChip?.textContent).toBe('Prime · main');
+    expect(chip?.className).not.toBe(primeChip?.className);
+    // A PA owes no prev/next of its own; it owes a working PRIME card.
+    expect(pa.textContent).not.toContain('NOW');
+
+    const odd = screen.getByTestId('pij-team-pij-odd-role').querySelector('[data-role-reason]');
+    expect(odd?.textContent).toBe('role not recognised');
+    expect(odd?.getAttribute('data-role-reason')).toBe('role-unrecognised');
   });
 });

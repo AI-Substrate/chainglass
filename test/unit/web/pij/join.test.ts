@@ -215,6 +215,42 @@ describe('toFleetRow / indexFleetById — keyed on the pij id ONLY (C-03)', () =
     expect(fleetRow.badge).toBeUndefined();
     expect(fleetRow.state).toBe('idle');
   });
+
+  it('projects the JC-2 role verbatim — an unrecognised value is never asserted as `null`', () => {
+    /*
+    Test Doc:
+    - Why: this projection used to whitelist `prime|pm|worker` and map everything else to `null`.
+      s078 added `pa`, which made the consequence concrete: pij would have said "PA" and this rail
+      would have said "undesignated" — a silence about VOCABULARY converted into a positive claim
+      about the SEAT. Same defect class as the absent-key/empty-value pair, one level down.
+    - Contract: a known value, an unknown value, and `null` each survive as themselves; a missing key
+      stays missing; a non-string non-null (off-contract for a string enum) drops to a silence rather
+      than being asserted as anything.
+    - Usage Notes: classification is `readSeatRole`'s job, not the projection's.
+    - Quality Contribution: makes a future vocabulary addition a LABEL gap in the rail, visible as
+      such, instead of a silent mislabel.
+    - Worked Example: `orchestrationRole: 'pa'` → `'pa'` on the row, not `null`.
+    */
+    expect(
+      toFleetRow(row({ id: 'pij-a', folder: '/w', orchestrationRole: 'pa' })).orchestrationRole
+    ).toBe('pa');
+    expect(
+      toFleetRow(row({ id: 'pij-a', folder: '/w', orchestrationRole: 'quartermaster' }))
+        .orchestrationRole
+    ).toBe('quartermaster');
+    expect(
+      toFleetRow(row({ id: 'pij-a', folder: '/w', orchestrationRole: null })).orchestrationRole
+    ).toBeNull();
+    expect(Object.hasOwn(toFleetRow(row({ id: 'pij-a', folder: '/w' })), 'orchestrationRole')).toBe(
+      false
+    );
+    expect(
+      Object.hasOwn(
+        toFleetRow(row({ id: 'pij-a', folder: '/w', orchestrationRole: 7 as never })),
+        'orchestrationRole'
+      )
+    ).toBe(false);
+  });
 });
 
 describe('joinFlowToProject — data first, convention second, provenance recorded (Finding 09)', () => {

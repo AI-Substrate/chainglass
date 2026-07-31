@@ -5,8 +5,40 @@ export type { PijStatusRecord } from '../types';
 export const STATUS_STALE_MS = 30 * 60 * 1_000;
 export const QUESTION_AGED_MS = 30 * 60 * 1_000;
 
-export type OrchestrationRole = 'prime' | 'pm' | 'worker';
-export type RoleAbsenceReason = 'role-unknown' | 'role-field-absent';
+/**
+ * JC-2's projected role vocabulary. `pa` (Prime Assistant) added by s078, ratified 2026-07-31 —
+ * a sensor-and-relay seat attached to a prime, structurally denied the authority-bearing verbs.
+ *
+ * Registration note (carried from s075, same standing block): the vocabulary note belongs in the
+ * meadowlark consumed-field registry, which is parked for credits. Recorded here and at the
+ * projection site (`server/join.ts`) meanwhile.
+ */
+export type OrchestrationRole = 'prime' | 'pm' | 'worker' | 'pa';
+
+/**
+ * Three absences, not one — and the third exists because widening the enum above exposed that this
+ * consumer had been collapsing two different observations:
+ *
+ *   - `role-field-absent` — the key is missing. A SILENCE: pre-JC-2 pij, or a read that does not
+ *     carry the field. Says nothing about the seat.
+ *   - `role-unknown` — the field is present and `null`. An ANSWER: the producer knows the field and
+ *     this seat is undesignated.
+ *   - `role-unrecognised` — the field carries a value this consumer's vocabulary does not contain.
+ *     A silence about VOCABULARY, not about the seat: pij has designated it something, and the rail
+ *     has not been taught the word yet. Rendering this as `role-unknown` would convert "I do not
+ *     know this word" into the positive claim "this seat is undesignated" — the absence defect,
+ *     one level down at the value.
+ */
+export type RoleAbsenceReason = 'role-unknown' | 'role-field-absent' | 'role-unrecognised';
+
+/**
+ * The role field as it travels, projected verbatim. A member of {@link OrchestrationRole} is a role
+ * this consumer knows; any OTHER string is one pij has designated and the rail has not been taught
+ * (a vocabulary gap, never "undesignated"); `null` is undesignated; a missing key is a silence.
+ * Widen {@link OrchestrationRole}, never this — the open arm is what makes the next `pa`-shaped
+ * addition a label change rather than a break.
+ */
+export type ProjectedRole = string | null;
 
 export type SeatRole =
   | { kind: 'known'; role: OrchestrationRole }
@@ -113,12 +145,23 @@ export function readSeatRole(record: Record<string, unknown>): SeatRole {
     return { kind: 'absent', reason: 'role-field-absent' };
   }
   const role = record.orchestrationRole;
-  if (role === 'prime' || role === 'pm' || role === 'worker') {
+  if (role === 'prime' || role === 'pm' || role === 'worker' || role === 'pa') {
     return { kind: 'known', role };
   }
-  return { kind: 'absent', reason: 'role-unknown' };
+  if (role === null) return { kind: 'absent', reason: 'role-unknown' };
+  return { kind: 'absent', reason: 'role-unrecognised' };
 }
 
+/**
+ * PM-only, and a `pa` does NOT change that (s078 render ruling, cheetah): a Prime Assistant owes the
+ * human no prev/next of its own — it owes them a working PRIME card. So a PA resolves `not-a-pm` and
+ * renders nothing: no nag, no stale label, no watchdog promise.
+ *
+ * Open upstream question, raised on ratification and not yet answered: `PijStatusRecord` carries one
+ * identity field (`peer`) and no `writtenBy`, so a card a PA writes for its prime is either
+ * indistinguishable from the prime's own (identity-borrowing) or invisible. Until an author
+ * dimension lands, this consumer never fabricates attribution.
+ */
 export function carriesStatus(role: SeatRole): boolean {
   return role.kind === 'known' && role.role === 'pm';
 }
@@ -225,6 +268,88 @@ function readInterstitial(record: Record<string, unknown>): Interstitial | undef
     at: interstitial.at,
     paneId: interstitial.paneId,
   };
+}
+
+/**
+ * Why a seat will or will not be nudged. `unreported` is its own member on purpose: a record that
+ * never carried `watchdog` is not a seat with the watchdog off, and the UI must not say either.
+ */
+export type WatchdogReason =
+  | 'armed'
+  | 'paused'
+  | 'exempt'
+  | 'fleet-disabled'
+  | 'relay'
+  | 'off'
+  | 'unreported';
+
+export interface WatchdogState {
+  reason: WatchdogReason;
+  /** TRUE only when a nudge will actually fire on continued silence. Nothing else may imply it. */
+  willNudge: boolean;
+  intervalMs?: number;
+  /** Which tier paused it — pij's own word (`self`, `compact`). */
+  pausedBy?: string;
+  exemptRemainingMs?: number | null;
+}
+
+/**
+ * Read the watchdog axis off a flattened placement record.
+ *
+ * This exists because the rail asserted "watchdog will nudge" beside every stale card without
+ * ever reading this field (caught live 2026-07-30 on a seat whose watchdog was `paused (self)`).
+ * A behavioural promise is a claim; it needs an instrument, and this is it.
+ *
+ * Precedence follows the platform's own strongest-wins ladder (C9), with the two states that are
+ * not tiers at all checked first: a `relay` seat is never watched by design, and the fleet kill
+ * switch outranks any per-seat setting.
+ */
+export function readWatchdogState(record: Record<string, unknown>): WatchdogState {
+  const raw = record.watchdog;
+  if (typeof raw !== 'object' || raw === null) return { reason: 'unreported', willNudge: false };
+  const watchdog = raw as Record<string, unknown>;
+  const intervalMs = typeof watchdog.intervalMs === 'number' ? watchdog.intervalMs : undefined;
+
+  if (watchdog.relay === true) return { reason: 'relay', willNudge: false };
+  if (watchdog.globallyDisabled === true) return { reason: 'fleet-disabled', willNudge: false };
+  if (watchdog.enabled === false) return { reason: 'off', willNudge: false };
+  if (watchdog.exempt === true) {
+    return {
+      reason: 'exempt',
+      willNudge: false,
+      intervalMs,
+      exemptRemainingMs:
+        typeof watchdog.exemptRemainingMs === 'number' ? watchdog.exemptRemainingMs : null,
+    };
+  }
+  if (typeof watchdog.pausedBy === 'string' && watchdog.pausedBy.length > 0) {
+    return { reason: 'paused', willNudge: false, intervalMs, pausedBy: watchdog.pausedBy };
+  }
+  return { reason: 'armed', willNudge: true, intervalMs };
+}
+
+/** One short phrase for the rail's meta line and hover card. Never claims a nudge unless one fires. */
+export function watchdogSummary(state: WatchdogState): string {
+  switch (state.reason) {
+    case 'armed':
+      return state.intervalMs
+        ? `watchdog on · nudges after ${Math.round(state.intervalMs / 60_000)}m quiet`
+        : 'watchdog on';
+    case 'paused':
+      return `watchdog paused${state.pausedBy ? ` (${state.pausedBy})` : ''} · no nudge`;
+    case 'exempt':
+      return state.exemptRemainingMs
+        ? `watchdog exempt ${Math.round(state.exemptRemainingMs / 60_000)}m · no nudge`
+        : 'watchdog exempt · no nudge';
+    case 'fleet-disabled':
+      return 'watchdog off fleet-wide · no nudge';
+    case 'off':
+      return 'watchdog off · no nudge';
+    case 'relay':
+      return 'relay seat · never watched';
+    case 'unreported':
+      return 'watchdog not reported';
+  }
 }
 
 export function readQuestionDecision(

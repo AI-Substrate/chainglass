@@ -18,7 +18,9 @@ import {
   type SeatRole,
   type SeatStatus,
   productionContractSeams,
+  readWatchdogState,
   resolveQuestionStrip,
+  watchdogSummary,
 } from '../server/pij-status.contract';
 import type { FleetRow, PijStatusRecord } from '../types';
 import { FocusResult, useSeatFocusAffordance } from './seat-row';
@@ -42,6 +44,10 @@ const DOT_CLASS: Record<string, string> = {
 const ROLE_CHIP_CLASS: Record<string, string> = {
   prime: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300',
   pm: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
+  // Deliberately NOT the prime's indigo (s078 render ruling). A PA watches a prime; if a glance can
+  // resolve the assistant into its subject, "the prime is alive and reporting" becomes a claim read
+  // off the wrong seat.
+  pa: 'bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300',
 };
 
 const STATE_CHIP_CLASS: Record<string, string> = {
@@ -81,18 +87,57 @@ interface QuestionEntry {
   decision: QuestionDecision;
 }
 
+/**
+ * Descriptor denorms that point at ONE assignment, and therefore clear together when it closes
+ * (pij s075, ratified 2026-07-30). Listed here because the merge below has to treat them as a
+ * unit that the row owns outright.
+ */
+const ASSIGNMENT_DENORMS = [
+  'currentAssignment',
+  'currentTask',
+  'semanticState',
+  'stateNote',
+] as const;
+
+/**
+ * Flatten a placement into one record for the contract readers.
+ *
+ * Layering is last-wins: tree node, then the row's `extra`, then the row. That is right for
+ * fields the tree alone carries — but WRONG for the assignment denorms once they can be cleared:
+ * a row that no longer carries `semanticState` would let the cached tree's stale value survive
+ * the spread, and the NEEDS-YOU strip would keep pinning a question whose assignment is closed.
+ * A plain `{...node, ...row}` cannot express "the row said nothing, and that is the answer",
+ * because an omitted key is indistinguishable from a key never sent.
+ *
+ * So for a LISTED seat the four denorms are dropped from the tree layer first: the row owns them
+ * outright, including by omission. Both reads project the same descriptor, so the tree cannot
+ * know better — and unlike {@link seatTask} there is no legacy shape to preserve here, which is
+ * why this one is unconditional and holds even if pij omits rather than nulls the cleared keys.
+ * A tree-only seat (no row at all) still reads from the tree.
+ */
 function placementRecord(placement: RailSeatPlacement): Record<string, unknown> {
+  const listed = placement.row !== undefined;
+  const node = Object.fromEntries(
+    Object.entries(placement.node ?? {}).filter(
+      ([key]) => !(listed && (ASSIGNMENT_DENORMS as readonly string[]).includes(key))
+    )
+  );
   return {
-    ...(placement.node ?? {}),
+    ...node,
     ...(placement.row?.extra ?? {}),
     ...(placement.row ?? {}),
   };
 }
 
 function roleLabel(role: SeatRole): string {
-  if (role.kind === 'absent') return 'role unknown';
+  // `role-unrecognised` gets its own words: pij named a role, this rail has not been taught it. That
+  // reads as a gap in the CONSUMER, which is what it is — "role unknown" would blame the seat.
+  if (role.kind === 'absent') {
+    return role.reason === 'role-unrecognised' ? 'role not recognised' : 'role unknown';
+  }
   if (role.role === 'pm') return 'PM';
   if (role.role === 'prime') return 'Prime · main';
+  if (role.role === 'pa') return 'PA';
   return 'worker';
 }
 
@@ -129,6 +174,9 @@ function StatusSummary({
 }) {
   const record = status.status;
   const stale = status.reason === 'status-stale';
+  // The nudge promise is a CLAIM about the daemon's future behaviour, so it is read, never assumed:
+  // this line said "watchdog will nudge" beside a seat whose watchdog was paused (2026-07-30).
+  const watchdog = readWatchdogState(placementRecord(placement));
 
   // Silent absences: a worker has no status to be missing, and a prime's card is optional by
   // ruling (2026-07-30) — in both cases a line saying so is space spent on nothing.
@@ -157,7 +205,11 @@ function StatusSummary({
             className={`mt-0.5 pl-8 text-[9.5px] ${stale ? 'text-amber-700 dark:text-amber-400' : 'text-muted-foreground'}`}
           >
             updated {formatAge(status.ageMs)}
-            {stale ? ' — watchdog will nudge' : ''}
+            {stale && watchdog.reason !== 'unreported'
+              ? watchdog.willNudge
+                ? ' — watchdog will nudge'
+                : ` — ${watchdogSummary(watchdog)}`
+              : ''}
           </div>
         </>
       ) : (
@@ -242,6 +294,7 @@ function SeatHoverCard({
   ].filter(Boolean);
   const folder = row?.folder ?? placement.node?.folder;
   const task = seatTask(placement);
+  const watchdog = readWatchdogState(placementRecord(placement));
 
   return (
     <div
@@ -256,11 +309,76 @@ function SeatHoverCard({
       {windowLabel ? (
         <div className="font-mono text-[10px] text-muted-foreground">⊞ {windowLabel}</div>
       ) : null}
+      {watchdog.reason === 'unreported' ? null : (
+        <div
+          className={`text-[10px] ${
+            watchdog.willNudge ? 'text-muted-foreground' : 'text-amber-700 dark:text-amber-400'
+          }`}
+        >
+          {watchdogSummary(watchdog)}
+        </div>
+      )}
       {folder ? (
         <div className="truncate font-mono text-[10px] text-muted-foreground">{folder}</div>
       ) : null}
       {task ? <div className="mt-0.5 text-[10px]">{task}</div> : null}
     </div>
+  );
+}
+
+/** How long the copy button shows its outcome before returning to the idle glyph. */
+export const COPY_FEEDBACK_MS = 1_500;
+
+/**
+ * Copy the seat id to the clipboard, reporting whether it actually landed.
+ *
+ * `navigator.clipboard` is absent on insecure origins and in jsdom, and `writeText` rejects when
+ * the document is not focused — all three are real here (the rail is often read on a LAN address).
+ * A failure must therefore be VISIBLE: silently rendering "copied" for a clipboard that never
+ * received the text is the one outcome worth engineering against.
+ */
+async function copySeatId(id: string): Promise<'copied' | 'failed'> {
+  try {
+    await navigator.clipboard.writeText(id);
+    return 'copied';
+  } catch {
+    return 'failed';
+  }
+}
+
+/**
+ * The copy-id affordance. A SIBLING of the focus button, never a child: the whole row is already a
+ * button (focus-on-click), and nesting interactive elements is invalid HTML that React will not
+ * render as two separate click targets.
+ *
+ * Revealed on row hover to keep the rail's density, but always present in the DOM and reachable by
+ * keyboard — `focus-visible:opacity-100` means tabbing to it makes it appear.
+ */
+function CopySeatIdButton({ id }: { id: string }) {
+  const [status, setStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
+
+  useEffect(() => {
+    if (status === 'idle') return;
+    const timer = setTimeout(() => setStatus('idle'), COPY_FEEDBACK_MS);
+    return () => clearTimeout(timer);
+  }, [status]);
+
+  return (
+    <button
+      type="button"
+      data-testid={`copy-seat-${id}`}
+      data-status={status}
+      aria-label={`Copy seat id ${id}`}
+      title={status === 'failed' ? 'clipboard refused' : `Copy ${id}`}
+      onClick={() => {
+        void copySeatId(id).then(setStatus);
+      }}
+      className={`shrink-0 rounded px-1 py-0.5 text-[10px] leading-none opacity-0 transition-opacity hover:bg-accent focus-visible:opacity-100 group-hover:opacity-100 ${
+        status === 'failed' ? 'text-red-600 opacity-100' : 'text-muted-foreground'
+      }`}
+    >
+      {status === 'copied' ? '✓' : status === 'failed' ? '✕' : '⧉'}
+    </button>
   );
 }
 
@@ -286,39 +404,53 @@ function SeatHeader({
   const state = placement.row?.badge ?? placement.row?.state ?? 'unknown';
   const focus = useSeatFocusAffordance(placement);
   const hover = useSeatHover();
+  const watchdog = readWatchdogState(placementRecord(placement));
   return (
     <div
       data-testid={`seat-row-${placement.id}`}
+      className="group"
       onMouseEnter={hover.onMouseEnter}
       onMouseLeave={hover.onMouseLeave}
     >
-      <button
-        type="button"
-        data-testid={`focus-seat-${placement.id}`}
-        data-state={state}
-        disabled={!focus.inWorkspace || focus.busy}
-        title={focus.title}
-        onClick={() => focus.available && focus.focus.focus(placement.id)}
-        className="flex w-full min-w-0 items-center gap-1.5 px-2.5 py-1.5 text-left hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        <span aria-hidden="true" className="shrink-0 text-[9px] text-muted-foreground">
-          ▾
-        </span>
-        <SeatDot placement={placement} />
-        <span className="min-w-0 flex-1 truncate font-mono text-[11px]">{placement.id}</span>
-        {question.placement === 'strip' ? (
-          <span className="shrink-0 rounded bg-violet-100 px-1 py-0.5 text-[9px] font-bold text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">
-            ? needs you
-          </span>
-        ) : null}
-        <RoleBadge role={placement.role} />
-      </button>
-      {windowLabel ? (
-        <div
-          data-testid={`pij-window-${placement.id}`}
-          className="-mt-1 truncate px-2.5 pb-0.5 pl-8 font-mono text-[9.5px] text-muted-foreground"
+      <div className="flex min-w-0 items-center pr-1.5">
+        <button
+          type="button"
+          data-testid={`focus-seat-${placement.id}`}
+          data-state={state}
+          disabled={!focus.inWorkspace || focus.busy}
+          title={focus.title}
+          onClick={() => focus.available && focus.focus.focus(placement.id)}
+          className="flex min-w-0 flex-1 items-center gap-1.5 px-2.5 py-1.5 text-left hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
         >
-          ⊞ {windowLabel}
+          <span aria-hidden="true" className="shrink-0 text-[9px] text-muted-foreground">
+            ▾
+          </span>
+          <SeatDot placement={placement} />
+          <span className="min-w-0 flex-1 truncate font-mono text-[11px]">{placement.id}</span>
+          {question.placement === 'strip' ? (
+            <span className="shrink-0 rounded bg-violet-100 px-1 py-0.5 text-[9px] font-bold text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">
+              ? needs you
+            </span>
+          ) : null}
+          <RoleBadge role={placement.role} />
+        </button>
+        <CopySeatIdButton id={placement.id} />
+      </div>
+      {windowLabel || watchdog.reason !== 'unreported' ? (
+        <div className="-mt-1 truncate px-2.5 pb-0.5 pl-8 font-mono text-[9.5px] text-muted-foreground">
+          {windowLabel ? (
+            <span data-testid={`pij-window-${placement.id}`}>⊞ {windowLabel}</span>
+          ) : null}
+          {windowLabel && watchdog.reason !== 'unreported' ? ' · ' : null}
+          {watchdog.reason !== 'unreported' ? (
+            <span
+              data-testid={`pij-watchdog-${placement.id}`}
+              data-reason={watchdog.reason}
+              className={watchdog.willNudge ? undefined : 'text-amber-700 dark:text-amber-400'}
+            >
+              {watchdogSummary(watchdog)}
+            </span>
+          ) : null}
         </div>
       ) : null}
       <FocusResult placement={placement} />
@@ -348,6 +480,7 @@ function WorkerRow({
   const inline = question.reason === 'blocked-note-inline' ? question : null;
   const focus = useSeatFocusAffordance(placement);
   const hover = useSeatHover();
+  const watchdog = readWatchdogState(placementRecord(placement));
 
   return (
     <div
@@ -355,7 +488,7 @@ function WorkerRow({
       data-state={state}
       onMouseEnter={hover.onMouseEnter}
       onMouseLeave={hover.onMouseLeave}
-      className={`border-t border-border/60 px-2.5 py-1 ${
+      className={`group border-t border-border/60 px-2.5 py-1 ${
         state === 'blocked'
           ? 'bg-red-50/70 dark:bg-red-950/20'
           : state === 'question'
@@ -363,33 +496,50 @@ function WorkerRow({
             : ''
       }`}
     >
-      <button
-        type="button"
-        data-testid={`focus-seat-${placement.id}`}
-        disabled={!focus.inWorkspace || focus.busy}
-        title={focus.title}
-        onClick={() => focus.available && focus.focus.focus(placement.id)}
-        className="flex w-full min-w-0 items-center gap-1.5 text-left text-[11px] disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        <SeatDot placement={placement} />
-        <span className="min-w-0 shrink truncate font-mono">{placement.id}</span>
-        <span className="min-w-0 flex-1 truncate text-muted-foreground">{task}</span>
-        {worktree ? (
-          <span className="min-w-0 shrink truncate rounded bg-muted px-1 font-mono text-[9.5px] text-muted-foreground">
-            ⑂ {worktree}
-          </span>
-        ) : null}
-        <span
-          className={`shrink-0 rounded px-1 text-[9px] font-bold uppercase ${
-            STATE_CHIP_CLASS[state] ?? 'bg-muted text-muted-foreground'
-          }`}
+      <div className="flex min-w-0 items-center">
+        <button
+          type="button"
+          data-testid={`focus-seat-${placement.id}`}
+          disabled={!focus.inWorkspace || focus.busy}
+          title={focus.title}
+          onClick={() => focus.available && focus.focus.focus(placement.id)}
+          className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-[11px] disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {state}
-        </span>
-        <span className="shrink-0 text-[9.5px] text-muted-foreground">
-          {formatElapsed(row?.lastEventAt, now)}
-        </span>
-      </button>
+          <SeatDot placement={placement} />
+          <span className="min-w-0 shrink truncate font-mono">{placement.id}</span>
+          <span className="min-w-0 flex-1 truncate text-muted-foreground">{task}</span>
+          {worktree ? (
+            <span className="min-w-0 shrink truncate rounded bg-muted px-1 font-mono text-[9.5px] text-muted-foreground">
+              ⑂ {worktree}
+            </span>
+          ) : null}
+          {watchdog.reason === 'unreported' ? null : (
+            <span
+              data-testid={`pij-watchdog-${placement.id}`}
+              data-reason={watchdog.reason}
+              title={watchdogSummary(watchdog)}
+              className={`shrink-0 rounded px-1 font-mono text-[9px] ${
+                watchdog.willNudge
+                  ? 'text-muted-foreground/70'
+                  : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400'
+              }`}
+            >
+              {watchdog.willNudge ? 'wd' : 'wd✕'}
+            </span>
+          )}
+          <span
+            className={`shrink-0 rounded px-1 text-[9px] font-bold uppercase ${
+              STATE_CHIP_CLASS[state] ?? 'bg-muted text-muted-foreground'
+            }`}
+          >
+            {state}
+          </span>
+          <span className="shrink-0 text-[9.5px] text-muted-foreground">
+            {formatElapsed(row?.lastEventAt, now)}
+          </span>
+        </button>
+        <CopySeatIdButton id={placement.id} />
+      </div>
       {inline ? (
         <div
           data-testid={`pij-blocked-note-${placement.id}`}

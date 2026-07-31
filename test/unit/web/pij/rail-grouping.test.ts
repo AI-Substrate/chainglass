@@ -1,10 +1,11 @@
-import { groupRailFleet } from '@/features/089-first-class-pij/lib/fleet-grouping';
+import { groupRailFleet, seatTask } from '@/features/089-first-class-pij/lib/fleet-grouping';
 import type { PijTreeNode } from '@/features/089-first-class-pij/server/pij-records.interface';
 import {
   type PijRailContractSeams,
   fakeRoleRecordFromTreeDepth,
   productionContractSeams,
 } from '@/features/089-first-class-pij/server/pij-status.contract';
+import { asPijId } from '@/features/089-first-class-pij/types';
 import { describe, expect, it } from 'vitest';
 import { fleetRow } from '../../../fixtures/pij/fleet-ui';
 
@@ -101,5 +102,51 @@ describe('rail grouping', () => {
       kind: 'known',
       role: 'worker',
     });
+  });
+});
+
+describe('seatTask — which read owns the assignment text', () => {
+  it('distinguishes a row that says "no task" from a row that says nothing (s075)', () => {
+    /*
+    Test Doc:
+    - Why: pij s075 clears `currentTask` when an assignment closes. The row is the live
+      projection; the tree is a cached snapshot the rail refetches on its own cadence, so a tree
+      fallback under a CLEARED row resurrects the discharged task and renders it as current —
+      the exact defect s075 removes. But the fallback still has a real job: rows predating the
+      field omit it entirely, and a FleetView test pins that shape. The two absences must not be
+      collapsed — `null` is an answer, a missing key is a silence.
+    - Contract: null → no task, tree not consulted; undefined/absent → tree answers; no row at
+      all (tree-only seat) → tree answers.
+    - Usage Notes: measured 2026-07-30 — list rows always carry the key (null when empty), tree
+      nodes omit it. This is why the ratification asks pij to null rather than omit on close.
+    - Quality Contribution: closes the resurrection path without breaking the legacy shape.
+    - Worked Example: row {currentTask: null} + node {currentTask: 'old'} → undefined.
+    */
+    const node: PijTreeNode = { id: 'pij-pm', currentTask: 'closed work from a stale tree read' };
+
+    // Cleared: the row carried the field and it is empty. Definitive.
+    expect(
+      seatTask({
+        id: asPijId('pij-pm'),
+        row: { ...fleetRow('pij-pm'), currentTask: null },
+        node,
+        depth: 1,
+      })
+    ).toBeUndefined();
+
+    // Not carried: says nothing about the seat, so the tree still answers (legacy shape).
+    expect(
+      seatTask({
+        id: asPijId('pij-pm'),
+        row: { ...fleetRow('pij-pm'), currentTask: undefined },
+        node,
+        depth: 1,
+      })
+    ).toBe('closed work from a stale tree read');
+
+    // A seat the fleet no longer lists at all still reads from the tree — the fallback's one job.
+    expect(seatTask({ id: asPijId('pij-pm'), node, depth: 1 })).toBe(
+      'closed work from a stale tree read'
+    );
   });
 });
