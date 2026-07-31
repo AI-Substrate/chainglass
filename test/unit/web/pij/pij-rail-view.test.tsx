@@ -585,9 +585,9 @@ describe('PijRailView', () => {
       resolve the assistant into its subject, "the prime is alive and reporting" gets read off the
       wrong seat. Hence visible AND distinctly chipped (cheetah's render ruling, 2026-07-31).
     - Contract: a PA linked under a prime renders as one of the prime's sections, labelled `PA`, with
-      a chip class that is not the prime's; it carries no status card (`not-a-pm`, the silent branch);
-      and a role value the rail has NOT been taught reads "role not recognised" — blaming the rail's
-      vocabulary, not the seat.
+      a chip class that is not the prime's; a PA that has written NO card shows nothing (the silent
+      branch, no nag); and a role value the rail has NOT been taught reads "role not recognised" —
+      blaming the rail's vocabulary, not the seat.
     - Usage Notes: placement is tree-owned. An unlinked PA lands in the loose group — the reason
       lineage-at-spawn was the amendment asked of pij rather than solved by role-derived placement.
     - Quality Contribution: pins that the enum widening changed a LABEL, not the card obligations or
@@ -625,8 +625,9 @@ describe('PijRailView', () => {
     const primeChip = screen.getByTestId('pij-prime-pij-prime').querySelector('[data-role-reason]');
     expect(primeChip?.textContent).toBe('Prime · main');
     expect(chip?.className).not.toBe(primeChip?.className);
-    // A PA owes no prev/next of its own; it owes a working PRIME card.
+    // A PA that has written nothing is silent — no nag, no "not applicable" filler.
     expect(pa.textContent).not.toContain('NOW');
+    expect(screen.queryByTestId('pij-status-pa-not-written-pij-assistant')).toBeNull();
 
     const odd = screen.getByTestId('pij-team-pij-odd-role').querySelector('[data-role-reason]');
     expect(odd?.textContent).toBe('role not recognised');

@@ -178,9 +178,16 @@ function StatusSummary({
   // this line said "watchdog will nudge" beside a seat whose watchdog was paused (2026-07-30).
   const watchdog = readWatchdogState(placementRecord(placement));
 
-  // Silent absences: a worker has no status to be missing, and a prime's card is optional by
-  // ruling (2026-07-30) — in both cases a line saying so is space spent on nothing.
-  if (!record && (status.reason === 'not-a-pm' || status.reason === 'prime-not-written'))
+  // Silent absences: a worker has no status to be missing, and a prime's or PA's card is optional
+  // by ruling — in every case a line saying so is space spent on nothing. Note this branch is
+  // reached only when there is NO record: an optional card that WAS written renders below, which is
+  // the correction made against the first live PA (2026-08-01).
+  if (
+    !record &&
+    (status.reason === 'not-a-pm' ||
+      status.reason === 'prime-not-written' ||
+      status.reason === 'pa-not-written')
+  )
     return null;
 
   return (
@@ -232,6 +239,7 @@ function statusAbsenceCopy(reason: SeatStatus['reason']): string {
     case 'current':
       return 'PM status current';
     case 'prime-not-written':
+    case 'pa-not-written':
       // Unreachable in render — StatusSummary returns null first — kept for union exhaustiveness.
       return '';
   }

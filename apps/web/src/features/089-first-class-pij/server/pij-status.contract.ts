@@ -56,7 +56,20 @@ export type StatusReason =
    * rendered as a nag; a prime's card is OPTIONAL — written ones render, absent ones render
    * NOTHING, and no watchdog language ever attaches.
    */
-  | 'prime-not-written';
+  | 'prime-not-written'
+  /**
+   * A PA with no status record. Same optional-but-rendered policy as a prime, and a SEPARATE member
+   * for the same reason `prime-not-written` is separate from `no-status-yet`: two silences with
+   * different causes must stay distinguishable.
+   *
+   * Corrected 2026-08-01, against the first live PA (`pij-missing-anaconda`). The ratified render
+   * said a PA carries no card, and the code implemented that as `not-a-pm` — renders nothing, EVER.
+   * The seat then wrote a real card ("Completed PA sweep 2 & registered watchdog on
+   * pij-wee-albatross") and the rail dropped it on the floor. "Owes no card" was read as "has no
+   * card", which is the same error albatross made about prime cards on 2026-07-30 and that this
+   * consumer corrected them on: not-required and not-rendered are different rulings.
+   */
+  | 'pa-not-written';
 
 export interface SeatStatus {
   reason: StatusReason;
@@ -153,17 +166,25 @@ export function readSeatRole(record: Record<string, unknown>): SeatRole {
 }
 
 /**
- * PM-only, and a `pa` does NOT change that (s078 render ruling, cheetah): a Prime Assistant owes the
- * human no prev/next of its own — it owes them a working PRIME card. So a PA resolves `not-a-pm` and
- * renders nothing: no nag, no stale label, no watchdog promise.
+ * Who OWES a card — the obligation axis, PM-only. A prime and a PA are handled by
+ * {@link hasOptionalCard} instead: they owe nothing and are still rendered when they write.
  *
- * Open upstream question, raised on ratification and not yet answered: `PijStatusRecord` carries one
- * identity field (`peer`) and no `writtenBy`, so a card a PA writes for its prime is either
- * indistinguishable from the prime's own (identity-borrowing) or invisible. Until an author
- * dimension lands, this consumer never fabricates attribution.
+ * Keeping the two questions apart is the whole lesson of 2026-08-01. "Owes no card" was
+ * implemented as "renders no card", and the first live PA — which had written one — lost it.
  */
 export function carriesStatus(role: SeatRole): boolean {
   return role.kind === 'known' && role.role === 'pm';
+}
+
+/**
+ * Roles whose card is OPTIONAL BUT RENDERED: written ones show, absent ones show nothing, and no
+ * staleness or watchdog language ever attaches, because those carry an obligation neither role has.
+ *
+ * `prime` by Jordan's ruling (2026-07-30); `pa` by measurement against the first live PA
+ * (2026-08-01) — see the `pa-not-written` doc for what the old `not-a-pm` treatment threw away.
+ */
+export function hasOptionalCard(role: SeatRole): role is { kind: 'known'; role: 'prime' | 'pa' } {
+  return role.kind === 'known' && (role.role === 'prime' || role.role === 'pa');
 }
 
 export function newestStatusByPeer(
@@ -183,7 +204,7 @@ export function resolveSeatStatus(
   now: number
 ): SeatStatus {
   if (role.kind === 'absent') return { reason: 'role-unknown' };
-  if (role.kind === 'known' && role.role === 'prime') {
+  if (hasOptionalCard(role)) {
     // Optional-but-rendered (Jordan, 2026-07-30): a prime that writes a card gets it shown; one
     // that doesn't is never nagged. Staleness is likewise never flagged — the stale label carries
     // watchdog language, and no watchdog obligation exists for an optional card. The age line
@@ -193,7 +214,7 @@ export function resolveSeatStatus(
     // raise status-stale rows for a prime holding a rotten card — different consumer (the prime's
     // own self-service sweep; it has no supervisor). An old prime card with no stale label here
     // AND a status-stale row there is by design, not drift. Do not "fix" either side to match.
-    if (!status) return { reason: 'prime-not-written' };
+    if (!status) return { reason: role.role === 'prime' ? 'prime-not-written' : 'pa-not-written' };
     return { reason: 'current', status, ageMs: statusAgeMs(status, now) };
   }
   if (!carriesStatus(role)) return { reason: 'not-a-pm' };

@@ -54,7 +54,6 @@ describe('JC-1 status consumption', () => {
 
   it.each([
     ['not-a-pm', { orchestrationRole: 'worker' }, status()],
-    ['not-a-pm', { orchestrationRole: 'pa' }, status()],
     ['role-unknown', { orchestrationRole: null }, status()],
     ['role-unknown', {}, status()],
     ['no-status-yet', { orchestrationRole: 'pm' }, undefined],
@@ -90,15 +89,44 @@ describe('JC-1 status consumption', () => {
 });
 
 describe('JC-2 role vocabulary — three absences, and `pa` (s078)', () => {
-  it('reads `pa` as a known role and gives it no status obligation', () => {
+  it('renders a PA card that exists, and never calls it stale (optional-but-rendered)', () => {
+    /*
+    Test Doc:
+    - Why: caught against the FIRST LIVE PA (`pij-missing-anaconda`, 2026-08-01). The ratified render
+      said a PA carries no card, and this consumer implemented that as `not-a-pm` — which renders
+      nothing, ever. The seat then wrote a real card ("Completed PA sweep 2 & registered watchdog on
+      pij-wee-albatross") and the rail dropped it. "Owes no card" is not "has no card": exactly the
+      error albatross made about PRIME cards on 2026-07-30, which this consumer corrected them on,
+      and then reproduced itself one role over.
+    - Contract: a PA is the same optional-but-rendered policy as a prime — a written card resolves
+      'current' with a real age even past the PM stale threshold, and never a stale label, because
+      the stale line carries watchdog language and no obligation exists to breach.
+    - Usage Notes: absence stays silent, under its OWN discriminator — see the next test.
+    - Quality Contribution: makes the difference between the obligation axis and the render axis
+      structural, so widening the role vocabulary again cannot re-collapse them.
+    - Worked Example: a PA card older than STATUS_STALE_MS resolves 'current', not 'status-stale'.
+    */
+    const role = readSeatRole({ orchestrationRole: 'pa' });
+    const old = resolveSeatStatus(
+      role,
+      status({ ts: new Date(NOW - STATUS_STALE_MS - 60_000).toISOString() }),
+      NOW
+    );
+    expect(old.reason).toBe('current');
+    expect(old.status?.prev).toBe('Finished the contract tests.');
+    expect(old.ageMs).toBeGreaterThan(STATUS_STALE_MS);
+  });
+
+  it('reads `pa` as a known role and gives it no status OBLIGATION', () => {
     /*
     Test Doc:
     - Why: s078 widened the ratified enum to a fourth value. A Prime Assistant is a real designation,
       so it must read as KNOWN — but it owes the human no prev/next of its own (cheetah's render
       ruling, 2026-07-31): what it owes them is a working PRIME card.
-    - Contract: `pa` → `{kind:'known'}`; `carriesStatus` false; the status path resolves 'not-a-pm',
-      the silent-absence branch — no nag, no stale label, no watchdog promise.
-    - Usage Notes: —
+    - Contract: `pa` → `{kind:'known'}`; `carriesStatus` false — a PA is never nagged for a card and
+      never stale-labelled.
+    - Usage Notes: `carriesStatus` is the OBLIGATION axis only. Whether a card RENDERS is
+      `hasOptionalCard`, and conflating the two is what dropped the first live PA's card.
     - Quality Contribution: pins that widening the vocabulary did not widen the card obligation.
     - Worked Example: readSeatRole({orchestrationRole:'pa'}) → known 'pa'.
     */
@@ -131,6 +159,29 @@ describe('JC-2 role vocabulary — three absences, and `pa` (s078)', () => {
       kind: 'absent',
       reason: 'role-unrecognised',
     });
+  });
+
+  it('keeps the two optional-card silences apart', () => {
+    /*
+    Test Doc:
+    - Why: a prime with no card and a PA with no card both render nothing, so it is tempting to give
+      them one member. They are different silences with different causes, and the moment either
+      grows a policy (a digest, an audit, a nag) the merged member cannot express it. Same rule that
+      made `prime-not-written` distinct from `no-status-yet` in the first place.
+    - Contract: prime + no record → 'prime-not-written'; pa + no record → 'pa-not-written'; both
+      carry no record and no age.
+    - Usage Notes: the render maps both to null; the distinction is for the data, not the pixels.
+    - Quality Contribution: stops a future "they render the same, so collapse them" refactor.
+    - Worked Example: readSeatRole({orchestrationRole:'pa'}) + undefined → 'pa-not-written'.
+    */
+    expect(resolveSeatStatus(readSeatRole({ orchestrationRole: 'pa' }), undefined, NOW)).toEqual({
+      reason: 'pa-not-written',
+    });
+    expect(resolveSeatStatus(readSeatRole({ orchestrationRole: 'prime' }), undefined, NOW)).toEqual(
+      {
+        reason: 'prime-not-written',
+      }
+    );
   });
 });
 
