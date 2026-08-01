@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "slug": "auto-save-editing",
+  "plan_dir": "docs/plans/087-auto-save-editing",
+  "mode": "Simple",
+  "current_stage": "awaiting-3",
+  "pending_command": "/plan-3-v3-architect \"docs/plans/087-auto-save-editing/auto-save-editing-spec.md\"",
+  "intent": "Auto-save while editing files (rich + preview modes): periodic draft saves, atomic update + draft cleanup on real save, restore-on-load prompt that loads into editor only (no target write until save)",
+  "milestones_total": 5,
+  "milestones_done": 2,
+  "last_checkpoint_at": "2026-06-08T01:30:00Z",
+  "compacted_seams": [],
+  "status": "active"
+}

@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "slug": "auto-save-editing",
+  "plan_dir": "docs/plans/087-auto-save-editing",
+  "created_at": "2026-06-08T00:56:16Z",
+  "cursor": "plan",
+  "recommended_next": "plan",
+  "nodes": [
+    {
+      "id": "research", "type": "research", "title": "Research existing editor save/load internals",
+      "status": "done", "ran_at": "2026-06-08T00:56:16Z",
+      "user_input": "next new feature is auto save in editing files (both in rich mode and preview mode)...",
+      "note": "~90% reuse. New surface = draft store + restore-on-load. 2 design tensions flagged as workshops.",
+      "artifacts": ["docs/plans/087-auto-save-editing/research-dossier.md"],
+      "next": ["spec"]
+    },
+    {
+      "id": "workshop-001", "type": "workshop", "title": "Draft storage model & lifecycle", "branch_of": "research",
+      "status": "done", "ran_at": "2026-06-08T00:56:16Z",
+      "user_input": "yer do workshop",
+      "note": "Selected: drafts under .chainglass (source watcher ignores it per ADR-0008), per-file JSON mirror, restore loads editor-only with saveFile mtime guard as backstop. Open Q1: confirm data-watcher scope vs drafts subtree.",
+      "artifacts": ["docs/plans/087-auto-save-editing/workshops/001-draft-storage-model-and-lifecycle.md"],
+      "next": ["spec"]
+    },
+    {
+      "id": "spec", "type": "spec", "title": "Specify auto-save + restore-on-load",
+      "status": "done", "ran_at": "2026-06-08T01:30:00Z",
+      "user_input": "proceed to specity stage please.",
+      "note": "Mode: Simple, CS-3 (conf 0.85). Round1: Simple/Hybrid/Targeted-mocks/docs-how. Round2: 30-day stale-draft sweep. 11 ACs. Workshop 001 folded in as authoritative. Only open item: Q1 data-watcher scope (architect).",
+      "artifacts": ["docs/plans/087-auto-save-editing/auto-save-editing-spec.md", "docs/plans/087-auto-save-editing/auto-save-editing.fltplan.md"],
+      "next": ["plan"]
+    },
+    { "id": "plan", "type": "plan", "title": "Architect the implementation plan", "status": "known", "next": ["build"] },
+    { "id": "build", "type": "phase", "title": "Build (Simple — single phase, revealed at /plan-3)", "status": "assumed", "next": ["merge"] },
+    { "id": "merge", "type": "merge", "title": "Merge", "status": "assumed", "next": [] }
+  ],
+  "agents": []
+}
