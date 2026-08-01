@@ -51,6 +51,8 @@ const EXTENSION_MAP: Record<string, string> = {
   htm: 'html',
   css: 'css',
   scss: 'scss',
+  // OpenSCAD is C-like; cpp gives usable highlighting in both Shiki and CodeMirror
+  scad: 'cpp',
   less: 'less',
   sass: 'sass',
   sh: 'bash',
