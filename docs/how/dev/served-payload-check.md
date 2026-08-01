@@ -40,6 +40,30 @@ curl -s -H "X-Local-Token: $TOKEN" "http://localhost:3000/api/pij/fleet?workspac
   singleton keeps its original module closure. Only a dev-server restart clears it, and that is
   Jordan's call — report the diagnosis, don't restart.
 
+## Establish quiescence before you escalate
+
+The poller is writing while you curl it, so a single read can be an accurate reading of a state
+that never persists. **Read twice and require `seq` to match** before you act on a difference:
+
+```bash
+A=$(curl -s -H "X-Local-Token: $TOKEN" "http://localhost:3000/api/pij/fleet?workspace=$PWD" | python3 -c "import json,sys;print(json.load(sys.stdin)['seq'])")
+sleep 3
+B=$(curl -s -H "X-Local-Token: $TOKEN" "http://localhost:3000/api/pij/fleet?workspace=$PWD" | python3 -c "import json,sys;print(json.load(sys.stdin)['seq'])")
+[ "$A" = "$B" ] && echo "QUIESCENT seq=$A" || echo "STILL MOVING $A -> $B — re-read before concluding"
+```
+
+Two things this exists to stop, both of which happened on 2026-08-01:
+
+- **A timestamp does not save you from a transient.** Every reading below was accurately taken
+  and accurately timed; the problem was that the underlying state was not yet a state. Quiescence
+  has to be *established*, not assumed — a command returning is not a file settling.
+- **Corroboration is worthless when the instruments share a sampling window.** Three tools
+  (`git status`, `grep -c`, `git diff --stat`) agreed with each other and were all wrong, because
+  they sampled one instant. Independence has to be in *time*, not just in tool.
+
+For files rather than endpoints the equivalent is polling `mtime` until it is stable for a few
+seconds. Either way: **say that you did it**, so the next reader knows the number is settled.
+
 ## The failure this exists to prevent
 
 2026-08-01: a live PA rendered `ROLE UNKNOWN`. The store, the descriptor and the on-disk code
