@@ -261,6 +261,7 @@ function BrowserClientInner({
   const currentDir = params.dir || '';
   const panelMode = (params.panel as PanelMode) || 'tree';
   const scrollToLine = params.line ?? null;
+  const scrollToAnchor = params.anchor ?? null;
   // Plan recent-changes-feed T003: main-panel view selector (Finding 07 — branch BEFORE
   // selectedFile/currentDir so closing the feed restores the user's prior state).
   const view = params.view; // 'recent-feed' | null
@@ -319,6 +320,9 @@ function BrowserClientInner({
     readFile,
     saveFile,
     fetchGitDiff,
+    // NB: `anchor` is deliberately NOT cleared here. handleFileSelect sets it
+    // (to the link's fragment, or null) before delegating to fileNav.handleSelect,
+    // which calls this — clearing it here would wipe the value on its way through.
     setUrlFile: (file) => setParams({ file, line: null }, { history: 'push' }),
     setUrlMode: (m) => setParams({ mode: m as 'source' | 'rich' | 'preview' | 'diff' }),
   });
@@ -492,7 +496,7 @@ function BrowserClientInner({
       if (result?.ok) {
         if (type === 'file' && selectedFile === oldPath) {
           fileNav.skipNextFileRead();
-          setParams({ file: result.newPath, line: null }, { history: 'replace' });
+          setParams({ file: result.newPath, line: null, anchor: null }, { history: 'replace' });
         } else if (type === 'file') {
           fileNav.handleSelect(result.newPath);
         } else {
@@ -517,7 +521,7 @@ function BrowserClientInner({
       if (result?.ok && selectedFile) {
         // DYK-P3-03: Trailing slash prevents false prefix matches
         if (selectedFile === path || selectedFile.startsWith(`${path}/`)) {
-          setParams({ file: '', line: null }, { history: 'replace' });
+          setParams({ file: '', line: null, anchor: null }, { history: 'replace' });
         }
       }
     },
@@ -758,7 +762,7 @@ function BrowserClientInner({
   // selection of the same file as a double click. This is more reliable than
   // depending on nested row-level dblclick handlers through wrapper components.
   const handleFileSelect = useCallback(
-    async (filePath: string) => {
+    async (filePath: string, fragment?: string) => {
       // Mobile: always switch to Content view on file tap, even if same file re-selected
       setMobileActiveIndex(1);
 
@@ -770,7 +774,10 @@ function BrowserClientInner({
       // overlay:close-all dispatch above (terminal), just for the
       // history view. Also clear `rv` so leaving remote-view mode by picking a file
       // doesn't strand a session param (AC-5 switch-back restores file state).
-      setParams({ view: null, rv: null }, { history: 'replace' });
+      // `anchor` is set (or cleared) alongside the view reset, before
+      // fileNav.handleSelect swaps `file`, so the destination renders with its
+      // scroll target already present rather than scrolling on a second pass.
+      setParams({ view: null, rv: null, anchor: fragment ?? null }, { history: 'replace' });
 
       const wasSelected = selectedFile === filePath;
       const now = Date.now();
@@ -1242,6 +1249,7 @@ function BrowserClientInner({
           }
           errorType={fileNav.fileData && !fileNav.fileData.ok ? fileNav.fileData.error : undefined}
           scrollToLine={scrollToLine}
+          scrollToAnchor={scrollToAnchor}
           onNavigateToFile={handleFileSelect}
         />
       ) : currentDir ? (
@@ -1607,6 +1615,7 @@ function BrowserClientInner({
                   fileNav.fileData && !fileNav.fileData.ok ? fileNav.fileData.error : undefined
                 }
                 scrollToLine={scrollToLine}
+                scrollToAnchor={scrollToAnchor}
                 onNavigateToFile={handleFileSelect}
               />
             ) : currentDir ? (

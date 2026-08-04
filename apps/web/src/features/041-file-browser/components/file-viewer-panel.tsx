@@ -56,6 +56,11 @@ const CodeEditor = lazy(() => import('./code-editor').then((m) => ({ default: m.
 const DiffViewer = lazy(() =>
   import('@/components/viewers/diff-viewer').then((m) => ({ default: m.DiffViewer }))
 );
+// three.js — only ever loaded when a 3D model or .scad preview is opened
+const ModelViewerLazy = lazy(() =>
+  import('./model-viewer').then((m) => ({ default: m.ModelViewer }))
+);
+const ScadViewerLazy = lazy(() => import('./scad-viewer').then((m) => ({ default: m.ScadViewer })));
 
 export type ViewerMode = 'source' | 'rich' | 'preview' | 'diff';
 
@@ -127,8 +132,13 @@ export interface FileViewerPanelProps {
   popOutUrl?: string;
   /** Line number to scroll to in code editor (Plan 047 Phase 6) */
   scrollToLine?: number | null;
-  /** Called when user clicks a relative file link in markdown preview */
-  onNavigateToFile?: (resolvedPath: string) => void;
+  /**
+   * Called when user clicks a relative file link in markdown preview.
+   * `fragment` is the `#heading` portion, when the link carried one.
+   */
+  onNavigateToFile?: (resolvedPath: string, fragment?: string) => void;
+  /** Anchor id to scroll to in markdown preview once the document renders */
+  scrollToAnchor?: string | null;
   /**
    * Optional save implementation — used by integration tests to intercept save calls with
    * a `FakeSaveFile` class (plan 083 Phase 5 Finding 05). Production callers pass nothing,
@@ -168,11 +178,20 @@ export function FileViewerPanel({
   popOutUrl,
   scrollToLine,
   onNavigateToFile,
+  scrollToAnchor,
   saveFileImpl,
   pdfGenerator,
 }: FileViewerPanelProps) {
   // All hooks must be called before any early returns (Rules of Hooks)
   const isMarkdown = language === 'markdown';
+  // .scad files are editable text whose Preview mode is a server-compiled 3D
+  // mesh. The compile route shares the raw route's query shape, so its URL is
+  // derived from rawFileBaseUrl; mtime busts the browser cache after saves.
+  const isScad = filePath.toLowerCase().endsWith('.scad');
+  const scadCompileUrl =
+    isScad && rawFileBaseUrl
+      ? `${rawFileBaseUrl.replace('/files/raw?', '/files/scad?')}&file=${encodeURIComponent(filePath)}&_v=${encodeURIComponent(mtime)}`
+      : null;
   const currentContent = editContent ?? content ?? '';
   const isEditable = mode === 'source' || mode === 'rich';
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -229,7 +248,10 @@ export function FileViewerPanel({
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally reset scroll state when file changes
   useEffect(() => {
     setScrolledDown(false);
-    if (!scrollToLine && typeof scrollRef.current?.scrollTo === 'function') {
+    // A pending scroll target owns the viewport — resetting to top here runs
+    // after the preview's anchor scroll and would silently undo it, landing
+    // cross-file `#heading` links at the top of the document.
+    if (!scrollToLine && !scrollToAnchor && typeof scrollRef.current?.scrollTo === 'function') {
       scrollRef.current.scrollTo({ top: 0 });
     }
   }, [filePath]);
@@ -543,7 +565,12 @@ export function FileViewerPanel({
               />
             </>
           )}
-          {mode === 'preview' && (
+          {mode === 'preview' && isScad && scadCompileUrl && (
+            <div className="h-full min-h-[400px]" data-testid="scad-preview">
+              <ScadViewerLazy compileUrl={scadCompileUrl} />
+            </div>
+          )}
+          {mode === 'preview' && !(isScad && scadCompileUrl) && (
             <div className="p-4" ref={previewRef}>
               {isMarkdown && markdownHtml ? (
                 <MarkdownPreview
@@ -551,6 +578,7 @@ export function FileViewerPanel({
                   currentFilePath={filePath}
                   rawFileBaseUrl={rawFileBaseUrl}
                   onNavigateToFile={onNavigateToFile}
+                  scrollToAnchor={scrollToAnchor}
                 />
               ) : highlightedHtml ? (
                 <div
@@ -802,6 +830,13 @@ function BinaryFileView({
             mimeType={contentType}
             filename={filename}
           />
+        )}
+        {category === 'model' && (
+          <Suspense fallback={<LoadingFallback />}>
+            <div className="flex-1 min-h-0">
+              <ModelViewerLazy key={refreshKey} src={rawFileUrl} filename={filename} />
+            </div>
+          </Suspense>
         )}
         {category === 'binary' && (
           <BinaryPlaceholder

@@ -30,8 +30,40 @@ interface MarkdownPreviewProps {
   currentFilePath?: string;
   /** Base URL for raw file API, e.g. /api/workspaces/slug/files/raw?worktree=... */
   rawFileBaseUrl?: string;
-  /** Called when user clicks a relative file link (e.g., ./other.md) */
-  onNavigateToFile?: (resolvedPath: string) => void;
+  /**
+   * Called when user clicks a relative file link (e.g., ./other.md).
+   * `fragment` carries the `#heading` portion when the link had one, so the
+   * destination can scroll to it — the path itself is always fragment-free.
+   */
+  onNavigateToFile?: (resolvedPath: string, fragment?: string) => void;
+  /** Anchor id to scroll to once this document has rendered (cross-file `#heading` links) */
+  scrollToAnchor?: string | null;
+}
+
+/**
+ * Split a markdown href into its path and `#fragment` parts.
+ *
+ * A link may be path-only (`./other.md`), fragment-only (`#rows`), or both
+ * (`../../backpressure.dd.md#rows`). The third form is the one that matters:
+ * treating it as an opaque path asks the file API for a file literally named
+ * `backpressure.dd.md#rows`, which never exists.
+ */
+function splitHref(href: string): { path: string; fragment: string } {
+  const hashIndex = href.indexOf('#');
+  if (hashIndex === -1) return { path: href, fragment: '' };
+  return { path: href.slice(0, hashIndex), fragment: href.slice(hashIndex + 1) };
+}
+
+/** Resolve a relative markdown link against the current file's directory. */
+function resolveRelativePath(currentFilePath: string, path: string): string {
+  const currentDir = currentFilePath.substring(0, currentFilePath.lastIndexOf('/'));
+  const parts = `${currentDir}/${path}`.split('/');
+  const resolved: string[] = [];
+  for (const part of parts) {
+    if (part === '..') resolved.pop();
+    else if (part !== '.' && part !== '') resolved.push(part);
+  }
+  return resolved.join('/');
 }
 
 export const MarkdownPreview = memo(function MarkdownPreview({
@@ -39,6 +71,7 @@ export const MarkdownPreview = memo(function MarkdownPreview({
   currentFilePath,
   rawFileBaseUrl,
   onNavigateToFile,
+  scrollToAnchor,
 }: MarkdownPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { resolvedTheme } = useTheme();
@@ -94,85 +127,74 @@ export const MarkdownPreview = memo(function MarkdownPreview({
     setMermaidPortals(portals);
   }, [html, resolvedTheme]);
 
+  const scrollToId = useCallback((id: string) => {
+    if (!id) return false;
+    const el = containerRef.current?.querySelector(`#${CSS.escape(id)}`);
+    if (!el) return false;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return true;
+  }, []);
+
+  // Cross-file `#heading` links: the destination document scrolls to the anchor
+  // once its HTML is in the DOM. Declared after the innerHTML layout effect so
+  // it runs against the new content in the same commit.
+  useLayoutEffect(() => {
+    if (!scrollToAnchor) return;
+    scrollToId(scrollToAnchor);
+  }, [scrollToAnchor, scrollToId]);
+
+  // Single activation path for both pointer and keyboard, so the two cannot drift.
+  const activateLink = useCallback(
+    (anchor: HTMLAnchorElement): boolean => {
+      const href = anchor.getAttribute('href');
+      if (!href) return false;
+
+      const { path, fragment } = splitHref(href);
+
+      // Fragment-only link — scroll within this document. Always claimed, even
+      // when the target id is absent: letting a dead `#anchor` reach the browser
+      // would strand a hash on the URL that the file browser does not own.
+      if (!path) {
+        scrollToId(fragment);
+        return true;
+      }
+
+      if (!onNavigateToFile || !currentFilePath) return false;
+      if (path.startsWith('http') || path.startsWith('//')) return false;
+
+      const resolved = resolveRelativePath(currentFilePath, path);
+
+      // A relative link that points back at the open file is a same-document
+      // jump; navigating would be a no-op that swallows the scroll.
+      if (resolved === currentFilePath) {
+        scrollToId(fragment);
+        return true;
+      }
+
+      onNavigateToFile(resolved, fragment || undefined);
+      return true;
+    },
+    [currentFilePath, onNavigateToFile, scrollToId]
+  );
+
   // Handle anchor link clicks and relative file link navigation
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
-      const target = e.target as HTMLElement;
-      const anchor = target.closest('a');
+      const anchor = (e.target as HTMLElement).closest('a');
       if (!anchor) return;
-      const href = anchor.getAttribute('href');
-      if (!href) return;
-
-      // Anchor links — scroll within the preview container
-      if (href.startsWith('#')) {
-        e.preventDefault();
-        const id = href.slice(1);
-        const el = containerRef.current?.querySelector(`#${CSS.escape(id)}`);
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-        return;
-      }
-
-      // Relative file links — resolve and navigate via file browser
-      if (
-        onNavigateToFile &&
-        currentFilePath &&
-        !href.startsWith('http') &&
-        !href.startsWith('//')
-      ) {
-        e.preventDefault();
-        const currentDir = currentFilePath.substring(0, currentFilePath.lastIndexOf('/'));
-        // Resolve relative path: join current dir + href, then normalize ../ segments
-        const parts = `${currentDir}/${href}`.split('/');
-        const resolved: string[] = [];
-        for (const part of parts) {
-          if (part === '..') resolved.pop();
-          else if (part !== '.' && part !== '') resolved.push(part);
-        }
-        onNavigateToFile(resolved.join('/'));
-      }
+      if (activateLink(anchor)) e.preventDefault();
     },
-    [currentFilePath, onNavigateToFile]
+    [activateLink]
   );
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
-      const target = e.target as HTMLElement;
-      const anchor = target.closest('a');
+      const anchor = (e.target as HTMLElement).closest('a');
       if (!anchor) return;
-      const href = anchor.getAttribute('href');
-      if (!href) return;
-
-      if (href.startsWith('#')) {
-        e.preventDefault();
-        const id = href.slice(1);
-        const el = containerRef.current?.querySelector(`#${CSS.escape(id)}`);
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-        return;
-      }
-
-      if (
-        onNavigateToFile &&
-        currentFilePath &&
-        !href.startsWith('http') &&
-        !href.startsWith('//')
-      ) {
-        e.preventDefault();
-        const currentDir = currentFilePath.substring(0, currentFilePath.lastIndexOf('/'));
-        const parts = `${currentDir}/${href}`.split('/');
-        const resolved: string[] = [];
-        for (const part of parts) {
-          if (part === '..') resolved.pop();
-          else if (part !== '.' && part !== '') resolved.push(part);
-        }
-        onNavigateToFile(resolved.join('/'));
-      }
+      if (activateLink(anchor)) e.preventDefault();
     },
-    [currentFilePath, onNavigateToFile]
+    [activateLink]
   );
 
   return (

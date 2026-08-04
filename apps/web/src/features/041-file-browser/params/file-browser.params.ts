@@ -28,6 +28,12 @@ export const fileBrowserParams = {
   /** Line number to scroll to (Plan 047 Phase 6) */
   line: parseAsInteger,
   /**
+   * Heading anchor to scroll to in markdown preview, from a cross-file
+   * `[text](./other.md#heading)` link. Sibling of `line`: the scroll target
+   * lives in the URL, never inside `file`.
+   */
+  anchor: parseAsString,
+  /**
    * Main-panel view selector. `null` = default (file/dir-driven); `'recent-feed'` swaps in
    * the Recent Changes Feed; `'remote'` swaps in the Remote View panel (Plan 088, Workshop 001).
    */
