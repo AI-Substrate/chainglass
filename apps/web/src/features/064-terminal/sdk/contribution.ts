@@ -27,6 +27,15 @@ export const terminalContribution: SDKContribution = {
       ],
       section: 'Appearance',
     },
+    {
+      key: 'terminal.ligatures',
+      domain: 'terminal',
+      label: 'Programming Ligatures',
+      description: 'Render common programming operators as joined glyphs',
+      schema: z.boolean().default(true),
+      ui: 'toggle',
+      section: 'Appearance',
+    },
   ],
   keybindings: [],
 };

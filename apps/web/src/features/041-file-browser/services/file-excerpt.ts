@@ -124,7 +124,8 @@ export async function getFileExcerpt(options: FileExcerptOptions): Promise<FileE
     ct.category === 'image' ||
     ct.category === 'video' ||
     ct.category === 'audio' ||
-    ct.category === 'pdf'
+    ct.category === 'pdf' ||
+    ct.category === 'model'
   ) {
     return { ok: false, error: 'forbidden' };
   }

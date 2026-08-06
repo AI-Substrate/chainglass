@@ -1,0 +1,7 @@
+@font-face {
+  font-family: "Chainglass Fira Code";
+  src: url("/fonts/fira-code/FiraCode-VF.woff2") format("woff2-variations");
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+}

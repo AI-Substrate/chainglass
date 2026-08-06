@@ -59,13 +59,16 @@ function isGenuinelyBinaryExtension(filename: string): boolean {
   const { category } = detectContentType(filename);
   // 'html' is routed through the binary path so BinaryFileView dispatches
   // to HtmlViewer (sandboxed iframe). The file is text on disk but its
-  // preview is rendered, not syntax-highlighted.
+  // preview is rendered, not syntax-highlighted. 'model' likewise — obj is
+  // text, but the preview is a rendered mesh (and stl/glb are true binary,
+  // routinely > 5MB, so they must bypass the text size limit).
   return (
     category === 'image' ||
     category === 'video' ||
     category === 'audio' ||
     category === 'pdf' ||
-    category === 'html'
+    category === 'html' ||
+    category === 'model'
   );
 }
 

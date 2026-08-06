@@ -3,11 +3,13 @@
 import { CanvasAddon } from '@xterm/addon-canvas';
 import { ClipboardAddon } from '@xterm/addon-clipboard';
 import { FitAddon } from '@xterm/addon-fit';
+import { LigaturesAddon } from '@xterm/addon-ligatures';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Terminal } from '@xterm/xterm';
 import { useTheme } from 'next-themes';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import '@xterm/xterm/css/xterm.css';
+import './terminal-font.css';
 
 import { useResponsive } from '@/hooks/useResponsive';
 import { useSDKSetting } from '@/lib/sdk/use-sdk-setting';
@@ -40,6 +42,7 @@ export default function TerminalInner({
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
+  const ligaturesAddonRef = useRef<LigaturesAddon | null>(null);
   const observerRef = useRef<ResizeObserver | null>(null);
   const rafRef = useRef<number | null>(null);
   const disposedRef = useRef(false);
@@ -56,6 +59,7 @@ export default function TerminalInner({
   const { resolvedTheme } = useTheme();
   const { useMobilePatterns } = useResponsive();
   const [colorThemeId] = useSDKSetting<string>('terminal.colorTheme');
+  const [ligaturesEnabled] = useSDKSetting<boolean>('terminal.ligatures');
 
   // T006: Replace bottomOffset with useKeyboardOpen hook
   const { isOpen: keyboardOpen, keyboardHeight, toolbarTop } = useKeyboardOpen();
@@ -184,7 +188,7 @@ export default function TerminalInner({
       cursorBlink: true,
       fontSize: useMobilePatterns ? 12 : 14,
       fontFamily:
-        "'JetBrains Mono', 'Fira Code', 'Cascadia Code', Menlo, Monaco, 'Courier New', monospace",
+        "'Chainglass Fira Code', 'Fira Code', 'Cascadia Code', Menlo, Monaco, 'Courier New', monospace",
       theme: { ...initialThemeRef.current.theme },
       scrollback: 10000,
       allowProposedApi: true,
@@ -404,6 +408,12 @@ export default function TerminalInner({
 
       // 3. Dispose addons before terminal (WebLinksAddon crashes if terminal disposes first)
       try {
+        ligaturesAddonRef.current?.dispose();
+        ligaturesAddonRef.current = null;
+      } catch {
+        /* already disposed */
+      }
+      try {
         clipboardAddon.dispose();
       } catch {
         /* already disposed */
@@ -435,6 +445,28 @@ export default function TerminalInner({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- terminal init runs once
   }, []);
+
+  // Ligatures require an open terminal because the addon configures the terminal element.
+  useEffect(() => {
+    const terminal = terminalRef.current;
+    if (!terminal || disposedRef.current) return;
+
+    if (ligaturesEnabled ?? true) {
+      if (!ligaturesAddonRef.current) {
+        const ligaturesAddon = new LigaturesAddon();
+        terminal.loadAddon(ligaturesAddon);
+        ligaturesAddonRef.current = ligaturesAddon;
+        terminal.refresh(0, terminal.rows - 1);
+      }
+      return;
+    }
+
+    if (ligaturesAddonRef.current) {
+      ligaturesAddonRef.current.dispose();
+      ligaturesAddonRef.current = null;
+      terminal.refresh(0, terminal.rows - 1);
+    }
+  }, [ligaturesEnabled]);
 
   // Theme sync — update terminal theme when SDK setting or app mode changes
   useEffect(() => {

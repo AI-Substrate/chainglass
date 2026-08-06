@@ -10,7 +10,7 @@
  */
 
 export interface ContentTypeInfo {
-  category: 'image' | 'pdf' | 'video' | 'audio' | 'html' | 'binary';
+  category: 'image' | 'pdf' | 'video' | 'audio' | 'html' | 'model' | 'binary';
   mimeType: string;
 }
 
@@ -57,6 +57,13 @@ const EXTENSION_MAP: Record<string, ContentTypeInfo> = {
   wma: { category: 'audio', mimeType: 'audio/x-ms-wma' },
   aiff: { category: 'audio', mimeType: 'audio/aiff' },
   aif: { category: 'audio', mimeType: 'audio/aiff' },
+
+  // 3D models (rendered via ModelViewer — obj is text on disk but its
+  // preview is a mesh, so it routes through the binary/raw path like html)
+  obj: { category: 'model', mimeType: 'model/obj' },
+  stl: { category: 'model', mimeType: 'model/stl' },
+  glb: { category: 'model', mimeType: 'model/gltf-binary' },
+  gltf: { category: 'model', mimeType: 'model/gltf+json' },
 
   // HTML (rendered in sandboxed iframe)
   html: { category: 'html', mimeType: 'text/html' },
