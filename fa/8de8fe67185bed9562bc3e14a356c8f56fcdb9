@@ -1,0 +1,19 @@
+apps/web/src/features/064-terminal/lib/terminal-prompts.ts
+  s_084ac52dc66de3::t_00933ae111564d 43-69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "fa8de8fe67185bed9562bc3e14a356c8f56fcdb9",
+  "prompts": {},
+  "sessions": {
+    "s_084ac52dc66de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
