@@ -1,0 +1,47 @@
+docs/plans/092-terminal-prompt-drawer/assets/backpressure.dd.json
+  s_19a84a88383f5b::t_e8f9f99eef7572 236
+docs/plans/092-terminal-prompt-drawer/assets/backpressure.dd.md
+  s_19a84a88383f5b::t_204926d8ab0fd9 52
+docs/plans/092-terminal-prompt-drawer/assets/close-out.md
+  s_084ac52dc66de3::t_54c279d17f9b0c 1-58
+docs/plans/092-terminal-prompt-drawer/assets/tasks/phase-3/tasks.dd.json
+  s_ee3dc64a005be5::t_de8f811e5b3a90 27,34-35,59-62
+docs/plans/092-terminal-prompt-drawer/assets/tasks/phase-3/tasks.dd.md
+  s_ee3dc64a005be5::t_beb35103c3d99d 38,47-49
+docs/plans/092-terminal-prompt-drawer/plan.dd.json
+  s_ee3dc64a005be5::t_493801008202a3 165,168-169,215,227-229,274-276
+docs/plans/092-terminal-prompt-drawer/plan.dd.md
+  s_ee3dc64a005be5::t_db3e7c94c9880d 77,87,120-126
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "9272b612bec876f2c86a2b804d2279781c9f5152",
+  "prompts": {},
+  "sessions": {
+    "s_084ac52dc66de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+        "model": "unknown"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_19a84a88383f5b": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "e9a11817-53a3-42b6-a41f-25dcffefd677",
+        "model": "unknown"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_ee3dc64a005be5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "40211a5f-cb8f-4603-9de1-2290c2146dc9",
+        "model": "unknown"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
