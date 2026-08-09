@@ -1,10 +1,16 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ConnectionStatus } from '../types';
+import type { ConnectionStatus, SendPrompt, SendPromptResult } from '../types';
 
-/** Known control message types from the sidecar server (DYK-02 whitelist) */
-const CONTROL_TYPES = new Set(['status', 'error', 'sessions', 'clipboard']);
+/**
+ * Known control message types from the sidecar server (DYK-02 whitelist).
+ *
+ * Anything NOT in this set is written into xterm as terminal data, so a new
+ * server-side control frame that is not added here surfaces as raw JSON in the
+ * user's terminal. `send-keys` (Plan 092 ph-0002) is here for that reason.
+ */
+const CONTROL_TYPES = new Set(['status', 'error', 'sessions', 'clipboard', 'send-keys']);
 
 /** Auth close codes from sidecar — don't retry with stale token (DYK-05) */
 const AUTH_CLOSE_CODES = new Set([4401, 4403]);
@@ -22,6 +28,7 @@ export interface UseTerminalSocketOptions {
   onStatus?: (status: string, tmux: boolean, message?: string) => void;
   onError?: (message: string) => void;
   onClipboard?: (data: string, error?: string) => void;
+  onSendPromptResult?: (result: SendPromptResult) => void;
   onConnectionChange?: (status: ConnectionStatus) => void;
 }
 
@@ -31,6 +38,8 @@ export interface UseTerminalSocketReturn {
   close: () => void;
   reconnect: () => void;
   copyBuffer: () => void;
+  /** Plan 092: deliver a saved prompt to the agent in the attached pane. */
+  sendPrompt: SendPrompt;
 }
 
 const MAX_RECONNECT_ATTEMPTS = 5;
@@ -62,11 +71,13 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
   const onStatusRef = useRef(options.onStatus);
   const onErrorRef = useRef(options.onError);
   const onClipboardRef = useRef(options.onClipboard);
+  const onSendPromptResultRef = useRef(options.onSendPromptResult);
   const onConnectionChangeRef = useRef(options.onConnectionChange);
   onDataRef.current = options.onData;
   onStatusRef.current = options.onStatus;
   onErrorRef.current = options.onError;
   onClipboardRef.current = options.onClipboard;
+  onSendPromptResultRef.current = options.onSendPromptResult;
   onConnectionChangeRef.current = options.onConnectionChange;
 
   const updateStatus = useCallback((newStatus: ConnectionStatus) => {
@@ -133,6 +144,11 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
             onErrorRef.current?.(msg.message);
           } else if (msg.type === 'clipboard') {
             onClipboardRef.current?.(msg.data, msg.error);
+          } else if (msg.type === 'send-keys') {
+            onSendPromptResultRef.current?.({
+              delivered: msg.delivered === true,
+              error: msg.error,
+            });
           }
           return;
         }
@@ -229,6 +245,18 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
     send(JSON.stringify({ type: 'copy-buffer' }));
   }, [send]);
 
+  /**
+   * Plan 092 ph-0002 — the single client-side consumer of the send path.
+   * `submit` crosses the wire as a flag; the sidecar turns it into a separate
+   * tmux Enter call after the settle. Never append a newline here.
+   */
+  const sendPrompt = useCallback<SendPrompt>(
+    (text, options) => {
+      send(JSON.stringify({ type: 'send-keys', text, submit: options.submit }));
+    },
+    [send]
+  );
+
   // Auto-connect: fetch token first (DYK-01), then connect synchronously
   useEffect(() => {
     disposedRef.current = false;
@@ -295,5 +323,5 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
     };
   }, [status]);
 
-  return { status, send, close, reconnect, copyBuffer };
+  return { status, send, close, reconnect, copyBuffer, sendPrompt };
 }

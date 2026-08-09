@@ -31,7 +31,7 @@ import {
   useState,
 } from 'react';
 import { useTerminalOverlay } from '../hooks/use-terminal-overlay';
-import type { ConnectionStatus } from '../types';
+import type { ConnectionStatus, SendPrompt } from '../types';
 
 const TerminalInnerLazy = dynamic(() => import('./terminal-inner'), { ssr: false });
 
@@ -48,6 +48,14 @@ interface TerminalSingletonContextValue {
    * Discoveries entry in the fix log.
    */
   connectionStatus: ConnectionStatus;
+  /**
+   * Plan 092 tk-0105 — the real prompt sender, lifted out of the singleton's
+   * `TerminalInner` exactly the way `connectionStatus` is. Null until the
+   * inner terminal has mounted (the provider is lazy). Consumers reach it
+   * through this context so neither the overlay nor the split pane grows a
+   * prop for it — that prop is how FX014's shared header drifted last time.
+   */
+  sendPrompt: SendPrompt | null;
 }
 
 const TerminalSingletonContext = createContext<TerminalSingletonContextValue | null>(null);
@@ -97,6 +105,7 @@ export function TerminalSingletonProvider({
   // park the xterm offscreen but keep the WS / scrollback alive.
   const [hasActivated, setHasActivated] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
+  const [sendPrompt, setSendPrompt] = useState<SendPrompt | null>(null);
   const parkRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const slotsRef = useRef<Map<string, HTMLElement>>(new Map());
@@ -114,6 +123,13 @@ export function TerminalSingletonProvider({
 
   const registerSlot = useCallback((id: string, el: HTMLElement) => {
     slotsRef.current.set(id, el);
+  }, []);
+
+  // The updater form is required: `setState` treats a bare function argument as
+  // a reducer, so `setSendPrompt(fn)` would call the sender instead of storing
+  // it. Stable identity keeps TerminalInner's registration effect from looping.
+  const registerSendPrompt = useCallback((fn: SendPrompt | null) => {
+    setSendPrompt(() => fn);
   }, []);
 
   // Reparent the xterm host into the active viewport's slot (or back to park).
@@ -134,8 +150,8 @@ export function TerminalSingletonProvider({
   }, [activeId]);
 
   const ctxValue = useMemo<TerminalSingletonContextValue>(
-    () => ({ activate, deactivate, registerSlot, activeId, connectionStatus }),
-    [activate, deactivate, registerSlot, activeId, connectionStatus]
+    () => ({ activate, deactivate, registerSlot, activeId, connectionStatus, sendPrompt }),
+    [activate, deactivate, registerSlot, activeId, connectionStatus, sendPrompt]
   );
 
   const ready = Boolean(sessionName && cwd) && hasActivated;
@@ -150,6 +166,7 @@ export function TerminalSingletonProvider({
               cwd={cwd as string}
               themeOverride={themeOverride}
               onConnectionChange={setConnectionStatus}
+              onSendPromptReady={registerSendPrompt}
               isVisible={activeId !== null}
             />
           </div>

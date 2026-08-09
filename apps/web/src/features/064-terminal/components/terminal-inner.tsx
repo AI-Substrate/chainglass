@@ -17,7 +17,7 @@ import { useKeyboardOpen } from '../hooks/use-keyboard-open';
 import { useTerminalSocket } from '../hooks/use-terminal-socket';
 import { applyResyncOnStatus } from '../lib/resync-on-connect';
 import { resolveTerminalTheme } from '../lib/terminal-themes';
-import type { ConnectionStatus } from '../types';
+import type { ConnectionStatus, SendPrompt } from '../types';
 import { TerminalModifierToolbar } from './terminal-modifier-toolbar';
 
 interface TerminalInnerProps {
@@ -26,6 +26,13 @@ interface TerminalInnerProps {
   className?: string;
   onConnectionChange?: (status: ConnectionStatus) => void;
   onCopyBuffer?: () => void;
+  /**
+   * Plan 092 tk-0105 — symmetric with `onConnectionChange`: the singleton
+   * provider lifts the sender out of here so the prompt drawer can reach it
+   * through the context instead of being prop-drilled through both host
+   * surfaces. Called with the sender on mount and with `null` on unmount.
+   */
+  onSendPromptReady?: (sendPrompt: SendPrompt | null) => void;
   themeOverride?: 'dark' | 'light' | 'system';
   /** When true, auto-focus the terminal (e.g. overlay just became visible) */
   isVisible?: boolean;
@@ -36,6 +43,7 @@ export default function TerminalInner({
   cwd,
   className,
   onConnectionChange,
+  onSendPromptReady,
   themeOverride,
   isVisible,
 }: TerminalInnerProps) {
@@ -80,7 +88,7 @@ export default function TerminalInner({
   // Store last clipboard data for modal fallback
   const lastClipboardDataRef = useRef<string | null>(null);
 
-  const { send, status, reconnect, copyBuffer } = useTerminalSocket({
+  const { send, status, reconnect, copyBuffer, sendPrompt } = useTerminalSocket({
     sessionName,
     cwd,
     onData: (data) => {
@@ -102,6 +110,15 @@ export default function TerminalInner({
       if (message) {
         setAuthError(message);
       }
+    },
+    onSendPromptResult: async ({ delivered, error }) => {
+      // Failures are worth telling the user about; SUCCESS IS NOT. tmux
+      // exiting zero proves bytes moved, not that the agent accepted them, so
+      // a success toast here would lie exactly the way pij's did (workshop
+      // 001 § 5). Honest post-submit state is Plan 092 ph-0003.
+      if (delivered) return;
+      const { toast } = await import('sonner');
+      toast.error(error ?? 'Could not send the prompt to the terminal');
     },
     onStatus: async (_status, _tmux, _message) => {
       // Clear auth error on successful connection
@@ -509,6 +526,16 @@ export default function TerminalInner({
     sendRef.current(text);
     terminalRef.current?.focus();
   }, []);
+
+  // Plan 092 tk-0105 — hand the sender up to the singleton provider.
+  // Deliberately NOT wrapped with `terminalRef.current?.focus()` the way
+  // `handleSendText` above is: the drawer owns a capture-phase Escape while it
+  // is open (tk-0005), and stealing focus to the xterm on every row click
+  // would put the user's next Escape back into the terminal's hands.
+  useEffect(() => {
+    onSendPromptReady?.(sendPrompt);
+    return () => onSendPromptReady?.(null);
+  }, [onSendPromptReady, sendPrompt]);
 
   // Refocus terminal (called by toolbar after modifier capture completes)
   const handleRefocusTerminal = useCallback(() => {

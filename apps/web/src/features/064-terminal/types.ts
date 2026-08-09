@@ -38,7 +38,29 @@ export type TerminalMessage =
   | { type: 'resize'; cols: number; rows: number }
   | { type: 'status'; status: string; tmux: boolean; message?: string }
   | { type: 'resync' }
+  | { type: 'send-keys'; text: string; submit: boolean }
   | { type: 'sessions'; sessions: TerminalSession[] };
+
+/**
+ * Deliver a saved prompt to the coding agent in the pane (Plan 092).
+ *
+ * `submit` is a FLAG, never a newline: a real newline in an agent TUI is a
+ * submit, so the type and the Enter are two separate tmux calls with a settle
+ * between them. Only the sender can sequence that, so the caller carries
+ * intent and the sender owns delivery.
+ */
+export type SendPrompt = (text: string, options: { submit: boolean }) => void;
+
+/** Outcome of a send-keys control frame, as reported by the sidecar. */
+export interface SendPromptResult {
+  /**
+   * True when tmux exited zero. NOT proof the agent accepted the prompt —
+   * naming it `delivered` rather than `ok` is deliberate, so no UI can build a
+   * success claim on it. Verified submit is Plan 092 ph-0003.
+   */
+  delivered: boolean;
+  error?: string;
+}
 
 /** WebSocket connection state for the terminal */
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected';

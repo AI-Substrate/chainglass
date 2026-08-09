@@ -18,6 +18,7 @@ import { activeSigningSecret, findWorkspaceRoot } from '@chainglass/shared/auth-
 import { type WebSocket, WebSocketServer } from 'ws';
 import type { CommandExecutor, PtyProcess, PtySpawner } from '../types';
 import { isProcessAlive, isTmuxClient, reapStalePtys, recordPid, removePid } from './pty-registry';
+import { sendPromptKeys } from './send-prompt-keys';
 import {
   assertBootstrapReadable,
   authorizeUpgrade,
@@ -235,6 +236,43 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
           } catch (err) {
             const errMsg = err instanceof Error ? err.message : 'Unknown error';
             ws.send(JSON.stringify({ type: 'clipboard', data: '', error: errMsg }));
+          }
+          return;
+        }
+        if (msg.type === 'send-keys' && typeof msg.text === 'string') {
+          // Plan 092 ph-0002. Mirrors copy-buffer above: deps.execCommand in a
+          // try/catch, failures returned over the socket as JSON with an
+          // `error` field, NEVER thrown on the message loop. The inner catch
+          // also matters because the enclosing try is the JSON.parse guard —
+          // an escaping throw would fall through to `pty.write(data)` and type
+          // this control frame into the user's terminal.
+          if (!manager.validateSessionName(sessionName)) {
+            ws.send(
+              JSON.stringify({
+                type: 'send-keys',
+                delivered: false,
+                error: 'Invalid session name',
+              })
+            );
+            return;
+          }
+          try {
+            // Awaited: the per-harness settle inside must yield the message
+            // loop rather than blocking it (ac-0012).
+            await sendPromptKeys({
+              execCommand: deps.execCommand,
+              target: sessionName,
+              text: msg.text,
+              submit: msg.submit === true,
+            });
+            // `delivered`, deliberately not `ok`. Exit zero from tmux proves
+            // bytes moved, not that the agent accepted them — a success signal
+            // built on this would lie (workshop 001 § 5). Verification is
+            // ph-0003.
+            ws.send(JSON.stringify({ type: 'send-keys', delivered: true }));
+          } catch (err) {
+            const errMsg = err instanceof Error ? err.message : 'Unknown error';
+            ws.send(JSON.stringify({ type: 'send-keys', delivered: false, error: errMsg }));
           }
           return;
         }

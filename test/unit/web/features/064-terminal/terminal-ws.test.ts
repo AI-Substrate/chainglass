@@ -4,6 +4,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { ENTER_SETTLE_MS } from '@/features/064-terminal/server/send-prompt-keys';
 import {
   TERMINAL_JWT_AUDIENCE,
   TERMINAL_JWT_ISSUER,
@@ -396,6 +397,191 @@ describe('Terminal WebSocket Server', () => {
       const errorMsg = JSON.parse(ws.sent[0]);
       expect(errorMsg.type).toBe('error');
       expect(errorMsg.message).toContain('Failed to start terminal process');
+    });
+  });
+
+  /**
+   * Plan 092 ph-0002 — the send-keys control frame.
+   *
+   * The unit-level call shape lives in `send-prompt-keys.test.ts`; these tests
+   * cover the parts only the socket owns: that the frame reaches the sender at
+   * all, that the session name is validated before it becomes a tmux target,
+   * that a runner failure comes back as JSON rather than being thrown on the
+   * message loop, and — the one that matters most — that a control frame is
+   * never mistaken for terminal input and typed into the user's pane.
+   */
+  describe('send-keys control message (Plan 092 tk-0101)', () => {
+    const connect = (session = '064-tmux') => {
+      exec.whenCommand('tmux', ['-V']).returns('tmux 3.4');
+      const server = createTerminalServer(deps);
+      const ws = createFakeWs();
+      server.handleConnection(ws as unknown as import('ws').WebSocket, session, process.cwd());
+      exec.reset();
+      return ws;
+    };
+
+    it('should type the prompt into the attached session without submitting it', async () => {
+      /*
+      Test Doc:
+      - Why: ac-0004 — the drawer's type action has to reach tmux, targeted at
+        the session this socket is attached to and no other.
+      - Contract: {type:'send-keys', text, submit:false} → focus-in then a
+        literal send-keys at this session, and no Enter.
+      - Quality Contribution: dw-1011 at the socket boundary.
+      */
+      const ws = connect('064-tmux');
+      exec.whenCommand('tmux', ['send-keys', '-t', '064-tmux', '-H', '1b', '5b', '49']).returns('');
+      exec.whenCommand('tmux', ['send-keys', '-t', '064-tmux', '-l', 'hello agent']).returns('');
+
+      await ws.simulateMessage(JSON.stringify({ type: 'send-keys', text: 'hello agent' }));
+
+      exec.assertExecuted('tmux', ['send-keys', '-t', '064-tmux', '-H', '1b', '5b', '49']);
+      exec.assertExecuted('tmux', ['send-keys', '-t', '064-tmux', '-l', 'hello agent']);
+      expect(exec.executedCommands.some((c) => c.args.includes('Enter'))).toBe(false);
+      expect(spawner.lastInstance?.writeCalls ?? []).toEqual([]);
+    });
+
+    it('should never write a control frame into the PTY as terminal input', async () => {
+      /*
+      Test Doc:
+      - Why: the handler sits inside the JSON.parse try block, so anything that
+        escapes falls through to `pty.write(data)` — which would type the raw
+        JSON control frame into the user's terminal. That is the failure mode
+        of getting the try/catch nesting wrong.
+      - Contract: even when the runner throws, nothing reaches pty.write.
+      - Quality Contribution: guards the message-loop contract copy-buffer set.
+      */
+      const ws = connect();
+      // No whenCommand registrations — FakeTmuxExecutor throws ENOENT on the
+      // first unmatched command, standing in for tmux being unavailable.
+
+      await ws.simulateMessage(JSON.stringify({ type: 'send-keys', text: 'boom' }));
+
+      expect(spawner.lastInstance?.writeCalls ?? []).toEqual([]);
+      const reply = JSON.parse(ws.sent[ws.sent.length - 1]);
+      expect(reply.type).toBe('send-keys');
+      expect(reply.delivered).toBe(false);
+      expect(reply.error).toContain('unmatched command');
+    });
+
+    it('should report delivery without claiming the agent accepted it', async () => {
+      /*
+      Test Doc:
+      - Why: workshop 001 § 5 — send-keys exiting 0 proves bytes moved, not
+        that the agent accepted them. pij had to add composer polling because
+        exit 0 was a lie, and a success signal built on it lies the same way.
+      - Contract: the success reply carries `delivered`, and carries no `ok`
+        or `submitted` field a UI could mistake for a verified submit.
+      - Quality Contribution: keeps ph-0003's honesty problem from being
+        quietly pre-empted by an over-claiming field name.
+      */
+      const ws = connect();
+      exec.whenCommand('tmux', ['send-keys', '-t', '064-tmux', '-H', '1b', '5b', '49']).returns('');
+      exec.whenCommand('tmux', ['send-keys', '-t', '064-tmux', '-l', 'x']).returns('');
+
+      await ws.simulateMessage(JSON.stringify({ type: 'send-keys', text: 'x' }));
+
+      const reply = JSON.parse(ws.sent[ws.sent.length - 1]);
+      expect(reply).toEqual({ type: 'send-keys', delivered: true });
+      expect(reply.ok).toBeUndefined();
+      expect(reply.submitted).toBeUndefined();
+    });
+
+    it('should refuse to build a tmux target from an invalid session name', async () => {
+      /*
+      Test Doc:
+      - Why: the session name becomes a `-t` argument. The upgrade path
+        validates it, but handleConnection is also called directly, so the
+        send path validates before use rather than trusting its caller.
+      - Contract: an invalid name issues zero tmux calls and returns an error.
+      - Quality Contribution: defence in depth on the one argv element that is
+        not the prompt text.
+      */
+      const ws = connect('bad;name');
+
+      await ws.simulateMessage(JSON.stringify({ type: 'send-keys', text: 'hello' }));
+
+      expect(exec.executedCommands).toEqual([]);
+      const reply = JSON.parse(ws.sent[ws.sent.length - 1]);
+      expect(reply.delivered).toBe(false);
+      expect(reply.error).toBe('Invalid session name');
+    });
+
+    it('should issue the Enter as a separate call after the settle, off the message loop', async () => {
+      /*
+      Test Doc:
+      - Why: ac-0005 + ac-0012 — the submit is a second tmux call, and the wait
+        between them must yield. execCommand is execFileSync, so a blocking
+        settle here freezes the user's terminal for the full copilot settle on
+        every click.
+      - Contract: the handler returns with the type done and the Enter pending;
+        the Enter lands only once the timer elapses.
+      - Quality Contribution: dw-1012 + dw-1032 at the socket boundary.
+      */
+      vi.useFakeTimers();
+      try {
+        const ws = connect();
+        exec
+          .whenCommand('tmux', ['send-keys', '-t', '064-tmux', '-H', '1b', '5b', '49'])
+          .returns('');
+        exec.whenCommand('tmux', ['send-keys', '-t', '064-tmux', '-l', 'ship it']).returns('');
+        exec.whenCommand('tmux', ['send-keys', '-t', '064-tmux', 'Enter']).returns('');
+
+        const pending = ws.simulateMessage(
+          JSON.stringify({ type: 'send-keys', text: 'ship it', submit: true })
+        );
+
+        await vi.advanceTimersByTimeAsync(0);
+        expect(exec.executedCommands.some((c) => c.args.includes('-l'))).toBe(true);
+        expect(exec.executedCommands.some((c) => c.args.includes('Enter'))).toBe(false);
+
+        await vi.advanceTimersByTimeAsync(ENTER_SETTLE_MS);
+        await pending;
+
+        const enters = exec.executedCommands.filter((c) => c.args.includes('Enter'));
+        expect(enters).toHaveLength(1);
+        expect(enters[0].args).toEqual(['send-keys', '-t', '064-tmux', 'Enter']);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('should still claim only delivery on the submitting path (tk-0202)', async () => {
+      /*
+      Test Doc:
+      - Why: dw-2022. The existing honesty test covers the type-only path,
+        where nothing was submitted so nothing could be over-claimed. The
+        submitting path is where the temptation lives: an Enter went out and
+        tmux exited zero, which looks like proof and is not — it proves bytes
+        moved, not that the agent accepted them (workshop 001 § 5).
+      - Contract: after a full type-settle-Enter, the reply is still exactly
+        {type, delivered} — no `ok`, no `submitted`, no `verified`.
+      - Quality Contribution: dw-2022 at the socket boundary, on the path a
+        success signal would actually be added to.
+      */
+      vi.useFakeTimers();
+      try {
+        const ws = connect();
+        exec
+          .whenCommand('tmux', ['send-keys', '-t', '064-tmux', '-H', '1b', '5b', '49'])
+          .returns('');
+        exec.whenCommand('tmux', ['send-keys', '-t', '064-tmux', '-l', 'ship it']).returns('');
+        exec.whenCommand('tmux', ['send-keys', '-t', '064-tmux', 'Enter']).returns('');
+
+        const pending = ws.simulateMessage(
+          JSON.stringify({ type: 'send-keys', text: 'ship it', submit: true })
+        );
+        await vi.advanceTimersByTimeAsync(ENTER_SETTLE_MS);
+        await pending;
+
+        const reply = JSON.parse(ws.sent[ws.sent.length - 1]);
+        expect(reply).toEqual({ type: 'send-keys', delivered: true });
+        for (const claim of ['ok', 'success', 'submitted', 'verified', 'accepted']) {
+          expect(reply[claim]).toBeUndefined();
+        }
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 
