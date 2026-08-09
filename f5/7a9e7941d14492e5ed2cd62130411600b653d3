@@ -1,0 +1,155 @@
+test/unit/web/features/041-file-browser/raw-file-route.test.ts
+  s_e3460fd42f286c::t_fc7421317be50e 6,17
+  s_e3460fd42f286c::t_c4f73069e2a2df 26
+test/contracts/agent-adapter.contract.test.ts
+  s_e3460fd42f286c::t_c4f73069e2a2df 12,159
+test/unit/web/features/074-workflow-execution/execution-registry.test.ts
+  s_e3460fd42f286c::t_fc7421317be50e 17,127
+  s_e3460fd42f286c::t_c4f73069e2a2df 132
+test/unit/web/features/064-terminal/terminal-ws.test.ts
+  s_e3460fd42f286c::t_8219f908623d43 4-5,27,617,639,950,971
+test/unit/web/features/071-pr-view/content-hash.test.ts
+  s_e3460fd42f286c::t_c4f73069e2a2df 28
+  s_e3460fd42f286c::t_fc7421317be50e 18,23
+test/contracts/question-popper.contract.test.ts
+  s_e3460fd42f286c::t_fc7421317be50e 13,28,48
+  s_e3460fd42f286c::t_c4f73069e2a2df 36,55
+test/integration/web/recent-feed-live-updates.integration.test.ts
+  s_e3460fd42f286c::t_8219f908623d43 23-24,39,91,97,220,224
+test/unit/web/lib/bootstrap-code.test.ts
+  s_e3460fd42f286c::t_8219f908623d43 7,23,53
+test/integration/cli/wf-compose.test.ts
+  s_e3460fd42f286c::t_c4f73069e2a2df 71
+  s_e3460fd42f286c::t_fc7421317be50e 7,45
+test/unit/web/api/bootstrap/verify.test.ts
+  s_e3460fd42f286c::t_8219f908623d43 28,73,185
+test/unit/web/auth-bootstrap/boot.test.ts
+  s_e3460fd42f286c::t_8219f908623d43 8,16,99
+test/unit/web/features/088-remote-view/daemon-state-events.test.ts
+  s_e3460fd42f286c::t_8219f908623d43 10-11,22,58,63
+test/unit/web/features/071-pr-view/pr-view-state.test.ts
+  s_e3460fd42f286c::t_fc7421317be50e 23,28
+  s_e3460fd42f286c::t_c4f73069e2a2df 32
+test/integration/web/auth-bootstrap-code.log-audit.integration.test.ts
+  s_e3460fd42f286c::t_c4f73069e2a2df 59,240
+test/unit/shared/auth-bootstrap-code/signing-key.test.ts
+  s_e3460fd42f286c::t_8219f908623d43 30,44,126
+test/unit/web/features/088-remote-view/daemon-manager.test.ts
+  s_e3460fd42f286c::t_8219f908623d43 18-19,28,69,74
+test/integration/config-service.test.ts
+  s_e3460fd42f286c::t_fc7421317be50e 15,40
+  s_e3460fd42f286c::t_c4f73069e2a2df 52
+test/helpers/auth-bootstrap-code.ts
+  s_e3460fd42f286c::t_051937cd2c906a 19
+  s_19a84a88383f5b::t_6c15db44fd6dd6 48,68
+test/unit/web/lib/local-auth.test.ts
+  s_e3460fd42f286c::t_8219f908623d43 22,39,110,190
+test/integration/web/event-popper-sinks.integration.test.ts
+  s_e3460fd42f286c::t_8219f908623d43 23,39,164
+test/unit/event-popper/infrastructure.test.ts
+  s_e3460fd42f286c::t_8219f908623d43 1,16,152,339
+test/unit/web/features/041-file-browser/services/file-excerpt.test.ts
+  s_e3460fd42f286c::t_8219f908623d43 18-19,30,66,70
+test/fixtures/pij/index.ts
+  s_e3460fd42f286c::t_8219f908623d43 12-13,15,65,70
+test/unit/web/features/071-file-notes/note-writer.test.ts
+  s_e3460fd42f286c::t_c4f73069e2a2df 33
+  s_e3460fd42f286c::t_fc7421317be50e 24,29
+test/unit/web/features/071-pr-view/per-file-diff-stats.test.ts
+  s_e3460fd42f286c::t_fc7421317be50e 18,85
+  s_e3460fd42f286c::t_c4f73069e2a2df 94
+test/fixtures/flows/index.ts
+  s_e3460fd42f286c::t_8219f908623d43 20,23,73,84,90
+test/integration/web/features/064-terminal/terminal-bootstrap.integration.test.ts
+  s_e3460fd42f286c::t_8219f908623d43 41,102
+test/unit/config/yaml-pipeline.test.ts
+  s_e3460fd42f286c::t_c4f73069e2a2df 37
+  s_e3460fd42f286c::t_fc7421317be50e 8,28
+test/unit/web/features/064-terminal/pty-registry.test.ts
+  s_e3460fd42f286c::t_051937cd2c906a 16
+  s_e3460fd42f286c::t_8219f908623d43 4
+  s_19a84a88383f5b::t_b05c14a10e2b9d 5,48,51
+test/unit/web/features/071-pr-view/get-all-diffs.test.ts
+  s_e3460fd42f286c::t_fc7421317be50e 18,167
+  s_e3460fd42f286c::t_c4f73069e2a2df 178
+test/contracts/note-service.contract.test.ts
+  s_e3460fd42f286c::t_c4f73069e2a2df 26
+  s_e3460fd42f286c::t_fc7421317be50e 13,22
+test/unit/shared/auth-bootstrap-code/persistence.test.ts
+  s_e3460fd42f286c::t_8219f908623d43 24,36,48,110,138
+test/unit/web/api/terminal/token.test.ts
+  s_e3460fd42f286c::t_8219f908623d43 36,79
+test/unit/web/features/041-file-browser/file-list.test.ts
+  s_e3460fd42f286c::t_8219f908623d43 11-12,17,22,34,109,112,117
+test/unit/web/features/071-file-notes/note-reader.test.ts
+  s_e3460fd42f286c::t_fc7421317be50e 18,23
+  s_e3460fd42f286c::t_c4f73069e2a2df 27
+test/unit/shared/auth-bootstrap-code/test-fixtures.ts
+  s_e3460fd42f286c::t_8219f908623d43 16,21
+test/unit/web/api/event-popper/sink-auth.test.ts
+  s_e3460fd42f286c::t_8219f908623d43 20,36,116,145,186
+test/unit/web/features/071-pr-view/pr-view-entrypoints.test.ts
+  s_e3460fd42f286c::t_c4f73069e2a2df 42
+  s_e3460fd42f286c::t_fc7421317be50e 23,32
+test/integration/web/auth-bootstrap-code.popup.integration.test.tsx
+  s_e3460fd42f286c::t_8219f908623d43 35,176
+test/integration/web/recent-feed-seed.integration.test.ts
+  s_e3460fd42f286c::t_8219f908623d43 28,63,67
+  s_19a84a88383f5b::t_0e4da55eb33d04 19-20
+test/integration/cli/phase-commands.test.ts
+  s_e3460fd42f286c::t_c4f73069e2a2df 92
+  s_e3460fd42f286c::t_fc7421317be50e 7,46
+test/integration/mcp/mcp-workflow.test.ts
+  s_e3460fd42f286c::t_fc7421317be50e 18,30
+  s_e3460fd42f286c::t_c4f73069e2a2df 35
+test/unit/config/secrets-loader.test.ts
+  s_e3460fd42f286c::t_fc7421317be50e 7,54
+  s_e3460fd42f286c::t_c4f73069e2a2df 79
+test/unit/shared/file-notes/note-reader-detailed.test.ts
+  s_e3460fd42f286c::t_fc7421317be50e 16,22
+  s_e3460fd42f286c::t_c4f73069e2a2df 26
+test/unit/shared/auth-bootstrap-code/workspace-root.test.ts
+  s_e3460fd42f286c::t_8219f908623d43 24,33,44,112,144
+test/integration/web/raw-file-asset-token.integration.test.ts
+  s_e3460fd42f286c::t_8219f908623d43 18-19,33,73,82,102-103,154,164
+test/unit/web/features/071-pr-view/git-branch-service.test.ts
+  s_e3460fd42f286c::t_c4f73069e2a2df 45
+  s_e3460fd42f286c::t_fc7421317be50e 22,35
+test/unit/web/features/_platform/git/git-cli.test.ts
+  s_e3460fd42f286c::t_c4f73069e2a2df 52,70,90,128,137
+  s_e3460fd42f286c::t_fc7421317be50e 33,42,66,86,123,133
+test/unit/web/features/088-remote-view/daemon-reaper.test.ts
+  s_e3460fd42f286c::t_8219f908623d43 12-13,25,53,57
+test/unit/web/api/workspaces/resolve-worktree-auth.test.ts
+  s_e3460fd42f286c::t_8219f908623d43 21-22,27,38,47
+test/unit/web/proxy.test.ts
+  s_e3460fd42f286c::t_8219f908623d43 19,38,233,451,558
+test/unit/web/features/088-remote-view/token-route.test.ts
+  s_e3460fd42f286c::t_8219f908623d43 56,103
+test/unit/shared/adapters/copilot-cli-adapter.test.ts
+  s_e3460fd42f286c::t_c4f73069e2a2df 8,65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "f57a9e7941d14492e5ed2cd62130411600b653d3",
+  "prompts": {},
+  "sessions": {
+    "s_19a84a88383f5b": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "e9a11817-53a3-42b6-a41f-25dcffefd677",
+        "model": "unknown"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_e3460fd42f286c": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "b007eb76-365c-4da0-8164-519fdee51c00",
+        "model": "unknown"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
