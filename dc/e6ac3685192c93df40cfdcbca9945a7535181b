@@ -1,0 +1,23 @@
+apps/web/src/features/064-terminal/components/terminal-prompt-drawer.tsx
+  s_e2ef1441ad1dbd::t_4bea5c5a469f72 127
+apps/web/src/features/064-terminal/index.ts
+  s_e2ef1441ad1dbd::t_a97be4b193c15a 61
+apps/web/src/features/064-terminal/lib/terminal-prompts.ts
+  s_e2ef1441ad1dbd::t_15d56ef0a3a4b9 2,4-6,8-24,26,29,35-44,53-58,60-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "dce6ac3685192c93df40cfdcbca9945a7535181b",
+  "prompts": {},
+  "sessions": {
+    "s_e2ef1441ad1dbd": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "265d8845-1914-4476-9977-4a05f12f4b06",
+        "model": "unknown"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
