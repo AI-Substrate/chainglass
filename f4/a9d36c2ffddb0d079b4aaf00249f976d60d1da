@@ -1,0 +1,74 @@
+test/unit/web/features/064-terminal/send-prompt-keys.test.ts
+  s_e3460fd42f286c::t_51f400014b6c44 739-1116
+  s_e3460fd42f286c::t_8cb2a78fc1e4b3 74
+  s_e3460fd42f286c::t_1dcaa99f3ae9f3 27
+  s_e3460fd42f286c::t_6e71a549938e52 455,458,461-467,485-656
+  s_e3460fd42f286c::t_e62656df613fc2 21-22
+  s_e3460fd42f286c::t_7e12de1bb03bc0 424,672
+  s_e3460fd42f286c::t_a124e959ff86ee 1-20,23-26,28-73,75-423,425-454,456-457,459-460,468-484,657-671,673-738
+apps/web/src/features/064-terminal/hooks/use-terminal-socket.ts
+  s_e3460fd42f286c::t_e3a1ce56151079 4,6-13,31,41-42,74,80,147-151,248-259,326
+test/unit/web/features/064-terminal/terminal-ws.test.ts
+  s_e3460fd42f286c::t_53559de17438d5 441,460
+  s_e3460fd42f286c::t_58e94faf5470ff 548-584
+  s_e3460fd42f286c::t_7e12de1bb03bc0 7
+  s_e3460fd42f286c::t_1a5440c24e0efb 403-440,442-459,461-547,585
+  s_a6b77772852964::t_ad7071706de39c 586-587
+apps/web/src/features/064-terminal/server/send-prompt-keys.ts
+  s_e3460fd42f286c::t_9a35e640e4ac76 47-58,103-118
+  s_cad47d3a6e9d72::t_db17fb75624b8f 159,166,168
+  s_e3460fd42f286c::t_937f1acbdf4f19 215-218
+  s_e3460fd42f286c::t_f9500dd9a693d3 228,262-284
+  s_e3460fd42f286c::t_c6800505e69e11 235-237,240-243,245-256,258-261,285-286
+  s_e3460fd42f286c::t_80be1ddfb82e66 160-161
+  s_e3460fd42f286c::t_3e3d41f99e1199 39-46
+  s_e3460fd42f286c::t_ca3f67cf1ce583 123-132,136-158,162-165,167,169
+  s_e3460fd42f286c::t_def6a85b81a189 1-38,59-102,119-122,133-135,170-187,207-214,219-227,229-234,238-239,244,257,287
+  s_e3460fd42f286c::t_aef0f0f13054ad 188-206
+apps/web/src/features/064-terminal/types.ts
+  s_e3460fd42f286c::t_cb8a9953bed15e 41,44-63
+  s_a6b77772852964::t_22f4f7d3af6e9a 64
+apps/web/src/features/064-terminal/components/terminal-inner.tsx
+  s_e3460fd42f286c::t_b34689b57b5bfb 20,29-35,46,91,114-122,530-538
+  s_e3460fd42f286c::t_ff8a39c6512708 539
+test/unit/web/features/064-terminal/terminal-prompt-send.test.tsx
+  s_e3460fd42f286c::t_ae80fb4ce03468 1-172
+apps/web/src/features/064-terminal/server/terminal-ws.ts
+  s_e3460fd42f286c::t_99518ff070ba85 242-276
+  s_e3460fd42f286c::t_1649c97e273aca 21
+  s_e3460fd42f286c::t_530529ed283264 277-278
+apps/web/src/features/064-terminal/components/terminal-singleton-provider.tsx
+  s_a6b77772852964::t_165c67e70229c8 34,51-58,108,128-134,153-154,169
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "f4a9d36c2ffddb0d079b4aaf00249f976d60d1da",
+  "prompts": {},
+  "sessions": {
+    "s_a6b77772852964": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "c800c9ff-86e7-4a5f-bdc3-f63517243af6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_cad47d3a6e9d72": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "7c715d7c-ba0b-4beb-a895-cf5893d48461",
+        "model": "unknown"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_e3460fd42f286c": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "b007eb76-365c-4da0-8164-519fdee51c00",
+        "model": "unknown"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
