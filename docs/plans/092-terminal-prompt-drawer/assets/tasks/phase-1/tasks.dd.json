@@ -1,0 +1,263 @@
+{
+  "dd": {
+    "schema": "builder/plan"
+  },
+  "sections": [
+    {
+      "name": "meta",
+      "value": {
+        "title": "Drawer surface",
+        "slug": "phase-1",
+        "status": "ready",
+        "summary": "Five tasks, deliberately send-free: prompt list, drawer component, header wiring, capture-phase Escape, tests."
+      }
+    },
+    {
+      "name": "summary",
+      "value": "Phase 1 of the terminal prompt drawer. No delivery mechanics — the row actions call an injected callback so phase 2 swaps in the real sender without touching this component. This is the increment Jordan can exercise under HMR."
+    },
+    {
+      "name": "tasks",
+      "value": [
+        {
+          "id": "tk-0002",
+          "title": "Prompt source module, git-tracked and held by a parity test",
+          "phase": "ph-0001",
+          "domain": "064-terminal",
+          "state": "checked",
+          "success": "A typed prompt list ships in the feature directory, and a test fails when it diverges from Jordan's list file — and that test is honest on a clean CI checkout.",
+          "notes": "The list lives at apps/web/src/features/064-terminal/lib/prompt-drawer-list.md — git-tracked, beside the parser. Resolve it from the repo root the way sibling tests do, and FAIL LOUDLY when absent rather than skipping.",
+          "done": "#done_when/tk-0002",
+          "satisfies": [
+            "../../../plan.dd.json#acceptance_criteria/ac-0006"
+          ],
+          "note": "Unblocked. Module, type, truncation and parser already ship and are unit-tested; only the file-reading parity test remains.",
+          "receipt": "Mutation-verified twice — by the coder (3 mutations: text divergence, file moved, path repointed at gitignored scratch/) and independently re-run by me: moving the list away gave 2 failed / 24 passed with 0 SKIPPED, proving absence fails rather than skips. Restored byte-identical, suite back to 234/234 green."
+        },
+        {
+          "id": "tk-0003",
+          "title": "TerminalPromptDrawer — panel geometry, truncated rows, two actions per row",
+          "phase": "ph-0001",
+          "domain": "064-terminal",
+          "state": "checked",
+          "success": "The drawer renders one row per prompt showing its opening text plus an ellipsis with the full text on the row title, and each row carries a type action and a submit action.",
+          "notes": "SEND-FREE BY DESIGN. Both actions call an injected callback prop — onSend(text, {submit}) — which phase 1 fills with a stub. Phase 2 swaps in the real sender without touching this component. Geometry: full height of the terminal body, about a third of the pane width, laid OVER the terminal rather than resizing it. Disable both actions when the connection is not live: use-terminal-socket.ts:199-203 makes a send a silent no-op on a closed socket, and the header already renders a ConnectionStatusBadge because it drops.",
+          "done": "#done_when/tk-0003",
+          "satisfies": [
+            "../../../plan.dd.json#acceptance_criteria/ac-0003",
+            "../../../plan.dd.json#acceptance_criteria/ac-0009"
+          ]
+        },
+        {
+          "id": "tk-0004",
+          "title": "Wire the toggle into TerminalPaneHeader and give both hosts a positioning context",
+          "phase": "ph-0001",
+          "domain": "064-terminal",
+          "state": "checked",
+          "success": "The toggle sits beside the theme picker, copy-buffer and close controls, and the drawer anchors correctly inside both the floating overlay and the inline split pane.",
+          "notes": "TerminalPaneHeader is the single source of truth for shared controls (FX014, Plan 084) — put the button there and both surfaces gain it in one edit. terminal-overlay-panel.tsx roots at a fixed div and is already a containing block; terminal-split-pane.tsx:28 roots at a plain flex column and needs relative, or the drawer escapes and anchors to the viewport. Do not add a second control to either host — that re-creates the exact drift this component exists to end.",
+          "done": "#done_when/tk-0004",
+          "satisfies": [
+            "../../../plan.dd.json#acceptance_criteria/ac-0001",
+            "../../../plan.dd.json#acceptance_criteria/ac-0008"
+          ]
+        },
+        {
+          "id": "tk-0005",
+          "title": "Capture-phase Escape ownership so the drawer does not close the terminal",
+          "phase": "ph-0001",
+          "domain": "064-terminal",
+          "state": "checked",
+          "success": "With the drawer open, Escape closes the drawer and leaves the terminal open — including when focus is on the terminal or on the header toggle. With the drawer closed, Escape still closes the terminal as it does today.",
+          "notes": "A React stopPropagation CANNOT work here and the cold validator proved why: terminal-overlay-panel.tsx:71-88 binds a document-level keydown in the BUBBLE phase, and the toggle is a SIBLING of the drawer in TerminalPaneHeader — so the event never passes through the drawer subtree. xterm's attachCustomKeyEventHandler (terminal-inner.tsx:225-238) returns true for bare Escape, so the terminal does not shield it either. Own a CAPTURE-phase document keydown while the drawer is open. Do NOT remove the existing binding — both hosts depend on it.",
+          "done": "#done_when/tk-0005",
+          "satisfies": [
+            "../../../plan.dd.json#acceptance_criteria/ac-0002"
+          ]
+        },
+        {
+          "id": "tk-0007",
+          "title": "Phase 1 tests — truncation, both surfaces, Escape precedence, singleton stability",
+          "phase": "ph-0001",
+          "domain": "064-terminal",
+          "state": "checked",
+          "success": "pnpm vitest run test/unit/web/features/064-terminal/ is green and covers the toggle on both hosts, row truncation, Escape with focus outside the drawer, and that opening the drawer does not remount the singleton.",
+          "notes": "Write the Escape test with focus on the TERMINAL and on the TOGGLE. A test that fires Escape on a drawer node passes while the feature is broken — a green that lies, and the exact one the validator caught. Stub the injected onSend at the component boundary. Never mock the websocket, the pty, or tmux, and never tap a live tmux pane.",
+          "done": "#done_when/tk-0007",
+          "satisfies": [
+            "../../../plan.dd.json#acceptance_criteria/ac-0002",
+            "../../../plan.dd.json#acceptance_criteria/ac-0003",
+            "../../../plan.dd.json#acceptance_criteria/ac-0008"
+          ]
+        },
+        {
+          "id": "tk-0008",
+          "title": "Row body submits; type-only stays distinct",
+          "phase": "ph-0001",
+          "domain": "064-terminal",
+          "state": "checked",
+          "success": "Clicking anywhere on the row that is not an icon submits the prompt; the type icon still types without submitting and does not double-fire.",
+          "notes": "The label is currently an inert span (terminal-prompt-drawer.tsx:111-117). Make the row body the primary submit action with a real interactive element and keyboard parity (Enter/Space), not a click handler on the li. Icon buttons must stopPropagation or sit outside the row hit area, or the type icon will also submit. Keep the type-only affordance visibly distinct: the row now fires a command at a coding agent, so a mis-tap has consequences.",
+          "done": "#done_when/tk-0008",
+          "satisfies": [
+            "../../../plan.dd.json#acceptance_criteria/ac-0015"
+          ],
+          "receipt": "Mutation-verified BOTH WAYS by the coder, each restored and diff-confirmed byte-identical. (1) Row button swapped for a div with onClick: the CLICK test still passed and the KEYBOARD test failed — which proves dw-0803 is load-bearing rather than decorative, since a div would have shipped a click-only control that looked correct. (2) Type icon made to also submit: dw-0802 and the existing tk-0003 type test both failed. Structure over promise: the row body is a SIBLING of the icon buttons, not an ancestor, so the DOM makes non-bubbling structural rather than relying on a stopPropagation someone has to keep."
+        },
+        {
+          "id": "tk-0009",
+          "title": "Visual design pass on the drawer",
+          "phase": "ph-0001",
+          "domain": "064-terminal",
+          "state": "checked",
+          "success": "Jordan looks at it and it reads as considered rather than utilitarian.",
+          "notes": "Jordan verbatim: looks good technically, could probably dress it up a bit with a bit of front end design, doesnt need to look like 90s office software. Use the frontend-design skill. Stay inside the existing token system already in use here (bg-background, accent, muted-foreground, border) — do NOT introduce a parallel palette. Concrete starting points: text-xs with py-1.5 gives a very small target for what is now the primary action; 3.5 icon buttons carry no affordance until hover; the row reads as a table row rather than something you pick. Human-judgement acceptance (bp-0019) — no test can score this, so do not write one.",
+          "done": "#done_when/tk-0009",
+          "satisfies": [
+            "../../../plan.dd.json#acceptance_criteria/ac-0016"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "done_when",
+      "value": {
+        "tk-0002": [
+          {
+            "id": "dw-0201",
+            "assertion": "The parity test fails when the shipped list and Jordan's list file diverge.",
+            "state": "checked",
+            "pressure": "../../backpressure.dd.json#rows/bp-0007",
+            "note": "Unblocked 2026-08-08: list now at apps/web/src/features/064-terminal/lib/prompt-drawer-list.md, git-tracked."
+          },
+          {
+            "id": "dw-0202",
+            "assertion": "The parity test fails loudly, rather than skipping, when the list file is absent.",
+            "state": "checked",
+            "pressure": "../../backpressure.dd.json#rows/bp-0007",
+            "note": "Unblocked 2026-08-08: list now at apps/web/src/features/064-terminal/lib/prompt-drawer-list.md, git-tracked."
+          },
+          {
+            "id": "dw-0203",
+            "assertion": "The list file is tracked by git, so the check is honest on a clean CI checkout and in a fresh worktree.",
+            "state": "checked",
+            "pressure": "../../backpressure.dd.json#rows/bp-0007",
+            "note": "Unblocked 2026-08-08: list now at apps/web/src/features/064-terminal/lib/prompt-drawer-list.md, git-tracked."
+          }
+        ],
+        "tk-0003": [
+          {
+            "id": "dw-0301",
+            "assertion": "A row label renders truncated with an ellipsis and carries the full prompt text on its title.",
+            "state": "checked",
+            "pressure": "../../backpressure.dd.json#rows/bp-0004"
+          },
+          {
+            "id": "dw-0302",
+            "assertion": "Both row actions are disabled when the terminal connection is not live.",
+            "state": "checked",
+            "pressure": "../../backpressure.dd.json#rows/bp-0001"
+          },
+          {
+            "id": "dw-0303",
+            "assertion": "The drawer reads as full height and roughly a third of the pane width, over the terminal rather than resizing it.",
+            "state": "checked",
+            "pressure": "../../backpressure.dd.json#rows/bp-0003",
+            "note": "Human-judgement by design (bp-0003, tier human-judgement). Holds until Jordan exercises the drawer under HMR — jsdom reports no computed layout, so a class assertion would prove the class was written, not that the proportion reads right.",
+            "receipt": "Human verdict, Jordan 2026-08-08, verbatim: 'drawer looks good technically. coul dproably dress it up a bit though with a bit of front end design! doesnt need to look like 90s office software'. Geometry APPROVED — full height, ~1/3 width, overlaid not resizing. Visual polish is a separate, newly-raised concern tracked as ac-0015/tk-0008, not a defect in this assertion."
+          }
+        ],
+        "tk-0004": [
+          {
+            "id": "dw-0401",
+            "assertion": "The toggle renders in the pane header on both the floating overlay and the inline split pane.",
+            "state": "checked",
+            "pressure": "../../backpressure.dd.json#rows/bp-0001"
+          },
+          {
+            "id": "dw-0402",
+            "assertion": "The drawer anchors inside the split pane, not to the viewport.",
+            "state": "checked",
+            "pressure": "../../backpressure.dd.json#rows/bp-0001"
+          },
+          {
+            "id": "dw-0403",
+            "assertion": "Opening the drawer neither remounts TerminalInner nor reconnects the websocket.",
+            "state": "checked",
+            "pressure": "../../backpressure.dd.json#rows/bp-0009"
+          }
+        ],
+        "tk-0005": [
+          {
+            "id": "dw-0501",
+            "assertion": "Escape with the drawer open and focus on the TERMINAL closes the drawer and leaves the terminal open.",
+            "state": "checked",
+            "pressure": "../../backpressure.dd.json#rows/bp-0002"
+          },
+          {
+            "id": "dw-0502",
+            "assertion": "Escape with the drawer open and focus on the header TOGGLE behaves the same way.",
+            "state": "checked",
+            "pressure": "../../backpressure.dd.json#rows/bp-0002"
+          },
+          {
+            "id": "dw-0503",
+            "assertion": "Escape with the drawer closed still closes the terminal.",
+            "state": "checked",
+            "pressure": "../../backpressure.dd.json#rows/bp-0002"
+          }
+        ],
+        "tk-0007": [
+          {
+            "id": "dw-0701",
+            "assertion": "The whole terminal-feature suite is green.",
+            "state": "checked",
+            "pressure": "../../backpressure.dd.json#rows/bp-0001"
+          },
+          {
+            "id": "dw-0702",
+            "assertion": "Lint, format and typecheck are clean on the new files.",
+            "state": "checked",
+            "pressure": "../../backpressure.dd.json#rows/bp-0011"
+          }
+        ],
+        "tk-0008": [
+          {
+            "id": "dw-0801",
+            "assertion": "Clicking the row body calls the send callback with submit true.",
+            "state": "checked",
+            "pressure": "../../backpressure.dd.json#rows/bp-0018"
+          },
+          {
+            "id": "dw-0802",
+            "assertion": "Clicking the type icon calls it with submit false and does not also fire the row handler.",
+            "state": "checked",
+            "pressure": "../../backpressure.dd.json#rows/bp-0018"
+          },
+          {
+            "id": "dw-0803",
+            "assertion": "The row body is keyboard-operable — Enter or Space submits, and it is focusable.",
+            "state": "checked",
+            "pressure": "../../backpressure.dd.json#rows/bp-0018"
+          }
+        ],
+        "tk-0009": [
+          {
+            "id": "dw-0901",
+            "assertion": "Jordan judges the drawer visually acceptable under HMR.",
+            "state": "checked",
+            "pressure": "../../backpressure.dd.json#rows/bp-0019",
+            "receipt": "Human verdict, Jordan 2026-08-09, verbatim: 'looks fine, please get the feature completed'. Design pass accepted; the Enter icon stays — argued as the SIGNIFIER that the row is armed rather than a duplicate control, since without it nothing on screen tells you clicking a line fires a command at an agent."
+          },
+          {
+            "id": "dw-0902",
+            "assertion": "No new colour or spacing primitives outside the existing token system.",
+            "state": "checked",
+            "pressure": "../../backpressure.dd.json#rows/bp-0011",
+            "receipt": "Design pass used only existing tokens — bg-popover, text-popover-foreground, muted-foreground, accent, ring, muted, border, and the app's own --radius scale. No new colour or spacing primitives; the palette is deliberately zero-chroma because the terminal behind it owns the colour."
+          }
+        ]
+      }
+    }
+  ]
+}

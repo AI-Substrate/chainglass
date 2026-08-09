@@ -1,0 +1,218 @@
+{
+  "dd": {
+    "schema": "builder/plan"
+  },
+  "sections": [
+    {
+      "name": "meta",
+      "value": {
+        "title": "Send path",
+        "slug": "phase-2",
+        "status": "draft",
+        "summary": "Deliver a prompt to the coding agent, correct by construction on every rule in workshop 001."
+      }
+    },
+    {
+      "name": "summary",
+      "value": "A send-keys control message beside copy-buffer in terminal-ws.ts. Every constant comes from assets/workshops/001-send-keys-to-coding-agents.md and from nowhere else — NOT from a grep of the pij repo, whose CLI carries a stale harness-blind 300ms (pij#159)."
+    },
+    {
+      "name": "tasks",
+      "value": [
+        {
+          "id": "tk-0101",
+          "title": "send-keys websocket control message using argv and literal mode",
+          "phase": "ph-0002",
+          "domain": "064-terminal",
+          "state": "checked",
+          "success": "A {type:'send-keys'} frame types the prompt into the pane's agent, and optionally submits it with a separate Enter call.",
+          "notes": "Mirror the copy-buffer handler at terminal-ws.ts:231-240. Use deps.execCommand('tmux', ['send-keys','-t',sessionName,'-l',text]) — argv array, execFileSync, no shell string ever. sessionName is in handleConnection scope (:139) and validateSessionName exists (:380) — validate before use. Errors return over the socket as a JSON message with an error field, matching copy-buffer; never throw on the message loop.",
+          "done": "#done_when/tk-0101",
+          "satisfies": [
+            "../../../plan.dd.json#acceptance_criteria/ac-0004",
+            "../../../plan.dd.json#acceptance_criteria/ac-0005",
+            "../../../plan.dd.json#acceptance_criteria/ac-0007"
+          ]
+        },
+        {
+          "id": "tk-0102",
+          "title": "Focus-in before typing, so a backgrounded copilot pane still submits",
+          "phase": "ph-0002",
+          "domain": "064-terminal",
+          "state": "checked",
+          "success": "Every send issues the focus-in sequence before its first type call.",
+          "notes": "tmux send-keys -t <target> -H 1b 5b 49 (CSI I). Copilot gates submit on FOCUS state, not render — a SIGWINCH redraw does NOT fix it, pij tried. This is the finding that would have shipped broken, because a browser drawer is definitionally driving a pane the user is not looking at.",
+          "done": "#done_when/tk-0102",
+          "satisfies": [
+            "../../../plan.dd.json#acceptance_criteria/ac-0011"
+          ]
+        },
+        {
+          "id": "tk-0103",
+          "title": "One exported settle table, conservative selection, applied off the message loop",
+          "phase": "ph-0002",
+          "domain": "064-terminal",
+          "state": "checked",
+          "success": "A single exported constant carries claude/codex/pi 350ms and copilot 900ms, has exactly one consumer, and the wait does not block the websocket message loop.",
+          "notes": "Three requirements. (1) ONE exported table carrying ermine's measured values (claude/codex/pi 350, copilot 900) — pij drifted precisely here, daemon 350/900 vs CLI hardcoded 300 (pij#159), so a second numeric settle literal anywhere in the feature is the defect. (2) SELECT THE MAXIMUM UNCONDITIONALLY. The server has no harness signal — grep terminal-ws.ts for harness / pane_current_command / display-message returns nothing — and building a detector would create an instrument whose failure mode is the SHORT settle, i.e. the stranded-composer bug, invisible in testing. Keep the table as documented knowledge; do not key on it yet. (3) The wait must not block the socket. The handler at terminal-ws.ts:209 is ALREADY async, so await a timer between the type call and the Enter call — execFileSync stays fine for the individual short tmux calls, it is the gap between them that must yield.",
+          "done": "#done_when/tk-0103",
+          "satisfies": [
+            "../../../plan.dd.json#acceptance_criteria/ac-0012",
+            "../../../plan.dd.json#acceptance_criteria/ac-0013"
+          ]
+        },
+        {
+          "id": "tk-0104",
+          "title": "Bracketed paste for multi-line prompts",
+          "phase": "ph-0002",
+          "domain": "064-terminal",
+          "state": "checked",
+          "success": "A multi-line prompt arrives in the composer as one atomic paste rather than one submit per line.",
+          "notes": "tmux set-buffer -b <buf> <data> then tmux paste-buffer -p -d -b <buf> -t <target>; -p is bracketed, -d deletes the buffer after. Do NOT flatten onto a separator — that is right for machine-generated turns and wrong for human-authored prompts. Do NOT refuse multi-line; that pushes the user to hand-paste with none of the controls.",
+          "done": "#done_when/tk-0104",
+          "satisfies": [
+            "../../../plan.dd.json#acceptance_criteria/ac-0010"
+          ]
+        },
+        {
+          "id": "tk-0105",
+          "title": "sendPrompt on the singleton context, replacing the phase 1 stub",
+          "phase": "ph-0002",
+          "domain": "064-terminal",
+          "state": "checked",
+          "success": "The drawer's injected callback is filled by a real sender reached from the singleton context, with no prop-drilling through either host surface.",
+          "notes": "Copy the connectionStatus lift exactly: the provider passes onConnectionChange={setConnectionStatus} at terminal-singleton-provider.tsx:152 and exposes it on TerminalSingletonContextValue (:38-51). Add the symmetric registration for the sender. TerminalInner already owns handleSendText (terminal-inner.tsx:620) — note it calls terminalRef.focus() on every send, which interacts with the drawer's Escape ownership from tk-0005.",
+          "done": "#done_when/tk-0105",
+          "satisfies": [
+            "../../../plan.dd.json#acceptance_criteria/ac-0004",
+            "../../../plan.dd.json#acceptance_criteria/ac-0005"
+          ]
+        },
+        {
+          "id": "tk-0106",
+          "title": "Phase 2 tests — call order, argv inertness, multi-line, focus-in, settle",
+          "phase": "ph-0002",
+          "domain": "064-terminal",
+          "state": "checked",
+          "success": "The suite proves the exact tmux calls, in order, with the exact argv — and a hostile prompt is inert on both layers.",
+          "notes": "Stub the command runner and assert on the recorded argv arrays. Cases: type-only issues no Enter; submit issues a SEPARATE Enter and exactly one; typed argv contains no newline; hostile text with backticks, dollar-parens, quotes, a semicolon, a leading dash and the literal word Enter survives byte-identical with -l present; a 3-line prompt uses set-buffer/paste-buffer and no per-line send-keys; focus-in precedes the first type on every send; no second settle literal exists in the feature directory. Never tap a live tmux pane.",
+          "done": "#done_when/tk-0106",
+          "satisfies": [
+            "../../../plan.dd.json#acceptance_criteria/ac-0004",
+            "../../../plan.dd.json#acceptance_criteria/ac-0005",
+            "../../../plan.dd.json#acceptance_criteria/ac-0007",
+            "../../../plan.dd.json#acceptance_criteria/ac-0010",
+            "../../../plan.dd.json#acceptance_criteria/ac-0011",
+            "../../../plan.dd.json#acceptance_criteria/ac-0012",
+            "../../../plan.dd.json#acceptance_criteria/ac-0013"
+          ]
+        },
+        {
+          "id": "tk-0107",
+          "title": "Serialize sends per session, and prove it with a real concurrency test",
+          "phase": "ph-0002",
+          "domain": "064-terminal",
+          "state": "checked",
+          "success": "Two sends fired truly concurrently against one session run one after the other, with no interleaving of focus/type/settle/Enter.",
+          "notes": "Cross-model reviewer finding, HIGH. Add a per-session promise queue covering the WHOLE sequence — focus-in, type or paste, settle, Enter — not just the paste-buffer name. The queue key is the session, since the hazard is two frames targeting one pane. Then REPLACE the existing send.paste-buffers-do-not-collide test: it is named for concurrency, its doc comment claims it guards a race, and its body is await-then-await, which is sequential and cannot reproduce one. The new test must use a true Promise.all and assert non-interleaving by call order, not merely distinct buffer names.",
+          "done": "#done_when/tk-0107",
+          "satisfies": [
+            "../../../plan.dd.json#acceptance_criteria/ac-0017"
+          ],
+          "receipt": "Mutation-verified twice. Coder M8 (queue bypassed) and M9 (global key); I independently reproduced M8 — bypassing the queue reddens EXACTLY the two new concurrency tests while 19 others stay green, including the old concurrency-NAMED test, proving it was green in the presence of the defect it named. Reviewer ran M9: exactly one red, send.different-panes-are-not-serialized, proving the key. Restored byte-identical both times."
+        }
+      ]
+    },
+    {
+      "name": "done_when",
+      "value": {
+        "tk-0101": [
+          {
+            "id": "dw-1011",
+            "assertion": "A type action produces exactly one literal send-keys call and no Enter call.",
+            "state": "checked",
+            "pressure": "../../backpressure.dd.json#rows/bp-0005"
+          },
+          {
+            "id": "dw-1012",
+            "assertion": "A submit action produces a literal type call followed by a SEPARATE Enter call, exactly one of each.",
+            "state": "checked",
+            "pressure": "../../backpressure.dd.json#rows/bp-0006"
+          },
+          {
+            "id": "dw-1013",
+            "assertion": "The runner receives an argv array; no shell string is constructed anywhere on the path.",
+            "state": "checked",
+            "pressure": "../../backpressure.dd.json#rows/bp-0008"
+          }
+        ],
+        "tk-0102": [
+          {
+            "id": "dw-1021",
+            "assertion": "The focus-in sequence is issued before the first type call on every send.",
+            "state": "checked",
+            "pressure": "../../backpressure.dd.json#rows/bp-0013"
+          }
+        ],
+        "tk-0103": [
+          {
+            "id": "dw-1031",
+            "assertion": "One exported settle table exists and the feature directory contains no second numeric settle literal.",
+            "state": "checked",
+            "pressure": "../../backpressure.dd.json#rows/bp-0015"
+          },
+          {
+            "id": "dw-1032",
+            "assertion": "The send returns control before the settle elapses — the wait never blocks the message loop.",
+            "state": "checked",
+            "pressure": "../../backpressure.dd.json#rows/bp-0014"
+          }
+        ],
+        "tk-0104": [
+          {
+            "id": "dw-1041",
+            "assertion": "A 3-line prompt uses the bracketed paste path and produces no per-line send-keys call.",
+            "state": "checked",
+            "pressure": "../../backpressure.dd.json#rows/bp-0012"
+          }
+        ],
+        "tk-0105": [
+          {
+            "id": "dw-1051",
+            "assertion": "The drawer reaches the sender through the singleton context, with no new props on either host surface.",
+            "state": "checked",
+            "pressure": "../../backpressure.dd.json#rows/bp-0009"
+          }
+        ],
+        "tk-0106": [
+          {
+            "id": "dw-1061",
+            "assertion": "A hostile prompt containing backticks, dollar-parens, quotes, a semicolon, a leading dash and the literal word Enter arrives byte-identical, with -l present.",
+            "state": "checked",
+            "pressure": "../../backpressure.dd.json#rows/bp-0008"
+          },
+          {
+            "id": "dw-1062",
+            "assertion": "The whole terminal-feature suite is green, and lint and typecheck are clean.",
+            "state": "checked",
+            "pressure": "../../backpressure.dd.json#rows/bp-0011"
+          }
+        ],
+        "tk-0107": [
+          {
+            "id": "dw-1071",
+            "assertion": "Two sends fired with Promise.all against one session do not interleave — every call of the first precedes every call of the second.",
+            "state": "checked",
+            "pressure": "../../backpressure.dd.json#rows/bp-0020"
+          },
+          {
+            "id": "dw-1072",
+            "assertion": "The replaced test fails when the queue is removed, proving it reproduces the race rather than describing it.",
+            "state": "checked",
+            "pressure": "../../backpressure.dd.json#rows/bp-0020"
+          }
+        ]
+      }
+    }
+  ]
+}

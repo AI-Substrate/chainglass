@@ -1,0 +1,615 @@
+{
+  "dd": {
+    "schema": "builder/plan"
+  },
+  "sections": [
+    {
+      "name": "meta",
+      "value": {
+        "title": "Terminal prompt drawer",
+        "slug": "092-terminal-prompt-drawer",
+        "ordinal": 92,
+        "status": "draft",
+        "complexity": "CS-4",
+        "mode": "Full",
+        "plan_version": "2.0.0",
+        "created": "2026-08-08",
+        "confidence": "0.80",
+        "complexity_breakdown": "S=2 I=2 D=1 N=1 F=1 T=1 -> 8 -> CS-4. Rev 2.0.0: Jordan ruled tmux send-keys over the pty write, which turned a presentational feature into a reliable-delivery problem with per-harness constants, terminal focus state, bracketed paste and a stored-payload security surface.",
+        "summary": "A prompt drawer in the terminal pane header. Rows of saved prompts, each with type and type-then-submit, delivered by tmux send-keys to the coding agent running in the pane."
+      }
+    },
+    {
+      "name": "summary",
+      "value": "A button in the terminal pane header opens a drawer over the right third of the terminal, full height, listing saved prompts as truncated rows. Each row types its prompt into whatever is running in the pane, or types and submits it. The target is normally a CODING AGENT TUI (claude / copilot / codex), not a shell — which is why Jordan ruled for tmux send-keys over a raw pty write, and why the delivery rules are not obvious: a newline is a submit, copilot swallows Enter while its pane is backgrounded, the type and the submit are separate calls with a per-harness settle between them, and a drawer of saved prompts is a stored-payload surface. Every one of those rules came from pij, which drives these agents in production; they are recorded verbatim and authoritatively in assets/workshops/001-send-keys-to-coding-agents.md, which this plan does not restate and must not contradict."
+    },
+    {
+      "name": "goals",
+      "value": [
+        "One click types a saved prompt into the agent; a second button types and submits it.",
+        "The drawer reaches every terminal surface sharing TerminalPaneHeader — the floating overlay and the inline split pane — in one edit.",
+        "Delivery is correct in the configuration our users are actually in: pane backgrounded, prompt possibly multi-line, agent possibly busy.",
+        "A saved prompt is inert data, never executable — no shell ever sees it, and tmux never key-name-parses it.",
+        "The prompt list stays Jordan-owned in one file, with a check rather than discipline keeping the shipped list identical to it."
+      ]
+    },
+    {
+      "name": "non_goals",
+      "value": [
+        "No editing, reordering or creating prompts from the UI — the markdown file is the editor.",
+        "No prompt search, filtering, tags, or usage history.",
+        "No raw pty write for prompt delivery — ruled out by Jordan 2026-08-08 (oq-0001); the existing pty path stays untouched for ordinary typing.",
+        "No new HTTP route — the send rides the existing websocket control-message channel beside copy-buffer.",
+        "No flattening of multi-line prompts onto a separator. That is right for machine-generated turns and wrong for human-authored prompts (workshop 001 section 3).",
+        "No persistence of drawer open/closed state across reloads.",
+        "No change to the /terminal page header, which has not adopted TerminalPaneHeader."
+      ]
+    },
+    {
+      "name": "acceptance_criteria",
+      "value": [
+        {
+          "id": "ac-0001",
+          "state": "checked",
+          "claim": "A prompt-drawer toggle sits in the terminal pane header beside the theme picker, copy-buffer and close controls, and therefore appears on both the floating overlay and the inline split pane.",
+          "pressure": "assets/backpressure.dd.json#rows/bp-0001"
+        },
+        {
+          "id": "ac-0002",
+          "state": "checked",
+          "claim": "The drawer opens and closes from its toggle and from Escape, and Escape while the drawer is open does not close the terminal — including when focus sits on the terminal or on the header toggle rather than inside the drawer.",
+          "pressure": "assets/backpressure.dd.json#rows/bp-0002"
+        },
+        {
+          "id": "ac-0003",
+          "state": "checked",
+          "claim": "Each row renders the start of its prompt followed by an ellipsis on a single line, and exposes the full text as the row title.",
+          "pressure": "assets/backpressure.dd.json#rows/bp-0004"
+        },
+        {
+          "id": "ac-0004",
+          "state": "checked",
+          "claim": "The type action places the prompt text in the agent composer without submitting it, leaving the user free to edit before sending.",
+          "pressure": "assets/backpressure.dd.json#rows/bp-0005"
+        },
+        {
+          "id": "ac-0005",
+          "state": "checked",
+          "claim": "The submit action types the prompt and submits it exactly once, via a carriage return issued as a separate tmux call after the harness settle — never as a newline inside the typed text.",
+          "pressure": "assets/backpressure.dd.json#rows/bp-0006",
+          "receipt": "LIVE HUMAN CONFIRMATION, Jordan 2026-08-09, verbatim: 'i just tried it (summarise that in two sentences) and it worked...'. The prompt reached the agent in the running app and executed — the first end-to-end evidence outside the test suite. Note what it additionally proves for free: he clicked in a BROWSER, so the tmux pane was by definition not focused, which means the focus-in sequence (ac-0011 / bp-0013) was exercised in exactly the backgrounded state ermine warned would strand the text. What it does NOT prove: which harness was in the pane, so the conservative-max settle is still the right unconditional choice."
+        },
+        {
+          "id": "ac-0006",
+          "state": "checked",
+          "claim": "The shipped prompt list is exactly the prompts in apps/web/src/features/064-terminal/lib/prompt-drawer-list.md, proved by a test that fails when the two diverge and fails loudly when the file is absent — the file is git-tracked, so the check is honest on a clean CI checkout.",
+          "pressure": "assets/backpressure.dd.json#rows/bp-0007",
+          "note": "Unblocked by Jordan's ruling on oq-0003; the file-reading parity test is the remaining work.",
+          "receipt": "git ls-files --error-unmatch with cwd=REPO_ROOT is the assertion that earns its keep — existsSync alone passes for a present-but-ignored file locally and that file is simply absent in CI, which was the exact trap the scratch/ location set."
+        },
+        {
+          "id": "ac-0007",
+          "state": "checked",
+          "claim": "Prompt text is inert on both layers: it reaches tmux through an argv array so no shell ever parses it, and through literal mode so tmux never key-name-parses an embedded Enter or C-c.",
+          "pressure": "assets/backpressure.dd.json#rows/bp-0008"
+        },
+        {
+          "id": "ac-0008",
+          "state": "checked",
+          "claim": "Opening or using the drawer leaves the terminal singleton undisturbed: same websocket, same scrollback, still one tmux client.",
+          "pressure": "assets/backpressure.dd.json#rows/bp-0009"
+        },
+        {
+          "id": "ac-0009",
+          "state": "checked",
+          "claim": "The drawer reads as full height and roughly one third of the pane width, laid over the terminal rather than resizing it.",
+          "pressure": "assets/backpressure.dd.json#rows/bp-0003",
+          "note": "Human-judgement by design — holds until Jordan exercises the drawer under HMR. No computational proof is claimed for a proportion.",
+          "receipt": "Jordan under HMR 2026-08-08: 'drawer looks good technically'. The human-judgement row (bp-0003) is satisfied; no computational proof was ever claimed for a proportion."
+        },
+        {
+          "id": "ac-0010",
+          "state": "checked",
+          "claim": "A multi-line prompt arrives in the composer as one atomic multi-line paste, not as one submit per line.",
+          "pressure": "assets/backpressure.dd.json#rows/bp-0012"
+        },
+        {
+          "id": "ac-0011",
+          "state": "checked",
+          "claim": "A submit issued while the target pane is backgrounded still reaches the agent, because a focus-in sequence precedes the typing.",
+          "pressure": "assets/backpressure.dd.json#rows/bp-0013"
+        },
+        {
+          "id": "ac-0012",
+          "state": "checked",
+          "claim": "The inter-key settle never blocks the websocket message loop, so a send does not freeze the terminal for the user.",
+          "pressure": "assets/backpressure.dd.json#rows/bp-0014",
+          "receipt": "Cite the source, not the hang: defaultSleep (send-prompt-keys.ts:162-163) is setTimeout inside an awaited Promise, awaited at :208; the sole production caller passes no sleep override."
+        },
+        {
+          "id": "ac-0013",
+          "state": "checked",
+          "claim": "The settle is a single exported table of measured per-harness values with a single consumer path, and selection is the conservative maximum — so no second numeric literal can drift, and no detection failure can pick a settle that is too short.",
+          "pressure": "assets/backpressure.dd.json#rows/bp-0015",
+          "receipt": "Repo-wide scan (apps/ + packages/) found no second ENTER_SETTLE reference and no settle-shaped literal; and ENTER_SETTLE_MS is a Math.max derivation over the table, which cannot drift by construction."
+        },
+        {
+          "id": "ac-0014",
+          "state": "checked",
+          "claim": "Nothing ever claims success from a zero exit code, and a payload is never retyped after its first submit attempt — re-presses are Enter-only, budgeted, and abandoned on an inconclusive probe.",
+          "pressure": "assets/backpressure.dd.json#rows/bp-0016",
+          "receipt": "SPLIT from the original criterion, which conflated a negative guarantee with a positive one. This is the negative half and it is fully proven: the sender resolves undefined (a type-level guarantee, so the mutation was not runnable and is stated rather than counted), the submitting-path ws reply is exactly {type, delivered} with no ok/success/submitted/verified/accepted, and no file handling the delivered flag emits toast.success. Re-press loop verified by me at send-prompt-keys.ts:272-284: sleep, probe, Enter — no -l, no set-buffer, no paste-buffer, inside the queued critical section. Mutations M10-M18 all reddened as claimed."
+        },
+        {
+          "id": "ac-0015",
+          "state": "checked",
+          "claim": "Tapping the row body submits the prompt, the same as the Enter icon, while the type-only icon remains a distinct action that does not also fire the row.",
+          "pressure": "assets/backpressure.dd.json#rows/bp-0018",
+          "receipt": "Row body submits with full text not the truncated label, exactly one call; type icon sends submit:false and does not close; Enter and Space both submit. Icons structurally cannot bubble — a button cannot nest in a button."
+        },
+        {
+          "id": "ac-0016",
+          "state": "checked",
+          "claim": "The drawer reads as a considered, modern quick-pick surface — legible targets, clear affordances, consistent with the app design system rather than dense utility chrome.",
+          "pressure": "assets/backpressure.dd.json#rows/bp-0019",
+          "receipt": "Jordan under HMR 2026-08-09: 'looks fine'. Human-judgement row bp-0019; no computational proof claimed or written."
+        },
+        {
+          "id": "ac-0017",
+          "state": "checked",
+          "claim": "Concurrent submits to the same pane are serialized end to end, so a second prompt can never be typed into the composer between the first prompt and its Enter.",
+          "pressure": "assets/backpressure.dd.json#rows/bp-0020"
+        },
+        {
+          "id": "ac-0018",
+          "state": "blocked",
+          "claim": "A submit is reported as succeeded only when the pane has been read and the payload observed to have left the composer.",
+          "pressure": "assets/backpressure.dd.json#rows/bp-0016",
+          "note": "The POSITIVE half, split out of ac-0014. Blocked on oq-0004 with tk-0201 — there is currently no success signal at all, which is the honest fallback rather than a gap. The mechanism is already built and inert: sendPromptKeys takes an optional isPayloadPending predicate, and with no predicate supplied the re-press loop never runs, so tk-0201 supplies the signal and reshapes nothing."
+        }
+      ]
+    },
+    {
+      "name": "phases",
+      "value": [
+        {
+          "id": "ph-0001",
+          "title": "Drawer surface",
+          "state": "checked",
+          "objective": "Put a working, visible drawer in both terminal surfaces with the real prompt list, before any delivery mechanics exist.",
+          "brief": "Deliberately first and deliberately send-free: this is the phase Jordan can exercise under HMR within one increment. Its send actions call an injected callback, so the delivery phase swaps in the real one without touching the component.",
+          "delivers": [
+            "The prompt source module and its parity test",
+            "TerminalPromptDrawer with truncated rows and two actions per row",
+            "The toggle in TerminalPaneHeader, with both hosts made positioning contexts",
+            "Capture-phase Escape ownership so the drawer does not close the terminal"
+          ],
+          "key_risks": "The Escape fix is the one that looks done and is not — a React stopPropagation cannot beat a document-level bubble listener when focus is outside the drawer subtree.",
+          "tasks": "assets/tasks/phase-1/tasks.dd.json#tasks",
+          "receipt": "All 6 tasks checked, reviewed cross-model, mutation-verified, geometry and design signed off by Jordan under HMR."
+        },
+        {
+          "id": "ph-0002",
+          "title": "Send path",
+          "state": "checked",
+          "depends_on": [
+            "ph-0001"
+          ],
+          "objective": "Deliver a prompt to the coding agent in the pane, correct by construction on every rule in workshop 001.",
+          "brief": "A send-keys control message beside copy-buffer in terminal-ws.ts. Every constant comes from assets/workshops/001-send-keys-to-coding-agents.md and from nowhere else — notably NOT from a grep of the pij repo, whose CLI carries a stale harness-blind 300ms (pij#159).",
+          "delivers": [
+            "A send-keys websocket control message using argv and literal mode",
+            "Focus-in before typing, so a backgrounded copilot pane still submits",
+            "A single exported per-harness settle table, applied off the message loop",
+            "Bracketed paste for multi-line prompts",
+            "sendPrompt on the singleton context, replacing phase 1 injected stub"
+          ],
+          "key_risks": "execCommand is execFileSync on the websocket message loop; a naive 900ms copilot settle there freezes the user terminal for a second per click.",
+          "tasks": "assets/tasks/phase-2/tasks.dd.json#tasks",
+          "receipt": "All 7 tasks checked. One HIGH concurrency finding from the cross-model reviewer, fixed and mutation-verified twice. Independently gate-checked by pij-chief-roadrunner at the phase edge. Confirmed end-to-end in the running app by Jordan."
+        },
+        {
+          "id": "ph-0003",
+          "title": "Submit verification",
+          "state": "unchecked",
+          "depends_on": [
+            "ph-0002"
+          ],
+          "objective": "Stop the UI claiming a submit it cannot prove, and never double-submit a prompt.",
+          "brief": "Exit zero from tmux proves bytes moved, not that the agent accepted them. pij had to add composer polling for exactly this. Gated on Jordan ruling whether product code may read the pane it drives (oq-0004).",
+          "delivers": [
+            "Post-submit verification by reading the pane the drawer is driving",
+            "At-most-once re-press: Enter retried up to 3 times at 250ms, payload never retyped",
+            "Honest UI state — no success signal on exit code alone"
+          ],
+          "key_risks": "Jordan standing constraint says never run tmux capture-pane. Whether that binds product code or only agents and tests is oq-0004 and owns this whole phase.",
+          "tasks": "assets/tasks/phase-3/tasks.dd.json#tasks"
+        }
+      ]
+    },
+    {
+      "name": "testing_strategy",
+      "value": {
+        "approach": "Lightweight — vitest + testing-library, matching the existing suites in test/unit/web/features/064-terminal/.",
+        "rationale": "The feature is a small presentational surface over one new context method. The risk is concentrated in two places — what bytes reach the pty, and whether the shipped prompt list still matches Jordan's file — so the tests go there rather than spreading thinly over the UI.",
+        "focus_areas": "The two send payloads (paste writes the text exactly; run writes the text plus a single carriage return); prompt-list parity against scratch/prompt-drawer-list.md; Escape while the drawer is open closes the drawer and not the terminal; the toggle renders on both the overlay and the split pane.",
+        "excluded": "terminal-ws.ts is not retested — it is unchanged and terminal-ws.test.ts already covers the non-JSON passthrough. No live tmux is touched: never run tmux capture-pane and never tap a real pane.",
+        "mock_usage": "Targeted only. Stub sendText at the component boundary; do not mock the websocket, the pty, or tmux."
+      }
+    },
+    {
+      "name": "documentation_strategy",
+      "value": {
+        "location": "None new.",
+        "rationale": "The drawer is a self-evident UI affordance and its only authored surface — the prompt list — documents itself in scratch/prompt-drawer-list.md. Intent goes in file header comments, matching the FX-referenced style already used across 064-terminal."
+      }
+    },
+    {
+      "name": "risks_assumptions",
+      "value": "Assumes the target of a send is the tmux session the websocket is already attached to — sessionName is in handleConnection scope (terminal-ws.ts:139) and validateSessionName already exists (:380), so the target is known and validatable without new plumbing. Assumes the agent in the pane is one of claude, copilot, codex or a shell; an unknown harness gets the conservative settle, never the shortest. It is NOT assumed that the websocket is connected whenever the button renders — use-terminal-socket.ts:199-203 makes send a silent no-op when it is not, so the actions disable on a dead connection."
+    },
+    {
+      "name": "open_questions",
+      "value": [
+        {
+          "question": "Send path: tmux send-keys or a raw pty write?",
+          "state": "checked",
+          "note": "RULED by Jordan 2026-08-08: tmux send-keys. Reason: the target is a coding agent TUI, not a shell. Superseded the pty recommendation and turned the quoting hazard from theoretical into in-scope."
+        },
+        {
+          "question": "Does the drawer close after a submit, or stay open for a second send?",
+          "state": "checked",
+          "note": "DECIDED by me and implemented: close on submit, stay open on type — terminal-prompt-drawer.tsx calls onClose() after a submit only. Never escalated to Jordan because it was cheap to flip and he has since exercised the drawer without objecting. Recorded as a decision, not a ruling; if he wants it flipped it is one line."
+        },
+        {
+          "question": "Where does the prompt list live, given .gitignore:152 is scratch/* and CI checks out clean?",
+          "state": "checked",
+          "note": "RULED by Jordan 2026-08-09, verbatim: \"move it under the proper chainglass locations please.\" NOTE THE RULING DIFFERS FROM THE RECOMMENDATION, and that difference is the point of this row: I had recommended a .gitignore negation (!scratch/prompt-drawer-list.md) to keep his editing habit unchanged; he chose the listed ALTERNATIVE instead. The list now lives at apps/web/src/features/064-terminal/lib/prompt-drawer-list.md, beside terminal-prompts.ts which parses it, git-tracked and confirmed with git ls-files rather than assumed. Propagated to ac-0006, bp-0007, tk-0002 and the parity test."
+        },
+        {
+          "question": "Does the standing never run tmux capture-pane constraint bind PRODUCT code, or only agents and tests?",
+          "state": "unchecked",
+          "note": "Owns all of ph-0003. Recommended to Jordan: the ban stays absolute for agents and tests, and the product may read the pane it is itself driving — otherwise the UI can only ever report exit codes, which workshop 001 section 5 shows are a lie. Proceeding on that reading; phase 3 is the last thing built, so there is time to be told otherwise."
+        },
+        {
+          "question": "The per-harness settle table needs to know WHICH harness runs in the pane — and the websocket server has no such signal (grepped terminal-ws.ts for harness / pane_current_command / display-message: no hits). Detect it, or always use the conservative maximum?",
+          "state": "checked",
+          "note": "DECIDED by me, 2026-08-08, recorded rather than left implicit. ALWAYS USE THE CONSERVATIVE MAXIMUM (900ms, copilot value) for every send. Three reasons. (1) A detection instrument here fails toward the REASSURING answer — a misdetected copilot yields the 350ms settle, which is exactly the stranded-composer failure ermine paid for, and it would look fine in every test we would think to write. That is the session pattern, so do not build the instrument. (2) It needs no pane read, so it does not touch oq-0004 at all. (3) The cost is 550ms of extra latency on non-copilot harnesses for a click-to-run action, which is imperceptible. Ermine own rule already points here: unknown harness gets the conservative value, never the shortest. The per-harness table is still exported and documented so the measured numbers are not lost, but selection is unconditional until a trustworthy harness signal exists."
+        }
+      ]
+    },
+    {
+      "name": "clarifications",
+      "value": [
+        {
+          "session": "2026-08-08",
+          "question": "Workflow mode?",
+          "answer": "Simple — CS-2, one feature directory, no dependency boundary worth a second phase."
+        },
+        {
+          "session": "2026-08-08",
+          "question": "Testing strategy?",
+          "answer": "Lightweight, matching the existing 064-terminal vitest suites."
+        },
+        {
+          "session": "2026-08-08",
+          "question": "Mock usage?",
+          "answer": "Targeted only — stub sendText at the component boundary; never mock the websocket, pty or tmux."
+        },
+        {
+          "session": "2026-08-08",
+          "question": "Documentation strategy?",
+          "answer": "No new documentation."
+        },
+        {
+          "session": "2026-08-08",
+          "question": "How were these answered?",
+          "answer": "Proposed inline rather than through a modal question dialog — pij global invariant 9 forbids blocking question UIs. All four are defaults open to Jordan's correction; none gate the build."
+        }
+      ]
+    },
+    {
+      "name": "planning_seam",
+      "value": [
+        {
+          "artifact": "assets/workshops/001-send-keys-to-coding-agents.md",
+          "present": "y",
+          "effect": "AUTHORITATIVE. Every send-path constant, and the reason each exists. Sourced from pij-continuing-ermine on Jordan direction; this plan cites it and must not contradict it."
+        },
+        {
+          "artifact": "cold /validate-v2 pass",
+          "present": "y",
+          "effect": "2 HIGH and 5 MEDIUM, all verified against source; all folded into rev 2.0.0. Confirmed all five load-bearing source claims to the line."
+        },
+        {
+          "artifact": "research-dossier.md",
+          "present": "n",
+          "effect": "None — the seams were source-verified read-only during orientation, and the workshop replaced what a dossier would have guessed at."
+        },
+        {
+          "artifact": "scratch/prompt-drawer-list.md",
+          "present": "y",
+          "effect": "Authoritative for the drawer contents, and still being appended to. Its git-tracking status is oq-0003."
+        }
+      ]
+    },
+    {
+      "name": "gate_matrix",
+      "value": [
+        {
+          "gate": "G1",
+          "check": "Clarify",
+          "status": "PASS",
+          "notes": "oq-0001 ruled by Jordan. Three open questions remain, each with a recommendation and a proceed-anyway note; oq-0004 gates only ph-0003, which is built last."
+        },
+        {
+          "gate": "G2",
+          "check": "Constitution",
+          "status": "PASS",
+          "notes": "No principle violated; no deviation ledger entry needed."
+        },
+        {
+          "gate": "G3",
+          "check": "Architecture",
+          "status": "PASS",
+          "notes": "Work stays in apps/web presentation plus its own feature server module, crossing no package boundary. The send-keys handler sits beside the existing copy-buffer handler in the same file."
+        },
+        {
+          "gate": "G4",
+          "check": "ADR Compliance",
+          "status": "PASS",
+          "notes": "14 accepted ADRs cover MCP tools, DI, config, workspace storage and CLI orchestration. None governs terminal delivery."
+        },
+        {
+          "gate": "G5",
+          "check": "Structure",
+          "status": "PASS",
+          "notes": "Bidirectional check, restated after a validator finding: every acceptance_coverage ac id exists in acceptance_criteria, every covered_by task id exists in its phase task file, AND every task appears in at least one covered_by. Phase-3 rows point at ph-0003 tasks that exist as stubs until that phase is expanded."
+        },
+        {
+          "gate": "G6",
+          "check": "Testing Alignment",
+          "status": "PASS",
+          "notes": "Lightweight strategy; every phase carries at least one real validation task (tk-0007, tk-0106, tk-0202). Criteria name the observable — which tmux calls in which order, with what argv — not that it works correctly."
+        },
+        {
+          "gate": "G7",
+          "check": "Domain Completeness",
+          "status": "N/A",
+          "notes": "Domain mode off."
+        }
+      ]
+    },
+    {
+      "name": "key_findings",
+      "value": [
+        {
+          "impact": "Critical",
+          "finding": "Copilot ignores Enter-as-submit while its pane is backgrounded — with focus-events on, a focus-out makes it swallow Return, and the text strands in the composer. A SIGWINCH redraw does not fix it; copilot gates submit on focus state, not render (workshop 001 section 4).",
+          "action": "Send a focus-in sequence (tmux send-keys -H 1b 5b 49) BEFORE typing, on every send. This is the finding that would have shipped broken: a browser drawer is by definition driving a pane the user is not focused on, and copilot is the harness our users run."
+        },
+        {
+          "impact": "Critical",
+          "finding": "A real newline in an agent TUI is a SUBMIT, so typing a five-line prompt literally submits five partial prompts (workshop 001 section 3).",
+          "action": "Deliver multi-line prompts with bracketed paste — tmux set-buffer then paste-buffer -p -d — so the composer receives one atomic multi-line paste. Do not flatten onto a separator; that is correct for machine-generated turns and wrong for human-authored prompts. Do not refuse multi-line, which just pushes the user to hand-paste with none of the controls."
+        },
+        {
+          "impact": "Critical",
+          "finding": "Prompt text needs TWO independent protections and they defend against different parsers: argv (never a shell string) makes backticks, dollar-parens, quotes and semicolons inert because no shell sees them; tmux literal mode stops tmux itself key-name-parsing an embedded Enter or C-c. pij#128 is the live evidence — their documented quoted-body form executes shell substitutions in relayed text.",
+          "action": "Use deps.execCommand (argv, execFileSync, no shell) AND -l. A drawer of saved prompts is a stored-payload surface: a saved prompt containing dollar-paren rm -rf is the attack. Confirmed twice here — the coder derived the same split cold from the transport, without seeing the workshop."
+        },
+        {
+          "impact": "High",
+          "finding": "deps.execCommand is execFileSync (terminal-ws.ts:433-435, typed at types.ts:74-78) — SYNCHRONOUS, and the control-message handler runs on the websocket message loop. Copilot needs a 900ms settle between typing and Enter.",
+          "action": "The settle must not be a synchronous sleep on that handler, or the user terminal freezes for about a second per click. Found by the coder reading cold; reported upstream and accepted as pij#159, since pij compact-self has the same shape on its non-daemon path."
+        },
+        {
+          "impact": "High",
+          "finding": "The per-harness settle table drifted inside pij itself: the daemon carries claude/codex/pi 350ms and copilot 900ms, while the CLI compact-self path settles a hardcoded harness-blind 300ms (pij#159). A grep of their repo surfaces 300 and would lead a reader to conclude the 900 is wrong.",
+          "action": "Take every constant from assets/workshops/001-send-keys-to-coding-agents.md, never from a grep of pij. Structurally: our settle table is ONE exported constant with ONE consumer path, so a second send site cannot silently run a different number. This is ac-0013, and it exists because their two copies drifted."
+        },
+        {
+          "impact": "High",
+          "finding": "The planned Escape fix cannot work. The overlay binds a document-level keydown in the BUBBLE phase (terminal-overlay-panel.tsx:71-88); a React stopPropagation only pre-empts it when the event target is inside the drawer subtree, and the toggle is a SIBLING in TerminalPaneHeader. Worse, xterm attachCustomKeyEventHandler returns true for bare Escape, and any send refocuses the terminal — so in every realistic path Escape with the drawer open closes the whole terminal.",
+          "action": "Own a CAPTURE-phase document keydown while the drawer is open, and write the test with focus on the terminal or the toggle. A test that fires Escape on a drawer node passes while the feature is broken — a green that lies."
+        },
+        {
+          "impact": "High",
+          "finding": "scratch/* is gitignored (.gitignore:152) and CI does a bare checkout then runs the whole suite, so a parity test against scratch/prompt-drawer-list.md is red the moment it lands — and the plan mandates it fail loudly rather than skip when the file is missing. Same breakage in any fresh git worktree.",
+          "action": "Settle oq-0003 before writing the parity test: git-track the list, either by negation or by moving it under the feature directory. The plan Risks table had anticipated the wrong failure mode — the file moving, not the file being absent from the repository."
+        },
+        {
+          "impact": "High",
+          "finding": "Exit zero from tmux, like a true return from pty.write, proves bytes moved — not that the agent accepted them. pij had to add composer polling because exit zero was a lie.",
+          "action": "Never signal success from an exit code. Verify the submit in ph-0003, and if verification is inconclusive treat it as an ambiguous success — re-press Enter at most 3 times at 250ms, and NEVER retype the payload. Retyping is how a prompt gets double-submitted."
+        },
+        {
+          "impact": "Medium",
+          "finding": "use-terminal-socket.ts:199-203 makes send a silent no-op unless the socket is OPEN, which is exactly why the header renders a ConnectionStatusBadge.",
+          "action": "Disable the row actions when the connection is not live rather than letting a click do nothing with no feedback. The earlier assumption that connectivity was guaranteed wherever the button renders was false and has been removed."
+        },
+        {
+          "impact": "Medium",
+          "finding": "TerminalPaneHeader exists because the overlay and the split pane previously drifted and the split pane lost the theme picker and copy control (FX014, Plan 084). terminal-split-pane.tsx:28 roots at a plain flex column with no positioning context; the overlay root is fixed and is already a containing block.",
+          "action": "Put the toggle in TerminalPaneHeader so both surfaces gain it in one edit, and add relative to the split-pane root or the drawer escapes and anchors to the viewport."
+        },
+        {
+          "impact": "Medium",
+          "finding": "The agent may be mid-turn; typing into a busy agent queues into its composer and submits when it finishes, which is usually fine and occasionally lands the prompt in an unrelated context (workshop 001 section 5).",
+          "action": "Consider gating the submit action on an idle agent in ph-0003. Recorded rather than designed — it needs the same pane read as verification, so it belongs with that decision."
+        }
+      ]
+    },
+    {
+      "name": "acceptance_coverage",
+      "value": [
+        {
+          "ac": "ac-0001",
+          "covered_by": [
+            "tk-0004"
+          ],
+          "verified_in": "Header test asserts the toggle on both the overlay and the split pane."
+        },
+        {
+          "ac": "ac-0002",
+          "covered_by": [
+            "tk-0005",
+            "tk-0007"
+          ],
+          "verified_in": "Escape test with focus on the terminal and on the toggle, not inside the drawer."
+        },
+        {
+          "ac": "ac-0003",
+          "covered_by": [
+            "tk-0003",
+            "tk-0007"
+          ],
+          "verified_in": "Row test asserts ellipsis truncation and the full text on title."
+        },
+        {
+          "ac": "ac-0004",
+          "covered_by": [
+            "tk-0101",
+            "tk-0106"
+          ],
+          "verified_in": "Send test asserts a type call with no Enter call following it."
+        },
+        {
+          "ac": "ac-0005",
+          "covered_by": [
+            "tk-0101",
+            "tk-0106"
+          ],
+          "verified_in": "Send test asserts type then a SEPARATE Enter call, and exactly one of them."
+        },
+        {
+          "ac": "ac-0006",
+          "covered_by": [
+            "tk-0002",
+            "tk-0007"
+          ],
+          "verified_in": "Parity test against the tracked list file; fails loudly when absent."
+        },
+        {
+          "ac": "ac-0007",
+          "covered_by": [
+            "tk-0101",
+            "tk-0106"
+          ],
+          "verified_in": "Hostile-text case: backticks, dollar-parens, quotes and an embedded literal Enter, asserted inert on both layers."
+        },
+        {
+          "ac": "ac-0008",
+          "covered_by": [
+            "tk-0004",
+            "tk-0007"
+          ],
+          "verified_in": "Singleton test asserts no remount and no reconnect on drawer open."
+        },
+        {
+          "ac": "ac-0009",
+          "covered_by": [
+            "tk-0003"
+          ],
+          "verified_in": "Human — Jordan exercises it under HMR in main. No computational proof claimed."
+        },
+        {
+          "ac": "ac-0010",
+          "covered_by": [
+            "tk-0104",
+            "tk-0106"
+          ],
+          "verified_in": "Multi-line test asserts a bracketed paste-buffer path, not N send-keys calls."
+        },
+        {
+          "ac": "ac-0011",
+          "covered_by": [
+            "tk-0102",
+            "tk-0106"
+          ],
+          "verified_in": "Send test asserts the focus-in sequence precedes the first type call."
+        },
+        {
+          "ac": "ac-0012",
+          "covered_by": [
+            "tk-0103",
+            "tk-0106"
+          ],
+          "verified_in": "Asserts the settle does not run synchronously on the message handler."
+        },
+        {
+          "ac": "ac-0013",
+          "covered_by": [
+            "tk-0103",
+            "tk-0106"
+          ],
+          "verified_in": "Asserts a single exported table and a single consumer; a second literal is a test failure."
+        },
+        {
+          "ac": "ac-0014",
+          "covered_by": [
+            "tk-0201",
+            "tk-0202"
+          ],
+          "verified_in": "Phase 3 — asserts no success on exit code alone, and that a payload is never retyped."
+        }
+      ]
+    },
+    {
+      "name": "risks",
+      "value": [
+        {
+          "risk": "We test the way we always test — focused pane, single-line prompt, idle agent — and every one of these failure modes is invisible in exactly that configuration.",
+          "likelihood": "High",
+          "impact": "High",
+          "mitigation": "The workshop doc leads with this above its constants. Test backgrounded FIRST, then multi-line, then busy. This is the risk that ships the bug."
+        },
+        {
+          "risk": "A saved prompt containing shell metacharacters is executed rather than typed — a stored-payload attack, since the list is saved data replayed later.",
+          "likelihood": "Low",
+          "impact": "Critical",
+          "mitigation": "argv plus literal mode, both proved by ac-0007 with a hostile-text case in the tests. Never build a shell string anywhere on the path."
+        },
+        {
+          "risk": "The copilot settle blocks the websocket message loop and the terminal visibly freezes for about a second on every click.",
+          "likelihood": "High",
+          "impact": "High",
+          "mitigation": "ac-0012. The settle runs off the message handler; execFileSync stays for the individual short tmux calls but the wait between them does not sit on the loop."
+        },
+        {
+          "risk": "The settle table gets copied to a second call site and drifts, which is precisely what happened inside pij (pij#159).",
+          "likelihood": "Medium",
+          "impact": "Medium",
+          "mitigation": "ac-0013 — one exported constant, one consumer path, and a second copy is a review stop."
+        },
+        {
+          "risk": "Verification is forbidden by the standing never-capture-pane constraint, leaving the UI able to report only exit codes, which are a lie.",
+          "likelihood": "Medium",
+          "impact": "Medium",
+          "mitigation": "oq-0004 with Jordan. Phase 3 is built last, so the answer can arrive late without stalling phases 1 and 2."
+        },
+        {
+          "risk": "The parity test is red on every CI run because its source file is gitignored.",
+          "likelihood": "High",
+          "impact": "High",
+          "mitigation": "oq-0003, settled before the parity test is written. Caught by the cold validator, not by us."
+        }
+      ]
+    },
+    {
+      "name": "execution_guardrails",
+      "value": [
+        "Work in main. No worktree — Jordan standing ruling, so HMR gives him each increment immediately.",
+        "Touch set: apps/web/src/features/064-terminal/** and test/unit/web/features/064-terminal/**. Anything outside is a stop-and-report.",
+        "Take every send-keys constant from assets/workshops/001-send-keys-to-coding-agents.md. NEVER from a grep of the pij repo — its CLI carries a stale harness-blind 300ms (pij#159) that will look authoritative and is not.",
+        "Never regenerate pnpm-lock.yaml. The visualstudio.com feed URLs are Microsoft SFI compliance, not contamination, and registry.npmjs.org returns HTTP 000 here, which is not a 404.",
+        "Never write .the-flow-state.json, the-flow.json or the-flow.md — builder guided mode is their sole writer.",
+        "Never run tmux capture-pane as an agent, and never let a test tap a live tmux pane. Whether PRODUCT code may read the pane it drives is oq-0004 and is Jordan call, not the implementer.",
+        "No dev-server restart without Jordan explicit nod — the pij poller is globalThis-pinned past HMR.",
+        "Test backgrounded before focused. Every failure mode in workshop 001 is invisible in the default posture of focused pane, single-line prompt, idle agent.",
+        "GATES ARE REAL — corrected 2026-08-09, and this entry previously said the opposite. phase-1, phase-2 and phase-3 all carry a dd_link completion gate on their task rows; review-3 carries the whole-plan plan-validate check. The phase-2 gate was written through `harness flow apply` with the CORRECT op shape (dd_link at the TOP LEVEL of the op, never nested under path/value) and PROVEN to fire: departing with six unchecked rows was refused, by address, with every row id enumerated. An earlier version of this guardrail claimed the phases were permanently ungated; that was a wrong diagnosis from a single malformed probe, and the malformed shape came from the upstream doc example (harness-engineering#135). TWO THINGS REMAIN TRUE AND MATTER. (1) review-1 carries a STALE whole-plan check that CANNOT BE CLEARED — apply refuses a null dd_link and set-node has no --dd-link flag, so the documented gate-MOVE is unperformable even when written correctly. Do not --force past it: --force belongs to the human alone, and this is an upstream defect rather than your judgment call. (2) The independent edge check STANDS regardless — pij-chief-roadrunner runs harness plan validate --complete at each phase edge before any nav. A proven gate plus an independent check from a different actor is not redundancy; it is the second disagreement channel, and dropping it the moment your own instrument starts looking trustworthy is exactly the move this plan spent a day learning not to make.",
+        "REVIEW-1'S GATE IS DELIBERATELY DISARMED, AND IT WILL STILL LOOK GATED. Its dd_link carries gate:false, so the whole-plan plan-validate check on review-1 no longer refuses a departure. This was applied 2026-08-09 to resolve a DOUBLE gate: the documented expander is supposed to MOVE that check to the last review, but a dd_link cannot be CLEARED (apply refuses null, set-node has no --dd-link) — harness-engineering#137 — so setting review-3's check left review-1 carrying a duplicate. TWO THINGS YOU MUST KNOW, because a disarm that reads as a removal is silent substitution of intent. (1) THE LINK SURVIVES AND THE RENDERER MAY STILL BADGE IT. review-1 will appear gated in the rail and in the JSON; it is not. Read dd_link.gate, never the badge. (2) THIS IS A DISARM, NOT A REMOVAL, and it does NOT close #137 — the real fix is still owed upstream. The live whole-plan gate is review-3's; that one is armed and is the one that must go green before ship. Do not 'tidy' review-1's link away and do not --force past anything; --force belongs to the human alone."
+      ]
+    }
+  ]
+}
