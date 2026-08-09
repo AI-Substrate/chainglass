@@ -1,0 +1,27 @@
+.dd/schemas/builder/backpressure/schema.json
+  s_a6b77772852964::t_e9d66f92b490ca 1-133
+.dd/schemas/builder/execution-log/schema.json
+  s_a6b77772852964::t_e382e4526507e9 1-59
+.dd/schemas/builder/fence/schema.json
+  s_a6b77772852964::t_3dcfecfe50239a 1-47
+.dd/schemas/builder/plan/schema.json
+  s_a6b77772852964::t_e50cb0126395c8 1-607
+.dd/schemas/builder/review/schema.json
+  s_a6b77772852964::t_cd5832435fd10c 1-169
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "4129e29e62e7a642f240f29ec4b5c895a20b0c89",
+  "prompts": {},
+  "sessions": {
+    "s_a6b77772852964": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "c800c9ff-86e7-4a5f-bdc3-f63517243af6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
