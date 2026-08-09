@@ -16,6 +16,7 @@ import fs from 'node:fs';
 import https from 'node:https';
 import { activeSigningSecret, findWorkspaceRoot } from '@chainglass/shared/auth-bootstrap-code';
 import { type WebSocket, WebSocketServer } from 'ws';
+import { isValidWindowName } from '../lib/window-name-validation';
 import type { CommandExecutor, PtyProcess, PtySpawner } from '../types';
 import { isProcessAlive, isTmuxClient, reapStalePtys, recordPid, removePid } from './pty-registry';
 import { sendPromptKeys } from './send-prompt-keys';
@@ -236,6 +237,38 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
           } catch (err) {
             const errMsg = err instanceof Error ? err.message : 'Unknown error';
             ws.send(JSON.stringify({ type: 'clipboard', data: '', error: errMsg }));
+          }
+          return;
+        }
+        if (msg.type === 'rename-window' && typeof msg.name === 'string') {
+          if (!manager.validateSessionName(sessionName)) {
+            ws.send(
+              JSON.stringify({
+                type: 'rename-window',
+                renamed: false,
+                error: 'Invalid session name',
+              })
+            );
+            return;
+          }
+          if (!isValidWindowName(msg.name)) {
+            ws.send(
+              JSON.stringify({
+                type: 'rename-window',
+                renamed: false,
+                error: 'Invalid window name',
+              })
+            );
+            return;
+          }
+          try {
+            // argv (and `--` for tmux's option parser) closes shell injection;
+            // validation keeps labels product- and tmux-level sane.
+            deps.execCommand('tmux', ['rename-window', '-t', sessionName, '--', msg.name]);
+            ws.send(JSON.stringify({ type: 'rename-window', renamed: true }));
+          } catch (err) {
+            const errMsg = err instanceof Error ? err.message : 'Unknown error';
+            ws.send(JSON.stringify({ type: 'rename-window', renamed: false, error: errMsg }));
           }
           return;
         }

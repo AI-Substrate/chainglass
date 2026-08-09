@@ -22,9 +22,18 @@
  * re-creates the exact drift this component exists to end.
  */
 
-import { ClipboardCopy, MessageSquareText, TerminalSquare, X } from 'lucide-react';
-import { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { ClipboardCopy, MessageSquareText, Pencil, TerminalSquare, X } from 'lucide-react';
+import { type FormEvent, useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { copyTmuxBuffer } from '../lib/copy-tmux-buffer';
+import { getWindowNameValidationError } from '../lib/window-name-validation';
 import type { ConnectionStatus } from '../types';
 import { ConnectionStatusBadge } from './connection-status-badge';
 import { TerminalPromptDrawer } from './terminal-prompt-drawer';
@@ -49,8 +58,11 @@ export function TerminalPaneHeader({
   // down through props. Both hosts already render inside the provider, so
   // neither of them grows a prop for the drawer — which is the drift FX014
   // created this component to end.
-  const { sendPrompt } = useTerminalSingleton();
+  const { sendPrompt, renameWindow } = useTerminalSingleton();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+  const [windowName, setWindowName] = useState('');
+  const [windowNameError, setWindowNameError] = useState<string | null>(null);
   const headerRef = useRef<HTMLDivElement>(null);
   const [headerHeight, setHeaderHeight] = useState(0);
 
@@ -80,6 +92,22 @@ export function TerminalPaneHeader({
       sendPrompt?.(text, options);
     },
     [sendPrompt]
+  );
+
+  const handleRename = useCallback(
+    (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      const error = getWindowNameValidationError(windowName);
+      if (error) {
+        setWindowNameError(error);
+        return;
+      }
+      renameWindow?.(windowName);
+      setRenameDialogOpen(false);
+      setWindowName('');
+      setWindowNameError(null);
+    },
+    [renameWindow, windowName]
   );
 
   return (
@@ -113,6 +141,16 @@ export function TerminalPaneHeader({
           >
             <ClipboardCopy className="h-3.5 w-3.5" />
           </button>
+          <button
+            type="button"
+            onClick={() => setRenameDialogOpen(true)}
+            disabled={!renameWindow}
+            className="rounded-sm p-1 text-muted-foreground hover:text-foreground hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label="Rename tmux window"
+            title="Rename tmux window"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
           <ConnectionStatusBadge status={connectionStatus} showLabel={false} />
           {onClose && (
             <button
@@ -134,6 +172,54 @@ export function TerminalPaneHeader({
         connected={connectionStatus === 'connected'}
         topOffset={headerHeight}
       />
+
+      <Dialog
+        open={renameDialogOpen}
+        onOpenChange={(open) => {
+          setRenameDialogOpen(open);
+          if (!open) setWindowNameError(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename tmux window</DialogTitle>
+            <DialogDescription>Set a name for the current tmux window.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleRename} className="space-y-4">
+            <div className="space-y-2">
+              <label htmlFor="terminal-window-name" className="text-sm font-medium">
+                Window name
+              </label>
+              <input
+                id="terminal-window-name"
+                value={windowName}
+                onChange={(event) => {
+                  setWindowName(event.target.value);
+                  setWindowNameError(null);
+                }}
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                aria-invalid={windowNameError ? true : undefined}
+                aria-describedby={windowNameError ? 'terminal-window-name-error' : undefined}
+                // biome-ignore lint/a11y/noAutofocus: user-invoked modal — the input is the dialog's only purpose, and the rule targets page-load focus theft, not focus placement inside a dialog the user opened.
+                autoFocus
+              />
+              {windowNameError && (
+                <p id="terminal-window-name-error" className="text-sm text-destructive">
+                  {windowNameError}
+                </p>
+              )}
+            </div>
+            <DialogFooter>
+              <button
+                type="submit"
+                className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+              >
+                Rename window
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

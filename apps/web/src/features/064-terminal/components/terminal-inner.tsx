@@ -17,7 +17,7 @@ import { useKeyboardOpen } from '../hooks/use-keyboard-open';
 import { useTerminalSocket } from '../hooks/use-terminal-socket';
 import { applyResyncOnStatus } from '../lib/resync-on-connect';
 import { resolveTerminalTheme } from '../lib/terminal-themes';
-import type { ConnectionStatus, SendPrompt } from '../types';
+import type { ConnectionStatus, RenameWindow, SendPrompt } from '../types';
 import { TerminalModifierToolbar } from './terminal-modifier-toolbar';
 
 interface TerminalInnerProps {
@@ -32,7 +32,7 @@ interface TerminalInnerProps {
    * through the context instead of being prop-drilled through both host
    * surfaces. Called with the sender on mount and with `null` on unmount.
    */
-  onSendPromptReady?: (sendPrompt: SendPrompt | null) => void;
+  onSendPromptReady?: (sendPrompt: SendPrompt | null, renameWindow: RenameWindow | null) => void;
   themeOverride?: 'dark' | 'light' | 'system';
   /** When true, auto-focus the terminal (e.g. overlay just became visible) */
   isVisible?: boolean;
@@ -88,7 +88,7 @@ export default function TerminalInner({
   // Store last clipboard data for modal fallback
   const lastClipboardDataRef = useRef<string | null>(null);
 
-  const { send, status, reconnect, copyBuffer, sendPrompt } = useTerminalSocket({
+  const { send, status, reconnect, copyBuffer, sendPrompt, renameWindow } = useTerminalSocket({
     sessionName,
     cwd,
     onData: (data) => {
@@ -119,6 +119,14 @@ export default function TerminalInner({
       if (delivered) return;
       const { toast } = await import('sonner');
       toast.error(error ?? 'Could not send the prompt to the terminal');
+    },
+    onRenameWindowResult: async ({ renamed, error }) => {
+      // tmux itself performs this control command, so a failed exit is a
+      // trustworthy failure signal. Success is visible in the header; only the
+      // otherwise-invisible failure needs a toast.
+      if (renamed) return;
+      const { toast } = await import('sonner');
+      toast.error(error ?? 'Could not rename the tmux window');
     },
     onStatus: async (_status, _tmux, _message) => {
       // Clear auth error on successful connection
@@ -533,9 +541,9 @@ export default function TerminalInner({
   // is open (tk-0005), and stealing focus to the xterm on every row click
   // would put the user's next Escape back into the terminal's hands.
   useEffect(() => {
-    onSendPromptReady?.(sendPrompt);
-    return () => onSendPromptReady?.(null);
-  }, [onSendPromptReady, sendPrompt]);
+    onSendPromptReady?.(sendPrompt, renameWindow);
+    return () => onSendPromptReady?.(null, null);
+  }, [onSendPromptReady, sendPrompt, renameWindow]);
 
   // Refocus terminal (called by toolbar after modifier capture completes)
   const handleRefocusTerminal = useCallback(() => {

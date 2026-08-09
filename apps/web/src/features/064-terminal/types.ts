@@ -39,6 +39,7 @@ export type TerminalMessage =
   | { type: 'status'; status: string; tmux: boolean; message?: string }
   | { type: 'resync' }
   | { type: 'send-keys'; text: string; submit: boolean }
+  | { type: 'rename-window'; name: string }
   | { type: 'sessions'; sessions: TerminalSession[] };
 
 /**
@@ -50,6 +51,16 @@ export type TerminalMessage =
  * intent and the sender owns delivery.
  */
 export type SendPrompt = (text: string, options: { submit: boolean }) => void;
+
+/** Rename the active tmux window for the terminal's attached session. */
+export type RenameWindow = (name: string) => void;
+
+/** Outcome of a rename-window control frame, as reported by the sidecar. */
+export interface RenameWindowResult {
+  /** True when tmux completed the window rename. */
+  renamed: boolean;
+  error?: string;
+}
 
 /** Outcome of a send-keys control frame, as reported by the sidecar. */
 export interface SendPromptResult {

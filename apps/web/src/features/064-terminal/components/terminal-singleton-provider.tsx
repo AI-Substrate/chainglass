@@ -31,7 +31,7 @@ import {
   useState,
 } from 'react';
 import { useTerminalOverlay } from '../hooks/use-terminal-overlay';
-import type { ConnectionStatus, SendPrompt } from '../types';
+import type { ConnectionStatus, RenameWindow, SendPrompt } from '../types';
 
 const TerminalInnerLazy = dynamic(() => import('./terminal-inner'), { ssr: false });
 
@@ -56,6 +56,8 @@ interface TerminalSingletonContextValue {
    * prop for it — that prop is how FX014's shared header drifted last time.
    */
   sendPrompt: SendPrompt | null;
+  /** The active terminal's tmux window rename sender. */
+  renameWindow: RenameWindow | null;
 }
 
 const TerminalSingletonContext = createContext<TerminalSingletonContextValue | null>(null);
@@ -106,6 +108,7 @@ export function TerminalSingletonProvider({
   const [hasActivated, setHasActivated] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
   const [sendPrompt, setSendPrompt] = useState<SendPrompt | null>(null);
+  const [renameWindow, setRenameWindow] = useState<RenameWindow | null>(null);
   const parkRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const slotsRef = useRef<Map<string, HTMLElement>>(new Map());
@@ -128,9 +131,13 @@ export function TerminalSingletonProvider({
   // The updater form is required: `setState` treats a bare function argument as
   // a reducer, so `setSendPrompt(fn)` would call the sender instead of storing
   // it. Stable identity keeps TerminalInner's registration effect from looping.
-  const registerSendPrompt = useCallback((fn: SendPrompt | null) => {
-    setSendPrompt(() => fn);
-  }, []);
+  const registerSendPrompt = useCallback(
+    (sendPromptFn: SendPrompt | null, renameWindowFn: RenameWindow | null) => {
+      setSendPrompt(() => sendPromptFn);
+      setRenameWindow(() => renameWindowFn);
+    },
+    []
+  );
 
   // Reparent the xterm host into the active viewport's slot (or back to park).
   // React doesn't actively re-attach the host on its own re-renders; the JSX
@@ -150,8 +157,16 @@ export function TerminalSingletonProvider({
   }, [activeId]);
 
   const ctxValue = useMemo<TerminalSingletonContextValue>(
-    () => ({ activate, deactivate, registerSlot, activeId, connectionStatus, sendPrompt }),
-    [activate, deactivate, registerSlot, activeId, connectionStatus, sendPrompt]
+    () => ({
+      activate,
+      deactivate,
+      registerSlot,
+      activeId,
+      connectionStatus,
+      sendPrompt,
+      renameWindow,
+    }),
+    [activate, deactivate, registerSlot, activeId, connectionStatus, sendPrompt, renameWindow]
   );
 
   const ready = Boolean(sessionName && cwd) && hasActivated;

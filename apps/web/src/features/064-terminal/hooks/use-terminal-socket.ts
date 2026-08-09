@@ -1,7 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ConnectionStatus, SendPrompt, SendPromptResult } from '../types';
+import type {
+  ConnectionStatus,
+  RenameWindow,
+  RenameWindowResult,
+  SendPrompt,
+  SendPromptResult,
+} from '../types';
 
 /**
  * Known control message types from the sidecar server (DYK-02 whitelist).
@@ -10,7 +16,14 @@ import type { ConnectionStatus, SendPrompt, SendPromptResult } from '../types';
  * server-side control frame that is not added here surfaces as raw JSON in the
  * user's terminal. `send-keys` (Plan 092 ph-0002) is here for that reason.
  */
-const CONTROL_TYPES = new Set(['status', 'error', 'sessions', 'clipboard', 'send-keys']);
+const CONTROL_TYPES = new Set([
+  'status',
+  'error',
+  'sessions',
+  'clipboard',
+  'send-keys',
+  'rename-window',
+]);
 
 /** Auth close codes from sidecar — don't retry with stale token (DYK-05) */
 const AUTH_CLOSE_CODES = new Set([4401, 4403]);
@@ -29,6 +42,7 @@ export interface UseTerminalSocketOptions {
   onError?: (message: string) => void;
   onClipboard?: (data: string, error?: string) => void;
   onSendPromptResult?: (result: SendPromptResult) => void;
+  onRenameWindowResult?: (result: RenameWindowResult) => void;
   onConnectionChange?: (status: ConnectionStatus) => void;
 }
 
@@ -40,6 +54,8 @@ export interface UseTerminalSocketReturn {
   copyBuffer: () => void;
   /** Plan 092: deliver a saved prompt to the agent in the attached pane. */
   sendPrompt: SendPrompt;
+  /** Rename the active tmux window for the attached session. */
+  renameWindow: RenameWindow;
 }
 
 const MAX_RECONNECT_ATTEMPTS = 5;
@@ -72,12 +88,14 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
   const onErrorRef = useRef(options.onError);
   const onClipboardRef = useRef(options.onClipboard);
   const onSendPromptResultRef = useRef(options.onSendPromptResult);
+  const onRenameWindowResultRef = useRef(options.onRenameWindowResult);
   const onConnectionChangeRef = useRef(options.onConnectionChange);
   onDataRef.current = options.onData;
   onStatusRef.current = options.onStatus;
   onErrorRef.current = options.onError;
   onClipboardRef.current = options.onClipboard;
   onSendPromptResultRef.current = options.onSendPromptResult;
+  onRenameWindowResultRef.current = options.onRenameWindowResult;
   onConnectionChangeRef.current = options.onConnectionChange;
 
   const updateStatus = useCallback((newStatus: ConnectionStatus) => {
@@ -147,6 +165,11 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
           } else if (msg.type === 'send-keys') {
             onSendPromptResultRef.current?.({
               delivered: msg.delivered === true,
+              error: msg.error,
+            });
+          } else if (msg.type === 'rename-window') {
+            onRenameWindowResultRef.current?.({
+              renamed: msg.renamed === true,
               error: msg.error,
             });
           }
@@ -257,6 +280,13 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
     [send]
   );
 
+  const renameWindow = useCallback<RenameWindow>(
+    (name) => {
+      send(JSON.stringify({ type: 'rename-window', name }));
+    },
+    [send]
+  );
+
   // Auto-connect: fetch token first (DYK-01), then connect synchronously
   useEffect(() => {
     disposedRef.current = false;
@@ -323,5 +353,5 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
     };
   }, [status]);
 
-  return { status, send, close, reconnect, copyBuffer, sendPrompt };
+  return { status, send, close, reconnect, copyBuffer, sendPrompt, renameWindow };
 }
