@@ -1,0 +1,19 @@
+biome.json
+  s_96ea85fc19fb5c::t_5fe3f443d4ef37 55-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "6a22545566d16d99d783fb81e3932493c0133bde",
+  "prompts": {},
+  "sessions": {
+    "s_96ea85fc19fb5c": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "06f5348e-6d18-496b-ad51-45708f9233df",
+        "model": "unknown"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
