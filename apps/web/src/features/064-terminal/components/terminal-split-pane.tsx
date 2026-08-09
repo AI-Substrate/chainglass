@@ -11,6 +11,11 @@
  *
  * Exit-split is driven by the split-toggle button in the file-browser toolbar
  * (FX012/FX013), so this header intentionally has no close button.
+ *
+ * Plan 092 (tk-0004): the root carries `relative` so it is a containing block
+ * for the absolutely-positioned prompt drawer that `TerminalPaneHeader`
+ * renders. Without it the drawer escapes this pane and anchors to the
+ * viewport. The overlay root is `fixed` and already a containing block.
  */
 
 import { TerminalPaneHeader } from './terminal-pane-header';
@@ -25,7 +30,7 @@ export interface TerminalSplitPaneProps {
 export function TerminalSplitPane({ sessionName }: TerminalSplitPaneProps) {
   const { connectionStatus } = useTerminalSingleton();
   return (
-    <div className="flex h-full flex-col">
+    <div className="relative flex h-full flex-col">
       <TerminalPaneHeader sessionName={sessionName} connectionStatus={connectionStatus} />
       <div className="flex-1 overflow-hidden min-h-0">
         <TerminalViewport id="inline-3rd" active />

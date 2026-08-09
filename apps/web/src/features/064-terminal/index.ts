@@ -15,6 +15,8 @@ export type {
   PtySpawner,
   PtyProcess,
   CommandExecutor,
+  SendPrompt,
+  SendPromptResult,
 } from './types';
 
 // Components (Phase 2)
@@ -51,3 +53,14 @@ export {
   DEFAULT_TERMINAL_THEME,
 } from './lib/terminal-themes';
 export { TerminalThemeSelect } from './components/terminal-theme-select';
+
+// Prompt drawer (Plan 092)
+export { TerminalPromptDrawer } from './components/terminal-prompt-drawer';
+export type { TerminalPromptDrawerProps } from './components/terminal-prompt-drawer';
+export type { TerminalPrompt } from './lib/terminal-prompts';
+export {
+  TERMINAL_PROMPTS,
+  PROMPT_LABEL_MAX_CHARS,
+  promptLabel,
+  parsePromptList,
+} from './lib/terminal-prompts';
