@@ -6,7 +6,6 @@
  */
 
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import {
   type ExecutionRegistry,
@@ -15,6 +14,7 @@ import {
   toRegistryEntry,
 } from '@/features/074-workflow-execution/execution-registry.types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { makeTmpDir, removeTmpDir } from '../../../../helpers/tmpdir';
 
 // We test the functions directly by reimplementing the logic with a controlled path
 // since the production module uses getUserConfigDir() which we don't want to touch.
@@ -124,12 +124,12 @@ describe('ExecutionRegistry file operations', () => {
   let registryPath: string;
 
   beforeEach(() => {
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'exec-registry-test-'));
+    tempDir = makeTmpDir('exec-registry-test');
     registryPath = path.join(tempDir, 'execution-registry.json');
   });
 
   afterEach(() => {
-    fs.rmSync(tempDir, { recursive: true, force: true });
+    removeTmpDir(tempDir);
   });
 
   /**

@@ -12,7 +12,6 @@
 
 import { execSync } from 'node:child_process';
 import * as fs from 'node:fs';
-import * as os from 'node:os';
 import * as path from 'node:path';
 import {
   getChangedFilesBranch,
@@ -20,6 +19,7 @@ import {
   parseNameStatus,
 } from '@/features/071-pr-view/lib/git-branch-service';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { makeTmpDir, removeTmpDir } from '../../../../helpers/tmpdir';
 
 let tmpDir: string;
 
@@ -32,7 +32,7 @@ function gitOutput(cmd: string): string {
 }
 
 beforeEach(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'git-branch-'));
+  tmpDir = makeTmpDir('git-branch');
   git('init -b main');
   git('config user.email "test@test.com"');
   git('config user.name "Test"');
@@ -42,7 +42,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  fs.rmSync(tmpDir, { recursive: true, force: true });
+  removeTmpDir(tmpDir);
 });
 
 // Plan 084 FX007 — getCurrentBranch + getDefaultBaseBranch lifted to

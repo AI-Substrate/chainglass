@@ -11,20 +11,20 @@
  */
 
 import * as fs from 'node:fs';
-import * as os from 'node:os';
 import * as path from 'node:path';
 import { appendNote } from '@chainglass/shared/file-notes';
 import { listFilesWithNotes, readNotes } from '@chainglass/shared/file-notes';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { makeTmpDir, removeTmpDir } from '../../../../helpers/tmpdir';
 
 let tmpDir: string;
 
 beforeEach(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'note-reader-'));
+  tmpDir = makeTmpDir('note-reader');
 });
 
 afterEach(() => {
-  fs.rmSync(tmpDir, { recursive: true, force: true });
+  removeTmpDir(tmpDir);
 });
 
 function notesFilePath(): string {

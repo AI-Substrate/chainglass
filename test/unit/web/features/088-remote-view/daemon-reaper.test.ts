@@ -9,8 +9,8 @@
  * registry `bundlePath`). Any probe failure ⇒ skip the kill. Per-webPort, so
  * concurrent worktree daemons never reap each other (Workshop 004 Q2).
  */
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+
 import { join } from 'node:path';
 import { streamdRegistryPath } from '@/features/088-remote-view/server/daemon-manager';
 import {
@@ -22,6 +22,7 @@ import {
   reapStreamdDaemonAtBoot,
 } from '@/features/088-remote-view/server/daemon-reaper';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { makeTmpDir, removeTmpDir } from '../../../../helpers/tmpdir';
 
 const WEB_PORT = 4607;
 const BUNDLE_PATH = '/Apps/ChainglassStreamd.app';
@@ -49,11 +50,11 @@ describe('remote-view daemon reaper (fail-closed)', () => {
   let registryPath: string;
 
   beforeEach(() => {
-    root = mkdtempSync(join(tmpdir(), 'cg-reaper-'));
+    root = makeTmpDir('cg-reaper');
     registryPath = streamdRegistryPath(root, WEB_PORT);
     mkdirSync(join(root, '.chainglass'), { recursive: true });
   });
-  afterEach(() => rmSync(root, { recursive: true, force: true }));
+  afterEach(() => removeTmpDir(root));
 
   function write(e: Record<string, unknown>): void {
     writeFileSync(registryPath, JSON.stringify(e), 'utf8');

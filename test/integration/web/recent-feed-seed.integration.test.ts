@@ -16,8 +16,8 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -25,6 +25,7 @@ import {
   detectFeedItemKind,
   getRecentFeedItems,
 } from '../../../apps/web/src/features/041-file-browser/services/recent-feed-items';
+import { makeTmpDir, removeTmpDir } from '../../helpers/tmpdir';
 
 function gitExec(cwd: string, ...args: string[]): string {
   return execFileSync('git', args, {
@@ -59,11 +60,11 @@ describe('getRecentFeedItems — real-git integration', () => {
   let tmp: string;
 
   beforeEach(() => {
-    tmp = mkdtempSync(join(tmpdir(), 'recent-feed-seed-'));
+    tmp = makeTmpDir('recent-feed-seed');
   });
 
   afterEach(() => {
-    rmSync(tmp, { recursive: true, force: true });
+    removeTmpDir(tmp);
   });
 
   it('orders entries newest-first and enriches with size/mtime/kind (AC B1)', async () => {

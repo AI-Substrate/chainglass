@@ -1,10 +1,10 @@
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { createProgram } from '../../../apps/cli/src/bin/cg.js';
+import { makeTmpDir, removeTmpDir } from '../../helpers/tmpdir';
 
 /**
  * Integration tests for `cg phase prepare`, `cg phase validate`, and `cg phase finalize` commands.
@@ -43,7 +43,7 @@ describe('cg phase', () => {
 
   beforeEach(async () => {
     // Create temp directories
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'phase-cmd-test-'));
+    tempDir = makeTmpDir('phase-cmd-test');
     templatesDir = path.join(tempDir, '.chainglass', 'templates');
     runsDir = path.join(tempDir, '.chainglass', 'runs');
     fs.mkdirSync(templatesDir, { recursive: true });
@@ -89,7 +89,7 @@ describe('cg phase', () => {
     process.chdir(originalCwd);
 
     // Clean up temp directories
-    fs.rmSync(tempDir, { recursive: true, force: true });
+    removeTmpDir(tempDir);
   });
 
   describe('help', () => {

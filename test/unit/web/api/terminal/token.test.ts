@@ -14,7 +14,6 @@
  * the real NextAuth `auth()` from a unit test requires NextAuth env vars and
  * is out of scope here.
  */
-import { rmSync } from 'node:fs';
 
 import {
   TERMINAL_JWT_AUDIENCE,
@@ -34,8 +33,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { GET } from '../../../../../apps/web/app/api/terminal/token/route';
 import { _resetForTests as _resetBootstrapCache } from '../../../../../apps/web/src/lib/bootstrap-code';
+import { removeTmpDir } from '../../../../helpers/tmpdir';
 import { mkTempCwd } from '../../../shared/auth-bootstrap-code/test-fixtures';
-
 const URL = 'http://localhost:3000/api/terminal/token';
 
 function reqWithCookie(cookieValue: string | undefined): NextRequest {
@@ -77,7 +76,7 @@ describe('GET /api/terminal/token', () => {
     else process.env.DISABLE_AUTH = originalDisableAuth;
     _resetBootstrapCache();
     _resetSigningSecretCacheForTests();
-    rmSync(cwd, { recursive: true, force: true });
+    removeTmpDir(cwd);
   });
 
   it('returns 401 when no chainglass-bootstrap cookie is present (cookie pre-check)', async () => {

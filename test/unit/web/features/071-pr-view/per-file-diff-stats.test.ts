@@ -12,10 +12,10 @@
 
 import { execSync } from 'node:child_process';
 import * as fs from 'node:fs';
-import * as os from 'node:os';
 import * as path from 'node:path';
 import { getPerFileDiffStats, parseNumstat } from '@/features/071-pr-view/lib/per-file-diff-stats';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { makeTmpDir, removeTmpDir } from '../../../../helpers/tmpdir';
 
 describe('parseNumstat', () => {
   /**
@@ -82,7 +82,7 @@ describe('getPerFileDiffStats (integration)', () => {
   let tmpDir: string;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'diff-stats-'));
+    tmpDir = makeTmpDir('diff-stats');
     execSync('git init -b main', { cwd: tmpDir, stdio: 'ignore' });
     execSync('git config user.email "test@test.com"', { cwd: tmpDir, stdio: 'ignore' });
     execSync('git config user.name "Test"', { cwd: tmpDir, stdio: 'ignore' });
@@ -91,7 +91,7 @@ describe('getPerFileDiffStats (integration)', () => {
   });
 
   afterEach(() => {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
+    removeTmpDir(tmpDir);
   });
 
   /**

@@ -12,10 +12,10 @@
  */
 
 import * as fs from 'node:fs';
-import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { type McpTestClient, createTestClient } from '../../base/mcp-test.js';
+import { makeTmpDir, removeTmpDir } from '../../helpers/tmpdir';
 
 // Path to development exemplar template
 const projectRoot = path.resolve(import.meta.dirname, '../../..');
@@ -27,12 +27,12 @@ describe('MCP Workflow Integration - E2E', () => {
 
   beforeAll(() => {
     // Create temp directory for test runs
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-wf-test-'));
+    tempDir = makeTmpDir('mcp-wf-test');
   });
 
   afterAll(() => {
     // Cleanup temp directory
-    fs.rmSync(tempDir, { recursive: true, force: true });
+    removeTmpDir(tempDir);
   });
 
   afterEach(async () => {

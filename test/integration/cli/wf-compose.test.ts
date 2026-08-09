@@ -1,10 +1,10 @@
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { createProgram } from '../../../apps/cli/src/bin/cg.js';
+import { makeTmpDir, removeTmpDir } from '../../helpers/tmpdir';
 
 /**
  * Integration tests for `cg wf compose` command.
@@ -42,7 +42,7 @@ describe('cg wf compose', () => {
 
   beforeEach(() => {
     // Create temp directories
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wf-compose-test-'));
+    tempDir = makeTmpDir('wf-compose-test');
     templatesDir = path.join(tempDir, '.chainglass', 'templates');
     runsDir = path.join(tempDir, '.chainglass', 'runs');
     fs.mkdirSync(templatesDir, { recursive: true });
@@ -68,7 +68,7 @@ describe('cg wf compose', () => {
     process.chdir(originalCwd);
 
     // Clean up temp directories
-    fs.rmSync(tempDir, { recursive: true, force: true });
+    removeTmpDir(tempDir);
   });
 
   describe('help', () => {

@@ -20,8 +20,8 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { type FSWatcher, mkdirSync, mkdtempSync, rmSync, watch, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { type FSWatcher, mkdirSync, watch, writeFileSync } from 'node:fs';
+
 import { join, relative } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -36,6 +36,7 @@ import type {
   FeedItem,
   FeedState,
 } from '../../../apps/web/src/features/041-file-browser/components/recent-feed/types';
+import { makeTmpDir, removeTmpDir } from '../../helpers/tmpdir';
 
 interface WatchedEvents {
   events: Array<{ type: 'add' | 'change'; relPath: string; fullPath: string }>;
@@ -87,13 +88,13 @@ describe('Recent-feed live updates — real fs.watch integration', () => {
   let watched: WatchedEvents | null = null;
 
   beforeEach(() => {
-    tmp = mkdtempSync(join(tmpdir(), 'recent-feed-live-'));
+    tmp = makeTmpDir('recent-feed-live');
   });
 
   afterEach(() => {
     watched?.watcher.close();
     watched = null;
-    rmSync(tmp, { recursive: true, force: true });
+    removeTmpDir(tmp);
   });
 
   it('promotes / inserts real fs events into the reducer state (AC C1)', async () => {
@@ -216,11 +217,11 @@ describe('Recent-feed live updates — git-history seed compatibility', () => {
   let tmp: string;
 
   beforeEach(() => {
-    tmp = mkdtempSync(join(tmpdir(), 'recent-feed-live-git-'));
+    tmp = makeTmpDir('recent-feed-live-git');
   });
 
   afterEach(() => {
-    rmSync(tmp, { recursive: true, force: true });
+    removeTmpDir(tmp);
   });
 
   it('continues to merge live events on top of a real git-history seed', async () => {

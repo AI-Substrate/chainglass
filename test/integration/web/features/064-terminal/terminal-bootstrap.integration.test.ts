@@ -17,7 +17,6 @@
  * Phase 3 path). The WS upgrade is simulated by calling the exported
  * `authorizeUpgrade()` directly — no real WS server stand-up.
  */
-import { rmSync } from 'node:fs';
 
 import {
   TERMINAL_JWT_AUDIENCE,
@@ -39,8 +38,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { GET as TOKEN_GET } from '../../../../../apps/web/app/api/terminal/token/route';
 import { _resetForTests as _resetBootstrapCache } from '../../../../../apps/web/src/lib/bootstrap-code';
+import { removeTmpDir } from '../../../../helpers/tmpdir';
 import { mkTempCwd } from '../../../../unit/shared/auth-bootstrap-code/test-fixtures';
-
 const TOKEN_URL = 'http://localhost:3000/api/terminal/token';
 
 function tokenRequest(cookieValue: string | undefined): NextRequest {
@@ -100,7 +99,7 @@ describe('Phase 4 integration — terminal bootstrap auth (AC-13 + AC-14)', () =
     else process.env.DISABLE_AUTH = originalDisableAuth;
     _resetBootstrapCache();
     _resetSigningSecretCacheForTests();
-    rmSync(cwd, { recursive: true, force: true });
+    removeTmpDir(cwd);
   });
 
   describe('AC-13 — silent-bypass closed (AUTH_SECRET unset)', () => {

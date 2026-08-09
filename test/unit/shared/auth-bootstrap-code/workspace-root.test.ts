@@ -21,7 +21,7 @@
  *   R4: cross-platform termination via `path.parse(start).root`
  */
 
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -30,8 +30,8 @@ import {
   findWorkspaceRoot,
 } from '@chainglass/shared/auth-bootstrap-code';
 
+import { removeTmpDir } from '../../../helpers/tmpdir';
 import { mkTempCwd } from './test-fixtures';
-
 describe('findWorkspaceRoot', () => {
   let temps: string[] = [];
 
@@ -41,7 +41,7 @@ describe('findWorkspaceRoot', () => {
 
   afterEach(() => {
     for (const t of temps) {
-      rmSync(t, { recursive: true, force: true });
+      removeTmpDir(t);
     }
     temps = [];
     _resetWorkspaceRootCacheForTests();
@@ -109,7 +109,7 @@ describe('findWorkspaceRoot', () => {
     expect(first).toBe(root);
 
     // Delete the marker. Cache hit returns previous value (proves caching).
-    rmSync(join(root, '.git'), { recursive: true, force: true });
+    removeTmpDir(join(root, '.git'));
     const second = findWorkspaceRoot(sub);
     expect(second).toBe(root);
 
@@ -141,7 +141,7 @@ describe('findWorkspaceRoot', () => {
 
     // Delete the marker. If the cache key were NOT normalized, calling
     // with the trailing-slash form would re-walk and miss the marker.
-    rmSync(join(root, '.git'), { recursive: true, force: true });
+    removeTmpDir(join(root, '.git'));
     const second = findWorkspaceRoot(subTrailing);
     expect(second).toBe(root); // cache hit via normalized key
 

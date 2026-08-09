@@ -9,9 +9,10 @@
  * need to mutate a store (append a spine line, rename the file under a live reader) copy the fixture
  * into an OS temp directory first via `copyStoreToTemp()`.
  */
-import { cpSync, mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { cpSync } from 'node:fs';
+
 import { join } from 'node:path';
+import { makeTmpDir, removeTmpDir } from '../../helpers/tmpdir';
 
 /** This directory. */
 export const PIJ_FIXTURES_DIR = import.meta.dirname;
@@ -61,11 +62,11 @@ export const FIXTURE_TORN_SEQ = 103;
  * @returns the temp store root and a `cleanup()` that removes it.
  */
 export function copyStoreToTemp(): { dir: string; spineDir: string; cleanup: () => void } {
-  const dir = mkdtempSync(join(tmpdir(), 'pij-fixture-store-'));
+  const dir = makeTmpDir('pij-fixture-store');
   cpSync(FIXTURE_STORE_DIR, dir, { recursive: true });
   return {
     dir,
     spineDir: join(dir, 'spine'),
-    cleanup: () => rmSync(dir, { recursive: true, force: true }),
+    cleanup: () => removeTmpDir(dir),
   };
 }

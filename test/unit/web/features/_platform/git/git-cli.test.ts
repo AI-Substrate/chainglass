@@ -22,7 +22,6 @@
 
 import { execSync } from 'node:child_process';
 import * as fs from 'node:fs';
-import * as os from 'node:os';
 import * as path from 'node:path';
 import {
   getCurrentBranch,
@@ -31,6 +30,7 @@ import {
   getRemoteUrl,
 } from '@/features/_platform/git/index.server';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { makeTmpDir, removeTmpDir } from '../../../../../helpers/tmpdir';
 
 let tmp: string;
 
@@ -39,7 +39,7 @@ function git(cmd: string) {
 }
 
 beforeEach(() => {
-  tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'git-cli-'));
+  tmp = makeTmpDir('git-cli');
   git('init -b main');
   git('config user.email "t@t.com"');
   git('config user.name "T"');
@@ -49,7 +49,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  fs.rmSync(tmp, { recursive: true, force: true });
+  removeTmpDir(tmp);
 });
 
 describe('getRemoteUrl', () => {
@@ -63,11 +63,11 @@ describe('getRemoteUrl', () => {
   });
 
   it('returns null when cwd is not a git repo', async () => {
-    const nonRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'not-git-'));
+    const nonRepo = makeTmpDir('not-git');
     try {
       expect(await getRemoteUrl(nonRepo)).toBeNull();
     } finally {
-      fs.rmSync(nonRepo, { recursive: true, force: true });
+      removeTmpDir(nonRepo);
     }
   });
 });
@@ -83,11 +83,11 @@ describe('getCurrentBranch', () => {
   });
 
   it("returns 'HEAD' when cwd is not a git repo", async () => {
-    const nonRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'not-git-'));
+    const nonRepo = makeTmpDir('not-git');
     try {
       expect(await getCurrentBranch(nonRepo)).toBe('HEAD');
     } finally {
-      fs.rmSync(nonRepo, { recursive: true, force: true });
+      removeTmpDir(nonRepo);
     }
   });
 });
@@ -120,21 +120,21 @@ describe('getCurrentCommitSha', () => {
   });
 
   it('returns null in a zero-commit worktree', async () => {
-    const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'empty-git-'));
+    const empty = makeTmpDir('empty-git');
     try {
       execSync('git init -b main', { cwd: empty, stdio: 'ignore' });
       expect(await getCurrentCommitSha(empty)).toBeNull();
     } finally {
-      fs.rmSync(empty, { recursive: true, force: true });
+      removeTmpDir(empty);
     }
   });
 
   it('returns null when cwd is not a git repo', async () => {
-    const nonRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'not-git-'));
+    const nonRepo = makeTmpDir('not-git');
     try {
       expect(await getCurrentCommitSha(nonRepo)).toBeNull();
     } finally {
-      fs.rmSync(nonRepo, { recursive: true, force: true });
+      removeTmpDir(nonRepo);
     }
   });
 });

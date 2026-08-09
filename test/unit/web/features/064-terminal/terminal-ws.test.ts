@@ -1,8 +1,8 @@
 // @vitest-environment node
 // Server-side code (node:fs, node:crypto, jose); jsdom env breaks jose's
 // `payload instanceof Uint8Array` check via cross-realm Uint8Array.
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, writeFileSync } from 'node:fs';
+
 import { join } from 'node:path';
 import { ENTER_SETTLE_MS } from '@/features/064-terminal/server/send-prompt-keys';
 import {
@@ -24,6 +24,7 @@ import { SignJWT } from 'jose';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { type FakePty, createFakePtySpawner } from '../../../../fakes/fake-pty';
 import { FakeTmuxExecutor } from '../../../../fakes/fake-tmux-executor';
+import { makeTmpDir, removeTmpDir } from '../../../../helpers/tmpdir';
 
 function createFakeWs() {
   const sent: string[] = [];
@@ -613,7 +614,7 @@ describe('Terminal WebSocket Server', () => {
     const origAuthSecret = process.env.AUTH_SECRET;
 
     beforeEach(() => {
-      tempCwd = mkdtempSync(join(tmpdir(), 'p4-terminal-ws-'));
+      tempCwd = makeTmpDir('p4-terminal-ws');
       mkdirSync(join(tempCwd, '.chainglass'), { recursive: true });
       // Pre-write a bootstrap-code file so HKDF derivation works deterministically.
       writeFileSync(
@@ -635,7 +636,7 @@ describe('Terminal WebSocket Server', () => {
       if (origAuthSecret === undefined) delete process.env.AUTH_SECRET;
       else process.env.AUTH_SECRET = origAuthSecret;
       _resetSigningSecretCacheForTests();
-      rmSync(tempCwd, { recursive: true, force: true });
+      removeTmpDir(tempCwd);
     });
 
     describe('JWT shape constants', () => {
@@ -946,7 +947,7 @@ describe('Terminal WebSocket Server', () => {
       it('throws an Error containing the cwd path but NOT the bootstrap code (AC-22)', () => {
         // Why: Sidecar must fail-fast with operator-actionable error, but
         // must never log the bootstrap CODE itself (audit trail).
-        const missingCwd = mkdtempSync(join(tmpdir(), 'p4-no-bootstrap-'));
+        const missingCwd = makeTmpDir('p4-no-bootstrap');
         try {
           // Force a permission/file failure: chmod the .chainglass dir to be read-only
           // and create the file as a directory so persistence.ts cannot read it.
@@ -967,7 +968,7 @@ describe('Terminal WebSocket Server', () => {
             );
           }
         } finally {
-          rmSync(missingCwd, { recursive: true, force: true });
+          removeTmpDir(missingCwd);
           _resetSigningSecretCacheForTests();
         }
       });

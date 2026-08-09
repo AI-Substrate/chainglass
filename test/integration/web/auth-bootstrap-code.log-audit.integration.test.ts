@@ -56,6 +56,7 @@ import { getBootstrapCodeAndKey } from '../../../apps/web/src/lib/bootstrap-code
 import { requireLocalAuth } from '../../../apps/web/src/lib/local-auth';
 
 import { setupBootstrapTestEnv } from '../../helpers/auth-bootstrap-code';
+import { removeTmpDir } from '../../helpers/tmpdir';
 
 const VERIFY_URL = 'http://localhost:3000/api/bootstrap/verify';
 const SINK_URL = 'http://localhost:3000/api/event-popper/list';
@@ -236,7 +237,7 @@ describe('AC-22 log-discipline audit (Phase 7 T010)', () => {
     const fs = await import('node:fs');
     const path = await import('node:path');
     const dotChainglass = path.join(env.cwd, '.chainglass');
-    fs.rmSync(dotChainglass, { recursive: true, force: true });
+    removeTmpDir(dotChainglass);
     fs.writeFileSync(dotChainglass, 'sentinel');
 
     // Reset the cached `getBootstrapCodeAndKey` so it actually re-reads

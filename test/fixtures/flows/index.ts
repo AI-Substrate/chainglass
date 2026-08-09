@@ -17,9 +17,10 @@
  * (The deliberately-unparseable fixture additionally carries a `.txt` suffix, because a file that is
  * invalid JSON by construction cannot live under a `.json` extension the formatter checks.)
  */
-import { cpSync, mkdtempSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs';
+import { cpSync, mkdtempSync, readdirSync, renameSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { makeTmpDir, removeTmpDir } from '../../helpers/tmpdir';
 
 /** This directory. */
 export const FLOW_FIXTURES_DIR = import.meta.dirname;
@@ -69,7 +70,7 @@ export function materializeFlowFixture(name: FlowFixtureName): {
   const planDir = mkdtempSync(join(tmpdir(), `flow-fixture-${name}-`));
   cpSync(flowFixtureSourceDir(name), planDir, { recursive: true });
   restoreRealNames(planDir);
-  return { planDir, cleanup: () => rmSync(planDir, { recursive: true, force: true }) };
+  return { planDir, cleanup: () => removeTmpDir(planDir) };
 }
 
 /**
@@ -80,13 +81,13 @@ export function materializePlansRoot(names: readonly FlowFixtureName[]): {
   plansRoot: string;
   cleanup: () => void;
 } {
-  const plansRoot = mkdtempSync(join(tmpdir(), 'flow-fixture-plans-'));
+  const plansRoot = makeTmpDir('flow-fixture-plans');
   for (const name of names) {
     const dest = join(plansRoot, name);
     cpSync(flowFixtureSourceDir(name), dest, { recursive: true });
     restoreRealNames(dest);
   }
-  return { plansRoot, cleanup: () => rmSync(plansRoot, { recursive: true, force: true }) };
+  return { plansRoot, cleanup: () => removeTmpDir(plansRoot) };
 }
 
 /** Strip the `.fixture` marker (and any `.txt` guard suffix) from every file in a copied plan dir. */

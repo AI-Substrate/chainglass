@@ -19,7 +19,7 @@
  *   (h)  bootstrap-code.json unreadable → reason: 'bootstrap-unavailable' + console.warn (no code in log) — Completeness fix #2 + AC-22
  *   (i)  cookie wins when both valid → returns via: 'cookie'
  */
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
@@ -36,8 +36,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { _resetForTests as _resetBootstrapCache } from '../../../../apps/web/src/lib/bootstrap-code';
 import { requireLocalAuth } from '../../../../apps/web/src/lib/local-auth';
+import { removeTmpDir } from '../../../helpers/tmpdir';
 import { mkTempCwd } from '../../shared/auth-bootstrap-code/test-fixtures';
-
 const URL = 'http://localhost:3000/api/event-popper/list';
 
 interface ReqOptions {
@@ -107,7 +107,7 @@ describe('requireLocalAuth (Phase 5 T001 RED)', () => {
     _resetBootstrapCache();
     _resetSigningSecretCacheForTests();
     _resetWorkspaceRootCacheForTests();
-    rmSync(cwd, { recursive: true, force: true });
+    removeTmpDir(cwd);
     warnSpy.mockRestore();
   });
 
@@ -187,7 +187,7 @@ describe('requireLocalAuth (Phase 5 T001 RED)', () => {
   it("(h) bootstrap-code.json unreadable → 'bootstrap-unavailable' (warn fires, no code in log)", async () => {
     // Delete the bootstrap-code.json file AND make .chainglass/ unwritable so
     // ensureBootstrapCode (used by getBootstrapCodeAndKey) cannot regenerate.
-    rmSync(join(cwd, '.chainglass'), { recursive: true, force: true });
+    removeTmpDir(join(cwd, '.chainglass'));
     // Replace .chainglass with a regular FILE (not a dir) so any mkdir attempt
     // throws EEXIST — guarantees the throw branch executes.
     writeFileSync(join(cwd, '.chainglass'), 'sentinel');

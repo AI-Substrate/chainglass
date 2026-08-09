@@ -15,8 +15,8 @@
  * for its port to free before binding the replacement, and the readiness poll accepts
  * only the freshly-spawned daemon (never the one it just retired).
  */
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, writeFileSync } from 'node:fs';
+
 import { join } from 'node:path';
 import {
   type DaemonHealth,
@@ -25,6 +25,7 @@ import {
   streamdRegistryPath,
 } from '@/features/088-remote-view/server/daemon-manager';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { makeTmpDir, removeTmpDir } from '../../../../helpers/tmpdir';
 
 const WEB_PORT = 4607;
 const EXPECTED_PROTOCOL = 1;
@@ -65,12 +66,12 @@ describe('remote-view daemon manager', () => {
   let registryPath: string;
 
   beforeEach(() => {
-    root = mkdtempSync(join(tmpdir(), 'cg-streamd-'));
+    root = makeTmpDir('cg-streamd');
     registryPath = streamdRegistryPath(root, WEB_PORT);
     mkdirSync(join(root, '.chainglass'), { recursive: true });
   });
   afterEach(() => {
-    rmSync(root, { recursive: true, force: true });
+    removeTmpDir(root);
   });
 
   /** The live-daemon model the fakes mutate: at most one daemon answers on `regPort` at a time. */

@@ -11,7 +11,6 @@
  */
 
 import * as fs from 'node:fs';
-import * as os from 'node:os';
 import * as path from 'node:path';
 import {
   clearReviewedState,
@@ -21,15 +20,16 @@ import {
   unmarkFileReviewed,
 } from '@/features/071-pr-view/lib/pr-view-state';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { makeTmpDir, removeTmpDir } from '../../../../helpers/tmpdir';
 
 let tmpDir: string;
 
 beforeEach(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pr-view-state-'));
+  tmpDir = makeTmpDir('pr-view-state');
 });
 
 afterEach(() => {
-  fs.rmSync(tmpDir, { recursive: true, force: true });
+  removeTmpDir(tmpDir);
 });
 
 describe('loadReviewedState', () => {

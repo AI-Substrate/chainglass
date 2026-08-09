@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -13,6 +13,7 @@ import { detectTmuxContext, getTmuxMeta } from '@chainglass/shared/event-popper'
 import { NextRequest } from 'next/server';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { isLocalhostRequest, localhostGuard } from '../../../apps/web/src/lib/localhost-guard.js';
+import { removeTmpDir } from '../../helpers/tmpdir';
 
 /*
 Test Doc:
@@ -148,7 +149,7 @@ describe('port-discovery', () => {
   });
 
   afterEach(() => {
-    rmSync(testDir, { recursive: true, force: true });
+    removeTmpDir(testDir);
   });
 
   it('write then read round-trip returns same info', () => {
@@ -335,7 +336,7 @@ describe('readServerInfo recycled PID', () => {
   });
 
   afterEach(() => {
-    rmSync(testDir, { recursive: true, force: true });
+    removeTmpDir(testDir);
   });
 
   it('returns null when recorded startedAt is far in the past relative to live process', () => {

@@ -7,13 +7,11 @@
  */
 
 import * as fs from 'node:fs';
-import * as os from 'node:os';
-import * as path from 'node:path';
 import { FakeNoteService } from '@chainglass/shared/fakes';
 import { JsonlNoteService } from '@chainglass/shared/file-notes';
 import { afterEach, beforeEach } from 'vitest';
+import { makeTmpDir, removeTmpDir } from '../helpers/tmpdir';
 import { noteServiceContractTests } from './note-service.contract';
-
 // Fake implementation — no filesystem needed
 noteServiceContractTests('FakeNoteService', () => new FakeNoteService());
 
@@ -21,11 +19,11 @@ noteServiceContractTests('FakeNoteService', () => new FakeNoteService());
 let tmpDir: string;
 
 beforeEach(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'note-contract-'));
+  tmpDir = makeTmpDir('note-contract');
 });
 
 afterEach(() => {
-  fs.rmSync(tmpDir, { recursive: true, force: true });
+  removeTmpDir(tmpDir);
 });
 
 noteServiceContractTests('JsonlNoteService', () => new JsonlNoteService(tmpDir));

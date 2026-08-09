@@ -4,7 +4,7 @@
  *
  * Constitution P3 (TDD) + P4 (no vi.mock — real fs + real env in temp cwd).
  */
-import { rmSync, unlinkSync } from 'node:fs';
+import { unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
@@ -20,6 +20,7 @@ import {
   _resetForTests,
   getBootstrapCodeAndKey,
 } from '../../../../apps/web/src/lib/bootstrap-code';
+import { removeTmpDir } from '../../../helpers/tmpdir';
 
 describe('getBootstrapCodeAndKey', () => {
   let cwd: string;
@@ -49,7 +50,7 @@ describe('getBootstrapCodeAndKey', () => {
     }
     _resetForTests();
     _resetSigningSecretCacheForTests();
-    rmSync(cwd, { recursive: true, force: true });
+    removeTmpDir(cwd);
   });
 
   it('(a) returns the active code + a 32-byte key', async () => {

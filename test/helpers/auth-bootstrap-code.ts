@@ -7,9 +7,6 @@
  * NOT a `.test.ts` file by design — vitest globs (`test/**\/*.test.ts`) skip
  * us, and importing from another test file risks circular discovery.
  */
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 
 import {
   type BootstrapCodeFile,
@@ -19,6 +16,7 @@ import {
 
 import { _resetRateLimitForTests } from '../../apps/web/app/api/bootstrap/verify/route';
 import { _resetForTests as _resetBootstrapCache } from '../../apps/web/src/lib/bootstrap-code';
+import { makeTmpDir, removeTmpDir } from './tmpdir';
 
 export interface BootstrapTestEnv {
   /** Absolute path to the temp project root used by the test. */
@@ -47,7 +45,7 @@ export interface BootstrapTestEnv {
  */
 export function setupBootstrapTestEnv(): BootstrapTestEnv {
   const originalCwd = process.cwd();
-  const cwd = mkdtempSync(join(tmpdir(), 'bootstrap-code-it-'));
+  const cwd = makeTmpDir('bootstrap-code-it');
   process.chdir(cwd);
 
   _resetBootstrapCache();
@@ -67,7 +65,7 @@ export function setupBootstrapTestEnv(): BootstrapTestEnv {
       _resetBootstrapCache();
       _resetSigningSecretCacheForTests();
       _resetRateLimitForTests();
-      rmSync(cwd, { recursive: true, force: true });
+      removeTmpDir(cwd);
     },
   };
 }

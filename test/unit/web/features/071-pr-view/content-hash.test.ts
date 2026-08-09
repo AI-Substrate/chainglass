@@ -12,20 +12,20 @@
 
 import { execSync } from 'node:child_process';
 import * as fs from 'node:fs';
-import * as os from 'node:os';
 import * as path from 'node:path';
 import { computeContentHash } from '@/features/071-pr-view/lib/content-hash';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { makeTmpDir, removeTmpDir } from '../../../../helpers/tmpdir';
 
 let tmpDir: string;
 
 beforeEach(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'content-hash-'));
+  tmpDir = makeTmpDir('content-hash');
   execSync('git init', { cwd: tmpDir, stdio: 'ignore' });
 });
 
 afterEach(() => {
-  fs.rmSync(tmpDir, { recursive: true, force: true });
+  removeTmpDir(tmpDir);
 });
 
 describe('computeContentHash', () => {

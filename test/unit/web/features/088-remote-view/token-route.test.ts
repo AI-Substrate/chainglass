@@ -21,7 +21,6 @@
  * the frozen verbatim copy of the terminal route's gate (Finding 03), so its
  * behaviour is shared, not re-implemented.
  */
-import { rmSync } from 'node:fs';
 
 import {
   FAKE_DAEMON_PORT,
@@ -54,8 +53,8 @@ vi.mock('@/lib/bootstrap-singleton', () => ({ getContainer: () => ({ resolve: re
 import { GET } from '../../../../../apps/web/app/api/remote-view/token/route';
 import { _resetForTests as _resetBootstrapCache } from '../../../../../apps/web/src/lib/bootstrap-code';
 import authVectors from '../../../../contracts/remote-view-auth-vectors.json';
+import { removeTmpDir } from '../../../../helpers/tmpdir';
 import { mkTempCwd } from '../../../shared/auth-bootstrap-code/test-fixtures';
-
 const URL_ = 'http://localhost:3000/api/remote-view/token';
 
 /** Point the mocked container at a specific daemon-control for one test. */
@@ -101,7 +100,7 @@ describe('GET /api/remote-view/token', () => {
     else process.env.DISABLE_AUTH = originalDisableAuth;
     _resetBootstrapCache();
     _resetSigningSecretCacheForTests();
-    rmSync(cwd, { recursive: true, force: true });
+    removeTmpDir(cwd);
   });
 
   it('returns 401 when the bootstrap cookie is missing (defence-in-depth)', async () => {

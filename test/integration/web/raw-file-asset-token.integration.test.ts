@@ -15,8 +15,8 @@
  * through to `auth()`. This file exercises that regression at the
  * integration boundary.
  */
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { writeFileSync } from 'node:fs';
+
 import { join } from 'node:path';
 
 import {
@@ -30,6 +30,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { POST as mintPOST } from '../../../apps/web/app/api/bootstrap/asset-token/route';
 import { GET as rawGET } from '../../../apps/web/app/api/workspaces/[slug]/files/raw/route';
 import { _resetForTests as _resetBootstrapCache } from '../../../apps/web/src/lib/bootstrap-code';
+import { makeTmpDir, removeTmpDir } from '../../helpers/tmpdir';
 
 function mintReq(worktree: string): NextRequest {
   return new NextRequest('http://localhost:3000/api/bootstrap/asset-token', {
@@ -69,7 +70,7 @@ describe('FX011 raw-file route asset-token integration', () => {
     // biome-ignore lint/performance/noDelete: tests need to truly unset — local shells often have DISABLE_AUTH=true
     delete process.env.DISABLE_AUTH;
 
-    cwd = mkdtempSync(join(tmpdir(), 'fx011-int-'));
+    cwd = makeTmpDir('fx011-int');
     // Need a workspace marker for findWorkspaceRoot() to resolve cwd.
     writeFileSync(join(cwd, 'pnpm-workspace.yaml'), 'packages:\n  - "."\n');
     process.chdir(cwd);
@@ -78,7 +79,7 @@ describe('FX011 raw-file route asset-token integration', () => {
     ensureBootstrapCode(cwd);
 
     // Create a real file the raw route can stream.
-    workspaceRoot = mkdtempSync(join(tmpdir(), 'fx011-wt-'));
+    workspaceRoot = makeTmpDir('fx011-wt');
     writeFileSync(join(workspaceRoot, 'hello.txt'), 'hello world', 'utf-8');
   });
 
@@ -98,8 +99,8 @@ describe('FX011 raw-file route asset-token integration', () => {
     } else process.env.DISABLE_AUTH = originalDisableAuth;
     _resetBootstrapCache();
     _resetSigningSecretCacheForTests();
-    rmSync(cwd, { recursive: true, force: true });
-    rmSync(workspaceRoot, { recursive: true, force: true });
+    removeTmpDir(cwd);
+    removeTmpDir(workspaceRoot);
   });
 
   it('mints a token via real endpoint, fetches raw-file with token (no cookie) → 200 + bytes', async () => {
@@ -150,7 +151,7 @@ describe('FX011 raw-file route asset-token integration', () => {
   });
 
   it('wrong-worktree token → 401', async () => {
-    const otherWt = mkdtempSync(join(tmpdir(), 'fx011-other-'));
+    const otherWt = makeTmpDir('fx011-other');
     try {
       const mintRes = await mintPOST(mintReq(otherWt));
       const { token } = (await mintRes.json()) as { token: string };
@@ -160,7 +161,7 @@ describe('FX011 raw-file route asset-token integration', () => {
       );
       expect(rawRes.status).toBe(401);
     } finally {
-      rmSync(otherWt, { recursive: true, force: true });
+      removeTmpDir(otherWt);
     }
   });
 

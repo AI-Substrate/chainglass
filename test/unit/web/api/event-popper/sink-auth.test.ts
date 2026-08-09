@@ -17,7 +17,7 @@
  * resolving the DI container in tests is out of scope for T003 (T006 covers
  * end-to-end).
  */
-import { rmSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
@@ -33,8 +33,8 @@ import { NextRequest } from 'next/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { _resetForTests as _resetBootstrapCache } from '../../../../../apps/web/src/lib/bootstrap-code';
+import { removeTmpDir } from '../../../../helpers/tmpdir';
 import { mkTempCwd } from '../../../shared/auth-bootstrap-code/test-fixtures';
-
 interface AuthHeaders {
   remote?: boolean;
   cookieValue?: string;
@@ -113,7 +113,7 @@ describe('Sink-route auth parity (T003)', () => {
     _resetBootstrapCache();
     _resetSigningSecretCacheForTests();
     _resetWorkspaceRootCacheForTests();
-    rmSync(cwd, { recursive: true, force: true });
+    removeTmpDir(cwd);
     vi.restoreAllMocks();
   });
 
@@ -142,7 +142,7 @@ describe('Sink-route auth parity (T003)', () => {
     it('503 bootstrap-unavailable', async () => {
       // Sentinel-file trick: replace .chainglass/ with a regular file so
       // ensureBootstrapCode throws EEXIST on its mkdir.
-      rmSync(join(cwd, '.chainglass'), { recursive: true, force: true });
+      removeTmpDir(join(cwd, '.chainglass'));
       writeFileSync(join(cwd, '.chainglass'), 'sentinel');
       _resetBootstrapCache();
       _resetSigningSecretCacheForTests();
@@ -183,7 +183,7 @@ describe('Sink-route auth parity (T003)', () => {
     });
 
     it('503 bootstrap-unavailable', async () => {
-      rmSync(join(cwd, '.chainglass'), { recursive: true, force: true });
+      removeTmpDir(join(cwd, '.chainglass'));
       writeFileSync(join(cwd, '.chainglass'), 'sentinel');
       _resetBootstrapCache();
       _resetSigningSecretCacheForTests();

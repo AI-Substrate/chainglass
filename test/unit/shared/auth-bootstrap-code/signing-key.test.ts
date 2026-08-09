@@ -18,7 +18,6 @@
  *   ```
  */
 
-import { rmSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
@@ -28,8 +27,8 @@ import {
   writeBootstrapCode,
 } from '@chainglass/shared/auth-bootstrap-code';
 
+import { removeTmpDir } from '../../../helpers/tmpdir';
 import { mkBootstrapCodeFile, mkTempCwd } from './test-fixtures';
-
 describe('activeSigningSecret', () => {
   let cwd: string;
 
@@ -42,7 +41,7 @@ describe('activeSigningSecret', () => {
   });
 
   afterEach(() => {
-    rmSync(cwd, { recursive: true, force: true });
+    removeTmpDir(cwd);
     // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
     delete process.env.AUTH_SECRET;
     _resetSigningSecretCacheForTests();
@@ -124,7 +123,7 @@ describe('activeSigningSecret', () => {
         const k2 = activeSigningSecret(cwd2);
         expect(k1.equals(k2)).toBe(false); // different bootstrap codes → different HKDF
       } finally {
-        rmSync(cwd2, { recursive: true, force: true });
+        removeTmpDir(cwd2);
       }
     });
 

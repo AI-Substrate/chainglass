@@ -5,7 +5,7 @@
  *
  * 14 cases per dossier (a–n).
  */
-import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -13,8 +13,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { checkBootstrapMisconfiguration, writeBootstrapCodeOnBoot } from '@/auth-bootstrap/boot';
 import { BOOTSTRAP_CODE_FILE_PATH_REL } from '@chainglass/shared/auth-bootstrap-code';
 
+import { removeTmpDir } from '../../../helpers/tmpdir';
 import { mkTempCwd } from '../../shared/auth-bootstrap-code/test-fixtures';
-
 const ENV_KEYS = ['AUTH_SECRET', 'DISABLE_AUTH', 'DISABLE_GITHUB_OAUTH'] as const;
 
 function clearEnv(): void {
@@ -96,7 +96,7 @@ describe('writeBootstrapCodeOnBoot', () => {
   });
 
   afterEach(() => {
-    rmSync(cwd, { recursive: true, force: true });
+    removeTmpDir(cwd);
   });
 
   it('(j) cold call creates the file, returns generated:true, logs path + "generated"', async () => {

@@ -6,7 +6,6 @@
  * verified within a single 60s window only; cross-window reset deferred to
  * T007 integration tests.
  */
-import { rmSync } from 'node:fs';
 
 import {
   BOOTSTRAP_COOKIE_NAME,
@@ -26,6 +25,7 @@ import {
   _resetRateLimitForTests,
 } from '../../../../../apps/web/app/api/bootstrap/verify/route';
 import { _resetForTests as _resetBootstrapCache } from '../../../../../apps/web/src/lib/bootstrap-code';
+import { removeTmpDir } from '../../../../helpers/tmpdir';
 
 const URL = 'http://localhost:3000/api/bootstrap/verify';
 
@@ -70,7 +70,7 @@ describe('POST /api/bootstrap/verify', () => {
     _resetBootstrapCache();
     _resetSigningSecretCacheForTests();
     _resetRateLimitForTests();
-    rmSync(cwd, { recursive: true, force: true });
+    removeTmpDir(cwd);
   });
 
   // (1) 200 happy path
@@ -182,7 +182,7 @@ describe('POST /api/bootstrap/verify', () => {
   // (9) 503 missing bootstrap file
   it('503: missing bootstrap file → unavailable', async () => {
     // remove the file written in beforeEach AND the parent dir to force ENOENT
-    rmSync(`${cwd}/.chainglass`, { recursive: true, force: true });
+    removeTmpDir(`${cwd}/.chainglass`);
     _resetBootstrapCache();
     _resetSigningSecretCacheForTests();
     // Make .chainglass parent (cwd) read-only so ensureBootstrapCode cannot regenerate

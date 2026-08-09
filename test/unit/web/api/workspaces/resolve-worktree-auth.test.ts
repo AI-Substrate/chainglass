@@ -18,12 +18,13 @@
  * Constitution P4 — real fs, no `vi.mock`. Real server.json, real cwd, real
  * timing-safe compare via Node crypto.
  */
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, writeFileSync } from 'node:fs';
+
 import { join } from 'node:path';
 
 import { writeServerInfo } from '@chainglass/shared/event-popper';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { makeTmpDir, removeTmpDir } from '../../../../helpers/tmpdir';
 
 const LOCAL_TOKEN = 'workflow-tok-1234567890abcdef-stable';
 
@@ -34,7 +35,7 @@ describe('authenticateRequest token path (Phase 5 post-review F001/F002)', () =>
   beforeEach(() => {
     originalCwd = process.cwd();
     // Build a workspace-root structure: <cwd>/pnpm-workspace.yaml + apps/web subdir.
-    cwd = mkdtempSync(join(tmpdir(), 'workflow-auth-'));
+    cwd = makeTmpDir('workflow-auth');
     writeFileSync(join(cwd, 'pnpm-workspace.yaml'), 'packages:\n  - apps/*\n');
     mkdirSync(join(cwd, 'apps', 'web'), { recursive: true });
     process.chdir(cwd);
@@ -43,7 +44,7 @@ describe('authenticateRequest token path (Phase 5 post-review F001/F002)', () =>
 
   afterEach(() => {
     process.chdir(originalCwd);
-    rmSync(cwd, { recursive: true, force: true });
+    removeTmpDir(cwd);
     vi.restoreAllMocks();
   });
 

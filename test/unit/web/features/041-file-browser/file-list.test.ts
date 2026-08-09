@@ -8,17 +8,18 @@
  */
 
 import { execSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, writeFileSync } from 'node:fs';
+
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { type FileListEntry, getFileList } from '@/features/041-file-browser/services/file-list';
+import { makeTmpDir, removeTmpDir } from '../../../../helpers/tmpdir';
 
 let fixtureDir: string;
 
 beforeEach(() => {
-  fixtureDir = mkdtempSync(join(tmpdir(), 'file-list-test-'));
+  fixtureDir = makeTmpDir('file-list-test');
   // Initialize a git repo with known files
   execSync('git init', { cwd: fixtureDir, stdio: 'ignore' });
   execSync('git config user.email "test@test.com"', { cwd: fixtureDir, stdio: 'ignore' });
@@ -30,7 +31,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  rmSync(fixtureDir, { recursive: true, force: true });
+  removeTmpDir(fixtureDir);
 });
 
 describe('getFileList', () => {
@@ -105,15 +106,15 @@ describe('getFileList', () => {
   });
 
   it('returns not-git error for non-git directory', async () => {
-    const nonGitDir = mkdtempSync(join(tmpdir(), 'non-git-'));
+    const nonGitDir = makeTmpDir('non-git');
     try {
       // Remove any accidental .git
-      rmSync(join(nonGitDir, '.git'), { recursive: true, force: true });
+      removeTmpDir(join(nonGitDir, '.git'));
       const result = await getFileList(nonGitDir);
       // Non-git falls back to recursive readDir — should succeed with ok: true
       expect(result.ok).toBe(true);
     } finally {
-      rmSync(nonGitDir, { recursive: true, force: true });
+      removeTmpDir(nonGitDir);
     }
   });
 

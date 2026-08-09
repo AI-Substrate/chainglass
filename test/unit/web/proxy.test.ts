@@ -16,7 +16,7 @@
  * to truly unset env vars; assigning undefined leaves the key with string
  * value "undefined".
  */
-import { rmSync } from 'node:fs';
+
 import { join } from 'node:path';
 
 import {
@@ -35,8 +35,8 @@ import {
   evaluateCookieGate,
   isBypassPath,
 } from '../../../apps/web/src/lib/cookie-gate';
+import { removeTmpDir } from '../../helpers/tmpdir';
 import { mkTempCwd } from '../shared/auth-bootstrap-code/test-fixtures';
-
 const CODE = '7K2P-9XQM-3T8R';
 const KEY = Buffer.from('a'.repeat(64), 'utf-8');
 const VALID_COOKIE = buildCookieValue(CODE, KEY);
@@ -230,7 +230,7 @@ describe('bootstrapCookieStage — bypass-before-accessor (F004)', () => {
     }
     _resetBootstrapCache();
     _resetSigningSecretCacheForTests();
-    rmSync(cwd, { recursive: true, force: true });
+    removeTmpDir(cwd);
   });
 
   function bypassReq(pathname: string, headers: Record<string, string> = {}) {
@@ -448,7 +448,7 @@ describe('Phase 5 F001 — bootstrap gate enforced even when DISABLE_GITHUB_OAUT
     delete (globalThis as Record<string, unknown>)[FLAG_KEY];
     _resetBootstrapCache();
     _resetSigningSecretCacheForTests();
-    rmSync(cwd, { recursive: true, force: true });
+    removeTmpDir(cwd);
   });
 
   // Helper: build a NextRequest-shaped object the proxy default export accepts.
@@ -555,7 +555,7 @@ describe('bootstrapCookieStage — FX011 asset-token short-circuit', () => {
     }
     _resetBootstrapCache();
     _resetSigningSecretCacheForTests();
-    rmSync(cwd, { recursive: true, force: true });
+    removeTmpDir(cwd);
   });
 
   function reqWithQuery(

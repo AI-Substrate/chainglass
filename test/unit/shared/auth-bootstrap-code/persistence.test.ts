@@ -21,7 +21,7 @@
  *   ```
  */
 
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -33,8 +33,8 @@ import {
   writeBootstrapCode,
 } from '@chainglass/shared/auth-bootstrap-code';
 
+import { removeTmpDir } from '../../../helpers/tmpdir';
 import { mkBootstrapCodeFile, mkTempCwd } from './test-fixtures';
-
 describe('readBootstrapCode', () => {
   let cwd: string;
   let filePath: string;
@@ -45,7 +45,7 @@ describe('readBootstrapCode', () => {
   });
 
   afterEach(() => {
-    rmSync(cwd, { recursive: true, force: true });
+    removeTmpDir(cwd);
   });
 
   it('round-trips a valid file', () => {
@@ -107,7 +107,7 @@ describe('writeBootstrapCode', () => {
   });
 
   afterEach(() => {
-    rmSync(cwd, { recursive: true, force: true });
+    removeTmpDir(cwd);
   });
 
   it('creates parent directory if missing', () => {
@@ -135,7 +135,7 @@ describe('ensureBootstrapCode', () => {
   });
 
   afterEach(() => {
-    rmSync(cwd, { recursive: true, force: true });
+    removeTmpDir(cwd);
   });
 
   it('regenerates when file is missing (generated: true)', () => {

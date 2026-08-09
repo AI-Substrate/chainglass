@@ -1,9 +1,9 @@
 import * as fs from 'node:fs';
 import * as fsPromises from 'node:fs/promises';
-import * as os from 'node:os';
 import * as path from 'node:path';
 import { detectContentType } from '@/lib/content-type-detection';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { makeTmpDir, removeTmpDir } from '../../../../helpers/tmpdir';
 
 /**
  * Test the raw file route logic directly using temp files.
@@ -14,7 +14,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 let tmpDir: string;
 
 beforeAll(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'raw-file-test-'));
+  tmpDir = makeTmpDir('raw-file-test');
   fs.writeFileSync(path.join(tmpDir, 'image.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
   fs.writeFileSync(path.join(tmpDir, 'doc.pdf'), Buffer.alloc(1024, 0x25));
   fs.writeFileSync(path.join(tmpDir, 'video.mp4'), Buffer.alloc(2048));
@@ -23,7 +23,7 @@ beforeAll(() => {
 });
 
 afterAll(() => {
-  fs.rmSync(tmpDir, { recursive: true, force: true });
+  removeTmpDir(tmpDir);
 });
 
 describe('Raw file route security', () => {

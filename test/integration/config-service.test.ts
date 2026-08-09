@@ -1,5 +1,4 @@
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -13,6 +12,7 @@ import {
   type SampleConfig,
   SampleConfigType,
 } from '../../packages/shared/src/config/schemas/sample.schema.js';
+import { makeTmpDir, removeTmpDir } from '../helpers/tmpdir';
 
 /**
  * Integration tests for ChainglassConfigService.
@@ -37,7 +37,7 @@ describe('ChainglassConfigService', () => {
     originalEnv = { ...process.env };
 
     // Create temp directories
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'config-service-test-'));
+    tempDir = makeTmpDir('config-service-test');
     userDir = path.join(tempDir, 'user-config');
     projectDir = path.join(tempDir, 'project-config');
     fs.mkdirSync(userDir, { recursive: true });
@@ -49,7 +49,7 @@ describe('ChainglassConfigService', () => {
     process.env = originalEnv;
 
     // Clean up temp directories
-    fs.rmSync(tempDir, { recursive: true, force: true });
+    removeTmpDir(tempDir);
   });
 
   describe('basic loading', () => {

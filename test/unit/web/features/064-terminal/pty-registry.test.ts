@@ -1,9 +1,8 @@
 // @vitest-environment node
 // FX001-3: per-port PTY PID registry + startup reaper. Server-side fs/process —
 // node env. Uses a temp dir + injected killer/exec (Constitution P4: fakes).
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
+
 import {
   isProcessAlive,
   isTmuxClient,
@@ -14,6 +13,7 @@ import {
 } from '@/features/064-terminal/server/pty-registry';
 import type { CommandExecutor } from '@/features/064-terminal/types';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { makeTmpDir, removeTmpDir } from '../../../../helpers/tmpdir';
 
 /** Killer that simulates a set of live pids; records SIGKILLs. */
 function makeKiller(alivePids: Set<number>) {
@@ -45,10 +45,10 @@ describe('pty-registry (FX001-3)', () => {
   let root: string;
 
   beforeEach(() => {
-    root = mkdtempSync(join(tmpdir(), 'pty-registry-'));
+    root = makeTmpDir('pty-registry');
   });
   afterEach(() => {
-    rmSync(root, { recursive: true, force: true });
+    removeTmpDir(root);
   });
 
   it('record/remove round-trips pids in a per-port file', () => {

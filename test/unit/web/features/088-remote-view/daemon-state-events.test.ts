@@ -7,8 +7,8 @@
  * place that knows the spawn/handshake outcome) over an OPTIONAL notifier dep — the
  * T001 manager tests construct it without one and must keep passing.
  */
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, writeFileSync } from 'node:fs';
+
 import { join } from 'node:path';
 import {
   type DaemonHealth,
@@ -19,6 +19,7 @@ import {
 import { FakeCentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events/fake-central-event-notifier';
 import { WorkspaceDomain } from '@chainglass/shared/features/027-central-notify-events/workspace-domain';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { makeTmpDir, removeTmpDir } from '../../../../helpers/tmpdir';
 
 const WEB_PORT = 4607;
 const EXPECTED_PROTOCOL = 1;
@@ -54,12 +55,12 @@ describe('daemon manager — daemon-state SSE events (T006)', () => {
   let registryPath: string;
 
   beforeEach(() => {
-    root = mkdtempSync(join(tmpdir(), 'cg-streamd-state-'));
+    root = makeTmpDir('cg-streamd-state');
     registryPath = streamdRegistryPath(root, WEB_PORT);
     mkdirSync(join(root, '.chainglass'), { recursive: true });
   });
   afterEach(() => {
-    rmSync(root, { recursive: true, force: true });
+    removeTmpDir(root);
   });
 
   function build(

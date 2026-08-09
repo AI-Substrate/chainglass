@@ -6,14 +6,12 @@
  */
 
 import * as fs from 'node:fs';
-import * as os from 'node:os';
-import * as path from 'node:path';
 import { FakeQuestionPopperService } from '@chainglass/shared/fakes';
 import { FakeCentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { QuestionPopperService } from '../../apps/web/src/features/067-question-popper/lib/question-popper.service';
+import { makeTmpDir, removeTmpDir } from '../helpers/tmpdir';
 import { questionPopperContractTests } from './question-popper.contract.js';
-
 // === Phase 2: FakeQuestionPopperService ===
 
 questionPopperContractTests('FakeQuestionPopperService', () => {
@@ -27,7 +25,7 @@ questionPopperContractTests('FakeQuestionPopperService', () => {
 let realTmpDir: string;
 
 questionPopperContractTests('QuestionPopperService', () => {
-  realTmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'qp-contract-'));
+  realTmpDir = makeTmpDir('qp-contract');
   const notifier = new FakeCentralEventNotifier();
   const service = new QuestionPopperService(realTmpDir, notifier);
   return { service };
@@ -35,7 +33,7 @@ questionPopperContractTests('QuestionPopperService', () => {
 
 afterEach(() => {
   if (realTmpDir && fs.existsSync(realTmpDir)) {
-    fs.rmSync(realTmpDir, { recursive: true, force: true });
+    removeTmpDir(realTmpDir);
   }
 });
 
@@ -47,14 +45,14 @@ describe('QuestionPopperService — SSE Emission Assertions', () => {
   let service: QuestionPopperService;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'qp-sse-'));
+    tmpDir = makeTmpDir('qp-sse');
     notifier = new FakeCentralEventNotifier();
     service = new QuestionPopperService(tmpDir, notifier);
   });
 
   afterEach(() => {
     if (fs.existsSync(tmpDir)) {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      removeTmpDir(tmpDir);
     }
   });
 

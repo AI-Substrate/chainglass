@@ -9,8 +9,8 @@ import {
   FakeProcessManager,
   SdkCopilotAdapter,
 } from '@chainglass/shared';
+import { removeTmpDir } from '../helpers/tmpdir';
 import { agentAdapterContractTests } from './agent-adapter.contract.js';
-
 // Run contract tests for FakeAgentAdapter
 agentAdapterContractTests(
   'FakeAgentAdapter',
@@ -156,7 +156,7 @@ agentAdapterContractTests('CopilotCLIAdapter', () => {
 
   // Clean up temp dir after a delay (contract tests finish quickly)
   setTimeout(() => {
-    fs.rmSync(path.join(os.tmpdir(), '.copilot-contract-test'), { recursive: true, force: true });
+    removeTmpDir(path.join(os.tmpdir(), '.copilot-contract-test'));
   }, 10000);
 
   return new CopilotCLIAdapter({

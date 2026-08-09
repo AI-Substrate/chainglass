@@ -15,7 +15,6 @@
  * task 7.10 (AC-22 log audit) will extend the helper. Phase 6 doesn't need
  * the override.
  */
-import { rmSync } from 'node:fs';
 
 import {
   _resetSigningSecretCacheForTests,
@@ -33,8 +32,8 @@ import {
 } from '../../../apps/web/app/api/bootstrap/verify/route';
 import { _resetForTests as _resetBootstrapCache } from '../../../apps/web/src/lib/bootstrap-code';
 import { setupBootstrapTestEnv } from '../../helpers/auth-bootstrap-code';
+import { removeTmpDir } from '../../helpers/tmpdir';
 import { INVALID_FORMAT_SAMPLES } from '../../unit/shared/auth-bootstrap-code/test-fixtures';
-
 const refresh = vi.fn();
 
 vi.mock('next/navigation', () => ({
@@ -174,7 +173,7 @@ describe('Phase 6 popup integration', () => {
   it('5: missing bootstrap file → 503 from real route → "Server unavailable"', async () => {
     // Remove the bootstrap-code file AND chmod the parent dir read-only
     // so ensureBootstrapCode in the verify route can't regenerate it.
-    rmSync(`${env.cwd}/.chainglass`, { recursive: true, force: true });
+    removeTmpDir(`${env.cwd}/.chainglass`);
     _resetBootstrapCache();
     _resetSigningSecretCacheForTests();
     const { mkdirSync, chmodSync } = await import('node:fs');

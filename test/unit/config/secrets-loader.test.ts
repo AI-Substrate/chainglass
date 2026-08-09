@@ -1,10 +1,10 @@
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { loadSecretsToEnv } from '../../../packages/shared/src/config/loaders/secrets.loader.js';
+import { makeTmpDir, removeTmpDir } from '../../helpers/tmpdir';
 
 /**
  * Unit tests for loadSecretsToEnv() - Secrets file loading with precedence.
@@ -51,7 +51,7 @@ describe('loadSecretsToEnv', () => {
     delete process.env.MULTILINE;
 
     // Create temp directories
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'secrets-loader-test-'));
+    tempDir = makeTmpDir('secrets-loader-test');
     userDir = path.join(tempDir, 'user-config');
     projectDir = path.join(tempDir, 'project-config');
     fs.mkdirSync(userDir, { recursive: true });
@@ -76,7 +76,7 @@ describe('loadSecretsToEnv', () => {
     }
 
     // Clean up temp directories
-    fs.rmSync(tempDir, { recursive: true, force: true });
+    removeTmpDir(tempDir);
   });
 
   describe('basic loading', () => {

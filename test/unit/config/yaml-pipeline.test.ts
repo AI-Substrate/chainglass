@@ -1,11 +1,11 @@
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { deepMerge } from '../../../packages/shared/src/config/loaders/deep-merge.js';
 import { loadYamlConfig } from '../../../packages/shared/src/config/loaders/yaml.loader.js';
+import { makeTmpDir, removeTmpDir } from '../../helpers/tmpdir';
 
 /**
  * Unit tests for YAML loading pipeline - user→project merge.
@@ -25,7 +25,7 @@ describe('YAML loading pipeline', () => {
 
   beforeEach(() => {
     // Create temp directories
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'yaml-pipeline-test-'));
+    tempDir = makeTmpDir('yaml-pipeline-test');
     userDir = path.join(tempDir, 'user-config');
     projectDir = path.join(tempDir, 'project-config');
     fs.mkdirSync(userDir, { recursive: true });
@@ -34,7 +34,7 @@ describe('YAML loading pipeline', () => {
 
   afterEach(() => {
     // Clean up temp directories
-    fs.rmSync(tempDir, { recursive: true, force: true });
+    removeTmpDir(tempDir);
   });
 
   describe('single source loading', () => {

@@ -15,8 +15,8 @@
  * Plus: full mode size cap, secrets sub-patterns, content-type rejections.
  */
 
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, writeFileSync } from 'node:fs';
+
 import { join } from 'node:path';
 
 import { NodeFileSystemAdapter } from '@chainglass/shared/adapters/node-filesystem.adapter';
@@ -27,6 +27,7 @@ import {
   getFileExcerpt,
   isSecretsPath,
 } from '../../../../../../apps/web/src/features/041-file-browser/services/file-excerpt';
+import { makeTmpDir, removeTmpDir } from '../../../../../helpers/tmpdir';
 
 describe('isSecretsPath', () => {
   it.each([
@@ -62,11 +63,11 @@ describe('getFileExcerpt — real fs + real path resolver', () => {
   const pathResolver = new PathResolverAdapter();
 
   beforeEach(() => {
-    tmp = mkdtempSync(join(tmpdir(), 'file-excerpt-'));
+    tmp = makeTmpDir('file-excerpt');
   });
 
   afterEach(() => {
-    rmSync(tmp, { recursive: true, force: true });
+    removeTmpDir(tmp);
   });
 
   it('returns markdown excerpt with truncation applied', async () => {

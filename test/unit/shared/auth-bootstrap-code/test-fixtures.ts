@@ -13,11 +13,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { BootstrapCodeFile } from '@chainglass/shared/auth-bootstrap-code';
+import { removeTmpDir } from '../../../helpers/tmpdir';
 
 /**
  * Create a fresh temp directory and return its absolute path.
  *
- * Pair with `rmSync(cwd, { recursive: true, force: true })` in `afterEach`
+ * Pair with `removeTmpDir(cwd)` in `afterEach`
  * (validation fix Comp-H2 — every test must clean up).
  */
 export function mkTempCwd(prefix = 'bootstrap-code-'): string {

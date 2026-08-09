@@ -20,7 +20,7 @@
  *
  * Per AC-16 (sidecar sinks gated) and AC-17 (CLI keeps working).
  */
-import { rmSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
@@ -36,6 +36,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { _resetForTests as _resetBootstrapCache } from '../../../apps/web/src/lib/bootstrap-code';
 import { type BootstrapTestEnv, setupBootstrapTestEnv } from '../../helpers/auth-bootstrap-code';
+import { removeTmpDir } from '../../helpers/tmpdir';
 
 const LOCAL_TOKEN = 'integration-tok-1234567890abcdef-stable';
 
@@ -160,7 +161,7 @@ describe('Event-popper sinks integration (T006)', () => {
   it('mode (d) bootstrap-unavailable → 503 + bootstrap-unavailable for all 3 routes', async () => {
     // Sentinel-file trick: replace .chainglass/ with a regular file so that
     // ensureBootstrapCode (used by getBootstrapCodeAndKey) cannot recover.
-    rmSync(join(env.cwd, '.chainglass'), { recursive: true, force: true });
+    removeTmpDir(join(env.cwd, '.chainglass'));
     writeFileSync(join(env.cwd, '.chainglass'), 'sentinel');
     _resetBootstrapCache();
     _resetSigningSecretCacheForTests();

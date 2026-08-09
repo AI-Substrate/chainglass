@@ -12,7 +12,6 @@
 
 import { execSync } from 'node:child_process';
 import * as fs from 'node:fs';
-import * as os from 'node:os';
 import * as path from 'node:path';
 import { computeContentHash } from '@/features/071-pr-view/lib/content-hash';
 import {
@@ -21,6 +20,7 @@ import {
   markFileReviewed,
 } from '@/features/071-pr-view/lib/pr-view-state';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { makeTmpDir, removeTmpDir } from '../../../../helpers/tmpdir';
 
 let tmpDir: string;
 
@@ -29,7 +29,7 @@ function git(cmd: string) {
 }
 
 beforeEach(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pr-view-route-'));
+  tmpDir = makeTmpDir('pr-view-route');
   git('init -b main');
   git('config user.email "test@test.com"');
   git('config user.name "Test"');
@@ -39,7 +39,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  fs.rmSync(tmpDir, { recursive: true, force: true });
+  removeTmpDir(tmpDir);
 });
 
 describe('PR View entrypoint integration', () => {

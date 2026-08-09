@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { AgentEvent } from '@chainglass/shared';
 import { CopilotCLIAdapter } from '@chainglass/shared';
+import { removeTmpDir } from '../../../helpers/tmpdir';
 
 /**
  * Unit tests for CopilotCLIAdapter.
@@ -61,7 +62,7 @@ describe('CopilotCLIAdapter', () => {
   });
 
   afterEach(() => {
-    fs.rmSync(tmpSessionRoot, { recursive: true, force: true });
+    removeTmpDir(tmpSessionRoot);
   });
 
   describe('constructor', () => {
