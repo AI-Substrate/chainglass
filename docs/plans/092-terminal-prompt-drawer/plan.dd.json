@@ -162,10 +162,11 @@
         },
         {
           "id": "ac-0018",
-          "state": "blocked",
+          "state": "human-skipped",
           "claim": "A submit is reported as succeeded only when the pane has been read and the payload observed to have left the composer.",
           "pressure": "assets/backpressure.dd.json#rows/bp-0016",
-          "note": "The POSITIVE half, split out of ac-0014. Blocked on oq-0004 with tk-0201 — there is currently no success signal at all, which is the honest fallback rather than a gap. The mechanism is already built and inert: sendPromptKeys takes an optional isPayloadPending predicate, and with no predicate supplied the re-press loop never runs, so tk-0201 supplies the signal and reshapes nothing."
+          "note": "FOLDED with ph-0003 — say it plainly: this criterion is NOT met and was never attempted. The drawer does not report submit success, because it cannot observe one. That is the honest half of the ac-0014 split doing its job: ac-0014 (nothing claims success from a zero exit) is CHECKED and shipped, so the absence here is a silence, not a false claim. The mechanism stays built and inert — sendPromptKeys takes an optional isPayloadPending predicate and with none supplied the re-press loop never runs — so supplying the signal later reshapes nothing.",
+          "receipt": "Jordan, 2026-08-09, verbatim: \"prompt drawer is done.\" Relayed by pij-chief-roadrunner. The human closed plan 092 with phase 3 unbuilt; this row is FOLDED, not delivered."
         }
       ]
     },
@@ -211,7 +212,7 @@
         {
           "id": "ph-0003",
           "title": "Submit verification",
-          "state": "unchecked",
+          "state": "human-skipped",
           "depends_on": [
             "ph-0002"
           ],
@@ -223,7 +224,9 @@
             "Honest UI state — no success signal on exit code alone"
           ],
           "key_risks": "Jordan standing constraint says never run tmux capture-pane. Whether that binds product code or only agents and tests is oq-0004 and owns this whole phase.",
-          "tasks": "assets/tasks/phase-3/tasks.dd.json#tasks"
+          "tasks": "assets/tasks/phase-3/tasks.dd.json#tasks",
+          "receipt": "Jordan, 2026-08-09, verbatim: \"prompt drawer is done.\" Relayed by pij-chief-roadrunner. The human closed plan 092 with phase 3 unbuilt; this row is FOLDED, not delivered.",
+          "note": "FOLDED by Jordan, not delivered. Phase 3 never ran. It existed to replace the exit-code lie with an observed submit, and it was gated end-to-end on oq-0004 (may product code read the pane it drives), which he closed the plan without ruling. What SHIPPED instead is the honest fallback the phase was designed to fall back to: the drawer claims nothing it cannot prove — no success signal at all, failure toasts only. The at-most-once re-press mechanism is built and inert (tk-0202, done), waiting on a pending-payload predicate that tk-0201 would have supplied. Reopening this is one task, not a phase, and it starts by getting oq-0004 ruled."
         }
       ]
     },
@@ -268,8 +271,9 @@
         },
         {
           "question": "Does the standing never run tmux capture-pane constraint bind PRODUCT code, or only agents and tests?",
-          "state": "unchecked",
-          "note": "Owns all of ph-0003. Recommended to Jordan: the ban stays absolute for agents and tests, and the product may read the pane it is itself driving — otherwise the UI can only ever report exit codes, which workshop 001 section 5 shows are a lie. Proceeding on that reading; phase 3 is the last thing built, so there is time to be told otherwise."
+          "state": "human-skipped",
+          "note": "NOT RULED — MOOT, not open. Jordan closed plan 092 and moved on, so this question was never answered. State is human-skipped rather than unchecked deliberately: an unchecked row reads to a later reader as a live invitation to go and get the ruling, and nobody is coming. Everything it owned is folded with it (ph-0003, tk-0201, dw-2011, ac-0018). WHY THIS ROW MATTERS AS A LESSON: a ruling mutates THREE things — the criterion, the code, and the question row that proposed it — and the third has no owner and no gate, so it rots by default. This plan was bitten by that twice. Original recommendation, preserved because it is still the standing reading if the question is ever reopened: the never-capture-pane ban stays absolute for agents and tests, and product code may read the pane it is itself driving — otherwise the UI can only report exit codes, which workshop 001 § 5 shows are a lie.",
+          "receipt": "Jordan, 2026-08-09, verbatim: \"prompt drawer is done.\" Relayed by pij-chief-roadrunner. He closed the plan without ruling this question."
         },
         {
           "question": "The per-harness settle table needs to know WHICH harness runs in the pane — and the websocket server has no such signal (grepped terminal-ws.ts for harness / pane_current_command / display-message: no hits). Detect it, or always use the conservative maximum?",
