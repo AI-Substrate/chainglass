@@ -124,13 +124,13 @@
         },
         {
           "id": "bp-0007",
-          "criterion": "The shipped prompt list is exactly the prompts in apps/web/src/features/064-terminal/lib/prompt-drawer-list.md.",
+          "criterion": "SUPERSEDED — no parity to enforce. ORIGINAL: The shipped prompt list is exactly the prompts in apps/web/src/features/064-terminal/lib/prompt-drawer-list.md.",
           "phase": "ph-0001",
           "mode": "EXTEND",
           "tier": "computational",
-          "state": "checked",
-          "proof": "EXTEND->RUN: a parity test that reads apps/web/src/features/064-terminal/lib/prompt-drawer-list.md from the repo root, parses its numbered backticked entries, and asserts deep equality with the shipped list; then `pnpm vitest run test/unit/web/features/064-terminal/`.",
-          "note": "PATH CORRECTED 2026-08-09 after an independent edge check caught it stale. This row named scratch/prompt-drawer-list.md until Jordan ruled oq-0003 and the file moved into the feature; the ruling was propagated to ac-0006 and the code but not here. The gate could not see it — the row was legitimately unchecked, so nothing flagged that its TEXT was stale. git ls-files --error-unmatch is the assertion that earns its keep: existsSync passes for a present-but-ignored file locally and the file is simply absent in CI, which is the exact trap the old path set."
+          "state": "na",
+          "proof": "SUPERSEDED by dce6ac368 — this test no longer exists and cannot be re-run; the file it read was deleted. ORIGINAL: EXTEND->RUN: a parity test that reads apps/web/src/features/064-terminal/lib/prompt-drawer-list.md from the repo root, parses its numbered backticked entries, and asserts deep equality with the shipped list; then `pnpm vitest run test/unit/web/features/064-terminal/`.",
+          "note": "SUPERSEDED by dce6ac368 (2026-08-09): the prompt list collapsed to a single authoring surface, PROMPT_TEXTS in lib/terminal-prompts.ts. lib/prompt-drawer-list.md was DELETED along with parsePromptList and the parity suite; with one copy there is nothing to keep in parity. State is na rather than checked: the sensor was real and it passed, but its subject no longer exists, and a checked row pointing at a deleted file reads as a live guarantee. ORIGINAL: PATH CORRECTED 2026-08-09 after an independent edge check caught it stale. This row named scratch/prompt-drawer-list.md until Jordan ruled oq-0003 and the file moved into the feature; the ruling was propagated to ac-0006 and the code but not here. The gate could not see it — the row was legitimately unchecked, so nothing flagged that its TEXT was stale. git ls-files --error-unmatch is the assertion that earns its keep: existsSync passes for a present-but-ignored file locally and the file is simply absent in CI, which is the exact trap the old path set."
         },
         {
           "id": "bp-0008",

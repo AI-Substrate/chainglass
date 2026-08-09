@@ -26,7 +26,7 @@
           "domain": "064-terminal",
           "state": "checked",
           "success": "A typed prompt list ships in the feature directory, and a test fails when it diverges from Jordan's list file — and that test is honest on a clean CI checkout.",
-          "notes": "The list lives at apps/web/src/features/064-terminal/lib/prompt-drawer-list.md — git-tracked, beside the parser. Resolve it from the repo root the way sibling tests do, and FAIL LOUDLY when absent rather than skipping.",
+          "notes": "SUPERSEDED by dce6ac368 (2026-08-09): the prompt list collapsed to a single authoring surface, PROMPT_TEXTS in lib/terminal-prompts.ts. lib/prompt-drawer-list.md was DELETED along with parsePromptList and the parity suite; with one copy there is nothing to keep in parity. ORIGINAL: The list lives at apps/web/src/features/064-terminal/lib/prompt-drawer-list.md — git-tracked, beside the parser. Resolve it from the repo root the way sibling tests do, and FAIL LOUDLY when absent rather than skipping.",
           "done": "#done_when/tk-0002",
           "satisfies": [
             "../../../plan.dd.json#acceptance_criteria/ac-0006"
@@ -128,21 +128,21 @@
             "assertion": "The parity test fails when the shipped list and Jordan's list file diverge.",
             "state": "checked",
             "pressure": "../../backpressure.dd.json#rows/bp-0007",
-            "note": "Unblocked 2026-08-08: list now at apps/web/src/features/064-terminal/lib/prompt-drawer-list.md, git-tracked."
+            "note": "SUPERSEDED by dce6ac368 (2026-08-09): the prompt list collapsed to a single authoring surface, PROMPT_TEXTS in lib/terminal-prompts.ts. lib/prompt-drawer-list.md was DELETED along with parsePromptList and the parity suite; with one copy there is nothing to keep in parity. ORIGINAL: Unblocked 2026-08-08: list now at apps/web/src/features/064-terminal/lib/prompt-drawer-list.md, git-tracked."
           },
           {
             "id": "dw-0202",
             "assertion": "The parity test fails loudly, rather than skipping, when the list file is absent.",
             "state": "checked",
             "pressure": "../../backpressure.dd.json#rows/bp-0007",
-            "note": "Unblocked 2026-08-08: list now at apps/web/src/features/064-terminal/lib/prompt-drawer-list.md, git-tracked."
+            "note": "SUPERSEDED by dce6ac368 (2026-08-09): the prompt list collapsed to a single authoring surface, PROMPT_TEXTS in lib/terminal-prompts.ts. lib/prompt-drawer-list.md was DELETED along with parsePromptList and the parity suite; with one copy there is nothing to keep in parity. ORIGINAL: Unblocked 2026-08-08: list now at apps/web/src/features/064-terminal/lib/prompt-drawer-list.md, git-tracked."
           },
           {
             "id": "dw-0203",
             "assertion": "The list file is tracked by git, so the check is honest on a clean CI checkout and in a fresh worktree.",
             "state": "checked",
             "pressure": "../../backpressure.dd.json#rows/bp-0007",
-            "note": "Unblocked 2026-08-08: list now at apps/web/src/features/064-terminal/lib/prompt-drawer-list.md, git-tracked."
+            "note": "SUPERSEDED by dce6ac368 (2026-08-09): the prompt list collapsed to a single authoring surface, PROMPT_TEXTS in lib/terminal-prompts.ts. lib/prompt-drawer-list.md was DELETED along with parsePromptList and the parity suite; with one copy there is nothing to keep in parity. ORIGINAL: Unblocked 2026-08-08: list now at apps/web/src/features/064-terminal/lib/prompt-drawer-list.md, git-tracked."
           }
         ],
         "tk-0003": [

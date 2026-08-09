@@ -81,11 +81,11 @@
         },
         {
           "id": "ac-0006",
-          "state": "checked",
-          "claim": "The shipped prompt list is exactly the prompts in apps/web/src/features/064-terminal/lib/prompt-drawer-list.md, proved by a test that fails when the two diverge and fails loudly when the file is absent — the file is git-tracked, so the check is honest on a clean CI checkout.",
+          "state": "na",
+          "claim": "SUPERSEDED — the guarantee this states no longer exists. It read: the shipped prompt list is exactly the prompts in apps/web/src/features/064-terminal/lib/prompt-drawer-list.md, proved by a test that fails when the two diverge and fails loudly when the file is absent, the file being git-tracked so the check is honest on a clean CI checkout.",
           "pressure": "assets/backpressure.dd.json#rows/bp-0007",
-          "note": "Unblocked by Jordan's ruling on oq-0003; the file-reading parity test is the remaining work.",
-          "receipt": "git ls-files --error-unmatch with cwd=REPO_ROOT is the assertion that earns its keep — existsSync alone passes for a present-but-ignored file locally and that file is simply absent in CI, which was the exact trap the scratch/ location set."
+          "note": "SUPERSEDED BY dce6ac368 (pij-disturbing-ox, 2026-08-09), which collapsed the two-file arrangement into one: PROMPT_TEXTS in lib/terminal-prompts.ts is now the sole authoring surface, and lib/prompt-drawer-list.md, parsePromptList and the three-test parity suite were all deleted with it. The named file DOES NOT EXIST. That change supersedes Jordan's own oq-0003 ruling of the same morning; both rulings are kept visible rather than one erased, and the second is the better informed — this app has no ?raw import support, so markdown-as-source needed bundler machinery that does not exist here. WHY na AND NOT checked: a checked row asserting a parity test against an unopenable file is worse than an unchecked one. Unchecked reads as open work; CHECKED reads as PROVEN, so a reader trusting this record would conclude a guarantee exists that does not. The claim is not false-and-unmet, it is INAPPLICABLE — there is nothing left to keep in parity, because there is only one copy. THIRD INSTANCE OF THE SAME ROT ON THIS PLAN, caught by pij-chief-roadrunner: a ruling mutates the criterion, the code, and the question row that proposed it, and the third has no owner and no gate. It happened again while that corollary was being written up.",
+          "receipt": "SUPERSEDED. The original receipt is preserved because the reasoning outlived the design: 'git ls-files --error-unmatch with cwd=REPO_ROOT is the assertion that earns its keep — existsSync alone passes for a present-but-ignored file locally and that file is simply absent in CI, which was the exact trap the scratch/ location set.' That remains the right way to test a tracked-file dependency; there is simply no longer a file to test."
         },
         {
           "id": "ac-0007",
@@ -234,8 +234,8 @@
       "name": "testing_strategy",
       "value": {
         "approach": "Lightweight — vitest + testing-library, matching the existing suites in test/unit/web/features/064-terminal/.",
-        "rationale": "The feature is a small presentational surface over one new context method. The risk is concentrated in two places — what bytes reach the pty, and whether the shipped prompt list still matches Jordan's file — so the tests go there rather than spreading thinly over the UI.",
-        "focus_areas": "The two send payloads (paste writes the text exactly; run writes the text plus a single carriage return); prompt-list parity against scratch/prompt-drawer-list.md; Escape while the drawer is open closes the drawer and not the terminal; the toggle renders on both the overlay and the split pane.",
+        "rationale": "The feature is a small presentational surface over one new context method. The risk is concentrated in two places — what bytes reach the pty, and whether the shipped prompt list still matches Jordan's file (SUPERSEDED — see focus_areas) — so the tests go there rather than spreading thinly over the UI.",
+        "focus_areas": "SUPERSEDED by dce6ac368 (2026-08-09): the two-file arrangement was collapsed to one. PROMPT_TEXTS in lib/terminal-prompts.ts is now the sole authoring surface; lib/prompt-drawer-list.md no longer exists. The prompt-list parity item below no longer applies: with one copy there is nothing to keep in parity, and the parity suite was deleted with the duplication. ORIGINAL: The two send payloads (paste writes the text exactly; run writes the text plus a single carriage return); prompt-list parity against scratch/prompt-drawer-list.md; Escape while the drawer is open closes the drawer and not the terminal; the toggle renders on both the overlay and the split pane.",
         "excluded": "terminal-ws.ts is not retested — it is unchanged and terminal-ws.test.ts already covers the non-JSON passthrough. No live tmux is touched: never run tmux capture-pane and never tap a real pane.",
         "mock_usage": "Targeted only. Stub sendText at the component boundary; do not mock the websocket, the pty, or tmux."
       }
@@ -244,7 +244,7 @@
       "name": "documentation_strategy",
       "value": {
         "location": "None new.",
-        "rationale": "The drawer is a self-evident UI affordance and its only authored surface — the prompt list — documents itself in scratch/prompt-drawer-list.md. Intent goes in file header comments, matching the FX-referenced style already used across 064-terminal."
+        "rationale": "SUPERSEDED by dce6ac368 (2026-08-09): the two-file arrangement was collapsed to one. PROMPT_TEXTS in lib/terminal-prompts.ts is now the sole authoring surface; lib/prompt-drawer-list.md no longer exists. The prompt list still documents itself, now as PROMPT_TEXTS in lib/terminal-prompts.ts with the authoring instructions in that file's header. ORIGINAL: The drawer is a self-evident UI affordance and its only authored surface — the prompt list — documents itself in scratch/prompt-drawer-list.md. Intent goes in file header comments, matching the FX-referenced style already used across 064-terminal."
       }
     },
     {
@@ -267,7 +267,7 @@
         {
           "question": "Where does the prompt list live, given .gitignore:152 is scratch/* and CI checks out clean?",
           "state": "checked",
-          "note": "RULED by Jordan 2026-08-09, verbatim: \"move it under the proper chainglass locations please.\" NOTE THE RULING DIFFERS FROM THE RECOMMENDATION, and that difference is the point of this row: I had recommended a .gitignore negation (!scratch/prompt-drawer-list.md) to keep his editing habit unchanged; he chose the listed ALTERNATIVE instead. The list now lives at apps/web/src/features/064-terminal/lib/prompt-drawer-list.md, beside terminal-prompts.ts which parses it, git-tracked and confirmed with git ls-files rather than assumed. Propagated to ac-0006, bp-0007, tk-0002 and the parity test."
+          "note": "SUPERSEDED BY ITS OWN AUTHOR — keep BOTH rulings visible, they are a pair and the second is better informed. RULING 1 (Jordan, 2026-08-09 morning, verbatim): \"move it under the proper chainglass locations please.\" RULING 2 (dce6ac368, same day): the file was DELETED and the list collapsed into PROMPT_TEXTS in lib/terminal-prompts.ts, because this app has no ?raw import support — no webpack rule, no precedent in the repo — so markdown-as-source required bundler machinery that did not exist, in exchange for a two-edit workflow and three tests that existed only to police the duplication. Adding a prompt is now one edit. The original row's point still stands and is why it is preserved rather than rewritten: the ruling DIFFERED FROM THE RECOMMENDATION. I had recommended a .gitignore negation to preserve his editing habit; he chose the listed alternative; then the alternative itself was superseded. ORIGINAL NOTE: RULED by Jordan 2026-08-09, verbatim: \"move it under the proper chainglass locations please.\" The list now lives at apps/web/src/features/064-terminal/lib/prompt-drawer-list.md, beside terminal-prompts.ts which parses it, git-tracked and confirmed with git ls-files rather than assumed. Propagated to ac-0006, bp-0007, tk-0002 and the parity test."
         },
         {
           "question": "Does the standing never run tmux capture-pane constraint bind PRODUCT code, or only agents and tests?",
@@ -331,9 +331,9 @@
           "effect": "None — the seams were source-verified read-only during orientation, and the workshop replaced what a dossier would have guessed at."
         },
         {
-          "artifact": "scratch/prompt-drawer-list.md",
-          "present": "y",
-          "effect": "Authoritative for the drawer contents, and still being appended to. Its git-tracking status is oq-0003."
+          "artifact": "scratch/prompt-drawer-list.md (SUPERSEDED — file deleted)",
+          "present": "n",
+          "effect": "SUPERSEDED by dce6ac368 (2026-08-09): the two-file arrangement was collapsed to one. PROMPT_TEXTS in lib/terminal-prompts.ts is now the sole authoring surface; lib/prompt-drawer-list.md no longer exists. Was authoritative for the drawer contents; moved to apps/web/.../lib/ by Jordan's oq-0003 ruling, then deleted entirely by dce6ac368, which supersedes that ruling with his later and better-informed one. ORIGINAL: Authoritative for the drawer contents, and still being appended to. Its git-tracking status is oq-0003."
         }
       ]
     },
@@ -419,7 +419,7 @@
         },
         {
           "impact": "High",
-          "finding": "scratch/* is gitignored (.gitignore:152) and CI does a bare checkout then runs the whole suite, so a parity test against scratch/prompt-drawer-list.md is red the moment it lands — and the plan mandates it fail loudly rather than skip when the file is missing. Same breakage in any fresh git worktree.",
+          "finding": "SUPERSEDED by dce6ac368 — there is no longer any file-reading parity test, so this hazard no longer has a subject. It is kept because the ANALYSIS is still correct and still load-bearing for any future test that reads a file off disk. ORIGINAL: scratch/* is gitignored (.gitignore:152) and CI does a bare checkout then runs the whole suite, so a parity test against scratch/prompt-drawer-list.md is red the moment it lands — and the plan mandates it fail loudly rather than skip when the file is missing. Same breakage in any fresh git worktree.",
           "action": "Settle oq-0003 before writing the parity test: git-track the list, either by negation or by moving it under the feature directory. The plan Risks table had anticipated the wrong failure mode — the file moving, not the file being absent from the repository."
         },
         {
