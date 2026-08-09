@@ -40,6 +40,33 @@ const PROMPT_TEXTS: readonly string[] = [
   'ask me the questions 1 at a time. 1 sentence context, 1 sentence for the ask',
   'summarise that in two sentences',
   'give me that in a numbered list, 1 sentence per item',
+  `Standing overnight-autonomous run.
+
+FLEET — use /pij coders. All copilot agent harness.
+  coder    opus 5, high effort
+  reviewer terra, high effort
+
+SHAPE — no more than 3 phases. Per phase:
+  1. generate the plan
+  2. validate-v2 in a subagent
+  3. generate phase tasks
+  4. validate-v2 in a subagent
+  5. coder/reviewer loop until they agree
+  6. commit and push
+  While the reviewer is working, prepare the NEXT phase's tasks so they
+  are ready the moment coder and reviewer agree. Then iterate.
+
+DELIVERABLE — I expect to come back to CI GREEN on the CURRENT PR.
+  Do not open a new one.
+
+AUTONOMY — deliver this overnight without me. Only stop if you are stuck.
+  Questions reach me on pij Telegram.
+
+SUPERVISION — set your watchdog. On EVERY watchdog ping, check the coder:
+  confirm it is making progress and is not looping or burning tokens on
+  something silly.
+
+Confirm you understand before you begin.`,
 ];
 
 /**
