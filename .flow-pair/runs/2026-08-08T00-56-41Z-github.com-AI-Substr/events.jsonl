@@ -1,0 +1,9 @@
+{"type":"run.started","runId":"2026-08-08T00-56-41Z-github.com-AI-Substr","repoId":"github.com-AI-Substrate-chainglass","at":"2026-08-08T00:56:41.030Z"}
+{"type":"delegation.created","runId":"2026-08-08T00-56-41Z-github.com-AI-Substr","delegationId":"dlg-0001","at":"2026-08-08T01:13:41.504Z"}
+{"type":"context_pack.created","runId":"2026-08-08T00-56-41Z-github.com-AI-Substr","delegationId":"dlg-0001","packId":"cp-0001","at":"2026-08-08T01:13:41.506Z"}
+{"type":"packet.written","runId":"2026-08-08T00-56-41Z-github.com-AI-Substr","delegationId":"dlg-0001","packetPath":".flow-pair/runs/2026-08-08T00-56-41Z-github.com-AI-Substr/prompts/dlg-0001.md","at":"2026-08-08T01:13:41.511Z"}
+{"type":"prompt_trial.created","runId":"2026-08-08T00-56-41Z-github.com-AI-Substr","delegationId":"dlg-0001","trialId":"trial-0001","at":"2026-08-08T01:13:41.515Z"}
+{"type":"delegation.created","runId":"2026-08-08T00-56-41Z-github.com-AI-Substr","delegationId":"dlg-0002","at":"2026-08-08T23:41:37.833Z"}
+{"type":"context_pack.created","runId":"2026-08-08T00-56-41Z-github.com-AI-Substr","delegationId":"dlg-0002","packId":"cp-0002","at":"2026-08-08T23:41:37.836Z"}
+{"type":"packet.written","runId":"2026-08-08T00-56-41Z-github.com-AI-Substr","delegationId":"dlg-0002","packetPath":".flow-pair/runs/2026-08-08T00-56-41Z-github.com-AI-Substr/prompts/dlg-0002.md","at":"2026-08-08T23:41:37.836Z"}
+{"type":"prompt_trial.created","runId":"2026-08-08T00-56-41Z-github.com-AI-Substr","delegationId":"dlg-0002","trialId":"trial-0002","at":"2026-08-08T23:41:37.837Z"}

@@ -1,0 +1,43 @@
+{
+  "packId": "cp-0001",
+  "runId": "2026-08-08T00-56-41Z-github.com-AI-Substr",
+  "delegationId": "dlg-0001",
+  "phase": "Phases",
+  "cluster": "implement-code",
+  "entries": [
+    {
+      "path": "/Users/jordanknight/substrate/chainglass/docs/plans/092-terminal-prompt-drawer/plan.dd.md",
+      "section": "Phases",
+      "content": "## Phases\n\n| id | title | brief | state | note | receipt | depends_on | tasks | objective | delivers | key_risks |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| ph-0001 | Drawer surface | Deliberately first and deliberately send-free: this is the phase Jordan can exercise under HMR within one increment. Its send actions call an injected callback, so the delivery phase swaps in the real one without touching the component. | [ ] unchecked | — | — | — | [tasks](assets/tasks/phase-1/tasks.dd.md#tasks) | Put a working, visible drawer in both terminal surfaces with the real prompt list, before any delivery mechanics exist. | The prompt source module and its parity test, TerminalPromptDrawer with truncated rows and two actions per row, The toggle in TerminalPaneHeader, with both hosts made positioning contexts, Capture-phase Escape ownership so the drawer does not close the terminal | The Escape fix is the one that looks done and is not — a React stopPropagation cannot beat a document-level bubble listener when focus is outside the drawer subtree. |\n| ph-0002 | Send path | A send-keys control message beside copy-buffer in terminal-ws.ts. Every constant comes from assets/workshops/001-send-keys-to-coding-agents.md and from nowhere else — notably NOT from a grep of the pij repo, whose CLI carries a stale harness-blind 300ms (pij#159). | [ ] unchecked | — | — | ph-0001 | [tasks](assets/tasks/phase-2/tasks.dd.md#tasks) | Deliver a prompt to the coding agent in the pane, correct by construction on every rule in workshop 001. | A send-keys websocket control message using argv and literal mode, Focus-in before typing, so a backgrounded copilot pane still submits, A single exported per-harness settle table, applied off the message loop, Bracketed paste for multi-line prompts, sendPrompt on the singleton context, replacing phase 1 injected stub | execCommand is execFileSync on the websocket message loop; a naive 900ms copilot settle there freezes the user terminal for a second per click. |\n| ph-0003 | Submit verification | Exit zero from tmux proves bytes moved, not that the agent accepted them. pij had to add composer polling for exactly this. Gated on Jordan ruling whether product code may read the pane it drives (oq-0004). | [ ] unchecked | — | — | ph-0002 | [tasks](assets/tasks/phase-3/tasks.dd.md#tasks) | Stop the UI claiming a submit it cannot prove, and never double-submit a prompt. | Post-submit verification by reading the pane the drawer is driving, At-most-once re-press: Enter retried up to 3 times at 250ms, payload never retyped, Honest UI state — no success signal on exit code alone | Jordan standing constraint says never run tmux capture-pane. Whether that binds product code or only agents and tests is oq-0004 and owns this whole phase. |\n\n<a id=\"testing-strategy\"></a>",
+      "hash": "d85fbf45",
+      "role": "plan-phase"
+    },
+    {
+      "path": "/Users/jordanknight/pi-hacking/pij/skills/flow-pair/prompt-lab/clusters/implement-code/active.md",
+      "content": "# implement-code active\n\nCurrent prompt guidance for implementation workers. Candidate learnings must be written to `candidates/` and manually reviewed before promotion here.\n",
+      "hash": "d31899ef",
+      "role": "learning"
+    }
+  ],
+  "exclusions": [
+    {
+      "path": "/Users/jordanknight/substrate/chainglass/docs/plans/092-terminal-prompt-drawer/assets/tasks/phase-1/tasks.md",
+      "reason": "not found"
+    },
+    {
+      "path": "/Users/jordanknight/substrate/chainglass/docs/plans/092-terminal-prompt-drawer/assets/tasks/phase-1/execution.log.md",
+      "reason": "not found"
+    }
+  ],
+  "allowedPaths": [
+    "apps/web/src/features/064-terminal",
+    "test/unit/web/features/064-terminal"
+  ],
+  "forbiddenPaths": [
+    ".the-flow-state.json",
+    "the-flow.json",
+    "the-flow.md",
+    ".flow-pair/"
+  ],
+  "createdAt": "2026-08-08T01:13:41.506Z"
+}

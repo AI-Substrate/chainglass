@@ -1,0 +1,8 @@
+{
+  "delegationId": "dlg-0002",
+  "runId": "2026-08-08T00-56-41Z-github.com-AI-Substr",
+  "taskRef": "Phase 2 — Send path (tmux send-keys)",
+  "packetPath": ".flow-pair/runs/2026-08-08T00-56-41Z-github.com-AI-Substr/prompts/dlg-0002.md",
+  "createdAt": "2026-08-08T23:41:37.833Z",
+  "status": "pending"
+}
