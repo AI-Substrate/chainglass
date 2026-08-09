@@ -1,5 +1,15 @@
 # Backpressure Coverage — terminal prompt drawer
 
+> **PARTLY SUPERSEDED — 2026-08-09, `dce6ac368`.** This is a **point-in-time survey**, dated
+> below, not current guidance. The prompt-list rows still name
+> `scratch/prompt-drawer-list.md`; that file **no longer exists**, and neither does the
+> file-parity test they call for. The list collapsed to a single authoring surface,
+> `PROMPT_TEXTS` in `lib/terminal-prompts.ts`, so there is no second copy to keep in parity
+> and nothing is owed. **Do not read the parity rows as work to do.** The live record is
+> `plan.dd.json#acceptance_criteria/ac-0006` and `backpressure.dd.json#rows/bp-0007`, both
+> now `na` with the supersession recorded. Rows are left as written rather than edited —
+> a survey that is quietly revised stops being evidence of what was believed when it ran.
+
 **Plan**: [plan.dd.md](../plan.dd.md) (source of truth: `plan.dd.json`)
 **Basis (plan SHA-256)**: recorded in [`backpressure.dd.json`](./backpressure.dd.json) `#meta/basis_sha` — the machine-readable twin of this file
 **Generated**: 2026-08-08
