@@ -1,0 +1,19 @@
+docs/plans/092-terminal-prompt-drawer/assets/backpressure-coverage.md
+  s_ee3dc64a005be5::t_c6696f099923b1 3-12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "141b76b7dead00195e890b7e6e6ca514d980a8fd",
+  "prompts": {},
+  "sessions": {
+    "s_ee3dc64a005be5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "40211a5f-cb8f-4603-9de1-2290c2146dc9",
+        "model": "unknown"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
