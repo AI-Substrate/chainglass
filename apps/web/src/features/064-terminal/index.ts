@@ -58,9 +58,4 @@ export { TerminalThemeSelect } from './components/terminal-theme-select';
 export { TerminalPromptDrawer } from './components/terminal-prompt-drawer';
 export type { TerminalPromptDrawerProps } from './components/terminal-prompt-drawer';
 export type { TerminalPrompt } from './lib/terminal-prompts';
-export {
-  TERMINAL_PROMPTS,
-  PROMPT_LABEL_MAX_CHARS,
-  promptLabel,
-  parsePromptList,
-} from './lib/terminal-prompts';
+export { TERMINAL_PROMPTS, PROMPT_LABEL_MAX_CHARS, promptLabel } from './lib/terminal-prompts';

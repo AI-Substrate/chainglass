@@ -124,7 +124,7 @@ export function TerminalPromptDrawer({
         <p className="px-3 py-4 text-xs leading-relaxed text-muted-foreground">
           No prompts yet. Add them to{' '}
           <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">
-            lib/prompt-drawer-list.md
+            lib/terminal-prompts.ts
           </code>
           .
         </p>

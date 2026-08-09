@@ -1,25 +1,46 @@
 /**
- * Terminal prompt source (Plan 092, tk-0002).
+ * Terminal prompt source — the ONE file to edit (Plan 092, tk-0002).
  *
- * The shipped prompt list for the terminal prompt drawer. Jordan authors the
- * prompts in a markdown list file and this module is its typed mirror — the
- * feature must never hardcode a list that differs from his.
+ * ADD A PROMPT: write it into `PROMPT_TEXTS` below. That is the whole job.
+ * Order here is the order in the drawer, and ids are derived, so there is no
+ * second list to keep in step.
  *
- * PARITY IS ENFORCED — oq-0003 ruled 2026-08-08. The authoring file lives at
- * `prompt-drawer-list.md`, beside this module and git-tracked, and
- * `terminal-prompt-drawer.test.tsx` reads it off disk and fails when this list
- * drifts from it. That test resolves from the repo root and FAILS rather than
- * skips when the file is absent — a check that quietly stops checking is worse
- * than no check, and "the file moved somewhere ignored" is the exact failure it
- * guards (the list previously lived in gitignored `scratch/`).
+ * WHY THIS IS ONE FILE NOW. The list used to live in `prompt-drawer-list.md`
+ * beside this module, with `TERMINAL_PROMPTS` as its hand-maintained mirror and
+ * a test suite reading the markdown off disk to prove the two agreed. That
+ * bought authoring-in-markdown at the price of two edits per prompt and three
+ * tests whose only job was to police the duplication. Jordan asked for one
+ * edit; the cheapest way to make two copies agree is to have one copy.
+ *
+ * The markdown route was considered and rejected on evidence, not taste: this
+ * app has no `?raw` import support (no webpack rule, no precedent anywhere in
+ * the repo), so keeping markdown as the single source meant a bundler config
+ * change with real dev/prod divergence risk — more machinery than a prompt list
+ * warrants, and a new failure mode in place of a solved one.
+ *
+ * Prompt text is DATA. It is never interpolated into a shell string; it reaches
+ * tmux through argv plus literal mode (see `send-prompt-keys.ts`), which is what
+ * makes backticks, `$(…)`, quotes and semicolons inert. Write prompts exactly as
+ * you want them typed — no escaping, no pre-quoting.
  */
+
 /** A single saved prompt shown as one drawer row. */
 export interface TerminalPrompt {
-  /** Stable identity for React keys and test selectors. */
+  /** Stable identity for React keys and test selectors. Derived from position. */
   id: string;
   /** The FULL prompt text, delivered verbatim. Never pre-escaped here. */
   text: string;
 }
+
+/**
+ * The shipped list, in drawer order. THIS IS THE AUTHORING SURFACE — add,
+ * remove and reorder freely; nothing else needs touching.
+ */
+const PROMPT_TEXTS: readonly string[] = [
+  'ask me the questions 1 at a time. 1 sentence context, 1 sentence for the ask',
+  'summarise that in two sentences',
+  'give me that in a numbered list, 1 sentence per item',
+];
 
 /**
  * Maximum characters of prompt text rendered on a row before the ellipsis.
@@ -29,24 +50,17 @@ export interface TerminalPrompt {
 export const PROMPT_LABEL_MAX_CHARS = 56;
 
 /**
- * The shipped list. Mirrors Jordan's list file entry-for-entry, in order.
- * Prompt text is DATA — it is never interpolated into a shell string, and it
- * reaches tmux through argv plus literal mode (phase 2, ac-0007).
+ * The typed list the drawer renders.
+ *
+ * Ids are positional (`prompt-1`, `prompt-2`, …) so that adding a prompt cannot
+ * collide with an existing id or require inventing a name. They are identity for
+ * React and for test selectors only — nothing persists them, so reordering the
+ * list is safe.
  */
-export const TERMINAL_PROMPTS: readonly TerminalPrompt[] = [
-  {
-    id: 'prompt-1',
-    text: 'ask me the questions 1 at a time. 1 sentence context, 1 sentence for the ask',
-  },
-  {
-    id: 'prompt-2',
-    text: 'summarise that in two sentences',
-  },
-  {
-    id: 'prompt-3',
-    text: 'give me that in a numbered list, 1 sentence per item',
-  },
-];
+export const TERMINAL_PROMPTS: readonly TerminalPrompt[] = PROMPT_TEXTS.map((text, index) => ({
+  id: `prompt-${index + 1}`,
+  text,
+}));
 
 /**
  * Row label — the opening of the prompt on ONE line, with a trailing ellipsis
@@ -61,31 +75,4 @@ export function promptLabel(text: string, max: number = PROMPT_LABEL_MAX_CHARS):
   const singleLine = text.replace(/\s+/g, ' ').trim();
   if (singleLine.length <= max) return singleLine;
   return `${singleLine.slice(0, max).trimEnd()}…`;
-}
-
-/**
- * Parse Jordan's markdown list file into prompt texts.
- *
- * Format: an ordered-list item whose body is wrapped in backticks —
- *   1. `the full prompt text`
- * Everything else in the file (prose, HTML comments, headings) is ignored, so
- * he can keep annotating it freely.
- *
- * Throws when the file yields no entries. That is deliberate: the parity check
- * this feeds must fail LOUDLY on an empty or moved file rather than silently
- * agreeing with an empty list (dw-0202).
- */
-export function parsePromptList(markdown: string): string[] {
-  const entries: string[] = [];
-  for (const line of markdown.split('\n')) {
-    const match = /^\s*\d+\.\s+`(.+)`\s*$/.exec(line);
-    if (match?.[1]) entries.push(match[1]);
-  }
-  if (entries.length === 0) {
-    throw new Error(
-      'parsePromptList: no prompt entries found — expected lines of the form "1. `prompt text`". ' +
-        'If the list file moved, fix the path rather than relaxing this check.'
-    );
-  }
-  return entries;
 }

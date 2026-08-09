@@ -15,9 +15,6 @@
  * is, and assert a stand-in for the overlay's bubble listener never runs.
  */
 
-import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -46,7 +43,6 @@ import { TerminalSplitPane } from '@/features/064-terminal/components/terminal-s
 import {
   PROMPT_LABEL_MAX_CHARS,
   TERMINAL_PROMPTS,
-  parsePromptList,
   promptLabel,
 } from '@/features/064-terminal/lib/terminal-prompts';
 
@@ -82,85 +78,6 @@ describe('prompt source module — tk-0002', () => {
 
   it('promptLabel.collapses-newlines: a multi-line prompt still reads as one row', () => {
     expect(promptLabel('line one\nline two')).toBe('line one line two');
-  });
-
-  it('parsePromptList.extracts-backticked-entries: prose and comments are ignored', () => {
-    // Inline fixture, NOT the real list file: `scratch/*` is gitignored
-    // (.gitignore:152) so a file-reading parity test would be red on a bare CI
-    // checkout. That test is deferred until oq-0003 rules where the file lives.
-    const markdown = [
-      '# Prompt drawer — list content',
-      '',
-      'Some prose that must not be parsed as a prompt.',
-      '',
-      '1. `first prompt text`',
-      '2. `second prompt text`',
-      '',
-      '<!-- more to come -->',
-    ].join('\n');
-
-    expect(parsePromptList(markdown)).toEqual(['first prompt text', 'second prompt text']);
-  });
-
-  it('parsePromptList.fails-loudly-when-empty: never silently agrees with nothing', () => {
-    expect(() => parsePromptList('# heading only\n\nno entries here')).toThrow(
-      /no prompt entries found/
-    );
-  });
-});
-
-/**
- * Parity between the shipped list and Jordan's authoring file — tk-0002,
- * dw-0201 / dw-0202 / dw-0203.
- *
- * The markdown file is the authority for the drawer's contents; `TERMINAL_PROMPTS`
- * is its typed mirror. Nothing stops the two drifting except this suite, so it
- * reads the real file off disk rather than a fixture.
- *
- * It must be HONEST ON A CLEAN CHECKOUT, which is three separate obligations:
- *   - it resolves from the repo root (`import.meta.dirname` walked up), not from
- *     `process.cwd()`, so it does not quietly pass or fail on where vitest was invoked;
- *   - it FAILS rather than skips when the file is missing — a check that stops
- *     checking when its input disappears is worse than no check at all, and
- *     "missing file" is exactly the failure this guards (the list used to live in
- *     gitignored `scratch/`);
- *   - it asserts the file is GIT-TRACKED, not merely present, because a present-
- *     but-ignored file passes on the author's machine and vanishes in CI.
- */
-describe('prompt list parity with the authoring file — tk-0002', () => {
-  const REPO_ROOT = join(import.meta.dirname, '../../../../..');
-  const PROMPT_LIST_RELATIVE = 'apps/web/src/features/064-terminal/lib/prompt-drawer-list.md';
-  const PROMPT_LIST_PATH = join(REPO_ROOT, PROMPT_LIST_RELATIVE);
-
-  it('parity.list-file-exists: fails loudly when the authoring file is absent, never skips', () => {
-    expect(
-      existsSync(PROMPT_LIST_PATH),
-      `The prompt list file is missing at ${PROMPT_LIST_RELATIVE}. TERMINAL_PROMPTS mirrors that file, so without it nothing holds the shipped list to Jordan's. If the file moved, update PROMPT_LIST_RELATIVE here — do not delete or skip this test.`
-    ).toBe(true);
-  });
-
-  it('parity.list-file-is-git-tracked: present on a bare checkout, not just on one machine', () => {
-    // `--error-unmatch` exits non-zero for an untracked or ignored path, which is
-    // the precise distinction that matters: a file inside a gitignored directory
-    // still passes existsSync locally and is simply absent in CI.
-    expect(() =>
-      execFileSync('git', ['ls-files', '--error-unmatch', PROMPT_LIST_RELATIVE], {
-        cwd: REPO_ROOT,
-        stdio: 'pipe',
-      })
-    ).not.toThrow();
-  });
-
-  it('parity.shipped-list-matches-file: the shipped prompts are the file, in order', () => {
-    const markdown = readFileSync(PROMPT_LIST_PATH, 'utf8');
-    // parsePromptList throws when it finds nothing, so an emptied or reformatted
-    // file surfaces here as a failure rather than as two empty lists agreeing.
-    const fromFile = parsePromptList(markdown);
-
-    expect(
-      TERMINAL_PROMPTS.map((prompt) => prompt.text),
-      `The shipped prompt list has drifted from ${PROMPT_LIST_RELATIVE}. The file is the authority — update TERMINAL_PROMPTS in terminal-prompts.ts to match it.`
-    ).toEqual(fromFile);
   });
 });
 
