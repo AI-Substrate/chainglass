@@ -52,7 +52,11 @@
       "**/.build",
       "docs/plans/**/the-flow*.json",
       "docs/plans/**/external-research/**",
-      "apps/web/src/features/*/protocol/fixtures/**"
+      "apps/web/src/features/*/protocol/fixtures/**",
+      "docs/plans/**/*.dd.json",
+      ".dd/schemas/**",
+      ".flow-pair/**",
+      ".pij/**"
     ]
   }
 }
