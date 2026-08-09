@@ -1,0 +1,37 @@
+docs/plans/092-terminal-prompt-drawer/assets/tasks/phase-1/tasks.dd.json
+  s_19a84a88383f5b::t_436c02c2431188 29,131,138,145
+docs/plans/092-terminal-prompt-drawer/assets/tasks/phase-1/tasks.dd.md
+  s_19a84a88383f5b::t_650fcc2b025dee 38,54-56
+docs/plans/092-terminal-prompt-drawer/plan.dd.json
+  s_19a84a88383f5b::t_c265dc18fcbadb 84-85,87-88,237-238,247,270,334-336,422
+docs/plans/092-terminal-prompt-drawer/plan.dd.md
+  s_19a84a88383f5b::t_de94bf5128810f 65,96-97,108,124,149,177
+docs/plans/092-terminal-prompt-drawer/assets/backpressure.dd.json
+  s_ee3dc64a005be5::t_a34fcbae1c8125 127,131-133
+docs/plans/092-terminal-prompt-drawer/assets/backpressure.dd.md
+  s_ee3dc64a005be5::t_f372c46db0c81f 42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "e9035fc89e8e57168f455cc59e2ffc7f791249ba",
+  "prompts": {},
+  "sessions": {
+    "s_19a84a88383f5b": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "e9a11817-53a3-42b6-a41f-25dcffefd677",
+        "model": "unknown"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_ee3dc64a005be5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "40211a5f-cb8f-4603-9de1-2290c2146dc9",
+        "model": "unknown"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
