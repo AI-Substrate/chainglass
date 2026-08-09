@@ -1,0 +1,53 @@
+apps/web/src/features/064-terminal/components/terminal-pane-header.tsx
+  s_c155f6780a1b44::t_2588ef7c835ed6 203
+  s_c155f6780a1b44::t_21f585a3a08ff1 25-32,36,61,63-65,97,99-112,144-153,175-202,204-222
+  s_c155f6780a1b44::t_1264e31af65cd1 98
+  s_c155f6780a1b44::t_8fb86254535217 33-34
+apps/web/src/features/064-terminal/types.ts
+  s_c155f6780a1b44::t_14da9f11c7bb16 42
+  s_c155f6780a1b44::t_21f585a3a08ff1 55-56
+  s_c155f6780a1b44::t_c841ee91aa9a8f 58-64
+  s_c155f6780a1b44::t_5442a6b97130f5 57
+apps/web/src/features/064-terminal/lib/window-name-validation.ts
+  s_c155f6780a1b44::t_20a07546125746 8
+  s_c155f6780a1b44::t_21f585a3a08ff1 1-7,9-25
+test/unit/web/features/064-terminal/terminal-ws-rename-window.test.ts
+  s_c155f6780a1b44::t_1264e31af65cd1 32
+  s_c155f6780a1b44::t_21f585a3a08ff1 1-3,5-14,21-31,34-36,38-40,42-52,57-59,61-64,79-81
+  s_c155f6780a1b44::t_8fb86254535217 4
+  s_c155f6780a1b44::t_bd5916ac952a0f 15-20,33,37,41,53-56,60,65-78
+apps/web/src/features/064-terminal/components/terminal-inner.tsx
+  s_c155f6780a1b44::t_21f585a3a08ff1 20,35,91,544-546
+  s_c155f6780a1b44::t_c841ee91aa9a8f 123-130
+test/unit/web/features/064-terminal/use-terminal-socket-rename-window.test.tsx
+  s_c155f6780a1b44::t_bd5916ac952a0f 1-68,93
+  s_c155f6780a1b44::t_c841ee91aa9a8f 69-92
+apps/web/src/features/064-terminal/hooks/use-terminal-socket.ts
+  s_c155f6780a1b44::t_e8a95e53b21b29 25
+  s_c155f6780a1b44::t_8e2b1715ebe96f 170-174
+  s_c155f6780a1b44::t_21f585a3a08ff1 19-24,26,57-58,283-289,356
+  s_c155f6780a1b44::t_c841ee91aa9a8f 4-10,45,91,98
+apps/web/src/features/064-terminal/components/terminal-singleton-provider.tsx
+  s_c155f6780a1b44::t_1264e31af65cd1 134-140
+  s_c155f6780a1b44::t_21f585a3a08ff1 34,59-60,111,160-169
+apps/web/src/features/064-terminal/server/terminal-ws.ts
+  s_c155f6780a1b44::t_14da9f11c7bb16 267
+  s_c155f6780a1b44::t_21f585a3a08ff1 19,243-266,268-272
+  s_c155f6780a1b44::t_c99ff1a53aff82 273-274
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "beef25b59d1ff146006421c30f1a799fd72fe98c",
+  "prompts": {},
+  "sessions": {
+    "s_c155f6780a1b44": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "5688828f-755e-4848-83b6-7ebdc192059f",
+        "model": "unknown"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
