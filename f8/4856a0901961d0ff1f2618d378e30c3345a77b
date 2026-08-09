@@ -1,0 +1,19 @@
+apps/web/next-env.d.ts
+  s_2a2451d95e064e::t_a65722e9d83483 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "f84856a0901961d0ff1f2618d378e30c3345a77b",
+  "prompts": {},
+  "sessions": {
+    "s_2a2451d95e064e": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "587f8924-3447-4784-b872-2fb1c784af82",
+        "model": "unknown"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
