@@ -297,6 +297,7 @@ function readInterstitial(record: Record<string, unknown>): Interstitial | undef
  */
 export type WatchdogReason =
   | 'armed'
+  | 'never-fired'
   | 'paused'
   | 'exempt'
   | 'fleet-disabled'
@@ -312,6 +313,49 @@ export interface WatchdogState {
   /** Which tier paused it — pij's own word (`self`, `compact`). */
   pausedBy?: string;
   exemptRemainingMs?: number | null;
+  /** How far past its due moment a `never-fired` seat is. Only set for that reason. */
+  overdueMs?: number;
+}
+
+/**
+ * The watchdog's own scheduling rule, as the daemon computes it
+ * (`.pi/extensions/pij/core/watchdog.ts:141-150`):
+ *
+ *     scheduleAnchor = newest of [statusAt, startedAt]
+ *     isFireDue      = now - max(lastFireAt, scheduleAnchor) >= intervalMs
+ *
+ * KNOWN APPROXIMATION, stated rather than hidden: the flattened rail record carries `statusAt`
+ * but NOT `startedAt` (verified against `pij list --json`, the reader's actual source — the
+ * record's only `*At` keys are `lastEventAt` and `statusAt`). So this anchors on `statusAt`
+ * alone.
+ *
+ * The one case that diverges is a seat whose `startedAt` is NEWER than its `statusAt` — a
+ * revived or re-adopted seat carrying a card from a previous life. There the daemon anchors
+ * later than we do, so we could call a seat overdue slightly before the daemon does. That is a
+ * false red, which is why {@link readWatchdogState} additionally requires `statusAt` to be
+ * present and parseable: a seat that has never written a card cannot reach this branch at all.
+ */
+function neverFiredOverdueMs(
+  watchdog: Record<string, unknown>,
+  record: Record<string, unknown>,
+  intervalMs: number | undefined,
+  now: number
+): number | undefined {
+  if (intervalMs === undefined || intervalMs <= 0) return undefined;
+
+  // PRESENT-AND-NULL, not absent. `pij list --json` ships `lastFireAt: null` for a seat that has
+  // never been nudged (verified live: 730 of 770 records with a watchdog object). An `in` check
+  // or a hasOwnProperty test would therefore never fire, and would pass a hand-built fixture that
+  // omitted the key — the check would be dead and look tested.
+  const fired =
+    typeof watchdog.lastFireAt === 'string' ? Date.parse(watchdog.lastFireAt) : Number.NaN;
+  if (Number.isFinite(fired)) return undefined;
+
+  const anchor = typeof record.statusAt === 'string' ? Date.parse(record.statusAt) : Number.NaN;
+  if (!Number.isFinite(anchor)) return undefined;
+
+  const overdueMs = now - anchor - intervalMs;
+  return overdueMs > 0 ? overdueMs : undefined;
 }
 
 /**
@@ -325,7 +369,10 @@ export interface WatchdogState {
  * not tiers at all checked first: a `relay` seat is never watched by design, and the fleet kill
  * switch outranks any per-seat setting.
  */
-export function readWatchdogState(record: Record<string, unknown>): WatchdogState {
+export function readWatchdogState(
+  record: Record<string, unknown>,
+  now: number = Date.now()
+): WatchdogState {
   const raw = record.watchdog;
   if (typeof raw !== 'object' || raw === null) return { reason: 'unreported', willNudge: false };
   const watchdog = raw as Record<string, unknown>;
@@ -346,6 +393,30 @@ export function readWatchdogState(record: Record<string, unknown>): WatchdogStat
   if (typeof watchdog.pausedBy === 'string' && watchdog.pausedBy.length > 0) {
     return { reason: 'paused', willNudge: false, intervalMs, pausedBy: watchdog.pausedBy };
   }
+
+  // Last rung before `armed`, and the only one that reads BEHAVIOUR rather than configuration.
+  //
+  // Every rung above is a config field, which is precisely how a seat could be enabled, unpaused,
+  // unexempt — and rendered "watchdog on" — while never having been nudged once. Caught by Jordan
+  // on the rail 2026-08-09: `pij-respectable-clam`, role pm, `roleNeedsSupervision("pm") === true`,
+  // never nudged, 131 minutes overdue, badge reading on. The file's own contract already forbade
+  // that ("TRUE only when a nudge will actually fire on continued silence"); the ladder simply had
+  // no instrument for it. This completes the instrument rather than adding a feature.
+  //
+  // BOTH conditions are required and the second is the load-bearing one. A freshly spawned seat
+  // has also never fired, and must keep reading `armed` — a badge that fires on every new seat is
+  // noise, and noise spends exactly the credibility this exists to restore.
+  //
+  // SCOPE — class A only, deliberately. This catches "never fired AND overdue", which is provable
+  // from two fields. It does NOT catch class B, "fired once, then stopped" (e.g. after a bounded
+  // `exempt` lapsed). B needs a judgement about how many missed intervals constitute stopped, and
+  // exempt state is persisted nowhere, so never-exempted and exemption-lapsed are indistinguishable
+  // from this record. B is real and is not attempted here; do not read this check as complete.
+  const overdueMs = neverFiredOverdueMs(watchdog, record, intervalMs, now);
+  if (overdueMs !== undefined) {
+    return { reason: 'never-fired', willNudge: false, intervalMs, overdueMs };
+  }
+
   return { reason: 'armed', willNudge: true, intervalMs };
 }
 
@@ -356,6 +427,12 @@ export function watchdogSummary(state: WatchdogState): string {
       return state.intervalMs
         ? `watchdog on · nudges after ${Math.round(state.intervalMs / 60_000)}m quiet`
         : 'watchdog on';
+    // Says both halves, because both are true and the first one alone is the bug: `enabled` really
+    // IS on, so "watchdog off" would be its own lie. What it must never do is promise a nudge.
+    case 'never-fired':
+      return state.overdueMs
+        ? `watchdog on · never nudged · ${Math.round(state.overdueMs / 60_000)}m overdue`
+        : 'watchdog on · never nudged';
     case 'paused':
       return `watchdog paused${state.pausedBy ? ` (${state.pausedBy})` : ''} · no nudge`;
     case 'exempt':

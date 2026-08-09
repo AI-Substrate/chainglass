@@ -240,4 +240,128 @@ describe('watchdog axis — the nudge promise is read, never assumed', () => {
     expect(absent.willNudge).toBe(false);
     expect(watchdogSummary(absent)).toBe('watchdog not reported');
   });
+
+  describe('never-fired — a config-armed watchdog that has never actually nudged', () => {
+    const NOW = Date.parse('2026-08-09T12:00:00.000Z');
+    const INTERVAL = 1_200_000; // 20m, the fleet default
+
+    /** The real shape from `pij list --json`: enabled, unpaused, unexempt, `lastFireAt: null`. */
+    const neverFired = { enabled: true, intervalMs: INTERVAL, pausedBy: null, lastFireAt: null };
+    const at = (msAgo: number) => new Date(NOW - msAgo).toISOString();
+
+    it('reads never-fired and refuses the nudge promise when overdue', () => {
+      /*
+      Test Doc:
+      - Why: Jordan caught the rail rendering "watchdog on" for pij-respectable-clam — role pm,
+        roleNeedsSupervision true, never nudged once, 131 minutes overdue. Every rung of the
+        ladder was a CONFIG field, so a seat could be enabled/unpaused/unexempt and rendered
+        armed while demonstrably unsupervised.
+      - Contract: never fired AND past due → reason 'never-fired', willNudge false, overdueMs set.
+      - Usage Notes: shape is copied from the live record, not invented.
+      - Quality Contribution: closes the file's own stated contract one level deeper than the
+        original instrument reached.
+      - Worked Example: lastFireAt null + statusAt 151m ago + interval 20m → 131m overdue.
+      */
+      const state = readWatchdogState({ watchdog: neverFired, statusAt: at(151 * 60_000) }, NOW);
+
+      expect(state.reason).toBe('never-fired');
+      expect(state.willNudge).toBe(false);
+      expect(Math.round((state.overdueMs ?? 0) / 60_000)).toBe(131);
+      expect(watchdogSummary(state)).toBe('watchdog on · never nudged · 131m overdue');
+    });
+
+    it('leaves a fresh seat ARMED — the bound that keeps this from becoming noise', () => {
+      /*
+      Test Doc:
+      - Why: THE FALSE-RED GUARD, and the reason both conditions are required. A newly spawned
+        seat has also never fired. If never-fired alone triggered, the badge would fire on every
+        new seat and people would learn to ignore it — spending exactly the credibility this
+        check exists to restore. A test that only proves the new state APPEARS has not shown it
+        is BOUNDED.
+      - Contract: never fired but NOT yet due → still 'armed', still willNudge true.
+      - Usage Notes: 5m quiet against a 20m interval — comfortably inside the window.
+      - Quality Contribution: makes the check's silence on healthy seats an asserted property.
+      - Worked Example: lastFireAt null + statusAt 5m ago + interval 20m → armed.
+      */
+      const state = readWatchdogState({ watchdog: neverFired, statusAt: at(5 * 60_000) }, NOW);
+
+      expect(state.reason).toBe('armed');
+      expect(state.willNudge).toBe(true);
+      expect(state.overdueMs).toBeUndefined();
+    });
+
+    it('treats lastFireAt PRESENT-AND-NULL as never fired, not as a missing key', () => {
+      /*
+      Test Doc:
+      - Why: the brief described lastFireAt as key-absent; `pij list --json` ships it as
+        present-and-null on 730 of 770 records with a watchdog object. An `in` or hasOwnProperty
+        test would therefore never fire in production while passing a hand-built fixture that
+        omitted the key — a dead check that looks tested.
+      - Contract: null, absent, and unparseable all mean never fired; a real timestamp does not.
+      - Usage Notes: —
+      - Quality Contribution: pins the distinction that decides whether this code runs at all.
+      - Worked Example: lastFireAt '' → never fired; lastFireAt a real ISO string → armed.
+      */
+      const overdue = { statusAt: at(151 * 60_000) };
+      for (const lastFireAt of [null, undefined, '', 'not-a-date']) {
+        expect(
+          readWatchdogState({ watchdog: { ...neverFired, lastFireAt }, ...overdue }, NOW).reason
+        ).toBe('never-fired');
+      }
+
+      // A seat that HAS fired is class B — out of scope, and must not be caught by this rung.
+      expect(
+        readWatchdogState(
+          { watchdog: { ...neverFired, lastFireAt: at(200 * 60_000) }, ...overdue },
+          NOW
+        ).reason
+      ).toBe('armed');
+    });
+
+    it('never outranks a reason that already explains the silence', () => {
+      /*
+      Test Doc:
+      - Why: an exempt or paused seat has ALSO never fired and is ALSO overdue — mine was, after
+        a bounded exempt. Reporting 'never-fired' there would replace the true, actionable cause
+        with a vaguer one.
+      - Contract: the config rungs keep precedence; never-fired sits last, just above armed.
+      - Usage Notes: —
+      - Quality Contribution: keeps the new rung from degrading existing diagnoses.
+      - Worked Example: exempt + lastFireAt null + 151m overdue → 'exempt'.
+      */
+      const overdue = { statusAt: at(151 * 60_000) };
+      expect(
+        readWatchdogState({ watchdog: { ...neverFired, exempt: true }, ...overdue }, NOW).reason
+      ).toBe('exempt');
+      expect(
+        readWatchdogState({ watchdog: { ...neverFired, pausedBy: 'self' }, ...overdue }, NOW).reason
+      ).toBe('paused');
+      expect(
+        readWatchdogState({ watchdog: { ...neverFired, enabled: false }, ...overdue }, NOW).reason
+      ).toBe('off');
+    });
+
+    it('stays armed when the record cannot support the arithmetic', () => {
+      /*
+      Test Doc:
+      - Why: a seat that has never written a card has no statusAt, and the daemon anchors on
+        max(statusAt, startedAt) — a field this record does not carry. With no anchor there is no
+        honest overdue, and guessing one would fire on seats that were merely new.
+      - Contract: missing/unparseable statusAt, or a missing interval, falls back to 'armed'.
+      - Usage Notes: documents the known approximation rather than hiding it.
+      - Quality Contribution: makes the fallback direction (toward silence) an asserted choice.
+      - Worked Example: no statusAt → armed, not never-fired.
+      */
+      expect(readWatchdogState({ watchdog: neverFired }, NOW).reason).toBe('armed');
+      expect(readWatchdogState({ watchdog: neverFired, statusAt: 'nonsense' }, NOW).reason).toBe(
+        'armed'
+      );
+      expect(
+        readWatchdogState(
+          { watchdog: { enabled: true, lastFireAt: null }, statusAt: at(151 * 60_000) },
+          NOW
+        ).reason
+      ).toBe('armed');
+    });
+  });
 });
