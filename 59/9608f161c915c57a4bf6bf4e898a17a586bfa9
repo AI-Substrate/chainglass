@@ -1,0 +1,39 @@
+apps/web/src/features/064-terminal/server/send-prompt-keys.ts
+  s_084ac52dc66de3::t_25483ecc60a1bb 12
+  s_084ac52dc66de3::t_8f3792049d0661 59-93
+  s_084ac52dc66de3::t_e934e35f1b955b 207-239,243-247
+  s_084ac52dc66de3::t_5fef0b558140b0 312-317,319,321
+  s_084ac52dc66de3::t_1d8ded33bd3c22 328,333,339,360
+test/unit/web/features/064-terminal/send-prompt-keys.test.ts
+  s_084ac52dc66de3::t_9a211449ad73a0 615,649,888,1084-1085,1087
+  s_084ac52dc66de3::t_454767d7180409 1260-1263
+  s_084ac52dc66de3::t_da2382c28f42a3 120,122-126,1206-1259,1264-1309,1320-1348
+  s_084ac52dc66de3::t_0a12c6b5000149 1310-1319
+  s_084ac52dc66de3::t_198fe14d20febe 62,71,76-94
+  s_084ac52dc66de3::t_f431b46e9562d1 96-105,205,298-301,327,348-349,502
+  s_084ac52dc66de3::t_43bfb019ed73a5 175,302-303,530-531,622
+  s_084ac52dc66de3::t_3d54657e4c11ac 34-40,46-61,63,95,106-119
+  s_084ac52dc66de3::t_0f4a9978ad1a62 206-208,503-505,619-621
+  s_084ac52dc66de3::t_e13665c6ab678a 573-579,581,652
+  s_084ac52dc66de3::t_36f390584394f1 121
+  s_084ac52dc66de3::t_cf6ebc6b18ba77 1349
+test/unit/web/features/064-terminal/terminal-ws.test.ts
+  s_084ac52dc66de3::t_0f4a9978ad1a62 542,581
+  s_084ac52dc66de3::t_5794cb4135055f 415-425,432-437,451-452,456-457,497-498,543-544,559,582-583
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "599608f161c915c57a4bf6bf4e898a17a586bfa9",
+  "prompts": {},
+  "sessions": {
+    "s_084ac52dc66de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
