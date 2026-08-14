@@ -9,7 +9,7 @@
  * from a grep of the pij repo — its CLI carries a stale, harness-blind 300ms
  * (pij#159) while its daemon carries the real table below.
  *
- * The four rules this file exists to keep:
+ * The seven rules this file exists to keep:
  *
  * 1. TWO PROTECTION LAYERS, both required. `execCommand` is `execFileSync`, so
  *    the text travels as an argv element and no shell ever parses it —
@@ -56,6 +56,41 @@
  *    (oq-0004, ph-0003 tk-0201), so this module implements the policy and the
  *    caller supplies the evidence. With no signal supplied there are zero
  *    re-presses, which is exactly today's behaviour.
+ *
+ * 7. RESOLVE THE PANE ONCE, THEN ADDRESS THE PANE. A session name is not an
+ *    address. `tmux send-keys -t <session>` means "the active pane of whatever
+ *    window that session is currently on", and BOTH halves of that are shared
+ *    mutable state that anything on the box can move. Caught in production on
+ *    2026-08-14: a click aimed at the agent in `dd:1.0` typed its prompt into a
+ *    DIFFERENT agent's composer in `dd:2.0`. tmux exited zero, the socket
+ *    reported `delivered: true`, the browser console was clean — a silent
+ *    misdelivery into a third party, with no signal available to any layer.
+ *
+ *    A session with one window cannot show this, which is why it survived
+ *    review: the development session had exactly one.
+ *
+ *    So the target is resolved to a concrete `%<n>` pane id ONCE, up front, and
+ *    every call in the send uses that id. Note this is not only about aiming
+ *    correctly at the start — rules 2 and 4 make one send FOUR tmux calls
+ *    spanning ~900ms, and re-resolving a session name per call lets the window
+ *    change MID-SEND, so the text lands in one pane and the Enter fires in
+ *    another. A stray Enter in someone else's coding agent is precisely the
+ *    blast radius rule 6 refuses to accept for retries; it must not arrive
+ *    through the front door instead.
+ *
+ *    Resolution happens BEFORE the queue, and the queue is keyed on the
+ *    resolved pane, because the hazard rule 5 addresses is two sends into one
+ *    COMPOSER — which is a pane, not a session. Two sessions whose names differ
+ *    but which resolve to the same pane must serialize; two sends to one
+ *    session that resolve to different panes must not block each other.
+ *
+ *    NOTE what this does NOT fix: it makes the send hit the pane that was
+ *    current when the user clicked, not necessarily the pane the user MEANT.
+ *    Letting the caller name a pane outright is the real repair and needs a UI
+ *    to pick one — and that picker must validate any pij seat label by
+ *    `pid == pane_pid` at execution time, because tmux reissues pane ids from
+ *    `%0` after a restart and stale bindings then name live panes they do not
+ *    own (pij#171, pij#301).
  */
 
 import type { CommandExecutor } from '../types';
@@ -169,10 +204,47 @@ function enqueueForTarget(target: string, task: () => Promise<void>): Promise<vo
   });
 }
 
+/**
+ * A concrete tmux pane id — `%` followed by digits, and nothing else.
+ *
+ * Anchored on both ends deliberately. This is the value every subsequent call
+ * in the send is aimed at, so anything that is not unambiguously a pane id must
+ * fail the send rather than be passed to tmux, where a partial match would be
+ * re-interpreted as some other kind of target.
+ */
+const PANE_ID_PATTERN = /^%\d+$/;
+
+/**
+ * Resolve a tmux target to the concrete pane it names RIGHT NOW (rule 7).
+ *
+ * Exported for tk-0106's direct coverage: the whole value of this function is
+ * that it is called once per send rather than implicitly four times, and that
+ * property is worth asserting on its own.
+ *
+ * Throws rather than falling back to `target` when the answer is not a pane id.
+ * A fallback here would be a silent return to session-name addressing on
+ * exactly the paths where resolution is least trustworthy — which is the defect
+ * this function exists to remove, reappearing only under failure and therefore
+ * only where nobody is looking.
+ */
+export function resolvePaneTarget(execCommand: CommandExecutor, target: string): string {
+  const paneId = execCommand('tmux', ['display-message', '-p', '-t', target, '#{pane_id}']).trim();
+  if (!PANE_ID_PATTERN.test(paneId)) {
+    throw new Error(
+      `Could not resolve tmux target "${target}" to a pane (got ${JSON.stringify(paneId)})`
+    );
+  }
+  return paneId;
+}
+
 export interface SendPromptKeysOptions {
   /** argv-only command runner (`execFileSync`). Never a shell string. */
   execCommand: CommandExecutor;
-  /** tmux target — the validated session name. */
+  /**
+   * tmux target. Today the sidecar has only a validated session name, which is
+   * NOT an address — see rule 7. It is resolved to a pane id before anything is
+   * typed, and a `%<n>` passed here is resolved to itself.
+   */
   target: string;
   /** The prompt, verbatim. May contain newlines and hostile shell syntax. */
   text: string;
@@ -237,28 +309,34 @@ export async function sendPromptKeys({
   // would re-submit whatever is already sitting in the composer.
   if (payload.length === 0) return;
 
+  // Rule 7: resolve ONCE, before the queue, and address the pane from here on.
+  // Before the queue because the queue key must be the composer being written
+  // to, and a session name is not one; a throw here reaches the caller as a
+  // failed send having issued no keystrokes at all.
+  const pane = resolvePaneTarget(execCommand, target);
+
   // Rule 5: the whole sequence below is one critical section per pane.
-  return enqueueForTarget(target, async () => {
+  return enqueueForTarget(pane, async () => {
     // Rule 4: focus-in first, every time, before anything is typed.
-    execCommand('tmux', ['send-keys', '-t', target, ...FOCUS_IN_ARGS]);
+    execCommand('tmux', ['send-keys', '-t', pane, ...FOCUS_IN_ARGS]);
 
     if (payload.includes('\n')) {
       // Rule 3: one atomic bracketed paste, not one send-keys per line.
       // `-p` is bracketed paste; `-d` deletes the buffer once it has been pasted.
       const buffer = `cg-prompt-${bufferSeq++}`;
       execCommand('tmux', ['set-buffer', '-b', buffer, payload]);
-      execCommand('tmux', ['paste-buffer', '-p', '-d', '-b', buffer, '-t', target]);
+      execCommand('tmux', ['paste-buffer', '-p', '-d', '-b', buffer, '-t', pane]);
     } else {
       // Rule 1: `-l` literal mode. No `--` — with argv there is no shell to
       // confuse, and the workshop is explicit that a leading dash is already
       // safe here, so adding `--` would be re-deriving a shape it settled.
-      execCommand('tmux', ['send-keys', '-t', target, '-l', payload]);
+      execCommand('tmux', ['send-keys', '-t', pane, '-l', payload]);
     }
 
     if (submit) {
       // Rule 2: a SEPARATE call, after the settle, and the settle yields.
       await sleep(ENTER_SETTLE_MS);
-      execCommand('tmux', ['send-keys', '-t', target, 'Enter']);
+      execCommand('tmux', ['send-keys', '-t', pane, 'Enter']);
 
       // Rule 6: at-most-once recovery. Note what is NOT in this loop — there
       // is no type call, no set-buffer and no paste-buffer. The only thing it
@@ -279,7 +357,7 @@ export async function sendPromptKeys({
             return;
           }
           if (!stillPending) return;
-          execCommand('tmux', ['send-keys', '-t', target, 'Enter']);
+          execCommand('tmux', ['send-keys', '-t', pane, 'Enter']);
         }
       }
     }

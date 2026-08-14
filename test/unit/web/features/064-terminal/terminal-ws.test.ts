@@ -412,12 +412,29 @@ describe('Terminal WebSocket Server', () => {
    * never mistaken for terminal input and typed into the user's pane.
    */
   describe('send-keys control message (Plan 092 tk-0101)', () => {
+    /**
+     * The pane the socket's session resolves to (send-prompt-keys rule 7).
+     *
+     * The boundary contract changed with the 2026-08-14 misdelivery: a session
+     * name is not an address, so the socket resolves it to a pane FIRST and
+     * every key-sending call carries the pane. These cases assert the pane for
+     * that reason — asserting the session name here would be asserting the
+     * defect.
+     */
+    const PANE = '%9';
+
     const connect = (session = '064-tmux') => {
       exec.whenCommand('tmux', ['-V']).returns('tmux 3.4');
       const server = createTerminalServer(deps);
       const ws = createFakeWs();
       server.handleConnection(ws as unknown as import('ws').WebSocket, session, process.cwd());
       exec.reset();
+      // Rule 7's resolve, registered for every case that gets as far as
+      // sending. The invalid-name case never reaches it, which is the point of
+      // its zero-tmux-calls assertion.
+      exec
+        .whenCommand('tmux', ['display-message', '-p', '-t', session, '#{pane_id}'])
+        .returns(PANE);
       return ws;
     };
 
@@ -431,13 +448,13 @@ describe('Terminal WebSocket Server', () => {
       - Quality Contribution: dw-1011 at the socket boundary.
       */
       const ws = connect('064-tmux');
-      exec.whenCommand('tmux', ['send-keys', '-t', '064-tmux', '-H', '1b', '5b', '49']).returns('');
-      exec.whenCommand('tmux', ['send-keys', '-t', '064-tmux', '-l', 'hello agent']).returns('');
+      exec.whenCommand('tmux', ['send-keys', '-t', PANE, '-H', '1b', '5b', '49']).returns('');
+      exec.whenCommand('tmux', ['send-keys', '-t', PANE, '-l', 'hello agent']).returns('');
 
       await ws.simulateMessage(JSON.stringify({ type: 'send-keys', text: 'hello agent' }));
 
-      exec.assertExecuted('tmux', ['send-keys', '-t', '064-tmux', '-H', '1b', '5b', '49']);
-      exec.assertExecuted('tmux', ['send-keys', '-t', '064-tmux', '-l', 'hello agent']);
+      exec.assertExecuted('tmux', ['send-keys', '-t', PANE, '-H', '1b', '5b', '49']);
+      exec.assertExecuted('tmux', ['send-keys', '-t', PANE, '-l', 'hello agent']);
       expect(exec.executedCommands.some((c) => c.args.includes('Enter'))).toBe(false);
       expect(spawner.lastInstance?.writeCalls ?? []).toEqual([]);
     });
@@ -477,8 +494,8 @@ describe('Terminal WebSocket Server', () => {
         quietly pre-empted by an over-claiming field name.
       */
       const ws = connect();
-      exec.whenCommand('tmux', ['send-keys', '-t', '064-tmux', '-H', '1b', '5b', '49']).returns('');
-      exec.whenCommand('tmux', ['send-keys', '-t', '064-tmux', '-l', 'x']).returns('');
+      exec.whenCommand('tmux', ['send-keys', '-t', PANE, '-H', '1b', '5b', '49']).returns('');
+      exec.whenCommand('tmux', ['send-keys', '-t', PANE, '-l', 'x']).returns('');
 
       await ws.simulateMessage(JSON.stringify({ type: 'send-keys', text: 'x' }));
 
@@ -522,11 +539,9 @@ describe('Terminal WebSocket Server', () => {
       vi.useFakeTimers();
       try {
         const ws = connect();
-        exec
-          .whenCommand('tmux', ['send-keys', '-t', '064-tmux', '-H', '1b', '5b', '49'])
-          .returns('');
-        exec.whenCommand('tmux', ['send-keys', '-t', '064-tmux', '-l', 'ship it']).returns('');
-        exec.whenCommand('tmux', ['send-keys', '-t', '064-tmux', 'Enter']).returns('');
+        exec.whenCommand('tmux', ['send-keys', '-t', PANE, '-H', '1b', '5b', '49']).returns('');
+        exec.whenCommand('tmux', ['send-keys', '-t', PANE, '-l', 'ship it']).returns('');
+        exec.whenCommand('tmux', ['send-keys', '-t', PANE, 'Enter']).returns('');
 
         const pending = ws.simulateMessage(
           JSON.stringify({ type: 'send-keys', text: 'ship it', submit: true })
@@ -541,7 +556,7 @@ describe('Terminal WebSocket Server', () => {
 
         const enters = exec.executedCommands.filter((c) => c.args.includes('Enter'));
         expect(enters).toHaveLength(1);
-        expect(enters[0].args).toEqual(['send-keys', '-t', '064-tmux', 'Enter']);
+        expect(enters[0].args).toEqual(['send-keys', '-t', PANE, 'Enter']);
       } finally {
         vi.useRealTimers();
       }
@@ -563,11 +578,9 @@ describe('Terminal WebSocket Server', () => {
       vi.useFakeTimers();
       try {
         const ws = connect();
-        exec
-          .whenCommand('tmux', ['send-keys', '-t', '064-tmux', '-H', '1b', '5b', '49'])
-          .returns('');
-        exec.whenCommand('tmux', ['send-keys', '-t', '064-tmux', '-l', 'ship it']).returns('');
-        exec.whenCommand('tmux', ['send-keys', '-t', '064-tmux', 'Enter']).returns('');
+        exec.whenCommand('tmux', ['send-keys', '-t', PANE, '-H', '1b', '5b', '49']).returns('');
+        exec.whenCommand('tmux', ['send-keys', '-t', PANE, '-l', 'ship it']).returns('');
+        exec.whenCommand('tmux', ['send-keys', '-t', PANE, 'Enter']).returns('');
 
         const pending = ws.simulateMessage(
           JSON.stringify({ type: 'send-keys', text: 'ship it', submit: true })

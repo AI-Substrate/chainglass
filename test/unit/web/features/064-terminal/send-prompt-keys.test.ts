@@ -31,13 +31,36 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const TARGET = 'my-session';
 
+/**
+ * The pane `TARGET` resolves to (rule 7). Deliberately NOT `%0`: a resolver bug
+ * that returned an index rather than a pane id, or that dropped the `%`, would
+ * still look plausible against `%0` and would pass against a falsy check.
+ */
+const PANE = '%7';
+
 interface RecordedCall {
   command: string;
   args: string[];
 }
 
-/** Recording argv runner. Records the exact array it was handed. */
-function createRecorder(onCall?: (call: RecordedCall) => void) {
+/** True for the rule-7 resolve call — `display-message -p -t <target> #{pane_id}`. */
+function isResolveCall(call: RecordedCall): boolean {
+  return call.args[0] === 'display-message';
+}
+
+/**
+ * Recording argv runner. Records the exact array it was handed.
+ *
+ * Answers the rule-7 resolve with `PANE` and everything else with `''`, which
+ * is what tmux does: `display-message -p` prints, the key-sending verbs are
+ * silent. `resolvePane` overrides the answer so a test can make one send land
+ * on a different pane than another — that is how the mid-send retarget and the
+ * per-pane queueing cases are driven without a live tmux.
+ */
+function createRecorder(
+  onCall?: (call: RecordedCall) => void,
+  resolvePane: (target: string) => string = defaultResolve
+) {
   const calls: RecordedCall[] = [];
   return {
     calls,
@@ -45,9 +68,60 @@ function createRecorder(onCall?: (call: RecordedCall) => void) {
       const call = { command, args };
       calls.push(call);
       onCall?.(call);
-      return '';
+      return isResolveCall(call) ? resolvePane(args[args.indexOf('-t') + 1]) : '';
     },
   };
+}
+
+/**
+ * Distinct session names resolve to DISTINCT panes, which is what a real box
+ * does and what the per-pane queue cases depend on.
+ *
+ * A flat `() => PANE` would have collapsed every target onto one pane and made
+ * "two panes do not block each other" pass by asserting the opposite of its
+ * name — the queue would have serialized them and the test would have been
+ * measuring the serialization it exists to rule out.
+ */
+const defaultResolve = (() => {
+  const assigned = new Map<string, string>([[TARGET, PANE]]);
+  return (target: string): string => {
+    const existing = assigned.get(target);
+    if (existing) return existing;
+    const paneId = `%${100 + assigned.size}`;
+    assigned.set(target, paneId);
+    return paneId;
+  };
+})();
+
+/**
+ * Everything actually SENT to the pane, in order — i.e. minus the rule-7
+ * resolve, which is a read and not a keystroke. The "focus-in is first" cases
+ * are about the first thing the composer sees, so they belong on this list; a
+ * resolve appearing before it does not violate rule 4.
+ */
+function sentCalls(calls: RecordedCall[]): RecordedCall[] {
+  return calls.filter((c) => !isResolveCall(c));
+}
+
+/** The rule-7 resolve calls — one per send, and that count is the point. */
+function resolveCalls(calls: RecordedCall[]): RecordedCall[] {
+  return calls.filter(isResolveCall);
+}
+
+/**
+ * Every call that AIMS somewhere — i.e. carries a `-t`. Used to assert that a
+ * send addresses exactly one pane, which is the whole of rule 7 and is not
+ * provable by checking the type call and the Enter call individually.
+ */
+function targetsOf(calls: RecordedCall[]): string[] {
+  return calls
+    .filter((c) => !isResolveCall(c) && c.args.includes('-t'))
+    .map((c) => c.args[c.args.indexOf('-t') + 1]);
+}
+
+/** Position of a payload among the calls that reach the pane, or -1. */
+function typedAtPane(calls: RecordedCall[], payload: string): number {
+  return sentCalls(calls).findIndex((c) => c.args.includes(payload));
 }
 
 /** The literal type call, if any — `send-keys … -l <payload>`. */
@@ -98,7 +172,7 @@ describe('send path — call shape and order (tk-0101)', () => {
     expect(typeCalls(runner.calls)[0].args).toEqual([
       'send-keys',
       '-t',
-      TARGET,
+      PANE,
       '-l',
       'refactor this module',
     ]);
@@ -128,8 +202,10 @@ describe('send path — call shape and order (tk-0101)', () => {
     const enters = enterCalls(runner.calls);
     expect(types).toHaveLength(1);
     expect(enters).toHaveLength(1);
-    expect(enters[0].args).toEqual(['send-keys', '-t', TARGET, 'Enter']);
-    expect(runner.calls.indexOf(types[0])).toBeLessThan(runner.calls.indexOf(enters[0]));
+    expect(enters[0].args).toEqual(['send-keys', '-t', PANE, 'Enter']);
+    expect(sentCalls(runner.calls).indexOf(types[0])).toBeLessThan(
+      sentCalls(runner.calls).indexOf(enters[0])
+    );
     for (const arg of types[0].args) {
       expect(arg).not.toContain('\n');
     }
@@ -219,10 +295,12 @@ describe('send path — focus-in before typing (tk-0102)', () => {
 
     const focus = focusInCalls(runner.calls);
     expect(focus).toHaveLength(1);
-    expect(focus[0].args).toEqual(['send-keys', '-t', TARGET, ...FOCUS_IN_ARGS]);
-    expect(runner.calls[0]).toBe(focus[0]);
-    expect(runner.calls.indexOf(focus[0])).toBeLessThan(
-      runner.calls.indexOf(typeCalls(runner.calls)[0])
+    expect(focus[0].args).toEqual(['send-keys', '-t', PANE, ...FOCUS_IN_ARGS]);
+    expect(sentCalls(runner.calls)[0]).toBe(focus[0]);
+    // Rule 7: the resolve is a READ and precedes every keystroke.
+    expect(runner.calls[0].args[0]).toBe('display-message');
+    expect(sentCalls(runner.calls).indexOf(focus[0])).toBeLessThan(
+      sentCalls(runner.calls).indexOf(typeCalls(runner.calls)[0])
     );
   });
 
@@ -246,7 +324,7 @@ describe('send path — focus-in before typing (tk-0102)', () => {
     });
 
     expect(focusInCalls(runner.calls)).toHaveLength(1);
-    expect(runner.calls[0].args).toEqual(['send-keys', '-t', TARGET, ...FOCUS_IN_ARGS]);
+    expect(sentCalls(runner.calls)[0].args).toEqual(['send-keys', '-t', PANE, ...FOCUS_IN_ARGS]);
   });
 
   it('send.focus-in-precedes-the-paste-path-too: multi-line is not a side door', async () => {
@@ -267,8 +345,8 @@ describe('send path — focus-in before typing (tk-0102)', () => {
       sleep: instantSleep,
     });
 
-    expect(runner.calls[0].args).toEqual(['send-keys', '-t', TARGET, ...FOCUS_IN_ARGS]);
-    expect(runner.calls[1].args[0]).toBe('set-buffer');
+    expect(sentCalls(runner.calls)[0].args).toEqual(['send-keys', '-t', PANE, ...FOCUS_IN_ARGS]);
+    expect(sentCalls(runner.calls)[1].args[0]).toBe('set-buffer');
   });
 });
 
@@ -421,8 +499,10 @@ describe('send path — bracketed paste for multi-line (tk-0104)', () => {
     // a separator is right for machine turns and wrong for human prompts.
     expect(setBuffer[0].args.at(-1)).toBe(text);
     const bufferName = setBuffer[0].args[setBuffer[0].args.indexOf('-b') + 1];
-    expect(paste[0].args).toEqual(['paste-buffer', '-p', '-d', '-b', bufferName, '-t', TARGET]);
-    expect(runner.calls.indexOf(setBuffer[0])).toBeLessThan(runner.calls.indexOf(paste[0]));
+    expect(paste[0].args).toEqual(['paste-buffer', '-p', '-d', '-b', bufferName, '-t', PANE]);
+    expect(sentCalls(runner.calls).indexOf(setBuffer[0])).toBeLessThan(
+      sentCalls(runner.calls).indexOf(paste[0])
+    );
   });
 
   it('send.multiline-submit-still-uses-one-separate-enter: paste then settle then Enter', async () => {
@@ -447,8 +527,8 @@ describe('send path — bracketed paste for multi-line (tk-0104)', () => {
     expect(enters).toHaveLength(1);
     const paste = runner.calls.find((c) => c.args[0] === 'paste-buffer');
     expect(paste).toBeDefined();
-    expect(runner.calls.indexOf(paste as RecordedCall)).toBeLessThan(
-      runner.calls.indexOf(enters[0])
+    expect(sentCalls(runner.calls).indexOf(paste as RecordedCall)).toBeLessThan(
+      sentCalls(runner.calls).indexOf(enters[0])
     );
   });
 
@@ -490,8 +570,15 @@ describe('send path — one send at a time per pane (tk-0107)', () => {
    * The index of the call carrying `payload` — the literal `-l <payload>` call
    * on the single-line branch, or the `set-buffer` on the multi-line one.
    */
+  /**
+   * Position of a payload among the calls that reach the PANE.
+   *
+   * Indexes `sentCalls`, not the raw list: these cases assert an ORDERING of
+   * keystrokes, and the rule-7 resolve is a read that shifts raw indices
+   * without changing what the composer sees.
+   */
   function typedAt(calls: RecordedCall[], payload: string): number {
-    return calls.findIndex((c) => c.args.includes(payload));
+    return sentCalls(calls).findIndex((c) => c.args.includes(payload));
   }
 
   it('send.concurrent-sends-to-one-pane-do-not-interleave: every call of A precedes every call of B', async () => {
@@ -525,12 +612,14 @@ describe('send path — one send at a time per pane (tk-0107)', () => {
     ]);
 
     // Two complete sequences, three calls each: focus-in, type, Enter.
-    expect(runner.calls).toHaveLength(6);
+    expect(sentCalls(runner.calls)).toHaveLength(6);
     // Each send owns a contiguous block, so its type call is the middle of it.
     expect(typedAt(runner.calls, 'PROMPT-A')).toBe(1);
     expect(typedAt(runner.calls, 'PROMPT-B')).toBe(4);
-    expect(focusInCalls(runner.calls).map((c) => runner.calls.indexOf(c))).toEqual([0, 3]);
-    expect(enterCalls(runner.calls).map((c) => runner.calls.indexOf(c))).toEqual([2, 5]);
+    expect(focusInCalls(runner.calls).map((c) => sentCalls(runner.calls).indexOf(c))).toEqual([
+      0, 3,
+    ]);
+    expect(enterCalls(runner.calls).map((c) => sentCalls(runner.calls).indexOf(c))).toEqual([2, 5]);
   });
 
   it('send.concurrent-multiline-sends-do-not-interleave: set-buffer, paste and Enter stay contiguous', async () => {
@@ -557,10 +646,10 @@ describe('send path — one send at a time per pane (tk-0107)', () => {
       sendPromptKeys({ ...opts, text: 'B-one\nB-two' }),
     ]);
 
-    expect(runner.calls).toHaveLength(8);
+    expect(sentCalls(runner.calls)).toHaveLength(8);
     expect(typedAt(runner.calls, 'A-one\nA-two')).toBe(1);
     expect(typedAt(runner.calls, 'B-one\nB-two')).toBe(5);
-    expect(runner.calls.map((c) => c.args[0])).toEqual([
+    expect(sentCalls(runner.calls).map((c) => c.args[0])).toEqual([
       'send-keys',
       'set-buffer',
       'paste-buffer',
@@ -796,7 +885,7 @@ describe('send path — at-most-once Enter re-press (tk-0202)', () => {
     expect(typeCalls(runner.calls)).toHaveLength(1);
     expect(focusInCalls(runner.calls)).toHaveLength(1);
     // Nothing else at all — no capture, no set-buffer, no second focus-in.
-    expect(runner.calls).toHaveLength(2 + 1 + ENTER_REPRESS_MAX_ATTEMPTS);
+    expect(sentCalls(runner.calls)).toHaveLength(2 + 1 + ENTER_REPRESS_MAX_ATTEMPTS);
 
     // Settle first, then the re-press cadence — three probes, three waits.
     expect(timer.waits).toEqual([
@@ -992,10 +1081,10 @@ describe('send path — at-most-once Enter re-press (tk-0202)', () => {
 
     // A: focus, type, Enter, and three re-press Enters. B: focus, type, Enter.
     const aCalls = 2 + 1 + ENTER_REPRESS_MAX_ATTEMPTS;
-    expect(runner.calls).toHaveLength(aCalls + 3);
-    expect(runner.calls.findIndex((c) => c.args.includes('PROMPT-A'))).toBe(1);
+    expect(sentCalls(runner.calls)).toHaveLength(aCalls + 3);
+    expect(sentCalls(runner.calls).findIndex((c) => c.args.includes('PROMPT-A'))).toBe(1);
     // B's payload lands only after every one of A's re-presses.
-    expect(runner.calls.findIndex((c) => c.args.includes('PROMPT-B'))).toBe(aCalls + 1);
+    expect(sentCalls(runner.calls).findIndex((c) => c.args.includes('PROMPT-B'))).toBe(aCalls + 1);
   });
 
   it('repress.budget-and-interval-live-in-exactly-one-place', () => {
@@ -1112,5 +1201,149 @@ describe('send path — nothing claims a success it cannot prove (tk-0202)', () 
       claimants,
       `A file that handles the send \`delivered\` flag reports success to the user. tmux exiting zero proves bytes moved, not that the agent accepted them (workshop 001 § 5) — pij shipped exactly this toast and it lied. An honest success signal needs an observed submit, which is ph-0003 tk-0201 and is HELD on oq-0004. Offending files: ${claimants.join(', ')}`
     ).toEqual([]);
+  });
+});
+
+describe('send path — the target is a pane, resolved once (rule 7)', () => {
+  it('send.resolves-once-and-addresses-the-pane: a session name never reaches a key-sending call', async () => {
+    /*
+    Test Doc:
+    - Why: PRODUCTION DEFECT, 2026-08-14. `-t <session>` means "the active pane
+      of whatever window that session is currently on". A click aimed at the
+      agent in dd:1.0 typed its prompt into a DIFFERENT agent's composer in
+      dd:2.0. tmux exited zero and the socket reported delivered:true, so no
+      layer had a signal — the only evidence was a sampler watching every pane
+      on the box.
+    - Contract: exactly one resolve per send, and every subsequent `-t` carries
+      the resolved `%<n>` and never the session name.
+    - Quality Contribution: fails if any call site is left addressing `target`.
+    */
+    const runner = createRecorder();
+
+    await sendPromptKeys({
+      execCommand: runner.exec,
+      target: TARGET,
+      text: 'line one\nline two',
+      submit: true,
+      sleep: instantSleep,
+    });
+
+    expect(resolveCalls(runner.calls)).toHaveLength(1);
+    expect(resolveCalls(runner.calls)[0].args).toEqual([
+      'display-message',
+      '-p',
+      '-t',
+      TARGET,
+      '#{pane_id}',
+    ]);
+    // Focus-in, paste-buffer and Enter all aim at the same pane, and the
+    // session name is gone by then.
+    expect(targetsOf(runner.calls)).toEqual([PANE, PANE, PANE]);
+    expect(targetsOf(runner.calls)).not.toContain(TARGET);
+  });
+
+  it('send.mid-send-retarget-cannot-split-the-sequence: the window may move while the settle runs', async () => {
+    /*
+    Test Doc:
+    - Why: this is the sharper half of the defect and the one a single aiming
+      check would miss. Rules 2 and 4 make one send FOUR tmux calls spanning
+      ~900ms, so re-resolving per call lets the current window change MID-SEND:
+      the text lands in one agent and the Enter fires in another. A stray Enter
+      in a third party's coding agent is the exact blast radius rule 6 refuses
+      to accept for retries.
+    - Contract: with a resolver that answers a DIFFERENT pane every time it is
+      asked, the send still addresses exactly ONE pane.
+    - Quality Contribution: the regression test for the shipped bug. Fails the
+      moment any call re-resolves instead of reusing the frozen id.
+    */
+    let nth = 0;
+    const runner = createRecorder(undefined, () => {
+      nth += 1;
+      return `%${nth}`;
+    });
+
+    await sendPromptKeys({
+      execCommand: runner.exec,
+      target: TARGET,
+      text: 'go',
+      submit: true,
+      sleep: instantSleep,
+    });
+
+    expect(nth).toBe(1); // asked once, so a moving window has nothing to move
+    expect(new Set(targetsOf(runner.calls)).size).toBe(1);
+  });
+
+  it('send.queue-is-keyed-on-the-pane-not-the-name: two names for one composer still serialize', async () => {
+    /*
+    Test Doc:
+    - Why: rule 5's hazard is two sends into one COMPOSER, and a composer is a
+      pane. Keying the queue on the caller's string would let two different
+      names for the SAME pane interleave — A types, parks on the settle, B
+      types into the same composer, and A's Enter submits A+B as one prompt.
+    - Contract: distinct targets resolving to one pane run strictly in order.
+    - Quality Contribution: fails if the queue key is taken before resolution.
+    */
+    const releases: Array<() => void> = [];
+    const runner = createRecorder(undefined, () => PANE);
+    const heldSleep = () => new Promise<void>((resolve) => releases.push(resolve));
+
+    const a = sendPromptKeys({
+      execCommand: runner.exec,
+      target: 'name-one',
+      text: 'PROMPT-A',
+      submit: true,
+      sleep: heldSleep,
+    });
+    const b = sendPromptKeys({
+      execCommand: runner.exec,
+      target: 'name-two',
+      text: 'PROMPT-B',
+      submit: true,
+      sleep: heldSleep,
+    });
+
+    // B is still queued: only A has typed, and it is parked on its settle.
+    expect(typedAtPane(runner.calls, 'PROMPT-A')).toBeGreaterThanOrEqual(0);
+    expect(typedAtPane(runner.calls, 'PROMPT-B')).toBe(-1);
+
+    // Drain in a LOOP, not once: B is queued, so its settle does not exist
+    // yet when A's is released. A single drain would deadlock on a promise
+    // registered after it — which is the serialization this case asserts,
+    // showing up as a hang rather than a failure.
+    const settled = Promise.all([a, b]);
+    for (let i = 0; i < 10 && releases.length >= 0; i++) {
+      for (const release of releases.splice(0)) release();
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    await settled;
+    expect(typedAtPane(runner.calls, 'PROMPT-B')).toBeGreaterThanOrEqual(0);
+    expect(enterCalls(runner.calls)).toHaveLength(2);
+  });
+
+  it('send.unresolvable-target-types-nothing: a failed resolve is a failed send, not a fallback', async () => {
+    /*
+    Test Doc:
+    - Why: falling back to `target` on a failed resolve would restore session-
+      name addressing precisely where resolution is least trustworthy — the
+      defect reappearing only under failure, i.e. only where nobody is looking.
+    - Contract: a non-pane answer rejects to the caller having issued ZERO
+      keystrokes. Zero matters: a send that half-happened is worse than one
+      that did not, because the composer is left dirty.
+    - Quality Contribution: fails if the resolver ever soft-fails.
+    */
+    const runner = createRecorder(undefined, () => '');
+
+    await expect(
+      sendPromptKeys({
+        execCommand: runner.exec,
+        target: TARGET,
+        text: 'never typed',
+        submit: true,
+        sleep: instantSleep,
+      })
+    ).rejects.toThrow(/could not resolve/i);
+
+    expect(sentCalls(runner.calls)).toHaveLength(0);
   });
 });
