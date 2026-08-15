@@ -1,0 +1,26 @@
+test/unit/web/pij/pij-status.test.ts
+  s_084ac52dc66de3::t_3df354b44b2bd5 367-538
+apps/web/src/features/089-first-class-pij/server/pij-status.contract.ts
+  s_084ac52dc66de3::t_9f6d12c260215b 301-302,320-360
+  s_084ac52dc66de3::t_c633abe831971e 477-484
+  s_084ac52dc66de3::t_0d07b3d6fd5abf 411-422
+  s_084ac52dc66de3::t_aa304551a00041 434-448
+  s_084ac52dc66de3::t_6a94c8b3fbe326 490-508
+  s_084ac52dc66de3::t_958071f23d4408 530-540
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "65f524ea9c59846b2db92573d8950c070c604e74",
+  "prompts": {},
+  "sessions": {
+    "s_084ac52dc66de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
