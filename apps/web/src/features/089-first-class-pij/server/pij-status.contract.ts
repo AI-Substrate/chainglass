@@ -298,6 +298,8 @@ function readInterstitial(record: Record<string, unknown>): Interstitial | undef
 export type WatchdogReason =
   | 'armed'
   | 'never-fired'
+  | 'parked'
+  | 'unwatched-role'
   | 'paused'
   | 'exempt'
   | 'fleet-disabled'
@@ -315,6 +317,47 @@ export interface WatchdogState {
   exemptRemainingMs?: number | null;
   /** How far past its due moment a `never-fired` seat is. Only set for that reason. */
   overdueMs?: number;
+  /** The declared state doing the muting. Only set for `parked`. */
+  semanticState?: ParkedSemanticState;
+  /** The role that is never watched. Only set for `unwatched-role`; `null` is undesignated. */
+  role?: 'worker' | null;
+}
+
+/**
+ * The four DECLARED states that mute a nudge at fire time — pij's `mutesWatchdogNudge`
+ * (`.pi/extensions/pij/core/watchdog.ts:332-344`), read verbatim rather than inferred. The other
+ * four (`ready`, `failed`, `cancelled`, `done`) do not mute.
+ */
+const PARKED_SEMANTIC_STATES = ['blocked', 'question', 'hold', 'waiting'] as const;
+export type ParkedSemanticState = (typeof PARKED_SEMANTIC_STATES)[number];
+
+/**
+ * Is this seat's silence DECLARED — and therefore muted at the last gate before delivery?
+ *
+ * `undefined` where the record cannot answer: an unrecognised value is a gap in THIS consumer's
+ * vocabulary, never a claim that the seat is unparked. Same discipline as `role-unrecognised`.
+ */
+function readParkedSemanticState(record: Record<string, unknown>): ParkedSemanticState | undefined {
+  const state = record.semanticState;
+  return (PARKED_SEMANTIC_STATES as readonly unknown[]).includes(state)
+    ? (state as ParkedSemanticState)
+    : undefined;
+}
+
+/**
+ * Does the daemon watch this role AT ALL — `roleNeedsSupervision`
+ * (`.pi/extensions/pij/core/daemon/watchdog-manager.ts:165-200`), which gates eligibility BEFORE any
+ * config field is consulted. `prime`/`pm`/`pa` are watched; `worker` is not (its PM is, and is
+ * watched itself); `null` — undesignated — is not, because stamping a role is what opts a seat in.
+ *
+ * `undefined` where the record cannot answer. The two silences of {@link readSeatRole} both land
+ * here: a missing key says nothing about the seat, and a role this rail has not been taught may well
+ * be one the daemon watches. Neither may become the claim "never watched".
+ */
+function readUnwatchedRole(record: Record<string, unknown>): 'worker' | null | undefined {
+  const role = readSeatRole(record);
+  if (role.kind === 'known') return role.role === 'worker' ? 'worker' : undefined;
+  return role.reason === 'role-unknown' ? null : undefined;
 }
 
 /**
@@ -365,9 +408,18 @@ function neverFiredOverdueMs(
  * ever reading this field (caught live 2026-07-30 on a seat whose watchdog was `paused (self)`).
  * A behavioural promise is a claim; it needs an instrument, and this is it.
  *
- * Precedence follows the platform's own strongest-wins ladder (C9), with the two states that are
- * not tiers at all checked first: a `relay` seat is never watched by design, and the fleet kill
- * switch outranks any per-seat setting.
+ * Precedence follows the platform's own strongest-wins ladder (C9), with the states that are not
+ * tiers at all checked first: a `relay` seat is never watched by design, a role the daemon does not
+ * supervise is never scheduled, and the fleet kill switch outranks any per-seat setting.
+ *
+ * The ladder mirrors the daemon's own order — ELIGIBILITY (relay, role) before CONFIG
+ * (globallyDisabled, enabled, exempt, paused) before BEHAVIOUR (parked, never-fired) — because that
+ * is the order in which a nudge is actually refused, and a lower gate cannot rescue a higher one.
+ *
+ * WHAT IT STILL CANNOT SEE, stated rather than hidden. `eligible()` also refuses a seat on
+ * `deliveryMode === 'pull'` with a non-pi harness, on `lifecycle === 'pending'`, and on the absence
+ * of a `paneId`. None of those three fields travel in `pij list --json` (`paneId` is the known gap,
+ * pij#301), so those seats still read armed. This closes two of five refusal paths, not all five.
  */
 export function readWatchdogState(
   record: Record<string, unknown>,
@@ -379,6 +431,21 @@ export function readWatchdogState(
   const intervalMs = typeof watchdog.intervalMs === 'number' ? watchdog.intervalMs : undefined;
 
   if (watchdog.relay === true) return { reason: 'relay', willNudge: false };
+
+  // ELIGIBILITY, which outranks every config field below because the daemon checks it first: a role
+  // it does not supervise is never scheduled, so `enabled: true` on such a seat is inert config that
+  // the rail was reading as a promise. Caught 2026-08-16 — 4 of 14 live seats (`grieving-gibbon`,
+  // `hurt-ptarmigan`, `musical-hoverfly`, `simple-jaguar`, all undesignated) rendered "watchdog on ·
+  // nudges after 20m quiet" while `roleNeedsSupervision(null) === false` meant no nudge could ever
+  // arrive. Undesignated is the fleet's overwhelming majority (788 of 832 records).
+  //
+  // Below `relay` on purpose. Both refuse the promise, so ordering only picks the WORDS, and a relay
+  // seat's silence is designed rather than merely unsupervised — the more specific sentence wins.
+  const unwatchedRole = readUnwatchedRole(record);
+  if (unwatchedRole !== undefined) {
+    return { reason: 'unwatched-role', willNudge: false, intervalMs, role: unwatchedRole };
+  }
+
   if (watchdog.globallyDisabled === true) return { reason: 'fleet-disabled', willNudge: false };
   if (watchdog.enabled === false) return { reason: 'off', willNudge: false };
   if (watchdog.exempt === true) {
@@ -407,11 +474,38 @@ export function readWatchdogState(
   // has also never fired, and must keep reading `armed` — a badge that fires on every new seat is
   // noise, and noise spends exactly the credibility this exists to restore.
   //
+  // AND A LIMIT ON ITS PREMISE, found while adding the `parked` rung above (pij#258): a muted fire
+  // advances the scheduler's clock IN MEMORY and writes nothing, so `lastFireAt: null` does not mean
+  // "never fired at" — it means "never fired at, OR fired at repeatedly while parked". The rung
+  // above removes the CURRENTLY parked seats from this one's reach; a seat that was parked and has
+  // since unparked is still indistinguishable from an unsupervised one, from disk, at any level of
+  // care. That is a pij-side gap (the muted fire is the event that proves supervision is alive and
+  // the only one leaving no trace), not something this reader can close.
+  //
   // SCOPE — class A only, deliberately. This catches "never fired AND overdue", which is provable
   // from two fields. It does NOT catch class B, "fired once, then stopped" (e.g. after a bounded
   // `exempt` lapsed). B needs a judgement about how many missed intervals constitute stopped, and
   // exempt state is persisted nowhere, so never-exempted and exemption-lapsed are indistinguishable
   // from this record. B is real and is not attempted here; do not read this check as complete.
+  // PARKED — the last gate the daemon applies, and the only one the seat sets on ITSELF. A fire is
+  // due, the fire happens, and `mutesWatchdogNudge` drops it in memory without writing anything
+  // (`daemon/watchdog-manager.ts:501-506`). So a parked seat's silence is correct and permanent
+  // until it unparks, and "nudges after 20m quiet" is a promise that cannot be kept.
+  //
+  // Caught 2026-08-16 by Jordan, on a seat that had been correctly silent for days: `pij-mental-
+  // dajeil` (`waiting`, last fire 9 days old) rendered armed, as did `pij-exact-giraffe` (`waiting`)
+  // and `pij-respectable-clam` (`hold`).
+  //
+  // ABOVE never-fired, which is the point of placing it here at all. A parked seat that has also
+  // never fired reads as "never nudged · Nm overdue" in AMBER — an alarm about a seat behaving
+  // exactly as designed. `pij-continuing-ermine` is live proof: parked in `waiting`, lastFireAt
+  // null, and flagged by a rung whose premise its own declaration explains. Parked is the CAUSE;
+  // never-fired is the symptom, and a cause that is present outranks a symptom it accounts for.
+  const parked = readParkedSemanticState(record);
+  if (parked !== undefined) {
+    return { reason: 'parked', willNudge: false, intervalMs, semanticState: parked };
+  }
+
   const overdueMs = neverFiredOverdueMs(watchdog, record, intervalMs, now);
   if (overdueMs !== undefined) {
     return { reason: 'never-fired', willNudge: false, intervalMs, overdueMs };
@@ -433,6 +527,17 @@ export function watchdogSummary(state: WatchdogState): string {
       return state.overdueMs
         ? `watchdog on · never nudged · ${Math.round(state.overdueMs / 60_000)}m overdue`
         : 'watchdog on · never nudged';
+    // pij's own word for it, taken from the daemon's log line ("parked (waiting) — nudge muted,
+    // supervision unchanged"). Says MUTED rather than off: the watchdog is running and firing, and
+    // the seat itself is dropping the nudges — which is also what makes this one self-clearing.
+    case 'parked':
+      return `parked (${state.semanticState}) · nudges muted`;
+    // Mirrors the relay sentence because it is the same kind of fact: not a setting that could be
+    // changed, but a seat this daemon does not supervise at all.
+    case 'unwatched-role':
+      return state.role === 'worker'
+        ? 'worker seat · never watched · its PM is'
+        : 'unroled seat · never watched';
     case 'paused':
       return `watchdog paused${state.pausedBy ? ` (${state.pausedBy})` : ''} · no nudge`;
     case 'exempt':

@@ -364,4 +364,176 @@ describe('watchdog axis — the nudge promise is read, never assumed', () => {
       ).toBe('armed');
     });
   });
+
+  describe('parked — the seat itself mutes the nudge, and the rail promised one anyway', () => {
+    const armed = { enabled: true, intervalMs: 1_200_000, pausedBy: null, lastFireAt: null };
+
+    it.each(['waiting', 'hold', 'blocked', 'question'] as const)(
+      'reads %s as parked and refuses the nudge promise',
+      (semanticState) => {
+        /*
+      Test Doc:
+      - Why: Jordan caught the rail rendering "watchdog on · nudges after 20m quiet" beside
+        pij-mental-dajeil, correctly silent for nine days. Its watchdog IS enabled and IS firing —
+        and `mutesWatchdogNudge` drops every fire in memory because the seat declared `waiting`.
+        Three live seats read armed this way (dajeil, exact-giraffe, respectable-clam).
+      - Contract: the four declared parked states map to reason 'parked', willNudge false, and the
+        summary names the state doing the muting.
+      - Usage Notes: the set is pij's, copied from watchdog.ts:332-344, not chosen here.
+      - Quality Contribution: the ladder's rungs were config and behaviour only; this adds the one
+        axis the SEAT controls, which is the axis a parked seat is silent on.
+      - Worked Example: semanticState 'waiting' → 'parked (waiting) · nudges muted'.
+      */
+        const state = readWatchdogState({ watchdog: armed, semanticState });
+
+        expect(state.reason).toBe('parked');
+        expect(state.willNudge).toBe(false);
+        expect(watchdogSummary(state)).toBe(`parked (${semanticState}) · nudges muted`);
+      }
+    );
+
+    it('leaves the four UNPARKED states armed — the bound that keeps this honest', () => {
+      /*
+      Test Doc:
+      - Why: THE FALSE-RED GUARD. `semanticState` is populated on every working seat, so a rung that
+        fired on any non-empty value would silence the badge fleet-wide and make the whole instrument
+        vacuous. Proving the new state appears is not proving it is BOUNDED.
+      - Contract: ready/failed/cancelled/done do not mute — the other arm of pij's own switch.
+      - Usage Notes: —
+      - Quality Contribution: pins the mute set to pij's, in both directions.
+      - Worked Example: semanticState 'ready' → armed, willNudge true.
+      */
+      for (const semanticState of ['ready', 'failed', 'cancelled', 'done']) {
+        const state = readWatchdogState({ watchdog: armed, semanticState });
+        expect(state.reason).toBe('armed');
+        expect(state.willNudge).toBe(true);
+      }
+    });
+
+    it('never claims parked from a value or a silence it cannot read', () => {
+      /*
+      Test Doc:
+      - Why: the absence defect, at the value. 793 of 832 live records carry `semanticState: null`,
+        and a future pij could add a fifth parked state this rail has not been taught. Treating
+        either as parked would convert "I cannot tell" into "supervision is muted" — the exact
+        inversion `role-unrecognised` exists to prevent one field over.
+      - Contract: null, absent, and unrecognised all fall through to the rungs below.
+      - Usage Notes: mirrors readSeatRole's three-absence discipline.
+      - Quality Contribution: keeps the new rung from asserting on records that said nothing.
+      - Worked Example: semanticState 'napping' → armed, not parked.
+      */
+      for (const semanticState of [null, undefined, '', 'napping']) {
+        expect(readWatchdogState({ watchdog: armed, semanticState }).reason).toBe('armed');
+      }
+      expect(readWatchdogState({ watchdog: armed }).reason).toBe('armed');
+    });
+
+    it('OUTRANKS never-fired, which its own declaration explains', () => {
+      /*
+      Test Doc:
+      - Why: pij-continuing-ermine, live: parked in `waiting`, lastFireAt null, 90m interval, long
+        past due. The never-fired rung would render it AMBER — "never nudged · Nm overdue" — an
+        alarm about a seat behaving exactly as designed. Adding parked BELOW never-fired would have
+        left that false red in place and fixed only the false green.
+      - Contract: a parked seat that is also never-fired-and-overdue reads 'parked'.
+      - Usage Notes: the config rungs still outrank parked — an operator's pause is the stronger,
+        more actionable statement, and both are true.
+      - Quality Contribution: places the CAUSE above the symptom it accounts for.
+      - Worked Example: waiting + lastFireAt null + 151m past a 20m interval → 'parked'.
+      */
+      const overdue = { statusAt: new Date(Date.now() - 151 * 60_000).toISOString() };
+      expect(
+        readWatchdogState({ watchdog: armed, semanticState: 'waiting', ...overdue }).reason
+      ).toBe('parked');
+      expect(
+        readWatchdogState({
+          watchdog: { ...armed, pausedBy: 'self' },
+          semanticState: 'waiting',
+          ...overdue,
+        }).reason
+      ).toBe('paused');
+    });
+  });
+
+  describe('unwatched-role — a role the daemon never schedules at all', () => {
+    const armed = { enabled: true, intervalMs: 1_200_000, pausedBy: null, lastFireAt: null };
+
+    it.each([
+      ['worker', 'worker seat · never watched · its PM is'],
+      [null, 'unroled seat · never watched'],
+    ] as const)('reads %s as never watched', (orchestrationRole, summary) => {
+      /*
+      Test Doc:
+      - Why: `roleNeedsSupervision` gates eligibility BEFORE any config field is read, and returns
+        false for `worker` and for undesignated seats. Their sidecars still say `enabled: true`, so
+        the rail rendered "watchdog on · nudges after 20m quiet" over config that is inert. Live on
+        2026-08-16: 4 of 14 active seats, and undesignated is 788 of 832 records fleet-wide.
+      - Contract: worker and present-and-null role → 'unwatched-role', willNudge false.
+      - Usage Notes: the field is `projectOrchestrationRole(d)` in `pij list --json` — literally the
+        same projection the daemon's own gate consumes, which is what makes this readable at all.
+      - Quality Contribution: closes the largest of the ladder's remaining false-green paths.
+      - Worked Example: orchestrationRole null → 'unroled seat · never watched'.
+      */
+      const state = readWatchdogState({ watchdog: armed, orchestrationRole });
+
+      expect(state.reason).toBe('unwatched-role');
+      expect(state.willNudge).toBe(false);
+      expect(watchdogSummary(state)).toBe(summary);
+    });
+
+    it('leaves the three SUPERVISED roles armed', () => {
+      /*
+      Test Doc:
+      - Why: the bound. prime/pm/pa are all watched — a prime because nothing else supervises it, a
+        PA because its only other trigger fires when the condition it detects is absent.
+      - Contract: known supervised roles fall through to the rungs below.
+      - Usage Notes: —
+      - Quality Contribution: keeps the rung from swallowing the seats that most need the badge.
+      - Worked Example: orchestrationRole 'prime' → armed.
+      */
+      for (const orchestrationRole of ['prime', 'pm', 'pa']) {
+        expect(readWatchdogState({ watchdog: armed, orchestrationRole }).reason).toBe('armed');
+      }
+    });
+
+    it('stays silent on a missing key and on a role it has not been taught', () => {
+      /*
+      Test Doc:
+      - Why: readSeatRole's two silences must not become a claim. A record that never carried the
+        field says nothing about the seat, and a role pij has designated but this rail cannot name
+        may well be one the daemon supervises — asserting "never watched" there would hide a real
+        gap behind a confident sentence.
+      - Contract: role-field-absent and role-unrecognised both fall through.
+      - Usage Notes: only present-and-null is an ANSWER; that distinction is readSeatRole's.
+      - Quality Contribution: makes the fallback direction (toward the existing reading) asserted.
+      - Worked Example: orchestrationRole 'archivist' → armed, not unwatched-role.
+      */
+      expect(readWatchdogState({ watchdog: armed }).reason).toBe('armed');
+      expect(readWatchdogState({ watchdog: armed, orchestrationRole: 'archivist' }).reason).toBe(
+        'armed'
+      );
+    });
+
+    it('sits below relay, whose sentence is the more specific one', () => {
+      /*
+      Test Doc:
+      - Why: pij-telegram is live and is BOTH relay and undesignated. Both rungs refuse the promise,
+        so the ordering only chooses words — and "relay seat" says the silence is designed, where
+        "unroled" says only that nobody watches it.
+      - Contract: relay > unwatched-role > every config rung.
+      - Usage Notes: —
+      - Quality Contribution: pins an ordering that is otherwise invisible, on the live case.
+      - Worked Example: relay + null role → 'relay'.
+      */
+      expect(
+        readWatchdogState({ watchdog: { ...armed, relay: true }, orchestrationRole: null }).reason
+      ).toBe('relay');
+      expect(
+        readWatchdogState({
+          watchdog: { ...armed, globallyDisabled: true },
+          orchestrationRole: null,
+        }).reason
+      ).toBe('unwatched-role');
+    });
+  });
 });
