@@ -164,3 +164,42 @@ No further workshops required; the one design tension is settled and the residua
 
 **Round 2 (sketch-dependent):**
 - **Retention window (stale-draft sweep)**: 30 days — resolves Q3; drives AC-11. (No domain review needed — all target domains exist; no harness question — harness present and research-confirmed sufficient.)
+
+---
+
+## Decision record — 2026-08-28, and it changes AC-1
+
+**Jordan re-asked for this feature and chose a different destination for autosave than
+the original ask specified.** Asked directly ("when you navigate away, what should
+happen to the file on disk?") he chose:
+
+> navigate away → **atomic write to the real file**, draft deleted
+> idle typing → draft only (crash protection)
+> reopen → file just as you left it, **no prompt**
+
+This **supersedes the original-ask constraint** *"wont update target until save"* for the
+navigate-away trigger only. The idle-debounce trigger keeps the draft-only behaviour this
+spec describes, so AC-1 still holds for typing; it no longer describes what happens when
+the user leaves.
+
+**Accepted consequence, stated by the option he chose:** an edit the user did not mean to
+keep now reaches disk, and git is the undo.
+
+**The restore prompt (AC-4) survives but changes character.** With navigate-away writing
+the target and deleting the draft, a draft can only outlive a session that ended
+*without* leaving — i.e. a crash or hard tab-close. So the prompt is now a rare
+crash-recovery path rather than a routine one, which is what "no prompt" above means.
+
+### Shipped ahead of the rest of this plan
+
+The navigate-away half is **built and on main** (`use-auto-save-on-leave.ts`, wired in
+`browser-client.tsx`). It needs no draft store, so it did not wait for Q1. Verified in
+the running app: edit `a.md`, click `b.md`, and `a.md` on disk carries the edit.
+
+**Q1 is still open and still blocks the draft half** — the `.chainglass` data-watcher
+scope question is untouched by this.
+
+**What the shipped half deliberately does NOT cover:** a hard tab close or crash
+mid-edit. A `beforeunload` handler cannot await a server action, so adding one would fire
+reliably and fail reliably — coverage that looks real and is not. That case is exactly
+what the draft store is for, and it is why the rest of this plan still matters.

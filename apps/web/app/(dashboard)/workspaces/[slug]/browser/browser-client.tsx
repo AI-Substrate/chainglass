@@ -18,6 +18,7 @@ import {
 } from '@/features/041-file-browser/components/file-viewer-panel';
 import { FolderPreviewPanel } from '@/features/041-file-browser/components/folder-preview-panel';
 import { SplitTerminalToggleButton } from '@/features/041-file-browser/components/split-terminal-toggle-button';
+import { useAutoSaveOnLeave } from '@/features/041-file-browser/hooks/use-auto-save-on-leave';
 import { useClipboard } from '@/features/041-file-browser/hooks/use-clipboard';
 import { useFileFilter } from '@/features/041-file-browser/hooks/use-file-filter';
 import { useFileMutations } from '@/features/041-file-browser/hooks/use-file-mutations';
@@ -721,6 +722,19 @@ function BrowserClientInner({
     [selectedFile, fileNav.handleSave]
   );
 
+  // Auto-save the open buffer whenever the user leaves it (Jordan, 2026-08-28).
+  // Placed AFTER handleSaveWithSuppression so the autosave inherits the same 2s
+  // watcher-suppression window as a manual save — without it, every autosave would
+  // bounce back through the file watcher as an "externally changed" banner on the
+  // file the user just left.
+  const autoSaveOnLeave = useAutoSaveOnLeave({
+    snapshot:
+      selectedFile && fileNav.fileData?.ok === true && !fileNav.fileData.isBinary
+        ? { filePath: selectedFile, content: fileNav.editContent, isDirty }
+        : null,
+    save: handleSaveWithSuppression,
+  });
+
   const handleFileDoubleSelect = useCallback(
     async (filePath: string, wasSelected: boolean) => {
       if (mode === 'source' || mode === 'rich') {
@@ -799,9 +813,14 @@ function BrowserClientInner({
         return;
       }
 
+      // Leaving THIS file for another one. Flush before handleSelect, which
+      // overwrites editContent with the incoming file and would otherwise discard
+      // the dirty buffer silently — no prompt, no toast, no draft.
+      await autoSaveOnLeave.flush();
+
       await fileNav.handleSelect(filePath);
     },
-    [selectedFile, fileNav.handleSelect, handleFileDoubleSelect, setParams]
+    [selectedFile, fileNav.handleSelect, handleFileDoubleSelect, setParams, autoSaveOnLeave.flush]
   );
 
   // --- ExplorerPanel handler chain ---
