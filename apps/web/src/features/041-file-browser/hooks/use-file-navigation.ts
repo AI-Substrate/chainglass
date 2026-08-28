@@ -4,12 +4,20 @@
  * useFileNavigation — File selection, expand, read, save, edit, diff.
  *
  * Extracted from BrowserClient for separation of concerns (DYK-P3-05).
- * Owns: childEntries, fileData, editContent, diffCache, diffLoading.
+ * Owns: childEntries, fileData, editContent, diffCache, diffLoading, pendingDraft.
  *
  * Phase 3: Wire Into BrowserClient — Plan 043
+ *
+ * ONE LOAD PATH. Every route into "show me this file" — tree click, mount with a `?file=`
+ * param, URL param change, post-save refresh, manual refresh — goes through `loadFile`.
+ * Before plan 087 there were four near-copies of `readFile → setFileData → setEditContent`
+ * and they had already drifted (only one announced `onFileRefreshed`). Adding the draft
+ * read to four call sites is how the AC-4/AC-10 regression gets built, so the copies were
+ * collapsed first and the draft read added in the one place.
  */
 
 import type { FileEntry } from '@/features/041-file-browser/services/directory-listing';
+import type { AutosaveDraft } from '@/features/041-file-browser/services/draft-file-actions';
 import type { ReadFileResult } from '@/features/041-file-browser/services/file-actions';
 import type { DiffResult } from '@chainglass/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -33,6 +41,20 @@ interface UseFileNavigationOptions {
   setUrlFile: (file: string) => void;
   setUrlMode: (mode: string) => void;
   onFileRefreshed?: (path: string) => void;
+  /** Autosave draft store (plan 087). Omit both to disable draft handling entirely. */
+  readDraft?: (
+    slug: string,
+    worktreePath: string,
+    filePath: string
+  ) => Promise<{ ok: true; draft: AutosaveDraft | null } | { ok: false; error: string }>;
+  deleteDraft?: (slug: string, worktreePath: string, filePath: string) => Promise<unknown>;
+}
+
+/** A draft that differs from disk and is waiting on the user's Restore / Discard call. */
+export interface PendingDraft {
+  draft: AutosaveDraft;
+  /** Live disk mtime at load. The baseline a Restore hands to the next explicit save. */
+  diskMtime: string;
 }
 
 export function useFileNavigation(options: UseFileNavigationOptions) {
@@ -46,6 +68,8 @@ export function useFileNavigation(options: UseFileNavigationOptions) {
     setUrlFile,
     setUrlMode,
     onFileRefreshed,
+    readDraft: readDraftFn,
+    deleteDraft: deleteDraftFn,
   } = options;
 
   const [childEntries, setChildEntries] = useState<Record<string, FileEntry[]>>({});
@@ -54,6 +78,14 @@ export function useFileNavigation(options: UseFileNavigationOptions) {
   const [diffCache, setDiffCache] = useState<Record<string, DiffResult>>({});
   const [diffLoading, setDiffLoading] = useState(false);
 
+  const [pendingDraft, setPendingDraft] = useState<PendingDraft | null>(null);
+
+  /**
+   * Monotonic load counter. A file switch during an in-flight read must not let the
+   * older response land — otherwise file A's content, or worse its restore prompt,
+   * appears over file B (the 086 F005/F008 state-leak class, AC-10).
+   */
+  const loadSeqRef = useRef(0);
   // DYK-P3-01: Ref for cache-aware handleExpand (avoids stale closure in mount effect)
   const childEntriesRef = useRef<Record<string, FileEntry[]>>({});
   useEffect(() => {
@@ -95,20 +127,79 @@ export function useFileNavigation(options: UseFileNavigationOptions) {
     [slug, worktreePath]
   );
 
+  /**
+   * The one path that turns a file path into on-screen content.
+   *
+   * Order matters. The draft is resolved AFTER the disk read (we need the disk content to
+   * decide whether the draft is redundant) but the prompt is raised as state rather than
+   * applied, so the caller can gate the edit surface until the user answers (AC-4/RK-07).
+   * Restoring is never automatic.
+   */
+  const loadFile = useCallback(
+    async (filePath: string, opts?: { announceRefresh?: boolean }) => {
+      const seq = ++loadSeqRef.current;
+      const isStale = () => seq !== loadSeqRef.current;
+
+      let result: ReadFileResult;
+      try {
+        result = await readFileFn(slug, worktreePath, filePath);
+      } catch (error) {
+        console.error('Failed to read file:', error);
+        return;
+      }
+      if (isStale()) return;
+
+      setFileData(result);
+      // A prompt belongs to the file that raised it and to no other (AC-10).
+      setPendingDraft(null);
+
+      if (!result.ok || result.isBinary) return;
+      setEditContent(result.content);
+      if (opts?.announceRefresh) onFileRefreshed?.(filePath);
+
+      // AC-9: binary and unreadable files never reach here, so they never get a draft.
+      if (!readDraftFn) return;
+      const draftResult = await readDraftFn(slug, worktreePath, filePath);
+      if (isStale() || !draftResult.ok || draftResult.draft === null) return;
+
+      // AC-5: a draft that matches disk is stale-but-harmless. Drop it silently — a
+      // prompt offering to restore what is already on screen is pure noise.
+      if (draftResult.draft.content === result.content) {
+        void deleteDraftFn?.(slug, worktreePath, filePath);
+        return;
+      }
+
+      setPendingDraft({ draft: draftResult.draft, diskMtime: result.mtime });
+    },
+    [slug, worktreePath, readFileFn, readDraftFn, deleteDraftFn, onFileRefreshed]
+  );
+
+  /**
+   * Load the draft's content into the EDITOR only — the target is never written here.
+   * The next explicit save runs the existing mtime guard against the live disk mtime, so
+   * a restore can never silently clobber an external edit (AC-6).
+   */
+  const restoreDraft = useCallback(() => {
+    setPendingDraft((pending) => {
+      if (pending) setEditContent(pending.draft.content);
+      return null;
+    });
+  }, []);
+
+  /** Drop the draft and keep what is on disk. */
+  const discardDraft = useCallback(() => {
+    setPendingDraft((pending) => {
+      if (pending) void deleteDraftFn?.(slug, worktreePath, pending.draft.filePath);
+      return null;
+    });
+  }, [slug, worktreePath, deleteDraftFn]);
+
   const handleSelect = useCallback(
     async (filePath: string) => {
       setUrlFile(filePath);
-      try {
-        const result = await readFileFn(slug, worktreePath, filePath);
-        setFileData(result);
-        if (result.ok && !result.isBinary) {
-          setEditContent(result.content);
-        }
-      } catch (error) {
-        console.error('Failed to read file:', error);
-      }
+      await loadFile(filePath);
     },
-    [slug, worktreePath, readFileFn, setUrlFile]
+    [loadFile, setUrlFile]
   );
 
   // Auto-expand tree to show selected file on mount
@@ -122,15 +213,9 @@ export function useFileNavigation(options: UseFileNavigationOptions) {
         handleExpand(current);
       }
       if (!fileData) {
-        // Load content only — don't call handleSelect which rewrites URL and clears line param
-        readFileFn(slug, worktreePath, initialFile)
-          .then((result) => {
-            setFileData(result);
-            if (result.ok && !result.isBinary) {
-              setEditContent(result.content);
-            }
-          })
-          .catch((error) => console.error('Failed to read file:', error));
+        // Load content only — don't call handleSelect, which rewrites the URL and would
+        // clear the ?line= param.
+        void loadFile(initialFile);
       }
     }
   }, []);
@@ -146,16 +231,9 @@ export function useFileNavigation(options: UseFileNavigationOptions) {
         skipNextReadRef.current = false;
         return;
       }
-      readFileFn(slug, worktreePath, initialFile)
-        .then((result) => {
-          setFileData(result);
-          if (result.ok && !result.isBinary) {
-            setEditContent(result.content);
-          }
-        })
-        .catch((error) => console.error('Failed to read file:', error));
+      void loadFile(initialFile);
     }
-  }, [initialFile, slug, worktreePath, readFileFn]);
+  }, [initialFile, loadFile]);
 
   const handleModeChange = useCallback(
     async (newMode: ViewerMode) => {
@@ -197,9 +275,17 @@ export function useFileNavigation(options: UseFileNavigationOptions) {
           toast.error('Save failed', { id: toastId });
           return false;
         }
-        const refreshed = await readFileFn(slug, worktreePath, initialFile);
-        setFileData(refreshed);
-        if (refreshed.ok && !refreshed.isBinary) setEditContent(refreshed.content);
+        // Draft cleanup precedes the refresh read, deliberately. The refresh runs
+        // `loadFile`, which reads the draft; clearing first means it finds nothing rather
+        // than relying on the redundant-draft check to swallow a draft we know is spent.
+        //
+        // This is also the ONLY draft-delete on the save path, and it covers both explicit
+        // saves and the navigate-away save (which reaches here through the same callback).
+        // A `conflict` return above never gets here — the user's autosaved work survives
+        // the conflict dialog, which is the store's key invariant.
+        await deleteDraftFn?.(slug, worktreePath, initialFile);
+
+        await loadFile(initialFile);
         setDiffCache((prev) => {
           const next = { ...prev };
           delete next[initialFile];
@@ -212,23 +298,18 @@ export function useFileNavigation(options: UseFileNavigationOptions) {
         return false;
       }
     },
-    [slug, worktreePath, initialFile, fileData, readFileFn, saveFileFn]
+    [slug, worktreePath, initialFile, fileData, saveFileFn, deleteDraftFn, loadFile]
   );
 
   const handleRefreshFile = useCallback(async () => {
     if (!initialFile) return;
-    const result = await readFileFn(slug, worktreePath, initialFile);
-    setFileData(result);
-    if (result.ok && !result.isBinary) {
-      setEditContent(result.content);
-      onFileRefreshed?.(initialFile);
-    }
+    await loadFile(initialFile, { announceRefresh: true });
     setDiffCache((prev) => {
       const next = { ...prev };
       delete next[initialFile];
       return next;
     });
-  }, [slug, worktreePath, initialFile, readFileFn, onFileRefreshed]);
+  }, [initialFile, loadFile]);
 
   return {
     childEntries,
@@ -244,6 +325,9 @@ export function useFileNavigation(options: UseFileNavigationOptions) {
     handleRefresh,
     handleSave,
     handleRefreshFile,
+    pendingDraft,
+    restoreDraft,
+    discardDraft,
     /** FT-001: Flag to skip re-read on next URL file param change (for rename) */
     skipNextFileRead: () => {
       skipNextReadRef.current = true;

@@ -11,6 +11,7 @@
 
 import { ChangesView } from '@/features/041-file-browser/components/changes-view';
 import { ContentEmptyState } from '@/features/041-file-browser/components/content-empty-state';
+import { DraftRestoreDialog } from '@/features/041-file-browser/components/draft-restore-dialog';
 import { FileTree, type FileTreeHandle } from '@/features/041-file-browser/components/file-tree';
 import {
   FileViewerPanel,
@@ -20,6 +21,7 @@ import { FolderPreviewPanel } from '@/features/041-file-browser/components/folde
 import { SplitTerminalToggleButton } from '@/features/041-file-browser/components/split-terminal-toggle-button';
 import { useAutoSaveOnLeave } from '@/features/041-file-browser/hooks/use-auto-save-on-leave';
 import { useClipboard } from '@/features/041-file-browser/hooks/use-clipboard';
+import { useDraftAutoSave } from '@/features/041-file-browser/hooks/use-draft-auto-save';
 import { useFileFilter } from '@/features/041-file-browser/hooks/use-file-filter';
 import { useFileMutations } from '@/features/041-file-browser/hooks/use-file-mutations';
 import { useFileNavigation } from '@/features/041-file-browser/hooks/use-file-navigation';
@@ -79,6 +81,12 @@ import { useQueryStates } from 'nuqs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { z } from 'zod';
+import {
+  deleteDraft,
+  readDraft,
+  saveDraft,
+  sweepStaleDrafts,
+} from '../../../../actions/draft-actions';
 import {
   createFile,
   createFolder,
@@ -326,6 +334,8 @@ function BrowserClientInner({
     // which calls this — clearing it here would wipe the value on its way through.
     setUrlFile: (file) => setParams({ file, line: null }, { history: 'push' }),
     setUrlMode: (m) => setParams({ mode: m as 'source' | 'rich' | 'preview' | 'diff' }),
+    readDraft,
+    deleteDraft,
   });
 
   const panelState = usePanelState({
@@ -705,6 +715,28 @@ function BrowserClientInner({
     wsCtx?.setHasChanges(panelState.workingChanges.length > 0);
   }, [panelState.workingChanges.length, wsCtx]);
 
+  // Session-start sweep of drafts older than 30 days (AC-11). Fire-and-forget: a sweep
+  // that fails costs disk space, not data, and must never delay the browser rendering.
+  // Keyed on the worktree so switching worktrees sweeps the new one exactly once.
+  useEffect(() => {
+    void sweepStaleDrafts(slug, worktreePath).catch(() => undefined);
+  }, [slug, worktreePath]);
+
+  // Idle-debounced autosave to the DRAFT store (plan 087). Gated on an editable,
+  // non-binary, successfully-read file — binary and oversized files never get a draft
+  // (AC-9), because `readFile` already refused or flagged them.
+  const draftAutoSave = useDraftAutoSave({
+    slug,
+    worktreePath,
+    filePath: selectedFile ?? null,
+    content: fileNav.editContent,
+    isDirty,
+    editorMtime:
+      fileNav.fileData?.ok === true && !fileNav.fileData.isBinary ? fileNav.fileData.mtime : null,
+    enabled: Boolean(selectedFile) && fileNav.fileData?.ok === true && !fileNav.fileData.isBinary,
+    saveDraft,
+  });
+
   // T006: Wrap save to track recently-saved paths for suppression
   const handleSaveWithSuppression = useCallback(
     async (content: string) => {
@@ -717,9 +749,14 @@ function BrowserClientInner({
         }, 2000);
         suppressedTimersRef.current.set(selectedFile, timer);
       }
+      // Drop any pending draft write BEFORE the target write. `handleSave` deletes the
+      // draft on success, and a debounce still in flight would fire afterwards and write
+      // it straight back — an orphan draft that prompts "restore?" on the next load, for
+      // work the user just saved. Cancel, never flush: flushing writes the doomed draft.
+      draftAutoSave.cancel();
       return fileNav.handleSave(content);
     },
-    [selectedFile, fileNav.handleSave]
+    [selectedFile, fileNav.handleSave, draftAutoSave.cancel]
   );
 
   // Auto-save the open buffer whenever the user leaves it (Jordan, 2026-08-28).
@@ -1232,6 +1269,7 @@ function BrowserClientInner({
           editContent={fileNav.editContent}
           onEditChange={fileNav.setEditContent}
           externallyChanged={externallyChanged && (isDirty || mode === 'diff')}
+          draftStatus={draftAutoSave.status}
           highlightedHtml={
             fileNav.fileData?.ok && !fileNav.fileData.isBinary
               ? fileNav.fileData.highlightedHtml
@@ -1594,6 +1632,7 @@ function BrowserClientInner({
                 editContent={fileNav.editContent}
                 onEditChange={fileNav.setEditContent}
                 externallyChanged={externallyChanged && (isDirty || mode === 'diff')}
+                draftStatus={draftAutoSave.status}
                 highlightedHtml={
                   fileNav.fileData?.ok && !fileNav.fileData.isBinary
                     ? fileNav.fileData.highlightedHtml
@@ -1696,6 +1735,11 @@ function BrowserClientInner({
         workingChanges={panelState.workingChanges}
         sdk={sdk}
         mru={mru}
+      />
+      <DraftRestoreDialog
+        pending={fileNav.pendingDraft}
+        onRestore={fileNav.restoreDraft}
+        onDiscard={fileNav.discardDraft}
       />
     </div>
   );

@@ -72,7 +72,7 @@ A fresh human or agent should be able to use this workshop to reach **Contract R
 | Option | Description | Pros | Cons | Decision |
 |--------|-------------|------|------|----------|
 | **A. Server-side sibling** | `src/foo.md.autosave` next to the file | Matches the literal "temp location next to file" mental model; survives crash; cross-device | **Trips the source watcher** (only `.swp/.swo/~` + ignored-segments are skipped → feedback loop, RK-02); pollutes user tree + `git status`; orphan litter | ❌ Rejected |
-| **B. Central `.chainglass/data/` sidecar** | `.chainglass/data/drafts/<mirrored path>.json` | **Source watcher already ignores `.chainglass`** (constants L30) per **ADR-0008**; matches existing `.chainglass/data/` convention (activity-log, pr-view, work-unit-state, file-notes); invisible to user tree + recent feed; carries metadata; survives crash; server-side | A separate **data watcher** covers `.chainglass` — must be scoped away from the drafts subtree (see D5); needs a path-derivation step | ✅ **Selected** |
+| **B. Central `.chainglass/` sidecar** | `.chainglass/drafts/<mirrored path>.json` *(amended 2026-08-28 — originally `.chainglass/data/drafts/`; see Q1)* | **Source watcher already ignores `.chainglass`** (constants L30) per **ADR-0008**; matches existing `.chainglass/` sidecar convention (activity-log, pr-view, work-unit-state, file-notes); invisible to user tree + recent feed; carries metadata; survives crash; server-side | A separate **data watcher** covers `.chainglass/data` + `.chainglass/units` — placing drafts outside both keeps them unwatched (Q1 RESOLVED); needs a path-derivation step | ✅ **Selected** |
 | **C. Client `sessionStorage`/`localStorage`** | Draft kept in the browser | Zero server I/O; zero watcher interaction; simplest | **Contradicts the ask** ("temp location", "atomic cp", "removes the temp file" are server-side); `sessionStorage` dies on tab close; no server crash recovery; size limits | ❌ Rejected (may complement B as a fast in-memory cache, out of scope v1) |
 
 **Why B wins:** the user's own description is server-side ("temp location", "atomic file update cp", "removes the temp file", "on loading… if temp file exists"). Between the two server-side options, the watcher constants make the call: a sibling file (A) is *watched*; `.chainglass` (B) is *deliberately excluded from the source watcher* and carved out for separate data watching (ADR-0008). B is the home the architecture already built for exactly this kind of state.
@@ -91,7 +91,7 @@ A fresh human or agent should be able to use this workshop to reach **Contract R
 | **Mirror the relative path** under `drafts/` + `.json` | Human-debuggable; reversible (strip prefix/suffix); naturally unique; no hash dep; reuse `mkdir({recursive})` | Deeper nesting | ✅ **Selected** |
 | Hash of path (`<sha>.json`) | Flat, short | Opaque; needs collision guard; must store path inside anyway | ❌ Rejected |
 
-`src/foo.md` → `.chainglass/data/drafts/src/foo.md.json`. The draft path is derived **server-side** from the already-`resolvePath`-validated target, so it inherits the sandbox guarantee.
+`src/foo.md` → `.chainglass/drafts/src/foo.md.json` *(amended 2026-08-28 — see Q1)*. The draft path is derived **server-side** from the already-`resolvePath`-validated target, so it inherits the sandbox guarantee.
 
 ---
 
@@ -99,7 +99,7 @@ A fresh human or agent should be able to use this workshop to reach **Contract R
 
 ```typescript
 /** A single autosave draft for one edited file. Stored as JSON at
- *  <worktree>/.chainglass/data/drafts/<relativeFilePath>.json */
+ *  <worktree>/.chainglass/drafts/<relativeFilePath>.json */
 export interface AutosaveDraft {
   schemaVersion: 1;
   /** Worktree-relative path of the target file (verification + reverse lookup). */
@@ -119,14 +119,15 @@ export interface AutosaveDraft {
 
 ```
 <worktree>/
-└── .chainglass/                 # source watcher ignores this segment (ADR-0008)
-    └── data/
-        └── drafts/
-            ├── README.md            # "auto-generated autosave drafts; safe to delete"
-            ├── src/
-            │   └── foo.md.json       # draft for src/foo.md
-            └── docs/
-                └── notes.txt.json    # draft for docs/notes.txt
+└── .chainglass/                     # source watcher ignores this segment (ADR-0008)
+    ├── data/                        # WATCHED by the central data watcher — drafts must NOT live here
+    ├── units/                       # WATCHED by the central data watcher
+    └── drafts/                      # watched by nothing (Q1 RESOLVED)
+        ├── README.md                # "auto-generated autosave drafts; safe to delete"
+        ├── src/
+        │   └── foo.md.json          # draft for src/foo.md
+        └── docs/
+            └── notes.txt.json       # draft for docs/notes.txt
 ```
 
 ---
@@ -229,7 +230,7 @@ DI: `SHARED_DI_TOKENS.FILESYSTEM`, `SHARED_DI_TOKENS.PATH_RESOLVER`. Mirrors `sa
 
 ```typescript
 function draftPathFor(worktreeRoot: string, relFilePath: string): string;
-// → `${worktreeRoot}/.chainglass/data/drafts/${relFilePath}.json`
+// → `${worktreeRoot}/.chainglass/drafts/${relFilePath}.json`
 
 saveDraftFile({ worktreePath, filePath, content, editorMtime, fileSystem, pathResolver })
   // resolvePath(worktreePath, filePath) → validate; derive draftPath;
@@ -250,7 +251,7 @@ deleteDraftFile({ ... }) // exists? unlink; swallow ENOENT
 ```
 load foo.md ──readFile──> {content, mtime:M}
             ──readDraft──> null  → edit normally
-type… (debounce ~1s) ──saveDraft(content, editorMtime:M)──> .chainglass/data/drafts/src/foo.md.json
+type… (debounce ~1s) ──saveDraft(content, editorMtime:M)──> .chainglass/drafts/src/foo.md.json
 type… ──saveDraft (overwrite)──>
 ⌘S ──saveFile(content, expectedMtime:M)──> atomic tmp→rename foo.md; ok:{newMtime:M2}
    ──deleteDraft──> draft gone; status: Saved
@@ -274,7 +275,7 @@ Restore → editor shows draft content (dirty), expectedMtime:M
 
 | Case | Handling | Ref |
 |------|----------|-----|
-| Draft write trips a watcher refresh loop | `.chainglass` excluded from **source** watcher (constants L30); **verify data watcher is scoped away from `…/drafts/`** (see Open Q1) | RK-02 |
+| Draft write trips a watcher refresh loop | **Closed.** `.chainglass` excluded from the **source** watcher (constants L30, dropped pre-emit in the adapter); the **data** watcher subscribes only to `.chainglass/data` + `.chainglass/units`, so `.chainglass/drafts/` is watched by nothing (Q1 RESOLVED) | RK-02 |
 | External edit under a draft → silent clobber | Restore never writes target; explicit save's mtime guard is the backstop; `P2` advisory at restore | RK-01, RK-03 |
 | Binary / oversized files | Autosave gated on `!isBinary && size < cap` (reuse 5MB / 200KB-rich gates); no draft attempted | RK-04, KF-09 |
 | Path traversal via crafted filePath | `resolvePath` before any draft I/O; `requireAuth` on every action | RK-05, KF-10 |
@@ -289,7 +290,7 @@ Restore → editor shows draft content (dirty), expectedMtime:M
 
 | Future Loop | Before Workshop | After Workshop |
 |-------------|-----------------|----------------|
-| Implementation | "Where do drafts go? Will they loop the watcher?" inferred per-dev | `.chainglass/data/drafts/<path>.json`, watcher-safe by ADR-0008; contracts given |
+| Implementation | "Where do drafts go? Will they loop the watcher?" inferred per-dev | `.chainglass/drafts/<path>.json`, watched by no watcher (Q1); contracts given |
 | Review | Reviewer reconstructs crash/conflict intent | Check against the state machine + restore decision tree |
 | Testing | Invent scenarios | Happy-path + crash-recover + conflict + redundant-draft sequences provided |
 
@@ -297,8 +298,14 @@ Restore → editor shows draft content (dirty), expectedMtime:M
 
 ## Open Questions
 
-### Q1: Does the `.chainglass` **data** watcher react to `…/drafts/` writes? — OPEN (verify in spec/architect)
-Source watcher is confirmed to ignore `.chainglass`. ADR-0008 says `.chainglass` is watched *separately* by data watchers. **Action**: confirm the data watcher's subscription scope; if it enumerates all of `.chainglass/data`, either (a) scope it to the specific known files (activity-log.jsonl, pr-view-state.jsonl, …) excluding `drafts/`, or (b) place drafts at `.chainglass/drafts/` (outside `data/`) if the data watcher is `data/`-scoped. Recommended mitigation: **place drafts at `.chainglass/drafts/` and confirm no watcher subscribes there.** _(Decision deferred to architect with this guidance.)_
+### Q1: Does the `.chainglass` **data** watcher react to `…/drafts/` writes? — RESOLVED 2026-08-28 (from code)
+**Only if the drafts live under `.chainglass/data/` or `.chainglass/units/`. They will not.**
+
+`CentralWatcherService.createWatcherForWorktree` adds exactly two roots per worktree — `<wt>/.chainglass/data` and `<wt>/.chainglass/units` — with **no `ignored` list** (`packages/workflow/src/features/023-central-watcher-notifications/central-watcher.service.ts:246`); `performRescan` re-derives the same two (`:390-391`). Nothing anywhere adds `.chainglass` itself or `.chainglass/drafts`. The source watcher adds the worktree root with `SOURCE_WATCHER_IGNORED`, whose segment set contains `.chainglass` (`source-watcher.constants.ts:30`), and the ignore test runs before emit (`adapters/native-file-watcher.adapter.ts:95`, `adapters/polling-file-watcher.adapter.ts:275`).
+
+Had drafts landed under `data/`, the tree itself would still have been safe — `FileChangeWatcherAdapter` drops any path containing `/.chainglass/` (`file-change-watcher.adapter.ts:44`) — but `WorkUnitCatalogWatcherAdapter`'s unanchored `/units\/([^/]+)\/(unit\.yaml|templates\/.+)$/` (`workunit-catalog-watcher.adapter.ts:23`) would match a mirrored draft path like `…/drafts/<any>/units/<slug>/templates/foo.md.json` and emit a spurious unit-catalog event. That is the concrete cost avoided.
+
+**Resolution: drafts at `<worktree>/.chainglass/drafts/<relative path>.json`** — the workshop's recommended mitigation, now confirmed rather than assumed. AC-2 remains the acceptance test.
 
 ### Q2: Autosave cadence — RESOLVED
 Reuse `useAutoSave` debounce (~1000 ms idle). "Regular intervals" satisfied by debounce-on-idle (saves shortly after typing stops); an optional periodic `flush` can be added later. No fixed wall-clock timer needed for v1.

@@ -18,6 +18,22 @@ interface UseAutoSaveReturn {
   trigger: (value: string) => void;
   /** Force immediate save (bypasses debounce). */
   flush: () => void;
+  /**
+   * Drop the pending debounced save without performing it.
+   *
+   * This is NOT `flush`. `flush` writes the pending value; `cancel` discards it.
+   * The distinction matters wherever a *different* write supersedes the debounced
+   * one — plan 087's draft store is the case that forced this: on navigate-away the
+   * target file is written and the draft is deleted, so a draft-debounce still
+   * pending would fire afterwards and resurrect an orphan draft, which then offers
+   * a spurious restore prompt on the next load. `flush()` there is actively wrong:
+   * it writes the very draft that is about to be deleted.
+   *
+   * Also the correct reset on an identity change (e.g. the edited file switching),
+   * where the pending value belongs to the previous identity and must never be
+   * written under the new one.
+   */
+  cancel: () => void;
 }
 
 /**
@@ -100,6 +116,14 @@ export function useAutoSave(
     }
   }, [doSave]);
 
+  const cancel = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    pendingValueRef.current = null;
+  }, []);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -108,5 +132,5 @@ export function useAutoSave(
     };
   }, []);
 
-  return { status, error, trigger, flush };
+  return { status, error, trigger, flush, cancel };
 }

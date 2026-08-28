@@ -89,7 +89,7 @@ No NEW domains. The draft service lives in `file-browser` (workshop Q4 RESOLVED)
   - N (Novelty)=1: the draft store is new, but the patterns (atomic write, sidecar under `.chainglass`, DI service) are all established.
   - F (Non-Functional)=1: watcher-quietness + security fail-closed are the constraints, both with known patterns.
   - T (Testing/Rollout)=1: Hybrid; FakeFileSystem unit + browser harness.
-- **Confidence**: 0.85 (workshop pre-settled the hard decisions; residual unknown is the data-watcher scope — see Open Questions Q1).
+- **Confidence**: 0.90 (workshop pre-settled the hard decisions; the residual data-watcher unknown is now resolved — see Open Questions Q1).
 - **Assumptions**: workshop 001's contracts hold; `useAutoSave`, `saveFile`, atomic write, both editors remain as researched.
 - **Dependencies**: `_platform/viewer` (`useAutoSave`, editors), `_platform/file-ops` (`IFileSystem`, `IPathResolver`, atomic write), the source/data watchers (085/023).
 - **Risks**: see Risks & Assumptions.
@@ -99,7 +99,7 @@ No NEW domains. The draft service lives in `file-browser` (workshop Q4 RESOLVED)
 
 ## Acceptance Criteria
 
-1. **AC-1 (autosave to draft, both modes)**: While editing a non-binary, within-size file in rich OR preview mode, after the user stops typing (idle debounce) the in-progress content is persisted to a draft at `<worktree>/.chainglass/drafts/<relative path>.json` (final location per Q1), and the **target file is unchanged** (its mtime does not move).
+1. **AC-1 (autosave to draft, both modes)**: While editing a non-binary, within-size file in rich OR preview mode, after the user stops typing (idle debounce) the in-progress content is persisted to a draft at `<worktree>/.chainglass/drafts/<relative path>.json` (location RESOLVED — Q1), and the **target file is unchanged** (its mtime does not move).
 2. **AC-2 (no watcher loop)**: An autosave draft write produces **no** `file-changes`/tree-refresh event in the file browser (verified via the browser harness — the tree does not flicker and no source-watcher event fires for the draft path).
 3. **AC-3 (explicit save clears draft)**: On an explicit save that returns `ok`, the target is atomically written (existing `saveFile`) **and** the draft for that file is deleted; the autosave status returns to a clean/saved state.
 4. **AC-4 (restore on load — differs)**: Loading a file for which a draft exists whose content **differs** from disk shows a Restore / Discard prompt **before** the edit surface is interactive. Choosing **Restore** loads the draft content into the editor (editor becomes dirty) and **does not** write the target. Choosing **Discard** deletes the draft and keeps the disk content.
@@ -118,7 +118,7 @@ No NEW domains. The draft service lives in `file-browser` (workshop Q4 RESOLVED)
 | # | Severity | Risk | Mitigation |
 |---|----------|------|------------|
 | RK-01 | Critical | External edit under a draft → silent clobber on restore+save | Restore loads editor-only; next explicit save's mtime guard is the backstop; restore prompt advisory when `editorMtime ≠ disk mtime` (workshop restore tree). |
-| RK-02 | Critical | Draft writes trigger the file-watcher → tree flicker / refresh loop | Drafts live under `.chainglass`, excluded from the **source** watcher (constants L30 / ADR-0008). **Data-watcher scope must be confirmed** (Q1); recommended placement `.chainglass/drafts/`. AC-2 verifies no event fires. |
+| RK-02 | Critical | Draft writes trigger the file-watcher → tree flicker / refresh loop | **Closed by placement.** Source watcher ignores any `.chainglass` path segment (`source-watcher.constants.ts:30`, dropped pre-emit at `native-file-watcher.adapter.ts:95`). The data watcher subscribes to exactly `.chainglass/data` + `.chainglass/units` (`central-watcher.service.ts:246`, `:390-391`), so `.chainglass/drafts/` is watched by nothing. AC-2 verifies. |
 | RK-03 | High | Restore overwrites unsaved/external edits silently | Same as RK-01 backstop; never auto-restore — always prompt; load into editor only. |
 | RK-04 | High | Binary / oversized files churn disk or corrupt drafts | Gate autosave on `!isBinary && size < cap` (AC-9). |
 | RK-05 | High | Path traversal / missing auth on draft server actions | `requireAuth()` + `resolvePath()` fail-closed before any draft I/O (AC-8; 086 F003/F004 pattern). |
@@ -131,8 +131,26 @@ No NEW domains. The draft service lives in `file-browser` (workshop Q4 RESOLVED)
 
 ## Open Questions
 
-### Q1 — Does the `.chainglass` **data** watcher react to `…/drafts/` writes? (architect to confirm)
-The **source** watcher is confirmed to ignore `.chainglass` (constants L30 / ADR-0008). A separate **data** watcher covers `.chainglass`. **Action for `/plan-3`**: confirm the data-watcher's subscription scope; if it enumerates all of `.chainglass/data`, either scope it away from `drafts/` or place drafts at **`.chainglass/drafts/`** (outside `data/`). Workshop recommendation: place drafts at `.chainglass/drafts/` and confirm no watcher subscribes there. AC-2 is the acceptance test regardless of final location.
+### Q1 — Does the `.chainglass` **data** watcher react to `…/drafts/` writes? — RESOLVED 2026-08-28 (from code)
+
+**Answer: it depends entirely on placement, and `.chainglass/drafts/` is watched by nothing.**
+
+Evidence, all in `packages/workflow`:
+
+| Fact | Where |
+|------|-------|
+| The data watcher adds exactly two roots per worktree: `<wt>/.chainglass/data` and `<wt>/.chainglass/units`. It passes **no `ignored` list**, so everything below those two roots is live. | `023-central-watcher-notifications/central-watcher.service.ts:246` (`createWatcherForWorktree`) |
+| Rescan re-derives the same two roots — no other `.chainglass` path is ever added. | `central-watcher.service.ts:390-391` |
+| The source watcher adds the worktree root with `SOURCE_WATCHER_IGNORED`, whose segment set contains `.chainglass`. | `central-watcher.service.ts:322`; `source-watcher.constants.ts:30` |
+| The ignore list is applied **before** the event is emitted, in both watcher adapters — so no `.chainglass` path ever reaches an adapter via the source watcher. | `adapters/native-file-watcher.adapter.ts:95`; `adapters/polling-file-watcher.adapter.ts:275` |
+| Exactly three adapters are registered on the central watcher. | `apps/web/src/features/027-central-notify-events/start-central-notifications.ts:119-126` |
+
+**Therefore:**
+
+- **Drafts at `.chainglass/drafts/` (outside `data/` and `units/`) produce zero watcher events** — the data watcher never subscribes there and the source watcher ignores the whole `.chainglass` segment. This is the selected location, and it makes AC-2 true by construction rather than by filtering.
+- **Drafts at `.chainglass/data/drafts/` would fire the data watcher on every autosave.** The file-browser tree would still be safe — `FileChangeWatcherAdapter.handleEvent` drops any path containing `/.chainglass/` (`file-change-watcher.adapter.ts:44`) — but the event is not harmless: `WorkUnitCatalogWatcherAdapter`'s regex `/units\/([^/]+)\/(unit\.yaml|templates\/.+)$/` (`workunit-catalog-watcher.adapter.ts:23`) is unanchored and unconstrained by extension, so a mirrored draft path such as `.chainglass/data/drafts/<any>/units/<slug>/templates/foo.md.json` **matches** and emits a spurious unit-catalog change event. `WorkflowWatcherAdapter`'s three regexes are `$`-anchored on `graph.yaml` / `node.yaml` / `state.json` and cannot match a `.json`-suffixed draft.
+
+**Decision: drafts live at `<worktree>/.chainglass/drafts/<relative path>.json`.** This supersedes the workshop's D1 layout (`.chainglass/data/drafts/`) on path only; D1's reasoning (server-side, under `.chainglass`, per-file JSON, mirrored path) is unchanged. AC-2 remains the acceptance test.
 
 ### Q2 — Autosave cadence — RESOLVED
 Reuse `useAutoSave` debounce (~1000 ms idle). "Regular intervals" is satisfied by debounce-on-idle; no fixed wall-clock timer needed for v1.

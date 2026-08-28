@@ -209,3 +209,8 @@ harness/.cache/
 # Generated icon assets (Plan 073) — rebuilt by scripts/generate-icon-assets.ts
 apps/web/public/icons/
 .playwright-mcp/
+
+# Autosave drafts (plan 087) — regenerated on demand, safe to delete.
+# Lives OUTSIDE .chainglass/data/ deliberately: that subtree is watched by the central
+# data watcher, and a draft write there would fire spurious catalog events (087 Q1).
+.chainglass/drafts/

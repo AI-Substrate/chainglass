@@ -104,6 +104,13 @@ export interface FileViewerPanelProps {
   errorType?: 'file-too-large' | 'not-found' | 'security';
   /** Whether the file was modified outside the editor (shows blue banner when dirty) */
   externallyChanged?: boolean;
+  /**
+   * Idle-autosave draft status (plan 087). Deliberately NOT rendered through
+   * `SaveIndicator`: that component's success copy is "Saved", which would tell the user
+   * their FILE is saved when only a crash-recovery draft was written. The wording here is
+   * the whole point — a status line that overstates what happened is worse than none.
+   */
+  draftStatus?: 'idle' | 'saving' | 'saved' | 'error';
   /** Pre-highlighted HTML from Shiki (for code preview) */
   highlightedHtml?: string;
   /** Pre-rendered markdown HTML (for markdown preview) */
@@ -164,6 +171,7 @@ export function FileViewerPanel({
   conflictError,
   errorType,
   externallyChanged,
+  draftStatus,
   highlightedHtml,
   markdownHtml,
   diffData,
@@ -402,6 +410,14 @@ export function FileViewerPanel({
             />
           </div>
           <div className="flex items-center gap-0.5">
+            {draftStatus === 'saving' || draftStatus === 'saved' ? (
+              <span
+                className="mr-1 text-xs text-muted-foreground"
+                title="Your in-progress edits are backed up. The file itself is written when you save or navigate away."
+              >
+                {draftStatus === 'saving' ? 'Backing up…' : 'Backed up'}
+              </span>
+            ) : null}
             {mode === 'source' && (
               <button
                 type="button"
