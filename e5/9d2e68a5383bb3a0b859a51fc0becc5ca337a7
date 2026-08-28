@@ -1,0 +1,53 @@
+.harness/briefs/reply-obvious-snake-001.md
+  s_084ac52dc66de3::t_1485bed151392f 1-77
+.harness/briefs/087-draft-store-pm.md
+  s_084ac52dc66de3::t_fab9eba50c0403 1-72
+.gitignore
+  s_084ac52dc66de3::t_656088b3e5020b 212-216
+apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx
+  s_084ac52dc66de3::t_3a08db5955cbb4 14,24,84-89,337-338,718-739,752-756,759,1272,1635,1739-1743
+apps/web/app/actions/draft-actions.ts
+  s_084ac52dc66de3::t_62c338b17faf22 1-140
+apps/web/src/features/041-file-browser/components/draft-restore-dialog.tsx
+  s_084ac52dc66de3::t_67dd6c8b3f4a36 1-82
+apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx
+  s_084ac52dc66de3::t_d5b0016b54fd14 107-113,174,413-420
+apps/web/src/features/041-file-browser/hooks/use-draft-auto-save.ts
+  s_084ac52dc66de3::t_e7f06e1524a726 1-108
+apps/web/src/features/041-file-browser/hooks/use-file-navigation.ts
+  s_084ac52dc66de3::t_089ca97f45a79f 7,10-16,20,44-57,71-72,81-88,130-143,145,148,150-172,174-202,216-218,234,236,278-288,301,306,312,328-330
+apps/web/src/features/041-file-browser/services/draft-file-actions.ts
+  s_084ac52dc66de3::t_45bbcae81ad322 1-274
+apps/web/src/features/_platform/hooks/use-auto-save.ts
+  s_084ac52dc66de3::t_2968985e145698 21-36,119-126,135
+docs/how/autosave-and-drafts.md
+  s_084ac52dc66de3::t_b97c080e0189f1 1-91
+docs/plans/041-file-browser/fixes/FX003-worktree-path-not-validated.md
+  s_084ac52dc66de3::t_15b843cea28235 1-116
+docs/plans/087-auto-save-editing/auto-save-editing-spec.md
+  s_084ac52dc66de3::t_6028676c7daa9b 92,102,121,134-153
+docs/plans/087-auto-save-editing/draft-store-design.md
+  s_084ac52dc66de3::t_35e1911ea9977a 1-192
+docs/plans/087-auto-save-editing/workshops/001-draft-storage-model-and-lifecycle.md
+  s_084ac52dc66de3::t_49089228bc8e86 75,94,102,122-130,233,254,278,293,301-308
+test/unit/web/features/041-file-browser/draft-file-actions.test.ts
+  s_084ac52dc66de3::t_e7c4ea8651e6fb 1-456
+test/unit/web/features/058-workunit-editor/use-auto-save.test.ts
+  s_084ac52dc66de3::t_7c3821a9713c3b 132-222
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "e59d2e68a5383bb3a0b859a51fc0becc5ca337a7",
+  "prompts": {},
+  "sessions": {
+    "s_084ac52dc66de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+        "model": "claude-opus-5"
+      },
+      "human_author": null
+    }
+  }
+}
