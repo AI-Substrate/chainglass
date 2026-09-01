@@ -9,6 +9,15 @@
  *
  * The dev server is deliberately NOT restarted for this task (Jordan's nod required). Proof here is
  * unit + typecheck + build, per the task note.
+ *
+ * TIMEOUT: this suite exercises code whose OWN deadline is `PIJ_DEFAULT_TIMEOUT_MS = 5_000`
+ * (`pij-records.ts`). A 5000ms test limit is therefore the same number the code is allowed to
+ * spend, leaving zero headroom: these tests pass alone (~3.7–4.5s) and fail under full-suite
+ * load (~5.04s), which reads as flake but is an authoring bug — a test limit must exceed the
+ * deadline of the thing it measures, or it races it. The headroom below does NOT hide a slow
+ * path: `startPijPoller()` genuinely spends up to 5s against a large `~/.pij`, and
+ * `instrumentation.register()` awaits it on every server boot. That cost is real and unresolved;
+ * this timeout stops the gate lying about WHICH problem it found.
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import {
@@ -24,7 +33,7 @@ afterEach(() => {
   resetPijPollerForTests();
 });
 
-describe('startPijPoller — HMR-safe singleton (AC-02)', () => {
+describe('startPijPoller — HMR-safe singleton (AC-02)', { timeout: 30_000 }, () => {
   it('returns the same instance on every call', () => {
     /*
     Test Doc:

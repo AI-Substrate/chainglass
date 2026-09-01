@@ -62,27 +62,27 @@ const githubRepoInfo: RepoInfo = {
 };
 
 describe('handleCopyRepoUrlCurrentRef', () => {
-  it('builds a branch URL with the current branch', () => {
+  it('builds a branch URL with the current branch', async () => {
     const { result } = renderHook(() => useClipboard({ ...baseOptions, repoInfo: githubRepoInfo }));
-    result.current.handleCopyRepoUrlCurrentRef('apps/web/src/foo.ts');
+    await result.current.handleCopyRepoUrlCurrentRef('apps/web/src/foo.ts');
     expect(writeText).toHaveBeenCalledWith(
       'https://github.com/o/r/blob/feature/foo/apps/web/src/foo.ts'
     );
     expect(toastSuccess).toHaveBeenCalledWith('URL copied');
   });
 
-  it('uses the SHA when detached HEAD has a non-null currentSha', () => {
+  it('uses the SHA when detached HEAD has a non-null currentSha', async () => {
     const detached: RepoInfo = {
       ...githubRepoInfo,
       isDetached: true,
       currentBranch: 'HEAD',
     };
     const { result } = renderHook(() => useClipboard({ ...baseOptions, repoInfo: detached }));
-    result.current.handleCopyRepoUrlCurrentRef('a.ts');
+    await result.current.handleCopyRepoUrlCurrentRef('a.ts');
     expect(writeText).toHaveBeenCalledWith(`https://github.com/o/r/blob/${'a'.repeat(40)}/a.ts`);
   });
 
-  it('no-ops on detached + null SHA (zero-commit worktree)', () => {
+  it('no-ops on detached + null SHA (zero-commit worktree)', async () => {
     const broken: RepoInfo = {
       ...githubRepoInfo,
       isDetached: true,
@@ -90,18 +90,18 @@ describe('handleCopyRepoUrlCurrentRef', () => {
       currentSha: null,
     };
     const { result } = renderHook(() => useClipboard({ ...baseOptions, repoInfo: broken }));
-    result.current.handleCopyRepoUrlCurrentRef('a.ts');
+    await result.current.handleCopyRepoUrlCurrentRef('a.ts');
     expect(writeText).not.toHaveBeenCalled();
     expect(toastSuccess).not.toHaveBeenCalled();
   });
 
-  it('no-ops when repoInfo is null', () => {
+  it('no-ops when repoInfo is null', async () => {
     const { result } = renderHook(() => useClipboard({ ...baseOptions, repoInfo: null }));
-    result.current.handleCopyRepoUrlCurrentRef('a.ts');
+    await result.current.handleCopyRepoUrlCurrentRef('a.ts');
     expect(writeText).not.toHaveBeenCalled();
   });
 
-  it("no-ops when host === 'unknown'", () => {
+  it("no-ops when host === 'unknown'", async () => {
     const unknown: RepoInfo = {
       host: 'unknown',
       org: null,
@@ -113,22 +113,22 @@ describe('handleCopyRepoUrlCurrentRef', () => {
       isDetached: false,
     };
     const { result } = renderHook(() => useClipboard({ ...baseOptions, repoInfo: unknown }));
-    result.current.handleCopyRepoUrlCurrentRef('a.ts');
+    await result.current.handleCopyRepoUrlCurrentRef('a.ts');
     expect(writeText).not.toHaveBeenCalled();
   });
 });
 
 describe('handleCopyRepoUrlDefaultBranch', () => {
-  it('always uses defaultBranch regardless of detached state', () => {
+  it('always uses defaultBranch regardless of detached state', async () => {
     const { result } = renderHook(() => useClipboard({ ...baseOptions, repoInfo: githubRepoInfo }));
-    result.current.handleCopyRepoUrlDefaultBranch('a.ts');
+    await result.current.handleCopyRepoUrlDefaultBranch('a.ts');
     expect(writeText).toHaveBeenCalledWith('https://github.com/o/r/blob/main/a.ts');
     expect(toastSuccess).toHaveBeenCalledWith('URL copied');
   });
 
-  it('no-ops when repoInfo is null', () => {
+  it('no-ops when repoInfo is null', async () => {
     const { result } = renderHook(() => useClipboard({ ...baseOptions, repoInfo: null }));
-    result.current.handleCopyRepoUrlDefaultBranch('a.ts');
+    await result.current.handleCopyRepoUrlDefaultBranch('a.ts');
     expect(writeText).not.toHaveBeenCalled();
   });
 });

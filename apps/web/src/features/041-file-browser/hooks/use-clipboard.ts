@@ -6,6 +6,16 @@
  * Extracted from BrowserClient for separation of concerns (DYK-P3-05).
  * Handles non-HTTPS clipboard fallback via setTimeout + textarea.
  *
+ * `copyToClipboard` REPORTS WHETHER THE WRITE LANDED, and every caller gates
+ * its toast on that. It used to return void and fire `toast.success`
+ * unconditionally — on a non-secure origin the toast rendered a full tick
+ * before the `execCommand` fallback had even run, and nothing read the
+ * fallback's return value, so "Full path copied" appeared whether or not
+ * anything reached the clipboard. A success message for a clipboard that
+ * silently refused is worse than no message: the user pastes stale content
+ * and blames the paste target. Same rule `pij-rail-view.tsx` states for the
+ * seat-id copy — a failure must be VISIBLE.
+ *
  * Phase 3: Wire Into BrowserClient — Plan 043
  */
 
@@ -28,14 +38,20 @@ interface UseClipboardOptions {
   repoInfo?: RepoInfo | null;
 }
 
-export function useClipboard(options: UseClipboardOptions) {
-  const { slug, worktreePath, readFile: readFileFn, repoInfo } = options;
-
-  const copyToClipboard = useCallback((text: string): void => {
-    if (globalThis.isSecureContext && navigator.clipboard?.writeText) {
-      navigator.clipboard.writeText(text);
-      return;
-    }
+/**
+ * Pre-Clipboard-API fallback for non-secure origins (LAN HTTP, untrusted certs).
+ *
+ * The `setTimeout(0)` is load-bearing: appending and selecting the textarea
+ * inside the originating event handler fights React's own focus handling, so
+ * the copy is deferred by a tick. That tick is exactly why the old code could
+ * not report a result — the caller had already returned. Resolving from inside
+ * the timeout is what makes the outcome observable.
+ *
+ * `execCommand` returns false rather than throwing when the copy is refused,
+ * so both the return value and a throw have to be treated as failure.
+ */
+function legacyCopy(text: string): Promise<boolean> {
+  return new Promise((resolve) => {
     setTimeout(() => {
       const textarea = document.createElement('textarea');
       textarea.value = text;
@@ -44,26 +60,50 @@ export function useClipboard(options: UseClipboardOptions) {
       document.body.appendChild(textarea);
       textarea.focus();
       textarea.select();
+      let copied = false;
       try {
-        document.execCommand('copy');
+        copied = document.execCommand('copy');
+      } catch {
+        copied = false;
       } finally {
         document.body.removeChild(textarea);
       }
+      resolve(copied);
     }, 0);
+  });
+}
+
+export function useClipboard(options: UseClipboardOptions) {
+  const { slug, worktreePath, readFile: readFileFn, repoInfo } = options;
+
+  const copyToClipboard = useCallback(async (text: string): Promise<boolean> => {
+    if (globalThis.isSecureContext && navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch {
+        // Secure context is necessary but not sufficient — a denied permission
+        // or a document without focus rejects here. Fall through rather than
+        // report a failure the legacy path may still be able to service.
+      }
+    }
+    return legacyCopy(text);
   }, []);
 
   const handleCopyFullPath = useCallback(
-    (relativePath: string) => {
-      copyToClipboard(`${worktreePath}/${relativePath}`);
-      toast.success('Full path copied');
+    async (relativePath: string) => {
+      const copied = await copyToClipboard(`${worktreePath}/${relativePath}`);
+      if (copied) toast.success('Full path copied');
+      else toast.error('Could not copy full path');
     },
     [worktreePath, copyToClipboard]
   );
 
   const handleCopyRelativePath = useCallback(
-    (relativePath: string) => {
-      copyToClipboard(relativePath);
-      toast.success('Relative path copied');
+    async (relativePath: string) => {
+      const copied = await copyToClipboard(relativePath);
+      if (copied) toast.success('Relative path copied');
+      else toast.error('Could not copy relative path');
     },
     [copyToClipboard]
   );
@@ -73,8 +113,9 @@ export function useClipboard(options: UseClipboardOptions) {
       try {
         const result = await readFileFn(slug, worktreePath, filePath);
         if (result.ok && !result.isBinary) {
-          await copyToClipboard(result.content);
-          toast.success('Content copied');
+          const copied = await copyToClipboard(result.content);
+          if (copied) toast.success('Content copied');
+          else toast.error('Could not copy content');
         } else {
           toast.error('Could not copy content');
         }
@@ -93,8 +134,9 @@ export function useClipboard(options: UseClipboardOptions) {
         if (res.ok) {
           const data = await res.json();
           const treeText = formatTree(data.tree as TreeEntry[], dirPath);
-          await copyToClipboard(treeText);
-          toast.success('Tree copied');
+          const copied = await copyToClipboard(treeText);
+          if (copied) toast.success('Tree copied');
+          else toast.error('Could not copy tree');
         } else {
           toast.error('Could not copy tree');
         }
@@ -147,7 +189,7 @@ export function useClipboard(options: UseClipboardOptions) {
    *  - Missing/unknown repoInfo: no-op (visibility gate lives in T007).
    */
   const handleCopyRepoUrlCurrentRef = useCallback(
-    (relativePath: string) => {
+    async (relativePath: string) => {
       if (!repoInfo || repoInfo.host === 'unknown') return;
       const ref = repoInfo.isDetached ? repoInfo.currentSha : repoInfo.currentBranch;
       if (!ref) return; // detached + null SHA → silent no-op
@@ -161,8 +203,9 @@ export function useClipboard(options: UseClipboardOptions) {
         },
         { ref, refType, relativePath }
       );
-      copyToClipboard(url);
-      toast.success('URL copied');
+      const copied = await copyToClipboard(url);
+      if (copied) toast.success('URL copied');
+      else toast.error('Could not copy URL');
     },
     [repoInfo, copyToClipboard]
   );
@@ -173,7 +216,7 @@ export function useClipboard(options: UseClipboardOptions) {
    * `getDefaultBaseBranch` server-side (per AC7).
    */
   const handleCopyRepoUrlDefaultBranch = useCallback(
-    (relativePath: string) => {
+    async (relativePath: string) => {
       if (!repoInfo || repoInfo.host === 'unknown') return;
       const url = buildFileUrl(
         {
@@ -184,8 +227,9 @@ export function useClipboard(options: UseClipboardOptions) {
         },
         { ref: repoInfo.defaultBranch, refType: 'branch', relativePath }
       );
-      copyToClipboard(url);
-      toast.success('URL copied');
+      const copied = await copyToClipboard(url);
+      if (copied) toast.success('URL copied');
+      else toast.error('Could not copy URL');
     },
     [repoInfo, copyToClipboard]
   );
