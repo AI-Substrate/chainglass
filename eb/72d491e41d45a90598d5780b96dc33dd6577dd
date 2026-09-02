@@ -1,0 +1,23 @@
+docs/plans/093-pij-rs-reader/assets/backpressure.dd.md
+  s_084ac52dc66de3::t_519b865d5f5c14 1-41
+docs/plans/093-pij-rs-reader/impl-guide.dd.md
+  s_084ac52dc66de3::t_ca94a751e73f34 1-100
+docs/plans/093-pij-rs-reader/packet-coder.dd.md
+  s_084ac52dc66de3::t_a3160cc684ada4 1-84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "eb72d491e41d45a90598d5780b96dc33dd6577dd",
+  "prompts": {},
+  "sessions": {
+    "s_084ac52dc66de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+        "model": "unknown"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
