@@ -16,6 +16,7 @@
  * Per Plan 047 Phase 3, Task T002. Subtask 001: param gathering.
  */
 
+import { copyText } from '@/features/_platform/clipboard';
 import { FileIcon } from '@/features/_platform/themes';
 import type { IUSDK, SDKCommand } from '@chainglass/shared/sdk';
 import {
@@ -496,9 +497,9 @@ export const CommandPaletteDropdown = forwardRef<
               <button
                 type="button"
                 className="rounded bg-muted px-1.5 py-0.5 text-xs hover:bg-accent"
-                onClick={() =>
-                  navigator.clipboard.writeText('https://github.com/AI-Substrate/flow_squared')
-                }
+                onClick={() => {
+                  void copyText('https://github.com/AI-Substrate/flow_squared');
+                }}
               >
                 <ClipboardCopy className="h-3 w-3" />
               </button>

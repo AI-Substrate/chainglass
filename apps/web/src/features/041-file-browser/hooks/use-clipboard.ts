@@ -6,21 +6,18 @@
  * Extracted from BrowserClient for separation of concerns (DYK-P3-05).
  * Handles non-HTTPS clipboard fallback via setTimeout + textarea.
  *
- * `copyToClipboard` REPORTS WHETHER THE WRITE LANDED, and every caller gates
- * its toast on that. It used to return void and fire `toast.success`
- * unconditionally — on a non-secure origin the toast rendered a full tick
- * before the `execCommand` fallback had even run, and nothing read the
- * fallback's return value, so "Full path copied" appeared whether or not
- * anything reached the clipboard. A success message for a clipboard that
- * silently refused is worse than no message: the user pastes stale content
- * and blames the paste target. Same rule `pij-rail-view.tsx` states for the
- * seat-id copy — a failure must be VISIBLE.
+ * The write itself is `_platform/clipboard`'s `copyText`, which resolves
+ * whether the text actually landed. Every handler here gates its toast on
+ * that result — a success message for a clipboard that silently refused is
+ * worse than no message, because the user pastes stale content and blames
+ * the paste target.
  *
  * Phase 3: Wire Into BrowserClient — Plan 043
  */
 
 import type { ReadFileResult } from '@/features/041-file-browser/services/file-actions';
 import { type TreeEntry, formatTree } from '@/features/041-file-browser/services/format-tree';
+import { copyText } from '@/features/_platform/clipboard';
 import { type RepoInfo, buildFileUrl } from '@/features/_platform/git';
 import { useCallback } from 'react';
 import { toast } from 'sonner';
@@ -38,57 +35,11 @@ interface UseClipboardOptions {
   repoInfo?: RepoInfo | null;
 }
 
-/**
- * Pre-Clipboard-API fallback for non-secure origins (LAN HTTP, untrusted certs).
- *
- * The `setTimeout(0)` is load-bearing: appending and selecting the textarea
- * inside the originating event handler fights React's own focus handling, so
- * the copy is deferred by a tick. That tick is exactly why the old code could
- * not report a result — the caller had already returned. Resolving from inside
- * the timeout is what makes the outcome observable.
- *
- * `execCommand` returns false rather than throwing when the copy is refused,
- * so both the return value and a throw have to be treated as failure.
- */
-function legacyCopy(text: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const textarea = document.createElement('textarea');
-      textarea.value = text;
-      textarea.style.position = 'fixed';
-      textarea.style.left = '-9999px';
-      document.body.appendChild(textarea);
-      textarea.focus();
-      textarea.select();
-      let copied = false;
-      try {
-        copied = document.execCommand('copy');
-      } catch {
-        copied = false;
-      } finally {
-        document.body.removeChild(textarea);
-      }
-      resolve(copied);
-    }, 0);
-  });
-}
-
 export function useClipboard(options: UseClipboardOptions) {
   const { slug, worktreePath, readFile: readFileFn, repoInfo } = options;
 
-  const copyToClipboard = useCallback(async (text: string): Promise<boolean> => {
-    if (globalThis.isSecureContext && navigator.clipboard?.writeText) {
-      try {
-        await navigator.clipboard.writeText(text);
-        return true;
-      } catch {
-        // Secure context is necessary but not sufficient — a denied permission
-        // or a document without focus rejects here. Fall through rather than
-        // report a failure the legacy path may still be able to service.
-      }
-    }
-    return legacyCopy(text);
-  }, []);
+  /** Re-exported so existing call sites keep a stable name; the logic is `_platform/clipboard`. */
+  const copyToClipboard = useCallback((text: string): Promise<boolean> => copyText(text), []);
 
   const handleCopyFullPath = useCallback(
     async (relativePath: string) => {

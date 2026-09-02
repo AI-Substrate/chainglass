@@ -293,6 +293,12 @@ describe('PijRailView', () => {
     const user = userEvent.setup();
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    // The copy now runs through `_platform/clipboard`, which reaches `writeText` only in a secure
+    // context and otherwise takes the textarea fallback (a capability the rail gained by moving to
+    // the shared primitive). jsdom is not secure by default, so declare it — the assertions below
+    // are unchanged, and the rejection case still lands on 'failed' because jsdom has no
+    // `execCommand` for the fallback to succeed with.
+    Object.defineProperty(globalThis, 'isSecureContext', { value: true, configurable: true });
     const focusFetch = vi.fn();
 
     render(

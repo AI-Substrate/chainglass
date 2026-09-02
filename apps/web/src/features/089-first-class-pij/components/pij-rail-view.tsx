@@ -1,5 +1,6 @@
 'use client';
 
+import { copyText } from '@/features/_platform/clipboard';
 import { type MouseEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { type FetchLike, usePijFleet } from '../hooks/use-pij-fleet';
 import { usePijStatus } from '../hooks/use-pij-status';
@@ -343,15 +344,12 @@ export const COPY_FEEDBACK_MS = 1_500;
  * `navigator.clipboard` is absent on insecure origins and in jsdom, and `writeText` rejects when
  * the document is not focused — all three are real here (the rail is often read on a LAN address).
  * A failure must therefore be VISIBLE: silently rendering "copied" for a clipboard that never
- * received the text is the one outcome worth engineering against.
+ * received the text is the one outcome worth engineering against. This rule, first written here,
+ * is now the contract of `_platform/clipboard`'s `copyText` — which also adds the non-secure-origin
+ * fallback this had no need of when it stood alone.
  */
 async function copySeatId(id: string): Promise<'copied' | 'failed'> {
-  try {
-    await navigator.clipboard.writeText(id);
-    return 'copied';
-  } catch {
-    return 'failed';
-  }
+  return (await copyText(id)) ? 'copied' : 'failed';
 }
 
 /**

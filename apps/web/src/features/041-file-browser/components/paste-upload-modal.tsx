@@ -1,6 +1,7 @@
 'use client';
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { copyText } from '@/features/_platform/clipboard';
 import { cn } from '@/lib/utils';
 import { Upload } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
@@ -48,24 +49,12 @@ export function PasteUploadModal({
             action: {
               label: 'Copy path',
               onClick: () => {
-                if (globalThis.isSecureContext && navigator.clipboard?.writeText) {
-                  navigator.clipboard.writeText(fullPath);
-                } else {
-                  setTimeout(() => {
-                    const ta = document.createElement('textarea');
-                    ta.value = fullPath;
-                    ta.style.position = 'fixed';
-                    ta.style.left = '-9999px';
-                    document.body.appendChild(ta);
-                    ta.focus();
-                    ta.select();
-                    try {
-                      document.execCommand('copy');
-                    } finally {
-                      document.body.removeChild(ta);
-                    }
-                  }, 0);
-                }
+                // Was a verbatim copy of the pre-consolidation `useClipboard`
+                // body, silent failure included — the duplication propagated
+                // the bug, not just the code.
+                void copyText(fullPath).then((copied) => {
+                  if (!copied) toast.error('Could not copy path');
+                });
               },
             },
           });

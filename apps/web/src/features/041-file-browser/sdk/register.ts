@@ -16,6 +16,7 @@
  * live worktreePath prop is in scope.
  */
 
+import { copyText } from '@/features/_platform/clipboard';
 import type { IUSDK } from '@chainglass/shared/sdk';
 
 import { fileBrowserContribution } from './contribution';
@@ -41,8 +42,10 @@ export function registerFileBrowserSDK(sdk: IUSDK): void {
         const url = new URL(window.location.href);
         const file = url.searchParams.get('file');
         if (file) {
-          await navigator.clipboard.writeText(file);
-          sdk.toast.success(`Copied: ${file}`);
+          // Gated: this used a bare `writeText` and announced success it had
+          // not verified. Contract lives in `_platform/clipboard`.
+          if (await copyText(file)) sdk.toast.success(`Copied: ${file}`);
+          else sdk.toast.error('Could not copy path');
         } else {
           sdk.toast.info('No file selected');
         }
