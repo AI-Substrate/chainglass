@@ -1,0 +1,35 @@
+apps/web/src/features/_platform/clipboard/index.ts
+  s_084ac52dc66de3::t_686bfd173095bb 1-9
+apps/web/src/features/_platform/panel-layout/components/command-palette-dropdown.tsx
+  s_084ac52dc66de3::t_1b705bef231ce2 19,500-502
+apps/web/src/features/041-file-browser/components/recent-feed/hooks/use-feed-actions.ts
+  s_084ac52dc66de3::t_1b705bef231ce2 20
+test/unit/web/pij/pij-rail-view.test.tsx
+  s_084ac52dc66de3::t_6a0a0cc0d029a8 296-301
+apps/web/src/features/041-file-browser/hooks/use-clipboard.ts
+  s_084ac52dc66de3::t_022f1114e03ee9 9-13,20,41-42
+apps/web/src/features/089-first-class-pij/components/pij-rail-view.tsx
+  s_084ac52dc66de3::t_e7ba05bb328a79 3,347-349,352
+apps/web/src/features/_platform/clipboard/lib/copy-text.ts
+  s_084ac52dc66de3::t_686bfd173095bb 1-79
+apps/web/src/features/041-file-browser/sdk/register.ts
+  s_084ac52dc66de3::t_e7ba05bb328a79 19,45-48
+apps/web/src/features/041-file-browser/components/paste-upload-modal.tsx
+  s_084ac52dc66de3::t_2098a47df4be94 4,52-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "76702fc11d268855847b974e2799ed264a2d824e",
+  "prompts": {},
+  "sessions": {
+    "s_084ac52dc66de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
