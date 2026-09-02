@@ -19,12 +19,23 @@ import { createFlowReader } from './flow-reader';
 import { type FlowWatcherService, createFlowWatcher } from './flow-watcher';
 import { type PijPollerService, createPijPoller } from './pij-poller.service';
 import { createPijRecords } from './pij-records';
+import { createCompositePijRecords } from './rs/composite-pij-records';
+import { createRsClient } from './rs/rs-client';
+import { type RsEventStream, createRsEventStream } from './rs/rs-event-stream';
+import { createRsPijRecords } from './rs/rs-pij-records';
 import { createFileSpineCursor } from './spine-cursor';
+
+export type PijSource = 'legacy' | 'rs';
+
+const DEFAULT_PIJ_RS_ADDR = '127.0.0.1:7461';
+const DESCRIPTOR_EVENT_KINDS = new Set(['seat.put', 'seat.tombstone']);
 
 const globalForPijPoller = globalThis as typeof globalThis & {
   __pijPoller?: PijPollerService;
   __pijPollerStarted?: boolean;
   __pijFlowWatcher?: FlowWatcherService;
+  __pijRsEventStream?: RsEventStream;
+  __pijSource?: PijSource;
 };
 
 /**
@@ -37,6 +48,17 @@ const globalForPijPoller = globalThis as typeof globalThis & {
 export function pijHome(env: Record<string, string | undefined> = process.env): string {
   return env.PIJ_HOME ?? join(homedir(), '.pij');
 }
+export function pijSource(env: Record<string, string | undefined> = process.env): PijSource {
+  return env.PIJ_SOURCE === 'rs' ? 'rs' : 'legacy';
+}
+
+export function pijRsAddr(env: Record<string, string | undefined> = process.env): string {
+  return env.PIJ_RS_ADDR ?? DEFAULT_PIJ_RS_ADDR;
+}
+
+export function pijRsStateDir(env: Record<string, string | undefined> = process.env): string {
+  return env.PIJ_RS_STATE_DIR ?? join(homedir(), '.pij-rs');
+}
 
 /**
  * Whether the polling loops may run. Default OFF — see the kill switch in {@link startPijPoller}.
@@ -45,9 +67,7 @@ export function pijHome(env: Record<string, string | undefined> = process.env): 
  * parameterised rather than reading `process.env` directly so a test can exercise both branches
  * without mutating global state (the same shape `pijHome` uses above).
  */
-export function pijPollerEnabled(
-  env: Record<string, string | undefined> = process.env
-): boolean {
+export function pijPollerEnabled(env: Record<string, string | undefined> = process.env): boolean {
   return env.PIJ_POLLER === 'on';
 }
 
@@ -60,15 +80,49 @@ export function pijPollerEnabled(
  */
 export function getPijPoller(): PijPollerService {
   if (!globalForPijPoller.__pijPoller) {
-    globalForPijPoller.__pijPoller = createPijPoller({
-      // The spine is the ONE pij path ruled stable for external readers — bound by file.
+    const source = pijSource();
+    const cliRecords = createPijRecords({ defaultCwd: process.cwd() });
+    const client =
+      source === 'rs'
+        ? createRsClient({ addr: pijRsAddr(), stateDir: pijRsStateDir(), fetch })
+        : undefined;
+    const records = client
+      ? createCompositePijRecords({ rs: createRsPijRecords({ client }), cli: cliRecords })
+      : cliRecords;
+    const poller = createPijPoller({
+      // The legacy source reads its stable file spine. The rs source owns transitions over HTTP.
       cursor: createFileSpineCursor({ spineDir: join(pijHome(), 'spine') }),
-      // Records go through the CLI: their paths are explicitly NOT stable (tier migration renames).
-      records: createPijRecords({ defaultCwd: process.cwd() }),
+      records,
       flows: createFlowReader(),
+      pollSpine: source === 'legacy',
+      pollRecords: source === 'legacy',
       // The single egress to the browser. We consume `broadcast`; we never modify the manager.
       broadcast: (channelId, eventType, data) => sseManager.broadcast(channelId, eventType, data),
     });
+
+    globalForPijPoller.__pijSource = source;
+    globalForPijPoller.__pijPoller = poller;
+    if (client) {
+      globalForPijPoller.__pijRsEventStream = createRsEventStream({
+        client,
+        onEvent: async (frame) => {
+          poller.ingest(frame);
+          if (DESCRIPTOR_EVENT_KINDS.has(frame.event.kind)) await poller.refreshRecords();
+        },
+        onStatus: (status) => {
+          if (status.state === 'connected') {
+            console.info(`[pij-rs] event stream connected (${status.build})`);
+          } else if (status.state === 'reconnecting') {
+            console.warn(
+              `[pij-rs] event stream reconnecting in ${status.delayMs}ms:`,
+              status.error
+            );
+          } else if (status.state === 'ignored') {
+            console.warn(`[pij-rs] ignored event frame type: ${status.frameType}`);
+          }
+        },
+      });
+    }
   }
   return globalForPijPoller.__pijPoller;
 }
@@ -126,20 +180,11 @@ export function notePijFlowWorkspace(workspacePath: string): void {
  */
 export async function startPijPoller(): Promise<PijPollerService> {
   const poller = getPijPoller();
+  const source = globalForPijPoller.__pijSource ?? 'legacy';
 
-  // KILL SWITCH — the loops are OFF unless `PIJ_POLLER=on` is set.
-  //
-  // The slow loop shells out `pij list --json --badge`, which grew from ~0.7s at 181 rows
-  // (measured when it was written, `pij-records.ts`) to 7.7s at ~1,200 rows. `PijRecords`
-  // caps every call at `PIJ_DEFAULT_TIMEOUT_MS = 5_000`, so at that size EVERY call is killed
-  // before it returns: the loop pays full CPU and receives nothing. Measured 2026-09-02 —
-  // two `cli.ts list --json --badge` processes in flight continuously, ~95% of a core
-  // between them, the top two consumers on the machine, parented to `next-server`.
-  //
-  // Off is therefore not a loss of function: the data has not been arriving anyway. It is the
-  // same dark rail, minus the core. The replacement is pij-rs (`/v1/seats`, 113ms for 598
-  // seats), and this switch comes out when that reader lands.
-  if (!pijPollerEnabled()) {
+  // The kill switch protects the legacy process-spawning loops. PIJ_SOURCE=rs starts its HTTP
+  // reader without PIJ_POLLER because it neither shells out per tick nor reads the legacy spine.
+  if (source === 'legacy' && !pijPollerEnabled()) {
     console.warn(
       '[pij] poller disabled (set PIJ_POLLER=on to re-enable) — see start-pij-poller.ts'
     );
@@ -151,6 +196,7 @@ export async function startPijPoller(): Promise<PijPollerService> {
 
   try {
     await poller.start();
+    globalForPijPoller.__pijRsEventStream?.start();
   } catch (error) {
     // Reset the flag so a later attempt can retry rather than being locked out by one bad boot.
     globalForPijPoller.__pijPollerStarted = false;
@@ -166,6 +212,7 @@ export async function startPijPoller(): Promise<PijPollerService> {
 
 /** Stop the poller and release the singleton. Wired to SIGTERM/SIGINT by `instrumentation.ts`. */
 export function stopPijPoller(): void {
+  globalForPijPoller.__pijRsEventStream?.stop();
   globalForPijPoller.__pijPoller?.stop();
   globalForPijPoller.__pijPollerStarted = false;
   // Fire-and-forget: shutdown must not wait on a watcher close, and a rejected close would otherwise
@@ -177,10 +224,13 @@ export function stopPijPoller(): void {
 /** Test seam: forget the singleton so a fresh one is built. Never called in production code. */
 export function resetPijPollerForTests(): void {
   globalForPijPoller.__pijPoller?.stop();
+  globalForPijPoller.__pijRsEventStream?.stop();
   globalForPijPoller.__pijPoller = undefined;
   globalForPijPoller.__pijPollerStarted = false;
   void globalForPijPoller.__pijFlowWatcher?.stop().catch(() => {});
   globalForPijPoller.__pijFlowWatcher = undefined;
+  globalForPijPoller.__pijRsEventStream = undefined;
+  globalForPijPoller.__pijSource = undefined;
 }
 
 /** True when the bootstrap has already run in this process. */

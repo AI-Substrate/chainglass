@@ -37,6 +37,7 @@ import { indexFleetById, isFolderInWorkspace, toFleetRow } from './join';
 import { PijCliError } from './pij-records';
 import type { IPijRecords, PijListRow } from './pij-records.interface';
 import { type PijRailContractSeams, productionContractSeams } from './pij-status.contract';
+import type { RsCursorEvent } from './rs/rs-client';
 import type { ISpineCursor, SpineEvent } from './spine-cursor.interface';
 
 /** Spine cursor cadence. Inside C-10's ruled 1–2s band. */
@@ -82,6 +83,10 @@ export interface PijPollerDeps {
   now?: () => Date;
   fastLoopMs?: number;
   slowLoopMs?: number;
+  /** Legacy file-spine polling. Disabled when the rs event stream owns transitions. */
+  pollSpine?: boolean;
+  /** Periodic record polling. Disabled when rs descriptor events trigger coalesced refreshes. */
+  pollRecords?: boolean;
   /** Non-fatal diagnostics. Defaults to console. */
   logger?: { warn: (message: string, ...rest: unknown[]) => void };
   contracts?: PijRailContractSeams;
@@ -102,6 +107,10 @@ export interface PijPollerService {
   snapshot(options?: { workspace?: string | null }): PijSnapshotResult;
   /** Re-read a plans root and broadcast a `flow-delta` if any signature changed. */
   refreshFlows(plansRoot: string): Promise<void>;
+  /** Coalesced global records read: one in flight and at most one trailing refresh. */
+  refreshRecords(): Promise<void>;
+  /** Apply only transitions the rs frame explicitly carries; unknown kinds only advance the cursor. */
+  ingest(event: RsCursorEvent): void;
   /** The records adapter, for routes that need a repo-scoped read (`tree`). */
   readonly records: IPijRecords;
   readonly flows?: IFlowReader;
@@ -125,6 +134,9 @@ class Poller implements PijPollerService {
   private spineMissing = false;
   private tornLinesSkipped = 0;
   private flowSignatures = new Map<string, string>();
+  private rsEventSeq: number | undefined;
+  private recordsRefresh: Promise<void> | undefined;
+  private recordsRefreshTrailing = false;
 
   constructor(deps: PijPollerDeps) {
     this.deps = {
@@ -152,14 +164,16 @@ class Poller implements PijPollerService {
     if (this.running) return;
     this.running = true;
 
-    // Prime the fleet before the first tick, so a snapshot fetched immediately after boot is not
-    // empty-because-we-have-not-looked — which AC-08 would otherwise have to render as "no seats".
-    await this.tickSlow();
+    // Prime before the first snapshot. Every later caller shares the same coalesced refresh path.
+    await this.refreshRecords();
 
-    this.cancels = [
-      this.deps.scheduler.every(this.fastLoopMs, () => this.tickFast()),
-      this.deps.scheduler.every(this.slowLoopMs, () => this.tickSlow()),
-    ];
+    this.cancels = [];
+    if (this.deps.pollSpine !== false) {
+      this.cancels.push(this.deps.scheduler.every(this.fastLoopMs, () => this.tickFast()));
+    }
+    if (this.deps.pollRecords !== false) {
+      this.cancels.push(this.deps.scheduler.every(this.slowLoopMs, () => this.refreshRecords()));
+    }
   }
 
   stop(): void {
@@ -175,7 +189,7 @@ class Poller implements PijPollerService {
       : all;
     const visibleIds = new Set(rows.map((row) => row.id));
     return {
-      seq: this.deps.cursor.seq,
+      seq: this.currentSeq(),
       at: this.deps.now().toISOString(),
       rows,
       statuses: [...this.statuses.values()].filter((status) => visibleIds.has(status.peer)),
@@ -188,12 +202,68 @@ class Poller implements PijPollerService {
       running: this.running,
       lastSpinePollAt: this.lastSpinePollAt,
       lastRecordsPollAt: this.lastRecordsPollAt,
-      seq: this.deps.cursor.seq,
+      seq: this.currentSeq(),
       lastError: this.lastError,
       spineMissing: this.spineMissing,
       tornLinesSkipped: this.tornLinesSkipped,
       fleetSize: this.fleet.size,
     };
+  }
+  async refreshRecords(): Promise<void> {
+    if (this.recordsRefresh) {
+      this.recordsRefreshTrailing = true;
+      await this.recordsRefresh;
+      return;
+    }
+
+    const pending = this.drainRecordsRefreshes();
+    this.recordsRefresh = pending;
+    try {
+      await pending;
+    } finally {
+      if (this.recordsRefresh === pending) this.recordsRefresh = undefined;
+    }
+  }
+
+  ingest(frame: RsCursorEvent): void {
+    this.rsEventSeq = frame.cursor;
+    this.lastSpinePollAt = this.deps.now().toISOString();
+
+    // The live rs vocabulary currently carries descriptor notifications and report payloads, not
+    // legacy system-state transitions. Keep the seam honest: only apply a transition when both
+    // endpoints are explicitly present; every other kind advances the cursor and nothing else.
+    if (frame.event.kind !== SYSTEM_STATE_KIND) return;
+    let payload: unknown;
+    try {
+      payload = JSON.parse(frame.event.payload);
+    } catch {
+      return;
+    }
+    if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return;
+    const transition = payload as { prev?: unknown; next?: unknown };
+    if (typeof transition.prev !== 'string' || typeof transition.next !== 'string') return;
+
+    const id = frame.event.seat as PijId;
+    const current = this.fleet.get(id);
+    if (!current) return;
+    const at = new Date(frame.event.at).toISOString();
+    const updated = applyEvent(current, {
+      kind: frame.event.kind,
+      next: transition.next,
+      ts: at,
+    });
+    this.commitFleetDelta(new Map([[id, updated]]), frame.cursor);
+  }
+
+  private async drainRecordsRefreshes(): Promise<void> {
+    do {
+      this.recordsRefreshTrailing = false;
+      await this.tickSlow();
+    } while (this.recordsRefreshTrailing);
+  }
+
+  private currentSeq(): number {
+    return this.rsEventSeq ?? this.deps.cursor.seq;
   }
 
   /**
@@ -246,16 +316,7 @@ class Poller implements PijPollerService {
       });
     }
 
-    if (touched.size > 0) {
-      for (const [id, row] of touched) this.fleet.set(id, row);
-      this.emit({
-        type: 'fleet-delta',
-        seq: result.seq,
-        at: this.deps.now().toISOString(),
-        rows: [...touched.values()],
-        removed: [],
-      });
-    }
+    this.commitFleetDelta(touched, result.seq);
   }
 
   /** Slow loop: ONE global list, diff, emit only what changed. Degrades rather than blanks. */
@@ -274,7 +335,7 @@ class Poller implements PijPollerService {
       };
       this.emit({
         type: 'poller-status',
-        seq: this.deps.cursor.seq,
+        seq: this.currentSeq(),
         at: this.deps.now().toISOString(),
         status: this.status(),
       });
@@ -302,7 +363,7 @@ class Poller implements PijPollerService {
     if (changed.length === 0 && removed.length === 0) return;
     this.emit({
       type: 'fleet-delta',
-      seq: this.deps.cursor.seq,
+      seq: this.currentSeq(),
       at: this.deps.now().toISOString(),
       rows: changed,
       removed,
@@ -326,6 +387,18 @@ class Poller implements PijPollerService {
       seq: this.deps.cursor.seq,
       at: this.deps.now().toISOString(),
       flows: changed,
+    });
+  }
+
+  private commitFleetDelta(touched: Map<PijId, FleetRow>, seq: number): void {
+    if (touched.size === 0) return;
+    for (const [id, row] of touched) this.fleet.set(id, row);
+    this.emit({
+      type: 'fleet-delta',
+      seq,
+      at: this.deps.now().toISOString(),
+      rows: [...touched.values()],
+      removed: [],
     });
   }
 
@@ -362,7 +435,7 @@ function peerOf(event: SpineEvent): PijId | undefined {
  * task sentence into the state field. So other kinds mark the seat as *touched* (the client learns it
  * is active) without inventing a new state for it.
  */
-function applyEvent(row: FleetRow, event: SpineEvent): FleetRow {
+function applyEvent(row: FleetRow, event: Pick<SpineEvent, 'kind' | 'next' | 'ts'>): FleetRow {
   if (event.kind !== SYSTEM_STATE_KIND || typeof event.next !== 'string') return row;
   return { ...row, state: event.next, lastEventAt: event.ts };
 }
