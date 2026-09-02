@@ -61,7 +61,7 @@
     {
      "id": "ac-0004",
      "state": "unchecked",
-     "claim": "A seat that leaves the fleet leaves the reader within the same 2s bound.",
+     "claim": "The reader mirrors /v1/seats faithfully in both directions, including tombstones once pij-rs sets them. NOTE: pij-rs does not currently reap dead seats (96% of its paned roster are corpses reported as 'idle'), so 'disappears within 2s' is not achievable and is not ours to fix.",
      "pressure": "assets/backpressure.dd.json#rows/bp-0004"
     },
     {
@@ -142,6 +142,11 @@
      "id": "oq-0002",
      "state": "unchecked",
      "question": "Once req-0040 lands a role writer, does the rail's existing role and watchdog derivation (pij-status.contract.ts) work unchanged against rs vocabulary, or does it need a second mapping?"
+    },
+    {
+     "id": "oq-0004",
+     "state": "unchecked",
+     "question": "Until pij-rs reaps dead seats, a rail on rs shows corpses as healthy idle seats \u2014 716 of 744 measured. Does chainglass ship that honestly (and how does the rail say it), or does the flip wait on upstream reaping? Roadmap question is with Jordan; the rendering question is ours either way."
     }
    ]
   },

@@ -60,7 +60,7 @@ pij-rs answers the same question over HTTP in 113ms for 598 seats, and offers an
 | ac-0001 | With PIJ_SOURCE=rs, chainglass spawns no pij child process: the read path is HTTP against 127.0.0.1:7461. | [ ] unchecked | — | — | [bp-0001](assets/backpressure.dd.md#rows) | — |
 | ac-0002 | An RsPijRecords read of a live seat returns values equal to a direct /v1/seats read of the same id. | [ ] unchecked | — | — | [bp-0002](assets/backpressure.dd.md#rows) | — |
 | ac-0003 | A seat that joins the fleet appears in the reader within 2s. | [ ] unchecked | — | — | [bp-0003](assets/backpressure.dd.md#rows) | — |
-| ac-0004 | A seat that leaves the fleet leaves the reader within the same 2s bound. | [ ] unchecked | — | — | [bp-0004](assets/backpressure.dd.md#rows) | — |
+| ac-0004 | The reader mirrors /v1/seats faithfully in both directions, including tombstones once pij-rs sets them. NOTE: pij-rs does not currently reap dead seats (96% of its paned roster are corpses reported as 'idle'), so 'disappears within 2s' is not achievable and is not ours to fix. | [ ] unchecked | — | — | [bp-0004](assets/backpressure.dd.md#rows) | — |
 | ac-0005 | The reader survives an rs daemon restart on its own, resuming from its cursor without a chainglass restart. | [ ] unchecked | — | — | [bp-0005](assets/backpressure.dd.md#rows) | — |
 | ac-0006 | A rotated daemon.key produces exactly one 401-triggered re-read, then success, and does not loop on a second failure. | [ ] unchecked | — | — | [bp-0006](assets/backpressure.dd.md#rows) | — |
 | ac-0007 | watchdog, bindHealth and degraded render as explicitly unavailable from pij-rs, never blank and never synthesised. | [ ] unchecked | — | — | [bp-0007](assets/backpressure.dd.md#rows) | — |
@@ -117,6 +117,7 @@ CONSEQUENCE for verification: 'match the legacy reader for the same seat' is NOT
 | --- | --- | --- | --- |
 | Should chainglass render the old-&gt;new seat id mapping during the migration window, so an operator can find a seat by the name they know? Depends on whether Jordan holds the legacy shutdown for plan-129. | [ ] unchecked | — | oq-0001 |
 | Once req-0040 lands a role writer, does the rail's existing role and watchdog derivation (pij-status.contract.ts) work unchanged against rs vocabulary, or does it need a second mapping? | [ ] unchecked | — | oq-0002 |
+| Until pij-rs reaps dead seats, a rail on rs shows corpses as healthy idle seats — 716 of 744 measured. Does chainglass ship that honestly (and how does the rail say it), or does the flip wait on upstream reaping? Roadmap question is with Jordan; the rendering question is ours either way. | [ ] unchecked | — | oq-0004 |
 
 <a id="clarifications"></a>
 

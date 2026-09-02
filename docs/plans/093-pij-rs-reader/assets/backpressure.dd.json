@@ -63,13 +63,13 @@
     },
     {
      "id": "bp-0004",
-     "criterion": "NEGATIVE \u2014 a seat that leaves the fleet leaves the reader within the same 2s bound.",
+     "criterion": "NEGATIVE \u2014 the reader mirrors /v1/seats faithfully, INCLUDING tombstones once pij-rs sets them.",
      "phase": "ph-0001",
      "mode": "BUILD",
      "tier": "computational",
      "state": "unchecked",
-     "proof": "RUN: close the scratch seat from bp-0003; assert it disappears from the reader (or moves to the terminal state /v1/seats shows) within 2s.",
-     "note": "pij-binding-magpie's addition, and the sharpest criterion here: a reader that only ever sees APPEARANCES has not been proven to track truth. Without this row the whole bar can pass on a reader that never forgets anything."
+     "proof": "RUN: adopt a scratch pane, confirm it reaches the reader, kill it, then assert the reader's row for that id matches a direct /v1/seats read at the same moment \u2014 including tombstoned_at, whatever its value. The reader must never disagree with the daemon in either direction.",
+     "note": "RE-SPECIFIED 2026-09-03, and the original is kept here because the reason matters more than the row. It read 'a closed seat disappears from the reader within 2s'. That is UNMEETABLE: pij-rs does not reap or tombstone a dead seat. Measured \u2014 scratch seat pij-semantic-pennyroyal, pane killed, pid confirmed dead by ps, still listed untombstoned as state:'idle' 175s later. Census of the whole roster: 716 of 744 untombstoned paned seats (96%) point at panes that do not exist, and all 716 report 'idle'. Independently reproduced by pij-binding-magpie with a different script, same numbers to the row. An rs row carries no liveness key, so a corpse and a quiet live seat are BYTE-IDENTICAL. This is NOT a defect in the reader: bp-0002 compared 838 seats with zero field mismatches. The criterion was measuring pij-rs's behaviour, not ours. It is re-specified rather than dropped because dropping it would have hidden precisely this finding. KNOWN LIMITATION, tracked as oq-0004: until pij-rs reaps, a chainglass rail on rs shows dead seats as healthy idle ones. chainglass will NOT derive liveness from pid+proc_start \u2014 that re-implements pij's contract outside pij and would silently diverge the first time their definition of dead changes. Roadmap question routed to Jordan."
     },
     {
      "id": "bp-0005",
