@@ -1,0 +1,21 @@
+docs/plans/093-pij-rs-reader/assets/tasks/phase-1/tasks.dd.json
+  s_084ac52dc66de3::t_c66d9124a50ea3 2-13,15-83,85-165
+docs/plans/093-pij-rs-reader/assets/tasks/phase-1/tasks.dd.md
+  s_084ac52dc66de3::t_74e683da6c5b74 17,30,36-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "86f754de1e9c980537966b6a3042de6e0039aefe",
+  "prompts": {},
+  "sessions": {
+    "s_084ac52dc66de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+        "model": "unknown"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
