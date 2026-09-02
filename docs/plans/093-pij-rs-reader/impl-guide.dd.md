@@ -74,6 +74,30 @@ THE PACKET'S EVENT VOCABULARY IS WRONG TOO — third packet error today. It name
 
 TYPESCRIPT REFINEMENT — APPROVED as proposed: `RsPijRecords = Pick<IPijRecords, 'list' | 'state'>`, u4 accepts that Pick plus a full `cli: IPijRecords`, composite still returns full IPijRecords. That is exactly right and it is the honest encoding of amendment C — a cast to IPijRecords would have been a lie the type system was there to catch.
 
+=== AMENDMENT 4, ruling the review's F1 (2026-09-03). The live-push seam was unbuildable — the third time a seam in this document described a daemon that does not exist. ===
+
+MEASURED, by the reviewer and by me independently, then reconciled: /v1/events pushes SOME kinds and not others, split cleanly along subsystem lines.
+  PUSHED      message.pushed, delivery.outcome            (delivery/messaging path)
+  NOT PUSHED  seat.put, report.state, report.now          (registry/report path)
+  UNTESTED    seat.tombstone, delivery.pointer-*, delivery.inbox-ack, telegram.*, spawn.*
+
+Our first two readings CONFLICTED and both were correct: my probe generated message traffic and saw it arrive; the reviewer's generated only report.state and saw nothing. Neither of us had generated an event of the other's class. The partition only appeared when someone ran both in one stream.
+
+THE SHARP END, which is the reviewer's and which neither the coder nor I saw: our own cursor bookkeeping is ACTIVELY DESTRUCTIVE. rs-event-stream.ts:92 calls advanceCursor() for every non-descriptor frame. message.pushed + delivery.outcome are 3426 of 6166 frames — 55% of the spine — and they are exactly the kinds that DO push. So the resume cursor is dragged forward by the pushing traffic, straight past the descriptor frames that do not push. Reproduced live: an open stream delivered 6200,6201,6204,6205 and silently omitted 6202 seat.put and 6203 report.state from the middle.
+
+Read that consequence carefully, because it inverts intuition: WITHOUT messaging traffic the cursor sits still and a reconnect replays every missed seat.put. WITH messaging traffic the cursor advances past them and they are burned. A BUSIER FLEET DESTROYS DESCRIPTOR CHANGES FASTER, and the one mitigation anyone would reach for — reconnect to force a replay — is defeated by our own cursor discipline.
+
+RULING, adopting the reviewer's fix, which lands entirely client-side with pij-rs unchanged:
+  1. SPLIT THE CURSORS. Keep an observed cursor if useful, but RESUME only from a cursor advanced by kinds the reader acts on (DESCRIPTOR_EVENT_KINDS, plus report.* once F2 is fixed). Messaging frames flow through without moving the resume position.
+  2. RECYCLE THE STREAM ON A TIMER. It never errors — the daemon holds the socket open — so it needs a deliberate AbortController recycle. Each reconnect replays everything after the last DESCRIPTOR event, which by construction includes every seat.put the open stream dropped.
+  3. Cost is bounded: re-replayed messaging frames hit ingest(), which ignores unknown kinds; every descriptor frame funnels into refreshRecords(), which coalesces to one read. Verified retrievable — ?since=6199 returned exactly the two frames the open stream omitted.
+
+WHAT THIS BUYS AND WHAT IT DOES NOT: a 30s recycle gives 30s worst-case appearance latency. That is NOT bp-0003's 2s bar and I am not pretending otherwise. It is the difference between 'stale by up to 30s' and 'frozen at boot forever', and only upstream fanning out registry writes gets the 2s back. bp-0003 is therefore re-specified to the honest bound, the same way bp-0004 was, rather than dropped.
+
+MY OWN RECEIPT WAS WRONG and it is recorded under my name: I reported bp-0003 as 30ms. That number was real and measured records.list(), not the event path — a true number attached to the wrong claim, in the row I had personally told the coder mattered most. The reviewer caught it.
+
+THE PATTERN, worth more than the fix: the coder went to the live daemon four times and was right four times — but it always asked what frames CONTAIN, never whether they ARRIVE. Every check was on content; the defect was in delivery. The green fixture is the tell — FakeRsClient yields on demand, so the single property the real daemon lacks is the one property no fake can fail to have.
+
 <a id="fan-out"></a>
 
 ## Fan out

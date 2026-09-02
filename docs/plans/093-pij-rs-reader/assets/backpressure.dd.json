@@ -53,13 +53,13 @@
     },
     {
      "id": "bp-0003",
-     "criterion": "A seat that appears in the fleet appears in the reader within 2s.",
+     "criterion": "A seat that joins the fleet appears in the reader within the stream-recycle interval (30s), not 2s.",
      "phase": "ph-0001",
      "mode": "BUILD",
      "tier": "computational",
      "state": "unchecked",
-     "proof": "RUN: `pij-rs adopt` a scratch pane; assert the new id is visible through the reader within 2s.",
-     "note": "pij-rs done-bar 2."
+     "proof": "RUN: adopt a scratch pane, assert the id reaches the reader within one recycle interval. ALSO assert the resume cursor did NOT advance past the seat.put \u2014 i.e. a reconnect replays it.",
+     "note": "RE-SPECIFIED 2026-09-03 on review finding F1. The original 2s bar assumed /v1/events pushes every kind. Measured: it pushes message.pushed and delivery.outcome and does NOT push seat.put, report.state or report.now \u2014 a clean split along subsystem lines. My original 30ms receipt measured records.list(), not the event path: a real number attached to the wrong claim, mine, caught by the reviewer. 2s is unreachable without upstream fanning out registry writes; 30s is honest and finite. The second assertion is the load-bearing one \u2014 without it this row passes on a reader whose cursor has already burned the frame it is supposed to replay."
     },
     {
      "id": "bp-0004",
