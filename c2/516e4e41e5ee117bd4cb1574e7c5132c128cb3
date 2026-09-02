@@ -1,0 +1,25 @@
+docs/plans/093-pij-rs-reader/assets/backpressure.dd.json
+  s_084ac52dc66de3::t_2f473658a899e2 66,71-72
+docs/plans/093-pij-rs-reader/assets/backpressure.dd.md
+  s_084ac52dc66de3::t_dca6ed53463079 37
+docs/plans/093-pij-rs-reader/plan.dd.json
+  s_084ac52dc66de3::t_a4e8a478fb1911 64,145-149
+docs/plans/093-pij-rs-reader/plan.dd.md
+  s_084ac52dc66de3::t_3c26380f8f46f9 63,120
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "c2516e4e41e5ee117bd4cb1574e7c5132c128cb3",
+  "prompts": {},
+  "sessions": {
+    "s_084ac52dc66de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
