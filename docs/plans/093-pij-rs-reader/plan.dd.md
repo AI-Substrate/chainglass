@@ -117,7 +117,7 @@ CONSEQUENCE for verification: 'match the legacy reader for the same seat' is NOT
 | --- | --- | --- | --- |
 | Should chainglass render the old-&gt;new seat id mapping during the migration window, so an operator can find a seat by the name they know? Depends on whether Jordan holds the legacy shutdown for plan-129. | [ ] unchecked | — | oq-0001 |
 | Once req-0040 lands a role writer, does the rail's existing role and watchdog derivation (pij-status.contract.ts) work unchanged against rs vocabulary, or does it need a second mapping? | [ ] unchecked | — | oq-0002 |
-| Until pij-rs reaps dead seats, a rail on rs shows corpses as healthy idle seats — 716 of 744 measured. Does chainglass ship that honestly (and how does the rail say it), or does the flip wait on upstream reaping? Roadmap question is with Jordan; the rendering question is ours either way. | [ ] unchecked | — | oq-0004 |
+| Until pij-rs reaps dead seats, a rail on rs shows corpses as healthy idle seats — 716 of 744 measured. Does chainglass ship that honestly (and how does the rail say it), or does the flip wait on upstream reaping? Roadmap question is with Jordan; the rendering question is ours either way. ENGINEERING CALL TAKEN (boa's reasoning, adopted): write the handling PERMANENT, not temporary. The asymmetry is one-sided — if reaping ships, permanent handling degrades to dead code deleted in an afternoon; if it does not ship, and a limitation with no owner and no date usually does not, temporary handling silently becomes a lie in a rail people trust. | [ ] unchecked | — | oq-0004 |
 
 <a id="clarifications"></a>
 
