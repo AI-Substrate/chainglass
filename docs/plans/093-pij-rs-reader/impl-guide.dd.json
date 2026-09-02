@@ -1,0 +1,113 @@
+{
+ "dd": {
+  "schema": "pij-team/impl-guide"
+ },
+ "sections": [
+  {
+   "name": "meta",
+   "value": {
+    "title": "Implementation guide \u2014 093 pij-rs-reader",
+    "plan": "docs/plans/093-pij-rs-reader/plan.dd.json",
+    "mode": "build"
+   }
+  },
+  {
+   "name": "architecture",
+   "value": "THE SEAM ALREADY EXISTS AND IS THE WHOLE POINT. `IPijRecords` (apps/web/src/features/089-first-class-pij/server/pij-records.interface.ts) is the one process-spawning boundary in the 089 read path. The poller, the API routes and the rail all consume that interface and nothing below it. So this work adds a SECOND implementation beside the existing `CliPijRecords` and selects between them at construction. No consumer changes. No UI changes. If a consumer needs to change, the seam was wrong and that is a STOP-AND-ASK, not a patch.\n\nThree units, written and tested in isolation:\n  u1 rs-client      \u2014 transport only. Auth, key read, 401 -> single re-read, GET /v1/seats, POST /v1/state.\n  u2 rs-records     \u2014 IPijRecords implemented over u1, plus the field mapping and the honest gaps.\n  u3 rs-events      \u2014 the single /v1/events subscriber: cursor, reconnect, backoff, key re-read.\n\nu1 is the frozen seam for u2 and u3: settle its interface BEFORE either starts. u2 and u3 never call fetch directly and never read daemon.key \u2014 if they do, the layering has failed.\n\nREFERENCE, NOT DEPENDENCY: pij's own TS client at .pi/extensions/pij/adapters/daemon-http.ts has the shape (auth, key read, events pump, cursor reconnect). COPY THE SHAPE. Do NOT import pij's tree, do not add a dependency on it, do not vendor the file wholesale \u2014 it carries pij-side concerns chainglass has no business holding, and chainglass is a READER.\n\nHARD CONSTRAINTS from the pij-rs owner (pij-still-weasel), non-negotiable:\n  - Reader only. No /v1/register, /v1/send, /v1/adopt, no writes of any kind from chainglass.\n  - Never read ~/.pij-rs/pij.sqlite. The HTTP surface is the contract.\n  - ONE subscriber, never per-row fan-out. A 179-row x 8s fan-out has already killed this once.\n  - Read daemon.key from disk every time it is needed; never cache it across a 401, never hardcode.\n  - Default stays legacy. This branch does not flip PIJ_SOURCE.\n\nTHE GAPS ARE PART OF THE CONTRACT, not omissions to fill in later. pij-rs carries no watchdog, bindHealth or degraded, and (until req-0040) no role. These map to an EXPLICIT unavailable marker. Rendering blank is a defect: an empty watchdog cell reads as 'your watchdog is off', which is false in the dangerous direction. This repo shipped exactly that bug once already (65f524ea9) and the fix is on record. Do not synthesise, do not default, do not infer a role from anything."
+  },
+  {
+   "name": "fan_out",
+   "value": {
+    "decision": "coders",
+    "rationale": "One coder, three units in a single wave \u2014 NOT a fleet, and no PM. Ruled by pij-instant-lynx from three single-unit plans that shipped today: one coherent unit behind a clean seam is the 'no fan-out' case, and a PM only earns its seat when units can run concurrently against frozen seams. Here u2 and u3 both depend on u1's interface, so a second coder would spend its life waiting on the first. The prime (this document's author) does the composition the PM would otherwise do, and the reviewer fires on the PR sha."
+   }
+  },
+  {
+   "name": "units",
+   "value": [
+    {
+     "id": "u1",
+     "name": "rs-client",
+     "paths": "apps/web/src/features/089-first-class-pij/server/rs/rs-client.ts, test/unit/web/pij/rs-client.test.ts",
+     "responsibility": "HTTP transport to the pij-rs daemon. Nothing above it knows about bearer tokens, ports, or envelopes.",
+     "interface": "export interface RsClient { seats(): Promise<RsSeat[]>; state(id: string): Promise<RsStateReport>; events(from?: Cursor, signal?: AbortSignal): AsyncIterable<RsEvent> } \u00b7 constructed with { addr, stateDir, fetch } so every test injects fetch and no test touches the network unless it means to \u00b7 unwraps the {ok,command,v,data} envelope and throws a typed RsError on ok:false \u00b7 on 401: re-read daemon.key from disk ONCE and retry ONCE; a second 401 throws and does NOT loop.",
+     "done": "Unit tests cover: envelope unwrap, ok:false -> typed error, 401 -> exactly one re-read and one retry, second 401 -> throws without looping. bp-0006 exercises the same path against the real daemon.",
+     "wave": 1,
+     "test_strategy": "Injected fetch, no network. Table-driven over envelope shapes: ok:true unwrap, ok:false -> typed RsError, 401 -> exactly one key re-read and one retry, second 401 -> throws without looping. The 401 counter is asserted explicitly, because 'it retried' and 'it retried once' are different contracts and only one of them is safe."
+    },
+    {
+     "id": "u2",
+     "name": "rs-records",
+     "paths": "apps/web/src/features/089-first-class-pij/server/rs/rs-pij-records.ts, test/unit/web/pij/rs-pij-records.test.ts",
+     "responsibility": "Implement IPijRecords over RsClient, including the field mapping and the explicit gaps.",
+     "interface": "export function createRsPijRecords(deps: { client: RsClient }): IPijRecords \u00b7 list() maps RsSeat -> PijListRow: id->id, folder->folder, proc.pid->pid, state->state, semantic_state->semanticState, role->orchestrationRole, tombstoned_at/tombstone_reason->terminal \u00b7 watchdog/bindHealth/degraded -> the explicit unavailable marker \u00b7 state(id) via POST /v1/state \u00b7 tree/nodeShow/raw: throw a typed 'unsupported on pij-rs' error, never return an empty shape that a caller would read as 'no data'.",
+     "done": "Unit tests pin every mapped field and every gap. bp-0002 proves equality against a live /v1/seats read.",
+     "wave": 1,
+     "test_strategy": "Fake RsClient returning fixed RsSeat rows. Every mapped field pinned by name, and every GAP pinned as the explicit unavailable marker \u2014 a test that only checks the happy fields would pass on a mapping that quietly defaults watchdog to a plausible value."
+    },
+    {
+     "id": "u3",
+     "name": "rs-events",
+     "paths": "apps/web/src/features/089-first-class-pij/server/rs/rs-event-stream.ts, test/unit/web/pij/rs-event-stream.test.ts",
+     "responsibility": "The single live subscriber. Consumes /v1/events, advances a cursor, survives reconnect and key rotation.",
+     "interface": "export function createRsEventStream(deps: { client: RsClient, onEvent, onStatus }): { start(): void; stop(): void } \u00b7 exactly ONE subscription per process, HMR-safe on globalThis like start-pij-poller.ts already does \u00b7 every frame carries a cursor; reconnect resumes from the LAST cursor, never from live-only, or events are silently lost \u00b7 exponential backoff with jitter, capped.",
+     "done": "Unit tests cover cursor advance, resume-from-cursor after a dropped connection, backoff shape, and that start() twice yields one subscription. bp-0003/0004/0005 prove it against the live daemon.",
+     "wave": 1,
+     "test_strategy": "Fake RsClient yielding a scripted event sequence with an injectable break. Asserts cursor advance, resume FROM THE LAST CURSOR after a drop (not live-only), backoff shape, and that start() twice yields exactly one subscription."
+    }
+   ]
+  },
+  {
+   "name": "isolation",
+   "value": {
+    "mode": "worktree-per-coder",
+    "note": "The coder's worktree /Users/jordanknight/substrate/chainglass-093-pij-rs-reader on branch 093-pij-rs-reader is ALREADY SCAFFOLDED BY THE PRIME. The coder works there and only there. The coder does not create worktrees, does not touch the main checkout at /Users/jordanknight/substrate/chainglass (the prime is live in it), and does not merge \u2014 the prime merges. All three units are one wave in one tree by one coder, so unit branches are unnecessary; file fences above are still binding."
+   }
+  },
+  {
+   "name": "composition",
+   "value": {
+    "composer": "prime",
+    "steps": "No PM, so the prime composes. 1) Select the implementation at the ONE construction site: start-pij-poller.ts getPijPoller() currently calls createPijRecords({defaultCwd}); it becomes a choice on PIJ_SOURCE, default legacy, shaped like the existing pijPollerEnabled() env helper so both branches stay testable without mutating global state. 2) Wire the event stream beside the poller, started only when PIJ_SOURCE=rs. 3) `just fft` green with PIJ_SOURCE unset (bp-0008). 4) Then, and only then, run the live backpressure rows against the running daemon.",
+    "integration_proof": "`just fft` green with PIJ_SOURCE unset (bp-0008), then the live rows run against the running pij-rs daemon in this order: bp-0001 (no child process spawned), bp-0002 (reader equals a direct /v1/seats read for the same id), bp-0003 (a seat appears within 2s), bp-0004 (a seat DISAPPEARS within 2s), bp-0005 (daemon restart resumes from cursor), bp-0006 (rotated key -> exactly one re-read). Every one of these is a command with an exit status, not an assertion in a test file \u2014 the whole point is that a fixture cannot prove a reader tracks a live fleet."
+   }
+  },
+  {
+   "name": "review",
+   "value": {
+    "when": "after composition, on the PR sha, before merge into main",
+    "inputs": "plan.dd.md + this impl-guide + the full branch diff. Priority: plan fidelity, the three unit interfaces holding, the HARD CONSTRAINTS above (especially: no writes, no sqlite, one subscriber, key never cached), and whether each backpressure proof was actually RUN rather than asserted. Reviewer works a DETACHED checkout of the PR sha in its own worktree, never the coder's tree.",
+    "model_override": "github-copilot/claude-opus-5 (omp, effort high) \u2014 cross-model against a sol-fast-1m coder, per Jordan's ruling 2026-09-02"
+   }
+  },
+  {
+   "name": "risks",
+   "value": [
+    {
+     "id": "r1",
+     "text": "Coder mocks the 401 path instead of exercising it. Retired by bp-0006, which requires a real daemon and a scratch key file \u2014 a mocked 401 proves the branch exists, not that the daemon accepts what was re-read."
+    },
+    {
+     "id": "r2",
+     "text": "Coder proves the reader by only ever ADDING seats. Retired by bp-0004, the negative: a closed seat must leave the reader within the same 2s bound. A reader that never forgets passes every positive test."
+    },
+    {
+     "id": "r3",
+     "text": "Coder fills the gaps (watchdog/bindHealth/degraded/role) with defaults or blanks to make the rail look complete. Retired by bp-0007. This is the single most likely well-intentioned defect in this plan."
+    },
+    {
+     "id": "r4",
+     "text": "Coder reaches for pij's tree \u2014 imports daemon-http.ts or adds a dependency on the pij repo. Retired at review: chainglass must build with the pij repo absent."
+    },
+    {
+     "id": "r5",
+     "text": "Coder flips the default to rs because it is obviously better. Retired by bp-0008 and by review: the flip is gated on plan-129 and req-0040, neither owned by this repo."
+    },
+    {
+     "id": "r6",
+     "text": "Per-row fan-out reappears as 'one request per seat' inside list(). Retired at review against the ONE-subscriber constraint; this pattern has already caused a fleet incident."
+    }
+   ]
+  }
+ ]
+}
