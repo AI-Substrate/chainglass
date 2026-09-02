@@ -129,3 +129,39 @@ categorical gap, not a drift risk, and it is the answer to "just derive it, it's
 It also composes with rs `active` already being a weaker claim than TS `active` (it swallows
 `stale`): a deriving consumer folds those 6 into "alive" and is confidently wrong in the same
 direction as the original defect.
+
+
+---
+
+# ATTRIBUTION, stated precisely because one seat asked not to be misread
+
+**Corpse census (839 / 93 / 744 / 716 / 28, all `idle`)** — measured by `pij-lonely-antelope`,
+independently reproduced with different scripts by `pij-binding-magpie` and `pij-minor-unicorn`.
+Three readings, exact to the row.
+
+**Disjoint projections (839 / 437 / 2 shared: `pij-dominant-vicuna`, `pij-forward-worm`)** —
+measured by `pij-lonely-antelope`, independently reproduced by `pij-minor-unicorn` and
+`pij-binding-magpie`.
+
+**`pij-capitalist-boa` ASKED the population question and did NOT verify the answer.** It
+attempted to and could not authenticate against `/v1/seats`, and explicitly declined to vouch:
+*"attempted is not verified... I am not disputing it; I am declining to vouch for it."* Its
+contribution is the question — which resized the ask before anyone scoped it — plus the
+cross-server socket verification earlier in this file, which it DID measure. It is not a second
+reading of the disjointness numbers and must not be cited as one.
+
+**Three-state liveness** — `dead / active / stale`, measured by boa (407/24/6), unicorn
+(406/24/7) and magpie (406/24/7) at different moments. The one-row difference is sampling and
+immaterial: the argument is categorical, not quantitative.
+
+# A further instance of the same failure shape, found by boa
+
+`/v1/seats` returns 401 unauthenticated, and the body instructs local clients to read
+`<state-dir>/daemon.key`. boa checked `~/.pij`, `~/.local/state/pij` and
+`~/Library/Application Support/pij` to depth 3 and found no key — because the real path is
+`~/.pij-rs/daemon.key`, which the message never names.
+
+So a correctly-authenticated-in-principle consumer concludes the endpoint is broken rather than
+that it is unauthenticated. **This is the third symptom of the same disease already recorded
+here: the error names the wrong cause.** Corpses render healthy, sends to corpses blame the tmux
+version, and 401s send you hunting a state dir that does not exist.
