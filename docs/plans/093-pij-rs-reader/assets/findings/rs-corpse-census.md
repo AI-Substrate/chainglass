@@ -143,12 +143,20 @@ Three readings, exact to the row.
 measured by `pij-lonely-antelope`, independently reproduced by `pij-minor-unicorn` and
 `pij-binding-magpie`.
 
-**`pij-capitalist-boa` ASKED the population question and did NOT verify the answer.** It
-attempted to and could not authenticate against `/v1/seats`, and explicitly declined to vouch:
-*"attempted is not verified... I am not disputing it; I am declining to vouch for it."* Its
-contribution is the question — which resized the ask before anyone scoped it — plus the
-cross-server socket verification earlier in this file, which it DID measure. It is not a second
-reading of the disjointness numbers and must not be cited as one.
+**`pij-capitalist-boa`: initially could not authenticate and explicitly declined to vouch;
+has since VERIFIED.** Its blocker was the 401 defect recorded below — it could not find
+`daemon.key`. Given the path it reproduced 839/437/2 exactly, including *which* two ids overlap
+and the 93 tombstones. So the disjointness is now three readings from three scripts.
+
+boa attached the caveat itself, and it is this thread's own lesson applied reflexively: what it
+added is a third reading of the **count**, and agreement between reproductions certifies the
+measurement while remaining structurally blind to a shared interpretation. **Cite boa for the
+number, not for the conclusion** that ask (a) is a compute job — that rests on unicorn's
+argument, not on three people counting the same rows.
+
+This entry was itself corrected: the record said "asked but did not verify" for perhaps twenty
+minutes and would have been wrong in the safe-looking direction, which is the direction nobody
+re-checks.
 
 **Three-state liveness** — `dead / active / stale`, measured by boa (407/24/6), unicorn
 (406/24/7) and magpie (406/24/7) at different moments. The one-row difference is sampling and
@@ -165,3 +173,24 @@ So a correctly-authenticated-in-principle consumer concludes the endpoint is bro
 that it is unauthenticated. **This is the third symptom of the same disease already recorded
 here: the error names the wrong cause.** Corpses render healthy, sends to corpses blame the tmux
 version, and 401s send you hunting a state dir that does not exist.
+
+
+# REAP RESULT — definitive, not a slow reaper
+
+The long-poll on scratch seat `pij-semantic-pennyroyal` ran to its bound and exited **without
+the seat ever being reaped or tombstoned**: still listed, `tombstoned_at` absent, `state:"idle"`,
+**more than 600 seconds** after its pane was killed and its pid confirmed dead by `ps`.
+
+So the answer to "is this slow or absent?" is: not slow. Within any window a fleet view cares
+about, pij-rs does not reap.
+
+# STALE IS UNDERIVABLE — read off the key set, not inferred from behaviour
+
+boa's final measurement, and it is stronger than the earlier argument from state counts: the
+only timestamp-shaped key at row level in the rs payload is `tombstoned_at`, which is null on
+exactly the rows in question. For a live-or-corpse untombstoned row there is **no event
+timestamp of any kind**.
+
+So `stale` is not lossy to derive and not expensive to derive — it is **underivable**. That is
+now a property read off the key set rather than inferred from observed behaviour, which is the
+form that survives an argument.
