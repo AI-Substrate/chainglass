@@ -50,6 +50,18 @@ E — COMPOSITION IS YOURS. My impl-guide said the prime composes while your don
 
 A — fixed: plan.dd.md and tasks.dd.md were stale because I rewrote the JSON and never re-ran `ddocs build`. Both regenerated. Good catch; you were right not to review against an empty document.
 
+=== AMENDMENT 2, refining D on the coder's concept search (2026-09-02) ===
+
+The coder searched for an existing unavailable sentinel before accepting my new one, found there is NO generic one, and found that this repo's honest-absence handling is FIELD-SPECIFIC and already correct: watchdog absence becomes `{reason:'unreported'}` (pij-status.contract.ts:424-430) rendering 'watchdog not reported' (:551-554); contextCurrent uses value:'unknown'; role has its own discriminants (:156-165). Verified.
+
+That is better than what I ruled, so D is refined: DO NOT ROUTE AROUND THE EXISTING IDIOM AND DO NOT INVENT A GENERIC SENTINEL.
+
+1. Where a field ALREADY has an absence vocabulary, simply OMIT it from the rs row. `readWatchdogState` already turns a missing watchdog into 'unreported' and the rail already renders 'watchdog not reported'. That is the forbidden-blank problem ALREADY SOLVED, by existing code, and rs omitting the field walks straight into the correct path. Touch none of it. My original instruction would have had you build a second, parallel way to say the same thing — two idioms for one fact is how a codebase starts lying in one of them.
+
+2. `rsUnavailable?: string[]` SURVIVES, but narrowed to PROVENANCE, and the distinction is the whole point: 'unreported' means THE SEAT DID NOT SAY. rsUnavailable means THE SOURCE CANNOT KNOW. Those are different facts and collapsing them is exactly the class of lie this plan exists to prevent — a reader that reports 'watchdog not reported' for a source that has no watchdog concept at all is inventing a statement about the seat from a fact about the daemon. Populate it from the live `pij-rs state` unsupported[] array; do not derive it.
+
+3. Consequence for the done bar: bp-0007 no longer means 'render a marker'. It means (a) fields with an existing absence vocabulary reach that vocabulary unchanged under PIJ_SOURCE=rs, asserted against the existing renderers, and (b) rsUnavailable carries the live unsupported[] list. Prove both.
+
 <a id="fan-out"></a>
 
 ## Fan out
