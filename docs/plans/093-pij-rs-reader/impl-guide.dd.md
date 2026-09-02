@@ -62,6 +62,18 @@ That is better than what I ruled, so D is refined: DO NOT ROUTE AROUND THE EXIST
 
 3. Consequence for the done bar: bp-0007 no longer means 'render a marker'. It means (a) fields with an existing absence vocabulary reach that vocabulary unchanged under PIJ_SOURCE=rs, asserted against the existing renderers, and (b) rsUnavailable carries the live unsupported[] list. Prove both.
 
+=== AMENDMENT 3, ruling the u3 STOP (2026-09-02). The coder hit the stop condition AMENDMENT 1 wrote and refused to implement around it. That was correct and the seam WAS wrong. ===
+
+VERIFIED INDEPENDENTLY by replaying /v1/events from cursor 1: `seat.put` carries `payload: ''` — empty string — and only `event.seat`. There is no descriptor in the frame. So `ingest(event): void` cannot materialize a new row, cannot remove one, and cannot meet bp-0003/0004. My seam was unbuildable as specified.
+
+RULING: add a SECOND additive method, `refreshRecords(): Promise<void>`, which performs the same records read the private slow tick already performs and emits through the same coalescing path. u3 awaits it for DESCRIPTOR-CHANGING kinds. `ingest()` survives only for kinds whose payload actually carries the transition; where it does not, do not fabricate one.
+
+COALESCE THE REFRESH — this is the part that makes it safe and it is not optional. The replay carried 972 seat.put events; a refresh per event is precisely the per-row fan-out this plan bans, wearing a different hat. Contract: at most ONE refresh in flight; events arriving during a refresh schedule exactly ONE trailing refresh, not N. That is the same discipline MAX_BROADCASTS_PER_FAST_TICK already applies to broadcasts, applied one layer down. A coalesced global read is cheap here — /v1/seats answers in ~113ms — so the 2s bar is comfortable; an uncoalesced one is a self-inflicted storm.
+
+THE PACKET'S EVENT VOCABULARY IS WRONG TOO — third packet error today. It names `status.report`, which does NOT exist. Observed live, with counts from one replay: message.pushed 1235, delivery.outcome 1235, seat.put 972, delivery.pointer-announced 690, delivery.pointer-parked 216, report.now 212, delivery.pointer-unparked 205, delivery.inbox-ack 114, seat.tombstone 93, report.state 30, telegram.binding 3, telegram.cursor 2. Use THIS list. seat.put and seat.tombstone are the descriptor-changing pair that drive bp-0003 (appear) and bp-0004 (disappear). report.now / report.state are the status pair the packet meant. Handle unknown kinds by ignoring them explicitly.
+
+TYPESCRIPT REFINEMENT — APPROVED as proposed: `RsPijRecords = Pick<IPijRecords, 'list' | 'state'>`, u4 accepts that Pick plus a full `cli: IPijRecords`, composite still returns full IPijRecords. That is exactly right and it is the honest encoding of amendment C — a cast to IPijRecords would have been a lie the type system was there to catch.
+
 <a id="fan-out"></a>
 
 ## Fan out
