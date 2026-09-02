@@ -30,7 +30,7 @@
     },
     {
      "id": "i3",
-     "text": "DOGFOOD FLOWSPACE3: for every meaning-shaped question ('where is X handled', 'what owns Y') run `flowspace3 search` or `flowspace3 ask` BEFORE grep. Report misses to me \u2014 they are worth more than hits."
+     "text": "DOGFOOD FLOWSPACE3: for every meaning-shaped question ('where is X handled', 'what owns Y') run `flowspace3 search` or `ask` BEFORE grep. USE `--source code` \u2014 this repo carries a very large docs/plans/** corpus and the default blend buries code under prose ABOUT the code; I asked 'where does chainglass implement the pij records interface' and the correct file did not appear at all unscoped, then scored 1.0 with --source code. Report misses and confusing envelopes to me; they are worth more than hits. NOTE 2026-09-02: flowspace3 is DEGRADED (host disk filled, postgres down) \u2014 every query may return FS3-E-STORE-QUERY-FAILED. That is a known outage, NOT a product finding: do not report it, and do not conclude a file is unindexed from it. Use grep while it is down and re-try fs3 later."
     },
     {
      "id": "i4",
