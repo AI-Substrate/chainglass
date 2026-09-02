@@ -39,6 +39,19 @@ export function pijHome(env: Record<string, string | undefined> = process.env): 
 }
 
 /**
+ * Whether the polling loops may run. Default OFF — see the kill switch in {@link startPijPoller}.
+ *
+ * Env-driven rather than a constant so the loops can be turned back on without a rebuild, and
+ * parameterised rather than reading `process.env` directly so a test can exercise both branches
+ * without mutating global state (the same shape `pijHome` uses above).
+ */
+export function pijPollerEnabled(
+  env: Record<string, string | undefined> = process.env
+): boolean {
+  return env.PIJ_POLLER === 'on';
+}
+
+/**
  * Get the process-wide poller, constructing it on first use.
  *
  * Construction does **not** start the loops — that is `startPijPoller()`'s job. A route that arrives
@@ -113,6 +126,26 @@ export function notePijFlowWorkspace(workspacePath: string): void {
  */
 export async function startPijPoller(): Promise<PijPollerService> {
   const poller = getPijPoller();
+
+  // KILL SWITCH — the loops are OFF unless `PIJ_POLLER=on` is set.
+  //
+  // The slow loop shells out `pij list --json --badge`, which grew from ~0.7s at 181 rows
+  // (measured when it was written, `pij-records.ts`) to 7.7s at ~1,200 rows. `PijRecords`
+  // caps every call at `PIJ_DEFAULT_TIMEOUT_MS = 5_000`, so at that size EVERY call is killed
+  // before it returns: the loop pays full CPU and receives nothing. Measured 2026-09-02 —
+  // two `cli.ts list --json --badge` processes in flight continuously, ~95% of a core
+  // between them, the top two consumers on the machine, parented to `next-server`.
+  //
+  // Off is therefore not a loss of function: the data has not been arriving anyway. It is the
+  // same dark rail, minus the core. The replacement is pij-rs (`/v1/seats`, 113ms for 598
+  // seats), and this switch comes out when that reader lands.
+  if (!pijPollerEnabled()) {
+    console.warn(
+      '[pij] poller disabled (set PIJ_POLLER=on to re-enable) — see start-pij-poller.ts'
+    );
+    return poller;
+  }
+
   if (globalForPijPoller.__pijPollerStarted) return poller;
   globalForPijPoller.__pijPollerStarted = true;
 
