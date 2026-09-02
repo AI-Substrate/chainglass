@@ -86,3 +86,46 @@ rows. A second definition of "dead" does not merely duplicate; it diverges silen
 2. Is reaping/tombstoning planned? — retention semantics, the original roadmap question.
 
 They are separable, and (1) is the one chainglass actually needs.
+
+---
+
+# ADDENDUM, 2026-09-03 — the two projections are disjoint, so ask (a) is not field-plumbing
+
+`pij-capitalist-boa` observed that `/v1/seats` reports 839 while `pij list --json` returns
+437, flagged it as an observation rather than a finding, and declined to guess whether they
+were the same population under different filters. Measured:
+
+    rs /v1/seats                839
+    pij list --json             437
+    ids in BOTH                   2
+    rs only                     837
+    legacy only                 435
+
+    rs rows that would receive a liveness value from the legacy projection:
+      2 of 839  (0%)
+
+So **"expose the liveness pij already computes on /v1/seats" is not a field-plumbing job.**
+The liveness pij computes is computed over a population with essentially no overlap with the
+population `/v1/seats` serves. Surfacing the existing field would light up two rows in 839.
+
+This is the same roster split ruled on earlier (legacy holds the unmigrated fleet, rs holds
+what has adopted). Nobody connected it to ask (a) until boa asked the population question —
+and it would have been discovered *after* someone scoped (a) as cheap.
+
+**Revised framing for ask (a):** not "surface a field you already have", but "compute the
+liveness you already know how to compute, for the seats `/v1/seats` actually serves". The
+algorithm exists and is proven; it runs on the wrong projection.
+
+## The strongest argument against every consumer deriving it — boa's, and it is categorical
+
+`pij list --json`, 437 rows, liveness values:
+
+    dead 407 | active 24 | STALE 6
+
+pij models **three** states. A consumer deriving from `pid` + `proc_start` yields **two**, and
+**cannot represent `stale` at all** — no input exists from which to compute it. That is a
+categorical gap, not a drift risk, and it is the answer to "just derive it, it's ten lines".
+
+It also composes with rs `active` already being a weaker claim than TS `active` (it swallows
+`stale`): a deriving consumer folds those 6 into "alive" and is confidently wrong in the same
+direction as the original defect.
