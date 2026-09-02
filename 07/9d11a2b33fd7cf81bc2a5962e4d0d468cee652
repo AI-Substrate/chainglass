@@ -1,0 +1,23 @@
+docs/plans/093-pij-rs-reader/impl-guide.dd.json
+  s_084ac52dc66de3::t_78dbe8586a6f47 16,57-66
+docs/plans/093-pij-rs-reader/impl-guide.dd.md
+  s_084ac52dc66de3::t_9b6930b90a359f 41-52,71
+docs/plans/093-pij-rs-reader/plan.dd.md
+  s_084ac52dc66de3::t_f11f159c921231 4,17,30-32,38-42,48-52,58-67,75,88-89,104,106,108,110,112,114,116-119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "079d11a2b33fd7cf81bc2a5962e4d0d468cee652",
+  "prompts": {},
+  "sessions": {
+    "s_084ac52dc66de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+        "model": "unknown"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
