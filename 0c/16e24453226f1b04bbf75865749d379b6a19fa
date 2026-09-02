@@ -1,0 +1,30 @@
+test/unit/web/pij/bootstrap.test.ts
+  s_084ac52dc66de3::t_b8aa6906869a1b 168-191
+  s_084ac52dc66de3::t_7d21b7d9179cfe 62-64,97
+apps/web/src/features/064-terminal/components/terminal-font.css
+  s_084ac52dc66de3::t_d834c4e21f7738 1-36
+apps/web/src/features/064-terminal/components/terminal-inner.tsx
+  s_084ac52dc66de3::t_89dea9e9266953 215-217,219
+apps/web/src/features/089-first-class-pij/server/start-pij-poller.ts
+  s_084ac52dc66de3::t_7baf0d8a28c463 48,125-127,142
+apps/web/public/fonts/ubuntu-mono-nerd/LICENCE.txt
+  s_084ac52dc66de3::t_4652b878cc4d04 1-96
+apps/web/public/fonts/ubuntu-mono-nerd/PROVENANCE.md
+  s_084ac52dc66de3::t_75f9c8518eb4b8 1-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "0c16e24453226f1b04bbf75865749d379b6a19fa",
+  "prompts": {},
+  "sessions": {
+    "s_084ac52dc66de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
