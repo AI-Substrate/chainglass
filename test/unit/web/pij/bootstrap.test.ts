@@ -59,8 +59,9 @@ describe('startPijPoller — HMR-safe singleton (AC-02)', { timeout: 30_000 }, (
     - Quality Contribution: The idempotence half of AC-02.
     - Worked Example: two starts → one instance, started true.
     */
-    const first = await startPijPoller();
-    const second = await startPijPoller();
+    const enabled = { PIJ_POLLER: 'on' };
+    const first = await startPijPoller(enabled);
+    const second = await startPijPoller(enabled);
 
     expect(second).toBe(first);
     expect(isPijPollerStarted()).toBe(true);
@@ -93,7 +94,7 @@ describe('startPijPoller — HMR-safe singleton (AC-02)', { timeout: 30_000 }, (
     - Quality Contribution: Makes the instrumentation SIGTERM handler meaningful.
     - Worked Example: started true → stop → started false, running false.
     */
-    await startPijPoller();
+    await startPijPoller({ PIJ_POLLER: 'on' });
     expect(isPijPollerStarted()).toBe(true);
 
     stopPijPoller();
@@ -162,5 +163,29 @@ describe('instrumentation.ts wiring', () => {
     expect(source).toContain('await startPijPoller()');
     expect(source).toContain("process.on('SIGTERM', stopPij)");
     expect(source).toContain('globalForPijObservatory.__pijObservatoryBootstrapped = false;');
+  });
+});
+
+describe('startPijPoller — the kill switch (2026-09-02)', () => {
+  it('does not start the loops unless PIJ_POLLER=on', async () => {
+    /*
+    Test Doc:
+    - Why: the slow loop shells out `pij list --json --badge`, which grew to 7.744s against the
+      code's own 5s deadline — so every call was killed before returning and the loop paid ~95% of
+      a core to receive nothing. It is off by default until the pij-rs reader replaces it. Without
+      this test the switch is one careless edit away from silently re-arming, and the symptom
+      (a busy machine) is nowhere near the cause.
+    - Contract: absent or non-'on' PIJ_POLLER leaves the poller constructed but NOT started.
+    - Usage Notes: env is a parameter rather than a process.env read so both branches are testable
+      without mutating global state — the same shape `pijHome` uses.
+    - Quality Contribution: pins the default. The enabled path is covered by the AC-02 tests above,
+      which now pass PIJ_POLLER=on explicitly.
+    - Worked Example: startPijPoller({}) → isPijPollerStarted() === false.
+    */
+    await startPijPoller({});
+    expect(isPijPollerStarted()).toBe(false);
+
+    await startPijPoller({ PIJ_POLLER: 'off' });
+    expect(isPijPollerStarted()).toBe(false);
   });
 });

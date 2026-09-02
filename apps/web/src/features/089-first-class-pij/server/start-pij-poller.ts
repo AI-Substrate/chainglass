@@ -178,13 +178,29 @@ export function notePijFlowWorkspace(workspacePath: string): void {
  * Never throws: a missing pij store, an absent `pij` binary or an unreadable spine must degrade to an
  * honest `poller-status`, not to a failed server boot.
  */
-export async function startPijPoller(): Promise<PijPollerService> {
+export async function startPijPoller(
+  env: Record<string, string | undefined> = process.env
+): Promise<PijPollerService> {
   const poller = getPijPoller();
   const source = globalForPijPoller.__pijSource ?? 'legacy';
 
-  // The kill switch protects the legacy process-spawning loops. PIJ_SOURCE=rs starts its HTTP
-  // reader without PIJ_POLLER because it neither shells out per tick nor reads the legacy spine.
-  if (source === 'legacy' && !pijPollerEnabled()) {
+  // KILL SWITCH — the legacy loops are OFF unless `PIJ_POLLER=on`.
+  //
+  // The slow loop shells out `pij list --json --badge`, which grew from ~0.7s at 181 rows
+  // (measured when it was written, `pij-records.ts`) to 7.7s at ~1,200 rows. `PijRecords` caps
+  // every call at `PIJ_DEFAULT_TIMEOUT_MS = 5_000`, so at that size EVERY call is killed before it
+  // returns: the loop pays full CPU and receives nothing. Measured 2026-09-02 — two
+  // `cli.ts list --json --badge` processes in flight continuously, ~95% of a core between them,
+  // the top two consumers on the machine, parented to `next-server`.
+  //
+  // Off is not a loss of function: the data was not arriving anyway. It is the same dark rail,
+  // minus the core.
+  //
+  // The switch is scoped to `source === 'legacy'` DELIBERATELY. PIJ_SOURCE=rs starts its HTTP
+  // reader without needing PIJ_POLLER, because the thing this switch exists to stop — a process
+  // spawned per tick against a deadline it cannot meet — is exactly what the rs reader does not do.
+  // Gating rs behind the same flag would make the replacement inherit the disease's quarantine.
+  if (source === 'legacy' && !pijPollerEnabled(env)) {
     console.warn(
       '[pij] poller disabled (set PIJ_POLLER=on to re-enable) — see start-pij-poller.ts'
     );
