@@ -1,0 +1,33 @@
+.harness/extensions/team/extension.ts
+  s_084ac52dc66de3::t_ec11b473c82626 1-741
+.harness/extensions/team/instructions.md
+  s_084ac52dc66de3::t_f4aa46b5f86ffb 1-273
+apps/web/public/fonts/ubuntu-mono-nerd/LICENCE.txt
+  s_084ac52dc66de3::t_8e41dcf9d56200 1-96
+apps/web/public/fonts/ubuntu-mono-nerd/PROVENANCE.md
+  s_084ac52dc66de3::t_f00c5ee12bc48f 1-14
+apps/web/src/features/064-terminal/components/terminal-font.css
+  s_084ac52dc66de3::t_8e3c1e24b1f98d 1-36
+apps/web/src/features/064-terminal/components/terminal-inner.tsx
+  s_084ac52dc66de3::t_4906ee99e02ce6 215-217,219
+apps/web/src/features/089-first-class-pij/server/start-pij-poller.ts
+  s_084ac52dc66de3::t_8326e803274ba0 181-183,187-203
+test/unit/web/pij/bootstrap.test.ts
+  s_084ac52dc66de3::t_a8d360c4d8eefb 62-64,97,168-191
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "bbaee53dff9a2a175525d4305c5262489997f1df",
+  "prompts": {},
+  "sessions": {
+    "s_084ac52dc66de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
