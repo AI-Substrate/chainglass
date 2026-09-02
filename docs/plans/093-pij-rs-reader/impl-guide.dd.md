@@ -98,6 +98,22 @@ MY OWN RECEIPT WAS WRONG and it is recorded under my name: I reported bp-0003 as
 
 THE PATTERN, worth more than the fix: the coder went to the live daemon four times and was right four times — but it always asked what frames CONTAIN, never whether they ARRIVE. Every check was on content; the defect was in delivery. The green fixture is the tell — FakeRsClient yields on demand, so the single property the real daemon lacks is the one property no fake can fail to have.
 
+=== AMENDMENT 5, ruling review findings F4, F5 and F6 (2026-09-03). All three upheld; F5 and F6 share one root cause and get one fix. ===
+
+F4 — TWO FACTS ARE DROPPED WHILE THE ROW PHYSICALLY CARRIES THEM. Verified in mapSeat: `...rest` spreads rs key names through unchanged, so `model` and `provider` arrive as `model`/`provider` while join.ts reads `boundModel`/`boundProvider` and gets null. `effort` survives ONLY because the two vocabularies happen to use the same word — which is the evidence nobody checked the mapping, since a coincidence cannot be a design. 67 of 840 seats carry `model`, 56 carry `provider`. seat-row.tsx renders `<Provenance value={row?.boundModel ?? null} …>`, so the rail asserts 'this seat has no bound model' about a seat pij-rs explicitly reports as bound.
+RULING: map `model` -> `boundModel` and `provider` -> `boundProvider` explicitly. This is r3 — the risk I named as most likely — arriving from the OPPOSITE direction to the one I guarded. I wrote the guard against FILLING a gap with a plausible default and never considered DROPPING a fact we were handed. A dropped fact renders identically to a filled one: both produce a confident false statement about a seat.
+Note the correct downstream behaviour and do not 'fix' it: `bindHealth` is genuinely unavailable, so `observed` stays false and the rail renders the model as PINNED, NOT OBSERVED. That is the honest render — we know what it was bound with, we cannot confirm it took.
+
+F5 + F6 — ONE ROOT CAUSE: rsUnavailable IS COPIED FROM THE SOURCE INSTEAD OF DERIVED FROM THE ROW WE EMIT.
+  F5: `liveness`, `boundModel`, `boundProvider`, `unadopted` and `prime` are absent from the row AND absent from rsUnavailable — read by join.ts, provenance-free, silently undefined.
+  F6: `terminal` is POPULATED by mapSeat and simultaneously listed in rsUnavailable. A row that asserts both collapses the exact distinction Amendment 2 exists to protect.
+Both follow from copying `report.unsupported` verbatim. The source list describes what THE SOURCE lacks; the row needs what THE ROW lacks. Those differ in both directions at once.
+RULING: compute it. `rsUnavailable` = (fields the consumer reads) MINUS (fields this row actually carries). Seed it from the live unsupported[] — that is still the authority on source capability — then SUBTRACT anything mapSeat populates and ADD anything join.ts reads that the row does not carry. Assert the two sets partition the consumer's field list; a test that checks only 'the live list is present' passes today and is why this shipped.
+
+AND FIX THE SUB-QUALIFIER, which is the most dangerous single string in the row: the source says `liveness:stale`, which reads as 'liveness is supported, minus the stale case'. Liveness is not supported AT ALL — the key is not on the row. Emit `liveness`. A specific false reassurance about the one axis that separates 716 corpses from 28 live seats is worse than silence, and this row is the axis.
+
+F6b — `tombstonedAt` IS NOT A TIMESTAMP. Measured across all 93 tombstoned seats: the value equals that seat's own seat.tombstone SPINE CURSOR (3389..4779), not a time. Legacy's `terminal` under the same key is a different shape entirely ({disposition, observedAt, evidence, lastSeenAt}), and `terminal?: unknown` means TypeScript catches none of it. RULING: do not name a cursor `...At`. Emit `terminal: { tombstoneCursor: number|null, tombstoneReason: string|null, source: 'pij-rs' }` and type it. The `source` discriminant is the point: two disjoint shapes under one key is a runtime trap for any consumer that reads `terminal.disposition` and gets undefined.
+
 <a id="fan-out"></a>
 
 ## Fan out
