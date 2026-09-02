@@ -1,101 +1,165 @@
 {
-  "dd": {
-    "schema": "builder/plan"
+ "dd": {
+  "schema": "builder/plan"
+ },
+ "sections": [
+  {
+   "name": "meta",
+   "value": {
+    "title": "Phase 1",
+    "slug": "phase-1",
+    "status": "draft",
+    "summary": "The rs reader, four units in one wave, built and proved by one coder."
+   }
   },
-  "sections": [
+  {
+   "name": "summary",
+   "value": "Four units. u1 RsClient is the frozen seam; u2 rs-records and u3 rs-events sit on it; u4 composite-records is what the construction site actually selects, so tree()/nodeShow() keep reaching the CLI reader and the two live routes that call them do not break. Composition and the live backpressure proofs belong to the coder."
+  },
+  {
+   "name": "tasks",
+   "value": [
     {
-      "name": "meta",
-      "value": {
-        "title": "Phase 1",
-        "slug": "phase-1",
-        "status": "draft",
-        "summary": ""
-      }
+     "id": "tk-0001",
+     "title": "u1 RsClient \u2014 the frozen transport seam",
+     "phase": "ph-0001",
+     "domain": "rs-client",
+     "state": "unchecked",
+     "success": "GET /v1/seats and POST /v1/state return typed shapes; the {ok,command,v,data} envelope is unwrapped; ok:false becomes a typed RsError; a 401 triggers EXACTLY ONE key re-read and one retry, and a second 401 throws without looping.",
+     "notes": "Freeze this before starting u2 or u3 \u2014 both sit on it. Bearer read from ${stateDir}/daemon.key every time it is needed, never cached across a 401, never hardcoded. Inject fetch so no unit test touches the network.",
+     "satisfies": [
+      "../../../plan.dd.json#acceptance_criteria/ac-0006"
+     ]
     },
     {
-      "name": "summary",
-      "value": ""
+     "id": "tk-0002",
+     "title": "u2 rs-records \u2014 the mapping and the honest gaps",
+     "phase": "ph-0001",
+     "domain": "rs-records",
+     "state": "unchecked",
+     "success": "Every mapped field is pinned by name, and fields with an EXISTING absence vocabulary are omitted so existing code renders them honestly (a missing watchdog already becomes reason:'unreported').",
+     "notes": "AMENDMENT 2 governs: do not invent a generic sentinel and do not build a parallel absence path. rsUnavailable[] is PROVENANCE only \u2014 'the source cannot know', as distinct from 'the seat did not say' \u2014 populated from the live `pij-rs state` unsupported[] array, never derived.",
+     "satisfies": [
+      "../../../plan.dd.json#acceptance_criteria/ac-0002",
+      "../../../plan.dd.json#acceptance_criteria/ac-0007"
+     ]
     },
     {
-      "name": "tasks",
-      "value": []
+     "id": "tk-0003",
+     "title": "u3 rs-events \u2014 one subscriber, cursor, reconnect",
+     "phase": "ph-0001",
+     "domain": "rs-events",
+     "state": "unchecked",
+     "success": "Exactly one subscription per process; reconnect resumes from the LAST cursor rather than live-only; backoff is bounded with jitter; start() twice yields one subscription.",
+     "notes": "Feeds the poller through the new additive ingest() method and the EXISTING coalescing path \u2014 never a second broadcast route. If applying an event needs the private tick internals, STOP and tell the prime: that means the seam is wrong.",
+     "satisfies": [
+      "../../../plan.dd.json#acceptance_criteria/ac-0003",
+      "../../../plan.dd.json#acceptance_criteria/ac-0004",
+      "../../../plan.dd.json#acceptance_criteria/ac-0005"
+     ]
     },
     {
-      "name": "done_when",
-      "value": {}
+     "id": "tk-0004",
+     "title": "u4 composite-records \u2014 per-method selection",
+     "phase": "ph-0001",
+     "domain": "composite-records",
+     "state": "unchecked",
+     "success": "list()/state() reach rs; tree()/nodeShow()/raw() reach the existing CLI reader; /api/pij/tree and /api/pij/focus behave identically under PIJ_SOURCE=rs and legacy.",
+     "notes": "This is what the construction site selects \u2014 RsPijRecords is never selected directly. The routing table IS the contract: a test that only checks list() passes on an adapter that sends everything to rs and breaks focus.",
+     "satisfies": [
+      "../../../plan.dd.json#acceptance_criteria/ac-0001"
+     ]
     },
     {
-      "name": "goals",
-      "value": []
-    },
-    {
-      "name": "non_goals",
-      "value": []
-    },
-    {
-      "name": "acceptance_criteria",
-      "value": []
-    },
-    {
-      "name": "phases",
-      "value": []
-    },
-    {
-      "name": "research_context",
-      "value": ""
-    },
-    {
-      "name": "testing_strategy",
-      "value": {}
-    },
-    {
-      "name": "documentation_strategy",
-      "value": {}
-    },
-    {
-      "name": "risks_assumptions",
-      "value": ""
-    },
-    {
-      "name": "open_questions",
-      "value": []
-    },
-    {
-      "name": "workshop_opportunities",
-      "value": []
-    },
-    {
-      "name": "clarifications",
-      "value": []
-    },
-    {
-      "name": "planning_seam",
-      "value": []
-    },
-    {
-      "name": "gate_matrix",
-      "value": []
-    },
-    {
-      "name": "implementation_summary",
-      "value": ""
-    },
-    {
-      "name": "key_findings",
-      "value": []
-    },
-    {
-      "name": "acceptance_coverage",
-      "value": []
-    },
-    {
-      "name": "risks",
-      "value": []
-    },
-    {
-      "name": "execution_guardrails",
-      "value": []
+     "id": "tk-0005",
+     "title": "Compose, then prove every backpressure row against the live daemon",
+     "phase": "ph-0001",
+     "domain": "composition",
+     "state": "unchecked",
+     "success": "just fft green with PIJ_SOURCE unset, then bp-0001..0008 run in order against the running daemon with literal output and exit statuses retained.",
+     "notes": "The coder composes and proves (AMENDMENT 1 ruling E). bp-0004 is the row most likely to be skipped and the one that matters most: a CLOSED seat must LEAVE the reader within 2s. A reader that only ever sees appearances has not been proven to track truth. An unrun row reported as green is the only unrecoverable failure on this plan.",
+     "satisfies": [
+      "../../../plan.dd.json#acceptance_criteria/ac-0008"
+     ]
     }
-  ],
-  "references": []
+   ]
+  },
+  {
+   "name": "done_when",
+   "value": {}
+  },
+  {
+   "name": "goals",
+   "value": []
+  },
+  {
+   "name": "non_goals",
+   "value": []
+  },
+  {
+   "name": "acceptance_criteria",
+   "value": []
+  },
+  {
+   "name": "phases",
+   "value": []
+  },
+  {
+   "name": "research_context",
+   "value": ""
+  },
+  {
+   "name": "testing_strategy",
+   "value": {}
+  },
+  {
+   "name": "documentation_strategy",
+   "value": {}
+  },
+  {
+   "name": "risks_assumptions",
+   "value": ""
+  },
+  {
+   "name": "open_questions",
+   "value": []
+  },
+  {
+   "name": "workshop_opportunities",
+   "value": []
+  },
+  {
+   "name": "clarifications",
+   "value": []
+  },
+  {
+   "name": "planning_seam",
+   "value": []
+  },
+  {
+   "name": "gate_matrix",
+   "value": []
+  },
+  {
+   "name": "implementation_summary",
+   "value": ""
+  },
+  {
+   "name": "key_findings",
+   "value": []
+  },
+  {
+   "name": "acceptance_coverage",
+   "value": []
+  },
+  {
+   "name": "risks",
+   "value": []
+  },
+  {
+   "name": "execution_guardrails",
+   "value": []
+  }
+ ],
+ "references": []
 }

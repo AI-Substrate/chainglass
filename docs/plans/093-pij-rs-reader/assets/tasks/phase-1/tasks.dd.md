@@ -14,7 +14,7 @@
 | ordinal | — |
 | status | draft |
 | complexity | — |
-| summary | — |
+| summary | The rs reader, four units in one wave, built and proved by one coder. |
 | backpressure | — |
 | log | — |
 | mode | — |
@@ -27,13 +27,19 @@
 
 ## Summary
 
-_Empty._
+Four units. u1 RsClient is the frozen seam; u2 rs-records and u3 rs-events sit on it; u4 composite-records is what the construction site actually selects, so tree()/nodeShow() keep reaching the CLI reader and the two live routes that call them do not break. Composition and the live backpressure proofs belong to the coder.
 
 <a id="tasks"></a>
 
 ## Tasks
 
-_No entries._
+| id | title | domain | phase | state | note | receipt | done | success | notes | satisfies |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| tk-0001 | u1 RsClient — the frozen transport seam | rs-client | ph-0001 | [ ] unchecked | — | — | — | GET /v1/seats and POST /v1/state return typed shapes; the {ok,command,v,data} envelope is unwrapped; ok:false becomes a typed RsError; a 401 triggers EXACTLY ONE key re-read and one retry, and a second 401 throws without looping. | Freeze this before starting u2 or u3 — both sit on it. Bearer read from ${stateDir}/daemon.key every time it is needed, never cached across a 401, never hardcoded. Inject fetch so no unit test touches the network. | [ac-0006](../../../plan.dd.md#acceptance-criteria) |
+| tk-0002 | u2 rs-records — the mapping and the honest gaps | rs-records | ph-0001 | [ ] unchecked | — | — | — | Every mapped field is pinned by name, and fields with an EXISTING absence vocabulary are omitted so existing code renders them honestly (a missing watchdog already becomes reason:'unreported'). | AMENDMENT 2 governs: do not invent a generic sentinel and do not build a parallel absence path. rsUnavailable[] is PROVENANCE only — 'the source cannot know', as distinct from 'the seat did not say' — populated from the live `pij-rs state` unsupported[] array, never derived. | [ac-0002](../../../plan.dd.md#acceptance-criteria), [ac-0007](../../../plan.dd.md#acceptance-criteria) |
+| tk-0003 | u3 rs-events — one subscriber, cursor, reconnect | rs-events | ph-0001 | [ ] unchecked | — | — | — | Exactly one subscription per process; reconnect resumes from the LAST cursor rather than live-only; backoff is bounded with jitter; start() twice yields one subscription. | Feeds the poller through the new additive ingest() method and the EXISTING coalescing path — never a second broadcast route. If applying an event needs the private tick internals, STOP and tell the prime: that means the seam is wrong. | [ac-0003](../../../plan.dd.md#acceptance-criteria), [ac-0004](../../../plan.dd.md#acceptance-criteria), [ac-0005](../../../plan.dd.md#acceptance-criteria) |
+| tk-0004 | u4 composite-records — per-method selection | composite-records | ph-0001 | [ ] unchecked | — | — | — | list()/state() reach rs; tree()/nodeShow()/raw() reach the existing CLI reader; /api/pij/tree and /api/pij/focus behave identically under PIJ_SOURCE=rs and legacy. | This is what the construction site selects — RsPijRecords is never selected directly. The routing table IS the contract: a test that only checks list() passes on an adapter that sends everything to rs and breaks focus. | [ac-0001](../../../plan.dd.md#acceptance-criteria) |
+| tk-0005 | Compose, then prove every backpressure row against the live daemon | composition | ph-0001 | [ ] unchecked | — | — | — | just fft green with PIJ_SOURCE unset, then bp-0001..0008 run in order against the running daemon with literal output and exit statuses retained. | The coder composes and proves (AMENDMENT 1 ruling E). bp-0004 is the row most likely to be skipped and the one that matters most: a CLOSED seat must LEAVE the reader within 2s. A reader that only ever sees appearances has not been proven to track truth. An unrun row reported as green is the only unrecoverable failure on this plan. | [ac-0008](../../../plan.dd.md#acceptance-criteria) |
 
 <a id="done-when"></a>
 
