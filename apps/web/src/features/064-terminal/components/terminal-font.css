@@ -1,3 +1,39 @@
+/*
+ * Terminal typefaces, self-hosted.
+ *
+ * Self-hosted rather than CDN-linked because chainglass is routinely opened on a
+ * LAN address and from an iPad, where a font that silently fails to load leaves
+ * the terminal in a fallback that misaligns every box-drawing character.
+ *
+ * Ubuntu Mono Nerd Font is the terminal default: the Nerd Font patch supplies the
+ * powerline separators and file-type glyphs that agent CLIs, starship prompts and
+ * tmux status lines emit. Without them those code points render as tofu, which
+ * looks like a broken app rather than a missing font.
+ *
+ * The MONO variant is deliberate — Nerd Fonts ships Propo (proportional) and Mono
+ * (fixed single-width) cuts of the same face. xterm.js measures one cell from the
+ * font and reuses that width for every glyph, so a proportional cut makes every
+ * icon overhang its neighbour and drags the whole grid out of alignment. Only the
+ * Mono cut is correct here.
+ */
+
+@font-face {
+  font-family: "Chainglass Ubuntu Mono Nerd";
+  src: url("/fonts/ubuntu-mono-nerd/UbuntuMonoNerdFontMono-Regular.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Chainglass Ubuntu Mono Nerd";
+  src: url("/fonts/ubuntu-mono-nerd/UbuntuMonoNerdFontMono-Bold.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
+/* Kept as the fallback: it carries no Nerd glyphs, but its metrics are known-good. */
 @font-face {
   font-family: "Chainglass Fira Code";
   src: url("/fonts/fira-code/FiraCode-VF.woff2") format("woff2-variations");

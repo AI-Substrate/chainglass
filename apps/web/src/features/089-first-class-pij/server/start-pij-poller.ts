@@ -45,9 +45,7 @@ export function pijHome(env: Record<string, string | undefined> = process.env): 
  * parameterised rather than reading `process.env` directly so a test can exercise both branches
  * without mutating global state (the same shape `pijHome` uses above).
  */
-export function pijPollerEnabled(
-  env: Record<string, string | undefined> = process.env
-): boolean {
+export function pijPollerEnabled(env: Record<string, string | undefined> = process.env): boolean {
   return env.PIJ_POLLER === 'on';
 }
 
@@ -124,7 +122,9 @@ export function notePijFlowWorkspace(workspacePath: string): void {
  * Never throws: a missing pij store, an absent `pij` binary or an unreadable spine must degrade to an
  * honest `poller-status`, not to a failed server boot.
  */
-export async function startPijPoller(): Promise<PijPollerService> {
+export async function startPijPoller(
+  env: Record<string, string | undefined> = process.env
+): Promise<PijPollerService> {
   const poller = getPijPoller();
 
   // KILL SWITCH — the loops are OFF unless `PIJ_POLLER=on` is set.
@@ -139,7 +139,7 @@ export async function startPijPoller(): Promise<PijPollerService> {
   // Off is therefore not a loss of function: the data has not been arriving anyway. It is the
   // same dark rail, minus the core. The replacement is pij-rs (`/v1/seats`, 113ms for 598
   // seats), and this switch comes out when that reader lands.
-  if (!pijPollerEnabled()) {
+  if (!pijPollerEnabled(env)) {
     console.warn(
       '[pij] poller disabled (set PIJ_POLLER=on to re-enable) — see start-pij-poller.ts'
     );

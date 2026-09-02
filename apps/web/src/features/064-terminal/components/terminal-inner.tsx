@@ -212,8 +212,11 @@ export default function TerminalInner({
     const terminal = new Terminal({
       cursorBlink: true,
       fontSize: useMobilePatterns ? 12 : 14,
+      // Ubuntu Mono Nerd first — it is the only face here carrying the powerline
+      // and file-type glyphs that agent CLIs and tmux status lines emit; the rest
+      // are metric fallbacks that render those code points as tofu.
       fontFamily:
-        "'Chainglass Fira Code', 'Fira Code', 'Cascadia Code', Menlo, Monaco, 'Courier New', monospace",
+        "'Chainglass Ubuntu Mono Nerd', 'UbuntuMono Nerd Font Mono', 'Chainglass Fira Code', 'Fira Code', 'Cascadia Code', Menlo, Monaco, 'Courier New', monospace",
       theme: { ...initialThemeRef.current.theme },
       scrollback: 10000,
       allowProposedApi: true,
