@@ -1,0 +1,19 @@
+docs/plans/093-pij-rs-reader/assets/findings/rs-corpse-census.md
+  s_084ac52dc66de3::t_02a72a0845092a 132-167
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "a64f7f1e33b13d87c44561d9df04d9f738c73f6f",
+  "prompts": {},
+  "sessions": {
+    "s_084ac52dc66de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
