@@ -1,0 +1,23 @@
+docs/plans/093-pij-rs-reader/impl-guide.dd.json
+  s_084ac52dc66de3::t_c4e454cfa8227a 16
+docs/plans/093-pij-rs-reader/impl-guide.dd.md
+  s_084ac52dc66de3::t_77391351757868 65-76
+docs/plans/093-pij-rs-reader/assets/inputs/live-event-frames.ndjson
+  s_084ac52dc66de3::t_36a14a2ec4565c 1-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "377634886fadfbd25c17bad19402bc18966e0f01",
+  "prompts": {},
+  "sessions": {
+    "s_084ac52dc66de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
