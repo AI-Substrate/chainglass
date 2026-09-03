@@ -194,3 +194,37 @@ timestamp of any kind**.
 So `stale` is not lossy to derive and not expensive to derive — it is **underivable**. That is
 now a property read off the key set rather than inferred from observed behaviour, which is the
 form that survives an argument.
+
+---
+
+# TWO GENERALISATIONS FROM THE 093 REVIEW — kept because they outlive this plan
+
+Both are `pij-civil-zakalwe`'s, sharpened in exchange with `pij-lonely-antelope`.
+
+## 1. Delivery is the one property no fixture can test
+
+The coder went to the live daemon four times and was right four times — but it always asked
+what frames **contain**, never whether they **arrive**. Every check was on content; the defect
+was in delivery.
+
+The green fixture is the tell. `FakeRsClient` yields on demand, so **a fake that yields on
+demand cannot fail to deliver.** Delivery is therefore the single property no fixture can test,
+and the one that must always be proven against the real thing.
+
+That generalises past this plan: it is true of **every seam mocked as an async iterable**. If
+the double's job is to produce items when asked, it has silently assumed away the question of
+whether the real source ever produces them unasked.
+
+## 2. Measuring this defect permanently enlarges it
+
+pij-rs does not reap. So a reviewer probing appearance latency must adopt a scratch seat — and
+every probe leaves a corpse that can never be cleaned up. The five scratch seats from this
+review are rows 717–721 of the very census that measures the problem.
+
+The instrument **creates** the phenomenon it measures, monotonically and irreversibly. This is
+the mirror of the more familiar trap where checking destroys the evidence: here checking
+manufactures it. Either way the error rate is unmeasured rather than low, and anyone repeating
+this measurement should report how many rows their own probes added.
+
+If the reaping question goes upstream again, this belongs in it: the defect makes its own
+investigation costly, which is a reason to fix it that is independent of the rendering harm.
