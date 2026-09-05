@@ -260,6 +260,9 @@ importers:
       '@xterm/addon-fit':
         specifier: ^0.11.0
         version: 0.11.0
+      '@xterm/addon-image':
+        specifier: 0.9.0
+        version: 0.9.0
       '@xterm/addon-ligatures':
         specifier: ^0.10.0
         version: 0.10.0
@@ -730,10 +733,10 @@ packages:
     resolution: {integrity: sha1-45mZMHsQLP82RexPWzZl9Sl6IiQ=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@chevrotain/utils/-/utils-11.0.3.tgz}
 
   '@codemirror/autocomplete@6.20.0':
-    resolution: {integrity: sha1-24GMEtzokqk/uKutwkJv67AC+ME=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@codemirror/autocomplete/-/autocomplete-6.20.0.tgz}
+    resolution: {integrity: sha1-24GMEtzokqk/uKutwkJv67AC+ME=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@codemirror/autocomplete/-/autocomplete-6.20.0.tgz}
 
   '@codemirror/commands@6.10.2':
-    resolution: {integrity: sha1-M4v1OrFG3nuybaSh0yxqb/TTazk=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@codemirror/commands/-/commands-6.10.2.tgz}
+    resolution: {integrity: sha1-M4v1OrFG3nuybaSh0yxqb/TTazk=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@codemirror/commands/-/commands-6.10.2.tgz}
 
   '@codemirror/lang-cpp@6.0.3':
     resolution: {integrity: sha1-sXW1n83o3W5WO3/u6LvtgZY6lJE=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@codemirror/lang-cpp/-/lang-cpp-6.0.3.tgz}
@@ -775,19 +778,19 @@ packages:
     resolution: {integrity: sha1-fil2x5AHzT+p7YodaQiSGEp/Xs8=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@codemirror/legacy-modes/-/legacy-modes-6.5.2.tgz}
 
   '@codemirror/lint@6.9.4':
-    resolution: {integrity: sha1-++L9x6lyQc05PflI7Jkyw2/7r9A=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@codemirror/lint/-/lint-6.9.4.tgz}
+    resolution: {integrity: sha1-++L9x6lyQc05PflI7Jkyw2/7r9A=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@codemirror/lint/-/lint-6.9.4.tgz}
 
   '@codemirror/search@6.6.0':
-    resolution: {integrity: sha1-O4Oh41OR4Vdag6O0heP5UmPdqgs=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@codemirror/search/-/search-6.6.0.tgz}
+    resolution: {integrity: sha1-O4Oh41OR4Vdag6O0heP5UmPdqgs=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@codemirror/search/-/search-6.6.0.tgz}
 
   '@codemirror/state@6.5.4':
-    resolution: {integrity: sha1-9b5LjA0jEBgNXxWp9kHCHKafrxk=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@codemirror/state/-/state-6.5.4.tgz}
+    resolution: {integrity: sha1-9b5LjA0jEBgNXxWp9kHCHKafrxk=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@codemirror/state/-/state-6.5.4.tgz}
 
   '@codemirror/theme-one-dark@6.1.3':
     resolution: {integrity: sha1-Hbtz9uc8U8Eq0q7Z9IwmPE5j6jc=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@codemirror/theme-one-dark/-/theme-one-dark-6.1.3.tgz}
 
   '@codemirror/view@6.39.15':
-    resolution: {integrity: sha1-dmX0Zbf60aHK4Vsmif/uK0exgkY=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@codemirror/view/-/view-6.39.15.tgz}
+    resolution: {integrity: sha1-dmX0Zbf60aHK4Vsmif/uK0exgkY=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@codemirror/view/-/view-6.39.15.tgz}
 
   '@csstools/color-helpers@5.1.0':
     resolution: {integrity: sha1-EGxUyAjKv9GrTGAthQXuWEwplu8=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@csstools/color-helpers/-/color-helpers-5.1.0.tgz}
@@ -3010,7 +3013,7 @@ packages:
     resolution: {integrity: sha1-YL6NIbqrjDBRMuucuRLtSXhSqtw=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@types/use-sync-external-store/-/use-sync-external-store-0.0.6.tgz}
 
   '@types/webxr@0.5.24':
-    resolution: {integrity: sha1-c01dkNrcWAmlPkInJsYDN/ovSkQ=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@types/webxr/-/webxr-0.5.24.tgz}
+    resolution: {integrity: sha1-c01dkNrcWAmlPkInJsYDN/ovSkQ=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@types/webxr/-/webxr-0.5.24.tgz}
 
   '@types/ws@8.18.1':
     resolution: {integrity: sha1-SEZOS/Ld/RfbE9hFRn9gcP/qSqk=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@types/ws/-/ws-8.18.1.tgz}
@@ -3103,6 +3106,9 @@ packages:
 
   '@xterm/addon-fit@0.11.0':
     resolution: {integrity: sha1-ukd4tp/MkESgYMIXa74HdlfXs34=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@xterm/addon-fit/-/addon-fit-0.11.0.tgz}
+
+  '@xterm/addon-image@0.9.0':
+    resolution: {integrity: sha1-OhLI/lvbBUV7lV821M6DctjLMDU=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@xterm/addon-image/-/addon-image-0.9.0.tgz}
 
   '@xterm/addon-ligatures@0.10.0':
     resolution: {integrity: sha1-TTPHWCjIsVW9wj39Gn5v6NgL2lE=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@xterm/addon-ligatures/-/addon-ligatures-0.10.0.tgz}
@@ -3422,7 +3428,7 @@ packages:
     resolution: {integrity: sha1-HDlcNbbhC7g/l2nKi4F9YUrdXAE=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/cose-base/-/cose-base-2.2.0.tgz}
 
   crelt@1.0.6:
-    resolution: {integrity: sha1-fMiY6nThkPtu+drlf4+Bz3MC33I=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/crelt/-/crelt-1.0.6.tgz}
+    resolution: {integrity: sha1-fMiY6nThkPtu+drlf4+Bz3MC33I=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/crelt/-/crelt-1.0.6.tgz}
 
   cross-env@7.0.3:
     resolution: {integrity: sha1-hlJkspZ33AFbqEGJGJZd0jL8VM8=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/cross-env/-/cross-env-7.0.3.tgz}
@@ -5280,22 +5286,22 @@ packages:
     resolution: {integrity: sha1-2BCyfjoHMEeyteQANIgfXqb5yDs=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/std-env/-/std-env-3.10.0.tgz}
 
   string-width@4.2.3:
-    resolution: {integrity: sha1-JpxxF9J7Ba0uU2gwqOyJXvnG0BA=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/string-width/-/string-width-4.2.3.tgz}
+    resolution: {integrity: sha1-JpxxF9J7Ba0uU2gwqOyJXvnG0BA=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/string-width/-/string-width-4.2.3.tgz}
     engines: {node: '>=8'}
 
   string-width@5.1.2:
-    resolution: {integrity: sha1-FPja7G2B5yIdKjV+Zoyrc728p5Q=, tarball: https://ms-feed-12.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/string-width/-/string-width-5.1.2.tgz}
+    resolution: {integrity: sha1-FPja7G2B5yIdKjV+Zoyrc728p5Q=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/string-width/-/string-width-5.1.2.tgz}
     engines: {node: '>=12'}
 
   stringify-entities@4.0.4:
     resolution: {integrity: sha1-s7ee9fJ3zErHPK6wI2xbqTmzpPM=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/stringify-entities/-/stringify-entities-4.0.4.tgz}
 
   strip-ansi@6.0.1:
-    resolution: {integrity: sha1-nibGPTD1NEPpSJSVshBdN7Z6hdk=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/strip-ansi/-/strip-ansi-6.0.1.tgz}
+    resolution: {integrity: sha1-nibGPTD1NEPpSJSVshBdN7Z6hdk=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/strip-ansi/-/strip-ansi-6.0.1.tgz}
     engines: {node: '>=8'}
 
   strip-ansi@7.1.2:
-    resolution: {integrity: sha1-Eyh1q95njH6o1pFTPy5+Irt0Tbo=, tarball: https://ms-feed-2.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/strip-ansi/-/strip-ansi-7.1.2.tgz}
+    resolution: {integrity: sha1-Eyh1q95njH6o1pFTPy5+Irt0Tbo=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/strip-ansi/-/strip-ansi-7.1.2.tgz}
     engines: {node: '>=12'}
 
   strip-indent@3.0.0:
@@ -8381,6 +8387,8 @@ snapshots:
       js-base64: 3.7.8
 
   '@xterm/addon-fit@0.11.0': {}
+
+  '@xterm/addon-image@0.9.0': {}
 
   '@xterm/addon-ligatures@0.10.0':
     dependencies:
