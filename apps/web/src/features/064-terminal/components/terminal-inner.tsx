@@ -3,6 +3,7 @@
 import { CanvasAddon } from '@xterm/addon-canvas';
 import { ClipboardAddon } from '@xterm/addon-clipboard';
 import { FitAddon } from '@xterm/addon-fit';
+import { ImageAddon } from '@xterm/addon-image';
 import { LigaturesAddon } from '@xterm/addon-ligatures';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Terminal } from '@xterm/xterm';
@@ -19,6 +20,21 @@ import { applyResyncOnStatus } from '../lib/resync-on-connect';
 import { resolveTerminalTheme } from '../lib/terminal-themes';
 import type { ConnectionStatus, RenameWindow, SendPrompt } from '../types';
 import { TerminalModifierToolbar } from './terminal-modifier-toolbar';
+
+/**
+ * Ubuntu Mono Nerd first — it is the only face here carrying the powerline and
+ * file-type glyphs that agent CLIs and tmux status lines emit; the rest are
+ * metric fallbacks that render those code points as tofu.
+ *
+ * A module constant rather than an inline literal because the font-ready
+ * remeasure below has to restore it after a sentinel value, and the two MUST be
+ * the same string or xterm keeps the sentinel's metrics.
+ */
+const TERMINAL_FONT_STACK =
+  "'Chainglass Ubuntu Mono Nerd', 'UbuntuMono Nerd Font Mono', 'Chainglass Fira Code', 'Fira Code', 'Cascadia Code', Menlo, Monaco, 'Courier New', monospace";
+
+/** The face whose arrival invalidates the cell xterm measured at construction. */
+const TERMINAL_PRIMARY_FACE = 'Chainglass Ubuntu Mono Nerd';
 
 interface TerminalInnerProps {
   sessionName: string;
@@ -212,11 +228,7 @@ export default function TerminalInner({
     const terminal = new Terminal({
       cursorBlink: true,
       fontSize: useMobilePatterns ? 12 : 14,
-      // Ubuntu Mono Nerd first — it is the only face here carrying the powerline
-      // and file-type glyphs that agent CLIs and tmux status lines emit; the rest
-      // are metric fallbacks that render those code points as tofu.
-      fontFamily:
-        "'Chainglass Ubuntu Mono Nerd', 'UbuntuMono Nerd Font Mono', 'Chainglass Fira Code', 'Fira Code', 'Cascadia Code', Menlo, Monaco, 'Courier New', monospace",
+      fontFamily: TERMINAL_FONT_STACK,
       theme: { ...initialThemeRef.current.theme },
       scrollback: 10000,
       allowProposedApi: true,
@@ -266,6 +278,10 @@ export default function TerminalInner({
     });
 
     terminal.open(container);
+
+    // Images use a separate canvas with either desktop or mobile text rendering.
+    const imageAddon = new ImageAddon();
+    terminal.loadAddon(imageAddon);
 
     // T003: Prevent browser from handling touch gestures on terminal.
     // 'none' ensures all touch events reach xterm.js — required for tmux
@@ -380,6 +396,37 @@ export default function TerminalInner({
       }
     });
 
+    // Re-measure the cell once the webfont actually arrives.
+    //
+    // The faces load asynchronously (`font-display: swap`) and xterm measures
+    // its cell EXACTLY ONCE, at construction — so on a cold mount it measures
+    // the fallback. Menlo at 14px is 8.43x16 and Ubuntu Mono Nerd is 7x14, so
+    // xterm lays out a rounded 8x16 grid and then draws 7px-wide glyphs into
+    // it. The leftover pixel per cell is what reads as loose letter-spacing:
+    // the glyphs are correct, the grid under them is a different font's.
+    //
+    // xterm re-measures only when `fontFamily`/`fontSize` CHANGE — its options
+    // proxy fires nothing when the new value equals the old — so the remeasure
+    // has to go through a sentinel and back. Both assignments run in one task,
+    // so no frame is painted at the sentinel's metrics.
+    void document.fonts
+      .load(`${terminal.options.fontSize}px "${TERMINAL_PRIMARY_FACE}"`)
+      .then(() => document.fonts.ready)
+      .then(() => {
+        if (disposedRef.current || terminalRef.current !== terminal) return;
+        terminal.options.fontFamily = 'monospace';
+        terminal.options.fontFamily = TERMINAL_FONT_STACK;
+        fitAddon.fit();
+        const dims = fitAddon.proposeDimensions();
+        if (dims?.cols && dims.rows) {
+          sendRef.current(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
+        }
+      })
+      .catch(() => {
+        // The face never loaded — the grid xterm measured is the fallback's own,
+        // which is the correct grid for what it will actually draw.
+      });
+
     // PL-08: Register onData handler BEFORE terminal is connected
     // iOS double-space → period shortcut doesn't work in xterm.js because
     // xterm clears the textarea after each keystroke, so iOS can't detect
@@ -435,6 +482,11 @@ export default function TerminalInner({
       }
 
       // 3. Dispose addons before terminal (WebLinksAddon crashes if terminal disposes first)
+      try {
+        imageAddon.dispose();
+      } catch {
+        /* already disposed */
+      }
       try {
         ligaturesAddonRef.current?.dispose();
         ligaturesAddonRef.current = null;
