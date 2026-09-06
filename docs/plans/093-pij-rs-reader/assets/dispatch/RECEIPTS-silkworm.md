@@ -100,3 +100,14 @@ Independent read-only review of the hierarchy/focus correction returned **no mat
 Operator alert `2026-09-06T08-29-42-254Z_00009e` requested only the dev restart needed for current runtime proof. Screenshot/protocol attempts also timed out; DOM evaluation and live API reads worked. No services, real-seat records or new probe registrations were changed during this correction.
 
 The prime authorized commit/push before the operator restart, with the mandatory commit-body caveat: **live hierarchy/focus acceptance pending dev restart; not claimed**. A fresh-page receipt must follow the restart; source/test proof is not substituted for it. Existing `.serena/project.yml` and the failed runner's untracked `docs/retros/code-review.md` remain outside this change.
+
+## F1 reproduced on the loaded page, pre-fix (antelope, 2026-09-06 08:41Z)
+
+Jordan clicked the NEEDS-YOU card for `pij-grim-gurgeh` and got
+`the pij store could not be read: E-UNKNOWN no detail`. The dev server (pid 36201) started
+18:03 local; the F1 fix (`f1b79236f`) was committed 18:36. The running poller singleton
+therefore still routes `nodeShow` to the legacy store, which does not hold the seat — F1
+exactly, as the reviewer described it, now observed by the operator. Confirmed by
+`GET /api/pij/tree` on the same server returning the legacy root `pij-chief-roadrunner`
+with a `~/.pij` dataDir. Not a new defect; a live receipt for the reviewer's finding.
+Cleared by a `just dev` restart onto `f1b79236f`, which is Jordan's to run.
