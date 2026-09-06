@@ -1,0 +1,19 @@
+docs/plans/093-pij-rs-reader/assets/findings/live-push-recheck-2026-09-06.md
+  s_084ac52dc66de3::t_da42dd88af2b12 93,100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "e21b18fbac4a8d0b77146b1b7d97c83c3759be76",
+  "prompts": {},
+  "sessions": {
+    "s_084ac52dc66de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
