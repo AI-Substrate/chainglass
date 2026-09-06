@@ -1,0 +1,22 @@
+docs/plans/093-pij-rs-reader/assets/dispatch/PACKET-silkworm-rs-default.md
+  s_084ac52dc66de3::t_c1c8ab158fec72 1-41,52-107,125-132
+  s_084ac52dc66de3::t_9a220b7169d65f 42-51,108-124
+docs/plans/093-pij-rs-reader/assets/findings/live-push-recheck-2026-09-06.md
+  s_084ac52dc66de3::t_fda88409a02d8a 1-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "62623d4463a8739ec1477eb734aa20cd16a50d01",
+  "prompts": {},
+  "sessions": {
+    "s_084ac52dc66de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
