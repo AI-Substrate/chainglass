@@ -48,3 +48,21 @@ the reader must assume descriptor kinds arrive ONLY by replay — the timer recy
 **What unicorn's answer DOES change.** No rate limit, one sqlite read per replay, "2–8s
 is fine". The recycle interval therefore drops from 30s to ~5s, and bp-0003's honest bound
 from 30s to ≤10s. Still not the plan's original 2s, still finite.
+
+## Root cause, bisected by pij-minor-unicorn the same hour (pij-rs main `217d66c3`)
+
+The spine has three writers and only one of them broadcasts:
+
+| kinds | writer | broadcasts? |
+|---|---|---|
+| `message.pushed`, `delivery.*`, `spawn.*`, typing hold/release | `EventBus::publish` (`events/mod.rs:62` — store append THEN `live.send`) | yes |
+| `report.now`, `report.state` | `ReportService` appends straight to `services.spine` (`crates/core/src/report.rs:116`, `:241`) | no |
+| `seat.put`, `seat.tombstone` | `Registry::put` / `tombstone` run their own `INSERT INTO spine_events` (`crates/store/src/registry.rs:231`, `:314`) | no |
+
+So fan-out is exactly "the kinds that happen to go through the bus". Unicorn's own words:
+"I made a 'can' claim from the subscriber side without reading the producers." Upstream
+fix shape (ledger item, not started): make the bus the sole spine writer, or have it tail
+the table by seq and broadcast anything it did not publish. Until that lands, the ruling in
+Amendment 4 is the correct client-side design and the ~5s recycle stands. Two ledger items
+recorded on the pij-rs side: the three-writer split, and the absence of an rs API doc for
+UI consumers.
