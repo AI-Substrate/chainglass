@@ -79,3 +79,22 @@ Consequences for the reader, both already the design: (1) `event.at` is unusable
 latency on registry kinds — measure from a local trigger; (2) a `seat.put` frame is a
 notification, never a descriptor — it MUST funnel into `refreshRecords()`, and no fixture
 may expect descriptor content in its payload.
+
+## Addendum, same day — role and tombstone have no writer; "req-0040" is not a pij plan
+
+Source-checked by unicorn on pij-rs main `217d66c3`, after the rs default shipped and every
+rail card read ROLE UNKNOWN:
+
+- **Role.** `register`/`adopt` take `--parent`, no `--role`; HTTP register/adopt carry no
+  role; the store's `assign_role` (`store/orchestration.rs:285`, table `seat_roles`) has one
+  caller and it is a test. `/v1/seats.role` is a descriptor column nothing sets — null on
+  every row by construction. **`req-0040` appears nowhere in the pij repo**; this plan's
+  references to it (oq-0002, impl-guide) name a requirement that was never pij's. Ledgered
+  upstream: role writer + `--role` + `seat_roles` joined into `/v1/seats`. No plan number.
+- **Tombstone.** `Registry::tombstone` has one caller, a `cfg(test)` fake. All 93 tombstones
+  on the spine are plan-128 hand-writes done store-side. No verb, no reaper. The three
+  probe seats from silkworm's proofs stay; they are named in the receipts.
+
+Consequence: role is EXPLICITLY UNAVAILABLE from rs with no owner and no date — the exact
+case oq-0004 ruled must be handled permanently, not as a stopgap. The rail banner cites
+"ledgered upstream, unplanned" rather than a plan that does not exist.
