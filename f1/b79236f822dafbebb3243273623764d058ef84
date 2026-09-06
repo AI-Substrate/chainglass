@@ -1,0 +1,19 @@
+apps/web/src/features/089-first-class-pij/domain.md
+  s_15d888f4b629c1::t_6769914f1c1873 27-28,69,93-96,220
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "f1b79236f822dafbebb3243273623764d058ef84",
+  "prompts": {},
+  "sessions": {
+    "s_15d888f4b629c1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a5a5588f-0979-439f-a1bf-ddf185a089c7",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
