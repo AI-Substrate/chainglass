@@ -1,0 +1,19 @@
+docs/plans/093-pij-rs-reader/assets/dispatch/PACKET-reviewer-bc57d806d.md
+  s_084ac52dc66de3::t_06b239812aa32b 1-66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "81f30584f108786c7d4a0de5eb8aedac7bbb3727",
+  "prompts": {},
+  "sessions": {
+    "s_084ac52dc66de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
