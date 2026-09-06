@@ -1,183 +1,182 @@
 {
- "dd": {
-  "schema": "builder/plan"
- },
- "sections": [
-  {
-   "name": "meta",
-   "value": {
-    "title": "pij-rs-reader",
-    "slug": "pij-rs-reader",
-    "ordinal": 93,
-    "status": "draft",
-    "summary": "Replace chainglass's process-spawning pij read path with an HTTP reader against the pij-rs daemon, behind a flag, ready to flip when the fleet migration lands."
-   }
+  "dd": {
+    "schema": "builder/plan"
   },
-  {
-   "name": "summary",
-   "value": "chainglass reads the pij fleet by shelling out `pij list --json --badge` on an 8s loop. That call grew from ~0.7s at 181 rows (measured when it was written, pij-records.ts:127) to 7.744s at ~1,200 rows, while PijRecords caps every call at PIJ_DEFAULT_TIMEOUT_MS = 5_000. Every call is therefore killed before it returns: the loop paid ~95% of a core continuously and received nothing. The loop is now off (03695dd68); the rail is dark either way.\n\npij-rs answers the same question over HTTP in 113ms for 598 seats, and offers an event stream that removes polling entirely. This plan builds that reader behind a PIJ_SOURCE flag defaulting to legacy. It does NOT flip the default: that is gated on work owned by the pij-rs team (plan-129 fleet migration, req-0040 role writer) and on acceptance evidence gathered against a live daemon."
-  },
-  {
-   "name": "goals",
-   "value": [
-    "Read the pij fleet over HTTP from pij-rs instead of spawning a process per tick.",
-    "Replace polling with a single /v1/events subscriber carrying a cursor, surviving reconnect and key rotation.",
-    "Keep the existing IPijRecords seam so the poller, routes and UI are unchanged.",
-    "Render fields pij-rs does not carry as explicitly unavailable, never blank and never synthesised.",
-    "Leave the switch flippable in one env var the day the fleet migration lands."
-   ]
-  },
-  {
-   "name": "non_goals",
-   "value": [
-    "Flipping the default to rs. Gated on plan-129 and req-0040, both owned by the pij-rs team.",
-    "Any write path. chainglass is a reader: no register, send, adopt or close from the UI.",
-    "Reading ~/.pij-rs/pij.sqlite directly. The HTTP surface is the contract.",
-    "Restoring the legacy path's performance. It is being deleted, not repaired.",
-    "Reconciling seat identity across the two daemons. chainglass renders what rs reports."
-   ]
-  },
-  {
-   "name": "acceptance_criteria",
-   "value": [
+  "sections": [
     {
-     "id": "ac-0001",
-     "state": "unchecked",
-     "claim": "With PIJ_SOURCE=rs, chainglass spawns no pij child process: the read path is HTTP against 127.0.0.1:7461.",
-     "pressure": "assets/backpressure.dd.json#rows/bp-0001"
+      "name": "meta",
+      "value": {
+        "title": "pij-rs-reader",
+        "slug": "pij-rs-reader",
+        "ordinal": 93,
+        "status": "draft",
+        "summary": "Replace chainglass's process-spawning pij read path with an HTTP reader against the pij-rs daemon, behind a flag, ready to flip when the fleet migration lands."
+      }
     },
     {
-     "id": "ac-0002",
-     "state": "unchecked",
-     "claim": "An RsPijRecords read of a live seat returns values equal to a direct /v1/seats read of the same id.",
-     "pressure": "assets/backpressure.dd.json#rows/bp-0002"
+      "name": "summary",
+      "value": "chainglass reads the pij fleet by shelling out `pij list --json --badge` on an 8s loop. That call grew from ~0.7s at 181 rows (measured when it was written, pij-records.ts:127) to 7.744s at ~1,200 rows, while PijRecords caps every call at PIJ_DEFAULT_TIMEOUT_MS = 5_000. Every call is therefore killed before it returns: the loop paid ~95% of a core continuously and received nothing. The loop is now off (03695dd68); the rail is dark either way.\n\npij-rs answers the same question over HTTP in 113ms for 598 seats, and offers an event stream that removes polling entirely. This plan builds that reader behind a PIJ_SOURCE flag defaulting to legacy. It does NOT flip the default: that is gated on work owned by the pij-rs team (plan-129 fleet migration, req-0040 role writer) and on acceptance evidence gathered against a live daemon."
     },
     {
-     "id": "ac-0003",
-     "state": "unchecked",
-     "claim": "A seat that joins the fleet appears in the reader within 2s.",
-     "pressure": "assets/backpressure.dd.json#rows/bp-0003"
+      "name": "goals",
+      "value": [
+        "Read the pij fleet over HTTP from pij-rs instead of spawning a process per tick.",
+        "Replace polling with a single /v1/events subscriber carrying a cursor, surviving reconnect and key rotation.",
+        "Keep the existing IPijRecords seam so the poller, routes and UI are unchanged.",
+        "Render fields pij-rs does not carry as explicitly unavailable, never blank and never synthesised.",
+        "Leave the switch flippable in one env var the day the fleet migration lands."
+      ]
     },
     {
-     "id": "ac-0004",
-     "state": "unchecked",
-     "claim": "The reader mirrors /v1/seats faithfully in both directions, including tombstones once pij-rs sets them. NOTE: pij-rs does not currently reap dead seats (96% of its paned roster are corpses reported as 'idle'), so 'disappears within 2s' is not achievable and is not ours to fix.",
-     "pressure": "assets/backpressure.dd.json#rows/bp-0004"
+      "name": "non_goals",
+      "value": [
+        "Flipping the default to rs. Gated on plan-129 and req-0040, both owned by the pij-rs team.",
+        "Any write path. chainglass is a reader: no register, send, adopt or close from the UI.",
+        "Reading ~/.pij-rs/pij.sqlite directly. The HTTP surface is the contract.",
+        "Restoring the legacy path's performance. It is being deleted, not repaired.",
+        "Reconciling seat identity across the two daemons. chainglass renders what rs reports."
+      ]
     },
     {
-     "id": "ac-0005",
-     "state": "unchecked",
-     "claim": "The reader survives an rs daemon restart on its own, resuming from its cursor without a chainglass restart.",
-     "pressure": "assets/backpressure.dd.json#rows/bp-0005"
+      "name": "acceptance_criteria",
+      "value": [
+        {
+          "id": "ac-0001",
+          "state": "unchecked",
+          "claim": "With PIJ_SOURCE=rs, chainglass spawns no pij child process: the read path is HTTP against 127.0.0.1:7461.",
+          "pressure": "assets/backpressure.dd.json#rows/bp-0001"
+        },
+        {
+          "id": "ac-0002",
+          "state": "unchecked",
+          "claim": "An RsPijRecords read of a live seat returns values equal to a direct /v1/seats read of the same id.",
+          "pressure": "assets/backpressure.dd.json#rows/bp-0002"
+        },
+        {
+          "id": "ac-0003",
+          "state": "unchecked",
+          "claim": "A seat that joins the fleet appears in the reader within 2s.",
+          "pressure": "assets/backpressure.dd.json#rows/bp-0003"
+        },
+        {
+          "id": "ac-0004",
+          "state": "unchecked",
+          "claim": "The reader mirrors /v1/seats faithfully in both directions, including tombstones once pij-rs sets them. NOTE: pij-rs does not currently reap dead seats (96% of its paned roster are corpses reported as 'idle'), so 'disappears within 2s' is not achievable and is not ours to fix.",
+          "pressure": "assets/backpressure.dd.json#rows/bp-0004"
+        },
+        {
+          "id": "ac-0005",
+          "state": "unchecked",
+          "claim": "The reader survives an rs daemon restart on its own, resuming from its cursor without a chainglass restart.",
+          "pressure": "assets/backpressure.dd.json#rows/bp-0005"
+        },
+        {
+          "id": "ac-0006",
+          "state": "unchecked",
+          "claim": "A rotated daemon.key produces exactly one 401-triggered re-read, then success, and does not loop on a second failure.",
+          "pressure": "assets/backpressure.dd.json#rows/bp-0006"
+        },
+        {
+          "id": "ac-0007",
+          "state": "unchecked",
+          "claim": "watchdog, bindHealth and degraded render as explicitly unavailable from pij-rs, never blank and never synthesised.",
+          "pressure": "assets/backpressure.dd.json#rows/bp-0007"
+        },
+        {
+          "id": "ac-0008",
+          "state": "unchecked",
+          "claim": "Default PIJ_SOURCE is rs; explicit legacy with PIJ_POLLER=on leaves existing behaviour unchanged and `just fft` green with env unset.",
+          "pressure": "assets/backpressure.dd.json#rows/bp-0008"
+        }
+      ]
     },
     {
-     "id": "ac-0006",
-     "state": "unchecked",
-     "claim": "A rotated daemon.key produces exactly one 401-triggered re-read, then success, and does not loop on a second failure.",
-     "pressure": "assets/backpressure.dd.json#rows/bp-0006"
+      "name": "phases",
+      "value": [
+        {
+          "id": "ph-0001",
+          "title": "Phase 1: rs reader behind the flag",
+          "brief": "HTTP client, RsPijRecords behind IPijRecords, single-subscriber event stream with cursor and key re-read, honest unavailable markers. Default stays legacy.",
+          "state": "unchecked",
+          "tasks": "assets/tasks/phase-1/tasks.dd.json#tasks"
+        }
+      ]
     },
     {
-     "id": "ac-0007",
-     "state": "unchecked",
-     "claim": "watchdog, bindHealth and degraded render as explicitly unavailable from pij-rs, never blank and never synthesised.",
-     "pressure": "assets/backpressure.dd.json#rows/bp-0007"
+      "name": "testing_strategy",
+      "value": {
+        "summary": "Unit tests own the mapping and the reconnect state machine; the acceptance bar is measured against a live daemon. The two are not interchangeable.",
+        "levels": [
+          {
+            "level": "unit",
+            "scope": "field mapping (rs seat -> PijListRow), cursor advance, backoff, 401 single-re-read state machine. Injected fetch, no network."
+          },
+          {
+            "level": "integration",
+            "scope": "RsPijRecords against a live pij-rs daemon on 127.0.0.1:7461 — the ac-02 equality check."
+          },
+          {
+            "level": "acceptance",
+            "scope": "fleet behaviour: appear within 2s, disappear within 2s, daemon restart, key rotation. Commands, not assertions in a test file."
+          }
+        ]
+      }
     },
     {
-     "id": "ac-0008",
-     "state": "unchecked",
-     "claim": "PIJ_SOURCE unset or =legacy leaves existing behaviour unchanged and `just fft` green.",
-     "pressure": "assets/backpressure.dd.json#rows/bp-0008"
+      "name": "documentation_strategy",
+      "value": {}
+    },
+    {
+      "name": "risks_assumptions",
+      "value": "ASSUMPTION, load-bearing: pij-rs is the fleet's future and the legacy daemon is being retired today. If that reverses, this plan is wasted work and the legacy path needs repair instead.\n\nRISK: the flip is gated on two items this repo does not own. plan-129 migrates the fleet into the rs roster (24 of 28 live seats are absent from it today); req-0040 adds a role writer (role is null on all 598 rs seats, so primes and PMs cross over unroled). Until both land, flipping renders a rail that is emptier and less governed than the one it replaces.\n\nRISK, discovered while planning: seat IDENTITY is not preserved across the daemons. One process (pid 69672, proc_start 20260824102712) is pij-chief-roadrunner in legacy and pij-lonely-antelope in rs. rs adopts INTO the row that already owns a pane (identity.rs:466-480), so a pre-claimed pane silently inherits the older id. Across the 28 live legacy seats: 1 same id, 3 renamed, 24 absent. chainglass cannot fix this and must not try — it renders what rs reports. Recorded because the rail will show unfamiliar names and that will look like a chainglass bug.\n\nCONSEQUENCE for verification: 'match the legacy reader for the same seat' is NOT a constructible proof for most of the fleet, because the two daemons disagree about which seat a process is. The acceptance criteria therefore measure against the LIVE rs daemon and against fleet behaviour (appear/disappear within 2s), never against legacy output."
+    },
+    {
+      "name": "open_questions",
+      "value": [
+        {
+          "id": "oq-0001",
+          "state": "unchecked",
+          "question": "Should chainglass render the old->new seat id mapping during the migration window, so an operator can find a seat by the name they know? Depends on whether Jordan holds the legacy shutdown for plan-129."
+        },
+        {
+          "id": "oq-0002",
+          "state": "unchecked",
+          "question": "Once upstream pij plan 138 phase 2 lands role metadata (formerly req-0040, currently unscheduled), does the rail's existing role and watchdog derivation (pij-status.contract.ts) work unchanged against rs vocabulary, or does it need a second mapping?"
+        },
+        {
+          "id": "oq-0004",
+          "state": "unchecked",
+          "question": "Until pij-rs reaps dead seats, a rail on rs shows corpses as healthy idle seats — 716 of 744 measured. Does chainglass ship that honestly (and how does the rail say it), or does the flip wait on upstream reaping? Roadmap question is with Jordan; the rendering question is ours either way. ENGINEERING CALL TAKEN (boa's reasoning, adopted): write the handling PERMANENT, not temporary. The asymmetry is one-sided — if reaping ships, permanent handling degrades to dead code deleted in an afternoon; if it does not ship, and a limitation with no owner and no date usually does not, temporary handling silently becomes a lie in a rail people trust."
+        }
+      ]
+    },
+    {
+      "name": "clarifications",
+      "value": []
+    },
+    {
+      "name": "planning_seam",
+      "value": []
+    },
+    {
+      "name": "gate_matrix",
+      "value": []
+    },
+    {
+      "name": "key_findings",
+      "value": []
+    },
+    {
+      "name": "acceptance_coverage",
+      "value": []
+    },
+    {
+      "name": "risks",
+      "value": []
+    },
+    {
+      "name": "execution_guardrails",
+      "value": []
     }
-   ]
-  },
-  {
-   "name": "phases",
-   "value": [
-    {
-     "id": "ph-0001",
-     "title": "Phase 1: rs reader behind the flag",
-     "brief": "HTTP client, RsPijRecords behind IPijRecords, single-subscriber event stream with cursor and key re-read, honest unavailable markers. Default stays legacy.",
-     "state": "unchecked",
-     "tasks": "assets/tasks/phase-1/tasks.dd.json#tasks"
-    }
-   ]
-  },
-  {
-   "name": "testing_strategy",
-   "value": {
-    "summary": "Unit tests own the mapping and the reconnect state machine; the acceptance bar is measured against a live daemon. The two are not interchangeable.",
-    "levels": [
-     {
-      "level": "unit",
-      "scope": "field mapping (rs seat -> PijListRow), cursor advance, backoff, 401 single-re-read state machine. Injected fetch, no network."
-     },
-     {
-      "level": "integration",
-      "scope": "RsPijRecords against a live pij-rs daemon on 127.0.0.1:7461 \u2014 the ac-02 equality check."
-     },
-     {
-      "level": "acceptance",
-      "scope": "fleet behaviour: appear within 2s, disappear within 2s, daemon restart, key rotation. Commands, not assertions in a test file."
-     }
-    ]
-   }
-  },
-  {
-   "name": "documentation_strategy",
-   "value": {}
-  },
-  {
-   "name": "risks_assumptions",
-   "value": "ASSUMPTION, load-bearing: pij-rs is the fleet's future and the legacy daemon is being retired today. If that reverses, this plan is wasted work and the legacy path needs repair instead.\n\nRISK: the flip is gated on two items this repo does not own. plan-129 migrates the fleet into the rs roster (24 of 28 live seats are absent from it today); req-0040 adds a role writer (role is null on all 598 rs seats, so primes and PMs cross over unroled). Until both land, flipping renders a rail that is emptier and less governed than the one it replaces.\n\nRISK, discovered while planning: seat IDENTITY is not preserved across the daemons. One process (pid 69672, proc_start 20260824102712) is pij-chief-roadrunner in legacy and pij-lonely-antelope in rs. rs adopts INTO the row that already owns a pane (identity.rs:466-480), so a pre-claimed pane silently inherits the older id. Across the 28 live legacy seats: 1 same id, 3 renamed, 24 absent. chainglass cannot fix this and must not try \u2014 it renders what rs reports. Recorded because the rail will show unfamiliar names and that will look like a chainglass bug.\n\nCONSEQUENCE for verification: 'match the legacy reader for the same seat' is NOT a constructible proof for most of the fleet, because the two daemons disagree about which seat a process is. The acceptance criteria therefore measure against the LIVE rs daemon and against fleet behaviour (appear/disappear within 2s), never against legacy output."
-  },
-  {
-   "name": "open_questions",
-   "value": [
-    {
-     "id": "oq-0001",
-     "state": "unchecked",
-     "question": "Should chainglass render the old->new seat id mapping during the migration window, so an operator can find a seat by the name they know? Depends on whether Jordan holds the legacy shutdown for plan-129."
-    },
-    {
-     "id": "oq-0002",
-     "state": "unchecked",
-     "question": "Once req-0040 lands a role writer, does the rail's existing role and watchdog derivation (pij-status.contract.ts) work unchanged against rs vocabulary, or does it need a second mapping?"
-    },
-    {
-     "id": "oq-0004",
-     "state": "unchecked",
-     "question": "Until pij-rs reaps dead seats, a rail on rs shows corpses as healthy idle seats \u2014 716 of 744 measured. Does chainglass ship that honestly (and how does the rail say it), or does the flip wait on upstream reaping? Roadmap question is with Jordan; the rendering question is ours either way. ENGINEERING CALL TAKEN (boa's reasoning, adopted): write the handling PERMANENT, not temporary. The asymmetry is one-sided \u2014 if reaping ships, permanent handling degrades to dead code deleted in an afternoon; if it does not ship, and a limitation with no owner and no date usually does not, temporary handling silently becomes a lie in a rail people trust."
-    }
-   ]
-  },
-  {
-   "name": "clarifications",
-   "value": []
-  },
-  {
-   "name": "planning_seam",
-   "value": []
-  },
-  {
-   "name": "gate_matrix",
-   "value": []
-  },
-  {
-   "name": "key_findings",
-   "value": []
-  },
-  {
-   "name": "acceptance_coverage",
-   "value": []
-  },
-  {
-   "name": "risks",
-   "value": []
-  },
-  {
-   "name": "execution_guardrails",
-   "value": []
-  }
- ],
- "references": []
+  ]
 }

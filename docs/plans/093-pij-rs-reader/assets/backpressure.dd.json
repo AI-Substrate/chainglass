@@ -1,117 +1,117 @@
 {
- "dd": {
-  "schema": "builder/backpressure"
- },
- "sections": [
-  {
-   "name": "meta",
-   "value": {
-    "title": "093 pij-rs reader \u2014 backpressure",
-    "slug": "pij-rs-reader",
-    "ordinal": 93
-   }
+  "dd": {
+    "schema": "builder/backpressure"
   },
-  {
-   "name": "sensors",
-   "value": [
+  "sections": [
     {
-     "id": "sn-0001",
-     "name": "live pij-rs daemon",
-     "note": "127.0.0.1:7461, bearer from ~/.pij-rs/daemon.key. Every criterion below is measured against the RUNNING daemon; a fixture cannot prove a reader tracks a fleet.",
-     "command": "curl -s -H \"Authorization: Bearer $(cat ~/.pij-rs/daemon.key)\" http://127.0.0.1:7461/v1/seats"
+      "name": "meta",
+      "value": {
+        "title": "093 pij-rs reader — backpressure",
+        "slug": "pij-rs-reader",
+        "ordinal": 93
+      }
     },
     {
-     "id": "sn-0002",
-     "name": "process table",
-     "note": "ps is the only honest witness that no child process is being spawned per tick \u2014 the defect this plan exists to remove.",
-     "command": "ps -Ao command | grep -c \"[c]li.ts list --json\""
+      "name": "sensors",
+      "value": [
+        {
+          "id": "sn-0001",
+          "name": "live pij-rs daemon",
+          "note": "127.0.0.1:7461, bearer from ~/.pij-rs/daemon.key. Every criterion below is measured against the RUNNING daemon; a fixture cannot prove a reader tracks a fleet.",
+          "command": "curl -s -H \"Authorization: Bearer $(cat ~/.pij-rs/daemon.key)\" http://127.0.0.1:7461/v1/seats"
+        },
+        {
+          "id": "sn-0002",
+          "name": "process table",
+          "note": "ps is the only honest witness that no child process is being spawned per tick — the defect this plan exists to remove.",
+          "command": "ps -Ao command | grep -c \"[c]li.ts list --json\""
+        }
+      ]
+    },
+    {
+      "name": "rows",
+      "value": [
+        {
+          "id": "bp-0001",
+          "criterion": "With PIJ_SOURCE=rs, next-server spawns no pij child process.",
+          "phase": "ph-0001",
+          "mode": "BUILD",
+          "tier": "computational",
+          "state": "unchecked",
+          "proof": "RUN: start dev with PIJ_SOURCE=rs, wait 60s, then `ps -Ao command | grep -c '[c]li.ts list --json'` -> must print 0.",
+          "note": "The pre-state is measured and on record: 2 in flight continuously, ~95% of a core, top two consumers on the machine."
+        },
+        {
+          "id": "bp-0002",
+          "criterion": "An RsPijRecords read of a live seat equals a direct /v1/seats read of the same id at the same moment.",
+          "phase": "ph-0001",
+          "mode": "BUILD",
+          "tier": "computational",
+          "state": "unchecked",
+          "proof": "RUN: `node scripts/verify-rs-reader.mjs --seat <live-id>` — reads both, diffs every mapped field, exits non-zero on mismatch.",
+          "note": "Deliberately NOT 'matches the legacy reader': the two daemons disagree about which seat a process IS (1 same id, 3 renamed, 24 absent across 28 live seats), and legacy is being retired. Comparing against a dying, inconsistent comparator would prove nothing."
+        },
+        {
+          "id": "bp-0003",
+          "criterion": "A seat that joins the fleet appears in the reader within the stream-recycle interval (30s), not 2s.",
+          "phase": "ph-0001",
+          "mode": "BUILD",
+          "tier": "computational",
+          "state": "unchecked",
+          "proof": "RUN: adopt a scratch pane, assert the id reaches the reader within one recycle interval. ALSO assert the resume cursor did NOT advance past the seat.put — i.e. a reconnect replays it.",
+          "note": "RE-SPECIFIED 2026-09-03 on review finding F1. The original 2s bar assumed /v1/events pushes every kind. Measured: it pushes message.pushed and delivery.outcome and does NOT push seat.put, report.state or report.now — a clean split along subsystem lines. My original 30ms receipt measured records.list(), not the event path: a real number attached to the wrong claim, mine, caught by the reviewer. 2s is unreachable without upstream fanning out registry writes; 30s is honest and finite. The second assertion is the load-bearing one — without it this row passes on a reader whose cursor has already burned the frame it is supposed to replay."
+        },
+        {
+          "id": "bp-0004",
+          "criterion": "NEGATIVE — the reader mirrors /v1/seats faithfully, INCLUDING tombstones once pij-rs sets them.",
+          "phase": "ph-0001",
+          "mode": "BUILD",
+          "tier": "computational",
+          "state": "unchecked",
+          "proof": "RUN: adopt a scratch pane, confirm it reaches the reader, kill it, then assert the reader's row for that id matches a direct /v1/seats read at the same moment — including tombstoned_at, whatever its value. The reader must never disagree with the daemon in either direction.",
+          "note": "RE-SPECIFIED 2026-09-03, and the original is kept here because the reason matters more than the row. It read 'a closed seat disappears from the reader within 2s'. That is UNMEETABLE: pij-rs does not reap or tombstone a dead seat. Measured — scratch seat pij-semantic-pennyroyal, pane killed, pid confirmed dead by ps, still listed untombstoned as state:'idle' 175s later. Census of the whole roster: 716 of 744 untombstoned paned seats (96%) point at panes that do not exist, and all 716 report 'idle'. Independently reproduced by pij-binding-magpie with a different script, same numbers to the row. An rs row carries no liveness key, so a corpse and a quiet live seat are BYTE-IDENTICAL. This is NOT a defect in the reader: bp-0002 compared 838 seats with zero field mismatches. The criterion was measuring pij-rs's behaviour, not ours. It is re-specified rather than dropped because dropping it would have hidden precisely this finding. KNOWN LIMITATION, tracked as oq-0004: until pij-rs reaps, a chainglass rail on rs shows dead seats as healthy idle ones. chainglass will NOT derive liveness from pid+proc_start — that re-implements pij's contract outside pij and would silently diverge the first time their definition of dead changes. Roadmap question routed to Jordan. METHOD GAP CLOSED BY pij-capitalist-boa, recorded because my control could not have caught it: `tmux list-panes -a` enumerates only the tmux server on the socket you are attached to, so a seat living in a DIFFERENT server (-L name, or another TMUX_TMPDIR) would be invisible and counted dead. My 28-alive control proves the matcher resolves panes in the server it can reach and says nothing about one it cannot. boa measured it instead of caveating it: /tmp/tmux-501 holds 5967 socket entries, but exactly TWO live servers (default, 60 panes; simple-demo, 1 non-pij pane) — 61 live panes total, so exposure is one pane in another project and the 716 stands. boa's incidental finding is the better one: 5967 socket files against 2 live servers is the SAME disease as the seat registry — dead things nothing reaps, and a listing that cannot tell them from live ones. That is an independent instance of this root cause on the same machine, which argues a missing reaper is a habit here rather than one gap in rs. Third symptom, also boa's: a send to a corpse fails with 'pane_in_mode ... expected 0 or 1 — update pij-tmux', which names a tmux capability problem and sends the reader off to upgrade a package. So the gap does not only render wrong, it CORRUPTS THE DIAGNOSTIC PATH. Three symptoms, one root: renders healthy, retries hundreds of times, errors misleadingly."
+        },
+        {
+          "id": "bp-0005",
+          "criterion": "The reader survives a daemon restart on its own, resuming from its cursor.",
+          "phase": "ph-0001",
+          "mode": "BUILD",
+          "tier": "computational",
+          "state": "unchecked",
+          "proof": "RUN: restart the rs daemon under a running chainglass; assert the event stream resumes from the last cursor with no chainglass restart and no gap in sequence.",
+          "note": "pij-rs done-bar 3."
+        },
+        {
+          "id": "bp-0006",
+          "criterion": "A rotated daemon.key causes exactly one 401-triggered re-read, then success.",
+          "phase": "ph-0001",
+          "mode": "BUILD",
+          "tier": "computational",
+          "state": "unchecked",
+          "proof": "RUN: against a scratch PIJ_RS_STATE_DIR, rotate daemon.key mid-session; assert one re-read and one successful retry, and that a second failure does NOT loop.",
+          "note": "Exercised against the real daemon with a scratch key file, not mocked — magpie's instruction. A mocked 401 proves the branch exists, not that the daemon accepts what we re-read."
+        },
+        {
+          "id": "bp-0007",
+          "criterion": "Fields pij-rs does not carry render as explicitly unavailable, never blank.",
+          "phase": "ph-0001",
+          "mode": "BUILD",
+          "tier": "computational",
+          "state": "unchecked",
+          "proof": "EXTEND->RUN: unit-assert watchdog/bindHealth/degraded map to an explicit unavailable marker; `pnpm vitest run test/unit/web/pij/`.",
+          "note": "Blank is a defect, not a cosmetic gap: an empty watchdog cell reads as 'your watchdog is off', which is false in the dangerous direction. This repo has already shipped one bug of exactly that shape (65f524ea9)."
+        },
+        {
+          "id": "bp-0008",
+          "criterion": "Default PIJ_SOURCE is rs; explicit legacy with PIJ_POLLER=on leaves existing behaviour unchanged.",
+          "phase": "ph-0001",
+          "mode": "EXTEND",
+          "tier": "computational",
+          "state": "unchecked",
+          "proof": "RUN: `just fft` green with PIJ_SOURCE unset (defaults to rs), and explicit PIJ_SOURCE=legacy PIJ_POLLER=on passes existing suite.",
+          "note": "AMENDED 2026-09-06 (F6): Default flipped to rs per packet u8; explicit PIJ_SOURCE=legacy PIJ_POLLER=on retained unchanged. Full verification runs with env unset."
+        }
+      ]
     }
-   ]
-  },
-  {
-   "name": "rows",
-   "value": [
-    {
-     "id": "bp-0001",
-     "criterion": "With PIJ_SOURCE=rs, next-server spawns no pij child process.",
-     "phase": "ph-0001",
-     "mode": "BUILD",
-     "tier": "computational",
-     "state": "unchecked",
-     "proof": "RUN: start dev with PIJ_SOURCE=rs, wait 60s, then `ps -Ao command | grep -c '[c]li.ts list --json'` -> must print 0.",
-     "note": "The pre-state is measured and on record: 2 in flight continuously, ~95% of a core, top two consumers on the machine."
-    },
-    {
-     "id": "bp-0002",
-     "criterion": "An RsPijRecords read of a live seat equals a direct /v1/seats read of the same id at the same moment.",
-     "phase": "ph-0001",
-     "mode": "BUILD",
-     "tier": "computational",
-     "state": "unchecked",
-     "proof": "RUN: `node scripts/verify-rs-reader.mjs --seat <live-id>` \u2014 reads both, diffs every mapped field, exits non-zero on mismatch.",
-     "note": "Deliberately NOT 'matches the legacy reader': the two daemons disagree about which seat a process IS (1 same id, 3 renamed, 24 absent across 28 live seats), and legacy is being retired. Comparing against a dying, inconsistent comparator would prove nothing."
-    },
-    {
-     "id": "bp-0003",
-     "criterion": "A seat that joins the fleet appears in the reader within the stream-recycle interval (30s), not 2s.",
-     "phase": "ph-0001",
-     "mode": "BUILD",
-     "tier": "computational",
-     "state": "unchecked",
-     "proof": "RUN: adopt a scratch pane, assert the id reaches the reader within one recycle interval. ALSO assert the resume cursor did NOT advance past the seat.put \u2014 i.e. a reconnect replays it.",
-     "note": "RE-SPECIFIED 2026-09-03 on review finding F1. The original 2s bar assumed /v1/events pushes every kind. Measured: it pushes message.pushed and delivery.outcome and does NOT push seat.put, report.state or report.now \u2014 a clean split along subsystem lines. My original 30ms receipt measured records.list(), not the event path: a real number attached to the wrong claim, mine, caught by the reviewer. 2s is unreachable without upstream fanning out registry writes; 30s is honest and finite. The second assertion is the load-bearing one \u2014 without it this row passes on a reader whose cursor has already burned the frame it is supposed to replay."
-    },
-    {
-     "id": "bp-0004",
-     "criterion": "NEGATIVE \u2014 the reader mirrors /v1/seats faithfully, INCLUDING tombstones once pij-rs sets them.",
-     "phase": "ph-0001",
-     "mode": "BUILD",
-     "tier": "computational",
-     "state": "unchecked",
-     "proof": "RUN: adopt a scratch pane, confirm it reaches the reader, kill it, then assert the reader's row for that id matches a direct /v1/seats read at the same moment \u2014 including tombstoned_at, whatever its value. The reader must never disagree with the daemon in either direction.",
-     "note": "RE-SPECIFIED 2026-09-03, and the original is kept here because the reason matters more than the row. It read 'a closed seat disappears from the reader within 2s'. That is UNMEETABLE: pij-rs does not reap or tombstone a dead seat. Measured \u2014 scratch seat pij-semantic-pennyroyal, pane killed, pid confirmed dead by ps, still listed untombstoned as state:'idle' 175s later. Census of the whole roster: 716 of 744 untombstoned paned seats (96%) point at panes that do not exist, and all 716 report 'idle'. Independently reproduced by pij-binding-magpie with a different script, same numbers to the row. An rs row carries no liveness key, so a corpse and a quiet live seat are BYTE-IDENTICAL. This is NOT a defect in the reader: bp-0002 compared 838 seats with zero field mismatches. The criterion was measuring pij-rs's behaviour, not ours. It is re-specified rather than dropped because dropping it would have hidden precisely this finding. KNOWN LIMITATION, tracked as oq-0004: until pij-rs reaps, a chainglass rail on rs shows dead seats as healthy idle ones. chainglass will NOT derive liveness from pid+proc_start \u2014 that re-implements pij's contract outside pij and would silently diverge the first time their definition of dead changes. Roadmap question routed to Jordan. METHOD GAP CLOSED BY pij-capitalist-boa, recorded because my control could not have caught it: `tmux list-panes -a` enumerates only the tmux server on the socket you are attached to, so a seat living in a DIFFERENT server (-L name, or another TMUX_TMPDIR) would be invisible and counted dead. My 28-alive control proves the matcher resolves panes in the server it can reach and says nothing about one it cannot. boa measured it instead of caveating it: /tmp/tmux-501 holds 5967 socket entries, but exactly TWO live servers (default, 60 panes; simple-demo, 1 non-pij pane) \u2014 61 live panes total, so exposure is one pane in another project and the 716 stands. boa's incidental finding is the better one: 5967 socket files against 2 live servers is the SAME disease as the seat registry \u2014 dead things nothing reaps, and a listing that cannot tell them from live ones. That is an independent instance of this root cause on the same machine, which argues a missing reaper is a habit here rather than one gap in rs. Third symptom, also boa's: a send to a corpse fails with 'pane_in_mode ... expected 0 or 1 \u2014 update pij-tmux', which names a tmux capability problem and sends the reader off to upgrade a package. So the gap does not only render wrong, it CORRUPTS THE DIAGNOSTIC PATH. Three symptoms, one root: renders healthy, retries hundreds of times, errors misleadingly."
-    },
-    {
-     "id": "bp-0005",
-     "criterion": "The reader survives a daemon restart on its own, resuming from its cursor.",
-     "phase": "ph-0001",
-     "mode": "BUILD",
-     "tier": "computational",
-     "state": "unchecked",
-     "proof": "RUN: restart the rs daemon under a running chainglass; assert the event stream resumes from the last cursor with no chainglass restart and no gap in sequence.",
-     "note": "pij-rs done-bar 3."
-    },
-    {
-     "id": "bp-0006",
-     "criterion": "A rotated daemon.key causes exactly one 401-triggered re-read, then success.",
-     "phase": "ph-0001",
-     "mode": "BUILD",
-     "tier": "computational",
-     "state": "unchecked",
-     "proof": "RUN: against a scratch PIJ_RS_STATE_DIR, rotate daemon.key mid-session; assert one re-read and one successful retry, and that a second failure does NOT loop.",
-     "note": "Exercised against the real daemon with a scratch key file, not mocked \u2014 magpie's instruction. A mocked 401 proves the branch exists, not that the daemon accepts what we re-read."
-    },
-    {
-     "id": "bp-0007",
-     "criterion": "Fields pij-rs does not carry render as explicitly unavailable, never blank.",
-     "phase": "ph-0001",
-     "mode": "BUILD",
-     "tier": "computational",
-     "state": "unchecked",
-     "proof": "EXTEND->RUN: unit-assert watchdog/bindHealth/degraded map to an explicit unavailable marker; `pnpm vitest run test/unit/web/pij/`.",
-     "note": "Blank is a defect, not a cosmetic gap: an empty watchdog cell reads as 'your watchdog is off', which is false in the dangerous direction. This repo has already shipped one bug of exactly that shape (65f524ea9)."
-    },
-    {
-     "id": "bp-0008",
-     "criterion": "PIJ_SOURCE unset or =legacy leaves existing behaviour unchanged.",
-     "phase": "ph-0001",
-     "mode": "EXTEND",
-     "tier": "computational",
-     "state": "unchecked",
-     "proof": "RUN: `just fft` green with PIJ_SOURCE unset.",
-     "note": "The flip is out of scope; default must not move."
-    }
-   ]
-  }
- ]
+  ]
 }

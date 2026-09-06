@@ -34,14 +34,14 @@ These rows require committed commands; preliminary observations above are NOT ac
 
 | Row | State | Command / exit / number |
 |---|---|---|
-| bp-0001 | BLOCKED — needs restart | Jordan must restart dev with no env overrides; not run. |
+| bp-0001 | READ — prime's startup pass below; correction runtime pending | The prime ran the initial rs bootstrap after Jordan's restart (0 CLI list children, 918 rows). Current hierarchy/focus adapter correction still needs a fresh dev restart and own browser proof. |
 | bp-0002 | RAN — pass | `node scripts/verify-rs-reader.mjs --all`, exit 0: 913 rows matched every carried/additive field, zero mismatches, 96 tombstoned rows, one seats + one state read. |
 | bp-0003 | RAN — pass | `node scripts/verify-rs-reader.mjs --watch-pane %3808 --timeout-ms 60000`, exit 0. Local stdin trigger → appearance **3,082.31ms upper bound**. First seat.put **14602** (at 0) arrived on connection **3**; pushed **14603/14604** arrived earlier on connection **2**; reconnect `since` stayed **14599**. Three checked since maps; no skipped descriptor. |
 | bp-0004 | RAN — pass | Created isolated cg-rs-proof-093 pane %3806, adopted inside that pane → pij-yielding-dijkstra, then `tmux kill-session -t cg-rs-proof-093`, exit 0. `node scripts/verify-rs-reader.mjs --seat pij-yielding-dijkstra`, exit 0: one row matched direct source including ABSENT tombstone fields. Above --all also checked 96 actual tombstones. |
 | bp-0005 | BLOCKED — needs authorization | Shared daemon restart requires Jordan's explicit word; not run. |
 | bp-0006 | RAN — pass | `node scripts/verify-rs-reader.mjs --auth`, exit 0: actual HTTP 401/200 with exactly 2 attempts, and terminal 401/401 with exactly 2 attempts; scratch key only. |
-| bp-0007 | RAN — pass | `pnpm vitest run test/unit/web/pij`, exit 0: 478 tests, including unavailable partition, existing watchdog vocabulary and 15 new UI/capability cases. |
-| bp-0008 | RAN — code gates pass; audit exception | Final `just fft`, exit 1 ONLY at security-audit. Lint/format 1,804 files; production build; all 9 workspace tsconfigs; **547 test files / 7,286 tests passed**, 8 files / 63 tests skipped. Explicit legacy bootstrap/kill-switch tests passed. Audit: unchanged **124 advisories (6 critical, 41 high, 68 moderate, 9 low)** under acknowledged publication exception. |
+| bp-0007 | RAN — pass | Latest correction run: `pnpm vitest run test/unit/web/pij`, exit 0, **548 tests / 35 files**. Initial 478-test count predated four late fixes (482 at bc57d806d); this run includes hierarchy/focus/status and review regressions. |
+| bp-0008 | RAN — code gates pass; audit exception | Latest hierarchy/focus correction `just fft`, exit 1 ONLY at security-audit. Lint/format 1,804 files; production build; all 9 workspace tsconfigs; **547 test files / 7,352 tests passed**, 8 files / 63 tests skipped. Explicit legacy tests passed. Audit unchanged: **124 advisories (6 critical, 41 high, 68 moderate, 9 low)** under the acknowledged exception. |
 
 ## Proof boundaries
 
@@ -71,7 +71,7 @@ Harness improvement: add a scoped report-output allowance and fail fast on missi
 
 ## Browser boundary
 
-Owned headless page authenticated through the supported `/api/bootstrap/verify` endpoint using the local bootstrap-code file; credential never printed or copied into an artifact. Browser interaction wrappers timed out on fill/type/screenshot, while navigation/evaluation worked. Current host page remains degraded with 0 rows because its HMR-persisted singleton predates the default flip. Jordan was asked to run `just dev` without source overrides. No fake endpoint responses or manual singleton reset used. Docker verification container is absent; no container started.
+Before initial publication, the owned headless page authenticated through supported `/api/bootstrap/verify` using the local bootstrap-code file; credential never printed or copied. Fill/type/screenshot wrappers timed out while navigation/evaluation worked. At that point the host's pre-flip singleton was degraded with zero rows. Jordan subsequently restarted dev, and the prime's receipt below records the initial rs bootstrap proof. No fake endpoint responses or manual singleton reset were used. Docker verification container was absent.
 
 ## bp-0001 — RAN by pij-lonely-antelope after Jordan's `just dev` restart (2026-09-06 ~08:07Z)
 
@@ -79,3 +79,24 @@ Owned headless page authenticated through the supported `/api/bootstrap/verify` 
 - Dev server pid 36201 on :3000, no env overrides (Jordan's restart, not mine).
 - `GET /api/pij/fleet` from the unlocked page: `running:true, fleetSize:918, seq:15065, lastError:null`, 918 rows.
 - Row state: **RAN — pass.** The one row silkworm could not run without the operator.
+
+## Post-push hierarchy and focus correction — in progress
+
+Authority: `REVIEW-bc57d806d.md` and Jordan's screenshot showing a flat ROLE UNKNOWN rail. All six review findings were upheld. No role is inferred from a name or parent position.
+
+- **F1**: rs `nodeShow` now reads the exact id from the same fresh `/v1/seats` source. Focus validates pane existence, pid/start identity and process ancestry using bounded read-only probes, then rechecks the pane/window before selecting. Legacy focus remains separate.
+- **F2**: rs tree now projects real `parent` links, with repository-family scope via existing `IGitWorktreeResolver`. Tree API carries `structureSource: rs-parent-links` and role provenance. Real adapter + real git resolver returned Antelope with Zakalwe and Chickadee as children. The rail uses compact unclassified rows, one source notice, and preserves actual report cards regardless of missing roles.
+- **F3**: captured payloads drive explicit scripted same-seat/cursor regression scenarios; no fabricated transcript files. Both spawn kinds are tested through `getPijPoller`'s actual callback and remain excluded from resume.
+- **F4**: current focused proof count is 548 tests / 35 files, exit 0.
+- **F5**: unknown source values warn at construction while the pure selector still defaults to rs.
+- **F6**: `ddocs set` + build updated the generated default-source criteria and added Amendment 7, including the same-source tree/detail cutover.
+
+`pnpm biome check --write` over affected source/tests passed. Full correction `just fft` completed in **384.85s**: build, lint/format, all nine workspace typechecks, **547 files / 7,352 tests passed**, 63 tests skipped. All **3,951 output lines** were read. Only the acknowledged 124-advisory security audit failed. Role projection remains upstream **pij plan 138 phase 2, unscheduled**; probe cleanup has no supported rs API, so no sqlite edits or ID-specific hiding were added and no further probe seats were created.
+
+**New runtime proof remains blocked:** the actual owned browser loaded the compact UI, but `/api/pij/tree` still returned the old HMR-held composite (no rs provenance, one legacy root, no Antelope group). Jordan was asked to restart `just dev` again after this adapter change. The earlier bp-0001 bootstrap pass is not substituted for current hierarchy/focus verification.
+
+Independent read-only review of the hierarchy/focus correction returned **no material findings** (confidence 0.88). It covered source identity, repository scoping, process/pane guards, card retention and tree refresh; it did not run commands or claim browser proof. All three `ddocs build --check <file>` runs passed with `drift:false` for plan, implementation guide and backpressure documents.
+
+Operator alert `2026-09-06T08-29-42-254Z_00009e` requested only the dev restart needed for current runtime proof. Screenshot/protocol attempts also timed out; DOM evaluation and live API reads worked. No services, real-seat records or new probe registrations were changed during this correction.
+
+The prime authorized commit/push before the operator restart, with the mandatory commit-body caveat: **live hierarchy/focus acceptance pending dev restart; not claimed**. A fresh-page receipt must follow the restart; source/test proof is not substituted for it. Existing `.serena/project.yml` and the failed runner's untracked `docs/retros/code-review.md` remain outside this change.

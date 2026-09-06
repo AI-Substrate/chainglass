@@ -133,6 +133,8 @@ export interface UsePijFleetResult {
   seq: number;
   phase: 'connecting' | 'live' | 'degraded';
   tree: PijTreeNode[];
+  structureSource?: TreeSnapshotData['structureSource'];
+  rolesUnavailable?: boolean;
   /** tmux window labels keyed by node `windowId` (`@12` → `3:cheetah`); empty when tmux is unreachable. */
   windows: Record<string, string>;
   flows: FlowSummary[];
@@ -194,12 +196,16 @@ export function usePijFleet(options: UsePijFleetOptions): UsePijFleetResult {
   );
 
   const [rowsById, setRowsById] = useState<Map<PijId, FleetRow>>(() => new Map());
+  const rowsByIdRef = useRef(rowsById);
+  rowsByIdRef.current = rowsById;
   const [status, setStatus] = useState<PollerStatus | null>(null);
   const [statuses, setStatuses] = useState<PijStatusRecord[]>([]);
   const [livenessUnavailable, setLivenessUnavailable] = useState<boolean>();
   const [statusesUnavailable, setStatusesUnavailable] = useState<boolean>();
   const [seq, setSeq] = useState(0);
   const [tree, setTree] = useState<PijTreeNode[]>([]);
+  const [structureSource, setStructureSource] = useState<TreeSnapshotData['structureSource']>();
+  const [rolesUnavailable, setRolesUnavailable] = useState<boolean>();
   const [windows, setWindows] = useState<Record<string, string>>({});
   const [flows, setFlows] = useState<FlowSummary[]>([]);
   const [treeIds, setTreeIds] = useState<Set<string>>(() => new Set());
@@ -272,6 +278,8 @@ export function usePijFleet(options: UsePijFleetOptions): UsePijFleetResult {
       // is what makes membership RE-DERIVE when a tree read lands after the rows it places.
       setTreeIds(ids);
       setTree(snapshot.data.roots);
+      setStructureSource(snapshot.data.structureSource);
+      setRolesUnavailable(snapshot.data.rolesUnavailable);
       setWindows(snapshot.data.windows ?? {});
       setErrors((prev) => ({ ...prev, tree: null }));
     } catch (error) {
@@ -427,7 +435,7 @@ export function usePijFleet(options: UsePijFleetOptions): UsePijFleetResult {
 
     let flowsRejected = 0;
     let highestSeq = 0;
-    let unknownId = false;
+    let treeChanged = false;
     let latestStatus: PollerStatus | null = null;
     const applicable: Array<Extract<PijChannelEvent, { type: 'fleet-delta' }>> = [];
     const applicableFlows: FlowSummary[] = [];
@@ -470,11 +478,20 @@ export function usePijFleet(options: UsePijFleetOptions): UsePijFleetResult {
       applicable.push(event);
       highestSeq = Math.max(highestSeq, event.seq);
       for (const row of event.rows) {
+        const previous = rowsByIdRef.current.get(row.id);
+        if (
+          previous &&
+          (previous.extra.parent !== row.extra.parent ||
+            previous.orchestrationRole !== row.orchestrationRole ||
+            previous.folder !== row.folder)
+        ) {
+          treeChanged = true;
+        }
         // A row the tree has not placed AND the path does not claim may still belong here — the tree
         // read is simply older than the seat. Refetching is how it gets its chance; dropping it was
         // the bug.
         if (!treeIdsRef.current.has(row.id) && isFolderInWorkspacePath(row.folder, workspacePath))
-          unknownId = true;
+          treeChanged = true;
       }
     }
 
@@ -508,7 +525,7 @@ export function usePijFleet(options: UsePijFleetOptions): UsePijFleetResult {
     if (flowsRejected > 0) setFlowsFilteredOut((count) => count + flowsRejected);
     if (highestSeq > 0) setSeq((current) => Math.max(current, highestSeq));
     if (latestStatus) setStatus(latestStatus);
-    if (unknownId) scheduleTreeRefetch();
+    if (treeChanged) scheduleTreeRefetch();
   }, [messages, receivedCount, snapshotToken, workspacePath, scope, scheduleTreeRefetch]);
 
   /*
@@ -544,7 +561,11 @@ export function usePijFleet(options: UsePijFleetOptions): UsePijFleetResult {
   const phase: UsePijFleetResult['phase'] =
     snapshotSeqRef.current === null
       ? 'connecting'
-      : errors.fleet !== null || status === null || !status.running || status.lastError !== null
+      : errors.fleet !== null ||
+          errors.tree !== null ||
+          status === null ||
+          !status.running ||
+          status.lastError !== null
         ? 'degraded'
         : 'live';
 
@@ -557,6 +578,8 @@ export function usePijFleet(options: UsePijFleetOptions): UsePijFleetResult {
     seq,
     phase,
     tree,
+    structureSource,
+    rolesUnavailable,
     windows,
     flows,
     filteredOut,

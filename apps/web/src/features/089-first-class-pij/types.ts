@@ -220,6 +220,9 @@ export interface FleetSnapshotData {
 export interface TreeSnapshotData {
   workspace: string | null;
   roots: PijTreeNode[];
+  /** Explicit parent links from the same source as the roster; never a role inference. */
+  structureSource?: 'rs-parent-links';
+  rolesUnavailable?: boolean;
   /**
    * tmux window labels keyed by `windowId` (`@12` → `3:cheetah`), joined at read time so the rail
    * can name the window a seat lives in. Absent when tmux is unreachable — the line simply doesn't

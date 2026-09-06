@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type {
   Cursor,
@@ -12,6 +14,28 @@ import {
   type RsEventStreamStatus,
   createRsEventStream,
 } from '../../../../apps/web/src/features/089-first-class-pij/server/rs/rs-event-stream';
+
+const captured = readFileSync(
+  join(
+    import.meta.dirname,
+    '../../../../docs/plans/093-pij-rs-reader/assets/inputs/live-report-frames-6012-14473.ndjson'
+  ),
+  'utf8'
+)
+  .trim()
+  .split('\n')
+  .map((line) => JSON.parse(line) as RsCursorEvent);
+
+const resetFrames = readFileSync(
+  join(
+    import.meta.dirname,
+    '../../../../docs/plans/093-pij-rs-reader/assets/inputs/live-reset-frames-12639-12672.ndjson'
+  ),
+  'utf8'
+)
+  .trim()
+  .split('\n')
+  .map((line) => JSON.parse(line) as RsCursorEvent);
 
 type EventScript = (
   from: Cursor | undefined,
@@ -250,6 +274,51 @@ describe('createRsEventStream', () => {
     stream.stop();
     expect(client.eventCalls).toEqual([undefined, { local: 10 }]);
   });
+
+  it.each(['spawn.bound', 'spawn.failed'])(
+    'does not resume past a missing descriptor after successfully applying pushed %s',
+    async (kind) => {
+      const [report, descriptor] = resetFrames;
+      const spawn = captured.find((frame) => frame.event.kind === kind);
+      if (!spawn) throw new Error(`Missing captured ${kind}`);
+      // Scripted regression, NOT a wire capture: move only the pushed cursor beyond the
+      // missing descriptor. All report/spawn payloads, identities and timestamps are captured.
+      const pushed: RsCursorEvent = { ...spawn, cursor: descriptor.cursor + 1 };
+      let replayed!: () => void;
+      const replaySeen = new Promise<void>((resolve) => {
+        replayed = resolve;
+      });
+      const client = new FakeRsClient([
+        async function* () {
+          yield report;
+          yield pushed;
+          throw new Error('scripted disconnect after pushed spawn');
+        },
+        async function* (_from, signal) {
+          yield descriptor;
+          replayed();
+          await waitForAbort(signal);
+        },
+      ]);
+      const applied: RsCursorEvent[] = [];
+      const stream = createRsEventStream({
+        client,
+        onEvent: (frame) => {
+          applied.push(frame);
+        },
+        onStatus: () => {},
+        sleep: async () => {},
+      });
+      stream.start();
+      try {
+        await replaySeen;
+        expect(applied).toEqual([report, pushed, descriptor]);
+        expect(client.eventCalls).toEqual([undefined, { [report.machine]: report.cursor }]);
+      } finally {
+        stream.stop();
+      }
+    }
+  );
 
   it('backs off when each socket sends hello then fails without an event', async () => {
     const client = new FakeRsClient(

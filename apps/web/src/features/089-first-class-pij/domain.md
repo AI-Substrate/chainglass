@@ -24,8 +24,8 @@ a rule written down in that contract — never guessed, never estimated.
 - **CLI record reads** (`server/pij-records.ts`) — `pij list/tree/node show/state --json` via
   `execFile` with fixed argv and a per-call `cwd`; record *paths* are explicitly not stable, so
   records are never read from disk
-- **rs reads** (`server/rs/`) — the default global roster/state reader and one NDJSON subscriber.
-  `PIJ_SOURCE=legacy PIJ_POLLER=on` retains the legacy path; tree/node detail remain per-request CLI reads.
+- **rs reads** (`server/rs/`) — default roster/state plus parent-link forest and fresh node detail from the same HTTP identity space, with one NDJSON subscriber.
+  `PIJ_SOURCE=legacy PIJ_POLLER=on` retains the legacy path; only the composite's raw escape still delegates to CLI under rs.
 - **Flow reader** (`server/flow-reader.ts`) — the five ruled absence states of a plan folder
   (`live` · `legacy` · `untracked` · `not-started` · `corrupt`) plus the phase rail, activations and
   review state derived from a live flight plan
@@ -66,6 +66,7 @@ a rule written down in that contract — never guessed, never estimated.
 | `createRsClient()` / `createRsPijRecords()` | Factories | composite adapter | Authenticated HTTP; explicit model/provider mapping and consumer-field unavailable partition |
 | `createRsEventStream()` | Factory | bootstrap | One subscriber, 5s recycle, replay-only resume cursor; fresh processes replay from per-machine zero |
 | `FleetSnapshotData` capabilities | Type | rail, fleet/global views | `livenessUnavailable` distinguishes an unknowable live count from an empty roster; `statusesUnavailable` describes card capability |
+| `TreeSnapshotData` provenance | Type | rail, tree views | `structureSource: rs-parent-links`, `rolesUnavailable`; explicit links are not inferred roles |
 | `IFlowReader` | Interface | poller, routes | `read(planDir)` → `FlowSummary`; `scan(plansDir)` → all plan folders |
 | `createFlowReader()` | Factory | bootstrap | fs-backed adapter |
 | `PijChannelEvent` | Type | poller, browser | The `pij` channel union: `fleet-delta` · `flow-delta` · `status-delta` · `poller-status` |
@@ -89,9 +90,10 @@ a rule written down in that contract — never guessed, never estimated.
 |----------|-------|
 | Effect | `execFile('tmux', ['select-window', '-t', windowId])` — fixed argv, no shell, 3s timeout |
 | Trigger | A human clicking the row's focus button. **Nothing else** — no effect, timer, or self-firing handler may reach it, statically asserted at both ends |
-| Window id | Resolved server-side from a FRESH `node show` at click time; never accepted from the request |
-| Containment | `detail.cwd` (NOT `folder` — `node show` has no such key) against the `workspace` param, same relative-path rule as the fleet join |
-| Refusals | `unknown-seat` 404 · `out-of-workspace` 409 · `not-live` 409 · `no-window` 409 · `store-unreadable` 503, each with a fixed observation wording the client renders verbatim |
+| Window id | Legacy: fresh `node show`. rs: fresh seat detail, then actual pane/window read at click time; never supplied by the client |
+| Containment | `detail.cwd` within the workspace or its actual git worktree family; unrelated ancestors are never included merely to make a tree |
+| rs identity guard | Pane exists; pid/start match the local process table; process belongs to pane's pid ancestry; pane/window rechecked before selection. No stored liveness derivation |
+| Refusals | `unknown-seat`, `out-of-workspace`, `not-live`, `no-window`, rs `no-process` / `no-pane` / `identity-unverified`, and separate `store-unreadable` / `tmux-refused` observations |
 | Fence | The single carve-out in the C-02 tmux assertion, replaced by a stricter companion (`fence.test.ts`) — proven with planted offenders |
 
 ## Ruled Constraints (bind every line in this domain)
@@ -215,3 +217,4 @@ test/
 | 089 Phase 4 | Global tree read (`tree --global`) + `--badge` adoption; the machine-wide `/pij` page (snapshot-only by design); the overlay (5th F-14 sibling + ADR-0009); **`POST /api/pij/focus`, the one mutation**, with its fence carve-out and both-ends audit | 2026-07-26 |
 | 090 | Replaced the workspace overlay with the file-browser PIJ rail; added JC-1/2/3 seams, live PM status, role-aware grouping, main-checkout scoping, row focus, and route-aware toggle navigation | 2026-07-29 |
 | 093 | Default rs HTTP reader; replay-safe cursors and 5s recycling; real report cards and semantic notes; mapped binding facts, typed tombstone cursors and explicit unavailable liveness | 2026-09-06 |
+| 093 review corrections | Replaced mixed-source hierarchy/focus reads with rs parent forest and fresh identity; compact unclassified rail, visible actual reports, click-time process guards, source warnings and generated-plan alignment | 2026-09-06 |

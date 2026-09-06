@@ -194,6 +194,23 @@ function findAll(files: SourceFile[], pattern: RegExp): string[] {
     .map((file) => `${file.path}: ${pattern.exec(file.code)?.[0]}`);
 }
 
+/** Only these complete argv shapes may cross the focus route's process seam. */
+function focusCommandOffenders(code: string): string[] {
+  const allowed = new Set([
+    "execute('tmux',[SELECT_WINDOW,'-t',windowId],{timeoutMs:FOCUS_TIMEOUT_MS})",
+    "execute('tmux',['display-message','-p','-t',paneId,PANE_FORMAT],{timeoutMs:FOCUS_TIMEOUT_MS})",
+    "execute('ps',['-axo',PROCESS_COLUMNS],{timeoutMs:FOCUS_TIMEOUT_MS})",
+  ]);
+  return [...code.matchAll(/\bexecute\s*\([\s\S]*?\)\s*;/g)]
+    .map((match) =>
+      match[0]
+        .replace(/\s+/g, '')
+        .replace(/,([}\])])/g, '$1')
+        .replace(/;$/, '')
+    )
+    .filter((call) => !allowed.has(call));
+}
+
 describe('C-02 fence — the feature writes to nothing (AC-11)', () => {
   it('guards a non-empty set of source files (the check itself must not silently cover zero)', async () => {
     /*
@@ -470,7 +487,7 @@ describe('C-02 fence — the feature writes to nothing (AC-11)', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('the focus route drives tmux with `select-window` and nothing else (C-06, companion)', async () => {
+  it('the focus route only selects windows after fixed read-only probes (C-06, companion)', async () => {
     /*
     Test Doc:
     - Why: the assertion above stops looking at this file, so on its own it would let `send-keys`
@@ -482,10 +499,9 @@ describe('C-02 fence — the feature writes to nothing (AC-11)', () => {
       this route handler").
     - Usage Notes: mirrors the `pij-records.ts` denylist and `flow-watcher.ts` target precedents — the
       narrowed check is strictly more specific than the general one it replaces.
-    - Quality Contribution: turns "we only focus" from a code-review opinion into a check that fails
-      the moment a second tmux verb appears.
-    - Worked Example: one `select-window`, argv ['select-window','-t',windowId], via execFile, from
-      the exported handler only.
+    - Quality Contribution: permits only the identity observations needed for rs focus, never generic
+      process commands; the allowed mutation remains a single window selection on a human click.
+    - Worked Example: display-message, one ps table, display-message, then select-window.
     */
     const code = toCode(await readFile(join(REPO_ROOT, FOCUS_ROUTE), 'utf8'));
 
@@ -500,10 +516,18 @@ describe('C-02 fence — the feature writes to nothing (AC-11)', () => {
     const selectWindows = [...code.matchAll(/select-window/g)];
     expect(selectWindows).toHaveLength(1);
     expect(code).toMatch(/SELECT_WINDOW\s*=\s*'select-window'/);
-    expect(code).toMatch(/\[SELECT_WINDOW,\s*'-t',\s*detail\.windowId\]/);
+    expect(code).toMatch(/\[SELECT_WINDOW,\s*'-t',\s*windowId\]/);
+    expect(code).toMatch(/PANE_FORMAT\s*=\s*'#\{pane_id\} #\{pane_pid\} #\{window_id\}'/);
+    expect(code).toMatch(/PROCESS_COLUMNS\s*=\s*'pid=,ppid=,lstart='/);
+    expect([...code.matchAll(/\bexecute\s*\(/g)]).toHaveLength(3);
+    expect(focusCommandOffenders(code)).toEqual([]);
 
     // 3. Through execFile with a fixed argv array — never a shell, never a command string.
-    expect(code).toMatch(/execFile\(command,\s*\[\.\.\.args\]/);
+    expect([...code.matchAll(/\bexecFile\s*\(/g)]).toHaveLength(1);
+    expect(code).toMatch(/execFile\(\s*command,\s*\[\.\.\.args\]/);
+    expect(code).toMatch(/timeout:\s*options\.timeoutMs/);
+    expect(code).toMatch(/maxBuffer:\s*1024\s*\*\s*1024/);
+    expect(code).toMatch(/LC_ALL:\s*'C'/);
     expect(code).not.toMatch(/execSync|shell:\s*true/);
 
     // 4. And nothing in this file can fire on its own: no timer, no listener, no module-level call.
@@ -512,6 +536,26 @@ describe('C-02 fence — the feature writes to nothing (AC-11)', () => {
       expect(code, `${trigger} would make focus reachable without a human`).not.toContain(trigger);
     }
     expect(code).toMatch(/export async function handlePijFocusRequest/);
+  });
+
+  it.each([
+    "await execute('tmux', ['send-keys', '-t', paneId, 'exit'], { timeoutMs: FOCUS_TIMEOUT_MS });",
+    "await execute('tmux', ['set-environment', 'ANY', 'value'], { timeoutMs: FOCUS_TIMEOUT_MS });",
+    "await execute('sh', ['-c', 'touch /tmp/offender'], { timeoutMs: FOCUS_TIMEOUT_MS });",
+    'await execute(command, args, { timeoutMs: FOCUS_TIMEOUT_MS });',
+    "await execute('ps', ['-p', pid], { timeoutMs: FOCUS_TIMEOUT_MS });",
+  ])('the focus carve-out rejects injected generic commands: %s', (offender) => {
+    expect(focusCommandOffenders(toCode(offender))).toHaveLength(1);
+  });
+
+  it('the general fence still catches a selection outside the focus route', () => {
+    const offender = {
+      path: TMUX_FREE_WITNESSES[0],
+      code: "execute('tmux', ['select-window', '-t', '@1']);",
+    };
+    expect(findAll([offender], /\b(send-keys|select-window|tmux\b|attach-session)/m)).toHaveLength(
+      1
+    );
   });
 
   it('the window-label reader observes with `list-windows` and nothing else (companion)', async () => {

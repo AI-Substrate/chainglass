@@ -64,7 +64,7 @@ pij-rs answers the same question over HTTP in 113ms for 598 seats, and offers an
 | ac-0005 | The reader survives an rs daemon restart on its own, resuming from its cursor without a chainglass restart. | [ ] unchecked | — | — | [bp-0005](assets/backpressure.dd.md#rows) | — |
 | ac-0006 | A rotated daemon.key produces exactly one 401-triggered re-read, then success, and does not loop on a second failure. | [ ] unchecked | — | — | [bp-0006](assets/backpressure.dd.md#rows) | — |
 | ac-0007 | watchdog, bindHealth and degraded render as explicitly unavailable from pij-rs, never blank and never synthesised. | [ ] unchecked | — | — | [bp-0007](assets/backpressure.dd.md#rows) | — |
-| ac-0008 | PIJ_SOURCE unset or =legacy leaves existing behaviour unchanged and `just fft` green. | [ ] unchecked | — | — | [bp-0008](assets/backpressure.dd.md#rows) | — |
+| ac-0008 | Default PIJ_SOURCE is rs; explicit legacy with PIJ_POLLER=on leaves existing behaviour unchanged and `just fft` green with env unset. | [ ] unchecked | — | — | [bp-0008](assets/backpressure.dd.md#rows) | — |
 
 <a id="phases"></a>
 
@@ -116,7 +116,7 @@ CONSEQUENCE for verification: 'match the legacy reader for the same seat' is NOT
 | question | state | note | id |
 | --- | --- | --- | --- |
 | Should chainglass render the old-&gt;new seat id mapping during the migration window, so an operator can find a seat by the name they know? Depends on whether Jordan holds the legacy shutdown for plan-129. | [ ] unchecked | — | oq-0001 |
-| Once req-0040 lands a role writer, does the rail's existing role and watchdog derivation (pij-status.contract.ts) work unchanged against rs vocabulary, or does it need a second mapping? | [ ] unchecked | — | oq-0002 |
+| Once upstream pij plan 138 phase 2 lands role metadata (formerly req-0040, currently unscheduled), does the rail's existing role and watchdog derivation (pij-status.contract.ts) work unchanged against rs vocabulary, or does it need a second mapping? | [ ] unchecked | — | oq-0002 |
 | Until pij-rs reaps dead seats, a rail on rs shows corpses as healthy idle seats — 716 of 744 measured. Does chainglass ship that honestly (and how does the rail say it), or does the flip wait on upstream reaping? Roadmap question is with Jordan; the rendering question is ours either way. ENGINEERING CALL TAKEN (boa's reasoning, adopted): write the handling PERMANENT, not temporary. The asymmetry is one-sided — if reaping ships, permanent handling degrades to dead code deleted in an afternoon; if it does not ship, and a limitation with no owner and no date usually does not, temporary handling silently becomes a lie in a rail people trust. | [ ] unchecked | — | oq-0004 |
 
 <a id="clarifications"></a>

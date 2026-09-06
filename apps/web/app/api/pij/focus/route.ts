@@ -8,16 +8,13 @@ import { execFile } from 'node:child_process';
  * - **C-06**: focus happens on a deliberate human click and by no other means. The server half is
  *   here; the client half is the row button's `onClick`, and both ends are audit-tested. Nothing may
  *   call this from an effect, a timer, or an event handler that fires on its own.
- * - **R-01**: `select-window` and nothing else. No attach, no `send-keys`, no resize. An attached
- *   client's size can clamp and reflow an agent's pane and corrupt the daemon's own liveness read —
- *   the observer perturbing the instrument. Changing which window is *visible* touches none of that.
- * - **C-02**: this file is the fence's single carve-out, and the carve-out is checked rather than
- *   trusted: `fence.test.ts` asserts that the only tmux verb named here is `select-window`.
+ * - **R-01**: `select-window` is the only mutation. No attach, no `send-keys`, no resize.
+ *   rs focus first makes bounded, read-only pane/process probes; those never become liveness labels.
+ * - **C-02**: this file is the fence's single mutation carve-out, checked by `fence.test.ts`.
  *
- * **The window id is resolved server-side, at click time, from a fresh `node show`.** Never from the
- * request: a client-supplied window id is an instruction to focus an arbitrary window, and window ids
- * are recycled by tmux, so even an honest stale one points somewhere real and wrong. `pij list` rows
- * do not carry `windowId` at all (0 of 181 measured), so there is nothing cached to be tempted by.
+ * **Targets are resolved server-side at click time.** Legacy details supply their fresh window;
+ * rs details supply a pane and process identity, checked against the OS before resolving a window.
+ * Neither client-supplied nor cached row window ids authorize rs focus.
  *
  * Every refusal carries a machine `reason` from {@link FocusReason} and a human `observation` that
  * says what was seen rather than what the caller did wrong. The client renders those words verbatim.
@@ -39,6 +36,7 @@ import {
   requirePijSession,
   workspaceParam,
 } from '../../../../src/features/089-first-class-pij/server/route-deps';
+import { RsError } from '../../../../src/features/089-first-class-pij/server/rs/rs-client';
 import { getPijPoller } from '../../../../src/features/089-first-class-pij/server/start-pij-poller';
 
 export const dynamic = 'force-dynamic';
@@ -46,7 +44,7 @@ export const dynamic = 'force-dynamic';
 /**
  * Why a focus request did not focus anything.
  *
- * A closed union rather than a message string, because the client renders six materially different
+ * A closed union rather than a message string, because the client renders materially different
  * situations and "it didn't work" is the one answer that helps nobody. Each has exactly one wording,
  * fixed here so the route and the button cannot drift apart.
  *
@@ -60,10 +58,13 @@ export type FocusReason =
   | 'out-of-workspace'
   | 'not-live'
   | 'no-window'
+  | 'no-process'
+  | 'no-pane'
+  | 'identity-unverified'
   | 'store-unreadable'
   | 'tmux-refused';
 
-/** The tmux verb. The only one this feature may ever name — see the module docs and `fence.test.ts`. */
+/** The only mutation this feature may name — see the module docs and `fence.test.ts`. */
 const SELECT_WINDOW = 'select-window';
 
 /** tmux answers instantly or something is badly wrong; a focus click must not hang the request. */
@@ -114,6 +115,24 @@ export function focusRefusal(
         reason,
         observation: `seat ${detail.seatId} has no tmux window on record`,
       };
+    case 'no-process':
+      return {
+        status: 409,
+        reason,
+        observation: `seat ${detail.seatId} has no usable process identity on record`,
+      };
+    case 'no-pane':
+      return {
+        status: 409,
+        reason,
+        observation: `seat ${detail.seatId} has no matching tmux pane at focus time`,
+      };
+    case 'identity-unverified':
+      return {
+        status: 409,
+        reason,
+        observation: `the recorded process identity for ${detail.seatId} could not be verified in its pane`,
+      };
   }
 }
 
@@ -129,6 +148,21 @@ export function focusRefusal(
  * keeping `error`/`verb` too, so the body stays a superset of the shared shape.
  */
 function focusStoreUnreadable(error: unknown): Response {
+  if (error instanceof RsError) {
+    return NextResponse.json(
+      {
+        reason: 'store-unreadable' satisfies FocusReason,
+        observation: `the pij store could not be read: ${error.code} ${error.message}`.slice(
+          0,
+          300
+        ),
+        code: error.code,
+        verb: error.command,
+        error: error.message,
+      },
+      { status: 503, headers: NO_STORE_HEADERS }
+    );
+  }
   const failure = error instanceof PijCliError ? error : null;
   const code = failure?.code ?? 'E-UNKNOWN';
   // Which field holds pij's OWN words depends on how the failure was classified: every coded path
@@ -190,7 +224,10 @@ export async function handlePijFocusRequest(
   } catch (error) {
     // "That seat is not in the registry" is a fact about the seat, not a broken store — pij says so
     // with its own code, and conflating the two would render a 503 panic for a stale button.
-    if (error instanceof PijCliError && error.code === NO_SUCH_SEAT) {
+    if (
+      (error instanceof PijCliError && error.code === NO_SUCH_SEAT) ||
+      (error instanceof RsError && error.code === 'not_found')
+    ) {
       return refuse(focusRefusal('unknown-seat', { seatId }));
     }
     return focusStoreUnreadable(error);
@@ -219,6 +256,13 @@ export async function handlePijFocusRequest(
     }
   }
 
+  const execute = deps.focusExecutor ?? nodeFocusExecutor;
+  if (detail.source === 'pij-rs') {
+    const target = await resolveRsFocusWindow(detail, execute);
+    if (typeof target !== 'string') return refuse(target);
+    return selectWindow(target, execute);
+  }
+
   if (detail.liveness !== 'active') {
     return refuse(
       focusRefusal('not-live', {
@@ -233,28 +277,164 @@ export async function handlePijFocusRequest(
     return refuse(focusRefusal('no-window', { seatId }));
   }
 
-  const execute = deps.focusExecutor ?? nodeFocusExecutor;
+  return selectWindow(detail.windowId, execute);
+}
+
+async function selectWindow(windowId: string, execute: FocusExecutor): Promise<Response> {
   try {
-    await execute('tmux', [SELECT_WINDOW, '-t', detail.windowId], {
+    await execute('tmux', [SELECT_WINDOW, '-t', windowId], { timeoutMs: FOCUS_TIMEOUT_MS });
+  } catch (error) {
+    return refuse(tmuxRefusal(windowId, error));
+  }
+  return NextResponse.json({ focused: windowId }, { status: 200, headers: NO_STORE_HEADERS });
+}
+
+function tmuxRefusal(target: string, error: unknown): FocusRefusal {
+  const message = error instanceof Error ? error.message : 'no detail';
+  return {
+    status: 503,
+    reason: 'tmux-refused',
+    observation: `tmux refused to focus ${target}: ${message}`.slice(0, 300),
+  };
+}
+
+const PANE_FORMAT = '#{pane_id} #{pane_pid} #{window_id}';
+const PROCESS_COLUMNS = 'pid=,ppid=,lstart=';
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** Matches pij-rs core/model.rs: local wall-clock YYYYMMDDhhmmss, never UTC or elapsed time. */
+function processStart(row: string): number | null {
+  const match =
+    /^(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+([A-Z][a-z]{2})\s+(\d{1,2})\s+(\d{2}):(\d{2}):(\d{2})\s+(\d{4})$/.exec(
+      row.trim()
+    );
+  if (!match) return null;
+  const month = MONTHS.indexOf(match[1]) + 1;
+  const day = Number(match[2]);
+  const hour = Number(match[3]);
+  const minute = Number(match[4]);
+  const second = Number(match[5]);
+  const year = Number(match[6]);
+  const leap = year % 400 === 0 || (year % 4 === 0 && year % 100 !== 0);
+  const days =
+    month === 2
+      ? leap
+        ? 29
+        : 28
+      : month === 4 || month === 6 || month === 9 || month === 11
+        ? 30
+        : 31;
+  if (!month || year < 1970 || day < 1 || day > days || hour > 23 || minute > 59 || second > 59) {
+    return null;
+  }
+  return (
+    year * 10_000_000_000 +
+    month * 100_000_000 +
+    day * 1_000_000 +
+    hour * 10_000 +
+    minute * 100 +
+    second
+  );
+}
+
+/** One snapshot, bounded ancestor traversal; no process-per-row requests and no liveness writes. */
+function processBelongsToPane(
+  table: string,
+  proc: NonNullable<PijNodeDetail['proc']>,
+  panePid: number
+): boolean {
+  const processes = new Map<number, { parent: number; start: string }>();
+  for (const row of table.trim().split('\n')) {
+    const match = /^\s*(\d+)\s+(\d+)\s+(.+)$/.exec(row);
+    if (!match) return false;
+    const pid = Number(match[1]);
+    const parent = Number(match[2]);
+    if (
+      !Number.isSafeInteger(pid) ||
+      pid <= 0 ||
+      !Number.isSafeInteger(parent) ||
+      processes.has(pid)
+    ) {
+      return false;
+    }
+    processes.set(pid, { parent, start: match[3] });
+  }
+  const candidate = processes.get(proc.pid);
+  if (!candidate || processStart(candidate.start) !== proc.proc_start || !processes.has(panePid)) {
+    return false;
+  }
+  let pid = proc.pid;
+  for (let remaining = processes.size; remaining > 0; remaining--) {
+    if (pid === panePid) return true;
+    const process = processes.get(pid);
+    if (!process || process.parent === 0) return false;
+    pid = process.parent;
+  }
+  return false;
+}
+
+async function inspectPane(
+  seatId: string,
+  paneId: string,
+  execute: FocusExecutor
+): Promise<{ pid: number; windowId: string } | FocusRefusal> {
+  let output: string;
+  try {
+    output = await execute('tmux', ['display-message', '-p', '-t', paneId, PANE_FORMAT], {
       timeoutMs: FOCUS_TIMEOUT_MS,
     });
   } catch (error) {
-    // A tmux failure is not a pij store failure. It reaches the caller the same way — 503, with the
-    // real reason attached rather than a generic 500 — but it gets its OWN reason, because the
-    // machine field is the half of this response nobody can sanity-check against the words beside it.
-    return NextResponse.json(
-      {
-        reason: 'tmux-refused' satisfies FocusReason,
-        observation: `tmux refused to focus ${detail.windowId}: ${(error as Error).message}`,
-      },
-      { status: 503, headers: NO_STORE_HEADERS }
-    );
+    if (error instanceof Error && /can't find pane:/.test(error.message)) {
+      return focusRefusal('no-pane', { seatId });
+    }
+    return tmuxRefusal(paneId, error);
   }
+  const match = /^(%\d+)\s+(\d+)\s+(@\d+)$/.exec(output.trim());
+  if (!match || match[1] !== paneId) return focusRefusal('no-pane', { seatId });
+  const pid = Number(match[2]);
+  if (!Number.isSafeInteger(pid) || pid <= 0 || !Number.isSafeInteger(Number(match[3].slice(1)))) {
+    return focusRefusal('identity-unverified', { seatId });
+  }
+  return { pid, windowId: match[3] };
+}
 
-  return NextResponse.json(
-    { focused: detail.windowId },
-    { status: 200, headers: NO_STORE_HEADERS }
-  );
+async function resolveRsFocusWindow(
+  detail: PijNodeDetail,
+  execute: FocusExecutor
+): Promise<string | FocusRefusal> {
+  const seatId = detail.id;
+  const { proc, paneId } = detail;
+  if (
+    !proc ||
+    !Number.isSafeInteger(proc.pid) ||
+    proc.pid <= 0 ||
+    !Number.isSafeInteger(proc.proc_start) ||
+    proc.proc_start <= 0
+  ) {
+    return focusRefusal('no-process', { seatId });
+  }
+  if (!paneId || !/^%\d+$/.test(paneId) || !Number.isSafeInteger(Number(paneId.slice(1)))) {
+    return focusRefusal('no-pane', { seatId });
+  }
+  const pane = await inspectPane(seatId, paneId, execute);
+  if ('reason' in pane) return pane;
+  let table: string;
+  try {
+    table = await execute('ps', ['-axo', PROCESS_COLUMNS], { timeoutMs: FOCUS_TIMEOUT_MS });
+  } catch {
+    return { ...focusRefusal('identity-unverified', { seatId }), status: 503 };
+  }
+  if (!processBelongsToPane(table, proc, pane.pid)) {
+    return focusRefusal('identity-unverified', { seatId });
+  }
+  // Refuse a pane recycled/moved during the process read. No tmux/OS atomic transaction exists;
+  // selection follows this final check immediately and uses only its observed window id.
+  const confirmed = await inspectPane(seatId, paneId, execute);
+  if ('reason' in confirmed) return confirmed;
+  if (confirmed.pid !== pane.pid || confirmed.windowId !== pane.windowId) {
+    return focusRefusal('identity-unverified', { seatId });
+  }
+  return confirmed.windowId;
 }
 
 export async function POST(request: NextRequest): Promise<Response> {
@@ -268,11 +448,16 @@ export async function POST(request: NextRequest): Promise<Response> {
  */
 const nodeFocusExecutor: FocusExecutor = (command, args, options) =>
   new Promise((resolve, reject) => {
-    execFile(command, [...args], { timeout: options.timeoutMs }, (error) => {
-      if (error) {
-        reject(error);
-        return;
+    execFile(
+      command,
+      [...args],
+      { timeout: options.timeoutMs, maxBuffer: 1024 * 1024, env: { ...process.env, LC_ALL: 'C' } },
+      (error, stdout) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve(stdout);
       }
-      resolve();
-    });
+    );
   });

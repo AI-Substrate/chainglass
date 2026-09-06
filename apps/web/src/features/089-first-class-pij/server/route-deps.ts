@@ -21,12 +21,13 @@ import { PijCliError } from './pij-records';
  * `execFile`-shaped like {@link PijExecutor} and for the same reason: a command plus a fixed argv
  * array, never a shell string. Deliberately named for its ROLE rather than for the program it runs,
  * so the tmux vocabulary stays confined to the single file the fence carves out.
+ * Returns stdout so click-time identity reads use the same bounded seam as the final selection.
  */
 export type FocusExecutor = (
   command: string,
   args: readonly string[],
   options: { timeoutMs: number }
-) => Promise<void>;
+) => Promise<string>;
 
 /** Injectable dependencies, exactly the `MuxDeps` shape and for exactly the same reason. */
 export interface PijRouteDeps {

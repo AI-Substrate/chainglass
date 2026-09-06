@@ -1,3 +1,4 @@
+import { FakeGitWorktreeResolver } from '@chainglass/workflow';
 import { describe, expect, it } from 'vitest';
 import {
   FLEET_ROW_FIELDS,
@@ -206,5 +207,102 @@ describe('createRsPijRecords', () => {
     expect(row.id).toBe('pij-rs-seat');
     expect(row.rsUnavailable).toContain('liveness');
     expect(row.rsUnavailable).toContain('bindHealth');
+  });
+  it('builds the parent forest from rs identities even when every role is null', async () => {
+    const client = new FakeRsClient([
+      liveSeat({ id: 'rs-child', parent: 'rs-lead' }),
+      liveSeat({ id: 'rs-grandchild', parent: 'rs-child' }),
+      liveSeat({ id: 'rs-lead' }),
+      liveSeat({ id: 'rs-orphan', parent: 'legacy-unknown-parent' }),
+    ]);
+    const forest = await createRsPijRecords({ client }).tree({ global: true });
+    expect(forest).toMatchObject({
+      structureSource: 'rs-parent-links',
+      rolesUnavailable: true,
+      roots: [
+        {
+          id: 'rs-lead',
+          orchestrationRole: null,
+          children: [{ id: 'rs-child', children: [{ id: 'rs-grandchild' }] }],
+        },
+        { id: 'rs-orphan', parent: 'legacy-unknown-parent', children: [] },
+      ],
+    });
+    expect(forest.roots[0]).not.toHaveProperty('prime');
+    expect(client.stateIds).toEqual([]);
+  });
+
+  it('scopes to actual git worktree roots without claiming foreign ancestors or prefix siblings', async () => {
+    const worktrees = new FakeGitWorktreeResolver();
+    worktrees.setWorktrees(
+      '/workspace',
+      ['/workspace', '/sibling-feature'].map((path) => ({
+        path,
+        head: 'abc',
+        branch: 'main',
+        isDetached: false,
+        isBare: false,
+        isPrunable: false,
+      }))
+    );
+    const client = new FakeRsClient([
+      liveSeat({ id: 'rs-child', parent: 'rs-prime', folder: '/sibling-feature/src' }),
+      liveSeat({ id: 'rs-prime', role: 'prime' }),
+      liveSeat({ id: 'legacy-prefix-sibling', folder: '/workspace-other' }),
+      liveSeat({ id: 'rs-foreign-parent', folder: '/foreign' }),
+      liveSeat({ id: 'rs-local-orphan', parent: 'rs-foreign-parent' }),
+    ]);
+    const forest = await createRsPijRecords({ client, worktrees }).tree({ cwd: '/workspace' });
+    expect(forest.roots.map((node) => node.id)).toEqual(['rs-prime', 'rs-local-orphan']);
+    expect(forest.roots[0]).toMatchObject({
+      prime: true,
+      orchestrationRole: 'prime',
+      children: [{ id: 'rs-child' }],
+    });
+    expect(forest.rolesUnavailable).toBe(false);
+    expect(worktrees.detectWorktreesCalls).toEqual([{ repoPath: '/workspace' }]);
+  });
+
+  it('preserves explicit tombstones for all scope without inferring death from idle', async () => {
+    const records = createRsPijRecords({
+      client: new FakeRsClient([
+        liveSeat({ id: 'rs-idle', state: 'idle' }),
+        liveSeat({ id: 'rs-tombstone', tombstoned_at: 42 }),
+      ]),
+    });
+    expect((await records.tree({ global: true })).roots.map((node) => node.id)).toEqual([
+      'rs-idle',
+    ]);
+    expect((await records.tree({ global: true, all: true })).roots.map((node) => node.id)).toEqual([
+      'rs-idle',
+      'rs-tombstone',
+    ]);
+  });
+
+  it('refuses corrupt cycles instead of returning a forest that recurses forever', async () => {
+    const records = createRsPijRecords({
+      client: new FakeRsClient([
+        liveSeat({ id: 'rs-a', parent: 'rs-b' }),
+        liveSeat({ id: 'rs-b', parent: 'rs-a' }),
+      ]),
+    });
+    await expect(records.tree({ global: true })).rejects.toThrow('parent cycle');
+  });
+
+  it('returns fresh rs focus identity without inventing liveness or a window', async () => {
+    const records = createRsPijRecords({
+      client: new FakeRsClient([liveSeat({ id: 'rs-focus' })]),
+    });
+    const detail = await records.nodeShow('rs-focus');
+    expect(detail).toMatchObject({
+      id: 'rs-focus',
+      source: 'pij-rs',
+      cwd: '/workspace',
+      paneId: '%42',
+      proc: { pid: 4242, proc_start: 20260902010101 },
+    });
+    expect(detail).not.toHaveProperty('liveness');
+    expect(detail).not.toHaveProperty('windowId');
+    await expect(records.nodeShow('legacy-seat')).rejects.toMatchObject({ code: 'not_found' });
   });
 });

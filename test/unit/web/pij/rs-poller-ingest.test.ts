@@ -272,6 +272,55 @@ describe('PijPollerService rs ingestion', () => {
     await reading;
     expect(poller.snapshot().rows[0].extra.semanticState).toBeNull();
   });
+
+  it.each(['spawn.bound', 'spawn.failed'])(
+    'keeps %s descriptor truth when an older report arrives during its refresh',
+    async (kind) => {
+      const [report] = resetFrames;
+      const spawn = captured.find((frame) => frame.event.kind === kind);
+      if (!spawn) throw new Error(`Missing captured ${kind}`);
+      // Scripted regression, NOT a wire capture: the captured spawns concern other seats.
+      // Rebind only identity/cursor to order this spawn after the report; preserve payload/at.
+      const pushed: RsCursorEvent = {
+        ...spawn,
+        cursor: report.cursor + 1,
+        event: { ...spawn.event, seat: report.event.seat },
+      };
+      const row = {
+        id: report.event.seat,
+        folder: '/workspace',
+        state: 'idle',
+        semanticState: null,
+      };
+      let release!: (rows: PijListRow[]) => void;
+      const records = new FakeRecords([
+        Promise.resolve([{ ...row, semanticState: JSON.parse(report.event.payload).state }]),
+        new Promise<PijListRow[]>((resolve) => {
+          release = resolve;
+        }),
+        Promise.resolve([row]),
+      ]);
+      const poller = createPijPoller({ cursor: emptyCursor, records, broadcast: () => {} });
+      await poller.refreshRecords();
+      expect(poller.snapshot().rows[0].extra.semanticState).toBe(
+        JSON.parse(report.event.payload).state
+      );
+      poller.ingest(pushed);
+      const reading = poller.refreshRecords();
+      // First delivery of this report, not a duplicate rejected by the per-report cursor check.
+      poller.ingest(report);
+      release([row]);
+      await reading;
+      expect(poller.snapshot().rows[0]).toMatchObject({
+        state: 'idle',
+        extra: { semanticState: null, stateNote: null },
+      });
+      poller.ingest(report);
+      await poller.refreshRecords();
+      expect(poller.snapshot().rows[0].extra.semanticState).toBeNull();
+      expect(records.calls).toBe(3);
+    }
+  );
   it('publishes rs error recovery and fresh read time even when rows are unchanged', async () => {
     const row = { id: 'pij-seat', folder: '/workspace', state: 'idle' };
     const records = new FakeRecords([Promise.resolve([row]), Promise.resolve([row])]);

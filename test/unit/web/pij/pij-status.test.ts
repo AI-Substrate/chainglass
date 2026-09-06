@@ -53,14 +53,26 @@ describe('JC-1 status consumption', () => {
   });
 
   it.each([
-    ['not-a-pm', { orchestrationRole: 'worker' }, status()],
-    ['role-unknown', { orchestrationRole: null }, status()],
-    ['role-unknown', {}, status()],
+    ['not-a-pm', { orchestrationRole: 'worker' }, undefined],
+    ['role-unknown', { orchestrationRole: null }, undefined],
+    ['role-unknown', {}, undefined],
     ['no-status-yet', { orchestrationRole: 'pm' }, undefined],
     ['prime-not-written', { orchestrationRole: 'prime' }, undefined],
   ] as const)('returns the %s data-reason discriminator', (reason, record, latest) => {
     expect(resolveSeatStatus(readSeatRole(record), latest, NOW).reason).toBe(reason);
   });
+
+  it.each([{ orchestrationRole: null }, {}, { orchestrationRole: 'worker' }])(
+    'preserves a real report independently of role metadata or reporting obligations',
+    (record) => {
+      const written = status({ ts: new Date(NOW - STATUS_STALE_MS - 1).toISOString() });
+      expect(resolveSeatStatus(readSeatRole(record), written, NOW)).toEqual({
+        reason: 'current',
+        status: written,
+        ageMs: STATUS_STALE_MS + 1,
+      });
+    }
+  );
 
   it('renders a prime card that exists, and never calls it stale (optional-but-rendered ruling)', () => {
     /*

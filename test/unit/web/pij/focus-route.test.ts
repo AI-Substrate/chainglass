@@ -24,6 +24,13 @@ import {
 import { createPijPoller } from '../../../../apps/web/src/features/089-first-class-pij/server/pij-poller.service';
 import { createPijRecords } from '../../../../apps/web/src/features/089-first-class-pij/server/pij-records';
 import type { PijRouteDeps } from '../../../../apps/web/src/features/089-first-class-pij/server/route-deps';
+import { createCompositePijRecords } from '../../../../apps/web/src/features/089-first-class-pij/server/rs/composite-pij-records';
+import {
+  type RsClient,
+  RsError,
+  type RsSeat,
+} from '../../../../apps/web/src/features/089-first-class-pij/server/rs/rs-client';
+import { createRsPijRecords } from '../../../../apps/web/src/features/089-first-class-pij/server/rs/rs-pij-records';
 import { FakeFocusExecutor } from '../../../fakes/fake-focus-executor';
 import { FakePijExecutor, execFileFailure } from '../../../fakes/fake-pij-executor';
 import {
@@ -36,6 +43,89 @@ const WORKSPACE = '/Users/fixture/substrate/chainglass';
 /** Shares the workspace's prefix and is NOT inside it — the containment hazard, in path form. */
 const SIBLING = '/Users/fixture/substrate/chainglass-worktree';
 const SEAT = 'pij-focusable-seat';
+const RS_SEAT = 'rs-focus-only-seat';
+const RS_PANE_ARGS = ['display-message', '-p', '-t', '%640', '#{pane_id} #{pane_pid} #{window_id}'];
+const PS_ARGS = ['-axo', 'pid=,ppid=,lstart='];
+const RS_START = 20260906010203;
+const RS_PROCESS_TABLE = [
+  '640 1 Sun Sep  6 00:00:00 2026',
+  '641 640 Sun Sep  6 00:10:00 2026',
+  '642 641 Sun Sep  6 01:02:03 2026',
+].join('\n');
+
+function rsFocus(table = RS_PROCESS_TABLE): FakeFocusExecutor {
+  return new FakeFocusExecutor()
+    .when('tmux', RS_PANE_ARGS, '%640 640 @650\n')
+    .when('ps', PS_ARGS, table);
+}
+
+function makeRsDeps(
+  overrides: {
+    seat?: Partial<RsSeat>;
+    seats?: RsSeat[];
+    readFailure?: RsError;
+    focus?: FakeFocusExecutor;
+    authFn?: () => Promise<unknown>;
+    tree?: { roots: Array<{ id: string; children?: Array<{ id: string }> }> };
+  } = {}
+) {
+  const seats = overrides.seats ?? [
+    {
+      id: RS_SEAT,
+      folder: WORKSPACE,
+      pane: '%640',
+      proc: { pid: 642, proc_start: RS_START },
+      state: 'idle',
+      ...overrides.seat,
+    },
+  ];
+  const reads: string[] = [];
+  const treeScopes: unknown[] = [];
+  const client: RsClient = {
+    async seats() {
+      reads.push('seats');
+      if (overrides.readFailure) throw overrides.readFailure;
+      return seats;
+    },
+    async state(id) {
+      return { id, unsupported: [] };
+    },
+    async *events() {},
+  };
+  // Disjoint ids through the REAL composite: falling back to the old reader must not green-test.
+  const legacy = new FakePijExecutor().whenJson(['node', 'show', SEAT, '--json'], nodeDetail());
+  const rs = createRsPijRecords({ client });
+  const records = createCompositePijRecords({
+    rs: {
+      list: rs.list.bind(rs),
+      state: rs.state.bind(rs),
+      nodeShow: rs.nodeShow.bind(rs),
+      tree: async (scope) => {
+        treeScopes.push(scope);
+        return overrides.tree ?? rs.tree(scope);
+      },
+    },
+    cli: createPijRecords({ exec: legacy.exec, defaultCwd: WORKSPACE }),
+  });
+  const poller = createPijPoller({
+    cursor: new FakeSpineCursor(4242),
+    records,
+    broadcast: new BroadcastRecorder().broadcast,
+    scheduler: new FakeScheduler(),
+    now: () => new Date('2026-09-06T01:30:00.000Z'),
+  });
+  const focus = overrides.focus ?? rsFocus();
+  return {
+    authFn: overrides.authFn ?? authOk,
+    poller,
+    focusExecutor: focus.exec,
+    focus,
+    legacy,
+    reads,
+    seats,
+    treeScopes,
+  };
+}
 
 const authOk = async () => ({ user: { name: 'jordan' } });
 const authFail = async () => null;
@@ -430,23 +520,33 @@ describe('POST /api/pij/focus — every refusal reason, one test each', () => {
       checker keeps honest.
     - Worked Example: six keys, six refusals, each emitting the reason it is keyed by.
     */
-    const conditions: Record<FocusReason, Parameters<typeof makeDeps>[0]> = {
-      'unknown-seat': {
-        nodeShowFails: execFileFailure({
-          code: 2,
-          stderr: JSON.stringify({ error: 'E-NOID', message: 'gone' }),
+    const legacy = async (condition: Parameters<typeof makeDeps>[0]) =>
+      handlePijFocusRequest(focusRequest(), await makeDeps(condition));
+    const rs = async (condition: Parameters<typeof makeRsDeps>[0]) =>
+      handlePijFocusRequest(focusRequest(RS_SEAT), makeRsDeps(condition));
+    const conditions: Record<FocusReason, () => Promise<Response>> = {
+      'unknown-seat': () =>
+        legacy({
+          nodeShowFails: execFileFailure({
+            code: 2,
+            stderr: JSON.stringify({ error: 'E-NOID', message: 'gone' }),
+          }),
         }),
-      },
-      'out-of-workspace': { detail: { cwd: SIBLING } },
-      'not-live': { detail: { liveness: 'dead' } },
-      'no-window': { detail: { windowId: undefined } },
-      'store-unreadable': { nodeShowFails: execFileFailure({ stderr: 'store on fire' }) },
-      'tmux-refused': { focus: new FakeFocusExecutor().fails(new Error('no server running')) },
+      'out-of-workspace': () => legacy({ detail: { cwd: SIBLING } }),
+      'not-live': () => legacy({ detail: { liveness: 'dead' } }),
+      'no-window': () => legacy({ detail: { windowId: undefined } }),
+      'no-process': () => rs({ seat: { proc: null } }),
+      'no-pane': () => rs({ seat: { pane: undefined } }),
+      'identity-unverified': () => rs({ seat: { proc: { pid: 642, proc_start: RS_START + 1 } } }),
+      'store-unreadable': () =>
+        legacy({ nodeShowFails: execFileFailure({ stderr: 'store on fire' }) }),
+      'tmux-refused': () =>
+        legacy({ focus: new FakeFocusExecutor().fails(new Error('no server running')) }),
     };
 
     const emitted: string[] = [];
     for (const [expected, condition] of Object.entries(conditions)) {
-      const response = await handlePijFocusRequest(focusRequest(), await makeDeps(condition));
+      const response = await condition();
       const body = await response.json();
 
       expect(response.status, `${expected} must not answer 200`).not.toBe(200);
@@ -534,5 +634,228 @@ describe('POST /api/pij/focus — the gate, before anything else', () => {
     expect(noSeat.status).toBe(400);
     expect(deps.exec.calls.length).toBe(before);
     expect(deps.focus.calls).toEqual([]);
+  });
+});
+
+describe('POST /api/pij/focus — rs click-time identity, never inferred liveness', () => {
+  /*
+  Test Doc:
+  - Why: pane ids and PIDs recycle independently; an extant pane is not evidence that it is this seat.
+  - Contract: fresh rs detail, workspace family, exact local start stamp, OS ancestry, then one selection.
+  - Usage Notes: real rs adapter/composite with disjoint legacy ids; fake bounded OS/pane outputs only.
+  - Quality Contribution: every rejection asserts no selection; success pins read/write argv and order.
+  - Worked Example: pid 642 -> 641 -> pane pid 640, stamp 20260906010203 -> window @650, not cached @220.
+  */
+  it.each([
+    { pid: 642, proc_start: RS_START },
+    { pid: 640, proc_start: 20260906000000 },
+  ])('authorizes exact process identity for $pid and only the resolved window', async (proc) => {
+    const deps = makeRsDeps({ seat: { proc } });
+    const response = await handlePijFocusRequest(focusRequest(RS_SEAT), deps);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ focused: '@650' });
+    expect(deps.reads).toEqual(['seats']);
+    expect(deps.legacy.calls).toEqual([]);
+    expect(deps.focus.calls).toEqual([
+      { command: 'tmux', args: RS_PANE_ARGS, timeoutMs: 3_000 },
+      { command: 'ps', args: PS_ARGS, timeoutMs: 3_000 },
+      { command: 'tmux', args: RS_PANE_ARGS, timeoutMs: 3_000 },
+      { command: 'tmux', args: ['select-window', '-t', '@650'], timeoutMs: 3_000 },
+    ]);
+  });
+
+  it('reads rs again for each click and ignores the request window', async () => {
+    const deps = makeRsDeps();
+    await handlePijFocusRequest(focusRequest(RS_SEAT), deps);
+    deps.seats[0].pane = '%641';
+    deps.focus.when(
+      'tmux',
+      ['display-message', '-p', '-t', '%641', '#{pane_id} #{pane_pid} #{window_id}'],
+      '%641 640 @651'
+    );
+    const request = new NextRequest(
+      `http://localhost/api/pij/focus?workspace=${encodeURIComponent(WORKSPACE)}`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ seatId: RS_SEAT, windowId: '@220' }),
+      }
+    );
+    const response = await handlePijFocusRequest(request, deps);
+    expect(await response.json()).toEqual({ focused: '@651' });
+    expect(deps.reads).toEqual(['seats', 'seats']);
+    expect(deps.legacy.calls).toEqual([]);
+    expect(deps.focus.lastArgs).toEqual(['select-window', '-t', '@651']);
+  });
+
+  it.each([
+    ['recycled PID start', RS_PROCESS_TABLE.replace('01:02:03', '01:02:04'), '%640 640 @650'],
+    ['recycled pane PID', RS_PROCESS_TABLE, '%640 900 @650'],
+    ['unrelated process', RS_PROCESS_TABLE.replace('642 641', '642 1'), '%640 640 @650'],
+    ['missing process', '640 1 Sun Sep 6 00:00:00 2026', '%640 640 @650'],
+    ['ancestry cycle', RS_PROCESS_TABLE.replace('641 640', '641 642'), '%640 640 @650'],
+    ['malformed process table', 'not a process table', '%640 640 @650'],
+    ['duplicate PID', `${RS_PROCESS_TABLE}\n642 640 Sun Sep 6 01:02:03 2026`, '%640 640 @650'],
+  ])('refuses %s without selecting', async (_name, table, pane) => {
+    const focus = rsFocus(table).when('tmux', RS_PANE_ARGS, pane);
+    const response = await handlePijFocusRequest(focusRequest(RS_SEAT), makeRsDeps({ focus }));
+    expect(response.status).toBe(409);
+    expect((await response.json()).reason).toBe('identity-unverified');
+    expect(focus.calls.some((call) => call.args[0] === 'select-window')).toBe(false);
+    expect(focus.calls.filter((call) => call.command === 'ps')).toHaveLength(1);
+  });
+
+  it.each([
+    undefined,
+    null,
+    { pid: 642 },
+    { pid: -1, proc_start: RS_START },
+    { pid: 642, proc_start: 1.5 },
+  ])('refuses absent or invalid process identity before probing: %j', async (proc) => {
+    const deps = makeRsDeps({ seat: { proc } });
+    const response = await handlePijFocusRequest(focusRequest(RS_SEAT), deps);
+    expect(response.status).toBe(409);
+    expect((await response.json()).reason).toBe('no-process');
+    expect(deps.focus.calls).toEqual([]);
+  });
+
+  it.each([undefined, '', '%640;new-window', '%9007199254740992'])(
+    'refuses an unusable pane before probing: %s',
+    async (pane) => {
+      const deps = makeRsDeps({ seat: { pane } });
+      const response = await handlePijFocusRequest(focusRequest(RS_SEAT), deps);
+      expect(response.status).toBe(409);
+      expect((await response.json()).reason).toBe('no-pane');
+      expect(deps.focus.calls).toEqual([]);
+    }
+  );
+
+  it.each(['', '%641 640 @650', new Error("can't find pane: %640")])(
+    'refuses a missing pane: %s',
+    async (pane) => {
+      const focus = rsFocus().when('tmux', RS_PANE_ARGS, pane);
+      const response = await handlePijFocusRequest(focusRequest(RS_SEAT), makeRsDeps({ focus }));
+      expect(response.status).toBe(409);
+      expect((await response.json()).reason).toBe('no-pane');
+      expect(focus.calls).toHaveLength(1);
+    }
+  );
+
+  it.each(['%640 900 @650', '%640 640 @999'])(
+    'refuses a pane changed during the process read: %s',
+    async (pane) => {
+      const focus = rsFocus().when('tmux', RS_PANE_ARGS, '%640 640 @650', pane);
+      const response = await handlePijFocusRequest(focusRequest(RS_SEAT), makeRsDeps({ focus }));
+      expect(response.status).toBe(409);
+      expect((await response.json()).reason).toBe('identity-unverified');
+      expect(focus.calls).toHaveLength(3);
+    }
+  );
+
+  it.each([
+    ['Wed Feb 29 01:02:03 2028', 20280229010203, 200],
+    ['Sun Feb 29 01:02:03 2026', 20260229010203, 409],
+    ['Sun Sep 31 01:02:03 2026', 20260931010203, 409],
+    ['Sun Sep 6 24:02:03 2026', 20260906240203, 409],
+    ['Sun Sep 6 01:60:03 2026', 20260906016003, 409],
+    ['Sun Sep 6 01:02:60 2026', 20260906010260, 409],
+    ['Sun Sep 6 01:02:03 1969', 19690906010203, 409],
+  ])(
+    'uses the upstream local calendar stamp, including boundaries: %s',
+    async (start, proc_start, status) => {
+      const focus = rsFocus(`640 1 Sun Sep 6 00:00:00 2026\n642 640 ${start}`);
+      const response = await handlePijFocusRequest(
+        focusRequest(RS_SEAT),
+        makeRsDeps({ focus, seat: { proc: { pid: 642, proc_start } } })
+      );
+      expect(response.status).toBe(status);
+      expect(focus.calls.filter((call) => call.args[0] === 'select-window')).toHaveLength(
+        status === 200 ? 1 : 0
+      );
+    }
+  );
+
+  it('refuses an unknown rs id even when that id exists only in the legacy reader', async () => {
+    const deps = makeRsDeps();
+    const response = await handlePijFocusRequest(focusRequest(SEAT), deps);
+    expect(response.status).toBe(404);
+    expect((await response.json()).reason).toBe('unknown-seat');
+    expect(deps.legacy.calls).toEqual([]);
+    expect(deps.focus.calls).toEqual([]);
+  });
+
+  it('preserves rs store failure metadata separately from process and pane failures', async () => {
+    const deps = makeRsDeps({
+      readFailure: new RsError('unreachable', 'daemon unavailable', { command: '/v1/seats' }),
+    });
+    const response = await handlePijFocusRequest(focusRequest(RS_SEAT), deps);
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({
+      reason: 'store-unreadable',
+      code: 'unreachable',
+      verb: '/v1/seats',
+    });
+    expect(deps.focus.calls).toEqual([]);
+  });
+
+  it.each(['pane probe', 'selection', 'process table'])(
+    'refuses bounded failure of %s without misreporting the store',
+    async (stage) => {
+      const focus = rsFocus();
+      if (stage === 'pane probe') focus.when('tmux', RS_PANE_ARGS, new Error('no server running'));
+      if (stage === 'selection')
+        focus.when('tmux', ['select-window', '-t', '@650'], new Error('window closed'));
+      if (stage === 'process table') focus.when('ps', PS_ARGS, new Error('timed out'));
+      const response = await handlePijFocusRequest(focusRequest(RS_SEAT), makeRsDeps({ focus }));
+      expect(response.status).toBe(503);
+      expect((await response.json()).reason).toBe(
+        stage === 'process table' ? 'identity-unverified' : 'tmux-refused'
+      );
+      expect(focus.calls.filter((call) => call.args[0] === 'select-window')).toHaveLength(
+        stage === 'selection' ? 1 : 0
+      );
+    }
+  );
+
+  it.each([true, false])(
+    'uses the workspace-family tree rung for a sibling worktree: %s',
+    async (inFamily) => {
+      const deps = makeRsDeps({
+        seat: { folder: SIBLING },
+        tree: {
+          roots: [
+            { id: 'rs-family-root', children: [{ id: inFamily ? RS_SEAT : 'rs-unrelated' }] },
+          ],
+        },
+      });
+      const response = await handlePijFocusRequest(focusRequest(RS_SEAT), deps);
+      expect(response.status).toBe(inFamily ? 200 : 409);
+      expect(deps.treeScopes).toEqual([{ cwd: WORKSPACE, all: true }]);
+      if (!inFamily) {
+        expect((await response.json()).reason).toBe('out-of-workspace');
+        expect(deps.focus.calls).toEqual([]);
+      }
+    }
+  );
+
+  it('authenticates before any rs or OS read', async () => {
+    const deps = makeRsDeps({ authFn: authFail });
+    const response = await handlePijFocusRequest(focusRequest(RS_SEAT), deps);
+    expect(response.status).toBe(401);
+    expect(deps.reads).toEqual([]);
+    expect(deps.focus.calls).toEqual([]);
+  });
+  it('refuses when the rs pane disappears after identity was verified', async () => {
+    const focus = rsFocus().when(
+      'tmux',
+      RS_PANE_ARGS,
+      '%640 640 @650',
+      new Error("can't find pane: %640")
+    );
+    const response = await handlePijFocusRequest(focusRequest(RS_SEAT), makeRsDeps({ focus }));
+    expect(response.status).toBe(409);
+    expect((await response.json()).reason).toBe('no-pane');
+    expect(focus.calls).toHaveLength(3);
+    expect(focus.calls.some((call) => call.args[0] === 'select-window')).toBe(false);
   });
 });

@@ -203,29 +203,22 @@ export function resolveSeatStatus(
   status: PijStatusRecord | undefined,
   now: number
 ): SeatStatus {
+  // Role determines obligations, not whether an actual report exists. Unknown-role and worker
+  // reports are still facts; only a known PM can breach the PM freshness obligation.
+  if (status) {
+    const ageMs = statusAgeMs(status, now);
+    return {
+      reason: carriesStatus(role) && ageMs > STATUS_STALE_MS ? 'status-stale' : 'current',
+      status,
+      ageMs,
+    };
+  }
   if (role.kind === 'absent') return { reason: 'role-unknown' };
   if (hasOptionalCard(role)) {
-    // Optional-but-rendered (Jordan, 2026-07-30): a prime that writes a card gets it shown; one
-    // that doesn't is never nagged. Staleness is likewise never flagged — the stale label carries
-    // watchdog language, and no watchdog obligation exists for an optional card. The age line
-    // still renders, so an old card is visibly old without being called a defect.
-    //
-    // DELIBERATE DIVERGENCE, ratified by albatross (pij spine, 2026-07-30): `pij anomalies` DOES
-    // raise status-stale rows for a prime holding a rotten card — different consumer (the prime's
-    // own self-service sweep; it has no supervisor). An old prime card with no stale label here
-    // AND a status-stale row there is by design, not drift. Do not "fix" either side to match.
-    if (!status) return { reason: role.role === 'prime' ? 'prime-not-written' : 'pa-not-written' };
-    return { reason: 'current', status, ageMs: statusAgeMs(status, now) };
+    return { reason: role.role === 'prime' ? 'prime-not-written' : 'pa-not-written' };
   }
   if (!carriesStatus(role)) return { reason: 'not-a-pm' };
-  if (!status) return { reason: 'no-status-yet' };
-
-  const ageMs = statusAgeMs(status, now);
-  return {
-    reason: ageMs > STATUS_STALE_MS ? 'status-stale' : 'current',
-    status,
-    ageMs,
-  };
+  return { reason: 'no-status-yet' };
 }
 
 function statusAgeMs(status: PijStatusRecord, now: number): number {

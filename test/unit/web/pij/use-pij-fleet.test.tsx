@@ -457,6 +457,40 @@ describe('usePijFleet — tree freshness', () => {
     expect(api.countOf('tree')).toBe(before);
   });
 
+  it.each([{ extra: { parent: 'rs-new-parent' } }, { orchestrationRole: 'prime' }])(
+    'refreshes known-seat structure when parent or explicit role changes',
+    async (change) => {
+      const { result } = renderPijFleet({ treeRefetchDebounceMs: 5 });
+      await waitFor(() => expect(result.current.phase).toBe('live'));
+      const before = api.countOf('tree');
+      const previous = result.current.rows.find((row) => row.id === UI_PM_ID);
+      if (!previous) throw new Error('Missing fixture seat');
+      deliver('fleet-delta', {
+        seq: 41,
+        at: '2026-07-26T12:00:12.000Z',
+        rows: [{ ...previous, ...change }],
+        removed: [],
+      });
+      await waitFor(() => expect(api.countOf('tree')).toBe(before + 1));
+    }
+  );
+
+  it('keeps the rs hierarchy provenance from the tree response', async () => {
+    api.setTree({
+      seq: 40,
+      at: '2026-07-26T12:00:00.000Z',
+      data: {
+        workspace: UI_WORKSPACE_PATH,
+        roots: UI_TREE_ROOTS,
+        structureSource: 'rs-parent-links',
+        rolesUnavailable: true,
+      },
+    });
+    const { result } = renderPijFleet();
+    await waitFor(() => expect(result.current.structureSource).toBe('rs-parent-links'));
+    expect(result.current.rolesUnavailable).toBe(true);
+  });
+
   it('refetches every surface on an explicit refresh (what a tab change calls)', async () => {
     const { result } = renderPijFleet();
     await waitFor(() => expect(result.current.phase).toBe('live'));

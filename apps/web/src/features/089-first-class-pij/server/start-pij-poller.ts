@@ -12,7 +12,11 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { WORKSPACE_DI_TOKENS } from '@chainglass/shared';
-import { FileWatcherFactory, type IWorkspaceService } from '@chainglass/workflow';
+import {
+  FileWatcherFactory,
+  type IGitWorktreeResolver,
+  type IWorkspaceService,
+} from '@chainglass/workflow';
 import { getContainer } from '../../../lib/bootstrap-singleton';
 import { sseManager } from '../../../lib/sse-manager';
 import { createFlowReader } from './flow-reader';
@@ -20,7 +24,7 @@ import { type FlowWatcherService, createFlowWatcher } from './flow-watcher';
 import { type PijPollerService, createPijPoller } from './pij-poller.service';
 import { createPijRecords } from './pij-records';
 import { createCompositePijRecords } from './rs/composite-pij-records';
-import { createRsClient } from './rs/rs-client';
+import { type RsClient, createRsClient } from './rs/rs-client';
 import { type RsEventStream, createRsEventStream } from './rs/rs-event-stream';
 import { createRsPijRecords } from './rs/rs-pij-records';
 import { createFileSpineCursor } from './spine-cursor';
@@ -84,17 +88,35 @@ export function pijPollerEnabled(env: Record<string, string | undefined> = proce
  * precisely AC-08's "poller not running" state rather than a crash or a fabricated empty fleet.
  */
 export function getPijPoller(
-  env: Record<string, string | undefined> = process.env
+  env: Record<string, string | undefined> = process.env,
+  deps: { rsClient?: RsClient; createEventStream?: typeof createRsEventStream } = {}
 ): PijPollerService {
   if (!globalForPijPoller.__pijPoller) {
     const source = pijSource(env);
+    if (env.PIJ_SOURCE !== undefined && env.PIJ_SOURCE !== 'rs' && env.PIJ_SOURCE !== 'legacy') {
+      console.warn(
+        `[pij] unrecognised PIJ_SOURCE=${JSON.stringify(env.PIJ_SOURCE)}; defaulting to rs. Set PIJ_SOURCE=rs or PIJ_SOURCE=legacy.`
+      );
+    }
     const cliRecords = createPijRecords({ defaultCwd: process.cwd() });
     const client =
       source === 'rs'
-        ? createRsClient({ addr: pijRsAddr(env), stateDir: pijRsStateDir(env), fetch })
+        ? (deps.rsClient ??
+          createRsClient({ addr: pijRsAddr(env), stateDir: pijRsStateDir(env), fetch }))
         : undefined;
     const records = client
-      ? createCompositePijRecords({ rs: createRsPijRecords({ client }), cli: cliRecords })
+      ? createCompositePijRecords({
+          rs: createRsPijRecords({
+            client,
+            worktrees: {
+              detectWorktrees: (cwd) =>
+                getContainer()
+                  .resolve<IGitWorktreeResolver>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER)
+                  .detectWorktrees(cwd),
+            },
+          }),
+          cli: cliRecords,
+        })
       : cliRecords;
     const poller = createPijPoller({
       // The legacy source reads its stable file spine. The rs source owns transitions over HTTP.
@@ -110,7 +132,7 @@ export function getPijPoller(
     globalForPijPoller.__pijSource = source;
     globalForPijPoller.__pijPoller = poller;
     if (client) {
-      globalForPijPoller.__pijRsEventStream = createRsEventStream({
+      globalForPijPoller.__pijRsEventStream = (deps.createEventStream ?? createRsEventStream)({
         client,
         onEvent: async (frame) => {
           poller.ingest(frame);

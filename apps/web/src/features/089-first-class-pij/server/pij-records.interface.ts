@@ -104,6 +104,10 @@ export interface PijTree {
 /** `pij node show <id> --json` — the node card's record. */
 export interface PijNodeDetail {
   id: string;
+  /** Present only for rs-derived details; legacy focus retains its original guards. */
+  source?: 'pij-rs';
+  /** rs process identity; proc_start is an opaque OS start stamp, not a freshness timestamp. */
+  proc?: { pid: number; proc_start: number } | null;
   harness?: string;
   lifecycle?: string;
   parent?: string | null;
@@ -122,7 +126,7 @@ export interface PijNodeDetail {
   currentTask?: string | null;
   assignments?: unknown[];
   /** Present in the record; never rendered as identity (C-03). */
-  paneId?: string;
+  paneId?: string | null;
   /** tmux window; the ONLY sanctioned focus mechanism, and only on a human click (C-06, Phase 4). */
   windowId?: string;
   /**

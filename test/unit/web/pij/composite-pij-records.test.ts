@@ -51,21 +51,21 @@ describe('createCompositePijRecords', () => {
     expect(cli.calls).toEqual([]);
   });
 
-  it('routes tree, nodeShow, and raw only to the CLI reader', async () => {
+  it('routes tree and nodeShow to the same rs identity space as the roster', async () => {
     const rs = fakeRecords('rs');
     const cli = fakeRecords('cli');
     const records = createCompositePijRecords({ rs, cli });
 
     await expect(records.tree({ global: true })).resolves.toEqual({
-      roots: [{ id: 'cli-tree' }],
+      roots: [{ id: 'rs-tree' }],
     });
-    await expect(records.nodeShow('pij-seat')).resolves.toEqual({ id: 'cli-pij-seat' });
+    await expect(records.nodeShow('rs-seat')).resolves.toEqual({ id: 'rs-rs-seat' });
     await expect(records.raw(['version', '--json'])).resolves.toEqual({
       source: 'cli',
       args: ['version', '--json'],
     });
 
-    expect(cli.calls).toEqual(['tree', 'nodeShow:pij-seat', 'raw:version --json']);
-    expect(rs.calls).toEqual([]);
+    expect(cli.calls).toEqual(['raw:version --json']);
+    expect(rs.calls).toEqual(['tree', 'nodeShow:rs-seat']);
   });
 });

@@ -59,6 +59,9 @@ export async function handlePijTreeRequest(
       workspace: global ? null : workspace,
       roots: tree.roots,
       windows,
+      ...(tree.structureSource === 'rs-parent-links'
+        ? { structureSource: 'rs-parent-links', rolesUnavailable: tree.rolesUnavailable === true }
+        : {}),
     };
     return snapshotResponse(snapshot.seq, snapshot.at, data);
   } catch (error) {

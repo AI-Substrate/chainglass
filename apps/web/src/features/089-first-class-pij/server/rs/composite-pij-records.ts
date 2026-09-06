@@ -21,10 +21,10 @@ export function createCompositePijRecords(deps: {
       return deps.rs.state(id, options);
     },
     tree(options: PijTreeScope): Promise<PijTree> {
-      return deps.cli.tree(options);
+      return deps.rs.tree(options);
     },
     nodeShow(id: string, options?: PijReadOptions): Promise<PijNodeDetail> {
-      return deps.cli.nodeShow(id, options);
+      return deps.rs.nodeShow(id, options);
     },
     raw(args: readonly string[], options?: PijReadOptions): Promise<unknown> {
       return deps.cli.raw(args, options);
