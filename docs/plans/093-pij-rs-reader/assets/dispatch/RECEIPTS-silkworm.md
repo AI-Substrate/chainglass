@@ -111,3 +111,12 @@ exactly, as the reviewer described it, now observed by the operator. Confirmed b
 `GET /api/pij/tree` on the same server returning the legacy root `pij-chief-roadrunner`
 with a `~/.pij` dataDir. Not a new defect; a live receipt for the reviewer's finding.
 Cleared by a `just dev` restart onto `f1b79236f`, which is Jordan's to run.
+
+## Page proof on f1b79236f — RAN by antelope after Jordan's second restart (2026-09-07 08:25 local start)
+
+- `GET /api/pij/tree?workspace=<main>&all=1` from the fresh singleton:
+  `structureSource: "rs-parent-links"`, `rolesUnavailable: true`, 11 roots,
+  `pij-lonely-antelope` children = `[pij-civil-zakalwe, pij-creative-chickadee]`.
+- `POST /api/pij/focus` `pij-creative-chickadee` → **200 `{focused:"@3723"}`** (live seat, pane verified at click time).
+- `POST /api/pij/focus` `pij-marine-vulture` (probe corpse) → **409 `no-pane`**, "has no matching tmux pane at focus time". An honest refusal, not a store error.
+- Operator's screenshot shows the same hierarchy rendered. F1 and F2 closed on the page. The only rows without a receipt are bp-0005 (daemon restart, awaiting Jordan) and the D1–D3 LOW follow-ups.
