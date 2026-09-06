@@ -1,0 +1,19 @@
+docs/plans/093-pij-rs-reader/assets/findings/pij-team-experiences-093.md
+  s_084ac52dc66de3::t_b92c478831c14b 1-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "1575f44564150fbae930bdf3a097ec9c857fae14",
+  "prompts": {},
+  "sessions": {
+    "s_084ac52dc66de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
