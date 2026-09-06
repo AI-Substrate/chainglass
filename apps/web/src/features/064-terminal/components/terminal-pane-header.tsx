@@ -30,7 +30,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { ClipboardCopy, MessageSquareText, Pencil, TerminalSquare, X } from 'lucide-react';
+import { ClipboardCopy, MessageSquareText, Pencil, Scaling, TerminalSquare, X } from 'lucide-react';
 import { type FormEvent, useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { copyTmuxBuffer } from '../lib/copy-tmux-buffer';
 import { getWindowNameValidationError } from '../lib/window-name-validation';
@@ -58,7 +58,8 @@ export function TerminalPaneHeader({
   // down through props. Both hosts already render inside the provider, so
   // neither of them grows a prop for the drawer — which is the drift FX014
   // created this component to end.
-  const { sendPrompt, renameWindow } = useTerminalSingleton();
+  const { sendPrompt, renameWindow, resizeMode, toggleResizeMode, windows, selectWindow } =
+    useTerminalSingleton();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [windowName, setWindowName] = useState('');
@@ -114,13 +115,34 @@ export function TerminalPaneHeader({
     <>
       <div
         ref={headerRef}
-        className="flex items-center justify-between border-b px-3 py-2 shrink-0"
+        className="flex min-w-0 items-center justify-between gap-3 border-b px-3 py-2 shrink-0"
       >
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex flex-1 items-center gap-2 min-w-0 overflow-hidden">
           <TerminalSquare className="h-4 w-4 text-muted-foreground shrink-0" />
-          <span className="text-sm font-medium shrink-0">{sessionName}</span>
+          <span className="max-w-[40%] truncate text-sm font-medium shrink-0" title={sessionName}>
+            {sessionName}
+          </span>
+          <nav
+            aria-label="tmux windows"
+            className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden"
+          >
+            {windows.map((window) => (
+              <button
+                key={`${window.id}:${window.index}`}
+                type="button"
+                onClick={() => selectWindow?.(window.id, window.index)}
+                disabled={connectionStatus !== 'connected' || !selectWindow}
+                aria-label={`Window ${window.index}: ${window.name}`}
+                aria-pressed={window.active}
+                title={`Window ${window.index}: ${window.name}`}
+                className={`h-6 min-w-7 shrink-0 rounded px-1.5 text-xs font-medium tabular-nums focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-50 ${window.active ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent hover:text-foreground'}`}
+              >
+                {window.index}
+              </button>
+            ))}
+          </nav>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <TerminalThemeSelect />
           <button
             type="button"
@@ -150,6 +172,17 @@ export function TerminalPaneHeader({
             title="Rename tmux window"
           >
             <Pencil className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={toggleResizeMode}
+            disabled={connectionStatus !== 'connected'}
+            className="rounded-sm p-1 text-muted-foreground hover:text-foreground hover:bg-accent aria-pressed:bg-accent aria-pressed:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label="Resize tmux panes"
+            aria-pressed={resizeMode}
+            title="Drag tmux pane borders to resize"
+          >
+            <Scaling className="h-3.5 w-3.5" />
           </button>
           <ConnectionStatusBadge status={connectionStatus} showLabel={false} />
           {onClose && (

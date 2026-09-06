@@ -34,7 +34,11 @@ vi.mock('@/features/064-terminal/components/terminal-viewport', () => ({
 
 const connectionStatus = { current: 'connected' as 'connected' | 'disconnected' };
 vi.mock('@/features/064-terminal/components/terminal-singleton-provider', () => ({
-  useTerminalSingleton: () => ({ connectionStatus: connectionStatus.current }),
+  useTerminalSingleton: () => ({
+    connectionStatus: connectionStatus.current,
+    windows: [],
+    selectWindow: null,
+  }),
 }));
 
 import { TerminalPaneHeader } from '@/features/064-terminal/components/terminal-pane-header';

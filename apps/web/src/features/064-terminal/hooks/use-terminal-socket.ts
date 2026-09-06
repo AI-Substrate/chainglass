@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
   ConnectionStatus,
+  PaneLayoutResult,
   RenameWindow,
   RenameWindowResult,
   SendPrompt,
   SendPromptResult,
+  TerminalWindowsResult,
 } from '../types';
 
 /**
@@ -23,6 +25,8 @@ const CONTROL_TYPES = new Set([
   'clipboard',
   'send-keys',
   'rename-window',
+  'pane-layout',
+  'windows',
 ]);
 
 /** Auth close codes from sidecar — don't retry with stale token (DYK-05) */
@@ -43,6 +47,8 @@ export interface UseTerminalSocketOptions {
   onClipboard?: (data: string, error?: string) => void;
   onSendPromptResult?: (result: SendPromptResult) => void;
   onRenameWindowResult?: (result: RenameWindowResult) => void;
+  onPaneLayout?: (result: PaneLayoutResult) => void;
+  onWindows?: (result: TerminalWindowsResult) => void;
   onConnectionChange?: (status: ConnectionStatus) => void;
 }
 
@@ -89,6 +95,8 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
   const onClipboardRef = useRef(options.onClipboard);
   const onSendPromptResultRef = useRef(options.onSendPromptResult);
   const onRenameWindowResultRef = useRef(options.onRenameWindowResult);
+  const onPaneLayoutRef = useRef(options.onPaneLayout);
+  const onWindowsRef = useRef(options.onWindows);
   const onConnectionChangeRef = useRef(options.onConnectionChange);
   onDataRef.current = options.onData;
   onStatusRef.current = options.onStatus;
@@ -96,6 +104,8 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
   onClipboardRef.current = options.onClipboard;
   onSendPromptResultRef.current = options.onSendPromptResult;
   onRenameWindowResultRef.current = options.onRenameWindowResult;
+  onPaneLayoutRef.current = options.onPaneLayout;
+  onWindowsRef.current = options.onWindows;
   onConnectionChangeRef.current = options.onConnectionChange;
 
   const updateStatus = useCallback((newStatus: ConnectionStatus) => {
@@ -172,6 +182,10 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
               renamed: msg.renamed === true,
               error: msg.error,
             });
+          } else if (msg.type === 'pane-layout') {
+            onPaneLayoutRef.current?.({ layout: msg.layout ?? null, error: msg.error });
+          } else if (msg.type === 'windows') {
+            onWindowsRef.current?.({ windows: msg.windows ?? [], error: msg.error });
           }
           return;
         }

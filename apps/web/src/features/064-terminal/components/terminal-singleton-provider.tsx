@@ -31,7 +31,7 @@ import {
   useState,
 } from 'react';
 import { useTerminalOverlay } from '../hooks/use-terminal-overlay';
-import type { ConnectionStatus, RenameWindow, SendPrompt } from '../types';
+import type { ConnectionStatus, RenameWindow, SendPrompt, TerminalWindow } from '../types';
 
 const TerminalInnerLazy = dynamic(() => import('./terminal-inner'), { ssr: false });
 
@@ -58,6 +58,10 @@ interface TerminalSingletonContextValue {
   sendPrompt: SendPrompt | null;
   /** The active terminal's tmux window rename sender. */
   renameWindow: RenameWindow | null;
+  resizeMode: boolean;
+  toggleResizeMode(): void;
+  windows: TerminalWindow[];
+  selectWindow: ((windowId: string, windowIndex: number) => void) | null;
 }
 
 const TerminalSingletonContext = createContext<TerminalSingletonContextValue | null>(null);
@@ -109,6 +113,19 @@ export function TerminalSingletonProvider({
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
   const [sendPrompt, setSendPrompt] = useState<SendPrompt | null>(null);
   const [renameWindow, setRenameWindow] = useState<RenameWindow | null>(null);
+  const [resizeMode, setResizeMode] = useState(false);
+  const toggleResizeMode = useCallback(() => setResizeMode((value) => !value), []);
+  const stopResizing = useCallback(() => setResizeMode(false), []);
+  const [windows, setWindows] = useState<TerminalWindow[]>([]);
+  const [selectWindow, setSelectWindow] = useState<
+    ((windowId: string, windowIndex: number) => void) | null
+  >(null);
+  const registerSelectWindow = useCallback(
+    (select: ((windowId: string, windowIndex: number) => void) | null) => {
+      setSelectWindow(() => select);
+    },
+    []
+  );
   const parkRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const slotsRef = useRef<Map<string, HTMLElement>>(new Map());
@@ -165,8 +182,24 @@ export function TerminalSingletonProvider({
       connectionStatus,
       sendPrompt,
       renameWindow,
+      resizeMode,
+      toggleResizeMode,
+      windows,
+      selectWindow,
     }),
-    [activate, deactivate, registerSlot, activeId, connectionStatus, sendPrompt, renameWindow]
+    [
+      activate,
+      deactivate,
+      registerSlot,
+      activeId,
+      connectionStatus,
+      sendPrompt,
+      renameWindow,
+      resizeMode,
+      toggleResizeMode,
+      windows,
+      selectWindow,
+    ]
   );
 
   const ready = Boolean(sessionName && cwd) && hasActivated;
@@ -183,6 +216,10 @@ export function TerminalSingletonProvider({
               onConnectionChange={setConnectionStatus}
               onSendPromptReady={registerSendPrompt}
               isVisible={activeId !== null}
+              resizeMode={resizeMode && activeId !== null}
+              onResizeModeExit={stopResizing}
+              onWindowsChange={setWindows}
+              onSelectWindowReady={registerSelectWindow}
             />
           </div>
         ) : null}

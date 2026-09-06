@@ -16,6 +16,7 @@ Browser-based terminal emulator connected to tmux sessions for persistent, recon
 - Sidecar WebSocket server (terminal-ws.ts) — standalone Node.js process alongside Next.js
 - tmux session lifecycle (tmux-session-manager.ts) — create, attach, list, validate, fallback
 - xterm.js terminal component (terminal-inner.tsx) — rendering, resize, theme, cleanup
+- Active-window pane border resizing — header toggle, draggable guides, guarded tmux layout updates
 - WebSocket client hook (use-terminal-socket.ts) — connect, reconnect, message parsing
 - Terminal page (Surface 1) — PanelShell composition with session list
 - Terminal overlay panel (Surface 2) — persistent right-edge panel across workspace pages
@@ -49,6 +50,18 @@ Browser-based terminal emulator connected to tmux sessions for persistent, recon
 | `PtySpawner` | Type | Server, test doubles | `(name, cwd, cols, rows) → PtyProcess` |
 | `CommandExecutor` | Type | Server, test doubles | `(command, args) → { code, output }` |
 | `createTerminalServer()` | Factory | Sidecar entry point | Creates WS server with injectable deps. Supports WSS via env vars |
+| `TmuxWindowLayout`, `ResizePaneRequest`, `PaneLayoutResult` | Types | Terminal overlay, WS client/server | Current window geometry and revision; border position normalized to window dimensions; readback/error |
+| `TerminalWindow`, `TerminalWindowsResult` | Types | Shared header, WS client/server | Stable window ID, native index, name and active state for the attached session |
+
+### Pane border resizing
+
+The shared terminal header places Resize beside Rename. Resize mode overlays high-contrast horizontal and vertical borders; dragging previews locally and releasing submits one `resize-pane` control message. Arrow keys adjust a focused border; Escape or Done leaves the mode.
+
+`pane-layout` reads only the connection session's active window. Resize requests carry its window ID, pane ID, axis, normalized border position and layout revision. The sidecar resolves the actual split owning the pane's right/bottom border and applies a checksummed `select-layout` under an execution-time active-window/revision guard. Nested pane geometry is recalculated without changing window dimensions, pane order, processes or other windows. Both requests return `pane-layout` with actual geometry or an error; stale/zoomed layouts are not resized. The outer tmux status-line count is separate from pane coordinates.
+
+### Window navigation
+
+Numbered buttons beside the shared header's session title select windows by their native tmux indices, carrying the stable window ID as an identity guard. The active window is highlighted; excess buttons are clipped on one line without displacing the right-hand controls. `windows` reads the exact attached session and `select-window` validates index/ID membership, selects `=session:index` under an execution-time identity guard, and returns fresh state. This also distinguishes multiple indices linked to the same window. The visible terminal refreshes its list every two seconds to reflect native shortcuts and window creation/deletion. Selecting a window exits pane-resize mode and returns keyboard focus to xterm.
 
 ## Custom Events (Cross-Boundary Communication)
 
@@ -81,6 +94,7 @@ apps/web/src/features/064-terminal/
 ├── domain.md                         # This file
 ├── components/
 │   ├── terminal-inner.tsx            # Core xterm.js component (internal)
+│   ├── terminal-resize-overlay.tsx   # Drag previews and keyboard-accessible pane borders
 │   ├── terminal-view.tsx             # Dynamic import wrapper (contract)
 │   ├── terminal-skeleton.tsx         # Loading placeholder (contract)
 │   ├── terminal-overlay-panel.tsx    # Right-edge overlay (contract)
@@ -98,6 +112,7 @@ apps/web/src/features/064-terminal/
 │   └── terminal.params.ts            # nuqs URL params (contract)
 └── server/
     ├── terminal-ws.ts                # Sidecar WS/WSS server (internal)
+    ├── tmux-pane-layout.ts           # Active-window geometry and guarded border resize
     └── tmux-session-manager.ts       # tmux session lifecycle (internal)
 
 app/(dashboard)/workspaces/[slug]/

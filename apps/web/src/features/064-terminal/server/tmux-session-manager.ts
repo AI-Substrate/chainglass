@@ -11,7 +11,7 @@
  */
 
 import { isAbsolute, normalize, relative, resolve } from 'node:path';
-import type { CommandExecutor, PtyProcess, PtySpawner } from '../types';
+import type { CommandExecutor, PtyProcess, PtySpawner, TerminalWindow } from '../types';
 
 const TMUX_SESSION_NAME_REGEX = /^[a-zA-Z0-9_-]+$/;
 const MAX_SESSION_NAME_LENGTH = 256;
@@ -84,6 +84,54 @@ export class TmuxSessionManager {
     } catch {
       return [];
     }
+  }
+
+  /** Read native indices and active state only from the exact attached session. */
+  listWindows(sessionName: string): TerminalWindow[] {
+    if (!this.validateSessionName(sessionName)) throw new Error('Invalid session name');
+    const output = this.exec('tmux', [
+      'list-windows',
+      '-t',
+      `=${sessionName}`,
+      '-F',
+      '#{window_id}\t#{window_index}\t#{window_active}\t#{window_name}',
+    ]);
+    return output
+      .split('\n')
+      .filter((line) => line.length > 0)
+      .map((line) => {
+        const [id, index, active, ...name] = line.split('\t');
+        return { id, index: Number(index), name: name.join('\t'), active: active === '1' };
+      });
+  }
+
+  /** Select one numbered link, even when the same window is linked more than once. */
+  selectWindow(sessionName: string, windowId: string, windowIndex: number): TerminalWindow[] {
+    if (!this.validateSessionName(sessionName)) throw new Error('Invalid session name');
+    if (typeof windowId !== 'string' || !/^@\d+$/.test(windowId)) {
+      throw new Error('Invalid window ID');
+    }
+    if (!Number.isSafeInteger(windowIndex) || windowIndex < 0) {
+      throw new Error('Invalid window index');
+    }
+    const window = this.listWindows(sessionName).find(
+      (candidate) => candidate.id === windowId && candidate.index === windowIndex
+    );
+    if (!window) throw new Error('Window is not in the attached session');
+    const target = `=${sessionName}:${window.index}`;
+    // -F guards and selects in the same tmux queue turn, without a shell job.
+    // The index identifies the link; checking its ID prevents index-reuse races.
+    const outcome = this.exec('tmux', [
+      'if-shell',
+      '-F',
+      '-t',
+      target,
+      `#{==:#{window_id},${window.id}}`,
+      `select-window -t '${target}' ; display-message -p window-selected`,
+      'display-message -p window-changed',
+    ]).trim();
+    if (outcome !== 'window-selected') throw new Error('The tmux window changed');
+    return this.listWindows(sessionName);
   }
 
   /** Check if a specific tmux session exists */

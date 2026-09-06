@@ -1,4 +1,4 @@
-import { resolve } from 'node:path';
+import { basename, resolve } from 'node:path';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import { defineConfig } from 'vitest/config';
 
@@ -9,6 +9,8 @@ export default defineConfig({
   plugins: [
     tsconfigPaths({
       root: rootDir,
+      // Build output contains relocated tsconfigs, not source projects.
+      skip: (dir) => ['.next', 'dist'].includes(basename(dir)),
     }),
   ],
   // Explicit alias for @/ (Next.js convention) and monorepo packages

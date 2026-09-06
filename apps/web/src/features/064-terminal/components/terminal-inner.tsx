@@ -18,8 +18,16 @@ import { useKeyboardOpen } from '../hooks/use-keyboard-open';
 import { useTerminalSocket } from '../hooks/use-terminal-socket';
 import { applyResyncOnStatus } from '../lib/resync-on-connect';
 import { resolveTerminalTheme } from '../lib/terminal-themes';
-import type { ConnectionStatus, RenameWindow, SendPrompt } from '../types';
+import type {
+  ConnectionStatus,
+  RenameWindow,
+  ResizePaneRequest,
+  SendPrompt,
+  TerminalWindow,
+  TmuxWindowLayout,
+} from '../types';
 import { TerminalModifierToolbar } from './terminal-modifier-toolbar';
+import { TerminalResizeOverlay } from './terminal-resize-overlay';
 
 /**
  * Ubuntu Mono Nerd first — it is the only face here carrying the powerline and
@@ -52,6 +60,10 @@ interface TerminalInnerProps {
   themeOverride?: 'dark' | 'light' | 'system';
   /** When true, auto-focus the terminal (e.g. overlay just became visible) */
   isVisible?: boolean;
+  resizeMode?: boolean;
+  onResizeModeExit?: () => void;
+  onWindowsChange?: (windows: TerminalWindow[]) => void;
+  onSelectWindowReady?: (select: ((windowId: string, windowIndex: number) => void) | null) => void;
 }
 
 export default function TerminalInner({
@@ -62,6 +74,10 @@ export default function TerminalInner({
   onSendPromptReady,
   themeOverride,
   isVisible,
+  resizeMode = false,
+  onResizeModeExit,
+  onWindowsChange,
+  onSelectWindowReady,
 }: TerminalInnerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
@@ -73,6 +89,10 @@ export default function TerminalInner({
   const [copyModalText, setCopyModalText] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const tmuxWarningShownRef = useRef(false);
+  const [paneLayout, setPaneLayout] = useState<TmuxWindowLayout | null>(null);
+  const [paneLayoutError, setPaneLayoutError] = useState<string | null>(null);
+  const [paneResizePending, setPaneResizePending] = useState(false);
+  const windowErrorRef = useRef<string | undefined>(undefined);
   // Plan 084 T007: send {type:'resync'} once per WS lifecycle on first
   // 'connected' event. Re-armed when status leaves 'connected' (so reconnect
   // fires another resync). Mitigates tmux smallest-client geometry clamp
@@ -140,9 +160,25 @@ export default function TerminalInner({
       // tmux itself performs this control command, so a failed exit is a
       // trustworthy failure signal. Success is visible in the header; only the
       // otherwise-invisible failure needs a toast.
-      if (renamed) return;
+      if (renamed) {
+        sendRef.current(JSON.stringify({ type: 'windows' }));
+        return;
+      }
       const { toast } = await import('sonner');
       toast.error(error ?? 'Could not rename the tmux window');
+    },
+    onPaneLayout: ({ layout, error }) => {
+      setPaneLayout(layout);
+      setPaneLayoutError(error ?? null);
+      setPaneResizePending(false);
+    },
+    onWindows: async ({ windows, error }) => {
+      onWindowsChange?.(windows);
+      if (error && error !== windowErrorRef.current) {
+        const { toast } = await import('sonner');
+        toast.error(error);
+      }
+      windowErrorRef.current = error;
     },
     onStatus: async (_status, _tmux, _message) => {
       // Clear auth error on successful connection
@@ -192,6 +228,50 @@ export default function TerminalInner({
       resyncSentRef.current = false;
     }
   }, [status]);
+
+  const refreshPaneLayout = useCallback(() => {
+    setPaneLayoutError(null);
+    setPaneResizePending(true);
+    send(JSON.stringify({ type: 'pane-layout' }));
+  }, [send]);
+
+  useEffect(() => {
+    setPaneLayout(null);
+    if (resizeMode && sessionName && status === 'connected') refreshPaneLayout();
+  }, [resizeMode, status, sessionName, refreshPaneLayout]);
+
+  // Native tmux shortcuts and other attached clients can also change windows.
+  useEffect(() => {
+    onWindowsChange?.([]);
+    if (!onWindowsChange || !isVisible || !sessionName || status !== 'connected') return;
+    const refresh = () => send(JSON.stringify({ type: 'windows' }));
+    refresh();
+    const timer = setInterval(refresh, 2000);
+    return () => clearInterval(timer);
+  }, [isVisible, sessionName, status, send, onWindowsChange]);
+
+  const selectWindow = useCallback(
+    (windowId: string, windowIndex: number) => {
+      onResizeModeExit?.();
+      send(JSON.stringify({ type: 'select-window', windowId, windowIndex }));
+      terminalRef.current?.focus();
+    },
+    [send, onResizeModeExit]
+  );
+
+  useEffect(() => {
+    onSelectWindowReady?.(selectWindow);
+    return () => onSelectWindowReady?.(null);
+  }, [onSelectWindowReady, selectWindow]);
+
+  const resizePane = useCallback(
+    (request: ResizePaneRequest) => {
+      setPaneResizePending(true);
+      setPaneLayoutError(null);
+      send(JSON.stringify({ type: 'resize-pane', ...request }));
+    },
+    [send]
+  );
 
   // Listen for copy-buffer requests from header buttons (triggers WS request)
   const copyBufferRef = useRef(copyBuffer);
@@ -616,6 +696,17 @@ export default function TerminalInner({
         style={{ marginBottom: `${bottomOffset}px` }}
         data-testid="terminal-container"
       />
+      {resizeMode && (
+        <TerminalResizeOverlay
+          terminal={terminalRef.current}
+          layout={paneLayout}
+          error={status === 'connected' ? paneLayoutError : 'Terminal disconnected'}
+          onResize={resizePane}
+          busy={paneResizePending || status !== 'connected'}
+          onRefresh={refreshPaneLayout}
+          onClose={onResizeModeExit}
+        />
+      )}
       {authError && status === 'disconnected' && (
         <div className="absolute inset-0 flex items-center justify-center bg-background/90 z-20">
           <div className="flex flex-col items-center gap-3 text-sm text-muted-foreground">

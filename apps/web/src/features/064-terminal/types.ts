@@ -40,6 +40,10 @@ export type TerminalMessage =
   | { type: 'resync' }
   | { type: 'send-keys'; text: string; submit: boolean }
   | { type: 'rename-window'; name: string }
+  | ({ type: 'windows' } & Partial<TerminalWindowsResult>)
+  | { type: 'select-window'; windowId: string; windowIndex: number }
+  | ({ type: 'pane-layout' } & Partial<PaneLayoutResult>)
+  | ({ type: 'resize-pane' } & ResizePaneRequest)
   | { type: 'sessions'; sessions: TerminalSession[] };
 
 /**
@@ -109,3 +113,54 @@ export type CommandExecutor = (
   args: string[],
   options?: { encoding?: string; stdio?: string }
 ) => string;
+
+/** Pane content geometry in tmux window cells, excluding the outer status line. */
+export interface TmuxPaneGeometry {
+  id: string;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+/** Snapshot of the currently active window in the terminal's session. */
+export interface TmuxWindowLayout {
+  windowId: string;
+  width: number;
+  height: number;
+  panes: TmuxPaneGeometry[];
+  revision: string;
+  statusPosition: 'top' | 'bottom';
+  /** Actual tmux outer status rows (zero when status is off). */
+  statusRows: number;
+  zoomed: boolean;
+}
+
+export interface ResizePaneRequest {
+  windowId: string;
+  paneId: string;
+  axis: 'x' | 'y';
+  /** Absolute border coordinate divided by the window width or height. */
+  fraction: number;
+  revision: string;
+}
+
+/** Both geometry reads and resize attempts return the actual current layout. */
+export interface PaneLayoutResult {
+  layout: TmuxWindowLayout | null;
+  error?: string;
+}
+
+/** A window linked to the terminal's attached tmux session. */
+export interface TerminalWindow {
+  id: string;
+  index: number;
+  name: string;
+  active: boolean;
+}
+
+/** Both window reads and selections return the current session window list. */
+export interface TerminalWindowsResult {
+  windows: TerminalWindow[];
+  error?: string;
+}

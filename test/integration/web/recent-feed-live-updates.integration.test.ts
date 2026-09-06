@@ -23,7 +23,7 @@ import { execFileSync } from 'node:child_process';
 import { type FSWatcher, mkdirSync, watch, writeFileSync } from 'node:fs';
 
 import { join, relative } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   type FeedAction,
@@ -179,18 +179,35 @@ describe('Recent-feed live updates — real fs.watch integration', () => {
 
   it('drops build-artifact paths even when delivered by real fs events (AC C2 noise control)', async () => {
     let state: FeedState = initialFeedState;
-    watched = watchRoot(tmp);
 
-    // Create node_modules/ + some other "noise" paths the feed must hide.
+    // Seed directories before watching so directory-creation events cannot
+    // stand in for delivery of the actual files under test.
     mkdirSync(join(tmp, 'node_modules', 'pkg'), { recursive: true });
-    writeFileSync(join(tmp, 'node_modules', 'pkg', 'index.js'), 'noise');
     mkdirSync(join(tmp, '.next'), { recursive: true });
-    writeFileSync(join(tmp, '.next', 'cache.json'), 'build-cache');
+    const files = {
+      'node_modules/pkg/index.js': 'noise',
+      '.next/cache.json': 'build-cache',
+      'real.ts': 'export const real = true;',
+    };
+    watched = watchRoot(tmp);
+    const { events } = watched;
 
-    // …and a real source file the user cares about.
-    writeFileSync(join(tmp, 'real.ts'), 'export const real = true;');
-
-    await tick(120);
+    // fs.watch has no readiness signal. Keep writing only undelivered paths
+    // until the real watcher observes every fixture, including BOTH noise
+    // files. A fixed sleep can expire before FSEvents attaches or delivers.
+    await vi.waitFor(
+      () => {
+        for (const [path, content] of Object.entries(files)) {
+          if (!events.some((event) => event.relPath === path)) {
+            writeFileSync(join(tmp, path), content);
+          }
+        }
+        expect(events.map((event) => event.relPath)).toEqual(
+          expect.arrayContaining(Object.keys(files))
+        );
+      },
+      { timeout: 2000, interval: 50 }
+    );
     expect(watched.events.length).toBeGreaterThan(0);
 
     state = applyEvents(state, watched.events);

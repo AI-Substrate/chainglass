@@ -6,7 +6,7 @@
  * @vitest-environment jsdom
  */
 
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { TerminalModifierToolbar } from '../../../../../apps/web/src/features/064-terminal/components/terminal-modifier-toolbar';
@@ -102,9 +102,9 @@ describe('TerminalModifierToolbar', () => {
     });
   });
 
-  it('calls resetModifiers to clear pending modifier', async () => {
+  it('calls resetModifiers to clear pending modifier', () => {
     const ref = { current: null as { resetModifiers: () => void } | null };
-    const { rerender } = render(
+    render(
       <TerminalModifierToolbar
         onKey={() => {}}
         toolbarRef={(r) => {
@@ -116,18 +116,7 @@ describe('TerminalModifierToolbar', () => {
     // Ctrl should be pending
     expect(screen.getByText('Ctrl').closest('button')?.style.background).toContain('primary');
 
-    // Reset and re-render to flush state
-    await vi.waitFor(() => {
-      ref.current?.resetModifiers();
-      rerender(
-        <TerminalModifierToolbar
-          onKey={() => {}}
-          toolbarRef={(r) => {
-            ref.current = r;
-          }}
-        />
-      );
-      expect(screen.getByText('Ctrl').closest('button')?.style.background).not.toContain('primary');
-    });
+    act(() => ref.current?.resetModifiers());
+    expect(screen.getByText('Ctrl').closest('button')?.style.background).not.toContain('primary');
   });
 });

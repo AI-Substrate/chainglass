@@ -17,7 +17,13 @@ import https from 'node:https';
 import { activeSigningSecret, findWorkspaceRoot } from '@chainglass/shared/auth-bootstrap-code';
 import { type WebSocket, WebSocketServer } from 'ws';
 import { isValidWindowName } from '../lib/window-name-validation';
-import type { CommandExecutor, PtyProcess, PtySpawner } from '../types';
+import type {
+  CommandExecutor,
+  PaneLayoutResult,
+  PtyProcess,
+  PtySpawner,
+  TerminalWindowsResult,
+} from '../types';
 import { isProcessAlive, isTmuxClient, reapStalePtys, recordPid, removePid } from './pty-registry';
 import { sendPromptKeys } from './send-prompt-keys';
 import {
@@ -29,6 +35,7 @@ import {
   parseAllowedOrigins,
   validateTerminalJwt,
 } from './terminal-auth';
+import { readPaneLayout, resizeTmuxPane } from './tmux-pane-layout';
 import { TmuxSessionManager } from './tmux-session-manager';
 
 // Plan 084 Phase 4 — re-export the auth contract so existing tests that
@@ -220,6 +227,43 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
           if (!username) {
             ws.close(4403, 'Token refresh failed');
           }
+          return;
+        }
+        if (msg.type === 'windows' || msg.type === 'select-window') {
+          let result: TerminalWindowsResult;
+          try {
+            if (!tmuxAvailable) throw new Error('tmux is not available');
+            result = {
+              windows:
+                msg.type === 'select-window'
+                  ? manager.selectWindow(sessionName, msg.windowId, msg.windowIndex)
+                  : manager.listWindows(sessionName),
+            };
+          } catch (error) {
+            result = {
+              windows: [],
+              error: error instanceof Error ? error.message : 'Unable to read windows',
+            };
+          }
+          ws.send(JSON.stringify({ type: 'windows', ...result }));
+          return;
+        }
+        if (msg.type === 'pane-layout' || msg.type === 'resize-pane') {
+          let result: PaneLayoutResult;
+          try {
+            if (!tmuxAvailable) throw new Error('tmux is not available');
+            if (!manager.validateSessionName(sessionName)) throw new Error('Invalid session name');
+            result =
+              msg.type === 'resize-pane'
+                ? resizeTmuxPane(deps.execCommand, sessionName, msg)
+                : { layout: readPaneLayout(deps.execCommand, sessionName) };
+          } catch (error) {
+            result = {
+              layout: null,
+              error: error instanceof Error ? error.message : 'Unable to read pane layout',
+            };
+          }
+          ws.send(JSON.stringify({ type: 'pane-layout', ...result }));
           return;
         }
         if (msg.type === 'resize' && typeof msg.cols === 'number' && typeof msg.rows === 'number') {

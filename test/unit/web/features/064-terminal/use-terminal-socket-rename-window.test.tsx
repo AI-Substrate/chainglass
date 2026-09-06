@@ -90,4 +90,46 @@ describe('useTerminalSocket rename-window control frame', () => {
       error: 'tmux failed',
     });
   });
+
+  it('delivers pane layout replies without writing control JSON into xterm', async () => {
+    const onData = vi.fn();
+    const onPaneLayout = vi.fn();
+    renderHook(() =>
+      useTerminalSocket({ sessionName: 'terminal-session', cwd: '/tmp', onData, onPaneLayout })
+    );
+    await waitFor(() => expect(FakeBrowserWebSocket.instances).toHaveLength(1));
+    act(() => {
+      FakeBrowserWebSocket.instances[0].open();
+      FakeBrowserWebSocket.instances[0].simulateMessage(
+        JSON.stringify({
+          type: 'pane-layout',
+          layout: null,
+          error: 'The active window changed. Try again.',
+        })
+      );
+    });
+    expect(onPaneLayout).toHaveBeenCalledWith({
+      layout: null,
+      error: 'The active window changed. Try again.',
+    });
+    expect(onData).not.toHaveBeenCalled();
+  });
+
+  it('delivers window selection readback without typing it into the terminal', async () => {
+    const onData = vi.fn();
+    const onWindows = vi.fn();
+    const windows = [{ id: '@7', index: 0, name: 'editor', active: true }];
+    renderHook(() =>
+      useTerminalSocket({ sessionName: 'terminal-session', cwd: '/tmp', onData, onWindows })
+    );
+    await waitFor(() => expect(FakeBrowserWebSocket.instances).toHaveLength(1));
+    act(() => {
+      FakeBrowserWebSocket.instances[0].open();
+      FakeBrowserWebSocket.instances[0].simulateMessage(
+        JSON.stringify({ type: 'windows', windows })
+      );
+    });
+    expect(onWindows).toHaveBeenCalledWith({ windows, error: undefined });
+    expect(onData).not.toHaveBeenCalled();
+  });
 });

@@ -14,7 +14,7 @@
  */
 
 import { TerminalOverlayProvider } from '@/features/064-terminal/hooks/use-terminal-overlay';
-import type { SendPrompt } from '@/features/064-terminal/types';
+import type { SendPrompt, TerminalWindow } from '@/features/064-terminal/types';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { type ReactNode, useEffect, useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -24,6 +24,14 @@ const sent: Array<{ text: string; submit: boolean }> = [];
 const sendPromptStub: SendPrompt = (text, options) => {
   sent.push({ text, submit: options.submit });
 };
+const selectedWindows: Array<{ windowId: string; windowIndex: number }> = [];
+const windowFixtures: TerminalWindow[] = [
+  { id: '@1', index: 0, name: 'editor', active: true },
+  { id: '@7', index: 3, name: 'build', active: false },
+  { id: '@1', index: 7, name: 'editor', active: false },
+];
+const selectWindowStub = (windowId: string, windowIndex: number) =>
+  selectedWindows.push({ windowId, windowIndex });
 
 vi.mock('@/features/064-terminal/components/terminal-theme-select', () => ({
   TerminalThemeSelect: () => <button type="button" aria-label="Terminal color theme" />,
@@ -35,15 +43,26 @@ vi.mock('@/features/064-terminal/components/terminal-inner', () => ({
   default: function MockTerminalInner({
     onSendPromptReady,
     onConnectionChange,
+    onWindowsChange,
+    onSelectWindowReady,
   }: {
     onSendPromptReady?: (fn: SendPrompt | null) => void;
     onConnectionChange?: (status: 'connecting' | 'connected' | 'disconnected') => void;
+    onWindowsChange?: (windows: TerminalWindow[]) => void;
+    onSelectWindowReady?: (
+      select: ((windowId: string, windowIndex: number) => void) | null
+    ) => void;
   }) {
     useEffect(() => {
       onConnectionChange?.('connected');
       onSendPromptReady?.(sendPromptStub);
-      return () => onSendPromptReady?.(null);
-    }, [onSendPromptReady, onConnectionChange]);
+      onWindowsChange?.(windowFixtures);
+      onSelectWindowReady?.(selectWindowStub);
+      return () => {
+        onSendPromptReady?.(null);
+        onSelectWindowReady?.(null);
+      };
+    }, [onSendPromptReady, onConnectionChange, onWindowsChange, onSelectWindowReady]);
     return <div data-testid="mock-terminal-inner">terminal</div>;
   },
 }));
@@ -108,6 +127,7 @@ async function openDrawerOnSplitPane() {
 
 beforeEach(() => {
   sent.length = 0;
+  selectedWindows.length = 0;
 });
 
 describe('drawer → singleton context → sender (tk-0105)', () => {
@@ -168,5 +188,20 @@ describe('drawer → singleton context → sender (tk-0105)', () => {
 
     expect(sent).toHaveLength(1);
     expect(sent[0]).toEqual({ text: prompt.text, submit: true });
+  });
+
+  it('window buttons use real indices and select the stable window ID through the singleton', async () => {
+    render(withProviders(<TerminalSplitPane sessionName="s" />));
+    const editor = await screen.findByRole('button', { name: 'Window 0: editor' });
+    const build = screen.getByRole('button', { name: 'Window 3: build' });
+    expect(editor.getAttribute('aria-pressed')).toBe('true');
+    expect(build.getAttribute('aria-pressed')).toBe('false');
+    expect(build.textContent).toBe('3');
+    fireEvent.click(build);
+    fireEvent.click(screen.getByRole('button', { name: 'Window 7: editor' }));
+    expect(selectedWindows).toEqual([
+      { windowId: '@7', windowIndex: 3 },
+      { windowId: '@1', windowIndex: 7 },
+    ]);
   });
 });

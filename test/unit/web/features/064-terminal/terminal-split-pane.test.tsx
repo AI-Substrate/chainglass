@@ -25,7 +25,7 @@ vi.mock('@/features/064-terminal/components/terminal-viewport', () => ({
 }));
 
 vi.mock('@/features/064-terminal/components/terminal-singleton-provider', () => ({
-  useTerminalSingleton: () => ({ connectionStatus: 'connected' }),
+  useTerminalSingleton: () => ({ connectionStatus: 'connected', windows: [], selectWindow: null }),
 }));
 
 import { TerminalSplitPane } from '@/features/064-terminal/components/terminal-split-pane';
