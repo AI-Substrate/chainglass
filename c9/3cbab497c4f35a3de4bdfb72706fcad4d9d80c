@@ -1,0 +1,22 @@
+apps/web/app/api/pij/focus/route.ts
+  h_9e71e8b09f7cf2 22,24-25,44,62-63,99-105,110-117,248-250,255-256,262-291,548-554
+apps/web/src/features/089-first-class-pij/domain.md
+  h_9e71e8b09f7cf2 85,94,97,223
+docs/plans/093-pij-rs-reader/assets/dispatch/RECEIPTS-silkworm.md
+  h_9e71e8b09f7cf2 44,151-166
+test/unit/web/pij/focus-route.test.ts
+  h_9e71e8b09f7cf2 18,35,57-65,129-131,134-140,194-201,222-223,226-231,564-572,662,686-839
+test/unit/web/pij/seat-focus.test.tsx
+  h_9e71e8b09f7cf2 19,29,104-113,118-122
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "c93cbab497c4f35a3de4bdfb72706fcad4d9d80c",
+  "prompts": {},
+  "humans": {
+    "h_9e71e8b09f7cf2": {
+      "author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
