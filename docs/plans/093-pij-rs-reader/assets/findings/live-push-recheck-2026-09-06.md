@@ -90,11 +90,11 @@ rail card read ROLE UNKNOWN:
   caller and it is a test. `/v1/seats.role` is a descriptor column nothing sets — null on
   every row by construction. **`req-0040` appears nowhere in the pij repo**; this plan's
   references to it (oq-0002, impl-guide) name a requirement that was never pij's. Ledgered
-  upstream: role writer + `--role` + `seat_roles` joined into `/v1/seats`. No plan number.
+  upstream as **pij plan 138 "rs seat observability"** (draft, owner unicorn, minted 2026-09-06): phase 1 = one spine writer + stamped descriptor payloads (this file's two measurements are its RED), phase 2 = `--role` + setter + `seat_roles` joined onto `/v1/seats.role`, phase 3 = close verb + reaper. Unscheduled, awaiting Jordan.
 - **Tombstone.** `Registry::tombstone` has one caller, a `cfg(test)` fake. All 93 tombstones
   on the spine are plan-128 hand-writes done store-side. No verb, no reaper. The three
   probe seats from silkworm's proofs stay; they are named in the receipts.
 
 Consequence: role is EXPLICITLY UNAVAILABLE from rs with no owner and no date — the exact
 case oq-0004 ruled must be handled permanently, not as a stopgap. The rail banner cites
-"ledgered upstream, unplanned" rather than a plan that does not exist.
+pij plan 138 phase 2, unscheduled.
