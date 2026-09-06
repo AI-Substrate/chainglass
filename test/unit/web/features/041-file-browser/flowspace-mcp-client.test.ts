@@ -51,6 +51,7 @@ interface FakeServerHandle {
   serverTransport: InMemoryTransport;
   clientTransport: InMemoryTransport;
   searchCalls: number;
+  searchModes: unknown[];
 }
 
 async function makeFakeFlowspaceServer(): Promise<FakeServerHandle> {
@@ -65,6 +66,7 @@ async function makeFakeFlowspaceServer(): Promise<FakeServerHandle> {
     serverTransport,
     clientTransport,
     searchCalls: 0,
+    searchModes: [],
   };
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
@@ -87,6 +89,7 @@ async function makeFakeFlowspaceServer(): Promise<FakeServerHandle> {
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (request.params.name === 'search') {
       handle.searchCalls += 1;
+      handle.searchModes.push(request.params.arguments?.mode);
       return {
         content: [{ type: 'text', text: JSON.stringify(SAMPLE_ENVELOPE) }],
       };
@@ -152,6 +155,13 @@ describe('flowspace-mcp-client — pool semantics', () => {
     expect(out.folders).toEqual({ 'apps/': 1 });
     expect(factoryCalls).toBe(1);
     expect(handle.searchCalls).toBe(1);
+  });
+
+  it('keeps grep literal instead of allowing auto to select semantic search', async () => {
+    const handle = await pushHandle();
+    await flowspaceMcpSearch('/fake/cwd', 'useFlowspaceSearch', 'grep');
+    await flowspaceMcpSearch('/fake/cwd', 'conceptual search', 'semantic');
+    expect(handle.searchModes).toEqual(['text', 'semantic']);
   });
 
   it('reuses the warm process across multiple sequential calls (one factory call total)', async () => {

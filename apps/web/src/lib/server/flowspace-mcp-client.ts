@@ -339,7 +339,7 @@ export async function flowspaceMcpSearch(
   mode: CodeSearchMode,
   opts: FlowspaceMcpSearchOptions = {}
 ): Promise<MappedEnvelope> {
-  const fs2Mode = mode === 'semantic' ? 'semantic' : 'auto';
+  const fs2Mode = mode === 'semantic' ? 'semantic' : 'text';
   const ceilingSignal = AbortSignal.timeout(SEARCH_CEILING_MS);
   const signal = opts.signal ? AbortSignal.any([opts.signal, ceilingSignal]) : ceilingSignal;
 

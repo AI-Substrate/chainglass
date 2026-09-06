@@ -70,8 +70,7 @@ describe.skipIf(SKIP)('flowspace-mcp-client — real fs2 mcp integration', () =>
   it(
     'spawns real fs2 mcp and returns parseable results for a known query',
     async () => {
-      // Use `grep` mode (→ fs2 `auto`) so the test works on graphs without
-      // embeddings — fs2's auto mode falls through to text matching.
+      // Explicit text mode avoids embedding calls even when this graph contains embeddings.
       const out = await runOrSkipOnEnvDrift(() =>
         flowspaceMcpSearch(REPO_ROOT, 'useFlowspaceSearch', 'grep')
       );
