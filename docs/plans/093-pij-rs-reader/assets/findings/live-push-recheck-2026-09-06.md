@@ -66,3 +66,16 @@ the table by seq and broadcast anything it did not publish. Until that lands, th
 Amendment 4 is the correct client-side design and the ~5s recycle stands. Two ledger items
 recorded on the pij-rs side: the three-writer split, and the absence of an rs API doc for
 UI consumers.
+
+## Addendum, same day — registry frames carry neither a timestamp nor a payload
+
+Measured by silkworm (a fresh `seat.put` at spine 14561 with `at:0`), confirmed by unicorn
+from source and the live table: **all 1456 `seat.put` rows have `at=0` and `payload=''`**
+(`registry.rs:231` hard-codes both); all 93 `seat.tombstone` rows have `at=0` with the
+reason as payload (`:314`); `report.*` stamp both. Ledgered upstream with the three-writer
+item as one fix.
+
+Consequences for the reader, both already the design: (1) `event.at` is unusable for
+latency on registry kinds — measure from a local trigger; (2) a `seat.put` frame is a
+notification, never a descriptor — it MUST funnel into `refreshRecords()`, and no fixture
+may expect descriptor content in its payload.
