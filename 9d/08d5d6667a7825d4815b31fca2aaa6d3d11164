@@ -1,0 +1,19 @@
+docs/plans/093-pij-rs-reader/assets/dispatch/REVIEW-c93cbab49.md
+  s_084ac52dc66de3::t_0eb599623d11ff 1-216
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "9d08d5d6667a7825d4815b31fca2aaa6d3d11164",
+  "prompts": {},
+  "sessions": {
+    "s_084ac52dc66de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+        "model": "unknown"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
