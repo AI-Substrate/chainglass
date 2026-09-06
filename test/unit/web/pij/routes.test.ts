@@ -305,6 +305,38 @@ describe('/api/pij/tree', () => {
 
     expect(body.seq).toBe(4242);
     expect(body.data.roots[0].unadopted).toBe(true);
+    expect(body.data.structureWarnings).toBeUndefined();
+  });
+
+  it('passes projection warnings once at collection level without rewriting parents or roles', async () => {
+    /*
+    Test Doc:
+    - Why: A repaired projection must remain usable and disclose the repair, not claim source edits.
+    - Contract: 200 with collection warnings and unchanged authoritative parent/role fields.
+    - Usage Notes: The record reader supplies an already-repaired forest through the existing seam.
+    - Quality Contribution: Prevents the API from dropping the provenance needed by the rail.
+    - Worked Example: self-parent root + warning in → identical root and warning out.
+    */
+    const tree = {
+      roots: [{ id: 'rs-a', parent: 'rs-a', orchestrationRole: null, children: [] }],
+      structureSource: 'rs-parent-links',
+      rolesUnavailable: true,
+      structureWarnings: [
+        'Parent cycle (rs-a): displayed each member as a root; source parents unchanged.',
+      ],
+    };
+    const exec = new FakePijExecutor()
+      .whenJson(['list', '--json', '--badge'], [])
+      .whenJson(['tree', '--json'], tree);
+    const deps = await makeDeps({ exec });
+    const response = await handlePijTreeRequest(
+      request(`/api/pij/tree?workspace=${WORKSPACE}`),
+      deps
+    );
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.data).toMatchObject(tree);
+    expect(body.data.roots[0]).not.toHaveProperty('structureWarnings');
   });
 
   it('joins tmux window labels into the snapshot, keyed by window id', async () => {

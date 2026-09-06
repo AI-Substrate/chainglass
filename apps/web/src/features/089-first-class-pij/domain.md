@@ -66,7 +66,7 @@ a rule written down in that contract — never guessed, never estimated.
 | `createRsClient()` / `createRsPijRecords()` | Factories | composite adapter | Authenticated HTTP; explicit model/provider mapping and consumer-field unavailable partition |
 | `createRsEventStream()` | Factory | bootstrap | One subscriber, 5s recycle, replay-only resume cursor; fresh processes replay from per-machine zero |
 | `FleetSnapshotData` capabilities | Type | rail, fleet/global views | `livenessUnavailable` distinguishes an unknowable live count from an empty roster; `statusesUnavailable` describes card capability |
-| `TreeSnapshotData` provenance | Type | rail, tree views | `structureSource: rs-parent-links`, `rolesUnavailable`; explicit links are not inferred roles |
+| `TreeSnapshotData` provenance | Type | rail, tree views | `structureSource: rs-parent-links`, `rolesUnavailable`, optional collection `structureWarnings`; malformed links are displayed as roots without rewriting source parents or inferring roles |
 | `IFlowReader` | Interface | poller, routes | `read(planDir)` → `FlowSummary`; `scan(plansDir)` → all plan folders |
 | `createFlowReader()` | Factory | bootstrap | fs-backed adapter |
 | `PijChannelEvent` | Type | poller, browser | The `pij` channel union: `fleet-delta` · `flow-delta` · `status-delta` · `poller-status` |
@@ -93,7 +93,8 @@ a rule written down in that contract — never guessed, never estimated.
 | Window id | Legacy: fresh `node show`. rs: fresh seat detail, then actual pane/window read at click time; never supplied by the client |
 | Containment | `detail.cwd` within the workspace or its actual git worktree family; unrelated ancestors are never included merely to make a tree |
 | rs identity guard | Pane exists; pid/start match the local process table; process belongs to pane's pid ancestry; pane/window rechecked before selection. No stored liveness derivation |
-| Refusals | `unknown-seat`, `out-of-workspace`, `not-live`, `no-window`, rs `no-process` / `no-pane` / `identity-unverified`, and separate `store-unreadable` / `tmux-refused` observations |
+| Probe bounds | 3s per command; `ps` output capped at 32 MiB (same headroom as roster reads), tmux output at 1 MiB; no per-seat background process reads |
+| Refusals | `unknown-seat`, `out-of-workspace`, `not-live`, `no-window`, rs `no-process` / `no-pane` / `process-gone` / `process-reused` / `pane-moved`; `identity-unverified` retains genuinely unreadable/incomplete evidence, separate from `store-unreadable` / `tmux-refused` |
 | Fence | The single carve-out in the C-02 tmux assertion, replaced by a stricter companion (`fence.test.ts`) — proven with planted offenders |
 
 ## Ruled Constraints (bind every line in this domain)
@@ -218,3 +219,4 @@ test/
 | 090 | Replaced the workspace overlay with the file-browser PIJ rail; added JC-1/2/3 seams, live PM status, role-aware grouping, main-checkout scoping, row focus, and route-aware toggle navigation | 2026-07-29 |
 | 093 | Default rs HTTP reader; replay-safe cursors and 5s recycling; real report cards and semantic notes; mapped binding facts, typed tombstone cursors and explicit unavailable liveness | 2026-09-06 |
 | 093 review corrections | Replaced mixed-source hierarchy/focus reads with rs parent forest and fresh identity; compact unclassified rail, visible actual reports, click-time process guards, source warnings and generated-plan alignment | 2026-09-06 |
+| 093 D1–D3 | Recover duplicate/cyclic parent links with collection warnings; distinguish observed focus refusal causes; retain bounded machine-wide process-read headroom | 2026-09-07 |

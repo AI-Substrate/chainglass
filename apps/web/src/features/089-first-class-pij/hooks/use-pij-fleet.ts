@@ -134,6 +134,7 @@ export interface UsePijFleetResult {
   phase: 'connecting' | 'live' | 'degraded';
   tree: PijTreeNode[];
   structureSource?: TreeSnapshotData['structureSource'];
+  structureWarnings?: string[];
   rolesUnavailable?: boolean;
   /** tmux window labels keyed by node `windowId` (`@12` → `3:cheetah`); empty when tmux is unreachable. */
   windows: Record<string, string>;
@@ -205,6 +206,7 @@ export function usePijFleet(options: UsePijFleetOptions): UsePijFleetResult {
   const [seq, setSeq] = useState(0);
   const [tree, setTree] = useState<PijTreeNode[]>([]);
   const [structureSource, setStructureSource] = useState<TreeSnapshotData['structureSource']>();
+  const [structureWarnings, setStructureWarnings] = useState<string[]>();
   const [rolesUnavailable, setRolesUnavailable] = useState<boolean>();
   const [windows, setWindows] = useState<Record<string, string>>({});
   const [flows, setFlows] = useState<FlowSummary[]>([]);
@@ -279,6 +281,7 @@ export function usePijFleet(options: UsePijFleetOptions): UsePijFleetResult {
       setTreeIds(ids);
       setTree(snapshot.data.roots);
       setStructureSource(snapshot.data.structureSource);
+      setStructureWarnings(snapshot.data.structureWarnings);
       setRolesUnavailable(snapshot.data.rolesUnavailable);
       setWindows(snapshot.data.windows ?? {});
       setErrors((prev) => ({ ...prev, tree: null }));
@@ -579,6 +582,7 @@ export function usePijFleet(options: UsePijFleetOptions): UsePijFleetResult {
     phase,
     tree,
     structureSource,
+    structureWarnings,
     rolesUnavailable,
     windows,
     flows,

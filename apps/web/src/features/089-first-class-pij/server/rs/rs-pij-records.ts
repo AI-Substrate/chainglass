@@ -78,7 +78,7 @@ class HttpRsPijRecords implements RsPijRecords {
           ))
     );
     return {
-      roots: parentForest(scoped),
+      ...parentForest(scoped),
       source: 'pij-rs',
       structureSource: 'rs-parent-links',
       rolesUnavailable: scoped.every((seat) => seat.role == null),
@@ -110,12 +110,24 @@ class HttpRsPijRecords implements RsPijRecords {
 }
 
 /** Shape explicit parent links only; neither position nor a seat name confers a role. */
-function parentForest(seats: RsSeat[]): PijTreeNode[] {
-  const byId = new Map(seats.map((seat) => [seat.id, seat]));
-  if (byId.size !== seats.length)
-    throw new RsError('wire', 'rs roster contains duplicate seat ids');
+function parentForest(seats: RsSeat[]): Pick<PijTree, 'roots' | 'structureWarnings'> {
+  const byId = new Map<string, RsSeat>();
+  const promoted = new Set<string>();
+  const structureWarnings: string[] = [];
+  for (const seat of seats) {
+    if (byId.has(seat.id)) {
+      if (!promoted.has(seat.id)) {
+        structureWarnings.push(
+          `Duplicate seat ID ${seat.id}: kept the first descriptor and displayed it as a root; source parent unchanged.`
+        );
+      }
+      promoted.add(seat.id);
+    } else {
+      byId.set(seat.id, seat);
+    }
+  }
   const nodes = new Map<string, PijTreeNode>(
-    seats.map((seat) => [
+    Array.from(byId.values(), (seat) => [
       seat.id,
       {
         id: seat.id,
@@ -133,14 +145,29 @@ function parentForest(seats: RsSeat[]): PijTreeNode[] {
   const visiting = new Set<string>();
   const attach = (id: string): void => {
     if (attached.has(id)) return;
-    if (visiting.has(id)) throw new RsError('wire', `rs parent cycle includes ${id}`);
+    if (visiting.has(id)) {
+      // Only the repeated path's suffix is cyclic; descendants before it keep their links.
+      const cycle: string[] = [];
+      let inCycle = false;
+      for (const member of visiting) {
+        if (member === id) inCycle = true;
+        if (inCycle) {
+          promoted.add(member);
+          cycle.push(member);
+        }
+      }
+      structureWarnings.push(
+        `Parent cycle (${cycle.join(', ')}): displayed each member as a root; source parents unchanged.`
+      );
+      return;
+    }
     const seat = byId.get(id);
     const node = nodes.get(id);
     if (!seat || !node) return;
     visiting.add(id);
     const parent = seat.parent ? nodes.get(seat.parent) : undefined;
-    if (parent) {
-      attach(parent.id);
+    if (parent) attach(parent.id);
+    if (parent && !promoted.has(id)) {
       parent.children?.push(node);
     } else {
       roots.push(node);
@@ -149,7 +176,7 @@ function parentForest(seats: RsSeat[]): PijTreeNode[] {
     attached.add(id);
   };
   for (const id of nodes.keys()) attach(id);
-  return roots;
+  return { roots, ...(structureWarnings.length > 0 ? { structureWarnings } : {}) };
 }
 
 interface RsTerminal {

@@ -60,6 +60,9 @@ export type FocusReason =
   | 'no-window'
   | 'no-process'
   | 'no-pane'
+  | 'process-gone'
+  | 'process-reused'
+  | 'pane-moved'
   | 'identity-unverified'
   | 'store-unreadable'
   | 'tmux-refused';
@@ -126,6 +129,24 @@ export function focusRefusal(
         status: 409,
         reason,
         observation: `seat ${detail.seatId} has no matching tmux pane at focus time`,
+      };
+    case 'process-gone':
+      return {
+        status: 409,
+        reason,
+        observation: `process gone for seat ${detail.seatId}: the recorded process is not running`,
+      };
+    case 'process-reused':
+      return {
+        status: 409,
+        reason,
+        observation: `process id reused by another program for seat ${detail.seatId}`,
+      };
+    case 'pane-moved':
+      return {
+        status: 409,
+        reason,
+        observation: `pane moved for seat ${detail.seatId}: its focus target no longer matches`,
       };
     case 'identity-unverified':
       return {
@@ -303,18 +324,34 @@ const PROCESS_COLUMNS = 'pid=,ppid=,lstart=';
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 /** Matches pij-rs core/model.rs: local wall-clock YYYYMMDDhhmmss, never UTC or elapsed time. */
-function processStart(row: string): number | null {
-  const match =
-    /^(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+([A-Z][a-z]{2})\s+(\d{1,2})\s+(\d{2}):(\d{2}):(\d{2})\s+(\d{4})$/.exec(
-      row.trim()
-    );
-  if (!match) return null;
-  const month = MONTHS.indexOf(match[1]) + 1;
-  const day = Number(match[2]);
-  const hour = Number(match[3]);
-  const minute = Number(match[4]);
-  const second = Number(match[5]);
-  const year = Number(match[6]);
+function processStart(row: string | number): number | null {
+  let year: number;
+  let month: number;
+  let day: number;
+  let hour: number;
+  let minute: number;
+  let second: number;
+  if (typeof row === 'number') {
+    if (!Number.isSafeInteger(row)) return null;
+    year = Math.floor(row / 10_000_000_000);
+    month = Math.floor(row / 100_000_000) % 100;
+    day = Math.floor(row / 1_000_000) % 100;
+    hour = Math.floor(row / 10_000) % 100;
+    minute = Math.floor(row / 100) % 100;
+    second = row % 100;
+  } else {
+    const match =
+      /^(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+([A-Z][a-z]{2})\s+(\d{1,2})\s+(\d{2}):(\d{2}):(\d{2})\s+(\d{4})$/.exec(
+        row.trim()
+      );
+    if (!match) return null;
+    month = MONTHS.indexOf(match[1]) + 1;
+    day = Number(match[2]);
+    hour = Number(match[3]);
+    minute = Number(match[4]);
+    second = Number(match[5]);
+    year = Number(match[6]);
+  }
   const leap = year % 400 === 0 || (year % 4 === 0 && year % 100 !== 0);
   const days =
     month === 2
@@ -324,7 +361,17 @@ function processStart(row: string): number | null {
       : month === 4 || month === 6 || month === 9 || month === 11
         ? 30
         : 31;
-  if (!month || year < 1970 || day < 1 || day > days || hour > 23 || minute > 59 || second > 59) {
+  if (
+    month < 1 ||
+    month > 12 ||
+    year < 1970 ||
+    year > 9999 ||
+    day < 1 ||
+    day > days ||
+    hour > 23 ||
+    minute > 59 ||
+    second > 59
+  ) {
     return null;
   }
   return (
@@ -338,15 +385,18 @@ function processStart(row: string): number | null {
 }
 
 /** One snapshot, bounded ancestor traversal; no process-per-row requests and no liveness writes. */
-function processBelongsToPane(
+function processPaneRefusal(
   table: string,
   proc: NonNullable<PijNodeDetail['proc']>,
   panePid: number
-): boolean {
+): Extract<
+  FocusReason,
+  'process-gone' | 'process-reused' | 'pane-moved' | 'identity-unverified'
+> | null {
   const processes = new Map<number, { parent: number; start: string }>();
   for (const row of table.trim().split('\n')) {
     const match = /^\s*(\d+)\s+(\d+)\s+(.+)$/.exec(row);
-    if (!match) return false;
+    if (!match) return 'identity-unverified';
     const pid = Number(match[1]);
     const parent = Number(match[2]);
     if (
@@ -355,22 +405,25 @@ function processBelongsToPane(
       !Number.isSafeInteger(parent) ||
       processes.has(pid)
     ) {
-      return false;
+      return 'identity-unverified';
     }
     processes.set(pid, { parent, start: match[3] });
   }
   const candidate = processes.get(proc.pid);
-  if (!candidate || processStart(candidate.start) !== proc.proc_start || !processes.has(panePid)) {
-    return false;
-  }
+  if (!candidate) return 'process-gone';
+  const start = processStart(candidate.start);
+  if (start === null) return 'identity-unverified';
+  if (start !== proc.proc_start) return 'process-reused';
+  if (!processes.has(panePid)) return 'pane-moved';
   let pid = proc.pid;
   for (let remaining = processes.size; remaining > 0; remaining--) {
-    if (pid === panePid) return true;
+    if (pid === panePid) return null;
     const process = processes.get(pid);
-    if (!process || process.parent === 0) return false;
+    if (!process) return 'identity-unverified';
+    if (process.parent === 0) return 'pane-moved';
     pid = process.parent;
   }
-  return false;
+  return 'identity-unverified';
 }
 
 async function inspectPane(
@@ -413,6 +466,9 @@ async function resolveRsFocusWindow(
   ) {
     return focusRefusal('no-process', { seatId });
   }
+  if (processStart(proc.proc_start) === null) {
+    return focusRefusal('identity-unverified', { seatId });
+  }
   if (!paneId || !/^%\d+$/.test(paneId) || !Number.isSafeInteger(Number(paneId.slice(1)))) {
     return focusRefusal('no-pane', { seatId });
   }
@@ -424,15 +480,14 @@ async function resolveRsFocusWindow(
   } catch {
     return { ...focusRefusal('identity-unverified', { seatId }), status: 503 };
   }
-  if (!processBelongsToPane(table, proc, pane.pid)) {
-    return focusRefusal('identity-unverified', { seatId });
-  }
+  const reason = processPaneRefusal(table, proc, pane.pid);
+  if (reason) return focusRefusal(reason, { seatId });
   // Refuse a pane recycled/moved during the process read. No tmux/OS atomic transaction exists;
   // selection follows this final check immediately and uses only its observed window id.
   const confirmed = await inspectPane(seatId, paneId, execute);
   if ('reason' in confirmed) return confirmed;
   if (confirmed.pid !== pane.pid || confirmed.windowId !== pane.windowId) {
-    return focusRefusal('identity-unverified', { seatId });
+    return focusRefusal('pane-moved', { seatId });
   }
   return confirmed.windowId;
 }
@@ -451,7 +506,12 @@ const nodeFocusExecutor: FocusExecutor = (command, args, options) =>
     execFile(
       command,
       [...args],
-      { timeout: options.timeoutMs, maxBuffer: 1024 * 1024, env: { ...process.env, LC_ALL: 'C' } },
+      {
+        timeout: options.timeoutMs,
+        // Match the roster reader's bounded headroom for a machine-wide process snapshot.
+        maxBuffer: (command === 'ps' ? 32 : 1) * 1024 * 1024,
+        env: { ...process.env, LC_ALL: 'C' },
+      },
       (error, stdout) => {
         if (error) {
           reject(error);

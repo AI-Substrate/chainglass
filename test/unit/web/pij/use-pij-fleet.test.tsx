@@ -136,6 +136,39 @@ describe('usePijFleet — acquisition', () => {
     expect(result.current.seq).toBe(40);
   });
 
+  it('exposes tree repair warnings and clears them after a healthy refresh', async () => {
+    const structureWarnings = [
+      'Parent cycle (rs-a): displayed each member as a root; source parents unchanged.',
+    ];
+    api.setTree({
+      seq: 40,
+      at: '2026-07-26T12:00:00.000Z',
+      data: {
+        workspace: UI_WORKSPACE_PATH,
+        roots: UI_TREE_ROOTS,
+        structureSource: 'rs-parent-links',
+        structureWarnings,
+        rolesUnavailable: true,
+      },
+    });
+    const { result } = renderPijFleet();
+    await waitFor(() => expect(result.current.structureWarnings).toEqual(structureWarnings));
+    expect(result.current.structureSource).toBe('rs-parent-links');
+    expect(result.current.rolesUnavailable).toBe(true);
+    expect(result.current.tree).toEqual(UI_TREE_ROOTS);
+    expect(result.current.errors.tree).toBeNull();
+
+    api.setTree({
+      seq: 41,
+      at: '2026-07-26T12:01:00.000Z',
+      data: { workspace: UI_WORKSPACE_PATH, roots: UI_TREE_ROOTS },
+    });
+    act(() => result.current.refresh());
+    await waitFor(() => expect(result.current.structureWarnings).toBeUndefined());
+    expect(result.current.structureSource).toBeUndefined();
+    expect(result.current.rolesUnavailable).toBeUndefined();
+  });
+
   it('preserves rs capability flags across deltas and clears them on a legacy snapshot', async () => {
     // Capability is source provenance, not a verdict derived from rows or connection phase.
     const snapshot = fleetSnapshot(40, UI_FLEET_ROWS);

@@ -98,6 +98,8 @@ export interface PijTreeNode {
 
 export interface PijTree {
   roots: PijTreeNode[];
+  /** Collection-level projection repairs; authoritative seat fields are unchanged. */
+  structureWarnings?: string[];
   [additive: string]: unknown;
 }
 

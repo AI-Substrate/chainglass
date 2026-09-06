@@ -68,6 +68,7 @@ export interface PijRailViewProps {
   snapshotStatuses: readonly PijStatusRecord[];
   livenessUnavailable?: boolean;
   structureSource?: 'rs-parent-links';
+  structureWarnings?: string[];
   rolesUnavailable?: boolean;
   now: number;
   workspacePath: string;
@@ -772,6 +773,7 @@ export function PijRailView({
   snapshotStatuses,
   livenessUnavailable,
   structureSource,
+  structureWarnings,
   rolesUnavailable,
   now,
   workspacePath,
@@ -824,7 +826,7 @@ export function PijRailView({
   return (
     <SeatFocusProvider workspacePath={workspacePath} fetchImpl={focusFetchImpl}>
       <div data-testid="pij-rail-view" className="flex min-h-full flex-col bg-muted/20">
-        {structureSource || unavailable || missingRoles ? (
+        {structureSource || structureWarnings?.length || unavailable || missingRoles ? (
           <div
             data-testid="pij-source-limitations"
             role="note"
@@ -841,6 +843,9 @@ export function PijRailView({
             {missingRoles && unavailable ? ' · ' : null}
             {unavailable ? (
               <span data-reason="liveness-unavailable">liveness unavailable from pij-rs</span>
+            ) : null}
+            {structureWarnings?.length ? (
+              <span className="block">{structureWarnings.join(' ')}</span>
             ) : null}
           </div>
         ) : null}
@@ -989,6 +994,7 @@ export function PijRailPanel({
         snapshotStatuses={fleet.statuses}
         livenessUnavailable={fleet.livenessUnavailable}
         structureSource={fleet.structureSource}
+        structureWarnings={fleet.structureWarnings}
         rolesUnavailable={fleet.rolesUnavailable}
         now={now}
         workspacePath={mainPath}

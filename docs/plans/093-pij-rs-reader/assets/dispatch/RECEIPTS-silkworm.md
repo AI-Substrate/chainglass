@@ -34,14 +34,14 @@ These rows require committed commands; preliminary observations above are NOT ac
 
 | Row | State | Command / exit / number |
 |---|---|---|
-| bp-0001 | READ — prime's startup pass below; correction runtime pending | The prime ran the initial rs bootstrap after Jordan's restart (0 CLI list children, 918 rows). Current hierarchy/focus adapter correction still needs a fresh dev restart and own browser proof. |
+| bp-0001 | READ — prime's startup and page passes below | Initial rs bootstrap: 0 CLI list children, 918 rows. After Jordan's second restart, fresh rs-parent-links hierarchy rendered and live focus returned 200 / honest refusal 409. |
 | bp-0002 | RAN — pass | `node scripts/verify-rs-reader.mjs --all`, exit 0: 913 rows matched every carried/additive field, zero mismatches, 96 tombstoned rows, one seats + one state read. |
 | bp-0003 | RAN — pass | `node scripts/verify-rs-reader.mjs --watch-pane %3808 --timeout-ms 60000`, exit 0. Local stdin trigger → appearance **3,082.31ms upper bound**. First seat.put **14602** (at 0) arrived on connection **3**; pushed **14603/14604** arrived earlier on connection **2**; reconnect `since` stayed **14599**. Three checked since maps; no skipped descriptor. |
 | bp-0004 | RAN — pass | Created isolated cg-rs-proof-093 pane %3806, adopted inside that pane → pij-yielding-dijkstra, then `tmux kill-session -t cg-rs-proof-093`, exit 0. `node scripts/verify-rs-reader.mjs --seat pij-yielding-dijkstra`, exit 0: one row matched direct source including ABSENT tombstone fields. Above --all also checked 96 actual tombstones. |
 | bp-0005 | BLOCKED — needs authorization | Shared daemon restart requires Jordan's explicit word; not run. |
 | bp-0006 | RAN — pass | `node scripts/verify-rs-reader.mjs --auth`, exit 0: actual HTTP 401/200 with exactly 2 attempts, and terminal 401/401 with exactly 2 attempts; scratch key only. |
-| bp-0007 | RAN — pass | Latest correction run: `pnpm vitest run test/unit/web/pij`, exit 0, **548 tests / 35 files**. Initial 478-test count predated four late fixes (482 at bc57d806d); this run includes hierarchy/focus/status and review regressions. |
-| bp-0008 | RAN — code gates pass; audit exception | Latest hierarchy/focus correction `just fft`, exit 1 ONLY at security-audit. Lint/format 1,804 files; production build; all 9 workspace tsconfigs; **547 test files / 7,352 tests passed**, 8 files / 63 tests skipped. Explicit legacy tests passed. Audit unchanged: **124 advisories (6 critical, 41 high, 68 moderate, 9 low)** under the acknowledged exception. |
+| bp-0007 | RAN — pass | Published f1b79236f: **548 tests / 35 files**. D1–D3 first integrated run: **556 / 35**, followed by **85 focus/fence tests** after the six additional stamp regressions. All PIJ files also pass in the complete gate below. Initial 478 predated late fixes (482 at bc57d806d). |
+| bp-0008 | RAN — code gates pass; audit exception | Latest `just fft`: lint/format 1,804 files, production build, all 9 workspace tsconfigs, **547 files / 7,367 tests passed**, 8 files / 63 tests skipped. Exit 1 ONLY at the unchanged **124-advisory audit (6 critical, 41 high, 68 moderate, 9 low)** under the acknowledged exception. |
 
 ## Proof boundaries
 
@@ -80,20 +80,20 @@ Before initial publication, the owned headless page authenticated through suppor
 - `GET /api/pij/fleet` from the unlocked page: `running:true, fleetSize:918, seq:15065, lastError:null`, 918 rows.
 - Row state: **RAN — pass.** The one row silkworm could not run without the operator.
 
-## Post-push hierarchy and focus correction — in progress
+## Post-push hierarchy and focus correction — page accepted
 
 Authority: `REVIEW-bc57d806d.md` and Jordan's screenshot showing a flat ROLE UNKNOWN rail. All six review findings were upheld. No role is inferred from a name or parent position.
 
 - **F1**: rs `nodeShow` now reads the exact id from the same fresh `/v1/seats` source. Focus validates pane existence, pid/start identity and process ancestry using bounded read-only probes, then rechecks the pane/window before selecting. Legacy focus remains separate.
 - **F2**: rs tree now projects real `parent` links, with repository-family scope via existing `IGitWorktreeResolver`. Tree API carries `structureSource: rs-parent-links` and role provenance. Real adapter + real git resolver returned Antelope with Zakalwe and Chickadee as children. The rail uses compact unclassified rows, one source notice, and preserves actual report cards regardless of missing roles.
 - **F3**: captured payloads drive explicit scripted same-seat/cursor regression scenarios; no fabricated transcript files. Both spawn kinds are tested through `getPijPoller`'s actual callback and remain excluded from resume.
-- **F4**: current focused proof count is 548 tests / 35 files, exit 0.
+- **F4**: the f1b79236f focused proof count was 548 tests / 35 files, exit 0; later follow-up counts are recorded below.
 - **F5**: unknown source values warn at construction while the pure selector still defaults to rs.
 - **F6**: `ddocs set` + build updated the generated default-source criteria and added Amendment 7, including the same-source tree/detail cutover.
 
 `pnpm biome check --write` over affected source/tests passed. Full correction `just fft` completed in **384.85s**: build, lint/format, all nine workspace typechecks, **547 files / 7,352 tests passed**, 63 tests skipped. All **3,951 output lines** were read. Only the acknowledged 124-advisory security audit failed. Role projection remains upstream **pij plan 138 phase 2, unscheduled**; probe cleanup has no supported rs API, so no sqlite edits or ID-specific hiding were added and no further probe seats were created.
 
-**New runtime proof remains blocked:** the actual owned browser loaded the compact UI, but `/api/pij/tree` still returned the old HMR-held composite (no rs provenance, one legacy root, no Antelope group). Jordan was asked to restart `just dev` again after this adapter change. The earlier bp-0001 bootstrap pass is not substituted for current hierarchy/focus verification.
+**Historical runtime blocker, since cleared:** the first owned browser loaded the compact UI but the HMR-held composite still served legacy hierarchy. Jordan's second restart and the prime's page proof below closed this blocker; the earlier bp-0001 bootstrap pass was not substituted for it.
 
 Independent read-only review of the hierarchy/focus correction returned **no material findings** (confidence 0.88). It covered source identity, repository scoping, process/pane guards, card retention and tree refresh; it did not run commands or claim browser proof. All three `ddocs build --check <file>` runs passed with `drift:false` for plan, implementation guide and backpressure documents.
 
@@ -120,3 +120,31 @@ Cleared by a `just dev` restart onto `f1b79236f`, which is Jordan's to run.
 - `POST /api/pij/focus` `pij-creative-chickadee` → **200 `{focused:"@3723"}`** (live seat, pane verified at click time).
 - `POST /api/pij/focus` `pij-marine-vulture` (probe corpse) → **409 `no-pane`**, "has no matching tmux pane at focus time". An honest refusal, not a store error.
 - Operator's screenshot shows the same hierarchy rendered. F1 and F2 closed on the page. The only rows without a receipt are bp-0005 (daemon restart, awaiting Jordan) and the D1–D3 LOW follow-ups.
+
+## D1–D3 follow-ups — after accepted page proof
+
+- **Own parent registration — RAN:** `pij-rs register pij-coherent-silkworm --harness omp --folder /Users/jordanknight/substrate/chainglass --pane %3614 --pid 57083 --proc-start 20260906094241 --parent pij-lonely-antelope --json` accepted the existing ID. `pij-rs state` confirmed the new parent and unchanged ID, pid, start stamp and pane. No remint, no refusal, no other seat changed; this operator-directed own-seat repair is not a Chainglass writer.
+- **D1:** duplicate IDs keep their first descriptor and display once as roots. Every cycle member becomes a root; valid descendants and healthy trees remain intact. Source parent/role fields are unchanged. `structureWarnings` passes through the tree API/hook into one collection notice and clears after a healthy refresh.
+- **D2:** observed missing process, differing valid start stamp, and changed pane target now produce `process-gone`, `process-reused`, and `pane-moved`, with corresponding seat observations. Incomplete/malformed evidence remains `identity-unverified`. Review caught invalid recorded stamps being mislabeled reuse: five regressions failed before the fix; the shared calendar parser now validates recorded stamps before probes.
+- **D3:** process output remains bounded, raised to 32 MiB to match the existing roster reader; tmux stays at 1 MiB and all commands retain the 3s timeout.
+- **RAN:** first integrated PIJ run **556 tests / 35 files**; final changed focus/fence run **85 tests / 2 files**, including six added stamp regressions. `harness boot` passed all nine workspace typechecks. Final publication gate follows on the settled revision.
+- **Browser RAN, live:** the owned `pij-followup-proof` page rendered silkworm under Antelope after registration. Clicking xenophobe's real button returned **409 `no-pane`**, and its exact observation rendered. One live roster + process/pane snapshot found no in-family gone-process seat with an existing pane, so none was manufactured.
+- **Browser RAN, scripted boundary proof:** three explicit HTTP refusal fixtures exercised the actual button/provider rendering of the new strings; a scripted tree-response warning rendered exactly once in the existing collection notice. These are UI fixtures, **not live daemon corruption/reuse/movement receipts**. Corrupt graph recovery and OS classifications are covered by production-adapter/route tests.
+- **Proof limits:** screenshot protocol timed out; DOM-driven browser interaction worked. Docker harness container was not running; no services were started or restarted. The operator's accepted F1/F2 page receipt remains distinct from this follow-up proof.
+- **Validation adjudication:** the independent critic's one MEDIUM finding (malformed recorded start mislabeled as PID reuse) was reproduced, fixed, and re-read against the applied source/tests. Final source-only result: no actionable findings. Original exact-start, ancestry and final-pane guards remain intact.
+- **Browser cleanup RAN:** restoring real tree responses cleared the scripted warning; refresh returned HTTP 200 with no console errors captured during the check. The real refusal response was restored and the owned tab released.
+- **Harness feedback:** recurring browser-driver capture failures and the Docker-only verification recipe are recorded as W012/W013 in the existing harness wishlist. Pending observations remain scoped to this seat; no shared buffer was cleared.
+- **Full gate attempt — RAN, failed at tests:** `just fft` completed in 477.62s, all 3,039 output lines read. Lint/format (1,804 files), production build and all nine typechecks passed. Tests: **2 failed / 7,364 passed / 63 skipped**, **546 passing files / 1 failing / 8 skipped**. Both failures were the real FlowSpace MCP integration: initial 30s request timeout, then 6,113ms against the unchanged 5,000ms warm-query assertion. Security audit was not reached. This is not a green publication receipt.
+- **Native review — RAN, runner failed:** run `2026-09-06T22-37-30-464Z-b3fe`, E200 from shell/write restrictions, `reportPath:null`. Its full inline report was recovered and read, not treated as runner approval. `workspace=/` containment was upheld by the prime as MEDIUM and explicitly assigned a separate commit after D1–D3. The runner's magic-wand request is a capability-aware review surface that can provide diff, health and validated report output without forbidden shell/writes; the prime owns that harness item.
+
+### Prerequisite gate fix — literal means text
+
+The FlowSpace failures reproduced in isolation (30s cold timeout; 5,051ms warm query). Installed fs2 source confirmed AUTO chooses SEMANTIC for these plain names when embeddings exist. The client now maps `grep` to explicit `text`, with an in-memory MCP wire regression; semantic mode is unchanged. Neither deadline nor timing assertion was changed.
+
+**RAN after the fix:** all 9 client unit tests passed; both real integration tests passed. Cold startup **12,307ms**, first text search **1,487ms** (**13,798ms** test total); warm text search **167ms**. Full-gate re-run follows. This is a caller-intent bug fix, not a timeout waiver: **fs2 is retired (Jordan, 2026-09-03); moving the client to flowspace3 is a separate plan**. Publication order is gate-fix, D1–D3, then authoritative workspace containment.
+
+**Full re-run RAN:** `just fft`, **435.40s**, all **4,008 output lines** read. Lint/format **1,804 files**, production build and all **nine** workspace typechecks passed. Tests **547 files / 7,367 passed**, **8 files / 63 skipped**, zero failures. Real FlowSpace integration: cold test **8,179ms**, warm text **163ms**. Exit 1 **only** at the unchanged **124-advisory audit (6 critical, 41 high, 68 moderate, 9 low)** under the standing acknowledged exception; not claimed as an all-green audit.
+
+Gate-fix published as **3650a9619** (`63446a029..3650a9619` on origin/main), three files, +12/-3, with the required fs2-retired/separate-flowspace3-plan commit-body caveat. D1–D3 remains separate; no containment source change is included.
+
+**D1–D3 precommit re-run RAN:** `just fft` after the gate-fix commit, **435.04s**, all **4,008 lines** read. Again **547 files / 7,367 tests passed**, **63 skipped**, all nine typechecks and lint passed; build succeeded from cache. Only the same 124-advisory audit failed under the standing exception. No containment changes are part of this revision.

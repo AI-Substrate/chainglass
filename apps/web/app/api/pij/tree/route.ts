@@ -59,6 +59,7 @@ export async function handlePijTreeRequest(
       workspace: global ? null : workspace,
       roots: tree.roots,
       windows,
+      ...(tree.structureWarnings?.length ? { structureWarnings: tree.structureWarnings } : {}),
       ...(tree.structureSource === 'rs-parent-links'
         ? { structureSource: 'rs-parent-links', rolesUnavailable: tree.rolesUnavailable === true }
         : {}),

@@ -537,7 +537,10 @@ describe('POST /api/pij/focus — every refusal reason, one test each', () => {
       'no-window': () => legacy({ detail: { windowId: undefined } }),
       'no-process': () => rs({ seat: { proc: null } }),
       'no-pane': () => rs({ seat: { pane: undefined } }),
-      'identity-unverified': () => rs({ seat: { proc: { pid: 642, proc_start: RS_START + 1 } } }),
+      'process-gone': () => rs({ focus: rsFocus('640 1 Sun Sep 6 00:00:00 2026') }),
+      'process-reused': () => rs({ seat: { proc: { pid: 642, proc_start: RS_START + 1 } } }),
+      'pane-moved': () => rs({ focus: rsFocus().when('tmux', RS_PANE_ARGS, '%640 900 @650') }),
+      'identity-unverified': () => rs({ focus: rsFocus('unreadable process row') }),
       'store-unreadable': () =>
         legacy({ nodeShowFails: execFileFailure({ stderr: 'store on fire' }) }),
       'tmux-refused': () =>
@@ -689,21 +692,71 @@ describe('POST /api/pij/focus — rs click-time identity, never inferred livenes
   });
 
   it.each([
-    ['recycled PID start', RS_PROCESS_TABLE.replace('01:02:03', '01:02:04'), '%640 640 @650'],
-    ['recycled pane PID', RS_PROCESS_TABLE, '%640 900 @650'],
-    ['unrelated process', RS_PROCESS_TABLE.replace('642 641', '642 1'), '%640 640 @650'],
-    ['missing process', '640 1 Sun Sep 6 00:00:00 2026', '%640 640 @650'],
-    ['ancestry cycle', RS_PROCESS_TABLE.replace('641 640', '641 642'), '%640 640 @650'],
-    ['malformed process table', 'not a process table', '%640 640 @650'],
-    ['duplicate PID', `${RS_PROCESS_TABLE}\n642 640 Sun Sep 6 01:02:03 2026`, '%640 640 @650'],
-  ])('refuses %s without selecting', async (_name, table, pane) => {
-    const focus = rsFocus(table).when('tmux', RS_PANE_ARGS, pane);
-    const response = await handlePijFocusRequest(focusRequest(RS_SEAT), makeRsDeps({ focus }));
-    expect(response.status).toBe(409);
-    expect((await response.json()).reason).toBe('identity-unverified');
-    expect(focus.calls.some((call) => call.args[0] === 'select-window')).toBe(false);
-    expect(focus.calls.filter((call) => call.command === 'ps')).toHaveLength(1);
-  });
+    [
+      'recycled PID start',
+      RS_PROCESS_TABLE.replace('01:02:03', '01:02:04'),
+      '%640 640 @650',
+      'process-reused',
+      'process id reused by another program',
+    ],
+    ['recycled pane PID', RS_PROCESS_TABLE, '%640 900 @650', 'pane-moved', 'pane moved'],
+    [
+      'unrelated process',
+      `${RS_PROCESS_TABLE.replace('642 641', '642 1')}\n1 0 Sun Sep 6 00:00:00 2026`,
+      '%640 640 @650',
+      'pane-moved',
+      'pane moved',
+    ],
+    [
+      'missing process',
+      '640 1 Sun Sep 6 00:00:00 2026',
+      '%640 640 @650',
+      'process-gone',
+      'process gone',
+    ],
+    [
+      'ancestry cycle',
+      RS_PROCESS_TABLE.replace('641 640', '641 642'),
+      '%640 640 @650',
+      'identity-unverified',
+      'could not be verified',
+    ],
+    [
+      'incomplete ancestry',
+      RS_PROCESS_TABLE.replace('642 641', '642 999'),
+      '%640 640 @650',
+      'identity-unverified',
+      'could not be verified',
+    ],
+    [
+      'malformed process table',
+      'not a process table',
+      '%640 640 @650',
+      'identity-unverified',
+      'could not be verified',
+    ],
+    ['empty process table', '', '%640 640 @650', 'identity-unverified', 'could not be verified'],
+    [
+      'duplicate PID',
+      `${RS_PROCESS_TABLE}\n642 640 Sun Sep 6 01:02:03 2026`,
+      '%640 640 @650',
+      'identity-unverified',
+      'could not be verified',
+    ],
+  ])(
+    'refuses %s with its observed cause and without selecting',
+    async (_name, table, pane, reason, observation) => {
+      const focus = rsFocus(table).when('tmux', RS_PANE_ARGS, pane);
+      const response = await handlePijFocusRequest(focusRequest(RS_SEAT), makeRsDeps({ focus }));
+      expect(response.status).toBe(409);
+      const body = await response.json();
+      expect(body.reason).toBe(reason);
+      expect(body.observation).toContain(observation);
+      expect(body.observation).toContain(RS_SEAT);
+      expect(focus.calls.some((call) => call.args[0] === 'select-window')).toBe(false);
+      expect(focus.calls.filter((call) => call.command === 'ps')).toHaveLength(1);
+    }
+  );
 
   it.each([
     undefined,
@@ -747,7 +800,10 @@ describe('POST /api/pij/focus — rs click-time identity, never inferred livenes
       const focus = rsFocus().when('tmux', RS_PANE_ARGS, '%640 640 @650', pane);
       const response = await handlePijFocusRequest(focusRequest(RS_SEAT), makeRsDeps({ focus }));
       expect(response.status).toBe(409);
-      expect((await response.json()).reason).toBe('identity-unverified');
+      expect(await response.json()).toMatchObject({
+        reason: 'pane-moved',
+        observation: expect.stringContaining('pane moved'),
+      });
       expect(focus.calls).toHaveLength(3);
     }
   );
@@ -769,11 +825,31 @@ describe('POST /api/pij/focus — rs click-time identity, never inferred livenes
         makeRsDeps({ focus, seat: { proc: { pid: 642, proc_start } } })
       );
       expect(response.status).toBe(status);
+      if (status !== 200) expect((await response.json()).reason).toBe('identity-unverified');
       expect(focus.calls.filter((call) => call.args[0] === 'select-window')).toHaveLength(
         status === 200 ? 1 : 0
       );
     }
   );
+
+  it.each([1, 20260230010203, 20260006010203, 20261306010203, 100000101000000])(
+    'does not report PID reuse for malformed recorded start %s and a valid live snapshot',
+    async (proc_start) => {
+      const deps = makeRsDeps({ seat: { proc: { pid: 642, proc_start } } });
+      const response = await handlePijFocusRequest(focusRequest(RS_SEAT), deps);
+      expect(response.status).toBe(409);
+      expect(await response.json()).toMatchObject({ reason: 'identity-unverified' });
+      expect(deps.focus.calls).toEqual([]);
+    }
+  );
+
+  it('does not report PID reuse for an unreadable observed start and a valid recorded stamp', async () => {
+    const focus = rsFocus(RS_PROCESS_TABLE.replace('01:02:03', '24:02:03'));
+    const response = await handlePijFocusRequest(focusRequest(RS_SEAT), makeRsDeps({ focus }));
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ reason: 'identity-unverified' });
+    expect(focus.calls.some((call) => call.args[0] === 'select-window')).toBe(false);
+  });
 
   it('refuses an unknown rs id even when that id exists only in the legacy reader', async () => {
     const deps = makeRsDeps();

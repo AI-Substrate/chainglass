@@ -222,6 +222,8 @@ export interface TreeSnapshotData {
   roots: PijTreeNode[];
   /** Explicit parent links from the same source as the roster; never a role inference. */
   structureSource?: 'rs-parent-links';
+  /** Collection-level projection repairs; authoritative seat fields are unchanged. */
+  structureWarnings?: string[];
   rolesUnavailable?: boolean;
   /**
    * tmux window labels keyed by `windowId` (`@12` → `3:cheetah`), joined at read time so the rail

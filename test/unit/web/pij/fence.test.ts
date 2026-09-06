@@ -526,7 +526,7 @@ describe('C-02 fence — the feature writes to nothing (AC-11)', () => {
     expect([...code.matchAll(/\bexecFile\s*\(/g)]).toHaveLength(1);
     expect(code).toMatch(/execFile\(\s*command,\s*\[\.\.\.args\]/);
     expect(code).toMatch(/timeout:\s*options\.timeoutMs/);
-    expect(code).toMatch(/maxBuffer:\s*1024\s*\*\s*1024/);
+    expect(code).toMatch(/maxBuffer:\s*\(command === 'ps' \? 32 : 1\)\s*\*\s*1024\s*\*\s*1024/);
     expect(code).toMatch(/LC_ALL:\s*'C'/);
     expect(code).not.toMatch(/execSync|shell:\s*true/);
 

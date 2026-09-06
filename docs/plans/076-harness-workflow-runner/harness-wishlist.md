@@ -101,6 +101,18 @@ Add this to the per-task progress checklist alongside test + commit. Captured in
 
 **Open follow-up**: `harness check-route` itself flags pre-existing HMR/favicon noise as failure when `--console-errors` is set. Filtering lives in the new recipe — could move into `check-route` core (or become a `--ignore-pattern <regex>` flag) so other consumers get the benefit. New wishlist item if this lands as a real friction elsewhere.
 
+### W012 — Browser capture can stall while DOM interaction works
+**Severity**: Painful
+**Problem**: During Plan 093 follow-up proof, browser handle clicks and screenshot capture timed out (8s and 20s), while DOM-dispatched clicks, network receipts and rendered-observation checks succeeded on the same owned tab. Screenshot capture also failed during the preceding hierarchy correction.
+**Impact**: Behavioral proof remains possible, but appearance cannot be honestly certified; retries obscure the actual proof boundary.
+**Fix**: Add a bounded screenshot/interaction health probe that distinguishes browser-driver failure from application failure and reports DOM/API versus visual evidence separately. Never restart a shared browser as recovery without ownership.
+
+### W013 — Compile verification recipe assumes the Docker environment
+**Severity**: Friction
+**Problem**: `just harness-tools-verify` targets container CDP and Docker logs even when the approved task runs against the host dev server and no harness container is running.
+**Impact**: Host-page verification needs manual browser/API/console evidence instead of the documented single recipe.
+**Fix**: Add an explicit host target using the already-running server, without starting or restarting it; preserve the existing HTTP/console/compile-error checks.
+
 ---
 
 ## Meta-Observations

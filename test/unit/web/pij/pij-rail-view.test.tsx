@@ -186,6 +186,62 @@ describe('PijRailView', () => {
     expect(screen.getByTestId('pij-rail-phase').textContent).toBe('live');
   });
 
+  it('renders tree repair warnings once in the panel collection notice, never in seat rows', async () => {
+    /*
+    Test Doc:
+    - Why: Projection repairs must be visible without repeating source limitations on every seat.
+    - Contract: Tree snapshot → hook → panel → one collection note; ordinary seats still render.
+    - Usage Notes: Uses the existing fake API and real rail panel acquisition path.
+    - Quality Contribution: Pins the complete warning delivery path to the rendered surface.
+    - Worked Example: two repair warnings, one source notice, no row-level repair copy.
+    */
+    const structureWarnings = [
+      'Duplicate seat ID rs-a: kept the first descriptor and displayed it as a root; source parent unchanged.',
+      'Parent cycle (rs-b): displayed each member as a root; source parents unchanged.',
+    ];
+    const api = new FakePijApi()
+      .setFleet({
+        seq: 1,
+        at: new Date(NOW).toISOString(),
+        data: { workspace: null, rows, statuses: [], status: pollerStatus() },
+      })
+      .setTree({
+        seq: 1,
+        at: new Date(NOW).toISOString(),
+        data: {
+          workspace: '/Users/fixture/substrate/chainglass',
+          roots: tree,
+          structureSource: 'rs-parent-links',
+          structureWarnings,
+        },
+      });
+    render(
+      <PijRailPanel
+        mainPath="/Users/fixture/substrate/chainglass"
+        worktreePath="/Users/fixture/substrate/chainglass"
+        fleetFetchImpl={api.fetch}
+        clock={() => NOW}
+      />,
+      { wrapper }
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('pij-source-limitations').textContent).toContain(
+        structureWarnings[0]
+      )
+    );
+    const notices = screen.getAllByTestId('pij-source-limitations');
+    expect(notices).toHaveLength(1);
+    expect(notices[0].textContent).toContain('hierarchy: rs parent links');
+    for (const warning of structureWarnings) {
+      expect(screen.getAllByText((text) => text.includes(warning))).toHaveLength(1);
+      expect(notices[0].textContent).toContain(warning);
+    }
+    expect(screen.getByTestId('seat-row-pij-prime').textContent).not.toContain('source parent');
+    expect(screen.getByTestId('pij-worker-pij-worker-blocked').textContent).not.toContain(
+      'source parent'
+    );
+  });
+
   it.each(['snapshot', 'row'] as const)(
     'keeps null-role hierarchy compact and real reports visible with %s source limitations',
     (source) => {

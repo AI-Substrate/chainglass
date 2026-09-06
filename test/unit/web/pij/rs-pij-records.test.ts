@@ -229,6 +229,7 @@ describe('createRsPijRecords', () => {
       ],
     });
     expect(forest.roots[0]).not.toHaveProperty('prime');
+    expect(forest.structureWarnings).toBeUndefined();
     expect(client.stateIds).toEqual([]);
   });
 
@@ -279,14 +280,122 @@ describe('createRsPijRecords', () => {
     ]);
   });
 
-  it('refuses corrupt cycles instead of returning a forest that recurses forever', async () => {
+  it.each([
+    { name: 'self-cycle', cycle: [{ id: 'rs-a', parent: 'rs-a' }] },
+    {
+      name: 'multi-node cycle',
+      cycle: [
+        { id: 'rs-a', parent: 'rs-b' },
+        { id: 'rs-b', parent: 'rs-a' },
+      ],
+    },
+  ])(
+    'promotes only $name members while preserving descendants and healthy trees',
+    async ({ cycle }) => {
+      const records = createRsPijRecords({
+        client: new FakeRsClient([
+          // Starting below the cycle catches incorrectly promoting the whole traversal path.
+          liveSeat({ id: 'rs-child', parent: 'rs-a' }),
+          ...cycle.map((seat) => liveSeat(seat)),
+          liveSeat({ id: 'rs-healthy-child', parent: 'rs-lead' }),
+          liveSeat({ id: 'rs-lead', role: 'prime' }),
+        ]),
+      });
+      const forest = await records.tree({ global: true });
+      expect(forest.roots.map((node) => node.id).sort()).toEqual([
+        ...cycle.map((seat) => seat.id),
+        'rs-lead',
+      ]);
+      for (const member of cycle) {
+        expect(forest.roots.find((node) => node.id === member.id)).toMatchObject({
+          ...member,
+          orchestrationRole: null,
+          children:
+            member.id === 'rs-a'
+              ? [{ id: 'rs-child', parent: 'rs-a', orchestrationRole: null, children: [] }]
+              : [],
+        });
+      }
+      expect(forest.roots.find((node) => node.id === 'rs-lead')).toMatchObject({
+        prime: true,
+        orchestrationRole: 'prime',
+        children: [{ id: 'rs-healthy-child', parent: 'rs-lead', children: [] }],
+      });
+      const renderedIds = forest.roots.flatMap((node) => [
+        node.id,
+        ...(node.children ?? []).map((child) => child.id),
+      ]);
+      expect(new Set(renderedIds).size).toBe(cycle.length + 3);
+      expect(renderedIds).toHaveLength(cycle.length + 3);
+      expect(forest.structureWarnings).toEqual([
+        `Parent cycle (${cycle.map((seat) => seat.id).join(', ')}): displayed each member as a root; source parents unchanged.`,
+      ]);
+      expect(await records.tree({ global: true })).toEqual(forest);
+    }
+  );
+
+  it('still finds every cycle member when one ID is also duplicated', async () => {
     const records = createRsPijRecords({
       client: new FakeRsClient([
+        liveSeat({ id: 'rs-child', parent: 'rs-a' }),
         liveSeat({ id: 'rs-a', parent: 'rs-b' }),
+        liveSeat({ id: 'rs-a', parent: null }),
         liveSeat({ id: 'rs-b', parent: 'rs-a' }),
       ]),
     });
-    await expect(records.tree({ global: true })).rejects.toThrow('parent cycle');
+    const forest = await records.tree({ global: true });
+    expect(forest.roots).toMatchObject([
+      { id: 'rs-b', parent: 'rs-a', children: [] },
+      {
+        id: 'rs-a',
+        parent: 'rs-b',
+        children: [{ id: 'rs-child', parent: 'rs-a', children: [] }],
+      },
+    ]);
+    expect(forest.structureWarnings).toHaveLength(2);
+    expect(forest.structureWarnings?.[0]).toContain('Duplicate seat ID rs-a');
+    expect(forest.structureWarnings?.[1]).toContain('Parent cycle (rs-a, rs-b)');
+  });
+
+  it('promotes duplicate IDs once, keeping the first descriptor and unaffected links', async () => {
+    const first = liveSeat({ id: 'rs-duplicate', parent: 'rs-lead', role: 'worker' });
+    const records = createRsPijRecords({
+      client: new FakeRsClient([
+        liveSeat({ id: 'rs-child', parent: first.id }),
+        first,
+        liveSeat({ id: 'rs-lead', role: 'prime' }),
+        liveSeat({
+          id: first.id,
+          parent: 'rs-child',
+          role: 'prime',
+          folder: '/other',
+          harness: 'claude',
+        }),
+        liveSeat({ id: first.id, parent: null }),
+        liveSeat({ id: 'rs-healthy-child', parent: 'rs-lead' }),
+      ]),
+    });
+    const forest = await records.tree({ global: true });
+    expect(forest.roots).toMatchObject([
+      {
+        id: 'rs-lead',
+        prime: true,
+        children: [{ id: 'rs-healthy-child', parent: 'rs-lead', children: [] }],
+      },
+      {
+        id: first.id,
+        parent: first.parent,
+        folder: first.folder,
+        harness: first.harness,
+        orchestrationRole: first.role,
+        children: [{ id: 'rs-child', parent: first.id, children: [] }],
+      },
+    ]);
+    expect(forest.roots[1]).not.toHaveProperty('prime');
+    expect(forest.structureWarnings).toEqual([
+      `Duplicate seat ID ${first.id}: kept the first descriptor and displayed it as a root; source parent unchanged.`,
+    ]);
+    expect(first.parent).toBe('rs-lead');
   });
 
   it('returns fresh rs focus identity without inventing liveness or a window', async () => {
