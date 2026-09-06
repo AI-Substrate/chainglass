@@ -1,0 +1,23 @@
+apps/web/src/lib/server/flowspace-mcp-client.ts
+  s_61dfe47e9838df::t_0f65af0f53290d 342
+test/integration/web/flowspace-mcp.integration.test.ts
+  s_61dfe47e9838df::t_e16f4ed5ef176c 73
+test/unit/web/features/041-file-browser/flowspace-mcp-client.test.ts
+  s_61dfe47e9838df::t_d26536646ef161 54,69,92,160-166
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "3650a9619518cd3ec2c91810a846fd533df32e44",
+  "prompts": {},
+  "sessions": {
+    "s_61dfe47e9838df": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cbe08128-4097-4473-9f99-71e9415824f6",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
