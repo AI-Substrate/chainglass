@@ -16,6 +16,7 @@
  */
 import { readFile, readdir } from 'node:fs/promises';
 import { extname, join } from 'node:path';
+import { Workspace } from '@chainglass/workflow';
 import { render, screen, waitFor } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { NextRequest } from 'next/server';
@@ -25,6 +26,7 @@ import { FleetView } from '../../../../apps/web/src/features/089-first-class-pij
 import { FOCUS_SUCCESS_LINGER_MS } from '../../../../apps/web/src/features/089-first-class-pij/components/seat-row';
 import { createPijPoller } from '../../../../apps/web/src/features/089-first-class-pij/server/pij-poller.service';
 import { createPijRecords } from '../../../../apps/web/src/features/089-first-class-pij/server/pij-records';
+import { FakeWorkspaceContextResolver } from '../../../../packages/workflow/src/fakes/fake-workspace-context-resolver';
 import { FakeFocusExecutor } from '../../../fakes/fake-focus-executor';
 import { FakePijExecutor, execFileFailure } from '../../../fakes/fake-pij-executor';
 import {
@@ -99,10 +101,25 @@ function routeBackedFetch(overrides: { nodeShowFails?: Error; focusFails?: Error
     });
     const focus = new FakeFocusExecutor();
     if (overrides.focusFails) focus.fails(overrides.focusFails);
+    const workspaceResolver = new FakeWorkspaceContextResolver();
+    workspaceResolver.setContext(UI_WORKSPACE_PATH, {
+      workspaceSlug: 'chainglass',
+      workspaceName: 'Chainglass',
+      workspacePath: UI_WORKSPACE_PATH,
+      worktreePath: UI_WORKSPACE_PATH,
+      worktreeBranch: 'main',
+      isMainWorktree: true,
+      hasGit: true,
+    });
     return handlePijFocusRequest(request, {
       authFn: async () => ({ user: { name: 'jordan' } }),
       poller,
       focusExecutor: focus.exec,
+      workspaceService: {
+        list: async () => [Workspace.create({ name: 'Chainglass', path: UI_WORKSPACE_PATH })],
+        getInfo: workspaceResolver.getWorkspaceInfo.bind(workspaceResolver),
+        resolveContext: workspaceResolver.resolveFromPath.bind(workspaceResolver),
+      },
     });
   }) as typeof fetch;
 }

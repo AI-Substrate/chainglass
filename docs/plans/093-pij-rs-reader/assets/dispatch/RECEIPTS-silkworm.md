@@ -41,7 +41,7 @@ These rows require committed commands; preliminary observations above are NOT ac
 | bp-0005 | BLOCKED — needs authorization | Shared daemon restart requires Jordan's explicit word; not run. |
 | bp-0006 | RAN — pass | `node scripts/verify-rs-reader.mjs --auth`, exit 0: actual HTTP 401/200 with exactly 2 attempts, and terminal 401/401 with exactly 2 attempts; scratch key only. |
 | bp-0007 | RAN — pass | Published f1b79236f: **548 tests / 35 files**. D1–D3 first integrated run: **556 / 35**, followed by **85 focus/fence tests** after the six additional stamp regressions. All PIJ files also pass in the complete gate below. Initial 478 predated late fixes (482 at bc57d806d). |
-| bp-0008 | RAN — code gates pass; audit exception | Latest `just fft`: lint/format 1,804 files, production build, all 9 workspace tsconfigs, **547 files / 7,367 tests passed**, 8 files / 63 tests skipped. Exit 1 ONLY at the unchanged **124-advisory audit (6 critical, 41 high, 68 moderate, 9 low)** under the acknowledged exception. |
+| bp-0008 | RAN — code gates pass; audit exception | Final containment `just fft`: lint/format 1,804 files, production build, all 9 workspace tsconfigs, **547 files / 7,386 tests passed**, 8 files / 63 tests skipped. Exit 1 ONLY at the unchanged **124-advisory audit (6 critical, 41 high, 68 moderate, 9 low)** under the acknowledged exception. |
 
 ## Proof boundaries
 
@@ -148,3 +148,19 @@ The FlowSpace failures reproduced in isolation (30s cold timeout; 5,051ms warm q
 Gate-fix published as **3650a9619** (`63446a029..3650a9619` on origin/main), three files, +12/-3, with the required fs2-retired/separate-flowspace3-plan commit-body caveat. D1–D3 remains separate; no containment source change is included.
 
 **D1–D3 precommit re-run RAN:** `just fft` after the gate-fix commit, **435.04s**, all **4,008 lines** read. Again **547 files / 7,367 tests passed**, **63 skipped**, all nine typechecks and lint passed; build succeeded from cache. Only the same 124-advisory audit failed under the standing exception. No containment changes are part of this revision.
+
+D1–D3 published separately as **78f659c20** (`3650a9619..78f659c20`), 16 files, +517/-67. The following containment change is not folded into that commit.
+
+## Authoritative workspace containment — separate correction
+
+Prime ruling: caller-controlled `workspace=/` is a real MEDIUM containment gap in this bootstrap-authenticated single-operator application. Focus must validate scope against the app's registered workspaces, not trust the query as authority.
+
+- The handler requires injected `IWorkspaceService` reads, with the production POST using the existing bootstrap container. Exact normalized roots from `list()` are the fast path; otherwise context lookup identifies the owner and `getInfo()` supplies the authoritative exact worktree inventory. Cwd/git-family containment and all process/pane guards then use that authoritative root unchanged.
+- Unregistered/relative/descendant scope → **400 `unregistered-workspace`**, before any seat or process read. Registry/owner/inventory errors → **503 `workspace-unreadable`**. Registration is checked afresh on each click.
+- Review exposed two resolver compatibility cases: first-containing context is not exact nested-worktree discovery, and stored registered roots may retain a trailing slash. Exact normalized registry/inventory lookup covers both without changing the shared resolver or allowing arbitrary descendants.
+- **RAN:** **117 tests / 3 files** passed (focus 82, rendered-focus 13, fence 22), including root refusal, registered roots, trailing-slash roots, sibling/nested worktrees, authoritative-root precedence, invalid descendants, removal between clicks, and read failures.
+- **Actual browser/API RAN on final source:** `workspace=/` and the unregistered `<main>/src` descendant both returned **400 `unregistered-workspace`**. Registered main root and registered repo's `chainglass-093-review` worktree scope both returned **200 `{focused:"@8"}`** for silkworm. No HTTP response fixtures were used. The real rail button also focused silkworm; `tmux display-message` confirmed **`@8 1`** (window selected).
+- **Own hierarchy RAN:** the rendered silkworm button is inside section **`pij-lonely-antelope and descendants`** at **`data-depth="1"`**. This confirms the earlier own-seat registration in the actual surface, without inferring a role.
+- No daemon/dev-server restart or unrelated-seat registration was performed.
+- **Final source review:** no material findings (confidence 0.94). The critic re-read the applied normalized registry lookup and exact worktree inventory branch, closing both compatibility findings; no commands were run by the critic. The owned browser tab was released after live proof.
+- **Final precommit gate RAN:** `just fft`, **446.14s**, all **3,977 output lines** read. Lint/format **1,804 files**, production build and all **nine** typechecks passed; **547 files / 7,386 tests passed**, **8 files / 63 tests skipped**, zero test failures. Real FlowSpace integration still passed its unchanged deadlines (cold test **17,673ms**, warm text **160ms**). Exit 1 only at the same **124-advisory audit**, under the standing acknowledged exception. No suppressed checks, skipped new tests, or changed timing assertions.

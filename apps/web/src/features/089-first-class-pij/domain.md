@@ -82,7 +82,7 @@ a rule written down in that contract — never guessed, never estimated.
 | `PijRailView` / `PijRailPanel` | Components | file browser | Dense left-rail roster and its main-checkout-scoped data acquisition |
 | `PijRailToggleListener` | Component | workspace layout | Routes `pij:toggle` to `panel=pij`, preserving browser query state or navigating from another workspace route |
 | `registerPijSDK()` | Function | `registerAllDomains()` | ADR-0009 command + keybinding registration |
-| `handlePijFocusRequest` | Handler | focus route, tests | **The one mutating handler.** `FocusReason` union; `FocusExecutor` seam |
+| `handlePijFocusRequest` | Handler | focus route, tests | **The one mutating handler.** Requires authoritative `IWorkspaceService` root/worktree reads; `FocusReason` union and `FocusExecutor` seam |
 
 ### The one mutation — `POST /api/pij/focus`
 
@@ -91,10 +91,10 @@ a rule written down in that contract — never guessed, never estimated.
 | Effect | `execFile('tmux', ['select-window', '-t', windowId])` — fixed argv, no shell, 3s timeout |
 | Trigger | A human clicking the row's focus button. **Nothing else** — no effect, timer, or self-firing handler may reach it, statically asserted at both ends |
 | Window id | Legacy: fresh `node show`. rs: fresh seat detail, then actual pane/window read at click time; never supplied by the client |
-| Containment | `detail.cwd` within the workspace or its actual git worktree family; unrelated ancestors are never included merely to make a tree |
+| Containment | Exact normalized registered root from `IWorkspaceService.list()`, or exact discovered root from owner `getInfo()` worktree inventory; context lookup alone never admits descendants. Existing cwd/git-family containment then uses that authoritative path |
 | rs identity guard | Pane exists; pid/start match the local process table; process belongs to pane's pid ancestry; pane/window rechecked before selection. No stored liveness derivation |
 | Probe bounds | 3s per command; `ps` output capped at 32 MiB (same headroom as roster reads), tmux output at 1 MiB; no per-seat background process reads |
-| Refusals | `unknown-seat`, `out-of-workspace`, `not-live`, `no-window`, rs `no-process` / `no-pane` / `process-gone` / `process-reused` / `pane-moved`; `identity-unverified` retains genuinely unreadable/incomplete evidence, separate from `store-unreadable` / `tmux-refused` |
+| Refusals | `unregistered-workspace` (400), `workspace-unreadable` (503); `unknown-seat`, `out-of-workspace`, `not-live`, `no-window`, rs `no-process` / `no-pane` / `process-gone` / `process-reused` / `pane-moved`; unreadable identity evidence stays `identity-unverified`, separate from `store-unreadable` / `tmux-refused` |
 | Fence | The single carve-out in the C-02 tmux assertion, replaced by a stricter companion (`fence.test.ts`) — proven with planted offenders |
 
 ## Ruled Constraints (bind every line in this domain)
@@ -220,3 +220,4 @@ test/
 | 093 | Default rs HTTP reader; replay-safe cursors and 5s recycling; real report cards and semantic notes; mapped binding facts, typed tombstone cursors and explicit unavailable liveness | 2026-09-06 |
 | 093 review corrections | Replaced mixed-source hierarchy/focus reads with rs parent forest and fresh identity; compact unclassified rail, visible actual reports, click-time process guards, source warnings and generated-plan alignment | 2026-09-06 |
 | 093 D1–D3 | Recover duplicate/cyclic parent links with collection warnings; distinguish observed focus refusal causes; retain bounded machine-wide process-read headroom | 2026-09-07 |
+| 093 containment | Resolve requested focus scope against registered workspaces and discovered worktrees before reading the seat or running process commands | 2026-09-07 |

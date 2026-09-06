@@ -15,6 +15,7 @@
  * - Worked Example: seat in-workspace, active, windowId '@220' → 200 { focused: '@220' } and exactly
  *   one recorded call `tmux select-window -t @220`.
  */
+import { type IWorkspaceService, Workspace } from '@chainglass/workflow';
 import { NextRequest } from 'next/server';
 import { describe, expect, it } from 'vitest';
 import {
@@ -31,6 +32,7 @@ import {
   type RsSeat,
 } from '../../../../apps/web/src/features/089-first-class-pij/server/rs/rs-client';
 import { createRsPijRecords } from '../../../../apps/web/src/features/089-first-class-pij/server/rs/rs-pij-records';
+import { FakeWorkspaceContextResolver } from '../../../../packages/workflow/src/fakes/fake-workspace-context-resolver';
 import { FakeFocusExecutor } from '../../../fakes/fake-focus-executor';
 import { FakePijExecutor, execFileFailure } from '../../../fakes/fake-pij-executor';
 import {
@@ -52,6 +54,15 @@ const RS_PROCESS_TABLE = [
   '641 640 Sun Sep  6 00:10:00 2026',
   '642 641 Sun Sep  6 01:02:03 2026',
 ].join('\n');
+const WORKSPACE_CONTEXT = {
+  workspaceSlug: 'chainglass',
+  workspaceName: 'Chainglass',
+  workspacePath: WORKSPACE,
+  worktreePath: WORKSPACE,
+  worktreeBranch: 'main',
+  isMainWorktree: true,
+  hasGit: true,
+};
 
 function rsFocus(table = RS_PROCESS_TABLE): FakeFocusExecutor {
   return new FakeFocusExecutor()
@@ -115,8 +126,18 @@ function makeRsDeps(
     now: () => new Date('2026-09-06T01:30:00.000Z'),
   });
   const focus = overrides.focus ?? rsFocus();
+  const workspaceResolver = new FakeWorkspaceContextResolver();
+  workspaceResolver.setContext(WORKSPACE, WORKSPACE_CONTEXT);
+  const workspaces = [Workspace.create({ name: 'Chainglass', path: WORKSPACE })];
   return {
     authFn: overrides.authFn ?? authOk,
+    workspaceService: {
+      list: async () => workspaces,
+      resolveContext: workspaceResolver.resolveFromPath.bind(workspaceResolver),
+      getInfo: workspaceResolver.getWorkspaceInfo.bind(workspaceResolver),
+    },
+    workspaces,
+    workspaceResolver,
     poller,
     focusExecutor: focus.exec,
     focus,
@@ -170,7 +191,14 @@ async function makeDeps(
     /** The workspace-scoped tree the family rung reads when path containment fails. */
     tree?: { roots: unknown[] };
   } = {}
-): Promise<PijRouteDeps & { exec: FakePijExecutor; focus: FakeFocusExecutor }> {
+): Promise<
+  PijRouteDeps & {
+    exec: FakePijExecutor;
+    focus: FakeFocusExecutor;
+    workspaceService: Pick<IWorkspaceService, 'list' | 'resolveContext' | 'getInfo'>;
+    workspaceResolver: FakeWorkspaceContextResolver;
+  }
+> {
   const exec = new FakePijExecutor().whenJson(['list', '--json', '--badge'], []);
   if (overrides.nodeShowFails) {
     exec.when(['node', 'show', SEAT, '--json']).fails(overrides.nodeShowFails);
@@ -191,8 +219,16 @@ async function makeDeps(
   await poller.start();
 
   const focus = overrides.focus ?? new FakeFocusExecutor();
+  const workspaceResolver = new FakeWorkspaceContextResolver();
+  workspaceResolver.setContext(WORKSPACE, WORKSPACE_CONTEXT);
   return {
     authFn: overrides.authFn ?? authOk,
+    workspaceService: {
+      list: async () => [Workspace.create({ name: 'Chainglass', path: WORKSPACE })],
+      resolveContext: workspaceResolver.resolveFromPath.bind(workspaceResolver),
+      getInfo: workspaceResolver.getWorkspaceInfo.bind(workspaceResolver),
+    },
+    workspaceResolver,
     poller,
     focusExecutor: focus.exec,
     exec,
@@ -525,6 +561,15 @@ describe('POST /api/pij/focus — every refusal reason, one test each', () => {
     const rs = async (condition: Parameters<typeof makeRsDeps>[0]) =>
       handlePijFocusRequest(focusRequest(RS_SEAT), makeRsDeps(condition));
     const conditions: Record<FocusReason, () => Promise<Response>> = {
+      'unregistered-workspace': async () =>
+        handlePijFocusRequest(focusRequest(SEAT, '/'), await makeDeps()),
+      'workspace-unreadable': async () => {
+        const deps = await makeDeps();
+        deps.workspaceService.list = async () => {
+          throw new Error('registry unreadable');
+        };
+        return handlePijFocusRequest(focusRequest(), deps);
+      },
       'unknown-seat': () =>
         legacy({
           nodeShowFails: execFileFailure({
@@ -614,6 +659,7 @@ describe('POST /api/pij/focus — the gate, before anything else', () => {
     expect(response.status).toBe(401);
     expect(deps.exec.calls.length).toBe(before);
     expect(deps.focus.calls).toEqual([]);
+    expect(deps.workspaceResolver.resolveFromPathCalls).toEqual([]);
   });
 
   it('requires both a workspace and a seat id before reading anything', async () => {
@@ -636,6 +682,160 @@ describe('POST /api/pij/focus — the gate, before anything else', () => {
     expect(noWorkspace.status).toBe(400);
     expect(noSeat.status).toBe(400);
     expect(deps.exec.calls.length).toBe(before);
+    expect(deps.focus.calls).toEqual([]);
+    expect(deps.workspaceResolver.resolveFromPathCalls).toEqual([]);
+  });
+
+  it.each([
+    '/',
+    '/Users/fixture',
+    '/unregistered',
+    SIBLING,
+    `${WORKSPACE}/src`,
+    `${WORKSPACE}/..`,
+    '.',
+  ])('refuses unregistered scope %s before any seat read or process command', async (workspace) => {
+    const deps = makeRsDeps();
+    const response = await handlePijFocusRequest(focusRequest(RS_SEAT, workspace), deps);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ reason: 'unregistered-workspace' });
+    expect(deps.reads).toEqual([]);
+    expect(deps.focus.calls).toEqual([]);
+  });
+
+  it.each([WORKSPACE, `${WORKSPACE}/`])(
+    'accepts authoritative registered root %s',
+    async (workspace) => {
+      const deps = makeRsDeps();
+      const response = await handlePijFocusRequest(focusRequest(RS_SEAT, workspace), deps);
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ focused: '@650' });
+      expect(deps.workspaceResolver.resolveFromPathCalls).toEqual([]);
+    }
+  );
+
+  it.each([SIBLING, `${WORKSPACE}/.worktrees/feature`])(
+    'accepts a discovered worktree root from the owner inventory: %s',
+    async (worktree) => {
+      const deps = makeRsDeps({ seat: { folder: worktree } });
+      // Owner lookup may report the main checkout for a nested worktree.
+      deps.workspaceResolver.setContext(worktree, WORKSPACE_CONTEXT);
+      deps.workspaceResolver.setWorkspaceInfo('chainglass', {
+        slug: 'chainglass',
+        name: 'Chainglass',
+        path: WORKSPACE,
+        createdAt: new Date('2026-09-07T00:00:00Z'),
+        hasGit: true,
+        worktrees: [
+          {
+            path: worktree,
+            head: 'abc123',
+            branch: 'feature',
+            isDetached: false,
+            isBare: false,
+            isPrunable: false,
+          },
+        ],
+      });
+      const response = await handlePijFocusRequest(focusRequest(RS_SEAT, worktree), deps);
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ focused: '@650' });
+      expect(deps.workspaceResolver.getWorkspaceInfoCalls).toEqual([{ slug: 'chainglass' }]);
+    }
+  );
+
+  it('normalizes an authoritative registered root stored with a trailing slash', async () => {
+    const deps = makeRsDeps();
+    deps.workspaces[0] = Workspace.create({ name: 'Chainglass', path: `${WORKSPACE}/` });
+    deps.workspaceResolver.reset();
+    const response = await handlePijFocusRequest(focusRequest(RS_SEAT), deps);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ focused: '@650' });
+    expect(deps.workspaceResolver.resolveFromPathCalls).toEqual([]);
+  });
+
+  it('does not accept an arbitrary descendant merely because an owner context exists', async () => {
+    const deps = makeRsDeps();
+    deps.workspaceResolver.setWorkspaceInfo('chainglass', {
+      slug: 'chainglass',
+      name: 'Chainglass',
+      path: WORKSPACE,
+      createdAt: new Date('2026-09-07T00:00:00Z'),
+      hasGit: true,
+      worktrees: [
+        {
+          path: WORKSPACE,
+          head: 'abc123',
+          branch: 'main',
+          isDetached: false,
+          isBare: false,
+          isPrunable: false,
+        },
+      ],
+    });
+    const response = await handlePijFocusRequest(focusRequest(RS_SEAT, `${WORKSPACE}/src`), deps);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ reason: 'unregistered-workspace' });
+    expect(deps.workspaceResolver.getWorkspaceInfoCalls).toEqual([{ slug: 'chainglass' }]);
+    expect(deps.reads).toEqual([]);
+    expect(deps.focus.calls).toEqual([]);
+  });
+
+  it.each([WORKSPACE, SIBLING])(
+    'does not widen a registered root to its containing worktree: %s',
+    async (folder) => {
+      const deps = makeRsDeps({ seat: { folder }, tree: { roots: [] } });
+      deps.workspaceResolver.setContext(WORKSPACE, {
+        ...WORKSPACE_CONTEXT,
+        worktreePath: '/Users/fixture/substrate',
+        isMainWorktree: false,
+      });
+      const response = await handlePijFocusRequest(focusRequest(RS_SEAT), deps);
+      expect(response.status).toBe(folder === WORKSPACE ? 200 : 409);
+      if (folder === SIBLING) {
+        expect(await response.json()).toMatchObject({ reason: 'out-of-workspace' });
+        expect(deps.treeScopes).toEqual([{ cwd: WORKSPACE, all: true }]);
+        expect(deps.focus.calls).toEqual([]);
+      }
+    }
+  );
+
+  it('rechecks registration on every click instead of caching an accepted scope', async () => {
+    const deps = makeRsDeps();
+    expect((await handlePijFocusRequest(focusRequest(RS_SEAT), deps)).status).toBe(200);
+    deps.workspaceResolver.reset();
+    deps.workspaces.length = 0;
+    const response = await handlePijFocusRequest(focusRequest(RS_SEAT), deps);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ reason: 'unregistered-workspace' });
+    expect(deps.reads).toEqual(['seats']);
+    expect(deps.focus.calls.filter((call) => call.args[0] === 'select-window')).toHaveLength(1);
+  });
+
+  it('fails closed when the workspace registry cannot be read', async () => {
+    const deps = makeRsDeps();
+    deps.workspaceService.list = async () => {
+      throw new Error('registry unreadable');
+    };
+    const response = await handlePijFocusRequest(focusRequest(RS_SEAT), deps);
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({ reason: 'workspace-unreadable' });
+    expect(deps.reads).toEqual([]);
+    expect(deps.focus.calls).toEqual([]);
+  });
+
+  it.each(['owner', 'inventory'])('fails closed when worktree %s lookup fails', async (stage) => {
+    const deps = makeRsDeps();
+    if (stage === 'owner')
+      deps.workspaceResolver.injectResolveError = new Error('owner unreadable');
+    else deps.workspaceResolver.injectGetInfoError = new Error('inventory unreadable');
+    const response = await handlePijFocusRequest(
+      focusRequest(RS_SEAT, `${WORKSPACE}/.worktrees/feature`),
+      deps
+    );
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({ reason: 'workspace-unreadable' });
+    expect(deps.reads).toEqual([]);
     expect(deps.focus.calls).toEqual([]);
   });
 });

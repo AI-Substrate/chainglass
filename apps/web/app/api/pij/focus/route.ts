@@ -19,7 +19,10 @@ import { execFile } from 'node:child_process';
  * Every refusal carries a machine `reason` from {@link FocusReason} and a human `observation` that
  * says what was seen rather than what the caller did wrong. The client renders those words verbatim.
  */
+import { isAbsolute, resolve } from 'node:path';
 import { auth } from '@/auth';
+import { WORKSPACE_DI_TOKENS } from '@chainglass/shared';
+import type { IWorkspaceService } from '@chainglass/workflow';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { isFolderInWorkspace } from '../../../../src/features/089-first-class-pij/server/join';
@@ -38,6 +41,7 @@ import {
 } from '../../../../src/features/089-first-class-pij/server/route-deps';
 import { RsError } from '../../../../src/features/089-first-class-pij/server/rs/rs-client';
 import { getPijPoller } from '../../../../src/features/089-first-class-pij/server/start-pij-poller';
+import { getContainer } from '../../../../src/lib/bootstrap-singleton';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,6 +59,8 @@ export const dynamic = 'force-dynamic';
  */
 export type FocusReason =
   | 'unknown-seat'
+  | 'unregistered-workspace'
+  | 'workspace-unreadable'
   | 'out-of-workspace'
   | 'not-live'
   | 'no-window'
@@ -90,11 +96,25 @@ interface FocusRefusal {
  */
 export function focusRefusal(
   reason: Exclude<FocusReason, 'store-unreadable' | 'tmux-refused'>,
-  detail: { seatId: string; cwd?: string; liveness?: string; lastEventAt?: string | null }
+  detail: {
+    seatId: string;
+    cwd?: string;
+    workspace?: string;
+    liveness?: string;
+    lastEventAt?: string | null;
+  }
 ): FocusRefusal {
   switch (reason) {
     case 'unknown-seat':
       return { status: 404, reason, observation: `no seat ${detail.seatId} in the store` };
+    case 'unregistered-workspace':
+      return {
+        status: 400,
+        reason,
+        observation: `workspace ${detail.workspace} is not a registered workspace or worktree root`,
+      };
+    case 'workspace-unreadable':
+      return { status: 503, reason, observation: 'registered workspaces could not be read' };
     case 'out-of-workspace':
       return {
         status: 409,
@@ -225,17 +245,49 @@ function refuse(refusal: FocusRefusal): Response {
 
 export async function handlePijFocusRequest(
   request: NextRequest,
-  deps: PijRouteDeps
+  deps: PijRouteDeps & {
+    workspaceService: Pick<IWorkspaceService, 'list' | 'resolveContext' | 'getInfo'>;
+  }
 ): Promise<Response> {
   const unauthorized = await requirePijSession(deps);
   if (unauthorized) return unauthorized;
 
-  const workspace = workspaceParam(request);
-  if (!workspace) return missingParam('workspace');
+  const requestedWorkspace = workspaceParam(request);
+  if (!requestedWorkspace) return missingParam('workspace');
 
   const body = (await request.json().catch(() => null)) as { seatId?: unknown } | null;
   const seatId = typeof body?.seatId === 'string' && body.seatId.length > 0 ? body.seatId : null;
   if (!seatId) return missingParam('seatId');
+
+  if (!isAbsolute(requestedWorkspace)) {
+    return refuse(
+      focusRefusal('unregistered-workspace', { seatId, workspace: requestedWorkspace })
+    );
+  }
+  const candidate = resolve(requestedWorkspace);
+  let workspace: string | null = null;
+  try {
+    const registered = await deps.workspaceService.list();
+    const root = registered.find((entry) => resolve(entry.path) === candidate);
+    if (root) {
+      workspace = resolve(root.path);
+    } else {
+      // Directory-context lookup identifies the owner, not necessarily the most-specific tree.
+      const context = await deps.workspaceService.resolveContext(candidate);
+      if (context) {
+        const info = await deps.workspaceService.getInfo(context.workspaceSlug);
+        const worktree = info?.worktrees.find((entry) => resolve(entry.path) === candidate);
+        if (worktree) workspace = resolve(worktree.path);
+      }
+    }
+  } catch {
+    return refuse(focusRefusal('workspace-unreadable', { seatId }));
+  }
+  if (!workspace) {
+    return refuse(
+      focusRefusal('unregistered-workspace', { seatId, workspace: requestedWorkspace })
+    );
+  }
 
   // FRESH read, every click. A seat's window, workspace and liveness are all things that change
   // between the page rendering and the human clicking.
@@ -493,7 +545,13 @@ async function resolveRsFocusWindow(
 }
 
 export async function POST(request: NextRequest): Promise<Response> {
-  return handlePijFocusRequest(request, { authFn: auth, poller: getPijPoller() });
+  return handlePijFocusRequest(request, {
+    authFn: auth,
+    poller: getPijPoller(),
+    workspaceService: getContainer().resolve<IWorkspaceService>(
+      WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
+    ),
+  });
 }
 
 /**
