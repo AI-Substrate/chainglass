@@ -72,3 +72,10 @@ Harness improvement: add a scoped report-output allowance and fail fast on missi
 ## Browser boundary
 
 Owned headless page authenticated through the supported `/api/bootstrap/verify` endpoint using the local bootstrap-code file; credential never printed or copied into an artifact. Browser interaction wrappers timed out on fill/type/screenshot, while navigation/evaluation worked. Current host page remains degraded with 0 rows because its HMR-persisted singleton predates the default flip. Jordan was asked to run `just dev` without source overrides. No fake endpoint responses or manual singleton reset used. Docker verification container is absent; no container started.
+
+## bp-0001 — RAN by pij-lonely-antelope after Jordan's `just dev` restart (2026-09-06 ~08:07Z)
+
+- `ps -Ao command | grep -c '[c]li.ts list --json'` → **0** (pre-state on record: 2 in flight continuously).
+- Dev server pid 36201 on :3000, no env overrides (Jordan's restart, not mine).
+- `GET /api/pij/fleet` from the unlocked page: `running:true, fleetSize:918, seq:15065, lastError:null`, 918 rows.
+- Row state: **RAN — pass.** The one row silkworm could not run without the operator.
