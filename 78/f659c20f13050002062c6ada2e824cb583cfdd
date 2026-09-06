@@ -1,0 +1,44 @@
+apps/web/app/api/pij/focus/route.ts
+  h_9e71e8b09f7cf2 63-65,133-150,327-354,364-374,388,392-395,399,408,413-417,420,422-423,426,469-471,483-484,490,509-514
+apps/web/app/api/pij/tree/route.ts
+  h_9e71e8b09f7cf2 62
+apps/web/src/features/089-first-class-pij/components/pij-rail-view.tsx
+  h_9e71e8b09f7cf2 71,776,829,847-849,997
+apps/web/src/features/089-first-class-pij/domain.md
+  h_9e71e8b09f7cf2 69,96-97,222
+apps/web/src/features/089-first-class-pij/hooks/use-pij-fleet.ts
+  h_9e71e8b09f7cf2 137,209,284,585
+apps/web/src/features/089-first-class-pij/server/pij-records.interface.ts
+  h_9e71e8b09f7cf2 101-102
+apps/web/src/features/089-first-class-pij/server/rs/rs-pij-records.ts
+  h_9e71e8b09f7cf2 81,113-128,130,148-163,169-170,179
+apps/web/src/features/089-first-class-pij/types.ts
+  h_9e71e8b09f7cf2 225-226
+docs/plans/076-harness-workflow-runner/harness-wishlist.md
+  h_9e71e8b09f7cf2 104-115
+docs/plans/093-pij-rs-reader/assets/dispatch/RECEIPTS-silkworm.md
+  h_9e71e8b09f7cf2 37,43-44,83,90,96,123-150
+test/unit/web/pij/fence.test.ts
+  h_9e71e8b09f7cf2 529
+test/unit/web/pij/focus-route.test.ts
+  h_9e71e8b09f7cf2 540-543,695-759,803-806,828,835-853
+test/unit/web/pij/pij-rail-view.test.tsx
+  h_9e71e8b09f7cf2 189-244
+test/unit/web/pij/routes.test.ts
+  h_9e71e8b09f7cf2 308-339
+test/unit/web/pij/rs-pij-records.test.ts
+  h_9e71e8b09f7cf2 232,283-337,340,342,346-398
+test/unit/web/pij/use-pij-fleet.test.tsx
+  h_9e71e8b09f7cf2 139-171
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "78f659c20f13050002062c6ada2e824cb583cfdd",
+  "prompts": {},
+  "humans": {
+    "h_9e71e8b09f7cf2": {
+      "author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
