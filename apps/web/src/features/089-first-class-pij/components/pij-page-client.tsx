@@ -92,6 +92,7 @@ export function PijPageClient({ workspacePath, workspaceName, fetchImpl }: PijPa
             rows={fleet.rows}
             tree={fleet.tree}
             status={fleet.status}
+            livenessUnavailable={fleet.livenessUnavailable}
             workspacePath={workspacePath}
             now={now}
             scope={scope}

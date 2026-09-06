@@ -30,7 +30,7 @@ import type { PijListRow } from './pij-records.interface';
 const NEVER_ON_A_ROW = new Set(['pid', 'paneId', 'dataDir']);
 
 /** Fields lifted onto the typed row rather than left in `extra`. */
-const PROMOTED = new Set([
+export const FLEET_ROW_FIELDS = new Set([
   'id',
   'folder',
   'state',
@@ -89,7 +89,7 @@ export function joinSeatsToWorkspace(rows: PijListRow[], workspacePath: string):
 export function toFleetRow(row: PijListRow): FleetRow {
   const extra: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(row)) {
-    if (PROMOTED.has(key) || NEVER_ON_A_ROW.has(key)) continue;
+    if (FLEET_ROW_FIELDS.has(key) || NEVER_ON_A_ROW.has(key)) continue;
     extra[key] = value;
   }
 

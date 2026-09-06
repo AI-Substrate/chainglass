@@ -20,7 +20,7 @@
 
 import { useMemo } from 'react';
 import { SeatFocusProvider } from '../hooks/use-seat-focus';
-import { groupFleet, isWithinIdleWindow } from '../lib/fleet-grouping';
+import { groupFleet, isLivenessUnavailable, isWithinIdleWindow } from '../lib/fleet-grouping';
 import type { PijTreeNode } from '../server/pij-records.interface';
 import type { FleetRow, PijId, PollerStatus } from '../types';
 import { FleetEmptyState } from './fleet-empty-state';
@@ -36,6 +36,7 @@ export interface FleetViewProps {
   rows: FleetRow[];
   tree: PijTreeNode[];
   status: PollerStatus | null;
+  livenessUnavailable?: boolean;
   /** The absolute path this view is scoped to. Shown when the filter matched nothing. */
   workspacePath: string;
   /** Injected so every relative time in the subtree is deterministic under test. */
@@ -57,19 +58,26 @@ export interface FleetViewProps {
 }
 
 export function FleetView(props: FleetViewProps) {
-  const { rows, tree, status, now, scope } = props;
+  const { rows, tree, status, now, scope, livenessUnavailable } = props;
+  const unavailable = livenessUnavailable || rows.some(isLivenessUnavailable);
 
   const grouping = useMemo(
-    () => groupFleet({ rows, tree: scope === 'global' ? [] : tree, now }),
-    [rows, tree, now, scope]
+    () =>
+      groupFleet({
+        rows,
+        tree: scope === 'global' ? [] : tree,
+        now,
+        idleFilter: !livenessUnavailable,
+      }),
+    [rows, tree, now, scope, livenessUnavailable]
   );
 
   const globalRows = useMemo(
     () =>
       rows
-        .filter((row) => isWithinIdleWindow(row, now))
+        .filter((row) => livenessUnavailable || isWithinIdleWindow(row, now))
         .sort((a, b) => (b.lastEventAt ?? '').localeCompare(a.lastEventAt ?? '')),
-    [rows, now]
+    [rows, now, livenessUnavailable]
   );
 
   const visibleCount = scope === 'global' ? globalRows.length : grouping.seatIds.length;
@@ -94,15 +102,22 @@ export function FleetView(props: FleetViewProps) {
             onClick={() => props.onScopeChange('global')}
             className={`px-3 py-1 text-xs ${scope === 'global' ? 'bg-accent text-accent-foreground' : 'bg-card text-muted-foreground'}`}
           >
-            all (hot tier)
+            {unavailable ? 'all recorded seats' : 'all (hot tier)'}
           </button>
         </div>
 
         <span className="text-xs text-muted-foreground" data-testid="fleet-count">
-          {scope === 'global'
-            ? `${visibleCount} seats · hot tier, idle < 2d, all folders`
-            : `${grouping.primes.length} prime · ${visibleCount} seats · this workspace`}
+          {unavailable
+            ? `${rows.length} recorded seats · ${scope === 'global' ? 'all folders' : 'this workspace'}`
+            : scope === 'global'
+              ? `${visibleCount} seats · hot tier, idle < 2d, all folders`
+              : `${grouping.primes.length} prime · ${visibleCount} seats · this workspace`}
         </span>
+        {unavailable ? (
+          <span data-reason="liveness-unavailable" className="text-xs text-muted-foreground">
+            liveness unavailable from pij-rs
+          </span>
+        ) : null}
 
         {grouping.hiddenByIdle > 0 && scope !== 'global' ? (
           <span className="text-xs text-muted-foreground" data-testid="fleet-hidden-count">
@@ -156,7 +171,12 @@ export function FleetView(props: FleetViewProps) {
         <div className="overflow-hidden rounded-lg border border-border bg-card">
           <SeatRowHeader />
           {globalRows.map((row) => (
-            <SeatRow key={row.id} placement={{ id: row.id, row, depth: 0 }} now={now} />
+            <SeatRow
+              key={row.id}
+              placement={{ id: row.id, row, depth: 0 }}
+              now={now}
+              livenessUnavailable={livenessUnavailable}
+            />
           ))}
         </div>
       ) : (
@@ -166,7 +186,13 @@ export function FleetView(props: FleetViewProps) {
            against, and a button that cannot know whether it is allowed is a button that lies. */
         <SeatFocusProvider workspacePath={props.workspacePath} fetchImpl={props.focusFetchImpl}>
           {grouping.primes.map((shell) => (
-            <PrimeShell key={shell.lead.id} shell={shell} now={now} flowFor={props.flowFor} />
+            <PrimeShell
+              key={shell.lead.id}
+              shell={shell}
+              now={now}
+              flowFor={props.flowFor}
+              livenessUnavailable={livenessUnavailable}
+            />
           ))}
 
           {grouping.loose.length > 0 ? (
@@ -180,6 +206,7 @@ export function FleetView(props: FleetViewProps) {
                   section={section}
                   now={now}
                   flow={props.flowFor?.(section.lead.id)}
+                  livenessUnavailable={livenessUnavailable}
                 />
               ))}
             </>

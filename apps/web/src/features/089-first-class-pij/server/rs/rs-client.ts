@@ -17,9 +17,12 @@ export interface RsSeat {
   state?: string;
   semantic_state?: string | null;
   role?: string | null;
+  model?: string | null;
+  provider?: string | null;
+  effort?: string | null;
   parent?: string | null;
   relay?: boolean;
-  tombstoned_at?: string | null;
+  tombstoned_at?: number | null;
   tombstone_reason?: string | null;
   [additive: string]: unknown;
 }

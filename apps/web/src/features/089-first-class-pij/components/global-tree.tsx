@@ -5,13 +5,9 @@
  * ratified in `scratch/pij-observatory-poc.html`, at machine scale. One collapsible section per
  * folder, prime roots first, the same seat vocabulary as the workspace tree.
  *
- * **The fact this view is built around.** `pij tree --global` and `pij list` are not the same set:
- * measured 2026-07-26, the tree holds 52 seats across 9 folders while the fleet holds 181 rows across
- * 20 — and the 129 rows missing from the tree are *exactly* the dead ones, with no exceptions in
- * either direction. The tree is the living fleet; the store keeps the dead. Rendering only the tree
- * would silently drop two thirds of the machine; merging them into one list would imply the dead have
- * a place in the forest, which they do not. So each folder shows its living seats, and its dead
- * records in a band of their own, collapsed, labelled for what they are.
+ * The tree and fleet are separate reads: rows not placed by the tree stay in a collapsed band.
+ * Legacy calls those dead records. pij-rs cannot attest liveness, so its unplaced records are
+ * labelled only by their absence from the tree, never by a presumed process state.
  *
  * **"rows", never "live seats".** A count of rows is a count of records read. Calling them live seats
  * would be a claim about processes that this page has not checked and cannot check.
@@ -19,6 +15,7 @@
 'use client';
 
 import { useMemo } from 'react';
+import { isLivenessUnavailable } from '../lib/fleet-grouping';
 import { formatElapsed } from '../lib/relative-time';
 import type { PijTreeNode } from '../server/pij-records.interface';
 import type { FleetRow, PollerStatus } from '../types';
@@ -30,6 +27,7 @@ export interface GlobalTreeProps {
   roots: PijTreeNode[];
   rows: FleetRow[];
   status: PollerStatus | null;
+  livenessUnavailable?: boolean;
   now: number;
   /** Per-surface read failures. Either one is enough to make the view untrustworthy. */
   errors: { fleet: string | null; tree: string | null };
@@ -80,7 +78,7 @@ export interface FolderGroup {
   roots: PijTreeNode[];
   /** Seats the tree places here, counted at every depth. */
   inTree: number;
-  /** Fleet rows in this folder that the tree does not place — the dead. */
+  /** Fleet rows in this folder that the tree does not place. */
   orphans: FleetRow[];
 }
 
@@ -88,8 +86,8 @@ export interface FolderGroup {
  * Group both reads by folder into one ordered list.
  *
  * A folder can appear because the tree has roots there, because the fleet has rows there, or both —
- * and the third case is the common one. Folders are sorted by living seats first so the machine's
- * active work is at the top, then by name so the order is stable between renders.
+ * and the third case is the common one. Folders are sorted by tree placements first, then by name
+ * so the order is stable between renders. Placement does not attest liveness.
  */
 export function groupByFolder(roots: PijTreeNode[], rows: FleetRow[]): FolderGroup[] {
   const placed = collectTreeIds(roots);
@@ -136,12 +134,15 @@ function SeatLine({
   row,
   depth,
   now,
+  livenessUnavailable,
 }: {
   node: PijTreeNode;
   row?: FleetRow;
   depth: number;
   now: number;
+  livenessUnavailable?: boolean;
 }) {
+  const unavailable = livenessUnavailable || isLivenessUnavailable(row);
   const state = row?.state ?? (typeof node.state === 'string' ? node.state : undefined);
   const liveness = row?.liveness ?? (typeof node.liveness === 'string' ? node.liveness : undefined);
   const lastEventAt =
@@ -166,18 +167,28 @@ function SeatLine({
           </span>
         ) : null}
       </div>
-      <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-        <span
-          className={`inline-block size-2 rounded-full ${STATE_DOT[state ?? ''] ?? 'bg-muted-foreground'}`}
-          aria-hidden="true"
-        />
-        <span>{state ?? 'not read yet'}</span>
-        {liveness ? <span className="text-[11px] text-muted-foreground">· {liveness}</span> : null}
-      </span>
+      {unavailable ? (
+        <span data-reason="liveness-unavailable" className="text-muted-foreground">
+          liveness unavailable from pij-rs
+          {state ? <span className="block">reported state: {state}</span> : null}
+        </span>
+      ) : (
+        <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+          <span
+            className={`inline-block size-2 rounded-full ${STATE_DOT[state ?? ''] ?? 'bg-muted-foreground'}`}
+            aria-hidden="true"
+          />
+          <span>{state ?? 'not read yet'}</span>
+          {liveness ? (
+            <span className="text-[11px] text-muted-foreground">· {liveness}</span>
+          ) : null}
+        </span>
+      )}
       {/* Verbatim, never re-derived (AC-03). Absent stays absent. */}
       <span>
         {row?.badge ? (
           <span className="rounded-full border border-border px-1.5 text-[10px] text-muted-foreground">
+            {unavailable ? 'reported badge: ' : ''}
             {row.badge}
           </span>
         ) : null}
@@ -194,15 +205,23 @@ function TreeBranch({
   rowsById,
   depth,
   now,
+  livenessUnavailable,
 }: {
   node: PijTreeNode;
   rowsById: Map<string, FleetRow>;
   depth: number;
   now: number;
+  livenessUnavailable?: boolean;
 }) {
   return (
     <div>
-      <SeatLine node={node} row={rowsById.get(node.id)} depth={depth} now={now} />
+      <SeatLine
+        node={node}
+        row={rowsById.get(node.id)}
+        depth={depth}
+        now={now}
+        livenessUnavailable={livenessUnavailable}
+      />
       {node.children?.length ? (
         <div className="ml-5 border-l border-border pl-3">
           {node.children.map((child) => (
@@ -212,6 +231,7 @@ function TreeBranch({
               rowsById={rowsById}
               depth={depth + 1}
               now={now}
+              livenessUnavailable={livenessUnavailable}
             />
           ))}
         </div>
@@ -240,6 +260,7 @@ export function GlobalTree(props: GlobalTreeProps) {
 
   const groups = useMemo(() => groupByFolder(roots, rows), [roots, rows]);
   const rowsById = useMemo(() => new Map(rows.map((row) => [String(row.id), row])), [rows]);
+  const unavailable = props.livenessUnavailable || rows.some(isLivenessUnavailable);
 
   const absence = globalTreeAbsenceReason(props);
   if (absence) {
@@ -252,6 +273,11 @@ export function GlobalTree(props: GlobalTreeProps) {
       >
         <div className="mb-1 font-medium">{copy.title}</div>
         <div className="text-muted-foreground">{copy.body}</div>
+        {unavailable ? (
+          <div data-reason="liveness-unavailable" className="text-muted-foreground">
+            liveness unavailable from pij-rs
+          </div>
+        ) : null}
         {props.errors.fleet || props.errors.tree ? (
           <div className="mt-2 font-mono text-xs text-amber-700 dark:text-amber-400">
             {props.errors.tree ?? props.errors.fleet}
@@ -262,7 +288,7 @@ export function GlobalTree(props: GlobalTreeProps) {
   }
 
   const inTree = groups.reduce((total, group) => total + group.inTree, 0);
-  const dead = groups.reduce((total, group) => total + group.orphans.length, 0);
+  const unplaced = groups.reduce((total, group) => total + group.orphans.length, 0);
 
   return (
     <div data-testid="global-tree">
@@ -271,7 +297,11 @@ export function GlobalTree(props: GlobalTreeProps) {
         <span className="text-foreground">{rows.length}</span> rows across{' '}
         <span className="text-foreground">{groups.length}</span> folders ·{' '}
         <span className="text-foreground">{inTree}</span> placed in the global tree ·{' '}
-        <span className="text-foreground">{dead}</span> dead records the tree does not place
+        <span className="text-foreground">{unplaced}</span>{' '}
+        {unavailable ? 'records the tree does not place' : 'dead records the tree does not place'}
+        {unavailable ? (
+          <span data-reason="liveness-unavailable"> · liveness unavailable from pij-rs</span>
+        ) : null}
       </p>
 
       {groups.map((group) => (
@@ -280,14 +310,13 @@ export function GlobalTree(props: GlobalTreeProps) {
           data-testid={`global-folder-${group.folder}`}
           className="mb-2 overflow-hidden rounded-lg border border-border bg-card"
         >
-          {/* The busiest folder opens; the rest stay shut. The ratified POC opened `chainglass` by
-              name, which it could because it was a fixture — this page has no workspace context to
-              privilege one folder with, so "most living seats" is the honest stand-in. */}
+          {/* Open the folder with the most tree placements, not a claim about living seats. */}
           <details open={group.folder === groups[0]?.folder || undefined}>
             <summary className="flex cursor-pointer flex-wrap items-baseline gap-2 bg-muted/40 px-3.5 py-2">
               <span className="font-mono text-[12.5px]">{shortenHome(group.folder)}</span>
               <span className="text-[11px] text-muted-foreground">
-                {group.inTree} in tree · {group.orphans.length} dead record
+                {group.inTree} in tree · {group.orphans.length} {unavailable ? 'unplaced' : 'dead'}{' '}
+                record
                 {group.orphans.length === 1 ? '' : 's'}
               </span>
             </summary>
@@ -295,11 +324,20 @@ export function GlobalTree(props: GlobalTreeProps) {
             <div className="px-3.5 py-2">
               {group.roots.length > 0 ? (
                 group.roots.map((root) => (
-                  <TreeBranch key={root.id} node={root} rowsById={rowsById} depth={0} now={now} />
+                  <TreeBranch
+                    key={root.id}
+                    node={root}
+                    rowsById={rowsById}
+                    depth={0}
+                    now={now}
+                    livenessUnavailable={props.livenessUnavailable}
+                  />
                 ))
               ) : (
                 <div className="text-xs text-muted-foreground">
-                  No seat in the global tree — this folder is dead records only.
+                  {unavailable
+                    ? 'No seat in the global tree — this folder has unplaced records only.'
+                    : 'No seat in the global tree — this folder is dead records only.'}
                 </div>
               )}
 
@@ -309,8 +347,9 @@ export function GlobalTree(props: GlobalTreeProps) {
                   data-testid={`global-dead-${group.folder}`}
                 >
                   <summary className="cursor-pointer py-1 text-[11.5px] text-muted-foreground">
-                    {group.orphans.length} dead record{group.orphans.length === 1 ? '' : 's'} —
-                    present in the store, absent from the tree
+                    {group.orphans.length} {unavailable ? 'unplaced' : 'dead'} record
+                    {group.orphans.length === 1 ? '' : 's'} — present in the store, absent from the
+                    tree
                   </summary>
                   {group.orphans.map((row) => (
                     <div
@@ -319,7 +358,16 @@ export function GlobalTree(props: GlobalTreeProps) {
                       className="grid grid-cols-[minmax(220px,1fr)_120px_90px] gap-2 py-0.5 text-[11.5px] text-muted-foreground"
                     >
                       <span className="font-mono">{row.id}</span>
-                      <span>{row.liveness ?? 'liveness not observed'}</span>
+                      {props.livenessUnavailable || isLivenessUnavailable(row) ? (
+                        <span data-reason="liveness-unavailable">
+                          liveness unavailable from pij-rs
+                          {row.state ? (
+                            <span className="block">reported state: {row.state}</span>
+                          ) : null}
+                        </span>
+                      ) : (
+                        <span>{row.liveness ?? 'liveness not observed'}</span>
+                      )}
                       <span className="text-right">{formatElapsed(row.lastEventAt, now)}</span>
                     </div>
                   ))}

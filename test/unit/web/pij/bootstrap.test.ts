@@ -59,7 +59,7 @@ describe('startPijPoller — HMR-safe singleton (AC-02)', { timeout: 30_000 }, (
     - Quality Contribution: The idempotence half of AC-02.
     - Worked Example: two starts → one instance, started true.
     */
-    const enabled = { PIJ_POLLER: 'on' };
+    const enabled = { PIJ_SOURCE: 'legacy', PIJ_POLLER: 'on' };
     const first = await startPijPoller(enabled);
     const second = await startPijPoller(enabled);
 
@@ -78,7 +78,7 @@ describe('startPijPoller — HMR-safe singleton (AC-02)', { timeout: 30_000 }, (
     - Quality Contribution: Boot cannot be taken down by an optional observability feature.
     - Worked Example: resolves to a poller with a readable status.
     */
-    const poller = await startPijPoller();
+    const poller = await startPijPoller({ PIJ_SOURCE: 'legacy' });
 
     expect(poller.snapshot().status).toBeDefined();
     expect(typeof poller.snapshot().seq).toBe('number');
@@ -94,7 +94,7 @@ describe('startPijPoller — HMR-safe singleton (AC-02)', { timeout: 30_000 }, (
     - Quality Contribution: Makes the instrumentation SIGTERM handler meaningful.
     - Worked Example: started true → stop → started false, running false.
     */
-    await startPijPoller({ PIJ_POLLER: 'on' });
+    await startPijPoller({ PIJ_SOURCE: 'legacy', PIJ_POLLER: 'on' });
     expect(isPijPollerStarted()).toBe(true);
 
     stopPijPoller();
@@ -167,7 +167,7 @@ describe('instrumentation.ts wiring', () => {
 });
 
 describe('startPijPoller — the kill switch (2026-09-02)', () => {
-  it('does not start the loops unless PIJ_POLLER=on', async () => {
+  it('does not start legacy loops unless PIJ_POLLER=on', async () => {
     /*
     Test Doc:
     - Why: the slow loop shells out `pij list --json --badge`, which grew to 7.744s against the
@@ -180,12 +180,12 @@ describe('startPijPoller — the kill switch (2026-09-02)', () => {
       without mutating global state — the same shape `pijHome` uses.
     - Quality Contribution: pins the default. The enabled path is covered by the AC-02 tests above,
       which now pass PIJ_POLLER=on explicitly.
-    - Worked Example: startPijPoller({}) → isPijPollerStarted() === false.
+    - Worked Example: explicit legacy with no PIJ_POLLER → isPijPollerStarted() === false.
     */
-    await startPijPoller({});
+    await startPijPoller({ PIJ_SOURCE: 'legacy' });
     expect(isPijPollerStarted()).toBe(false);
 
-    await startPijPoller({ PIJ_POLLER: 'off' });
+    await startPijPoller({ PIJ_SOURCE: 'legacy', PIJ_POLLER: 'off' });
     expect(isPijPollerStarted()).toBe(false);
   });
 });

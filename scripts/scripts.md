@@ -17,6 +17,7 @@ Index of all scripts in this directory. Keep this file updated when adding, remo
 | `test-watcher-events.mjs` | File watcher stress test — writes to scratch/ every 5s (update, create, delete, mkdir, rmdir) | `node scripts/test-watcher-events.mjs` |
 | `generate-icon-assets.ts` | Extract, optimize, and deploy SVG icon assets from material-icon-theme to apps/web/public/icons/. Includes freshness check (skips if up to date). | `npx tsx scripts/generate-icon-assets.ts [--force]` |
 | `chainglass-bell.sh` | Notify Chainglass server of a bell event. Called by Claude Code hooks or manually. Plays notification sound + flashes tab title. | `./scripts/chainglass-bell.sh [--source "build"]` |
+| `verify-rs-reader.mjs` | Read-only live pij-rs proofs: complete row equality (`--seat` / `--all`), finite transport vs integrated replay (`--replay`), scratch-key retry (`--auth`), external-trigger descriptor arrival (`--watch-pane` / `--watch-seat`: READY, stdin `trigger`, acknowledgment, external adoption + pushed positive control). Emits JSON; failures/timeouts exit nonzero. | `node scripts/verify-rs-reader.mjs --help` |
 
 ## file-watcher/
 

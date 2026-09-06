@@ -6,11 +6,11 @@ import {
 } from '../../../../apps/web/src/features/089-first-class-pij/server/start-pij-poller';
 
 describe('pij-rs source selection', () => {
-  it('keeps legacy as the default and selects rs only explicitly', () => {
-    expect(pijSource({})).toBe('legacy');
+  it('defaults to rs and retains explicit legacy selection', () => {
+    expect(pijSource({})).toBe('rs');
     expect(pijSource({ PIJ_SOURCE: 'legacy' })).toBe('legacy');
     expect(pijSource({ PIJ_SOURCE: 'rs' })).toBe('rs');
-    expect(pijSource({ PIJ_SOURCE: 'unexpected' })).toBe('legacy');
+    expect(pijSource({ PIJ_SOURCE: 'unexpected' })).toBe('rs');
   });
 
   it('honours rs transport configuration without changing its defaults', () => {

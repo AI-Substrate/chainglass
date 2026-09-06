@@ -136,8 +136,15 @@ export function seatTask(placement: SeatPlacement): string | undefined {
   return typeof fromTree === 'string' && fromTree.length > 0 ? fromTree : undefined;
 }
 
-/** Is this seat inside the idle window? An absent `lastEventAt` is always shown. */
+/** Mechanical rs state is not evidence that a seat is alive, idle, or dead. */
+export function isLivenessUnavailable(row: FleetRow | undefined): boolean {
+  const unavailable = row?.extra.rsUnavailable;
+  return Array.isArray(unavailable) && unavailable.includes('liveness');
+}
+
+/** Unknown liveness or an absent `lastEventAt` cannot justify hiding a seat as idle. */
 export function isWithinIdleWindow(row: FleetRow, now: number): boolean {
+  if (isLivenessUnavailable(row)) return true;
   if (!row.lastEventAt) return true;
   const at = Date.parse(row.lastEventAt);
   if (Number.isNaN(at)) return true;
@@ -150,12 +157,11 @@ function byRecency(a: SeatPlacement, b: SeatPlacement): number {
 }
 
 /**
- * Depth-first placements for a subtree, pruned to what is still live.
+ * Depth-first placements for a subtree, pruned to what the fleet still records.
  *
- * A node with no fleet row and no live descendant is kept out: it is a seat the hot registry no
- * longer lists (terminal, migrated to the archive tier after 48h), and drawing it would put a seat on
- * screen that the fleet does not have. A node with no row but with live children stays, because it is
- * load-bearing structure.
+ * A node with no fleet row and no visible descendant is kept out: drawing it would put a seat on
+ * screen that the fleet does not have. A node with no row but with visible children stays, because
+ * it is load-bearing structure. Presence in either read says nothing about process liveness.
  */
 function flatten(
   node: PijTreeNode,

@@ -9,7 +9,7 @@ import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { createFakeMultiplexedSSEFactory } from '../../../fakes/fake-multiplexed-sse';
 import { FakePijApi } from '../../../fakes/fake-pij-api';
-import { fleetRow } from '../../../fixtures/pij/fleet-ui';
+import { fleetRow, pollerStatus } from '../../../fixtures/pij/fleet-ui';
 
 const NOW = Date.parse('2026-07-29T00:30:00.000Z');
 
@@ -86,6 +86,101 @@ function wrapper({ children }: { children: ReactNode }) {
 }
 
 describe('PijRailView', () => {
+  it.each(['snapshot', 'row'] as const)(
+    'treats %s liveness unavailability as a roster, not a hot fleet',
+    (source) => {
+      /*
+    Test Doc:
+    - Why: rs idle/working records can describe dead processes; neither is liveness evidence.
+    - Contract: source or row capability removes hot/dot claims, keeps old seats and native roles,
+      and leaves genuine did/next and semantic question/blocked reports intact.
+    - Worked Example: eight old records remain eight recorded seats, never eight hot seats.
+    */
+      const rsRows = rows.map((seat) => ({
+        ...seat,
+        state: seat.id === 'pij-prime' ? 'working' : 'idle',
+        badge: 'blocked',
+        lastEventAt: '2026-07-01T00:00:00.000Z',
+        extra: { ...seat.extra, ...(source === 'row' ? { rsUnavailable: ['liveness'] } : {}) },
+      }));
+      const { container } = render(
+        <PijRailView
+          rows={rsRows}
+          tree={tree}
+          livenessUnavailable={source === 'snapshot'}
+          snapshotStatuses={[
+            fakeStatusRecord({
+              peer: asPijId('pij-pm-current'),
+              prev: 'Finished contract wiring.',
+              next: 'Build the rail view.',
+              ts: new Date(NOW - 60_000).toISOString(),
+            }),
+          ]}
+          now={NOW}
+          workspacePath="/Users/fixture/substrate/chainglass"
+        />,
+        { wrapper }
+      );
+
+      const count = screen.getByTestId('pij-hot-count');
+      expect(count.textContent).toContain('8 recorded seats');
+      expect(count.textContent).toContain('liveness unavailable from pij-rs');
+      expect(count.textContent).toContain('1 prime · 3 PM · 3 workers');
+      expect(count.textContent).toContain('1 blocked');
+      expect(count.textContent).not.toContain('hot');
+      expect(
+        container.querySelector(
+          '[data-state="idle"], [data-state="working"], [data-state="blocked"]'
+        )
+      ).toBeNull();
+      expect(container.querySelector('.rounded-full.bg-emerald-600')).toBeNull();
+      expect(screen.getByTestId('seat-row-pij-prime').textContent).toContain(
+        'reported state: working'
+      );
+      expect(screen.getByTestId('pij-worker-pij-worker-blocked').textContent).toContain(
+        'reported state: idle'
+      );
+      expect(screen.getByTestId('pij-status-current-pij-pm-current').textContent).toContain(
+        'Finished contract wiring.'
+      );
+      expect(screen.getByTestId('pij-status-current-pij-pm-current').textContent).toContain(
+        'Build the rail view.'
+      );
+    }
+  );
+
+  it('forwards the snapshot capability through the rail panel even with no rows', async () => {
+    const api = new FakePijApi().setFleet({
+      seq: 1,
+      at: new Date(NOW).toISOString(),
+      data: {
+        workspace: null,
+        rows: [],
+        statuses: [],
+        status: pollerStatus(),
+        livenessUnavailable: true,
+        statusesUnavailable: false,
+      },
+    });
+    render(
+      <PijRailPanel
+        mainPath="/Users/fixture/substrate/chainglass"
+        worktreePath="/Users/fixture/substrate/chainglass"
+        fleetFetchImpl={api.fetch}
+        clock={() => NOW}
+      />,
+      { wrapper }
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('pij-hot-count').textContent).toContain('0 recorded seats')
+    );
+    expect(screen.getByTestId('pij-hot-count').textContent).toContain(
+      'liveness unavailable from pij-rs'
+    );
+    expect(screen.getByTestId('pij-hot-count').textContent).not.toContain('hot');
+    expect(screen.getByTestId('pij-rail-phase').textContent).toBe('live');
+  });
+
   it('renders the mock roster anatomy with honest hot-window counts', () => {
     render(
       <PijRailView
@@ -124,6 +219,8 @@ describe('PijRailView', () => {
     ).toBeGreaterThan(0);
     expect(screen.getByTestId('pij-hot-count').textContent).toContain('8 seats currently hot');
     expect(screen.getByTestId('pij-hot-count').textContent).toContain('hot');
+    expect(screen.queryByText('liveness unavailable from pij-rs')).toBeNull();
+    expect(screen.getByTestId('focus-seat-pij-prime').getAttribute('data-state')).toBe('working');
   });
 
   it('names the tmux window under a seat title, only when the label joins', () => {

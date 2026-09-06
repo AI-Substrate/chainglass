@@ -26,10 +26,12 @@ export function TeamSection({
   section,
   now,
   flow,
+  livenessUnavailable,
 }: {
   section: FleetSection;
   now: number;
   flow?: FlowContext;
+  livenessUnavailable?: boolean;
 }) {
   const lead = section.lead;
   const title = seatTask(lead) ?? '(no assignment)';
@@ -74,9 +76,14 @@ export function TeamSection({
 
       <StageStrip context={flow} />
       <SeatRowHeader />
-      <SeatRow placement={lead} now={now} />
+      <SeatRow placement={lead} now={now} livenessUnavailable={livenessUnavailable} />
       {section.members.map((member) => (
-        <SeatRow key={member.id} placement={member} now={now} />
+        <SeatRow
+          key={member.id}
+          placement={member}
+          now={now}
+          livenessUnavailable={livenessUnavailable}
+        />
       ))}
     </div>
   );

@@ -23,10 +23,12 @@ export function PrimeShell({
   shell,
   now,
   flowFor,
+  livenessUnavailable,
 }: {
   shell: PrimeShellModel;
   now: number;
   flowFor?: (id: PijId) => FlowContext | undefined;
+  livenessUnavailable?: boolean;
 }) {
   const sectionCount = shell.sections.length;
 
@@ -36,7 +38,7 @@ export function PrimeShell({
       className="mb-5 overflow-hidden rounded-xl border border-purple-300/60 bg-card dark:border-purple-400/30"
     >
       <div className="flex flex-wrap items-center gap-2.5 border-b border-purple-200/60 bg-purple-50/60 px-4 py-2.5 dark:border-purple-400/20 dark:bg-purple-950/20">
-        <ObservedState placement={shell.lead} now={now} />
+        <ObservedState placement={shell.lead} now={now} livenessUnavailable={livenessUnavailable} />
         <span className="font-mono text-[13px]" data-seat-id={shell.lead.id}>
           {shell.lead.id}
         </span>
@@ -65,6 +67,7 @@ export function PrimeShell({
               section={section}
               now={now}
               flow={flowFor?.(section.lead.id)}
+              livenessUnavailable={livenessUnavailable}
             />
           ))
         )}

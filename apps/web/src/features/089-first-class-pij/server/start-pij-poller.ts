@@ -28,7 +28,12 @@ import { createFileSpineCursor } from './spine-cursor';
 export type PijSource = 'legacy' | 'rs';
 
 const DEFAULT_PIJ_RS_ADDR = '127.0.0.1:7461';
-const DESCRIPTOR_EVENT_KINDS = new Set(['seat.put', 'seat.tombstone']);
+const DESCRIPTOR_EVENT_KINDS = new Set([
+  'seat.put',
+  'seat.tombstone',
+  'spawn.bound',
+  'spawn.failed',
+]);
 
 const globalForPijPoller = globalThis as typeof globalThis & {
   __pijPoller?: PijPollerService;
@@ -49,7 +54,7 @@ export function pijHome(env: Record<string, string | undefined> = process.env): 
   return env.PIJ_HOME ?? join(homedir(), '.pij');
 }
 export function pijSource(env: Record<string, string | undefined> = process.env): PijSource {
-  return env.PIJ_SOURCE === 'rs' ? 'rs' : 'legacy';
+  return env.PIJ_SOURCE === 'legacy' ? 'legacy' : 'rs';
 }
 
 export function pijRsAddr(env: Record<string, string | undefined> = process.env): string {
@@ -78,20 +83,22 @@ export function pijPollerEnabled(env: Record<string, string | undefined> = proce
  * before the bootstrap has run therefore gets a real poller reporting `running: false`, which is
  * precisely AC-08's "poller not running" state rather than a crash or a fabricated empty fleet.
  */
-export function getPijPoller(): PijPollerService {
+export function getPijPoller(
+  env: Record<string, string | undefined> = process.env
+): PijPollerService {
   if (!globalForPijPoller.__pijPoller) {
-    const source = pijSource();
+    const source = pijSource(env);
     const cliRecords = createPijRecords({ defaultCwd: process.cwd() });
     const client =
       source === 'rs'
-        ? createRsClient({ addr: pijRsAddr(), stateDir: pijRsStateDir(), fetch })
+        ? createRsClient({ addr: pijRsAddr(env), stateDir: pijRsStateDir(env), fetch })
         : undefined;
     const records = client
       ? createCompositePijRecords({ rs: createRsPijRecords({ client }), cli: cliRecords })
       : cliRecords;
     const poller = createPijPoller({
       // The legacy source reads its stable file spine. The rs source owns transitions over HTTP.
-      cursor: createFileSpineCursor({ spineDir: join(pijHome(), 'spine') }),
+      cursor: createFileSpineCursor({ spineDir: join(pijHome(env), 'spine') }),
       records,
       flows: createFlowReader(),
       pollSpine: source === 'legacy',
@@ -107,7 +114,11 @@ export function getPijPoller(): PijPollerService {
         client,
         onEvent: async (frame) => {
           poller.ingest(frame);
-          if (DESCRIPTOR_EVENT_KINDS.has(frame.event.kind)) await poller.refreshRecords();
+          if (DESCRIPTOR_EVENT_KINDS.has(frame.event.kind)) {
+            await poller.refreshRecords();
+            const error = poller.snapshot().status.lastError;
+            if (error) throw new Error(error.message);
+          }
         },
         onStatus: (status) => {
           if (status.state === 'connected') {
@@ -181,8 +192,8 @@ export function notePijFlowWorkspace(workspacePath: string): void {
 export async function startPijPoller(
   env: Record<string, string | undefined> = process.env
 ): Promise<PijPollerService> {
-  const poller = getPijPoller();
-  const source = globalForPijPoller.__pijSource ?? 'legacy';
+  const poller = getPijPoller(env);
+  const source = globalForPijPoller.__pijSource ?? pijSource(env);
 
   // KILL SWITCH — the legacy loops are OFF unless `PIJ_POLLER=on`.
   //

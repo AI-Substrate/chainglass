@@ -20,7 +20,7 @@
 
 import { useEffect, useState } from 'react';
 import { useSeatFocus } from '../hooks/use-seat-focus';
-import { type SeatPlacement, seatTask } from '../lib/fleet-grouping';
+import { type SeatPlacement, isLivenessUnavailable, seatTask } from '../lib/fleet-grouping';
 import { isFolderInWorkspacePath } from '../lib/folder-containment';
 import { formatElapsed } from '../lib/relative-time';
 import { ContextGauge, Freshness, Provenance } from './freshness';
@@ -38,8 +38,25 @@ const STATE_DOT: Record<string, string> = {
   dead: 'bg-muted-foreground/40 border border-muted-foreground',
 };
 
-export function ObservedState({ placement, now }: { placement: SeatPlacement; now: number }) {
+export function ObservedState({
+  placement,
+  now,
+  livenessUnavailable,
+}: {
+  placement: SeatPlacement;
+  now: number;
+  livenessUnavailable?: boolean;
+}) {
   const row = placement.row;
+  if (livenessUnavailable || isLivenessUnavailable(row)) {
+    return (
+      <span data-reason="liveness-unavailable" className="text-xs text-muted-foreground">
+        liveness unavailable from pij-rs
+        {row?.state ? <span className="block">reported state: {row.state}</span> : null}
+      </span>
+    );
+  }
+
   if (!row?.state) {
     return <span className="text-xs text-muted-foreground">not read yet</span>;
   }
@@ -215,7 +232,15 @@ export function SeatRowHeader() {
   );
 }
 
-export function SeatRow({ placement, now }: { placement: SeatPlacement; now: number }) {
+export function SeatRow({
+  placement,
+  now,
+  livenessUnavailable,
+}: {
+  placement: SeatPlacement;
+  now: number;
+  livenessUnavailable?: boolean;
+}) {
   const row = placement.row;
   const task = seatTask(placement);
   const indent = placement.depth * 16;
@@ -250,7 +275,7 @@ export function SeatRow({ placement, now }: { placement: SeatPlacement; now: num
         ) : null}
       </div>
       <div>
-        <ObservedState placement={placement} now={now} />
+        <ObservedState placement={placement} now={now} livenessUnavailable={livenessUnavailable} />
       </div>
       <div>
         {/* `boundModel` is what the seat is running once a harness event has confirmed it, and what it

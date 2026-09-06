@@ -136,6 +136,48 @@ describe('usePijFleet — acquisition', () => {
     expect(result.current.seq).toBe(40);
   });
 
+  it('preserves rs capability flags across deltas and clears them on a legacy snapshot', async () => {
+    // Capability is source provenance, not a verdict derived from rows or connection phase.
+    const snapshot = fleetSnapshot(40, UI_FLEET_ROWS);
+    snapshot.data.livenessUnavailable = true;
+    snapshot.data.statusesUnavailable = false;
+    api.setFleet(snapshot);
+    const { result } = renderPijFleet();
+    await waitFor(() => expect(result.current.phase).toBe('live'));
+
+    expect(result.current.livenessUnavailable).toBe(true);
+    expect(result.current.statusesUnavailable).toBe(false);
+    deliver('fleet-delta', {
+      seq: 41,
+      at: snapshot.at,
+      rows: [fleetRow(UI_PM_ID, { state: 'working', extra: { rsUnavailable: ['liveness'] } })],
+      removed: [],
+    });
+    expect(result.current.livenessUnavailable).toBe(true);
+    expect(result.current.statusesUnavailable).toBe(false);
+    expect(result.current.rows.find((row) => row.id === UI_PM_ID)?.extra.rsUnavailable).toEqual([
+      'liveness',
+    ]);
+
+    api.setFleet(fleetSnapshot(42, UI_FLEET_ROWS));
+    act(() => result.current.refresh());
+    await waitFor(() => expect(result.current.seq).toBe(42));
+    expect(result.current.livenessUnavailable).toBeUndefined();
+    expect(result.current.statusesUnavailable).toBeUndefined();
+    expect(result.current.phase).toBe('live');
+  });
+
+  it('retains an explicit unavailable status capability even for an empty roster', async () => {
+    const snapshot = fleetSnapshot(40, []);
+    snapshot.data.livenessUnavailable = true;
+    snapshot.data.statusesUnavailable = true;
+    api.setFleet(snapshot);
+    const { result } = renderPijFleet();
+    await waitFor(() => expect(result.current.phase).toBe('live'));
+    expect(result.current.livenessUnavailable).toBe(true);
+    expect(result.current.statusesUnavailable).toBe(true);
+  });
+
   it('accepts a pre-JC-1 fleet snapshot with no statuses key', async () => {
     const legacy = fleetSnapshot(40, UI_FLEET_ROWS);
     (legacy.data as Partial<FleetSnapshotData>).statuses = undefined;

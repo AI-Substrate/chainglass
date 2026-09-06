@@ -234,6 +234,64 @@ describe('globalTreeAbsenceReason — one reason, one rendering', () => {
 });
 
 describe('GlobalTree — POC A, as picked', () => {
+  it.each(['snapshot', 'row'] as const)(
+    'does not infer alive or dead seats from %s-unavailable rs records',
+    (source) => {
+      // Tree placement is topology, not liveness; an unplaced rs record is not a dead verdict.
+      const extra = source === 'row' ? { rsUnavailable: ['liveness'] } : {};
+      const { container } = render(
+        <GlobalTree
+          roots={[node('pij-root', FOLDER_A, { children: [node('pij-child', FOLDER_A)] })]}
+          rows={[
+            row('pij-root', FOLDER_A, { state: 'working', extra }),
+            row('pij-child', FOLDER_A, { state: 'idle', extra }),
+            row('pij-unplaced', FOLDER_B, { state: 'idle', extra }),
+          ]}
+          livenessUnavailable={source === 'snapshot'}
+          status={pollerStatus()}
+          now={NOW}
+          errors={NO_ERRORS}
+        />
+      );
+
+      expect(screen.getByTestId('global-tree-summary').textContent).toContain('3 rows');
+      expect(screen.getByTestId('global-tree-summary').textContent).toContain(
+        'liveness unavailable from pij-rs'
+      );
+      expect(container.textContent).not.toContain('dead record');
+      expect(container.textContent).not.toContain('· active');
+      expect(container.querySelector('.rounded-full.bg-emerald-600')).toBeNull();
+      expect(screen.getByTestId('global-seat-pij-root').textContent).toContain(
+        'reported state: working'
+      );
+      expect(screen.getByTestId('global-seat-pij-child').textContent).toContain(
+        'reported state: idle'
+      );
+      expect(screen.getByTestId(`global-dead-${FOLDER_B}`).textContent).toContain(
+        '1 unplaced record'
+      );
+      expect(screen.getByTestId('global-dead-row-pij-unplaced').textContent).toContain(
+        'liveness unavailable from pij-rs'
+      );
+    }
+  );
+
+  it('leaves legacy state and liveness presentation unchanged', () => {
+    const { container } = render(
+      <GlobalTree
+        roots={[node('pij-root', FOLDER_A)]}
+        rows={[row('pij-root', FOLDER_A, { state: 'working' })]}
+        status={pollerStatus()}
+        now={NOW}
+        errors={NO_ERRORS}
+      />
+    );
+    expect(screen.getByTestId('global-seat-pij-root').textContent).toContain('working');
+    expect(screen.getByTestId('global-seat-pij-root').textContent).toContain('· active');
+    expect(container.querySelector('.rounded-full.bg-emerald-600')).not.toBeNull();
+    expect(container.querySelector('[data-reason="liveness-unavailable"]')).toBeNull();
+  });
+
   it('renders one section per folder, with the dead in a band of their own', () => {
     /*
     Test Doc:
@@ -371,6 +429,44 @@ describe('PijGlobalClient — snapshot-only, said out loud', () => {
     }) as typeof fetch;
     return { impl, calls };
   }
+
+  it('forwards source unavailability to nested tree seats even without a fleet row', async () => {
+    const { impl } = fakeApi({
+      fleet: {
+        seq: 1,
+        at: new Date(NOW).toISOString(),
+        data: {
+          workspace: null,
+          rows: [row('pij-root', FOLDER_A, { state: 'working' })],
+          status: pollerStatus(),
+          livenessUnavailable: true,
+          statusesUnavailable: false,
+        },
+      },
+      tree: {
+        seq: 1,
+        at: new Date(NOW).toISOString(),
+        data: {
+          roots: [
+            node('pij-root', FOLDER_A, {
+              children: [node('pij-child', FOLDER_A, { state: 'working', liveness: 'active' })],
+            }),
+          ],
+        },
+      },
+    });
+    const { container } = render(<PijGlobalClient fetchImpl={impl} nowImpl={() => NOW} />);
+    await waitFor(() =>
+      expect(screen.getByTestId('global-seat-pij-child').textContent).toContain(
+        'liveness unavailable from pij-rs'
+      )
+    );
+    expect(screen.getByTestId('global-seat-pij-child').textContent).toContain(
+      'reported state: working'
+    );
+    expect(container.querySelector('.rounded-full.bg-emerald-600')).toBeNull();
+    expect(container.textContent).not.toContain('· active');
+  });
 
   it('reads the two GLOBAL endpoints — no workspace parameter on either', () => {
     /*

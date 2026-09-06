@@ -8,7 +8,7 @@
 
 ## Purpose
 
-A **read-only observatory** over the pij agent platform (`~/.pij` registry + spine) and the
+A **read-only observatory** over the pij-rs HTTP daemon (legacy `~/.pij` registry + spine opt-in) and the
 `/builder` flight-plan work spine (`docs/plans/*/the-flow.json`), joined and delivered live to the
 browser over the existing multiplexed SSE transport.
 
@@ -24,14 +24,16 @@ a rule written down in that contract — never guessed, never estimated.
 - **CLI record reads** (`server/pij-records.ts`) — `pij list/tree/node show/state --json` via
   `execFile` with fixed argv and a per-call `cwd`; record *paths* are explicitly not stable, so
   records are never read from disk
+- **rs reads** (`server/rs/`) — the default global roster/state reader and one NDJSON subscriber.
+  `PIJ_SOURCE=legacy PIJ_POLLER=on` retains the legacy path; tree/node detail remain per-request CLI reads.
 - **Flow reader** (`server/flow-reader.ts`) — the five ruled absence states of a plan folder
   (`live` · `legacy` · `untracked` · `not-started` · `corrupt`) plus the phase rail, activations and
   review state derived from a live flight plan
 - **The join** (`server/join.ts`) — seat↔workspace (descriptor `folder` under workspace `path`) and
   flow↔project (`provenance.plan_id` first, plan-folder convention second, with the join's own
   provenance recorded)
-- **Two-loop poller** (`server/pij-poller.service.ts`) — the single server-side reader: a fast spine
-  loop and a slow CLI loop, filtering before fan-out
+- **Poller** (`server/pij-poller.service.ts`) — rs events and coalesced global refreshes by default;
+  legacy fast-spine/slow-CLI loops only when explicitly selected. Both use the same SSE egress.
 - **The `pij` SSE channel vocabulary** (`types.ts` — `PijChannelEvent`)
 - **Snapshot API routes** (`app/api/pij/{fleet,tree,flow,status}`)
 - **The observatory views** (Phase 2–3) — the Fleet / Repo tree / Flows tabs, prime shells, seat rows,
@@ -61,13 +63,16 @@ a rule written down in that contract — never guessed, never estimated.
 | `createFileSpineCursor()` | Factory | bootstrap | File-backed cursor over a spine directory |
 | `IPijRecords` | Interface | poller, routes | `list()`, `tree()`, `nodeShow()`, `state()` — read verbs only |
 | `createPijRecords()` | Factory | bootstrap | `execFile`-backed adapter; injectable `PijExecutor` |
+| `createRsClient()` / `createRsPijRecords()` | Factories | composite adapter | Authenticated HTTP; explicit model/provider mapping and consumer-field unavailable partition |
+| `createRsEventStream()` | Factory | bootstrap | One subscriber, 5s recycle, replay-only resume cursor; fresh processes replay from per-machine zero |
+| `FleetSnapshotData` capabilities | Type | rail, fleet/global views | `livenessUnavailable` distinguishes an unknowable live count from an empty roster; `statusesUnavailable` describes card capability |
 | `IFlowReader` | Interface | poller, routes | `read(planDir)` → `FlowSummary`; `scan(plansDir)` → all plan folders |
 | `createFlowReader()` | Factory | bootstrap | fs-backed adapter |
 | `PijChannelEvent` | Type | poller, browser | The `pij` channel union: `fleet-delta` · `flow-delta` · `status-delta` · `poller-status` |
 | `FleetRow` | Type | routes, views | One seat. Keyed by `PijId` — carries **no** `paneId` and **no** `pid` |
 | `FlowSummary` | Type | routes, views | One plan folder's ruled state |
 | `PollerStatus` | Type | routes, views | What AC-08's empty-state trichotomy renders |
-| `PijPollerService` | Class | bootstrap, routes | The single reader; `start()`/`stop()`/`snapshot()` |
+| `PijPollerService` | Interface | bootstrap, routes | Single reader; `start()`/`stop()`/`snapshot()`/`ingest()`/coalesced `refreshRecords()` |
 | `startPijPoller()` | Function | `instrumentation.ts` | HMR-safe bootstrap; idempotent |
 | `handlePijFleetRequest` etc. | Handlers | route files, tests | Injectable-deps route cores (`PijRouteDeps`) |
 | `usePijFleet()` | Hook | page, rail | The browser's ONE data path: three snapshots + the `pij` channel |
@@ -146,6 +151,7 @@ apps/web/src/features/089-first-class-pij/
 │   ├── join.ts                     # seat↔workspace, flow↔project, toFleetRow (internal)
 │   ├── route-deps.ts               # PijRouteDeps, FocusExecutor, shared responses
 │   ├── pij-poller.service.ts       # Two-loop poller (internal)
+│   ├── rs/                        # HTTP client, mapping, per-method composite and replay-safe stream
 │   └── start-pij-poller.ts         # HMR-safe bootstrap + watcher singleton (contract)
 ├── hooks/
 │   ├── use-pij-fleet.ts            # the browser's ONE data path (Phase 2–3)
@@ -196,6 +202,8 @@ test/
 | Auto-focus of any kind | C-06. A focus nobody asked for moves the human's screen out from under them |
 | A removal signal on `flow-delta` | The poller broadcasts what it FOUND; snapshot refetch is the deletion path |
 | A second mutating route | v1 has exactly one, by ruling, and the fence is written to make a second one fail |
+| Locally inferred rs liveness | rs roster state does not prove a process is alive; rows and collections explicitly mark liveness unavailable |
+| Persistent replay checkpoint | Full bootstrap replay measured 93ms / 7.7MB (2026-09-06, transport only); cards are memory-only, so cursor-only persistence would lose them. Re-evaluate at ~3s; receipts in Plan 093 |
 
 ## History
 
@@ -206,3 +214,4 @@ test/
 | 089 Phase 3 | The flow view: Flows tab, phase rails, five plan states + three tab absences, the flow watcher, additive `receivedCount` on `useChannelEvents` | 2026-07-26 |
 | 089 Phase 4 | Global tree read (`tree --global`) + `--badge` adoption; the machine-wide `/pij` page (snapshot-only by design); the overlay (5th F-14 sibling + ADR-0009); **`POST /api/pij/focus`, the one mutation**, with its fence carve-out and both-ends audit | 2026-07-26 |
 | 090 | Replaced the workspace overlay with the file-browser PIJ rail; added JC-1/2/3 seams, live PM status, role-aware grouping, main-checkout scoping, row focus, and route-aware toggle navigation | 2026-07-29 |
+| 093 | Default rs HTTP reader; replay-safe cursors and 5s recycling; real report cards and semantic notes; mapped binding facts, typed tombstone cursors and explicit unavailable liveness | 2026-09-06 |

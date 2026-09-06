@@ -125,6 +125,9 @@ export interface UsePijFleetResult {
   rows: FleetRow[];
   /** JC-1 cold-start records from the fleet snapshot; live deltas are consumed by `usePijStatus`. */
   statuses: PijStatusRecord[];
+  /** Source capabilities, not seat state; legacy snapshots leave these absent. */
+  livenessUnavailable?: boolean;
+  statusesUnavailable?: boolean;
   status: PollerStatus | null;
   /** The highest spine seq this view reflects. */
   seq: number;
@@ -193,6 +196,8 @@ export function usePijFleet(options: UsePijFleetOptions): UsePijFleetResult {
   const [rowsById, setRowsById] = useState<Map<PijId, FleetRow>>(() => new Map());
   const [status, setStatus] = useState<PollerStatus | null>(null);
   const [statuses, setStatuses] = useState<PijStatusRecord[]>([]);
+  const [livenessUnavailable, setLivenessUnavailable] = useState<boolean>();
+  const [statusesUnavailable, setStatusesUnavailable] = useState<boolean>();
   const [seq, setSeq] = useState(0);
   const [tree, setTree] = useState<PijTreeNode[]>([]);
   const [windows, setWindows] = useState<Record<string, string>>({});
@@ -343,6 +348,8 @@ export function usePijFleet(options: UsePijFleetOptions): UsePijFleetResult {
       snapshotSeqRef.current = snapshot.seq;
       setRowsById(new Map(snapshot.data.rows.map((row) => [row.id, row])));
       setStatuses(snapshot.data.statuses ?? []);
+      setLivenessUnavailable(snapshot.data.livenessUnavailable);
+      setStatusesUnavailable(snapshot.data.statusesUnavailable);
       setStatus(snapshot.data.status);
       setSeq(snapshot.seq);
       setErrors((prev) => ({ ...prev, fleet: null }));
@@ -544,6 +551,8 @@ export function usePijFleet(options: UsePijFleetOptions): UsePijFleetResult {
   return {
     rows,
     statuses,
+    livenessUnavailable,
+    statusesUnavailable,
     status,
     seq,
     phase,

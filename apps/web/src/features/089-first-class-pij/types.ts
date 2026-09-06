@@ -210,6 +210,9 @@ export interface FleetSnapshotData {
   workspace: string | null;
   rows: FleetRow[];
   statuses: PijStatusRecord[];
+  /** Source capability, not a statement that seats are alive or that nobody reported. */
+  livenessUnavailable?: boolean;
+  statusesUnavailable?: boolean;
   status: PollerStatus;
 }
 

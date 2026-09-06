@@ -42,6 +42,12 @@ export async function handlePijFleetRequest(
       rows: snapshot.rows,
       statuses: snapshot.statuses,
       status: snapshot.status,
+      ...(snapshot.livenessUnavailable === undefined
+        ? {}
+        : { livenessUnavailable: snapshot.livenessUnavailable }),
+      ...(snapshot.statusesUnavailable === undefined
+        ? {}
+        : { statusesUnavailable: snapshot.statusesUnavailable }),
     };
     return snapshotResponse(snapshot.seq, snapshot.at, data);
   } catch (error) {

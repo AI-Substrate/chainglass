@@ -27,6 +27,36 @@ function tree(): PijTreeNode[] {
 }
 
 describe('rail grouping', () => {
+  it('keeps unknown-liveness rs records regardless of their age or mechanical state', () => {
+    // An old report is not evidence of idle/dead; legacy retains its existing 48h filter.
+    const old = '2026-07-01T00:00:00.000Z';
+    const grouping = groupRailFleet({
+      tree: [],
+      now: NOW,
+      rows: [
+        fleetRow('pij-rs-idle', {
+          state: 'idle',
+          lastEventAt: old,
+          extra: { rsUnavailable: ['liveness'] },
+        }),
+        fleetRow('pij-rs-working', {
+          state: 'working',
+          lastEventAt: old,
+          extra: { rsUnavailable: ['liveness'] },
+        }),
+        fleetRow('pij-legacy-old', { lastEventAt: old }),
+        fleetRow('pij-other-unavailable', {
+          lastEventAt: old,
+          extra: { rsUnavailable: ['watchdog'] },
+        }),
+        fleetRow('pij-legacy-recent', { lastEventAt: new Date(NOW).toISOString() }),
+      ],
+    });
+
+    expect(grouping.seatIds).toEqual(['pij-legacy-recent', 'pij-rs-idle', 'pij-rs-working']);
+    expect(grouping.hiddenByIdle).toBe(2);
+  });
+
   it('takes nesting from the tree and role labels only from JC-2 projections', () => {
     const grouping = groupRailFleet({
       tree: tree(),

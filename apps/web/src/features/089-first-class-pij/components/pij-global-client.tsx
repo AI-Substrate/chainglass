@@ -40,6 +40,7 @@ interface GlobalState {
   rows: FleetRow[];
   roots: PijTreeNode[];
   status: PollerStatus | null;
+  livenessUnavailable?: boolean;
   /** When the SERVER built the snapshot, not when we rendered it. */
   at: string | null;
   errors: { fleet: string | null; tree: string | null };
@@ -97,6 +98,7 @@ export function PijGlobalClient({ fetchImpl, nowImpl }: PijGlobalClientProps) {
       const body = (await fleet.json()) as PijSnapshot<FleetSnapshotData>;
       next.rows = body.data.rows;
       next.status = body.data.status;
+      next.livenessUnavailable = body.data.livenessUnavailable;
       next.at = body.at;
     }
 
@@ -168,6 +170,7 @@ export function PijGlobalClient({ fetchImpl, nowImpl }: PijGlobalClientProps) {
         roots={state.roots}
         rows={state.rows}
         status={state.status}
+        livenessUnavailable={state.livenessUnavailable}
         now={now}
         errors={state.errors}
       />

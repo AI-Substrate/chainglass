@@ -9,6 +9,7 @@ import {
   type RailFleetSection,
   type RailSeatPlacement,
   groupRailFleet,
+  isLivenessUnavailable,
   seatTask,
 } from '../lib/fleet-grouping';
 import { formatElapsed } from '../lib/relative-time';
@@ -65,6 +66,7 @@ export interface PijRailViewProps {
   rows: FleetRow[];
   tree: PijTreeNode[];
   snapshotStatuses: readonly PijStatusRecord[];
+  livenessUnavailable?: boolean;
   now: number;
   workspacePath: string;
   /** tmux window labels keyed by node `windowId` — see TreeSnapshotData.windows. */
@@ -156,7 +158,14 @@ function RoleBadge({ role }: { role: SeatRole }) {
   );
 }
 
-function SeatDot({ placement }: { placement: RailSeatPlacement }) {
+function SeatDot({
+  placement,
+  livenessUnavailable,
+}: {
+  placement: RailSeatPlacement;
+  livenessUnavailable?: boolean;
+}) {
+  if (livenessUnavailable || isLivenessUnavailable(placement.row)) return null;
   const state = placement.row?.badge ?? placement.row?.state ?? 'unknown';
   return (
     <span
@@ -402,12 +411,17 @@ function SeatHeader({
   placement,
   question,
   windowLabel,
+  livenessUnavailable,
 }: {
   placement: RailSeatPlacement;
   question: QuestionDecision;
   windowLabel?: string | null;
+  livenessUnavailable?: boolean;
 }) {
-  const state = placement.row?.badge ?? placement.row?.state ?? 'unknown';
+  const unavailable = livenessUnavailable || isLivenessUnavailable(placement.row);
+  const state = unavailable
+    ? 'unavailable'
+    : (placement.row?.badge ?? placement.row?.state ?? 'unknown');
   const focus = useSeatFocusAffordance(placement);
   const hover = useSeatHover();
   const watchdog = readWatchdogState(placementRecord(placement));
@@ -431,7 +445,7 @@ function SeatHeader({
           <span aria-hidden="true" className="shrink-0 text-[9px] text-muted-foreground">
             ▾
           </span>
-          <SeatDot placement={placement} />
+          <SeatDot placement={placement} livenessUnavailable={unavailable} />
           <span className="min-w-0 flex-1 truncate font-mono text-[11px]">{placement.id}</span>
           {question.placement === 'strip' ? (
             <span className="shrink-0 rounded bg-violet-100 px-1 py-0.5 text-[9px] font-bold text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">
@@ -442,6 +456,15 @@ function SeatHeader({
         </button>
         <CopySeatIdButton id={placement.id} />
       </div>
+      {unavailable ? (
+        <div
+          data-reason="liveness-unavailable"
+          className="px-2.5 pb-0.5 pl-8 text-[10px] text-muted-foreground"
+        >
+          liveness unavailable from pij-rs
+          {placement.row?.state ? ` · reported state: ${placement.row.state}` : ''}
+        </div>
+      ) : null}
       {windowLabel || watchdog.reason !== 'unreported' ? (
         <div className="-mt-1 truncate px-2.5 pb-0.5 pl-8 font-mono text-[9.5px] text-muted-foreground">
           {windowLabel ? (
@@ -472,15 +495,18 @@ function WorkerRow({
   question,
   now,
   windows,
+  livenessUnavailable,
 }: {
   placement: RailSeatPlacement;
   question: QuestionDecision;
   now: number;
   windows?: Record<string, string>;
+  livenessUnavailable?: boolean;
 }) {
   const row = placement.row;
-  const state = row?.badge ?? row?.state ?? 'unknown';
-  const task = seatTask(placement) ?? row?.activity ?? 'no task read';
+  const unavailable = livenessUnavailable || isLivenessUnavailable(row);
+  const state = unavailable ? 'unavailable' : (row?.badge ?? row?.state ?? 'unknown');
+  const task = seatTask(placement) ?? (unavailable ? undefined : row?.activity) ?? 'no task read';
   const folder = row?.folder ?? placement.node?.folder;
   const worktree = folder?.split('/').filter(Boolean).at(-1);
   const inline = question.reason === 'blocked-note-inline' ? question : null;
@@ -511,7 +537,7 @@ function WorkerRow({
           onClick={() => focus.available && focus.focus.focus(placement.id)}
           className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-[11px] disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <SeatDot placement={placement} />
+          <SeatDot placement={placement} livenessUnavailable={unavailable} />
           <span className="min-w-0 shrink truncate font-mono">{placement.id}</span>
           <span className="min-w-0 flex-1 truncate text-muted-foreground">{task}</span>
           {worktree ? (
@@ -546,6 +572,15 @@ function WorkerRow({
         </button>
         <CopySeatIdButton id={placement.id} />
       </div>
+      {unavailable ? (
+        <div
+          data-reason="liveness-unavailable"
+          className="mt-0.5 pl-3 text-[10px] text-muted-foreground"
+        >
+          liveness unavailable from pij-rs
+          {row?.state ? ` · reported state: ${row.state}` : ''}
+        </div>
+      ) : null}
       {inline ? (
         <div
           data-testid={`pij-blocked-note-${placement.id}`}
@@ -574,12 +609,14 @@ function TeamCard({
   status,
   contracts,
   windows,
+  livenessUnavailable,
 }: {
   section: RailFleetSection;
   now: number;
   status: SeatStatus;
   contracts: PijRailContractSeams;
   windows?: Record<string, string>;
+  livenessUnavailable?: boolean;
 }) {
   const leadQuestion = questionFor(section.lead, contracts, now);
   const project = seatTask(section.lead) ?? 'project not read';
@@ -593,6 +630,7 @@ function TeamCard({
         placement={section.lead}
         question={leadQuestion}
         windowLabel={windowLabelFor(section.lead, windows)}
+        livenessUnavailable={livenessUnavailable}
       />
       <div className="truncate px-2.5 pb-1 pl-8 text-[10px] text-muted-foreground" title={project}>
         {project}
@@ -615,6 +653,7 @@ function TeamCard({
           question={questionFor(member, contracts, now)}
           now={now}
           windows={windows}
+          livenessUnavailable={livenessUnavailable}
         />
       ))}
     </div>
@@ -703,6 +742,7 @@ export function PijRailView({
   rows,
   tree,
   snapshotStatuses,
+  livenessUnavailable,
   now,
   workspacePath,
   windows,
@@ -710,8 +750,8 @@ export function PijRailView({
   contracts = productionContractSeams,
 }: PijRailViewProps) {
   const grouping = useMemo(
-    () => groupRailFleet({ rows, tree, now, contracts }),
-    [rows, tree, now, contracts]
+    () => groupRailFleet({ rows, tree, now, contracts, idleFilter: !livenessUnavailable }),
+    [rows, tree, now, contracts, livenessUnavailable]
   );
   const status = usePijStatus({
     snapshot: snapshotStatuses,
@@ -719,6 +759,7 @@ export function PijRailView({
     contracts,
   });
   const placements = useMemo(() => allPlacements(grouping), [grouping]);
+  const unavailable = livenessUnavailable || rows.some(isLivenessUnavailable);
   const questions = placements
     .map((placement) => ({
       placement,
@@ -735,7 +776,10 @@ export function PijRailView({
     (placement) => placement.role.kind === 'known' && placement.role.role === 'worker'
   ).length;
   const blockedCount = placements.filter(
-    (placement) => (placement.row?.badge ?? placement.row?.state) === 'blocked'
+    (placement) =>
+      (livenessUnavailable || isLivenessUnavailable(placement.row)
+        ? placement.row?.extra.semanticState
+        : (placement.row?.badge ?? placement.row?.state)) === 'blocked'
   ).length;
 
   return (
@@ -756,6 +800,7 @@ export function PijRailView({
                   placement={prime.lead}
                   question={question}
                   windowLabel={windowLabelFor(prime.lead, windows)}
+                  livenessUnavailable={livenessUnavailable}
                 />
                 <StatusSummary
                   placement={prime.lead}
@@ -769,6 +814,7 @@ export function PijRailView({
                       status={status.resolve(section.lead.id, section.lead.role)}
                       contracts={contracts}
                       windows={windows}
+                      livenessUnavailable={livenessUnavailable}
                     />
                   </div>
                 ))}
@@ -784,6 +830,7 @@ export function PijRailView({
               status={status.resolve(section.lead.id, section.lead.role)}
               contracts={contracts}
               windows={windows}
+              livenessUnavailable={livenessUnavailable}
             />
           ))}
         </div>
@@ -798,11 +845,19 @@ export function PijRailView({
             <b className="font-semibold text-foreground">{workerCount}</b> workers
           </span>
           <span>
+            {unavailable ? 'reported: ' : ''}
             <b className="font-semibold text-violet-700 dark:text-violet-300">{questions.length}</b>{' '}
             asking · <b className="font-semibold text-red-700 dark:text-red-400">{blockedCount}</b>{' '}
             blocked
           </span>
-          <span>{placements.length} seats currently hot</span>
+          <span>
+            {unavailable
+              ? `${rows.length} recorded seats`
+              : `${placements.length} seats currently hot`}
+          </span>
+          {unavailable ? (
+            <span data-reason="liveness-unavailable">liveness unavailable from pij-rs</span>
+          ) : null}
         </div>
       </div>
     </SeatFocusProvider>
@@ -869,6 +924,7 @@ export function PijRailPanel({
         rows={fleet.rows}
         tree={fleet.tree}
         snapshotStatuses={fleet.statuses}
+        livenessUnavailable={fleet.livenessUnavailable}
         now={now}
         workspacePath={mainPath}
         windows={fleet.windows}

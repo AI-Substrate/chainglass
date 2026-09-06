@@ -21,10 +21,13 @@ type EventScript = (
 class FakeRsClient implements RsClient {
   readonly eventCalls: Array<Cursor | undefined> = [];
 
-  constructor(private readonly scripts: EventScript[]) {}
+  constructor(
+    private readonly scripts: EventScript[],
+    private readonly rows: RsSeat[] = []
+  ) {}
 
   async seats(): Promise<RsSeat[]> {
-    return [];
+    return this.rows;
   }
 
   async state(id: string): Promise<RsStateReport> {
@@ -66,7 +69,7 @@ async function waitForAbort(signal: AbortSignal | undefined): Promise<void> {
 }
 
 describe('createRsEventStream', () => {
-  it('starts one subscription, resumes from the last cursor, and records every hello build', async () => {
+  it('starts one subscription, resumes from an applied descriptor, and records established builds', async () => {
     let secondEvent!: () => void;
     const secondEventSeen = new Promise<void>((resolve) => {
       secondEvent = resolve;
@@ -74,7 +77,7 @@ describe('createRsEventStream', () => {
     const client = new FakeRsClient([
       async function* () {
         yield hello('pij-rs 0.1.0');
-        yield event(17);
+        yield event(17, 'seat.put');
         throw new Error('connection dropped');
       },
       async function* (_from, signal) {
@@ -213,5 +216,129 @@ describe('createRsEventStream', () => {
     await capped;
 
     expect(delays).toEqual([300, 600, 1_200, 2_400, 4_800, 5_000]);
+  });
+  it('recycles a held socket without letting pushed kinds burn a missing descriptor', async () => {
+    let replayed!: () => void;
+    const replaySeen = new Promise<void>((resolve) => {
+      replayed = resolve;
+    });
+    const client = new FakeRsClient([
+      async function* (_from, signal) {
+        yield hello('pij-rs 0.1.0');
+        yield event(10, 'seat.put');
+        // Cursor 11 (seat.put) exists in replay but never arrives on the live socket.
+        yield event(12, 'message.pushed');
+        yield event(13, 'spawn.bound');
+        yield event(14, 'spawn.failed');
+        await waitForAbort(signal);
+      },
+      async function* (_from, signal) {
+        yield hello('pij-rs 0.1.0');
+        yield event(11, 'seat.put');
+        replayed();
+        await waitForAbort(signal);
+      },
+    ]);
+    const stream = createRsEventStream({
+      client,
+      onEvent: () => {},
+      onStatus: () => {},
+      recycleMs: 10,
+    });
+    stream.start();
+    await replaySeen;
+    stream.stop();
+    expect(client.eventCalls).toEqual([undefined, { local: 10 }]);
+  });
+
+  it('backs off when each socket sends hello then fails without an event', async () => {
+    const client = new FakeRsClient(
+      Array.from(
+        { length: 4 },
+        () =>
+          async function* () {
+            yield hello('pij-rs 0.1.0');
+            throw new Error('failed after hello');
+          }
+      )
+    );
+    const delays: number[] = [];
+    const statuses: RsEventStreamStatus[] = [];
+    let finished!: () => void;
+    const done = new Promise<void>((resolve) => {
+      finished = resolve;
+    });
+    const stream = createRsEventStream({
+      client,
+      onEvent: () => {},
+      onStatus: (status) => statuses.push(status),
+      random: () => 0.5,
+      sleep: async (ms) => {
+        delays.push(ms);
+        if (delays.length === 4) {
+          stream.stop();
+          finished();
+        }
+      },
+    });
+    stream.start();
+    await done;
+    expect(delays).toEqual([250, 500, 1000, 2000]);
+    expect(statuses.some((status) => status.state === 'connected')).toBe(false);
+  });
+
+  it('does not commit a later cursor across a failed descriptor application', async () => {
+    let resumed!: () => void;
+    const resumedSeen = new Promise<void>((resolve) => {
+      resumed = resolve;
+    });
+    const client = new FakeRsClient([
+      async function* (_from, signal) {
+        yield event(1, 'seat.put');
+        yield event(2, 'seat.tombstone');
+        await waitForAbort(signal);
+      },
+      async function* (_from, signal) {
+        yield hello('pij-rs 0.1.0');
+        resumed();
+        await waitForAbort(signal);
+      },
+    ]);
+    const stream = createRsEventStream({
+      client,
+      onEvent: async (frame) => {
+        if (frame.cursor === 1) throw new Error('refresh failed');
+      },
+      onStatus: () => {},
+      sleep: async () => {},
+    });
+    stream.start();
+    await resumedSeen;
+    stream.stop();
+    expect(client.eventCalls).toEqual([undefined, { local: 0 }]);
+  });
+  it('replays each known machine from zero on a fresh process instead of subscribing live-only', async () => {
+    let connected!: () => void;
+    const seen = new Promise<void>((resolve) => {
+      connected = resolve;
+    });
+    const client = new FakeRsClient(
+      [
+        async function* (_from, signal) {
+          yield event(1, 'report.now');
+          connected();
+          await waitForAbort(signal);
+        },
+      ],
+      [
+        { id: 'pij-one', machine: 'local' },
+        { id: 'pij-two', machine: 'remote' },
+      ]
+    );
+    const stream = createRsEventStream({ client, onEvent: () => {}, onStatus: () => {} });
+    stream.start();
+    await seen;
+    stream.stop();
+    expect(client.eventCalls).toEqual([{ local: 0, remote: 0 }]);
   });
 });

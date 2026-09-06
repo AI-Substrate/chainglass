@@ -284,6 +284,27 @@ describe('the Flows tab in the page shell (T001)', () => {
     return view;
   }
 
+  it('forwards fleet capability flags through the observatory page', async () => {
+    api.setFleet({
+      seq: 40,
+      at: '2026-07-26T12:00:00.000Z',
+      data: {
+        workspace: UI_WORKSPACE_PATH,
+        rows: [],
+        statuses: [],
+        status: pollerStatus(),
+        livenessUnavailable: true,
+        statusesUnavailable: false,
+      },
+    });
+    const { container } = await renderPage();
+    await waitFor(() =>
+      expect(screen.getByTestId('fleet-count').textContent).toContain('0 recorded seats')
+    );
+    expect(screen.getByText('liveness unavailable from pij-rs')).toBeTruthy();
+    expect(container.textContent).not.toContain('hot tier');
+  });
+
   it('offers Flows as a third tab and renders the snapshot plans on it', async () => {
     await renderPage();
 

@@ -1,4 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import {
+  FLEET_ROW_FIELDS,
+  toFleetRow,
+} from '../../../../apps/web/src/features/089-first-class-pij/server/join';
 import type { PijListRow } from '../../../../apps/web/src/features/089-first-class-pij/server/pij-records.interface';
 import {
   readSeatRole,
@@ -12,22 +16,9 @@ import type {
   RsSeat,
   RsStateReport,
 } from '../../../../apps/web/src/features/089-first-class-pij/server/rs/rs-client';
+import { RsError } from '../../../../apps/web/src/features/089-first-class-pij/server/rs/rs-client';
 import { createRsPijRecords } from '../../../../apps/web/src/features/089-first-class-pij/server/rs/rs-pij-records';
-
-const UNSUPPORTED = [
-  { field: 'activity', why: 'needs event age' },
-  { field: 'lastEventAt', why: 'not on the rs descriptor' },
-  { field: 'ageMs', why: 'derived from lastEventAt' },
-  { field: 'liveness:stale', why: 'rs active is a weaker claim' },
-  { field: 'failureReason', why: 'not on the rs descriptor' },
-  { field: 'bindHealth', why: 'no rs counterpart' },
-  { field: 'degraded', why: 'derived from bindHealth' },
-  { field: 'degradedReason', why: 'derived from bindHealth' },
-  { field: 'daemonLastTickAt', why: 'not recorded' },
-  { field: 'daemonTickAgeMs', why: 'derived from an unavailable tick' },
-  { field: 'daemonTickStale', why: 'derived from an unavailable tick' },
-  { field: 'watchdog', why: 'no watchdog block on the seat row' },
-];
+import UNSUPPORTED from '../../../../docs/plans/093-pij-rs-reader/assets/inputs/live-unsupported-2026-09-06.json';
 
 class FakeRsClient implements RsClient {
   readonly stateIds: string[] = [];
@@ -74,8 +65,11 @@ describe('createRsPijRecords', () => {
     const client = new FakeRsClient([
       liveSeat({
         id: 'pij-tombstoned',
-        tombstoned_at: '2026-09-02T01:02:03.000Z',
+        tombstoned_at: 3436,
         tombstone_reason: 'process-exited',
+        model: 'gpt-6',
+        provider: 'github-copilot',
+        effort: 'high',
         future_rs_field: { value: 1 },
       }),
     ]);
@@ -96,17 +90,30 @@ describe('createRsPijRecords', () => {
       parent: null,
       relay: false,
       terminal: {
-        tombstonedAt: '2026-09-02T01:02:03.000Z',
+        source: 'pij-rs',
+        tombstoneCursor: 3436,
         tombstoneReason: 'process-exited',
       },
       future_rs_field: { value: 1 },
-      rsUnavailable: UNSUPPORTED.map(({ field }) => field),
+      boundModel: 'gpt-6',
+      boundProvider: 'github-copilot',
+      effort: 'high',
     });
     expect(row).not.toHaveProperty('proc');
     expect(row).not.toHaveProperty('semantic_state');
     expect(row).not.toHaveProperty('role');
     expect(row).not.toHaveProperty('tombstoned_at');
     expect(row).not.toHaveProperty('tombstone_reason');
+    expect(row).not.toHaveProperty('model');
+    expect(row).not.toHaveProperty('provider');
+    expect(row.rsUnavailable).not.toContain('terminal');
+    expect(row.rsUnavailable).not.toContain('boundModel');
+    expect(row.rsUnavailable).not.toContain('boundProvider');
+    expect(toFleetRow(row)).toMatchObject({
+      boundModel: 'gpt-6',
+      boundProvider: 'github-copilot',
+      effort: 'high',
+    });
   });
 
   it('omits unsupported seat fields so existing field-specific absence semantics stay authoritative', async () => {
@@ -143,11 +150,8 @@ describe('createRsPijRecords', () => {
 
     expect(rows).toHaveLength(3);
     expect(client.stateIds).toEqual(['pij-one']);
-    expect(rows.map((row) => row.rsUnavailable)).toEqual([
-      UNSUPPORTED.map(({ field }) => field),
-      UNSUPPORTED.map(({ field }) => field),
-      UNSUPPORTED.map(({ field }) => field),
-    ]);
+    expect(rows[0].rsUnavailable).toEqual(rows[1].rsUnavailable);
+    expect(rows[1].rsUnavailable).toEqual(rows[2].rsUnavailable);
   });
 
   it('does not request state provenance when the fleet is empty', async () => {
@@ -170,5 +174,37 @@ describe('createRsPijRecords', () => {
 
     await expect(records.state('pij-seat')).resolves.toEqual(report);
     expect(client.stateIds).toEqual(['pij-seat']);
+  });
+  it('partitions every consumer field into a carried fact or an unavailable field, never both', async () => {
+    const records = createRsPijRecords({
+      client: new FakeRsClient([
+        liveSeat(),
+        liveSeat({ model: 'gpt-6', provider: null, tombstoned_at: 3436, tombstone_reason: null }),
+      ]),
+    });
+    for (const row of await records.list()) {
+      const unavailable = new Set(row.rsUnavailable as string[]);
+      expect(unavailable.has('liveness:stale')).toBe(false);
+      expect(unavailable.has('liveness')).toBe(true);
+      expect(unavailable.has('prime')).toBe(true);
+      expect(unavailable.has('unadopted')).toBe(true);
+      for (const field of FLEET_ROW_FIELDS) {
+        const carried = Object.hasOwn(row, field) && row[field] !== undefined;
+        expect(unavailable.has(field), field).toBe(!carried);
+      }
+      for (const field of unavailable) {
+        expect(row[field], field).toBeUndefined();
+      }
+    }
+  });
+  it('keeps the roster when the provenance seat vanishes between HTTP reads', async () => {
+    const client = new FakeRsClient([liveSeat()]);
+    client.state = async () => {
+      throw new RsError('not_found', 'seat disappeared');
+    };
+    const [row] = await createRsPijRecords({ client }).list();
+    expect(row.id).toBe('pij-rs-seat');
+    expect(row.rsUnavailable).toContain('liveness');
+    expect(row.rsUnavailable).toContain('bindHealth');
   });
 });

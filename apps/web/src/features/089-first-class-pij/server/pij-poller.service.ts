@@ -98,6 +98,8 @@ export interface PijSnapshotResult {
   rows: FleetRow[];
   statuses: PijStatusRecord[];
   status: PollerStatus;
+  livenessUnavailable?: boolean;
+  statusesUnavailable?: boolean;
 }
 
 export interface PijPollerService {
@@ -109,7 +111,7 @@ export interface PijPollerService {
   refreshFlows(plansRoot: string): Promise<void>;
   /** Coalesced global records read: one in flight and at most one trailing refresh. */
   refreshRecords(): Promise<void>;
-  /** Apply only transitions the rs frame explicitly carries; unknown kinds only advance the cursor. */
+  /** Apply real rs report payloads; pushed traffic never supplies a declared state or status card. */
   ingest(event: RsCursorEvent): void;
   /** The records adapter, for routes that need a repo-scoped read (`tree`). */
   readonly records: IPijRecords;
@@ -137,6 +139,13 @@ class Poller implements PijPollerService {
   private rsEventSeq: number | undefined;
   private recordsRefresh: Promise<void> | undefined;
   private recordsRefreshTrailing = false;
+  private readonly rsStatusTouched = new Map<PijId, PijStatusRecord>();
+  private readonly rsTouched = new Set<PijId>();
+  private readonly rsDescriptorSeq = new Map<PijId, number>();
+  private readonly rsStateReports = new Map<
+    PijId,
+    { seq: number; revision: number; state: string | null; note: string | null; at: string }
+  >();
 
   constructor(deps: PijPollerDeps) {
     this.deps = {
@@ -170,6 +179,9 @@ class Poller implements PijPollerService {
     this.cancels = [];
     if (this.deps.pollSpine !== false) {
       this.cancels.push(this.deps.scheduler.every(this.fastLoopMs, () => this.tickFast()));
+    } else {
+      // Flush notifications at the existing fast cadence, without reading the legacy spine.
+      this.cancels.push(this.deps.scheduler.every(this.fastLoopMs, () => this.flushRsEvents()));
     }
     if (this.deps.pollRecords !== false) {
       this.cancels.push(this.deps.scheduler.every(this.slowLoopMs, () => this.refreshRecords()));
@@ -188,10 +200,14 @@ class Poller implements PijPollerService {
       ? all.filter((row) => isFolderInWorkspace(row.folder, options.workspace as string))
       : all;
     const visibleIds = new Set(rows.map((row) => row.id));
+    // A snapshot includes every already-ingested report even before the next coalesced broadcast.
     return {
       seq: this.currentSeq(),
       at: this.deps.now().toISOString(),
       rows,
+      ...(this.deps.pollSpine === false
+        ? { livenessUnavailable: true, statusesUnavailable: false }
+        : {}),
       statuses: [...this.statuses.values()].filter((status) => visibleIds.has(status.peer)),
       status: this.status(),
     };
@@ -226,13 +242,24 @@ class Poller implements PijPollerService {
   }
 
   ingest(frame: RsCursorEvent): void {
-    this.rsEventSeq = frame.cursor;
+    // Delivery can replay an older cursor after newer pushed traffic. Browser snapshot ordering
+    // needs a monotone application sequence, not the transport's out-of-order cursor.
+    this.rsEventSeq = Math.max((this.rsEventSeq ?? 0) + 1, frame.cursor);
     this.lastSpinePollAt = this.deps.now().toISOString();
-
-    // The live rs vocabulary currently carries descriptor notifications and report payloads, not
-    // legacy system-state transitions. Keep the seam honest: only apply a transition when both
-    // endpoints are explicitly present; every other kind advances the cursor and nothing else.
-    if (frame.event.kind !== SYSTEM_STATE_KIND) return;
+    const kind = frame.event.kind;
+    const id = frame.event.seat as PijId;
+    // Declaration freshness follows every descriptor refresh, including pushed spawn events.
+    // This is NOT the stream resume cursor: pushed kinds still never advance resume.
+    if (
+      kind === 'seat.put' ||
+      kind === 'seat.tombstone' ||
+      kind === 'spawn.bound' ||
+      kind === 'spawn.failed'
+    ) {
+      this.rsDescriptorSeq.set(id, Math.max(this.rsDescriptorSeq.get(id) ?? 0, frame.cursor));
+      return;
+    }
+    if (kind !== 'report.now' && kind !== 'report.state') return;
     let payload: unknown;
     try {
       payload = JSON.parse(frame.event.payload);
@@ -240,19 +267,82 @@ class Poller implements PijPollerService {
       return;
     }
     if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return;
-    const transition = payload as { prev?: unknown; next?: unknown };
-    if (typeof transition.prev !== 'string' || typeof transition.next !== 'string') return;
-
-    const id = frame.event.seat as PijId;
-    const current = this.fleet.get(id);
-    if (!current) return;
+    const report = payload as {
+      did?: unknown;
+      next?: unknown;
+      state?: unknown;
+      note?: unknown;
+      registry_seq?: unknown;
+    };
     const at = new Date(frame.event.at).toISOString();
-    const updated = applyEvent(current, {
-      kind: frame.event.kind,
-      next: transition.next,
-      ts: at,
+    if (kind === 'report.now') {
+      if (typeof report.did !== 'string' || typeof report.next !== 'string') return;
+      if ((this.statuses.get(id)?.seq ?? -1) >= frame.cursor) return;
+      const status: PijStatusRecord = {
+        peer: id,
+        prev: report.did,
+        next: report.next,
+        ts: at,
+        seq: frame.cursor,
+      };
+      this.statuses.set(id, status);
+      this.rsStatusTouched.set(id, status);
+      return;
+    }
+    if (
+      (report.state !== null && typeof report.state !== 'string') ||
+      (report.note !== null && typeof report.note !== 'string') ||
+      typeof report.registry_seq !== 'number'
+    )
+      return;
+    if ((this.rsStateReports.get(id)?.seq ?? -1) >= frame.cursor) return;
+    this.rsStateReports.set(id, {
+      seq: frame.cursor,
+      revision: this.rsEventSeq,
+      state: report.state,
+      note: report.note,
+      at,
     });
-    this.commitFleetDelta(new Map([[id, updated]]), frame.cursor);
+    const current = this.fleet.get(id);
+    if (current) {
+      this.fleet.set(id, this.withRsStateReport(current));
+      this.rsTouched.add(id);
+    }
+  }
+
+  private withRsStateReport(row: FleetRow, readStartedAt = -1): FleetRow {
+    const report = this.rsStateReports.get(row.id);
+    if (!report) return row;
+    // A revived descriptor can clear a declaration without report.state. Successful reads are
+    // authoritative; only a report arriving DURING that read and after the latest descriptor
+    // notification can protect its state from an older in-flight response.
+    const newerReport =
+      report.revision > readStartedAt && report.seq > (this.rsDescriptorSeq.get(row.id) ?? 0);
+    const semanticState = newerReport ? report.state : row.extra.semanticState;
+    const stateNote =
+      semanticState !== null && semanticState === report.state && report.note !== null
+        ? { text: report.note, state: report.state, at: report.at }
+        : null;
+    return { ...row, extra: { ...row.extra, semanticState, stateNote } };
+  }
+
+  private flushRsEvents(): void {
+    if (this.rsStatusTouched.size > 0) {
+      this.emit({
+        type: 'status-delta',
+        seq: this.currentSeq(),
+        at: this.deps.now().toISOString(),
+        statuses: [...this.rsStatusTouched.values()],
+      });
+      this.rsStatusTouched.clear();
+    }
+    const touched = new Map<PijId, FleetRow>();
+    for (const id of this.rsTouched) {
+      const row = this.fleet.get(id);
+      if (row) touched.set(id, row);
+    }
+    this.rsTouched.clear();
+    this.commitFleetDelta(touched, this.currentSeq());
   }
 
   private async drainRecordsRefreshes(): Promise<void> {
@@ -321,6 +411,7 @@ class Poller implements PijPollerService {
 
   /** Slow loop: ONE global list, diff, emit only what changed. Degrades rather than blanks. */
   private async tickSlow(): Promise<void> {
+    const readStartedAt = this.currentSeq();
     let rows: PijListRow[];
     try {
       rows = await this.deps.records.list();
@@ -345,7 +436,9 @@ class Poller implements PijPollerService {
     this.lastRecordsPollAt = this.deps.now().toISOString();
     this.lastError = null;
 
-    const next = indexFleetById(rows.map(toFleetRow));
+    const next = indexFleetById(
+      rows.map((row) => this.withRsStateReport(toFleetRow(row), readStartedAt))
+    );
     const changed: FleetRow[] = [];
     for (const [id, row] of next) {
       const previous = this.fleet.get(id);
@@ -360,6 +453,15 @@ class Poller implements PijPollerService {
       if (!next.has(peer)) this.statuses.delete(peer);
     }
 
+    if (this.deps.pollSpine === false) {
+      // Recovery and freshness are observable even when the roster itself did not change.
+      this.emit({
+        type: 'poller-status',
+        seq: this.currentSeq(),
+        at: this.deps.now().toISOString(),
+        status: this.status(),
+      });
+    }
     if (changed.length === 0 && removed.length === 0) return;
     this.emit({
       type: 'fleet-delta',

@@ -3,7 +3,10 @@ import type { RsClient, RsCursorEvent, RsHelloEvent, RsIgnoredEvent } from './rs
 const INITIAL_RECONNECT_MS = 250;
 const MAX_RECONNECT_MS = 5_000;
 const RECONNECT_JITTER = 0.2;
-const DESCRIPTOR_EVENT_KINDS = new Set(['seat.put', 'seat.tombstone']);
+const RECYCLE_MS = 5_000;
+// Resume advances on kinds we act on AND that arrive only by replay (seat.*, report.*).
+// A pushed kind, acted-on or not (including spawn.*), never moves it: that burns missing frames.
+const RESUME_EVENT_KINDS = new Set(['seat.put', 'seat.tombstone', 'report.now', 'report.state']);
 
 export type RsEventStreamStatus =
   | { state: 'connected'; build: string }
@@ -22,6 +25,7 @@ export interface RsEventStreamOptions {
   onStatus: (status: RsEventStreamStatus) => void;
   random?: () => number;
   sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
+  recycleMs?: number;
 }
 
 export function createRsEventStream(options: RsEventStreamOptions): RsEventStream {
@@ -29,7 +33,8 @@ export function createRsEventStream(options: RsEventStreamOptions): RsEventStrea
 }
 
 class ReconnectingRsEventStream implements RsEventStream {
-  private readonly cursors: Record<string, number> = {};
+  private readonly resumeCursors: Record<string, number> = {};
+  private readonly observedCursors: Record<string, number> = {};
   private controller: AbortController | undefined;
   private running: Promise<void> | undefined;
 
@@ -53,10 +58,29 @@ class ReconnectingRsEventStream implements RsEventStream {
     let attempt = 0;
     while (!signal.aborted) {
       let established = false;
-      const pendingDescriptorChanges = new Set<Promise<void>>();
+      let build = '';
+      let recycled = false;
+      let applied = Promise.resolve();
+      let applicationError: unknown;
+      const connection = new AbortController();
+      const abort = () => connection.abort();
+      signal.addEventListener('abort', abort, { once: true });
+      const timer = setTimeout(() => {
+        recycled = true;
+        connection.abort();
+      }, this.options.recycleMs ?? RECYCLE_MS);
+      timer.unref?.();
       try {
-        const from = Object.keys(this.cursors).length > 0 ? { ...this.cursors } : undefined;
-        for await (const frame of this.options.client.events(from, signal)) {
+        if (Object.keys(this.resumeCursors).length === 0) {
+          // An omitted cursor (even {}) is live-only. Fresh processes replay cards from zero;
+          // nothing is persisted in pij's sole-writer store. Discover aliases with one global read.
+          for (const seat of await this.options.client.seats()) {
+            if (typeof seat.machine === 'string') this.resumeCursors[seat.machine] = 0;
+          }
+        }
+        const from =
+          Object.keys(this.resumeCursors).length > 0 ? { ...this.resumeCursors } : undefined;
+        for await (const frame of this.options.client.events(from, connection.signal)) {
           if ('ignored' in frame && frame.ignored === true) {
             const ignored = frame as RsIgnoredEvent;
             this.options.onStatus({
@@ -69,43 +93,60 @@ class ReconnectingRsEventStream implements RsEventStream {
             continue;
           }
           if ('hello' in frame && frame.hello === true) {
-            const hello = frame as RsHelloEvent;
-            established = true;
-            attempt = 0;
-            this.options.onStatus({ state: 'connected', build: hello.build });
+            build = (frame as RsHelloEvent).build;
             continue;
           }
           const cursorFrame = frame as RsCursorEvent;
-          if (DESCRIPTOR_EVENT_KINDS.has(cursorFrame.event.kind)) {
-            const pending = Promise.resolve(this.options.onEvent(cursorFrame)).then(() => {
-              this.advanceCursor(cursorFrame);
-            });
-            pendingDescriptorChanges.add(pending);
-            void pending.then(
-              () => pendingDescriptorChanges.delete(pending),
-              () => {}
-            );
-            void pending.catch(() => {});
-            continue;
+          this.resumeCursors[cursorFrame.machine] ??= 0;
+          this.observedCursors[cursorFrame.machine] = Math.max(
+            this.observedCursors[cursorFrame.machine] ?? 0,
+            cursorFrame.cursor
+          );
+          if (!established) {
+            established = true;
+            attempt = 0;
+            this.options.onStatus({ state: 'connected', build });
           }
-          await this.options.onEvent(cursorFrame);
-          this.advanceCursor(cursorFrame);
+          const pending = Promise.resolve(this.options.onEvent(cursorFrame));
+          // Dispatch without awaiting so descriptor bursts use the poller's coalesced refresh.
+          // Commit in wire order: a later success must never skip an earlier failed application.
+          if (RESUME_EVENT_KINDS.has(cursorFrame.event.kind)) {
+            applied = applied.then(() => pending).then(() => this.advanceCursor(cursorFrame));
+          } else {
+            applied = applied.then(() => pending);
+          }
+          const failed = (error: unknown) => {
+            applicationError = error;
+            connection.abort();
+          };
+          void pending.catch(failed);
+          void applied.catch(failed);
         }
-        await Promise.all(pendingDescriptorChanges);
+        await applied;
         if (signal.aborted) break;
+        if (recycled) continue;
         throw new Error('pij-rs event stream ended');
       } catch (cause) {
+        await applied.catch(() => {});
         if (signal.aborted) break;
-        const error = cause instanceof Error ? cause : new Error(String(cause));
+        if (recycled && applicationError === undefined) continue;
+        const failure = applicationError ?? cause;
+        const error = failure instanceof Error ? failure : new Error(String(failure));
         const delayMs = reconnectDelay(attempt, this.options.random ?? Math.random);
         this.options.onStatus({ state: 'reconnecting', attempt, delayMs, error });
         await (this.options.sleep ?? abortableSleep)(delayMs, signal);
         if (!established) attempt += 1;
+      } finally {
+        clearTimeout(timer);
+        signal.removeEventListener('abort', abort);
       }
     }
   }
   private advanceCursor(frame: RsCursorEvent): void {
-    this.cursors[frame.machine] = Math.max(this.cursors[frame.machine] ?? 0, frame.cursor);
+    this.resumeCursors[frame.machine] = Math.max(
+      this.resumeCursors[frame.machine] ?? 0,
+      frame.cursor
+    );
   }
 }
 

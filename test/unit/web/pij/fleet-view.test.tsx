@@ -158,6 +158,44 @@ describe('seatRole — the tree is the only structure record', () => {
 });
 
 describe('FleetView — the idle filter', () => {
+  it.each([
+    { scope: 'workspace' as const, source: 'snapshot' },
+    { scope: 'workspace' as const, source: 'row' },
+    { scope: 'global' as const, source: 'snapshot' },
+    { scope: 'global' as const, source: 'row' },
+  ])('keeps recorded seats in $scope with $source liveness unavailable', ({ scope, source }) => {
+    // Both topology paths and the flat list must retain unknown-liveness seats beyond 48h.
+    const rsRows = UI_FLEET_ROWS.map((row) => ({
+      ...row,
+      state: 'working',
+      liveness: 'active',
+      lastEventAt: '2026-07-01T00:00:00.000Z',
+      extra: { ...row.extra, ...(source === 'row' ? { rsUnavailable: ['liveness'] } : {}) },
+    }));
+    const { container } = renderFleet({
+      rows: rsRows,
+      scope,
+      livenessUnavailable: source === 'snapshot',
+    });
+
+    expect(renderedSeatIds(container).sort()).toEqual(rsRows.map((row) => String(row.id)).sort());
+    expect(screen.getByTestId('fleet-count').textContent).toContain(
+      `${rsRows.length} recorded seats`
+    );
+    expect(container.textContent).not.toContain('hot tier');
+    expect(container.textContent).not.toContain('idle < 2d');
+    expect(screen.queryByTestId('fleet-empty-all-idle')).toBeNull();
+    expect(screen.queryByTestId('fleet-hidden-count')).toBeNull();
+    expect(container.querySelectorAll('[data-reason="liveness-unavailable"]').length).toBe(
+      rsRows.length + 1
+    );
+    expect(container.querySelector('.rounded-full.bg-emerald-600')).toBeNull();
+    expect(screen.getByTestId(`seat-row-${UI_PM_ID}`).textContent).toContain(
+      'reported state: working'
+    );
+    expect(screen.getByTestId(`seat-row-${UI_PM_ID}`).textContent).not.toContain('· active');
+  });
+
   it('hides a seat last heard from outside the 48h window, and says how many', async () => {
     const { container } = renderFleet();
 
