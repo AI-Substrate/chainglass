@@ -1,0 +1,23 @@
+apps/web/src/features/089-first-class-pij/server/join.ts
+  s_084ac52dc66de3::t_dc930261697bdd 33,92
+apps/web/src/features/089-first-class-pij/server/rs/rs-client.ts
+  s_084ac52dc66de3::t_0ed1e094925e99 20-22,25
+test/unit/web/pij/rs-event-stream.test.ts
+  s_084ac52dc66de3::t_f39863d397adde 24-27,30,72,80,220-343
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "bc57d806dad4a06877c73b0c29a673415e7c1f30",
+  "prompts": {},
+  "sessions": {
+    "s_084ac52dc66de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+        "model": "unknown"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
