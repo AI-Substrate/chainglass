@@ -19,6 +19,8 @@ import type {
 } from '../../../../apps/web/src/features/089-first-class-pij/server/rs/rs-client';
 import { RsError } from '../../../../apps/web/src/features/089-first-class-pij/server/rs/rs-client';
 import { createRsPijRecords } from '../../../../apps/web/src/features/089-first-class-pij/server/rs/rs-pij-records';
+import ROLE_PRIME from '../../../../docs/plans/093-pij-rs-reader/assets/inputs/live-role-prime-2026-09-07.json';
+import ROLE_STATE from '../../../../docs/plans/093-pij-rs-reader/assets/inputs/live-role-state-2026-09-07.json';
 import UNSUPPORTED from '../../../../docs/plans/093-pij-rs-reader/assets/inputs/live-unsupported-2026-09-06.json';
 
 class FakeRsClient implements RsClient {
@@ -117,6 +119,44 @@ describe('createRsPijRecords', () => {
     });
   });
 
+  it('carries the captured prime role through the list mapper and fleet join', async () => {
+    const client = new FakeRsClient([ROLE_PRIME], ROLE_STATE);
+    const [mapped] = await createRsPijRecords({ client }).list();
+    const joined = toFleetRow(mapped);
+
+    expect(ROLE_PRIME.role).toBe('prime');
+    expect(mapped.orchestrationRole).toBe('prime');
+    expect(mapped).not.toHaveProperty('role');
+    expect(joined).toMatchObject({ id: 'pij-lonely-antelope', orchestrationRole: 'prime' });
+    expect(joined.extra).not.toHaveProperty('role');
+    expect(readSeatRole({ ...joined })).toMatchObject({ kind: 'known', role: 'prime' });
+    expect(client.stateIds).toEqual([ROLE_PRIME.id]);
+  });
+
+  it.each(['null', 'omitted'] as const)(
+    'preserves a SCRIPTED %s role variant of the captured prime through the fleet join',
+    async (variant) => {
+      // These variants are scripted boundaries, not additional live captures.
+      const { role: _role, ...withoutRole } = ROLE_PRIME;
+      const seat: RsSeat = variant === 'null' ? { ...ROLE_PRIME, role: null } : withoutRole;
+      const records = createRsPijRecords({ client: new FakeRsClient([seat], ROLE_STATE) });
+      const [mapped] = await records.list();
+      const joined = toFleetRow(mapped);
+      const forest = await records.tree({ global: true });
+
+      for (const projected of [mapped, joined, forest.roots[0]]) {
+        if (variant === 'null') expect(projected).toHaveProperty('orchestrationRole', null);
+        else expect(projected).not.toHaveProperty('orchestrationRole');
+        expect(projected.prime).toBeUndefined();
+      }
+      expect(readSeatRole({ ...joined })).toEqual({
+        kind: 'absent',
+        reason: variant === 'null' ? 'role-unknown' : 'role-field-absent',
+      });
+      expect(forest.rolesUnavailable).toBe(false);
+    }
+  );
+
   it('omits unsupported seat fields so existing field-specific absence semantics stay authoritative', async () => {
     const records = createRsPijRecords({ client: new FakeRsClient([liveSeat()]) });
 
@@ -160,6 +200,10 @@ describe('createRsPijRecords', () => {
     const records = createRsPijRecords({ client });
 
     await expect(records.list()).resolves.toEqual([]);
+    await expect(records.tree({ global: true })).resolves.toMatchObject({
+      roots: [],
+      rolesUnavailable: false,
+    });
     expect(client.stateIds).toEqual([]);
   });
 
@@ -198,27 +242,48 @@ describe('createRsPijRecords', () => {
       }
     }
   });
-  it('keeps the roster when the provenance seat vanishes between HTTP reads', async () => {
-    const client = new FakeRsClient([liveSeat()]);
-    client.state = async () => {
-      throw new RsError('not_found', 'seat disappeared');
-    };
-    const [row] = await createRsPijRecords({ client }).list();
-    expect(row.id).toBe('pij-rs-seat');
-    expect(row.rsUnavailable).toContain('liveness');
-    expect(row.rsUnavailable).toContain('bindHealth');
-  });
-  it('builds the parent forest from rs identities even when every role is null', async () => {
-    const client = new FakeRsClient([
-      liveSeat({ id: 'rs-child', parent: 'rs-lead' }),
-      liveSeat({ id: 'rs-grandchild', parent: 'rs-child' }),
-      liveSeat({ id: 'rs-lead' }),
-      liveSeat({ id: 'rs-orphan', parent: 'legacy-unknown-parent' }),
-    ]);
+  it.each(['list', 'tree'] as const)(
+    'keeps the %s when the provenance seat vanishes between HTTP reads',
+    async (operation) => {
+      const client = new FakeRsClient([
+        liveSeat({ id: 'rs-parent' }),
+        liveSeat({ id: 'rs-child', parent: 'rs-parent' }),
+      ]);
+      client.state = async (id) => {
+        client.stateIds.push(id);
+        throw new RsError('not_found', 'seat disappeared');
+      };
+      const records = createRsPijRecords({ client });
+      if (operation === 'list') {
+        const rows = await records.list();
+        expect(rows.map((row) => row.id)).toEqual(['rs-parent', 'rs-child']);
+        expect(rows[0].rsUnavailable).toContain('liveness');
+        expect(rows[0].rsUnavailable).toContain('bindHealth');
+      } else {
+        const forest = await records.tree({ global: true });
+        expect(forest).toMatchObject({
+          roots: [{ id: 'rs-parent', children: [{ id: 'rs-child' }] }],
+          rolesUnavailable: false,
+        });
+      }
+      expect(client.stateIds).toEqual(['rs-parent']);
+    }
+  );
+  it('uses captured role capability even when every role in the parent forest is null', async () => {
+    const client = new FakeRsClient(
+      [
+        liveSeat({ id: 'rs-child', parent: 'rs-lead' }),
+        liveSeat({ id: 'rs-grandchild', parent: 'rs-child' }),
+        liveSeat({ id: 'rs-lead' }),
+        liveSeat({ id: 'rs-orphan', parent: 'legacy-unknown-parent' }),
+      ],
+      ROLE_STATE
+    );
+    expect(ROLE_STATE.unsupported.some(({ field }) => field === 'role')).toBe(false);
     const forest = await createRsPijRecords({ client }).tree({ global: true });
     expect(forest).toMatchObject({
       structureSource: 'rs-parent-links',
-      rolesUnavailable: true,
+      rolesUnavailable: false,
       roots: [
         {
           id: 'rs-lead',
@@ -230,8 +295,42 @@ describe('createRsPijRecords', () => {
     });
     expect(forest.roots[0]).not.toHaveProperty('prime');
     expect(forest.structureWarnings).toBeUndefined();
-    expect(client.stateIds).toEqual([]);
+    expect(client.stateIds).toEqual(['rs-child']);
   });
+
+  it.each([null, 'prime'])(
+    'honours SCRIPTED unsupported-role capability independently of seat role %s',
+    async (role) => {
+      // No captured StateCard names role as unsupported. This branch is deliberately SCRIPTED.
+      const client = new FakeRsClient([liveSeat({ role }), liveSeat({ id: 'rs-other' })], {
+        ...ROLE_STATE,
+        unsupported: [
+          ...ROLE_STATE.unsupported,
+          { field: 'role', why: 'SCRIPTED source without role capability' },
+        ],
+      });
+      const forest = await createRsPijRecords({ client }).tree({ global: true });
+
+      expect(forest.rolesUnavailable).toBe(true);
+      expect(forest.roots[0]).toHaveProperty('orchestrationRole', role);
+      expect(client.stateIds).toEqual(['pij-rs-seat']);
+    }
+  );
+
+  it.each(['list', 'tree'] as const)(
+    'rejects a malformed capability card on %s rather than declaring support',
+    async (operation) => {
+      const client = new FakeRsClient([liveSeat()]);
+      client.state = async () => ({ id: 'pij-rs-seat' }) as RsStateReport;
+      const records = createRsPijRecords({ client });
+      const result = operation === 'list' ? records.list() : records.tree({ global: true });
+
+      await expect(result).rejects.toMatchObject({
+        code: 'wire',
+        message: 'pij-rs state response omitted unsupported capability provenance',
+      });
+    }
+  );
 
   it('scopes to actual git worktree roots without claiming foreign ancestors or prefix siblings', async () => {
     const worktrees = new FakeGitWorktreeResolver();
@@ -262,6 +361,7 @@ describe('createRsPijRecords', () => {
     });
     expect(forest.rolesUnavailable).toBe(false);
     expect(worktrees.detectWorktreesCalls).toEqual([{ repoPath: '/workspace' }]);
+    expect(client.stateIds).toEqual(['rs-child']);
   });
 
   it('preserves explicit tombstones for all scope without inferring death from idle', async () => {

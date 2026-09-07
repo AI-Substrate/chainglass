@@ -15,6 +15,16 @@ import {
   createRsEventStream,
 } from '../../../../apps/web/src/features/089-first-class-pij/server/rs/rs-event-stream';
 
+const roleFrame = JSON.parse(
+  readFileSync(
+    join(
+      import.meta.dirname,
+      '../../../../docs/plans/093-pij-rs-reader/assets/inputs/live-role-set-20991.ndjson'
+    ),
+    'utf8'
+  )
+) as RsCursorEvent;
+
 const captured = readFileSync(
   join(
     import.meta.dirname,
@@ -93,6 +103,61 @@ async function waitForAbort(signal: AbortSignal | undefined): Promise<void> {
 }
 
 describe('createRsEventStream', () => {
+  it.each([true, false])(
+    'commits captured role-set resume only after successful application: %s',
+    async (succeeds) => {
+      let release!: () => void;
+      let reject!: (error: Error) => void;
+      const application = new Promise<void>((resolve, fail) => {
+        release = resolve;
+        reject = fail;
+      });
+      let received!: () => void;
+      const seen = new Promise<void>((resolve) => {
+        received = resolve;
+      });
+      let resumed!: () => void;
+      const reconnected = new Promise<void>((resolve) => {
+        resumed = resolve;
+      });
+      const client = new FakeRsClient([
+        async function* () {
+          yield roleFrame;
+          throw new Error('connection dropped');
+        },
+        async function* (_from, signal) {
+          yield hello('pij-rs reconnect fixture');
+          resumed();
+          await waitForAbort(signal);
+        },
+      ]);
+      const stream = createRsEventStream({
+        client,
+        onEvent: async (frame) => {
+          expect(frame).toEqual(roleFrame);
+          received();
+          await application;
+        },
+        onStatus: () => {},
+        sleep: async () => {},
+      });
+      stream.start();
+      try {
+        await seen;
+        expect(client.eventCalls).toEqual([undefined]);
+        if (succeeds) release();
+        else reject(new Error('role refresh failed'));
+        await reconnected;
+        expect(client.eventCalls).toEqual([
+          undefined,
+          { [roleFrame.machine]: succeeds ? 20991 : 0 },
+        ]);
+      } finally {
+        stream.stop();
+      }
+    }
+  );
+
   it('starts one subscription, resumes from an applied descriptor, and records established builds', async () => {
     let secondEvent!: () => void;
     const secondEventSeen = new Promise<void>((resolve) => {

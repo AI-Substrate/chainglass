@@ -19,6 +19,17 @@ import {
   pijSource,
   resetPijPollerForTests,
 } from '../../../../apps/web/src/features/089-first-class-pij/server/start-pij-poller';
+import ROLE_ROW from '../../../../docs/plans/093-pij-rs-reader/assets/inputs/live-role-prime-2026-09-07.json';
+
+const roleFrame = JSON.parse(
+  readFileSync(
+    join(
+      import.meta.dirname,
+      '../../../../docs/plans/093-pij-rs-reader/assets/inputs/live-role-set-20991.ndjson'
+    ),
+    'utf8'
+  )
+) as RsCursorEvent;
 
 const captured = readFileSync(
   join(
@@ -101,6 +112,58 @@ describe('pij-rs source selection', () => {
 });
 
 describe('getPijPoller rs event composition', () => {
+  it('refreshes the captured asserted role and fences a stale declaration through production dispatch', async () => {
+    const oldReport = captured.find(
+      (frame) =>
+        frame.event.kind === 'report.state' &&
+        JSON.parse(frame.event.payload).state !== ROLE_ROW.semantic_state
+    );
+    if (!oldReport) throw new Error('Missing distinct captured declaration');
+    // Scripted race around an unchanged role-set capture, not a captured daemon timeline.
+    // Only the historical report identity/cursor are rebound; its payload stays unchanged.
+    const staleReport: RsCursorEvent = {
+      ...oldReport,
+      machine: roleFrame.machine,
+      cursor: roleFrame.cursor - 1,
+      event: { ...oldReport.event, seat: roleFrame.event.seat },
+    };
+    let release!: (rows: RsSeat[]) => void;
+    const client = new BootstrapRsClient([
+      Promise.resolve([
+        { ...ROLE_ROW, role: null, semantic_state: JSON.parse(staleReport.event.payload).state },
+      ]),
+      new Promise<RsSeat[]>((resolve) => {
+        release = resolve;
+      }),
+    ]);
+    let onEvent!: RsEventStreamOptions['onEvent'];
+    const poller = getPijPoller(
+      { PIJ_SOURCE: 'rs' },
+      {
+        rsClient: client,
+        createEventStream(options) {
+          onEvent = options.onEvent;
+          return createRsEventStream(options);
+        },
+      }
+    );
+    await poller.refreshRecords();
+    expect(poller.snapshot().rows[0].orchestrationRole).toBeNull();
+    expect(roleFrame.cursor).toBe(20991);
+    expect(JSON.parse(roleFrame.event.payload).record.role).toBe('prime');
+    const refreshing = onEvent(roleFrame);
+    expect(client.seatReads).toBe(2);
+    await onEvent(staleReport);
+    release([ROLE_ROW]);
+    await refreshing;
+    expect(poller.snapshot().rows[0]).toMatchObject({
+      id: ROLE_ROW.id,
+      orchestrationRole: 'prime',
+      extra: { semanticState: ROLE_ROW.semantic_state },
+    });
+    expect(poller.snapshot().status.lastError).toBeNull();
+  });
+
   it.each(['spawn.bound', 'spawn.failed'])(
     'refreshes descriptors for %s and fences late reports through the production onEvent',
     async (kind) => {

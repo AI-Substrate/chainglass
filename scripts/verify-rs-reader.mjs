@@ -41,7 +41,7 @@ are separate. One subscriber at a time in this process, not a claim about other 
 Equality uses the exact live response consumed by RsPijRecords, avoiding a two-read race.
 Unobserved missing/null/tombstone cases are reported as coverage, never invented as fixtures.
 `;
-const DESCRIPTORS = new Set(['seat.put', 'seat.tombstone', 'spawn.bound', 'spawn.failed']);
+const DESCRIPTORS = new Set(['seat.put', 'seat.tombstone', 'role-set', 'spawn.bound', 'spawn.failed']);
 const ROOT = new URL('../apps/web/src/features/089-first-class-pij/server/', import.meta.url);
 const started = performance.now();
 const result = { command: `node scripts/verify-rs-reader.mjs ${process.argv.slice(2).join(' ')}`, count: 0, errors: [] };

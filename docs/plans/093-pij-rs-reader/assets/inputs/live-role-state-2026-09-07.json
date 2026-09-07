@@ -1,0 +1,86 @@
+{
+  "id": "pij-lonely-antelope",
+  "state": "idle",
+  "liveness": "active",
+  "pid": 88128,
+  "procStart": 20260906165625,
+  "cwd": "/Users/jordanknight/substrate/chainglass",
+  "harness": "claude",
+  "role": "prime",
+  "parent": null,
+  "boundModel": null,
+  "effort": null,
+  "pane": "%8",
+  "provider": null,
+  "semanticState": null,
+  "machine": "JordansacStudio.localdomain",
+  "tombstonedAt": null,
+  "tombstoneReason": null,
+  "statusPrev": "pij 139 confirmed to unicorn (AC1/AC3/AC9 + bp-0005 all RAN). I am role:prime in rs. Silkworm: map role onto rail + role-set kind.",
+  "statusNext": "silkworm's sha -> archive 093 (post-flight). Jordan: fs2->flowspace3 search plan, open or park.",
+  "statusAt": 1788797178542,
+  "statusSeq": 21003,
+  "statusStale": false,
+  "stateNote": null,
+  "held": [],
+  "unsupported": [
+    {
+      "field": "lifecycle",
+      "why": "rs seats have no pending/bound/dissolved lifecycle field; binding evidence lives in `proc` and is reported through `liveness`"
+    },
+    {
+      "field": "activity",
+      "why": "the done-vs-idle split needs `lastEventAt`, which the rs descriptor does not carry; `state` reports the working/idle half"
+    },
+    {
+      "field": "lastEventAt",
+      "why": "not on the rs descriptor — deriving it needs a full spine scan per read"
+    },
+    {
+      "field": "ageMs",
+      "why": "derived from `lastEventAt`, which rs does not carry"
+    },
+    {
+      "field": "liveness:stale",
+      "why": "TS reports `stale` for a seat that claims to be working and has gone quiet; that needs event age. An rs `active` therefore covers BOTH the TS `active` and the TS `stale` case — it is a weaker claim, not the same one"
+    },
+    {
+      "field": "daemonLastTickAt",
+      "why": "no per-seat daemon tick is recorded in the rs store"
+    },
+    {
+      "field": "daemonTickAgeMs",
+      "why": "derived from the tick rs does not record"
+    },
+    {
+      "field": "daemonTickStale",
+      "why": "derived from the tick rs does not record"
+    },
+    {
+      "field": "failureReason",
+      "why": "rs records no per-seat failure reason on the descriptor"
+    },
+    {
+      "field": "bindHealth",
+      "why": "the TS pre-bind health classifier has no rs counterpart"
+    },
+    {
+      "field": "degraded",
+      "why": "derived from `bindHealth`"
+    },
+    {
+      "field": "degradedReason",
+      "why": "derived from `bindHealth`"
+    },
+    {
+      "field": "terminal",
+      "why": "rs records termination as `tombstonedAt` + `tombstoneReason`, which this card DOES carry — a different shape, not a missing fact"
+    },
+    {
+      "field": "watchdog",
+      "why": "rs has no watchdog block on the seat row"
+    }
+  ],
+  "session": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+  "generation": "rs"
+}

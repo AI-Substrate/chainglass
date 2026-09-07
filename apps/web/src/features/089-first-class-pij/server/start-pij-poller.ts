@@ -35,6 +35,7 @@ const DEFAULT_PIJ_RS_ADDR = '127.0.0.1:7461';
 const DESCRIPTOR_EVENT_KINDS = new Set([
   'seat.put',
   'seat.tombstone',
+  'role-set',
   'spawn.bound',
   'spawn.failed',
 ]);

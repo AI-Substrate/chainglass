@@ -63,10 +63,10 @@ a rule written down in that contract — never guessed, never estimated.
 | `createFileSpineCursor()` | Factory | bootstrap | File-backed cursor over a spine directory |
 | `IPijRecords` | Interface | poller, routes | `list()`, `tree()`, `nodeShow()`, `state()` — read verbs only |
 | `createPijRecords()` | Factory | bootstrap | `execFile`-backed adapter; injectable `PijExecutor` |
-| `createRsClient()` / `createRsPijRecords()` | Factories | composite adapter | Authenticated HTTP; explicit model/provider mapping and consumer-field unavailable partition |
-| `createRsEventStream()` | Factory | bootstrap | One subscriber, 5s recycle, replay-only resume cursor; fresh processes replay from per-machine zero |
+| `createRsClient()` / `createRsPijRecords()` | Factories | composite adapter | Authenticated HTTP; explicit role/model/provider mapping, preserving role null versus omission; consumer gaps and source capability from StateCard.unsupported |
+| `createRsEventStream()` | Factory | bootstrap | One subscriber, defensive 5s recycle; applied seat/role/report resume cursor; fresh processes replay from per-machine zero. Since upstream 139 all kinds also push live |
 | `FleetSnapshotData` capabilities | Type | rail, fleet/global views | `livenessUnavailable` distinguishes an unknowable live count from an empty roster; `statusesUnavailable` describes card capability |
-| `TreeSnapshotData` provenance | Type | rail, tree views | `structureSource: rs-parent-links`, `rolesUnavailable`, optional collection `structureWarnings`; malformed links are displayed as roots without rewriting source parents or inferring roles |
+| `TreeSnapshotData` provenance | Type | rail, tree views | `structureSource: rs-parent-links`; `rolesUnavailable` only when StateCard.unsupported names role, never from null values; optional collection `structureWarnings` for root promotion without rewriting source parents |
 | `IFlowReader` | Interface | poller, routes | `read(planDir)` → `FlowSummary`; `scan(plansDir)` → all plan folders |
 | `createFlowReader()` | Factory | bootstrap | fs-backed adapter |
 | `PijChannelEvent` | Type | poller, browser | The `pij` channel union: `fleet-delta` · `flow-delta` · `status-delta` · `poller-status` |
@@ -221,3 +221,4 @@ test/
 | 093 review corrections | Replaced mixed-source hierarchy/focus reads with rs parent forest and fresh identity; compact unclassified rail, visible actual reports, click-time process guards, source warnings and generated-plan alignment | 2026-09-06 |
 | 093 D1–D3 | Recover duplicate/cyclic parent links with collection warnings; distinguish observed focus refusal causes; retain bounded machine-wide process-read headroom | 2026-09-07 |
 | 093 containment | Resolve requested focus scope against registered workspaces and discovered worktrees before reading the seat or running process commands | 2026-09-07 |
+| 093 upstream 139 | Pin captured asserted-role mapping; refresh, fence and resume role-set events; source-capability role notices with silence for capable unasserted roles; retain defensive recycling | 2026-09-08 |

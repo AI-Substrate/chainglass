@@ -248,11 +248,12 @@ class Poller implements PijPollerService {
     this.lastSpinePollAt = this.deps.now().toISOString();
     const kind = frame.event.kind;
     const id = frame.event.seat as PijId;
-    // Declaration freshness follows every descriptor refresh, including pushed spawn events.
-    // This is NOT the stream resume cursor: pushed kinds still never advance resume.
+    // Declaration freshness follows every descriptor refresh, including role and spawn events.
+    // Stream resume uses a separate, narrower allowlist for legacy sparse-push recovery.
     if (
       kind === 'seat.put' ||
       kind === 'seat.tombstone' ||
+      kind === 'role-set' ||
       kind === 'spawn.bound' ||
       kind === 'spawn.failed'
     ) {

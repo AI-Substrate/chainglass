@@ -139,6 +139,14 @@ F9 — THE PROOF COMMAND IS NOT IN THE TREE. bp-0002's proof names scripts/verif
 
 3. ROLE METADATA: rs does not carry orchestration roles; roles metadata remains unsupported pending pij plan 138 phase 2 (unscheduled). The rail view renders the honest unavailable marker without fabricating role semantics.
 
+=== AMENDMENT 8, upstream plan 139 role and live-event deployment (2026-09-08) ===
+
+RoleService now joins asserted roles into /v1/seats. The existing explicit role -> orchestrationRole mapper and fleet join preserve strings, explicit null (no assertion), and omission; neither names nor hierarchy confer roles or control authority. Captured prime row and role-set frame 20991 pin that contract.
+
+role-set is an authoritative descriptor notification: refresh records, fence older declarations, and advance its machine resume cursor only after successful application. Since plan 139 ALL kinds push live; retain the 5s recycle as defense in depth because replay is cheap, not as the sole descriptor-delivery path. Existing conservative resume exclusions remain.
+
+rolesUnavailable derives only from StateCard.unsupported naming role, never from roster values. A role-capable all-null roster renders no role-absence banner or unclassified footer. Pre-139 never declared role unsupported, so it now also receives no role banner; this is accepted because older rs builds are unsupported. Keep the historical capture unchanged and label the role-unsupported test card SCRIPTED, not captured. No role mutation, close/reap integration, or new polling fan-out is added here.
+
 <a id="fan-out"></a>
 
 ## Fan out

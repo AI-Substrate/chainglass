@@ -4,9 +4,16 @@ const INITIAL_RECONNECT_MS = 250;
 const MAX_RECONNECT_MS = 5_000;
 const RECONNECT_JITTER = 0.2;
 const RECYCLE_MS = 5_000;
-// Resume advances on kinds we act on AND that arrive only by replay (seat.*, report.*).
-// A pushed kind, acted-on or not (including spawn.*), never moves it: that burns missing frames.
-const RESUME_EVENT_KINDS = new Set(['seat.put', 'seat.tombstone', 'report.now', 'report.state']);
+// Since pij plan 139, ALL event kinds push live. The 5s recycle is defensive rather than
+// the only descriptor-delivery path; replay remains cheap. Keep the conservative resume
+// allowlist for older sparse-push daemons: commit applied seat/role/report facts, not traffic.
+const RESUME_EVENT_KINDS = new Set([
+  'seat.put',
+  'seat.tombstone',
+  'role-set',
+  'report.now',
+  'report.state',
+]);
 
 export type RsEventStreamStatus =
   | { state: 'connected'; build: string }

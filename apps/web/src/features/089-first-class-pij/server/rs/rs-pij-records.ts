@@ -31,23 +31,7 @@ class HttpRsPijRecords implements RsPijRecords {
     const seats = await this.client.seats();
     if (seats.length === 0) return [];
 
-    // `unsupported` describes source-wide capability, not one seat. Read it once and attach the
-    // same provenance to every row; one request per seat would recreate the fan-out this adapter
-    // exists to remove.
-    let unavailable: string[] = [];
-    try {
-      const report = await this.client.state(seats[0].id);
-      if (!Array.isArray(report.unsupported)) {
-        throw new RsError(
-          'wire',
-          'pij-rs state response omitted unsupported capability provenance'
-        );
-      }
-      unavailable = report.unsupported.map(({ field }) => field);
-    } catch (error) {
-      // The provenance seat may disappear between reads; never sacrifice the whole roster for it.
-      if (!(error instanceof RsError) || error.code !== 'not_found') throw error;
-    }
+    const unavailable = await this.sourceUnavailable(seats[0]);
     return seats.map((seat) => mapSeat(seat, unavailable));
   }
 
@@ -81,7 +65,7 @@ class HttpRsPijRecords implements RsPijRecords {
       ...parentForest(scoped),
       source: 'pij-rs',
       structureSource: 'rs-parent-links',
-      rolesUnavailable: scoped.every((seat) => seat.role == null),
+      rolesUnavailable: (await this.sourceUnavailable(seats[0])).includes('role'),
     };
   }
 
@@ -106,6 +90,26 @@ class HttpRsPijRecords implements RsPijRecords {
       effort: seat.effort,
       ...(Object.hasOwn(seat, 'role') ? { orchestrationRole: seat.role } : {}),
     };
+  }
+
+  private async sourceUnavailable(seat: RsSeat | undefined): Promise<string[]> {
+    if (!seat) return [];
+    // `unsupported` is source-wide capability. Reuse one probe per roster/forest operation,
+    // never infer support from the roles assigned to its seats or fan out once per seat.
+    try {
+      const report = await this.client.state(seat.id);
+      if (!Array.isArray(report.unsupported)) {
+        throw new RsError(
+          'wire',
+          'pij-rs state response omitted unsupported capability provenance'
+        );
+      }
+      return report.unsupported.map(({ field }) => field);
+    } catch (error) {
+      // The provenance seat may disappear between reads; keep the other roster/forest facts.
+      if (!(error instanceof RsError) || error.code !== 'not_found') throw error;
+      return [];
+    }
   }
 }
 

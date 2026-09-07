@@ -7,6 +7,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
+import ROLE_STATE from '../../../../docs/plans/093-pij-rs-reader/assets/inputs/live-role-state-2026-09-07.json';
 import { createFakeMultiplexedSSEFactory } from '../../../fakes/fake-multiplexed-sse';
 import { FakePijApi } from '../../../fakes/fake-pij-api';
 import { fleetRow, pollerStatus } from '../../../fixtures/pij/fleet-ui';
@@ -247,8 +248,8 @@ describe('PijRailView', () => {
     (source) => {
       /*
       Test Doc:
-      - Why: rs supplies parent links before it supplies roles; neither absent roles nor liveness
-        may erase the hierarchy, inflate every leaf into an empty card, or discard written reports.
+      - Why: rs parent links do not require assigned roles; absent roles and unavailable liveness
+        must not erase the hierarchy, inflate leaves into empty cards, or discard written reports.
       - Contract: parent groups and descendant depth survive, leaves stay compact, source gaps appear
         once, and real cards/questions/blocked notes remain without inferred Prime or PM labels.
       - Worked Example: a null-role parent, child and grandchild remain one group; unrelated roots
@@ -347,7 +348,7 @@ describe('PijRailView', () => {
       );
       expect(screen.getAllByTestId('pij-source-limitations')).toHaveLength(1);
       expect(screen.getByTestId('pij-source-limitations').textContent).toBe(
-        'roles: not carried by pij-rs yet (pij plan 138, phase 2, unscheduled) · liveness unavailable from pij-rs'
+        'liveness unavailable from pij-rs'
       );
       expect(container.querySelectorAll('[data-reason="liveness-unavailable"]')).toHaveLength(1);
       expect(container.querySelector('[data-role-reason]')).toBeNull();
@@ -356,9 +357,78 @@ describe('PijRailView', () => {
         screen.queryByText(/project not read|PM status unavailable|role unknown|no task read/i)
       ).toBeNull();
       expect(screen.queryByTestId(/^pij-status-role-unknown-/)).toBeNull();
-      expect(screen.getByTestId('pij-hot-count').textContent).toContain('5 unclassified');
+      expect(screen.getByTestId('pij-hot-count').textContent).not.toContain('unclassified');
       expect(screen.getByTestId('pij-hot-count').textContent).toContain('5 recorded seats');
       expect(screen.getByTestId('pij-hot-count').textContent).not.toContain('0 prime');
+    }
+  );
+
+  it.each([
+    { variant: 'null', livenessUnavailable: false },
+    { variant: 'null', livenessUnavailable: true },
+    { variant: 'omitted', livenessUnavailable: false },
+    { variant: 'omitted', livenessUnavailable: true },
+  ])(
+    'uses captured role capability with SCRIPTED $variant roles and liveness unavailable $livenessUnavailable',
+    ({ variant, livenessUnavailable }) => {
+      const roleFields = variant === 'null' ? { orchestrationRole: null } : {};
+      const rsRows = [row('pij-prime-looking', roleFields), row('pij-other', roleFields)];
+      const rolesUnavailable = ROLE_STATE.unsupported.some(({ field }) => field === 'role');
+      expect(rolesUnavailable).toBe(false);
+      const { container } = render(
+        <PijRailView
+          rows={rsRows}
+          tree={rsRows.map(({ id }) => ({ id, ...roleFields }))}
+          structureSource="rs-parent-links"
+          rolesUnavailable={rolesUnavailable}
+          livenessUnavailable={livenessUnavailable}
+          snapshotStatuses={[]}
+          now={NOW}
+          workspacePath="/Users/fixture/substrate/chainglass"
+        />,
+        { wrapper }
+      );
+
+      expect(screen.getByTestId('pij-source-limitations').textContent).toBe(
+        `hierarchy: rs parent links${livenessUnavailable ? ' · liveness unavailable from pij-rs' : ''}`
+      );
+      expect(container.querySelector('[data-role-reason]')).toBeNull();
+      expect(screen.queryByText(/role unknown|roles|unclassified|unscheduled/i)).toBeNull();
+      expect(screen.getByTestId('pij-worker-pij-prime-looking')).toBeTruthy();
+      expect(screen.getByTestId('pij-worker-pij-other')).toBeTruthy();
+      expect(screen.queryByTestId(/^pij-prime-/)).toBeNull();
+      expect(screen.getByTestId('pij-hot-count').textContent).not.toContain('prime');
+    }
+  );
+
+  it.each([null, 'prime'])(
+    'shows SCRIPTED unavailable-role capability once independently of seat role %s',
+    (orchestrationRole) => {
+      // This source-capability branch is scripted; no captured StateCard marks role unsupported.
+      const rsRows = [row('pij-seat', { orchestrationRole })];
+      render(
+        <PijRailView
+          rows={rsRows}
+          tree={[{ id: 'pij-seat', orchestrationRole }]}
+          structureSource="rs-parent-links"
+          rolesUnavailable
+          snapshotStatuses={[]}
+          now={NOW}
+          workspacePath="/Users/fixture/substrate/chainglass"
+        />,
+        { wrapper }
+      );
+
+      expect(screen.getAllByTestId('pij-source-limitations')).toHaveLength(1);
+      expect(screen.getByTestId('pij-source-limitations').textContent).toBe(
+        'hierarchy: rs parent links · roles unavailable from pij-rs'
+      );
+      expect(screen.queryByText(/unscheduled/)).toBeNull();
+      if (orchestrationRole === 'prime')
+        expect(
+          within(screen.getByTestId('seat-row-pij-seat')).getByText('Prime · main')
+        ).toBeTruthy();
+      else expect(screen.queryByText('Prime · main')).toBeNull();
     }
   );
 

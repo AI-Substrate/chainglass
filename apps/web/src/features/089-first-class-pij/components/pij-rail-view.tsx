@@ -192,8 +192,8 @@ function StatusSummary({
   // this line said "watchdog will nudge" beside a seat whose watchdog was paused (2026-07-30).
   const watchdog = readWatchdogState(placementRecord(placement));
 
-  // Missing roles cannot establish a card obligation. Their source limitation is stated once in
-  // the rail header; known PMs still owe a card, and every real record renders below.
+  // Missing roles cannot establish a card obligation. Known PMs still owe a card,
+  // and every real record renders below.
   if (
     !record &&
     (status.reason === 'not-a-pm' ||
@@ -792,15 +792,17 @@ export function PijRailView({
   });
   const placements = useMemo(() => allPlacements(grouping), [grouping]);
   const unavailable = livenessUnavailable || rows.some(isLivenessUnavailable);
-  const unknownRoleCount = placements.filter(
-    (placement) => placement.role.kind === 'absent'
-  ).length;
+  const rsSource = !!structureSource || unavailable || rolesUnavailable !== undefined;
+  const unknownRoleCount = rsSource
+    ? 0
+    : placements.filter((placement) => placement.role.kind === 'absent').length;
   const missingRoles =
-    rolesUnavailable ||
-    placements.some(
-      (placement) =>
-        placement.role.kind === 'absent' && placement.role.reason !== 'role-unrecognised'
-    );
+    rolesUnavailable ??
+    (!rsSource &&
+      placements.some(
+        (placement) =>
+          placement.role.kind === 'absent' && placement.role.reason !== 'role-unrecognised'
+      ));
   const questions = placements
     .map((placement) => ({
       placement,
@@ -832,12 +834,11 @@ export function PijRailView({
             role="note"
             className="border-b border-border bg-card px-2.5 py-1.5 text-[10px] text-muted-foreground"
           >
-            {structureSource ? <span>hierarchy: rs parent links · </span> : null}
+            {structureSource ? <span>hierarchy: rs parent links</span> : null}
+            {structureSource && (missingRoles || unavailable) ? ' · ' : null}
             {missingRoles ? (
               <span>
-                {unavailable
-                  ? 'roles: not carried by pij-rs yet (pij plan 138, phase 2, unscheduled)'
-                  : 'some seat roles not supplied'}
+                {rsSource ? 'roles unavailable from pij-rs' : 'some seat roles not supplied'}
               </span>
             ) : null}
             {missingRoles && unavailable ? ' · ' : null}
