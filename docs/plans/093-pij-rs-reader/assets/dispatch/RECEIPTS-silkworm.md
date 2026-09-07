@@ -164,3 +164,16 @@ Prime ruling: caller-controlled `workspace=/` is a real MEDIUM containment gap i
 - No daemon/dev-server restart or unrelated-seat registration was performed.
 - **Final source review:** no material findings (confidence 0.94). The critic re-read the applied normalized registry lookup and exact worktree inventory branch, closing both compatibility findings; no commands were run by the critic. The owned browser tab was released after live proof.
 - **Final precommit gate RAN:** `just fft`, **446.14s**, all **3,977 output lines** read. Lint/format **1,804 files**, production build and all **nine** typechecks passed; **547 files / 7,386 tests passed**, **8 files / 63 tests skipped**, zero test failures. Real FlowSpace integration still passed its unchanged deadlines (cold test **17,673ms**, warm text **160ms**). Exit 1 only at the same **124-advisory audit**, under the standing acknowledged exception. No suppressed checks, skipped new tests, or changed timing assertions.
+
+## bp-0005 — RAN by antelope on the pij plan-139 deploy (2026-09-08 02:02 local)
+
+The shared daemon was restarted by its owner (pij-minor-unicorn) to deploy plan 139: old
+pid 28450 (up since 09-07 16:09) → new pid 45954, healthy within 12s. Chainglass was NOT
+restarted (dev pid start 09-07 13:28, unchanged before and after).
+
+- `/api/pij/status` after the bounce: `running:true, lastError:null`, spine poll current.
+- Spine contiguity across the bounce, by replay: cursors 20176..20188 with no gap; the
+  owner's stated last-seq-before-bounce was 20179.
+- Fleet size 918 → 867: plan 139's reap ran on deploy (51 tombstones), mirrored by the
+  reader without a restart — bp-0004's "faithful in both directions" exercised live.
+- Row state: **RAN — pass.** The reader survived a daemon restart on its own.
