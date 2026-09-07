@@ -1,0 +1,19 @@
+docs/plans/093-pij-rs-reader/assets/dispatch/RECEIPTS-silkworm.md
+  s_084ac52dc66de3::t_984e6df5b5abd1 167-179
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "bab1f536ceac1e4620dd911607b663e015d291e6",
+  "prompts": {},
+  "sessions": {
+    "s_084ac52dc66de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
