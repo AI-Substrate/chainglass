@@ -1,0 +1,19 @@
+docs/plans/093-pij-rs-reader/assets/dispatch/RECEIPTS-silkworm.md
+  s_084ac52dc66de3::t_5bbe45a5921cc4 41,44,180-192
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "89a32b4e4291b16e232b861ed33f79350a4a884d",
+  "prompts": {},
+  "sessions": {
+    "s_084ac52dc66de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+        "model": "unknown"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
