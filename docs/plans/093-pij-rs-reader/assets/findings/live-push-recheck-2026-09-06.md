@@ -98,3 +98,18 @@ rail card read ROLE UNKNOWN:
 Consequence: role is EXPLICITLY UNAVAILABLE from rs with no owner and no date — the exact
 case oq-0004 ruled must be handled permanently, not as a stopgap. The rail banner cites
 pij plan 138 phase 2, unscheduled.
+
+## Closed upstream — pij plan 139 deployed 2026-09-08 02:02 (daemon pid 45954)
+
+RAN against the new daemon with two open subscribers (live-only, and since-anchored):
+`role-set` 20991, `seat.put` 20992/20993, `spawn.bound` 20994, `seat.tombstone` 20995 and
+`report.now` 20183 all arrived on BOTH streams, in order, `at≠0`, payloads decodable
+(`seat.put` = full SeatDescriptor; `role-set` = `{actor,action,record}`). The three-writer
+split is closed on the wire. New verbs used: `pij-rs role <seat> prime` (self-or-parent),
+`pij-rs close <seat>` (owner tombstone, reason `owner-close`). The deploy-time reap took
+the roster 918 → 867.
+
+Consequences for the reader: the resume-cursor split and the 5s recycle are now
+belt-and-braces rather than the only delivery path; keep them. Two follow-ups dispatched:
+map `role` → the rail's field (dropped fact, F4 class), and add `role-set` to the acted-on
+kinds. `data.unavailable` (federated peers) is still not surfaced — single machine today.
