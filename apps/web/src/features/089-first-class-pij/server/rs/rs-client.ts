@@ -49,7 +49,13 @@ export interface RsSpineEvent {
   v: number;
   at: number;
   kind: string;
-  seat: string;
+  /**
+   * The seat the event is about, or `null` for a machine-level event (e.g.
+   * `config.copilot-statusline-ensured`). Seatless events are legitimate spine facts, not wire
+   * damage: rejecting one aborts the stream, and since non-resume kinds never advance the cursor
+   * the reconnect replays into the same frame forever.
+   */
+  seat: string | null;
   /** JSON encoded by the event producer; consumers parse it deliberately for the kind they use. */
   payload: string;
   [additive: string]: unknown;
@@ -299,7 +305,7 @@ function parseEvent(line: string): RsEvent {
     typeof spineEvent.v !== 'number' ||
     typeof spineEvent.at !== 'number' ||
     typeof spineEvent.kind !== 'string' ||
-    typeof spineEvent.seat !== 'string' ||
+    (typeof spineEvent.seat !== 'string' && spineEvent.seat !== null) ||
     typeof spineEvent.payload !== 'string'
   ) {
     throw new RsError('wire', 'pij-rs cursor frame carried an invalid event');

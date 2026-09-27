@@ -17,19 +17,13 @@ import {
 
 const roleFrame = JSON.parse(
   readFileSync(
-    join(
-      import.meta.dirname,
-      '../../../../docs/plans/093-pij-rs-reader/assets/inputs/live-role-set-20991.ndjson'
-    ),
+    join(import.meta.dirname, '../../../fixtures/pij/rs/live-role-set-20991.ndjson'),
     'utf8'
   )
 ) as RsCursorEvent;
 
 const captured = readFileSync(
-  join(
-    import.meta.dirname,
-    '../../../../docs/plans/093-pij-rs-reader/assets/inputs/live-report-frames-6012-14473.ndjson'
-  ),
+  join(import.meta.dirname, '../../../fixtures/pij/rs/live-report-frames-6012-14473.ndjson'),
   'utf8'
 )
   .trim()
@@ -37,10 +31,7 @@ const captured = readFileSync(
   .map((line) => JSON.parse(line) as RsCursorEvent);
 
 const resetFrames = readFileSync(
-  join(
-    import.meta.dirname,
-    '../../../../docs/plans/093-pij-rs-reader/assets/inputs/live-reset-frames-12639-12672.ndjson'
-  ),
+  join(import.meta.dirname, '../../../fixtures/pij/rs/live-reset-frames-12639-12672.ndjson'),
   'utf8'
 )
   .trim()

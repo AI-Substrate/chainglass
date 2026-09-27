@@ -1,0 +1,2 @@
+{"type":"event","machine":"JordansacStudio.localdomain","cursor":12639,"event":{"v":1,"at":1788656437560,"kind":"report.state","seat":"pij-involved-egret","payload":"{\"state\":\"ready\",\"note\":null,\"registry_seq\":12638}"}}
+{"type":"event","machine":"JordansacStudio.localdomain","cursor":12672,"event":{"v":1,"at":0,"kind":"seat.put","seat":"pij-involved-egret","payload":""}}

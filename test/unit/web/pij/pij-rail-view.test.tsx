@@ -7,10 +7,10 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import ROLE_STATE from '../../../../docs/plans/093-pij-rs-reader/assets/inputs/live-role-state-2026-09-07.json';
 import { createFakeMultiplexedSSEFactory } from '../../../fakes/fake-multiplexed-sse';
 import { FakePijApi } from '../../../fakes/fake-pij-api';
 import { fleetRow, pollerStatus } from '../../../fixtures/pij/fleet-ui';
+import ROLE_STATE from '../../../fixtures/pij/rs/live-role-state-2026-09-07.json';
 
 const NOW = Date.parse('2026-07-29T00:30:00.000Z');
 

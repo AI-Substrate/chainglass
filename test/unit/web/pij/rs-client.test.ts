@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  type RsCursorEvent,
   RsError,
   type RsEvent,
   createRsClient,
@@ -221,5 +222,27 @@ describe('createRsClient', () => {
     expect(new Headers(transport.calls[0].init?.headers).get('accept')).toBe(
       'application/x-ndjson'
     );
+  });
+
+  it('accepts a machine-level event with seat:null instead of aborting the stream', async () => {
+    // Verbatim from the live daemon, cursor 80559 (2026-09-27). Rejecting it looped the stream:
+    // config.* never advances the resume cursor, so every reconnect replayed into this frame.
+    const seatless =
+      '{"type":"event","machine":"local","cursor":80559,"event":{"v":1,"at":1790471528084,"kind":"config.copilot-statusline-ensured","seat":null,"payload":"{\\"home\\":\\"/Users/jordanknight/.copilot\\"}"}}\n' +
+      '{"type":"event","machine":"local","cursor":80560,"event":{"v":1,"at":1790471528090,"kind":"message.pushed","seat":"pij-after","payload":"{}"}}\n';
+    const stateDir = await createStateDir();
+    const transport = scriptedFetch([
+      () =>
+        new Response(seatless, {
+          status: 200,
+          headers: { 'content-type': 'application/x-ndjson' },
+        }),
+    ]);
+    const client = createRsClient({ addr: '127.0.0.1:7461', stateDir, fetch: transport.fetch });
+
+    const frames: RsEvent[] = [];
+    for await (const frame of client.events({ local: 80558 })) frames.push(frame);
+
+    expect(frames.map((frame) => (frame as RsCursorEvent).event.seat)).toEqual([null, 'pij-after']);
   });
 });

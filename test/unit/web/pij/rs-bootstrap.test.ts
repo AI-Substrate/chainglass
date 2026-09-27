@@ -19,28 +19,25 @@ import {
   pijSource,
   resetPijPollerForTests,
 } from '../../../../apps/web/src/features/089-first-class-pij/server/start-pij-poller';
-import ROLE_ROW from '../../../../docs/plans/093-pij-rs-reader/assets/inputs/live-role-prime-2026-09-07.json';
+import ROLE_ROW from '../../../fixtures/pij/rs/live-role-prime-2026-09-07.json';
+
+/** The captured frames are all seat-bearing; seatless machine events are covered in rs-client.test.ts. */
+type SeatFrame = RsCursorEvent & { event: RsCursorEvent['event'] & { seat: string } };
 
 const roleFrame = JSON.parse(
   readFileSync(
-    join(
-      import.meta.dirname,
-      '../../../../docs/plans/093-pij-rs-reader/assets/inputs/live-role-set-20991.ndjson'
-    ),
+    join(import.meta.dirname, '../../../fixtures/pij/rs/live-role-set-20991.ndjson'),
     'utf8'
   )
-) as RsCursorEvent;
+) as SeatFrame;
 
 const captured = readFileSync(
-  join(
-    import.meta.dirname,
-    '../../../../docs/plans/093-pij-rs-reader/assets/inputs/live-report-frames-6012-14473.ndjson'
-  ),
+  join(import.meta.dirname, '../../../fixtures/pij/rs/live-report-frames-6012-14473.ndjson'),
   'utf8'
 )
   .trim()
   .split('\n')
-  .map((line) => JSON.parse(line) as RsCursorEvent);
+  .map((line) => JSON.parse(line) as SeatFrame);
 
 class BootstrapRsClient implements RsClient {
   seatReads = 0;

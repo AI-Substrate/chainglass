@@ -19,9 +19,9 @@ import type {
 } from '../../../../apps/web/src/features/089-first-class-pij/server/rs/rs-client';
 import { RsError } from '../../../../apps/web/src/features/089-first-class-pij/server/rs/rs-client';
 import { createRsPijRecords } from '../../../../apps/web/src/features/089-first-class-pij/server/rs/rs-pij-records';
-import ROLE_PRIME from '../../../../docs/plans/093-pij-rs-reader/assets/inputs/live-role-prime-2026-09-07.json';
-import ROLE_STATE from '../../../../docs/plans/093-pij-rs-reader/assets/inputs/live-role-state-2026-09-07.json';
-import UNSUPPORTED from '../../../../docs/plans/093-pij-rs-reader/assets/inputs/live-unsupported-2026-09-06.json';
+import ROLE_PRIME from '../../../fixtures/pij/rs/live-role-prime-2026-09-07.json';
+import ROLE_STATE from '../../../fixtures/pij/rs/live-role-state-2026-09-07.json';
+import UNSUPPORTED from '../../../fixtures/pij/rs/live-unsupported-2026-09-06.json';
 
 class FakeRsClient implements RsClient {
   readonly stateIds: string[] = [];

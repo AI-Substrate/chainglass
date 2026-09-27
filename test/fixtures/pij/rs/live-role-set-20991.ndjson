@@ -1,0 +1,1 @@
+{"type":"event","machine":"JordansacStudio.localdomain","cursor":20991,"event":{"v":1,"at":1788797055554,"kind":"role-set","seat":"pij-lonely-antelope","payload":"{\"action\":\"assigned\",\"actor\":\"pij-lonely-antelope\",\"record\":{\"assigned_at\":1788797055554,\"assigned_by\":\"pij-lonely-antelope\",\"role\":\"prime\",\"seat\":\"pij-lonely-antelope\"}}"}}

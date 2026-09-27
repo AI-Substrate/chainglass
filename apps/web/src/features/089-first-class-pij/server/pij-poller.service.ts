@@ -247,6 +247,8 @@ class Poller implements PijPollerService {
     this.rsEventSeq = Math.max((this.rsEventSeq ?? 0) + 1, frame.cursor);
     this.lastSpinePollAt = this.deps.now().toISOString();
     const kind = frame.event.kind;
+    // Machine-level events (seat: null) advance the spine clock above but describe no seat.
+    if (frame.event.seat === null) return;
     const id = frame.event.seat as PijId;
     // Declaration freshness follows every descriptor refresh, including role and spawn events.
     // Stream resume uses a separate, narrower allowlist for legacy sparse-push recovery.

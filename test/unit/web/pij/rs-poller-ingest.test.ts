@@ -13,6 +13,9 @@ import type { RsCursorEvent } from '../../../../apps/web/src/features/089-first-
 import type { ISpineCursor } from '../../../../apps/web/src/features/089-first-class-pij/server/spine-cursor.interface';
 import type { PijChannelEvent } from '../../../../apps/web/src/features/089-first-class-pij/types';
 
+/** The captured frames are all seat-bearing; seatless machine events are covered in rs-client.test.ts. */
+type SeatFrame = RsCursorEvent & { event: RsCursorEvent['event'] & { seat: string } };
+
 const emptyCursor: ISpineCursor = {
   seq: 0,
   async read() {
@@ -64,26 +67,20 @@ class FakeRecords implements IPijRecords {
 }
 
 const captured = readFileSync(
-  join(
-    import.meta.dirname,
-    '../../../../docs/plans/093-pij-rs-reader/assets/inputs/live-report-frames-6012-14473.ndjson'
-  ),
+  join(import.meta.dirname, '../../../fixtures/pij/rs/live-report-frames-6012-14473.ndjson'),
   'utf8'
 )
   .trim()
   .split('\n')
-  .map((line) => JSON.parse(line) as RsCursorEvent);
+  .map((line) => JSON.parse(line) as SeatFrame);
 
 const resetFrames = readFileSync(
-  join(
-    import.meta.dirname,
-    '../../../../docs/plans/093-pij-rs-reader/assets/inputs/live-reset-frames-12639-12672.ndjson'
-  ),
+  join(import.meta.dirname, '../../../fixtures/pij/rs/live-reset-frames-12639-12672.ndjson'),
   'utf8'
 )
   .trim()
   .split('\n')
-  .map((line) => JSON.parse(line) as RsCursorEvent);
+  .map((line) => JSON.parse(line) as SeatFrame);
 
 describe('PijPollerService rs ingestion', () => {
   it('coalesces concurrent refresh requests into one in-flight and one trailing global read', async () => {

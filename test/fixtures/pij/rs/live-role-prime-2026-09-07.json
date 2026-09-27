@@ -1,0 +1,20 @@
+{
+  "id": "pij-lonely-antelope",
+  "machine": "JordansacStudio.localdomain",
+  "harness": "claude",
+  "session": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+  "pane": "%8",
+  "proc": {
+    "pid": 88128,
+    "proc_start": 20260906165625
+  },
+  "folder": "/Users/jordanknight/substrate/chainglass",
+  "state": "idle",
+  "semantic_state": null,
+  "role": "prime",
+  "parent": null,
+  "relay": false,
+  "cross_session_inbound_accept": true,
+  "native_extension_delivery": false,
+  "generation": "rs"
+}
