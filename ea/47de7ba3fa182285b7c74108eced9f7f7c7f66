@@ -1,0 +1,53 @@
+test/fixtures/pij/rs/live-reset-frames-12639-12672.ndjson
+  s_084ac52dc66de3::t_27f47509c32bf0 1-2
+apps/web/src/features/089-first-class-pij/server/rs/rs-client.ts
+  s_084ac52dc66de3::t_fb3517db5c9945 52-58,308
+test/fixtures/pij/rs/live-role-state-2026-09-07.json
+  s_084ac52dc66de3::t_27f47509c32bf0 1-86
+test/fixtures/pij/rs/live-role-set-20991.ndjson
+  s_084ac52dc66de3::t_27f47509c32bf0 1
+test/fixtures/pij/rs/live-unsupported-2026-09-06.json
+  s_084ac52dc66de3::t_27f47509c32bf0 1-58
+test/fixtures/pij/rs/README.md
+  s_084ac52dc66de3::t_27f47509c32bf0 1-6
+test/unit/web/pij/pij-rail-view.test.tsx
+  s_084ac52dc66de3::t_5c73a5d8114eaf 13
+test/unit/web/pij/rs-pij-records.test.ts
+  s_084ac52dc66de3::t_27f47509c32bf0 22-24
+apps/web/src/features/089-first-class-pij/server/pij-poller.service.ts
+  s_084ac52dc66de3::t_fb3517db5c9945 250-251
+test/unit/web/pij/rs-poller-ingest.test.ts
+  s_084ac52dc66de3::t_5c73a5d8114eaf 70,78
+  s_084ac52dc66de3::t_7c8332383e343e 16-18,75,83
+test/unit/web/pij/rs-client.test.ts
+  s_084ac52dc66de3::t_7c8332383e343e 6,246
+  s_084ac52dc66de3::t_5db72cddfee26b 226-235,240-245,247
+  s_084ac52dc66de3::t_5c73a5d8114eaf 236-239
+test/unit/web/pij/rs-bootstrap.test.ts
+  s_084ac52dc66de3::t_27f47509c32bf0 22
+  s_084ac52dc66de3::t_5c73a5d8114eaf 29,35
+  s_084ac52dc66de3::t_7c8332383e343e 24-25,32,40
+  s_084ac52dc66de3::t_9ceb2de0899b80 23
+test/fixtures/pij/rs/live-report-frames-6012-14473.ndjson
+  s_084ac52dc66de3::t_27f47509c32bf0 1-20
+test/unit/web/pij/rs-event-stream.test.ts
+  s_084ac52dc66de3::t_5c73a5d8114eaf 20,26,34
+test/fixtures/pij/rs/live-role-prime-2026-09-07.json
+  s_084ac52dc66de3::t_27f47509c32bf0 1-20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "ea47de7ba3fa182285b7c74108eced9f7f7c7f66",
+  "prompts": {},
+  "sessions": {
+    "s_084ac52dc66de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
