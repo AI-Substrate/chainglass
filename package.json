@@ -18,25 +18,27 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
-    "@testing-library/dom": "^10.4.1",
+    "@testing-library/dom": "^10.4.2",
     "@testing-library/jest-dom": "^6.9.1",
-    "@testing-library/react": "^16.3.2",
-    "@testing-library/user-event": "^14.6.1",
-    "@types/node": "^25.0.9",
-    "@vitest/coverage-v8": "^3.2.4",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.7",
+    "@types/node": "^25.9.8",
+    "@vitest/coverage-v8": "^3.2.7",
     "ajv-cli": "^5.0.0",
-    "concurrently": "^9.2.1",
+    "concurrently": "^9.2.4",
     "jsdom": "^27.4.0",
     "material-icon-theme": "5.32.0",
+    "react": "~19.2.8",
+    "react-dom": "~19.2.8",
     "reflect-metadata": "^0.2.2",
-    "svgo": "^4.0.1",
-    "tsx": "^4.21.0",
-    "tsyringe": "^4.8.0",
-    "turbo": "^2.3.3",
-    "typescript": "^5.7.3",
-    "vite": "^5.4.0",
+    "svgo": "^4.1.0",
+    "tsx": "^4.23.13",
+    "tsyringe": "^4.10.0",
+    "turbo": "^2.11.2",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.6",
     "vite-tsconfig-paths": "^5.1.4",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.7"
   },
   "engines": {
     "node": ">=20.19.0"
@@ -44,7 +46,7 @@
   "packageManager": "pnpm@9.15.4",
   "pnpm": {
     "patchedDependencies": {
-      "next-auth@5.0.0-beta.30": "patches/next-auth@5.0.0-beta.30.patch",
+      "next-auth@5.0.0-beta.32": "patches/next-auth@5.0.0-beta.32.patch",
       "@github/copilot-sdk@0.1.32": "patches/@github__copilot-sdk@0.1.32.patch"
     },
     "overrides": {
@@ -60,7 +62,10 @@
       "yaml": ">=2.8.3",
       "brace-expansion": ">=5.0.5",
       "qs": ">=6.14.2",
-      "ajv": ">=8.18.0"
+      "ajv": ">=8.18.0",
+      "vite": "^7.3.6",
+      "react": "~19.2.8",
+      "react-dom": "~19.2.8"
     }
   }
 }

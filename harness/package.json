@@ -13,19 +13,19 @@
     "test:integration": "vitest run --config vitest.integration.config.ts"
   },
   "dependencies": {
-    "ajv": "^8.17.1",
-    "commander": "^13.1.0",
-    "zod": "^3.25.67",
-    "@chainglass/shared": "workspace:*",
     "@chainglass/positional-graph": "workspace:*",
-    "@chainglass/workflow": "workspace:*"
+    "@chainglass/shared": "workspace:*",
+    "@chainglass/workflow": "workspace:*",
+    "ajv": "^8.20.0",
+    "commander": "^13.1.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@playwright/test": "^1.52.0",
-    "@types/node": "^22.15.0",
-    "tsx": "^4.19.0",
-    "typescript": "^5.7.3",
-    "vitest": "^3.2.4"
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^22.20.4",
+    "tsx": "^4.23.13",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
   },
   "engines": {
     "node": ">=20.19.0"
