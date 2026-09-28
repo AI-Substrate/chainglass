@@ -156,7 +156,15 @@ export interface TerminalWindow {
   id: string;
   index: number;
   name: string;
+  /** tmux's current window in the session — NOT output activity (see `idleSeconds`). */
   active: boolean;
+  /**
+   * Seconds since the window last did real work (CPU in its pane processes), or `null` if
+   * chainglass has never seen it work since this server started. See `lib/window-activity.ts`.
+   */
+  idleSeconds: number | null;
+  /** Seconds in the current working streak, or `null` while idle. */
+  activeSeconds: number | null;
 }
 
 /** Both window reads and selections return the current session window list. */

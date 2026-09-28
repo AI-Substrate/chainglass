@@ -11,10 +11,14 @@
  */
 
 import { isAbsolute, normalize, relative, resolve } from 'node:path';
+import { type ProcessTable, parseProcessTable, treeCpuSeconds } from '../lib/process-cpu';
+import { type WindowActivityReading, WindowActivityTracker } from '../lib/window-activity';
 import type { CommandExecutor, PtyProcess, PtySpawner, TerminalWindow } from '../types';
 
 const TMUX_SESSION_NAME_REGEX = /^[a-zA-Z0-9_-]+$/;
 const MAX_SESSION_NAME_LENGTH = 256;
+/** One `ps` snapshot serves every tab polling within this window (polls are 2s apart). */
+const PROCESS_TABLE_TTL_MS = 1_000;
 
 interface ParsedSession {
   name: string;
@@ -26,10 +30,28 @@ interface ParsedSession {
 export class TmuxSessionManager {
   private readonly exec: CommandExecutor;
   private readonly spawnPty: PtySpawner;
+  /** Per `session:windowId` activity memory; lives as long as this server process. */
+  private readonly activity = new WindowActivityTracker();
+  /**
+   * Async command runner for activity sampling. Absent (tests) = no activity readings. Async on
+   * purpose: `ps -A` costs ~70ms on a loaded machine, and the sidecar must not stall terminal
+   * traffic for it, so sampling runs as child processes off the event loop.
+   */
+  private readonly execAsync: ((command: string, args: string[]) => Promise<string>) | undefined;
+  /** Latest completed reading per `session:windowId`. */
+  private readonly readings = new Map<string, WindowActivityReading>();
+  /** At most one sample in flight per session. */
+  private readonly sampling = new Set<string>();
+  private processTable: { at: number; table: Promise<ProcessTable> } | undefined;
 
-  constructor(exec: CommandExecutor, spawnPty: PtySpawner) {
+  constructor(
+    exec: CommandExecutor,
+    spawnPty: PtySpawner,
+    execAsync?: (command: string, args: string[]) => Promise<string>
+  ) {
     this.exec = exec;
     this.spawnPty = spawnPty;
+    this.execAsync = execAsync;
   }
 
   /** Check if tmux is installed and accessible */
@@ -86,7 +108,10 @@ export class TmuxSessionManager {
     }
   }
 
-  /** Read native indices and active state only from the exact attached session. */
+  /**
+   * Read native indices and active state only from the exact attached session, annotated with
+   * CPU-based work activity sampled in the background when async sampling is configured.
+   */
   listWindows(sessionName: string): TerminalWindow[] {
     if (!this.validateSessionName(sessionName)) throw new Error('Invalid session name');
     const output = this.exec('tmux', [
@@ -96,13 +121,76 @@ export class TmuxSessionManager {
       '-F',
       '#{window_id}\t#{window_index}\t#{window_active}\t#{window_name}',
     ]);
-    return output
+    const windows = output
       .split('\n')
       .filter((line) => line.length > 0)
       .map((line) => {
         const [id, index, active, ...name] = line.split('\t');
-        return { id, index: Number(index), name: name.join('\t'), active: active === '1' };
+        const reading = this.readings.get(`${sessionName}:${id}`);
+        return {
+          id,
+          index: Number(index),
+          name: name.join('\t'),
+          active: active === '1',
+          idleSeconds: reading?.idleSeconds ?? null,
+          activeSeconds: reading?.activeSeconds ?? null,
+        };
       });
+    // Fire-and-forget: the list returns now with the last completed reading (at most one poll old).
+    void this.sampleActivity(sessionName);
+    return windows;
+  }
+
+  /** Sample CPU for every window of `sessionName` in the background and record readings. */
+  private async sampleActivity(sessionName: string): Promise<void> {
+    if (!this.execAsync || this.sampling.has(sessionName)) return;
+    this.sampling.add(sessionName);
+    try {
+      const panes = await this.execAsync('tmux', [
+        'list-panes',
+        '-s',
+        '-t',
+        `=${sessionName}`,
+        '-F',
+        '#{window_id}\t#{pane_pid}',
+      ]);
+      const table = await this.readProcessTable();
+      const cpu = new Map<string, number>();
+      for (const line of panes.split('\n')) {
+        const [windowId, pid] = line.split('\t');
+        const seconds = windowId && pid ? treeCpuSeconds(table, Number(pid)) : null;
+        if (seconds !== null) cpu.set(windowId, (cpu.get(windowId) ?? 0) + seconds);
+      }
+      const nowSeconds = Date.now() / 1000;
+      const listed = new Set<string>();
+      for (const [windowId, seconds] of cpu) {
+        const key = `${sessionName}:${windowId}`;
+        listed.add(key);
+        this.readings.set(key, this.activity.observe(key, seconds, nowSeconds));
+      }
+      this.activity.retainOnly(`${sessionName}:`, listed);
+      for (const key of this.readings.keys()) {
+        if (key.startsWith(`${sessionName}:`) && !listed.has(key)) this.readings.delete(key);
+      }
+    } catch {
+      // Activity is decoration; a failed sample leaves the previous readings in place.
+    } finally {
+      this.sampling.delete(sessionName);
+    }
+  }
+
+  /** One machine-wide `ps` snapshot, shared by every session sampled within the TTL. */
+  private readProcessTable(): Promise<ProcessTable> {
+    const now = Date.now();
+    if (!this.processTable || now - this.processTable.at >= PROCESS_TABLE_TTL_MS) {
+      const exec = this.execAsync as (command: string, args: string[]) => Promise<string>;
+      const table = exec('ps', ['-A', '-o', 'pid=,ppid=,time=']).then(parseProcessTable);
+      table.catch(() => {
+        if (this.processTable?.table === table) this.processTable = undefined;
+      });
+      this.processTable = { at: now, table };
+    }
+    return this.processTable.table;
   }
 
   /** Select one numbered link, even when the same window is linked more than once. */

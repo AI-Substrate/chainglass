@@ -67,6 +67,12 @@ export interface TerminalServerDeps {
    * constant, so a real `process.kill` could hit an unrelated process).
    */
   killProcess?: (pid: number, signal: NodeJS.Signals | number) => void;
+  /**
+   * Async command runner for window work activity (`tmux list-panes` + one `ps -A` snapshot),
+   * run off the event loop. Optional so tests never read the real process table; without it
+   * windows carry no activity times.
+   */
+  execCommandAsync?: (command: string, args: string[]) => Promise<string>;
 }
 
 export interface TerminalServer {
@@ -77,7 +83,7 @@ export interface TerminalServer {
 }
 
 export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
-  const manager = new TmuxSessionManager(deps.execCommand, deps.spawnPty);
+  const manager = new TmuxSessionManager(deps.execCommand, deps.spawnPty, deps.execCommandAsync);
   const activePtys = new Set<PtyProcess>();
   // FX001-1: idempotent-teardown bookkeeping. `disposedPtys` guards double-dispose
   // (ws 'close', ws 'error', and pty.onExit can all fire for one PTY).
@@ -542,7 +548,7 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
 
 const isDirectRun = process.argv[1]?.includes('terminal-ws');
 if (isDirectRun) {
-  const { execFileSync } = await import('node:child_process');
+  const { execFile, execFileSync } = await import('node:child_process');
   const pty = await import('node-pty');
 
   const execCommand: CommandExecutor = (command, args) => {
@@ -559,7 +565,19 @@ if (isDirectRun) {
     });
   };
 
-  const server = createTerminalServer({ execCommand, spawnPty });
+  const server = createTerminalServer({
+    execCommand,
+    spawnPty,
+    execCommandAsync: (command, args) =>
+      new Promise((resolve, reject) => {
+        execFile(
+          command,
+          args,
+          { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 },
+          (error, stdout) => (error ? reject(error) : resolve(stdout))
+        );
+      }),
+  });
   const nextPort = Number.parseInt(process.env.PORT ?? '3000', 10);
   const wsPort = process.env.TERMINAL_WS_PORT
     ? Number.parseInt(process.env.TERMINAL_WS_PORT, 10)

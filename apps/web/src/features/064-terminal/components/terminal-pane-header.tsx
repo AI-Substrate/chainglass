@@ -30,9 +30,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ClipboardCopy, MessageSquareText, Pencil, Scaling, TerminalSquare, X } from 'lucide-react';
 import { type FormEvent, useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { copyTmuxBuffer } from '../lib/copy-tmux-buffer';
+import { formatIdle } from '../lib/window-activity';
 import { getWindowNameValidationError } from '../lib/window-name-validation';
 import type { ConnectionStatus } from '../types';
 import { ConnectionStatusBadge } from './connection-status-badge';
@@ -115,31 +117,72 @@ export function TerminalPaneHeader({
     <>
       <div
         ref={headerRef}
-        className="flex min-w-0 items-center justify-between gap-3 border-b px-3 py-2 shrink-0"
+        className="flex min-w-0 items-start justify-between gap-3 border-b px-3 py-2 shrink-0"
       >
-        <div className="flex flex-1 items-center gap-2 min-w-0 overflow-hidden">
-          <TerminalSquare className="h-4 w-4 text-muted-foreground shrink-0" />
-          <span className="max-w-[40%] truncate text-sm font-medium shrink-0" title={sessionName}>
+        <div className="flex flex-1 items-start gap-2 min-w-0">
+          <TerminalSquare className="mt-1.5 h-4 w-4 text-muted-foreground shrink-0" />
+          <span
+            className="mt-1 max-w-[40%] truncate text-sm font-medium shrink-0"
+            title={sessionName}
+          >
             {sessionName}
           </span>
           <nav
             aria-label="tmux windows"
-            className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden"
+            className="flex min-w-0 flex-1 flex-wrap items-center gap-1"
           >
-            {windows.map((window) => (
-              <button
-                key={`${window.id}:${window.index}`}
-                type="button"
-                onClick={() => selectWindow?.(window.id, window.index)}
-                disabled={connectionStatus !== 'connected' || !selectWindow}
-                aria-label={`Window ${window.index}: ${window.name}`}
-                aria-pressed={window.active}
-                title={`Window ${window.index}: ${window.name}`}
-                className={`h-6 min-w-7 shrink-0 rounded px-1.5 text-xs font-medium tabular-nums focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-50 ${window.active ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent hover:text-foreground'}`}
-              >
-                {window.index}
-              </button>
-            ))}
+            {/* Wraps rather than clips: a busy session (unasphere had 30+) pushed the
+                later windows off the edge with no way to reach them. */}
+            {windows.map((window) => {
+              const outputActive = window.activeSeconds !== null;
+              const activeLabel = outputActive ? formatIdle(window.activeSeconds ?? 0) : null;
+              // Never seen genuinely active: no time at all, rather than a misleading one.
+              const idleLabel =
+                !outputActive && window.idleSeconds !== null
+                  ? formatIdle(window.idleSeconds)
+                  : null;
+              const tone = window.active
+                ? 'bg-primary text-primary-foreground'
+                : outputActive
+                  ? 'bg-muted text-muted-foreground hover:bg-accent hover:text-foreground'
+                  : 'bg-zinc-300 text-zinc-700 hover:bg-zinc-400 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600';
+              const status = activeLabel
+                ? `active ${activeLabel}`
+                : idleLabel
+                  ? `idle ${idleLabel}`
+                  : null;
+              return (
+                <Tooltip key={`${window.id}:${window.index}`}>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={() => selectWindow?.(window.id, window.index)}
+                      disabled={connectionStatus !== 'connected' || !selectWindow}
+                      aria-label={`Window ${window.index}: ${window.name}${status ? `, ${status}` : ''}`}
+                      aria-pressed={window.active}
+                      data-output-active={outputActive ? 'true' : 'false'}
+                      className={`relative flex h-7 min-w-8 shrink-0 flex-col items-center overflow-hidden rounded px-1 pt-0.5 text-[11px] font-medium leading-none tabular-nums focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-50 ${tone}`}
+                    >
+                      <span>{window.index}</span>
+                      {idleLabel ? (
+                        <span className="mt-auto pb-0.5 text-[8px] font-normal opacity-80">
+                          {idleLabel}
+                        </span>
+                      ) : null}
+                      {outputActive ? (
+                        <span className="absolute inset-x-0 bottom-0 flex h-[10px] items-center justify-center bg-emerald-500 text-[8px] font-medium text-white">
+                          {activeLabel}
+                        </span>
+                      ) : null}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    {window.name}
+                    {status ? ` · ${status}` : ''}
+                  </TooltipContent>
+                </Tooltip>
+              );
+            })}
           </nav>
         </div>
         <div className="flex shrink-0 items-center gap-2">

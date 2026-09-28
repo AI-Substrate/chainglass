@@ -26,9 +26,9 @@ const sendPromptStub: SendPrompt = (text, options) => {
 };
 const selectedWindows: Array<{ windowId: string; windowIndex: number }> = [];
 const windowFixtures: TerminalWindow[] = [
-  { id: '@1', index: 0, name: 'editor', active: true },
-  { id: '@7', index: 3, name: 'build', active: false },
-  { id: '@1', index: 7, name: 'editor', active: false },
+  { id: '@1', index: 0, name: 'editor', active: true, idleSeconds: null, activeSeconds: null },
+  { id: '@7', index: 3, name: 'build', active: false, idleSeconds: null, activeSeconds: null },
+  { id: '@1', index: 7, name: 'editor', active: false, idleSeconds: null, activeSeconds: null },
 ];
 const selectWindowStub = (windowId: string, windowIndex: number) =>
   selectedWindows.push({ windowId, windowIndex });

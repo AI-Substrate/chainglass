@@ -54,8 +54,15 @@ describe('terminal WebSocket window controls', () => {
     expect(JSON.parse(socket.sent[0])).toEqual({
       type: 'windows',
       windows: [
-        { id: '@3', index: 0, active: true, name: 'first' },
-        { id: '@12', index: 7, active: false, name: 'second name' },
+        { id: '@3', index: 0, active: true, name: 'first', idleSeconds: null, activeSeconds: null },
+        {
+          id: '@12',
+          index: 7,
+          active: false,
+          name: 'second name',
+          idleSeconds: null,
+          activeSeconds: null,
+        },
       ],
     });
     expect(pty.writeCalls).toEqual([]);
@@ -87,8 +94,22 @@ describe('terminal WebSocket window controls', () => {
     expect(JSON.parse(socket.sent[0])).toEqual({
       type: 'windows',
       windows: [
-        { id: '@3', index: 0, active: false, name: 'first' },
-        { id: '@12', index: 7, active: true, name: 'second name' },
+        {
+          id: '@3',
+          index: 0,
+          active: false,
+          name: 'first',
+          idleSeconds: null,
+          activeSeconds: null,
+        },
+        {
+          id: '@12',
+          index: 7,
+          active: true,
+          name: 'second name',
+          idleSeconds: null,
+          activeSeconds: null,
+        },
       ],
     });
   });
@@ -215,8 +236,22 @@ describe('terminal WebSocket window controls', () => {
     expect(JSON.parse(socket.sent[0])).toEqual({
       type: 'windows',
       windows: [
-        { id: '@12', index: 0, active: false, name: 'shared' },
-        { id: '@12', index: 3, active: true, name: 'shared' },
+        {
+          id: '@12',
+          index: 0,
+          active: false,
+          name: 'shared',
+          idleSeconds: null,
+          activeSeconds: null,
+        },
+        {
+          id: '@12',
+          index: 3,
+          active: true,
+          name: 'shared',
+          idleSeconds: null,
+          activeSeconds: null,
+        },
       ],
     });
   });
