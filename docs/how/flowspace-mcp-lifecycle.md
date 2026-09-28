@@ -168,9 +168,6 @@ Logs to look for in the Next.js server output:
   `shutdownAllFlowspace()` in test teardown.
 - `shutdownAllFlowspace()` — closes every pooled client and drains the pool.
 
-Unit tests live at:
-`test/unit/web/features/041-file-browser/flowspace-mcp-client.test.ts`
-
-Env-gated integration test (real `fs2 mcp`) lives at:
-`test/integration/web/flowspace-mcp.integration.test.ts` — skipped when `fs2`
-is not on PATH.
+The fs2-specific tests (client pool, envelope mapper, search action and the
+real `fs2 mcp` integration test) were removed on 2026-09-28: fs2 is retired in
+favour of flowspace3, and this client is due to move to it.
