@@ -146,11 +146,14 @@ export function TerminalPaneHeader({
                 : outputActive
                   ? 'bg-muted text-muted-foreground hover:bg-accent hover:text-foreground'
                   : 'bg-zinc-300 text-zinc-700 hover:bg-zinc-400 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600';
+              const asking = !outputActive && window.question;
               const status = activeLabel
                 ? `active ${activeLabel}`
-                : idleLabel
-                  ? `idle ${idleLabel}`
-                  : null;
+                : asking
+                  ? `asking a question${idleLabel ? `, idle ${idleLabel}` : ''}`
+                  : idleLabel
+                    ? `idle ${idleLabel}`
+                    : null;
               return (
                 <Tooltip key={`${window.id}:${window.index}`}>
                   <TooltipTrigger asChild>
@@ -164,14 +167,16 @@ export function TerminalPaneHeader({
                       className={`relative flex h-7 min-w-8 shrink-0 flex-col items-center overflow-hidden rounded px-1 pt-0.5 text-[11px] font-medium leading-none tabular-nums focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-50 ${tone}`}
                     >
                       <span>{window.index}</span>
-                      {idleLabel ? (
+                      {idleLabel && !asking ? (
                         <span className="mt-auto pb-0.5 text-[8px] font-normal opacity-80">
                           {idleLabel}
                         </span>
                       ) : null}
-                      {outputActive ? (
-                        <span className="absolute inset-x-0 bottom-0 flex h-[10px] items-center justify-center bg-emerald-500 text-[8px] font-medium text-white">
-                          {activeLabel}
+                      {outputActive || asking ? (
+                        <span
+                          className={`absolute inset-x-0 bottom-0 flex h-[10px] items-center justify-center text-[8px] font-medium text-white ${asking ? 'bg-fuchsia-500' : 'bg-emerald-500'}`}
+                        >
+                          {asking ? idleLabel : activeLabel}
                         </span>
                       ) : null}
                     </button>

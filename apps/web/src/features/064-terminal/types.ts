@@ -165,6 +165,11 @@ export interface TerminalWindow {
   idleSeconds: number | null;
   /** Seconds in the current working streak, or `null` while idle. */
   activeSeconds: number | null;
+  /**
+   * An idle Claude Code window whose last message ends in a question (see
+   * `lib/claude-question.ts`). Always false while the window is working.
+   */
+  question: boolean;
 }
 
 /** Both window reads and selections return the current session window list. */

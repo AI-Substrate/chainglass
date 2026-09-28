@@ -11,6 +11,7 @@
  */
 
 import { isAbsolute, normalize, relative, resolve } from 'node:path';
+import { claudeScreenAsksQuestion } from '../lib/claude-question';
 import { type ProcessTable, parseProcessTable, treeCpuSeconds } from '../lib/process-cpu';
 import { type WindowActivityReading, WindowActivityTracker } from '../lib/window-activity';
 import type { CommandExecutor, PtyProcess, PtySpawner, TerminalWindow } from '../types';
@@ -19,6 +20,10 @@ const TMUX_SESSION_NAME_REGEX = /^[a-zA-Z0-9_-]+$/;
 const MAX_SESSION_NAME_LENGTH = 256;
 /** One `ps` snapshot serves every tab polling within this window (polls are 2s apart). */
 const PROCESS_TABLE_TTL_MS = 1_000;
+/** An idle window's screen is re-read at most this often (it cannot change much while idle). */
+const QUESTION_RECHECK_MS = 60_000;
+/** Screen reads per background sample, so hundreds of windows cannot burst tmux. */
+const QUESTION_READS_PER_SAMPLE = 5;
 
 interface ParsedSession {
   name: string;
@@ -42,6 +47,11 @@ export class TmuxSessionManager {
   private readonly readings = new Map<string, WindowActivityReading>();
   /** At most one sample in flight per session. */
   private readonly sampling = new Set<string>();
+  /** Per `session:windowId`: does the idle Claude Code screen end in a question, and when read. */
+  private readonly questions = new Map<
+    string,
+    { asks: boolean; readAt: number; wasActive: boolean }
+  >();
   private processTable: { at: number; table: Promise<ProcessTable> } | undefined;
 
   constructor(
@@ -134,6 +144,10 @@ export class TmuxSessionManager {
           active: active === '1',
           idleSeconds: reading?.idleSeconds ?? null,
           activeSeconds: reading?.activeSeconds ?? null,
+          // A working window is not waiting on anyone, whatever its screen last said.
+          question:
+            (reading?.activeSeconds ?? null) === null &&
+            this.questions.get(`${sessionName}:${id}`)?.asks === true,
         };
       });
     // Fire-and-forget: the list returns now with the last completed reading (at most one poll old).
@@ -169,13 +183,47 @@ export class TmuxSessionManager {
         this.readings.set(key, this.activity.observe(key, seconds, nowSeconds));
       }
       this.activity.retainOnly(`${sessionName}:`, listed);
-      for (const key of this.readings.keys()) {
-        if (key.startsWith(`${sessionName}:`) && !listed.has(key)) this.readings.delete(key);
+      for (const map of [this.readings, this.questions]) {
+        for (const key of map.keys()) {
+          if (key.startsWith(`${sessionName}:`) && !listed.has(key)) map.delete(key);
+        }
       }
+      await this.readQuestions(sessionName, [...cpu.keys()]);
     } catch {
       // Activity is decoration; a failed sample leaves the previous readings in place.
     } finally {
       this.sampling.delete(sessionName);
+    }
+  }
+
+  /**
+   * Re-read idle windows' screens for a trailing question: on first sight, when a working streak
+   * just ended, and otherwise once a minute. Working windows are skipped entirely.
+   */
+  private async readQuestions(sessionName: string, windowIds: string[]): Promise<void> {
+    const exec = this.execAsync;
+    if (!exec) return;
+    const now = Date.now();
+    const due = windowIds.filter((windowId) => {
+      const key = `${sessionName}:${windowId}`;
+      const active = (this.readings.get(key)?.activeSeconds ?? null) !== null;
+      const known = this.questions.get(key);
+      if (active) {
+        if (known) known.wasActive = true;
+        return false;
+      }
+      return !known || known.wasActive || now - known.readAt >= QUESTION_RECHECK_MS;
+    });
+    for (const windowId of due.slice(0, QUESTION_READS_PER_SAMPLE)) {
+      const key = `${sessionName}:${windowId}`;
+      try {
+        // Window ids are server-unique; the target resolves to that window's active pane.
+        const screen = await exec('tmux', ['capture-pane', '-p', '-J', '-t', windowId]);
+        const asks = claudeScreenAsksQuestion(screen) === true;
+        this.questions.set(key, { asks, readAt: Date.now(), wasActive: false });
+      } catch {
+        this.questions.delete(key);
+      }
     }
   }
 

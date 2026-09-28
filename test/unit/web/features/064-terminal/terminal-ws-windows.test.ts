@@ -54,7 +54,15 @@ describe('terminal WebSocket window controls', () => {
     expect(JSON.parse(socket.sent[0])).toEqual({
       type: 'windows',
       windows: [
-        { id: '@3', index: 0, active: true, name: 'first', idleSeconds: null, activeSeconds: null },
+        {
+          id: '@3',
+          index: 0,
+          active: true,
+          name: 'first',
+          idleSeconds: null,
+          activeSeconds: null,
+          question: false,
+        },
         {
           id: '@12',
           index: 7,
@@ -62,6 +70,7 @@ describe('terminal WebSocket window controls', () => {
           name: 'second name',
           idleSeconds: null,
           activeSeconds: null,
+          question: false,
         },
       ],
     });
@@ -101,6 +110,7 @@ describe('terminal WebSocket window controls', () => {
           name: 'first',
           idleSeconds: null,
           activeSeconds: null,
+          question: false,
         },
         {
           id: '@12',
@@ -109,6 +119,7 @@ describe('terminal WebSocket window controls', () => {
           name: 'second name',
           idleSeconds: null,
           activeSeconds: null,
+          question: false,
         },
       ],
     });
@@ -243,6 +254,7 @@ describe('terminal WebSocket window controls', () => {
           name: 'shared',
           idleSeconds: null,
           activeSeconds: null,
+          question: false,
         },
         {
           id: '@12',
@@ -251,6 +263,7 @@ describe('terminal WebSocket window controls', () => {
           name: 'shared',
           idleSeconds: null,
           activeSeconds: null,
+          question: false,
         },
       ],
     });
