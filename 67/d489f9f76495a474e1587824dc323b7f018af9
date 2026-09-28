@@ -1,0 +1,47 @@
+apps/web/src/features/064-terminal/components/terminal-pane-header.tsx
+  s_e85da893987941::t_4097a3e4283750 149,152-156,170,175-179
+apps/web/src/features/064-terminal/lib/claude-question.ts
+  s_b77fcc140bc8c3::t_2920ec562c557d 1-42
+apps/web/src/features/064-terminal/server/tmux-session-manager.ts
+  s_e85da893987941::t_bbe5d771762612 14,23-26,50-54,147-150,186-189,191,199-229
+apps/web/src/features/064-terminal/types.ts
+  s_e85da893987941::t_44c4091bde98a0 168-172
+test/unit/web/features/064-terminal/claude-question.test.ts
+  s_fe01634239906c::t_a9140a1a1cb009 1-34
+test/unit/web/features/064-terminal/terminal-prompt-send.test.tsx
+  s_e85da893987941::t_6881ca4a7413a4 29-55
+test/unit/web/features/064-terminal/terminal-ws-windows.test.ts
+  s_e85da893987941::t_43d836c927b2e4 57-65,73,113,122,257,266
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "67d489f9f76495a474e1587824dc323b7f018af9",
+  "prompts": {},
+  "sessions": {
+    "s_b77fcc140bc8c3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d32c91bc-1a9a-4904-a6f0-8f7bec4daf6b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_e85da893987941": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dd54bc01-c29b-43b2-8780-f376060424d3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_fe01634239906c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "75cf4a16-f760-42ec-aeb3-f157de4131c1",
+        "model": "unknown"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
