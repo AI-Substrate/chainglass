@@ -5,6 +5,8 @@
  * Plan 064: Terminal Integration via tmux
  */
 
+import type { AgentKind } from './lib/agent-kind';
+
 /** A tmux session discovered on the host machine */
 export interface TerminalSession {
   /** Session name (e.g., "064-tmux") — matches worktree branch name */
@@ -170,6 +172,8 @@ export interface TerminalWindow {
    * `lib/claude-question.ts`). Always false while the window is working.
    */
   question: boolean;
+  /** Coding-agent harness running in the window, from its pane process trees; null if none. */
+  agent: AgentKind | null;
 }
 
 /** Both window reads and selections return the current session window list. */

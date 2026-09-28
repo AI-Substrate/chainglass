@@ -11,6 +11,7 @@
  */
 
 import { isAbsolute, normalize, relative, resolve } from 'node:path';
+import { type AgentKind, detectAgentKind } from '../lib/agent-kind';
 import { claudeScreenAsksQuestion } from '../lib/claude-question';
 import { type ProcessTable, parseProcessTable, treeCpuSeconds } from '../lib/process-cpu';
 import { type WindowActivityReading, WindowActivityTracker } from '../lib/window-activity';
@@ -45,6 +46,8 @@ export class TmuxSessionManager {
   private readonly execAsync: ((command: string, args: string[]) => Promise<string>) | undefined;
   /** Latest completed reading per `session:windowId`. */
   private readonly readings = new Map<string, WindowActivityReading>();
+  /** Coding-agent harness per `session:windowId`, from the pane process trees. */
+  private readonly agentKinds = new Map<string, AgentKind>();
   /** At most one sample in flight per session. */
   private readonly sampling = new Set<string>();
   /** Per `session:windowId`: does the idle Claude Code screen end in a question, and when read. */
@@ -144,6 +147,7 @@ export class TmuxSessionManager {
           active: active === '1',
           idleSeconds: reading?.idleSeconds ?? null,
           activeSeconds: reading?.activeSeconds ?? null,
+          agent: this.agentKinds.get(`${sessionName}:${id}`) ?? null,
           // A working window is not waiting on anyone, whatever its screen last said.
           question:
             (reading?.activeSeconds ?? null) === null &&
@@ -170,10 +174,21 @@ export class TmuxSessionManager {
       ]);
       const table = await this.readProcessTable();
       const cpu = new Map<string, number>();
+      const kinds = new Map<string, AgentKind>();
       for (const line of panes.split('\n')) {
         const [windowId, pid] = line.split('\t');
-        const seconds = windowId && pid ? treeCpuSeconds(table, Number(pid)) : null;
+        if (!windowId || !pid) continue;
+        const seconds = treeCpuSeconds(table, Number(pid));
         if (seconds !== null) cpu.set(windowId, (cpu.get(windowId) ?? 0) + seconds);
+        // First agent found across the window's panes marks the window.
+        const kind = kinds.has(windowId) ? null : detectAgentKind(table, Number(pid));
+        if (kind) kinds.set(windowId, kind);
+      }
+      for (const windowId of cpu.keys()) {
+        const key = `${sessionName}:${windowId}`;
+        const kind = kinds.get(windowId);
+        if (kind) this.agentKinds.set(key, kind);
+        else this.agentKinds.delete(key);
       }
       const nowSeconds = Date.now() / 1000;
       const listed = new Set<string>();
@@ -183,7 +198,7 @@ export class TmuxSessionManager {
         this.readings.set(key, this.activity.observe(key, seconds, nowSeconds));
       }
       this.activity.retainOnly(`${sessionName}:`, listed);
-      for (const map of [this.readings, this.questions]) {
+      for (const map of [this.readings, this.questions, this.agentKinds]) {
         for (const key of map.keys()) {
           if (key.startsWith(`${sessionName}:`) && !listed.has(key)) map.delete(key);
         }
@@ -232,7 +247,7 @@ export class TmuxSessionManager {
     const now = Date.now();
     if (!this.processTable || now - this.processTable.at >= PROCESS_TABLE_TTL_MS) {
       const exec = this.execAsync as (command: string, args: string[]) => Promise<string>;
-      const table = exec('ps', ['-A', '-o', 'pid=,ppid=,time=']).then(parseProcessTable);
+      const table = exec('ps', ['-A', '-o', 'pid=,ppid=,time=,args=']).then(parseProcessTable);
       table.catch(() => {
         if (this.processTable?.table === table) this.processTable = undefined;
       });

@@ -42,6 +42,7 @@ import {
   X,
 } from 'lucide-react';
 import { type FormEvent, useCallback, useLayoutEffect, useRef, useState } from 'react';
+import type { AgentKind } from '../lib/agent-kind';
 import { copyTmuxBuffer } from '../lib/copy-tmux-buffer';
 import { formatIdle } from '../lib/window-activity';
 import { getWindowNameValidationError } from '../lib/window-name-validation';
@@ -60,6 +61,14 @@ export interface TerminalPaneHeaderProps {
   onClose?: () => void;
 }
 
+/** Top-left corner mark per coding-agent harness (Jordan, 2026-09-28). */
+const AGENT_MARK: Record<AgentKind, { color: string; label: string }> = {
+  claude: { color: '#d97757', label: 'Claude Code' },
+  copilot: { color: '#d946ef', label: 'Copilot CLI' },
+  pi: { color: '#14b8a6', label: 'omp / pi' },
+  codex: { color: '#facc15', label: 'Codex' },
+};
+
 export function TerminalPaneHeader({
   sessionName,
   connectionStatus,
@@ -76,6 +85,7 @@ export function TerminalPaneHeader({
   const [searchOpen, setSearchOpen] = useState(false);
   const [windowQuery, setWindowQuery] = useState('');
   const query = windowQuery.trim().toLowerCase();
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [windowName, setWindowName] = useState('');
   const [windowNameError, setWindowNameError] = useState<string | null>(null);
@@ -160,6 +170,7 @@ export function TerminalPaneHeader({
                   ? 'bg-muted text-muted-foreground hover:bg-accent hover:text-foreground'
                   : 'bg-zinc-300 text-zinc-700 hover:bg-zinc-400 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600';
               const asking = !outputActive && window.question;
+              const agent = window.agent ? AGENT_MARK[window.agent] : null;
               const matchTone =
                 query.length === 0
                   ? ''
@@ -180,11 +191,18 @@ export function TerminalPaneHeader({
                       type="button"
                       onClick={() => selectWindow?.(window.id, window.index)}
                       disabled={connectionStatus !== 'connected' || !selectWindow}
-                      aria-label={`Window ${window.index}: ${window.name}${status ? `, ${status}` : ''}`}
+                      aria-label={`Window ${window.index}: ${window.name}${agent ? `, ${agent.label}` : ''}${status ? `, ${status}` : ''}`}
                       aria-pressed={window.active}
                       data-output-active={outputActive ? 'true' : 'false'}
                       className={`relative flex h-7 min-w-8 shrink-0 flex-col items-center overflow-hidden rounded px-1 pt-0.5 text-[11px] font-medium leading-none tabular-nums focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-50 ${tone} ${matchTone}`}
                     >
+                      {agent ? (
+                        <span
+                          aria-hidden="true"
+                          className="absolute top-0 left-0 h-0 w-0 border-t-[7px] border-r-[7px] border-r-transparent"
+                          style={{ borderTopColor: agent.color }}
+                        />
+                      ) : null}
                       <span>{window.index}</span>
                       {idleLabel && !asking ? (
                         <span className="mt-auto pb-0.5 text-[8px] font-normal opacity-80">
@@ -201,6 +219,7 @@ export function TerminalPaneHeader({
                     </button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom">
+                    {agent ? `${agent.label} · ` : ''}
                     {window.name}
                     {status ? ` · ${status}` : ''}
                   </TooltipContent>
@@ -227,14 +246,22 @@ export function TerminalPaneHeader({
                 <Search className="h-3.5 w-3.5" />
               </button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-64 p-2">
+            <PopoverContent
+              align="end"
+              className="w-64 p-2"
+              onOpenAutoFocus={(event) => {
+                // Land the caret in the field rather than on the popover container.
+                event.preventDefault();
+                searchInputRef.current?.focus();
+              }}
+            >
               <input
                 type="search"
                 value={windowQuery}
                 onChange={(event) => setWindowQuery(event.target.value)}
                 placeholder="Window name…"
                 aria-label="Window name"
-                autoFocus
+                ref={searchInputRef}
                 className="h-8 w-full rounded-md border bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
               {query.length > 0 ? (
