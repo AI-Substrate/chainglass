@@ -1,0 +1,75 @@
+apps/web/src/features/064-terminal/components/terminal-pane-header.tsx
+  s_a6835b35e1d9ee::t_eee5f42c4f350d 33,37,120,122-127,132,134-185
+apps/web/src/features/064-terminal/lib/process-cpu.ts
+  s_e85da893987941::t_afe0678ff67b8e 1-46
+apps/web/src/features/064-terminal/lib/window-activity.ts
+  s_b77fcc140bc8c3::t_3287affd97e28b 1-129
+apps/web/src/features/064-terminal/server/terminal-ws.ts
+  s_fe01634239906c::t_30d3170533effe 70-75,86,551,568-580
+apps/web/src/features/064-terminal/server/tmux-session-manager.ts
+  s_e85da893987941::t_2136b276b368bd 14-15,20-21,33-45,47-51,54,111-114,124,129-137,139-193
+apps/web/src/features/064-terminal/types.ts
+  s_00fb3a700721e9::t_e7be1cca4c857a 159,161-167
+test/unit/web/features/064-terminal/terminal-ws-windows.test.ts
+  s_00fb3a700721e9::t_3bf0a1071c279d 57-65,97-112,239-254
+test/unit/web/features/064-terminal/window-activity.test.ts
+  s_00fb3a700721e9::t_e150cb9eb9e49a 1-29
+test/unit/web/features/064-terminal/terminal-prompt-send.test.tsx
+  s_084ac52dc66de3::t_d608cc38a4805f 29-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "52d1cf2e5cb66ee3be48aa2e8ab9b02108123323",
+  "prompts": {},
+  "sessions": {
+    "s_00fb3a700721e9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c6cb1ef-6a4a-40fc-9c7f-4817d627936a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_084ac52dc66de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+        "model": "unknown"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_a6835b35e1d9ee": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "83d3b59a-17e8-436d-aa1c-e0b39e2e65d1",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_b77fcc140bc8c3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d32c91bc-1a9a-4904-a6f0-8f7bec4daf6b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_e85da893987941": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dd54bc01-c29b-43b2-8780-f376060424d3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_fe01634239906c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "75cf4a16-f760-42ec-aeb3-f157de4131c1",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
