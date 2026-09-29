@@ -1,0 +1,14 @@
+apps/web/src/features/064-terminal/lib/terminal-prompts.ts
+  h_9e71e8b09f7cf2 43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "d489a4091accc89f763a02d72736fd648e6eab98",
+  "prompts": {},
+  "humans": {
+    "h_9e71e8b09f7cf2": {
+      "author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
