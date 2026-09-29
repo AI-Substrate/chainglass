@@ -1,0 +1,40 @@
+test/unit/web/features/064-terminal/terminal-ws-windows.test.ts
+  s_084ac52dc66de3::t_ffedf5478bc6b0 66,77,119,130,267,278
+test/unit/web/features/064-terminal/terminal-prompt-send.test.tsx
+  s_084ac52dc66de3::t_ffedf5478bc6b0 38,49,60
+apps/web/src/features/064-terminal/components/terminal-pane-header.tsx
+  s_084ac52dc66de3::t_ffedf5478bc6b0 174-178,199,211-216,236
+test/unit/web/features/064-terminal/window-subprocesses.test.ts
+  s_084ac52dc66de3::t_18376f436aa193 1-50
+apps/web/src/features/064-terminal/types.ts
+  s_084ac52dc66de3::t_1a472c1b7e2bf2 177-182
+apps/web/src/features/064-terminal/lib/agent-kind.ts
+  s_084ac52dc66de3::t_799a7f6dc32601 36-39,47,52-65,70-73
+  s_084ac52dc66de3::t_1a472c1b7e2bf2 66-69
+apps/web/src/features/064-terminal/lib/window-activity.ts
+  s_084ac52dc66de3::t_799a7f6dc32601 16-17,20-24,32-37,72-77,97
+  s_084ac52dc66de3::t_1610a4ffef0a53 25-31,99-100,102-132
+apps/web/src/features/064-terminal/server/tmux-session-manager.ts
+  s_084ac52dc66de3::t_1610a4ffef0a53 24,252-254,257-262,424-425,430,439
+  s_084ac52dc66de3::t_18376f436aa193 226
+  s_084ac52dc66de3::t_1a472c1b7e2bf2 14,16-23,25-27,59-64,167-169,195-205,207-218,220-225,227-229,231,233,236-251,255-256,263-266,268,270-271,276,423,426-429,431-438
+  s_084ac52dc66de3::t_3649c79bfbdcc2 440
+apps/web/src/features/064-terminal/lib/process-cpu.ts
+  s_084ac52dc66de3::t_799a7f6dc32601 54-68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "9de90120d0ea3b8f39385b34b708a2b8a384d221",
+  "prompts": {},
+  "sessions": {
+    "s_084ac52dc66de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
