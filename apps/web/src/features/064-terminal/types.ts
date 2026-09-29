@@ -175,11 +175,17 @@ export interface TerminalWindow {
   /** Coding-agent harness running in the window, from its pane process trees; null if none. */
   agent: AgentKind | null;
   /**
-   * For an agent window whose child processes (dev servers, language servers, tools it started)
-   * are busy: the busiest by name and CPU, e.g. `["vite 58%"]` (may be empty mid-streak).
-   * `null` when they are quiet or the window runs no agent.
+   * Background jobs the window's agent started (dev servers, test runs, shells — not its tool or
+   * language servers; see `lib/background-jobs.ts`). `null` when it has none or runs no agent.
    */
-  busySubprocesses: string[] | null;
+  background: TerminalWindowBackground | null;
+}
+
+export interface TerminalWindowBackground {
+  /** Every running job, busiest first: label and CPU since the last sample (0.58 = 58%). */
+  jobs: Array<{ label: string; cpu: number }>;
+  /** Their combined CPU, as a fraction of one core. */
+  cpu: number;
 }
 
 /** Both window reads and selections return the current session window list. */

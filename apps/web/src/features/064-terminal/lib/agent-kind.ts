@@ -54,20 +54,60 @@ export function detectAgentKind(table: ProcessTable, rootPid: number): AgentKind
   return findAgent(table, rootPid)?.kind ?? null;
 }
 
-/** Short human label for a process: the executable, or the script a node/bun/deno runs. */
+/** Short human label for a process: `vite` for `pnpm exec vite …`, `shell` for `zsh -c …`. */
 export function processLabel(commandLine: string): string {
-  const [executable, script] = commandLine.trim().split(/\s+/);
-  const name = basename(executable ?? '');
-  if (!INTERPRETERS.has(name) || !script || script.startsWith('-')) return name || '?';
-  const parts = script.split('/').filter(Boolean);
-  const file = (parts.at(-1) ?? script).replace(/\.(c|m)?js$/, '');
-  // Generic entry files say nothing; name the package directory instead (…/vite/bin/vite.js → vite).
-  if (['cli', 'index', 'main', 'bin', 'server'].includes(file)) {
-    const pkg = parts
-      .slice(0, -1)
-      .reverse()
-      .find((part) => !['bin', 'dist', 'lib', 'src', '..', '.'].includes(part));
-    return pkg ?? file;
+  const tokens = commandLine.trim().split(/\s+/);
+  const name = basename(tokens[0] ?? '').replace(/^-/, '');
+  if (['zsh', 'bash', 'sh', 'fish'].includes(name)) return shellLabel(commandLine, tokens);
+  if (['nice', 'nohup', 'time', 'caffeinate', 'env'].includes(name)) {
+    // Wrappers: label what they run (skipping flags and env assignments).
+    const inner = tokens
+      .slice(1)
+      .findIndex((token) => !token.startsWith('-') && !token.includes('='));
+    if (inner >= 0) return processLabel(tokens.slice(1 + inner).join(' '));
   }
-  return file;
+  let rest = tokens.slice(1);
+  let label = name;
+  if (INTERPRETERS.has(name)) {
+    const scriptIndex = rest.findIndex((token) => !token.startsWith('-'));
+    if (scriptIndex < 0) return name;
+    const parts = rest[scriptIndex].split('/').filter(Boolean);
+    label = (parts.at(-1) ?? name).replace(/\.(c|m)?[jt]s$/, '');
+    rest = rest.slice(scriptIndex + 1);
+    // Generic entry files say nothing; name the package directory (…/vite/bin/vite.js → vite).
+    if (['cli', 'index', 'main', 'bin', 'server'].includes(label)) {
+      label =
+        parts
+          .slice(0, -1)
+          .reverse()
+          .find((part) => !['bin', 'dist', 'lib', 'src', '..', '.'].includes(part)) ?? label;
+    }
+  }
+  // Package runners name the tool they run: `pnpm exec vite` → vite, `npx tsc` → tsc.
+  if (['pnpm', 'npm', 'npx', 'yarn', 'bunx', 'uvx'].includes(label)) {
+    const tool = rest.find(
+      (token) => !token.startsWith('-') && !['exec', 'run', 'dlx', 'x'].includes(token)
+    );
+    if (tool) return basename(tool);
+  }
+  if (label === 'just' && rest[0] && !rest[0].startsWith('-')) return `just ${rest[0]}`;
+  return label;
+}
+
+/**
+ * Shells say little on their own. Claude runs each command as
+ * `zsh -c source <snapshot> && … && eval '<command>' …`, so label the eval'd command (skipping a
+ * leading `cd`); a shell running a script is labelled by the script.
+ */
+function shellLabel(commandLine: string, tokens: string[]): string {
+  const evaluated = /\beval '([^']*)'/.exec(commandLine)?.[1];
+  if (evaluated) {
+    const step = evaluated
+      .split(/&&|;|\|\|/)
+      .map((part) => part.trim())
+      .find((part) => part.length > 0 && !/^cd(\s|$)/.test(part));
+    if (step) return processLabel(step);
+  }
+  const script = tokens.slice(1).find((token) => !token.startsWith('-'));
+  return script && script !== 'source' && tokens[1] !== '-c' ? basename(script) : 'shell';
 }

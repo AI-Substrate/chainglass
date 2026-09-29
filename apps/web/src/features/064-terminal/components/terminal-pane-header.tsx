@@ -44,7 +44,7 @@ import {
 import { type FormEvent, useCallback, useLayoutEffect, useRef, useState } from 'react';
 import type { AgentKind } from '../lib/agent-kind';
 import { copyTmuxBuffer } from '../lib/copy-tmux-buffer';
-import { formatIdle } from '../lib/window-activity';
+import { CHILD_BUSY_FRACTION, formatIdle } from '../lib/window-activity';
 import { getWindowNameValidationError } from '../lib/window-name-validation';
 import type { ConnectionStatus } from '../types';
 import { ConnectionStatusBadge } from './connection-status-badge';
@@ -68,6 +68,18 @@ const AGENT_MARK: Record<AgentKind, { color: string; label: string }> = {
   pi: { color: '#14b8a6', label: 'omp / pi' },
   codex: { color: '#facc15', label: 'Codex' },
 };
+
+/**
+ * How many quarters of a window box the background-job fill covers: none while the jobs are
+ * barely working (under 3% of a core), then one quarter per 25% of a core, rounded up; 100% or
+ * more fills it.
+ */
+/** Height of the bottom slice that belongs to the agent itself (bar / question / idle time). */
+const AGENT_SLICE_PX = 10;
+
+function backgroundQuarters(cpu: number): number {
+  return cpu < CHILD_BUSY_FRACTION ? 0 : Math.min(4, Math.ceil(cpu / 0.25));
+}
 
 export function TerminalPaneHeader({
   sessionName,
@@ -171,17 +183,18 @@ export function TerminalPaneHeader({
                   : 'bg-zinc-300 text-zinc-700 hover:bg-zinc-400 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600';
               const asking = !outputActive && window.question;
               const agent = window.agent ? AGENT_MARK[window.agent] : null;
-              const subprocesses = window.busySubprocesses;
-              const subprocessNote =
-                subprocesses === null
-                  ? ''
-                  : ` · subprocesses busy${subprocesses.length > 0 ? `: ${subprocesses.join(', ')}` : ''}`;
+              const background = window.background;
+              // Background jobs fill upward whatever the agent is doing: above the green bar
+              // while it works, above the idle time while it rests.
+              const showBackground = background !== null;
+              // Search wins over the background outline while a query is active.
               const matchTone =
                 query.length === 0
                   ? ''
                   : window.name.toLowerCase().includes(query)
                     ? 'ring-2 ring-amber-400 ring-offset-1 ring-offset-background'
                     : 'opacity-30';
+              const fillQuarters = showBackground ? backgroundQuarters(background.cpu) : 0;
               const status = activeLabel
                 ? `active ${activeLabel}`
                 : asking
@@ -196,7 +209,7 @@ export function TerminalPaneHeader({
                       type="button"
                       onClick={() => selectWindow?.(window.id, window.index)}
                       disabled={connectionStatus !== 'connected' || !selectWindow}
-                      aria-label={`Window ${window.index}: ${window.name}${agent ? `, ${agent.label}` : ''}${status ? `, ${status}` : ''}${subprocessNote.replace(' · ', ', ')}`}
+                      aria-label={`Window ${window.index}: ${window.name}${agent ? `, ${agent.label}` : ''}${status ? `, ${status}` : ''}${background ? `, ${background.jobs.length} background ${background.jobs.length === 1 ? 'job' : 'jobs'}` : ''}`}
                       aria-pressed={window.active}
                       data-output-active={outputActive ? 'true' : 'false'}
                       className={`relative flex h-7 min-w-8 shrink-0 flex-col items-center overflow-hidden rounded px-1 pt-0.5 text-[11px] font-medium leading-none tabular-nums focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-50 ${tone} ${matchTone}`}
@@ -208,32 +221,56 @@ export function TerminalPaneHeader({
                           style={{ borderTopColor: agent.color }}
                         />
                       ) : null}
-                      {subprocesses !== null ? (
+                      {/* Five slices: the bottom one is the agent itself (green bar / magenta
+                          question / idle time); the four above rise with background-job CPU,
+                          one per 25% of a core, split by thin white dividers. */}
+                      {Array.from({ length: fillQuarters }, (_, quarter) => (
                         <span
+                          // biome-ignore lint/suspicious/noArrayIndexKey: fixed positional slices
+                          key={quarter}
                           aria-hidden="true"
-                          className="absolute top-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-amber-400"
+                          data-background-quarter={quarter + 1}
+                          className={`absolute inset-x-0 bg-emerald-500 ${quarter > 0 ? 'border-b border-white' : ''}`}
+                          style={{
+                            bottom: `calc(${AGENT_SLICE_PX}px + (100% - ${AGENT_SLICE_PX}px) * ${quarter / 4})`,
+                            height: `calc((100% - ${AGENT_SLICE_PX}px) / 4)`,
+                          }}
                         />
-                      ) : null}
-                      <span>{window.index}</span>
+                      ))}
+                      <span className={`relative ${fillQuarters >= 3 ? 'text-white' : ''}`}>
+                        {window.index}
+                      </span>
                       {idleLabel && !asking ? (
-                        <span className="mt-auto pb-0.5 text-[8px] font-normal opacity-80">
+                        <span className="relative mt-auto pb-0.5 text-[8px] font-normal opacity-80">
                           {idleLabel}
                         </span>
                       ) : null}
                       {outputActive || asking ? (
                         <span
-                          className={`absolute inset-x-0 bottom-0 flex h-[10px] items-center justify-center text-[8px] font-medium text-white ${asking ? 'bg-fuchsia-500' : 'bg-emerald-500'}`}
+                          className={`absolute inset-x-0 bottom-0 flex items-center justify-center text-[8px] font-medium text-white ${asking ? 'bg-fuchsia-500' : 'bg-emerald-500'}`}
+                          style={{ height: AGENT_SLICE_PX }}
                         >
                           {asking ? idleLabel : activeLabel}
                         </span>
                       ) : null}
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    {agent ? `${agent.label} · ` : ''}
-                    {window.name}
-                    {status ? ` · ${status}` : ''}
-                    {subprocessNote}
+                  <TooltipContent side="bottom" className="max-w-72">
+                    <div className="font-medium">{window.name}</div>
+                    <div className="opacity-80">
+                      {[agent?.label, status].filter(Boolean).join(' · ')}
+                    </div>
+                    {background ? (
+                      <ul className="mt-1 space-y-0.5 tabular-nums">
+                        {background.jobs.map((job, index) => (
+                          // biome-ignore lint/suspicious/noArrayIndexKey: labels can repeat
+                          <li key={index} className="flex justify-between gap-3">
+                            <span className="truncate">{job.label}</span>
+                            <span className="opacity-80">{Math.round(job.cpu * 100)}%</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
                   </TooltipContent>
                 </Tooltip>
               );

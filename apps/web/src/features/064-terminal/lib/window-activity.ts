@@ -23,9 +23,9 @@ export const BUSY_CPU_FRACTION = 0.02;
  * on its own (measured 2026-09-29, few samples), Claude at 0.3–1%.
  */
 /**
- * An agent's subprocesses count as busy when at least ONE child uses this much of a core. Summing
- * them misfires: four idle helpers at ~0.5% each add up past 2%, while a working dev server or
- * build measured 10–58% (2026-09-29).
+ * Background jobs below this combined share of a core read as "not much processing" (an empty
+ * ring), and a job is named in the tooltip only at or above it. Working dev servers and builds
+ * measured 10–58% (2026-09-29); idle ones well under 1%.
  */
 export const CHILD_BUSY_FRACTION = 0.03;
 
@@ -96,30 +96,6 @@ export class WindowActivityTracker {
     // A negative delta means a process in the tree exited; count the sample as not busy.
     const busy = (cpuSeconds - state.cpu) / elapsed >= busyFraction;
     state.cpu = cpuSeconds;
-    return this.step(state, busy, elapsed, nowSeconds);
-  }
-
-  /**
-   * Record a sample already judged busy or not (e.g. "is any one child process busy"), with the
-   * same first-sight, confirmation and quiet-grace rules as {@link observe}.
-   */
-  observeBusy(key: string, busy: boolean, nowSeconds: number): WindowActivityReading {
-    const state = this.windows.get(key);
-    if (!state) {
-      this.windows.set(key, {
-        cpu: 0,
-        at: nowSeconds,
-        busyRun: 0,
-        firstBusyAt: null,
-        streakStart: null,
-        quietSince: null,
-        lastRealAt: null,
-        reading: UNKNOWN,
-      });
-      return UNKNOWN;
-    }
-    const elapsed = nowSeconds - state.at;
-    if (elapsed < MIN_SAMPLE_SECONDS) return this.read(state, nowSeconds);
     return this.step(state, busy, elapsed, nowSeconds);
   }
 

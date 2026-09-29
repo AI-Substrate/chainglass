@@ -12,6 +12,7 @@
 
 import { isAbsolute, normalize, relative, resolve } from 'node:path';
 import { type AgentKind, findAgent, processLabel } from '../lib/agent-kind';
+import { findBackgroundJobs } from '../lib/background-jobs';
 import { claudeScreenAsksQuestion } from '../lib/claude-question';
 import {
   type ProcessTable,
@@ -21,11 +22,16 @@ import {
 } from '../lib/process-cpu';
 import {
   AGENT_BUSY_FRACTION,
-  CHILD_BUSY_FRACTION,
   type WindowActivityReading,
   WindowActivityTracker,
 } from '../lib/window-activity';
-import type { CommandExecutor, PtyProcess, PtySpawner, TerminalWindow } from '../types';
+import type {
+  CommandExecutor,
+  PtyProcess,
+  PtySpawner,
+  TerminalWindow,
+  TerminalWindowBackground,
+} from '../types';
 
 const TMUX_SESSION_NAME_REGEX = /^[a-zA-Z0-9_-]+$/;
 const MAX_SESSION_NAME_LENGTH = 256;
@@ -33,6 +39,8 @@ const MAX_SESSION_NAME_LENGTH = 256;
 const PROCESS_TABLE_TTL_MS = 1_000;
 /** An idle window's screen is re-read at most this often (it cannot change much while idle). */
 const QUESTION_RECHECK_MS = 60_000;
+/** Background jobs listed per window (the combined CPU still counts all of them). */
+const MAX_LISTED_JOBS = 12;
 /** Screen reads per background sample, so hundreds of windows cannot burst tmux. */
 const QUESTION_READS_PER_SAMPLE = 5;
 
@@ -56,10 +64,8 @@ export class TmuxSessionManager {
   private readonly execAsync: ((command: string, args: string[]) => Promise<string>) | undefined;
   /** Latest completed reading per `session:windowId`. */
   private readonly readings = new Map<string, WindowActivityReading>();
-  /** Separate streaks for an agent's child processes (dev servers, language servers, tools). */
-  private readonly childActivity = new WindowActivityTracker();
-  /** Per `session:windowId`: are the agent's children busy, and the busiest ones by name. */
-  private readonly busyChildren = new Map<string, { busy: boolean; top: string[] }>();
+  /** Per `session:windowId`: the agent's background jobs, their combined CPU, busiest by name. */
+  private readonly background = new Map<string, TerminalWindowBackground>();
   /** Per session: each agent child's cumulative CPU at the last sample, for per-process rates. */
   private readonly lastPidCpu = new Map<string, { at: number; cpu: Map<number, number> }>();
   /** Coding-agent harness per `session:windowId`, from the pane process trees. */
@@ -164,9 +170,7 @@ export class TmuxSessionManager {
           idleSeconds: reading?.idleSeconds ?? null,
           activeSeconds: reading?.activeSeconds ?? null,
           agent: this.agentKinds.get(`${sessionName}:${id}`) ?? null,
-          busySubprocesses: this.busyChildren.get(`${sessionName}:${id}`)?.busy
-            ? (this.busyChildren.get(`${sessionName}:${id}`)?.top ?? [])
-            : null,
+          background: this.background.get(`${sessionName}:${id}`) ?? null,
           // A working window is not waiting on anyone, whatever its screen last said.
           question:
             (reading?.activeSeconds ?? null) === null &&
@@ -200,7 +204,7 @@ export class TmuxSessionManager {
         agent: { kind: AgentKind; pid: number } | null;
         treeCpu: number;
         agentCpu: number;
-        childPids: number[];
+        jobs: number[];
       }
       const samples = new Map<string, WindowSample>();
       for (const line of panes.split('\n')) {
@@ -213,7 +217,7 @@ export class TmuxSessionManager {
           agent: null,
           treeCpu: 0,
           agentCpu: 0,
-          childPids: [],
+          jobs: [],
         };
         sample.treeCpu += tree;
         // First agent found across the window's panes marks the window.
@@ -222,8 +226,12 @@ export class TmuxSessionManager {
           if (agent) {
             sample.agent = agent;
             sample.agentCpu = table.cpu.get(agent.pid) ?? 0;
-            sample.childPids = descendantPids(table, agent.pid);
-            for (const pid of sample.childPids) pidCpu.set(pid, table.cpu.get(pid) ?? 0);
+            sample.jobs = findBackgroundJobs(table, agent.pid);
+            for (const job of sample.jobs) {
+              for (const pid of [job, ...descendantPids(table, job)]) {
+                pidCpu.set(pid, table.cpu.get(pid) ?? 0);
+              }
+            }
           }
         }
         samples.set(windowId, sample);
@@ -248,27 +256,24 @@ export class TmuxSessionManager {
               )
             : this.activity.observe(key, sample.treeCpu, nowSeconds)
         );
-        if (sample.agent) {
-          const rates = previous ? childRates(table, sample.childPids, previous, nowSeconds) : [];
-          const busyChildren = rates.filter(({ rate }) => rate >= CHILD_BUSY_FRACTION);
-          const reading = this.childActivity.observeBusy(key, busyChildren.length > 0, nowSeconds);
-          this.busyChildren.set(key, {
-            busy: reading.activeSeconds !== null,
-            top: busyChildren
-              .slice(0, 2)
-              .map(
-                ({ pid, rate }) =>
-                  `${processLabel(table.args.get(pid) ?? '')} ${Math.round(rate * 100)}%`
-              ),
+        if (sample.agent && sample.jobs.length > 0) {
+          const rates = previous
+            ? jobRates(table, sample.jobs, previous, nowSeconds)
+            : sample.jobs.map((pid) => ({ pid, rate: 0 }));
+          this.background.set(key, {
+            jobs: rates.slice(0, MAX_LISTED_JOBS).map(({ pid, rate }) => ({
+              label: processLabel(table.args.get(pid) ?? ''),
+              cpu: rate,
+            })),
+            cpu: rates.reduce((sum, { rate }) => sum + rate, 0),
           });
         } else {
-          this.busyChildren.delete(key);
+          this.background.delete(key);
         }
       }
       this.lastPidCpu.set(sessionName, { at: nowSeconds, cpu: pidCpu });
       this.activity.retainOnly(`${sessionName}:`, listed);
-      this.childActivity.retainOnly(`${sessionName}:`, listed);
-      for (const map of [this.readings, this.questions, this.agentKinds, this.busyChildren]) {
+      for (const map of [this.readings, this.questions, this.agentKinds, this.background]) {
         for (const key of map.keys()) {
           if (key.startsWith(`${sessionName}:`) && !listed.has(key)) map.delete(key);
         }
@@ -421,20 +426,24 @@ export class TmuxSessionManager {
   }
 }
 
-/** Each child's CPU rate since the last sample, busiest first. */
-function childRates(
+/** Each background job's CPU rate (its whole subtree) since the last sample, busiest first. */
+function jobRates(
   table: ProcessTable,
-  childPids: number[],
+  jobs: number[],
   previous: { at: number; cpu: Map<number, number> },
   nowSeconds: number
 ): Array<{ pid: number; rate: number }> {
   const elapsed = nowSeconds - previous.at;
   if (elapsed <= 0) return [];
-  return childPids
-    .map((pid) => {
-      const before = previous.cpu.get(pid);
-      const rate = before === undefined ? 0 : ((table.cpu.get(pid) ?? 0) - before) / elapsed;
-      return { pid, rate };
+  return jobs
+    .map((job) => {
+      let used = 0;
+      for (const pid of [job, ...descendantPids(table, job)]) {
+        const now = table.cpu.get(pid) ?? 0;
+        // A process born since the last sample has no baseline; count none of its history.
+        used += Math.max(0, now - (previous.cpu.get(pid) ?? now));
+      }
+      return { pid: job, rate: used / elapsed };
     })
     .sort((a, b) => b.rate - a.rate);
 }
