@@ -1,0 +1,35 @@
+test/unit/web/features/064-terminal/terminal-ws-windows.test.ts
+  s_084ac52dc66de3::t_7a1d95d16b9d41 136-179
+apps/web/src/features/064-terminal/server/tmux-session-manager.ts
+  s_084ac52dc66de3::t_b71f6d19193f62 17,29,365-394
+  s_084ac52dc66de3::t_ea4c415bb5bb3c 395-397
+apps/web/src/features/064-terminal/types.ts
+  s_084ac52dc66de3::t_b71f6d19193f62 9,48
+  s_084ac52dc66de3::t_90c3a7915e1464 66-68
+apps/web/src/features/064-terminal/server/terminal-ws.ts
+  s_084ac52dc66de3::t_b71f6d19193f62 238,246-248
+apps/web/src/features/064-terminal/lib/new-window-agents.ts
+  s_084ac52dc66de3::t_b71f6d19193f62 1-21
+apps/web/src/features/064-terminal/components/terminal-inner.tsx
+  s_084ac52dc66de3::t_134b24627b36ad 23,68,83,270-284
+apps/web/src/features/064-terminal/components/terminal-pane-header.tsx
+  s_084ac52dc66de3::t_35311b55970498 39,48,95-124,307-347,504-558
+apps/web/src/features/064-terminal/components/terminal-singleton-provider.tsx
+  s_084ac52dc66de3::t_dbe8cd6a72e045 34-40,71,136-139,200,214,236
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "ebcef09c614f3cbf087a1cb7fa8972dcea382a70",
+  "prompts": {},
+  "sessions": {
+    "s_084ac52dc66de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
