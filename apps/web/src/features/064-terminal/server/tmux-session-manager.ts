@@ -11,10 +11,20 @@
  */
 
 import { isAbsolute, normalize, relative, resolve } from 'node:path';
-import { type AgentKind, detectAgentKind } from '../lib/agent-kind';
+import { type AgentKind, findAgent, processLabel } from '../lib/agent-kind';
 import { claudeScreenAsksQuestion } from '../lib/claude-question';
-import { type ProcessTable, parseProcessTable, treeCpuSeconds } from '../lib/process-cpu';
-import { type WindowActivityReading, WindowActivityTracker } from '../lib/window-activity';
+import {
+  type ProcessTable,
+  descendantPids,
+  parseProcessTable,
+  treeCpuSeconds,
+} from '../lib/process-cpu';
+import {
+  AGENT_BUSY_FRACTION,
+  CHILD_BUSY_FRACTION,
+  type WindowActivityReading,
+  WindowActivityTracker,
+} from '../lib/window-activity';
 import type { CommandExecutor, PtyProcess, PtySpawner, TerminalWindow } from '../types';
 
 const TMUX_SESSION_NAME_REGEX = /^[a-zA-Z0-9_-]+$/;
@@ -46,6 +56,12 @@ export class TmuxSessionManager {
   private readonly execAsync: ((command: string, args: string[]) => Promise<string>) | undefined;
   /** Latest completed reading per `session:windowId`. */
   private readonly readings = new Map<string, WindowActivityReading>();
+  /** Separate streaks for an agent's child processes (dev servers, language servers, tools). */
+  private readonly childActivity = new WindowActivityTracker();
+  /** Per `session:windowId`: are the agent's children busy, and the busiest ones by name. */
+  private readonly busyChildren = new Map<string, { busy: boolean; top: string[] }>();
+  /** Per session: each agent child's cumulative CPU at the last sample, for per-process rates. */
+  private readonly lastPidCpu = new Map<string, { at: number; cpu: Map<number, number> }>();
   /** Coding-agent harness per `session:windowId`, from the pane process trees. */
   private readonly agentKinds = new Map<string, AgentKind>();
   /** At most one sample in flight per session. */
@@ -148,6 +164,9 @@ export class TmuxSessionManager {
           idleSeconds: reading?.idleSeconds ?? null,
           activeSeconds: reading?.activeSeconds ?? null,
           agent: this.agentKinds.get(`${sessionName}:${id}`) ?? null,
+          busySubprocesses: this.busyChildren.get(`${sessionName}:${id}`)?.busy
+            ? (this.busyChildren.get(`${sessionName}:${id}`)?.top ?? [])
+            : null,
           // A working window is not waiting on anyone, whatever its screen last said.
           question:
             (reading?.activeSeconds ?? null) === null &&
@@ -173,37 +192,88 @@ export class TmuxSessionManager {
         '#{window_id}\t#{pane_pid}',
       ]);
       const table = await this.readProcessTable();
-      const cpu = new Map<string, number>();
-      const kinds = new Map<string, AgentKind>();
-      for (const line of panes.split('\n')) {
-        const [windowId, pid] = line.split('\t');
-        if (!windowId || !pid) continue;
-        const seconds = treeCpuSeconds(table, Number(pid));
-        if (seconds !== null) cpu.set(windowId, (cpu.get(windowId) ?? 0) + seconds);
-        // First agent found across the window's panes marks the window.
-        const kind = kinds.has(windowId) ? null : detectAgentKind(table, Number(pid));
-        if (kind) kinds.set(windowId, kind);
-      }
-      for (const windowId of cpu.keys()) {
-        const key = `${sessionName}:${windowId}`;
-        const kind = kinds.get(windowId);
-        if (kind) this.agentKinds.set(key, kind);
-        else this.agentKinds.delete(key);
-      }
       const nowSeconds = Date.now() / 1000;
+      const previous = this.lastPidCpu.get(sessionName);
+      const pidCpu = new Map<number, number>();
+
+      interface WindowSample {
+        agent: { kind: AgentKind; pid: number } | null;
+        treeCpu: number;
+        agentCpu: number;
+        childPids: number[];
+      }
+      const samples = new Map<string, WindowSample>();
+      for (const line of panes.split('\n')) {
+        const [windowId, pidText] = line.split('\t');
+        if (!windowId || !pidText) continue;
+        const panePid = Number(pidText);
+        const tree = treeCpuSeconds(table, panePid);
+        if (tree === null) continue;
+        const sample = samples.get(windowId) ?? {
+          agent: null,
+          treeCpu: 0,
+          agentCpu: 0,
+          childPids: [],
+        };
+        sample.treeCpu += tree;
+        // First agent found across the window's panes marks the window.
+        if (!sample.agent) {
+          const agent = findAgent(table, panePid);
+          if (agent) {
+            sample.agent = agent;
+            sample.agentCpu = table.cpu.get(agent.pid) ?? 0;
+            sample.childPids = descendantPids(table, agent.pid);
+            for (const pid of sample.childPids) pidCpu.set(pid, table.cpu.get(pid) ?? 0);
+          }
+        }
+        samples.set(windowId, sample);
+      }
+
       const listed = new Set<string>();
-      for (const [windowId, seconds] of cpu) {
+      for (const [windowId, sample] of samples) {
         const key = `${sessionName}:${windowId}`;
         listed.add(key);
-        this.readings.set(key, this.activity.observe(key, seconds, nowSeconds));
+        if (sample.agent) this.agentKinds.set(key, sample.agent.kind);
+        else this.agentKinds.delete(key);
+        // An agent window is "working" by the agent's own CPU; its helpers (dev servers,
+        // language servers, daemons) are reported separately so they cannot light it up.
+        this.readings.set(
+          key,
+          sample.agent
+            ? this.activity.observe(
+                key,
+                sample.agentCpu,
+                nowSeconds,
+                AGENT_BUSY_FRACTION[sample.agent.kind]
+              )
+            : this.activity.observe(key, sample.treeCpu, nowSeconds)
+        );
+        if (sample.agent) {
+          const rates = previous ? childRates(table, sample.childPids, previous, nowSeconds) : [];
+          const busyChildren = rates.filter(({ rate }) => rate >= CHILD_BUSY_FRACTION);
+          const reading = this.childActivity.observeBusy(key, busyChildren.length > 0, nowSeconds);
+          this.busyChildren.set(key, {
+            busy: reading.activeSeconds !== null,
+            top: busyChildren
+              .slice(0, 2)
+              .map(
+                ({ pid, rate }) =>
+                  `${processLabel(table.args.get(pid) ?? '')} ${Math.round(rate * 100)}%`
+              ),
+          });
+        } else {
+          this.busyChildren.delete(key);
+        }
       }
+      this.lastPidCpu.set(sessionName, { at: nowSeconds, cpu: pidCpu });
       this.activity.retainOnly(`${sessionName}:`, listed);
-      for (const map of [this.readings, this.questions, this.agentKinds]) {
+      this.childActivity.retainOnly(`${sessionName}:`, listed);
+      for (const map of [this.readings, this.questions, this.agentKinds, this.busyChildren]) {
         for (const key of map.keys()) {
           if (key.startsWith(`${sessionName}:`) && !listed.has(key)) map.delete(key);
         }
       }
-      await this.readQuestions(sessionName, [...cpu.keys()]);
+      await this.readQuestions(sessionName, [...samples.keys()]);
     } catch {
       // Activity is decoration; a failed sample leaves the previous readings in place.
     } finally {
@@ -349,4 +419,22 @@ export class TmuxSessionManager {
     }
     return process.env.SHELL || '/bin/bash';
   }
+}
+
+/** Each child's CPU rate since the last sample, busiest first. */
+function childRates(
+  table: ProcessTable,
+  childPids: number[],
+  previous: { at: number; cpu: Map<number, number> },
+  nowSeconds: number
+): Array<{ pid: number; rate: number }> {
+  const elapsed = nowSeconds - previous.at;
+  if (elapsed <= 0) return [];
+  return childPids
+    .map((pid) => {
+      const before = previous.cpu.get(pid);
+      const rate = before === undefined ? 0 : ((table.cpu.get(pid) ?? 0) - before) / elapsed;
+      return { pid, rate };
+    })
+    .sort((a, b) => b.rate - a.rate);
 }

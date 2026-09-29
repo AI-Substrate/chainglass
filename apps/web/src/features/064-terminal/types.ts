@@ -174,6 +174,12 @@ export interface TerminalWindow {
   question: boolean;
   /** Coding-agent harness running in the window, from its pane process trees; null if none. */
   agent: AgentKind | null;
+  /**
+   * For an agent window whose child processes (dev servers, language servers, tools it started)
+   * are busy: the busiest by name and CPU, e.g. `["vite 58%"]` (may be empty mid-streak).
+   * `null` when they are quiet or the window runs no agent.
+   */
+  busySubprocesses: string[] | null;
 }
 
 /** Both window reads and selections return the current session window list. */

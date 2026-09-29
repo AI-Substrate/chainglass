@@ -51,3 +51,18 @@ export function treeCpuSeconds(table: ProcessTable, rootPid: number): number | n
   }
   return total;
 }
+
+/** Every descendant of `rootPid` (not including it). */
+export function descendantPids(table: ProcessTable, rootPid: number): number[] {
+  const out: number[] = [];
+  const stack = [...(table.children.get(rootPid) ?? [])];
+  const seen = new Set<number>([rootPid]);
+  while (stack.length > 0) {
+    const pid = stack.pop() as number;
+    if (seen.has(pid)) continue;
+    seen.add(pid);
+    out.push(pid);
+    stack.push(...(table.children.get(pid) ?? []));
+  }
+  return out;
+}

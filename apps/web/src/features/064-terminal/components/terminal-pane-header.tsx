@@ -171,6 +171,11 @@ export function TerminalPaneHeader({
                   : 'bg-zinc-300 text-zinc-700 hover:bg-zinc-400 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600';
               const asking = !outputActive && window.question;
               const agent = window.agent ? AGENT_MARK[window.agent] : null;
+              const subprocesses = window.busySubprocesses;
+              const subprocessNote =
+                subprocesses === null
+                  ? ''
+                  : ` · subprocesses busy${subprocesses.length > 0 ? `: ${subprocesses.join(', ')}` : ''}`;
               const matchTone =
                 query.length === 0
                   ? ''
@@ -191,7 +196,7 @@ export function TerminalPaneHeader({
                       type="button"
                       onClick={() => selectWindow?.(window.id, window.index)}
                       disabled={connectionStatus !== 'connected' || !selectWindow}
-                      aria-label={`Window ${window.index}: ${window.name}${agent ? `, ${agent.label}` : ''}${status ? `, ${status}` : ''}`}
+                      aria-label={`Window ${window.index}: ${window.name}${agent ? `, ${agent.label}` : ''}${status ? `, ${status}` : ''}${subprocessNote.replace(' · ', ', ')}`}
                       aria-pressed={window.active}
                       data-output-active={outputActive ? 'true' : 'false'}
                       className={`relative flex h-7 min-w-8 shrink-0 flex-col items-center overflow-hidden rounded px-1 pt-0.5 text-[11px] font-medium leading-none tabular-nums focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-50 ${tone} ${matchTone}`}
@@ -201,6 +206,12 @@ export function TerminalPaneHeader({
                           aria-hidden="true"
                           className="absolute top-0 left-0 h-0 w-0 border-t-[7px] border-r-[7px] border-r-transparent"
                           style={{ borderTopColor: agent.color }}
+                        />
+                      ) : null}
+                      {subprocesses !== null ? (
+                        <span
+                          aria-hidden="true"
+                          className="absolute top-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-amber-400"
                         />
                       ) : null}
                       <span>{window.index}</span>
@@ -222,6 +233,7 @@ export function TerminalPaneHeader({
                     {agent ? `${agent.label} · ` : ''}
                     {window.name}
                     {status ? ` · ${status}` : ''}
+                    {subprocessNote}
                   </TooltipContent>
                 </Tooltip>
               );
