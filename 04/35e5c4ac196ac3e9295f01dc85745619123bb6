@@ -1,0 +1,19 @@
+test/unit/web/features/064-terminal/terminal-ws-windows.test.ts
+  s_c50a787648743a::t_d2b15c036e9364 169-181
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "0435e5c4ac196ac3e9295f01dc85745619123bb6",
+  "prompts": {},
+  "sessions": {
+    "s_c50a787648743a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1d1f18d3-0079-411e-80f5-4aa75d8f409d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
