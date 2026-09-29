@@ -1,0 +1,14 @@
+apps/web/src/features/064-terminal/components/terminal-pane-header.tsx
+  h_9e71e8b09f7cf2 226-228,231-232,234-235,238
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "6f407c24bb7562b016782396f1dcb33b6db0cb51",
+  "prompts": {},
+  "humans": {
+    "h_9e71e8b09f7cf2": {
+      "author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
