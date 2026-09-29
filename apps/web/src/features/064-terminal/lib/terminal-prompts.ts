@@ -40,6 +40,7 @@ const PROMPT_TEXTS: readonly string[] = [
   'ask me the questions 1 at a time. 1 sentence context, 1 sentence for the ask',
   'summarise that in two sentences',
   'give me that in a numbered list, 1 sentence per item',
+  'Show me current status in a table please, keep it simple',
   `Standing overnight-autonomous run.
 
 FLEET — use /pij coders. All copilot agent harness.
