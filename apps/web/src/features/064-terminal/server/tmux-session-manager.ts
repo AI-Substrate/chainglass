@@ -10,6 +10,7 @@
  * Plan 064: Terminal Integration via tmux
  */
 
+import { createHash } from 'node:crypto';
 import { isAbsolute, normalize, relative, resolve } from 'node:path';
 import { type AgentKind, findAgent, processLabel } from '../lib/agent-kind';
 import { findBackgroundJobs } from '../lib/background-jobs';
@@ -21,8 +22,9 @@ import {
   parseProcessTable,
   treeCpuSeconds,
 } from '../lib/process-cpu';
+import { workRegion } from '../lib/screen-activity';
 import {
-  AGENT_BUSY_FRACTION,
+  BUSY_CPU_FRACTION,
   type WindowActivityReading,
   WindowActivityTracker,
 } from '../lib/window-activity';
@@ -41,6 +43,8 @@ const MAX_SESSION_NAME_LENGTH = 256;
 const PROCESS_TABLE_TTL_MS = 1_000;
 /** An idle window's screen is re-read at most this often (it cannot change much while idle). */
 const QUESTION_RECHECK_MS = 60_000;
+/** Screen reads per sample, for windows that produced output since their last read. */
+const SCREEN_READS_PER_SAMPLE = 16;
 /** Background jobs listed per window (the combined CPU still counts all of them). */
 const MAX_LISTED_JOBS = 12;
 /** Screen reads per background sample, so hundreds of windows cannot burst tmux. */
@@ -66,6 +70,10 @@ export class TmuxSessionManager {
   private readonly execAsync: ((command: string, args: string[]) => Promise<string>) | undefined;
   /** Latest completed reading per `session:windowId`. */
   private readonly readings = new Map<string, WindowActivityReading>();
+  /** Per `session:windowId`: the work region's hash and the window_activity it was read at. */
+  private readonly screens = new Map<string, { activityAt: number; hash: string }>();
+  /** Per `session:windowId`: cumulative process-tree CPU at the last sample (non-agent windows). */
+  private readonly lastTreeCpu = new Map<string, { cpu: number; at: number }>();
   /** Per `session:windowId`: the agent's background jobs, their combined CPU, busiest by name. */
   private readonly background = new Map<string, TerminalWindowBackground>();
   /** Per session: each agent child's cumulative CPU at the last sample, for per-process rates. */
@@ -195,7 +203,7 @@ export class TmuxSessionManager {
         '-t',
         `=${sessionName}`,
         '-F',
-        '#{window_id}\t#{pane_pid}',
+        '#{window_id}\t#{pane_pid}\t#{window_activity}',
       ]);
       const table = await this.readProcessTable();
       const nowSeconds = Date.now() / 1000;
@@ -205,12 +213,12 @@ export class TmuxSessionManager {
       interface WindowSample {
         agent: { kind: AgentKind; pid: number } | null;
         treeCpu: number;
-        agentCpu: number;
+        activityAt: number;
         jobs: number[];
       }
       const samples = new Map<string, WindowSample>();
       for (const line of panes.split('\n')) {
-        const [windowId, pidText] = line.split('\t');
+        const [windowId, pidText, activityText] = line.split('\t');
         if (!windowId || !pidText) continue;
         const panePid = Number(pidText);
         const tree = treeCpuSeconds(table, panePid);
@@ -218,7 +226,7 @@ export class TmuxSessionManager {
         const sample = samples.get(windowId) ?? {
           agent: null,
           treeCpu: 0,
-          agentCpu: 0,
+          activityAt: Number(activityText) || 0,
           jobs: [],
         };
         sample.treeCpu += tree;
@@ -227,7 +235,6 @@ export class TmuxSessionManager {
           const agent = findAgent(table, panePid);
           if (agent) {
             sample.agent = agent;
-            sample.agentCpu = table.cpu.get(agent.pid) ?? 0;
             sample.jobs = findBackgroundJobs(table, agent.pid);
             for (const job of sample.jobs) {
               for (const pid of [job, ...descendantPids(table, job)]) {
@@ -239,25 +246,24 @@ export class TmuxSessionManager {
         samples.set(windowId, sample);
       }
 
+      const changed = await this.readScreenChanges(sessionName, samples);
       const listed = new Set<string>();
       for (const [windowId, sample] of samples) {
         const key = `${sessionName}:${windowId}`;
         listed.add(key);
         if (sample.agent) this.agentKinds.set(key, sample.agent.kind);
         else this.agentKinds.delete(key);
-        // An agent window is "working" by the agent's own CPU; its helpers (dev servers,
-        // language servers, daemons) are reported separately so they cannot light it up.
-        this.readings.set(
-          key,
-          sample.agent
-            ? this.activity.observe(
-                key,
-                sample.agentCpu,
-                nowSeconds,
-                AGENT_BUSY_FRACTION[sample.agent.kind]
-              )
-            : this.activity.observe(key, sample.treeCpu, nowSeconds)
-        );
+        // Working = the screen above the input box changed (see lib/screen-activity.ts). CPU is
+        // no signal for agents: they mostly wait on the model (a working omp measured ~1%).
+        // A window with no agent also counts sustained CPU, so a silent build still shows.
+        let busy = changed.has(windowId);
+        const lastTree = this.lastTreeCpu.get(key);
+        if (!sample.agent && lastTree && nowSeconds > lastTree.at) {
+          busy ||=
+            (sample.treeCpu - lastTree.cpu) / (nowSeconds - lastTree.at) >= BUSY_CPU_FRACTION;
+        }
+        this.lastTreeCpu.set(key, { cpu: sample.treeCpu, at: nowSeconds });
+        this.readings.set(key, this.activity.observeBusy(key, busy, nowSeconds));
         if (sample.agent && sample.jobs.length > 0) {
           const rates = previous
             ? jobRates(table, sample.jobs, previous, nowSeconds)
@@ -275,7 +281,14 @@ export class TmuxSessionManager {
       }
       this.lastPidCpu.set(sessionName, { at: nowSeconds, cpu: pidCpu });
       this.activity.retainOnly(`${sessionName}:`, listed);
-      for (const map of [this.readings, this.questions, this.agentKinds, this.background]) {
+      for (const map of [
+        this.readings,
+        this.questions,
+        this.agentKinds,
+        this.background,
+        this.screens,
+        this.lastTreeCpu,
+      ]) {
         for (const key of map.keys()) {
           if (key.startsWith(`${sessionName}:`) && !listed.has(key)) map.delete(key);
         }
@@ -286,6 +299,37 @@ export class TmuxSessionManager {
     } finally {
       this.sampling.delete(sessionName);
     }
+  }
+
+  /**
+   * Which windows' work region changed since the last sample. A screen is read only when tmux
+   * reports output in that window since the last read (window_activity moved), so silent windows
+   * cost nothing; at most {@link SCREEN_READS_PER_SAMPLE} reads per sample.
+   */
+  private async readScreenChanges(
+    sessionName: string,
+    samples: Map<string, { activityAt: number }>
+  ): Promise<Set<string>> {
+    const changed = new Set<string>();
+    const exec = this.execAsync;
+    if (!exec) return changed;
+    let reads = 0;
+    for (const [windowId, { activityAt }] of samples) {
+      const key = `${sessionName}:${windowId}`;
+      const known = this.screens.get(key);
+      if (known && activityAt <= known.activityAt) continue;
+      if (reads >= SCREEN_READS_PER_SAMPLE) break;
+      reads += 1;
+      try {
+        const screen = await exec('tmux', ['capture-pane', '-p', '-J', '-t', windowId]);
+        const hash = createHash('sha1').update(workRegion(screen)).digest('hex');
+        if (known && known.hash !== hash) changed.add(windowId);
+        this.screens.set(key, { activityAt, hash });
+      } catch {
+        this.screens.delete(key);
+      }
+    }
+    return changed;
   }
 
   /**

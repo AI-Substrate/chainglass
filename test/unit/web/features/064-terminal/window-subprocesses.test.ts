@@ -44,7 +44,7 @@ describe('agent window activity vs its background jobs', () => {
       args[0] === 'list-windows' ? '@14\t14\t0\tomp-seat\n@15\t15\t0\tclaude-seat\n' : '';
     const execAsync = async (command: string, args: string[]) => {
       if (command === 'ps') return psSnapshot(t, viteRate);
-      if (args[0] === 'list-panes') return '@14\t100\n@15\t200\n';
+      if (args[0] === 'list-panes') return '@14\t100\t1\n@15\t200\t1\n';
       return '';
     };
     const manager = new TmuxSessionManager(exec, (() => null) as never, execAsync);

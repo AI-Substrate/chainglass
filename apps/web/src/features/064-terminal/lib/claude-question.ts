@@ -16,8 +16,8 @@
  * not a Claude Code screen, so other programs never get a question marker.
  */
 
-const RULE = /^─{10,}/;
-const PROMPT = /^❯/;
+import { inputBoxTop } from './screen-activity';
+
 /** Claude's spinner / turn-status glyphs lead the "✻ Worked for 14s" style lines. */
 const STATUS_LINE = /^[✻✶✳✢✽✺·*]\s/;
 /** A question mark, optionally followed by closing quotes, brackets or markdown emphasis. */
@@ -25,13 +25,7 @@ const ENDS_WITH_QUESTION = /[?？]["'”’`)\]*_]*$/;
 
 export function claudeScreenAsksQuestion(screen: string): boolean | null {
   const lines = screen.split('\n').map((line) => line.trimEnd());
-  let boxTop = -1;
-  for (let i = lines.length - 2; i >= 0; i--) {
-    if (RULE.test(lines[i]) && PROMPT.test(lines[i + 1])) {
-      boxTop = i;
-      break;
-    }
-  }
+  const boxTop = inputBoxTop(lines);
   if (boxTop < 0) return null;
   for (let i = boxTop - 1; i >= 0; i--) {
     const text = lines[i].trim();

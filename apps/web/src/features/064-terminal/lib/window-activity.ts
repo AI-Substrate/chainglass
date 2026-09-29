@@ -13,28 +13,16 @@
  * flicker.
  */
 
-import type { AgentKind } from './agent-kind';
-
 /** A sample is busy at or above this fraction of one core. Idle agents measured ~0.005. */
 export const BUSY_CPU_FRACTION = 0.02;
 
 /**
- * Busy bar for an agent's OWN process (its helpers are measured separately). omp idles at ~2.3%
- * on its own (measured 2026-09-29, few samples), Claude at 0.3–1%.
- */
-/**
- * Background jobs below this combined share of a core read as "not much processing" (an empty
- * ring), and a job is named in the tooltip only at or above it. Working dev servers and builds
- * measured 10–58% (2026-09-29); idle ones well under 1%.
+ * Background jobs below this combined share of a core read as "not much processing" (no fill),
+ * and a job counts as busy only at or above it. Working dev servers and builds measured 10–58%
+ * (2026-09-29); idle ones well under 1%.
  */
 export const CHILD_BUSY_FRACTION = 0.03;
 
-export const AGENT_BUSY_FRACTION: Record<AgentKind, number> = {
-  claude: BUSY_CPU_FRACTION,
-  copilot: BUSY_CPU_FRACTION,
-  codex: BUSY_CPU_FRACTION,
-  pi: 0.05,
-};
 /** Consecutive busy samples required before a window turns active. */
 export const CONFIRM_SAMPLES = 2;
 /** Quiet seconds before an active window turns idle. */
@@ -96,6 +84,30 @@ export class WindowActivityTracker {
     // A negative delta means a process in the tree exited; count the sample as not busy.
     const busy = (cpuSeconds - state.cpu) / elapsed >= busyFraction;
     state.cpu = cpuSeconds;
+    return this.step(state, busy, elapsed, nowSeconds);
+  }
+
+  /**
+   * Record a sample already judged busy or not (e.g. "did the screen above the input box change"),
+   * with the same first-sight, confirmation and quiet-grace rules as {@link observe}.
+   */
+  observeBusy(key: string, busy: boolean, nowSeconds: number): WindowActivityReading {
+    const state = this.windows.get(key);
+    if (!state) {
+      this.windows.set(key, {
+        cpu: 0,
+        at: nowSeconds,
+        busyRun: 0,
+        firstBusyAt: null,
+        streakStart: null,
+        quietSince: null,
+        lastRealAt: null,
+        reading: UNKNOWN,
+      });
+      return UNKNOWN;
+    }
+    const elapsed = nowSeconds - state.at;
+    if (elapsed < MIN_SAMPLE_SECONDS) return this.read(state, nowSeconds);
     return this.step(state, busy, elapsed, nowSeconds);
   }
 
