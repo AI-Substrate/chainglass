@@ -255,6 +255,15 @@ export function TerminalPaneHeader({
                           question / idle time); the four above rise with background-job CPU,
                           one per 25% of a core, as one solid column; a thin white line
                           separates it from the agent slice. */}
+                      {showBackground && fillQuarters === 0 ? (
+                        // Jobs exist but are barely working: a thin line says "something is running".
+                        <span
+                          aria-hidden="true"
+                          data-background-quarters={0}
+                          className="absolute inset-x-0 h-[3px] border-b border-white bg-emerald-500"
+                          style={{ bottom: AGENT_SLICE_PX }}
+                        />
+                      ) : null}
                       {fillQuarters > 0 ? (
                         <span
                           aria-hidden="true"
