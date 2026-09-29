@@ -14,6 +14,7 @@ import { isAbsolute, normalize, relative, resolve } from 'node:path';
 import { type AgentKind, findAgent, processLabel } from '../lib/agent-kind';
 import { findBackgroundJobs } from '../lib/background-jobs';
 import { claudeScreenAsksQuestion } from '../lib/claude-question';
+import { NEW_WINDOW_AGENTS, type NewWindowAgent, isNewWindowAgent } from '../lib/new-window-agents';
 import {
   type ProcessTable,
   descendantPids,
@@ -25,6 +26,7 @@ import {
   type WindowActivityReading,
   WindowActivityTracker,
 } from '../lib/window-activity';
+import { isValidWindowName } from '../lib/window-name-validation';
 import type {
   CommandExecutor,
   PtyProcess,
@@ -357,6 +359,39 @@ export class TmuxSessionManager {
       'display-message -p window-changed',
     ]).trim();
     if (outcome !== 'window-selected') throw new Error('The tmux window changed');
+    return this.listWindows(sessionName);
+  }
+
+  /**
+   * Open a named window in the attached session, start `agent` in it, and select it (tmux's
+   * new-window selects by default). The agent is typed into the window's own shell rather than
+   * run as the window's process, so the user's shell profile loads (PATH for `~/.local/bin/omp`)
+   * and the window survives the agent exiting.
+   */
+  newWindow(
+    sessionName: string,
+    cwd: string,
+    agent: NewWindowAgent,
+    name: string
+  ): TerminalWindow[] {
+    if (!this.validateSessionName(sessionName)) throw new Error('Invalid session name');
+    if (!isNewWindowAgent(agent)) throw new Error('Unknown agent');
+    if (!isValidWindowName(name)) throw new Error('Invalid window name');
+    const windowId = this.exec('tmux', [
+      'new-window',
+      '-P',
+      '-F',
+      '#{window_id}',
+      '-t',
+      `=${sessionName}:`,
+      '-n',
+      name,
+      '-c',
+      cwd,
+    ]).trim();
+    if (!/^@\d+$/.test(windowId)) throw new Error('tmux did not report the new window');
+    this.exec('tmux', ['send-keys', '-t', windowId, '-l', NEW_WINDOW_AGENTS[agent].command]);
+    this.exec('tmux', ['send-keys', '-t', windowId, 'Enter']);
     return this.listWindows(sessionName);
   }
 

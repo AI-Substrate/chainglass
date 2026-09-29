@@ -20,6 +20,7 @@ import { applyResyncOnStatus } from '../lib/resync-on-connect';
 import { resolveTerminalTheme } from '../lib/terminal-themes';
 import type {
   ConnectionStatus,
+  NewWindow,
   RenameWindow,
   ResizePaneRequest,
   SendPrompt,
@@ -64,6 +65,7 @@ interface TerminalInnerProps {
   onResizeModeExit?: () => void;
   onWindowsChange?: (windows: TerminalWindow[]) => void;
   onSelectWindowReady?: (select: ((windowId: string, windowIndex: number) => void) | null) => void;
+  onNewWindowReady?: (create: NewWindow | null) => void;
 }
 
 export default function TerminalInner({
@@ -78,6 +80,7 @@ export default function TerminalInner({
   onResizeModeExit,
   onWindowsChange,
   onSelectWindowReady,
+  onNewWindowReady,
 }: TerminalInnerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
@@ -263,6 +266,21 @@ export default function TerminalInner({
     onSelectWindowReady?.(selectWindow);
     return () => onSelectWindowReady?.(null);
   }, [onSelectWindowReady, selectWindow]);
+
+  // The reply is the fresh window list with the new window selected (tmux selects it).
+  const newWindow = useCallback<NewWindow>(
+    (agent, name) => {
+      onResizeModeExit?.();
+      send(JSON.stringify({ type: 'new-window', agent, name }));
+      terminalRef.current?.focus();
+    },
+    [send, onResizeModeExit]
+  );
+
+  useEffect(() => {
+    onNewWindowReady?.(newWindow);
+    return () => onNewWindowReady?.(null);
+  }, [onNewWindowReady, newWindow]);
 
   const resizePane = useCallback(
     (request: ResizePaneRequest) => {

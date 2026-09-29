@@ -31,7 +31,13 @@ import {
   useState,
 } from 'react';
 import { useTerminalOverlay } from '../hooks/use-terminal-overlay';
-import type { ConnectionStatus, RenameWindow, SendPrompt, TerminalWindow } from '../types';
+import type {
+  ConnectionStatus,
+  NewWindow,
+  RenameWindow,
+  SendPrompt,
+  TerminalWindow,
+} from '../types';
 
 const TerminalInnerLazy = dynamic(() => import('./terminal-inner'), { ssr: false });
 
@@ -62,6 +68,7 @@ interface TerminalSingletonContextValue {
   toggleResizeMode(): void;
   windows: TerminalWindow[];
   selectWindow: ((windowId: string, windowIndex: number) => void) | null;
+  newWindow: NewWindow | null;
 }
 
 const TerminalSingletonContext = createContext<TerminalSingletonContextValue | null>(null);
@@ -126,6 +133,10 @@ export function TerminalSingletonProvider({
     },
     []
   );
+  const [newWindow, setNewWindow] = useState<NewWindow | null>(null);
+  const registerNewWindow = useCallback((create: NewWindow | null) => {
+    setNewWindow(() => create);
+  }, []);
   const parkRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const slotsRef = useRef<Map<string, HTMLElement>>(new Map());
@@ -186,6 +197,7 @@ export function TerminalSingletonProvider({
       toggleResizeMode,
       windows,
       selectWindow,
+      newWindow,
     }),
     [
       activate,
@@ -199,6 +211,7 @@ export function TerminalSingletonProvider({
       toggleResizeMode,
       windows,
       selectWindow,
+      newWindow,
     ]
   );
 
@@ -220,6 +233,7 @@ export function TerminalSingletonProvider({
               onResizeModeExit={stopResizing}
               onWindowsChange={setWindows}
               onSelectWindowReady={registerSelectWindow}
+              onNewWindowReady={registerNewWindow}
             />
           </div>
         ) : null}

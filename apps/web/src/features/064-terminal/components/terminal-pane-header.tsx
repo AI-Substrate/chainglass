@@ -36,6 +36,7 @@ import {
   ClipboardCopy,
   MessageSquareText,
   Pencil,
+  Plus,
   Scaling,
   Search,
   TerminalSquare,
@@ -44,6 +45,7 @@ import {
 import { type FormEvent, useCallback, useLayoutEffect, useRef, useState } from 'react';
 import type { AgentKind } from '../lib/agent-kind';
 import { copyTmuxBuffer } from '../lib/copy-tmux-buffer';
+import { NEW_WINDOW_AGENTS, type NewWindowAgent } from '../lib/new-window-agents';
 import { CHILD_BUSY_FRACTION, formatIdle } from '../lib/window-activity';
 import { getWindowNameValidationError } from '../lib/window-name-validation';
 import type { ConnectionStatus } from '../types';
@@ -90,8 +92,36 @@ export function TerminalPaneHeader({
   // down through props. Both hosts already render inside the provider, so
   // neither of them grows a prop for the drawer — which is the drift FX014
   // created this component to end.
-  const { sendPrompt, renameWindow, resizeMode, toggleResizeMode, windows, selectWindow } =
-    useTerminalSingleton();
+  const {
+    sendPrompt,
+    renameWindow,
+    resizeMode,
+    toggleResizeMode,
+    windows,
+    selectWindow,
+    newWindow,
+  } = useTerminalSingleton();
+  // "+" at the end of the strip: pick an agent, name the window, create and select it.
+  const [newMenuOpen, setNewMenuOpen] = useState(false);
+  const [newAgent, setNewAgent] = useState<NewWindowAgent | null>(null);
+  const [newName, setNewName] = useState('');
+  const [newNameError, setNewNameError] = useState<string | null>(null);
+  const handleCreateWindow = useCallback(
+    (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      if (!newAgent) return;
+      const error = getWindowNameValidationError(newName);
+      if (error) {
+        setNewNameError(error);
+        return;
+      }
+      newWindow?.(newAgent, newName.trim());
+      setNewAgent(null);
+      setNewName('');
+      setNewNameError(null);
+    },
+    [newAgent, newName, newWindow]
+  );
   const [drawerOpen, setDrawerOpen] = useState(false);
   // Window-name search: non-modal popover; closing it (click away, Escape) clears the query.
   const [searchOpen, setSearchOpen] = useState(false);
@@ -274,6 +304,47 @@ export function TerminalPaneHeader({
                 </Tooltip>
               );
             })}
+            <Popover open={newMenuOpen} onOpenChange={setNewMenuOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  disabled={connectionStatus !== 'connected' || !newWindow}
+                  aria-label="New agent window"
+                  title="New agent window"
+                  className="flex h-7 min-w-8 shrink-0 items-center justify-center rounded bg-muted px-1 text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-50"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-80 p-1">
+                {(Object.keys(NEW_WINDOW_AGENTS) as NewWindowAgent[]).map((key) => {
+                  const option = NEW_WINDOW_AGENTS[key];
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => {
+                        setNewMenuOpen(false);
+                        setNewName('');
+                        setNewNameError(null);
+                        setNewAgent(key);
+                      }}
+                      className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
+                    >
+                      <span
+                        aria-hidden="true"
+                        className="h-2.5 w-2.5 shrink-0 rounded-sm"
+                        style={{ backgroundColor: AGENT_MARK[option.kind].color }}
+                      />
+                      <span className="whitespace-nowrap font-medium">{option.label}</span>
+                      <code className="ml-auto truncate text-[11px] text-muted-foreground">
+                        {option.command}
+                      </code>
+                    </button>
+                  );
+                })}
+              </PopoverContent>
+            </Popover>
           </nav>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -425,6 +496,61 @@ export function TerminalPaneHeader({
                 className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
               >
                 Rename window
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={newAgent !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setNewAgent(null);
+            setNewNameError(null);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              New {newAgent ? NEW_WINDOW_AGENTS[newAgent].label : ''} window
+            </DialogTitle>
+            <DialogDescription>
+              Opens a tmux window in this worktree and runs{' '}
+              <code>{newAgent ? NEW_WINDOW_AGENTS[newAgent].command : ''}</code>.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreateWindow} className="space-y-4">
+            <div className="space-y-2">
+              <label htmlFor="terminal-new-window-name" className="text-sm font-medium">
+                Window name
+              </label>
+              <input
+                id="terminal-new-window-name"
+                value={newName}
+                onChange={(event) => {
+                  setNewName(event.target.value);
+                  setNewNameError(null);
+                }}
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                aria-invalid={newNameError ? true : undefined}
+                aria-describedby={newNameError ? 'terminal-new-window-name-error' : undefined}
+                // biome-ignore lint/a11y/noAutofocus: user-invoked modal whose only purpose is this input.
+                autoFocus
+              />
+              {newNameError && (
+                <p id="terminal-new-window-name-error" className="text-sm text-destructive">
+                  {newNameError}
+                </p>
+              )}
+            </div>
+            <DialogFooter>
+              <button
+                type="submit"
+                className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+              >
+                Create window
               </button>
             </DialogFooter>
           </form>

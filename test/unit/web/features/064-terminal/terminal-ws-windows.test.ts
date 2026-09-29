@@ -133,6 +133,50 @@ describe('terminal WebSocket window controls', () => {
     });
   });
 
+  it('opens a named window in the worktree, types the fixed agent command, and returns the list', async () => {
+    const { socket, execCommand, pty } = createHarness();
+    execCommand
+      .mockReturnValueOnce('@40\n') // new-window -P prints the id
+      .mockReturnValueOnce('') // send-keys command
+      .mockReturnValueOnce('') // send-keys Enter
+      .mockReturnValueOnce('@40\t9\t1\tplanner\n');
+
+    await socket.simulateMessage({ type: 'new-window', agent: 'claude', name: 'planner' });
+
+    expect(execCommand.mock.calls.slice(0, 3)).toEqual([
+      [
+        'tmux',
+        [
+          'new-window',
+          '-P',
+          '-F',
+          '#{window_id}',
+          '-t',
+          '=terminal-session:',
+          '-n',
+          'planner',
+          '-c',
+          process.cwd(),
+        ],
+      ],
+      ['tmux', ['send-keys', '-t', '@40', '-l', 'claude --dangerously-skip-permissions']],
+      ['tmux', ['send-keys', '-t', '@40', 'Enter']],
+    ]);
+    expect(JSON.parse(socket.sent[0]).windows[0]).toMatchObject({ id: '@40', active: true });
+    expect(pty.writeCalls).toEqual([]);
+  });
+
+  it.each([
+    [{ agent: 'rm -rf /', name: 'x' }, 'Unknown agent'],
+    [{ agent: 'toString', name: 'x' }, 'Unknown agent'],
+    [{ agent: 'omp', name: '-t other' }, 'Invalid window name'],
+  ])('refuses %o without touching tmux', async (payload, error) => {
+    const { socket, execCommand } = createHarness();
+    await socket.simulateMessage({ type: 'new-window', ...payload });
+    expect(execCommand).not.toHaveBeenCalled();
+    expect(JSON.parse(socket.sent[0])).toEqual({ type: 'windows', windows: [], error });
+  });
+
   it.each([undefined, null, 7, '', '7', 'other:@12', '@12;kill-server'])(
     'rejects malformed ID %s without invoking tmux or writing shell input',
     async (windowId) => {

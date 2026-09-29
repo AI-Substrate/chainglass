@@ -6,6 +6,7 @@
  */
 
 import type { AgentKind } from './lib/agent-kind';
+import type { NewWindowAgent } from './lib/new-window-agents';
 
 /** A tmux session discovered on the host machine */
 export interface TerminalSession {
@@ -44,6 +45,7 @@ export type TerminalMessage =
   | { type: 'rename-window'; name: string }
   | ({ type: 'windows' } & Partial<TerminalWindowsResult>)
   | { type: 'select-window'; windowId: string; windowIndex: number }
+  | { type: 'new-window'; agent: NewWindowAgent; name: string }
   | ({ type: 'pane-layout' } & Partial<PaneLayoutResult>)
   | ({ type: 'resize-pane' } & ResizePaneRequest)
   | { type: 'sessions'; sessions: TerminalSession[] };
@@ -60,6 +62,9 @@ export type SendPrompt = (text: string, options: { submit: boolean }) => void;
 
 /** Rename the active tmux window for the terminal's attached session. */
 export type RenameWindow = (name: string) => void;
+
+/** Open a named tmux window running one of the "+" menu's agents, and select it. */
+export type NewWindow = (agent: NewWindowAgent, name: string) => void;
 
 /** Outcome of a rename-window control frame, as reported by the sidecar. */
 export interface RenameWindowResult {
