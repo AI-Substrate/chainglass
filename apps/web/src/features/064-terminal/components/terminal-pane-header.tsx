@@ -110,7 +110,8 @@ export function TerminalPaneHeader({
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
       if (!newAgent) return;
-      const error = getWindowNameValidationError(newName);
+      // Optional: blank lets pij name the window after its seat once the harness registers.
+      const error = newName.trim().length > 0 ? getWindowNameValidationError(newName) : null;
       if (error) {
         setNewNameError(error);
         return;
@@ -533,11 +534,12 @@ export function TerminalPaneHeader({
           <form onSubmit={handleCreateWindow} className="space-y-4">
             <div className="space-y-2">
               <label htmlFor="terminal-new-window-name" className="text-sm font-medium">
-                Window name
+                Window name <span className="font-normal text-muted-foreground">(optional)</span>
               </label>
               <input
                 id="terminal-new-window-name"
                 value={newName}
+                placeholder="Blank: named after its pij seat"
                 onChange={(event) => {
                   setNewName(event.target.value);
                   setNewNameError(null);

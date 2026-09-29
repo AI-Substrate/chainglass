@@ -166,6 +166,19 @@ describe('terminal WebSocket window controls', () => {
     expect(pty.writeCalls).toEqual([]);
   });
 
+  it('leaves a blank-named window unnamed so pij can name it after its seat', async () => {
+    const { socket, execCommand } = createHarness();
+    execCommand.mockReturnValueOnce('@41\n').mockReturnValue('');
+
+    await socket.simulateMessage({ type: 'new-window', agent: 'omp', name: '  ' });
+
+    expect(execCommand.mock.calls[0]).toEqual([
+      'tmux',
+      ['new-window', '-P', '-F', '#{window_id}', '-t', '=terminal-session:', '-c', process.cwd()],
+    ]);
+    expect(execCommand.mock.calls[1]).toEqual(['tmux', ['send-keys', '-t', '@41', '-l', 'omp']]);
+  });
+
   it.each([
     [{ agent: 'rm -rf /', name: 'x' }, 'Unknown agent'],
     [{ agent: 'toString', name: 'x' }, 'Unknown agent'],

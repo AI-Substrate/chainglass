@@ -420,7 +420,10 @@ export class TmuxSessionManager {
   ): TerminalWindow[] {
     if (!this.validateSessionName(sessionName)) throw new Error('Invalid session name');
     if (!isNewWindowAgent(agent)) throw new Error('Unknown agent');
-    if (!isValidWindowName(name)) throw new Error('Invalid window name');
+    // A blank name leaves the window unnamed: tmux shows the running program until pij renames
+    // it after the seat (a few seconds after the harness starts). pij leaves user-set names alone.
+    const named = name.trim().length > 0;
+    if (named && !isValidWindowName(name)) throw new Error('Invalid window name');
     const windowId = this.exec('tmux', [
       'new-window',
       '-P',
@@ -428,8 +431,7 @@ export class TmuxSessionManager {
       '#{window_id}',
       '-t',
       `=${sessionName}:`,
-      '-n',
-      name,
+      ...(named ? ['-n', name] : []),
       '-c',
       cwd,
     ]).trim();
