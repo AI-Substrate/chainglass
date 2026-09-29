@@ -223,20 +223,19 @@ export function TerminalPaneHeader({
                       ) : null}
                       {/* Five slices: the bottom one is the agent itself (green bar / magenta
                           question / idle time); the four above rise with background-job CPU,
-                          one per 25% of a core, split by thin white dividers. */}
-                      {Array.from({ length: fillQuarters }, (_, quarter) => (
+                          one per 25% of a core, as one solid column; a thin white line
+                          separates it from the agent slice. */}
+                      {fillQuarters > 0 ? (
                         <span
-                          // biome-ignore lint/suspicious/noArrayIndexKey: fixed positional slices
-                          key={quarter}
                           aria-hidden="true"
-                          data-background-quarter={quarter + 1}
-                          className={`absolute inset-x-0 bg-emerald-500 ${quarter > 0 ? 'border-b border-white' : ''}`}
+                          data-background-quarters={fillQuarters}
+                          className="absolute inset-x-0 border-b border-white bg-emerald-500"
                           style={{
-                            bottom: `calc(${AGENT_SLICE_PX}px + (100% - ${AGENT_SLICE_PX}px) * ${quarter / 4})`,
-                            height: `calc((100% - ${AGENT_SLICE_PX}px) / 4)`,
+                            bottom: AGENT_SLICE_PX,
+                            height: `calc((100% - ${AGENT_SLICE_PX}px) * ${fillQuarters / 4})`,
                           }}
                         />
-                      ))}
+                      ) : null}
                       <span className={`relative ${fillQuarters >= 3 ? 'text-white' : ''}`}>
                         {window.index}
                       </span>
