@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { WindowActivityTracker } from '../../../../../apps/web/src/features/064-terminal/lib/window-activity';
+import {
+  WindowActivityTracker,
+  formatIdle,
+} from '../../../../../apps/web/src/features/064-terminal/lib/window-activity';
 
 // Samples are (cumulative CPU seconds, wall seconds), polled every 2s like the strip.
 // Busy = at least 2% of a core; idle agents measured ~0.5%.
@@ -25,5 +28,20 @@ describe('WindowActivityTracker', () => {
     tracker.observe(w, 0.6, 10);
     tracker.observe(w, 0.6, 12);
     expect(tracker.observe(w, 0.6, 16)).toEqual({ activeSeconds: null, idleSeconds: 8 });
+  });
+});
+
+describe('formatIdle', () => {
+  it('never runs wider than four characters, so strip boxes keep one width', () => {
+    const cases: Array<[number, string]> = [
+      [8, '8s'],
+      [600, '10m'],
+      [3_600, '1h'],
+      [94 * 60, '1.5h'],
+      [13 * 3_600 + 59 * 60, '13h'],
+      [60 * 3_600, '2.5d'],
+      [12 * 86_400 + 3_600, '12d'],
+    ];
+    for (const [seconds, label] of cases) expect(formatIdle(seconds)).toBe(label);
   });
 });

@@ -184,6 +184,23 @@ export interface TerminalWindow {
    * language servers; see `lib/background-jobs.ts`). `null` when it has none or runs no agent.
    */
   background: TerminalWindowBackground | null;
+  /**
+   * The last line of real text on the window's screen — above an agent's input box, skipping its
+   * turn-status line (see `lib/screen-activity.ts`). `null` until the screen has been read.
+   */
+  lastLine: string | null;
+  /**
+   * The pij seat running in this window: a seat whose pane is one of the window's panes AND whose
+   * process lives in that pane's process tree, so a recycled pane id never matches. `null` if none.
+   */
+  seatId: string | null;
+}
+
+/** A pij seat as the terminal sidecar joins it to a pane (see `TmuxSessionManager`). */
+export interface PaneSeat {
+  id: string;
+  pane: string;
+  pid: number;
 }
 
 export interface TerminalWindowBackground {

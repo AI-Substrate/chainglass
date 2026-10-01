@@ -33,6 +33,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
+  ChevronDown,
   ClipboardCopy,
   MessageSquareText,
   Pencil,
@@ -42,8 +43,8 @@ import {
   TerminalSquare,
   X,
 } from 'lucide-react';
-import { type FormEvent, useCallback, useLayoutEffect, useRef, useState } from 'react';
-import type { AgentKind } from '../lib/agent-kind';
+import { type FormEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { AGENT_MARK } from '../lib/agent-kind';
 import { copyTmuxBuffer } from '../lib/copy-tmux-buffer';
 import { NEW_WINDOW_AGENTS, type NewWindowAgent } from '../lib/new-window-agents';
 import { CHILD_BUSY_FRACTION, formatIdle } from '../lib/window-activity';
@@ -53,6 +54,7 @@ import { ConnectionStatusBadge } from './connection-status-badge';
 import { TerminalPromptDrawer } from './terminal-prompt-drawer';
 import { useTerminalSingleton } from './terminal-singleton-provider';
 import { TerminalThemeSelect } from './terminal-theme-select';
+import { TerminalWindowOverview } from './terminal-window-overview';
 
 export interface TerminalPaneHeaderProps {
   /** Session name shown on the left. */
@@ -62,14 +64,6 @@ export interface TerminalPaneHeaderProps {
   /** Optional close handler — when provided, renders the X button (overlay). */
   onClose?: () => void;
 }
-
-/** Top-left corner mark per coding-agent harness (Jordan, 2026-09-28). */
-const AGENT_MARK: Record<AgentKind, { color: string; label: string }> = {
-  claude: { color: '#d97757', label: 'Claude Code' },
-  copilot: { color: '#d946ef', label: 'Copilot CLI' },
-  pi: { color: '#14b8a6', label: 'omp / pi' },
-  codex: { color: '#facc15', label: 'Codex' },
-};
 
 /**
  * How many quarters of a window box the background-job fill covers: none while the jobs are
@@ -124,11 +118,36 @@ export function TerminalPaneHeader({
     [newAgent, newName, newWindow]
   );
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // ▾ after "+": the fold-down windows overview.
+  const [overviewOpen, setOverviewOpen] = useState(false);
+  const overviewToggleRef = useRef<HTMLButtonElement>(null);
+  const closeOverview = useCallback(() => setOverviewOpen(false), []);
   // Window-name search: non-modal popover; closing it (click away, Escape) clears the query.
   const [searchOpen, setSearchOpen] = useState(false);
   const [windowQuery, setWindowQuery] = useState('');
   const query = windowQuery.trim().toLowerCase();
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const closeSearch = useCallback(() => {
+    setSearchOpen(false);
+    setWindowQuery('');
+  }, []);
+  const searchToggleRef = useRef<HTMLButtonElement>(null);
+  const searchBoxRef = useRef<HTMLDivElement>(null);
+  // Non-modal: the box floats over the terminal, so the strip never moves; any click outside it
+  // (other than its own toggle) closes and clears it.
+  useEffect(() => {
+    if (!searchOpen) return;
+    searchInputRef.current?.focus();
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (searchBoxRef.current?.contains(target) || searchToggleRef.current?.contains(target)) {
+        return;
+      }
+      closeSearch();
+    };
+    document.addEventListener('pointerdown', handlePointerDown, true);
+    return () => document.removeEventListener('pointerdown', handlePointerDown, true);
+  }, [searchOpen, closeSearch]);
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [windowName, setWindowName] = useState('');
   const [windowNameError, setWindowNameError] = useState<string | null>(null);
@@ -355,52 +374,36 @@ export function TerminalPaneHeader({
                 })}
               </PopoverContent>
             </Popover>
+            <button
+              ref={overviewToggleRef}
+              type="button"
+              onClick={() => {
+                setDrawerOpen(false);
+                setOverviewOpen((open) => !open);
+              }}
+              aria-label="Windows overview"
+              aria-expanded={overviewOpen}
+              title="Windows overview"
+              className="flex h-7 min-w-8 shrink-0 items-center justify-center rounded bg-muted px-1 text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring aria-expanded:bg-accent aria-expanded:text-foreground"
+            >
+              <ChevronDown
+                className={`h-3.5 w-3.5 transition-transform ${overviewOpen ? 'rotate-180' : ''}`}
+              />
+            </button>
           </nav>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <Popover
-            open={searchOpen}
-            onOpenChange={(open) => {
-              setSearchOpen(open);
-              if (!open) setWindowQuery('');
-            }}
+          <button
+            ref={searchToggleRef}
+            type="button"
+            onClick={() => (searchOpen ? closeSearch() : setSearchOpen(true))}
+            className="rounded-sm p-1 text-muted-foreground hover:text-foreground hover:bg-accent aria-expanded:bg-accent aria-expanded:text-foreground"
+            aria-label="Search windows by name"
+            aria-expanded={searchOpen}
+            title="Search windows by name"
           >
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                className="rounded-sm p-1 text-muted-foreground hover:text-foreground hover:bg-accent aria-expanded:bg-accent aria-expanded:text-foreground"
-                aria-label="Search windows by name"
-                title="Search windows by name"
-              >
-                <Search className="h-3.5 w-3.5" />
-              </button>
-            </PopoverTrigger>
-            <PopoverContent
-              align="end"
-              className="w-64 p-2"
-              onOpenAutoFocus={(event) => {
-                // Land the caret in the field rather than on the popover container.
-                event.preventDefault();
-                searchInputRef.current?.focus();
-              }}
-            >
-              <input
-                type="search"
-                value={windowQuery}
-                onChange={(event) => setWindowQuery(event.target.value)}
-                placeholder="Window name…"
-                aria-label="Window name"
-                ref={searchInputRef}
-                className="h-8 w-full rounded-md border bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              />
-              {query.length > 0 ? (
-                <p className="mt-1.5 text-xs text-muted-foreground">
-                  {windows.filter((window) => window.name.toLowerCase().includes(query)).length} of{' '}
-                  {windows.length} windows match
-                </p>
-              ) : null}
-            </PopoverContent>
-          </Popover>
+            <Search className="h-3.5 w-3.5" />
+          </button>
           <TerminalThemeSelect />
           <button
             type="button"
@@ -455,6 +458,47 @@ export function TerminalPaneHeader({
           )}
         </div>
       </div>
+
+      {searchOpen ? (
+        // Centred over the terminal just below the window buttons, never covering them.
+        <div
+          ref={searchBoxRef}
+          className="absolute left-1/2 z-40 mt-2 flex w-72 -translate-x-1/2 items-center gap-2 rounded-lg border bg-popover p-2 text-popover-foreground shadow-xl animate-in fade-in-0 slide-in-from-top-1 duration-100"
+          style={{ top: `${headerHeight}px` }}
+        >
+          <input
+            type="search"
+            value={windowQuery}
+            onChange={(event) => setWindowQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== 'Escape') return;
+              // Keep the overlay's Escape (close terminal) from seeing it.
+              event.stopPropagation();
+              closeSearch();
+            }}
+            placeholder="Window name…"
+            aria-label="Window name"
+            ref={searchInputRef}
+            className="h-8 min-w-0 flex-1 rounded-md border bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+          {query.length > 0 ? (
+            <span className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">
+              {windows.filter((window) => window.name.toLowerCase().includes(query)).length} of{' '}
+              {windows.length}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+
+      <TerminalWindowOverview
+        open={overviewOpen}
+        onClose={closeOverview}
+        topOffset={headerHeight}
+        windows={windows}
+        onSelect={selectWindow ?? undefined}
+        connected={connectionStatus === 'connected'}
+        toggleRef={overviewToggleRef}
+      />
 
       <TerminalPromptDrawer
         open={drawerOpen}

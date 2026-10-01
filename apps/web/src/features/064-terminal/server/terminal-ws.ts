@@ -20,6 +20,7 @@ import { isValidWindowName } from '../lib/window-name-validation';
 import type {
   CommandExecutor,
   PaneLayoutResult,
+  PaneSeat,
   PtyProcess,
   PtySpawner,
   TerminalWindowsResult,
@@ -73,6 +74,8 @@ export interface TerminalServerDeps {
    * windows carry no activity times.
    */
   execCommandAsync?: (command: string, args: string[]) => Promise<string>;
+  /** The pij seat roster, joined to windows by pane. Optional; without it no window has a seat. */
+  readSeats?: () => Promise<PaneSeat[]>;
 }
 
 export interface TerminalServer {
@@ -83,7 +86,12 @@ export interface TerminalServer {
 }
 
 export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
-  const manager = new TmuxSessionManager(deps.execCommand, deps.spawnPty, deps.execCommandAsync);
+  const manager = new TmuxSessionManager(
+    deps.execCommand,
+    deps.spawnPty,
+    deps.execCommandAsync,
+    deps.readSeats
+  );
   const activePtys = new Set<PtyProcess>();
   // FX001-1: idempotent-teardown bookkeeping. `disposedPtys` guards double-dispose
   // (ws 'close', ws 'error', and pty.onExit can all fire for one PTY).
@@ -552,6 +560,10 @@ const isDirectRun = process.argv[1]?.includes('terminal-ws');
 if (isDirectRun) {
   const { execFile, execFileSync } = await import('node:child_process');
   const pty = await import('node-pty');
+  const { createRsClient, pijRsAddr, pijRsStateDir } = await import(
+    '../../089-first-class-pij/server/rs/rs-client'
+  );
+  const rs = createRsClient({ addr: pijRsAddr(), stateDir: pijRsStateDir(), fetch });
 
   const execCommand: CommandExecutor = (command, args) => {
     return execFileSync(command, args, { encoding: 'utf8' });
@@ -579,6 +591,12 @@ if (isDirectRun) {
           (error, stdout) => (error ? reject(error) : resolve(stdout))
         );
       }),
+    readSeats: async () =>
+      (await rs.seats()).flatMap((seat) =>
+        typeof seat.pane === 'string' && typeof seat.proc?.pid === 'number'
+          ? [{ id: seat.id, pane: seat.pane, pid: seat.proc.pid }]
+          : []
+      ),
   });
   const nextPort = Number.parseInt(process.env.PORT ?? '3000', 10);
   const wsPort = process.env.TERMINAL_WS_PORT

@@ -22,7 +22,7 @@ import {
   parseProcessTable,
   treeCpuSeconds,
 } from '../lib/process-cpu';
-import { workRegion } from '../lib/screen-activity';
+import { lastTextLine, workRegion } from '../lib/screen-activity';
 import {
   BUSY_CPU_FRACTION,
   type WindowActivityReading,
@@ -31,6 +31,7 @@ import {
 import { isValidWindowName } from '../lib/window-name-validation';
 import type {
   CommandExecutor,
+  PaneSeat,
   PtyProcess,
   PtySpawner,
   TerminalWindow,
@@ -49,6 +50,8 @@ const SCREEN_READS_PER_SAMPLE = 16;
 const MAX_LISTED_JOBS = 12;
 /** Screen reads per background sample, so hundreds of windows cannot burst tmux. */
 const QUESTION_READS_PER_SAMPLE = 5;
+/** One pij seat roster read serves every sample within this window. */
+const SEATS_TTL_MS = 5_000;
 
 interface ParsedSession {
   name: string;
@@ -87,16 +90,24 @@ export class TmuxSessionManager {
     string,
     { asks: boolean; readAt: number; wasActive: boolean }
   >();
+  /** Per `session:windowId`: the screen's last line of real text, from the latest read. */
+  private readonly lastLines = new Map<string, string | null>();
+  /** Per `session:windowId`: the pij seat running there. */
+  private readonly seatIds = new Map<string, string>();
   private processTable: { at: number; table: Promise<ProcessTable> } | undefined;
+  private readonly readSeats: (() => Promise<PaneSeat[]>) | undefined;
+  private seats: { at: number; seats: Promise<PaneSeat[]> } | undefined;
 
   constructor(
     exec: CommandExecutor,
     spawnPty: PtySpawner,
-    execAsync?: (command: string, args: string[]) => Promise<string>
+    execAsync?: (command: string, args: string[]) => Promise<string>,
+    readSeats?: () => Promise<PaneSeat[]>
   ) {
     this.exec = exec;
     this.spawnPty = spawnPty;
     this.execAsync = execAsync;
+    this.readSeats = readSeats;
   }
 
   /** Check if tmux is installed and accessible */
@@ -185,6 +196,8 @@ export class TmuxSessionManager {
           question:
             (reading?.activeSeconds ?? null) === null &&
             this.questions.get(`${sessionName}:${id}`)?.asks === true,
+          lastLine: this.lastLines.get(`${sessionName}:${id}`) ?? null,
+          seatId: this.seatIds.get(`${sessionName}:${id}`) ?? null,
         };
       });
     // Fire-and-forget: the list returns now with the last completed reading (at most one poll old).
@@ -203,9 +216,10 @@ export class TmuxSessionManager {
         '-t',
         `=${sessionName}`,
         '-F',
-        '#{window_id}\t#{pane_pid}\t#{window_activity}',
+        '#{window_id}\t#{pane_pid}\t#{window_activity}\t#{pane_id}',
       ]);
       const table = await this.readProcessTable();
+      const seatsByPane = new Map((await this.readSeatsCached()).map((seat) => [seat.pane, seat]));
       const nowSeconds = Date.now() / 1000;
       const previous = this.lastPidCpu.get(sessionName);
       const pidCpu = new Map<number, number>();
@@ -215,10 +229,11 @@ export class TmuxSessionManager {
         treeCpu: number;
         activityAt: number;
         jobs: number[];
+        seatId: string | null;
       }
       const samples = new Map<string, WindowSample>();
       for (const line of panes.split('\n')) {
-        const [windowId, pidText, activityText] = line.split('\t');
+        const [windowId, pidText, activityText, paneId] = line.split('\t');
         if (!windowId || !pidText) continue;
         const panePid = Number(pidText);
         const tree = treeCpuSeconds(table, panePid);
@@ -228,8 +243,18 @@ export class TmuxSessionManager {
           treeCpu: 0,
           activityAt: Number(activityText) || 0,
           jobs: [],
+          seatId: null,
         };
         sample.treeCpu += tree;
+        // A pane id is recycled once its pane closes, so the seat must also be running in it.
+        const seat = paneId ? seatsByPane.get(paneId) : undefined;
+        if (
+          !sample.seatId &&
+          seat &&
+          (seat.pid === panePid || descendantPids(table, panePid).includes(seat.pid))
+        ) {
+          sample.seatId = seat.id;
+        }
         // First agent found across the window's panes marks the window.
         if (!sample.agent) {
           const agent = findAgent(table, panePid);
@@ -253,6 +278,8 @@ export class TmuxSessionManager {
         listed.add(key);
         if (sample.agent) this.agentKinds.set(key, sample.agent.kind);
         else this.agentKinds.delete(key);
+        if (sample.seatId) this.seatIds.set(key, sample.seatId);
+        else this.seatIds.delete(key);
         // Working = the screen above the input box changed (see lib/screen-activity.ts). CPU is
         // no signal for agents: they mostly wait on the model (a working omp measured ~1%).
         // A window with no agent also counts sustained CPU, so a silent build still shows.
@@ -288,6 +315,8 @@ export class TmuxSessionManager {
         this.background,
         this.screens,
         this.lastTreeCpu,
+        this.lastLines,
+        this.seatIds,
       ]) {
         for (const key of map.keys()) {
           if (key.startsWith(`${sessionName}:`) && !listed.has(key)) map.delete(key);
@@ -323,6 +352,7 @@ export class TmuxSessionManager {
       try {
         const screen = await exec('tmux', ['capture-pane', '-p', '-J', '-t', windowId]);
         const hash = createHash('sha1').update(workRegion(screen)).digest('hex');
+        this.lastLines.set(key, lastTextLine(screen));
         if (known && known.hash !== hash) changed.add(windowId);
         this.screens.set(key, { activityAt, hash });
       } catch {
@@ -356,11 +386,22 @@ export class TmuxSessionManager {
         // Window ids are server-unique; the target resolves to that window's active pane.
         const screen = await exec('tmux', ['capture-pane', '-p', '-J', '-t', windowId]);
         const asks = claudeScreenAsksQuestion(screen) === true;
+        this.lastLines.set(key, lastTextLine(screen));
         this.questions.set(key, { asks, readAt: Date.now(), wasActive: false });
       } catch {
         this.questions.delete(key);
       }
     }
+  }
+
+  /** The pij seat roster, shared by every session sampled within the TTL; empty when unreadable. */
+  private readSeatsCached(): Promise<PaneSeat[]> {
+    if (!this.readSeats) return Promise.resolve([]);
+    const now = Date.now();
+    if (!this.seats || now - this.seats.at >= SEATS_TTL_MS) {
+      this.seats = { at: now, seats: this.readSeats().catch(() => []) };
+    }
+    return this.seats.seats;
   }
 
   /** One machine-wide `ps` snapshot, shared by every session sampled within the TTL. */

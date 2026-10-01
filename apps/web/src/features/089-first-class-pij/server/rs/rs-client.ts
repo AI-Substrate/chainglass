@@ -1,5 +1,16 @@
 import { readFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
+
+const DEFAULT_PIJ_RS_ADDR = '127.0.0.1:7461';
+
+export function pijRsAddr(env: Record<string, string | undefined> = process.env): string {
+  return env.PIJ_RS_ADDR ?? DEFAULT_PIJ_RS_ADDR;
+}
+
+export function pijRsStateDir(env: Record<string, string | undefined> = process.env): string {
+  return env.PIJ_RS_STATE_DIR ?? join(homedir(), '.pij-rs');
+}
 
 export type Cursor = Readonly<Record<string, number>>;
 

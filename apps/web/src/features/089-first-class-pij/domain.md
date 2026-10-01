@@ -127,6 +127,7 @@ a rule written down in that contract — never guessed, never estimated.
 | app shell (`workspaces/[slug]/layout.tsx`) | `PijRailToggleListener` | One route-aware listener serves every `pij:toggle` trigger |
 | app shell (`dashboard-sidebar.tsx`) | nothing — a `pij:toggle` CustomEvent | The sidebar is OUTSIDE the overlay providers; the event is the only seam |
 | app shell (`sdk-domain-registrations.ts`) | `registerPijSDK` | ADR-0009 |
+| 064-terminal | `createRsClient` + `pijRsAddr`/`pijRsStateDir` (sidecar seat roster); `readSeatRole`, `resolveSeatStatus`, `newestStatusByPeer`; `RoleBadge`, `SeatDot`, `StatusSummary`; `GET /api/pij/fleet` | The terminal's windows overview shows each window's seat role, state and card exactly as the rail does |
 
 ## External Contracts Consumed
 

@@ -24,14 +24,13 @@ import { type FlowWatcherService, createFlowWatcher } from './flow-watcher';
 import { type PijPollerService, createPijPoller } from './pij-poller.service';
 import { createPijRecords } from './pij-records';
 import { createCompositePijRecords } from './rs/composite-pij-records';
-import { type RsClient, createRsClient } from './rs/rs-client';
+import { type RsClient, createRsClient, pijRsAddr, pijRsStateDir } from './rs/rs-client';
 import { type RsEventStream, createRsEventStream } from './rs/rs-event-stream';
 import { createRsPijRecords } from './rs/rs-pij-records';
 import { createFileSpineCursor } from './spine-cursor';
 
 export type PijSource = 'legacy' | 'rs';
 
-const DEFAULT_PIJ_RS_ADDR = '127.0.0.1:7461';
 const DESCRIPTOR_EVENT_KINDS = new Set([
   'seat.put',
   'seat.tombstone',
@@ -62,13 +61,8 @@ export function pijSource(env: Record<string, string | undefined> = process.env)
   return env.PIJ_SOURCE === 'legacy' ? 'legacy' : 'rs';
 }
 
-export function pijRsAddr(env: Record<string, string | undefined> = process.env): string {
-  return env.PIJ_RS_ADDR ?? DEFAULT_PIJ_RS_ADDR;
-}
-
-export function pijRsStateDir(env: Record<string, string | undefined> = process.env): string {
-  return env.PIJ_RS_STATE_DIR ?? join(homedir(), '.pij-rs');
-}
+// Defined beside the client so the terminal sidecar can read seats without this bootstrap's imports.
+export { pijRsAddr, pijRsStateDir };
 
 /**
  * Whether the polling loops may run. Default OFF — see the kill switch in {@link startPijPoller}.

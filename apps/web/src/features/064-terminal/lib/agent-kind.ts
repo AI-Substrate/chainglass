@@ -3,6 +3,14 @@ import type { ProcessTable } from './process-cpu';
 /** Coding-agent harnesses the window strip marks with a corner colour. */
 export type AgentKind = 'claude' | 'copilot' | 'pi' | 'codex';
 
+/** Top-left corner mark per coding-agent harness (Jordan, 2026-09-28). */
+export const AGENT_MARK: Record<AgentKind, { color: string; label: string }> = {
+  claude: { color: '#d97757', label: 'Claude Code' },
+  copilot: { color: '#d946ef', label: 'Copilot CLI' },
+  pi: { color: '#14b8a6', label: 'omp / pi' },
+  codex: { color: '#facc15', label: 'Codex' },
+};
+
 /** Executable (or node script) basename → harness. omp is the pi fork, so both read as `pi`. */
 const KIND_BY_NAME: Record<string, AgentKind> = {
   claude: 'claude',

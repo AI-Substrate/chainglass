@@ -159,16 +159,24 @@ export class WindowActivityTracker {
   }
 }
 
-/** Compact duration label for the window strip: `8s`, `10m`, `1h2m`, `3d`. */
+/**
+ * Compact duration label for the window strip, never wider than four characters so the boxes keep
+ * one width: `8s`, `10m`, `1.2h`, `13h`, `2.5d`, `12d`. One decimal below 10, whole units above
+ * (Jordan, 2026-10-01: `1h34m` made the cells all different sizes).
+ */
 export function formatIdle(idleSeconds: number): string {
   const s = Math.max(0, Math.floor(idleSeconds));
   if (s < 60) return `${s}s`;
   const minutes = Math.floor(s / 60);
   if (minutes < 60) return `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) {
-    const rest = minutes % 60;
-    return rest === 0 ? `${hours}h` : `${hours}h${rest}m`;
-  }
-  return `${Math.floor(hours / 24)}d`;
+  const hours = s / 3600;
+  if (hours < 24) return `${compactUnits(hours)}h`;
+  return `${compactUnits(hours / 24)}d`;
+}
+
+/** One decimal below 10 (dropping a trailing `.0`), whole numbers from 10 up. Rounds down. */
+function compactUnits(value: number): string {
+  if (value >= 10) return String(Math.floor(value));
+  const tenths = Math.floor(value * 10) / 10;
+  return Number.isInteger(tenths) ? String(tenths) : tenths.toFixed(1);
 }

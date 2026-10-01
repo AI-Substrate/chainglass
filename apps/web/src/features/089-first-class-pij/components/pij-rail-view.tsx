@@ -147,7 +147,7 @@ function roleLabel(role: SeatRole): string {
   return 'worker';
 }
 
-function RoleBadge({ role }: { role: SeatRole }) {
+export function RoleBadge({ role }: { role: SeatRole }) {
   if (role.kind === 'absent' && role.reason !== 'role-unrecognised') return null;
   const reason = role.kind === 'absent' ? role.reason : 'current';
   const chip =
@@ -162,7 +162,7 @@ function RoleBadge({ role }: { role: SeatRole }) {
   );
 }
 
-function SeatDot({
+export function SeatDot({
   placement,
   livenessUnavailable,
 }: {
@@ -179,7 +179,7 @@ function SeatDot({
   );
 }
 
-function StatusSummary({
+export function StatusSummary({
   placement,
   status,
 }: {

@@ -63,6 +63,12 @@ The shared terminal header places Resize beside Rename. Resize mode overlays hig
 
 Numbered buttons beside the shared header's session title select windows by their native tmux indices, carrying the stable window ID as an identity guard. The active window is highlighted; excess buttons are clipped on one line without displacing the right-hand controls. `windows` reads the exact attached session and `select-window` validates index/ID membership, selects `=session:index` under an execution-time identity guard, and returns fresh state. This also distinguishes multiple indices linked to the same window. The visible terminal refreshes its list every two seconds to reflect native shortcuts and window creation/deletion. Selecting a window exits pane-resize mode and returns keyboard focus to xterm.
 
+### Windows overview
+
+The ▾ after the strip's "+" folds a list down over the terminal: one row per window with its agent colour, working / asking / idle time, background jobs, the last line of real text on its screen (`lastTextLine`, read with the activity screen reads), and its pij seat's role badge, state and status card, drawn by the pij rail's own components. Filters: recent (working or active in the last 30 min, the default), asking, working, background jobs, all, plus a search over name, last line and seat id. Prime windows are always listed first whatever the filter. Clicking a row, or Enter on the highlighted one, selects the window and closes the panel.
+
+The sidecar joins windows to seats: it reads the pij-rs seat roster (cached 5s) and gives a window a `seatId` only when a seat's pane is one of the window's panes **and** the seat's process is that pane's shell or a descendant of it, so a recycled pane id never matches. While open, the panel re-reads `/api/pij/fleet` every 5s for roles and cards; the terminal overlay sits outside the workspace SSE provider, so `usePijFleet` is not available to it.
+
 ## Custom Events (Cross-Boundary Communication)
 
 | Event | Dispatched By | Listened By | Payload |
@@ -81,6 +87,7 @@ Numbered buttons beside the shared header's session title select windows by thei
 | _platform/events | sonner toast | tmux unavailable warning (AC-11) |
 | _platform/sdk | registerCommand, registerKeybinding | `terminal.toggleOverlay` + `$mod+Backquote` |
 | _platform/workspace-url | workspaceHref() | Sidebar navigation link |
+| 089-first-class-pij | `createRsClient`, `pijRsAddr`/`pijRsStateDir`; `readSeatRole`, `resolveSeatStatus`, `newestStatusByPeer`; `RoleBadge`, `SeatDot`, `StatusSummary`; `GET /api/pij/fleet` | Windows overview: seat per window, role and status card |
 
 ### Domains That Depend On This
 _None._
