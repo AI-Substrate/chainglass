@@ -1,0 +1,21 @@
+apps/web/package.json
+  s_084ac52dc66de3::t_e447fa9f5ccb5b 77,107
+pnpm-lock.yaml
+  s_084ac52dc66de3::t_499662e7575ecf 318-319,322,328,403-404,1548-1549,1551-1552,1554-1555,1560-1561,1566-1567,1573-1574,1580-1581,1587-1588,1594-1595,1600-1601,4694-4695,6737,6744,6746,6749,6752,6755,6758,6761,6764,6767,10189,10192,10200,10202,10211-10218,10238,10243
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "762260fda4d6956917d2972f109d94eb80265d23",
+  "prompts": {},
+  "sessions": {
+    "s_084ac52dc66de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
