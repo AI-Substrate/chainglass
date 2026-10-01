@@ -144,11 +144,14 @@ describe('UnixProcessManager', () => {
       // Using 'sh -c "trap ... && sleep 60"' to create a stubborn process
       const handle = await fastManager.spawn({
         command: 'sh',
-        args: ['-c', 'trap "" INT TERM; sleep 60'],
+        args: ['-c', 'trap "" INT TERM; echo ready; sleep 60'],
       });
 
-      // Wait for process to start and set up trap
-      await new Promise((r) => setTimeout(r, 100));
+      // Wait until the trap is installed: a fixed sleep raced it under load, so SIGINT landed
+      // before the trap and the "stubborn" process died at once (measured 0ms).
+      await vi.waitFor(() => expect(fastManager.getProcessOutput(handle.pid)).toContain('ready'), {
+        timeout: 5000,
+      });
 
       const startTime = Date.now();
       await fastManager.terminate(handle.pid);
@@ -179,10 +182,14 @@ describe('UnixProcessManager', () => {
       // Process that ignores SIGINT but exits on SIGTERM
       const handle = await fastManager.spawn({
         command: 'sh',
-        args: ['-c', 'trap "" INT; sleep 60'],
+        args: ['-c', 'trap "" INT; echo ready; sleep 60'],
       });
 
-      await new Promise((r) => setTimeout(r, 100));
+      // Wait until the trap is installed: a fixed sleep raced it under load, so SIGINT landed
+      // before the trap and the "stubborn" process died at once (measured 0ms).
+      await vi.waitFor(() => expect(fastManager.getProcessOutput(handle.pid)).toContain('ready'), {
+        timeout: 5000,
+      });
 
       const startTime = Date.now();
       await fastManager.terminate(handle.pid);
