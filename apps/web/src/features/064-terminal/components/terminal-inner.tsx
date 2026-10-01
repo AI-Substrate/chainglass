@@ -507,8 +507,16 @@ export default function TerminalInner({
     // proxy fires nothing when the new value equals the old — so the remeasure
     // has to go through a sentinel and back. Both assignments run in one task,
     // so no frame is painted at the sentinel's metrics.
-    void document.fonts
-      .load(`${terminal.options.fontSize}px "${TERMINAL_PRIMARY_FACE}"`)
+    //
+    // The BOLD face is a separate file and is waited for too: the renderer
+    // caches each glyph it draws, so bold drawn before that file arrives stays
+    // in a fallback face squeezed into Ubuntu Mono's narrow cells ("Trout:"
+    // looked like a different font, 2026-10-01). The font swap below makes it
+    // redraw every glyph once both faces are in.
+    void Promise.all([
+      document.fonts.load(`${terminal.options.fontSize}px "${TERMINAL_PRIMARY_FACE}"`),
+      document.fonts.load(`bold ${terminal.options.fontSize}px "${TERMINAL_PRIMARY_FACE}"`),
+    ])
       .then(() => document.fonts.ready)
       .then(() => {
         if (disposedRef.current || terminalRef.current !== terminal) return;
