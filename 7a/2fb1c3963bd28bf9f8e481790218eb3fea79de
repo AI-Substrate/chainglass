@@ -1,0 +1,59 @@
+test/unit/web/features/064-terminal/window-activity.test.ts
+  s_084ac52dc66de3::t_94e670296fbed5 33-45
+  s_084ac52dc66de3::t_8da400f140cf02 2-5
+  s_084ac52dc66de3::t_03bda2bb88bdd0 46-47
+test/unit/web/features/064-terminal/window-overview.test.ts
+  s_084ac52dc66de3::t_7ea9202af01ec1 1-117
+apps/web/src/features/064-terminal/hooks/use-window-seats.ts
+  s_084ac52dc66de3::t_30498772f43e84 1-72
+apps/web/src/features/064-terminal/lib/window-overview.ts
+  s_084ac52dc66de3::t_92d73723bb6e23 1-80
+apps/web/src/features/064-terminal/components/terminal-window-overview.tsx
+  s_084ac52dc66de3::t_e2c7c8b65c445b 1-286
+apps/web/src/features/064-terminal/lib/window-activity.ts
+  s_084ac52dc66de3::t_94e670296fbed5 162-166,172-181
+apps/web/src/features/064-terminal/components/terminal-pane-header.tsx
+  s_084ac52dc66de3::t_91cdda36db80e8 134-137,139-150,377-392,396-403,405-406,462-491
+  s_084ac52dc66de3::t_dba1fc19228e61 46-47,57,121-124,130-133,138
+  s_084ac52dc66de3::t_2a99644be7af75 36,492-502
+test/unit/web/features/064-terminal/terminal-prompt-send.test.tsx
+  s_084ac52dc66de3::t_618cd470029ab5 39-40,52-53,65-66
+apps/web/src/features/064-terminal/lib/screen-activity.ts
+  s_084ac52dc66de3::t_25d6133379430f 29-83
+test/unit/web/features/064-terminal/terminal-ws-windows.test.ts
+  s_084ac52dc66de3::t_a2ae99dba746a0 67-68,80-81,124-125,137-138,333-334,346-347
+apps/web/src/features/064-terminal/domain.md
+  s_084ac52dc66de3::t_11a61550b786fd 66-71,90
+apps/web/src/features/064-terminal/lib/agent-kind.ts
+  s_084ac52dc66de3::t_bfca3124fa8b38 6-13
+apps/web/src/features/064-terminal/server/terminal-ws.ts
+  s_084ac52dc66de3::t_708cbf3e28e304 23,77-78,89-94,563-566,594-599
+apps/web/src/features/064-terminal/server/tmux-session-manager.ts
+  s_084ac52dc66de3::t_a6110d898e53c2 25,34,53-54,93-96,98-99,104-105,110,199-200,219,222,232,236,246,249-257,281-282,318-319,355,389,397-406
+apps/web/src/features/064-terminal/types.ts
+  s_084ac52dc66de3::t_75de7c15170a45 187-203
+apps/web/src/features/089-first-class-pij/components/pij-rail-view.tsx
+  s_084ac52dc66de3::t_5596cbe1e86267 150,165,182
+apps/web/src/features/089-first-class-pij/domain.md
+  s_084ac52dc66de3::t_806aa23274f8c3 130
+apps/web/src/features/089-first-class-pij/server/rs/rs-client.ts
+  s_084ac52dc66de3::t_d2f8ce2460619c 2,5-14
+apps/web/src/features/089-first-class-pij/server/start-pij-poller.ts
+  s_084ac52dc66de3::t_ef2a28f1eb3c1a 27,64-65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "7a2fb1c3963bd28bf9f8e481790218eb3fea79de",
+  "prompts": {},
+  "sessions": {
+    "s_084ac52dc66de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
