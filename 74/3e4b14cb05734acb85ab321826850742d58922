@@ -1,0 +1,19 @@
+test/integration/web/recent-feed-live-updates.integration.test.ts
+  s_084ac52dc66de3::t_7be7099377bd20 118-139
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "743e4b14cb05734acb85ab321826850742d58922",
+  "prompts": {},
+  "sessions": {
+    "s_084ac52dc66de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
