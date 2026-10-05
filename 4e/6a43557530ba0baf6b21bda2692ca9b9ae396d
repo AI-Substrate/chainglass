@@ -1,0 +1,47 @@
+test/unit/web/features/064-terminal/terminal-path-links.test.ts
+  s_084ac52dc66de3::t_1a283acb7a3996 1-73
+apps/web/src/features/064-terminal/components/terminal-singleton-provider.tsx
+  s_084ac52dc66de3::t_03898b7dcbd985 237
+  s_084ac52dc66de3::t_fe8a9c925f8b8b 112
+apps/web/src/features/064-terminal/domain.md
+  s_084ac52dc66de3::t_ec7b201cd1353e 72-75,93-94
+apps/web/src/features/064-terminal/hooks/use-terminal-socket.ts
+  s_084ac52dc66de3::t_975f8067e4f095 91-92,159,179-182,327-332,345
+  s_084ac52dc66de3::t_c4098451afc90d 9,31,67-68,71-73,89-90,205-208,324-326,333-344,346-349,416
+apps/web/src/features/064-terminal/server/resolve-terminal-paths.ts
+  s_084ac52dc66de3::t_b043f4a168a5fc 1-60
+apps/web/app/actions/file-actions.ts
+  s_084ac52dc66de3::t_62b8e9f889f7f6 373-404
+apps/web/src/features/064-terminal/server/terminal-ws.ts
+  s_084ac52dc66de3::t_11dcbfe03e25a8 26,30
+  s_084ac52dc66de3::t_54a5f9a55ff0b7 296-314
+  s_084ac52dc66de3::t_975f8067e4f095 191-200
+  s_084ac52dc66de3::t_281fbc52638f60 315-316
+apps/web/src/features/064-terminal/lib/terminal-paths.ts
+  s_084ac52dc66de3::t_6a82f77dadcf38 1-58
+apps/web/src/features/064-terminal/hooks/use-open-terminal-path.ts
+  s_084ac52dc66de3::t_31550afa9a4cd0 1-53
+apps/web/src/features/064-terminal/lib/path-link-provider.ts
+  s_084ac52dc66de3::t_d89a39434ae994 1-96
+apps/web/src/features/064-terminal/types.ts
+  s_084ac52dc66de3::t_8f13840772f5c6 200-207
+apps/web/src/features/064-terminal/components/terminal-inner.tsx
+  s_084ac52dc66de3::t_03898b7dcbd985 18,20,71-75,91,235-237,376
+  s_084ac52dc66de3::t_e7dc6f7af6e34c 138-169,171-180,182-227,232-234,372-375,377-378,633
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "4e6a43557530ba0baf6b21bda2692ca9b9ae396d",
+  "prompts": {},
+  "sessions": {
+    "s_084ac52dc66de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
