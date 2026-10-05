@@ -60,6 +60,12 @@ async function build() {
       '@github/copilot-sdk', // Uses module.createRequire() internally — bundling breaks it
     ],
 
+    // ESM dependencies bundled into this CJS file can read import.meta.url, which CJS leaves
+    // undefined: fdir (under tinyglobby) calls createRequire(import.meta.url) at load and
+    // crashed every command. Give it this bundle's own URL, the CJS equivalent.
+    banner: { js: 'var __importMetaUrl = require("node:url").pathToFileURL(__filename).href;' },
+    define: { 'import.meta.url': '__importMetaUrl' },
+
     // Note: Shebang is added to the package.json bin configuration,
     // not to the bundled file itself. Node.js ESM modules should not
     // have shebangs when run via `node file.js`.

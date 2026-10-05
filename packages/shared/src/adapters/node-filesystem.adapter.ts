@@ -1,5 +1,5 @@
 import { promises as fs } from 'node:fs';
-import fg from 'fast-glob';
+import { glob } from 'tinyglobby';
 import type { FileStat, IFileSystem } from '../interfaces/filesystem.interface.js';
 import { FileSystemError } from '../interfaces/filesystem.interface.js';
 
@@ -196,10 +196,11 @@ export class NodeFileSystemAdapter implements IFileSystem {
   /**
    * Find files matching a glob pattern.
    *
-   * Per Phase 2 DYK: Uses fast-glob for proper glob abstraction.
+   * Per Phase 2 DYK: a real glob library, not a hand-rolled walk (tinyglobby; it replaced
+   * fast-glob, whose micromatch → braces chain carries GHSA-vfj7-8cjw-p6xm).
    */
   async glob(pattern: string, options?: { cwd?: string; absolute?: boolean }): Promise<string[]> {
-    return fg(pattern, {
+    return glob(pattern, {
       cwd: options?.cwd,
       absolute: options?.absolute ?? false,
       onlyFiles: true,

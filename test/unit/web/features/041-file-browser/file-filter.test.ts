@@ -35,7 +35,7 @@ describe('isGlobPattern', () => {
     Test Doc:
     - Why: Substring vs glob mode selection depends on pattern detection
     - Contract: isGlobPattern('plain') → false
-    - Usage Notes: Drives sync (substring) vs async (glob/micromatch) filter path
+    - Usage Notes: Drives sync (substring) vs async (glob/picomatch) filter path
     - Quality Contribution: AC-14, AC-15
     - Worked Example: 'app' → false, '*.tsx' → true
     */
@@ -113,7 +113,7 @@ describe('filterFiles — glob', () => {
     Test Doc:
     - Why: Glob mode enables power-user patterns like *.tsx
     - Contract: filterFiles(files, '*.tsx') returns files matching glob
-    - Usage Notes: Uses micromatch with basename:true for simple globs
+    - Usage Notes: Uses picomatch with basename:true for simple globs
     - Quality Contribution: AC-15, AC-16
     - Worked Example: filterFiles([...], '*.tsx') → ['src/app.tsx', 'src/app.test.tsx']
     */

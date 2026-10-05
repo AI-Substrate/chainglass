@@ -5,7 +5,7 @@
  * dot-path filtering. Used by useFileFilter hook.
  *
  * Feature 2: File Tree Quick Filter — Plan 049
- * Workshop 001: Substring default, glob via micromatch on *?{ detection
+ * Workshop 001: Substring default, glob via picomatch on *?{ detection
  */
 
 export interface FilterableFile {
@@ -23,7 +23,7 @@ export function isGlobPattern(query: string): boolean {
 /**
  * Filter files by substring (default) or glob pattern.
  * Substring match is case-insensitive on the full relative path.
- * Glob matching uses micromatch (dynamic import).
+ * Glob matching uses picomatch (dynamic import).
  */
 export function filterFiles<T extends FilterableFile>(
   files: T[],
@@ -40,12 +40,10 @@ export function filterFiles<T extends FilterableFile>(
 }
 
 async function filterByGlob<T extends FilterableFile>(files: T[], pattern: string): Promise<T[]> {
-  const { default: micromatch } = await import('micromatch');
-  const paths = files.map((f) => f.path);
+  const { default: picomatch } = await import('picomatch');
   // Use basename mode only for simple patterns (no path separators)
-  const useBasename = !pattern.includes('/');
-  const matched = new Set(micromatch(paths, pattern, { basename: useBasename }));
-  return files.filter((f) => matched.has(f.path));
+  const isMatch = picomatch(pattern, { basename: !pattern.includes('/') });
+  return files.filter((f) => isMatch(f.path));
 }
 
 /** Sort files by most recently changed (mtime desc). lastChanged overrides mtime. */
