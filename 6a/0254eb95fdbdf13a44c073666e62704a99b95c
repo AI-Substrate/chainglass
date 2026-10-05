@@ -1,0 +1,31 @@
+packages/shared/package.json
+  s_084ac52dc66de3::t_b2269e457ef728 74
+test/unit/web/features/041-file-browser/file-filter.test.ts
+  s_084ac52dc66de3::t_6c67691fd80f8a 38,116
+apps/web/src/features/041-file-browser/services/file-filter.ts
+  s_084ac52dc66de3::t_6c67691fd80f8a 8,26,43,45-46
+packages/shared/src/adapters/node-filesystem.adapter.ts
+  s_084ac52dc66de3::t_6c67691fd80f8a 2,199-200,203
+apps/cli/esbuild.config.ts
+  s_084ac52dc66de3::t_4df5c7463a0be3 63-68
+apps/web/package.json
+  s_084ac52dc66de3::t_b2269e457ef728 81,111
+pnpm-lock.yaml
+  s_084ac52dc66de3::t_b804d5c0f935ac 329-331,414-416,537-539,2998-3000,4822,8130-8131
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "6a0254eb95fdbdf13a44c073666e62704a99b95c",
+  "prompts": {},
+  "sessions": {
+    "s_084ac52dc66de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
