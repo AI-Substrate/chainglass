@@ -115,14 +115,28 @@ describe('Recent-feed live updates — real fs.watch integration', () => {
     });
 
     watched = watchRoot(tmp);
+    const { events } = watched;
 
-    // Drop a brand-new file → real fs event fires.
-    writeFileSync(join(tmp, 'new-file.png'), 'fake-image-bytes');
-    await tick();
-
-    // Modify a watched path → another real fs event fires.
-    writeFileSync(join(tmp, 'pre-existing.ts'), 'export const updated = true;');
-    await tick();
+    // Drop a brand-new file and modify a watched path → real fs events fire. fs.watch has no
+    // readiness signal, so (as in AC C2) keep writing whichever path is undelivered until the
+    // watcher has seen both; a fixed sleep can expire before FSEvents attaches under load.
+    const writes = {
+      'new-file.png': 'fake-image-bytes',
+      'pre-existing.ts': 'export const updated = true;',
+    };
+    await vi.waitFor(
+      () => {
+        for (const [path, content] of Object.entries(writes)) {
+          if (!events.some((event) => event.relPath === path)) {
+            writeFileSync(join(tmp, path), content);
+          }
+        }
+        expect(events.map((event) => event.relPath)).toEqual(
+          expect.arrayContaining(Object.keys(writes))
+        );
+      },
+      { timeout: 2000, interval: 50 }
+    );
 
     // Apply all collected events to the reducer.
     state = applyEvents(state, watched.events);
