@@ -197,6 +197,14 @@ export interface TerminalWindow {
 }
 
 /** A pij seat as the terminal sidecar joins it to a pane (see `TmuxSessionManager`). */
+/** A path written on the terminal screen that exists on disk (terminal path links). */
+export interface ResolvedTerminalPath {
+  /** As written on screen, e.g. `scratch/review/a.jpg`. */
+  path: string;
+  absolute: string;
+  directory: boolean;
+}
+
 export interface PaneSeat {
   id: string;
   pane: string;

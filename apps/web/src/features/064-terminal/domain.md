@@ -69,6 +69,10 @@ The ▾ after the strip's "+" folds a list down over the terminal: one row per w
 
 The sidecar joins windows to seats: it reads the pij-rs seat roster (cached 5s) and gives a window a `seatId` only when a seat's pane is one of the window's panes **and** the seat's process is that pane's shell or a descendant of it, so a recycled pane id never matches. While open, the panel re-reads `/api/pij/fleet` every 5s for roles and cards; the terminal overlay sits outside the workspace SSE provider, so `usePijFleet` is not available to it.
 
+### Path links
+
+File paths on screen are links when they exist on disk (`lib/terminal-paths.ts` proposes path-shaped tokens; `lib/path-link-provider.ts` is the xterm link provider, reading soft-wrapped rows as one line). For the hovered row the client sends `resolve-paths`; the sidecar tries each relative path against every pane of the session's current window, active pane first (an agent writes paths relative to its own pane), takes `~/` and absolute paths as written, and returns only those that stat. A click asks `locateWorkspaceFile` (server action) which workspace worktree holds the file, most specific worktree winning, then folds the overlay and opens it in that workspace's file browser (`:line` opens the source view at that line; a directory opens as `dir`); ⌘/Ctrl-click opens a new tab. The sidecar advertises `features: ['resolve-paths']` on connect and the client sends nothing without it, because an older sidecar types unknown frames into the PTY.
+
 ## Custom Events (Cross-Boundary Communication)
 
 | Event | Dispatched By | Listened By | Payload |
@@ -86,7 +90,8 @@ The sidecar joins windows to seats: it reads the pij-rs seat roster (cached 5s) 
 | _platform/panel-layout | PanelShell, PanelMode, LeftPanel | Page composition (Surface 1) |
 | _platform/events | sonner toast | tmux unavailable warning (AC-11) |
 | _platform/sdk | registerCommand, registerKeybinding | `terminal.toggleOverlay` + `$mod+Backquote` |
-| _platform/workspace-url | workspaceHref() | Sidebar navigation link |
+| _platform/workspace-url | workspaceHref() | Sidebar navigation link; path links |
+| file-browser actions | `locateWorkspaceFile` (server action) | Path links: which workspace worktree holds a clicked path |
 | 089-first-class-pij | `createRsClient`, `pijRsAddr`/`pijRsStateDir`; `readSeatRole`, `resolveSeatStatus`, `newestStatusByPeer`; `RoleBadge`, `SeatDot`, `StatusSummary`; `GET /api/pij/fleet` | Windows overview: seat per window, role and status card |
 
 ### Domains That Depend On This

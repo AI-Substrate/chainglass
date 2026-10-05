@@ -23,9 +23,11 @@ import type {
   PaneSeat,
   PtyProcess,
   PtySpawner,
+  ResolvedTerminalPath,
   TerminalWindowsResult,
 } from '../types';
 import { isProcessAlive, isTmuxClient, reapStalePtys, recordPid, removePid } from './pty-registry';
+import { currentWindowPaneCwds, resolveTerminalPaths } from './resolve-terminal-paths';
 import { sendPromptKeys } from './send-prompt-keys';
 import {
   assertBootstrapReadable,
@@ -186,7 +188,16 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
     try {
       if (tmuxAvailable) {
         pty = manager.spawnAttachedPty(sessionName, cwd, 80, 24);
-        ws.send(JSON.stringify({ type: 'status', status: 'connected', tmux: true }));
+        // `features` lets a newer client hold back control frames this sidecar would not know,
+        // since an unknown frame falls through to the PTY and is typed into the terminal.
+        ws.send(
+          JSON.stringify({
+            type: 'status',
+            status: 'connected',
+            tmux: true,
+            features: ['resolve-paths'],
+          })
+        );
       } else {
         pty = manager.spawnRawShell(cwd, 80, 24);
         ws.send(
@@ -280,6 +291,27 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
             };
           }
           ws.send(JSON.stringify({ type: 'pane-layout', ...result }));
+          return;
+        }
+        if (msg.type === 'resolve-paths' && Array.isArray(msg.paths)) {
+          let result: { resolved: ResolvedTerminalPath[]; error?: string };
+          try {
+            if (!tmuxAvailable) throw new Error('tmux is not available');
+            if (!manager.validateSessionName(sessionName)) throw new Error('Invalid session name');
+            const paths = msg.paths.filter((p: unknown): p is string => typeof p === 'string');
+            result = {
+              resolved: resolveTerminalPaths(
+                paths,
+                currentWindowPaneCwds(deps.execCommand, sessionName)
+              ),
+            };
+          } catch (error) {
+            result = {
+              resolved: [],
+              error: error instanceof Error ? error.message : 'Unable to resolve paths',
+            };
+          }
+          ws.send(JSON.stringify({ type: 'resolve-paths', id: msg.id, ...result }));
           return;
         }
         if (msg.type === 'resize' && typeof msg.cols === 'number' && typeof msg.rows === 'number') {

@@ -370,3 +370,35 @@ export async function renameItem(
     pathResolver,
   });
 }
+
+/**
+ * Which workspace worktree holds an absolute path, and the path inside it (terminal path links).
+ * The most specific worktree wins, so a linked worktree nested in the main checkout gets its file.
+ */
+export async function locateWorkspaceFile(
+  absolutePath: string
+): Promise<{ slug: string; worktree: string; file: string } | null> {
+  await requireAuth();
+  const nodePath = await import('node:path');
+  if (!nodePath.isAbsolute(absolutePath)) return null;
+  const target = nodePath.resolve(absolutePath);
+  const workspaceService = getContainer().resolve<IWorkspaceService>(
+    WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
+  );
+
+  const context = await workspaceService.resolveContext(target);
+  if (!context) return null;
+  const info = await workspaceService.getInfo(context.workspaceSlug);
+  const roots = [context.worktreePath, ...(info?.worktrees.map((tree) => tree.path) ?? [])];
+  let worktree: string | null = null;
+  for (const root of roots.map((root) => nodePath.resolve(root))) {
+    const inside = target === root || target.startsWith(root + nodePath.sep);
+    if (inside && (!worktree || root.length > worktree.length)) worktree = root;
+  }
+  if (!worktree) return null;
+  return {
+    slug: context.workspaceSlug,
+    worktree,
+    file: nodePath.relative(worktree, target),
+  };
+}

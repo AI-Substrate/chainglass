@@ -15,7 +15,9 @@ import './terminal-font.css';
 import { useResponsive } from '@/hooks/useResponsive';
 import { useSDKSetting } from '@/lib/sdk/use-sdk-setting';
 import { useKeyboardOpen } from '../hooks/use-keyboard-open';
+import { useOpenTerminalPath } from '../hooks/use-open-terminal-path';
 import { useTerminalSocket } from '../hooks/use-terminal-socket';
+import { createPathLinkProvider } from '../lib/path-link-provider';
 import { applyResyncOnStatus } from '../lib/resync-on-connect';
 import { resolveTerminalTheme } from '../lib/terminal-themes';
 import type {
@@ -66,6 +68,11 @@ interface TerminalInnerProps {
   onWindowsChange?: (windows: TerminalWindow[]) => void;
   onSelectWindowReady?: (select: ((windowId: string, windowIndex: number) => void) | null) => void;
   onNewWindowReady?: (create: NewWindow | null) => void;
+  /**
+   * A file path on screen was clicked and is about to open in the file browser in this tab
+   * (only paths the sidecar found on disk are links). The overlay folds itself away here.
+   */
+  onBeforeOpenPath?: () => void;
 }
 
 export default function TerminalInner({
@@ -81,6 +88,7 @@ export default function TerminalInner({
   onWindowsChange,
   onSelectWindowReady,
   onNewWindowReady,
+  onBeforeOpenPath,
 }: TerminalInnerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
@@ -127,97 +135,106 @@ export default function TerminalInner({
   // Store last clipboard data for modal fallback
   const lastClipboardDataRef = useRef<string | null>(null);
 
-  const { send, status, reconnect, copyBuffer, sendPrompt, renameWindow } = useTerminalSocket({
-    sessionName,
-    cwd,
-    onData: (data) => {
-      if (!disposedRef.current && terminalRef.current) {
-        terminalRef.current.write(data);
-      }
-    },
-    onClipboard: async (data, error) => {
-      if (error || !data) {
-        const { toast } = await import('sonner');
-        toast.error(error ?? 'No buffer available');
-      }
-      // Store for modal fallback, then broadcast to deferred clipboard write
-      lastClipboardDataRef.current = data ?? null;
-      window.dispatchEvent(new CustomEvent('terminal:clipboard-data', { detail: { data, error } }));
-    },
-    onError: (message) => {
-      // Surface all sidecar errors (auth failures, CWD rejection, etc.)
-      if (message) {
-        setAuthError(message);
-      }
-    },
-    onSendPromptResult: async ({ delivered, error }) => {
-      // Failures are worth telling the user about; SUCCESS IS NOT. tmux
-      // exiting zero proves bytes moved, not that the agent accepted them, so
-      // a success toast here would lie exactly the way pij's did (workshop
-      // 001 § 5). Honest post-submit state is Plan 092 ph-0003.
-      if (delivered) return;
-      const { toast } = await import('sonner');
-      toast.error(error ?? 'Could not send the prompt to the terminal');
-    },
-    onRenameWindowResult: async ({ renamed, error }) => {
-      // tmux itself performs this control command, so a failed exit is a
-      // trustworthy failure signal. Success is visible in the header; only the
-      // otherwise-invisible failure needs a toast.
-      if (renamed) {
-        sendRef.current(JSON.stringify({ type: 'windows' }));
-        return;
-      }
-      const { toast } = await import('sonner');
-      toast.error(error ?? 'Could not rename the tmux window');
-    },
-    onPaneLayout: ({ layout, error }) => {
-      setPaneLayout(layout);
-      setPaneLayoutError(error ?? null);
-      setPaneResizePending(false);
-    },
-    onWindows: async ({ windows, error }) => {
-      onWindowsChange?.(windows);
-      if (error && error !== windowErrorRef.current) {
-        const { toast } = await import('sonner');
-        toast.error(error);
-      }
-      windowErrorRef.current = error;
-    },
-    onStatus: async (_status, _tmux, _message) => {
-      // Clear auth error on successful connection
-      if (_status === 'connected') {
-        setAuthError(null);
-      }
-      // DYK-01: Show toast once per mount when tmux is unavailable
-      if (_status === 'connected' && _tmux === false && !tmuxWarningShownRef.current) {
-        tmuxWarningShownRef.current = true;
-        const { toast } = await import('sonner');
-        toast.warning(
-          _message ??
-            "tmux not available — using raw shell. Sessions won't persist across page refreshes."
+  const { send, status, reconnect, copyBuffer, sendPrompt, renameWindow, resolvePaths } =
+    useTerminalSocket({
+      sessionName,
+      cwd,
+      onData: (data) => {
+        if (!disposedRef.current && terminalRef.current) {
+          terminalRef.current.write(data);
+        }
+      },
+      onClipboard: async (data, error) => {
+        if (error || !data) {
+          const { toast } = await import('sonner');
+          toast.error(error ?? 'No buffer available');
+        }
+        // Store for modal fallback, then broadcast to deferred clipboard write
+        lastClipboardDataRef.current = data ?? null;
+        window.dispatchEvent(
+          new CustomEvent('terminal:clipboard-data', { detail: { data, error } })
         );
-      }
-      // Re-fit terminal when WS confirms connection — PTY is now ready for resize
-      if (_status === 'connected' && fitAddonRef.current && !disposedRef.current) {
-        requestAnimationFrame(() => {
-          if (disposedRef.current || !fitAddonRef.current) return;
-          fitAddonRef.current.fit();
-          const dims = fitAddonRef.current.proposeDimensions();
-          if (dims?.cols && dims.rows) {
-            sendRef.current(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
-          }
-          terminalRef.current?.focus();
-        });
-      }
-      // T007: one-shot resync per WS lifecycle on first 'connected' event.
-      applyResyncOnStatus(_status, resyncSentRef, sendRef.current);
-    },
-    onConnectionChange,
-  });
+      },
+      onError: (message) => {
+        // Surface all sidecar errors (auth failures, CWD rejection, etc.)
+        if (message) {
+          setAuthError(message);
+        }
+      },
+      onSendPromptResult: async ({ delivered, error }) => {
+        // Failures are worth telling the user about; SUCCESS IS NOT. tmux
+        // exiting zero proves bytes moved, not that the agent accepted them, so
+        // a success toast here would lie exactly the way pij's did (workshop
+        // 001 § 5). Honest post-submit state is Plan 092 ph-0003.
+        if (delivered) return;
+        const { toast } = await import('sonner');
+        toast.error(error ?? 'Could not send the prompt to the terminal');
+      },
+      onRenameWindowResult: async ({ renamed, error }) => {
+        // tmux itself performs this control command, so a failed exit is a
+        // trustworthy failure signal. Success is visible in the header; only the
+        // otherwise-invisible failure needs a toast.
+        if (renamed) {
+          sendRef.current(JSON.stringify({ type: 'windows' }));
+          return;
+        }
+        const { toast } = await import('sonner');
+        toast.error(error ?? 'Could not rename the tmux window');
+      },
+      onPaneLayout: ({ layout, error }) => {
+        setPaneLayout(layout);
+        setPaneLayoutError(error ?? null);
+        setPaneResizePending(false);
+      },
+      onWindows: async ({ windows, error }) => {
+        onWindowsChange?.(windows);
+        if (error && error !== windowErrorRef.current) {
+          const { toast } = await import('sonner');
+          toast.error(error);
+        }
+        windowErrorRef.current = error;
+      },
+      onStatus: async (_status, _tmux, _message) => {
+        // Clear auth error on successful connection
+        if (_status === 'connected') {
+          setAuthError(null);
+        }
+        // DYK-01: Show toast once per mount when tmux is unavailable
+        if (_status === 'connected' && _tmux === false && !tmuxWarningShownRef.current) {
+          tmuxWarningShownRef.current = true;
+          const { toast } = await import('sonner');
+          toast.warning(
+            _message ??
+              "tmux not available — using raw shell. Sessions won't persist across page refreshes."
+          );
+        }
+        // Re-fit terminal when WS confirms connection — PTY is now ready for resize
+        if (_status === 'connected' && fitAddonRef.current && !disposedRef.current) {
+          requestAnimationFrame(() => {
+            if (disposedRef.current || !fitAddonRef.current) return;
+            fitAddonRef.current.fit();
+            const dims = fitAddonRef.current.proposeDimensions();
+            if (dims?.cols && dims.rows) {
+              sendRef.current(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
+            }
+            terminalRef.current?.focus();
+          });
+        }
+        // T007: one-shot resync per WS lifecycle on first 'connected' event.
+        applyResyncOnStatus(_status, resyncSentRef, sendRef.current);
+      },
+      onConnectionChange,
+    });
 
   // Store send in a ref so terminal.onData doesn't go stale
   const sendRef = useRef(send);
   sendRef.current = send;
+  // The path link provider is registered once at mount; these keep it current.
+  const resolvePathsRef = useRef(resolvePaths);
+  resolvePathsRef.current = resolvePaths;
+  const openPath = useOpenTerminalPath(onBeforeOpenPath);
+  const openPathRef = useRef(openPath);
+  openPathRef.current = openPath;
 
   // T007 re-arm: useTerminalSocket fires the user's `onStatus` callback only
   // when the server sends a `{type:'status'}` control message — NOT when the
@@ -352,6 +369,13 @@ export default function TerminalInner({
 
     const webLinksAddon = new WebLinksAddon();
     terminal.loadAddon(webLinksAddon);
+    const pathLinks = terminal.registerLinkProvider(
+      createPathLinkProvider(
+        terminal,
+        (paths) => resolvePathsRef.current(paths),
+        (path, line, event) => openPathRef.current(path, line, event)
+      )
+    );
 
     // OSC 52 clipboard — enables copy from tmux mouse selection to browser clipboard
     const clipboardAddon = new ClipboardAddon();
@@ -606,6 +630,7 @@ export default function TerminalInner({
       }
       try {
         webLinksAddon.dispose();
+        pathLinks.dispose();
       } catch {
         /* already disposed */
       }

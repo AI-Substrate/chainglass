@@ -6,6 +6,7 @@ import type {
   PaneLayoutResult,
   RenameWindow,
   RenameWindowResult,
+  ResolvedTerminalPath,
   SendPrompt,
   SendPromptResult,
   TerminalWindowsResult,
@@ -27,6 +28,7 @@ const CONTROL_TYPES = new Set([
   'rename-window',
   'pane-layout',
   'windows',
+  'resolve-paths',
 ]);
 
 /** Auth close codes from sidecar — don't retry with stale token (DYK-05) */
@@ -62,7 +64,12 @@ export interface UseTerminalSocketReturn {
   sendPrompt: SendPrompt;
   /** Rename the active tmux window for the attached session. */
   renameWindow: RenameWindow;
+  /** Which of these screen paths exist, resolved against the current window's panes. */
+  resolvePaths: (paths: string[]) => Promise<ResolvedTerminalPath[]>;
 }
+
+/** A lookup the sidecar never answers (socket replaced mid-flight) resolves empty after this. */
+const RESOLVE_PATHS_TIMEOUT_MS = 3_000;
 
 const MAX_RECONNECT_ATTEMPTS = 5;
 const INITIAL_BACKOFF_MS = 1000;
@@ -79,6 +86,10 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
   const disposedRef = useRef(false);
   // DYK-01: Token stored in ref — connect() stays synchronous, effect fetches async
   const tokenRef = useRef<string | null>(null);
+  const pathLookupsRef = useRef(new Map<number, (resolved: ResolvedTerminalPath[]) => void>());
+  const nextLookupIdRef = useRef(0);
+  // Only a sidecar that says so gets `resolve-paths`: an older one types unknown frames into the PTY.
+  const canResolvePathsRef = useRef(false);
 
   // Stable refs for values used in connect — prevents useCallback identity changes
   const sessionNameRef = useRef(sessionName);
@@ -145,6 +156,7 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
 
     const ws = new WebSocket(url);
     wsRef.current = ws;
+    canResolvePathsRef.current = false;
 
     ws.onopen = () => {
       if (disposedRef.current || wsRef.current !== ws) {
@@ -164,6 +176,10 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
         const msg = JSON.parse(raw);
         if (msg && typeof msg.type === 'string' && CONTROL_TYPES.has(msg.type)) {
           if (msg.type === 'status') {
+            if (msg.status === 'connected') {
+              canResolvePathsRef.current =
+                Array.isArray(msg.features) && msg.features.includes('resolve-paths');
+            }
             onStatusRef.current?.(msg.status, msg.tmux, msg.message);
             if (msg.status === 'connected') {
               updateStatus('connected');
@@ -186,6 +202,10 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
             onPaneLayoutRef.current?.({ layout: msg.layout ?? null, error: msg.error });
           } else if (msg.type === 'windows') {
             onWindowsRef.current?.({ windows: msg.windows ?? [], error: msg.error });
+          } else if (msg.type === 'resolve-paths') {
+            const settle = pathLookupsRef.current.get(msg.id);
+            pathLookupsRef.current.delete(msg.id);
+            settle?.(Array.isArray(msg.resolved) ? msg.resolved : []);
           }
           return;
         }
@@ -301,6 +321,32 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
     [send]
   );
 
+  const resolvePaths = useCallback(
+    (paths: string[]) =>
+      new Promise<ResolvedTerminalPath[]>((resolve) => {
+        const ws = wsRef.current;
+        if (
+          paths.length === 0 ||
+          !canResolvePathsRef.current ||
+          ws?.readyState !== WebSocket.OPEN
+        ) {
+          resolve([]);
+          return;
+        }
+        const id = ++nextLookupIdRef.current;
+        const timer = setTimeout(() => {
+          pathLookupsRef.current.delete(id);
+          resolve([]);
+        }, RESOLVE_PATHS_TIMEOUT_MS);
+        pathLookupsRef.current.set(id, (resolved) => {
+          clearTimeout(timer);
+          resolve(resolved);
+        });
+        ws.send(JSON.stringify({ type: 'resolve-paths', id, paths }));
+      }),
+    []
+  );
+
   // Auto-connect: fetch token first (DYK-01), then connect synchronously
   useEffect(() => {
     disposedRef.current = false;
@@ -367,5 +413,5 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
     };
   }, [status]);
 
-  return { status, send, close, reconnect, copyBuffer, sendPrompt, renameWindow };
+  return { status, send, close, reconnect, copyBuffer, sendPrompt, renameWindow, resolvePaths };
 }

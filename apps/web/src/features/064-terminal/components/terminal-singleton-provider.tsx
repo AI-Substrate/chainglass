@@ -109,7 +109,7 @@ export function TerminalSingletonProvider({
   // the singleton without opening the float (inline split, /terminal page
   // session-selector) must call `overlay.setSessionContext(name, cwd)` before
   // activating their viewport — `openTerminal` and `toggleTerminal` already do.
-  const { sessionName, cwd } = useTerminalOverlay();
+  const { sessionName, cwd, closeTerminal } = useTerminalOverlay();
   const [activeId, setActiveId] = useState<string | null>(null);
   // Lazy-mount gate — TerminalInner doesn't mount (and the WS doesn't
   // connect) until the first viewport activates. Preserves Plan 084 / pre-
@@ -234,6 +234,7 @@ export function TerminalSingletonProvider({
               onWindowsChange={setWindows}
               onSelectWindowReady={registerSelectWindow}
               onNewWindowReady={registerNewWindow}
+              onBeforeOpenPath={closeTerminal}
             />
           </div>
         ) : null}
