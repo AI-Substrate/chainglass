@@ -205,6 +205,24 @@ export class TmuxSessionManager {
     return windows;
   }
 
+  /**
+   * A seat's window that nobody has named (a blank-named "+" window, an adopted shell) takes the
+   * seat's id, as pij names the windows it spawns (Jordan, 2026-10-06). Renaming turns tmux's
+   * automatic-rename off, so this happens once, and a window someone named is never touched.
+   */
+  private async nameWindowsAfterSeats(
+    samples: Map<string, { seatId: string | null; unnamed: boolean }>
+  ): Promise<void> {
+    for (const [windowId, sample] of samples) {
+      if (!sample.unnamed || !sample.seatId || !isValidWindowName(sample.seatId)) continue;
+      try {
+        await this.execAsync?.('tmux', ['rename-window', '-t', windowId, '--', sample.seatId]);
+      } catch {
+        // Naming is cosmetic; the next sample tries again.
+      }
+    }
+  }
+
   /** Sample CPU for every window of `sessionName` in the background and record readings. */
   private async sampleActivity(sessionName: string): Promise<void> {
     if (!this.execAsync || this.sampling.has(sessionName)) return;
@@ -216,7 +234,7 @@ export class TmuxSessionManager {
         '-t',
         `=${sessionName}`,
         '-F',
-        '#{window_id}\t#{pane_pid}\t#{window_activity}\t#{pane_id}',
+        '#{window_id}\t#{pane_pid}\t#{window_activity}\t#{pane_id}\t#{automatic-rename}',
       ]);
       const table = await this.readProcessTable();
       const seatsByPane = new Map((await this.readSeatsCached()).map((seat) => [seat.pane, seat]));
@@ -230,10 +248,12 @@ export class TmuxSessionManager {
         activityAt: number;
         jobs: number[];
         seatId: string | null;
+        /** tmux still names the window after its command: nobody has named it. */
+        unnamed: boolean;
       }
       const samples = new Map<string, WindowSample>();
       for (const line of panes.split('\n')) {
-        const [windowId, pidText, activityText, paneId] = line.split('\t');
+        const [windowId, pidText, activityText, paneId, autoRename] = line.split('\t');
         if (!windowId || !pidText) continue;
         const panePid = Number(pidText);
         const tree = treeCpuSeconds(table, panePid);
@@ -244,6 +264,7 @@ export class TmuxSessionManager {
           activityAt: Number(activityText) || 0,
           jobs: [],
           seatId: null,
+          unnamed: autoRename === '1',
         };
         sample.treeCpu += tree;
         // A pane id is recycled once its pane closes, so the seat must also be running in it.
@@ -271,6 +292,7 @@ export class TmuxSessionManager {
         samples.set(windowId, sample);
       }
 
+      await this.nameWindowsAfterSeats(samples);
       const changed = await this.readScreenChanges(sessionName, samples);
       const listed = new Set<string>();
       for (const [windowId, sample] of samples) {

@@ -82,6 +82,40 @@ describe('window seats and last lines', () => {
       lastLine: 'Should I also rename window 0?',
     });
   });
+
+  it('names a seat window that nobody has named after its seat, and leaves named ones alone', async () => {
+    const renames: string[][] = [];
+    const exec = (_: string, args: string[]) =>
+      args[0] === 'list-windows' ? '@1\t1\t0\t2.1.289\n@2\t2\t0\treceipts\n@3\t3\t0\tzsh\n' : '';
+    const execAsync = async (command: string, args: string[]) => {
+      if (command === 'ps') {
+        return [
+          '100 1 0:00.10 -zsh',
+          '101 100 0:01.00 claude',
+          '200 1 0:00.10 -zsh',
+          '300 1 0:00.10 -zsh',
+        ].join('\n');
+      }
+      if (args[0] === 'list-panes') {
+        // @1 unnamed seat window, @2 a named seat window, @3 an unnamed window with no seat.
+        return '@1\t100\t1\t%1\t1\n@2\t200\t1\t%2\t0\n@3\t300\t1\t%3\t1\n';
+      }
+      if (args[0] === 'rename-window') renames.push(args);
+      return '';
+    };
+    const readSeats = async () => [
+      { id: 'pij-quiet-heron', pane: '%1', pid: 101 },
+      { id: 'pij-named-seat', pane: '%2', pid: 200 },
+    ];
+    const manager = new TmuxSessionManager(exec, (() => null) as never, execAsync, readSeats);
+
+    manager.listWindows('main');
+    await vi.waitFor(() =>
+      expect((manager as unknown as { sampling: Set<string> }).sampling.size).toBe(0)
+    );
+
+    expect(renames).toEqual([['rename-window', '-t', '@1', '--', 'pij-quiet-heron']]);
+  });
 });
 
 describe('overviewWindows', () => {
