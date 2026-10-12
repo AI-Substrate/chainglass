@@ -10,7 +10,7 @@
  */
 
 export interface ContentTypeInfo {
-  category: 'image' | 'pdf' | 'video' | 'audio' | 'html' | 'model' | 'binary';
+  category: 'image' | 'pdf' | 'office' | 'video' | 'audio' | 'html' | 'model' | 'binary';
   mimeType: string;
 }
 
@@ -28,6 +28,27 @@ const EXTENSION_MAP: Record<string, ContentTypeInfo> = {
 
   // PDF
   pdf: { category: 'pdf', mimeType: 'application/pdf' },
+
+  // Office documents (previewed as a PDF converted by LibreOffice — see office-preview.ts)
+  docx: {
+    category: 'office',
+    mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  },
+  doc: { category: 'office', mimeType: 'application/msword' },
+  pptx: {
+    category: 'office',
+    mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  },
+  ppt: { category: 'office', mimeType: 'application/vnd.ms-powerpoint' },
+  xlsx: {
+    category: 'office',
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  },
+  xls: { category: 'office', mimeType: 'application/vnd.ms-excel' },
+  odt: { category: 'office', mimeType: 'application/vnd.oasis.opendocument.text' },
+  odp: { category: 'office', mimeType: 'application/vnd.oasis.opendocument.presentation' },
+  ods: { category: 'office', mimeType: 'application/vnd.oasis.opendocument.spreadsheet' },
+  rtf: { category: 'office', mimeType: 'application/rtf' },
 
   // Video
   mp4: { category: 'video', mimeType: 'video/mp4' },

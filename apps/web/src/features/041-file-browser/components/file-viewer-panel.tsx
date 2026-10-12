@@ -13,7 +13,9 @@
 import type { DiffError } from '@chainglass/shared';
 import type { Editor } from '@tiptap/react';
 import {
+  AppWindow,
   ArrowUp,
+  Download,
   Edit,
   ExternalLink,
   Eye,
@@ -43,6 +45,8 @@ import {
   resolveImageUrl,
 } from '@/features/_platform/viewer';
 import { detectContentType } from '@/lib/content-type-detection';
+import { useOpenOnHost } from '../hooks/use-open-on-host';
+import { officePreviewUrl } from '../lib/office-preview-url';
 import { AudioViewer } from './audio-viewer';
 import { BinaryPlaceholder } from './binary-placeholder';
 import { HtmlViewer } from './html-viewer';
@@ -828,6 +832,15 @@ function BinaryFileView({
           />
         )}
         {category === 'pdf' && <PdfViewer key={refreshKey} src={rawFileUrl} />}
+        {category === 'office' && (
+          // Converted to PDF server-side. The mtime in the URL re-fetches it when the file
+          // changes on disk; refreshKey re-fetches on the refresh button.
+          <PdfViewer
+            key={refreshKey}
+            src={officePreviewUrl(rawFileUrl, mtime)}
+            actions={<OfficeOriginalActions rawFileUrl={rawFileUrl} filename={filename} />}
+          />
+        )}
         {category === 'html' && (
           <HtmlViewer
             key={refreshKey}
@@ -864,5 +877,33 @@ function BinaryFileView({
         )}
       </div>
     </div>
+  );
+}
+
+/** An Office preview is a converted PDF; these reach the original document. */
+function OfficeOriginalActions({ rawFileUrl, filename }: { rawFileUrl: string; filename: string }) {
+  const { isLocal, opening, openError, open } = useOpenOnHost(rawFileUrl);
+  const linkClass =
+    'flex items-center gap-1 rounded px-2 py-0.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50';
+  return (
+    <>
+      {isLocal && (
+        <button
+          type="button"
+          onClick={open}
+          disabled={opening}
+          title="Open the original in its default app on this machine"
+          className={linkClass}
+        >
+          <AppWindow className="h-3 w-3" />
+          {opening ? 'Opening…' : 'Open in app'}
+        </button>
+      )}
+      <a href={`${rawFileUrl}&download=true`} download={filename} className={linkClass}>
+        <Download className="h-3 w-3" />
+        Download original
+      </a>
+      {openError && <span className="text-xs text-destructive">{openError}</span>}
+    </>
   );
 }

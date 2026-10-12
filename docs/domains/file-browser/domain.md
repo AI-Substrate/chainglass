@@ -28,6 +28,7 @@ Workspace-scoped file browsing, editing, and diffing. The core feature that make
 - Worktree picker component (Phase 3)
 - useAttentionTitle hook (Phase 3)
 - Binary file viewers — ImageViewer, PdfViewer, VideoViewer, AudioViewer, BinaryPlaceholder for inline binary rendering
+- Office document previews — docx/doc, pptx/ppt, xlsx/xls, odt/odp/ods and rtf converted to PDF by LibreOffice (`services/office-preview.ts`, server-only, cached per file version, one conversion at a time on a chainglass-owned profile) and shown in PdfViewer; the URL carries the file's mtime, so a changed file re-converts and the open preview refreshes
 - Folder preview gallery — FolderPreviewPanel, FolderPreviewGrid, preview cards (ImageCard, VideoCard, AudioCard, FolderCard, GenericCard) for visual folder content browsing
 - Raw file streaming API route — /api/workspaces/[slug]/files/raw with Range request support
 
@@ -88,7 +89,8 @@ Workspace-scoped file browsing, editing, and diffing. The core feature that make
 | Files API route | GET handler for client fetch | Directory listing service |
 | Raw file API route | Streaming binary file delivery with Range support | IFileSystem, IPathResolver |
 | ImageViewer | Renders images via raw file URL | Raw file API route, detectContentType |
-| PdfViewer | Embeds PDF via iframe | Raw file API route, detectContentType |
+| PdfViewer | Embeds PDF via iframe; optional toolbar actions; shows a server's error reason | Raw file API route, detectContentType |
+| Office preview | `category: 'office'` → PdfViewer on `/files/office-preview` (LibreOffice PDF), with Open in app / Download original | office-preview route + service, useOpenOnHost |
 | VideoViewer | HTML5 video player | Raw file API route, detectContentType |
 | AudioViewer | HTML5 audio player | Raw file API route, detectContentType |
 | BinaryPlaceholder | Fallback for unknown binary types | detectContentType |
@@ -159,6 +161,10 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 | `apps/web/src/features/041-file-browser/components/video-viewer.tsx` | VideoViewer component | Plan 046 |
 | `apps/web/src/features/041-file-browser/components/audio-viewer.tsx` | AudioViewer component | Plan 046 |
 | `apps/web/src/features/041-file-browser/components/binary-placeholder.tsx` | BinaryPlaceholder component | Plan 046 |
+| `apps/web/src/features/041-file-browser/services/office-preview.ts` | LibreOffice → PDF conversion, per-version cache (server-only) | Office previews |
+| `apps/web/src/features/041-file-browser/lib/office-preview-url.ts` | Office preview URL from the raw-file URL (client-safe) | Office previews |
+| `apps/web/src/features/041-file-browser/hooks/use-open-on-host.ts` | Open a file in the host's default app (localhost only) | Plan 046, shared |
+| `apps/web/app/api/workspaces/[slug]/files/office-preview/route.ts` | Office preview route: PDF, 501 without LibreOffice, 502 on a failed conversion | Office previews |
 | `apps/web/src/features/041-file-browser/components/folder-preview-panel.tsx` | FolderPreviewPanel gallery orchestrator | Plan 077 |
 | `apps/web/src/features/041-file-browser/components/folder-preview-grid.tsx` | FolderPreviewGrid responsive grid | Plan 077 |
 | `apps/web/src/features/041-file-browser/components/preview-cards/image-card.tsx` | ImageCard thumbnail | Plan 077 |
@@ -271,3 +277,4 @@ These modules live outside `features/041-file-browser/` per repo convention but 
 | Plan 084 (flowspace-mcp-search) | `useFlowspaceSearch` hook: added `spawning: boolean` state with 1 s polling against the rewritten server action's `{ kind: 'spawning' \| 'ok' \| 'error' }` union (30 s ceiling). browser-client wires `flowspace.spawning` only for semantic mode. New SDK command `file-browser.restartFlowspace` ("Restart FlowSpace") added to contribution + register. Two new server-only modules under `apps/web/src/lib/server/`: `flowspace-mcp-client.ts` (long-lived per-worktree fs2 mcp child via `@modelcontextprotocol/sdk`; pool pinned to `globalThis` for HMR; idle reaper; mtime recycle) and `flowspace-result-mapper.ts` (extracted pure helpers). `flowspace-search-action.ts` rewritten to delegate to the MCP client. | 2026-04-26 |
 | Plan 084 split-terminal-view | Added `SplitTerminalToggleButton` in `ExplorerPanel.rightActions` on the browse page; conditionally renders `TerminalView` into `PanelShell.rightPane` when toggled on; state is session-only React `useState`. Reuses `termSelectedSession` with `sessionNameFromWorktreePath` fallback so the inline pane always has a name to attach with — the sidecar `tmux new-session -A` semantics create the session if absent (same contract as the right-edge overlay and `/terminal` page). | 2026-05-19 |
 | Plan 084 FX012 (singleton xterm + A↔B state machine) | `BrowserClient`'s `splitTerminalEnabled` boolean renamed to `splitOn`. Added a tiny state machine: `handleSplitToggleChange` calls `overlay.closeTerminal()` on A→B and `overlay.openTerminal(...)` on B→A; a capture-phase listener on `terminal:toggle` (gated by `!splitOn` early-bail) preempts the overlay provider's bubble-phase listener so backtick in Mode B exits to A-with-float-open. Inline pane swapped from `<TerminalView>` to `<TerminalViewport id="inline-3rd" active />` — same singleton xterm as the right-edge overlay and `/terminal` page. `SplitTerminalToggleButton` dropped its internal `overlay:close-all` dispatch (state-transition side-effects now live in the caller). Mobile path unchanged (still owns its own `TerminalView` via `MobilePanelShell`). | 2026-05-21 |
+| Office previews | Word, PowerPoint, Excel and OpenDocument files preview as PDFs converted by LibreOffice (`CHAINGLASS_SOFFICE`, the macOS app, or `soffice` on PATH), cached per file version and refreshed when the file changes; Office toolbar keeps Open in app and Download original (`useOpenOnHost`, extracted from BinaryPlaceholder). | 2026-10-07 |

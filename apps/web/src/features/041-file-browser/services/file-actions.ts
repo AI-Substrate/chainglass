@@ -67,6 +67,7 @@ function isGenuinelyBinaryExtension(filename: string): boolean {
     category === 'video' ||
     category === 'audio' ||
     category === 'pdf' ||
+    category === 'office' ||
     category === 'html' ||
     category === 'model'
   );

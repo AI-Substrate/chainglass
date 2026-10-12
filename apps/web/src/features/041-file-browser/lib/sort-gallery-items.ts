@@ -34,8 +34,12 @@ function classifyEntry(entry: FileEntry): GalleryItem {
     };
   }
 
-  // PDF and HTML go to 'other'
-  if (contentType.category === 'pdf' || contentType.category === 'html') {
+  // PDF, Office documents and HTML go to 'other'
+  if (
+    contentType.category === 'pdf' ||
+    contentType.category === 'office' ||
+    contentType.category === 'html'
+  ) {
     return { ...entry, group: 'other' };
   }
 

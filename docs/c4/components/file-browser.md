@@ -28,6 +28,7 @@ C4Component
         Component(validateFn, "validateFileName", "Utility", "Git-portable filename validation:<br/>rejects invalid chars, reserved<br/>names, trailing spaces")
         Component(filesRoute, "Files API Route", "Route Handler", "/api/workspaces/[slug]/files<br/>client-side directory fetching")
         Component(rawRoute, "Raw File Route", "Route Handler", "/api/workspaces/[slug]/files/raw<br/>Range request support for binary")
+        Component(officeRoute, "Office Preview Route", "Route Handler", "/api/workspaces/[slug]/files/office-preview<br/>LibreOffice PDF, cached per version")
         Component(binaryViewers, "Binary Viewers", "Client Components", "ImageViewer, PdfViewer,<br/>VideoViewer, AudioViewer,<br/>BinaryPlaceholder")
         Component(undoRedo, "UndoRedoManager", "Client Module", "Snapshot-based undo/redo<br/>via structuredClone,<br/>50-item stack")
         Component(wsContext, "WorkspaceContext", "React Provider", "Workspace-scoped context:<br/>slug, worktreePath,<br/>file operations")
@@ -47,6 +48,7 @@ C4Component
     Rel(viewerPanel, saveFile, "Saves edits via")
     Rel(viewerPanel, codeEditor, "Edit mode renders")
     Rel(viewerPanel, binaryViewers, "Binary files render via")
+    Rel(binaryViewers, officeRoute, "Office documents load PDFs from")
     Rel(viewerPanel, undoRedo, "Tracks changes with")
     Rel(crudActions, crudServices, "Delegates to")
     Rel(crudServices, validateFn, "Validates names with")
@@ -76,7 +78,8 @@ C4Component
 | validateFileName | Utility | Git-portable filename validation: rejects invalid chars, reserved names, trailing spaces |
 | Files API Route | Route Handler | `/api/workspaces/[slug]/files` for client-side fetch |
 | Raw File Route | Route Handler | `/api/workspaces/[slug]/files/raw` with Range request support |
-| Binary Viewers | Client Components | Image, PDF, Video, Audio, BinaryPlaceholder |
+| Office Preview Route | Route Handler | `/api/workspaces/[slug]/files/office-preview`: Office document as a LibreOffice-converted PDF |
+| Binary Viewers | Client Components | Image, PDF (and Office previews), Video, Audio, BinaryPlaceholder |
 | UndoRedoManager | Client Module | Snapshot undo/redo via structuredClone (50-item stack) |
 | WorkspaceContext | React Provider | Workspace-scoped context (slug, worktreePath) |
 | Emoji/Color Pickers | Client Components | Workspace customization pickers |

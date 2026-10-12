@@ -13,7 +13,7 @@
 
 import { FileIcon } from '@/features/_platform/themes';
 import { Download, ExternalLink } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useOpenOnHost } from '../hooks/use-open-on-host';
 
 export interface BinaryPlaceholderProps {
   src: string;
@@ -29,38 +29,9 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
-/** Loopback hostnames — the only place a server-side "open" makes sense. */
-const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '::1', '[::1]', '0.0.0.0']);
-
 export function BinaryPlaceholder({ src, size, mimeType, filename }: BinaryPlaceholderProps) {
   const downloadUrl = `${src}${src.includes('?') ? '&' : '?'}download=true`;
-  // The open endpoint mirrors the raw route's worktree/file query string.
-  const openUrl = src.replace('/files/raw', '/files/open');
-
-  // Detect localhost on the client only (avoids SSR hydration mismatch).
-  const [isLocal, setIsLocal] = useState(false);
-  const [opening, setOpening] = useState(false);
-  const [openError, setOpenError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setIsLocal(LOCAL_HOSTNAMES.has(window.location.hostname));
-  }, []);
-
-  const handleOpen = async () => {
-    setOpening(true);
-    setOpenError(null);
-    try {
-      const res = await fetch(openUrl, { method: 'POST' });
-      if (!res.ok) {
-        throw new Error(`open failed (${res.status})`);
-      }
-    } catch (err) {
-      console.error('[binary-placeholder] open failed', err);
-      setOpenError('Could not open on host');
-    } finally {
-      setOpening(false);
-    }
-  };
+  const { isLocal, opening, openError, open: handleOpen } = useOpenOnHost(src);
 
   return (
     <div className="flex flex-col items-center justify-center gap-4 h-full w-full p-8 text-muted-foreground">
