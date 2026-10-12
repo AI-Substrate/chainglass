@@ -1,0 +1,41 @@
+docs/domains/terminal/domain.md
+  s_084ac52dc66de3::t_11818b8b0de73c 61
+apps/web/src/features/064-terminal/components/terminal-pane-header.tsx
+  s_084ac52dc66de3::t_54108579bd5cfa 484-485
+  s_084ac52dc66de3::t_9b83633b8c07b2 266
+  s_084ac52dc66de3::t_8af292a356bf7c 406,408
+  s_084ac52dc66de3::t_091e4a06c5a92f 52
+  s_084ac52dc66de3::t_f54781b2253728 242-243,491
+  s_084ac52dc66de3::t_9c053de000bf0e 322
+  s_084ac52dc66de3::t_b5ca962c714ca3 241,248
+test/unit/web/features/064-terminal/window-overview.test.ts
+  s_084ac52dc66de3::t_e009bbb8392047 3-6
+  s_084ac52dc66de3::t_c04d3b3641d042 154-159
+  s_ea3fd2b9e23c1d::t_e8b068b7d7050e 160
+apps/web/src/features/064-terminal/lib/window-overview.ts
+  s_084ac52dc66de3::t_9f2a3ad70d3d2d 49-54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "5776dc30fd26c3a23add14f35b0270bcfef13566",
+  "prompts": {},
+  "sessions": {
+    "s_084ac52dc66de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_ea3fd2b9e23c1d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bf67a093-3a7b-4292-902b-8fe81e52bdb7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
