@@ -1,0 +1,55 @@
+apps/web/app/api/workspaces/[slug]/files/office-preview/route.ts
+  s_084ac52dc66de3::t_0b22cb3a86fe7b 13
+  s_084ac52dc66de3::t_db3dc2c2f39d14 1-12,14-80,84-85,87-91
+  s_084ac52dc66de3::t_830c6fe7f7618a 81-83,86
+apps/web/src/features/041-file-browser/services/file-excerpt.ts
+  s_084ac52dc66de3::t_6f270348f21afe 128
+test/unit/web/features/041-file-browser/office-preview.test.ts
+  s_084ac52dc66de3::t_cab8c189dbf832 76,89-92,107-116
+  s_084ac52dc66de3::t_bb6ddf0fb6c77d 1-75,77-88,93-106,117-123
+apps/web/src/features/041-file-browser/services/office-preview.ts
+  s_084ac52dc66de3::t_6e91f46502acef 1-156
+apps/web/src/features/041-file-browser/lib/sort-gallery-items.ts
+  s_084ac52dc66de3::t_6f270348f21afe 37-42
+apps/web/src/features/041-file-browser/lib/office-preview-url.ts
+  s_084ac52dc66de3::t_984c0278a4d0fa 1-9
+apps/web/src/features/041-file-browser/components/pdf-viewer.tsx
+  s_084ac52dc66de3::t_0b22cb3a86fe7b 75
+  s_084ac52dc66de3::t_830c6fe7f7618a 25-26,31-33,35-38,47,77
+  s_084ac52dc66de3::t_1576eeb439f174 15,19-20,23,57-58
+apps/web/src/features/041-file-browser/hooks/use-open-on-host.ts
+  s_084ac52dc66de3::t_29d0357a35a867 1-44
+docs/c4/components/file-browser.md
+  s_084ac52dc66de3::t_1dd7f5f0784782 31,81-82
+  s_084ac52dc66de3::t_82171525efdd1d 51
+apps/web/src/features/041-file-browser/components/binary-placeholder.tsx
+  s_084ac52dc66de3::t_29d0357a35a867 16,34
+apps/web/src/lib/content-type-detection.ts
+  s_084ac52dc66de3::t_6f270348f21afe 13,32-51
+  s_084ac52dc66de3::t_80de551e46a15c 52
+docs/domains/file-browser/domain.md
+  s_084ac52dc66de3::t_1dd7f5f0784782 31,92-93,164-167,280
+apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx
+  s_084ac52dc66de3::t_ab9ea39adb962c 16,18,48,838-842,882-907
+  s_084ac52dc66de3::t_0b22cb3a86fe7b 49
+  s_084ac52dc66de3::t_5ba6e6cab0565f 835-837,843
+  s_084ac52dc66de3::t_7006098627dda4 908-909
+apps/web/src/features/041-file-browser/services/file-actions.ts
+  s_084ac52dc66de3::t_6f270348f21afe 70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "5e21b166326c7ba9cd234259420738c2a1c6354e",
+  "prompts": {},
+  "sessions": {
+    "s_084ac52dc66de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
