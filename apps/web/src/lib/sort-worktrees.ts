@@ -1,10 +1,24 @@
 /**
  * Shared worktree sort utilities.
  *
- * Sort order: starred first → numeric-prefix descending → non-numeric alphabetical.
+ * Sort order: main worktree → starred → numeric-prefix descending → non-numeric alphabetical.
+ * The main worktree (the one whose path is the workspace path) is always first,
+ * regardless of sort field, starring or filtering.
  * Branch names like "066-wf-real-agents" sort by the leading number (066 > 064 > 063).
- * Branches without a numeric prefix (e.g. "main") sort after all numbered branches.
+ * Branches without a numeric prefix sort after all numbered branches.
  */
+
+/**
+ * Pin the main worktree (path === mainPath) ahead of everything else.
+ * Returns 0 when neither or both are main, so the caller's ordering applies.
+ */
+function compareMainFirst(aPath: string, bPath: string, mainPath: string | undefined): number {
+  if (mainPath === undefined) return 0;
+  const aMain = aPath === mainPath;
+  const bMain = bPath === mainPath;
+  if (aMain === bMain) return 0;
+  return aMain ? -1 : 1;
+}
 
 /**
  * Extract leading numeric prefix from a branch name, or null if none.
@@ -28,13 +42,17 @@ export function compareWorktreeBranches(a: string, b: string): number {
 }
 
 /**
- * Sort worktrees: starred first, then by compareWorktreeBranches.
+ * Sort worktrees: main worktree first, then starred, then by compareWorktreeBranches.
+ * `mainPath` is the workspace path (the primary checkout).
  */
 export function sortWorktrees<T extends { path: string; branch?: string | null }>(
   worktrees: T[],
-  starredSet: Set<string>
+  starredSet: Set<string>,
+  mainPath: string | undefined
 ): T[] {
   return [...worktrees].sort((a, b) => {
+    const mainOrder = compareMainFirst(a.path, b.path, mainPath);
+    if (mainOrder !== 0) return mainOrder;
     const aStarred = starredSet.has(a.path);
     const bStarred = starredSet.has(b.path);
     if (aStarred !== bStarred) return aStarred ? -1 : 1;
@@ -80,15 +98,16 @@ interface TimestampedWorktree {
 }
 
 /**
- * Sort worktrees by a chosen field/direction, keeping starred worktrees pinned
- * to the top (preserving the existing star behaviour). Missing timestamps sort
- * last regardless of direction.
+ * Sort worktrees by a chosen field/direction, keeping the main worktree first
+ * and starred worktrees pinned below it (preserving the existing star
+ * behaviour). Missing timestamps sort last regardless of direction.
  */
 export function sortWorktreesBy<T extends TimestampedWorktree>(
   worktrees: T[],
   starredSet: Set<string>,
   key: WorktreeSortKey,
-  dir: WorktreeSortDir
+  dir: WorktreeSortDir,
+  mainPath: string | undefined
 ): T[] {
   const factor = dir === 'asc' ? 1 : -1;
 
@@ -108,9 +127,30 @@ export function sortWorktreesBy<T extends TimestampedWorktree>(
   };
 
   return [...worktrees].sort((a, b) => {
+    const mainOrder = compareMainFirst(a.path, b.path, mainPath);
+    if (mainOrder !== 0) return mainOrder;
     const aStarred = starredSet.has(a.path);
     const bStarred = starredSet.has(b.path);
     if (aStarred !== bStarred) return aStarred ? -1 : 1;
     return compareByKey(a, b);
   });
+}
+
+/**
+ * Filter worktrees by a case-insensitive term over branch and path. The main
+ * worktree is never filtered out, so it stays visible at the top of a sorted list.
+ */
+export function filterWorktrees<T extends { path: string; branch?: string | null }>(
+  worktrees: T[],
+  term: string,
+  mainPath: string | undefined
+): T[] {
+  const needle = term.trim().toLowerCase();
+  if (!needle) return worktrees;
+  return worktrees.filter(
+    (w) =>
+      w.path === mainPath ||
+      (w.branch ?? '').toLowerCase().includes(needle) ||
+      w.path.toLowerCase().includes(needle)
+  );
 }

@@ -187,7 +187,7 @@ export function WorkspaceNav() {
     const worktrees = currentWs.worktrees ?? [];
     const starredSet = new Set(currentWs.preferences?.starredWorktrees ?? []);
 
-    const sorted = sortWorktrees(worktrees, starredSet);
+    const sorted = sortWorktrees(worktrees, starredSet, currentWs.path);
 
     const rawSubPath = pathname.replace(`/workspaces/${workspaceSlug}`, '') || '/';
     // Default to browser when navigating from workspace root or worktree landing
@@ -289,7 +289,8 @@ export function WorkspaceNav() {
               <div className="ml-6 space-y-0.5 border-l pl-2">
                 {sortWorktrees(
                   workspace.worktrees ?? [],
-                  new Set(workspace.preferences?.starredWorktrees ?? [])
+                  new Set(workspace.preferences?.starredWorktrees ?? []),
+                  workspace.path
                 ).map((worktree) => {
                   const isSelected = isWorktreeSelected(workspace.slug, worktree.path);
                   const label = worktree.branch || (worktree.isDetached ? 'detached' : 'main');

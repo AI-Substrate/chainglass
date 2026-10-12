@@ -187,6 +187,7 @@ Primary: `packages/workflow/src/` + `apps/web/app/(dashboard)/workspaces/` + `ap
 | `apps/web/app/(dashboard)/workspaces/[slug]/page.tsx` | Workspace detail page | Worktree list, metadata, navigation entrypoint |
 | `apps/web/app/(dashboard)/workspaces/[slug]/new-worktree/page.tsx` | New worktree page | Full-page create flow with preview (Plan 069) |
 | `apps/web/src/components/workspaces/workspace-nav.tsx` | Sidebar/worktree navigation | Workspace and worktree switching UI |
+| `apps/web/src/lib/sort-worktrees.ts` | Worktree ordering + filter | Shared by the detail page and sidebar: main worktree first, then starred, then the chosen sort; `filterWorktrees` never hides main |
 | `apps/web/src/components/workspaces/workspace-add-form.tsx` | Registration form | Client mutation surface for add |
 | `apps/web/src/components/workspaces/new-worktree-form.tsx` | Create worktree form | Client form with 4 page states and live preview (Plan 069) |
 | `apps/web/src/components/dashboard-sidebar.tsx` | Dashboard sidebar composition | Expanded plus button and collapsed-state create-worktree entrypoint (Plan 069) |
@@ -221,3 +222,4 @@ Primary: `packages/workflow/src/` + `apps/web/app/(dashboard)/workspaces/` + `ap
 | Plan 069 Phase 3 | Added full-page new-worktree route, create-worktree page-state/server-action adapter, and client live-preview form surface. Exported pure naming functions for client-side use. | 2026-03-08 |
 | Plan 069 Phase 4 | Added sidebar plus button for worktree creation, bootstrap hook authoring guide, web-UI route docs, README pointer. | 2026-03-09 |
 | Plan 084 (live-monitoring-rescan) | Added internal mutation event channel to `WorkspaceService`: `WorkspaceMutationEvent` discriminated union + `IWorkspaceService.onMutation(listener)`. Emits on `add`/`remove`/`updatePreferences`/`createWorktree` success exits via `setImmediate` so caller's `await` resolves before listener fires. Consumer: `_platform/events` central watcher (rescan trigger). | 2026-04-26 |
+| *(no plan)* | Main worktree (path equals the workspace path) is pinned first in every worktree list, ahead of starred worktrees and regardless of sort; `filterWorktrees` keeps it visible. `sortWorktrees`/`sortWorktreesBy` now take the workspace path. | 2026-10-12 |

@@ -72,9 +72,15 @@ export default async function WorkspaceDetailPage({ params, searchParams }: Page
     updatedAt: timestamps.get(w.path)?.updatedAt ?? null,
   }));
 
-  // Sort: starred first, then by the selected field/direction (default: most
-  // recently updated).
-  const sortedWorktrees = sortWorktreesBy(enrichedWorktrees, starredWorktrees, sortKey, sortDir);
+  // Sort: main worktree first, then starred, then by the selected field/direction
+  // (default: most recently updated).
+  const sortedWorktrees = sortWorktreesBy(
+    enrichedWorktrees,
+    starredWorktrees,
+    sortKey,
+    sortDir,
+    info.path
+  );
 
   // Build a sort-control href: toggle direction if the field is already active,
   // otherwise select it with its natural default direction.
