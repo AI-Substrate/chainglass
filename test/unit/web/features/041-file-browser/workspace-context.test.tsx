@@ -103,6 +103,8 @@ describe('worktreeIdentity', () => {
 
     expect(result.current?.worktreeIdentity?.branch).toBe('041-file-browser');
     expect(result.current?.worktreeIdentity?.pageTitle).toBe('Browser');
+    // The sidebar falls back to this when the URL has no ?worktree= (upload button, identity).
+    expect(result.current?.worktreeIdentity?.worktreePath).toBe('/path/to/wt');
   });
 
   it('resolves emoji from worktreePreferences map', () => {

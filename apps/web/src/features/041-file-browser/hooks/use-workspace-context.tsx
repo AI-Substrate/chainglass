@@ -19,6 +19,8 @@ import { type ReactNode, createContext, useCallback, useContext, useMemo, useSta
 
 /** Worktree identity — set by pages, resolved by provider */
 export interface WorktreeIdentity {
+  /** The worktree the page resolved, including the main-worktree default when the URL has none. */
+  worktreePath: string;
   branch: string;
   emoji: string;
   color: string;
@@ -100,6 +102,7 @@ export function WorkspaceProvider({
     if (!worktreeInput) return null;
     const wtPrefs = worktreePreferences[worktreeInput.worktreePath];
     return {
+      worktreePath: worktreeInput.worktreePath,
       branch: worktreeInput.branch,
       emoji: wtPrefs?.emoji || emoji,
       color: wtPrefs?.color || color,

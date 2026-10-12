@@ -69,8 +69,11 @@ export function DashboardSidebar() {
   }, [pathname]);
 
   const isInWorkspace = workspaceSlug != null;
-  const currentWorktree = searchParams.get('worktree');
   const wsCtx = useWorkspaceContext();
+  // A page with no ?worktree= shows the main worktree (browser/page.tsx), so fall back to the
+  // worktree the page resolved; otherwise upload and identity vanish on those URLs.
+  const currentWorktree =
+    searchParams.get('worktree') ?? wsCtx?.worktreeIdentity?.worktreePath ?? null;
 
   return (
     <Sidebar role="complementary" collapsible="icon" className={cn(isCollapsed && 'w-16')}>

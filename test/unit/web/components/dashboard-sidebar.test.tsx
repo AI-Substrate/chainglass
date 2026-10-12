@@ -6,11 +6,14 @@
  * Tests navigation state, active item highlighting, and collapse behavior
  */
 
+import { FakeGlobalStateSystem } from '@chainglass/shared/fakes';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DashboardSidebar } from '../../../../apps/web/src/components/dashboard-sidebar';
 import { SidebarProvider } from '../../../../apps/web/src/components/ui/sidebar';
+import { WorkspaceProvider } from '../../../../apps/web/src/features/041-file-browser/hooks/use-workspace-context';
+import { StateContext } from '../../../../apps/web/src/lib/state/state-provider';
 
 // Mock next/navigation per spec § 11 Mock Usage Policy (allowed exception)
 vi.mock('next/navigation', () => ({
@@ -160,5 +163,35 @@ describe('DashboardSidebar', () => {
     // The default pathname mock is '/' which is non-workspace
     // The sidebar should show workspace list when not in workspace context
     expect(screen.getByText(/workspaces/i)).toBeInTheDocument();
+  });
+
+  it('shows the upload button on a browser URL with no ?worktree=, for the main worktree', async () => {
+    // /workspaces/chainglass/browser?session=chainglass shows the main worktree, so the sidebar
+    // takes the page's resolved worktree from the workspace context (Jordan, 2026-10-12).
+    const { usePathname } = await import('next/navigation');
+    vi.mocked(usePathname).mockReturnValue('/workspaces/chainglass/browser');
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <WorkspaceProvider
+          slug="chainglass"
+          name="chainglass"
+          emoji=""
+          color=""
+          worktreePreferences={{}}
+          defaultWorktreePath="/repos/chainglass"
+          defaultBranch="chainglass"
+        >
+          <StateContext.Provider value={new FakeGlobalStateSystem()}>
+            <SidebarProvider>
+              <DashboardSidebar />
+            </SidebarProvider>
+          </StateContext.Provider>
+        </WorkspaceProvider>
+      </QueryClientProvider>
+    );
+
+    expect(screen.getByRole('button', { name: 'Upload file' })).toBeInTheDocument();
   });
 });
