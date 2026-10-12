@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { lastTextLine } from '../../../../../apps/web/src/features/064-terminal/lib/screen-activity';
-import { overviewWindows } from '../../../../../apps/web/src/features/064-terminal/lib/window-overview';
+import {
+  matchesQuery,
+  overviewWindows,
+} from '../../../../../apps/web/src/features/064-terminal/lib/window-overview';
 import { TmuxSessionManager } from '../../../../../apps/web/src/features/064-terminal/server/tmux-session-manager';
 import type { TerminalWindow } from '../../../../../apps/web/src/features/064-terminal/types';
 
@@ -147,5 +150,12 @@ describe('overviewWindows', () => {
     expect(overviewWindows(windows, 'recent', '', isPrime).map((w) => w.index)).toEqual([0, 2, 1]);
     expect(overviewWindows(windows, 'working', 'w2', isPrime).map((w) => w.index)).toEqual([0, 2]);
     expect(overviewWindows(windows, 'all', 'nothing', isPrime).map((w) => w.index)).toEqual([0]);
+  });
+
+  it('finds a seat by its pij id when its tmux window is named something else', () => {
+    const blackbird = win(5, { name: 'review', seatId: 'pij-quiet-blackbird' });
+    expect(matchesQuery(blackbird, 'blackbird')).toBe(true);
+    expect(matchesQuery(blackbird, 'review')).toBe(true);
+    expect(matchesQuery(win(6, { name: 'review' }), 'blackbird')).toBe(false);
   });
 });

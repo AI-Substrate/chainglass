@@ -49,6 +49,7 @@ import { copyTmuxBuffer } from '../lib/copy-tmux-buffer';
 import { NEW_WINDOW_AGENTS, type NewWindowAgent } from '../lib/new-window-agents';
 import { CHILD_BUSY_FRACTION, formatIdle } from '../lib/window-activity';
 import { getWindowNameValidationError } from '../lib/window-name-validation';
+import { matchesQuery } from '../lib/window-overview';
 import type { ConnectionStatus } from '../types';
 import { ConnectionStatusBadge } from './connection-status-badge';
 import { TerminalPromptDrawer } from './terminal-prompt-drawer';
@@ -237,11 +238,14 @@ export function TerminalPaneHeader({
               // Background jobs fill upward whatever the agent is doing: above the green bar
               // while it works, above the idle time while it rests.
               const showBackground = background !== null;
+              // A seat whose window is named something else: show its pij id too.
+              const seatLabel =
+                window.seatId && window.seatId !== window.name ? window.seatId : null;
               // Search wins over the background outline while a query is active.
               const matchTone =
                 query.length === 0
                   ? ''
-                  : window.name.toLowerCase().includes(query)
+                  : matchesQuery(window, query)
                     ? 'ring-2 ring-amber-400 ring-offset-1 ring-offset-background'
                     : 'opacity-30';
               const fillQuarters = showBackground ? backgroundQuarters(background.cpu) : 0;
@@ -259,7 +263,7 @@ export function TerminalPaneHeader({
                       type="button"
                       onClick={() => selectWindow?.(window.id, window.index)}
                       disabled={connectionStatus !== 'connected' || !selectWindow}
-                      aria-label={`Window ${window.index}: ${window.name}${agent ? `, ${agent.label}` : ''}${status ? `, ${status}` : ''}${background ? `, ${background.jobs.length} background ${background.jobs.length === 1 ? 'job' : 'jobs'}` : ''}`}
+                      aria-label={`Window ${window.index}: ${window.name}${seatLabel ? ` (${seatLabel})` : ''}${agent ? `, ${agent.label}` : ''}${status ? `, ${status}` : ''}${background ? `, ${background.jobs.length} background ${background.jobs.length === 1 ? 'job' : 'jobs'}` : ''}`}
                       aria-pressed={window.active}
                       data-output-active={outputActive ? 'true' : 'false'}
                       className={`relative flex h-7 min-w-8 shrink-0 flex-col items-center overflow-hidden rounded px-1 pt-0.5 text-[11px] font-medium leading-none tabular-nums focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-50 ${tone} ${matchTone}`}
@@ -315,6 +319,7 @@ export function TerminalPaneHeader({
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="max-w-72">
                     <div className="font-medium">{window.name}</div>
+                    {seatLabel ? <div className="font-mono opacity-80">{seatLabel}</div> : null}
                     <div className="opacity-80">
                       {[agent?.label, status].filter(Boolean).join(' · ')}
                     </div>
@@ -398,9 +403,9 @@ export function TerminalPaneHeader({
             type="button"
             onClick={() => (searchOpen ? closeSearch() : setSearchOpen(true))}
             className="rounded-sm p-1 text-muted-foreground hover:text-foreground hover:bg-accent aria-expanded:bg-accent aria-expanded:text-foreground"
-            aria-label="Search windows by name"
+            aria-label="Search windows"
             aria-expanded={searchOpen}
-            title="Search windows by name"
+            title="Search windows by name, pij seat or text"
           >
             <Search className="h-3.5 w-3.5" />
           </button>
@@ -476,15 +481,14 @@ export function TerminalPaneHeader({
               event.stopPropagation();
               closeSearch();
             }}
-            placeholder="Window name…"
-            aria-label="Window name"
+            placeholder="Window, seat or text…"
+            aria-label="Search windows by name, pij seat or text"
             ref={searchInputRef}
             className="h-8 min-w-0 flex-1 rounded-md border bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
           {query.length > 0 ? (
             <span className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">
-              {windows.filter((window) => window.name.toLowerCase().includes(query)).length} of{' '}
-              {windows.length}
+              {windows.filter((window) => matchesQuery(window, query)).length} of {windows.length}
             </span>
           ) : null}
         </div>

@@ -46,7 +46,12 @@ function matchesFilter(window: TerminalWindow, filter: OverviewFilter): boolean 
   }
 }
 
-function matchesQuery(window: TerminalWindow, query: string): boolean {
+/**
+ * Search over the window name, its last line and its pij seat id; `query` is already trimmed and
+ * lowercased. The window strip's search uses it too, so a seat is found by its pij name even when
+ * its tmux window is named something else (Jordan, 2026-10-12).
+ */
+export function matchesQuery(window: TerminalWindow, query: string): boolean {
   if (query.length === 0) return true;
   return [window.name, window.lastLine, window.seatId].some((text) =>
     text?.toLowerCase().includes(query)
