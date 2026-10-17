@@ -25,6 +25,7 @@ import { cn } from '@/lib/utils';
 import {
   ChevronLeft,
   ExternalLink,
+  LayoutGrid,
   LogOut,
   PanelLeft,
   Plus,
@@ -75,6 +76,16 @@ export function DashboardSidebar() {
   const currentWorktree =
     searchParams.get('worktree') ?? wsCtx?.worktreeIdentity?.worktreePath ?? null;
 
+  // Same destination as the "All Workspaces" link below, in the icon row so the collapsed rail
+  // reaches it without expanding the sidebar (Jordan, 2026-10-17).
+  const allWorkspacesButton = isInWorkspace ? (
+    <Button variant="ghost" size="icon" asChild className="h-7 w-7">
+      <Link href="/" aria-label="All workspaces" title="All workspaces">
+        <LayoutGrid className="h-3.5 w-3.5" />
+      </Link>
+    </Button>
+  ) : null;
+
   return (
     <Sidebar role="complementary" collapsible="icon" className={cn(isCollapsed && 'w-16')}>
       <SidebarHeader className={cn('border-b', isCollapsed ? 'p-2' : 'p-4')}>
@@ -99,7 +110,7 @@ export function DashboardSidebar() {
         )}
         <div className={cn('flex items-center', isCollapsed ? 'flex-col gap-1' : 'mt-1 gap-1')}>
           {isCollapsed ? (
-            // Compact rail: show/hide menu, then upload, theme, pop-out — stacked.
+            // Compact rail: show/hide menu, then upload, all workspaces, theme, pop-out — stacked.
             <>
               <Button
                 variant="ghost"
@@ -114,6 +125,7 @@ export function DashboardSidebar() {
               {currentWorktree && workspaceSlug && (
                 <PasteUploadButton slug={workspaceSlug} worktreePath={currentWorktree} />
               )}
+              {allWorkspacesButton}
               <ThemeToggle />
               <Button
                 variant="ghost"
@@ -142,6 +154,7 @@ export function DashboardSidebar() {
                   <PasteUploadButton slug={workspaceSlug} worktreePath={currentWorktree} />
                 </>
               )}
+              {allWorkspacesButton}
               <ThemeToggle />
               <Button
                 variant="ghost"

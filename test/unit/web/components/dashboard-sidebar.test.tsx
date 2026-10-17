@@ -170,28 +170,43 @@ describe('DashboardSidebar', () => {
     // takes the page's resolved worktree from the workspace context (Jordan, 2026-10-12).
     const { usePathname } = await import('next/navigation');
     vi.mocked(usePathname).mockReturnValue('/workspaces/chainglass/browser');
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-
-    render(
-      <QueryClientProvider client={queryClient}>
-        <WorkspaceProvider
-          slug="chainglass"
-          name="chainglass"
-          emoji=""
-          color=""
-          worktreePreferences={{}}
-          defaultWorktreePath="/repos/chainglass"
-          defaultBranch="chainglass"
-        >
-          <StateContext.Provider value={new FakeGlobalStateSystem()}>
-            <SidebarProvider>
-              <DashboardSidebar />
-            </SidebarProvider>
-          </StateContext.Provider>
-        </WorkspaceProvider>
-      </QueryClientProvider>
-    );
+    renderInWorkspace();
 
     expect(screen.getByRole('button', { name: 'Upload file' })).toBeInTheDocument();
   });
+
+  it('keeps an All workspaces link in the icon row, including the collapsed rail', async () => {
+    const { usePathname } = await import('next/navigation');
+    vi.mocked(usePathname).mockReturnValue('/workspaces/chainglass/browser');
+    renderInWorkspace();
+
+    expect(screen.getByRole('link', { name: 'All workspaces' })).toHaveAttribute('href', '/');
+    fireEvent.click(screen.getByRole('button', { name: /toggle sidebar/i }));
+    expect(screen.getByRole('complementary')).toHaveClass('w-16');
+    expect(screen.getByRole('link', { name: 'All workspaces' })).toHaveAttribute('href', '/');
+  });
 });
+
+/** The sidebar inside a workspace: the providers the workspace layout gives it. */
+function renderInWorkspace() {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <WorkspaceProvider
+        slug="chainglass"
+        name="chainglass"
+        emoji=""
+        color=""
+        worktreePreferences={{}}
+        defaultWorktreePath="/repos/chainglass"
+        defaultBranch="chainglass"
+      >
+        <StateContext.Provider value={new FakeGlobalStateSystem()}>
+          <SidebarProvider>
+            <DashboardSidebar />
+          </SidebarProvider>
+        </StateContext.Provider>
+      </WorkspaceProvider>
+    </QueryClientProvider>
+  );
+}
