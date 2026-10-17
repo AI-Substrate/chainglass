@@ -1,0 +1,21 @@
+test/unit/web/components/dashboard-sidebar.test.tsx
+  s_084ac52dc66de3::t_cd9e42c84964a4 173,177-187,189-212
+apps/web/src/components/dashboard-sidebar.tsx
+  s_084ac52dc66de3::t_3cbaa3c4484ded 28,79-88,113,128,157
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "165085f96dd9992abc9a6b178163eeab2cfecc3e",
+  "prompts": {},
+  "sessions": {
+    "s_084ac52dc66de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
