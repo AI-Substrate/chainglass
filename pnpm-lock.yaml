@@ -26,6 +26,7 @@ overrides:
   sharp: '>=0.35.5'
   tinypool: ^2.1.2
   markdown-it@^14: ^14.3.3
+  body-parser@^2: ^2.4.0
 
 patchedDependencies:
   '@github/copilot-sdk@0.1.32':
@@ -3126,8 +3127,8 @@ packages:
   bidi-js@1.1.0:
     resolution: {integrity: sha1-yS76/j/OO5/dMLpnvd3w3U1CSvc=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/bidi-js/-/bidi-js-1.1.0.tgz}
 
-  body-parser@2.3.0:
-    resolution: {integrity: sha1-bYZi9NjDNgKLismqJCUbDKZLpDc=, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/body-parser/-/body-parser-2.3.0.tgz}
+  body-parser@2.4.0:
+    resolution: {integrity: sha512-Ifk1KcLrxaGt1occQagQNFNNOqRt1LFuehEnHHzB8Z6cRgIxRU1TBaiIsUiCdA+gy5PL7Y1IX31DNKkRmxtXjQ==, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/body-parser/-/body-parser-2.4.0.tgz}
     engines: {node: '>=18'}
 
   boolbase@1.0.0:
@@ -8197,7 +8198,7 @@ snapshots:
     dependencies:
       require-from-string: 2.0.2
 
-  body-parser@2.3.0:
+  body-parser@2.4.0:
     dependencies:
       bytes: 3.1.2
       content-type: 2.1.0
@@ -8798,7 +8799,7 @@ snapshots:
   express@5.2.1:
     dependencies:
       accepts: 2.0.0
-      body-parser: 2.3.0
+      body-parser: 2.4.0
       content-disposition: 1.1.0
       content-type: 1.0.5
       cookie: 0.7.2

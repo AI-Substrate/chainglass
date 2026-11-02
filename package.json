@@ -70,7 +70,8 @@
       "source-map-js": ">=1.2.2",
       "sharp": ">=0.35.5",
       "tinypool": "^2.1.2",
-      "markdown-it@^14": "^14.3.3"
+      "markdown-it@^14": "^14.3.3",
+      "body-parser@^2": "^2.4.0"
     }
   }
 }
