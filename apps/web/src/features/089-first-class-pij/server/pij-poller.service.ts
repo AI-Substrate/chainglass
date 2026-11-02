@@ -106,7 +106,8 @@ export interface PijSnapshotResult {
 export interface PijSeedCard {
   id: PijId;
   status?: { prev: string; next: string; seq: number; at: string };
-  state?: { state: string | null; note: string | null };
+  /** `at` and `seq` are the note's; null/0 from a daemon that does not report them. */
+  state?: { state: string | null; note: string | null; at: string | null; seq: number };
 }
 
 export interface PijPollerService {
@@ -331,10 +332,10 @@ class Poller implements PijPollerService {
       this.statuses.set(id, status);
       this.rsStatusTouched.set(id, status);
     }
-    if (card.state && !this.rsStateReports.has(id)) {
-      // Seq 0: any pushed report.state supersedes it, and the descriptor's semantic state stays
-      // authoritative (withRsStateReport); the note shows only while that state still matches.
-      this.rsStateReports.set(id, { seq: 0, revision: 0, ...card.state, at: null });
+    if (card.state && (this.rsStateReports.get(id)?.seq ?? -1) < card.state.seq) {
+      // Revision 0: the descriptor's semantic state stays authoritative (withRsStateReport); the
+      // note shows only while that state still matches. A newer pushed report.state wins by seq.
+      this.rsStateReports.set(id, { revision: 0, ...card.state });
       const current = this.fleet.get(id);
       if (current) {
         this.fleet.set(id, this.withRsStateReport(current));

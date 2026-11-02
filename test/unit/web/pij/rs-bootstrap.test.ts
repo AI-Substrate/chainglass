@@ -55,6 +55,10 @@ class BootstrapRsClient implements RsClient {
     return { id, unsupported: [] };
   }
 
+  async cards() {
+    return { cards: [], unavailable: [] };
+  }
+
   events(): AsyncIterable<RsEvent> {
     throw new Error('This test invokes the production onEvent callback without a socket');
   }

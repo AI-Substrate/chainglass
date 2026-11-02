@@ -26,7 +26,6 @@ import { createPijRecords } from './pij-records';
 import { createCompositePijRecords } from './rs/composite-pij-records';
 import {
   type RsClient,
-  type RsSeat,
   type RsStateReport,
   createRsClient,
   pijRsAddr,
@@ -55,13 +54,11 @@ const globalForPijPoller = globalThis as typeof globalThis & {
   __pijSource?: PijSource;
 };
 
-/** `/v1/state` reads in flight at once while seeding cards; each took ~1.5s on 2 Nov 2026. */
-const CARD_SEED_CONCURRENCY = 4;
-
-/** The cards a `/v1/state` report carries, in the poller's seed shape. */
+/** The cards a `/v1/state` or `/v1/cards` card carries, in the poller's seed shape. */
 export function seedCardFromState(report: RsStateReport): PijSeedCard {
   const card: PijSeedCard = { id: report.id as PijSeedCard['id'] };
-  const { statusPrev, statusNext, statusSeq, statusAt, semanticState, stateNote } = report;
+  const { statusPrev, statusNext, statusSeq, statusAt } = report;
+  const { semanticState, stateNote, stateNoteAt, stateNoteSeq } = report;
   if (
     typeof statusPrev === 'string' &&
     typeof statusNext === 'string' &&
@@ -79,36 +76,24 @@ export function seedCardFromState(report: RsStateReport): PijSeedCard {
     card.state = {
       state: typeof semanticState === 'string' ? semanticState : null,
       note: typeof stateNote === 'string' ? stateNote : null,
+      // Daemons before pij plan 188 give neither; the note then reads "age unknown".
+      at: typeof stateNoteAt === 'number' ? new Date(stateNoteAt).toISOString() : null,
+      seq: typeof stateNoteSeq === 'number' ? stateNoteSeq : 0,
     };
   }
   return card;
 }
 
 /**
- * Load every live seat's cards from `/v1/state`, a few at a time, instead of replaying the event
- * log from zero. Runs after the live subscription is open; pushed reports outrank seeded ones.
+ * Load every live seat's cards in one `/v1/cards` call instead of replaying the event log from
+ * zero. Runs after the live subscription is open; a pushed report outranks a seeded one.
  */
 export async function seedRsCards(client: RsClient, poller: PijPollerService): Promise<void> {
-  // Most recently active first: /v1/state answers one call at a time (~1.5s each), so the
-  // whole fleet takes minutes and the seats people are watching should fill in first.
-  const lastEvent = (seat: RsSeat) =>
-    typeof seat.last_event_at === 'number' ? seat.last_event_at : 0;
-  const ids = (await client.seats())
-    .filter((seat) => seat.tombstoned_at == null)
-    .sort((a, b) => lastEvent(b) - lastEvent(a))
-    .map((seat) => seat.id);
-  let next = 0;
-  const worker = async () => {
-    while (next < ids.length) {
-      const id = ids[next++];
-      try {
-        poller.seedCard(seedCardFromState(await client.state(id)));
-      } catch (error) {
-        console.warn(`[pij-rs] could not seed the card for ${id}:`, error);
-      }
-    }
-  };
-  await Promise.all(Array.from({ length: CARD_SEED_CONCURRENCY }, worker));
+  const { cards, unavailable } = await client.cards();
+  for (const card of cards) poller.seedCard(seedCardFromState(card));
+  for (const { id, error } of unavailable) {
+    console.warn(`[pij-rs] no card for ${id} (fills in when it reports): ${error}`);
+  }
 }
 
 /**

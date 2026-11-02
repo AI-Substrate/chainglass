@@ -59,6 +59,10 @@ class FakeRsClient implements RsClient {
     return { id, unsupported: [] };
   }
 
+  async cards() {
+    return { cards: [], unavailable: [] };
+  }
+
   events(from?: Cursor, signal?: AbortSignal): AsyncIterable<RsEvent> {
     this.eventCalls.push(from ? { ...from } : undefined);
     const script = this.scripts.shift();

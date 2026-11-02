@@ -101,6 +101,9 @@ function makeRsDeps(
     async state(id) {
       return { id, unsupported: [] };
     },
+    async cards() {
+      return { cards: [], unavailable: [] };
+    },
     async *events() {},
   };
   // Disjoint ids through the REAL composite: falling back to the old reader must not green-test.

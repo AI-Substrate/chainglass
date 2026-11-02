@@ -369,8 +369,8 @@ describe('PijPollerService rs ingestion', () => {
   });
 });
 
-describe('seeding cards from the rs /v1/state snapshot', () => {
-  // Shaped like a real /v1/state response (pij-fascinating-heron, 2 Nov 2026), trimmed.
+describe('seeding cards from the rs /v1/cards snapshot', () => {
+  // Shaped like a real /v1/cards card (pij-fascinating-heron, 2 Nov 2026), trimmed.
   const report = {
     id: 'pij-fascinating-heron',
     unsupported: [],
@@ -380,6 +380,8 @@ describe('seeding cards from the rs /v1/state snapshot', () => {
     statusAt: 1793270000000,
     semanticState: 'blocked',
     stateNote: '#159 passed security; renumber+merge blocked: OSK prime is tombstoned',
+    stateNoteAt: 1793274525881,
+    stateNoteSeq: 3439967,
   };
   const row = {
     id: report.id,
@@ -388,7 +390,7 @@ describe('seeding cards from the rs /v1/state snapshot', () => {
     semanticState: 'blocked',
   };
 
-  it('maps the status card and the declared note, with no time for the note', () => {
+  it('maps the status card and the declared note with its time and cursor', () => {
     expect(seedCardFromState(report)).toEqual({
       id: report.id,
       status: {
@@ -397,9 +399,24 @@ describe('seeding cards from the rs /v1/state snapshot', () => {
         seq: report.statusSeq,
         at: new Date(report.statusAt).toISOString(),
       },
-      state: { state: 'blocked', note: report.stateNote },
+      state: {
+        state: 'blocked',
+        note: report.stateNote,
+        at: new Date(report.stateNoteAt).toISOString(),
+        seq: report.stateNoteSeq,
+      },
     });
     expect(seedCardFromState({ id: 'pij-quiet', unsupported: [] })).toEqual({ id: 'pij-quiet' });
+  });
+
+  it('gives a note no time from a daemon before pij plan 188', () => {
+    const { stateNoteAt, stateNoteSeq, ...older } = report;
+    expect(seedCardFromState(older).state).toEqual({
+      state: 'blocked',
+      note: report.stateNote,
+      at: null,
+      seq: 0,
+    });
   });
 
   it('shows seeded cards, and lets a pushed report replace them', async () => {
@@ -420,7 +437,7 @@ describe('seeding cards from the rs /v1/state snapshot', () => {
     expect(poller.snapshot().rows[0].extra.stateNote).toEqual({
       text: report.stateNote,
       state: 'blocked',
-      at: null,
+      at: new Date(report.stateNoteAt).toISOString(),
     });
 
     const pushed = {
@@ -445,37 +462,30 @@ describe('seeding cards from the rs /v1/state snapshot', () => {
     poller.stop();
   });
 
-  it('reads every live seat a few at a time and keeps going past a failed read', async () => {
-    let active = 0;
-    let maxActive = 0;
+  it('seeds every card from one call and names the seats it could not read', async () => {
     const seeded: string[] = [];
-    const ids = Array.from({ length: 10 }, (_, i) => `pij-seat-${i}`);
+    const warnings: string[] = [];
+    const warn = console.warn;
+    console.warn = (message: string) => warnings.push(message);
     const client = {
-      async seats() {
-        return [
-          ...ids.map((id, i) => ({ id, last_event_at: 1793270000000 + i })),
-          { id: 'pij-closed', tombstoned_at: 1793270000000 },
-        ];
-      },
-      async state(id: string) {
-        active += 1;
-        maxActive = Math.max(maxActive, active);
-        await new Promise((resolve) => setTimeout(resolve, 5));
-        active -= 1;
-        if (id === 'pij-seat-3') throw new Error('daemon hiccup');
-        return { id, unsupported: [] };
-      },
-      events() {
-        throw new Error('not used');
+      async cards() {
+        return {
+          cards: [report, { id: 'pij-quiet', unsupported: [] }],
+          unavailable: [{ id: 'pij-gone', error: 'transcript unreadable' }],
+        };
       },
     } as unknown as RsClient;
     const poller = { seedCard: (card: { id: string }) => seeded.push(card.id) };
 
-    await seedRsCards(client, poller as unknown as PijPollerService);
+    try {
+      await seedRsCards(client, poller as unknown as PijPollerService);
+    } finally {
+      console.warn = warn;
+    }
 
-    expect(maxActive).toBe(4);
-    // Most recently active seats are read first.
-    expect(seeded.slice(0, 2)).toEqual(['pij-seat-9', 'pij-seat-8']);
-    expect(seeded.sort()).toEqual(ids.filter((id) => id !== 'pij-seat-3').sort());
+    expect(seeded).toEqual([report.id, 'pij-quiet']);
+    expect(warnings).toEqual([
+      '[pij-rs] no card for pij-gone (fills in when it reports): transcript unreadable',
+    ]);
   });
 });

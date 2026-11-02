@@ -87,9 +87,16 @@ export interface RsIgnoredEvent {
 
 export type RsEvent = RsHelloEvent | RsCursorEvent | RsIgnoredEvent;
 
+/** `GET /v1/cards`: every local, untombstoned seat's `/v1/state` card in one call (pij plan 188). */
+export interface RsCardsPayload {
+  cards: RsStateReport[];
+  unavailable: Array<{ id: string; error: string }>;
+}
+
 export interface RsClient {
   seats(): Promise<RsSeat[]>;
   state(id: string): Promise<RsStateReport>;
+  cards(): Promise<RsCardsPayload>;
   /** Auth covers connection setup; reconnecting after a stream ends re-reads a rotated key. */
   events(from?: Cursor, signal?: AbortSignal): AsyncIterable<RsEvent>;
 }
@@ -146,6 +153,14 @@ class HttpRsClient implements RsClient {
       throw new RsError('wire', 'pij-rs /v1/seats response did not contain a seats array');
     }
     return payload.seats;
+  }
+
+  async cards(): Promise<RsCardsPayload> {
+    const payload = await this.requestEnvelope<RsCardsPayload>('/v1/cards', { method: 'GET' });
+    if (!Array.isArray(payload.cards)) {
+      throw new RsError('wire', 'pij-rs /v1/cards response did not contain a cards array');
+    }
+    return { cards: payload.cards, unavailable: payload.unavailable ?? [] };
   }
 
   state(id: string): Promise<RsStateReport> {

@@ -43,6 +43,10 @@ class FakeRsClient implements RsClient {
     return { ...this.report, id };
   }
 
+  async cards() {
+    return { cards: [], unavailable: [] };
+  }
+
   async *events(_from?: Cursor, _signal?: AbortSignal): AsyncIterable<RsEvent> {}
 }
 
