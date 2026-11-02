@@ -141,7 +141,9 @@ describe('createRsEventStream', () => {
         await reconnected;
         expect(client.eventCalls).toEqual([
           undefined,
-          { [roleFrame.machine]: succeeds ? 20991 : 0 },
+          // A failed application resumes just before the frame (the first live event starts
+          // the run at cursor - 1), so it is delivered again.
+          { [roleFrame.machine]: succeeds ? 20991 : 20990 },
         ]);
       } finally {
         stream.stop();
@@ -331,6 +333,38 @@ describe('createRsEventStream', () => {
     expect(client.eventCalls).toEqual([undefined, { local: 10 }]);
   });
 
+  it('resumes past a contiguous run of traffic so a long replay is not re-read every recycle', async () => {
+    // 26 Oct 2026: pij-rs logged 3.58M bg.lost events for one job, with resume-kind facts up to
+    // 291k events apart. A dev server that could not read a whole gap inside one 5s recycle
+    // resumed from the same cursor forever, re-reading it every window (Jordan: "very slow").
+    let resumed!: () => void;
+    const resumeSeen = new Promise<void>((resolve) => {
+      resumed = resolve;
+    });
+    const client = new FakeRsClient([
+      async function* (_from, signal) {
+        yield hello('pij-rs 0.1.0');
+        for (let cursor = 1; cursor <= 5; cursor++) yield event(cursor, 'bg.lost');
+        await waitForAbort(signal);
+      },
+      async function* (_from, signal) {
+        yield hello('pij-rs 0.1.0');
+        resumed();
+        await waitForAbort(signal);
+      },
+    ]);
+    const stream = createRsEventStream({
+      client,
+      onEvent: () => {},
+      onStatus: () => {},
+      recycleMs: 10,
+    });
+    stream.start();
+    await resumeSeen;
+    stream.stop();
+    expect(client.eventCalls).toEqual([undefined, { local: 5 }]);
+  });
+
   it.each(['spawn.bound', 'spawn.failed'])(
     'does not resume past a missing descriptor after successfully applying pushed %s',
     async (kind) => {
@@ -442,16 +476,24 @@ describe('createRsEventStream', () => {
     stream.stop();
     expect(client.eventCalls).toEqual([undefined, { local: 0 }]);
   });
-  it('replays each known machine from zero on a fresh process instead of subscribing live-only', async () => {
-    let connected!: () => void;
-    const seen = new Promise<void>((resolve) => {
-      connected = resolve;
+  it('subscribes live-only on a fresh process and resumes from the first live event', async () => {
+    // Replaying from zero read the whole 2.4 GB log on every start; cards now come from the
+    // /v1/state snapshot (seedRsCards), so a fresh process never asks for history.
+    let resumed!: () => void;
+    const resumeSeen = new Promise<void>((resolve) => {
+      resumed = resolve;
     });
     const client = new FakeRsClient(
       [
         async function* (_from, signal) {
-          yield event(1, 'report.now');
-          connected();
+          yield hello('pij-rs 0.1.0');
+          yield event(4100, 'report.now');
+          yield event(4101, 'seat.activity');
+          await waitForAbort(signal);
+        },
+        async function* (_from, signal) {
+          yield hello('pij-rs 0.1.0');
+          resumed();
           await waitForAbort(signal);
         },
       ],
@@ -460,10 +502,15 @@ describe('createRsEventStream', () => {
         { id: 'pij-two', machine: 'remote' },
       ]
     );
-    const stream = createRsEventStream({ client, onEvent: () => {}, onStatus: () => {} });
+    const stream = createRsEventStream({
+      client,
+      onEvent: () => {},
+      onStatus: () => {},
+      recycleMs: 10,
+    });
     stream.start();
-    await seen;
+    await resumeSeen;
     stream.stop();
-    expect(client.eventCalls).toEqual([{ local: 0, remote: 0 }]);
+    expect(client.eventCalls).toEqual([undefined, { local: 4101 }]);
   });
 });

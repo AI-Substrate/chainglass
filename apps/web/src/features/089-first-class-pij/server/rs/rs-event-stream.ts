@@ -5,8 +5,9 @@ const MAX_RECONNECT_MS = 5_000;
 const RECONNECT_JITTER = 0.2;
 const RECYCLE_MS = 5_000;
 // Since pij plan 139, ALL event kinds push live. The 5s recycle is defensive rather than
-// the only descriptor-delivery path; replay remains cheap. Keep the conservative resume
-// allowlist for older sparse-push daemons: commit applied seat/role/report facts, not traffic.
+// the only descriptor-delivery path. Keep the conservative resume allowlist for older
+// sparse-push daemons: commit applied seat/role/report facts across a cursor gap, but never
+// traffic. Traffic still advances the cursor when it directly follows it (see advanceCursor).
 const RESUME_EVENT_KINDS = new Set([
   'seat.put',
   'seat.tombstone',
@@ -78,13 +79,9 @@ class ReconnectingRsEventStream implements RsEventStream {
       }, this.options.recycleMs ?? RECYCLE_MS);
       timer.unref?.();
       try {
-        if (Object.keys(this.resumeCursors).length === 0) {
-          // An omitted cursor (even {}) is live-only. Fresh processes replay cards from zero;
-          // nothing is persisted in pij's sole-writer store. Discover aliases with one global read.
-          for (const seat of await this.options.client.seats()) {
-            if (typeof seat.machine === 'string') this.resumeCursors[seat.machine] = 0;
-          }
-        }
+        // A fresh process subscribes live-only (an omitted cursor): cards come from the
+        // /v1/state snapshot instead of replaying the whole log from zero, which reached
+        // 2.4 GB after the 26 Oct 2026 bg.lost flood and pinned the dev server for minutes.
         const from =
           Object.keys(this.resumeCursors).length > 0 ? { ...this.resumeCursors } : undefined;
         for await (const frame of this.options.client.events(from, connection.signal)) {
@@ -104,7 +101,8 @@ class ReconnectingRsEventStream implements RsEventStream {
             continue;
           }
           const cursorFrame = frame as RsCursorEvent;
-          this.resumeCursors[cursorFrame.machine] ??= 0;
+          // The first live event starts this machine's run; later recycles resume from it.
+          this.resumeCursors[cursorFrame.machine] ??= cursorFrame.cursor - 1;
           this.observedCursors[cursorFrame.machine] = Math.max(
             this.observedCursors[cursorFrame.machine] ?? 0,
             cursorFrame.cursor
@@ -117,11 +115,7 @@ class ReconnectingRsEventStream implements RsEventStream {
           const pending = Promise.resolve(this.options.onEvent(cursorFrame));
           // Dispatch without awaiting so descriptor bursts use the poller's coalesced refresh.
           // Commit in wire order: a later success must never skip an earlier failed application.
-          if (RESUME_EVENT_KINDS.has(cursorFrame.event.kind)) {
-            applied = applied.then(() => pending).then(() => this.advanceCursor(cursorFrame));
-          } else {
-            applied = applied.then(() => pending);
-          }
+          applied = applied.then(() => pending).then(() => this.advanceCursor(cursorFrame));
           const failed = (error: unknown) => {
             applicationError = error;
             connection.abort();
@@ -150,10 +144,13 @@ class ReconnectingRsEventStream implements RsEventStream {
     }
   }
   private advanceCursor(frame: RsCursorEvent): void {
-    this.resumeCursors[frame.machine] = Math.max(
-      this.resumeCursors[frame.machine] ?? 0,
-      frame.cursor
-    );
+    const current = this.resumeCursors[frame.machine] ?? 0;
+    // Traffic may only extend a contiguous run: a gap could hide a descriptor a sparse-push
+    // daemon never sent live. Without this, a replay whose resume-kind facts are further apart
+    // than one recycle can read (the 3.58M-event bg.lost flood of 26 Oct 2026) restarts from
+    // the same cursor every 5s, forever.
+    if (!RESUME_EVENT_KINDS.has(frame.event.kind) && frame.cursor !== current + 1) return;
+    this.resumeCursors[frame.machine] = Math.max(current, frame.cursor);
   }
 }
 

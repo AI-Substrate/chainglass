@@ -21,10 +21,17 @@ import { getContainer } from '../../../lib/bootstrap-singleton';
 import { sseManager } from '../../../lib/sse-manager';
 import { createFlowReader } from './flow-reader';
 import { type FlowWatcherService, createFlowWatcher } from './flow-watcher';
-import { type PijPollerService, createPijPoller } from './pij-poller.service';
+import { type PijPollerService, type PijSeedCard, createPijPoller } from './pij-poller.service';
 import { createPijRecords } from './pij-records';
 import { createCompositePijRecords } from './rs/composite-pij-records';
-import { type RsClient, createRsClient, pijRsAddr, pijRsStateDir } from './rs/rs-client';
+import {
+  type RsClient,
+  type RsSeat,
+  type RsStateReport,
+  createRsClient,
+  pijRsAddr,
+  pijRsStateDir,
+} from './rs/rs-client';
 import { type RsEventStream, createRsEventStream } from './rs/rs-event-stream';
 import { createRsPijRecords } from './rs/rs-pij-records';
 import { createFileSpineCursor } from './spine-cursor';
@@ -44,8 +51,65 @@ const globalForPijPoller = globalThis as typeof globalThis & {
   __pijPollerStarted?: boolean;
   __pijFlowWatcher?: FlowWatcherService;
   __pijRsEventStream?: RsEventStream;
+  __pijRsClient?: RsClient;
   __pijSource?: PijSource;
 };
+
+/** `/v1/state` reads in flight at once while seeding cards; each took ~1.5s on 2 Nov 2026. */
+const CARD_SEED_CONCURRENCY = 4;
+
+/** The cards a `/v1/state` report carries, in the poller's seed shape. */
+export function seedCardFromState(report: RsStateReport): PijSeedCard {
+  const card: PijSeedCard = { id: report.id as PijSeedCard['id'] };
+  const { statusPrev, statusNext, statusSeq, statusAt, semanticState, stateNote } = report;
+  if (
+    typeof statusPrev === 'string' &&
+    typeof statusNext === 'string' &&
+    typeof statusSeq === 'number' &&
+    typeof statusAt === 'number'
+  ) {
+    card.status = {
+      prev: statusPrev,
+      next: statusNext,
+      seq: statusSeq,
+      at: new Date(statusAt).toISOString(),
+    };
+  }
+  if (typeof semanticState === 'string' || typeof stateNote === 'string') {
+    card.state = {
+      state: typeof semanticState === 'string' ? semanticState : null,
+      note: typeof stateNote === 'string' ? stateNote : null,
+    };
+  }
+  return card;
+}
+
+/**
+ * Load every live seat's cards from `/v1/state`, a few at a time, instead of replaying the event
+ * log from zero. Runs after the live subscription is open; pushed reports outrank seeded ones.
+ */
+export async function seedRsCards(client: RsClient, poller: PijPollerService): Promise<void> {
+  // Most recently active first: /v1/state answers one call at a time (~1.5s each), so the
+  // whole fleet takes minutes and the seats people are watching should fill in first.
+  const lastEvent = (seat: RsSeat) =>
+    typeof seat.last_event_at === 'number' ? seat.last_event_at : 0;
+  const ids = (await client.seats())
+    .filter((seat) => seat.tombstoned_at == null)
+    .sort((a, b) => lastEvent(b) - lastEvent(a))
+    .map((seat) => seat.id);
+  let next = 0;
+  const worker = async () => {
+    while (next < ids.length) {
+      const id = ids[next++];
+      try {
+        poller.seedCard(seedCardFromState(await client.state(id)));
+      } catch (error) {
+        console.warn(`[pij-rs] could not seed the card for ${id}:`, error);
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: CARD_SEED_CONCURRENCY }, worker));
+}
 
 /**
  * `$PIJ_HOME`, defaulting to `~/.pij` exactly as the platform contract specifies.
@@ -126,6 +190,7 @@ export function getPijPoller(
 
     globalForPijPoller.__pijSource = source;
     globalForPijPoller.__pijPoller = poller;
+    globalForPijPoller.__pijRsClient = client;
     if (client) {
       globalForPijPoller.__pijRsEventStream = (deps.createEventStream ?? createRsEventStream)({
         client,
@@ -241,6 +306,12 @@ export async function startPijPoller(
   try {
     await poller.start();
     globalForPijPoller.__pijRsEventStream?.start();
+    const client = globalForPijPoller.__pijRsClient;
+    if (client) {
+      void seedRsCards(client, poller).catch((error) =>
+        console.warn('[pij-rs] card seed failed (cards fill in as seats report):', error)
+      );
+    }
   } catch (error) {
     // Reset the flag so a later attempt can retry rather than being locked out by one bad boot.
     globalForPijPoller.__pijPollerStarted = false;
@@ -274,6 +345,7 @@ export function resetPijPollerForTests(): void {
   void globalForPijPoller.__pijFlowWatcher?.stop().catch(() => {});
   globalForPijPoller.__pijFlowWatcher = undefined;
   globalForPijPoller.__pijRsEventStream = undefined;
+  globalForPijPoller.__pijRsClient = undefined;
   globalForPijPoller.__pijSource = undefined;
 }
 

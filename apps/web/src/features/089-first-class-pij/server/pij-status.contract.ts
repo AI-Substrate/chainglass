@@ -82,7 +82,8 @@ export type StateNoteState = 'question' | 'blocked';
 export interface StateNote {
   text: string;
   state: StateNoteState;
-  at: string;
+  /** Null when seeded from the rs /v1/state snapshot, which does not say when it was written. */
+  at: string | null;
 }
 
 export type InterstitialLabel = 'folder-trust' | 'login' | 'update-prompt' | 'interstitial';
@@ -107,7 +108,8 @@ export type QuestionDecision =
       reason: 'declared-note';
       placement: 'strip';
       text: string;
-      at: string;
+      /** Absent when the note's time is unknown; the rail then reads "age unknown". */
+      at?: string;
       aged: boolean;
     }
   | {
@@ -119,7 +121,7 @@ export type QuestionDecision =
       reason: 'blocked-note-inline';
       placement: 'inline';
       text: string;
-      at: string;
+      at?: string;
     }
   | {
       reason: 'daemon-detected-tag-only';
@@ -256,7 +258,7 @@ function readStateNote(record: Record<string, unknown>): StateNote | undefined {
   if (
     typeof note.text !== 'string' ||
     (note.state !== 'question' && note.state !== 'blocked') ||
-    typeof note.at !== 'string'
+    (note.at !== null && typeof note.at !== 'string')
   ) {
     return undefined;
   }
@@ -564,10 +566,13 @@ export function readQuestionDecision(
       reason: 'blocked-note-inline',
       placement: 'inline',
       text: note.text,
-      at: note.at,
+      ...(note.at !== null ? { at: note.at } : {}),
     };
   }
   if (semanticState === 'question' && note?.state === 'question') {
+    if (note.at === null) {
+      return { reason: 'declared-note', placement: 'strip', text: note.text, aged: false };
+    }
     const at = Date.parse(note.at);
     return {
       reason: 'declared-note',

@@ -102,6 +102,13 @@ export interface PijSnapshotResult {
   statusesUnavailable?: boolean;
 }
 
+/** One seat's cards as `/v1/state` reports them, used instead of replaying the event log. */
+export interface PijSeedCard {
+  id: PijId;
+  status?: { prev: string; next: string; seq: number; at: string };
+  state?: { state: string | null; note: string | null };
+}
+
 export interface PijPollerService {
   start(): Promise<void>;
   stop(): void;
@@ -113,6 +120,8 @@ export interface PijPollerService {
   refreshRecords(): Promise<void>;
   /** Apply real rs report payloads; pushed traffic never supplies a declared state or status card. */
   ingest(event: RsCursorEvent): void;
+  /** Seed one seat's cards from the rs `/v1/state` snapshot; a pushed report always wins. */
+  seedCard(card: PijSeedCard): void;
   /** The records adapter, for routes that need a repo-scoped read (`tree`). */
   readonly records: IPijRecords;
   readonly flows?: IFlowReader;
@@ -144,7 +153,8 @@ class Poller implements PijPollerService {
   private readonly rsDescriptorSeq = new Map<PijId, number>();
   private readonly rsStateReports = new Map<
     PijId,
-    { seq: number; revision: number; state: string | null; note: string | null; at: string }
+    // `at` is null for a snapshot-seeded note: /v1/state does not say when it was written.
+    { seq: number; revision: number; state: string | null; note: string | null; at: string | null }
   >();
 
   constructor(deps: PijPollerDeps) {
@@ -310,6 +320,26 @@ class Poller implements PijPollerService {
     if (current) {
       this.fleet.set(id, this.withRsStateReport(current));
       this.rsTouched.add(id);
+    }
+  }
+
+  seedCard(card: PijSeedCard): void {
+    const id = card.id;
+    if (card.status && (this.statuses.get(id)?.seq ?? -1) < card.status.seq) {
+      const { prev, next, seq, at } = card.status;
+      const status: PijStatusRecord = { peer: id, prev, next, ts: at, seq };
+      this.statuses.set(id, status);
+      this.rsStatusTouched.set(id, status);
+    }
+    if (card.state && !this.rsStateReports.has(id)) {
+      // Seq 0: any pushed report.state supersedes it, and the descriptor's semantic state stays
+      // authoritative (withRsStateReport); the note shows only while that state still matches.
+      this.rsStateReports.set(id, { seq: 0, revision: 0, ...card.state, at: null });
+      const current = this.fleet.get(id);
+      if (current) {
+        this.fleet.set(id, this.withRsStateReport(current));
+        this.rsTouched.add(id);
+      }
     }
   }
 

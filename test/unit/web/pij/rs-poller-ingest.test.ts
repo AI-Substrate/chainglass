@@ -1,7 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { createPijPoller } from '../../../../apps/web/src/features/089-first-class-pij/server/pij-poller.service';
+import {
+  type PijPollerService,
+  createPijPoller,
+} from '../../../../apps/web/src/features/089-first-class-pij/server/pij-poller.service';
 import type {
   IPijRecords,
   PijListRow,
@@ -9,8 +12,15 @@ import type {
   PijStateReport,
   PijTree,
 } from '../../../../apps/web/src/features/089-first-class-pij/server/pij-records.interface';
-import type { RsCursorEvent } from '../../../../apps/web/src/features/089-first-class-pij/server/rs/rs-client';
+import type {
+  RsClient,
+  RsCursorEvent,
+} from '../../../../apps/web/src/features/089-first-class-pij/server/rs/rs-client';
 import type { ISpineCursor } from '../../../../apps/web/src/features/089-first-class-pij/server/spine-cursor.interface';
+import {
+  seedCardFromState,
+  seedRsCards,
+} from '../../../../apps/web/src/features/089-first-class-pij/server/start-pij-poller';
 import type { PijChannelEvent } from '../../../../apps/web/src/features/089-first-class-pij/types';
 
 /** The captured frames are all seat-bearing; seatless machine events are covered in rs-client.test.ts. */
@@ -356,5 +366,116 @@ describe('PijPollerService rs ingestion', () => {
       }),
     ]);
     poller.stop();
+  });
+});
+
+describe('seeding cards from the rs /v1/state snapshot', () => {
+  // Shaped like a real /v1/state response (pij-fascinating-heron, 2 Nov 2026), trimmed.
+  const report = {
+    id: 'pij-fascinating-heron',
+    unsupported: [],
+    statusPrev: 'Ran the security pass on #159',
+    statusNext: 'Renumber and merge once the OSK prime is back',
+    statusSeq: 3366412,
+    statusAt: 1793270000000,
+    semanticState: 'blocked',
+    stateNote: '#159 passed security; renumber+merge blocked: OSK prime is tombstoned',
+  };
+  const row = {
+    id: report.id,
+    folder: '/workspace',
+    state: 'idle',
+    semanticState: 'blocked',
+  };
+
+  it('maps the status card and the declared note, with no time for the note', () => {
+    expect(seedCardFromState(report)).toEqual({
+      id: report.id,
+      status: {
+        prev: report.statusPrev,
+        next: report.statusNext,
+        seq: report.statusSeq,
+        at: new Date(report.statusAt).toISOString(),
+      },
+      state: { state: 'blocked', note: report.stateNote },
+    });
+    expect(seedCardFromState({ id: 'pij-quiet', unsupported: [] })).toEqual({ id: 'pij-quiet' });
+  });
+
+  it('shows seeded cards, and lets a pushed report replace them', async () => {
+    const records = new FakeRecords([Promise.resolve([row])]);
+    const poller = createPijPoller({ cursor: emptyCursor, records, broadcast: () => {} });
+    await poller.refreshRecords();
+
+    poller.seedCard(seedCardFromState(report));
+    expect(poller.snapshot().statuses).toEqual([
+      {
+        peer: report.id,
+        prev: report.statusPrev,
+        next: report.statusNext,
+        ts: new Date(report.statusAt).toISOString(),
+        seq: report.statusSeq,
+      },
+    ]);
+    expect(poller.snapshot().rows[0].extra.stateNote).toEqual({
+      text: report.stateNote,
+      state: 'blocked',
+      at: null,
+    });
+
+    const pushed = {
+      type: 'event' as const,
+      machine: 'local',
+      cursor: report.statusSeq + 10,
+      event: {
+        v: 1,
+        at: report.statusAt + 60_000,
+        kind: 'report.now',
+        seat: report.id,
+        payload: JSON.stringify({ did: 'Merged #159', next: 'Pick up #166' }),
+      },
+    };
+    poller.ingest(pushed);
+    // A snapshot that lands after the pushed report is older and must not win.
+    poller.seedCard(seedCardFromState(report));
+    expect(poller.snapshot().statuses[0]).toMatchObject({
+      prev: 'Merged #159',
+      seq: pushed.cursor,
+    });
+    poller.stop();
+  });
+
+  it('reads every live seat a few at a time and keeps going past a failed read', async () => {
+    let active = 0;
+    let maxActive = 0;
+    const seeded: string[] = [];
+    const ids = Array.from({ length: 10 }, (_, i) => `pij-seat-${i}`);
+    const client = {
+      async seats() {
+        return [
+          ...ids.map((id, i) => ({ id, last_event_at: 1793270000000 + i })),
+          { id: 'pij-closed', tombstoned_at: 1793270000000 },
+        ];
+      },
+      async state(id: string) {
+        active += 1;
+        maxActive = Math.max(maxActive, active);
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        active -= 1;
+        if (id === 'pij-seat-3') throw new Error('daemon hiccup');
+        return { id, unsupported: [] };
+      },
+      events() {
+        throw new Error('not used');
+      },
+    } as unknown as RsClient;
+    const poller = { seedCard: (card: { id: string }) => seeded.push(card.id) };
+
+    await seedRsCards(client, poller as unknown as PijPollerService);
+
+    expect(maxActive).toBe(4);
+    // Most recently active seats are read first.
+    expect(seeded.slice(0, 2)).toEqual(['pij-seat-9', 'pij-seat-8']);
+    expect(seeded.sort()).toEqual(ids.filter((id) => id !== 'pij-seat-3').sort());
   });
 });
