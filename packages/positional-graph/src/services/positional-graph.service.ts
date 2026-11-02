@@ -1570,7 +1570,10 @@ export class PositionalGraphService implements IPositionalGraphService {
     if (!loaded.ok) return { errors: loaded.errors };
 
     const def = loaded.definition;
-    def.orchestratorSettings = { ...def.orchestratorSettings, ...validated.data };
+    def.orchestratorSettings = {
+      ...def.orchestratorSettings,
+      ...providedKeys(validated.data, settings),
+    };
     await this.persistGraph(ctx, graphSlug, def);
 
     return { errors: [] };
@@ -1601,7 +1604,10 @@ export class PositionalGraphService implements IPositionalGraphService {
     const found = this.findLine(loaded.definition, lineId);
     if (!found) return { errors: [lineNotFoundError(lineId)] };
 
-    found.line.orchestratorSettings = { ...found.line.orchestratorSettings, ...validated.data };
+    found.line.orchestratorSettings = {
+      ...found.line.orchestratorSettings,
+      ...providedKeys(validated.data, settings),
+    };
     await this.persistGraph(ctx, graphSlug, loaded.definition);
 
     return { errors: [] };
@@ -1637,7 +1643,7 @@ export class PositionalGraphService implements IPositionalGraphService {
 
     nodeResult.config.orchestratorSettings = {
       ...nodeResult.config.orchestratorSettings,
-      ...validated.data,
+      ...providedKeys(validated.data, settings),
     };
     await this.persistNodeConfig(ctx, graphSlug, nodeId, nodeResult.config);
 
@@ -2599,4 +2605,15 @@ function hasBinaryContent(sample: string): boolean {
     if ((code >= 0 && code <= 8) || (code >= 14 && code <= 31)) return true;
   }
   return false;
+}
+
+/**
+ * The parsed values of only the keys the caller passed. zod 4's `.partial()` still applies each
+ * field's `.default()`, so a partial parse returns every setting and merging it whole would reset
+ * the ones the caller left out.
+ */
+function providedKeys<T extends object>(parsed: T, input: object): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(parsed).filter(([key]) => Object.hasOwn(input, key))
+  ) as Partial<T>;
 }

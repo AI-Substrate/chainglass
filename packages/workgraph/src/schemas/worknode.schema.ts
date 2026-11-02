@@ -3,11 +3,11 @@
  *
  * Validates node.yaml and data.json files.
  * Per workgraph-data-model.md: Node config and runtime data.
- * Per Insight 4: Uses Zod for TypeScript DX, exports JSON Schema via zod-to-json-schema.
+ * Per Insight 4: Uses Zod for TypeScript DX, exports JSON Schema via zod's toJSONSchema (namedJsonSchema).
  */
 
 import { z } from 'zod';
-import { zodToJsonSchema } from 'zod-to-json-schema';
+import { namedJsonSchema } from './json-schema.js';
 
 // ============================================
 // Input Mapping Schema
@@ -121,15 +121,9 @@ export type WorkNodeDataType = z.infer<typeof WorkNodeDataSchema>;
 /**
  * JSON Schema for WorkNode config validation.
  */
-export const WORK_NODE_CONFIG_JSON_SCHEMA = zodToJsonSchema(WorkNodeConfigSchema, {
-  name: 'WorkNodeConfig',
-  $refStrategy: 'none',
-});
+export const WORK_NODE_CONFIG_JSON_SCHEMA = namedJsonSchema(WorkNodeConfigSchema, 'WorkNodeConfig');
 
 /**
  * JSON Schema for WorkNode data validation.
  */
-export const WORK_NODE_DATA_JSON_SCHEMA = zodToJsonSchema(WorkNodeDataSchema, {
-  name: 'WorkNodeData',
-  $refStrategy: 'none',
-});
+export const WORK_NODE_DATA_JSON_SCHEMA = namedJsonSchema(WorkNodeDataSchema, 'WorkNodeData');

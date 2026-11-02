@@ -106,8 +106,8 @@ export type TransitionEntry = z.infer<typeof TransitionEntrySchema>;
 export const StateSchema = z.object({
   graph_status: GraphStatusSchema,
   updated_at: z.string().datetime(),
-  nodes: z.record(NodeStateEntrySchema).optional(),
-  transitions: z.record(TransitionEntrySchema).optional(),
+  nodes: z.record(z.string(), NodeStateEntrySchema).optional(),
+  transitions: z.record(z.string(), TransitionEntrySchema).optional(),
   // Plan 028 extension - optional for backward compatibility
   questions: z.array(QuestionSchema).optional(),
 });

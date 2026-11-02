@@ -33,7 +33,7 @@ export const StartNodeRequestSchema = z
     graphSlug: z.string().regex(/^[a-z][a-z0-9-]*$/),
     nodeId: z.string().min(1),
     inputs: z.object({
-      inputs: z.record(z.unknown()),
+      inputs: z.record(z.string(), z.unknown()),
       ok: z.boolean(),
     }),
   })
@@ -89,7 +89,7 @@ export const ErrorNodeRequestSchema = z
     graphSlug: z.string().regex(/^[a-z][a-z0-9-]*$/),
     nodeId: z.string().min(1),
     inputs: z.object({
-      inputs: z.record(z.unknown()),
+      inputs: z.record(z.string(), z.unknown()),
       ok: z.boolean(),
     }),
     error: z.object({

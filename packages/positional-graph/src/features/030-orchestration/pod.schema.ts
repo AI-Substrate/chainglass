@@ -39,7 +39,7 @@ export const PodExecuteResultSchema = z
   .object({
     outcome: PodOutcomeSchema,
     sessionId: z.string().optional(),
-    outputs: z.record(z.unknown()).optional(),
+    outputs: z.record(z.string(), z.unknown()).optional(),
     error: PodErrorSchema.optional(),
     question: PodQuestionSchema.optional(),
   })

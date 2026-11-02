@@ -453,6 +453,10 @@ describe('formatZodErrors', () => {
     if (!result.success) {
       const formattedErrors = formatZodErrors(result.error, '123-bad');
       expect(formattedErrors.length).toBeGreaterThan(0);
+      // zod 4 renamed these issue codes; the friendly messages must survive the rename.
+      expect(formattedErrors).toContain(
+        "Invalid unit type for '123-bad': type must be 'agent', 'code', or 'user-input'"
+      );
       // Each error should be a human-readable string
       for (const err of formattedErrors) {
         expect(typeof err).toBe('string');

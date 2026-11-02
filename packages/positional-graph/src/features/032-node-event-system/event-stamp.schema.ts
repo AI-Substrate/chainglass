@@ -15,7 +15,7 @@ export const EventStampSchema = z.object({
   action: z.string().min(1),
 
   /** Optional handler-specific data */
-  data: z.record(z.unknown()).optional(),
+  data: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type EventStamp = z.infer<typeof EventStampSchema>;

@@ -2,12 +2,12 @@
  * WorkUnit Zod Schema.
  *
  * Validates unit.yaml files for AgentUnit, CodeUnit, and UserInputUnit.
- * Per Insight 4: Uses Zod for TypeScript DX, exports JSON Schema via zod-to-json-schema.
+ * Per Insight 4: Uses Zod for TypeScript DX, exports JSON Schema via zod's toJSONSchema (namedJsonSchema).
  * Per workunit-data-model.md: Discriminated union on type field.
  */
 
 import { z } from 'zod';
-import { zodToJsonSchema } from 'zod-to-json-schema';
+import { namedJsonSchema } from './json-schema.js';
 
 // ============================================
 // Shared Schemas
@@ -201,7 +201,4 @@ export type WorkUnitType = z.infer<typeof WorkUnitSchema>;
  * JSON Schema for WorkUnit validation.
  * Used for CLI validation and external tools.
  */
-export const WORK_UNIT_JSON_SCHEMA = zodToJsonSchema(WorkUnitSchema, {
-  name: 'WorkUnit',
-  $refStrategy: 'none',
-});
+export const WORK_UNIT_JSON_SCHEMA = namedJsonSchema(WorkUnitSchema, 'WorkUnit');

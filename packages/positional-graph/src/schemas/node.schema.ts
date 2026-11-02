@@ -19,8 +19,8 @@ export const NodeConfigSchema = z.object({
   unit_slug: z.string().min(1),
   description: z.string().optional(),
   created_at: z.string().datetime(),
-  inputs: z.record(InputResolutionSchema).optional(),
-  properties: NodePropertiesSchema.default({}),
-  orchestratorSettings: NodeOrchestratorSettingsSchema.default({}),
+  inputs: z.record(z.string(), InputResolutionSchema).optional(),
+  properties: NodePropertiesSchema.prefault({}),
+  orchestratorSettings: NodeOrchestratorSettingsSchema.prefault({}),
 });
 export type NodeConfig = z.infer<typeof NodeConfigSchema>;

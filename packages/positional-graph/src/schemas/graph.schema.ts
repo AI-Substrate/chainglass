@@ -15,8 +15,8 @@ export const LineDefinitionSchema = z.object({
   label: z.string().optional(),
   description: z.string().optional(),
   nodes: z.array(z.string()),
-  properties: LinePropertiesSchema.default({}),
-  orchestratorSettings: LineOrchestratorSettingsSchema.default({}),
+  properties: LinePropertiesSchema.prefault({}),
+  orchestratorSettings: LineOrchestratorSettingsSchema.prefault({}),
 });
 export type LineDefinition = z.infer<typeof LineDefinitionSchema>;
 
@@ -26,7 +26,7 @@ export const PositionalGraphDefinitionSchema = z.object({
   description: z.string().optional(),
   created_at: z.string().datetime(),
   lines: z.array(LineDefinitionSchema).min(1),
-  properties: GraphPropertiesSchema.default({}),
-  orchestratorSettings: GraphOrchestratorSettingsSchema.default({}),
+  properties: GraphPropertiesSchema.prefault({}),
+  orchestratorSettings: GraphOrchestratorSettingsSchema.prefault({}),
 });
 export type PositionalGraphDefinition = z.infer<typeof PositionalGraphDefinitionSchema>;

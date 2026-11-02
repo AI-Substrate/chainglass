@@ -13,7 +13,7 @@
  */
 
 import { z } from 'zod';
-import { zodToJsonSchema } from 'zod-to-json-schema';
+import { namedJsonSchema } from './json-schema.js';
 
 // ============================================
 // Position Schema
@@ -134,7 +134,4 @@ export function createDefaultLayout(graphSlug: string, nodeIds: string[]): Layou
  *
  * Can be used with JSON Schema validators or IDE integration.
  */
-export const LAYOUT_JSON_SCHEMA = zodToJsonSchema(LayoutSchema, {
-  name: 'WorkGraphLayout',
-  $refStrategy: 'none',
-});
+export const LAYOUT_JSON_SCHEMA = namedJsonSchema(LayoutSchema, 'WorkGraphLayout');

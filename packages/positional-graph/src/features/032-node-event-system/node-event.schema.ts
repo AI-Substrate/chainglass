@@ -7,7 +7,7 @@ import { EventStatusSchema } from './event-status.schema.js';
 /**
  * Schema for a persisted node event record.
  *
- * The `payload` field uses `z.record(z.unknown())` — an open shape.
+ * The `payload` field uses `z.record(z.string(), z.unknown())` — an open shape.
  * The registry validates payloads against type-specific schemas;
  * the NodeEventSchema itself accepts any valid record.
  */
@@ -22,7 +22,7 @@ export const NodeEventSchema = z.object({
   source: EventSourceSchema,
 
   /** Validated payload (shape depends on event_type) */
-  payload: z.record(z.unknown()),
+  payload: z.record(z.string(), z.unknown()),
 
   /** Lifecycle state */
   status: EventStatusSchema,

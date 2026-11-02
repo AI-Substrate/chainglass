@@ -18,7 +18,7 @@
     "@chainglass/workflow": "workspace:*",
     "ajv": "^8.20.0",
     "commander": "^13.1.0",
-    "zod": "^3.25.76"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

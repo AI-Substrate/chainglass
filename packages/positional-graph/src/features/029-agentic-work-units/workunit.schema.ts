@@ -230,23 +230,27 @@ export function formatZodErrors(error: ZodError, slug: string): string[] {
 
     // Provide more specific messages for common issues
     switch (issue.code) {
-      case 'invalid_union_discriminator':
-        return `Invalid unit type for '${slug}': type must be 'agent', 'code', or 'user-input'`;
+      case 'invalid_union':
+        if ('note' in issue && issue.note === 'No matching discriminator') {
+          return `Invalid unit type for '${slug}': type must be 'agent', 'code', or 'user-input'`;
+        }
+        return `Error at '${path}' in '${slug}': ${issue.message}`;
 
       case 'invalid_type':
-        return `Invalid value at '${path}' in '${slug}': expected ${issue.expected}, got ${issue.received}`;
+        // zod 4 reports the received type only in the message ("…, received number").
+        return `Invalid value at '${path}' in '${slug}': ${issue.message.replace(/^Invalid input: /, '')}`;
 
-      case 'invalid_string':
-        if (issue.validation === 'regex') {
+      case 'invalid_format':
+        if (issue.format === 'regex') {
           return `Invalid format at '${path}' in '${slug}': ${issue.message}`;
         }
         return `Invalid string at '${path}' in '${slug}': ${issue.message}`;
 
       case 'too_small':
-        if (issue.type === 'array') {
+        if (issue.origin === 'array') {
           return `Array at '${path}' in '${slug}' is too short: minimum ${issue.minimum} items required`;
         }
-        if (issue.type === 'string') {
+        if (issue.origin === 'string') {
           return `String at '${path}' in '${slug}' is too short: minimum ${issue.minimum} characters required`;
         }
         return `Value at '${path}' in '${slug}' is too small: ${issue.message}`;

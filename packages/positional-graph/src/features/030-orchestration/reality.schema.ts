@@ -107,7 +107,7 @@ export const NodeRealitySchema = z
     ready: z.boolean(),
     readyDetail: ReadinessDetailSchema,
     inputPack: z.object({
-      inputs: z.record(z.unknown()),
+      inputs: z.record(z.string(), z.unknown()),
       ok: z.boolean(),
     }),
     pendingQuestionId: z.string().optional(),

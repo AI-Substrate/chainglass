@@ -3,11 +3,11 @@
  *
  * Validates work-graph.yaml files.
  * Per workgraph-data-model.md: Graph structure with nodes and edges.
- * Per Insight 4: Uses Zod for TypeScript DX, exports JSON Schema via zod-to-json-schema.
+ * Per Insight 4: Uses Zod for TypeScript DX, exports JSON Schema via zod's toJSONSchema (namedJsonSchema).
  */
 
 import { z } from 'zod';
-import { zodToJsonSchema } from 'zod-to-json-schema';
+import { namedJsonSchema } from './json-schema.js';
 
 // ============================================
 // Edge Schema
@@ -91,15 +91,12 @@ export type WorkGraphStateType = z.infer<typeof WorkGraphStateSchema>;
 /**
  * JSON Schema for WorkGraph definition validation.
  */
-export const WORK_GRAPH_DEFINITION_JSON_SCHEMA = zodToJsonSchema(WorkGraphDefinitionSchema, {
-  name: 'WorkGraphDefinition',
-  $refStrategy: 'none',
-});
+export const WORK_GRAPH_DEFINITION_JSON_SCHEMA = namedJsonSchema(
+  WorkGraphDefinitionSchema,
+  'WorkGraphDefinition'
+);
 
 /**
  * JSON Schema for WorkGraph state validation.
  */
-export const WORK_GRAPH_STATE_JSON_SCHEMA = zodToJsonSchema(WorkGraphStateSchema, {
-  name: 'WorkGraphState',
-  $refStrategy: 'none',
-});
+export const WORK_GRAPH_STATE_JSON_SCHEMA = namedJsonSchema(WorkGraphStateSchema, 'WorkGraphState');
