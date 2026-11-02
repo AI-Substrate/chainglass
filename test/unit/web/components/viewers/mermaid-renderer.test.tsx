@@ -13,7 +13,7 @@
  */
 
 import { render, screen, waitFor } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock next-themes for controlled theme testing
 const mockUseTheme = vi.fn(() => ({
@@ -50,6 +50,12 @@ const STATE_CONTENT = `stateDiagram-v2
 const INVALID_CONTENT = 'this is not valid mermaid {{{' as const;
 
 describe('MermaidRenderer', () => {
+  // The renderer lazy-loads the ~1.5MB mermaid bundle. Load it once here so the first test's
+  // 5s budget measures rendering, not a cold import that ran past 5s under full-suite load.
+  beforeAll(async () => {
+    await import('mermaid');
+  }, 30_000);
+
   beforeEach(() => {
     mockUseTheme.mockReturnValue({
       resolvedTheme: 'light',
