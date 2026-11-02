@@ -1,0 +1,63 @@
+packages/workgraph/package.json
+  s_084ac52dc66de3::t_63d1e624282f6a 41
+packages/positional-graph/src/features/030-orchestration/orchestration-request.schema.ts
+  s_084ac52dc66de3::t_ddf30034fa00cd 36,92
+packages/workgraph/src/schemas/workunit.schema.ts
+  s_084ac52dc66de3::t_b9a26584574ced 5,10,204
+packages/positional-graph/src/schemas/node.schema.ts
+  s_084ac52dc66de3::t_ddf30034fa00cd 22
+  s_084ac52dc66de3::t_49b36249884fc1 23-24
+packages/workgraph/src/schemas/worknode.schema.ts
+  s_084ac52dc66de3::t_b9a26584574ced 6,10,124,129
+packages/positional-graph/src/features/030-orchestration/pod.schema.ts
+  s_084ac52dc66de3::t_ddf30034fa00cd 42
+packages/positional-graph/package.json
+  s_084ac52dc66de3::t_a5033ac312c8d9 49
+harness/package.json
+  s_084ac52dc66de3::t_2e96d26c4c4fca 21
+packages/positional-graph/src/features/032-node-event-system/event-stamp.schema.ts
+  s_084ac52dc66de3::t_ddf30034fa00cd 18
+packages/positional-graph/src/features/032-node-event-system/node-event.schema.ts
+  s_084ac52dc66de3::t_ddf30034fa00cd 10,25
+packages/workgraph/src/schemas/json-schema.ts
+  s_084ac52dc66de3::t_b9a26584574ced 1-9,25-26
+  s_084ac52dc66de3::t_0034798486d04a 17-22
+  s_084ac52dc66de3::t_4f3671d6f68766 10-16,23-24
+packages/positional-graph/src/services/positional-graph.service.ts
+  s_084ac52dc66de3::t_fa26fe088f0275 1573-1576,1607-1610,1646,2609-2618
+  s_084ac52dc66de3::t_06582f7b7cf9f4 2619
+packages/workgraph/src/schemas/layout.schema.ts
+  s_084ac52dc66de3::t_b9a26584574ced 16,137
+packages/positional-graph/src/schemas/state.schema.ts
+  s_084ac52dc66de3::t_ddf30034fa00cd 109-110
+packages/positional-graph/src/features/029-agentic-work-units/workunit.schema.ts
+  s_084ac52dc66de3::t_4ce107db538f45 234
+  s_084ac52dc66de3::t_e52934f1ff6d2f 233,235-237,240-241,243-244,250,253
+packages/workgraph/src/schemas/workgraph.schema.ts
+  s_084ac52dc66de3::t_4d84996d321764 94-97
+  s_084ac52dc66de3::t_b9a26584574ced 6,10,102
+packages/positional-graph/src/features/030-orchestration/reality.schema.ts
+  s_084ac52dc66de3::t_ddf30034fa00cd 110
+packages/positional-graph/src/schemas/graph.schema.ts
+  s_084ac52dc66de3::t_5533e7e132d48b 18-19,29-30
+pnpm-lock.yaml
+  s_084ac52dc66de3::t_e586e2c70d2a8e 471-472,521-522,593-594
+test/unit/positional-graph/features/029-agentic-work-units/workunit.schema.test.ts
+  s_084ac52dc66de3::t_b16b23f152d21d 456-459
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "88fe2936ca2eb0fc3f1f921033b69759adc84d65",
+  "prompts": {},
+  "sessions": {
+    "s_084ac52dc66de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
