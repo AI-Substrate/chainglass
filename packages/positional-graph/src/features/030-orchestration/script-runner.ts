@@ -12,8 +12,16 @@
 import { type ChildProcess, spawn } from 'node:child_process';
 import type { IScriptRunner, ScriptRunOptions, ScriptRunResult } from './script-runner.types.js';
 
+/** How long a SIGTERM'd script gets to exit before the group is SIGKILL'd. */
+const KILL_GRACE_MS = 2000;
+
+/** Reported for a killed script that still exited 0 (128 + SIGTERM). */
+const KILLED_EXIT_CODE = 143;
+
 export class ScriptRunner implements IScriptRunner {
   private childProcess?: ChildProcess;
+  private killed = false;
+  private killTimer?: ReturnType<typeof setTimeout>;
 
   async run(options: ScriptRunOptions): Promise<ScriptRunResult> {
     return new Promise<ScriptRunResult>((resolve, reject) => {
@@ -25,6 +33,7 @@ export class ScriptRunner implements IScriptRunner {
       });
 
       this.childProcess = child;
+      this.killed = false;
       let stdout = '';
       let stderr = '';
       let timedOut = false;
@@ -49,9 +58,13 @@ export class ScriptRunner implements IScriptRunner {
 
       child.on('close', (exitCode) => {
         if (timer) clearTimeout(timer);
+        clearTimeout(this.killTimer);
         this.childProcess = undefined;
+        const code = exitCode ?? 1;
         resolve({
-          exitCode: timedOut ? 124 : (exitCode ?? 1),
+          // A kill that lands while bash is still starting can let the script run on to
+          // exit 0; a killed script never reports success.
+          exitCode: timedOut ? 124 : this.killed && code === 0 ? KILLED_EXIT_CODE : code,
           stdout,
           stderr: timedOut ? `${stderr}Script timed out after ${options.timeout}s` : stderr,
           outputs: {},
@@ -60,6 +73,7 @@ export class ScriptRunner implements IScriptRunner {
 
       child.on('error', (err) => {
         if (timer) clearTimeout(timer);
+        clearTimeout(this.killTimer);
         this.childProcess = undefined;
         reject(err);
       });
@@ -67,12 +81,25 @@ export class ScriptRunner implements IScriptRunner {
   }
 
   kill(): void {
-    if (this.childProcess?.pid) {
-      try {
-        process.kill(-this.childProcess.pid, 'SIGTERM');
-      } catch {
-        this.childProcess?.kill('SIGTERM');
-      }
+    const child = this.childProcess;
+    if (!child?.pid) return;
+    this.killed = true;
+    this.signal(child, 'SIGTERM');
+    // A SIGTERM sent in the first few ms after spawn can be lost (the process group
+    // may not exist yet), so escalate if the script is still running after the grace.
+    clearTimeout(this.killTimer);
+    this.killTimer = setTimeout(() => {
+      if (this.childProcess === child) this.signal(child, 'SIGKILL');
+    }, KILL_GRACE_MS);
+    this.killTimer.unref?.();
+  }
+
+  private signal(child: ChildProcess, signal: NodeJS.Signals): void {
+    if (!child.pid) return;
+    try {
+      process.kill(-child.pid, signal);
+    } catch {
+      child.kill(signal);
     }
   }
 }

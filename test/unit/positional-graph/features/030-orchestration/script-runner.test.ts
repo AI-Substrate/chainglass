@@ -108,6 +108,20 @@ describe('ScriptRunner', () => {
     expect(result.exitCode).not.toBe(0);
   });
 
+  it('kill() right after spawn never lets the script finish or ride out the timeout', async () => {
+    // A SIGTERM in bash's first few ms was either swallowed (the script ran on to exit 0)
+    // or lost (it ran until the timeout); it showed up as this suite flaking under load.
+    const script = await writeScript('slow.sh', 'sleep 30\necho "done"');
+    for (let i = 0; i < 20; i++) {
+      const promise = runner.run({ script, cwd: tmpDir, env: {}, timeout: 5 });
+      await new Promise((r) => setTimeout(r, 10));
+      runner.kill();
+      const result = await promise;
+      expect(result.exitCode).not.toBe(0);
+      expect(result.exitCode).not.toBe(124);
+    }
+  }, 30_000);
+
   it('times out and kills process after timeout seconds', async () => {
     const script = await writeScript('hang.sh', 'sleep 30');
 
