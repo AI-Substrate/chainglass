@@ -56,6 +56,33 @@ describe('FileTree', () => {
     errors.mockRestore();
   });
 
+  it('shows the full name on hover only when the name is cut off', async () => {
+    const user = userEvent.setup();
+    const long = 'a-very-long-file-name-that-does-not-fit-the-panel.test.tsx';
+    render(
+      <FileTree
+        entries={[
+          { name: long, type: 'file', path: long },
+          { name: 'short.ts', type: 'file', path: 'short.ts' },
+        ]}
+        onSelect={vi.fn()}
+        onExpand={vi.fn()}
+      />
+    );
+    // jsdom has no layout: make the long name overflow its 100px box.
+    const longName = screen.getByText(long);
+    Object.defineProperty(longName, 'clientWidth', { value: 100 });
+    Object.defineProperty(longName, 'scrollWidth', { value: 400 });
+
+    await user.hover(screen.getByText('short.ts'));
+    await new Promise((r) => setTimeout(r, 400));
+    expect(screen.queryByRole('tooltip')).toBeNull();
+
+    await user.unhover(screen.getByText('short.ts'));
+    await user.hover(longName);
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(long);
+  });
+
   it('renders file and directory entries', () => {
     render(<FileTree entries={sampleEntries} onSelect={vi.fn()} onExpand={vi.fn()} />);
 

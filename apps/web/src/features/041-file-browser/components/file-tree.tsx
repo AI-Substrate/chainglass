@@ -20,6 +20,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { NoteIndicatorDot } from '@/features/071-file-notes/components/note-indicator-dot';
 import type { RepoInfo } from '@/features/_platform/git';
 import { FileIcon, FolderIcon } from '@/features/_platform/themes';
@@ -445,6 +446,33 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
   );
 });
 
+// --- TruncatedName Sub-Component ---
+
+/** Entry name that shows the full name in a tooltip, only when it is cut off. */
+function TruncatedName({ name, className }: { name: string; className?: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [open, setOpen] = useState(false);
+  return (
+    <Tooltip
+      delayDuration={300}
+      open={open}
+      onOpenChange={(next) => {
+        const el = ref.current;
+        setOpen(next && !!el && el.scrollWidth > el.clientWidth);
+      }}
+    >
+      <TooltipTrigger asChild>
+        <span ref={ref} className={`truncate ${className ?? ''}`}>
+          {name}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="right" className="max-w-xs break-all">
+        {name}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 // --- TreeItem Sub-Component ---
 
 function TreeItem({
@@ -576,7 +604,7 @@ function TreeItem({
                         />
                       </>
                     )}
-                    <span className="truncate">{entry.name}</span>
+                    <TruncatedName name={entry.name} />
                   </button>
                 </ContextMenuTrigger>
                 {/* preventDefault on close-autofocus: stop Radix from restoring
@@ -808,7 +836,7 @@ function TreeItem({
             )}
             <NoteIndicatorDot hasNotes={filesWithNotes?.has(entry.path) ?? false} />
             <FileIcon filename={entry.name} className="h-4 w-4 shrink-0" />
-            <span className={`truncate ${isSelected ? 'text-base' : ''}`}>{entry.name}</span>
+            <TruncatedName name={entry.name} className={isSelected ? 'text-base' : ''} />
           </button>
         </ContextMenuTrigger>
         {/* preventDefault on close-autofocus — see folder menu above: keeps the
