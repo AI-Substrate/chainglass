@@ -14,6 +14,11 @@ import { createSearchParamsCache } from 'nuqs/server';
 
 export const terminalParams = {
   session: parseAsString.withDefault(''),
+  /**
+   * The worktree the terminal stays on while the file browser shows another one
+   * (the browser's worktree switcher). Absent = the terminal follows `worktree`.
+   */
+  termWorktree: parseAsString.withDefault(''),
 };
 
 export const terminalPageParamsCache = createSearchParamsCache({

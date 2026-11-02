@@ -75,4 +75,22 @@ describe('useTerminalOverlay — FX006 toggleTerminal session derivation', () =>
     // toggleTerminal early-returns with the warn() branch.
     expect(result.current.isOpen).toBe(false);
   });
+
+  it('opens on ?termWorktree= while the file browser shows another worktree', () => {
+    // The browser's worktree switcher moves `worktree` but leaves the terminal on main.
+    setLocationSearch(
+      '?worktree=/Users/jordanknight/github/ai-manu-042&termWorktree=/Users/jordanknight/github/ai-manu'
+    );
+
+    const { result } = renderHook(() => useTerminalOverlay(), {
+      wrapper: Wrapper,
+    });
+
+    act(() => {
+      result.current.toggleTerminal();
+    });
+
+    expect(result.current.sessionName).toBe('ai-manu');
+    expect(result.current.cwd).toBe('/Users/jordanknight/github/ai-manu');
+  });
 });

@@ -101,6 +101,8 @@ export interface ExplorerPanelProps {
   onFlowspaceQueryChange?: (query: string, mode: 'grep' | 'semantic') => void;
   /** Additional action buttons rendered after the terminal toggle (Plan 072 — slot for question popper indicator) */
   rightActions?: React.ReactNode;
+  /** Controls pinned to the left edge of the bar (the browser's worktree switcher) */
+  leftActions?: React.ReactNode;
 }
 
 export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>(
@@ -138,6 +140,7 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
       onCodeSearchSelect,
       onFlowspaceQueryChange,
       rightActions,
+      leftActions,
     },
     ref
   ) {
@@ -535,6 +538,11 @@ export const ExplorerPanel = forwardRef<ExplorerPanelHandle, ExplorerPanelProps>
         >
           <Radar className="h-4 w-4" />
         </button>
+        {leftActions && (
+          <div className="absolute left-4 top-1/2 -translate-y-1/2 flex items-center">
+            {leftActions}
+          </div>
+        )}
         {rightActions && (
           <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center">
             {rightActions}

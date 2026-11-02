@@ -73,9 +73,11 @@ export function TerminalOverlayProvider({
       return;
     }
 
-    // Always check URL params first — they reflect the current worktree context
+    // Always check URL params first — they reflect the current worktree context.
+    // `termWorktree` wins: the file browser can show another worktree while the
+    // terminal stays where it started (browser worktree switcher).
     const params = new URLSearchParams(window.location.search);
-    const worktree = params.get('worktree');
+    const worktree = params.get('termWorktree') || params.get('worktree');
 
     let resolvedSession = sessionName ?? null;
     let resolvedCwd = cwd ?? null;

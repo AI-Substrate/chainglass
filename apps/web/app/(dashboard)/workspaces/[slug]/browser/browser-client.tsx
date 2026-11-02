@@ -19,6 +19,8 @@ import {
 } from '@/features/041-file-browser/components/file-viewer-panel';
 import { FolderPreviewPanel } from '@/features/041-file-browser/components/folder-preview-panel';
 import { SplitTerminalToggleButton } from '@/features/041-file-browser/components/split-terminal-toggle-button';
+import type { WorktreeItem } from '@/features/041-file-browser/components/worktree-picker';
+import { WorktreeSwitcher } from '@/features/041-file-browser/components/worktree-switcher';
 import { useAutoSaveOnLeave } from '@/features/041-file-browser/hooks/use-auto-save-on-leave';
 import { useClipboard } from '@/features/041-file-browser/hooks/use-clipboard';
 import { useDraftAutoSave } from '@/features/041-file-browser/hooks/use-draft-auto-save';
@@ -43,6 +45,7 @@ import { useTerminalOverlay } from '@/features/064-terminal/hooks/use-terminal-o
 import { useTerminalSessions } from '@/features/064-terminal/hooks/use-terminal-sessions';
 import { resolveSplitSession } from '@/features/064-terminal/lib/resolve-split-session';
 import { sessionNameFromWorktreePath } from '@/features/064-terminal/lib/session-name-from-worktree-path';
+import { terminalParams } from '@/features/064-terminal/params/terminal.params';
 import { QuestionPopperIndicator } from '@/features/067-question-popper/components/question-popper-indicator';
 import { useNotesOverlay } from '@/features/071-file-notes/hooks/use-notes-overlay';
 import { RemoteViewLaunchButton } from '@/features/088-remote-view/components/remote-view-launch-button';
@@ -77,6 +80,7 @@ import {
   TerminalSquare,
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
+import { usePathname, useRouter } from 'next/navigation';
 import { useQueryStates } from 'nuqs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -147,6 +151,8 @@ export interface BrowserClientProps {
   worktreeBranch?: string;
   isGit: boolean;
   initialEntries: FileEntry[];
+  /** For the worktree switcher, already sorted: main first, then most recently updated. */
+  worktrees: WorktreeItem[];
 }
 
 export function BrowserClient({
@@ -156,6 +162,7 @@ export function BrowserClient({
   worktreeBranch,
   isGit,
   initialEntries,
+  worktrees,
 }: BrowserClientProps) {
   return (
     <FileChangeProvider worktreePath={worktreePath}>
@@ -167,6 +174,7 @@ export function BrowserClient({
         worktreeBranch={worktreeBranch}
         isGit={isGit}
         initialEntries={initialEntries}
+        worktrees={worktrees}
       />
     </FileChangeProvider>
   );
@@ -179,8 +187,33 @@ function BrowserClientInner({
   worktreeBranch,
   isGit,
   initialEntries,
+  worktrees,
 }: BrowserClientProps) {
-  const [params, setParams] = useQueryStates({ ...fileBrowserParams, ...remoteViewParams });
+  const [params, setParams] = useQueryStates({
+    ...fileBrowserParams,
+    ...remoteViewParams,
+    termWorktree: terminalParams.termWorktree,
+  });
+  // The worktree switcher changes the files shown; the terminal stays on the worktree it
+  // started in (`?termWorktree=`), so the agents there stay one keypress away.
+  const terminalWorktreePath = params.termWorktree || worktreePath;
+  const terminalBranch = params.termWorktree
+    ? (worktrees.find((w) => w.path === params.termWorktree)?.branch ?? '')
+    : (worktreeBranch ?? '');
+  const router = useRouter();
+  const pathname = usePathname();
+  const handleWorktreeSwitch = useCallback(
+    (path: string) => {
+      const next = new URLSearchParams(window.location.search);
+      // A path from one worktree may not exist in another: land on the new root.
+      for (const key of ['file', 'dir', 'line', 'anchor', 'view', 'rv']) next.delete(key);
+      next.set('worktree', path);
+      if (path === terminalWorktreePath) next.delete('termWorktree');
+      else next.set('termWorktree', terminalWorktreePath);
+      router.push(`${pathname}?${next.toString()}`);
+    },
+    [router, pathname, terminalWorktreePath]
+  );
 
   // T006 (AC-8 push half): when an agent attaches a window (via CLI/MCP/SDK), the
   // `remote-view` SSE `attached` envelope pushes this open client onto the live
@@ -563,8 +596,8 @@ function BrowserClientInner({
     loading: termLoading,
     selectedSession: termSelectedSession,
   } = useTerminalSessions({
-    currentBranch: sanitizeSessionName(worktreeBranch ?? ''),
-    worktreePath,
+    currentBranch: sanitizeSessionName(terminalBranch),
+    worktreePath: terminalWorktreePath,
   });
 
   // Set worktree identity for tab title (Subtask 001)
@@ -1340,7 +1373,7 @@ function BrowserClientInner({
       {termSelectedSession ? (
         <TerminalView
           sessionName={termSelectedSession}
-          cwd={worktreePath}
+          cwd={terminalWorktreePath}
           themeOverride={terminalTheme}
           isActive={mobileActiveIndex === 2}
         />
@@ -1380,7 +1413,8 @@ function BrowserClientInner({
   // on first connect, creating the session if it doesn't already exist (same
   // contract as /terminal and the right-edge overlay). Same `cwd={worktreePath}`.
   // Shared session = shell history follows user across overlay / /terminal / inline.
-  const inlineSessionName = termSelectedSession ?? sessionNameFromWorktreePath(worktreePath);
+  const inlineSessionName =
+    termSelectedSession ?? sessionNameFromWorktreePath(terminalWorktreePath);
 
   // FX012 state-machine transitions for the split-toggle button (Mode A↔B).
   // - A → B: close any open float, sync the singleton's session context to
@@ -1400,7 +1434,7 @@ function BrowserClientInner({
   const handleSplitToggleChange = useCallback(
     (next: boolean) => {
       if (next) {
-        const { sessionName, cwd } = resolveSplitSession(overlay, worktreePath);
+        const { sessionName, cwd } = resolveSplitSession(overlay, terminalWorktreePath);
         overlay.closeTerminal();
         if (sessionName) {
           overlay.setSessionContext(sessionName, cwd);
@@ -1413,11 +1447,11 @@ function BrowserClientInner({
         // otherwise exiting split could jump to a different session.
         const exitName = overlay.sessionName ?? inlineSessionName;
         if (exitName) {
-          overlay.openTerminal(exitName, overlay.cwd ?? worktreePath);
+          overlay.openTerminal(exitName, overlay.cwd ?? terminalWorktreePath);
         }
       }
     },
-    [overlay, inlineSessionName, worktreePath]
+    [overlay, inlineSessionName, terminalWorktreePath]
   );
 
   // FX012 capture-phase backtick interceptor (Mode B only). When `splitOn` is
@@ -1434,14 +1468,14 @@ function BrowserClientInner({
       // FX013: reopen on the split pane's live session (see B→A above).
       const exitName = overlay.sessionName ?? inlineSessionName;
       if (exitName) {
-        overlay.openTerminal(exitName, overlay.cwd ?? worktreePath);
+        overlay.openTerminal(exitName, overlay.cwd ?? terminalWorktreePath);
       }
     };
     window.addEventListener('terminal:toggle', handler, { capture: true });
     return () => {
       window.removeEventListener('terminal:toggle', handler, { capture: true });
     };
-  }, [splitOn, overlay, inlineSessionName, worktreePath]);
+  }, [splitOn, overlay, inlineSessionName, terminalWorktreePath]);
 
   // FX012: inline pane now drives the singleton via a viewport. When `splitOn`
   // is true, the singleton's xterm DOM moves into this slot — same instance
@@ -1496,6 +1530,15 @@ function BrowserClientInner({
             context={barContext}
             onCopy={() => clipboard.copyToClipboard(selectedFile ?? '')}
             placeholder="Type a path or > for commands... (Ctrl+P)"
+            leftActions={
+              worktrees.length > 1 ? (
+                <WorktreeSwitcher
+                  worktrees={worktrees}
+                  currentWorktree={worktreePath}
+                  onSwitch={handleWorktreeSwitch}
+                />
+              ) : null
+            }
             sdk={sdk}
             mru={mru}
             onCommandExecute={recordExecution}

@@ -25,6 +25,8 @@ export interface WorktreePickerProps {
   starredPaths?: string[];
   onSelect: (worktreePath: string) => void;
   onToggleStar?: (worktreePath: string, starred: boolean) => void;
+  /** Keep the order given (the caller already sorted, e.g. main then most recently updated). */
+  ordered?: boolean;
 }
 
 export function WorktreePicker({
@@ -33,6 +35,7 @@ export function WorktreePicker({
   starredPaths = [],
   onSelect,
   onToggleStar,
+  ordered = false,
 }: WorktreePickerProps) {
   const [filter, setFilter] = useState('');
 
@@ -45,6 +48,7 @@ export function WorktreePicker({
           (wt) => wt.branch.toLowerCase().includes(term) || wt.path.toLowerCase().includes(term)
         )
       : worktrees;
+    if (ordered) return matching;
 
     // Sort: starred first, then by descending numeric prefix
     return [...matching].sort((a, b) => {
@@ -53,7 +57,7 @@ export function WorktreePicker({
       if (aStarred !== bStarred) return aStarred ? -1 : 1;
       return compareWorktreeBranches(a.branch, b.branch);
     });
-  }, [worktrees, filter, starredSet]);
+  }, [worktrees, filter, starredSet, ordered]);
 
   return (
     <div className="flex flex-col gap-1">

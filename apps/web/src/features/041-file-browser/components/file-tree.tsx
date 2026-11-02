@@ -497,6 +497,9 @@ function TreeItem({
   const { useMobilePatterns } = useResponsive();
   const isExpanded = expanded.has(entry.path);
   const isSelected = selectedFile === entry.path;
+  // Above the directory branch's early return: one path can be a folder in one worktree and a
+  // file in another (`.git` in main vs a linked worktree), so the hook count must not depend on type.
+  const selectedOnMouseDownRef = useRef(isSelected);
   const isChanged = changedFiles?.includes(entry.path);
   const isNewlyAdded = newlyAddedPaths?.has(entry.path);
   const children = childEntries[entry.path];
@@ -752,8 +755,6 @@ function TreeItem({
   // Scroll-to-center on selection lives in the FileTree container (keyed on
   // `selectedFile`), NOT here — a mount-time ref re-centered on every folder
   // expand. See the comment on lastCenteredRef above.
-
-  const selectedOnMouseDownRef = useRef(isSelected);
 
   // Rename mode for file: keep icon, replace name with inline input (DYK-P2-04)
   if (isRenaming) {

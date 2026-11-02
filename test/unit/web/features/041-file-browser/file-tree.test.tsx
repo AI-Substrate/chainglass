@@ -33,6 +33,29 @@ const sampleEntries = [
 ];
 
 describe('FileTree', () => {
+  it('re-renders a path that turns from folder into file without a hooks-order error', () => {
+    // `.git` is a folder in the main checkout and a file in a linked worktree, so switching
+    // worktree in the same tab re-renders the same keyed row with the other type.
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { rerender } = render(
+      <FileTree
+        entries={[{ name: '.git', type: 'directory', path: '.git' }]}
+        onSelect={vi.fn()}
+        onExpand={vi.fn()}
+      />
+    );
+    rerender(
+      <FileTree
+        entries={[{ name: '.git', type: 'file', path: '.git' }]}
+        onSelect={vi.fn()}
+        onExpand={vi.fn()}
+      />
+    );
+
+    expect(errors.mock.calls.flat().join(' ')).not.toMatch(/order of Hooks|Rendered more hooks/);
+    errors.mockRestore();
+  });
+
   it('renders file and directory entries', () => {
     render(<FileTree entries={sampleEntries} onSelect={vi.fn()} onExpand={vi.fn()} />);
 

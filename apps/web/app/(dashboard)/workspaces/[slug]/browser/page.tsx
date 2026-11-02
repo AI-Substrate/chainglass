@@ -17,6 +17,8 @@ import { Suspense } from 'react';
 import { fileBrowserPageParamsCache } from '../../../../../src/features/041-file-browser/params/file-browser.params';
 import { listDirectory } from '../../../../../src/features/041-file-browser/services/directory-listing';
 import { getContainer } from '../../../../../src/lib/bootstrap-singleton';
+import { sortWorktreesBy } from '../../../../../src/lib/sort-worktrees';
+import { getWorktreeTimestamps } from '../../../../../src/lib/worktree-timestamps';
 import { BrowserClient } from './browser-client';
 
 export const dynamic = 'force-dynamic';
@@ -53,13 +55,27 @@ export default async function BrowserPage({ params, searchParams }: PageProps) {
   const wt = info.worktrees.find((w) => w.path === worktreePath);
   const worktreeBranch = wt?.branch ?? worktreePath.split('/').pop() ?? '';
 
-  // Fetch root directory entries server-side
-  const rootEntries = await listDirectory({
-    worktreePath,
-    dirPath: '',
-    isGit: info.hasGit,
-    fileSystem,
-  });
+  // Fetch root directory entries and worktree timestamps server-side
+  const browsable = info.worktrees.filter((w) => !w.isBare && !w.isPrunable);
+  const [rootEntries, timestamps] = await Promise.all([
+    listDirectory({ worktreePath, dirPath: '', isGit: info.hasGit, fileSystem }),
+    getWorktreeTimestamps(browsable.map((w) => w.path)),
+  ]);
+
+  // Worktree switcher order: main first, then most recently updated (no star pinning).
+  const worktrees = sortWorktreesBy(
+    browsable.map((w) => ({
+      path: w.path,
+      branch: w.branch ?? w.path.split('/').pop() ?? w.path,
+      isDetached: w.isDetached,
+      createdAt: null,
+      updatedAt: timestamps.get(w.path)?.updatedAt ?? null,
+    })),
+    new Set(),
+    'updated',
+    'desc',
+    info.path
+  ).map(({ path, branch, isDetached }) => ({ path, branch, isDetached }));
 
   return (
     <Suspense fallback={<div className="p-4">Loading browser...</div>}>
@@ -70,6 +86,7 @@ export default async function BrowserPage({ params, searchParams }: PageProps) {
         worktreeBranch={worktreeBranch}
         isGit={info.hasGit}
         initialEntries={rootEntries.entries}
+        worktrees={worktrees}
       />
     </Suspense>
   );
