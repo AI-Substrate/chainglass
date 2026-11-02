@@ -43,6 +43,19 @@ const POLLING_ENV: NodeJS.ProcessEnv = {
 
 const SETTLE = 420; // a few poll intervals + margin
 
+/**
+ * Wait until `check` holds, up to `timeoutMs`. A fixed SETTLE sleep was flaky: over 30 runs an
+ * addDir arrived in 62-595ms, so 420ms missed it about 1 in 4 times.
+ */
+async function waitUntil(check: () => boolean, timeoutMs = 3000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (check()) return true;
+    await sleep(20);
+  }
+  return check();
+}
+
 interface Captured {
   event: string;
   path: string;
@@ -88,16 +101,19 @@ describe('Plan 085: env-forced polling via FileWatcherFactory', () => {
 
     const file = join(tempDir, 'live.txt');
     await writeFile(file, 'one');
-    await sleep(SETTLE);
-    expect(events.some((e) => e.event === 'add' && e.path === file)).toBe(true);
+    expect(await waitUntil(() => events.some((e) => e.event === 'add' && e.path === file))).toBe(
+      true
+    );
 
     await writeFile(file, 'one + two (longer)');
-    await sleep(SETTLE);
-    expect(events.some((e) => e.event === 'change' && e.path === file)).toBe(true);
+    expect(await waitUntil(() => events.some((e) => e.event === 'change' && e.path === file))).toBe(
+      true
+    );
 
     await unlink(file);
-    await sleep(SETTLE);
-    expect(events.some((e) => e.event === 'unlink' && e.path === file)).toBe(true);
+    expect(await waitUntil(() => events.some((e) => e.event === 'unlink' && e.path === file))).toBe(
+      true
+    );
   });
 
   it('AC3: detects a new directory as addDir', async () => {
@@ -106,8 +122,9 @@ describe('Plan 085: env-forced polling via FileWatcherFactory', () => {
 
     const dir = join(tempDir, 'fresh-dir');
     await mkdir(dir);
-    await sleep(SETTLE);
-    expect(events.some((e) => e.event === 'addDir' && e.path === dir)).toBe(true);
+    expect(await waitUntil(() => events.some((e) => e.event === 'addDir' && e.path === dir))).toBe(
+      true
+    );
   });
 
   it('AC4: never walks or emits events from an ignored dir (node_modules)', async () => {
@@ -121,10 +138,13 @@ describe('Plan 085: env-forced polling via FileWatcherFactory', () => {
     await writeFile(join(tempDir, 'node_modules', 'pkg', 'deep', 'index.js'), 'ignored');
     // A sibling that IS visible, to prove the watcher is otherwise live.
     await writeFile(join(tempDir, 'visible.txt'), 'seen');
+    // The visible sibling arriving proves a poll ran after the ignored subtree was written.
+    expect(
+      await waitUntil(() => events.some((e) => e.event === 'add' && e.path.endsWith('visible.txt')))
+    ).toBe(true);
     await sleep(SETTLE);
 
     expect(events.some((e) => e.path.includes('node_modules'))).toBe(false);
-    expect(events.some((e) => e.event === 'add' && e.path.endsWith('visible.txt'))).toBe(true);
   });
 });
 
@@ -214,10 +234,8 @@ describe('Plan 085: consumer ripple — CentralWatcherService under polling', ()
     );
     await writeFile(stateFile, JSON.stringify({ nodes: [{ id: 'new' }] }));
 
-    // poll interval (120) + awaitWriteFinish stabilization + margin
-    await sleep(1000);
-
-    expect(fakeAdapter.calls.length).toBeGreaterThanOrEqual(1);
+    // poll interval (120) + awaitWriteFinish stabilization, which can run long under load
+    expect(await waitUntil(() => fakeAdapter.calls.length >= 1)).toBe(true);
     expect(fakeAdapter.calls[0].path).toBe(stateFile);
     expect(['add', 'change']).toContain(fakeAdapter.calls[0].eventType);
     expect(fakeAdapter.calls[0].worktreePath).toBe(workspacePath);
