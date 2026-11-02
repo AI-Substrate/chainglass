@@ -1,0 +1,19 @@
+test/integration/workflow/features/085/polling-file-watcher.integration.test.ts
+  s_084ac52dc66de3::t_102633619fe0a1 46-58,104-106,109-111,114-116,125-127,141-144,237-238
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "99d7ccc7cac89fd95e75ca444f58c3d7f805e666",
+  "prompts": {},
+  "sessions": {
+    "s_084ac52dc66de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+        "model": "unknown"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
