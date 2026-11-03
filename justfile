@@ -32,12 +32,27 @@ dev:
         kill $PID 2>/dev/null && sleep 1 || true
       fi
     done
+    just _clear-stale-dev-cache
     cd apps/web && node -e "require('node-pty').spawn('/bin/echo',['ok'],{name:'x',cols:1,rows:1,cwd:'/tmp',env:{}})" 2>/dev/null || (echo "Error: node-pty can't spawn. Run: chmod +x apps/web/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper" && exit 1)
     cd "$OLDPWD"
     PORT=$NEXT_PORT TERMINAL_WS_HOST=${TERMINAL_WS_HOST:-0.0.0.0} \
       pnpm concurrently --names "next,terminal" --prefix-colors "blue,green" \
         "pnpm turbo dev -- --port $NEXT_PORT" \
         "pnpm tsx watch --env-file=apps/web/.env.local apps/web/src/features/064-terminal/server/terminal-ws.ts"
+
+# Turbopack's dev cache goes stale when dependencies change, and the stale cache makes
+# every open page reload in a loop. Clear it whenever pnpm-lock.yaml has changed.
+_clear-stale-dev-cache:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    CACHE=apps/web/.next/dev/cache/turbopack
+    LOCK_SUM=$(shasum pnpm-lock.yaml | cut -d' ' -f1)
+    if [ -d "$CACHE" ] && [ "$(cat "$CACHE.lock-sum" 2>/dev/null)" != "$LOCK_SUM" ]; then
+      echo "pnpm-lock.yaml changed since the Turbopack cache was built; clearing it"
+      rm -rf "$CACHE"
+    fi
+    mkdir -p "$(dirname "$CACHE")"
+    echo "$LOCK_SUM" > "$CACHE.lock-sum"
 
 # Start dev server with file-watch POLLING forced on (WSL / Windows-mount fallback).
 # Native fs.watch (inotify) is silently dead when the workspace lives on a Windows
@@ -67,6 +82,7 @@ dev-https:
         kill $PID 2>/dev/null && sleep 1 || true
       fi
     done
+    just _clear-stale-dev-cache
     cd apps/web && node -e "require('node-pty').spawn('/bin/echo',['ok'],{name:'x',cols:1,rows:1,cwd:'/tmp',env:{}})" 2>/dev/null || (echo "Error: node-pty can't spawn. Run: chmod +x apps/web/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper" && exit 1)
     cd "$OLDPWD"
     PORT=$NEXT_PORT TERMINAL_WS_HOST=${TERMINAL_WS_HOST:-0.0.0.0} TERMINAL_WS_CERT=apps/web/certificates/localhost.pem TERMINAL_WS_KEY=apps/web/certificates/localhost-key.pem \
