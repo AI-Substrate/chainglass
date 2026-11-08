@@ -64,4 +64,43 @@ describe('agent window activity vs its background jobs', () => {
     expect(read('@14')?.background?.jobs[0].cpu).toBeCloseTo(0.585, 2);
     expect(read('@14')?.background?.cpu).toBeCloseTo(0.585, 2);
   });
+
+  it("counts none of Copilot's own processes as jobs, only the work it starts", async () => {
+    // Shaped like live pij panes (2026-11-09). @16: the npm install, a node shim whose child is the
+    // native binary (the agent itself, idling at ~2.5%) with Copilot's extension host and a tool
+    // server under it. @17: the standalone install, extension host directly under the agent, and
+    // a cargo build the agent started.
+    let t = 0;
+    const row = (pid: number, ppid: number, cpu: number, args: string) =>
+      `${pid} ${ppid} 0:${cpu.toFixed(2).padStart(5, '0')} ${args}`;
+    const native =
+      '/Users/me/.npm-global/lib/node_modules/@github/copilot/node_modules/@github/copilot-darwin-arm64/copilot';
+    const host = '/Users/me/.copilot/pkg/darwin-arm64/1.0.108-1/preloads/extension_bootstrap.mjs';
+    const snapshot = () =>
+      [
+        row(300, 1, 0.1, '-zsh'),
+        row(301, 300, 1, 'node /Users/me/.npm-global/bin/copilot --yolo --resume prime'),
+        row(302, 301, 1 + t * 0.025, `${native} --yolo --resume prime`),
+        row(303, 302, 1 + t * 0.005, `${native} ${host}`),
+        row(304, 302, 1, 'npm exec @perplexity-ai/mcp-server'),
+        row(400, 1, 0.1, '-zsh'),
+        row(401, 400, 1 + t * 0.03, 'copilot --yolo --model gpt-6.1-sol'),
+        row(402, 401, 1 + t * 0.005, `/Users/me/.local/bin/copilot ${host}`),
+        row(403, 401, 1, 'cargo test -p pij-daemon'),
+      ].join('\n');
+    const exec = (_: string, args: string[]) =>
+      args[0] === 'list-windows' ? '@16\t16\t0\tcopilot-npm\n@17\t17\t0\tcopilot-local\n' : '';
+    const execAsync = async (command: string, args: string[]) => {
+      if (command === 'ps') return snapshot();
+      if (args[0] === 'list-panes') return '@16\t300\t1\n@17\t400\t1\n';
+      return '';
+    };
+    const manager = new TmuxSessionManager(exec, (() => null) as never, execAsync);
+    const read = (id: string) => manager.listWindows('main').find((w) => w.id === id);
+
+    for (t = 0; t <= 8; t += 2) await poll(manager, t);
+    expect(read('@16')).toMatchObject({ agent: 'copilot', background: null });
+    expect(read('@17')?.agent).toBe('copilot');
+    expect(read('@17')?.background?.jobs.map((job) => job.label)).toEqual(['cargo']);
+  });
 });

@@ -11,6 +11,11 @@ import type { ProcessTable } from './process-cpu';
  *   omp's own puppeteer Chrome, and `caffeinate` (Claude keeping the Mac awake).
  * - Pass-through — not a job, but its children may be: omp's `__omp_worker_*` processes (its
  *   daemon broker is where omp parks the dev servers it starts).
+ *
+ * Copilot, read from live pij panes on 2026-11-09: the npm install runs a node shim whose child is
+ * the native `@github/copilot-<platform>/copilot` binary — the agent itself, so pass-through — and
+ * every install runs an extension host (`copilot …/.copilot/pkg/…/preloads/…`), infrastructure.
+ * Counting those two lit every idle Copilot window's job bar.
  * - Everything else under the agent is a job, counted with its own subtree.
  */
 const INFRASTRUCTURE = [
@@ -19,8 +24,9 @@ const INFRASTRUCTURE = [
   /language-server|rust-analyzer|pyright|gopls|clangd|\bruff server\b/,
   /\/\.omp\/puppeteer\//,
   /(^|\/)caffeinate(\s|$)/,
+  /\/\.copilot\/pkg\/\S*\/preloads\//,
 ];
-const PASS_THROUGH = /__omp_worker_/;
+const PASS_THROUGH = /__omp_worker_|\/@github\/copilot-[\w-]+\/copilot(\s|$)/;
 
 /** Root pids of the agent's background jobs. */
 export function findBackgroundJobs(table: ProcessTable, agentPid: number): number[] {
