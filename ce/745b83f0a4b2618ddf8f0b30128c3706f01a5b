@@ -1,0 +1,21 @@
+apps/web/src/features/064-terminal/lib/background-jobs.ts
+  s_084ac52dc66de3::t_bc0f3c067378b1 14-18,27,29
+test/unit/web/features/064-terminal/window-subprocesses.test.ts
+  s_084ac52dc66de3::t_6dc02162b2a1f8 67-105
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "ce745b83f0a4b2618ddf8f0b30128c3706f01a5b",
+  "prompts": {},
+  "sessions": {
+    "s_084ac52dc66de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
