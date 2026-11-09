@@ -46,4 +46,16 @@ describe('sessionNameFromWorktreePath — FX006', () => {
     expect(sessionNameFromWorktreePath('/abs/higgs-jordo')).toBe('higgs-jordo');
     expect(sessionNameFromWorktreePath('relative/higgs-jordo')).toBe('higgs-jordo');
   });
+
+  it('helper.shared-folder: prefixes main and master with the parent folder so projects never share a session', () => {
+    expect(sessionNameFromWorktreePath('/Users/jordanknight/games/unasphere/main')).toBe(
+      'unasphere-main'
+    );
+    expect(sessionNameFromWorktreePath('/Users/jordanknight/substrate/unimatrix/main')).toBe(
+      'unimatrix-main'
+    );
+    expect(sessionNameFromWorktreePath('/repos/my.app/master')).toBe('my-app-master');
+    expect(sessionNameFromWorktreePath('/repos/unishpere-main')).toBe('unishpere-main');
+    expect(sessionNameFromWorktreePath('main')).toBe('main');
+  });
 });

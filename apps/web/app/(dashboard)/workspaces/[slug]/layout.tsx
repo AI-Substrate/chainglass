@@ -15,6 +15,7 @@ import type { IWorkspaceService } from '@chainglass/workflow';
 import type { Metadata } from 'next';
 import { WorkspaceProvider } from '../../../../src/features/041-file-browser/hooks/use-workspace-context';
 import { sanitizeSessionName } from '../../../../src/features/064-terminal/lib/sanitize-session-name';
+import { sessionNameFromWorktreePath } from '../../../../src/features/064-terminal/lib/session-name-from-worktree-path';
 import { PijRailToggleListener } from '../../../../src/features/089-first-class-pij/hooks/use-pij-rail-toggle';
 import { getContainer } from '../../../../src/lib/bootstrap-singleton';
 import { SDKWorkspaceConnector } from '../../../../src/lib/sdk/sdk-workspace-connector';
@@ -100,7 +101,10 @@ export default async function WorkspaceLayout({ children, params }: LayoutProps)
       />
       <PijRailToggleListener workspaceSlug={slug} />
       <WorkspaceAttentionWrapper>
-        <TerminalOverlayWrapper defaultSessionName={defaultBranch} defaultCwd={defaultWorktreePath}>
+        <TerminalOverlayWrapper
+          defaultSessionName={sessionNameFromWorktreePath(defaultWorktreePath) || defaultBranch}
+          defaultCwd={defaultWorktreePath}
+        >
           <MultiplexedSSEProvider channels={[...WORKSPACE_SSE_CHANNELS]}>
             <NotesOverlayWrapper defaultWorktreePath={defaultWorktreePath}>
               <PRViewOverlayWrapper defaultWorktreePath={defaultWorktreePath}>
