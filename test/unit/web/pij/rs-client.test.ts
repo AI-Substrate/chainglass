@@ -1,7 +1,7 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   type RsCursorEvent,
   RsError,
@@ -54,6 +54,62 @@ function authHeader(call: FetchCall): string | null {
 }
 
 describe('createRsClient', () => {
+  it('times out a request whose fetch never resolves, naming the path, and logs it once', async () => {
+    const stateDir = await createStateDir();
+    const hung = ((_url: RequestInfo | URL, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(init.signal?.reason));
+      })) as typeof fetch;
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const client = createRsClient({
+      addr: '127.0.0.1:7461',
+      stateDir,
+      fetch: hung,
+      requestTimeoutMs: 20,
+    });
+
+    try {
+      await expect(client.seats()).rejects.toMatchObject({
+        name: 'RsError',
+        code: 'timeout',
+        message: expect.stringContaining('/v1/seats'),
+      });
+      expect(warn).toHaveBeenCalledTimes(1);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('gives each 401 retry attempt its own timeout signal and leaves the event stream unbounded', async () => {
+    const stateDir = await createStateDir();
+    const signals: Array<AbortSignal | null | undefined> = [];
+    const transport = scriptedFetch([
+      (call) => {
+        signals.push(call.init?.signal);
+        return jsonResponse({ ok: false, command: 'pij list', v: 1, error: 'unauthorized' }, 401);
+      },
+      (call) => {
+        signals.push(call.init?.signal);
+        return jsonResponse({ ok: true, command: 'pij list', v: 1, data: { seats: [] } });
+      },
+      (call) => {
+        signals.push(call.init?.signal);
+        return new Response('', { status: 200 });
+      },
+    ]);
+    const client = createRsClient({ addr: '127.0.0.1:7461', stateDir, fetch: transport.fetch });
+
+    await client.seats();
+    for await (const _ of client.events()) {
+      // drain
+    }
+
+    expect(signals[0]).toBeInstanceOf(AbortSignal);
+    expect(signals[1]).toBeInstanceOf(AbortSignal);
+    expect(signals[1]).not.toBe(signals[0]);
+    expect(signals[2]).toBeUndefined();
+  });
+
   it('reads project designations via POST /v1/project with no caller', async () => {
     const stateDir = await createStateDir();
     const transport = scriptedFetch([

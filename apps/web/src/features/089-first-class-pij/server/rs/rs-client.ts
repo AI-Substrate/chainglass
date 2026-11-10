@@ -3,6 +3,11 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 const DEFAULT_PIJ_RS_ADDR = '127.0.0.1:7461';
+/**
+ * Bound on each one-shot request (not the long-lived event stream). Without it a daemon call that
+ * never answers freezes the poller's overlap-guarded slow loop until the socket gives up.
+ */
+export const DEFAULT_RS_REQUEST_TIMEOUT_MS = 5_000;
 
 export function pijRsAddr(env: Record<string, string | undefined> = process.env): string {
   return env.PIJ_RS_ADDR ?? DEFAULT_PIJ_RS_ADDR;
@@ -114,6 +119,8 @@ export interface RsClientOptions {
   addr: string;
   stateDir: string;
   fetch: typeof fetch;
+  /** Per-attempt bound for request-style calls; defaults to {@link DEFAULT_RS_REQUEST_TIMEOUT_MS}. */
+  requestTimeoutMs?: number;
 }
 
 interface RsEnvelope<T> {
@@ -227,8 +234,18 @@ class HttpRsClient implements RsClient {
   }
 
   private async requestEnvelope<T>(path: string, init: RequestInit): Promise<T> {
-    const response = await this.fetchWithAuthRetry(`${this.baseUrl}${path}`, init);
-    const envelope = await parseEnvelope<T>(response);
+    const timeoutMs = this.options.requestTimeoutMs ?? DEFAULT_RS_REQUEST_TIMEOUT_MS;
+    let response: Response;
+    let envelope: RsEnvelope<T>;
+    try {
+      response = await this.fetchWithAuthRetry(`${this.baseUrl}${path}`, init, timeoutMs);
+      envelope = await parseEnvelope<T>(response);
+    } catch (cause) {
+      if (!isTimeout(cause)) throw cause;
+      const message = `pij-rs ${path} timed out after ${timeoutMs}ms`;
+      console.warn(`[pij-rs] ${message}`);
+      throw new RsError('timeout', message, { cause });
+    }
     if (!response.ok || !envelope.ok) {
       throw envelopeError(envelope, response.status);
     }
@@ -241,20 +258,26 @@ class HttpRsClient implements RsClient {
     return envelope.data;
   }
 
-  private async fetchWithAuthRetry(url: string, init: RequestInit): Promise<Response> {
-    let response = await this.fetchOnce(url, init);
+  /** `timeoutMs` bounds each attempt separately; omit it for the long-lived event stream. */
+  private async fetchWithAuthRetry(
+    url: string,
+    init: RequestInit,
+    timeoutMs?: number
+  ): Promise<Response> {
+    let response = await this.fetchOnce(url, init, timeoutMs);
     if (response.status !== 401) return response;
 
     await response.body?.cancel();
-    response = await this.fetchOnce(url, init);
+    response = await this.fetchOnce(url, init, timeoutMs);
     return response;
   }
 
-  private async fetchOnce(url: string, init: RequestInit): Promise<Response> {
+  private async fetchOnce(url: string, init: RequestInit, timeoutMs?: number): Promise<Response> {
     const key = await this.readKey();
     const headers = new Headers(init.headers);
     headers.set('authorization', `Bearer ${key}`);
-    return this.options.fetch(url, { ...init, headers });
+    const signal = timeoutMs === undefined ? init.signal : AbortSignal.timeout(timeoutMs);
+    return this.options.fetch(url, { ...init, headers, signal });
   }
 
   private async readKey(): Promise<string> {
@@ -288,6 +311,15 @@ class HttpRsClient implements RsClient {
 
 export function createRsClient(options: RsClientOptions): RsClient {
   return new HttpRsClient(options);
+}
+
+function isTimeout(error: unknown): boolean {
+  // A DOMException is not always an `Error` instance across realms, so match on the name alone.
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { name?: unknown }).name === 'TimeoutError'
+  );
 }
 
 async function parseEnvelope<T>(response: Response): Promise<RsEnvelope<T>> {
