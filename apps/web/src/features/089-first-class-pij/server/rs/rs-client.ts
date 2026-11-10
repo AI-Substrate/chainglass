@@ -102,11 +102,8 @@ export interface RsProject {
 
 export interface RsClient {
   seats(): Promise<RsSeat[]>;
-  /**
-   * `POST /v1/project` `project list`. The route insists on caller evidence, so the caller is named
-   * by an existing seat id (identity evidence only; the list is not seat-scoped).
-   */
-  projects(callerSeatId: string): Promise<RsProject[]>;
+  /** `POST /v1/project` `project list`; needs no caller evidence. */
+  projects(): Promise<RsProject[]>;
   state(id: string): Promise<RsStateReport>;
   cards(): Promise<RsCardsPayload>;
   /** Auth covers connection setup; reconnecting after a stream ends re-reads a rotated key. */
@@ -167,14 +164,11 @@ class HttpRsClient implements RsClient {
     return payload.seats;
   }
 
-  async projects(callerSeatId: string): Promise<RsProject[]> {
+  async projects(): Promise<RsProject[]> {
     const payload = await this.requestEnvelope<{ projects: RsProject[] }>('/v1/project', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        argv: ['project', 'list'],
-        caller: { PIJ_SESSION_ID: callerSeatId },
-      }),
+      body: JSON.stringify({ argv: ['project', 'list'] }),
     });
     if (!Array.isArray(payload.projects)) {
       throw new RsError('wire', 'pij-rs /v1/project list did not contain a projects array');

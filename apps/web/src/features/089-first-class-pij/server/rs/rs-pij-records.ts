@@ -32,7 +32,7 @@ class HttpRsPijRecords implements RsPijRecords {
     if (seats.length === 0) return [];
 
     const unavailable = await this.sourceUnavailable(seats[0]);
-    const primes = await this.designatedPrimes(seats[0]);
+    const primes = await this.designatedPrimes();
     return seats.map((seat) => mapSeat(seat, unavailable, primes));
   }
 
@@ -62,7 +62,7 @@ class HttpRsPijRecords implements RsPijRecords {
             (root) => typeof seat.folder === 'string' && isFolderInWorkspace(seat.folder, root)
           ))
     );
-    const primes = await this.designatedPrimes(seats[0]);
+    const primes = await this.designatedPrimes();
     return {
       ...parentForest(scoped, primes),
       source: 'pij-rs',
@@ -75,7 +75,7 @@ class HttpRsPijRecords implements RsPijRecords {
     const seats = await this.client.seats();
     const seat = seats.find((candidate) => candidate.id === id);
     if (!seat) throw new RsError('not_found', `No rs seat ${id}`);
-    const primes = await this.designatedPrimes(seat);
+    const primes = await this.designatedPrimes();
     return {
       id: seat.id,
       source: 'pij-rs',
@@ -103,10 +103,9 @@ class HttpRsPijRecords implements RsPijRecords {
    * label, is pij's prime authority. A failed read degrades to role-only rather than failing the
    * roster: the seats are still true, only the designation overlay is missing.
    */
-  private async designatedPrimes(caller: RsSeat | undefined): Promise<ReadonlySet<string>> {
-    if (!caller) return new Set();
+  private async designatedPrimes(): Promise<ReadonlySet<string>> {
     try {
-      const projects = await this.client.projects(caller.id);
+      const projects = await this.client.projects();
       return new Set(
         projects.flatMap(({ prime_id }) => (typeof prime_id === 'string' ? [prime_id] : []))
       );

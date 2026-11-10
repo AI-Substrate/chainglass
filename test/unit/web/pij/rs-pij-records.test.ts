@@ -36,7 +36,7 @@ class FakeRsClient implements RsClient {
     private readonly projectList: RsProject[] | Error = []
   ) {}
 
-  async projects(_callerSeatId: string): Promise<RsProject[]> {
+  async projects(): Promise<RsProject[]> {
     if (this.projectList instanceof Error) throw this.projectList;
     return this.projectList;
   }

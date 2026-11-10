@@ -54,7 +54,7 @@ function authHeader(call: FetchCall): string | null {
 }
 
 describe('createRsClient', () => {
-  it('reads project designations via POST /v1/project naming a caller seat', async () => {
+  it('reads project designations via POST /v1/project with no caller', async () => {
     const stateDir = await createStateDir();
     const transport = scriptedFetch([
       () =>
@@ -67,13 +67,12 @@ describe('createRsClient', () => {
     ]);
     const client = createRsClient({ addr: '127.0.0.1:7461', stateDir, fetch: transport.fetch });
 
-    await expect(client.projects('pij-caller')).resolves.toEqual([
+    await expect(client.projects()).resolves.toEqual([
       { slug: 'unimatrix', prime_id: 'pij-loud-stoat' },
     ]);
     expect(transport.calls[0].url).toBe('http://127.0.0.1:7461/v1/project');
     expect(JSON.parse(String(transport.calls[0].init?.body))).toEqual({
       argv: ['project', 'list'],
-      caller: { PIJ_SESSION_ID: 'pij-caller' },
     });
   });
 
