@@ -1,0 +1,28 @@
+{
+	"dd": {
+		"schema": "pij/holders"
+	},
+	"references": [],
+	"sections": [
+		{
+			"name": "meta",
+			"value": {
+				"role": "pa"
+			}
+		},
+		{
+			"name": "rows",
+			"value": [
+				{
+					"assigned_by": "pij-outer-bobcat",
+					"from": "2026-11-10T07:27:37.310Z",
+					"harness": "claude",
+					"harness_session": "c9722159-9e82-4bab-9bca-a7ab2ebd6c23",
+					"machine": "ops.osk.lan",
+					"seat": "pij-swift-skink",
+					"why": "Chainglass PA stood up 2026-11-10"
+				}
+			]
+		}
+	]
+}
