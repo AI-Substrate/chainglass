@@ -1,0 +1,25 @@
+test/unit/web/pij/rs-pij-records.test.ts
+  s_0d91c03d818a95::t_c60a5193d36182 39
+apps/web/src/features/089-first-class-pij/server/rs/rs-client.ts
+  s_0d91c03d818a95::t_c60a5193d36182 105-106,167,171
+apps/web/src/features/089-first-class-pij/server/rs/rs-pij-records.ts
+  s_0d91c03d818a95::t_c60a5193d36182 35,65,78,106,108
+test/unit/web/pij/rs-client.test.ts
+  s_0d91c03d818a95::t_c60a5193d36182 57,70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "6d60581f1c8bb2f431a8bab2a2a19721f05dc0de",
+  "prompts": {},
+  "sessions": {
+    "s_0d91c03d818a95": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7104247c-9842-44e7-ad37-4fdea96df802",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
