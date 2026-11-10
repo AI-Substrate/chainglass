@@ -47,6 +47,6 @@ components by default, the browser surface is the product (verify it, not just t
 ## Current portfolio context
 
 - Portfolio: store project `chainglass` (`pij project show chainglass`).
-- No streams in flight. Shipped 2026-11-10: designated-prime badge (`1c53ce569`, `b4f633b3b`, worker pij-liquid-carp); live screenshots wait on Jordan restarting `just dev`.
+- No streams in flight. Shipped 2026-11-10: designated-prime badge (`1c53ce569`, `b4f633b3b`, `6d60581f1`, worker pij-liquid-carp); live screenshots wait on Jordan restarting `just dev`.
 - Pending Jordan decisions: pij-rs event-log compaction (2.4 GB); daily sshd disable by device policy; Co-Authored-By trailer (AGENTS.md "no AI attribution" vs handover rule).
-- Watch: `RsClient.projects()` borrows `seats[0].id` as caller because pij `/v1/project list` refuses callerless reads. pij-fleet prime ruled 2026-11-10 that read-only governance leaves will accept authenticated callerless requests (refusal code `E-RS-NO-CALLER`; F-item filed by its pm-001). After that deploys, drop the borrowed caller.
+- ~~Watch: borrowed caller in `RsClient.projects()`~~ closed 2026-11-10: pij F184 (pij-fleet #226) made read-only governance leaves callerless; `6d60581f1` dropped the borrowed caller.
