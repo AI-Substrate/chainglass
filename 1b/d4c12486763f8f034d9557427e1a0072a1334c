@@ -1,0 +1,35 @@
+.dd/schemas/pij/external/schema.json
+  s_31f32895b59915::t_ffab0668e843cf 1-62
+.dd/schemas/pij/holders/schema.json
+  s_31f32895b59915::t_8c13faf690be59 1-78
+.dd/schemas/pij/memory/schema.json
+  s_31f32895b59915::t_6018b6389e661f 1-41
+.dd/schemas/pij/output/schema.json
+  s_31f32895b59915::t_1ea6ea65646f63 1-101
+.dd/schemas/pij/role/schema.json
+  s_31f32895b59915::t_177b74767f4c94 1-223
+.harness/government/community/ROUTES.md
+  s_31f32895b59915::t_3ca8830b86810f 1-10
+.harness/government/community/roles/prime/memory/INDEX.md
+  s_31f32895b59915::t_199b85f3fa408e 1-3
+.harness/government/community/roles/prime/role.dd.json
+  s_31f32895b59915::t_aae8a1f692a78a 1-76
+.harness/government/community/roles/prime/role.dd.md
+  s_31f32895b59915::t_6089c5990bfe28 1-81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "1bd4c12486763f8f034d9557427e1a0072a1334c",
+  "prompts": {},
+  "sessions": {
+    "s_31f32895b59915": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c9722159-9e82-4bab-9bca-a7ab2ebd6c23",
+        "model": "unknown"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
