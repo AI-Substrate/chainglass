@@ -19,4 +19,4 @@ spine seq.
 | Date | Ruling | Spine |
 |---|---|---|
 | 2026-11-10 | pij-outer-bobcat seated as chainglass prime, replacing pij-lonely-antelope | 4319664 |
-| 2026-11-10 | "chainglass was outdated, lets get it up to spec": bootstrap government branch, orient, PA | pending |
+| 2026-11-10 | "chainglass was outdated, lets get it up to spec": bootstrap government branch, orient, PA | 4319854 |
