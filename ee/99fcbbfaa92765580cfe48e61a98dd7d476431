@@ -1,0 +1,23 @@
+test/unit/web/pij/rs-client.test.ts
+  s_0d91c03d818a95::t_9de42e6b368efb 4,57-112
+apps/web/src/features/089-first-class-pij/server/rs/rs-client.ts
+  s_0d91c03d818a95::t_9de42e6b368efb 6-10,122-123,237-248,261-267,271,275,279-280,316
+  s_0d91c03d818a95::t_af4ccc131aac31 317-322
+  s_0d91c03d818a95::t_b3791c06cc36bc 323-324
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "ee99fcbbfaa92765580cfe48e61a98dd7d476431",
+  "prompts": {},
+  "sessions": {
+    "s_0d91c03d818a95": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7104247c-9842-44e7-ad37-4fdea96df802",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
