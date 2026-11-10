@@ -100,6 +100,21 @@ describe('createRsPijRecords project designation', () => {
     expect(forest.roots.find((node) => node.id === 'plain')?.prime).toBeUndefined();
   });
 
+  it('nodeShow agrees: designated role-null seat is prime, and a failed read stays role-only', async () => {
+    const ok = new FakeRsClient(seats(), undefined, [designated('p', 'designated-null-role')]);
+    expect(
+      (await createRsPijRecords({ client: ok }).nodeShow('designated-null-role')).orchestrationRole
+    ).toBe('prime');
+    expect(
+      (await createRsPijRecords({ client: ok }).nodeShow('plain')).orchestrationRole
+    ).toBeNull();
+    const down = new FakeRsClient(seats(), undefined, new RsError('wire', 'down'));
+    expect(
+      (await createRsPijRecords({ client: down }).nodeShow('designated-null-role'))
+        .orchestrationRole
+    ).toBeNull();
+  });
+
   it('falls back to role-only when the projects read fails, and the list still returns', async () => {
     const client = new FakeRsClient(seats(), undefined, new RsError('wire', 'projects down'));
     const records = createRsPijRecords({ client });

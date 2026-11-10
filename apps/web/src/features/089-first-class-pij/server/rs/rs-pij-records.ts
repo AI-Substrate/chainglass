@@ -72,8 +72,10 @@ class HttpRsPijRecords implements RsPijRecords {
   }
 
   async nodeShow(id: string, _options: PijReadOptions = {}): Promise<PijNodeDetail> {
-    const seat = (await this.client.seats()).find((candidate) => candidate.id === id);
+    const seats = await this.client.seats();
+    const seat = seats.find((candidate) => candidate.id === id);
     if (!seat) throw new RsError('not_found', `No rs seat ${id}`);
+    const primes = await this.designatedPrimes(seat);
     return {
       id: seat.id,
       source: 'pij-rs',
@@ -90,7 +92,9 @@ class HttpRsPijRecords implements RsPijRecords {
       boundModel: seat.model,
       boundProvider: seat.provider,
       effort: seat.effort,
-      ...(Object.hasOwn(seat, 'role') ? { orchestrationRole: seat.role } : {}),
+      ...(Object.hasOwn(seat, 'role') || primes.has(seat.id)
+        ? { orchestrationRole: effectiveRole(seat, primes) }
+        : {}),
     };
   }
 
