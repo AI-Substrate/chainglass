@@ -93,8 +93,20 @@ export interface RsCardsPayload {
   unavailable: Array<{ id: string; error: string }>;
 }
 
+/** One `pij project list` record. Only `prime_id` is read here; designation is pij's prime authority. */
+export interface RsProject {
+  slug: string;
+  prime_id?: string | null;
+  [additive: string]: unknown;
+}
+
 export interface RsClient {
   seats(): Promise<RsSeat[]>;
+  /**
+   * `POST /v1/project` `project list`. The route insists on caller evidence, so the caller is named
+   * by an existing seat id (identity evidence only; the list is not seat-scoped).
+   */
+  projects(callerSeatId: string): Promise<RsProject[]>;
   state(id: string): Promise<RsStateReport>;
   cards(): Promise<RsCardsPayload>;
   /** Auth covers connection setup; reconnecting after a stream ends re-reads a rotated key. */
@@ -153,6 +165,21 @@ class HttpRsClient implements RsClient {
       throw new RsError('wire', 'pij-rs /v1/seats response did not contain a seats array');
     }
     return payload.seats;
+  }
+
+  async projects(callerSeatId: string): Promise<RsProject[]> {
+    const payload = await this.requestEnvelope<{ projects: RsProject[] }>('/v1/project', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        argv: ['project', 'list'],
+        caller: { PIJ_SESSION_ID: callerSeatId },
+      }),
+    });
+    if (!Array.isArray(payload.projects)) {
+      throw new RsError('wire', 'pij-rs /v1/project list did not contain a projects array');
+    }
+    return payload.projects;
   }
 
   async cards(): Promise<RsCardsPayload> {

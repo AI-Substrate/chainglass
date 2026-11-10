@@ -14,6 +14,7 @@ import type {
   Cursor,
   RsClient,
   RsEvent,
+  RsProject,
   RsSeat,
   RsStateReport,
 } from '../../../../apps/web/src/features/089-first-class-pij/server/rs/rs-client';
@@ -31,8 +32,14 @@ class FakeRsClient implements RsClient {
     private readonly report: RsStateReport = {
       id: rows[0]?.id ?? 'none',
       unsupported: UNSUPPORTED,
-    }
+    },
+    private readonly projectList: RsProject[] | Error = []
   ) {}
+
+  async projects(_callerSeatId: string): Promise<RsProject[]> {
+    if (this.projectList instanceof Error) throw this.projectList;
+    return this.projectList;
+  }
 
   async seats(): Promise<RsSeat[]> {
     return this.rows;
@@ -66,6 +73,44 @@ function liveSeat(overrides: Partial<RsSeat> = {}): RsSeat {
     ...overrides,
   };
 }
+
+describe('createRsPijRecords project designation', () => {
+  const designated = (id: string, prime_id: string | null): RsProject => ({ slug: id, prime_id });
+  const seats = () => [
+    liveSeat({ id: 'designated-null-role', role: null }),
+    liveSeat({ id: 'role-only-prime', role: 'prime' }),
+    liveSeat({ id: 'plain', role: null }),
+  ];
+  const primeIds = (rows: Array<{ id: string; orchestrationRole?: string | null }>) =>
+    rows.filter((row) => row.orchestrationRole === 'prime').map((row) => row.id);
+
+  it('treats a designated seat with role null as prime in list and tree; role prime stays prime', async () => {
+    const client = new FakeRsClient(seats(), undefined, [
+      designated('p', 'designated-null-role'),
+      designated('unset', null),
+    ]);
+    const records = createRsPijRecords({ client });
+
+    expect(primeIds(await records.list())).toEqual(['designated-null-role', 'role-only-prime']);
+    const forest = await records.tree({ global: true });
+    expect(forest.roots.filter((node) => node.prime).map((node) => node.id)).toEqual([
+      'designated-null-role',
+      'role-only-prime',
+    ]);
+    expect(forest.roots.find((node) => node.id === 'plain')?.prime).toBeUndefined();
+  });
+
+  it('falls back to role-only when the projects read fails, and the list still returns', async () => {
+    const client = new FakeRsClient(seats(), undefined, new RsError('wire', 'projects down'));
+    const records = createRsPijRecords({ client });
+
+    expect(primeIds(await records.list())).toEqual(['role-only-prime']);
+    const forest = await records.tree({ global: true });
+    expect(forest.roots.filter((node) => node.prime).map((node) => node.id)).toEqual([
+      'role-only-prime',
+    ]);
+  });
+});
 
 describe('createRsPijRecords', () => {
   it('maps every rs seat field and preserves source-unavailable provenance', async () => {

@@ -101,6 +101,9 @@ function makeRsDeps(
     async state(id) {
       return { id, unsupported: [] };
     },
+    async projects() {
+      return [];
+    },
     async cards() {
       return { cards: [], unavailable: [] };
     },

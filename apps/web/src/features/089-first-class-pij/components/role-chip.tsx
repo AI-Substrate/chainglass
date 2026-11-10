@@ -9,7 +9,8 @@
  *
  * What the tree DOES attest is structure, and structure gives three honest roles:
  *
- *   - **Prime** — the TREE node carries `prime`
+ *   - **Prime** — the TREE node carries `prime` (a pij project record designates the seat, or its
+ *     `role` says `prime`; designation is pij's prime authority and `role` is often left empty)
  *   - **PM** — the node has children (it is managing seats; the tree says so)
  *   - **Worker** — a leaf, or a row the tree has not placed
  *

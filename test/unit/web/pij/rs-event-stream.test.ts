@@ -59,6 +59,10 @@ class FakeRsClient implements RsClient {
     return { id, unsupported: [] };
   }
 
+  async projects() {
+    return [];
+  }
+
   async cards() {
     return { cards: [], unavailable: [] };
   }

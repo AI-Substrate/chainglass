@@ -32,7 +32,8 @@ class HttpRsPijRecords implements RsPijRecords {
     if (seats.length === 0) return [];
 
     const unavailable = await this.sourceUnavailable(seats[0]);
-    return seats.map((seat) => mapSeat(seat, unavailable));
+    const primes = await this.designatedPrimes(seats[0]);
+    return seats.map((seat) => mapSeat(seat, unavailable, primes));
   }
 
   state(id: string, _options: PijReadOptions = {}): Promise<PijStateReport> {
@@ -61,8 +62,9 @@ class HttpRsPijRecords implements RsPijRecords {
             (root) => typeof seat.folder === 'string' && isFolderInWorkspace(seat.folder, root)
           ))
     );
+    const primes = await this.designatedPrimes(seats[0]);
     return {
-      ...parentForest(scoped),
+      ...parentForest(scoped, primes),
       source: 'pij-rs',
       structureSource: 'rs-parent-links',
       rolesUnavailable: (await this.sourceUnavailable(seats[0])).includes('role'),
@@ -92,6 +94,23 @@ class HttpRsPijRecords implements RsPijRecords {
     };
   }
 
+  /**
+   * Seat ids that a project record designates as prime. Designation, not the optional seat `role`
+   * label, is pij's prime authority. A failed read degrades to role-only rather than failing the
+   * roster: the seats are still true, only the designation overlay is missing.
+   */
+  private async designatedPrimes(caller: RsSeat | undefined): Promise<ReadonlySet<string>> {
+    if (!caller) return new Set();
+    try {
+      const projects = await this.client.projects(caller.id);
+      return new Set(
+        projects.flatMap(({ prime_id }) => (typeof prime_id === 'string' ? [prime_id] : []))
+      );
+    } catch {
+      return new Set();
+    }
+  }
+
   private async sourceUnavailable(seat: RsSeat | undefined): Promise<string[]> {
     if (!seat) return [];
     // `unsupported` is source-wide capability. Reuse one probe per roster/forest operation,
@@ -114,7 +133,10 @@ class HttpRsPijRecords implements RsPijRecords {
 }
 
 /** Shape explicit parent links only; neither position nor a seat name confers a role. */
-function parentForest(seats: RsSeat[]): Pick<PijTree, 'roots' | 'structureWarnings'> {
+function parentForest(
+  seats: RsSeat[],
+  primes: ReadonlySet<string> = new Set()
+): Pick<PijTree, 'roots' | 'structureWarnings'> {
   const byId = new Map<string, RsSeat>();
   const promoted = new Set<string>();
   const structureWarnings: string[] = [];
@@ -139,8 +161,10 @@ function parentForest(seats: RsSeat[]): Pick<PijTree, 'roots' | 'structureWarnin
         harness: seat.harness,
         parent: seat.parent,
         children: [],
-        ...(Object.hasOwn(seat, 'role') ? { orchestrationRole: seat.role } : {}),
-        ...(seat.role === 'prime' ? { prime: true } : {}),
+        ...(Object.hasOwn(seat, 'role') || primes.has(seat.id)
+          ? { orchestrationRole: effectiveRole(seat, primes) }
+          : {}),
+        ...(effectiveRole(seat, primes) === 'prime' ? { prime: true } : {}),
       },
     ])
   );
@@ -189,7 +213,16 @@ interface RsTerminal {
   tombstoneReason: string | null;
 }
 
-function mapSeat(seat: RsSeat, unavailable: string[]): PijListRow & { terminal?: RsTerminal } {
+/** A project designation makes a seat prime; otherwise the seat's own `role` stands. */
+function effectiveRole(seat: RsSeat, primes: ReadonlySet<string>): string | null | undefined {
+  return primes.has(seat.id) ? 'prime' : seat.role;
+}
+
+function mapSeat(
+  seat: RsSeat,
+  unavailable: string[],
+  primes: ReadonlySet<string> = new Set()
+): PijListRow & { terminal?: RsTerminal } {
   if (typeof seat.folder !== 'string') {
     throw new RsError('wire', `pij-rs seat ${seat.id} omitted folder`);
   }
@@ -197,7 +230,7 @@ function mapSeat(seat: RsSeat, unavailable: string[]): PijListRow & { terminal?:
   const {
     proc,
     semantic_state: semanticState,
-    role,
+    role: _role,
     model,
     provider,
     tombstoned_at: tombstoneCursor,
@@ -219,7 +252,9 @@ function mapSeat(seat: RsSeat, unavailable: string[]): PijListRow & { terminal?:
     folder: seat.folder,
     pid: proc?.pid ?? null,
     ...(Object.hasOwn(seat, 'semantic_state') ? { semanticState } : {}),
-    ...(Object.hasOwn(seat, 'role') ? { orchestrationRole: role } : {}),
+    ...(Object.hasOwn(seat, 'role') || primes.has(seat.id)
+      ? { orchestrationRole: effectiveRole(seat, primes) }
+      : {}),
     ...(Object.hasOwn(seat, 'model') ? { boundModel: model } : {}),
     ...(Object.hasOwn(seat, 'provider') ? { boundProvider: provider } : {}),
     ...(terminal ? { terminal } : {}),
