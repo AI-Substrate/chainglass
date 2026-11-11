@@ -1,0 +1,25 @@
+{
+	"dd": {
+		"schema": "pij/memory"
+	},
+	"references": [],
+	"sections": [
+		{
+			"name": "meta",
+			"value": {
+				"date": "2026-11-11",
+				"hook": "Open at stand-up or when a watchdog nudge lists stale cards / idle-quiet seats and you wonder whether to act",
+				"tags": [
+					"pa",
+					"watchdog",
+					"rounds"
+				],
+				"title": "Chainglass PA rounds: what is and isn't a trigger"
+			}
+		},
+		{
+			"name": "body",
+			"value": "Chainglass PA, stood up 2026-11-10 for prime pij-outer-bobcat. Most rounds are \"nothing to do\"; that is correct, send nothing.\n\n- Exempt: the prime and pij-lonely-antelope (retiring prime, 247k, cold). Its \"idle, quiet\" and stale-card lines repeat every nudge; ignore them.\n- Stale card is a trigger only on a seat that is WORKING (or owes a card). Idle/done/prime/PA seats: no. Send the `pij report now` line once; it worked (liquid-carp refreshed its card). Never to a cold seat.\n- pij-extended-bison: unknown seat, idle, no parent. Do not wake; tell the prime if it starts working.\n- No seat ever neared 600k during my tenure (max worker 234k, prime 214k), so no compaction was needed.\n- Fleet membership churns (workers and a second PA, pij-funny-alligator, appeared mid-day): the prime seats them; don't touch.\n- Repo rules in chainglass-governance/.harness/government/RULINGS.md: text-only questions, never touch `just dev`, never capture-pane unless the PA brief's unsent-text/dialog case, never write ~/pi-hacking/pij.\n- The \"no turn for N hours\" wake fires after quiet overnight stretches; it is not an alarm if the fleet was idle.\n"
+		}
+	]
+}
