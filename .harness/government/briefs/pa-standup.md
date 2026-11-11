@@ -5,7 +5,7 @@ Read it in full; these are its slots.
 
 | Slot | Value |
 |---|---|
-| `<pa-id>` | pij-swift-skink |
+| `<pa-id>` | pij-funny-alligator (OMP Opus 5.5 medium; replaced Claude seat pij-swift-skink 2026-11-11, RULINGS rule 11) |
 | `<prime-id>` | pij-outer-bobcat |
 | Repository | `/Users/jordanknight/substrate/chainglass` and all its worktrees (`git -C /Users/jordanknight/substrate/chainglass worktree list`) |
 | `<exempt-seats>` | pij-outer-bobcat (prime), pij-lonely-antelope (retiring prime; leave it alone) |
