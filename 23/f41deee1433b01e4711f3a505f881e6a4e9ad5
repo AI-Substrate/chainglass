@@ -1,0 +1,19 @@
+.harness/government/RULINGS.md
+  s_70fdea440cd7e2::t_b2457fbc0579c8 17,26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "23f41deee1433b01e4711f3a505f881e6a4e9ad5",
+  "prompts": {},
+  "sessions": {
+    "s_70fdea440cd7e2": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "5df2e110-95a2-43ac-8ac4-a8a0a8540e43",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
