@@ -17,6 +17,7 @@ import { useSDKSetting } from '@/lib/sdk/use-sdk-setting';
 import { useKeyboardOpen } from '../hooks/use-keyboard-open';
 import { useOpenTerminalPath } from '../hooks/use-open-terminal-path';
 import { useTerminalSocket } from '../hooks/use-terminal-socket';
+import { useWindowsPoll } from '../hooks/use-windows-poll';
 import { createPathLinkProvider } from '../lib/path-link-provider';
 import { applyResyncOnStatus } from '../lib/resync-on-connect';
 import { resolveTerminalTheme } from '../lib/terminal-themes';
@@ -187,6 +188,7 @@ export default function TerminalInner({
         setPaneResizePending(false);
       },
       onWindows: async ({ windows, error }) => {
+        windowsAnswered();
         onWindowsChange?.(windows);
         if (error && error !== windowErrorRef.current) {
           const { toast } = await import('sonner');
@@ -260,15 +262,12 @@ export default function TerminalInner({
     if (resizeMode && sessionName && status === 'connected') refreshPaneLayout();
   }, [resizeMode, status, sessionName, refreshPaneLayout]);
 
-  // Native tmux shortcuts and other attached clients can also change windows.
-  useEffect(() => {
-    onWindowsChange?.([]);
-    if (!onWindowsChange || !isVisible || !sessionName || status !== 'connected') return;
-    const refresh = () => send(JSON.stringify({ type: 'windows' }));
-    refresh();
-    const timer = setInterval(refresh, 2000);
-    return () => clearInterval(timer);
-  }, [isVisible, sessionName, status, send, onWindowsChange]);
+  // Native tmux shortcuts and other attached clients can also change windows, so the strip polls.
+  const windowsAnswered = useWindowsPoll(
+    Boolean(onWindowsChange && isVisible && sessionName && status === 'connected'),
+    send,
+    onWindowsChange
+  );
 
   const selectWindow = useCallback(
     (windowId: string, windowIndex: number) => {

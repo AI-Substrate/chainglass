@@ -362,6 +362,8 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
             // argv (and `--` for tmux's option parser) closes shell injection;
             // validation keeps labels product- and tmux-level sane.
             await deps.execCommand('tmux', ['rename-window', '-t', sessionName, '--', msg.name]);
+            // The client re-polls on success; it must see the new name, not the shared list.
+            manager.forgetWindowList(sessionName);
             ws.send(JSON.stringify({ type: 'rename-window', renamed: true }));
           } catch (err) {
             const errMsg = err instanceof Error ? err.message : 'Unknown error';

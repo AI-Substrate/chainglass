@@ -445,4 +445,52 @@ describe('terminal WebSocket window controls', () => {
       error: 'tmux list-windows timed out after 3000ms',
     });
   });
+
+  it('serves every connection on one session from one list-windows per poll window', async () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
+    try {
+      const execCommand = vi.fn((_command: string, args: string[]) =>
+        args[0] === 'list-windows' ? initial : ''
+      );
+      const spawner = createFakePtySpawner();
+      const server = createTerminalServer({
+        execCommand: async (command, args) => execCommand(command, args),
+        spawnPty: spawner.spawn,
+      });
+      const tabs = [new FakeWebSocket(), new FakeWebSocket()];
+      for (const tab of tabs) {
+        await server.handleConnection(
+          tab as unknown as import('ws').WebSocket,
+          'terminal-session',
+          process.cwd()
+        );
+        tab.sent.length = 0;
+      }
+      const listWindowsCalls = () =>
+        execCommand.mock.calls.filter(([, args]) => args[0] === 'list-windows').length;
+      const poll = () => Promise.all(tabs.map((tab) => tab.simulateMessage({ type: 'windows' })));
+
+      // Both tabs poll at once: one read in flight, its answer handed to both.
+      await poll();
+      expect(listWindowsCalls()).toBe(1);
+      for (const tab of tabs) {
+        expect(JSON.parse(tab.sent[0]).windows.map((w: { id: string }) => w.id)).toEqual([
+          '@3',
+          '@12',
+        ]);
+      }
+
+      // Still inside the window: the shared answer, no new read.
+      now.mockReturnValue(1_001_000);
+      await poll();
+      expect(listWindowsCalls()).toBe(1);
+
+      // The next 2 s poll reads tmux once more, for both tabs.
+      now.mockReturnValue(1_002_000);
+      await poll();
+      expect(listWindowsCalls()).toBe(2);
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
 });

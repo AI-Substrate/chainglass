@@ -52,7 +52,11 @@ const execCommand = (command: string, args: readonly string[]): Promise<string> 
 
 class FakeSocket extends EventEmitter {
   readyState = 1;
-  send(_data: string): void {}
+  /** A `windows` request is out and unanswered (the client's single-flight flag). */
+  pending = false;
+  send(data: string): void {
+    if (data.startsWith('{"type":"windows"')) this.pending = false;
+  }
   close(): void {
     this.readyState = 3;
   }
@@ -69,12 +73,16 @@ const fakePty = (): PtyProcess => ({
 
 const server = createTerminalServer({ execCommand, spawnPty: fakePty, sampleExec: execCommand });
 
-/** Today's client (terminal-inner.tsx): `windows` at once, then every 2 s while visible. */
+/** The client (use-windows-poll.ts): `windows` at once, then every 2 s, never two in flight. */
 const timers: NodeJS.Timeout[] = [];
 for (const session of sessions) {
   const socket = new FakeSocket();
   await server.handleConnection(socket as unknown as WebSocket, session, process.cwd());
-  const refresh = () => socket.emit('message', JSON.stringify({ type: 'windows' }));
+  const refresh = () => {
+    if (socket.pending) return;
+    socket.pending = true;
+    socket.emit('message', JSON.stringify({ type: 'windows' }));
+  };
   refresh();
   timers.push(setInterval(refresh, 2000));
 }

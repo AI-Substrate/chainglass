@@ -52,6 +52,11 @@ const MAX_LISTED_JOBS = 12;
 const QUESTION_READS_PER_SAMPLE = 5;
 /** One pij seat roster read serves every sample within this window. */
 const SEATS_TTL_MS = 5_000;
+/**
+ * One `list-windows` read serves every connection polling a session within this window after it
+ * answers (polls are 2s apart). A read still in flight is shared however long it takes.
+ */
+const WINDOW_LIST_TTL_MS = 1_500;
 
 interface ParsedSession {
   name: string;
@@ -96,6 +101,11 @@ export class TmuxSessionManager {
   private processTable: { at: number; table: Promise<ProcessTable> } | undefined;
   private readonly readSeats: (() => Promise<PaneSeat[]>) | undefined;
   private seats: { at: number; seats: Promise<PaneSeat[]> } | undefined;
+  /** Per session: the latest `list-windows` read, shared while in flight and for the TTL after. */
+  private readonly windowLists = new Map<
+    string,
+    { output: Promise<string>; answeredAt?: number }
+  >();
 
   constructor(
     exec: CommandExecutor,
@@ -166,17 +176,12 @@ export class TmuxSessionManager {
   /**
    * Read native indices and active state only from the exact attached session, annotated with
    * CPU-based work activity sampled in the background when a sampling runner is configured.
+   * `fresh` skips the shared read: a caller that just changed the windows must see the change.
    */
-  async listWindows(sessionName: string): Promise<TerminalWindow[]> {
+  async listWindows(sessionName: string, fresh = false): Promise<TerminalWindow[]> {
     if (!this.validateSessionName(sessionName)) throw new Error('Invalid session name');
-    const output = await this.exec('tmux', [
-      'list-windows',
-      '-t',
-      `=${sessionName}`,
-      '-F',
-      '#{window_id}\t#{window_index}\t#{window_active}\t#{window_name}',
-    ]);
-    const windows = output
+    const output = await this.readWindowList(sessionName, fresh);
+    return output
       .split('\n')
       .filter((line) => line.length > 0)
       .map((line) => {
@@ -199,9 +204,48 @@ export class TmuxSessionManager {
           seatId: this.seatIds.get(`${sessionName}:${id}`) ?? null,
         };
       });
-    // Fire-and-forget: the list returns now with the last completed reading (at most one poll old).
-    void this.sampleActivity(sessionName);
-    return windows;
+  }
+
+  /** Drop the shared window list, so the next poll reads tmux (after a rename, say). */
+  forgetWindowList(sessionName: string): void {
+    this.windowLists.delete(sessionName);
+  }
+
+  /**
+   * At most one `list-windows` per session in flight, its answer shared by every connection on
+   * that session for {@link WINDOW_LIST_TTL_MS}. Each read that tmux answers also starts one
+   * background activity sample (fire-and-forget: the list returns now with the last completed
+   * reading, at most one poll old), so N tabs on a session cost one read and one sample per poll.
+   */
+  private readWindowList(sessionName: string, fresh: boolean): Promise<string> {
+    const shared = this.windowLists.get(sessionName);
+    if (
+      !fresh &&
+      shared &&
+      (shared.answeredAt === undefined || Date.now() - shared.answeredAt < WINDOW_LIST_TTL_MS)
+    ) {
+      return shared.output;
+    }
+    const output = this.exec('tmux', [
+      'list-windows',
+      '-t',
+      `=${sessionName}`,
+      '-F',
+      '#{window_id}\t#{window_index}\t#{window_active}\t#{window_name}',
+    ]);
+    const entry: { output: Promise<string>; answeredAt?: number } = { output };
+    this.windowLists.set(sessionName, entry);
+    output.then(
+      () => {
+        entry.answeredAt = Date.now();
+        void this.sampleActivity(sessionName);
+      },
+      () => {
+        // A failed read is never shared: the next poll asks tmux again.
+        if (this.windowLists.get(sessionName) === entry) this.windowLists.delete(sessionName);
+      }
+    );
+    return output;
   }
 
   /**
@@ -452,7 +496,7 @@ export class TmuxSessionManager {
     if (!Number.isSafeInteger(windowIndex) || windowIndex < 0) {
       throw new Error('Invalid window index');
     }
-    const window = (await this.listWindows(sessionName)).find(
+    const window = (await this.listWindows(sessionName, true)).find(
       (candidate) => candidate.id === windowId && candidate.index === windowIndex
     );
     if (!window) throw new Error('Window is not in the attached session');
@@ -471,7 +515,7 @@ export class TmuxSessionManager {
       ])
     ).trim();
     if (outcome !== 'window-selected') throw new Error('The tmux window changed');
-    return this.listWindows(sessionName);
+    return this.listWindows(sessionName, true);
   }
 
   /**
@@ -508,7 +552,7 @@ export class TmuxSessionManager {
     if (!/^@\d+$/.test(windowId)) throw new Error('tmux did not report the new window');
     await this.exec('tmux', ['send-keys', '-t', windowId, '-l', NEW_WINDOW_AGENTS[agent].command]);
     await this.exec('tmux', ['send-keys', '-t', windowId, 'Enter']);
-    return this.listWindows(sessionName);
+    return this.listWindows(sessionName, true);
   }
 
   /** Check if a specific tmux session exists */
