@@ -104,6 +104,12 @@ export default function TerminalInner({
   const [paneLayout, setPaneLayout] = useState<TmuxWindowLayout | null>(null);
   const [paneLayoutError, setPaneLayoutError] = useState<string | null>(null);
   const [paneResizePending, setPaneResizePending] = useState(false);
+  /**
+   * The sidecar's own `status: connected` frame arrived. The socket opens before the sidecar
+   * listens for control frames (it authenticates and checks tmux first), so a frame sent on open
+   * can be dropped without a reply; control requests wait for this.
+   */
+  const [sidecarReady, setSidecarReady] = useState(false);
   const windowErrorRef = useRef<string | undefined>(undefined);
   // Plan 084 T007: send {type:'resync'} once per WS lifecycle on first
   // 'connected' event. Re-armed when status leaves 'connected' (so reconnect
@@ -200,6 +206,7 @@ export default function TerminalInner({
         // Clear auth error on successful connection
         if (_status === 'connected') {
           setAuthError(null);
+          setSidecarReady(true);
         }
         // DYK-01: Show toast once per mount when tmux is unavailable
         if (_status === 'connected' && _tmux === false && !tmuxWarningShownRef.current) {
@@ -248,6 +255,7 @@ export default function TerminalInner({
   useEffect(() => {
     if (status !== 'connected') {
       resyncSentRef.current = false;
+      setSidecarReady(false);
     }
   }, [status]);
 
@@ -264,7 +272,7 @@ export default function TerminalInner({
 
   // Native tmux shortcuts and other attached clients can also change windows, so the strip polls.
   const windowsAnswered = useWindowsPoll(
-    Boolean(onWindowsChange && isVisible && sessionName && status === 'connected'),
+    Boolean(onWindowsChange && isVisible && sessionName && status === 'connected' && sidecarReady),
     send,
     onWindowsChange
   );
