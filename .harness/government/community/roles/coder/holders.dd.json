@@ -1,0 +1,29 @@
+{
+	"dd": {
+		"schema": "pij/holders"
+	},
+	"references": [],
+	"sections": [
+		{
+			"name": "meta",
+			"value": {
+				"role": "coder"
+			}
+		},
+		{
+			"name": "rows",
+			"value": [
+				{
+					"assigned_by": "pij-outer-bobcat",
+					"from": "2026-11-11T23:50:13.831Z",
+					"harness": "omp",
+					"harness_session": "01a1cd04-be39-71d5-a922-2e3e5e10c71d",
+					"instance_key": "strip-067",
+					"machine": "ops.osk.lan",
+					"seat": "pij-vast-wombat",
+					"why": "Strip question popper and alerts, briefs/strip-question-popper.md"
+				}
+			]
+		}
+	]
+}
