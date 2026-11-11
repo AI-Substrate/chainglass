@@ -1,6 +1,6 @@
 # Brief — context-fill bar on terminal window buttons and the window overview
 
-Prime: pij-outer-bobcat · Coder: pij-elegant-marsupial · 2026-11-11 · Jordan asked.
+Prime: pij-outer-bobcat · Coder: pij-outer-toucan · 2026-11-11 · Jordan asked.
 
 ## Ask (Jordan's words, cleaned)
 
