@@ -1,0 +1,97 @@
+apps/web/src/features/064-terminal/components/context-fill-bar.tsx
+  s_3fca1b046d6321::t_8f10ecbce58a9a 1-47
+apps/web/src/features/064-terminal/components/terminal-pane-header.tsx
+  s_4be853806d0749::t_54e345990c6e5f 48,56,261,269,321-324,331
+apps/web/src/features/064-terminal/components/terminal-window-overview.tsx
+  s_f3eefcae664ebd::t_04c04c6bb68c34 8-9,34,286-289
+apps/web/src/features/064-terminal/domain.md
+  s_fc9ff2d9430e62::t_b43a5b7d9f611b 70-74
+apps/web/src/features/064-terminal/lib/context-fill.ts
+  s_5ee4837f326aec::t_1f95bc8295d216 1-69
+apps/web/src/features/064-terminal/server/terminal-ws.ts
+  s_f3eefcae664ebd::t_86f29de0c2a379 19,629-630,632-634
+apps/web/src/features/064-terminal/server/tmux-session-manager.ts
+  s_60a704184bf812::t_92fb4de30b9a04 102-103,195,210-211,264,266-267,269,302,318,325,329,355-356,401
+apps/web/src/features/064-terminal/types.ts
+  s_bcaa69ed84cd2a::t_c315c0991b96b0 9,197-198,214
+test/unit/web/features/064-terminal/context-fill.test.tsx
+  s_1c9a73cd974d2f::t_af3500920d52c7 1-64
+test/unit/web/features/064-terminal/terminal-prompt-send.test.tsx
+  s_f3eefcae664ebd::t_b27ba720a5c77c 41,55,69
+test/unit/web/features/064-terminal/terminal-ws-windows.test.ts
+  s_f3eefcae664ebd::t_9d11f42daad971 80,94,139,153,350,364
+test/unit/web/features/064-terminal/window-overview.test.ts
+  s_1c9a73cd974d2f::t_9dd5ded2c15285 58,70-75,77-82,92,95,121-122,148
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "26df904b4863492fe066bece89f2f7fbc5a2e61c",
+  "prompts": {},
+  "sessions": {
+    "s_1c9a73cd974d2f": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "7aee5e3c-5d8f-43e3-bf9e-47ff2ead168f",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_3fca1b046d6321": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "b61e3dc4-dae4-4bd1-abd3-177e586fdfe9",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_4be853806d0749": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "cca264a8-ab65-41d7-96bd-892b1929c606",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_5ee4837f326aec": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "44769c67-3148-4f3f-83a7-18d403c85f78",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_60a704184bf812": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "93dabe88-fd1b-4f2b-b01a-1a283b434b34",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_bcaa69ed84cd2a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5bef3a8e-dcc8-45ed-b4d1-f3882fa49167",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_f3eefcae664ebd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "eded6b2b-f28c-4a03-b038-1a74528e1755",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_fc9ff2d9430e62": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "dd3a5126-57eb-47c4-af83-e49c5a213a88",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
