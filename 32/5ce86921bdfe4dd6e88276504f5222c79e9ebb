@@ -1,0 +1,29 @@
+scripts/scripts.md
+  s_3fca1b046d6321::t_b2b00154652ff1 21
+scripts/tmux-launch-count.ts
+  s_70fdea440cd7e2::t_37ae82beef4f8f 1-126
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "325ce86921bdfe4dd6e88276504f5222c79e9ebb",
+  "prompts": {},
+  "sessions": {
+    "s_3fca1b046d6321": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "b61e3dc4-dae4-4bd1-abd3-177e586fdfe9",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_70fdea440cd7e2": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "5df2e110-95a2-43ac-8ac4-a8a0a8540e43",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
