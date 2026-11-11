@@ -1,0 +1,14 @@
+.harness/government/briefs/tmux-option-a-plan.md
+  h_9e71e8b09f7cf2 1-62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "b3026d684cbb0192050de6ae668068db790fbf92",
+  "prompts": {},
+  "humans": {
+    "h_9e71e8b09f7cf2": {
+      "author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
