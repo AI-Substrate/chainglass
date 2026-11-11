@@ -19,7 +19,10 @@
 					"harness": "claude",
 					"harness_session": "c9722159-9e82-4bab-9bca-a7ab2ebd6c23",
 					"machine": "ops.osk.lan",
+					"release_why": "Replaced by OMP PA per Jordan rule 11 (no Claude Code seats)",
+					"released_by": "pij-outer-bobcat",
 					"seat": "pij-swift-skink",
+					"to": "2026-11-11T02:49:27.951Z",
 					"why": "Chainglass PA stood up 2026-11-10"
 				}
 			]
