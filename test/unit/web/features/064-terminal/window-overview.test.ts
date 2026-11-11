@@ -55,7 +55,7 @@ describe('lastTextLine', () => {
 });
 
 describe('window seats and last lines', () => {
-  it('joins a seat only when its process runs in the pane, so a recycled pane id never matches', async () => {
+  it('joins a seat, with its context, only when its process runs in the pane, so a recycled pane id never matches', async () => {
     const exec = async (_: string, args: string[]) =>
       args[0] === 'list-windows' ? '@14\t14\t0\tshell\n@15\t15\t0\tclaude-seat\n' : '';
     const execAsync = async (command: string, args: string[]) => {
@@ -67,9 +67,19 @@ describe('window seats and last lines', () => {
       return '';
     };
     const readSeats = async () => [
-      { id: 'pij-live-seat', pane: '%1', pid: 201 },
+      {
+        id: 'pij-live-seat',
+        pane: '%1',
+        pid: 201,
+        context: { usedTokens: 600, windowTokens: 1000 },
+      },
       // %0's old seat: the pane id was reused and pid 999 is not in its tree.
-      { id: 'pij-gone-seat', pane: '%0', pid: 999 },
+      {
+        id: 'pij-gone-seat',
+        pane: '%0',
+        pid: 999,
+        context: { usedTokens: 900, windowTokens: 1000 },
+      },
     ];
     const manager = new TmuxSessionManager(exec, (() => null) as never, execAsync, readSeats);
 
@@ -79,9 +89,10 @@ describe('window seats and last lines', () => {
     );
 
     const [shell, claude] = await manager.listWindows('main');
-    expect(shell).toMatchObject({ seatId: null, lastLine: '$ ls' });
+    expect(shell).toMatchObject({ seatId: null, context: null, lastLine: '$ ls' });
     expect(claude).toMatchObject({
       seatId: 'pij-live-seat',
+      context: { usedTokens: 600, windowTokens: 1000 },
       lastLine: 'Should I also rename window 0?',
     });
   });
@@ -107,8 +118,8 @@ describe('window seats and last lines', () => {
       return '';
     };
     const readSeats = async () => [
-      { id: 'pij-quiet-heron', pane: '%1', pid: 101 },
-      { id: 'pij-named-seat', pane: '%2', pid: 200 },
+      { id: 'pij-quiet-heron', pane: '%1', pid: 101, context: null },
+      { id: 'pij-named-seat', pane: '%2', pid: 200, context: null },
     ];
     const manager = new TmuxSessionManager(exec, (() => null) as never, execAsync, readSeats);
 
@@ -134,6 +145,7 @@ describe('overviewWindows', () => {
     background: null,
     lastLine: null,
     seatId: null,
+    context: null,
     ...overrides,
   });
 

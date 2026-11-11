@@ -16,6 +16,7 @@ import fs from 'node:fs';
 import https from 'node:https';
 import { activeSigningSecret, findWorkspaceRoot } from '@chainglass/shared/auth-bootstrap-code';
 import { type WebSocket, WebSocketServer } from 'ws';
+import { seatContext } from '../lib/context-fill';
 import { isValidWindowName } from '../lib/window-name-validation';
 import type {
   CommandExecutor,
@@ -625,10 +626,12 @@ if (isDirectRun) {
     execCommand,
     spawnPty,
     sampleExec: execCommand,
+    // `/v1/cards`, not `/v1/seats`: only the state cards carry each seat's context use, with the
+    // same pane and pid. Seats are local to this machine's tmux, as cards are.
     readSeats: async () =>
-      (await rs.seats()).flatMap((seat) =>
-        typeof seat.pane === 'string' && typeof seat.proc?.pid === 'number'
-          ? [{ id: seat.id, pane: seat.pane, pid: seat.proc.pid }]
+      (await rs.cards()).cards.flatMap((card) =>
+        typeof card.pane === 'string' && typeof card.pid === 'number'
+          ? [{ id: card.id, pane: card.pane, pid: card.pid, context: seatContext(card) }]
           : []
       ),
   });

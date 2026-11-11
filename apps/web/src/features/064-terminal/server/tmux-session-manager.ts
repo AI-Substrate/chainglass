@@ -99,8 +99,8 @@ export class TmuxSessionManager {
   >();
   /** Per `session:windowId`: the screen's last line of real text, from the latest read. */
   private readonly lastLines = new Map<string, string | null>();
-  /** Per `session:windowId`: the pij seat running there. */
-  private readonly seatIds = new Map<string, string>();
+  /** Per `session:windowId`: the pij seat running there, and its context use. */
+  private readonly windowSeats = new Map<string, PaneSeat>();
   private processTable:
     | { at: number; table: Promise<{ table: ProcessTable; seconds: number }> }
     | undefined;
@@ -192,6 +192,7 @@ export class TmuxSessionManager {
       .map((line) => {
         const [id, index, active, ...name] = line.split('\t');
         const reading = this.readings.get(`${sessionName}:${id}`);
+        const seat = this.windowSeats.get(`${sessionName}:${id}`);
         return {
           id,
           index: Number(index),
@@ -206,7 +207,8 @@ export class TmuxSessionManager {
             (reading?.activeSeconds ?? null) === null &&
             this.questions.get(`${sessionName}:${id}`)?.asks === true,
           lastLine: this.lastLines.get(`${sessionName}:${id}`) ?? null,
-          seatId: this.seatIds.get(`${sessionName}:${id}`) ?? null,
+          seatId: seat?.id ?? null,
+          context: seat?.context ?? null,
         };
       });
   }
@@ -259,12 +261,12 @@ export class TmuxSessionManager {
    * automatic-rename off, so this happens once, and a window someone named is never touched.
    */
   private async nameWindowsAfterSeats(
-    samples: Map<string, { seatId: string | null; unnamed: boolean }>
+    samples: Map<string, { seat: PaneSeat | null; unnamed: boolean }>
   ): Promise<void> {
-    for (const [windowId, sample] of samples) {
-      if (!sample.unnamed || !sample.seatId || !isValidWindowName(sample.seatId)) continue;
+    for (const [windowId, { seat, unnamed }] of samples) {
+      if (!unnamed || !seat || !isValidWindowName(seat.id)) continue;
       try {
-        await this.sampleExec?.('tmux', ['rename-window', '-t', windowId, '--', sample.seatId]);
+        await this.sampleExec?.('tmux', ['rename-window', '-t', windowId, '--', seat.id]);
       } catch {
         // Naming is cosmetic; the next sample tries again.
       }
@@ -297,7 +299,7 @@ export class TmuxSessionManager {
         treeCpu: number;
         activityAt: number;
         jobs: number[];
-        seatId: string | null;
+        seat: PaneSeat | null;
         /** tmux still names the window after its command: nobody has named it. */
         unnamed: boolean;
       }
@@ -313,18 +315,18 @@ export class TmuxSessionManager {
           treeCpu: 0,
           activityAt: Number(activityText) || 0,
           jobs: [],
-          seatId: null,
+          seat: null,
           unnamed: autoRename === '1',
         };
         sample.treeCpu += tree;
         // A pane id is recycled once its pane closes, so the seat must also be running in it.
         const seat = paneId ? seatsByPane.get(paneId) : undefined;
         if (
-          !sample.seatId &&
+          !sample.seat &&
           seat &&
           (seat.pid === panePid || descendantPids(table, panePid).includes(seat.pid))
         ) {
-          sample.seatId = seat.id;
+          sample.seat = seat;
         }
         // First agent found across the window's panes marks the window.
         if (!sample.agent) {
@@ -350,8 +352,8 @@ export class TmuxSessionManager {
         listed.add(key);
         if (sample.agent) this.agentKinds.set(key, sample.agent.kind);
         else this.agentKinds.delete(key);
-        if (sample.seatId) this.seatIds.set(key, sample.seatId);
-        else this.seatIds.delete(key);
+        if (sample.seat) this.windowSeats.set(key, sample.seat);
+        else this.windowSeats.delete(key);
         // A window whose screen moved but was not read this sample (over the read budget) keeps
         // its reading; it is read first next sample, so its working state lags one poll at most.
         if (!deferred.has(windowId)) {
@@ -396,7 +398,7 @@ export class TmuxSessionManager {
         this.screens,
         this.lastTreeCpu,
         this.lastLines,
-        this.seatIds,
+        this.windowSeats,
       ]) {
         for (const key of map.keys()) {
           if (key.startsWith(`${sessionName}:`) && !listed.has(key)) map.delete(key);

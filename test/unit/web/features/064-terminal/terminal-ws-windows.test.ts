@@ -77,6 +77,7 @@ describe('terminal WebSocket window controls', () => {
           background: null,
           lastLine: null,
           seatId: null,
+          context: null,
         },
         {
           id: '@12',
@@ -90,6 +91,7 @@ describe('terminal WebSocket window controls', () => {
           background: null,
           lastLine: null,
           seatId: null,
+          context: null,
         },
       ],
     });
@@ -134,6 +136,7 @@ describe('terminal WebSocket window controls', () => {
           background: null,
           lastLine: null,
           seatId: null,
+          context: null,
         },
         {
           id: '@12',
@@ -147,6 +150,7 @@ describe('terminal WebSocket window controls', () => {
           background: null,
           lastLine: null,
           seatId: null,
+          context: null,
         },
       ],
     });
@@ -343,6 +347,7 @@ describe('terminal WebSocket window controls', () => {
           background: null,
           lastLine: null,
           seatId: null,
+          context: null,
         },
         {
           id: '@12',
@@ -356,6 +361,7 @@ describe('terminal WebSocket window controls', () => {
           background: null,
           lastLine: null,
           seatId: null,
+          context: null,
         },
       ],
     });

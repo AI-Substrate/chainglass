@@ -45,6 +45,7 @@ import {
 } from 'lucide-react';
 import { type FormEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AGENT_MARK } from '../lib/agent-kind';
+import { contextLabel } from '../lib/context-fill';
 import { copyTmuxBuffer } from '../lib/copy-tmux-buffer';
 import { NEW_WINDOW_AGENTS, type NewWindowAgent } from '../lib/new-window-agents';
 import { CHILD_BUSY_FRACTION, formatIdle } from '../lib/window-activity';
@@ -52,6 +53,7 @@ import { getWindowNameValidationError } from '../lib/window-name-validation';
 import { matchesQuery } from '../lib/window-overview';
 import type { ConnectionStatus } from '../types';
 import { ConnectionStatusBadge } from './connection-status-badge';
+import { ContextFillBar } from './context-fill-bar';
 import { TerminalPromptDrawer } from './terminal-prompt-drawer';
 import { useTerminalSingleton } from './terminal-singleton-provider';
 import { TerminalThemeSelect } from './terminal-theme-select';
@@ -256,6 +258,7 @@ export function TerminalPaneHeader({
                   : idleLabel
                     ? `idle ${idleLabel}`
                     : null;
+              const context = window.context ? contextLabel(window.context) : null;
               return (
                 <Tooltip key={`${window.id}:${window.index}`}>
                   <TooltipTrigger asChild>
@@ -263,7 +266,7 @@ export function TerminalPaneHeader({
                       type="button"
                       onClick={() => selectWindow?.(window.id, window.index)}
                       disabled={connectionStatus !== 'connected' || !selectWindow}
-                      aria-label={`Window ${window.index}: ${window.name}${seatLabel ? ` (${seatLabel})` : ''}${agent ? `, ${agent.label}` : ''}${status ? `, ${status}` : ''}${background ? `, ${background.jobs.length} background ${background.jobs.length === 1 ? 'job' : 'jobs'}` : ''}`}
+                      aria-label={`Window ${window.index}: ${window.name}${seatLabel ? ` (${seatLabel})` : ''}${agent ? `, ${agent.label}` : ''}${status ? `, ${status}` : ''}${background ? `, ${background.jobs.length} background ${background.jobs.length === 1 ? 'job' : 'jobs'}` : ''}${context ? `, ${context}` : ''}`}
                       aria-pressed={window.active}
                       data-output-active={outputActive ? 'true' : 'false'}
                       className={`relative flex h-7 min-w-8 shrink-0 flex-col items-center overflow-hidden rounded px-1 pt-0.5 text-[11px] font-medium leading-none tabular-nums focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-50 ${tone} ${matchTone}`}
@@ -315,13 +318,17 @@ export function TerminalPaneHeader({
                           {asking ? idleLabel : activeLabel}
                         </span>
                       ) : null}
+                      <ContextFillBar
+                        context={window.context}
+                        className="absolute inset-y-0 right-0 w-[3px]"
+                      />
                     </button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="max-w-72">
                     <div className="font-medium">{window.name}</div>
                     {seatLabel ? <div className="font-mono opacity-80">{seatLabel}</div> : null}
                     <div className="opacity-80">
-                      {[agent?.label, status].filter(Boolean).join(' · ')}
+                      {[agent?.label, status, context].filter(Boolean).join(' · ')}
                     </div>
                     {background ? (
                       <ul className="mt-1 space-y-0.5 tabular-nums">

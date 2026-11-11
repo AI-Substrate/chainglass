@@ -5,7 +5,8 @@
  *
  * One row per tmux window: agent colour, index and name, the pij seat's role, state and status
  * card (drawn by the pij rail's own components), working / asking / idle time, background jobs,
- * and the last line of text on its screen. Filtered to recently active windows by default;
+ * the last line of text on its screen, and the seat's context-fill bar on the right edge.
+ * Filtered to recently active windows by default;
  * prime windows are always listed first, whatever the filter. Clicking a row (or Enter on the
  * highlighted one) selects that window and folds the panel away.
  *
@@ -30,6 +31,7 @@ import {
   overviewWindows,
 } from '../lib/window-overview';
 import type { TerminalWindow } from '../types';
+import { ContextFillBar } from './context-fill-bar';
 
 export interface TerminalWindowOverviewProps {
   open: boolean;
@@ -280,6 +282,10 @@ function OverviewRow({
             <StatusSummary placement={seat.placement} status={seat.status} />
           </span>
         ) : null}
+      </span>
+      {/* Fixed slot, so rows with and without a bar line up. */}
+      <span className="flex w-[3px] shrink-0 self-stretch">
+        <ContextFillBar context={window.context} className="relative w-full" />
       </span>
     </button>
   );

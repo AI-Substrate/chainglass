@@ -38,6 +38,7 @@ const windowFixtures: TerminalWindow[] = [
     background: null,
     lastLine: null,
     seatId: null,
+    context: null,
   },
   {
     id: '@7',
@@ -51,6 +52,7 @@ const windowFixtures: TerminalWindow[] = [
     background: null,
     lastLine: null,
     seatId: null,
+    context: null,
   },
   {
     id: '@1',
@@ -64,6 +66,7 @@ const windowFixtures: TerminalWindow[] = [
     background: null,
     lastLine: null,
     seatId: null,
+    context: null,
   },
 ];
 const selectWindowStub = (windowId: string, windowIndex: number) =>
