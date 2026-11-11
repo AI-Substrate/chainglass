@@ -1,0 +1,51 @@
+apps/web/app/api/worktree-activity/route.ts
+  s_bcaa69ed84cd2a::t_d284db715f1815 4-6,14,18,20,23
+apps/web/src/components/workspaces/workspace-nav.tsx
+  s_f3eefcae664ebd::t_90c0788429c9da 70
+apps/web/src/hooks/use-worktree-activity.ts
+  s_f3eefcae664ebd::t_85f73da85e9f2e 6-7,42,44
+apps/web/src/lib/server/worktree-activity.ts
+  s_e972fad582c2ef::t_75702686e33828 1-80
+test/unit/web/lib/server/worktree-activity.test.ts
+  s_db4a420e4b0135::t_01b8fe64b9531b 1-62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "f444bcbc91bf0f465b1113a6517a3c3e279db9ad",
+  "prompts": {},
+  "sessions": {
+    "s_bcaa69ed84cd2a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5bef3a8e-dcc8-45ed-b4d1-f3882fa49167",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_db4a420e4b0135": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "7a772de7-c56c-4be6-b78f-8c87805252cf",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_e972fad582c2ef": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "3f764eb2-050e-4043-a5e9-638f1574faa5",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_f3eefcae664ebd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "eded6b2b-f28c-4a03-b038-1a74528e1755",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
