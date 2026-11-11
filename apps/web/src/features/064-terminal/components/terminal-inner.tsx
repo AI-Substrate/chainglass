@@ -104,12 +104,6 @@ export default function TerminalInner({
   const [paneLayout, setPaneLayout] = useState<TmuxWindowLayout | null>(null);
   const [paneLayoutError, setPaneLayoutError] = useState<string | null>(null);
   const [paneResizePending, setPaneResizePending] = useState(false);
-  /**
-   * The sidecar's own `status: connected` frame arrived. The socket opens before the sidecar
-   * listens for control frames (it authenticates and checks tmux first), so a frame sent on open
-   * can be dropped without a reply; control requests wait for this.
-   */
-  const [sidecarReady, setSidecarReady] = useState(false);
   const windowErrorRef = useRef<string | undefined>(undefined);
   // Plan 084 T007: send {type:'resync'} once per WS lifecycle on first
   // 'connected' event. Re-armed when status leaves 'connected' (so reconnect
@@ -142,98 +136,103 @@ export default function TerminalInner({
   // Store last clipboard data for modal fallback
   const lastClipboardDataRef = useRef<string | null>(null);
 
-  const { send, status, reconnect, copyBuffer, sendPrompt, renameWindow, resolvePaths } =
-    useTerminalSocket({
-      sessionName,
-      cwd,
-      onData: (data) => {
-        if (!disposedRef.current && terminalRef.current) {
-          terminalRef.current.write(data);
-        }
-      },
-      onClipboard: async (data, error) => {
-        if (error || !data) {
-          const { toast } = await import('sonner');
-          toast.error(error ?? 'No buffer available');
-        }
-        // Store for modal fallback, then broadcast to deferred clipboard write
-        lastClipboardDataRef.current = data ?? null;
-        window.dispatchEvent(
-          new CustomEvent('terminal:clipboard-data', { detail: { data, error } })
+  const {
+    send,
+    status,
+    sidecarReady,
+    reconnect,
+    copyBuffer,
+    sendPrompt,
+    renameWindow,
+    resolvePaths,
+  } = useTerminalSocket({
+    sessionName,
+    cwd,
+    onData: (data) => {
+      if (!disposedRef.current && terminalRef.current) {
+        terminalRef.current.write(data);
+      }
+    },
+    onClipboard: async (data, error) => {
+      if (error || !data) {
+        const { toast } = await import('sonner');
+        toast.error(error ?? 'No buffer available');
+      }
+      // Store for modal fallback, then broadcast to deferred clipboard write
+      lastClipboardDataRef.current = data ?? null;
+      window.dispatchEvent(new CustomEvent('terminal:clipboard-data', { detail: { data, error } }));
+    },
+    onError: (message) => {
+      // Surface all sidecar errors (auth failures, CWD rejection, etc.)
+      if (message) {
+        setAuthError(message);
+      }
+    },
+    onSendPromptResult: async ({ delivered, error }) => {
+      // Failures are worth telling the user about; SUCCESS IS NOT. tmux
+      // exiting zero proves bytes moved, not that the agent accepted them, so
+      // a success toast here would lie exactly the way pij's did (workshop
+      // 001 § 5). Honest post-submit state is Plan 092 ph-0003.
+      if (delivered) return;
+      const { toast } = await import('sonner');
+      toast.error(error ?? 'Could not send the prompt to the terminal');
+    },
+    onRenameWindowResult: async ({ renamed, error }) => {
+      // tmux itself performs this control command, so a failed exit is a
+      // trustworthy failure signal. Success is visible in the header; only the
+      // otherwise-invisible failure needs a toast.
+      if (renamed) {
+        sendRef.current(JSON.stringify({ type: 'windows' }));
+        return;
+      }
+      const { toast } = await import('sonner');
+      toast.error(error ?? 'Could not rename the tmux window');
+    },
+    onPaneLayout: ({ layout, error }) => {
+      setPaneLayout(layout);
+      setPaneLayoutError(error ?? null);
+      setPaneResizePending(false);
+    },
+    onWindows: async ({ windows, error }) => {
+      windowsAnswered();
+      onWindowsChange?.(windows);
+      if (error && error !== windowErrorRef.current) {
+        const { toast } = await import('sonner');
+        toast.error(error);
+      }
+      windowErrorRef.current = error;
+    },
+    onStatus: async (_status, _tmux, _message) => {
+      // Clear auth error on successful connection
+      if (_status === 'connected') {
+        setAuthError(null);
+      }
+      // DYK-01: Show toast once per mount when tmux is unavailable
+      if (_status === 'connected' && _tmux === false && !tmuxWarningShownRef.current) {
+        tmuxWarningShownRef.current = true;
+        const { toast } = await import('sonner');
+        toast.warning(
+          _message ??
+            "tmux not available — using raw shell. Sessions won't persist across page refreshes."
         );
-      },
-      onError: (message) => {
-        // Surface all sidecar errors (auth failures, CWD rejection, etc.)
-        if (message) {
-          setAuthError(message);
-        }
-      },
-      onSendPromptResult: async ({ delivered, error }) => {
-        // Failures are worth telling the user about; SUCCESS IS NOT. tmux
-        // exiting zero proves bytes moved, not that the agent accepted them, so
-        // a success toast here would lie exactly the way pij's did (workshop
-        // 001 § 5). Honest post-submit state is Plan 092 ph-0003.
-        if (delivered) return;
-        const { toast } = await import('sonner');
-        toast.error(error ?? 'Could not send the prompt to the terminal');
-      },
-      onRenameWindowResult: async ({ renamed, error }) => {
-        // tmux itself performs this control command, so a failed exit is a
-        // trustworthy failure signal. Success is visible in the header; only the
-        // otherwise-invisible failure needs a toast.
-        if (renamed) {
-          sendRef.current(JSON.stringify({ type: 'windows' }));
-          return;
-        }
-        const { toast } = await import('sonner');
-        toast.error(error ?? 'Could not rename the tmux window');
-      },
-      onPaneLayout: ({ layout, error }) => {
-        setPaneLayout(layout);
-        setPaneLayoutError(error ?? null);
-        setPaneResizePending(false);
-      },
-      onWindows: async ({ windows, error }) => {
-        windowsAnswered();
-        onWindowsChange?.(windows);
-        if (error && error !== windowErrorRef.current) {
-          const { toast } = await import('sonner');
-          toast.error(error);
-        }
-        windowErrorRef.current = error;
-      },
-      onStatus: async (_status, _tmux, _message) => {
-        // Clear auth error on successful connection
-        if (_status === 'connected') {
-          setAuthError(null);
-          setSidecarReady(true);
-        }
-        // DYK-01: Show toast once per mount when tmux is unavailable
-        if (_status === 'connected' && _tmux === false && !tmuxWarningShownRef.current) {
-          tmuxWarningShownRef.current = true;
-          const { toast } = await import('sonner');
-          toast.warning(
-            _message ??
-              "tmux not available — using raw shell. Sessions won't persist across page refreshes."
-          );
-        }
-        // Re-fit terminal when WS confirms connection — PTY is now ready for resize
-        if (_status === 'connected' && fitAddonRef.current && !disposedRef.current) {
-          requestAnimationFrame(() => {
-            if (disposedRef.current || !fitAddonRef.current) return;
-            fitAddonRef.current.fit();
-            const dims = fitAddonRef.current.proposeDimensions();
-            if (dims?.cols && dims.rows) {
-              sendRef.current(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
-            }
-            terminalRef.current?.focus();
-          });
-        }
-        // T007: one-shot resync per WS lifecycle on first 'connected' event.
-        applyResyncOnStatus(_status, resyncSentRef, sendRef.current);
-      },
-      onConnectionChange,
-    });
+      }
+      // Re-fit terminal when WS confirms connection — PTY is now ready for resize
+      if (_status === 'connected' && fitAddonRef.current && !disposedRef.current) {
+        requestAnimationFrame(() => {
+          if (disposedRef.current || !fitAddonRef.current) return;
+          fitAddonRef.current.fit();
+          const dims = fitAddonRef.current.proposeDimensions();
+          if (dims?.cols && dims.rows) {
+            sendRef.current(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
+          }
+          terminalRef.current?.focus();
+        });
+      }
+      // T007: one-shot resync per WS lifecycle on first 'connected' event.
+      applyResyncOnStatus(_status, resyncSentRef, sendRef.current);
+    },
+    onConnectionChange,
+  });
 
   // Store send in a ref so terminal.onData doesn't go stale
   const sendRef = useRef(send);
@@ -255,7 +254,6 @@ export default function TerminalInner({
   useEffect(() => {
     if (status !== 'connected') {
       resyncSentRef.current = false;
-      setSidecarReady(false);
     }
   }, [status]);
 
@@ -265,14 +263,15 @@ export default function TerminalInner({
     send(JSON.stringify({ type: 'pane-layout' }));
   }, [send]);
 
+  // Asked only once the sidecar listens: a frame sent on socket open is dropped unanswered.
   useEffect(() => {
     setPaneLayout(null);
-    if (resizeMode && sessionName && status === 'connected') refreshPaneLayout();
-  }, [resizeMode, status, sessionName, refreshPaneLayout]);
+    if (resizeMode && sessionName && sidecarReady) refreshPaneLayout();
+  }, [resizeMode, sidecarReady, sessionName, refreshPaneLayout]);
 
   // Native tmux shortcuts and other attached clients can also change windows, so the strip polls.
   const windowsAnswered = useWindowsPoll(
-    Boolean(onWindowsChange && isVisible && sessionName && status === 'connected' && sidecarReady),
+    Boolean(onWindowsChange && isVisible && sessionName && sidecarReady),
     send,
     onWindowsChange
   );

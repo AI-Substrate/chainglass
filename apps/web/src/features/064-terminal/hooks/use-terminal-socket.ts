@@ -56,6 +56,13 @@ export interface UseTerminalSocketOptions {
 
 export interface UseTerminalSocketReturn {
   status: ConnectionStatus;
+  /**
+   * The sidecar sent its own `status: connected` frame on the current socket. The socket opens
+   * (`status` turns 'connected') before the sidecar listens for control frames: it authenticates
+   * and checks tmux first, and drops any frame sent meanwhile without a reply. Requests that
+   * expect an answer wait for this.
+   */
+  sidecarReady: boolean;
   send: (data: string) => void;
   close: () => void;
   reconnect: () => void;
@@ -79,6 +86,7 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
   const { sessionName, cwd, enabled = true } = options;
 
   const [status, setStatus] = useState<ConnectionStatus>('disconnected');
+  const [sidecarReady, setSidecarReady] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tokenRefreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -121,6 +129,8 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
 
   const updateStatus = useCallback((newStatus: ConnectionStatus) => {
     setStatus(newStatus);
+    // A new, closing or closed socket has not heard from the sidecar yet.
+    if (newStatus !== 'connected') setSidecarReady(false);
     onConnectionChangeRef.current?.(newStatus);
   }, []);
 
@@ -182,6 +192,7 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
             }
             onStatusRef.current?.(msg.status, msg.tmux, msg.message);
             if (msg.status === 'connected') {
+              setSidecarReady(true);
               updateStatus('connected');
             }
           } else if (msg.type === 'error') {
@@ -413,5 +424,15 @@ export function useTerminalSocket(options: UseTerminalSocketOptions): UseTermina
     };
   }, [status]);
 
-  return { status, send, close, reconnect, copyBuffer, sendPrompt, renameWindow, resolvePaths };
+  return {
+    status,
+    sidecarReady,
+    send,
+    close,
+    reconnect,
+    copyBuffer,
+    sendPrompt,
+    renameWindow,
+    resolvePaths,
+  };
 }

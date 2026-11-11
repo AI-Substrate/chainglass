@@ -91,6 +91,28 @@ describe('useTerminalSocket rename-window control frame', () => {
     });
   });
 
+  it('is sidecar-ready only after the sidecar itself says connected, and not after a close', async () => {
+    // The socket opens before the sidecar listens for control frames, so a request sent on open
+    // is dropped unanswered (2026-11-11: the window strip and resize mode stalled on it).
+    const { result } = renderHook(() =>
+      useTerminalSocket({ sessionName: 'terminal-session', cwd: '/tmp' })
+    );
+    await waitFor(() => expect(FakeBrowserWebSocket.instances).toHaveLength(1));
+    const socket = FakeBrowserWebSocket.instances[0];
+
+    act(() => socket.open());
+    expect(result.current.status).toBe('connected');
+    expect(result.current.sidecarReady).toBe(false);
+
+    act(() =>
+      socket.simulateMessage(JSON.stringify({ type: 'status', status: 'connected', tmux: true }))
+    );
+    expect(result.current.sidecarReady).toBe(true);
+
+    act(() => socket.onclose?.({ code: 1000 } as CloseEvent));
+    expect(result.current.sidecarReady).toBe(false);
+  });
+
   it('delivers pane layout replies without writing control JSON into xterm', async () => {
     const onData = vi.fn();
     const onPaneLayout = vi.fn();
