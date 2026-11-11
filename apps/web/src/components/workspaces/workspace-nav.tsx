@@ -66,17 +66,8 @@ export function WorkspaceNav() {
   const workspaceSlug = pathname.match(/^\/workspaces\/([^/]+)/)?.[1] ?? null;
   const currentWorktree = searchParams.get('worktree');
 
-  // Collect all worktree paths for activity polling (DYK-P4-03)
-  const allWorktreePaths = useMemo(
-    () => workspaces.flatMap((ws) => (ws.worktrees ?? []).map((wt) => wt.path)),
-    [workspaces]
-  );
-
   // Cross-worktree activity badges (DYK-P4-04: null exclude = show all)
-  const { activities } = useWorktreeActivity({
-    worktreePaths: allWorktreePaths,
-    excludeWorktree: currentWorktree,
-  });
+  const { activities } = useWorktreeActivity({ excludeWorktree: currentWorktree });
 
   // Index activities by worktree path for O(1) lookup
   const activityMap = useMemo(() => {
