@@ -1,0 +1,39 @@
+apps/web/src/features/064-terminal/components/terminal-inner.tsx
+  s_60a704184bf812::t_794dd9603c3ddd 20,191,265-270
+apps/web/src/features/064-terminal/hooks/use-windows-poll.ts
+  s_60a704184bf812::t_52ae852d5c10cc 1-47
+apps/web/src/features/064-terminal/server/terminal-ws.ts
+  s_db4a420e4b0135::t_cd6bf4f83ca8bb 365-366
+apps/web/src/features/064-terminal/server/tmux-session-manager.ts
+  s_db4a420e4b0135::t_c33f58de8e0dab 55-59,104-108,179,181,183-184,207-248,499,518,555
+scripts/tmux-launch-count.ts
+  s_db4a420e4b0135::t_c77eab8d5621dc 55-59,76,81-85
+test/unit/web/features/064-terminal/terminal-ws-windows.test.ts
+  s_60a704184bf812::t_c6df6a941f44ae 448-495
+test/unit/web/features/064-terminal/use-windows-poll.test.ts
+  s_db4a420e4b0135::t_0a5eb37e92df3c 1-62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "97170686ea9a17db00d6c3f51948c2bb56d9ce8d",
+  "prompts": {},
+  "sessions": {
+    "s_60a704184bf812": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "93dabe88-fd1b-4f2b-b01a-1a283b434b34",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_db4a420e4b0135": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "7a772de7-c56c-4be6-b78f-8c87805252cf",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
