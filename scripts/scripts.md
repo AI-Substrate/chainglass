@@ -18,7 +18,6 @@ Index of all scripts in this directory. Keep this file updated when adding, remo
 | `generate-icon-assets.ts` | Extract, optimize, and deploy SVG icon assets from material-icon-theme to apps/web/public/icons/. Includes freshness check (skips if up to date). | `npx tsx scripts/generate-icon-assets.ts [--force]` |
 | `chainglass-bell.sh` | Notify Chainglass server of a bell event. Called by Claude Code hooks or manually. Plays notification sound + flashes tab title. | `./scripts/chainglass-bell.sh [--source "build"]` |
 | `verify-rs-reader.mjs` | Read-only live pij-rs proofs: complete row equality (`--seat` / `--all`), finite transport vs integrated replay (`--replay`), scratch-key retry (`--auth`), external-trigger descriptor arrival (`--watch-pane` / `--watch-seat`: READY, stdin `trigger`, acknowledgment, external adoption + pushed positive control). Emits JSON; failures/timeouts exit nonzero. | `node scripts/verify-rs-reader.mjs --help` |
-| `tmux-launch-count.ts` | Temporary (tmux freeze option A): runs the real terminal sidecar in-process against real tmux with a counting executor and fake visible terminals; prints process launches per minute by command. Writes nothing to tmux (`capture-pane`/`rename-window` counted, not run). Removed when option A lands. | `npx tsx scripts/tmux-launch-count.ts --terminals <session,...> [--pij-pages N] [--seconds 60]` |
 
 ## file-watcher/
 

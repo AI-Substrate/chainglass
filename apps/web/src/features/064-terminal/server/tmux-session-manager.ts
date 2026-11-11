@@ -40,16 +40,19 @@ import type {
 
 const TMUX_SESSION_NAME_REGEX = /^[a-zA-Z0-9_-]+$/;
 const MAX_SESSION_NAME_LENGTH = 256;
-/** One `ps` snapshot serves every tab polling within this window (polls are 2s apart). */
-const PROCESS_TABLE_TTL_MS = 1_000;
+/**
+ * One machine-wide `ps` snapshot serves every sample within this window. Polls are 2s apart, so
+ * CPU rates come from snapshots ~6s apart; rates use the snapshots' own times, never the poll's.
+ */
+const PROCESS_TABLE_TTL_MS = 5_000;
 /** An idle window's screen is re-read at most this often (it cannot change much while idle). */
 const QUESTION_RECHECK_MS = 60_000;
 /** Screen reads per sample, for windows that produced output since their last read. */
-const SCREEN_READS_PER_SAMPLE = 16;
+const SCREEN_READS_PER_SAMPLE = 4;
 /** Background jobs listed per window (the combined CPU still counts all of them). */
 const MAX_LISTED_JOBS = 12;
 /** Screen reads per background sample, so hundreds of windows cannot burst tmux. */
-const QUESTION_READS_PER_SAMPLE = 5;
+const QUESTION_READS_PER_SAMPLE = 2;
 /** One pij seat roster read serves every sample within this window. */
 const SEATS_TTL_MS = 5_000;
 /**
@@ -80,7 +83,7 @@ export class TmuxSessionManager {
   /** Per `session:windowId`: the work region's hash and the window_activity it was read at. */
   private readonly screens = new Map<string, { activityAt: number; hash: string }>();
   /** Per `session:windowId`: cumulative process-tree CPU at the last sample (non-agent windows). */
-  private readonly lastTreeCpu = new Map<string, { cpu: number; at: number }>();
+  private readonly lastTreeCpu = new Map<string, { cpu: number; at: number; busy: boolean }>();
   /** Per `session:windowId`: the agent's background jobs, their combined CPU, busiest by name. */
   private readonly background = new Map<string, TerminalWindowBackground>();
   /** Per session: each agent child's cumulative CPU at the last sample, for per-process rates. */
@@ -98,7 +101,9 @@ export class TmuxSessionManager {
   private readonly lastLines = new Map<string, string | null>();
   /** Per `session:windowId`: the pij seat running there. */
   private readonly seatIds = new Map<string, string>();
-  private processTable: { at: number; table: Promise<ProcessTable> } | undefined;
+  private processTable:
+    | { at: number; table: Promise<{ table: ProcessTable; seconds: number }> }
+    | undefined;
   private readonly readSeats: (() => Promise<PaneSeat[]>) | undefined;
   private seats: { at: number; seats: Promise<PaneSeat[]> } | undefined;
   /** Per session: the latest `list-windows` read, shared while in flight and for the TTL after. */
@@ -279,10 +284,12 @@ export class TmuxSessionManager {
         '-F',
         '#{window_id}\t#{pane_pid}\t#{window_activity}\t#{pane_id}\t#{automatic-rename}',
       ]);
-      const table = await this.readProcessTable();
+      const { table, seconds: tableSeconds } = await this.readProcessTable();
       const seatsByPane = new Map((await this.readSeatsCached()).map((seat) => [seat.pane, seat]));
       const nowSeconds = Date.now() / 1000;
       const previous = this.lastPidCpu.get(sessionName);
+      // CPU only moves between snapshots: a sample served the same snapshot keeps its CPU verdicts.
+      const freshTable = !previous || tableSeconds > previous.at;
       const pidCpu = new Map<number, number>();
 
       interface WindowSample {
@@ -336,7 +343,7 @@ export class TmuxSessionManager {
       }
 
       await this.nameWindowsAfterSeats(samples);
-      const changed = await this.readScreenChanges(sessionName, samples);
+      const { changed, deferred } = await this.readScreenChanges(sessionName, samples);
       const listed = new Set<string>();
       for (const [windowId, sample] of samples) {
         const key = `${sessionName}:${windowId}`;
@@ -345,20 +352,30 @@ export class TmuxSessionManager {
         else this.agentKinds.delete(key);
         if (sample.seatId) this.seatIds.set(key, sample.seatId);
         else this.seatIds.delete(key);
-        // Working = the screen above the input box changed (see lib/screen-activity.ts). CPU is
-        // no signal for agents: they mostly wait on the model (a working omp measured ~1%).
-        // A window with no agent also counts sustained CPU, so a silent build still shows.
-        let busy = changed.has(windowId);
-        const lastTree = this.lastTreeCpu.get(key);
-        if (!sample.agent && lastTree && nowSeconds > lastTree.at) {
-          busy ||=
-            (sample.treeCpu - lastTree.cpu) / (nowSeconds - lastTree.at) >= BUSY_CPU_FRACTION;
+        // A window whose screen moved but was not read this sample (over the read budget) keeps
+        // its reading; it is read first next sample, so its working state lags one poll at most.
+        if (!deferred.has(windowId)) {
+          // Working = the screen above the input box changed (see lib/screen-activity.ts). CPU
+          // is no signal for agents: they mostly wait on the model (a working omp measured ~1%).
+          // A window with no agent also counts sustained CPU, so a silent build still shows.
+          let busy = changed.has(windowId);
+          if (!sample.agent) {
+            const lastTree = this.lastTreeCpu.get(key);
+            if (!lastTree || tableSeconds > lastTree.at) {
+              const cpuBusy =
+                lastTree !== undefined &&
+                (sample.treeCpu - lastTree.cpu) / (tableSeconds - lastTree.at) >= BUSY_CPU_FRACTION;
+              this.lastTreeCpu.set(key, { cpu: sample.treeCpu, at: tableSeconds, busy: cpuBusy });
+            }
+            busy ||= this.lastTreeCpu.get(key)?.busy === true;
+          }
+          this.readings.set(key, this.activity.observeBusy(key, busy, nowSeconds));
         }
-        this.lastTreeCpu.set(key, { cpu: sample.treeCpu, at: nowSeconds });
-        this.readings.set(key, this.activity.observeBusy(key, busy, nowSeconds));
-        if (sample.agent && sample.jobs.length > 0) {
+        if (!sample.agent || sample.jobs.length === 0) {
+          this.background.delete(key);
+        } else if (freshTable) {
           const rates = previous
-            ? jobRates(table, sample.jobs, previous, nowSeconds)
+            ? jobRates(table, sample.jobs, previous, tableSeconds)
             : sample.jobs.map((pid) => ({ pid, rate: 0 }));
           this.background.set(key, {
             jobs: rates.slice(0, MAX_LISTED_JOBS).map(({ pid, rate }) => ({
@@ -367,11 +384,9 @@ export class TmuxSessionManager {
             })),
             cpu: rates.reduce((sum, { rate }) => sum + rate, 0),
           });
-        } else {
-          this.background.delete(key);
         }
       }
-      this.lastPidCpu.set(sessionName, { at: nowSeconds, cpu: pidCpu });
+      if (freshTable) this.lastPidCpu.set(sessionName, { at: tableSeconds, cpu: pidCpu });
       this.activity.retainOnly(`${sessionName}:`, listed);
       for (const map of [
         this.readings,
@@ -398,22 +413,29 @@ export class TmuxSessionManager {
   /**
    * Which windows' work region changed since the last sample. A screen is read only when tmux
    * reports output in that window since the last read (window_activity moved), so silent windows
-   * cost nothing; at most {@link SCREEN_READS_PER_SAMPLE} reads per sample.
+   * cost nothing. At most {@link SCREEN_READS_PER_SAMPLE} reads per sample, longest-unread first:
+   * a window over the budget is `deferred` and goes to the front of the next sample's reads.
    */
   private async readScreenChanges(
     sessionName: string,
     samples: Map<string, { activityAt: number }>
-  ): Promise<Set<string>> {
+  ): Promise<{ changed: Set<string>; deferred: Set<string> }> {
     const changed = new Set<string>();
+    const deferred = new Set<string>();
     const exec = this.sampleExec;
-    if (!exec) return changed;
-    let reads = 0;
-    for (const [windowId, { activityAt }] of samples) {
-      const key = `${sessionName}:${windowId}`;
-      const known = this.screens.get(key);
-      if (known && activityAt <= known.activityAt) continue;
-      if (reads >= SCREEN_READS_PER_SAMPLE) break;
-      reads += 1;
+    if (!exec) return { changed, deferred };
+    const moved = [...samples]
+      .map(([windowId, { activityAt }]) => ({
+        windowId,
+        activityAt,
+        key: `${sessionName}:${windowId}`,
+        known: this.screens.get(`${sessionName}:${windowId}`),
+      }))
+      .filter(({ activityAt, known }) => !known || activityAt > known.activityAt)
+      // Never read first, then the window whose last read is oldest.
+      .sort((a, b) => (a.known?.activityAt ?? -1) - (b.known?.activityAt ?? -1));
+    for (const { windowId } of moved.slice(SCREEN_READS_PER_SAMPLE)) deferred.add(windowId);
+    for (const { windowId, activityAt, key, known } of moved.slice(0, SCREEN_READS_PER_SAMPLE)) {
       try {
         const screen = await exec('tmux', ['capture-pane', '-p', '-J', '-t', windowId]);
         const hash = createHash('sha1').update(workRegion(screen)).digest('hex');
@@ -424,7 +446,7 @@ export class TmuxSessionManager {
         this.screens.delete(key);
       }
     }
-    return changed;
+    return { changed, deferred };
   }
 
   /**
@@ -469,12 +491,18 @@ export class TmuxSessionManager {
     return this.seats.seats;
   }
 
-  /** One machine-wide `ps` snapshot, shared by every session sampled within the TTL. */
-  private readProcessTable(): Promise<ProcessTable> {
+  /**
+   * One machine-wide `ps` snapshot, shared by every session sampled within the TTL, with the time
+   * it was requested (seconds) so CPU rates divide by the snapshots' spacing.
+   */
+  private readProcessTable(): Promise<{ table: ProcessTable; seconds: number }> {
     const now = Date.now();
     if (!this.processTable || now - this.processTable.at >= PROCESS_TABLE_TTL_MS) {
       const exec = this.sampleExec as CommandExecutor;
-      const table = exec('ps', ['-A', '-o', 'pid=,ppid=,time=,args=']).then(parseProcessTable);
+      const table = exec('ps', ['-A', '-o', 'pid=,ppid=,time=,args=']).then((output) => ({
+        table: parseProcessTable(output),
+        seconds: now / 1000,
+      }));
       table.catch(() => {
         if (this.processTable?.table === table) this.processTable = undefined;
       });

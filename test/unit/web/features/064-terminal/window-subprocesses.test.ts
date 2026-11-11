@@ -62,9 +62,10 @@ describe('agent window activity vs its background jobs', () => {
     expect(read('@14')?.background?.jobs.map((job) => job.label)).toEqual(['vite']);
     expect(read('@14')?.background?.cpu).toBeLessThan(0.03);
 
-    // The dev server starts working; omp itself stays idle.
+    // The dev server starts working; omp itself stays idle. `ps` is re-read every ~6 s, and this
+    // fake's CPU is `t × rate`, so the rate shows once two snapshots fall after the change.
     viteRate = 0.58;
-    for (t = 10; t <= 14; t += 2) await poll(manager, t);
+    for (t = 10; t <= 18; t += 2) await poll(manager, t);
     read = await snapshot();
     expect(read('@14')?.activeSeconds).toBeNull();
     expect(read('@14')?.background?.jobs[0].cpu).toBeCloseTo(0.585, 2);
