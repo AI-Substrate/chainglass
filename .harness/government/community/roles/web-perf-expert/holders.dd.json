@@ -1,0 +1,28 @@
+{
+	"dd": {
+		"schema": "pij/holders"
+	},
+	"references": [],
+	"sections": [
+		{
+			"name": "meta",
+			"value": {
+				"role": "web-perf-expert"
+			}
+		},
+		{
+			"name": "rows",
+			"value": [
+				{
+					"assigned_by": "pij-outer-bobcat",
+					"from": "2026-11-11T23:49:53.854Z",
+					"harness": "claude",
+					"harness_session": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+					"machine": "ops.osk.lan",
+					"seat": "pij-lonely-antelope",
+					"why": "Holding the nav speed review Jordan asked for (briefs/nav-speed-review.md)"
+				}
+			]
+		}
+	]
+}
