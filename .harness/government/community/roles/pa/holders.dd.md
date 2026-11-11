@@ -19,3 +19,4 @@
 | id | seat | harness | harness_session | machine | instance_key | from | to | assigned_by | released_by | why | release_why |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | — | pij-swift-skink | claude | c9722159-9e82-4bab-9bca-a7ab2ebd6c23 | ops.osk.lan | — | 2026-11-10T07:27:37.310Z | 2026-11-11T02:49:27.951Z | pij-outer-bobcat | pij-outer-bobcat | Chainglass PA stood up 2026-11-10 | Replaced by OMP PA per Jordan rule 11 (no Claude Code seats) |
+| — | pij-funny-alligator | omp | 01a1c882-7bcb-75a8-ac46-d999d94329a3 | ops.osk.lan | — | 2026-11-11T02:49:28.491Z | — | pij-outer-bobcat | — | OMP PA replacing pij-swift-skink, Jordan 2026-11-11 | — |
