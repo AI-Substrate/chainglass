@@ -1,0 +1,16 @@
+.harness/government/RULINGS.md
+  h_9e71e8b09f7cf2 17,28
+.harness/government/briefs/nav-speed-review.md
+  h_9e71e8b09f7cf2 1-60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "603fa0da53469b68e6d90649f6602906d7eefc73",
+  "prompts": {},
+  "humans": {
+    "h_9e71e8b09f7cf2": {
+      "author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
