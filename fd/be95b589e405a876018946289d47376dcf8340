@@ -1,0 +1,31 @@
+apps/web/src/features/064-terminal/server/tmux-session-manager.ts
+  s_db7f27ede1f48a::t_0e69a63ec5a982 43-47,51,55,86,104-106,287,291-292,346,355-372,374-376,378,389,416-417,422,424,426-438,449,494-498,502-505
+test/unit/web/features/064-terminal/window-read-budget.test.ts
+  s_8370e0727f00d6::t_7b3d2a7b8db3b9 1-83
+test/unit/web/features/064-terminal/window-subprocesses.test.ts
+  s_db7f27ede1f48a::t_3106198c730c61 65-66,68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "fdbe95b589e405a876018946289d47376dcf8340",
+  "prompts": {},
+  "sessions": {
+    "s_8370e0727f00d6": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "3d69bb74-af41-47c4-9070-9e80b0d59a4d",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_db7f27ede1f48a": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "7575ed91-415b-4aa0-93af-9b7d091a2b99",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
