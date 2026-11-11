@@ -1,4 +1,4 @@
-# Plan — tmux freeze option A, chainglass part (DRAFT, awaiting Jordan's go)
+# Plan — tmux freeze option A, chainglass part (GO: Jordan 2026-11-11 "start there", confirmed async + single-flight)
 
 Prime: pij-outer-bobcat · 2026-11-11 · Source: `reports/tmux-options-handover-2026-11-11.md`, `reports/tmux-usage-2026-11-11.md`
 
@@ -60,3 +60,14 @@ concurrent agents.
 - Browser check on Jordan's dev server after his restart: window strip, working/idle dots, question
   markers, send-to-agent, resize mode, copy buffer, rename all still work.
 - `just fft` green per step; rules: RULINGS 1-10.
+
+## Worker rules
+
+- Order: 0 → 1 → 2 → 3 → 4. One commit per step on main; report each step's SHA + launch count to the
+  prime before starting the next.
+- Every `just fft` needs the machine-build baton (RULINGS rule 10): request, run at `nice -n 19`, return
+  at once with evidence. Targeted single-file vitest runs are free.
+- Single-flight means: client never sends a `windows` request while one is unanswered; server keeps at
+  most one tmux read per session in flight and hands its result to every waiting connection.
+- Never touch `just dev`; never `tmux capture-pane` yourself; never `~/pi-hacking/pij`; stage by path.
+- The browser check waits for Jordan's dev restart; say when you need it.
