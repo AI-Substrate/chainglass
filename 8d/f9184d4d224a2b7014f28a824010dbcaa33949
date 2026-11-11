@@ -1,0 +1,29 @@
+.harness/government/RULINGS.md
+  s_dc95b559b7dd06::t_d0c390e557009f 16,27
+.harness/government/briefs/tmux-option-a-plan.md
+  s_115bc15780d2bd::t_891ae0615dfb4d 15,32,68-69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "8df9184d4d224a2b7014f28a824010dbcaa33949",
+  "prompts": {},
+  "sessions": {
+    "s_115bc15780d2bd": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "772cbb67-76ef-4820-90b9-9fdaaab0c75f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_dc95b559b7dd06": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "a045a28e-6297-438b-977e-ff324647d3f6",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
