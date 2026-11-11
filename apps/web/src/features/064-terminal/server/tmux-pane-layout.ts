@@ -232,8 +232,11 @@ function resizeBorderLayout(layout: TmuxWindowLayout, request: ResizePaneRequest
 }
 
 /** One command provides a consistent snapshot, with no session-prefix matching. */
-export function readPaneLayout(exec: CommandExecutor, sessionName: string): TmuxWindowLayout {
-  const lines = exec('tmux', ['list-panes', '-t', `=${sessionName}:`, '-F', PANE_FORMAT])
+export async function readPaneLayout(
+  exec: CommandExecutor,
+  sessionName: string
+): Promise<TmuxWindowLayout> {
+  const lines = (await exec('tmux', ['list-panes', '-t', `=${sessionName}:`, '-F', PANE_FORMAT]))
     .trim()
     .split('\n');
   const [windowId, widthText, heightText, revision, statusPosition, zoomed, status] =
@@ -302,16 +305,16 @@ export function readPaneLayout(exec: CommandExecutor, sessionName: string): Tmux
 }
 
 /** Only the connection session's active, unchanged, unzoomed window may resize. */
-export function resizeTmuxPane(
+export async function resizeTmuxPane(
   exec: CommandExecutor,
   sessionName: string,
   request: unknown
-): PaneLayoutResult {
+): Promise<PaneLayoutResult> {
   if (!isResizeRequest(request)) return { layout: null, error: 'Invalid pane resize request' };
 
   let layout: TmuxWindowLayout;
   try {
-    layout = readPaneLayout(exec, sessionName);
+    layout = await readPaneLayout(exec, sessionName);
   } catch (error) {
     return {
       layout: null,
@@ -345,22 +348,24 @@ export function resizeTmuxPane(
     // -F evaluates synchronously: the guard and inserted layout command run in
     // the same tmux queue turn, without a shell job or a window-switch race.
     // Root dimensions and pane order stay unchanged; only this border moves.
-    const outcome = exec('tmux', [
-      'if-shell',
-      '-F',
-      '-t',
-      `=${sessionName}:`,
-      guard,
-      `select-layout -t '=${sessionName}:${layout.windowId}' '${resizedLayout}' ; display-message -p pane-resized`,
-      'display-message -p pane-layout-changed',
-    ]).trim();
+    const outcome = (
+      await exec('tmux', [
+        'if-shell',
+        '-F',
+        '-t',
+        `=${sessionName}:`,
+        guard,
+        `select-layout -t '=${sessionName}:${layout.windowId}' '${resizedLayout}' ; display-message -p pane-resized`,
+        'display-message -p pane-layout-changed',
+      ])
+    ).trim();
     if (outcome !== 'pane-resized') error = 'The active tmux window or pane layout changed';
   } catch (cause) {
     error = cause instanceof Error ? cause.message : 'Unable to resize tmux pane';
   }
 
   try {
-    return { layout: readPaneLayout(exec, sessionName), ...(error ? { error } : {}) };
+    return { layout: await readPaneLayout(exec, sessionName), ...(error ? { error } : {}) };
   } catch (cause) {
     return {
       layout: null,

@@ -16,8 +16,11 @@ import type { CommandExecutor, ResolvedTerminalPath } from '../types';
 export const MAX_PATHS_PER_REQUEST = 64;
 
 /** Working directories of the panes in the session's current window, active pane first. */
-export function currentWindowPaneCwds(exec: CommandExecutor, sessionName: string): string[] {
-  const output = exec('tmux', [
+export async function currentWindowPaneCwds(
+  exec: CommandExecutor,
+  sessionName: string
+): Promise<string[]> {
+  const output = await exec('tmux', [
     'list-panes',
     '-t',
     `=${sessionName}:`,

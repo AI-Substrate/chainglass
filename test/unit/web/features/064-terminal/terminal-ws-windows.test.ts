@@ -22,11 +22,22 @@ class FakeWebSocket extends EventEmitter {
   }
 }
 
-function createHarness(execCommand = vi.fn(() => ''), sessionName = 'terminal-session') {
+/** `execCommand` records synchronously and answers like tmux; the server sees an async runner. */
+async function createHarness(
+  execCommand = vi.fn((_command: string, _args: string[]) => ''),
+  sessionName = 'terminal-session'
+) {
   const spawner = createFakePtySpawner();
-  const server = createTerminalServer({ execCommand, spawnPty: spawner.spawn });
+  const server = createTerminalServer({
+    execCommand: async (command, args) => execCommand(command, args),
+    spawnPty: spawner.spawn,
+  });
   const socket = new FakeWebSocket();
-  server.handleConnection(socket as unknown as import('ws').WebSocket, sessionName, process.cwd());
+  await server.handleConnection(
+    socket as unknown as import('ws').WebSocket,
+    sessionName,
+    process.cwd()
+  );
   execCommand.mockClear();
   socket.sent.length = 0;
   return { socket, pty: spawner.lastInstance as FakePty, execCommand };
@@ -39,7 +50,7 @@ const switched = '@3\t0\t0\tfirst\n@12\t7\t1\tsecond name\n';
 // and failure frames never leaking into shell input.
 describe('terminal WebSocket window controls', () => {
   it('lists native sparse indices from the connection session, ignoring payload targets', async () => {
-    const { socket, execCommand, pty } = createHarness();
+    const { socket, execCommand, pty } = await createHarness();
     execCommand.mockReturnValue(initial);
 
     await socket.simulateMessage({ type: 'windows', sessionName: 'other-session' });
@@ -86,7 +97,7 @@ describe('terminal WebSocket window controls', () => {
   });
 
   it('selects a session-qualified stable ID and returns fresh active state', async () => {
-    const { socket, execCommand } = createHarness();
+    const { socket, execCommand } = await createHarness();
     execCommand
       .mockReturnValueOnce(initial)
       .mockReturnValueOnce('window-selected\n')
@@ -142,7 +153,7 @@ describe('terminal WebSocket window controls', () => {
   });
 
   it('opens a named window in the worktree, types the fixed agent command, and returns the list', async () => {
-    const { socket, execCommand, pty } = createHarness();
+    const { socket, execCommand, pty } = await createHarness();
     execCommand
       .mockReturnValueOnce('@40\n') // new-window -P prints the id
       .mockReturnValueOnce('') // send-keys command
@@ -175,7 +186,7 @@ describe('terminal WebSocket window controls', () => {
   });
 
   it('leaves a blank-named window unnamed so pij can name it after its seat', async () => {
-    const { socket, execCommand } = createHarness();
+    const { socket, execCommand } = await createHarness();
     execCommand.mockReturnValueOnce('@41\n').mockReturnValue('');
 
     await socket.simulateMessage({ type: 'new-window', agent: 'omp', name: '  ' });
@@ -192,7 +203,7 @@ describe('terminal WebSocket window controls', () => {
     [{ agent: 'toString', name: 'x' }, 'Unknown agent'],
     [{ agent: 'omp', name: '-t other' }, 'Invalid window name'],
   ])('refuses %o without touching tmux', async (payload, error) => {
-    const { socket, execCommand } = createHarness();
+    const { socket, execCommand } = await createHarness();
     await socket.simulateMessage({ type: 'new-window', ...payload });
     expect(execCommand).not.toHaveBeenCalled();
     expect(JSON.parse(socket.sent[0])).toEqual({ type: 'windows', windows: [], error });
@@ -201,7 +212,7 @@ describe('terminal WebSocket window controls', () => {
   it.each([undefined, null, 7, '', '7', 'other:@12', '@12;kill-server'])(
     'rejects malformed ID %s without invoking tmux or writing shell input',
     async (windowId) => {
-      const { socket, execCommand, pty } = createHarness();
+      const { socket, execCommand, pty } = await createHarness();
       await socket.simulateMessage({ type: 'select-window', windowId, windowIndex: 7 });
       expect(execCommand).not.toHaveBeenCalled();
       expect(JSON.parse(socket.sent[0])).toEqual({
@@ -214,7 +225,7 @@ describe('terminal WebSocket window controls', () => {
   );
 
   it('refuses a foreign or removed window without selecting it', async () => {
-    const { socket, execCommand, pty } = createHarness();
+    const { socket, execCommand, pty } = await createHarness();
     execCommand.mockReturnValue(initial);
     await socket.simulateMessage({ type: 'select-window', windowId: '@99', windowIndex: 7 });
     expect(execCommand).toHaveBeenCalledTimes(1);
@@ -229,7 +240,7 @@ describe('terminal WebSocket window controls', () => {
   it.each(['windows', 'select-window'])(
     'contains tmux failures for %s inside the control protocol',
     async (type) => {
-      const { socket, execCommand, pty } = createHarness();
+      const { socket, execCommand, pty } = await createHarness();
       execCommand.mockImplementation(() => {
         throw new Error('session disappeared');
       });
@@ -244,7 +255,7 @@ describe('terminal WebSocket window controls', () => {
   );
 
   it('does not retry globally when a window moves after the membership read', async () => {
-    const { socket, execCommand, pty } = createHarness();
+    const { socket, execCommand, pty } = await createHarness();
     execCommand.mockReturnValueOnce(initial).mockImplementationOnce(() => {
       throw new Error('window is no longer in this session');
     });
@@ -270,7 +281,7 @@ describe('terminal WebSocket window controls', () => {
   });
 
   it('reports unavailable tmux without attempting a window command', async () => {
-    const { socket, execCommand, pty } = createHarness(
+    const { socket, execCommand, pty } = await createHarness(
       vi.fn(() => {
         throw new Error('missing tmux');
       })
@@ -286,7 +297,7 @@ describe('terminal WebSocket window controls', () => {
   });
 
   it('rejects an invalid connection session before listing', async () => {
-    const { socket, execCommand } = createHarness(
+    const { socket, execCommand } = await createHarness(
       vi.fn(() => ''),
       'invalid:session'
     );
@@ -300,7 +311,7 @@ describe('terminal WebSocket window controls', () => {
   });
 
   it('selects the requested numbered link when one ID appears at two indices', async () => {
-    const { socket, execCommand } = createHarness();
+    const { socket, execCommand } = await createHarness();
     execCommand
       .mockReturnValueOnce('@12\t0\t1\tshared\n@12\t3\t0\tshared\n')
       .mockReturnValueOnce('window-selected\n')
@@ -351,7 +362,7 @@ describe('terminal WebSocket window controls', () => {
   });
 
   it('rejects a mismatched ID and index before mutation', async () => {
-    const { socket, execCommand, pty } = createHarness();
+    const { socket, execCommand, pty } = await createHarness();
     execCommand.mockReturnValue(initial);
     await socket.simulateMessage({ type: 'select-window', windowId: '@12', windowIndex: 0 });
     expect(execCommand).toHaveBeenCalledTimes(1);
@@ -364,7 +375,7 @@ describe('terminal WebSocket window controls', () => {
   });
 
   it('reports index reuse caught by the in-tmux guard without selecting a replacement', async () => {
-    const { socket, execCommand, pty } = createHarness();
+    const { socket, execCommand, pty } = await createHarness();
     execCommand.mockReturnValueOnce(initial).mockReturnValueOnce('window-changed\n');
     await socket.simulateMessage({ type: 'select-window', windowId: '@12', windowIndex: 7 });
     expect(execCommand).toHaveBeenCalledTimes(2);
@@ -388,7 +399,7 @@ describe('terminal WebSocket window controls', () => {
   it.each([undefined, null, '7', -1, 1.5, Number.MAX_SAFE_INTEGER + 1])(
     'rejects invalid window index %s without executing tmux',
     async (windowIndex) => {
-      const { socket, execCommand, pty } = createHarness();
+      const { socket, execCommand, pty } = await createHarness();
       await socket.simulateMessage({ type: 'select-window', windowId: '@12', windowIndex });
       expect(execCommand).not.toHaveBeenCalled();
       expect(JSON.parse(socket.sent[0])).toEqual({
@@ -399,4 +410,39 @@ describe('terminal WebSocket window controls', () => {
       expect(pty.writeCalls).toEqual([]);
     }
   );
+
+  it('keeps forwarding terminal output while a tmux read hangs, then reports its timeout', async () => {
+    // A starved or hung tmux server: list-windows answers only when the runner's timeout fires.
+    let timeOut: (error: Error) => void = () => {};
+    const spawner = createFakePtySpawner();
+    const server = createTerminalServer({
+      execCommand: async (_command, args) => {
+        if (args[0] !== 'list-windows') return '';
+        return new Promise<string>((_resolve, reject) => {
+          timeOut = reject;
+        });
+      },
+      spawnPty: spawner.spawn,
+    });
+    const socket = new FakeWebSocket();
+    await server.handleConnection(
+      socket as unknown as import('ws').WebSocket,
+      'terminal-session',
+      process.cwd()
+    );
+    const pty = spawner.lastInstance as FakePty;
+    socket.sent.length = 0;
+
+    const reply = socket.simulateMessage({ type: 'windows' });
+    pty.simulateData('output while tmux hangs');
+    expect(socket.sent).toEqual(['output while tmux hangs']);
+
+    timeOut(new Error('tmux list-windows timed out after 3000ms'));
+    await reply;
+    expect(JSON.parse(socket.sent[1])).toEqual({
+      type: 'windows',
+      windows: [],
+      error: 'tmux list-windows timed out after 3000ms',
+    });
+  });
 });

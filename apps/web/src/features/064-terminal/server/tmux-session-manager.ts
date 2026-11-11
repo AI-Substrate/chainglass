@@ -66,11 +66,10 @@ export class TmuxSessionManager {
   /** Per `session:windowId` activity memory; lives as long as this server process. */
   private readonly activity = new WindowActivityTracker();
   /**
-   * Async command runner for activity sampling. Absent (tests) = no activity readings. Async on
-   * purpose: `ps -A` costs ~70ms on a loaded machine, and the sidecar must not stall terminal
-   * traffic for it, so sampling runs as child processes off the event loop.
+   * Command runner for activity sampling (`list-panes`, one `ps -A` snapshot, screen reads).
+   * Absent (tests) = no activity readings.
    */
-  private readonly execAsync: ((command: string, args: string[]) => Promise<string>) | undefined;
+  private readonly sampleExec: CommandExecutor | undefined;
   /** Latest completed reading per `session:windowId`. */
   private readonly readings = new Map<string, WindowActivityReading>();
   /** Per `session:windowId`: the work region's hash and the window_activity it was read at. */
@@ -101,19 +100,19 @@ export class TmuxSessionManager {
   constructor(
     exec: CommandExecutor,
     spawnPty: PtySpawner,
-    execAsync?: (command: string, args: string[]) => Promise<string>,
+    sampleExec?: CommandExecutor,
     readSeats?: () => Promise<PaneSeat[]>
   ) {
     this.exec = exec;
     this.spawnPty = spawnPty;
-    this.execAsync = execAsync;
+    this.sampleExec = sampleExec;
     this.readSeats = readSeats;
   }
 
   /** Check if tmux is installed and accessible */
-  isTmuxAvailable(): boolean {
+  async isTmuxAvailable(): Promise<boolean> {
     try {
-      this.exec('tmux', ['-V']);
+      await this.exec('tmux', ['-V']);
       return true;
     } catch {
       return false;
@@ -139,9 +138,9 @@ export class TmuxSessionManager {
   }
 
   /** List all tmux sessions with metadata */
-  listSessions(): ParsedSession[] {
+  async listSessions(): Promise<ParsedSession[]> {
     try {
-      const output = this.exec('tmux', [
+      const output = await this.exec('tmux', [
         'list-sessions',
         '-F',
         '#{session_name}\t#{session_created}\t#{session_attached}\t#{session_windows}',
@@ -166,11 +165,11 @@ export class TmuxSessionManager {
 
   /**
    * Read native indices and active state only from the exact attached session, annotated with
-   * CPU-based work activity sampled in the background when async sampling is configured.
+   * CPU-based work activity sampled in the background when a sampling runner is configured.
    */
-  listWindows(sessionName: string): TerminalWindow[] {
+  async listWindows(sessionName: string): Promise<TerminalWindow[]> {
     if (!this.validateSessionName(sessionName)) throw new Error('Invalid session name');
-    const output = this.exec('tmux', [
+    const output = await this.exec('tmux', [
       'list-windows',
       '-t',
       `=${sessionName}`,
@@ -216,7 +215,7 @@ export class TmuxSessionManager {
     for (const [windowId, sample] of samples) {
       if (!sample.unnamed || !sample.seatId || !isValidWindowName(sample.seatId)) continue;
       try {
-        await this.execAsync?.('tmux', ['rename-window', '-t', windowId, '--', sample.seatId]);
+        await this.sampleExec?.('tmux', ['rename-window', '-t', windowId, '--', sample.seatId]);
       } catch {
         // Naming is cosmetic; the next sample tries again.
       }
@@ -225,10 +224,10 @@ export class TmuxSessionManager {
 
   /** Sample CPU for every window of `sessionName` in the background and record readings. */
   private async sampleActivity(sessionName: string): Promise<void> {
-    if (!this.execAsync || this.sampling.has(sessionName)) return;
+    if (!this.sampleExec || this.sampling.has(sessionName)) return;
     this.sampling.add(sessionName);
     try {
-      const panes = await this.execAsync('tmux', [
+      const panes = await this.sampleExec('tmux', [
         'list-panes',
         '-s',
         '-t',
@@ -362,7 +361,7 @@ export class TmuxSessionManager {
     samples: Map<string, { activityAt: number }>
   ): Promise<Set<string>> {
     const changed = new Set<string>();
-    const exec = this.execAsync;
+    const exec = this.sampleExec;
     if (!exec) return changed;
     let reads = 0;
     for (const [windowId, { activityAt }] of samples) {
@@ -389,7 +388,7 @@ export class TmuxSessionManager {
    * just ended, and otherwise once a minute. Working windows are skipped entirely.
    */
   private async readQuestions(sessionName: string, windowIds: string[]): Promise<void> {
-    const exec = this.execAsync;
+    const exec = this.sampleExec;
     if (!exec) return;
     const now = Date.now();
     const due = windowIds.filter((windowId) => {
@@ -430,7 +429,7 @@ export class TmuxSessionManager {
   private readProcessTable(): Promise<ProcessTable> {
     const now = Date.now();
     if (!this.processTable || now - this.processTable.at >= PROCESS_TABLE_TTL_MS) {
-      const exec = this.execAsync as (command: string, args: string[]) => Promise<string>;
+      const exec = this.sampleExec as CommandExecutor;
       const table = exec('ps', ['-A', '-o', 'pid=,ppid=,time=,args=']).then(parseProcessTable);
       table.catch(() => {
         if (this.processTable?.table === table) this.processTable = undefined;
@@ -441,7 +440,11 @@ export class TmuxSessionManager {
   }
 
   /** Select one numbered link, even when the same window is linked more than once. */
-  selectWindow(sessionName: string, windowId: string, windowIndex: number): TerminalWindow[] {
+  async selectWindow(
+    sessionName: string,
+    windowId: string,
+    windowIndex: number
+  ): Promise<TerminalWindow[]> {
     if (!this.validateSessionName(sessionName)) throw new Error('Invalid session name');
     if (typeof windowId !== 'string' || !/^@\d+$/.test(windowId)) {
       throw new Error('Invalid window ID');
@@ -449,22 +452,24 @@ export class TmuxSessionManager {
     if (!Number.isSafeInteger(windowIndex) || windowIndex < 0) {
       throw new Error('Invalid window index');
     }
-    const window = this.listWindows(sessionName).find(
+    const window = (await this.listWindows(sessionName)).find(
       (candidate) => candidate.id === windowId && candidate.index === windowIndex
     );
     if (!window) throw new Error('Window is not in the attached session');
     const target = `=${sessionName}:${window.index}`;
     // -F guards and selects in the same tmux queue turn, without a shell job.
     // The index identifies the link; checking its ID prevents index-reuse races.
-    const outcome = this.exec('tmux', [
-      'if-shell',
-      '-F',
-      '-t',
-      target,
-      `#{==:#{window_id},${window.id}}`,
-      `select-window -t '${target}' ; display-message -p window-selected`,
-      'display-message -p window-changed',
-    ]).trim();
+    const outcome = (
+      await this.exec('tmux', [
+        'if-shell',
+        '-F',
+        '-t',
+        target,
+        `#{==:#{window_id},${window.id}}`,
+        `select-window -t '${target}' ; display-message -p window-selected`,
+        'display-message -p window-changed',
+      ])
+    ).trim();
     if (outcome !== 'window-selected') throw new Error('The tmux window changed');
     return this.listWindows(sessionName);
   }
@@ -475,39 +480,41 @@ export class TmuxSessionManager {
    * run as the window's process, so the user's shell profile loads (PATH for `~/.local/bin/omp`)
    * and the window survives the agent exiting.
    */
-  newWindow(
+  async newWindow(
     sessionName: string,
     cwd: string,
     agent: NewWindowAgent,
     name: string
-  ): TerminalWindow[] {
+  ): Promise<TerminalWindow[]> {
     if (!this.validateSessionName(sessionName)) throw new Error('Invalid session name');
     if (!isNewWindowAgent(agent)) throw new Error('Unknown agent');
     // A blank name leaves the window unnamed: tmux shows the running program until pij renames
     // it after the seat (a few seconds after the harness starts). pij leaves user-set names alone.
     const named = name.trim().length > 0;
     if (named && !isValidWindowName(name)) throw new Error('Invalid window name');
-    const windowId = this.exec('tmux', [
-      'new-window',
-      '-P',
-      '-F',
-      '#{window_id}',
-      '-t',
-      `=${sessionName}:`,
-      ...(named ? ['-n', name] : []),
-      '-c',
-      cwd,
-    ]).trim();
+    const windowId = (
+      await this.exec('tmux', [
+        'new-window',
+        '-P',
+        '-F',
+        '#{window_id}',
+        '-t',
+        `=${sessionName}:`,
+        ...(named ? ['-n', name] : []),
+        '-c',
+        cwd,
+      ])
+    ).trim();
     if (!/^@\d+$/.test(windowId)) throw new Error('tmux did not report the new window');
-    this.exec('tmux', ['send-keys', '-t', windowId, '-l', NEW_WINDOW_AGENTS[agent].command]);
-    this.exec('tmux', ['send-keys', '-t', windowId, 'Enter']);
+    await this.exec('tmux', ['send-keys', '-t', windowId, '-l', NEW_WINDOW_AGENTS[agent].command]);
+    await this.exec('tmux', ['send-keys', '-t', windowId, 'Enter']);
     return this.listWindows(sessionName);
   }
 
   /** Check if a specific tmux session exists */
-  hasSession(name: string): boolean {
+  async hasSession(name: string): Promise<boolean> {
     try {
-      this.exec('tmux', ['has-session', '-t', name]);
+      await this.exec('tmux', ['has-session', '-t', name]);
       return true;
     } catch {
       return false;

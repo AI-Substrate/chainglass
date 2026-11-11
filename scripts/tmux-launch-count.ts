@@ -11,11 +11,11 @@
  * Usage: npx tsx scripts/tmux-launch-count.ts --terminals chainglass,unimatrix-main [--pij-pages 1] [--seconds 60]
  */
 
-import { execFile, execFileSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { loadavg } from 'node:os';
 import { parseArgs } from 'node:util';
 import { readTmuxWindowLabels } from '../apps/web/src/features/089-first-class-pij/server/tmux-windows';
+import { createCommandExecutor } from '../apps/web/src/features/064-terminal/server/exec-command';
 import { createTerminalServer } from '../apps/web/src/features/064-terminal/server/terminal-ws';
 import type { WebSocket } from 'ws';
 import type { PtyProcess } from '../apps/web/src/features/064-terminal/types';
@@ -44,22 +44,10 @@ const stubbed = (args: readonly string[]): string | undefined => {
   return undefined;
 };
 
-const execCommand = (command: string, args: string[]): string => {
+const run = createCommandExecutor();
+const execCommand = (command: string, args: readonly string[]): Promise<string> => {
   count(command, args);
-  return stubbed(args) ?? execFileSync(command, args, { encoding: 'utf8' });
-};
-const execCommandAsync = (command: string, args: readonly string[]): Promise<string> => {
-  count(command, args);
-  const stub = stubbed(args);
-  if (stub !== undefined) return Promise.resolve(stub);
-  const { promise, resolve, reject } = Promise.withResolvers<string>();
-  execFile(
-    command,
-    [...args],
-    { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 },
-    (error, stdout) => (error ? reject(error) : resolve(stdout))
-  );
-  return promise;
+  return Promise.resolve(stubbed(args) ?? run(command, [...args]));
 };
 
 class FakeSocket extends EventEmitter {
@@ -79,23 +67,19 @@ const fakePty = (): PtyProcess => ({
   kill: () => {},
 });
 
-const server = createTerminalServer({
-  execCommand,
-  spawnPty: fakePty,
-  execCommandAsync,
-});
+const server = createTerminalServer({ execCommand, spawnPty: fakePty, sampleExec: execCommand });
 
 /** Today's client (terminal-inner.tsx): `windows` at once, then every 2 s while visible. */
 const timers: NodeJS.Timeout[] = [];
 for (const session of sessions) {
   const socket = new FakeSocket();
-  server.handleConnection(socket as unknown as WebSocket, session, process.cwd());
+  await server.handleConnection(socket as unknown as WebSocket, session, process.cwd());
   const refresh = () => socket.emit('message', JSON.stringify({ type: 'windows' }));
   refresh();
   timers.push(setInterval(refresh, 2000));
 }
 for (let page = 0; page < pijPages; page++) {
-  const read = () => void readTmuxWindowLabels((c, a) => execCommandAsync(c, a));
+  const read = () => void readTmuxWindowLabels((c, a) => execCommand(c, a));
   read();
   timers.push(setInterval(read, 30_000));
 }
@@ -121,6 +105,6 @@ setTimeout(() => {
       2
     )
   );
-  server.close();
+  void server.close();
   process.exit(0);
 }, seconds * 1000);

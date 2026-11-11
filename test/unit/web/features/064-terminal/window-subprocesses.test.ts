@@ -28,7 +28,7 @@ function psSnapshot(t: number, viteRate: number): string {
 
 async function poll(manager: TmuxSessionManager, t: number): Promise<void> {
   vi.spyOn(Date, 'now').mockReturnValue((1_790_000_000 + t) * 1000);
-  manager.listWindows('main');
+  await manager.listWindows('main');
   await vi.waitFor(() =>
     expect((manager as unknown as { sampling: Set<string> }).sampling.size).toBe(0)
   );
@@ -40,7 +40,7 @@ describe('agent window activity vs its background jobs', () => {
   it('reports jobs only for real work, idle until they burn CPU — never lighting the agent', async () => {
     let viteRate = 0;
     let t = 0;
-    const exec = (_: string, args: string[]) =>
+    const exec = async (_: string, args: string[]) =>
       args[0] === 'list-windows' ? '@14\t14\t0\tomp-seat\n@15\t15\t0\tclaude-seat\n' : '';
     const execAsync = async (command: string, args: string[]) => {
       if (command === 'ps') return psSnapshot(t, viteRate);
@@ -48,10 +48,15 @@ describe('agent window activity vs its background jobs', () => {
       return '';
     };
     const manager = new TmuxSessionManager(exec, (() => null) as never, execAsync);
-    const read = (id: string) => manager.listWindows('main').find((w) => w.id === id);
+    // One list per check: every list also starts a sample, which must not land between two reads.
+    const snapshot = async () => {
+      const windows = await manager.listWindows('main');
+      return (id: string) => windows.find((w) => w.id === id);
+    };
 
     // Idle: a busy language server (30%) and tool servers are infrastructure, not jobs.
     for (t = 0; t <= 8; t += 2) await poll(manager, t);
+    let read = await snapshot();
     expect(read('@15')).toMatchObject({ agent: 'claude', background: null });
     expect(read('@14')).toMatchObject({ agent: 'pi', activeSeconds: null });
     expect(read('@14')?.background?.jobs.map((job) => job.label)).toEqual(['vite']);
@@ -60,6 +65,7 @@ describe('agent window activity vs its background jobs', () => {
     // The dev server starts working; omp itself stays idle.
     viteRate = 0.58;
     for (t = 10; t <= 14; t += 2) await poll(manager, t);
+    read = await snapshot();
     expect(read('@14')?.activeSeconds).toBeNull();
     expect(read('@14')?.background?.jobs[0].cpu).toBeCloseTo(0.585, 2);
     expect(read('@14')?.background?.cpu).toBeCloseTo(0.585, 2);
@@ -88,7 +94,7 @@ describe('agent window activity vs its background jobs', () => {
         row(402, 401, 1 + t * 0.005, `/Users/me/.local/bin/copilot ${host}`),
         row(403, 401, 1, 'cargo test -p pij-daemon'),
       ].join('\n');
-    const exec = (_: string, args: string[]) =>
+    const exec = async (_: string, args: string[]) =>
       args[0] === 'list-windows' ? '@16\t16\t0\tcopilot-npm\n@17\t17\t0\tcopilot-local\n' : '';
     const execAsync = async (command: string, args: string[]) => {
       if (command === 'ps') return snapshot();
@@ -96,9 +102,10 @@ describe('agent window activity vs its background jobs', () => {
       return '';
     };
     const manager = new TmuxSessionManager(exec, (() => null) as never, execAsync);
-    const read = (id: string) => manager.listWindows('main').find((w) => w.id === id);
 
     for (t = 0; t <= 8; t += 2) await poll(manager, t);
+    const windows = await manager.listWindows('main');
+    const read = (id: string) => windows.find((w) => w.id === id);
     expect(read('@16')).toMatchObject({ agent: 'copilot', background: null });
     expect(read('@17')?.agent).toBe('copilot');
     expect(read('@17')?.background?.jobs.map((job) => job.label)).toEqual(['cargo']);

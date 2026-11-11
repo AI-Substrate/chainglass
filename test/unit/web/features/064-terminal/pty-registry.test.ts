@@ -34,7 +34,7 @@ function makeKiller(alivePids: Set<number>) {
 
 /** `ps` fake: pids in tmuxPids report a tmux command line, others report node. */
 function makeExec(tmuxPids: Set<number>): CommandExecutor {
-  return (command, args) => {
+  return async (command, args) => {
     if (command !== 'ps') throw new Error(`unexpected command ${command}`);
     const pid = Number(args[args.length - 1]);
     return tmuxPids.has(pid) ? `tmux new-session -A -s sess-${pid}` : `node worker-${pid}.js`;
@@ -69,7 +69,7 @@ describe('pty-registry (FX001-3)', () => {
     expect(JSON.parse(readFileSync(pidRegistryPath(root, 4501), 'utf8'))).toEqual([900]);
   });
 
-  it('reaps ONLY pids that are alive AND still tmux clients', () => {
+  it('reaps ONLY pids that are alive AND still tmux clients', async () => {
     // 100 alive+tmux (reap), 200 alive+NOT-tmux=reused (skip),
     // 300 alive+tmux (reap), 400 dead (skip).
     recordPid(root, 4500, 100);
@@ -79,7 +79,7 @@ describe('pty-registry (FX001-3)', () => {
     const { killer, sigkilled } = makeKiller(new Set([100, 200, 300]));
     const exec = makeExec(new Set([100, 300]));
 
-    const reaped = reapStalePtys(root, 4500, exec, killer);
+    const reaped = await reapStalePtys(root, 4500, exec, killer);
 
     expect(reaped.sort()).toEqual([100, 300]);
     expect(sigkilled.sort()).toEqual([100, 300]);
@@ -89,13 +89,13 @@ describe('pty-registry (FX001-3)', () => {
     expect(JSON.parse(readFileSync(pidRegistryPath(root, 4500), 'utf8'))).toEqual([]);
   });
 
-  it("reaping one port does not touch another port's live pids", () => {
+  it("reaping one port does not touch another port's live pids", async () => {
     recordPid(root, 4500, 100);
     recordPid(root, 4501, 900); // a concurrent sidecar's live client
     const { killer, sigkilled } = makeKiller(new Set([100, 900]));
     const exec = makeExec(new Set([100, 900]));
 
-    reapStalePtys(root, 4500, exec, killer);
+    await reapStalePtys(root, 4500, exec, killer);
 
     expect(sigkilled).toEqual([100]);
     expect(sigkilled).not.toContain(900);
@@ -109,25 +109,25 @@ describe('pty-registry (FX001-3)', () => {
     expect(isProcessAlive(43, killer)).toBe(false);
   });
 
-  it('isTmuxClient: matches an attach client, fails closed on error', () => {
-    expect(isTmuxClient(100, makeExec(new Set([100])))).toBe(true);
-    expect(isTmuxClient(100, makeExec(new Set()))).toBe(false);
-    const throwing: CommandExecutor = () => {
+  it('isTmuxClient: matches an attach client, fails closed on error', async () => {
+    expect(await isTmuxClient(100, makeExec(new Set([100])))).toBe(true);
+    expect(await isTmuxClient(100, makeExec(new Set()))).toBe(false);
+    const throwing: CommandExecutor = async () => {
       throw new Error('no such process');
     };
-    expect(isTmuxClient(100, throwing)).toBe(false);
+    expect(await isTmuxClient(100, throwing)).toBe(false);
   });
 
   // Companion review F002: the tmux SERVER must NOT match — killing it would tear
   // down every session. Only a client subcommand (new-session/attach) qualifies.
-  it('isTmuxClient: does NOT match the tmux server or a bare tmux binary', () => {
-    const server: CommandExecutor = () => 'tmux: server';
-    const bareBinary: CommandExecutor = () => '/opt/homebrew/bin/tmux';
-    const client: CommandExecutor = () => 'tmux new-session -A -s sess';
-    const attach: CommandExecutor = () => 'tmux attach -t sess';
-    expect(isTmuxClient(1, server)).toBe(false);
-    expect(isTmuxClient(1, bareBinary)).toBe(false);
-    expect(isTmuxClient(1, client)).toBe(true);
-    expect(isTmuxClient(1, attach)).toBe(true);
+  it('isTmuxClient: does NOT match the tmux server or a bare tmux binary', async () => {
+    const server: CommandExecutor = async () => 'tmux: server';
+    const bareBinary: CommandExecutor = async () => '/opt/homebrew/bin/tmux';
+    const client: CommandExecutor = async () => 'tmux new-session -A -s sess';
+    const attach: CommandExecutor = async () => 'tmux attach -t sess';
+    expect(await isTmuxClient(1, server)).toBe(false);
+    expect(await isTmuxClient(1, bareBinary)).toBe(false);
+    expect(await isTmuxClient(1, client)).toBe(true);
+    expect(await isTmuxClient(1, attach)).toBe(true);
   });
 });

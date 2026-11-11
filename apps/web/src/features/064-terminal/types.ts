@@ -114,12 +114,11 @@ export interface PtyProcess {
   pid: number;
 }
 
-/** Injectable function type for executing shell commands */
-export type CommandExecutor = (
-  command: string,
-  args: string[],
-  options?: { encoding?: string; stdio?: string }
-) => string;
+/**
+ * Runs one command from an argv array (never a shell string) off the event loop and resolves its
+ * stdout. The production runner bounds every call with a timeout (see `server/exec-command.ts`).
+ */
+export type CommandExecutor = (command: string, args: string[]) => Promise<string>;
 
 /** Pane content geometry in tmux window cells, excluding the outer status line. */
 export interface TmuxPaneGeometry {

@@ -14,7 +14,7 @@ describe('TmuxSessionManager', () => {
   }
 
   describe('isTmuxAvailable', () => {
-    it('should return true when tmux is installed', () => {
+    it('should return true when tmux is installed', async () => {
       /*
       Test Doc:
       - Why: Core feature — must detect tmux before attempting session operations
@@ -25,10 +25,10 @@ describe('TmuxSessionManager', () => {
       */
       const { manager, exec } = createManager();
       exec.whenCommand('tmux', ['-V']).returns('tmux 3.4');
-      expect(manager.isTmuxAvailable()).toBe(true);
+      expect(await manager.isTmuxAvailable()).toBe(true);
     });
 
-    it('should return false when tmux is not installed', () => {
+    it('should return false when tmux is not installed', async () => {
       /*
       Test Doc:
       - Why: Graceful degradation — fall back to raw shell when tmux missing
@@ -39,7 +39,7 @@ describe('TmuxSessionManager', () => {
       */
       const { manager } = createManager();
       // No tmux -V configured → exec throws → should return false
-      expect(manager.isTmuxAvailable()).toBe(false);
+      expect(await manager.isTmuxAvailable()).toBe(false);
     });
   });
 
@@ -109,7 +109,7 @@ describe('TmuxSessionManager', () => {
   });
 
   describe('listSessions', () => {
-    it('should parse tmux list-sessions output correctly', () => {
+    it('should parse tmux list-sessions output correctly', async () => {
       /*
       Test Doc:
       - Why: Session discovery — show available sessions in the UI
@@ -127,7 +127,7 @@ describe('TmuxSessionManager', () => {
         ])
         .returns('064-tmux\t1709000000\t1\t2\n041-file-browser\t1708000000\t0\t1');
 
-      const sessions = manager.listSessions();
+      const sessions = await manager.listSessions();
       expect(sessions).toHaveLength(2);
       expect(sessions[0]).toEqual({
         name: '064-tmux',
@@ -143,7 +143,7 @@ describe('TmuxSessionManager', () => {
       });
     });
 
-    it('should return empty array when no sessions exist', () => {
+    it('should return empty array when no sessions exist', async () => {
       /*
       Test Doc:
       - Why: Edge case — tmux server running but no sessions
@@ -154,7 +154,7 @@ describe('TmuxSessionManager', () => {
       */
       const { manager } = createManager();
       // No list-sessions configured → throws → should return []
-      expect(manager.listSessions()).toEqual([]);
+      expect(await manager.listSessions()).toEqual([]);
     });
   });
 

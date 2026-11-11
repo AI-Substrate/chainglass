@@ -11,7 +11,7 @@
  *
  * The seven rules this file exists to keep:
  *
- * 1. TWO PROTECTION LAYERS, both required. `execCommand` is `execFileSync`, so
+ * 1. TWO PROTECTION LAYERS, both required. `execCommand` is argv-only `execFile`, so
  *    the text travels as an argv element and no shell ever parses it —
  *    backticks, `$(…)`, quotes and semicolons are inert. `-l` is tmux's
  *    literal mode, so tmux never key-name-parses an embedded `Enter` or `C-c`
@@ -43,7 +43,7 @@
  *    interleave: A types and parks on the settle, B types into the SAME
  *    composer, and A's Enter submits A+B as one prompt. Note that rule 5 is a
  *    direct cost of the conservative maximum chosen for rule 2 — the safest
- *    settle is also the widest window. See `enqueueForTarget`.
+ *    settle is also the widest window. See `enqueue`.
  *
  * 6. AT-MOST-ONCE, NEVER SPECULATIVE REPLAY. The settle is a guess, so a
  *    submit can still fail to take; the recovery is to re-press ENTER — up to
@@ -78,11 +78,14 @@
  *    blast radius rule 6 refuses to accept for retries; it must not arrive
  *    through the front door instead.
  *
- *    Resolution happens BEFORE the queue, and the queue is keyed on the
- *    resolved pane, because the hazard rule 5 addresses is two sends into one
- *    COMPOSER — which is a pane, not a session. Two sessions whose names differ
- *    but which resolve to the same pane must serialize; two sends to one
- *    session that resolve to different panes must not block each other.
+ *    Resolution happens INSIDE a per-target queue, together with the send, so
+ *    two sends to one target land in the order they were made: resolved
+ *    outside it, the second send's resolve could finish first and type first.
+ *    The send itself then runs inside a per-PANE queue, because the hazard
+ *    rule 5 addresses is two sends into one COMPOSER — which is a pane, not a
+ *    session. Two sessions whose names differ but which resolve to the same
+ *    pane must serialize; two sends to different sessions never block each
+ *    other.
  *
  *    NOTE what this does NOT fix: it makes the send hit the pane that was
  *    current when the user clicked, not necessarily the pane the user MEANT.
@@ -156,14 +159,12 @@ export const ENTER_REPRESS_INTERVAL_MS = 250;
 let bufferSeq = 0;
 
 /**
- * The tail of the in-flight send chain for each tmux target, or absent when
- * nothing is in flight for it.
- *
- * Keyed by TARGET, not globally: the hazard is two frames aimed at one
- * composer, so a send to pane A must not be made to wait ~900ms behind a send
- * to pane B. See `enqueueForTarget`.
+ * The tail of the in-flight chain per caller target (resolve + send, rule 7) and per resolved
+ * pane (the send, rule 5), or absent when nothing is in flight. Two maps, not one: a target may
+ * itself be a `%<n>` pane id, and one shared key would make the send wait on its own resolve.
  */
-const sendQueues = new Map<string, Promise<void>>();
+const targetQueues = new Map<string, Promise<void>>();
+const paneQueues = new Map<string, Promise<void>>();
 
 /** Test seam only — resets the paste-buffer counter so argv assertions are stable. */
 export function _resetPromptBufferSeqForTests(): void {
@@ -172,12 +173,13 @@ export function _resetPromptBufferSeqForTests(): void {
 
 /** Test seam only — drops any in-flight send chains so tests cannot leak into each other. */
 export function _resetPromptSendQueuesForTests(): void {
-  sendQueues.clear();
+  targetQueues.clear();
+  paneQueues.clear();
 }
 
 /**
- * Run `task` after every send already queued for `target` has finished, and
- * make the next one wait for it (rule 5 above).
+ * Run `task` after every task already queued under `key` in `queues` has finished, and make the
+ * next one wait for it (rules 5 and 7 above).
  *
  * Three properties this has to keep:
  *
@@ -186,21 +188,25 @@ export function _resetPromptSendQueuesForTests(): void {
  *   say) leaves the settle hole open, which is the actual defect.
  * - A rejection is delivered to ITS OWN caller and to nobody else. The chain
  *   the next send waits on swallows the error, so one failed tmux call cannot
- *   poison the pane's queue forever.
+ *   poison the queue forever.
  * - The map entry is dropped once the chain drains, so a long-lived server
  *   does not accumulate one settled promise per session it has ever seen.
  */
-function enqueueForTarget(target: string, task: () => Promise<void>): Promise<void> {
-  const tail = sendQueues.get(target);
+function enqueue(
+  queues: Map<string, Promise<void>>,
+  key: string,
+  task: () => Promise<void>
+): Promise<void> {
+  const tail = queues.get(key);
   // `tail` is a drained chain and never rejects, so a single `then` is enough.
   const run = tail ? tail.then(task) : task();
   const drained = run.then(
     () => undefined,
     () => undefined
   );
-  sendQueues.set(target, drained);
+  queues.set(key, drained);
   return run.finally(() => {
-    if (sendQueues.get(target) === drained) sendQueues.delete(target);
+    if (queues.get(key) === drained) queues.delete(key);
   });
 }
 
@@ -227,8 +233,13 @@ const PANE_ID_PATTERN = /^%\d+$/;
  * this function exists to remove, reappearing only under failure and therefore
  * only where nobody is looking.
  */
-export function resolvePaneTarget(execCommand: CommandExecutor, target: string): string {
-  const paneId = execCommand('tmux', ['display-message', '-p', '-t', target, '#{pane_id}']).trim();
+export async function resolvePaneTarget(
+  execCommand: CommandExecutor,
+  target: string
+): Promise<string> {
+  const paneId = (
+    await execCommand('tmux', ['display-message', '-p', '-t', target, '#{pane_id}'])
+  ).trim();
   if (!PANE_ID_PATTERN.test(paneId)) {
     throw new Error(
       `Could not resolve tmux target "${target}" to a pane (got ${JSON.stringify(paneId)})`
@@ -238,7 +249,7 @@ export function resolvePaneTarget(execCommand: CommandExecutor, target: string):
 }
 
 export interface SendPromptKeysOptions {
-  /** argv-only command runner (`execFileSync`). Never a shell string. */
+  /** argv-only command runner (`execFile`). Never a shell string. */
   execCommand: CommandExecutor;
   /**
    * tmux target. Today the sidecar has only a validated session name, which is
@@ -252,9 +263,8 @@ export interface SendPromptKeysOptions {
   submit: boolean;
   /**
    * Injectable delay. The default yields to the event loop — the settle must
-   * NEVER block the websocket message loop, because `execCommand` is
-   * synchronous and a blocking 900ms freezes the user's terminal once per
-   * click.
+   * NEVER block the websocket message loop, which also carries every
+   * terminal's output.
    */
   sleep?: (ms: number) => Promise<void>;
   /**
@@ -309,57 +319,59 @@ export async function sendPromptKeys({
   // would re-submit whatever is already sitting in the composer.
   if (payload.length === 0) return;
 
-  // Rule 7: resolve ONCE, before the queue, and address the pane from here on.
-  // Before the queue because the queue key must be the composer being written
-  // to, and a session name is not one; a throw here reaches the caller as a
-  // failed send having issued no keystrokes at all.
-  const pane = resolvePaneTarget(execCommand, target);
+  // Rule 7: resolve ONCE and address the pane from here on. The resolve sits in
+  // the target's queue with the send, so sends to one target keep their order;
+  // a throw here reaches the caller as a failed send having issued no
+  // keystrokes at all.
+  return enqueue(targetQueues, target, async () => {
+    const pane = await resolvePaneTarget(execCommand, target);
 
-  // Rule 5: the whole sequence below is one critical section per pane.
-  return enqueueForTarget(pane, async () => {
-    // Rule 4: focus-in first, every time, before anything is typed.
-    execCommand('tmux', ['send-keys', '-t', pane, ...FOCUS_IN_ARGS]);
+    // Rule 5: the whole sequence below is one critical section per pane.
+    await enqueue(paneQueues, pane, async () => {
+      // Rule 4: focus-in first, every time, before anything is typed.
+      await execCommand('tmux', ['send-keys', '-t', pane, ...FOCUS_IN_ARGS]);
 
-    if (payload.includes('\n')) {
-      // Rule 3: one atomic bracketed paste, not one send-keys per line.
-      // `-p` is bracketed paste; `-d` deletes the buffer once it has been pasted.
-      const buffer = `cg-prompt-${bufferSeq++}`;
-      execCommand('tmux', ['set-buffer', '-b', buffer, payload]);
-      execCommand('tmux', ['paste-buffer', '-p', '-d', '-b', buffer, '-t', pane]);
-    } else {
-      // Rule 1: `-l` literal mode. No `--` — with argv there is no shell to
-      // confuse, and the workshop is explicit that a leading dash is already
-      // safe here, so adding `--` would be re-deriving a shape it settled.
-      execCommand('tmux', ['send-keys', '-t', pane, '-l', payload]);
-    }
+      if (payload.includes('\n')) {
+        // Rule 3: one atomic bracketed paste, not one send-keys per line.
+        // `-p` is bracketed paste; `-d` deletes the buffer once it has been pasted.
+        const buffer = `cg-prompt-${bufferSeq++}`;
+        await execCommand('tmux', ['set-buffer', '-b', buffer, payload]);
+        await execCommand('tmux', ['paste-buffer', '-p', '-d', '-b', buffer, '-t', pane]);
+      } else {
+        // Rule 1: `-l` literal mode. No `--` — with argv there is no shell to
+        // confuse, and the workshop is explicit that a leading dash is already
+        // safe here, so adding `--` would be re-deriving a shape it settled.
+        await execCommand('tmux', ['send-keys', '-t', pane, '-l', payload]);
+      }
 
-    if (submit) {
-      // Rule 2: a SEPARATE call, after the settle, and the settle yields.
-      await sleep(ENTER_SETTLE_MS);
-      execCommand('tmux', ['send-keys', '-t', pane, 'Enter']);
+      if (submit) {
+        // Rule 2: a SEPARATE call, after the settle, and the settle yields.
+        await sleep(ENTER_SETTLE_MS);
+        await execCommand('tmux', ['send-keys', '-t', pane, 'Enter']);
 
-      // Rule 6: at-most-once recovery. Note what is NOT in this loop — there
-      // is no type call, no set-buffer and no paste-buffer. The only thing it
-      // may ever issue again is Enter.
-      //
-      // It also runs INSIDE the queued critical section deliberately. A retry
-      // that escaped the queue would re-open exactly the interleaving bug
-      // rule 5 closes, and in its worst form: a second send could type into
-      // the composer between a retry's probe and its Enter, so the retry
-      // submits the wrong prompt.
-      if (isPayloadPending) {
-        for (let attempt = 0; attempt < ENTER_REPRESS_MAX_ATTEMPTS; attempt++) {
-          await sleep(ENTER_REPRESS_INTERVAL_MS);
-          let stillPending: boolean;
-          try {
-            stillPending = await isPayloadPending();
-          } catch {
-            return;
+        // Rule 6: at-most-once recovery. Note what is NOT in this loop — there
+        // is no type call, no set-buffer and no paste-buffer. The only thing it
+        // may ever issue again is Enter.
+        //
+        // It also runs INSIDE the queued critical section deliberately. A retry
+        // that escaped the queue would re-open exactly the interleaving bug
+        // rule 5 closes, and in its worst form: a second send could type into
+        // the composer between a retry's probe and its Enter, so the retry
+        // submits the wrong prompt.
+        if (isPayloadPending) {
+          for (let attempt = 0; attempt < ENTER_REPRESS_MAX_ATTEMPTS; attempt++) {
+            await sleep(ENTER_REPRESS_INTERVAL_MS);
+            let stillPending: boolean;
+            try {
+              stillPending = await isPayloadPending();
+            } catch {
+              return;
+            }
+            if (!stillPending) return;
+            await execCommand('tmux', ['send-keys', '-t', pane, 'Enter']);
           }
-          if (!stillPending) return;
-          execCommand('tmux', ['send-keys', '-t', pane, 'Enter']);
         }
       }
-    }
+    });
   });
 }

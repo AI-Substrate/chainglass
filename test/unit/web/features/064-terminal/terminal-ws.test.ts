@@ -82,7 +82,7 @@ describe('Terminal WebSocket Server', () => {
   });
 
   describe('handleConnection', () => {
-    it('should spawn PTY with correct tmux args when session and cwd provided', () => {
+    it('should spawn PTY with correct tmux args when session and cwd provided', async () => {
       /*
       Test Doc:
       - Why: Core connect flow — browser provides session name + CWD
@@ -95,7 +95,11 @@ describe('Terminal WebSocket Server', () => {
       const server = createTerminalServer(deps);
       const ws = createFakeWs();
 
-      server.handleConnection(ws as unknown as import('ws').WebSocket, '064-tmux', process.cwd());
+      await server.handleConnection(
+        ws as unknown as import('ws').WebSocket,
+        '064-tmux',
+        process.cwd()
+      );
 
       expect(spawner.spawnCount).toBe(1);
       const statusMsg = JSON.parse(ws.sent[0]);
@@ -104,7 +108,7 @@ describe('Terminal WebSocket Server', () => {
       expect(statusMsg.tmux).toBe(true);
     });
 
-    it('should pipe client data to PTY write', () => {
+    it('should pipe client data to PTY write', async () => {
       /*
       Test Doc:
       - Why: Input path — user keystrokes must reach the terminal
@@ -117,14 +121,18 @@ describe('Terminal WebSocket Server', () => {
       const server = createTerminalServer(deps);
       const ws = createFakeWs();
 
-      server.handleConnection(ws as unknown as import('ws').WebSocket, '064-tmux', process.cwd());
+      await server.handleConnection(
+        ws as unknown as import('ws').WebSocket,
+        '064-tmux',
+        process.cwd()
+      );
       ws.simulateMessage('ls -la\n');
 
       const pty = spawner.lastInstance as FakePty;
       expect(pty.writeCalls).toContain('ls -la\n');
     });
 
-    it('should pipe PTY data to ws.send', () => {
+    it('should pipe PTY data to ws.send', async () => {
       /*
       Test Doc:
       - Why: Output path — terminal output must reach the browser
@@ -137,7 +145,11 @@ describe('Terminal WebSocket Server', () => {
       const server = createTerminalServer(deps);
       const ws = createFakeWs();
 
-      server.handleConnection(ws as unknown as import('ws').WebSocket, '064-tmux', process.cwd());
+      await server.handleConnection(
+        ws as unknown as import('ws').WebSocket,
+        '064-tmux',
+        process.cwd()
+      );
       const pty = spawner.lastInstance as FakePty;
       pty.simulateData('drwxr-xr-x  12 user  staff  384 Jan 10 10:00 .\n');
 
@@ -146,7 +158,7 @@ describe('Terminal WebSocket Server', () => {
       expect(ws.sent[1]).toContain('drwxr-xr-x');
     });
 
-    it('should handle resize messages', () => {
+    it('should handle resize messages', async () => {
       /*
       Test Doc:
       - Why: Terminal resize — browser window changes dimensions
@@ -159,14 +171,18 @@ describe('Terminal WebSocket Server', () => {
       const server = createTerminalServer(deps);
       const ws = createFakeWs();
 
-      server.handleConnection(ws as unknown as import('ws').WebSocket, '064-tmux', process.cwd());
+      await server.handleConnection(
+        ws as unknown as import('ws').WebSocket,
+        '064-tmux',
+        process.cwd()
+      );
       ws.simulateMessage(JSON.stringify({ type: 'resize', cols: 120, rows: 40 }));
 
       const pty = spawner.lastInstance as FakePty;
       pty.assertResized(120, 40);
     });
 
-    it('should kill PTY on client disconnect', () => {
+    it('should kill PTY on client disconnect', async () => {
       /*
       Test Doc:
       - Why: Cleanup — browser closes, PTY must be freed (but tmux session survives)
@@ -179,7 +195,11 @@ describe('Terminal WebSocket Server', () => {
       const server = createTerminalServer(deps);
       const ws = createFakeWs();
 
-      server.handleConnection(ws as unknown as import('ws').WebSocket, '064-tmux', process.cwd());
+      await server.handleConnection(
+        ws as unknown as import('ws').WebSocket,
+        '064-tmux',
+        process.cwd()
+      );
       const pty = spawner.lastInstance as FakePty;
       expect(pty.killed).toBe(false);
 
@@ -189,12 +209,16 @@ describe('Terminal WebSocket Server', () => {
 
     // FX001-1: the in-session leak — a socket 'error' without a clean 'close'
     // previously orphaned the PTY (no ws.on('error') handler existed).
-    it('should kill PTY on socket error (no clean close) — FX001-1', () => {
+    it('should kill PTY on socket error (no clean close) — FX001-1', async () => {
       exec.whenCommand('tmux', ['-V']).returns('tmux 3.4');
       const server = createTerminalServer(deps);
       const ws = createFakeWs();
 
-      server.handleConnection(ws as unknown as import('ws').WebSocket, '064-tmux', process.cwd());
+      await server.handleConnection(
+        ws as unknown as import('ws').WebSocket,
+        '064-tmux',
+        process.cwd()
+      );
       const pty = spawner.lastInstance as FakePty;
       expect(pty.killed).toBe(false);
 
@@ -204,12 +228,16 @@ describe('Terminal WebSocket Server', () => {
 
     // FX001-1: disposePty must be idempotent — onExit, then close, then error can
     // all fire for one PTY; the second+ disposal is a no-op (no double-kill throw).
-    it('should dispose a PTY at most once across exit/close/error — FX001-1', () => {
+    it('should dispose a PTY at most once across exit/close/error — FX001-1', async () => {
       exec.whenCommand('tmux', ['-V']).returns('tmux 3.4');
       const server = createTerminalServer(deps);
       const ws = createFakeWs();
 
-      server.handleConnection(ws as unknown as import('ws').WebSocket, '064-tmux', process.cwd());
+      await server.handleConnection(
+        ws as unknown as import('ws').WebSocket,
+        '064-tmux',
+        process.cwd()
+      );
       const pty = spawner.lastInstance as FakePty;
       let killCount = 0;
       const realKill = pty.kill.bind(pty);
@@ -229,7 +257,7 @@ describe('Terminal WebSocket Server', () => {
     // FX001-2: graceful shutdown must force-kill every tracked PTY (SIGHUP detach
     // via disposePty + SIGKILL backstop via the injected killer), so no attach
     // client survives a clean sidecar restart.
-    it('cleanup() force-kills every active PTY on shutdown — FX001-2', () => {
+    it('cleanup() force-kills every active PTY on shutdown — FX001-2', async () => {
       exec.whenCommand('tmux', ['-V']).returns('tmux 3.4');
       const sigkills: number[] = [];
       // killer: signal 0 = liveness probe (alive); a real signal = record it.
@@ -237,17 +265,15 @@ describe('Terminal WebSocket Server', () => {
         if (signal !== 0) sigkills.push(pid);
       };
       // ps reports a tmux ATTACH CLIENT so the F001 guard permits the backstop.
-      const execCommand = ((command: string, args: string[], options?: unknown) =>
-        command === 'ps'
-          ? 'tmux new-session -A -s s'
-          : exec.exec(command, args, options as never)) as typeof exec.exec;
+      const execCommand = async (command: string, args: string[]) =>
+        command === 'ps' ? 'tmux new-session -A -s s' : exec.exec(command, args);
       const server = createTerminalServer({ ...deps, execCommand, killProcess });
       const ws1 = createFakeWs();
       const ws2 = createFakeWs();
-      server.handleConnection(ws1 as unknown as import('ws').WebSocket, 's1', process.cwd());
-      server.handleConnection(ws2 as unknown as import('ws').WebSocket, 's2', process.cwd());
+      await server.handleConnection(ws1 as unknown as import('ws').WebSocket, 's1', process.cwd());
+      await server.handleConnection(ws2 as unknown as import('ws').WebSocket, 's2', process.cwd());
 
-      server.close(); // runs cleanup()
+      await server.close(); // runs cleanup()
 
       const [p1, p2] = spawner.instances as FakePty[];
       expect(p1.killed).toBe(true); // disposePty → node-pty real-child kill
@@ -258,22 +284,20 @@ describe('Terminal WebSocket Server', () => {
     // Companion review F001: the SIGKILL backstop must NOT fire when the pid is no
     // longer a tmux client (recycled PID / the tmux server) — only node-pty's
     // real-child kill happens.
-    it('cleanup() skips the SIGKILL backstop for a non-tmux pid — FX001-2/F001', () => {
+    it('cleanup() skips the SIGKILL backstop for a non-tmux pid — FX001-2/F001', async () => {
       exec.whenCommand('tmux', ['-V']).returns('tmux 3.4');
       const sigkills: number[] = [];
       const killProcess = (pid: number, signal: NodeJS.Signals | number) => {
         if (signal !== 0) sigkills.push(pid);
       };
       // ps reports an UNRELATED process (pid recycled) → backstop must not fire.
-      const execCommand = ((command: string, args: string[], options?: unknown) =>
-        command === 'ps'
-          ? 'node unrelated-worker.js'
-          : exec.exec(command, args, options as never)) as typeof exec.exec;
+      const execCommand = async (command: string, args: string[]) =>
+        command === 'ps' ? 'node unrelated-worker.js' : exec.exec(command, args);
       const server = createTerminalServer({ ...deps, execCommand, killProcess });
       const ws = createFakeWs();
-      server.handleConnection(ws as unknown as import('ws').WebSocket, 's', process.cwd());
+      await server.handleConnection(ws as unknown as import('ws').WebSocket, 's', process.cwd());
 
-      server.close();
+      await server.close();
 
       const pty = spawner.lastInstance as FakePty;
       expect(pty.killed).toBe(true); // node-pty real-child kill still happens
@@ -282,7 +306,7 @@ describe('Terminal WebSocket Server', () => {
 
     // FX001-4: a reconnect storm must not exhaust host PTYs — at the ceiling the
     // connection is rejected with a typed error + close code 4429, no PTY spawned.
-    it('rejects connections once the max-PTY ceiling is reached — FX001-4', () => {
+    it('rejects connections once the max-PTY ceiling is reached — FX001-4', async () => {
       exec.whenCommand('tmux', ['-V']).returns('tmux 3.4');
       const prev = process.env.TERMINAL_MAX_ACTIVE_PTYS;
       process.env.TERMINAL_MAX_ACTIVE_PTYS = '2';
@@ -291,9 +315,9 @@ describe('Terminal WebSocket Server', () => {
         const a = createFakeWs();
         const b = createFakeWs();
         const c = createFakeWs();
-        server.handleConnection(a as unknown as import('ws').WebSocket, 's', process.cwd());
-        server.handleConnection(b as unknown as import('ws').WebSocket, 's', process.cwd());
-        server.handleConnection(c as unknown as import('ws').WebSocket, 's', process.cwd());
+        await server.handleConnection(a as unknown as import('ws').WebSocket, 's', process.cwd());
+        await server.handleConnection(b as unknown as import('ws').WebSocket, 's', process.cwd());
+        await server.handleConnection(c as unknown as import('ws').WebSocket, 's', process.cwd());
 
         expect(spawner.spawnCount).toBe(2); // 3rd never spawned
         expect(c.closeCode).toBe(4429);
@@ -304,7 +328,7 @@ describe('Terminal WebSocket Server', () => {
       }
     });
 
-    it('should support multiple clients for the same session', () => {
+    it('should support multiple clients for the same session', async () => {
       /*
       Test Doc:
       - Why: Multi-client — terminal page + overlay both connect to same tmux session
@@ -318,13 +342,21 @@ describe('Terminal WebSocket Server', () => {
       const ws1 = createFakeWs();
       const ws2 = createFakeWs();
 
-      server.handleConnection(ws1 as unknown as import('ws').WebSocket, '064-tmux', process.cwd());
-      server.handleConnection(ws2 as unknown as import('ws').WebSocket, '064-tmux', process.cwd());
+      await server.handleConnection(
+        ws1 as unknown as import('ws').WebSocket,
+        '064-tmux',
+        process.cwd()
+      );
+      await server.handleConnection(
+        ws2 as unknown as import('ws').WebSocket,
+        '064-tmux',
+        process.cwd()
+      );
 
       expect(spawner.spawnCount).toBe(2);
     });
 
-    it('should fall back to raw shell when tmux unavailable', () => {
+    it('should fall back to raw shell when tmux unavailable', async () => {
       /*
       Test Doc:
       - Why: Graceful degradation — terminal works even without tmux
@@ -337,7 +369,11 @@ describe('Terminal WebSocket Server', () => {
       const server = createTerminalServer(deps);
       const ws = createFakeWs();
 
-      server.handleConnection(ws as unknown as import('ws').WebSocket, '064-tmux', process.cwd());
+      await server.handleConnection(
+        ws as unknown as import('ws').WebSocket,
+        '064-tmux',
+        process.cwd()
+      );
 
       expect(spawner.spawnCount).toBe(1);
       const statusMsg = JSON.parse(ws.sent[0]);
@@ -347,7 +383,7 @@ describe('Terminal WebSocket Server', () => {
       expect(statusMsg.message).toContain('raw shell');
     });
 
-    it('should reject invalid CWD paths', () => {
+    it('should reject invalid CWD paths', async () => {
       /*
       Test Doc:
       - Why: Security — prevent directory traversal via CWD query param
@@ -360,14 +396,18 @@ describe('Terminal WebSocket Server', () => {
       const server = createTerminalServer(deps);
       const ws = createFakeWs();
 
-      server.handleConnection(ws as unknown as import('ws').WebSocket, '064-tmux', '/etc/passwd');
+      await server.handleConnection(
+        ws as unknown as import('ws').WebSocket,
+        '064-tmux',
+        '/etc/passwd'
+      );
 
       expect(ws.closed).toBe(true);
       expect(ws.closeCode).toBe(4400);
       expect(spawner.spawnCount).toBe(0);
     });
 
-    it('should handle PTY spawn failures gracefully', () => {
+    it('should handle PTY spawn failures gracefully', async () => {
       /*
       Test Doc:
       - Why: Resilience — PTY spawn can fail (permissions, binary missing)
@@ -391,7 +431,11 @@ describe('Terminal WebSocket Server', () => {
       });
       const ws = createFakeWs();
 
-      server.handleConnection(ws as unknown as import('ws').WebSocket, '064-tmux', process.cwd());
+      await server.handleConnection(
+        ws as unknown as import('ws').WebSocket,
+        '064-tmux',
+        process.cwd()
+      );
 
       expect(ws.closed).toBe(true);
       expect(ws.closeCode).toBe(1011);
@@ -423,11 +467,15 @@ describe('Terminal WebSocket Server', () => {
      */
     const PANE = '%9';
 
-    const connect = (session = '064-tmux') => {
+    const connect = async (session = '064-tmux') => {
       exec.whenCommand('tmux', ['-V']).returns('tmux 3.4');
       const server = createTerminalServer(deps);
       const ws = createFakeWs();
-      server.handleConnection(ws as unknown as import('ws').WebSocket, session, process.cwd());
+      await server.handleConnection(
+        ws as unknown as import('ws').WebSocket,
+        session,
+        process.cwd()
+      );
       exec.reset();
       // Rule 7's resolve, registered for every case that gets as far as
       // sending. The invalid-name case never reaches it, which is the point of
@@ -447,7 +495,7 @@ describe('Terminal WebSocket Server', () => {
         literal send-keys at this session, and no Enter.
       - Quality Contribution: dw-1011 at the socket boundary.
       */
-      const ws = connect('064-tmux');
+      const ws = await connect('064-tmux');
       exec.whenCommand('tmux', ['send-keys', '-t', PANE, '-H', '1b', '5b', '49']).returns('');
       exec.whenCommand('tmux', ['send-keys', '-t', PANE, '-l', 'hello agent']).returns('');
 
@@ -469,7 +517,7 @@ describe('Terminal WebSocket Server', () => {
       - Contract: even when the runner throws, nothing reaches pty.write.
       - Quality Contribution: guards the message-loop contract copy-buffer set.
       */
-      const ws = connect();
+      const ws = await connect();
       // No whenCommand registrations — FakeTmuxExecutor throws ENOENT on the
       // first unmatched command, standing in for tmux being unavailable.
 
@@ -493,7 +541,7 @@ describe('Terminal WebSocket Server', () => {
       - Quality Contribution: keeps ph-0003's honesty problem from being
         quietly pre-empted by an over-claiming field name.
       */
-      const ws = connect();
+      const ws = await connect();
       exec.whenCommand('tmux', ['send-keys', '-t', PANE, '-H', '1b', '5b', '49']).returns('');
       exec.whenCommand('tmux', ['send-keys', '-t', PANE, '-l', 'x']).returns('');
 
@@ -515,7 +563,7 @@ describe('Terminal WebSocket Server', () => {
       - Quality Contribution: defence in depth on the one argv element that is
         not the prompt text.
       */
-      const ws = connect('bad;name');
+      const ws = await connect('bad;name');
 
       await ws.simulateMessage(JSON.stringify({ type: 'send-keys', text: 'hello' }));
 
@@ -529,16 +577,16 @@ describe('Terminal WebSocket Server', () => {
       /*
       Test Doc:
       - Why: ac-0005 + ac-0012 — the submit is a second tmux call, and the wait
-        between them must yield. execCommand is execFileSync, so a blocking
-        settle here freezes the user's terminal for the full copilot settle on
-        every click.
+        between them must yield. The sidecar's one event loop also carries every
+        terminal's output, so a blocking settle here freezes the user's terminal
+        for the full copilot settle on every click.
       - Contract: the handler returns with the type done and the Enter pending;
         the Enter lands only once the timer elapses.
       - Quality Contribution: dw-1012 + dw-1032 at the socket boundary.
       */
       vi.useFakeTimers();
       try {
-        const ws = connect();
+        const ws = await connect();
         exec.whenCommand('tmux', ['send-keys', '-t', PANE, '-H', '1b', '5b', '49']).returns('');
         exec.whenCommand('tmux', ['send-keys', '-t', PANE, '-l', 'ship it']).returns('');
         exec.whenCommand('tmux', ['send-keys', '-t', PANE, 'Enter']).returns('');
@@ -577,7 +625,7 @@ describe('Terminal WebSocket Server', () => {
       */
       vi.useFakeTimers();
       try {
-        const ws = connect();
+        const ws = await connect();
         exec.whenCommand('tmux', ['send-keys', '-t', PANE, '-H', '1b', '5b', '49']).returns('');
         exec.whenCommand('tmux', ['send-keys', '-t', PANE, '-l', 'ship it']).returns('');
         exec.whenCommand('tmux', ['send-keys', '-t', PANE, 'Enter']).returns('');

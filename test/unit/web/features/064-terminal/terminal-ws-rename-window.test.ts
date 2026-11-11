@@ -20,11 +20,14 @@ class FakeWebSocket extends EventEmitter {
   }
 }
 
-function createHarness(execCommand: ReturnType<typeof vi.fn>) {
+async function createHarness(execCommand: ReturnType<typeof vi.fn>) {
   const spawner = createFakePtySpawner();
-  const server = createTerminalServer({ execCommand, spawnPty: spawner.spawn });
+  const server = createTerminalServer({
+    execCommand: async (command, args) => execCommand(command, args),
+    spawnPty: spawner.spawn,
+  });
   const socket = new FakeWebSocket();
-  server.handleConnection(
+  await server.handleConnection(
     socket as unknown as import('ws').WebSocket,
     'terminal-session',
     process.cwd()
@@ -36,7 +39,7 @@ function createHarness(execCommand: ReturnType<typeof vi.fn>) {
 describe('terminal WebSocket rename-window control frame', () => {
   it('renames the active session window through a fixed tmux argv command', async () => {
     const execCommand = vi.fn(() => '');
-    const { socket } = createHarness(execCommand);
+    const { socket } = await createHarness(execCommand);
 
     await socket.simulateMessage(JSON.stringify({ type: 'rename-window', name: 'my window' }));
 
@@ -55,7 +58,7 @@ describe('terminal WebSocket rename-window control frame', () => {
     ['leading dash', '-x'],
   ])('rejects a %s label without executing tmux', async (_label, name) => {
     const execCommand = vi.fn(() => '');
-    const { socket } = createHarness(execCommand);
+    const { socket } = await createHarness(execCommand);
 
     await socket.simulateMessage(JSON.stringify({ type: 'rename-window', name }));
 
@@ -69,7 +72,7 @@ describe('terminal WebSocket rename-window control frame', () => {
     const execCommand = vi.fn(() => {
       throw new Error('tmux failed');
     });
-    const { socket, pty } = createHarness(execCommand);
+    const { socket, pty } = await createHarness(execCommand);
 
     await socket.simulateMessage(JSON.stringify({ type: 'rename-window', name: 'my window' }));
 

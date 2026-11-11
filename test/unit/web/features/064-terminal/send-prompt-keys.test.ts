@@ -64,7 +64,7 @@ function createRecorder(
   const calls: RecordedCall[] = [];
   return {
     calls,
-    exec: (command: string, args: string[]): string => {
+    exec: async (command: string, args: string[]): Promise<string> => {
       const call = { command, args };
       calls.push(call);
       onCall?.(call);
@@ -142,6 +142,14 @@ function focusInCalls(calls: RecordedCall[]): RecordedCall[] {
 
 /** Zero-delay sleep — still a real yield to the event loop, just not 900ms of it. */
 const instantSleep = () => Promise.resolve();
+
+/**
+ * Let every pending runner reply settle without advancing any timer. Each tmux call is awaited,
+ * so a send reaches its next call one microtask hop later; a settle (a timer) still holds it.
+ */
+async function drainMicrotasks(): Promise<void> {
+  for (let hop = 0; hop < 50; hop++) await Promise.resolve();
+}
 
 beforeEach(() => {
   _resetPromptBufferSeqForTests();
@@ -429,9 +437,9 @@ describe('send path — one settle table, conservative and non-blocking (tk-0103
   it('settle.does-not-block-the-message-loop: other work runs between the type and the Enter', async () => {
     /*
     Test Doc:
-    - Why: ac-0012 — execCommand is execFileSync and the ws message handler is
-      the event loop. A synchronous 900ms settle freezes the user's terminal
-      for a second on every click.
+    - Why: ac-0012 — the ws message handler runs on the sidecar's one event
+      loop, which also carries every terminal's output. A blocking 900ms settle
+      freezes the user's terminal for a second on every click.
     - Contract: with the REAL default sleep and the REAL 900ms constant,
       unrelated queued work runs after the type call and before the Enter.
     - Quality Contribution: dw-1032. A busy-wait or a sync sleep would put
@@ -455,6 +463,7 @@ describe('send path — one settle table, conservative and non-blocking (tk-0103
         submit: true,
       });
 
+      await drainMicrotasks();
       // Control came back to the test with the Enter still outstanding.
       expect(order).toEqual(['type']);
 
@@ -692,6 +701,7 @@ describe('send path — one send at a time per pane (tk-0107)', () => {
       sleep: heldSleep,
     });
 
+    await drainMicrotasks();
     // Both have typed and are parked on their own settles.
     expect(typedAt(runner.calls, 'FIRST')).toBeGreaterThanOrEqual(0);
     expect(typedAt(runner.calls, 'SECOND')).toBeGreaterThanOrEqual(0);
@@ -715,7 +725,7 @@ describe('send path — one send at a time per pane (tk-0107)', () => {
     */
     let failNext = true;
     const runner = createRecorder();
-    const exec = (command: string, args: string[]): string => {
+    const exec = async (command: string, args: string[]): Promise<string> => {
       if (failNext && args.includes('-l')) {
         failNext = false;
         throw new Error('tmux: no server running');
@@ -1303,6 +1313,7 @@ describe('send path — the target is a pane, resolved once (rule 7)', () => {
       sleep: heldSleep,
     });
 
+    await drainMicrotasks();
     // B is still queued: only A has typed, and it is parked on its settle.
     expect(typedAtPane(runner.calls, 'PROMPT-A')).toBeGreaterThanOrEqual(0);
     expect(typedAtPane(runner.calls, 'PROMPT-B')).toBe(-1);
@@ -1319,6 +1330,43 @@ describe('send path — the target is a pane, resolved once (rule 7)', () => {
     await settled;
     expect(typedAtPane(runner.calls, 'PROMPT-B')).toBeGreaterThanOrEqual(0);
     expect(enterCalls(runner.calls)).toHaveLength(2);
+  });
+
+  it('send.rapid-sends-to-one-target-land-in-order: a slow resolve cannot let the next send overtake', async () => {
+    /*
+    Test Doc:
+    - Why: the resolve is an async tmux call. Resolved OUTSIDE the queue, two
+      rapid sends to one session race their resolves: when the first resolve
+      answers late, the second send queues first and its prompt is typed and
+      submitted first — the user's prompts reach the agent out of order.
+    - Contract: with the first send's resolve held until after the second
+      send's resolve could answer, the first prompt is still typed and
+      submitted before the second.
+    - Quality Contribution: fails if the resolve moves back outside the
+      per-target queue.
+    */
+    const runner = createRecorder();
+    let releaseFirstResolve: () => void = () => {};
+    const firstResolveHeld = new Promise<void>((resolve) => {
+      releaseFirstResolve = resolve;
+    });
+    let resolves = 0;
+    const exec = async (command: string, args: string[]): Promise<string> => {
+      const reply = runner.exec(command, args);
+      if (args[0] === 'display-message' && ++resolves === 1) await firstResolveHeld;
+      return reply;
+    };
+    const opts = { execCommand: exec, target: TARGET, submit: true, sleep: instantSleep };
+
+    const first = sendPromptKeys({ ...opts, text: 'PROMPT-FIRST' });
+    const second = sendPromptKeys({ ...opts, text: 'PROMPT-SECOND' });
+    await drainMicrotasks();
+    releaseFirstResolve();
+    await Promise.all([first, second]);
+
+    expect(typedAtPane(runner.calls, 'PROMPT-FIRST')).toBe(1);
+    expect(typedAtPane(runner.calls, 'PROMPT-SECOND')).toBe(4);
+    expect(enterCalls(runner.calls).map((c) => sentCalls(runner.calls).indexOf(c))).toEqual([2, 5]);
   });
 
   it('send.unresolvable-target-types-nothing: a failed resolve is a failed send, not a fallback', async () => {

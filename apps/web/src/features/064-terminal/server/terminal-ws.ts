@@ -26,6 +26,7 @@ import type {
   ResolvedTerminalPath,
   TerminalWindowsResult,
 } from '../types';
+import { createCommandExecutor } from './exec-command';
 import { isProcessAlive, isTmuxClient, reapStalePtys, recordPid, removePid } from './pty-registry';
 import { currentWindowPaneCwds, resolveTerminalPaths } from './resolve-terminal-paths';
 import { sendPromptKeys } from './send-prompt-keys';
@@ -62,6 +63,7 @@ export {
 } from './terminal-auth';
 
 export interface TerminalServerDeps {
+  /** Every control-message command. Production: `createCommandExecutor()` (async, timed). */
   execCommand: CommandExecutor;
   spawnPty: PtySpawner;
   /**
@@ -71,27 +73,27 @@ export interface TerminalServerDeps {
    */
   killProcess?: (pid: number, signal: NodeJS.Signals | number) => void;
   /**
-   * Async command runner for window work activity (`tmux list-panes` + one `ps -A` snapshot),
-   * run off the event loop. Optional so tests never read the real process table; without it
-   * windows carry no activity times.
+   * Command runner for window work activity (`tmux list-panes` + one `ps -A` snapshot + screen
+   * reads). Optional so tests never read the real process table; without it windows carry no
+   * activity times.
    */
-  execCommandAsync?: (command: string, args: string[]) => Promise<string>;
+  sampleExec?: CommandExecutor;
   /** The pij seat roster, joined to windows by pane. Optional; without it no window has a seat. */
   readSeats?: () => Promise<PaneSeat[]>;
 }
 
 export interface TerminalServer {
-  handleConnection: (ws: WebSocket, sessionName: string, cwd: string) => void;
+  handleConnection: (ws: WebSocket, sessionName: string, cwd: string) => Promise<void>;
   derivePort: (nextPort: number) => number;
-  start: (port: number) => void;
-  close: () => void;
+  start: (port: number) => Promise<void>;
+  close: () => Promise<void>;
 }
 
 export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
   const manager = new TmuxSessionManager(
     deps.execCommand,
     deps.spawnPty,
-    deps.execCommandAsync,
+    deps.sampleExec,
     deps.readSeats
   );
   const activePtys = new Set<PtyProcess>();
@@ -161,7 +163,7 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
     }
   }
 
-  function handleConnection(ws: WebSocket, sessionName: string, cwd: string): void {
+  async function handleConnection(ws: WebSocket, sessionName: string, cwd: string): Promise<void> {
     // FT-001: Validate CWD before PTY spawn
     const allowedBase = process.env.TERMINAL_ALLOWED_BASE ?? process.cwd();
     if (!manager.validateCwd(cwd, allowedBase)) {
@@ -172,6 +174,10 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
       return;
     }
 
+    const tmuxAvailable = await manager.isTmuxAvailable();
+    // The socket may have closed while tmux answered; a PTY now would have no one to serve.
+    if (ws.readyState !== 1) return;
+
     // FX001-4: refuse new PTYs at the ceiling rather than exhausting host PTYs.
     if (activePtys.size >= MAX_ACTIVE_PTYS) {
       const msg = `Terminal capacity reached (${MAX_ACTIVE_PTYS} active sessions). Close one and retry.`;
@@ -181,7 +187,6 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
       return;
     }
 
-    const tmuxAvailable = manager.isTmuxAvailable();
     let pty: PtyProcess;
 
     // FT-002: Guard PTY spawn failures
@@ -261,10 +266,10 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
             result = {
               windows:
                 msg.type === 'select-window'
-                  ? manager.selectWindow(sessionName, msg.windowId, msg.windowIndex)
+                  ? await manager.selectWindow(sessionName, msg.windowId, msg.windowIndex)
                   : msg.type === 'new-window'
-                    ? manager.newWindow(sessionName, cwd, msg.agent, msg.name)
-                    : manager.listWindows(sessionName),
+                    ? await manager.newWindow(sessionName, cwd, msg.agent, msg.name)
+                    : await manager.listWindows(sessionName),
             };
           } catch (error) {
             result = {
@@ -282,8 +287,8 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
             if (!manager.validateSessionName(sessionName)) throw new Error('Invalid session name');
             result =
               msg.type === 'resize-pane'
-                ? resizeTmuxPane(deps.execCommand, sessionName, msg)
-                : { layout: readPaneLayout(deps.execCommand, sessionName) };
+                ? await resizeTmuxPane(deps.execCommand, sessionName, msg)
+                : { layout: await readPaneLayout(deps.execCommand, sessionName) };
           } catch (error) {
             result = {
               layout: null,
@@ -302,7 +307,7 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
             result = {
               resolved: resolveTerminalPaths(
                 paths,
-                currentWindowPaneCwds(deps.execCommand, sessionName)
+                await currentWindowPaneCwds(deps.execCommand, sessionName)
               ),
             };
           } catch (error) {
@@ -324,7 +329,7 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
         }
         if (msg.type === 'copy-buffer') {
           try {
-            const buffer = deps.execCommand('tmux', ['show-buffer']);
+            const buffer = await deps.execCommand('tmux', ['show-buffer']);
             ws.send(JSON.stringify({ type: 'clipboard', data: buffer.trim() }));
           } catch (err) {
             const errMsg = err instanceof Error ? err.message : 'Unknown error';
@@ -356,7 +361,7 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
           try {
             // argv (and `--` for tmux's option parser) closes shell injection;
             // validation keeps labels product- and tmux-level sane.
-            deps.execCommand('tmux', ['rename-window', '-t', sessionName, '--', msg.name]);
+            await deps.execCommand('tmux', ['rename-window', '-t', sessionName, '--', msg.name]);
             ws.send(JSON.stringify({ type: 'rename-window', renamed: true }));
           } catch (err) {
             const errMsg = err instanceof Error ? err.message : 'Unknown error';
@@ -419,7 +424,7 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
     return nextPort + 1500;
   }
 
-  function cleanup(): void {
+  async function cleanup(): Promise<void> {
     // FX001-2: idempotent — a signal handler AND `beforeExit` can both fire.
     if (cleanedUp) return;
     cleanedUp = true;
@@ -430,25 +435,31 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
     }
 
     // Snapshot: disposePty mutates activePtys while we iterate.
-    for (const pty of [...activePtys]) {
-      disposePty(pty); // node-pty kills the real child (SIGHUP detach) + clears interval
-      // Force-kill backstop for a wedged attach client. Guard with the SAME
-      // liveness + is-tmux-CLIENT check as the reaper (companion review F001): a
-      // pid the OS may have recycled — or the tmux SERVER — must never be
-      // SIGKILLed. Only a still-live tmux attach client is force-killed.
-      try {
-        if (isProcessAlive(pty.pid, killProcess) && isTmuxClient(pty.pid, deps.execCommand)) {
-          killProcess(pty.pid, 'SIGKILL');
+    const ptys = [...activePtys];
+    for (const pty of ptys) disposePty(pty); // node-pty kills the real child (SIGHUP detach)
+    // Force-kill backstop for a wedged attach client. Guard with the SAME
+    // liveness + is-tmux-CLIENT check as the reaper (companion review F001): a
+    // pid the OS may have recycled — or the tmux SERVER — must never be
+    // SIGKILLed. Only a still-live tmux attach client is force-killed.
+    await Promise.all(
+      ptys.map(async (pty) => {
+        try {
+          if (
+            isProcessAlive(pty.pid, killProcess) &&
+            (await isTmuxClient(pty.pid, deps.execCommand))
+          ) {
+            killProcess(pty.pid, 'SIGKILL');
+          }
+        } catch {
+          // Process already exited.
         }
-      } catch {
-        // Process already exited.
-      }
-    }
+      })
+    );
 
     activePtys.clear();
   }
 
-  function start(port: number): void {
+  async function start(port: number): Promise<void> {
     // Plan 084 Phase 4 — Startup assertion: bootstrap-code.json must be readable
     // at the sidecar's resolved cwd. On failure, log FATAL and exit; never
     // continue with a degraded auth posture (silent-bypass is closed permanently
@@ -467,7 +478,7 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
     // accept new connections. Per-port keying isolates concurrent worktree
     // sidecars; the ps-guard inside reapStalePtys prevents killing reused PIDs.
     try {
-      const reaped = reapStalePtys(sidecarRoot, port, deps.execCommand, killProcess);
+      const reaped = await reapStalePtys(sidecarRoot, port, deps.execCommand, killProcess);
       if (reaped.length > 0) {
         console.log(
           `[terminal] Reaped ${reaped.length} orphaned PTY client(s) from a prior run: ${reaped.join(', ')}`
@@ -565,20 +576,20 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
     // SIGHUP fires on terminal hangup / parent death; `beforeExit` catches a clean
     // drain. (SIGKILL can't be caught — that orphan case is covered by FX001-3's
     // startup reaper.)
-    const shutdown = (signal: string) => {
+    const shutdown = async (signal: string) => {
       console.log(`Terminal WS server: ${signal} received, cleaning up...`);
-      cleanup();
+      await cleanup();
       wss?.close();
       process.exit(0);
     };
-    process.on('SIGTERM', () => shutdown('SIGTERM'));
-    process.on('SIGINT', () => shutdown('SIGINT'));
-    process.on('SIGHUP', () => shutdown('SIGHUP'));
-    process.on('beforeExit', () => cleanup());
+    process.on('SIGTERM', () => void shutdown('SIGTERM'));
+    process.on('SIGINT', () => void shutdown('SIGINT'));
+    process.on('SIGHUP', () => void shutdown('SIGHUP'));
+    process.on('beforeExit', () => void cleanup());
   }
 
-  function close(): void {
-    cleanup();
+  async function close(): Promise<void> {
+    await cleanup();
     wss?.close();
   }
 
@@ -590,16 +601,13 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
 
 const isDirectRun = process.argv[1]?.includes('terminal-ws');
 if (isDirectRun) {
-  const { execFile, execFileSync } = await import('node:child_process');
   const pty = await import('node-pty');
   const { createRsClient, pijRsAddr, pijRsStateDir } = await import(
     '../../089-first-class-pij/server/rs/rs-client'
   );
   const rs = createRsClient({ addr: pijRsAddr(), stateDir: pijRsStateDir(), fetch });
 
-  const execCommand: CommandExecutor = (command, args) => {
-    return execFileSync(command, args, { encoding: 'utf8' });
-  };
+  const execCommand = createCommandExecutor();
 
   const spawnPty: PtySpawner = (command, args, options) => {
     return pty.spawn(command, args, {
@@ -614,15 +622,7 @@ if (isDirectRun) {
   const server = createTerminalServer({
     execCommand,
     spawnPty,
-    execCommandAsync: (command, args) =>
-      new Promise((resolve, reject) => {
-        execFile(
-          command,
-          args,
-          { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 },
-          (error, stdout) => (error ? reject(error) : resolve(stdout))
-        );
-      }),
+    sampleExec: execCommand,
     readSeats: async () =>
       (await rs.seats()).flatMap((seat) =>
         typeof seat.pane === 'string' && typeof seat.proc?.pid === 'number'
@@ -635,5 +635,5 @@ if (isDirectRun) {
     ? Number.parseInt(process.env.TERMINAL_WS_PORT, 10)
     : server.derivePort(nextPort);
 
-  server.start(wsPort);
+  await server.start(wsPort);
 }

@@ -63,11 +63,11 @@ describe('resolveTerminalPaths', () => {
     ]);
   });
 
-  it('reads the current window panes, active pane first', () => {
-    const exec = (_: string, args: string[]) => {
+  it('reads the current window panes, active pane first', async () => {
+    const exec = async (_: string, args: string[]) => {
       expect(args.slice(0, 3)).toEqual(['list-panes', '-t', '=main:']);
       return '0\t/repo/a\n1\t/repo/b\n0\t/repo/a\n';
     };
-    expect(currentWindowPaneCwds(exec, 'main')).toEqual(['/repo/b', '/repo/a']);
+    expect(await currentWindowPaneCwds(exec, 'main')).toEqual(['/repo/b', '/repo/a']);
   });
 });

@@ -1,8 +1,9 @@
 /**
  * FakeTmuxExecutor — Test double for shell command execution
  *
- * Injectable replacement for child_process.execFileSync used by TmuxSessionManager.
- * Configurable responses per command+args combination. Throws on unmatched commands.
+ * Injectable replacement for the async `execFile` runner used by TmuxSessionManager.
+ * Configurable responses per command+args combination. Rejects on unmatched commands.
+ * The call is recorded synchronously, before the first await, so tests can assert on it at once.
  *
  * Constitution P4: Fakes Over Mocks — no vi.mock().
  */
@@ -43,7 +44,7 @@ export class FakeTmuxExecutor {
   }
 
   /** The injectable exec function — pass this to TmuxSessionManager constructor */
-  exec = (command: string, args: string[], _options?: Record<string, unknown>): string => {
+  exec = async (command: string, args: string[]): Promise<string> => {
     this.executedCommands.push({ command, args });
     const key = this.makeKey(command, args);
     const response = this.responses.get(key);

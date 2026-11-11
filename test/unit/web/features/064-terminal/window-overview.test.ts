@@ -56,7 +56,7 @@ describe('lastTextLine', () => {
 
 describe('window seats and last lines', () => {
   it('joins a seat only when its process runs in the pane, so a recycled pane id never matches', async () => {
-    const exec = (_: string, args: string[]) =>
+    const exec = async (_: string, args: string[]) =>
       args[0] === 'list-windows' ? '@14\t14\t0\tshell\n@15\t15\t0\tclaude-seat\n' : '';
     const execAsync = async (command: string, args: string[]) => {
       if (command === 'ps') {
@@ -73,12 +73,12 @@ describe('window seats and last lines', () => {
     ];
     const manager = new TmuxSessionManager(exec, (() => null) as never, execAsync, readSeats);
 
-    manager.listWindows('main');
+    await manager.listWindows('main');
     await vi.waitFor(() =>
       expect((manager as unknown as { sampling: Set<string> }).sampling.size).toBe(0)
     );
 
-    const [shell, claude] = manager.listWindows('main');
+    const [shell, claude] = await manager.listWindows('main');
     expect(shell).toMatchObject({ seatId: null, lastLine: '$ ls' });
     expect(claude).toMatchObject({
       seatId: 'pij-live-seat',
@@ -88,7 +88,7 @@ describe('window seats and last lines', () => {
 
   it('names a seat window that nobody has named after its seat, and leaves named ones alone', async () => {
     const renames: string[][] = [];
-    const exec = (_: string, args: string[]) =>
+    const exec = async (_: string, args: string[]) =>
       args[0] === 'list-windows' ? '@1\t1\t0\t2.1.289\n@2\t2\t0\treceipts\n@3\t3\t0\tzsh\n' : '';
     const execAsync = async (command: string, args: string[]) => {
       if (command === 'ps') {
@@ -112,7 +112,7 @@ describe('window seats and last lines', () => {
     ];
     const manager = new TmuxSessionManager(exec, (() => null) as never, execAsync, readSeats);
 
-    manager.listWindows('main');
+    await manager.listWindows('main');
     await vi.waitFor(() =>
       expect((manager as unknown as { sampling: Set<string> }).sampling.size).toBe(0)
     );

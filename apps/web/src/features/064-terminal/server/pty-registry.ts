@@ -90,9 +90,9 @@ export function isProcessAlive(pid: number, killer: ProcessKiller): boolean {
  * must require a client subcommand, not merely the word "tmux". Fails closed.
  * (Companion review FX001 F002.)
  */
-export function isTmuxClient(pid: number, exec: CommandExecutor): boolean {
+export async function isTmuxClient(pid: number, exec: CommandExecutor): Promise<boolean> {
   try {
-    const cmd = exec('ps', ['-o', 'command=', '-p', String(pid)]);
+    const cmd = await exec('ps', ['-o', 'command=', '-p', String(pid)]);
     return /\btmux\b/.test(cmd) && /\b(new-session|attach(-session)?)\b/.test(cmd);
   } catch {
     return false;
@@ -104,15 +104,15 @@ export function isTmuxClient(pid: number, exec: CommandExecutor): boolean {
  * Kills a pid ONLY when it is both alive AND still a tmux client (guards against
  * PID reuse), then resets the registry file. Returns the pids actually killed.
  */
-export function reapStalePtys(
+export async function reapStalePtys(
   root: string,
   port: number,
   exec: CommandExecutor,
   killer: ProcessKiller
-): number[] {
+): Promise<number[]> {
   const killed: number[] = [];
   for (const pid of readPids(pidRegistryPath(root, port))) {
-    if (isProcessAlive(pid, killer) && isTmuxClient(pid, exec)) {
+    if (isProcessAlive(pid, killer) && (await isTmuxClient(pid, exec))) {
       try {
         killer(pid, 'SIGKILL');
         killed.push(pid);

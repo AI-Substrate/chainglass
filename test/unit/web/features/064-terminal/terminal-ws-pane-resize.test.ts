@@ -82,7 +82,7 @@ class FakeTmux {
   beforeGuard: (() => void) | undefined;
   readonly mutations: string[] = [];
 
-  readonly exec = vi.fn((_command: string, args: string[]): string => {
+  readonly exec = vi.fn(async (_command: string, args: string[]): Promise<string> => {
     if (args[0] === '-V') {
       if (!this.available) throw new Error('tmux missing');
       return 'tmux 3.6a';
@@ -107,11 +107,11 @@ class FakeTmux {
   });
 }
 
-function createHarness(tmux = new FakeTmux()) {
+async function createHarness(tmux = new FakeTmux()) {
   const spawner = createFakePtySpawner();
   const server = createTerminalServer({ execCommand: tmux.exec, spawnPty: spawner.spawn });
   const socket = new FakeWebSocket();
-  server.handleConnection(
+  await server.handleConnection(
     socket as unknown as import('ws').WebSocket,
     'terminal-session',
     process.cwd()
@@ -172,7 +172,7 @@ function nestedLayout(axis: 'x' | 'y'): TmuxWindowLayout {
 
 describe('terminal WebSocket pane layout and resize', () => {
   it('reads only the exact connection session active window, ignoring payload targets', async () => {
-    const { tmux, socket, pty } = createHarness();
+    const { tmux, socket, pty } = await createHarness();
     await socket.simulateMessage({ type: 'pane-layout', sessionName: 'foreign', windowId: '@99' });
 
     expect(tmux.exec).toHaveBeenCalledOnce();
@@ -196,7 +196,7 @@ describe('terminal WebSocket pane layout and resize', () => {
   ] as const)(
     'converts the %s border fraction into pane cells and returns actual readback',
     async (axis, paneId, fraction, expectedCell) => {
-      const { tmux, socket, request, pty } = createHarness();
+      const { tmux, socket, request, pty } = await createHarness();
       tmux.nextLayout = {
         ...initialLayout(),
         revision: 'read-back-layout|bottom|0',
@@ -235,7 +235,7 @@ describe('terminal WebSocket pane layout and resize', () => {
     async (axis, expected) => {
       const tmux = new FakeTmux();
       tmux.layout = nestedLayout(axis);
-      const { socket, request, pty } = createHarness(tmux);
+      const { socket, request, pty } = await createHarness(tmux);
       await socket.simulateMessage(
         resizeMessage({ ...request, paneId: '%2', axis, fraction: 90 / 162 })
       );
@@ -251,7 +251,7 @@ describe('terminal WebSocket pane layout and resize', () => {
   it('clamps a nested subtree to recursive pane minima without touching distant siblings', async () => {
     const tmux = new FakeTmux();
     tmux.layout = nestedLayout('x');
-    const { socket, request } = createHarness(tmux);
+    const { socket, request } = await createHarness(tmux);
     await socket.simulateMessage(resizeMessage({ ...request, paneId: '%2', fraction: 0 }));
     expect(selectedLayoutBody(tmux)).toBe(
       '162x41,0,0{3x41,0,0[3x20,0,0{1x20,0,0,1,1x20,2,0,2},3x20,0,21,3],117x41,4,0,4,40x41,122,0,5}'
@@ -264,7 +264,7 @@ describe('terminal WebSocket pane layout and resize', () => {
   ] as const)(
     'rejects an outer %s window edge instead of moving another split',
     async (axis, paneId) => {
-      const { tmux, socket, request } = createHarness();
+      const { tmux, socket, request } = await createHarness();
       await socket.simulateMessage(resizeMessage({ ...request, axis, paneId }));
       expect(tmux.mutations).toEqual([]);
       expect(socket.result.error).toBe('Pane has no resizable border on this axis');
@@ -272,7 +272,7 @@ describe('terminal WebSocket pane layout and resize', () => {
   );
 
   it('refuses pane-order mismatches rather than relocate panes through select-layout', async () => {
-    const { tmux, socket, request } = createHarness();
+    const { tmux, socket, request } = await createHarness();
     tmux.layout.panes.reverse();
     await socket.simulateMessage(resizeMessage(request));
     expect(tmux.mutations).toEqual([]);
@@ -290,7 +290,7 @@ describe('terminal WebSocket pane layout and resize', () => {
     tmux.status = status;
     tmux.layout.statusPosition = 'top';
     tmux.layout.statusRows = statusRows;
-    const { socket } = createHarness(tmux);
+    const { socket } = await createHarness(tmux);
     await socket.simulateMessage({ type: 'pane-layout' });
     expect(socket.result.layout).toEqual(tmux.layout);
   });
@@ -298,7 +298,7 @@ describe('terminal WebSocket pane layout and resize', () => {
   it.each(['@2', '@99'])(
     'rejects inactive or foreign window %s before mutation',
     async (windowId) => {
-      const { tmux, socket, request } = createHarness();
+      const { tmux, socket, request } = await createHarness();
       await socket.simulateMessage(resizeMessage({ ...request, windowId }));
       expect(tmux.mutations).toEqual([]);
       expect(tmux.exec.mock.calls.every(([, args]) => args[0] === 'list-panes')).toBe(true);
@@ -311,7 +311,7 @@ describe('terminal WebSocket pane layout and resize', () => {
   );
 
   it.each(['%6', '%99'])('rejects inactive or foreign pane %s before mutation', async (paneId) => {
-    const { tmux, socket, request } = createHarness();
+    const { tmux, socket, request } = await createHarness();
     await socket.simulateMessage(resizeMessage({ ...request, paneId }));
     expect(tmux.mutations).toEqual([]);
     expect(tmux.exec.mock.calls.every(([, args]) => args[0] === 'list-panes')).toBe(true);
@@ -319,7 +319,7 @@ describe('terminal WebSocket pane layout and resize', () => {
   });
 
   it('rejects a stale layout and returns the refreshed geometry', async () => {
-    const { tmux, socket, request } = createHarness();
+    const { tmux, socket, request } = await createHarness();
     tmux.layout = { ...initialLayout(), revision: 'changed-layout|bottom|0' };
     await socket.simulateMessage(resizeMessage(request));
     expect(tmux.mutations).toEqual([]);
@@ -333,7 +333,7 @@ describe('terminal WebSocket pane layout and resize', () => {
   it.each(['window switch', 'pane movement', 'zoom'] as const)(
     'guards a %s between preflight and execution',
     async (change) => {
-      const { tmux, socket, request } = createHarness();
+      const { tmux, socket, request } = await createHarness();
       tmux.beforeGuard = () => {
         if (change === 'window switch') tmux.layout = { ...initialLayout(), windowId: '@2' };
         else if (change === 'pane movement')
@@ -358,7 +358,7 @@ describe('terminal WebSocket pane layout and resize', () => {
       zoomed: true,
       statusPosition: 'top',
     };
-    const { socket, request } = createHarness(tmux);
+    const { socket, request } = await createHarness(tmux);
     await socket.simulateMessage({ type: 'pane-layout' });
     expect(socket.result.layout).toEqual(tmux.layout);
     await socket.simulateMessage(resizeMessage(request));
@@ -386,7 +386,7 @@ describe('terminal WebSocket pane layout and resize', () => {
     { revision: {} },
     { revision: 'x'.repeat(65537) },
   ])('rejects malformed resize fields without tmux or PTY input', async (overrides) => {
-    const { tmux, socket, request, pty } = createHarness();
+    const { tmux, socket, request, pty } = await createHarness();
     await socket.simulateMessage({ ...resizeMessage(request), ...overrides });
     expect(tmux.exec).not.toHaveBeenCalled();
     expect(pty.writeCalls).toEqual([]);
@@ -398,7 +398,7 @@ describe('terminal WebSocket pane layout and resize', () => {
   });
 
   it('consumes a resize control frame with missing fields instead of typing it', async () => {
-    const { tmux, socket, pty } = createHarness();
+    const { tmux, socket, pty } = await createHarness();
     await socket.simulateMessage({ type: 'resize-pane' });
     expect(tmux.exec).not.toHaveBeenCalled();
     expect(pty.writeCalls).toEqual([]);
@@ -410,7 +410,7 @@ describe('terminal WebSocket pane layout and resize', () => {
     async (type) => {
       const tmux = new FakeTmux();
       tmux.available = false;
-      const { socket, request, pty } = createHarness(tmux);
+      const { socket, request, pty } = await createHarness(tmux);
       await socket.simulateMessage({ ...request, type });
       expect(tmux.exec).not.toHaveBeenCalled();
       expect(pty.writeCalls).toEqual([]);
@@ -425,7 +425,7 @@ describe('terminal WebSocket pane layout and resize', () => {
   it.each(['pane-layout', 'resize-pane'])(
     'contains read failures inside the %s branch',
     async (type) => {
-      const { tmux, socket, request, pty } = createHarness();
+      const { tmux, socket, request, pty } = await createHarness();
       tmux.readError = new Error('session disappeared');
       await socket.simulateMessage({ ...request, type });
       expect(pty.writeCalls).toEqual([]);
@@ -438,7 +438,7 @@ describe('terminal WebSocket pane layout and resize', () => {
   );
 
   it('returns resize errors with refreshed layout without writing the request into the terminal', async () => {
-    const { tmux, socket, request, pty } = createHarness();
+    const { tmux, socket, request, pty } = await createHarness();
     tmux.resizeError = new Error('pane disappeared');
     await socket.simulateMessage(resizeMessage(request));
     expect(tmux.mutations).toEqual([]);
@@ -453,7 +453,7 @@ describe('terminal WebSocket pane layout and resize', () => {
   it.each(['', '@1\t120\t40\trevision\tbottom\t0\t1\t%1\t0\t0\tNaN\t40'])(
     'rejects malformed tmux geometry without terminal input',
     async (rawOutput) => {
-      const { tmux, socket, pty } = createHarness();
+      const { tmux, socket, pty } = await createHarness();
       tmux.rawOutput = rawOutput;
       await socket.simulateMessage({ type: 'pane-layout' });
       expect(pty.writeCalls).toEqual([]);

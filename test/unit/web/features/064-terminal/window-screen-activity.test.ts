@@ -22,7 +22,7 @@ describe('window working state from screen changes', () => {
   it('ignores footer ticks and click redraws, and turns green only when the work area moves', async () => {
     let t = 0;
     let current = '';
-    const exec = (_: string, args: string[]) =>
+    const exec = async (_: string, args: string[]) =>
       args[0] === 'list-windows' ? '@1\t1\t0\tseat\n' : '';
     const execAsync = async (command: string, args: string[]) => {
       if (command === 'ps') return '100 1 0:00.10 -zsh\n101 100 0:01.00 claude';
@@ -33,13 +33,13 @@ describe('window working state from screen changes', () => {
     const manager = new TmuxSessionManager(exec, (() => null) as never, execAsync);
     const poll = async () => {
       vi.spyOn(Date, 'now').mockReturnValue((1_790_000_000 + t) * 1000);
-      manager.listWindows('main');
+      await manager.listWindows('main');
       await vi.waitFor(() =>
         expect((manager as unknown as { sampling: Set<string> }).sampling.size).toBe(0)
       );
       t += 2;
     };
-    const green = () => manager.listWindows('main')[0].activeSeconds !== null;
+    const green = async () => (await manager.listWindows('main'))[0].activeSeconds !== null;
     const idleLine = '✻ Worked for 14s · done 3:50 pm';
 
     // Idle agent: only the footer clock ticks (and the user's half-typed reply sits in the box).
@@ -47,18 +47,18 @@ describe('window working state from screen changes', () => {
       current = screen('Done.', idleLine, clock);
       await poll();
     }
-    expect(green()).toBe(false);
+    expect(await green()).toBe(false);
 
     // A click redraw: tmux reports output, the text is identical.
     await poll();
     await poll();
-    expect(green()).toBe(false);
+    expect(await green()).toBe(false);
 
     // Working: the spinner counts up every poll.
     for (const seconds of [1, 3, 5]) {
       current = screen('Done.', `✻ Germinating… (${seconds}s · ↓ 217 tokens)`, '18:30');
       await poll();
     }
-    expect(green()).toBe(true);
+    expect(await green()).toBe(true);
   });
 });
