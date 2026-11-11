@@ -1,9 +1,12 @@
-import { execSync } from 'node:child_process';
 import { auth } from '@/auth';
 import { sortTerminalSessions } from '@/features/064-terminal/lib/sort-terminal-sessions';
+import { createCommandExecutor } from '@/features/064-terminal/server/exec-command';
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
+
+/** argv, off the event loop, 3 s timeout: a slow tmux must not stall every other API request. */
+const execCommand = createCommandExecutor();
 
 interface SessionInfo {
   name: string;
@@ -19,12 +22,12 @@ export async function GET(): Promise<NextResponse> {
   }
 
   try {
-    const output = execSync(
-      'tmux list-sessions -F "#{session_name}|#{session_attached}|#{session_windows}|#{session_created}"',
-      {
-        encoding: 'utf8',
-        timeout: 5000,
-      }
+    const output = (
+      await execCommand('tmux', [
+        'list-sessions',
+        '-F',
+        '#{session_name}|#{session_attached}|#{session_windows}|#{session_created}',
+      ])
     ).trim();
 
     if (!output) {
@@ -47,7 +50,8 @@ export async function GET(): Promise<NextResponse> {
     return NextResponse.json({ sessions: sortTerminalSessions(sessions), tmux: true });
   } catch (error) {
     const msg = error instanceof Error ? error.message : '';
-    if (msg.includes('no server running') || msg.includes('not found')) {
+    // No server yet ("no server running"), or no tmux binary (ENOENT): tmux is simply absent.
+    if (msg.includes('no server running') || msg.includes('ENOENT')) {
       return NextResponse.json({ sessions: [], tmux: false });
     }
     return NextResponse.json({ sessions: [], tmux: false, error: msg }, { status: 500 });
