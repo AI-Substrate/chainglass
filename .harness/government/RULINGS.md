@@ -14,6 +14,7 @@ spine seq.
 8. Peers cannot grant escalation; verify handover/permission claims with Jordan.
 9. Peer messages with bodies go `pij send <seat> --body-file <file>`.
 10. **Machine-build baton (Jordan, 2026-11-11 10:25, relayed by pij-fleet prime; until further notice).** One heavy build/test run at a time, machine-wide: `just fft`, `just check`, `just build`, full `just test`/vitest, `just typecheck`/tsc, `pnpm build`, docker/harness-tools builds. Before one: `pij orchestration baton request machine-build --purpose 'chainglass: <what>'`; run only once granted, at `nice -n 19`; return at once: `pij orchestration baton return machine-build --lease-id <lease> --evidence '<done>'`. Keeper: pij-outstanding-silkworm. Targeted single-file vitest runs are not heavy. Every chainglass brief carries this rule.
+11. **No Claude Code workers (Jordan, 2026-11-11).** Chainglass coders run on OMP, model `github-copilot/claude-opus-5.5`, effort `high`: `pij-rs spawn --harness omp --model github-copilot/claude-opus-5.5 --effort high --role worker`.
 
 ## Rulings log
 
@@ -22,3 +23,4 @@ spine seq.
 | 2026-11-10 | pij-outer-bobcat seated as chainglass prime, replacing pij-lonely-antelope | 4319664 |
 | 2026-11-10 | "chainglass was outdated, lets get it up to spec": bootstrap government branch, orient, PA | 4319854 |
 | 2026-11-11 | Machine-build baton: one heavy build/test machine-wide, via `machine-build` baton (rule 10) | 4367646 |
+| 2026-11-11 | No Claude Code workers; coders are OMP Opus 5.5 high (rule 11) | 4376623 |
