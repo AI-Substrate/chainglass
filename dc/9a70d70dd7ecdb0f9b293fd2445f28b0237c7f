@@ -1,0 +1,19 @@
+.harness/government/briefs/context-fill-bar.md
+  s_958eda73732f8c::t_921118a43dc564 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "dc9a70d70dd7ecdb0f9b293fd2445f28b0237c7f",
+  "prompts": {},
+  "sessions": {
+    "s_958eda73732f8c": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "3713fe69-655f-44d6-bc78-d0cab3947590",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
