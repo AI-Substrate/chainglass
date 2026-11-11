@@ -1,0 +1,39 @@
+apps/web/src/features/064-terminal/components/terminal-inner.tsx
+  s_8a98b6c6d48806::t_1665516acbab2c 139-199,201-212,214-235,266,269-270,274
+apps/web/src/features/064-terminal/hooks/use-terminal-socket.ts
+  s_3177c96ea6fe74::t_d03b26e90ff8fd 59-65,89,132-133,195,427-437
+test/unit/web/features/064-terminal/use-terminal-socket-rename-window.test.tsx
+  s_3e86a95c65d3db::t_66ac120469f561 94-115
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "21a88319fbea233d8b1e0fa0267f2d9eaebc8269",
+  "prompts": {},
+  "sessions": {
+    "s_3177c96ea6fe74": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "5718fabd-ca6a-4a2a-99ba-b8b10968de8b",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_3e86a95c65d3db": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "dab9f0d7-985d-4595-9d2c-c33cfb6d0011",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_8a98b6c6d48806": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "a729efb2-e725-499e-89ce-75468c8c6b0a",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
