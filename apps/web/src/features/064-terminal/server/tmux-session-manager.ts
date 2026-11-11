@@ -278,6 +278,9 @@ export class TmuxSessionManager {
     if (!this.sampleExec || this.sampling.has(sessionName)) return;
     this.sampling.add(sessionName);
     try {
+      // A pane whose process is missing from a snapshot taken before this listing (a respawned
+      // pane, a new window) is unknown this sample, not gone; one taken after it means gone.
+      const listedAt = Date.now() / 1000;
       const panes = await this.sampleExec('tmux', [
         'list-panes',
         '-s',
@@ -304,12 +307,17 @@ export class TmuxSessionManager {
         unnamed: boolean;
       }
       const samples = new Map<string, WindowSample>();
+      /** Windows with a pane the snapshot predates: skipped whole, their readings kept. */
+      const unseen = new Set<string>();
       for (const line of panes.split('\n')) {
         const [windowId, pidText, activityText, paneId, autoRename] = line.split('\t');
         if (!windowId || !pidText) continue;
         const panePid = Number(pidText);
         const tree = treeCpuSeconds(table, panePid);
-        if (tree === null) continue;
+        if (tree === null) {
+          if (tableSeconds < listedAt) unseen.add(windowId);
+          continue;
+        }
         const sample = samples.get(windowId) ?? {
           agent: null,
           treeCpu: 0,
@@ -343,10 +351,12 @@ export class TmuxSessionManager {
         }
         samples.set(windowId, sample);
       }
+      // A partly known window would read a CPU drop, then a jump, when its pane appears.
+      for (const windowId of unseen) samples.delete(windowId);
 
       await this.nameWindowsAfterSeats(samples);
       const { changed, deferred } = await this.readScreenChanges(sessionName, samples);
-      const listed = new Set<string>();
+      const listed = new Set([...unseen].map((windowId) => `${sessionName}:${windowId}`));
       for (const [windowId, sample] of samples) {
         const key = `${sessionName}:${windowId}`;
         listed.add(key);
