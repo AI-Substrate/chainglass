@@ -12,7 +12,7 @@ Defender/DLP, which the handover measured at ~140% CPU).
 
 Biggest load is outside chainglass: 108–155 `copilot` processes (~22 GB, 260–544% CPU), OrbStack 14 GB,
 headless-Chrome renders, Defender. Levers: close idle Copilot seats (pij-fleet request already out),
-`taskpolicy -b` / `nice -n 19` for renders and builds, the `machine-build` baton (in force), cap
+`taskpolicy -b` / `nice -n 19` for renders and builds, ~~the `machine-build` baton~~ (retired 11:59), cap
 concurrent agents.
 
 ## Defender check (prime, 2026-11-11, `mdatp exclusion list` / `mdatp health`)
@@ -29,7 +29,7 @@ concurrent agents.
   chainglass controls. A tmux process exclusion would only skip AV scans of files tmux opens (small gain);
   a node process exclusion would open a broad gap (node runs the agents) — not recommended.
 
-## Chainglass steps (one worker, one commit per step, each `just fft` under the machine-build baton)
+## Chainglass steps (one worker, one commit per step, each `just fft` at `nice -n 19`)
 
 0. **Baseline.** Count tmux/ps launches per minute from the sidecar with one terminal visible, two
    visible, and a pij page open (temporary counter or `ps` sampling; removed after). Same counts after
@@ -65,8 +65,8 @@ concurrent agents.
 
 - Order: 0 → 1 → 2 → 3 → 4. One commit per step on main; report each step's SHA + launch count to the
   prime before starting the next.
-- Every `just fft` needs the machine-build baton (RULINGS rule 10): request, run at `nice -n 19`, return
-  at once with evidence. Targeted single-file vitest runs are free.
+- `just fft` runs at `nice -n 19`, once per step by this worker only (RULINGS rule 10: machine-build
+  baton retired 2026-11-11 ~11:59; one build per change, reviewers reuse it). Targeted vitest runs are free.
 - Single-flight means: client never sends a `windows` request while one is unanswered; server keeps at
   most one tmux read per session in flight and hands its result to every waiting connection.
 - Never touch `just dev`; never `tmux capture-pane` yourself; never `~/pi-hacking/pij`; stage by path.
