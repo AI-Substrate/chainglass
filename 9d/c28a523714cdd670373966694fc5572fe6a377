@@ -1,0 +1,101 @@
+apps/web/src/features/064-terminal/server/exec-command.ts
+  s_115bc15780d2bd::t_131f36be929984 1-39
+apps/web/src/features/064-terminal/server/pty-registry.ts
+  s_115bc15780d2bd::t_aabce878ed5b62 93,95,107,112,115
+apps/web/src/features/064-terminal/server/resolve-terminal-paths.ts
+  s_115bc15780d2bd::t_f367db942afb45 19-23
+apps/web/src/features/064-terminal/server/send-prompt-keys.ts
+  s_115bc15780d2bd::t_1c6fecf5d7f5cd 14,46,81-88,162-164,166-167,176-177,181-182,191,195-200,207,209,236-242,252,266-267,322-327,329-332,334-345,347-350,352-371,375
+apps/web/src/features/064-terminal/server/terminal-ws.ts
+  s_115bc15780d2bd::t_087c0ae7f3b0df 29,66,76-78,80,86,88-89,96,166,177-180,269,271-272,290-291,310,332,364,427,438-454,456-457,462,481,579,581,585-588,591-592,610,625,638
+apps/web/src/features/064-terminal/server/tmux-pane-layout.ts
+  s_115bc15780d2bd::t_f857ba397aed19 235-239,308,312,317,351-361,368
+apps/web/src/features/064-terminal/server/tmux-session-manager.ts
+  s_115bc15780d2bd::t_e776fc9719ac64 69-70,72,103,108,113,115,141,143,168,170,172,218,227,230,364,391,432,443-447,455,462-472,483,488,495-507,509-510,515,517
+apps/web/src/features/064-terminal/types.ts
+  s_115bc15780d2bd::t_84c1363c3907c6 117-121
+scripts/tmux-launch-count.ts
+  s_f933c61dbdc468::t_c5cdf30eae2229 18,47-48,50,70,76,82,108
+test/fakes/fake-tmux-executor.ts
+  s_115bc15780d2bd::t_56e7f998ac90bc 4-6,47
+test/unit/web/features/064-terminal/exec-command.test.ts
+  s_49cdd9a4b8d4c0::t_ed44ab38213a9f 1-17
+test/unit/web/features/064-terminal/pty-registry.test.ts
+  s_115bc15780d2bd::t_79dc004003e821 37,72,82,92,98,112-115,118,123-131
+test/unit/web/features/064-terminal/send-prompt-keys.test.ts
+  s_60a704184bf812::t_4e01a6af78271c 67,146-153,440-442,466,704,728,1316,1335-1371
+test/unit/web/features/064-terminal/terminal-path-links.test.ts
+  s_8370e0727f00d6::t_76061655e4f0a1 66-67,71
+test/unit/web/features/064-terminal/terminal-ws-pane-resize.test.ts
+  s_f933c61dbdc468::t_af45e36c29e6ff 85,110,114,175,199,238,254,267,275,293,301,314,322,336,361,389,401,413,428,441,456
+test/unit/web/features/064-terminal/terminal-ws-rename-window.test.ts
+  s_f933c61dbdc468::t_bd2eb44751deb7 23,25-28,30,42,61,75
+test/unit/web/features/064-terminal/terminal-ws-windows.test.ts
+  s_f933c61dbdc468::t_9b97685b2e637c 25-29,31-34,36-40,53,100,156,189,206,215,228,243,258,284,300,314,365,378,402,413-447
+test/unit/web/features/064-terminal/terminal-ws.test.ts
+  s_f933c61dbdc468::t_075f68fe23c271 85,98-102,111,124-128,135,148-152,161,174-178,185,198-202,212,217-221,231,236-240,260,268-269,273-274,276,287,294-295,298,300,309,318-320,331,345-354,359,372-376,386,399-403,410,434-438,470,474-478,498,520,544,566,580-582,589,628
+test/unit/web/features/064-terminal/tmux-session-manager.test.ts
+  s_115bc15780d2bd::t_347edb9d5d898c 17,28,31,42,112,130,146,157
+test/unit/web/features/064-terminal/window-overview.test.ts
+  s_8370e0727f00d6::t_0bdced20707ca3 59,76,81,91,115
+test/unit/web/features/064-terminal/window-screen-activity.test.ts
+  s_8370e0727f00d6::t_858822c5ecf815 25,36,42,50,55,62
+test/unit/web/features/064-terminal/window-subprocesses.test.ts
+  s_2d6fc930e1902d::t_7e91a4499cb036 31,43,51-55,59,68,97,107-108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "9dc28a523714cdd670373966694fc5572fe6a377",
+  "prompts": {},
+  "sessions": {
+    "s_115bc15780d2bd": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "772cbb67-76ef-4820-90b9-9fdaaab0c75f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_2d6fc930e1902d": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "c1542f3b-3365-4453-8c90-dc0382b46a44",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_49cdd9a4b8d4c0": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "41d166d0-ef0b-4dd7-836d-346de9db839f",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_60a704184bf812": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "93dabe88-fd1b-4f2b-b01a-1a283b434b34",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_8370e0727f00d6": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "3d69bb74-af41-47c4-9070-9e80b0d59a4d",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_f933c61dbdc468": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "91aea9e5-ad39-42b7-9658-e5a07f0ea40f",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
