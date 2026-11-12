@@ -47,6 +47,7 @@ components by default, the browser surface is the product (verify it, not just t
 ## Current portfolio context
 
 - Portfolio: store project `chainglass` (`pij project show chainglass`).
-- No streams in flight. Shipped 2026-11-10: designated-prime badge (`1c53ce569`, `b4f633b3b`, `6d60581f1`, worker pij-liquid-carp); live screenshots wait on Jordan restarting `just dev`.
+- In flight (2026-11-12): nav speed wave 1 (`briefs/nav-wave-1.md`, PRD `reports/nav-speed-review-2026-11-12.md`): coder/ssr-dashboard, home-prefetch, dev-beside-prod, trace-idle (fixes a-c), strip-067. Item 2 waits for strip-067. Jordan serves `just prod` on :3000 from the main tree: never build in main.
 - Pending Jordan decisions: pij-rs event-log compaction (2.4 GB); daily sshd disable by device policy; Co-Authored-By trailer (AGENTS.md "no AI attribution" vs handover rule).
 - ~~Watch: borrowed caller in `RsClient.projects()`~~ closed 2026-11-10: pij F184 (pij-fleet #226) made read-only governance leaves callerless; `6d60581f1` dropped the borrowed caller.
+- Watch: pij-rs `/v1/events` keepalive (pij-fleet prime approved 2026-11-12, logged with its pm-001, unstaffed). When it ships, delete chainglass's stream recycle (`rs-event-stream.ts` `RECYCLE_MS`, raised to 10 min by trace-idle fix-a) and handle the keepalive frame kind.
