@@ -1,0 +1,28 @@
+{
+	"dd": {
+		"schema": "pij/holders"
+	},
+	"references": [],
+	"sections": [
+		{
+			"name": "meta",
+			"value": {
+				"role": "reviewer"
+			}
+		},
+		{
+			"name": "rows",
+			"value": [
+				{
+					"assigned_by": "pij-outer-bobcat",
+					"from": "2026-11-12T04:11:25.736Z",
+					"harness": "omp",
+					"harness_session": "01a1cdf3-d2b8-708d-aa85-7d841bb4f8da",
+					"machine": "ops.osk.lan",
+					"seat": "pij-unaware-quokka",
+					"why": "Review nav wave landings at their commits, starting e37b1ea0d"
+				}
+			]
+		}
+	]
+}
