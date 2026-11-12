@@ -1,0 +1,29 @@
+apps/web/src/features/064-terminal/lib/context-fill.ts
+  s_e1c8c271110ff8::t_48b97186832df4 61-63,68,73-74
+test/unit/web/features/064-terminal/context-fill.test.tsx
+  s_f3eefcae664ebd::t_d4320dd80127c3 6,53-70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "3f7887568a6bba65d426a7b64f1aee7a6deb0c04",
+  "prompts": {},
+  "sessions": {
+    "s_e1c8c271110ff8": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "089cef3d-529d-4735-b9cd-9d094ea5bc72",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_f3eefcae664ebd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "eded6b2b-f28c-4a03-b038-1a74528e1755",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
