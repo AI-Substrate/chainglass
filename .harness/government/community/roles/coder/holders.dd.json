@@ -66,7 +66,10 @@
 					"harness_session": "01a1cd15-878a-743e-847a-220c6b2c5e69",
 					"instance_key": "trace-idle",
 					"machine": "ops.osk.lan",
+					"release_why": "Landed and reviewed pass-with-notes (7688c86cf, 8c451497f, 31d1584fa)",
+					"released_by": "pij-outer-bobcat",
 					"seat": "pij-formal-mole",
+					"to": "2026-11-12T08:43:23.783Z",
 					"why": "Nav speed wave 1: briefs/nav-requests/trace-idle.md"
 				},
 				{
