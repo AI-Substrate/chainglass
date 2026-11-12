@@ -1,0 +1,23 @@
+.harness/government/community/roles/coder/memory/2026-11-12-spare-port-servers-and-the-full-run.dd.json
+  s_67c308b9d6ad31::t_4b879f36196851 1-26
+.harness/government/community/roles/coder/memory/2026-11-12-spare-port-servers-and-the-full-run.dd.md
+  s_67c308b9d6ad31::t_ececd273656550 1-25
+.harness/government/community/roles/coder/memory/INDEX.md
+  s_67c308b9d6ad31::t_2ec6561b4a2aff 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "39d3fe96ce58bc5b66937d2f44ce9a0fb1ec96d5",
+  "prompts": {},
+  "sessions": {
+    "s_67c308b9d6ad31": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d91e3965-577c-4509-a008-22aa7f641f5b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
