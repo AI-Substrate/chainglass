@@ -67,6 +67,7 @@ export default async function WorkspacesPage() {
                   <td className="px-4 py-3">
                     <Link
                       href={`/workspaces/${workspace.slug}`}
+                      prefetch={false}
                       className="font-medium hover:underline"
                     >
                       {workspace.name}

@@ -13,6 +13,7 @@
  */
 
 import { WorkspaceCard } from '@/features/041-file-browser/components/workspace-card';
+import { WorkspaceWorktreesContext } from '@/features/041-file-browser/components/workspace-grid';
 import { DEFAULT_PREFERENCES } from '@chainglass/workflow';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
@@ -31,8 +32,15 @@ describe('WorkspaceCard', () => {
       starred: false,
       sortOrder: 0,
     },
-    worktreeCount: 23,
   };
+
+  function renderWithWorktrees(names: string[]) {
+    return render(
+      <WorkspaceWorktreesContext.Provider value={{ substrate: names }}>
+        <WorkspaceCard {...baseProps} />
+      </WorkspaceWorktreesContext.Provider>
+    );
+  }
 
   describe('visual identity', () => {
     it('renders emoji and workspace name', () => {
@@ -72,25 +80,28 @@ describe('WorkspaceCard', () => {
   });
 
   describe('worktree summary', () => {
-    it('shows worktree count when more than 3', () => {
-      render(<WorkspaceCard {...baseProps} worktreeCount={23} />);
+    it('shows a placeholder while worktrees load', () => {
+      render(<WorkspaceCard {...baseProps} />);
 
-      expect(screen.getByText(/23 worktrees/i)).toBeInTheDocument();
+      expect(screen.getByText('… worktrees')).toBeInTheDocument();
+    });
+
+    it('shows worktree count when more than 3', () => {
+      renderWithWorktrees(['a', 'b', 'c', 'd']);
+
+      expect(screen.getByText(/4 worktrees/i)).toBeInTheDocument();
     });
 
     it('shows branch names when 3 or fewer worktrees', () => {
-      render(
-        <WorkspaceCard {...baseProps} worktreeCount={2} worktreeNames={['main', 'feature/auth']} />
-      );
+      renderWithWorktrees(['main', 'feature/auth']);
 
-      expect(screen.getByText(/main/)).toBeInTheDocument();
-      expect(screen.getByText(/feature\/auth/)).toBeInTheDocument();
+      expect(screen.getByText('main · feature/auth')).toBeInTheDocument();
     });
 
     it('shows single branch name for 1 worktree', () => {
-      render(<WorkspaceCard {...baseProps} worktreeCount={1} worktreeNames={['main']} />);
+      renderWithWorktrees(['main']);
 
-      expect(screen.getByText(/main/)).toBeInTheDocument();
+      expect(screen.getByText('main')).toBeInTheDocument();
     });
   });
 

@@ -82,6 +82,7 @@ export function UnitList({ workspaceSlug, units, worktreePath }: UnitListProps) 
                     <Link
                       key={unit.slug}
                       href={`/workspaces/${workspaceSlug}/work-units/${unit.slug}${worktreePath ? `?worktree=${encodeURIComponent(worktreePath)}` : ''}`}
+                      prefetch={false}
                       className="flex items-center gap-3 p-3 rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                     >
                       <span className={`text-xs px-2 py-0.5 rounded ${typeInfo.color}`}>

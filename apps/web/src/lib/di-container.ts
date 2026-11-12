@@ -358,10 +358,19 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
     }
   );
 
-  // Register git worktree resolver (uses ProcessManager)
+  // Register git worktree resolver (uses ProcessManager). One instance for the container, cached
+  // on git's own metadata: the 30 s worktree-activity poll, the home page, the sidebar and the pij
+  // tree all ask for every repo's worktrees, and each uncached ask spawns git. With the cache an
+  // idle server spawns none; a new worktree, branch switch or commit shows on the next ask.
+  let gitWorktreeResolver: IGitWorktreeResolver | null = null;
   childContainer.register<IGitWorktreeResolver>(WORKSPACE_DI_TOKENS.GIT_WORKTREE_RESOLVER, {
-    useFactory: (c) =>
-      new GitWorktreeResolver(c.resolve<IProcessManager>(DI_TOKENS.PROCESS_MANAGER)),
+    useFactory: (c) => {
+      gitWorktreeResolver ??= new GitWorktreeResolver(
+        c.resolve<IProcessManager>(DI_TOKENS.PROCESS_MANAGER),
+        { cache: { fileSystem: c.resolve<IFileSystem>(SHARED_DI_TOKENS.FILESYSTEM) } }
+      );
+      return gitWorktreeResolver;
+    },
   });
 
   // Register workspace context resolver

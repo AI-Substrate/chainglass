@@ -208,7 +208,11 @@ export default async function WorkspaceDetailPage({ params, searchParams }: Page
                         />
                       </button>
                     </form>
-                    <Link href={landingUrl} className="flex items-center gap-3 hover:underline">
+                    <Link
+                      href={landingUrl}
+                      prefetch={false}
+                      className="flex items-center gap-3 hover:underline"
+                    >
                       <GitBranch className="h-4 w-4 text-muted-foreground" />
                       <div>
                         <div className="font-medium">{label}</div>
@@ -226,6 +230,7 @@ export default async function WorkspaceDetailPage({ params, searchParams }: Page
                     </span>
                     <Link
                       href={landingUrl}
+                      prefetch={false}
                       className="flex items-center gap-1 text-sm text-primary hover:underline"
                       title="Worktree Overview"
                     >
@@ -234,6 +239,7 @@ export default async function WorkspaceDetailPage({ params, searchParams }: Page
                     </Link>
                     <Link
                       href={agentsUrl}
+                      prefetch={false}
                       className="flex items-center gap-1 text-sm text-muted-foreground hover:text-primary hover:underline"
                       title="Agent Sessions"
                     >
@@ -242,6 +248,7 @@ export default async function WorkspaceDetailPage({ params, searchParams }: Page
                     </Link>
                     <Link
                       href={samplesUrl}
+                      prefetch={false}
                       className="flex items-center gap-1 text-sm text-muted-foreground hover:text-primary hover:underline"
                       title="Code Samples"
                     >

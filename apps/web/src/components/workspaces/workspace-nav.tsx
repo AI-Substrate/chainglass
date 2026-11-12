@@ -215,6 +215,7 @@ export function WorkspaceNav() {
               </button>
               <Link
                 href={href}
+                prefetch={false}
                 className={cn(
                   'flex flex-1 items-center gap-2 truncate rounded px-1 py-1 text-xs hover:bg-accent',
                   isSelected && 'bg-accent font-medium text-accent-foreground'
@@ -265,6 +266,7 @@ export function WorkspaceNav() {
               )}
               <Link
                 href={`/workspaces/${workspace.slug}`}
+                prefetch={false}
                 className={cn(
                   'flex-1 truncate rounded px-2 py-1 text-sm hover:bg-accent',
                   isWorkspaceActive && 'bg-accent text-accent-foreground'
@@ -314,6 +316,7 @@ export function WorkspaceNav() {
                         href={workspaceHref(workspace.slug, '/worktree', {
                           worktree: worktree.path,
                         })}
+                        prefetch={false}
                         className={cn(
                           'flex flex-1 items-center gap-2 rounded px-1 py-1 text-xs hover:bg-accent',
                           isSelected && 'bg-accent text-accent-foreground'

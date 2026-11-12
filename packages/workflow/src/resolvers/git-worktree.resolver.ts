@@ -14,7 +14,8 @@
  * Per DYK-P4-03: Implements IGitWorktreeResolver interface for DI.
  */
 
-import type { IProcessManager, SpawnOptions } from '@chainglass/shared';
+import { dirname, join, resolve } from 'node:path';
+import type { IFileSystem, IProcessManager, SpawnOptions } from '@chainglass/shared';
 import { GitOperationError, WorkspaceErrors } from '../errors/workspace-errors.js';
 import type { IGitWorktreeResolver } from '../interfaces/git-worktree-resolver.interface.js';
 import type { Worktree } from '../interfaces/workspace-context.interface.js';
@@ -31,6 +32,17 @@ interface GitResult {
   stderr: string;
 }
 
+export interface GitWorktreeResolverOptions {
+  /**
+   * Reuse a path's `detectWorktrees()` result until git's own metadata changes, read through
+   * `fileSystem` (stat and readdir; no process). Without it every call runs git.
+   */
+  cache?: { fileSystem: IFileSystem };
+}
+
+/** Files git rewrites or appends in a worktree's git dir when its branch, HEAD or path changes. */
+const WORKTREE_METADATA_FILES = ['HEAD', join('logs', 'HEAD'), 'gitdir'];
+
 /**
  * GitWorktreeResolver handles git worktree detection.
  *
@@ -41,7 +53,21 @@ export class GitWorktreeResolver implements IGitWorktreeResolver {
   /** Minimum git version for worktree --porcelain support */
   private static readonly MIN_GIT_VERSION = '2.13.0';
 
-  constructor(private readonly processManager: IProcessManager) {}
+  private readonly cacheFs: IFileSystem | undefined;
+  /** Last result per path, keyed by the metadata stamp it was read under. */
+  private readonly worktreeCache = new Map<
+    string,
+    { stamp: string; worktrees: Promise<Worktree[]> }
+  >();
+  /** With caching on, the git version is checked once per resolver, not once per detection. */
+  private worktreeSupport: Promise<boolean> | null = null;
+
+  constructor(
+    private readonly processManager: IProcessManager,
+    options: GitWorktreeResolverOptions = {}
+  ) {
+    this.cacheFs = options.cache?.fileSystem;
+  }
 
   /**
    * Get the git version string.
@@ -87,8 +113,99 @@ export class GitWorktreeResolver implements IGitWorktreeResolver {
    * @throws GitOperationError (E079) for unexpected git failures
    */
   async detectWorktrees(repoPath: string): Promise<Worktree[]> {
+    const fs = this.cacheFs;
+    if (!fs) {
+      return this.listWorktrees(repoPath, this.isWorktreeSupported());
+    }
+
+    const stamp = await this.metadataStamp(fs, repoPath);
+    if (stamp === null) {
+      // Not inside a git repository we can read: nothing to key a cache on.
+      return this.listWorktrees(repoPath, this.supportedOnce());
+    }
+
+    const cached = this.worktreeCache.get(repoPath);
+    if (cached?.stamp === stamp) {
+      return cached.worktrees;
+    }
+
+    // The stamp is taken before git runs, so a change made during the run forces a re-read.
+    const worktrees = this.listWorktrees(repoPath, this.supportedOnce());
+    const entry = { stamp, worktrees };
+    this.worktreeCache.set(repoPath, entry);
+    worktrees.catch(() => {
+      // A failure is not remembered: the next call retries.
+      if (this.worktreeCache.get(repoPath) === entry) {
+        this.worktreeCache.delete(repoPath);
+      }
+    });
+    return worktrees;
+  }
+
+  private supportedOnce(): Promise<boolean> {
+    this.worktreeSupport ??= this.isWorktreeSupported();
+    return this.worktreeSupport;
+  }
+
+  /**
+   * A string that changes whenever `git worktree list` output can change: the linked worktree
+   * names under `<common git dir>/worktrees/`, and size + mtime of each git dir's HEAD (branch
+   * switch), logs/HEAD (every commit, reset or checkout) and gitdir (worktree move).
+   * Null when `repoPath` is not inside a git checkout.
+   */
+  private async metadataStamp(fs: IFileSystem, repoPath: string): Promise<string | null> {
+    const commonDir = await this.findCommonGitDir(fs, repoPath);
+    if (!commonDir) {
+      return null;
+    }
+    const worktreesDir = join(commonDir, 'worktrees');
+    const names = await fs.readDir(worktreesDir).then(
+      (entries) => entries.sort(),
+      () => [] as string[]
+    );
+    const gitDirs = [commonDir, ...names.map((name) => join(worktreesDir, name))];
+    const stamps = await Promise.all(
+      gitDirs.flatMap((gitDir) =>
+        WORKTREE_METADATA_FILES.map((file) =>
+          fs.stat(join(gitDir, file)).then(
+            (stat) => `${stat.size}@${stat.mtime}`,
+            () => '-'
+          )
+        )
+      )
+    );
+    return `${commonDir}|${names.join(',')}|${stamps.join(',')}`;
+  }
+
+  /** The repository's common git dir, found from `.git` in `startPath` or an ancestor. */
+  private async findCommonGitDir(fs: IFileSystem, startPath: string): Promise<string | null> {
+    let dir = resolve(startPath);
+    while (true) {
+      const dotGit = join(dir, '.git');
+      const stat = await fs.stat(dotGit).catch(() => null);
+      if (stat?.isDirectory) {
+        return dotGit;
+      }
+      if (stat?.isFile) {
+        // Linked worktree: `.git` is "gitdir: <common>/worktrees/<name>", which names its
+        // common dir in a `commondir` file (relative to itself).
+        const match = (await fs.readFile(dotGit).catch(() => '')).match(/^gitdir:\s*(.+)$/m);
+        if (!match) return null;
+        const gitDir = resolve(dir, match[1].trim());
+        const commonDir = await fs.readFile(join(gitDir, 'commondir')).catch(() => null);
+        return commonDir ? resolve(gitDir, commonDir.trim()) : gitDir;
+      }
+      const parent = dirname(dir);
+      if (parent === dir) {
+        return null;
+      }
+      dir = parent;
+    }
+  }
+
+  private async listWorktrees(repoPath: string, support: Promise<boolean>): Promise<Worktree[]> {
     // Check git availability and version
-    const supported = await this.isWorktreeSupported();
+    const supported = await support;
     if (!supported) {
       return [];
     }

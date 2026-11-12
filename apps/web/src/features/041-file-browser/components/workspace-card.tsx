@@ -16,14 +16,13 @@ import { WORKSPACE_COLOR_PALETTE } from '@chainglass/workflow';
 import { Star } from 'lucide-react';
 import Link from 'next/link';
 import { toggleWorkspaceStar } from '../../../../app/actions/workspace-actions';
+import { WorkspaceWorktreeSummary } from './workspace-grid';
 
 export interface WorkspaceCardProps {
   slug: string;
   name: string;
   path: string;
   preferences: WorkspacePreferences;
-  worktreeCount: number;
-  worktreeNames?: string[];
   agentSummary?: { running: number; attention: number };
 }
 
@@ -32,15 +31,7 @@ function getColorHex(colorName: string): string | undefined {
   return entry?.light;
 }
 
-export function WorkspaceCard({
-  slug,
-  name,
-  path,
-  preferences,
-  worktreeCount,
-  worktreeNames,
-  agentSummary,
-}: WorkspaceCardProps) {
+export function WorkspaceCard({ slug, name, path, preferences, agentSummary }: WorkspaceCardProps) {
   const emoji = preferences.emoji;
   const colorHex = getColorHex(preferences.color);
   const href = workspaceHref(slug, '');
@@ -49,8 +40,10 @@ export function WorkspaceCard({
 
   return (
     <div className="relative" style={borderStyle}>
+      {/* No prefetch: one card per workspace, and each prefetch renders a dynamic workspace route. */}
       <Link
         href={href}
+        prefetch={false}
         className="block rounded-lg border bg-card p-4 shadow-sm transition-all hover:shadow-lg hover:bg-accent hover:border-primary/40 cursor-pointer"
       >
         <div className="flex items-start justify-between">
@@ -64,11 +57,7 @@ export function WorkspaceCard({
             </span>
             <div>
               <h3 className="font-semibold">{name}</h3>
-              <p className="text-xs text-muted-foreground">
-                {worktreeCount <= 3 && worktreeNames?.length
-                  ? worktreeNames.join(' · ')
-                  : `${worktreeCount} worktrees`}
-              </p>
+              <WorkspaceWorktreeSummary slug={slug} />
             </div>
           </div>
         </div>

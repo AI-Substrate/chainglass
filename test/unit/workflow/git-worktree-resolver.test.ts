@@ -12,7 +12,7 @@
  * Per DYK-05: Test ALL porcelain variants (normal, detached, bare, prunable).
  */
 
-import { FakeProcessManager } from '@chainglass/shared';
+import { FakeFileSystem, FakeProcessManager, type SpawnOptions } from '@chainglass/shared';
 import { GitWorktreeResolver, type Worktree } from '@chainglass/workflow';
 import { beforeEach, describe, expect, it } from 'vitest';
 
@@ -362,5 +362,134 @@ describe('GitWorktreeResolver main repo resolution', () => {
       const result = await ctx.resolver.detectWorktrees('/some/path');
       expect(result).toEqual([]);
     });
+  });
+});
+
+// ==================== Plan nav-home-prefetch: detection cache ====================
+
+/** Answers `git --version` and `git worktree list` immediately; can fail the next list. */
+class ScriptedGitProcessManager extends FakeProcessManager {
+  worktreeOutput = NORMAL_WORKTREE_OUTPUT;
+  failNextList = false;
+
+  override async spawn(options: SpawnOptions) {
+    const isList = options.args?.[0] === 'worktree';
+    if (isList && this.failNextList) {
+      this.failNextList = false;
+      throw new Error('git crashed');
+    }
+    const handle = await super.spawn(options);
+    this.setProcessOutput(handle.pid, isList ? this.worktreeOutput : GIT_VERSION_2_45);
+    this.exitProcess(handle.pid, 0);
+    return handle;
+  }
+
+  countSpawns(subcommand: string): number {
+    return this.getSpawnHistory().filter((o) => o.args?.[0] === subcommand).length;
+  }
+}
+
+describe('GitWorktreeResolver detection cache', () => {
+  const REPO = '/home/user/project';
+  const COMMON = `${REPO}/.git`;
+  let git: ScriptedGitProcessManager;
+  let fs: FakeFileSystem;
+  let resolver: GitWorktreeResolver;
+
+  /** A linked worktree as `git worktree add` lays it out. */
+  function addLinkedWorktree(name: string, path: string) {
+    fs.setFile(`${COMMON}/worktrees/${name}/HEAD`, `ref: refs/heads/${name}\n`);
+    fs.setFile(`${COMMON}/worktrees/${name}/gitdir`, `${path}/.git\n`);
+    fs.setFile(`${COMMON}/worktrees/${name}/commondir`, '../..\n');
+    fs.setFile(`${path}/.git`, `gitdir: ${COMMON}/worktrees/${name}\n`);
+  }
+
+  beforeEach(() => {
+    git = new ScriptedGitProcessManager();
+    fs = new FakeFileSystem();
+    fs.setFile(`${COMMON}/HEAD`, 'ref: refs/heads/main\n');
+    fs.setFile(`${COMMON}/logs/HEAD`, 'a commit\n');
+    resolver = new GitWorktreeResolver(git, { cache: { fileSystem: fs } });
+  });
+
+  it('runs git on every call without a cache', async () => {
+    const uncached = new GitWorktreeResolver(git);
+
+    await uncached.detectWorktrees(REPO);
+    await uncached.detectWorktrees(REPO);
+
+    expect(git.countSpawns('worktree')).toBe(2);
+  });
+
+  it('runs git once while the repository metadata is unchanged', async () => {
+    const first = await resolver.detectWorktrees(REPO);
+    const again = await resolver.detectWorktrees(REPO);
+    await resolver.detectWorktrees(REPO);
+
+    expect(git.countSpawns('worktree')).toBe(1);
+    expect(git.countSpawns('--version')).toBe(1);
+    expect(again).toEqual(first);
+  });
+
+  it('sees a worktree added since the last call', async () => {
+    await resolver.detectWorktrees(REPO);
+    addLinkedWorktree('feature-branch', '/home/user/project-feature');
+    git.worktreeOutput = MULTIPLE_WORKTREES_OUTPUT;
+
+    const worktrees: Worktree[] = await resolver.detectWorktrees(REPO);
+
+    expect(worktrees).toHaveLength(3);
+  });
+
+  it('runs git again after a commit or checkout in a linked worktree', async () => {
+    addLinkedWorktree('feature-branch', '/home/user/project-feature');
+    await resolver.detectWorktrees(REPO);
+
+    fs.setFile(`${COMMON}/worktrees/feature-branch/logs/HEAD`, 'a commit\nanother commit\n');
+    await resolver.detectWorktrees(REPO);
+    fs.setFile(`${COMMON}/worktrees/feature-branch/HEAD`, 'ref: refs/heads/other\n');
+    await resolver.detectWorktrees(REPO);
+
+    expect(git.countSpawns('worktree')).toBe(3);
+  });
+
+  it('runs git again after a branch switch in the main worktree', async () => {
+    await resolver.detectWorktrees(REPO);
+    fs.setFile(`${COMMON}/HEAD`, 'ref: refs/heads/a-much-longer-branch-name\n');
+
+    await resolver.detectWorktrees(REPO);
+
+    expect(git.countSpawns('worktree')).toBe(2);
+  });
+
+  it('finds the shared metadata from a linked worktree or a subdirectory', async () => {
+    addLinkedWorktree('feature-branch', '/home/user/project-feature');
+
+    await resolver.detectWorktrees('/home/user/project-feature');
+    await resolver.detectWorktrees('/home/user/project-feature');
+    await resolver.detectWorktrees(`${REPO}/src/deep`);
+    await resolver.detectWorktrees(`${REPO}/src/deep`);
+    expect(git.countSpawns('worktree')).toBe(2);
+
+    // A commit in the main worktree changes what the linked worktree's listing reports.
+    fs.setFile(`${COMMON}/logs/HEAD`, 'a commit\nanother commit\n');
+    await resolver.detectWorktrees('/home/user/project-feature');
+    expect(git.countSpawns('worktree')).toBe(3);
+  });
+
+  it('runs git on every call for a path outside any repository', async () => {
+    await resolver.detectWorktrees('/tmp/not-a-repo');
+    await resolver.detectWorktrees('/tmp/not-a-repo');
+
+    expect(git.countSpawns('worktree')).toBe(2);
+  });
+
+  it('does not cache a failed detection', async () => {
+    git.failNextList = true;
+    await expect(resolver.detectWorktrees(REPO)).rejects.toThrow('Failed to detect worktrees');
+
+    const worktrees = await resolver.detectWorktrees(REPO);
+
+    expect(worktrees).toHaveLength(1);
   });
 });

@@ -25,39 +25,26 @@ export default async function HomePage() {
     WORKSPACE_DI_TOKENS.WORKSPACE_SERVICE
   );
 
+  // The registry alone: worktree names arrive client-side (WorkspaceGrid) so the page never
+  // waits on `git worktree list` for every workspace.
   const workspaces = await workspaceService.list();
 
-  const enriched = await Promise.all(
-    workspaces.map(async (ws) => {
-      const info = await workspaceService.getInfo(ws.slug);
-      const names = (info?.worktrees ?? []).map(
-        (wt) => wt.branch || wt.path.split('/').pop() || wt.path
-      );
-      return {
-        slug: ws.slug,
-        name: ws.name,
-        path: ws.path,
-        preferences: ws.toJSON().preferences,
-        worktreeCount: info?.worktrees?.length ?? 0,
-        searchableNames: names,
-      };
-    })
-  );
-
   // Sort: starred first (by sortOrder), then unstarred (by sortOrder)
-  const sorted = [...enriched].sort((a, b) => {
-    if (a.preferences.starred !== b.preferences.starred) {
-      return a.preferences.starred ? -1 : 1;
-    }
-    return a.preferences.sortOrder - b.preferences.sortOrder;
-  });
+  const sorted = workspaces
+    .map((ws) => ({
+      slug: ws.slug,
+      name: ws.name,
+      path: ws.path,
+      preferences: ws.toJSON().preferences,
+    }))
+    .sort((a, b) => {
+      if (a.preferences.starred !== b.preferences.starred) {
+        return a.preferences.starred ? -1 : 1;
+      }
+      return a.preferences.sortOrder - b.preferences.sortOrder;
+    });
 
-  const items = sorted.map((ws) => ({
-    slug: ws.slug,
-    name: ws.name,
-    path: ws.path,
-    searchableNames: ws.searchableNames,
-  }));
+  const items = sorted.map((ws) => ({ slug: ws.slug, name: ws.name, path: ws.path }));
 
   const cards = sorted.map((ws) => (
     <WorkspaceCard
@@ -66,8 +53,6 @@ export default async function HomePage() {
       name={ws.name}
       path={ws.path}
       preferences={ws.preferences}
-      worktreeCount={ws.worktreeCount}
-      worktreeNames={ws.worktreeCount <= 3 ? ws.searchableNames : undefined}
     />
   ));
 

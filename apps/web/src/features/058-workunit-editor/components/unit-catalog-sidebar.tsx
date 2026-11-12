@@ -36,6 +36,7 @@ export function UnitCatalogSidebar({
           <Link
             key={unit.slug}
             href={`/workspaces/${workspaceSlug}/work-units/${unit.slug}${worktreePath ? `?worktree=${encodeURIComponent(worktreePath)}` : ''}`}
+            prefetch={false}
             className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors ${
               unit.slug === currentSlug
                 ? 'bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300'

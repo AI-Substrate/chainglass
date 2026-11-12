@@ -76,6 +76,7 @@ export function ActivityDot({ badge, workspaceSlug, worktreePath }: ActivityDotP
   return (
     <Link
       href={`/workspaces/${workspaceSlug}/agents?worktree=${encodeURIComponent(worktreePath)}`}
+      prefetch={false}
       className="shrink-0 rounded p-0.5"
       title={info.tooltip}
       onClick={(e) => e.stopPropagation()}
