@@ -1,0 +1,33 @@
+{
+	"dd": {
+		"schema": "pij/output"
+	},
+	"references": [],
+	"sections": [
+		{
+			"name": "meta",
+			"value": {
+				"answers": "01a1cd6d-2510-7150-a917-a7659a6cc90f",
+				"date": "2026-11-12",
+				"kind": "deliverable",
+				"requester": "pij-outer-bobcat",
+				"role": "coder",
+				"subject": "plan:nav-progress",
+				"writer": "pij-ambitious-warbler",
+				"writer_holds_role": true
+			}
+		},
+		{
+			"name": "notes_owed",
+			"value": []
+		},
+		{
+			"name": "evidence",
+			"value": []
+		},
+		{
+			"name": "body",
+			"value": "# nav-progress — deliverable\n\n**Commit on main:** `{SHA}` feat(web): show a navigation-pending bar while a route loads (fast-forward on `819b43229`).\n\n## Approach (and why)\nThe App Router has no global navigation events, and Next 16's `useRouter()` returns a per-component memoized copy of `push`/`replace` (checked in `next/dist/client/components/navigation.js`), so patching the router singleton is fragile. The boring option taken:\n- **Start, links:** one capture-phase `document` click listener in `NavigationProgress` treats a plain left click on an in-app `<a href>` (every Next `<Link>` renders one) that would change pathname or search as a navigation start. Ignored: same URL, hash-only, other origin, `target` other than `_self`, `download`, modifier keys, non-left button.\n- **Start, programmatic:** `useProgressRouter()` = `useRouter()` whose `push`/`replace` announce the start first. Swapped in at all 8 `router.push`/`replace` call sites: worktree switch (`browser-client.tsx`), mobile tab bar (`bottom-tab-bar.tsx`), `sdk:navigate` (`sdk-provider.tsx`), pij rail toggle, terminal path links, workflow creation, work-unit creation, terminal mobile redirect. Prime approved the shared-file edits.\n- **End:** `usePathname()` + `useSearchParams()` change (the router rendered the new URL).\n- **Show delay** 150 ms (instant navigations never flash); **give up** after 20 s if the URL never changes (a handler cancelling a `<Link>`, a failed fetch).\n- **Look:** 3px sky bar on the bottom edge (Jordan: \"something along the bottom\"), a segment sweeping across a faint track; fixed, `pointer-events-none`, no layout shift; reads on light and dark; reduced motion = static full bar. Rendered as `<output>` with sr-only \"Loading page\" so screen readers announce it.\n- **Mount:** once in `apps/web/app/layout.tsx` inside `<Suspense fallback={null}>` (needed for `useSearchParams`). Did not touch `(dashboard)/layout.tsx` or `workspaces/[slug]/layout.tsx`. No `loading.tsx` added.\n- Concept search first (scout): no existing indicator, nprogress, top loader, `useLinkStatus` or navigation `useTransition` in the repo.\n\n## Acceptance evidence\n- **Unit test** `test/unit/web/components/navigation/navigation-progress.test.tsx` (4): appears only after the delay on a link click and hides on pathname change; covers a `router.push` that only changes the query (worktree switch); never shows for a navigation that renders inside the delay; never shows for a same-URL click, a `target=_blank` link, or a modified click.\n- **Browser proof** on my prod build at :3108 (private tmux, no sidecar; RSC responses delayed 3 s by request interception so mid-navigation is capturable): bar visible mid-navigation, gone after the route rendered:\n  - into a workspace (home → Chainglass card): `scratch/nav-progress-workspace-light.png`, `scratch/nav-progress-workspace-dark.png`\n  - branch switch (worktree switcher → another worktree): `scratch/nav-progress-branch-light.png`, `scratch/nav-progress-branch-dark.png`\n  (in `/Users/jordanknight/substrate/chainglass/scratch/`). No console errors. Under load ~130, the bar appeared ~390 ms after the click instead of the 150 ms target (main thread busy); once, during the light branch switch, it wasn't up yet at the 700 ms check.\n- **just fft** (nice -n 19, worktree, rebased on `819b43229`): {FFT}\n\n## Kept\nWorktree `chainglass-nav-progress`, branch `nav-progress` and its built `.next` stay until the reviewer's verdict (prime rule).\n"
+		}
+	]
+}
