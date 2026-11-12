@@ -1,0 +1,29 @@
+apps/web/app/api/bootstrap/forget/route.ts
+  s_c2ffc6691b2daa::t_7caf72e639cb93 23-28,34
+apps/web/src/lib/tls-front.ts
+  s_c2ffc6691b2daa::t_112228380b3a7a 29-30,35,150-164,187-195,223-229,246,252-256,258,270,287-290,308,353-381,429,432-437,441,450-451
+docs/how/dev/https.md
+  s_c2ffc6691b2daa::t_e6ac9c53eb0243 77,81-83,100-101
+justfile
+  s_c2ffc6691b2daa::t_857c1fb31e9d65 160-162,165-166
+test/unit/web/api/bootstrap/forget.test.ts
+  s_c2ffc6691b2daa::t_0e3b8f54345634 56,60-64,70-80
+test/unit/web/lib/tls-front.test.ts
+  s_c2ffc6691b2daa::t_ae1864dce6d291 40-41,175-176,184,367-548
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "e1b17b33a260efee5d6fbc19013c595fdaedb41c",
+  "prompts": {},
+  "sessions": {
+    "s_c2ffc6691b2daa": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "3fa897fc-7121-4ff5-a5b7-c1ada6253981",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
