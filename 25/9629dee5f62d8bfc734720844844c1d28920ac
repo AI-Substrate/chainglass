@@ -1,0 +1,16 @@
+docs/how/dev/dev-beside-prod.md
+  h_9e71e8b09f7cf2 43,55-60,71-77
+justfile
+  h_9e71e8b09f7cf2 39-41,55-59,146-147,154,159,166-167,174-175,185-209
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "259629dee5f62d8bfc734720844844c1d28920ac",
+  "prompts": {},
+  "humans": {
+    "h_9e71e8b09f7cf2": {
+      "author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
