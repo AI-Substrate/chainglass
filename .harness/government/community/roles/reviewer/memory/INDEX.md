@@ -2,6 +2,7 @@
 
 <!-- pij:generated -->
 - [2026-11-12 2026-11-12 ctx-max block and 4fa gate remediation](2026-11-12-2026-11-12-ctx-max-block-and-4fa-gate.dd.md): Resume after ctx-max 819 verdict; exact overflow blocker, final browser proof, composed green and private tmux teardown (ctx-max, nav-progress, review, tmux-safety)
+- [2026-11-12 2026-11-12 localhost guard pass and cache correction queue](2026-11-12-2026-11-12-localhost-guard-pass-and.dd.md): Guard9c pass-with-notes2e106828; prod/dev/LAN/CLI/terminal proof and safe teardown complete; review cache eef next (localhost-guard, security, home-cache, review, tmux-safety)
 - [2026-11-12 2026-11-12 login d65 review awaits OAuth artifact](2026-11-12-2026-11-12-login-d65-review-awaits-oauth.dd.md): Resume login review: 64 target tests, exact-parent two expected failures, full log audited; clean browser prepared awaiting exact OAuth-on build (login, review, artifact-provenance, tmux-safety)
 - [2026-11-12 2026-11-12 login exact OAuth pass and guard review](2026-11-12-2026-11-12-login-exact-oauth-pass-and.dd.md): Exact d65 OAuth artifact exercised and released; login pass-with-notes, high-priority localhost guard agents running and runtime work next (login, localhost-guard, security, review, tmux-safety)
 - [2026-11-12 2026-11-12 login OAuth artifact wait cleanup](2026-11-12-2026-11-12-login-oauth-artifact-wait.dd.md): Supersedes prepared-browser-open state in 891f0f0: all owned proof processes closed while exact d65 OAuth artifact is unavailable (login, review, artifact-provenance)
