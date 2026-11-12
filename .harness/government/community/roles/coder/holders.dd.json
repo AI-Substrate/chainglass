@@ -40,7 +40,10 @@
 					"harness_session": "01a1cd15-5e16-75c5-91cb-f41a4ca46e38",
 					"instance_key": "home-prefetch",
 					"machine": "ops.osk.lan",
+					"release_why": "home-prefetch landed (dd9713a6e, eef5899dd), reviewed pass-with-notes",
+					"released_by": "pij-outer-bobcat",
 					"seat": "pij-frequent-clownfish",
+					"to": "2026-11-12T07:03:25.007Z",
 					"why": "Nav speed wave 1: briefs/nav-requests/home-prefetch.md"
 				},
 				{
