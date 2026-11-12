@@ -82,3 +82,12 @@ brief hangs seen while a prod tab loads (8-tab test: 3 of 8 tabs waited 5 to 8 s
 
 1. The new address (name) and port.
 2. Whether plain `http://<LAN name>:3000` should keep answering once HTTPS exists.
+
+## Jordan's ruling (2026-11-12)
+
+- Plain HTTP keeps working (`http://localhost:3000` and `http://<LAN name>:3000`); HTTPS is an
+  additional option, not a replacement.
+- HTTPS port: **3030** (so the terminal wss front is 4530 under the plan's `P+1500` rule).
+- Name: none new given; the certificate covers `localhost`, `127.0.0.1`, `ops.osk.lan` and the LAN
+  address(es) until Jordan names one.
+- Build starts only after the demo hold is lifted.
