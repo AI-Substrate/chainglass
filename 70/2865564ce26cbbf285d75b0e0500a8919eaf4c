@@ -1,0 +1,21 @@
+.harness/government/community/roles/reviewer/outputs/2026-11/12-verdict-plan-strip-question-popper-d63f925-2.dd.json
+  s_f3eefcae664ebd::t_ff36fc0615469c 1-33
+.harness/government/community/roles/reviewer/outputs/2026-11/12-verdict-plan-strip-question-popper-d63f925-2.dd.md
+  s_f3eefcae664ebd::t_58744ac49a1e9a 1-55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "702865564ce26cbbf285d75b0e0500a8919eaf4c",
+  "prompts": {},
+  "sessions": {
+    "s_f3eefcae664ebd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "eded6b2b-f28c-4a03-b038-1a74528e1755",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
