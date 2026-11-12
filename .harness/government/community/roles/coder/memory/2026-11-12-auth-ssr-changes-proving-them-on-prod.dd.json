@@ -1,0 +1,27 @@
+{
+	"dd": {
+		"schema": "pij/memory"
+	},
+	"references": [],
+	"sections": [
+		{
+			"name": "meta",
+			"value": {
+				"date": "2026-11-12",
+				"hook": "before touching next-auth, proxy.ts, the localhost guard or verify route, or proving any auth/terminal change on a spare-port build",
+				"tags": [
+					"auth",
+					"ssr",
+					"prod-probe",
+					"terminal",
+					"security"
+				],
+				"title": "Auth/SSR changes: proving them on prod builds, and the socket-peer trust model"
+			}
+		},
+		{
+			"name": "body",
+			"value": "Lessons from coder/ssr-dashboard (nav wave 1, 2026-11-12; commits e37b1ea0d, d65ea0930, 9c8406b3e, d98cb715a):\n\n- next-auth must stay out of serverExternalPackages. As an external, next-auth/react loads node_modules React during SSR (useState of null → 500), which is why AuthProvider was once ssr:false and every dashboard page shipped empty HTML. Bundled, the pnpm patch's `next/navigation.js` import breaks route-handler builds; the Turbopack resolveAlias in next.config.mjs maps it back. Keep both. A vitest file with `@vitest-environment node` + react-dom/server renderToString of the real layout pins SSR.\n- \"Is this request local?\" = `socketPeerAddress()` (src/lib/socket-peer.ts, stamped in instrumentation register() with a per-process token). Never use Host, X-Forwarded-For or NextRequest.ip (always undefined in Next 15+). In tests: installPeerAddressStamp() in beforeEach, `..._peerHeaderForTests('127.0.0.1')` in the request, uninstall in afterEach.\n- Proving on prod builds:\n  - proxy.ts env is baked at BUILD time from apps/web/.env.local (DISABLE_AUTH=true), so testing the OAuth path needs its own build: `DISABLE_AUTH=false DISABLE_GITHUB_OAUTH=false next build`.\n  - A fresh worktree lacks apps/web/.env.local and the gitignored apps/web/public/icons/material-icon-theme (copy them). If packages dist is stale, build with `pnpm turbo build --filter='@chainglass/web^...'` first.\n  - :3101 is held on IPv4 by an OrbStack container; use 3191 (+1500 for the sidecar). Bind --hostname 0.0.0.0 for LAN checks.\n  - Prod sets the bootstrap cookie Secure, so over http://<LAN-IP> Chromium drops it; for LAN browser proofs, re-add the cookie value without Secure and disclose it.\n- Terminal gate:\n  - Create a scratch session on your private socket first (`tmux -S $D/tmux-501/default new-session -d -s scratch`); /api/terminal returns 500 when no tmux server exists.\n  - xterm renders to canvas, so read typed output from the WebSocket frames (page.on('websocket') → framereceived), not the DOM.\n  - The tmux window strip lives in the overlay (backtick on the browser page), not on /terminal. Buttons are `nav[aria-label=\"tmux windows\"] button[aria-label^=\"Window \"]` with aria-pressed.\n- Reviewer reuse: give each variant (normal env, OAuth-on) of each commit its own worktree whose .next was built from that exact SHA. Cloning node_modules is cheap: `pnpm install --frozen-lockfile --offline`, then `cp -cR` the dist dirs. Running a rate-limit probe from the LAN uses up that IP's 5/60s budget, so do browser proofs first.\n"
+		}
+	]
+}
