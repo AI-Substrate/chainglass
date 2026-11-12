@@ -1,0 +1,23 @@
+.harness/government/community/roles/reviewer/memory/2026-11-12-b9-fa5178ee8-block-test-guards-need.dd.json
+  s_feeaf80a892111::t_53417c678cdf4f 1-29
+.harness/government/community/roles/reviewer/memory/2026-11-12-b9-fa5178ee8-block-test-guards-need.dd.md
+  s_feeaf80a892111::t_cf53d3ffc6b729 1-44
+.harness/government/community/roles/reviewer/memory/INDEX.md
+  s_feeaf80a892111::t_bc1e0176dad97f 17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "4838fbec237aedeceb7a774febd4b6eeb9b130ad",
+  "prompts": {},
+  "sessions": {
+    "s_feeaf80a892111": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fe89d20c-fd8d-45b8-b27e-b321dec6f67f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
