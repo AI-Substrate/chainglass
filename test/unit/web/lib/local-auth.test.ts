@@ -36,6 +36,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { _resetForTests as _resetBootstrapCache } from '../../../../apps/web/src/lib/bootstrap-code';
 import { requireLocalAuth } from '../../../../apps/web/src/lib/local-auth';
+import {
+  _peerHeaderForTests,
+  _uninstallPeerAddressStampForTests,
+  installPeerAddressStamp,
+} from '../../../../apps/web/src/lib/socket-peer';
 import { removeTmpDir } from '../../../helpers/tmpdir';
 import { mkTempCwd } from '../../shared/auth-bootstrap-code/test-fixtures';
 const URL = 'http://localhost:3000/api/remote-view/sessions';
@@ -50,14 +55,10 @@ function makeReq(opts: ReqOptions = {}): NextRequest {
   const headers: Record<string, string> = {
     'content-type': 'application/json',
   };
-  if (opts.remote === true) {
-    // Non-loopback IP via X-Forwarded-For; isLocalhostRequest rejects.
-    headers['x-forwarded-for'] = '203.0.113.4';
-    headers.host = '203.0.113.4:3000';
-  } else {
-    headers['x-forwarded-for'] = '127.0.0.1';
-    headers.host = 'localhost:3000';
-  }
+  // Locality is the socket peer the stamp records (installed in beforeEach); Host and
+  // X-Forwarded-For are client-controlled and ignored.
+  Object.assign(headers, _peerHeaderForTests(opts.remote === true ? '203.0.113.4' : '127.0.0.1'));
+  headers.host = 'localhost:3000';
   if (opts.cookieValue !== undefined) {
     headers.cookie = `${BOOTSTRAP_COOKIE_NAME}=${opts.cookieValue}`;
   }
@@ -95,6 +96,7 @@ describe('requireLocalAuth (Phase 5 T001 RED)', () => {
       localToken: 'tok-shared-secret-1234567890abcdef',
     });
     warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    installPeerAddressStamp();
   });
 
   afterEach(() => {
@@ -110,6 +112,7 @@ describe('requireLocalAuth (Phase 5 T001 RED)', () => {
     _resetWorkspaceRootCacheForTests();
     removeTmpDir(cwd);
     warnSpy.mockRestore();
+    _uninstallPeerAddressStampForTests();
   });
 
   // (a) non-localhost rejected

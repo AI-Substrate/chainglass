@@ -41,6 +41,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { bootstrapCookieStage } from '../../../apps/web/proxy';
 import { checkBootstrapMisconfiguration } from '../../../apps/web/src/auth-bootstrap/boot';
 import { requireLocalAuth } from '../../../apps/web/src/lib/local-auth';
+import {
+  _peerHeaderForTests,
+  _uninstallPeerAddressStampForTests,
+  installPeerAddressStamp,
+} from '../../../apps/web/src/lib/socket-peer';
 
 import { setupBootstrapTestEnv } from '../../helpers/auth-bootstrap-code';
 
@@ -54,13 +59,9 @@ interface ReqOptions {
 
 function makeReq(opts: ReqOptions = {}): NextRequest {
   const headers: Record<string, string> = {};
-  if (opts.remote === true) {
-    headers['x-forwarded-for'] = '203.0.113.4';
-    headers.host = '203.0.113.4:3000';
-  } else {
-    headers['x-forwarded-for'] = '127.0.0.1';
-    headers.host = 'localhost:3000';
-  }
+  // Locality is the socket peer the stamp records (installed in beforeEach), never Host/XFF.
+  Object.assign(headers, _peerHeaderForTests(opts.remote === true ? '203.0.113.4' : '127.0.0.1'));
+  headers.host = 'localhost:3000';
   if (opts.cookieValue !== undefined) {
     headers.cookie = `${BOOTSTRAP_COOKIE_NAME}=${opts.cookieValue}`;
   }
@@ -96,11 +97,13 @@ describe('Plan 084 env-var matrix (Phase 7 T007)', () => {
     env = setupBootstrapTestEnv();
     warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     vi.resetModules();
+    installPeerAddressStamp();
   });
 
   afterEach(() => {
     env.cleanup();
     warnSpy.mockRestore();
+    _uninstallPeerAddressStampForTests();
     // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
     if (originalAuthSecret === undefined) delete process.env.AUTH_SECRET;
     else process.env.AUTH_SECRET = originalAuthSecret;
@@ -323,7 +326,7 @@ describe('Plan 084 env-var matrix (Phase 7 T007)', () => {
       {
         method: 'POST',
         headers: {
-          'x-forwarded-for': '127.0.0.1',
+          ..._peerHeaderForTests('127.0.0.1'),
           host: 'localhost:3000',
           'x-local-token': recordedToken,
         },
@@ -341,7 +344,7 @@ describe('Plan 084 env-var matrix (Phase 7 T007)', () => {
       {
         method: 'GET',
         headers: {
-          'x-forwarded-for': '127.0.0.1',
+          ..._peerHeaderForTests('127.0.0.1'),
           host: 'localhost:3000',
           'x-local-token': recordedToken,
         },
@@ -362,7 +365,7 @@ describe('Plan 084 env-var matrix (Phase 7 T007)', () => {
       {
         method: 'POST',
         headers: {
-          'x-forwarded-for': '127.0.0.1',
+          ..._peerHeaderForTests('127.0.0.1'),
           host: 'localhost:3000',
           'x-local-token': forgedToken,
         },
@@ -384,7 +387,7 @@ describe('Plan 084 env-var matrix (Phase 7 T007)', () => {
       {
         method: 'GET',
         headers: {
-          'x-forwarded-for': '127.0.0.1',
+          ..._peerHeaderForTests('127.0.0.1'),
           host: 'localhost:3000',
           'x-local-token': 'whatever-token-value',
         },
@@ -405,7 +408,7 @@ describe('Plan 084 env-var matrix (Phase 7 T007)', () => {
       {
         method: 'POST',
         headers: {
-          'x-forwarded-for': '203.0.113.4',
+          ..._peerHeaderForTests('203.0.113.4'),
           host: 'example.com',
           'x-local-token': recordedToken,
         },
@@ -426,7 +429,7 @@ describe('Plan 084 env-var matrix (Phase 7 T007)', () => {
       {
         method: 'GET',
         headers: {
-          'x-forwarded-for': '127.0.0.1',
+          ..._peerHeaderForTests('127.0.0.1'),
           host: 'localhost:3000',
           'x-local-token': '',
         },
@@ -459,7 +462,7 @@ describe('Plan 084 env-var matrix (Phase 7 T007)', () => {
       {
         method: 'POST',
         headers: {
-          'x-forwarded-for': '127.0.0.1',
+          ..._peerHeaderForTests('127.0.0.1'),
           host: 'localhost:3000',
           'x-local-token': recordedToken,
         },
@@ -478,7 +481,7 @@ describe('Plan 084 env-var matrix (Phase 7 T007)', () => {
     const req = new NextRequest('http://localhost:3000/dashboard', {
       method: 'GET',
       headers: {
-        'x-forwarded-for': '127.0.0.1',
+        ..._peerHeaderForTests('127.0.0.1'),
         host: 'localhost:3000',
         'x-local-token': 'forged-token-mismatched-length',
       },

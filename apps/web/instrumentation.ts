@@ -39,6 +39,12 @@ export async function register() {
   // console.log is intentional: this runs at process startup before the DI container
   // or ILogger are available. It's a one-time breadcrumb in the host process logs.
   if (process.env.NEXT_RUNTIME === 'nodejs') {
+    // Stamp every request with its socket peer before Next sees it: "is this request local?"
+    // (localhost-guard.ts) must come from the TCP socket, never client headers. First, so no
+    // request handled after register() lacks the stamp; earlier ones fail closed (socket-peer.ts).
+    const { installPeerAddressStamp } = await import('./src/lib/socket-peer');
+    installPeerAddressStamp();
+
     // Plan 084 Phase 2 — bootstrap-code: assert wiring + ensure file exists.
     // process.exit() is Node-only; this branch already guards against Edge runtime.
     const { checkBootstrapMisconfiguration, writeBootstrapCodeOnBoot } = await import(

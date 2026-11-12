@@ -54,6 +54,11 @@ import {
 } from '../../../apps/web/src/features/064-terminal/server/terminal-auth';
 import { getBootstrapCodeAndKey } from '../../../apps/web/src/lib/bootstrap-code';
 import { requireLocalAuth } from '../../../apps/web/src/lib/local-auth';
+import {
+  _peerHeaderForTests,
+  _uninstallPeerAddressStampForTests,
+  installPeerAddressStamp,
+} from '../../../apps/web/src/lib/socket-peer';
 
 import { setupBootstrapTestEnv } from '../../helpers/auth-bootstrap-code';
 import { removeTmpDir } from '../../helpers/tmpdir';
@@ -74,7 +79,7 @@ function makeVerifyReq(code: string, ip = '1.2.3.4'): NextRequest {
 
 function makeSinkReq(opts: { cookieValue?: string } = {}): NextRequest {
   const headers: Record<string, string> = {
-    'x-forwarded-for': '127.0.0.1',
+    ..._peerHeaderForTests('127.0.0.1'),
     host: 'localhost:3000',
   };
   if (opts.cookieValue !== undefined) {
@@ -116,6 +121,7 @@ describe('AC-22 log-discipline audit (Phase 7 T010)', () => {
     logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    installPeerAddressStamp();
   });
 
   afterEach(() => {
@@ -123,6 +129,7 @@ describe('AC-22 log-discipline audit (Phase 7 T010)', () => {
     warnSpy.mockRestore();
     errorSpy.mockRestore();
     env.cleanup();
+    _uninstallPeerAddressStampForTests();
     // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
     if (originalAuthSecret === undefined) delete process.env.AUTH_SECRET;
     else process.env.AUTH_SECRET = originalAuthSecret;

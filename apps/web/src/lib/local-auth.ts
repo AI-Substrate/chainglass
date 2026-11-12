@@ -12,11 +12,11 @@
  * Mirrors Phase 4's `UpgradeAuthResult` discriminated-union pattern (drop
  * `closeReason` — route handlers return JSON, not WS close frames).
  *
- * **Security assumptions inherited from `localhostGuard`** (Phase 5 Completeness
- * fix #8): trusts `request.ip` (resolved from socket, not headers); rejects
- * non-loopback `X-Forwarded-For`. Deployment behind an honest reverse proxy is
- * required — a misconfigured proxy that passes XFF unaltered lets attackers
- * spoof loopback. See `localhost-guard.ts` for the trust model.
+ * **Security assumptions inherited from `isLocalhostRequest`**: local means the TCP
+ * peer recorded by the socket-peer stamp (`socket-peer.ts`, installed in
+ * `instrumentation.ts`) is loopback; Host and X-Forwarded-For are never trusted, and
+ * a non-loopback X-Forwarded-For hop (a reverse proxy relaying a remote client) is
+ * rejected. See `localhost-guard.ts` for the trust model.
  *
  * **Logging contract (AC-22 / FC-C4)**: this module never logs the bootstrap
  * code value or the `localToken` value. The single warn path (bootstrap-code

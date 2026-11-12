@@ -8,18 +8,17 @@ import {
   removeServerInfo,
   writeServerInfo,
 } from '@chainglass/shared/event-popper';
-import { NextRequest } from 'next/server';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { isLocalhostRequest, localhostGuard } from '../../../apps/web/src/lib/localhost-guard.js';
 import { removeTmpDir } from '../../helpers/tmpdir';
 
 /*
 Test Doc:
-- Why: Validate server port discovery and the localhost guard
-- Contract: per-port server entries (round-trip, discovery, PID liveness), localhost guard
+- Why: Validate server port discovery
+- Contract: per-port server entries (round-trip, discovery, PID liveness)
 - Usage Notes: Port discovery tests use real tmp dirs (not FakeFileSystem) for atomic write verification
 - Quality Contribution: guards server.json discovery the CLI and local auth rely on
-- Worked Example: port round-trip, localhost allow/deny
+- Worked Example: port round-trip
+  (The localhost guard's tests live in test/unit/web/lib/localhost-guard.test.ts.)
 */
 
 // ─── T003: Port Discovery Tests ────────────────────────────────
@@ -113,79 +112,6 @@ describe('port-discovery', () => {
     writeServerInfo(testDir, entry(3000, 'prod'));
     removeServerInfo(testDir, 3000, process.pid);
     expect(existsSync(join(testDir, '.chainglass', 'servers', '3000.json'))).toBe(false);
-  });
-});
-
-// ─── T005: Localhost Guard Tests ────────────────────────────────
-
-function makeRequest(options: { ip?: string; headers?: Record<string, string> }): NextRequest {
-  const req = new NextRequest('http://localhost:3000/api/workspaces/ws/files/open', {
-    headers: options.headers ?? {},
-  });
-  // NextRequest.ip is read-only, so we override via Object.defineProperty
-  if (options.ip !== undefined) {
-    Object.defineProperty(req, 'ip', { value: options.ip, writable: false });
-  }
-  return req;
-}
-
-describe('isLocalhostRequest', () => {
-  it('allows request from 127.0.0.1', () => {
-    const req = makeRequest({ ip: '127.0.0.1' });
-    expect(isLocalhostRequest(req)).toBe(true);
-  });
-
-  it('allows request from ::1', () => {
-    const req = makeRequest({ ip: '::1' });
-    expect(isLocalhostRequest(req)).toBe(true);
-  });
-
-  it('allows request from ::ffff:127.0.0.1', () => {
-    const req = makeRequest({ ip: '::ffff:127.0.0.1' });
-    expect(isLocalhostRequest(req)).toBe(true);
-  });
-
-  it('rejects request from non-loopback IP', () => {
-    const req = makeRequest({ ip: '192.168.1.100' });
-    expect(isLocalhostRequest(req)).toBe(false);
-  });
-
-  it('rejects request with X-Forwarded-For header (proxy bypass)', () => {
-    const req = makeRequest({
-      ip: '127.0.0.1',
-      headers: { 'x-forwarded-for': '10.0.0.1' },
-    });
-    expect(isLocalhostRequest(req)).toBe(false);
-  });
-
-  it('rejects request with no trusted peer address (fail closed)', () => {
-    const req = makeRequest({});
-    expect(isLocalhostRequest(req)).toBe(false);
-  });
-});
-
-describe('localhostGuard', () => {
-  it('returns null (pass) for localhost requests', () => {
-    const req = makeRequest({ ip: '127.0.0.1' });
-    const result = localhostGuard(req);
-    expect(result).toBeNull();
-  });
-
-  it('returns 403 for non-localhost requests', () => {
-    const req = makeRequest({ ip: '192.168.1.100' });
-    const result = localhostGuard(req);
-    expect(result).not.toBeNull();
-    expect(result?.status).toBe(403);
-  });
-
-  it('returns 403 for proxied requests', () => {
-    const req = makeRequest({
-      ip: '127.0.0.1',
-      headers: { 'x-forwarded-for': '10.0.0.1' },
-    });
-    const result = localhostGuard(req);
-    expect(result).not.toBeNull();
-    expect(result?.status).toBe(403);
   });
 });
 
