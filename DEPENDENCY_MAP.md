@@ -147,7 +147,7 @@ WorkspaceAgentChrome (agent chat overlay, sidebar buttons)
   - `isMainWorktree(path): Promise<boolean>`
 
 **Implementations**:
-- `GitWorktreeResolver`: Real, uses `IProcessManager` (calls `git worktree list --porcelain`). With `cache: { fileSystem }` it reuses a path's result until git's metadata changes (linked worktree names, and each git dir's `HEAD`, `logs/HEAD`, `gitdir`), checked by stat with no process; the web container registers one cached instance, the CLI none.
+- `GitWorktreeResolver`: Real, uses `IProcessManager` (calls `git worktree list --porcelain`). With `cache: { fileSystem }` it reuses a path's result until git's metadata changes (linked worktree names; each git dir's `HEAD`, `logs/HEAD`, `gitdir`, `locked`; whether each linked checkout still exists), checked by stat/readdir with no process. Only successful listings and a passing version check are cached; failures retry. The web container registers one cached instance, the CLI none.
 - `FakeGitWorktreeResolver`: Testable, configurable in DI container
 
 **Active Worktree Discovery** (URL-based):

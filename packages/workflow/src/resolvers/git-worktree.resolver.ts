@@ -40,8 +40,11 @@ export interface GitWorktreeResolverOptions {
   cache?: { fileSystem: IFileSystem };
 }
 
-/** Files git rewrites or appends in a worktree's git dir when its branch, HEAD or path changes. */
-const WORKTREE_METADATA_FILES = ['HEAD', join('logs', 'HEAD'), 'gitdir'];
+/**
+ * Files git rewrites or appends in a worktree's git dir when its branch, HEAD, path or lock
+ * changes: HEAD (branch switch), logs/HEAD (commit, reset, checkout), gitdir (move), locked.
+ */
+const WORKTREE_METADATA_FILES = ['HEAD', join('logs', 'HEAD'), 'gitdir', 'locked'];
 
 /**
  * GitWorktreeResolver handles git worktree detection.
@@ -115,13 +118,13 @@ export class GitWorktreeResolver implements IGitWorktreeResolver {
   async detectWorktrees(repoPath: string): Promise<Worktree[]> {
     const fs = this.cacheFs;
     if (!fs) {
-      return this.listWorktrees(repoPath, this.isWorktreeSupported());
+      return (await this.listWorktrees(repoPath, this.isWorktreeSupported())).worktrees;
     }
 
     const stamp = await this.metadataStamp(fs, repoPath);
     if (stamp === null) {
       // Not inside a git repository we can read: nothing to key a cache on.
-      return this.listWorktrees(repoPath, this.supportedOnce());
+      return (await this.listWorktrees(repoPath, this.supportedOnce())).worktrees;
     }
 
     const cached = this.worktreeCache.get(repoPath);
@@ -130,28 +133,39 @@ export class GitWorktreeResolver implements IGitWorktreeResolver {
     }
 
     // The stamp is taken before git runs, so a change made during the run forces a re-read.
-    const worktrees = this.listWorktrees(repoPath, this.supportedOnce());
-    const entry = { stamp, worktrees };
+    const run = this.listWorktrees(repoPath, this.supportedOnce());
+    const entry = { stamp, worktrees: run.then((result) => result.worktrees) };
     this.worktreeCache.set(repoPath, entry);
-    worktrees.catch(() => {
-      // A failure is not remembered: the next call retries.
+    const forget = () => {
       if (this.worktreeCache.get(repoPath) === entry) {
         this.worktreeCache.delete(repoPath);
       }
-    });
-    return worktrees;
+    };
+    // Only a real listing is remembered; a git failure or missing git is retried next call.
+    run.then((result) => {
+      if (!result.listed) forget();
+    }, forget);
+    return entry.worktrees;
   }
 
+  /** The version check, shared while it runs and remembered once it passes. */
   private supportedOnce(): Promise<boolean> {
-    this.worktreeSupport ??= this.isWorktreeSupported();
+    if (!this.worktreeSupport) {
+      const check = this.isWorktreeSupported();
+      this.worktreeSupport = check;
+      check.then((supported) => {
+        if (!supported && this.worktreeSupport === check) this.worktreeSupport = null;
+      });
+    }
     return this.worktreeSupport;
   }
 
   /**
    * A string that changes whenever `git worktree list` output can change: the linked worktree
-   * names under `<common git dir>/worktrees/`, and size + mtime of each git dir's HEAD (branch
-   * switch), logs/HEAD (every commit, reset or checkout) and gitdir (worktree move).
-   * Null when `repoPath` is not inside a git checkout.
+   * names under `<common git dir>/worktrees/`, size + mtime of each git dir's metadata files
+   * (`WORKTREE_METADATA_FILES`), and whether each linked worktree's checkout still exists (git
+   * reports a worktree prunable when it does not). Null when `repoPath` is not inside a git
+   * checkout.
    */
   private async metadataStamp(fs: IFileSystem, repoPath: string): Promise<string | null> {
     const commonDir = await this.findCommonGitDir(fs, repoPath);
@@ -164,17 +178,29 @@ export class GitWorktreeResolver implements IGitWorktreeResolver {
       () => [] as string[]
     );
     const gitDirs = [commonDir, ...names.map((name) => join(worktreesDir, name))];
-    const stamps = await Promise.all(
-      gitDirs.flatMap((gitDir) =>
-        WORKTREE_METADATA_FILES.map((file) =>
-          fs.stat(join(gitDir, file)).then(
-            (stat) => `${stat.size}@${stat.mtime}`,
-            () => '-'
+    const [stamps, checkouts] = await Promise.all([
+      Promise.all(
+        gitDirs.flatMap((gitDir) =>
+          WORKTREE_METADATA_FILES.map((file) =>
+            fs.stat(join(gitDir, file)).then(
+              (stat) => `${stat.size}@${stat.mtime}`,
+              () => '-'
+            )
           )
         )
-      )
-    );
-    return `${commonDir}|${names.join(',')}|${stamps.join(',')}`;
+      ),
+      Promise.all(
+        names.map((name) => {
+          const gitDir = join(worktreesDir, name);
+          // `gitdir` names the checkout's `.git` file, absolute or relative to this git dir.
+          return fs.readFile(join(gitDir, 'gitdir')).then(
+            (target) => fs.exists(resolve(gitDir, target.trim())).then((e) => (e ? '1' : '0')),
+            () => '-'
+          );
+        })
+      ),
+    ]);
+    return `${commonDir}|${names.join(',')}|${stamps.join(',')}|${checkouts.join('')}`;
   }
 
   /** The repository's common git dir, found from `.git` in `startPath` or an ancestor. */
@@ -203,11 +229,18 @@ export class GitWorktreeResolver implements IGitWorktreeResolver {
     }
   }
 
-  private async listWorktrees(repoPath: string, support: Promise<boolean>): Promise<Worktree[]> {
+  /**
+   * Run `git worktree list`. `listed` is false when git is missing, too old, or exited non-zero:
+   * the empty result is then not a fact about the repository and must not be cached.
+   */
+  private async listWorktrees(
+    repoPath: string,
+    support: Promise<boolean>
+  ): Promise<{ worktrees: Worktree[]; listed: boolean }> {
     // Check git availability and version
     const supported = await support;
     if (!supported) {
-      return [];
+      return { worktrees: [], listed: false };
     }
 
     try {
@@ -215,10 +248,10 @@ export class GitWorktreeResolver implements IGitWorktreeResolver {
 
       if (!result.success) {
         // Not a git repo or other non-fatal error - return empty
-        return [];
+        return { worktrees: [], listed: false };
       }
 
-      return this.parseWorktreeOutput(result.stdout);
+      return { worktrees: this.parseWorktreeOutput(result.stdout), listed: true };
     } catch (error) {
       if (error instanceof GitOperationError) {
         throw error;
