@@ -1,0 +1,16 @@
+.harness/government/community/roles/reviewer/outputs/2026-11/12-verdict-plan-remote-view-auth-e4e5cd9.dd.json
+  h_9e71e8b09f7cf2 1-33
+.harness/government/community/roles/reviewer/outputs/2026-11/12-verdict-plan-remote-view-auth-e4e5cd9.dd.md
+  h_9e71e8b09f7cf2 1-94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "83c61a62a4b942ec42677db9285816a7e0767356",
+  "prompts": {},
+  "humans": {
+    "h_9e71e8b09f7cf2": {
+      "author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
