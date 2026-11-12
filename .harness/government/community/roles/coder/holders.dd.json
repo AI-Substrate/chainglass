@@ -52,6 +52,16 @@
 					"machine": "ops.osk.lan",
 					"seat": "pij-professional-crane",
 					"why": "Nav speed wave 1: briefs/nav-requests/dev-beside-prod.md"
+				},
+				{
+					"assigned_by": "pij-outer-bobcat",
+					"from": "2026-11-12T00:08:33.983Z",
+					"harness": "omp",
+					"harness_session": "01a1cd15-878a-743e-847a-220c6b2c5e69",
+					"instance_key": "trace-idle",
+					"machine": "ops.osk.lan",
+					"seat": "pij-formal-mole",
+					"why": "Nav speed wave 1: briefs/nav-requests/trace-idle.md"
 				}
 			]
 		}

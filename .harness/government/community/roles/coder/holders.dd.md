@@ -22,3 +22,4 @@
 | — | pij-local-parakeet | omp | 01a1cd15-4d7b-76e8-977c-ac499b3e13fe | ops.osk.lan | ssr-dashboard | 2026-11-12T00:08:29.886Z | — | pij-outer-bobcat | — | Nav speed wave 1: briefs/nav-requests/ssr-dashboard.md | — |
 | — | pij-frequent-clownfish | omp | 01a1cd15-5e16-75c5-91cb-f41a4ca46e38 | ops.osk.lan | home-prefetch | 2026-11-12T00:08:31.152Z | — | pij-outer-bobcat | — | Nav speed wave 1: briefs/nav-requests/home-prefetch.md | — |
 | — | pij-professional-crane | omp | 01a1cd15-7427-719e-807b-8754fad61481 | ops.osk.lan | dev-beside-prod | 2026-11-12T00:08:32.502Z | — | pij-outer-bobcat | — | Nav speed wave 1: briefs/nav-requests/dev-beside-prod.md | — |
+| — | pij-formal-mole | omp | 01a1cd15-878a-743e-847a-220c6b2c5e69 | ops.osk.lan | trace-idle | 2026-11-12T00:08:33.983Z | — | pij-outer-bobcat | — | Nav speed wave 1: briefs/nav-requests/trace-idle.md | — |
