@@ -1,0 +1,21 @@
+.harness/government/community/roles/coder/outputs/2026-11/12-deliverable-plan-nav-progress-2.dd.json
+  s_479e20f1ba7242::t_260562ce81848c 1-33
+.harness/government/community/roles/coder/outputs/2026-11/12-deliverable-plan-nav-progress-2.dd.md
+  s_479e20f1ba7242::t_fc2ff6cafc46d8 1-64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "05b1119f90338cd0ff5d955036c4e57fad8ead1f",
+  "prompts": {},
+  "sessions": {
+    "s_479e20f1ba7242": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "aeb947fa-1853-4b74-b2ef-250407af4aa1",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
