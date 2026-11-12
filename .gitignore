@@ -208,7 +208,8 @@ agents/*/.minih-source.json
 harness/.cache/
 .pnpm-store/
 
-# Generated icon assets (Plan 073) — rebuilt by scripts/generate-icon-assets.ts
+# Generated icon assets (Plan 073) — rebuilt by scripts/generate-icon-assets.ts (web predev/prebuild);
+# a turbo cache hit on @chainglass/web#build restores them (turbo.json build outputs)
 apps/web/public/icons/
 .playwright-mcp/
 

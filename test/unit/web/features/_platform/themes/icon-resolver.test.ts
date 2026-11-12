@@ -1,5 +1,3 @@
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 import { resolveFileIcon, resolveFolderIcon } from '@/features/_platform/themes/lib/icon-resolver';
 import { clearManifestCache, loadManifest } from '@/features/_platform/themes/lib/manifest-loader';
 import type { IconThemeManifest } from '@/features/_platform/themes/types';
@@ -10,10 +8,6 @@ import { beforeAll, describe, expect, it } from 'vitest';
  * Icon resolver tests using REAL material-icon-theme manifest data.
  * No mocks — per spec Testing Strategy.
  */
-
-const GENERATED_MANIFEST_EXISTS = existsSync(
-  join(process.cwd(), 'apps/web/public/icons/material-icon-theme/manifest.json')
-);
 
 let manifest: IconThemeManifest;
 
@@ -317,10 +311,12 @@ describe('loadManifest', () => {
     clearManifestCache();
   });
 
-  // These tests require generated assets (run: npx tsx scripts/generate-icon-assets.ts)
-  // They skip gracefully on clean checkouts where assets haven't been generated yet.
+  // These tests read the generated assets in apps/web/public/icons/ (made by
+  // scripts/generate-icon-assets.ts in web's predev/prebuild, and restored with the cached build).
+  // A missing manifest fails them with loadManifest's "Icon assets not generated" error: the
+  // prod UI needs the same file, so it is not something to skip past.
 
-  it.skipIf(!GENERATED_MANIFEST_EXISTS)('returns a valid IconThemeManifest shape', async () => {
+  it('returns a valid IconThemeManifest shape', async () => {
     const m = await loadManifest('material-icon-theme');
     expect(m.fileNames).toBeDefined();
     expect(m.fileExtensions).toBeDefined();
@@ -334,43 +330,34 @@ describe('loadManifest', () => {
     expect(m.folderExpanded).toBe('folder-open');
   });
 
-  it.skipIf(!GENERATED_MANIFEST_EXISTS)(
-    'caches the manifest and returns same reference',
-    async () => {
-      const first = await loadManifest('material-icon-theme');
-      const second = await loadManifest('material-icon-theme');
-      expect(second).toBe(first);
-    }
-  );
+  it('caches the manifest and returns same reference', async () => {
+    const first = await loadManifest('material-icon-theme');
+    const second = await loadManifest('material-icon-theme');
+    expect(second).toBe(first);
+  });
 
-  it.skipIf(!GENERATED_MANIFEST_EXISTS)(
-    'clears cache when clearManifestCache is called',
-    async () => {
-      const first = await loadManifest('material-icon-theme');
-      clearManifestCache();
-      const second = await loadManifest('material-icon-theme');
-      expect(second).not.toBe(first);
-      expect(second).toEqual(first);
-    }
-  );
+  it('clears cache when clearManifestCache is called', async () => {
+    const first = await loadManifest('material-icon-theme');
+    clearManifestCache();
+    const second = await loadManifest('material-icon-theme');
+    expect(second).not.toBe(first);
+    expect(second).toEqual(first);
+  });
 
-  it.skipIf(!GENERATED_MANIFEST_EXISTS)(
-    'loads real manifest with correct entry counts',
-    async () => {
-      /*
-      Test Doc:
-      - Why: Verify the generated manifest has substantial data, not the Phase 1 placeholder.
-      - Contract: loadManifest returns manifest with real icon theme data.
-      - Usage Notes: Requires generated icons in public/icons/ (run generate-icon-assets.ts first).
-      - Quality Contribution: Catches regression to placeholder manifest.
-      - Worked Example: loadManifest('material-icon-theme') returns manifest with 1000+ fileNames.
-      */
-      const m = await loadManifest('material-icon-theme');
-      expect(Object.keys(m.fileNames).length).toBeGreaterThan(1000);
-      expect(Object.keys(m.fileExtensions).length).toBeGreaterThan(500);
-      expect(Object.keys(m.iconDefinitions).length).toBeGreaterThan(1000);
-    }
-  );
+  it('loads real manifest with correct entry counts', async () => {
+    /*
+    Test Doc:
+    - Why: Verify the generated manifest has substantial data, not the Phase 1 placeholder.
+    - Contract: loadManifest returns manifest with real icon theme data.
+    - Usage Notes: Requires generated icons in public/icons/ (web prebuild, or the cached build).
+    - Quality Contribution: Catches regression to placeholder manifest.
+    - Worked Example: loadManifest('material-icon-theme') returns manifest with 1000+ fileNames.
+    */
+    const m = await loadManifest('material-icon-theme');
+    expect(Object.keys(m.fileNames).length).toBeGreaterThan(1000);
+    expect(Object.keys(m.fileExtensions).length).toBeGreaterThan(500);
+    expect(Object.keys(m.iconDefinitions).length).toBeGreaterThan(1000);
+  });
 
   it('throws actionable error for unknown theme', async () => {
     clearManifestCache();
