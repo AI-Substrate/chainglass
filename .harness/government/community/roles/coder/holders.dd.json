@@ -22,6 +22,16 @@
 					"machine": "ops.osk.lan",
 					"seat": "pij-vast-wombat",
 					"why": "Strip question popper and alerts, briefs/strip-question-popper.md"
+				},
+				{
+					"assigned_by": "pij-outer-bobcat",
+					"from": "2026-11-12T00:08:29.886Z",
+					"harness": "omp",
+					"harness_session": "01a1cd15-4d7b-76e8-977c-ac499b3e13fe",
+					"instance_key": "ssr-dashboard",
+					"machine": "ops.osk.lan",
+					"seat": "pij-local-parakeet",
+					"why": "Nav speed wave 1: briefs/nav-requests/ssr-dashboard.md"
 				}
 			]
 		}
