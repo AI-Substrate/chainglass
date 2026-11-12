@@ -1,0 +1,21 @@
+.harness/government/community/roles/coder/outputs/2026-11/12-deliverable-plan-test-load.dd.json
+  s_c2ffc6691b2daa::t_356ecc11d5b44f 1-33
+.harness/government/community/roles/coder/outputs/2026-11/12-deliverable-plan-test-load.dd.md
+  s_c2ffc6691b2daa::t_870c37b99a3a8e 1-104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "afacf1262b59ca4375d74729283ee755b044f784",
+  "prompts": {},
+  "sessions": {
+    "s_c2ffc6691b2daa": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "3fa897fc-7121-4ff5-a5b7-c1ada6253981",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
