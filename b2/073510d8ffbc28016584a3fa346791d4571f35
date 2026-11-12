@@ -1,0 +1,31 @@
+.harness/government/briefs/nav-requests/review-dev-beside-prod.md
+  s_49cdd9a4b8d4c0::t_7510e84984b25c 15
+.harness/government/briefs/nav-requests/review-ssr-dashboard.md
+  s_49cdd9a4b8d4c0::t_5c84bfa1b2ab83 15
+.harness/government/briefs/nav-wave-1.md
+  s_1f2c87f2c17dab::t_5facbfd00e2223 38-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "b2073510d8ffbc28016584a3fa346791d4571f35",
+  "prompts": {},
+  "sessions": {
+    "s_1f2c87f2c17dab": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c8a614d4-b774-43d9-bc7e-06bc6821c9d4",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_49cdd9a4b8d4c0": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "41d166d0-ef0b-4dd7-836d-346de9db839f",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
