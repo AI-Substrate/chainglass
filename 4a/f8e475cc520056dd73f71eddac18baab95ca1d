@@ -1,0 +1,19 @@
+justfile
+  s_067c2b25778899::t_50ac90abb5bfbe 21-23,35,111
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "4af8e475cc520056dd73f71eddac18baab95ca1d",
+  "prompts": {},
+  "sessions": {
+    "s_067c2b25778899": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2b1132c9-b9da-425b-b933-b733090a94b9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
