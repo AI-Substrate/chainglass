@@ -1,0 +1,14 @@
+.harness/government/reports/nav-wave-findings.md
+  h_9e71e8b09f7cf2 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "986a354e78d6b5d69f8a6773a8027c518edfc426",
+  "prompts": {},
+  "humans": {
+    "h_9e71e8b09f7cf2": {
+      "author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
