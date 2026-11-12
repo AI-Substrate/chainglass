@@ -18,6 +18,9 @@ install:
 # PORT env var controls both: Next.js listens on PORT, sidecar on PORT+1500 (default 3000).
 # Dev beside prod: with `just prod` on 3000, run dev on another port, e.g. `PORT=3010 just dev`.
 # A stale process on the port is killed, but a live prod server is never touched (see _claim-ports).
+# `--filter=@chainglass/web` runs web's dev server plus builds of only the packages it imports
+# (shared, workflow, positional-graph). Unfiltered, turbo also scheduled cli#dev, whose ^build pulls
+# in a full `next build` of web on every start (rewriting apps/web/.next) for no dev benefit.
 dev:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -29,7 +32,7 @@ dev:
     cd "$OLDPWD"
     PORT=$NEXT_PORT TERMINAL_WS_HOST=${TERMINAL_WS_HOST:-0.0.0.0} \
       pnpm concurrently --names "next,terminal" --prefix-colors "blue,green" \
-        "pnpm turbo dev -- --port $NEXT_PORT" \
+        "pnpm turbo dev --filter=@chainglass/web -- --port $NEXT_PORT" \
         "pnpm tsx watch --env-file=apps/web/.env.local apps/web/src/features/064-terminal/server/terminal-ws.ts"
 
 # Free the ports a server is about to bind. `mode` is the server being started:
@@ -105,7 +108,7 @@ dev-https:
     cd "$OLDPWD"
     PORT=$NEXT_PORT TERMINAL_WS_HOST=${TERMINAL_WS_HOST:-0.0.0.0} TERMINAL_WS_CERT=apps/web/certificates/localhost.pem TERMINAL_WS_KEY=apps/web/certificates/localhost-key.pem \
       pnpm concurrently --names "next,terminal" --prefix-colors "blue,green" \
-        "pnpm turbo dev -- --port $NEXT_PORT --experimental-https" \
+        "pnpm turbo dev --filter=@chainglass/web -- --port $NEXT_PORT --experimental-https" \
         "pnpm tsx watch --env-file=apps/web/.env.local apps/web/src/features/064-terminal/server/terminal-ws.ts"
 
 # Build all packages
