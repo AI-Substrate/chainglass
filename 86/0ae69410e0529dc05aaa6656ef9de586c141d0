@@ -1,0 +1,31 @@
+test/unit/web/features/_platform/themes/icon-resolver.test.ts
+  s_ea39c50f7d5e39::t_90d80bebf8db5b 314-317,319,333-360
+.gitignore
+  s_ea39c50f7d5e39::t_e3f7faee3a3926 211-212
+turbo.json
+  s_2dcffca6d7e40e::t_e518853fb3e554 6-13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "860ae69410e0529dc05aaa6656ef9de586c141d0",
+  "prompts": {},
+  "sessions": {
+    "s_2dcffca6d7e40e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "abfad9e5-ed0c-4a0b-ad52-c484d85a3798",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_ea39c50f7d5e39": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7757c69e-dcdc-4f56-b45c-66126fe260ab",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
