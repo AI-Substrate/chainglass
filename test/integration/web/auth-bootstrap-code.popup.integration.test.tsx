@@ -31,6 +31,11 @@ import {
   POST as verifyPOST,
 } from '../../../apps/web/app/api/bootstrap/verify/route';
 import { _resetForTests as _resetBootstrapCache } from '../../../apps/web/src/lib/bootstrap-code';
+import {
+  _peerHeaderForTests,
+  _uninstallPeerAddressStampForTests,
+  installPeerAddressStamp,
+} from '../../../apps/web/src/lib/socket-peer';
 import { setupBootstrapTestEnv } from '../../helpers/auth-bootstrap-code';
 import { removeTmpDir } from '../../helpers/tmpdir';
 import { INVALID_FORMAT_SAMPLES } from '../../unit/shared/auth-bootstrap-code/test-fixtures';
@@ -56,6 +61,7 @@ describe('Phase 6 popup integration', () => {
   beforeEach(() => {
     refresh.mockReset();
     env = setupBootstrapTestEnv();
+    installPeerAddressStamp();
     originalFetch = globalThis.fetch;
     // Route fetch('/api/bootstrap/verify') in the popup to the real verify
     // route handler in-process. No server boot. Other URLs throw so a
@@ -63,10 +69,10 @@ describe('Phase 6 popup integration', () => {
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input.toString();
       if (url.endsWith('/api/bootstrap/verify')) {
-        // The route uses NextRequest's IP detection via x-forwarded-for; tests
-        // pass a stable IP per scenario so the rate-limit bucket is isolated.
+        // The route keys its rate limit on the socket peer the stamp records; give each
+        // in-process call a stable stamped peer, as a real browser request would carry.
         const headers = new Headers(init?.headers);
-        if (!headers.has('x-forwarded-for')) headers.set('x-forwarded-for', '7.7.7.7');
+        for (const [k, v] of Object.entries(_peerHeaderForTests('7.7.7.7'))) headers.set(k, v);
         return verifyPOST(
           new NextRequest(VERIFY_URL, { ...init, headers, method: 'POST' } as NextRequestInit)
         );
@@ -78,6 +84,7 @@ describe('Phase 6 popup integration', () => {
   afterEach(() => {
     globalThis.fetch = originalFetch;
     env.cleanup();
+    _uninstallPeerAddressStampForTests();
   });
 
   // (1) Happy path — cookie round-trip via real route handler
@@ -130,7 +137,7 @@ describe('Phase 6 popup integration', () => {
     const res = await verifyPOST(
       new NextRequest(VERIFY_URL, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-forwarded-for': '7.8.8.8' },
+        headers: { 'content-type': 'application/json', ..._peerHeaderForTests('7.8.8.8') },
         body: JSON.stringify({ code: 'NOTVALIDFORMAT' }),
       })
     );
@@ -209,7 +216,7 @@ describe('Phase 6 popup integration', () => {
     const res = await verifyPOST(
       new NextRequest(VERIFY_URL, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-forwarded-for': '7.9.9.9' },
+        headers: { 'content-type': 'application/json', ..._peerHeaderForTests('7.9.9.9') },
         body: JSON.stringify({ code: env.code }),
       })
     );

@@ -18,7 +18,10 @@
  *   re-prompted next-day. Server-side rotation still invalidates the
  *   cookie via HMAC mismatch — Max-Age is complementary, not conflicting.
  *
- * Rate limit: 5 attempts per IP per 60s leaky-bucket. In-memory `Map`,
+ * Rate limit: 5 attempts per client per 60s leaky-bucket, keyed on the TCP peer address
+ * recorded by the socket-peer stamp (`@/lib/socket-peer`), never on client headers: keyed on
+ * X-Forwarded-For, a client could rotate the header and get a fresh budget per request.
+ * Requests without a stamped peer share one bucket. In-memory `Map`,
  * cleared on process restart. Defence-in-depth — primary defence is 60-bit
  * code entropy. CSRF: SameSite=Lax blocks cross-site POST; Origin allowlist
  * is Phase 4's concern (terminal-WS).
@@ -33,6 +36,7 @@ import {
 import { type NextRequest, NextResponse } from 'next/server';
 
 import { getBootstrapCodeAndKey } from '@/lib/bootstrap-code';
+import { socketPeerAddress } from '@/lib/socket-peer';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,16 +49,6 @@ interface Bucket {
 }
 
 const buckets = new Map<string, Bucket>();
-
-function ipFromRequest(req: NextRequest): string {
-  const xff = req.headers.get('x-forwarded-for');
-  if (xff) {
-    const first = xff.split(',')[0]?.trim();
-    if (first) return first;
-  }
-  // NextRequest has no `.ip` in all runtimes; fallback to a stable marker.
-  return 'unknown';
-}
 
 function sweepExpired(now: number): void {
   for (const [ip, bucket] of buckets.entries()) {
@@ -108,7 +102,8 @@ function jsonError(
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const ip = ipFromRequest(request);
+  // Rate-limit key: the socket peer. Unstamped requests all share one bucket (fail closed).
+  const ip = socketPeerAddress(request.headers) ?? 'unstamped';
   const now = Date.now();
 
   // Rate limit FIRST so a flood of bad bodies doesn't burn through file IO.

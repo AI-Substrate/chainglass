@@ -28,6 +28,11 @@ import {
 } from '../../../apps/web/app/api/bootstrap/verify/route';
 import { _resetForTests as _resetBootstrapCache } from '../../../apps/web/src/lib/bootstrap-code';
 import { type RequestLike, evaluateCookieGate } from '../../../apps/web/src/lib/cookie-gate';
+import {
+  _peerHeaderForTests,
+  _uninstallPeerAddressStampForTests,
+  installPeerAddressStamp,
+} from '../../../apps/web/src/lib/socket-peer';
 import { INVALID_FORMAT_SAMPLES } from '../../unit/shared/auth-bootstrap-code/test-fixtures';
 
 import { setupBootstrapTestEnv } from '../../helpers/auth-bootstrap-code';
@@ -35,13 +40,14 @@ import { setupBootstrapTestEnv } from '../../helpers/auth-bootstrap-code';
 const VERIFY_URL = 'http://localhost:3000/api/bootstrap/verify';
 const FORGET_URL = 'http://localhost:3000/api/bootstrap/forget';
 
+/** POST from socket peer `ip` (as the stamp records it; the rate limit keys on it). */
 function postJson(url: string, body: unknown, ip = '1.2.3.4'): NextRequest {
   return new NextRequest(url, {
     method: 'POST',
     body: typeof body === 'string' ? body : JSON.stringify(body),
     headers: {
       'content-type': 'application/json',
-      'x-forwarded-for': ip,
+      ..._peerHeaderForTests(ip),
     },
   });
 }
@@ -75,10 +81,12 @@ describe('auth-bootstrap-code integration', () => {
     // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
     delete process.env.AUTH_SECRET;
     env = setupBootstrapTestEnv();
+    installPeerAddressStamp();
   });
 
   afterEach(() => {
     env.cleanup();
+    _uninstallPeerAddressStampForTests();
     if (originalAuthSecret === undefined) {
       // biome-ignore lint/performance/noDelete: tests need to truly unset (assigning undefined leaves the key with string value "undefined")
       delete process.env.AUTH_SECRET;

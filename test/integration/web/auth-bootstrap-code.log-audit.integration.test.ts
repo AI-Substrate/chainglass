@@ -72,7 +72,7 @@ function makeVerifyReq(code: string, ip = '1.2.3.4'): NextRequest {
     body: JSON.stringify({ code }),
     headers: {
       'content-type': 'application/json',
-      'x-forwarded-for': ip,
+      ..._peerHeaderForTests(ip),
     },
   });
 }

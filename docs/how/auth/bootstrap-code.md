@@ -283,9 +283,10 @@ files, issue reports, or screenshots.
 
 ### 8.3 — Threat model
 
-- **Online guessing**: 60 bits of entropy + per-IP leaky-bucket rate limit
-  (5 attempts / 60s on `/api/bootstrap/verify`) makes online guessing
-  infeasible at any reasonable rate.
+- **Online guessing**: 60 bits of entropy + a leaky-bucket rate limit per TCP
+  peer (5 attempts / 60s on `/api/bootstrap/verify`, keyed on the socket
+  address, not on X-Forwarded-For) makes online guessing infeasible at any
+  reasonable rate.
 - **Cookie theft**: HttpOnly + `SameSite=Lax` + `Secure` (in prod) blocks JS
   read and mitigates CSRF.
 - **CSWSH on terminal WS**: defended by the `Origin` allowlist in

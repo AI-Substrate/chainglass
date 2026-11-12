@@ -25,17 +25,24 @@ import {
   _resetRateLimitForTests,
 } from '../../../../../apps/web/app/api/bootstrap/verify/route';
 import { _resetForTests as _resetBootstrapCache } from '../../../../../apps/web/src/lib/bootstrap-code';
+import {
+  _peerHeaderForTests,
+  _uninstallPeerAddressStampForTests,
+  installPeerAddressStamp,
+} from '../../../../../apps/web/src/lib/socket-peer';
 import { removeTmpDir } from '../../../../helpers/tmpdir';
 
 const URL = 'http://localhost:3000/api/bootstrap/verify';
 
-function reqWithBody(body: unknown, ip = '1.2.3.4'): NextRequest {
+/** A request whose socket peer (as the stamp records it) is `ip`, plus any client headers. */
+function reqWithBody(body: unknown, ip = '1.2.3.4', headers: Record<string, string> = {}) {
   return new NextRequest(URL, {
     method: 'POST',
     body: typeof body === 'string' ? body : JSON.stringify(body),
     headers: {
       'content-type': 'application/json',
-      'x-forwarded-for': ip,
+      ...headers,
+      ..._peerHeaderForTests(ip),
     },
   });
 }
@@ -56,6 +63,7 @@ describe('POST /api/bootstrap/verify', () => {
     _resetBootstrapCache();
     _resetSigningSecretCacheForTests();
     _resetRateLimitForTests();
+    installPeerAddressStamp();
     activeCode = ensureBootstrapCode(cwd).data.code;
   });
 
@@ -70,6 +78,7 @@ describe('POST /api/bootstrap/verify', () => {
     _resetBootstrapCache();
     _resetSigningSecretCacheForTests();
     _resetRateLimitForTests();
+    _uninstallPeerAddressStampForTests();
     removeTmpDir(cwd);
   });
 
@@ -164,6 +173,44 @@ describe('POST /api/bootstrap/verify', () => {
     expect(aSixth.status).toBe(429);
     const bFirst = await POST(reqWithBody({ code: wrong }, ipB));
     expect(bFirst.status).toBe(401);
+  });
+
+  // (9) The budget follows the socket peer, not X-Forwarded-For
+  it('429: rotating X-Forwarded-For does not reset the budget', async () => {
+    /*
+    Test Doc:
+    - Why: keyed on X-Forwarded-For, a client could send a new value per request and never hit the limit.
+    - Contract: the bucket is the socket peer the stamp recorded; client headers do not choose it.
+    - Usage Notes: peer via _peerHeaderForTests (what the stamp writes); XFF is client-sent.
+    - Quality Contribution: catches the limit being keyed on any client-controlled header again.
+    - Worked Example: 5 wrong attempts from one peer with 5 different XFF values -> 6th is 429.
+    */
+    const wrong = '7K2P-9XQM-3T8R';
+    const peer = '192.168.1.50';
+    for (let i = 0; i < 5; i++) {
+      const r = await POST(
+        reqWithBody({ code: wrong }, peer, { 'x-forwarded-for': `203.0.113.${i}` })
+      );
+      expect(r.status).toBe(401);
+    }
+    const sixth = await POST(
+      reqWithBody({ code: wrong }, peer, { 'x-forwarded-for': '203.0.113.99' })
+    );
+    expect(sixth.status).toBe(429);
+  });
+
+  it('429: requests with no stamped peer share one budget', async () => {
+    const wrong = '7K2P-9XQM-3T8R';
+    const unstamped = (xff: string) =>
+      new NextRequest(URL, {
+        method: 'POST',
+        body: JSON.stringify({ code: wrong }),
+        headers: { 'content-type': 'application/json', 'x-forwarded-for': xff },
+      });
+    for (let i = 0; i < 5; i++) {
+      expect((await POST(unstamped(`198.51.100.${i}`))).status).toBe(401);
+    }
+    expect((await POST(unstamped('198.51.100.99'))).status).toBe(429);
   });
 
   // (10) production-only Secure cookie attribute (F002)
