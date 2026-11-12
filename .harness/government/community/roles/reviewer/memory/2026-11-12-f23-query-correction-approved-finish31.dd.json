@@ -1,0 +1,27 @@
+{
+	"dd": {
+		"schema": "pij/memory"
+	},
+	"references": [],
+	"sections": [
+		{
+			"name": "meta",
+			"value": {
+				"date": "2026-11-12",
+				"hook": "B6a31 andctx690approved. f23semanticnativecapture3caseszero starts/bars;positive165ms/20sgiveupandactualsortlinkPASS;5testsPASS. Navbrowser3202stopped. Trace31sourceauditNONE;33targetsincluding4clock/worktreeprobesPASS([2000],[2000,4000],lateAignored). Preserveprobe/deleteownedWTtestbeforebrowser. Needstreamderivative/tmp/reviewer-trace-fix-stream-smoke.ts andretained4YUI. AuthorconfirmsNO finalcompositionFFT;prebase072-a31 green7336;fresh55raw589PASS. No reviewerbuild/fullFFT;neverkill-server/defaulttmux.",
+				"tags": [
+					"reviewer",
+					"nav-progress",
+					"f23b70f58",
+					"trace-idle",
+					"continuity"
+				],
+				"title": "f23 query correction approved; finish31 trace runtime and gate gap"
+			}
+		},
+		{
+			"name": "body",
+			"value": "# Canonical query correction — PASS-WITH-NOTES\n\nSubject `plan:nav-progress`; landed head `f23b70f5882668b2415562eeae5b12395de6e4b5`, parent `69031952bd7e3e5ba63941f323d874d10713a5d1`. Answers `01a1ceaf-f3c1-7253-8836-68fd29749698`.\n\n## Disposition\n\nCloses the raw-start/canonical-completion query mismatch reported at historical `574d871ca`, at this corrective head only. Both start comparison and rendered completion use a cloned, key-sorted URLSearchParams representation. `%20`, `+` and key order no longer turn semantic equality into a pending navigation. No new changed-source finding. Historical BLOCK remains historically correct.\n\n## Independent evidence\n\n- Exact-worktree navigation-progress suite **5/5 passed**, 1.04 s, including encoded-space directions, reordered semantics, delay/normal completion cases.\n- Reused unchanged BUILD_ID `FM29xBwCs3j6OiqZ1eJLT` on owned nice-19 :3202. Missing worktree env was author-confirmed; main .env.local supplied read-only with absolute Node --env-file. Private mode-700 TMUX_TMPDIR and unset TMUX/TMUX_PANE; no sidecar, tmux session, reviewer build, or Jordan server action.\n- Controlled **native anchor clicks through the production document capture listener**, with a fixture handler calling the actual Next-patched history.pushState; **never manually dispatched the start event**. `%20→+`, `+→%20`, and simultaneous key reordering each produced **zero start events and zero visible bars**, including observation beyond the 150 ms show threshold. These are source-backed DOM producer probes, not a claim that the fixture anchor is an existing rendered Next Link or that all eight hook consumers were replayed.\n- Positive changed-query/canceled-click control produced a genuine start and a visible bar at ~165 ms; its documented give-up hid at ~20 s. Separately clicked the existing **Sort by Name asc Next Link**, observed another real start and completion at `/workspaces/chainglass?sort=name&dir=asc` with no bar remaining. Do not describe that later click as clearing the earlier control: the control had already given up.\n- `/tmp/reviewer-nav-canon-proof.json`, visually inspected `/tmp/reviewer-nav-canon.png`. Diagnostics retain **13 canceled ERR_ABORTED prefetch requests**; no wholly clean-network claim. Owned browser/server stopped.\n\n## Complete gate / limits\n\n`/tmp/nav-canon-fft.log` read raw through EOF: **4342 lines / 355177 bytes**, SHA-256 `4dd334f612ab4b1ccee5aa589e92e12c6c3b17de577674a195b37babfacbcc72`. Lint/format 1812 files, seven builds/five cached, all nine configs; **556 files / 7333 tests passed / 60 skipped**, audit 3 low/16 moderate. Current canonical/standalone BUILD_ID agrees; output lacks execution-time HEAD/dirty-tree/artifact binding and an explicit aggregate-rc receipt. Cached logs are not fresh compilation. Green is not warning-free, full real-agent coverage, native OAuth validation or sealed historical execution provenance.\n\nCtx690 independently approved by `c49d59e27576f0dc57c5e3f992748e65ead87a89`; B6 approved separately. This does not clear trace31's outstanding verification disposition or strip's historical blockers.\n\nNext: consume this exact-f23 correction, then finish trace31's focused state/transport/browser proof and report its final-composition gate gap explicitly.\n"
+		}
+	]
+}
