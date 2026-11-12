@@ -1,0 +1,611 @@
+[
+  {
+    "name": "home",
+    "path": "/",
+    "err": null,
+    "tLoad": 74130,
+    "tSettled": 75639,
+    "loadReqs": 62,
+    "loadByType": {
+      "document": 1,
+      "stylesheet": 2,
+      "script": 20,
+      "fetch": 39
+    },
+    "apiDuringLoad": {
+      "GET /icons/material-icon-theme/manifest.json": 1,
+      "GET /api/worktree-activity": 1,
+      "GET /api/workspaces": 1,
+      "GET /api/auth/session": 2,
+      "GET /workspaces": 2,
+      "GET /pij": 2,
+      "GET /settings/workspaces": 2,
+      "GET /workspaces/mini-flight-bag": 2,
+      "GET /workspaces/pij": 2,
+      "GET /workspaces/work-iq": 2,
+      "GET /workspaces/cast-afl": 2,
+      "GET /workspaces/flowspace-3": 1,
+      "GET /workspaces/unisphere": 1,
+      "GET /workspaces/chainglass": 1,
+      "GET /workspaces/fermi": 1,
+      "GET /workspaces/studio-agent": 1,
+      "GET /workspaces/myob-agent": 1,
+      "GET /workspaces/flowspace": 1,
+      "GET /workspaces/tools": 1,
+      "GET /workspaces/home-improvement": 1,
+      "GET /workspaces/osk": 1,
+      "GET /workspaces/myob-meeting-notes": 1,
+      "GET /workspaces/myob-azdo-wiki": 1,
+      "GET /workspaces/comax": 1,
+      "GET /workspaces/hve-core": 1,
+      "GET /workspaces/osk-ads": 1,
+      "GET /workspaces/mini-harness": 1,
+      "GET /workspaces/pilot-logbook": 1,
+      "GET /workspaces/higgs-jordo": 1,
+      "GET /workspaces/novels": 1,
+      "GET /workspaces/studio-posts": 1
+    },
+    "nav": {
+      "ttfb": 14,
+      "dcl": 74118,
+      "load": 74124,
+      "fcp": 74776,
+      "jsCount": 20,
+      "jsBytes": 883941,
+      "jsTransfer": 278034,
+      "totalRes": 59,
+      "domNodes": 992
+    },
+    "idleCount": 0,
+    "idleByPath": {},
+    "consoleErrors": []
+  },
+  {
+    "name": "workspace",
+    "path": "/workspaces/chainglass",
+    "err": null,
+    "tLoad": 10674,
+    "tSettled": 12181,
+    "loadReqs": 77,
+    "loadByType": {
+      "document": 1,
+      "stylesheet": 2,
+      "script": 28,
+      "fetch": 45,
+      "eventsource": 1
+    },
+    "apiDuringLoad": {
+      "GET /icons/material-icon-theme/manifest.json": 1,
+      "GET /api/worktree-activity": 1,
+      "GET /api/workspaces": 1,
+      "GET /api/event-popper/list": 1,
+      "GET /api/auth/session": 2,
+      "GET /": 2,
+      "GET /workspaces/chainglass/new-worktree": 2,
+      "GET /workspaces": 2,
+      "GET /pij": 2,
+      "POST /workspaces/chainglass": 4,
+      "GET /api/events/mux": 1,
+      "GET /settings/workspaces": 2,
+      "GET /workspaces/chainglass/browser": 8,
+      "GET /workspaces/chainglass/agents": 6,
+      "GET /workspaces/chainglass/samples": 8,
+      "GET /workspaces/chainglass": 3
+    },
+    "nav": {
+      "ttfb": 11,
+      "dcl": 10662,
+      "load": 10672,
+      "fcp": 10988,
+      "jsCount": 28,
+      "jsBytes": 1211191,
+      "jsTransfer": 101844,
+      "totalRes": 67,
+      "domNodes": 475
+    },
+    "idleCount": 0,
+    "idleByPath": {},
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    ]
+  },
+  {
+    "name": "browser",
+    "path": "/workspaces/chainglass/browser?worktree=/Users/jordanknight/substrate/chainglass",
+    "err": null,
+    "tLoad": 42994,
+    "tSettled": 43754,
+    "loadReqs": 91,
+    "loadByType": {
+      "document": 1,
+      "stylesheet": 3,
+      "script": 36,
+      "fetch": 20,
+      "eventsource": 1,
+      "image": 30
+    },
+    "apiDuringLoad": {
+      "GET /icons/material-icon-theme/manifest.json": 1,
+      "GET /api/worktree-activity": 1,
+      "GET /api/workspaces": 1,
+      "GET /api/event-popper/list": 1,
+      "GET /api/auth/session": 2,
+      "GET /": 2,
+      "GET /workspaces/chainglass/new-worktree": 2,
+      "GET /workspaces": 2,
+      "GET /pij": 2,
+      "GET /api/events/mux": 1,
+      "GET /settings/workspaces": 2,
+      "GET /api/workspaces/chainglass/repo-info": 1,
+      "GET /api/terminal": 1,
+      "POST /workspaces/chainglass/browser": 2
+    },
+    "nav": {
+      "ttfb": 8,
+      "dcl": 40852,
+      "load": 42991,
+      "fcp": 40856,
+      "jsCount": 36,
+      "jsBytes": 2668111,
+      "jsTransfer": 482025,
+      "totalRes": 84,
+      "domNodes": 1182
+    },
+    "idleCount": 7,
+    "idleByPath": {
+      "POST /workspaces/chainglass/browser": 7
+    },
+    "consoleErrors": []
+  },
+  {
+    "name": "terminal",
+    "path": "/workspaces/chainglass/terminal?worktree=/Users/jordanknight/substrate/chainglass",
+    "err": null,
+    "tLoad": 8619,
+    "tSettled": 11889,
+    "loadReqs": 62,
+    "loadByType": {
+      "document": 1,
+      "stylesheet": 3,
+      "script": 32,
+      "fetch": 22,
+      "eventsource": 1,
+      "font": 3
+    },
+    "apiDuringLoad": {
+      "GET /icons/material-icon-theme/manifest.json": 1,
+      "GET /api/worktree-activity": 1,
+      "GET /api/workspaces": 1,
+      "GET /api/event-popper/list": 1,
+      "GET /api/auth/session": 2,
+      "GET /api/events/mux": 1,
+      "GET /": 2,
+      "GET /workspaces/chainglass/new-worktree": 2,
+      "GET /workspaces": 2,
+      "GET /pij": 2,
+      "GET /api/terminal": 1,
+      "POST /workspaces/chainglass/terminal": 4,
+      "GET /settings/workspaces": 2,
+      "GET /api/terminal/token": 1
+    },
+    "nav": {
+      "ttfb": 13,
+      "dcl": 8573,
+      "load": 8617,
+      "fcp": 8624,
+      "jsCount": 32,
+      "jsBytes": 2071140,
+      "jsTransfer": 215103,
+      "totalRes": 58,
+      "domNodes": 355
+    },
+    "idleCount": 0,
+    "idleByPath": {},
+    "consoleErrors": [
+      "SecurityError User activation is required."
+    ]
+  },
+  {
+    "name": "workflows",
+    "path": "/workspaces/chainglass/workflows?worktree=/Users/jordanknight/substrate/chainglass",
+    "err": null,
+    "tLoad": 8571,
+    "tSettled": 9826,
+    "loadReqs": 52,
+    "loadByType": {
+      "document": 1,
+      "stylesheet": 2,
+      "script": 28,
+      "fetch": 20,
+      "eventsource": 1
+    },
+    "apiDuringLoad": {
+      "GET /icons/material-icon-theme/manifest.json": 1,
+      "GET /api/worktree-activity": 1,
+      "GET /api/workspaces": 1,
+      "GET /api/event-popper/list": 1,
+      "GET /api/auth/session": 2,
+      "GET /": 2,
+      "GET /workspaces/chainglass/new-worktree": 2,
+      "GET /workspaces": 2,
+      "GET /pij": 2,
+      "GET /api/events/mux": 1,
+      "POST /workspaces/chainglass/workflows": 4,
+      "GET /settings/workspaces": 2
+    },
+    "nav": {
+      "ttfb": 14,
+      "dcl": 8532,
+      "load": 8569,
+      "fcp": 8560,
+      "jsCount": 28,
+      "jsBytes": 1213768,
+      "jsTransfer": 2132,
+      "totalRes": 48,
+      "domNodes": 233
+    },
+    "idleCount": 0,
+    "idleByPath": {},
+    "consoleErrors": []
+  },
+  {
+    "name": "work-units",
+    "path": "/workspaces/chainglass/work-units?worktree=/Users/jordanknight/substrate/chainglass",
+    "err": null,
+    "tLoad": 1525,
+    "tSettled": 1775,
+    "loadReqs": 43,
+    "loadByType": {
+      "document": 1,
+      "stylesheet": 2,
+      "script": 28,
+      "fetch": 11,
+      "eventsource": 1
+    },
+    "apiDuringLoad": {
+      "GET /icons/material-icon-theme/manifest.json": 1,
+      "GET /api/worktree-activity": 1,
+      "GET /api/workspaces": 1,
+      "GET /api/event-popper/list": 1,
+      "GET /api/auth/session": 2,
+      "GET /": 1,
+      "GET /workspaces/chainglass/new-worktree": 1,
+      "GET /workspaces": 1,
+      "GET /pij": 1,
+      "GET /api/events/mux": 1,
+      "POST /workspaces/chainglass/work-units": 1
+    },
+    "nav": {
+      "ttfb": 12,
+      "dcl": 1499,
+      "load": 1523,
+      "fcp": 1516,
+      "jsCount": 28,
+      "jsBytes": 1215195,
+      "jsTransfer": 2511,
+      "totalRes": 33,
+      "domNodes": 304
+    },
+    "idleCount": 32,
+    "idleByPath": {
+      "GET /workspaces/chainglass/work-units/jordo-unit": 3,
+      "GET /workspaces/chainglass/work-units/juan-unit": 3,
+      "GET /workspaces/chainglass/work-units/sample-coder": 3,
+      "POST /workspaces/chainglass/work-units": 3,
+      "GET /workspaces/chainglass/work-units/sample-pr-preparer": 3,
+      "GET /settings/workspaces": 2,
+      "GET /workspaces/chainglass/work-units/sample-spec-alignment-tester": 1,
+      "GET /workspaces/chainglass/work-units/sample-spec-builder": 1,
+      "GET /workspaces/chainglass/work-units/sample-spec-reviewer": 1,
+      "GET /workspaces/chainglass/work-units/sample-tester": 1,
+      "GET /workspaces/chainglass/work-units/demo-code-editor": 1,
+      "GET /workspaces/chainglass/work-units/sample-pr-creator": 1,
+      "GET /workspaces/chainglass/work-units/test-code": 1,
+      "GET /workspaces/chainglass/work-units/demo-userinput-editor": 1,
+      "GET /workspaces/chainglass/work-units/research-subject-getter": 1,
+      "GET /workspaces/chainglass/work-units/sample-challenge": 1,
+      "GET /workspaces/chainglass/work-units/sample-input": 1,
+      "GET /": 1,
+      "GET /workspaces/chainglass/new-worktree": 1,
+      "GET /workspaces": 1,
+      "GET /pij": 1
+    },
+    "consoleErrors": []
+  },
+  {
+    "name": "pij",
+    "path": "/workspaces/chainglass/pij?worktree=/Users/jordanknight/substrate/chainglass",
+    "err": null,
+    "tLoad": 79,
+    "tSettled": 582,
+    "loadReqs": 46,
+    "loadByType": {
+      "document": 1,
+      "stylesheet": 2,
+      "script": 28,
+      "fetch": 14,
+      "eventsource": 1
+    },
+    "apiDuringLoad": {
+      "GET /icons/material-icon-theme/manifest.json": 1,
+      "GET /api/worktree-activity": 1,
+      "GET /api/workspaces": 1,
+      "GET /api/pij/fleet": 1,
+      "GET /api/pij/tree": 1,
+      "GET /api/pij/flow": 1,
+      "GET /api/event-popper/list": 1,
+      "GET /api/auth/session": 2,
+      "GET /": 1,
+      "GET /workspaces/chainglass/new-worktree": 1,
+      "GET /workspaces": 1,
+      "GET /pij": 1,
+      "POST /workspaces/chainglass/pij": 1,
+      "GET /api/events/mux": 1
+    },
+    "nav": {
+      "ttfb": 13,
+      "dcl": 22,
+      "load": 73,
+      "fcp": 500,
+      "jsCount": 28,
+      "jsBytes": 1272642,
+      "jsTransfer": 19466,
+      "totalRes": 35,
+      "domNodes": 435
+    },
+    "idleCount": 10,
+    "idleByPath": {
+      "POST /workspaces/chainglass/pij": 3,
+      "GET /settings/workspaces": 2,
+      "GET /": 1,
+      "GET /workspaces/chainglass/new-worktree": 1,
+      "GET /workspaces": 1,
+      "GET /pij": 1,
+      "GET /api/pij/windows": 1
+    },
+    "consoleErrors": []
+  },
+  {
+    "soft": [
+      {
+        "lap": 1,
+        "name": "workspace",
+        "tUrlChanged": 13,
+        "tSettled": 215,
+        "reqs": 1,
+        "byKey": {
+          "GET /workspaces/chainglass": 1
+        }
+      },
+      {
+        "lap": 1,
+        "name": "browser",
+        "tUrlChanged": 1031,
+        "tSettled": 1833,
+        "reqs": 49,
+        "byKey": {
+          "GET /workspaces/chainglass/browser": 1,
+          "GET /_next/static/chunks/2oiffdux2p57g.css": 1,
+          "script": 9,
+          "GET /api/workspaces": 1,
+          "GET /icons/material-icon-theme/folder-open.svg": 1,
+          "GET /icons/material-icon-theme/folder.svg": 1,
+          "GET /icons/material-icon-theme/folder-claude.svg": 1,
+          "GET /icons/material-icon-theme/folder-git.svg": 1,
+          "GET /icons/material-icon-theme/folder-github.svg": 1,
+          "GET /icons/material-icon-theme/folder-turborepo.svg": 1,
+          "GET /icons/material-icon-theme/folder-vscode.svg": 1,
+          "GET /icons/material-icon-theme/folder-robot.svg": 1,
+          "GET /icons/material-icon-theme/folder-app.svg": 1,
+          "GET /icons/material-icon-theme/folder-docs.svg": 1,
+          "GET /icons/material-icon-theme/folder-node.svg": 1,
+          "GET /icons/material-icon-theme/folder-packages.svg": 1,
+          "GET /icons/material-icon-theme/folder-scripts.svg": 1,
+          "GET /icons/material-icon-theme/folder-test.svg": 1,
+          "GET /icons/material-icon-theme/tune.svg": 1,
+          "GET /icons/material-icon-theme/git.svg": 1,
+          "GET /icons/material-icon-theme/json.svg": 1,
+          "GET /icons/material-icon-theme/npm.svg": 1,
+          "GET /icons/material-icon-theme/nodejs.svg": 1,
+          "GET /icons/material-icon-theme/markdown.svg": 1,
+          "GET /icons/material-icon-theme/javascript.svg": 1,
+          "GET /icons/material-icon-theme/biome.svg": 1,
+          "GET /icons/material-icon-theme/just.svg": 1,
+          "GET /icons/material-icon-theme/license.svg": 1,
+          "GET /icons/material-icon-theme/pnpm_light.svg": 1,
+          "GET /icons/material-icon-theme/readme.svg": 1,
+          "GET /icons/material-icon-theme/console.svg": 1,
+          "GET /icons/material-icon-theme/tsconfig.svg": 1,
+          "GET /icons/material-icon-theme/turborepo_light.svg": 1,
+          "GET /icons/material-icon-theme/vitest.svg": 1,
+          "GET /api/workspaces/chainglass/repo-info": 1,
+          "GET /api/terminal": 1,
+          "POST /workspaces/chainglass/browser": 5
+        }
+      },
+      {
+        "lap": 1,
+        "name": "terminal",
+        "tUrlChanged": 3870,
+        "tSettled": 5683,
+        "reqs": 12,
+        "byKey": {
+          "GET /workspaces/chainglass/terminal": 1,
+          "script": 4,
+          "GET /api/workspaces": 1,
+          "GET /api/terminal": 1,
+          "GET /_next/static/chunks/06nfeg8yd9vuv.css": 1,
+          "GET /api/terminal/token": 1,
+          "GET /fonts/ubuntu-mono-nerd/UbuntuMonoNerdFontMono-Regular.woff2": 1,
+          "GET /fonts/ubuntu-mono-nerd/UbuntuMonoNerdFontMono-Bold.woff2": 1,
+          "GET /fonts/fira-code/FiraCode-VF.woff2": 1
+        }
+      },
+      {
+        "lap": 1,
+        "name": "workflows",
+        "tUrlChanged": 875,
+        "tSettled": 1075,
+        "reqs": 3,
+        "byKey": {
+          "GET /workspaces/chainglass/workflows": 1,
+          "script": 1,
+          "GET /api/workspaces": 1
+        }
+      },
+      {
+        "lap": 1,
+        "name": "work-units",
+        "tUrlChanged": 1312,
+        "tSettled": 1915,
+        "reqs": 26,
+        "byKey": {
+          "GET /workspaces/chainglass/work-units": 1,
+          "script": 1,
+          "GET /api/workspaces": 1,
+          "GET /workspaces/chainglass/work-units/jordo-unit": 3,
+          "GET /workspaces/chainglass/work-units/juan-unit": 3,
+          "GET /workspaces/chainglass/work-units/sample-coder": 3,
+          "GET /workspaces/chainglass/work-units/sample-pr-preparer": 3,
+          "GET /workspaces/chainglass/work-units/sample-spec-alignment-tester": 1,
+          "GET /workspaces/chainglass/work-units/sample-spec-builder": 1,
+          "GET /workspaces/chainglass/work-units/sample-spec-reviewer": 1,
+          "GET /workspaces/chainglass/work-units/sample-tester": 1,
+          "GET /workspaces/chainglass/work-units/demo-code-editor": 1,
+          "GET /workspaces/chainglass/work-units/sample-pr-creator": 1,
+          "GET /workspaces/chainglass/work-units/test-code": 1,
+          "GET /workspaces/chainglass/work-units/demo-userinput-editor": 1,
+          "GET /workspaces/chainglass/work-units/research-subject-getter": 1,
+          "GET /workspaces/chainglass/work-units/sample-challenge": 1,
+          "GET /workspaces/chainglass/work-units/sample-input": 1
+        }
+      },
+      {
+        "lap": 1,
+        "name": "pij",
+        "tUrlChanged": 103,
+        "tSettled": 303,
+        "reqs": 6,
+        "byKey": {
+          "GET /workspaces/chainglass/pij": 1,
+          "script": 1,
+          "GET /api/workspaces": 1,
+          "GET /api/pij/fleet": 1,
+          "GET /api/pij/tree": 1,
+          "GET /api/pij/flow": 1
+        }
+      },
+      {
+        "lap": 2,
+        "name": "workspace",
+        "tUrlChanged": 1451,
+        "tSettled": 1852,
+        "reqs": 8,
+        "byKey": {
+          "GET /workspaces/chainglass": 1,
+          "GET /api/workspaces": 1,
+          "GET /workspaces/chainglass/agents": 6
+        }
+      },
+      {
+        "lap": 2,
+        "name": "browser",
+        "tUrlChanged": 8084,
+        "tSettled": 9089,
+        "reqs": 37,
+        "byKey": {
+          "GET /workspaces/chainglass/browser": 1,
+          "GET /api/worktree-activity": 1,
+          "GET /icons/material-icon-theme/folder-open.svg": 1,
+          "GET /icons/material-icon-theme/folder.svg": 1,
+          "GET /icons/material-icon-theme/folder-claude.svg": 1,
+          "GET /icons/material-icon-theme/folder-git.svg": 1,
+          "GET /icons/material-icon-theme/folder-github.svg": 1,
+          "GET /icons/material-icon-theme/folder-turborepo.svg": 1,
+          "GET /icons/material-icon-theme/folder-vscode.svg": 1,
+          "GET /icons/material-icon-theme/folder-robot.svg": 1,
+          "GET /icons/material-icon-theme/folder-app.svg": 1,
+          "GET /api/workspaces": 1,
+          "GET /api/workspaces/chainglass/repo-info": 1,
+          "GET /api/terminal": 1,
+          "GET /icons/material-icon-theme/folder-docs.svg": 1,
+          "GET /icons/material-icon-theme/folder-node.svg": 1,
+          "GET /icons/material-icon-theme/folder-packages.svg": 1,
+          "GET /icons/material-icon-theme/folder-scripts.svg": 1,
+          "GET /icons/material-icon-theme/folder-test.svg": 1,
+          "GET /icons/material-icon-theme/tune.svg": 1,
+          "GET /icons/material-icon-theme/git.svg": 1,
+          "GET /icons/material-icon-theme/json.svg": 1,
+          "GET /icons/material-icon-theme/npm.svg": 1,
+          "GET /icons/material-icon-theme/nodejs.svg": 1,
+          "GET /icons/material-icon-theme/markdown.svg": 1,
+          "GET /icons/material-icon-theme/javascript.svg": 1,
+          "GET /icons/material-icon-theme/biome.svg": 1,
+          "GET /icons/material-icon-theme/just.svg": 1,
+          "GET /icons/material-icon-theme/license.svg": 1,
+          "GET /icons/material-icon-theme/pnpm_light.svg": 1,
+          "GET /icons/material-icon-theme/readme.svg": 1,
+          "GET /icons/material-icon-theme/console.svg": 1,
+          "GET /icons/material-icon-theme/tsconfig.svg": 1,
+          "GET /icons/material-icon-theme/turborepo_light.svg": 1,
+          "GET /icons/material-icon-theme/vitest.svg": 1,
+          "POST /workspaces/chainglass/browser": 2
+        }
+      },
+      {
+        "lap": 2,
+        "name": "terminal",
+        "tUrlChanged": 4051,
+        "tSettled": 4251,
+        "reqs": 6,
+        "byKey": {
+          "POST /workspaces/chainglass/terminal": 3,
+          "GET /workspaces/chainglass/terminal": 1,
+          "GET /api/workspaces": 1,
+          "GET /api/terminal": 1
+        }
+      },
+      {
+        "lap": 2,
+        "name": "workflows",
+        "tUrlChanged": 3778,
+        "tSettled": 3978,
+        "reqs": 2,
+        "byKey": {
+          "GET /workspaces/chainglass/workflows": 1,
+          "GET /api/workspaces": 1
+        }
+      },
+      {
+        "lap": 2,
+        "name": "work-units",
+        "tUrlChanged": 960,
+        "tSettled": 1160,
+        "reqs": 2,
+        "byKey": {
+          "GET /workspaces/chainglass/work-units": 1,
+          "GET /api/workspaces": 1
+        }
+      },
+      {
+        "lap": 2,
+        "name": "pij",
+        "tUrlChanged": 11,
+        "tSettled": 211,
+        "reqs": 5,
+        "byKey": {
+          "GET /workspaces/chainglass/pij": 1,
+          "GET /api/workspaces": 1,
+          "GET /api/pij/fleet": 1,
+          "GET /api/pij/tree": 1,
+          "GET /api/pij/flow": 1
+        }
+      }
+    ]
+  }
+]
