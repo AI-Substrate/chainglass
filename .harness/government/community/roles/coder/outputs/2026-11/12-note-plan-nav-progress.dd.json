@@ -1,0 +1,31 @@
+{
+	"dd": {
+		"schema": "pij/output"
+	},
+	"references": [],
+	"sections": [
+		{
+			"name": "meta",
+			"value": {
+				"date": "2026-11-12",
+				"kind": "note",
+				"role": "coder",
+				"subject": "plan:nav-progress",
+				"writer": "pij-ambitious-warbler",
+				"writer_holds_role": true
+			}
+		},
+		{
+			"name": "notes_owed",
+			"value": []
+		},
+		{
+			"name": "evidence",
+			"value": []
+		},
+		{
+			"name": "body",
+			"value": "# nav-progress — correction to deliverable -2\n\nThe browser screenshots in `scratch/nav-progress-*.png` (11:57–12:00) were taken on a **pre-rebase** build: nav-progress worktree at base `0aebeb1a5` plus the then-uncommitted diff (the same changes 574d871ca later made), built 11:55–11:56 and served on :3108. They predate the rebase onto `e37b1ea0d`, strip-067 and `819b43229`, so the page around the bar (question button, green header, alert toast) is older main, not `574d871ca`. The landed head's build is `H6HI76hQQhvLuy720tKTm` (fft run, 16:01). The reviewer (quokka) is producing the independent proof on that build; credit that, not these images.\n"
+		}
+	]
+}
