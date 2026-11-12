@@ -7,8 +7,8 @@
  * Plan 079: usePageTitle for tab title
  */
 
+import { useProgressRouter } from '@/components/navigation/navigation-progress';
 import { usePageTitle } from '@/features/041-file-browser/hooks/use-page-title';
-import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { createWorkflow } from '../../../../app/actions/workflow-actions';
 import type { WorkflowSummary } from '../types';
@@ -24,7 +24,7 @@ export interface WorkflowListClientProps {
 export function WorkflowListClient({ slug, workflows, worktreePath }: WorkflowListClientProps) {
   usePageTitle('Workflows');
   const [showNewBlank, setShowNewBlank] = useState(false);
-  const router = useRouter();
+  const router = useProgressRouter();
   const wtParam = worktreePath ? `?worktree=${encodeURIComponent(worktreePath)}` : '';
 
   const handleCreateBlank = async (graphSlug: string) => {

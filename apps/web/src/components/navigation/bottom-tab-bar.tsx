@@ -1,12 +1,13 @@
 'use client';
 
+import { useProgressRouter } from '@/components/navigation/navigation-progress';
 import { PasteUploadModal } from '@/features/041-file-browser/components/paste-upload-modal';
 import { useResponsive } from '@/hooks/useResponsive';
 import { LANDING_NAV_ITEMS } from '@/lib/navigation-utils';
 import { cn } from '@/lib/utils';
 import { workspaceHref } from '@/lib/workspace-url';
 import { FolderOpen, Home, LayoutGrid, Upload } from 'lucide-react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 
 /**
@@ -29,7 +30,7 @@ export function BottomTabBar() {
   const { useMobilePatterns } = useResponsive();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const router = useRouter();
+  const router = useProgressRouter();
   const [uploadOpen, setUploadOpen] = useState(false);
 
   // Only render on phone viewports

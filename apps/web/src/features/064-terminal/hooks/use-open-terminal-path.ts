@@ -8,14 +8,14 @@
  * this tab; ⌘/Ctrl-click opens a new tab and leaves the terminal where it is.
  */
 
+import { useProgressRouter } from '@/components/navigation/navigation-progress';
 import { workspaceHref } from '@/lib/workspace-url';
-import { useRouter } from 'next/navigation';
 import { useCallback } from 'react';
 import { locateWorkspaceFile } from '../../../../app/actions/file-actions';
 import type { OpenTerminalPath } from '../lib/path-link-provider';
 
 export function useOpenTerminalPath(beforeNavigate?: () => void): OpenTerminalPath {
-  const router = useRouter();
+  const router = useProgressRouter();
   return useCallback<OpenTerminalPath>(
     (path, line, event) => {
       // Opened now, while the click still counts as a user gesture, so it is not blocked as a popup.

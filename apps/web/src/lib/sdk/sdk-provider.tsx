@@ -12,7 +12,7 @@
  * Per Plan 047 Phase 2, Tasks T001 + T002.
  */
 
-import { useRouter } from 'next/navigation';
+import { useProgressRouter } from '@/components/navigation/navigation-progress';
 import {
   type ReactNode,
   createContext,
@@ -153,7 +153,7 @@ export function SDKProvider({ children }: SDKProviderProps) {
   };
 
   // FT-005: Listen for sdk:navigate events for SPA navigation
-  const router = useRouter();
+  const router = useProgressRouter();
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent<{ path: string }>).detail;

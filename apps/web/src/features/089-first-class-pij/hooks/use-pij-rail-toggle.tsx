@@ -1,6 +1,7 @@
 'use client';
 
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useProgressRouter } from '@/components/navigation/navigation-progress';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useEffect } from 'react';
 
 export interface PijRailToggleBridgeProps {
@@ -41,7 +42,7 @@ export function PijRailToggleBridge({
 export function PijRailToggleListener({ workspaceSlug }: { workspaceSlug: string }) {
   const pathname = usePathname();
   const search = useSearchParams().toString();
-  const router = useRouter();
+  const router = useProgressRouter();
 
   return (
     <PijRailToggleBridge

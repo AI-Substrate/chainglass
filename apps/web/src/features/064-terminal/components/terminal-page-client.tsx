@@ -1,12 +1,12 @@
 'use client';
 
+import { useProgressRouter } from '@/components/navigation/navigation-progress';
 import { useWorkspaceContext } from '@/features/041-file-browser/hooks/use-workspace-context';
 import { LeftPanel, MainPanel, PanelShell } from '@/features/_platform/panel-layout';
 import type { PanelMode } from '@/features/_platform/panel-layout';
 import type { LeftPanelMode } from '@/features/_platform/panel-layout';
 import { useResponsive } from '@/hooks/useResponsive';
 import { List, TerminalSquare } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { useTerminalOverlay } from '../hooks/use-terminal-overlay';
 import { useTerminalSessions } from '../hooks/use-terminal-sessions';
@@ -34,7 +34,7 @@ interface TerminalPageClientProps {
  */
 export function TerminalMobileGate(props: TerminalPageClientProps) {
   const { useMobilePatterns } = useResponsive();
-  const router = useRouter();
+  const router = useProgressRouter();
 
   useEffect(() => {
     if (useMobilePatterns) {

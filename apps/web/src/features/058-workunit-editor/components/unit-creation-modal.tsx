@@ -1,6 +1,6 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useProgressRouter } from '@/components/navigation/navigation-progress';
 import { useCallback, useState } from 'react';
 import { createUnit } from '../../../../app/actions/workunit-actions';
 
@@ -33,7 +33,7 @@ export function UnitCreationModal({
   onClose,
   worktreePath,
 }: UnitCreationModalProps) {
-  const router = useRouter();
+  const router = useProgressRouter();
   const [selectedType, setSelectedType] = useState<'agent' | 'code' | 'user-input' | null>(null);
   const [slug, setSlug] = useState('');
   const [description, setDescription] = useState('');

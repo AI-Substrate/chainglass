@@ -311,6 +311,28 @@
   animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
+/* Navigation-pending bar (components/navigation/navigation-progress.tsx): a segment sweeping
+   across the bottom edge while a route loads. */
+@keyframes navigation-progress-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+
+.navigation-progress-bar {
+  animation: navigation-progress-sweep 1.1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navigation-progress-bar {
+    width: 100%;
+    animation: none;
+  }
+}
+
 /* ============================================================
    Tree Entry Animation (Plan 045: Live File Events)
    ============================================================ */

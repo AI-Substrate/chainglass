@@ -9,6 +9,7 @@
  * Phase 3: Wire Into BrowserClient — Plan 043
  */
 
+import { useProgressRouter } from '@/components/navigation/navigation-progress';
 import { ChangesView } from '@/features/041-file-browser/components/changes-view';
 import { ContentEmptyState } from '@/features/041-file-browser/components/content-empty-state';
 import { DraftRestoreDialog } from '@/features/041-file-browser/components/draft-restore-dialog';
@@ -79,7 +80,7 @@ import {
   TerminalSquare,
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useQueryStates } from 'nuqs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -199,7 +200,7 @@ function BrowserClientInner({
   const terminalBranch = params.termWorktree
     ? (worktrees.find((w) => w.path === params.termWorktree)?.branch ?? '')
     : (worktreeBranch ?? '');
-  const router = useRouter();
+  const router = useProgressRouter();
   const pathname = usePathname();
   const handleWorktreeSwitch = useCallback(
     (path: string) => {

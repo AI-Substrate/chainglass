@@ -5,9 +5,11 @@
 import '@xyflow/react/dist/style.css';
 import './globals.css';
 
+import { NavigationProgress } from '@/components/navigation/navigation-progress';
 import { Providers } from '@/components/providers';
 import { BootstrapGate } from '@/features/063-login/components/bootstrap-gate';
 import { ThemeProvider } from 'next-themes';
+import { Suspense } from 'react';
 
 import type { Metadata, Viewport } from 'next';
 
@@ -50,6 +52,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Providers>
             <BootstrapGate>{children}</BootstrapGate>
           </Providers>
+          {/* useSearchParams needs a Suspense boundary to keep static routes static. */}
+          <Suspense fallback={null}>
+            <NavigationProgress />
+          </Suspense>
         </ThemeProvider>
       </body>
     </html>
