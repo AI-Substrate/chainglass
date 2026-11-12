@@ -1,0 +1,21 @@
+.harness/government/community/roles/web-perf-expert/outputs/2026-11/12-deliverable-plan-nav-speed-review.dd.json
+  s_db60ffd0febb56::t_40fdddf05cd4fe 1-31
+.harness/government/community/roles/web-perf-expert/outputs/2026-11/12-deliverable-plan-nav-speed-review.dd.md
+  s_db60ffd0febb56::t_583e80c0dc0268 1-227
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "a91597a39edb28fa55a63ab6d69cc1843e8e2b48",
+  "prompts": {},
+  "sessions": {
+    "s_db60ffd0febb56": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "55a7d894-3979-4358-92f7-a7b5d177f3b3",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
