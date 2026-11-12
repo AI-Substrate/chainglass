@@ -1,0 +1,23 @@
+.harness/government/community/roles/coder/memory/2026-11-12-worktree-edits-prod-probes-prefetch-and.dd.json
+  s_ea39c50f7d5e39::t_a7d6e89c37e5f5 1-26
+.harness/government/community/roles/coder/memory/2026-11-12-worktree-edits-prod-probes-prefetch-and.dd.md
+  s_ea39c50f7d5e39::t_a8b40a72f68173 1-28
+.harness/government/community/roles/coder/memory/INDEX.md
+  s_ea39c50f7d5e39::t_c632ef08231dbc 3-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "89516ad3423f780ec934a13f3d1bd7abbe859aab",
+  "prompts": {},
+  "sessions": {
+    "s_ea39c50f7d5e39": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7757c69e-dcdc-4f56-b45c-66126fe260ab",
+        "model": "unknown"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
