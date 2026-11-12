@@ -1,0 +1,26 @@
+{
+	"dd": {
+		"schema": "pij/memory"
+	},
+	"references": [],
+	"sections": [
+		{
+			"name": "meta",
+			"value": {
+				"date": "2026-11-12",
+				"hook": "Resume login review: 64 target tests, exact-parent two expected failures, full log audited; clean browser prepared awaiting exact OAuth-on build",
+				"tags": [
+					"login",
+					"review",
+					"artifact-provenance",
+					"tmux-safety"
+				],
+				"title": "2026-11-12 login d65 review awaits OAuth artifact"
+			}
+		},
+		{
+			"name": "body",
+			"value": "# Login d65 review progress\n\nRequest01a1ce6d-dcd2-7163-86db-3e6e7ff64afe; subjectplan:nav-login-loop; headd65ea0930e1cf5c80dccc66f1edb7da73673c329. Read-only reviewer pij-unaware-quokka.\n\n## Finished reachable checks\n\n- Exact3-file source/domain/test delta reviewed. LoginBoundaryReview found no changed-source blocker: exact/login; slash-delimited public/icons/and/fonts/; three exactPNG paths. No protectedroute beneath these namespaces or rewrite into protected content; bootstraporderingunchanged; other pages redirect/API401. Fonts exception is broader than login currently needs, but terminalfonts are publicstatic only.\n-64target tests passed in2runs: newrealOAuth-onproxy6; existingproxy51+auth7. Full output read. Unchanged six-case regression placed ONLY in own disposable exact-parent574 snapshot: 2expectedfail(login+manifesteachLocation/login),4negativecasespass. Fixture removed; snapshot gitworktree removed, no productedits/reviewerbuild. /tmp/reviewer-login-d65-before-after.json.\n- /tmp/ssr-probe/fft-login.log all4303lines read raw1–EOF byLoginGateReview;352156bytesSHA2560b7f9ae6c8186ab3b47e1c7c8cfe4a7357899bf4d0deeea85810737acfd8c0fe.1809lintformat nofix;7builds5cachedwebCLIexecuted;all9configs;554files7315tests/60skip;427.98s,teststart16:12:32;3low16moderateauditnohighcritical. No failedgate/unhandledworker.3tracing8CJSimportmeta/Reactact/config/authwarnings/missinghostwatcherdiagnosticsremain. No embedded overallrc/SHA/buildID. Logmtime16:19:43;d65commit16:21:51. CurrentdetachedreviewHEADd65clean+kedH4 normalbuildcorroborated, historicalexactfinaltreebindingremainauthorprovenance.\n- Fourterm-login-{localhost,lan}-{terminal,overlay}.json reviewed: allmount/echo/resize/API200; windowstripcreation/selectonlyoverlay, dedicatedpagehasnostripbydesign. Sidecaruserdebug; LANbootstrapcookiecopiedwithoutSecure. Original0cc+samepatchcomposition NOT exactd65; no nativeOAuth/LANloginproof. Originallogin-proof/realauthalso0cc+samepatch,mintedJWTnotproviderflow,OAuth-onbuildoverwritten.\n\n## Blocker before final verdict\n\nNeedactualcompiledOAuth-onproofatEXACTd65. Retained/Users/jordanknight/substrate/chainglass-ssr-dashboard-login/apps/web/.nextkedH4cbvJpb1SCptF6ZvWhasDISABLE_AUTH=trueanddoesnotexerciseloop. Authorparakeetpromisednewexactd65OAuth-onartifactinchainglass-ssr-dashboard-login-oauthafterhiscurrentlocalhostguardFFT,willrerunproofandpreserveBUILD_ID. ReviewerNEVERbuildanothercopy. Waitforhisready; notappliedsourcefinding.\n\n## Prepared owned runtime\n\nBrowserreview-login-d65OPENatabout:blank,isolatedheadless-shellPID7491/profile/tmp/review-login-d65-browser; JSretainedloginTab. addInitScriptsetswindow.__loginReview.errors. NOcookies/sessioninstalled; remaintrulysignedoutforinitialloginproof. No server started yet. Port3194checkedabsent. Private/tmp/review-login-d65-tmuxcreated700; explicit-Llogin-d65-proofunderTMPDIRconnectionerrorcorrect/private/tmp/review-login-d65-tmux/tmux-501/login-d65-proof; noactualtmuxsessioncreated/cleanupowed. NextserverwhenartifactreadyMUSTnice19,unsetTMUX/TMUX_PANE,existingprivateTMPDIR; noJordan/defaultactions.\n\nNext: receiveauthorartifactpath+BUILD_ID/sourceSHA,launchOWNspare3194reusingbuild,validbootstrap/noAuthsessioninitially,/login200sign-inbutton/no-loop/console; protected/workspaces307; publicassetMIME/statusagainstexactallowlistandnegativepaths; authsessionnull; mintlocalJWTforauthenticatedworkspaceproof(notGitHubproviderlogin). PreserveJSON/screenshots,stopownedbrowser/server,verifyportgone, publishverdict+memory. SourceanalysisandprecommitFFTprovenancequalificationsremainexplicit. No productchanges/tests/docsowedbyreviewer.\n\nNavigation574completedBLOCKfc76a51e;memory1986139. Ctx819BLOCK57e4058b;4faamend3ff2dae1;memoryd5c3e2f. Awaitlandedctx-rank3f788/nav-canonf1fc2(no unlandedcredit). Safetycorrectiona607479mandatory:NEVERkill-server;typedtmuxexplicit-S/-L;700direxistsfirstandresolutionproven;namedcleanupONLY. Old2machinekillsreviewercausedanddisclosed.\n"
+		}
+	]
+}
