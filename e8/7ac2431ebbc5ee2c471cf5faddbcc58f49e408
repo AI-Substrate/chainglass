@@ -1,0 +1,176 @@
+docs/how/dev/https.md
+  s_ee855675d13418::t_83cdb9a3cce079 1-6,26-62
+  s_13e44467d7e910::t_86b5c425c6ac9f 63,68-99
+justfile
+  s_8539105538379a::t_9c95a11636cd4b 132-149
+apps/web/src/lib/tls-front.ts
+  s_2dcffca6d7e40e::t_a5c6082fa79240 1-311
+docs/domains/_platform/external-events/domain.md
+  s_13e44467d7e910::t_e04a8f0f412b60 21,37,82-83,98
+vitest.config.ts
+  s_ee855675d13418::t_f23f10a0cbc879 24
+docs/how/dev/terminal-setup.md
+  s_111bcb598c8684::t_f800c41bafb195 65,70-71,74,79,82-84,88,90,99-102,130-131
+apps/web/src/lib/socket-peer.ts
+  s_067c2b25778899::t_bda51180545e78 31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "e87ac2431ebbc5ee2c471cf5faddbcc58f49e408",
+  "prompts": {},
+  "sessions": {
+    "s_067c2b25778899": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2b1132c9-b9da-425b-b933-b733090a94b9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_0bbdc90c924885": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "2c77e744-3527-45b2-bb69-b3aed81a354d",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_111bcb598c8684": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c412afea-4b9f-45d5-9797-c115656f25e0",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_13e44467d7e910": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "825608fb-1d35-4eb0-b17e-cbb9a9a9fc7f",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_1f2c87f2c17dab": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c8a614d4-b774-43d9-bc7e-06bc6821c9d4",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_2dcffca6d7e40e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "abfad9e5-ed0c-4a0b-ad52-c484d85a3798",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_4018bef08d077c": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "53791f30-0404-4d20-94c5-3b81a24e368e",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_4748096cd0c3cf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "af7b5aee-0c7f-48a6-b52c-934f4f23af2c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_49cdd9a4b8d4c0": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "41d166d0-ef0b-4dd7-836d-346de9db839f",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_67c308b9d6ad31": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d91e3965-577c-4509-a008-22aa7f641f5b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_6f34923d46bf53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bccd12e4-4a44-4f35-99bd-f66eefaad71b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_7e7237f2882b24": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "a8acdae0-6ebc-43d4-9fbb-9492c710bc0c",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_8539105538379a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fc39962a-d2a4-4267-bcd8-3e6d329a7a72",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_a0605d79762c49": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "8a059421-ccd2-4497-8598-8d6a11ba4bee",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_a7278f3b857a77": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "f53cd591-a6f5-43ba-9d5b-74377501ea1c",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_b35a367d6f39c9": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "d0fcfbab-5c6e-4a45-98c1-f973d352f31b",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_b8c448fa8de3a5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7d9e0b71-4241-4a30-8d92-0ecc453f2248",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_ee855675d13418": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "988a2b82-5644-4651-8743-ea746ba66cbf",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_f3eefcae664ebd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "eded6b2b-f28c-4a03-b038-1a74528e1755",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
