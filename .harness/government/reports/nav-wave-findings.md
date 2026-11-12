@@ -1,0 +1,11 @@
+# Nav wave — findings backlog (not yet assigned)
+
+Prime: pij-outer-bobcat. Each row gets an owner when the full-run queue clears. Source in brackets.
+
+| # | Finding | Evidence | Planned owner |
+|---|---|---|---|
+| B1 | `/api/terminal` returns 500 when no tmux server is running (should report `tmux: false`) | parakeet deliverable plan:nav-ssr-dashboard; likely the "no server running" match after a15cc3d01 moved to execFile | a coder after the queue |
+| B2 | Workspace background "Agents" links prefetch and 404 | reviewer pij-unaware-quokka, smoke of e37b1ea0d | a coder (with PRD item 8) |
+| B3 | Startup logs ENOENT from the pij flow watcher for workspaces without `docs/plans` | PRD item 8; reviewer smoke | a coder (PRD item 8) |
+| B4 | Prod over plain http on the LAN can't sign in: bootstrap cookie `Secure` keyed on NODE_ENV (`bootstrap/verify/route.ts:98`) | crane, parakeet, reviewer | HTTPS work (crane), per Jordan "HTTP keeps working" |
+| B5 | `SecurityError: User activation is required` on the browser page in phone view | reviewer; attributed to plan 067 desktop-notification permission request | coder/strip-067 confirms it is gone after the removal |
