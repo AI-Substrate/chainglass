@@ -1,0 +1,25 @@
+{
+	"dd": {
+		"schema": "pij/memory"
+	},
+	"references": [],
+	"sections": [
+		{
+			"name": "meta",
+			"value": {
+				"date": "2026-11-12",
+				"hook": "Supersedes prepared-browser-open state in 891f0f0: all owned proof processes closed while exact d65 OAuth artifact is unavailable",
+				"tags": [
+					"login",
+					"review",
+					"artifact-provenance"
+				],
+				"title": "2026-11-12 login OAuth artifact wait cleanup"
+			}
+		},
+		{
+			"name": "body",
+			"value": "Login d65 checkpoint after memory891f0f0: clean prepared browserreview-login-d65 was closed while awaiting author's exact OAuth-on artifact. No owned browser/server/sidecar/tmuxsession remains for login review;3194 was never launched. Reopen browser only after author supplies preserved artifact; earlier 'browser OPEN' checkpoint is superseded. Source/64target tests/exact-parent expected2fails/full4303lineFFT audit/assetboundary review finished. Remaining true prerequisite is author's OAuth-on build at exact d65; existingnormalenvkedH4cannotexerciseit. No further reviewerbuild or a substituted guard/currentbuild is authorized. Next: author sends actualpath+BUILD_ID/sourceSHA, reuse onspare3194,norebuild,runactualsignedout/login/assets/redirectandauthenticatedfixtureproof,teardown,publishfinalverdict. See/tmp/reviewer-login-d65-progress.md for all evidence and limits.\n"
+		}
+	]
+}
