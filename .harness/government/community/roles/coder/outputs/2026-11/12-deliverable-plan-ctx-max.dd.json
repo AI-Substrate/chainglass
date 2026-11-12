@@ -1,0 +1,33 @@
+{
+	"dd": {
+		"schema": "pij/output"
+	},
+	"references": [],
+	"sections": [
+		{
+			"name": "meta",
+			"value": {
+				"answers": "01a1cd46-fc00-7a90-80e0-9ca578940bbd",
+				"date": "2026-11-12",
+				"kind": "deliverable",
+				"requester": "pij-outer-bobcat",
+				"role": "coder",
+				"subject": "plan:ctx-max",
+				"writer": "pij-ambitious-warbler",
+				"writer_holds_role": true
+			}
+		},
+		{
+			"name": "notes_owed",
+			"value": []
+		},
+		{
+			"name": "evidence",
+			"value": []
+		},
+		{
+			"name": "body",
+			"value": "# ctx-max — deliverable\n\n**Commit on main:** `819b43229` feat(terminal): window context bar shows the fullest agent's context (fast-forward from `4fa6ed9da`).\n\n## What changed\n- `server/tmux-session-manager.ts`: the activity sample keeps every seat joined to a window's panes (same pane-id + process-tree check), not only the first. The first seat stays the window's identity (`seatId`, window naming, badges). `TerminalWindow.context` = `fullestContext(seats)`.\n- `lib/context-fill.ts`: `WindowContext` (= `SeatContext` + `seatId` of the fullest seat + `seats` = how many report context); `fullestContext` picks the highest fill (used / window), skips seats without context, `null` when none report, ties keep the earlier seat. `contextLabel` appends \", fullest of N agents: <seat>\" when N > 1.\n- `types.ts`, `components/context-fill-bar.tsx`, `domain.md` updated to match.\n\n## Every place that renders the bar (all read `TerminalWindow.context`, so all follow)\n1. Window-strip button bar + its tooltip text (`terminal-pane-header.tsx`).\n2. Window-strip button `aria-label` (same file, `contextLabel`).\n3. Window overview row bar (`terminal-window-overview.tsx`).\nNo other renderer found.\n\n## Acceptance evidence\n- **Unit test** (`test/unit/web/features/064-terminal/window-overview.test.ts`, \"reports the fullest seat across a tiled window…\"): one window with three panes/seats at 20%, 72%, 40% reports 72% and names `pij-b`, identity stays `pij-a`, `seats: 3`; a second window with one seat without data plus one with data reports the one with data (`seats: 1`), identity stays the first. Label wording test in `context-fill.test.tsx`.\n- **Browser proof** (real screenshot, not unit-only): my prod build on :3107, sidecar reading a stand-in `/v1/cards` (127.0.0.1:7499) describing three real panes of a scratch tmux session. Strip tooltip: \"tiled / pij-proof-first / context 72% (720k / 1.0M), fullest of 3 agents: pij-proof-fullest\"; overview row `tiled pij-proof-first` with the orange 72% bar. Files: `chainglass-governance/.harness/government/reports/ctx-max-evidence/{strip-tooltip.webp, strip-isolated.webp, overview.png}`. No real multi-seat window was used (attaching would resize/switch Jordan's sessions).\n- **just fft** (nice -n 19, worktree, rebased on `4fa6ed9da`, 15:52–16:00, load 14.6 at start → 39 at end): lint clean (1806 files); build 7/7; typecheck all 9 configs clean; vitest 552 files / 7305 tests passed (7 files / 60 tests skipped, existing); `pnpm audit --audit-level=high` 0 high (3 low, 16 moderate). Build warnings present are in untouched code (Turbopack whole-project trace from `088-remote-view/.../remote-view-service.production.ts:252`; CLI esbuild `import.meta` in cjs). Full log read: `/tmp/ctx-max-fft.log`.\n\n## Incident (reported to prime at the time)\nFirst proof attempt: the terminal overlay on my headless tab attached to Jordan's live `chainglass` tmux session for ~5–10 s after a client-side navigation reset its session. No window selected; client list, active window and sizes matched before/after. Redone on a private tmux server; that procedure is now in the wave brief.\n\n## Kept\nWorktree `chainglass-ctx-max`, branch `ctx-max` and its built `.next` stay until the reviewer's verdict (prime rule).\n"
+		}
+	]
+}
