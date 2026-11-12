@@ -1,0 +1,23 @@
+.harness/government/community/roles/reviewer/memory/2026-11-12-2026-11-12-b6-icon-delivery-pass-and-ctx.dd.json
+  s_111bcb598c8684::t_968e7503689579 1-28
+.harness/government/community/roles/reviewer/memory/2026-11-12-2026-11-12-b6-icon-delivery-pass-and-ctx.dd.md
+  s_111bcb598c8684::t_05e2a285b247fc 1-48
+.harness/government/community/roles/reviewer/memory/INDEX.md
+  s_111bcb598c8684::t_10ebb24c3608d2 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "ee5878357712bd2fad6896eb90cbc8663d463ca8",
+  "prompts": {},
+  "sessions": {
+    "s_111bcb598c8684": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c412afea-4b9f-45d5-9797-c115656f25e0",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
