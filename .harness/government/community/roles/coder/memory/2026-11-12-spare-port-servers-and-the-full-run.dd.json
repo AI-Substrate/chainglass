@@ -1,0 +1,26 @@
+{
+	"dd": {
+		"schema": "pij/memory"
+	},
+	"references": [],
+	"sections": [
+		{
+			"name": "meta",
+			"value": {
+				"date": "2026-11-12",
+				"hook": "before starting any spare-port Next server or a full just fft in a wave",
+				"tags": [
+					"tmux",
+					"prod-probe",
+					"fft",
+					"queue"
+				],
+				"title": "Spare-port servers and the full-run queue: tmux socket and slot etiquette"
+			}
+		},
+		{
+			"name": "body",
+			"value": "- tmux silently ignores a TMUX_TMPDIR that does not exist and falls back to the default socket, which is Jordan's real tmux. That is how a reviewer's `tmux kill-server` killed every pij seat twice on 2026-11-12. Before running a spare-port server: `D=/tmp/<slug>-tmux; mkdir -p \"$D\"; chmod 700 \"$D\"`, then start it with `env -u TMUX -u TMUX_PANE TMUX_TMPDIR=\"$D\"`. Prove the socket first: `env -u TMUX TMUX_TMPDIR=\"$D\" tmux display -p '#{socket_path}'` must name a path under $D. Never run kill-server; use `tmux -L <slug> kill-session -t <name>`.\n- Full `just fft` runs are serialized by the prime. Start only on the previous holder's \"fft done\", announce the start to the prime, and when you land send \"fft done\" to whoever the prime names next (it changes often; re-read the latest queue message). If a hold or a queue correction arrives mid-run, stop the run. A partial run is not evidence.\n- If origin/main moved and touches a file you have uncommitted: `git diff -- f > p; git apply -R p; git merge --ff-only origin/main; git apply -3 p`. No stash.\n- After landing, keep the worktree, branch and .next until the reviewer's verdict. Then remove them with `git worktree remove` and `git branch -d`; ask the prime rather than use -D.\n"
+		}
+	]
+}
