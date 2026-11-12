@@ -1,0 +1,63 @@
+.harness/government/reports/nav-speed-review-2026-11-12.md
+  s_084ac52dc66de3::t_349698ab25abf0 1-187
+.harness/government/briefs/nav-requests/dev-beside-prod.md
+  s_682dc7fe9b61ab::t_1941a3b5e5b55c 1-8
+.harness/government/briefs/nav-requests/home-prefetch.md
+  s_682dc7fe9b61ab::t_8222219d9aa073 1-9
+.harness/government/briefs/nav-requests/ssr-dashboard.md
+  s_682dc7fe9b61ab::t_d810bc0cf28abb 1-8
+.harness/government/briefs/nav-requests/trace-idle.md
+  s_682dc7fe9b61ab::t_b322051da2ae53 1-9
+.harness/government/briefs/nav-wave-1.md
+  s_da4bb85142a2b5::t_138fb1f4ba42eb 1-46
+.harness/government/reports/nav-speed-evidence/action-probe.mjs
+  s_805240d3d0aacd::t_a8178f6adea25d 1-30
+.harness/government/reports/nav-speed-evidence/home-probe.mjs
+  s_805240d3d0aacd::t_76d72160cf1b4d 1-24
+.harness/government/reports/nav-speed-evidence/nav-probe-dev.json
+  s_805240d3d0aacd::t_ae3944f6e79154 1-515
+.harness/government/reports/nav-speed-evidence/nav-probe-prod.json
+  s_805240d3d0aacd::t_f13193c1f68ee0 1-611
+.harness/government/reports/nav-speed-evidence/nav-probe.mjs
+  s_805240d3d0aacd::t_1d07634a3674e4 1-132
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "13e40a9afe4ed3b7ca152a547ae485c1821e40c5",
+  "prompts": {},
+  "sessions": {
+    "s_084ac52dc66de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e144359d-e66d-48f2-8095-b7f4dbf9705e",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_682dc7fe9b61ab": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "479ed7e9-f92a-4b56-b9fe-7d705428bd83",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_805240d3d0aacd": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "8b48eaec-e9b5-4e2c-9eb2-e154f068d3dc",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_da4bb85142a2b5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "78503607-b6db-4a73-ab3b-ba7e79f6c152",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
