@@ -42,6 +42,16 @@
 					"machine": "ops.osk.lan",
 					"seat": "pij-frequent-clownfish",
 					"why": "Nav speed wave 1: briefs/nav-requests/home-prefetch.md"
+				},
+				{
+					"assigned_by": "pij-outer-bobcat",
+					"from": "2026-11-12T00:08:32.502Z",
+					"harness": "omp",
+					"harness_session": "01a1cd15-7427-719e-807b-8754fad61481",
+					"instance_key": "dev-beside-prod",
+					"machine": "ops.osk.lan",
+					"seat": "pij-professional-crane",
+					"why": "Nav speed wave 1: briefs/nav-requests/dev-beside-prod.md"
 				}
 			]
 		}
