@@ -1,0 +1,16 @@
+.harness/government/community/roles/reviewer/outputs/2026-11/12-verdict-plan-nav-progress-f23b70f.dd.json
+  h_9e71e8b09f7cf2 1-35
+.harness/government/community/roles/reviewer/outputs/2026-11/12-verdict-plan-nav-progress-f23b70f.dd.md
+  h_9e71e8b09f7cf2 1-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "e2d96483f0a99b3e8365ffeb891e72b471277572",
+  "prompts": {},
+  "humans": {
+    "h_9e71e8b09f7cf2": {
+      "author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
