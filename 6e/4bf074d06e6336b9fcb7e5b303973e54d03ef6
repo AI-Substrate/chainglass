@@ -1,0 +1,16 @@
+.harness/government/community/roles/reviewer/outputs/2026-11/12-verdict-plan-nav-home-prefetch-eef5899.dd.json
+  h_9e71e8b09f7cf2 1-35
+.harness/government/community/roles/reviewer/outputs/2026-11/12-verdict-plan-nav-home-prefetch-eef5899.dd.md
+  h_9e71e8b09f7cf2 1-121
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "6e4bf074d06e6336b9fcb7e5b303973e54d03ef6",
+  "prompts": {},
+  "humans": {
+    "h_9e71e8b09f7cf2": {
+      "author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
