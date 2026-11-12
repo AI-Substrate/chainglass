@@ -51,8 +51,11 @@ export function NotesOverlayPanel() {
       : null;
   const worktreePath = urlWorktree ?? contextWorktreePath;
 
+  // The panel mounts (closed) on every workspace page; its notes are only shown once it opens.
+  // Fetching before then cost 4 server actions per page load (nav-speed PRD item 6).
+  const [hasOpened, setHasOpened] = useState(false);
   const { groupedByFile, loading, error, refresh, filter, setFilter, openCount, completeCount } =
-    useNotes(worktreePath);
+    useNotes(isOpen || hasOpened ? worktreePath : null);
 
   // Phase 7 DYK-02: Notify other consumers (BrowserClient, PR View) when notes change
   const refreshAndNotify = useCallback(() => {
@@ -62,7 +65,6 @@ export function NotesOverlayPanel() {
 
   const panelRef = useRef<HTMLDivElement>(null);
   const [anchorRect, setAnchorRect] = useState({ top: 0, left: 0, width: 0, height: 0 });
-  const [hasOpened, setHasOpened] = useState(false);
   // Phase 7 T006: Deleted file detection (DYK-05)
   const [deletedFiles, setDeletedFiles] = useState<Set<string>>(new Set());
 

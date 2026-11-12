@@ -3,11 +3,13 @@ import type { RsClient, RsCursorEvent, RsHelloEvent, RsIgnoredEvent } from './rs
 const INITIAL_RECONNECT_MS = 250;
 const MAX_RECONNECT_MS = 5_000;
 const RECONNECT_JITTER = 0.2;
-const RECYCLE_MS = 5_000;
-// Since pij plan 139, ALL event kinds push live. The 5s recycle is defensive rather than
-// the only descriptor-delivery path. Keep the conservative resume allowlist for older
-// sparse-push daemons: commit applied seat/role/report facts across a cursor gap, but never
-// traffic. Traffic still advances the cursor when it directly follows it (see advanceCursor).
+// Since pij plan 139, ALL event kinds push live, so the recycle is only a defensive reopen of a
+// held socket. At 5s it reopened ~500 times an hour on an idle server (nav-speed PRD item 7);
+// 10 minutes keeps the defence while staying under 10 connects an hour.
+const RECYCLE_MS = 10 * 60_000;
+// Keep the conservative resume allowlist for older sparse-push daemons: commit applied
+// seat/role/report facts across a cursor gap, but never traffic. Traffic still advances the
+// cursor when it directly follows it (see advanceCursor).
 const RESUME_EVENT_KINDS = new Set([
   'seat.put',
   'seat.tombstone',
@@ -17,7 +19,8 @@ const RESUME_EVENT_KINDS = new Set([
 ]);
 
 export type RsEventStreamStatus =
-  | { state: 'connected'; build: string }
+  /** `afterRecycle`: the previous socket was closed by the planned recycle, not by a failure. */
+  | { state: 'connected'; build: string; afterRecycle: boolean }
   | { state: 'reconnecting'; attempt: number; delayMs: number; error: Error }
   | { state: 'ignored'; frameType: string }
   | { state: 'stopped' };
@@ -64,6 +67,7 @@ class ReconnectingRsEventStream implements RsEventStream {
 
   private async run(signal: AbortSignal): Promise<void> {
     let attempt = 0;
+    let afterRecycle = false;
     while (!signal.aborted) {
       let established = false;
       let build = '';
@@ -110,7 +114,7 @@ class ReconnectingRsEventStream implements RsEventStream {
           if (!established) {
             established = true;
             attempt = 0;
-            this.options.onStatus({ state: 'connected', build });
+            this.options.onStatus({ state: 'connected', build, afterRecycle });
           }
           const pending = Promise.resolve(this.options.onEvent(cursorFrame));
           // Dispatch without awaiting so descriptor bursts use the poller's coalesced refresh.
@@ -125,12 +129,19 @@ class ReconnectingRsEventStream implements RsEventStream {
         }
         await applied;
         if (signal.aborted) break;
-        if (recycled) continue;
+        if (recycled) {
+          afterRecycle = true;
+          continue;
+        }
         throw new Error('pij-rs event stream ended');
       } catch (cause) {
         await applied.catch(() => {});
         if (signal.aborted) break;
-        if (recycled && applicationError === undefined) continue;
+        if (recycled && applicationError === undefined) {
+          afterRecycle = true;
+          continue;
+        }
+        afterRecycle = false;
         const failure = applicationError ?? cause;
         const error = failure instanceof Error ? failure : new Error(String(failure));
         const delayMs = reconnectDelay(attempt, this.options.random ?? Math.random);
@@ -148,7 +159,7 @@ class ReconnectingRsEventStream implements RsEventStream {
     // Traffic may only extend a contiguous run: a gap could hide a descriptor a sparse-push
     // daemon never sent live. Without this, a replay whose resume-kind facts are further apart
     // than one recycle can read (the 3.58M-event bg.lost flood of 26 Oct 2026) restarts from
-    // the same cursor every 5s, forever.
+    // the same cursor every recycle, forever.
     if (!RESUME_EVENT_KINDS.has(frame.event.kind) && frame.cursor !== current + 1) return;
     this.resumeCursors[frame.machine] = Math.max(current, frame.cursor);
   }

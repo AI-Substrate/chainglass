@@ -14,6 +14,10 @@ import { requireAuth } from '@/features/063-login/lib/require-auth';
 import { SHARED_DI_TOKENS, WORKSPACE_DI_TOKENS } from '@chainglass/shared';
 import type { IFileSystem, IPathResolver } from '@chainglass/shared';
 import type { IWorkspaceService } from '@chainglass/workflow';
+import type {
+  ChangesSnapshot,
+  ChangesSnapshotParts,
+} from '../../src/features/041-file-browser/services/changes-snapshot';
 import {
   type ReadFileResult,
   type SaveFileResult,
@@ -75,13 +79,18 @@ export async function fetchGitDiff(filePath: string, cwd?: string) {
   return getGitDiff(filePath, cwd);
 }
 
-// Wrapper for changed-files filter
-export async function fetchChangedFiles(worktreePath: string) {
+// Changed files, diff stats, working changes and recent files in one action: the browser's
+// file-change refresh sent four POSTs per batch before (nav-speed PRD item 6). Lazy import
+// like its siblings, so git services load only when the action runs.
+export async function fetchChangesSnapshot(
+  worktreePath: string,
+  parts: ChangesSnapshotParts
+): Promise<ChangesSnapshot> {
   await requireAuth();
-  const { getChangedFiles } = await import(
-    '../../src/features/041-file-browser/services/changed-files'
+  const { getChangesSnapshot } = await import(
+    '../../src/features/041-file-browser/services/changes-snapshot'
   );
-  return getChangedFiles(worktreePath);
+  return getChangesSnapshot(worktreePath, parts);
 }
 
 // Upload file to scratch/paste/ — Plan 044
@@ -115,24 +124,6 @@ export async function uploadFile(formData: FormData) {
     fileSystem,
     pathResolver,
   });
-}
-
-// Working changes — git status --porcelain parser (Plan 043 Phase 2)
-export async function fetchWorkingChanges(worktreePath: string) {
-  await requireAuth();
-  const { getWorkingChanges } = await import(
-    '../../src/features/041-file-browser/services/working-changes'
-  );
-  return getWorkingChanges(worktreePath);
-}
-
-// Recent files — git log --name-only parser (Plan 043 Phase 2)
-export async function fetchRecentFiles(worktreePath: string, limit = 20) {
-  await requireAuth();
-  const { getRecentFiles } = await import(
-    '../../src/features/041-file-browser/services/recent-files'
-  );
-  return getRecentFiles(worktreePath, limit);
 }
 
 // Recent feed items — git log + fs.stat enrichment (Plan recent-changes-feed T012)
@@ -172,15 +163,6 @@ export async function fetchFileList(
   await requireAuth();
   const { getFileList } = await import('../../src/features/041-file-browser/services/file-list');
   return getFileList(worktreePath, includeHidden);
-}
-
-// Diff stats — git diff HEAD --shortstat parser (Plan 049 Feature 1)
-export async function fetchDiffStats(
-  worktreePath: string
-): Promise<import('../../src/features/041-file-browser/services/diff-stats').DiffStatsResult> {
-  await requireAuth();
-  const { getDiffStats } = await import('../../src/features/041-file-browser/services/diff-stats');
-  return getDiffStats(worktreePath);
 }
 
 // File existence check — lightweight stat for ExplorerPanel (Plan 043 Phase 2)

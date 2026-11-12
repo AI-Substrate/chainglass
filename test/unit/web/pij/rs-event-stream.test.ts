@@ -196,9 +196,11 @@ describe('createRsEventStream', () => {
 
     expect(client.eventCalls).toEqual([undefined, { local: 17 }]);
     expect(received.map((frame) => frame.cursor)).toEqual([17, 18]);
-    expect(
-      statuses.filter((status) => status.state === 'connected').map((status) => status.build)
-    ).toEqual(['pij-rs 0.1.0', 'pij-rs 0.1.1']);
+    expect(statuses.filter((status) => status.state === 'connected')).toEqual([
+      { state: 'connected', build: 'pij-rs 0.1.0', afterRecycle: false },
+      // A failed socket is not a recycle: its reconnect is logged at info.
+      { state: 'connected', build: 'pij-rs 0.1.1', afterRecycle: false },
+    ]);
     expect(statuses).toContainEqual(
       expect.objectContaining({ state: 'reconnecting', attempt: 0, delayMs: 250 })
     );
@@ -329,16 +331,21 @@ describe('createRsEventStream', () => {
         await waitForAbort(signal);
       },
     ]);
+    const statuses: RsEventStreamStatus[] = [];
     const stream = createRsEventStream({
       client,
       onEvent: () => {},
-      onStatus: () => {},
+      onStatus: (status) => statuses.push(status),
       recycleMs: 10,
     });
     stream.start();
     await replaySeen;
     stream.stop();
     expect(client.eventCalls).toEqual([undefined, { local: 10 }]);
+    expect(statuses.filter((status) => status.state === 'connected')).toEqual([
+      { state: 'connected', build: 'pij-rs 0.1.0', afterRecycle: false },
+      { state: 'connected', build: 'pij-rs 0.1.0', afterRecycle: true },
+    ]);
   });
 
   it('resumes past a contiguous run of traffic so a long replay is not re-read every recycle', async () => {

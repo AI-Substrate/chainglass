@@ -64,7 +64,7 @@ a rule written down in that contract — never guessed, never estimated.
 | `IPijRecords` | Interface | poller, routes | `list()`, `tree()`, `nodeShow()`, `state()` — read verbs only |
 | `createPijRecords()` | Factory | bootstrap | `execFile`-backed adapter; injectable `PijExecutor` |
 | `createRsClient()` / `createRsPijRecords()` | Factories | composite adapter | Authenticated HTTP; explicit role/model/provider mapping, preserving role null versus omission; consumer gaps and source capability from StateCard.unsupported |
-| `createRsEventStream()` | Factory | bootstrap | One subscriber, defensive 5s recycle; applied seat/role/report resume cursor; fresh processes replay from per-machine zero. Since upstream 139 all kinds also push live |
+| `createRsEventStream()` | Factory | bootstrap | One subscriber, defensive 10-minute recycle (was 5s; nav-speed PRD item 7); `connected` carries `afterRecycle` so routine reopens log at debug; applied seat/role/report resume cursor; fresh processes replay from per-machine zero. Since upstream 139 all kinds also push live |
 | `FleetSnapshotData` capabilities | Type | rail, fleet/global views | `livenessUnavailable` distinguishes an unknowable live count from an empty roster; `statusesUnavailable` describes card capability |
 | `TreeSnapshotData` provenance | Type | rail, tree views | `structureSource: rs-parent-links`; `rolesUnavailable` only when StateCard.unsupported names role, never from null values; optional collection `structureWarnings` for root promotion without rewriting source parents |
 | `IFlowReader` | Interface | poller, routes | `read(planDir)` → `FlowSummary`; `scan(plansDir)` → all plan folders |

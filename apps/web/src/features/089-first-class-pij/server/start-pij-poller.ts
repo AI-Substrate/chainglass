@@ -189,7 +189,9 @@ export function getPijPoller(
         },
         onStatus: (status) => {
           if (status.state === 'connected') {
-            console.info(`[pij-rs] event stream connected (${status.build})`);
+            // Info on the first connect and after a failure; a planned recycle reopen is routine.
+            const log = status.afterRecycle ? console.debug : console.info;
+            log(`[pij-rs] event stream connected (${status.build})`);
           } else if (status.state === 'reconnecting') {
             console.warn(
               `[pij-rs] event stream reconnecting in ${status.delayMs}ms:`,

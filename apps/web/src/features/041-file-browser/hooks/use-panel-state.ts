@@ -4,35 +4,41 @@
  * usePanelState — Left panel mode, changes data, lazy fetch.
  *
  * Extracted from BrowserClient for separation of concerns (DYK-P3-05).
- * Owns: panel mode, workingChanges, recentFiles, changesLoaded.
+ * Owns: panel mode, workingChanges, recentFiles, changedFiles, diffStats.
+ *
+ * Git state arrives in one `fetchChangesSnapshot` action (nav-speed PRD item 6):
+ * - tree parts (changed files, diff stats) on mount and on every refresh;
+ * - changes parts (working changes, recent files) only while the Changes panel shows;
+ *   a refresh while it is hidden marks them stale and they reload on the next switch.
+ * File-change refreshes go through {@link scheduleRefreshChanges}: trailing-throttled, and
+ * deferred while the tab is hidden, then run once when it is shown again.
  *
  * Phase 3: Wire Into BrowserClient — Plan 043
  */
 
+import type {
+  ChangesSnapshot,
+  ChangesSnapshotParts,
+} from '@/features/041-file-browser/services/changes-snapshot';
 import type { DiffStats } from '@/features/041-file-browser/services/diff-stats';
 import type { ChangedFile } from '@/features/041-file-browser/services/working-changes';
 import type { PanelMode } from '@/features/_platform/panel-layout';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+
+/** Minimum spacing between file-change refreshes. */
+export const CHANGES_REFRESH_THROTTLE_MS = 2_000;
 
 interface UsePanelStateOptions {
   isGit: boolean;
   worktreePath: string;
   panel: PanelMode;
   setUrlPanel: (panel: PanelMode) => void;
-  fetchWorkingChanges: (
-    worktreePath: string
-  ) => Promise<{ ok: true; files: ChangedFile[] } | { ok: false; error: string }>;
-  fetchRecentFiles: (
+  fetchChangesSnapshot: (
     worktreePath: string,
-    limit?: number
-  ) => Promise<{ ok: true; files: string[] } | { ok: false; error: string }>;
-  fetchChangedFiles: (
-    worktreePath: string
-  ) => Promise<{ ok: true; files: string[] } | { ok: false; error: string }>;
-  fetchDiffStats: (
-    worktreePath: string
-  ) => Promise<{ ok: true; stats: DiffStats } | { ok: false; error: string }>;
+    parts: ChangesSnapshotParts
+  ) => Promise<ChangesSnapshot>;
+  refreshThrottleMs?: number;
 }
 
 export function usePanelState(options: UsePanelStateOptions) {
@@ -41,43 +47,42 @@ export function usePanelState(options: UsePanelStateOptions) {
     worktreePath,
     panel,
     setUrlPanel,
-    fetchWorkingChanges: fetchWorkingChangesFn,
-    fetchRecentFiles: fetchRecentFilesFn,
-    fetchChangedFiles: fetchChangedFilesFn,
-    fetchDiffStats: fetchDiffStatsFn,
+    fetchChangesSnapshot: fetchChangesSnapshotFn,
+    refreshThrottleMs = CHANGES_REFRESH_THROTTLE_MS,
   } = options;
 
   const [workingChanges, setWorkingChanges] = useState<ChangedFile[]>([]);
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
   const [changedFiles, setChangedFiles] = useState<string[]>([]);
   const [diffStats, setDiffStats] = useState<DiffStats | null>(null);
-  const [changesLoaded, setChangesLoaded] = useState(false);
+  // Refs, not state: they survive StrictMode's effect replay, so dev does not load twice.
+  const treeLoadedRef = useRef(false);
+  const changesLoadedRef = useRef(false);
+  const panelRef = useRef(panel);
+  panelRef.current = panel;
 
-  // Fetch changed files + diff stats on mount for tree view + header stats
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional mount-only effect
-  useEffect(() => {
-    if (isGit) {
-      fetchChangedFilesFn(worktreePath).then((result) => {
-        if (result.ok) setChangedFiles(result.files);
-      });
-      fetchDiffStatsFn(worktreePath).then((result) => {
-        if (result.ok) setDiffStats(result.stats);
-      });
-    }
-  }, []);
+  const load = useCallback(
+    async (parts: ChangesSnapshotParts) => {
+      const snapshot = await fetchChangesSnapshotFn(worktreePath, parts);
+      if (snapshot.changedFiles?.ok) setChangedFiles(snapshot.changedFiles.files);
+      if (snapshot.diffStats?.ok) setDiffStats(snapshot.diffStats.stats);
+      if (snapshot.workingChanges?.ok) setWorkingChanges(snapshot.workingChanges.files);
+      if (snapshot.recentFiles?.ok) setRecentFiles(snapshot.recentFiles.files);
+    },
+    [worktreePath, fetchChangesSnapshotFn]
+  );
 
-  // Lazy fetch changes data on first switch to changes mode
+  // Tree parts once on mount; changes parts the first time the Changes panel shows (and again
+  // after a refresh marked them stale). One action carries whatever is due.
   useEffect(() => {
-    if (panel === 'changes' && !changesLoaded && isGit) {
-      setChangesLoaded(true);
-      Promise.all([fetchWorkingChangesFn(worktreePath), fetchRecentFilesFn(worktreePath)]).then(
-        ([wcResult, rfResult]) => {
-          if (wcResult.ok) setWorkingChanges(wcResult.files);
-          if (rfResult.ok) setRecentFiles(rfResult.files);
-        }
-      );
-    }
-  }, [panel, changesLoaded, isGit, worktreePath, fetchWorkingChangesFn, fetchRecentFilesFn]);
+    if (!isGit) return;
+    const tree = !treeLoadedRef.current;
+    const changes = panel === 'changes' && !changesLoadedRef.current;
+    if (!tree && !changes) return;
+    treeLoadedRef.current = true;
+    if (changes) changesLoadedRef.current = true;
+    void load({ tree, changes });
+  }, [panel, isGit, load]);
 
   const handlePanelModeChange = useCallback(
     (newMode: PanelMode) => {
@@ -93,27 +98,50 @@ export function usePanelState(options: UsePanelStateOptions) {
     [setUrlPanel]
   );
 
+  /** Refresh now (the panel's refresh button). */
   const handleRefreshChanges = useCallback(() => {
     if (!isGit) return;
-    Promise.all([
-      fetchWorkingChangesFn(worktreePath),
-      fetchRecentFilesFn(worktreePath),
-      fetchChangedFilesFn(worktreePath),
-      fetchDiffStatsFn(worktreePath),
-    ]).then(([wcResult, rfResult, cfResult, dsResult]) => {
-      if (wcResult.ok) setWorkingChanges(wcResult.files);
-      if (rfResult.ok) setRecentFiles(rfResult.files);
-      if (cfResult.ok) setChangedFiles(cfResult.files);
-      if (dsResult.ok) setDiffStats(dsResult.stats);
-    });
-  }, [
-    isGit,
-    worktreePath,
-    fetchWorkingChangesFn,
-    fetchRecentFilesFn,
-    fetchChangedFilesFn,
-    fetchDiffStatsFn,
-  ]);
+    const changes = panelRef.current === 'changes';
+    // Not shown: drop the loaded mark so the next switch to Changes reads fresh data.
+    if (!changes) changesLoadedRef.current = false;
+    void load({ tree: true, changes });
+  }, [isGit, load]);
+
+  const refreshRef = useRef(handleRefreshChanges);
+  refreshRef.current = handleRefreshChanges;
+  const throttleRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const staleWhileHiddenRef = useRef(false);
+
+  /** Refresh after file changes: trailing throttle, deferred while the tab is hidden. */
+  const scheduleRefreshChanges = useCallback(() => {
+    if (document.hidden) {
+      staleWhileHiddenRef.current = true;
+      return;
+    }
+    if (throttleRef.current !== undefined) return;
+    throttleRef.current = setTimeout(() => {
+      throttleRef.current = undefined;
+      if (document.hidden) {
+        staleWhileHiddenRef.current = true;
+        return;
+      }
+      refreshRef.current();
+    }, refreshThrottleMs);
+  }, [refreshThrottleMs]);
+
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.hidden || !staleWhileHiddenRef.current) return;
+      staleWhileHiddenRef.current = false;
+      refreshRef.current();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      clearTimeout(throttleRef.current);
+      throttleRef.current = undefined;
+    };
+  }, []);
 
   // Available modes for LeftPanel
   const panelModes = [
@@ -131,5 +159,6 @@ export function usePanelState(options: UsePanelStateOptions) {
     panelModes,
     handlePanelModeChange,
     handleRefreshChanges,
+    scheduleRefreshChanges,
   };
 }

@@ -33,7 +33,7 @@ flowchart LR
         RF["readFile"]
         SF["saveFile"]
         GD["fetchGitDiff"]
-        WC["fetchWorkingChanges"]
+        WC["fetchChangesSnapshot"]
     end
 
     Page --> BC
@@ -154,9 +154,12 @@ Files can be uploaded via the paste/upload modal (Plan 044):
 
 The changes panel shows uncommitted git changes:
 
-- `fetchWorkingChanges()` — runs `git status --porcelain`, returns `ChangedFile[]` with path, status (modified/added/deleted/untracked/renamed), and area (staged/unstaged/untracked)
-- `fetchChangedFiles()` — runs `git diff --name-only` for the tree filter
-- `fetchRecentFiles()` — runs `git log --name-only` for recently modified files
+`fetchChangesSnapshot(worktreePath, { tree, changes })` returns the parts asked for in one server action:
+
+- `tree` — changed files (`git diff --name-only`, the tree filter) and diff stats (`git diff HEAD --shortstat`, the panel header)
+- `changes` — working changes (`git status --porcelain`: path, status modified/added/deleted/untracked/renamed, area staged/unstaged/untracked) and recent files (`git log --name-only`)
+
+`usePanelState` loads the tree parts on mount and the changes parts only while the Changes panel shows. File changes in the worktree refresh through `scheduleRefreshChanges`: a 2 s trailing throttle, deferred while the tab is hidden and run once when it is shown.
 
 ## Viewer Modes
 

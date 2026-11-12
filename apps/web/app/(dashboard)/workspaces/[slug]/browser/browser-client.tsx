@@ -95,12 +95,9 @@ import {
   createFile,
   createFolder,
   deleteItem,
-  fetchChangedFiles,
-  fetchDiffStats,
+  fetchChangesSnapshot,
   fetchFileList,
   fetchGitDiff,
-  fetchRecentFiles,
-  fetchWorkingChanges,
   fileExists,
   pathExists,
   readFile,
@@ -376,10 +373,7 @@ function BrowserClientInner({
     worktreePath,
     panel: panelMode,
     setUrlPanel: (p) => setParams({ panel: p as 'tree' | 'changes' | 'pij' }),
-    fetchWorkingChanges,
-    fetchRecentFiles,
-    fetchChangedFiles,
-    fetchDiffStats,
+    fetchChangesSnapshot,
   });
   const [pijRefreshToken, setPijRefreshToken] = useState(0);
 
@@ -716,11 +710,11 @@ function BrowserClientInner({
     }
   }, [externallyChanged, selectedFile, mode, isDirty]);
 
-  // T005: Auto-refresh working changes when any file changes
+  // T005: Auto-refresh working changes when any file changes (throttled, paused while hidden)
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — only trigger on hasChanges flip
   useEffect(() => {
     if (!allChanges.hasChanges) return;
-    panelState.handleRefreshChanges();
+    panelState.scheduleRefreshChanges();
     allChanges.clearChanges();
   }, [allChanges.hasChanges]);
 

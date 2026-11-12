@@ -141,13 +141,14 @@ Primary: `apps/web/src/features/041-file-browser/` + `apps/web/app/`
 | `apps/web/src/features/041-file-browser/components/code-editor.tsx` | CodeEditor wrapper | Phase 4 |
 | `apps/web/src/features/041-file-browser/components/file-viewer-panel.tsx` | FileViewerPanel | Phase 4, FX001-7 |
 | `apps/web/src/features/041-file-browser/components/markdown-preview.tsx` | MarkdownPreview (mermaid activation) | FX001-7 |
-| `apps/web/app/actions/file-actions.ts` | Server actions (readFile, saveFile, fetchGitDiff, fetchChangedFiles, fetchWorkingChanges, fetchRecentFiles, fileExists, uploadFile, createFile, createFolder, deleteItem, renameItem) | Phase 4, FX001, Plan 043, Plan 044, Plan 068 |
+| `apps/web/app/actions/file-actions.ts` | Server actions (readFile, saveFile, fetchGitDiff, fetchChangesSnapshot, fileExists, uploadFile, createFile, createFolder, deleteItem, renameItem) | Phase 4, FX001, Plan 043, Plan 044, Plan 068, nav-speed item 6 |
 | `apps/web/app/api/workspaces/[slug]/files/route.ts` | Files API route | Phase 4 |
 | `apps/web/app/(dashboard)/workspaces/[slug]/browser/page.tsx` | Browser page (Server Component) | Phase 4 |
 | `apps/web/app/(dashboard)/workspaces/[slug]/browser/browser-client.tsx` | BrowserClient (Client Component shell) | Phase 4, FX001 |
 | `apps/web/src/lib/server/markdown-renderer.ts` | renderMarkdownToHtml (server-side markdown pipeline) | FX001-6 |
 | `apps/web/src/features/041-file-browser/services/working-changes.ts` | git status --porcelain parser | Plan 043 Phase 2 |
 | `apps/web/src/features/041-file-browser/services/recent-files.ts` | git log --name-only parser | Plan 043 Phase 2 |
+| `apps/web/src/features/041-file-browser/services/changes-snapshot.ts` | getChangesSnapshot: changed files, diff stats, working changes, recent files in one call | nav-speed item 6 |
 | `apps/web/src/features/041-file-browser/components/changes-view.tsx` | ChangesView (flat file list with badges) | Plan 043 Phase 2 |
 | `apps/web/src/features/041-file-browser/services/upload-file.ts` | uploadFileService (mkdir, timestamp naming, atomic write) | Plan 044 |
 | `apps/web/src/features/041-file-browser/components/paste-upload-button.tsx` | PasteUploadButton (sidebar upload trigger) | Plan 044 |
@@ -280,3 +281,4 @@ These modules live outside `features/041-file-browser/` per repo convention but 
 | Office previews | Word, PowerPoint, Excel and OpenDocument files preview as PDFs converted by LibreOffice (`CHAINGLASS_SOFFICE`, the macOS app, or `soffice` on PATH), cached per file version and refreshed when the file changes; Office toolbar keeps Open in app and Download original (`useOpenOnHost`, extracted from BinaryPlaceholder). | 2026-10-07 |
 | Sidebar worktree fallback | `WorktreeIdentity` carries `worktreePath`; the dashboard sidebar falls back to it when the URL has no `?worktree=`, so a browser URL that defaults to the main worktree keeps its upload button and identity popover. | 2026-10-12 |
 | Worktree switcher | Explorer bar gains a `leftActions` slot holding `WorktreeSwitcher` (popover over `WorktreePicker`, new `ordered` prop): the browser shows another worktree in the same tab, listed main first then most recently updated (page computes via `sortWorktreesBy` + `getWorktreeTimestamps`). Switching clears file/dir/view and sets `?termWorktree=` so the terminal stays on its starting worktree. `TreeItem` hoists its ref above the folder early return, since `.git` is a folder in main and a file in linked worktrees (hooks-order error on switch). | 2026-10-27 |
+| nav-speed item 6 | The four git-state actions (fetchChangedFiles, fetchDiffStats, fetchWorkingChanges, fetchRecentFiles) became one `fetchChangesSnapshot`; `usePanelState` fetches working changes and recent files only while the Changes panel shows, and file-change refreshes are throttled (2 s trailing) and paused while the tab is hidden. | 2026-11-12 |
