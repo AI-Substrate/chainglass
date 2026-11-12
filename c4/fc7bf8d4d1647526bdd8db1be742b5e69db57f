@@ -1,0 +1,18 @@
+.harness/government/community/roles/coder/memory/2026-11-12-metadata-keyed-git-caches-derived-state.dd.json
+  h_9e71e8b09f7cf2 1-26
+.harness/government/community/roles/coder/memory/2026-11-12-metadata-keyed-git-caches-derived-state.dd.md
+  h_9e71e8b09f7cf2 1-29
+.harness/government/community/roles/coder/memory/INDEX.md
+  h_9e71e8b09f7cf2 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "c4fc7bf8d4d1647526bdd8db1be742b5e69db57f",
+  "prompts": {},
+  "humans": {
+    "h_9e71e8b09f7cf2": {
+      "author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
