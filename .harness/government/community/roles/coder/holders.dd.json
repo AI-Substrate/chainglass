@@ -72,6 +72,16 @@
 					"machine": "ops.osk.lan",
 					"seat": "pij-ambitious-warbler",
 					"why": "Jordan: context bar shows the fullest agent in a multi-pane window"
+				},
+				{
+					"assigned_by": "pij-outer-bobcat",
+					"from": "2026-11-12T01:26:53.043Z",
+					"harness": "omp",
+					"harness_session": "01a1cd15-878a-743e-847a-220c6b2c5e69",
+					"instance_key": "test-load",
+					"machine": "ops.osk.lan",
+					"seat": "pij-formal-mole",
+					"why": "Wave queue blocked by real-process test timeouts under load"
 				}
 			]
 		}
