@@ -1,0 +1,27 @@
+{
+	"dd": {
+		"schema": "pij/memory"
+	},
+	"references": [],
+	"sections": [
+		{
+			"name": "meta",
+			"value": {
+				"date": "2026-11-12",
+				"hook": "Open before any spare-port browser proof touching the terminal, or when landing review fixes in the serialized full-run queue",
+				"tags": [
+					"coder",
+					"tmux",
+					"browser-proof",
+					"review",
+					"nav-wave"
+				],
+				"title": "Nav wave 1 coder: tmux-safe proofs, ranking/URL canon, review loop"
+			}
+		},
+		{
+			"name": "body",
+			"value": "Coder, chainglass nav wave 1 (2026-11-12): landed ctx-max 819b43229 + fix 69031952b, nav-progress 574d871ca + fix f23b70f58. Lessons that cost me time:\n\n- Browser proofs must never reach Jordan's tmux. The web app's terminal overlay attaches with `tmux new-session -A`; after a client-side navigation its session resets to the workspace default, so a spare-port server on the default tmux server attached a headless client to Jordan's live `chainglass` session (window-size=latest, so it can resize his windows). Use the wave rule: `tmux -L <slug>`, or a private, existing, chmod-700 TMUX_TMPDIR with TMUX and TMUX_PANE unset, proven by `tmux display -p '#{socket_path}'` first. NEVER `tmux kill-server`: tmux 3.6a silently falls back to the default socket when TMUX_TMPDIR does not exist, which killed the whole fleet twice.\n- Faking pij seats for a terminal proof: the sidecar reads `/v1/cards` via PIJ_RS_ADDR + PIJ_RS_STATE_DIR (needs a `daemon.key` file). A 20-line Bun server returning `{ok,command,v,data:{cards}}` with real pane ids and pids from a private tmux server works. The sidecar also needs TERMINAL_WS_ALLOWED_ORIGINS for a non-3000 port.\n- Clamped display values are not ranking keys: rank by the raw ratio and clamp only for display (quokka P2 on fullestContext).\n- If you compare URLs to decide \"a navigation started\", compare in the same canonical form the end signal uses (sorted URLSearchParams); `%20` vs `+` otherwise leaves the bar stuck (quokka P2).\n- Next 16 `useRouter()` returns a per-component memoized copy of push/replace: patching the router singleton does not reach existing callers. Wrap at call sites (`useProgressRouter`).\n- Screenshots for a deliverable must come from the landed head's build, not a pre-rebase build; say which build each image came from.\n- `git worktree add` does not copy apps/web/.env.local (an APFS clone does). Nothing NEXT_PUBLIC_ is in it, so builds are unaffected, but a reviewer serving the build needs `--env-file` pointing at main's.\n- Check a published deliverable for leftover placeholders before publishing (I shipped `{SHA}`/`{FFT}` once; republished as -2).\n- Full runs are serialized by the prime; a slot can be reassigned mid-run, so kill your run promptly and say what state it left (e.g. a rebuilt .next).\n"
+		}
+	]
+}
