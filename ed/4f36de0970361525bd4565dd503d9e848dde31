@@ -1,0 +1,14 @@
+test/unit/web/lib/tls-front.test.ts
+  h_9e71e8b09f7cf2 397-416,419-427,561-562
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "ed4f36de0970361525bd4565dd503d9e848dde31",
+  "prompts": {},
+  "humans": {
+    "h_9e71e8b09f7cf2": {
+      "author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
