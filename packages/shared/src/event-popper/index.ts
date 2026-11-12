@@ -18,11 +18,17 @@ export { generateEventId } from './guid.js';
 
 // Port discovery
 export {
+  currentServerPort,
+  discoverServerInfo,
+  listServerInfo,
   readServerInfo,
-  writeServerInfo,
   removeServerInfo,
+  requestedServerPort,
   ServerInfoSchema,
+  ServerModeSchema,
+  writeServerInfo,
   type ServerInfo,
+  type ServerMode,
 } from './port-discovery.js';
 
 // Tmux context detection (re-export from utils)

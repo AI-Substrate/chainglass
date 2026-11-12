@@ -13,7 +13,6 @@
  */
 import { networkInterfaces } from 'node:os';
 import { activeSigningSecret } from '@chainglass/shared/auth-bootstrap-code';
-import { readServerInfo } from '@chainglass/shared/event-popper';
 import { jwtVerify } from 'jose';
 
 /** JWT `iss` claim mandated by the terminal-WS auth contract. */
@@ -169,23 +168,15 @@ export function buildDefaultAllowedOrigins(
 }
 
 /**
- * Discover the active Next.js port for the default Origin allowlist.
- * Reads `<cwd>/.chainglass/server.json` (Plan 067 port-discovery); falls back
- * to `process.env.PORT ?? '3000'` with a `console.warn` when the file is
- * missing or stale (race: sidecar started before Next wrote `server.json`).
+ * The active Next.js port for the default Origin allowlist. Every justfile recipe that starts the
+ * sidecar sets `PORT` to its Next port (the sidecar listens on PORT+1500). Reading `PORT` rather
+ * than a server entry keeps a dev sidecar paired with its own Next server when prod runs beside it.
  */
-export function discoverNextPort(cwd: string): string {
-  const info = readServerInfo(cwd);
-  if (info && Number.isFinite(info.port)) return String(info.port);
+export function discoverNextPort(): string {
   const envPort = process.env.PORT;
-  if (envPort && envPort.length > 0) {
-    console.warn(
-      `[terminal] .chainglass/server.json not found at cwd=${cwd}; falling back to PORT=${envPort} for Origin allowlist. Set TERMINAL_WS_ALLOWED_ORIGINS to override.`
-    );
-    return envPort;
-  }
+  if (envPort && envPort.length > 0) return envPort;
   console.warn(
-    '[terminal] .chainglass/server.json not found and PORT env var unset; falling back to port 3000 for Origin allowlist. ' +
+    '[terminal] PORT env var unset; falling back to port 3000 for Origin allowlist. ' +
       'Set TERMINAL_WS_ALLOWED_ORIGINS to override.'
   );
   return '3000';

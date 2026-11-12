@@ -530,7 +530,7 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
     // CSWSH is still gated by the JWT (no IP-based trust).
     const allowedOrigins =
       parseAllowedOrigins(process.env.TERMINAL_WS_ALLOWED_ORIGINS) ??
-      buildDefaultAllowedOrigins(discoverNextPort(cwd), httpsEnabled, getLocalNetworkHosts());
+      buildDefaultAllowedOrigins(discoverNextPort(), httpsEnabled, getLocalNetworkHosts());
     const signingKey = activeSigningSecret(cwd);
 
     wss.on('connection', async (ws: WebSocket, req) => {

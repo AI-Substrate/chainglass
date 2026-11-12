@@ -20,6 +20,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
  */
 const nextConfig = {
   output: 'standalone',
+  // `just prod-serve` serves a copy of the build from `.next-prod-<port>` (CHAINGLASS_DIST_DIR),
+  // so a `next build` rewriting `.next` (just fft, just build) can't pull chunks out from under a
+  // running prod server. Builds always write `.next`; only `next start` reads the override.
+  distDir: process.env.CHAINGLASS_DIST_DIR || '.next',
   // TypeScript type-checking is handled by `just fft` / `pnpm exec tsc --noEmit`.
   // Next.js build worker has limited heap and OOMs on large codebases.
   typescript: {

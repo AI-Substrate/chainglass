@@ -133,6 +133,6 @@ export interface WorkflowApiClientConfig {
   readonly worktreePath: string;
   /** Request timeout in milliseconds (default: 30000) */
   readonly timeoutMs?: number;
-  /** Local auth token from .chainglass/server.json (DYK #5) */
+  /** Local auth token from .chainglass/servers/<port>.json (DYK #5) */
   readonly localToken?: string;
 }

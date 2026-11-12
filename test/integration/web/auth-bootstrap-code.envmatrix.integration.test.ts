@@ -331,15 +331,15 @@ describe('Plan 084 env-var matrix (Phase 7 T007)', () => {
   // Round 2 trusted any non-empty X-Local-Token on localhost; minih flagged
   // that as a CRITICAL security regression because dashboard pages don't call
   // `auth()` themselves. Round 3 validates the header value against the
-  // `localToken` field of `.chainglass/server.json` via constant-time compare
+  // `localToken` field of the server entry (`.chainglass/servers/<port>.json`) via constant-time compare
   // (same source `requireLocalAuth` validates against). Wrong/missing token
   // falls through to the cookie gate. These tests guard that contract — keep
   // the env-matrix suite from going green if the bypass becomes permissive
   // again.
 
   /**
-   * Write a real `.chainglass/server.json` into the env's cwd so the proxy
-   * can read it via `findWorkspaceRoot(process.cwd())` → `readServerInfo()`.
+   * Write a real server entry into the env's cwd so the proxy
+   * can read it via `findWorkspaceRoot(process.cwd())` → `readServerInfo(root, port)`.
    * Uses the test process's own pid + a fresh ISO timestamp so the
    * PID-liveness + recycle-detection checks pass.
    */
@@ -348,6 +348,7 @@ describe('Plan 084 env-var matrix (Phase 7 T007)', () => {
       port: 3000,
       pid: process.pid,
       startedAt: new Date().toISOString(),
+      mode: 'dev',
       localToken: token,
     });
   }
@@ -414,9 +415,9 @@ describe('Plan 084 env-var matrix (Phase 7 T007)', () => {
     }
   });
 
-  it('F001 round 3 (negative): X-Local-Token with NO server.json on disk does NOT bypass', async () => {
+  it('F001 round 3 (negative): X-Local-Token with NO server entry on disk does NOT bypass', async () => {
     process.env.AUTH_SECRET = 'test-secret-f001-r3d-1234567890123456';
-    // Deliberately do NOT write server.json — the proxy must not bypass.
+    // Deliberately do NOT write a server entry — the proxy must not bypass.
     const req = new NextRequest(
       'http://localhost:3000/api/workspaces/my-ws/workflows/g1/detailed',
       {
@@ -475,20 +476,21 @@ describe('Plan 084 env-var matrix (Phase 7 T007)', () => {
     expect(decision).not.toBe('bypass');
   });
 
-  it('F001 round 4: cwd-only `server.json` layout (legacy non-relocated launch) → token bypasses (matches `_resolve-worktree.ts` fallback chain)', async () => {
+  it('F001 round 4: cwd-only server-entry layout (legacy non-relocated launch) → token bypasses (matches `_resolve-worktree.ts` fallback chain)', async () => {
     // Round 3 only walked up to the workspace root; `_resolve-worktree.ts`
-    // (`authenticateRequest`) also accepts `server.json` at `process.cwd()`
-    // for back-compat. minih round 3 reproduced: server.json only at cwd →
+    // (`authenticateRequest`) also accepts an entry under `process.cwd()`
+    // for back-compat. minih round 3 reproduced: entry only at cwd →
     // route handler would accept the token, but proxy returned 401 first.
     // Round 4 mirrors the same cwd → workspaceRoot fallback in the proxy.
     process.env.AUTH_SECRET = 'test-secret-f001-r4-12345678901234567';
     const recordedToken = 'recorded-cwd-only-token-zzzzzzzzzzzz';
     // env.cwd IS process.cwd() because setupBootstrapTestEnv chdirs to it.
-    // Writing server.json directly at env.cwd exercises the cwd-first branch.
+    // Writing the entry directly at env.cwd exercises the cwd-first branch.
     writeServerInfo(env.cwd, {
       port: 3000,
       pid: process.pid,
       startedAt: new Date().toISOString(),
+      mode: 'dev',
       localToken: recordedToken,
     });
     const req = new NextRequest(

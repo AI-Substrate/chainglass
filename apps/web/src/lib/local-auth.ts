@@ -7,7 +7,7 @@
  *   - the bootstrap cookie (browser flow — set by the verify route after the
  *     operator types the code), OR
  *   - the `X-Local-Token` header (CLI flow — value pulled from
- *     `.chainglass/server.json` per Plan 067 / Finding 06).
+ *     this server's `.chainglass/servers/<port>.json` per Plan 067 / Finding 06).
  *
  * Mirrors Phase 4's `UpgradeAuthResult` discriminated-union pattern (drop
  * `closeReason` — route handlers return JSON, not WS close frames).
@@ -31,7 +31,7 @@ import {
   findWorkspaceRoot,
   verifyCookieValue,
 } from '@chainglass/shared/auth-bootstrap-code';
-import { readServerInfo } from '@chainglass/shared/event-popper';
+import { currentServerPort, readServerInfo } from '@chainglass/shared/event-popper';
 import type { NextRequest } from 'next/server';
 
 import { getBootstrapCodeAndKey } from './bootstrap-code';
@@ -64,10 +64,10 @@ export type LocalAuthResult =
  *      (DO NOT fall through to the token path — cookie tried first per
  *      dossier T001 case (g)).
  *   4. Token path — if `X-Local-Token` header present, length-check then
- *      `timingSafeEqual` against `readServerInfo().localToken`. Wrong length
- *      or wrong bytes → `bad-credential`. Missing `localToken` field on a
- *      legacy server.json → `bad-credential` (consistent with "client sent
- *      a token we can't verify").
+ *      `timingSafeEqual` against this server's `readServerInfo(root, port).localToken`.
+ *      Wrong length or wrong bytes → `bad-credential`. An entry without
+ *      `localToken` → `bad-credential` (consistent with "client sent a token
+ *      we can't verify").
  *   5. Neither cookie nor token present → `no-credential`.
  */
 export async function requireLocalAuth(req: NextRequest): Promise<LocalAuthResult> {
@@ -98,10 +98,10 @@ export async function requireLocalAuth(req: NextRequest): Promise<LocalAuthResul
 
   const tokenHeader = req.headers.get('x-local-token');
   if (tokenHeader !== null && tokenHeader.length > 0) {
-    const info = readServerInfo(findWorkspaceRoot(process.cwd()));
+    const info = readServerInfo(findWorkspaceRoot(process.cwd()), currentServerPort());
     const expected = info?.localToken;
     if (typeof expected !== 'string' || expected.length === 0) {
-      // Legacy server.json (pre-Plan-067) lacks localToken — can't verify.
+      // No entry for this server, or one without localToken — can't verify.
       return { ok: false, reason: 'bad-credential' };
     }
     // Length pre-check (Completeness fix #1): timingSafeEqual throws RangeError

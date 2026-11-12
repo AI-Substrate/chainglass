@@ -152,8 +152,6 @@ flowchart LR
     %% derivation (HKDF-from-bootstrap-code or AUTH_SECRET) and bootstrap-cookie verify.
     %% Verified Phase 7 (2026-05-03): edge present, contracts accurate, Plan 084 attribution preserved.
     terminal -->|"activeSigningSecret(cwd)<br/>findWorkspaceRoot()<br/>verifyCookieValue()<br/>BOOTSTRAP_COOKIE_NAME"| auth
-    %% Plan 084 Phase 4 — terminal-WS sidecar reads server.json for active Next port (Origin allowlist).
-    terminal -->|"readServerInfo() — Next port discovery"| externalEvents
 
     %% Plan 084 Phase 5 — _platform/events sink routes (event-popper/*, tmux/events) consume
     %% _platform/auth for the requireLocalAuth() composite cookie + X-Local-Token check.

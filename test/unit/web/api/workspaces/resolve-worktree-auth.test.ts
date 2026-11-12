@@ -4,7 +4,7 @@
  * Plan 084 Phase 5 post-review F001 + F002 — workflow execution auth path.
  *
  * Closes the test-coverage gap the minih code-review agent flagged: Phase 5
- * relocated `.chainglass/server.json` to `findWorkspaceRoot(process.cwd())`
+ * relocated the server entry (now `.chainglass/servers/<port>.json`) to `findWorkspaceRoot(process.cwd())`
  * (paired with `bootstrap-code.json` per FX003), and `_resolve-worktree.ts`
  * had to mirror the new fallback chain (cwd → workspace root) so CLI
  * `X-Local-Token` keeps working.
@@ -15,7 +15,7 @@
  * already covered with full coverage by `test/unit/web/lib/local-auth.test.ts`
  * (the helper Phase 5 introduced shares the same crypto + length pre-check).
  *
- * Constitution P4 — real fs, no `vi.mock`. Real server.json, real cwd, real
+ * Constitution P4 — real fs, no `vi.mock`. Real server entry, real cwd, real
  * timing-safe compare via Node crypto.
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -55,12 +55,13 @@ describe('authenticateRequest token path (Phase 5 post-review F001/F002)', () =>
     });
   }
 
-  it('accepts X-Local-Token when server.json lives at workspace root (Phase 5 canonical location, F001 fix)', async () => {
+  it('accepts X-Local-Token when the server entry lives at workspace root (Phase 5 canonical location, F001 fix)', async () => {
     // Phase 5 instrumentation writes here (post-F002 fix).
     writeServerInfo(cwd, {
       port: 3000,
       pid: process.pid,
       startedAt: new Date().toISOString(),
+      mode: 'dev',
       localToken: LOCAL_TOKEN,
     });
     // Deeper cwd — simulates `pnpm dev` running Next at apps/web/.
@@ -73,13 +74,14 @@ describe('authenticateRequest token path (Phase 5 post-review F001/F002)', () =>
     expect(result).toEqual({ authenticated: true });
   });
 
-  it('still works when server.json lives at cwd (back-compat for non-relocated launches)', async () => {
-    // Pre-F002 launch shape: server.json at process.cwd() (apps/web).
+  it('still works when the server entry lives at cwd (back-compat for non-relocated launches)', async () => {
+    // Pre-F002 launch shape: server entry under process.cwd() (apps/web).
     const appsWeb = join(cwd, 'apps', 'web');
     writeServerInfo(appsWeb, {
       port: 3000,
       pid: process.pid,
       startedAt: new Date().toISOString(),
+      mode: 'dev',
       localToken: LOCAL_TOKEN,
     });
     process.chdir(appsWeb);

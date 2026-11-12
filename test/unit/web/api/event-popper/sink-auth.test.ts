@@ -97,6 +97,7 @@ describe('Sink-route auth parity (T003)', () => {
       port: 3000,
       pid: process.pid,
       startedAt: new Date().toISOString(),
+      mode: 'dev',
       localToken: LOCAL_TOKEN,
     });
     vi.spyOn(console, 'warn').mockImplementation(() => {});

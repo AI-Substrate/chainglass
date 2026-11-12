@@ -81,6 +81,8 @@ web_modules/
 
 # Next.js build output
 .next
+# `just prod` serves a staged copy of the build from .next-prod-<port> (see justfile prod-serve)
+.next-prod-*
 out
 
 # Nuxt.js build / generate output
@@ -161,8 +163,8 @@ scratch/*
 # Plan 018: Workspace-scoped agent data (events, sessions)
 .chainglass/workspaces/
 .chainglass/data/
-# Plan 067: server.json sidecar (port discovery) — never committed
-.chainglass/server.json
+# Plan 067: per-port server entries (port discovery) — never committed
+.chainglass/servers/
 # Plan 084: bootstrap-code sidecar (always-on auth) — never committed
 .chainglass/bootstrap-code.json
 # Plan 088: streamd daemon registry + terminal-sidecar pid files — runtime only, never committed

@@ -184,17 +184,15 @@ function createWorkflowEventsService(ctx: WorkspaceContext): IWorkflowEvents {
 // ============================================
 
 /**
- * Discover server URL + local auth token from .chainglass/server.json.
- * Falls back to --server-url override or CG_SERVER_URL env var.
+ * Discover server URL + local auth token from `.chainglass/servers/<port>.json`.
  * DYK #5: localToken proves filesystem access for CLI auth.
  *
  * Search order:
  * 1. --server-url override
  * 2. CG_SERVER_URL env var
- * 3. server.json at workspacePath/.chainglass/
- * 4. server.json at cwd/.chainglass/
- * 5. server.json at cwd/apps/web/.chainglass/ (monorepo root)
- * 6. Walk up from workspacePath looking for apps/web/.chainglass/server.json
+ * 3. `discoverServerInfo()` at workspacePath, cwd, cwd/apps/web, then walking up from
+ *    workspacePath looking for apps/web. `CG_SERVER_PORT` selects one server when prod
+ *    and dev run together; otherwise prod wins, then the lowest port.
  */
 async function discoverServerContext(
   workspacePath: string | undefined,
@@ -207,7 +205,7 @@ async function discoverServerContext(
     return { baseUrl: process.env.CG_SERVER_URL };
   }
 
-  const { readServerInfo } = await import('@chainglass/shared/event-popper');
+  const { discoverServerInfo } = await import('@chainglass/shared/event-popper');
   const { join, dirname } = await import('node:path');
   const cwd = process.cwd();
   const wsPath = workspacePath ?? cwd;
@@ -216,7 +214,7 @@ async function discoverServerContext(
   const candidates = [wsPath, cwd, join(cwd, 'apps', 'web')];
 
   // Walk up from workspace path looking for apps/web (container pattern:
-  // workspace at /app/scratch/..., server.json at /app/apps/web/)
+  // workspace at /app/scratch/..., server entries under /app/apps/web/)
   let dir = wsPath;
   for (let i = 0; i < 5; i++) {
     const parent = dirname(dir);
@@ -226,7 +224,7 @@ async function discoverServerContext(
   }
 
   for (const candidate of candidates) {
-    const info = readServerInfo(candidate);
+    const info = discoverServerInfo(candidate);
     if (info) {
       return {
         baseUrl: `http://localhost:${info.port}`,
@@ -235,10 +233,9 @@ async function discoverServerContext(
     }
   }
 
+  const entry = process.env.CG_SERVER_PORT ? `${process.env.CG_SERVER_PORT}.json` : '<port>.json';
   throw new Error(
-    'Chainglass server not running (no .chainglass/server.json found).\n' +
-      'Start with: just dev\n' +
-      'Or specify: --server-url http://localhost:3000'
+    `Chainglass server not running (no live .chainglass/servers/${entry} found).\nStart with: just dev (or just prod)\nOr specify: --server-url http://localhost:3000`
   );
 }
 
@@ -2103,7 +2100,7 @@ export function registerPositionalGraphCommands(program: Command): void {
     .option('--server', 'Execute via web server REST API instead of locally')
     .option(
       '--server-url <url>',
-      'Override server URL (default: auto-discover from .chainglass/server.json)'
+      'Override server URL (default: auto-discover from .chainglass/servers/; CG_SERVER_PORT picks one)'
     );
 
   // ==================== Graph Commands ====================
@@ -2396,12 +2393,8 @@ export function registerPositionalGraphCommands(program: Command): void {
           process.exit(result.stopped ? 0 : 1);
         } catch (error) {
           const msg = error instanceof Error ? error.message : String(error);
-          if (msg.includes('server not running') || msg.includes('server.json')) {
-            console.error(
-              'No running server found.\n' +
-                'Start the dev server with: just dev\n' +
-                'Or specify: cg wf stop <slug> --server-url http://localhost:3000'
-            );
+          if (msg.includes('server not running')) {
+            console.error(msg);
             process.exit(1);
           }
           throw error;
@@ -2434,12 +2427,8 @@ export function registerPositionalGraphCommands(program: Command): void {
           process.exit(result.ok ? 0 : 1);
         } catch (error) {
           const msg = error instanceof Error ? error.message : String(error);
-          if (msg.includes('server not running') || msg.includes('server.json')) {
-            console.error(
-              'No running server found.\n' +
-                'Start the dev server with: just dev\n' +
-                'Or specify: cg wf restart <slug> --server-url http://localhost:3000'
-            );
+          if (msg.includes('server not running')) {
+            console.error(msg);
             process.exit(1);
           }
           throw error;

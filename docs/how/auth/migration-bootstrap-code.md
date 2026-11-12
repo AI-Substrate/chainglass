@@ -115,7 +115,7 @@ If any of these fail, see § (e).
 >
 > CLI tools (`apps/cli`, harness `just harness ...`) continue working
 > **without re-keying** because they use `X-Local-Token` from
-> `.chainglass/server.json`, which is independent of the bootstrap code and the
+> `.chainglass/servers/<port>.json`, which is independent of the bootstrap code and the
 > `AUTH_SECRET`.
 
 The bootstrap code is the inner key; rotating it invalidates every cookie because

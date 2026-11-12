@@ -11,7 +11,8 @@ fix is live.
 ## The check
 
 ```bash
-TOKEN=$(python3 -c "import json;print(json.load(open('.chainglass/server.json'))['localToken'])")
+# Each server has its own entry and token: .chainglass/servers/<port>.json (3000 here)
+TOKEN=$(python3 -c "import json;print(json.load(open('.chainglass/servers/3000.json'))['localToken'])")
 curl -s -H "X-Local-Token: $TOKEN" \
   "http://localhost:3000/api/pij/fleet?workspace=$PWD" \
   | python3 -m json.tool | head -40
@@ -35,7 +36,7 @@ curl -s -H "X-Local-Token: $TOKEN" "http://localhost:3000/api/pij/fleet?workspac
   the data is wrong.
 - **`{"error":"bootstrap-required"}`** means the token is missing or wrong. It is *not* a
   bootstrap problem and `bootstrap-code.json` is not the file you want — the credential is
-  `localToken` in `.chainglass/server.json`, sent as `X-Local-Token`.
+  `localToken` in `.chainglass/servers/<port>.json` for the port you are calling, sent as `X-Local-Token`.
 - **A disagreement is not fixed by editing, merging, or reloading the browser.** The pinned
   singleton keeps its original module closure. Only a dev-server restart clears it, and that is
   Jordan's call — report the diagnosis, don't restart.

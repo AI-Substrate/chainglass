@@ -25,8 +25,9 @@ Create a test directory with mixed content types inside the workspace's worktree
 
 First, discover the app port and workspace:
 ```bash
-# Get the app port from dev server info
-APP_PORT=$(cat .chainglass/server.json 2>/dev/null | python3 -c "import json,sys; print(json.load(sys.stdin).get('port',3000))" 2>/dev/null || echo 3000)
+# Get the app port from the running server's entry (.chainglass/servers/<port>.json)
+APP_PORT=$(ls .chainglass/servers/ 2>/dev/null | grep -E '^[0-9]+\.json$' | head -1 | cut -d. -f1)
+APP_PORT=${APP_PORT:-3000}
 echo "App running on port: $APP_PORT"
 
 # Get workspace slug from the dev server

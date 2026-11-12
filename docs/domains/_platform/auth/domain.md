@@ -72,7 +72,7 @@ Cross-cutting authentication and session management for the Chainglass web app. 
 | `app/api/bootstrap/forget/route.ts` | route | (Plan 084) `POST /api/bootstrap/forget` — always 200 + Max-Age=0 |
 | `bootstrap-gate.tsx` | server component | (Plan 084) Reads `chainglass-bootstrap` cookie, renders `<BootstrapPopup>` with verified-state |
 | `bootstrap-popup.tsx` | client component | (Plan 084 P6) Real popup UX — Radix DialogPrimitive, paste-safe Crockford autoformat, 6 error states (incl. live ticking countdown), success-path `router.refresh()`, focus-trapped non-dismissable, mobile-safe Tailwind, console-log-discipline. Named export `BootstrapPopupProps` is the locked contract; 4 stable `data-testid` selectors committed forward to Phase 7 |
-| `lib/local-auth.ts` | service | (Plan 084 P5) `requireLocalAuth(req)` composite localhost+credential gate consumed by `_platform/events` HTTP sinks. Discriminated `LocalAuthResult` union with 4 reasons (`not-localhost` 403 \| `bootstrap-unavailable` 503 \| `no-credential` 401 \| `bad-credential` 401). Length pre-check before `timingSafeEqual` (RangeError-safe). Workspace-root walk-up for `.chainglass/server.json` per FX003. |
+| `lib/local-auth.ts` | service | (Plan 084 P5) `requireLocalAuth(req)` composite localhost+credential gate consumed by `_platform/events` HTTP sinks. Discriminated `LocalAuthResult` union with 4 reasons (`not-localhost` 403 \| `bootstrap-unavailable` 503 \| `no-credential` 401 \| `bad-credential` 401). Length pre-check before `timingSafeEqual` (RangeError-safe). Workspace-root walk-up for this server's `.chainglass/servers/<port>.json` per FX003. |
 | `auth.ts` `isOAuthDisabled()` | helper | (Plan 084 P5) Single source of truth for the GitHub-OAuth-off check shared by `auth.ts` and `proxy.ts`. Reads canonical `DISABLE_GITHUB_OAUTH` and legacy alias `DISABLE_AUTH`; emits one-shot `console.warn` on legacy via HMR-safe `globalThis.__CHAINGLASS_DISABLE_AUTH_WARNED` flag. Deprecation warn message verbatim: `[auth] DISABLE_AUTH is deprecated; use DISABLE_GITHUB_OAUTH instead. Will be removed in next release.` |
 
 ---
@@ -86,7 +86,7 @@ Cross-cutting authentication and session management for the Chainglass web app. 
 | Auth.js (npm) | `next-auth` v5 | OAuth flow, JWT sessions, middleware auth |
 | `.chainglass/auth.yaml` | file | Allowed users configuration |
 | `@chainglass/shared/auth-bootstrap-code` | barrel | (Plan 084) `generateBootstrapCode`, `ensureBootstrapCode`, `buildCookieValue`/`verifyCookieValue`, `activeSigningSecret`, `findWorkspaceRoot` (FX003), `BOOTSTRAP_COOKIE_NAME`, `BOOTSTRAP_CODE_PATTERN` |
-| `@chainglass/shared/event-popper` | barrel | (Plan 084 P5) `readServerInfo` for the CLI `X-Local-Token` path inside `requireLocalAuth` |
+| `@chainglass/shared/event-popper` | barrel | (Plan 084 P5) `readServerInfo(root, currentServerPort())` — this server's own entry — for the CLI `X-Local-Token` path inside `requireLocalAuth` |
 
 ### Domains That Depend On This
 

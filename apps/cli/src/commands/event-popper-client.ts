@@ -2,7 +2,7 @@
  * Plan 067: Question Popper — Event Popper HTTP Client
  *
  * Typed HTTP client for CLI commands to call the event-popper API.
- * Uses native fetch() (Node 20+). Discovers server port via readServerInfo().
+ * Uses native fetch() (Node 20+). Discovers server port via discoverServerInfo().
  *
  * Architecture:
  * - IEventPopperClient interface enables testing with FakeEventPopperClient
@@ -16,7 +16,7 @@
 import { join } from 'node:path';
 
 import { findWorkspaceRoot } from '@chainglass/shared/auth-bootstrap-code';
-import { readServerInfo } from '@chainglass/shared/event-popper';
+import { discoverServerInfo } from '@chainglass/shared/event-popper';
 import type { AlertOut, QuestionOut } from '@chainglass/shared/question-popper';
 
 // ── Error Types ──
@@ -87,7 +87,7 @@ export function createEventPopperClient(
   baseUrl: string,
   opts: { worktreePath?: string } = {}
 ): IEventPopperClient {
-  // Plan 084 Phase 5: read `localToken` from `.chainglass/server.json` once at
+  // Plan 084 Phase 5: read `localToken` from `.chainglass/servers/<port>.json` once at
   // client construction (file is process-stable for the lifetime of this CLI
   // invocation). Sent as `X-Local-Token` on every request so the server-side
   // `requireLocalAuth` accepts the call. AC-17 (CLI keeps working).
@@ -103,9 +103,11 @@ export function createEventPopperClient(
     workspaceRoot = undefined;
   }
   const info =
-    readServerInfo(cwd) ??
-    (workspaceRoot !== undefined && workspaceRoot !== cwd ? readServerInfo(workspaceRoot) : null) ??
-    readServerInfo(join(cwd, 'apps', 'web'));
+    discoverServerInfo(cwd) ??
+    (workspaceRoot !== undefined && workspaceRoot !== cwd
+      ? discoverServerInfo(workspaceRoot)
+      : null) ??
+    discoverServerInfo(join(cwd, 'apps', 'web'));
   const localToken = info?.localToken;
 
   async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -179,9 +181,11 @@ export function discoverServerUrl(worktreePath?: string): string {
     workspaceRoot = undefined;
   }
   const info =
-    readServerInfo(cwd) ??
-    (workspaceRoot !== undefined && workspaceRoot !== cwd ? readServerInfo(workspaceRoot) : null) ??
-    readServerInfo(join(cwd, 'apps', 'web'));
+    discoverServerInfo(cwd) ??
+    (workspaceRoot !== undefined && workspaceRoot !== cwd
+      ? discoverServerInfo(workspaceRoot)
+      : null) ??
+    discoverServerInfo(join(cwd, 'apps', 'web'));
   if (!info) {
     throw new Error('Chainglass server not running. Start with: just dev');
   }

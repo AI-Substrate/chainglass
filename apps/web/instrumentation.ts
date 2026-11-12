@@ -1,12 +1,12 @@
 /**
  * Plan 027: Central Domain Event Notification System
- * Plan 067: Event Popper — server.json port discovery
+ * Plan 067: Event Popper — per-port server entry for port discovery
  * Plan 074: Workflow Execution Manager bootstrap
  * Plan 084: Bootstrap-code auth — boot-time misconfig assertion + file write
  *
  * Next.js instrumentation hook — called once at server startup.
  * Starts the central notification system (filesystem watcher → SSE events).
- * Writes .chainglass/server.json so CLI tools can discover the server port.
+ * Writes .chainglass/servers/<port>.json so CLI tools can discover the server port.
  * Bootstraps WorkflowExecutionManager singleton for workflow execution from web UI.
  * Bootstrap-code: asserts AUTH_SECRET / GitHub-OAuth wiring, ensures
  * .chainglass/bootstrap-code.json exists for cookie HMAC + terminal-WS HKDF.
@@ -115,7 +115,8 @@ export async function register() {
     );
     await startCentralNotificationSystem();
 
-    // Plan 067: Write server.json for CLI port discovery (HMR-safe)
+    // Plan 067: Write .chainglass/servers/<port>.json for CLI port discovery (HMR-safe).
+    // Keyed by port so a prod server and a dev server can run from the same folder.
     // FX003: Skip in container — host bind-mount causes file conflict
     if (
       !globalForEventPopper.__eventPopperServerInfoWritten &&
@@ -123,12 +124,14 @@ export async function register() {
     ) {
       globalForEventPopper.__eventPopperServerInfoWritten = true;
 
-      const { writeServerInfo, removeServerInfo } = await import('@chainglass/shared/event-popper');
+      const { writeServerInfo, removeServerInfo, currentServerPort } = await import(
+        '@chainglass/shared/event-popper'
+      );
       const { findWorkspaceRoot } = await import('@chainglass/shared/auth-bootstrap-code');
       const { randomUUID } = await import('node:crypto');
       // Plan 084 Phase 5 F002 fix — write at workspace root (paired with
       // bootstrap-code.json per FX003), so `requireLocalAuth` and the CLI
-      // both find a single canonical `.chainglass/server.json`. Falls back
+      // both find the same `.chainglass/servers/` directory. Falls back
       // to `process.cwd()` if walk-up fails (matches FX003 boot block).
       let worktreePath: string;
       try {
@@ -136,22 +139,23 @@ export async function register() {
       } catch {
         worktreePath = process.cwd();
       }
-      const port = Number.parseInt(process.env.PORT ?? '3000', 10);
-      const localToken = randomUUID();
+      const port = currentServerPort();
+      const mode = process.env.NODE_ENV === 'production' ? 'prod' : 'dev';
 
       writeServerInfo(worktreePath, {
         port,
         pid: process.pid,
         startedAt: new Date().toISOString(),
-        localToken,
+        mode,
+        localToken: randomUUID(),
       });
       console.log(
-        `[event-popper] server.json written (port: ${port}, pid: ${process.pid}, localToken: yes)`
+        `[event-popper] servers/${port}.json written (mode: ${mode}, pid: ${process.pid}, localToken: yes)`
       );
 
       const cleanup = () => {
-        removeServerInfo(worktreePath);
-        console.log('[event-popper] server.json removed (shutdown)');
+        removeServerInfo(worktreePath, port, process.pid);
+        console.log(`[event-popper] servers/${port}.json removed (shutdown)`);
       };
       process.on('SIGTERM', cleanup);
       process.on('SIGINT', cleanup);

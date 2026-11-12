@@ -8,7 +8,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import { WORKSPACE_DI_TOKENS } from '@chainglass/shared';
 import { findWorkspaceRoot } from '@chainglass/shared/auth-bootstrap-code';
-import { readServerInfo } from '@chainglass/shared/event-popper';
+import { currentServerPort, readServerInfo } from '@chainglass/shared/event-popper';
 import type { IWorkspaceService } from '@chainglass/workflow';
 
 import { auth } from '@/auth';
@@ -32,10 +32,11 @@ export async function resolveValidatedWorktreePath(
 
 /**
  * Authenticate via session (browser) OR X-Local-Token header (CLI).
- * DYK #5: Local token is read from .chainglass/server.json — proves filesystem access.
+ * DYK #5: Local token is read from this server's `.chainglass/servers/<port>.json` —
+ * proves filesystem access.
  *
- * Plan 084 Phase 5 (post-review F001): the canonical `.chainglass/server.json`
- * location is now `findWorkspaceRoot(process.cwd())` (paired with
+ * Plan 084 Phase 5 (post-review F001): the canonical `.chainglass/servers/`
+ * location is `findWorkspaceRoot(process.cwd())` (paired with
  * `bootstrap-code.json` per FX003 / matches `apps/web/instrumentation.ts`
  * write path). Try cwd first (back-compat for legacy launches) then walk up
  * to the workspace root. Length-checked timing-safe compare prevents the
@@ -51,10 +52,11 @@ export async function authenticateRequest(request: Request): Promise<{ authentic
     } catch {
       workspaceRoot = undefined;
     }
+    const port = currentServerPort();
     const serverInfo =
-      readServerInfo(process.cwd()) ??
+      readServerInfo(process.cwd(), port) ??
       (workspaceRoot !== undefined && workspaceRoot !== process.cwd()
-        ? readServerInfo(workspaceRoot)
+        ? readServerInfo(workspaceRoot, port)
         : null);
     const expected = serverInfo?.localToken;
     if (

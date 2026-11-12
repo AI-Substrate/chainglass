@@ -1,7 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
 
 import { findWorkspaceRoot, verifyAssetToken } from '@chainglass/shared/auth-bootstrap-code';
-import { readServerInfo } from '@chainglass/shared/event-popper';
+import { currentServerPort, readServerInfo } from '@chainglass/shared/event-popper';
 
 import { auth, isOAuthDisabled } from '@/auth';
 import { isAssetTokenEligiblePath } from '@/lib/asset-token-gate';
@@ -79,11 +79,11 @@ export async function bootstrapCookieStage(req: NextRequest): Promise<BootstrapS
   }
 
   // Plan 084 Phase 7 F001 round 4 (minih review): CLI-token short-circuit
-  // with constant-time validation against `.chainglass/server.json`.
+  // with constant-time validation against this server's `.chainglass/servers/<port>.json`.
   //
   // Round 2 trusted any non-empty token on localhost — security regression
   // (proxy is the only gate for dashboard pages that don't call `auth()`).
-  // Round 3 added `timingSafeEqual` against `readServerInfo().localToken` but
+  // Round 3 added `timingSafeEqual` against `readServerInfo(...).localToken` but
   // only checked the workspace-root location, missing the cwd-only legacy
   // layout that `_resolve-worktree.ts` (`authenticateRequest`) also accepts.
   // Round 4 mirrors the route-handler's exact fallback chain (cwd first,
@@ -109,10 +109,11 @@ export async function bootstrapCookieStage(req: NextRequest): Promise<BootstrapS
       } catch {
         workspaceRoot = undefined;
       }
+      const port = currentServerPort();
       const info =
-        readServerInfo(cwd) ??
+        readServerInfo(cwd, port) ??
         (workspaceRoot !== undefined && workspaceRoot !== cwd
-          ? readServerInfo(workspaceRoot)
+          ? readServerInfo(workspaceRoot, port)
           : null);
       const expected = info?.localToken;
       if (

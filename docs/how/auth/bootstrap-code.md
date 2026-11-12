@@ -133,7 +133,7 @@ invalidates **every existing browser cookie** because the cookie carries
 code**; the popup will reappear on the next page load. This is expected
 behaviour, not a fault — communicate it before you rotate.
 
-What is **not** invalidated: the CLI `X-Local-Token` from `.chainglass/server.json`.
+What is **not** invalidated: the CLI `X-Local-Token` from `.chainglass/servers/<port>.json`.
 That token is keyed off process lifetime, not the bootstrap code, and CLI tools
 (`apps/cli`, harness) keep working without re-keying.
 

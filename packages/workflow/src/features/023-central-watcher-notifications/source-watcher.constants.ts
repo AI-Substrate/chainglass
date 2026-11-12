@@ -46,7 +46,7 @@ export const SOURCE_WATCHER_IGNORED: (string | RegExp | ((path: string) => boole
     const segments = filePath.split('/');
     // Check if any path segment is in the ignored set
     for (const seg of segments) {
-      if (IGNORED_SEGMENTS.has(seg)) return true;
+      if (IGNORED_SEGMENTS.has(seg) || seg.startsWith('.next-prod-')) return true; // prod build copies
     }
     // Check ignored file basenames
     const basename = segments[segments.length - 1];

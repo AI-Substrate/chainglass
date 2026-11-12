@@ -2,35 +2,57 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  readdirSync,
   renameSync,
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { z } from 'zod';
 
 /**
- * Plan 067: Event Popper Infrastructure
+ * Plan 067: Event Popper Infrastructure — port discovery.
  *
- * Port discovery: the server writes `.chainglass/server.json` on boot,
- * and the CLI reads it to discover which port to call.
+ * Each running web server writes `.chainglass/servers/<port>.json` on boot and removes it on
+ * shutdown. Keying by port lets a production server and a dev server run from the same folder
+ * (prod on 3000 for use, dev on another port for work) without one taking over the other's entry.
+ *
+ * - The server reads its own entry: `readServerInfo(root, currentServerPort())`.
+ * - The CLI and other clients pick one: `discoverServerInfo(root)` honours `CG_SERVER_PORT`,
+ *   otherwise prefers a production server, then the lowest port.
  */
 
-const SERVER_INFO_FILENAME = 'server.json';
+const SERVERS_DIRNAME = 'servers';
+
+export const ServerModeSchema = z.enum(['dev', 'prod']);
+export type ServerMode = z.infer<typeof ServerModeSchema>;
 
 export const ServerInfoSchema = z
   .object({
     port: z.number().int().min(1).max(65535),
     pid: z.number().int().min(1),
     startedAt: z.string().datetime(),
+    mode: ServerModeSchema,
     localToken: z.string().min(1).optional(),
   })
   .strict();
 
 export type ServerInfo = z.infer<typeof ServerInfoSchema>;
 
-function serverInfoPath(worktreePath: string): string {
-  return join(worktreePath, '.chainglass', SERVER_INFO_FILENAME);
+function serversDir(worktreePath: string): string {
+  return join(worktreePath, '.chainglass', SERVERS_DIRNAME);
+}
+
+function serverInfoPath(worktreePath: string, port: number): string {
+  return join(serversDir(worktreePath), `${port}.json`);
+}
+
+/**
+ * The port this process serves on. Next sets `process.env.PORT` to the port it actually bound
+ * (including an auto-selected one), and the justfile recipes set it for the terminal sidecar.
+ */
+export function currentServerPort(): number {
+  return Number.parseInt(process.env.PORT ?? '3000', 10);
 }
 
 /**
@@ -85,24 +107,18 @@ function getProcessStartTime(pid: number): number | null {
 }
 
 /**
- * Read server info from `.chainglass/server.json`.
- * Returns null if: file missing, malformed, PID dead, or PID recycled.
+ * Parse one entry file. Returns null if missing, malformed, PID dead, or PID recycled.
  *
  * PID recycling detection: if the PID is alive but the process started
  * after the recorded `startedAt` timestamp, it's a different process.
  */
-export function readServerInfo(worktreePath: string): ServerInfo | null {
-  const filePath = serverInfoPath(worktreePath);
-
+function readLiveEntry(filePath: string): ServerInfo | null {
   if (!existsSync(filePath)) {
     return null;
   }
 
   try {
-    const raw = readFileSync(filePath, 'utf-8');
-    const parsed = JSON.parse(raw);
-    const result = ServerInfoSchema.safeParse(parsed);
-
+    const result = ServerInfoSchema.safeParse(JSON.parse(readFileSync(filePath, 'utf-8')));
     if (!result.success) {
       return null;
     }
@@ -121,7 +137,6 @@ export function readServerInfo(worktreePath: string): ServerInfo | null {
       const recordedStart = new Date(info.startedAt).getTime();
       const liveStart = getProcessStartTime(info.pid);
       if (liveStart !== null && liveStart > recordedStart + 5000) {
-        // Live process started >5s after recorded start — different process recycled the PID
         return null;
       }
     }
@@ -133,28 +148,84 @@ export function readServerInfo(worktreePath: string): ServerInfo | null {
 }
 
 /**
- * Write server info to `.chainglass/server.json`.
- * Uses atomic write (temp file + rename) to prevent partial reads.
+ * Read the live entry for the server on `port`, or null if none.
+ * Server-side callers pass `currentServerPort()` so each server validates its own token.
+ */
+export function readServerInfo(worktreePath: string, port: number): ServerInfo | null {
+  const info = readLiveEntry(serverInfoPath(worktreePath, port));
+  return info?.port === port ? info : null;
+}
+
+/**
+ * Every live server registered under `worktreePath`, production first, then by port.
+ */
+export function listServerInfo(worktreePath: string): ServerInfo[] {
+  let names: string[];
+  try {
+    names = readdirSync(serversDir(worktreePath));
+  } catch {
+    return [];
+  }
+  const live: ServerInfo[] = [];
+  for (const name of names) {
+    const match = /^(\d+)\.json$/.exec(name);
+    if (!match) continue;
+    const info = readServerInfo(worktreePath, Number.parseInt(match[1], 10));
+    if (info) live.push(info);
+  }
+  return live.sort((a, b) => {
+    if (a.mode !== b.mode) return a.mode === 'prod' ? -1 : 1;
+    return a.port - b.port;
+  });
+}
+
+/**
+ * The port a client asked for via `CG_SERVER_PORT`, or undefined when unset.
+ * Throws on a value that is not a port, rather than silently picking another server.
+ */
+export function requestedServerPort(): number | undefined {
+  const raw = process.env.CG_SERVER_PORT;
+  if (raw === undefined || raw === '') return undefined;
+  const port = Number(raw);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error(`CG_SERVER_PORT must be a port number, got "${raw}"`);
+  }
+  return port;
+}
+
+/**
+ * Pick the server a client (CLI, MCP, scripts) should talk to.
+ * `CG_SERVER_PORT` selects one exactly; otherwise production wins, then the lowest port.
+ */
+export function discoverServerInfo(worktreePath: string): ServerInfo | null {
+  const port = requestedServerPort();
+  if (port !== undefined) return readServerInfo(worktreePath, port);
+  return listServerInfo(worktreePath)[0] ?? null;
+}
+
+/**
+ * Write this server's entry. Uses atomic write (temp file + rename) to prevent partial reads.
+ * Only one process can listen on a port, so the entry for `info.port` always belongs to the caller.
  */
 export function writeServerInfo(worktreePath: string, info: ServerInfo): void {
-  const filePath = serverInfoPath(worktreePath);
-  const dir = dirname(filePath);
+  const filePath = serverInfoPath(worktreePath, info.port);
+  mkdirSync(serversDir(worktreePath), { recursive: true });
 
-  mkdirSync(dir, { recursive: true });
-
-  const tmpPath = `${filePath}.tmp`;
+  const tmpPath = `${filePath}.${info.pid}.tmp`;
   writeFileSync(tmpPath, JSON.stringify(info, null, 2), 'utf-8');
   renameSync(tmpPath, filePath);
 }
 
 /**
- * Remove server info file (cleanup on shutdown).
+ * Remove the entry for `port` on shutdown — only if `pid` still owns it, so a server that is
+ * exiting late cannot delete the entry of the server that replaced it on that port.
  */
-export function removeServerInfo(worktreePath: string): void {
-  const filePath = serverInfoPath(worktreePath);
+export function removeServerInfo(worktreePath: string, port: number, pid: number): void {
+  const filePath = serverInfoPath(worktreePath, port);
   try {
-    unlinkSync(filePath);
+    const recorded = JSON.parse(readFileSync(filePath, 'utf-8')) as { pid?: unknown };
+    if (recorded.pid === pid) unlinkSync(filePath);
   } catch {
-    // Ignore — file may already be gone
+    // Ignore — file may already be gone or unreadable
   }
 }

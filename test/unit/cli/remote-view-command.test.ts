@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
  * Plan 088 Phase 5 — T009: `cg remote-view list|attach|detach` CLI verbs.
  *
  * The verb handlers take an injectable `request` seam — production wires it from
- * `readServerInfo()` (server discovery) + `X-Local-Token` auth (Plan 084); these
+ * `discoverServerInfo()` (server discovery) + `X-Local-Token` auth (Plan 084); these
  * tests inject a typed fake, so no live dev server is needed. Mirrors the
  * agent.command/event-popper-client CLI patterns.
  */

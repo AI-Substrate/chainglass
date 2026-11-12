@@ -165,7 +165,7 @@ const client = new WorkflowApiClient({
   baseUrl: 'http://localhost:3000',
   workspaceSlug: 'chainglass',
   worktreePath: '/path/to/worktree',
-  localToken: 'token-from-server.json',
+  localToken: 'token-from-.chainglass/servers/<port>.json',
 });
 
 await client.run('test-workflow');

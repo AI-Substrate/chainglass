@@ -5,7 +5,7 @@
  * remote_view_detach` mirror the `cg remote-view` CLI verbs (T009) by proxying the
  * SAME NextAuth-or-local-token-gated routes (`/api/remote-view/sessions`, T005). The
  * MCP server is a separate process, so — exactly like the CLI — it discovers the
- * running dev server with `readServerInfo()` and proves filesystem access with the
+ * running server with `discoverServerInfo()` and proves filesystem access with the
  * `X-Local-Token` header (Plan 084; accepted by the F004 `requireRemoteViewAccess`
  * gate).
  *
@@ -25,7 +25,7 @@ import { join } from 'node:path';
 
 import type { ILogger } from '@chainglass/shared';
 import { findWorkspaceRoot } from '@chainglass/shared/auth-bootstrap-code';
-import { readServerInfo } from '@chainglass/shared/event-popper';
+import { discoverServerInfo } from '@chainglass/shared/event-popper';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import type { RegisteredToolInfo } from '../server.js';
@@ -56,12 +56,14 @@ export function createRemoteViewRequest(opts: { worktreePath?: string } = {}): R
     workspaceRoot = undefined;
   }
   const info =
-    readServerInfo(cwd) ??
-    (workspaceRoot !== undefined && workspaceRoot !== cwd ? readServerInfo(workspaceRoot) : null) ??
-    readServerInfo(join(cwd, 'apps', 'web'));
+    discoverServerInfo(cwd) ??
+    (workspaceRoot !== undefined && workspaceRoot !== cwd
+      ? discoverServerInfo(workspaceRoot)
+      : null) ??
+    discoverServerInfo(join(cwd, 'apps', 'web'));
   if (!info) {
     throw new Error(
-      'remote-view: no running chainglass dev server found (.chainglass/server.json). Start `just dev` first.'
+      'remote-view: no running chainglass server found (.chainglass/servers/). Start `just dev` or `just prod` first.'
     );
   }
   const baseUrl = `http://localhost:${info.port}`;

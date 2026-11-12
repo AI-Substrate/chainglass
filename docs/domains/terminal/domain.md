@@ -33,7 +33,6 @@ Workspace-scoped terminal access via tmux. Users open terminal sessions for work
 | _platform/workspace-url | workspaceHref() |
 | activity-log | appendActivityLogEntry(), shouldIgnorePaneTitle() |
 | _platform/auth | activeSigningSecret(cwd), findWorkspaceRoot(), verifyCookieValue(), BOOTSTRAP_COOKIE_NAME (Plan 084 Phase 4) |
-| _platform/external-events | readServerInfo() — port discovery for the WS sidecar's default Origin allowlist (Plan 084 Phase 4) |
 
 activity-log depends on terminal as an event source (terminal sidecar polls tmux and writes activity entries).
 
@@ -60,3 +59,4 @@ activity-log depends on terminal as an event source (terminal sidecar polls tmux
 | FX001 (PTY teardown) | Deterministic PTY teardown in `server/terminal-ws.ts` (+ new `server/pty-registry.ts`) — stops the macOS `/dev/ttys*` leak that exhausted `kern.tty.ptmx_max`. Idempotent `disposePty` + missing `ws.on('error')`; force-kill `cleanup()` on SIGTERM/SIGINT/SIGHUP/beforeExit; per-listen-port startup reaper for `tmux attach` clients orphaned by a hard-killed sidecar (ps-guarded vs PID reuse; never `kill-session`, so sessions persist); max-PTY ceiling. Optional internal `killProcess` seam on `TerminalServerDeps`; no consumer-facing contract change. | 2026-06-03 |
 | Window strip seat search | The window strip's search uses the overview's `matchesQuery` (window name, last line, pij seat id), and a window's tooltip shows its seat id when the tmux name differs, so a seat is found by its pij name. | 2026-10-12 |
 | Terminal worktree pin | `?termWorktree=` (in `terminalParams`) pins the terminal to a worktree while the file browser shows another; `toggleTerminal` and the browser's session auto-pick, split pane and mobile view resolve from it before `?worktree=`. | 2026-10-27 |
+| Sidecar Next port from `PORT` | The WS sidecar's default Origin allowlist uses `PORT` (set by every recipe) instead of reading the server entry, so a dev sidecar stays paired with its own Next server when prod runs beside it; terminal no longer depends on `_platform/external-events`. | 2026-11-12 |

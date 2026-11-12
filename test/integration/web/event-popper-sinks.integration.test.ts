@@ -103,11 +103,12 @@ describe('Event-popper sinks integration (T006)', () => {
     // Build a valid bootstrap cookie value for the cookie-path tests.
     const key = activeSigningSecret(env.cwd);
     cookieValue = buildCookieValue(env.code, key);
-    // Write server.json with our integration localToken.
+    // Write this server's entry with our integration localToken.
     writeServerInfo(env.cwd, {
       port: 3000,
       pid: process.pid,
       startedAt: new Date().toISOString(),
+      mode: 'dev',
       localToken: LOCAL_TOKEN,
     });
     vi.spyOn(console, 'warn').mockImplementation(() => {});

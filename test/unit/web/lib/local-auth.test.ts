@@ -85,12 +85,13 @@ describe('requireLocalAuth (Phase 5 T001 RED)', () => {
     _resetSigningSecretCacheForTests();
     _resetWorkspaceRootCacheForTests();
     activeCode = ensureBootstrapCode(cwd).data.code;
-    // Default: write a server.json with a known localToken — individual tests
-    // override or delete this where they need a different shape.
+    // Default: write this server's entry (port 3000 — PORT unset) with a known localToken —
+    // individual tests override or delete this where they need a different shape.
     writeServerInfo(cwd, {
       port: 3000,
       pid: process.pid,
       startedAt: new Date().toISOString(),
+      mode: 'dev',
       localToken: 'tok-shared-secret-1234567890abcdef',
     });
     warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -159,17 +160,48 @@ describe('requireLocalAuth (Phase 5 T001 RED)', () => {
     expect(result).toEqual({ ok: false, reason: 'bad-credential' });
   });
 
-  // (f3) localhost, X-Local-Token sent but server.json has no localToken (legacy pre-Plan-067)
-  it("(f3) localhost, X-Local-Token sent but server.json lacks localToken → 'bad-credential'", async () => {
-    // Overwrite server.json with no localToken field (legacy shape)
+  // (f3) localhost, X-Local-Token sent but this server's entry has no localToken
+  it("(f3) localhost, X-Local-Token sent but the server entry lacks localToken → 'bad-credential'", async () => {
+    // Overwrite the entry with no localToken field
     writeServerInfo(cwd, {
       port: 3000,
       pid: process.pid,
       startedAt: new Date().toISOString(),
+      mode: 'dev',
       // no localToken
     });
     const result = await requireLocalAuth(makeReq({ localToken: 'whatever-the-cli-might-send' }));
     expect(result).toEqual({ ok: false, reason: 'bad-credential' });
+  });
+
+  // (f4) dev beside prod: a token issued by the server on another port is not valid here
+  it("(f4) X-Local-Token of the server on another port → 'bad-credential'", async () => {
+    const originalPort = process.env.PORT;
+    process.env.PORT = '3010';
+    try {
+      writeServerInfo(cwd, {
+        port: 3010,
+        pid: process.pid,
+        startedAt: new Date().toISOString(),
+        mode: 'dev',
+        localToken: 'tok-dev-server-only-1234567890abcde',
+      });
+      const prodToken = await requireLocalAuth(
+        makeReq({ localToken: 'tok-shared-secret-1234567890abcdef' })
+      );
+      expect(prodToken).toEqual({ ok: false, reason: 'bad-credential' });
+      const ownToken = await requireLocalAuth(
+        makeReq({ localToken: 'tok-dev-server-only-1234567890abcde' })
+      );
+      expect(ownToken).toEqual({ ok: true, via: 'local-token' });
+    } finally {
+      if (originalPort === undefined) {
+        // biome-ignore lint/performance/noDelete: assigning undefined leaves the string "undefined"
+        delete process.env.PORT;
+      } else {
+        process.env.PORT = originalPort;
+      }
+    }
   });
 
   // (g) localhost, both present and cookie bad — cookie tried FIRST and fails fast (no token fallback)

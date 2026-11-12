@@ -15,23 +15,15 @@ install:
     @cd apps/cli && pnpm link --global 2>/dev/null || echo "Note: Run 'pnpm setup' and restart your shell to enable global 'cg' command"
 
 # Start development server (Next.js + terminal WebSocket sidecar)
-# PORT env var controls both: Next.js listens on PORT, sidecar on PORT+1500
-# If PORT not set, Next.js auto-selects and sidecar defaults to 3000+1500
+# PORT env var controls both: Next.js listens on PORT, sidecar on PORT+1500 (default 3000).
+# Dev beside prod: with `just prod` on 3000, run dev on another port, e.g. `PORT=3010 just dev`.
+# A stale process on the port is killed, but a live prod server is never touched (see _claim-ports).
 dev:
     #!/usr/bin/env bash
     set -euo pipefail
     NEXT_PORT=${PORT:-3000}
     WS_PORT=$((NEXT_PORT + 1500))
-    # Pre-flight: detect stale processes on our ports
-    for p in $NEXT_PORT $WS_PORT; do
-      PID=$(lsof -ti TCP:$p -sTCP:LISTEN 2>/dev/null || true)
-      if [ -n "$PID" ]; then
-        CMD=$(ps -p $PID -o command= 2>/dev/null || echo "unknown")
-        echo "⚠️  Port $p already in use by PID $PID ($CMD)"
-        echo "   Killing stale process..."
-        kill $PID 2>/dev/null && sleep 1 || true
-      fi
-    done
+    just _claim-ports dev $NEXT_PORT $WS_PORT
     just _clear-stale-dev-cache
     cd apps/web && node -e "require('node-pty').spawn('/bin/echo',['ok'],{name:'x',cols:1,rows:1,cwd:'/tmp',env:{}})" 2>/dev/null || (echo "Error: node-pty can't spawn. Run: chmod +x apps/web/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper" && exit 1)
     cd "$OLDPWD"
@@ -39,6 +31,40 @@ dev:
       pnpm concurrently --names "next,terminal" --prefix-colors "blue,green" \
         "pnpm turbo dev -- --port $NEXT_PORT" \
         "pnpm tsx watch --env-file=apps/web/.env.local apps/web/src/features/064-terminal/server/terminal-ws.ts"
+
+# Free the ports a server is about to bind. `mode` is the server being started:
+# - dev: kills a stale listener, unless the port belongs to a live prod server (its
+#   .chainglass/servers/<port>.json says mode prod) — then it refuses.
+# - prod: refuses whenever something listens, so `just prod` never kills a running server.
+# KILL_EXISTING=1 kills the listener in both modes. Nothing is killed unless every port passes.
+# CLAIM_CHECK_ONLY=1 reports and refuses but never kills (`just prod` runs it before building).
+_claim-ports mode +ports:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    REFUSED=false
+    TO_KILL=""
+    for p in {{ports}}; do
+      PIDS=$(lsof -ti TCP:$p -sTCP:LISTEN 2>/dev/null | tr '\n' ' ' || true)
+      [ -z "${PIDS// /}" ] && continue
+      CMD=$(ps -p "$(echo $PIDS | tr ' ' ',')" -o command= 2>/dev/null | head -1 || echo "unknown")
+      ENTRY=".chainglass/servers/$p.json"
+      LIVE_PROD=false
+      if [ -f "$ENTRY" ] && grep -q '"mode": "prod"' "$ENTRY"; then LIVE_PROD=true; fi
+      if [ "${KILL_EXISTING:-}" = "1" ] || { [ "{{mode}}" = "dev" ] && [ "$LIVE_PROD" = false ]; }; then
+        ACTION="killing it"; [ -n "${CLAIM_CHECK_ONLY:-}" ] && ACTION="will kill it once the build is ready"
+        echo "⚠️  Port $p in use by PID $PIDS($CMD); $ACTION"
+        TO_KILL="$TO_KILL $PIDS"
+      else
+        echo "❌ Port $p in use by PID $PIDS($CMD)"
+        REFUSED=true
+      fi
+    done
+    if [ "$REFUSED" = true ]; then
+      echo "   Not killing a live server. Use another port (PORT=3010 just {{mode}}), or replace it:"
+      echo "   KILL_EXISTING=1 just {{mode}}. \`just preflight\` lists the running servers."
+      exit 1
+    fi
+    if [ -n "${TO_KILL// /}" ] && [ -z "${CLAIM_CHECK_ONLY:-}" ]; then kill $TO_KILL 2>/dev/null && sleep 1 || true; fi
 
 # Turbopack's dev cache goes stale when dependencies change, and the stale cache makes
 # every open page reload in a loop. Clear it whenever pnpm-lock.yaml has changed.
@@ -73,15 +99,7 @@ dev-https:
     set -euo pipefail
     NEXT_PORT=${PORT:-3000}
     WS_PORT=$((NEXT_PORT + 1500))
-    for p in $NEXT_PORT $WS_PORT; do
-      PID=$(lsof -ti TCP:$p -sTCP:LISTEN 2>/dev/null || true)
-      if [ -n "$PID" ]; then
-        CMD=$(ps -p $PID -o command= 2>/dev/null || echo "unknown")
-        echo "⚠️  Port $p already in use by PID $PID ($CMD)"
-        echo "   Killing stale process..."
-        kill $PID 2>/dev/null && sleep 1 || true
-      fi
-    done
+    just _claim-ports dev $NEXT_PORT $WS_PORT
     just _clear-stale-dev-cache
     cd apps/web && node -e "require('node-pty').spawn('/bin/echo',['ok'],{name:'x',cols:1,rows:1,cwd:'/tmp',env:{}})" 2>/dev/null || (echo "Error: node-pty can't spawn. Run: chmod +x apps/web/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper" && exit 1)
     cd "$OLDPWD"
@@ -96,43 +114,64 @@ build:
 
 # Production run: build, then serve the optimized build (Next prod server + terminal sidecar).
 # Slower to start (one-time build) but far lighter at runtime than `just dev` — no on-demand
-# compilation, minified bundles, React production mode. Best for slow machines that only run
-# the app (no code editing — there's no hot reload; rebuild with `just prod` to pick up changes).
+# compilation, minified bundles, React production mode. No hot reload: rerun to pick up changes.
 # Terminal works exactly as in dev. PORT controls both: Next on PORT, sidecar on PORT+1500.
-prod: build prod-serve
+#
+# Pairing: prod on 3000 for use (`just prod`), dev on another port for changing chainglass
+# (`PORT=3010 just dev`). Both register in .chainglass/servers/<port>.json; the CLI and the
+# wf-* recipes talk to prod unless CG_SERVER_PORT=<port> picks another (`just preflight` lists them).
+#
+# Prod serves its own copy of the build, apps/web/.next-prod-<port>/, so `just fft` / `just build`
+# rewriting apps/web/.next never breaks a running prod server. A running server on PORT is never
+# killed: this refuses before building. To ship a change into a running prod server:
+# `KILL_EXISTING=1 just prod` — the old server keeps serving while the build runs; it is stopped
+# only to swap in the new copy and restart. Rebuild cost (2026-11-12, M-series Mac): turbo build
+# with nothing cached 31 s (load ~40), staging clone ~9 s, prod down ~3 s (kill → Ready, load ~76).
+prod:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    NEXT_PORT=${PORT:-3000}
+    CLAIM_CHECK_ONLY=1 just _claim-ports prod $NEXT_PORT $((NEXT_PORT + 1500))
+    just build
+    # Stage a copy of the fresh build (no caches, dev output or standalone bundle); prod-serve
+    # swaps it in once the ports are free. It sits beside .next, at the same depth, because the
+    # build's node_modules symlinks are relative (../../../../node_modules/...). `cp -c` clones
+    # on APFS (~2 s; rsync took 5 min under load); plain `cp -R` elsewhere.
+    STAGED=apps/web/.next-prod-$NEXT_PORT.staged
+    rm -rf "$STAGED" && mkdir -p "$STAGED"
+    for e in apps/web/.next/*; do
+      case "$(basename "$e")" in cache|dev|standalone|trace|trace-build|diagnostics|lock) continue ;; esac
+      cp -cR "$e" "$STAGED/" 2>/dev/null || cp -R "$e" "$STAGED/"
+    done
+    just prod-serve
 
-# Serve an existing production build without rebuilding (fast relaunch). Run `just build`
-# (or `just prod`) first. Same Next prod server + terminal sidecar as `just prod`.
+# Serve the prod build without rebuilding (fast relaunch): a build staged by `just prod`,
+# else the copy already in apps/web/.next-prod-<port>/. Same server + sidecar as `just prod`.
 prod-serve:
     #!/usr/bin/env bash
     set -euo pipefail
     NEXT_PORT=${PORT:-3000}
     WS_PORT=$((NEXT_PORT + 1500))
+    DIST=.next-prod-$NEXT_PORT
     # Guard: a production build must exist
-    if [ ! -f apps/web/.next/BUILD_ID ]; then
-      echo "❌ No production build found (apps/web/.next/BUILD_ID missing)."
-      echo "   Run \`just prod\` (build + serve) or \`just build\` first."
+    if [ ! -f "apps/web/$DIST/BUILD_ID" ] && [ ! -f "apps/web/$DIST.staged/BUILD_ID" ]; then
+      echo "❌ No production build for port $NEXT_PORT (apps/web/$DIST/BUILD_ID missing)."
+      echo "   Run \`just prod\` (build + serve) first."
       exit 1
     fi
-    # Pre-flight: detect stale processes on our ports
-    for p in $NEXT_PORT $WS_PORT; do
-      PID=$(lsof -ti TCP:$p -sTCP:LISTEN 2>/dev/null || true)
-      if [ -n "$PID" ]; then
-        CMD=$(ps -p $PID -o command= 2>/dev/null || echo "unknown")
-        echo "⚠️  Port $p already in use by PID $PID ($CMD)"
-        echo "   Killing stale process..."
-        kill $PID 2>/dev/null && sleep 1 || true
-      fi
-    done
+    just _claim-ports prod $NEXT_PORT $WS_PORT
+    if [ -d "apps/web/$DIST.staged" ]; then
+      rm -rf "apps/web/$DIST" && mv "apps/web/$DIST.staged" "apps/web/$DIST"
+    fi
     cd apps/web && node -e "require('node-pty').spawn('/bin/echo',['ok'],{name:'x',cols:1,rows:1,cwd:'/tmp',env:{}})" 2>/dev/null || (echo "Error: node-pty can't spawn. Run: chmod +x apps/web/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper" && exit 1)
     cd "$OLDPWD"
-    # `next start` serves the precompiled build from apps/web/.next (minified, no on-demand
-    # compile) — the optimized prod runtime. Next prints an "output: standalone" advisory
-    # warning here; it's harmless (standalone output is only for `cg`/CLI packaging).
+    # `next start` serves the precompiled build (minified, no on-demand compile) from the
+    # CHAINGLASS_DIST_DIR copy (apps/web/next.config.mjs). Next prints an "output: standalone"
+    # advisory warning here; it's harmless (standalone output is only for `cg`/CLI packaging).
     # Terminal sidecar runs via tsx WITHOUT `watch` (no file-watching overhead in prod).
     PORT=$NEXT_PORT TERMINAL_WS_HOST=${TERMINAL_WS_HOST:-0.0.0.0} \
       pnpm concurrently --names "next,terminal" --prefix-colors "blue,green" \
-        "cd apps/web && pnpm exec next start --port $NEXT_PORT" \
+        "cd apps/web && CHAINGLASS_DIST_DIR=$DIST pnpm exec next start --port $NEXT_PORT" \
         "pnpm tsx --env-file=apps/web/.env.local apps/web/src/features/064-terminal/server/terminal-ws.ts"
 
 # Plan 088 (DL-001): flag a stale CLI bundle — dist/cli.cjs older than any apps/cli/src file means
@@ -363,7 +402,8 @@ harness-tools-verify path:
     fi
 
 # Workflow shortcuts (Plan 076 FX001)
-# Default: host dev server via local CLI (auto-discovers server.json)
+# Default: host server via local CLI (auto-discovers .chainglass/servers/<port>.json; prod first)
+# Prod and dev both running: CG_SERVER_PORT=3010 just wf-run <slug> targets the dev server
 # Add --container to target the harness Docker container instead
 #
 # Host mode:  just wf-run jordo-test
@@ -624,21 +664,36 @@ preflight:
         fi
     fi
 
-    # 2. Dev server running — check for server.json with live PID
-    SERVER_JSON="$REPO_ROOT/apps/web/.chainglass/server.json"
-    if [ ! -f "$SERVER_JSON" ]; then
-        echo "  ✗ Dev server not running: no server.json"
-        echo "    Fix: just dev"
+    # 2. A server is running — live entries in .chainglass/servers/<port>.json (prod first, then port)
+    SERVERS=$(FORCE_COLOR=0 node -e '
+      const fs = require("fs"), path = require("path");
+      const dir = path.join(process.argv[1], ".chainglass", "servers");
+      let names = [];
+      try { names = fs.readdirSync(dir).filter((n) => /^\d+\.json$/.test(n)); } catch {}
+      for (const n of names) {
+        try {
+          const s = JSON.parse(fs.readFileSync(path.join(dir, n), "utf8"));
+          process.kill(s.pid, 0);
+          console.log(`${s.mode} ${s.port} ${s.pid}`);
+        } catch {}
+      }' "$REPO_ROOT" | sort -k1,1r -k2,2n)
+    if [ -z "$SERVERS" ]; then
+        echo "  ✗ No chainglass server running (no live .chainglass/servers/<port>.json)"
+        echo "    Fix: just dev (or just prod)"
         PASS=false
     else
-        SERVER_PID=$(FORCE_COLOR=0 node -e "try{console.log(JSON.parse(require('fs').readFileSync('$SERVER_JSON','utf8')).pid)}catch{console.log('')}" 2>/dev/null)
-        if [ -n "$SERVER_PID" ] && kill -0 "$SERVER_PID" 2>/dev/null; then
-            SERVER_PORT=$(FORCE_COLOR=0 node -e "try{console.log(JSON.parse(require('fs').readFileSync('$SERVER_JSON','utf8')).port)}catch{console.log('?')}" 2>/dev/null)
-            echo "  ✓ Dev server running (PID $SERVER_PID, port $SERVER_PORT)"
+        while read -r MODE PORT PID; do
+            echo "  ✓ $MODE server running (port $PORT, PID $PID)"
+        done <<< "$SERVERS"
+        if [ -n "${CG_SERVER_PORT:-}" ]; then
+            if echo "$SERVERS" | awk '{print $2}' | grep -qx "$CG_SERVER_PORT"; then
+                echo "  ✓ CLI targets port $CG_SERVER_PORT (CG_SERVER_PORT)"
+            else
+                echo "  ✗ CG_SERVER_PORT=$CG_SERVER_PORT but no server is running on it"
+                PASS=false
+            fi
         else
-            echo "  ✗ Dev server not running: server.json exists but PID $SERVER_PID is dead"
-            echo "    Fix: just dev"
-            PASS=false
+            echo "  ✓ CLI targets port $(echo "$SERVERS" | head -1 | awk '{print $2}') (set CG_SERVER_PORT to pick another)"
         fi
     fi
 

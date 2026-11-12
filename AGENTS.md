@@ -47,7 +47,7 @@ just harness-tools seed                # Seed test workspace + worktrees
 
 **Run `just preflight` before any workflow session.** It checks:
 - CLI build is fresh (no stale `dist/cli.cjs`)
-- Dev server is running (live PID in `server.json`)
+- A server is running (live PID in `.chainglass/servers/<port>.json`), and which one the CLI targets
 - Workspace directory exists
 
 If checks fail, it prints exactly what to fix. Don't skip this — stale builds cause silent wrong behavior.

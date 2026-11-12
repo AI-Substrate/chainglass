@@ -4,8 +4,9 @@
  * Drives the remote-view feature from the terminal (AC-8 CLI half): list / attach /
  * detach the streaming sessions by proxying the same NextAuth-gated routes the web
  * SDK + MCP use (T004/T005). Server discovery + auth follow the Plan 084 pattern:
- * `readServerInfo()` finds the running dev server's port, and `X-Local-Token` (read
- * from `.chainglass/server.json`) proves filesystem access to the gate.
+ * `discoverServerInfo()` finds a running server's port (`CG_SERVER_PORT` picks one when
+ * prod and dev run together), and `X-Local-Token` (read from its
+ * `.chainglass/servers/<port>.json`) proves filesystem access to the gate.
  *
  * The verb handlers take an injectable `request` seam so they unit-test without a
  * live server; `createRemoteViewRequest()` builds the production one.
@@ -16,7 +17,7 @@
 import { join } from 'node:path';
 
 import { findWorkspaceRoot } from '@chainglass/shared/auth-bootstrap-code';
-import { readServerInfo } from '@chainglass/shared/event-popper';
+import { discoverServerInfo } from '@chainglass/shared/event-popper';
 import type { Command } from 'commander';
 
 /** A live remote-view session row (mirrors the server `SessionSummary`). */
@@ -70,12 +71,14 @@ export function createRemoteViewRequest(opts: { worktreePath?: string } = {}): R
     workspaceRoot = undefined;
   }
   const info =
-    readServerInfo(cwd) ??
-    (workspaceRoot !== undefined && workspaceRoot !== cwd ? readServerInfo(workspaceRoot) : null) ??
-    readServerInfo(join(cwd, 'apps', 'web'));
+    discoverServerInfo(cwd) ??
+    (workspaceRoot !== undefined && workspaceRoot !== cwd
+      ? discoverServerInfo(workspaceRoot)
+      : null) ??
+    discoverServerInfo(join(cwd, 'apps', 'web'));
   if (!info) {
     throw new Error(
-      'remote-view: no running chainglass dev server found (.chainglass/server.json). Start `just dev` first.'
+      'remote-view: no running chainglass server found (.chainglass/servers/). Start `just dev` or `just prod` first.'
     );
   }
   const baseUrl = `http://localhost:${info.port}`;

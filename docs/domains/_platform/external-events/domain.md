@@ -18,11 +18,11 @@ Generic Event Popper infrastructure for external systems (CLI tools, agents, scr
 
 - Generic envelope schemas (`EventPopperRequest`, `EventPopperResponse`)
 - Event ID generation (`generateEventId`)
-- Port discovery (`readServerInfo`, `writeServerInfo`, `removeServerInfo`, `ServerInfo`)
+- Port discovery (`readServerInfo`, `discoverServerInfo`, `listServerInfo`, `writeServerInfo`, `removeServerInfo`, `currentServerPort`, `ServerInfo`)
 - Localhost-only API guard (`localhostGuard`, `isLocalhostRequest`)
 - Tmux detection utility (`detectTmuxContext`, `getTmuxMeta`, `TmuxContext`)
 - SSE channel constant (`WorkspaceDomain.EventPopper`)
-- Server boot hook in `instrumentation.ts` (writes `.chainglass/server.json`)
+- Server boot hook in `instrumentation.ts` (writes `.chainglass/servers/<port>.json`)
 - Auth bypass for `/api/event-popper` in `proxy.ts`
 
 ### Does NOT Own
@@ -39,7 +39,7 @@ Generic Event Popper infrastructure for external systems (CLI tools, agents, scr
 | `EventPopperRequestSchema` | Validate inbound event envelopes | Zod |
 | `EventPopperResponseSchema` | Validate response envelopes | Zod |
 | `generateEventId` | Create unique, sortable event IDs | Node.js `crypto` |
-| `readServerInfo` / `writeServerInfo` | Port discovery for CLI ↔ server | Node.js `fs` |
+| `readServerInfo` / `discoverServerInfo` / `writeServerInfo` | Per-port server entries for CLI ↔ server | Node.js `fs` |
 | `localhostGuard` | Reject non-localhost API calls | Next.js `NextRequest` |
 | `detectTmuxContext` / `getTmuxMeta` | Auto-detect tmux environment | Node.js `child_process` |
 
@@ -49,7 +49,7 @@ Generic Event Popper infrastructure for external systems (CLI tools, agents, scr
 |---------|-------------|-------------|
 | Event envelope | `EventPopperRequestSchema` / `EventPopperResponseSchema` | Generic Zod schemas for all event popper communications. `version: 1`, `type` discriminator, `payload` for concept-specific data, `meta` for unstructured context |
 | Event ID generation | `generateEventId()` | Creates unique, chronologically sortable IDs in `{timestamp}_{hex}` format |
-| Port discovery | `readServerInfo()` / `writeServerInfo()` | Server writes `.chainglass/server.json` on boot (port, PID, startedAt). CLI reads it to find the server. Detects stale PIDs and PID recycling |
+| Port discovery | `writeServerInfo()` / `readServerInfo(root, port)` / `discoverServerInfo(root)` | Each server writes `.chainglass/servers/<port>.json` on boot (port, PID, startedAt, `mode: dev\|prod`, localToken) and removes only its own entry at shutdown, so prod and dev run side by side. The server validates tokens against its own entry; clients pick one (`CG_SERVER_PORT`, else prod, else lowest port). Detects stale PIDs and PID recycling |
 | Localhost guard | `localhostGuard()` | Middleware that rejects non-localhost requests and proxied requests (X-Forwarded-For) to `/api/event-popper/*` routes |
 | Tmux detection | `detectTmuxContext()` / `getTmuxMeta()` | Auto-detects tmux session/window/pane from environment. Returns undefined outside tmux |
 
@@ -62,10 +62,12 @@ Generic Event Popper infrastructure for external systems (CLI tools, agents, scr
 | `EventPopperRequest` | TypeScript type | CLI, API routes | Inferred type from request schema |
 | `EventPopperResponse` | TypeScript type | CLI, API routes | Inferred type from response schema |
 | `generateEventId()` | Function | Services, CLI | Returns unique chronological event ID |
-| `readServerInfo()` | Function | CLI | Read server port from `.chainglass/server.json` |
-| `writeServerInfo()` | Function | Server (instrumentation.ts) | Write port file on boot |
-| `removeServerInfo()` | Function | Server (shutdown) | Clean up port file |
-| `ServerInfo` | TypeScript type | CLI, Server | `{ port, pid, startedAt }` |
+| `readServerInfo(root, port)` | Function | Server (`proxy.ts`, `requireLocalAuth`, workflow execution routes) | This server's own entry |
+| `discoverServerInfo(root)` / `listServerInfo(root)` | Function | CLI, MCP server | The server a client should call / every live server |
+| `currentServerPort()` | Function | Server | Port this process serves on (`PORT`, set by Next) |
+| `writeServerInfo()` | Function | Server (instrumentation.ts) | Write this server's entry on boot |
+| `removeServerInfo(root, port, pid)` | Function | Server (shutdown) | Remove the entry if this pid still owns it |
+| `ServerInfo` | TypeScript type | CLI, Server | `{ port, pid, startedAt, mode, localToken? }` |
 | `localhostGuard()` | Function | API route handlers | Returns 403 or null (pass) |
 | `isLocalhostRequest()` | Function | API route handlers | Boolean localhost check |
 | `detectTmuxContext()` | Function | CLI commands | Returns `TmuxContext \| undefined` |
@@ -93,7 +95,7 @@ Generic Event Popper infrastructure for external systems (CLI tools, agents, scr
 packages/shared/src/event-popper/
   ├── schemas.ts          # EventPopperRequest/Response Zod schemas
   ├── guid.ts             # generateEventId()
-  ├── port-discovery.ts   # readServerInfo, writeServerInfo, removeServerInfo
+  ├── port-discovery.ts   # per-port server entries (read/discover/list/write/remove)
   └── index.ts            # Barrel exports
 
 packages/shared/src/utils/
@@ -113,3 +115,4 @@ apps/web/
 |------|--------|------|
 | 067 Phase 1 | Domain created: envelope schemas, GUID, port discovery, localhost guard, tmux detection, SSE channel | 2026-03-07 |
 | 067 Phase 2 | First consumer domain (`question-popper`) created, consuming envelope schemas + GUID | 2026-03-07 |
+| nav speed item 4 | Server entries keyed by port (`.chainglass/servers/<port>.json`, with `mode`) so a prod and a dev server run from one checkout; `discoverServerInfo` + `CG_SERVER_PORT` for clients | 2026-11-12 |
