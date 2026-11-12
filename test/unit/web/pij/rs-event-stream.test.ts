@@ -348,6 +348,39 @@ describe('createRsEventStream', () => {
     ]);
   });
 
+  it('keeps the first connect at info when the first window recycles with no events', async () => {
+    let connected!: () => void;
+    const connectedSeen = new Promise<void>((resolve) => {
+      connected = resolve;
+    });
+    const client = new FakeRsClient([
+      // An idle first window: hello, then nothing until the planned recycle.
+      async function* (_from, signal) {
+        yield hello('pij-rs 0.1.0');
+        await waitForAbort(signal);
+      },
+      async function* (_from, signal) {
+        yield hello('pij-rs 0.1.0');
+        yield event(5, 'seat.put');
+        connected();
+        await waitForAbort(signal);
+      },
+    ]);
+    const statuses: RsEventStreamStatus[] = [];
+    const stream = createRsEventStream({
+      client,
+      onEvent: () => {},
+      onStatus: (status) => statuses.push(status),
+      recycleMs: 10,
+    });
+    stream.start();
+    await connectedSeen;
+    stream.stop();
+    expect(statuses.filter((status) => status.state === 'connected')).toEqual([
+      { state: 'connected', build: 'pij-rs 0.1.0', afterRecycle: false },
+    ]);
+  });
+
   it('resumes past a contiguous run of traffic so a long replay is not re-read every recycle', async () => {
     // 26 Oct 2026: pij-rs logged 3.58M bg.lost events for one job, with resume-kind facts up to
     // 291k events apart. A dev server that could not read a whole gap inside one 5s recycle

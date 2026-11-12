@@ -104,7 +104,7 @@ WorkspaceAgentChrome (agent chat overlay, sidebar buttons)
   - `readFile(slug, worktreePath, filePath)` → `ReadFileResult` (content + syntax highlighting + markdown)
   - `saveFile(slug, worktreePath, filePath, content, expectedMtime?, force?)` → `SaveFileResult`
   - `fetchGitDiff(filePath, cwd?)` (lazy-loads `git-diff-action`)
-  - `fetchChangesSnapshot(worktreePath, { tree, changes })` (lazy-loads `changes-snapshot.ts`)
+  - `fetchChangesSnapshot(worktreePath, { status, recent })` (lazy-loads `changes-snapshot.ts`)
   - All require auth via `requireAuth()`
   - All use DI container: `container.resolve<IFileSystem>()`, `container.resolve<IPathResolver>()`
 

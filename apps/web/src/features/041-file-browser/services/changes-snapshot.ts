@@ -5,8 +5,9 @@
  * recent files) for every batch of file changes; each action is its own POST and its own
  * request queue slot (nav-speed PRD item 6). One action now returns the parts asked for.
  *
- * - `tree`: changed files (tree filter) + diff stats (panel header). Always shown.
- * - `changes`: working changes + recent files. Only shown while the Changes panel is open.
+ * - `status`: changed files (tree filter), diff stats (panel header) and working changes
+ *   (Changes list, explorer search badges, tab-title attention). Always in use.
+ * - `recent`: recent committed files. Only shown while the Changes panel is open.
  */
 
 import { type ChangedFilesResult, getChangedFiles } from './changed-files';
@@ -15,8 +16,8 @@ import { type RecentFilesResult, getRecentFiles } from './recent-files';
 import { type WorkingChangesResult, getWorkingChanges } from './working-changes';
 
 export interface ChangesSnapshotParts {
-  tree: boolean;
-  changes: boolean;
+  status: boolean;
+  recent: boolean;
 }
 
 export interface ChangesSnapshot {
@@ -31,10 +32,10 @@ export async function getChangesSnapshot(
   parts: ChangesSnapshotParts
 ): Promise<ChangesSnapshot> {
   const [changedFiles, diffStats, workingChanges, recentFiles] = await Promise.all([
-    parts.tree ? getChangedFiles(worktreePath) : undefined,
-    parts.tree ? getDiffStats(worktreePath) : undefined,
-    parts.changes ? getWorkingChanges(worktreePath) : undefined,
-    parts.changes ? getRecentFiles(worktreePath) : undefined,
+    parts.status ? getChangedFiles(worktreePath) : undefined,
+    parts.status ? getDiffStats(worktreePath) : undefined,
+    parts.status ? getWorkingChanges(worktreePath) : undefined,
+    parts.recent ? getRecentFiles(worktreePath) : undefined,
   ]);
   return { changedFiles, diffStats, workingChanges, recentFiles };
 }

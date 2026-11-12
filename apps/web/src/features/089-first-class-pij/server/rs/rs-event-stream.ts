@@ -130,7 +130,9 @@ class ReconnectingRsEventStream implements RsEventStream {
         await applied;
         if (signal.aborted) break;
         if (recycled) {
-          afterRecycle = true;
+          // Only a socket that reached `connected` makes the next connect routine; a hello-only
+          // window keeps the previous mark, so a first connect or one after a failure logs at info.
+          if (established) afterRecycle = true;
           continue;
         }
         throw new Error('pij-rs event stream ended');
@@ -138,7 +140,7 @@ class ReconnectingRsEventStream implements RsEventStream {
         await applied.catch(() => {});
         if (signal.aborted) break;
         if (recycled && applicationError === undefined) {
-          afterRecycle = true;
+          if (established) afterRecycle = true;
           continue;
         }
         afterRecycle = false;

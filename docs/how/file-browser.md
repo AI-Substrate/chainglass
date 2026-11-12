@@ -154,12 +154,12 @@ Files can be uploaded via the paste/upload modal (Plan 044):
 
 The changes panel shows uncommitted git changes:
 
-`fetchChangesSnapshot(worktreePath, { tree, changes })` returns the parts asked for in one server action:
+`fetchChangesSnapshot(worktreePath, { status, recent })` returns the parts asked for in one server action:
 
-- `tree` — changed files (`git diff --name-only`, the tree filter) and diff stats (`git diff HEAD --shortstat`, the panel header)
-- `changes` — working changes (`git status --porcelain`: path, status modified/added/deleted/untracked/renamed, area staged/unstaged/untracked) and recent files (`git log --name-only`)
+- `status` — changed files (`git diff --name-only`, the tree filter), diff stats (`git diff HEAD --shortstat`, the panel header) and working changes (`git status --porcelain`: path, status modified/added/deleted/untracked/renamed, area staged/unstaged/untracked). Working changes also drive the tab-title attention and the explorer's search badges, so status is always loaded.
+- `recent` — recent files (`git log --name-only`), shown only in the Changes panel
 
-`usePanelState` loads the tree parts on mount and the changes parts only while the Changes panel shows. File changes in the worktree refresh through `scheduleRefreshChanges`: a 2 s trailing throttle, deferred while the tab is hidden and run once when it is shown.
+`usePanelState` loads status once per worktree and recent files only while the Changes panel shows; it reloads everything when the worktree changes. File changes in the worktree refresh through `scheduleRefreshChanges`: a 2 s trailing throttle, deferred while the tab is hidden and run once when it is shown. Every automatic refresh, the one on showing the tab included, waits until 2 s after the last refresh started; a refresh already waiting covers newer changes. The panel's refresh button runs at once.
 
 ## Viewer Modes
 
