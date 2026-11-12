@@ -21,6 +21,10 @@ reuses your build; crane's removal on 2026-11-12 left the reviewer with logs onl
 verdict, remove the worktree (`git -C /Users/jordanknight/substrate/chainglass worktree remove <path>`)
 and delete the branch.
 
+**Nobody works in the main tree** (`/Users/jordanknight/substrate/chainglass`), prime ruling 2026-11-12
+after strip-067: Jordan's prod serves from it, so a full `just fft` (which builds) is impossible there,
+and a landing without one breaks AGENTS.md. Every change is made, gated and landed from a worktree.
+
 ## Gates
 
 - `just fft` at `nice -n 19` in your worktree before landing; read its full output.
