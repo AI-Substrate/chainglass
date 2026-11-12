@@ -1,0 +1,27 @@
+{
+	"dd": {
+		"schema": "pij/memory"
+	},
+	"references": [],
+	"sections": [
+		{
+			"name": "meta",
+			"value": {
+				"date": "2026-11-12",
+				"hook": "SSR cutover runtime passes do not waive red full-suite landing gate; reuse build and isolate tmux",
+				"tags": [
+					"auth",
+					"ssr",
+					"nav",
+					"proof",
+					"gates"
+				],
+				"title": "SSR dashboard exact-head review and full-green gate"
+			}
+		},
+		{
+			"name": "body",
+			"value": "Reviewed e37b1ea0d (plan:nav-ssr-dashboard), direct SessionProvider SSR, next-auth bundled, exact next/navigation.js alias, outer dashboard Suspense, behavioral SSR test. No changed-code blocker found. Reused author build ZZIbTWv9amAER6YRBsofc; 27 targeted tests passed; workspace FCP median48ms at load51.88–65.45; JS-off sidebar/main/page HTML present but page hidden by React reveal script. Private tmux :3192/:4692 localhost+LAN overlay: xterm/input/output/179→93 columns/window switching passed. LAN proof required reinserted non-Secure cookie; production native plain-HTTP bootstrap remains a disclosed gap. CLI remote-view list []/exit0; remote-view correct token200 vs missing/wrong401. Same build OAuth-on :3193 signed Auth.js JWT path passes session API and proxy. All reviewer servers/tabs/private tmux fixtures torn down. Author build reservation released.\n\nDelivery verdict blocks solely on HIGH process gate: author just fft had34 failed tests in11files +3 unhandled worker errors. Prime admitted he, not Jordan, allowed targeted reruns and thus no valid exception. Remediation is full serialized nice19 just test on origin/main after test-load fix at1-minute load<60, complete stdout read. Do not waive on targeted green. Source report /tmp/ssr-probe/review-e37b1ea0d.md, published output embeds it.\n\nRuntime errors routed to prime: 067 mobileView2 notification SecurityError, Agents-prefetch404s, missing docs/plans watcher ENOENTs, existing /login loop and localhost header trust separately owned by author. Do not credit later unbuilt proxy/localhost/socket-peer edits to reviewed commit. Global alias is exact specifier and canonical Next API normalization; positively located dependency consumer is next-auth/lib/actions.js redirect import. Retain pnpm Node-ESM patch for Vitest. SSR unit test tests actual layout+real provider, not Turbopack; actual prod smoke is essential. Process tool/browser eval state was lost at machine tmux death ~14:19; completed earlier evidence intact; interrupted OAuth attempt not counted, restarted proof succeeded.\n\nHighest-leverage harness improvement: one read-only proof command consuming an existing build id, selecting free ports, configuring private tmux, exercising auth/session/terminal localhost+LAN and refusing to call a cookie-reinjection workaround native-LAN proof. Emit machine-readable full-gate status separately from targeted test results.\n"
+		}
+	]
+}
