@@ -1,0 +1,29 @@
+.harness/government/community/roles/reviewer/outputs/2026-11/12-verdict-plan-nav-dev-beside-prod-a31aa79.dd.json
+  s_823fbf4b99e469::t_e9a0ec00942f02 1-35
+.harness/government/community/roles/reviewer/outputs/2026-11/12-verdict-plan-nav-dev-beside-prod-a31aa79.dd.md
+  s_8539105538379a::t_ccefe9642955db 1-103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "4ca582268dc996a6032500eaf0e6bc50eca33820",
+  "prompts": {},
+  "sessions": {
+    "s_823fbf4b99e469": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1cebf-0973-7873-80e7-158a9c3808a9",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_8539105538379a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fc39962a-d2a4-4267-bcd8-3e6d329a7a72",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
