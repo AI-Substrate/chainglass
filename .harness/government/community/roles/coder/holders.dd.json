@@ -95,6 +95,16 @@
 					"machine": "ops.osk.lan",
 					"seat": "pij-ambitious-warbler",
 					"why": "Jordan: clicks look frozen; global navigation-pending indicator"
+				},
+				{
+					"assigned_by": "pij-outer-bobcat",
+					"from": "2026-11-12T07:17:34.879Z",
+					"harness": "omp",
+					"harness_session": "01a1cd15-7427-719e-807b-8754fad61481",
+					"instance_key": "https",
+					"machine": "ops.osk.lan",
+					"seat": "pij-professional-crane",
+					"why": "HTTPS mode on :3030 per Jordan's ruling; briefs/nav-requests/https.md"
 				}
 			]
 		}
