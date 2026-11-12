@@ -1,0 +1,18 @@
+.harness/government/community/roles/coder/memory/2026-11-12-remote-view-daemon-rest-auth-token-and.dd.json
+  h_9e71e8b09f7cf2 1-28
+.harness/government/community/roles/coder/memory/2026-11-12-remote-view-daemon-rest-auth-token-and.dd.md
+  h_9e71e8b09f7cf2 1-42
+.harness/government/community/roles/coder/memory/INDEX.md
+  h_9e71e8b09f7cf2 10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "513797be17f0beb14111ebff61fdabff2f0c93c1",
+  "prompts": {},
+  "humans": {
+    "h_9e71e8b09f7cf2": {
+      "author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
