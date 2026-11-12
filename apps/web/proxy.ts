@@ -146,6 +146,25 @@ export async function bootstrapCookieStage(req: NextRequest): Promise<BootstrapS
   }
 }
 
+const LOGIN_PATH = '/login';
+
+/**
+ * What a signed-out browser may load when GitHub OAuth is on: the sign-in page itself (else
+ * 307 /login -> /login forever) and the public static assets it pulls in (the icon theme
+ * manifest the root providers fetch, fonts, touch icons). All still sit behind the
+ * bootstrap-cookie stage; the page's Auth.js calls go to /api/auth/* (a bypass route).
+ */
+function servesSignedOut(pathname: string): boolean {
+  return (
+    pathname === LOGIN_PATH ||
+    pathname.startsWith('/icons/') ||
+    pathname.startsWith('/fonts/') ||
+    pathname === '/apple-touch-icon.png' ||
+    pathname === '/icon-192.png' ||
+    pathname === '/icon-512.png'
+  );
+}
+
 /**
  * Plan 084 Phase 5 F001 fix — bootstrap-cookie gate now runs OUTSIDE the
  * `auth(...)` wrapper. The wrapper itself, when `isOAuthDisabled()` is true,
@@ -171,12 +190,14 @@ const oauthMiddleware = auth(async (req) => {
     return NextResponse.next();
   }
   if (!req.auth) {
-    const isApiRoute = req.nextUrl.pathname.startsWith('/api/');
-    if (isApiRoute) {
+    const { pathname } = req.nextUrl;
+    if (servesSignedOut(pathname)) {
+      return NextResponse.next();
+    }
+    if (pathname.startsWith('/api/')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const loginUrl = new URL('/login', req.nextUrl.origin);
-    return NextResponse.redirect(loginUrl);
+    return NextResponse.redirect(new URL(LOGIN_PATH, req.nextUrl.origin));
   }
   return NextResponse.next();
 }) as unknown as NextMiddleware;
