@@ -1,6 +1,6 @@
 import { NavigationWrapper } from '@/components/navigation-wrapper';
 import { AuthProvider } from '@/features/063-login/components/auth-provider';
-import type { ReactNode } from 'react';
+import { type ReactNode, Suspense } from 'react';
 
 // All dashboard pages use useSearchParams (via sidebar/nav) — must be dynamic
 export const dynamic = 'force-dynamic';
@@ -18,12 +18,18 @@ export const dynamic = 'force-dynamic';
  * The route group pattern (dashboard) creates a folder for organization
  * without affecting the URL structure.
  *
+ * The whole tree renders on the server (AuthProvider is not client-only). The Suspense
+ * boundary lets the shell (sidebar, nav) stream and paint before the page's server data
+ * (git, workspace registry) resolves; the page content streams into the same response.
+ *
  * @see Phase 7: Mobile Templates & Documentation
  */
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
     <AuthProvider>
-      <NavigationWrapper>{children}</NavigationWrapper>
+      <NavigationWrapper>
+        <Suspense>{children}</Suspense>
+      </NavigationWrapper>
     </AuthProvider>
   );
 }

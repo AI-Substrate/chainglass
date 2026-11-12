@@ -50,7 +50,15 @@ const nextConfig = {
     proxyClientMaxBodySize: '250mb',
   },
   // Enable Turbopack (default in Next.js 16)
-  turbopack: {},
+  turbopack: {
+    resolveAlias: {
+      // patches/next-auth*.patch rewrites next-auth's `next/navigation` import to
+      // `next/navigation.js` so Node ESM (vitest) can load it. Now that next-auth is bundled
+      // (see serverExternalPackages), the `.js` path would skip Next's per-layer alias and pull
+      // client router contexts into route handlers, failing the build. Point it back.
+      'next/navigation.js': 'next/navigation',
+    },
+  },
   // Allow cross-origin requests from local network during development
   allowedDevOrigins: ['192.168.1.*'],
   // Point to monorepo root for proper dependency tracing with pnpm
@@ -64,7 +72,9 @@ const nextConfig = {
     '@github/copilot-sdk',
     '@github/copilot',
     'node-pty',
-    'next-auth',
+    // Not 'next-auth': as an external, `next-auth/react` loads node_modules React during SSR
+    // instead of Next's copy, so SessionProvider's hooks are null and the dashboard 500s.
+    // Bundled, SessionProvider server-renders and so does every page under it.
     '@auth/core',
     'yaml',
   ],
