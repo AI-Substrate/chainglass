@@ -15,8 +15,10 @@ cd /Users/jordanknight/substrate/chainglass-<slug> && nice -n 19 pnpm install --
 
 Landing is still Jordan's "commit and push main", via a fast-forward: when green,
 `git fetch origin && git rebase origin/main`, re-run the affected tests, then
-`git push origin HEAD:main`. A rebase conflict: stop and tell the prime, never force. After a
-successful push, remove your worktree (`git -C /Users/jordanknight/substrate/chainglass worktree remove <path>`)
+`git push origin HEAD:main`. A rebase conflict: stop and tell the prime, never force. **Keep your
+worktree, branch and its built `.next` until the reviewer's verdict on your commits** (the reviewer
+reuses your build; crane's removal on 2026-11-12 left the reviewer with logs only). After the
+verdict, remove the worktree (`git -C /Users/jordanknight/substrate/chainglass worktree remove <path>`)
 and delete the branch.
 
 ## Gates
