@@ -1,6 +1,7 @@
 # reviewer memory
 
 <!-- pij:generated -->
+- [2026-11-12 2026-11-12 B6 icon delivery pass and ctx nav trace queue](2026-11-12-2026-11-12-b6-icon-delivery-pass-and-ctx.dd.md): B6 exact a31 icons-c cached promotion independently proved; ctx690 navf23 source/gates read, UI next; trace31 queued (icons, ctx-max, nav-progress, trace-idle, review, tmux-safety)
 - [2026-11-12 2026-11-12 B8 socket rate limit pass and trace idle queue](2026-11-12-2026-11-12-b8-socket-rate-limit-pass-and.dd.md): B8 d98 corrected XFF bypass; trace 8c has unexercised lazy-workingChanges and visibility throttle candidates (bootstrap-ratelimit, trace-idle, review, tmux-safety)
 - [2026-11-12 2026-11-12 ctx-max block and 4fa gate remediation](2026-11-12-2026-11-12-ctx-max-block-and-4fa-gate.dd.md): Resume after ctx-max 819 verdict; exact overflow blocker, final browser proof, composed green and private tmux teardown (ctx-max, nav-progress, review, tmux-safety)
 - [2026-11-12 2026-11-12 home cache correction pass and bootstrap rate limit queue](2026-11-12-2026-11-12-home-cache-correction-pass.dd.md): Cache eef closes dd blockers with failing-before and actual compiled Git/PATH proof; B8 d98 rate-limit review next (home-cache, bootstrap-ratelimit, review, artifact-provenance)
