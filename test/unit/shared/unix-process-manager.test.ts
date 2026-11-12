@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { UnixProcessManager } from '@chainglass/shared';
 import { FakeLogger } from '@chainglass/shared';
+import { SPAWN_WAIT_MS } from '../../load-bounds';
 
 /**
  * Unit tests for UnixProcessManager.
@@ -150,7 +151,7 @@ describe('UnixProcessManager', () => {
       // Wait until the trap is installed: a fixed sleep raced it under load, so SIGINT landed
       // before the trap and the "stubborn" process died at once (measured 0ms).
       await vi.waitFor(() => expect(fastManager.getProcessOutput(handle.pid)).toContain('ready'), {
-        timeout: 5000,
+        timeout: SPAWN_WAIT_MS,
       });
 
       const startTime = Date.now();
@@ -165,7 +166,7 @@ describe('UnixProcessManager', () => {
       // Process should be terminated
       const running = await fastManager.isRunning(handle.pid);
       expect(running).toBe(false);
-    }, 10000);
+    });
 
     it('should stop escalation when process exits on SIGTERM', async () => {
       /*
@@ -188,7 +189,7 @@ describe('UnixProcessManager', () => {
       // Wait until the trap is installed: a fixed sleep raced it under load, so SIGINT landed
       // before the trap and the "stubborn" process died at once (measured 0ms).
       await vi.waitFor(() => expect(fastManager.getProcessOutput(handle.pid)).toContain('ready'), {
-        timeout: 5000,
+        timeout: SPAWN_WAIT_MS,
       });
 
       const startTime = Date.now();
@@ -201,7 +202,7 @@ describe('UnixProcessManager', () => {
 
       const running = await fastManager.isRunning(handle.pid);
       expect(running).toBe(false);
-    }, 10000);
+    });
 
     it('should stop escalation when process exits on SIGINT', async () => {
       /*
@@ -232,7 +233,7 @@ describe('UnixProcessManager', () => {
 
       const running = await fastManager.isRunning(handle.pid);
       expect(running).toBe(false);
-    }, 10000);
+    });
   });
 
   describe('Exit Code Handling (Discovery 06)', () => {

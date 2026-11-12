@@ -10,18 +10,18 @@
  * Plan 071: PR View & File Notes — Phase 4
  */
 
-import { execSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { computeContentHash } from '@/features/071-pr-view/lib/content-hash';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { git } from '../../../../helpers/git';
 import { makeTmpDir, removeTmpDir } from '../../../../helpers/tmpdir';
 
 let tmpDir: string;
 
-beforeEach(() => {
+beforeEach(async () => {
   tmpDir = makeTmpDir('content-hash');
-  execSync('git init', { cwd: tmpDir, stdio: 'ignore' });
+  await git(tmpDir, 'init');
 });
 
 afterEach(() => {

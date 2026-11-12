@@ -19,10 +19,11 @@
  * real fs, real reducer.
  */
 
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { type FSWatcher, mkdirSync, watch, writeFileSync } from 'node:fs';
 
 import { join, relative } from 'node:path';
+import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -36,7 +37,10 @@ import type {
   FeedItem,
   FeedState,
 } from '../../../apps/web/src/features/041-file-browser/components/recent-feed/types';
+import { git } from '../../helpers/git';
 import { makeTmpDir, removeTmpDir } from '../../helpers/tmpdir';
+
+const execFileAsync = promisify(execFile);
 
 interface WatchedEvents {
   events: Array<{ type: 'add' | 'change'; relPath: string; fullPath: string }>;
@@ -257,13 +261,13 @@ describe('Recent-feed live updates — git-history seed compatibility', () => {
 
   it('continues to merge live events on top of a real git-history seed', async () => {
     // Initialise a real git repo with one commit (matches T013's seed setup).
-    execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: tmp });
-    execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: tmp });
-    execFileSync('git', ['config', 'user.name', 'Test'], { cwd: tmp });
-    execFileSync('git', ['config', 'commit.gpgsign', 'false'], { cwd: tmp });
+    await git(tmp, 'init', '-q', '-b', 'main');
+    await git(tmp, 'config', 'user.email', 'test@example.com');
+    await git(tmp, 'config', 'user.name', 'Test');
+    await git(tmp, 'config', 'commit.gpgsign', 'false');
     writeFileSync(join(tmp, 'seeded.ts'), 'export const seeded = true;');
-    execFileSync('git', ['add', 'seeded.ts'], { cwd: tmp });
-    execFileSync('git', ['commit', '-q', '-m', 'seed', '--no-gpg-sign'], {
+    await git(tmp, 'add', 'seeded.ts');
+    await execFileAsync('git', ['commit', '-q', '-m', 'seed', '--no-gpg-sign'], {
       cwd: tmp,
       env: {
         ...process.env,

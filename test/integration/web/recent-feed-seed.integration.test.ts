@@ -15,8 +15,9 @@
  *     the affected entry without blanking the whole seed
  */
 
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { promisify } from 'node:util';
 
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -27,8 +28,10 @@ import {
 } from '../../../apps/web/src/features/041-file-browser/services/recent-feed-items';
 import { makeTmpDir, removeTmpDir } from '../../helpers/tmpdir';
 
-function gitExec(cwd: string, ...args: string[]): string {
-  return execFileSync('git', args, {
+const execFileAsync = promisify(execFile);
+
+async function gitExec(cwd: string, ...args: string[]): Promise<string> {
+  const { stdout } = await execFileAsync('git', args, {
     cwd,
     env: {
       ...process.env,
@@ -39,21 +42,22 @@ function gitExec(cwd: string, ...args: string[]): string {
     },
     encoding: 'utf8',
   });
+  return stdout;
 }
 
-function initRepo(cwd: string) {
-  gitExec(cwd, 'init', '-q', '-b', 'main');
-  gitExec(cwd, 'config', 'user.email', 'test@example.com');
-  gitExec(cwd, 'config', 'user.name', 'Test');
-  gitExec(cwd, 'config', 'commit.gpgsign', 'false');
+async function initRepo(cwd: string) {
+  await gitExec(cwd, 'init', '-q', '-b', 'main');
+  await gitExec(cwd, 'config', 'user.email', 'test@example.com');
+  await gitExec(cwd, 'config', 'user.name', 'Test');
+  await gitExec(cwd, 'config', 'commit.gpgsign', 'false');
 }
 
-function commitFile(cwd: string, relPath: string, contents: string, message: string) {
+async function commitFile(cwd: string, relPath: string, contents: string, message: string) {
   const abs = join(cwd, relPath);
   mkdirSync(join(abs, '..'), { recursive: true });
   writeFileSync(abs, contents);
-  gitExec(cwd, 'add', relPath);
-  gitExec(cwd, 'commit', '-q', '-m', message);
+  await gitExec(cwd, 'add', relPath);
+  await gitExec(cwd, 'commit', '-q', '-m', message);
 }
 
 describe('getRecentFeedItems — real-git integration', () => {
@@ -68,10 +72,10 @@ describe('getRecentFeedItems — real-git integration', () => {
   });
 
   it('orders entries newest-first and enriches with size/mtime/kind (AC B1)', async () => {
-    initRepo(tmp);
-    commitFile(tmp, 'src/old.ts', 'export const x = 1;\n', 'add old');
-    commitFile(tmp, 'docs/notes.md', '# Notes\n\nHello.\n', 'add markdown');
-    commitFile(tmp, 'assets/banner.png', 'fake-png-bytes', 'add image');
+    await initRepo(tmp);
+    await commitFile(tmp, 'src/old.ts', 'export const x = 1;\n', 'add old');
+    await commitFile(tmp, 'docs/notes.md', '# Notes\n\nHello.\n', 'add markdown');
+    await commitFile(tmp, 'assets/banner.png', 'fake-png-bytes', 'add image');
 
     const result = await getRecentFeedItems(tmp, 50);
 
@@ -97,9 +101,9 @@ describe('getRecentFeedItems — real-git integration', () => {
   });
 
   it('honors the limit parameter (AC B2)', async () => {
-    initRepo(tmp);
+    await initRepo(tmp);
     for (let i = 0; i < 8; i++) {
-      commitFile(tmp, `f${i}.txt`, `content ${i}\n`, `add f${i}`);
+      await commitFile(tmp, `f${i}.txt`, `content ${i}\n`, `add f${i}`);
     }
 
     const result = await getRecentFeedItems(tmp, 3);
@@ -125,9 +129,9 @@ describe('getRecentFeedItems — real-git integration', () => {
   });
 
   it('drops entries whose stat fails (file deleted between log + stat)', async () => {
-    initRepo(tmp);
-    commitFile(tmp, 'survivor.ts', 'export const a = 1;\n', 'add survivor');
-    commitFile(tmp, 'doomed.ts', 'export const b = 2;\n', 'add doomed');
+    await initRepo(tmp);
+    await commitFile(tmp, 'survivor.ts', 'export const a = 1;\n', 'add survivor');
+    await commitFile(tmp, 'doomed.ts', 'export const b = 2;\n', 'add doomed');
 
     // Manually delete `doomed.ts` after commit. git log still reports it,
     // but the stat call inside getRecentFeedItems will reject — the entry

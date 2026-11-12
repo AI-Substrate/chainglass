@@ -14,6 +14,11 @@ import { NextRequest } from 'next/server';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { isLocalhostRequest, localhostGuard } from '../../../apps/web/src/lib/localhost-guard.js';
 import { removeTmpDir } from '../../helpers/tmpdir';
+import { SPAWN_WAIT_MS } from '../../load-bounds';
+
+// Two `tmux display-message` calls per lookup: give each half the spawn wait, so a loaded
+// machine slows the test rather than making the 3 s production budget read as "not in tmux".
+const TMUX_TEST_TIMEOUT_MS = SPAWN_WAIT_MS / 2;
 
 /*
 Test Doc:
@@ -226,7 +231,7 @@ describe('detectTmuxContext', () => {
 
   // Only run this test if we're actually in tmux (CI won't have it)
   it.skipIf(!process.env.TMUX)('returns context when in tmux', () => {
-    const result = detectTmuxContext();
+    const result = detectTmuxContext(TMUX_TEST_TIMEOUT_MS);
     expect(result).toBeDefined();
     expect(result?.session).toBeTruthy();
     expect(result?.window).toBeTruthy();
@@ -243,7 +248,7 @@ describe('getTmuxMeta', () => {
   });
 
   it.skipIf(!process.env.TMUX)('returns { tmux: TmuxContext } when in tmux', () => {
-    const result = getTmuxMeta();
+    const result = getTmuxMeta(TMUX_TEST_TIMEOUT_MS);
     expect(result).toBeDefined();
     expect(result?.tmux.session).toBeTruthy();
   });

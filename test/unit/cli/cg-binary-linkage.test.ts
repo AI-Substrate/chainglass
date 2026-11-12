@@ -8,19 +8,22 @@
  * This test catches that early with an actionable error message.
  */
 
-import { execSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
+import { SPAWN_WAIT_MS } from '../../load-bounds';
 
+const execFileAsync = promisify(execFile);
 const REPO_ROOT = path.resolve(import.meta.dirname, '..', '..', '..');
 
 describe('cg CLI binary linkage', () => {
-  it('cg resolves to this repository (not a stale branch checkout)', () => {
+  it('cg resolves to this repository (not a stale branch checkout)', async () => {
     // Find the cg binary — skip in CI where cg isn't globally linked
     let cgPath: string;
     try {
-      cgPath = execSync('which cg', { encoding: 'utf-8' }).trim();
+      cgPath = (await execFileAsync('which', ['cg'], { encoding: 'utf-8' })).stdout.trim();
     } catch {
       console.log('  [skip] `cg` not globally linked — run `just install` for local dev');
       return;
@@ -33,7 +36,9 @@ describe('cg CLI binary linkage', () => {
     if (!cliEntryMatch) {
       // Non-standard shim — try running cg and checking it works
       try {
-        execSync('cg --version', { encoding: 'utf-8', timeout: 5000 });
+        // `cg` is a Node CLI: at nice 19 on a loaded machine its start-up alone took over the
+        // old 5 s budget, which then read as a broken shim.
+        await execFileAsync('cg', ['--version'], { encoding: 'utf-8', timeout: SPAWN_WAIT_MS });
         return; // cg works, just not a standard pnpm shim — pass
       } catch {
         throw new Error(

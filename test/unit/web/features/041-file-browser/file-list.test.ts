@@ -7,27 +7,28 @@
  * Feature 2: File Tree Quick Filter — Plan 049
  */
 
-import { execSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { type FileListEntry, getFileList } from '@/features/041-file-browser/services/file-list';
+import { git } from '../../../../helpers/git';
 import { makeTmpDir, removeTmpDir } from '../../../../helpers/tmpdir';
 
 let fixtureDir: string;
 
-beforeEach(() => {
+beforeEach(async () => {
   fixtureDir = makeTmpDir('file-list-test');
   // Initialize a git repo with known files
-  execSync('git init', { cwd: fixtureDir, stdio: 'ignore' });
-  execSync('git config user.email "test@test.com"', { cwd: fixtureDir, stdio: 'ignore' });
-  execSync('git config user.name "Test"', { cwd: fixtureDir, stdio: 'ignore' });
+  await git(fixtureDir, 'init');
+  await git(fixtureDir, 'config', 'user.email', 'test@test.com');
+  await git(fixtureDir, 'config', 'user.name', 'Test');
   mkdirSync(join(fixtureDir, 'src'), { recursive: true });
   writeFileSync(join(fixtureDir, 'src', 'app.ts'), 'export const app = true;');
   writeFileSync(join(fixtureDir, 'README.md'), '# Test');
-  execSync('git add . && git commit -m "init"', { cwd: fixtureDir, stdio: 'ignore' });
+  await git(fixtureDir, 'add', '.');
+  await git(fixtureDir, 'commit', '-m', 'init');
 });
 
 afterEach(() => {
@@ -76,7 +77,8 @@ describe('getFileList', () => {
     writeFileSync(join(fixtureDir, '.gitignore'), 'build/\n');
     mkdirSync(join(fixtureDir, 'build'), { recursive: true });
     writeFileSync(join(fixtureDir, 'build', 'output.js'), '// built');
-    execSync('git add .gitignore && git commit -m "ignore"', { cwd: fixtureDir, stdio: 'ignore' });
+    await git(fixtureDir, 'add', '.gitignore');
+    await git(fixtureDir, 'commit', '-m', 'ignore');
 
     const result = await getFileList(fixtureDir);
     expect(result.ok).toBe(true);
@@ -96,7 +98,8 @@ describe('getFileList', () => {
     */
     writeFileSync(join(fixtureDir, '.gitignore'), 'ignored.txt\n');
     writeFileSync(join(fixtureDir, 'ignored.txt'), 'hidden');
-    execSync('git add .gitignore && git commit -m "ignore"', { cwd: fixtureDir, stdio: 'ignore' });
+    await git(fixtureDir, 'add', '.gitignore');
+    await git(fixtureDir, 'commit', '-m', 'ignore');
 
     const result = await getFileList(fixtureDir, true);
     expect(result.ok).toBe(true);

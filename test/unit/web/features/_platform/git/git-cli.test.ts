@@ -20,7 +20,6 @@
  * Plan 084 FX007 — copy-repo-url. Findings: 14.
  */
 
-import { execSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
@@ -30,22 +29,19 @@ import {
   getRemoteUrl,
 } from '@/features/_platform/git/index.server';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { git } from '../../../../../helpers/git';
 import { makeTmpDir, removeTmpDir } from '../../../../../helpers/tmpdir';
 
 let tmp: string;
 
-function git(cmd: string) {
-  execSync(`git ${cmd}`, { cwd: tmp, stdio: 'ignore' });
-}
-
-beforeEach(() => {
+beforeEach(async () => {
   tmp = makeTmpDir('git-cli');
-  git('init -b main');
-  git('config user.email "t@t.com"');
-  git('config user.name "T"');
+  await git(tmp, 'init', '-b', 'main');
+  await git(tmp, 'config', 'user.email', 't@t.com');
+  await git(tmp, 'config', 'user.name', 'T');
   fs.writeFileSync(path.join(tmp, 'README.md'), '# x\n');
-  git('add .');
-  git('commit -m "initial"');
+  await git(tmp, 'add', '.');
+  await git(tmp, 'commit', '-m', 'initial');
 });
 
 afterEach(() => {
@@ -54,7 +50,7 @@ afterEach(() => {
 
 describe('getRemoteUrl', () => {
   it('returns the origin URL when configured', async () => {
-    git('remote add origin https://github.com/org/repo.git');
+    await git(tmp, 'remote', 'add', 'origin', 'https://github.com/org/repo.git');
     expect(await getRemoteUrl(tmp)).toBe('https://github.com/org/repo.git');
   });
 
@@ -78,7 +74,7 @@ describe('getCurrentBranch', () => {
   });
 
   it("returns 'HEAD' in detached state", async () => {
-    git('checkout --detach HEAD');
+    await git(tmp, 'checkout', '--detach', 'HEAD');
     expect(await getCurrentBranch(tmp)).toBe('HEAD');
   });
 
@@ -100,15 +96,15 @@ describe('getDefaultBaseBranch', () => {
   it('returns the actual default ref when origin/HEAD is set', async () => {
     // Simulate: a remote exists and origin/HEAD points at master.
     // We can fake this by adding a remote and writing origin/HEAD directly.
-    git('remote add origin https://example.invalid/repo.git');
+    await git(tmp, 'remote', 'add', 'origin', 'https://example.invalid/repo.git');
     fs.mkdirSync(path.join(tmp, '.git', 'refs', 'remotes', 'origin'), {
       recursive: true,
     });
     fs.writeFileSync(
       path.join(tmp, '.git', 'refs', 'remotes', 'origin', 'master'),
-      `${execSync('git rev-parse HEAD', { cwd: tmp }).toString().trim()}\n`
+      `${await git(tmp, 'rev-parse', 'HEAD')}\n`
     );
-    git('symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/master');
+    await git(tmp, 'symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/master');
     expect(await getDefaultBaseBranch(tmp)).toBe('master');
   });
 });
@@ -122,7 +118,7 @@ describe('getCurrentCommitSha', () => {
   it('returns null in a zero-commit worktree', async () => {
     const empty = makeTmpDir('empty-git');
     try {
-      execSync('git init -b main', { cwd: empty, stdio: 'ignore' });
+      await git(empty, 'init', '-b', 'main');
       expect(await getCurrentCommitSha(empty)).toBeNull();
     } finally {
       removeTmpDir(empty);

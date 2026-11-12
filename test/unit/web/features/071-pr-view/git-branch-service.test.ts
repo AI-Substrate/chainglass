@@ -10,7 +10,6 @@
  * Plan 071: PR View & File Notes — Phase 4
  */
 
-import { execSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
@@ -19,26 +18,17 @@ import {
   parseNameStatus,
 } from '@/features/071-pr-view/lib/git-branch-service';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { git, initRepo } from '../../../../helpers/git';
 import { makeTmpDir, removeTmpDir } from '../../../../helpers/tmpdir';
 
 let tmpDir: string;
 
-function git(cmd: string) {
-  execSync(`git ${cmd}`, { cwd: tmpDir, stdio: 'ignore' });
-}
-
-function gitOutput(cmd: string): string {
-  return execSync(`git ${cmd}`, { cwd: tmpDir }).toString().trim();
-}
-
-beforeEach(() => {
+beforeEach(async () => {
   tmpDir = makeTmpDir('git-branch');
-  git('init -b main');
-  git('config user.email "test@test.com"');
-  git('config user.name "Test"');
+  await initRepo(tmpDir);
   fs.writeFileSync(path.join(tmpDir, 'README.md'), '# Hello\n');
-  git('add .');
-  git('commit -m "initial"');
+  await git(tmpDir, 'add', '.');
+  await git(tmpDir, 'commit', '-m', 'initial');
 });
 
 afterEach(() => {
@@ -55,11 +45,11 @@ describe('getMergeBase', () => {
    * Contract: Returns SHA of common ancestor.
    */
   it('returns merge-base SHA', async () => {
-    const initialSha = gitOutput('rev-parse HEAD');
-    git('checkout -b feature/test');
+    const initialSha = await git(tmpDir, 'rev-parse', 'HEAD');
+    await git(tmpDir, 'checkout', '-b', 'feature/test');
     fs.writeFileSync(path.join(tmpDir, 'new.txt'), 'feature\n');
-    git('add .');
-    git('commit -m "feature commit"');
+    await git(tmpDir, 'add', '.');
+    await git(tmpDir, 'commit', '-m', 'feature commit');
 
     const mergeBase = await getMergeBase(tmpDir, 'main');
     expect(mergeBase).toBe(initialSha);
@@ -81,12 +71,12 @@ describe('getChangedFilesBranch', () => {
    * Contract: Returns files changed between base and HEAD.
    */
   it('returns files changed on branch', async () => {
-    const baseSha = gitOutput('rev-parse HEAD');
-    git('checkout -b feature/test');
+    const baseSha = await git(tmpDir, 'rev-parse', 'HEAD');
+    await git(tmpDir, 'checkout', '-b', 'feature/test');
     fs.writeFileSync(path.join(tmpDir, 'new.txt'), 'added\n');
     fs.writeFileSync(path.join(tmpDir, 'README.md'), '# Updated\n');
-    git('add .');
-    git('commit -m "feature changes"');
+    await git(tmpDir, 'add', '.');
+    await git(tmpDir, 'commit', '-m', 'feature changes');
 
     const files = await getChangedFilesBranch(tmpDir, baseSha);
     expect(files.length).toBeGreaterThanOrEqual(1);

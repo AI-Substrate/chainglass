@@ -10,11 +10,11 @@
  * Plan 071: PR View & File Notes — Phase 4
  */
 
-import { execSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { getPerFileDiffStats, parseNumstat } from '@/features/071-pr-view/lib/per-file-diff-stats';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { git, initRepo } from '../../../../helpers/git';
 import { makeTmpDir, removeTmpDir } from '../../../../helpers/tmpdir';
 
 describe('parseNumstat', () => {
@@ -81,13 +81,12 @@ describe('parseNumstat', () => {
 describe('getPerFileDiffStats (integration)', () => {
   let tmpDir: string;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     tmpDir = makeTmpDir('diff-stats');
-    execSync('git init -b main', { cwd: tmpDir, stdio: 'ignore' });
-    execSync('git config user.email "test@test.com"', { cwd: tmpDir, stdio: 'ignore' });
-    execSync('git config user.name "Test"', { cwd: tmpDir, stdio: 'ignore' });
+    await initRepo(tmpDir);
     fs.writeFileSync(path.join(tmpDir, 'file.ts'), 'line 1\nline 2\nline 3\n');
-    execSync('git add . && git commit -m "init"', { cwd: tmpDir, stdio: 'ignore' });
+    await git(tmpDir, 'add', '.');
+    await git(tmpDir, 'commit', '-m', 'init');
   });
 
   afterEach(() => {

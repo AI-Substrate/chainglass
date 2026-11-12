@@ -10,11 +10,11 @@
  * Plan 071: PR View & File Notes — Phase 4 (DYK-P4-03: heavily tested)
  */
 
-import { execSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { getAllDiffs, splitDiffByFile } from '@/features/071-pr-view/lib/get-all-diffs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { git, initRepo } from '../../../../helpers/git';
 import { makeTmpDir, removeTmpDir } from '../../../../helpers/tmpdir';
 
 describe('splitDiffByFile', () => {
@@ -159,19 +159,13 @@ describe('splitDiffByFile', () => {
 describe('getAllDiffs (integration)', () => {
   let tmpDir: string;
 
-  function git(cmd: string) {
-    execSync(`git ${cmd}`, { cwd: tmpDir, stdio: 'ignore' });
-  }
-
-  beforeEach(() => {
+  beforeEach(async () => {
     tmpDir = makeTmpDir('all-diffs');
-    git('init -b main');
-    git('config user.email "test@test.com"');
-    git('config user.name "Test"');
+    await initRepo(tmpDir);
     fs.writeFileSync(path.join(tmpDir, 'a.ts'), 'line 1\n');
     fs.writeFileSync(path.join(tmpDir, 'b.ts'), 'line 1\n');
-    git('add .');
-    git('commit -m "init"');
+    await git(tmpDir, 'add', '.');
+    await git(tmpDir, 'commit', '-m', 'init');
   });
 
   afterEach(() => {
@@ -207,11 +201,11 @@ describe('getAllDiffs (integration)', () => {
    * Contract: Returns diffs between base and HEAD.
    */
   it('returns branch diffs when base provided', async () => {
-    const baseSha = execSync('git rev-parse HEAD', { cwd: tmpDir }).toString().trim();
-    git('checkout -b feature');
+    const baseSha = await git(tmpDir, 'rev-parse', 'HEAD');
+    await git(tmpDir, 'checkout', '-b', 'feature');
     fs.writeFileSync(path.join(tmpDir, 'c.ts'), 'new file\n');
-    git('add .');
-    git('commit -m "feature"');
+    await git(tmpDir, 'add', '.');
+    await git(tmpDir, 'commit', '-m', 'feature');
 
     const diffs = await getAllDiffs(tmpDir, baseSha);
     expect(diffs.size).toBe(1);
@@ -224,7 +218,7 @@ describe('getAllDiffs (integration)', () => {
    */
   it('includes newly added files', async () => {
     fs.writeFileSync(path.join(tmpDir, 'new.ts'), 'brand new\n');
-    git('add new.ts');
+    await git(tmpDir, 'add', 'new.ts');
 
     const diffs = await getAllDiffs(tmpDir);
     expect(diffs.has('new.ts')).toBe(true);

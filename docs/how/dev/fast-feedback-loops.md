@@ -67,6 +67,24 @@ Within the test step:
 
 For day-to-day feature work, use `just test-feature` for the fast loop and `just fft` only before committing.
 
+## Timeouts on a Loaded Machine
+
+Full runs happen at `nice -n 19` on a shared machine whose load sits between 75 and 270. At that priority, how long a process takes to spawn depends on the scheduler, so vitest's 5 s / 10 s defaults timed out a different real-git file in every run. The bounds now live in one place, `test/load-bounds.ts`, and `vitest.config.ts` splits the suite into two projects:
+
+| Project | Files | Test / hook bound |
+|---------|-------|-------------------|
+| `process` | `PROCESS_TEST_FILES` in `vitest.config.ts`: `test/integration/**` plus the unit files that spawn git, CLIs or shells | `PROCESS_TEST_TIMEOUT_MS` (120 s) |
+| `unit` | everything else | `UNIT_TEST_TIMEOUT_MS` (30 s) |
+
+Rules for test code:
+
+- A new test file that spawns real processes goes in `PROCESS_TEST_FILES`.
+- Do not add per-file or per-test timeout raises for load; the bounds above cover it.
+- A wait inside a test for a spawned process (`vi.waitFor`, an exec `timeout`) uses `SPAWN_WAIT_MS`.
+- Build git fixtures with the async `git` / `initRepo` helpers in `test/helpers/git.ts`, never `execSync`. A synchronous spawn holds the vitest worker's event loop, and a file of them under load held it past 60 s. Vitest's worker RPC (`Timeout calling "onTaskUpdate"`) then failed the run even though every test passed.
+
+Run one project with `pnpm vitest run --project process` (or `unit`).
+
 ## Direct Path Testing
 
 If you know the exact test path:

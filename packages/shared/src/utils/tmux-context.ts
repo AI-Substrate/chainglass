@@ -16,14 +16,18 @@ export interface TmuxContext {
   pane: string | undefined;
 }
 
+/** Bound on each `tmux display-message` call made by {@link detectTmuxContext}. */
+const TMUX_QUERY_TIMEOUT_MS = 3000;
+
 /**
  * Detect the current tmux session/window/pane context.
  * Returns undefined if not running inside tmux.
  *
  * Safe to call from any CLI command or Node.js process.
  * Uses $TMUX env var for detection and `tmux display-message` for session/window.
+ * `timeoutMs` bounds each tmux call; tests on a loaded machine pass a longer one.
  */
-export function detectTmuxContext(): TmuxContext | undefined {
+export function detectTmuxContext(timeoutMs = TMUX_QUERY_TIMEOUT_MS): TmuxContext | undefined {
   if (!process.env.TMUX) {
     return undefined;
   }
@@ -32,11 +36,11 @@ export function detectTmuxContext(): TmuxContext | undefined {
     return {
       session: execSync('tmux display-message -p "#S"', {
         encoding: 'utf-8',
-        timeout: 3000,
+        timeout: timeoutMs,
       }).trim(),
       window: execSync('tmux display-message -p "#I"', {
         encoding: 'utf-8',
-        timeout: 3000,
+        timeout: timeoutMs,
       }).trim(),
       pane: process.env.TMUX_PANE ?? undefined,
     };
@@ -52,7 +56,7 @@ export function detectTmuxContext(): TmuxContext | undefined {
  * @example
  * const meta = { ...getTmuxMeta() };
  */
-export function getTmuxMeta(): { tmux: TmuxContext } | undefined {
-  const ctx = detectTmuxContext();
+export function getTmuxMeta(timeoutMs?: number): { tmux: TmuxContext } | undefined {
+  const ctx = detectTmuxContext(timeoutMs);
   return ctx ? { tmux: ctx } : undefined;
 }

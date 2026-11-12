@@ -17,11 +17,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { getGitDiff } from '../../../../../apps/web/src/lib/server/git-diff-action';
 
-// Each case spawns real git (up to 4 processes) against this repo. On a loaded machine (load
-// average ~50, every launch scanned) that took over vitest's 5 s default twice in full-suite
-// runs while each case finishes in milliseconds alone; the timeout bounds spawn latency, not
-// behaviour, so it is raised for this file only.
-describe('git-diff-action', { timeout: 30_000 }, () => {
+describe('git-diff-action', () => {
   describe('getGitDiff', () => {
     describe('when in a git repository with changes', () => {
       it('should return diff for modified tracked file', async () => {

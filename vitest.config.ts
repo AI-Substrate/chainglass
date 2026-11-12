@@ -1,9 +1,27 @@
 import { basename, resolve } from 'node:path';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import { defineConfig } from 'vitest/config';
+import { PROCESS_TEST_TIMEOUT_MS, UNIT_TEST_TIMEOUT_MS } from './test/load-bounds';
 
 const rootDir = import.meta.dirname;
 const testDir = resolve(rootDir, 'test');
+
+// Test files that spawn real processes (git fixtures, CLIs, shells). They get the
+// process-latency bound from test/load-bounds.ts; everything else gets the unit bound.
+// A new test file that spawns processes belongs here.
+const PROCESS_TEST_FILES = [
+  'test/integration/**/*.test.{ts,tsx}',
+  'test/contracts/process-manager.contract.test.ts',
+  'test/unit/cli/cg-binary-linkage.test.ts',
+  'test/unit/cli/web-command.test.ts',
+  'test/unit/event-popper/infrastructure.test.ts',
+  'test/unit/mcp-server/stdio-transport.test.ts',
+  'test/unit/shared/unix-process-manager.test.ts',
+  'test/unit/web/features/041-file-browser/file-list.test.ts',
+  'test/unit/web/features/071-pr-view/{content-hash,get-all-diffs,git-branch-service,per-file-diff-stats,pr-view-entrypoints}.test.ts',
+  'test/unit/web/features/_platform/git/git-cli.test.ts',
+  'test/unit/web/lib/server/git-diff-action.test.ts',
+];
 
 export default defineConfig({
   plugins: [
@@ -34,9 +52,9 @@ export default defineConfig({
     // Tests are found via include patterns instead
     globals: true,
     environment: 'node',
-    // Include both .ts and .tsx test files (relative to project root)
-    include: ['test/**/*.test.ts', 'test/**/*.test.tsx'],
-    // Exclude standalone E2E scripts (run via npx tsx, not vitest)
+    // Exclude standalone E2E scripts (run via npx tsx, not vitest). Each project sets its own
+    // `include`: with `extends: true` vitest concatenates arrays, so a root include would put
+    // every file in both projects.
     exclude: ['test/e2e/**', '**/node_modules/**'],
     // Use jsdom for React component tests
     environmentMatchGlobs: [
@@ -46,6 +64,28 @@ export default defineConfig({
     setupFiles: [resolve(testDir, 'setup.ts'), resolve(testDir, 'setup-browser-mocks.ts')],
     // Sequential execution to prevent MCP tests from spawning 20+ parallel processes
     fileParallelism: false,
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: 'unit',
+          // Both .ts and .tsx test files (relative to project root), minus the process files.
+          include: ['test/**/*.test.ts', 'test/**/*.test.tsx'],
+          exclude: PROCESS_TEST_FILES,
+          testTimeout: UNIT_TEST_TIMEOUT_MS,
+          hookTimeout: UNIT_TEST_TIMEOUT_MS,
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'process',
+          include: PROCESS_TEST_FILES,
+          testTimeout: PROCESS_TEST_TIMEOUT_MS,
+          hookTimeout: PROCESS_TEST_TIMEOUT_MS,
+        },
+      },
+    ],
     // Coverage configuration (DYK-03: Enforced thresholds, not just reported)
     coverage: {
       provider: 'v8',
